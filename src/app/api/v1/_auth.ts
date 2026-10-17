@@ -86,7 +86,9 @@ export async function resolveApiAuth(req: Request): Promise<ApiAuth | null> {
 // query surface entirely, but even the name/role/account graph is personal).
 // rfqs: supplier prices are commercially sensitive (0128) -- a key reaches
 // them only by naming "rfqs", never through a pre-existing "*" key.
-const EXPLICIT_SCOPE_ONLY = new Set(["employees", "contacts", "rfqs"]);
+// estimates: the price a customer will be quoted, before it is quoted (0131) --
+// commercially sensitive, so a key reaches it only by naming "estimates".
+const EXPLICIT_SCOPE_ONLY = new Set(["employees", "contacts", "rfqs", "estimates"]);
 
 /** Does this scope permit read (write=false) or write (write=true) on `object`? */
 export function scopeAllows(scopes: ApiScopes, object: string, write: boolean): boolean {

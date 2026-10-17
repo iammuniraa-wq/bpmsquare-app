@@ -4,6 +4,7 @@ import { createAdminSupabase } from "@/lib/supabase-server";
 import type { QueryableField } from "./query";
 import type { WorkcenterKey } from "@/lib/workcenters";
 import { PROJECT_HOURS_FIELDS, loadProjectHoursRows } from "@/lib/wfm/projectHoursRows";
+import { loadEstimatesForApi } from "@/lib/estimator/apiRows";
 
 // One place that defines, per list object, both its queryable-field
 // whitelist and how to load its tenant-scoped, PII-decrypted rows. The v1
@@ -133,6 +134,25 @@ const RFQ_FIELDS: QueryableField[] = [
   { path: "origin_label", type: "string", searchable: true },
   { path: "respond_by", type: "date" },
   { path: "required_by", type: "date" },
+  { path: "created_at", type: "date" },
+  { path: "updated_at", type: "date" },
+];
+
+const ESTIMATE_FIELDS: QueryableField[] = [
+  { path: "id", type: "string" },
+  { path: "ref", type: "string", searchable: true },
+  { path: "name", type: "string", searchable: true },
+  { path: "status", type: "string" },
+  { path: "currency", type: "string" },
+  { path: "quoted_total", type: "number" },
+  { path: "quoted_total_incl_vat", type: "number" },
+  { path: "account.id", type: "string" },
+  { path: "account.ref", type: "string" },
+  { path: "account.name", type: "string", searchable: true },
+  { path: "contact.id", type: "string" },
+  { path: "contact.ref", type: "string" },
+  { path: "contact.name", type: "string", searchable: true },
+  { path: "template.name", type: "string", searchable: true },
   { path: "created_at", type: "date" },
   { path: "updated_at", type: "date" },
 ];
@@ -403,6 +423,13 @@ export const LIST_SOURCES: Record<string, ListSource> = {
         .order("created_at", { ascending: false });
       return (data ?? []).map((r) => ({ ...r, _links: { self: `/api/v1/rfqs/${r.id}` } }));
     },
+  },
+  estimates: {
+    label: "Estimates (project estimates)",
+    description: "Project estimates built from a template: status, customer, template and the price quoted to the customer before and after tax. Costs, margin, the bill of materials and the model are internal and not available here.",
+    relatedWorkcenter: "estimates",
+    fields: ESTIMATE_FIELDS,
+    load: loadEstimatesForApi,
   },
   projects: {
     label: "Projects (workforce, project costing)",

@@ -20,6 +20,8 @@ const SCOPABLE_OBJECTS = [
   { key: "projects", label: "Projects (workforce)" },
   // Supplier prices: explicit scope only, like employees.
   { key: "rfqs", label: "RFQs (supplier prices)" },
+  // The price quoted to a customer, before it is quoted: explicit scope only.
+  { key: "estimates", label: "Estimates (quoted prices, no costs)" },
   // Staff personal data: a key reaches it ONLY by naming it here, never via
   // the all-objects wildcard (see EXPLICIT_SCOPE_ONLY in api/v1/_auth.ts).
   { key: "employees", label: "Employees (staff data)" },

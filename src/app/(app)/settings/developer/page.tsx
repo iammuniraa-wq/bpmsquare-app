@@ -55,6 +55,8 @@ const API_ENDPOINTS = [
   { method: "GET", path: "/api/v1/opportunities",       desc: "List deals · filters: ?stage=, ?outcome=, ?account_id=" },
   { method: "GET", path: "/api/v1/opportunities/:id",   desc: "Deal detail with lines and linked quotes" },
   { method: "GET", path: "/api/v1/rfqs",                desc: "List RFQs · key must be scoped to rfqs · filters: ?status=, ?origin_type=" },
+  { method: "GET", path: "/api/v1/estimates",           desc: "List project estimates · key must be scoped to estimates · customer-safe fields only (no costs) · filters: ?status=, ?account_id=" },
+  { method: "GET", path: "/api/v1/estimates/:id",       desc: "One estimate: customer, template, status and quoted price" },
   { method: "GET", path: "/api/v1/rfqs/:id",            desc: "RFQ with lines, suppliers, quoted prices and awards" },
   { method: "GET", path: "/api/v1/projects",            desc: "Workforce projects + sub-projects · filters: ?status=, ?level=, ?parent_id=" },
   { method: "GET", path: "/api/v1/projects/:id",        desc: "Project detail — parent, level, sub-projects, links" },

@@ -1,6 +1,6 @@
 {
   "name": "bpmsquare",
-  "version": "1.8.0",
+  "version": "1.9.0",
   "description": "BPMSquare MCP server — field service CRM for electromechanical repair businesses. Generic across every tenant; nothing here is Vikas/Hosapete-specific.",
   "api_base": "https://<your-tenant-domain>/api/v1",
   "auth": {
@@ -413,6 +413,43 @@
           "id": {
             "type": "string",
             "description": "RFQ UUID"
+          }
+        },
+        "required": [
+          "id"
+        ]
+      }
+    },
+    {
+      "name": "list_estimates",
+      "description": "List the tenant's project estimates: ref, name, status, customer, the template used and the price quoted to the customer before and after tax. Costs, margin and the bill of materials are internal and never returned. Needs an API key explicitly scoped to \"estimates\".",
+      "method": "GET",
+      "path": "/api/v1/estimates",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "description": "draft, quoted, won or lost"
+          },
+          "account_id": {
+            "type": "string",
+            "description": "Only estimates for this account"
+          }
+        }
+      }
+    },
+    {
+      "name": "get_estimate",
+      "description": "Fetch one project estimate by id: customer, template, status and quoted price (before and after tax). Never costs or margin. Needs an API key explicitly scoped to \"estimates\".",
+      "method": "GET",
+      "path": "/api/v1/estimates/{id}",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Estimate UUID"
           }
         },
         "required": [
