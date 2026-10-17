@@ -56,6 +56,7 @@ export {
   getDashboardSummaryLive as getDashboardSummary,
   getAnalyticsDataLive as getAnalyticsData,
   // Other live functions
+  estimatesForAccount,
   listInvoices,
   listLeadsLive as listLeads,
   listContracts,

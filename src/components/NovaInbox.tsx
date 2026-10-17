@@ -24,6 +24,7 @@ const ROUTE_FOR: Record<string, (id: string) => string> = {
   products: ROUTES.product, suppliers: ROUTES.supplier,
   wfm_projects: ROUTES.wfmProject, opportunities: ROUTES.pipelineDetail,
   rfqs: ROUTES.rfq,
+  estimates: ROUTES.estimate,
 };
 
 const fmtWhen = (iso: string) => {

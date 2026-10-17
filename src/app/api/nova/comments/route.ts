@@ -33,6 +33,7 @@ const OBJECTS: Record<string, string> = {
   employees: "employees",
   wfm_projects: "wfm_projects",
   rfqs: "rfqs",
+  estimates: "estimates",
 };
 
 async function verifyRecord(tenantId: string, objectType: string, objectId: string): Promise<boolean> {

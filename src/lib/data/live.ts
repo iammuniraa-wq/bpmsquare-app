@@ -23,6 +23,7 @@ import { sortBySlNo } from "@/lib/lineOrder";
 import { matchesAllFilters, type SegmentFilter } from "@/lib/marketingSegmentation";
 import type { SearchObjectType, SearchResult } from "@/lib/globalSearch";
 import { formatMoney, resolveCurrency, type CurrencyDef } from "@/lib/currency";
+import { tenantOwnsObject } from "@/lib/objectFeatures";
 
 /**
  * Every read helper below scopes to this tenant explicitly (service-role client
@@ -37,6 +38,41 @@ async function currentTenantId(): Promise<string | null> {
   const user = await getAuthUser();
   if (!user) return null;
   return resolveViewerTenantId(user.id);
+}
+
+// ── Estimates on an account (0131) ────────────────────────────────────────────
+
+export type AccountEstimateRow = {
+  id: string; ref: string | null; name: string; status: string; currency: string | null;
+  template_name: string | null; standard_quote_id: string | null;
+  /** The price quoted to the customer, before and after tax (never a cost). */
+  price: number | null; price_incl_vat: number | null; updated_at: string;
+};
+
+/** The account page's Estimates tab. Empty when the workspace does not own the
+ *  estimator or the table is not there yet (0131 pending). Customer-facing
+ *  figures only: the price is read through two json paths, so cost and margin
+ *  never leave the database for this query. */
+export async function estimatesForAccount(accountId: string): Promise<AccountEstimateRow[]> {
+  const tenantId = await currentTenantId();
+  if (!tenantId) return [];
+  if (!(await tenantOwnsObject(tenantId, "estimates"))) return [];
+  const { data, error } = await createAdminSupabase()
+    .from("estimates")
+    .select("id, ref, name, status, currency, standard_quote_id, updated_at, price:totals->price, price_incl_vat:totals->price_incl_vat, estimate_templates(name)")
+    .eq("tenant_id", tenantId)
+    .eq("account_id", accountId)
+    .order("updated_at", { ascending: false });
+  if (error) return [];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return (data ?? []).map((r: any) => ({
+    id: r.id, ref: r.ref ?? null, name: r.name, status: r.status, currency: r.currency ?? null,
+    template_name: (Array.isArray(r.estimate_templates) ? r.estimate_templates[0]?.name : r.estimate_templates?.name) ?? null,
+    standard_quote_id: r.standard_quote_id ?? null,
+    price: typeof r.price === "number" ? r.price : null,
+    price_incl_vat: typeof r.price_incl_vat === "number" ? r.price_incl_vat : null,
+    updated_at: r.updated_at,
+  }));
 }
 
 // ── Invoices ──────────────────────────────────────────────────────────────────
@@ -1474,6 +1510,9 @@ export type AnalyticsData = {
     /** RFQs still waiting on suppliers, and those with replies to award (0128). */
     openRfqs: number;
     rfqsToAward: number;
+    /** Draft and quoted project estimates (0131). */
+    draftEstimates: number;
+    quotedEstimates: number;
   };
   accountsByType: Array<{ type: string; label: string; count: number }>;
   leadFunnel: Array<{ stage: string; count: number }>;
@@ -1522,7 +1561,7 @@ export async function getAnalyticsDataLive(): Promise<AnalyticsData> {
   const tenantId = await currentTenantId();
   if (!tenantId) {
     return {
-      totals: { accounts: 0, contacts: 0, customerAssets: 0, openCases: 0, workOrders: 0, activeContracts: 0, leads: 0, technicians: 0, products: 0, openDeals: 0, openDealValue: 0, weightedDealValue: 0, openRfqs: 0, rfqsToAward: 0 },
+      totals: { accounts: 0, contacts: 0, customerAssets: 0, openCases: 0, workOrders: 0, activeContracts: 0, leads: 0, technicians: 0, products: 0, openDeals: 0, openDealValue: 0, weightedDealValue: 0, openRfqs: 0, rfqsToAward: 0, draftEstimates: 0, quotedEstimates: 0 },
       accountsByType: [], leadFunnel: [], assetsByKind: [],
       loanerStock: { available: 0, onLoan: 0, total: 0 },
       quotesByStatus: [], quoteTrend: [], casesByStatus: [], workOrdersByStatus: [],
@@ -1557,7 +1596,7 @@ export async function getAnalyticsDataLive(): Promise<AnalyticsData> {
     { data: accounts }, { data: contacts }, { data: assets },
     { data: cases }, { data: workOrders }, { data: contracts },
     { data: leads }, { data: technicians }, { data: quotes },
-    { data: invoices }, { data: activities }, { count: productCount }, { data: openDealsRaw }, { data: rfqRaw },
+    { data: invoices }, { data: activities }, { count: productCount }, { data: openDealsRaw }, { data: rfqRaw }, { data: estimateRaw },
   ] = await Promise.all([
     getTenant(),
     supabase.from("accounts").select("id, type").eq("tenant_id", tenantId),
@@ -1576,7 +1615,10 @@ export async function getAnalyticsDataLive(): Promise<AnalyticsData> {
     supabase.from("opportunities").select("amount, probability").eq("tenant_id", tenantId).eq("outcome", "open"),
     // 0128 may be pending: an error reads as no RFQs.
     supabase.from("rfqs").select("status").eq("tenant_id", tenantId).in("status", ["sent", "partially_replied", "replied"]),
+    // 0131 may be pending: an error reads as no estimates.
+    supabase.from("estimates").select("status").eq("tenant_id", tenantId).in("status", ["draft", "quoted"]),
   ]);
+  const estimateRows = (estimateRaw ?? []) as Array<{ status: string }>;
   const openRfqRows = (rfqRaw ?? []) as Array<{ status: string }>;
   const openDeals = (openDealsRaw ?? []) as Array<{ amount: number | null; probability: number | null }>;
 
@@ -1609,6 +1651,8 @@ export async function getAnalyticsDataLive(): Promise<AnalyticsData> {
     weightedDealValue: openDeals.reduce((s, d) => s + Number(d.amount ?? 0) * (Number(d.probability ?? 0) / 100), 0),
     openRfqs:        openRfqRows.length,
     rfqsToAward:     openRfqRows.filter((r) => r.status !== "sent").length,
+    draftEstimates:  estimateRows.filter((e) => e.status === "draft").length,
+    quotedEstimates: estimateRows.filter((e) => e.status === "quoted").length,
   };
 
   const accountTypeCounts = new Map<string, number>();
@@ -2233,6 +2277,12 @@ const SEARCH_SPECS: SearchSpec[] = [
     textCols: ["title", "ref", "origin_label"],
     toResult: (r) => ({ id: r.id, title: r.title, subtitle: [r.ref, r.origin_label, r.status].filter(Boolean).join(" · ") || "RFQ", href: ROUTES.rfq(r.id), matched: "title" }),
     featureKeys: ["rfq"],
+  },
+  {
+    type: "estimate", table: "estimates", columns: "id, ref, name, status",
+    textCols: ["name", "ref"],
+    toResult: (r) => ({ id: r.id, title: r.name, subtitle: [r.ref, r.status].filter(Boolean).join(" · ") || "Estimate", href: ROUTES.estimate(r.id), matched: "name" }),
+    featureKeys: ["estimator"],
   },
   {
     type: "project", table: "wfm_projects", columns: "id, ref, name, code, status",

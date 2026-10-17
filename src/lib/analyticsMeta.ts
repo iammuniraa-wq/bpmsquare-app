@@ -48,6 +48,7 @@ export const ANALYTICS_META: Record<AnalyticsMetricId, { label: string; feature?
   quote_source:            { label: "Quote source (cases vs standalone)", feature: "quotations" },
   pipeline_open_value:     { label: "Pipeline (open deals)", feature: "pipeline" },
   rfq_open:                { label: "RFQs (open / to award)", feature: "rfq" },
+  estimates_open:          { label: "Estimates (draft / quoted)", feature: "estimator" },
   wfm_attendance_today:    { label: "Attendance by site (today)", feature: "wfm" },
   wfm_night_shift_cost:    { label: "Night shift cost (today)",   feature: "wfm" },
   wfm_corrections_queue:    { label: "Corrections queue",          feature: "wfm" },
