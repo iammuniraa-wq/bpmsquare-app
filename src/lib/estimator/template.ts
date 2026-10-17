@@ -21,6 +21,7 @@ import type {
   EstimateTemplateBody, TemplateInput, TemplateInputOption, TemplateRate, TemplateRule, TemplateRuleCost,
 } from "./types";
 import { FORMULA_FUNCTIONS, formulaIdentifiers, parseFormula } from "./formula";
+import { getGeometry, geometryIdentifiers, TOTAL_IDENTIFIERS, GEOMETRY_KEYS } from "./geometry";
 
 export const MAX_INPUTS = 100;
 export const MAX_RATES = 200;
@@ -31,7 +32,7 @@ const KEY_RE = /^[a-z][a-z0-9_]{0,63}$/;
 const OPTION_KEY_RE = /^[a-z0-9][a-z0-9_]{0,63}$/;
 
 /** Words an input, rate or rule code may not use: they would shadow syntax. */
-export const RESERVED_NAMES: ReadonlySet<string> = new Set(["and", "or", "not", ...FORMULA_FUNCTIONS]);
+export const RESERVED_NAMES: ReadonlySet<string> = new Set(["and", "or", "not", ...FORMULA_FUNCTIONS, ...TOTAL_IDENTIFIERS]);
 
 export type TemplateIssue = {
   /** Where, e.g. "rules[3].qty" -- stable enough for a form to point at. */
@@ -264,6 +265,32 @@ export function validateTemplate(raw: unknown): TemplateValidation {
 
   const rules = validateRuleShapes(raw.rules, new Set(rates.map((r) => r.key)), issues);
 
+  // Geometry module: optional, must exist, and the template must supply the
+  // inputs the module reads. Its pieces then add vol_/n_/area_ names.
+  let geometry: string | undefined;
+  const geometryNames = new Set<string>();
+  const used = new Set<string>();
+  if (raw.geometry !== undefined && raw.geometry !== null && raw.geometry !== "") {
+    const mod = isStr(raw.geometry) ? getGeometry(raw.geometry) : null;
+    if (!mod) {
+      issues.push({ path: "geometry", message: `Unknown geometry module "${String(raw.geometry).slice(0, 40)}". Available: ${GEOMETRY_KEYS.join(", ")}.` });
+    } else {
+      geometry = mod.key;
+      for (const n of geometryIdentifiers(mod)) geometryNames.add(n);
+      for (const spec of mod.inputs) {
+        const input = inputs.find((x) => x.key === spec.key);
+        if (!input && spec.required) {
+          issues.push({ path: "inputs", message: `The "${mod.key}" geometry needs an input with the key "${spec.key}".` });
+        } else if (input) {
+          used.add(spec.key);
+          if (input.type === "select") issues.push({ path: "inputs", message: `Input "${spec.key}" is read by the "${mod.key}" geometry and must be a number or yes/no input.` });
+        }
+      }
+      // The density rate feeds weight_total.
+      for (const r of rates) if (/density_t_m3$/.test(r.key)) used.add(r.key);
+    }
+  }
+
   // Group identifiers: two display names that slug the same would share one
   // `sub_` name, which is ambiguous.
   const slugToGroup = new Map<string, string>();
@@ -280,7 +307,6 @@ export function validateTemplate(raw: unknown): TemplateValidation {
 
   const inputRateNames = new Set(names.keys());
   const codeIndex = new Map(rules.map((r, i) => [r.code, i]));
-  const used = new Set<string>();
 
   const checkFormula = (src: string, ruleIndex: number, field: "qty" | "waste_pct") => {
     const path = `rules[${ruleIndex}].${field}`;
@@ -291,7 +317,7 @@ export function validateTemplate(raw: unknown): TemplateValidation {
     for (const id of formulaIdentifiers(parsed.ast)) {
       const name = id.name;
       used.add(name);
-      if (inputRateNames.has(name)) continue;
+      if (inputRateNames.has(name) || geometryNames.has(name)) continue;
       if (name.startsWith("qty_")) {
         const ref = name.slice(4);
         const at = codeIndex.get(ref);
@@ -308,7 +334,7 @@ export function validateTemplate(raw: unknown): TemplateValidation {
         else if (last >= ruleIndex) issues.push({ path, message: `${rule.code}: "${name}" is not complete at this point; every rule of group "${slugToGroup.get(slug)}" must sit above "${rule.code}".` });
         continue;
       }
-      issues.push({ path, message: `${rule.code}: unknown name "${name}". Use an input or rate key, qty_<rule code> or sub_<group>.` });
+      issues.push({ path, message: `${rule.code}: unknown name "${name}". Use an input or rate key, qty_<rule code> or sub_<group>${geometryNames.size ? ", or a piece total such as vol_total" : ""}.` });
     }
   };
 
@@ -324,6 +350,7 @@ export function validateTemplate(raw: unknown): TemplateValidation {
   if (issues.length > 0) return { ok: false, issues, warnings };
 
   const template: EstimateTemplateBody = {
+    ...(geometry ? { geometry } : {}),
     inputs,
     rates,
     rules: rules.map((r) => ({

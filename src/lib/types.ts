@@ -3,6 +3,7 @@
 
 import type { SegmentFilter } from "@/lib/marketingSegmentation";
 import type { QuoteOutcome, LossReason } from "@/lib/constants";
+import type { GeometryModel as EstimatorGeometryModel } from "@/lib/estimator/geometry/types";
 import type {
   TemplateInput as EstimatorTemplateInput,
   TemplateRate as EstimatorTemplateRate,
@@ -844,6 +845,8 @@ export type EstimateTemplate = {
   description: string | null;
   /** Free text, e.g. "precast". */
   trade: string | null;
+  /** Geometry module key (0131); null = formula-only template, no 3D model. */
+  geometry: string | null;
   version: number;
   is_active: boolean;
   inputs: EstimatorTemplateInput[];
@@ -885,6 +888,8 @@ export type Estimate = {
   currency: string | null;
   margin_pct: number;
   totals: EstimateTotals | null;
+  /** Snapshot of the pieces the estimate was priced with (0131); null for a formula-only template. */
+  model: EstimatorGeometryModel | null;
   standard_quote_id: string | null;
   notes: string | null;
   custom_data: Record<string, unknown> | null;

@@ -26,10 +26,12 @@
 //   - a rule whose net quantity is zero produces no line (its `qty_<code>`
 //     still reads 0). A negative quantity is an error.
 
-import { evaluateAst, parseFormula, roundHalfAway } from "./formula";
+import { evaluateAst, formulaIdentifiers, parseFormula, roundHalfAway } from "./formula";
 import type { FormulaAst } from "./formula";
 import { resolveParams, validateTemplate } from "./template";
 import type { EstimateParams, TemplateIssue } from "./template";
+import { getGeometry, pieceScope, markRange, densityFromRates } from "./geometry";
+import type { GeometryModel } from "./geometry";
 import { ESTIMATE_COMPONENTS, groupSlug } from "./types";
 import type { EstimateComponent, EstimateLineSource, EstimateTemplateBody } from "./types";
 
@@ -116,6 +118,10 @@ export type ComputeSuccess = {
   summary: CostSummary;
   /** Normalised input values (what the estimate stores as `params`). */
   params: EstimateParams;
+  /** The exact piece model the lines were priced from (null for a formula-only
+   *  template). Stored on the estimate as `model` so an old estimate keeps
+   *  showing the model it was priced with. */
+  model: GeometryModel | null;
   /** False while any product line still needs a price. */
   complete: boolean;
   /** Codes of product rules with no unit cost yet. */
@@ -208,6 +214,23 @@ export function computeEstimate(
   for (const r of tpl.rates) scope[r.key] = r.value;
 
   const warnings: string[] = [];
+
+  // Geometry: build the piece model once and put its totals in the formula
+  // scope (vol_<code>, n_<code>, area_<code>, vol_total, weight_total ...).
+  let model: GeometryModel | null = null;
+  const mod = getGeometry(tpl.geometry);
+  if (mod) {
+    const moduleInputs: Record<string, number> = {};
+    for (const spec of mod.inputs) {
+      const v = scope[spec.key] ?? spec.default;
+      if (v !== undefined) moduleInputs[spec.key] = v;
+    }
+    const laid = mod.layout(moduleInputs);
+    if (!laid.ok) return fail("geometry", laid.error);
+    model = laid.model;
+    warnings.push(...model.warnings);
+    Object.assign(scope, pieceScope(mod, model, densityFromRates(tpl.rates)));
+  }
   const scheduleByRule = new Map<string, ScheduleQty[]>();
   const ruleByCode = new Map(tpl.rules.map((r) => [r.code, r]));
   for (const s of opts.schedule ?? []) {
@@ -250,6 +273,24 @@ export function computeEstimate(
       return r.value;
     };
 
+    // Piece-backed line: its element_ref lists the marks of the piece families
+    // its quantity formula reads (a range per family). A formula over a total
+    // (vol_total ...) is building-wide and carries no marks.
+    let pieceRef: string | null = null;
+    if (model && mod) {
+      const parsedQty = parseFormula(rule.qty);
+      if (parsedQty.ok) {
+        const refs: string[] = [];
+        for (const id of formulaIdentifiers(parsedQty.ast)) {
+          const m = /^(?:vol|n|area)_([A-Z0-9]+)$/.exec(id.name);
+          if (!m || !mod.piece_codes.some((p) => p.code === m[1])) continue;
+          const range = markRange(model, m[1]);
+          if (range && !refs.includes(range)) refs.push(range);
+        }
+        pieceRef = refs.length > 0 ? refs.join(", ") : null;
+      }
+    }
+
     // Quantity: schedule rows win over the formula.
     const rows = scheduleByRule.get(rule.code);
     let netTotal: number;
@@ -262,7 +303,7 @@ export function computeEstimate(
       if (typeof q !== "number") return q;
       if (q < 0) return fail(`rules.${rule.code}.qty`, `Rule "${rule.code}" quantity is negative (${roundQty(q)}); check the formula and the inputs.`);
       netTotal = roundQty(q);
-      entries = [{ qty: netTotal, element_ref: null, label: null, source: "rule" }];
+      entries = [{ qty: netTotal, element_ref: pieceRef, label: null, source: "rule" }];
     }
     scope[`qty_${rule.code}`] = netTotal;
 
@@ -326,6 +367,7 @@ export function computeEstimate(
     lines,
     summary,
     params: resolved.params,
+    model,
     complete: unpriced.length === 0,
     unpriced,
     warnings,

@@ -30,6 +30,7 @@
 
 import { parseDelimited } from "@/lib/import/parse";
 import { roundHalfAway } from "./formula";
+import { densityFromRates } from "./geometry";
 import type { ScheduleQty } from "./compute";
 import type { EstimateTemplateBody, TemplateRule } from "./types";
 
@@ -39,7 +40,6 @@ const MAX_MARK_LENGTH = 60;
 const MAX_DIM_M = 100;
 const MAX_WEIGHT_T = 1000;
 const MAX_COUNT = 10_000;
-const DEFAULT_DENSITY = 2.4;
 const HEADER_SCAN_ROWS = 10;
 
 export const SCHEDULE_COLUMNS = [
@@ -157,8 +157,7 @@ export function basisForUom(uom: string): Basis | null {
 
 function densityOf(template: EstimateTemplateBody, override?: number): number {
   if (override !== undefined && Number.isFinite(override) && override > 0) return override;
-  const rate = template.rates.find((r) => /density_t_m3$/.test(r.key));
-  return rate && Number.isFinite(rate.value) && rate.value > 0 ? rate.value : DEFAULT_DENSITY;
+  return densityFromRates(template.rates);
 }
 
 const r3 = (x: number) => roundHalfAway(x, 3);

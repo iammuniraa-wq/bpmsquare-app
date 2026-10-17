@@ -79,6 +79,9 @@ export type TemplateRule = {
 export type QuoteGranularity = "group" | "line";
 
 export type EstimateTemplateBody = {
+  /** Geometry module key (e.g. "precast_villa"): the template's pieces, 3D
+   *  model and vol_/n_/area_ identifiers come from it. Absent = formula-only. */
+  geometry?: string;
   inputs: TemplateInput[];
   rates: TemplateRate[];
   rules: TemplateRule[];

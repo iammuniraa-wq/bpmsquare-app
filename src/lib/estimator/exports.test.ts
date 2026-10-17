@@ -24,19 +24,19 @@ describe("BOM rows (generic columns, spec 5.1)", () => {
   });
 
   it("keeps physical items and leaves labour, transport, erection and overhead to the WBS", () => {
-    const wbsOnly = ["Production labour", "Transport to site (loads by weight)", "Crane mobilisation", "Erection", "Factory and yard overhead"];
+    const wbsOnly = ["Production labour", "Transport to site (loads by weight)", "Erection", "Factory and yard overhead"];
     for (const d of wbsOnly) expect(rows.some((r) => r.description === d), d).toBe(false);
-    expect(rows).toHaveLength(13); // 18 computed lines - 5 non-item lines
+    expect(rows).toHaveLength(12); // 16 computed lines - 4 non-item lines
     const all = buildBomRows(computed, { include: "all" });
     expect(all).toHaveLength(computed.length);
   });
 
   it("quantity is the gross quantity so quantity * unit_cost = line_cost", () => {
-    const wall = rows.find((r) => r.description === "External wall panels (solid precast)")!;
-    expect(wall.quantity).toBe(54.384); // 52.8 net + 3% waste
+    const wall = rows.find((r) => r.description === "External wall panels (insulated)")!;
+    expect(wall.quantity).toBe(48.384); // no waste in the starter (wastage_pct is 0)
     expect(wall.unit).toBe("m3");
-    expect(wall.unit_cost).toBe(320);
-    expect(wall.line_cost).toBe(17402.88);
+    expect(wall.unit_cost).toBe(330);
+    expect(wall.line_cost).toBe(15966.72);
     for (const r of rows) {
       expect(Math.abs((r.quantity as number) * (r.unit_cost as number) - (r.line_cost as number))).toBeLessThan(0.006);
     }
@@ -44,9 +44,10 @@ describe("BOM rows (generic columns, spec 5.1)", () => {
 
   it("derives WBS codes from group order and carries groups", () => {
     const wall = rows.find((r) => String(r.description).startsWith("External wall panels"))!;
-    expect(wall.group).toBe("Structure");
+    expect(wall.group).toBe("Envelope");
     expect(wall.wbs_code).toBe("1.1");
     expect(rows.find((r) => r.description === "Reinforcement steel")!.wbs_code).toBe("5.1");
+    expect(wall.element_ref).toBe("EW-01..EW-40");
   });
 
   it("leaves item_number blank for rate lines and uses the SKU for product lines", () => {
@@ -58,10 +59,10 @@ describe("BOM rows (generic columns, spec 5.1)", () => {
   });
 
   it("carries the element reference from a schedule line", () => {
-    const r = computeEstimate(PRECAST_VILLA_STARTER, {}, { schedule: [{ rule_code: "ewp", qty: 10, element_ref: "W-1", label: "W-1" }] });
+    const r = computeEstimate(PRECAST_VILLA_STARTER, {}, { schedule: [{ rule_code: "ew", qty: 10, element_ref: "W-1", label: "W-1" }] });
     if (!r.ok) throw new Error("compute failed");
     const bom = buildBomRows(r.lines);
-    expect(bom.find((x) => x.element_ref === "W-1")?.quantity).toBe(10.3);
+    expect(bom.find((x) => x.element_ref === "W-1")?.quantity).toBe(10);
   });
 
   it("blanks costs of unpriced lines and drops zero-quantity lines", () => {
@@ -92,26 +93,27 @@ describe("WBS rows", () => {
   it("emits a top-level element per group with its planned cost, then a task per line", () => {
     const groups = rows.filter((r) => r.parent === null);
     expect(groups.map((g) => [g.code, g.name, g.planned_cost])).toEqual([
-      ["1", "Structure", 35695.68],
-      ["2", "Envelope", 20825.76],
-      ["3", "Stairs & ancillary", 4793.28],
-      ["4", "Boundary wall", 7119.36],
-      ["5", "Production", 73699.32],
-      ["6", "Transport & erection", 49938],
-      ["7", "Overhead", 17056.01],
+      ["1", "Envelope", 19493.1],
+      ["2", "Structure", 19800.99],
+      ["3", "Stairs", 1056],
+      ["4", "Boundary wall", 4633.2],
+      ["5", "Production", 61914.29],
+      ["6", "Insulation and fixings", 15423.66],
+      ["7", "Transport & erection", 39107.64],
+      ["8", "Overhead", 12827.71],
     ]);
     const tasks = rows.filter((r) => r.parent === "1");
     expect(tasks.map((t) => t.code)).toEqual(["1.1", "1.2", "1.3"]);
-    expect(tasks[0]).toMatchObject({ name: "External wall panels (solid precast)", group: "Structure", planned_cost: 17402.88 });
+    expect(tasks[0]).toMatchObject({ name: "External wall panels (insulated)", group: "Envelope", planned_cost: 15966.72 });
   });
 
   it("group planned costs add up to the estimate cost", () => {
     const total = rows.filter((r) => r.parent === null).reduce((a, r) => a + (r.planned_cost as number), 0);
-    expect(Math.round(total * 100) / 100).toBe(209127.41);
+    expect(Math.round(total * 100) / 100).toBe(174256.59);
   });
 
   it("depth 1 gives groups only", () => {
-    expect(buildWbsRows(computed, { depth: 1 })).toHaveLength(7);
+    expect(buildWbsRows(computed, { depth: 1 })).toHaveLength(8);
   });
 
   it("the WBS codes agree with the BOM's", () => {
@@ -193,9 +195,9 @@ describe("CSV writer", () => {
 
   it("a full BOM export has one line per row plus the header", () => {
     const csv = tableToCsv(buildBomTable(computed));
-    expect(csv.trim().split("\r\n")).toHaveLength(14);
+    expect(csv.trim().split("\r\n")).toHaveLength(13);
     expect(csv.startsWith("item_number,description,quantity,unit,group,wbs_code,element_ref,unit_cost,line_cost\r\n")).toBe(true);
-    expect(csv).toContain("External wall panels (solid precast),54.384,m3,Structure,1.1,,320,17402.88");
+    expect(csv).toContain(",External wall panels (insulated),48.384,m3,Envelope,1.1,EW-01..EW-40,330,15966.72");
   });
 });
 
@@ -208,10 +210,10 @@ describe("XLSX writer", () => {
     const ws = wb.worksheets[0];
     expect(ws.name).toBe("BOM   test");
     expect(ws.getRow(1).getCell(1).value).toBe("MATNR");
-    expect(ws.rowCount).toBe(14);
+    expect(ws.rowCount).toBe(13);
     const wall = ws.getRow(2);
-    expect(wall.getCell(2).value).toBe("External wall panels (solid precast)");
-    expect(wall.getCell(3).value).toBe(54.384);
+    expect(wall.getCell(2).value).toBe("External wall panels (insulated)");
+    expect(wall.getCell(3).value).toBe(48.384);
     expect(typeof wall.getCell(9).value).toBe("number");
   }, 30_000);
 });

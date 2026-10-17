@@ -258,7 +258,7 @@ describe("resolveParams", () => {
     const r = resolveParams(inputs, {});
     expect(r.ok).toBe(true);
     expect(r.scope.floors).toBe(2);
-    expect(r.scope.finish_level).toBe(2);
+    expect(r.scope.finish_level).toBe(1.08);
     expect(r.scope.include_stairs).toBe(1);
     expect(r.params.finish_level).toBe("standard");
   });
@@ -268,7 +268,7 @@ describe("resolveParams", () => {
     expect(r.ok).toBe(true);
     expect(r.scope.floors).toBe(3);
     expect(r.scope.include_stairs).toBe(0);
-    expect(r.scope.finish_level).toBe(3);
+    expect(r.scope.finish_level).toBe(1.18);
   });
 
   it("reports out-of-range, non-numeric and unknown-option values instead of clamping", () => {
@@ -290,5 +290,55 @@ describe("resolveParams", () => {
   it("handles null/undefined supplied", () => {
     expect(resolveParams(inputs, null).ok).toBe(true);
     expect(resolveParams(inputs, undefined).ok).toBe(true);
+  });
+});
+
+describe("geometry modules", () => {
+  const withGeometry = (over: Partial<EstimateTemplateBody> = {}) => ({ ...PRECAST_VILLA_STARTER, ...over });
+
+  it("the starter names the precast_villa geometry and keeps it through validation", () => {
+    expect(PRECAST_VILLA_STARTER.geometry).toBe("precast_villa");
+    expect(validateTemplate(PRECAST_VILLA_STARTER).template?.geometry).toBe("precast_villa");
+  });
+
+  it("rejects an unknown geometry module, including prototype names", () => {
+    expect(issuesOf(withGeometry({ geometry: "nope" })).join("\n")).toMatch(/Unknown geometry module "nope". Available: precast_villa/);
+    expect(validateTemplate(withGeometry({ geometry: "constructor" })).ok).toBe(false);
+    expect(validateTemplate(withGeometry({ geometry: 5 as never })).ok).toBe(false);
+  });
+
+  it("requires the inputs the module reads", () => {
+    const t = withGeometry({ inputs: PRECAST_VILLA_STARTER.inputs.filter((i) => i.key !== "wall_perimeter_m" && i.key !== "floors") });
+    const msgs = issuesOf(t).join("\n");
+    expect(msgs).toMatch(/needs an input with the key "wall_perimeter_m"/);
+    expect(msgs).toMatch(/needs an input with the key "floors"/);
+  });
+
+  it("optional module inputs may be absent, but a select cannot feed a number", () => {
+    const noOptional = withGeometry({ inputs: PRECAST_VILLA_STARTER.inputs.filter((i) => i.key !== "boundary_wall_height_m" && i.key !== "include_stairs") });
+    expect(validateTemplate(noOptional).ok).toBe(true);
+    const select = withGeometry({
+      inputs: PRECAST_VILLA_STARTER.inputs.map((i) => (
+        i.key === "floors" ? { key: "floors", label: "F", type: "select" as const, default: "a", options: [{ key: "a", label: "A", value: 2 }] } : i
+      )),
+    });
+    expect(issuesOf(select).join("\n")).toMatch(/must be a number or yes\/no input/);
+  });
+
+  it("lets rules read vol_, n_, area_ and the totals, and rejects an unknown piece family", () => {
+    const rule = (qty: string) => ({ ...PRECAST_VILLA_STARTER.rules[0], code: "x", qty });
+    const ok = (qty: string) => validateTemplate({ ...PRECAST_VILLA_STARTER, rules: [rule(qty)] });
+    expect(ok("vol_EW + n_SL + area_EW + vol_total + n_total + area_total + weight_total").issues).toEqual([]);
+    expect(issuesOf({ ...PRECAST_VILLA_STARTER, rules: [rule("vol_XX")] }).join("\n")).toMatch(/unknown name "vol_XX".*piece total/);
+  });
+
+  it("piece names are unknown to a formula-only template", () => {
+    const t = base([rule({ code: "a", qty: "vol_total" })]);
+    expect(issuesOf(t).join("\n")).toMatch(/unknown name "vol_total"/);
+  });
+
+  it("reserves the total names so an input cannot shadow them", () => {
+    const t = base([rule({ code: "a" })], { inputs: [{ key: "vol_total", label: "V", type: "number", default: 1 }] });
+    expect(issuesOf(t).join("\n")).toMatch(/reserved word/);
   });
 });

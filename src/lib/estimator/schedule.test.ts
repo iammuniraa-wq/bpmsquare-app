@@ -18,17 +18,17 @@ describe("parsing rows", () => {
     expect(r.ok).toBe(true);
     expect(r.rows[0]).toMatchObject({
       row: 2, element_type: "wall_panel", mark: "W-101", count: 4,
-      volume_m3: 14.4, area_m2: 72, run_length_m: 24, rule_code: "ewp",
+      volume_m3: 14.4, area_m2: 72, run_length_m: 24, rule_code: "ew",
     });
     // no weight given: 14.4 m3 * the template's 2.4 t/m3 density
     expect(r.rows[0].weight_t).toBe(34.56);
-    expect(r.quantities).toEqual([{ rule_code: "ewp", qty: 14.4, element_ref: "W-101", label: "W-101" }]);
+    expect(r.quantities).toEqual([{ rule_code: "ew", qty: 14.4, element_ref: "W-101", label: "W-101" }]);
   });
 
   it("uses a given weight (per piece) instead of density", () => {
     const t: EstimateTemplateBody = {
       ...T,
-      rules: T.rules.map((r) => (r.code === "ewp" ? { ...r, uom: "t" } : r)),
+      rules: T.rules.map((r) => (r.code === "ew" ? { ...r, uom: "t" } : r)),
     };
     const r = parse([["wall_panel", "W-1", 2, 6, 3, 0.2, 7.5]], t);
     expect(r.ok).toBe(true);
@@ -73,7 +73,7 @@ describe("parsing rows", () => {
   it("groups totals per element type", () => {
     const r = parse([["slab", "S1", 2, 5, 1.2, 0.2, ""], ["slab", "S2", 1, 4, 1.2, 0.2, ""], ["beam", "B1", 3, 4, 0.3, 0.45, ""]]);
     const slab = r.totals.find((t) => t.element_type === "slab")!;
-    expect(slab).toMatchObject({ rows: 2, pieces: 3, volume_m3: 3.36, rule_code: "slb" });
+    expect(slab).toMatchObject({ rows: 2, pieces: 3, volume_m3: 3.36, rule_code: "sl" });
   });
 
   it("warns on a repeated mark within an element type", () => {
@@ -87,7 +87,7 @@ describe("row errors", () => {
   it("reports an unknown element type with the accepted list, and keeps good rows", () => {
     const r = parse([["roof_truss", "R1", 1, 5, 1, 0.1, ""], ["slab", "S1", 1, 5, 1.2, 0.2, ""]]);
     expect(r.ok).toBe(false);
-    expect(msgs(r)).toMatch(/2: Unknown element type "roof_truss"\. This template accepts: wall_panel, slab/);
+    expect(msgs(r)).toMatch(/2: Unknown element type "roof_truss"\. This template accepts: wall_panel, parapet_panel, slab/);
     expect(r.rows).toHaveLength(1);
     expect(r.quantities).toHaveLength(1);
   });
@@ -116,7 +116,7 @@ describe("row errors", () => {
   });
 
   it("rejects a line whose unit a schedule cannot feed", () => {
-    const t: EstimateTemplateBody = { ...T, rules: T.rules.map((r) => (r.code === "slb" ? { ...r, uom: "load" } : r)) };
+    const t: EstimateTemplateBody = { ...T, rules: T.rules.map((r) => (r.code === "sl" ? { ...r, uom: "load" } : r)) };
     expect(msgs(parse([["slab", "S1", 1, 5, 1.2, 0.2, ""]], t))).toMatch(/cannot feed/);
   });
 
@@ -161,12 +161,12 @@ describe("with the compute pipeline", () => {
     const base = computeEstimate(T, {});
     const withSchedule = computeEstimate(T, {}, { schedule: sched.quantities });
     if (!base.ok || !withSchedule.ok) throw new Error("compute failed");
-    const walls = withSchedule.lines.filter((l) => l.code === "ewp");
+    const walls = withSchedule.lines.filter((l) => l.code === "ew");
     expect(walls.map((l) => l.element_ref)).toEqual(["W-1", "W-2"]);
     expect(walls.map((l) => l.qty)).toEqual([36, 4.8]); // 10*6*3*0.2, 2*4*3*0.2
-    expect(withSchedule.lines.find((l) => l.code === "rbr")!.qty).not.toBe(base.lines.find((l) => l.code === "rbr")!.qty);
-    // total volume = 36 + 4.8 + slab 42 + beam 13.5 + stairs 1.8 + boundary 14.4 + 7.2
-    expect(withSchedule.lines.find((l) => l.code === "mld")!.qty).toBe(119.7);
+    // Building-wide lines read the piece model, not the scheduled quantity, so they do not move.
+    expect(withSchedule.lines.find((l) => l.code === "mld")!.qty).toBe(base.lines.find((l) => l.code === "mld")!.qty);
+    expect(withSchedule.lines.find((l) => l.code === "fin")!.qty).toBe(base.lines.find((l) => l.code === "fin")!.qty);
   });
 });
 
@@ -217,6 +217,6 @@ describe("helpers", () => {
 
   it("lists the element types a template accepts", () => {
     const types = templateElementTypes(T).map((t) => t.element_type);
-    expect(types).toEqual(["wall_panel", "slab", "beam", "stair", "boundary_panel"]);
+    expect(types).toEqual(["wall_panel", "parapet_panel", "slab", "beam", "stair", "boundary_panel"]);
   });
 });
