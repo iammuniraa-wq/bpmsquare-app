@@ -279,3 +279,36 @@ server-side AI helper pattern (never from the browser).
   capture of the 3D model into a realistic picture for the customer. It is
   labelled "illustration", sizes and quantities always come from the model,
   and it is off unless a provider is configured.
+
+### 10.2 How the exact model fits the template engine (decision, 2026-10-17)
+
+The mock-up (`docs/estimator-reference/`, open `studio-mockup.html`; the JS
+files are the reference logic, NOT production code) defines the building as
+pieces in a coded `layout()`. Production reconciles this with the formula
+engine (§1) as the "hybrid":
+
+- A template names a **geometry module** (`geometry: "precast_villa"`), a
+  coded, tested, pure function `inputs -> pieces[]` in
+  `src/lib/estimator/geometry/`. Piece = `{id, code, kind, step, floor, pos,
+  rot, dims, op?, vol, area?}` exactly as in the reference. Geometry modules
+  are the only coded, trade-specific thing; adding a trade means adding a
+  module, never touching the engine. A template with no geometry module is
+  formula-only (no 3D).
+- The compute pipeline exposes piece totals to the formula engine as
+  identifiers: `vol_<code>`, `n_<code>`, `area_<code>`, `vol_total`,
+  `weight_total` (via the template's density rate). Rule lines then price
+  the pieces (concrete and steel per m³, moulds, labour, overhead, insulation
+  from `area_EW`, lifting inserts from `vol_total`, transport loads from
+  `weight_total`, erection) with rates and formulas, all tenant data.
+- Estimate lines for piece-backed BOM lines are stored with their piece
+  marks; the stored `estimate_lines.element_ref` lists the marks (or a range)
+  so the viewer can highlight a BOM line's pieces and the BIM-upload path can
+  match by mark. A snapshot of the pieces is stored on the estimate
+  (`estimates.model jsonb`, added to 0131 if not yet applied anywhere; the
+  owner has applied nothing for it yet) so an old estimate keeps showing the
+  model it was priced with.
+- The viewer is `src/components/estimator/BuildingViewer.tsx` (three.js,
+  already a dependency), a client component fed the pieces; the production
+  version must dispose geometry/renderer on unmount, respect
+  `prefers-reduced-motion` (no auto-play, no drop animation), read theme
+  colours from CSS variables, and work with touch (rotate/zoom/tap-to-pick).

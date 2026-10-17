@@ -1,0 +1,552 @@
+<title>Precast Estimator Studio</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+<style>
+/* Layout: left column = inputs + live building sketch; right column = totals strip and tabs (BOM, Costing, Quote, Import, D365). */
+:root {
+  --bg: #eef1f5; --surface: #ffffff; --surface2: #f6f8fb; --line: #dde3ea; --ink: #17212e; --muted: #5d6b7c;
+  --accent: #0e7c86; --accent-ink: #ffffff; --accent-bg: #e1f3f4;
+  --warn: #9a5a0b; --warn-bg: #fdf0dc; --good: #1d7a45; --good-bg: #e3f4ea;
+  --concrete: #c9d1d9; --concrete-line: #8d99a6; --glass: #b9dbe6; --ground: #d6cdbf;
+  --font: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0d141d; --surface: #16202c; --surface2: #1b2735; --line: #2a3849; --ink: #e7edf4; --muted: #93a2b5;
+    --accent: #3fb8c2; --accent-ink: #06191b; --accent-bg: #123238; --warn: #f0b266; --warn-bg: #3a2a14; --good: #62c58b; --good-bg: #14301f;
+    --concrete: #46535f; --concrete-line: #7e8d9b; --glass: #2d5666; --ground: #3a3730; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0d141d; --surface: #16202c; --surface2: #1b2735; --line: #2a3849; --ink: #e7edf4; --muted: #93a2b5;
+  --accent: #3fb8c2; --accent-ink: #06191b; --accent-bg: #123238; --warn: #f0b266; --warn-bg: #3a2a14; --good: #62c58b; --good-bg: #14301f;
+  --concrete: #46535f; --concrete-line: #7e8d9b; --glass: #2d5666; --ground: #3a3730; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--font); font-size: 14px; line-height: 1.5;
+  padding-inline: max(16px, env(safe-area-inset-left, 0px)) max(16px, env(safe-area-inset-right, 0px)); padding-block: 22px 40px; }
+.wrap { max-width: 1180px; margin: 0 auto; display: grid; gap: 14px; }
+h1 { font-size: 22px; font-weight: 700; line-height: 1.25; margin: 0; }
+.sub { color: var(--muted); margin: 2px 0 0; }
+.banner { background: var(--warn-bg); color: var(--warn); border-radius: 9px; padding: 9px 13px; font-size: 13px; font-weight: 500; }
+.head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 10px 16px; align-items: flex-start; }
+.pill { display: inline-block; font-size: 11px; font-weight: 600; padding: 2px 9px; border-radius: 999px; background: var(--accent-bg); color: var(--accent); }
+.btn { font: inherit; font-weight: 600; font-size: 13px; background: var(--accent); color: var(--accent-ink); border: 0; padding: 8px 14px; border-radius: 8px; cursor: pointer; }
+.btn.ghost { background: transparent; color: var(--ink); border: 1px solid var(--line); }
+.btn:focus-visible, .tab:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.grid { display: grid; grid-template-columns: 330px minmax(0, 1fr); gap: 14px; align-items: start; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 14px; }
+.card h2 { font-size: 13px; font-weight: 600; margin: 0 0 10px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+.f { display: grid; gap: 4px; margin-bottom: 11px; }
+.f label { font-size: 13px; font-weight: 600; display: flex; justify-content: space-between; }
+.f label span { color: var(--accent); font-variant-numeric: tabular-nums; font-weight: 600; }
+.f input[type=range] { width: 100%; accent-color: var(--accent); }
+.f select { font: inherit; padding: 7px 9px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink); }
+.help { font-size: 12px; color: var(--muted); }
+.sketch { width: 100%; height: auto; display: block; border-radius: 8px; background: var(--surface2); }
+.tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.tile { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 11px 13px; }
+.tile b { display: block; font-size: 21px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.2; }
+.tile span { font-size: 12px; color: var(--muted); }
+.tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--line); margin-bottom: 12px; overflow-x: auto; }
+.tab { font: inherit; font-size: 13px; padding: 9px 14px; border: 0; border-bottom: 3px solid transparent; background: none; color: var(--muted); cursor: pointer; white-space: nowrap; font-weight: 500; }
+.tab[aria-selected="true"] { color: var(--accent); font-weight: 700; border-bottom-color: var(--accent); background: var(--accent-bg); border-radius: 6px 6px 0 0; }
+.tw { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
+th { text-align: left; font-size: 11.5px; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); font-weight: 600; padding: 7px 8px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+td { padding: 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+td.n, th.n { text-align: right; }
+tr.grp td { background: var(--surface2); font-weight: 600; }
+tr.tot td { font-weight: 700; border-bottom: 0; }
+.bar { height: 9px; border-radius: 5px; background: var(--line); overflow: hidden; display: flex; }
+.bar i { display: block; height: 100%; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12px; color: var(--muted); margin: 8px 0 14px; }
+.legend b { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }
+.opt { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-top: 12px; }
+.opt div { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
+.opt div.sel { border-color: var(--accent); background: var(--accent-bg); }
+.opt b { display: block; font-size: 16px; font-variant-numeric: tabular-nums; }
+.note { font-size: 12.5px; color: var(--muted); margin: 10px 0 0; }
+.mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; }
+
+.seg { display: inline-flex; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 3px; }
+.seg button { font: inherit; font-weight: 600; font-size: 13px; border: 0; background: transparent; color: var(--muted); padding: 8px 18px; border-radius: 8px; cursor: pointer; }
+.seg button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); }
+.seg button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.sec { margin-bottom: 20px; }
+.sec h3 { font-size: 14px; font-weight: 700; margin: 0 0 3px; }
+.three { height: 330px; border-radius: 10px; background: var(--surface2); position: relative; overflow: hidden; cursor: grab; touch-action: none; }
+.three canvas { display: block; width: 100%; height: 100%; }
+.ctl { display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: center; margin-top: 10px; }
+.ctl input[type=range] { flex: 1; min-width: 160px; accent-color: var(--accent); }
+.step { font-size: 13px; font-weight: 600; min-width: 220px; }
+.gantt { display: grid; gap: 8px; margin-top: 8px; }
+.gr { display: grid; grid-template-columns: 150px minmax(0,1fr) 56px; gap: 10px; align-items: center; font-size: 13px; }
+.gtrack { position: relative; height: 18px; background: var(--surface2); border-radius: 5px; }
+.gbar { position: absolute; top: 0; height: 100%; border-radius: 5px; }
+.hist { width: 100%; height: auto; display: block; }
+.kpis { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 8px; margin: 8px 0; }
+.kpis div { background: var(--surface2); border-radius: 9px; padding: 8px 10px; }
+.kpis b { display: block; font-size: 17px; font-variant-numeric: tabular-nums; }
+.kpis span { font-size: 12px; color: var(--muted); }
+.tor { display: grid; gap: 6px; margin-top: 6px; }
+.tr { display: grid; grid-template-columns: 170px minmax(0,1fr) 70px; gap: 10px; align-items: center; font-size: 13px; }
+.ttrack { height: 14px; background: var(--surface2); border-radius: 4px; position: relative; }
+.tbar { position: absolute; top: 0; height: 100%; background: var(--accent); border-radius: 4px; }
+.wi { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 4px 18px; margin-top: 10px; }
+.wi .f { margin-bottom: 6px; }
+@media (max-width: 900px) { .kpis { grid-template-columns: repeat(2, minmax(0,1fr)); } .wi { grid-template-columns: 1fr; } .gr { grid-template-columns: 100px minmax(0,1fr) 50px; } .tr { grid-template-columns: 120px minmax(0,1fr) 60px; } }
+@media (max-width: 900px) { .grid { grid-template-columns: 1fr; } .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } .opt { grid-template-columns: 1fr; } }
+</style>
+
+<div class="wrap">
+  <div class="head">
+    <div>
+      <h1>Precast Estimator Studio</h1>
+      <p class="sub">Estimate EST-0001 · Two-storey villa · Template: Precast villa (illustrative) · <span class="pill">Draft</span></p>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn ghost" type="button" id="b-export">Export BOM</button><button class="btn" type="button" id="b-quote">Create quote</button></div>
+  </div>
+  <div class="seg" role="group" aria-label="Studio mode"><button id="m-est" type="button" aria-pressed="true">Estimate</button><button id="m-sim" type="button" aria-pressed="false">Simulation</button></div>
+  <div class="banner">Illustrative rates and rules. This page shows how the flow works with placeholder numbers (SAR). Real prices come from the company's own template and rates.</div>
+
+  <div class="grid">
+    <div style="display:grid;gap:14px">
+      <div class="card">
+        <h2>Villa inputs</h2>
+        <div class="f"><label for="floors">Floors <span id="v-floors"></span></label><select id="floors"><option>1</option><option selected>2</option><option>3</option></select></div>
+        <div class="f"><label for="area">Built-up area per floor <span id="v-area"></span></label><input id="area" type="range" min="80" max="400" step="10" value="150"></div>
+        <div class="f"><label for="perim">External wall length <span id="v-perim"></span></label><input id="perim" type="range" min="30" max="120" step="1" value="50"><div class="help">Total outer perimeter of one floor.</div></div>
+        <div class="f"><label for="height">Floor height <span id="v-height"></span></label><input id="height" type="range" min="2.8" max="3.6" step="0.1" value="3.0"></div>
+        <div class="f"><label for="thk">External wall thickness</label><select id="thk"><option value="0.15">150 mm</option><option value="0.2" selected>200 mm</option><option value="0.25">250 mm</option></select></div>
+        <div class="f"><label for="flights">Stair flights <span id="v-flights"></span></label><input id="flights" type="range" min="0" max="4" step="1" value="2"></div>
+        <div class="f"><label for="bw">Boundary wall length <span id="v-bw"></span></label><input id="bw" type="range" min="0" max="200" step="5" value="60"></div>
+        <div class="f"><label for="finish">Finish level</label><select id="finish"><option value="basic">Basic</option><option value="standard" selected>Standard</option><option value="premium">Premium</option></select></div>
+      </div>
+      <div class="card"><h2>Live sketch</h2><svg id="sketch" class="sketch" viewBox="0 0 300 190" role="img" aria-label="Schematic villa elevation that follows the inputs"></svg><p class="note">Schematic only. It follows floors, length and boundary wall.</p></div>
+    </div>
+
+    <div style="display:grid;gap:14px;min-width:0">
+      <div class="tiles" id="tiles"></div>
+      <div class="card" id="estCard">
+        <div class="tabs" role="tablist" id="tabs">
+          <button class="tab" role="tab" aria-selected="true" data-t="bom" type="button">BOM</button>
+          <button class="tab" role="tab" aria-selected="false" data-t="cost" type="button">Costing</button>
+          <button class="tab" role="tab" aria-selected="false" data-t="quote" type="button">Quote</button>
+          <button class="tab" role="tab" aria-selected="false" data-t="import" type="button">Import schedule</button>
+          <button class="tab" role="tab" aria-selected="false" data-t="d365" type="button">Export to ERP</button>
+        </div>
+        <div id="panel"></div>
+      </div>
+      <div class="card" id="simCard" hidden>
+        <div class="sec"><h3>1. The building in 3D</h3>
+          <p class="help" style="margin:0 0 8px">The exact model: every panel, plank, beam, column, stair flight and parapet piece is drawn at its real size, with its real window and door openings, and the bill of materials is added up from these same pieces. Drag to rotate, scroll to zoom, click a piece to inspect it.</p>
+          <div class="three" id="three" aria-label="3D model of the villa built from its real pieces"></div>
+          <div class="ctl"><button class="btn" id="play" type="button">Play</button><input id="seq" type="range" min="0" max="1" step="1" value="1" aria-label="Erection step"><span class="step" id="stepLabel"></span></div>
+          <div class="ctl"><label for="explode" class="help" style="min-width:120px">Explode floors</label><input id="explode" type="range" min="0" max="1" step="0.05" value="0" aria-label="Explode floors apart"><span class="help" id="pieceInfoSpacer"></span></div>
+          <p class="note" id="pieceInfo"></p>
+          <div class="card" style="background:var(--surface2);margin-top:8px;padding:10px 12px" id="inspect"></div>
+          <div class="ctl" style="margin-top:10px"><button class="btn ghost" id="b-bim" type="button">Use a BIM model instead</button><button class="btn ghost" id="b-ai" type="button">Realistic render (AI)</button></div>
+          <p class="note" id="bimNote" hidden><b>BIM model.</b> For a real project the exact design comes from the client's own model. Upload an IFC or glTF file exported from Revit or Tekla; the viewer shows it as designed and matches each piece to its bill-of-materials line by mark. Until then this page shows the model generated from the template.</p>
+          <p class="note" id="aiNote" hidden><b>Realistic render.</b> An outside image model can turn a capture of this model into a photo-style picture of the finished villa (colours, landscaping, evening light) for the customer. It is an illustration only: sizes and quantities always come from the model above. Needs an image-model account to be connected, so it is not active in this preview.</p>
+        </div>
+        <div class="sec"><h3>2. Schedule</h3><p class="help" style="margin:0">From casting capacity, truck loads and crane productivity (all editable template rates).</p><div class="gantt" id="gantt"></div><p class="note" id="ganttNote"></p></div>
+        <div class="sec" style="margin-bottom:0"><h3>3. What-if and risk</h3><p class="help" style="margin:0">Each cost driver can land low, likely or high. 2,000 random runs show how the cost could move against the quote price.</p>
+          <div class="kpis" id="kpis"></div>
+          <svg id="hist" class="hist" viewBox="0 0 640 170" role="img" aria-label="Distribution of simulated cost against the quote price"></svg>
+          <h3 style="margin-top:14px;font-size:13px">What moves the cost most</h3><div class="tor" id="tor"></div>
+          <h3 style="margin-top:14px;font-size:13px">What-if: change a driver</h3>
+          <div class="wi" id="wi"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+var R = { conc: 330, rebarKg: 100, rebarP: 3.2, insul: 38, mould: 90, hours: 3.5, lab: 18, oh: 0.12, loadT: 25, load: 1800, erect: 120, margin: 0.18, vat: 0.15, density: 2.4, insertM3: 1.2, insert: 65 };
+var FIN = { basic: 1, standard: 1.08, premium: 1.18 };
+var tab = "bom", mode = "est", erpKey = "generic";
+var ERP = {
+  generic: { label: "Generic (CSV / Excel)", note: "Plain column names that any ERP import tool can map.", cols: [["item_number", "item"], ["description", "desc"], ["quantity", "qty"], ["unit", "unit"], ["group", "group"], ["wbs_code", "wbs"]] },
+  dynamics365: { label: "Microsoft Dynamics 365", note: "Starting mapping for Dynamics BOM-line and project-task import. Confirm field names with your Dynamics consultant.", cols: [["ItemNumber", "item"], ["ProductName", "desc"], ["Quantity", "qty"], ["UnitSymbol", "unit"], ["LineGroup", "group"], ["WBSId", "wbs"]] },
+  sap: { label: "SAP", note: "Starting mapping using SAP material and WBS field names. Confirm with your SAP consultant.", cols: [["MATNR", "item"], ["MAKTX", "desc"], ["MENGE", "qty"], ["MEINS", "unit"], ["GRUPPE", "group"], ["POSID", "wbs"]] }
+};
+function $(id) { return document.getElementById(id); }
+function fmt(n, d) { return Number(n).toLocaleString("en-US", { minimumFractionDigits: d || 0, maximumFractionDigits: d || 0 }); }
+function inputs() {
+  return { floors: +$("floors").value, area: +$("area").value, perim: +$("perim").value, height: +$("height").value, thk: +$("thk").value,
+    flights: +$("flights").value, bw: +$("bw").value, finish: $("finish").value };
+}
+/* The building is defined once, as a list of real pieces. The 3D view draws these pieces and the BOM is summed from them, so what you see is what is priced. */
+function geom(p) {
+  var half = p.perim / 2, disc = half * half - 4 * p.area, w, d;
+  if (disc >= 0) { w = (half + Math.sqrt(disc)) / 2; d = (half - Math.sqrt(disc)) / 2; } else { w = d = Math.sqrt(p.area); }
+  return { w: w, d: d };
+}
+var PIECE_INFO = {
+  EW: { bom: "EW-01", group: "Envelope", name: "External wall panels (insulated)", fin: true },
+  PR: { bom: "PR-01", group: "Envelope", name: "Parapet panels", fin: true },
+  IW: { bom: "IW-01", group: "Structure", name: "Internal wall panels" },
+  SL: { bom: "SL-01", group: "Structure", name: "Hollow-core floor and roof planks" },
+  FR: { bom: "FR-01", group: "Structure", name: "Beams and columns" },
+  ST: { bom: "ST-01", group: "Stairs", name: "Stair flights" },
+  BW: { bom: "BW-01", group: "Boundary wall", name: "Boundary wall panels", fin: true }
+};
+var STEP_NAMES = [];
+function layout(p) {
+  var g = geom(p), w = g.w, d = g.d, fh = p.height, th = p.thk, GAP = 0.25, pcs = [], cnt = {}, step = 0, names = ["Foundation base"], i, f;
+  function add(o) { cnt[o.code] = (cnt[o.code] || 0) + 1; o.id = o.code + "-" + (cnt[o.code] < 10 ? "0" : "") + cnt[o.code]; pcs.push(o); }
+  function fy(f) { return f * (fh + GAP); }
+  function segs(len, target) { var n = Math.max(1, Math.round(len / target)); return { n: n, w: len / n }; }
+  for (f = 0; f < p.floors; f++) {
+    step++; names.push("Floor " + (f + 1) + ": columns and beam");
+    [-w / 2 + 0.7, 0, w / 2 - 0.7].forEach(function (x) { add({ code: "FR", kind: "col", step: step, floor: f, pos: [x, fy(f) + (fh - 0.5) / 2, 0], dims: { w: 0.4, h: fh - 0.5, t: 0.4 }, vol: 0.4 * 0.4 * (fh - 0.5) }); });
+    add({ code: "FR", kind: "box", step: step, floor: f, pos: [0, fy(f) + fh - 0.25, 0], dims: { w: w - 1.0, h: 0.5, t: 0.4 }, vol: (w - 1.0) * 0.5 * 0.4 });
+    step++; names.push("Floor " + (f + 1) + ": wall panels");
+    var sw = segs(w, 2.4), sd = segs(d, 2.4), y = fy(f) + fh / 2;
+    var sides = [{ n: sw.n, pw: sw.w, z: d / 2, rot: 0, side: "front" }, { n: sw.n, pw: sw.w, z: -d / 2, rot: 0, side: "back" }, { n: sd.n, pw: sd.w, x: w / 2, rot: Math.PI / 2, side: "right" }, { n: sd.n, pw: sd.w, x: -w / 2, rot: Math.PI / 2, side: "left" }];
+    sides.forEach(function (s) {
+      for (var k = 0; k < s.n; k++) {
+        var off = (k + 0.5) * s.pw - (s.rot === 0 ? w : d) / 2, op = null;
+        if (s.side === "front" && f === 0 && k === Math.floor(s.n / 2)) op = { w: Math.min(1.2, s.pw - 0.5), h: 2.1, sill: 0, door: true };
+        else if (s.pw > 1.4 && (k % 3 !== 2 || s.side === "front")) op = { w: Math.min(1.3, s.pw - 0.8), h: 1.2, sill: 0.9, door: false };
+        var ow = op ? op.w * op.h : 0;
+        add({ code: "EW", kind: "panel", step: step, floor: f, pos: [s.rot === 0 ? off : s.x, y, s.rot === 0 ? s.z : off], rot: s.rot, dims: { w: s.pw - 0.06, h: fh, t: th }, op: op, vol: (s.pw - 0.06) * fh * th - ow * th, area: (s.pw - 0.06) * fh - ow });
+      }
+    });
+    var l1 = w * 0.8, n1 = Math.ceil(l1 / 2.4), l2 = d * 0.5, n2 = Math.ceil(l2 / 2.4);
+    for (i = 0; i < n1; i++) add({ code: "IW", kind: "panel", step: step, floor: f, pos: [-l1 / 2 + (i + 0.5) * (l1 / n1), y, -d / 4], rot: 0, dims: { w: l1 / n1 - 0.06, h: fh, t: 0.15 }, op: null, vol: (l1 / n1 - 0.06) * fh * 0.15 });
+    for (i = 0; i < n2; i++) add({ code: "IW", kind: "panel", step: step, floor: f, pos: [w / 6, y, -d / 2 + (i + 0.5) * (l2 / n2)], rot: Math.PI / 2, dims: { w: l2 / n2 - 0.06, h: fh, t: 0.15 }, op: null, vol: (l2 / n2 - 0.06) * fh * 0.15 });
+    step++; names.push(f === p.floors - 1 ? "Roof: hollow-core planks" : "Floor " + (f + 2) + ": hollow-core planks");
+    var np = Math.max(1, Math.ceil(w / 1.2)), plw = (w + 0.2) / np;
+    for (i = 0; i < np; i++) add({ code: "SL", kind: "plank", step: step, floor: f, pos: [-(w + 0.2) / 2 + (i + 0.5) * plw, fy(f) + fh + 0.1, 0], dims: { w: plw - 0.04, h: 0.2, t: d + 0.2 }, vol: (plw - 0.04) * (d + 0.2) * 0.2 * 0.62 });
+    if (f === 0 && p.flights > 0) {
+      step++; names.push("Stair flights");
+      for (i = 0; i < p.flights; i++) add({ code: "ST", kind: "stair", step: step, floor: 0, pos: [-w / 2 + 1.5 + i * 1.5, 0, -d / 2 + 2.4], dims: { w: 1.2, h: fh, t: 3.2 }, vol: 1.6 });
+    }
+  }
+  step++; names.push("Parapet panels");
+  var top = fy(p.floors - 1) + fh + 0.2 + 0.45, pw2 = segs(w, 2.4), pd2 = segs(d, 2.4);
+  [{ n: pw2.n, pw: pw2.w, z: d / 2, rot: 0 }, { n: pw2.n, pw: pw2.w, z: -d / 2, rot: 0 }, { n: pd2.n, pw: pd2.w, x: w / 2, rot: Math.PI / 2 }, { n: pd2.n, pw: pd2.w, x: -w / 2, rot: Math.PI / 2 }].forEach(function (s) {
+    for (var k = 0; k < s.n; k++) { var off = (k + 0.5) * s.pw - (s.rot === 0 ? w : d) / 2; add({ code: "PR", kind: "panel", step: step, floor: p.floors - 1, pos: [s.rot === 0 ? off : s.x, top, s.rot === 0 ? s.z : off], rot: s.rot, dims: { w: s.pw - 0.06, h: 0.9, t: 0.12 }, op: null, vol: (s.pw - 0.06) * 0.9 * 0.12 }); }
+  });
+  if (p.bw > 0) {
+    step++; names.push("Boundary wall");
+    var ow2 = w + 10, od = d + 10, per = 2 * (ow2 + od), nb = Math.ceil(p.bw / 2.4);
+    for (i = 0; i < nb; i++) {
+      var u = (i * 2.4) % per, bx, bz, rot = 0;
+      if (u < ow2) { bx = -ow2 / 2 + u + 1.2; bz = od / 2; } else if (u < ow2 + od) { bx = ow2 / 2; bz = od / 2 - (u - ow2) - 1.2; rot = Math.PI / 2; } else if (u < 2 * ow2 + od) { bx = ow2 / 2 - (u - ow2 - od) - 1.2; bz = -od / 2; } else { bx = -ow2 / 2; bz = -od / 2 + (u - 2 * ow2 - od) + 1.2; rot = Math.PI / 2; }
+      add({ code: "BW", kind: "panel", step: step, floor: 0, pos: [bx, 1.2, bz], rot: rot, dims: { w: 2.34, h: 2.4, t: 0.1 }, op: null, vol: 2.34 * 2.4 * 0.1 });
+    }
+  }
+  STEP_NAMES = names;
+  return { pcs: pcs, w: w, d: d };
+}
+function calc(p, finishOverride) {
+  var ff = FIN[finishOverride || p.finish], L = layout(p), byCode = {}, insA = 0;
+  L.pcs.forEach(function (o) {
+    var e = byCode[o.code] || (byCode[o.code] = { code: PIECE_INFO[o.code].bom, group: PIECE_INFO[o.code].group, name: PIECE_INFO[o.code].name, vol: 0, n: 0, fin: PIECE_INFO[o.code].fin ? ff : 1 });
+    e.vol += o.vol; e.n++; if (o.code === "EW") insA += o.area * 0.9;
+  });
+  var order = ["EW", "PR", "IW", "SL", "FR", "ST", "BW"], els = [];
+  order.forEach(function (k) { if (byCode[k] && byCode[k].vol > 0.0001) els.push(byCode[k]); });
+  var totalVol = 0; els.forEach(function (e) { totalVol += e.vol; });
+  var comp = { materials: 0, moulds: 0, labour: 0, overhead: 0, transport: 0, erection: 0 }, groups = {};
+  els.forEach(function (e) {
+    e.rebar = e.vol * R.rebarKg;
+    e.mat = e.vol * R.conc * e.fin + e.rebar * R.rebarP;
+    e.moulds = e.vol * R.mould; e.labour = e.vol * R.hours * R.lab;
+    e.overhead = (e.mat + e.moulds + e.labour) * R.oh;
+    e.cost = e.mat + e.moulds + e.labour + e.overhead;
+    comp.materials += e.mat; comp.moulds += e.moulds; comp.labour += e.labour; comp.overhead += e.overhead;
+    groups[e.group] = (groups[e.group] || 0) + e.cost;
+  });
+  var insulM2 = insA, insulCost = insulM2 * R.insul; comp.materials += insulCost; groups["Envelope"] = (groups["Envelope"] || 0) + insulCost;
+  var inserts = Math.ceil(totalVol / R.insertM3); var insertCost = inserts * R.insert; comp.materials += insertCost; groups["Structure"] = (groups["Structure"] || 0) + insertCost;
+  var weight = totalVol * R.density; var loads = Math.ceil(weight / R.loadT);
+  comp.transport = loads * R.load; comp.erection = totalVol * R.erect;
+  groups["Transport & erection"] = comp.transport + comp.erection;
+  var cost = 0; Object.keys(comp).forEach(function (k) { cost += comp[k]; });
+  var price = cost * (1 + R.margin);
+  var parts = { conc: 0, rebar: 0 }; els.forEach(function (e) { parts.conc += e.vol * R.conc * e.fin; parts.rebar += e.rebar * R.rebarP; });
+  return { parts: parts, els: els, pieces: L.pcs.length, vol: totalVol, weight: weight, loads: loads, rebar: totalVol * R.rebarKg, insulM2: insulM2, insulCost: insulCost, inserts: inserts, insertCost: insertCost,
+    comp: comp, groups: groups, cost: cost, price: price, vat: price * R.vat, total: price * (1 + R.vat) };
+}
+function sketch(p) {
+  var W = 300, gy = 160, floorH = Math.min(38, 120 / p.floors), bw = Math.min(180, 90 + p.perim * 1.1), x0 = (W - bw) / 2;
+  var s = '<rect x="0" y="' + gy + '" width="300" height="30" fill="var(--ground)"/>';
+  if (p.bw > 0) { s += '<rect x="4" y="' + (gy - 14) + '" width="292" height="14" fill="var(--concrete)" stroke="var(--concrete-line)" stroke-width="1"/>'; }
+  for (var f = 0; f < p.floors; f++) {
+    var y = gy - (f + 1) * floorH - (p.bw > 0 ? 0 : 0);
+    s += '<rect x="' + x0 + '" y="' + y + '" width="' + bw + '" height="' + floorH + '" fill="var(--concrete)" stroke="var(--concrete-line)" stroke-width="1.5"/>';
+    var n = Math.max(2, Math.round(bw / 38));
+    for (var i = 0; i < n; i++) { s += '<rect x="' + (x0 + 10 + i * ((bw - 20) / n)) + '" y="' + (y + floorH * 0.28) + '" width="' + ((bw - 20) / n - 10) + '" height="' + floorH * 0.42 + '" fill="var(--glass)" stroke="var(--concrete-line)" stroke-width="1"/>'; }
+  }
+  var top = gy - p.floors * floorH;
+  s += '<rect x="' + (x0 - 4) + '" y="' + (top - 6) + '" width="' + (bw + 8) + '" height="6" fill="var(--concrete-line)"/>';
+  s += '<text x="' + (W / 2) + '" y="' + (gy + 22) + '" text-anchor="middle" font-size="10" fill="var(--muted)">' + p.floors + ' floor' + (p.floors > 1 ? 's' : '') + ' · ' + p.perim + ' m wall run per floor' + (p.bw > 0 ? ' · ' + p.bw + ' m boundary wall' : '') + '</text>';
+  $("sketch").innerHTML = s;
+}
+function tiles(c) {
+  $("tiles").innerHTML = [["Precast concrete", fmt(c.vol, 1) + " m³ · " + c.pieces + " pieces"], ["Weight to move", fmt(c.weight, 0) + " t · " + c.loads + " loads"], ["Cost", "SAR " + fmt(c.cost)], ["Quote total (incl. VAT)", "SAR " + fmt(c.total)]]
+    .map(function (t) { return '<div class="tile"><span>' + t[0] + '</span><b>' + t[1] + '</b></div>'; }).join("");
+}
+function panel(p, c) {
+  var h = "";
+  if (tab === "bom") {
+    h += '<div class="tw"><table><tr><th>Code</th><th>Item</th><th>Unit</th><th class="n">Qty</th><th class="n">Unit cost</th><th class="n">Cost</th></tr>';
+    var cur = "";
+    c.els.forEach(function (e) {
+      if (e.group !== cur) { cur = e.group; h += '<tr class="grp"><td colspan="6">' + cur + '</td></tr>'; }
+      h += '<tr><td class="mono">' + e.code + '</td><td>' + e.name + ' <span class="help">· ' + e.n + ' pcs</span></td><td>m³</td><td class="n">' + fmt(e.vol, 2) + '</td><td class="n">' + fmt(e.mat / e.vol + e.moulds / e.vol + e.labour / e.vol + e.overhead / e.vol, 0) + '</td><td class="n">' + fmt(e.cost) + '</td></tr>';
+    });
+    h += '<tr class="grp"><td colspan="6">Materials and fittings</td></tr>';
+    h += '<tr><td class="mono">RB-01</td><td>Reinforcement steel (included in panels)</td><td>kg</td><td class="n">' + fmt(c.rebar) + '</td><td class="n">' + R.rebarP + '</td><td class="n">' + fmt(c.rebar * R.rebarP) + '</td></tr>';
+    h += '<tr><td class="mono">IN-01</td><td>Wall insulation core</td><td>m²</td><td class="n">' + fmt(c.insulM2) + '</td><td class="n">' + R.insul + '</td><td class="n">' + fmt(c.insulCost) + '</td></tr>';
+    h += '<tr><td class="mono">LI-01</td><td>Lifting inserts</td><td>pcs</td><td class="n">' + fmt(c.inserts) + '</td><td class="n">' + R.insert + '</td><td class="n">' + fmt(c.insertCost) + '</td></tr>';
+    h += '</table></div><p class="note">Lines come from the template rules. Change quantities by hand, add lines, or replace them from an uploaded element schedule. Unit cost here includes concrete, steel, moulds, labour and overhead.</p>';
+  } else if (tab === "cost") {
+    var cols = { materials: "var(--accent)", moulds: "#7a86c9", labour: "#d29a3a", overhead: "#9aa7b4", transport: "#c4675a", erection: "#58a37a" };
+    var lab = { materials: "Materials", moulds: "Moulds", labour: "Production labour", overhead: "Factory and yard overhead", transport: "Transport", erection: "Crane and erection" };
+    h += '<div class="bar">' + Object.keys(c.comp).map(function (k) { return '<i style="width:' + (c.comp[k] / c.cost * 100) + '%;background:' + cols[k] + '"></i>'; }).join("") + '</div>';
+    h += '<div class="legend">' + Object.keys(c.comp).map(function (k) { return '<span><b style="background:' + cols[k] + '"></b>' + lab[k] + '</span>'; }).join("") + '</div>';
+    h += '<table><tr><th>Cost component</th><th class="n">SAR</th><th class="n">Share</th></tr>';
+    Object.keys(c.comp).forEach(function (k) { h += '<tr><td>' + lab[k] + '</td><td class="n">' + fmt(c.comp[k]) + '</td><td class="n">' + fmt(c.comp[k] / c.cost * 100, 1) + '%</td></tr>'; });
+    h += '<tr class="tot"><td>Total cost</td><td class="n">' + fmt(c.cost) + '</td><td class="n">100%</td></tr>';
+    h += '<tr><td>Margin (' + R.margin * 100 + '%)</td><td class="n">' + fmt(c.price - c.cost) + '</td><td></td></tr>';
+    h += '<tr><td>Price before VAT</td><td class="n">' + fmt(c.price) + '</td><td></td></tr>';
+    h += '<tr><td>VAT (' + R.vat * 100 + '%)</td><td class="n">' + fmt(c.vat) + '</td><td></td></tr>';
+    h += '<tr class="tot"><td>Quote total</td><td class="n">' + fmt(c.total) + '</td><td></td></tr></table>';
+    h += '<p class="note">Rates (concrete per m³, steel per kg, mould cost, labour rate, transport per load, margin) are named values in the template and are edited in Settings, not in code.</p>';
+  } else if (tab === "quote") {
+    h += '<p class="help" style="margin-top:0">What the customer sees. One line per section. Unit costs and margin are never shown.</p><table><tr><th>Section</th><th class="n">Price (SAR)</th></tr>';
+    var order = ["Structure", "Envelope", "Stairs", "Boundary wall", "Transport & erection"];
+    var share = 1 + R.margin;
+    order.forEach(function (g) { if (c.groups[g]) h += '<tr><td>' + g + '</td><td class="n">' + fmt(c.groups[g] * share) + '</td></tr>'; });
+    h += '<tr class="tot"><td>Total before VAT</td><td class="n">' + fmt(c.price) + '</td></tr><tr><td>VAT ' + R.vat * 100 + '%</td><td class="n">' + fmt(c.vat) + '</td></tr><tr class="tot"><td>Total</td><td class="n">' + fmt(c.total) + '</td></tr></table>';
+    h += '<p class="note" style="margin-top:14px"><b>Options for the customer</b> (finish level):</p><div class="opt">';
+    ["basic", "standard", "premium"].forEach(function (f) { var o = calc(p, f); h += '<div class="' + (p.finish === f ? "sel" : "") + '">' + f.charAt(0).toUpperCase() + f.slice(1) + '<b>SAR ' + fmt(o.total) + '</b><span class="help">' + (f === "basic" ? "base price" : (o.total >= calc(p, "basic").total ? "+" : "") + fmt(o.total - calc(p, "basic").total) + " vs Basic") + '</span></div>'; });
+    h += '</div><p class="note">"Create quote" makes a Standard Quote from these lines, with the finish levels as alternatives.</p>';
+  } else if (tab === "import") {
+    var rows = [["Wall panel", "EW-A01", 12, 6.0, 3.0, 0.2], ["Wall panel", "EW-A02", 8, 4.5, 3.0, 0.2], ["Hollow-core slab", "SL-B01", 22, 7.2, 1.2, 0.2], ["Beam", "BM-C01", 14, 6.0, 0.4, 0.5], ["Stair flight", "ST-D01", 2, 3.2, 1.2, 0.18]];
+    h += '<p class="help" style="margin-top:0">An element schedule saved as Excel from a BIM model (Revit or Tekla) can replace the configurator quantities. Example rows:</p><div class="tw"><table><tr><th>Element</th><th>Mark</th><th class="n">Count</th><th class="n">Length m</th><th class="n">Width m</th><th class="n">Thick. m</th><th class="n">Volume m³</th></tr>';
+    var tv = 0; rows.forEach(function (r) { var v = r[2] * r[3] * r[4] * r[5]; tv += v; h += '<tr><td>' + r[0] + '</td><td class="mono">' + r[1] + '</td><td class="n">' + r[2] + '</td><td class="n">' + r[3] + '</td><td class="n">' + r[4] + '</td><td class="n">' + r[5] + '</td><td class="n">' + fmt(v, 2) + '</td></tr>'; });
+    h += '<tr class="tot"><td colspan="6">Total</td><td class="n">' + fmt(tv, 2) + '</td></tr></table></div><p class="note">The studio checks each row, flags unknown element types, and downloads a blank template workbook with the expected columns.</p>';
+  } else {
+    var prof = ERP[erpKey];
+    h += '<p class="help" style="margin-top:0">Files for the factory system and your ERP. Choose the layout your ERP expects. The item number is the product SKU, which is your ERP\'s item number when products come from its connector. Internal use only.</p>';
+    h += '<div class="f" style="max-width:300px"><label for="erp">ERP layout</label><select id="erp">' + Object.keys(ERP).map(function (k) { return '<option value="' + k + '"' + (k === erpKey ? ' selected' : '') + '>' + ERP[k].label + '</option>'; }).join('') + '</select></div>';
+    h += '<div class="tw"><table><tr>' + prof.cols.map(function (c) { return '<th>' + c[0] + '</th>'; }).join('') + '</tr>';
+    c.els.slice(0, 4).forEach(function (e, i) {
+      var v = { item: 'PC-' + e.code, desc: e.name, qty: fmt(e.vol, 2), unit: 'm³', group: e.group, wbs: '1.' + (i + 1) };
+      h += '<tr>' + prof.cols.map(function (c2) { return '<td' + (c2[1] === 'qty' ? ' class="n"' : (c2[1] === 'item' || c2[1] === 'wbs' ? ' class="mono"' : '')) + '>' + v[c2[1]] + '</td>'; }).join('') + '</tr>';
+    });
+    h += '<tr><td colspan="' + prof.cols.length + '" class="help">… and the remaining lines</td></tr></table></div>';
+    h += '<p class="note">' + prof.note + ' A second file gives the work breakdown (code, parent, name, planned cost). Sending a won estimate straight into your ERP as a sales order and project comes later, after a test on a live system.</p>';
+  }
+  $("panel").innerHTML = h;
+}
+function render() {
+  var p = inputs(), c = calc(p);
+  if (mode === "sim") { $("v-floors").textContent = p.floors; $("v-area").textContent = p.area + " m²"; $("v-perim").textContent = p.perim + " m"; $("v-height").textContent = p.height.toFixed(1) + " m"; $("v-flights").textContent = p.flights; $("v-bw").textContent = p.bw + " m"; tiles(c); sketch(p); simPanels(p, c); build3d(p, c); return; }
+  $("v-floors").textContent = p.floors; $("v-area").textContent = p.area + " m²"; $("v-perim").textContent = p.perim + " m"; $("v-height").textContent = p.height.toFixed(1) + " m";
+  $("v-flights").textContent = p.flights; $("v-bw").textContent = p.bw + " m";
+  sketch(p); tiles(c); panel(p, c);
+}
+document.addEventListener("input", function (e) { if (e.target.closest(".card") && e.target.id && e.target.id !== "seq" && e.target.id !== "explode" && !e.target.dataset.wi) render(); });
+document.addEventListener("change", function (e) { if (e.target.id === "erp") { erpKey = e.target.value; } if (e.target.id) render(); });
+$("tabs").addEventListener("click", function (e) {
+  var b = e.target.closest(".tab"); if (!b) return; tab = b.dataset.t;
+  Array.prototype.forEach.call(document.querySelectorAll(".tab"), function (x) { x.setAttribute("aria-selected", x === b ? "true" : "false"); });
+  render();
+});
+function go(t) { tab = t; Array.prototype.forEach.call(document.querySelectorAll(".tab"), function (x) { x.setAttribute("aria-selected", x.dataset.t === t ? "true" : "false"); }); render(); }
+$("b-quote").addEventListener("click", function () { go("quote"); });
+$("b-export").addEventListener("click", function () { go("d365"); });
+
+/* ------------------------- Simulation ------------------------- */
+var CAP = { cast: 18, trucks: 4, crane: 24 };
+var DRV = [
+  { k: "conc", label: "Concrete price", lo: 0.9, mid: 1, hi: 1.25 },
+  { k: "rebar", label: "Steel price", lo: 0.85, mid: 1, hi: 1.35 },
+  { k: "insul", label: "Insulation and fittings", lo: 0.9, mid: 1, hi: 1.15 },
+  { k: "lab", label: "Labour cost", lo: 0.9, mid: 1, hi: 1.2 },
+  { k: "prod", label: "Crew productivity", lo: 0.8, mid: 1, hi: 1.1 },
+  { k: "trans", label: "Transport cost", lo: 0.9, mid: 1, hi: 1.3 },
+  { k: "erect", label: "Erection cost", lo: 0.9, mid: 1, hi: 1.25 }
+];
+var wi = {}; DRV.forEach(function (d) { wi[d.k] = 1; });
+function costWith(c, m) {
+  var mat = c.parts.conc * m.conc + c.parts.rebar * m.rebar + (c.insulCost + c.insertCost) * m.insul;
+  var lab = c.comp.labour * m.lab / m.prod;
+  var oh = (mat + c.comp.moulds + lab) * R.oh;
+  return mat + c.comp.moulds + lab + oh + c.comp.transport * m.trans + c.comp.erection * m.erect;
+}
+function rng(seed) { return function () { seed |= 0; seed = seed + 0x6D2B79F5 | 0; var t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+function tri(r, a, b, c) { var u = r(), f = (b - a) / (c - a); return u < f ? a + Math.sqrt(u * (c - a) * (b - a)) : c - Math.sqrt((1 - u) * (c - a) * (c - b)); }
+function pct(arr, q) { return arr[Math.min(arr.length - 1, Math.floor(q * arr.length))]; }
+function risk(c) {
+  var r = rng(42), N = 2000, res = [], i;
+  for (i = 0; i < N; i++) { var m = {}; DRV.forEach(function (d) { m[d.k] = tri(r, d.lo, d.mid, d.hi) * wi[d.k]; }); res.push(costWith(c, m)); }
+  res.sort(function (a, b) { return a - b; });
+  var price = c.price, loss = 0, thin = 0;
+  res.forEach(function (x) { if (x > price) loss++; if ((price - x) / price < R.margin * 0.5) thin++; });
+  var tor = DRV.map(function (d) {
+    var lo = {}, hi = {}; DRV.forEach(function (q) { lo[q.k] = wi[q.k]; hi[q.k] = wi[q.k]; });
+    lo[d.k] = d.lo * wi[d.k]; hi[d.k] = d.hi * wi[d.k];
+    var a = costWith(c, lo), b = costWith(c, hi); return { label: d.label, lo: Math.min(a, b), hi: Math.max(a, b) };
+  });
+  var mid = {}; DRV.forEach(function (d) { mid[d.k] = wi[d.k]; });
+  tor.sort(function (a, b) { return (b.hi - b.lo) - (a.hi - a.lo); });
+  return { res: res, p10: pct(res, 0.1), p50: pct(res, 0.5), p90: pct(res, 0.9), loss: loss / N, thin: thin / N, tor: tor, likely: costWith(c, mid) };
+}
+function simPanels(p, c) {
+  var prodD = Math.max(1, Math.ceil(c.vol / CAP.cast)), trD = Math.max(1, Math.ceil(c.loads / CAP.trucks)), erD = Math.max(1, Math.ceil(c.vol / CAP.crane));
+  var trStart = 5, erStart = 6, trEnd = trStart + trD, erEnd = Math.max(trEnd + 1, erStart + erD), total = Math.max(prodD, erEnd);
+  var rows = [["Casting in the factory", 0, prodD, "var(--accent)"], ["Transport to site", trStart, trEnd, "#d29a3a"], ["Crane and erection", erStart, erEnd, "#58a37a"]];
+  $("gantt").innerHTML = rows.map(function (r) {
+    return '<div class="gr"><span>' + r[0] + '</span><div class="gtrack"><div class="gbar" style="left:' + (r[1] / total * 100) + '%;width:' + ((r[2] - r[1]) / total * 100) + '%;background:' + r[3] + '"></div></div><span style="text-align:right">' + (r[2] - r[1]) + ' d</span></div>';
+  }).join("");
+  $("ganttNote").textContent = "About " + total + " working days from first casting to the last panel in place (" + fmt(c.vol, 0) + " m³ at " + CAP.cast + " m³/day casting, " + c.loads + " truck loads at " + CAP.trucks + " per day, crane at " + CAP.crane + " m³/day). Capacities are illustrative.";
+  var k = risk(c), lo = k.res[0], hi = k.res[k.res.length - 1];
+  $("kpis").innerHTML = [["Likely cost", "SAR " + fmt(k.likely)], ["Cost range (P10 to P90)", fmt(k.p10 / 1000) + "k to " + fmt(k.p90 / 1000) + "k"], ["Chance cost exceeds the price", fmt(k.loss * 100, 1) + "%"], ["Chance margin falls under half of target", fmt(k.thin * 100, 1) + "%"]]
+    .map(function (x) { return '<div><span>' + x[0] + '</span><b>' + x[1] + '</b></div>'; }).join("");
+  var bins = 28, cnt = [], mx = 0, span = (hi - lo) || 1, i;
+  for (i = 0; i < bins; i++) cnt.push(0);
+  k.res.forEach(function (x) { var b = Math.min(bins - 1, Math.floor((x - lo) / span * bins)); cnt[b]++; });
+  cnt.forEach(function (x) { if (x > mx) mx = x; });
+  var W = 640, H = 170, pl = 8, pr = 8, pt = 10, pb = 28, bw = (W - pl - pr) / bins, svg = '';
+  function X(v) { return pl + (Math.min(Math.max(v, lo), hi) - lo) / span * (W - pl - pr); }
+  cnt.forEach(function (x, j) { var h = x / mx * (H - pt - pb); svg += '<rect x="' + (pl + j * bw + 1) + '" y="' + (H - pb - h) + '" width="' + (bw - 2) + '" height="' + h + '" rx="2" fill="var(--accent)" opacity="0.75"/>'; });
+  svg += '<line x1="' + X(c.price) + '" x2="' + X(c.price) + '" y1="' + pt + '" y2="' + (H - pb) + '" stroke="#c4675a" stroke-width="2"/>';
+  var lx = X(c.price), anchor = lx > W * 0.6 ? "end" : "start", tx = anchor === "end" ? lx - 5 : lx + 5;
+  svg += '<text x="' + tx + '" y="' + (pt + 10) + '" font-size="11" text-anchor="' + anchor + '" fill="var(--ink)">Quote price before VAT</text>';
+  svg += '<line x1="' + pl + '" x2="' + (W - pr) + '" y1="' + (H - pb) + '" y2="' + (H - pb) + '" stroke="var(--line)"/>';
+  svg += '<text x="' + pl + '" y="' + (H - 8) + '" font-size="11" fill="var(--muted)">SAR ' + fmt(lo / 1000) + 'k</text><text x="' + (W - pr) + '" y="' + (H - 8) + '" font-size="11" text-anchor="end" fill="var(--muted)">SAR ' + fmt(hi / 1000) + 'k</text>';
+  svg += '<text x="' + X(k.p50) + '" y="' + (H - 8) + '" font-size="11" text-anchor="middle" fill="var(--ink)">median ' + fmt(k.p50 / 1000) + 'k</text>';
+  $("hist").innerHTML = svg;
+  var tmax = Math.max.apply(null, k.tor.map(function (t) { return t.hi; })), tmin = Math.min.apply(null, k.tor.map(function (t) { return t.lo; }));
+  var sp = (tmax - tmin) || 1;
+  $("tor").innerHTML = k.tor.map(function (t) {
+    return '<div class="tr"><span>' + t.label + '</span><div class="ttrack"><div class="tbar" style="left:' + ((t.lo - tmin) / sp * 100) + '%;width:' + Math.max(1.5, (t.hi - t.lo) / sp * 100) + '%"></div></div><span style="text-align:right">±' + fmt((t.hi - t.lo) / 2 / 1000, 1) + 'k</span></div>';
+  }).join("");
+  if (!$("wi").dataset.ready) {
+    $("wi").dataset.ready = "1";
+    $("wi").innerHTML = DRV.map(function (d) { return '<div class="f"><label for="wi_' + d.k + '">' + d.label + ' <span id="wv_' + d.k + '">×1.00</span></label><input id="wi_' + d.k + '" data-wi="' + d.k + '" type="range" min="0.7" max="1.5" step="0.01" value="1"></div>'; }).join("");
+  }
+}
+document.addEventListener("input", function (e) { var k = e.target.dataset && e.target.dataset.wi; if (k) { wi[k] = +e.target.value; $("wv_" + k).textContent = "×" + (+e.target.value).toFixed(2); render(); } });
+
+/* ---- 3D model: every mesh group is one real piece from layout() ---- */
+var T = { ready: false, step: 99, steps: [], playing: false, anim: 0, last: 0, rotY: 0.7, rotX: 0.45, dist: 46, target: null, sel: null, explode: 0, pcs: [], c: null };
+function cssc(n, f) { var v = getComputedStyle(document.documentElement).getPropertyValue(n).trim(); return v || f; }
+function build3d(p, c) {
+  var el = $("three");
+  if (!window.THREE) { el.innerHTML = '<p class="help" style="padding:16px">The 3D view could not load.</p>'; return; }
+  if (!T.ready) {
+    T.scene = new THREE.Scene(); T.camera = new THREE.PerspectiveCamera(38, 1, 0.1, 600);
+    T.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true }); T.renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
+    T.renderer.shadowMap.enabled = true; T.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    el.appendChild(T.renderer.domElement);
+    T.scene.add(new THREE.HemisphereLight(0xdfeaf5, 0x8a8372, 0.8));
+    var dl = new THREE.DirectionalLight(0xffffff, 0.75); dl.position.set(34, 55, 26); dl.castShadow = true;
+    dl.shadow.mapSize.set(2048, 2048); var sc = dl.shadow.camera; sc.left = -45; sc.right = 45; sc.top = 45; sc.bottom = -45; sc.far = 200; T.scene.add(dl);
+    T.root = new THREE.Group(); T.scene.add(T.root);
+    var drag = null, moved = 0;
+    el.addEventListener("pointerdown", function (e) { drag = { x: e.clientX, y: e.clientY }; moved = 0; el.style.cursor = "grabbing"; el.setPointerCapture(e.pointerId); });
+    el.addEventListener("pointermove", function (e) { if (!drag) return; moved += Math.abs(e.clientX - drag.x) + Math.abs(e.clientY - drag.y); T.rotY -= (e.clientX - drag.x) * 0.008; T.rotX = Math.max(0.08, Math.min(1.45, T.rotX + (e.clientY - drag.y) * 0.006)); drag = { x: e.clientX, y: e.clientY }; });
+    el.addEventListener("pointerup", function (e) { el.style.cursor = "grab"; if (drag && moved < 5) pick(e); drag = null; });
+    el.addEventListener("wheel", function (e) { e.preventDefault(); T.dist = Math.max(14, Math.min(140, T.dist * (1 + e.deltaY * 0.001))); }, { passive: false });
+    if (window.ResizeObserver) new ResizeObserver(function () { size3d(); }).observe(el);
+    T.ray = new THREE.Raycaster();
+    T.ready = true; requestAnimationFrame(loop3d);
+  }
+  while (T.root.children.length) { var o = T.root.children[0]; T.root.remove(o); o.traverse(function (n) { if (n.geometry) n.geometry.dispose(); }); }
+  var L = layout(p), w = L.w, d = L.d, fh = p.height;
+  var base = new THREE.Color(cssc("--concrete", "#c9d1d9")), edge = new THREE.Color(cssc("--concrete-line", "#8d99a6")), glass = new THREE.Color(cssc("--glass", "#b9dbe6")), ground = new THREE.Color(cssc("--ground", "#d6cdbf"));
+  var tint = { EW: 0, PR: 0.02, IW: -0.03, SL: 0.05, FR: -0.06, ST: 0.03, BW: -0.02 };
+  function mat(o, k) { var cc = base.clone(); cc.offsetHSL(0, 0, (tint[o.code] || 0) + ((k * 37) % 7 - 3) * 0.006); return new THREE.MeshLambertMaterial({ color: cc }); }
+  function box(g, w1, h1, t1, x, y, z, m, o) {
+    var geo = new THREE.BoxGeometry(Math.max(0.02, w1), Math.max(0.02, h1), Math.max(0.02, t1)), me = new THREE.Mesh(geo, m); me.position.set(x, y, z); me.castShadow = true; me.receiveShadow = true;
+    me.userData = { piece: o }; var ln = new THREE.LineSegments(new THREE.EdgesGeometry(geo), new THREE.LineBasicMaterial({ color: edge })); ln.raycast = function () {}; me.add(ln); g.add(me); return me;
+  }
+  var gr = new THREE.Mesh(new THREE.PlaneGeometry(260, 260), new THREE.MeshLambertMaterial({ color: ground })); gr.rotation.x = -Math.PI / 2; gr.position.y = -0.41; gr.receiveShadow = true; gr.userData = { fixed: true, step: 0, y0: -0.41 }; T.root.add(gr);
+  var fd = new THREE.Mesh(new THREE.BoxGeometry(w + 2, 0.4, d + 2), new THREE.MeshLambertMaterial({ color: ground.clone().offsetHSL(0, 0, -0.08) })); fd.position.y = -0.2; fd.receiveShadow = true; fd.userData = { fixed: true, step: 0, y0: -0.2, floor: 0 }; T.root.add(fd);
+  L.pcs.forEach(function (o, k) {
+    var g = new THREE.Group(); g.position.set(o.pos[0], o.pos[1], o.pos[2]); g.rotation.y = o.rot || 0; g.userData = { step: o.step, y0: o.pos[1], floor: o.floor, piece: o };
+    var m = mat(o, k), D = o.dims;
+    if (o.kind === "panel" || o.kind === "box" || o.kind === "col") {
+      if (o.op) {
+        var op = o.op, s = op.sill, side = (D.w - op.w) / 2, lh = D.h - s - op.h;
+        if (s > 0) box(g, D.w, s, D.t, 0, -D.h / 2 + s / 2, 0, m, o);
+        if (side > 0.01) { box(g, side, op.h, D.t, -(op.w / 2 + side / 2), -D.h / 2 + s + op.h / 2, 0, m, o); box(g, side, op.h, D.t, op.w / 2 + side / 2, -D.h / 2 + s + op.h / 2, 0, m, o); }
+        if (lh > 0.01) box(g, D.w, lh, D.t, 0, D.h / 2 - lh / 2, 0, m, o);
+        var gm = box(g, op.w, op.h, 0.04, 0, -D.h / 2 + s + op.h / 2, 0, new THREE.MeshLambertMaterial({ color: op.door ? new THREE.Color(0x7a5c3e) : glass, transparent: true, opacity: op.door ? 1 : 0.65 }), o);
+      } else box(g, D.w, D.h, D.t, 0, 0, 0, m, o);
+    } else if (o.kind === "plank") { box(g, D.w, D.h, D.t, 0, 0, 0, m, o); }
+    else if (o.kind === "stair") {
+      var n = 9, rise = (D.h) / n, run = D.t / n;
+      for (var q = 0; q < n; q++) box(g, D.w, rise * (q + 1), run, 0, rise * (q + 1) / 2, -D.t / 2 + run * (q + 0.5), m, o);
+    }
+    T.root.add(g);
+  });
+  T.steps = STEP_NAMES; T.pcs = L.pcs; T.c = c;
+  var sq = $("seq"); sq.max = T.steps.length - 1; if (T.step > T.steps.length - 1) T.step = T.steps.length - 1; sq.value = T.step;
+  T.target = new THREE.Vector3(0, p.floors * fh / 2, 0); T.dist = Math.max(30, (w + d) * 1.25 + p.floors * 3);
+  var cnt = {}; L.pcs.forEach(function (o) { cnt[o.code] = (cnt[o.code] || 0) + 1; });
+  $("pieceInfo").innerHTML = "<b>" + L.pcs.length + " pieces</b> in this model, each one a bill-of-materials item: " + ["EW", "PR", "IW", "SL", "FR", "ST", "BW"].filter(function (k) { return cnt[k]; }).map(function (k) { return cnt[k] + " × " + PIECE_INFO[k].name.toLowerCase(); }).join(", ") + ". Click any piece.";
+  T.sel = null; $("inspect").innerHTML = '<span class="help">Click a piece in the model to see its mark, size, weight and cost.</span>';
+  size3d(); updateStep();
+}
+function pick(e) {
+  var el = $("three"), r = el.getBoundingClientRect(), v = new THREE.Vector2(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+  T.ray.setFromCamera(v, T.camera);
+  var hit = T.ray.intersectObjects(T.root.children.filter(function (g) { return g.visible && g.userData.piece; }), true).filter(function (h) { return h.object.userData && h.object.userData.piece; })[0];
+  T.root.traverse(function (n) { if (n.material && n.material.emissive) n.material.emissive.setHex(0x000000); });
+  if (!hit) { T.sel = null; $("inspect").innerHTML = '<span class="help">Click a piece in the model to see its mark, size, weight and cost.</span>'; return; }
+  var o = hit.object.userData.piece; T.sel = o;
+  T.root.children.forEach(function (g) { if (g.userData.piece === o) g.traverse(function (n) { if (n.material && n.material.emissive) n.material.emissive.setHex(0x1b6f78); }); });
+  var info = PIECE_INFO[o.code], el2 = T.c && T.c.els.filter(function (x) { return x.code === info.bom; })[0], unit = el2 ? el2.cost / el2.vol : 0;
+  var D = o.dims, dim = o.kind === "plank" ? fmt(D.t, 2) + " × " + fmt(D.w, 2) + " × " + fmt(D.h, 2) : o.kind === "stair" ? fmt(D.t, 2) + " × " + fmt(D.w, 2) + " × " + fmt(D.h, 2) : fmt(D.w, 2) + " × " + fmt(D.h, 2) + " × " + fmt(D.t, 2);
+  $("inspect").innerHTML = '<table><tr><th>Mark</th><td class="mono">' + o.id + '</td><th>BOM line</th><td class="mono">' + info.bom + '</td></tr><tr><th>Piece</th><td>' + info.name + (o.op ? (o.op.door ? " (door opening)" : " (window opening)") : "") + '</td><th>Size (m)</th><td>' + dim + '</td></tr><tr><th>Concrete</th><td>' + fmt(o.vol, 3) + ' m³</td><th>Weight</th><td>' + fmt(o.vol * R.density, 2) + ' t</td></tr><tr><th>Cost</th><td>SAR ' + fmt(o.vol * unit) + '</td><th>Erected in</th><td>' + T.steps[o.step] + '</td></tr></table>';
+}
+function size3d() { var el = $("three"); if (!T.ready || !el.clientWidth) return; T.renderer.setSize(el.clientWidth, el.clientHeight, false); T.camera.aspect = el.clientWidth / el.clientHeight; T.camera.updateProjectionMatrix(); }
+function updateStep() {
+  if (!T.ready) return;
+  T.root.children.forEach(function (g) { g.visible = g.userData.fixed ? true : g.userData.step <= T.step; });
+  $("stepLabel").textContent = "Step " + (T.step + 1) + " of " + T.steps.length + ": " + T.steps[T.step];
+  T.anim = performance.now();
+}
+function loop3d(t) {
+  requestAnimationFrame(loop3d);
+  if (mode !== "sim" || !T.ready) return;
+  if (T.playing && t - T.last > 1200) { T.last = t; if (T.step < T.steps.length - 1) { T.step++; $("seq").value = T.step; updateStep(); } else { T.playing = false; $("play").textContent = "Play"; } }
+  var k = Math.min(1, (t - T.anim) / 700);
+  T.root.children.forEach(function (g) {
+    if (g.userData.fixed) return;
+    var drop = (g.userData.step === T.step && g.visible) ? (1 - k) * (1 - k) * 6 : 0;
+    g.position.y = g.userData.y0 + drop + T.explode * (g.userData.floor || 0) * 5;
+  });
+  var cx = T.target.x + T.dist * Math.cos(T.rotX) * Math.sin(T.rotY), cy = T.target.y + T.dist * Math.sin(T.rotX), cz = T.target.z + T.dist * Math.cos(T.rotX) * Math.cos(T.rotY);
+  T.camera.position.set(cx, cy, cz); T.camera.lookAt(T.target); T.renderer.render(T.scene, T.camera);
+}
+$("seq").addEventListener("input", function (e) { T.step = +e.target.value; T.playing = false; $("play").textContent = "Play"; updateStep(); });
+$("explode").addEventListener("input", function (e) { T.explode = +e.target.value; });
+$("play").addEventListener("click", function () {
+  if (T.playing) { T.playing = false; $("play").textContent = "Play"; return; }
+  if (T.step >= T.steps.length - 1) { T.step = 0; $("seq").value = 0; updateStep(); }
+  T.playing = true; T.last = performance.now(); $("play").textContent = "Pause";
+});
+$("b-bim").addEventListener("click", function () { $("bimNote").hidden = !$("bimNote").hidden; });
+$("b-ai").addEventListener("click", function () { $("aiNote").hidden = !$("aiNote").hidden; });
+function setMode(m) {
+  mode = m; $("m-est").setAttribute("aria-pressed", m === "est"); $("m-sim").setAttribute("aria-pressed", m === "sim");
+  $("estCard").hidden = m !== "est"; $("simCard").hidden = m !== "sim"; render();
+}
+$("m-est").addEventListener("click", function () { setMode("est"); });
+$("m-sim").addEventListener("click", function () { setMode("sim"); });
+
+render();
+</script>
