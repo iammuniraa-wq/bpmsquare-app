@@ -743,3 +743,65 @@ export async function assembleEstimateQuote(tenantId: string, estimateId: string
   };
 }
 
+
+// ── Templates ────────────────────────────────────────────────────────────────
+
+export type TemplateSummary = {
+  id: string; name: string; description: string | null; trade: string | null; geometry: string | null;
+  version: number; is_active: boolean; quote_granularity: string;
+  input_count: number; rule_count: number; estimate_count: number; updated_at: string;
+};
+
+/** How many estimates were made from each template (0 when the table is missing). */
+export async function templateUsage(supabase: SupabaseClient, tenantId: string, ids: string[]): Promise<Map<string, number>> {
+  const counts = new Map<string, number>();
+  if (ids.length === 0) return counts;
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await supabase.from("estimates").select("template_id").eq("tenant_id", tenantId).in("template_id", ids).range(from, from + PAGE - 1);
+    if (error || !data || data.length === 0) break;
+    for (const r of data as { template_id: string }[]) counts.set(r.template_id, (counts.get(r.template_id) ?? 0) + 1);
+    if (data.length < PAGE) break;
+  }
+  return counts;
+}
+
+export async function listTemplates(supabase: SupabaseClient, tenantId: string, opts: { activeOnly?: boolean } = {}): Promise<{ rows: TemplateSummary[]; missing: boolean }> {
+  let q = supabase.from("estimate_templates").select("*").eq("tenant_id", tenantId).order("name");
+  if (opts.activeOnly) q = q.eq("is_active", true);
+  const { data, error } = await q;
+  if (error) {
+    if (isMissingRelation(error)) return { rows: [], missing: true };
+    throw { status: 500, message: error.message };
+  }
+  const templates = (data ?? []) as EstimateTemplate[];
+  const usage = await templateUsage(supabase, tenantId, templates.map((t) => t.id));
+  return {
+    missing: false,
+    rows: templates.map((t) => ({
+      id: t.id, name: t.name, description: t.description, trade: t.trade, geometry: t.geometry ?? null,
+      version: t.version, is_active: t.is_active, quote_granularity: t.quote_granularity,
+      input_count: (t.inputs ?? []).length, rule_count: (t.rules ?? []).length,
+      estimate_count: usage.get(t.id) ?? 0, updated_at: t.updated_at,
+    })),
+  };
+}
+
+/** Insert a template; a name already used in this workspace is a 409. */
+export async function insertTemplate(
+  supabase: SupabaseClient, tenantId: string, userId: string,
+  header: { name: string; description?: string | null; trade?: string | null; quote_granularity?: "group" | "line" },
+  body: EstimateTemplateBody
+): Promise<{ data: EstimateTemplate | null; status: number; error: string | null }> {
+  const { data, error } = await supabase.from("estimate_templates").insert({
+    tenant_id: tenantId, name: header.name, description: header.description ?? null, trade: header.trade ?? null,
+    geometry: body.geometry ?? null, version: 1, is_active: true,
+    inputs: body.inputs, rates: body.rates, rules: body.rules,
+    quote_granularity: header.quote_granularity ?? "group", created_by: userId,
+  }).select("*").single();
+  if (error) {
+    if (isMissingRelation(error)) return { data: null, status: 503, error: PENDING_MESSAGE };
+    if (error.code === "23505") return { data: null, status: 409, error: `A template named "${header.name}" already exists.` };
+    return { data: null, status: 500, error: error.message };
+  }
+  return { data: data as EstimateTemplate, status: 201, error: null };
+}
