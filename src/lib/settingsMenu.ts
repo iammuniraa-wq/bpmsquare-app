@@ -44,7 +44,7 @@ const CRM_OBJECT_FEATURES: (keyof TenantFeatures)[] = ["accounts", "contacts", "
 
 export const SETTINGS_MENU: SettingsMenuEntry[] = [
   // ── Company ──
-  { id: "company", group: "company", label: "Company profile", description: "Your organisation's name, shown in the sidebar header", href: ROUTES.settingsCompany, keywords: ["workspace", "name", "organisation"], adminOnly: false },
+  { id: "company", group: "company", label: "Company profile", description: "Your organisation's name, shown in the sidebar header", href: ROUTES.settingsCompany, keywords: ["general", "general settings", "workspace", "name", "organisation"], adminOnly: false },
   { id: "entities", group: "company", label: "Entities & Tax", description: "Legal entities, print branding, and tax settings for quotations and PDFs", href: ROUTES.settingsEntities, keywords: ["gst", "vat", "legal", "branding", "logo"], adminOnly: true, featureKey: "quotations", relatedWorkcenter: "quotations" },
   { id: "currency", group: "company", label: "Currency", description: "How every amount in this workspace is shown, printed and emailed", href: ROUTES.settingsCurrency, keywords: ["money", "rupee", "dollar", "format"], adminOnly: true },
   { id: "number-ranges", group: "company", label: "Number ranges", description: "One place for every business-ID convention — Quote ID format and all system-generated ranges", href: ROUTES.settingsNumberRanges, keywords: ["ids", "prefix", "numbering", "sequence"], adminOnly: true },
@@ -52,41 +52,41 @@ export const SETTINGS_MENU: SettingsMenuEntry[] = [
   // ── Users & access ──
   { id: "team", group: "access", label: "Team", description: "Invite teammates and manage roles", href: ROUTES.settingsTeam, keywords: ["users", "invite", "members", "roles"], adminOnly: true },
   { id: "business-roles", group: "access", label: "Business roles", description: "Named roles that decide which modules and screens each person reaches", href: ROUTES.administrationBusinessRoles, keywords: ["permissions", "workcenter", "access"], external: true, adminOnly: true, featureKey: "business_roles" },
-
-  { id: "navigation", group: "access", label: "Navigation visibility", description: "Show or hide sidebar items for the whole workspace", href: ROUTES.settingsNavigation, keywords: ["sidebar", "menu", "hide"], adminOnly: false },
+  { id: "navigation", group: "access", label: "Navigation visibility", description: "Show or hide sidebar items for the whole workspace", href: ROUTES.settingsNavigation, keywords: ["general", "sidebar", "menu", "hide"], adminOnly: false },
+  { id: "coverage", group: "access", label: "Coverage", description: "Teams, rule-based segments and the wiring that replaces flat territory/sales org assignment — also drives auto-ownership, product availability and ERP routing", href: ROUTES.settingsCoverage, keywords: ["territory", "sales org", "segments", "ownership"], adminOnly: true, featureKey: "coverage_model" },
 
   // ── Sales ──
-  { id: "statuses", group: "sales", label: "Statuses & assets", description: "Configure pipeline stages and equipment print fields", href: ROUTES.settingsStatuses, keywords: ["pipeline", "stages", "quote status"], adminOnly: true, featureKey: "assets", relatedWorkcenter: "quotations" },
-  // featureAnyOf, not featureKey: "products" -- the tree feeds the products
-  // screens AND any field whose selectSource is product_category, which can
-  // sit on an object a tenant without the Products module still uses.
-  { id: "product-categories", group: "sales", label: "Product categories", description: "The category tree products are filed under, and that category fields pick from", href: ROUTES.settingsSales, keywords: ["products", "tree"], adminOnly: true, featureAnyOf: ["products", "quotations"], relatedWorkcenter: "quotations" },
+  { id: "statuses", group: "sales", label: "Pipeline & quote statuses", description: "The stages a quotation moves through, and which ones close it", href: ROUTES.settingsStatuses, keywords: ["pipeline", "stages", "quote status", "statuses & assets"], adminOnly: true, featureKey: "assets", relatedWorkcenter: "quotations" },
   { id: "quote-types", group: "sales", label: "Quote types", description: "Show or hide offer types in the New Quotation picker", href: ROUTES.settingsQuoteTypes, keywords: ["offer", "technical", "budgetary", "amc", "installation"], adminOnly: false, featureKey: "quotations" },
   { id: "text-templates", group: "sales", label: "Text templates", description: "Saved snippets for line items, notes and terms", href: ROUTES.configTemplates, keywords: ["snippets", "terms", "notes"], adminOnly: false, featureKey: "quotations" },
   { id: "email-templates", group: "sales", label: "Email templates", description: "Subject and body pairs your team can pick between when emailing a quote", href: ROUTES.settingsEmailTemplates, keywords: ["mail", "subject"], adminOnly: true, featureKey: "quotations", relatedWorkcenter: "quotations" },
   { id: "pricing", group: "sales", label: "Small Scale Pricing", description: "Static standard rates for labour, materials, testing and transport — the simple pricing model for small tenants", href: ROUTES.configPricing, keywords: ["rates", "labour", "materials"], adminOnly: false, featureKey: "quotations" },
   { id: "dynamic-pricing", group: "sales", label: "Dynamic Pricing", description: "Pick how you price, set your numbers, go live — has its own workcenter with rates, setup wizard, history and an advanced config cockpit", href: ROUTES.pricingSetup, keywords: ["pricing engine", "margin", "cost"], external: true, adminOnly: true, featureKey: "pricing_engine", relatedWorkcenter: "pricing" },
-  { id: "coverage", group: "sales", label: "Coverage", description: "Teams, rule-based segments and the wiring that replaces flat territory/sales org assignment — also drives auto-ownership, product availability and ERP routing", href: ROUTES.settingsCoverage, keywords: ["territory", "sales org", "segments", "ownership"], adminOnly: true, featureKey: "coverage_model" },
   { id: "rfq", group: "sales", label: "RFQ", description: "How requests for quotation reach suppliers and how their replies come back — your own mailbox or BPMSquare's, reply window, reminders and terms", href: ROUTES.settingsRfq, keywords: ["supplier", "request for quotation", "reply"], adminOnly: true, featureKey: "rfq", relatedWorkcenter: "rfqs" },
+  { id: "account-360", group: "sales", label: "Account 360", description: "The account drawer: which cards it shows, and the external sources plugged into it", href: ROUTES.settingsAccount360, keywords: ["service", "account drawer", "health", "cards"], adminOnly: true, featureAnyOf: ["next_experience", "spectacular_theme"] },
 
   // ── Service ──
-  { id: "account-360", group: "service", label: "Account 360", description: "The account drawer: which cards it shows, and the external sources plugged into it", href: ROUTES.settingsAccount360, keywords: ["account drawer", "health", "cards"], adminOnly: true, featureAnyOf: ["next_experience", "spectacular_theme"] },
+  { id: "asset-print-fields", group: "service", label: "Asset print fields", description: "Which equipment fields appear in the Equipment Details section of a printed quote", href: ROUTES.settingsAssetPrintFields, keywords: ["equipment", "nameplate", "statuses & assets"], adminOnly: true, featureKey: "assets", relatedWorkcenter: "quotations" },
 
   // ── Workforce ──
   { id: "workforce", group: "workforce", label: "Workforce", description: "Attendance rules, timezone, break deduction, leave and retention — plus punch sites and shifts", href: ROUTES.settingsWorkforce, keywords: ["attendance", "shifts", "sites", "leave", "kiosk", "punch"], adminOnly: true, featureKey: "wfm", relatedWorkcenter: "wfm" },
 
   // ── Data ──
   { id: "custom-fields", group: "data", label: "Custom fields", description: "Add fields to any object — included automatically in the API and MCP", href: ROUTES.configCustomFields, keywords: ["fields", "columns", "extra"], adminOnly: true, featureAnyOf: [...CRM_OBJECT_FEATURES, "business_roles"] },
+  // featureAnyOf, not featureKey: "products" -- the tree feeds the products
+  // screens AND any field whose selectSource is product_category, which can
+  // sit on an object a tenant without the Products module still uses.
+  { id: "product-categories", group: "data", label: "Product categories", description: "The category tree products are filed under, and that category fields pick from", href: ROUTES.settingsSales, keywords: ["products", "tree"], adminOnly: true, featureAnyOf: ["products", "quotations"], relatedWorkcenter: "quotations" },
   { id: "deletion-log", group: "data", label: "Deleted records", description: "Audit log of permanently deleted objects", href: ROUTES.settingsDeletionLog, keywords: ["audit", "trash", "removed"], adminOnly: true, featureAnyOf: CRM_OBJECT_FEATURES },
 
   // ── Integrations ──
   { id: "connectors", group: "integrations", label: "Connectors", description: "Connect BPMSquare to other systems — Slack today, more on the way", href: ROUTES.settingsConnectors, keywords: ["slack", "dynamics", "d365"], adminOnly: true },
-  { id: "developer", group: "integrations", label: "API keys & developer", description: "Your API key, scoped keys, the REST API endpoints and the integrations catalogue", href: ROUTES.settingsDeveloper, keywords: ["rest", "token", "mcp", "openapi", "bearer"], adminOnly: false },
+  { id: "developer", group: "integrations", label: "API keys & developer", description: "Your API key, scoped keys, the REST API endpoints and the integrations catalogue", href: ROUTES.settingsDeveloper, keywords: ["general", "api", "rest", "token", "mcp", "openapi", "bearer"], adminOnly: false },
   { id: "push", group: "integrations", label: "Webhooks & push", description: "Event webhooks, and pushing a single record to your ERP on demand", href: ROUTES.settingsPush, keywords: ["erp", "signing secret", "events", "outbound"], adminOnly: true },
   { id: "email-output", group: "integrations", label: "Email output", description: "Where quotations, invoices, campaigns and workforce notifications are actually delivered", href: ROUTES.settingsEmailOutput, keywords: ["mail", "redirect", "demo", "inbox", "resend"], adminOnly: true },
 
   // ── Appearance ──
-  { id: "appearance", group: "appearance", label: "Theme & colours", description: "Theme, accent colour and the compact sidebar for the whole workspace", href: ROUTES.settingsAppearance, keywords: ["look", "dark", "nova", "classic", "accent", "brand colour"], adminOnly: false },
+  { id: "appearance", group: "appearance", label: "Theme & colours", description: "Theme, accent colour and the compact sidebar for the whole workspace", href: ROUTES.settingsAppearance, keywords: ["general", "appearance", "look", "dark", "nova", "classic", "accent", "brand colour"], adminOnly: false },
   { id: "dashboard", group: "appearance", label: "Dashboard content", description: "Business news and tips for a dashboard that has no data of its own yet", href: ROUTES.settingsDashboard, keywords: ["news", "tips", "home"], adminOnly: true },
   { id: "reset", group: "appearance", label: "Reset layout", description: "Restore navigation visibility and the compact sidebar to their defaults", href: ROUTES.settingsReset, keywords: ["default", "restore"], adminOnly: false },
 ];

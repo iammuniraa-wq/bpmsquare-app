@@ -29,6 +29,14 @@ describe("visibleSettingsMenu", () => {
     expect(ids(withGrant)).not.toContain("team");
   });
 
+  it("keeps Pipeline & quote statuses in Sales and Asset print fields in Service", () => {
+    const menu = visibleSettingsMenu({ isAdmin: true, canEdit: () => true, features: { quotations: true, assets: true } });
+    const groupOf = (id: string) => menu.find((g) => g.items.some((i) => i.id === id))?.id;
+    expect(groupOf("statuses")).toBe("sales");
+    expect(groupOf("asset-print-fields")).toBe("service");
+    expect(groupOf("coverage")).toBeUndefined();
+  });
+
   it("keeps every entry id and href unique", () => {
     expect(new Set(SETTINGS_MENU.map((m) => m.id)).size).toBe(SETTINGS_MENU.length);
     expect(new Set(SETTINGS_MENU.map((m) => m.href)).size).toBe(SETTINGS_MENU.length);
@@ -44,6 +52,14 @@ describe("filterSettingsMenu", () => {
     expect(filterSettingsMenu(groups, "invite").flatMap((g) => g.items.map((i) => i.id))).toEqual(["team"]);
     expect(filterSettingsMenu(groups, "supplier").flatMap((g) => g.items.map((i) => i.id))).toContain("rfq");
     expect(filterSettingsMenu(groups, "workforce").flatMap((g) => g.items.map((i) => i.id))).toContain("workforce");
+  });
+
+  it("still finds pages by the names they had before the split", () => {
+    const find = (q: string) => filterSettingsMenu(groups, q).flatMap((g) => g.items.map((i) => i.id));
+    expect(find("general")).toEqual(expect.arrayContaining(["company", "appearance", "navigation", "developer"]));
+    expect(find("statuses")).toContain("statuses");
+    expect(find("statuses & assets")).toEqual(expect.arrayContaining(["statuses", "asset-print-fields"]));
+    expect(find("appearance")).toContain("appearance");
   });
 
   it("requires every typed word and returns everything for a blank query", () => {
