@@ -139,3 +139,10 @@ alter table custom_fields drop constraint if exists custom_fields_object_type_ch
 alter table custom_fields add constraint custom_fields_object_type_check
   check (object_type in ('account','contact','case','quote','work_order','asset','supplier','inventory','purchase_order','invoice',
                          'employee','product','project','opportunity','rfq','estimate')) not valid;
+
+-- ── Exact building model (docs/estimator-architecture.md section 10.2) ──────
+-- Appended after first apply on the dev database so the file stays re-runnable:
+-- `geometry` names the template's geometry module (null = formula-only, no 3D);
+-- `model` is the estimate's snapshot of the pieces it was priced with.
+alter table estimate_templates add column if not exists geometry text;
+alter table estimates add column if not exists model jsonb;
