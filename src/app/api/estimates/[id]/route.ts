@@ -62,6 +62,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     if (recompute) {
       const calc = await recomputeEstimate(ctx, id, {
         params: parsed.params,
+        // A margin-only change keeps the stored unit costs (no pricing calls); new inputs or a
+        // new account price the product lines again.
+        reprice: !!parsed.params || accountChanged,
         margin_pct: typeof parsed.patch.margin_pct === "number" ? parsed.patch.margin_pct : undefined,
         account_id: "account_id" in parsed.patch ? (parsed.patch.account_id as string | null) : undefined,
       });

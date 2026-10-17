@@ -201,6 +201,7 @@ on `develop`, never push; owner pushes)
 - **E2 API + surfaces**: routes (estimates CRUD, lines, compute, import
   schedule, quote conversion, exports, templates CRUD), DW routes, v1 + MCP,
   search/Nova/palette/analytics wiring, change history.
+  **Status: built 2026-10-17, see section 12.**
 - **E3 Screens + seed + docs**: list/new/record pages on the new templates,
   Settings template list + editor, seed SQL, ledger entry in PROJECT.md,
   README note in this doc of what is illustrative.
@@ -314,7 +315,7 @@ engine (§1) as the "hybrid":
   `prefers-reduced-motion` (no auto-play, no drop animation), read theme
   colours from CSS variables, and work with touch (rotate/zoom/tap-to-pick).
 
-## 11. E1 as built (2026-10-17) — status: E1 built, E2 next
+## 11. E1 as built (2026-10-17) — status: E1 built
 
 Pure engine under `src/lib/estimator/` (no I/O, all unit-tested; `tsc` and
 `vitest` clean):
@@ -366,3 +367,138 @@ were appended to 0131 for 10.2; an ERP profile holds `columns: { bom, wbs }`
 because the two exports have different fields; the starter's groups
 gained "Production" and "Insulation and fixings" so the overhead base matches
 the mock-up.
+
+## 12. E2 as built (2026-10-17) — status: E1 and E2 built, E3 next
+
+API, server core and every non-screen surface of the §3b checklist. No screens
+(E3), no seed (E3), no simulation (E4). No new SQL: 0131 as applied is enough.
+`tsc`, `vitest` and `next build` clean.
+
+### 12.1 Code map
+
+| File | What it is |
+|---|---|
+| `server.ts` (server-only) | access guard `estimatorAccess(view\|create\|edit\|delete)` (module flag, then the Estimates workcenter); loaders that degrade on 42P01/42703/PGRST205 (`{missing:true}` / 503 `pending_migration`); `priceProductRules`, `computeAndPrice` (the two passes); `recomputeEstimate`, `refreshTotals`; `assembleEstimateQuote`; template list/insert helpers |
+| `quoteLines.ts` | pure: cost lines -> customer quote lines (group or line), alternatives tagging, `quoteBlockers` |
+| `overrides.ts` | pure: line-edit validation and re-applying hand edits after a recalculation |
+| `lines.ts` | pure: stored row <-> computed line <-> export/quote/summary inputs |
+| `requests.ts` | pure: body/query parsing for the routes (allowlists, ranges, list paging) |
+| `editorCheck.ts` | pure: `checkTemplate` (all issues + example with the defaults) and `checkFormula` for the editor |
+| `apiRows.ts` | the customer-safe estimate shape for v1 / `/ask` / reports |
+
+### 12.2 Routes
+
+All call `estimatorAccess()` first (`requireTenantUser()` inside), chain
+`.eq("tenant_id")`, verify foreign ids, log changes. Not owning the module = 404.
+
+| Route | Methods | Needs | Notes |
+|---|---|---|---|
+| `/api/estimates` | GET, POST | view / create | GET: `q status account_id template_id sort dir page page_size`. POST computes on create; inputs that do not compute create nothing (422 + issues) |
+| `/api/estimates/[id]` | GET, PATCH, DELETE | view / edit / delete | GET = estimate (totals, model), lines, template, `template_outdated`, account, contact, quote. PATCH allowlist: name, account_id, contact_id, notes, margin_pct, status (draft\|won\|lost), params, custom_data (`cf_`). margin/params/account recalculate first |
+| `/api/estimates/[id]/calculate` | POST | edit | `{reprice?}`; replaces computed lines, keeps manual lines and hand edits |
+| `/api/estimates/[id]/lines` | POST | edit | manual line; with a product and no cost, priced like a rule line |
+| `/api/estimates/[id]/lines/[lid]` | PATCH, DELETE | edit | PATCH qty, unit_cost, description, uom, waste_pct, component, wbs_code. DELETE: manual lines only |
+| `/api/estimates/[id]/schedule` | POST, DELETE | view (preview) / edit (apply) | `?mode=preview\|apply[&skip_errors=1]`, multipart `file` or JSON `{filename,csv\|base64}`; 5 MB / 2000 rows. DELETE clears the schedule |
+| `/api/estimates/schedule-template` | GET | view | `?template_id=\|estimate_id=&format=xlsx\|csv` |
+| `/api/estimates/[id]/quote` | POST | edit + create on Standard Quotes | 201 / 409 already quoted / 422 unresolved or unpriced |
+| `/api/estimates/[id]/export` | GET | view | `?format=bom\|wbs&type=csv\|xlsx&profile=&include=items\|all`; 400 on unknown values; internal (carries costs) |
+| `/api/estimate-templates` | GET, POST | view / edit | POST returns every validation issue |
+| `/api/estimate-templates/[id]` | GET, PATCH, DELETE | view / edit | PATCH validates the merged template; bumps `version` on content changes; optional `expected_version`. DELETE 409 while estimates use it (deactivate instead) |
+| `/api/estimate-templates/[id]/duplicate` | POST | edit | "<name> (copy)" |
+| `/api/estimate-templates/from-starter` | GET, POST | view / edit | copies the illustrative starter into the workspace as an ordinary template; idempotent by name |
+| `/api/estimate-templates/validate` | POST | edit | template (+ optional `formula`) -> issues, warnings, example from the defaults |
+| `/api/import\|export\|update/estimates` | POST | create / view / edit | Data Workbench, header fields only |
+| `/api/v1/estimates`, `/[id]` | GET | key scoped to `estimates` | customer-safe fields only |
+
+### 12.3 Decisions and deviations from the spec text
+
+- **Two-pass pricing.** Pass 1 quantities; each `needs_price` rule's SKU is
+  resolved to a product in the tenant (active first, then oldest), priced with
+  `priceDocumentLine()` at the rule's gross quantity; pass 2 with `unit_costs`
+  (so `sub_<group>` overhead sees real figures). **Addition:** when the engine
+  has no price (no price book, no cost on file, or it is not configured) the
+  product's own `cost_price` is the internal cost; recorded per rule in
+  `totals.pricing` (`engine` / `product_cost`). A SKU that matches no product
+  is listed in `totals.unresolved`, a product with neither price in
+  `totals.unpriced`; both block the quote. **Caveat for the owner:** the
+  engine's pre-tax unit rate is a SELL price, so a price book with its own
+  markup stacks under the estimator's margin; use cost-based areas or
+  `cost_price` for estimating. Every priced line also writes a
+  `pricing_documents` row and a `pricing_usage` meter row (as Standard Quotes
+  do), so a recalculation with N product rules is N metered calls; a
+  margin-only change reuses the stored unit costs and prices nothing.
+- **Persistence.** New computed lines are inserted before the old ones are
+  deleted, so a failure leaves the estimate as it was. Manual lines are kept
+  and renumbered after the computed ones. Each line carries a snapshot in
+  `custom_data`: `group` (display name), `sku`, and for schedule rows
+  `label` / `schedule_qty` (so a recompute rebuilds the schedule).
+  `estimates.totals` also carries `unpriced`, `unresolved`, `pricing`,
+  `warnings`.
+- **Hand edits to computed lines** (PATCH on a rule/schedule line) are stored
+  as `custom_data.override` and re-applied by rule code and position on every
+  recalculation, so changing an input does not silently undo them. They adjust
+  that line and the totals only; other rules' formulas still read the computed
+  `qty_<code>`. A computed line cannot be deleted (it would come back): set
+  its quantity to 0. An override whose line disappears is dropped with a
+  warning in `totals.warnings`.
+- **A quoted estimate is locked**: with a `standard_quote_id`, params, margin,
+  account, lines, schedule and calculate answer 409 (name, notes, status,
+  custom fields still edit). To revise, make a new estimate.
+- **Quote assembly** (`assembleEstimateQuote`): refuses unresolved/unpriced
+  lines; one line per group (or per line when `quote_granularity = line`),
+  `qty 1`, `uom lot`, `rate = amount` = cost + margin, rounded so the lines add
+  up to the estimate's price to the cent (a Standard Quote line holds
+  `numeric(12,2)` rates, so a true quantity x rate could not add up; at line
+  granularity the quantity is in the description). Header `tax_pct` is the
+  tenant's `config.tax.rate` (0 when unset), so VAT is the quote's. Nothing
+  cost-related is written to a quote line (tested). Idempotent: a conditional
+  update claims the estimate (`standard_quote_id is null`); a lost race deletes
+  its quote and answers 409.
+- **Finish-level alternatives**: a template select input with
+  `quote_alternatives: true` (new optional flag, kept by `validateTemplate`)
+  quotes every option as an alternative group; the estimate's own choice is
+  selected. Other options are recomputed with the chosen option's stored unit
+  costs. No flagged input = no alternatives, and the response says so.
+- **Template versions**: `version` bumps when inputs, rates, rules, geometry or
+  `quote_granularity` change, not on name/description/trade/active toggles.
+  Recalculating an estimate uses the current template and stores its version.
+- **Estimate list** is new: the suppliers route the spec points to does no
+  search or paging, so `GET /api/estimates` implements them (server side,
+  exact count).
+- **Data Workbench**: import makes a draft by template NAME and does not
+  compute (a file of hundreds of rows would be hundreds of metered pricing
+  runs); the new estimate has no lines until opened and calculated. Update
+  refuses `margin_pct` (it recalculates) and `quoted`.
+- **v1**: `estimates` is explicit-scope only. The price is read through
+  `totals->price` / `totals->price_incl_vat` json paths, so the rest of
+  `totals` never leaves the database; no lines, params or model. Exposed as
+  `quoted_total` (before VAT) and `quoted_total_incl_vat`.
+- **Ref collisions**: `insertWithMasterRef` only retries on indexes named
+  `*_tenant_ref_uniq`; `estimates_tenant_ref_key` does not match, so
+  `insertEstimate` retries on any 23505 itself (0131 is applied; not edited).
+  The same latent gap exists for products, opportunities and fence projects.
+- **Extra routes** beyond the brief: `DELETE .../schedule`, `GET
+  .../from-starter` (the "start from" list).
+
+### 12.4 What E3 must do
+
+- Pages (`/estimates`, `/estimates/new`, `/estimates/[id]`; `ROUTES` exist) on
+  `ObjectListPage` / `ObjectFormPage` / `ObjectRecordPage`; read through
+  `loadEstimateBundle` / `listEstimates` / `listTemplates` (server.ts) or the
+  routes; show "waiting for the database update" when `missing`.
+- Inputs form generated from `template.inputs` (sections), Calculate, BOM tab
+  (edit qty / unit cost -> PATCH line, add manual line, schedule upload with
+  preview, exports with the ERP profile picker), Costing tab (`totals`), Quote
+  tab (`/quote`, show `unresolved` / `unpriced` / `warnings`), Activity, and
+  `<NovaTimelineSlot objectType="estimates" objectId={id} />`, `ObjectSections`
+  for `cf_` fields (exclude the hand-rendered keys), account page tab via
+  `estimatesForAccount(accountId)` (`@/lib/data`).
+- Settings -> Sales -> Estimate templates: list (`/api/estimate-templates`),
+  "Start from" (`from-starter`), editor using `/validate` for live issues, the
+  example result and per-formula values; include a `quote_alternatives` toggle
+  on select inputs.
+- `scripts/seed-estimator-demo.sql` (demo tenants: flag on, the illustrative
+  template, one sample estimate), ledger entry in PROJECT.md, and the Drive
+  guide refresh after the owner has validated it. The illustrative starter is
+  fully rate-priced (it has no product rules), so the demo needs no products
+  unless a template adds product rules.
