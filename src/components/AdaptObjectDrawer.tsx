@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { c } from "@/lib/theme";
+import Tabs from "@/components/ui/Tabs";
 import {
   FIELD_REGISTRY, isPilotObjectType,
   type EffectiveField, type ConditionNode, type ConditionGroup, type FieldCondition,
@@ -186,22 +187,13 @@ export default function AdaptObjectDrawer({ objectType, objectLabel, isAdmin, op
             </div>
 
             {supportsRules && (
-              <div style={{ display: "flex", borderBottom: "1px solid var(--drawer-line)" }}>
-                {(["fields", "rules"] as const).map((t) => (
-                  <button
-                    key={t}
-                    type="button"
-                    onClick={() => setTab(t)}
-                    style={{
-                      flex: 1, padding: "10px 0", background: "none", border: "none", cursor: "pointer",
-                      fontSize: 12.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5,
-                      color: tab === t ? c.accent : "var(--drawer-hint)",
-                      borderBottom: tab === t ? `2px solid ${c.accent}` : "2px solid transparent",
-                    }}
-                  >
-                    {t === "fields" ? "Fields" : "Rules"}
-                  </button>
-                ))}
+              <div style={{ padding: "0 12px" }}>
+                <Tabs
+                  label="Adapt sections"
+                  value={tab}
+                  onChange={(id) => setTab(id as "fields" | "rules")}
+                  tabs={[{ id: "fields", label: "Fields" }, { id: "rules", label: "Rules" }]}
+                />
               </div>
             )}
 

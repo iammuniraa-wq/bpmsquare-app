@@ -253,15 +253,12 @@ export default function StandardQuoteForm({
     const active = step === key;
     return (
       <button
-        type="button" onClick={() => (key === "lines" ? goToLines() : key === "attachments" ? goToAttachments() : setStep("details"))}
+        type="button" role="tab" aria-selected={active} className="bpm-tab"
+        onClick={() => (key === "lines" ? goToLines() : key === "attachments" ? goToAttachments() : setStep("details"))}
         title={key === "attachments" && !editQuote ? "Available once the quote is created" : undefined}
-        style={{
-          display: "inline-flex", alignItems: "center", gap: 8, padding: compact ? "6px 10px" : "8px 14px", fontSize: compact ? 12.5 : 13, fontWeight: 600,
-          color: active ? c.accent : c.muted, background: "none", border: "none", borderBottom: `2px solid ${active ? c.accent : "transparent"}`,
-          marginBottom: -1, cursor: "pointer",
-        }}
+        style={compact ? { padding: "6px 10px 5px", fontSize: 12.5 } : undefined}
       >
-        <span style={{ width: 18, height: 18, borderRadius: 999, fontSize: 11, display: "inline-flex", alignItems: "center", justifyContent: "center", background: active ? c.accent : c.panel2, color: active ? "#fff" : c.hint }}>{n}</span>
+        <span style={{ width: 18, height: 18, borderRadius: 999, fontSize: 11, display: "inline-flex", alignItems: "center", justifyContent: "center", background: active ? "var(--tab-accent, var(--accent))" : c.panel2, color: active ? "#fff" : c.hint }}>{n}</span>
         {label}
       </button>
     );
@@ -298,7 +295,7 @@ export default function StandardQuoteForm({
             title={editQuote ? `Edit ${editQuote.ref}` : "New Standard Quote"}
             subtitle="A plain quote for an account — line items, discount, tax, shipping"
           />
-          <div style={{ display: "flex", gap: 4, marginBottom: 14, borderBottom: `1px solid ${c.line}` }}>
+          <div role="tablist" aria-label="Quote steps" className="bpm-tabs" style={{ marginBottom: 14 }}>
             {stepTab("details", "1", "Quote details")}
             {stepTab("lines", "2", lineCount > 0 ? `Line items (${lineCount})` : "Line items")}
             {stepTab("attachments", "3", "Attachments")}
@@ -388,7 +385,7 @@ export default function StandardQuoteForm({
               : { borderRadius: 10, boxShadow: "0 2px 8px rgba(0,0,0,0.06)" }),
           }}>
             <Link href={cancelHref} title={editQuote ? `Back to ${editQuote.ref}` : "All standard quotes"} style={{ fontSize: 14, color: c.muted, textDecoration: "none", whiteSpace: "nowrap" }}>←</Link>
-            <div style={{ display: "flex", alignItems: "center", margin: "-10px 0" }}>
+            <div role="tablist" aria-label="Quote steps" style={{ display: "flex", alignItems: "center", margin: "-10px 0" }}>
               {stepTab("details", "1", "Details", true)}
               {stepTab("lines", "2", lineCount > 0 ? `Lines (${lineCount})` : "Lines", true)}
               {stepTab("attachments", "3", "Files", true)}

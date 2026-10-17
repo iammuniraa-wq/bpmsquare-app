@@ -803,8 +803,8 @@ export default function DocumentLinesEditor({
     const p = products.find((x) => x.id === panelProductId) ?? null;
     const suggestedAlts = p && p.category ? products.filter((x) => x.id !== p.id && x.category === p.category).slice(0, 8) : [];
     const tabBtn = (key: typeof panelTab, label: string, disabled = false) => (
-      <button type="button" disabled={disabled} onClick={() => { setPanelTab(key); if (key === "previous" && history === null && !historyBusy) loadHistory(historyScope, panelProductId); }}
-        style={{ fontSize: 12, fontWeight: 600, padding: "5px 10px", borderRadius: 6, border: `1px solid ${panelTab === key ? c.accent : c.line}`, background: panelTab === key ? c.accentbg : "transparent", color: panelTab === key ? c.accent : c.muted, cursor: disabled ? "default" : "pointer", opacity: disabled ? 0.5 : 1 }}>
+      <button type="button" role="tab" aria-selected={panelTab === key} className="bpm-tab" disabled={disabled} onClick={() => { setPanelTab(key); if (key === "previous" && history === null && !historyBusy) loadHistory(historyScope, panelProductId); }}
+        style={{ fontSize: 12.5, padding: "6px 12px 5px" }}>
         {label}
       </button>
     );
@@ -822,9 +822,11 @@ export default function DocumentLinesEditor({
       <div style={{ marginTop: 10, border: `1px solid ${c.accent}`, borderRadius: 8, padding: 12, background: c.panel }}>
         <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
           <span style={{ fontSize: 12.5, fontWeight: 700, color: c.ink, marginRight: 6 }}>Add a line from</span>
-          {tabBtn("catalog", "Catalog", products.length === 0)}
-          {tabBtn("previous", "Previous quotes")}
-          {tabBtn("free", "Free text")}
+          <div role="tablist" aria-label="Add a line from" className="bpm-tabs" style={{ borderBottom: "none", overflow: "visible" }}>
+            {tabBtn("catalog", "Catalog", products.length === 0)}
+            {tabBtn("previous", "Previous quotes")}
+            {tabBtn("free", "Free text")}
+          </div>
           <button type="button" onClick={() => { setLines((ls) => [...ls, newLine()]); setPanelOpen(false); }} style={{ marginLeft: "auto", fontSize: 11.5, color: c.hint, background: "none", border: "none", cursor: "pointer", padding: 0 }}>Just a blank line</button>
         </div>
 

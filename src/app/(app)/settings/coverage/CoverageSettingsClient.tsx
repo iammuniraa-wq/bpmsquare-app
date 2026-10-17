@@ -6,6 +6,7 @@ import { cardStyle } from "@/components/Shell";
 import { useFeel } from "@/components/FeelProvider";
 import Button from "@/components/ui/Button";
 import MoreMenu from "@/components/ui/MoreMenu";
+import Tabs from "@/components/ui/Tabs";
 import { SettingsHeaderActions } from "@/components/settings/SettingsHeaderActions";
 import { typeLabel } from "@/lib/typeScale";
 import {
@@ -25,11 +26,6 @@ type Coverage = {
 type Endpoint = { id: string; name: string; webhook_url: string };
 type AccountLite = { id: string; name: string };
 
-const TAB_STYLE = (active: boolean): React.CSSProperties => ({
-  padding: "8px 16px", borderRadius: 8, fontSize: 13.5, fontWeight: 600, cursor: "pointer",
-  background: active ? c.accent : "transparent", color: active ? "#fff" : c.ink,
-  border: `1px solid ${active ? c.accent : c.line}`,
-});
 const lbl: React.CSSProperties = { ...typeLabel, display: "block", marginBottom: 6 };
 const inp: React.CSSProperties = {
   boxSizing: "border-box", border: `1px solid ${c.line}`, borderRadius: 8,
@@ -106,11 +102,12 @@ export default function CoverageSettingsClient() {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14, maxWidth: 1040 }}>
-      <div style={{ display: "flex", gap: 8 }}>
-        <div style={TAB_STYLE(tab === "teams")} onClick={() => setTab("teams")}>Teams</div>
-        <div style={TAB_STYLE(tab === "segments")} onClick={() => setTab("segments")}>Segments</div>
-        <div style={TAB_STYLE(tab === "coverage")} onClick={() => setTab("coverage")}>Coverage</div>
-      </div>
+      <Tabs
+        label="Coverage sections"
+        value={tab}
+        onChange={(id) => setTab(id as typeof tab)}
+        tabs={[{ id: "teams", label: "Teams" }, { id: "segments", label: "Segments" }, { id: "coverage", label: "Coverage" }]}
+      />
 
       {error && <div style={{ fontSize: 12.5, color: "var(--err-ink)" }}>{error}</div>}
 
