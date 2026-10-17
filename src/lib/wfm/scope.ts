@@ -248,6 +248,22 @@ export async function canApproveFor(
   return { ok: false, reason: "That employee doesn't work at a site you supervise." };
 }
 
+/** The scope as an employee-id allowlist: null = unrestricted (no filter). */
+export function scopeEmployeeIds(scope: WfmScope): string[] | null {
+  return scope.unrestricted ? null : (scope.employeeIds ?? []);
+}
+
+/**
+ * Narrow an employee list (rows keyed by `id`) to the caller's scope. The
+ * caller's own record stays in -- a supervisor needs to see themselves on the
+ * Employees screen even though they are not in their own subtree.
+ */
+export function filterEmployeesToScope<T extends { id: string }>(rows: T[], scope: WfmScope): T[] {
+  if (scope.unrestricted) return rows;
+  const visible = new Set([...(scope.employeeIds ?? []), scope.selfEmployeeId].filter(Boolean) as string[]);
+  return rows.filter((r) => visible.has(r.id));
+}
+
 /** Apply a scope to a Supabase query builder's employee_id column. */
 export function applyScope<T extends { in: (col: string, vals: string[]) => T }>(
   query: T,
