@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { NAV, ROUTES } from "@/lib/constants";
+import { NAV } from "@/lib/constants";
 import type { NavItem } from "@/lib/constants";
 import type { SearchResult } from "@/lib/globalSearch";
 import { getSearchObject } from "@/lib/globalSearch";
@@ -135,6 +135,7 @@ export default function NovaPalette() {
   const universe = useMemo<Item[]>(() => {
     const canSee = (item: NavItem) =>
       (!item.featureKey || features?.[item.featureKey] === true) &&
+      (!item.adminOnly || viewable === "all") &&
       (viewable === "all" || !item.workcenterKey || (viewable as string[]).includes(item.workcenterKey)) &&
       (!item.supervisorOnly || isWfmSupervisor);
 
@@ -149,7 +150,6 @@ export default function NovaPalette() {
         }
       }
     }
-    if (viewable === "all") nav.push({ kind: "nav", label: "Settings", sub: "Workspace", href: ROUTES.settings });
 
     const create: Item[] = CREATE_ACTIONS
       .filter((a) => features?.[a.featureKey] === true)

@@ -11,7 +11,8 @@ import { StarFilled, StarOutline, Gear, Monitor, Globe, Phone, FileText, BarChar
 import { useTenant, useUiTheme, useViewableWorkcenters, useIsWfmSupervisor, useTopBarIdentity, useIsSpectacular } from "@/lib/tenant-context";
 import SpacesRow from "@/components/SpacesRow";
 import { isNavItemHidden } from "@/lib/navVisibility";
-import type { ViewableWorkcenters, WorkcenterKey } from "@/lib/workcenters";
+import { isItemViewable } from "@/lib/navGroups";
+import type { ViewableWorkcenters } from "@/lib/workcenters";
 
 // ── Nav order persistence ─────────────────────────────────────────────────────
 
@@ -34,17 +35,9 @@ type NavState = {
 export type FlatItem = NavItem & { group: string };
 
 
-// A parent "toggle" row (Sales/Service/Marketing/Master data -- anything
-// with children) has no workcenterKey of its own; it's viewable whenever at
-// least one child is. A leaf item with no workcenterKey at all (shouldn't
-// happen for anything in NAV today) defaults to viewable, same as before
-// this feature existed.
-export function isItemViewable(item: NavItem, viewable: ViewableWorkcenters): boolean {
-  if (viewable === "all") return true;
-  if (item.children?.length) return item.children.some((ch) => isItemViewable(ch, viewable));
-  if (!item.workcenterKey) return true;
-  return viewable.includes(item.workcenterKey as WorkcenterKey);
-}
+// Viewability rules live in lib/navGroups.ts so Spaces and the tab bar share
+// them; re-exported here for the callers that import it from the sidebar.
+export { isItemViewable };
 
 /** A bundled parent (Sales, Service, Marketing, …) has no featureKey of its
  * own -- it earns its row only if at least one child survives the feature/
@@ -564,7 +557,7 @@ export default function Sidebar({ onNavigate, hideHeader }: { onNavigate?: () =>
   // "is this href hidden" cannot decide a parent: it is hidden only when all
   // its children are (see lib/navVisibility.ts).
   const childPresent = (ch: NavItem) => (!ch.featureKey || features?.[ch.featureKey] === true) && isItemViewable(ch, viewable);
-  const rowHidden = (i: FlatItem) => isNavItemHidden(hidden, i, childPresent);
+  const rowHidden = (i: FlatItem) => !i.adminOnly && isNavItemHidden(hidden, i, childPresent);
 
   const favItems  = navState.favs
     .map((h) => allMap.get(h)).filter((i): i is FlatItem => !!i && !rowHidden(i));
@@ -713,24 +706,6 @@ export default function Sidebar({ onNavigate, hideHeader }: { onNavigate?: () =>
           {[...favItems, ...restItems].map((item) => (
             <IconRailItem key={item.href} item={item} active={isActive(item.href)} accent={accent} onNavigate={onNavigate} />
           ))}
-          {viewable === "all" && (
-            <>
-              <div style={{ borderTop: "1px solid var(--sb-line)", margin: "8px 4px" }} />
-              <Link
-                href={ROUTES.settings}
-                onClick={onNavigate}
-                title="Settings"
-                style={{
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  width: 36, height: 36, margin: "0 auto", borderRadius: 8,
-                  background: isActive(ROUTES.settings) ? `var(--sb-active-bg, ${accent})` : "transparent",
-                  textDecoration: "none",
-                }}
-              >
-                <Gear size={14} color={isActive(ROUTES.settings) ? "var(--sb-active-ink, #fff)" : "var(--sb-icon-muted)"} />
-              </Link>
-            </>
-          )}
         </nav>
       ) : spacesLeads && !treeExpanded ? null : (
       <nav>
@@ -787,18 +762,14 @@ export default function Sidebar({ onNavigate, hideHeader }: { onNavigate?: () =>
 
       </nav>
       )}
-      {/* Settings and the nav-order reset live OUTSIDE the tree: Settings is
-          not in NAV, so Spaces cannot carry it, and when Spaces leads and the
-          tree is collapsed this footer is the only way to reach it. Rendered
-          for the expanded rail only -- the collapsed icon rail has its own
-          Settings glyph above. */}
-      {/* Settings is hidden for a member restricted to specific workcenters by
-          a Business Role (nothing in it is scoped to any workcenter, so it was
-          previously shown to everyone regardless); "Reset nav order" is a
-          personal preference and stays available either way. */}
+      {/* Settings is a NAV item now (Admin group, adminOnly), so it shows in
+          the tree, the icon rail and Spaces. This footer link remains only for
+          Spectacular when Spaces leads and the tree is collapsed -- Spaces
+          carries it too, but the footer keeps a one-click path. The nav-order
+          reset is a personal preference and stays available either way. */}
       {!collapsed && (
       <div style={{ borderTop: "1px solid var(--sb-line)", marginTop: 10, paddingTop: 8 }}>
-        {viewable === "all" && (
+        {viewable === "all" && spacesLeads && !treeExpanded && (
           <Link
             href={ROUTES.settings}
             onClick={onNavigate}

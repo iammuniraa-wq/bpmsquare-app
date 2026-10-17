@@ -29,7 +29,7 @@ export default function NavigationVisibilityPage() {
   // while keeping its siblings visible; hiding the parent hid all of them together.
   const allNavItems = NAV.flatMap((grp) =>
     grp.items
-      .filter((item) => !item.featureKey || tenantFeatures?.[item.featureKey] === true)
+      .filter((item) => !item.adminOnly && (!item.featureKey || tenantFeatures?.[item.featureKey] === true))
       .flatMap((item) => {
         const parentRow = { ...item, group: grp.group, sub: null as string | null, indent: false };
         if (!item.children?.length) return [parentRow];

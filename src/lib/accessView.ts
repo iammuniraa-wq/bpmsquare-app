@@ -61,6 +61,7 @@ export function resolveAccess(args: {
 }
 
 function leafViewable(item: NavItem, viewable: ViewableWorkcenters): boolean {
+  if (item.adminOnly && viewable !== "all") return false;
   if (viewable === "all") return true;
   if (!item.workcenterKey) return true;
   return viewable.includes(item.workcenterKey as WorkcenterKey);

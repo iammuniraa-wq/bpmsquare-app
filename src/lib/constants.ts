@@ -226,6 +226,10 @@ export type NavItem = {
    * enforcement is server-side (requireWfmSupervisorPage); this only keeps
    * the sidebar from advertising a link that would redirect away. */
   supervisorOnly?: boolean;
+  /** Shown only to a member with unrestricted workcenter access (tenant admin
+   * or no Business Role) -- Settings. Never hideable from Navigation
+   * visibility, so nobody can lock themselves out of it. */
+  adminOnly?: boolean;
   /** Sub-items shown when this item is expanded in the sidebar -- the item
    * itself becomes an expand/collapse toggle rather than a direct link. */
   children?: NavItem[];
@@ -326,7 +330,7 @@ export const NAV: NavGroup[] = [
         children: [
           { label: "My Workforce", href: ROUTES.wfmMe, icon: "◈", pillar: "amber", featureKey: "wfm", workcenterKey: "wfm" },
           { label: "Live board",   href: ROUTES.wfmLiveBoard,   icon: "◉", pillar: "amber", featureKey: "wfm", workcenterKey: "wfm", supervisorOnly: true },
-          { label: "Employees",    href: ROUTES.wfmEmployees,   icon: "⚇", pillar: "amber", featureKey: "wfm", workcenterKey: "wfm", supervisorOnly: true },
+          { label: "Workforce employees", href: ROUTES.wfmEmployees,   icon: "⚇", pillar: "amber", featureKey: "wfm", workcenterKey: "wfm", supervisorOnly: true },
           { label: "Corrections", href: ROUTES.wfmCorrections, icon: "✓", pillar: "amber", featureKey: "wfm", workcenterKey: "wfm", supervisorOnly: true },
           { label: "Roster", href: ROUTES.wfmRoster, icon: "▦", pillar: "amber", featureKey: "wfm", workcenterKey: "wfm", supervisorOnly: true },
           // Project costing carries its OWN featureKey, so an attendance-only
@@ -339,15 +343,10 @@ export const NAV: NavGroup[] = [
     ],
   },
   {
-    group: "PRICING",
-    items: [
-      { label: "Pricing", href: ROUTES.pricingToday, icon: "₹", pillar: "amber", featureKey: "pricing_engine", workcenterKey: "pricing" },
-    ],
-  },
-  {
-    group: "ANALYTICS",
+    group: "INSIGHTS",
     items: [
       { label: "Analytics", href: ROUTES.reports, icon: "◫", pillar: "purple", featureKey: "reports", workcenterKey: "reports" },
+      { label: "Pricing", href: ROUTES.pricingToday, icon: "₹", pillar: "amber", featureKey: "pricing_engine", workcenterKey: "pricing" },
     ],
   },
   {
@@ -355,6 +354,7 @@ export const NAV: NavGroup[] = [
     items: [
       { label: "Data Workbench", href: ROUTES.dataWorkbench, icon: "⇅", pillar: "teal", featureKey: "data_workbench", workcenterKey: "data_workbench" },
       { label: "Audit & Users", href: ROUTES.administration, icon: "⛨", pillar: "teal", featureKey: "administration", workcenterKey: "administration" },
+      { label: "Settings", href: ROUTES.settings, icon: "◈", pillar: "teal", adminOnly: true },
     ],
   },
 ];
