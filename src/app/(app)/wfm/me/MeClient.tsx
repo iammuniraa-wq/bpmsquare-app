@@ -1,5 +1,6 @@
 "use client";
 
+import Tabs from "@/components/ui/Tabs";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { selfieRequiredFor, locationRequiredFor } from "@/lib/wfm/punchRules";
 import LocationHelp from "@/components/wfm/LocationHelp";
@@ -1383,9 +1384,6 @@ export default function MeClient({
 
   return (
     <>
-      {/* On a phone, 7 tab buttons wrap into a two-row wall. Show the four
-          everyday tabs and club the rest (Timeline / Calendar / Analytics)
-          into one native "More" dropdown -- one row, no wrapping. */}
       {/* The one link off the punch screen. Everything else about this person
           lives on My Details, which loads nothing until a tab is opened. */}
       <div style={{ display: "flex", justifyContent: isDetails ? "flex-start" : "flex-end", marginBottom: 12 }}>
@@ -1401,43 +1399,21 @@ export default function MeClient({
         </a>
       </div>
 
-      <div style={{ display: "flex", gap: isMobile ? 5 : 7, marginBottom: 14, flexWrap: isMobile ? "nowrap" : "wrap", alignItems: "center", overflowX: isMobile ? "auto" : undefined }}>
-        {(isDetails
-          // "home" is the punch screen's own route now, so it is not a tab here.
-          ? (isMobile ? TABS.filter((t) => ["time", "requests", "profile"].includes(t.key)) : TABS.filter((t) => t.key !== "home"))
-          : []
-        ).map((t) => {
-          const compact = isMobile ? { padding: "7px 10px", fontSize: 12, whiteSpace: "nowrap" as const } : {};
-          return (
-            <button
-              key={t.key}
-              onClick={() => setTab(t.key)}
-              style={tab === t.key
-                ? { ...btn, ...compact, background: "var(--tenant-accent, #378ADD)", color: "#fff", borderColor: "transparent" }
-                : { ...btn, ...compact }}
-            >
-              {t.label}
-              {t.key === "requests" && (pendingLeave + pendingAdvance + openClarifications) > 0 && <span style={{ marginLeft: 6, opacity: 0.85 }}>({pendingLeave + pendingAdvance + openClarifications})</span>}
-            </button>
-          );
-        })}
-        {isMobile && (
-          <select
-            value={["timeline", "calendar"].includes(tab) ? tab : ""}
-            onChange={(e) => { if (e.target.value) setTab(e.target.value as Tab); }}
-            style={{
-              padding: "7px 8px", fontSize: 12, fontWeight: 600, borderRadius: 8,
-              border: `1px solid ${c.line}`, cursor: "pointer", outline: "none",
-              background: ["timeline", "calendar"].includes(tab) ? "var(--tenant-accent, #378ADD)" : c.panel,
-              color: ["timeline", "calendar"].includes(tab) ? "#fff" : c.ink,
-            }}
-          >
-            <option value="" disabled>More…</option>
-            <option value="timeline">Timeline</option>
-            <option value="calendar">Calendar</option>
-          </select>
-        )}
-      </div>
+      {isDetails && (
+        <div style={{ marginBottom: 14 }}>
+          {/* "home" is the punch screen's own route now, so it is not a tab here. */}
+          <Tabs
+            label="My details sections"
+            value={tab}
+            onChange={(id) => setTab(id as Tab)}
+            tabs={TABS.filter((t) => t.key !== "home").map((t) => ({
+              id: t.key,
+              label: t.label,
+              count: t.key === "requests" ? pendingLeave + pendingAdvance + openClarifications : undefined,
+            }))}
+          />
+        </div>
+      )}
 
       {offline && (
         <div style={{ ...cardStyle, marginBottom: 14, fontSize: 12.5, color: statusInk.warn, display: "flex", gap: 8, alignItems: "center" }}>

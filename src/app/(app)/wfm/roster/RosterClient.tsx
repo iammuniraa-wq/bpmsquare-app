@@ -6,6 +6,8 @@ import { c, statusInk } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
 import Pill from "@/components/Pill";
 import Pager from "@/components/Pager";
+import Tabs from "@/components/ui/Tabs";
+import { useUrlTab } from "@/components/ui/useUrlTab";
 import { paginate, clampPage, DEFAULT_PAGE_SIZE } from "@/lib/paginate";
 import { ROUTES } from "@/lib/constants";
 import type { WfmShift, WfmSite } from "@/lib/wfm/types";
@@ -302,6 +304,13 @@ export default function RosterClient({ initial = null }: {
   // module is off, so an ok response is the signal. Keeping these apart is
   // what stops "no projects yet" from looking identical to "feature missing".
   const [projectsOn, setProjectsOn] = useState(false);
+  const rosterTabs = [
+    { id: "standing", label: "Standing site & shift" },
+    { id: "changes", label: "Shift changes & days off" },
+    ...(projectsOn ? [{ id: "projects", label: "Project assignments" }] : []),
+    { id: "upload", label: "Upload & generate" },
+  ];
+  const [tab, setTab] = useUrlTab(rosterTabs.map((t) => t.id));
   const [overrideDayOff, setOverrideDayOff] = useState(false);
   const [busyB, setBusyB] = useState(false);
   const [errorB, setErrorB] = useState("");
@@ -680,6 +689,14 @@ export default function RosterClient({ initial = null }: {
     <>
       {error && <div style={{ ...cardStyle, marginBottom: 14, color: statusInk.bad, fontSize: 12.5 }}>{error}</div>}
 
+      {/* Every tab's state (pending ticks, picked employees, dates) lives in
+          this component, so switching tabs loses nothing. */}
+      <div style={{ marginBottom: 16 }}>
+        <Tabs tabs={rosterTabs} value={tab} onChange={setTab} label="Roster sections" />
+      </div>
+
+      {tab === "upload" && (
+      <>
       {/* ── Upload a roster spreadsheet ────────────────────────────────── */}
       <section style={{ ...cardStyle, marginBottom: 22 }}>
         <div style={{ fontSize: 13, fontWeight: 700, color: c.ink, marginBottom: 3 }}>Upload a roster spreadsheet</div>
@@ -744,7 +761,11 @@ export default function RosterClient({ initial = null }: {
         )}
       </section>
 
+      </>
+      )}
+
       {/* ── Section A: standing site + shift ──────────────────────────── */}
+      {tab === "standing" && (
       <section style={{ ...cardStyle, padding: 0, marginBottom: 22, overflowX: "auto" }}>
         <div style={{ padding: "12px 14px", borderBottom: `1px solid ${c.line}` }}>
           <div style={{ fontSize: 13, fontWeight: 700, color: c.ink }}>Standing site &amp; shift</div>
@@ -865,7 +886,10 @@ export default function RosterClient({ initial = null }: {
         </div>
       </section>
 
+      )}
+
       {/* ── Section B: shift changes and days off ─────────────────────── */}
+      {tab === "changes" && (
       <section style={{ ...cardStyle, padding: 0, marginBottom: 22, overflowX: "auto" }}>
         <div style={{ padding: "12px 14px", borderBottom: `1px solid ${c.line}` }}>
           <div style={{ fontSize: 13, fontWeight: 700, color: c.ink }}>Shift changes &amp; days off</div>
@@ -959,8 +983,10 @@ export default function RosterClient({ initial = null }: {
         </div>
       </section>
 
+      )}
+
       {/* ── Section C: project assignments ────────────────────────────── */}
-      {projectsOn && (
+      {projectsOn && tab === "projects" && (
         <section style={{ ...cardStyle, padding: 0, overflowX: "auto" }}>
           <div style={{ padding: "12px 14px", borderBottom: `1px solid ${c.line}` }}>
             <div style={{ fontSize: 13, fontWeight: 700, color: c.ink }}>Project assignments</div>

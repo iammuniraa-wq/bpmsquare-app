@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { c, pillar, statusInk } from "@/lib/theme";
+import Tabs from "@/components/ui/Tabs";
+import { useUrlTab } from "@/components/ui/useUrlTab";
 import { cardStyle } from "@/components/Shell";
 import Donut from "@/components/Donut";
 import Pager from "@/components/Pager";
@@ -14,6 +16,13 @@ import { formatMoney } from "@/lib/currency";
 // already has a name/code search box, so fewer rows per page reads cleaner
 // without costing a round trip (everything here is already in memory).
 const PAGE_SIZE = 10;
+
+const VIEW_TABS = [
+  { id: "monthly", label: "Monthly summary" },
+  { id: "daily", label: "Daily — detailed" },
+  { id: "range", label: "Custom range" },
+];
+const VIEW_IDS = VIEW_TABS.map((t) => t.id);
 
 type BreakSegment = { start: string; end: string | null; minutes: number };
 type WorkSession = { in: string; out: string | null; gross_minutes: number; break_minutes: number; net_minutes: number; breaks: BreakSegment[] };
@@ -64,7 +73,6 @@ const th: React.CSSProperties = { textAlign: "left", color: c.hint, fontWeight: 
 const td: React.CSSProperties = { padding: "9px 10px", borderBottom: `1px solid ${c.line}`, fontSize: 12, verticalAlign: "middle", whiteSpace: "nowrap" };
 const inp: React.CSSProperties = { padding: "8px 11px", fontSize: 13, border: `1px solid ${c.line}`, borderRadius: 8, background: c.panel, color: c.ink, outline: "none" };
 const btn: React.CSSProperties = { padding: "9px 14px", fontSize: 12.5, fontWeight: 600, borderRadius: 8, border: `1px solid ${c.line}`, background: c.panel, color: c.ink, cursor: "pointer" };
-const btnActive: React.CSSProperties = { ...btn, background: "var(--tenant-accent, #378ADD)", color: "#fff", borderColor: "transparent" };
 const btnPrimary: React.CSSProperties = { padding: "9px 16px", fontSize: 12.5, fontWeight: 600, borderRadius: 8, border: "none", background: "var(--tenant-accent, #378ADD)", color: "#fff", cursor: "pointer", textDecoration: "none", display: "inline-block" };
 
 const fmtHM = (mins: number) => `${Math.floor(mins / 60)}h ${String(Math.abs(Math.round(mins)) % 60).padStart(2, "0")}m`;
@@ -342,7 +350,7 @@ export default function SummaryClient({ initial = null }: {
   // "range" (owner decision 2026-09-09, "custom date frames"): the summary
   // TABLE only -- day-by-day detail for an arbitrary range is export-only,
   // per the same decision, so there's no daily view to switch to here.
-  const [view, setView] = useState<"daily" | "monthly" | "range">("monthly");
+  const [view, setView] = useUrlTab(VIEW_IDS) as ["daily" | "monthly" | "range", (id: string) => void];
   // Daily view's optional single-date focus ("" = the whole month).
   const [dayFilter, setDayFilter] = useState("");
   const [dailyPage, setDailyPage] = useState(1);
@@ -470,10 +478,10 @@ export default function SummaryClient({ initial = null }: {
 
   return (
     <>
+      <div style={{ marginBottom: 14 }}>
+        <Tabs tabs={VIEW_TABS} value={view} onChange={setView} label="Summary views" />
+      </div>
       <div style={{ display: "flex", gap: 10, marginBottom: 16, flexWrap: "wrap", alignItems: "center" }}>
-        <button style={view === "daily" ? btnActive : btn} onClick={() => setView("daily")}>Daily — detailed</button>
-        <button style={view === "monthly" ? btnActive : btn} onClick={() => setView("monthly")}>Monthly summary</button>
-        <button style={view === "range" ? btnActive : btn} onClick={() => setView("range")}>Custom range</button>
         {view === "range" ? (
           <>
             <input style={inp} type="date" value={customFrom} max={customTo} onChange={(e) => setCustomFrom(e.target.value)} />

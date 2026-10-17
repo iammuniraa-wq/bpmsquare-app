@@ -1,5 +1,7 @@
 "use client";
 
+import Tabs from "@/components/ui/Tabs";
+import { useUrlTab } from "@/components/ui/useUrlTab";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -127,7 +129,7 @@ export default function EmployeeHubClient({ employeeId, initialProfile = null, i
   } | null;
 }) {
   const router = useRouter();
-  const [tab, setTab] = useState<Tab>("overview");
+  const [tab, setTab] = useUrlTab(TABS.map((t) => t.key)) as [Tab, (id: string) => void];
   const [month, setMonth] = useState(initialProfile?.month ?? thisMonth());
 
   const [profile, setProfile] = useState<Profile | null>(initialProfile);
@@ -329,13 +331,6 @@ export default function EmployeeHubClient({ employeeId, initialProfile = null, i
   const site = one(profile.wfm_sites);
   const fullName = [profile.first_name, profile.last_name].filter(Boolean).join(" ");
 
-  const tabBtn = (key: Tab, count?: number): React.CSSProperties => ({
-    padding: "8px 14px", fontSize: 12.5, fontWeight: tab === key ? 700 : 500, whiteSpace: "nowrap",
-    color: tab === key ? "#fff" : c.ink, background: tab === key ? "var(--tenant-accent, #378ADD)" : c.panel,
-    border: `1px solid ${tab === key ? "transparent" : c.line}`, borderRadius: 8, cursor: "pointer",
-    display: "flex", alignItems: "center", gap: 6,
-  });
-
   return (
     <>
       <div className="bpm-page-header" style={{ marginBottom: 14 }}>
@@ -526,15 +521,17 @@ export default function EmployeeHubClient({ employeeId, initialProfile = null, i
       )}
 
       {/* ── Tabs ─────────────────────────────────────────────────────── */}
-      <div style={{ display: "flex", gap: 6, marginBottom: 14, overflowX: "auto", paddingBottom: 2 }}>
-        {TABS.map((t) => (
-          <button key={t.key} style={tabBtn(t.key)} onClick={() => setTab(t.key)}>
-            {t.label}
-            {t.key === "corrections" && pendingCorr > 0 && <span style={{ opacity: 0.85 }}>({pendingCorr})</span>}
-            {t.key === "leave" && pendingLeave > 0 && <span style={{ opacity: 0.85 }}>({pendingLeave})</span>}
-            {t.key === "recheck" && pendingRecheck > 0 && <span style={{ opacity: 0.85 }}>({pendingRecheck})</span>}
-          </button>
-        ))}
+      <div style={{ marginBottom: 14 }}>
+        <Tabs
+          label="Employee sections"
+          value={tab}
+          onChange={setTab}
+          tabs={TABS.map((t) => ({
+            id: t.key,
+            label: t.label,
+            count: t.key === "corrections" ? pendingCorr : t.key === "leave" ? pendingLeave : t.key === "recheck" ? pendingRecheck : undefined,
+          }))}
+        />
       </div>
 
       {tab === "overview" && (

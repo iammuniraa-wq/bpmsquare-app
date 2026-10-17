@@ -15,8 +15,10 @@ import SubItems from "./SubItems";
 import { depthOf } from "@/lib/wfm/projectTree";
 import DeleteProject from "./DeleteProject";
 import ObjectSections from "@/components/fields/ObjectSections";
+import Tabs from "@/components/ui/Tabs";
+import { ROUTES } from "@/lib/constants";
 
-export default async function WfmProjectPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function WfmProjectPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ tab?: string }> }) {
   await requireWorkcenterView("wfm");
   await requireFeature("wfm");
   await requireFeature("wfm_projects");
@@ -24,6 +26,7 @@ export default async function WfmProjectPage({ params }: { params: Promise<{ id:
 
   const { supabase, tenantId } = await requireTenantUser();
   const { id } = await params;
+  const { tab: tabParam } = await searchParams;
 
   const { data } = await fetchProject(supabase, tenantId, id);
   if (!data) notFound();
@@ -56,6 +59,14 @@ export default async function WfmProjectPage({ params }: { params: Promise<{ id:
     if (acct) accountLine = `for ${acct.name}`;
   }
 
+  const tabs = [
+    { id: "overview", label: "Overview" },
+    ...(invoicesOn ? [{ id: "billing", label: "Billing" }] : []),
+    { id: "details", label: "Details" },
+    { id: "activity", label: "Activity" },
+  ];
+  const tab = tabs.find((t) => t.id === tabParam)?.id ?? tabs[0].id;
+
   return (
     <>
       <TabTitle title={`Workforce — ${project.name}`} />
@@ -64,11 +75,23 @@ export default async function WfmProjectPage({ params }: { params: Promise<{ id:
         subtitle={[parentLine, accountLine, project.ref, project.code].filter(Boolean).join(" · ") || undefined}
       />
 
-      <ProjectHoursPanel projectId={id} budgetHours={project.budget_hours} />
+      <div style={{ marginBottom: 16 }}>
+        <Tabs
+          tabs={tabs}
+          value={tab}
+          label="Project sections"
+          hrefFor={(t) => (t === tabs[0].id ? `${ROUTES.wfmProject(id)}` : `${ROUTES.wfmProject(id)}?tab=${t}`)}
+        />
+      </div>
 
-      <SubItems projectId={id} />
+      {tab === "overview" && (
+        <>
+          <ProjectHoursPanel projectId={id} budgetHours={project.budget_hours} />
+          <SubItems projectId={id} />
+        </>
+      )}
 
-      {invoicesOn && (
+      {tab === "billing" && invoicesOn && (
         <ProjectBilling
           projectId={id}
           projectName={project.name}
@@ -77,26 +100,30 @@ export default async function WfmProjectPage({ params }: { params: Promise<{ id:
         />
       )}
 
-      {/* Tenant custom fields (Settings -> Custom fields -> Project). The
-          standard fields are hand-rendered by ProjectForm below, so only the
-          cf_ ones show here. */}
-      <div style={{ marginTop: 16, maxWidth: 760 }}>
-        <ObjectSections
-          objectType="project"
-          record={project as unknown as Record<string, unknown>}
-          patchUrl={`/api/wfm/projects/${id}`}
-          exclude={["ref", "name", "code", "status", "start_date", "end_date", "budget_hours", "bill_rate"]}
-        />
-      </div>
+      {tab === "details" && (
+        <>
+          {/* Tenant custom fields (Settings -> Custom fields -> Project). The
+              standard fields are hand-rendered by ProjectForm below, so only the
+              cf_ ones show here. */}
+          <div style={{ maxWidth: 760 }}>
+            <ObjectSections
+              objectType="project"
+              record={project as unknown as Record<string, unknown>}
+              patchUrl={`/api/wfm/projects/${id}`}
+              exclude={["ref", "name", "code", "status", "start_date", "end_date", "budget_hours", "bill_rate"]}
+            />
+          </div>
 
-      <div style={{ marginTop: 20 }}>
-        <ProjectForm project={project} />
-        <div style={{ maxWidth: 760 }}>
-          <DeleteProject projectId={id} name={project.name} parentId={project.parent_id} />
-        </div>
-      </div>
+          <div style={{ marginTop: 20 }}>
+            <ProjectForm project={project} />
+            <div style={{ maxWidth: 760 }}>
+              <DeleteProject projectId={id} name={project.name} parentId={project.parent_id} />
+            </div>
+          </div>
+        </>
+      )}
 
-      <NovaTimelineSlot objectType="wfm_projects" objectId={id} />
+      {tab === "activity" && <NovaTimelineSlot objectType="wfm_projects" objectId={id} />}
     </>
   );
 }
