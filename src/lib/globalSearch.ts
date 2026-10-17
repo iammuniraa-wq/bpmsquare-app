@@ -51,7 +51,7 @@ export const SEARCH_OBJECTS: SearchObjectDef[] = [
   // Workforce: visible via the Employees master-data grant, or to WFM
   // supervisors (whose access comes from wfm canEdit / employee record, not
   // an "employees" grant) -- see wfmSupervisor handling in allowedSearchTypes.
-  { type: "employee", label: "Workforce", icon: "⚇", featureKeys: ["business_roles", "wfm"], workcenters: ["employees"] },
+  { type: "employee", label: "Employees", icon: "⚇", featureKeys: ["business_roles", "wfm"], workcenters: ["employees"] },
 ];
 
 /** Filters the registry down to what this tenant actually has enabled --
