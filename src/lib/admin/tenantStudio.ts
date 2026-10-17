@@ -48,7 +48,7 @@ export const FEATURE_KEYS = [
   "change_history", "outbound_email", "business_roles", "standard_quotes",
   "gmail_reply_threading", "quote_lines_dw", "wfm", "wfm_projects",
   "pricing_engine", "pricing_engine_quotes", "coverage_model", "ai_reports",
-  "fence_projects", "rfq",
+  "fence_projects", "rfq", "estimator",
 ] as const satisfies readonly (keyof TenantFeatures)[];
 
 /** Platform-admin-only flags. The studio must never switch one on from a

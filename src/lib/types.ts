@@ -3,6 +3,14 @@
 
 import type { SegmentFilter } from "@/lib/marketingSegmentation";
 import type { QuoteOutcome, LossReason } from "@/lib/constants";
+import type {
+  TemplateInput as EstimatorTemplateInput,
+  TemplateRate as EstimatorTemplateRate,
+  TemplateRule as EstimatorTemplateRule,
+  QuoteGranularity as EstimatorQuoteGranularity,
+  EstimateComponent as EstimatorComponent,
+  EstimateLineSource as EstimatorLineSource,
+} from "@/lib/estimator/types";
 
 export type AccountType = "prospect" | "oem" | "direct" | "end_customer";
 
@@ -820,6 +828,95 @@ export type Supplier = {
   status: SupplierStatus;
   custom_data: Record<string, unknown> | null;
   created_at: string;
+};
+
+// ── Project Estimator (0131, docs/estimator-architecture.md) ─────────────────
+
+export type EstimateStatus = "draft" | "quoted" | "won" | "lost";
+
+/** A tenant-authored estimating template: inputs, rates and ordered rule
+ *  lines. `version` bumps on every edit; an estimate remembers the version it
+ *  was computed with and keeps its own lines. */
+export type EstimateTemplate = {
+  id: string;
+  tenant_id: string;
+  name: string;
+  description: string | null;
+  /** Free text, e.g. "precast". */
+  trade: string | null;
+  version: number;
+  is_active: boolean;
+  inputs: EstimatorTemplateInput[];
+  rates: EstimatorTemplateRate[];
+  rules: EstimatorTemplateRule[];
+  quote_granularity: EstimatorQuoteGranularity;
+  custom_data: Record<string, unknown> | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+/** Cost-bearing snapshot written by a compute (internal: never customer-facing). */
+export type EstimateTotals = {
+  cost_total: number;
+  margin_pct: number;
+  margin_amount: number;
+  price: number;
+  vat_pct: number;
+  vat: number;
+  price_incl_vat: number;
+  by_group: { key: string; name: string; cost: number }[];
+  by_component: Partial<Record<EstimatorComponent, number>>;
+};
+
+export type Estimate = {
+  id: string;
+  tenant_id: string;
+  /** EST-0001 -- display/reference only, never a mutation key. */
+  ref: string | null;
+  name: string;
+  account_id: string | null;
+  contact_id: string | null;
+  template_id: string | null;
+  template_version: number | null;
+  status: EstimateStatus;
+  /** The input values the lines were computed from, keyed by input key. */
+  params: Record<string, number | string | boolean>;
+  currency: string | null;
+  margin_pct: number;
+  totals: EstimateTotals | null;
+  standard_quote_id: string | null;
+  notes: string | null;
+  custom_data: Record<string, unknown> | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+/** Child of an estimate (§3 record identity: its own id is what Update/Delete
+ *  key on once created -- estimate_id only resolves the relationship at
+ *  create time). unit_cost/cost_total are internal. */
+export type EstimateLine = {
+  id: string;
+  tenant_id: string;
+  estimate_id: string;
+  sort_order: number;
+  code: string | null;
+  group_key: string | null;
+  description: string;
+  uom: string | null;
+  qty: number;
+  waste_pct: number;
+  unit_cost: number | null;
+  cost_total: number | null;
+  component: EstimatorComponent | null;
+  product_id: string | null;
+  source: EstimatorLineSource;
+  element_ref: string | null;
+  wbs_code: string | null;
+  custom_data: Record<string, unknown> | null;
+  created_at: string;
+  updated_at: string;
 };
 
 // ── Products ──────────────────────────────────────────────────────────────────

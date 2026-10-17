@@ -29,6 +29,9 @@ export const OBJECT_FEATURE: Record<string, keyof TenantFeatures | null> = {
   // Employees ship as part of the Business Roles/Business Users module --
   // same key the nav item uses (constants.ts NAV).
   employees: "business_roles",
+  // Project Estimator (0131). Header records only on the bulk surfaces; the
+  // v1 API exposes no cost fields (docs/estimator-architecture.md section 7).
+  estimates: "estimator",
   // Inventory is the stock side of Purchasing; it has never had a key of
   // its own, and the nav gates it on `purchasing` too.
   inventory: "purchasing",

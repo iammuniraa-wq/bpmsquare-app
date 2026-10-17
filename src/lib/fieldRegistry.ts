@@ -82,7 +82,7 @@ export type EffectiveField = {
 export type PilotObjectType =
   | "account" | "contact" | "asset" | "supplier"
   | "case" | "work_order" | "quote" | "invoice" | "purchase_order" | "inventory"
-  | "employee" | "product" | "project" | "opportunity" | "rfq";
+  | "employee" | "product" | "project" | "opportunity" | "rfq" | "estimate";
 
 const ACCOUNT_TYPE_OPTIONS: { value: AccountType; label: string }[] =
   (Object.keys(ACCOUNT_TYPE_LABEL) as AccountType[]).map((value) => ({ value, label: ACCOUNT_TYPE_LABEL[value] }));
@@ -329,6 +329,24 @@ export const FIELD_REGISTRY: Record<PilotObjectType, ObjectFieldRegistry> = {
     ],
   },
 
+  // Estimate (0131, docs/estimator-architecture.md). Header only: the template,
+  // its input values, the computed lines and the totals are managed by the
+  // estimator screens and routes, never typed into a generic form. Account and
+  // contact are chosen on the screen and resolved by name on import.
+  estimate: {
+    sections: ["Estimate", "Pricing", "Notes"],
+    fields: [
+      { key: "ref",    defaultLabel: "Estimate ID", widget: "text", defaultSection: "Estimate", locked: true, editable: false, exportOnly: true },
+      { key: "name",   defaultLabel: "Name",        widget: "text", defaultSection: "Estimate", locked: true },
+      { key: "status", defaultLabel: "Status",      widget: "enum", defaultSection: "Estimate", enumOptions: [
+        { value: "draft", label: "Draft" }, { value: "quoted", label: "Quoted" }, { value: "won", label: "Won" }, { value: "lost", label: "Lost" },
+      ] },
+      { key: "currency",   defaultLabel: "Currency",     widget: "text",   defaultSection: "Pricing" },
+      { key: "margin_pct", defaultLabel: "Margin %",     widget: "number", defaultSection: "Pricing" },
+      { key: "notes",      defaultLabel: "Notes",        widget: "textarea", defaultSection: "Notes" },
+    ],
+  },
+
   // Workforce project (project costing). parent_id and the linked people /
   // shifts / sites are structure, managed on the project screens and the
   // roster -- not fields a form or an import edits directly.
@@ -558,7 +576,7 @@ export const DEFAULT_FIELD_RULES: Partial<Record<PilotObjectType, FieldRule[]>> 
 const PILOT_OBJECT_TYPES: readonly PilotObjectType[] = [
   "account", "contact", "asset", "supplier",
   "case", "work_order", "quote", "invoice", "purchase_order", "inventory",
-  "employee", "product", "project", "opportunity", "rfq",
+  "employee", "product", "project", "opportunity", "rfq", "estimate",
 ];
 
 export function isPilotObjectType(objectType: string): objectType is PilotObjectType {

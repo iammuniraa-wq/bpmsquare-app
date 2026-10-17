@@ -52,6 +52,7 @@ const FEATURE_LABELS: { key: keyof TenantFeatures; label: string; premium?: bool
   { key: "marketing",    label: "Marketing campaigns",    group: "Sales & Service add-ons" },
   { key: "purchasing",   label: "Inventory & Purchasing", group: "Sales & Service add-ons" },
   { key: "rfq",          label: "RFQ (supplier quotations)", group: "Sales & Service add-ons" },
+  { key: "estimator",    label: "Project Estimator (templates, BOM, WBS)", group: "Sales & Service add-ons" },
   { key: "standard_quotes", label: "Standard Quotes",     group: "Sales & Service add-ons" },
   { key: "quote_lines_dw",  label: "Quote Lines (Data Workbench)", group: "Sales & Service add-ons" },
   { key: "coverage_model",  label: "Coverage (rule-based teams/segments, auto-ownership, ERP routing)", premium: true, group: "Sales & Service add-ons" },

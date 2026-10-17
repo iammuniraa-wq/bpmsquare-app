@@ -201,6 +201,9 @@ export const ROUTES = {
   rfqs: "/rfqs",
   rfqNew: "/rfqs/new",
   rfq: (id: string) => `/rfqs/${id}`,
+  estimates: "/estimates",
+  estimateNew: "/estimates/new",
+  estimate: (id: string) => `/estimates/${id}`,
   administration: "/administration",
   administrationChangeHistory: "/administration/change-history",
   administrationOutboundEmails: "/administration/outbound-emails",
@@ -267,6 +270,9 @@ export const NAV: NavGroup[] = [
           // Fence Configurator (0122): a Standard Quotes source, not its own
           // pillar -- lives beside the object it feeds, docs/fence-configurator-architecture.md.
           { label: "Fence Projects", href: ROUTES.fenceProjects, icon: "⌗", pillar: "blue", featureKey: "fence_projects", workcenterKey: "fence_projects" },
+          // Project Estimator (0131, docs/estimator-architecture.md): template-driven
+          // estimate -> BOM, WBS and cost build-up -> Standard Quote.
+          { label: "Estimates", href: ROUTES.estimates, icon: "∑", pillar: "blue", featureKey: "estimator", workcenterKey: "estimates" },
         ],
       },
     ],
@@ -575,6 +581,11 @@ export type TenantFeatures = {
   // module: default OFF, missing key reads false. Tenants without it keep
   // the older single-supplier pricing RFQ under Pricing.
   rfq: boolean;
+  // Project Estimator (0131, docs/estimator-architecture.md): generic,
+  // template-driven estimates (inputs + rates + rule lines -> BOM, WBS, cost
+  // build-up -> Standard Quote). A sold module: default OFF, missing key
+  // reads false.
+  estimator: boolean;
 };
 
 // WfmConfig — tenant-level WFM (attendance) settings, stored in

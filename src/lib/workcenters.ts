@@ -7,7 +7,7 @@ export type WorkcenterKey =
   | "cases" | "amc" | "work_orders" | "dispatch" | "technicians"
   | "marketing" | "marketing_segments" | "leads" | "partners"
   | "assets" | "suppliers" | "inventory" | "purchase_orders" | "employees"
-  | "reports" | "data_workbench" | "administration" | "wfm" | "products" | "pricing" | "fence_projects" | "rfqs";
+  | "reports" | "data_workbench" | "administration" | "wfm" | "products" | "pricing" | "fence_projects" | "rfqs" | "estimates";
 
 export const WORKCENTERS: { key: WorkcenterKey; label: string }[] = [
   { key: "dashboard", label: "Dashboard" },
@@ -39,6 +39,7 @@ export const WORKCENTERS: { key: WorkcenterKey; label: string }[] = [
   { key: "pricing", label: "Pricing" },
   { key: "fence_projects", label: "Fence Projects" },
   { key: "rfqs", label: "RFQs" },
+  { key: "estimates", label: "Estimates" },
 ];
 
 /** "all" = unrestricted (admins, and members with no Business Role
