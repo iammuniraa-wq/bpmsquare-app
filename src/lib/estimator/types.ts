@@ -41,6 +41,9 @@ export type TemplateInput = {
   help?: string;
   /** Card the input form groups this under. */
   section?: string;
+  /** select only: quote every option as an alternative (e.g. finish levels)
+   *  instead of only the chosen one. Read by the quote assembler. */
+  quote_alternatives?: boolean;
 };
 
 /** A named constant: usable as an identifier in any formula AND as the unit

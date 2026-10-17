@@ -119,7 +119,7 @@ function validateInputs(raw: unknown, issues: TemplateIssue[]): TemplateInput[] 
         issues.push({ path: `${path}.default`, message: "A select input's default must be the key of one of its options." });
         return;
       }
-      out.push({ key, label, type, default: r.default, options: opts, ...stripUndef(base) });
+      out.push({ key, label, type, default: r.default, options: opts, ...(r.quote_alternatives === true ? { quote_alternatives: true } : {}), ...stripUndef(base) });
     }
   });
   return out;

@@ -342,3 +342,19 @@ describe("geometry modules", () => {
     expect(issuesOf(t).join("\n")).toMatch(/reserved word/);
   });
 });
+
+describe("quote_alternatives flag", () => {
+  const select = (extra: Record<string, unknown>) => ({
+    key: "finish", label: "Finish", type: "select" as const, default: "a",
+    options: [{ key: "a", label: "A", value: 1 }, { key: "b", label: "B", value: 2 }], ...extra,
+  });
+  it("is kept on a select input and dropped when absent or not true", () => {
+    const withFlag = validateTemplate(base([rule({ code: "a", qty: "finish" })], { inputs: [select({ quote_alternatives: true })] }));
+    expect(withFlag.ok).toBe(true);
+    expect(withFlag.template?.inputs[0].quote_alternatives).toBe(true);
+    const without = validateTemplate(base([rule({ code: "a", qty: "finish" })], { inputs: [select({})] }));
+    expect(without.template?.inputs[0]).not.toHaveProperty("quote_alternatives");
+    const junk = validateTemplate(base([rule({ code: "a", qty: "finish" })], { inputs: [select({ quote_alternatives: "yes" })] }));
+    expect(junk.template?.inputs[0]).not.toHaveProperty("quote_alternatives");
+  });
+});

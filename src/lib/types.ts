@@ -868,8 +868,16 @@ export type EstimateTotals = {
   vat_pct: number;
   vat: number;
   price_incl_vat: number;
-  by_group: { key: string; name: string; cost: number }[];
+  by_group: { key: string; name: string; cost: number; wbs_code?: string; line_count?: number }[];
   by_component: Partial<Record<EstimatorComponent, number>>;
+  /** Rule codes of product lines with no unit cost yet (the estimate is not quotable). */
+  unpriced?: string[];
+  /** Product rules whose SKU matched no product in this workspace. */
+  unresolved?: string[];
+  /** How each product rule was priced: "engine" or "product_cost". */
+  pricing?: Record<string, string>;
+  warnings?: string[];
+  computed_at?: string;
 };
 
 export type Estimate = {
