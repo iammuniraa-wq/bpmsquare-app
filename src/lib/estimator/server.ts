@@ -178,6 +178,44 @@ export async function listEstimates(
   return { rows, total: count ?? rows.length, missing: false };
 }
 
+export type EstimateBundle = {
+  estimate: Estimate;
+  lines: EstimateLine[];
+  /** Null when the template was deleted since the estimate was made. */
+  template: EstimateTemplate | null;
+  /** The estimate was made from an older version of its template. */
+  template_outdated: boolean;
+  account: { id: string; name: string } | null;
+  contact: { id: string; name: string } | null;
+  quote: { id: string; ref: string; status: string } | null;
+};
+
+/** Everything an estimate screen needs, in one tenant-scoped read. */
+export async function loadEstimateBundle(supabase: SupabaseClient, tenantId: string, id: string): Promise<{ bundle: EstimateBundle | null; missing: boolean }> {
+  const est = await loadEstimate(supabase, tenantId, id);
+  if (!est.data) return { bundle: null, missing: est.missing };
+  const e = est.data;
+  const [lines, tpl, account, contact, quote] = await Promise.all([
+    loadLines(supabase, tenantId, id),
+    e.template_id ? loadTemplate(supabase, tenantId, e.template_id) : Promise.resolve<Loaded<EstimateTemplate>>({ data: null, missing: false }),
+    e.account_id ? supabase.from("accounts").select("id, name").eq("id", e.account_id).eq("tenant_id", tenantId).maybeSingle() : Promise.resolve({ data: null }),
+    e.contact_id ? supabase.from("contacts").select("id, name").eq("id", e.contact_id).eq("tenant_id", tenantId).maybeSingle() : Promise.resolve({ data: null }),
+    e.standard_quote_id ? supabase.from("standard_quotes").select("id, ref, status").eq("id", e.standard_quote_id).eq("tenant_id", tenantId).maybeSingle() : Promise.resolve({ data: null }),
+  ]);
+  return {
+    missing: false,
+    bundle: {
+      estimate: e,
+      lines,
+      template: tpl.data,
+      template_outdated: !!tpl.data && e.template_version !== null && e.template_version < tpl.data.version,
+      account: (account.data as { id: string; name: string } | null) ?? null,
+      contact: (contact.data as { id: string; name: string } | null) ?? null,
+      quote: (quote.data as { id: string; ref: string; status: string } | null) ?? null,
+    },
+  };
+}
+
 // ── Foreign id verification ──────────────────────────────────────────────────
 
 /** Every id that is not this tenant's row is reported by name; null = all good. */
@@ -464,6 +502,8 @@ export type RecomputeOptions = {
   reprice?: boolean;
   /** A new element schedule replaces the stored one (null clears it). */
   schedule?: ScheduleQty[] | null;
+  /** The account to price for, when it is being changed in the same request. */
+  account_id?: string | null;
 };
 
 export type RecomputeResult =
@@ -493,7 +533,7 @@ export async function recomputeEstimate(ctx: EstimatorCtx, estimateId: string, o
   const keep = reprice ? { costs: {}, products: {} } : reusableCosts(oldLines);
 
   const calc = await computeAndPrice(supabase, {
-    tenantId, estimateId, accountId: estimate.account_id,
+    tenantId, estimateId, accountId: opts.account_id !== undefined ? opts.account_id : estimate.account_id,
     template: templateBody(tpl.data), params: opts.params ?? estimate.params,
     margin_pct: margin, vat_pct: vat,
     schedule: opts.schedule === null ? [] : (opts.schedule ?? scheduleFromLines(oldLines)),
