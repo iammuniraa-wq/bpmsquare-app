@@ -254,3 +254,28 @@ suggestions saved only on user confirmation; both degrade to "AI not
 configured" without breaking the studio. No customer or price data is sent
 unless the user triggers the action, and the call goes through the existing
 server-side AI helper pattern (never from the browser).
+
+### 10.1 The 3D model is exact, not a sketch (owner, 2026-10-17)
+
+- **One source of truth.** A pure `layout(inputs)` function defines the
+  building as a list of real **pieces** (external wall panels with their
+  window and door openings, internal walls, hollow-core planks, beams,
+  columns, stair flights, parapet and boundary-wall panels), each with a mark
+  (EW-07), size, position, erection step and concrete volume. The **BOM is
+  summed from these pieces** and the 3D view draws exactly these pieces, so
+  the piece count and quantities on screen equal the BOM. Click a piece to
+  see mark, size, weight and cost; an explode-floors slider and a play/step
+  control (4D erection order) support inspection.
+- **Real projects use the client's own model.** For a real job the exact design
+  is the client's BIM model. Phase E4+ supports uploading **glTF** (three.js
+  loads it natively) and, if the owner approves the dependency, **IFC**
+  (web-ifc, MIT licence; a new package, so it needs an explicit go), matching
+  each piece to a BOM line by mark. Until then the generated model is the
+  stand-in, and the UI says so.
+- **Photo-style renders are an optional illustration, never the source of
+  truth.** An external image-generation model (the Claude API does not
+  generate images, so this is a separate provider the tenant connects, with
+  its own key held server-side like other connector secrets) can turn a
+  capture of the 3D model into a realistic picture for the customer. It is
+  labelled "illustration", sizes and quantities always come from the model,
+  and it is off unless a provider is configured.
