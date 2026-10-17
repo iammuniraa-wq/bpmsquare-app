@@ -535,6 +535,14 @@ deploy for an automatic schema change.
   Until it runs, every path degrades to the 0126 behaviour: reads retry
   without the column, and the PATCH route answers 503 naming this migration.
   Run AFTER 0126. `scripts/` has no seed for it (no demo data needed).
+- **0131_estimator.sql — PENDING on both DBs** (written 2026-10-17, Project Estimator,
+  `docs/estimator-architecture.md`). Creates `estimate_templates`, `estimates`
+  and `estimate_lines` (tenant_id + standard "for all" tenant-isolation RLS in the
+  same file, EST-#### refs, custom_data) and widens the `custom_fields.object_type`
+  check (NOT VALID) to include `estimate`. Independent of 0128-0130 (any order). No
+  demo seed yet (`scripts/seed-estimator-demo.sql` arrives in phase E3, run AFTER
+  this). Until it runs the Estimator module (flag `estimator`, default off) shows
+  "waiting for the database update" and nothing else is affected.
 - **0130_rfq_purchase_orders.sql — PENDING on both DBs** (written
   2026-10-15, RFQ awards -> purchase orders). Adds nullable `rfq_id` and
   `standard_quote_id` to `purchase_orders`, `product_id` and
