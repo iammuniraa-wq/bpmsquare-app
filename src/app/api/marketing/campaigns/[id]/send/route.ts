@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { Resend } from "resend";
-import { requireTenantUser, getAuthUser } from "@/lib/supabase-server";
+import { getAuthUser } from "@/lib/supabase-server";
+import { requireMarketingAccess } from "@/lib/marketingAccess";
 import { resolveMarketingRecipients } from "@/lib/data";
 import { renderTemplate, escapeHtml } from "@/lib/emailTemplates";
 import { richTextToPlainText } from "@/lib/sanitizeHtml";
@@ -23,13 +24,9 @@ const SEND_DELAY_MS = 200;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  let supabase, tenantId;
-  try {
-    ({ supabase, tenantId } = await requireTenantUser());
-  } catch (e: unknown) {
-    const err = e as { status: number; message: string };
-    return NextResponse.json({ error: err.message }, { status: err.status });
-  }
+  const guard = await requireMarketingAccess(["marketing"], "edit");
+  if ("error" in guard) return guard.error;
+  const { supabase, tenantId } = guard.auth;
 
   if (!process.env.RESEND_API_KEY) {
     return NextResponse.json({ error: "Email sending isn't configured yet (missing RESEND_API_KEY)." }, { status: 500 });

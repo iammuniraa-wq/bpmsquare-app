@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { requireTenantUser } from "@/lib/supabase-server";
+import { requireMarketingAccess } from "@/lib/marketingAccess";
 import { resolveMarketingRecipients } from "@/lib/data";
 import { sanitizeSegmentFilters, sanitizeMatch } from "@/lib/marketingSegmentation";
 
@@ -7,13 +7,9 @@ import { sanitizeSegmentFilters, sanitizeMatch } from "@/lib/marketingSegmentati
 // straight from the request body (not the saved campaign row) so the UI can
 // preview before the draft is even saved.
 export async function POST(request: NextRequest) {
-  let tenantId;
-  try {
-    ({ tenantId } = await requireTenantUser());
-  } catch (e: unknown) {
-    const err = e as { status: number; message: string };
-    return NextResponse.json({ error: err.message }, { status: err.status });
-  }
+  const guard = await requireMarketingAccess(["marketing", "marketing_segments"], "view");
+  if ("error" in guard) return guard.error;
+  const { tenantId } = guard.auth;
 
   const body = await request.json();
   const rule = {

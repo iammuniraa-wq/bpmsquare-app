@@ -1,8 +1,10 @@
 import { requireFeature } from "@/lib/tenant";
+import { requireWorkcenterEdit } from "@/lib/permissions";
 import { listAccounts } from "@/lib/data";
 import MarketingComposeForm from "./MarketingComposeForm";
 
 export default async function NewCampaignPage({ searchParams }: { searchParams: Promise<{ group?: string }> }) {
+  await requireWorkcenterEdit("marketing");
   await requireFeature("marketing");
   const { group } = await searchParams;
   const summaries = await listAccounts();
