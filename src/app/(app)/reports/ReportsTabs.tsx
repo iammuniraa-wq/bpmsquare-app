@@ -1,8 +1,7 @@
 "use client";
 
-import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { c } from "@/lib/theme";
+import Tabs from "@/components/ui/Tabs";
 import { ROUTES } from "@/lib/constants";
 
 // The Analytics workcenter's two pages: the metric dashboard ("what we
@@ -12,29 +11,13 @@ import { ROUTES } from "@/lib/constants";
 export default function ReportsTabs({ showTalk }: { showTalk: boolean }) {
   const pathname = usePathname();
   const tabs = [
-    { label: "Analytics", href: ROUTES.reports },
-    ...(showTalk ? [{ label: "Talk to data", href: ROUTES.reportsTalk }] : []),
+    { id: ROUTES.reports, label: "Analytics" },
+    ...(showTalk ? [{ id: ROUTES.reportsTalk, label: "Talk to data" }] : []),
   ];
   if (tabs.length < 2) return null;
   return (
-    <div style={{ display: "flex", gap: 4, marginBottom: 18, borderBottom: `1px solid ${c.line}` }}>
-      {tabs.map((t) => {
-        const active = pathname === t.href;
-        return (
-          <Link
-            key={t.href}
-            href={t.href}
-            style={{
-              padding: "8px 14px", fontSize: 13, fontWeight: active ? 700 : 550,
-              color: active ? c.accent : c.muted, textDecoration: "none",
-              borderBottom: active ? `2px solid ${c.accent}` : "2px solid transparent",
-              marginBottom: -1,
-            }}
-          >
-            {t.label}
-          </Link>
-        );
-      })}
+    <div style={{ marginBottom: 18 }}>
+      <Tabs tabs={tabs} value={pathname} hrefFor={(id) => id} label="Analytics sections" />
     </div>
   );
 }

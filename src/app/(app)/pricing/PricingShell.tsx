@@ -1,11 +1,11 @@
 "use client";
 
 import { useEffect, useState, useCallback, useMemo } from "react";
-import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { c, pillar } from "@/lib/theme";
 import { ROUTES } from "@/lib/constants";
 import { useFeel } from "@/components/FeelProvider";
+import Tabs from "@/components/ui/Tabs";
 import { humanizeArea, slugifyAreaLabel } from "@/lib/pricing/wizard";
 import { PricingRefreshProvider, usePricingRefresh } from "./PricingRefreshContext";
 
@@ -155,24 +155,13 @@ function PricingShellInner({ canEdit, children }: { canEdit: boolean; children: 
   return (
     <>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", marginBottom: 4 }}>
-        <div style={{ display: "flex", gap: 4, borderBottom: `1px solid ${c.line}`, flex: "1 1 auto" }}>
-          {TABS.map((t) => {
-            const active = pathname === t.href || pathname?.startsWith(t.href + "/");
-            return (
-              <Link
-                key={t.href}
-                href={hrefFor(t.href, area)}
-                style={{
-                  padding: "9px 16px", fontSize: 13, fontWeight: active ? 700 : 500,
-                  color: active ? c.accent : c.muted, textDecoration: "none",
-                  borderBottom: active ? `2px solid ${c.accent}` : "2px solid transparent",
-                  marginBottom: -1,
-                }}
-              >
-                {t.label}
-              </Link>
-            );
-          })}
+        <div style={{ flex: "1 1 auto", minWidth: 0 }}>
+          <Tabs
+            label="Pricing sections"
+            tabs={TABS.map((t) => ({ id: t.href, label: t.label }))}
+            value={TABS.find((t) => pathname === t.href || pathname?.startsWith(t.href + "/"))?.href ?? ""}
+            hrefFor={(id) => hrefFor(id, area)}
+          />
         </div>
 
         <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>

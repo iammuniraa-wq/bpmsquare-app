@@ -17,6 +17,8 @@ import type {
   UpdateResponse,
   ValidatedRow,
 } from "@/lib/import/types";
+import Tabs from "@/components/ui/Tabs";
+import { useUrlTab } from "@/components/ui/useUrlTab";
 import ColumnMapper from "./ColumnMapper";
 import ExportFlow from "./ExportFlow";
 import { banner, btn, btnGhost, card, mono, pill, stepDot, td, th, tone } from "./ui";
@@ -85,7 +87,7 @@ function clearExtractSnapshot(objectId: string) {
 }
 
 export default function DataWorkbenchClient({ specs }: { specs: ObjectSpec[] }) {
-  const [mode, setMode] = useState<Mode>("import");
+  const [mode, setMode] = useUrlTab(MODES.map((m) => m.id)) as [Mode, (id: string) => void];
   const [activeId, setActiveId] = useState<ImportObjectId>(specs[0]?.id ?? "accounts");
 
   const visibleSpecs = specs.filter((s) => {
@@ -101,25 +103,7 @@ export default function DataWorkbenchClient({ specs }: { specs: ObjectSpec[] }) 
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      <div style={{ display: "flex", gap: 4, borderBottom: `1px solid ${c.line}`, paddingBottom: 0 }}>
-        {MODES.map((m) => {
-          const active = m.id === mode;
-          return (
-            <button
-              key={m.id}
-              onClick={() => setMode(m.id)}
-              style={{
-                padding: "9px 18px", border: "none", background: "none", cursor: "pointer",
-                fontSize: 13, fontWeight: active ? 700 : 500, color: active ? c.accent : c.muted,
-                borderBottom: active ? `2px solid ${c.accent}` : "2px solid transparent",
-                marginBottom: -1,
-              }}
-            >
-              {m.label}
-            </button>
-          );
-        })}
-      </div>
+      <Tabs tabs={MODES} value={mode} onChange={setMode} label="Data Workbench modes" />
 
       <div className="hub-grid" style={{ display: "grid", gridTemplateColumns: "215px 1fr", gap: 18, alignItems: "start" }}>
         <nav style={{ display: "flex", flexDirection: "column", gap: 3, position: "sticky", top: 20 }}>

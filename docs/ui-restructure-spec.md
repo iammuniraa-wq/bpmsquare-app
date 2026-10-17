@@ -5,7 +5,7 @@
 > Sonnet, phase by phase, from this document alone. Read
 > `bpmsquarecore.md` first; nothing here relaxes it.
 >
-> **Build status (2026-10-16): phases 1-3 built and approved (Suppliers pilot). Phase 4 is built on `develop`, one commit per object: Products, Accounts, Contacts, Assets, Cases, Work orders, Invoices, Purchase orders, Standard Quotes, Deals, RFQs list, Inventory, Technicians, Leads, AMC, Fence projects, Marketing campaigns, Employees, and the WFM projects list shell. Not converted (own layouts, see the commit notes): the WFM project record and form, Partners (placeholder), Standard Quote templates, Marketing segments, the Fence Design Studio. Phase 5 (Settings revamp) is in progress on `develop`: settings shell built (grouped two-pane menu, search, mobile menu-as-page; `src/lib/settingsMenu.ts` is the single menu/gating table). General settings is split into ten pages (company, currency, navigation, quote-types, developer, push, email-output, appearance, dashboard, reset); `/settings/general` redirects to `/settings/company`. Save is top right on every settings page that has one (`SettingsPageHeader` + `SettingsSave`); Navigation visibility and Quote types are batch-saved, Theme & colours applies each choice immediately. List-type settings (Team, Sites, Shifts, Leave types, Kiosks, Custom fields, Text/Email templates, Pricing, Coverage) follow the object pattern: `+ New ...` in the header, one row per record, Edit/Remove in a `...` menu (`RecordRows`). Workforce settings are eight pages under `/settings/workforce/...` (attendance, shifts, sites, leave-types, verification, kiosks, reminders, employment); `/settings/workforce` redirects to attendance. Admin tenant editor groups modules by the settings groups, shows dependencies and what each flag unlocks, and has a read-only "Who sees what" panel (`lib/accessView.ts`, `lib/moduleDependencies.ts`). Phase 5 is complete. Phase 6 (navigation) is built: NAV is regrouped into the eight groups of section 7, grouping/gating lives in `src/lib/navGroups.ts` and Spaces/tab bar derive from it, Settings is an `adminOnly` Admin item. Phase 8 and the theme check (phase 7) follow in the order of the 2026-10-17 brief.**
+> **Build status (2026-10-16): phases 1-3 built and approved (Suppliers pilot). Phase 4 is built on `develop`, one commit per object: Products, Accounts, Contacts, Assets, Cases, Work orders, Invoices, Purchase orders, Standard Quotes, Deals, RFQs list, Inventory, Technicians, Leads, AMC, Fence projects, Marketing campaigns, Employees, and the WFM projects list shell. Not converted (own layouts, see the commit notes): the WFM project record and form, Partners (placeholder), Standard Quote templates, Marketing segments, the Fence Design Studio. Phase 5 (Settings revamp) is in progress on `develop`: settings shell built (grouped two-pane menu, search, mobile menu-as-page; `src/lib/settingsMenu.ts` is the single menu/gating table). General settings is split into ten pages (company, currency, navigation, quote-types, developer, push, email-output, appearance, dashboard, reset); `/settings/general` redirects to `/settings/company`. Save is top right on every settings page that has one (`SettingsPageHeader` + `SettingsSave`); Navigation visibility and Quote types are batch-saved, Theme & colours applies each choice immediately. List-type settings (Team, Sites, Shifts, Leave types, Kiosks, Custom fields, Text/Email templates, Pricing, Coverage) follow the object pattern: `+ New ...` in the header, one row per record, Edit/Remove in a `...` menu (`RecordRows`). Workforce settings are eight pages under `/settings/workforce/...` (attendance, shifts, sites, leave-types, verification, kiosks, reminders, employment); `/settings/workforce` redirects to attendance. Admin tenant editor groups modules by the settings groups, shows dependencies and what each flag unlocks, and has a read-only "Who sees what" panel (`lib/accessView.ts`, `lib/moduleDependencies.ts`). Phase 5 is complete. Phase 6 (navigation) is built: NAV is regrouped into the eight groups of section 7, grouping/gating lives in `src/lib/navGroups.ts` and Spaces/tab bar derive from it, Settings is an `adminOnly` Admin item. Phase 8a (tabs for multi-section screens) is built, audit in 13.4. Phase 8b/8c and the theme check (phase 7) follow.**
 >
 > **Out of scope, untouched:** Quotations — list (`/quotations`), detail
 > (`QuoteDetailLayout.tsx`), form (`quotations/new/QuoteForm.tsx`), print.
@@ -332,3 +332,38 @@ reviewed the new screens on develop.
    Spectacular already reads well and is the reference. Fix the kit `Tabs`
    (and the hand-rolled tab strips in Workforce settings, WFM, Leave,
    Corrections, My Workforce) to use that one component and style.
+
+### 13.4 Tabs audit (built 2026-10-17)
+
+Rule applied: three or more titled blocks that a user reads one at a time
+become kit `Tabs` with the active tab in `?tab=`; a page that is read or
+filled as one piece stays. Client screens use `useUrlTab`
+(`src/components/ui/useUrlTab.ts`): the tab strip is the kit `Tabs` in state
+mode and the URL is rewritten with `history.replaceState`, so there is no
+server round trip and **nothing remounts -- all state held by the screen
+(pending ticks, picked employees, dates, filters) survives a tab switch**.
+Server pages use the kit `Tabs` in URL mode (`hrefFor`); there only the
+active tab's content is rendered.
+
+| Page | Blocks found | Decision |
+|---|---|---|
+| WFM Roster (`wfm/roster`) | Upload spreadsheet, Alternate-Saturday generator, Standing site and shift matrix, Shift changes and days off, Project assignments | **Tabs**: Standing site and shift (default), Shift changes and days off, Project assignments (when projects are on), Upload and generate. State lives in `RosterClient`, so it survives. |
+| WFM Time summary (`wfm/summary`) | View buttons Monthly / Daily / Custom range over one filter bar and table | **Tabs** for the three views (`?tab=monthly\|daily\|range`); the donuts, filters and table are shared and stay put. |
+| WFM Leave and Holidays | Leave, Holidays (hand-rolled strip) | **Kit Tabs + `?tab=`**; both panels stay mounted and hidden, as before. |
+| WFM Corrections | Corrections, Flagged for review, Overtime (hand-rolled) | **Kit Tabs + `?tab=`**; only the active queue is mounted, as before. |
+| WFM Employee hub (`wfm/employees/[id]`) | Six pill tabs (hand-rolled) | **Kit Tabs + `?tab=`**, pending counts as tab counts. |
+| WFM My details (`wfm/me/details`) | Time, Requests, Profile, Timeline, Calendar (pill buttons plus a mobile "More" select) | **Kit Tabs** (state mode, no `?tab=` because the same state is driven by tiles on the punch screen). The mobile "More" select is gone: the strip scrolls sideways instead. |
+| WFM Project record (`wfm/projects/[id]`) | Hours, Sub-items, Billing, Custom fields, Edit form and Delete, Timeline (six stacked blocks) | **Server Tabs**: Overview (hours, sub-items), Billing (when invoices are on), Details (custom fields, edit form, delete), Activity. Unsaved edits in the Details form do not survive leaving that tab. |
+| WFM Live board | Stat tiles, charts, one table per site | Stays: one live picture, read together; sites are filterable sections. |
+| WFM Employees list, Projects list, Me (punch screen) | One list / one tree / one action | Stay. |
+| Data Workbench | Import / Export / Update (hand-rolled) | **Kit Tabs + `?tab=`**; the object picker and the flow below are unchanged. |
+| Analytics (`reports`, `reports/talk`) | Analytics, Talk to data (route links, hand-rolled) | **Kit Tabs** (URL mode over the two routes). The metric dashboard itself is a tile grid read as one piece: stays. |
+| Pricing workcenter (shell) | Today's rates, Setup, History, RFQs, Advanced (route links, hand-rolled) | **Kit Tabs** (URL mode); `?area=` still travels with every tab. |
+| Pricing Advanced (`pricing/advanced`) | Eight config tabs (button strip) | **Kit Tabs + `?tab=`** (`versions`, `routing`, `dimensions`, ...). |
+| Pricing setup wizard, History, RFQs, Today | One wizard / one table each | Stay. |
+| Technicians record, Deal record, RFQ record, all `ObjectRecordPage` records (Accounts, Contacts, Assets, Cases, Work orders, Invoices, POs, Standard Quotes, Products, Inventory, Suppliers, Campaigns) | Already kit Tabs | Stay (Deal and RFQ keep the tab in state, not `?tab=`, because their tab is driven by in-page actions). |
+| Standard quote form | Three numbered steps (Details, Lines, Attachments) | Stays: a gated stepper, not a reading tab set. Its active step uses the accent underline. |
+| Standard quote template builder | AI design, Template settings, Layout blocks | Stays: one build flow top to bottom. |
+| Administration hub, Business roles (Standard roles, Your roles), Business users, Change history, Outbound emails | Tile menu / two lists / one list | Stay. |
+| Dispatch, Pipeline board, Dashboard, Fence projects, Partners, Marketing lists/segments, every list page and every create/edit form | One board, grid or list; forms are filled top to bottom | Stay. |
+| Quotations (list, record, form, print) | Out of scope | Untouched. |

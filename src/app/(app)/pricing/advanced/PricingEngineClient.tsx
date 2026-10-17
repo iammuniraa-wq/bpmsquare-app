@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { c } from "@/lib/theme";
+import Tabs from "@/components/ui/Tabs";
+import { useUrlTab } from "@/components/ui/useUrlTab";
 import { cardStyle } from "@/components/Shell";
 import { COMPONENT_ENUMS, COST_INPUT_KINDS, enumLabel } from "@/lib/pricing/enums";
 import PriceTrace from "@/components/pricing/PriceTrace";
@@ -39,6 +41,8 @@ type PriceOut = {
 
 const TABS = ["Versions", "Routing", "Dimensions", "Components", "Procedures", "Rules", "Cost Models", "Test & Trace"] as const;
 type Tab = (typeof TABS)[number];
+const tabId = (t: Tab) => t.toLowerCase().replace(/[^a-z]+/g, "-");
+const TAB_DEFS = TABS.map((t) => ({ id: tabId(t), label: t }));
 
 const btn: React.CSSProperties = { padding: "6px 12px", borderRadius: 7, fontSize: 12, fontWeight: 500, border: `1px solid ${c.line}`, background: "var(--panel)", cursor: "pointer", color: c.muted };
 const primaryBtn: React.CSSProperties = { ...btn, background: "var(--accent, #378add)", color: "#fff", borderColor: "transparent" };
@@ -69,7 +73,8 @@ function parseJsonOr<T>(text: string, fallback: T): T | null {
 export default function PricingEngineClient() {
   const searchParams = useSearchParams();
   const area = searchParams.get("area") || "default";
-  const [tab, setTab] = useState<Tab>("Versions");
+  const [activeTabId, setActiveTabId] = useUrlTab(TAB_DEFS.map((t) => t.id));
+  const tab: Tab = TABS.find((t) => tabId(t) === activeTabId) ?? "Versions";
   const [versions, setVersions] = useState<VersionRow[]>([]);
   const [selected, setSelected] = useState<number | null>(null);
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
@@ -171,14 +176,8 @@ export default function PricingEngineClient() {
         </div>
       )}
 
-      {/* Tabs */}
-      <div style={{ display: "flex", gap: 4, marginBottom: 12, flexWrap: "wrap" }}>
-        {TABS.map((t) => (
-          <button key={t} onClick={() => setTab(t)}
-            style={{ ...btn, background: tab === t ? "var(--bluebg)" : "var(--panel)", color: tab === t ? "var(--blueink)" : c.muted, fontWeight: tab === t ? 600 : 500 }}>
-            {t}
-          </button>
-        ))}
+      <div style={{ marginBottom: 12 }}>
+        <Tabs tabs={TAB_DEFS} value={activeTabId} onChange={setActiveTabId} label="Pricing configuration" />
       </div>
 
       {!isDraft && tab !== "Versions" && tab !== "Test & Trace" && tab !== "Routing" && (
