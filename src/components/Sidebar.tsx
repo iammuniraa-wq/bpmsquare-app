@@ -10,6 +10,7 @@ import { useSettings, ACCENT_PRESETS } from "@/lib/settings";
 import { StarFilled, StarOutline, Gear, Monitor, Globe, Phone, FileText, BarChart2, Clipboard, Activity, CalendarCheck, Wrench, MapPin, Mail, Package, Zap, LinkIcon, Clock, Users, CheckIcon, Database, Box, Shield, Tag, Truck, Filter, Coins } from "@/components/Icons";
 import { useTenant, useUiTheme, useViewableWorkcenters, useIsWfmSupervisor, useTopBarIdentity, useIsSpectacular } from "@/lib/tenant-context";
 import SpacesRow from "@/components/SpacesRow";
+import { isNavItemHidden } from "@/lib/navVisibility";
 import type { ViewableWorkcenters, WorkcenterKey } from "@/lib/workcenters";
 
 // ── Nav order persistence ─────────────────────────────────────────────────────
@@ -559,13 +560,17 @@ export default function Sidebar({ onNavigate, hideHeader }: { onNavigate?: () =>
   // Tenant-wide hidden nav items (Settings → Navigation visibility), not a per-browser preference.
   const hidden  = new Set(tenant?.config?.nav_hidden_hrefs ?? settings.hiddenNavHrefs);
 
+  // A parent (Sales, Marketing, ...) shares its href with its first child, so
+  // "is this href hidden" cannot decide a parent: it is hidden only when all
+  // its children are (see lib/navVisibility.ts).
+  const childPresent = (ch: NavItem) => (!ch.featureKey || features?.[ch.featureKey] === true) && isItemViewable(ch, viewable);
+  const rowHidden = (i: FlatItem) => isNavItemHidden(hidden, i, childPresent);
+
   const favItems  = navState.favs
-    .filter((h) => !hidden.has(h))
-    .map((h) => allMap.get(h)).filter((i): i is FlatItem => !!i);
+    .map((h) => allMap.get(h)).filter((i): i is FlatItem => !!i && !rowHidden(i));
 
   const restItems = navState.rest
-    .filter((h) => !hidden.has(h))
-    .map((h) => allMap.get(h)).filter((i): i is FlatItem => !!i);
+    .map((h) => allMap.get(h)).filter((i): i is FlatItem => !!i && !rowHidden(i));
 
   const isActive = (href: string) =>
     href === "/" ? pathname === "/" : pathname === href || pathname.startsWith(href + "/");

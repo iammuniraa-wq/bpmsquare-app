@@ -2,7 +2,8 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { NAV } from "@/lib/constants";
+import { NAV, type NavItem } from "@/lib/constants";
+import { navState, toggleNavItem } from "@/lib/navVisibility";
 import { c } from "@/lib/theme";
 import { useSettings, ACCENT_PRESETS } from "@/lib/settings";
 import { useTenant } from "@/lib/tenant-context";
@@ -60,10 +61,11 @@ export default function NavigationVisibilityPage() {
   // ── Navigation visibility — tenant-wide (tenants.config), not per-browser ──
   const [navSaving, startNavSave] = useTransition();
   const [navHidden, setNavHidden] = useState<string[]>(() => tenant?.config?.nav_hidden_hrefs ?? []);
-  const isVisible = (href: string) => !navHidden.includes(href);
+  // Only the children this workspace has count toward a parent's state.
+  const hasChild = (ch: NavItem) => !ch.featureKey || tenantFeatures?.[ch.featureKey] === true;
 
-  const toggleNavItem = (href: string) => {
-    const next = navHidden.includes(href) ? navHidden.filter((h) => h !== href) : [...navHidden, href];
+  const toggleRow = (item: { href: string; children?: NavItem[] }) => {
+    const next = toggleNavItem(navHidden, item, hasChild);
     setNavHidden(next);
     startNavSave(async () => {
       await fetch("/api/settings/entities", {
@@ -97,16 +99,18 @@ export default function NavigationVisibilityPage() {
               </div>
               <div style={{ display: "flex", flexDirection: "column" }}>
                 {grp.items.map((item, idx) => {
-                  const visible = isVisible(item.href);
+                  const state = navState(navHidden, item, hasChild);
+                  const visible = state !== "off";
                   return (
-                    <div key={item.href} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 4px", paddingLeft: item.indent ? 28 : 4, borderTop: idx > 0 ? `1px solid ${c.line}` : "none", opacity: visible ? 1 : 0.4, transition: "opacity 0.15s" }}>
+                    <div key={`${item.indent ? "child" : "row"}:${item.href}`} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 4px", paddingLeft: item.indent ? 28 : 4, borderTop: idx > 0 ? `1px solid ${c.line}` : "none", opacity: visible ? 1 : 0.4, transition: "opacity 0.15s" }}>
                       <span style={{ width: 6, height: 6, borderRadius: "50%", flexShrink: 0, background: PILLAR_DOT[item.pillar] ?? "#378ADD" }} />
                       <span style={{ fontSize: 16, width: 20, textAlign: "center", flexShrink: 0 }}>{item.icon}</span>
                       <div style={{ flex: 1 }}>
                         <div style={{ fontSize: 13, fontWeight: 500, color: c.ink }}>{item.label}</div>
                         {item.sub && <div style={{ fontSize: 11, color: c.hint }}>{item.sub}</div>}
+                        {state === "mixed" && <div style={{ fontSize: 11, color: c.hint }}>Some hidden</div>}
                       </div>
-                      <Toggle on={visible} onChange={() => toggleNavItem(item.href)} accent={accent} />
+                      <Toggle on={visible} label={item.label} onChange={() => toggleRow(item)} accent={accent} />
                     </div>
                   );
                 })}
