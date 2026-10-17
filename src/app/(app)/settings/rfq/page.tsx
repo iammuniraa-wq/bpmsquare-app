@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { requireTenantUser, createAdminSupabase } from "@/lib/supabase-server";
 import { ROUTES } from "@/lib/constants";
-import PageHeader from "@/components/PageHeader";
+import SettingsPageHeader from "@/components/settings/SettingsPageHeader";
 import RfqSettingsClient from "./RfqSettingsClient";
 
 export default async function RfqSettingsPage() {
@@ -16,7 +16,7 @@ export default async function RfqSettingsPage() {
   if (!data?.features?.rfq) redirect(ROUTES.settings);
   return (
     <>
-      <PageHeader title="RFQ" subtitle="How requests for quotation reach your suppliers, and how their replies come back into BPMSquare." />
+      <SettingsPageHeader title="RFQ" subtitle="How requests for quotation reach your suppliers, and how their replies come back into BPMSquare." />
       <RfqSettingsClient />
     </>
   );

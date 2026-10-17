@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { requireTenantUser } from "@/lib/supabase-server";
 import { ROUTES } from "@/lib/constants";
-import PageHeader from "@/components/PageHeader";
+import SettingsPageHeader from "@/components/settings/SettingsPageHeader";
 import ConnectorsClient from "./ConnectorsClient";
 
 export default async function ConnectorsPage() {
@@ -15,7 +15,7 @@ export default async function ConnectorsPage() {
 
   return (
     <>
-      <PageHeader
+      <SettingsPageHeader
         title="Connectors"
         subtitle="Connect BPMSquare to other systems your team already uses"
       />

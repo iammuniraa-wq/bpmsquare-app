@@ -1,13 +1,14 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { NAV, type NavItem } from "@/lib/constants";
 import { navState, toggleNavItem } from "@/lib/navVisibility";
 import { c } from "@/lib/theme";
 import { useSettings, ACCENT_PRESETS } from "@/lib/settings";
 import { useTenant } from "@/lib/tenant-context";
-import PageHeader from "@/components/PageHeader";
+import SettingsPageHeader from "@/components/settings/SettingsPageHeader";
+import { SettingsSave } from "@/components/settings/SettingsHeaderActions";
 import Pager from "@/components/Pager";
 import { PILLAR_DOT, Section, Toggle, useSavedFlash } from "@/components/settings/generalShared";
 
@@ -59,32 +60,38 @@ export default function NavigationVisibilityPage() {
   const navGroupsOnPage = navGroups.slice(navPageStart, navPageStart + NAV_GROUPS_PER_PAGE);
 
   // ── Navigation visibility — tenant-wide (tenants.config), not per-browser ──
-  const [navSaving, startNavSave] = useTransition();
-  const [navHidden, setNavHidden] = useState<string[]>(() => tenant?.config?.nav_hidden_hrefs ?? []);
+  const [navSaving, setNavSaving] = useState(false);
+  const [navError, setNavError] = useState("");
+  const [storedHidden, setStoredHidden] = useState<string[]>(() => tenant?.config?.nav_hidden_hrefs ?? []);
+  const [navHidden, setNavHidden] = useState<string[]>(storedHidden);
+  const navDirty = [...navHidden].sort().join("|") !== [...storedHidden].sort().join("|");
   // Only the children this workspace has count toward a parent's state.
   const hasChild = (ch: NavItem) => !ch.featureKey || tenantFeatures?.[ch.featureKey] === true;
 
   const toggleRow = (item: { href: string; children?: NavItem[] }) => {
-    const next = toggleNavItem(navHidden, item, hasChild);
-    setNavHidden(next);
-    startNavSave(async () => {
-      await fetch("/api/settings/entities", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ nav_hidden_hrefs: next }),
-      });
-      flashSaved();
-      router.refresh();
-    });
+    setNavHidden(toggleNavItem(navHidden, item, hasChild));
+  };
+
+  const saveNav = async () => {
+    setNavSaving(true);
+    setNavError("");
+    const res = await fetch("/api/settings/entities", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ nav_hidden_hrefs: navHidden }),
+    }).catch(() => null);
+    setNavSaving(false);
+    if (!res) { setNavError("Network error"); return; }
+    if (!res.ok) { setNavError((await res.json().catch(() => ({}))).error ?? "Could not save"); return; }
+    setStoredHidden(navHidden);
+    flashSaved();
+    router.refresh();
   };
 
   return (
     <div style={{ maxWidth: 680 }}>
-      <PageHeader
-        title="Navigation visibility"
-        subtitle="Show or hide sidebar items for the whole workspace — every user, every device."
-        action={<span style={{ fontSize: 12, color: "var(--teal)", fontWeight: 500, opacity: saved ? 1 : 0, transition: "opacity 0.3s" }}>✓ Saved</span>}
-      />
+      <SettingsPageHeader title="Navigation visibility" subtitle="Show or hide sidebar items for the whole workspace — every user, every device." />
+      <SettingsSave dirty={navDirty} saving={navSaving} saved={saved} error={navError} onSave={saveNav} />
 
       <Section
         id="nav"

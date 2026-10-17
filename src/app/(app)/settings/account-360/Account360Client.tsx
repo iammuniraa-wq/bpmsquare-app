@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { c } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
 import type { Account360SourceDef } from "@/lib/constants";
+import { SettingsSave } from "@/components/settings/SettingsHeaderActions";
+import { useSettingsDirty } from "@/components/settings/useSettingsDirty";
 
 /**
  * Account 360 configuration. Two halves: which built-in cards the drawer
@@ -38,19 +40,24 @@ export default function Account360Client() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ tone: "ok" | "error"; text: string } | null>(null);
+  const { dirty, markSaved } = useSettingsDirty({ hidden, order, sources });
 
   useEffect(() => {
     fetch("/api/settings/account-360")
       .then(async (res) => {
         const json = await res.json();
         if (!res.ok) throw new Error(json.error ?? "Could not load");
-        setHidden(json.hidden_cards ?? []);
+        const loadedHidden: string[] = json.hidden_cards ?? [];
+        setHidden(loadedHidden);
         const savedOrder: string[] = (json.card_order ?? []).filter((id: string) => BUILTINS.some((b) => b.id === id));
-        setOrder([...savedOrder, ...BUILTINS.map((b) => b.id).filter((id) => !savedOrder.includes(id))]);
+        const loadedOrder = [...savedOrder, ...BUILTINS.map((b) => b.id).filter((id) => !savedOrder.includes(id))];
+        setOrder(loadedOrder);
         // The route sends a masked placeholder, never the real credential.
-        setSources((json.sources ?? []).map((s: Account360SourceDef) => ({
+        const loadedSources = (json.sources ?? []).map((s: Account360SourceDef) => ({
           ...s, has_secret: !!s.auth_value,
-        })));
+        }));
+        setSources(loadedSources);
+        markSaved({ hidden: loadedHidden, order: loadedOrder, sources: loadedSources });
       })
       .catch((e) => setMessage({ tone: "error", text: (e as Error).message }))
       .finally(() => setLoading(false));
@@ -87,7 +94,9 @@ export default function Account360Client() {
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? "Could not save");
       setMessage({ tone: "ok", text: "Saved" });
-      setSources((prev) => prev.map((s) => (s.auth_value && s.auth_value !== "••••••••" ? { ...s, auth_value: "••••••••", has_secret: true } : s)));
+      const masked = sources.map((s) => (s.auth_value && s.auth_value !== "••••••••" ? { ...s, auth_value: "••••••••", has_secret: true } : s));
+      setSources(masked);
+      markSaved({ hidden, order, sources: masked });
     } catch (e) {
       setMessage({ tone: "error", text: (e as Error).message });
     } finally {
@@ -256,21 +265,7 @@ export default function Account360Client() {
         </div>
       </section>
 
-      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-        <button
-          onClick={save}
-          disabled={saving}
-          style={{
-            padding: "9px 18px", borderRadius: 8, border: "none", cursor: saving ? "default" : "pointer",
-            background: c.accent, color: "#fff", fontSize: 13, fontWeight: 650, font: "inherit", opacity: saving ? 0.6 : 1,
-          }}
-        >
-          {saving ? "Saving…" : "Save"}
-        </button>
-        {message && (
-          <span style={{ fontSize: 12.5, color: message.tone === "ok" ? "#12a150" : "#e5484d" }}>{message.text}</span>
-        )}
-      </div>
+      <SettingsSave dirty={dirty} saving={saving} saved={message?.tone === "ok"} error={message?.tone === "error" ? message.text : ""} onSave={save} />
     </div>
   );
 }

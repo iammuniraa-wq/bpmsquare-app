@@ -2,6 +2,8 @@
 
 import { useCallback, useRef, useState } from "react";
 import { c } from "@/lib/theme";
+import { SettingsSave } from "@/components/settings/SettingsHeaderActions";
+import { useSettingsDirty } from "@/components/settings/useSettingsDirty";
 import { cardStyle } from "@/components/Shell";
 import { deriveCode, type PicklistItem, type ProductCategoryNode } from "@/lib/picklists";
 
@@ -160,6 +162,7 @@ export default function SalesConfigClient({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [saved, flash] = useSavedFlash();
+  const { dirty, markSaved } = useSettingsDirty(productCategories);
 
   async function save() {
     setError("");
@@ -170,7 +173,7 @@ export default function SalesConfigClient({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ product_categories: productCategories }),
       });
-      if (res.ok) { flash(); }
+      if (res.ok) { markSaved(); flash(); }
       else { const j = await res.json(); setError(j.error ?? "Failed to save"); }
     } catch { setError("Network error"); }
     finally { setSaving(false); }
@@ -186,23 +189,7 @@ export default function SalesConfigClient({
 
       <CategoryTreeEditor items={productCategories} onChange={setProductCategories} />
 
-      {error && (
-        <div style={{ background: "var(--err-bg)", border: "1px solid var(--err-line)", borderRadius: 7, padding: "10px 14px", fontSize: 13, color: "var(--err-ink)", marginBottom: 12 }}>
-          {error}
-        </div>
-      )}
-
-      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-        <button
-          type="button"
-          onClick={save}
-          disabled={saving}
-          style={{ padding: "9px 22px", borderRadius: 7, border: "none", background: c.accent, color: "#fff", fontWeight: 600, fontSize: 13, cursor: "pointer" }}
-        >
-          {saving ? "Saving…" : "Save"}
-        </button>
-        {saved && <span style={{ fontSize: 13, color: "#10b981", fontWeight: 600 }}>✓ Saved</span>}
-      </div>
+      <SettingsSave dirty={dirty} saving={saving} saved={saved} error={error} onSave={save} />
     </div>
   );
 }

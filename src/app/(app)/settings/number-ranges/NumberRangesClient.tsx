@@ -5,6 +5,8 @@ import { c } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
 import { DEFAULT_QUOTE_ID_FORMAT, type QuoteIdFormat, type TenantConfig, type TenantFeatures } from "@/lib/constants";
 import { formatQuoteRef } from "@/lib/quoteRefFormat";
+import { SettingsSave } from "@/components/settings/SettingsHeaderActions";
+import { useSettingsDirty } from "@/components/settings/useSettingsDirty";
 
 // The single home for business-ID configuration. Quotations are fully
 // configurable today (moved here from Settings → Entities & Tax); every
@@ -49,12 +51,17 @@ export default function NumberRangesClient({ features = {} }: { features?: Parti
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [saved, setSaved] = useState(false);
+  const { dirty, markSaved } = useSettingsDirty(fmt);
 
   useEffect(() => {
     if (!showQuoteFormat) { setLoading(false); return; }
     fetch("/api/settings/entities")
       .then((r) => r.json())
-      .then((cfg: TenantConfig) => setFmt({ ...DEFAULT_QUOTE_ID_FORMAT, ...(cfg.quote_id_format ?? {}) }))
+      .then((cfg: TenantConfig) => {
+        const loaded = { ...DEFAULT_QUOTE_ID_FORMAT, ...(cfg.quote_id_format ?? {}) };
+        setFmt(loaded);
+        markSaved(loaded);
+      })
       .catch(() => setError("Could not load the current Quote ID format"))
       .finally(() => setLoading(false));
   }, []);
@@ -74,6 +81,7 @@ export default function NumberRangesClient({ features = {} }: { features?: Parti
         setError(j.error ?? "Failed to save");
         return;
       }
+      markSaved();
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
     } catch (e) {
@@ -130,15 +138,8 @@ export default function NumberRangesClient({ features = {} }: { features?: Parti
                 <label style={lbl}>Example</label>
                 <div style={{ ...mono, fontSize: 15, fontWeight: 600, color: c.ink }}>{formatQuoteRef(fmt, new Date(), 1)}</div>
               </div>
-              <span style={{ flex: 1 }} />
-              <button
-                onClick={save} disabled={saving}
-                style={{ padding: "8px 18px", borderRadius: 7, border: "none", background: c.accent, color: "#fff", fontWeight: 600, fontSize: 12.5, cursor: saving ? "not-allowed" : "pointer" }}
-              >
-                {saving ? "Saving…" : saved ? "✓ Saved" : "Save"}
-              </button>
             </div>
-            {error && <div style={{ fontSize: 12, color: "var(--err-ink)", marginTop: 8 }}>{error}</div>}
+            <SettingsSave dirty={dirty} saving={saving} saved={saved} error={error} onSave={save} />
           </>
         )}
       </section>}

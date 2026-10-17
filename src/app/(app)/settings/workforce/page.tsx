@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { requireTenantUser, createAdminSupabase } from "@/lib/supabase-server";
 import { ROUTES } from "@/lib/constants";
 import { getWfmConfig } from "@/lib/wfm/server";
-import PageHeader from "@/components/PageHeader";
+import SettingsPageHeader from "@/components/settings/SettingsPageHeader";
 import WorkforceSettingsTabs from "./WorkforceSettingsTabs";
 
 export default async function SettingsWorkforcePage() {
@@ -25,7 +25,7 @@ export default async function SettingsWorkforcePage() {
 
   return (
     <>
-      <PageHeader
+      <SettingsPageHeader
         title="Workforce"
         subtitle="Attendance rules, sites, shifts, leave types and holidays — everything that shapes how the workforce punches in and takes leave."
       />

@@ -5,7 +5,9 @@ import Link from "next/link";
 import { c } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
 import { ROUTES } from "@/lib/constants";
-import { inp, lbl, btnPrimary, fmtDateTime } from "@/components/rfq/rfqUi";
+import { inp, lbl, fmtDateTime } from "@/components/rfq/rfqUi";
+import { SettingsSave } from "@/components/settings/SettingsHeaderActions";
+import { useSettingsDirty } from "@/components/settings/useSettingsDirty";
 
 type Cfg = { mail_mode: "platform" | "mailbox"; mailbox_connector: "gmail" | "mail_server"; default_response_days: number; max_reminders: number; link_grace_days: number; terms: string; attach_pdf: boolean };
 type Ready = {
@@ -27,9 +29,10 @@ export default function RfqSettingsClient() {
   const [ready, setReady] = useState<Ready | null>(null);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
+  const { dirty, markSaved } = useSettingsDirty(cfg);
 
   useEffect(() => {
-    fetch("/api/settings/rfq").then((r) => r.json()).then((j) => { setCfg(j.config); setReady(j.readiness); }).catch(() => setMsg({ ok: false, text: "Couldn't load the settings." }));
+    fetch("/api/settings/rfq").then((r) => r.json()).then((j) => { setCfg(j.config); markSaved(j.config); setReady(j.readiness); }).catch(() => setMsg({ ok: false, text: "Couldn't load the settings." }));
   }, []);
 
   if (!cfg || !ready) return <div style={{ ...cardStyle, color: c.hint }}>Loading…</div>;
@@ -42,6 +45,7 @@ export default function RfqSettingsClient() {
     setBusy(false);
     if (!res.ok) { setMsg({ ok: false, text: j.error ?? "Couldn't save." }); return; }
     setCfg(j.config);
+    markSaved(j.config);
     setReady(j.readiness);
     setMsg({ ok: true, text: "Saved." });
   };
@@ -113,8 +117,7 @@ export default function RfqSettingsClient() {
         </div>
       </section>
 
-      {msg && <div role={msg.ok ? "status" : "alert"} style={{ fontSize: 13, color: msg.ok ? "var(--greenink)" : "var(--redink)" }}>{msg.text}</div>}
-      <div><button type="button" style={btnPrimary} disabled={busy} onClick={save}>{busy ? "Saving…" : "Save"}</button></div>
+      <SettingsSave dirty={dirty} saving={busy} saved={!!msg?.ok} error={msg && !msg.ok ? msg.text : ""} onSave={save} />
     </div>
   );
 }

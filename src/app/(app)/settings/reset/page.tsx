@@ -6,7 +6,8 @@ import { useFeel } from "@/components/FeelProvider";
 import { c } from "@/lib/theme";
 import { useSettings } from "@/lib/settings";
 import { useTenant } from "@/lib/tenant-context";
-import PageHeader from "@/components/PageHeader";
+import SettingsPageHeader from "@/components/settings/SettingsPageHeader";
+import Button from "@/components/ui/Button";
 import { Section, useSavedFlash } from "@/components/settings/generalShared";
 
 export default function ResetLayoutPage() {
@@ -37,20 +38,17 @@ export default function ResetLayoutPage() {
 
   return (
     <div style={{ maxWidth: 680 }}>
-      <PageHeader
-        title="Reset layout"
-        subtitle="Restore navigation visibility and the compact sidebar to their defaults."
-        action={<span style={{ fontSize: 12, color: "var(--teal)", fontWeight: 500, opacity: saved ? 1 : 0, transition: "opacity 0.3s" }}>✓ Saved</span>}
-      />
+      <SettingsPageHeader title="Reset layout" subtitle="Restore navigation visibility and the compact sidebar to their defaults." />
 
       <Section id="reset" title="">
         <p style={{ margin: "0 0 14px", fontSize: 12.5, color: c.muted, lineHeight: 1.5 }}>
           Restore navigation visibility and compact sidebar to defaults, for the whole workspace. Accent colour and
           workspace name aren't reset since there's no default to go back to. Your data is not affected.
         </p>
-        <button onClick={resetTenantDefaults} disabled={resetting} style={{ padding: "8px 18px", borderRadius: 8, fontSize: 13, fontWeight: 500, background: "var(--redbg)", color: "var(--redink)", border: "1px solid var(--err-line)", cursor: "pointer" }}>
+        <Button variant="danger" onClick={resetTenantDefaults} loading={resetting}>
           {resetting ? "Resetting…" : "Reset navigation & layout to defaults"}
-        </button>
+        </Button>
+        {saved && <span role="status" style={{ marginLeft: 12, fontSize: 12.5, color: "var(--teal)" }}>✓ Reset</span>}
       </Section>
     </div>
   );

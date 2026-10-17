@@ -1,60 +1,57 @@
 "use client";
 
 import Link from "next/link";
-import { useState, useTransition } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { ROUTES } from "@/lib/constants";
 import { c } from "@/lib/theme";
-import { useSettings, ACCENT_PRESETS } from "@/lib/settings";
 import { useTenant } from "@/lib/tenant-context";
-import PageHeader from "@/components/PageHeader";
+import SettingsPageHeader from "@/components/settings/SettingsPageHeader";
+import { SettingsSave } from "@/components/settings/SettingsHeaderActions";
 import { Section, useSavedFlash } from "@/components/settings/generalShared";
+import { Input } from "@/components/ui/Input";
 
 export default function CompanyProfilePage() {
   const router = useRouter();
-  const { settings } = useSettings();
   const tenant = useTenant();
-  const accent = tenant?.accent_color || ACCENT_PRESETS[settings.accentPreset].color;
   const [saved, flashSaved] = useSavedFlash();
 
   // ── Workspace name — writes tenants.name directly ──────────────────────────
   const [wsName, setWsName] = useState(tenant?.name ?? "");
-  const [wsSaving, startWsSave] = useTransition();
-  const wsNameDirty = wsName.trim() !== "" && wsName.trim() !== (tenant?.name ?? "");
+  const [storedName, setStoredName] = useState(tenant?.name ?? "");
+  const [wsSaving, setWsSaving] = useState(false);
+  const [error, setError] = useState("");
+  const wsNameDirty = wsName.trim() !== "" && wsName.trim() !== storedName;
 
-  const saveWorkspaceName = () => {
+  const saveWorkspaceName = async () => {
     const name = wsName.trim();
-    startWsSave(async () => {
-      await fetch("/api/settings/workspace", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name }),
-      });
-      flashSaved();
-      router.refresh();
-    });
+    setWsSaving(true);
+    setError("");
+    const res = await fetch("/api/settings/workspace", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name }),
+    }).catch(() => null);
+    setWsSaving(false);
+    if (!res) { setError("Network error"); return; }
+    if (!res.ok) { setError((await res.json().catch(() => ({}))).error ?? "Could not save"); return; }
+    setStoredName(name);
+    flashSaved();
+    router.refresh();
   };
 
   return (
     <div style={{ maxWidth: 680 }}>
-      <PageHeader
-        title="Company profile"
-        subtitle="Your organisation's name, shown in the sidebar header."
-        action={<span style={{ fontSize: 12, color: "var(--teal)", fontWeight: 500, opacity: saved ? 1 : 0, transition: "opacity 0.3s" }}>✓ Saved</span>}
-      />
+      <SettingsPageHeader title="Company profile" subtitle="Your organisation's name, shown in the sidebar header." />
+      <SettingsSave dirty={wsNameDirty} saving={wsSaving} saved={saved} error={error} onSave={saveWorkspaceName} />
 
-      {/* ── 4. Workspace ── */}
-      <Section
-        id="workspace"
-        title="Workspace name"
-        description="Your organisation's name, shown in the sidebar header."
-      >
-        <div style={{ display: "flex", gap: 10 }}>
-          <input value={wsName} onChange={(e) => setWsName(e.target.value)} placeholder="Workspace name" style={{ flex: 1, padding: "8px 12px", borderRadius: 8, border: `1px solid ${wsNameDirty ? accent : c.line}`, fontSize: 13, color: c.ink, outline: "none", transition: "border-color 0.15s" }} />
-          <button onClick={saveWorkspaceName} disabled={!wsNameDirty || wsSaving} style={{ padding: "8px 18px", borderRadius: 8, fontSize: 13, fontWeight: 500, border: "none", cursor: wsNameDirty ? "pointer" : "default", background: wsNameDirty ? accent : c.line, color: wsNameDirty ? "#fff" : c.hint, transition: "all 0.15s" }}>
-            {wsSaving ? "Saving…" : "Save"}
-          </button>
-        </div>
+      <Section title="Workspace name" description="Your organisation's name, shown in the sidebar header.">
+        <Input
+          aria-label="Workspace name"
+          value={wsName}
+          onChange={(e) => setWsName(e.target.value)}
+          placeholder="Workspace name"
+        />
       </Section>
 
       {tenant?.features?.quotations === true && (

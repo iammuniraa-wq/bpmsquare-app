@@ -1986,3 +1986,14 @@ textarea.bpm-input { min-height: 72px; resize: vertical; }
   /* Sub-page: the menu steps aside. */
   .bpm-settings[data-root="false"] .bpm-settings-nav { display: none; }
 }
+
+/* Settings page header actions (SettingsPageHeader / SettingsSave): Save and
+   its status sit top right; the status reads on both the plain header and
+   Spectacular's navy band because it inherits the header's ink. */
+.bpm-settings-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
+.bpm-save-status { font-size: 12.5px; color: var(--muted); }
+.bpm-save-status[data-dirty="true"] { font-weight: 600; }
+.bpm-save-error {
+  max-width: 320px; font-size: 12px; padding: 5px 9px; border-radius: 7px;
+  background: var(--err-bg); color: var(--err-ink); border: 1px solid var(--err-line);
+}

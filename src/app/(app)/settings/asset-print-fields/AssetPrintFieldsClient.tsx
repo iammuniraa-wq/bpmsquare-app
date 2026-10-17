@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { c } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
+import { SettingsSave } from "@/components/settings/SettingsHeaderActions";
+import { useSettingsDirty } from "@/components/settings/useSettingsDirty";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -56,6 +58,7 @@ export default function AssetPrintFieldsClient({ initialAssetFields, assetCustom
   const [assetFields, setAssetFields] = useState<string[]>(initialAssetFields);
   const [savingFields, setSavingFields] = useState(false);
   const [savedFields, flashFields] = useSavedFlash();
+  const { dirty, markSaved } = useSettingsDirty(assetFields);
 
   function toggleAssetField(value: string) {
     setAssetFields((p) => p.includes(value) ? p.filter((f) => f !== value) : [...p, value]);
@@ -69,7 +72,7 @@ export default function AssetPrintFieldsClient({ initialAssetFields, assetCustom
       body: JSON.stringify(assetFields),
     });
     setSavingFields(false);
-    if (res.ok) flashFields();
+    if (res.ok) { markSaved(); flashFields(); }
   }
 
   return (
@@ -101,18 +104,7 @@ export default function AssetPrintFieldsClient({ initialAssetFields, assetCustom
         </div>
       </div>
 
-      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 32 }}>
-        <button
-          type="button"
-          onClick={saveAssetFields}
-          disabled={savingFields}
-          style={{ padding: "9px 22px", borderRadius: 7, border: "none", background: c.accent, color: "#fff", fontWeight: 600, fontSize: 13, cursor: "pointer" }}
-        >
-          {savingFields ? "Saving…" : "Save equipment fields"}
-        </button>
-        {savedFields && <span style={{ fontSize: 13, color: "#10b981", fontWeight: 600 }}>✓ Saved</span>}
-      </div>
-
+      <SettingsSave dirty={dirty} saving={savingFields} saved={savedFields} onSave={saveAssetFields} />
     </div>
   );
 }

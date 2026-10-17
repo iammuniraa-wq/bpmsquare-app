@@ -2,7 +2,7 @@
 
 import { useSettings, ACCENT_PRESETS } from "@/lib/settings";
 import { useTenant, useUserRole } from "@/lib/tenant-context";
-import PageHeader from "@/components/PageHeader";
+import SettingsPageHeader from "@/components/settings/SettingsPageHeader";
 import { AdminOnlyNotice } from "@/components/settings/generalShared";
 import EmailOutputSection from "./EmailOutputSection";
 
@@ -14,7 +14,7 @@ export default function EmailOutputSectionPage() {
 
   return (
     <div style={{ maxWidth: 680 }}>
-      <PageHeader title="Email output" subtitle="Where quotations, invoices, campaigns and workforce notifications are actually delivered." />
+      <SettingsPageHeader title="Email output" subtitle="Where quotations, invoices, campaigns and workforce notifications are actually delivered." />
       {role === "admin" ? <EmailOutputSection accent={accent} /> : <AdminOnlyNotice what="change where email is delivered" />}
     </div>
   );

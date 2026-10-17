@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { c } from "@/lib/theme";
+import { SettingsSave } from "@/components/settings/SettingsHeaderActions";
 import { Section } from "@/components/settings/generalShared";
 import { settingsInput as inp } from "@/components/settings/SettingsField";
 
@@ -112,21 +113,7 @@ export default function EmailOutputSection({ accent }: { accent: string }) {
           </div>
         )}
 
-        <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 14 }}>
-          <button
-            type="button"
-            onClick={save}
-            disabled={!dirty || saving}
-            style={{
-              padding: "8px 18px", borderRadius: 8, fontSize: 13, fontWeight: 500, border: "none",
-              cursor: dirty ? "pointer" : "default", background: dirty ? accent : c.line, color: dirty ? "#fff" : c.hint,
-            }}
-          >
-            {saving ? "Saving…" : "Save"}
-          </button>
-          {saved && <span style={{ fontSize: 12.5, color: "var(--teal)", fontWeight: 500 }}>Saved</span>}
-          {error && <span style={{ fontSize: 12.5, color: "var(--err-ink)" }}>{error}</span>}
-        </div>
+        <SettingsSave dirty={dirty} saving={saving} saved={saved} error={error} onSave={save} />
       </Section>
     </div>
   );

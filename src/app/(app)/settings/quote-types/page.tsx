@@ -1,13 +1,14 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { QUOTE_TYPES } from "@/lib/constants";
 import type { QuoteTypeId } from "@/lib/constants";
 import { c } from "@/lib/theme";
 import { useSettings, ACCENT_PRESETS } from "@/lib/settings";
 import { useTenant } from "@/lib/tenant-context";
-import PageHeader from "@/components/PageHeader";
+import SettingsPageHeader from "@/components/settings/SettingsPageHeader";
+import { SettingsSave } from "@/components/settings/SettingsHeaderActions";
 import { FileText, Wrench, BarChart2, Package, CalendarCheck, Zap } from "@/components/Icons";
 import EmptyState from "@/components/ui/EmptyState";
 import { Section, Toggle, useSavedFlash } from "@/components/settings/generalShared";
@@ -21,25 +22,35 @@ export default function QuoteTypesPage() {
   const [saved, flashSaved] = useSavedFlash();
 
   // ── Quote type visibility ─────────────────────────────────────────────────
-  const [qtSaving, startQtSave] = useTransition();
-  const [qtVis, setQtVis] = useState<Partial<Record<QuoteTypeId, boolean>>>(() => tenant?.config?.quote_type_visibility ?? {});
+  const [qtSaving, setQtSaving] = useState(false);
+  const [qtError, setQtError] = useState("");
+  const [storedVis, setStoredVis] = useState<Partial<Record<QuoteTypeId, boolean>>>(() => tenant?.config?.quote_type_visibility ?? {});
+  const [qtVis, setQtVis] = useState<Partial<Record<QuoteTypeId, boolean>>>(storedVis);
 
   function isQtVisible(id: QuoteTypeId): boolean {
     return id in qtVis ? qtVis[id] !== false : true;
   }
 
   function toggleQtType(id: QuoteTypeId) {
-    const next = { ...qtVis, [id]: !isQtVisible(id) };
-    setQtVis(next);
-    startQtSave(async () => {
-      await fetch("/api/settings/entities", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ quote_type_visibility: next }),
-      });
-      flashSaved();
-      router.refresh();
-    });
+    setQtVis({ ...qtVis, [id]: !isQtVisible(id) });
+  }
+
+  const qtDirty = QUOTE_TYPES.some((qt) => (qtVis[qt.id as QuoteTypeId] !== false) !== (storedVis[qt.id as QuoteTypeId] !== false));
+
+  async function saveQtTypes() {
+    setQtSaving(true);
+    setQtError("");
+    const res = await fetch("/api/settings/entities", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ quote_type_visibility: qtVis }),
+    }).catch(() => null);
+    setQtSaving(false);
+    if (!res) { setQtError("Network error"); return; }
+    if (!res.ok) { setQtError((await res.json().catch(() => ({}))).error ?? "Could not save"); return; }
+    setStoredVis(qtVis);
+    flashSaved();
+    router.refresh();
   }
 
   function TypeIcon({ id }: { id: string }) {
@@ -57,11 +68,8 @@ export default function QuoteTypesPage() {
 
   return (
     <div style={{ maxWidth: 680 }}>
-      <PageHeader
-        title="Quote types"
-        subtitle="Show or hide offer types in the New Quotation picker. Hidden types (including Coming Soon ones you don't need) won't appear there at all."
-        action={<span style={{ fontSize: 12, color: "var(--teal)", fontWeight: 500, opacity: saved ? 1 : 0, transition: "opacity 0.3s" }}>✓ Saved</span>}
-      />
+      <SettingsPageHeader title="Quote types" subtitle="Show or hide offer types in the New Quotation picker. Hidden types (including Coming Soon ones you don't need) won't appear there at all." />
+      <SettingsSave dirty={qtDirty} saving={qtSaving} saved={saved} error={qtError} onSave={saveQtTypes} />
 
       {tenantFeatures?.quotations === true ? (
       <Section

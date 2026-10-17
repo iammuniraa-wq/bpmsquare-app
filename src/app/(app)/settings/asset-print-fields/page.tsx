@@ -1,7 +1,7 @@
 import { createAdminSupabase, requireTenantUser } from "@/lib/supabase-server";
 import { redirect } from "next/navigation";
 import { ROUTES } from "@/lib/constants";
-import PageHeader from "@/components/PageHeader";
+import SettingsPageHeader from "@/components/settings/SettingsPageHeader";
 import AssetPrintFieldsClient from "./AssetPrintFieldsClient";
 
 export default async function AssetPrintFieldsPage() {
@@ -32,7 +32,7 @@ export default async function AssetPrintFieldsPage() {
 
   return (
     <>
-      <PageHeader
+      <SettingsPageHeader
         title="Asset print fields"
         subtitle="Which equipment fields appear in the Equipment Details section of a printed quote"
       />

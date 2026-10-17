@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { c } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
+import { SettingsSave } from "@/components/settings/SettingsHeaderActions";
+import { useSettingsDirty } from "@/components/settings/useSettingsDirty";
 import { DEFAULT_QUOTE_STATUSES, type QuoteStatusDef } from "@/lib/constants";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -47,6 +49,7 @@ export default function StatusesClient({ initial }: { initial: QuoteStatusDef[] 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [saved, flash] = useSavedFlash();
+  const { dirty, markSaved } = useSettingsDirty(statuses);
 
   function update(idx: number, patch: Partial<QuoteStatusDef>) {
     setStatuses((p) => p.map((s, i) => i === idx ? { ...s, ...patch } : s));
@@ -89,7 +92,7 @@ export default function StatusesClient({ initial }: { initial: QuoteStatusDef[] 
       body: JSON.stringify(statuses),
     });
     setSaving(false);
-    if (res.ok) { flash(); }
+    if (res.ok) { markSaved(); flash(); }
     else { const j = await res.json(); setError(j.error ?? "Failed to save"); }
   }
 
@@ -186,24 +189,7 @@ export default function StatusesClient({ initial }: { initial: QuoteStatusDef[] 
         </button>
       </div>
 
-      {error && (
-        <div style={{ background: "var(--err-bg)", border: "1px solid var(--err-line)", borderRadius: 7, padding: "10px 14px", fontSize: 13, color: "var(--err-ink)", marginBottom: 12 }}>
-          {error}
-        </div>
-      )}
-
-      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-        <button
-          type="button"
-          onClick={save}
-          disabled={saving}
-          style={{ padding: "9px 22px", borderRadius: 7, border: "none", background: c.accent, color: "#fff", fontWeight: 600, fontSize: 13, cursor: "pointer" }}
-        >
-          {saving ? "Saving…" : "Save statuses"}
-        </button>
-        {saved && <span style={{ fontSize: 13, color: "#10b981", fontWeight: 600 }}>✓ Saved</span>}
-      </div>
-
+      <SettingsSave dirty={dirty} saving={saving} saved={saved} error={error} onSave={save} label="Save" />
     </div>
   );
 }

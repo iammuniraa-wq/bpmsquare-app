@@ -5,7 +5,7 @@ import { useFeel } from "@/components/FeelProvider";
 import { c } from "@/lib/theme";
 import { useTenant, useUserRole } from "@/lib/tenant-context";
 import { Mail, MessageSquare, LinkIcon, Globe, Phone } from "@/components/Icons";
-import PageHeader from "@/components/PageHeader";
+import SettingsPageHeader from "@/components/settings/SettingsPageHeader";
 import { Section, StatusBadge } from "@/components/settings/generalShared";
 import ApiKeysPanel from "./ApiKeysPanel";
 
@@ -107,7 +107,7 @@ export default function DeveloperSettingsPage() {
 
   return (
     <div style={{ maxWidth: 680 }}>
-      <PageHeader
+      <SettingsPageHeader
         title="API keys & developer"
         subtitle="Live REST API with an enriched query layer, an OpenAPI spec and a change feed. Authenticate with: Authorization: Bearer <API key>"
       />

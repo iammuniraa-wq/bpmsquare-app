@@ -2,7 +2,7 @@ import { requireTenantUser } from "@/lib/supabase-server";
 import { getTenant } from "@/lib/tenant";
 import { redirect } from "next/navigation";
 import { ROUTES } from "@/lib/constants";
-import PageHeader from "@/components/PageHeader";
+import SettingsPageHeader from "@/components/settings/SettingsPageHeader";
 import CoverageSettingsClient from "./CoverageSettingsClient";
 
 export default async function CoverageSettingsPage() {
@@ -19,7 +19,7 @@ export default async function CoverageSettingsPage() {
 
   return (
     <>
-      <PageHeader
+      <SettingsPageHeader
         title="Coverage"
         subtitle="Teams, rule-based segments and the coverage wiring that replaces flat territory/sales org assignment"
       />

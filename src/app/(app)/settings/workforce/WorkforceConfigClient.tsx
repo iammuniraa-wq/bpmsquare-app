@@ -5,16 +5,13 @@ import { c } from "@/lib/theme";
 import SettingsSection from "@/components/settings/SettingsSection";
 import { SettingsField, SettingsRow, settingsInput as inp } from "@/components/settings/SettingsField";
 import type { WfmConfig } from "@/lib/constants";
+import { SettingsSave } from "@/components/settings/SettingsHeaderActions";
 
 // Workforce holds more configuration than any other module and gains more with
 // each capability, so it is laid out for that: collapsed sections whose headers
 // state what they currently hold, help text behind the "?" on each setting, and
-// a save bar that stays in reach. See src/components/settings/.
+// Save in the page header. See src/components/settings/.
 
-const btnPrimary: React.CSSProperties = {
-  padding: "10px 20px", fontSize: 13, fontWeight: 600, borderRadius: 8,
-  border: "none", background: "var(--tenant-accent, #378ADD)", color: "#fff", cursor: "pointer",
-};
 const help: React.CSSProperties = { fontSize: 11.5, color: c.hint, marginTop: 8, lineHeight: 1.5 };
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -186,14 +183,6 @@ export default function WorkforceConfigClient({ initial, projectsOn = false }: {
 
   return (
     <div className="set-page" style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 18 }}>
-      {error && (
-        <div style={{
-          color: "#ef4444", fontSize: 12.5, padding: "12px 16px",
-          background: "var(--card-bg)", border: "1px solid var(--line)",
-          borderRadius: "var(--card-radius)",
-        }}>{error}</div>
-      )}
-
       <SettingsSection id="wfm-attendance" title="Attendance rules" summary={summaries.attendance} defaultOpen>
         <div className="set-grid">
           <SettingsField label="Timezone" help="All lateness, shift-day and absence calculations run in this timezone.">
@@ -734,31 +723,7 @@ export default function WorkforceConfigClient({ initial, projectsOn = false }: {
         ))}
       </SettingsSection>
 
-      {/* Follows the page: with sections collapsed, the control someone just
-          changed can be anywhere, and Save must not be a scroll away from it. */}
-      <div
-        className="set-savebar"
-        style={{
-          display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap",
-          padding: "12px 14px", marginTop: 2,
-          background: "var(--card-bg)", border: "1px solid var(--line)",
-          borderRadius: "var(--card-radius)", boxShadow: "var(--card-shadow)",
-        }}
-      >
-        <button
-          style={{ ...btnPrimary, opacity: saving || !dirty ? 0.55 : 1, cursor: saving || !dirty ? "default" : "pointer" }}
-          disabled={saving || !dirty}
-          onClick={save}
-        >
-          {saving ? "Saving…" : "Save"}
-        </button>
-        {saved && <span style={{ fontSize: 12.5, color: "#10b981", fontWeight: 500 }}>Saved</span>}
-        {!saved && (
-          <span style={{ fontSize: 12, color: c.hint }}>
-            {dirty ? "Unsaved changes" : "Everything here is saved"}
-          </span>
-        )}
-      </div>
+      <SettingsSave dirty={dirty} saving={saving} saved={saved} error={error} onSave={save} />
     </div>
   );
 }

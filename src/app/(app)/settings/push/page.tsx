@@ -4,21 +4,22 @@ import { useState, useTransition } from "react";
 import { useFeel } from "@/components/FeelProvider";
 import { c } from "@/lib/theme";
 import type { TenantConfig } from "@/lib/constants";
-import { useSettings, ACCENT_PRESETS } from "@/lib/settings";
 import { useTenant, useUserRole } from "@/lib/tenant-context";
-import PageHeader from "@/components/PageHeader";
+import SettingsPageHeader from "@/components/settings/SettingsPageHeader";
+import { SettingsSave } from "@/components/settings/SettingsHeaderActions";
+import { Input } from "@/components/ui/Input";
+import Button from "@/components/ui/Button";
 import { AdminOnlyNotice, Section, useSavedFlash } from "@/components/settings/generalShared";
 import WebhooksPanel from "./WebhooksPanel";
 
 export default function WebhooksAndPushPage() {
-  const { settings } = useSettings();
   const tenant = useTenant();
   const role = useUserRole();
-  const accent = tenant?.accent_color || ACCENT_PRESETS[settings.accentPreset].color;
 
   // Push to external systems (on demand) -- see lib/webhookPush.ts
   const pushConfig = (tenant?.config as TenantConfig | undefined)?.integration_push;
   const [pushUrl, setPushUrl] = useState(pushConfig?.webhook_url ?? "");
+  const [storedUrl, setStoredUrl] = useState((pushConfig?.webhook_url ?? "").trim());
   const [pushSecret, setPushSecret] = useState(pushConfig?.webhook_secret ?? "");
   const [pushSaving, startPushSave] = useTransition();
   const [pushSecretSaving, startPushSecretSave] = useTransition();
@@ -34,7 +35,7 @@ export default function WebhooksAndPushPage() {
         body: JSON.stringify({ webhook_url: pushUrl.trim() }),
       });
       const json = await res.json();
-      if (res.ok) flashPushSaved();
+      if (res.ok) { setStoredUrl(pushUrl.trim()); flashPushSaved(); }
       else setPushError(json.error ?? "Failed to save");
     });
   };
@@ -58,7 +59,7 @@ export default function WebhooksAndPushPage() {
   if (role !== "admin") {
     return (
       <div style={{ maxWidth: 680 }}>
-        <PageHeader title="Webhooks & push" subtitle="Send events and single records to your other systems." />
+        <SettingsPageHeader title="Webhooks & push" subtitle="Send events and single records to your other systems." />
         <AdminOnlyNotice what="configure webhooks and push to external systems" />
       </div>
     );
@@ -66,7 +67,9 @@ export default function WebhooksAndPushPage() {
 
   return (
     <div style={{ maxWidth: 680 }}>
-      <PageHeader title="Webhooks & push" subtitle="Send events and single records to your other systems." />
+      <SettingsPageHeader title="Webhooks & push" subtitle="Send events and single records to your other systems." />
+
+      <SettingsSave dirty={pushUrl.trim() !== storedUrl} saving={pushSaving} saved={pushSaved} error={pushError} onSave={savePushUrl} />
 
       <WebhooksPanel />
 
@@ -79,18 +82,12 @@ export default function WebhooksAndPushPage() {
           <>
             <div style={{ marginBottom: 12 }}>
               <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: c.muted, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 5 }}>Receiving URL</label>
-              <div style={{ display: "flex", gap: 10 }}>
-                <input
-                  value={pushUrl}
-                  onChange={(e) => setPushUrl(e.target.value)}
-                  placeholder="https://your-erp.example.com/webhooks/bpmsquare"
-                  style={{ flex: 1, padding: "8px 12px", borderRadius: 8, border: `1px solid ${c.line}`, fontSize: 13, color: c.ink, outline: "none" }}
-                />
-                <button onClick={savePushUrl} disabled={pushSaving} style={{ padding: "8px 18px", borderRadius: 8, fontSize: 13, fontWeight: 500, border: "none", cursor: pushSaving ? "not-allowed" : "pointer", background: pushSaved ? "var(--teal)" : accent, color: "#fff" }}>
-                  {pushSaving ? "Saving…" : pushSaved ? "✓ Saved" : "Save"}
-                </button>
-              </div>
-              {pushError && <div style={{ fontSize: 11.5, color: "var(--err-ink)", marginTop: 6 }}>{pushError}</div>}
+              <Input
+                aria-label="Receiving URL"
+                value={pushUrl}
+                onChange={(e) => setPushUrl(e.target.value)}
+                placeholder="https://your-erp.example.com/webhooks/bpmsquare"
+              />
             </div>
 
             <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", background: c.panel2, borderRadius: 8, border: `1px solid ${c.line}` }}>
@@ -103,9 +100,7 @@ export default function WebhooksAndPushPage() {
                 )}
                 <div style={{ fontSize: 11, color: c.hint, marginTop: 3 }}>Sent as the X-BPMSquare-Signature header (HMAC-SHA256 of the request body) so your endpoint can verify it's really from BPMSquare.</div>
               </div>
-              <button onClick={regeneratePushSecret} disabled={pushSecretSaving} style={{ padding: "6px 14px", borderRadius: 7, fontSize: 12, fontWeight: 500, border: `1px solid ${c.line}`, background: "var(--panel)", cursor: pushSecretSaving ? "not-allowed" : "pointer", flexShrink: 0, color: c.muted }}>
-                {pushSecretSaving ? "…" : pushSecret ? "Regenerate" : "Generate"}
-              </button>
+              <Button onClick={regeneratePushSecret} loading={pushSecretSaving}>{pushSecret ? "Regenerate" : "Generate"}</Button>
             </div>
 
             <div style={{ fontSize: 11.5, color: c.hint, marginTop: 10 }}>Live today on Accounts (the "Push to ERP" action on an account's page) -- extends to other objects the same way.</div>

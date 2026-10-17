@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { c } from "@/lib/theme";
+import { SettingsSave } from "@/components/settings/SettingsHeaderActions";
 import { Section } from "@/components/settings/generalShared";
 import { settingsInput as inp } from "@/components/settings/SettingsField";
 import { useTenant } from "@/lib/tenant-context";
@@ -104,22 +105,7 @@ export default function DashboardContentSection({ accent }: { accent: string }) 
           on={tips} onChange={setTips} accent={accent}
         />
 
-        <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 4 }}>
-          <button
-            onClick={save}
-            disabled={!dirty || saving}
-            style={{
-              padding: "7px 14px", borderRadius: 8, border: "none",
-              background: dirty && !saving ? accent : "var(--surface-sunken)",
-              color: dirty && !saving ? "#fff" : c.hint,
-              fontSize: 12.5, fontWeight: 600, cursor: dirty && !saving ? "pointer" : "default",
-            }}
-          >
-            {saving ? "Saving…" : "Save"}
-          </button>
-          {done && <span style={{ fontSize: 11.5, color: c.muted }}>Saved — reload the dashboard to see it.</span>}
-          {error && <span style={{ fontSize: 11.5, color: "var(--err-ink)" }}>{error}</span>}
-        </div>
+        <SettingsSave dirty={dirty} saving={saving} saved={done} error={error} onSave={save} />
       </Section>
     </div>
   );

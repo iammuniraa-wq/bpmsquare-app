@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import PageHeader from "@/components/PageHeader";
+import SettingsPageHeader from "@/components/settings/SettingsPageHeader";
 import { requireTenantUser } from "@/lib/supabase-server";
 import { getTenant } from "@/lib/tenant";
 import type { TenantFeatures } from "@/lib/constants";
@@ -19,7 +19,7 @@ export default async function NumberRangesPage() {
 
   return (
     <>
-      <PageHeader
+      <SettingsPageHeader
         title="Number Ranges"
         subtitle="How every business ID in this workspace is generated — IDs are always assigned by the system, never typed"
       />

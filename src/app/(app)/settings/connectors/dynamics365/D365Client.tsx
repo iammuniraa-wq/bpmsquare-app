@@ -10,6 +10,8 @@ import {
   type D365Config, type D365EntityConfig, type D365EntityKey, type D365PublicState, type D365Product, type D365AuthMode,
 } from "@/lib/connectors/d365/types";
 import { entityConfig } from "@/lib/connectors/d365/catalog";
+import { SettingsSave } from "@/components/settings/SettingsHeaderActions";
+import { useSettingsDirty } from "@/components/settings/useSettingsDirty";
 
 type Run = {
   id: string; entity: string; direction: "pull" | "push"; trigger: string; status: string; started_at: string; finished_at: string | null;
@@ -48,6 +50,7 @@ export default function D365Client() {
   const [linked, setLinked] = useState<Record<string, number>>({});
   const [flash, setFlash] = useState<{ ok: boolean; text: string } | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  const { dirty, markSaved } = useSettingsDirty({ cfg, secrets });
   const [preview, setPreview] = useState<{ entity: D365EntityKey; rows: Record<string, unknown>[] } | null>(null);
 
   const loadRuns = useCallback(() => {
@@ -55,7 +58,7 @@ export default function D365Client() {
   }, []);
 
   useEffect(() => {
-    call("/api/connectors/dynamics365").then((s: D365PublicState) => { setState(s); if (s.config) setCfg(s.config); }).catch((e) => setFlash({ ok: false, text: e.message }));
+    call("/api/connectors/dynamics365").then((s: D365PublicState) => { setState(s); if (s.config) { setCfg(s.config); markSaved({ cfg: s.config, secrets: {} }); } }).catch((e) => setFlash({ ok: false, text: e.message }));
     loadRuns();
     const sp = new URLSearchParams(window.location.search);
     if (sp.get("d365_error")) setFlash({ ok: false, text: sp.get("d365_error")! });
@@ -90,6 +93,7 @@ export default function D365Client() {
     setState(s);
     if (s.config) setCfg(s.config);
     setSecrets({});
+    markSaved({ cfg: s.config ?? cfg, secrets: {} });
     return "Saved. Press Test connection to check it.";
   });
 
@@ -184,7 +188,7 @@ export default function D365Client() {
             : <>In Microsoft Entra ID, register an app, add {cfg.auth_mode === "certificate" ? "the certificate" : "a client secret"}, and {cfg.product === "bc" ? "grant it the Business Central API permission (API.ReadWrite.All) and add it under Microsoft Entra applications in Business Central." : cfg.product === "fo" ? "add its client ID under System administration → Microsoft Entra applications in Finance & Operations." : "add it as an application user with a security role in the Power Platform admin center."}{cfg.auth_mode === "authorization_code" ? " Add this redirect URI to the app: /api/connectors/dynamics365/oauth/callback on this site's address." : ""} Secrets are encrypted and never shown again.</>}
         </div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <button type="button" style={btnPrimary} disabled={!!busy} onClick={save}>{busy === "save" ? "Saving…" : "Save"}</button>
+          <SettingsSave dirty={dirty} saving={busy === "save"} onSave={save} />
           <button type="button" style={btnGhost} disabled={!!busy || !state?.config} onClick={() => run("test", async () => (await call("/api/connectors/dynamics365/test", { method: "POST" })).message)}>{busy === "test" ? "Testing…" : "Test connection"}</button>
           {cfg.auth_mode === "authorization_code" && state?.config && <a href="/api/connectors/dynamics365/oauth/start" style={{ ...btnGhost, textDecoration: "none", display: "inline-block" }}>{state.secrets.refresh_token ? "Sign in again with Microsoft" : "Connect with Microsoft"}</a>}
           {state?.config && <button type="button" style={{ ...btnGhost, color: "var(--redink)" }} disabled={!!busy} onClick={() => run("del", async () => {

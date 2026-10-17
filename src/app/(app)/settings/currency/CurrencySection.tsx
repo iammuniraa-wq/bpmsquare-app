@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { c } from "@/lib/theme";
+import { SettingsSave } from "@/components/settings/SettingsHeaderActions";
 import { Section } from "@/components/settings/generalShared";
 import { settingsInput as inp } from "@/components/settings/SettingsField";
 import { CURRENCIES, formatMoney, type CurrencyCode } from "@/lib/currency";
@@ -61,15 +62,8 @@ export default function CurrencySection({ accent }: { accent: string }) {
           ))}
         </select>
         <span style={{ fontSize: 12, color: c.hint }}>e.g. {formatMoney(1250000, def)} · {formatMoney(41.5, def, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-        <button
-          onClick={save}
-          disabled={!dirty || saving}
-          style={{ padding: "8px 18px", borderRadius: 8, fontSize: 13, fontWeight: 500, border: "none", cursor: dirty ? "pointer" : "default", background: dirty ? accent : c.line, color: dirty ? "#fff" : c.hint, transition: "all 0.15s" }}
-        >
-          {saving ? "Saving…" : saved ? "Saved" : "Save"}
-        </button>
       </div>
-      {error && <div style={{ fontSize: 12, color: "var(--err-ink)", marginTop: 8 }}>{error}</div>}
+      <SettingsSave dirty={dirty} saving={saving} saved={saved} error={error} onSave={save} />
     </Section>
   );
 }

@@ -2,7 +2,7 @@ import { createAdminSupabase, requireTenantUser } from "@/lib/supabase-server";
 import { redirect } from "next/navigation";
 import { ROUTES } from "@/lib/constants";
 import type { EmailTemplate } from "@/lib/types";
-import PageHeader from "@/components/PageHeader";
+import SettingsPageHeader from "@/components/settings/SettingsPageHeader";
 import EmailTemplatesClient from "./EmailTemplatesClient";
 
 export default async function EmailTemplatesPage() {
@@ -23,7 +23,7 @@ export default async function EmailTemplatesPage() {
 
   return (
     <>
-      <PageHeader
+      <SettingsPageHeader
         title="Email templates"
         subtitle="Subject and body pairs your team can pick between when emailing a quote"
       />

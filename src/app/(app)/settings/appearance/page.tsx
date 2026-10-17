@@ -6,7 +6,8 @@ import { c } from "@/lib/theme";
 import { useSettings, ACCENT_PRESETS } from "@/lib/settings";
 import type { AccentPreset } from "@/lib/settings";
 import { useTenant } from "@/lib/tenant-context";
-import PageHeader from "@/components/PageHeader";
+import SettingsPageHeader from "@/components/settings/SettingsPageHeader";
+import { SettingsInstantStatus } from "@/components/settings/SettingsHeaderActions";
 import { Section, Toggle, useSavedFlash } from "@/components/settings/generalShared";
 
 // Nova's own accent presets -- independent of ACCENT_PRESETS (classic/nextgen
@@ -198,11 +199,8 @@ export default function ThemeAndColoursPage() {
 
   return (
     <div style={{ maxWidth: 680 }}>
-      <PageHeader
-        title="Theme & colours"
-        subtitle="Applies to your whole workspace — every user, every device."
-        action={<span style={{ fontSize: 12, color: "var(--teal)", fontWeight: 500, opacity: saved ? 1 : 0, transition: "opacity 0.3s" }}>✓ Saved</span>}
-      />
+      <SettingsPageHeader title="Theme & colours" subtitle="Applies to your whole workspace — every user, every device." />
+      <SettingsInstantStatus saved={saved} saving={themeSaving || apSaving} />
 
       <Section
         id="appearance"

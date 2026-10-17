@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { requireTenantUser, createAdminSupabase } from "@/lib/supabase-server";
 import { ROUTES, type TenantFeatures } from "@/lib/constants";
-import PageHeader from "@/components/PageHeader";
+import SettingsPageHeader from "@/components/settings/SettingsPageHeader";
 import Account360Client from "./Account360Client";
 
 /**
@@ -27,7 +27,7 @@ export default async function Account360SettingsPage() {
 
   return (
     <>
-      <PageHeader
+      <SettingsPageHeader
         title="Account 360"
         subtitle="Which cards the account drawer shows, and the external sources plugged into it"
       />

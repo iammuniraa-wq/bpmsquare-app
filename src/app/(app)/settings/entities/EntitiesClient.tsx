@@ -7,6 +7,9 @@ import type { TenantEntity, TenantConfig, TenantTaxConfig, QuoteIdFormat } from 
 import { DEFAULT_QUOTE_ID_FORMAT } from "@/lib/constants";
 import type { CompanyInfo } from "@/lib/tenant";
 import { resizeImageFile } from "@/lib/resizeImage";
+import SettingsPageHeader from "@/components/settings/SettingsPageHeader";
+import { SettingsSave } from "@/components/settings/SettingsHeaderActions";
+import { useSettingsDirty } from "@/components/settings/useSettingsDirty";
 
 // Bounding boxes uploaded logos are downscaled to fit before upload — see resizeImage.ts.
 const LOGO_MAX = { width: 400, height: 300 };
@@ -442,6 +445,8 @@ export default function EntitiesClient() {
   const [saving, setSaving] = useState(false);
   const [saved, flashSaved] = useSavedFlash();
   const [accent, setAccent] = useState("#378ADD");
+  const [error, setError] = useState("");
+  const { dirty, markSaved } = useSettingsDirty({ entities, tax, co });
 
   useEffect(() => {
     const el = document.documentElement;
@@ -454,15 +459,20 @@ export default function EntitiesClient() {
       fetch("/api/settings/entities").then((r) => r.json()),
       fetch("/api/settings/company-info").then((r) => r.json()),
     ]).then(([cfg, coData]: [TenantConfig, CompanyInfo]) => {
-      setEntities(cfg.entities ?? []);
-      setTax({ ...DEFAULT_TAX, ...(cfg.tax ?? {}) });
-      setCo(coData ?? {});
+      const ents = cfg.entities ?? [];
+      const taxCfg = { ...DEFAULT_TAX, ...(cfg.tax ?? {}) };
+      const coCfg = coData ?? {};
+      setEntities(ents);
+      setTax(taxCfg);
+      setCo(coCfg);
+      markSaved({ entities: ents, tax: taxCfg, co: coCfg });
     }).finally(() => setLoading(false));
   }, []);
 
   const save = async () => {
     setSaving(true);
-    await Promise.all([
+    setError("");
+    const results = await Promise.all([
       fetch("/api/settings/entities", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -473,8 +483,11 @@ export default function EntitiesClient() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(co),
       }),
-    ]);
+    ].map((p) => p.catch(() => null)));
     setSaving(false);
+    const failed = results.find((r) => !r || !r.ok);
+    if (failed !== undefined) { setError(failed ? ((await failed.json().catch(() => ({}))).error ?? "Could not save") : "Network error"); return; }
+    markSaved();
     flashSaved();
   };
 
@@ -499,26 +512,8 @@ export default function EntitiesClient() {
   return (
     <div style={{ maxWidth: 680 }}>
 
-      {/* Page header */}
-      <div className="bpm-page-header" style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 24 }}>
-        <div>
-          <h1 style={{ fontSize: 19, margin: 0, fontWeight: 600, paddingLeft: 12, borderLeft: `3px solid ${accent}` }}>
-            Entities &amp; Tax
-          </h1>
-          <p style={{ margin: "4px 0 0 12px", fontSize: 12, color: c.muted }}>
-            Legal entities, print branding, and tax settings for quotations and PDFs.
-          </p>
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <span style={{ fontSize: 12, color: "var(--teal)", fontWeight: 500, opacity: saved ? 1 : 0, transition: "opacity 0.3s" }}>✓ Saved</span>
-          <button
-            onClick={save} disabled={saving}
-            style={{ padding: "8px 18px", borderRadius: 8, fontSize: 13, fontWeight: 500, background: accent, color: "#fff", border: "none", cursor: saving ? "default" : "pointer", opacity: saving ? 0.7 : 1 }}
-          >
-            {saving ? "Saving…" : "Save changes"}
-          </button>
-        </div>
-      </div>
+      <SettingsPageHeader title="Entities & Tax" subtitle="Legal entities, print branding, and tax settings for quotations and PDFs." />
+      <SettingsSave dirty={dirty} saving={saving} saved={saved} error={error} onSave={save} label="Save changes" />
 
       {/* ── Company profile (print branding) ── */}
       <section style={{ ...cardStyle, marginBottom: 14 }}>

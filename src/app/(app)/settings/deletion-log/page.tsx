@@ -2,7 +2,7 @@ import { createAdminSupabase, requireTenantUser } from "@/lib/supabase-server";
 import { isPlatformAdmin } from "@/lib/tenant";
 import { redirect } from "next/navigation";
 import { ROUTES } from "@/lib/constants";
-import PageHeader from "@/components/PageHeader";
+import SettingsPageHeader from "@/components/settings/SettingsPageHeader";
 import DeletionLogClient from "./DeletionLogClient";
 
 export default async function DeletionLogPage() {
@@ -29,7 +29,7 @@ export default async function DeletionLogPage() {
 
   return (
     <>
-      <PageHeader
+      <SettingsPageHeader
         title="Deleted records"
         subtitle="Audit log of permanently deleted objects"
       />
