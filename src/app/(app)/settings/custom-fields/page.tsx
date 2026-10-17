@@ -276,10 +276,10 @@ export default function CustomFieldsPage() {
       <div style={{ ...cardStyle, marginBottom: 14 }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
           <div>
-            <div style={{ fontSize: 14, fontWeight: 600, color: c.ink }}>
+            <div className="bpm-t-section">
               {OBJECTS.find((o) => o.key === activeObj)?.label} fields
             </div>
-            <div style={{ fontSize: 11.5, color: c.muted, marginTop: 2 }}>
+            <div className="bpm-t-help" style={{ marginTop: 2 }}>
               {fields.length === 0 ? "No custom fields yet" : `${fields.length} field${fields.length !== 1 ? "s" : ""}`}
             </div>
           </div>
@@ -290,7 +290,7 @@ export default function CustomFieldsPage() {
           <form onSubmit={handleAdd} style={{ background: c.panel2, borderRadius: 10, padding: 14, marginBottom: 14, border: `1px solid ${c.line}` }}>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
               <div>
-                <label style={{ fontSize: 11, fontWeight: 600, color: c.muted, display: "block", marginBottom: 4, textTransform: "uppercase", letterSpacing: 0.4 }}>
+                <label className="bpm-t-label" style={{ display: "block", marginBottom: 4 }}>
                   Field label *
                 </label>
                 <input
@@ -306,7 +306,7 @@ export default function CustomFieldsPage() {
                 )}
               </div>
               <div>
-                <label style={{ fontSize: 11, fontWeight: 600, color: c.muted, display: "block", marginBottom: 4, textTransform: "uppercase", letterSpacing: 0.4 }}>
+                <label className="bpm-t-label" style={{ display: "block", marginBottom: 4 }}>
                   Field type *
                 </label>
                 <select
@@ -321,7 +321,7 @@ export default function CustomFieldsPage() {
 
             {form.field_type === "select" && (
               <div style={{ marginBottom: 10 }}>
-                <label style={{ fontSize: 11, fontWeight: 600, color: c.muted, display: "block", marginBottom: 4, textTransform: "uppercase", letterSpacing: 0.4 }}>
+                <label className="bpm-t-label" style={{ display: "block", marginBottom: 4 }}>
                   Options (comma-separated) *
                 </label>
                 <input

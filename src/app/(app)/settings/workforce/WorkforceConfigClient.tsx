@@ -492,7 +492,7 @@ export default function WorkforceConfigClient({ initial, projectsOn = false, pag
 
       {page === "verification" && (
       <SettingsSection id="wfm-punchtypes" title="Punch types" summary={summaries.punchTypes} defaultOpen>
-        <div style={{ fontSize: 12, color: c.hint, marginBottom: 4 }}>
+        <div className="bpm-t-help" style={{ marginBottom: 4 }}>
           Which options appear in the punch-type dropdown. Check in, check out and breaks are
           always available.
         </div>
@@ -675,7 +675,7 @@ export default function WorkforceConfigClient({ initial, projectsOn = false, pag
 
       {page === "employment" && projectsOn && (
         <SettingsSection id="wfm-billing" title="Project billing" summary={summaries.billing} defaultOpen>
-          <div style={{ fontSize: 12, color: c.hint, marginBottom: 10, lineHeight: 1.5 }}>
+          <div className="bpm-t-help" style={{ marginBottom: 10 }}>
             What an hour on a project is charged, and what it costs you. The most specific rate wins:
             a rate set on the project itself, else the person&apos;s employment type, else the default here.
             Cost rates stay internal — they show margin on the preview and never print on an invoice.
@@ -697,7 +697,7 @@ export default function WorkforceConfigClient({ initial, projectsOn = false, pag
 
           <div style={{ marginTop: 14 }}>
             <div style={{ fontSize: 12, fontWeight: 600, color: c.ink, marginBottom: 6 }}>By employment type</div>
-            <div style={{ fontSize: 11.5, color: c.hint, marginBottom: 8 }}>Blank = use the default above.</div>
+            <div className="bpm-t-help" style={{ marginBottom: 8 }}>Blank = use the default above.</div>
             <div style={{ overflowX: "auto" }}>
               <table style={{ borderCollapse: "collapse", minWidth: 360 }}>
                 <thead>
@@ -743,7 +743,7 @@ export default function WorkforceConfigClient({ initial, projectsOn = false, pag
 
       {page === "reminders" && (
       <SettingsSection id="wfm-notifications" title="Email notifications" summary={summaries.notifications} defaultOpen>
-        <div style={{ fontSize: 12, color: c.hint, marginBottom: 4 }}>
+        <div className="bpm-t-help" style={{ marginBottom: 4 }}>
           Requires email sending to be configured for this workspace — see Settings → Email output.
         </div>
         {NOTIFICATION_ITEMS.map(({ key, label, hint }) => (

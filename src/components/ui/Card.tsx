@@ -1,4 +1,3 @@
-import { c } from "@/lib/theme";
 
 // Same surface as `cardStyle` in Shell.tsx (three theme variables). Declared
 // here rather than imported because Shell is a "use client" module, and a
@@ -27,9 +26,9 @@ export default function Card({
   return (
     <section style={{ ...CARD_SURFACE, padding, minWidth: 0, ...style }}>
       {(title || action) && (
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 10 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 12 }}>
           {title ? (
-            <h2 style={{ margin: 0, fontSize: 13.5, fontWeight: 700, color: c.ink }}>{title}</h2>
+            <h2 className="bpm-t-section">{title}</h2>
           ) : <span />}
           {action}
         </div>

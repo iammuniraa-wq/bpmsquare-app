@@ -170,9 +170,9 @@ export default function TemplatesClient({ initialFragments }: { initialFragments
               <div style={{ marginBottom: 12 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
                   <Pill label={CAT_LABEL[cat]} tone={CAT_TONE[cat]} />
-                  <span style={{ fontSize: 12, color: c.hint }}>{catFrags.length} templates</span>
+                  <span className="bpm-t-help">{catFrags.length} templates</span>
                 </div>
-                <p style={{ fontSize: 12, color: c.muted, margin: 0 }}>{CAT_DESC[cat]}</p>
+                <p className="bpm-t-help" style={{ margin: 0 }}>{CAT_DESC[cat]}</p>
               </div>
               {catFrags.length === 0 && (
                 <EmptyState title="No templates yet" text="Use + New template to add one." />

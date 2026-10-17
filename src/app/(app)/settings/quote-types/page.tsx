@@ -85,10 +85,10 @@ export default function QuoteTypesPage() {
                 <TypeIcon id={qt.id} />
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: 13, fontWeight: 500, color: c.ink }}>{qt.label}</div>
-                  <div style={{ fontSize: 11, color: c.hint, marginTop: 1 }}>{qt.description}</div>
+                  <div className="bpm-t-help" style={{ marginTop: 1 }}>{qt.description}</div>
                 </div>
                 {!qt.available && (
-                  <span style={{ fontSize: 10, fontWeight: 700, color: c.hint, background: c.panel2, border: `1px solid ${c.line}`, borderRadius: 4, padding: "2px 7px", letterSpacing: 0.3, textTransform: "uppercase" }}>
+                  <span className="bpm-t-label" style={{ background: c.panel2, border: `1px solid ${c.line}`, borderRadius: 4, padding: "2px 7px" }}>
                     Coming soon
                   </span>
                 )}

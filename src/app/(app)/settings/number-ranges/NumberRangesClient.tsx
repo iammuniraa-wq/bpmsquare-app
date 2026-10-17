@@ -7,6 +7,7 @@ import { DEFAULT_QUOTE_ID_FORMAT, type QuoteIdFormat, type TenantConfig, type Te
 import { formatQuoteRef } from "@/lib/quoteRefFormat";
 import { SettingsSave } from "@/components/settings/SettingsHeaderActions";
 import { useSettingsDirty } from "@/components/settings/useSettingsDirty";
+import { typeLabel } from "@/lib/typeScale";
 
 // The single home for business-ID configuration. Quotations are fully
 // configurable today (moved here from Settings → Entities & Tax); every
@@ -14,10 +15,7 @@ import { useSettingsDirty } from "@/components/settings/useSettingsDirty";
 // configuration ships. Changing a format never rewrites existing records —
 // it applies to new IDs only.
 
-const lbl: React.CSSProperties = {
-  display: "block", fontSize: 11, fontWeight: 700, color: c.hint,
-  textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4,
-};
+const lbl: React.CSSProperties = { ...typeLabel, display: "block", marginBottom: 4 };
 const inp: React.CSSProperties = {
   width: "100%", boxSizing: "border-box", padding: "8px 10px", borderRadius: 7,
   border: `1px solid ${c.line}`, fontSize: 13, background: c.panel, color: c.ink, outline: "none",
@@ -95,14 +93,14 @@ export default function NumberRangesClient({ features = {} }: { features?: Parti
     <div style={{ display: "flex", flexDirection: "column", gap: 14, maxWidth: 860 }}>
       {/* ── Quotations: configurable (hidden for tenants without the module) ── */}
       {showQuoteFormat && <section style={cardStyle}>
-        <h2 style={{ margin: "0 0 4px", fontSize: 14, fontWeight: 600, color: c.ink }}>Quotations — configurable</h2>
-        <p style={{ margin: "0 0 16px", fontSize: 12, color: c.muted, lineHeight: 1.5 }}>
+        <h2 className="bpm-t-section" style={{ margin: "0 0 4px" }}>Quotations — configurable</h2>
+        <p className="bpm-t-help" style={{ margin: "0 0 16px" }}>
           Tokens: <code style={mono}>{"{PREFIX}"}</code> <code style={mono}>{"{YYYY}"}</code> <code style={mono}>{"{YY}"}</code>{" "}
           <code style={mono}>{"{MM}"}</code> <code style={mono}>{"{SEQ}"}</code>. Applies to new quotations only.
         </p>
 
         {loading ? (
-          <div style={{ fontSize: 12.5, color: c.hint }}>Loading…</div>
+          <div className="bpm-t-help">Loading…</div>
         ) : (
           <>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 16px", marginBottom: 12 }}>
@@ -146,8 +144,8 @@ export default function NumberRangesClient({ features = {} }: { features?: Parti
 
       {/* ── System-fixed ranges ── */}
       <section style={cardStyle}>
-        <h2 style={{ margin: "0 0 4px", fontSize: 14, fontWeight: 600, color: c.ink }}>System-managed ranges</h2>
-        <p style={{ margin: "0 0 12px", fontSize: 12, color: c.muted, lineHeight: 1.5 }}>
+        <h2 className="bpm-t-section" style={{ margin: "0 0 4px" }}>System-managed ranges</h2>
+        <p className="bpm-t-help" style={{ margin: "0 0 12px" }}>
           These IDs are generated automatically with the conventions below and are never user-editable. Per-object format
           configuration (like Quotations above) is planned; the range itself will remain system-owned.
         </p>

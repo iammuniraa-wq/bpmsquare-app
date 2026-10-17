@@ -6,6 +6,7 @@ import { cardStyle } from "@/components/Shell";
 import type { Account360SourceDef } from "@/lib/constants";
 import { SettingsSave } from "@/components/settings/SettingsHeaderActions";
 import { useSettingsDirty } from "@/components/settings/useSettingsDirty";
+import { typeLabel } from "@/lib/typeScale";
 
 /**
  * Account 360 configuration. Two halves: which built-in cards the drawer
@@ -27,7 +28,7 @@ const BUILTINS: { id: string; label: string; description: string }[] = [
 
 type SourceDraft = Omit<Account360SourceDef, "auth_value"> & { auth_value?: string; has_secret?: boolean };
 
-const label: React.CSSProperties = { display: "block", fontSize: 11.5, fontWeight: 600, color: c.muted, marginBottom: 4 };
+const label: React.CSSProperties = { ...typeLabel, display: "block", marginBottom: 4 };
 const input: React.CSSProperties = {
   width: "100%", padding: "7px 10px", fontSize: 13, borderRadius: 8,
   border: `1px solid ${c.line}`, background: "var(--panel, #fff)", color: c.ink,
@@ -109,8 +110,8 @@ export default function Account360Client() {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16, maxWidth: 780 }}>
       <section style={cardStyle}>
-        <h2 style={{ margin: "0 0 4px", fontSize: 15, fontWeight: 700, color: c.ink }}>Cards</h2>
-        <p style={{ margin: "0 0 14px", fontSize: 12.5, color: c.muted, lineHeight: 1.55 }}>
+        <h2 className="bpm-t-section" style={{ margin: "0 0 4px" }}>Cards</h2>
+        <p className="bpm-t-help" style={{ margin: "0 0 14px" }}>
           What the drawer shows, top to bottom. Switching a card off hides it for everyone in the workspace.
         </p>
         <div style={{ display: "flex", flexDirection: "column" }}>
@@ -131,7 +132,7 @@ export default function Account360Client() {
                 />
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 13, fontWeight: 600, color: on ? c.ink : c.hint }}>{b.label}</div>
-                  <div style={{ fontSize: 11.5, color: c.hint, marginTop: 1 }}>{b.description}</div>
+                  <div className="bpm-t-help" style={{ marginTop: 1 }}>{b.description}</div>
                 </div>
                 <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
                   <ArrowButton dir="up" disabled={i === 0} onClick={() => move(id, -1)} />
@@ -144,8 +145,8 @@ export default function Account360Client() {
       </section>
 
       <section style={cardStyle}>
-        <h2 style={{ margin: "0 0 4px", fontSize: 15, fontWeight: 700, color: c.ink }}>External sources</h2>
-        <p style={{ margin: "0 0 14px", fontSize: 12.5, color: c.muted, lineHeight: 1.55 }}>
+        <h2 className="bpm-t-section" style={{ margin: "0 0 4px" }}>External sources</h2>
+        <p className="bpm-t-help" style={{ margin: "0 0 14px" }}>
           Point a card at any system that answers with JSON over https — an ERP, a finance system, an
           enrichment service — and it renders alongside the built-in cards. The URL may carry{" "}
           <code style={{ fontSize: 11.5 }}>{"{account_id}"}</code>, <code style={{ fontSize: 11.5 }}>{"{account_ref}"}</code>,{" "}

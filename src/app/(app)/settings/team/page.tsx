@@ -187,7 +187,7 @@ export default function TeamPage() {
                   onChange={(e) => setInvitePassword(e.target.value)}
                   placeholder="Initial password (optional — leave blank to email an invite)"
                 />
-                <div style={{ fontSize: 11, color: c.muted, marginTop: 4 }}>
+                <div className="bpm-t-help" style={{ marginTop: 4 }}>
                   If they already have an account, they&apos;re added to this workspace directly (password ignored).
                 </div>
               </div>
@@ -264,7 +264,7 @@ export default function TeamPage() {
                 {editingRolesFor === m.user_id ? (
                   <div style={{ display: "flex", flexDirection: "column", gap: 8, background: "var(--panel2)", borderRadius: 8, padding: 12 }}>
                     {businessRoles.length === 0 ? (
-                      <div style={{ fontSize: 12, color: c.muted }}>No Business Roles exist yet — create one in Administrator → Business Roles first.</div>
+                      <div className="bpm-t-help">No Business Roles exist yet — create one in Administrator → Business Roles first.</div>
                     ) : (
                       <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
                         {businessRoles.map((br) => (
@@ -283,7 +283,7 @@ export default function TeamPage() {
                     </div>
                   </div>
                 ) : (
-                  <div style={{ fontSize: 11.5, color: c.hint }}>
+                  <div className="bpm-t-help">
                     {m.business_role_ids.length === 0
                       ? "Full access (no Business Role assigned)"
                       : `Roles: ${m.business_role_ids.map((id) => businessRoles.find((br) => br.id === id)?.name ?? "—").join(", ")}`}

@@ -207,9 +207,9 @@ function ConnectorTile({
                   <span style={{ fontSize: 14.5, fontWeight: 700, color: c.ink }}>{def.name}</span>
                   {statusBadge(connected)}
                 </div>
-                <div style={{ fontSize: 12.5, color: c.muted, marginTop: 4, lineHeight: 1.55 }}>{def.description}</div>
+                <div className="bpm-t-help" style={{ marginTop: 4 }}>{def.description}</div>
                 {row?.connected_at && (
-                  <div style={{ fontSize: 11, color: c.hint, marginTop: 4 }}>
+                  <div className="bpm-t-help" style={{ marginTop: 4 }}>
                     Connected {new Date(row.connected_at).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
                   </div>
                 )}

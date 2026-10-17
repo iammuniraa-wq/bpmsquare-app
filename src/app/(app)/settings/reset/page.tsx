@@ -41,7 +41,7 @@ export default function ResetLayoutPage() {
       <SettingsPageHeader title="Reset layout" subtitle="Restore navigation visibility and the compact sidebar to their defaults." />
 
       <Section id="reset" title="">
-        <p style={{ margin: "0 0 14px", fontSize: 12.5, color: c.muted, lineHeight: 1.5 }}>
+        <p className="bpm-t-help" style={{ margin: "0 0 14px" }}>
           Restore navigation visibility and compact sidebar to defaults, for the whole workspace. Accent colour and
           workspace name aren't reset since there's no default to go back to. Your data is not affected.
         </p>

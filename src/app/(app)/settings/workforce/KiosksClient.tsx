@@ -132,8 +132,8 @@ export default function KiosksClient() {
       </SettingsHeaderActions>
 
       {registering && <section style={{ ...cardStyle, marginBottom: 14 }}>
-        <div style={{ fontSize: 13.5, fontWeight: 700, color: c.ink, marginBottom: 4 }}>Register a kiosk tablet</div>
-        <div style={{ fontSize: 12, color: c.muted, lineHeight: 1.55, marginBottom: 12 }}>
+        <div className="bpm-t-section" style={{ marginBottom: 4 }}>Register a kiosk tablet</div>
+        <div className="bpm-t-help" style={{ marginBottom: 12 }}>
           On the tablet, open <b>{typeof location !== "undefined" ? location.origin : ""}/kiosk</b> in the browser
           (add it to the home screen for fullscreen), then paste the code generated here. Enrolled employees can
           then punch by face on it — no login on the device.

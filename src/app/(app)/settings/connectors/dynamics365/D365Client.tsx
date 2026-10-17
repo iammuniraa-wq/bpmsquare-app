@@ -124,7 +124,7 @@ export default function D365Client() {
 
       <section style={{ ...cardStyle, display: "flex", flexDirection: "column", gap: 14 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-          <div style={{ fontSize: 14, fontWeight: 700, color: c.ink }}>Connection</div>
+          <div className="bpm-t-section">Connection</div>
           <Pill label={status === "connected" ? "Connected" : status === "error" ? (state?.last_error ? "Needs attention" : "Not tested") : "Not connected"} tone={status === "connected" ? "green" : status === "error" ? "amber" : "purple"} />
         </div>
         {state?.last_error && status !== "connected" && <div style={{ fontSize: 12.5, color: "var(--amberink)" }}>{state.last_error}</div>}
@@ -182,7 +182,7 @@ export default function D365Client() {
             {pemInput("private_key", "Private key (PEM, unencrypted)", "-----BEGIN PRIVATE KEY-----")}
           </div>
         )}
-        <div style={{ fontSize: 12, color: c.hint, lineHeight: 1.6 }}>
+        <div className="bpm-t-help">
           {cfg.auth_mode === "basic"
             ? "Basic login is for Business Central on-premises only. Use an HTTPS address reachable from the internet."
             : <>In Microsoft Entra ID, register an app, add {cfg.auth_mode === "certificate" ? "the certificate" : "a client secret"}, and {cfg.product === "bc" ? "grant it the Business Central API permission (API.ReadWrite.All) and add it under Microsoft Entra applications in Business Central." : cfg.product === "fo" ? "add its client ID under System administration → Microsoft Entra applications in Finance & Operations." : "add it as an application user with a security role in the Power Platform admin center."}{cfg.auth_mode === "authorization_code" ? " Add this redirect URI to the app: /api/connectors/dynamics365/oauth/callback on this site's address." : ""} Secrets are encrypted and never shown again.</>}
@@ -201,8 +201,8 @@ export default function D365Client() {
       </section>
 
       <section style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-        <div style={{ fontSize: 14, fontWeight: 700, color: c.ink }}>What syncs</div>
-        <div style={{ fontSize: 12.5, color: c.muted }}>Defaults are Microsoft&apos;s standard entities. A customised environment may name things differently — press Preview to see the real field names, adjust the map, Save, then Sync. Pulls create new records and update the mapped fields of records they created before; they never delete anything or touch fields outside the map.</div>
+        <div className="bpm-t-section">What syncs</div>
+        <div className="bpm-t-help">Defaults are Microsoft&apos;s standard entities. A customised environment may name things differently — press Preview to see the real field names, adjust the map, Save, then Sync. Pulls create new records and update the mapped fields of records they created before; they never delete anything or touch fields outside the map.</div>
         {D365_ENTITY_KEYS.map((k) => (
           <EntityCard key={k} k={k} e={ent(k)} linked={linked[k] ?? 0} busy={busy} connected={!!state?.config}
             onChange={(p) => setEnt(k, p)}
@@ -270,10 +270,10 @@ function EntityCard({ k, e, linked, busy, connected, onChange, onPreview, onSync
   return (
     <div style={{ ...cardStyle, padding: "12px 14px" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-        <label style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 13.5, fontWeight: 600, color: c.ink, cursor: "pointer", flex: 1, minWidth: 220 }}>
+        <label className="bpm-t-label" style={{ display: "flex", gap: 8, alignItems: "center", cursor: "pointer", flex: 1, minWidth: 220 }}>
           <input type="checkbox" checked={e.enabled} onChange={(ev) => onChange({ enabled: ev.target.checked })} />
           {D365_ENTITY_LABEL[k]}
-          <span style={{ fontSize: 12, fontWeight: 400, color: c.hint }}>{e.entity_set || "—"}{linked ? ` · ${linked} linked` : ""}</span>
+          <span className="bpm-t-help">{e.entity_set || "—"}{linked ? ` · ${linked} linked` : ""}</span>
         </label>
         <button type="button" style={{ ...btnGhost, padding: "4px 10px", fontSize: 12 }} onClick={() => setOpen((o) => !o)}>{open ? "Hide map" : "Map"}</button>
         {!push && <button type="button" style={{ ...btnGhost, padding: "4px 10px", fontSize: 12 }} disabled={!connected || !!busy} onClick={onPreview}>{busy === `prev-${k}` ? "Loading…" : "Preview"}</button>}
@@ -291,7 +291,7 @@ function EntityCard({ k, e, linked, busy, connected, onChange, onPreview, onSync
             <label style={lbl}>Field map</label>
             <textarea rows={5} style={{ ...small, fontFamily: "ui-monospace, Menlo, monospace", resize: "vertical" }} value={mapText}
               onChange={(ev) => setMapText(ev.target.value)} onBlur={() => onChange({ field_map: textToMap(mapText) })} />
-            <div style={{ fontSize: 11.5, color: c.hint, marginTop: 4 }}>{hint} Save the connection to keep changes.</div>
+            <div className="bpm-t-help" style={{ marginTop: 4 }}>{hint} Save the connection to keep changes.</div>
           </div>
         </div>
       )}

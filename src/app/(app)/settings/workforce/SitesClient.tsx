@@ -10,6 +10,7 @@ import StatusPill from "@/components/ui/StatusPill";
 import { RecordList, RecordRow } from "@/components/settings/RecordRows";
 import { SettingsHeaderActions } from "@/components/settings/SettingsHeaderActions";
 import type { WfmSite } from "@/lib/wfm/types";
+import { typeLabel } from "@/lib/typeScale";
 
 const SiteMapPicker = dynamic(() => import("@/components/wfm/SiteMapPicker"), { ssr: false });
 
@@ -22,10 +23,7 @@ type EmployeeOption = {
   status: string;
 };
 
-const lbl: React.CSSProperties = {
-  display: "block", fontSize: 11.5, fontWeight: 600,
-  color: c.muted, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 5,
-};
+const lbl: React.CSSProperties = { ...typeLabel, display: "block", marginBottom: 5 };
 const inp: React.CSSProperties = {
   width: "100%", padding: "8px 11px", fontSize: 13,
   border: `1px solid ${c.line}`, borderRadius: 8,
@@ -176,7 +174,7 @@ export default function SitesClient({ canEdit }: { canEdit: boolean }) {
               <div style={{ fontSize: 14, fontWeight: 700, color: c.ink }}>
                 {editingId ? "Edit site" : "New site"}
               </div>
-              <div style={{ fontSize: 12, color: c.muted, marginTop: 2 }}>
+              <div className="bpm-t-help" style={{ marginTop: 2 }}>
                 The supervisor you pick approves overtime, leave and corrections for everyone working here.
               </div>
             </div>
@@ -239,14 +237,14 @@ export default function SitesClient({ canEdit }: { canEdit: boolean }) {
 
           <div style={{ marginTop: 14, paddingTop: 14, borderTop: `1px solid ${c.line}` }}>
             <label style={lbl}>Others who can also approve here</label>
-            <div style={{ fontSize: 12, color: c.muted, marginBottom: 8, maxWidth: 720 }}>
+            <div className="bpm-t-help" style={{ marginBottom: 8, maxWidth: 720 }}>
               Optional. Anyone ticked here approves this site&apos;s leave, comp-off, sick leave,
               work-from-home, overtime and corrections alongside the supervisor — so requests
               don&apos;t sit waiting when one person is away. They see this site&apos;s people, and
               nothing else changes about their access.
             </div>
             {activePeople.length === 0 ? (
-              <div style={{ fontSize: 12, color: c.hint }}>No active employees to choose from yet.</div>
+              <div className="bpm-t-help">No active employees to choose from yet.</div>
             ) : (
               <div style={{
                 maxHeight: 200, overflowY: "auto", border: `1px solid ${c.line}`,
@@ -280,13 +278,13 @@ export default function SitesClient({ canEdit }: { canEdit: boolean }) {
               </div>
             )}
             {siteForm.supervisor_id && (
-              <div style={{ fontSize: 11.5, color: c.hint, marginTop: 6 }}>
+              <div className="bpm-t-help" style={{ marginTop: 6 }}>
                 The supervisor you picked above already approves for this site, so they aren&apos;t listed here.
               </div>
             )}
           </div>
 
-          <div style={{ fontSize: 11.5, color: c.hint, marginTop: 8 }}>
+          <div className="bpm-t-help" style={{ marginTop: 8 }}>
             {activePeople.length === 0
               ? "There are no active employees yet — add people under Workforce → Employees, then come back and assign one here."
               : "Anyone chosen as a supervisor here is given supervisor access automatically — you don't need to change their role on the Employees screen as well."}
@@ -325,7 +323,7 @@ export default function SitesClient({ canEdit }: { canEdit: boolean }) {
         </SettingsHeaderActions>
       )}
 
-      <div style={{ fontSize: 12, color: c.muted, marginBottom: 12, maxWidth: 720, lineHeight: 1.5 }}>
+      <div className="bpm-t-help" style={{ marginBottom: 12, maxWidth: 720 }}>
         A site is a place people punch in at. Its <strong>radius</strong> is the geofence — how far
         from the pin a punch still counts as on-site. Its <strong>supervisor</strong> approves the
         overtime, leave and corrections of everyone assigned to work there, and you can name

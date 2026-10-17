@@ -1,9 +1,3 @@
-import { c } from "@/lib/theme";
-
-const labelStyle: React.CSSProperties = {
-  display: "block", fontSize: 11.5, fontWeight: 600, color: c.muted,
-  textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 5,
-};
 
 /**
  * Label above the control, hint or error below it.
@@ -25,7 +19,7 @@ export default function Field({
   style?: React.CSSProperties;
 }) {
   const text = (
-    <span style={labelStyle}>
+    <span className="bpm-t-label" style={{ display: "block", marginBottom: 5 }}>
       {label}
       {required && <span aria-hidden="true"> *</span>}
     </span>
@@ -44,9 +38,9 @@ export default function Field({
         </label>
       )}
       {error ? (
-        <div role="alert" style={{ marginTop: 5, fontSize: 12, color: "var(--err-ink)" }}>{error}</div>
+        <div role="alert" className="bpm-t-help" style={{ marginTop: 5, color: "var(--err-ink)" }}>{error}</div>
       ) : hint ? (
-        <div style={{ marginTop: 5, fontSize: 12, color: c.hint }}>{hint}</div>
+        <div className="bpm-t-help" style={{ marginTop: 5 }}>{hint}</div>
       ) : null}
     </div>
   );

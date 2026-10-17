@@ -52,7 +52,7 @@ export default function CurrencySection({ accent }: { accent: string }) {
 
   return (
     <Section title="">
-      <p style={{ fontSize: 12.5, color: c.muted, margin: "0 0 12px", lineHeight: 1.5 }}>
+      <p className="bpm-t-help" style={{ margin: "0 0 12px" }}>
         How every amount in this workspace is shown, printed and emailed. Changing it relabels figures; it does not convert them.
       </p>
       <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
@@ -61,7 +61,7 @@ export default function CurrencySection({ accent }: { accent: string }) {
             <option key={o.code} value={o.code}>{o.code} — {o.name}</option>
           ))}
         </select>
-        <span style={{ fontSize: 12, color: c.hint }}>e.g. {formatMoney(1250000, def)} · {formatMoney(41.5, def, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+        <span className="bpm-t-help">e.g. {formatMoney(1250000, def)} · {formatMoney(41.5, def, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
       </div>
       <SettingsSave dirty={dirty} saving={saving} saved={saved} error={error} onSave={save} />
     </Section>

@@ -11,6 +11,7 @@ import EmptyState from "@/components/ui/EmptyState";
 import StatusPill from "@/components/ui/StatusPill";
 import { RecordList, RecordRow } from "@/components/settings/RecordRows";
 import { SettingsHeaderActions } from "@/components/settings/SettingsHeaderActions";
+import { typeLabel } from "@/lib/typeScale";
 
 const CATEGORY_LABEL: Record<EmailTemplateCategory, string> = {
   quote: "Quotations",
@@ -34,10 +35,7 @@ const inp: React.CSSProperties = {
   border: `1px solid ${c.line}`, fontSize: 13,
   background: c.panel, color: c.ink, outline: "none", fontFamily: "inherit",
 };
-const lbl: React.CSSProperties = {
-  fontSize: 11, fontWeight: 700, color: c.hint,
-  textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4, display: "block",
-};
+const lbl: React.CSSProperties = { ...typeLabel, marginBottom: 4, display: "block" };
 
 type DraftTemplate = { id: string; name: string; subject: string; body: string; is_default: boolean; category: EmailTemplateCategory; isNew?: boolean };
 
@@ -192,7 +190,7 @@ export default function EmailTemplatesClient({ initial }: { initial: EmailTempla
       </div>
 
       <div style={{ ...cardStyle, padding: "14px 16px", marginBottom: 16, background: c.panel2 }}>
-        <div style={{ fontSize: 12, color: c.muted, marginBottom: 6 }}>
+        <div className="bpm-t-help" style={{ marginBottom: 6 }}>
           Available placeholders for {CATEGORY_LABEL[category].toLowerCase()} — used as <code>{"{{name}}"}</code> in subject or body:
         </div>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>

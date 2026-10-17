@@ -12,11 +12,9 @@ import { useFeel } from "@/components/FeelProvider";
 import type { WfmShift } from "@/lib/wfm/types";
 import { useCurrency } from "@/lib/tenant-context";
 import { formatMoney, moneyLabel } from "@/lib/currency";
+import { typeLabel } from "@/lib/typeScale";
 
-const lbl: React.CSSProperties = {
-  display: "block", fontSize: 11.5, fontWeight: 600,
-  color: c.muted, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 5,
-};
+const lbl: React.CSSProperties = { ...typeLabel, display: "block", marginBottom: 5 };
 const inp: React.CSSProperties = {
   width: "100%", padding: "8px 11px", fontSize: 13,
   border: `1px solid ${c.line}`, borderRadius: 8,
@@ -129,7 +127,7 @@ export default function ShiftsClient({ canEdit }: { canEdit: boolean }) {
 
       {canEdit && formOpen && (
         <section style={{ ...cardStyle, marginBottom: 14 }}>
-          <div style={{ fontSize: 13, fontWeight: 600, color: c.ink, marginBottom: 10 }}>
+          <div className="bpm-t-section" style={{ marginBottom: 10 }}>
             {editingId ? "Edit shift" : "New shift"}
           </div>
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end" }}>
@@ -169,7 +167,7 @@ export default function ShiftsClient({ canEdit }: { canEdit: boolean }) {
             <Button variant="primary" loading={busy} onClick={saveShift}>{busy ? "Saving…" : editingId ? "Save changes" : "Add shift"}</Button>
             <Button disabled={busy} onClick={cancelEdit}>Cancel</Button>
           </div>
-          <div style={{ fontSize: 12, color: c.muted, marginTop: 10, maxWidth: 780 }}>
+          <div className="bpm-t-help" style={{ marginTop: 10, maxWidth: 780 }}>
             Working hours people are expected to keep. <strong>Grace</strong> is how late someone can
             check in before it counts as a late mark. A shift whose end time is earlier than its start
             time runs past midnight — tick <strong>Night shift</strong> so those night hours are

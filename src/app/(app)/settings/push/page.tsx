@@ -81,7 +81,7 @@ export default function WebhooksAndPushPage() {
         {role === "admin" ? (
           <>
             <div style={{ marginBottom: 12 }}>
-              <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: c.muted, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 5 }}>Receiving URL</label>
+              <label className="bpm-t-label" style={{ display: "block", marginBottom: 5 }}>Receiving URL</label>
               <Input
                 aria-label="Receiving URL"
                 value={pushUrl}
@@ -92,21 +92,21 @@ export default function WebhooksAndPushPage() {
 
             <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", background: c.panel2, borderRadius: 8, border: `1px solid ${c.line}` }}>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 11, color: c.muted, marginBottom: 2 }}>Signing secret</div>
+                <div className="bpm-t-help" style={{ marginBottom: 2 }}>Signing secret</div>
                 {pushSecret ? (
                   <code style={{ fontSize: 12.5, color: c.ink, fontFamily: "monospace", wordBreak: "break-all" }}>{pushSecret}</code>
                 ) : (
                   <div style={{ fontSize: 12.5, color: c.hint, fontStyle: "italic" }}>Not generated -- pushes will be unsigned</div>
                 )}
-                <div style={{ fontSize: 11, color: c.hint, marginTop: 3 }}>Sent as the X-BPMSquare-Signature header (HMAC-SHA256 of the request body) so your endpoint can verify it's really from BPMSquare.</div>
+                <div className="bpm-t-help" style={{ marginTop: 3 }}>Sent as the X-BPMSquare-Signature header (HMAC-SHA256 of the request body) so your endpoint can verify it's really from BPMSquare.</div>
               </div>
               <Button onClick={regeneratePushSecret} loading={pushSecretSaving}>{pushSecret ? "Regenerate" : "Generate"}</Button>
             </div>
 
-            <div style={{ fontSize: 11.5, color: c.hint, marginTop: 10 }}>Live today on Accounts (the "Push to ERP" action on an account's page) -- extends to other objects the same way.</div>
+            <div className="bpm-t-help" style={{ marginTop: 10 }}>Live today on Accounts (the "Push to ERP" action on an account's page) -- extends to other objects the same way.</div>
           </>
         ) : (
-          <div style={{ fontSize: 12, color: c.hint }}>Ask a workspace admin to configure this.</div>
+          <div className="bpm-t-help">Ask a workspace admin to configure this.</div>
         )}
       </Section>
     </div>

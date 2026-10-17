@@ -179,7 +179,7 @@ export default function DeletionLogClient({ logs, isPlatformAdmin }: { logs: Log
                         {r.ref ?? r.name ?? r.id}
                       </div>
                       {r.ref && r.name && (
-                        <div style={{ fontSize: 11, color: c.muted, marginTop: 1 }}>{r.name}</div>
+                        <div className="bpm-t-help" style={{ marginTop: 1 }}>{r.name}</div>
                       )}
                     </td>
                     <td style={{ ...td, color: c.muted, fontSize: 12 }}>

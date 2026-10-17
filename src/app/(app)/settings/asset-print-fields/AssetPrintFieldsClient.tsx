@@ -78,7 +78,7 @@ export default function AssetPrintFieldsClient({ initialAssetFields, assetCustom
   return (
     <div style={{ maxWidth: 680 }}>
       {/* ── Asset fields on quote print ───────────────────────────────────── */}
-      <div style={{ marginBottom: 8, fontSize: 15, fontWeight: 700, color: c.ink }}>
+      <div className="bpm-t-section" style={{ marginBottom: 8 }}>
         Equipment details on quote print
       </div>
       <div style={{ ...cardStyle, padding: "20px 24px", marginBottom: 16 }}>
@@ -97,7 +97,7 @@ export default function AssetPrintFieldsClient({ initialAssetFields, assetCustom
               />
               <div>
                 <div style={{ fontSize: 13, fontWeight: 600, color: c.ink }}>{f.label}</div>
-                {f.example && <div style={{ fontSize: 11, color: c.hint, marginTop: 1 }}>e.g. {f.example}</div>}
+                {f.example && <div className="bpm-t-help" style={{ marginTop: 1 }}>e.g. {f.example}</div>}
               </div>
             </label>
           ))}

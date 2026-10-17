@@ -76,7 +76,7 @@ export default function EmailOutputSection({ accent }: { accent: string }) {
   return (
     <div style={{ marginBottom: 12 }}>
       <Section title="">
-        <div style={{ fontSize: 12.5, color: c.muted, lineHeight: 1.5, marginBottom: 12 }}>
+        <div className="bpm-t-help" style={{ marginBottom: 12 }}>
           Where quotations, invoices, campaigns and workforce notifications are actually delivered.
           {out?.forced && (
             <>
@@ -102,7 +102,7 @@ export default function EmailOutputSection({ accent }: { accent: string }) {
 
         {mode === "redirect" && (
           <div style={{ marginTop: 12, maxWidth: 420 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: c.hint, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>Redirect everything to</div>
+            <div className="bpm-t-label" style={{ marginBottom: 6 }}>Redirect everything to</div>
             <input
               style={inp}
               type="email"

@@ -1924,6 +1924,30 @@ textarea.bpm-input { min-height: 72px; resize: vertical; }
   color: var(--redink) !important;
 }
 
+/* ── Type scale (ui-restructure-spec 13.2) ───────────────────────────────────
+   The one scale for settings pages and the kit Card/Field. Inter 400/600/700
+   only. A section heading differs from its description in size, weight AND
+   colour (16/700 ink vs 12.5/400 muted), and from a field label in size and
+   case (16 vs 13, labels are sentence case), so none can be mistaken for
+   another. Colours are the theme variables, so every theme and both modes
+   follow. Change a number here and every settings page follows. */
+:root {
+  --ts-title: 22px;   --tw-title: 700;
+  --ts-section: 16px; --tw-section: 700;
+  --ts-label: 13px;   --tw-label: 600;
+  --ts-body: 13.5px;  --tw-body: 400;
+  --ts-help: 12.5px;  --tw-help: 400;
+}
+.bpm-t-title   { font-size: var(--ts-title);   font-weight: var(--tw-title);   color: var(--ink);   line-height: 1.25; }
+.bpm-t-section { font-size: var(--ts-section); font-weight: var(--tw-section); color: var(--ink);   line-height: 1.3; margin: 0; }
+.bpm-t-label   { font-size: var(--ts-label);   font-weight: var(--tw-label);   color: var(--ink);   line-height: 1.35; }
+.bpm-t-body    { font-size: var(--ts-body);    font-weight: var(--tw-body);    color: var(--ink);   line-height: 1.5; }
+.bpm-t-help    { font-size: var(--ts-help);    font-weight: var(--tw-help);    color: var(--muted); line-height: 1.5; }
+/* The settings page title: same bar and colour as every page header, on the
+   scale. Scoped to settings so no other screen's header changes size. */
+.bpm-settings-main .bpm-page-header-title { font-size: var(--ts-title); font-weight: var(--tw-title); line-height: 1.25; }
+.bpm-settings-main .bpm-page-header-sub { font-size: var(--ts-help); line-height: 1.5; }
+
 /* ── Settings shell (src/components/settings/SettingsShell.tsx) ─────────────
    Two panes on a desktop: a grouped menu card left, the chosen page right.
    Under MOBILE_BREAKPOINT (780) the menu is the page at /settings and a

@@ -70,7 +70,7 @@ export default function DashboardContentSection({ accent }: { accent: string }) 
   return (
     <div style={{ marginBottom: 12 }}>
       <Section title="">
-        <p style={{ margin: "0 0 14px", fontSize: 12, color: c.muted, lineHeight: 1.5 }}>
+        <p className="bpm-t-help" style={{ margin: "0 0 14px" }}>
           Blocks that have something to show before this workspace has data of its own.
           Switching one on adds it to everyone&apos;s dashboard; they can move or resize it,
           but not remove it.
@@ -137,7 +137,7 @@ function Row({ label, hint, on, onChange, accent }: {
       </button>
       <div style={{ minWidth: 0 }}>
         <div style={{ fontSize: 12.5, fontWeight: 600, color: c.ink }}>{label}</div>
-        <div style={{ fontSize: 11.5, color: c.hint, marginTop: 2, lineHeight: 1.5 }}>{hint}</div>
+        <div className="bpm-t-help" style={{ marginTop: 2 }}>{hint}</div>
       </div>
     </div>
   );

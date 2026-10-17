@@ -9,6 +9,7 @@ import EmptyState from "@/components/ui/EmptyState";
 import StatusPill from "@/components/ui/StatusPill";
 import { RecordList, RecordRow } from "@/components/settings/RecordRows";
 import { SettingsHeaderActions } from "@/components/settings/SettingsHeaderActions";
+import { typeLabel } from "@/lib/typeScale";
 
 type LeaveType = {
   id: string; name: string; category: "paid" | "unpaid" | "half_day"; active: boolean; annual_quota: number;
@@ -20,7 +21,7 @@ type LeaveType = {
 type Draft = { name: string; category: LeaveType["category"]; annual_quota: string; quota_period: "year" | "month"; monthly_limit: string; paid_days_per_month: string };
 const EMPTY: Draft = { name: "", category: "paid", annual_quota: "1", quota_period: "month", monthly_limit: "", paid_days_per_month: "" };
 
-const lbl: React.CSSProperties = { display: "block", fontSize: 11.5, fontWeight: 600, color: c.muted, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 5 };
+const lbl: React.CSSProperties = { ...typeLabel, display: "block", marginBottom: 5 };
 const inp: React.CSSProperties = { width: "100%", padding: "8px 11px", fontSize: 13, border: `1px solid ${c.line}`, borderRadius: 8, background: c.panel, color: c.ink, outline: "none", boxSizing: "border-box" };
 
 const CATEGORY_LABEL: Record<LeaveType["category"], string> = { paid: "Paid", unpaid: "Unpaid", half_day: "Half-day" };
@@ -139,7 +140,7 @@ export default function LeaveTypesClient() {
 
       {error && <div role="alert" style={{ ...cardStyle, marginBottom: 14, color: "var(--err-ink)", fontSize: 12.5 }}>{error}</div>}
 
-      <div style={{ fontSize: 12, color: c.muted, marginBottom: 12, maxWidth: 780, lineHeight: 1.5 }}>
+      <div className="bpm-t-help" style={{ marginBottom: 12, maxWidth: 780 }}>
         What people can request time off as. The <strong>quota</strong> is each employee&apos;s default,
         per month or per year; a monthly quota is also the most anyone can take in that month (a request or an
         entry beyond it is refused). A yearly quota can carry a separate <strong>Max a month</strong> cap.
@@ -149,7 +150,7 @@ export default function LeaveTypesClient() {
 
       {showAdd && (
         <div style={{ ...cardStyle, marginBottom: 14, background: c.panel2 }}>
-          <div style={{ fontSize: 13, fontWeight: 700, color: c.ink, marginBottom: 10 }}>New leave type</div>
+          <div className="bpm-t-section" style={{ marginBottom: 10 }}>New leave type</div>
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end" }}>
             {limitFields(addForm, setAddForm)}
             {formButtons(addType, busy ? "Adding…" : "Add type", () => { setShowAdd(false); setAddForm(EMPTY); setError(""); })}

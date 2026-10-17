@@ -122,12 +122,12 @@ export default function ApiKeysPanel() {
   return (
     <div style={{ marginBottom: 18 }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-        <div style={{ fontSize: 11, fontWeight: 600, color: c.muted, textTransform: "uppercase", letterSpacing: 0.5 }}>Scoped API keys</div>
+        <div className="bpm-t-label">Scoped API keys</div>
         {!creating && (
           <button onClick={() => { setCreating(true); setNewToken(null); }} style={btn}>+ New key</button>
         )}
       </div>
-      <div style={{ fontSize: 11.5, color: c.hint, marginBottom: 10 }}>
+      <div className="bpm-t-help" style={{ marginBottom: 10 }}>
         Fine-grained alternative to the full-access key above: restrict a key to read-only, or to specific objects, and revoke it independently. The token is shown once at creation.
       </div>
 
@@ -150,7 +150,7 @@ export default function ApiKeysPanel() {
       {/* Create form */}
       {creating && (
         <div style={{ ...box, marginBottom: 12 }}>
-          <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: c.muted, marginBottom: 4 }}>Name</label>
+          <label className="bpm-t-label" style={{ display: "block", marginBottom: 4 }}>Name</label>
           <input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Partner read-only sync"
             style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: `1px solid ${c.line}`, fontSize: 13, color: c.ink, outline: "none", marginBottom: 12, background: "var(--panel)" }} />
 
@@ -176,7 +176,7 @@ export default function ApiKeysPanel() {
             </div>
           )}
 
-          <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: c.muted, marginBottom: 4 }}>Expires (optional)</label>
+          <label className="bpm-t-label" style={{ display: "block", marginBottom: 4 }}>Expires (optional)</label>
           <input type="date" value={expiresAt} onChange={(e) => setExpiresAt(e.target.value)}
             style={{ padding: "7px 10px", borderRadius: 8, border: `1px solid ${c.line}`, fontSize: 13, color: c.ink, outline: "none", marginBottom: 14, background: "var(--panel)" }} />
 
@@ -189,7 +189,7 @@ export default function ApiKeysPanel() {
 
       {/* Existing keys */}
       {loading ? (
-        <div style={{ fontSize: 12, color: c.hint }}>Loading…</div>
+        <div className="bpm-t-help">Loading…</div>
       ) : keys.length === 0 ? (
         <div style={{ fontSize: 12, color: c.hint, fontStyle: "italic" }}>No scoped keys yet.</div>
       ) : (
@@ -205,7 +205,7 @@ export default function ApiKeysPanel() {
                     {revoked && <span style={{ fontSize: 10.5, color: "var(--err-ink)", marginLeft: 8 }}>revoked</span>}
                     {!revoked && expired && <span style={{ fontSize: 10.5, color: "var(--err-ink)", marginLeft: 8 }}>expired</span>}
                   </div>
-                  <div style={{ fontSize: 11, color: c.muted, marginTop: 1 }}>
+                  <div className="bpm-t-help" style={{ marginTop: 1 }}>
                     <code style={{ fontFamily: "monospace" }}>{k.token_prefix}…</code> · {scopeSummary(k.scopes)}
                   </div>
                   <div style={{ fontSize: 10.5, color: c.hint, marginTop: 1 }}>

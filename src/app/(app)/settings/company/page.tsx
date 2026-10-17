@@ -55,7 +55,7 @@ export default function CompanyProfilePage() {
       </Section>
 
       {tenant?.features?.quotations === true && (
-        <p style={{ fontSize: 12, color: c.hint, margin: "4px 2px 0", lineHeight: 1.5 }}>
+        <p className="bpm-t-help" style={{ margin: "4px 2px 0" }}>
           Legal entities, logo, letterhead and tax are under <Link href={ROUTES.settingsEntities} style={{ color: c.accent }}>Entities &amp; Tax</Link>.
         </p>
       )}

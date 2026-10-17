@@ -101,7 +101,7 @@ export default function NavigationVisibilityPage() {
         <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
           {navGroupsOnPage.map((grp) => (
             <div key={grp.group}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: c.muted, textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 4 }}>
+              <div className="bpm-t-label" style={{ marginBottom: 4 }}>
                 {grp.group}
               </div>
               <div style={{ display: "flex", flexDirection: "column" }}>
@@ -114,8 +114,8 @@ export default function NavigationVisibilityPage() {
                       <span style={{ fontSize: 16, width: 20, textAlign: "center", flexShrink: 0 }}>{item.icon}</span>
                       <div style={{ flex: 1 }}>
                         <div style={{ fontSize: 13, fontWeight: 500, color: c.ink }}>{item.label}</div>
-                        {item.sub && <div style={{ fontSize: 11, color: c.hint }}>{item.sub}</div>}
-                        {state === "mixed" && <div style={{ fontSize: 11, color: c.hint }}>Some hidden</div>}
+                        {item.sub && <div className="bpm-t-help">{item.sub}</div>}
+                        {state === "mixed" && <div className="bpm-t-help">Some hidden</div>}
                       </div>
                       <Toggle on={visible} label={item.label} onChange={() => toggleRow(item)} accent={accent} />
                     </div>

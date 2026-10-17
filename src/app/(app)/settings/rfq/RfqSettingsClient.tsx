@@ -63,7 +63,7 @@ export default function RfqSettingsClient() {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16, maxWidth: 860 }}>
       <section style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-        <div style={{ fontSize: 13.5, fontWeight: 700, color: c.ink }}>Mail channel</div>
+        <div className="bpm-t-section">Mail channel</div>
         <div style={{ display: "grid", gap: 10, gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))" }}>
           {radio("mailbox", "Your own mailbox", "RFQs go out from your company address (Gmail, or any mail server). Supplier replies arrive in that inbox as usual AND are filed on the right RFQ in BPMSquare every few minutes.")}
           {radio("platform", "BPMSquare sends and receives", "RFQs go out from BPMSquare's sender. Each supplier gets a personal reply-to address, so their reply lands straight on the RFQ — nothing to set up in your own mailbox.")}

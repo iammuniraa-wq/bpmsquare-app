@@ -7,6 +7,7 @@ import { useFeel } from "@/components/FeelProvider";
 import Button from "@/components/ui/Button";
 import MoreMenu from "@/components/ui/MoreMenu";
 import { SettingsHeaderActions } from "@/components/settings/SettingsHeaderActions";
+import { typeLabel } from "@/lib/typeScale";
 import {
   SEGMENT_FIELDS, OPERATOR_LABEL, getSegmentField,
   type SegmentFilter, type SegmentFieldDef,
@@ -29,10 +30,7 @@ const TAB_STYLE = (active: boolean): React.CSSProperties => ({
   background: active ? c.accent : "transparent", color: active ? "#fff" : c.ink,
   border: `1px solid ${active ? c.accent : c.line}`,
 });
-const lbl: React.CSSProperties = {
-  display: "block", fontSize: 11, fontWeight: 600, color: c.muted,
-  textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6,
-};
+const lbl: React.CSSProperties = { ...typeLabel, display: "block", marginBottom: 6 };
 const inp: React.CSSProperties = {
   boxSizing: "border-box", border: `1px solid ${c.line}`, borderRadius: 8,
   padding: "8px 10px", fontSize: 13, color: c.ink, background: c.panel, outline: "none",
@@ -229,7 +227,7 @@ function TeamsTab({ teams, members, memberLabel, onChanged }: {
               <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 0", borderTop: `1px solid ${c.line}` }}>
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: 13.5, fontWeight: 600, color: c.ink }}>{t.name}</div>
-                  <div style={{ fontSize: 12, color: c.hint }}>
+                  <div className="bpm-t-help">
                     Lead: {memberLabel(t.lead_user_id)} · {t.team_members.length} member{t.team_members.length === 1 ? "" : "s"}
                   </div>
                 </div>
@@ -339,7 +337,7 @@ function SegmentsTab({ segments, accounts, onChanged }: { segments: Segment[]; a
             <div style={{ ...lbl, marginBottom: 8 }}>Add a condition</div>
             {categories.map(([category, fields]) => (
               <div key={category} style={{ marginBottom: 10 }}>
-                <div style={{ fontSize: 10.5, fontWeight: 700, color: c.hint, textTransform: "uppercase", marginBottom: 5 }}>{category}</div>
+                <div className="bpm-t-label" style={{ marginBottom: 5 }}>{category}</div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                   {fields.map((f) => (
                     <div key={f.key} onClick={() => addFilter(f)} style={{ fontSize: 12, padding: "6px 8px", borderRadius: 6, border: `1px solid ${c.line}`, background: c.panel2, cursor: "pointer" }}>
@@ -438,7 +436,7 @@ function SegmentsTab({ segments, accounts, onChanged }: { segments: Segment[]; a
               <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 0", borderTop: `1px solid ${c.line}` }}>
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: 13.5, fontWeight: 600, color: c.ink }}>{s.code} — {s.name}</div>
-                  <div style={{ fontSize: 12, color: c.hint }}>
+                  <div className="bpm-t-help">
                     {s.filters.length} condition{s.filters.length === 1 ? "" : "s"} ({s.match}) {s.account_ids.length > 0 ? `· ${s.account_ids.length} pinned account${s.account_ids.length === 1 ? "" : "s"}` : ""}
                   </div>
                 </div>
@@ -571,7 +569,7 @@ function CoverageTab({ coverages, segments, teams, endpoints, teamLabel, segment
             <input type="number" style={{ ...inp, width: "100%" }} value={priority} onChange={(e) => setPriority(parseInt(e.target.value, 10) || 100)} />
           </div>
         </div>
-        <div style={{ fontSize: 11.5, color: c.hint, marginBottom: 12 }}>
+        <div className="bpm-t-help" style={{ marginBottom: 12 }}>
           Priority only matters for OWNER — when two OWNER segments both match one account, the lower number wins. Overlay/service are additive: every match applies.
         </div>
 
@@ -611,7 +609,7 @@ function CoverageTab({ coverages, segments, teams, endpoints, teamLabel, segment
                 <Pill tone={ROLE_TONE[cov.role]}>{ROLE_LABEL[cov.role]}</Pill>
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: 13.5, color: c.ink }}>{cov.segments ? `${cov.segments.code} — ${cov.segments.name}` : segmentLabel(cov.segment_id)} → {cov.teams?.name ?? teamLabel(cov.team_id)}</div>
-                  <div style={{ fontSize: 12, color: c.hint }}>
+                  <div className="bpm-t-help">
                     priority {cov.priority} · from {cov.effective_from}{cov.effective_to ? ` to ${cov.effective_to}` : ""}
                     {cov.erp_endpoint_id ? ` · pushes to ${endpoints.find((e) => e.id === cov.erp_endpoint_id)?.name ?? "custom endpoint"}` : ""}
                   </div>
@@ -627,7 +625,7 @@ function CoverageTab({ coverages, segments, teams, endpoints, teamLabel, segment
 
       <section style={cardStyle}>
         <div style={{ ...lbl, marginBottom: 4 }}>ERP endpoints</div>
-        <div style={{ fontSize: 11.5, color: c.hint, marginBottom: 12 }}>Named push targets a coverage row can route to. The tenant's single default endpoint (Settings → Webhooks & push) is used when a coverage doesn't specify one.</div>
+        <div className="bpm-t-help" style={{ marginBottom: 12 }}>Named push targets a coverage row can route to. The tenant's single default endpoint (Settings → Webhooks & push) is used when a coverage doesn't specify one.</div>
         <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
           <input style={{ ...inp, flex: 1 }} placeholder="Endpoint name (e.g. SAP South)" value={endpointName} onChange={(e) => setEndpointName(e.target.value)} />
           <input style={{ ...inp, flex: 2 }} placeholder="https://…" value={endpointUrl} onChange={(e) => setEndpointUrl(e.target.value)} />

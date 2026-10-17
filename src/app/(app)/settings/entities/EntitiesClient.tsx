@@ -10,6 +10,7 @@ import { resizeImageFile } from "@/lib/resizeImage";
 import SettingsPageHeader from "@/components/settings/SettingsPageHeader";
 import { SettingsSave } from "@/components/settings/SettingsHeaderActions";
 import { useSettingsDirty } from "@/components/settings/useSettingsDirty";
+import { typeLabel } from "@/lib/typeScale";
 
 // Bounding boxes uploaded logos are downscaled to fit before upload — see resizeImage.ts.
 const LOGO_MAX = { width: 400, height: 300 };
@@ -40,11 +41,7 @@ const inp: React.CSSProperties = {
   border: `1px solid ${c.line}`, fontSize: 13,
   color: c.ink, outline: "none", background: "var(--panel)",
 };
-const lbl: React.CSSProperties = {
-  display: "block", fontSize: 11, fontWeight: 600,
-  color: c.muted, marginBottom: 4,
-  textTransform: "uppercase", letterSpacing: 0.4,
-};
+const lbl: React.CSSProperties = { ...typeLabel, display: "block", marginBottom: 4 };
 
 function Field({ label, value, onChange, placeholder, mono, type = "text" }: {
   label: string; value: string; onChange: (v: string) => void;
@@ -102,7 +99,7 @@ function LogoUpload({ currentUrl, onUploaded, label = "Logo", size = 64 }: {
         <div style={{ width: size, height: size, flexShrink: 0, border: `1px solid ${c.line}`, borderRadius: 8, background: c.panel2, display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
           {currentUrl
             ? <img src={currentUrl} alt={label} style={{ width: "100%", height: "100%", objectFit: "contain", padding: 4 }} />
-            : <span style={{ fontSize: 11, color: c.hint }}>No logo</span>
+            : <span className="bpm-t-help">No logo</span>
           }
         </div>
         <div style={{ flex: 1 }}>
@@ -126,7 +123,7 @@ function LogoUpload({ currentUrl, onUploaded, label = "Logo", size = 64 }: {
               </button>
             )}
           </div>
-          <div style={{ fontSize: 11, color: c.hint, marginTop: 5 }}>PNG, JPG or WebP · max 2 MB · resized to fit {LOGO_MAX.width}×{LOGO_MAX.height}px</div>
+          <div className="bpm-t-help" style={{ marginTop: 5 }}>PNG, JPG or WebP · max 2 MB · resized to fit {LOGO_MAX.width}×{LOGO_MAX.height}px</div>
           {err && <div style={{ fontSize: 11, color: "var(--err-ink)", marginTop: 4 }}>{err}</div>}
           {/* Also allow direct URL paste */}
           <input
@@ -187,8 +184,8 @@ function PartnerLogos({ partners, onChange }: {
     <div style={{ borderTop: `1px solid ${c.line}`, paddingTop: 14, marginTop: 4 }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
         <div>
-          <div style={{ fontSize: 12, fontWeight: 600, color: c.muted, textTransform: "uppercase", letterSpacing: 0.4 }}>Authorised channel partner logos</div>
-          <div style={{ fontSize: 11, color: c.hint, marginTop: 3 }}>Shown in the top-right of the quote letterhead (e.g. ABB, WEG, Siemens)</div>
+          <div className="bpm-t-label">Authorised channel partner logos</div>
+          <div className="bpm-t-help" style={{ marginTop: 3 }}>Shown in the top-right of the quote letterhead (e.g. ABB, WEG, Siemens)</div>
         </div>
         <button onClick={addPartner} style={{ fontSize: 12, color: c.accent, background: "none", border: `1px solid ${c.accent}`, borderRadius: 6, padding: "4px 12px", cursor: "pointer", fontWeight: 500, whiteSpace: "nowrap" }}>
           + Add partner
@@ -292,8 +289,8 @@ function CertificationLogos({ certifications, onChange }: {
     <div style={{ borderTop: `1px solid ${c.line}`, paddingTop: 14, marginTop: 4 }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
         <div>
-          <div style={{ fontSize: 12, fontWeight: 600, color: c.muted, textTransform: "uppercase", letterSpacing: 0.4 }}>Certification / accreditation logos</div>
-          <div style={{ fontSize: 11, color: c.hint, marginTop: 3 }}>Shown top-left of the quote letterhead (e.g. ISO, EGAC, IAF). Replaces the plain-text ISO field above once at least one is added.</div>
+          <div className="bpm-t-label">Certification / accreditation logos</div>
+          <div className="bpm-t-help" style={{ marginTop: 3 }}>Shown top-left of the quote letterhead (e.g. ISO, EGAC, IAF). Replaces the plain-text ISO field above once at least one is added.</div>
         </div>
         <button onClick={addCert} style={{ fontSize: 12, color: c.accent, background: "none", border: `1px solid ${c.accent}`, borderRadius: 6, padding: "4px 12px", cursor: "pointer", fontWeight: 500, whiteSpace: "nowrap" }}>
           + Add certification
@@ -517,8 +514,8 @@ export default function EntitiesClient() {
 
       {/* ── Company profile (print branding) ── */}
       <section style={{ ...cardStyle, marginBottom: 14 }}>
-        <h2 style={{ margin: "0 0 4px", fontSize: 14, fontWeight: 600, color: c.ink }}>Company profile</h2>
-        <p style={{ margin: "0 0 16px", fontSize: 12, color: c.muted, lineHeight: 1.5 }}>
+        <h2 className="bpm-t-section" style={{ margin: "0 0 4px" }}>Company profile</h2>
+        <p className="bpm-t-help" style={{ margin: "0 0 16px" }}>
           Used in print letterheads. Each entity below can override name, address, and GSTIN per-quotation.
         </p>
 
@@ -543,7 +540,7 @@ export default function EntitiesClient() {
 
         {/* Company logo upload */}
         <div style={{ borderTop: `1px solid ${c.line}`, paddingTop: 14, marginTop: 4 }}>
-          <div style={{ fontSize: 12, fontWeight: 600, color: c.muted, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 12 }}>Company logo</div>
+          <div className="bpm-t-label" style={{ marginBottom: 12 }}>Company logo</div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 16px", alignItems: "start" }}>
             <LogoUpload
               label="Logo image"
@@ -558,7 +555,7 @@ export default function EntitiesClient() {
                   style={{ width: 40, height: 37, padding: 2, borderRadius: 7, border: `1px solid ${c.line}`, cursor: "pointer" }} />
                 <input style={{ ...inp, flex: 1 }} value={co.logo_bg ?? "#378ADD"} onChange={(e) => setCoProp("logo_bg")(e.target.value)} placeholder="#378ADD" />
               </div>
-              <div style={{ fontSize: 11, color: c.hint, marginTop: 4 }}>Used when no logo is uploaded — auto-initials shown on this background.</div>
+              <div className="bpm-t-help" style={{ marginTop: 4 }}>Used when no logo is uploaded — auto-initials shown on this background.</div>
             </div>
           </div>
         </div>
@@ -567,15 +564,15 @@ export default function EntitiesClient() {
         <div style={{ borderTop: `1px solid ${c.line}`, paddingTop: 14, marginTop: 4 }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
             <div>
-              <div style={{ fontSize: 12, fontWeight: 600, color: c.muted, textTransform: "uppercase", letterSpacing: 0.4 }}>Phone numbers</div>
-              <div style={{ fontSize: 11, color: c.hint, marginTop: 3 }}>Shown in the PDF footer as labelled columns (e.g. Dir & Tech · Commercial · Work)</div>
+              <div className="bpm-t-label">Phone numbers</div>
+              <div className="bpm-t-help" style={{ marginTop: 3 }}>Shown in the PDF footer as labelled columns (e.g. Dir & Tech · Commercial · Work)</div>
             </div>
             <button onClick={addPhone} style={{ fontSize: 12, color: accent, background: "none", border: `1px solid ${accent}`, borderRadius: 6, padding: "4px 12px", cursor: "pointer", fontWeight: 500 }}>
               + Add phone
             </button>
           </div>
           {phones.length === 0 && (
-            <div style={{ fontSize: 12.5, color: c.hint, marginBottom: 8 }}>No phone numbers added. Click + Add phone to add one.</div>
+            <div className="bpm-t-help" style={{ marginBottom: 8 }}>No phone numbers added. Click + Add phone to add one.</div>
           )}
           {phones.map((p, i) => (
             <PhoneRow key={i} phone={p} onChange={(v) => updatePhone(i, v)} onRemove={() => removePhone(i)} />
@@ -593,8 +590,8 @@ export default function EntitiesClient() {
       <section style={{ ...cardStyle, marginBottom: 14 }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
           <div>
-            <h2 style={{ margin: 0, fontSize: 14, fontWeight: 600, color: c.ink }}>Legal entities</h2>
-            <p style={{ margin: "4px 0 0", fontSize: 12, color: c.muted, lineHeight: 1.5 }}>
+            <h2 className="bpm-t-section" style={{ margin: 0 }}>Legal entities</h2>
+            <p className="bpm-t-help" style={{ margin: "4px 0 0" }}>
               Add separate entities if you issue quotes from multiple legal entities. The default is pre-selected on new quotations.
             </p>
           </div>
@@ -625,8 +622,8 @@ export default function EntitiesClient() {
 
       {/* ── Tax configuration ── */}
       <section style={{ ...cardStyle, marginBottom: 14 }}>
-        <h2 style={{ margin: "0 0 4px", fontSize: 14, fontWeight: 600, color: c.ink }}>Tax configuration</h2>
-        <p style={{ margin: "0 0 16px", fontSize: 12, color: c.muted, lineHeight: 1.5 }}>
+        <h2 className="bpm-t-section" style={{ margin: "0 0 4px" }}>Tax configuration</h2>
+        <p className="bpm-t-help" style={{ margin: "0 0 16px" }}>
           Applied to all quotations. Use GST for India, VAT or MwSt for Europe, or leave blank to exclude tax.
         </p>
 
@@ -651,7 +648,7 @@ export default function EntitiesClient() {
           </button>
           <div>
             <div style={{ fontSize: 13, fontWeight: 500, color: c.ink }}>Tax-inclusive pricing</div>
-            <div style={{ fontSize: 12, color: c.muted, marginTop: 2 }}>
+            <div className="bpm-t-help" style={{ marginTop: 2 }}>
               {tax.inclusive ? "Line item rates already include tax — tax is not added on top." : "Tax is added on top of line item rates (exclusive)."}
             </div>
           </div>
@@ -660,11 +657,11 @@ export default function EntitiesClient() {
 
       {/* Quote ID format moved to Settings → Number Ranges (owner decision
           2026-08-15: one address for every business-ID convention). */}
-      <p style={{ fontSize: 12, color: c.muted, paddingLeft: 4 }}>
+      <p className="bpm-t-help" style={{ paddingLeft: 4 }}>
         Looking for the Quote ID format? It moved to <a href="/settings/number-ranges" style={{ color: c.accent }}>Settings → Number Ranges</a> — the one place for every business-ID convention.
       </p>
 
-      <p style={{ fontSize: 11.5, color: c.hint, paddingLeft: 4, lineHeight: 1.7 }}>
+      <p className="bpm-t-help" style={{ paddingLeft: 4 }}>
         Changes apply to new quotations only — existing quotations retain the settings at time of creation.
       </p>
     </div>

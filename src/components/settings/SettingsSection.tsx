@@ -74,13 +74,14 @@ export default function SettingsSection({
         }}
       >
         <span style={{ minWidth: 0, flex: 1 }}>
-          <span style={{ display: "block", fontSize: 14, fontWeight: 700, color: c.ink }}>
+          <span className="bpm-t-section" style={{ display: "block" }}>
             {title}
           </span>
           {summary && !open && (
             <span
+              className="bpm-t-help"
               style={{
-                display: "block", fontSize: 11.5, color: c.hint, marginTop: 3,
+                display: "block", marginTop: 3,
                 overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
               }}
             >

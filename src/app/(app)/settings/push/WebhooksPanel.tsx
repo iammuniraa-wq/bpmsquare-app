@@ -103,10 +103,10 @@ export default function WebhooksPanel() {
   return (
     <div style={{ marginBottom: 6, marginTop: 18, paddingTop: 16, borderTop: `1px solid ${c.line}` }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-        <div style={{ fontSize: 11, fontWeight: 600, color: c.muted, textTransform: "uppercase", letterSpacing: 0.5 }}>Webhooks</div>
+        <div className="bpm-t-label">Webhooks</div>
         {!creating && <button onClick={() => setCreating(true)} style={btn}>+ New webhook</button>}
       </div>
-      <div style={{ fontSize: 11.5, color: c.hint, marginBottom: 10 }}>
+      <div className="bpm-t-help" style={{ marginBottom: 10 }}>
         Push every create/update/delete to your endpoint as it happens, signed with HMAC-SHA256 (header <code style={{ fontFamily: "monospace" }}>X-BPMSquare-Signature</code>). Only events after registration are delivered.
       </div>
 
@@ -114,10 +114,10 @@ export default function WebhooksPanel() {
 
       {creating && (
         <div style={{ ...box, marginBottom: 12 }}>
-          <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: c.muted, marginBottom: 4 }}>Name</label>
+          <label className="bpm-t-label" style={{ display: "block", marginBottom: 4 }}>Name</label>
           <input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. ERP sync"
             style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: `1px solid ${c.line}`, fontSize: 13, color: c.ink, outline: "none", marginBottom: 10, background: "var(--panel)" }} />
-          <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: c.muted, marginBottom: 4 }}>Endpoint URL</label>
+          <label className="bpm-t-label" style={{ display: "block", marginBottom: 4 }}>Endpoint URL</label>
           <input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://your-system.example.com/hooks/bpmsquare"
             style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: `1px solid ${c.line}`, fontSize: 13, color: c.ink, outline: "none", marginBottom: 12, background: "var(--panel)" }} />
 
@@ -141,7 +141,7 @@ export default function WebhooksPanel() {
       )}
 
       {loading ? (
-        <div style={{ fontSize: 12, color: c.hint }}>Loading…</div>
+        <div className="bpm-t-help">Loading…</div>
       ) : hooks.length === 0 ? (
         <div style={{ fontSize: 12, color: c.hint, fontStyle: "italic" }}>No webhooks yet.</div>
       ) : (

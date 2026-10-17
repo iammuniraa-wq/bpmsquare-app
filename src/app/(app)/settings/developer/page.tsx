@@ -123,7 +123,7 @@ export default function DeveloperSettingsPage() {
         {role === "admin" ? (
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14, padding: "10px 12px", background: c.panel2, borderRadius: 8, border: `1px solid ${c.line}` }}>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 11, color: c.muted, marginBottom: 2 }}>API Key</div>
+              <div className="bpm-t-help" style={{ marginBottom: 2 }}>API Key</div>
               {apiKey ? (
                 <code style={{ fontSize: 12.5, color: c.ink, fontFamily: "monospace", wordBreak: "break-all" }}>{apiKey}</code>
               ) : (
@@ -141,14 +141,14 @@ export default function DeveloperSettingsPage() {
             </button>
           </div>
         ) : (
-          <div style={{ fontSize: 12, color: c.hint, marginBottom: 14 }}>Ask a workspace admin to generate or view the API key.</div>
+          <div className="bpm-t-help" style={{ marginBottom: 14 }}>Ask a workspace admin to generate or view the API key.</div>
         )}
 
         {role === "admin" && <ApiKeysPanel />}
 
         {/* Endpoints */}
         <div style={{ marginBottom: 12 }}>
-          <div style={{ fontSize: 11, fontWeight: 600, color: c.muted, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 }}>Available now</div>
+          <div className="bpm-t-label" style={{ marginBottom: 8 }}>Available now</div>
           {API_ENDPOINTS.map((ep) => (
             <div key={ep.path} style={{ display: "flex", alignItems: "center", gap: 10, padding: "7px 0", borderTop: `1px solid ${c.line}` }}>
               <span style={{ fontSize: 10, fontWeight: 700, color: "var(--blueink)", background: "var(--bluebg)", borderRadius: 5, padding: "2px 7px", flexShrink: 0, fontFamily: "monospace" }}>{ep.method}</span>
@@ -159,7 +159,7 @@ export default function DeveloperSettingsPage() {
         </div>
 
         <div>
-          <div style={{ fontSize: 11, fontWeight: 600, color: c.muted, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 }}>Coming soon</div>
+          <div className="bpm-t-label" style={{ marginBottom: 8 }}>Coming soon</div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
             {API_COMING_SOON.map((ep) => (
               <code key={ep} style={{ fontSize: 11, color: c.hint, background: c.panel2, borderRadius: 5, padding: "3px 8px", border: `1px solid ${c.line}`, fontFamily: "monospace" }}>
@@ -185,8 +185,8 @@ export default function DeveloperSettingsPage() {
                 <span style={{ fontSize: 13, fontWeight: 600, color: c.ink }}>{intg.name}</span>
                 <StatusBadge status={intg.status} />
               </div>
-              <div style={{ fontSize: 12, color: c.muted, lineHeight: 1.5 }}>{intg.desc}</div>
-              <div style={{ fontSize: 11, color: c.hint, marginTop: 3 }}>{intg.note}</div>
+              <div className="bpm-t-help">{intg.desc}</div>
+              <div className="bpm-t-help" style={{ marginTop: 3 }}>{intg.note}</div>
             </div>
           </div>
         ))}

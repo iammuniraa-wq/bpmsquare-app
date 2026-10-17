@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { c } from "@/lib/theme";
+import { typeLabel, typeHelp } from "@/lib/typeScale";
 
 /**
  * The two row shapes a settings page is built from, and the one rule they
@@ -14,10 +15,7 @@ import { c } from "@/lib/theme";
  * help sits behind a "?" next to its own label, one field at a time.
  */
 
-export const settingsLabel: React.CSSProperties = {
-  fontSize: 11.5, fontWeight: 600, color: c.muted,
-  textTransform: "uppercase", letterSpacing: 0.4,
-};
+export const settingsLabel: React.CSSProperties = typeLabel;
 
 export const settingsInput: React.CSSProperties = {
   width: "100%", padding: "10px 11px", fontSize: 13,
@@ -26,7 +24,7 @@ export const settingsInput: React.CSSProperties = {
 };
 
 const helpText: React.CSSProperties = {
-  fontSize: 11.5, color: c.hint, marginTop: 7, lineHeight: 1.5,
+  ...typeHelp, marginTop: 7,
   padding: "8px 10px", background: c.panel2, borderRadius: 7,
 };
 
@@ -95,7 +93,7 @@ export function SettingsRow({
     <div style={{ padding: "12px 2px", borderTop: first ? "none" : `1px solid ${c.line}` }}>
       <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
         <div style={{ minWidth: 0, flex: 1, display: "flex", alignItems: "center", gap: 6 }}>
-          <span style={{ fontSize: 13, color: c.ink, fontWeight: 500 }}>{label}</span>
+          <span style={typeLabel}>{label}</span>
           {help && <HelpDot on={open} onClick={() => setOpen((v) => !v)} of={label} />}
         </div>
         <div style={{ flexShrink: 0 }}>{children}</div>

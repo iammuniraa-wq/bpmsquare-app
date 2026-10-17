@@ -208,7 +208,7 @@ export default function ThemeAndColoursPage() {
         description="Applies to your whole workspace — every user, every device."
       >
         <div style={{ marginBottom: 20 }}>
-          <div style={{ fontSize: 12, fontWeight: 600, color: c.muted, marginBottom: 10, textTransform: "uppercase", letterSpacing: 0.5 }}>Theme</div>
+          <div className="bpm-t-label" style={{ marginBottom: 10 }}>Theme</div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 10 }}>
             {([
               { value: "classic" as const, label: "Classic", desc: "Dark navy sidebar, the original look.", swatch: "linear-gradient(135deg, #152233, #0e1a28)" },
@@ -253,14 +253,14 @@ export default function ThemeAndColoursPage() {
                     <span style={{ fontSize: 12.5, fontWeight: 600, color: selected ? accent : c.ink }}>{opt.label}</span>
                     {selected && <span style={{ fontSize: 11, color: accent }}>✓</span>}
                   </span>
-                  <span style={{ fontSize: 11, color: c.hint, lineHeight: 1.4 }}>{opt.desc}</span>
+                  <span className="bpm-t-help">{opt.desc}</span>
                 </button>
               );
             })}
           </div>
         </div>
         <div style={{ marginBottom: 20, paddingTop: 16, borderTop: `1px solid ${c.line}` }}>
-          <div style={{ fontSize: 12, fontWeight: 600, color: c.muted, marginBottom: 10, textTransform: "uppercase", letterSpacing: 0.5 }}>Accent colour</div>
+          <div className="bpm-t-label" style={{ marginBottom: 10 }}>Accent colour</div>
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
             {(Object.entries(ACCENT_PRESETS) as [AccentPreset, typeof ACCENT_PRESETS[AccentPreset]][]).map(([key, preset]) => {
               const selected = accentColor.toLowerCase() === preset.color.toLowerCase();
@@ -276,8 +276,8 @@ export default function ThemeAndColoursPage() {
         </div>
         {tenant?.features?.next_experience === true && (
           <div style={{ marginBottom: 20, paddingTop: 16, borderTop: `1px solid ${c.line}` }}>
-            <div style={{ fontSize: 12, fontWeight: 600, color: c.muted, marginBottom: 4, textTransform: "uppercase", letterSpacing: 0.5 }}>Nova accent colour</div>
-            <div style={{ fontSize: 11, color: c.hint, marginBottom: 10 }}>The signature hue Nova uses for its command bar, tab underline and highlights — independent of the accent colour above.</div>
+            <div className="bpm-t-label" style={{ marginBottom: 4 }}>Nova accent colour</div>
+            <div className="bpm-t-help" style={{ marginBottom: 10 }}>The signature hue Nova uses for its command bar, tab underline and highlights — independent of the accent colour above.</div>
             <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
               {NOVA_ACCENT_PRESETS.map((preset) => {
                 const selected = novaAccentColor === "" ? preset.color === null : novaAccentColor.toLowerCase() === preset.color?.toLowerCase();
@@ -296,14 +296,14 @@ export default function ThemeAndColoursPage() {
                   onChange={(e) => !apSaving && saveNovaAccentColor(e.target.value)}
                   style={{ width: 22, height: 22, border: "none", padding: 0, background: "none", cursor: "pointer" }}
                 />
-                <span style={{ fontSize: 12.5, color: c.muted }}>Custom</span>
+                <span className="bpm-t-help">Custom</span>
               </label>
             </div>
           </div>
         )}
         <div style={{ marginBottom: 20, paddingTop: 16, borderTop: `1px solid ${c.line}` }}>
-          <div style={{ fontSize: 12, fontWeight: 600, color: c.muted, marginBottom: 4, textTransform: "uppercase", letterSpacing: 0.5 }}>Dashboard</div>
-          <div style={{ fontSize: 11, color: c.hint, marginBottom: 10, lineHeight: 1.6 }}>
+          <div className="bpm-t-label" style={{ marginBottom: 4 }}>Dashboard</div>
+          <div className="bpm-t-help" style={{ marginBottom: 10 }}>
             Which dashboard the workspace opens on. Everyone can switch between the two from the
             dashboard itself — this only sets where they start, and neither choice touches anyone&apos;s
             saved layout.
@@ -328,7 +328,7 @@ export default function ThemeAndColoursPage() {
                   <div style={{ fontSize: 12.5, fontWeight: selected ? 700 : 500, color: selected ? c.accent : c.ink }}>
                     {opt.label}{selected ? " ✓" : ""}
                   </div>
-                  <div style={{ fontSize: 11, color: c.hint, marginTop: 2 }}>{opt.desc}</div>
+                  <div className="bpm-t-help" style={{ marginTop: 2 }}>{opt.desc}</div>
                 </button>
               );
             })}
@@ -336,8 +336,8 @@ export default function ThemeAndColoursPage() {
         </div>
         {theme === "spectacular_purple" && (
           <div style={{ marginBottom: 20, paddingTop: 16, borderTop: `1px solid ${c.line}` }}>
-            <div style={{ fontSize: 12, fontWeight: 600, color: c.muted, marginBottom: 4, textTransform: "uppercase", letterSpacing: 0.5 }}>Spectacular colours</div>
-            <div style={{ fontSize: 11, color: c.hint, marginBottom: 12, lineHeight: 1.6 }}>
+            <div className="bpm-t-label" style={{ marginBottom: 4 }}>Spectacular colours</div>
+            <div className="bpm-t-help" style={{ marginBottom: 12 }}>
               The shell is a blend of two colours, so pick a mix — or set each end yourself.
               The accent is the third: it colours links, buttons and the active nav row, and is
               read as text on white, so it stays darker than the shell on purpose.
@@ -398,7 +398,7 @@ export default function ThemeAndColoursPage() {
                 { key: "accent" as const, label: "Accent", value: specAccent },
               ]).map(({ key, label, value }) => (
                 <label key={key} style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-                  <span style={{ fontSize: 11, color: c.hint }}>{label}</span>
+                  <span className="bpm-t-help">{label}</span>
                   <span style={{ display: "flex", alignItems: "center", gap: 8, padding: "5px 9px", borderRadius: 8, border: `1px solid ${c.line}` }}>
                     <input
                       type="color"
@@ -426,8 +426,8 @@ export default function ThemeAndColoursPage() {
             classic/modern build their chrome differently. */}
         {theme === "nextgen" && (
           <div style={{ marginBottom: 4, paddingTop: 16, borderTop: `1px solid ${c.line}` }}>
-            <div style={{ fontSize: 12, fontWeight: 600, color: c.muted, marginBottom: 4, textTransform: "uppercase", letterSpacing: 0.5 }}>Layout</div>
-            <div style={{ fontSize: 11, color: c.hint, marginBottom: 4 }}>
+            <div className="bpm-t-label" style={{ marginBottom: 4 }}>Layout</div>
+            <div className="bpm-t-help" style={{ marginBottom: 4 }}>
               These come with Next-gen and are on already — turn one off if you don&apos;t want it.
               Changing one reloads the page.
             </div>
@@ -439,7 +439,7 @@ export default function ThemeAndColoursPage() {
               <div key={key} style={{ display: "flex", alignItems: "center", gap: 14, padding: "12px 0", borderTop: i > 0 ? `1px solid ${c.line}` : "none" }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 13, fontWeight: 500, color: c.ink }}>{label}</div>
-                  <div style={{ fontSize: 12, color: c.muted, marginTop: 2, lineHeight: 1.5 }}>{hint}</div>
+                  <div className="bpm-t-help" style={{ marginTop: 2 }}>{hint}</div>
                 </div>
                 <Toggle on={chrome[key]} onChange={(v) => !apSaving && saveChrome(key, v)} accent={accent} />
               </div>
@@ -450,7 +450,7 @@ export default function ThemeAndColoursPage() {
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingTop: 14, borderTop: `1px solid ${c.line}` }}>
           <div>
             <div style={{ fontSize: 13, fontWeight: 500, color: c.ink }}>Compact sidebar</div>
-            <div style={{ fontSize: 12, color: c.muted, marginTop: 2 }}>Reduce padding between navigation items</div>
+            <div className="bpm-t-help" style={{ marginTop: 2 }}>Reduce padding between navigation items</div>
           </div>
           <Toggle on={compactSidebar} onChange={(v) => !apSaving && saveCompactSidebar(v)} accent={accent} />
         </div>

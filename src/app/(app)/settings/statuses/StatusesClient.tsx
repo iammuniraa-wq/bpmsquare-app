@@ -6,6 +6,7 @@ import { cardStyle } from "@/components/Shell";
 import { SettingsSave } from "@/components/settings/SettingsHeaderActions";
 import { useSettingsDirty } from "@/components/settings/useSettingsDirty";
 import { DEFAULT_QUOTE_STATUSES, type QuoteStatusDef } from "@/lib/constants";
+import { typeLabel } from "@/lib/typeScale";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -31,10 +32,7 @@ const inp: React.CSSProperties = {
   border: `1px solid ${c.line}`, fontSize: 13,
   background: c.panel, color: c.ink, outline: "none", fontFamily: "inherit",
 };
-const lbl: React.CSSProperties = {
-  fontSize: 11, fontWeight: 700, color: c.hint,
-  textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4, display: "block",
-};
+const lbl: React.CSSProperties = { ...typeLabel, marginBottom: 4, display: "block" };
 
 const PILL_COLORS = [
   "#3b82f6", "#8b5cf6", "#10b981", "#ef4444",

@@ -110,7 +110,7 @@ function CategoryTreeEditor({
 
   return (
     <div style={{ ...cardStyle, padding: "20px 24px", marginBottom: 20 }}>
-      <div style={{ fontSize: 15, fontWeight: 700, color: c.ink, marginBottom: 6 }}>Product categories</div>
+      <div className="bpm-t-section" style={{ marginBottom: 6 }}>Product categories</div>
       <div style={{ fontSize: 13, color: c.muted, marginBottom: 16, lineHeight: 1.6 }}>
         Two levels: category and sub-category. Products store the code; screens show the name.
         While the tree is empty, the product form falls back to free-text entry.
@@ -181,7 +181,7 @@ export default function SalesConfigClient({
 
   return (
     <div style={{ maxWidth: 640 }}>
-      <div style={{ fontSize: 12, color: c.hint, marginBottom: 16, lineHeight: 1.6 }}>
+      <div className="bpm-t-help" style={{ marginBottom: 16 }}>
         Each value has a stable <strong>code</strong> (stored on records, used by integrations)
         and a display <strong>name</strong> (rename any time — records are unaffected).
         Match codes to your ERP&apos;s keys where an ERP is connected.

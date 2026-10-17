@@ -137,9 +137,9 @@ function ItemRow({ item, onUpdate, onDelete }: { item: PricingItem; onUpdate: (i
     <div className="row-grid" style={{ display: "grid", gridTemplateColumns: "1fr 110px 100px 150px", gap: 12, padding: "10px 0", borderBottom: `1px solid ${c.line}`, alignItems: "start" }}>
       <div>
         <div style={{ fontSize: 13, color: c.ink }}>{item.description}</div>
-        {item.notes && <div style={{ fontSize: 11.5, color: c.hint, marginTop: 2 }}>{item.notes}</div>}
+        {item.notes && <div className="bpm-t-help" style={{ marginTop: 2 }}>{item.notes}</div>}
       </div>
-      <div style={{ fontSize: 12.5, color: c.muted }}>{item.unit}</div>
+      <div className="bpm-t-help">{item.unit}</div>
       <div style={{ fontSize: 13.5, fontWeight: 700, color: c.ink }}>{formatMoney(item.rate, cur, {})}</div>
       <MoreMenu
         label={`Actions for ${item.description}`}
@@ -175,11 +175,11 @@ export default function PricingClient({ initialItems }: { initialItems: PricingI
             <section key={cat} style={{ background: "var(--panel)", border: `1px solid ${c.line}`, borderRadius: 12, padding: 16 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
                 <Pill label={PRICING_CATEGORY_LABEL[cat]} tone={CAT_TONE[cat]} />
-                <span style={{ fontSize: 12, color: c.hint }}>{catItems.length} items</span>
+                <span className="bpm-t-help">{catItems.length} items</span>
               </div>
               <div className="row-grid-head" style={{ display: "grid", gridTemplateColumns: "1fr 110px 100px 150px", gap: 12, padding: "0 0 6px", borderBottom: `1px solid ${c.line}` }}>
                 {["Description", "Unit", moneyLabel("Rate", cur), ""].map((h, i) => (
-                  <div key={i} style={{ fontSize: 10.5, fontWeight: 700, color: c.hint, textTransform: "uppercase", letterSpacing: "0.06em" }}>{h}</div>
+                  <div key={i} className="bpm-t-label">{h}</div>
                 ))}
               </div>
               {catItems.length === 0 && (

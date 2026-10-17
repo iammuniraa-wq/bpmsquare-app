@@ -51,7 +51,7 @@ export function Section({
     <div style={{ marginBottom: 12 }}>
       <Card title={title || undefined} padding={16}>
         {description && (
-          <p style={{ margin: "0 0 14px", fontSize: 12, color: c.muted, lineHeight: 1.5 }}>{description}</p>
+          <p className="bpm-t-help" style={{ margin: "0 0 14px" }}>{description}</p>
         )}
         {children}
       </Card>
