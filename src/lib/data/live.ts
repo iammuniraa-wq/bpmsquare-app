@@ -21,6 +21,8 @@ import type {
 } from "@/lib/types";
 import { sortBySlNo } from "@/lib/lineOrder";
 import { matchesAllFilters, type SegmentFilter } from "@/lib/marketingSegmentation";
+import { EMPTY_ACCOUNT_SIGNALS, filtersNeedSignals } from "@/lib/accountSignals";
+import { loadAccountSignals } from "@/lib/coverage/signals";
 import type { SearchObjectType, SearchResult } from "@/lib/globalSearch";
 import { formatMoney, resolveCurrency, type CurrencyDef } from "@/lib/currency";
 
@@ -2078,12 +2080,18 @@ export async function resolveMarketingRecipientsLive(
   const typeSet = new Set(rule.account_types as AccountType[]);
   const filters = rule.filters ?? [];
   const match = rule.match ?? "all";
+  // Coverage-driven fields (active AMC, bought product) aren't account
+  // columns; compute them once, only when a filter actually uses one.
+  const signals = filtersNeedSignals(filters) ? await loadAccountSignals(tenantId) : null;
 
   const accountCandidates: MarketingRecipientCandidate[] = accounts
     .filter((a) => {
       if (excludeSet.has(a.id)) return false;
       if (includeSet.has(a.id)) return true;
-      if (filters.length > 0) return matchesAllFilters(a as unknown as Record<string, unknown>, filters, match);
+      if (filters.length > 0) {
+        const record: Record<string, unknown> = { ...a, ...(signals ? signals.get(a.id) ?? EMPTY_ACCOUNT_SIGNALS : {}) };
+        return matchesAllFilters(record, filters, match);
+      }
       return typeSet.has(a.type);
     })
     .map((a) => ({

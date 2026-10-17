@@ -2,6 +2,8 @@ import "server-only";
 import { createAdminSupabase } from "@/lib/supabase-server";
 import type { Account, Coverage, Segment, Team } from "@/lib/types";
 import { matchesAllFilters } from "@/lib/marketingSegmentation";
+import { EMPTY_ACCOUNT_SIGNALS, type AccountSignals } from "@/lib/accountSignals";
+import { loadAccountSignals } from "@/lib/coverage/signals";
 
 /**
  * Coverage's matching/resolution engine -- computes which Segments an
@@ -16,40 +18,11 @@ import { matchesAllFilters } from "@/lib/marketingSegmentation";
  * convention as src/lib/account360/server.ts.
  */
 
-export type AccountSignals = {
-  has_active_amc: boolean;
-  /** Space-joined "sku name" pairs, matched via the "contains" operator --
-   * a plain string field, not a real column, so it reuses matchesAllFilters
-   * unchanged rather than needing a new operator/type. */
-  owned_product_skus: string;
-};
+export type { AccountSignals } from "@/lib/accountSignals";
 
 export async function computeAccountSignals(tenantId: string, accountId: string): Promise<AccountSignals> {
-  const admin = createAdminSupabase();
-  const [{ data: contractRows }, { data: quoteRows }] = await Promise.all([
-    admin.from("contracts").select("status").eq("tenant_id", tenantId).eq("account_id", accountId),
-    admin.from("quotes").select("id").eq("tenant_id", tenantId).eq("account_id", accountId),
-  ]);
-  const has_active_amc = (contractRows ?? []).some((c: { status: string }) => c.status === "active");
-
-  const quoteIds = (quoteRows ?? []).map((q: { id: string }) => q.id);
-  let owned_product_skus = "";
-  if (quoteIds.length > 0) {
-    const { data: lineRows } = await admin
-      .from("quote_lines")
-      .select("product_id")
-      .eq("tenant_id", tenantId)
-      .in("quote_id", quoteIds)
-      .not("product_id", "is", null);
-    const productIds = [...new Set((lineRows ?? []).map((l: { product_id: string | null }) => l.product_id).filter((x: unknown): x is string => typeof x === "string"))];
-    if (productIds.length > 0) {
-      const { data: productRows } = await admin
-        .from("products").select("sku, name")
-        .eq("tenant_id", tenantId).in("id", productIds);
-      owned_product_skus = (productRows ?? []).map((p: { sku: string | null; name: string }) => `${p.sku ?? ""} ${p.name}`).join(", ");
-    }
-  }
-  return { has_active_amc, owned_product_skus };
+  const signals = await loadAccountSignals(tenantId, { accountId });
+  return signals.get(accountId) ?? EMPTY_ACCOUNT_SIGNALS;
 }
 
 /** Every Segment whose rule matches this account -- an explicit
