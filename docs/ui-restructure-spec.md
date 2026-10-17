@@ -309,3 +309,26 @@ screens read correctly in each look (light and dark where the look has both),
 and that Spectacular's Spaces rail is fed by the phase 6 navigation groups.
 The two-look reduction in section 6 is parked; revisit after the owner has
 reviewed the new screens on develop.
+
+
+## 13. Follow-up requirements (owner, 2026-10-17) -- phase 8, after phase 5-7
+
+1. **Tabs instead of one long scroll.** Any screen that stacks several
+   sub-sections (WFM Roster is the example; Summary, Leave & Holidays,
+   Live board, Technicians detail, Data Workbench, WFM projects and every
+   other workcenter page found by audit) shows them as tabs, using the kit
+   `Tabs` with the active tab in `?tab=`. Audit every `(app)` page outside
+   Quotations: a page with three or more titled blocks that a user reads
+   one at a time becomes tabs; short pages that are read as one piece stay.
+   Report the audit table (page, blocks found, decision).
+2. **Settings typography.** Page title, section heading, field label,
+   helper/subtext and body copy each get a distinct size/weight/colour from
+   one scale, shared by all settings pages (and the kit Card/Field), so a
+   section heading is never confusable with its description. Use the
+   existing type tokens (Inter, 400/600/700); define the scale once.
+3. **Tabs must look like tabs in every theme.** The active tab is clearly
+   different from inactive ones (weight, colour, underline or pill) in
+   Classic, Modern, Nova, Enterprise and Spectacular, light and dark;
+   Spectacular already reads well and is the reference. Fix the kit `Tabs`
+   (and the hand-rolled tab strips in Workforce settings, WFM, Leave,
+   Corrections, My Workforce) to use that one component and style.
