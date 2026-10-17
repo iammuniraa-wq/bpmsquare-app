@@ -97,6 +97,11 @@ export default function DataWorkbenchClient({ specs }: { specs: ObjectSpec[] }) 
     // suppliers, and a flat file can't carry that -- there is deliberately
     // no /api/import/rfqs.
     if (mode === "import") return s.id !== "rfqs";
+    // Estimates are HEADER FIELDS ONLY on every mode: the lines, quantities,
+    // unit costs and totals come out of the estimator (a template, inputs and
+    // priced products), so a flat file can neither create nor correct them.
+    // Import makes a draft from a template name; Export/Update carry the
+    // header (name, status, margin, notes, custom fields) keyed on the real id.
     return true;
   });
   const spec = visibleSpecs.find((s) => s.id === activeId) ?? visibleSpecs[0];

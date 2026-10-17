@@ -42,6 +42,7 @@ export const REGISTRY_OBJECT_TYPE: Record<ImportObjectId, string | null> = {
   wfm_projects: "project",
   opportunities: "opportunity",
   rfqs: "rfq",
+  estimates: "estimate",
 };
 
 export type ReferenceFieldDef = {
@@ -49,7 +50,7 @@ export type ReferenceFieldDef = {
   label: string;
   hint: string;
   /** Which workbench object this name is looked up against. */
-  target: ImportObjectId;
+  target: ImportObjectId | "estimate_templates";
   required?: boolean;
   /** Lookup column on the target — defaults to "name". */
   targetColumn?: "name" | "ref";
@@ -71,6 +72,13 @@ export const REFERENCE_FIELDS: Partial<Record<ImportObjectId, ReferenceFieldDef[
   ],
   opportunities: [
     { key: "account_name", label: "Account", hint: "Must match an account already in the system", target: "accounts", required: true },
+  ],
+  // Estimates are born with a template (it decides the inputs and rules), so
+  // import resolves one by name; account/contact are optional.
+  estimates: [
+    { key: "template_name", label: "Template", hint: "Name of an active estimate template in this workspace, e.g. Precast villa (illustrative)", target: "estimate_templates", required: true },
+    { key: "account_name", label: "Account", hint: "Optional customer account this estimate is for", target: "accounts" },
+    { key: "contact_name", label: "Contact", hint: "Optional contact at that account", target: "contacts" },
   ],
   wfm_projects: [
     { key: "parent_ref", label: "Sits under", hint: "Project ID of the parent (e.g. PRJ-0003) to create a sub-project — blank for a top-level project", target: "wfm_projects" },
@@ -121,6 +129,7 @@ const REQUIRED_KEYS: Partial<Record<ImportObjectId, string[]>> = {
   wfm_projects: ["name"],
   opportunities: ["title"],
   rfqs: ["title"],
+  estimates: ["name"],
 };
 
 /** Quote line items — fixed shape, one row per line, never tenant-customizable. */
@@ -177,6 +186,7 @@ const OBJECT_META: Record<ImportObjectId, { label: string; icon: string; descrip
   products: { label: "Products", icon: "▩", description: "Sellable catalog — goods and service plans with list/cost prices", dependsOn: [] },
   opportunities: { label: "Deals (pipeline)", icon: "◈", description: "Sales opportunities — a pursuit with a customer, its stage and expected close. Amount and probability are computed, not imported.", dependsOn: ["accounts"] },
   rfqs: { label: "RFQs", icon: "⇄", description: "Requests for quotation to suppliers — export with real IDs, then update header fields in bulk. Not importable: an RFQ is raised from a record or the RFQ screen, with its lines and suppliers.", dependsOn: [] },
+  estimates: { label: "Estimates", icon: "∑", description: "Project estimates (header fields only) — import creates a draft from a template by name; open it and press Calculate to produce its BOM and costs. Lines, quantities and costs come from the estimator, not from a file.", dependsOn: ["accounts", "contacts"] },
   wfm_projects: { label: "Projects (workforce)", icon: "▦", description: "Project costing — projects and sub-projects that worked hours are attributed to. Import parents before children.", dependsOn: [] },
   users: { label: "Users", icon: "◍", description: "Invite team members and assign roles — each person receives an email invite", dependsOn: [] },
   // Never read -- employees is null in REGISTRY_OBJECT_TYPE (static spec,
