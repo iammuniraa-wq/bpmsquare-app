@@ -7,14 +7,23 @@ import { CURRENCIES, resolveCurrency, type CurrencyCode } from "@/lib/currency";
 import { useRouter } from "next/navigation";
 import type { Tenant, TenantFeatures } from "@/lib/tenant";
 import { c } from "@/lib/theme";
+import { SETTINGS_GROUPS } from "@/lib/settingsMenu";
+import { dependantsOn, featureUnlocks, groupLabelForFeature, unmetDependencies } from "@/lib/moduleDependencies";
+import type { AccessInput } from "@/lib/accessView";
+import WhoSeesWhat from "./WhoSeesWhat";
 
 type Props = {
   tenant: Tenant;
   users: { id: string; role: string; created_at: string; user_id: string; email: string | null; confirmed: boolean }[];
+  /** What each member's login resolves to (read-only, for "Who sees what"). */
+  access: Record<string, AccessInput>;
 };
 
-// Grouped so the editor renders collapsible sections instead of one long
-// wall of ~30 toggles (owner request 2026-08-19).
+// Shown in collapsible sections instead of one long wall of ~30 toggles (owner
+// request 2026-08-19). The `group` on each row is the older Core / add-ons /
+// Platform / Programs split; the editor now groups by the Settings menu groups
+// (lib/moduleDependencies.ts FEATURE_GROUP) so a module reads under the same
+// heading as the pages that configure it.
 const FEATURE_LABELS: { key: keyof TenantFeatures; label: string; premium?: boolean; group: string }[] = [
   // Core modules (0067). Every existing tenant was backfilled to true, so
   // switching one OFF here is what removes it from that client's navigation
@@ -60,7 +69,7 @@ const FEATURE_LABELS: { key: keyof TenantFeatures; label: string; premium?: bool
   { key: "spectacular_theme", label: "Spectacular theme (navy or lilac palette)", premium: true, group: "Programs" },
 ];
 
-const FEATURE_GROUPS = [...new Set(FEATURE_LABELS.map((f) => f.group))];
+const FEATURE_GROUPS = [...SETTINGS_GROUPS.map((g) => g.label), "Other"].filter((label) => FEATURE_LABELS.some((f) => groupLabelForFeature(f.key) === label));
 
 /** Every ui_theme the product renders, and the feature flag each experimental
  *  one is ALSO gated on. Setting the theme alone does nothing for those four:
@@ -84,7 +93,7 @@ const inputStyle: React.CSSProperties = {
   color: "#111827",
 };
 
-export default function TenantEditor({ tenant, users }: Props) {
+export default function TenantEditor({ tenant, users, access }: Props) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
 
@@ -299,7 +308,7 @@ export default function TenantEditor({ tenant, users }: Props) {
         <h2 style={{ margin: "0 0 16px", fontSize: 14, fontWeight: 600, color: "#374151" }}>Feature flags</h2>
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           {FEATURE_GROUPS.map((group) => {
-            const items = FEATURE_LABELS.filter((f) => f.group === group);
+            const items = FEATURE_LABELS.filter((f) => groupLabelForFeature(f.key) === group);
             const onCount = items.filter((f) => features[f.key]).length;
             return (
               <details key={group} style={{ border: "1px solid #e5e7eb", borderRadius: 10, background: "#fafafa" }}>
@@ -326,13 +335,40 @@ export default function TenantEditor({ tenant, users }: Props) {
                       border: `1px solid ${features[key] ? "#bfdbfe" : "#e5e7eb"}`,
                       cursor: "pointer",
                     }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                        <span style={{ fontSize: 13, fontWeight: 500, color: "#374151" }}>{label}</span>
-                        {premium && (
-                          <span style={{ fontSize: 10, background: "#faf5ff", color: "#7e22ce", border: "1px solid #e9d5ff", borderRadius: 10, padding: "1px 7px" }}>
-                            Premium
-                          </span>
-                        )}
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <span style={{ fontSize: 13, fontWeight: 500, color: "#374151" }}>{label}</span>
+                          {premium && (
+                            <span style={{ fontSize: 10, background: "#faf5ff", color: "#7e22ce", border: "1px solid #e9d5ff", borderRadius: 10, padding: "1px 7px" }}>
+                              Premium
+                            </span>
+                          )}
+                        </div>
+                        {(() => {
+                          const unlocks = featureUnlocks(key);
+                          const shown = [...unlocks.nav, ...unlocks.settings.map((x) => `${x} (settings)`)];
+                          const unmet = unmetDependencies(features, key);
+                          const strands = features[key] ? dependantsOn(features, key) : [];
+                          return (
+                            <>
+                              {shown.length > 0 && (
+                                <div style={{ fontSize: 11, color: "#9ca3af", marginTop: 2 }}>
+                                  Unlocks: {shown.slice(0, 4).join(", ")}{shown.length > 4 ? ` +${shown.length - 4} more` : ""}
+                                </div>
+                              )}
+                              {unmet.map((d) => (
+                                <div key={d.needs} title={d.why} style={{ fontSize: 11, color: features[key] ? "#b45309" : "#9ca3af", marginTop: 2 }}>
+                                  {d.strength === "hard" ? "Needs" : "Partly needs"} {FEATURE_LABELS.find((f) => f.key === d.needs)?.label ?? d.needs} — currently off
+                                </div>
+                              ))}
+                              {strands.map((d) => (
+                                <div key={d.key} style={{ fontSize: 11, color: "#9ca3af", marginTop: 2 }}>
+                                  {FEATURE_LABELS.find((f) => f.key === d.key)?.label ?? d.key} {d.strength === "hard" ? "needs this" : "partly needs this"}
+                                </div>
+                              ))}
+                            </>
+                          );
+                        })()}
                       </div>
                       <input
                         type="checkbox"
@@ -348,6 +384,14 @@ export default function TenantEditor({ tenant, users }: Props) {
           })}
         </div>
       </section>
+
+      {/* Who sees what: read-only explanation of the four hiding layers */}
+      <WhoSeesWhat
+        users={users}
+        access={access}
+        features={features}
+        hiddenHrefs={tenant.config?.nav_hidden_hrefs ?? []}
+      />
 
       {/* Appearance / theme direction */}
       <section style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 12, padding: 20, marginBottom: 16 }}>

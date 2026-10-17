@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { createAdminSupabase } from "@/lib/supabase-server";
 import TenantEditor from "./TenantEditor";
+import { loadAccessInputs } from "@/lib/admin/accessInputs";
 import type { Tenant } from "@/lib/tenant";
 
 export default async function TenantDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -32,5 +33,7 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
     })
   );
 
-  return <TenantEditor tenant={tenant as Tenant} users={users} />;
+  const access = await loadAccessInputs(id);
+
+  return <TenantEditor tenant={tenant as Tenant} users={users} access={access} />;
 }
