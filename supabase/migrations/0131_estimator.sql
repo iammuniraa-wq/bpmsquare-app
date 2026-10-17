@@ -18,8 +18,8 @@
 -- what Update/Delete key on once a line exists; estimate_id only resolves the
 -- relationship at create time.
 --
--- External ids for Dynamics 365 go through connector_links (0129): no D365
--- columns here.
+-- External ERP ids (whichever ERP the tenant uses) go through connector_links
+-- (0129): no ERP-specific columns here.
 --
 -- Pending-migration behaviour: every route degrades on 42P01 (empty list /
 -- "waiting for the database update"), and nothing else in the product depends
