@@ -62,7 +62,21 @@ function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean
   );
 }
 
-export default function WorkforceConfigClient({ initial, projectsOn = false }: { initial: WfmConfig; projectsOn?: boolean }) {
+export type WorkforcePage = "attendance" | "verification" | "reminders" | "employment";
+
+// What each page owns. A page loads the whole config but saves only these
+// keys: the PUT route merges whatever it is given over the stored config, so a
+// page can never overwrite a setting that lives on another page with a stale
+// copy. Nested groups (notifications, costing, ...) are always sent whole,
+// because the route replaces them as a unit.
+const PAGE_KEYS: Record<WorkforcePage, (keyof WfmConfig)[]> = {
+  attendance: ["timezone", "employee_self_service", "home_landing", "login_mode", "deduct_breaks", "late_marks_per_half_day", "leave_carry_forward", "week_off_days", "saturday_rule"],
+  verification: ["punch_types", "ot_rate_per_hour", "selfie_retention_days", "face_punch", "face_login", "passkey_login", "face_verification_mode", "geofence_mode", "require_location", "selfie_mode"],
+  reminders: ["long_day_alert", "break_alert", "holiday_week_alert", "notifications"],
+  employment: ["employment_types", "costing"],
+};
+
+export default function WorkforceConfigClient({ initial, projectsOn = false, page }: { initial: WfmConfig; projectsOn?: boolean; page: WorkforcePage }) {
   const [cfg, setCfg] = useState<WfmConfig>(initial);
   // What is actually stored right now, so the save bar can tell whether there
   // is anything to save rather than always inviting a pointless write.
@@ -74,10 +88,14 @@ export default function WorkforceConfigClient({ initial, projectsOn = false }: {
   // than server-prefetched, since most tenants never touch this section.
   const [shifts, setShifts] = useState<{ id: string; name: string; start_time: string; end_time: string; active: boolean }[]>([]);
   useEffect(() => {
+    if (page !== "attendance") return;
     fetch("/api/wfm/shifts").then(async (r) => { if (r.ok) setShifts(await r.json()); }).catch(() => {});
-  }, []);
+  }, [page]);
 
-  const dirty = useMemo(() => JSON.stringify(cfg) !== JSON.stringify(savedCfg), [cfg, savedCfg]);
+  // Project billing rates are only editable (and only sent) while the module is on.
+  const ownKeys = useMemo(() => PAGE_KEYS[page].filter((k) => k !== "costing" || projectsOn), [page, projectsOn]);
+  const pick = (c: WfmConfig) => Object.fromEntries(ownKeys.map((k) => [k, c[k]]));
+  const dirty = useMemo(() => JSON.stringify(pick(cfg)) !== JSON.stringify(pick(savedCfg)), [cfg, savedCfg, ownKeys]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function updateEmploymentType(i: number, patch: Partial<{ code: string; label: string }>) {
     setCfg((prev) => ({
@@ -122,7 +140,7 @@ export default function WorkforceConfigClient({ initial, projectsOn = false }: {
       const res = await fetch("/api/settings/workforce", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(cfg),
+        body: JSON.stringify(pick(cfg)),
       });
       const json = await res.json();
       if (!res.ok) { setError(json.error ?? "Failed to save"); return; }
@@ -183,6 +201,7 @@ export default function WorkforceConfigClient({ initial, projectsOn = false }: {
 
   return (
     <div className="set-page" style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 18 }}>
+      {page === "attendance" && (
       <SettingsSection id="wfm-attendance" title="Attendance rules" summary={summaries.attendance} defaultOpen>
         <div className="set-grid">
           <SettingsField label="Timezone" help="All lateness, shift-day and absence calculations run in this timezone.">
@@ -273,8 +292,10 @@ export default function WorkforceConfigClient({ initial, projectsOn = false }: {
           </SettingsField>
         </div>
       </SettingsSection>
+      )}
 
-      <SettingsSection id="wfm-verification" title="Verification & location" summary={summaries.verification}>
+      {page === "verification" && (
+      <SettingsSection id="wfm-verification" title="Verification & location" summary={summaries.verification} defaultOpen>
         <div className="set-grid">
           <SettingsField
             label="Selfie retention (days)"
@@ -342,7 +363,7 @@ export default function WorkforceConfigClient({ initial, projectsOn = false }: {
             </select>
           </SettingsField>
 
-          <SettingsField label="Geofence enforcement" help="Sites and their radius are managed in the Sites tab.">
+          <SettingsField label="Geofence enforcement" help="Sites and their radius are managed on the Sites page.">
             <select
               style={inp}
               value={cfg.geofence_mode}
@@ -389,8 +410,10 @@ export default function WorkforceConfigClient({ initial, projectsOn = false }: {
           </SettingsField>
         </div>
       </SettingsSection>
+      )}
 
-      <SettingsSection id="wfm-weekoff" title="Weekly off days" summary={summaries.weekOff}>
+      {page === "attendance" && (
+      <SettingsSection id="wfm-weekoff" title="Weekly off days" summary={summaries.weekOff} defaultOpen>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           {WEEKDAYS.map((d, i) => {
             const active = cfg.week_off_days.includes(i);
@@ -415,8 +438,10 @@ export default function WorkforceConfigClient({ initial, projectsOn = false }: {
         </div>
         <div style={help}>No lateness or absence is marked on these days, or on configured holidays.</div>
       </SettingsSection>
+      )}
 
-      <SettingsSection id="wfm-employment" title="Employment types" summary={summaries.employment}>
+      {page === "employment" && (
+      <SettingsSection id="wfm-employment" title="Employment types" summary={summaries.employment} defaultOpen>
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {cfg.employment_types.map((t, i) => (
             <div key={i} style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
@@ -463,8 +488,10 @@ export default function WorkforceConfigClient({ initial, projectsOn = false }: {
           </div>
         </div>
       </SettingsSection>
+      )}
 
-      <SettingsSection id="wfm-punchtypes" title="Punch types" summary={summaries.punchTypes}>
+      {page === "verification" && (
+      <SettingsSection id="wfm-punchtypes" title="Punch types" summary={summaries.punchTypes} defaultOpen>
         <div style={{ fontSize: 12, color: c.hint, marginBottom: 4 }}>
           Which options appear in the punch-type dropdown. Check in, check out and breaks are
           always available.
@@ -496,8 +523,10 @@ export default function WorkforceConfigClient({ initial, projectsOn = false }: {
           </div>
         )}
       </SettingsSection>
+      )}
 
-      <SettingsSection id="wfm-reminder" title="Phone reminders" summary={summaries.reminder}>
+      {page === "reminders" && (
+      <SettingsSection id="wfm-reminder" title="Phone reminders" summary={summaries.reminder} defaultOpen>
         <SettingsRow
           label="Remind employees to punch out"
           help="Sent to the employee's own phone, not to a supervisor. They must open My Workforce on their phone once and allow notifications."
@@ -612,8 +641,10 @@ export default function WorkforceConfigClient({ initial, projectsOn = false }: {
           />
         </SettingsRow>
       </SettingsSection>
+      )}
 
-      <SettingsSection id="wfm-saturday-rule" title="Alternate Saturdays" summary={summaries.saturdayRule}>
+      {page === "attendance" && (
+      <SettingsSection id="wfm-saturday-rule" title="Alternate Saturdays" summary={summaries.saturdayRule} defaultOpen>
         <SettingsRow
           label="Every Saturday is a short day; the 2nd is a holiday"
           help="Applied automatically: a short-day roster row for every Saturday except the 2nd, and a holiday for the 2nd, materialized a month ahead (and editable afterward, exactly like any other roster/holiday entry). Coming in and working the 2nd Saturday requires the OT punch, same as any other day nobody was expected in."
@@ -640,9 +671,10 @@ export default function WorkforceConfigClient({ initial, projectsOn = false }: {
           </SettingsRow>
         )}
       </SettingsSection>
+      )}
 
-      {projectsOn && (
-        <SettingsSection id="wfm-billing" title="Project billing" summary={summaries.billing}>
+      {page === "employment" && projectsOn && (
+        <SettingsSection id="wfm-billing" title="Project billing" summary={summaries.billing} defaultOpen>
           <div style={{ fontSize: 12, color: c.hint, marginBottom: 10, lineHeight: 1.5 }}>
             What an hour on a project is charged, and what it costs you. The most specific rate wins:
             a rate set on the project itself, else the person&apos;s employment type, else the default here.
@@ -709,7 +741,8 @@ export default function WorkforceConfigClient({ initial, projectsOn = false }: {
         </SettingsSection>
       )}
 
-      <SettingsSection id="wfm-notifications" title="Email notifications" summary={summaries.notifications}>
+      {page === "reminders" && (
+      <SettingsSection id="wfm-notifications" title="Email notifications" summary={summaries.notifications} defaultOpen>
         <div style={{ fontSize: 12, color: c.hint, marginBottom: 4 }}>
           Requires email sending to be configured for this workspace — see Settings → Email output.
         </div>
@@ -722,6 +755,7 @@ export default function WorkforceConfigClient({ initial, projectsOn = false }: {
           </SettingsRow>
         ))}
       </SettingsSection>
+      )}
 
       <SettingsSave dirty={dirty} saving={saving} saved={saved} error={error} onSave={save} />
     </div>

@@ -8,7 +8,7 @@ const ids = (g: ReturnType<typeof visibleSettingsMenu>) => g.flatMap((x) => x.it
 describe("visibleSettingsMenu", () => {
   it("shows an admin of a Workforce-only tenant nothing from other modules", () => {
     const menu = visibleSettingsMenu({ isAdmin: true, canEdit: () => true, features: { wfm: true } });
-    expect(ids(menu)).toContain("workforce");
+    expect(ids(menu)).toContain("wf-attendance");
     expect(ids(menu)).not.toContain("entities");
     expect(ids(menu)).not.toContain("email-templates");
     expect(ids(menu)).not.toContain("coverage");
@@ -37,6 +37,14 @@ describe("visibleSettingsMenu", () => {
     expect(groupOf("coverage")).toBeUndefined();
   });
 
+  it("lists the eight Workforce pages together, gated on the module and admin", () => {
+    const wf = (admin: boolean, features: Record<string, boolean>) =>
+      visibleSettingsMenu({ isAdmin: admin, canEdit: () => false, features }).find((g) => g.id === "workforce")?.items.length ?? 0;
+    expect(wf(true, { wfm: true })).toBe(8);
+    expect(wf(true, {})).toBe(0);
+    expect(wf(false, { wfm: true })).toBe(0);
+  });
+
   it("keeps every entry id and href unique", () => {
     expect(new Set(SETTINGS_MENU.map((m) => m.id)).size).toBe(SETTINGS_MENU.length);
     expect(new Set(SETTINGS_MENU.map((m) => m.href)).size).toBe(SETTINGS_MENU.length);
@@ -51,7 +59,7 @@ describe("filterSettingsMenu", () => {
   it("matches by name, description, keyword and group", () => {
     expect(filterSettingsMenu(groups, "invite").flatMap((g) => g.items.map((i) => i.id))).toEqual(["team"]);
     expect(filterSettingsMenu(groups, "supplier").flatMap((g) => g.items.map((i) => i.id))).toContain("rfq");
-    expect(filterSettingsMenu(groups, "workforce").flatMap((g) => g.items.map((i) => i.id))).toContain("workforce");
+    expect(filterSettingsMenu(groups, "workforce").flatMap((g) => g.items.map((i) => i.id))).toContain("wf-shifts");
   });
 
   it("still finds pages by the names they had before the split", () => {
@@ -73,8 +81,8 @@ describe("activeSettingsItemId", () => {
 
   it("matches a page and its sub-pages, and nothing at the landing", () => {
     expect(activeSettingsItemId(groups, "/settings/team")).toBe("team");
-    expect(activeSettingsItemId(groups, "/settings/workforce")).toBe("workforce");
-    expect(activeSettingsItemId(groups, "/settings/workforce/sites")).toBe("workforce");
+    expect(activeSettingsItemId(groups, "/settings/workforce/attendance")).toBe("wf-attendance");
+    expect(activeSettingsItemId(groups, "/settings/workforce/sites")).toBe("wf-sites");
     expect(activeSettingsItemId(groups, "/settings")).toBeNull();
   });
 
