@@ -1,4 +1,4 @@
-import { NAV, type NavItem } from "@/lib/constants";
+import { NAV, ROUTES, type NavItem } from "@/lib/constants";
 import type { ViewableWorkcenters, WorkcenterKey } from "@/lib/workcenters";
 
 /**
@@ -44,9 +44,12 @@ export type VisibleNavGroup = { key: string; label: string; items: NavGroupLeaf[
 
 /** Every NAV group with only the leaves this user may open (a bundled parent
  * contributes its children; a group with none left is dropped; a href that
- * appears twice is listed once). nav_hidden_hrefs is deliberately NOT
- * applied here -- see the TODO in nova/spaces.ts. */
-export function buildNavGroups(features: Record<string, boolean> | undefined, viewable: ViewableWorkcenters, isWfmSupervisor: boolean): VisibleNavGroup[] {
+ * appears twice is listed once). `hidden` is the workspace's
+ * nav_hidden_hrefs (Settings -> Navigation visibility): a leaf listed there
+ * is left out, exactly as in the classic rail. Settings itself can never be
+ * hidden, so nobody is locked out of the page that undoes it. */
+export function buildNavGroups(features: Record<string, boolean> | undefined, viewable: ViewableWorkcenters, isWfmSupervisor: boolean, hidden: readonly string[] = []): VisibleNavGroup[] {
+  const hiddenSet = new Set(hidden);
   const out: VisibleNavGroup[] = [];
   const seen = new Set<string>();
   for (const group of NAV) {
@@ -55,6 +58,7 @@ export function buildNavGroups(features: Record<string, boolean> | undefined, vi
       const leaves = item.children?.length ? item.children : [item];
       for (const leaf of leaves) {
         if (!leafAllowed(leaf, features, viewable, isWfmSupervisor)) continue;
+        if (leaf.href !== ROUTES.settings && hiddenSet.has(leaf.href)) continue;
         if (seen.has(leaf.href)) continue;
         seen.add(leaf.href);
         items.push({ href: leaf.href, label: leaf.label });

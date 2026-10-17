@@ -206,7 +206,7 @@ export default function NovaSidebar({ onNavigate }: { onNavigate?: () => void })
   }, []);
 
   const features = (tenant?.features ?? {}) as Record<string, boolean>;
-  const groups: SpaceGroup[] = buildSpaceGroups(features, viewable, isWfmSupervisor);
+  const groups: SpaceGroup[] = buildSpaceGroups(features, viewable, isWfmSupervisor, tenant?.config?.nav_hidden_hrefs ?? []);
   const allSpaceItems = groups.flatMap((g) => g.items);
   const attentionHrefs = new Set(items.map((it) => spaceForHref(it.href, allSpaceItems)).filter((h): h is string => h !== null));
 

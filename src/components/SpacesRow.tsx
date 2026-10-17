@@ -90,7 +90,8 @@ export default function SpacesRow({
   const groups = buildSpaceGroups(
     (tenant?.features ?? {}) as Record<string, boolean>,
     viewable,
-    isWfmSupervisor
+    isWfmSupervisor,
+    tenant?.config?.nav_hidden_hrefs ?? []
   );
   if (groups.length === 0) return null;
 

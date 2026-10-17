@@ -11,16 +11,16 @@ import type { ViewableWorkcenters } from "@/lib/workcenters";
  * classic rail, Spaces and the mobile tab bar can never disagree on what
  * belongs where.
  *
- * TODO(owner decision pending): nav_hidden_hrefs (Settings -> Navigation
- * visibility) is NOT applied by these builders -- the classic rail honours
- * it, Spaces does not. Left as is until the owner decides whether a hidden
- * item should also vanish from Spaces.
+ * `hidden` (the workspace's nav_hidden_hrefs, Settings -> Navigation
+ * visibility) is applied here too, so a hidden item vanishes from Spaces, the
+ * Nova rail and the mobile tab bar exactly as it does from the classic rail
+ * (owner decision 2026-10-17).
  */
 
 export type SpaceItem = { href: string; label: string; icon: React.ComponentType<{ size?: number; color?: string }> };
 
-export function buildSpaces(features: Record<string, boolean>, viewable: ViewableWorkcenters, isWfmSupervisor: boolean): SpaceItem[] {
-  return buildSpaceGroups(features, viewable, isWfmSupervisor).flatMap((g) => g.items);
+export function buildSpaces(features: Record<string, boolean>, viewable: ViewableWorkcenters, isWfmSupervisor: boolean, hidden: readonly string[] = []): SpaceItem[] {
+  return buildSpaceGroups(features, viewable, isWfmSupervisor, hidden).flatMap((g) => g.items);
 }
 
 /**
@@ -47,8 +47,8 @@ const GROUP_ICON: Record<string, SpaceGroup["icon"]> = {
   "ADMIN": Gear,
 };
 
-export function buildSpaceGroups(features: Record<string, boolean>, viewable: ViewableWorkcenters, isWfmSupervisor: boolean): SpaceGroup[] {
-  return buildNavGroups(features, viewable, isWfmSupervisor).map((g) => ({
+export function buildSpaceGroups(features: Record<string, boolean>, viewable: ViewableWorkcenters, isWfmSupervisor: boolean, hidden: readonly string[] = []): SpaceGroup[] {
+  return buildNavGroups(features, viewable, isWfmSupervisor, hidden).map((g) => ({
     key: g.key,
     label: g.label,
     icon: GROUP_ICON[g.key] ?? Gear,

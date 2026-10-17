@@ -47,7 +47,7 @@ export default function MobileTabBar({ onMore }: { onMore: () => void }) {
   if (!nova) return null;
 
   const features = (tenant?.features ?? {}) as Record<string, boolean>;
-  const groups: SpaceGroup[] = buildSpaceGroups(features, viewable, isWfmSupervisor);
+  const groups: SpaceGroup[] = buildSpaceGroups(features, viewable, isWfmSupervisor, tenant?.config?.nav_hidden_hrefs ?? []);
   const tabs = groups.slice(0, MAX_TABS);
   if (tabs.length === 0) return null;
 

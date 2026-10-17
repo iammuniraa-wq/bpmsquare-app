@@ -82,3 +82,18 @@ describe("isItemViewable adminOnly", () => {
     expect(isItemViewable(settings, ["cases"])).toBe(false);
   });
 });
+
+describe("buildNavGroups with hidden hrefs", () => {
+  it("leaves hidden leaves out and drops a group left empty", () => {
+    const all = buildNavGroups(every, "all", true);
+    const first = all.flatMap((g) => g.items.map((i) => i.href));
+    const hidden = [first[1]];
+    const after = buildNavGroups(every, "all", true, hidden).flatMap((g) => g.items.map((i) => i.href));
+    expect(after).not.toContain(first[1]);
+    expect(after.length).toBe(first.length - 1);
+  });
+  it("never hides Settings", () => {
+    const hrefs = buildNavGroups({ ...every, administration: true }, "all", false, ["/settings"]).flatMap((g) => g.items.map((i) => i.href));
+    expect(hrefs).toContain("/settings");
+  });
+});
