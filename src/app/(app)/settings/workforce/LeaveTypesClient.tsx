@@ -3,8 +3,12 @@
 import { useCallback, useEffect, useState } from "react";
 import { c } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
-import Pill from "@/components/Pill";
 import { useFeel } from "@/components/FeelProvider";
+import Button from "@/components/ui/Button";
+import EmptyState from "@/components/ui/EmptyState";
+import StatusPill from "@/components/ui/StatusPill";
+import { RecordList, RecordRow } from "@/components/settings/RecordRows";
+import { SettingsHeaderActions } from "@/components/settings/SettingsHeaderActions";
 
 type LeaveType = {
   id: string; name: string; category: "paid" | "unpaid" | "half_day"; active: boolean; annual_quota: number;
@@ -18,11 +22,6 @@ const EMPTY: Draft = { name: "", category: "paid", annual_quota: "1", quota_peri
 
 const lbl: React.CSSProperties = { display: "block", fontSize: 11.5, fontWeight: 600, color: c.muted, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 5 };
 const inp: React.CSSProperties = { width: "100%", padding: "8px 11px", fontSize: 13, border: `1px solid ${c.line}`, borderRadius: 8, background: c.panel, color: c.ink, outline: "none", boxSizing: "border-box" };
-const th: React.CSSProperties = { textAlign: "left", color: c.hint, fontWeight: 500, padding: "9px 12px", borderBottom: `1px solid ${c.line}`, fontSize: 11.5, whiteSpace: "nowrap" };
-const td: React.CSSProperties = { padding: "9px 12px", borderBottom: `1px solid ${c.line}`, fontSize: 12.5, verticalAlign: "middle" };
-const btnPrimary: React.CSSProperties = { padding: "8px 14px", fontSize: 12.5, fontWeight: 600, borderRadius: 8, border: "none", background: "var(--tenant-accent, #378ADD)", color: "#fff", cursor: "pointer", whiteSpace: "nowrap" };
-const btnQuiet: React.CSSProperties = { padding: "5px 10px", fontSize: 12, fontWeight: 600, borderRadius: 7, border: `1px solid ${c.line}`, background: "transparent", color: c.muted, cursor: "pointer", whiteSpace: "nowrap" };
-const btnDanger: React.CSSProperties = { ...btnQuiet, color: "var(--err-ink)", borderColor: "var(--err-line)" };
 
 const CATEGORY_LABEL: Record<LeaveType["category"], string> = { paid: "Paid", unpaid: "Unpaid", half_day: "Half-day" };
 
@@ -125,97 +124,85 @@ export default function LeaveTypesClient() {
     );
   }
 
+  const formButtons = (onSave: () => void, saveLabel: string, onCancel: () => void) => (
+    <div style={{ display: "flex", gap: 6 }}>
+      <Button variant="primary" loading={busy} onClick={onSave}>{saveLabel}</Button>
+      <Button disabled={busy} onClick={onCancel}>Cancel</Button>
+    </div>
+  );
+
   return (
     <>
-      {error && <div style={{ ...cardStyle, marginBottom: 14, color: "#ef4444", fontSize: 12.5 }}>{error}</div>}
-      <section style={{ ...cardStyle, padding: 0, overflowX: "auto" }}>
-        <div style={{ padding: "12px 12px 10px", borderBottom: `1px solid ${c.line}`, display: "flex", justifyContent: "space-between", gap: 12, alignItems: "flex-start", flexWrap: "wrap" }}>
-          <div>
-            <div style={{ fontSize: 13, fontWeight: 600, color: c.ink }}>Leave types</div>
-            <div style={{ fontSize: 12, color: c.muted, marginTop: 3, maxWidth: 780 }}>
-              What people can request time off as. The <strong>quota</strong> is each employee&apos;s default,
-              per month or per year; a monthly quota is also the most anyone can take in that month (a request or an
-              entry beyond it is refused). A yearly quota can carry a separate <strong>Max a month</strong> cap.
-              <strong> Paid days a month</strong> pays only the first N days of a type each month; the rest count as
-              unpaid on the time summary. A type with history can be deactivated, never deleted.
-            </div>
-          </div>
-          {!showAdd && <button style={btnPrimary} onClick={() => { setShowAdd(true); setEditId(null); }}>+ Add type</button>}
-        </div>
+      <SettingsHeaderActions>
+        <Button variant="primary" onClick={() => { setShowAdd(true); setEditId(null); }}>+ New leave type</Button>
+      </SettingsHeaderActions>
 
-        {showAdd && (
-          <div style={{ display: "flex", gap: 10, padding: 12, flexWrap: "wrap", alignItems: "flex-end", borderBottom: `1px solid ${c.line}`, background: c.panel2 }}>
+      {error && <div role="alert" style={{ ...cardStyle, marginBottom: 14, color: "var(--err-ink)", fontSize: 12.5 }}>{error}</div>}
+
+      <div style={{ fontSize: 12, color: c.muted, marginBottom: 12, maxWidth: 780, lineHeight: 1.5 }}>
+        What people can request time off as. The <strong>quota</strong> is each employee&apos;s default,
+        per month or per year; a monthly quota is also the most anyone can take in that month (a request or an
+        entry beyond it is refused). A yearly quota can carry a separate <strong>Max a month</strong> cap.
+        <strong> Paid days a month</strong> pays only the first N days of a type each month; the rest count as
+        unpaid on the time summary. A type with history can be deactivated, never deleted.
+      </div>
+
+      {showAdd && (
+        <div style={{ ...cardStyle, marginBottom: 14, background: c.panel2 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: c.ink, marginBottom: 10 }}>New leave type</div>
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end" }}>
             {limitFields(addForm, setAddForm)}
-            <div style={{ display: "flex", gap: 6 }}>
-              <button style={btnPrimary} disabled={busy} onClick={addType}>{busy ? "Adding…" : "Add type"}</button>
-              <button style={btnQuiet} disabled={busy} onClick={() => { setShowAdd(false); setAddForm(EMPTY); setError(""); }}>Cancel</button>
-            </div>
+            {formButtons(addType, busy ? "Adding…" : "Add type", () => { setShowAdd(false); setAddForm(EMPTY); setError(""); })}
           </div>
-        )}
+        </div>
+      )}
 
-        <table className="data-table" style={{ width: "100%", borderCollapse: "collapse" }}>
-          <thead>
-            <tr>
-              <th style={th}>Name</th><th style={th}>Category</th><th style={th}>Quota</th>
-              <th style={th}>Max a month</th><th style={th}>Paid days a month</th><th style={th}>In use</th><th style={th}>Status</th><th style={th}></th>
-            </tr>
-          </thead>
-          <tbody>
-            {types.map((t) => {
-              const inUse = t.records_count + t.requests_count;
-              if (editId === t.id) {
-                return (
-                  <tr key={t.id}>
-                    <td style={{ ...td, background: c.panel2 }} colSpan={8}>
-                      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end" }}>
-                        {limitFields(editForm, setEditForm)}
-                        <div style={{ display: "flex", gap: 6 }}>
-                          <button style={btnPrimary} disabled={busy} onClick={() => saveEdit(t.id)}>{busy ? "Saving…" : "Save"}</button>
-                          <button style={btnQuiet} disabled={busy} onClick={() => { setEditId(null); setError(""); }}>Cancel</button>
-                        </div>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              }
-              return (
-                <tr key={t.id} style={{ opacity: t.active ? 1 : 0.6 }}>
-                  <td style={{ ...td, fontWeight: 600, color: c.ink }}>{t.name}</td>
-                  <td style={td}>{CATEGORY_LABEL[t.category] ?? t.category}</td>
-                  <td style={{ ...td, whiteSpace: "nowrap" }}>{t.annual_quota} / {t.quota_period === "month" ? "month" : "year"}</td>
-                  <td style={td}>{t.quota_period === "month" ? `${t.annual_quota} (quota)` : fmtLimit(t.monthly_limit)}</td>
-                  <td style={td}>{fmtLimit(t.paid_days_per_month)}</td>
-                  <td style={{ ...td, color: c.muted, whiteSpace: "nowrap" }}>
-                    {inUse === 0 ? "—" : `${t.records_count} record${t.records_count === 1 ? "" : "s"}${t.requests_count ? `, ${t.requests_count} request${t.requests_count === 1 ? "" : "s"}` : ""}${t.pending_requests ? ` (${t.pending_requests} pending)` : ""}`}
-                  </td>
-                  <td style={td}><Pill label={t.active ? "Active" : "Inactive"} tone={t.active ? "green" : "red"} /></td>
-                  <td style={{ ...td, whiteSpace: "nowrap" }}>
-                    <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
-                      <button style={btnQuiet} disabled={busy} onClick={() => { startEdit(t); setShowAdd(false); }}>Edit</button>
-                      <button style={btnQuiet} disabled={busy} onClick={() => toggleActive(t)}>{t.active ? "Deactivate" : "Reactivate"}</button>
-                      <button
-                        style={{ ...btnDanger, opacity: inUse > 0 ? 0.45 : 1, cursor: inUse > 0 ? "not-allowed" : "pointer" }}
-                        disabled={busy || inUse > 0}
-                        title={inUse > 0 ? "In use — deactivate it instead, or remove its records first" : "Delete this type"}
-                        onClick={() => remove(t)}
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              );
-            })}
-            {types.length === 0 && (
-              <tr>
-                <td style={{ ...td, color: c.hint }} colSpan={8}>
-                  No leave types yet. Until one exists, the Request leave button stays disabled for every employee.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </section>
+      <RecordList
+        empty={
+          <EmptyState
+            title="No leave types yet"
+            text="Until one exists, the Request leave button stays disabled for every employee."
+            action={<Button variant="primary" onClick={() => setShowAdd(true)}>+ New leave type</Button>}
+          />
+        }
+      >
+        {types.map((t) => {
+          const inUse = t.records_count + t.requests_count;
+          const usage = inUse === 0
+            ? "—"
+            : `${t.records_count} record${t.records_count === 1 ? "" : "s"}${t.requests_count ? `, ${t.requests_count} request${t.requests_count === 1 ? "" : "s"}` : ""}${t.pending_requests ? ` (${t.pending_requests} pending)` : ""}`;
+          return (
+            <RecordRow
+              key={t.id}
+              title={t.name}
+              dim={!t.active}
+              status={<StatusPill label={t.active ? "Active" : "Inactive"} tone={t.active ? "green" : "red"} />}
+              facts={[
+                { label: "Category", value: CATEGORY_LABEL[t.category] ?? t.category },
+                { label: "Quota", value: `${t.annual_quota} / ${t.quota_period === "month" ? "month" : "year"}` },
+                { label: "Max a month", value: t.quota_period === "month" ? `${t.annual_quota} (quota)` : fmtLimit(t.monthly_limit) },
+                { label: "Paid days a month", value: fmtLimit(t.paid_days_per_month) },
+                { label: "In use", value: usage },
+              ]}
+              menu={[
+                { label: "Edit", onSelect: () => { startEdit(t); setShowAdd(false); } },
+                { label: t.active ? "Deactivate" : "Reactivate", onSelect: () => toggleActive(t) },
+                // In use: deactivate instead, or remove its records first.
+                { label: "Delete", onSelect: () => remove(t), danger: true, hidden: inUse > 0 },
+              ]}
+            >
+              {editId === t.id && (
+                <div style={{ padding: 14, background: c.panel2, borderTop: `1px solid ${c.line}` }}>
+                  <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end" }}>
+                    {limitFields(editForm, setEditForm)}
+                    {formButtons(() => saveEdit(t.id), busy ? "Saving…" : "Save", () => { setEditId(null); setError(""); })}
+                  </div>
+                </div>
+              )}
+            </RecordRow>
+          );
+        })}
+      </RecordList>
     </>
   );
 }

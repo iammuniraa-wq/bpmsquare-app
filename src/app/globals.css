@@ -1997,3 +1997,6 @@ textarea.bpm-input { min-height: 72px; resize: vertical; }
   max-width: 320px; font-size: 12px; padding: 5px 9px; border-radius: 7px;
   background: var(--err-bg); color: var(--err-ink); border: 1px solid var(--err-line);
 }
+
+/* Settings list rows (components/settings/RecordRows.tsx): the first row has no top rule. */
+.bpm-record-row:first-child { border-top: none !important; }

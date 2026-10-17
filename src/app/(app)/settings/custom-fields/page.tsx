@@ -2,11 +2,14 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useFeel } from "@/components/FeelProvider";
-import { useRouter } from "next/navigation";
-import { ROUTES } from "@/lib/constants";
 import { c } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
 import { useSettings, ACCENT_PRESETS } from "@/lib/settings";
+import Button from "@/components/ui/Button";
+import MoreMenu from "@/components/ui/MoreMenu";
+import StatusPill from "@/components/ui/StatusPill";
+import SettingsPageHeader from "@/components/settings/SettingsPageHeader";
+import { SettingsHeaderActions } from "@/components/settings/SettingsHeaderActions";
 import { useTenant } from "@/lib/tenant-context";
 import type { TenantFeatures } from "@/lib/constants";
 
@@ -77,7 +80,6 @@ function emptyForm() {
 // ── Page ─────────────────────────────────────────────────────────────────────
 
 export default function CustomFieldsPage() {
-  const router = useRouter();
   const { settings } = useSettings();
   const accent = ACCENT_PRESETS[settings.accentPreset].color;
   const tenant = useTenant();
@@ -233,23 +235,12 @@ export default function CustomFieldsPage() {
   return (
     <div style={{ maxWidth: 720 }}>
 
-      {/* Header */}
-      <div className="bpm-page-header" style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 20 }}>
-        <div>
-          <h1 style={{ fontSize: 19, margin: 0, fontWeight: 600, paddingLeft: 12, borderLeft: `3px solid ${accent}` }}>
-            Custom Fields
-          </h1>
-          <p style={{ margin: "4px 0 0 12px", fontSize: 12, color: c.muted }}>
-            Add fields to any object — they are automatically included in the API and MCP
-          </p>
-        </div>
-        <button
-          onClick={() => router.push(ROUTES.settings)}
-          style={{ padding: "8px 16px", borderRadius: 8, fontSize: 13, fontWeight: 500, background: accent, color: "#fff", border: "none", cursor: "pointer" }}
-        >
-          ← Settings
-        </button>
-      </div>
+      <SettingsPageHeader title="Custom fields" subtitle="Add fields to any object — they are automatically included in the API and MCP" />
+      <SettingsHeaderActions>
+        <Button variant="primary" onClick={() => { setShowForm((v) => !v); setEditId(null); setForm(emptyForm()); }} aria-expanded={showForm}>
+          {showForm ? "Cancel" : "+ New field"}
+        </Button>
+      </SettingsHeaderActions>
 
       {error && (
         <div style={{ marginBottom: 14, padding: "10px 14px", background: "var(--redbg)", color: "var(--redink)", borderRadius: 8, fontSize: 13, border: "1px solid var(--err-line)" }}>
@@ -292,12 +283,6 @@ export default function CustomFieldsPage() {
               {fields.length === 0 ? "No custom fields yet" : `${fields.length} field${fields.length !== 1 ? "s" : ""}`}
             </div>
           </div>
-          <button
-            onClick={() => { setShowForm((v) => !v); setEditId(null); setForm(emptyForm()); }}
-            style={{ padding: "7px 16px", borderRadius: 8, fontSize: 13, fontWeight: 500, background: showForm ? c.panel2 : accent, color: showForm ? c.muted : "#fff", border: showForm ? `1px solid ${c.line}` : "none", cursor: "pointer" }}
-          >
-            {showForm ? "Cancel" : "+ Add field"}
-          </button>
         </div>
 
         {/* Add form */}
@@ -358,13 +343,9 @@ export default function CustomFieldsPage() {
                 />
                 Required field
               </label>
-              <button
-                type="submit"
-                disabled={saving || !form.field_label.trim()}
-                style={{ padding: "8px 20px", borderRadius: 8, fontSize: 13, fontWeight: 600, background: saving || !form.field_label.trim() ? c.line : accent, color: saving || !form.field_label.trim() ? c.hint : "#fff", border: "none", cursor: saving || !form.field_label.trim() ? "default" : "pointer" }}
-              >
+              <Button type="submit" variant="primary" loading={saving} disabled={!form.field_label.trim()}>
                 {saving ? "Saving…" : "Add field"}
-              </button>
+              </Button>
             </div>
           </form>
         )}
@@ -376,7 +357,7 @@ export default function CustomFieldsPage() {
           <div style={{ textAlign: "center", padding: "28px 0", color: c.hint, fontSize: 13 }}>
             No custom fields for {OBJECTS.find((o) => o.key === activeObj)?.label} yet.
             <br />
-            <span style={{ fontSize: 12 }}>Click "Add field" to create the first one.</span>
+            <span style={{ fontSize: 12 }}>Use &quot;+ New field&quot; to create the first one.</span>
           </div>
         ) : (
           <div>
@@ -417,11 +398,7 @@ export default function CustomFieldsPage() {
                       style={{ padding: "4px 8px", borderRadius: 6, border: `1px solid ${accent}`, fontSize: 13, color: c.ink, width: "100%", outline: "none" }}
                     />
                   ) : (
-                    <div
-                      onClick={() => startEdit(field)}
-                      style={{ fontSize: 13, fontWeight: 500, color: c.ink, cursor: "text" }}
-                      title="Click to rename"
-                    >
+                    <div style={{ fontSize: 13, fontWeight: 500, color: c.ink }}>
                       {field.field_label}
                     </div>
                   )}
@@ -438,24 +415,16 @@ export default function CustomFieldsPage() {
                   </div>
                 </div>
 
-                {/* Required toggle */}
-                <button
-                  onClick={() => toggleRequired(field)}
-                  title={field.is_required ? "Required — click to make optional" : "Optional — click to make required"}
-                  style={{ padding: "3px 8px", borderRadius: 5, fontSize: 10.5, fontWeight: 600, border: "1px solid", cursor: "pointer", flexShrink: 0, background: field.is_required ? "var(--amberbg)" : c.panel2, color: field.is_required ? "var(--amberink)" : c.hint, borderColor: field.is_required ? "var(--amberline)" : c.line, transition: "all 0.12s" }}
-                >
-                  {field.is_required ? "Required" : "Optional"}
-                </button>
+                <StatusPill label={field.is_required ? "Required" : "Optional"} tone={field.is_required ? "amber" : "blue"} />
 
-                {/* Delete */}
-                <button
-                  onClick={() => deleteField(field.id)}
-                  disabled={deleting === field.id}
-                  title="Delete field"
-                  style={{ width: 28, height: 28, borderRadius: 6, border: `1px solid ${c.line}`, background: "var(--panel)", cursor: "pointer", fontSize: 14, color: "var(--err-ink)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, opacity: deleting === field.id ? 0.4 : 1 }}
-                >
-                  ×
-                </button>
+                <MoreMenu
+                  label={`Actions for ${field.field_label}`}
+                  items={[
+                    { label: "Rename", onSelect: () => startEdit(field) },
+                    { label: field.is_required ? "Make optional" : "Make required", onSelect: () => { void toggleRequired(field); } },
+                    { label: "Delete", onSelect: () => { void deleteField(field.id); }, danger: true },
+                  ]}
+                />
               </div>
             ))}
           </div>

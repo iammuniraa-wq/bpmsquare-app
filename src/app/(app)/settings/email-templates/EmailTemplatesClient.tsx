@@ -5,6 +5,12 @@ import { c } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
 import type { EmailTemplate, EmailTemplateCategory } from "@/lib/types";
 import { EMAIL_TEMPLATE_VARS, DEFAULT_EMAIL_TEMPLATES } from "@/lib/emailTemplates";
+import { useFeel } from "@/components/FeelProvider";
+import Button from "@/components/ui/Button";
+import EmptyState from "@/components/ui/EmptyState";
+import StatusPill from "@/components/ui/StatusPill";
+import { RecordList, RecordRow } from "@/components/settings/RecordRows";
+import { SettingsHeaderActions } from "@/components/settings/SettingsHeaderActions";
 
 const CATEGORY_LABEL: Record<EmailTemplateCategory, string> = {
   quote: "Quotations",
@@ -35,16 +41,17 @@ const lbl: React.CSSProperties = {
 
 type DraftTemplate = { id: string; name: string; subject: string; body: string; is_default: boolean; category: EmailTemplateCategory; isNew?: boolean };
 
-function TemplateCard({ template, onSaved, onDeleted }: {
+function TemplateCard({ template, onSaved, onCancel, bare }: {
   template: DraftTemplate;
   onSaved: (t: EmailTemplate) => void;
-  onDeleted: (id: string) => void;
+  onCancel: () => void;
+  /** Inside a list row, which draws its own surface. */
+  bare?: boolean;
 }) {
   const [name, setName] = useState(template.name);
   const [subject, setSubject] = useState(template.subject);
   const [body, setBody] = useState(template.body);
   const [saving, setSaving] = useState(false);
-  const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState("");
   const dirty = name !== template.name || subject !== template.subject || body !== template.body;
 
@@ -78,16 +85,8 @@ function TemplateCard({ template, onSaved, onDeleted }: {
     if (res.ok) onSaved(await res.json());
   }
 
-  async function remove() {
-    if (template.isNew) { onDeleted(template.id); return; }
-    setDeleting(true);
-    const res = await fetch(`/api/settings/email-templates/${template.id}`, { method: "DELETE" });
-    setDeleting(false);
-    if (res.ok || res.status === 204) onDeleted(template.id);
-  }
-
   return (
-    <div style={{ ...cardStyle, padding: "14px 16px", marginBottom: 10 }}>
+    <div style={bare ? { padding: "14px 16px", background: c.panel2, borderTop: `1px solid ${c.line}` } : { ...cardStyle, padding: "14px 16px", marginBottom: 10 }}>
       <div style={{ display: "flex", gap: 12, marginBottom: 8 }}>
         <div style={{ flex: 1 }}>
           <label style={lbl}>Template name</label>
@@ -110,18 +109,10 @@ function TemplateCard({ template, onSaved, onDeleted }: {
       </div>
       {error && <div style={{ fontSize: 12, color: "var(--err-ink)", marginBottom: 8 }}>{error}</div>}
       <div style={{ display: "flex", gap: 8 }}>
-        <button
-          type="button" onClick={save} disabled={saving || (!dirty && !template.isNew)}
-          style={{ padding: "6px 16px", borderRadius: 7, border: "none", background: c.accent, color: "#fff", fontWeight: 600, fontSize: 12.5, cursor: "pointer", opacity: saving || (!dirty && !template.isNew) ? 0.5 : 1 }}
-        >
+        <Button variant="primary" onClick={save} loading={saving} disabled={!dirty && !template.isNew}>
           {saving ? "Saving…" : template.isNew ? "Create" : "Save"}
-        </button>
-        <button
-          type="button" onClick={remove} disabled={deleting}
-          style={{ padding: "6px 16px", borderRadius: 7, border: `1px solid var(--err-line)`, background: "transparent", color: "var(--err-ink)", fontSize: 12.5, cursor: "pointer" }}
-        >
-          {deleting ? "Removing…" : "Delete"}
-        </button>
+        </Button>
+        <Button onClick={onCancel}>{template.isNew ? "Discard" : "Cancel"}</Button>
       </div>
     </div>
   );
@@ -131,6 +122,8 @@ export default function EmailTemplatesClient({ initial }: { initial: EmailTempla
   const [templates, setTemplates] = useState<EmailTemplate[]>(initial);
   const [drafts, setDrafts] = useState<DraftTemplate[]>([]);
   const [category, setCategory] = useState<EmailTemplateCategory>("quote");
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const { confirm } = useFeel();
 
   const categoryTemplates = templates.filter((t) => t.category === category);
   const categoryDrafts = drafts.filter((d) => d.category === category);
@@ -146,6 +139,7 @@ export default function EmailTemplatesClient({ initial }: { initial: EmailTempla
   }
 
   function handleSaved(idOrDraftId: string, saved: EmailTemplate) {
+    setEditingId(null);
     setDrafts((p) => p.filter((d) => d.id !== idOrDraftId));
     setTemplates((p) => {
       const withoutOldDefault = saved.is_default ? p.map((t) => t.category === saved.category ? { ...t, is_default: false } : t) : p;
@@ -155,6 +149,21 @@ export default function EmailTemplatesClient({ initial }: { initial: EmailTempla
     });
   }
 
+  async function makeDefault(t: EmailTemplate) {
+    const res = await fetch(`/api/settings/email-templates/${t.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ is_default: true }),
+    });
+    if (res.ok) handleSaved(t.id, await res.json());
+  }
+
+  async function deleteTemplate(t: EmailTemplate) {
+    if (!(await confirm({ title: `Delete "${t.name}"?`, body: "Emails already sent from it are unaffected.", tone: "danger" }))) return;
+    const res = await fetch(`/api/settings/email-templates/${t.id}`, { method: "DELETE" });
+    if (res.ok || res.status === 204) handleDeleted(t.id);
+  }
+
   function handleDeleted(id: string) {
     setDrafts((p) => p.filter((d) => d.id !== id));
     setTemplates((p) => p.filter((t) => t.id !== id));
@@ -162,7 +171,11 @@ export default function EmailTemplatesClient({ initial }: { initial: EmailTempla
 
   return (
     <div style={{ maxWidth: 680 }}>
-      <div style={{ display: "flex", gap: 6, marginBottom: 16 }}>
+      <SettingsHeaderActions>
+        <Button variant="primary" onClick={addDraft}>+ New template</Button>
+      </SettingsHeaderActions>
+
+      <div style={{ display: "flex", gap: 6, marginBottom: 16, flexWrap: "wrap" }}>
         {(Object.keys(CATEGORY_LABEL) as EmailTemplateCategory[]).map((cat) => (
           <button
             key={cat} type="button" onClick={() => setCategory(cat)}
@@ -191,35 +204,47 @@ export default function EmailTemplatesClient({ initial }: { initial: EmailTempla
         </div>
       </div>
 
-      {categoryTemplates.length === 0 && categoryDrafts.length === 0 && (
-        <div style={{ fontSize: 13, color: c.hint, padding: "20px 0", textAlign: "center" }}>
-          No templates yet — sending will use a built-in default until you add one.
-        </div>
-      )}
-
-      {categoryTemplates.map((t) => (
-        <TemplateCard
-          key={t.id}
-          template={t}
-          onSaved={(saved) => handleSaved(t.id, saved)}
-          onDeleted={handleDeleted}
-        />
-      ))}
       {categoryDrafts.map((d) => (
         <TemplateCard
           key={d.id}
           template={d}
           onSaved={(saved) => handleSaved(d.id, saved)}
-          onDeleted={handleDeleted}
+          onCancel={() => handleDeleted(d.id)}
         />
       ))}
 
-      <button
-        type="button" onClick={addDraft}
-        style={{ padding: "8px 16px", borderRadius: 7, border: `1px solid ${c.line}`, background: c.panel, color: c.accent, fontWeight: 600, fontSize: 13, cursor: "pointer" }}
+      <RecordList
+        empty={
+          <EmptyState
+            title="No templates yet"
+            text="Sending will use a built-in default until you add one."
+            action={<Button variant="primary" onClick={addDraft}>+ New template</Button>}
+          />
+        }
       >
-        + Add template
-      </button>
+        {categoryTemplates.map((t) => (
+          <RecordRow
+            key={t.id}
+            title={t.name}
+            subtitle={t.subject}
+            status={t.is_default ? <StatusPill label="Default" tone="green" /> : undefined}
+            menu={[
+              { label: "Edit", onSelect: () => setEditingId(t.id) },
+              { label: "Make default", onSelect: () => { void makeDefault(t); }, hidden: t.is_default },
+              { label: "Delete", onSelect: () => { void deleteTemplate(t); }, danger: true },
+            ]}
+          >
+            {editingId === t.id && (
+              <TemplateCard
+                bare
+                template={t}
+                onSaved={(saved) => handleSaved(t.id, saved)}
+                onCancel={() => setEditingId(null)}
+              />
+            )}
+          </RecordRow>
+        ))}
+      </RecordList>
     </div>
   );
 }

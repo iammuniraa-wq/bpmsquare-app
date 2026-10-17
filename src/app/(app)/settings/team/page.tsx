@@ -3,9 +3,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useFeel } from "@/components/FeelProvider";
 import { c } from "@/lib/theme";
-import { useSettings, ACCENT_PRESETS } from "@/lib/settings";
-import { useTenant } from "@/lib/tenant-context";
-import { cardStyle } from "@/components/Shell";
+import Card from "@/components/ui/Card";
+import Button from "@/components/ui/Button";
+import MoreMenu from "@/components/ui/MoreMenu";
+import StatusPill from "@/components/ui/StatusPill";
+import EmptyState from "@/components/ui/EmptyState";
+import { Input, Select } from "@/components/ui/Input";
+import SettingsPageHeader from "@/components/settings/SettingsPageHeader";
+import { SettingsHeaderActions } from "@/components/settings/SettingsHeaderActions";
 
 type Member = {
   user_id: string;
@@ -18,27 +23,12 @@ type Member = {
 
 type BusinessRole = { id: string; name: string };
 
-function RolePill({ role }: { role: "admin" | "member" }) {
-  const isAdmin = role === "admin";
-  return (
-    <span style={{
-      fontSize: 11, fontWeight: 600,
-      padding: "2px 10px", borderRadius: 20,
-      background: isAdmin ? "#eff6ff" : "var(--panel2)",
-      color: isAdmin ? "#1d4ed8" : "#475569",
-      border: `1px solid ${isAdmin ? "var(--blueline)" : "#e2e8f0"}`,
-    }}>
-      {isAdmin ? "Admin" : "Member"}
-    </span>
-  );
-}
-
-function Avatar({ email, accent }: { email: string | null; accent: string }) {
+function Avatar({ email }: { email: string | null }) {
   const initials = email ? email.slice(0, 2).toUpperCase() : "??";
   return (
     <div style={{
       width: 34, height: 34, borderRadius: "50%", flexShrink: 0,
-      background: accent, color: "#fff",
+      background: "var(--modern-accent, var(--accent))", color: "#fff",
       display: "flex", alignItems: "center", justifyContent: "center",
       fontSize: 12, fontWeight: 700,
     }}>
@@ -48,9 +38,7 @@ function Avatar({ email, accent }: { email: string | null; accent: string }) {
 }
 
 export default function TeamPage() {
-  const { settings } = useSettings();
-  const tenant = useTenant();
-  const accent = tenant?.accent_color ?? ACCENT_PRESETS[settings.accentPreset].color;
+  const [inviteOpen, setInviteOpen] = useState(false);
 
   const [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(true);
@@ -160,112 +148,92 @@ export default function TeamPage() {
 
   return (
     <div style={{ maxWidth: 680 }}>
-      <div className="bpm-page-header" style={{ marginBottom: 20 }}>
-        <h1 style={{ fontSize: 19, margin: 0, fontWeight: 600, paddingLeft: 12, borderLeft: `3px solid ${accent}` }}>
-          Team
-        </h1>
-        <p style={{ margin: "4px 0 0 12px", fontSize: 12, color: c.muted }}>
-          Invite team members and manage their access
-        </p>
-      </div>
+      <SettingsPageHeader title="Team" subtitle="Invite team members and manage their access" />
+      <SettingsHeaderActions>
+        <Button variant="primary" onClick={() => setInviteOpen((o) => !o)} aria-expanded={inviteOpen}>
+          + Invite member
+        </Button>
+      </SettingsHeaderActions>
 
-      {/* Invite form */}
-      <section style={{ ...cardStyle, marginBottom: 14 }}>
-        <h2 style={{ margin: "0 0 14px", fontSize: 14, fontWeight: 600, color: c.ink }}>Invite member</h2>
-        <form onSubmit={handleInvite} style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <input
-            type="email"
-            required
-            value={inviteEmail}
-            onChange={(e) => setInviteEmail(e.target.value)}
-            placeholder="colleague@company.com"
-            style={{
-              flex: 1, minWidth: 200,
-              height: 38, padding: "0 12px",
-              border: `1px solid ${c.line}`, borderRadius: 8,
-              fontSize: 13, color: c.ink, outline: "none",
-            }}
-          />
-          <select
-            value={inviteRole}
-            onChange={(e) => setInviteRole(e.target.value as "admin" | "member")}
-            style={{
-              height: 38, padding: "0 10px",
-              border: `1px solid ${c.line}`, borderRadius: 8,
-              fontSize: 13, color: c.ink, background: "var(--panel)",
-            }}
-          >
-            <option value="member">Member</option>
-            <option value="admin">Admin</option>
-          </select>
-          <button
-            type="submit"
-            disabled={inviting}
-            style={{
-              height: 38, padding: "0 20px",
-              background: inviting ? "#93c5fd" : accent,
-              color: "#fff", border: "none", borderRadius: 8,
-              fontSize: 13, fontWeight: 500,
-              cursor: inviting ? "not-allowed" : "pointer",
-            }}
-          >
-            {inviting ? "Adding…" : "Send invite"}
-          </button>
-        </form>
+      {inviteOpen && (
+        <div style={{ marginBottom: 14 }}>
+          <Card title="Invite member">
+            <form onSubmit={handleInvite} style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <div style={{ flex: 1, minWidth: 200 }}>
+                <Input
+                  type="email"
+                  required
+                  aria-label="Email"
+                  value={inviteEmail}
+                  onChange={(e) => setInviteEmail(e.target.value)}
+                  placeholder="colleague@company.com"
+                />
+              </div>
+              <div style={{ width: 130 }}>
+                <Select
+                  aria-label="Role"
+                  value={inviteRole}
+                  onChange={(e) => setInviteRole(e.target.value as "admin" | "member")}
+                >
+                  <option value="member">Member</option>
+                  <option value="admin">Admin</option>
+                </Select>
+              </div>
+              <div style={{ width: "100%", maxWidth: 360 }}>
+                <Input
+                  type="text"
+                  aria-label="Initial password"
+                  value={invitePassword}
+                  onChange={(e) => setInvitePassword(e.target.value)}
+                  placeholder="Initial password (optional — leave blank to email an invite)"
+                />
+                <div style={{ fontSize: 11, color: c.muted, marginTop: 4 }}>
+                  If they already have an account, they&apos;re added to this workspace directly (password ignored).
+                </div>
+              </div>
 
-        <div style={{ marginTop: 8 }}>
-          <input
-            type="text"
-            value={invitePassword}
-            onChange={(e) => setInvitePassword(e.target.value)}
-            placeholder="Initial password (optional — leave blank to email an invite)"
-            style={{
-              width: "100%", maxWidth: 320,
-              height: 36, padding: "0 12px",
-              border: `1px solid ${c.line}`, borderRadius: 8,
-              fontSize: 12.5, color: c.ink, outline: "none",
-            }}
-          />
-          <div style={{ fontSize: 11, color: c.muted, marginTop: 4 }}>
-            If they already have an account, they're added to this workspace directly (password ignored).
-          </div>
+              {inviteError && (
+                <div role="alert" style={{ width: "100%", fontSize: 12, color: "var(--err-ink)", background: "var(--err-bg)", border: "1px solid var(--err-line)", borderRadius: 7, padding: "8px 12px" }}>
+                  {inviteError}
+                </div>
+              )}
+              {inviteSuccess && (
+                <div role="status" style={{ width: "100%", fontSize: 12, color: "var(--greenink)", background: "var(--greenbg)", border: "1px solid var(--green)", borderRadius: 7, padding: "8px 12px" }}>
+                  ✓ {inviteSuccess}
+                </div>
+              )}
+
+              <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", width: "100%" }}>
+                <Button onClick={() => setInviteOpen(false)}>Close</Button>
+                <Button type="submit" variant="primary" loading={inviting}>
+                  {inviting ? "Adding…" : "Send invite"}
+                </Button>
+              </div>
+            </form>
+          </Card>
         </div>
+      )}
 
-        {inviteError && (
-          <div style={{ marginTop: 10, fontSize: 12, color: "var(--err-ink)", background: "var(--err-bg)", border: "1px solid var(--err-line)", borderRadius: 7, padding: "8px 12px" }}>
-            {inviteError}
-          </div>
-        )}
-        {inviteSuccess && (
-          <div style={{ marginTop: 10, fontSize: 12, color: "var(--greenink)", background: "var(--greenbg)", border: "1px solid var(--green)", borderRadius: 7, padding: "8px 12px" }}>
-            ✓ {inviteSuccess}
-          </div>
-        )}
-      </section>
-
-      {/* Members list */}
-      <section style={{ ...cardStyle }}>
-        <h2 style={{ margin: "0 0 14px", fontSize: 14, fontWeight: 600, color: c.ink }}>
-          Workspace members{members.length > 0 && <span style={{ fontWeight: 400, color: c.muted, marginLeft: 6 }}>({members.length})</span>}
-        </h2>
-
+      <Card title={`Workspace members${members.length > 0 ? ` (${members.length})` : ""}`}>
         {loading && (
           <div style={{ fontSize: 13, color: c.muted, padding: "16px 0", textAlign: "center" }}>Loading…</div>
         )}
         {error && (
-          <div style={{ fontSize: 12, color: "var(--err-ink)" }}>{error}</div>
+          <div role="alert" style={{ fontSize: 12, color: "var(--err-ink)" }}>{error}</div>
         )}
 
-        {!loading && members.length === 0 && (
-          <div style={{ fontSize: 13, color: c.muted, padding: "16px 0", textAlign: "center" }}>
-            No team members yet. Invite someone above.
-          </div>
+        {!loading && !error && members.length === 0 && (
+          <EmptyState
+            title="No team members yet"
+            text="Invite a colleague to give them access to this workspace."
+            action={<Button variant="primary" onClick={() => setInviteOpen(true)}>+ Invite member</Button>}
+          />
         )}
 
         {!loading && members.map((m, idx) => (
           <div key={m.user_id} style={{ borderTop: idx > 0 ? `1px solid ${c.line}` : "none" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 0" }}>
-              <Avatar email={m.email} accent={accent} />
+              <Avatar email={m.email} />
 
               <div style={{ flex: 1, minWidth: 0 }}>
                 {m.name && (
@@ -278,40 +246,19 @@ export default function TeamPage() {
                 </div>
               </div>
 
-              <RolePill role={m.role} />
+              <StatusPill label={m.role === "admin" ? "Admin" : "Member"} tone={m.role === "admin" ? "blue" : "teal"} />
 
-              {/* Change role */}
-              <select
-                value={m.role}
-                onChange={(e) => changeRole(m.user_id, e.target.value as "admin" | "member")}
-                style={{
-                  height: 32, padding: "0 8px",
-                  border: `1px solid ${c.line}`, borderRadius: 7,
-                  fontSize: 12, color: c.ink, background: "var(--panel)",
-                  cursor: "pointer",
-                }}
-                title="Change role"
-              >
-                <option value="member">Member</option>
-                <option value="admin">Admin</option>
-              </select>
-
-              <button
-                onClick={() => removeMember(m.user_id, m.email)}
-                title="Remove from workspace"
-                style={{
-                  height: 32, padding: "0 12px",
-                  background: "var(--err-bg)", color: "var(--err-ink)",
-                  border: "1px solid var(--err-line)", borderRadius: 7,
-                  fontSize: 12, cursor: "pointer",
-                }}
-              >
-                Remove
-              </button>
+              <MoreMenu
+                label={`Actions for ${m.email ?? "member"}`}
+                items={[
+                  { label: m.role === "admin" ? "Change role to Member" : "Change role to Admin", onSelect: () => changeRole(m.user_id, m.role === "admin" ? "member" : "admin") },
+                  // Admins bypass Business Roles entirely, so editing them only matters for members.
+                  { label: "Edit business roles", onSelect: () => startEditRoles(m), hidden: m.role !== "member" },
+                  { label: "Remove from workspace", onSelect: () => removeMember(m.user_id, m.email), danger: true },
+                ]}
+              />
             </div>
 
-            {/* Business Roles -- admins bypass Business Roles entirely, so this
-                only matters for members. */}
             {m.role === "member" && (
               <div style={{ padding: "0 0 12px 46px" }}>
                 {editingRolesFor === m.user_id ? (
@@ -329,31 +276,24 @@ export default function TeamPage() {
                       </div>
                     )}
                     <div style={{ display: "flex", gap: 8 }}>
-                      <button onClick={() => saveRoles(m.user_id)} disabled={savingRoles} style={{ padding: "5px 12px", borderRadius: 6, fontSize: 11.5, fontWeight: 600, background: accent, color: "#fff", border: "none", cursor: savingRoles ? "wait" : "pointer" }}>
+                      <Button size="sm" variant="primary" onClick={() => saveRoles(m.user_id)} loading={savingRoles}>
                         {savingRoles ? "Saving…" : "Save"}
-                      </button>
-                      <button onClick={() => setEditingRolesFor(null)} style={{ padding: "5px 12px", borderRadius: 6, fontSize: 11.5, background: "none", color: c.muted, border: `1px solid ${c.line}`, cursor: "pointer" }}>
-                        Cancel
-                      </button>
+                      </Button>
+                      <Button size="sm" onClick={() => setEditingRolesFor(null)}>Cancel</Button>
                     </div>
                   </div>
                 ) : (
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 11.5, color: c.hint }}>
-                    <span>
-                      {m.business_role_ids.length === 0
-                        ? "Full access (no Business Role assigned)"
-                        : `Roles: ${m.business_role_ids.map((id) => businessRoles.find((br) => br.id === id)?.name ?? "—").join(", ")}`}
-                    </span>
-                    <button onClick={() => startEditRoles(m)} style={{ padding: "2px 9px", borderRadius: 5, fontSize: 11, background: "none", color: accent, border: `1px solid ${c.line}`, cursor: "pointer" }}>
-                      Edit
-                    </button>
+                  <div style={{ fontSize: 11.5, color: c.hint }}>
+                    {m.business_role_ids.length === 0
+                      ? "Full access (no Business Role assigned)"
+                      : `Roles: ${m.business_role_ids.map((id) => businessRoles.find((br) => br.id === id)?.name ?? "—").join(", ")}`}
                   </div>
                 )}
               </div>
             )}
           </div>
         ))}
-      </section>
+      </Card>
     </div>
   );
 }

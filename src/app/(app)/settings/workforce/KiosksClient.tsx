@@ -4,7 +4,11 @@ import { useCallback, useEffect, useState } from "react";
 import { useFeel } from "@/components/FeelProvider";
 import { c, statusInk } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
-import Pill from "@/components/Pill";
+import Button from "@/components/ui/Button";
+import EmptyState from "@/components/ui/EmptyState";
+import StatusPill from "@/components/ui/StatusPill";
+import { RecordList, RecordRow } from "@/components/settings/RecordRows";
+import { SettingsHeaderActions } from "@/components/settings/SettingsHeaderActions";
 import type { WfmSite } from "@/lib/wfm/types";
 
 /**
@@ -32,9 +36,6 @@ const btn: React.CSSProperties = {
   padding: "8px 14px", fontSize: 12.5, fontWeight: 600, borderRadius: 8,
   border: `1px solid ${c.line}`, background: c.panel, color: c.ink, cursor: "pointer",
 };
-const btnPrimary: React.CSSProperties = {
-  ...btn, background: "var(--tenant-accent, #378ADD)", borderColor: "transparent", color: "#fff",
-};
 
 const fmt = (s: string | null) =>
   s ? new Date(s).toLocaleString("en-IN", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) : "never";
@@ -47,6 +48,7 @@ export default function KiosksClient() {
   const [newToken, setNewToken] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [registering, setRegistering] = useState(false);
 
   const load = useCallback(async () => {
     const [dRes, sRes] = await Promise.all([fetch("/api/wfm/kiosk/devices"), fetch("/api/wfm/sites")]);
@@ -71,6 +73,7 @@ export default function KiosksClient() {
       if (!res.ok) { setError(json.error ?? "Could not register"); return; }
       setNewToken(json.token);
       setName("");
+      setRegistering(false);
       await load();
     } catch {
       setError("Network error");
@@ -124,7 +127,11 @@ export default function KiosksClient() {
 
   return (
     <>
-      <section style={{ ...cardStyle, marginBottom: 14 }}>
+      <SettingsHeaderActions>
+        <Button variant="primary" onClick={() => { setRegistering(true); setNewToken(null); setError(""); }}>+ New kiosk</Button>
+      </SettingsHeaderActions>
+
+      {registering && <section style={{ ...cardStyle, marginBottom: 14 }}>
         <div style={{ fontSize: 13.5, fontWeight: 700, color: c.ink, marginBottom: 4 }}>Register a kiosk tablet</div>
         <div style={{ fontSize: 12, color: c.muted, lineHeight: 1.55, marginBottom: 12 }}>
           On the tablet, open <b>{typeof location !== "undefined" ? location.origin : ""}/kiosk</b> in the browser
@@ -137,11 +144,14 @@ export default function KiosksClient() {
             <option value="">— site —</option>
             {sites.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
           </select>
-          <button style={btnPrimary} disabled={busy} onClick={() => void register()}>Generate kiosk code</button>
+          <Button variant="primary" loading={busy} onClick={() => void register()}>Generate kiosk code</Button>
+          <Button disabled={busy} onClick={() => { setRegistering(false); setError(""); }}>Cancel</Button>
         </div>
-        {error && <div style={{ fontSize: 12.5, color: statusInk.bad, marginTop: 10 }}>{error}</div>}
-        {newToken && (
-          <div style={{ marginTop: 12, padding: 12, borderRadius: 10, border: `1px solid ${statusInk.good}55`, background: `${statusInk.good}0d` }}>
+      </section>}
+
+      {error && <div style={{ fontSize: 12.5, color: statusInk.bad, marginBottom: 14 }}>{error}</div>}
+      {newToken && (
+          <div style={{ marginBottom: 14, padding: 12, borderRadius: 10, border: `1px solid ${statusInk.good}55`, background: `${statusInk.good}0d` }}>
             <div style={{ fontSize: 12, fontWeight: 700, color: c.ink, marginBottom: 6 }}>
               Kiosk code — shown only once. Paste it on the tablet now.
             </div>
@@ -151,41 +161,35 @@ export default function KiosksClient() {
             </div>
           </div>
         )}
-      </section>
 
-      <section style={{ ...cardStyle, padding: 0, overflowX: "auto" }}>
-        <table className="data-table" style={{ width: "100%", borderCollapse: "collapse" }}>
-          <thead>
-            <tr>
-              {["Name", "Site", "Status", "Last seen", "Registered", ""].map((h) => (
-                <th key={h} style={{ textAlign: "left", color: c.hint, fontWeight: 500, padding: "9px 12px", borderBottom: `1px solid ${c.line}`, fontSize: 11.5, whiteSpace: "nowrap" }}>{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {devices.map((d) => (
-              <tr key={d.id}>
-                <td style={{ padding: "9px 12px", borderBottom: `1px solid ${c.line}`, fontSize: 12.5, fontWeight: 600, color: c.ink }}>{d.name}</td>
-                <td style={{ padding: "9px 12px", borderBottom: `1px solid ${c.line}`, fontSize: 12.5 }}>{d.site_name ?? "—"}</td>
-                <td style={{ padding: "9px 12px", borderBottom: `1px solid ${c.line}` }}>
-                  <Pill label={d.active ? "Active" : "Deactivated"} tone={d.active ? "green" : "red"} />
-                </td>
-                <td style={{ padding: "9px 12px", borderBottom: `1px solid ${c.line}`, fontSize: 12, color: c.muted }}>{fmt(d.last_seen_at)}</td>
-                <td style={{ padding: "9px 12px", borderBottom: `1px solid ${c.line}`, fontSize: 12, color: c.muted }}>{fmt(d.created_at)}</td>
-                <td style={{ padding: "9px 12px", borderBottom: `1px solid ${c.line}` }}>
-                  <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
-                    <button style={btn} disabled={busy} onClick={() => void reissue(d)}>New code</button>
-                    {d.active && <button style={btn} disabled={busy} onClick={() => void deactivate(d)}>Deactivate</button>}
-                  </div>
-                </td>
-              </tr>
-            ))}
-            {devices.length === 0 && (
-              <tr><td colSpan={6} style={{ padding: "14px 12px", fontSize: 12, color: c.hint }}>No kiosks registered yet.</td></tr>
-            )}
-          </tbody>
-        </table>
-      </section>
+
+      <RecordList
+        empty={
+          <EmptyState
+            title="No kiosks registered yet"
+            text="Register a tablet to let enrolled employees punch by face at the door."
+            action={<Button variant="primary" onClick={() => setRegistering(true)}>+ New kiosk</Button>}
+          />
+        }
+      >
+        {devices.map((d) => (
+          <RecordRow
+            key={d.id}
+            title={d.name}
+            dim={!d.active}
+            status={<StatusPill label={d.active ? "Active" : "Deactivated"} tone={d.active ? "green" : "red"} />}
+            facts={[
+              { label: "Site", value: d.site_name ?? "—" },
+              { label: "Last seen", value: fmt(d.last_seen_at) },
+              { label: "Registered", value: fmt(d.created_at) },
+            ]}
+            menu={[
+              { label: "Issue new code", onSelect: () => { void reissue(d); } },
+              { label: "Deactivate", onSelect: () => { void deactivate(d); }, danger: true, hidden: !d.active },
+            ]}
+          />
+        ))}
+      </RecordList>
     </>
   );
 }

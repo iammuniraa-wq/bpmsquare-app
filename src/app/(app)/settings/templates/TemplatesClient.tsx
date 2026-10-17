@@ -7,6 +7,10 @@ import type { TextFragment, FragmentCategory } from "@/lib/types";
 import { c } from "@/lib/theme";
 import Pill from "@/components/Pill";
 import type { PillarKey } from "@/lib/theme";
+import Button from "@/components/ui/Button";
+import MoreMenu from "@/components/ui/MoreMenu";
+import EmptyState from "@/components/ui/EmptyState";
+import { SettingsHeaderActions } from "@/components/settings/SettingsHeaderActions";
 
 const CAT_LABEL: Record<FragmentCategory, string> = {
   line_item: "Line item descriptions", notes: "Note templates", terms: "Terms & conditions", sow: "Scope of work",
@@ -27,8 +31,7 @@ const inputSt: React.CSSProperties = {
   padding: "7px 9px", fontSize: 12.5, width: "100%", boxSizing: "border-box", color: c.ink,
 };
 
-function AddRow({ onAdd }: { onAdd: (f: TextFragment) => void }) {
-  const [open, setOpen] = useState(false);
+function AddRow({ open, setOpen, onAdd }: { open: boolean; setOpen: (v: boolean) => void; onAdd: (f: TextFragment) => void }) {
   const [pending, startTransition] = useTransition();
   const [form, setForm] = useState({ label: "", category: "line_item" as FragmentCategory, text: "" });
   const [err, setErr] = useState("");
@@ -53,13 +56,7 @@ function AddRow({ onAdd }: { onAdd: (f: TextFragment) => void }) {
     });
   }
 
-  if (!open) {
-    return (
-      <button onClick={() => setOpen(true)} style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 16px", borderRadius: 8, background: c.accent, color: "#fff", border: "none", fontSize: 13, fontWeight: 500, cursor: "pointer" }}>
-        + New template
-      </button>
-    );
-  }
+  if (!open) return null;
 
   return (
     <form onSubmit={submit} style={{ background: "var(--panel2)", border: `1px solid ${c.line}`, borderRadius: 10, padding: 16, marginBottom: 16 }}>
@@ -87,12 +84,8 @@ function AddRow({ onAdd }: { onAdd: (f: TextFragment) => void }) {
       </div>
       {err && <div style={{ fontSize: 12, color: "var(--err-ink)", marginBottom: 10 }}>{err}</div>}
       <div style={{ display: "flex", gap: 8 }}>
-        <button type="submit" disabled={pending} style={{ padding: "7px 20px", borderRadius: 7, background: c.accent, color: "#fff", border: "none", fontSize: 13, fontWeight: 500, cursor: "pointer" }}>
-          {pending ? "Saving…" : "Save"}
-        </button>
-        <button type="button" onClick={() => setOpen(false)} style={{ padding: "7px 16px", borderRadius: 7, background: "var(--panel2)", color: c.muted, border: "none", fontSize: 13, cursor: "pointer" }}>
-          Cancel
-        </button>
+        <Button type="submit" variant="primary" loading={pending}>{pending ? "Saving…" : "Save"}</Button>
+        <Button onClick={() => setOpen(false)}>Cancel</Button>
       </div>
     </form>
   );
@@ -132,25 +125,24 @@ function FragmentRow({ frag, onUpdate, onDelete }: { frag: TextFragment; onUpdat
         <input style={{ ...inputSt, marginBottom: 8 }} value={form.label} onChange={(e) => set("label", e.target.value)} />
         <textarea style={{ ...inputSt, height: 80, resize: "vertical", marginBottom: 8, lineHeight: 1.6 }} value={form.text} onChange={(e) => set("text", e.target.value)} />
         <div style={{ display: "flex", gap: 6 }}>
-          <button onClick={save} disabled={pending} style={{ fontSize: 12, padding: "5px 14px", borderRadius: 6, background: c.accent, color: "#fff", border: "none", cursor: "pointer" }}>
-            {pending ? "…" : "Save"}
-          </button>
-          <button onClick={() => setEditing(false)} style={{ fontSize: 12, padding: "5px 12px", borderRadius: 6, background: "var(--panel2)", color: c.muted, border: "none", cursor: "pointer" }}>
-            Cancel
-          </button>
+          <Button size="sm" variant="primary" onClick={save} loading={pending}>Save</Button>
+          <Button size="sm" onClick={() => setEditing(false)}>Cancel</Button>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="row-grid" style={{ padding: "14px 0", borderTop: `1px solid ${c.line}`, display: "grid", gridTemplateColumns: "180px 1fr 80px", gap: 16, alignItems: "start" }}>
+    <div className="row-grid" style={{ padding: "14px 0", borderTop: `1px solid ${c.line}`, display: "grid", gridTemplateColumns: "180px 1fr auto", gap: 16, alignItems: "start" }}>
       <div style={{ fontWeight: 600, fontSize: 13, color: c.ink }}>{frag.label}</div>
       <div style={{ fontSize: 12.5, color: c.muted, lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{frag.text}</div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-        <button onClick={() => setEditing(true)} style={{ fontSize: 11, padding: "3px 9px", borderRadius: 6, background: c.accentbg, color: c.accent, border: "none", cursor: "pointer" }}>Edit</button>
-        <button onClick={del} disabled={pending} style={{ fontSize: 11, padding: "3px 9px", borderRadius: 6, background: "var(--err-bg)", color: "var(--err-ink)", border: "none", cursor: "pointer" }}>Delete</button>
-      </div>
+      <MoreMenu
+        label={`Actions for ${frag.label}`}
+        items={[
+          { label: "Edit", onSelect: () => setEditing(true) },
+          { label: "Delete", onSelect: () => { void del(); }, danger: true },
+        ]}
+      />
     </div>
   );
 }
@@ -158,6 +150,7 @@ function FragmentRow({ frag, onUpdate, onDelete }: { frag: TextFragment; onUpdat
 export default function TemplatesClient({ initialFragments }: { initialFragments: TextFragment[] }) {
   const router = useRouter();
   const [fragments, setFragments] = useState(initialFragments);
+  const [adding, setAdding] = useState(false);
 
   const add = (f: TextFragment) => { setFragments((p) => [...p, f]); router.refresh(); };
   const update = (f: TextFragment) => setFragments((p) => p.map((x) => x.id === f.id ? f : x));
@@ -165,7 +158,10 @@ export default function TemplatesClient({ initialFragments }: { initialFragments
 
   return (
     <>
-      <AddRow onAdd={add} />
+      <SettingsHeaderActions>
+        <Button variant="primary" onClick={() => setAdding(true)}>+ New template</Button>
+      </SettingsHeaderActions>
+      <AddRow open={adding} setOpen={setAdding} onAdd={add} />
       <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
         {CATEGORIES.map((cat) => {
           const catFrags = fragments.filter((f) => f.category === cat);
@@ -179,7 +175,7 @@ export default function TemplatesClient({ initialFragments }: { initialFragments
                 <p style={{ fontSize: 12, color: c.muted, margin: 0 }}>{CAT_DESC[cat]}</p>
               </div>
               {catFrags.length === 0 && (
-                <div style={{ fontSize: 12.5, color: c.hint, padding: "8px 0" }}>No templates yet.</div>
+                <EmptyState title="No templates yet" text="Use + New template to add one." />
               )}
               {catFrags.map((frag) => (
                 <FragmentRow key={frag.id} frag={frag} onUpdate={update} onDelete={remove} />

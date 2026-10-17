@@ -4,7 +4,11 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import { c, pillar } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
-import Pill from "@/components/Pill";
+import Button from "@/components/ui/Button";
+import EmptyState from "@/components/ui/EmptyState";
+import StatusPill from "@/components/ui/StatusPill";
+import { RecordList, RecordRow } from "@/components/settings/RecordRows";
+import { SettingsHeaderActions } from "@/components/settings/SettingsHeaderActions";
 import type { WfmSite } from "@/lib/wfm/types";
 
 const SiteMapPicker = dynamic(() => import("@/components/wfm/SiteMapPicker"), { ssr: false });
@@ -27,23 +31,12 @@ const inp: React.CSSProperties = {
   border: `1px solid ${c.line}`, borderRadius: 8,
   background: c.panel, color: c.ink, outline: "none", boxSizing: "border-box",
 };
-const th: React.CSSProperties = {
-  textAlign: "left", color: c.hint, fontWeight: 500,
-  padding: "9px 12px", borderBottom: `1px solid ${c.line}`, fontSize: 11.5, whiteSpace: "nowrap",
-};
-const td: React.CSSProperties = {
-  padding: "9px 12px", borderBottom: `1px solid ${c.line}`, fontSize: 12.5, verticalAlign: "middle",
-};
 const btn: React.CSSProperties = {
   padding: "8px 14px", fontSize: 12.5, fontWeight: 600, borderRadius: 8,
   border: `1px solid ${c.line}`, background: c.panel, color: c.ink, cursor: "pointer",
 };
 const btnPrimary: React.CSSProperties = {
   ...btn, background: "var(--tenant-accent, #378ADD)", borderColor: "transparent", color: "#fff",
-};
-const btnLink: React.CSSProperties = {
-  border: "none", background: "none", color: "var(--tenant-accent, #378ADD)",
-  fontSize: 12.5, fontWeight: 600, cursor: "pointer", padding: "8px 6px",
 };
 
 function personName(e: { first_name: string; last_name: string }): string {
@@ -320,102 +313,68 @@ export default function SitesClient({ canEdit }: { canEdit: boolean }) {
           <strong>{unsupervised.length} site{unsupervised.length === 1 ? " has" : "s have"} no supervisor.</strong>{" "}
           Overtime, leave and correction requests from people working at{" "}
           {unsupervised.map((s) => s.name).join(", ")} have nobody to approve them.
-          Assign a supervisor below.
+          Assign a supervisor to each.
         </div>
       )}
 
-      <section style={{ ...cardStyle, padding: 0, overflowX: "auto" }}>
-        <div style={{
-          padding: "12px 12px 10px", borderBottom: `1px solid ${c.line}`,
-          display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, flexWrap: "wrap",
-        }}>
-          <div>
-            <div style={{ fontSize: 13, fontWeight: 600, color: c.ink }}>Sites</div>
-            <div style={{ fontSize: 12, color: c.muted, marginTop: 3, maxWidth: 720 }}>
-              A site is a place people punch in at. Its <strong>radius</strong> is the geofence — how far
-              from the pin a punch still counts as on-site. Its <strong>supervisor</strong> approves the
-              overtime, leave and corrections of everyone assigned to work there, and you can name
-              extra approvers alongside them so requests don&apos;t wait when one person is away.
-            </div>
-          </div>
-          {canEdit && (
-            <button style={btnPrimary} onClick={() => { setAdding(true); setEditingId(null); setSiteForm(blank); setApproverIds([]); setError(""); }}>
-              + Add site
-            </button>
-          )}
-        </div>
+      {canEdit && (
+        <SettingsHeaderActions>
+          <Button variant="primary" onClick={() => { setAdding(true); setEditingId(null); setSiteForm(blank); setApproverIds([]); setError(""); }}>
+            + New site
+          </Button>
+        </SettingsHeaderActions>
+      )}
 
-        <table style={{ width: "100%", borderCollapse: "collapse" }}>
-          <thead>
-            <tr>
-              <th style={th}>Site</th>
-              <th style={th}>Supervisor</th>
-              <th style={th}>Geofence</th>
-              <th style={th}>Location</th>
-              <th style={th}>Status</th>
-              {canEdit && <th style={th}></th>}
-            </tr>
-          </thead>
-          <tbody>
-            {sites.map((s) => (
-              <tr key={s.id}>
-                <td style={{ ...td, fontWeight: 600, color: c.ink }}>{s.name}</td>
-                <td style={td}>
-                  {s.supervisor ? (
-                    <span style={{ color: c.ink }}>
-                      {personName(s.supervisor)}
-                      {s.supervisor.employee_code && (
-                        <span style={{ color: c.hint, fontSize: 11.5 }}> · {s.supervisor.employee_code}</span>
-                      )}
-                    </span>
+      <div style={{ fontSize: 12, color: c.muted, marginBottom: 12, maxWidth: 720, lineHeight: 1.5 }}>
+        A site is a place people punch in at. Its <strong>radius</strong> is the geofence — how far
+        from the pin a punch still counts as on-site. Its <strong>supervisor</strong> approves the
+        overtime, leave and corrections of everyone assigned to work there, and you can name
+        extra approvers alongside them so requests don&apos;t wait when one person is away.
+      </div>
+
+      <RecordList
+        empty={
+          <EmptyState
+            title="No sites yet"
+            text="Until a site exists, punches are recorded without any location check."
+            action={canEdit ? <Button variant="primary" onClick={() => setAdding(true)}>+ New site</Button> : undefined}
+          />
+        }
+      >
+        {sites.map((s) => {
+          const alsoApprovers = (s.approver_ids ?? [])
+            .map((id) => { const p = people.find((x) => x.id === id); return p ? personName(p) : null; })
+            .filter(Boolean)
+            .join(", ");
+          return (
+            <RecordRow
+              key={s.id}
+              title={s.name}
+              dim={!s.active}
+              status={<StatusPill label={s.active ? "Active" : "Inactive"} tone={s.active ? "green" : "red"} />}
+              facts={[
+                {
+                  label: "Supervisor",
+                  value: s.supervisor ? (
+                    <>{personName(s.supervisor)}{s.supervisor.employee_code && <span style={{ color: c.hint }}> · {s.supervisor.employee_code}</span>}</>
                   ) : (s.approver_ids ?? []).length > 0 ? (
                     <span style={{ color: c.hint }}>No single supervisor</span>
                   ) : (
                     <span style={{ color: pillar.amber.fg, fontWeight: 600 }}>Not assigned</span>
-                  )}
-                  {(s.approver_ids ?? []).length > 0 && (
-                    <div style={{ fontSize: 11.5, color: c.hint, marginTop: 3 }}>
-                      + also {(s.approver_ids ?? [])
-                        .map((id) => {
-                          const p = people.find((x) => x.id === id);
-                          return p ? personName(p) : null;
-                        })
-                        .filter(Boolean)
-                        .join(", ")}
-                    </div>
-                  )}
-                </td>
-                <td style={td}>{s.radius_m} m</td>
-                <td style={{ ...td, color: c.hint, fontSize: 11.5, whiteSpace: "nowrap" }}>
-                  {Number(s.lat).toFixed(4)}, {Number(s.lng).toFixed(4)}
-                </td>
-                <td style={td}><Pill label={s.active ? "Active" : "Inactive"} tone={s.active ? "green" : "red"} /></td>
-                {canEdit && (
-                  <td style={{ ...td, whiteSpace: "nowrap" }}>
-                    <button style={btnLink} disabled={busy} onClick={() => startEdit(s)}>Edit</button>
-                    <button
-                      style={btnLink}
-                      disabled={busy}
-                      onClick={() => send(`/api/wfm/sites/${s.id}`, { active: !s.active }, "PATCH")}
-                    >
-                      {s.active ? "Deactivate" : "Activate"}
-                    </button>
-                  </td>
-                )}
-              </tr>
-            ))}
-            {sites.length === 0 && (
-              <tr>
-                <td style={{ ...td, color: c.hint }} colSpan={6}>
-                  No sites yet. Add the first one below — until a site exists, punches are recorded
-                  without any location check.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-
-      </section>
+                  ),
+                },
+                ...(alsoApprovers ? [{ label: "Also approve", value: alsoApprovers }] : []),
+                { label: "Geofence", value: `${s.radius_m} m` },
+                { label: "Location", value: `${Number(s.lat).toFixed(4)}, ${Number(s.lng).toFixed(4)}` },
+              ]}
+              menu={canEdit ? [
+                { label: "Edit", onSelect: () => startEdit(s) },
+                { label: s.active ? "Deactivate" : "Activate", onSelect: () => { void send(`/api/wfm/sites/${s.id}`, { active: !s.active }, "PATCH"); } },
+              ] : undefined}
+            />
+          );
+        })}
+      </RecordList>
     </>
   );
 }

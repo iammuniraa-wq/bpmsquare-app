@@ -4,6 +4,9 @@ import { useEffect, useMemo, useState } from "react";
 import { c } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
 import { useFeel } from "@/components/FeelProvider";
+import Button from "@/components/ui/Button";
+import MoreMenu from "@/components/ui/MoreMenu";
+import { SettingsHeaderActions } from "@/components/settings/SettingsHeaderActions";
 import {
   SEGMENT_FIELDS, OPERATOR_LABEL, getSegmentField,
   type SegmentFilter, type SegmentFieldDef,
@@ -135,18 +138,20 @@ function TeamsTab({ teams, members, memberLabel, onChanged }: {
   const [lead, setLead] = useState("");
   const [memberIds, setMemberIds] = useState<Set<string>>(new Set());
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [adding, setAdding] = useState(false);
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState("");
   const { confirm } = useFeel();
 
   function startEdit(t: Team) {
     setEditingId(t.id);
+    setAdding(true);
     setName(t.name);
     setLead(t.lead_user_id ?? "");
     setMemberIds(new Set(t.team_members.map((m) => m.user_id)));
   }
   function resetForm() {
-    setEditingId(null); setName(""); setLead(""); setMemberIds(new Set());
+    setEditingId(null); setAdding(false); setErr(""); setName(""); setLead(""); setMemberIds(new Set());
   }
 
   async function save() {
@@ -176,8 +181,12 @@ function TeamsTab({ teams, members, memberLabel, onChanged }: {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-      <section style={cardStyle}>
-        <div style={{ ...lbl, marginBottom: 10 }}>{editingId ? "Edit team" : "Add a team"}</div>
+      <SettingsHeaderActions>
+        <Button variant="primary" onClick={() => { resetForm(); setAdding(true); }}>+ New team</Button>
+      </SettingsHeaderActions>
+
+      {adding && <section style={cardStyle}>
+        <div style={{ ...lbl, marginBottom: 10 }}>{editingId ? "Edit team" : "New team"}</div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
           <div>
             <label style={lbl}>Name</label>
@@ -205,12 +214,10 @@ function TeamsTab({ teams, members, memberLabel, onChanged }: {
         </div>
         {err && <div style={{ fontSize: 12.5, color: "var(--err-ink)", marginBottom: 10 }}>{err}</div>}
         <div style={{ display: "flex", gap: 8 }}>
-          <button onClick={save} disabled={saving} style={{ padding: "9px 18px", borderRadius: 8, border: "none", background: c.accent, color: "#fff", fontWeight: 600, fontSize: 13, cursor: saving ? "not-allowed" : "pointer" }}>
-            {saving ? "Saving…" : editingId ? "Save changes" : "Add team"}
-          </button>
-          {editingId && <button onClick={resetForm} style={{ padding: "9px 18px", borderRadius: 8, border: `1px solid ${c.line}`, background: "none", color: c.ink, fontSize: 13, cursor: "pointer" }}>Cancel</button>}
+          <Button variant="primary" onClick={save} loading={saving}>{saving ? "Saving…" : editingId ? "Save changes" : "Add team"}</Button>
+          <Button onClick={resetForm}>Cancel</Button>
         </div>
-      </section>
+      </section>}
 
       <section style={cardStyle}>
         <div style={{ ...lbl, marginBottom: 10 }}>Teams ({teams.length})</div>
@@ -226,8 +233,10 @@ function TeamsTab({ teams, members, memberLabel, onChanged }: {
                     Lead: {memberLabel(t.lead_user_id)} · {t.team_members.length} member{t.team_members.length === 1 ? "" : "s"}
                   </div>
                 </div>
-                <button onClick={() => startEdit(t)} style={{ fontSize: 12, background: "none", border: `1px solid ${c.line}`, borderRadius: 6, padding: "5px 10px", color: c.ink, cursor: "pointer" }}>Edit</button>
-                <button onClick={() => remove(t.id)} style={{ fontSize: 12, background: "none", border: "none", color: "var(--err-ink)", cursor: "pointer" }}>Delete</button>
+                <MoreMenu label={`Actions for ${t.name}`} items={[
+                  { label: "Edit", onSelect: () => startEdit(t) },
+                  { label: "Delete", onSelect: () => { void remove(t.id); }, danger: true },
+                ]} />
               </div>
             ))}
           </div>
@@ -249,6 +258,7 @@ function SegmentsTab({ segments, accounts, onChanged }: { segments: Segment[]; a
   const [accountIds, setAccountIds] = useState<Set<string>>(new Set());
   const [accountQuery, setAccountQuery] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [adding, setAdding] = useState(false);
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState("");
   const { confirm } = useFeel();
@@ -269,11 +279,11 @@ function SegmentsTab({ segments, accounts, onChanged }: { segments: Segment[]; a
   function removeFilter(id: string) { setFilters((cur) => cur.filter((f) => f.id !== id)); }
 
   function startEdit(s: Segment) {
-    setEditingId(s.id); setCode(s.code); setName(s.name); setMatch(s.match);
+    setEditingId(s.id); setAdding(true); setCode(s.code); setName(s.name); setMatch(s.match);
     setFilters(s.filters); setAccountIds(new Set(s.account_ids));
   }
   function resetForm() {
-    setEditingId(null); setCode(""); setName(""); setMatch("all"); setFilters([]); setAccountIds(new Set());
+    setEditingId(null); setAdding(false); setErr(""); setCode(""); setName(""); setMatch("all"); setFilters([]); setAccountIds(new Set());
   }
 
   async function save() {
@@ -307,8 +317,12 @@ function SegmentsTab({ segments, accounts, onChanged }: { segments: Segment[]; a
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-      <section style={cardStyle}>
-        <div style={{ ...lbl, marginBottom: 10 }}>{editingId ? "Edit segment" : "Add a segment"}</div>
+      <SettingsHeaderActions>
+        <Button variant="primary" onClick={() => { resetForm(); setAdding(true); }}>+ New segment</Button>
+      </SettingsHeaderActions>
+
+      {adding && <section style={cardStyle}>
+        <div style={{ ...lbl, marginBottom: 10 }}>{editingId ? "Edit segment" : "New segment"}</div>
         <div className="stack-grid" style={{ display: "grid", gridTemplateColumns: "160px 1fr", gap: 12, marginBottom: 12 }}>
           <div>
             <label style={lbl}>Code</label>
@@ -409,12 +423,10 @@ function SegmentsTab({ segments, accounts, onChanged }: { segments: Segment[]; a
 
         {err && <div style={{ fontSize: 12.5, color: "var(--err-ink)", marginBottom: 10 }}>{err}</div>}
         <div style={{ display: "flex", gap: 8 }}>
-          <button onClick={save} disabled={saving} style={{ padding: "9px 18px", borderRadius: 8, border: "none", background: c.accent, color: "#fff", fontWeight: 600, fontSize: 13, cursor: saving ? "not-allowed" : "pointer" }}>
-            {saving ? "Saving…" : editingId ? "Save changes" : "Add segment"}
-          </button>
-          {editingId && <button onClick={resetForm} style={{ padding: "9px 18px", borderRadius: 8, border: `1px solid ${c.line}`, background: "none", color: c.ink, fontSize: 13, cursor: "pointer" }}>Cancel</button>}
+          <Button variant="primary" onClick={save} loading={saving}>{saving ? "Saving…" : editingId ? "Save changes" : "Add segment"}</Button>
+          <Button onClick={resetForm}>Cancel</Button>
         </div>
-      </section>
+      </section>}
 
       <section style={cardStyle}>
         <div style={{ ...lbl, marginBottom: 10 }}>Segments ({segments.length})</div>
@@ -430,8 +442,10 @@ function SegmentsTab({ segments, accounts, onChanged }: { segments: Segment[]; a
                     {s.filters.length} condition{s.filters.length === 1 ? "" : "s"} ({s.match}) {s.account_ids.length > 0 ? `· ${s.account_ids.length} pinned account${s.account_ids.length === 1 ? "" : "s"}` : ""}
                   </div>
                 </div>
-                <button onClick={() => startEdit(s)} style={{ fontSize: 12, background: "none", border: `1px solid ${c.line}`, borderRadius: 6, padding: "5px 10px", color: c.ink, cursor: "pointer" }}>Edit</button>
-                <button onClick={() => remove(s.id)} style={{ fontSize: 12, background: "none", border: "none", color: "var(--err-ink)", cursor: "pointer" }}>Delete</button>
+                <MoreMenu label={`Actions for ${s.name}`} items={[
+                  { label: "Edit", onSelect: () => startEdit(s) },
+                  { label: "Delete", onSelect: () => { void remove(s.id); }, danger: true },
+                ]} />
               </div>
             ))}
           </div>
@@ -448,6 +462,7 @@ function CoverageTab({ coverages, segments, teams, endpoints, teamLabel, segment
   teamLabel: (id: string) => string; segmentLabel: (id: string) => string;
   onChanged: () => void; onEndpointsChanged: (eps: Endpoint[]) => void;
 }) {
+  const [adding, setAdding] = useState(false);
   const [segmentId, setSegmentId] = useState("");
   const [teamId, setTeamId] = useState("");
   const [role, setRole] = useState<CoverageRole>("owner");
@@ -463,6 +478,11 @@ function CoverageTab({ coverages, segments, teams, endpoints, teamLabel, segment
   const [endpointUrl, setEndpointUrl] = useState("");
   const [savingEndpoint, setSavingEndpoint] = useState(false);
 
+  function resetForm() {
+    setAdding(false); setErr("");
+    setSegmentId(""); setTeamId(""); setRole("owner"); setPriority(100); setErpEndpointId(""); setEffectiveTo("");
+  }
+
   async function save() {
     if (!segmentId || !teamId) { setErr("Segment and team are required."); return; }
     setSaving(true); setErr("");
@@ -475,7 +495,7 @@ function CoverageTab({ coverages, segments, teams, endpoints, teamLabel, segment
           effective_from: effectiveFrom, effective_to: effectiveTo || null,
         }),
       });
-      setSegmentId(""); setTeamId(""); setRole("owner"); setPriority(100); setErpEndpointId(""); setEffectiveTo("");
+      resetForm();
       onChanged();
     } catch (e: unknown) {
       setErr(e instanceof Error ? e.message : "Failed to save");
@@ -517,7 +537,11 @@ function CoverageTab({ coverages, segments, teams, endpoints, teamLabel, segment
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-      <section style={cardStyle}>
+      <SettingsHeaderActions>
+        <Button variant="primary" onClick={() => { resetForm(); setAdding(true); }}>+ New coverage</Button>
+      </SettingsHeaderActions>
+
+      {adding && <section style={cardStyle}>
         <div style={{ ...lbl, marginBottom: 10 }}>Wire a segment to a team</div>
         <div className="stack-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr 120px 100px", gap: 12, marginBottom: 12 }}>
           <div>
@@ -570,10 +594,11 @@ function CoverageTab({ coverages, segments, teams, endpoints, teamLabel, segment
         </div>
 
         {err && <div style={{ fontSize: 12.5, color: "var(--err-ink)", marginBottom: 10 }}>{err}</div>}
-        <button onClick={save} disabled={saving} style={{ padding: "9px 18px", borderRadius: 8, border: "none", background: c.accent, color: "#fff", fontWeight: 600, fontSize: 13, cursor: saving ? "not-allowed" : "pointer" }}>
-          {saving ? "Saving…" : "Add coverage"}
-        </button>
-      </section>
+        <div style={{ display: "flex", gap: 8 }}>
+          <Button variant="primary" onClick={save} loading={saving}>{saving ? "Saving…" : "Add coverage"}</Button>
+          <Button onClick={resetForm}>Cancel</Button>
+        </div>
+      </section>}
 
       <section style={cardStyle}>
         <div style={{ ...lbl, marginBottom: 10 }}>Coverage ({coverages.length})</div>
@@ -591,7 +616,9 @@ function CoverageTab({ coverages, segments, teams, endpoints, teamLabel, segment
                     {cov.erp_endpoint_id ? ` · pushes to ${endpoints.find((e) => e.id === cov.erp_endpoint_id)?.name ?? "custom endpoint"}` : ""}
                   </div>
                 </div>
-                <button onClick={() => remove(cov.id)} style={{ fontSize: 12, background: "none", border: "none", color: "var(--err-ink)", cursor: "pointer" }}>Remove</button>
+                <MoreMenu label="Coverage actions" items={[
+                  { label: "Remove", onSelect: () => { void remove(cov.id); }, danger: true },
+                ]} />
               </div>
             ))}
           </div>
@@ -612,7 +639,9 @@ function CoverageTab({ coverages, segments, teams, endpoints, teamLabel, segment
               <div key={ep.id} style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 12.5 }}>
                 <span style={{ fontWeight: 600, color: c.ink }}>{ep.name}</span>
                 <span style={{ color: c.hint, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{ep.webhook_url}</span>
-                <button onClick={() => removeEndpoint(ep.id)} style={{ background: "none", border: "none", color: "var(--err-ink)", cursor: "pointer", fontSize: 12 }}>Remove</button>
+                <MoreMenu label={`Actions for ${ep.name}`} items={[
+                  { label: "Remove", onSelect: () => { void removeEndpoint(ep.id); }, danger: true },
+                ]} />
               </div>
             ))}
           </div>

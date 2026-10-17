@@ -3,7 +3,11 @@
 import { useCallback, useEffect, useState } from "react";
 import { c } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
-import Pill from "@/components/Pill";
+import Button from "@/components/ui/Button";
+import EmptyState from "@/components/ui/EmptyState";
+import StatusPill from "@/components/ui/StatusPill";
+import { RecordList, RecordRow } from "@/components/settings/RecordRows";
+import { SettingsHeaderActions } from "@/components/settings/SettingsHeaderActions";
 import { useFeel } from "@/components/FeelProvider";
 import type { WfmShift } from "@/lib/wfm/types";
 import { useCurrency } from "@/lib/tenant-context";
@@ -17,26 +21,6 @@ const inp: React.CSSProperties = {
   width: "100%", padding: "8px 11px", fontSize: 13,
   border: `1px solid ${c.line}`, borderRadius: 8,
   background: c.panel, color: c.ink, outline: "none", boxSizing: "border-box",
-};
-const th: React.CSSProperties = {
-  textAlign: "left", color: c.hint, fontWeight: 500,
-  padding: "9px 12px", borderBottom: `1px solid ${c.line}`, fontSize: 11.5, whiteSpace: "nowrap",
-};
-const td: React.CSSProperties = {
-  padding: "9px 12px", borderBottom: `1px solid ${c.line}`, fontSize: 12.5, verticalAlign: "middle",
-};
-const btn: React.CSSProperties = {
-  padding: "8px 14px", fontSize: 12.5, fontWeight: 600, borderRadius: 8,
-  border: `1px solid ${c.line}`, background: c.panel, color: c.ink, cursor: "pointer",
-};
-const btnPrimary: React.CSSProperties = {
-  ...btn, background: "var(--tenant-accent, #378ADD)", borderColor: "transparent", color: "#fff",
-};
-const btnGhost: React.CSSProperties = {
-  ...btn, background: "none",
-};
-const btnDanger: React.CSSProperties = {
-  ...btn, background: "none", borderColor: "transparent", color: "#ef4444", padding: "8px 6px",
 };
 
 const hhmm = (t: string) => t.slice(0, 5);
@@ -58,6 +42,7 @@ export default function ShiftsClient({ canEdit }: { canEdit: boolean }) {
   // there's exactly one form on the page, never a second copy per row.
   const [editingId, setEditingId] = useState<string | null>(null);
   const [shiftForm, setShiftForm] = useState(BLANK_FORM);
+  const [formOpen, setFormOpen] = useState(false);
 
   const load = useCallback(async () => {
     const res = await fetch("/api/wfm/shifts");
@@ -90,6 +75,7 @@ export default function ShiftsClient({ canEdit }: { canEdit: boolean }) {
 
   function startEdit(s: WfmShift) {
     setEditingId(s.id);
+    setFormOpen(true);
     setShiftForm({
       name: s.name,
       start_time: hhmm(s.start_time),
@@ -98,11 +84,11 @@ export default function ShiftsClient({ canEdit }: { canEdit: boolean }) {
       is_night_shift: s.is_night_shift,
       night_allowance_amount: String(s.night_allowance_amount),
     });
-    window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   function cancelEdit() {
     setEditingId(null);
+    setFormOpen(false);
     setShiftForm(BLANK_FORM);
     setError("");
   }
@@ -141,10 +127,10 @@ export default function ShiftsClient({ canEdit }: { canEdit: boolean }) {
         <div style={{ ...cardStyle, marginBottom: 14, color: "#ef4444", fontSize: 12.5 }}>{error}</div>
       )}
 
-      {canEdit && (
+      {canEdit && formOpen && (
         <section style={{ ...cardStyle, marginBottom: 14 }}>
           <div style={{ fontSize: 13, fontWeight: 600, color: c.ink, marginBottom: 10 }}>
-            {editingId ? "Edit shift" : "Add a shift"}
+            {editingId ? "Edit shift" : "New shift"}
           </div>
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end" }}>
             <div style={{ flex: "1 1 150px" }}>
@@ -180,10 +166,8 @@ export default function ShiftsClient({ canEdit }: { canEdit: boolean }) {
                 <input style={inp} value={shiftForm.night_allowance_amount} onChange={(e) => setShiftForm({ ...shiftForm, night_allowance_amount: e.target.value })} />
               </div>
             )}
-            <button style={btnPrimary} disabled={busy} onClick={saveShift}>
-              {busy ? "Saving…" : editingId ? "Save changes" : "Add shift"}
-            </button>
-            {editingId && <button style={btnGhost} disabled={busy} onClick={cancelEdit}>Cancel</button>}
+            <Button variant="primary" loading={busy} onClick={saveShift}>{busy ? "Saving…" : editingId ? "Save changes" : "Add shift"}</Button>
+            <Button disabled={busy} onClick={cancelEdit}>Cancel</Button>
           </div>
           <div style={{ fontSize: 12, color: c.muted, marginTop: 10, maxWidth: 780 }}>
             Working hours people are expected to keep. <strong>Grace</strong> is how late someone can
@@ -194,62 +178,47 @@ export default function ShiftsClient({ canEdit }: { canEdit: boolean }) {
         </section>
       )}
 
-      <section style={{ ...cardStyle, padding: 0, overflowX: "auto" }}>
-        <div style={{ padding: "12px 12px 10px", borderBottom: `1px solid ${c.line}` }}>
-          <div style={{ fontSize: 13, fontWeight: 600, color: c.ink }}>Shifts</div>
-        </div>
-        <table style={{ width: "100%", borderCollapse: "collapse" }}>
-          <thead>
-            <tr>
-              <th style={th}>Name</th>
-              <th style={th}>Timing</th>
-              <th style={th}>Grace</th>
-              <th style={th}>Night shift</th>
-              <th style={th}>Night allowance</th>
-              <th style={th}>Status</th>
-              {canEdit && <th style={th}></th>}
-            </tr>
-          </thead>
-          <tbody>
-            {shifts.map((s) => (
-              <tr key={s.id} style={editingId === s.id ? { background: c.panel2 } : undefined}>
-                <td style={{ ...td, fontWeight: 600, color: c.ink }}>{s.name}</td>
-                <td style={td}>
-                  {hhmm(s.start_time)} – {hhmm(s.end_time)}
-                  {s.crosses_midnight && <span style={{ color: c.hint, marginLeft: 6, fontSize: 11 }}>next day</span>}
-                </td>
-                <td style={td}>{s.grace_minutes} min</td>
-                <td style={td}>{s.is_night_shift ? <Pill label="Night" tone="purple" /> : "—"}</td>
-                <td style={td}>{s.is_night_shift ? `${formatMoney(s.night_allowance_amount, cur, {})}/shift` : "—"}</td>
-                <td style={td}><Pill label={s.active ? "Active" : "Inactive"} tone={s.active ? "green" : "red"} /></td>
-                {canEdit && (
-                  <td style={{ ...td, whiteSpace: "nowrap" }}>
-                    <div style={{ display: "flex", gap: 6 }}>
-                      <button style={btn} disabled={busy} onClick={() => startEdit(s)}>Edit</button>
-                      <button
-                        style={btn}
-                        disabled={busy}
-                        onClick={() => post(`/api/wfm/shifts/${s.id}`, { active: !s.active }, "PATCH")}
-                      >
-                        {s.active ? "Deactivate" : "Activate"}
-                      </button>
-                      <button style={btnDanger} disabled={busy} onClick={() => deleteShift(s)}>Delete</button>
-                    </div>
-                  </td>
-                )}
-              </tr>
-            ))}
-            {shifts.length === 0 && (
-              <tr>
-                <td style={{ ...td, color: c.hint }} colSpan={7}>
-                  No shifts yet. Without one, nobody can be marked late or absent — attendance is
-                  recorded but never measured against expected hours.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </section>
+      {canEdit && (
+        <SettingsHeaderActions>
+          <Button variant="primary" onClick={() => { setEditingId(null); setShiftForm(BLANK_FORM); setError(""); setFormOpen(true); }}>
+            + New shift
+          </Button>
+        </SettingsHeaderActions>
+      )}
+
+      <RecordList
+        empty={
+          <EmptyState
+            title="No shifts yet"
+            text="Without one, nobody can be marked late or absent — attendance is recorded but never measured against expected hours."
+            action={canEdit ? <Button variant="primary" onClick={() => setFormOpen(true)}>+ New shift</Button> : undefined}
+          />
+        }
+      >
+        {shifts.map((s) => (
+          <RecordRow
+            key={s.id}
+            title={s.name}
+            dim={!s.active}
+            status={
+              <>
+                {s.is_night_shift && <StatusPill label="Night" tone="purple" />}
+                <StatusPill label={s.active ? "Active" : "Inactive"} tone={s.active ? "green" : "red"} />
+              </>
+            }
+            facts={[
+              { label: "Timing", value: <>{hhmm(s.start_time)} – {hhmm(s.end_time)}{s.crosses_midnight && <span style={{ color: c.hint, marginLeft: 6, fontSize: 11 }}>next day</span>}</> },
+              { label: "Grace", value: `${s.grace_minutes} min` },
+              ...(s.is_night_shift ? [{ label: "Night allowance", value: `${formatMoney(s.night_allowance_amount, cur, {})}/shift` }] : []),
+            ]}
+            menu={canEdit ? [
+              { label: "Edit", onSelect: () => startEdit(s) },
+              { label: s.active ? "Deactivate" : "Activate", onSelect: () => { void post(`/api/wfm/shifts/${s.id}`, { active: !s.active }, "PATCH"); } },
+              { label: "Delete", onSelect: () => { void deleteShift(s); }, danger: true },
+            ] : undefined}
+          />
+        ))}
+      </RecordList>
     </>
   );
 }

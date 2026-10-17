@@ -9,6 +9,9 @@ import Pill from "@/components/Pill";
 import type { PillarKey } from "@/lib/theme";
 import { useCurrency } from "@/lib/tenant-context";
 import { formatMoney, moneyLabel } from "@/lib/currency";
+import Button from "@/components/ui/Button";
+import MoreMenu from "@/components/ui/MoreMenu";
+import { SettingsHeaderActions } from "@/components/settings/SettingsHeaderActions";
 
 const CAT_TONE: Record<PricingCategory, PillarKey> = {
   labour: "blue", material: "teal", testing: "purple", transport: "amber",
@@ -23,9 +26,8 @@ const inputSt: React.CSSProperties = {
   padding: "0 9px", fontSize: 12.5, width: "100%", boxSizing: "border-box", color: c.ink,
 };
 
-function AddRow({ onAdd }: { onAdd: (item: PricingItem) => void }) {
+function AddRow({ open, setOpen, onAdd }: { open: boolean; setOpen: (v: boolean) => void; onAdd: (item: PricingItem) => void }) {
   const cur = useCurrency();
-  const [open, setOpen] = useState(false);
   const [pending, startTransition] = useTransition();
   const [form, setForm] = useState({ category: "labour" as PricingCategory, description: "", unit: "", rate: "", notes: "" });
   const [err, setErr] = useState("");
@@ -50,13 +52,7 @@ function AddRow({ onAdd }: { onAdd: (item: PricingItem) => void }) {
     });
   }
 
-  if (!open) {
-    return (
-      <button onClick={() => setOpen(true)} style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 16px", borderRadius: 8, background: c.accent, color: "#fff", border: "none", fontSize: 13, fontWeight: 500, cursor: "pointer" }}>
-        + Add item
-      </button>
-    );
-  }
+  if (!open) return null;
 
   return (
     <form onSubmit={submit} style={{ background: "var(--panel2)", border: `1px solid ${c.line}`, borderRadius: 10, padding: 16, marginBottom: 16 }}>
@@ -87,12 +83,8 @@ function AddRow({ onAdd }: { onAdd: (item: PricingItem) => void }) {
       </div>
       {err && <div style={{ fontSize: 12, color: "var(--err-ink)", marginBottom: 10 }}>{err}</div>}
       <div style={{ display: "flex", gap: 8 }}>
-        <button type="submit" disabled={pending} style={{ padding: "7px 20px", borderRadius: 7, background: c.accent, color: "#fff", border: "none", fontSize: 13, fontWeight: 500, cursor: "pointer" }}>
-          {pending ? "Saving…" : "Save"}
-        </button>
-        <button type="button" onClick={() => setOpen(false)} style={{ padding: "7px 16px", borderRadius: 7, background: "var(--panel2)", color: c.muted, border: "none", fontSize: 13, cursor: "pointer" }}>
-          Cancel
-        </button>
+        <Button type="submit" variant="primary" loading={pending}>{pending ? "Saving…" : "Save"}</Button>
+        <Button onClick={() => setOpen(false)}>Cancel</Button>
       </div>
     </form>
   );
@@ -129,34 +121,33 @@ function ItemRow({ item, onUpdate, onDelete }: { item: PricingItem; onUpdate: (i
 
   if (editing) {
     return (
-      <div className="row-grid" style={{ display: "grid", gridTemplateColumns: "1fr 110px 100px 80px", gap: 10, padding: "10px 0", borderBottom: `1px solid ${c.line}`, alignItems: "center" }}>
+      <div className="row-grid" style={{ display: "grid", gridTemplateColumns: "1fr 110px 100px 150px", gap: 10, padding: "10px 0", borderBottom: `1px solid ${c.line}`, alignItems: "center" }}>
         <input style={inputSt} value={form.description} onChange={(e) => set("description", e.target.value)} />
         <input style={inputSt} value={form.unit} onChange={(e) => set("unit", e.target.value)} />
         <input style={{ ...inputSt }} type="number" value={form.rate} onChange={(e) => set("rate", e.target.value)} />
         <div style={{ display: "flex", gap: 5 }}>
-          <button onClick={save} disabled={pending} style={{ fontSize: 11, padding: "4px 10px", borderRadius: 6, background: c.accent, color: "#fff", border: "none", cursor: "pointer" }}>
-            {pending ? "…" : "✓"}
-          </button>
-          <button onClick={() => setEditing(false)} style={{ fontSize: 11, padding: "4px 8px", borderRadius: 6, background: "var(--panel2)", color: c.muted, border: "none", cursor: "pointer" }}>
-            ✕
-          </button>
+          <Button size="sm" variant="primary" onClick={save} loading={pending}>Save</Button>
+          <Button size="sm" onClick={() => setEditing(false)}>Cancel</Button>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="row-grid" style={{ display: "grid", gridTemplateColumns: "1fr 110px 100px 80px", gap: 12, padding: "10px 0", borderBottom: `1px solid ${c.line}`, alignItems: "start" }}>
+    <div className="row-grid" style={{ display: "grid", gridTemplateColumns: "1fr 110px 100px 150px", gap: 12, padding: "10px 0", borderBottom: `1px solid ${c.line}`, alignItems: "start" }}>
       <div>
         <div style={{ fontSize: 13, color: c.ink }}>{item.description}</div>
         {item.notes && <div style={{ fontSize: 11.5, color: c.hint, marginTop: 2 }}>{item.notes}</div>}
       </div>
       <div style={{ fontSize: 12.5, color: c.muted }}>{item.unit}</div>
       <div style={{ fontSize: 13.5, fontWeight: 700, color: c.ink }}>{formatMoney(item.rate, cur, {})}</div>
-      <div style={{ display: "flex", gap: 5 }}>
-        <button onClick={() => setEditing(true)} style={{ fontSize: 11, padding: "3px 9px", borderRadius: 6, background: c.accentbg, color: c.accent, border: "none", cursor: "pointer" }}>Edit</button>
-        <button onClick={del} disabled={pending} style={{ fontSize: 11, padding: "3px 9px", borderRadius: 6, background: "var(--err-bg)", color: "var(--err-ink)", border: "none", cursor: "pointer" }}>✕</button>
-      </div>
+      <MoreMenu
+        label={`Actions for ${item.description}`}
+        items={[
+          { label: "Edit", onSelect: () => setEditing(true) },
+          { label: "Delete", onSelect: () => { void del(); }, danger: true },
+        ]}
+      />
     </div>
   );
 }
@@ -165,6 +156,7 @@ export default function PricingClient({ initialItems }: { initialItems: PricingI
   const router = useRouter();
   const cur = useCurrency();
   const [items, setItems] = useState(initialItems);
+  const [adding, setAdding] = useState(false);
 
   const add = (item: PricingItem) => { setItems((p) => [...p, item]); router.refresh(); };
   const update = (item: PricingItem) => setItems((p) => p.map((i) => i.id === item.id ? item : i));
@@ -172,7 +164,10 @@ export default function PricingClient({ initialItems }: { initialItems: PricingI
 
   return (
     <>
-      <AddRow onAdd={add} />
+      <SettingsHeaderActions>
+        <Button variant="primary" onClick={() => setAdding(true)}>+ New item</Button>
+      </SettingsHeaderActions>
+      <AddRow open={adding} setOpen={setAdding} onAdd={add} />
       <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
         {CATEGORIES.map((cat) => {
           const catItems = items.filter((i) => i.category === cat);
@@ -182,13 +177,13 @@ export default function PricingClient({ initialItems }: { initialItems: PricingI
                 <Pill label={PRICING_CATEGORY_LABEL[cat]} tone={CAT_TONE[cat]} />
                 <span style={{ fontSize: 12, color: c.hint }}>{catItems.length} items</span>
               </div>
-              <div className="row-grid-head" style={{ display: "grid", gridTemplateColumns: "1fr 110px 100px 80px", gap: 12, padding: "0 0 6px", borderBottom: `1px solid ${c.line}` }}>
+              <div className="row-grid-head" style={{ display: "grid", gridTemplateColumns: "1fr 110px 100px 150px", gap: 12, padding: "0 0 6px", borderBottom: `1px solid ${c.line}` }}>
                 {["Description", "Unit", moneyLabel("Rate", cur), ""].map((h, i) => (
                   <div key={i} style={{ fontSize: 10.5, fontWeight: 700, color: c.hint, textTransform: "uppercase", letterSpacing: "0.06em" }}>{h}</div>
                 ))}
               </div>
               {catItems.length === 0 && (
-                <div style={{ padding: "16px 0", fontSize: 12.5, color: c.hint }}>No items yet — add one above.</div>
+                <div style={{ padding: "16px 0", fontSize: 12.5, color: c.hint }}>No items yet — use + New item.</div>
               )}
               {catItems.map((item) => (
                 <ItemRow key={item.id} item={item} onUpdate={update} onDelete={remove} />
