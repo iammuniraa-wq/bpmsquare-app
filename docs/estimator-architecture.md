@@ -118,23 +118,28 @@ Lines without a cost can raise an RFQ using the existing RFQ module
 (`rfq_line_id` on `estimate_lines`, deferred to phase 2 — note it, don't
 build it).
 
-## 5. D365 readiness (design now, push later)
+## 5. ERP readiness (design now, push later) — ERP-agnostic
 
-D365 is not reachable in this MVP (no live environment; the connector has
-never run against one). What is built:
+The ERP is whatever the tenant uses (Dynamics 365, SAP, Epicor/Epromis, none),
+so nothing in the estimator is named after one ERP (owner decision
+2026-10-17). Dynamics is the first case because PCBS is implementing it, but
+the estimator only knows "an ERP". No ERP is reachable in this MVP (the
+Dynamics connector has never run against a live environment). What is built:
 
-- Product and customer master already arrive through the connector; template
-  rule lines reference products by **SKU**, which is the Dynamics item number
-  when the product came from the connector.
-- `GET /api/estimates/[id]/export?format=bom` → XLSX/CSV: item number (SKU),
-  description, qty, uom, group, wbs_code, element_ref. `format=wbs` → the
-  work breakdown (code, parent, name, group, planned cost). Column names are
-  documented in `docs/estimator-architecture.md` §5.1 and chosen to map onto
-  D365 data-entity import (BOM lines; project WBS tasks) so a consultant can
-  load them without re-keying.
-- Phase 2 (not now): push a won estimate to D365 as sales order + project
-  (+ BOM), through the existing connector's push mechanism and
-  `connector_links`, after a live test.
+- Product and customer master arrive through whichever connector the tenant
+  has; template rule lines reference products by **SKU**, which is the ERP's
+  item number when the product came from a connector.
+- `GET /api/estimates/[id]/export?format=bom&profile=generic` → XLSX/CSV;
+  `format=wbs` → the work breakdown (code, parent, name, group, planned
+  cost). An **ERP export profile** is a named column mapping
+  (`{key,label,columns:[{header,field}]}`): `generic` (default, §5.1),
+  `dynamics365` and `sap` ship as best-effort starting mappings, each labelled
+  "confirm with your ERP consultant". A tenant setting later picks its
+  default profile; adding Epicor or any other ERP is one more profile, no
+  engine change.
+- Phase 2 (not now): push a won estimate to the tenant's ERP as sales order +
+  project (+ BOM) through that ERP's connector and `connector_links`, after
+  a live test.
 
 ### 5.1 Export columns (BOM)
 `item_number, description, quantity, unit, group, wbs_code, element_ref,
@@ -198,7 +203,8 @@ on `develop`, never push; owner pushes)
 - **E3 Screens + seed + docs**: list/new/record pages on the new templates,
   Settings template list + editor, seed SQL, ledger entry in PROJECT.md,
   README note in this doc of what is illustrative.
-- **Later (not MVP)**: D365 push, RFQ from lines, IFC/Revit direct import,
+- **E4 Simulation** (section 10), after E3.
+- **Later (not MVP)**: ERP push, RFQ from lines, IFC/Revit direct import,
   moulds-reuse planning, delivery/erection scheduling, fence → template
   migration, PDF of the BOM for the factory floor.
 
@@ -206,6 +212,45 @@ on `develop`, never push; owner pushes)
 
 - Build an MVP now, no questions to PCBS first; reshape after talking to them.
 - Generic core object + templates (fence is the pattern, not the base).
-- Considering D365 from day one: SKU-keyed lines, BOM/WBS exports, links via
+- ERP-ready from day one but ERP-agnostic: SKU-keyed lines, BOM/WBS exports
+  with selectable ERP profiles (generic, Dynamics 365, SAP), links via
   `connector_links`; the push waits for a live environment.
+- The studio has two top-level modes: **Estimate** (inputs, BOM, costing,
+  quote, import, export) and **Simulation** (section 10).
 - Everything PCBS-specific is data (templates/rates), never code.
+
+## 10. Simulation mode (owner, 2026-10-17) — phase E4
+
+A second top-level tab in the studio, beside **Estimate**, that actually
+simulates the job instead of only listing it. Three parts, all computed from
+the estimate's own lines and the template's rates:
+
+1. **3D assembly and erection sequence (4D).** A parametric 3D model of the
+   building built from the computed elements (panels, slabs, beams, stairs,
+   boundary wall), placed by the template's layout rules, with a play/scrub
+   control that erects it in sequence (foundation → ground-floor walls →
+   slab → next floor → roof → boundary wall). Uses three.js, already a
+   dependency (`src/components/fence/Fence3DView.tsx` is the pattern).
+   Colour by element type or by erection day.
+2. **Schedule simulation.** Production days from mould capacity and casting
+   cycles, truck loads by weight and size, crane productivity (pieces per
+   day) → a simple Gantt (production, transport, erection) and a total
+   duration. Capacity assumptions are template rates, editable.
+3. **What-if and risk.** Sliders on the main drivers (rebar price, concrete
+   price, labour rate, transport cost, productivity, margin) with live price
+   change, plus a **Monte Carlo** run (e.g. 2,000 draws, triangular
+   distributions around each driver's low/likely/high, set in the template)
+   showing the price distribution (P10/P50/P90), the chance of falling below
+   a target margin, and a tornado chart of which drivers matter most. Runs in
+   the browser; deterministic seed so a result can be reproduced.
+
+**AI is optional and bounded.** The simulation numbers are computed, never
+asked of a model. An external model (Claude API, `claude-opus-5-5`,
+structured output as `src/lib/fence/draft.ts` does) is used only to
+(a) **read a brief, email or drawing/PDF and propose the inputs** (a draft the
+user reviews — same pattern as Fence intake and the RFQ reply reader), and
+(b) **review an estimate and list risks or missing items** in words. Both are
+suggestions saved only on user confirmation; both degrade to "AI not
+configured" without breaking the studio. No customer or price data is sent
+unless the user triggers the action, and the call goes through the existing
+server-side AI helper pattern (never from the browser).
