@@ -207,6 +207,7 @@ on `develop`, never push; owner pushes)
   README note in this doc of what is illustrative.
   **Status: built 2026-10-18, see section 13.**
 - **E4 Simulation** (section 10), after E3.
+  **Status: built 2026-10-18, see section 14.**
 - **Later (not MVP)**: ERP push, RFQ from lines, IFC/Revit direct import,
   moulds-reuse planning, delivery/erection scheduling, fence → template
   migration, PDF of the BOM for the factory floor.
@@ -504,7 +505,7 @@ All call `estimatorAccess()` first (`requireTenantUser()` inside), chain
   fully rate-priced (it has no product rules), so the demo needs no products
   unless a template adds product rules.
 
-## 13. E3 as built (2026-10-18) — status: E1, E2 and E3 built, E4 next
+## 13. E3 as built (2026-10-18) — status: E1, E2 and E3 built (E4 follows in section 14)
 
 Screens, template editor and demo seed. No new SQL, no new npm packages, no
 API changes. `tsc`, `vitest` and `next build` clean. **Not verified in a
@@ -608,3 +609,128 @@ in `PROJECT.md`. Regenerate whenever the starter or the engine changes.
   and degrade to "AI not configured".
 - glTF upload to replace the generated model (IFC only after an explicit go on
   the dependency). No SQL is needed unless the model upload stores files.
+
+## 14. E4 as built (2026-10-18) — status: E1 to E4 built
+
+The Simulation tab, the exact 3D viewer, the template ranges and the optional
+AI. **No new SQL** and no new npm packages: everything new lives in existing
+jsonb (template `rates` / `rules`, estimate `model` / `totals`). `tsc` and
+`vitest` clean, `next build` compiles. **Not verified in a browser** (see 14.7).
+
+### 14.1 Code map
+
+| File | What it is |
+|---|---|
+| `src/lib/estimator/simRates.ts` | names and defaults of the schedule rates (`cap_cast_m3_per_day` 18, `cap_trucks_loads_per_day` 4, `cap_crane_m3_per_day` 24, `transport_start_day` 5, `erection_start_day` 6) |
+| `src/lib/estimator/simulation.ts` | pure: `simulateSchedule`, `buildCostModel` / `costWithMultipliers`, `whatIf`, seeded `runRisk` (mulberry32, triangular, N 2000, seed 42), `histogram`, tornado |
+| `src/lib/estimator/pieceInfo.ts` | pure: mark ranges (`element_ref`), size and weight labels, per-piece cost allocation |
+| `src/components/estimator/BuildingViewer.tsx` + `viewer/` | the three.js viewer: `ViewerScene` (scene, dispose), `pieceMeshes`, `orbit` (mouse, touch, keyboard), `ViewerControls`, `PieceInspector` |
+| `src/app/(app)/estimates/[id]/simulation/*` | the tab: `SimulationTab`, `ScheduleCard`, `RiskSection`, `RiskCharts` (SVG), `WhatIfPanel` |
+| `src/lib/estimator/ai.ts`, `aiFacts.ts`, `aiServer.ts` | AI: schemas, prompts and clamping (pure, tested); the estimate facts a review may see; the one server call |
+| `/api/estimates/ai/intake`, `/api/estimates/[id]/ai/review` | the two AI routes |
+| `components/estimator/BriefDrafter.tsx`, `estimates/[id]/AiReviewCard.tsx` | the two AI cards |
+
+### 14.2 Rates carry risk ranges and the schedule capacities
+
+`TemplateRate` gained optional `low` / `high` (both or neither, low <= value <=
+high, validated in `template.ts`; the formula engine ignores them). The five
+schedule rates above are ordinary rates; a template without them uses the
+defaults and the tab says "default". They are not reported as unused rates, and
+a non-positive capacity or a non-whole start day is a validation error. The
+starter carries the mock-up's ranges (concrete 0.9 to 1.25 of 330, steel 0.85 to
+1.35, insulation 0.9 to 1.15, fixings 0.9 to 1.15, labour rate 0.9 to 1.2,
+transport 0.9 to 1.3, erection 0.9 to 1.25) and a productivity range expressed
+as labour hours per m3 (3.18 to 4.375, i.e. 1.1 to 0.8 of the crew's speed), and
+the five capacity rates. The editor's Rates tab has "Range (low)" and "Range
+(high)" boxes; the draft model keeps them through a save.
+
+### 14.3 What the risk run recomputes and what it holds fixed
+
+From the estimate's stored lines (they sum to the stored `totals`, so the
+component breakdown reconciles; tested against the real engine by moving a rate
+in the template, recomputing, and comparing to the cent):
+
+- Recomputed: a line priced by the driver's rate, and a line whose quantity
+  formula is directly proportional to the rate (`vol_total * labour_hours_per_m3`),
+  scale by the driver's multiplier (a rate in both places counts twice, as the
+  engine does). A line whose quantity reads group subtotals (`sub_<group>`,
+  overhead) scales with its base: new cost = old cost x new base / old base,
+  where the base is those groups' lines at their simulated cost, like the engine.
+- Held fixed: quantities and the model; the quote price, margin % and VAT of the
+  stored estimate; product-priced lines; manual lines; lines of rules no longer
+  in the template; schedule-imported quantities (their formula does not apply);
+  a rate used inside `ceil`, `if`, `min` and the like.
+- The mock-up put insulation inside the overhead base; the engine does not
+  (the starter's group layout), and this follows the engine.
+- "Chance margin falls under X" uses markup on cost, like the engine's margin;
+  X defaults to half the estimate's margin (the mock-up's rule) and is a slider.
+  "Chance cost exceeds the price" compares with the stored quote price. The
+  what-if margin slider only changes the what-if price; the risk run keeps
+  comparing against the quote price that was promised.
+- The same seed gives the same result. Nothing from the tab is saved.
+
+### 14.4 The viewer
+
+Draws exactly `estimate.model.pieces`: panels with window and door openings (from
+`piece.op`), planks, columns and beams, stairs as nine steps, parapet and
+boundary panels, ground and foundation slab, soft shadows. Click or tap picks a
+piece (inspector: mark, family, BOM line, size, concrete, weight, cost share,
+erection step; or type a mark). Cost share splits the estimate's cost over the
+pieces (family lines by volume, insulation by face area, shared costs by volume;
+adds up to the estimate's cost, tested). Controls: erection step slider, previous
+and next, play with the drop animation, explode-floors slider, colour by piece
+type or erection step. Reduced motion: no play button, no drop, instant steps.
+Colours come from `--est-concrete`, `--est-concrete-line`, `--est-glass`,
+`--est-ground` (new, light and dark, in `globals.css`) and `--accent`, re-read
+when the theme changes. It disposes geometries, materials, renderer, observers
+and the animation frame on unmount, draws a frame only when something changed,
+and shows a message where WebGL is unavailable. BOM rows with a mark range have a
+"Show in 3D" link (`?tab=simulation&line=<code>`); the viewer lights those pieces.
+Loaded with `next/dynamic` (`ssr: false`) so the other tabs do not pay for three.js.
+The model is generated from the inputs and is labelled as a stand-in for the
+client's own BIM model.
+
+### 14.5 AI (optional, server side, drafts only)
+
+`claude-opus-5-5` with `output_config.format` json_schema and no forced tool call,
+as `lib/rfq/extract.ts` does. Without `ANTHROPIC_API_KEY` both routes answer 503
+`{ configured: false }` and the screens show "AI is not set up for this workspace".
+There is no per-call credit meter in this codebase (the fence intake and the RFQ
+reader do not meter either), so none was added.
+
+- Intake (`POST /api/estimates/ai/intake { template_id, text }`, create access):
+  text only, 20 000 characters. The reply is held to each input's type, options,
+  min and max (clamped values and dropped answers are listed in the assumptions),
+  unknown keys are dropped. The New estimate form fills its fields and says "not
+  saved". Uploaded PDF or image briefs are not wired: the repo's extraction
+  helper is built around Data Workbench object specs, not a template's inputs.
+- Review (`POST /api/estimates/[id]/ai/review`, edit access): sends inputs, line
+  descriptions with quantities, group names and costs, totals and piece counts;
+  never a unit cost or a line cost. At most eight findings (risk / missing /
+  check). Shown on the Costing tab with "not saved".
+- Both fence the user's or the estimate's text as data in tags with an instruction
+  to ignore instructions inside it.
+
+### 14.6 Demo seed
+
+`scripts/gen-estimator-demo-seed.ts` regenerates the starter with the ranges and
+capacity rates. Re-running `seed-estimator-demo.sql` now REFRESHES an existing
+"Precast villa (illustrative)" on demo tenants (inputs, rates, rules; version and
+the sample estimate untouched, nothing deleted), so a demo that ran the earlier
+version gets the ranges.
+
+### 14.7 Not verified, and what remains
+
+Not verified in a browser or on a device: WebGL rendering, picking, the drop
+animation, touch pinch, shadows, reduced-motion behaviour, dark-mode colours,
+the 375 px layout of the tab, and a live AI call (no key was used). Unit tests
+cover the maths, cost reconciliation against the engine, piece helpers, orbit
+maths, the template validator, the editor round trip and the AI pure parts.
+
+Remaining after E4: glTF upload to replace the generated model (matching pieces
+to BOM lines by mark; three ships the loader, storing the file needs a bucket);
+IFC (needs the web-ifc dependency, an explicit owner go); the AI image render
+provider (a separate, tenant-connected provider); ERP push (needs a live
+environment); RFQ from estimate lines (`rfq_line_id`); saved simulation
+scenarios if wanted; PDF or image briefs for the intake; the Drive guide refresh
+once the owner has validated the screens (standing rule).
