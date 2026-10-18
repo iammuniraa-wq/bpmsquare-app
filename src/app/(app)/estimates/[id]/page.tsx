@@ -16,14 +16,14 @@ import EstimateStatusPill from "../EstimateStatusPill";
 import DetailsCard from "./DetailsCard";
 import InputsTab from "./InputsTab";
 import BomTab from "./BomTab";
-import CostingTab from "./CostingTab";
+import PriceBuilt from "@/components/estimator/workspace/PriceBuilt";
 import QuoteTab from "./QuoteTab";
 import CreateQuoteButton from "./CreateQuoteButton";
 import Button from "@/components/ui/Button";
 import { quoteBlockers } from "@/lib/estimator/quoteLines";
 import { templateGroupNames, toQuoteSource } from "@/lib/estimator/lines";
 import { toBomGroups } from "./bomView";
-import SimulationTab from "./simulation/SimulationTab";
+import SimulationTab from "@/components/estimator/simulation/SimulationTab";
 
 const fmtDate = (s: string) => new Date(s).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
 const num = (n: number, dp = 2) => n.toLocaleString("en-GB", { maximumFractionDigits: dp });
@@ -139,7 +139,7 @@ export default async function EstimatePage({
     {
       id: "costing",
       label: "Costing",
-      content: <CostingTab totals={totals} money={moneyFormatter(cur, { maximumFractionDigits: 2 })} estimateId={estimate.id} canReview={canEdit && lines.length > 0} />,
+      content: <PriceBuilt totals={totals} money={moneyFormatter(cur, { maximumFractionDigits: 2 })} estimateId={estimate.id} canReview={canEdit && lines.length > 0} />,
     },
     {
       id: "simulation",

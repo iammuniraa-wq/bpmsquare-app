@@ -3,7 +3,7 @@ import Card from "@/components/ui/Card";
 import EmptyState from "@/components/ui/EmptyState";
 import { ESTIMATE_COMPONENTS, ESTIMATE_COMPONENT_LABEL, type EstimateComponent } from "@/lib/estimator/types";
 import type { EstimateTotals } from "@/lib/types";
-import AiReviewCard from "./AiReviewCard";
+import AiReviewCard from "../AiReviewCard";
 
 const TONE: Record<EstimateComponent, PillarKey> = {
   materials: "blue", moulds: "purple", labour: "teal", overhead: "amber", transport: "green", erection: "red", other: "blue",
@@ -20,10 +20,10 @@ function Row({ label, value, strong = false }: { label: string; value: string; s
   );
 }
 
-/** The cost build-up: by component (stacked bar), by group, then margin, price and VAT. */
-export default function CostingTab({ totals, money, estimateId, canReview = false }: { totals: EstimateTotals | null; money: (n: number) => string; estimateId?: string; canReview?: boolean }) {
+/** "How the price is built": cost by component (stacked bar), margin, price and VAT, cost by section, the AI review. Internal: it shows costs. */
+export default function PriceBuilt({ totals, money, estimateId, canReview = false }: { totals: EstimateTotals | null; money: (n: number) => string; estimateId?: string; canReview?: boolean }) {
   if (!totals) {
-    return <Card padding={0}><EmptyState title="Not calculated yet" text="Recalculate the estimate on the Inputs tab to see its cost build-up." /></Card>;
+    return <Card padding={0}><EmptyState title="Not priced yet" text="Fill in the details above to see how the price is built." /></Card>;
   }
   const parts = ESTIMATE_COMPONENTS
     .map((k) => ({ key: k, amount: totals.by_component[k] ?? 0 }))
@@ -33,7 +33,7 @@ export default function CostingTab({ totals, money, estimateId, canReview = fals
 
   const problems: string[] = [];
   if (totals.unresolved?.length) problems.push(`No product matches the item number for: ${totals.unresolved.join(", ")}. Add the product, or change the rule's item number.`);
-  if (totals.unpriced?.length) problems.push(`No cost yet for: ${totals.unpriced.join(", ")}. Give the product a cost or price book entry, or enter a unit cost on the BOM tab.`);
+  if (totals.unpriced?.length) problems.push(`No cost yet for: ${totals.unpriced.join(", ")}. Give the product a cost or price book entry, or enter a unit cost in the bill of materials.`);
   const notes = totals.warnings ?? [];
 
   return (
@@ -79,7 +79,7 @@ export default function CostingTab({ totals, money, estimateId, canReview = fals
       </Card>
 
       {totals.by_group.length > 0 && (
-        <Card title="By group" padding={18}>
+        <Card title="By section" padding={18}>
           {totals.by_group.map((g) => (
             <div key={g.key} style={{ display: "flex", justifyContent: "space-between", gap: 12, padding: "7px 0", borderTop: `1px solid ${c.line}`, fontSize: 13 }}>
               <span style={{ color: c.ink }}>{g.name}</span>

@@ -57,7 +57,7 @@ export type WorkspaceProps = {
   /** A bill-of-materials code to light up on arrival (old ?line= links). */
   initialHighlight?: string | null;
   /** The internal sections under the page, given the figures being shown. */
-  renderInternal?: (shown: ShownData) => React.ReactNode;
+  renderInternal?: (shown: ShownData, template: WorkspaceTemplate | null) => React.ReactNode;
 };
 
 /**
@@ -116,6 +116,7 @@ export default function EstimateWorkspace(p: WorkspaceProps) {
 
         <div className="est-grid">
           {t && (
+            <div id="about" style={{ scrollMarginTop: 80, minWidth: 0 }}>
             <AboutCard draft={draft} templates={p.templates} issues={[...live.issues, ...act.issues]} disabled={!editable || act.busy !== null} showCustomer={!saved}
               extra={!saved ? <CustomerDetails draft={draft} accounts={accounts} contacts={p.contacts} disabled={act.busy !== null} /> : undefined}>
               {saved && saved.templateOutdated && editable && !dirty && (
@@ -131,12 +132,14 @@ export default function EstimateWorkspace(p: WorkspaceProps) {
                 </div>
               )}
             </AboutCard>
+            </div>
           )}
           <div className="est-stack" style={{ gridColumn: t ? undefined : "1 / -1" }}>
             {t?.geometry && shown.model && (
               <VillaCard model={shown.model} lines={shown.lines} rates={t.rates} money={money} highlightMarks={marks}
                 note={highlightCode && marks && marks.length > 0 ? `Lighting up the ${marks.length} pieces of the line "${highlightCode}".` : undefined} />
             )}
+            <div id="price-card" style={{ scrollMarginTop: 80, minWidth: 0 }}>
             <PriceCard view={view} options={options} money={money}
               onPickOption={editable && altKey ? (k) => draft.setValue(altKey, k) : undefined}
               state={{ status: showStored ? "ready" : live.status, catalogue: live.catalogue, unsaved: !!saved && dirty, issue, notes: showStored ? [] : live.notes }}>
@@ -150,13 +153,14 @@ export default function EstimateWorkspace(p: WorkspaceProps) {
               <QuoteActions quote={saved?.quote ?? null} canQuote={p.canQuote && p.canEdit} quoteUnavailable={p.quoteUnavailable} blocked={blocked}
                 busy={act.busy} isNew={!saved} error={act.error} onCreate={() => void act.createQuote()} onSaveDraft={() => void act.saveDraft()} />
             </PriceCard>
+            </div>
           </div>
         </div>
 
         {saved?.quote && view && view.sections.length > 0 && (
           <CustomerPreview view={saved.view} options={options} money={money} customer={draft.customer || ""} quote={saved.quote} />
         )}
-        {p.renderInternal?.(shown)}
+        {p.renderInternal?.(shown, t)}
       </div>
     </EstimateFocusContext.Provider>
   );

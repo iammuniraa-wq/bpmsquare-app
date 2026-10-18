@@ -42,7 +42,7 @@ export default function RiskSection({
 }) {
   const parts = ESTIMATE_COMPONENTS.filter((k) => result.by_component[k] > 0.005 || model.base_by_component[k] > 0.005);
   return (
-    <Card title="What if and risk" padding={18}>
+    <Card title="What if costs move?" padding={18}>
       <p className="bpm-t-help" style={{ margin: "0 0 12px" }}>
         Worked out in your browser from this estimate&apos;s lines and the template&apos;s rates. Nothing here is saved, and the quote price stays as quoted.
         A rate with a low and high range in the template is a risk driver; moving a driver re-prices every line that uses that rate, and overhead follows its base.
