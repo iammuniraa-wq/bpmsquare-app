@@ -42,6 +42,7 @@ export default function BuildingViewer({
 }) {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const sceneRef = useRef<ViewerScene | null>(null);
+  const firstModel = useRef(true);
   const reduced = useReducedMotion();
   const reducedRef = useRef(reduced);
   reducedRef.current = reduced;
@@ -56,16 +57,18 @@ export default function BuildingViewer({
   const [typed, setTyped] = useState("");
   const highlight = useMemo(() => new Set(highlightMarks ?? []), [highlightMarks]);
 
+  // The scene (renderer, lights, orbit) lives as long as there is something to
+  // draw; a new model, as the page recomputes while the person types, is swapped
+  // in without rebuilding the renderer and keeps the camera where it was.
+  const hasModel = !!model && model.pieces.length > 0;
   useEffect(() => {
     const host = hostRef.current;
-    if (!model || !host) return;
+    if (!hasModel || !host) return;
     const scene = ViewerScene.create(host, { reducedMotion: reducedRef.current, onPick: setSelected });
     if (!scene) { setWebgl(false); return; }
     setWebgl(true);
     sceneRef.current = scene;
-    scene.setModel(model);
-    setStepState(Math.max(1, model.step_names.length) - 1);
-    setSelected(null);
+    firstModel.current = true;
 
     const root = host.closest("[data-theme]") ?? document.documentElement;
     const obs = new MutationObserver(() => scene.refreshTheme());
@@ -79,12 +82,25 @@ export default function BuildingViewer({
       scene.dispose();
       sceneRef.current = null;
     };
-  }, [model]);
+  }, [hasModel]);
 
-  useEffect(() => { sceneRef.current?.setExplode(explode); }, [explode, model]);
-  useEffect(() => { sceneRef.current?.setColourMode(mode); }, [mode, model]);
-  useEffect(() => { sceneRef.current?.setSelected(selected); }, [selected, model]);
-  useEffect(() => { sceneRef.current?.setHighlight(highlight); }, [highlight, model]);
+  useEffect(() => {
+    const scene = sceneRef.current;
+    if (!scene || !model) return;
+    scene.setModel(model, !firstModel.current);
+    firstModel.current = false;
+    setStepState(Math.max(1, model.step_names.length) - 1);
+    setSelected(null);
+    scene.setExplode(explode);
+    scene.setColourMode(mode);
+    scene.setHighlight(highlight);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [model, hasModel]);
+
+  useEffect(() => { sceneRef.current?.setExplode(explode); }, [explode]);
+  useEffect(() => { sceneRef.current?.setColourMode(mode); }, [mode]);
+  useEffect(() => { sceneRef.current?.setSelected(selected); }, [selected]);
+  useEffect(() => { sceneRef.current?.setHighlight(highlight); }, [highlight]);
   useEffect(() => { sceneRef.current?.setReducedMotion(reduced); if (reduced) setPlaying(false); }, [reduced]);
 
   const goStep = useCallback((n: number, animate = true) => {
@@ -112,7 +128,7 @@ export default function BuildingViewer({
   };
 
   if (!model || model.pieces.length === 0) {
-    return <EmptyState title="Calculate the estimate to see the model" text="The 3D model is built from the estimate's pieces. Open the Inputs tab and calculate." />;
+    return <EmptyState title="Fill in the details to see the model" text="The 3D model is built from the pieces the details work out to." />;
   }
   const families = (getGeometry(model.geometry)?.piece_codes ?? [])
     .map((p) => ({ label: p.label, n: model.pieces.filter((x) => x.code === p.code).length }))

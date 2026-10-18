@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { previewEstimate, buildPriceView, needsCatalogue, toQuoteSource } from "./preview";
+import { previewEstimate, buildPriceView, needsCatalogue, toQuoteSource, shiftOptions } from "./preview";
 import { computeEstimate } from "./compute";
 import { PRECAST_VILLA_STARTER } from "./starterTemplates";
 import type { EstimateTemplateBody } from "./types";
@@ -128,5 +128,18 @@ describe("preview, bad input", () => {
   it("rejects a margin outside range", () => {
     const p = previewEstimate({ template: PRECAST_VILLA_STARTER, params: {}, ...OPTS, margin_pct: -1 });
     expect(p.ok).toBe(false);
+  });
+});
+
+describe("shiftOptions", () => {
+  const opts = { label: "Finish", items: [{ key: "a", label: "A", total: 100, delta: 0, selected: false }, { key: "b", label: "B", total: 120, delta: 20, selected: true }] };
+  it("moves every total, leaving the gaps between options", () => {
+    const r = shiftOptions(opts, 5.5)!;
+    expect(r.items.map((o) => o.total)).toEqual([105.5, 125.5]);
+    expect(r.items.map((o) => o.delta)).toEqual([0, 20]);
+  });
+  it("is a no-op for zero or no options", () => {
+    expect(shiftOptions(opts, 0)).toBe(opts);
+    expect(shiftOptions(null, 5)).toBeNull();
   });
 });

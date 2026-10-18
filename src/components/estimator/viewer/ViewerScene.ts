@@ -124,7 +124,8 @@ export class ViewerScene {
     }
   }
 
-  setModel(model: GeometryModel): void {
+  /** `keepView`: a recomputed model of the same building, so the camera stays where the person put it. */
+  setModel(model: GeometryModel, keepView = false): void {
     this.clearModel();
     const c = this.colors;
     const ground = new THREE.MeshLambertMaterial({ color: color(c.ground, "#d6cdbf") });
@@ -155,7 +156,9 @@ export class ViewerScene {
     this.step = this.stepCount - 1;
     this.target = [0, maxY / 2, 0];
     const dist = Math.max(30, (model.w + model.d) * 1.25 + maxY * 0.5);
-    this.orbit = { ...this.orbit, dist, minDist: 8, maxDist: dist * 3.5 };
+    this.orbit = keepView
+      ? { ...this.orbit, maxDist: Math.max(this.orbit.maxDist, dist * 3.5) }
+      : { ...this.orbit, dist, minDist: 8, maxDist: dist * 3.5 };
     this.paint();
     this.applyVisibility();
     this.applyPositions(1);

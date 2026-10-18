@@ -87,6 +87,12 @@ export type PreviewSuccess = {
 
 export type EstimatePreview = PreviewSuccess | { ok: false; issues: TemplateIssue[] };
 
+/** Move every option by the same amount, so options computed from the template line up with a stored total that carries hand edits. */
+export function shiftOptions(options: { label: string; items: PriceOption[] } | null, by: number): { label: string; items: PriceOption[] } | null {
+  if (!options || by === 0) return options;
+  return { label: options.label, items: options.items.map((o) => ({ ...o, total: roundMoney(o.total + by) })) };
+}
+
 /** True when pricing the template needs the catalogue (a product-backed rule). */
 export function needsCatalogue(template: Pick<EstimateTemplateBody, "rules">): boolean {
   return template.rules.some((r) => r.cost.kind === "product");

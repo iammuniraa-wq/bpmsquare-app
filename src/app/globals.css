@@ -2115,3 +2115,36 @@ textarea.bpm-input { min-height: 72px; resize: vertical; }
 [data-theme="nextgen"][data-spectacular="true"][data-spectacular-variant="purple"]:not([data-mode="dark"]) .bpm-page-header .bpm-menu .bpm-menu-item[data-danger="true"]:not([style*="background"]) {
   color: var(--redink) !important;
 }
+
+/* Estimator working page (docs/estimator-architecture.md §15). One page: inputs
+   beside the villa and the price, then collapsible internal sections. Colours
+   come from the theme tokens only. */
+.est-grid { display: grid; grid-template-columns: 330px minmax(0, 1fr); gap: 14px; align-items: start; }
+.est-stack { display: grid; gap: 14px; min-width: 0; }
+.est-fields > * + * { margin-top: 2px; }
+.est-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.est-row { display: flex; justify-content: space-between; gap: 10px; padding: 7px 0; border-bottom: 1px solid var(--line); font-size: 13px; font-variant-numeric: tabular-nums; }
+.est-row:last-child { border-bottom: 0; }
+.est-total { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; flex-wrap: wrap; margin: 0 0 8px; }
+.est-total b { font-size: 28px; font-weight: 700; line-height: 1.15; color: var(--ink); font-variant-numeric: tabular-nums; }
+.est-opts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 10px 0 14px; }
+.est-opt { display: block; text-align: left; font: inherit; font-size: 12.5px; color: var(--ink); background: transparent; border: 1px solid var(--line); border-radius: 9px; padding: 7px 10px; cursor: pointer; }
+.est-opt b { display: block; font-size: 14px; font-variant-numeric: tabular-nums; }
+.est-opt span { color: var(--muted); }
+.est-opt[aria-pressed="true"] { border-color: var(--accent); background: var(--accentbg); }
+.est-opt:disabled { cursor: default; opacity: 0.85; }
+.est-opt:focus-visible, .est-fold > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.est-note { background: var(--panel2); border-radius: 9px; padding: 8px 12px; font-size: 13px; color: var(--muted); }
+.est-warn { background: var(--amberbg); color: var(--amberink); border-radius: 9px; padding: 8px 12px; font-size: 13px; }
+.est-fold { background: var(--card-bg); border: 1px solid var(--line); border-radius: var(--card-radius); box-shadow: var(--card-shadow); scroll-margin-top: 80px; }
+.est-fold > summary { cursor: pointer; padding: 12px 14px; font-weight: 700; font-size: 13.5px; color: var(--ink); list-style: none; display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+.est-fold > summary::-webkit-details-marker { display: none; }
+.est-fold > summary::after { content: "+"; color: var(--muted); font-weight: 500; flex-shrink: 0; }
+.est-fold[open] > summary::after { content: "\2013"; }
+.est-fold > summary small { font-weight: 500; color: var(--muted); font-size: 12.5px; margin-right: auto; margin-left: 8px; }
+.est-fold-body { padding: 0 14px 14px; display: flex; flex-direction: column; gap: 14px; }
+.est-skeleton { height: 14px; border-radius: 6px; background: var(--panel2); }
+@media (max-width: 900px) {
+  .est-grid { grid-template-columns: minmax(0, 1fr); }
+  .est-opts { grid-template-columns: minmax(0, 1fr); }
+}

@@ -1,6 +1,5 @@
 "use client";
 
-import Card from "@/components/ui/Card";
 import Field from "@/components/ui/Field";
 import { Input, Select } from "@/components/ui/Input";
 import type { TemplateInput } from "@/lib/estimator/types";
@@ -55,9 +54,49 @@ function hintFor(i: TemplateInput): string | undefined {
   return parts.length ? parts.join(" ") : undefined;
 }
 
+function InputControl({
+  input: i, value, onChange, error, disabled,
+}: {
+  input: TemplateInput;
+  value: string | boolean | undefined;
+  onChange: (key: string, value: string | boolean) => void;
+  error?: string;
+  disabled: boolean;
+}) {
+  if (i.type === "boolean") {
+    return (
+      <Field label={i.label} hint={hintFor(i)} error={error}>
+        <Select value={value === true ? "yes" : "no"} onChange={(e) => onChange(i.key, e.target.value === "yes")} disabled={disabled} invalid={!!error}>
+          <option value="no">No</option>
+          <option value="yes">Yes</option>
+        </Select>
+      </Field>
+    );
+  }
+  if (i.type === "select") {
+    return (
+      <Field label={i.label} hint={hintFor(i)} error={error}>
+        <Select value={String(value ?? "")} onChange={(e) => onChange(i.key, e.target.value)} disabled={disabled} invalid={!!error}>
+          {(i.options ?? []).map((o) => <option key={o.key} value={o.key}>{o.label}</option>)}
+        </Select>
+      </Field>
+    );
+  }
+  return (
+    <Field label={i.unit ? `${i.label} (${i.unit})` : i.label} hint={hintFor(i)} error={error}>
+      <Input
+        type="number" inputMode="decimal" step="any" min={i.min} max={i.max}
+        value={String(value ?? "")} onChange={(e) => onChange(i.key, e.target.value)}
+        disabled={disabled} invalid={!!error}
+      />
+    </Field>
+  );
+}
+
 /**
- * The inputs form generated from a template: one card per section, a control
- * per input by type. Issues from the API (`params.<key>`) show under the field.
+ * The inputs generated from a template: one control per input by type, with a
+ * small heading per section when the template has several. Issues from the API
+ * (`params.<key>`) show under the field. Rendered inside the caller's card.
  */
 export default function InputsForm({
   inputs, values, onChange, issues = [], disabled = false,
@@ -69,50 +108,20 @@ export default function InputsForm({
   disabled?: boolean;
 }) {
   if (inputs.length === 0) {
-    return <Card><div className="bpm-t-help">This template has no inputs; the quantities come from its rules and rates alone.</div></Card>;
+    return <div className="bpm-t-help">This template has no inputs; the quantities come from its rules and rates alone.</div>;
   }
+  const sections = groupInputs(inputs);
   const errorOf = (key: string) => issues.find((x) => x.path === `params.${key}`)?.message;
   return (
-    <>
-      {groupInputs(inputs).map(({ section, items }) => (
-        <Card key={section} title={section} padding={18}>
-          <div className="fg2">
-            {items.map((i) => {
-              const err = errorOf(i.key);
-              if (i.type === "boolean") {
-                return (
-                  <Field key={i.key} label={i.label} hint={hintFor(i)} error={err}>
-                    <Select value={values[i.key] === true ? "yes" : "no"} onChange={(e) => onChange(i.key, e.target.value === "yes")} disabled={disabled} invalid={!!err}>
-                      <option value="no">No</option>
-                      <option value="yes">Yes</option>
-                    </Select>
-                  </Field>
-                );
-              }
-              if (i.type === "select") {
-                return (
-                  <Field key={i.key} label={i.label} hint={hintFor(i)} error={err}>
-                    <Select value={String(values[i.key] ?? "")} onChange={(e) => onChange(i.key, e.target.value)} disabled={disabled} invalid={!!err}>
-                      {(i.options ?? []).map((o) => <option key={o.key} value={o.key}>{o.label}</option>)}
-                    </Select>
-                  </Field>
-                );
-              }
-              return (
-                <Field key={i.key} label={i.unit ? `${i.label} (${i.unit})` : i.label} hint={hintFor(i)} error={err}>
-                  <Input
-                    type="number" inputMode="decimal" step="any"
-                    min={i.min} max={i.max}
-                    value={String(values[i.key] ?? "")}
-                    onChange={(e) => onChange(i.key, e.target.value)}
-                    disabled={disabled} invalid={!!err}
-                  />
-                </Field>
-              );
-            })}
-          </div>
-        </Card>
+    <div className="est-fields">
+      {sections.map(({ section, items }) => (
+        <div key={section}>
+          {sections.length > 1 && <h3 className="bpm-t-label" style={{ margin: "4px 0 8px", color: "var(--muted)" }}>{section}</h3>}
+          {items.map((i) => (
+            <InputControl key={i.key} input={i} value={values[i.key]} onChange={onChange} error={errorOf(i.key)} disabled={disabled} />
+          ))}
+        </div>
       ))}
-    </>
+    </div>
   );
 }

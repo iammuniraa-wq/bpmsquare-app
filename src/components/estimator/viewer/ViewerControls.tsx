@@ -26,7 +26,7 @@ export default function ViewerControls({
     <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 10 }}>
       <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
         {!reducedMotion && (
-          <Button size="sm" variant="secondary" onClick={onPlay} aria-pressed={playing}>{playing ? "Pause" : "Play erection"}</Button>
+          <Button size="sm" variant="secondary" onClick={onPlay} aria-pressed={playing}>{playing ? "Pause" : "Watch it being built"}</Button>
         )}
         <Button size="sm" variant="secondary" onClick={() => onStep(step - 1)} disabled={step <= 0}>Previous step</Button>
         <Button size="sm" variant="secondary" onClick={() => onStep(step + 1)} disabled={step >= steps - 1}>Next step</Button>
@@ -39,12 +39,12 @@ export default function ViewerControls({
       )}
       <div style={{ display: "flex", flexWrap: "wrap", gap: 14 }}>
         <label style={lbl}>
-          Erection step
+          Build step
           <input type="range" min={0} max={Math.max(0, steps - 1)} step={1} value={step} onChange={(e) => onStep(Number(e.target.value))}
             aria-valuetext={`Step ${step + 1} of ${steps}: ${stepName}`} />
         </label>
         <label style={lbl}>
-          Explode floors
+          Pull the floors apart
           <input type="range" min={0} max={1} step={0.01} value={explode} onChange={(e) => onExplode(Number(e.target.value))}
             aria-valuetext={`${Math.round(explode * 100)} percent`} />
         </label>
@@ -52,7 +52,7 @@ export default function ViewerControls({
           Colour by
           <select className="bpm-input" value={mode} onChange={(e) => onMode(e.target.value as ColourMode)}>
             <option value="family">Piece type</option>
-            <option value="step">Erection step</option>
+            <option value="step">Build step</option>
           </select>
         </label>
       </div>
