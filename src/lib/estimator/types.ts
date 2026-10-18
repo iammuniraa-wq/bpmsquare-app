@@ -53,6 +53,11 @@ export type TemplateRate = {
   label: string;
   unit: string;
   value: number;
+  /** Optional risk range (Simulation, §10): the cheapest and the dearest this
+   *  rate is expected to be. Both or neither; low <= value <= high. The
+   *  formula engine ignores them. */
+  low?: number;
+  high?: number;
 };
 
 export type TemplateRuleCost =

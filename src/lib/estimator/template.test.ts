@@ -358,3 +358,36 @@ describe("quote_alternatives flag", () => {
     expect(junk.template?.inputs[0]).not.toHaveProperty("quote_alternatives");
   });
 });
+
+describe("rate risk ranges and simulation rates", () => {
+  const withRates = (rates: unknown[]) =>
+    validateTemplate(base([rule({ code: "a", cost: { kind: "rate", rate: "r" } })], { rates: rates as never }));
+  const r = (extra: Record<string, unknown>) => ({ key: "r", label: "R", unit: "per m3", value: 10, ...extra });
+
+  it("accepts and keeps low and high, and still accepts rates without them", () => {
+    const v = withRates([r({ low: 8, high: 15 })]);
+    expect(v.ok).toBe(true);
+    expect(v.template?.rates[0]).toMatchObject({ low: 8, high: 15 });
+    expect(withRates([r({})]).template?.rates[0]).not.toHaveProperty("low");
+    expect(withRates([r({ low: 10, high: 10 })]).ok).toBe(true);
+  });
+
+  it("needs both ends, numbers, and low <= value <= high", () => {
+    const msgs = (extra: Record<string, unknown>) => withRates([r(extra)]).issues.map((i) => `${i.path}: ${i.message}`).join("\n");
+    expect(msgs({ low: 5 })).toMatch(/rates\[0\]\.high: Give both a low and a high/);
+    expect(msgs({ high: 5 })).toMatch(/rates\[0\]\.low: Give both a low and a high/);
+    expect(msgs({ low: "x", high: 20 })).toMatch(/low end of the range must be a number/);
+    expect(msgs({ low: 12, high: 20 })).toMatch(/low end \(12\) must not be above the value \(10\)/);
+    expect(msgs({ low: 5, high: 9 })).toMatch(/high end \(9\) must not be below the value \(10\)/);
+  });
+
+  it("capacity rates must be usable and are not reported as unused", () => {
+    const rules = [rule({ code: "a", cost: { kind: "rate", rate: "r" } })];
+    const rates = [r({}), { key: "cap_cast_m3_per_day", label: "Cast", unit: "m3/day", value: 20 }, { key: "erection_start_day", label: "Start", unit: "day", value: 6 }];
+    const v = validateTemplate(base(rules, { rates }));
+    expect(v.ok).toBe(true);
+    expect(v.warnings.map((w) => w.path)).toEqual(["inputs[0]"]);
+    const bad = validateTemplate(base(rules, { rates: [r({}), { key: "cap_cast_m3_per_day", label: "Cast", unit: "m3/day", value: 0 }, { key: "erection_start_day", label: "Start", unit: "day", value: 1.5 }] }));
+    expect(bad.issues.map((i) => i.message).join("\n")).toMatch(/Casting capacity must be more than zero[\s\S]*whole number of days/);
+  });
+});

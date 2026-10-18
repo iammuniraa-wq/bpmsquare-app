@@ -22,6 +22,9 @@ import type {
 } from "./types";
 import { FORMULA_FUNCTIONS, formulaIdentifiers, parseFormula } from "./formula";
 import { getGeometry, geometryIdentifiers, TOTAL_IDENTIFIERS, GEOMETRY_KEYS } from "./geometry";
+import { SIM_CAPACITY_RATES, SIM_RATE_KEYS } from "./simRates";
+
+const SIM_CAPACITY_BY_KEY = new Map<string, (typeof SIM_CAPACITY_RATES)[number]>(SIM_CAPACITY_RATES.map((r) => [r.key, r]));
 
 export const MAX_INPUTS = 100;
 export const MAX_RATES = 200;
@@ -159,7 +162,28 @@ function validateRates(raw: unknown, issues: TemplateIssue[]): TemplateRate[] {
     const unit = isStr(r.unit) && r.unit.trim().length <= 30 ? r.unit.trim() : null;
     if (unit === null) issues.push({ path: `${path}.unit`, message: "Every rate needs a unit (it may be empty text, up to 30 characters)." });
     if (!isNum(r.value)) issues.push({ path: `${path}.value`, message: "A rate's value must be a finite number." });
-    if (key && label && unit !== null && isNum(r.value)) out.push({ key, label, unit, value: r.value });
+    let rangeOk = true;
+    const hasLow = r.low !== undefined && r.low !== null && r.low !== "";
+    const hasHigh = r.high !== undefined && r.high !== null && r.high !== "";
+    if (hasLow !== hasHigh) {
+      issues.push({ path: `${path}.${hasLow ? "high" : "low"}`, message: "Give both a low and a high for the risk range, or neither." });
+      rangeOk = false;
+    } else if (hasLow && hasHigh) {
+      if (!isNum(r.low)) { issues.push({ path: `${path}.low`, message: "The low end of the range must be a number." }); rangeOk = false; }
+      if (!isNum(r.high)) { issues.push({ path: `${path}.high`, message: "The high end of the range must be a number." }); rangeOk = false; }
+      if (rangeOk && isNum(r.value) && isNum(r.low) && isNum(r.high)) {
+        if (r.low > r.value) { issues.push({ path: `${path}.low`, message: `The low end (${r.low}) must not be above the value (${r.value}).` }); rangeOk = false; }
+        else if (r.high < r.value) { issues.push({ path: `${path}.high`, message: `The high end (${r.high}) must not be below the value (${r.value}).` }); rangeOk = false; }
+      }
+    }
+    if (key && SIM_CAPACITY_BY_KEY.has(key) && isNum(r.value)) {
+      const spec = SIM_CAPACITY_BY_KEY.get(key)!;
+      if (spec.kind === "positive" && r.value <= 0) issues.push({ path: `${path}.value`, message: `${spec.label} must be more than zero.` });
+      if (spec.kind === "day" && (r.value < 0 || !Number.isInteger(r.value))) issues.push({ path: `${path}.value`, message: `${spec.label} must be a whole number of days, zero or more.` });
+    }
+    if (key && label && unit !== null && isNum(r.value) && rangeOk) {
+      out.push({ key, label, unit, value: r.value, ...(hasLow && isNum(r.low) && isNum(r.high) ? { low: r.low, high: r.high } : {}) });
+    }
   });
   return out;
 }
@@ -345,7 +369,7 @@ export function validateTemplate(raw: unknown): TemplateValidation {
   });
 
   inputs.forEach((x, i) => { if (!used.has(x.key)) warnings.push({ path: `inputs[${i}]`, message: `Input "${x.key}" is not used by any rule.` }); });
-  rates.forEach((x, i) => { if (!used.has(x.key)) warnings.push({ path: `rates[${i}]`, message: `Rate "${x.key}" is not used by any rule.` }); });
+  rates.forEach((x, i) => { if (!used.has(x.key) && !SIM_RATE_KEYS.has(x.key)) warnings.push({ path: `rates[${i}]`, message: `Rate "${x.key}" is not used by any rule.` }); });
 
   if (issues.length > 0) return { ok: false, issues, warnings };
 

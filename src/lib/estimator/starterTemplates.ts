@@ -52,7 +52,9 @@ export const PRECAST_VILLA_STARTER: StarterTemplate = {
     { key: "boundary_wall_height_m", label: "Boundary wall height", type: "number", default: 2.4, min: 1, max: 4, unit: "m", section: "Boundary wall" },
   ],
 
-  // Every value here is an ILLUSTRATIVE placeholder (the mock-up's).
+  // Every value here is an ILLUSTRATIVE placeholder (the mock-up's). `low` and
+  // `high` on a rate are its risk range for the Simulation tab (Monte Carlo and
+  // the tornado); a productivity range is hours per m³, so low hours = fast.
   rates: [
     // Physical constants and ratios
     { key: "concrete_density_t_m3", label: "Concrete density", unit: "t/m³", value: 2.4 },
@@ -61,17 +63,23 @@ export const PRECAST_VILLA_STARTER: StarterTemplate = {
     { key: "insert_spacing_m3", label: "Concrete served by one lifting insert", unit: "m³", value: 1.2 },
     { key: "wastage_pct", label: "Wastage on concrete, steel and boards", unit: "%", value: 0 },
     // Unit costs (per the unit shown)
-    { key: "concrete_cost_m3", label: "Precast concrete, supplied and cast", unit: "per m³", value: 330 },
-    { key: "rebar_cost_kg", label: "Reinforcement steel, cut and bent", unit: "per kg", value: 3.2 },
-    { key: "insulation_cost_m2", label: "Insulation board", unit: "per m²", value: 38 },
-    { key: "fixing_cost_nr", label: "Lifting insert and fixings", unit: "per nr", value: 65 },
+    { key: "concrete_cost_m3", label: "Precast concrete, supplied and cast", unit: "per m³", value: 330, low: 297, high: 412.5 },
+    { key: "rebar_cost_kg", label: "Reinforcement steel, cut and bent", unit: "per kg", value: 3.2, low: 2.72, high: 4.32 },
+    { key: "insulation_cost_m2", label: "Insulation board", unit: "per m²", value: 38, low: 34.2, high: 43.7 },
+    { key: "fixing_cost_nr", label: "Lifting insert and fixings", unit: "per nr", value: 65, low: 58.5, high: 74.75 },
     { key: "mould_cost_m3", label: "Mould usage", unit: "per m³", value: 90 },
-    { key: "labour_hours_per_m3", label: "Production labour hours per m³", unit: "h/m³", value: 3.5 },
-    { key: "labour_rate_hr", label: "Production labour rate", unit: "per h", value: 18 },
+    { key: "labour_hours_per_m3", label: "Production labour hours per m³", unit: "h/m³", value: 3.5, low: 3.18, high: 4.375 },
+    { key: "labour_rate_hr", label: "Production labour rate", unit: "per h", value: 18, low: 16.2, high: 21.6 },
     { key: "transport_load_capacity_t", label: "Transport capacity per load", unit: "t/load", value: 25 },
-    { key: "transport_cost_load", label: "Transport cost per load", unit: "per load", value: 1800 },
-    { key: "erection_cost_m3", label: "Erection", unit: "per m³", value: 120 },
+    { key: "transport_cost_load", label: "Transport cost per load", unit: "per load", value: 1800, low: 1620, high: 2340 },
+    { key: "erection_cost_m3", label: "Erection", unit: "per m³", value: 120, low: 108, high: 150 },
     { key: "overhead_factor", label: "Factory and yard overhead (share of production cost)", unit: "fraction", value: 0.12 },
+    // Simulation tab (schedule). Not read by any rule; defaults apply when absent.
+    { key: "cap_cast_m3_per_day", label: "Casting capacity", unit: "m³/day", value: 18 },
+    { key: "cap_trucks_loads_per_day", label: "Truck loads leaving the factory", unit: "loads/day", value: 4 },
+    { key: "cap_crane_m3_per_day", label: "Crane erection capacity", unit: "m³/day", value: 24 },
+    { key: "transport_start_day", label: "Transport starts on day", unit: "day", value: 5 },
+    { key: "erection_start_day", label: "Erection starts on day", unit: "day", value: 6 },
   ],
 
   rules: [

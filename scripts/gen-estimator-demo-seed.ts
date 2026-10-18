@@ -70,6 +70,12 @@ begin
         ${dq("rates", valid.template.rates)},
         ${dq("rules", valid.template.rules)}
       );
+    else
+      -- E4: a demo template seeded before the Simulation tab has no risk ranges
+      -- or capacity rates. Add them (rates only, the quantities and costs do not
+      -- change, so the version stays); a template someone already gave ranges is left alone.
+      update estimate_templates set rates = ${dq("rates", valid.template.rates)}
+      where tenant_id = t and lower(name) = lower(${sqlText(s.name)}) and rates::text not like '%"low"%';
     end if;
 
     select id, version into tpl, tpl_version from estimate_templates where tenant_id = t and lower(name) = lower(${sqlText(s.name)});
