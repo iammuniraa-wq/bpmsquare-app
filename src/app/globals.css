@@ -18,6 +18,13 @@
   --accentbg: #e6f1fb;
   --amber: #f6b23c;
 
+  /* Estimator Simulation tab: the 3D viewer reads these (BuildingViewer.tsx).
+     Precast concrete, its edge line, window glass and the ground it stands on. */
+  --est-concrete: #c9d1d9;
+  --est-concrete-line: #8d99a6;
+  --est-glass: #b9dbe6;
+  --est-ground: #d6cdbf;
+
   --blue: #378add;        --bluebg: #e6f1fb;   --blueink: #0c447c;
   --purple: #7f77dd;      --purplebg: #eeedfe; --purpleink: #26215c;
   --teal: #1d9e75;        --tealbg: #e1f5ee;   --tealink: #04342c;
@@ -250,6 +257,10 @@
   --hint: #7c828c;
   --line: #26282e;
   --accentbg: #1c2740;
+  --est-concrete: #8b95a1;
+  --est-concrete-line: #4d5663;
+  --est-glass: #5d8a9b;
+  --est-ground: #2d2b27;
 
   /* The same four surfaces, inverted. Dark mode gets the ramp the other way
      round -- recessed is DARKER than the card here, raised is lighter --
