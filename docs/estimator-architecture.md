@@ -148,6 +148,10 @@ the customer PDF, never in the v1 API — see §7.)
 
 ## 6. Screens (follow `docs/ui-restructure-spec.md`)
 
+> **Superseded for the estimate screens by §15 and §16 (E5):** `/estimates/new` and
+> `/estimates/[id]` are now one working page, not a form and tabs. The list and the
+> template settings below are unchanged.
+
 - **Estimates list** (`/estimates`, Sales & procurement group): ObjectListPage,
   "+ New Estimate" top right, chips by status.
 - **New estimate**: ObjectFormPage — name, account, contact, template; then
@@ -735,7 +739,7 @@ environment); RFQ from estimate lines (`rfq_line_id`); saved simulation
 scenarios if wanted; PDF or image briefs for the intake; the Drive guide refresh
 once the owner has validated the screens (standing rule).
 
-## 15. Simplified flow v2 (owner, 2026-10-18) — phase E5, TARGET DESIGN
+## 15. Simplified flow v2 (owner, 2026-10-18) — phase E5, TARGET DESIGN (built: section 16)
 
 The owner reviewed E1-E4 on the demo tenant: it looked different from Fence
 (email in, project created, quantities dynamic, quote from the quantities),
@@ -774,3 +778,144 @@ No change to the engine, the tables, the API contracts or the E4 maths: this
 phase re-lays-out and renames, and adds a live preview path (pure client-side
 compute for rate-priced templates, a debounced server preview for templates
 with product lines).
+
+## 16. E5 as built (2026-10-18) — status: E1 to E5 built
+
+The screens reshaped to the approved mock-up (`docs/estimator-reference/studio-mockup-v2.html`,
+§15). **No new SQL, no new npm packages, no engine change, no API contract break**
+(one route added: the preview). `tsc`, `vitest` and `next build` clean. **Not
+verified in a browser or on a device** (a tenant login is needed): see 16.7.
+
+### 16.1 What the person sees
+
+One page, `/estimates/new` and `/estimates/[id]` alike:
+
+1. **Start from the customer's email**: paste it, "Fill in from the email" calls the E4
+   intake route; blue chips for what was understood, amber chips for what was
+   assumed (the model's own assumptions plus every input the email did not mention,
+   with the default used). A workspace without AI sees a friendly note and the manual
+   inputs below, which are always there.
+2. **About the villa**: the template's inputs (one column, a small heading per
+   section when the template has several), the customer or project name (new
+   estimates), margin on cost, and "Customer details" collapsed (account, contact,
+   notes, the workspace's own fields).
+3. **The villa** (the E4 viewer, kept alive while the model changes; "Watch it being
+   built", piece inspector, piece count line) and **the price** (total including VAT
+   large, one row per section, VAT, finish options when the template flags
+   `quote_alternatives`, the one **Create quote** button and a plain note on what the
+   customer sees).
+4. **Create quote** saves the estimate first when it is new (or has unsaved changes),
+   makes the Standard Quote, and opens the saved estimate, which is then locked and
+   shows **What the customer sees** (the same lines as the quote: no unit costs, no
+   margin) with the link to the quote. With no account chosen it asks which account
+   to use or, on a clear click, creates one from the customer's name; it never
+   invents one. A confirm stays in front of the lock (one extra click, deliberately).
+   **Save as draft** (new estimates) saves without quoting.
+5. Closed sections for the team, in order: **How the price is built** (the old
+   Costing, with the AI review), **Build schedule and risk** (the old Simulation
+   panels; the 3D model moved into the villa card), **Bill of materials** (edits,
+   schedule import, "Show in 3D" now lights the villa card), **Send to your ERP**
+   (layout choice, downloads), **Details** (status, notes, custom fields via
+   `ObjectSections`, margin); **Activity** (`RecordActivity`) at the bottom.
+   `/estimates/new` shows the first two from the live preview and says the rest
+   appear once the estimate is saved.
+6. The header keeps title, status badge, reference and the ⋯ menu: Duplicate,
+   Download bill of materials, Download work breakdown, Adapt fields, Delete.
+   Old `?tab=` links still work (`tabTargets.ts`): `bom`, `costing`, `simulation`
+   and `overview` open the section their tab became; `inputs`, `quote` and
+   `activity` scroll to it; `?line=<code>` scrolls to the villa and lights that
+   line; anything else is ignored.
+
+### 16.2 Live preview
+
+- **Rate-priced templates** recompute in the browser after a 120 ms pause, with the
+  same pure code the server runs (`src/lib/estimator/preview.ts`: `previewEstimate`
+  over `computeEstimate` and `buildQuoteLines`; no server-only import, so it is
+  tested against the E1 golden figures). The customer-facing sections are the very
+  lines `buildQuoteLines` puts on the Standard Quote, so the page and the quote
+  cannot disagree.
+- **Templates with product lines** ask `POST /api/estimates/preview { template_id,
+  params, margin_pct }` (debounced 300 ms; estimator access; stores nothing) for the
+  unit costs, then apply them with the same pure code. The card says "Pricing from
+  the catalogue" while it waits and why a quote is blocked when a SKU matches no
+  product or a product has no cost.
+- A **saved estimate shows its stored figures** until the person edits an input or
+  the margin; then the live preview shows the change ("Save changes" / "Discard
+  changes") and the page says it is a preview. Finish options for a saved estimate
+  use its stored unit costs (`reusableCosts` and `scheduleFromLines` moved from
+  `server.ts` to `lines.ts`, pure, for this).
+
+### 16.3 Code map (new or changed)
+
+| File | What it is |
+|---|---|
+| `lib/estimator/preview.ts` | pure preview, `buildPriceView`, `shiftOptions`, `needsCatalogue` |
+| `lib/estimator/requests.ts` | `parsePreviewRequest` |
+| `app/api/estimates/preview/route.ts` | the preview route (`computeAndPrice` with `catalogueOnly`) |
+| `components/estimator/workspace/EstimateWorkspace.tsx` | the page; `useEstimateDraft` (state), `useLivePreview` (price and model), `useEstimateActions` (save draft, save changes, recalculate, create quote) |
+| `workspace/EmailIntake`, `AboutCard`, `VillaCard`, `PriceCard`, `QuoteActions`, `AccountPrompt`, `CustomerDetails`, `CustomerPreview`, `Chip` | the cards |
+| `workspace/Collapsible`, `InternalFolds`, `PriceBuilt`, `tabTargets`, `focus`, `savedEstimate`, `shown`, `intakeChips` | sections, old-URL map, "Show in 3D" link, saved snapshot, helpers (the non-component ones are unit-tested) |
+| `components/estimator/simulation/ScheduleRiskSection.tsx` | the old Simulation tab minus the 3D |
+| `app/(app)/estimates/new/*`, `[id]/EstimateScreen.tsx`, `[id]/page.tsx`, `estimates/quoteAbility.ts` | the two pages |
+| `globals.css` | `.est-*` layout classes, theme tokens only |
+
+Removed (nothing imports them): `NewEstimateForm`, `BriefDrafter`, `InputsTab`,
+`QuoteTab`, `CreateQuoteButton`, `SimulationTab`.
+
+### 16.4 Plain words
+
+The starter's groups are "Structure (floors, beams, inner walls)", "External walls
+and parapet", "Stairs", "Boundary wall", "Delivery and erection" (template data;
+the overhead rule's `sub_<group>` names follow the slugs, built from the same
+constants). **The rules were also reordered** so the sections read in the mock-up's
+order (Structure first); that moves the WBS numbers, the schedule template's element
+type order and the BOM row order (tests updated; the cost, price and every
+quantity are unchanged to the cent). The finish select's options read "Basic",
+"Standard", "Premium" with the percentages in its help text, and it now sets
+`quote_alternatives`, so the price card, the customer view and the quote all show
+the three options. "Costing", "Envelope", "Exports", "WBS" and "Simulation" are gone
+from the labels a user reads on the estimate screens (the ERP layouts keep their
+vendors' own words, and the file names keep `bom` / `wbs`).
+
+### 16.5 Demo seed
+
+`scripts/seed-estimator-demo.sql` was regenerated. Re-running it refreshes the demo
+template and the demo sample estimate ("Sample villa, Riyadh (illustrative)": its
+figures, model and its own lines are replaced so the group names match; demo tenants
+only; a sample that already has a quote is left alone; nothing else is deleted).
+Ledger line in `PROJECT.md` updated: re-run after E5.
+
+### 16.6 Deviations from §15
+
+- **The preview route prices product lines from the catalogue's own cost**, not the
+  pricing engine: the engine stores a pricing document and a meter row on every
+  call and has no dry-run, and "no engine change" ruled out adding one. The saved
+  estimate still uses the engine where it has a price, so a catalogue-priced preview
+  can differ from the saved figure when the engine's price differs; the route says
+  so in its warnings and the card shows them.
+- **The starter's Production, Insulation and fixings, and Overhead groups still show
+  as sections** (the mock-up folds them into the others by volume). Folding them
+  would change the template's structure and the overhead base, so it is left as a
+  template decision for the owner.
+- **Create quote keeps a confirm** (the estimate locks).
+- **`/estimates/new` shows only two of the internal sections**; the BOM, ERP files
+  and details need a saved estimate (the BOM rows are edited by id).
+- **Finish options of a saved estimate** are recomputed from the template, so a hand
+  edit to a line does not move the other options (they are shifted to line up with
+  the stored total).
+- The collapsible sections mount their content only while open.
+
+### 16.7 Not verified, and what remains
+
+Not verified in a browser or on a device: any of the layout (375 px, both colour
+modes, the two-column grid collapsing at 900 px), the viewer surviving live model
+changes (camera kept, step reset), keyboard use of the sections and the finish
+option buttons, the email intake with a real key, the account prompt, the catalogue
+preview with real products, the `?tab=` / `?line=` landings, and the seed run
+(SQL not executed). Unit tests cover the preview maths against the golden figures,
+the price view, option shifting, the saved snapshot, the dirty check, the intake
+chips, the old-URL map, the request parser and the reusable-cost helper.
+
+Remaining: the E4 list (glTF upload, IFC, ERP push, RFQ from estimate lines, saved
+scenarios, PDF or image briefs), and the Drive guide refresh once the owner has
+validated the new screens (standing rule).
