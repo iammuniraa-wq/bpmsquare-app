@@ -148,6 +148,8 @@ export const ROUTES = {
   settingsAccount360: "/settings/account-360",
   settingsCoverage: "/settings/coverage",
   settingsRfq: "/settings/rfq",
+  settingsEstimateTemplates: "/settings/estimate-templates",
+  settingsEstimateTemplate: (id: string) => `/settings/estimate-templates/${id}`,
   reports: "/reports",
   reportsTalk: "/reports/talk",
   admin: "/admin",
