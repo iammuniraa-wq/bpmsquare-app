@@ -205,6 +205,7 @@ on `develop`, never push; owner pushes)
 - **E3 Screens + seed + docs**: list/new/record pages on the new templates,
   Settings template list + editor, seed SQL, ledger entry in PROJECT.md,
   README note in this doc of what is illustrative.
+  **Status: built 2026-10-18, see section 13.**
 - **E4 Simulation** (section 10), after E3.
 - **Later (not MVP)**: ERP push, RFQ from lines, IFC/Revit direct import,
   moulds-reuse planning, delivery/erection scheduling, fence → template
@@ -368,7 +369,7 @@ because the two exports have different fields; the starter's groups
 gained "Production" and "Insulation and fixings" so the overhead base matches
 the mock-up.
 
-## 12. E2 as built (2026-10-17) — status: E1 and E2 built, E3 next
+## 12. E2 as built (2026-10-17) — status: E1 and E2 built
 
 API, server core and every non-screen surface of the §3b checklist. No screens
 (E3), no seed (E3), no simulation (E4). No new SQL: 0131 as applied is enough.
@@ -502,3 +503,108 @@ All call `estimatorAccess()` first (`requireTenantUser()` inside), chain
   guide refresh after the owner has validated it. The illustrative starter is
   fully rate-priced (it has no product rules), so the demo needs no products
   unless a template adds product rules.
+
+## 13. E3 as built (2026-10-18) — status: E1, E2 and E3 built, E4 next
+
+Screens, template editor and demo seed. No new SQL, no new npm packages, no
+API changes. `tsc`, `vitest` and `next build` clean. **Not verified in a
+browser** (a tenant login is needed): everything below is checked at code
+level only, see 13.4.
+
+### 13.1 Screens and URLs
+
+| URL | What | Files |
+|---|---|---|
+| `/estimates` | List: `ObjectListPage`, "+ New Estimate", search (name, ID), status chips with counts, sortable ID / name / status / created, pager, phone cards, "waiting for the database update" state when 0131 is missing | `estimates/page.tsx` |
+| `/estimates/new` | `ObjectFormPage`: name, template, account (type to narrow) + contact, the **inputs form generated from the template** (cards by `section`; number / choice / yes-no; min, max, unit, help), margin, notes, custom fields (`CreateExtraFields`). "Calculate and save" posts `/api/estimates`; API issues land under the field. No template: empty state with "Start from the precast villa starter". `?from=<id>` prefills from another estimate (Duplicate); `?account_id=` preselects the account | `estimates/new/*`, `components/estimator/InputsForm.tsx`, `AccountPicker.tsx` |
+| `/estimates/[id]` | `ObjectRecordPage`, tabs in `?tab=`: **Overview** (details card with inline edit and status, `ObjectSections` for `cf_` fields), **Inputs** (same generated form, Recalculate; locked once quoted), **BOM** (lines by group, edit qty / unit cost, add and delete manual lines, source and "edited by hand" badges, Import schedule with preview and row errors, export bar with ERP layout), **Costing** (stacked component bar, margin, price, VAT, blockers), **Quote** (what the customer will see, or the linked quote), **Activity** (`RecordActivity`, which mounts `NovaTimelineSlot objectType="estimates"`). Primary action: Create quote / Open quote. The ⋯ menu: Edit, Duplicate, Export BOM / WBS (Excel, generic layout), Export options, Adapt fields (admins), Delete (undo window) | `estimates/[id]/*` |
+| `/accounts/[id]?tab=estimates` | Account tab (`RelatedList`, customer-facing figures only via `estimatesForAccount`), shown only when the `estimator` flag is on | `accounts/[id]/page.tsx` |
+| `/settings/estimate-templates` | Settings > Sales list (`RecordRows`): + New template (a minimal valid one), row menu Edit / Duplicate / Deactivate / Delete (409 text from the API when in use), "Add the precast villa starter" | `settings/estimate-templates/*` |
+| `/settings/estimate-templates/[id]` | Editor, Save top right, tabs Details / Inputs / Rates / Rules / Check (13.2) | `settings/estimate-templates/[id]/*`, `components/estimator/templateDraft.ts`, `useTemplateCheck.ts`, `EditorRow.tsx` |
+
+The nav item (Sales & procurement, `estimator` flag, `estimates` workcenter)
+and the Settings menu item (admin only, same flag and workcenter) are gated
+exactly like the module.
+
+### 13.2 Template editor
+
+- The working copy keeps numbers as typed text (`templateDraft.ts`, unit-tested
+  to round-trip the starter into a template with zero validation issues) and
+  only becomes the template shape for a check or a save.
+- Every change (after 600 ms) posts `/api/estimate-templates/validate`. The
+  **Check** tab lists every issue by path, warnings, the worked example with the
+  default inputs (cost by group; product lines unpriced) and the names a
+  formula may use: inputs, rates, `qty_<code>`, `sub_<group>`, and the geometry
+  module's `vol_/n_/area_<CODE>` plus `vol_total`, `n_total`, `area_total`,
+  `weight_total`. Issue counts show on the Inputs / Rates / Rules tabs and
+  under the row they belong to.
+- The quantity formula box checks live once focused: errors with position,
+  unknown names, and the value with the default inputs. (A waste % formula is
+  validated by the template check, not by the box.)
+- Geometry module: select from the registry; shows its piece families, the
+  inputs it reads and which required ones the template is missing.
+- Select inputs have an options editor and the `quote_alternatives` toggle.
+- Rules: ordered, move up / down, cost from a rate (dropdown of the template's
+  rates) or from a product SKU, component, optional element type.
+- Save sends `expected_version`; a stale save is the API's 409. API issues on
+  save are shown on the Check tab. Rows stack on a phone (`fg2`, `fg3`).
+
+### 13.3 Demo seed
+
+`scripts/seed-estimator-demo.sql` is **generated** by
+`scripts/gen-estimator-demo-seed.ts` (`npx jiti scripts/gen-estimator-demo-seed.ts`)
+by running the real `computeEstimate` on the starter with its default inputs,
+margin 18 % and VAT 15 %: 16 lines, 137 pieces, cost 174 256.59, total incl.
+VAT 236 466.20 (the E1 golden numbers). Idempotent, demo tenants only
+(`is_demo = true`); sets `features.estimator`, adds the template and one sample
+estimate with its lines, totals and model. Run AFTER 0131, by hand; ledger entry
+in `PROJECT.md`. Regenerate whenever the starter or the engine changes.
+
+### 13.4 Deviations and things not verified
+
+- **List sorting**: ID, name, status and created are sortable (what
+  `listEstimates` sorts in the database); account, template and price are not,
+  and the per-column search boxes are off (`ObjectListPage` got an optional
+  `columnSearch` prop, default on, so no other list changes) because the filter
+  runs in the database.
+- **Account picker**: a type-to-narrow box over the select, from the page's own
+  tenant-scoped query (the same approach as the Standard Quote form), not a
+  server-side search.
+- **Export profile**: chosen on the BOM tab; there is no tenant default setting
+  yet, so the menu shortcuts use the generic layout. No "can see estimates but
+  not costs" role split exists, so none was invented; costs appear only on
+  internal screens (BOM, Costing, exports), never on the quote, the v1 API or
+  the account tab.
+- **Quote preview** on the Quote tab uses the same builder as the conversion
+  (`buildQuoteLines`) on the stored lines; alternatives are described, not
+  listed.
+- **Not verified in a browser**: all of it. The owner should look at desktop and
+  375 px, light and dark, in particular: the BOM table (it scrolls sideways on a
+  phone rather than turning into cards), the schedule import preview, the
+  generated inputs form, the stacked cost bar colours, the editor's Rules tab
+  on a phone, and the menu export links (they download through the API).
+- The Drive guide refresh waits for the owner's validation (standing rule).
+
+### 13.5 What E4 (Simulation) must do
+
+- A second top-level mode on the estimate record (a **Simulation** tab or
+  switch beside the existing tabs; Estimate mode stays untouched), fed by
+  `estimate.model` (the stored pieces) and the template's rates.
+- `src/components/estimator/BuildingViewer.tsx` (three.js, pattern
+  `fence/Fence3DView.tsx`): draw exactly the stored pieces, click a piece for
+  mark / size / weight / cost, explode-floors slider, erection-step play and
+  scrub, colour by family or by day; dispose geometry and renderer on unmount;
+  honour `prefers-reduced-motion`; theme colours from CSS variables; touch.
+  Highlight a BOM line's pieces from its `element_ref` range.
+- Schedule simulation (production days from mould capacity and casting cycles,
+  truck loads by weight, crane productivity) with the capacity assumptions as
+  template rates (new rates, edited in the existing Rates editor), as a Gantt.
+- What-if sliders and Monte Carlo (deterministic seed; P10 / P50 / P90, chance
+  of missing a target margin, tornado chart) with low / likely / high per driver
+  stored on the template (the editor needs a place to set them, e.g. an
+  optional range on rates).
+- Optional AI, server side only and bounded: read a brief or drawing and propose
+  inputs; review an estimate for risks. Both are drafts saved on confirmation
+  and degrade to "AI not configured".
+- glTF upload to replace the generated model (IFC only after an explicit go on
+  the dependency). No SQL is needed unless the model upload stores files.
