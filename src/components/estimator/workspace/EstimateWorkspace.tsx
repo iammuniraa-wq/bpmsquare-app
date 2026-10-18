@@ -103,8 +103,11 @@ export default function EstimateWorkspace(p: WorkspaceProps) {
   }, []);
 
   const blocked = !view ? "Fill in the details to see a price."
-    : preview && !preview.complete && !showStored ? (live.status === "pricing" ? "Waiting for the catalogue prices." : "Some items have no cost in the catalogue yet, so this cannot be quoted.")
-    : view.problems[0] ?? null;
+    : preview && !preview.complete && !showStored
+      ? (live.status === "pricing" ? "Waiting for the catalogue prices."
+        : live.unresolved.length > 0 ? `No product in your catalogue matches the item number for: ${live.unresolved.join(", ")}.`
+        : "Some items have no cost in the catalogue yet, so this cannot be quoted.")
+      : view.problems[0] ?? null;
   const issue = live.issues[0]?.message ?? act.issues[0]?.message;
 
   return (

@@ -16,7 +16,7 @@ import type { ComputeSuccess, ScheduleQty, ComputedLine } from "./compute";
 import { applyOverrides, readOverride } from "./overrides";
 import {
   normaliseLine, persistLine, toSummarisable, toQuoteSource, templateGroupNames, unpricedCodes,
-  skuOf, type PersistLine,
+  skuOf, reusableCosts, scheduleFromLines, type PersistLine,
 } from "./lines";
 import {
   buildQuoteLines, alternativesInput, tagAlternatives, plainRows, quoteBlockers,
@@ -388,30 +388,6 @@ const labelOf = (l: ComputedLine, ruleDescription: Map<string, string>): string 
   const base = ruleDescription.get(l.code) ?? "";
   return base && l.description.startsWith(`${base} - `) ? l.description.slice(base.length + 3) : null;
 };
-
-/** The schedule the stored schedule lines came from (so a recompute that is
- *  not about the schedule keeps using it). */
-export function scheduleFromLines(lines: readonly EstimateLine[]): ScheduleQty[] {
-  return lines
-    .filter((l) => l.source === "schedule" && l.code)
-    .map((l) => {
-      const label = typeof l.custom_data?.label === "string" ? (l.custom_data.label as string) : null;
-      return { rule_code: l.code as string, qty: Number(l.custom_data?.schedule_qty ?? l.qty), element_ref: l.element_ref, label };
-    });
-}
-
-/** Unit costs worth keeping across a recompute that does not reprice. */
-function reusableCosts(lines: readonly EstimateLine[]): { costs: Record<string, number>; products: Record<string, string> } {
-  const costs: Record<string, number> = {};
-  const products: Record<string, string> = {};
-  for (const l of lines) {
-    if (l.source === "manual" || !l.code || !skuOf(l) || l.unit_cost === null || !l.product_id) continue;
-    const o = readOverride(l.custom_data);
-    if (o && "unit_cost" in o) continue; // the engine's cost is not what is stored
-    if (!(l.code in costs)) { costs[l.code] = l.unit_cost; products[l.code] = l.product_id; }
-  }
-  return { costs, products };
-}
 
 const CHUNK = 500;
 

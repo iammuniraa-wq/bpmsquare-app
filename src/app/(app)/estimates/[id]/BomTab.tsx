@@ -8,7 +8,6 @@ import EmptyState from "@/components/ui/EmptyState";
 import BomRow from "./BomRow";
 import AddLineForm from "./AddLineForm";
 import ScheduleImport from "./ScheduleImport";
-import ExportBar from "./ExportBar";
 import type { BomGroupView } from "./bomView";
 
 const th: React.CSSProperties = {
@@ -38,7 +37,6 @@ export default function BomTab({
       {locked && (
         <Card padding={14}><div style={{ fontSize: 13 }}><strong>Locked.</strong> This estimate already has a quote, so its lines can no longer change.</div></Card>
       )}
-      <ExportBar estimateId={estimateId} />
       {lineCount === 0 ? (
         <Card padding={0}><EmptyState title="No lines yet" text="Lines come from the template's rules when the estimate is calculated, from an imported element schedule, or from lines you add by hand." /></Card>
       ) : (

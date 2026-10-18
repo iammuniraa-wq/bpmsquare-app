@@ -9,11 +9,12 @@
 // product changes later.
 
 import { roundHalfAway } from "./formula";
-import type { ComputedLine } from "./compute";
+import type { ComputedLine, ScheduleQty } from "./compute";
 import type { SummarisableLine } from "./compute";
 import type { ExportLineInput } from "./exports";
 import type { QuoteSourceLine } from "./quoteLines";
 import type { OverridableRow } from "./overrides";
+import { readOverride } from "./overrides";
 import { groupSlug } from "./types";
 import type { EstimateComponent } from "./types";
 import type { EstimateLine } from "@/lib/types";
@@ -152,6 +153,34 @@ export function unpricedCodes(lines: readonly EstimateLine[]): string[] {
     if (!out.includes(id)) out.push(id);
   }
   return out;
+}
+
+/** The schedule the stored schedule lines came from (so a recompute that is
+ *  not about the schedule keeps using it). */
+export function scheduleFromLines(lines: readonly EstimateLine[]): ScheduleQty[] {
+  return lines
+    .filter((l) => l.source === "schedule" && l.code)
+    .map((l) => {
+      const label = typeof l.custom_data?.label === "string" ? (l.custom_data.label as string) : null;
+      return { rule_code: l.code as string, qty: Number(l.custom_data?.schedule_qty ?? l.qty), element_ref: l.element_ref, label };
+    });
+}
+
+/**
+ * Unit costs worth keeping across a recompute that does not reprice: the stored
+ * cost of each product rule, unless a person edited it by hand. The working page
+ * uses them to show finish options for a saved estimate without asking the server.
+ */
+export function reusableCosts(lines: readonly EstimateLine[]): { costs: Record<string, number>; products: Record<string, string> } {
+  const costs: Record<string, number> = {};
+  const products: Record<string, string> = {};
+  for (const l of lines) {
+    if (l.source === "manual" || !l.code || !skuOf(l) || l.unit_cost === null || !l.product_id) continue;
+    const o = readOverride(l.custom_data);
+    if (o && "unit_cost" in o) continue; // the engine's cost is not what is stored
+    if (!(l.code in costs)) { costs[l.code] = l.unit_cost; products[l.code] = l.product_id; }
+  }
+  return { costs, products };
 }
 
 export const round2 = (x: number) => roundHalfAway(x, 2);

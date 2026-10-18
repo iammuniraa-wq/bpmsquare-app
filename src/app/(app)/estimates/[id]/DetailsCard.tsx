@@ -146,7 +146,7 @@ export default function DetailsCard(p: Props) {
           </Row>
           {p.templateOutdated && (
             <div className="bpm-t-help" style={{ marginTop: 10 }}>
-              The template has changed since this estimate was calculated. Recalculate it on the Inputs tab to use the current version.
+              The template has changed since this estimate was calculated. Use Recalculate with the current template at the top of the page.
             </div>
           )}
           {p.notes && (

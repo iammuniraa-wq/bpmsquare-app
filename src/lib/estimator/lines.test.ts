@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { normaliseLine, groupNameOf, templateGroupNames, toExportLine, toQuoteSource, unpricedCodes, persistLine } from "./lines";
+import { normaliseLine, groupNameOf, templateGroupNames, toExportLine, toQuoteSource, unpricedCodes, persistLine, reusableCosts } from "./lines";
 import { computeEstimate } from "./compute";
 
 const raw = (over: Record<string, unknown> = {}) => ({
@@ -52,5 +52,19 @@ describe("persistLine", () => {
     expect(p.custom_data).toMatchObject({ group: "Walls", sku: "PNL-200" });
     const sched = persistLine({ ...productLine, source: "schedule", qty: 7 }, null, "Panel A");
     expect(sched.custom_data).toMatchObject({ schedule_qty: 7, label: "Panel A" });
+  });
+});
+
+describe("reusableCosts", () => {
+  const product = (over: Record<string, unknown> = {}) => normaliseLine(raw({ code: "ped", unit_cost: "12.5", product_id: "p1", ...over }));
+  it("keeps the stored cost and product of each product rule", () => {
+    expect(reusableCosts([product()])).toEqual({ costs: { ped: 12.5 }, products: { ped: "p1" } });
+  });
+  it("skips rate lines, manual lines, unpriced lines and hand-edited costs", () => {
+    const rate = normaliseLine(raw({ custom_data: { group: "G" }, product_id: null }));
+    const manual = product({ source: "manual", code: "m1" });
+    const unpriced = product({ code: "u1", unit_cost: null });
+    const edited = product({ code: "e1", custom_data: { group: "G", sku: "X", override: { unit_cost: 99 } } });
+    expect(reusableCosts([rate, manual, unpriced, edited])).toEqual({ costs: {}, products: {} });
   });
 });

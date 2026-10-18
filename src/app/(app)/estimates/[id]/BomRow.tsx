@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { c } from "@/lib/theme";
@@ -8,6 +7,7 @@ import Button from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import StatusPill from "@/components/ui/StatusPill";
 import { useFeel } from "@/components/FeelProvider";
+import { useEstimateFocus } from "@/components/estimator/workspace/focus";
 import type { BomLineView } from "./bomView";
 
 export const SOURCE_LABEL: Record<BomLineView["source"], string> = { rule: "Rule", schedule: "Schedule", manual: "Manual" };
@@ -29,6 +29,7 @@ export default function BomRow({
   money: (n: number) => string;
 }) {
   const router = useRouter();
+  const focus = useEstimateFocus();
   const { confirm } = useFeel();
   const [pending, startTransition] = useTransition();
   const [editing, setEditing] = useState(false);
@@ -74,8 +75,11 @@ export default function BomRow({
             {line.overridden && <StatusPill label="Edited by hand" tone="purple" />}
             {line.unpriced && <StatusPill label="No cost yet" tone="red" />}
             {line.element_ref && <span style={{ fontSize: 11, color: c.hint }}>{line.element_ref}</span>}
-            {line.element_ref && line.code && (
-              <Link href={`?tab=simulation&line=${encodeURIComponent(line.code)}`} style={{ fontSize: 11, color: "var(--accent)" }}>Show in 3D</Link>
+            {line.element_ref && line.code && focus && (
+              <button type="button" onClick={() => focus.show(line.code as string)}
+                style={{ color: "var(--accent)", background: "none", border: 0, padding: 0, cursor: "pointer", font: "inherit", fontSize: 11 }}>
+                Show in 3D
+              </button>
             )}
           </div>
         </td>
