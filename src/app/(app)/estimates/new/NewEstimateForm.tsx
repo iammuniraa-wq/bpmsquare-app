@@ -9,8 +9,10 @@ import Field from "@/components/ui/Field";
 import { Input, Select, Textarea } from "@/components/ui/Input";
 import CreateExtraFields from "@/components/fields/CreateExtraFields";
 import InputsForm, { initialValues, toParams, type InputValues, type InputIssue } from "@/components/estimator/InputsForm";
+import BriefDrafter from "@/components/estimator/BriefDrafter";
 import AccountPicker, { type AccountOption, type ContactOption } from "@/components/estimator/AccountPicker";
 import type { TemplateInput } from "@/lib/estimator/types";
+import type { IntakeProposal } from "@/lib/estimator/ai";
 
 export type TemplateChoice = {
   id: string; name: string; description: string | null; trade: string | null; inputs: TemplateInput[];
@@ -54,6 +56,21 @@ export default function NewEstimateForm({
   function pickTemplate(id: string) {
     setTemplateId(id);
     setValues(initialValues(templates.find((t) => t.id === id)?.inputs ?? []));
+    setIssues([]);
+  }
+
+  function applyProposal(p: IntakeProposal) {
+    if (!template) return;
+    setValues((s) => {
+      const next = { ...s };
+      for (const i of template.inputs) {
+        const v = p.values[i.key];
+        if (v === undefined) continue;
+        next[i.key] = i.type === "boolean" ? v === true : String(v);
+      }
+      return next;
+    });
+    if (p.name && !name.trim()) setName(p.name);
     setIssues([]);
   }
 
@@ -105,6 +122,8 @@ export default function NewEstimateForm({
           <AccountPicker accounts={accounts} contacts={contacts} accountId={accountId} contactId={contactId} onAccount={setAccountId} onContact={setContactId} />
         </div>
       </Card>
+
+      {template && <BriefDrafter key={template.id} templateId={template.id} onApply={applyProposal} />}
 
       {template && (
         <InputsForm

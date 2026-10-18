@@ -3,6 +3,7 @@ import Card from "@/components/ui/Card";
 import EmptyState from "@/components/ui/EmptyState";
 import { ESTIMATE_COMPONENTS, ESTIMATE_COMPONENT_LABEL, type EstimateComponent } from "@/lib/estimator/types";
 import type { EstimateTotals } from "@/lib/types";
+import AiReviewCard from "./AiReviewCard";
 
 const TONE: Record<EstimateComponent, PillarKey> = {
   materials: "blue", moulds: "purple", labour: "teal", overhead: "amber", transport: "green", erection: "red", other: "blue",
@@ -20,7 +21,7 @@ function Row({ label, value, strong = false }: { label: string; value: string; s
 }
 
 /** The cost build-up: by component (stacked bar), by group, then margin, price and VAT. */
-export default function CostingTab({ totals, money }: { totals: EstimateTotals | null; money: (n: number) => string }) {
+export default function CostingTab({ totals, money, estimateId, canReview = false }: { totals: EstimateTotals | null; money: (n: number) => string; estimateId?: string; canReview?: boolean }) {
   if (!totals) {
     return <Card padding={0}><EmptyState title="Not calculated yet" text="Recalculate the estimate on the Inputs tab to see its cost build-up." /></Card>;
   }
@@ -87,6 +88,8 @@ export default function CostingTab({ totals, money }: { totals: EstimateTotals |
           ))}
         </Card>
       )}
+
+      {canReview && estimateId && <AiReviewCard estimateId={estimateId} />}
 
       {notes.length > 0 && (
         <Card title="Notes from the calculation" padding={16}>

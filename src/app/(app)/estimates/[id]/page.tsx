@@ -139,7 +139,7 @@ export default async function EstimatePage({
     {
       id: "costing",
       label: "Costing",
-      content: <CostingTab totals={totals} money={moneyFormatter(cur, { maximumFractionDigits: 2 })} />,
+      content: <CostingTab totals={totals} money={moneyFormatter(cur, { maximumFractionDigits: 2 })} estimateId={estimate.id} canReview={canEdit && lines.length > 0} />,
     },
     {
       id: "simulation",
