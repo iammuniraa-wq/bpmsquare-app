@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   parseEstimateCreate, parseEstimatePatch, parseListParams, parseManualLine, parseTemplateHeader,
-  sanitizeSearch, cfOnly, isUuid, parseMargin, MAX_PAGE_SIZE,
+  sanitizeSearch, cfOnly, isUuid, parseMargin, parsePreviewRequest, MAX_PAGE_SIZE,
 } from "./requests";
 
 const ID = "3f2b8c1e-8a4d-4c55-9b0e-1a2b3c4d5e6f";
@@ -124,5 +124,21 @@ describe("parseTemplateHeader", () => {
     expect(parseTemplateHeader({ name: "x", quote_granularity: "page" }, { requireName: true }).ok).toBe(false);
     expect(parseTemplateHeader({ is_active: "yes" }, { requireName: false }).ok).toBe(false);
     expect(parseTemplateHeader({ name: "x".repeat(121) }, { requireName: true }).ok).toBe(false);
+  });
+});
+
+describe("parsePreviewRequest", () => {
+  it("takes a template id, inputs and margin, and nothing else", () => {
+    const r = parsePreviewRequest({ template_id: ID, params: { floors: 2 }, margin_pct: "18", tenant_id: "x", account_id: ID2 });
+    expect(r).toEqual({ ok: true, value: { template_id: ID, params: { floors: 2 }, margin_pct: 18 } });
+  });
+  it("defaults inputs and margin", () => {
+    expect(parsePreviewRequest({ template_id: ID })).toEqual({ ok: true, value: { template_id: ID, params: {}, margin_pct: 0 } });
+  });
+  it("refuses a bad id, bad params or a margin out of range", () => {
+    expect(parsePreviewRequest({ template_id: "nope" }).ok).toBe(false);
+    expect(parsePreviewRequest({ template_id: ID, params: [1] }).ok).toBe(false);
+    expect(parsePreviewRequest({ template_id: ID, margin_pct: 5000 }).ok).toBe(false);
+    expect(parsePreviewRequest(null).ok).toBe(false);
   });
 });

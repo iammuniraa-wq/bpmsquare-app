@@ -81,6 +81,22 @@ export function parseEstimateCreate(body: unknown): { ok: true; value: EstimateC
   };
 }
 
+export type PreviewRequest = { template_id: string; params: Record<string, unknown>; margin_pct: number };
+
+/** The body of the preview route: which template, the input values, the margin. Nothing else is read. */
+export function parsePreviewRequest(body: unknown): { ok: true; value: PreviewRequest } | Fail {
+  if (!isRecord(body)) return { ok: false, error: "A JSON body is required." };
+  if (!isUuid(body.template_id)) return { ok: false, error: "Choose a template (template_id)." };
+  if (body.params !== undefined && body.params !== null && !isRecord(body.params)) return { ok: false, error: "params must be an object of input values." };
+  let margin = 0;
+  if (body.margin_pct !== undefined && body.margin_pct !== null && body.margin_pct !== "") {
+    const m = parseMargin(body.margin_pct);
+    if (m === null) return { ok: false, error: `Margin must be between 0 and ${MAX_MARGIN_PCT} percent.` };
+    margin = m;
+  }
+  return { ok: true, value: { template_id: body.template_id, params: isRecord(body.params) ? body.params : {}, margin_pct: margin } };
+}
+
 export type EstimatePatch = {
   /** Columns to write (allow-listed). */
   patch: Record<string, unknown>;

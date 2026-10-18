@@ -282,7 +282,7 @@ const PRICE_CONCURRENCY = 6;
  */
 export async function priceProductRules(
   supabase: SupabaseClient, tenantId: string,
-  args: { estimateId: string | null; accountId: string | null; needs: { code: string; sku: string; qty: number }[] }
+  args: { estimateId: string | null; accountId: string | null; needs: { code: string; sku: string; qty: number }[]; catalogueOnly?: boolean }
 ): Promise<PriceOutcome> {
   const out: PriceOutcome = { unit_costs: {}, product_ids: {}, sources: {}, unresolved: [], unpriced: [], warnings: [] };
   if (args.needs.length === 0) return out;
@@ -293,19 +293,23 @@ export async function priceProductRules(
     const product = products.get(n.sku);
     if (!product) { out.unresolved.push(n.code); return; }
     out.product_ids[n.code] = product.id;
-    try {
-      const priced = await priceDocumentLine(tenantId, {
-        productId: product.id, accountId: args.accountId, quantity: n.qty > 0 ? n.qty : 1,
-        documentType: "standard_quote", sourceId: args.estimateId,
-      });
-      if (priced.ok && Number.isFinite(priced.unit_rate) && priced.unit_rate >= 0) {
-        out.unit_costs[n.code] = priced.unit_rate;
-        out.sources[n.code] = "engine";
-        return;
+    // A preview must leave nothing behind, and every engine call stores a
+    // pricing document and a meter row, so it prices from the product's own cost.
+    if (!args.catalogueOnly) {
+      try {
+        const priced = await priceDocumentLine(tenantId, {
+          productId: product.id, accountId: args.accountId, quantity: n.qty > 0 ? n.qty : 1,
+          documentType: "standard_quote", sourceId: args.estimateId,
+        });
+        if (priced.ok && Number.isFinite(priced.unit_rate) && priced.unit_rate >= 0) {
+          out.unit_costs[n.code] = priced.unit_rate;
+          out.sources[n.code] = "engine";
+          return;
+        }
+        if (!priced.ok) engineNote.add(`No engine price for ${product.name}.`);
+      } catch {
+        engineNote.add("The pricing engine is not available for this workspace.");
       }
-      if (!priced.ok) engineNote.add(`No engine price for ${product.name}.`);
-    } catch {
-      engineNote.add("The pricing engine is not available for this workspace.");
     }
     const cost = product.cost_price === null || product.cost_price === undefined ? null : Number(product.cost_price);
     if (cost !== null && Number.isFinite(cost) && cost > 0) {
@@ -319,7 +323,8 @@ export async function priceProductRules(
   for (let i = 0; i < args.needs.length; i += PRICE_CONCURRENCY) {
     await Promise.all(args.needs.slice(i, i + PRICE_CONCURRENCY).map(one));
   }
-  if (Object.values(out.sources).includes("product_cost")) out.warnings.push("Some product lines use the product's own cost because the pricing engine had no price for them.");
+  if (args.catalogueOnly) out.warnings.push("Priced from the catalogue's own costs. The saved estimate uses your pricing engine where it has a price.");
+  else if (Object.values(out.sources).includes("product_cost")) out.warnings.push("Some product lines use the product's own cost because the pricing engine had no price for them.");
   out.warnings.push(...engineNote);
   return out;
 }
@@ -336,6 +341,8 @@ export type CalcInput = {
   /** Unit costs to keep instead of pricing again (a margin-only change). */
   reuse?: Record<string, number>;
   reuseProducts?: Record<string, string>;
+  /** Price product lines from the catalogue's own cost, never the pricing engine (the live preview: it stores nothing). */
+  catalogueOnly?: boolean;
 };
 
 export type CalcOutput =
@@ -358,7 +365,7 @@ export async function computeAndPrice(supabase: SupabaseClient, input: CalcInput
       const lines = first.lines.filter((l) => l.code === code);
       return { code, sku: lines[0]?.sku ?? "", qty: lines.reduce((a, l) => a + l.qty_gross, 0) };
     }).filter((n) => n.sku);
-    const priced = await priceProductRules(supabase, input.tenantId, { estimateId: input.estimateId, accountId: input.accountId, needs });
+    const priced = await priceProductRules(supabase, input.tenantId, { estimateId: input.estimateId, accountId: input.accountId, needs, catalogueOnly: input.catalogueOnly });
     Object.assign(pricing.unit_costs, priced.unit_costs);
     Object.assign(pricing.product_ids, priced.product_ids);
     Object.assign(pricing.sources, priced.sources);
