@@ -17,6 +17,7 @@ import EstimateStatusPill from "../EstimateStatusPill";
 import DetailsCard from "./DetailsCard";
 import InputsTab from "./InputsTab";
 import BomTab from "./BomTab";
+import CostingTab from "./CostingTab";
 import { toBomGroups } from "./bomView";
 
 const fmtDate = (s: string) => new Date(s).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
@@ -52,7 +53,8 @@ export default async function EstimatePage({
   const canCreate = canCreateWorkcenter(perms, "estimates");
   const isAdmin = role === "admin";
   const locked = !!estimate.standard_quote_id;
-  const money = moneyFormatter(await getTenantCurrency(), { maximumFractionDigits: 0 });
+  const cur = await getTenantCurrency();
+  const money = moneyFormatter(cur, { maximumFractionDigits: 0 });
   const totals = estimate.totals;
   const basePath = ROUTES.estimate(estimate.id);
 
@@ -120,6 +122,11 @@ export default async function EstimatePage({
           hasSchedule={lines.some((l) => l.source === "schedule")} hasTemplate={!!template}
         />
       ),
+    },
+    {
+      id: "costing",
+      label: "Costing",
+      content: <CostingTab totals={totals} money={moneyFormatter(cur, { maximumFractionDigits: 2 })} />,
     },
     {
       id: "activity",
