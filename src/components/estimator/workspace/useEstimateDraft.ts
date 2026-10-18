@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { initialValues } from "@/components/estimator/InputsForm";
 import type { InputValues } from "@/components/estimator/InputsForm";
 import type { IntakeProposal } from "@/lib/estimator/ai";
@@ -20,7 +20,9 @@ export type DraftInit = {
 export function useEstimateDraft(templates: readonly WorkspaceTemplate[], init: DraftInit) {
   const [templateId, setTemplateId] = useState(init.templateId);
   const template = templates.find((t) => t.id === templateId) ?? templates[0] ?? null;
-  const [values, setValues] = useState<InputValues>(() => initialValues(template?.inputs ?? [], init.params));
+  const [typed, setValues] = useState<InputValues>(() => initialValues(template?.inputs ?? [], init.params));
+  // An input the template gained since (a recalculation) starts at its default.
+  const values = useMemo<InputValues>(() => ({ ...initialValues(template?.inputs ?? []), ...typed }), [template, typed]);
   const [margin, setMargin] = useState(String(init.margin ?? 0));
   const [customer, setCustomer] = useState(init.customer ?? "");
   const [accountId, setAccountId] = useState(init.accountId ?? "");

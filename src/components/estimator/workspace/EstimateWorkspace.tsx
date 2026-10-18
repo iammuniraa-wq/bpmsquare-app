@@ -3,6 +3,8 @@
 import { useCallback, useMemo, useState } from "react";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
+import Field from "@/components/ui/Field";
+import { Select } from "@/components/ui/Input";
 import { useCurrency } from "@/lib/tenant-context";
 import { moneyFormatter } from "@/lib/currency";
 import { alternativesInput } from "@/lib/estimator/quoteLines";
@@ -89,7 +91,7 @@ export default function EstimateWorkspace(p: WorkspaceProps) {
   const showStored = !!saved && !dirty;
   const preview = live.preview;
   const view = showStored ? saved.view : preview?.view ?? null;
-  const shown = showStored ? saved.shown : shownFromPreview(preview);
+  const shown = useMemo(() => (showStored ? saved.shown : shownFromPreview(preview)), [showStored, saved, preview]);
   const options = showStored && preview ? shiftOptions(preview.options, saved.view.total - preview.view.total) : preview?.options ?? null;
   const altKey = t ? alternativesInput(t.inputs)?.key : undefined;
 
@@ -113,6 +115,15 @@ export default function EstimateWorkspace(p: WorkspaceProps) {
   return (
     <EstimateFocusContext.Provider value={{ highlightCode, show }}>
       <div className="est-stack">
+        {!saved && p.templates.length > 1 && (
+          <Card padding={16}>
+            <Field label="Template" hint={t?.description ?? undefined} style={{ marginBottom: 0 }}>
+              <Select value={draft.templateId} onChange={(e) => draft.pickTemplate(e.target.value)} disabled={act.busy !== null}>
+                {p.templates.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
+              </Select>
+            </Field>
+          </Card>
+        )}
         {editable && t && <EmailIntake key={t.id} templateId={t.id} inputs={t.inputs} onApply={draft.applyProposal} />}
         {locked && <div className="est-note" role="status">This estimate has a quote, so it is locked. Everything below is as it was quoted.</div>}
         {!t && <Card padding={16}><div className="bpm-t-help">This estimate&apos;s template was deleted, so its inputs can&apos;t be shown or recalculated. Its lines and totals are kept as they were.</div></Card>}
@@ -120,7 +131,7 @@ export default function EstimateWorkspace(p: WorkspaceProps) {
         <div className="est-grid">
           {t && (
             <div id="about" style={{ scrollMarginTop: 80, minWidth: 0 }}>
-            <AboutCard draft={draft} templates={p.templates} issues={[...live.issues, ...act.issues]} disabled={!editable || act.busy !== null} showCustomer={!saved}
+            <AboutCard draft={draft} issues={[...live.issues, ...act.issues]} disabled={!editable || act.busy !== null} showCustomer={!saved}
               extra={!saved ? <CustomerDetails draft={draft} accounts={accounts} contacts={p.contacts} disabled={act.busy !== null} /> : undefined}>
               {saved && saved.templateOutdated && editable && !dirty && (
                 <div className="est-warn" style={{ marginTop: 12 }}>

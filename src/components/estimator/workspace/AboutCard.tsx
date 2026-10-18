@@ -2,11 +2,10 @@
 
 import Card from "@/components/ui/Card";
 import Field from "@/components/ui/Field";
-import { Input, Select } from "@/components/ui/Input";
+import { Input } from "@/components/ui/Input";
 import InputsForm from "@/components/estimator/InputsForm";
 import type { InputIssue } from "@/components/estimator/InputsForm";
 import type { EstimateDraft } from "./useEstimateDraft";
-import type { WorkspaceTemplate } from "./types";
 
 /**
  * Step 2: the plain inputs, generated from the template. Every change feeds the
@@ -14,10 +13,9 @@ import type { WorkspaceTemplate } from "./types";
  * margin sits here because the price depends on it; the customer never sees it.
  */
 export default function AboutCard({
-  draft, templates, issues, disabled, showCustomer, extra, children,
+  draft, issues, disabled, showCustomer, extra, children,
 }: {
   draft: EstimateDraft;
-  templates: readonly WorkspaceTemplate[];
   issues: InputIssue[];
   disabled: boolean;
   /** New estimates name the customer here; a saved one is renamed under Details. */
@@ -30,13 +28,6 @@ export default function AboutCard({
   const t = draft.template;
   return (
     <Card title="2. About the villa" padding={16}>
-      {templates.length > 1 && (
-        <Field label="Template" hint={t?.description ?? undefined}>
-          <Select value={draft.templateId} onChange={(e) => draft.pickTemplate(e.target.value)} disabled={disabled}>
-            {templates.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
-          </Select>
-        </Field>
-      )}
       {showCustomer && (
         <Field label="Customer or project" hint="Names the estimate, so it can be found later.">
           <Input value={draft.customer} onChange={(e) => draft.setCustomer(e.target.value)} maxLength={200} placeholder="e.g. Khalid Al-Rashid, Riyadh villa" disabled={disabled} />
