@@ -14,7 +14,7 @@ describe("intake chips", () => {
     expect(understoodChips(inputs, proposal)).toEqual([
       "Number of floors: 2 floors",
       "Built-up area per floor: 180 m²",
-      "External finish: Premium (+18% on visible faces)",
+      "External finish: Premium",
       "Include precast stairs: yes",
     ]);
   });

@@ -15,7 +15,17 @@
 // formulas. The rates are the mock-up's (docs/estimator-reference), so the
 // reference villa lands on the mock-up's own figures.
 
+import { groupSlug } from "./types";
 import type { EstimateTemplateBody, QuoteGranularity } from "./types";
+
+// Group names are what the customer reads on the quote (one line per group), so
+// they are plain words. Rules refer to a group's subtotal as sub_<slug>.
+const G_STRUCTURE = "Structure (floors, beams, inner walls)";
+const G_EXTERNAL = "External walls and parapet";
+const G_STAIRS = "Stairs";
+const G_BOUNDARY = "Boundary wall";
+const G_DELIVERY = "Delivery and erection";
+const sub = (group: string) => `sub_${groupSlug(group)}`;
 
 export type StarterTemplate = EstimateTemplateBody & {
   name: string;
@@ -40,11 +50,13 @@ export const PRECAST_VILLA_STARTER: StarterTemplate = {
     { key: "wall_perimeter_m", label: "External wall perimeter (one floor)", type: "number", default: 50, min: 10, max: 500, unit: "m", section: "Building", help: "With the area, this fixes the length and depth of the building." },
     { key: "wall_height_m", label: "Floor-to-floor wall height", type: "number", default: 3, min: 2.4, max: 6, unit: "m", section: "Building" },
     { key: "ext_wall_thickness_m", label: "External wall thickness", type: "number", default: 0.2, min: 0.1, max: 0.5, unit: "m", section: "Building" },
-    { key: "finish_level", label: "External finish", type: "select", default: "standard", section: "Building", options: [
+    { key: "finish_level", label: "External finish", type: "select", default: "standard", section: "Building",
+      help: "Standard adds 8% and Premium 18% to the concrete price of the faces that show.",
+      quote_alternatives: true, options: [
       // The option value is the concrete price multiplier on visible faces.
       { key: "basic", label: "Basic", value: 1 },
-      { key: "standard", label: "Standard (+8% on visible faces)", value: 1.08 },
-      { key: "premium", label: "Premium (+18% on visible faces)", value: 1.18 },
+      { key: "standard", label: "Standard", value: 1.08 },
+      { key: "premium", label: "Premium", value: 1.18 },
     ] },
     { key: "include_stairs", label: "Include precast stairs", type: "boolean", default: true, section: "Stairs" },
     { key: "stair_flights", label: "Stair flights", type: "number", default: 2, min: 0, max: 10, unit: "flights", section: "Stairs" },
@@ -83,37 +95,37 @@ export const PRECAST_VILLA_STARTER: StarterTemplate = {
   ],
 
   rules: [
-    // ── Envelope ──
-    { code: "ew", group: "Envelope", description: "External wall panels (insulated)", uom: "m3",
+    // ── Structure (floors, beams, inner walls) ──
+    { code: "iw", group: G_STRUCTURE, description: "Internal wall panels", uom: "m3",
+      qty: "vol_IW", waste_pct: "wastage_pct",
+      component: "materials", cost: { kind: "rate", rate: "concrete_cost_m3" } },
+    { code: "sl", group: G_STRUCTURE, description: "Hollow-core floor and roof planks", uom: "m3",
+      qty: "vol_SL", waste_pct: "wastage_pct",
+      component: "materials", cost: { kind: "rate", rate: "concrete_cost_m3" }, element_type: "slab" },
+    { code: "fr", group: G_STRUCTURE, description: "Beams and columns", uom: "m3",
+      qty: "vol_FR", waste_pct: "wastage_pct",
+      component: "materials", cost: { kind: "rate", rate: "concrete_cost_m3" }, element_type: "beam" },
+
+    // ── External walls and parapet ──
+    { code: "ew", group: G_EXTERNAL, description: "External wall panels (insulated)", uom: "m3",
       qty: "vol_EW", waste_pct: "wastage_pct",
       component: "materials", cost: { kind: "rate", rate: "concrete_cost_m3" }, element_type: "wall_panel" },
-    { code: "pr", group: "Envelope", description: "Parapet panels", uom: "m3",
+    { code: "pr", group: G_EXTERNAL, description: "Parapet panels", uom: "m3",
       qty: "vol_PR", waste_pct: "wastage_pct",
       component: "materials", cost: { kind: "rate", rate: "concrete_cost_m3" }, element_type: "parapet_panel" },
     // The finish premium is priced on the visible-face pieces as extra
     // concrete; "m3" here is volume-equivalent, zero (and dropped) for Basic.
-    { code: "fin", group: "Envelope", description: "External finish premium (volume equivalent, visible faces)", uom: "m3",
+    { code: "fin", group: G_EXTERNAL, description: "External finish premium (extra concrete cost on the faces that show)", uom: "m3",
       qty: "(vol_EW + vol_PR + vol_BW) * (finish_level - 1)",
       component: "materials", cost: { kind: "rate", rate: "concrete_cost_m3" } },
 
-    // ── Structure ──
-    { code: "iw", group: "Structure", description: "Internal wall panels", uom: "m3",
-      qty: "vol_IW", waste_pct: "wastage_pct",
-      component: "materials", cost: { kind: "rate", rate: "concrete_cost_m3" } },
-    { code: "sl", group: "Structure", description: "Hollow-core floor and roof planks", uom: "m3",
-      qty: "vol_SL", waste_pct: "wastage_pct",
-      component: "materials", cost: { kind: "rate", rate: "concrete_cost_m3" }, element_type: "slab" },
-    { code: "fr", group: "Structure", description: "Beams and columns", uom: "m3",
-      qty: "vol_FR", waste_pct: "wastage_pct",
-      component: "materials", cost: { kind: "rate", rate: "concrete_cost_m3" }, element_type: "beam" },
-
     // ── Stairs ──
-    { code: "st", group: "Stairs", description: "Stair flights", uom: "m3",
+    { code: "st", group: G_STAIRS, description: "Stair flights", uom: "m3",
       qty: "vol_ST", waste_pct: "wastage_pct",
       component: "materials", cost: { kind: "rate", rate: "concrete_cost_m3" }, element_type: "stair" },
 
     // ── Boundary wall ──
-    { code: "bw", group: "Boundary wall", description: "Boundary wall panels", uom: "m3",
+    { code: "bw", group: G_BOUNDARY, description: "Boundary wall panels", uom: "m3",
       qty: "vol_BW", waste_pct: "wastage_pct",
       component: "materials", cost: { kind: "rate", rate: "concrete_cost_m3" }, element_type: "boundary_panel" },
 
@@ -136,17 +148,17 @@ export const PRECAST_VILLA_STARTER: StarterTemplate = {
       qty: "ceil(vol_total / insert_spacing_m3)",
       component: "materials", cost: { kind: "rate", rate: "fixing_cost_nr" } },
 
-    // ── Transport & erection ──
-    { code: "trl", group: "Transport & erection", description: "Transport to site (loads by weight)", uom: "load",
+    // ── Delivery and erection ──
+    { code: "trl", group: G_DELIVERY, description: "Transport to site (loads by weight)", uom: "load",
       qty: "ceil(weight_total / transport_load_capacity_t)",
       component: "transport", cost: { kind: "rate", rate: "transport_cost_load" } },
-    { code: "ere", group: "Transport & erection", description: "Erection", uom: "m3",
+    { code: "ere", group: G_DELIVERY, description: "Erection", uom: "m3",
       qty: "vol_total",
       component: "erection", cost: { kind: "rate", rate: "erection_cost_m3" } },
 
     // ── Overhead: a share of the factory-side cost (insulation, fixings, transport and erection excluded) ──
     { code: "ovh", group: "Overhead", description: "Factory and yard overhead", uom: "cost",
-      qty: "sub_envelope + sub_structure + sub_stairs + sub_boundary_wall + sub_production",
+      qty: `${sub(G_STRUCTURE)} + ${sub(G_EXTERNAL)} + ${sub(G_STAIRS)} + ${sub(G_BOUNDARY)} + sub_production`,
       component: "overhead", cost: { kind: "rate", rate: "overhead_factor" } },
   ],
 };

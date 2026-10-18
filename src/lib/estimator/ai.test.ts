@@ -91,7 +91,7 @@ describe("review", () => {
     expect(facts.groups.length).toBeGreaterThan(3);
     expect(facts.totals.cost_total).toBeCloseTo(r.summary.cost_total, 2);
     expect(facts.piece_counts.EW).toBeGreaterThan(0);
-    expect(facts.lines[0].group).toBe("Envelope");
+    expect(facts.lines[0].group).toBe("Structure (floors, beams, inner walls)");
   });
 
   it("fences the estimate as data", () => {

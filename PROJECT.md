@@ -551,6 +551,13 @@ deploy for an automatic schema change.
   its computed lines, totals and 3D piece model. Not run by anything automatic;
   the owner runs it by hand. Regenerate with `npx jiti scripts/gen-estimator-demo-seed.ts`
   after any change to the starter or the engine.
+  **RE-RUN AFTER E5 (2026-10-18, simplified flow v2):** the starter's group names
+  and option labels changed to plain words and the finish option is now offered as
+  a quote alternative, so re-running the file refreshes the demo template (inputs,
+  rates, rules) AND the demo sample estimate "Sample villa, Riyadh (illustrative)"
+  (its lines, totals and model are replaced so the group names match; demo tenants
+  only, that one estimate only, nothing else is deleted, and a sample estimate that
+  already has a quote is left alone). Safe to run again; no migration involved.
 - **0130_rfq_purchase_orders.sql — PENDING on both DBs** (written
   2026-10-15, RFQ awards -> purchase orders). Adds nullable `rfq_id` and
   `standard_quote_id` to `purchase_orders`, `product_id` and

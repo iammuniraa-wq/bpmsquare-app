@@ -45,11 +45,17 @@ const sql = `-- Demo data for the Project Estimator, DEMO tenants only (is_demo 
 --   1. turns the estimator module on (tenants.features.estimator = true);
 --   2. adds the template "${s.name}" if the tenant has none by that name, or, if it
 --      already has it, REFRESHES its inputs, rates and rules to the current starter
---      (re-running this file after E4 adds the Simulation risk ranges and capacity
---      rates; the template's version number and the sample estimate are untouched);
+--      (E4 added the risk ranges and capacity rates; E5 renamed the groups and
+--      options to plain words and offers the finish level as a quote alternative;
+--      the template's version number is untouched);
 --   3. adds ONE sample estimate "${ESTIMATE_NAME}" if it is not there yet, with
 --      its computed lines, totals and 3D piece model already stored, so the
 --      page shows everything without pressing Calculate. Margin ${MARGIN_PCT}%, VAT ${VAT_PCT}%.
+--      If that sample estimate IS there and has no quote, it is REFRESHED the same
+--      way: its figures, model and lines are replaced by the current starter's
+--      (E5: the group names changed). Only that one demo estimate and only its own
+--      lines; a sample that already has a quote is left alone; nothing else is
+--      deleted.
 -- Everything is illustrative: placeholder rates and rules, not a real price.
 
 do $seed$
@@ -61,8 +67,10 @@ declare
   cur text;
   est uuid;
   next_seq int;
+  fresh boolean;
 begin
   for t in select id from tenants where is_demo = true loop
+    fresh := false;
     update tenants set features = coalesce(features, '{}'::jsonb) || '{"estimator": true}'::jsonb where id = t;
 
     if not exists (select 1 from estimate_templates where tenant_id = t and lower(name) = lower(${sqlText(s.name)})) then
@@ -75,7 +83,7 @@ begin
       );
     else
       -- Re-running REFRESHES an existing demo template to the current starter
-      -- (E4 added the risk ranges and capacity rates to its rates). Only the
+      -- (E4 added risk ranges, E5 plain group names). Only the
       -- template's inputs, rates and rules are replaced: the version, the sample
       -- estimate and every other tenant's data stay as they are. Nothing is deleted.
       update estimate_templates set
@@ -87,27 +95,43 @@ begin
 
     select id, version into tpl, tpl_version from estimate_templates where tenant_id = t and lower(name) = lower(${sqlText(s.name)});
 
-    if tpl is not null and not exists (select 1 from estimates where tenant_id = t and name = ${sqlText(ESTIMATE_NAME)}) then
-      select id into acct from accounts where tenant_id = t order by name limit 1;
-      select nullif(config->>'currency', '') into cur from tenants where id = t;
+    if tpl is not null then
+      select id into est from estimates where tenant_id = t and name = ${sqlText(ESTIMATE_NAME)} order by created_at limit 1;
 
-      select coalesce(max(nullif(regexp_replace(ref, '\\D', '', 'g'), '')::int), 0) + 1 into next_seq
-      from estimates where tenant_id = t and ref ~ '^EST-\\d+$';
+      if est is null then
+        select id into acct from accounts where tenant_id = t order by name limit 1;
+        select nullif(config->>'currency', '') into cur from tenants where id = t;
 
-      insert into estimates (tenant_id, ref, name, account_id, template_id, template_version, status, params, currency, margin_pct, totals, model, notes)
-      values (
-        t, 'EST-' || lpad(next_seq::text, 4, '0'), ${sqlText(ESTIMATE_NAME)}, acct, tpl, tpl_version, 'draft',
-        ${dq("params", r.params)}, cur, ${MARGIN_PCT},
-        ${dq("totals", totals)} || jsonb_build_object('computed_at', now()),
-        ${dq("model", r.model)},
-        'Illustrative sample for demonstrations: placeholder rates, not a real price.'
-      ) returning id into est;
+        select coalesce(max(nullif(regexp_replace(ref, '\\D', '', 'g'), '')::int), 0) + 1 into next_seq
+        from estimates where tenant_id = t and ref ~ '^EST-\\d+$';
 
-      insert into estimate_lines (tenant_id, estimate_id, sort_order, code, group_key, description, uom, qty, waste_pct, unit_cost, cost_total, component, source, element_ref, wbs_code, custom_data)
-      select t, est, (l->>'sort_order')::int, l->>'code', l->>'group_key', l->>'description', l->>'uom',
-             (l->>'qty')::numeric, coalesce((l->>'waste_pct')::numeric, 0), (l->>'unit_cost')::numeric, (l->>'cost_total')::numeric,
-             l->>'component', coalesce(l->>'source', 'rule'), l->>'element_ref', l->>'wbs_code', l->'custom_data'
-      from jsonb_array_elements(${dq("lines", lines)}) as l;
+        insert into estimates (tenant_id, ref, name, account_id, template_id, template_version, status, params, currency, margin_pct, totals, model, notes)
+        values (
+          t, 'EST-' || lpad(next_seq::text, 4, '0'), ${sqlText(ESTIMATE_NAME)}, acct, tpl, tpl_version, 'draft',
+          ${dq("params", r.params)}, cur, ${MARGIN_PCT},
+          ${dq("totals", totals)} || jsonb_build_object('computed_at', now()),
+          ${dq("model", r.model)},
+          'Illustrative sample for demonstrations: placeholder rates, not a real price.'
+        ) returning id into est;
+        fresh := true;
+      elsif exists (select 1 from estimates where id = est and tenant_id = t and standard_quote_id is null) then
+        -- Refresh the existing sample: same figures as a new one, its own lines only.
+        update estimates set
+          template_id = tpl, template_version = tpl_version, params = ${dq("params", r.params)}, margin_pct = ${MARGIN_PCT},
+          totals = ${dq("totals", totals)} || jsonb_build_object('computed_at', now()),
+          model = ${dq("model", r.model)}, updated_at = now()
+        where id = est and tenant_id = t;
+        delete from estimate_lines where estimate_id = est and tenant_id = t;
+        fresh := true;
+      end if;
+
+      if fresh then
+        insert into estimate_lines (tenant_id, estimate_id, sort_order, code, group_key, description, uom, qty, waste_pct, unit_cost, cost_total, component, source, element_ref, wbs_code, custom_data)
+        select t, est, (l->>'sort_order')::int, l->>'code', l->>'group_key', l->>'description', l->>'uom',
+               (l->>'qty')::numeric, coalesce((l->>'waste_pct')::numeric, 0), (l->>'unit_cost')::numeric, (l->>'cost_total')::numeric,
+               l->>'component', coalesce(l->>'source', 'rule'), l->>'element_ref', l->>'wbs_code', l->'custom_data'
+        from jsonb_array_elements(${dq("lines", lines)}) as l;
+      end if;
     end if;
   end loop;
 end

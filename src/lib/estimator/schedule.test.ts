@@ -87,7 +87,7 @@ describe("row errors", () => {
   it("reports an unknown element type with the accepted list, and keeps good rows", () => {
     const r = parse([["roof_truss", "R1", 1, 5, 1, 0.1, ""], ["slab", "S1", 1, 5, 1.2, 0.2, ""]]);
     expect(r.ok).toBe(false);
-    expect(msgs(r)).toMatch(/2: Unknown element type "roof_truss"\. This template accepts: wall_panel, parapet_panel, slab/);
+    expect(msgs(r)).toMatch(/2: Unknown element type "roof_truss"\. This template accepts: slab, beam, wall_panel/);
     expect(r.rows).toHaveLength(1);
     expect(r.quantities).toHaveLength(1);
   });
@@ -193,7 +193,7 @@ describe("files", () => {
     const r = await parseScheduleFile(new Uint8Array(buf), "schedule.xlsx", { template: T });
     expect(r.ok).toBe(true);
     expect(r.rows).toHaveLength(1);
-    expect(r.rows[0]).toMatchObject({ element_type: "wall_panel", mark: "W-101", count: 4, volume_m3: 14.4 });
+    expect(r.rows[0]).toMatchObject({ element_type: "slab", mark: "W-101", count: 4, volume_m3: 14.4 }); // the example row uses the first accepted type
   });
 
   it("the downloadable CSV round-trips through the parser", async () => {
@@ -217,6 +217,6 @@ describe("helpers", () => {
 
   it("lists the element types a template accepts", () => {
     const types = templateElementTypes(T).map((t) => t.element_type);
-    expect(types).toEqual(["wall_panel", "parapet_panel", "slab", "beam", "stair", "boundary_panel"]);
+    expect(types).toEqual(["slab", "beam", "wall_panel", "parapet_panel", "stair", "boundary_panel"]);
   });
 });

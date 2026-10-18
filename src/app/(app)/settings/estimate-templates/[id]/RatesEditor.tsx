@@ -20,8 +20,8 @@ export default function RatesEditor({
       <p className="bpm-t-help" style={{ margin: 0 }}>
         Named constants: a unit cost for a rule line (a rate per m3, a labour rate per hour) or a number used inside a formula (density, loads per truck).
         Prices and rates here are placeholders until you set your own.
-        &quot;Range (low / high)&quot; is optional: give both ends and the Simulation tab treats the rate as a risk driver (what-if sliders, the risk run and the tornado).
-        Rates named cap_cast_m3_per_day, cap_trucks_loads_per_day, cap_crane_m3_per_day, transport_start_day and erection_start_day set the schedule on the Simulation tab (defaults 18, 4, 24, day 5, day 6 when absent).
+        &quot;Range (low / high)&quot; is optional: give both ends and the Build schedule and risk section of an estimate treats the rate as a risk driver (what-if sliders, the risk run and the tornado).
+        Rates named cap_cast_m3_per_day, cap_trucks_loads_per_day, cap_crane_m3_per_day, transport_start_day and erection_start_day set the build schedule (defaults 18, 4, 24, day 5, day 6 when absent).
       </p>
       {rates.map((r, i) => (
         <EditorRow

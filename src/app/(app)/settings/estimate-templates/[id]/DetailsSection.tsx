@@ -30,10 +30,10 @@ export default function DetailsSection({
           <Field label="Trade" hint="Free text, e.g. precast, fencing, roofing.">
             <Input value={draft.trade} onChange={(e) => onChange({ trade: e.target.value })} maxLength={60} />
           </Field>
-          <Field label="Quote granularity" hint="What the customer sees: one line per group, or every BOM line.">
+          <Field label="Quote granularity" hint="What the customer sees: one line per group, or every bill of materials line.">
             <Select value={draft.quote_granularity} onChange={(e) => onChange({ quote_granularity: e.target.value as QuoteGranularity })}>
               <option value="group">One line per group</option>
-              <option value="line">One line per BOM line</option>
+              <option value="line">One line per bill of materials line</option>
             </Select>
           </Field>
         </div>

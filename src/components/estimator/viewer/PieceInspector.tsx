@@ -31,7 +31,7 @@ export default function PieceInspector({
   const rows: [string, string][] = [
     ["Mark", piece.id],
     ["Piece", `${labels.get(piece.code) ?? piece.code}${piece.op ? (piece.op.door ? " (door opening)" : " (window opening)") : ""}`],
-    ["BOM line", cost.line ? cost.line.description : "Shared costs only"],
+    ["Bill of materials line", cost.line ? cost.line.description : "Shared costs only"],
     ["Size (m)", pieceSizeLabel(piece)],
     ["Concrete", `${piece.vol.toFixed(3)} m³`],
     ["Weight", `${pieceWeightT(piece, densityTm3).toFixed(2)} t`],

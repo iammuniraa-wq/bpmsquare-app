@@ -44,8 +44,8 @@ describe("BOM rows (generic columns, spec 5.1)", () => {
 
   it("derives WBS codes from group order and carries groups", () => {
     const wall = rows.find((r) => String(r.description).startsWith("External wall panels"))!;
-    expect(wall.group).toBe("Envelope");
-    expect(wall.wbs_code).toBe("1.1");
+    expect(wall.group).toBe("External walls and parapet");
+    expect(wall.wbs_code).toBe("2.1");
     expect(rows.find((r) => r.description === "Reinforcement steel")!.wbs_code).toBe("5.1");
     expect(wall.element_ref).toBe("EW-01..EW-40");
   });
@@ -93,18 +93,18 @@ describe("WBS rows", () => {
   it("emits a top-level element per group with its planned cost, then a task per line", () => {
     const groups = rows.filter((r) => r.parent === null);
     expect(groups.map((g) => [g.code, g.name, g.planned_cost])).toEqual([
-      ["1", "Envelope", 19493.1],
-      ["2", "Structure", 19800.99],
+      ["1", "Structure (floors, beams, inner walls)", 19800.99],
+      ["2", "External walls and parapet", 19493.1],
       ["3", "Stairs", 1056],
       ["4", "Boundary wall", 4633.2],
       ["5", "Production", 61914.29],
       ["6", "Insulation and fixings", 15423.66],
-      ["7", "Transport & erection", 39107.64],
+      ["7", "Delivery and erection", 39107.64],
       ["8", "Overhead", 12827.71],
     ]);
-    const tasks = rows.filter((r) => r.parent === "1");
-    expect(tasks.map((t) => t.code)).toEqual(["1.1", "1.2", "1.3"]);
-    expect(tasks[0]).toMatchObject({ name: "External wall panels (insulated)", group: "Envelope", planned_cost: 15966.72 });
+    const tasks = rows.filter((r) => r.parent === "2");
+    expect(tasks.map((t) => t.code)).toEqual(["2.1", "2.2", "2.3"]);
+    expect(tasks[0]).toMatchObject({ name: "External wall panels (insulated)", group: "External walls and parapet", planned_cost: 15966.72 });
   });
 
   it("group planned costs add up to the estimate cost", () => {
@@ -197,7 +197,7 @@ describe("CSV writer", () => {
     const csv = tableToCsv(buildBomTable(computed));
     expect(csv.trim().split("\r\n")).toHaveLength(13);
     expect(csv.startsWith("item_number,description,quantity,unit,group,wbs_code,element_ref,unit_cost,line_cost\r\n")).toBe(true);
-    expect(csv).toContain(",External wall panels (insulated),48.384,m3,Envelope,1.1,EW-01..EW-40,330,15966.72");
+    expect(csv).toContain(",External wall panels (insulated),48.384,m3,External walls and parapet,2.1,EW-01..EW-40,330,15966.72");
   });
 });
 
@@ -211,7 +211,7 @@ describe("XLSX writer", () => {
     expect(ws.name).toBe("BOM   test");
     expect(ws.getRow(1).getCell(1).value).toBe("MATNR");
     expect(ws.rowCount).toBe(13);
-    const wall = ws.getRow(2);
+    const wall = ws.getRow(5); // after the three Structure lines
     expect(wall.getCell(2).value).toBe("External wall panels (insulated)");
     expect(wall.getCell(3).value).toBe(48.384);
     expect(typeof wall.getCell(9).value).toBe("number");

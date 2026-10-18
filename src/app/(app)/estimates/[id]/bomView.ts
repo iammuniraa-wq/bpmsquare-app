@@ -2,7 +2,7 @@ import type { EstimateLine } from "@/lib/types";
 import { groupNameOf, skuOf, templateGroupNames } from "@/lib/estimator/lines";
 import { readOverride } from "@/lib/estimator/overrides";
 
-/** A line as the BOM tab draws it: slim, serialisable, group name resolved. */
+/** A line as the bill of materials draws it: slim, serialisable, group name resolved. */
 export type BomLineView = {
   id: string;
   code: string | null;

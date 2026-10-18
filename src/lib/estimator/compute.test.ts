@@ -22,12 +22,12 @@ function ok(r: ReturnType<typeof computeEstimate>): ComputeSuccess {
 // of the pipeline, not a real price. Worked by hand, e.g. wall panels:
 // vol_EW 48.384 m3 * 330 = 15966.72; steel: 130.897 m3 * 100 kg = 13089.7 kg * 3.2 = 41887.04.
 const GOLDEN: [code: string, qty: number, gross: number, unit: number, cost: number][] = [
-  ["ew", 48.384, 48.384, 330, 15966.72],
-  ["pr", 5.27, 5.27, 330, 1739.1],
-  ["fin", 5.416, 5.416, 330, 1787.28], // (48.384 + 5.27 + 14.04) * (1.08 - 1)
   ["iw", 14.868, 14.868, 330, 4906.44],
   ["sl", 37.135, 37.135, 330, 12254.55],
   ["fr", 8, 8, 330, 2640],
+  ["ew", 48.384, 48.384, 330, 15966.72],
+  ["pr", 5.27, 5.27, 330, 1739.1],
+  ["fin", 5.416, 5.416, 330, 1787.28], // (48.384 + 5.27 + 14.04) * (1.08 - 1)
   ["st", 3.2, 3.2, 330, 1056],
   ["bw", 14.04, 14.04, 330, 4633.2],
   ["rbr", 13089.7, 13089.7, 3.2, 41887.04],
@@ -82,16 +82,23 @@ describe("precast villa starter, reference villa (golden numbers)", () => {
   it("rolls up group subtotals", () => {
     const g = Object.fromEntries(r.summary.by_group.map((x) => [x.name, x.cost]));
     expect(g).toEqual({
-      Envelope: 19493.1,
-      Structure: 19800.99,
+      "External walls and parapet": 19493.1,
+      "Structure (floors, beams, inner walls)": 19800.99,
       Stairs: 1056,
       "Boundary wall": 4633.2,
       Production: 61914.29,
       "Insulation and fixings": 15423.66,
-      "Transport & erection": 39107.64,
+      "Delivery and erection": 39107.64,
       Overhead: 12827.71,
     });
     expect(r.summary.by_group.map((x) => x.wbs_code)).toEqual(["1", "2", "3", "4", "5", "6", "7", "8"]);
+  });
+
+  it("names the sections in plain words, in the order a customer reads them", () => {
+    expect(r.summary.by_group.map((x) => x.name)).toEqual([
+      "Structure (floors, beams, inner walls)", "External walls and parapet", "Stairs", "Boundary wall",
+      "Production", "Insulation and fixings", "Delivery and erection", "Overhead",
+    ]);
   });
 
   it("rolls up the cost build-up by component", () => {
@@ -124,9 +131,9 @@ describe("precast villa starter, reference villa (golden numbers)", () => {
   });
 
   it("numbers WBS codes by group then line", () => {
-    expect(r.lines.find((l) => l.code === "ew")!.wbs_code).toBe("1.1");
-    expect(r.lines.find((l) => l.code === "fin")!.wbs_code).toBe("1.3");
-    expect(r.lines.find((l) => l.code === "iw")!.wbs_code).toBe("2.1");
+    expect(r.lines.find((l) => l.code === "iw")!.wbs_code).toBe("1.1");
+    expect(r.lines.find((l) => l.code === "ew")!.wbs_code).toBe("2.1");
+    expect(r.lines.find((l) => l.code === "fin")!.wbs_code).toBe("2.3");
     expect(r.lines.find((l) => l.code === "ovh")!.wbs_code).toBe("8.1");
   });
 
