@@ -1,0 +1,134 @@
+import Link from "next/link";
+import { notFound } from "next/navigation";
+import { requireFeature, getTenant, getTenantCurrency } from "@/lib/tenant";
+import { requireTenantUser } from "@/lib/supabase-server";
+import { requireWorkcenterView, resolvePermissions, canEditWorkcenter, canDeleteWorkcenter, canCreateWorkcenter } from "@/lib/permissions";
+import { moneyFormatter } from "@/lib/currency";
+import { ROUTES } from "@/lib/constants";
+import { PENDING_MESSAGE, loadEstimateBundle } from "@/lib/estimator/server";
+import PageHeader from "@/components/PageHeader";
+import Card from "@/components/ui/Card";
+import EmptyState from "@/components/ui/EmptyState";
+import ObjectRecordPage, { type RecordTab } from "@/components/page/ObjectRecordPage";
+import RecordMoreMenu from "@/components/page/RecordMoreMenu";
+import RecordActivity from "@/components/page/RecordActivity";
+import ObjectSections from "@/components/fields/ObjectSections";
+import EstimateStatusPill from "../EstimateStatusPill";
+import DetailsCard from "./DetailsCard";
+
+const fmtDate = (s: string) => new Date(s).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+const num = (n: number, dp = 2) => n.toLocaleString("en-GB", { maximumFractionDigits: dp });
+
+export default async function EstimatePage({
+  params, searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ tab?: string }>;
+}) {
+  await requireWorkcenterView("estimates");
+  await requireFeature("estimator");
+  const { supabase, tenantId, userId, role } = await requireTenantUser();
+  const { id } = await params;
+  const { tab } = await searchParams;
+
+  const { bundle, missing } = await loadEstimateBundle(supabase, tenantId, id);
+  if (missing) {
+    return (
+      <>
+        <PageHeader title="Estimate" />
+        <Card padding={0}><EmptyState title="Estimates are waiting for a database update" text={PENDING_MESSAGE} /></Card>
+      </>
+    );
+  }
+  if (!bundle) notFound();
+  const { estimate, lines, template, template_outdated, account, contact, quote } = bundle;
+
+  const perms = await resolvePermissions(supabase, tenantId, userId, role);
+  const canEdit = canEditWorkcenter(perms, "estimates");
+  const canDelete = canDeleteWorkcenter(perms, "estimates");
+  const canCreate = canCreateWorkcenter(perms, "estimates");
+  const isAdmin = role === "admin";
+  const locked = !!estimate.standard_quote_id;
+  const money = moneyFormatter(await getTenantCurrency(), { maximumFractionDigits: 0 });
+  const totals = estimate.totals;
+  const basePath = ROUTES.estimate(estimate.id);
+
+  const pieces = estimate.model?.pieces ?? [];
+  const concrete = pieces.reduce((a, p) => a + p.vol, 0);
+  const facts = [
+    { label: "Quote total incl. VAT", value: totals ? money(totals.price_incl_vat) : "—" },
+    { label: "Cost", value: totals ? money(totals.cost_total) : "—" },
+    ...(pieces.length > 0
+      ? [{ label: "Concrete", value: `${num(concrete)} m³` }, { label: "Pieces", value: String(pieces.length) }]
+      : [{ label: "Margin", value: `${estimate.margin_pct}%` }]),
+  ];
+
+  // The editor needs the workspace's accounts and contacts only when it can be used.
+  const needLists = canEdit;
+  const [accountsRes, contactsRes] = needLists
+    ? await Promise.all([
+        supabase.from("accounts").select("id, name").eq("tenant_id", tenantId).order("name"),
+        supabase.from("contacts").select("id, name, account_id").eq("tenant_id", tenantId).order("name"),
+      ])
+    : [{ data: [] }, { data: [] }];
+
+  const tabs: RecordTab[] = [
+    {
+      id: "overview",
+      label: "Overview",
+      content: (
+        <>
+          <DetailsCard
+            id={estimate.id} name={estimate.name} notes={estimate.notes} status={estimate.status}
+            accountId={account?.id ?? null} accountName={account?.name ?? null}
+            contactId={contact?.id ?? null} contactName={contact?.name ?? null}
+            templateName={template?.name ?? null} templateVersion={estimate.template_version}
+            templateOutdated={template_outdated} currency={estimate.currency} marginPct={estimate.margin_pct}
+            createdLabel={fmtDate(estimate.created_at)} canEdit={canEdit} locked={locked}
+            accounts={(accountsRes.data ?? []) as { id: string; name: string }[]}
+            contacts={(contactsRes.data ?? []) as { id: string; name: string; account_id: string | null }[]}
+          />
+          <ObjectSections
+            objectType="estimate"
+            record={estimate as unknown as Record<string, unknown>}
+            patchUrl={`/api/estimates/${estimate.id}`}
+            exclude={["ref", "name", "status", "currency", "margin_pct", "notes"]}
+          />
+        </>
+      ),
+    },
+    {
+      id: "activity",
+      label: "Activity",
+      content: <RecordActivity objectType="estimates" objectId={estimate.id} isAdmin={isAdmin} />,
+    },
+  ];
+
+  const tenant = await getTenant();
+  void tenant; void lines; void quote; void Link; void canCreate;
+
+  return (
+    <ObjectRecordPage
+      backHref={ROUTES.estimates}
+      backLabel="All estimates"
+      title={estimate.name}
+      reference={estimate.ref}
+      meta={[account?.name, template?.name].filter(Boolean).join(" · ") || undefined}
+      status={<EstimateStatusPill status={estimate.status} />}
+      menu={
+        <RecordMoreMenu
+          inlineEdit={canEdit ? { overviewHref: basePath } : undefined}
+          adapt={{ objectType: "estimate", objectLabel: "Estimate", isAdmin }}
+          remove={canDelete ? {
+            endpoint: `/api/estimates/${estimate.id}`, recordName: estimate.name, entityLabel: "estimate", afterHref: ROUTES.estimates,
+            confirmBody: locked ? "The quote made from this estimate is kept. You'll have a few seconds to undo." : undefined,
+          } : undefined}
+        />
+      }
+      facts={facts}
+      basePath={basePath}
+      activeTab={tab}
+      tabs={tabs}
+    />
+  );
+}
