@@ -43,7 +43,10 @@ const sql = `-- Demo data for the Project Estimator, DEMO tenants only (is_demo 
 --
 -- What it does, per demo tenant:
 --   1. turns the estimator module on (tenants.features.estimator = true);
---   2. adds the template "${s.name}" if the tenant has none by that name;
+--   2. adds the template "${s.name}" if the tenant has none by that name, or, if it
+--      already has it, REFRESHES its inputs, rates and rules to the current starter
+--      (re-running this file after E4 adds the Simulation risk ranges and capacity
+--      rates; the template's version number and the sample estimate are untouched);
 --   3. adds ONE sample estimate "${ESTIMATE_NAME}" if it is not there yet, with
 --      its computed lines, totals and 3D piece model already stored, so the
 --      page shows everything without pressing Calculate. Margin ${MARGIN_PCT}%, VAT ${VAT_PCT}%.
@@ -71,11 +74,15 @@ begin
         ${dq("rules", valid.template.rules)}
       );
     else
-      -- E4: a demo template seeded before the Simulation tab has no risk ranges
-      -- or capacity rates. Add them (rates only, the quantities and costs do not
-      -- change, so the version stays); a template someone already gave ranges is left alone.
-      update estimate_templates set rates = ${dq("rates", valid.template.rates)}
-      where tenant_id = t and lower(name) = lower(${sqlText(s.name)}) and rates::text not like '%"low"%';
+      -- Re-running REFRESHES an existing demo template to the current starter
+      -- (E4 added the risk ranges and capacity rates to its rates). Only the
+      -- template's inputs, rates and rules are replaced: the version, the sample
+      -- estimate and every other tenant's data stay as they are. Nothing is deleted.
+      update estimate_templates set
+        inputs = ${dq("inputs", valid.template.inputs)},
+        rates = ${dq("rates", valid.template.rates)},
+        rules = ${dq("rules", valid.template.rules)}
+      where tenant_id = t and lower(name) = lower(${sqlText(s.name)});
     end if;
 
     select id, version into tpl, tpl_version from estimate_templates where tenant_id = t and lower(name) = lower(${sqlText(s.name)});
