@@ -15,6 +15,7 @@ import RecordActivity from "@/components/page/RecordActivity";
 import ObjectSections from "@/components/fields/ObjectSections";
 import EstimateStatusPill from "../EstimateStatusPill";
 import DetailsCard from "./DetailsCard";
+import InputsTab from "./InputsTab";
 
 const fmtDate = (s: string) => new Date(s).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
 const num = (n: number, dp = 2) => n.toLocaleString("en-GB", { maximumFractionDigits: dp });
@@ -95,6 +96,16 @@ export default async function EstimatePage({
             exclude={["ref", "name", "status", "currency", "margin_pct", "notes"]}
           />
         </>
+      ),
+    },
+    {
+      id: "inputs",
+      label: "Inputs",
+      content: (
+        <InputsTab
+          estimateId={estimate.id} inputs={template?.inputs ?? []} params={estimate.params ?? {}} marginPct={estimate.margin_pct}
+          locked={locked} canEdit={canEdit} outdated={template_outdated} templateMissing={!template}
+        />
       ),
     },
     {
