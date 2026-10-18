@@ -53,7 +53,7 @@ const td: React.CSSProperties = { padding: "11px 14px", fontSize: 13.5, vertical
 export default function ObjectListPage<T>({
   title, subtitle, newLabel, newHref, newAction, menuItems, chips, search, advancedFilterObject,
   columns, rows, rowKey, rowHref, total, page, pageSize = DEFAULT_PAGE_SIZE, baseHref,
-  sort, dir, linkParams, empty, filtered, beforeTable, wrapBody,
+  sort, dir, linkParams, empty, filtered, beforeTable, wrapBody, columnSearch = true,
 }: {
   title: string;
   subtitle?: string;
@@ -96,6 +96,8 @@ export default function ObjectListPage<T>({
   beforeTable?: React.ReactNode;
   /** Wraps the table / cards / pager (or the empty state) -- for a list that offers alternative views of the same rows (Cases on Nova). */
   wrapBody?: (body: React.ReactNode) => React.ReactNode;
+  /** Per-column search boxes in the sortable headers (default on); off for a list whose rows are filtered in the database and cannot honour them. */
+  columnSearch?: boolean;
 }) {
   const titleCol = columns.find((col) => col.card === "title") ?? columns.find((col) => col.card !== "hidden") ?? columns[0];
   const metaCols = columns.filter((col) => col !== titleCol && col.card !== "hidden");
@@ -123,7 +125,7 @@ export default function ObjectListPage<T>({
                           key={col.id}
                           label={col.label}
                           sortKey={col.sortKey}
-                          searchId={col.id}
+                          searchId={columnSearch ? col.id : undefined}
                           currentSort={sort}
                           currentDir={dir}
                           baseHref={baseHref}
