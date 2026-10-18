@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { c } from "@/lib/theme";
@@ -73,6 +74,9 @@ export default function BomRow({
             {line.overridden && <StatusPill label="Edited by hand" tone="purple" />}
             {line.unpriced && <StatusPill label="No cost yet" tone="red" />}
             {line.element_ref && <span style={{ fontSize: 11, color: c.hint }}>{line.element_ref}</span>}
+            {line.element_ref && line.code && (
+              <Link href={`?tab=simulation&line=${encodeURIComponent(line.code)}`} style={{ fontSize: 11, color: "var(--accent)" }}>Show in 3D</Link>
+            )}
           </div>
         </td>
         <td style={{ ...td, color: c.muted }}>{line.uom ?? "—"}</td>

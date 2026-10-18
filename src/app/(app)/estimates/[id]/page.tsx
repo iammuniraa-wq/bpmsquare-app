@@ -23,6 +23,7 @@ import Button from "@/components/ui/Button";
 import { quoteBlockers } from "@/lib/estimator/quoteLines";
 import { templateGroupNames, toQuoteSource } from "@/lib/estimator/lines";
 import { toBomGroups } from "./bomView";
+import SimulationTab from "./simulation/SimulationTab";
 
 const fmtDate = (s: string) => new Date(s).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
 const num = (n: number, dp = 2) => n.toLocaleString("en-GB", { maximumFractionDigits: dp });
@@ -31,13 +32,13 @@ export default async function EstimatePage({
   params, searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ tab?: string }>;
+  searchParams: Promise<{ tab?: string; line?: string }>;
 }) {
   await requireWorkcenterView("estimates");
   await requireFeature("estimator");
   const { supabase, tenantId, userId, role } = await requireTenantUser();
   const { id } = await params;
-  const { tab } = await searchParams;
+  const { tab, line: highlightLine } = await searchParams;
 
   const { bundle, missing } = await loadEstimateBundle(supabase, tenantId, id);
   if (missing) {
@@ -139,6 +140,28 @@ export default async function EstimatePage({
       id: "costing",
       label: "Costing",
       content: <CostingTab totals={totals} money={moneyFormatter(cur, { maximumFractionDigits: 2 })} />,
+    },
+    {
+      id: "simulation",
+      label: "Simulation",
+      content: tab !== "simulation" ? null : (
+        <SimulationTab
+          model={estimate.model}
+          hasGeometry={!!template?.geometry || !!estimate.model}
+          lines={lines.map((l) => ({
+            code: l.code, group_key: l.group_key, component: l.component, uom: l.uom, qty: l.qty,
+            cost_total: l.cost_total, source: l.source, description: l.description, element_ref: l.element_ref,
+          }))}
+          rules={(template?.rules ?? []).map((r) => ({ code: r.code, qty: r.qty, cost: r.cost }))}
+          rates={template?.rates ?? []}
+          price={totals?.price ?? 0}
+          costTotal={totals?.cost_total ?? 0}
+          marginPct={estimate.margin_pct}
+          vatPct={totals?.vat_pct ?? 0}
+          currency={cur}
+          highlightCode={highlightLine}
+        />
+      ),
     },
     {
       id: "quote",
