@@ -18,6 +18,21 @@ describe("template draft", () => {
     expect(v.template?.inputs.length).toBe(PRECAST_VILLA_STARTER.inputs.length);
   });
 
+  it("keeps the risk ranges through the editor round trip and leaves empty ones out", () => {
+    const d = toDraft(starter());
+    const conc = d.rates.findIndex((r) => r.key === "concrete_cost_m3");
+    expect([d.rates[conc].low, d.rates[conc].high]).toEqual(["297", "412.5"]);
+    const b = toBody(d);
+    expect(b.rates[conc]).toMatchObject({ low: 297, high: 412.5 });
+    const plain = b.rates.find((r) => r.key === "concrete_density_t_m3")!;
+    expect("low" in plain || "high" in plain).toBe(false);
+    d.rates[conc].low = "";
+    const one = validateTemplate(toBody(d));
+    expect(one.issues.map((i) => i.message).join()).toMatch(/Give both a low and a high/);
+    d.rates[conc].low = "400";
+    expect(validateTemplate(toBody(d)).issues.map((i) => i.message).join()).toMatch(/low end \(400\) must not be above the value/);
+  });
+
   it("leaves empty optional boxes out and keeps a waste formula as text", () => {
     const d = toDraft(starter());
     d.rules[0].waste_pct = "wastage_pct";

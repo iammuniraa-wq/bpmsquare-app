@@ -18,7 +18,8 @@ export type InputDraft = {
   options: OptionDraft[];
 };
 
-export type RateDraft = { key: string; label: string; unit: string; value: string };
+/** `low` / `high` are the optional risk range (Simulation); empty text = none. */
+export type RateDraft = { key: string; label: string; unit: string; value: string; low: string; high: string };
 
 export type RuleDraft = {
   code: string; group: string; description: string; uom: string; qty: string;
@@ -50,7 +51,7 @@ export function toDraft(t: {
       quote_alternatives: i.quote_alternatives === true,
       options: (i.options ?? []).map((o) => ({ key: o.key, label: o.label, value: str(o.value) })),
     })),
-    rates: (t.rates ?? []).map((r) => ({ key: r.key, label: r.label, unit: r.unit, value: str(r.value) })),
+    rates: (t.rates ?? []).map((r) => ({ key: r.key, label: r.label, unit: r.unit, value: str(r.value), low: r.low === undefined ? "" : str(r.low), high: r.high === undefined ? "" : str(r.high) })),
     rules: (t.rules ?? []).map((r) => ({
       code: r.code, group: r.group, description: r.description, uom: r.uom, qty: r.qty, waste_pct: str(r.waste_pct),
       component: r.component, costKind: r.cost.kind, sku: r.cost.kind === "product" ? r.cost.sku : "", rate: r.cost.kind === "rate" ? r.cost.rate : "",
@@ -82,7 +83,13 @@ export function toBody(d: TemplateDraft): EstimateTemplateBody & { geometry?: st
     }
     return base;
   });
-  const rates = d.rates.map((r): TemplateRate => ({ key: r.key.trim(), label: r.label.trim(), unit: r.unit.trim(), value: Number(r.value) }));
+  const rates = d.rates.map((r): TemplateRate => {
+    const rate: TemplateRate = { key: r.key.trim(), label: r.label.trim(), unit: r.unit.trim(), value: Number(r.value) };
+    // One end alone is passed through so the validator can say "give both".
+    if (r.low.trim() !== "") rate.low = Number(r.low);
+    if (r.high.trim() !== "") rate.high = Number(r.high);
+    return rate;
+  });
   const rules = d.rules.map((r): TemplateRule => {
     const rule: TemplateRule = {
       code: r.code.trim(), group: r.group.trim(), description: r.description.trim(), uom: r.uom.trim(), qty: r.qty.trim(),
@@ -110,7 +117,7 @@ export function templateIdentifiers(d: TemplateDraft): { inputs: string[]; rates
 export const blankInput = (): InputDraft => ({
   key: "", label: "", type: "number", default: "0", min: "", max: "", unit: "", help: "", section: "", quote_alternatives: false, options: [],
 });
-export const blankRate = (): RateDraft => ({ key: "", label: "", unit: "", value: "0" });
+export const blankRate = (): RateDraft => ({ key: "", label: "", unit: "", value: "0", low: "", high: "" });
 export const blankRule = (): RuleDraft => ({
   code: "", group: "", description: "", uom: "", qty: "", waste_pct: "", component: "materials",
   costKind: "rate", sku: "", rate: "", element_type: "",
