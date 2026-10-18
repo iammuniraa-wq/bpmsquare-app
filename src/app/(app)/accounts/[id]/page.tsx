@@ -4,6 +4,7 @@ import {
   ACCOUNT_TYPE_LABEL,
   CASE_STATUS_LABEL,
   CASE_TYPE_LABEL,
+  estimatesForAccount,
 } from "@/lib/data";
 import { getAccountHubLive } from "@/lib/data/live";
 import { getUserRole, getTenant } from "@/lib/tenant";
@@ -66,7 +67,7 @@ const fmtDate = (s: string) =>
 
 // ── Tabs ───────────────────────────────────────────────────────────────────────
 
-type Tab = "overview" | "cases" | "contacts" | "assets" | "quotations" | "projects" | "invoices" | "activity";
+type Tab = "overview" | "cases" | "contacts" | "assets" | "quotations" | "projects" | "invoices" | "estimates" | "activity";
 // featureKey mirrors Sidebar.tsx's NAV gating — a tab only shows if the
 // tenant has that module enabled (tenant.features), same source of truth
 // used everywhere else in the app.
@@ -82,6 +83,7 @@ const TABS: { id: Tab; label: string; featureKey?: keyof TenantFeatures }[] = [
   { id: "quotations", label: "Quotations", featureKey: "quotations" },
   { id: "projects",   label: "Projects",  featureKey: "wfm_projects" },
   { id: "invoices",   label: "Invoices",  featureKey: "invoices" },
+  { id: "estimates",  label: "Estimates", featureKey: "estimator" },
   { id: "activity",   label: "Activity"   },
 ];
 
@@ -146,6 +148,8 @@ export default async function AccountHubPage({
       }));
     }
   }
+  // Estimates (0131): customer-facing figures only; empty when the module is off or 0131 is pending.
+  const estimateRows = features?.estimator === true ? await estimatesForAccount(id) : [];
   const projectMinutes = projectRows.reduce((s, r) => s + (r.level === 0 ? r.minutes : 0), 0);
 
   const quotationTotal = hub.quotes.reduce((s, q) => s + q.total, 0);
@@ -349,6 +353,24 @@ export default async function AccountHubPage({
         ]}
       />
     ),
+    estimates: (
+      <RelatedList
+        title="Estimates"
+        newHref={`${ROUTES.estimateNew}?account_id=${id}`}
+        newLabel="Estimate"
+        emptyText="No estimates yet."
+        rows={estimateRows}
+        rowKey={(e) => e.id}
+        rowHref={(e) => ROUTES.estimate(e.id)}
+        columns={[
+          { label: "Ref", render: (e) => refCell(e.ref) },
+          { label: "Name", render: (e) => <span style={{ fontWeight: 600, color: c.ink }}>{e.name}</span> },
+          { label: "Template", cellStyle: { color: c.muted, fontSize: 13 }, render: (e) => e.template_name ?? "—" },
+          { label: "Status", render: (e) => <StatusPill label={e.status.charAt(0).toUpperCase() + e.status.slice(1)} tone={e.status === "won" ? "green" : e.status === "lost" ? "red" : e.status === "quoted" ? "amber" : "blue"} /> },
+          { label: "Price incl. VAT", align: "right", render: (e) => <span style={{ fontWeight: 600, color: c.ink }}>{e.price_incl_vat === null ? "—" : fmtMoney(e.price_incl_vat)}</span> },
+        ]}
+      />
+    ),
     invoices: (
       <RelatedList
         title="Invoices"
@@ -406,7 +428,7 @@ export default async function AccountHubPage({
 
   const counts: Partial<Record<Tab, number>> = {
     cases: hub.cases.length, contacts: hub.contacts.length, assets: hub.assets.length,
-    quotations: hub.quotes.length, invoices: hub.invoices.length,
+    quotations: hub.quotes.length, invoices: hub.invoices.length, estimates: estimateRows.length,
   };
 
   return (
