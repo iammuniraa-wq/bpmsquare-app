@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireFeature, getTenant, getTenantCurrency } from "@/lib/tenant";
 import { requireTenantUser } from "@/lib/supabase-server";
@@ -18,6 +17,11 @@ import DetailsCard from "./DetailsCard";
 import InputsTab from "./InputsTab";
 import BomTab from "./BomTab";
 import CostingTab from "./CostingTab";
+import QuoteTab from "./QuoteTab";
+import CreateQuoteButton from "./CreateQuoteButton";
+import Button from "@/components/ui/Button";
+import { quoteBlockers } from "@/lib/estimator/quoteLines";
+import { templateGroupNames, toQuoteSource } from "@/lib/estimator/lines";
 import { toBomGroups } from "./bomView";
 
 const fmtDate = (s: string) => new Date(s).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
@@ -77,6 +81,14 @@ export default async function EstimatePage({
       ])
     : [{ data: [] }, { data: [] }];
 
+  const tenant = await getTenant();
+  const quotesOn = tenant?.features?.standard_quotes === true;
+  const canQuote = canEdit && quotesOn && canCreateWorkcenter(perms, "standard_quotes");
+  const quoteUnavailable = !quotesOn ? "Standard Quotes isn't enabled for your workspace, so this estimate has nowhere to become a quote."
+    : !canQuote && !quote ? "You don't have permission to create a quote." : null;
+  const groupNames = template ? templateGroupNames(template.rules) : new Map<string, string>();
+  const blockers = quoteBlockers(lines.filter((l) => l.qty > 0).map((l) => toQuoteSource(l, groupNames)));
+
   const tabs: RecordTab[] = [
     {
       id: "overview",
@@ -129,14 +141,23 @@ export default async function EstimatePage({
       content: <CostingTab totals={totals} money={moneyFormatter(cur, { maximumFractionDigits: 2 })} />,
     },
     {
+      id: "quote",
+      label: "Quote",
+      content: (
+        <QuoteTab
+          estimateId={estimate.id} quote={quote} template={template} lines={lines} marginPct={estimate.margin_pct}
+          blockers={blockers} money={moneyFormatter(cur, { maximumFractionDigits: 2 })}
+          canQuote={canQuote} quoteUnavailable={quoteUnavailable}
+        />
+      ),
+    },
+    {
       id: "activity",
       label: "Activity",
       content: <RecordActivity objectType="estimates" objectId={estimate.id} isAdmin={isAdmin} />,
     },
   ];
 
-  const tenant = await getTenant();
-  void tenant; void lines; void quote; void Link; void canCreate;
 
   return (
     <ObjectRecordPage
@@ -146,6 +167,11 @@ export default async function EstimatePage({
       reference={estimate.ref}
       meta={[account?.name, template?.name].filter(Boolean).join(" · ") || undefined}
       status={<EstimateStatusPill status={estimate.status} />}
+      primaryAction={
+        quote ? <Button href={ROUTES.standardQuote(quote.id)} variant="primary">Open quote</Button>
+        : canQuote && lines.length > 0 && blockers.length === 0 ? <CreateQuoteButton estimateId={estimate.id} />
+        : undefined
+      }
       menu={
         <RecordMoreMenu
           inlineEdit={canEdit ? { overviewHref: basePath } : undefined}
