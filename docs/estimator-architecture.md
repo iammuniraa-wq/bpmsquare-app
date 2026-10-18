@@ -734,3 +734,43 @@ provider (a separate, tenant-connected provider); ERP push (needs a live
 environment); RFQ from estimate lines (`rfq_line_id`); saved simulation
 scenarios if wanted; PDF or image briefs for the intake; the Drive guide refresh
 once the owner has validated the screens (standing rule).
+
+## 15. Simplified flow v2 (owner, 2026-10-18) — phase E5, TARGET DESIGN
+
+The owner reviewed E1-E4 on the demo tenant: it looked different from Fence
+(email in, project created, quantities dynamic, quote from the quantities),
+"asked for a BOM as items", exposed engineering words (Exports, Envelope) and a
+separate Costing, and would confuse a client. **Target: the mock-up
+`docs/estimator-reference/studio-mockup-v2.html` (open it; it is the visual and
+behavioural spec; the older `studio-mockup.html` is superseded).** One page:
+
+1. **Start from the customer's email** (primary, top of the page): paste or
+   forward the email, "Fill in from the email" proposes the inputs via the E4
+   intake route, shown as chips of what was understood plus amber chips for
+   what was assumed. Manual entry sits right below on the same page. Nothing
+   is saved until Create quote (or an explicit Save draft).
+2. **About the villa**: a few plain inputs generated from the template; every
+   change updates the model and the price immediately (dynamic quantities).
+3. **The villa and the price side by side**: the exact 3D model (piece
+   picking, "Watch it being built"), and the price by section in plain words,
+   Basic/Standard/Premium finish options, total including VAT.
+4. **Create quote** (one click; creates the estimate if it is still unsaved,
+   then the Standard Quote) and a "what the customer sees" preview: one line
+   per section, no unit costs, no margin; the estimate then locks.
+5. **Collapsible sections for the internal team, closed by default**: How the
+   price is built (the old Costing), Build schedule and risk (the old
+   Simulation tab, same maths), Bill of materials (the old BOM tab, including
+   schedule import and manual edits), Send to your ERP (profile choice,
+   exports), Details (status, notes, custom fields), Activity.
+6. **Plain words**: the starter template's group names become "Structure
+   (floors, beams, inner walls)", "External walls and parapet", "Stairs",
+   "Boundary wall", "Delivery and erection" (template data, not code; the
+   demo seed is regenerated and re-running it refreshes the demo template and
+   its sample estimate). "Costing", "Envelope", "Exports", "WBS" do not
+   appear on the main screen. "⋯" holds Duplicate, Download bill of
+   materials, Download work breakdown, Adapt fields, Delete.
+
+No change to the engine, the tables, the API contracts or the E4 maths: this
+phase re-lays-out and renames, and adds a live preview path (pure client-side
+compute for rate-priced templates, a debounced server preview for templates
+with product lines).
