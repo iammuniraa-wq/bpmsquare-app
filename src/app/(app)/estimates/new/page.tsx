@@ -9,14 +9,14 @@ import EmptyState from "@/components/ui/EmptyState";
 import Button from "@/components/ui/Button";
 import { PENDING_MESSAGE, isMissingRelation } from "@/lib/estimator/server";
 import type { EstimateTemplate } from "@/lib/types";
-import NewEstimateForm, { type TemplateChoice } from "./NewEstimateForm";
+import NewEstimateForm, { type TemplateChoice, type CopyFrom } from "./NewEstimateForm";
 import StarterButton from "./StarterButton";
 
-export default async function NewEstimatePage({ searchParams }: { searchParams: Promise<{ account_id?: string }> }) {
+export default async function NewEstimatePage({ searchParams }: { searchParams: Promise<{ account_id?: string; from?: string }> }) {
   await requireWorkcenterView("estimates");
   await requireFeature("estimator");
   const { supabase, tenantId, role } = await requireTenantUser();
-  const { account_id } = await searchParams;
+  const { account_id, from } = await searchParams;
 
   const [tpl, accounts, contacts] = await Promise.all([
     supabase.from("estimate_templates").select("id, name, description, trade, inputs").eq("tenant_id", tenantId).eq("is_active", true).order("name"),
@@ -66,8 +66,25 @@ export default async function NewEstimatePage({ searchParams }: { searchParams: 
     );
   }
 
+  // Duplicate: start from another estimate's template, inputs, margin and account.
+  let copy: CopyFrom | undefined;
+  if (from && /^[0-9a-f-]{36}$/i.test(from)) {
+    const { data: src } = await supabase
+      .from("estimates")
+      .select("name, template_id, account_id, contact_id, params, margin_pct")
+      .eq("id", from).eq("tenant_id", tenantId).maybeSingle();
+    const s = src as { name: string; template_id: string | null; account_id: string | null; contact_id: string | null; params: Record<string, number | string | boolean> | null; margin_pct: number | string | null } | null;
+    if (s && s.template_id && templates.some((t) => t.id === s.template_id)) {
+      copy = {
+        name: `${s.name} (copy)`, templateId: s.template_id, accountId: s.account_id, contactId: s.contact_id,
+        params: s.params ?? {}, marginPct: Number(s.margin_pct ?? 0),
+      };
+    }
+  }
+
   return (
     <NewEstimateForm
+      copy={copy}
       templates={templates}
       accounts={(accounts.data ?? []) as { id: string; name: string }[]}
       contacts={(contacts.data ?? []) as { id: string; name: string; account_id: string | null }[]}

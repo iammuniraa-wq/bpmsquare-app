@@ -175,6 +175,12 @@ export default async function EstimatePage({
       menu={
         <RecordMoreMenu
           inlineEdit={canEdit ? { overviewHref: basePath } : undefined}
+          duplicateHref={canCreate ? `${ROUTES.estimateNew}?from=${estimate.id}` : undefined}
+          extraItems={[
+            { label: "Export BOM (Excel)", href: `/api/estimates/${estimate.id}/export?format=bom&type=xlsx`, hidden: lines.length === 0 },
+            { label: "Export WBS (Excel)", href: `/api/estimates/${estimate.id}/export?format=wbs&type=xlsx`, hidden: lines.length === 0 },
+            { label: "Export options (ERP layout, CSV)", href: `${basePath}?tab=bom#export`, hidden: lines.length === 0 },
+          ]}
           adapt={{ objectType: "estimate", objectLabel: "Estimate", isAdmin }}
           remove={canDelete ? {
             endpoint: `/api/estimates/${estimate.id}`, recordName: estimate.name, entityLabel: "estimate", afterHref: ROUTES.estimates,

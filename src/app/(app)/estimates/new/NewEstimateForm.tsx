@@ -16,28 +16,38 @@ export type TemplateChoice = {
   id: string; name: string; description: string | null; trade: string | null; inputs: TemplateInput[];
 };
 
+export type CopyFrom = {
+  name: string; templateId: string; accountId: string | null; contactId: string | null;
+  params: Record<string, number | string | boolean>; marginPct: number;
+};
+
 const STANDARD_KEYS = ["ref", "name", "status", "currency", "margin_pct", "notes"];
 
 export default function NewEstimateForm({
-  templates, accounts, contacts, defaultAccountId,
+  templates, accounts, contacts, defaultAccountId, copy,
 }: {
   templates: TemplateChoice[];
   accounts: AccountOption[];
   contacts: ContactOption[];
   defaultAccountId?: string;
+  /** Duplicate: prefill from another estimate. */
+  copy?: CopyFrom;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState("");
   const [issues, setIssues] = useState<InputIssue[]>([]);
 
-  const [name, setName] = useState("");
-  const [accountId, setAccountId] = useState(defaultAccountId && accounts.some((a) => a.id === defaultAccountId) ? defaultAccountId : "");
-  const [contactId, setContactId] = useState("");
-  const [templateId, setTemplateId] = useState(templates[0]?.id ?? "");
+  const [name, setName] = useState(copy?.name ?? "");
+  const [accountId, setAccountId] = useState(copy?.accountId ?? (defaultAccountId && accounts.some((a) => a.id === defaultAccountId) ? defaultAccountId : ""));
+  const [contactId, setContactId] = useState(copy?.contactId ?? "");
+  const [templateId, setTemplateId] = useState(copy?.templateId ?? templates[0]?.id ?? "");
   const template = templates.find((t) => t.id === templateId) ?? null;
-  const [values, setValues] = useState<InputValues>(() => initialValues(templates[0]?.inputs ?? []));
-  const [margin, setMargin] = useState("0");
+  const [values, setValues] = useState<InputValues>(() => {
+    const t = templates.find((x) => x.id === (copy?.templateId ?? templates[0]?.id));
+    return initialValues(t?.inputs ?? [], copy?.params);
+  });
+  const [margin, setMargin] = useState(String(copy?.marginPct ?? 0));
   const [notes, setNotes] = useState("");
   const [customData, setCustomData] = useState<Record<string, unknown>>({});
 
