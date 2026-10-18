@@ -1,0 +1,116 @@
+"use client";
+
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { ROUTES } from "@/lib/constants";
+import Button from "@/components/ui/Button";
+import StatusPill from "@/components/ui/StatusPill";
+import EmptyState from "@/components/ui/EmptyState";
+import { useFeel } from "@/components/FeelProvider";
+import { RecordList, RecordRow } from "@/components/settings/RecordRows";
+import { SettingsHeaderActions } from "@/components/settings/SettingsHeaderActions";
+import type { TemplateSummary } from "@/lib/estimator/server";
+import StarterButton from "../../estimates/new/StarterButton";
+
+// The smallest template that validates: one input, one rate, one rule.
+const BLANK_BODY = {
+  inputs: [{ key: "quantity", label: "Quantity", type: "number", default: 1, min: 0 }],
+  rates: [{ key: "unit_rate", label: "Unit rate", unit: "per unit", value: 0 }],
+  rules: [{
+    code: "item", group: "Items", description: "Item", uom: "nr", qty: "quantity",
+    component: "materials", cost: { kind: "rate", rate: "unit_rate" },
+  }],
+};
+
+export default function TemplatesListClient({ templates }: { templates: TemplateSummary[] }) {
+  const router = useRouter();
+  const { confirm, toast } = useFeel();
+  const [busy, setBusy] = useState(false);
+
+  async function call(url: string, init: RequestInit, failText: string): Promise<Record<string, unknown> | null> {
+    setBusy(true);
+    try {
+      const res = await fetch(url, init);
+      const json = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+      if (!res.ok) { toast({ text: (json.error as string) ?? failText, tone: "error" }); return null; }
+      return json;
+    } catch {
+      toast({ text: "Network error. Try again.", tone: "error" });
+      return null;
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function create() {
+    const names = new Set(templates.map((t) => t.name.toLowerCase()));
+    let name = "New template";
+    for (let n = 2; names.has(name.toLowerCase()); n++) name = `New template ${n}`;
+    const json = await call("/api/estimate-templates", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name, ...BLANK_BODY }),
+    }, "Could not create the template.");
+    const id = (json?.template as { id?: string } | undefined)?.id;
+    if (id) router.push(ROUTES.settingsEstimateTemplate(id));
+  }
+
+  async function duplicate(t: TemplateSummary) {
+    const json = await call(`/api/estimate-templates/${t.id}/duplicate`, { method: "POST" }, "Could not duplicate the template.");
+    const id = (json?.template as { id?: string } | undefined)?.id;
+    if (id) { toast({ text: `Duplicated "${t.name}"`, tone: "success" }); router.push(ROUTES.settingsEstimateTemplate(id)); }
+  }
+
+  async function setActive(t: TemplateSummary, active: boolean) {
+    const json = await call(`/api/estimate-templates/${t.id}`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ is_active: active }),
+    }, "Could not update the template.");
+    if (json) router.refresh();
+  }
+
+  async function remove(t: TemplateSummary) {
+    if (!(await confirm({ title: `Delete "${t.name}"?`, body: "This can't be undone. A template that estimates were made from can only be deactivated.", tone: "danger" }))) return;
+    const json = await call(`/api/estimate-templates/${t.id}`, { method: "DELETE" }, "Could not delete the template.");
+    if (json) router.refresh();
+  }
+
+  return (
+    <>
+      <SettingsHeaderActions>
+        <Button variant="primary" loading={busy} onClick={create}>+ New template</Button>
+      </SettingsHeaderActions>
+      <RecordList
+        empty={
+          <EmptyState
+            title="No estimate templates yet"
+            text="Start from the illustrative precast villa starter and reshape it, or build one from scratch with + New template."
+            action={<StarterButton />}
+          />
+        }
+      >
+        {templates.map((t) => (
+          <RecordRow
+            key={t.id}
+            title={t.name}
+            subtitle={t.description ?? undefined}
+            dim={!t.is_active}
+            facts={[
+              { label: "Inputs", value: t.input_count },
+              { label: "Rules", value: t.rule_count },
+              { label: "Estimates", value: t.estimate_count },
+              { label: "Version", value: t.version },
+            ]}
+            status={<StatusPill label={t.is_active ? "Active" : "Inactive"} tone={t.is_active ? "green" : "red"} />}
+            menu={[
+              { label: "Edit", href: ROUTES.settingsEstimateTemplate(t.id) },
+              { label: "Duplicate", onSelect: () => { void duplicate(t); } },
+              { label: t.is_active ? "Deactivate" : "Activate", onSelect: () => { void setActive(t, !t.is_active); } },
+              { label: "Delete", danger: true, onSelect: () => { void remove(t); } },
+            ]}
+          />
+        ))}
+      </RecordList>
+      {templates.length > 0 && !templates.some((t) => t.name.toLowerCase().startsWith("precast villa")) && (
+        <div style={{ marginTop: 14 }}><StarterButton variant="secondary" label="Add the precast villa starter" /></div>
+      )}
+    </>
+  );
+}
