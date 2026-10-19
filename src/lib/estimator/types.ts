@@ -61,8 +61,11 @@ export type TemplateRate = {
 };
 
 export type TemplateRuleCost =
-  /** Catalogue product by SKU; priced by the pricing engine (phase E2). */
-  | { kind: "product"; sku: string }
+  /** A catalogue product named by its SKU or by its product reference (PRD-0012),
+   *  at least one of the two. Resolved to a product per tenant when the estimate is
+   *  calculated; a BOM / kit product is costed from its rolled-up components.
+   *  A rule that names both looks the SKU up first. */
+  | { kind: "product"; sku?: string; ref?: string }
   /** A template rate (rate key) times the quantity. */
   | { kind: "rate"; rate: string };
 

@@ -63,11 +63,26 @@ export const skuOf = (line: Pick<EstimateLine, "custom_data">): string | null =>
   return typeof s === "string" && s.trim() ? s : null;
 };
 
+/** What pricing learned about the product behind a line, kept on the line so the
+ *  BOM export and the flags still read right after the product changes. */
+export type ProductSnapshot = {
+  sku: string | null;
+  ref: string | null;
+  /** A kit whose roll-up had components without a cost. */
+  kit_incomplete?: boolean;
+};
+
 /** The snapshot a computed line is stored with. */
-export function customDataFor(line: Pick<ComputedLine, "group" | "sku" | "source" | "qty">, label: string | null): Record<string, unknown> {
+export function customDataFor(
+  line: Pick<ComputedLine, "group" | "sku" | "source" | "qty">, label: string | null, product?: ProductSnapshot | null
+): Record<string, unknown> {
+  // The real item number wins over the key the template wrote (which may be a reference).
+  const sku = product?.sku || line.sku;
   return {
     group: line.group,
-    ...(line.sku ? { sku: line.sku } : {}),
+    ...(sku ? { sku } : {}),
+    ...(product?.ref ? { product_ref: product.ref } : {}),
+    ...(product?.kit_incomplete ? { kit_incomplete: true } : {}),
     // The file's own quantity and label, so a recompute can rebuild the
     // schedule even after a person has hand-edited the line.
     ...(line.source === "schedule" ? { schedule_qty: line.qty, ...(label ? { label } : {}) } : {}),
@@ -83,7 +98,7 @@ export type PersistLine = OverridableRow & {
   product_id: string | null;
 };
 
-export function persistLine(l: ComputedLine, productId: string | null, label: string | null): PersistLine {
+export function persistLine(l: ComputedLine, productId: string | null, label: string | null, product?: ProductSnapshot | null): PersistLine {
   return {
     sort_order: l.sort_order,
     code: l.code,
@@ -99,8 +114,16 @@ export function persistLine(l: ComputedLine, productId: string | null, label: st
     source: l.source,
     element_ref: l.element_ref,
     wbs_code: l.wbs_code,
-    custom_data: customDataFor(l, label),
+    custom_data: customDataFor(l, label, product),
   };
+}
+
+/** The product snapshot a stored line carries, to keep across a recalculation that does not reprice. */
+export function snapshotOf(l: Pick<EstimateLine, "custom_data">): ProductSnapshot | null {
+  const sku = typeof l.custom_data?.sku === "string" ? (l.custom_data.sku as string) : null;
+  const ref = typeof l.custom_data?.product_ref === "string" ? (l.custom_data.product_ref as string) : null;
+  if (!sku && !ref) return null;
+  return { sku, ref, ...(l.custom_data?.kit_incomplete === true ? { kit_incomplete: true } : {}) };
 }
 
 export function toSummarisable(lines: readonly Pick<EstimateLine, "group_key" | "custom_data" | "component" | "cost_total">[], groups: ReadonlyMap<string, string>): SummarisableLine[] {

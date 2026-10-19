@@ -220,8 +220,14 @@ export const DEFAULT_MANUAL_GROUP = "Manual items";
  *  `product_id` is a well-formed uuid only -- the route verifies it. */
 export function parseManualLine(body: unknown): { ok: true; value: ManualLineCreate } | Fail {
   if (!isRecord(body)) return { ok: false, error: "A JSON body is required." };
-  if (typeof body.description !== "string" || !body.description.trim()) return { ok: false, error: "Description is required." };
-  const edit = parseLineEdit({ ...body, qty: body.qty ?? 1 });
+  // A catalogue pick may leave the description empty: the route takes the product's name.
+  const picked = optId(body, "product_id");
+  if (isFail(picked)) return picked;
+  const description = typeof body.description === "string" ? body.description.trim() : "";
+  if (!description && !picked) return { ok: false, error: "Description is required." };
+  const { description: _unused, ...rest } = body;
+  void _unused;
+  const edit = parseLineEdit({ ...rest, ...(description ? { description } : {}), qty: body.qty ?? 1 });
   if (!edit.ok) return edit;
   let group = DEFAULT_MANUAL_GROUP;
   if (body.group !== undefined && body.group !== null && body.group !== "") {
@@ -230,12 +236,11 @@ export function parseManualLine(body: unknown): { ok: true; value: ManualLineCre
     }
     group = body.group.trim();
   }
-  const product = optId(body, "product_id");
-  if (isFail(product)) return product;
+  const product = picked;
   return {
     ok: true,
     value: {
-      description: edit.edit.description ?? body.description.trim().slice(0, 200),
+      description: edit.edit.description ?? description.slice(0, 200),
       group,
       uom: edit.edit.uom ?? null,
       qty: edit.edit.qty ?? 1,

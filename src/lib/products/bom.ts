@@ -1,4 +1,4 @@
-import { KIT_ITEM_TYPE } from "@/lib/products/itemTypes";
+import { KIT_ITEM_TYPE } from "./itemTypes";
 
 // Bill of materials: pure cost roll-up and loop checks over product_bom_lines
 // (migration 0133). No database access here: callers load the products and

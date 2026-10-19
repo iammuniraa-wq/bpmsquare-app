@@ -81,6 +81,7 @@ export type ComputedLine = {
   source: EstimateLineSource;
   element_ref: string | null;
   cost_kind: "product" | "rate";
+  /** The item key the rule names: its SKU, or its product reference when it names only that. */
   sku: string | null;
   rate_key: string | null;
   /** True for a product line with no unit cost yet. */
@@ -349,7 +350,7 @@ export function computeEstimate(
         source: e.source,
         element_ref: e.element_ref,
         cost_kind: rule.cost.kind,
-        sku: rule.cost.kind === "product" ? rule.cost.sku : null,
+        sku: rule.cost.kind === "product" ? (rule.cost.sku ?? rule.cost.ref ?? null) : null,
         rate_key: rule.cost.kind === "rate" ? rule.cost.rate : null,
         needs_price: needsPrice,
         unit_cost: unitCost,

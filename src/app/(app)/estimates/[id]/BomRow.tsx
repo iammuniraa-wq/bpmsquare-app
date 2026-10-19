@@ -1,13 +1,17 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { c } from "@/lib/theme";
+import { ROUTES } from "@/lib/constants";
+import { LINE_FLAG_HELP, LINE_FLAG_LABEL } from "@/lib/estimator/productItems";
 import Button from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import StatusPill from "@/components/ui/StatusPill";
 import { useFeel } from "@/components/FeelProvider";
 import { useEstimateFocus } from "@/components/estimator/workspace/focus";
+import KitComponents from "./KitComponents";
 import type { BomLineView } from "./bomView";
 
 export const SOURCE_LABEL: Record<BomLineView["source"], string> = { rule: "Rule", schedule: "Schedule", manual: "Manual" };
@@ -36,6 +40,7 @@ export default function BomRow({
   const [qty, setQty] = useState(String(line.qty));
   const [unit, setUnit] = useState(line.unit_cost === null ? "" : String(line.unit_cost));
   const [error, setError] = useState("");
+  const [parts, setParts] = useState(false);
 
   function begin() { setQty(String(line.qty)); setUnit(line.unit_cost === null ? "" : String(line.unit_cost)); setError(""); setEditing(true); }
 
@@ -69,11 +74,28 @@ export default function BomRow({
       <tr style={{ borderTop: `1px solid ${c.line}` }}>
         <td style={{ ...td, minWidth: 220 }}>
           <div style={{ color: c.ink, fontWeight: 500 }}>{line.description}</div>
+          {line.product && (
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 3, alignItems: "center", fontSize: 12 }}>
+              {line.product.linkable
+                ? <Link href={ROUTES.product(line.product.id)} style={{ color: "var(--accent)" }}>{line.product.name}</Link>
+                : <span style={{ color: c.muted }}>{line.product.name}</span>}
+              {line.product.ref && <span style={{ fontFamily: "ui-monospace, Menlo, monospace", fontSize: 11, color: c.hint }}>{line.product.ref}</span>}
+              {line.product.sku && <span style={{ fontSize: 11, color: c.hint }}>{line.product.sku}</span>}
+              {line.product.itemTypeLabel && <StatusPill label={line.product.itemTypeLabel} tone={line.product.isKit ? "purple" : "teal"} />}
+              {line.product.isKit && (
+                <button type="button" onClick={() => setParts((v) => !v)} aria-expanded={parts}
+                  style={{ color: "var(--accent)", background: "none", border: 0, padding: 0, cursor: "pointer", font: "inherit", fontSize: 11 }}>
+                  {parts ? "Hide components" : "Show components"}
+                </button>
+              )}
+            </div>
+          )}
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 3, alignItems: "center" }}>
             {line.code && <span style={{ fontFamily: "ui-monospace, Menlo, monospace", fontSize: 11, color: c.hint }}>{line.code}</span>}
             <StatusPill label={SOURCE_LABEL[line.source]} tone={SOURCE_TONE[line.source]} />
             {line.overridden && <StatusPill label="Edited by hand" tone="purple" />}
-            {line.unpriced && <StatusPill label="No cost yet" tone="red" />}
+            {line.flags.map((f) => <span key={f} title={LINE_FLAG_HELP[f]}><StatusPill label={LINE_FLAG_LABEL[f]} tone="red" /></span>)}
+            {line.flags.includes("unresolved") && line.sku && <span style={{ fontSize: 11, color: c.hint }}>Looking for {line.sku}</span>}
             {line.element_ref && <span style={{ fontSize: 11, color: c.hint }}>{line.element_ref}</span>}
             {line.element_ref && line.code && focus && (
               <button type="button" onClick={() => focus.show(line.code as string)}
@@ -111,6 +133,13 @@ export default function BomRow({
           </td>
         )}
       </tr>
+      {parts && line.product && (
+        <tr>
+          <td colSpan={editable ? 6 : 5} style={{ ...td, paddingTop: 0 }}>
+            <KitComponents estimateId={estimateId} lineId={line.id} unit={line.uom} linkable={line.product.linkable} productId={line.product.id} money={money} />
+          </td>
+        </tr>
+      )}
       {error && (
         <tr><td colSpan={editable ? 6 : 5} style={{ ...td, paddingTop: 0 }}><div role="alert" className="bpm-t-help" style={{ color: "var(--err-ink)" }}>{error}</div></td></tr>
       )}

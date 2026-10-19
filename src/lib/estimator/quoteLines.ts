@@ -172,7 +172,7 @@ export function quoteBlockers(lines: readonly QuotableLine[]): string[] {
   const out: string[] = [];
   const unresolved = [...new Set(live.filter((l) => l.sku && !l.product_id).map((l) => l.sku as string))];
   if (unresolved.length > 0) {
-    out.push(`No product in your catalogue matches the SKU ${unresolved.slice(0, 5).join(", ")}${unresolved.length > 5 ? ", ..." : ""}. Add or correct the product, then calculate again.`);
+    out.push(`No product in your catalogue matches the SKU or reference ${unresolved.slice(0, 5).join(", ")}${unresolved.length > 5 ? ", ..." : ""}. Add or correct the product, then calculate again.`);
   }
   const built = buildQuoteLines(live, { granularity: "group", margin_pct: 0 });
   if (!built.ok) out.push(...built.problems);

@@ -27,7 +27,10 @@ export type RuleDraft = {
   waste_pct: string;
   component: EstimateComponent;
   costKind: "product" | "rate";
+  /** A product rule's SKU or product reference (whichever the template names). */
   sku: string; rate: string;
+  /** The product is named by its reference (PRD-0012), not a SKU; kept so a save writes back the key it read. */
+  skuIsRef?: boolean;
   element_type: string;
 };
 
@@ -54,7 +57,7 @@ export function toDraft(t: {
     rates: (t.rates ?? []).map((r) => ({ key: r.key, label: r.label, unit: r.unit, value: str(r.value), low: r.low === undefined ? "" : str(r.low), high: r.high === undefined ? "" : str(r.high) })),
     rules: (t.rules ?? []).map((r) => ({
       code: r.code, group: r.group, description: r.description, uom: r.uom, qty: r.qty, waste_pct: str(r.waste_pct),
-      component: r.component, costKind: r.cost.kind, sku: r.cost.kind === "product" ? r.cost.sku : "", rate: r.cost.kind === "rate" ? r.cost.rate : "",
+      component: r.component, costKind: r.cost.kind, sku: r.cost.kind === "product" ? (r.cost.sku ?? r.cost.ref ?? "") : "", skuIsRef: r.cost.kind === "product" && !r.cost.sku && !!r.cost.ref, rate: r.cost.kind === "rate" ? r.cost.rate : "",
       element_type: str(r.element_type),
     })),
   };
@@ -94,7 +97,7 @@ export function toBody(d: TemplateDraft): EstimateTemplateBody & { geometry?: st
     const rule: TemplateRule = {
       code: r.code.trim(), group: r.group.trim(), description: r.description.trim(), uom: r.uom.trim(), qty: r.qty.trim(),
       component: r.component,
-      cost: r.costKind === "product" ? { kind: "product", sku: r.sku.trim() } : { kind: "rate", rate: r.rate.trim() },
+      cost: r.costKind === "product" ? (r.skuIsRef ? { kind: "product", ref: r.sku.trim() } : { kind: "product", sku: r.sku.trim() }) : { kind: "rate", rate: r.rate.trim() },
     };
     const w = r.waste_pct.trim();
     if (w !== "") rule.waste_pct = Number.isFinite(Number(w)) ? Number(w) : w;

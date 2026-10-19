@@ -241,8 +241,9 @@ function validateRuleShapes(raw: unknown, rateKeys: Set<string>, issues: Templat
     if (!isRecord(r.cost)) fail("cost", "Every rule needs a cost source: a product SKU or a rate.");
     else if (r.cost.kind === "product") {
       const sku = text(r.cost.sku, 80);
-      if (!sku) fail("cost.sku", "A product cost needs the product's SKU.");
-      else cost = { kind: "product", sku };
+      const ref = text(r.cost.ref, 80);
+      if (!sku && !ref) fail("cost.sku", "A product cost needs the product's SKU or its product reference.");
+      else cost = { kind: "product", ...(sku ? { sku } : {}), ...(ref ? { ref } : {}) };
     } else if (r.cost.kind === "rate") {
       if (!isStr(r.cost.rate) || !rateKeys.has(r.cost.rate)) fail("cost.rate", `Cost rate "${String(r.cost.rate)}" is not one of the template's rates.`);
       else cost = { kind: "rate", rate: r.cost.rate };
