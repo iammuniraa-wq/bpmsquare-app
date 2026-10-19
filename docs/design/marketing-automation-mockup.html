@@ -1,0 +1,735 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Marketing Journeys</title>
+<meta name="description" content="Interactive mock-up of the BPMSquare journey builder and the lead scoring view — options on the left, the journey on the right, plain words, sample GCC industrial data.">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+<style>
+/* Layout rule (owner, 2026-10-19): options in a left panel, the studio on the right; on a phone the panel collapses above the canvas. Same grid as the Estimator (.est-grid 330px / 1fr). */
+:root {
+  --bg: #eef1f5; --surface: #ffffff; --surface2: #f6f8fb; --line: #dde3ea; --ink: #17212e; --muted: #5d6b7c;
+  --accent: #6d3fc2; --accent-ink: #ffffff; --accent-bg: #efe8fb;
+  --warn: #9a5a0b; --warn-bg: #fdf0dc; --good: #1d7a45; --good-bg: #e3f4ea; --bad: #b3402f; --bad-bg: #fbe7e3;
+  --blue: #1f5fa8; --blue-bg: #e4eef9; --teal: #0e7c86; --teal-bg: #e1f3f4;
+  --font: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0d141d; --surface: #16202c; --surface2: #1b2735; --line: #2a3849; --ink: #e7edf4; --muted: #93a2b5;
+    --accent: #b08cf0; --accent-ink: #130a2a; --accent-bg: #2a1f45; --warn: #f0b266; --warn-bg: #3a2a14; --good: #62c58b; --good-bg: #14301f; --bad: #e58a7c; --bad-bg: #3b1d19;
+    --blue: #7fb2ec; --blue-bg: #17304d; --teal: #3fb8c2; --teal-bg: #123238; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0d141d; --surface: #16202c; --surface2: #1b2735; --line: #2a3849; --ink: #e7edf4; --muted: #93a2b5;
+  --accent: #b08cf0; --accent-ink: #130a2a; --accent-bg: #2a1f45; --warn: #f0b266; --warn-bg: #3a2a14; --good: #62c58b; --good-bg: #14301f; --bad: #e58a7c; --bad-bg: #3b1d19;
+  --blue: #7fb2ec; --blue-bg: #17304d; --teal: #3fb8c2; --teal-bg: #123238; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--font); font-size: 14px; line-height: 1.5;
+  padding-inline: max(16px, env(safe-area-inset-left, 0px)) max(16px, env(safe-area-inset-right, 0px)); padding-block: 18px 60px; }
+.wrap { max-width: 1180px; margin: 0 auto; display: grid; gap: 14px; }
+h1 { font-size: 22px; font-weight: 700; line-height: 1.25; margin: 0; }
+h2 { font-size: 13px; font-weight: 700; margin: 0 0 10px; }
+h2 small { font-weight: 500; color: var(--muted); font-size: 12.5px; margin-left: 6px; }
+.sub { color: var(--muted); margin: 2px 0 0; }
+.head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 10px 16px; align-items: flex-start; }
+.actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.pill { display: inline-block; font-size: 11px; font-weight: 600; padding: 2px 9px; border-radius: 999px; background: var(--accent-bg); color: var(--accent); white-space: nowrap; }
+.pill.on { background: var(--good-bg); color: var(--good); }
+.pill.off { background: var(--surface2); color: var(--muted); }
+.pill.warn { background: var(--warn-bg); color: var(--warn); }
+.pill.blue { background: var(--blue-bg); color: var(--blue); }
+.pill.teal { background: var(--teal-bg); color: var(--teal); }
+.pill.bad { background: var(--bad-bg); color: var(--bad); }
+.banner { background: var(--warn-bg); color: var(--warn); border-radius: 9px; padding: 8px 12px; font-size: 13px; font-weight: 500; }
+.btn { font: inherit; font-weight: 600; font-size: 13px; background: var(--accent); color: var(--accent-ink); border: 0; padding: 9px 16px; border-radius: 8px; cursor: pointer; }
+.btn.ghost { background: transparent; color: var(--ink); border: 1px solid var(--line); }
+.btn.sm { padding: 6px 11px; font-size: 12.5px; }
+.btn:disabled { opacity: .55; cursor: default; }
+.btn:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, summary:focus-visible, .tab:focus-visible, .lead:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 14px; }
+.help, .hint { font-size: 12px; color: var(--muted); }
+.hint { display: block; margin-top: 3px; line-height: 1.4; }
+.tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--line); overflow-x: auto; }
+.tab { font: inherit; font-weight: 500; font-size: 13.5px; background: none; border: 0; border-bottom: 3px solid transparent; padding: 9px 14px; color: var(--muted); cursor: pointer; white-space: nowrap; }
+.tab[aria-selected="true"] { color: var(--accent); font-weight: 700; border-bottom-color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, transparent); }
+.view { display: none; } .view.active { display: block; }
+/* The studio grid: left panel of options, right canvas. */
+.grid { display: grid; grid-template-columns: 330px minmax(0, 1fr); gap: 14px; align-items: start; }
+.panel { display: grid; gap: 10px; }
+.ps { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; }
+.ps > summary { cursor: pointer; padding: 11px 14px; font-weight: 700; font-size: 13px; list-style: none; display: flex; justify-content: space-between; gap: 10px; align-items: center; }
+.ps > summary::-webkit-details-marker { display: none; }
+.ps > summary .sum { font-weight: 500; color: var(--muted); font-size: 12px; text-align: right; }
+.ps .in { padding: 0 14px 12px; display: grid; gap: 11px; }
+.f { display: grid; gap: 4px; }
+.f label { font-size: 13px; font-weight: 600; }
+.f select, .f input[type=text], .f input[type=number] { font: inherit; padding: 7px 9px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink); width: 100%; }
+.f input[type=number] { width: 90px; }
+.chk { display: flex; gap: 8px; align-items: flex-start; font-size: 13px; font-weight: 600; }
+.chk input { margin-top: 3px; accent-color: var(--accent); }
+.chk .hint { font-weight: 400; }
+.canvas { display: grid; gap: 14px; }
+.row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 999px; background: var(--accent-bg); color: var(--accent); }
+.chip.a { background: var(--warn-bg); color: var(--warn); }
+.chip.g { background: var(--good-bg); color: var(--good); }
+.chip.b { background: var(--blue-bg); color: var(--blue); }
+.chip.t { background: var(--teal-bg); color: var(--teal); }
+.chip.m { background: var(--surface2); color: var(--muted); }
+/* Steps as sentences */
+.steps { display: grid; gap: 0; position: relative; }
+.step { display: grid; grid-template-columns: 34px minmax(0,1fr); gap: 10px; align-items: start; padding: 10px 0; position: relative; }
+.step + .step::before { content: ""; position: absolute; left: 16px; top: -10px; height: 20px; border-left: 2px solid var(--line); }
+.dot { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; font-weight: 700; font-size: 12px; background: var(--surface2); color: var(--muted); border: 1px solid var(--line); }
+.step.when .dot { background: var(--accent-bg); color: var(--accent); border-color: transparent; }
+.step.wait .dot { background: var(--warn-bg); color: var(--warn); border-color: transparent; }
+.step.if .dot { background: var(--blue-bg); color: var(--blue); border-color: transparent; }
+.step.do .dot { background: var(--good-bg); color: var(--good); border-color: transparent; }
+.step.end .dot { background: var(--surface2); color: var(--muted); }
+.sent { font-size: 14.5px; line-height: 1.7; }
+.sent .k { font-weight: 700; }
+.sent select, .sent input[type=number] { font: inherit; font-size: 13.5px; font-weight: 600; color: var(--accent); background: var(--accent-bg); border: 0; border-radius: 6px; padding: 2px 6px; max-width: 100%; }
+.sent input[type=number] { width: 58px; }
+.sent .link { color: var(--accent); font-weight: 600; text-decoration: underline dotted; cursor: pointer; }
+.sub-steps { margin-left: 44px; padding-left: 12px; border-left: 2px dashed var(--line); }
+.step .tools { display: flex; gap: 6px; margin-top: 4px; }
+.step .tools button { font: inherit; font-size: 12px; color: var(--muted); background: none; border: 0; cursor: pointer; padding: 0; }
+.step .tools button:hover { color: var(--accent); }
+.add { display: inline-flex; gap: 6px; align-items: center; margin-top: 8px; margin-left: 44px; }
+/* Trace of the simulation */
+.trace { display: grid; gap: 8px; margin-top: 10px; }
+.tr { display: grid; grid-template-columns: 22px minmax(0,1fr); gap: 8px; font-size: 13px; align-items: start; }
+.tr i { width: 18px; height: 18px; border-radius: 50%; display: grid; place-items: center; font-style: normal; font-size: 11px; font-weight: 700; margin-top: 2px; }
+.tr.ok i { background: var(--good-bg); color: var(--good); } .tr.skip i { background: var(--surface2); color: var(--muted); } .tr.send i { background: var(--accent-bg); color: var(--accent); } .tr.stop i { background: var(--warn-bg); color: var(--warn); }
+.preview { border: 1px solid var(--line); border-radius: 9px; padding: 10px 12px; background: var(--surface2); font-size: 13px; margin-top: 6px; }
+.preview[dir=rtl] { text-align: right; }
+.kpis { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 8px; }
+.kpis div { background: var(--surface2); border-radius: 9px; padding: 8px 10px; }
+.kpis b { display: block; font-size: 18px; font-variant-numeric: tabular-nums; }
+.kpis span { font-size: 12px; color: var(--muted); }
+details.fold { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; }
+details.fold > summary { cursor: pointer; padding: 12px 14px; font-weight: 700; font-size: 13.5px; list-style: none; display: flex; justify-content: space-between; gap: 10px; }
+details.fold > summary::-webkit-details-marker { display: none; }
+details.fold > summary::after { content: "+"; color: var(--muted); font-weight: 500; }
+details.fold[open] > summary::after { content: "–"; }
+details.fold > summary small { font-weight: 500; color: var(--muted); }
+details.fold .in { padding: 0 14px 14px; }
+.mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; background: var(--surface2); padding: 8px 10px; border-radius: 8px; overflow-x: auto; }
+/* Leads */
+.stages { display: grid; grid-template-columns: repeat(6, minmax(0,1fr)); gap: 6px; }
+.stage { background: var(--surface2); border-radius: 9px; padding: 8px 10px; border: 1px solid transparent; cursor: pointer; text-align: left; font: inherit; color: var(--ink); }
+.stage b { display: block; font-size: 18px; font-variant-numeric: tabular-nums; }
+.stage span { font-size: 12px; color: var(--muted); }
+.stage[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-bg); }
+.leads { display: grid; gap: 6px; margin-top: 10px; }
+.lead { display: grid; grid-template-columns: minmax(0,1.4fr) minmax(0,1fr) 120px 90px; gap: 10px; align-items: center; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); cursor: pointer; text-align: left; font: inherit; color: var(--ink); }
+.lead[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-bg); }
+.lead .n { font-weight: 600; } .lead .c { color: var(--muted); font-size: 12.5px; }
+.bar { height: 8px; border-radius: 5px; background: var(--line); overflow: hidden; }
+.bar i { display: block; height: 100%; background: var(--accent); }
+.score { display: flex; align-items: center; gap: 8px; font-variant-numeric: tabular-nums; font-weight: 700; }
+.factors { display: grid; gap: 6px; margin-top: 8px; }
+.fa { display: grid; grid-template-columns: 56px minmax(0,1fr); gap: 10px; font-size: 13px; align-items: baseline; }
+.fa b { font-variant-numeric: tabular-nums; text-align: right; }
+.fa.neg b { color: var(--bad); } .fa.pos b { color: var(--good); } .fa.zero b { color: var(--muted); }
+.big { font-size: 34px; font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; }
+.two { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+/* Connect diagram */
+.flow { display: grid; gap: 10px; }
+.frow { display: grid; grid-template-columns: repeat(5, minmax(0,1fr)); gap: 8px; align-items: stretch; }
+.box { background: var(--surface2); border: 1px solid var(--line); border-radius: 10px; padding: 9px 10px; font-size: 12.5px; position: relative; }
+.box b { display: block; font-size: 13px; margin-bottom: 2px; }
+.box.src { border-color: var(--teal); } .box.core { border-color: var(--accent); background: var(--accent-bg); } .box.out { border-color: var(--blue); }
+.frow .box:not(:last-child)::after { content: "→"; position: absolute; right: -11px; top: 50%; transform: translateY(-50%); color: var(--muted); font-weight: 700; }
+.tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
+.tbl th { text-align: left; font-size: 11.5px; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); font-weight: 600; padding: 7px 8px; border-bottom: 1px solid var(--line); }
+.tbl td { padding: 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+/* Walkthrough */
+.hl { outline: 3px solid var(--accent) !important; outline-offset: 3px; border-radius: 12px; }
+.walk { position: fixed; right: 16px; bottom: 16px; z-index: 50; width: min(360px, calc(100vw - 32px)); background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 14px; box-shadow: 0 10px 30px rgba(0,0,0,.22); display: none; }
+.walk.open { display: block; }
+.walk h3 { margin: 0 0 4px; font-size: 13.5px; }
+.walk p { margin: 0 0 10px; font-size: 13px; }
+.walk .nav { display: flex; gap: 8px; justify-content: space-between; align-items: center; }
+.walk .prog { font-size: 12px; color: var(--muted); }
+.menu { position: relative; display: inline-block; }
+.menu ul { position: absolute; right: 0; top: 40px; z-index: 5; list-style: none; margin: 0; padding: 6px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; min-width: 200px; box-shadow: 0 8px 24px rgba(0,0,0,.18); }
+.menu li { padding: 8px 10px; border-radius: 7px; cursor: default; font-size: 13px; }
+.menu li:hover { background: var(--accent-bg); }
+.menu li.danger { color: var(--bad); }
+.toast { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); background: var(--ink); color: var(--bg); padding: 9px 14px; border-radius: 9px; font-size: 13px; z-index: 60; display: none; }
+.toast.show { display: block; }
+.sr { position: absolute; left: -9999px; }
+@media (max-width: 900px) {
+  .grid { grid-template-columns: minmax(0, 1fr); }
+  .kpis, .stages { grid-template-columns: repeat(3, minmax(0,1fr)); }
+  .two { grid-template-columns: 1fr; }
+  .lead { grid-template-columns: minmax(0,1fr) 90px; }
+  .lead .c2 { display: none; }
+  .frow { grid-template-columns: 1fr; }
+  .frow .box:not(:last-child)::after { content: "↓"; right: auto; left: 50%; top: auto; bottom: -13px; transform: translateX(-50%); }
+  .sub-steps { margin-left: 0; }
+  .add { margin-left: 0; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="head">
+    <div>
+      <h1 id="title">Quote follow-up</h1>
+      <p class="sub">Journey JNY-0001 · <span class="pill off" id="statusPill">Draft</span> · Al Noor Industrial Supplies (sample workspace)</p>
+    </div>
+    <div class="actions">
+      <button class="btn ghost sm" id="themeBtn" type="button" aria-label="Switch light or dark">Dark</button>
+      <button class="btn ghost" id="howBtn" type="button">Show me how</button>
+      <button class="btn" id="turnOn" type="button">Turn on</button>
+      <div class="menu"><button class="btn ghost" id="menuBtn" type="button" aria-haspopup="true" aria-expanded="false" aria-label="More">⋯</button>
+        <ul id="menuList" hidden><li>Edit name</li><li>Duplicate</li><li>Versions</li><li>Archive</li></ul></div>
+    </div>
+  </div>
+  <div class="banner">Sample data. Companies, people, amounts (SAR) and scores are illustrative. Nothing here sends anything.</div>
+
+  <div class="tabs" role="tablist">
+    <button class="tab" role="tab" aria-selected="true" data-view="journey" type="button">Journey</button>
+    <button class="tab" role="tab" aria-selected="false" data-view="leads" type="button">Leads & scores</button>
+    <button class="tab" role="tab" aria-selected="false" data-view="connect" type="button">How it connects</button>
+  </div>
+
+  <!-- ===================== JOURNEY ===================== -->
+  <section class="view active" id="view-journey">
+    <div class="grid">
+      <aside class="panel" id="jPanel" aria-label="Journey options">
+        <details class="ps" open id="psStart">
+          <summary>Start from <span class="sum" id="sumStart">Quote follow-up</span></summary>
+          <div class="in">
+            <div class="f"><label for="tpl">Template</label>
+              <select id="tpl">
+                <option value="quote">Quote follow-up</option>
+                <option value="welcome">New enquiry welcome</option>
+                <option value="amc">AMC renewal</option>
+                <option value="quiet">Gone quiet</option>
+                <option value="event">After an event</option>
+                <option value="blank">Blank</option>
+              </select>
+              <span class="hint">A ready-made journey you can change. Picking one replaces the steps on the right.</span></div>
+          </div>
+        </details>
+        <details class="ps" open id="psWho">
+          <summary>Who <span class="sum" id="sumWho">People on a quote</span></summary>
+          <div class="in">
+            <div class="f"><label for="aud">Who goes through it</label>
+              <select id="aud">
+                <option value="contact">The person the quote was sent to</option>
+                <option value="account">One person per company (the main contact)</option>
+                <option value="lead">The person on a lead</option>
+              </select>
+              <span class="hint">Whether each person is handled on their own, or one message goes to each company.</span></div>
+            <div class="f"><label for="segment">Only these people</label>
+              <select id="segment">
+                <option>Everyone the trigger matches</option>
+                <option>Audience: GCC industrial customers</option>
+                <option>Audience: OEM partners</option>
+                <option>Coverage segment: HOSPITALS</option>
+                <option>Coverage segment: SOUTH</option>
+              </select>
+              <span class="hint">A saved audience from Segmentation, or a Coverage segment. The same lists campaigns use.</span></div>
+          </div>
+        </details>
+        <details class="ps" open id="psWhen">
+          <summary>When it starts <span class="sum" id="sumWhen">A quote is sent</span></summary>
+          <div class="in">
+            <div class="f"><label for="trig">It starts when</label>
+              <select id="trig">
+                <option value="quote.sent">A quote is sent</option>
+                <option value="form.submitted">Someone fills in a form</option>
+                <option value="contract.expiring">An AMC contract is 60 days from expiry</option>
+                <option value="lead.scored">A lead becomes Engaged</option>
+                <option value="event.attended">Someone attends an event</option>
+                <option value="quiet">Nobody at a company has done anything for 90 days</option>
+                <option value="manual">I add people by hand</option>
+              </select>
+              <span class="hint">The moment a person enters. Comes from Sales, Service, forms or events — not only from marketing.</span></div>
+            <div class="f"><label for="filt">But only if</label>
+              <select id="filt">
+                <option>No extra condition</option>
+                <option>The quote is above SAR 50,000</option>
+                <option>The person has consent for Offers</option>
+                <option>The company is in a buying cycle (Signals)</option>
+                <option>The quote is a Standard Quote</option>
+              </select>
+              <span class="hint">An extra check before anyone enters. Consent is always checked again at each send, whatever you pick here.</span></div>
+          </div>
+        </details>
+        <details class="ps" open id="psRules">
+          <summary>Rules <span class="sum">Safe defaults</span></summary>
+          <div class="in">
+            <div class="f"><label for="reentry">Re-entry</label>
+              <select id="reentry"><option>Never — each person goes through once</option><option>Again after 90 days</option><option>Every time the trigger happens</option></select>
+              <span class="hint">Whether the same person can go through this journey again later.</span></div>
+            <label class="chk"><input type="checkbox" id="onePer" checked><span>One person per company<span class="hint">If two people at Gulf Precast are on the quote, only one gets the reminder.</span></span></label>
+            <label class="chk"><input type="checkbox" id="pauseTrouble" checked><span>Pause when the company is in trouble<span class="hint">No promotional messages while a case is open over 30 days or an invoice is overdue.</span></span></label>
+            <div class="f"><label>Quiet hours and caps</label>
+              <div class="chips"><span class="chip m">No sends 20:00–08:00 Riyadh</span><span class="chip m">Not on Fridays</span><span class="chip m">Max 2 emails / week</span><span class="chip m">Max 1 WhatsApp / week</span></div>
+              <span class="hint">Set once for the workspace in Settings → Marketing → Journey limits. Messages wait, they are never dropped.</span></div>
+          </div>
+        </details>
+        <details class="ps" open id="psLang">
+          <summary>Languages <span class="sum" id="sumLang">English</span></summary>
+          <div class="in">
+            <div class="chips" id="langChips"><span class="chip g">English · default</span></div>
+            <div class="f"><label for="addLang">Add a language</label>
+              <select id="addLang"><option value="">Choose…</option><option value="ar">العربية (Arabic)</option><option value="hi">हिन्दी (Hindi)</option><option value="ur">اردو (Urdu)</option><option value="fr">Français</option></select>
+              <span class="hint">Messages are written in English first. Each person gets their own language if the newsletter has it, otherwise English.</span></div>
+          </div>
+        </details>
+      </aside>
+
+      <div class="canvas">
+        <div class="card" id="enterCard">
+          <h2>Who would enter right now <small>live count from the audience rule</small></h2>
+          <div class="row"><span class="big" id="enterCount">47</span><span class="help" id="enterWhy">people on quotes sent in the last 3 days that were not opened</span></div>
+          <div class="chips" style="margin-top:8px" id="enterNames">
+            <span class="chip b">Khalid Al-Rashid · Gulf Precast Co.</span><span class="chip b">Fatima Al-Zahrani · Riyadh Water Pumps</span><span class="chip b">Omar Haddad · Al Khaleej HVAC (Doha)</span><span class="chip m">+44 more</span>
+          </div>
+        </div>
+
+        <div class="card" id="stepsCard">
+          <h2>The journey <small>each line is a step; change the purple words</small></h2>
+          <div class="steps" id="steps"></div>
+          <div class="add"><button class="btn ghost sm" type="button" id="addStep">+ Add a step</button><span class="help">Send an email or newsletter · Send WhatsApp · Wait · If… · Create a task · Notify the owner · Add to an audience · Create a lead · Create a deal · Ask a person · End</span></div>
+        </div>
+
+        <div class="two">
+          <div class="card" id="tryCard">
+            <h2>Try it on one person <small>nothing is sent</small></h2>
+            <div class="f"><label for="tryWho">Pick someone</label>
+              <select id="tryWho">
+                <option value="khalid">Khalid Al-Rashid · Gulf Precast Co. (Arabic)</option>
+                <option value="fatima">Fatima Al-Zahrani · Riyadh Water Pumps</option>
+                <option value="omar">Omar Haddad · Al Khaleej HVAC (no WhatsApp consent)</option>
+                <option value="priya">Priya Nair · Jubail Steel Fabrication (overdue invoice)</option>
+              </select>
+              <span class="hint">See the path this person would take, with the reason at every turn.</span></div>
+            <div class="row"><button class="btn sm" type="button" id="tryBtn">Show the path</button><button class="btn ghost sm" type="button" id="testMe">Send test to me</button></div>
+            <div class="trace" id="trace" aria-live="polite"></div>
+          </div>
+          <div class="card" id="statsCard">
+            <h2>Once it is on <small>updates every 5 minutes</small></h2>
+            <div class="kpis"><div><b>0</b><span>people in it</span></div><div><b>0</b><span>sent this month</span></div><div><b>0</b><span>tasks created</span></div><div><b>0</b><span>stuck</span></div></div>
+            <p class="help" style="margin:10px 0 0">When someone is stuck (a provider error, a missing template), the step shows here with a Retry button. Every send is also in Outbound emails and on the person's timeline.</p>
+          </div>
+        </div>
+
+        <details class="fold" id="detailsFold">
+          <summary>Details for your IT team <small>what the steps compile to</small></summary>
+          <div class="in">
+            <div class="mono" id="compiled">trigger: quote.sent  (object_type in [quote, standard_quote])
+entry:   reentry=never · one_per_account=true · pause_when_account_in_trouble=true
+step 1:  wait until_event=quote.opened max_days=3
+step 2:  branch if (events.quote.opened == null)
+step 3:  send_whatsapp template=quote_reminder_v2 · gate: canContact(contact, whatsapp, topic=quotes)
+step 4:  wait until_event=whatsapp.replied|quote.opened max_days=2
+step 5:  create_task assignee=quote.created_by ?? account.owner_user_id title="Call {{contact_name}} about {{quote_ref}}" due_in_days=1
+runner:  /api/marketing/cron/journeys every 5 min · idempotent per (run, step, attempt) · all emits depth+1</div>
+            <p class="help" style="margin:8px 0 0">Version 1 · 0 runs · conditions use the same expression language as Sales rules and the pricing engine.</p>
+          </div>
+        </details>
+        <details class="fold">
+          <summary>Activity <small>timeline and comments</small></summary>
+          <div class="in"><p class="help">Nova timeline for this journey: who turned it on, version changes, and @mentions. Empty until the journey is saved.</p></div>
+        </details>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== LEADS ===================== -->
+  <section class="view" id="view-leads">
+    <div class="grid">
+      <aside class="panel" aria-label="Lead filters">
+        <details class="ps" open>
+          <summary>Show <span class="sum">Ready for me</span></summary>
+          <div class="in">
+            <div class="f"><label for="ownerF">Owner</label>
+              <select id="ownerF"><option>Me (Yousef)</option><option>My team — South Pod</option><option>Everyone</option></select>
+              <span class="hint">Leads are assigned by Coverage: the owning team, then the next person in turn.</span></div>
+            <div class="f"><label for="minScore">Score at least</label>
+              <input type="number" id="minScore" value="0" min="0" max="100">
+              <span class="hint">0 shows everyone. 60 is where a lead becomes Ready for sales.</span></div>
+            <div class="f"><label for="srcF">Came from</label>
+              <select id="srcF"><option>Anywhere</option><option>A newsletter click</option><option>A form on the website</option><option>A quote they opened</option><option>An event</option><option>An OEM referral</option></select>
+              <span class="hint">Where the first touch came from. Every lead keeps its source for attribution later.</span></div>
+          </div>
+        </details>
+        <details class="ps" open>
+          <summary>How scoring works <span class="sum">Rubric v3</span></summary>
+          <div class="in">
+            <p class="help" style="margin:0">Points for what a person did (they fade over time) plus points for who they are. No AI decides the number; every lead shows its own working.</p>
+            <div class="chips"><span class="chip">Newsletter click +10</span><span class="chip">Quote opened +20</span><span class="chip">Form +30</span><span class="chip">Interested button +30</span><span class="chip">Event attended +40</span><span class="chip t">Company in market +15</span><span class="chip a">Unsubscribed −40</span></div>
+            <span class="hint">Change the points in Settings → Marketing → Scoring. "Score a sample lead" there shows the effect before you save.</span>
+          </div>
+        </details>
+        <details class="ps" open>
+          <summary>Service level <span class="sum">1 working day</span></summary>
+          <div class="in">
+            <p class="help" style="margin:0">A Ready lead must be accepted within 1 working day. Late ones go to the team lead's inbox too.</p>
+            <span class="hint">Working days follow the workspace calendar (Friday off for most GCC workspaces).</span>
+          </div>
+        </details>
+      </aside>
+
+      <div class="canvas">
+        <div class="card">
+          <h2>Stages <small>tap one to filter</small></h2>
+          <div class="stages" id="stages">
+            <button class="stage" type="button" data-stage="new"><b>12</b><span>New</span></button>
+            <button class="stage" type="button" data-stage="engaged"><b>9</b><span>Engaged</span></button>
+            <button class="stage" type="button" aria-pressed="true" data-stage="ready"><b>4</b><span>Ready for sales</span></button>
+            <button class="stage" type="button" data-stage="working"><b>7</b><span>Working</span></button>
+            <button class="stage" type="button" data-stage="deal"><b>3</b><span>Deal</span></button>
+            <button class="stage" type="button" data-stage="notnow"><b>5</b><span>Not now</span></button>
+          </div>
+          <div class="leads" id="leadList"></div>
+        </div>
+        <div class="two">
+          <div class="card" id="whyCard">
+            <h2>Why this score <small id="whyName">Khalid Al-Rashid</small></h2>
+            <div class="row"><span class="big" id="whyScore">82</span><span class="pill on" id="whyLabel">Ready for sales</span><span class="help" id="whySla">Accept by Tue 10:00</span></div>
+            <div class="factors" id="factors"></div>
+            <div class="row" style="margin-top:12px"><button class="btn sm" type="button" id="acceptBtn">Accept</button><button class="btn ghost sm" type="button">→ Deal</button><button class="btn ghost sm" type="button">Not now</button></div>
+          </div>
+          <div class="card">
+            <h2>Where it connects <small id="connName">Khalid Al-Rashid</small></h2>
+            <div class="chips" id="connChips"></div>
+            <table class="tbl" style="margin-top:10px"><thead><tr><th>Recent activity</th><th>From</th></tr></thead><tbody id="actRows"></tbody></table>
+            <p class="help" style="margin:8px 0 0">The same events show on the contact's timeline, the account's Marketing card in Account 360, the deal's "where this came from" and the REST API.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== CONNECT ===================== -->
+  <section class="view" id="view-connect">
+    <div class="card">
+      <h2>One stream, one consent gate, one score shape <small>what a journey or a lead can see and do</small></h2>
+      <div class="flow">
+        <div class="frow">
+          <div class="box src"><b>Newsletter Studio</b>email.sent · delivered · opened · clicked · interest · unsubscribed · bounced</div>
+          <div class="box src"><b>Sales</b>quote.sent · quote.opened · quote.accepted · opportunity.stage_changed</div>
+          <div class="box src"><b>Service &amp; Finance</b>contract.expiring · case.created · invoice.paid · invoice.overdue</div>
+          <div class="box src"><b>Forms, web, events, WhatsApp</b>form.submitted · web.page_viewed · event.attended · whatsapp.replied</div>
+          <div class="box src"><b>Signals</b>signal.detected · account.buying_stage_changed</div>
+        </div>
+        <div class="frow">
+          <div class="box core" style="grid-column: 1 / -1"><b>The engagement stream (domain_event)</b>every fact about a person or a company, once, with language and topic · the same table the Sales rules and Nova Crew read</div>
+        </div>
+        <div class="frow">
+          <div class="box core"><b>Lead score</b>person · "worth a call now?" · explainable factors</div>
+          <div class="box core"><b>Buying stage (Signals)</b>company · "in a buying cycle?" · feeds one factor of the lead score, nothing else</div>
+          <div class="box core"><b>Account health (Account 360)</b>company · "how is the relationship?" · unchanged</div>
+          <div class="box core"><b>Consent &amp; preferences</b>per channel, per topic, per jurisdiction · checked at every send</div>
+          <div class="box core"><b>Journeys &amp; rules</b>one action list: send newsletter · WhatsApp · task · notify · field · audience · lead · deal</div>
+        </div>
+        <div class="frow">
+          <div class="box out"><b>Coverage</b>assigns the owner: team, then round-robin</div>
+          <div class="box out"><b>Nova</b>inbox "Ready for sales" · timeline lines · ⌘K New journey</div>
+          <div class="box out"><b>Pipeline</b>lead → deal keeps source, campaign, contact</div>
+          <div class="box out"><b>Invoices</b>paid → attribution closes the chain</div>
+          <div class="box out"><b>API &amp; webhooks</b>/api/v1/leads · /api/v1/events (push) · change feed</div>
+        </div>
+      </div>
+    </div>
+    <div class="card" style="margin-top:14px">
+      <h2>What the demo shows end to end <small>the impressive MVP</small></h2>
+      <table class="tbl"><thead><tr><th>Step</th><th>Where you see it</th></tr></thead><tbody>
+        <tr><td>1. The October newsletter (English + Arabic) is sent from the Studio</td><td>Campaign page: sent per language, clicks per link</td></tr>
+        <tr><td>2. Khalid at Gulf Precast clicks the HST4 anchors card</td><td>Contact timeline · engagement stream</td></tr>
+        <tr><td>3. His lead score goes 48 → 82, stage becomes Ready for sales</td><td>Leads list · Account 360 Marketing card · REST API</td></tr>
+        <tr><td>4. Coverage assigns Yousef (South Pod, next in turn), SLA 1 working day</td><td>Nova inbox "Ready for sales" · task on the lead</td></tr>
+        <tr><td>5. Yousef accepts and sends a Standard Quote</td><td>Quote-follow-up journey starts for Khalid</td></tr>
+        <tr><td>6. Not opened in 3 days → WhatsApp reminder in Arabic → no reply in 2 days → call task</td><td>Journey page · WhatsApp log · timeline</td></tr>
+        <tr><td>7. Quote accepted → deal won → invoice paid</td><td>Deal: "came from October newsletter" · report: revenue by campaign</td></tr>
+      </tbody></table>
+    </div>
+  </section>
+</div>
+
+<div class="walk" id="walk" role="dialog" aria-label="Show me how">
+  <h3 id="walkTitle"></h3><p id="walkText"></p>
+  <div class="nav"><span class="prog" id="walkProg"></span><span><button class="btn ghost sm" type="button" id="walkBack">Back</button> <button class="btn ghost sm" type="button" id="walkSkip">Skip</button> <button class="btn sm" type="button" id="walkNext">Next</button></span></div>
+</div>
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+(function () {
+  const $ = (s, r) => (r || document).querySelector(s);
+  const $$ = (s, r) => Array.from((r || document).querySelectorAll(s));
+  const toast = (t) => { const el = $('#toast'); el.textContent = t; el.classList.add('show'); clearTimeout(el._t); el._t = setTimeout(() => el.classList.remove('show'), 2400); };
+
+  /* Theme toggle (demo only; the product follows the workspace setting). */
+  const root = document.documentElement;
+  const themeBtn = $('#themeBtn');
+  const paintTheme = () => { const dark = root.getAttribute('data-theme') === 'dark' || (!root.getAttribute('data-theme') && matchMedia('(prefers-color-scheme: dark)').matches); themeBtn.textContent = dark ? 'Light' : 'Dark'; };
+  themeBtn.addEventListener('click', () => { const dark = root.getAttribute('data-theme') === 'dark' || (!root.getAttribute('data-theme') && matchMedia('(prefers-color-scheme: dark)').matches); root.setAttribute('data-theme', dark ? 'light' : 'dark'); paintTheme(); });
+  paintTheme();
+
+  /* More menu */
+  const menuBtn = $('#menuBtn'), menuList = $('#menuList');
+  menuBtn.addEventListener('click', () => { const open = menuList.hidden; menuList.hidden = !open; menuBtn.setAttribute('aria-expanded', String(open)); });
+  document.addEventListener('click', (e) => { if (!e.target.closest('.menu')) { menuList.hidden = true; menuBtn.setAttribute('aria-expanded', 'false'); } });
+
+  /* Tabs */
+  $$('.tab').forEach((t) => t.addEventListener('click', () => {
+    $$('.tab').forEach((x) => x.setAttribute('aria-selected', String(x === t)));
+    $$('.view').forEach((v) => v.classList.toggle('active', v.id === 'view-' + t.dataset.view));
+    const titles = { journey: 'Quote follow-up', leads: 'Leads', connect: 'How it connects' };
+    $('#title').textContent = $('#tpl').value === 'quote' || t.dataset.view !== 'journey' ? titles[t.dataset.view] : $('#tpl').selectedOptions[0].textContent;
+  }));
+
+  /* On a phone the panel sections start collapsed (layout rule). */
+  const collapseOnPhone = () => { if (innerWidth <= 900) $$('.ps').forEach((d) => d.removeAttribute('open')); else $$('.ps').forEach((d) => d.setAttribute('open', '')); };
+  collapseOnPhone();
+
+  /* ---------- Journey templates: steps as sentences ---------- */
+  const WAIT = (d) => `<span class="k">Wait</span> up to <input type="number" value="${d}" min="1" max="60"> days`;
+  const TEMPLATES = {
+    quote: { title: 'Quote follow-up', trig: 'quote.sent', aud: 'contact', who: 'People on a quote', when: 'A quote is sent', count: 47, why: 'people on quotes sent in the last 3 days that were not opened',
+      steps: [
+        { k: 'when', s: '<span class="k">When</span> a quote is sent to a person' },
+        { k: 'wait', s: '<span class="k">Wait</span> up to <input type="number" value="3" min="1" max="60"> days for them to <select><option>open the quote</option><option>reply</option><option>click any link</option></select>' },
+        { k: 'if', s: '<span class="k">If</span> they have <select><option>not opened it</option><option>opened it but not replied</option></select>', sub: [
+          { k: 'do', s: '<span class="k">Send WhatsApp</span> template <select><option>Quote reminder (English · العربية)</option><option>Quote reminder, short</option></select> in their language · <span class="link" data-prev="wa">preview</span>' },
+          { k: 'wait', s: WAIT(2) + ' for a reply' },
+          { k: 'do', s: '<span class="k">Create a task</span> "Call them about the quote" for <select><option>the quote\'s owner</option><option>the account owner</option><option>the South Pod team lead</option></select>, due in 1 day' },
+        ]},
+        { k: 'end', s: '<span class="k">End</span> — they answered, or a person has taken over' },
+      ]},
+    welcome: { title: 'New enquiry welcome', trig: 'form.submitted', aud: 'contact', who: 'People who filled in a form', when: 'Someone fills in a form', count: 6, why: 'people who sent the website enquiry form this week',
+      steps: [
+        { k: 'when', s: '<span class="k">When</span> someone fills in <select><option>Website enquiry form</option><option>Price list request</option></select>' },
+        { k: 'do', s: '<span class="k">Send newsletter</span> <select><option>Welcome to Al Noor (English · العربية)</option></select> · topic <select><option>New products</option><option>Offers</option></select>' },
+        { k: 'do', s: '<span class="k">Create a lead</span> if there is none, with the form as its source' },
+        { k: 'wait', s: WAIT(2) },
+        { k: 'if', s: '<span class="k">If</span> the lead score is at least <input type="number" value="60" min="0" max="100">', sub: [
+          { k: 'do', s: '<span class="k">Notify the owner</span> chosen by Coverage, with the top reasons for the score' },
+        ]},
+        { k: 'end', s: '<span class="k">End</span>' },
+      ]},
+    amc: { title: 'AMC renewal', trig: 'contract.expiring', aud: 'account', who: 'One person per company', when: 'An AMC contract is 60 days from expiry', count: 11, why: 'AMC contracts expiring in 60 days with no renewal quote yet',
+      steps: [
+        { k: 'when', s: '<span class="k">When</span> an AMC contract is <input type="number" value="60" min="7" max="180"> days from expiry' },
+        { k: 'do', s: '<span class="k">Send newsletter</span> <select><option>AMC renewal (English · العربية)</option></select> to the main contact · topic Service reminders' },
+        { k: 'wait', s: WAIT(10) + ' for a reply or a renewal quote' },
+        { k: 'if', s: '<span class="k">If</span> there is still no renewal quote', sub: [
+          { k: 'do', s: '<span class="k">Create a task</span> "Renewal call" for the service owner (Coverage · service), due in 2 days' },
+        ]},
+        { k: 'end', s: '<span class="k">End</span>' },
+      ]},
+    quiet: { title: 'Gone quiet', trig: 'quiet', aud: 'account', who: 'One person per company', when: 'Nobody at a company has done anything for 90 days', count: 23, why: 'customer companies with no activity for 90 days and no open case',
+      steps: [
+        { k: 'when', s: '<span class="k">When</span> nobody at a customer has done anything for <input type="number" value="90" min="30" max="365"> days' },
+        { k: 'do', s: '<span class="k">Send newsletter</span> <select><option>Still here for you (English)</option></select> · topic Offers' },
+        { k: 'wait', s: WAIT(14) },
+        { k: 'if', s: '<span class="k">If</span> they clicked anything', sub: [
+          { k: 'do', s: '<span class="k">Create a task</span> "Reconnect" for the account owner' },
+        ]},
+        { k: 'end', s: '<span class="k">End</span>' },
+      ]},
+    event: { title: 'After an event', trig: 'event.attended', aud: 'contact', who: 'People who attended', when: 'Someone attends an event', count: 0, why: 'people checked in at an event today',
+      steps: [
+        { k: 'when', s: '<span class="k">When</span> someone attends <select><option>Saudi Build 2026 — Riyadh stand</option><option>Any event</option></select>' },
+        { k: 'do', s: '<span class="k">Send newsletter</span> <select><option>Thank you for visiting (English · العربية)</option></select> in their language' },
+        { k: 'wait', s: WAIT(7) },
+        { k: 'if', s: '<span class="k">If</span> they clicked anything', sub: [
+          { k: 'do', s: '<span class="k">Create a task</span> "Follow up from the show" for the owner chosen by Coverage' },
+        ]},
+        { k: 'end', s: '<span class="k">End</span>' },
+      ]},
+    blank: { title: 'New journey', trig: 'manual', aud: 'contact', who: 'Choose…', when: 'Choose…', count: 0, why: 'no trigger chosen yet',
+      steps: [ { k: 'when', s: '<span class="k">When</span> … choose a start on the left' }, { k: 'end', s: '<span class="k">End</span>' } ] },
+  };
+
+  const stepsEl = $('#steps');
+  const renderStep = (st, i) => {
+    const lab = { when: 'When', wait: 'Wait', if: 'If', do: 'Do', end: 'End' }[st.k];
+    let html = `<div class="step ${st.k}"><div class="dot">${lab}</div><div><div class="sent">${st.s}</div>` +
+      (st.k !== 'when' && st.k !== 'end' ? `<div class="tools"><button type="button" data-act="up">↑ Move up</button><button type="button" data-act="down">↓ Move down</button><button type="button" data-act="rm">Remove</button></div>` : '') + `</div></div>`;
+    if (st.sub) html += `<div class="sub-steps">${st.sub.map(renderStep).join('')}</div>`;
+    return html;
+  };
+  const applyTemplate = (key) => {
+    const t = TEMPLATES[key];
+    stepsEl.innerHTML = t.steps.map(renderStep).join('');
+    $('#title').textContent = t.title; $('#sumStart').textContent = t.title;
+    $('#trig').value = t.trig; $('#aud').value = t.aud; $('#sumWho').textContent = t.who; $('#sumWhen').textContent = t.when;
+    $('#enterCount').textContent = t.count; $('#enterWhy').textContent = t.why;
+    $('#enterNames').style.display = t.count ? '' : 'none';
+    $('#trace').innerHTML = '';
+  };
+  $('#tpl').addEventListener('change', (e) => applyTemplate(e.target.value));
+  $('#trig').addEventListener('change', (e) => { $('#sumWhen').textContent = e.target.selectedOptions[0].textContent; toast('Step 1 updated'); });
+  $('#aud').addEventListener('change', (e) => { $('#sumWho').textContent = e.target.selectedOptions[0].textContent; });
+  applyTemplate('quote');
+
+  stepsEl.addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-act]'); const p = e.target.closest('.link');
+    if (p) { toast('Preview: "مرحباً خالد، نذكّركم بعرض السعر SQ-2026-0042 (SAR 184,500). هل نساعدكم؟" — rendered from the approved template'); return; }
+    if (!b) return;
+    const step = b.closest('.step'); const wrap = step.parentElement;
+    if (b.dataset.act === 'rm') { step.remove(); toast('Step removed'); }
+    if (b.dataset.act === 'up' && step.previousElementSibling) wrap.insertBefore(step, step.previousElementSibling);
+    if (b.dataset.act === 'down' && step.nextElementSibling) wrap.insertBefore(step.nextElementSibling, step);
+  });
+  $('#addStep').addEventListener('click', () => {
+    const end = stepsEl.querySelector('.step.end');
+    const n = document.createElement('div');
+    n.innerHTML = renderStep({ k: 'do', s: '<span class="k">Do</span> <select><option>Send newsletter…</option><option>Send WhatsApp…</option><option>Wait…</option><option>If…</option><option>Create a task…</option><option>Notify the owner…</option><option>Add to an audience…</option><option>Create a lead</option><option>Create a deal…</option><option>Ask a person to decide…</option></select>' });
+    stepsEl.insertBefore(n.firstElementChild, end);
+  });
+
+  /* Languages: English is the default; others are added on top. */
+  const langs = { ar: 'العربية', hi: 'हिन्दी', ur: 'اردو', fr: 'Français' };
+  $('#addLang').addEventListener('change', (e) => {
+    const v = e.target.value; if (!v) return;
+    const c = document.createElement('span'); c.className = 'chip a'; c.textContent = langs[v] + ' · check 3 messages'; $('#langChips').appendChild(c);
+    $('#sumLang').textContent = 'English + ' + ($$('#langChips .chip').length - 1); e.target.value = '';
+    toast('Added. Messages are translated by AI and marked for you to check, as in the Newsletter Studio.');
+  });
+
+  /* Try it on one person — the simulated path, with reasons. */
+  const PATHS = {
+    khalid: [
+      ['ok', 'Enters: quote SQ-2026-0042 (SAR 184,500) sent 4 days ago to Khalid Al-Rashid, Gulf Precast Co.'],
+      ['ok', 'Waited 3 days: the quote was not opened (no quote.opened event).'],
+      ['ok', 'Branch "not opened" → yes.'],
+      ['send', 'Would send WhatsApp "Quote reminder" in Arabic — consent for WhatsApp · Quotes: granted (form, 12 Sep). Quiet hours ok (Tue 10:20 Riyadh). Cap ok (0 this week).'],
+      ['ok', 'Waited 2 days: no reply, quote still not opened.'],
+      ['send', 'Would create task "Call Khalid Al-Rashid about SQ-2026-0042" for Yousef (quote owner), due tomorrow.'],
+      ['ok', 'End. 2 messages, 1 task. Nothing was sent — this is a simulation.'],
+    ],
+    fatima: [
+      ['ok', 'Enters: quote SQ-2026-0038 sent 1 day ago to Fatima Al-Zahrani, Riyadh Water Pumps.'],
+      ['stop', 'Waiting: quote.opened arrived 3 hours after sending → the wait ends early.'],
+      ['skip', 'Branch "not opened" → no. Nothing to send.'],
+      ['ok', 'End. She opened it; the Win tab on the deal shows the signal.'],
+    ],
+    omar: [
+      ['ok', 'Enters: quote SQ-2026-0041 sent 5 days ago to Omar Haddad, Al Khaleej HVAC Services (Doha).'],
+      ['ok', 'Waited 3 days: not opened.'],
+      ['stop', 'Send WhatsApp skipped: no WhatsApp consent on record (jurisdiction QA, basis required). Logged as email.skipped-style event "whatsapp.skipped · no consent".'],
+      ['send', 'Would create the task anyway: "Call Omar Haddad about SQ-2026-0041" for the quote owner.'],
+      ['ok', 'End.'],
+    ],
+    priya: [
+      ['ok', 'Enters: quote SQ-2026-0036 sent 6 days ago to Priya Nair, Jubail Steel Fabrication.'],
+      ['stop', 'Paused: the company has an invoice 12 days overdue (INV-0210). Promotional steps wait until it is settled; the task step still runs.'],
+      ['send', 'Would create task "Call Priya Nair about SQ-2026-0036" for the account owner.'],
+      ['ok', 'End.'],
+    ],
+  };
+  $('#tryBtn').addEventListener('click', () => {
+    const who = $('#tryWho').value; const icons = { ok: '✓', skip: '–', send: '→', stop: '!' };
+    $('#trace').innerHTML = PATHS[who].map(([k, t]) => `<div class="tr ${k}"><i>${icons[k]}</i><span>${t}</span></div>`).join('') +
+      (who === 'khalid' ? `<div class="preview" dir="rtl" lang="ar">مرحباً خالد، نذكّركم بعرض السعر SQ-2026-0042 بقيمة 184,500 ريال. هل تودّون مناقشته؟ — النور للتوريدات الصناعية</div>` : '');
+  });
+  $('#testMe').addEventListener('click', () => toast('Sent one test to you through the workspace email output (on a demo workspace it lands in the redirect inbox, stamped).'));
+
+  /* Turn on with a blast-radius check */
+  $('#turnOn').addEventListener('click', () => {
+    const on = $('#statusPill').textContent === 'On';
+    if (on) { $('#statusPill').textContent = 'Paused'; $('#statusPill').className = 'pill warn'; $('#turnOn').textContent = 'Turn on'; toast('Paused. People already in it wait; nothing is sent until you turn it on.'); return; }
+    const n = parseInt($('#enterCount').textContent, 10) || 0;
+    if (n && !confirm(`${n} people would enter within 5 minutes. Turn on?`)) return;
+    $('#statusPill').textContent = 'On'; $('#statusPill').className = 'pill on'; $('#turnOn').textContent = 'Pause'; toast('On. Runs within 5 minutes.');
+  });
+
+  /* ---------- Leads ---------- */
+  const LEADS = [
+    { id: 'khalid', name: 'Khalid Al-Rashid', co: 'Gulf Precast Co. · Dammam', score: 82, stage: 'ready', owner: 'Yousef', sla: 'Accept by Tue 10:00', src: 'A newsletter click',
+      factors: [[+10, 'Clicked "HST4 anchors" in the October newsletter (Arabic) · 2 days ago'], [+20, 'Opened quote SQ-2026-0042 · 4 days ago (faded from 20 → 16)', 16], [+15, 'Company in a buying cycle — Signals: "anchoring & fixing", 3 people active'], [+15, 'Industry: precast (your target list)'], [+10, 'Role: procurement manager'], [+5, 'Country: Saudi Arabia (GCC)'], [+0, 'No form, no event yet']],
+      conns: ['b|October newsletter → clicked', 'b|Quote SQ-2026-0042 opened', 't|Signals: in market', 'g|Coverage: South Pod → Yousef', 'm|Consent: email ✓ WhatsApp ✓'],
+      acts: [['Clicked HST4 anchors card', 'Newsletter Studio'], ['Opened quote SQ-2026-0042', 'Sales (public link)'], ['Signals: 3 people viewed anchors pages', 'Signals'], ['Consent for Offers granted', 'Website form']] },
+    { id: 'fatima', name: 'Fatima Al-Zahrani', co: 'Riyadh Water Pumps', score: 71, stage: 'ready', owner: 'Yousef', sla: 'Accept by Wed 09:00', src: 'A form on the website',
+      factors: [[+30, 'Sent the "Price list request" form · 1 day ago'], [+20, 'Opened quote SQ-2026-0038 · today'], [+10, 'Role: plant manager'], [+10, 'Account type: direct customer'], [+1, 'Opened the October newsletter (weak signal)']],
+      conns: ['b|Price list form → lead created', 'b|Quote SQ-2026-0038 opened', 'g|Coverage: South Pod → Yousef', 'm|Consent: email ✓'],
+      acts: [['Opened quote SQ-2026-0038', 'Sales'], ['Submitted Price list request', 'Forms'], ['Opened October newsletter', 'Newsletter Studio']] },
+    { id: 'omar', name: 'Omar Haddad', co: 'Al Khaleej HVAC Services · Doha', score: 64, stage: 'ready', owner: 'Maha', sla: 'Late by 3 hours', src: 'A quote they opened',
+      factors: [[+20, 'Opened quote SQ-2026-0041 twice · 5 days ago'], [+10, 'Clicked "Service plans" in the October newsletter'], [+15, 'Industry: HVAC services'], [+10, 'Role: operations manager'], [+9, 'Has an AMC with you']],
+      conns: ['b|Quote SQ-2026-0041 opened ×2', 'b|October newsletter → clicked', 'g|Coverage: Hospital Specialists → Maha', 'a|Consent: WhatsApp missing'],
+      acts: [['Opened quote SQ-2026-0041', 'Sales'], ['Clicked Service plans', 'Newsletter Studio'], ['AMC visit completed', 'Service']] },
+    { id: 'ahmed', name: 'Ahmed Siddiqui', co: 'Oman Cables Industry', score: 61, stage: 'ready', owner: 'Yousef', sla: 'Accept by Thu 11:00', src: 'An event',
+      factors: [[+40, 'Attended Saudi Build 2026 — your stand · 6 days ago (faded 40 → 37)', 37], [+10, 'Clicked "Thank you for visiting" → catalogue'], [+10, 'Role: purchasing'], [+5, 'Country: Oman (GCC)'], [-1, 'No company website activity']],
+      conns: ['b|Saudi Build 2026 → attended', 'b|Thank-you email → clicked', 'g|Coverage: South Pod → Yousef', 'm|Consent: email ✓ (event form)'],
+      acts: [['Checked in at Saudi Build stand', 'Events'], ['Clicked catalogue link', 'Newsletter Studio'], ['Registered for Saudi Build', 'Forms']] },
+    { id: 'priya', name: 'Priya Nair', co: 'Jubail Steel Fabrication', score: 38, stage: 'engaged', owner: '—', sla: '', src: 'A newsletter click',
+      factors: [[+10, 'Clicked "Offers" in the October newsletter · 9 days ago (faded 10 → 6)', 6], [+15, 'Industry: steel fabrication'], [+10, 'Role: engineer'], [+7, 'Has bought before'], [+0, 'Company has an overdue invoice — journeys pause promotional sends']],
+      conns: ['b|October newsletter → clicked', 'a|Invoice INV-0210 overdue 12 days', 'm|Consent: email ✓'],
+      acts: [['Clicked Offers', 'Newsletter Studio'], ['Invoice INV-0210 overdue', 'Finance']] },
+    { id: 'moh', name: 'Mohammed Al-Mansoori', co: 'Emirates Marine Works · Abu Dhabi', score: 22, stage: 'engaged', owner: '—', sla: '', src: 'An OEM referral',
+      factors: [[+12, 'Referred by Gulf Pumps OEM'], [+10, 'Role: maintenance head'], [+0, 'No clicks, no visits yet']],
+      conns: ['b|OEM referral → lead', 'm|Consent: not recorded (UAE)'],
+      acts: [['Lead created from OEM referral', 'Leads']] },
+  ];
+  const listEl = $('#leadList'); let stage = 'ready', selected = 'khalid';
+  const stageLabel = { new: 'New', engaged: 'Engaged', ready: 'Ready for sales', working: 'Working', deal: 'Deal', notnow: 'Not now' };
+  const renderLeads = () => {
+    const min = parseInt($('#minScore').value, 10) || 0; const src = $('#srcF').value;
+    const rows = LEADS.filter((l) => (stage === 'all' || l.stage === stage) && l.score >= min && (src === 'Anywhere' || l.src === src));
+    listEl.innerHTML = rows.length ? rows.map((l) => `<button class="lead" type="button" data-id="${l.id}" aria-pressed="${l.id === selected}">
+      <span><span class="n">${l.name}</span><br><span class="c">${l.co}</span></span>
+      <span class="c c2">${l.src} · ${l.owner === '—' ? 'unassigned' : 'owner ' + l.owner}</span>
+      <span class="score c2"><span class="bar" style="flex:1"><i style="width:${l.score}%"></i></span>${l.score}</span>
+      <span><span class="pill ${l.stage === 'ready' ? 'on' : l.stage === 'engaged' ? 'blue' : 'off'}">${stageLabel[l.stage]}</span></span>
+    </button>`).join('') : `<p class="help">No leads match. Lower the score, or pick another stage.</p>`;
+  };
+  const renderWhy = () => {
+    const l = LEADS.find((x) => x.id === selected); if (!l) return;
+    $('#whyName').textContent = l.name; $('#connName').textContent = l.name; $('#whyScore').textContent = l.score;
+    $('#whyLabel').textContent = stageLabel[l.stage]; $('#whyLabel').className = 'pill ' + (l.stage === 'ready' ? 'on' : 'blue'); $('#whySla').textContent = l.sla;
+    $('#factors').innerHTML = l.factors.map(([p, t, eff]) => { const v = eff != null ? eff : p; return `<div class="fa ${v > 0 ? 'pos' : v < 0 ? 'neg' : 'zero'}"><b>${v > 0 ? '+' : ''}${v}</b><span>${t}</span></div>`; }).join('') +
+      `<div class="fa zero"><b>= ${l.score}</b><span>Rubric v3 · recomputed from the stream, not an AI guess</span></div>`;
+    $('#connChips').innerHTML = l.conns.map((c) => { const [k, t] = c.split('|'); return `<span class="chip ${k}">${t}</span>`; }).join('');
+    $('#actRows').innerHTML = l.acts.map(([a, f]) => `<tr><td>${a}</td><td class="help">${f}</td></tr>`).join('');
+    $('#acceptBtn').style.display = l.stage === 'ready' ? '' : 'none';
+  };
+  listEl.addEventListener('click', (e) => { const b = e.target.closest('.lead'); if (!b) return; selected = b.dataset.id; renderLeads(); renderWhy(); });
+  $$('.stage').forEach((s) => s.addEventListener('click', () => { const same = s.getAttribute('aria-pressed') === 'true'; $$('.stage').forEach((x) => x.setAttribute('aria-pressed', 'false')); stage = same ? 'all' : s.dataset.stage; if (!same) s.setAttribute('aria-pressed', 'true'); renderLeads(); }));
+  ['#minScore', '#srcF', '#ownerF'].forEach((s) => $(s).addEventListener('input', renderLeads));
+  $('#acceptBtn').addEventListener('click', () => { const l = LEADS.find((x) => x.id === selected); l.stage = 'working'; l.sla = 'Accepted'; toast(`${l.name} is now Working. The SLA clock stops; the task stays on your inbox.`); renderLeads(); renderWhy(); });
+  renderLeads(); renderWhy();
+
+  /* ---------- Show me how (optional walkthrough; starts closed) ---------- */
+  const STEPS = [
+    { el: '#psStart', t: 'Start from a template', x: 'Pick a ready-made journey on the left. Everything on the right changes to match. You can edit any purple word afterwards.' },
+    { el: '#psWhen', t: 'Say when it starts', x: 'The start can come from Sales (a quote is sent), Service (an AMC is expiring), a form, an event, or Signals. Marketing is not an island.' },
+    { el: '#stepsCard', t: 'Read the steps as sentences', x: 'Wait, If, Send, Create a task. Change the purple words in place. Add a step with the button under the list.' },
+    { el: '#psRules', t: 'Safe by default', x: 'Consent is checked at every send. Quiet hours, weekly caps and "pause when the company is in trouble" are already on.' },
+    { el: '#tryCard', t: 'Try it on one person', x: 'Pick someone and see the exact path they would take and why — nothing is sent. Then send one test to yourself.' },
+    { el: '#turnOn', t: 'Turn it on', x: 'You see how many people would enter before it starts. Pause any time; people already inside simply wait.' },
+  ];
+  const walk = $('#walk'); let wi = 0;
+  const key = 'bq.walk.journeys';
+  const clearHl = () => $$('.hl').forEach((e) => e.classList.remove('hl'));
+  const showWalk = () => {
+    clearHl(); const s = STEPS[wi]; const el = $(s.el); if (el) { if (el.classList.contains('ps')) el.setAttribute('open', ''); el.classList.add('hl'); el.scrollIntoView({ block: 'center', behavior: 'smooth' }); }
+    $('#walkTitle').textContent = s.t; $('#walkText').textContent = s.x; $('#walkProg').textContent = `${wi + 1} of ${STEPS.length}`;
+    $('#walkBack').disabled = wi === 0; $('#walkNext').textContent = wi === STEPS.length - 1 ? 'Done' : 'Next';
+    walk.classList.add('open'); try { localStorage.setItem(key, String(wi)); } catch (e) {}
+  };
+  const closeWalk = () => { walk.classList.remove('open'); clearHl(); };
+  $('#howBtn').addEventListener('click', () => { $$('.tab')[0].click(); try { wi = Math.min(parseInt(localStorage.getItem(key) || '0', 10) || 0, STEPS.length - 1); } catch (e) { wi = 0; } showWalk(); });
+  $('#walkNext').addEventListener('click', () => { if (wi >= STEPS.length - 1) { closeWalk(); try { localStorage.removeItem(key); } catch (e) {} toast('That is the whole flow. "Show me how" is always here.'); return; } wi++; showWalk(); });
+  $('#walkBack').addEventListener('click', () => { if (wi > 0) { wi--; showWalk(); } });
+  $('#walkSkip').addEventListener('click', closeWalk);
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeWalk(); });
+})();
+</script>
+</body>
+</html>

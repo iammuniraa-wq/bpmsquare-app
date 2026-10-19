@@ -1,0 +1,565 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Buying Signals</title>
+<meta name="description" content="Mock-up for the BPMSquare Buying signals workspace: who is in market this week, why, and what to do next. Sample data only.">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+<style>
+/* Layout rule (owner 2026-10-19): options in a left panel, the workspace on the right; on a phone the panel collapses above the workspace. */
+:root {
+  --bg: #eef1f5; --surface: #ffffff; --surface2: #f6f8fb; --line: #dde3ea; --ink: #17212e; --muted: #5d6b7c;
+  --accent: #0e7c86; --accent-ink: #ffffff; --accent-bg: #e1f3f4;
+  --warn: #9a5a0b; --warn-bg: #fdf0dc; --good: #1d7a45; --good-bg: #e3f4ea; --bad: #b3402f; --bad-bg: #fbe7e3;
+  --purple: #5b55b8; --purple-bg: #ecebfb;
+  --font: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --shadow: 0 8px 24px rgba(15,30,45,.14);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0d141d; --surface: #16202c; --surface2: #1b2735; --line: #2a3849; --ink: #e7edf4; --muted: #93a2b5;
+    --accent: #3fb8c2; --accent-ink: #06191b; --accent-bg: #123238;
+    --warn: #f0b266; --warn-bg: #3a2a14; --good: #62c58b; --good-bg: #14301f; --bad: #e58a7c; --bad-bg: #3d1f1a;
+    --purple: #a9a3f0; --purple-bg: #2a2850; --shadow: 0 8px 24px rgba(0,0,0,.5); color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0d141d; --surface: #16202c; --surface2: #1b2735; --line: #2a3849; --ink: #e7edf4; --muted: #93a2b5;
+  --accent: #3fb8c2; --accent-ink: #06191b; --accent-bg: #123238;
+  --warn: #f0b266; --warn-bg: #3a2a14; --good: #62c58b; --good-bg: #14301f; --bad: #e58a7c; --bad-bg: #3d1f1a;
+  --purple: #a9a3f0; --purple-bg: #2a2850; --shadow: 0 8px 24px rgba(0,0,0,.5); color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--font); font-size: 14px; line-height: 1.5;
+  padding-inline: max(16px, env(safe-area-inset-left, 0px)) max(16px, env(safe-area-inset-right, 0px)); padding-block: 18px 44px; }
+.wrap { max-width: 1180px; margin: 0 auto; display: grid; gap: 12px; }
+h1 { font-size: 22px; font-weight: 700; line-height: 1.25; margin: 0; }
+h2 { font-size: 15px; font-weight: 700; margin: 0 0 8px; }
+h3 { font-size: 13px; font-weight: 700; margin: 0 0 4px; }
+.sub { color: var(--muted); margin: 2px 0 0; }
+.head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 10px 16px; align-items: flex-start; }
+.head .acts { display: flex; gap: 8px; align-items: center; }
+.banner { background: var(--warn-bg); color: var(--warn); border-radius: 9px; padding: 8px 12px; font-size: 13px; font-weight: 500; }
+.btn { font: inherit; font-weight: 600; font-size: 13px; background: var(--accent); color: var(--accent-ink); border: 0; padding: 8px 14px; border-radius: 8px; cursor: pointer; white-space: nowrap; }
+.btn.ghost { background: transparent; color: var(--ink); border: 1px solid var(--line); }
+.btn.quiet { background: transparent; color: var(--accent); border: 0; padding: 4px 6px; }
+.btn.sm { padding: 5px 10px; font-size: 12px; }
+.btn:focus-visible, input:focus-visible, select:focus-visible, summary:focus-visible, .row:focus-visible, .chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 14px; }
+.pill { display: inline-block; font-size: 11px; font-weight: 600; padding: 2px 9px; border-radius: 999px; background: var(--surface2); color: var(--muted); white-space: nowrap; }
+.pill.deciding { background: var(--good-bg); color: var(--good); }
+.pill.comparing { background: var(--accent-bg); color: var(--accent); }
+.pill.looking { background: var(--warn-bg); color: var(--warn); }
+.pill.quiet { background: var(--surface2); color: var(--muted); }
+.src { display: inline-block; font-size: 10.5px; font-weight: 600; padding: 1px 7px; border-radius: 6px; background: var(--surface2); color: var(--muted); border: 1px solid var(--line); white-space: nowrap; }
+.src.ai { background: var(--purple-bg); color: var(--purple); border-color: transparent; }
+.src.neg { background: var(--bad-bg); color: var(--bad); border-color: transparent; }
+
+/* Studio layout */
+.studio { display: grid; grid-template-columns: 290px minmax(0, 1fr); gap: 14px; align-items: start; }
+.panel { position: sticky; top: 12px; display: grid; gap: 12px; }
+.panel .card { padding: 12px 14px; }
+.opt { margin-bottom: 12px; }
+.opt:last-child { margin-bottom: 0; }
+.opt label, .opt .lab { font-size: 13px; font-weight: 600; display: block; }
+.opt .hint { font-size: 12px; color: var(--muted); margin: 1px 0 6px; }
+/* Owner rule: every option group collapses; the one in use starts open. */
+.ohead { width: 100%; display: grid; grid-template-columns: minmax(0,1fr) 18px; gap: 8px; align-items: start; text-align: left; font: inherit; background: none; border: 0; padding: 6px 0; cursor: pointer; color: var(--ink); border-radius: 6px; }
+.ohead .lab { font-size: 13px; font-weight: 600; }
+.ohead .hint { margin: 0; }
+.ohead .chev { width: 18px; height: 18px; color: var(--muted); transition: transform .15s; margin-top: 2px; }
+.ohead[aria-expanded="true"] .chev { transform: rotate(180deg); }
+.ohead .val { font-size: 12px; color: var(--accent); font-weight: 600; }
+.obody { padding: 2px 0 8px; }
+.obody[hidden] { display: none; }
+.opt + .opt { border-top: 1px solid var(--line); }
+@media (prefers-reduced-motion: reduce) { .ohead .chev { transition: none; } }
+.opt select, .opt input[type=text] { width: 100%; font: inherit; padding: 7px 9px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink); }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { font: inherit; font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); cursor: pointer; }
+.chip[aria-pressed="true"] { background: var(--accent-bg); color: var(--accent); border-color: var(--accent); }
+.chip .n { color: var(--muted); font-weight: 500; margin-left: 4px; }
+.toggle { display: flex; gap: 8px; align-items: flex-start; }
+.toggle input { margin-top: 3px; accent-color: var(--accent); }
+.moved { font-size: 12.5px; color: var(--muted); }
+.moved b { color: var(--ink); }
+.panel summary { display: none; }
+@media (max-width: 900px) {
+  .studio { grid-template-columns: 1fr; }
+  .panel { position: static; }
+  .panel details { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; }
+  .panel details > summary { display: flex; justify-content: space-between; cursor: pointer; padding: 11px 14px; font-weight: 700; font-size: 13.5px; list-style: none; }
+  .panel details > summary::-webkit-details-marker { display: none; }
+  .panel details > summary::after { content: "+"; color: var(--muted); }
+  .panel details[open] > summary::after { content: "–"; }
+  .panel details .card { border: 0; border-top: 1px solid var(--line); border-radius: 0; }
+}
+
+/* Workspace */
+.ws { display: grid; gap: 12px; min-width: 0; }
+.ws-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px; }
+.ws-head h2 { margin: 0; font-size: 16px; }
+.search { font: inherit; padding: 7px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink); min-width: 180px; }
+.tbl { display: grid; gap: 0; }
+.row { display: grid; grid-template-columns: minmax(170px, 1.3fr) 100px 110px minmax(200px, 2fr) 90px 110px; gap: 10px; align-items: center; padding: 10px 12px; border-top: 1px solid var(--line); cursor: pointer; }
+.row.hd { border-top: 0; cursor: default; padding-bottom: 6px; }
+.row.hd span { font-size: 11px; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+.row:not(.hd):hover { background: var(--surface2); }
+.acct b { display: block; font-weight: 600; }
+.acct small { color: var(--muted); font-size: 12px; }
+.score { display: flex; align-items: center; gap: 8px; font-variant-numeric: tabular-nums; font-weight: 700; }
+.bar { flex: 1; height: 6px; border-radius: 4px; background: var(--line); overflow: hidden; }
+.bar i { display: block; height: 100%; background: var(--accent); }
+.why { font-size: 12.5px; display: grid; gap: 3px; }
+.why div { display: flex; gap: 6px; align-items: baseline; }
+.owner { font-size: 12.5px; color: var(--muted); }
+.next { display: flex; gap: 4px; align-items: center; justify-content: flex-end; }
+.next .btn.ghost { padding: 5px 10px; font-size: 12px; }
+.row .m { display: none; }
+@media (max-width: 780px) {
+  .row { grid-template-columns: 1fr auto; grid-template-areas: "a s" "w w" "n n"; padding: 12px 10px; }
+  .row.hd { display: none; }
+  .row .acct { grid-area: a; } .row .stage { grid-area: s; justify-self: end; } .row .score { grid-area: s; display: none; }
+  .row .why { grid-area: w; } .row .owner { display: none; } .row .next { grid-area: n; justify-content: space-between; }
+  .row .m { display: inline; font-weight: 700; font-variant-numeric: tabular-nums; }
+}
+.empty { text-align: center; padding: 28px 14px; color: var(--muted); }
+.empty b { display: block; color: var(--ink); margin-bottom: 4px; }
+
+/* Account view */
+.back { font-size: 13px; color: var(--accent); background: none; border: 0; padding: 0; cursor: pointer; font-weight: 600; }
+.two { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(260px, 1fr); gap: 12px; align-items: start; }
+@media (max-width: 900px) { .two { grid-template-columns: 1fr; } }
+.scorebig { display: flex; align-items: baseline; gap: 10px; }
+.scorebig b { font-size: 36px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1; }
+.health { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
+.health div { background: var(--surface2); border-radius: 9px; padding: 8px 10px; }
+.health b { display: block; font-size: 15px; font-variant-numeric: tabular-nums; }
+.health span { font-size: 12px; color: var(--muted); }
+details.plain { border: 1px solid var(--line); border-radius: 10px; background: var(--surface); margin-top: 10px; }
+details.plain > summary { cursor: pointer; padding: 9px 12px; font-weight: 600; font-size: 13px; list-style: none; display: flex; justify-content: space-between; }
+details.plain > summary::-webkit-details-marker { display: none; }
+details.plain > summary::after { content: "+"; color: var(--muted); font-weight: 500; }
+details.plain[open] > summary::after { content: "–"; }
+details.plain .in { padding: 0 12px 10px; }
+.fac { display: grid; grid-template-columns: 1fr auto; gap: 8px; padding: 6px 0; border-top: 1px solid var(--line); font-size: 13px; }
+.fac:first-child { border-top: 0; }
+.fac small { display: block; color: var(--muted); font-size: 12px; }
+.fac b { font-variant-numeric: tabular-nums; }
+.fac.grp { font-weight: 700; background: var(--surface2); margin: 6px -12px 0; padding: 6px 12px; }
+.aisum { background: var(--purple-bg); color: var(--ink); border-radius: 9px; padding: 9px 12px; font-size: 13px; margin-top: 10px; }
+.aisum small { display: block; color: var(--purple); font-weight: 600; font-size: 11px; margin-bottom: 2px; }
+.tl { display: grid; gap: 0; }
+.ev { display: grid; grid-template-columns: 54px minmax(0, 1fr) auto; gap: 10px; padding: 9px 0; border-top: 1px solid var(--line); font-size: 13px; }
+.ev:first-child { border-top: 0; }
+.ev .d { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.ev .t a { color: var(--accent); text-decoration: none; }
+.ev .t small { display: block; color: var(--muted); font-size: 12px; }
+.ev .p { font-weight: 700; font-variant-numeric: tabular-nums; }
+.ev .p.neg { color: var(--bad); }
+.actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+
+/* Did it work */
+.kpis { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 8px; margin: 8px 0; }
+.kpis div { background: var(--surface2); border-radius: 9px; padding: 8px 10px; }
+.kpis b { display: block; font-size: 18px; font-variant-numeric: tabular-nums; }
+.kpis span { font-size: 12px; color: var(--muted); }
+.mv { display: grid; grid-template-columns: minmax(150px,1fr) 160px minmax(180px,2fr); gap: 10px; padding: 8px 0; border-top: 1px solid var(--line); font-size: 13px; align-items: center; }
+.mv.hd { border-top: 0; font-size: 11px; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+@media (max-width: 780px) { .mv { grid-template-columns: 1fr; gap: 3px; } .mv.hd { display: none; } .kpis { grid-template-columns: 1fr 1fr; } }
+.arrow { color: var(--muted); }
+
+/* Check these */
+.q { display: grid; gap: 8px; }
+.q .card h3 { margin-bottom: 2px; }
+.guess { background: var(--surface2); border-radius: 8px; padding: 7px 10px; font-size: 12.5px; margin-top: 6px; }
+
+/* Topics */
+.trow { display: grid; grid-template-columns: minmax(120px,1fr) minmax(160px,2fr) 70px 40px; gap: 10px; align-items: center; padding: 8px 0; border-top: 1px solid var(--line); font-size: 13px; }
+.trow.hd { border-top: 0; font-size: 11px; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+.trow small { color: var(--muted); display: block; }
+@media (max-width: 780px) { .trow { grid-template-columns: 1fr auto; } .trow .kw { grid-column: 1 / -1; } .trow.hd { display: none; } }
+
+/* Walkthrough */
+.tour { position: fixed; z-index: 20; inset: auto 16px 16px 16px; max-width: 360px; margin-inline: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 14px; box-shadow: var(--shadow); }
+.tour[hidden] { display: none; }
+.tour .step { font-size: 11px; color: var(--muted); font-weight: 600; letter-spacing: .04em; text-transform: uppercase; }
+.tour p { margin: 4px 0 10px; font-size: 13.5px; }
+.tour .nav { display: flex; gap: 8px; justify-content: space-between; align-items: center; }
+.tour .nav div { display: flex; gap: 6px; }
+.hl { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 8px; transition: outline-color .2s; }
+@media (prefers-reduced-motion: reduce) { .hl { transition: none; } }
+.menu { position: relative; display: inline-block; }
+.menu ul { position: absolute; right: 0; top: 38px; z-index: 5; list-style: none; margin: 0; padding: 6px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; min-width: 220px; box-shadow: var(--shadow); }
+.menu li { padding: 8px 10px; border-radius: 7px; cursor: default; font-size: 13px; }
+.menu li:hover { background: var(--accent-bg); }
+.menu li.danger { color: var(--bad); }
+.themebtn { font-size: 12px; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="head">
+    <div>
+      <h1>Who is in market</h1>
+      <p class="sub">Buying signals · <span id="count">14 accounts</span> this week · Marketing</p>
+    </div>
+    <div class="acts">
+      <button class="btn ghost themebtn" type="button" id="themeBtn" aria-label="Toggle light or dark">Dark</button>
+      <div class="menu"><button class="btn ghost" id="menuBtn" type="button" aria-haspopup="true" aria-expanded="false">⋯</button>
+        <ul id="menuList" hidden><li>Export this list</li><li>Settings → Buying signals</li><li>Rescore now (admin)</li></ul></div>
+      <button class="btn" type="button" data-go="topics">+ New topic</button>
+    </div>
+  </div>
+  <div class="banner">Sample data. Companies, tenders and articles here are made up to show the flow; nothing is live.</div>
+
+  <div class="studio">
+    <!-- LEFT: options -->
+    <aside class="panel" aria-label="Options">
+      <details open id="optWrap"><summary>Options</summary>
+      <div class="card" id="opts">
+        <div class="opt" id="o-stage">
+  <button class="ohead" type="button" aria-expanded="true" aria-controls="o-stage-b"><span><span class="lab">Show <span class="val">All</span></span><span class="hint">Stage is how close to buying they look, from their own actions and the market.</span></span><svg class="chev" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M5 8l5 5 5-5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+  <div class="obody" id="o-stage-b"><div class="chips" role="group" aria-label="Stage">
+            <button class="chip" aria-pressed="true" data-f="all">All<span class="n">14</span></button>
+            <button class="chip" aria-pressed="false" data-f="deciding">Deciding<span class="n">3</span></button>
+            <button class="chip" aria-pressed="false" data-f="comparing">Comparing<span class="n">5</span></button>
+            <button class="chip" aria-pressed="false" data-f="looking">Looking<span class="n">6</span></button>
+            <button class="chip" aria-pressed="false" data-f="new">New this week<span class="n">4</span></button>
+          </div></div>
+</div>
+        <div class="opt" id="o-topic">
+  <button class="ohead" type="button" aria-expanded="false" aria-controls="o-topic-b"><span><span class="lab">Topic <span class="val">All topics</span></span><span class="hint">The subjects you sell. We watch news and tenders for each one.</span></span><svg class="chev" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M5 8l5 5 5-5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+  <div class="obody" id="o-topic-b" hidden><label for="topic" class="sr">Topic</label><select id="topic"><option>All topics</option><option>Precast</option><option>HVAC maintenance</option><option>Fire safety</option></select></div>
+</div>
+        <div class="opt" id="o-owner">
+  <button class="ohead" type="button" aria-expanded="false" aria-controls="o-owner-b"><span><span class="lab">Owner <span class="val">Everyone</span></span><span class="hint">Who looks after the account, from Coverage.</span></span><svg class="chev" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M5 8l5 5 5-5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+  <div class="obody" id="o-owner-b" hidden><select id="owner" aria-label="Owner"><option>Everyone</option><option>Faisal</option><option>Reem</option><option>Unassigned</option></select></div>
+</div>
+        <div class="opt" id="o-src">
+  <button class="ohead" type="button" aria-expanded="false" aria-controls="o-src-b"><span><span class="lab">Source <span class="val">Any</span></span><span class="hint">Where the signals came from: your quotes and campaigns, the news, tenders, your website.</span></span><svg class="chev" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M5 8l5 5 5-5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+  <div class="obody" id="o-src-b" hidden><select id="srcf" aria-label="Source"><option>Any source</option><option>Quotes &amp; RFQs</option><option>Campaigns &amp; newsletters</option><option>News</option><option>Tenders</option><option>Website</option><option>Cases &amp; contracts</option></select></div>
+</div>
+        <div class="opt" id="o-win">
+  <button class="ohead" type="button" aria-expanded="false" aria-controls="o-win-b"><span><span class="lab">Time window <span class="val">30 days</span></span><span class="hint">Signals fade: full for 14 days, half for the next 14, gone after 60.</span></span><svg class="chev" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M5 8l5 5 5-5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+  <div class="obody" id="o-win-b" hidden><select id="win" aria-label="Time window"><option>Last 30 days</option><option>Last 7 days</option><option>Last 60 days</option></select></div>
+</div>
+        <div class="opt" id="o-nim">
+  <button class="ohead" type="button" aria-expanded="false" aria-controls="o-nim-b"><span><span class="lab">Not in market <span class="val">Hidden</span></span><span class="hint">Someone on your team said these are not buying. Normally hidden for 30 days.</span></span><svg class="chev" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M5 8l5 5 5-5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+  <div class="obody" id="o-nim-b" hidden><label class="toggle"><input type="checkbox"> <span>Include accounts marked "not in market"</span></label></div>
+</div>
+      </div>
+      <div class="card">
+        <div class="moved"><b>Marketing moved 19 accounts</b> up a stage in the last 30 days. <button class="btn quiet sm" type="button" data-go="work">See how</button></div>
+      </div>
+      <div class="card">
+        <button class="btn ghost" type="button" id="tourBtn" style="width:100%">Show me how</button>
+        <div class="hint" style="font-size:12px;color:var(--muted);margin-top:6px">A short walkthrough of this screen. Optional.</div>
+        <button class="btn quiet sm" type="button" data-go="check" style="margin-top:6px">Check these (3)</button>
+      </div>
+      </details>
+    </aside>
+
+    <!-- RIGHT: workspace -->
+    <main class="ws" id="ws">
+
+      <!-- VIEW: list -->
+      <section data-view="list">
+        <div class="ws-head">
+          <h2>This week</h2>
+          <input class="search" type="search" placeholder="Search accounts" aria-label="Search accounts">
+        </div>
+        <div class="card" style="padding:4px 0 0" id="list">
+          <div class="row hd"><span>Account</span><span>Stage</span><span>Score</span><span>Why</span><span>Owner</span><span style="text-align:right">Next step</span></div>
+
+          <div class="row" data-stage="deciding" data-new="0" tabindex="0" data-open="najd">
+            <div class="acct"><b>Najd Precast Co.</b><small>Riyadh · Precast · Customer since 2024</small></div>
+            <div class="stage"><span class="pill deciding">Deciding</span> <span class="m">82</span></div>
+            <div class="score">82<div class="bar"><i style="width:82%"></i></div></div>
+            <div class="why"><div><span class="src">Quotes</span>Opened quote QT-2026-0142 twice</div><div><span class="src">Tenders</span>Riyadh Municipality tender on precast walls closes 28 Oct</div></div>
+            <div class="owner">Faisal</div>
+            <div class="next"><button class="btn ghost" type="button">Call</button><button class="btn ghost" type="button" aria-label="More">⋯</button></div>
+          </div>
+
+          <div class="row" data-stage="deciding" data-new="1" tabindex="0" data-open="eastern">
+            <div class="acct"><b>Eastern Province Readymix</b><small>Dammam · Precast · Prospect</small></div>
+            <div class="stage"><span class="pill deciding">Deciding</span> <span class="m">71</span></div>
+            <div class="score">71<div class="bar"><i style="width:71%"></i></div></div>
+            <div class="why"><div><span class="src">RFQs</span>Asked for a price on 14 Oct (EST-0031)</div><div><span class="src">Newsletters</span>Clicked "Boundary walls" in the October issue</div></div>
+            <div class="owner">Reem</div>
+            <div class="next"><button class="btn ghost" type="button">Call</button><button class="btn ghost" type="button" aria-label="More">⋯</button></div>
+          </div>
+
+          <div class="row" data-stage="deciding" data-new="0" tabindex="0">
+            <div class="acct"><b>Tabuk Infrastructure Contracting</b><small>Tabuk · Precast · Customer</small></div>
+            <div class="stage"><span class="pill deciding">Deciding</span> <span class="m">66</span></div>
+            <div class="score">66<div class="bar"><i style="width:66%"></i></div></div>
+            <div class="why"><div><span class="src">Contracts</span>AMC ends 30 Nov</div><div><span class="src ai">News</span>Awarded a housing package near Tabuk (Saudi Gazette, 9 Oct)</div></div>
+            <div class="owner">Faisal</div>
+            <div class="next"><button class="btn ghost" type="button">Call</button><button class="btn ghost" type="button" aria-label="More">⋯</button></div>
+          </div>
+
+          <div class="row" data-stage="comparing" data-new="1" tabindex="0">
+            <div class="acct"><b>Al Khobar Industrial Valves</b><small>Al Khobar · HVAC maintenance · Prospect</small></div>
+            <div class="stage"><span class="pill comparing">Comparing</span> <span class="m">52</span></div>
+            <div class="score">52<div class="bar"><i style="width:52%"></i></div></div>
+            <div class="why"><div><span class="src">Website</span>Visited the chillers page on 2 days</div><div><span class="src">Campaigns</span>Said they're interested (lead created)</div></div>
+            <div class="owner">Reem</div>
+            <div class="next"><button class="btn ghost" type="button">Start a quote</button><button class="btn ghost" type="button" aria-label="More">⋯</button></div>
+          </div>
+
+          <div class="row" data-stage="comparing" data-new="0" tabindex="0">
+            <div class="acct"><b>Red Sea Marine Works</b><small>Jeddah · Fire safety · Customer</small></div>
+            <div class="stage"><span class="pill comparing">Comparing</span> <span class="m">47</span></div>
+            <div class="score">47<div class="bar"><i style="width:47%"></i></div></div>
+            <div class="why"><div><span class="src">Cases</span>Third breakdown of pump P-12 since July</div><div><span class="src">Quotes</span>Quote QT-2026-0119 open for 18 days</div></div>
+            <div class="owner">Faisal</div>
+            <div class="next"><button class="btn ghost" type="button">Call</button><button class="btn ghost" type="button" aria-label="More">⋯</button></div>
+          </div>
+
+          <div class="row" data-stage="comparing" data-new="1" tabindex="0">
+            <div class="acct"><b>Qassim Agricultural Machinery</b><small>Buraydah · HVAC maintenance · Prospect</small></div>
+            <div class="stage"><span class="pill comparing">Comparing</span> <span class="m">44</span></div>
+            <div class="score">44<div class="bar"><i style="width:44%"></i></div></div>
+            <div class="why"><div><span class="src ai">Tenders</span>Cold-store ventilation tender published, closes 5 Nov (Etimad)</div><div><span class="src">Newsletters</span>Clicked "Service plans"</div></div>
+            <div class="owner">Unassigned</div>
+            <div class="next"><button class="btn ghost" type="button">Start a quote</button><button class="btn ghost" type="button" aria-label="More">⋯</button></div>
+          </div>
+
+          <div class="row" data-stage="looking" data-new="0" tabindex="0">
+            <div class="acct"><b>Jeddah Cold Chain Logistics</b><small>Jeddah · HVAC maintenance · Customer</small></div>
+            <div class="stage"><span class="pill looking">Looking</span> <span class="m">28</span></div>
+            <div class="score">28<div class="bar"><i style="width:28%"></i></div></div>
+            <div class="why"><div><span class="src ai">Jobs</span>Hiring a refrigeration maintenance supervisor</div><div><span class="src">Newsletters</span>Clicked "Service plans" (half, 20 days old)</div></div>
+            <div class="owner">Reem</div>
+            <div class="next"><button class="btn ghost" type="button">Add to campaign</button><button class="btn ghost" type="button" aria-label="More">⋯</button></div>
+          </div>
+
+          <div class="row" data-stage="looking" data-new="1" tabindex="0">
+            <div class="acct"><b>Hail Steel Fabrication</b><small>Hail · Fire safety · Prospect</small></div>
+            <div class="stage"><span class="pill looking">Looking</span> <span class="m">19</span></div>
+            <div class="score">19<div class="bar"><i style="width:19%"></i></div></div>
+            <div class="why"><div><span class="src ai">News</span>New workshop opening in Hail industrial city (Argaam, 15 Oct)</div><div><span class="src">Campaigns</span>Clicked "Fire doors"</div></div>
+            <div class="owner">Unassigned</div>
+            <div class="next"><button class="btn ghost" type="button">Add to campaign</button><button class="btn ghost" type="button" aria-label="More">⋯</button></div>
+          </div>
+
+          <div class="row" data-stage="looking" data-new="0" tabindex="0">
+            <div class="acct"><b>Yanbu Petrochem Services</b><small>Yanbu · Fire safety · Customer</small></div>
+            <div class="stage"><span class="pill looking">Looking</span> <span class="m">16</span></div>
+            <div class="score">16<div class="bar"><i style="width:16%"></i></div></div>
+            <div class="why"><div><span class="src">Website</span>Visited the sprinklers page</div><div><span class="src neg">Campaigns</span>Unsubscribed on 3 Oct</div></div>
+            <div class="owner">Faisal</div>
+            <div class="next"><button class="btn ghost" type="button">Add to campaign</button><button class="btn ghost" type="button" aria-label="More">⋯</button></div>
+          </div>
+        </div>
+        <div class="empty card" id="emptyFiltered" hidden><b>Nothing here</b>Change the stage or the topic on the left.</div>
+        <div class="empty card" id="emptyDay1" hidden><b>No signals yet</b>Signals appear as your team sends quotes and campaigns, and as news and tenders mention your accounts. Add a topic to start watching news and tenders today.<div style="margin-top:10px"><button class="btn" type="button" data-go="topics">+ New topic</button></div></div>
+        <p class="sub" style="font-size:12px">Showing 9 of 14 · <button class="btn quiet sm" type="button" id="showEmpty">See the day-one empty state</button></p>
+      </section>
+
+      <!-- VIEW: account -->
+      <section data-view="account" hidden>
+        <button class="back" type="button" data-go="list">← All accounts</button>
+        <div class="ws-head" style="margin-top:6px">
+          <div><h2 id="accName">Najd Precast Co.</h2><p class="sub" style="font-size:12.5px">Riyadh · Precast · Owner Faisal · <a href="#" style="color:var(--accent)">Open account</a></p></div>
+          <div class="actions" style="margin:0"><button class="btn" type="button">Call Khalid Al-Harbi</button><button class="btn ghost" type="button">Create deal</button><button class="btn ghost" type="button">Add to segment</button><button class="btn ghost" type="button">⋯</button></div>
+        </div>
+        <div class="two">
+          <div>
+            <div class="card">
+              <div class="scorebig"><b>82</b><span class="pill deciding">Deciding</span><span class="sub" style="font-size:12.5px">In-market score · last signal yesterday</span></div>
+              <div class="health">
+                <div><b>Healthy · A</b><span>Account health (relationship) — a different question, shown side by side</span></div>
+                <div><b>↑ from Comparing</b><span>Moved up on 12 Oct when the quote was opened</span></div>
+              </div>
+              <div class="aisum"><small>Summary by AI — the score is not</small>Najd Precast opened your quotation twice this week and the municipality tender it is likely bidding on closes in nine days. The timing suggests they are deciding now; a call before the tender deadline is the obvious move.</div>
+              <details class="plain" id="working"><summary>How this score is worked out <span style="color:var(--muted);font-weight:500">82 of 100</span></summary>
+                <div class="in">
+                  <div class="fac grp"><span>They asked us</span><b>35 / 40</b></div>
+                  <div class="fac"><span>Quote QT-2026-0142 sent, awaiting decision<small>Open for 9 days</small></span><b>10</b></div>
+                  <div class="fac"><span>Asked for a quote on 2 Oct<small>Inquiry via email, estimate EST-0027 (full, 17 days old)</small></span><b>25</b></div>
+                  <div class="fac grp"><span>They responded</span><b>22 / 25</b></div>
+                  <div class="fac"><span>Opened the quote link twice<small>12 Oct and 15 Oct</small></span><b>16</b></div>
+                  <div class="fac"><span>Clicked "Precast walls" in the October newsletter<small>Topic Precast, 8 Oct</small></span><b>6</b></div>
+                  <div class="fac grp"><span>They are moving</span><b>20 / 20</b></div>
+                  <div class="fac"><span>Tender: Riyadh Municipality — precast boundary walls, closes 28 Oct<small>Etimad · classified by AI as Precast (confidence 0.91) · issuer is a related party, Najd is the named contractor</small></span><b>8</b></div>
+                  <div class="fac"><span>Won a SAR 120 m housing package<small>Arab News, 9 Oct · classified by AI as Precast</small></span><b>8</b></div>
+                  <div class="fac"><span>Hiring 3 precast QC engineers<small>Job posting, 11 Oct (capped: group full)</small></span><b>4</b></div>
+                  <div class="fac grp"><span>They visited</span><b>5 / 15</b></div>
+                  <div class="fac"><span>Visited /precast-walls<small>From the newsletter link, with consent · 8 Oct</small></span><b>5</b></div>
+                  <p class="sub" style="font-size:12px;margin-top:8px">Stage rule: score 65 or more and they asked us in the last 30 days → Deciding. Points fade: full for 14 days, half for the next 14, gone after 60.</p>
+                </div>
+              </details>
+            </div>
+          </div>
+          <div>
+            <div class="card">
+              <h3>Signals</h3>
+              <div class="tl">
+                <div class="ev"><span class="d">15 Oct</span><span class="t"><span class="src">Quotes</span> Opened quote <a href="#">QT-2026-0142</a><small>Public link, second time</small></span><span class="p">+8</span></div>
+                <div class="ev"><span class="d">12 Oct</span><span class="t"><span class="src">Quotes</span> Opened quote <a href="#">QT-2026-0142</a></span><span class="p">+8</span></div>
+                <div class="ev"><span class="d">11 Oct</span><span class="t"><span class="src ai">Jobs</span> Hiring 3 precast QC engineers<small><a href="#">Posting</a> · why: role matches topic Precast</small></span><span class="p">+4</span></div>
+                <div class="ev"><span class="d">10 Oct</span><span class="t"><span class="src ai">Tenders</span> Riyadh Municipality — precast boundary walls, closes 28 Oct<small><a href="#">Etimad listing</a> · why: title matches "precast", "boundary wall"</small></span><span class="p">+8</span></div>
+                <div class="ev"><span class="d">9 Oct</span><span class="t"><span class="src ai">News</span> Won a SAR 120 m housing package<small><a href="#">Arab News</a> · why: project award, named company</small></span><span class="p">+8</span></div>
+                <div class="ev"><span class="d">8 Oct</span><span class="t"><span class="src">Website</span> Visited /precast-walls<small>Arrived from the newsletter link</small></span><span class="p">+5</span></div>
+                <div class="ev"><span class="d">8 Oct</span><span class="t"><span class="src">Newsletters</span> Clicked "Precast walls"<small>October issue, English</small></span><span class="p">+6</span></div>
+                <div class="ev"><span class="d">2 Oct</span><span class="t"><span class="src">RFQs</span> Asked for a quote<small>Estimate <a href="#">EST-0027</a> created from their email</small></span><span class="p">+25</span></div>
+              </div>
+              <div class="actions"><button class="btn quiet sm" type="button">Wrong account?</button><button class="btn quiet sm" type="button">Not in market</button><button class="btn quiet sm" type="button">Snooze 30 days</button></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- VIEW: did it work -->
+      <section data-view="work" hidden>
+        <button class="back" type="button" data-go="list">← All accounts</button>
+        <div class="ws-head" style="margin-top:6px"><div><h2>Did it work?</h2><p class="sub" style="font-size:12.5px">October newsletter · sent 2 Oct to 148 accounts · English 120 · Arabic 28</p></div></div>
+        <div class="card">
+          <div class="kpis">
+            <div><b>11</b><span>moved up a stage</span></div>
+            <div><b>23</b><span>clicked or replied</span></div>
+            <div><b>4</b><span>now Deciding</span></div>
+          </div>
+          <p style="margin:6px 0 10px;font-size:13px">Before the send these 148 accounts averaged <b>18</b>; two weeks after, <b>31</b>. Accounts that did not get it: 17 → 19. Counted over 14 days before and after; "moved" means the stage went up.</p>
+          <div class="mv hd"><span>Account</span><span>Before → after</span><span>What happened</span></div>
+          <div class="mv"><span>Najd Precast Co.</span><span><span class="pill looking">Looking</span> <span class="arrow">→</span> <span class="pill deciding">Deciding</span></span><span>Clicked "Precast walls", then opened the quote twice</span></div>
+          <div class="mv"><span>Eastern Province Readymix</span><span><span class="pill quiet">Quiet</span> <span class="arrow">→</span> <span class="pill deciding">Deciding</span></span><span>Clicked "Boundary walls", asked for a price 12 days later</span></div>
+          <div class="mv"><span>Qassim Agricultural Machinery</span><span><span class="pill looking">Looking</span> <span class="arrow">→</span> <span class="pill comparing">Comparing</span></span><span>Clicked "Service plans"; a matching tender was published</span></div>
+          <div class="mv"><span>Jeddah Cold Chain Logistics</span><span><span class="pill quiet">Quiet</span> <span class="arrow">→</span> <span class="pill looking">Looking</span></span><span>Clicked "Service plans"</span></div>
+          <div class="mv"><span>Yanbu Petrochem Services</span><span><span class="pill looking">Looking</span> <span class="arrow">→</span> <span class="pill looking">Looking</span></span><span>Unsubscribed on 3 Oct</span></div>
+          <p class="sub" style="font-size:12px;margin-top:10px">7 more · <a href="#" style="color:var(--accent)">Show all 11</a>. Fewer than 20 would be shown as a list, not a trend.</p>
+          <div class="actions"><button class="btn" type="button">Send a follow-up to the 11</button><button class="btn ghost" type="button">Save as target group</button></div>
+        </div>
+      </section>
+
+      <!-- VIEW: check these -->
+      <section data-view="check" hidden>
+        <button class="back" type="button" data-go="list">← All accounts</button>
+        <div class="ws-head" style="margin-top:6px"><div><h2>Check these</h2><p class="sub" style="font-size:12.5px">3 items we could not match with confidence. Nothing scores until you decide.</p></div></div>
+        <div class="q">
+          <div class="card">
+            <span class="src ai">Tenders</span> <span class="sub" style="font-size:12px">Etimad · 16 Oct</span>
+            <h3 style="margin-top:4px">Al Najd Trading Est. — supply of precast kerbs, Al Kharj</h3>
+            <div class="guess">Best guess: <b>Najd Precast Co.</b> — name 61 % similar, same region. Not sure: different legal form, no shared domain.</div>
+            <div class="actions"><button class="btn sm" type="button">It's Najd Precast Co.</button><button class="btn ghost sm" type="button">Create account</button><button class="btn ghost sm" type="button">Not relevant</button></div>
+          </div>
+          <div class="card">
+            <span class="src ai">News</span> <span class="sub" style="font-size:12px">Argaam · 15 Oct</span>
+            <h3 style="margin-top:4px">"Gulf Readymix" to double capacity in the Eastern Province</h3>
+            <div class="guess">Best guess: <b>Eastern Province Readymix</b> — city matches, name 38 % similar. Probably a different company.</div>
+            <div class="actions"><button class="btn sm" type="button">It's Eastern Province Readymix</button><button class="btn ghost sm" type="button">Create account</button><button class="btn ghost sm" type="button">Not relevant</button></div>
+          </div>
+          <div class="card">
+            <span class="src">Tenders</span> <span class="sub" style="font-size:12px">Pasted by Reem · 14 Oct</span>
+            <h3 style="margin-top:4px">Monaqasat — Ashghal pump station refurbishment, closes 6 Nov</h3>
+            <div class="guess">No account named. Topic: HVAC maintenance (confidence 0.74). Create the account if you plan to bid, or keep it as market news.</div>
+            <div class="actions"><button class="btn ghost sm" type="button">Create account</button><button class="btn ghost sm" type="button">Keep as news</button><button class="btn ghost sm" type="button">Not relevant</button></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- VIEW: topics -->
+      <section data-view="topics" hidden>
+        <button class="back" type="button" data-go="list">← All accounts</button>
+        <div class="ws-head" style="margin-top:6px"><div><h2>Topics</h2><p class="sub" style="font-size:12.5px">The subjects you sell. Each one is watched in news, tenders and job postings, and can tag newsletter links and segments.</p></div><button class="btn" type="button">+ New topic</button></div>
+        <div class="card">
+          <div class="trow hd"><span>Topic</span><span>Keywords</span><span>Status</span><span></span></div>
+          <div class="trow"><span><b>Precast</b><small>TOP-0001 · 2 products</small></span><span class="kw">precast, boundary wall, hollow core · خرسانة مسبقة الصب, جدار محيط</span><span class="pill deciding">On</span><span>⋯</span></div>
+          <div class="trow"><span><b>HVAC maintenance</b><small>TOP-0002 · 5 products</small></span><span class="kw">chiller, AHU, ventilation, service contract · تكييف, صيانة</span><span class="pill deciding">On</span><span>⋯</span></div>
+          <div class="trow"><span><b>Fire safety</b><small>TOP-0003 · 3 products</small></span><span class="kw">sprinkler, fire door, FM-200 · إطفاء, رشاشات</span><span class="pill deciding">On</span><span>⋯</span></div>
+          <div class="trow"><span><b>Cold storage</b><small>TOP-0004</small></span><span class="kw">cold store, refrigeration · تبريد, مستودع مبرد</span><span class="pill quiet">Off</span><span>⋯</span></div>
+          <p class="sub" style="font-size:12px;margin-top:10px">Sources this week: News 38 items · 9 matched · Tenders 12 items · 4 matched · AI classifications 50 of 300 today. Sources and consent live in Settings → Marketing → Buying signals.</p>
+        </div>
+      </section>
+    </main>
+  </div>
+</div>
+
+<!-- Walkthrough: starts closed -->
+<div class="tour" id="tour" hidden role="dialog" aria-live="polite" aria-label="Show me how">
+  <div class="step" id="tourStep">Step 1 of 8</div>
+  <p id="tourText"></p>
+  <div class="nav"><button class="btn quiet sm" type="button" id="tourSkip">Skip</button><div><button class="btn ghost sm" type="button" id="tourBack">Back</button><button class="btn sm" type="button" id="tourNext">Next</button></div></div>
+</div>
+
+<script>
+(function () {
+  var $ = function (s, r) { return (r || document).querySelector(s); };
+  var $$ = function (s, r) { return Array.prototype.slice.call((r || document).querySelectorAll(s)); };
+
+  // Theme toggle (both color modes).
+  var root = document.documentElement, tb = $('#themeBtn');
+  function applyTheme(t) { if (t) root.setAttribute('data-theme', t); else root.removeAttribute('data-theme'); tb.textContent = (t === 'dark' || (!t && matchMedia('(prefers-color-scheme: dark)').matches)) ? 'Light' : 'Dark'; }
+  tb.addEventListener('click', function () { var cur = root.getAttribute('data-theme'); var dark = cur === 'dark' || (!cur && matchMedia('(prefers-color-scheme: dark)').matches); applyTheme(dark ? 'light' : 'dark'); });
+  applyTheme(null);
+
+  // ⋯ menu
+  var mb = $('#menuBtn'), ml = $('#menuList');
+  mb.addEventListener('click', function () { var open = ml.hidden; ml.hidden = !open; mb.setAttribute('aria-expanded', String(open)); });
+  document.addEventListener('click', function (e) { if (!mb.contains(e.target) && !ml.contains(e.target)) { ml.hidden = true; mb.setAttribute('aria-expanded', 'false'); } });
+
+  // Views in the workspace
+  function go(v) { $$('[data-view]').forEach(function (s) { s.hidden = s.getAttribute('data-view') !== v; }); if (matchMedia('(max-width: 900px)').matches) $('#optWrap').open = false; window.scrollTo({ top: 0 }); }
+  $$('[data-go]').forEach(function (b) { b.addEventListener('click', function () { go(b.getAttribute('data-go')); }); });
+  $$('.row[data-open]').forEach(function (r) {
+    function open() { $('#accName').textContent = r.querySelector('.acct b').textContent; go('account'); }
+    r.addEventListener('click', function (e) { if (e.target.closest('button')) return; open(); });
+    r.addEventListener('keydown', function (e) { if (e.key === 'Enter') open(); });
+  });
+  // Keep the panel open on desktop, closed-by-default on phones.
+  function syncPanel() { $('#optWrap').open = !matchMedia('(max-width: 900px)').matches; }
+  syncPanel(); matchMedia('(max-width: 900px)').addEventListener('change', syncPanel);
+
+  // Collapsible option groups: button toggles aria-expanded + hidden body (keyboard works as any button).
+  $$('.ohead').forEach(function (h) {
+    h.addEventListener('click', function () { var open = h.getAttribute('aria-expanded') === 'true'; h.setAttribute('aria-expanded', String(!open)); $('#' + h.getAttribute('aria-controls')).hidden = open; });
+  });
+  function openGroup(id) { var h = $('#' + id + ' .ohead'); if (h) { h.setAttribute('aria-expanded', 'true'); $('#' + h.getAttribute('aria-controls')).hidden = false; } }
+  $$('#opts select').forEach(function (sel) { sel.addEventListener('change', function () { var v = sel.closest('.opt').querySelector('.val'); if (v) v.textContent = sel.options[sel.selectedIndex].text; }); });
+
+  // Stage chips
+  var chips = $$('#o-stage .chip');
+  chips.forEach(function (c) {
+    c.addEventListener('click', function () {
+      chips.forEach(function (x) { x.setAttribute('aria-pressed', 'false'); }); c.setAttribute('aria-pressed', 'true');
+      var f = c.getAttribute('data-f'), n = 0;
+      $$('#list .row:not(.hd)').forEach(function (r) { var show = f === 'all' || (f === 'new' ? r.getAttribute('data-new') === '1' : r.getAttribute('data-stage') === f); r.hidden = !show; if (show) n++; });
+      $('#emptyFiltered').hidden = n > 0; $('#emptyDay1').hidden = true; $('#list').hidden = n === 0;
+      var v = $('#o-stage .val'); if (v) v.textContent = c.firstChild.textContent;
+      go('list');
+    });
+  });
+  $('#showEmpty').addEventListener('click', function () { var d = $('#emptyDay1'); d.hidden = !d.hidden; $('#list').hidden = !d.hidden; $('#emptyFiltered').hidden = true; });
+
+  // Walkthrough — closed until "Show me how"; Back / Next / Skip; remembered per user.
+  var steps = [
+    ['#list', 'This is who looks ready to buy this week. The highest score is at the top.'],
+    ['#list .row:not(.hd) .stage', 'Stage is plain words for how close they look: Quiet, Looking, Comparing, Deciding.'],
+    ['#list .row:not(.hd) .score', 'The score is a sum of named signals with their points. Open an account to see every line. It is not a guess by AI.'],
+    ['#list .row:not(.hd) .why', 'Why shows the two newest signals and where each came from: your quotes, your campaigns, the news, a tender.'],
+    ['#list .row:not(.hd) .next', 'One suggested next step per account. Call, add to a campaign, start a quote.'],
+    ['#o-topic', 'Topics are the subjects you sell. Add one and we start watching news and tenders for it today.'],
+    ['[data-go="check"]', 'Items we could not match with confidence wait in "Check these". Nothing scores until you decide.'],
+    ['[data-go="work"]', 'After a campaign or newsletter, "Did it work?" shows which of these accounts moved up a stage.']
+  ];
+  var tour = $('#tour'), i = 0, last = null;
+  function show(k) {
+    i = k; go('list'); if (matchMedia('(max-width: 900px)').matches && k >= 5) $('#optWrap').open = true; if (k === 5) openGroup('o-topic');
+    if (last) last.classList.remove('hl');
+    var el = $(steps[k][0]); if (el) { el.classList.add('hl'); el.scrollIntoView({ block: 'center', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' }); last = el; }
+    $('#tourStep').textContent = 'Step ' + (k + 1) + ' of ' + steps.length; $('#tourText').textContent = steps[k][1];
+    $('#tourBack').disabled = k === 0; $('#tourNext').textContent = k === steps.length - 1 ? 'Done' : 'Next'; tour.hidden = false;
+  }
+  function close(done) { tour.hidden = true; if (last) last.classList.remove('hl'); try { if (done) localStorage.setItem('signals.walkthrough.done', '1'); } catch (e) {} }
+  $('#tourBtn').addEventListener('click', function () { show(0); });
+  $('#tourNext').addEventListener('click', function () { if (i === steps.length - 1) close(true); else show(i + 1); });
+  $('#tourBack').addEventListener('click', function () { if (i > 0) show(i - 1); });
+  $('#tourSkip').addEventListener('click', function () { close(true); });
+})();
+</script>
+</body>
+</html>

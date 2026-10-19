@@ -1,0 +1,822 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Process Design Studio</title>
+<meta name="description" content="Interactive mock-up of the BPMSquare Process Design Studio MVP flow: options in a left panel, the studio on the right; tell us how you work, your process, how BPMSquare fits, what we'd change, your plan, talk to us. Sample content only.">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+<style>
+/* Mock-up of docs/process-design-studio-architecture.md. Studio layout rule: options in a left panel, the workspace on the right (as Fence projects / Project Estimator); the panel collapses above the workspace on a phone. */
+:root {
+  --bg: #eef1f5; --surface: #ffffff; --surface2: #f6f8fb; --line: #dde3ea; --ink: #17212e; --muted: #5d6b7c;
+  --accent: #0e7c86; --accent-ink: #ffffff; --accent-bg: #e1f3f4;
+  --good: #1d7a45; --good-bg: #e3f4ea; --setup: #1f5fa8; --setup-bg: #e2ecf9; --warn: #9a5a0b; --warn-bg: #fdf0dc; --bad: #b3402f; --bad-bg: #fae4df;
+  --you: #6b4bb5; --you-bg: #ece6f8;
+  --shadow: 0 1px 2px rgba(23,33,46,.05), 0 6px 20px rgba(23,33,46,.06);
+  --font: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0d141d; --surface: #16202c; --surface2: #1b2735; --line: #2a3849; --ink: #e7edf4; --muted: #93a2b5;
+    --accent: #3fb8c2; --accent-ink: #06191b; --accent-bg: #123238;
+    --good: #62c58b; --good-bg: #14301f; --setup: #7fb0ec; --setup-bg: #15283f; --warn: #f0b266; --warn-bg: #3a2a14; --bad: #e58a7c; --bad-bg: #3d1e19;
+    --you: #b59bef; --you-bg: #2a2040; --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.35); color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0d141d; --surface: #16202c; --surface2: #1b2735; --line: #2a3849; --ink: #e7edf4; --muted: #93a2b5;
+  --accent: #3fb8c2; --accent-ink: #06191b; --accent-bg: #123238;
+  --good: #62c58b; --good-bg: #14301f; --setup: #7fb0ec; --setup-bg: #15283f; --warn: #f0b266; --warn-bg: #3a2a14; --bad: #e58a7c; --bad-bg: #3d1e19;
+  --you: #b59bef; --you-bg: #2a2040; --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.35); color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--font); font-size: 14px; line-height: 1.5; overflow-x: hidden;
+  padding-inline: max(16px, env(safe-area-inset-left, 0px)) max(16px, env(safe-area-inset-right, 0px)); padding-block: 18px 56px; }
+.wrap { max-width: 1160px; margin: 0 auto; display: grid; gap: 14px; }
+h1 { font-size: 22px; font-weight: 700; line-height: 1.25; margin: 0; }
+h2 { font-size: 17px; font-weight: 700; margin: 0 0 4px; }
+h3 { font-size: 13.5px; font-weight: 700; margin: 0 0 6px; }
+p { margin: 0; }
+.sub { color: var(--muted); margin-top: 2px; }
+.help { font-size: 12.5px; color: var(--muted); }
+a { color: var(--accent); }
+button { font: inherit; }
+.btn { font-weight: 600; font-size: 13px; background: var(--accent); color: var(--accent-ink); border: 0; padding: 9px 16px; border-radius: 8px; cursor: pointer; white-space: nowrap; }
+.btn.ghost { background: transparent; color: var(--ink); border: 1px solid var(--line); }
+.btn.quiet { background: transparent; color: var(--accent); padding: 4px 6px; }
+.btn.big { padding: 12px 20px; font-size: 14px; width: 100%; }
+.btn:disabled { opacity: .5; cursor: default; }
+.btn:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible, summary:focus-visible, .stepb:focus-visible, .area:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 16px; box-shadow: var(--shadow); min-width: 0; }
+.topbar { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 10px 16px; align-items: flex-start; }
+.topbar .right { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.sample { background: var(--warn-bg); color: var(--warn); border-radius: 9px; padding: 8px 12px; font-size: 13px; font-weight: 500; display: flex; gap: 8px 14px; flex-wrap: wrap; align-items: center; }
+.sample select, .opt select, .opt input[type=date], .opt input[type=text], .opt input[type=email] { font: inherit; font-size: 13px; padding: 6px 8px; border-radius: 7px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); width: 100%; }
+.sample select { width: auto; padding: 4px 8px; }
+.pill { display: inline-block; font-size: 11.5px; font-weight: 600; padding: 2px 9px; border-radius: 999px; background: var(--accent-bg); color: var(--accent); white-space: nowrap; }
+.pill.standard { background: var(--good-bg); color: var(--good); } .pill.setup { background: var(--setup-bg); color: var(--setup); }
+.pill.partly { background: var(--warn-bg); color: var(--warn); } .pill.not { background: var(--bad-bg); color: var(--bad); }
+.pill.you { background: var(--you-bg); color: var(--you); } .pill.us { background: var(--accent-bg); color: var(--accent); } .pill.grey { background: var(--surface2); color: var(--muted); }
+.facts { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 13px; color: var(--muted); }
+.facts b { color: var(--ink); font-weight: 600; }
+/* stepper */
+.steps { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; scrollbar-width: none; }
+.steps::-webkit-scrollbar { display: none; }
+.stepb { flex: 1 0 auto; display: flex; align-items: center; gap: 8px; padding: 9px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); color: var(--muted); cursor: pointer; font-weight: 500; font-size: 13px; }
+.stepb i { font-style: normal; width: 22px; height: 22px; border-radius: 50%; background: var(--surface2); color: var(--muted); display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; flex: none; }
+.stepb.done i { background: var(--good-bg); color: var(--good); }
+.stepb.active { border-color: var(--accent); background: var(--accent-bg); color: var(--ink); font-weight: 700; }
+.stepb.active i { background: var(--accent); color: var(--accent-ink); }
+.stepb.locked { opacity: .55; cursor: default; }
+/* studio layout: options left, workspace right */
+.studio { display: grid; grid-template-columns: 300px minmax(0, 1fr); gap: 14px; align-items: start; }
+.panel { display: grid; gap: 12px; position: sticky; top: 12px; }
+.panel .card { padding: 14px; box-shadow: none; }
+.work { display: grid; gap: 14px; min-width: 0; }
+.step { display: none; } .step.show { display: contents; }
+.opt { display: grid; gap: 3px; margin-bottom: 10px; }
+.opt:last-child { margin-bottom: 0; }
+.opt label, .opt .l { font-size: 13px; font-weight: 600; display: flex; justify-content: space-between; gap: 8px; align-items: center; }
+.opt .hint { font-size: 12px; color: var(--muted); line-height: 1.4; }
+.opt .row { display: flex; gap: 8px; align-items: center; }
+.sw { position: relative; width: 34px; height: 20px; flex: none; appearance: none; background: var(--line); border-radius: 999px; cursor: pointer; margin: 0; }
+.sw::after { content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: var(--surface); transition: left .15s; }
+.sw:checked { background: var(--accent); } .sw:checked::after { left: 16px; }
+.chk { display: flex; gap: 8px; align-items: center; font-size: 13px; font-weight: 500; cursor: pointer; }
+.chk input { accent-color: var(--accent); }
+.hd { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px 16px; align-items: flex-start; }
+/* step 1 */
+.chat { display: grid; gap: 10px; max-height: 460px; overflow-y: auto; padding-right: 4px; }
+.msg { max-width: 88%; padding: 10px 13px; border-radius: 14px; font-size: 13.5px; }
+.msg.studio { background: var(--surface2); border-bottom-left-radius: 4px; }
+.msg.client { background: var(--accent-bg); margin-left: auto; border-bottom-right-radius: 4px; }
+.msg .who { font-size: 11px; font-weight: 600; color: var(--muted); margin-bottom: 3px; text-transform: uppercase; letter-spacing: .04em; }
+.msg ul { margin: 6px 0 0; padding-left: 18px; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.chip { font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 999px; background: var(--accent-bg); color: var(--accent); }
+.chip.a { background: var(--warn-bg); color: var(--warn); }
+.compose { display: flex; gap: 8px; margin-top: 12px; align-items: flex-end; }
+.compose textarea { flex: 1; min-width: 0; min-height: 44px; max-height: 140px; resize: vertical; font: inherit; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--ink); }
+.areas { display: grid; gap: 6px; }
+.area { border: 1px solid var(--line); border-radius: 9px; padding: 8px 10px; display: flex; justify-content: space-between; align-items: center; gap: 8px; cursor: pointer; }
+.area:hover { background: var(--surface2); }
+.area.done { border-color: var(--good); }
+.area .n { font-weight: 600; font-size: 13px; }
+.area .s { font-size: 11.5px; color: var(--muted); }
+.area .t { font-size: 11.5px; font-weight: 600; color: var(--good); white-space: nowrap; }
+.area.off { opacity: .55; }
+.uploads { display: grid; gap: 6px; margin-top: 6px; }
+.file { display: flex; justify-content: space-between; gap: 8px; align-items: center; font-size: 12.5px; padding: 6px 9px; background: var(--surface2); border-radius: 8px; }
+.file small { color: var(--muted); white-space: nowrap; }
+/* step 2 */
+.lanes { display: grid; gap: 10px; overflow-x: auto; padding-bottom: 4px; }
+.lane { display: grid; grid-template-columns: 130px repeat(var(--cols), minmax(170px, 1fr)); gap: 8px; align-items: stretch; }
+.lane .who { font-weight: 700; font-size: 13px; padding: 10px; background: var(--surface2); border-radius: 9px; display: flex; align-items: center; }
+.lane .colh { font-size: 11.5px; letter-spacing: .04em; text-transform: uppercase; font-weight: 600; color: var(--muted); padding: 4px 6px; }
+.cell { min-height: 48px; display: grid; gap: 6px; align-content: start; }
+.pstep { background: var(--surface); border: 1px solid var(--line); border-radius: 9px; padding: 8px 10px; font-size: 13px; position: relative; }
+.pstep b { display: block; font-weight: 600; }
+.pstep span { color: var(--muted); font-size: 12px; }
+.pstep .hand { position: absolute; right: 8px; top: 8px; font-size: 11px; color: var(--accent); font-weight: 600; }
+.pstep b:focus { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+.pstep.add { border-style: dashed; color: var(--accent); font-weight: 600; text-align: center; cursor: pointer; background: transparent; }
+.pstep.assumed { border-style: dashed; }
+.plist { display: none; gap: 10px; }
+.plist .grp h3 { margin: 10px 0 6px; }
+.roles { display: grid; gap: 6px; }
+.roles div { display: flex; justify-content: space-between; align-items: center; font-size: 13px; padding: 6px 9px; background: var(--surface2); border-radius: 8px; }
+/* step 3 */
+.tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.tile { border-radius: 10px; padding: 12px; background: var(--surface2); }
+.tile b { display: block; font-size: 26px; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.tile span { font-size: 12.5px; font-weight: 600; }
+.tile.standard { background: var(--good-bg); color: var(--good); } .tile.setup { background: var(--setup-bg); color: var(--setup); }
+.tile.partly { background: var(--warn-bg); color: var(--warn); } .tile.not { background: var(--bad-bg); color: var(--bad); }
+.fitrows { display: grid; gap: 8px; }
+.frow { border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+.frow summary { list-style: none; cursor: pointer; display: grid; grid-template-columns: 118px minmax(0, 1fr) auto; gap: 8px 12px; align-items: center; padding: 10px 12px; }
+.frow summary::-webkit-details-marker { display: none; }
+.frow .sn b { font-weight: 600; display: block; }
+.frow .sn span { font-size: 12px; color: var(--muted); }
+.frow .conf { font-size: 11.5px; color: var(--muted); white-space: nowrap; }
+.frow .conf.ok { color: var(--good); font-weight: 600; }
+.frow .body { padding: 10px 12px 12px; display: grid; gap: 8px; font-size: 13px; border-top: 1px solid var(--line); }
+.cov { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.cap { font-size: 12px; padding: 3px 9px; border-radius: 7px; background: var(--surface2); border: 1px solid var(--line); cursor: pointer; }
+.cap:hover { border-color: var(--accent); }
+.cap.mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 11px; color: var(--muted); }
+.areahd { font-size: 11.5px; letter-spacing: .04em; text-transform: uppercase; font-weight: 600; color: var(--muted); margin: 6px 0 0; }
+.banner { background: var(--setup-bg); color: var(--setup); border-radius: 9px; padding: 8px 12px; font-size: 13px; font-weight: 500; }
+/* step 4 */
+.changes { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; }
+.chg { border: 1px solid var(--line); border-radius: 11px; padding: 12px; background: var(--surface); display: grid; gap: 6px; }
+.chg.hidden { opacity: .5; }
+.chg .k { display: flex; justify-content: space-between; gap: 8px; align-items: center; }
+.chg .k .band { font-size: 12px; font-weight: 600; color: var(--muted); }
+.chg .alt { font-size: 12.5px; color: var(--muted); background: var(--surface2); border-radius: 7px; padding: 6px 8px; }
+.chg .links { font-size: 12px; color: var(--muted); }
+.chg .act { display: flex; justify-content: flex-end; }
+/* step 5 */
+.phase { border: 1px solid var(--line); border-radius: 11px; background: var(--surface); }
+.phase > summary { list-style: none; cursor: pointer; padding: 11px 14px; display: grid; grid-template-columns: minmax(0,1fr) auto auto; gap: 10px; align-items: center; }
+.phase > summary::-webkit-details-marker { display: none; }
+.phase .pt b { font-weight: 700; display: block; }
+.phase .pt span { font-size: 12px; color: var(--muted); }
+.ok { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 600; color: var(--muted); cursor: pointer; }
+.ok input { accent-color: var(--good); }
+.ok.on { color: var(--good); }
+.tasks { padding: 10px 14px 12px; display: grid; gap: 6px; border-top: 1px solid var(--line); }
+.task { display: grid; grid-template-columns: minmax(0,1fr) 90px 66px 50px; gap: 8px; align-items: center; font-size: 13px; }
+.task .nm { display: flex; gap: 6px; align-items: center; min-width: 0; }
+.task .nm span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.task .ms { font-size: 11px; color: var(--accent); font-weight: 700; }
+.task .d { font-variant-numeric: tabular-nums; color: var(--muted); }
+.task input[type=number] { width: 58px; font: inherit; font-size: 13px; padding: 3px 6px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--ink); }
+.cmt textarea { width: 100%; font: inherit; font-size: 13px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink); min-height: 40px; resize: vertical; }
+.gantt { display: grid; gap: 6px; }
+.gr { display: grid; grid-template-columns: 160px minmax(0,1fr) 92px; gap: 10px; align-items: center; font-size: 13px; }
+.gtrack { position: relative; height: 16px; background: var(--surface2); border-radius: 5px; }
+.gbar { position: absolute; top: 0; height: 100%; border-radius: 5px; background: var(--accent); opacity: .85; }
+.gbar.m::after { content: "◆"; position: absolute; right: -6px; top: -3px; font-size: 11px; color: var(--ink); }
+.gr .dt { text-align: right; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.savebar { display: flex; justify-content: flex-end; gap: 10px; align-items: center; }
+.savebar .hint { font-size: 12.5px; color: var(--warn); font-weight: 600; }
+/* step 6 */
+.sum { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; }
+.sum div { background: var(--surface2); border-radius: 9px; padding: 10px 12px; }
+.sum b { display: block; font-size: 18px; font-variant-numeric: tabular-nums; }
+.sum span { font-size: 12px; color: var(--muted); }
+.next { display: grid; gap: 8px; }
+.next div { display: grid; grid-template-columns: 26px minmax(0,1fr); gap: 8px; font-size: 13.5px; }
+.next i { font-style: normal; width: 22px; height: 22px; border-radius: 50%; background: var(--accent-bg); color: var(--accent); display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; }
+.sent { background: var(--good-bg); color: var(--good); border-radius: 10px; padding: 12px 14px; font-weight: 600; font-size: 13px; }
+/* modal, menu, tucked details, toast */
+.modal { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: none; align-items: center; justify-content: center; padding: 16px; z-index: 20; }
+.modal.show { display: flex; }
+.modal .box { background: var(--surface); border-radius: 14px; padding: 18px; max-width: 480px; width: 100%; display: grid; gap: 8px; box-shadow: var(--shadow); }
+.mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; color: var(--muted); }
+.kv { display: grid; grid-template-columns: 90px minmax(0,1fr); gap: 4px 10px; font-size: 13px; }
+.kv dt { color: var(--muted); } .kv dd { margin: 0; overflow-wrap: anywhere; }
+.menu { position: relative; display: inline-block; }
+.menu ul { position: absolute; right: 0; top: 40px; z-index: 5; list-style: none; margin: 0; padding: 6px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; min-width: 210px; box-shadow: var(--shadow); }
+.menu li { padding: 8px 10px; border-radius: 7px; cursor: default; font-size: 13px; }
+.menu li:hover { background: var(--accent-bg); }
+.menu li.danger { color: var(--bad); }
+.menu li.div { height: 1px; padding: 0; margin: 4px 0; background: var(--line); }
+details.tuck { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; }
+details.tuck > summary { cursor: pointer; padding: 11px 14px; font-weight: 700; font-size: 13.5px; list-style: none; display: flex; justify-content: space-between; gap: 10px; }
+details.tuck > summary::-webkit-details-marker { display: none; }
+details.tuck > summary::after { content: "+"; color: var(--muted); font-weight: 500; }
+details.tuck[open] > summary::after { content: "–"; }
+details.tuck > summary small { font-weight: 500; color: var(--muted); }
+details.tuck .in { padding: 0 14px 14px; font-size: 13px; display: grid; gap: 6px; }
+.toast { position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); background: var(--ink); color: var(--bg); padding: 10px 16px; border-radius: 10px; font-size: 13px; font-weight: 600; opacity: 0; pointer-events: none; transition: opacity .2s; z-index: 30; max-width: calc(100vw - 32px); text-align: center; }
+.toast.show { opacity: 1; }
+/* collapsible option groups in the left panel */
+.grp { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; }
+.grp > summary { list-style: none; cursor: pointer; padding: 11px 14px; display: grid; grid-template-columns: minmax(0,1fr) 18px; gap: 10px; align-items: center; }
+.grp > summary::-webkit-details-marker { display: none; }
+.grp > summary b { display: block; font-size: 13.5px; font-weight: 700; }
+.grp > summary .hint { font-size: 12px; color: var(--muted); line-height: 1.4; }
+.grp > summary .chev { width: 18px; height: 18px; color: var(--muted); transition: transform .15s; }
+.grp[open] > summary .chev { transform: rotate(180deg); }
+.grp > .in { padding: 0 14px 14px; }
+.grp > .in .hd { margin-bottom: 6px; justify-content: flex-end; }
+@media (prefers-reduced-motion: reduce) { .grp > summary .chev { transition: none; } }
+/* guided walkthrough */
+.tour-hl { position: relative; z-index: 41; box-shadow: 0 0 0 4px var(--accent), 0 0 0 9999px rgba(0,0,0,.55); border-radius: 12px; }
+.tour-cap { position: fixed; z-index: 42; left: 50%; transform: translateX(-50%); bottom: max(16px, env(safe-area-inset-bottom, 0px)); width: min(420px, calc(100vw - 32px)); background: var(--surface); color: var(--ink); border: 1px solid var(--line); border-radius: 12px; padding: 14px; box-shadow: var(--shadow); display: none; gap: 8px; }
+.tour-cap.show { display: grid; }
+.tour-cap .n { font-size: 11.5px; color: var(--muted); font-weight: 600; letter-spacing: .04em; text-transform: uppercase; }
+.tour-cap .b { display: flex; gap: 8px; justify-content: flex-end; }
+@media (prefers-reduced-motion: reduce) { .toast, .sw::after { transition: none; } }
+@media (max-width: 900px) {
+  .studio { grid-template-columns: 1fr; }
+  .panel { position: static; }
+  .tiles { grid-template-columns: repeat(2, minmax(0,1fr)); }
+  .lanes { display: none; } .plist { display: grid; }
+  .frow summary { grid-template-columns: minmax(0,1fr) auto; }
+  .frow summary .sn { grid-column: 1 / -1; order: -1; }
+  .task { grid-template-columns: minmax(0,1fr) 80px; }
+  .task .d, .task input[type=number] { display: none; }
+  .gr { grid-template-columns: 96px minmax(0,1fr) 72px; }
+  .stepb .lbl { display: none; } .stepb.active .lbl { display: inline; }
+  .msg { max-width: 94%; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="sample">
+    <span>Sample — illustrative content for design review. In the product every “covered by” is a real catalogue entry generated from the code.</span>
+    <label>Sample company <select id="sampleSel" aria-label="Sample company"></select></label>
+    <button class="btn ghost" id="themeBtn" type="button" style="padding:4px 10px;font-size:12px">Dark / light</button>
+  </div>
+
+  <div class="topbar" id="topbar">
+    <div>
+      <p class="help"><a href="#" onclick="return false">← All studies</a></p>
+      <h1 id="title"></h1>
+      <p class="sub"><span id="refLine"></span> · <span class="pill" id="statusPill">Draft</span></p>
+      <div class="facts" id="facts" style="margin-top:8px"></div>
+    </div>
+    <div class="right">
+      <button class="btn ghost" id="tourBtn" type="button">Show me how</button>
+      <button class="btn" id="primary" type="button"></button>
+      <div class="menu"><button class="btn ghost" id="menuBtn" type="button" aria-haspopup="true" aria-expanded="false" aria-label="More">⋯</button>
+        <ul id="menuList" hidden><li>Edit name</li><li>Print / PDF</li><li>Duplicate</li><li>New version</li><li>Adapt fields</li><li class="div"></li><li class="danger">Delete</li></ul></div>
+    </div>
+  </div>
+
+  <nav class="steps" id="stepper" aria-label="Steps"></nav>
+
+  <div class="studio">
+    <!-- LEFT: options for the current step -->
+    <aside class="panel" id="panel" aria-label="Options">
+
+      <div class="step" data-step="1">
+        <div class="card" id="p1areas">
+          <h3>Areas of your business</h3>
+          <p class="hint help" style="margin-bottom:8px">Tap an area to answer three short questions about it. Switch off what does not apply to you.</p>
+          <div class="areas" id="areas"></div>
+        </div>
+        <div class="card" id="p1docs">
+          <div class="hd"><h3>Documents you have</h3><button class="btn quiet" type="button" onclick="toast('Upload is phase 2 — PDF, images and spreadsheets are read with the same engine as the RFQ reader.')">Add</button></div>
+          <p class="hint help">SOPs, diagrams, spreadsheets, an old fit-gap list. Read by an AI service to draft your map; stored only in your workspace; deleted with the study.</p>
+          <div class="uploads" id="uploads"></div>
+        </div>
+        <div class="card" data-title="Studio options" data-hint="The language we talk in, and how much we ask back.">
+          <div class="opt"><label for="lang">Language</label><select id="lang"><option>English (default)</option><option>العربية — Arabic (phase 3)</option><option>हिन्दी — Hindi (later)</option></select><span class="hint">The language the studio talks to you in. English unless you change it.</span></div>
+          <div class="opt"><div class="l">Ask me follow-up questions <input type="checkbox" class="sw" checked aria-label="Ask me follow-up questions"></div><span class="hint">Up to three short questions after each answer. Off means you just type and we map what you wrote.</span></div>
+        </div>
+      </div>
+
+      <div class="step" data-step="2">
+        <div class="card" id="p2roles">
+          <div class="hd"><h3>Roles</h3><button class="btn quiet" type="button" onclick="toast('Adds a lane. Name it the way you call the job, e.g. Yard supervisor.')">Add</button></div>
+          <p class="hint help" style="margin-bottom:8px">The people who do the work, one row each. Each role is a lane on the map.</p>
+          <div class="roles" id="roles"></div>
+        </div>
+        <div class="card" data-title="Map options" data-hint="What the map shows, and a way to add a step we missed.">
+          <div class="opt"><div class="l">Show assumed steps <input type="checkbox" class="sw" id="showAssumed" checked aria-label="Show assumed steps"></div><span class="hint">Steps we added because the order needed them. Dashed border; delete any that are wrong.</span></div>
+          <div class="opt"><div class="l">Show hand-overs <input type="checkbox" class="sw" checked aria-label="Show hand-overs"></div><span class="hint">An arrow where a step passes work to another role.</span></div>
+          <div class="opt"><div class="l">Add a step</div><button class="btn ghost" type="button" style="width:100%" onclick="toast('Adds a step; you name it and say how it is done today.')">+ Add step</button><span class="hint">Something we missed. You name it and say how it is done today.</span></div>
+        </div>
+      </div>
+
+      <div class="step" data-step="3">
+        <div class="card" id="p3filter">
+          <h3>Show</h3>
+          <p class="hint help" style="margin-bottom:8px">Pick which lines to see. All four are on by default.</p>
+          <div style="display:grid;gap:6px">
+            <label class="chk"><input type="checkbox" checked data-f="standard"> <span class="pill standard">Standard</span></label>
+            <label class="chk"><input type="checkbox" checked data-f="setup"> <span class="pill setup">Needs setup</span></label>
+            <label class="chk"><input type="checkbox" checked data-f="partly"> <span class="pill partly">Partly covered</span></label>
+            <label class="chk"><input type="checkbox" checked data-f="not"> <span class="pill not">Not covered</span></label>
+          </div>
+        </div>
+        <div class="card" data-title="More" data-hint="Technical ids for your IT team, and re-checking after edits.">
+          <div class="opt"><div class="l">Show catalogue ids <input type="checkbox" class="sw" id="showIds" aria-label="Show catalogue ids"></div><span class="hint">The technical id behind each “covered by”. Off for most people; on for your IT team.</span></div>
+          <div class="opt"><div class="l">Re-check the fit</div><button class="btn ghost" type="button" style="width:100%" onclick="toast('Runs the check again on the edited map and keeps the old result as a version.')">Check again</button><span class="hint">After you change the map. The old result is kept as a version.</span></div>
+        </div>
+        <details class="tuck"><summary>What the ratings mean</summary><div class="in">
+          <p><span class="pill standard">Standard</span> Works out of the box; you only load your data.</p>
+          <p><span class="pill setup">Needs setup</span> Standard, once an admin sets it up in Settings.</p>
+          <p><span class="pill partly">Partly covered</span> Most is there; a piece needs a change we list in the next step.</p>
+          <p><span class="pill not">Not covered</span> Not in BPMSquare today. We say what we would build, or what to keep elsewhere.</p>
+          <p class="help">A rating is only given with a named module, screen or setting behind it. If we are not sure, the line says “check with us” instead of guessing.</p>
+        </div></details>
+      </div>
+
+      <div class="step" data-step="4">
+        <div class="card" id="p4kinds">
+          <h3>Kinds of change</h3>
+          <p class="hint help" style="margin-bottom:8px">The only five kinds there are. Untick a kind to hide those cards.</p>
+          <div style="display:grid;gap:6px" id="kinds"></div>
+        </div>
+        <div class="card" data-title="More" data-hint="Hidden cards, and changes you add yourself.">
+          <div class="opt"><div class="l">Show hidden changes <input type="checkbox" class="sw" id="showHidden" checked aria-label="Show hidden changes"></div><span class="hint">Cards you marked “we can live without this” stay listed, greyed out.</span></div>
+          <div class="opt"><div class="l">Add a change</div><button class="btn ghost" type="button" style="width:100%" onclick="toast('Adds an empty card you describe in your own words.')">+ Add a change</button><span class="hint">Something you want that we did not list. Plain words are fine.</span></div>
+        </div>
+        <details class="tuck"><summary>What the effort bands mean</summary><div class="in">
+          <p><b>Small</b> — a setting or your own fields; hours, done during setup. <b>Medium</b> — a change only for your workspace, or an existing connector; days. <b>Large</b> — something new in the product or a new integration; weeks, discussed on the call.</p>
+          <p class="help">Bands follow the kind of change; they are not guessed. Indicative, never a price.</p>
+        </div></details>
+      </div>
+
+      <div class="step" data-step="5">
+        <div class="card" id="p5dates" data-title="Dates and view" data-hint="Start date and weekend; every date in the plan follows.">
+          <div class="opt"><label for="start">Start date</label><input type="date" id="start" value="2026-11-02"><span class="hint">When you would like to begin. Every date in the plan moves with it.</span></div>
+          <div class="opt"><label for="weekend">Weekend</label><select id="weekend"><option value="56">Friday and Saturday</option><option value="06">Saturday and Sunday</option><option value="0">Sunday only</option></select><span class="hint">Days we skip when counting working days.</span></div>
+          <div class="opt"><div class="l">Only my tasks <input type="checkbox" class="sw" id="onlyYou" aria-label="Only my tasks"></div><span class="hint">Hide BPMSquare's tasks and see just what your team has to do.</span></div>
+        </div>
+        <div class="card" data-title="Save" data-hint="Ticks, comments and durations are saved together.">
+          <div class="opt"><div class="l">Save</div><div class="savebar" style="justify-content:flex-start"><button class="btn" id="savePlan" type="button" disabled>Save</button><span class="hint" id="unsaved" hidden>Unsaved changes</span></div><span class="hint">Ticks, comments and durations are saved together.</span></div>
+        </div>
+      </div>
+
+      <div class="step" data-step="6">
+        <div class="card" id="p6send">
+          <h3>Send to BPMSquare</h3>
+          <p class="hint help" style="margin-bottom:8px">Freezes version <b id="verNo">1</b> of your study and sends it to us. You can keep editing; the next send makes version 2.</p>
+          <div class="opt"><label for="cname">Your name</label><input type="text" id="cname"><span class="hint">Who we should ask for when we call.</span></div>
+          <div class="opt"><label for="cmail">Email for the call-back</label><input type="email" id="cmail"><span class="hint">We reply here within two working days.</span></div>
+          <div id="sendSlot"><button class="btn big" id="sendBtn" type="button">Send to BPMSquare</button></div>
+        </div>
+        <div class="card" data-title="Download" data-hint="The same package for your own team, as PDF or Google Doc.">
+          <div class="opt"><div class="l">Download</div><div style="display:grid;gap:6px"><button class="btn ghost" type="button" onclick="toast('Downloads the whole package as a PDF, marked Indicative plan on every page.')">PDF</button><button class="btn ghost" type="button" onclick="toast('Creates a Google Doc through the Drive connector when it is connected.')">Google Doc</button></div><span class="hint">The same package, for your own team. Every page says “Indicative — confirmed on the call”.</span></div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- RIGHT: the workspace -->
+    <main class="work" id="work">
+
+      <div class="step" data-step="1">
+        <div class="card" id="w1chat">
+          <div class="hd" style="margin-bottom:10px"><div><h2>Tell us how you work</h2><p class="sub">In your own words. Nothing is analysed until you press <b>Build my process map</b>.</p></div></div>
+          <div class="chat" id="chat" aria-live="polite"></div>
+          <div class="compose">
+            <textarea id="say" placeholder="For example: a contractor sends us drawings, our estimator prices the panels in Excel, then we send a quote by email." aria-label="Your message"></textarea>
+            <button class="btn" id="send" type="button">Send</button>
+          </div>
+          <p class="help" style="margin-top:6px">What we understood appears as chips — blue is what you said, amber is what we assumed. Correct anything by just saying so.</p>
+        </div>
+      </div>
+
+      <div class="step" data-step="2">
+        <div class="card" id="w2map" style="padding:12px">
+          <div class="hd" style="margin-bottom:8px"><div><h2>Your process</h2><p class="sub">Drafted from what you told us. Click any step name to change it.</p></div></div>
+          <div class="lanes" id="lanes"></div>
+          <div class="plist" id="plist"></div>
+        </div>
+        <details class="tuck"><summary>How we drafted this <small>for the curious</small></summary><div class="in">
+          <p>Every step comes from a sentence in your answers; a step we added because the order needed it is marked “assumed”. Roles are the lanes you named. Nothing here judges BPMSquare yet — that is the next step.</p>
+        </div></details>
+      </div>
+
+      <div class="step" data-step="3">
+        <div class="hd"><div><h2>How BPMSquare fits</h2><p class="sub">One line per step. Tap a line for the why, and any blue name to see exactly what it is.</p></div></div>
+        <div class="banner" id="reviewBanner"></div>
+        <div class="tiles" id="tiles"></div>
+        <div class="fitrows" id="fit"></div>
+        <details class="tuck"><summary>Things we noticed <small>across the whole process</small></summary><div class="in" id="noticed"></div></details>
+      </div>
+
+      <div class="step" data-step="4">
+        <div class="hd"><div><h2>What we'd change</h2><p class="sub">One card for every “partly” or “not covered” line. Hide any you can live without.</p></div></div>
+        <div class="changes" id="changes"></div>
+      </div>
+
+      <div class="step" data-step="5">
+        <div class="hd"><div><h2>Your plan</h2><p class="sub">Phases, tasks and who does what. Tick a phase when it looks right, change a duration, leave a comment anywhere.</p></div></div>
+        <div class="card" id="w5gantt">
+          <h3>Timeline</h3>
+          <div class="gantt" id="gantt"></div>
+          <p class="help" id="ganttNote" style="margin-top:8px"></p>
+        </div>
+        <div id="phases" style="display:grid;gap:8px"></div>
+      </div>
+
+      <div class="step" data-step="6">
+        <div class="hd"><div><h2>Talk to us</h2><p class="sub">Here is your package. Send it and someone from BPMSquare calls you back.</p></div></div>
+        <div class="card" id="w6sum">
+          <h3 id="sumTitle"></h3>
+          <p id="sumText" style="margin-bottom:10px"></p>
+          <div class="sum" id="sum"></div>
+        </div>
+        <div class="card">
+          <h3>What happens next</h3>
+          <div class="next" style="margin-top:8px">
+            <div><i>1</i><span>We read your study and check every line of the fit report. Anything we change you see marked “Reviewed by BPMSquare”.</span></div>
+            <div><i>2</i><span>We call within two working days to go through the changes and the plan.</span></div>
+            <div><i>3</i><span>If you go ahead, the modules in your plan are switched on in your workspace and the plan becomes your onboarding plan.</span></div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+</div>
+
+<div class="modal" id="modal" role="dialog" aria-modal="true" aria-labelledby="mTitle"><div class="box">
+  <h3 id="mTitle"></h3>
+  <p id="mPlain"></p>
+  <dl class="kv"><dt>Kind</dt><dd id="mKind"></dd><dt>Module</dt><dd id="mModule"></dd><dt>Where</dt><dd id="mWhere"></dd><dt>Status</dt><dd id="mStatus"></dd><dt>Catalogue id</dt><dd class="mono" id="mId"></dd><dt>Generated from</dt><dd class="mono" id="mSrc"></dd></dl>
+  <div style="display:flex;justify-content:flex-end"><button class="btn ghost" type="button" onclick="closeModal()">Close</button></div>
+</div></div>
+<div class="tour-cap" id="tourCap" role="dialog" aria-live="polite"><div class="n" id="tourN"></div><div id="tourT"></div><div class="b"><button class="btn quiet" type="button" id="tourSkip">Skip</button><button class="btn ghost" type="button" id="tourBack">Back</button><button class="btn" type="button" id="tourNext">Next</button></div></div>
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+/* ---------- The capability catalogue (a slice, shaped as the architecture doc §5 describes) ---------- */
+var CAT = {
+  "cap.module.accounts": { label: "Accounts", kind: "module", module: "accounts", plain: "Your customers and the companies you deal with, with history, contacts and documents in one place.", where: "Master data → Accounts", src: "src/lib/constants.ts#TenantFeatures" },
+  "cap.module.leads": { label: "Leads", kind: "module", module: "leads", plain: "Enquiries before they become a customer or a deal.", where: "Marketing → Leads", src: "src/lib/constants.ts#NAV" },
+  "cap.module.pipeline": { label: "Pipeline", kind: "module", module: "pipeline", plain: "Deals on a board, stage by stage, with the quote lines attached.", where: "Sales → Pipeline", src: "src/lib/constants.ts#NAV" },
+  "cap.module.estimator": { label: "Estimates", kind: "module", module: "estimator", plain: "Turn a few answers or an element schedule into a bill of materials, a cost build-up and a quote.", where: "Sales → Estimates", src: "src/lib/constants.ts#TenantFeatures" },
+  "cap.setting.estimate-templates": { label: "Estimate templates", kind: "setting", module: "estimator", plain: "The inputs, rates and rule lines that turn answers into a bill of materials and a price. Set up once by your admin.", where: "Settings → Sales → Estimate templates", src: "src/lib/settingsMenu.ts" },
+  "cap.module.standard_quotes": { label: "Standard Quotes", kind: "module", module: "standard_quotes", plain: "Quotes with lines, options, templates, PDF and email; status from draft to accepted.", where: "Sales → Standard Quotes", src: "src/lib/constants.ts#NAV" },
+  "cap.object.products.bom": { label: "Product bill of materials", kind: "object", module: "products", plain: "A product can be a kit of components with a cost roll-up over several levels.", where: "Master data → Products → Components", src: "src/lib/fieldRegistry.ts (product)" },
+  "cap.module.rfq": { label: "RFQs", kind: "module", module: "rfq", plain: "Ask several suppliers for prices, receive their replies by email, compare and award.", where: "Sales → RFQs", src: "src/lib/constants.ts#TenantFeatures" },
+  "cap.module.purchasing": { label: "Purchase Orders & Inventory", kind: "module", module: "purchasing", plain: "Purchase orders to suppliers, receiving, and stock levels.", where: "Sales → Purchase Orders · Master data → Inventory", src: "src/lib/constants.ts#NAV" },
+  "cap.module.wfm": { label: "Workforce", kind: "module", module: "wfm", plain: "Attendance by phone or kiosk, shifts, sites with geofence, leave, overtime, monthly summary.", where: "Workforce", src: "src/lib/constants.ts#TenantFeatures" },
+  "cap.setting.wf-shifts": { label: "Shifts", kind: "setting", module: "wfm", plain: "Working hours, grace and night shifts your people are expected to keep.", where: "Settings → Workforce → Shifts", src: "src/lib/settingsMenu.ts" },
+  "cap.connector.d365": { label: "Dynamics 365 connector", kind: "connector", module: "—", plain: "Customer and product master from Dynamics 365. Built; not yet live with a client.", where: "Settings → Integrations → Connectors", src: "src/lib/connectors/d365/catalog.ts", status: "built, not yet live" },
+  "cap.api.v1": { label: "REST API & webhooks", kind: "api", module: "—", plain: "Every object readable through scoped API keys; webhooks on changes; push a record to your ERP on demand.", where: "Settings → Integrations", src: "src/lib/api/listSources.ts" },
+  "cap.module.cases": { label: "Cases", kind: "module", module: "cases", plain: "A repair or service job from intake to closed, with its status flow, inspection and photos.", where: "Service → Cases", src: "src/lib/constants.ts#NAV" },
+  "cap.object.case.inspection": { label: "Inspection report", kind: "object", module: "cases", plain: "The inspection of the equipment, sent to the customer before the quote.", where: "Service → Cases → Inspection", src: "src/lib/fieldRegistry.ts (case)" },
+  "cap.module.quotations": { label: "Quotations", kind: "module", module: "quotations", plain: "Repair, supply, technical and budgetary offers with print, email and WhatsApp link.", where: "Sales → Quotations", src: "src/lib/constants.ts#NAV" },
+  "cap.module.amc": { label: "AMC contracts", kind: "module", module: "amc", plain: "Yearly maintenance contracts with the equipment list and visit schedule.", where: "Service → AMC contracts", src: "src/lib/constants.ts#NAV" },
+  "cap.module.dispatch": { label: "Dispatch", kind: "module", module: "dispatch", plain: "Plan which technician goes where and when.", where: "Service → Dispatch", src: "src/lib/constants.ts#NAV" },
+  "cap.module.technicians": { label: "Technicians", kind: "module", module: "technicians", plain: "Your field people, their skills and their work orders.", where: "Service → Technicians", src: "src/lib/constants.ts#NAV" },
+  "cap.module.work_orders": { label: "Work orders", kind: "module", module: "work_orders", plain: "The job on site or in the workshop, completed into an invoice.", where: "Service → Work orders", src: "src/lib/constants.ts#NAV" },
+  "cap.module.invoices": { label: "Invoices", kind: "module", module: "invoices", plain: "Invoice from a quote or a work order, send and record payment.", where: "Sales → Invoices", src: "src/lib/constants.ts#NAV" },
+  "cap.module.partners": { label: "Partners", kind: "module", module: "partners", plain: "The OEMs and vendors who refer work to you.", where: "Master data → Partners", src: "src/lib/constants.ts#NAV" },
+  "cap.setting.custom-fields": { label: "Your own fields", kind: "setting", module: "—", plain: "Add fields to any object — included in forms, the API and bulk import automatically.", where: "Settings → Data → Custom fields", src: "src/lib/settingsMenu.ts" }
+};
+
+/* ---------- Two sample companies ---------- */
+var SAMPLES = {
+  precast: {
+    name: "Al-Khaleej Precast (sample)", ref: "STU-0007", country: "Dammam, Saudi Arabia", contact: "Faisal Al-Dossary", email: "faisal@example.sa",
+    summary: "Precast manufacturer in Dammam: villas, boundary walls and car-park structures for contractors. Enquiries arrive as drawings by email, an estimator prices the panels in Excel, bids go to tender, the factory casts and delivers.",
+    chat: [
+      { who: "studio", text: "Tell us about your business in your own words — what you make, who your customers are, and how a job goes from the first enquiry to getting paid." },
+      { who: "client", text: "We are a precast concrete manufacturer in Dammam. Contractors send us drawings for villas, boundary walls and car parks. Our estimator takes the element schedule, prices the panels in Excel, and we submit a bid. If we win, the factory casts, we deliver by truck and erect on site. We have about 180 factory workers on two shifts." },
+      { who: "studio", text: "Thank you. A few questions:", list: ["Who checks a bid before it goes out — the sales manager, the GM, or both?", "Do you buy rebar and cement per project, or on standing contracts?", "How do you plan deliveries today — a spreadsheet, the ERP, or by phone?"], chips: [["Precast manufacturer, Dammam", 0], ["Customers: contractors", 0], ["Enquiry: drawings by email", 0], ["Pricing in Excel from element schedule", 0], ["Tender / bid process", 0], ["180 workers, 2 shifts", 0], ["Erection by own crews", 1]] },
+      { who: "client", text: "The sales manager checks every bid, the GM only above 2 million. Rebar is on a yearly contract, cement we buy per project from three suppliers. Deliveries are planned in a spreadsheet by the yard supervisor, and we are moving to Dynamics 365 next year." },
+      { who: "studio", text: "Understood. That is enough for a first map — press Build my process map, or answer an area on the left.", chips: [["Bid approval: sales manager; GM above 2M", 0], ["Cement: 3 suppliers per project", 0], ["Deliveries: spreadsheet", 0], ["Dynamics 365 coming", 0]] }
+    ],
+    areas: [["Sales", "Enquiries, estimating, bids, quotes", "done"], ["Production & delivery", "Casting, yard, trucks, erection", "done"], ["Procurement", "Rebar, cement, moulds, suppliers", "done"], ["Workforce", "Shifts, attendance, overtime", "done"], ["Service & repairs", "", "off"], ["Marketing", "Not answered yet", ""], ["Finance", "Handover to your accounting only", ""]],
+    uploads: [["Estimating-sheet-villa-2025.xlsx", "48 KB · 3 facts"], ["Delivery-plan-Oct.xlsx", "22 KB · read"], ["Bid-approval-matrix.pdf", "1 page · read"]],
+    lanes: ["Sales manager", "Estimator", "Buyer", "Yard supervisor"],
+    cols: ["Sales", "Production & delivery", "Procurement", "Workforce"],
+    steps: [
+      { id: "s1", area: 0, lane: 0, name: "Receive enquiry with drawings", how: "Email from contractor", to: 1 },
+      { id: "s2", area: 0, lane: 1, name: "Price panels from element schedule", how: "Excel, per project" },
+      { id: "s3", area: 0, lane: 0, name: "Approve and submit bid", how: "Email; GM above 2M" },
+      { id: "s4", area: 0, lane: 0, name: "Send quote, receive PO", how: "Email, PDF" },
+      { id: "s5", area: 1, lane: 1, name: "Prepare bill of materials per element", how: "Excel" },
+      { id: "s6", area: 1, lane: 3, name: "Plan casting by mould and day", how: "Whiteboard + spreadsheet" },
+      { id: "s7", area: 1, lane: 3, name: "Plan truck deliveries and erection", how: "Spreadsheet", assumed: true },
+      { id: "s8", area: 2, lane: 2, name: "Ask cement suppliers for prices", how: "WhatsApp and email, 3 suppliers" },
+      { id: "s9", area: 2, lane: 2, name: "Raise purchase order", how: "ERP" },
+      { id: "s10", area: 3, lane: 3, name: "Record two-shift attendance and overtime", how: "Fingerprint machine + Excel" }
+    ],
+    fit: {
+      s1: { r: "standard", caps: ["cap.module.accounts", "cap.module.leads"], why: "An enquiry becomes a lead or a deal on the account; the drawings attach to it.", conf: "sure" },
+      s2: { r: "setup", caps: ["cap.module.estimator", "cap.setting.estimate-templates"], why: "Estimates reads your element schedule as a spreadsheet and prices from a template your admin sets up with your rates and rules. Your Excel becomes the template.", conf: "sure" },
+      s3: { r: "partly", caps: ["cap.module.pipeline", "cap.module.standard_quotes"], why: "A deal moves through stages and a quote has a status flow, but a rule “GM must approve above 2 million” is not a setting today.", conf: "likely" },
+      s4: { r: "standard", caps: ["cap.module.standard_quotes"], why: "Quote PDF and email from the estimate; the PO is recorded on the deal.", conf: "sure" },
+      s5: { r: "standard", caps: ["cap.object.products.bom", "cap.module.estimator"], why: "An estimate produces the bill of materials per element; products can be kits with components.", conf: "sure" },
+      s6: { r: "not", caps: [], why: "There is no casting or mould schedule in BPMSquare. The estimate gives the quantities; the plan itself stays in your spreadsheet or your ERP.", conf: "sure" },
+      s7: { r: "not", caps: ["cap.api.v1"], why: "Delivery planning is not covered. Truck loads are counted on the estimate and can be sent to your ERP by the API, which is where Dynamics 365 would own it.", conf: "likely" },
+      s8: { r: "standard", caps: ["cap.module.rfq"], why: "An RFQ goes to your three suppliers by email, replies come back into BPMSquare, and you award the lowest.", conf: "sure" },
+      s9: { r: "standard", caps: ["cap.module.purchasing"], why: "Purchase orders and receiving; or keep it in the ERP and push from BPMSquare.", conf: "sure" },
+      s10: { r: "setup", caps: ["cap.module.wfm", "cap.setting.wf-shifts"], why: "Two shifts, phone or door-tablet punching, overtime approval and a monthly summary. Your admin sets up the sites and shifts.", conf: "sure" }
+    },
+    noticed: ["Estimates needs Standard Quotes switched on with it — the plan includes both.", "You will load your customer and product lists once; the Data Workbench does it from a spreadsheet.", "Dynamics 365: a connector exists but has not run with a client yet. We treat the ERP as a phase after go-live and say so on the call."],
+    changes: [
+      { kind: "Setting", band: "Small", title: "Bid approval rule above 2 million", plain: "A quote status that only the GM can move past when the total is above 2M.", alt: "Without it: the sales manager watches the amount, as today.", steps: ["s3"] },
+      { kind: "Your own fields", band: "Small", title: "Tender details on the deal", plain: "Tender number, bid bond amount and expiry, submission deadline as fields on the deal.", alt: "", steps: ["s3", "s4"] },
+      { kind: "Tenant extension", band: "Medium", title: "Your bid cover letter on the quote PDF", plain: "An extra section on the printed quote in your format, using the existing quote print hook.", alt: "Without it: the standard quote template, with your logo and terms.", steps: ["s4"] },
+      { kind: "Integration", band: "Large", title: "Delivery plan to Dynamics 365", plain: "Send the estimate's truck loads and erection sequence to the ERP when it goes live. Needs the connector run with a client first.", alt: "Until then: the spreadsheet, exported from the estimate.", steps: ["s7"] },
+      { kind: "New build", band: "Large", title: "Casting schedule by mould", plain: "A new screen: moulds, casting days, capacity per day. Not in the product; we would discuss whether it belongs here or in the ERP.", alt: "Without it: the whiteboard and spreadsheet, fed by the estimate's quantities.", steps: ["s6"] }
+    ],
+    plan: [
+      { name: "Foundations", tasks: [["Workspace, users and roles", "us", 2, true], ["Currency, VAT and your company details", "you", 1, false], ["Load customers and suppliers from a spreadsheet", "you", 2, false]] },
+      { name: "Master data", tasks: [["Product list with components", "you", 4, false], ["Price list check", "you", 2, false]] },
+      { name: "Sales and estimating", tasks: [["Build your estimate template from the Excel sheet", "us", 5, false], ["Tender fields and the approval rule", "us", 2, false], ["Price three past projects and compare", "you", 3, true]] },
+      { name: "Procurement", tasks: [["RFQ mailbox and supplier list", "us", 1, false], ["First RFQ to the cement suppliers", "you", 2, false]] },
+      { name: "Workforce", tasks: [["Sites, shifts and leave types", "you", 2, false], ["Enrol 180 workers; kiosk at the gate", "us", 3, false], ["Parallel run with the fingerprint machine", "you", 10, true]] },
+      { name: "Customisations", tasks: [["Bid cover letter on the quote PDF", "us", 3, false]] },
+      { name: "Go-live and training", tasks: [["Train estimators, buyers and supervisors", "us", 2, false], ["Go live", "you", 1, true]] }
+    ]
+  },
+  motors: {
+    name: "Hosapete Motor Works (sample)", ref: "STU-0008", country: "Hosapete, India", contact: "Ravi Kumar", email: "ravi@example.in",
+    summary: "Motor and transformer repair workshop: rewinding, overhauling and site service. Work comes from OEM referrals, yearly AMC contracts and walk-in customers; 6 technicians go to customer sites.",
+    chat: [
+      { who: "studio", text: "Tell us about your business in your own words — what you repair, who sends you work, and how a job goes from the first call to getting paid." },
+      { who: "client", text: "We rewind and overhaul motors and transformers. Work comes three ways: OEMs refer their customers to us, we hold AMC contracts for yearly servicing, and walk-in customers. A motor comes in, we inspect it, send an inspection report and a quote, repair, test and deliver. Six technicians also visit sites. Attendance is on a register." },
+      { who: "studio", text: "Thank you. A few questions:", list: ["Do OEM referral jobs have a warranty claim you bill to the OEM?", "How does a customer get the inspection report today — email, WhatsApp, printed?", "Do you keep spare parts stock, or buy per job?"], chips: [["Motor & transformer repair", 0], ["OEM referrals, AMC, direct customers", 0], ["Inspection report before quote", 0], ["6 field technicians", 0], ["Attendance on paper", 0]] },
+      { who: "client", text: "Yes, warranty jobs are billed to the OEM with their claim number. Reports and quotes go on WhatsApp mostly, sometimes email. We keep copper wire and bearings in stock, the rest per job." },
+      { who: "studio", text: "Understood. Press Build my process map when you are ready.", chips: [["Warranty claims billed to OEM", 0], ["Reports and quotes by WhatsApp", 0], ["Stock: copper wire, bearings", 0]] }
+    ],
+    areas: [["Sales", "Quotes, OEM referrals, AMC renewals", "done"], ["Service & repairs", "Intake, inspection, repair, delivery", "done"], ["Workforce", "Technician attendance", "done"], ["Procurement", "Spares, stock", "done"], ["Production & delivery", "", "off"], ["Marketing", "Not answered yet", ""], ["Finance", "Handover to your accounting only", ""]],
+    uploads: [["Inspection-report-format.docx", "2 pages · read"], ["AMC-customers-2026.xlsx", "14 KB · 31 customers"]],
+    lanes: ["Front office", "Workshop manager", "Technician", "Owner"],
+    cols: ["Sales", "Service & repairs", "Workforce", "Procurement"],
+    steps: [
+      { id: "m1", area: 1, lane: 0, name: "Receive the motor, open a job", how: "Register book; OEM referral by phone", to: 1 },
+      { id: "m2", area: 1, lane: 1, name: "Inspect and write the inspection report", how: "Word template, photos on phone" },
+      { id: "m3", area: 0, lane: 0, name: "Send report and quote on WhatsApp", how: "WhatsApp, sometimes email" },
+      { id: "m4", area: 0, lane: 3, name: "Customer approves; warranty jobs billed to OEM", how: "Phone; OEM claim number by email" },
+      { id: "m5", area: 1, lane: 1, name: "Repair, test and deliver", how: "Job card on paper" },
+      { id: "m6", area: 1, lane: 2, name: "Site visits under AMC contracts", how: "Yearly schedule in a diary" },
+      { id: "m7", area: 0, lane: 3, name: "AMC renewal reminders", how: "Memory", assumed: true },
+      { id: "m8", area: 2, lane: 2, name: "Technician attendance and overtime", how: "Register book" },
+      { id: "m9", area: 3, lane: 1, name: "Keep copper wire and bearings in stock", how: "Notebook" }
+    ],
+    fit: {
+      m1: { r: "standard", caps: ["cap.module.cases", "cap.module.partners", "cap.module.accounts"], why: "A case is the job from intake to closed; the referring OEM is a partner on it.", conf: "sure" },
+      m2: { r: "standard", caps: ["cap.object.case.inspection"], why: "The inspection report with photos is part of the case and prints as a PDF.", conf: "sure" },
+      m3: { r: "standard", caps: ["cap.module.quotations"], why: "Quotation PDF with a WhatsApp link and email from the case.", conf: "sure" },
+      m4: { r: "partly", caps: ["cap.module.quotations", "cap.setting.custom-fields"], why: "The quote records the PO; the OEM claim number needs a field of your own on the case, which an admin can add.", conf: "sure" },
+      m5: { r: "standard", caps: ["cap.module.cases", "cap.module.work_orders", "cap.module.invoices"], why: "Case status from in repair to QA to ready; the work order becomes the invoice.", conf: "sure" },
+      m6: { r: "setup", caps: ["cap.module.amc", "cap.module.dispatch", "cap.module.technicians"], why: "AMC contracts hold the equipment list and visit schedule; dispatch plans the technicians. Your contracts are loaded once.", conf: "sure" },
+      m7: { r: "standard", caps: ["cap.module.amc"], why: "Renewal dates are on the contract and show up on the dashboard.", conf: "likely" },
+      m8: { r: "setup", caps: ["cap.module.wfm"], why: "Phone punching with location for technicians on site; overtime approved by the owner. Needs sites and shifts set up.", conf: "sure" },
+      m9: { r: "standard", caps: ["cap.module.purchasing"], why: "Inventory for copper wire and bearings; a purchase order when stock runs low.", conf: "sure" }
+    },
+    noticed: ["Your 31 AMC customers from the spreadsheet can be loaded in one go.", "Quotes by WhatsApp are a link to the PDF; the customer does not need an app.", "Reading a WhatsApp message to open a job automatically is not available today; the front office opens the case, which takes under a minute."],
+    changes: [
+      { kind: "Your own fields", band: "Small", title: "OEM claim number on the case", plain: "A field on the case for the OEM's claim number, printed on the invoice.", alt: "", steps: ["m4"] },
+      { kind: "Setting", band: "Small", title: "Your inspection report wording", plain: "Your report sections and test names as the inspection template.", alt: "Without it: the standard report, which already covers motors.", steps: ["m2"] }
+    ],
+    plan: [
+      { name: "Foundations", tasks: [["Workspace, users and roles", "us", 1, true], ["GST, company details and quotation numbering", "you", 1, false]] },
+      { name: "Master data", tasks: [["Load customers, OEM partners and AMC contracts", "you", 2, false], ["Spare parts list and opening stock", "you", 1, false]] },
+      { name: "Service and sales", tasks: [["Case statuses, inspection template, claim number field", "us", 2, false], ["Run five real jobs through BPMSquare", "you", 5, true]] },
+      { name: "Workforce", tasks: [["Sites, shifts, technicians' phones", "you", 1, false], ["Two weeks alongside the register", "you", 10, true]] },
+      { name: "Go-live and training", tasks: [["Train front office and workshop manager", "us", 1, false], ["Go live", "you", 1, true]] }
+    ]
+  }
+};
+
+/* ---------- State ---------- */
+var S = { sample: "precast", step: 1, reached: 6, sent: false, hidden: {}, ok: {}, dur: {}, dirty: false, filt: { standard: 1, setup: 1, partly: 1, not: 1 }, kinds: {} };
+function $(id) { return document.getElementById(id); }
+function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+function D() { return SAMPLES[S.sample]; }
+function toast(t) { var el = $("toast"); el.textContent = t; el.classList.add("show"); clearTimeout(el._t); el._t = setTimeout(function () { el.classList.remove("show"); }, 2600); }
+
+var STEPS = ["Tell us", "Your process", "How BPMSquare fits", "What we'd change", "Your plan", "Talk to us"];
+var PRIMARY = ["Build my process map", "Check the fit", "See what we'd change", "Build my plan", "Send to BPMSquare", "Send to BPMSquare"];
+var RLABEL = { standard: "Standard", setup: "Needs setup", partly: "Partly covered", not: "Not covered" };
+var KINDS = [["Setting", "A choice an admin makes in Settings."], ["Your own fields", "Extra fields on an object."], ["Tenant extension", "A change only for your workspace."], ["New build", "Something new in the product."], ["Integration", "A connector, the API or a webhook."]];
+
+function renderHead() {
+  var d = D(), counts = fitCounts();
+  $("title").textContent = d.name;
+  $("refLine").textContent = d.ref + " · " + d.country + " · version " + (S.sent ? 2 : 1);
+  $("statusPill").textContent = S.sent ? "Sent to BPMSquare" : ["Telling us", "Mapped", "Fit ready", "Changes ready", "Plan ready", "Ready to send"][S.reached - 1];
+  $("facts").innerHTML = "<span><b>" + d.steps.length + "</b> steps</span><span><b>" + d.lanes.length + "</b> roles</span><span><b>" + (counts.standard + counts.setup) + "</b> standard or setup</span><span><b>" + (counts.partly + counts.not) + "</b> need a change</span>";
+  $("primary").textContent = S.step === 6 && S.sent ? "Sent" : PRIMARY[S.step - 1];
+  $("primary").disabled = S.step === 6 && S.sent;
+  $("stepper").innerHTML = STEPS.map(function (s, i) {
+    var n = i + 1, cls = "stepb" + (n === S.step ? " active" : n < S.reached ? " done" : n > S.reached ? " locked" : "");
+    return '<button type="button" class="' + cls + '" data-go="' + n + '" ' + (n > S.reached ? 'aria-disabled="true"' : "") + '><i>' + (n < S.reached ? "✓" : n) + '</i><span class="lbl">' + s + '</span></button>';
+  }).join("");
+  document.querySelectorAll(".step").forEach(function (el) { el.classList.toggle("show", +el.dataset.step === S.step); });
+}
+function go(n) { if (n > S.reached) return; S.step = n; renderHead(); window.scrollTo({ top: 0 }); }
+function advance() {
+  if (S.step === 6) { sendIt(); return; }
+  var n = S.step + 1; if (S.reached < n) S.reached = n;
+  var msg = ["Drafting your process map from the conversation…", "Checking each step against what BPMSquare has…", "Working out what would change…", "Building the plan…", ""][S.step - 1];
+  if (msg) toast(msg);
+  go(n);
+}
+
+/* ---------- Step 1 ---------- */
+function renderChat() {
+  var d = D();
+  $("chat").innerHTML = d.chat.map(function (m) {
+    var h = '<div class="msg ' + m.who + '"><div class="who">' + (m.who === "studio" ? "Studio" : "You") + '</div>' + esc(m.text);
+    if (m.list) h += "<ul>" + m.list.map(function (q) { return "<li>" + esc(q) + "</li>"; }).join("") + "</ul>";
+    if (m.chips) h += '<div class="chips">' + m.chips.map(function (c) { return '<span class="chip' + (c[1] ? " a" : "") + '">' + esc(c[0]) + (c[1] ? " · assumed" : "") + "</span>"; }).join("") + "</div>";
+    return h + "</div>";
+  }).join("");
+  $("chat").scrollTop = $("chat").scrollHeight;
+  $("areas").innerHTML = d.areas.map(function (a) {
+    return '<div class="area ' + a[2] + '" tabindex="0" role="button"><div><div class="n">' + esc(a[0]) + '</div><div class="s">' + esc(a[2] === "off" ? "Not relevant to us" : a[1]) + '</div></div><div class="t">' + (a[2] === "done" ? "✓" : a[2] === "off" ? "" : '<span style="color:var(--accent)">Answer →</span>') + "</div></div>";
+  }).join("");
+  $("uploads").innerHTML = d.uploads.map(function (u) { return '<div class="file"><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(u[0]) + "</span><small>" + esc(u[1]) + "</small></div>"; }).join("");
+}
+$("send").addEventListener("click", function () {
+  var t = $("say").value.trim(); if (!t) return;
+  var d = D(); d.chat.push({ who: "client", text: t });
+  d.chat.push({ who: "studio", text: "Noted. Anything else about this, or shall we build the map?", chips: [[t.length > 48 ? t.slice(0, 45) + "…" : t, 0]] });
+  $("say").value = ""; renderChat();
+});
+$("say").addEventListener("keydown", function (e) { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); $("send").click(); } });
+$("areas").addEventListener("click", function () { toast("Opens three short questions for this area. Answers feed the same conversation."); });
+
+/* ---------- Step 2 ---------- */
+function renderMap() {
+  var d = D(), cols = d.cols.length, showA = $("showAssumed").checked;
+  var vis = d.steps.filter(function (s) { return showA || !s.assumed; });
+  var head = '<div class="lane" style="--cols:' + cols + '"><div></div>' + d.cols.map(function (c) { return '<div class="colh">' + esc(c) + "</div>"; }).join("") + "</div>";
+  var rows = d.lanes.map(function (l, li) {
+    return '<div class="lane" style="--cols:' + cols + '"><div class="who">' + esc(l) + "</div>" + d.cols.map(function (c, ci) {
+      var cards = vis.filter(function (s) { return s.lane === li && s.area === ci; }).map(function (s) { return stepCard(s); }).join("");
+      return '<div class="cell">' + cards + (cards ? "" : '<div class="pstep add" data-add="1">+ Add step</div>') + "</div>";
+    }).join("") + "</div>";
+  }).join("");
+  $("lanes").innerHTML = head + rows;
+  $("plist").innerHTML = d.cols.map(function (c, ci) {
+    var cards = vis.filter(function (s) { return s.area === ci; }).map(function (s) { return stepCard(s, d.lanes[s.lane]); }).join("");
+    return cards ? '<div class="grp"><h3>' + esc(c) + "</h3><div style=\"display:grid;gap:6px\">" + cards + "</div></div>" : "";
+  }).join("");
+  $("roles").innerHTML = d.lanes.map(function (l) { return "<div><span>" + esc(l) + '</span><span class="help">' + d.steps.filter(function (s) { return d.lanes[s.lane] === l; }).length + " steps</span></div>"; }).join("");
+}
+function stepCard(s, laneLabel) {
+  return '<div class="pstep' + (s.assumed ? " assumed" : "") + '"><b contenteditable="true" spellcheck="false" data-id="' + s.id + '">' + esc(s.name) + "</b><span>" + esc(s.how) + (laneLabel ? " · " + esc(laneLabel) : "") + (s.assumed ? ' · <em style="color:var(--warn)">assumed</em>' : "") + "</span>" + (s.to ? '<span class="hand" title="Hands over to another role">→</span>' : "") + "</div>";
+}
+document.addEventListener("input", function (e) { var id = e.target.dataset && e.target.dataset.id; if (!id) return; var st = D().steps.filter(function (s) { return s.id === id; })[0]; if (st) st.name = e.target.textContent.trim(); });
+document.addEventListener("click", function (e) { if (e.target.dataset && e.target.dataset.add) toast("Adds a step here; you name it and say how it is done today."); });
+$("showAssumed").addEventListener("change", renderMap);
+
+/* ---------- Step 3 ---------- */
+function fitCounts() { var c = { standard: 0, setup: 0, partly: 0, not: 0 }, f = D().fit; Object.keys(f).forEach(function (k) { c[f[k].r]++; }); return c; }
+function capChip(id) { var c = CAT[id]; return c ? '<span class="cap" data-cap="' + id + '">' + esc(c.label) + "</span>" : ""; }
+function renderFit() {
+  var d = D(), c = fitCounts(), ids = $("showIds").checked;
+  $("tiles").innerHTML = ["standard", "setup", "partly", "not"].map(function (k) { return '<div class="tile ' + k + '"><b>' + c[k] + "</b><span>" + RLABEL[k] + "</span></div>"; }).join("");
+  var html = "";
+  d.cols.forEach(function (col, ci) {
+    var steps = d.steps.filter(function (s) { return s.area === ci && S.filt[d.fit[s.id].r]; }); if (!steps.length) return;
+    html += '<div class="areahd">' + esc(col) + "</div>";
+    steps.forEach(function (s) {
+      var f = d.fit[s.id];
+      html += '<details class="frow"><summary><span class="pill ' + f.r + '">' + RLABEL[f.r] + '</span><div class="sn"><b>' + esc(s.name) + "</b><span>" + (f.caps.length ? "Covered by " + f.caps.map(function (id) { return CAT[id] ? CAT[id].label : id; }).join(", ") : "Not in BPMSquare today") + '</span></div><span class="conf' + (S.sent ? " ok" : "") + '">' + (S.sent ? "✓ Reviewed by BPMSquare" : f.conf === "sure" ? "We are sure" : f.conf === "likely" ? "Likely — we confirm on the call" : "Check with us") + "</span></summary>";
+      html += '<div class="body"><p>' + esc(f.why) + "</p>" + (f.caps.length ? '<div class="cov"><span class="help">Where:</span>' + f.caps.map(capChip).join("") + "</div>" : "") + '<div class="cov"><span class="help">How you do it today:</span><span class="help">' + esc(s.how) + "</span></div>" + (ids && f.caps.length ? '<div class="cov">' + f.caps.map(function (id) { return '<span class="cap mono" data-cap="' + id + '">' + id + "</span>"; }).join("") + "</div>" : "") + "</div></details>";
+    });
+  });
+  $("fit").innerHTML = html || '<div class="card"><p class="help">Nothing to show with these filters.</p></div>';
+  $("noticed").innerHTML = d.noticed.map(function (n) { return "<p>• " + esc(n) + "</p>"; }).join("");
+  $("reviewBanner").textContent = S.sent ? "Reviewed by BPMSquare on version 1 — every line checked by a person." : "Draft — BPMSquare reviews this before it becomes a proposal.";
+  $("reviewBanner").style.background = S.sent ? "var(--good-bg)" : ""; $("reviewBanner").style.color = S.sent ? "var(--good)" : "";
+}
+document.querySelectorAll("[data-f]").forEach(function (cb) { cb.addEventListener("change", function () { S.filt[cb.dataset.f] = cb.checked ? 1 : 0; renderFit(); }); });
+$("showIds").addEventListener("change", renderFit);
+document.addEventListener("click", function (e) {
+  var id = e.target.dataset && e.target.dataset.cap; if (!id) return; e.preventDefault();
+  var c = CAT[id]; $("mTitle").textContent = c.label; $("mPlain").textContent = c.plain; $("mKind").textContent = c.kind; $("mModule").textContent = c.module; $("mWhere").textContent = c.where; $("mStatus").textContent = c.status || "live"; $("mId").textContent = id; $("mSrc").textContent = c.src;
+  $("modal").classList.add("show");
+});
+function closeModal() { $("modal").classList.remove("show"); }
+$("modal").addEventListener("click", function (e) { if (e.target === $("modal")) closeModal(); });
+document.addEventListener("keydown", function (e) { if (e.key === "Escape") { closeModal(); $("menuList").hidden = true; tourEnd(); } });
+
+/* ---------- Step 4 ---------- */
+function renderChanges() {
+  var d = D(), showH = $("showHidden").checked;
+  $("kinds").innerHTML = KINDS.map(function (k) { return '<label class="chk" style="align-items:flex-start"><input type="checkbox" data-k="' + esc(k[0]) + '"' + (S.kinds[k[0]] === false ? "" : " checked") + '> <span><b style="font-weight:600">' + esc(k[0]) + '</b><br><span class="help">' + esc(k[1]) + "</span></span></label>"; }).join("");
+  var list = d.changes.map(function (c, i) { return { c: c, i: i }; }).filter(function (x) { return S.kinds[x.c.kind] !== false && (showH || !S.hidden[S.sample + x.i]); });
+  if (!list.length) { $("changes").innerHTML = '<div class="card"><b>Nothing to change.</b><p class="help">Every step is standard or needs only setup — or your filters hide the rest.</p></div>'; return; }
+  $("changes").innerHTML = list.map(function (x) {
+    var c = x.c, i = x.i, hid = S.hidden[S.sample + i];
+    var names = c.steps.map(function (id) { var s = d.steps.filter(function (y) { return y.id === id; })[0]; return s ? s.name : id; }).join(" · ");
+    return '<div class="chg' + (hid ? " hidden" : "") + '"><div class="k"><span class="pill grey">' + esc(c.kind) + '</span><span class="band">' + esc(c.band) + "</span></div><b>" + esc(c.title) + "</b><p>" + esc(c.plain) + "</p>" + (c.alt ? '<div class="alt">' + esc(c.alt) + "</div>" : "") + '<div class="links">For: ' + esc(names) + '</div><div class="act"><button class="btn quiet" type="button" data-hide="' + i + '">' + (hid ? "Put back" : "We can live without this") + "</button></div></div>";
+  }).join("");
+}
+$("changes").addEventListener("click", function (e) { var i = e.target.dataset && e.target.dataset.hide; if (i === undefined) return; var k = S.sample + i; S.hidden[k] = !S.hidden[k]; renderChanges(); });
+$("kinds").addEventListener("change", function (e) { if (e.target.dataset.k) { S.kinds[e.target.dataset.k] = e.target.checked; renderChanges(); } });
+$("showHidden").addEventListener("change", renderChanges);
+
+/* ---------- Step 5 ---------- */
+function weekendDays() { var v = $("weekend").value; return v === "56" ? [5, 6] : v === "06" ? [0, 6] : [0]; }
+function workdays(from, n) { var d = new Date(from), left = n, we = weekendDays(); while (left > 0) { d.setDate(d.getDate() + 1); if (we.indexOf(d.getDay()) < 0) left--; } return d; }
+function fmtD(d) { return d.toLocaleDateString("en-GB", { day: "numeric", month: "short" }); }
+function phaseDays(p, pi) { return p.tasks.reduce(function (a, t, ti) { var k = S.sample + pi + "-" + ti; return a + (S.dur[k] !== undefined ? S.dur[k] : t[2]); }, 0); }
+function renderPlan() {
+  var d = D(), start = new Date($("start").value || "2026-11-02"), cursor = new Date(start), spans = [], total = 0, onlyYou = $("onlyYou").checked;
+  d.plan.forEach(function (p, pi) { var days = phaseDays(p, pi); var s = new Date(cursor); var e = workdays(s, days); spans.push({ s: s, e: e, days: days, off: total }); total += days; cursor = e; });
+  $("gantt").innerHTML = d.plan.map(function (p, pi) {
+    var sp = spans[pi], ms = p.tasks.some(function (t) { return t[3]; });
+    return '<div class="gr"><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(p.name) + '</span><div class="gtrack"><div class="gbar' + (ms ? " m" : "") + '" style="left:' + (sp.off / total * 100) + "%;width:" + Math.max(1.5, sp.days / total * 100) + '%"></div></div><span class="dt">' + fmtD(sp.s) + " – " + fmtD(sp.e) + "</span></div>";
+  }).join("");
+  $("ganttNote").textContent = "About " + total + " working days from " + fmtD(start) + " to " + fmtD(spans[spans.length - 1].e) + ", phases one after another. Change a duration and the dates move. ◆ marks a milestone. Indicative — confirmed on the call.";
+  $("phases").innerHTML = d.plan.map(function (p, pi) {
+    var okk = S.sample + pi, ok = S.ok[okk], you = p.tasks.filter(function (t) { return t[1] === "you"; }).length;
+    var tasks = p.tasks.map(function (t, ti) { return { t: t, ti: ti }; }).filter(function (x) { return !onlyYou || x.t[1] === "you"; });
+    return '<details class="phase"' + (pi === 0 ? " open" : "") + '><summary><div class="pt"><b>' + (pi + 1) + ". " + esc(p.name) + "</b><span>" + p.tasks.length + " tasks · " + phaseDays(p, pi) + " working days · " + you + " for you, " + (p.tasks.length - you) + " for BPMSquare</span></div><span class=\"help\">" + fmtD(spans[pi].s) + " → " + fmtD(spans[pi].e) + '</span><label class="ok' + (ok ? " on" : "") + '" onclick="event.stopPropagation()"><input type="checkbox" data-ok="' + pi + '"' + (ok ? " checked" : "") + "> Looks right</label></summary><div class=\"tasks\">" +
+      tasks.map(function (x) { var t = x.t, k = S.sample + pi + "-" + x.ti, dur = S.dur[k] !== undefined ? S.dur[k] : t[2]; return '<div class="task"><div class="nm">' + (t[3] ? '<span class="ms">◆</span>' : "") + "<span>" + esc(t[0]) + '</span></div><span class="pill ' + (t[1] === "you" ? "you" : "us") + '">' + (t[1] === "you" ? "You" : "BPMSquare") + '</span><input type="number" min="1" max="60" value="' + dur + '" data-dur="' + pi + "-" + x.ti + '" aria-label="Working days"><span class="d">' + dur + " d</span></div>"; }).join("") +
+      '<div class="cmt"><textarea placeholder="A comment on this phase (optional)" data-cmt="' + pi + '"></textarea></div></div></details>';
+  }).join("");
+}
+$("phases").addEventListener("change", function (e) {
+  var t = e.target;
+  if (t.dataset.ok !== undefined) { S.ok[S.sample + t.dataset.ok] = t.checked; markDirty(); renderPlan(); }
+  if (t.dataset.dur !== undefined) { S.dur[S.sample + t.dataset.dur] = Math.max(1, +t.value || 1); markDirty(); renderPlan(); }
+});
+$("phases").addEventListener("input", function (e) { if (e.target.dataset && e.target.dataset.cmt !== undefined) markDirty(); });
+["start", "weekend", "onlyYou"].forEach(function (id) { $(id).addEventListener("change", function () { if (id !== "onlyYou") markDirty(); renderPlan(); }); });
+function markDirty() { S.dirty = true; $("unsaved").hidden = false; $("savePlan").disabled = false; }
+$("savePlan").addEventListener("click", function () { S.dirty = false; $("unsaved").hidden = true; $("savePlan").disabled = true; toast("Plan saved."); });
+
+/* ---------- Step 6 ---------- */
+function renderTalk() {
+  var d = D(), c = fitCounts(), kept = d.changes.filter(function (x, i) { return !S.hidden[S.sample + i]; }).length, okN = d.plan.filter(function (p, i) { return S.ok[S.sample + i]; }).length;
+  var total = d.plan.reduce(function (a, p, i) { return a + phaseDays(p, i); }, 0);
+  $("sumTitle").textContent = d.name; $("sumText").textContent = d.summary;
+  $("sum").innerHTML = [["Standard or setup", c.standard + c.setup + " of " + d.steps.length], ["Need a change", c.partly + c.not], ["Changes kept", kept + " of " + d.changes.length], ["Plan", total + " working days"], ["Phases you ticked", okN + " of " + d.plan.length]].map(function (x) { return "<div><span>" + x[0] + "</span><b>" + x[1] + "</b></div>"; }).join("");
+  if (!$("cname").value) $("cname").value = d.contact; if (!$("cmail").value) $("cmail").value = d.email;
+  $("sendSlot").innerHTML = S.sent ? '<div class="sent">Sent. We will contact ' + esc($("cname").value || d.contact) + " within two working days. Version 1 is frozen.</div>" : '<button class="btn big" id="sendBtn" type="button">Send to BPMSquare</button>';
+  if (!S.sent) $("sendBtn").addEventListener("click", sendIt);
+}
+function sendIt() { if (S.sent) return; S.sent = true; S.step = 6; renderAll(); toast("Sent to BPMSquare. Version 1 frozen."); }
+
+/* ---------- Collapsible option groups (owner rule: expand/collapse on all options; the group in use open, the rest collapsed) ---------- */
+document.querySelectorAll(".panel .step").forEach(function (stepEl) {
+  Array.prototype.slice.call(stepEl.children).filter(function (c) { return c.classList.contains("card"); }).forEach(function (card, i) {
+    var h3 = card.querySelector("h3"), hintEl = null;
+    Array.prototype.slice.call(card.children).forEach(function (c) { if (!hintEl && c.tagName === "P" && c.classList.contains("hint")) hintEl = c; });
+    var title = card.dataset.title || (h3 ? h3.textContent : "Options"), hint = card.dataset.hint || (hintEl ? hintEl.textContent : "");
+    var d = document.createElement("details"); d.className = "grp"; if (card.id) { d.id = card.id; card.removeAttribute("id"); } if (i === 0) d.open = true;
+    var sm = document.createElement("summary"); sm.setAttribute("aria-expanded", String(d.open));
+    sm.innerHTML = "<span><b>" + esc(title) + "</b>" + (hint ? '<span class="hint">' + esc(hint) + "</span>" : "") + '</span><svg class="chev" viewBox="0 0 20 20" aria-hidden="true"><path d="M5 8l5 5 5-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+    if (h3) h3.remove(); if (hintEl) hintEl.remove();
+    var hd = card.querySelector(".hd"); if (hd && !hd.children.length) hd.remove();
+    var body = document.createElement("div"); body.className = "in"; while (card.firstChild) body.appendChild(card.firstChild);
+    d.appendChild(sm); d.appendChild(body); card.parentNode.replaceChild(d, card);
+    d.addEventListener("toggle", function () { sm.setAttribute("aria-expanded", String(d.open)); });
+  });
+});
+
+/* ---------- Guided walkthrough: "Show me how" ---------- */
+var TOURS = {
+  1: [["topbar", "This is your study. The big button, top right, is always the next step. Nothing happens until you press it."], ["w1chat", "Tell us how you work, in your own words. We ask at most three questions back. Blue chips are what you said, amber what we assumed."], ["p1areas", "Or answer an area at a time. Switch off what does not apply."], ["p1docs", "Already have an SOP or a spreadsheet? Add it and we read it for you."]],
+  2: [["w2map", "Your process, one lane per role. Click a step name to change it. On a phone this is a list by area."], ["p2roles", "The roles are the lanes. Add one if we missed somebody."]],
+  3: [["tiles", "Four numbers: how much is standard, how much needs setup, and what needs a change."], ["fit", "One line per step. Open a line for the why; tap a blue name to see exactly which module, screen or setting it is."], ["p3filter", "Show only the lines you care about."], ["reviewBanner", "It stays a draft until a person at BPMSquare has checked every line."]],
+  4: [["changes", "One card per change. The band says roughly how big it is — never a price."], ["p4kinds", "There are only five kinds of change in BPMSquare. Untick a kind to hide it."]],
+  5: [["w5gantt", "Your timeline. Pick a start date on the left and every date moves."], ["phases", "Open a phase, tick Looks right, change a duration, leave a comment."], ["p5dates", "Start date, weekend and a filter for just your tasks. Save when you are done."]],
+  6: [["w6sum", "The package in numbers."], ["p6send", "Your name and email, then Send. Version 1 is frozen; we call within two working days."]]
+};
+var T = { on: false, i: 0, el: null };
+function tourStart() { T.on = true; T.i = 0; tourShow(); }
+function tourShow() {
+  var list = TOURS[S.step] || []; if (!list.length) { tourEnd(); return; }
+  if (T.el) T.el.classList.remove("tour-hl");
+  var it = list[T.i], el = $(it[0]); if (!el) { tourEnd(); return; }
+  if (el.tagName === "DETAILS") el.open = true; el.classList.add("tour-hl"); T.el = el; el.scrollIntoView({ block: "center", behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+  $("tourN").textContent = "Show me how · " + (T.i + 1) + " of " + list.length; $("tourT").textContent = it[1];
+  $("tourBack").disabled = T.i === 0; $("tourNext").textContent = T.i === list.length - 1 ? "Done" : "Next";
+  $("tourCap").classList.add("show");
+}
+function tourEnd() { T.on = false; if (T.el) T.el.classList.remove("tour-hl"); T.el = null; $("tourCap").classList.remove("show"); }
+$("tourBtn").addEventListener("click", function () { T.on ? tourEnd() : tourStart(); });
+$("tourNext").addEventListener("click", function () { var n = (TOURS[S.step] || []).length; if (T.i >= n - 1) tourEnd(); else { T.i++; tourShow(); } });
+$("tourBack").addEventListener("click", function () { if (T.i > 0) { T.i--; tourShow(); } });
+$("tourSkip").addEventListener("click", tourEnd);
+
+/* ---------- Wiring ---------- */
+function renderAll() { renderHead(); renderChat(); renderMap(); renderFit(); renderChanges(); renderPlan(); renderTalk(); }
+$("stepper").addEventListener("click", function (e) { var b = e.target.closest("[data-go]"); if (b) { tourEnd(); go(+b.dataset.go); } });
+$("primary").addEventListener("click", function () { tourEnd(); advance(); });
+$("menuBtn").addEventListener("click", function () { var l = $("menuList"); l.hidden = !l.hidden; $("menuBtn").setAttribute("aria-expanded", String(!l.hidden)); });
+document.addEventListener("click", function (e) { if (!e.target.closest(".menu")) $("menuList").hidden = true; });
+$("menuList").addEventListener("click", function (e) { if (e.target.tagName === "LI" && !e.target.classList.contains("div")) toast(e.target.textContent + " — in the product this lives in the ⋯ menu, as on every record."); });
+$("sampleSel").innerHTML = Object.keys(SAMPLES).map(function (k) { return '<option value="' + k + '">' + esc(SAMPLES[k].name) + "</option>"; }).join("");
+$("sampleSel").addEventListener("change", function () { tourEnd(); S.sample = this.value; S.step = 1; S.reached = 6; S.sent = false; $("cname").value = ""; $("cmail").value = ""; renderAll(); });
+$("themeBtn").addEventListener("click", function () { var r = document.documentElement, cur = r.getAttribute("data-theme"); var dark = cur ? cur === "dark" : matchMedia("(prefers-color-scheme: dark)").matches; r.setAttribute("data-theme", dark ? "light" : "dark"); });
+/* The sample opens with every step reachable so reviewers can jump around; a new study starts at step 1 with the rest locked. */
+renderAll();
+</script>
+</body>
+</html>

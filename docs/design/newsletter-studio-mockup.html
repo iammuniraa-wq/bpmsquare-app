@@ -1,0 +1,657 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Newsletter Studio</title>
+<meta name="description" content="Design mock-up for the BPMSquare Newsletter Studio: options in a left panel, the email on the right, English first with languages added on top, AI draft and translate with review, a guided walkthrough, and the hand-over to a campaign. Sample content only.">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Naskh+Arabic:wght@400;500;700&display=swap">
+<style>
+/* Layout, same shape as the Fence configurator and the Project Estimator: a header bar, then the options in a left panel (330px) and the email on the right. Under 900px the panel becomes tabs above the email. */
+:root {
+  --bg: #eef1f5; --surface: #ffffff; --surface2: #f6f8fb; --line: #dde3ea; --ink: #17212e; --muted: #5d6b7c;
+  --accent: #0e7c86; --accent-ink: #ffffff; --accent-bg: #e1f3f4;
+  --warn: #9a5a0b; --warn-bg: #fdf0dc; --good: #1d7a45; --good-bg: #e3f4ea; --bad: #b3402f;
+  --font: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-ar: "Noto Naskh Arabic", "Segoe UI", Tahoma, Arial, sans-serif;
+  /* the sample company's brand kit (illustrative) */
+  --brand: #16365c; --brand2: #c8892a; --brand-ink: #ffffff;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0d141d; --surface: #16202c; --surface2: #1b2735; --line: #2a3849; --ink: #e7edf4; --muted: #93a2b5;
+    --accent: #3fb8c2; --accent-ink: #06191b; --accent-bg: #123238; --warn: #f0b266; --warn-bg: #3a2a14; --good: #62c58b; --good-bg: #14301f; --bad: #e58a7c;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0d141d; --surface: #16202c; --surface2: #1b2735; --line: #2a3849; --ink: #e7edf4; --muted: #93a2b5;
+  --accent: #3fb8c2; --accent-ink: #06191b; --accent-bg: #123238; --warn: #f0b266; --warn-bg: #3a2a14; --good: #62c58b; --good-bg: #14301f; --bad: #e58a7c;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--font); font-size: 14px; line-height: 1.5;
+  padding-inline: max(16px, env(safe-area-inset-left, 0px)) max(16px, env(safe-area-inset-right, 0px)); padding-block: 18px 90px; }
+.wrap { max-width: 1180px; margin: 0 auto; display: grid; gap: 14px; }
+h1 { font-size: 22px; font-weight: 700; line-height: 1.25; margin: 0; }
+.sub { color: var(--muted); margin: 2px 0 0; }
+.head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 10px 16px; align-items: flex-start; }
+.head .r { display: flex; gap: 8px; align-items: center; }
+.pill { display: inline-block; font-size: 11px; font-weight: 600; padding: 2px 9px; border-radius: 999px; background: var(--accent-bg); color: var(--accent); }
+.banner { background: var(--warn-bg); color: var(--warn); border-radius: 9px; padding: 8px 12px; font-size: 13px; font-weight: 500; }
+.btn { font: inherit; font-weight: 600; font-size: 13px; background: var(--accent); color: var(--accent-ink); border: 0; padding: 9px 16px; border-radius: 8px; cursor: pointer; }
+.btn.ghost { background: transparent; color: var(--ink); border: 1px solid var(--line); }
+.btn.sm { padding: 5px 10px; font-size: 12px; }
+.btn.big { padding: 12px 20px; font-size: 14px; width: 100%; }
+.btn:disabled { opacity: .55; cursor: default; }
+.btn:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, summary:focus-visible, .blk:focus-visible, .tab:focus-visible, .ptab:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+textarea, input[type=text], select { width: 100%; font: inherit; padding: 8px 11px; border: 1px solid var(--line); border-radius: 9px; background: var(--surface); color: var(--ink); }
+textarea { min-height: 84px; resize: vertical; }
+.help { font-size: 12px; color: var(--muted); }
+.hint { font-size: 12px; color: var(--muted); margin: -2px 0 8px; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.chip { font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 999px; background: var(--accent-bg); color: var(--accent); }
+.chip.a { background: var(--warn-bg); color: var(--warn); }
+.chip.g { background: var(--good-bg); color: var(--good); }
+.chip.n { background: var(--surface2); color: var(--muted); }
+/* studio grid */
+.studio { display: grid; grid-template-columns: 330px minmax(0, 1fr); gap: 14px; align-items: start; }
+.panel { display: grid; gap: 10px; min-width: 0; }
+.ptabs { display: none; gap: 2px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 3px; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.ptab { flex: 1 0 auto; font: inherit; font-size: 12px; font-weight: 600; padding: 6px 5px; border-radius: 7px; border: 0; background: transparent; color: var(--muted); cursor: pointer; white-space: nowrap; }
+.ptab.on { background: var(--accent-bg); color: var(--accent); }
+/* option groups: a header row (label, one-line hint, summary, chevron) that expands and collapses; one open at a time keeps the panel lean */
+.sec { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; }
+.sech { width: 100%; font: inherit; color: var(--ink); background: transparent; border: 0; cursor: pointer; text-align: left; padding: 11px 14px; display: grid; grid-template-columns: minmax(0,1fr) auto 18px; gap: 2px 8px; align-items: center; border-radius: 12px; }
+.sech:hover { background: var(--surface2); }
+.sech b { font-size: 13.5px; }
+.sech .sum { font-size: 12px; color: var(--muted); white-space: nowrap; grid-column: 2; grid-row: 1; }
+.sech .hint { grid-column: 1 / 3; margin: 0; }
+.sech .chev { grid-column: 3; grid-row: 1; width: 16px; height: 16px; stroke: var(--muted); fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; transition: transform .2s; }
+.sec.open .sech .chev { transform: rotate(180deg); }
+.sec.open .sech { border-radius: 12px 12px 0 0; }
+.sec .in { padding: 0 14px 14px; }
+.sec:not(.open) .in { display: none; }
+.sec .in > .hint:first-child { margin-top: 2px; }
+.starts { display: grid; gap: 8px; }
+.start { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; background: var(--surface2); cursor: pointer; display: grid; gap: 2px; text-align: left; font: inherit; color: var(--ink); }
+.start.sel { border-color: var(--accent); background: var(--accent-bg); }
+.start b { font-size: 13px; }
+.start span { font-size: 12px; color: var(--muted); }
+.row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 8px; }
+/* blocks */
+.blk { display: grid; grid-template-columns: 18px minmax(0,1fr) auto; gap: 8px; align-items: center; padding: 7px 9px; border: 1px solid var(--line); border-radius: 9px; margin-bottom: 6px; background: var(--surface); cursor: pointer; }
+.blk.sel { border-color: var(--accent); background: var(--accent-bg); }
+.blk.off { opacity: .5; }
+.blk .h { color: var(--muted); font-size: 14px; cursor: grab; }
+.blk .n { font-weight: 600; font-size: 13px; display: flex; gap: 6px; align-items: center; min-width: 0; }
+.blk .n small { font-weight: 500; color: var(--muted); font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.blk .t { display: flex; gap: 2px; }
+.ic { width: 24px; height: 24px; border: 0; background: transparent; border-radius: 6px; cursor: pointer; color: var(--muted); display: inline-grid; place-items: center; padding: 0; font-size: 13px; }
+.ic:hover { background: var(--surface2); color: var(--ink); }
+.ic svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.lock { color: var(--brand2); display: inline-grid; }
+.lock svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.8; }
+.add { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.add button { font: inherit; font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 999px; border: 1px dashed var(--line); background: transparent; color: var(--ink); cursor: pointer; }
+.add button:hover { border-color: var(--accent); color: var(--accent); }
+.editor { margin-top: 10px; border-top: 1px solid var(--line); padding-top: 10px; display: grid; gap: 6px; }
+.editor label { font-size: 12.5px; font-weight: 600; }
+.editor textarea { min-height: 76px; }
+.editor .rw { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.editor .rw span { font-size: 12px; color: var(--muted); }
+/* languages */
+.lang { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 2px 8px; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--line); }
+.lang:last-of-type { border-bottom: 0; }
+.lang b { font-size: 13px; }
+.lang small { color: var(--muted); font-size: 12px; grid-column: 1; }
+.lang small[dir=rtl] { font-family: var(--font-ar); font-size: 13.5px; text-align: left; direction: rtl; }
+.st { font-size: 11.5px; font-weight: 600; padding: 2px 8px; border-radius: 999px; white-space: nowrap; grid-column: 2; grid-row: 1; }
+.st.ok { background: var(--good-bg); color: var(--good); }
+.st.w { background: var(--warn-bg); color: var(--warn); }
+.st.n { background: var(--surface2); color: var(--muted); }
+.addlang { display: flex; gap: 6px; margin-top: 10px; }
+.addlang select { flex: 1; }
+.kit { display: grid; gap: 6px; font-size: 12.5px; }
+.kit div b { color: var(--muted); font-weight: 600; font-size: 11.5px; text-transform: uppercase; letter-spacing: .04em; display: block; }
+.sw { display: inline-block; width: 13px; height: 13px; border-radius: 4px; vertical-align: -2px; margin-right: 4px; border: 1px solid rgba(0,0,0,.15); }
+.checks { display: grid; gap: 5px; }
+.checks .chip { justify-self: start; }
+.use { display: grid; gap: 8px; }
+.use .hint { margin: -4px 0 2px; }
+/* canvas */
+.canvas { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 14px; min-width: 0; }
+.tools { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.tabs { display: flex; gap: 4px; background: var(--surface2); padding: 3px; border-radius: 9px; }
+.tab { font: inherit; font-size: 12.5px; font-weight: 600; padding: 5px 11px; border-radius: 7px; border: 0; background: transparent; color: var(--muted); cursor: pointer; display: flex; gap: 6px; align-items: center; }
+.tab.on { background: var(--surface); color: var(--ink); box-shadow: 0 1px 2px rgba(0,0,0,.12); }
+.tab .b { font-size: 10.5px; padding: 0 6px; border-radius: 999px; background: var(--warn-bg); color: var(--warn); }
+.tab.ar { font-family: var(--font-ar); font-size: 14px; }
+.subj { font-size: 12.5px; color: var(--muted); margin: 0 0 8px; display: grid; gap: 2px; }
+.subj b { color: var(--ink); }
+.subj span[dir=rtl] { font-family: var(--font-ar); font-size: 14px; }
+.stage { background: #e9ecf1; border-radius: 10px; padding: 18px 10px; display: grid; justify-items: center; transition: background .2s; }
+.stage.dark { background: #0f1115; }
+.mail { width: 100%; max-width: 600px; background: #ffffff; color: #1c2733; font-family: Arial, Helvetica, sans-serif; font-size: 15px; line-height: 1.55; border-radius: 6px; overflow: hidden; box-shadow: 0 6px 20px rgba(0,0,0,.12); transition: max-width .25s; }
+.stage.phone .mail { max-width: 360px; }
+.stage.dark .mail { background: #1e1f23; color: #e6e6e6; }
+.mail[dir=rtl] { font-family: Tahoma, "Noto Naskh Arabic", "Segoe UI", Arial, sans-serif; font-size: 16px; text-align: right; }
+.mail[dir=ltr] { text-align: left; }
+.m { padding: 18px 26px; position: relative; }
+.stage.phone .m { padding: 16px 18px; }
+.m.hot { outline: 2px solid var(--accent); outline-offset: -2px; }
+.m-head { background: var(--brand); color: var(--brand-ink); display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.logo { display: inline-flex; align-items: center; gap: 8px; font-weight: 700; font-size: 15px; }
+.logo i { width: 28px; height: 28px; border-radius: 7px; background: var(--brand2); display: inline-grid; place-items: center; font-style: normal; font-size: 13px; color: #1c1c1c; }
+.m-head small { font-size: 12px; opacity: .85; }
+.hero { background: linear-gradient(135deg, var(--brand) 0%, #2a5a8f 100%); color: #fff; padding: 30px 26px; }
+.hero h3 { margin: 0 0 6px; font-size: 26px; line-height: 1.2; }
+.hero p { margin: 0; font-size: 15px; opacity: .92; }
+.m p { margin: 0 0 10px; }
+.m p:last-child { margin-bottom: 0; }
+.prod { display: flex; gap: 14px; align-items: center; border: 1px solid #e2e7ee; border-radius: 10px; padding: 12px; }
+.stage.dark .prod { border-color: #3a3d45; }
+.prod .img { width: 84px; height: 84px; flex: none; border-radius: 8px; background: #eef1f5; display: grid; place-items: center; }
+.stage.dark .prod .img { background: #2a2d35; }
+.prod .img svg { width: 48px; height: 48px; stroke: #8d99a6; fill: none; stroke-width: 1.6; }
+.prod b { display: block; font-size: 15px; }
+.prod small { display: block; color: #5f6b7a; font-size: 12.5px; }
+.stage.dark .prod small { color: #a7adb8; }
+.prod .pr { font-weight: 700; color: var(--brand2); margin-top: 4px; display: block; }
+.cta { text-align: center; }
+.cta a { display: inline-block; background: var(--brand2); color: #1c1c1c; font-weight: 700; text-decoration: none; padding: 12px 22px; border-radius: 8px; font-size: 14px; }
+.cols { display: flex; gap: 14px; }
+.stage.phone .cols { flex-direction: column; }
+.cols > div { flex: 1; background: #f6f8fb; border-radius: 10px; padding: 14px; }
+.stage.dark .cols > div { background: #2a2d35; }
+.cols b { display: block; margin-bottom: 4px; font-size: 15px; }
+.cols p { font-size: 14px; }
+.div { height: 1px; background: #e2e7ee; margin: 0 26px; }
+.stage.dark .div { background: #3a3d45; }
+.soc { display: flex; gap: 12px; justify-content: center; }
+.soc span { width: 32px; height: 32px; border-radius: 50%; background: #eef1f5; display: inline-grid; place-items: center; font-size: 11px; font-weight: 700; color: #5f6b7a; }
+.stage.dark .soc span { background: #2a2d35; color: #c9ced8; }
+.foot { font-size: 12px; color: #6b7684; text-align: center; background: #f6f8fb; }
+.stage.dark .foot { background: #16171b; color: #a7adb8; }
+.foot a { color: inherit; }
+.interest { text-align: center; }
+.interest a { display: inline-block; padding: 10px 20px; border-radius: 8px; background: #378add; color: #fff; text-decoration: none; font-weight: 600; font-size: 13.5px; }
+.num { direction: ltr; unicode-bidi: isolate; }
+.rv { position: absolute; top: 8px; inset-inline-end: 8px; display: flex; gap: 4px; align-items: center; font-family: var(--font); font-size: 11.5px; font-weight: 600; background: var(--warn-bg); color: var(--warn); border-radius: 999px; padding: 2px 4px 2px 9px; z-index: 2; direction: ltr; }
+.rv button { font: inherit; font-size: 11px; font-weight: 700; border: 0; border-radius: 999px; padding: 2px 8px; cursor: pointer; background: var(--surface); color: var(--ink); }
+.rv button.ok { background: var(--good); color: #fff; }
+.m[data-review=reviewed] .rv { display: none; }
+.m[data-review=translated] { padding-top: 40px; }
+.m[data-review=translated] .hero { margin-top: -40px !important; padding-top: 52px; }
+/* folds under the studio */
+details.fold { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; }
+details.fold > summary { cursor: pointer; padding: 12px 14px; font-weight: 700; font-size: 13.5px; list-style: none; display: flex; justify-content: space-between; gap: 10px; }
+details.fold > summary::-webkit-details-marker { display: none; }
+details.fold > summary::after { content: "+"; color: var(--muted); font-weight: 500; }
+details.fold[open] > summary::after { content: "–"; }
+details.fold > summary small { font-weight: 500; color: var(--muted); }
+details.fold .in { padding: 0 14px 14px; }
+.note { font-size: 12.5px; color: var(--muted); margin: 0; }
+pre { background: var(--surface2); border-radius: 9px; padding: 10px 12px; font-size: 11.5px; line-height: 1.5; overflow-x: auto; margin: 0; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color: var(--ink); }
+.menu { position: relative; display: inline-block; }
+.menu ul { position: absolute; right: 0; top: 40px; z-index: 5; list-style: none; margin: 0; padding: 6px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; min-width: 210px; box-shadow: 0 8px 24px rgba(0,0,0,.18); }
+.menu li { padding: 8px 10px; border-radius: 7px; cursor: default; font-size: 13px; }
+.menu li:hover { background: var(--accent-bg); }
+.toast { position: fixed; left: 50%; bottom: 76px; transform: translateX(-50%); background: var(--ink); color: var(--bg); padding: 9px 14px; border-radius: 9px; font-size: 13px; font-weight: 500; opacity: 0; transition: opacity .2s; pointer-events: none; z-index: 20; max-width: calc(100vw - 32px); }
+.toast.on { opacity: 1; }
+.bar { position: fixed; left: 0; right: 0; bottom: 0; background: var(--surface); border-top: 1px solid var(--line); padding: 10px max(16px, env(safe-area-inset-left, 0px)) max(10px, env(safe-area-inset-bottom, 0px)); display: none; gap: 8px; z-index: 10; }
+.bar .btn { flex: 1; width: auto; }
+.skel { height: 12px; border-radius: 6px; background: linear-gradient(90deg, var(--surface2), var(--line), var(--surface2)); background-size: 200% 100%; animation: sh 1.1s linear infinite; margin: 6px 0; }
+@keyframes sh { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+/* walkthrough */
+.spot { position: absolute; z-index: 30; border-radius: 12px; box-shadow: 0 0 0 4px var(--accent), 0 0 0 100vmax rgba(10, 16, 24, .55); pointer-events: none; transition: top .25s, left .25s, width .25s, height .25s; }
+.tour { position: fixed; z-index: 31; left: 50%; bottom: max(16px, env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); width: min(440px, calc(100vw - 32px)); background: var(--surface); color: var(--ink); border: 1px solid var(--line); border-radius: 12px; padding: 14px; box-shadow: 0 12px 32px rgba(0,0,0,.3); display: grid; gap: 8px; }
+.tour .step { font-size: 11.5px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+.tour p { margin: 0; font-size: 14px; }
+.tour .nav { display: flex; gap: 8px; justify-content: flex-end; align-items: center; }
+.tour .nav .skip { margin-right: auto; }
+.tour[hidden], .spot[hidden] { display: none; }
+@media (prefers-reduced-motion: reduce) { .skel { animation: none; } .mail, .stage, .spot, .chev { transition: none; } }
+@media (max-width: 900px) {
+  .studio { grid-template-columns: minmax(0, 1fr); }
+  .ptabs { display: flex; }
+  .panel > .sec { display: none; }
+  .panel > .sec.on { display: block; }
+  .bar { display: flex; }
+  #useSec .use > .btn { display: none; }
+  .m { padding: 16px 16px; }
+  .div { margin: 0 16px; }
+  .tour { bottom: 70px; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="head">
+    <div>
+      <h1>October newsletter</h1>
+      <p class="sub">Newsletter · <span class="pill" id="statusPill">Draft</span> · <span id="langCount">English</span> · not yet used in a campaign</p>
+    </div>
+    <div class="r">
+      <button class="btn ghost" id="tourBtn" type="button">Show me how</button>
+      <div class="menu"><button class="btn ghost" id="menuBtn" type="button" aria-haspopup="true" aria-expanded="false" aria-label="More">⋯</button>
+        <ul id="menuList" hidden><li>Duplicate</li><li>Versions</li><li>Export the email HTML</li><li>Adapt fields</li><li>Archive</li></ul></div>
+    </div>
+  </div>
+  <div class="banner">Sample content for an illustrative GCC industrial supplier ("Al Noor Industrial Supplies", Doha). No real customer, no real send.</div>
+
+  <div class="studio">
+    <div class="panel" id="panel">
+      <div class="ptabs" role="tablist" aria-label="Options">
+        <button class="ptab on" type="button" data-ptab="startSec">Start</button>
+        <button class="ptab" type="button" data-ptab="blocksSec">Blocks</button>
+        <button class="ptab" type="button" data-ptab="langSec">Languages</button>
+        <button class="ptab" type="button" data-ptab="checkSec">Check</button>
+        <button class="ptab" type="button" data-ptab="brandSec">Brand</button>
+        <button class="ptab" type="button" data-ptab="useSec">Use it</button>
+      </div>
+
+      <section class="sec on open" id="startSec">
+        <button class="sech" type="button" aria-expanded="true" aria-controls="startBody"><b>Start</b><span class="sum" id="startSum">Write it for me</span><span class="hint">How to begin: say what this issue is about, pick a design, or start blank.</span><svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button>
+        <div class="in" id="startBody">
+          <div class="starts">
+            <button class="start sel" type="button" data-start="ai"><b>Write it for me</b><span>AI drafts the blocks from one line and your catalogue. You review every block.</span></button>
+            <button class="start" type="button" data-start="design"><b>Start from a design</b><span>Your saved templates and the built-in festival designs.</span></button>
+            <button class="start" type="button" data-start="blank"><b>Blank</b><span>Brand header and footer only.</span></button>
+          </div>
+          <div id="briefBox">
+            <label for="brief" class="help" style="display:block;margin-top:10px">What is this newsletter about?</label>
+            <textarea id="brief">New Hilti HST4 anchors range now in stock. The Doha warehouse opens on Saturdays from this month. 10% off all full-body safety harnesses until 31 October.</textarea>
+            <label class="help" style="display:block;margin-top:6px"><input type="checkbox" checked> Use my recent products and campaigns</label>
+            <label class="help" style="display:block"><input type="checkbox" checked> Use what accounts showed interest in (Signals: anchoring and fixing, 14 accounts)</label>
+            <div class="row"><button class="btn" id="draftBtn" type="button">Write it for me</button><span class="help">In English first. Nothing is saved until you press Save.</span></div>
+            <div class="chips" id="understood" aria-live="polite"></div>
+          </div>
+          <div id="designBox" hidden>
+            <p class="hint" style="margin-top:10px">Pick one; its blocks and words come in and you change what you like.</p>
+            <div class="chips" style="margin-top:0"><span class="chip">My templates (4)</span><span class="chip n">Diwali</span><span class="chip n">Eid</span><span class="chip n">New Year</span><span class="chip n">Service reminder</span><span class="help">… 12 built-in folders, 56 designs</span></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="sec" id="blocksSec">
+        <button class="sech" type="button" aria-expanded="false" aria-controls="blocksBody"><b>Blocks</b><span class="sum" id="blocksSum"></span><span class="hint">The pieces your newsletter is built from. Click one to change its words; drag to reorder.</span><svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button>
+        <div class="in" id="blocksBody">
+          <div id="blocks"></div>
+          <div class="add" id="addRow"></div>
+          <p class="hint" style="margin:8px 0 0">Header and footer carry your brand and the unsubscribe line, so they stay in every design.</p>
+          <div class="editor" id="editor" hidden>
+            <label id="edLabel" for="edText">Text</label>
+            <textarea id="edText"></textarea>
+            <div class="rw"><span>Rewrite:</span><button class="btn ghost sm" type="button" data-rw="shorter">Shorter</button><button class="btn ghost sm" type="button" data-rw="warmer">Friendlier</button><button class="btn ghost sm" type="button" data-rw="formal">More formal</button></div>
+            <p class="hint" style="margin:0">Rewrite suggests new words; keep them or type your own. {{account_name}} is replaced for each person.</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="sec" id="langSec">
+        <button class="sech" type="button" aria-expanded="false" aria-controls="langBody"><b>Languages</b><span class="sum" id="langSum"></span><span class="hint">English is written first. Add a language on top and each person gets their own.</span><svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button>
+        <div class="in" id="langBody">
+          <div id="langRows"></div>
+          <div class="addlang">
+            <select id="langPick" aria-label="Language to add"><option value="ar">Arabic (العربية)</option><option value="hi">Hindi</option><option value="ur">Urdu</option><option value="fr">French</option></select>
+            <button class="btn sm" id="addLangBtn" type="button">Add language</button>
+          </div>
+          <p class="hint" style="margin:8px 0 0">AI translates every block and keeps product names and prices as they are. Lines it was unsure about show "Check this" in the email until you accept or edit them.</p>
+          <p class="hint" style="margin:6px 0 0">Who gets which: the contact's preferred language, then the account's, then English.</p>
+        </div>
+      </section>
+
+      <section class="sec" id="checkSec">
+        <button class="sech" type="button" aria-expanded="false" aria-controls="checkBody"><b>Check before sending</b><span class="sum" id="checkSum"></span><span class="hint">Rules that run every time, not opinions. Fix the amber ones.</span><svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button>
+        <div class="in" id="checkBody"><div class="checks" id="checks"></div></div>
+      </section>
+
+      <section class="sec" id="brandSec">
+        <button class="sech" type="button" aria-expanded="false" aria-controls="brandBody"><b>Brand kit</b><span class="sum">Al Noor</span><span class="hint">Your logo, colours and fonts, set once by an admin and used by every design.</span><svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button>
+        <div class="in" id="brandBody">
+          <div class="kit">
+            <div><b>Logo</b>Al Noor mark, from the shared asset library</div>
+            <div><b>Colours</b><span class="sw" style="background:#16365c"></span>Navy <span class="sw" style="background:#c8892a;margin-left:8px"></span>Amber</div>
+            <div><b>Fonts that survive email</b>Arial / Helvetica · Arabic: Tahoma, Segoe UI</div>
+            <div><b>Footer</b>Industrial Area, Street 24, Doha · +974 4400 0000</div>
+          </div>
+          <p class="hint" style="margin:8px 0 0">Change it in Settings → Marketing → Brand kit.</p>
+        </div>
+      </section>
+
+      <section class="sec" id="useSec">
+        <button class="sech" type="button" aria-expanded="false" aria-controls="useBody"><b>Use it</b><span class="sum">Save · Campaign</span><span class="hint">Keep this design, or hand it to a campaign.</span><svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button>
+        <div class="in use" id="useBody">
+          <button class="btn ghost" type="button" data-act="save">Save</button>
+          <p class="hint">Keeps your work. Nothing is sent.</p>
+          <button class="btn ghost" type="button" id="btnTemplate" data-act="template">Save as template</button>
+          <p class="hint">Keeps this design to start from next time, beside the built-in designs.</p>
+          <button class="btn big" type="button" id="btnCampaign" data-act="campaign">Use in a campaign</button>
+          <p class="hint">A campaign (or a journey step) picks the audience and the languages. Each person gets their own language; sending follows the usual consent and unsubscribe rules.</p>
+        </div>
+      </section>
+    </div>
+
+    <div class="canvas" id="canvas">
+      <div class="tools">
+        <div class="tabs" role="tablist" aria-label="Language" id="langTabs"></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <div class="tabs" aria-label="Device" id="devTabs"><button class="tab on" type="button" data-dev="desktop">Desktop</button><button class="tab" type="button" data-dev="phone">Phone</button></div>
+          <div class="tabs" aria-label="Appearance"><button class="tab on" type="button" data-mode="light">Light</button><button class="tab" type="button" data-mode="dark">Dark</button></div>
+        </div>
+      </div>
+      <div class="subj"><span>Subject: <b id="pSubject"></b></span><span>Preheader: <span id="pPre"></span></span></div>
+      <div class="stage" id="stage"><div class="mail" id="mail" dir="ltr" lang="en"></div></div>
+      <p class="hint" style="margin:8px 0 0">Shown exactly as it is built for email programs: tables, plain fonts, no scripts. Phone and Dark show what a small screen or a program that inverts colours does with it.</p>
+    </div>
+  </div>
+
+  <details class="fold"><summary>Versions <small>what a campaign actually sent</small></summary><div class="in"><p class="note">No versions yet. "Use in a campaign" keeps a copy of this design, so editing it later never changes a campaign that already went out.</p></div></details>
+  <details class="fold"><summary>Email HTML <small>for your IT team</small></summary><div class="in"><pre id="htmlOut"></pre></div></details>
+  <details class="fold"><summary>Details <small>reference, status, your own fields</small></summary><div class="in"><p class="note">NWS-0007 · Draft · Category: Newsletter · Created by Fatima Al-Sayed, 19 Oct 2026</p></div></details>
+</div>
+
+<div class="bar"><button class="btn ghost" type="button" data-act="save">Save</button><button class="btn" type="button" data-act="campaign">Use in a campaign</button></div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<div class="spot" id="spot" hidden aria-hidden="true"></div>
+<div class="tour" id="tour" hidden role="dialog" aria-label="Walkthrough">
+  <div class="step" id="tourStep"></div>
+  <p id="tourText"></p>
+  <div class="nav"><button class="btn ghost sm skip" type="button" id="tourSkip">Skip</button><button class="btn ghost sm" type="button" id="tourBack">Back</button><button class="btn sm" type="button" id="tourNext">Next</button></div>
+</div>
+
+<script>
+/* ---------- Sample content: one design, words per language. English is the default; other languages are added on top. ---------- */
+var ICON = {
+  eye: '<svg viewBox="0 0 24 24"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>',
+  eyeOff: '<svg viewBox="0 0 24 24"><path d="M3 3l18 18M10.6 10.6A3 3 0 0 0 13.4 13.4M9.9 5.1A10 10 0 0 1 22 12a16 16 0 0 1-3.2 3.7M6.6 6.6A16 16 0 0 0 2 12s3.5 6 10 6a9.8 9.8 0 0 0 4.2-.9"/></svg>',
+  lock: '<svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>',
+  box: '<svg viewBox="0 0 24 24"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9L12 3z"/><path d="M4 7.5l8 4.5 8-4.5M12 12v9"/></svg>'
+};
+var TYPES = { header: "Header", hero: "Hero", text: "Text", image: "Image", button: "Button", columns: "Columns", product: "Product card", event: "Event", divider: "Divider", social: "Social", footer: "Footer", interest: "Interested? button" };
+var blocks = [
+  { id: "b1", type: "header", locked: true, on: true }, { id: "b2", type: "hero", on: true }, { id: "b3", type: "text", on: true },
+  { id: "b4", type: "product", on: true }, { id: "b5", type: "button", on: true }, { id: "b6", type: "columns", on: true },
+  { id: "b7", type: "divider", on: true }, { id: "b8", type: "interest", on: true }, { id: "b9", type: "social", on: true }, { id: "b10", type: "footer", locked: true, on: true }
+];
+var SAMPLE_T = {
+  en: {
+    subject: "New anchors range, Saturday opening and 10% off harnesses", pre: "Your October update from Al Noor",
+    b1: { tag: "October 2026" },
+    b2: { title: "October at Al Noor", text: "Three things worth a minute of your time this month." },
+    b3: { text: "Dear {{account_name}},\nOur Doha warehouse now opens on Saturdays, 8 am to 1 pm, so your site teams can collect urgent orders without waiting for Sunday." },
+    b4: { name: "HST4 wedge anchor M12", text: "Approved for cracked concrete. In stock in Doha.", price: "QAR 14.50 / pc", from: "From your catalogue · ANC-HST4-M12" },
+    b5: { label: "See the full anchors range" },
+    b6: { t1: "10% off safety harnesses", p1: "Until 31 October, on all full-body harnesses.", t2: "Free site delivery", p2: "Orders over QAR 2,000 across Doha and Al Wakrah." },
+    b8: { label: "Interested? Tell us more" },
+    b10: { text: "Al Noor Industrial Supplies · Industrial Area, Street 24, Doha\nYou receive this because you are a customer of {{company_name}}. ", unsub: "Unsubscribe", prefs: "Manage preferences" }
+  },
+  ar: {
+    subject: "تشكيلة مراسي جديدة، فتح يوم السبت وخصم 10٪ على أحزمة الأمان", pre: "تحديث أكتوبر من النور",
+    b1: { tag: "أكتوبر 2026" },
+    b2: { title: "أكتوبر في النور", text: "ثلاثة أمور تستحق دقيقة من وقتك هذا الشهر." },
+    b3: { text: "عزيزنا {{account_name}}،\nمستودعنا في الدوحة يفتح الآن أيام السبت من 8 صباحاً حتى 1 ظهراً، ليتمكن فريق موقعكم من استلام الطلبات العاجلة دون انتظار يوم الأحد." },
+    b4: { name: "مرساة إسفينية HST4 مقاس M12", text: "معتمدة للخرسانة المتشققة. متوفرة في الدوحة.", price: "14.50 ر.ق / قطعة", from: "من الكتالوج · ANC-HST4-M12" },
+    b5: { label: "اطّلع على تشكيلة المراسي الكاملة" },
+    b6: { t1: "خصم 10٪ على أحزمة الأمان", p1: "حتى 31 أكتوبر على جميع أحزمة الجسم الكاملة.", t2: "توصيل مجاني إلى الموقع", p2: "للطلبات التي تزيد عن 2,000 ر.ق في الدوحة والوكرة." },
+    b8: { label: "مهتم؟ أخبرنا المزيد" },
+    b10: { text: "النور للتوريدات الصناعية · المنطقة الصناعية، شارع 24، الدوحة\nتصلك هذه الرسالة لأنك من عملاء {{company_name}}. ", unsub: "إلغاء الاشتراك", prefs: "إدارة التفضيلات" }
+  }
+};
+var LANGNAME = { en: "English", ar: "العربية", hi: "हिन्दी", ur: "اردو", fr: "Français" };
+var LANGLONG = { en: "English (default)", ar: "Arabic", hi: "Hindi", ur: "Urdu", fr: "French" };
+var RTL = { ar: true, ur: true };
+var T = { en: SAMPLE_T.en };                 /* English only to begin with */
+var review = { en: {} };                     /* per language per block: written | translated | reviewed */
+var state = { lang: "en", dev: "desktop", mode: "light", sel: null, langs: ["en"] };
+var SAMPLE = { account_name: "Qatar Steel Fabrication WLL", company_name: "Al Noor Industrial Supplies" };
+
+function $(id) { return document.getElementById(id); }
+function esc(s) { return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"); }
+function merge(s) { return esc(s).replace(/\{\{(\w+)\}\}/g, function (_, k) { return SAMPLE[k] || ""; }).replace(/\n/g, "<br>"); }
+function toast(msg) { var t = $("toast"); t.textContent = msg; t.classList.add("on"); clearTimeout(t._h); t._h = setTimeout(function () { t.classList.remove("on"); }, 2400); }
+function pending(lang) { var n = 0, r = review[lang] || {}; Object.keys(r).forEach(function (k) { if (r[k] === "translated") n++; }); return n; }
+function isMobile() { return window.innerWidth <= 900; }
+
+/* ---------- Panel tabs (phone) ---------- */
+function showPanelTab(id) {
+  document.querySelectorAll(".ptab").forEach(function (b) { b.classList.toggle("on", b.dataset.ptab === id); });
+  document.querySelectorAll(".panel > .sec").forEach(function (s) { s.classList.toggle("on", s.id === id); });
+  openSec(id);
+}
+document.querySelectorAll(".ptab").forEach(function (b) { b.addEventListener("click", function () { showPanelTab(b.dataset.ptab); }); });
+
+/* ---------- Option groups: expand / collapse, one open at a time ---------- */
+function openSec(id) {
+  document.querySelectorAll(".panel > .sec").forEach(function (s) {
+    var open = s.id === id;
+    s.classList.toggle("open", open);
+    s.querySelector(".sech").setAttribute("aria-expanded", String(open));
+  });
+}
+function toggleSec(id) {
+  var s = $(id);
+  if (s.classList.contains("open")) { s.classList.remove("open"); s.querySelector(".sech").setAttribute("aria-expanded", "false"); }
+  else openSec(id);
+}
+document.querySelectorAll(".sech").forEach(function (h) { h.addEventListener("click", function () { toggleSec(h.parentElement.id); }); });
+
+/* ---------- Languages ---------- */
+function addLanguage(l) {
+  if (state.langs.indexOf(l) >= 0) { toast(LANGLONG[l] + " is already there."); return; }
+  var src = SAMPLE_T[l] || null;
+  T[l] = src ? JSON.parse(JSON.stringify(src)) : JSON.parse(JSON.stringify(T.en));
+  review[l] = {};
+  blocks.forEach(function (b) { if (T[l][b.id] && !b.locked) review[l][b.id] = "translated"; });
+  state.langs.push(l);
+  state.lang = l;
+  renderAll();
+  toast(LANGLONG[l] + " added and translated by AI from the English. Check the lines marked in the email.");
+}
+$("addLangBtn").addEventListener("click", function () { addLanguage($("langPick").value); });
+function setLang(l) { state.lang = l; renderAll(); }
+function renderLangTabs() {
+  $("langTabs").innerHTML = state.langs.map(function (l) {
+    var n = pending(l);
+    return '<button class="tab' + (state.lang === l ? " on" : "") + (RTL[l] ? " ar" : "") + '" type="button" role="tab" data-lang="' + l + '" aria-selected="' + (state.lang === l) + '">' + LANGNAME[l] + (n ? '<span class="b">' + n + '</span>' : "") + '</button>';
+  }).join("") + '<button class="tab" type="button" id="tabAddLang">+ Add language</button>';
+  $("langCount").textContent = state.langs.length === 1 ? "English" : state.langs.length + " languages";
+}
+$("langTabs").addEventListener("click", function (e) {
+  var t = e.target.closest("[data-lang]");
+  if (t) { setLang(t.dataset.lang); return; }
+  if (e.target.closest("#tabAddLang")) { showPanelTab("langSec"); $("langPick").focus(); toast("Pick a language in the Languages panel."); }
+});
+function renderLangs() {
+  $("langRows").innerHTML = state.langs.map(function (l) {
+    var n = pending(l), st = l === "en" ? '<span class="st ok">Written first</span>' : n ? '<span class="st w">' + n + ' to check</span>' : '<span class="st ok">Ready</span>';
+    return '<div class="lang"><b>' + LANGLONG[l] + '</b>' + st + '<small' + (RTL[l] ? ' dir="rtl"' : "") + '>' + esc(T[l].subject) + '</small></div>';
+  }).join("");
+  var others = state.langs.filter(function (l) { return l !== "en"; });
+  $("langSum").textContent = others.length ? "English + " + others.map(function (l) { return LANGLONG[l]; }).join(", ") : "English only";
+}
+
+/* ---------- Blocks ---------- */
+function renderBlocks() {
+  var el = $("blocks");
+  el.innerHTML = blocks.map(function (b) {
+    var words = T[state.lang][b.id], hint = "";
+    if (words) hint = words.title || words.name || words.label || words.t1 || words.tag || (words.text || "").split("\n")[0] || "";
+    return '<div class="blk' + (state.sel === b.id ? " sel" : "") + (b.on ? "" : " off") + '" data-id="' + b.id + '" tabindex="0" role="button">' +
+      '<span class="h" aria-hidden="true">' + (b.locked ? '<span class="lock">' + ICON.lock + '</span>' : "⋮⋮") + '</span>' +
+      '<span class="n">' + TYPES[b.type] + (hint ? '<small>' + esc(hint) + '</small>' : "") + '</span>' +
+      '<span class="t">' + (b.locked ? '<span class="help" style="font-size:11px">brand</span>' : '<button class="ic" type="button" data-toggle="' + b.id + '" aria-label="Show or hide">' + (b.on ? ICON.eye : ICON.eyeOff) + '</button><button class="ic" type="button" data-up="' + b.id + '" aria-label="Move up">↑</button><button class="ic" type="button" data-down="' + b.id + '" aria-label="Move down">↓</button>') + '</span></div>';
+  }).join("");
+  $("addRow").innerHTML = '<span class="help" style="align-self:center">Add:</span>' + ["text", "image", "button", "columns", "product", "event", "divider", "social"].map(function (t) { return '<button type="button" data-add="' + t + '">' + TYPES[t] + '</button>'; }).join("");
+  $("blocksSum").textContent = blocks.filter(function (b) { return b.on; }).length + " blocks";
+}
+function openEditor() {
+  var ed = $("editor"), b = blocks.filter(function (x) { return x.id === state.sel; })[0];
+  if (!b) { ed.hidden = true; return; }
+  var w = T[state.lang][b.id];
+  var key = w ? (w.text !== undefined ? "text" : w.label !== undefined ? "label" : w.title !== undefined ? "title" : w.t1 !== undefined ? "t1" : w.tag !== undefined ? "tag" : null) : null;
+  if (!key) { ed.hidden = true; return; }
+  ed.hidden = false; ed._key = key;
+  $("edLabel").textContent = TYPES[b.type] + " · " + LANGLONG[state.lang] + (b.locked ? " (brand block, locked)" : "");
+  var ta = $("edText"); ta.value = w[key]; ta.disabled = !!b.locked; ta.dir = RTL[state.lang] ? "rtl" : "ltr"; ta.style.fontFamily = RTL[state.lang] ? "var(--font-ar)" : "";
+}
+$("blocks").addEventListener("click", function (e) {
+  var t = e.target.closest("button"), card = e.target.closest(".blk");
+  if (t && t.dataset.toggle) { var b = blocks.filter(function (x) { return x.id === t.dataset.toggle; })[0]; b.on = !b.on; renderAll(); return; }
+  if (t && (t.dataset.up || t.dataset.down)) { var id = t.dataset.up || t.dataset.down, i = blocks.findIndex(function (x) { return x.id === id; }), j = t.dataset.up ? i - 1 : i + 1; if (j < 1 || j > blocks.length - 2) return; var tmp = blocks[i]; blocks[i] = blocks[j]; blocks[j] = tmp; renderAll(); return; }
+  if (card) { state.sel = card.dataset.id; renderAll(); var m = document.querySelector('.m[data-id="' + state.sel + '"]'); if (m && !isMobile()) m.scrollIntoView({ block: "nearest", behavior: "smooth" }); }
+});
+$("blocks").addEventListener("keydown", function (e) { var card = e.target.closest(".blk"); if (card && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); state.sel = card.dataset.id; renderAll(); } });
+$("addRow").addEventListener("click", function (e) {
+  var t = e.target.closest("button"); if (!t) return;
+  var id = "n" + Date.now(), type = t.dataset.add;
+  blocks.splice(blocks.length - 1, 0, { id: id, type: type, on: true });
+  var w = { text: { text: "New paragraph. Click to write." }, button: { label: "Button" }, columns: { t1: "First column", p1: "A few words.", t2: "Second column", p2: "A few words." }, product: { name: "Pick a product from the catalogue", text: "", price: "", from: "From your catalogue" }, event: { title: "Event name", text: "Date, time, place." }, image: { text: "Image (add a description for people who cannot see it)" } }[type];
+  if (w) state.langs.forEach(function (l) { T[l][id] = JSON.parse(JSON.stringify(w)); if (l !== "en") review[l][id] = "translated"; });
+  state.sel = id; renderAll(); toast(TYPES[type] + " added" + (state.langs.length > 1 ? ". The other languages need a check." : "."));
+});
+$("edText").addEventListener("input", function (e) {
+  var b = state.sel, key = $("editor")._key; if (!b || !key) return;
+  T[state.lang][b][key] = e.target.value;
+  if (state.lang === "en") state.langs.forEach(function (l) { if (l !== "en" && T[l][b]) review[l][b] = "translated"; });
+  renderPreview(); renderLangs(); renderLangTabs(); renderChecks(); renderBlocks();
+});
+$("editor").addEventListener("click", function (e) {
+  var t = e.target.closest("[data-rw]"); if (!t) return;
+  var b = state.sel, key = $("editor")._key, cur = T[state.lang][b][key];
+  var sentences = cur.split(/(?<=[.!?])\s+/), shorter = sentences.length > 1 ? sentences.slice(0, -1).join(" ") : cur.replace(/,\s*so\b[^.]*\./, ".").replace(/،\s*ليتمكن[^.]*\./, ".");
+  var rw = { shorter: shorter, warmer: (RTL[state.lang] ? "يسعدنا إخباركم: " : "Good news: ") + cur, formal: (RTL[state.lang] ? "نود إعلامكم بأن " : "We would like to inform you that ") + cur.charAt(0).toLowerCase() + cur.slice(1) }[t.dataset.rw];
+  $("edText").value = rw; T[state.lang][b][key] = rw; renderPreview(); renderBlocks(); toast("Rewritten by AI. Keep it or edit it.");
+});
+
+/* ---------- The email ---------- */
+function renderPreview() {
+  var L = state.lang, w = T[L], rtl = !!RTL[L], mail = $("mail");
+  mail.dir = rtl ? "rtl" : "ltr"; mail.lang = L;
+  $("pSubject").innerHTML = '<span dir="' + (rtl ? "rtl" : "ltr") + '">' + esc(w.subject) + '</span>';
+  $("pPre").innerHTML = '<span dir="' + (rtl ? "rtl" : "ltr") + '">' + esc(w.pre) + '</span>';
+  $("stage").className = "stage" + (state.dev === "phone" ? " phone" : "") + (state.mode === "dark" ? " dark" : "");
+  var parts = blocks.map(function (b) {
+    if (!b.on) return "";
+    var x = w[b.id] || {}, st = review[L][b.id] || "written";
+    var chip = st === "translated" ? '<span class="rv">Check this <button type="button" class="ok" data-ok="' + b.id + '">Accept</button><button type="button" data-edit="' + b.id + '">Edit</button></span>' : "";
+    var open = '<div class="m' + (state.sel === b.id ? " hot" : "") + '" data-id="' + b.id + '" data-review="' + st + '"' + (b.type === "header" ? ' style="padding:0"' : "") + '>' + chip;
+    switch (b.type) {
+      case "header": return open + '<div class="m-head" style="padding:14px 26px"><span class="logo"><i>AN</i>Al Noor</span><small>' + esc(x.tag || "") + '</small></div></div>';
+      case "hero": return open + '<div class="hero" style="margin:-18px -26px"><h3>' + esc(x.title || "") + '</h3><p>' + esc(x.text || "") + '</p></div></div>';
+      case "text": case "event": return open + (x.title ? '<p><b>' + esc(x.title) + '</b></p>' : "") + '<p>' + merge(x.text || "") + '</p></div>';
+      case "image": return open + '<div style="height:140px;border-radius:8px;background:#eef1f5;display:grid;place-items:center;color:#8d99a6;font-size:13px">' + esc(x.text || "Image") + '</div></div>';
+      case "product": return open + '<div class="prod"><div class="img">' + ICON.box + '</div><div><b>' + esc(x.name || "") + '</b><small>' + esc(x.from || "") + '</small><span>' + esc(x.text || "") + '</span><span class="pr num">' + esc(x.price || "") + '</span></div></div></div>';
+      case "button": return open + '<div class="cta"><a href="#" onclick="return false">' + esc(x.label || "") + '</a></div></div>';
+      case "columns": return open + '<div class="cols"><div><b>' + esc(x.t1 || "") + '</b><p>' + esc(x.p1 || "") + '</p></div><div><b>' + esc(x.t2 || "") + '</b><p>' + esc(x.p2 || "") + '</p></div></div></div>';
+      case "divider": return '<div class="div" data-id="' + b.id + '"></div>';
+      case "interest": return open + '<div class="interest"><a href="#" onclick="return false">' + esc(x.label || "") + '</a></div></div>';
+      case "social": return open + '<div class="soc"><span>in</span><span>X</span><span>WA</span></div></div>';
+      case "footer": return open + '<div class="foot" style="margin:-18px -26px;padding:18px 26px">' + merge(x.text || "") + '<a href="#" onclick="return false">' + esc(x.unsub || "") + '</a> · <a href="#" onclick="return false">' + esc(x.prefs || "") + '</a></div></div>';
+    }
+    return "";
+  });
+  mail.innerHTML = parts.join("");
+  $("htmlOut").textContent = '<!doctype html>\n<html lang="' + L + '" dir="' + (rtl ? "rtl" : "ltr") + '">\n<head><meta name="color-scheme" content="light dark"></head>\n<body style="margin:0;background:#eef1f5">\n<table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td align="center">\n<table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;background:#ffffff;font-family:' + (rtl ? "Tahoma,'Segoe UI',Arial" : "Arial,Helvetica") + ',sans-serif">\n  <tr><td dir="' + (rtl ? "rtl" : "ltr") + '" style="background:#16365c;color:#ffffff;padding:14px 26px">Al Noor &nbsp; ' + esc(w.b1.tag) + '</td></tr>\n  <tr><td dir="' + (rtl ? "rtl" : "ltr") + '" style="padding:30px 26px;background:#16365c;color:#ffffff;font-size:26px;font-weight:bold">' + esc(w.b2.title) + '</td></tr>\n  …\n  <tr><td dir="' + (rtl ? "rtl" : "ltr") + '" style="padding:18px 26px;font-size:12px;color:#6b7684;text-align:center">{{company_name}} · <a href="{{unsubscribe_url}}">' + esc(w.b10.unsub) + '</a> · <a href="{{preferences_url}}">' + esc(w.b10.prefs) + '</a></td></tr>\n</table></td></tr></table>\n</body></html>\n\n(Generated by the renderer from the blocks. Every text is escaped; links are checked; nothing you type is sent as HTML.)';
+}
+$("mail").addEventListener("click", function (e) {
+  var ok = e.target.closest("[data-ok]"), ed = e.target.closest("[data-edit]"), m = e.target.closest(".m");
+  if (ok) { review[state.lang][ok.dataset.ok] = "reviewed"; renderAll(); toast("Accepted."); return; }
+  if (ed) { state.sel = ed.dataset.edit; showPanelTab("blocksSec"); renderAll(); if (isMobile()) $("editor").scrollIntoView({ block: "center", behavior: "smooth" }); $("edText").focus(); return; }
+  if (m) { state.sel = m.dataset.id; showPanelTab("blocksSec"); renderAll(); }
+});
+function setDev(d) { state.dev = d; document.querySelectorAll("[data-dev]").forEach(function (x) { x.classList.toggle("on", x.dataset.dev === d); }); renderPreview(); }
+document.querySelectorAll("[data-dev]").forEach(function (b) { b.addEventListener("click", function () { setDev(b.dataset.dev); }); });
+document.querySelectorAll("[data-mode]").forEach(function (b) { b.addEventListener("click", function () { state.mode = b.dataset.mode; document.querySelectorAll("[data-mode]").forEach(function (x) { x.classList.toggle("on", x === b); }); renderPreview(); }); });
+
+/* ---------- Checks (rules, not AI) ---------- */
+function renderChecks() {
+  var en = T.en, subjLen = en.subject.length, links = blocks.filter(function (b) { return b.on && (b.type === "button" || b.type === "interest" || b.type === "social"); }).length + 2;
+  var items = [
+    ["g", "Unsubscribe and Manage preferences in the footer"],
+    ["g", "Every image has a description"],
+    [subjLen <= 60 ? "g" : "a", "Subject " + subjLen + " characters" + (subjLen > 60 ? " (long for phones)" : "")],
+    ["g", links + " links, all https"],
+    ["g", "Enough text next to images"],
+    ["g", "No words spam filters dislike"],
+    ["g", "Colours readable in dark mode"]
+  ];
+  state.langs.forEach(function (l) { if (l === "en") return; var n = pending(l); items.push([n ? "a" : "g", n ? LANGLONG[l] + ": " + n + " line" + (n > 1 ? "s" : "") + " not yet checked" : LANGLONG[l] + " reviewed"]); });
+  $("checks").innerHTML = items.map(function (x) { return '<span class="chip ' + x[0] + '">' + (x[0] === "g" ? "✓ " : "⚠ ") + esc(x[1]) + '</span>'; }).join("");
+  var amber = items.filter(function (x) { return x[0] === "a"; }).length;
+  $("checkSum").textContent = amber ? amber + " to fix" : "All clear";
+}
+
+/* ---------- Start ---------- */
+document.querySelectorAll("[data-start]").forEach(function (b) { b.addEventListener("click", function () {
+  document.querySelectorAll("[data-start]").forEach(function (x) { x.classList.toggle("sel", x === b); });
+  $("briefBox").hidden = b.dataset.start !== "ai"; $("designBox").hidden = b.dataset.start !== "design";
+  $("startSum").textContent = b.querySelector("b").textContent;
+  if (b.dataset.start === "blank") toast("A blank design keeps only the brand header and footer.");
+}); });
+$("draftBtn").addEventListener("click", function () {
+  var u = $("understood"); u.innerHTML = '<div class="skel" style="width:60%"></div><div class="skel" style="width:40%"></div>'; $("draftBtn").disabled = true;
+  setTimeout(function () {
+    u.innerHTML = ['<span class="chip">New product: HST4 anchors (from your catalogue)</span>', '<span class="chip">Saturday opening, Doha warehouse</span>', '<span class="chip">Offer: 10% off harnesses until 31 Oct</span>', '<span class="chip">Signals: anchoring and fixing — product card follows each reader\'s interest</span>', '<span class="chip a">Assumed: formal tone</span>', '<span class="chip a">Assumed: English; add languages on top</span>'].join("");
+    $("draftBtn").disabled = false; toast("Drafted in English. Nothing is saved until you press Save."); renderAll();
+  }, 900);
+});
+
+/* ---------- Actions and menu ---------- */
+document.querySelectorAll("[data-act]").forEach(function (b) { b.addEventListener("click", function () {
+  var a = b.dataset.act;
+  if (a === "save") { $("statusPill").textContent = "Saved"; toast("Saved."); }
+  if (a === "template") toast("Saved as a template: it now appears beside the built-in designs when you start a campaign.");
+  if (a === "campaign") { var waiting = state.langs.filter(function (l) { return pending(l) > 0; }).map(function (l) { return LANGLONG[l]; }); toast(waiting.length ? "Version 1 kept. " + waiting.join(", ") + " still has lines to check, so the campaign can send the other languages until then." : "Version 1 kept. The campaign can include " + state.langs.map(function (l) { return LANGLONG[l].replace(" (default)", ""); }).join(" and ") + "."); }
+}); });
+$("menuBtn").addEventListener("click", function () { var l = $("menuList"); l.hidden = !l.hidden; $("menuBtn").setAttribute("aria-expanded", String(!l.hidden)); });
+document.addEventListener("click", function (e) { if (!e.target.closest(".menu")) { $("menuList").hidden = true; $("menuBtn").setAttribute("aria-expanded", "false"); } });
+
+/* ---------- Guided walkthrough: optional, starts closed, never forced ---------- */
+var TOUR = [
+  { t: "#startSec", tab: "startSec", text: "Start here. Write one line about this issue and press Write it for me, or pick one of your templates or a built-in design. English comes first." },
+  { t: "#blocks", tab: "blocksSec", text: "These are the pieces your newsletter is built from. Drag to reorder, hide what you do not need, add more from the list below." },
+  { t: "#editor", tab: "blocksSec", pre: function () { state.sel = "b3"; renderAll(); }, text: "Click a block to change its words. Rewrite makes it shorter, friendlier or more formal; you keep what you like." },
+  { t: "#langSec", tab: "langSec", pre: function () { if (state.langs.indexOf("ar") < 0) addLanguage("ar"); else setLang("ar"); }, text: "Add a language on top of the English. AI translates every block and keeps product names and prices as they are." },
+  { t: "#mail .rv", tab: "langSec", pre: function () { setLang("ar"); }, text: "Check this marks the lines the translation was unsure about. Accept or edit each one; a language can be sent once every line is checked." },
+  { t: "#devTabs", pre: function () { setDev("phone"); }, text: "See it as a phone or a desktop, light or dark, exactly as it is built for email programs." },
+  { t: "#btnTemplate", tab: "useSec", pre: function () { setDev("desktop"); setLang("en"); }, text: "Save as template keeps this design to start from next time, beside the built-in designs." },
+  { t: "#btnCampaign", tab: "useSec", text: "Use in a campaign hands the design to a campaign, which picks the audience and the languages. Each person gets their own." }
+];
+var tour = { i: -1 };
+function placeSpot() {
+  if (tour.i < 0) return;
+  var el = document.querySelector(TOUR[tour.i].t) || document.querySelector("#canvas");
+  var r = el.getBoundingClientRect(), s = $("spot");
+  s.style.top = (r.top + window.scrollY - 6) + "px"; s.style.left = (r.left + window.scrollX - 6) + "px"; s.style.width = (r.width + 12) + "px"; s.style.height = (r.height + 12) + "px";
+}
+function tourGo(i) {
+  if (i < 0 || i >= TOUR.length) { tourEnd(); return; }
+  tour.i = i; var st = TOUR[i];
+  if (st.tab) showPanelTab(st.tab);
+  if (st.pre) st.pre();
+  $("tourStep").textContent = "Step " + (i + 1) + " of " + TOUR.length;
+  $("tourText").textContent = st.text;
+  $("tourBack").disabled = i === 0; $("tourNext").textContent = i === TOUR.length - 1 ? "Done" : "Next";
+  $("tour").hidden = false; $("spot").hidden = false;
+  var el = document.querySelector(st.t) || $("canvas");
+  el.scrollIntoView({ block: "center", behavior: "auto" });
+  placeSpot(); setTimeout(placeSpot, 60); setTimeout(placeSpot, 300);
+  $("tourNext").focus();
+}
+function tourEnd() { tour.i = -1; $("tour").hidden = true; $("spot").hidden = true; $("tourBtn").focus(); }
+$("tourBtn").addEventListener("click", function () { tourGo(0); });
+$("tourNext").addEventListener("click", function () { tourGo(tour.i + 1); });
+$("tourBack").addEventListener("click", function () { tourGo(tour.i - 1); });
+$("tourSkip").addEventListener("click", tourEnd);
+document.addEventListener("keydown", function (e) { if (e.key === "Escape" && tour.i >= 0) tourEnd(); });
+window.addEventListener("scroll", placeSpot, { passive: true });
+window.addEventListener("resize", placeSpot);
+
+function renderAll() { renderLangTabs(); renderBlocks(); openEditor(); renderPreview(); renderLangs(); renderChecks(); placeSpot(); }
+renderAll();
+showPanelTab("startSec");
+</script>
+</body>
+</html>
