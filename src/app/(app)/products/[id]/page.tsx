@@ -16,7 +16,11 @@ import ProductQtyBreaksCard from "./ProductQtyBreaksCard";
 import ProductSupplierPanel from "./ProductSupplierPanel";
 import { supplierPickerOptions } from "@/lib/products/supplier";
 import ItemTypeBadge from "@/components/products/ItemTypeBadge";
-import { itemTypeLabel } from "@/lib/products/itemTypes";
+import { canHaveComponents, itemTypeLabel } from "@/lib/products/itemTypes";
+import { loadBomPageData } from "@/lib/products/bomPage";
+import { resolvePermissions, canEditWorkcenter } from "@/lib/permissions";
+import ProductComponentsPanel from "./ProductComponentsPanel";
+import ProductUsedInCard from "./ProductUsedInCard";
 import { getSalesConfig } from "@/lib/fieldConfig";
 import { categoryLabel, subCategoryLabel } from "@/lib/picklists";
 import { getTenant, getTenantCurrency } from "@/lib/tenant";
@@ -40,7 +44,7 @@ export default async function ProductDetailPage({
   params: Promise<{ id: string }>;
   searchParams: Promise<{ tab?: string }>;
 }) {
-  const { supabase, tenantId, role } = await requireTenantUser();
+  const { supabase, tenantId, userId, role } = await requireTenantUser();
   const cur = await getTenantCurrency();
   const inr = (n: number | null) => (n == null ? "—" : formatMoney(n, cur, { maximumFractionDigits: 2 }));
   const { id } = await params;
@@ -69,6 +73,10 @@ export default async function ProductDetailPage({
   const qtyBreaksOn = tenant?.features?.standard_quotes === true;
   const basePath = ROUTES.product(product.id);
   const typeLabel = itemTypeLabel(tenant?.config, product.item_type);
+  // Only a BOM / kit has components (owner rule); every product can be "used in" one.
+  const isKit = canHaveComponents(tenant?.config, product.item_type);
+  const bom = await loadBomPageData(supabase, tenantId, product.id, tenant?.config, isKit);
+  const canEditBom = canEditWorkcenter(await resolvePermissions(supabase, tenantId, userId, role), "products");
   // Preferred supplier (0132): no supplier_id key on the row = migration
   // pending, so the picker is not offered at all.
   const supplierOptions = "supplier_id" in product ? await supplierPickerOptions(supabase, tenantId, product.supplier_id) : null;
@@ -144,7 +152,24 @@ export default async function ProductDetailPage({
             />
           ),
         },
+        ...(isKit && bom.summary ? [{
+          id: "components",
+          label: "Components",
+          count: bom.rows.length,
+          content: (
+            <ProductComponentsPanel
+              productId={product.id}
+              kitLabel={itemTypeLabel(tenant?.config, "bom_kit") ?? "BOM / kit"}
+              rows={bom.rows}
+              summary={bom.summary}
+              storedCost={product.cost_price}
+              storedAsOf={product.cost_price_as_of ?? null}
+              canEdit={canEditBom}
+            />
+          ),
+        }] : []),
         ...(hasPricingTab ? [{ id: "pricing", label: "Pricing", content: pricingCards }] : []),
+        { id: "used-in", label: "Used in", count: bom.used.length, content: <ProductUsedInCard rows={bom.used} /> },
         {
           id: "activity",
           label: "Activity",
