@@ -3,6 +3,8 @@ import { requireTenantUser, getAuthUser } from "@/lib/supabase-server";
 import { diffForLog, logChange } from "@/lib/changeLog";
 import { parseCostSheet } from "@/lib/pricing/costSheet";
 import { parseQtyBreaks } from "@/lib/sales/qtyBreaks";
+import { writeHeaderTolerant } from "@/lib/pricing/quoteLineFlags";
+import { parseSupplierInput, supplierNamesById, verifySupplier, withSupplierNames } from "@/lib/products/supplier";
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   let supabase, tenantId;
@@ -23,7 +25,10 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   if (!data) return NextResponse.json({ error: "Not found" }, { status: 404 });
-  return NextResponse.json(data);
+  // The supplier's name rides along; no supplier_id key on the row = 0132 pending.
+  if (!("supplier_id" in data)) return NextResponse.json(data);
+  const names = await supplierNamesById(supabase, tenantId, [data.supplier_id]);
+  return NextResponse.json({ ...data, supplier_name: data.supplier_id ? names.get(data.supplier_id) ?? null : null });
 }
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -65,6 +70,17 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     patch.cost_price_as_of = v === "" ? null : v;
   }
 
+  // supplier_id (0132) is a foreign id from the request body: null clears it,
+  // anything else must be one of this tenant's suppliers before it is saved.
+  const supplier = parseSupplierInput(body);
+  if (supplier.present) {
+    if ("invalid" in supplier) return NextResponse.json({ error: "supplier_id is not a valid id" }, { status: 400 });
+    if (supplier.id && !(await verifySupplier(supabase, tenantId, supplier.id))) {
+      return NextResponse.json({ error: "Supplier not found" }, { status: 404 });
+    }
+    patch.supplier_id = supplier.id;
+  }
+
   // available_segment_ids (Coverage) are foreign ids from the request body --
   // verify each belongs to this tenant before writing (MULTI_TENANT_GUARDRAILS.md).
   if (Array.isArray(patch.available_segment_ids)) {
@@ -83,18 +99,22 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     .select("*")
     .eq("id", id).eq("tenant_id", tenantId).maybeSingle();
 
-  const { data, error } = await supabase
-    .from("products")
-    .update(patch)
-    .eq("id", id)
-    .eq("tenant_id", tenantId)
-    .select("*")
-    .single();
+  // A pending 0132 drops supplier_id and retries instead of failing the save.
+  const { data, error, strippedColumns } = await writeHeaderTolerant(patch, async (row) => {
+    const r = await supabase.from("products").update(row).eq("id", id).eq("tenant_id", tenantId).select("*").single();
+    return { data: r.data as Record<string, unknown> | null, error: r.error as { code?: string; message: string } | null };
+  });
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  for (const col of strippedColumns) delete patch[col];
 
   const user = await getAuthUser();
-  const changes = diffForLog("products", (before as Record<string, unknown>) ?? {}, patch);
+  const beforeRow = (before as Record<string, unknown>) ?? {};
+  const supplierIds = [beforeRow.supplier_id, patch.supplier_id].filter((x): x is string => typeof x === "string");
+  const changes = withSupplierNames(
+    diffForLog("products", beforeRow, patch),
+    await supplierNamesById(supabase, tenantId, supplierIds),
+  );
   if (changes.length > 0) {
     await logChange(supabase, {
       tenantId, objectType: "products", objectId: id, objectLabel: (data as { name?: string }).name ?? null,

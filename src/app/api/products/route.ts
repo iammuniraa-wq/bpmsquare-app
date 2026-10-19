@@ -2,6 +2,8 @@ import { NextResponse, type NextRequest } from "next/server";
 import { requireTenantUser, getAuthUser } from "@/lib/supabase-server";
 import { insertWithMasterRef } from "@/lib/masterRef";
 import { diffForLog, logChange } from "@/lib/changeLog";
+import { writeHeaderTolerant } from "@/lib/pricing/quoteLineFlags";
+import { parseSupplierInput, rowsCarrySupplier, supplierNamesById, verifySupplier, withSupplierNames } from "@/lib/products/supplier";
 
 export async function GET() {
   let supabase, tenantId;
@@ -19,7 +21,13 @@ export async function GET() {
     .order("name");
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json(data ?? []);
+  const rows = data ?? [];
+  // The preferred supplier's name rides along (a second tenant-scoped query,
+  // not a join, so a database without 0132 still answers). No supplier_id key
+  // on the rows = 0132 pending: nothing to add.
+  if (!rowsCarrySupplier(rows)) return NextResponse.json(rows);
+  const names = await supplierNamesById(supabase, tenantId, rows.map((r) => r.supplier_id));
+  return NextResponse.json(rows.map((r) => ({ ...r, supplier_name: r.supplier_id ? names.get(r.supplier_id) ?? null : null })));
 }
 
 const num = (v: unknown): number | null => {
@@ -44,7 +52,18 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "name is required" }, { status: 400 });
   }
 
-  const record = {
+  // supplier_id is a foreign id from the request body: it must be one of this
+  // tenant's suppliers before it is stored.
+  const supplier = parseSupplierInput(body);
+  if (supplier.present && "invalid" in supplier) {
+    return NextResponse.json({ error: "supplier_id is not a valid id" }, { status: 400 });
+  }
+  const supplierId = supplier.present && "id" in supplier ? supplier.id : null;
+  if (supplierId && !(await verifySupplier(supabase, tenantId, supplierId))) {
+    return NextResponse.json({ error: "Supplier not found" }, { status: 404 });
+  }
+
+  const record: Record<string, unknown> = {
     tenant_id: tenantId,
     name: name.trim(),
     sku: sku || null,
@@ -56,16 +75,26 @@ export async function POST(request: NextRequest) {
     cost_price: num(body.cost_price),
     tax_percent: num(body.tax_percent),
     status: "active",
+    // Only named when set, so a database without 0132 is never asked for it.
+    ...(supplierId ? { supplier_id: supplierId } : {}),
   };
 
-  const { data, error } = await insertWithMasterRef(supabase, "products", tenantId, record, "*");
+  // A pending 0132 drops supplier_id and retries instead of failing the create.
+  const { data, error, strippedColumns } = await writeHeaderTolerant(record, (row) =>
+    insertWithMasterRef(supabase, "products", tenantId, row, "*")
+  );
   if (error || !data) return NextResponse.json({ error: error?.message ?? "Insert failed" }, { status: 500 });
+  const saved = { ...record };
+  for (const col of strippedColumns) delete saved[col];
 
   const user = await getAuthUser();
   await logChange(supabase, {
     tenantId, objectType: "products", objectId: data.id, objectLabel: data.name,
     action: "create", actorId: user?.id, actorEmail: user?.email,
-    changes: diffForLog("products", {}, record as unknown as Record<string, unknown>),
+    changes: withSupplierNames(
+      diffForLog("products", {}, saved),
+      await supplierNamesById(supabase, tenantId, [supplierId]),
+    ),
   });
 
   return NextResponse.json(data, { status: 201 });
