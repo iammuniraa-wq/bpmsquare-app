@@ -3,7 +3,9 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { loadBomGraph, rollUpFor } from "@/lib/products/bomServer";
 import { tenantOwnsObject } from "@/lib/objectFeatures";
 import type { RollUp } from "@/lib/products/bom";
-import { isKitType, type CatalogueProduct } from "./productItems";
+import { getTenantItemTypeConfig } from "@/lib/products/itemTypesServer";
+import { itemTypeLabel } from "@/lib/products/itemTypes";
+import { isKitType, type CatalogueProduct, type LineProductView } from "./productItems";
 import { isMissingRelation, resolveProducts, toCatalogueProducts } from "./server";
 
 // The catalogue as the estimator sees it: the picker for hand-added lines, the
@@ -22,7 +24,7 @@ export const CATALOGUE_LIMIT = 25;
 const COLS = "id, sku, ref, name, item_type, uom, cost_price, status, created_at";
 const COLS_NO_TYPE = "id, sku, ref, name, uom, cost_price, status, created_at";
 
-/** Active products and kits matching the text (name, SKU or reference), newest names first alphabetically. */
+/** Active products and kits matching the text (name, SKU or reference), by name. */
 export async function searchCatalogue(
   supabase: SupabaseClient, tenantId: string, q: string, limit: number = CATALOGUE_LIMIT
 ): Promise<{ items: CatalogueProduct[]; available: boolean }> {
@@ -43,6 +45,26 @@ export async function loadLineProducts(supabase: SupabaseClient, tenantId: strin
   const unique = [...new Set(ids.filter(Boolean))];
   if (unique.length === 0) return new Map();
   return (await resolveProducts(supabase, tenantId, [], unique)).byId;
+}
+
+/** What the estimate screen shows for each line's product, keyed by product id. */
+export async function lineProductViews(
+  supabase: SupabaseClient, tenantId: string, productIds: readonly (string | null)[], opts: { canOpenProducts: boolean }
+): Promise<Record<string, LineProductView>> {
+  const ids = productIds.filter((x): x is string => !!x);
+  if (ids.length === 0) return {};
+  const products = await loadLineProducts(supabase, tenantId, ids);
+  if (products.size === 0) return {};
+  const owns = await tenantOwnsObject(tenantId, "products");
+  const config = await getTenantItemTypeConfig(supabase, tenantId);
+  const out: Record<string, LineProductView> = {};
+  for (const p of products.values()) {
+    out[p.id] = {
+      id: p.id, ref: p.ref, sku: p.sku, name: p.name, itemTypeLabel: itemTypeLabel(config, p.item_type), isKit: isKitType(p.item_type),
+      linkable: owns && opts.canOpenProducts,
+    };
+  }
+  return out;
 }
 
 export type KitComponentRow = {

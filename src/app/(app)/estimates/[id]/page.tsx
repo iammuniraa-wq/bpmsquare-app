@@ -1,8 +1,9 @@
 import { notFound } from "next/navigation";
 import { requireFeature, getTenant } from "@/lib/tenant";
 import { requireTenantUser } from "@/lib/supabase-server";
-import { requireWorkcenterView, resolvePermissions, canEditWorkcenter, canDeleteWorkcenter, canCreateWorkcenter } from "@/lib/permissions";
+import { requireWorkcenterView, resolvePermissions, canEditWorkcenter, canDeleteWorkcenter, canCreateWorkcenter, canViewWorkcenter } from "@/lib/permissions";
 import { ROUTES } from "@/lib/constants";
+import { lineProductViews } from "@/lib/estimator/catalogue";
 import { PENDING_MESSAGE, loadEstimateBundle, loadTenantMeta } from "@/lib/estimator/server";
 import PageHeader from "@/components/PageHeader";
 import Card from "@/components/ui/Card";
@@ -55,6 +56,7 @@ export default async function EstimatePage({
     : [{ data: [] }, { data: [] }];
   const [meta, tenant] = await Promise.all([loadTenantMeta(tenantId), getTenant()]);
   const { canQuote, quoteUnavailable } = quoteAbility(perms, tenant, canEdit, !!quote);
+  const lineProducts = await lineProductViews(supabase, tenantId, lines.map((l) => l.product_id), { canOpenProducts: canViewWorkcenter(perms, "products") });
 
   return (
     <ObjectRecordPage
@@ -90,6 +92,7 @@ export default async function EstimatePage({
             canEdit={canEdit} canQuote={canQuote} quoteUnavailable={quoteUnavailable} isAdmin={isAdmin}
             accounts={(accountsRes.data ?? []) as { id: string; name: string }[]}
             contacts={(contactsRes.data ?? []) as { id: string; name: string; account_id: string | null }[]}
+            lineProducts={lineProducts}
             tab={tab} line={line}
           />
         ),

@@ -11,6 +11,7 @@ import { SECTION_IDS, scrollTargetFor, tabTarget } from "@/components/estimator/
 import type { SectionId } from "@/components/estimator/workspace/tabTargets";
 import type { AccountOption, ContactOption } from "@/components/estimator/AccountPicker";
 import type { Estimate, EstimateLine, EstimateTemplate } from "@/lib/types";
+import type { LineProductView } from "@/lib/estimator/productItems";
 import { toBomGroups } from "./bomView";
 import BomTab from "./BomTab";
 import DetailsCard from "./DetailsCard";
@@ -32,6 +33,8 @@ export type EstimateScreenProps = {
   isAdmin: boolean;
   accounts: AccountOption[];
   contacts: ContactOption[];
+  /** The catalogue products behind the lines, by product id. */
+  lineProducts: Record<string, LineProductView>;
   /** The old `?tab=` and `?line=` of a bookmarked link. */
   tab?: string;
   line?: string;
@@ -82,7 +85,7 @@ export default function EstimateScreen(p: EstimateScreenProps) {
           <Collapsible id="bom" title="Bill of materials" hint="for your team and the factory" {...fold("bom")}>
             {shown.live && <div className="est-warn">You have unsaved changes. Save them to bring the bill of materials up to date.</div>}
             <BomTab
-              estimateId={e.id} groups={toBomGroups(p.lines, template?.rules ?? [])} locked={locked} canEdit={p.canEdit}
+              estimateId={e.id} groups={toBomGroups(p.lines, template?.rules ?? [], p.lineProducts)} locked={locked} canEdit={p.canEdit}
               hasSchedule={p.lines.some((l) => l.source === "schedule")} hasTemplate={!!template}
             />
           </Collapsible>

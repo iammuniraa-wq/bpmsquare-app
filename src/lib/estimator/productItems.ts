@@ -80,6 +80,19 @@ export function kitDecision(name: string, kit: KitCost | null): KitDecision {
   return { cost: kit.total, source: "kit_rollup", note: null };
 }
 
+/** What a saved estimate shows for the product behind a line. */
+export type LineProductView = {
+  id: string;
+  ref: string | null;
+  sku: string | null;
+  name: string;
+  /** The tenant's own label for the item type ("BOM / kit", or what they renamed it). */
+  itemTypeLabel: string | null;
+  isKit: boolean;
+  /** The product page may be opened (Products module on and the person may view it). */
+  linkable: boolean;
+};
+
 /** The cost bucket a catalogue item most likely belongs to; the person can change it. */
 export function defaultComponentFor(itemType: string | null | undefined): EstimateComponent {
   switch (itemType) {
