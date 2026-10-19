@@ -41,7 +41,7 @@ export const FEATURE_GROUP: Partial<Record<Key, SettingsGroupId>> = {
   accounts: "sales", contacts: "sales", quotations: "sales", standard_quotes: "sales", quote_lines_dw: "sales",
   pipeline: "sales", leads: "sales", invoices: "sales", partners: "sales", marketing: "sales", rfq: "sales",
   products: "sales", suppliers: "sales", purchasing: "sales", pricing_engine: "sales", pricing_engine_quotes: "sales",
-  coverage_model: "sales", fence_projects: "sales", estimator: "sales",
+  coverage_model: "sales", fence_projects: "sales", estimator: "sales", process_studio: "sales",
   // Service
   cases: "service", work_orders: "service", technicians: "service", assets: "service", amc: "service", dispatch: "service",
   // Workforce
