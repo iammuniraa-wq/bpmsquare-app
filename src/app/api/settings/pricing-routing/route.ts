@@ -17,8 +17,12 @@ function normalizeRouting(body: Record<string, unknown>): PricingRouting {
       attribute: typeof r.attribute === "string" ? r.attribute.trim() : "",
       value: typeof r.value === "string" ? r.value.trim() : "",
       area: typeof r.area === "string" ? r.area.trim() : "",
+      document_types: Array.isArray(r.document_types)
+        ? r.document_types.filter((d): d is string => typeof d === "string" && d.trim() !== "").map((d) => d.trim())
+        : [],
     }))
-    .filter((r) => r.attribute && r.value && r.area);
+    .filter((r) => r.attribute && r.value && r.area)
+    .map(({ document_types, ...rest }) => (document_types.length ? { ...rest, document_types } : rest));
   const default_area = typeof body.default_area === "string" && body.default_area.trim() ? body.default_area.trim() : "default";
   return { rules, default_area };
 }

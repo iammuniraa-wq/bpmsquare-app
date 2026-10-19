@@ -22,8 +22,8 @@
 --   6. Routes products to the books in tenants.config.pricing.routing (this script's
 --      rules go first; other routing rules and default_area are kept as they are).
 -- The "default" Price Book (made in the app by the cost-based walk) is not touched.
--- Quotations on the demo tenant resolve through the same routing: the demo is shown on
--- Standard Quotes, but nothing here can fence the Quotation button off.
+-- Quotations are left alone: every routing rule here is fenced to Standard Quotes and
+-- opportunities (document_types), so a Quotation line never reaches these books.
 
 do $seed$
 declare
@@ -221,7 +221,7 @@ begin
          coalesce(config, '{}'::jsonb), '{pricing}',
          coalesce(config->'pricing', '{}'::jsonb) || jsonb_build_object('routing',
            coalesce(config#>'{pricing,routing}', '{}'::jsonb) || jsonb_build_object('rules',
-             $r$[{"attribute":"product.sub_category","value":"ROPES","area":"formula_pricing"},{"attribute":"product.sub_category","value":"CABINS","area":"formula_pricing"},{"attribute":"product.category","value":"ELEVATORS","area":"catalogue_2026"},{"attribute":"product.category","value":"GOODS_LIFTS","area":"catalogue_2026"},{"attribute":"product.category","value":"SERVICE_PLANS","area":"catalogue_2026"},{"attribute":"product.category","value":"MODERNISATION","area":"cost_plus"},{"attribute":"product.category","value":"SERVICES","area":"cost_plus"},{"attribute":"product.category","value":"SPARES","area":"cost_plus"}]$r$::jsonb
+             $r$[{"attribute":"product.sub_category","value":"ROPES","area":"formula_pricing","document_types":["standard_quote","opportunity"]},{"attribute":"product.sub_category","value":"CABINS","area":"formula_pricing","document_types":["standard_quote","opportunity"]},{"attribute":"product.category","value":"ELEVATORS","area":"catalogue_2026","document_types":["standard_quote","opportunity"]},{"attribute":"product.category","value":"GOODS_LIFTS","area":"catalogue_2026","document_types":["standard_quote","opportunity"]},{"attribute":"product.category","value":"SERVICE_PLANS","area":"catalogue_2026","document_types":["standard_quote","opportunity"]},{"attribute":"product.category","value":"MODERNISATION","area":"cost_plus","document_types":["standard_quote","opportunity"]},{"attribute":"product.category","value":"SERVICES","area":"cost_plus","document_types":["standard_quote","opportunity"]},{"attribute":"product.category","value":"SPARES","area":"cost_plus","document_types":["standard_quote","opportunity"]}]$r$::jsonb
              || coalesce((
                select jsonb_agg(x)
                  from jsonb_array_elements(coalesce(config#>'{pricing,routing,rules}', '[]'::jsonb)) x

@@ -1160,9 +1160,13 @@ but the Price list template gates its customer discount on
 `ctx.customer.tier != null`, which a DSL read could not see, so that discount
 never applied on a quote line.
 
-**Open:** (1) Quotations on the demo tenant resolve through the same routing and
-flags as Standard Quotes, so Price with engine there prices from these books
-too; fencing it to Standard Quotes would need an AND on routing, which matches
-one attribute per rule today. (2) The regional uplift needs a State on the
+**Quotations are left alone (owner, 2026-10-19).** A routing rule may carry an
+optional `document_types` fence; the demo rules are fenced to `standard_quote`
+and `opportunity`, so a Quotation line never reaches these books, and the
+Quotation header keeps its original flat keys (the nested customer applies to
+the other document types only). Re-run `scripts/seed-pricing-demo.sql` to
+refresh the demo tenant's routing.
+
+**Open:** (1) The regional uplift needs a State on the
 account; demo accounts may have none. (3) The books set no currency, so the
 engine returns none and the forms show the tenant's own.

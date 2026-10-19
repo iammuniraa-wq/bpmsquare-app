@@ -31,8 +31,8 @@ describe("quoteLineContext", () => {
       account: { id: "a1", type: "A", state: "North", industry: "Cement" },
       product: { id: "p1", name: "Door operator", category: "SPARES", sub_category: "DOORS", list_price: 118000, uom: "Nos", tax_percent: 18 },
     });
-    expect(ctx.header).toEqual({ document_type: "quote", customer: { id: "a1", tier: "A" }, region: "North", industry: "Cement" });
-    // The router and rule matching read the flattened shape: same dotted keys as ever.
+    // Quotations keep their original flat keys (left exactly as they were).
+    expect(ctx.header).toEqual({ document_type: "quote", "customer.id": "a1", "customer.tier": "A", region: "North", industry: "Cement" });
     expect(flattenContext(ctx.header)).toEqual({ document_type: "quote", "customer.id": "a1", "customer.tier": "A", region: "North", industry: "Cement" });
     expect(ctx.line["product.category"]).toBe("SPARES");
     expect(ctx.line["product.sub_category"]).toBe("DOORS");
@@ -44,5 +44,23 @@ describe("quoteLineContext", () => {
     expect(ctx.header).toEqual({ document_type: "standard_quote" });
     expect(ctx.line.product).toMatchObject({ base_model: "Wire rope", category: "SPARES", sub_category: "ROPES", list_price: 420 });
     expect(flattenContext(ctx.line)["product.sub_category"]).toBe("ROPES");
+  });
+
+  it("nests the customer for a standard quote so ctx.customer.tier works in formulas", () => {
+    const ctx = quoteLineContext({ documentType: "standard_quote", account: { id: "a1", type: "A" }, product: { id: "p1", name: "Wire rope" } });
+    expect(ctx.header).toEqual({ document_type: "standard_quote", customer: { id: "a1", tier: "A" } });
+  });
+});
+
+describe("routeToArea document-type fence", () => {
+  const routing = { rules: [{ attribute: "product.category", value: "SPARES", area: "cost_plus", document_types: ["standard_quote", "opportunity"] }], default_area: "default" };
+  it("applies to the named document types only, never to a Quotation", () => {
+    expect(routeToArea(routing, { "product.category": "SPARES", document_type: "standard_quote" }).area).toBe("cost_plus");
+    expect(routeToArea(routing, { "product.category": "SPARES", document_type: "opportunity" }).area).toBe("cost_plus");
+    expect(routeToArea(routing, { "product.category": "SPARES", document_type: "quote" }).area).toBe("default");
+  });
+  it("a rule without the fence applies to every document type", () => {
+    const open = { rules: [{ attribute: "product.category", value: "SPARES", area: "cost_plus" }], default_area: "default" };
+    expect(routeToArea(open, { "product.category": "SPARES", document_type: "quote" }).area).toBe("cost_plus");
   });
 });

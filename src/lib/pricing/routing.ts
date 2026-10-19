@@ -10,6 +10,9 @@ export type RoutingRule = {
   attribute: string;
   value: string;
   area: string;
+  /** Optional fence: the rule applies only to these document types
+   *  ("quote", "standard_quote", "opportunity", ...). Absent = every type. */
+  document_types?: string[];
 };
 
 export type PricingRouting = {
@@ -22,6 +25,10 @@ export const DEFAULT_AREA = "default";
 export function routeToArea(routing: PricingRouting | null | undefined, flatCtx: Record<string, AttrValue | undefined>): { area: string; matched: RoutingRule | null } {
   for (const r of routing?.rules ?? []) {
     if (!r.attribute || !r.area) continue;
+    if (r.document_types?.length) {
+      const dt = String(flatCtx.document_type ?? "").toLowerCase();
+      if (!r.document_types.some((d) => d.toLowerCase() === dt)) continue;
+    }
     const v = flatCtx[r.attribute];
     if (v !== undefined && v !== null && String(v).toLowerCase() === String(r.value).toLowerCase()) {
       return { area: r.area, matched: r };
@@ -47,10 +54,17 @@ export function quoteLineContext(args: {
   // template gates its customer discount on `ctx.customer.tier != null`, so
   // with dotted keys that discount silently never fired on a quote line.
   const header: Record<string, unknown> = { document_type: args.documentType };
-  const customer: Record<string, unknown> = {};
-  if (args.account?.id) customer.id = args.account.id;
-  if (args.account?.type) customer.tier = args.account.type;
-  if (Object.keys(customer).length > 0) header.customer = customer;
+  if (args.documentType === "quote") {
+    // Quotations keep their original flat keys, exactly as before: nesting is
+    // only for the other document types (owner: Quotations are left alone).
+    if (args.account?.id) header["customer.id"] = args.account.id;
+    if (args.account?.type) header["customer.tier"] = args.account.type;
+  } else {
+    const customer: Record<string, unknown> = {};
+    if (args.account?.id) customer.id = args.account.id;
+    if (args.account?.type) customer.tier = args.account.type;
+    if (Object.keys(customer).length > 0) header.customer = customer;
+  }
   if (args.account?.state) header.region = args.account.state;
   if (args.account?.industry) header.industry = args.account.industry;
 
