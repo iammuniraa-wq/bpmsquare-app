@@ -915,6 +915,25 @@ export type ProductCategoryDef = {
   subs: { code: string; name: string }[];
 };
 
+/** A tenant's own item type (Settings -> Item types). Custom types never
+ *  carry components: only the built-in BOM / kit may (src/lib/products/itemTypes.ts). */
+export type CustomItemTypeDef = {
+  key: string;
+  label: string;
+  description?: string;
+  stocked: boolean;
+  sellable: boolean;
+  purchasable: boolean;
+};
+
+/** Tenant overrides on the built-in item type list: renames, hidden keys and
+ *  added custom types. Absent = the defaults exactly. */
+export type TenantItemTypes = {
+  labels?: Record<string, string>;
+  hidden?: string[];
+  custom?: CustomItemTypeDef[];
+};
+
 export type QuoteStatusDef = {
   value: string;      // stored in DB, e.g. "draft", "po_received"
   label: string;      // displayed in UI
@@ -1006,6 +1025,9 @@ export type TenantConfig = {
   // OOB depth is exactly two levels (category -> sub-categories); absent/empty
   // means the product form falls back to free-text category entry.
   product_categories?: ProductCategoryDef[];
+  // Item types for products (renames, hidden, custom). Absent = the built-in
+  // list; see src/lib/products/itemTypes.ts.
+  item_types?: TenantItemTypes;
   // Which asset fields to print on the quote. Empty/absent = hide the section.
   asset_print_fields?: string[];
   // Quote ID (ref) naming convention. Falls back to DEFAULT_QUOTE_ID_FORMAT if absent.
