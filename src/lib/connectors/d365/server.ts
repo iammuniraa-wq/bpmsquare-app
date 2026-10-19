@@ -8,7 +8,10 @@ import type { TenantFeatures } from "@/lib/constants";
 import { D365Client, D365Error } from "./odata";
 import { buildClientAssertion, certDerFromPem, tokenUrl, validDirectory } from "./jwt";
 import { entityConfig, apiBase, resourceFor, allowedHost, sovereignHost } from "./catalog";
-import { mapPullRow, fingerprint, buildPushBody, modifiedSinceFilter, odataString, buildTargetRecord } from "./mapping";
+import {
+  mapPullRow, fingerprint, buildPushBody, modifiedSinceFilter, odataString, buildTargetRecord, normalizeModified, nextModifiedWatermark,
+  formatCursor, parseCursor, keysetFilter, accountLookupKeys, selectFields, scopedExternalId, splitExternalId, withDataArea,
+} from "./mapping";
 import {
   D365_AUTH_FOR_PRODUCT, D365_ENTITY_TARGET,
   type D365Config, type D365EntityKey, type D365PublicState,
@@ -149,9 +152,9 @@ export async function authHeaderFor(admin: SupabaseClient, tenantId: string, cfg
 }
 
 /** Exchange an authorization code (delegated sign-in) and keep the tokens. */
-export async function exchangeAuthCode(admin: SupabaseClient, tenantId: string, cfg: D365Config, creds: Creds, code: string, redirectUri: string): Promise<void> {
+export async function exchangeAuthCode(admin: SupabaseClient, tenantId: string, cfg: D365Config, creds: Creds, code: string, redirectUri: string, codeVerifier: string): Promise<void> {
   const tok = await tokenRequest(cfg.directory_id!, {
-    client_id: cfg.client_id!, grant_type: "authorization_code", code, redirect_uri: redirectUri,
+    client_id: cfg.client_id!, grant_type: "authorization_code", code, redirect_uri: redirectUri, code_verifier: codeVerifier,
     scope: `${resourceFor(cfg)}/.default offline_access`,
     ...(creds.client_secret ? { client_secret: creds.client_secret } : clientAuth({ ...cfg, auth_mode: "certificate" }, creds)),
   });
@@ -216,14 +219,37 @@ export async function previewEntity(admin: SupabaseClient, tenantId: string, cfg
 
 // ── Pull ────────────────────────────────────────────────────────────────────
 
+const IDENT_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
 const REF_TABLES = new Set<string>(["accounts", "contacts", "suppliers", "products", "wfm_projects"]);
 const MAX_ROWS_PER_RUN = 5000;
 
 export type RunCounts = { read: number; created: number; updated: number; unchanged: number; skipped: number; failed: number };
 
-async function startRun(admin: SupabaseClient, tenantId: string, entity: string, direction: "pull" | "push", trigger: "manual" | "schedule", userId: string | null) {
-  const { data } = await admin.from("connector_sync_runs").insert({ tenant_id: tenantId, connector_id: CONNECTOR_ID, entity, direction, trigger, started_by: userId }).select("id").single();
-  return (data?.id as string | undefined) ?? null;
+/** A run older than this cannot still be alive: the routes stop at 300 s. */
+export const STALE_RUN_MS = 10 * 60 * 1000;
+/** How long one run may keep starting new work. The route's function limit is
+ *  300 s; the rest is for the last page in flight and the closing writes. */
+export const RUN_BUDGET_MS = 240_000;
+export const ALREADY_RUNNING = "A sync of this entity is already running — try again in a few minutes.";
+
+/**
+ * Open a run row, which doubles as the per-entity lock. Runs a killed
+ * function left in 'running' are closed first (otherwise one timeout would
+ * block the entity for good); then, if a live run exists, this one does not
+ * start. Migration 0136's partial unique index makes the check atomic; until
+ * it is applied the select below still catches every non-simultaneous start.
+ */
+async function startRun(admin: SupabaseClient, tenantId: string, entity: string, direction: "pull" | "push", trigger: "manual" | "schedule", userId: string | null): Promise<{ runId: string | null; locked: boolean }> {
+  const now = Date.now();
+  await admin.from("connector_sync_runs").update({
+    status: "failed", finished_at: new Date(now).toISOString(),
+    error: "The run did not finish (the server stopped it). The next run continues.",
+  }).eq("tenant_id", tenantId).eq("connector_id", CONNECTOR_ID).eq("status", "running").lt("started_at", new Date(now - STALE_RUN_MS).toISOString());
+  const { data: live } = await admin.from("connector_sync_runs").select("id").eq("tenant_id", tenantId).eq("connector_id", CONNECTOR_ID).eq("entity", entity).eq("status", "running").limit(1);
+  if (live?.length) return { runId: null, locked: true };
+  const { data, error } = await admin.from("connector_sync_runs").insert({ tenant_id: tenantId, connector_id: CONNECTOR_ID, entity, direction, trigger, started_by: userId }).select("id").single();
+  if (error?.code === "23505") return { runId: null, locked: true };
+  return { runId: (data?.id as string | undefined) ?? null, locked: false };
 }
 
 async function finishRun(admin: SupabaseClient, tenantId: string, runId: string | null, counts: RunCounts, issues: string[], error: string | null, watermark: string | null) {
@@ -241,6 +267,23 @@ async function lastWatermark(admin: SupabaseClient, tenantId: string, entity: st
   return (data?.watermark as string | null) ?? null;
 }
 
+const LINK_PAGE = 1000;
+
+/** Every link of one entity. PostgREST answers at most 1000 rows to a plain
+ *  select; a partial map would make a pull re-create records it already has
+ *  and a push re-send projects it already sent. */
+async function fetchLinks<T>(admin: SupabaseClient, tenantId: string, entity: string, cols: string): Promise<T[]> {
+  const out: T[] = [];
+  for (let from = 0; ; from += LINK_PAGE) {
+    const { data, error } = await admin.from("connector_links").select(cols)
+      .eq("tenant_id", tenantId).eq("connector_id", CONNECTOR_ID).eq("entity", entity).order("id").range(from, from + LINK_PAGE - 1);
+    if (error) throw error;
+    out.push(...((data ?? []) as unknown as T[]));
+    if ((data?.length ?? 0) < LINK_PAGE) break;
+  }
+  return out;
+}
+
 const toRecord = (table: string, values: Record<string, string | number | null>, isInsert: boolean) => buildTargetRecord(table, values, isInsert, encrypt);
 
 /**
@@ -249,7 +292,9 @@ const toRecord = (table: string, values: Record<string, string | number | null>,
  * connector_links by the external id), never deletes, never touches a field
  * the map doesn't own. Incremental where the entity has a modified field.
  */
-export async function runPull(admin: SupabaseClient, tenantId: string, key: Exclude<D365EntityKey, "fence_projects">, opts: { trigger: "manual" | "schedule"; userId: string | null; full?: boolean }): Promise<{ runId: string | null; counts: RunCounts; issues: string[]; error: string | null }> {
+export async function runPull(admin: SupabaseClient, tenantId: string, key: Exclude<D365EntityKey, "fence_projects">, opts: { trigger: "manual" | "schedule"; userId: string | null; full?: boolean; /** epoch ms after which no new row is started */ deadline?: number; /** rows per run (tests lower it) */ maxRows?: number }): Promise<{ runId: string | null; counts: RunCounts; issues: string[]; error: string | null }> {
+  const deadline = opts.deadline ?? Date.now() + RUN_BUDGET_MS;
+  const maxRows = opts.maxRows ?? MAX_ROWS_PER_RUN;
   const counts: RunCounts = { read: 0, created: 0, updated: 0, unchanged: 0, skipped: 0, failed: 0 };
   const issues: string[] = [];
   const loaded = await loadD365(admin, tenantId);
@@ -263,48 +308,88 @@ export async function runPull(admin: SupabaseClient, tenantId: string, key: Excl
     return { runId: null, counts, issues, error: `The ${target.table} module isn't enabled for this workspace.` };
   }
 
-  const runId = await startRun(admin, tenantId, key, "pull", opts.trigger, opts.userId);
-  let watermark: string | null = opts.full ? null : await lastWatermark(admin, tenantId, key);
-  let maxSeen = watermark;
+  const started = await startRun(admin, tenantId, key, "pull", opts.trigger, opts.userId);
+  if (started.locked) return { runId: null, counts, issues, error: ALREADY_RUNNING };
+  const runId = started.runId;
+  let stoppedEarly = false;
   try {
+    const startMark: string | null = opts.full ? null : await lastWatermark(admin, tenantId, key);
     const client = await clientFor(admin, tenantId, cfg, creds);
     const q = foCompanyQuery(cfg);
     const baseFilter = [ec.filter, q.filter].filter(Boolean).map((f) => `(${f})`).join(" and ") || undefined;
-    const filter = ec.modified_field ? modifiedSinceFilter(ec.modified_field, watermark, baseFilter) : baseFilter;
+    // Two ways to continue where the last run stopped. An entity with a
+    // modified field asks for what changed since; one without (Finance &
+    // Operations) is read in id order from a cursor, and a finished scan
+    // restarts from the top.
+    const modifiedMode = !!ec.modified_field && IDENT_RE.test(ec.modified_field);
+    const keysetMode = !modifiedMode && IDENT_RE.test(ec.id_field);
+    const cursorStart = keysetMode ? parseCursor(startMark, cfg.company).lastId : null;
+    const startIso = modifiedMode && startMark && /^\d{4}-/.test(startMark) ? startMark : null;
+    const filter = modifiedMode ? modifiedSinceFilter(ec.modified_field!, startIso, baseFilter)
+      : keysetMode ? keysetFilter(ec.id_field, cursorStart, baseFilter) : baseFilter;
+    let maxSeen: string | null = startIso;
+    let firstSeen: string | null = null;
+    let firstHold: string | null = null;
+    let lastId: string | null = cursorStart;
 
     // Existing links for this entity, and the account links contacts and
     // projects resolve their customer through.
-    const { data: links } = await admin.from("connector_links").select("external_id, object_id, content_hash")
-      .eq("tenant_id", tenantId).eq("connector_id", CONNECTOR_ID).eq("entity", key);
-    const linkOf = new Map(((links ?? []) as { external_id: string; object_id: string; content_hash: string | null }[]).map((l) => [l.external_id, l]));
+    const links = await fetchLinks<{ external_id: string; object_id: string; content_hash: string | null }>(admin, tenantId, key, "external_id, object_id, content_hash");
+    const linkOf = new Map(links.map((l) => [l.external_id, l]));
     let accountOf = new Map<string, string>();
     if (key === "contacts" || key === "projects") {
-      const { data: acc } = await admin.from("connector_links").select("external_id, object_id")
-        .eq("tenant_id", tenantId).eq("connector_id", CONNECTOR_ID).eq("entity", "customers");
-      accountOf = new Map(((acc ?? []) as { external_id: string; object_id: string }[]).map((l) => [l.external_id.toLowerCase(), l.object_id]));
+      const acc = await fetchLinks<{ external_id: string; object_id: string }>(admin, tenantId, "customers", "external_id, object_id");
+      accountOf = new Map(acc.map((l) => [l.external_id.toLowerCase(), l.object_id]));
     }
 
     const changeRows: ChangeLogEntryParams[] = [];
+    // F&O links written before ids were scoped by company are bare. A bare
+    // link is adopted by the first company whose row matches it (and re-keyed
+    // to the scoped form on the spot, one link at a time), so a second
+    // company's identical number can never be mapped onto the same record.
+    const legacyClaimed = new Set<string>();
     for await (const row of client.list(ec.entity_set, {
-      filter, orderby: ec.modified_field && /^[A-Za-z_][A-Za-z0-9_]*$/.test(ec.modified_field) ? `${ec.modified_field} asc` : undefined,
-      maxRows: MAX_ROWS_PER_RUN, extraQuery: q.extraQuery,
+      select: selectFields(key, ec, cfg.product),
+      filter, orderby: modifiedMode ? `${ec.modified_field} asc` : keysetMode ? `${ec.id_field} asc` : undefined,
+      maxRows, extraQuery: q.extraQuery,
     })) {
+      if (Date.now() > deadline) { stoppedEarly = true; break; }
       counts.read++;
-      const m = mapPullRow(key, ec, row);
-      if ("error" in m) { counts.skipped++; if (issues.length < 25) issues.push(`Skipped a row: ${m.error}`); continue; }
-      if (ec.modified_field) {
-        const mod = row[ec.modified_field];
-        if (typeof mod === "string" && /^\d{4}-\d{2}-\d{2}T/.test(mod) && (!maxSeen || mod > maxSeen)) maxSeen = mod.replace(/\.\d+Z$/, "Z");
+      const m = mapPullRow(key, ec, row, cfg.product);
+      const mod = modifiedMode ? normalizeModified(row[ec.modified_field!]) : null;
+      if (mod) {
+        firstSeen ??= mod;
+        if (!maxSeen || mod > maxSeen) maxSeen = mod;
       }
+      // A row this run could not apply keeps the watermark from moving past
+      // it, so it is read again instead of waiting for it to change.
+      const hold = () => { if (mod && firstHold === null) firstHold = mod; };
+      if ("error" in m) { counts.skipped++; if (issues.length < 25) issues.push(`Skipped a row: ${m.error}`); continue; }
+      if (keysetMode) lastId = m.rawId;
       const values: Record<string, string | number | null> = { ...m.values };
       if (key === "contacts" || key === "projects") {
-        const accId = m.accountExternalId ? accountOf.get(m.accountExternalId.toLowerCase()) : undefined;
-        if (key === "contacts" && !accId) { counts.skipped++; if (issues.length < 25) issues.push(`${m.values.name}: its customer hasn't been synced yet — sync Customers first`); continue; }
+        const accId = m.accountExternalId ? accountLookupKeys(m.area, m.accountExternalId).map((k) => accountOf.get(k)).find(Boolean) : undefined;
+        if (key === "contacts" && !accId) { hold(); counts.skipped++; if (issues.length < 25) issues.push(`${m.values.name}: its customer hasn't been synced yet — sync Customers first`); continue; }
         if (accId) (values as Record<string, unknown>).account_id = accId;
       }
       const hash = fingerprint(values);
-      const link = linkOf.get(m.externalId);
+      let link = linkOf.get(m.externalId);
       try {
+        if (!link && m.externalId !== m.rawId && !legacyClaimed.has(m.rawId)) {
+          const old = linkOf.get(m.rawId);
+          if (old) {
+            legacyClaimed.add(m.rawId);
+            const { error: rekeyErr } = await admin.from("connector_links").update({ external_id: m.externalId })
+              .eq("tenant_id", tenantId).eq("connector_id", CONNECTOR_ID).eq("entity", key).eq("external_id", m.rawId);
+            if (rekeyErr) {
+              link = old;
+            } else {
+              linkOf.delete(m.rawId);
+              link = { ...old, external_id: m.externalId };
+              linkOf.set(m.externalId, link);
+            }
+          }
+        }
         if (link) {
           if (link.content_hash === hash) { counts.unchanged++; continue; }
           const rec = toRecord(target.table, values, false);
@@ -313,12 +398,15 @@ export async function runPull(admin: SupabaseClient, tenantId: string, key: Excl
           if (!upd?.length) {
             // The BPMSquare record was deleted since: forget the link so the
             // next run creates it again rather than failing forever.
-            await admin.from("connector_links").delete().eq("tenant_id", tenantId).eq("connector_id", CONNECTOR_ID).eq("entity", key).eq("external_id", m.externalId);
+            await admin.from("connector_links").delete().eq("tenant_id", tenantId).eq("connector_id", CONNECTOR_ID).eq("entity", key).eq("external_id", link.external_id);
+            linkOf.delete(link.external_id);
+            hold();
             counts.skipped++;
             continue;
           }
           await admin.from("connector_links").update({ content_hash: hash, synced_at: new Date().toISOString(), external_key: m.externalKey })
-            .eq("tenant_id", tenantId).eq("connector_id", CONNECTOR_ID).eq("entity", key).eq("external_id", m.externalId);
+            .eq("tenant_id", tenantId).eq("connector_id", CONNECTOR_ID).eq("entity", key).eq("external_id", link.external_id);
+          link.content_hash = hash;
           counts.updated++;
           changeRows.push({ tenantId, objectType: target.table, objectId: link.object_id, objectLabel: String(values.name ?? ""), action: "update", actorId: opts.userId, actorEmail: null, changes: [{ field: "synced from Dynamics 365", from: null, to: m.externalKey ?? m.externalId }] });
         } else {
@@ -328,25 +416,45 @@ export async function runPull(admin: SupabaseClient, tenantId: string, key: Excl
             : await admin.from(target.table).insert(rec).select("id").single();
           if (ins.error || !ins.data) throw ins.error ?? new Error("insert failed");
           const id = (ins.data as { id: string }).id;
-          await admin.from("connector_links").insert({
+          const { error: linkErr } = await admin.from("connector_links").insert({
             tenant_id: tenantId, connector_id: CONNECTOR_ID, entity: key, object_type: target.table, object_id: id,
             external_id: m.externalId, external_key: m.externalKey, direction: "pull", content_hash: hash,
           });
+          if (linkErr) {
+            // A record without its link would be created again by every run.
+            // Take it back out (a concurrent run that won the race keeps its
+            // own record and link) and report the row as failed.
+            const { error: undoErr } = await admin.from(target.table).delete().eq("id", id).eq("tenant_id", tenantId);
+            if (undoErr) throw new Error(`could not link the new record (${linkErr.message}) and could not remove it (${undoErr.message}) — remove the duplicate by hand`);
+            throw new Error(`could not link the new record (${linkErr.message}); it was removed and will be retried`);
+          }
           linkOf.set(m.externalId, { external_id: m.externalId, object_id: id, content_hash: hash });
           counts.created++;
           changeRows.push({ tenantId, objectType: target.table, objectId: id, objectLabel: String(values.name ?? ""), action: "create", actorId: opts.userId, actorEmail: null, changes: [{ field: "created from Dynamics 365", from: null, to: m.externalKey ?? m.externalId }] });
         }
       } catch (e) {
+        hold();
         counts.failed++;
         if (issues.length < 25) issues.push(`${m.values.name ?? m.externalId}: ${(e as { message?: string }).message ?? "failed"}`);
       }
       if (changeRows.length >= 200) await logChangeBatch(admin, changeRows.splice(0));
     }
     if (changeRows.length) await logChangeBatch(admin, changeRows);
-    watermark = maxSeen;
+
+    const capHit = counts.read >= maxRows;
+    const incomplete = stoppedEarly || capHit;
+    let watermark: string | null = null;
+    if (modifiedMode) {
+      const next = nextModifiedWatermark({ start: startIso, firstSeen, maxSeen, firstHold, stoppedEarly: incomplete });
+      watermark = next.watermark;
+      if (next.releasedStall) issues.push("Some rows could not be applied and were passed over so the sync could move on; they are tried again only when they change in Dynamics or on a full sync.");
+    } else if (keysetMode) {
+      watermark = formatCursor(cfg.company, incomplete ? lastId : null);
+    }
+    if (stoppedEarly) issues.push("Stopped at this run's time limit — the next run continues from here.");
+    else if (capHit) issues.push(`Stopped at ${maxRows} rows — the next run continues from here.`);
     await markStatus(admin, tenantId, true);
     await finishRun(admin, tenantId, runId, counts, issues, null, watermark);
-    if (counts.read >= MAX_ROWS_PER_RUN) issues.push(`Stopped at ${MAX_ROWS_PER_RUN} rows — the next run continues from here.`);
     return { runId, counts, issues, error: null };
   } catch (e) {
     const msg = (e as Error).message ?? "Sync failed";
@@ -364,7 +472,8 @@ export async function runPull(admin: SupabaseClient, tenantId: string, key: Excl
  * account came from Dynamics. Idempotent through connector_links: a fence
  * project is pushed at most once; re-pushing is a deliberate "unlink" away.
  */
-export async function runPushFenceProjects(admin: SupabaseClient, tenantId: string, opts: { trigger: "manual" | "schedule"; userId: string | null; ids?: string[]; statuses?: string[] }): Promise<{ runId: string | null; counts: RunCounts; issues: string[]; error: string | null }> {
+export async function runPushFenceProjects(admin: SupabaseClient, tenantId: string, opts: { trigger: "manual" | "schedule"; userId: string | null; ids?: string[]; statuses?: string[]; deadline?: number }): Promise<{ runId: string | null; counts: RunCounts; issues: string[]; error: string | null }> {
+  const deadline = opts.deadline ?? Date.now() + RUN_BUDGET_MS;
   const counts: RunCounts = { read: 0, created: 0, updated: 0, unchanged: 0, skipped: 0, failed: 0 };
   const issues: string[] = [];
   const loaded = await loadD365(admin, tenantId);
@@ -375,38 +484,56 @@ export async function runPushFenceProjects(admin: SupabaseClient, tenantId: stri
   const { data: t } = await admin.from("tenants").select("features").eq("id", tenantId).maybeSingle();
   if (!(t?.features as TenantFeatures | undefined)?.fence_projects) return { runId: null, counts, issues, error: "Fence projects aren't enabled for this workspace." };
 
-  const runId = await startRun(admin, tenantId, "fence_projects", "push", opts.trigger, opts.userId);
+  const started = await startRun(admin, tenantId, "fence_projects", "push", opts.trigger, opts.userId);
+  if (started.locked) return { runId: null, counts, issues, error: ALREADY_RUNNING };
+  const runId = started.runId;
   try {
     let q = admin.from("fence_projects").select("id, ref, name, status, total_length_m, layout, account_id").eq("tenant_id", tenantId).limit(500);
     if (opts.ids?.length) q = q.in("id", opts.ids);
     else q = q.in("status", opts.statuses?.length ? opts.statuses : ["won"]);
     const { data: projects, error } = await q;
     if (error) throw error;
-    const { data: pushed } = await admin.from("connector_links").select("object_id").eq("tenant_id", tenantId).eq("connector_id", CONNECTOR_ID).eq("entity", "fence_projects");
-    const already = new Set(((pushed ?? []) as { object_id: string }[]).map((p) => p.object_id));
-    const { data: accLinks } = await admin.from("connector_links").select("object_id, external_id").eq("tenant_id", tenantId).eq("connector_id", CONNECTOR_ID).eq("entity", "customers");
-    const extAccount = new Map(((accLinks ?? []) as { object_id: string; external_id: string }[]).map((l) => [l.object_id, l.external_id]));
+    const pushed = await fetchLinks<{ object_id: string }>(admin, tenantId, "fence_projects", "object_id");
+    const already = new Set(pushed.map((p) => p.object_id));
+    const accLinks = await fetchLinks<{ object_id: string; external_id: string }>(admin, tenantId, "customers", "object_id, external_id");
+    const extAccount = new Map(accLinks.map((l) => [l.object_id, l.external_id]));
     const client = await clientFor(admin, tenantId, cfg, creds);
     const changeRows: ChangeLogEntryParams[] = [];
 
     for (const p of (projects ?? []) as { id: string; ref: string | null; name: string; status: string; total_length_m: number; layout: string; account_id: string | null }[]) {
+      if (Date.now() > deadline) { issues.push("Stopped at this run's time limit — the next run continues from here."); break; }
       counts.read++;
       if (already.has(p.id)) { counts.unchanged++; continue; }
+      // An F&O customer link may carry its company (usmf|C0100): the field map
+      // is given the bare account number, and the company is sent as
+      // dataAreaId -- otherwise F&O creates the project in the app user's
+      // default company, which is not necessarily the customer's.
+      const accExt = p.account_id ? extAccount.get(p.account_id) ?? null : null;
+      const acc = accExt && cfg.product === "fo" ? splitExternalId(accExt) : { area: null, id: accExt };
       const vars = {
         name: p.name, ref: p.ref, status: p.status, total_length_m: p.total_length_m,
         summary: `${p.layout === "open_run" ? "Open run" : "Closed perimeter"}, ${Number(p.total_length_m)} m`,
-        account_external_id: p.account_id ? extAccount.get(p.account_id) ?? null : null,
+        account_external_id: acc.id,
       };
-      const body = buildPushBody(ec.field_map, vars);
-      if (!Object.keys(body).length) { counts.skipped++; issues.push(`${p.name}: nothing to send — check the field map`); continue; }
+      const built = buildPushBody(ec.field_map, vars);
+      if (!Object.keys(built).length) { counts.skipped++; issues.push(`${p.name}: nothing to send — check the field map`); continue; }
+      const body = withDataArea(cfg.product, built, ec.field_map, cfg.company ?? acc.area);
       try {
         const { row: created, entityId } = await client.create(ec.entity_set, body);
-        const extId = created[ec.id_field] ?? created.id ?? entityId;
-        if (!extId) throw new Error("Dynamics didn't return the new project's id");
-        await admin.from("connector_links").insert({
+        const rawExt = created[ec.id_field] ?? created.id ?? entityId;
+        if (!rawExt) throw new Error("Dynamics didn't return the new project's id");
+        // Same id form a pull of Projects would store for it (company-scoped on F&O).
+        const createdArea = typeof created.dataAreaId === "string" ? created.dataAreaId : body.dataAreaId ?? null;
+        const extId = typeof rawExt === "string" && rawExt.includes("=") ? rawExt : scopedExternalId(cfg.product, createdArea, String(rawExt));
+        const linkRow = {
           tenant_id: tenantId, connector_id: CONNECTOR_ID, entity: "fence_projects", object_type: "fence_projects", object_id: p.id,
           external_id: String(extId), external_key: (created.msdyn_subject ?? created.number ?? created.ProjectID ?? null) as string | null, direction: "push",
-        });
+        };
+        let { error: linkErr } = await admin.from("connector_links").insert(linkRow);
+        if (linkErr) ({ error: linkErr } = await admin.from("connector_links").insert(linkRow));
+        // The project now exists in the customer's ERP and cannot be taken
+        // back from here: say so, so nobody pushes it a second time.
+        if (linkErr) throw new Error(`created in Dynamics 365 as ${String(extId)} but could not be recorded (${linkErr.message}) — do not push it again`);
         counts.created++;
         changeRows.push({ tenantId, objectType: "fence_projects", objectId: p.id, objectLabel: p.ref ?? p.name, action: "update", actorId: opts.userId, actorEmail: null, changes: [{ field: "pushed to Dynamics 365", from: null, to: String(extId) }] });
       } catch (e) {

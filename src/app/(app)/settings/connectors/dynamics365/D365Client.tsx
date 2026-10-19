@@ -52,6 +52,10 @@ export default function D365Client() {
   const [busy, setBusy] = useState<string | null>(null);
   const { dirty, markSaved } = useSettingsDirty({ cfg, secrets });
   const [preview, setPreview] = useState<{ entity: D365EntityKey; rows: Record<string, unknown>[] } | null>(null);
+  // The full redirect URI to register on the app: it needs this site's own
+  // address, known only in the browser (so it is filled in after mount).
+  const [origin, setOrigin] = useState("");
+  useEffect(() => { setOrigin(window.location.origin); }, []);
 
   const loadRuns = useCallback(() => {
     fetch("/api/connectors/dynamics365/runs").then((r) => r.json()).then((j) => { setRuns(j.runs ?? []); setLinked(j.linked ?? {}); }).catch(() => {});
@@ -185,8 +189,21 @@ export default function D365Client() {
         <div className="bpm-t-help">
           {cfg.auth_mode === "basic"
             ? "Basic login is for Business Central on-premises only. Use an HTTPS address reachable from the internet."
-            : <>In Microsoft Entra ID, register an app, add {cfg.auth_mode === "certificate" ? "the certificate" : "a client secret"}, and {cfg.product === "bc" ? "grant it the Business Central API permission (API.ReadWrite.All) and add it under Microsoft Entra applications in Business Central." : cfg.product === "fo" ? "add its client ID under System administration → Microsoft Entra applications in Finance & Operations." : "add it as an application user with a security role in the Power Platform admin center."}{cfg.auth_mode === "authorization_code" ? " Add this redirect URI to the app: /api/connectors/dynamics365/oauth/callback on this site's address." : ""} Secrets are encrypted and never shown again.</>}
+            : <>In Microsoft Entra ID, register an app, add {cfg.auth_mode === "certificate" ? "the certificate" : "a client secret"}, and {cfg.product === "bc" ? "grant it the Business Central API permission (API.ReadWrite.All) and add it under Microsoft Entra applications in Business Central." : cfg.product === "fo" ? "add its client ID under System administration → Microsoft Entra applications in Finance & Operations." : "add it as an application user with a security role in the Power Platform admin center."} Secrets are encrypted and never shown again.</>}
         </div>
+        {cfg.auth_mode === "authorization_code" && (
+          <div className="bpm-t-help" style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            <div>Redirect URI to add to the app registration (platform: Web):</div>
+            <code style={{ fontFamily: "ui-monospace, Menlo, monospace", fontSize: 12, wordBreak: "break-all", userSelect: "all" }}>{origin}/api/connectors/dynamics365/oauth/callback</code>
+            <div>
+              Under API permissions add the <strong>delegated</strong> permission (not Application), then grant admin consent: {cfg.product === "dataverse"
+                ? "Dynamics CRM → user_impersonation."
+                : cfg.product === "fo"
+                  ? "Dynamics ERP → Odata.FullAccess (and AX.FullAccess)."
+                  : "Dynamics 365 Business Central → Financials.ReadWrite.All."} The person who presses Connect with Microsoft also needs access inside Dynamics, because syncs run as them.
+            </div>
+          </div>
+        )}
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           <SettingsSave dirty={dirty} saving={busy === "save"} onSave={save} />
           <button type="button" style={btnGhost} disabled={!!busy || !state?.config} onClick={() => run("test", async () => (await call("/api/connectors/dynamics365/test", { method: "POST" })).message)}>{busy === "test" ? "Testing…" : "Test connection"}</button>
@@ -231,7 +248,7 @@ export default function D365Client() {
         {runs.length === 0 ? <div style={{ padding: 14, fontSize: 12.5, color: c.hint }}>No runs yet.</div> : (
           <div style={{ overflowX: "auto" }}>
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5 }}>
-              <thead><tr>{["When", "What", "Result", "Read", "New", "Updated", "Skipped", "Failed"].map((h) => <th key={h} style={{ textAlign: "left", padding: "8px 12px", color: c.hint, background: c.panel2, fontWeight: 600 }}>{h}</th>)}</tr></thead>
+              <thead><tr>{["When", "What", "Result", "Read", "New", "Updated", "Unchanged", "Skipped", "Failed"].map((h) => <th key={h} style={{ textAlign: "left", padding: "8px 12px", color: c.hint, background: c.panel2, fontWeight: 600 }}>{h}</th>)}</tr></thead>
               <tbody>
                 {runs.map((r) => (
                   <tr key={r.id} style={{ borderTop: `1px solid ${c.line}`, verticalAlign: "top" }}>
@@ -242,7 +259,7 @@ export default function D365Client() {
                       {r.error && <div style={{ color: "var(--redink)", marginTop: 4, maxWidth: 360 }}>{r.error}</div>}
                       {r.issues?.length > 0 && <details style={{ marginTop: 4 }}><summary style={{ cursor: "pointer", color: c.muted }}>{r.issues.length} note{r.issues.length === 1 ? "" : "s"}</summary><ul style={{ margin: "4px 0 0 16px", padding: 0, color: c.muted }}>{r.issues.map((x, i) => <li key={i}>{x}</li>)}</ul></details>}
                     </td>
-                    {["read", "created", "updated", "skipped", "failed"].map((k) => <td key={k} style={{ padding: "8px 12px", fontVariantNumeric: "tabular-nums", color: c.muted }}>{r.counts?.[k] ?? 0}</td>)}
+                    {["read", "created", "updated", "unchanged", "skipped", "failed"].map((k) => <td key={k} style={{ padding: "8px 12px", fontVariantNumeric: "tabular-nums", color: c.muted }}>{r.counts?.[k] ?? 0}</td>)}
                   </tr>
                 ))}
               </tbody>
@@ -278,7 +295,7 @@ function EntityCard({ k, e, linked, busy, connected, onChange, onPreview, onSync
         <button type="button" style={{ ...btnGhost, padding: "4px 10px", fontSize: 12 }} onClick={() => setOpen((o) => !o)}>{open ? "Hide map" : "Map"}</button>
         {!push && <button type="button" style={{ ...btnGhost, padding: "4px 10px", fontSize: 12 }} disabled={!connected || !!busy} onClick={onPreview}>{busy === `prev-${k}` ? "Loading…" : "Preview"}</button>}
         <button type="button" style={{ ...btnPrimary, padding: "5px 12px", fontSize: 12 }} disabled={!connected || !e.enabled || !!busy} onClick={() => onSync(false)}>{busy === `sync-${k}` ? "Working…" : push ? "Push won projects" : "Sync now"}</button>
-        {!push && e.modified_field && <button type="button" style={{ ...btnGhost, padding: "4px 10px", fontSize: 12 }} disabled={!connected || !e.enabled || !!busy} onClick={() => onSync(true)}>Full resync</button>}
+        {!push && <button type="button" title={e.modified_field ? undefined : "This entity has no modified-on field, so each run reads on from where the last one stopped and starts over after the last row. This starts over now."} style={{ ...btnGhost, padding: "4px 10px", fontSize: 12 }} disabled={!connected || !e.enabled || !!busy} onClick={() => onSync(true)}>{e.modified_field ? "Full resync" : "Start over"}</button>}
       </div>
       {open && (
         <div style={{ display: "grid", gap: 10, gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", marginTop: 12 }}>

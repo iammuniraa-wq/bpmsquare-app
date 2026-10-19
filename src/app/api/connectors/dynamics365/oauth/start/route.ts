@@ -5,6 +5,7 @@ import { buildAbsoluteUrl } from "@/lib/quotePublicLink";
 import { loadD365 } from "@/lib/connectors/d365/server";
 import { authorizeUrl } from "@/lib/connectors/d365/jwt";
 import { resourceFor } from "@/lib/connectors/d365/catalog";
+import { newPkce, PKCE_COOKIE, PKCE_COOKIE_PATH, PKCE_MAX_AGE_S } from "@/lib/connectors/d365/pkce";
 
 // GET -- "Connect with Microsoft" for the sign-in-as-a-user login type.
 // Uses the CUSTOMER's own app registration (client id + secret saved on the
@@ -32,5 +33,13 @@ export async function GET() {
   url.searchParams.set("scope", `${resourceFor(row.cfg)}/.default offline_access`);
   url.searchParams.set("state", state);
   url.searchParams.set("prompt", "select_account");
-  return NextResponse.redirect(url.toString());
+  // PKCE: the verifier stays in this browser only (httpOnly, sent solely to
+  // the callback), so a code can only be redeemed by the browser that began
+  // the sign-in. Lax so it travels on Microsoft's redirect back (a top-level GET).
+  const pkce = newPkce();
+  url.searchParams.set("code_challenge", pkce.challenge);
+  url.searchParams.set("code_challenge_method", "S256");
+  const res = NextResponse.redirect(url.toString());
+  res.cookies.set(PKCE_COOKIE, pkce.verifier, { httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "lax", path: PKCE_COOKIE_PATH, maxAge: PKCE_MAX_AGE_S });
+  return res;
 }

@@ -37,7 +37,7 @@ describe("mapping", () => {
   const cfg = { enabled: true, entity_set: "accounts", id_field: "accountid", key_field: "accountnumber", field_map: { name: "name", email: "emailaddress1", phone: "telephone1", status: "statecode" } };
   it("maps only the fields the target accepts and cleans them", () => {
     const r = mapPullRow("customers", cfg, { accountid: "A1", accountnumber: "C-9", name: "  Contoso  ", emailaddress1: "Info@Contoso.COM", telephone1: "", statecode: 0 });
-    expect(r).toEqual({ externalId: "A1", externalKey: "C-9", accountExternalId: null, values: { name: "Contoso", email: "info@contoso.com", phone: null } });
+    expect(r).toEqual({ externalId: "A1", rawId: "A1", area: null, externalKey: "C-9", accountExternalId: null, values: { name: "Contoso", email: "info@contoso.com", phone: null } });
   });
   it("drops an invalid email and falls back to the key for a missing name", () => {
     const r = mapPullRow("customers", cfg, { accountid: "A2", accountnumber: "C-10", name: null, emailaddress1: "not-an-email" });
@@ -70,7 +70,7 @@ describe("push templates", () => {
 describe("odata helpers", () => {
   it("escapes string literals and builds incremental filters", () => {
     expect(odataString("O'Brien")).toBe("'O''Brien'");
-    expect(modifiedSinceFilter("modifiedon", "2026-10-01T00:00:00Z", "statecode eq 0")).toBe("(statecode eq 0) and modifiedon gt 2026-10-01T00:00:00Z");
+    expect(modifiedSinceFilter("modifiedon", "2026-10-01T00:00:00Z", "statecode eq 0")).toBe("(statecode eq 0) and modifiedon ge 2026-10-01T00:00:00Z");
     expect(modifiedSinceFilter("modifiedon", "garbage")).toBeUndefined();
     expect(modifiedSinceFilter("bad field", "2026-10-01T00:00:00Z")).toBeUndefined();
   });
