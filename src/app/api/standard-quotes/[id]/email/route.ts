@@ -9,6 +9,7 @@ import { emailOutputFor, resolveOutbound } from "@/lib/emailOutput";
 import { Resend } from "resend";
 import { getGmailConnectorCredentials, findOriginalMessage, sendViaGmail, stripReplyPrefixes, buildReplySubject } from "@/lib/connectors/gmailReply";
 import { blockingLines, flaggedLinesOf } from "@/lib/pricing/quoteLineFlags";
+import { emitQuoteSent } from "@/lib/events/emitters";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -181,6 +182,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         : `Standard Quote ${quote.ref} emailed to ${recipient}`,
     });
   }
+
+  await emitQuoteSent(tenantId, {
+    quoteId: quote.id, objectType: "standard_quote", ref: quote.ref, total: quote.total,
+    accountId: account?.id ?? null, contactId: contact?.id ?? null, actorId: user?.id, redirected: mail.redirected,
+  });
 
   return NextResponse.json({ ok: true, sentTo: mail.to.join(", "), redirected: mail.redirected, intended: recipient });
 }

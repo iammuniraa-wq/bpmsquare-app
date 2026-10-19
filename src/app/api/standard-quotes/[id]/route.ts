@@ -9,6 +9,7 @@ import { computeStandardQuoteTotals, clampPct, clampAmount } from "@/lib/standar
 import { parseDateOverride, parseTimestampOverride } from "@/lib/dateProfile";
 import { derivePricingFlags, withPricingColumns, insertLinesTolerant, verifiedProductIds, verifiedRfqLineIds, resolveLineIdsAndSelection, writeHeaderTolerant } from "@/lib/pricing/quoteLineFlags";
 import { parsePrintOptions, isDefaultPrintOptions } from "@/lib/sales/printOptions";
+import { emitQuoteSent, emitQuoteStatusChanged } from "@/lib/events/emitters";
 
 const VALID_STATUSES = ["draft", "sent", "accepted", "rejected", "expired"];
 
@@ -219,6 +220,17 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       tenantId, objectType: "standard_quotes", objectId: id, objectLabel: (updated as { ref?: string })?.ref ?? null,
       action: "update", actorId: user?.id, actorEmail: user?.email, changes,
     });
+  }
+
+  if ("status" in body && body.status !== before.status) {
+    const u = await getAuthUser();
+    const ctx = {
+      quoteId: id, objectType: "standard_quote" as const, ref: (updated as { ref?: string } | null)?.ref ?? null,
+      accountId: before.account_id as string | null, contactId: ((updated as { contact_id?: string | null } | null)?.contact_id ?? before.contact_id) as string | null,
+      actorId: u?.id,
+    };
+    await emitQuoteStatusChanged(tenantId, { ...ctx, from: before.status as string, to: String(body.status) });
+    if (body.status === "sent") await emitQuoteSent(tenantId, ctx);
   }
 
   // A deal's amount follows its latest quote (§4.4): refresh the deal this

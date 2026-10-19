@@ -5,6 +5,7 @@ import { diffForLog, logChange } from "@/lib/changeLog";
 import { LOSS_REASONS, QUOTE_OUTCOMES } from "@/lib/constants";
 import { opportunityStages, stageDef, outcomeForStage, probabilityFor, parseTeam, OPPORTUNITY_SOURCES } from "@/lib/sales/opportunity";
 import { loadOpportunity, loadOpportunityLines, loadLinkedQuotes, refreshOpportunityDerived, stageSinceMap } from "@/lib/sales/opportunityServer";
+import { emitOpportunityStageChanged, emitOpportunityClosed } from "@/lib/events/emitters";
 
 async function guard() {
   const ctx = await requireTenantUser();
@@ -137,6 +138,18 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     });
   }
   const after = await loadOpportunity(admin, tenantId, id);
+  if (stage !== before.stage) {
+    await emitOpportunityStageChanged(tenantId, {
+      opportunityId: id, ref: before.ref, from: before.stage, to: stage, outcome, amount: after?.amount ?? before.amount,
+      accountId: before.account_id, contactId: after?.contact_id ?? before.contact_id, stamp: String(patch.updated_at), actorId: user?.id,
+    });
+  }
+  if (closedNow && !closedBefore) {
+    await emitOpportunityClosed(tenantId, {
+      opportunityId: id, ref: before.ref, outcome, amount: after?.amount ?? before.amount,
+      accountId: before.account_id, contactId: after?.contact_id ?? before.contact_id, stamp: String(patch.closed_at), actorId: user?.id,
+    });
+  }
   return NextResponse.json(after);
 }
 

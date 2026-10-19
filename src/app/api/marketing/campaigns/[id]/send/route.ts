@@ -10,6 +10,7 @@ import { buildAbsoluteUrl } from "@/lib/quotePublicLink";
 import { ROUTES } from "@/lib/constants";
 import { logEmail } from "@/lib/emailLog";
 import { loadEmailOutput, resolveOutbound } from "@/lib/emailOutput";
+import { emitCampaignSent } from "@/lib/events/emitters";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -167,6 +168,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     skipped_count: skipped,
     sent_at: new Date().toISOString(),
   }).eq("id", id).eq("tenant_id", tenantId);
+
+  await emitCampaignSent(tenantId, { campaignId: id, name: campaign.name, sent, failed, skipped, actorId: user?.id });
 
   return NextResponse.json({ sent, failed, skipped });
 }

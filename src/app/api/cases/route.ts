@@ -3,6 +3,7 @@ import { revalidateTag } from "next/cache";
 import { requireTenantUser, getAuthUser } from "@/lib/supabase-server";
 import { firstFreeRef, nextSeqFromRefs } from "@/lib/refSeq";
 import { diffForLog, logChange } from "@/lib/changeLog";
+import { emitCaseCreated } from "@/lib/events/emitters";
 
 export async function POST(request: NextRequest) {
   let supabase, tenantId;
@@ -85,6 +86,7 @@ export async function POST(request: NextRequest) {
     action: "create", actorId: user?.id, actorEmail: user?.email,
     changes: diffForLog("cases", {}, { account_id, type, equipment_label, complaint, symptom, assigned_to }),
   });
+  await emitCaseCreated(tenantId, { caseId: data.id, ref: data.ref, type, accountId: account_id, actorId: user?.id });
 
   return NextResponse.json(data, { status: 201 });
 }

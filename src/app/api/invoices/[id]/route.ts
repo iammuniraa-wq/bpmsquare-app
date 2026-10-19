@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { requireTenantUser, getAuthUser } from "@/lib/supabase-server";
 import { diffForLog, logChange } from "@/lib/changeLog";
+import { emitInvoiceSent, emitInvoiceOverdue } from "@/lib/events/emitters";
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   let supabase, tenantId;
@@ -66,6 +67,14 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       tenantId, objectType: "invoices", objectId: id, objectLabel: (data as { ref?: string }).ref ?? null,
       action: "update", actorId: user?.id, actorEmail: user?.email, changes,
     });
+  }
+
+  const beforeStatus = (before as { status?: string } | null)?.status;
+  const row = data as { ref?: string; account_id: string; contact_id?: string | null; total?: number; paid_amount?: number; due_date?: string | null };
+  if (patch.status === "sent" && beforeStatus !== "sent") {
+    await emitInvoiceSent(tenantId, { invoiceId: id, ref: row.ref, total: row.total, accountId: row.account_id, contactId: row.contact_id, actorId: user?.id });
+  } else if (patch.status === "overdue" && beforeStatus !== "overdue" && row.due_date) {
+    await emitInvoiceOverdue(tenantId, { invoiceId: id, ref: row.ref, dueDate: row.due_date, outstanding: (row.total ?? 0) - (row.paid_amount ?? 0), accountId: row.account_id, contactId: row.contact_id });
   }
 
   return NextResponse.json(data);

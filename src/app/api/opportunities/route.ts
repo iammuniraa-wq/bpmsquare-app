@@ -5,6 +5,7 @@ import { insertWithMasterRef } from "@/lib/masterRef";
 import { diffForLog, logChange } from "@/lib/changeLog";
 import { opportunityStages, initialStage, stageDef, probabilityFor, OPPORTUNITY_SOURCES } from "@/lib/sales/opportunity";
 import { listOpportunities } from "@/lib/sales/opportunityServer";
+import { emitOpportunityCreated } from "@/lib/events/emitters";
 
 // Opportunities (deals) -- Sales Engine Piece B (docs/
 // sales-engine-architecture.md §4.3). GET lists with filters; POST creates
@@ -88,6 +89,10 @@ export async function POST(request: NextRequest) {
     tenantId, objectType: "opportunities", objectId: data.id, objectLabel: `${data.ref ?? ""} ${title}`.trim(),
     action: "create", actorId: user?.id, actorEmail: user?.email,
     changes: diffForLog("opportunities", {}, { title, account: account.name, stage, expected_close: expectedClose }),
+  });
+  await emitOpportunityCreated(tenantId, {
+    opportunityId: data.id, ref: data.ref, stage, source, accountId: account.id,
+    contactId: record.contact_id, leadId: record.lead_id, actorId: user?.id,
   });
   return NextResponse.json(data, { status: 201 });
 }

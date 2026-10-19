@@ -3,6 +3,7 @@ import { requireTenantUser, getAuthUser } from "@/lib/supabase-server";
 import { logChange } from "@/lib/changeLog";
 import { getTenantCurrency } from "@/lib/tenant";
 import { formatMoney } from "@/lib/currency";
+import { emitInvoicePaid } from "@/lib/events/emitters";
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   let supabase, tenantId;
@@ -82,6 +83,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     tenantId, objectType: "invoices", objectId: id, objectLabel: invoice.ref,
     action: "update", actorId: user?.id, actorEmail: user?.email, changes,
   });
+
+  if (newStatus === "paid" && invoice.status !== "paid") {
+    const row = updated as { account_id: string; contact_id?: string | null };
+    await emitInvoicePaid(tenantId, { invoiceId: id, ref: invoice.ref, total: invoice.total, accountId: row.account_id, contactId: row.contact_id, actorId: user?.id });
+  }
 
   return NextResponse.json(updated, { status: 201 });
 }
