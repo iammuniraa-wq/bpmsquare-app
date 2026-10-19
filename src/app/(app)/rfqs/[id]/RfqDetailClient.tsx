@@ -8,10 +8,11 @@ import { cardStyle } from "@/components/Shell";
 import PageHeader from "@/components/PageHeader";
 import Pill from "@/components/Pill";
 import {
-  RFQ_STATUS_LABEL, RFQ_ORIGIN_LABEL, RFQ_SUPPLIER_STATUS_LABEL,
+  RFQ_STATUS_LABEL, RFQ_SUPPLIER_STATUS_LABEL,
   type Rfq, type RfqLine, type RfqResponse, type RfqMessage, type RfqSupplier,
 } from "@/lib/rfq/types";
 import { bestByLine, landedUnit } from "@/lib/rfq/rules";
+import { quoteLabel, isDocumentOrigin, QUOTE_ORIGIN_TYPES } from "@/lib/rfq/linking";
 import ObjectSections from "@/components/fields/ObjectSections";
 import Button from "@/components/ui/Button";
 import MoreMenu from "@/components/ui/MoreMenu";
@@ -159,7 +160,7 @@ function RfqDetail({ id, canEdit, isAdmin }: { id: string; canEdit: boolean; isA
     <>
       <PageHeader
         title={rfq.title}
-        subtitle={`${rfq.ref ?? "RFQ"} · ${RFQ_ORIGIN_LABEL[rfq.origin_type]}${rfq.origin_label ? ` ${rfq.origin_label}` : ""}${rfq.respond_by ? ` · reply by ${fmtDate(rfq.respond_by)}` : ""}`}
+        subtitle={`${rfq.ref ?? "RFQ"} · ${quoteLabel(rfq.origin_type, rfq.origin_label)}${rfq.respond_by ? ` · reply by ${fmtDate(rfq.respond_by)}` : ""}`}
         action={
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
             <StatusPill label={RFQ_STATUS_LABEL[rfq.status]} tone={RFQ_STATUS_TONE[rfq.status]} />
@@ -181,12 +182,13 @@ function RfqDetail({ id, canEdit, isAdmin }: { id: string; canEdit: boolean; isA
         }
       />
 
-      {b.origin_href && (
-        <div style={{ fontSize: 12.5, color: c.muted, marginTop: -8, marginBottom: 12 }}>
-          Raised from <Link href={b.origin_href} style={{ color: c.accent, textDecoration: "none", fontWeight: 600 }}>{RFQ_ORIGIN_LABEL[rfq.origin_type]} {rfq.origin_label ?? ""}</Link>
-          {rfq.origin_type !== "manual" && " — awarded costs feed the price there on the next Price."}
-        </div>
-      )}
+      <div style={{ fontSize: 12.5, color: c.muted, marginTop: -8, marginBottom: 12 }}>
+        From:{" "}
+        {b.origin_href
+          ? <Link href={b.origin_href} style={{ color: c.accent, textDecoration: "none", fontWeight: 600 }}>{quoteLabel(rfq.origin_type, rfq.origin_label)}</Link>
+          : <span style={{ fontWeight: 600, color: isDocumentOrigin(rfq.origin_type) ? c.ink : c.hint }}>{quoteLabel(rfq.origin_type, rfq.origin_label)}</span>}
+        {isDocumentOrigin(rfq.origin_type) && " — awarded costs feed the price there on the next Price."}
+      </div>
 
       {flash && (
         <div role={flash.tone === "bad" ? "alert" : "status"} style={{ marginBottom: 12, fontSize: 13, padding: "9px 12px", borderRadius: 8, color: flash.tone === "bad" ? "var(--redink)" : "var(--greenink)", background: flash.tone === "bad" ? "var(--redbg)" : "var(--greenbg)" }}>{flash.text}</div>
@@ -278,13 +280,18 @@ function CompareTab({ b, canEdit, onKeyIn, onAward, run, id, onAddSupplier }: {
                   <td style={{ padding: "10px 12px", verticalAlign: "top", background: c.panel, position: "sticky", left: 0 }}>
                     <div style={{ fontWeight: 600, color: c.ink }}>{l.sl_no}. {l.description}</div>
                     <div style={{ fontSize: 12, color: c.hint, marginTop: 2 }}>
-                      {l.qty ?? ""} {l.uom ?? ""}{prod ? ` · ${prod.ref ?? "catalog"}` : " · free text"}
+                      {l.qty ?? ""} {l.uom ?? ""}
+                      {prod
+                        ? <> · <Link href={`/products/${prod.id}`} style={{ color: c.accent, textDecoration: "none" }}>{prod.name}{prod.ref ? ` (${prod.ref})` : ""}</Link></>
+                        : " · free text"}
                     </div>
-                    {b.used_on?.[l.id] && b.origin_href && (
+                    {b.used_on?.[l.id] && b.origin_href ? (
                       <div style={{ fontSize: 11.5, marginTop: 2 }}>
-                        <Link href={b.origin_href} style={{ color: c.accent, textDecoration: "none" }}>On {b.rfq.origin_label ?? "the document"}, line {b.used_on[l.id].sl_no ?? "—"}</Link>
+                        <Link href={b.origin_href} style={{ color: c.accent, textDecoration: "none" }}>{quoteLabel(b.rfq.origin_type, b.rfq.origin_label)} · line {b.used_on[l.id].sl_no ?? "—"}</Link>
                       </div>
-                    )}
+                    ) : QUOTE_ORIGIN_TYPES.includes(b.rfq.origin_type) ? (
+                      <div style={{ fontSize: 11.5, marginTop: 2, color: c.hint }}>Not linked to a line on the quote</div>
+                    ) : null}
                     {l.status === "awarded" && <div style={{ marginTop: 4 }}><Pill label={`Awarded · ${fmtMoney(l.awarded_unit_cost, b.tenant_currency)}`} tone="green" /></div>}
                     {l.status === "no_award" && <div style={{ marginTop: 4 }}><Pill label="No award" tone="amber" /></div>}
                     {canEdit && l.status !== "cancelled" && b.rfq.status !== "draft" && (

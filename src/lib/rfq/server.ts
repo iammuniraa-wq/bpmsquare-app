@@ -20,6 +20,10 @@ import { signReplyToken, mailCode, replyToAddress } from "./token";
 import { buildRequestEmail, buildMessageEmail, buildRfqDocumentHtml, type SupplierView } from "./compose";
 import { htmlToPdf } from "@/lib/pdf/htmlToPdf";
 import { buildReplySheet } from "./sheet";
+import { DOC_LINE_TABLE, originHref, validateOriginInput } from "./linking";
+import { verifySourceLines } from "./linkingServer";
+
+export { originHref };
 
 // RFQ server core (0128, docs/rfq-architecture.md). Every query here runs on
 // the service-role client, because the RFQ tables are select-only under RLS
@@ -123,20 +127,6 @@ export async function resolveOrigin(admin: SupabaseClient, tenantId: string, typ
   return ((data as unknown as Record<string, unknown>)[def.label] as string | null) ?? null;
 }
 
-export function originHref(type: RfqOriginType, id: string | null, extra?: { caseId?: string | null }): string | null {
-  if (!id) return null;
-  switch (type) {
-    case "standard_quote": return `/standard-quotes/${id}`;
-    case "quote": return `/quotations/${id}`;
-    case "opportunity": return `/pipeline/${id}`;
-    case "case": return `/cases/${id}`;
-    case "inspection_report": return extra?.caseId ? `/cases/${extra.caseId}` : null;
-    case "work_order": return `/work-orders/${id}`;
-    case "fence_project": return `/fence-projects/${id}`;
-    default: return null;
-  }
-}
-
 // ── Create ──────────────────────────────────────────────────────────────────
 
 export type NewRfqLine = {
@@ -219,7 +209,13 @@ async function verifySuppliers(admin: SupabaseClient, tenantId: string, ids: str
 export async function createRfq(ctx: Pick<RfqCtx, "admin" | "tenantId" | "userId" | "email">, input: NewRfq, cfg: ReturnType<typeof rfqConfig>): Promise<{ id: string; ref: string }> {
   const { admin, tenantId, userId } = ctx;
   const originType: RfqOriginType = input.origin_type ?? "manual";
+  // Always linked: an RFQ from a quote / case / work order must name it, the
+  // record must be this tenant's, and every document line it claims must be
+  // a line of that record. The label is read from the record, never the client.
+  const originProblem = validateOriginInput(originType, input.origin_id);
+  if (originProblem) throw { status: 422, message: originProblem };
   const originLabel = await resolveOrigin(admin, tenantId, originType, input.origin_id ?? null);
+  await verifySourceLines(admin, tenantId, originType, ORIGIN[originType] ? input.origin_id ?? null : null, Array.isArray(input.lines) ? input.lines : []);
   const lines = await cleanLines(admin, tenantId, input.lines);
   const suppliers = await verifySuppliers(admin, tenantId, input.supplier_ids ?? []);
   const today = await tenantToday(tenantId);
@@ -283,17 +279,12 @@ export async function createRfq(ctx: Pick<RfqCtx, "admin" | "tenantId" | "userId
 
 // ── Document lines <-> RFQ lines ────────────────────────────────────────────
 
-const LINE_TABLE: Partial<Record<RfqOriginType, { table: string; parent: string }>> = {
-  standard_quote: { table: "standard_quote_lines", parent: "standard_quote_id" },
-  quote: { table: "quote_lines", parent: "quote_id" },
-  opportunity: { table: "opportunity_lines", parent: "opportunity_id" },
-};
 
 /** Stamp document lines with their RFQ line. Each update is held to the
  *  tenant AND the origin document, so a line id from another quote (or
  *  another tenant) simply matches nothing. */
 export async function linkDocumentLines(admin: SupabaseClient, tenantId: string, originType: RfqOriginType, originId: string, pairs: { source: string; rfqLine: string }[]): Promise<number> {
-  const def = LINE_TABLE[originType];
+  const def = DOC_LINE_TABLE[originType];
   if (!def) return 0;
   let linked = 0;
   for (const p of pairs.slice(0, RFQ_LIMITS.maxLines)) {
@@ -336,7 +327,7 @@ export async function rfqLineStatuses(admin: SupabaseClient, tenantId: string, r
 /** For an RFQ raised from a document: which document line each RFQ line is
  *  on, for the "Used on" note on the RFQ screen. */
 export async function documentLinesFor(admin: SupabaseClient, tenantId: string, originType: RfqOriginType, originId: string | null, rfqLineIds: string[]): Promise<Record<string, { sl_no: string | null; description: string }>> {
-  const def = LINE_TABLE[originType];
+  const def = DOC_LINE_TABLE[originType];
   if (!def || !originId || !rfqLineIds.length) return {};
   const { data, error } = await admin.from(def.table).select("rfq_line_id, sl_no, description")
     .eq("tenant_id", tenantId).eq(def.parent, originId).in("rfq_line_id", rfqLineIds);
