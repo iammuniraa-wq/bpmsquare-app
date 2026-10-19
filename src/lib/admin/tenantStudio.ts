@@ -57,7 +57,7 @@ export const FEATURE_KEYS = [
  *  tenant without the owner's explicit go. They are set in /admin/tenants/[id]
  *  afterwards, deliberately by hand. */
 export const EXPERIMENTAL_FEATURE_KEYS: readonly string[] = [
-  "next_experience", "enterprise_theme", "spectacular_theme",
+  "next_experience", "enterprise_theme", "spectacular_theme", "marketing_scoring",
 ];
 
 /** The runbook's package table (TENANT_PROVISIONING.md §0), as data. */

@@ -109,6 +109,7 @@ export async function proxy(request: NextRequest) {
     pathname.startsWith("/api/wfm/cron/") ||
     pathname.startsWith("/api/rfqs/cron/") ||
     pathname.startsWith("/api/connectors/cron/") ||
+    pathname.startsWith("/api/events/cron/") ||
     // RFQ supplier reply link (lib/rfq/token.ts + lib/rfq/publicReply.ts):
     // the signed token IS the credential, checked inside the page and route
     // against the recipient's current nonce and the tenant's own host.

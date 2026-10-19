@@ -13,7 +13,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 export type StatusEntityType =
   | "quotes" | "cases" | "work_orders" | "invoices" | "purchase_orders"
   | "inventory" | "suppliers" | "standard_quotes" | "technicians"
-  | "attendance" | "leave_request";
+  | "attendance" | "leave_request" | "leads";
 
 export type StatusChangeSource = "manual" | "system_action" | "api" | "integration";
 

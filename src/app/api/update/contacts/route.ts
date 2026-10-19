@@ -6,6 +6,7 @@ import { readImportBody } from "@/lib/import/server";
 import { summariseUpdate, updateRows, type PreparedUpdate } from "@/lib/import/updateServer";
 import type { RowOutcome } from "@/lib/import/types";
 import type { Contact } from "@/lib/types";
+import { stampContactEmailHash } from "@/lib/marketing/contactEmailHash";
 
 // Mirrors src/app/api/contacts/[id]/route.ts PATCH — account_id excluded (relationship
 // changes aren't supported by bulk Update in v1; it isn't a mappable column anyway).
@@ -65,8 +66,16 @@ export async function POST(request: NextRequest) {
 
   if (prepared.length === 0) return NextResponse.json(summariseUpdate(outcomes));
   const user = await getAuthUser();
-  return NextResponse.json(await updateRows(supabase, "contacts", tenantId, prepared, outcomes, {
+  const result = await updateRows(supabase, "contacts", tenantId, prepared, outcomes, {
     objectType: "contacts", labelField: "name", actorId: user?.id, actorEmail: user?.email,
     decryptBefore: (row) => decryptContact(row as unknown as Contact) as unknown as Record<string, unknown>,
-  }));
+  });
+  // An email that moved needs its blind index to move with it.
+  const updatedRows = new Set(result.outcomes.filter((o) => o.status === "updated").map((o) => o.rowNum));
+  for (const p of prepared) {
+    if (updatedRows.has(p.rowNum) && "email" in p.patch) {
+      await stampContactEmailHash(supabase, tenantId, p.id, (p.diffPatch?.email ?? null) as string | null);
+    }
+  }
+  return NextResponse.json(result);
 }

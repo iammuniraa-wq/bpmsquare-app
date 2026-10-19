@@ -16,6 +16,7 @@ import {
   type PreparedRow,
 } from "@/lib/import/server";
 import type { RowOutcome } from "@/lib/import/types";
+import { stampMissingContactEmailHashes } from "@/lib/marketing/contactEmailHash";
 
 export async function POST(request: NextRequest) {
   let supabase, tenantId;
@@ -104,7 +105,9 @@ export async function POST(request: NextRequest) {
 
   if (prepared.length === 0) return NextResponse.json(summarise(outcomes));
   const user = await getAuthUser();
-  return NextResponse.json(await insertRows(supabase, "contacts", prepared, outcomes, {
+  const result = await insertRows(supabase, "contacts", prepared, outcomes, {
     objectType: "contacts", labelField: "name", actorId: user?.id, actorEmail: user?.email,
-  }));
+  });
+  if (result.inserted > 0 && prepared.some((p) => p.record.email)) await stampMissingContactEmailHashes(supabase, tenantId);
+  return NextResponse.json(result);
 }

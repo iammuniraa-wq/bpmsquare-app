@@ -72,5 +72,9 @@ export function encryptContactFields<T extends Partial<Record<string, unknown>>>
 export function decryptContact(c: Contact): Contact {
   const out = { ...c } as Record<string, unknown>;
   for (const f of CONTACT_PII) if (f in out && typeof out[f] === "string") out[f] = decrypt(out[f] as string);
+  // The blind index (0138) is a lookup key for the server only. Every reader
+  // that returns a contact goes through here, so this is the one place it is
+  // kept out of API responses, exports and page props.
+  delete out.email_hash;
   return out as Contact;
 }

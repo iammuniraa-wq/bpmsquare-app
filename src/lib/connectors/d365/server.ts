@@ -5,6 +5,7 @@ import { assertSafeHttpsUrl } from "@/lib/net/safeHost";
 import { insertWithMasterRef, type MasterRefTable } from "@/lib/masterRef";
 import { logChangeBatch, type ChangeLogEntryParams } from "@/lib/changeLog";
 import type { TenantFeatures } from "@/lib/constants";
+import { stampContactEmailHash } from "@/lib/marketing/contactEmailHash";
 import { D365Client, D365Error } from "./odata";
 import { buildClientAssertion, certDerFromPem, tokenUrl, validDirectory } from "./jwt";
 import { entityConfig, apiBase, resourceFor, allowedHost, sovereignHost } from "./catalog";
@@ -408,6 +409,7 @@ export async function runPull(admin: SupabaseClient, tenantId: string, key: Excl
             .eq("tenant_id", tenantId).eq("connector_id", CONNECTOR_ID).eq("entity", key).eq("external_id", link.external_id);
           link.content_hash = hash;
           counts.updated++;
+          if (target.table === "contacts" && typeof values.email === "string") await stampContactEmailHash(admin, tenantId, link.object_id, values.email);
           changeRows.push({ tenantId, objectType: target.table, objectId: link.object_id, objectLabel: String(values.name ?? ""), action: "update", actorId: opts.userId, actorEmail: null, changes: [{ field: "synced from Dynamics 365", from: null, to: m.externalKey ?? m.externalId }] });
         } else {
           const rec = { tenant_id: tenantId, ...toRecord(target.table, values, true) };
@@ -430,6 +432,7 @@ export async function runPull(admin: SupabaseClient, tenantId: string, key: Excl
           }
           linkOf.set(m.externalId, { external_id: m.externalId, object_id: id, content_hash: hash });
           counts.created++;
+          if (target.table === "contacts" && typeof values.email === "string") await stampContactEmailHash(admin, tenantId, id, values.email);
           changeRows.push({ tenantId, objectType: target.table, objectId: id, objectLabel: String(values.name ?? ""), action: "create", actorId: opts.userId, actorEmail: null, changes: [{ field: "created from Dynamics 365", from: null, to: m.externalKey ?? m.externalId }] });
         }
       } catch (e) {

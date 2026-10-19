@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { revalidateTag } from "next/cache";
 import { requireTenantUser, createAdminSupabase, getAuthUser } from "@/lib/supabase-server";
 import { diffForLog, logChange } from "@/lib/changeLog";
+import { emitCaseStatusChanged, emitCaseClosed } from "@/lib/events/emitters";
 
 export async function DELETE(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   let supabase, tenantId, userId;
@@ -93,6 +94,13 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       tenantId, objectType: "cases", objectId: id, objectLabel: (data as { ref?: string }).ref ?? null,
       action: "update", actorId: user?.id, actorEmail: user?.email, changes,
     });
+  }
+
+  const beforeStatus = (before as { status?: string } | null)?.status ?? null;
+  if (typeof patch.status === "string" && patch.status !== beforeStatus) {
+    const row = data as { ref?: string; account_id?: string };
+    await emitCaseStatusChanged(tenantId, { caseId: id, ref: row.ref, from: beforeStatus, to: patch.status, accountId: row.account_id, actorId: user?.id });
+    if (patch.status === "closed") await emitCaseClosed(tenantId, { caseId: id, ref: row.ref, status: patch.status, accountId: row.account_id, actorId: user?.id });
   }
 
   return NextResponse.json(data);

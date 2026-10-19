@@ -6,12 +6,13 @@ import type { WorkcenterKey } from "@/lib/workcenters";
 // hub tiles' rules, unchanged -- the menu only regroups the same pages.
 
 export type SettingsGroupId =
-  | "company" | "access" | "sales" | "service" | "workforce" | "data" | "integrations" | "appearance";
+  | "company" | "access" | "sales" | "marketing" | "service" | "workforce" | "data" | "integrations" | "appearance";
 
 export const SETTINGS_GROUPS: { id: SettingsGroupId; label: string }[] = [
   { id: "company", label: "Company" },
   { id: "access", label: "Users & access" },
   { id: "sales", label: "Sales" },
+  { id: "marketing", label: "Marketing" },
   { id: "service", label: "Service" },
   { id: "workforce", label: "Workforce" },
   { id: "data", label: "Data" },
@@ -65,6 +66,10 @@ export const SETTINGS_MENU: SettingsMenuEntry[] = [
   { id: "rfq", group: "sales", label: "RFQ", description: "How requests for quotation reach suppliers and how their replies come back — your own mailbox or BPMSquare's, reply window, reminders and terms", href: ROUTES.settingsRfq, keywords: ["supplier", "request for quotation", "reply"], adminOnly: true, featureKey: "rfq", relatedWorkcenter: "rfqs" },
   { id: "estimate-templates", group: "sales", label: "Estimate templates", description: "The inputs, rates and rule lines that turn a few answers into a bill of materials, a cost build-up and a quote", href: ROUTES.settingsEstimateTemplates, keywords: ["estimator", "estimate", "bom", "rules", "formula", "precast"], adminOnly: true, featureKey: "estimator", relatedWorkcenter: "estimates" },
   { id: "account-360", group: "sales", label: "Account 360", description: "The account drawer: which cards it shows, and the external sources plugged into it", href: ROUTES.settingsAccount360, keywords: ["service", "account drawer", "health", "cards"], adminOnly: true, featureAnyOf: ["next_experience", "spectacular_theme"] },
+
+  // ── Marketing ── (the marketing_scoring program; both pages hidden without it)
+  { id: "marketing-scoring", group: "marketing", label: "Scoring", description: "How a lead earns points, when it counts as ready for sales, and a way to try it on a sample lead", href: ROUTES.settingsMarketingScoring, keywords: ["lead score", "points", "ready for sales", "rubric", "marketing"], adminOnly: true, featureKey: "marketing_scoring" },
+  { id: "marketing-consent", group: "marketing", label: "Consent and topics", description: "What you may email, the topics people can choose, and the rule that applies when nobody has said yes", href: ROUTES.settingsMarketingConsent, keywords: ["opt in", "unsubscribe", "gdpr", "pdpl", "permission", "marketing", "topics"], adminOnly: true, featureKey: "marketing_scoring" },
 
   // ── Service ──
   { id: "asset-print-fields", group: "service", label: "Asset print fields", description: "Which equipment fields appear in the Equipment Details section of a printed quote", href: ROUTES.settingsAssetPrintFields, keywords: ["equipment", "nameplate", "statuses & assets"], adminOnly: true, featureKey: "assets", relatedWorkcenter: "quotations" },
