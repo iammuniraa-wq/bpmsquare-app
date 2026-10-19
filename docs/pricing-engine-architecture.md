@@ -1099,3 +1099,70 @@ in any tenant) would simply stop being labeled "Variant" in Today's
 rates/History, not break. The `ALL_APPLY` resolution strategy itself is
 unaffected — it's a real engine primitive, just no longer surfaced as its
 own named wizard starting point.
+
+---
+
+## 20. Demo pricing (2026-10-19)
+
+The demo tenant ships three published Price Books, routed by product, so a
+salesperson can see all three techniques priced on a Standard Quote without
+building anything first. `scripts/seed-pricing-demo.sql` creates them; it is
+generated from `scripts/pricing-demo-books.ts` (re-run
+`npx jiti scripts/gen-pricing-demo-seed.ts` after changing a book) and
+`src/lib/pricing/demoSeed.test.ts` prices every figure below through the same
+quote-line context, router and engine, and fails if the SQL drifts from the
+books.
+
+**Run, in order:** migrations 0083, 0098, 0099, 0100, 0111, 0113, 0114, 0115,
+0121, then `scripts/seed-products-demo.sql`, then `scripts/seed-pricing-demo.sql`.
+No new migration. The cost-based walk (`seed-pricing-cost-based-demo.sql`) is
+compatible and optional; the `default` book it leads to is not touched.
+
+| Book (area) | Technique | Products | What a rep sees |
+|---|---|---|---|
+| **Catalogue 2026 (list)** `catalogue_2026` | Price list | Elevators, goods lift, home lift, both AMC plans | The 2026 list price. From 3 units a 2% lower band (AMC: 3 years -5%, 5 years -10%). Account type OEM gets 8% off, direct 5%. |
+| **Formula pricing** `formula_pricing` | Catalog + Formula | Wire Rope 13mm, Cabin Wall Panel (new, per m2) | Rope: 420 per metre, 390 from 100 m, 360 from 500 m. Panel: quantity is the area, 5,200 per m2, 8% off from 50 m2, never under 18,000. Both +4% when the account's State is set and is not Karnataka. OEM 5% off. Any other product routed here falls back to its catalogue price. |
+| **Cost plus** `cost_plus` | Cost-based | Controller Retrofit Kit, Door Operator Assembly, Motor Rewinding | The product's cost plus 25%. Spares 35%, services 40%. OEM 3% off. Floor flags a line under 15%. Motor Rewinding builds its cost from the cost sheet (copper, labour, salvage). |
+
+Routing (`config.pricing.routing`, first match wins): sub-category ROPES and
+CABINS go to Formula pricing, then by category: ELEVATORS, GOODS_LIFTS,
+SERVICE_PLANS to the catalogue; MODERNISATION, SERVICES, SPARES to cost plus.
+The seed puts its rules first and keeps any others, and leaves `default_area`
+alone. Cost plus accepts a product cost up to a year old (the in-app walk keeps
+30 days), so the demo does not go stale.
+
+**To see each one on a Standard Quote** (Sales, Standard Quotes, New):
+
+1. Pick an account. Its type is the customer tier (OEM, direct) and its State is the region.
+2. **+ Add line**, Catalog tab, pick the product and quantity, **Add line**.
+3. Click **Price with engine** on the line (or **Price all** for several). The rate changes from the list price to the engine's, and the why chip opens the working.
+
+| Try | Expect (before tax) |
+|---|---|
+| Passenger Elevator 8P, qty 1 | 1,850,000, from Catalogue 2026 |
+| Same, qty 3, an OEM account | 3 x 1,813,000 less 8% = 5,003,880 |
+| Elevator AMC Comprehensive, qty 3 (years), direct account | 3 x 91,200 less 5% = 259,920 |
+| Wire Rope, qty 150 | 150 x 390 = 58,500; the trace shows the formula and the values it read |
+| Wire Rope, qty 150, account State Maharashtra | 60,840 (+4%) |
+| Cabin Wall Panel, qty 60 (m2) | 60 x 5,200 x 0.92 = 287,040. Qty 2 gives the 18,000 minimum |
+| Controller Retrofit Kit, qty 1 | 265,000 cost + 25% = 331,250; the why chip names the cost source |
+| Door Operator Assembly, qty 1 | 82,000 + 35% = 110,700 |
+| Motor Rewinding, qty 1 | cost sheet 36,900 + 40% = 51,660 |
+
+The Pricing workcenter lists the three books under Price Books (Today's rates
+shows each in plain terms); to change a number, edit a draft and go live.
+Editing and publishing a book in the app takes it out of the seed's reach, so a
+later re-run leaves it alone.
+
+**Fixed for this:** the quote-line context now carries the customer nested
+(`ctx.customer.tier`), not as a dotted key. Rule matching flattens either shape,
+but the Price list template gates its customer discount on
+`ctx.customer.tier != null`, which a DSL read could not see, so that discount
+never applied on a quote line.
+
+**Open:** (1) Quotations on the demo tenant resolve through the same routing and
+flags as Standard Quotes, so Price with engine there prices from these books
+too; fencing it to Standard Quotes would need an AND on routing, which matches
+one attribute per rule today. (2) The regional uplift needs a State on the
+account; demo accounts may have none. (3) The books set no currency, so the
+engine returns none and the forms show the tenant's own.

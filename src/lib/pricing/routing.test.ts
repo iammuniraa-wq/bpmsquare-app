@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { routeToArea, quoteLineContext } from "./routing";
+import { flattenContext } from "@/lib/pricing-core";
 
 describe("routeToArea", () => {
   const routing = {
@@ -30,9 +31,18 @@ describe("quoteLineContext", () => {
       account: { id: "a1", type: "A", state: "North", industry: "Cement" },
       product: { id: "p1", name: "Door operator", category: "SPARES", sub_category: "DOORS", list_price: 118000, uom: "Nos", tax_percent: 18 },
     });
-    expect(ctx.header).toEqual({ document_type: "quote", "customer.id": "a1", "customer.tier": "A", region: "North", industry: "Cement" });
+    expect(ctx.header).toEqual({ document_type: "quote", customer: { id: "a1", tier: "A" }, region: "North", industry: "Cement" });
+    // The router and rule matching read the flattened shape: same dotted keys as ever.
+    expect(flattenContext(ctx.header)).toEqual({ document_type: "quote", "customer.id": "a1", "customer.tier": "A", region: "North", industry: "Cement" });
     expect(ctx.line["product.category"]).toBe("SPARES");
     expect(ctx.line["product.sub_category"]).toBe("DOORS");
     expect((ctx.line.product as { list_price: number }).list_price).toBe(118000);
+  });
+
+  it("leaves customer out when there is no account, and nests the product for formulas", () => {
+    const ctx = quoteLineContext({ documentType: "standard_quote", account: null, product: { id: "p1", name: "Wire rope", category: "SPARES", sub_category: "ROPES", list_price: 420 } });
+    expect(ctx.header).toEqual({ document_type: "standard_quote" });
+    expect(ctx.line.product).toMatchObject({ base_model: "Wire rope", category: "SPARES", sub_category: "ROPES", list_price: 420 });
+    expect(flattenContext(ctx.line)["product.sub_category"]).toBe("ROPES");
   });
 });
