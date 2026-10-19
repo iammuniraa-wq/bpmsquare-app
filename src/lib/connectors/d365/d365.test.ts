@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import crypto from "crypto";
 import { buildClientAssertion, validDirectory, tokenUrl } from "./jwt";
 import { mapPullRow, fingerprint, renderPushTemplate, buildPushBody, odataString, modifiedSinceFilter, buildTargetRecord } from "./mapping";
-import { D365Client, D365Error } from "./odata";
+import { D365Client, D365Error, retryDelayMs, idFromEntityIdHeader } from "./odata";
 import { entityConfig, apiBase, allowedHost, resourceFor } from "./catalog";
 
 describe("certificate client assertion", () => {
@@ -82,7 +82,7 @@ function fakeFetch(responses: Array<{ status: number; body?: unknown; headers?: 
     calls.push(url);
     const r = responses.shift();
     if (!r) throw new Error("no more responses");
-    return new Response(r.body === undefined ? "" : JSON.stringify(r.body), { status: r.status, headers: r.headers });
+    return new Response(r.body === undefined ? null : JSON.stringify(r.body), { status: r.status, headers: r.headers });
   };
   return { fn, calls };
 }
@@ -150,5 +150,51 @@ describe("target records", () => {
   it("encrypts PII on accounts/contacts only and never wipes on update", () => {
     expect(buildTargetRecord("accounts", { name: "A", email: "a@b.co", phone: null }, false, enc)).toEqual({ name: "A", email: "enc:a@b.co" });
     expect(buildTargetRecord("suppliers", { name: "S", email: "s@b.co" }, true, enc)).toEqual({ name: "S", email: "s@b.co", type: "vendor", status: "active" });
+  });
+});
+
+describe("D365Client writes and auth", () => {
+  const base = "https://org.crm.dynamics.com/api/data/v9.2";
+  it("never repeats a create that may already have been applied (503/504/timeout)", async () => {
+    for (const status of [503, 504]) {
+      const f = fakeFetch([{ status }, { status: 201, body: { id: "dup" } }]);
+      const c = new D365Client(base, async () => "Bearer t", { fetch: f.fn, sleep: async () => {} });
+      await expect(c.create("msdyn_projects", { msdyn_subject: "x" })).rejects.toMatchObject({ status });
+      expect(f.calls).toHaveLength(1);
+    }
+  });
+  it("does retry a create that was throttled (429 = not processed)", async () => {
+    const f = fakeFetch([{ status: 429, headers: { "retry-after": "2" } }, { status: 201, body: { id: "P1" } }]);
+    const c = new D365Client(base, async () => "Bearer t", { fetch: f.fn, sleep: async () => {} });
+    expect((await c.create("projects", { displayName: "x" })).row).toEqual({ id: "P1" });
+  });
+  it("takes the new id from OData-EntityId when Dataverse answers 204", async () => {
+    const f = fakeFetch([{ status: 204, headers: { "OData-EntityId": `${base}/msdyn_projects(11111111-2222-3333-4444-555555555555)` } }]);
+    const c = new D365Client(base, async () => "Bearer t", { fetch: f.fn, sleep: async () => {} });
+    expect(await c.create("msdyn_projects", {})).toEqual({ row: {}, entityId: "11111111-2222-3333-4444-555555555555" });
+    expect(idFromEntityIdHeader("https://x.operations.dynamics.com/data/Projects(dataAreaId='sa01',ProjectID='P-1')")).toBe("dataAreaId='sa01',ProjectID='P-1'");
+    expect(idFromEntityIdHeader(null)).toBeNull();
+  });
+  it("on 401 drops the cached token once and retries with a fresh one", async () => {
+    const f = fakeFetch([{ status: 401 }, { status: 200, body: { ok: 1 } }]);
+    let token = "old";
+    const c = new D365Client(base, async () => `Bearer ${token}`, { fetch: f.fn, sleep: async () => {}, onUnauthorized: async () => { token = "new"; } });
+    expect(await c.get("WhoAmI")).toEqual({ ok: 1 });
+    const f2 = fakeFetch([{ status: 401 }, { status: 401 }]);
+    const c2 = new D365Client(base, async () => "Bearer x", { fetch: f2.fn, sleep: async () => {}, onUnauthorized: async () => {} });
+    await expect(c2.get("WhoAmI")).rejects.toMatchObject({ status: 401 });
+    expect(f2.calls).toHaveLength(2);
+  });
+  it("reads Retry-After as seconds or a date, capped", () => {
+    expect(retryDelayMs("5", 0)).toBe(5000);
+    expect(retryDelayMs("600", 0)).toBe(60_000);
+    expect(retryDelayMs(new Date(1_000_010_000).toUTCString(), 0, 1_000_000_000)).toBe(10_000);
+    expect(retryDelayMs(null, 2)).toBe(2000);
+  });
+  it("asks for $top when told (preview never depends on the server honouring maxpagesize)", async () => {
+    const f = fakeFetch([{ status: 200, body: { value: [{ a: 1 }] } }]);
+    const c = new D365Client("https://x.operations.dynamics.com/data", async () => "Bearer t", { fetch: f.fn, sleep: async () => {} });
+    for await (const _ of c.list("CustomersV3", { top: 5, maxRows: 5 })) void _;
+    expect(f.calls[0]).toContain("%24top=5");
   });
 });

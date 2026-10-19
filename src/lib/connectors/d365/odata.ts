@@ -21,13 +21,42 @@ export class D365Error extends Error {
 
 const RETRY_STATUSES = new Set([429, 503, 504]);
 
+/** Retry-After is seconds or an HTTP date; capped at 60 s (a run has a time
+ *  budget -- a longer wait is better spent on the next run). */
+export function retryDelayMs(retryAfter: string | null, attempt: number, nowMs: number = Date.now()): number {
+  const backoff = Math.min(30_000, 500 * 2 ** attempt);
+  if (!retryAfter) return backoff;
+  const secs = Number(retryAfter);
+  if (Number.isFinite(secs) && secs >= 0) return Math.min(Math.max(secs * 1000, 250), 60_000);
+  const at = Date.parse(retryAfter);
+  if (Number.isFinite(at)) return Math.min(Math.max(at - nowMs, 250), 60_000);
+  return backoff;
+}
+
+/** The new record id from an OData-EntityId header,
+ *  e.g. https://org.crm.dynamics.com/api/data/v9.2/msdyn_projects(00000000-...) -> 00000000-... */
+export function idFromEntityIdHeader(h: string | null): string | null {
+  const m = h?.match(/\(([^()]+)\)\s*$/);
+  if (!m) return null;
+  // A composite key (F&O: dataAreaId='sa01',ProjectID='P-1') is kept as is.
+  if (m[1].includes("=")) return m[1];
+  const single = m[1].match(/^'(.*)'$/);
+  return single ? single[1].replace(/''/g, "'") : m[1];
+}
+
 export class D365Client {
   private readonly origin: string;
 
   constructor(
     private readonly base: string,
     private readonly authHeader: () => Promise<string>,
-    private readonly opts: { fetch?: FetchLike; timeoutMs?: number; maxRetries?: number; sleep?: (ms: number) => Promise<void>; headers?: Record<string, string> } = {},
+    private readonly opts: {
+      fetch?: FetchLike; timeoutMs?: number; maxRetries?: number; sleep?: (ms: number) => Promise<void>; headers?: Record<string, string>;
+      /** Called once when Dynamics answers 401 -- drop the cached token so the
+       *  retry fetches a fresh one (a revoked token otherwise fails every run
+       *  until its cached expiry). */
+      onUnauthorized?: () => Promise<void>;
+    } = {},
   ) {
     this.origin = new URL(base).origin;
   }
@@ -39,15 +68,22 @@ export class D365Client {
     return u.toString();
   }
 
-  async request(method: string, pathOrUrl: string, init: { query?: Record<string, string | undefined>; body?: unknown; headers?: Record<string, string> } = {}): Promise<unknown> {
+  /** The response body (parsed) and headers. A GET is retried on network
+   *  errors, 429, 503 and 504; a write only on 429 -- a write that timed out
+   *  or hit a 503/504 may already have been applied, and repeating it would
+   *  create a second record in the customer's ERP. */
+  async requestRaw(method: string, pathOrUrl: string, init: { query?: Record<string, string | undefined>; body?: unknown; headers?: Record<string, string> } = {}): Promise<{ json: unknown; headers: Headers; status: number }> {
     const fetcher = this.opts.fetch ?? (fetch as unknown as FetchLike);
     const sleep = this.opts.sleep ?? ((ms: number) => new Promise((r) => setTimeout(r, ms)));
     const maxRetries = this.opts.maxRetries ?? 4;
+    const idempotent = method === "GET";
     const url = this.url(pathOrUrl, init.query);
+    let reauthed = false;
     for (let attempt = 0; ; attempt++) {
       const ctrl = new AbortController();
       const timer = setTimeout(() => ctrl.abort(), this.opts.timeoutMs ?? 30_000);
       let res: Response;
+      let text: string;
       try {
         res = await fetcher(url, {
           method,
@@ -64,18 +100,27 @@ export class D365Client {
           },
           body: init.body !== undefined ? JSON.stringify(init.body) : undefined,
         });
+        // The body read stays inside the timeout: a server that sends headers
+        // and then stalls must not hang the run.
+        text = await res.text();
       } catch (e) {
         clearTimeout(timer);
-        if (attempt < maxRetries) { await sleep(Math.min(30_000, 500 * 2 ** attempt)); continue; }
+        if (e instanceof D365Error) throw e;
+        if (idempotent && attempt < maxRetries) { await sleep(Math.min(30_000, 500 * 2 ** attempt)); continue; }
         throw new D365Error((e as Error).name === "AbortError" ? "Dynamics 365 did not answer in time" : `Could not reach Dynamics 365: ${(e as Error).message}`, 0);
       }
       clearTimeout(timer);
-      if (RETRY_STATUSES.has(res.status) && attempt < maxRetries) {
-        const ra = Number(res.headers.get("retry-after"));
-        await sleep(Number.isFinite(ra) && ra > 0 ? Math.min(ra * 1000, 30_000) : Math.min(30_000, 500 * 2 ** attempt));
+      const retryable = res.status === 429 || (idempotent && RETRY_STATUSES.has(res.status));
+      if (retryable && attempt < maxRetries) {
+        await sleep(retryDelayMs(res.headers.get("retry-after"), attempt));
         continue;
       }
-      const text = await res.text();
+      if (res.status === 401 && !reauthed && this.opts.onUnauthorized) {
+        reauthed = true;
+        await this.opts.onUnauthorized();
+        attempt--;
+        continue;
+      }
       let json: unknown = null;
       if (text) {
         try { json = JSON.parse(text); } catch { json = null; }
@@ -85,22 +130,28 @@ export class D365Client {
         const msg = err?.message || (res.status === 401 ? "Dynamics 365 refused the login (401)" : res.status === 403 ? "The app user has no permission for this (403)" : `Dynamics 365 returned ${res.status}`);
         throw new D365Error(msg.slice(0, 500), res.status, err?.code);
       }
-      return json;
+      return { json, headers: res.headers, status: res.status };
     }
+  }
+
+  async request(method: string, pathOrUrl: string, init: { query?: Record<string, string | undefined>; body?: unknown; headers?: Record<string, string> } = {}): Promise<unknown> {
+    return (await this.requestRaw(method, pathOrUrl, init)).json;
   }
 
   get(pathOrUrl: string, query?: Record<string, string | undefined>, headers?: Record<string, string>) {
     return this.request("GET", pathOrUrl, { query, headers });
   }
 
-  /** Create a record; returns the created row when the API sends it back. */
-  async create(entitySet: string, body: Record<string, unknown>): Promise<Record<string, unknown>> {
-    const out = await this.request("POST", entitySet, { body, headers: { Prefer: "return=representation" } });
-    return (out ?? {}) as Record<string, unknown>;
+  /** Create a record. Returns the created row when the API sends it back,
+   *  and the new id from the OData-EntityId header when it doesn't (Dataverse
+   *  answers 204 without a body unless return=representation is honoured). */
+  async create(entitySet: string, body: Record<string, unknown>): Promise<{ row: Record<string, unknown>; entityId: string | null }> {
+    const out = await this.requestRaw("POST", entitySet, { body, headers: { Prefer: "return=representation" } });
+    return { row: (out.json ?? {}) as Record<string, unknown>, entityId: idFromEntityIdHeader(out.headers.get("odata-entityid")) };
   }
 
   /** Every row of an entity set, page by page, up to `maxRows`. */
-  async *list(entitySet: string, q: { select?: string[]; filter?: string; orderby?: string; pageSize?: number; maxRows?: number; extraQuery?: Record<string, string> } = {}): AsyncGenerator<Record<string, unknown>> {
+  async *list(entitySet: string, q: { select?: string[]; filter?: string; orderby?: string; top?: number; pageSize?: number; maxRows?: number; extraQuery?: Record<string, string> } = {}): AsyncGenerator<Record<string, unknown>> {
     const maxRows = q.maxRows ?? 5000;
     let seen = 0;
     let next: string | null = null;
@@ -111,6 +162,7 @@ export class D365Client {
             $select: q.select?.length ? q.select.join(",") : undefined,
             $filter: q.filter,
             $orderby: q.orderby,
+            $top: q.top ? String(q.top) : undefined,
             ...(q.extraQuery ?? {}),
           }, { Prefer: `odata.maxpagesize=${q.pageSize ?? 500}` })
         : await this.get(next!, undefined, { Prefer: `odata.maxpagesize=${q.pageSize ?? 500}` })) as { value?: Record<string, unknown>[]; "@odata.nextLink"?: string };

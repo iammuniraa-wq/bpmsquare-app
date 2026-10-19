@@ -159,7 +159,9 @@ export async function clientFor(admin: SupabaseClient, tenantId: string, cfg: D3
   const base = apiBase(cfg);
   const url = await assertSafeHttpsUrl(base);
   if (!allowedHost(cfg, url.hostname)) throw new D365Error("Environment URL isn't a Dynamics 365 address.", 400);
-  return new D365Client(base, () => authHeaderFor(admin, tenantId, cfg, creds));
+  return new D365Client(base, () => authHeaderFor(admin, tenantId, cfg, creds), {
+    onUnauthorized: async () => { delete creds.access_token; delete creds.expires_at; },
+  });
 }
 
 /** F&O reads one legal entity unless told otherwise; cross-company plus a
@@ -197,7 +199,7 @@ export async function previewEntity(admin: SupabaseClient, tenantId: string, cfg
   const c = await clientFor(admin, tenantId, cfg, creds);
   const q = foCompanyQuery(cfg);
   const out: Record<string, unknown>[] = [];
-  for await (const row of c.list(ec.entity_set, { filter: [ec.filter, q.filter].filter(Boolean).map((f) => `(${f})`).join(" and ") || undefined, maxRows: 5, pageSize: 5, extraQuery: q.extraQuery })) {
+  for await (const row of c.list(ec.entity_set, { filter: [ec.filter, q.filter].filter(Boolean).map((f) => `(${f})`).join(" and ") || undefined, maxRows: 5, pageSize: 5, top: 5, extraQuery: q.extraQuery })) {
     const slim: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(row)) {
       if (k.startsWith("@odata.") || k.includes("@OData.Community")) continue;
@@ -394,8 +396,8 @@ export async function runPushFenceProjects(admin: SupabaseClient, tenantId: stri
       const body = buildPushBody(ec.field_map, vars);
       if (!Object.keys(body).length) { counts.skipped++; issues.push(`${p.name}: nothing to send — check the field map`); continue; }
       try {
-        const created = await client.create(ec.entity_set, body);
-        const extId = created[ec.id_field] ?? created.id;
+        const { row: created, entityId } = await client.create(ec.entity_set, body);
+        const extId = created[ec.id_field] ?? created.id ?? entityId;
         if (!extId) throw new Error("Dynamics didn't return the new project's id");
         await admin.from("connector_links").insert({
           tenant_id: tenantId, connector_id: CONNECTOR_ID, entity: "fence_projects", object_type: "fence_projects", object_id: p.id,
