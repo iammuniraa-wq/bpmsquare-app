@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { requireTenantUser, createAdminSupabase } from "@/lib/supabase-server";
 import { encrypt } from "@/lib/encryption";
 import { CONNECTOR_ID, loadD365, publicState, validateConfig } from "@/lib/connectors/d365/server";
+import { checkCertificatePair } from "@/lib/connectors/d365/jwt";
 import { D365_PRODUCTS, D365_AUTH_MODES, D365_ENTITY_KEYS, type D365Config, type D365EntityConfig, type D365EntityKey } from "@/lib/connectors/d365/types";
 
 // Dynamics 365 connector setup (admin only).
@@ -94,16 +95,13 @@ export async function PUT(req: NextRequest) {
       const v = typeof secrets[k] === "string" ? secrets[k].trim() : "";
       if (v) creds[k] = encrypt(v.slice(0, 20000)) ?? "";
     }
-    if (secrets.certificate?.trim()) {
-      try {
-        const { X509Certificate } = await import("crypto");
-        new X509Certificate(secrets.certificate.trim());
-      } catch {
-        return NextResponse.json({ error: "That certificate isn't a valid PEM certificate (-----BEGIN CERTIFICATE-----)." }, { status: 422 });
-      }
-    }
-    if (secrets.private_key?.trim() && !/-----BEGIN (RSA )?PRIVATE KEY-----/.test(secrets.private_key)) {
-      return NextResponse.json({ error: "The private key must be a PEM private key (-----BEGIN PRIVATE KEY-----). An encrypted key isn't supported." }, { status: 422 });
+    const newCert = typeof secrets.certificate === "string" ? secrets.certificate.trim() : "";
+    const newKey = typeof secrets.private_key === "string" ? secrets.private_key.trim() : "";
+    if (newCert || newKey) {
+      // Check the pair as it will be stored: a new half against the stored
+      // other half, so a renewed certificate with the old key is caught now.
+      const problem = checkCertificatePair(newCert || prev?.creds.certificate || undefined, newKey || prev?.creds.private_key || undefined);
+      if (problem) return NextResponse.json({ error: problem }, { status: 422 });
     }
     // Anything that changes WHO we sign in as, or WHERE, invalidates the
     // cached token -- and a different app/directory invalidates the

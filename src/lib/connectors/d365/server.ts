@@ -92,6 +92,9 @@ async function tokenRequest(directory: string, form: Record<string, string>): Pr
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams(form),
     redirect: "error",
+    signal: AbortSignal.timeout(20_000),
+  }).catch((e: Error) => {
+    throw new D365Error(e.name === "TimeoutError" || e.name === "AbortError" ? "Microsoft sign-in did not answer in time" : `Could not reach Microsoft sign-in: ${e.message}`, 0);
   });
   const json = (await res.json().catch(() => ({}))) as TokenResponse;
   if (!res.ok || !json.access_token) {

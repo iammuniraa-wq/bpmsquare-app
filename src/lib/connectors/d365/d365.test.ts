@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import crypto from "crypto";
-import { buildClientAssertion, validDirectory, tokenUrl } from "./jwt";
+import { buildClientAssertion, validDirectory, tokenUrl, checkCertificatePair } from "./jwt";
 import { mapPullRow, fingerprint, renderPushTemplate, buildPushBody, odataString, modifiedSinceFilter, buildTargetRecord } from "./mapping";
 import { D365Client, D365Error, retryDelayMs, idFromEntityIdHeader } from "./odata";
 import { entityConfig, apiBase, allowedHost, resourceFor } from "./catalog";
@@ -15,14 +15,14 @@ describe("certificate client assertion", () => {
   it("carries both thumbprints and the right claims", () => {
     const header = JSON.parse(Buffer.from(h, "base64url").toString());
     const payload = JSON.parse(Buffer.from(p, "base64url").toString());
-    expect(header).toMatchObject({ alg: "RS256", typ: "JWT" });
+    expect(header).toMatchObject({ alg: "PS256", typ: "JWT" });
     expect(header.x5t).toBe(crypto.createHash("sha1").update(der).digest("base64url"));
     expect(header["x5t#S256"]).toBe(crypto.createHash("sha256").update(der).digest("base64url"));
-    expect(payload).toMatchObject({ aud: "https://login.microsoftonline.com/contoso.com/oauth2/v2.0/token", iss: "app-1", sub: "app-1", jti: "j1", exp: 1_800_000_600 });
+    expect(payload).toMatchObject({ aud: "https://login.microsoftonline.com/contoso.com/oauth2/v2.0/token", iss: "app-1", sub: "app-1", jti: "j1", nbf: 1_799_999_970, exp: 1_800_000_300 });
   });
 
   it("is signed with the private key", () => {
-    const ok = crypto.verify("sha256", Buffer.from(`${h}.${p}`), publicKey, Buffer.from(s, "base64url"));
+    const ok = crypto.verify("sha256", Buffer.from(`${h}.${p}`), { key: publicKey, padding: crypto.constants.RSA_PKCS1_PSS_PADDING, saltLength: crypto.constants.RSA_PSS_SALTLEN_DIGEST }, Buffer.from(s, "base64url"));
     expect(ok).toBe(true);
   });
 
@@ -196,5 +196,41 @@ describe("D365Client writes and auth", () => {
     const c = new D365Client("https://x.operations.dynamics.com/data", async () => "Bearer t", { fetch: f.fn, sleep: async () => {} });
     for await (const _ of c.list("CustomersV3", { top: 5, maxRows: 5 })) void _;
     expect(f.calls[0]).toContain("%24top=5");
+  });
+});
+
+// A minimal self-signed X.509 (v1) built in the test, so no key material is
+// checked into the repo.
+function selfSigned(key: crypto.KeyObject, notBefore: string, notAfter: string): string {
+  const len = (n: number) => (n < 128 ? Buffer.from([n]) : n < 256 ? Buffer.from([0x81, n]) : Buffer.from([0x82, n >> 8, n & 255]));
+  const tlv = (tag: number, body: Buffer) => Buffer.concat([Buffer.from([tag]), len(body.length), body]);
+  const seq = (...p: Buffer[]) => tlv(0x30, Buffer.concat(p));
+  const sigAlg = seq(Buffer.from("06092a864886f70d01010b", "hex"), Buffer.from("0500", "hex"));
+  const name = seq(tlv(0x31, seq(Buffer.from("0603550403", "hex"), tlv(0x0c, Buffer.from("bpmsquare-test")))));
+  const time = (t: string) => tlv(0x18, Buffer.from(t));
+  const spki = crypto.createPublicKey(key).export({ type: "spki", format: "der" }) as Buffer;
+  const tbs = seq(tlv(0x02, Buffer.from([1])), sigAlg, name, seq(time(notBefore), time(notAfter)), name, spki);
+  const sig = crypto.sign("sha256", tbs, key);
+  const der = seq(tbs, sigAlg, tlv(0x03, Buffer.concat([Buffer.from([0]), sig])));
+  return `-----BEGIN CERTIFICATE-----\n${der.toString("base64").match(/.{1,64}/g)!.join("\n")}\n-----END CERTIFICATE-----\n`;
+}
+
+describe("certificate upload checks", () => {
+  const a = crypto.generateKeyPairSync("rsa", { modulusLength: 2048 }).privateKey;
+  const b = crypto.generateKeyPairSync("rsa", { modulusLength: 2048 }).privateKey;
+  const keyA = a.export({ type: "pkcs8", format: "pem" }).toString();
+  const keyB = b.export({ type: "pkcs8", format: "pem" }).toString();
+  const cert = selfSigned(a, "20200101000000Z", "20991231000000Z");
+  it("accepts a matching, in-date pair", () => {
+    expect(checkCertificatePair(cert, keyA)).toBeNull();
+    expect(checkCertificatePair(cert, undefined)).toBeNull();
+  });
+  it("refuses a key from another certificate, an expired one, garbage and an encrypted key", () => {
+    expect(checkCertificatePair(cert, keyB)).toMatch(/doesn't belong/);
+    expect(checkCertificatePair(selfSigned(a, "20200101000000Z", "20210101000000Z"), keyA)).toMatch(/expired/);
+    expect(checkCertificatePair("nope", undefined)).toMatch(/valid PEM certificate/);
+    expect(checkCertificatePair(undefined, "-----BEGIN ENCRYPTED PRIVATE KEY-----\nx\n-----END ENCRYPTED PRIVATE KEY-----")).toMatch(/password-protected/);
+    const ec = crypto.generateKeyPairSync("ec", { namedCurve: "P-256" }).privateKey.export({ type: "pkcs8", format: "pem" }).toString();
+    expect(checkCertificatePair(undefined, ec)).toMatch(/RSA/);
   });
 });
