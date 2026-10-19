@@ -100,6 +100,7 @@ const PRODUCT_FIELDS: QueryableField[] = [
   { path: "description", type: "string", searchable: true },
   { path: "category", type: "string", searchable: true },
   { path: "sub_category", type: "string", searchable: true },
+  { path: "item_type", type: "string" },
   { path: "uom", type: "string" },
   { path: "list_price", type: "number" },
   { path: "tax_percent", type: "number" },
@@ -380,10 +381,12 @@ export const LIST_SOURCES: Record<string, ListSource> = {
       // supplier_id (0132): who supplies a product is commercially sensitive,
       // so it is deliberately absent here, from PRODUCT_FIELDS, from
       // /api/v1/products and from the MCP tools. productApiExposure.test.ts
-      // fails the build if it ever appears.
+      // fails the build if it ever appears. item_type (0133) is not sensitive and
+      // is exposed as its stable KEY. BOM components (product_bom_lines) are
+      // internal structure and cost, deliberately not exposed anywhere here.
       const { data } = await createAdminSupabase()
         .from("products")
-        .select("id, ref, sku, name, description, category, sub_category, uom, list_price, tax_percent, status, custom_data")
+        .select("id, ref, sku, name, description, category, sub_category, item_type, uom, list_price, tax_percent, status, custom_data")
         .eq("tenant_id", tenantId)
         .order("name");
       return (data ?? []).map((p) => ({

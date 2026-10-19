@@ -13,6 +13,8 @@ export async function GET(req: Request) {
   if (category) rows = rows.filter((p) => p.category === category);
   const subCategory = searchParams.get("sub_category");
   if (subCategory) rows = rows.filter((p) => p.sub_category === subCategory);
+  const itemType = searchParams.get("item_type");
+  if (itemType) rows = rows.filter((p) => p.item_type === itemType);
 
   return enrichedList(req, rows, src.fields, {
     self: "/api/v1/products",
