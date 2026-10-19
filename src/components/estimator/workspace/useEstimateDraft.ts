@@ -3,7 +3,7 @@
 import { useCallback, useMemo, useState } from "react";
 import { initialValues } from "@/components/estimator/InputsForm";
 import type { InputValues } from "@/components/estimator/InputsForm";
-import type { IntakeProposal } from "@/lib/estimator/ai";
+import type { IntakeProposal, SenderInfo } from "@/lib/estimator/ai";
 import type { WorkspaceTemplate } from "./types";
 
 export type DraftInit = {
@@ -31,6 +31,8 @@ export function useEstimateDraft(templates: readonly WorkspaceTemplate[], init: 
   const [customData, setCustomData] = useState<Record<string, unknown>>({});
   // A new estimate shows no villa and no price until the person starts: reads an email
   // or changes a detail (a copy of an existing estimate starts with its own figures).
+  // Who the email said it is from; offered as a new account and contact until one is chosen.
+  const [sender, setSender] = useState<SenderInfo | null>(null);
   const [started, setStarted] = useState(!!init.params && Object.keys(init.params).length > 0);
 
   const pickTemplate = useCallback((id: string) => {
@@ -46,6 +48,7 @@ export function useEstimateDraft(templates: readonly WorkspaceTemplate[], init: 
   const applyProposal = useCallback((p: IntakeProposal) => {
     if (!template) return;
     setStarted(true);
+    if (p.sender) setSender(p.sender);
     setValues((s) => {
       const next = { ...s };
       for (const i of template.inputs) {
@@ -64,7 +67,7 @@ export function useEstimateDraft(templates: readonly WorkspaceTemplate[], init: 
   }, [template, init.params, init.margin]);
 
   return {
-    template, templateId, pickTemplate, values, setValue, started, applyProposal, reset,
+    template, templateId, pickTemplate, values, setValue, started, sender, setSender, applyProposal, reset,
     margin, setMargin, customer, setCustomer, accountId, setAccountId, contactId, setContactId, notes, setNotes, customData, setCustomData,
   };
 }

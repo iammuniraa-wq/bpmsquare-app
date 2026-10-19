@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  buildIntakePrompt, buildReviewPrompt, clampIntake, clampReview, intakeSchema, MAX_ASSUMPTIONS, MAX_BRIEF_CHARS, MAX_FINDINGS, REVIEW_SCHEMA,
+  buildIntakePrompt, buildReviewPrompt, clampIntake, clampReview, clampSender, intakeSchema, MAX_ASSUMPTIONS, MAX_BRIEF_CHARS, MAX_FINDINGS, REVIEW_SCHEMA,
 } from "./ai";
 import { buildReviewFacts } from "./aiFacts";
 import { computeEstimate } from "./compute";
@@ -12,8 +12,8 @@ const inputs = PRECAST_VILLA_STARTER.inputs;
 
 describe("intakeSchema", () => {
   const s = intakeSchema(inputs) as { required: string[]; properties: Record<string, any> };
-  it("asks for a name, one value per input and the assumptions", () => {
-    expect(s.required).toEqual(["name", "values", "assumptions"]);
+  it("asks for a name, who it is from, one value per input and the assumptions", () => {
+    expect(s.required).toEqual(["name", "sender", "values", "assumptions"]);
     expect(Object.keys(s.properties.values.properties)).toEqual(inputs.map((i) => i.key));
     expect(s.properties.values.required).toEqual(inputs.map((i) => i.key));
     expect(s.properties.values.additionalProperties).toBe(false);
@@ -124,5 +124,21 @@ describe("review", () => {
     expect(out.findings).toHaveLength(MAX_FINDINGS);
     expect(clampReview(null)).toEqual({ summary: "", findings: [] });
     expect(clampReview({ findings: "x" }).findings).toEqual([]);
+  });
+});
+
+describe("clampSender", () => {
+  it("keeps what the email says and drops what looks wrong", () => {
+    expect(clampSender({ company: " Al-Rashid Trading ", contact_name: "Khalid", email: "khalid@alrashid.sa", phone: "+966 50 123 4567" }))
+      .toEqual({ company: "Al-Rashid Trading", contact_name: "Khalid", email: "khalid@alrashid.sa", phone: "+966 50 123 4567" });
+    expect(clampSender({ company: null, contact_name: "Omar", email: "not an email", phone: "call me" }))
+      .toEqual({ company: null, contact_name: "Omar", email: null, phone: null });
+  });
+  it("is null when nobody is named, and flows through clampIntake", () => {
+    expect(clampSender({ company: null, contact_name: null, email: null, phone: null })).toBeNull();
+    expect(clampSender("x")).toBeNull();
+    expect(clampIntake(inputs, { name: "", sender: { company: "Acme", contact_name: null, email: null, phone: null }, values: {}, assumptions: [] }).sender)
+      .toEqual({ company: "Acme", contact_name: null, email: null, phone: null });
+    expect(clampIntake(inputs, { values: {} }).sender).toBeNull();
   });
 });
