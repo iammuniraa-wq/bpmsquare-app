@@ -2,11 +2,13 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createAdminSupabase } from "@/lib/supabase-server";
 import { CONNECTOR_ID, runPull, runPushFenceProjects } from "@/lib/connectors/d365/server";
 import { entityConfig } from "@/lib/connectors/d365/catalog";
+import { rotateStart } from "@/lib/connectors/d365/mapping";
 import { D365_ENTITY_KEYS, type D365Config } from "@/lib/connectors/d365/types";
 
 // GET /api/connectors/cron/dynamics365 -- hourly (vercel.json). Runs every
 // tenant whose Dynamics 365 connector is scheduled: "hourly" on every run,
-// "daily" on the 02:00 UTC run. Customers go first so contacts and projects
+// "daily" on the 02:00 UTC run. The tenant order rotates hourly so a slow tenant
+// cannot starve the rest. Customers go first so contacts and projects
 // can link to them. A time budget stops starting new work late in the run;
 // whatever is left continues next hour from its watermark.
 
@@ -27,7 +29,10 @@ export async function GET(request: NextRequest) {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   const hour = new Date().getUTCHours();
   const results: { tenant: string; entity: string; error?: string | null; counts?: unknown }[] = [];
-  for (const r of rows ?? []) {
+  // Start at a different tenant each hour: with a fixed order, one tenant that
+  // uses the whole time budget would starve every tenant after it, every hour.
+  const ordered = rotateStart([...(rows ?? [])].sort((a, b) => String(a.tenant_id).localeCompare(String(b.tenant_id))), Math.floor(Date.now() / 3_600_000));
+  for (const r of ordered) {
     const cfg = r.config as unknown as D365Config;
     if (!cfg?.product || cfg.schedule === "off" || (cfg.schedule === "daily" && hour !== 2)) continue;
     for (const entity of D365_ENTITY_KEYS) {
