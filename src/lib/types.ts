@@ -972,6 +972,12 @@ export type Product = {
   /** Coverage (0101) -- segment ids this product is restricted to selling
    * within. Empty = sellable everywhere (today's behaviour, unchanged). */
   available_segment_ids: string[];
+  /** Preferred (current) supplier (0132). Absent from the row while 0132 is
+   *  pending -- every reader must treat undefined as "no supplier support
+   *  yet", not as "no supplier chosen". Never exposed through the v1 API,
+   *  LIST_SOURCES or MCP: who supplies a product is commercially sensitive,
+   *  the same reason cost_price stays internal. */
+  supplier_id?: string | null;
 };
 
 // ── Coverage (0101) ──────────────────────────────────────────────────────────

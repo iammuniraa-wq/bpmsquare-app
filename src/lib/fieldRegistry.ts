@@ -273,6 +273,14 @@ export const FIELD_REGISTRY: Record<PilotObjectType, ObjectFieldRegistry> = {
 
       { key: "uom",         defaultLabel: "Unit of measure", widget: "text",     defaultSection: "Details" },
       { key: "description", defaultLabel: "Description",     widget: "textarea", defaultSection: "Details" },
+
+      // Preferred supplier (0132). There is no "reference/lookup" widget yet
+      // (same gap InventorySupplierPanel documents), so the editable control
+      // is a dedicated picker (ProductSupplierPanel) and Data Workbench
+      // resolves the supplier by NAME through REFERENCE_FIELDS. What the
+      // registry carries is the real id as an export-only column -- the
+      // contract a later Update or integration keys off, never the name.
+      { key: "supplier_id", defaultLabel: "Supplier ID", widget: "text", defaultSection: "Details", locked: true, editable: false, exportOnly: true },
     ],
   },
 

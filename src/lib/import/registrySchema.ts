@@ -110,6 +110,12 @@ export const REFERENCE_FIELDS: Partial<Record<ImportObjectId, ReferenceFieldDef[
   inventory: [
     { key: "supplier_name", label: "Preferred supplier", hint: "Must match a supplier already in the system, or leave blank", target: "suppliers" },
   ],
+  // Resolved by name (case-insensitive) to products.supplier_id (0132). Not
+  // offered by bulk Update: like every relationship, it is changed on the
+  // record, and Update never keys off a name.
+  products: [
+    { key: "supplier_name", label: "Supplier", hint: "Preferred supplier — must match a supplier already in the system, or leave blank", target: "suppliers" },
+  ],
 };
 
 /** DB NOT NULL columns — see file header. Keys are registry field keys. */
@@ -183,7 +189,7 @@ const OBJECT_META: Record<ImportObjectId, { label: string; icon: string; descrip
   invoices: { label: "Invoices", icon: "⊟", description: "Billing documents against a quote or work order", dependsOn: ["accounts", "contacts", "quotes", "work_orders"] },
   purchase_orders: { label: "Purchase Orders", icon: "◫", description: "Orders placed with suppliers", dependsOn: ["suppliers", "quotes"] },
   inventory: { label: "Inventory", icon: "◧", description: "Stocked parts and spares", dependsOn: ["suppliers"] },
-  products: { label: "Products", icon: "▩", description: "Sellable catalog — goods and service plans with list/cost prices", dependsOn: [] },
+  products: { label: "Products", icon: "▩", description: "Sellable catalog — goods and service plans with list/cost prices", dependsOn: ["suppliers"] },
   opportunities: { label: "Deals (pipeline)", icon: "◈", description: "Sales opportunities — a pursuit with a customer, its stage and expected close. Amount and probability are computed, not imported.", dependsOn: ["accounts"] },
   rfqs: { label: "RFQs", icon: "⇄", description: "Requests for quotation to suppliers — export with real IDs, then update header fields in bulk. Not importable: an RFQ is raised from a record or the RFQ screen, with its lines and suppliers.", dependsOn: [] },
   estimates: { label: "Estimates", icon: "∑", description: "Project estimates (header fields only) — import creates a draft from a template by name; open it and press Calculate to produce its BOM and costs. Lines, quantities and costs come from the estimator, not from a file.", dependsOn: ["accounts", "contacts"] },
