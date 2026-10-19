@@ -4,6 +4,7 @@ import { diffForLog, logChange } from "@/lib/changeLog";
 import { parseCostSheet } from "@/lib/pricing/costSheet";
 import { parseQtyBreaks } from "@/lib/sales/qtyBreaks";
 import { writeHeaderTolerant } from "@/lib/pricing/quoteLineFlags";
+import { whereUsed } from "@/lib/products/bomServer";
 import { checkItemTypeWrite } from "@/lib/products/itemTypesServer";
 import { parseSupplierInput, supplierNamesById, verifySupplier, withSupplierNames } from "@/lib/products/supplier";
 
@@ -156,7 +157,19 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
     .eq("id", id)
     .eq("tenant_id", tenantId);
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) {
+    // A product that is a component of a BOM can't be deleted (the line's FK is
+    // RESTRICT): say which kits use it. A kit's own lines go with it (cascade).
+    if (error.code === "23503") {
+      const used = await whereUsed(supabase, tenantId, id);
+      if (used.length > 0) {
+        const names = [...new Set(used.map((u) => u.parent.name))];
+        const shown = names.slice(0, 5).join(", ") + (names.length > 5 ? ` and ${names.length - 5} more` : "");
+        return NextResponse.json({ error: `This item is a component of ${names.length === 1 ? "this BOM" : `${names.length} BOMs`}: ${shown}. Remove it from ${names.length === 1 ? "it" : "them"} first.`, used_in: used }, { status: 409 });
+      }
+    }
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
 
   if (snap) {
     const user = await getAuthUser();
