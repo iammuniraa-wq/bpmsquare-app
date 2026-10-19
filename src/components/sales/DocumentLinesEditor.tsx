@@ -6,6 +6,9 @@ import { UOM_OPTIONS } from "@/lib/constants";
 import PriceTrace, { type PriceTraceStep } from "@/components/pricing/PriceTrace";
 import { useTraceDetail, useCurrency, useTenantFeature } from "@/lib/tenant-context";
 import CreateRfqButton from "@/components/rfq/CreateRfqButton";
+import RfqDialog from "@/components/rfq/RfqDialog";
+import RfqLineChip from "@/components/rfq/RfqLineChip";
+import { rfqLineActionState } from "@/components/rfq/lineAction";
 import { moneyFormatter, moneyLabel } from "@/lib/currency";
 
 // The ONE document-line editor (docs/sales-engine-architecture.md §4.5):
@@ -90,8 +93,10 @@ const inp: React.CSSProperties = {
 };
 // Compact line editor: one grid row per line, the same column template for
 // the header, ordinary lines and quantity-break sub-rows so columns line up.
+// A tenant with the RFQ module gets one more column, the line's own RFQ.
 const GRID_COLUMNS = "26px minmax(0,1fr) 68px 66px 100px 58px 104px 96px 46px";
-const gridRow: React.CSSProperties = { display: "grid", gridTemplateColumns: GRID_COLUMNS, alignItems: "center", borderBottom: `1px solid ${c.line}` };
+const GRID_COLUMNS_RFQ = "26px minmax(0,1fr) 68px 66px 100px 58px 104px 96px 140px 46px";
+const gridRowFor = (rfq: boolean): React.CSSProperties => ({ display: "grid", gridTemplateColumns: rfq ? GRID_COLUMNS_RFQ : GRID_COLUMNS, alignItems: "center", borderBottom: `1px solid ${c.line}` });
 const cell: React.CSSProperties = { padding: "4px 4px", display: "flex", alignItems: "center", minWidth: 0 };
 const headCell: React.CSSProperties = { padding: "6px 6px", fontSize: 10.5, fontWeight: 600, color: c.hint, textTransform: "uppercase", letterSpacing: 0.4, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" };
 const cinp: React.CSSProperties = { ...inp, padding: "6px 8px", fontSize: 12.5, borderRadius: 6 };
@@ -156,7 +161,7 @@ function groupedRows(lines: Line[]): Row[] {
 }
 
 export default function DocumentLinesEditor({
-  lines, onChange, products = [], pricingEnabled = false, accountId, accountName, documentType, documentId,
+  lines, onChange, products = [], pricingEnabled = false, accountId, accountName, documentType, documentId, documentRef,
   taxPct, onTaxPct, printOptions, onPrintOptions, onError,
 }: {
   lines: Line[];
@@ -170,6 +175,8 @@ export default function DocumentLinesEditor({
   documentType: "standard_quote" | "opportunity";
   /** The saved parent's id (undefined until it exists). */
   documentId?: string;
+  /** The saved parent's readable reference (SQ-0007 ...), shown in the RFQ form. */
+  documentRef?: string;
   /** Header tax % the engine may fill when the parent has none. */
   taxPct?: string;
   onTaxPct?: (pct: string) => void;
@@ -218,6 +225,10 @@ export default function DocumentLinesEditor({
   // unchanged.
   const rfqModule = useTenantFeature("rfq");
   const [rfqTrack, setRfqTrack] = useState<Record<string, RfqTrack>>({});
+  // The line whose own "Request quotation" form is open (one item, one RFQ).
+  const [rfqLineOpen, setRfqLineOpen] = useState<string | null>(null);
+  const gridRow = gridRowFor(!!rfqModule);
+  const docLabel = `${documentType === "opportunity" ? "Deal" : "Standard Quote"}${documentRef ? ` ${documentRef}` : ""}${accountName ? ` for ${accountName}` : ""}`;
   const trackedKey = lines.map((l) => l.rfq_line_id ?? "").filter(Boolean).sort().join(",");
   useEffect(() => {
     if (!rfqModule || !trackedKey) { setRfqTrack({}); return; }
@@ -495,11 +506,6 @@ export default function DocumentLinesEditor({
     else if (info?.kind === "needs_rfq") { label = "Needs RFQ"; bg = "var(--amberbg)"; ink = "var(--amberink)"; title = info.message; }
     else if (info?.kind === "rfq_sent") { label = "RFQ sent"; bg = "var(--tealbg)"; ink = "var(--tealink)"; title = `${info.ref} sent to ${info.supplier}`; }
     else if (info?.kind === "rfq_draft") { label = "RFQ draft"; bg = "var(--amberbg)"; ink = "var(--amberink)"; title = `${info.ref} saved but not sent`; }
-    else if (line.rfq_line_id && rfqTrack[line.rfq_line_id]) {
-      const t = rfqTrack[line.rfq_line_id];
-      if (t.awarded) { label = "Awarded — re-price"; bg = "var(--greenbg)"; ink = "var(--greenink)"; title = `${t.ref}: supplier cost awarded — price the line again to use it`; }
-      else { label = `${t.ref ?? "RFQ"} · ${t.replied}/${t.asked || "?"}`; bg = "var(--tealbg)"; ink = "var(--tealink)"; title = `${t.replied} of ${t.asked} suppliers replied`; }
-    }
     else if (overriddenIds.has(line.id)) { label = "Manual"; bg = c.panel2; ink = c.hint; title = "Rate overridden — no longer tracked by the engine"; }
     else if (line.pricing_document_id) {
       // Priced by the engine on an earlier save: the working isn't in this
@@ -519,6 +525,31 @@ export default function DocumentLinesEditor({
     }
     else return null;
     return <button type="button" onClick={() => toggleExpanded(line.id)} title={title} style={{ ...chip, background: bg, color: ink, cursor: "pointer" }}>{label}</button>;
+  }
+
+  /** The line's own RFQ: its chip (ref + progress, links straight to the RFQ)
+   *  once it has one, otherwise the small action that raises one for just
+   *  this line. Quantity-break rows repeat their parent's item and get none. */
+  function rfqCell(line: Line) {
+    if (line.rfq_line_id) {
+      const t = rfqTrack[line.rfq_line_id];
+      return t
+        ? <RfqLineChip s={t} style={{ marginTop: 0, maxWidth: "100%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", boxSizing: "border-box" }} />
+        : <span style={{ ...chip, background: c.panel2, color: c.hint }} title="This line is linked to an RFQ">RFQ</span>;
+    }
+    const st = rfqLineActionState({ documentId, lineId: line.id, description: line.description });
+    if (!st.eligible) return null;
+    return (
+      <button
+        type="button"
+        aria-disabled={!st.ready || undefined}
+        title={st.ready ? "Ask suppliers for a price on this line" : st.reason}
+        onClick={() => { if (st.ready) setRfqLineOpen(line.id); else onError(st.reason); }}
+        style={{ ...chip, background: "none", border: `1px solid ${c.line}`, color: st.ready ? c.accent : c.hint, cursor: st.ready ? "pointer" : "not-allowed", opacity: st.ready ? 1 : 0.7 }}
+      >
+        Request quotation
+      </button>
+    );
   }
 
   function detailPanel(line: Line, isBreak: boolean) {
@@ -672,6 +703,7 @@ export default function DocumentLinesEditor({
             <span style={{ ...amountText, color: c.ink }}>{inr(lineAmount(line))}</span>
           </div>
           <div style={{ ...cell, overflow: "hidden" }}>{statusChip(line)}</div>
+          {rfqModule && <div style={{ ...cell, overflow: "hidden" }}>{rfqCell(line)}</div>}
           {rowActions(line)}
         </div>
         {expandedIds.has(line.id) && detailPanel(line, false)}
@@ -713,6 +745,7 @@ export default function DocumentLinesEditor({
             <span style={{ ...amountText, color: c.muted }}>{inr(lineAmount(b))}</span>
           </div>
           <div style={{ ...cell, overflow: "hidden" }}>{statusChip(b)}</div>
+          {rfqModule && <div style={cell} />}
           <div style={{ ...cell, gap: 2, justifyContent: "flex-end" }}>
             <button type="button" onClick={() => toggleExpanded(b.id)} title="Details" style={{ ...iconBtn, transform: expandedIds.has(b.id) ? "rotate(90deg)" : "none" }}>›</button>
             <button type="button" onClick={() => removeBreak(b.id)} title="Remove this quantity break" style={{ ...iconBtn, color: "var(--red)" }}>×</button>
@@ -1095,7 +1128,7 @@ export default function DocumentLinesEditor({
     )}
 
     <div style={{ overflowX: "auto" }}>
-      <div style={{ minWidth: 720, border: `1px solid ${c.line}`, borderRadius: 8, overflow: "hidden" }}>
+      <div style={{ minWidth: rfqModule ? 860 : 720, border: `1px solid ${c.line}`, borderRadius: 8, overflow: "hidden" }}>
         <div style={{ ...gridRow, background: c.panel2 }}>
           <div style={{ ...headCell, textAlign: "center" }}>#</div>
           <div style={headCell}>{products.length > 0 ? "Product · description" : "Description"}</div>
@@ -1105,6 +1138,7 @@ export default function DocumentLinesEditor({
           <div style={{ ...headCell, textAlign: "right" }}>Disc %</div>
           <div style={{ ...headCell, textAlign: "right" }}>Amount</div>
           <div style={headCell}>Price</div>
+          {rfqModule && <div style={headCell}>RFQ</div>}
           <div style={headCell} />
         </div>
         {(() => { let no = 0; return rows.map((row) => {
@@ -1138,6 +1172,31 @@ export default function DocumentLinesEditor({
     </div>
 
     {panelOpen && renderAddPanel()}
+
+    {rfqLineOpen && (() => {
+      const l = lines.find((x) => x.id === rfqLineOpen);
+      if (!l) return null;
+      return (
+        <RfqDialog
+          single
+          onClose={() => setRfqLineOpen(null)}
+          origin={{ type: documentType, id: documentId ?? null }}
+          originLabel={docLabel}
+          lines={[{ key: l.id, source_line_id: l.id, product_id: l.product_id || null, description: l.description, uom: l.uom, qty: l.qty }]}
+          onCreated={(r) => {
+            const rfqLine = r.line_ids[0];
+            setRfqLineOpen(null);
+            if (!rfqLine) return;
+            setLines((ls) => ls.map((x) => (x.id === l.id ? { ...x, rfq_line_id: rfqLine } : x)));
+            setLinePricing((p) => {
+              if (p[l.id]?.kind !== "needs_rfq") return p;
+              const { [l.id]: _drop, ...rest } = p;
+              return rest;
+            });
+          }}
+        />
+      );
+    })()}
 
     <div style={{ display: "flex", gap: 18, marginTop: 8, alignItems: "center", flexWrap: "wrap" }}>
       <button type="button" onClick={() => { setPanelOpen((o) => !o); setPanelTab(products.length > 0 ? "catalog" : "free"); }} style={{ fontSize: 12, fontWeight: 600, color: c.accent, background: "none", border: "none", cursor: "pointer", padding: "4px 0" }}>

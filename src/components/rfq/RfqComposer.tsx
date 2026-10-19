@@ -34,7 +34,7 @@ type Supplier = { id: string; name: string; email: string | null; city: string |
 type Product = { id: string; name: string; ref: string | null; uom: string | null };
 
 export default function RfqComposer({
-  origin, originLabel, initialLines, initialTitle, onCreated, onCancel, compact,
+  origin, originLabel, initialLines, initialTitle, onCreated, onCancel, compact, single: _single,
 }: {
   origin?: { type: RfqOriginType; id: string | null };
   originLabel?: string | null;
@@ -43,6 +43,8 @@ export default function RfqComposer({
   onCreated: (r: { id: string; ref: string; line_ids: string[]; line_keys: (string | null)[]; sent?: { supplier: string; ok: boolean; reason?: string }[] }) => void;
   onCancel?: () => void;
   compact?: boolean;
+  /** Opened from one document line (the simple form lands with the next change). */
+  single?: boolean;
 }) {
   const [title, setTitle] = useState(initialTitle ?? "");
   const [lines, setLines] = useState<ComposerLine[]>(initialLines?.length ? initialLines : [{ description: "", qty: 1, uom: "Nos" }]);

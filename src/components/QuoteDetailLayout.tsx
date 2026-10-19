@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import RfqLineChip, { type RfqLineChipData } from "@/components/rfq/RfqLineChip";
+import LineRfqButton from "@/components/rfq/LineRfqButton";
 import { useFeel } from "@/components/FeelProvider";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -714,7 +715,20 @@ export default function QuoteDetailLayout({ quote, account, contact, lines, work
   const rfqChip = (line: QuoteLine) => {
     const rl = (line as QuoteLine & { rfq_line_id?: string | null }).rfq_line_id;
     const st = rl && rfqStatus ? rfqStatus[rl] : undefined;
-    return st ? <div><RfqLineChip s={st} /></div> : null;
+    if (st) return <div><RfqLineChip s={st} /></div>;
+    // No RFQ on this line yet: a small per-line action, only for a tenant
+    // with the module (rfqStatus is passed only then).
+    if (rl || !rfqStatus) return null;
+    const pid = (line as QuoteLine & { product_id?: string | null }).product_id ?? null;
+    return (
+      <div>
+        <LineRfqButton
+          origin={{ type: "quote", id: quote.id }}
+          originLabel={`Quotation ${quote.ref}${account?.name ? ` for ${account.name}` : ""}`}
+          line={{ id: line.id, description: line.description, uom: line.uom ?? null, qty: line.qty, product_id: pid }}
+        />
+      </div>
+    );
   };
 
   const renderLineRows = (): React.ReactNode[] => {

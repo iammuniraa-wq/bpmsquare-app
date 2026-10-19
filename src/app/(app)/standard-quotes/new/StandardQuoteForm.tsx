@@ -416,7 +416,7 @@ export default function StandardQuoteForm({
             <Card padding={16}>
               <DocumentLinesEditor
                 lines={lines} onChange={setLines} products={products} pricingEnabled={pricingEngineQuotesEnabled}
-                accountId={accountId} accountName={accountName} documentType="standard_quote" documentId={editQuote?.id}
+                accountId={accountId} accountName={accountName} documentType="standard_quote" documentId={editQuote?.id} documentRef={editQuote?.ref}
                 taxPct={taxPct} onTaxPct={setTaxPct} printOptions={printOptions} onPrintOptions={setPrintOptions} onError={setError}
               />
 

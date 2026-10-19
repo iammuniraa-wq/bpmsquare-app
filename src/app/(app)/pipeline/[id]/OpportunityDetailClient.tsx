@@ -295,7 +295,7 @@ export default function OpportunityDetailClient({ opp, accountName, contacts, in
         <Card padding={16}>
           <DocumentLinesEditor
             lines={lines} onChange={setLines} products={products} pricingEnabled={pricingEnabled}
-            accountId={opp.account_id} accountName={accountName} documentType="opportunity" documentId={opp.id} onError={setError}
+            accountId={opp.account_id} accountName={accountName} documentType="opportunity" documentId={opp.id} documentRef={opp.ref ?? undefined} onError={setError}
           />
           <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 14, borderTop: `1px solid ${c.line}`, paddingTop: 12, flexWrap: "wrap" }}>
             <span style={{ fontSize: 12.5, color: c.muted }}>Lines total <b style={{ color: c.ink }}>{inr(linesTotal)}</b>{quotes.length > 0 ? " · the deal amount follows its latest quote" : ""}</span>
