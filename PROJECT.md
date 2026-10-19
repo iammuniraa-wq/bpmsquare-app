@@ -535,6 +535,7 @@ deploy for an automatic schema change.
   Until it runs, every path degrades to the 0126 behaviour: reads retry
   without the column, and the PATCH route answers 503 naming this migration.
   Run AFTER 0126. `scripts/` has no seed for it (no demo data needed).
+- **0132_product_supplier.sql — PENDING on both DBs** (written 2026-10-19, preferred supplier on products). Adds nullable `products.supplier_id` (references `suppliers`, `on delete set null`) and an index. Code degrades on 42703 while pending (the Supplier field is hidden/ignored, RFQ "current supplier" falls back to RFQ award and purchase-order history). No demo seed needed. Run any time.
 - **0131_estimator.sql — APPLIED on dev AND production (owner, 2026-10-17)** (written 2026-10-17, Project Estimator,
   `docs/estimator-architecture.md`). Creates `estimate_templates`, `estimates`
   and `estimate_lines` (tenant_id + standard "for all" tenant-isolation RLS in the
