@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireTenantUser } from "@/lib/supabase-server";
 import type { Product } from "@/lib/types";
@@ -12,6 +13,8 @@ import ObjectSections from "@/components/fields/ObjectSections";
 import ProductAvailabilityCard from "./ProductAvailabilityCard";
 import ProductCostSheetCard from "./ProductCostSheetCard";
 import ProductQtyBreaksCard from "./ProductQtyBreaksCard";
+import ProductSupplierPanel from "./ProductSupplierPanel";
+import { supplierPickerOptions } from "@/lib/products/supplier";
 import { getSalesConfig } from "@/lib/fieldConfig";
 import { categoryLabel, subCategoryLabel } from "@/lib/picklists";
 import { getTenant, getTenantCurrency } from "@/lib/tenant";
@@ -63,6 +66,10 @@ export default async function ProductDetailPage({
   const costSheetOn = tenant?.features?.pricing_engine === true;
   const qtyBreaksOn = tenant?.features?.standard_quotes === true;
   const basePath = ROUTES.product(product.id);
+  // Preferred supplier (0132): no supplier_id key on the row = migration
+  // pending, so the picker is not offered at all.
+  const supplierOptions = "supplier_id" in product ? await supplierPickerOptions(supabase, tenantId, product.supplier_id) : null;
+  const supplierName = supplierOptions?.find((s) => s.id === product.supplier_id)?.name;
 
   const pricingCards = (
     <>
@@ -124,7 +131,7 @@ export default async function ProductDetailPage({
               objectType="product"
               record={product as unknown as Record<string, unknown>}
               patchUrl={`/api/products/${product.id}`}
-              exclude={["name", "status"]}
+              exclude={["name", "status", "supplier_id"]}
             />
           ),
         },
@@ -136,11 +143,20 @@ export default async function ProductDetailPage({
         },
       ]}
       rail={
-        <Card title="Details" padding={14}>
-          {product.category && <CtxRow label="Category" value={subName ? `${catName} › ${subName}` : catName} />}
-          {product.uom && <CtxRow label="Unit" value={product.uom} />}
-          <CtxRow label="Added" value={fmtDate(product.created_at)} />
-        </Card>
+        <>
+          <Card title="Details" padding={14}>
+            {product.category && <CtxRow label="Category" value={subName ? `${catName} › ${subName}` : catName} />}
+            {product.uom && <CtxRow label="Unit" value={product.uom} />}
+            {supplierName && product.supplier_id && (
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 8, fontSize: 12.5, marginTop: 6 }}>
+                <span style={{ color: c.hint, flexShrink: 0 }}>Supplier</span>
+                <Link href={ROUTES.supplier(product.supplier_id)} style={{ textAlign: "right", color: c.accent, textDecoration: "none", wordBreak: "break-word" }}>{supplierName}</Link>
+              </div>
+            )}
+            <CtxRow label="Added" value={fmtDate(product.created_at)} />
+          </Card>
+          {supplierOptions && <ProductSupplierPanel productId={product.id} supplierId={product.supplier_id ?? null} suppliers={supplierOptions} />}
+        </>
       }
     />
   );

@@ -11,7 +11,10 @@ import Card from "@/components/ui/Card";
 import Field from "@/components/ui/Field";
 import { Input, Select, Textarea } from "@/components/ui/Input";
 
-export default function NewProductPage() {
+export default function NewProductForm({ suppliers }: {
+  /** The tenant's active suppliers; null while 0132 is pending (the control is hidden). */
+  suppliers: { id: string; name: string }[] | null;
+}) {
   const cur = useCurrency();
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -19,7 +22,7 @@ export default function NewProductPage() {
 
   const [form, setForm] = useState({
     name: "", sku: "", category: "", sub_category: "", uom: "", description: "",
-    list_price: "", cost_price: "", tax_percent: "",
+    list_price: "", cost_price: "", tax_percent: "", supplier_id: "",
   });
 
   const set = (k: keyof typeof form) =>
@@ -41,7 +44,7 @@ export default function NewProductPage() {
       const res = await fetch("/api/products", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify(suppliers ? form : { ...form, supplier_id: undefined }),
       });
       const json = await res.json();
       if (!res.ok) { setError(json.error ?? "Could not create the product"); return; }
@@ -95,6 +98,14 @@ export default function NewProductPage() {
             )}
           </Field>
         </div>
+        {suppliers && (
+          <Field label="Preferred supplier" hint="The supplier you normally buy this from">
+            <Select value={form.supplier_id} onChange={set("supplier_id")}>
+              <option value="">— None —</option>
+              {suppliers.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </Select>
+          </Field>
+        )}
         <Field label="Description" style={{ marginBottom: 0 }}>
           <Textarea rows={3} value={form.description} onChange={set("description")} placeholder="What this product includes" />
         </Field>

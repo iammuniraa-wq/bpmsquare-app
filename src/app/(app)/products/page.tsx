@@ -13,6 +13,7 @@ import { ROUTES } from "@/lib/constants";
 import { requireWorkcenterView } from "@/lib/permissions";
 import { getSalesConfig } from "@/lib/fieldConfig";
 import { categoryLabel, subCategoryLabel } from "@/lib/picklists";
+import { rowsCarrySupplier, supplierNamesById } from "@/lib/products/supplier";
 
 const MONO = "ui-monospace, SFMono-Regular, Menlo, monospace";
 
@@ -50,6 +51,12 @@ export default async function ProductsPage({
     getSalesConfig(supabase, tenantId),
   ]);
   const products: Product[] = rows ?? [];
+  // Preferred supplier (0132): the column only exists once the migration has
+  // run -- rows without a supplier_id key mean "not yet", so the column is
+  // not drawn at all. Names come from a second tenant-scoped query.
+  const supplierOn = rowsCarrySupplier(products);
+  const supplierNames = supplierOn ? await supplierNamesById(supabase, tenantId, products.map((p) => p.supplier_id)) : new Map<string, string>();
+  const supplierName = (p: Product) => (p.supplier_id ? supplierNames.get(p.supplier_id) ?? "" : "");
   const tree = salesConfig.product_categories;
   // Stored values are codes; the table shows display names (code falls
   // through for values not in the tree, e.g. legacy free-typed ones).
@@ -59,6 +66,7 @@ export default async function ProductsPage({
   // No per-category chip row here (owner decision 2026-08-22): the list shows
   // everything, and category/sub-category narrowing is the advanced filter's
   // and the column filters' job — a tenant's tree can be far too wide for chips.
+  const extractors: Record<string, SortExtractor<Product>> = supplierOn ? { ...SORT_EXTRACTORS, supplier: supplierName } : SORT_EXTRACTORS;
   const searched = products.filter((p) => {
     if (!q) return true;
     const term = q.toLowerCase();
@@ -69,12 +77,13 @@ export default async function ProductsPage({
       catName(p).toLowerCase().includes(term) ||
       (p.sub_category ?? "").toLowerCase().includes(term) ||
       subName(p).toLowerCase().includes(term) ||
-      (p.description ?? "").toLowerCase().includes(term)
+      (p.description ?? "").toLowerCase().includes(term) ||
+      supplierName(p).toLowerCase().includes(term)
     );
   });
   const advFiltered = applyAdvancedFilter(searched, af, (p) => p as unknown as Record<string, unknown>);
-  const colFiltered = applyColFilters(advFiltered, colFilters, SORT_EXTRACTORS);
-  const filtered = sortRows(colFiltered, sort, dir, SORT_EXTRACTORS);
+  const colFiltered = applyColFilters(advFiltered, colFilters, extractors);
+  const filtered = sortRows(colFiltered, sort, dir, extractors);
   const pageRows = paginate(filtered, page);
 
   const active = products.filter((p) => p.status === "active").length;
@@ -107,6 +116,12 @@ export default async function ProductsPage({
         </>
       ),
     },
+    ...(supplierOn ? [{
+      id: "supplier", label: "Supplier", sortKey: "supplier", cellStyle: { color: c.muted, fontSize: 13 },
+      render: (p: Product) => p.supplier_id && supplierName(p)
+        ? <Link href={ROUTES.supplier(p.supplier_id)} style={{ color: c.accent, textDecoration: "none" }}>{supplierName(p)}</Link>
+        : "—",
+    } satisfies ListColumn<Product>] : []),
     { id: "uom", label: "UoM", sortKey: "uom", cellStyle: { color: c.muted, fontSize: 13 }, render: (p) => p.uom ?? "—" },
     { id: "list_price", label: "List price", sortKey: "list_price", cellStyle: { fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }, render: (p) => inr(p.list_price) },
     {
@@ -123,7 +138,7 @@ export default async function ProductsPage({
       newHref={ROUTES.productNew}
       search={{
         value: q,
-        placeholder: "Search by name, SKU, category or description…",
+        placeholder: "Search by name, SKU, category, supplier or description…",
         hiddenParams: { af, ...cfParams },
       }}
       advancedFilterObject="product"
