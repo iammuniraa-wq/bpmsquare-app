@@ -14,6 +14,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
 
   const { id } = await params;
   // cost_price is internal margin data -- never selected for API consumers.
+  // supplier_id (0132) is commercially sensitive for the same reason: deliberately omitted.
   const { data: product, error } = await admin
     .from("products")
     .select("id, ref, sku, name, description, category, sub_category, uom, list_price, tax_percent, status, custom_data, created_at, updated_at")

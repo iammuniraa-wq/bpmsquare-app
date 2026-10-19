@@ -376,7 +376,11 @@ export const LIST_SOURCES: Record<string, ListSource> = {
     fields: PRODUCT_FIELDS,
     load: async (tenantId) => {
       // cost_price is INTERNAL (margin data) and deliberately not selected --
-      // no API consumer, whatever its scope, receives it.
+      // no API consumer, whatever its scope, receives it. The same goes for
+      // supplier_id (0132): who supplies a product is commercially sensitive,
+      // so it is deliberately absent here, from PRODUCT_FIELDS, from
+      // /api/v1/products and from the MCP tools. productApiExposure.test.ts
+      // fails the build if it ever appears.
       const { data } = await createAdminSupabase()
         .from("products")
         .select("id, ref, sku, name, description, category, sub_category, uom, list_price, tax_percent, status, custom_data")
