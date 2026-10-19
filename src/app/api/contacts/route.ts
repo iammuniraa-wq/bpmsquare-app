@@ -4,6 +4,7 @@ import { requireTenantUser, getAuthUser } from "@/lib/supabase-server";
 import { insertWithMasterRef } from "@/lib/masterRef";
 import { encrypt } from "@/lib/encryption";
 import { diffForLog, logChange } from "@/lib/changeLog";
+import { stampContactEmailHash } from "@/lib/marketing/contactEmailHash";
 
 export async function GET() {
   let supabase, tenantId;
@@ -81,6 +82,7 @@ export async function POST(request: NextRequest) {
 
   if (error || !data) return NextResponse.json({ error: error?.message ?? "Insert failed" }, { status: 500 });
   revalidateTag("accounts", { expire: 0 });
+  if (email) await stampContactEmailHash(supabase, tenantId, data.id, email);
 
   const user = await getAuthUser();
   await logChange(supabase, {

@@ -3,6 +3,7 @@ import { revalidateTag } from "next/cache";
 import { requireTenantUser, getAuthUser } from "@/lib/supabase-server";
 import { encrypt, decrypt, decryptContact } from "@/lib/encryption";
 import { diffForLog, logChange } from "@/lib/changeLog";
+import { stampContactEmailHash } from "@/lib/marketing/contactEmailHash";
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   let supabase, tenantId;
@@ -51,6 +52,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   revalidateTag("accounts", { expire: 0 });
+  if ("email" in patchPlaintext) await stampContactEmailHash(supabase, tenantId, id, patchPlaintext.email as string | null);
 
   const user = await getAuthUser();
   const changes = diffForLog("contacts", beforePlaintext, patchPlaintext);
