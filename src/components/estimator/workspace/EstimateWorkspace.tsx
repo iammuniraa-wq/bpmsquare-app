@@ -11,6 +11,7 @@ import { alternativesInput } from "@/lib/estimator/quoteLines";
 import { shiftOptions } from "@/lib/estimator/preview";
 import { marksForRef } from "@/lib/estimator/pieceInfo";
 import { toParams } from "@/components/estimator/InputsForm";
+import AccountPicker from "@/components/estimator/AccountPicker";
 import type { AccountOption, ContactOption } from "@/components/estimator/AccountPicker";
 import AboutCard from "./AboutCard";
 import AccountPrompt from "./AccountPrompt";
@@ -119,6 +120,22 @@ export default function EstimateWorkspace(p: WorkspaceProps) {
   return (
     <EstimateFocusContext.Provider value={{ highlightCode, show }}>
       <div className="est-stack">
+        {!saved && (
+          <Card padding={16}>
+            <div className="bpm-t-label" style={{ marginBottom: 4 }}>Customer</div>
+            <p className="bpm-t-help" style={{ margin: "0 0 10px" }}>
+              Start here: who is this quote for? Choose an account and contact, or read them from the customer&apos;s email below.
+            </p>
+            <AccountPicker accounts={accounts} contacts={contacts} accountId={draft.accountId} contactId={draft.contactId}
+              onAccount={draft.setAccountId} onContact={draft.setContactId} disabled={!editable || act.busy !== null} />
+            {editable && draft.sender && !draft.accountId && (
+              <SenderCard sender={draft.sender} accounts={accounts} contacts={contacts} disabled={act.busy !== null}
+                onUse={(a, c) => { draft.setAccountId(a); draft.setContactId(c); }}
+                onAccountCreated={(a) => setAccounts((l) => [...l, a])}
+                onContactCreated={(c) => setContacts((l) => [...l, c])} />
+            )}
+          </Card>
+        )}
         {!saved && p.templates.length > 1 && (
           <Card padding={16}>
             <Field label="Template" hint={t?.description ?? undefined} style={{ marginBottom: 0 }}>
@@ -129,12 +146,6 @@ export default function EstimateWorkspace(p: WorkspaceProps) {
           </Card>
         )}
         {editable && t && <EmailIntake key={t.id} templateId={t.id} inputs={t.inputs} onApply={draft.applyProposal} />}
-        {editable && !saved && draft.sender && !draft.accountId && (
-          <SenderCard sender={draft.sender} accounts={accounts} contacts={contacts} disabled={act.busy !== null}
-            onUse={(a, c) => { draft.setAccountId(a); draft.setContactId(c); }}
-            onAccountCreated={(a) => setAccounts((l) => [...l, a])}
-            onContactCreated={(c) => setContacts((l) => [...l, c])} />
-        )}
         {locked && <div className="est-note" role="status">This estimate has a quote, so it is locked. Everything below is as it was quoted.</div>}
         {!t && <Card padding={16}><div className="bpm-t-help">This estimate&apos;s template was deleted, so its inputs can&apos;t be shown or recalculated. Its lines and totals are kept as they were.</div></Card>}
 
@@ -146,7 +157,7 @@ export default function EstimateWorkspace(p: WorkspaceProps) {
           {t && (
             <div id="about" style={{ scrollMarginTop: 80, minWidth: 0 }}>
             <AboutCard draft={draft} issues={[...live.issues, ...act.issues]} disabled={!editable || act.busy !== null} showCustomer={!saved}
-              extra={!saved ? <CustomerDetails draft={draft} accounts={accounts} contacts={contacts} disabled={act.busy !== null} /> : undefined}>
+              extra={!saved ? <CustomerDetails draft={draft} disabled={act.busy !== null} /> : undefined}>
               {saved && saved.templateOutdated && editable && !dirty && (
                 <div className="est-warn" style={{ marginTop: 12 }}>
                   The template has changed since this estimate was calculated.{" "}
