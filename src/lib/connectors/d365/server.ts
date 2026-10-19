@@ -8,7 +8,7 @@ import type { TenantFeatures } from "@/lib/constants";
 import { D365Client, D365Error } from "./odata";
 import { buildClientAssertion, certDerFromPem, tokenUrl, validDirectory } from "./jwt";
 import { entityConfig, apiBase, resourceFor, allowedHost } from "./catalog";
-import { mapPullRow, fingerprint, buildPushBody, modifiedSinceFilter, odataString } from "./mapping";
+import { mapPullRow, fingerprint, buildPushBody, modifiedSinceFilter, odataString, buildTargetRecord } from "./mapping";
 import {
   D365_AUTH_FOR_PRODUCT, D365_ENTITY_TARGET,
   type D365Config, type D365EntityKey, type D365PublicState,
@@ -211,7 +211,6 @@ export async function previewEntity(admin: SupabaseClient, tenantId: string, cfg
 // ── Pull ────────────────────────────────────────────────────────────────────
 
 const REF_TABLES = new Set<string>(["accounts", "contacts", "suppliers", "products", "wfm_projects"]);
-const PII_TABLES = new Set(["accounts", "contacts"]);
 const MAX_ROWS_PER_RUN = 5000;
 
 export type RunCounts = { read: number; created: number; updated: number; unchanged: number; skipped: number; failed: number };
@@ -236,20 +235,7 @@ async function lastWatermark(admin: SupabaseClient, tenantId: string, entity: st
   return (data?.watermark as string | null) ?? null;
 }
 
-function toRecord(table: string, values: Record<string, string | number | null>, isInsert: boolean): Record<string, unknown> {
-  const rec: Record<string, unknown> = {};
-  for (const [k, v] of Object.entries(values)) {
-    if (v === null && !isInsert) continue; // a blank in Dynamics never wipes a value here
-    rec[k] = PII_TABLES.has(table) && (k === "phone" || k === "email") ? encrypt(v === null ? null : String(v)) : v;
-  }
-  if (isInsert) {
-    if (table === "accounts") rec.type = "direct";
-    if (table === "suppliers") { rec.type = "vendor"; rec.status = "active"; }
-    if (table === "products") rec.status = "active";
-    if (table === "wfm_projects") rec.status = "active";
-  }
-  return rec;
-}
+const toRecord = (table: string, values: Record<string, string | number | null>, isInsert: boolean) => buildTargetRecord(table, values, isInsert, encrypt);
 
 /**
  * Pull one entity from Dynamics into BPMSquare. Creates what's new, updates
@@ -316,7 +302,6 @@ export async function runPull(admin: SupabaseClient, tenantId: string, key: Excl
         if (link) {
           if (link.content_hash === hash) { counts.unchanged++; continue; }
           const rec = toRecord(target.table, values, false);
-          if (target.table !== "accounts" && target.table !== "contacts") rec.updated_at = new Date().toISOString();
           const { data: upd, error } = await admin.from(target.table).update(rec).eq("id", link.object_id).eq("tenant_id", tenantId).select("id");
           if (error) throw error;
           if (!upd?.length) {

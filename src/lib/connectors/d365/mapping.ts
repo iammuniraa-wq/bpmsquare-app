@@ -124,3 +124,34 @@ export function modifiedSinceFilter(field: string, watermark: string | null, bas
   if (watermark && /^\d{4}-\d{2}-\d{2}T[\d:.]+Z$/.test(watermark) && /^[A-Za-z_][A-Za-z0-9_]*$/.test(field)) parts.push(`${field} gt ${watermark}`);
   return parts.length ? parts.join(" and ") : undefined;
 }
+
+/** Tables a pull writes that carry an `updated_at` column. suppliers,
+ *  accounts and contacts have none (0000_baseline) -- setting it there makes
+ *  every update of that object fail. */
+const HAS_UPDATED_AT = new Set(["products", "wfm_projects"]);
+const PII_TABLES = new Set(["accounts", "contacts"]);
+
+/** The row a pull inserts or updates. `encryptPii` is the server's
+ *  encrypt() (injected so this stays pure and testable). */
+export function buildTargetRecord(
+  table: string,
+  values: Record<string, string | number | null>,
+  isInsert: boolean,
+  encryptPii: (v: string | null) => string | null,
+  nowIso: string = new Date().toISOString(),
+): Record<string, unknown> {
+  const rec: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(values)) {
+    if (v === null && !isInsert) continue; // a blank in Dynamics never wipes a value here
+    rec[k] = PII_TABLES.has(table) && (k === "phone" || k === "email") ? encryptPii(v === null ? null : String(v)) : v;
+  }
+  if (isInsert) {
+    if (table === "accounts") rec.type = "direct";
+    if (table === "suppliers") { rec.type = "vendor"; rec.status = "active"; }
+    if (table === "products") rec.status = "active";
+    if (table === "wfm_projects") rec.status = "active";
+  } else if (HAS_UPDATED_AT.has(table)) {
+    rec.updated_at = nowIso;
+  }
+  return rec;
+}

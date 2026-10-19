@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import crypto from "crypto";
 import { buildClientAssertion, validDirectory, tokenUrl } from "./jwt";
-import { mapPullRow, fingerprint, renderPushTemplate, buildPushBody, odataString, modifiedSinceFilter } from "./mapping";
+import { mapPullRow, fingerprint, renderPushTemplate, buildPushBody, odataString, modifiedSinceFilter, buildTargetRecord } from "./mapping";
 import { D365Client, D365Error } from "./odata";
 import { entityConfig, apiBase, allowedHost, resourceFor } from "./catalog";
 
@@ -138,5 +138,17 @@ describe("catalog", () => {
     expect(allowedHost({ product: "fo", auth_mode: "client_secret" }, "dynamics.com.evil.io")).toBe(false);
     expect(allowedHost({ product: "bc", auth_mode: "client_secret" }, "bc.contoso.com")).toBe(false);
     expect(allowedHost({ product: "bc", auth_mode: "basic" }, "bc.contoso.com")).toBe(true);
+  });
+});
+
+describe("target records", () => {
+  const enc = (v: string | null) => (v === null ? null : `enc:${v}`);
+  it("never sets updated_at on a table without the column (suppliers, accounts, contacts)", () => {
+    for (const t of ["suppliers", "accounts", "contacts"]) expect(buildTargetRecord(t, { name: "X" }, false, enc)).not.toHaveProperty("updated_at");
+    expect(buildTargetRecord("products", { name: "X" }, false, enc, "2026-10-19T00:00:00Z")).toEqual({ name: "X", updated_at: "2026-10-19T00:00:00Z" });
+  });
+  it("encrypts PII on accounts/contacts only and never wipes on update", () => {
+    expect(buildTargetRecord("accounts", { name: "A", email: "a@b.co", phone: null }, false, enc)).toEqual({ name: "A", email: "enc:a@b.co" });
+    expect(buildTargetRecord("suppliers", { name: "S", email: "s@b.co" }, true, enc)).toEqual({ name: "S", email: "s@b.co", type: "vendor", status: "active" });
   });
 });
