@@ -1,6 +1,7 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { TenantConfig } from "@/lib/constants";
+import { fetchAllRows } from "@/lib/import/server";
 import { itemTypeLabel, validateItemType, KIT_ITEM_TYPE, type ItemTypeCheck } from "@/lib/products/itemTypes";
 
 /** The tenant's config, read by the tenant id the request was authenticated
@@ -70,5 +71,13 @@ export async function kitsWithComponents(
     const id = (l as { parent_product_id: string }).parent_product_id;
     out.set(id, (out.get(id) ?? 0) + 1);
   }
+  return out;
+}
+
+/** How many of this tenant's products carry each item type key. */
+export async function itemTypeUsage(supabase: SupabaseClient, tenantId: string): Promise<Record<string, number>> {
+  const out: Record<string, number> = {};
+  const rows = await fetchAllRows<{ item_type: string | null }>(supabase, "products", "item_type", tenantId);
+  for (const r of rows) if (r.item_type) out[r.item_type] = (out[r.item_type] ?? 0) + 1;
   return out;
 }

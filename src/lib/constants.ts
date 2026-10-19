@@ -142,6 +142,7 @@ export const ROUTES = {
   settingsEmailTemplates: "/settings/email-templates",
   settingsSales: "/settings/sales", // redirects to settingsProductCategories
   settingsProductCategories: "/settings/product-categories",
+  settingsItemTypes: "/settings/item-types",
   settingsAssetPrintFields: "/settings/asset-print-fields",
   settingsDeletionLog: "/settings/deletion-log",
   settingsConnectors: "/settings/connectors",

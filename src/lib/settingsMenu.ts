@@ -85,6 +85,7 @@ export const SETTINGS_MENU: SettingsMenuEntry[] = [
   // screens AND any field whose selectSource is product_category, which can
   // sit on an object a tenant without the Products module still uses.
   { id: "product-categories", group: "data", label: "Product categories", description: "The category tree products are filed under, and that category fields pick from", href: ROUTES.settingsSales, keywords: ["products", "tree"], adminOnly: true, featureAnyOf: ["products", "quotations"], relatedWorkcenter: "quotations" },
+  { id: "item-types", group: "data", label: "Item types", description: "What kinds of items your products are (raw material, finished product, BOM / kit, ...): rename, hide or add your own", href: ROUTES.settingsItemTypes, keywords: ["products", "bom", "kit", "raw material", "finished", "classification"], adminOnly: true, featureKey: "products" },
   { id: "deletion-log", group: "data", label: "Deleted records", description: "Audit log of permanently deleted objects", href: ROUTES.settingsDeletionLog, keywords: ["audit", "trash", "removed"], adminOnly: true, featureAnyOf: CRM_OBJECT_FEATURES },
 
   // ── Integrations ──
