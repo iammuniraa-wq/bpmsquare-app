@@ -2425,6 +2425,30 @@ export async function globalSearchLive(
     }
   }
 
+  // A product is also found by its preferred supplier's name (0132). Both
+  // queries are tenant-scoped; with the column missing the second one errors
+  // and its null data adds nothing, so a pending migration is harmless.
+  if ((!objectType || objectType === "product") && typeAllowed("product") && features.products === true) {
+    const { data: supplierHits } = await supabase
+      .from("suppliers").select("id, name").eq("tenant_id", tenantId).ilike("name", `%${term}%`).limit(20);
+    if (supplierHits && supplierHits.length > 0) {
+      const supplierName = new Map(supplierHits.map((x) => [x.id as string, x.name as string]));
+      const seenProducts = new Set(results.filter((r) => r.type === "product").map((r) => r.id));
+      const { data: suppliedRows } = await supabase
+        .from("products").select("id, name, sku, supplier_id, created_at")
+        .eq("tenant_id", tenantId).in("supplier_id", [...supplierName.keys()]).limit(perTypeLimit);
+      for (const row of suppliedRows ?? []) {
+        if (seenProducts.has(row.id)) continue;
+        seenProducts.add(row.id);
+        results.push({
+          type: "product", id: row.id, title: row.name,
+          subtitle: [row.sku, `Supplier: ${supplierName.get(row.supplier_id as string) ?? ""}`].filter(Boolean).join(" · "),
+          href: ROUTES.product(row.id), matched: "supplier", created_at: (row as { created_at?: string }).created_at ?? null,
+        });
+      }
+    }
+  }
+
   // Non-supervisors can't open the Employee Hub (requireWfmSupervisorPage
   // would bounce them) -- send them to the master-data Employees list their
   // "employees" grant does unlock.
