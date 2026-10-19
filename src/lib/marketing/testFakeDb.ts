@@ -47,6 +47,11 @@ export function fakeDb(seed: Record<string, Row[]> = {}, opts: { missingTables?:
       const t = rows(this.table);
       const match = (r: Row) => this.filters.every((f) => f.test(r[f.col]));
       if (this.op === "insert") {
+        if (Array.isArray(this.payload)) {
+          const made = (this.payload as Row[]).map((p) => ({ id: `id-${++n}`, ...p }));
+          t.push(...made);
+          return { data: made, error: null };
+        }
         const row: Row = { id: `id-${++n}`, ...this.payload };
         t.push(row);
         return { data: this.one ? row : [row], error: null };
