@@ -152,9 +152,9 @@ export async function authHeaderFor(admin: SupabaseClient, tenantId: string, cfg
 }
 
 /** Exchange an authorization code (delegated sign-in) and keep the tokens. */
-export async function exchangeAuthCode(admin: SupabaseClient, tenantId: string, cfg: D365Config, creds: Creds, code: string, redirectUri: string): Promise<void> {
+export async function exchangeAuthCode(admin: SupabaseClient, tenantId: string, cfg: D365Config, creds: Creds, code: string, redirectUri: string, codeVerifier: string): Promise<void> {
   const tok = await tokenRequest(cfg.directory_id!, {
-    client_id: cfg.client_id!, grant_type: "authorization_code", code, redirect_uri: redirectUri,
+    client_id: cfg.client_id!, grant_type: "authorization_code", code, redirect_uri: redirectUri, code_verifier: codeVerifier,
     scope: `${resourceFor(cfg)}/.default offline_access`,
     ...(creds.client_secret ? { client_secret: creds.client_secret } : clientAuth({ ...cfg, auth_mode: "certificate" }, creds)),
   });
