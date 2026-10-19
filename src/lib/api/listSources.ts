@@ -382,7 +382,7 @@ export const LIST_SOURCES: Record<string, ListSource> = {
       // so it is deliberately absent here, from PRODUCT_FIELDS, from
       // /api/v1/products and from the MCP tools. productApiExposure.test.ts
       // fails the build if it ever appears. item_type (0133) is not sensitive and
-      // is exposed as its stable KEY. BOM components (product_bom_lines) are
+      // is exposed as its stable KEY. BOM components (a product's child lines) are
       // internal structure and cost, deliberately not exposed anywhere here.
       const { data } = await createAdminSupabase()
         .from("products")

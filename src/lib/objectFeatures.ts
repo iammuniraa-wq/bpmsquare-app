@@ -43,6 +43,8 @@ export const OBJECT_FEATURE: Record<string, keyof TenantFeatures | null> = {
   opportunities: "pipeline",
   pricing: "pricing_engine",
   products: "products",
+  // BOM components (0133) are lines of a product: the Products module owns them.
+  product_bom_lines: "products",
   projects: "wfm_projects",
   wfm_projects: "wfm_projects",
   purchase_orders: "purchasing",

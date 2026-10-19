@@ -33,6 +33,13 @@ describe("products stay free of internal columns on every machine surface", () =
     }
   });
 
+  it("BOM structure (product_bom_lines) is not read by any machine surface", () => {
+    const sources = ["src/lib/api/listSources.ts", "src/app/api/v1/products/route.ts", "src/app/api/v1/products/[id]/route.ts"];
+    for (const f of sources) expect(read(f)).not.toMatch(/product_bom_lines/);
+    const mcp = read("mcp-server/mcp.json");
+    expect(mcp).not.toMatch(/bom_lines|BOM components|rolled-up/i);
+  });
+
   it("the MCP product tools do not mention a supplier", () => {
     const mcp = JSON.parse(read("mcp-server/mcp.json")) as { tools: { name: string; description: string }[] };
     for (const t of mcp.tools.filter((x) => x.name === "list_products" || x.name === "get_product")) {
