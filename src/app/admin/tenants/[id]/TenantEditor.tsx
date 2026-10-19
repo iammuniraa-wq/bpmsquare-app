@@ -95,7 +95,7 @@ const inputStyle: React.CSSProperties = {
   color: "#111827",
 };
 
-export default function TenantEditor({ tenant, users, access }: Props) {
+export default function TenantEditor({ tenant, users, access, aiTokensUsed = null }: Props & { aiTokensUsed?: number | null }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
 
@@ -131,6 +131,9 @@ export default function TenantEditor({ tenant, users, access }: Props) {
   );
   const [currency, setCurrency]       = useState<CurrencyCode>(resolveCurrency(tenant.config).code);
   const [apiKey, setApiKey]           = useState(tenant.api_key ?? "");
+  // Process Design Studio allowance (src/lib/studio/caps.ts). Blank = the default.
+  const [aiBudget, setAiBudget]       = useState(tenant.config?.process_studio?.monthly_token_budget != null ? String(tenant.config.process_studio.monthly_token_budget) : "");
+  const [aiMaxMessages, setAiMaxMessages] = useState(tenant.config?.process_studio?.max_messages_per_study != null ? String(tenant.config.process_studio.max_messages_per_study) : "");
   const [saved, setSaved]             = useState(false);
   const [error, setError]             = useState("");
   const [resendingId, setResendingId] = useState<string | null>(null);
@@ -211,7 +214,17 @@ export default function TenantEditor({ tenant, users, access }: Props) {
         body: JSON.stringify({
           name, slug, accent_color: accentColor, logo_url: logoUrl || null, status, plan, features,
           custom_domain: customDomain || null, api_key: apiKey || null,
-          config: { ...tenant.config, appearance: { ...tenant.config?.appearance, ui_theme: uiTheme }, currency },
+          config: {
+            ...tenant.config, appearance: { ...tenant.config?.appearance, ui_theme: uiTheme }, currency,
+            process_studio: (() => {
+              const budget = aiBudget.trim() === "" ? undefined : Number(aiBudget);
+              const msgs = aiMaxMessages.trim() === "" ? undefined : Number(aiMaxMessages);
+              return budget === undefined && msgs === undefined ? undefined : {
+                ...(budget !== undefined && Number.isFinite(budget) ? { monthly_token_budget: budget } : {}),
+                ...(msgs !== undefined && Number.isFinite(msgs) ? { max_messages_per_study: msgs } : {}),
+              };
+            })(),
+          },
         }),
       });
       if (res.ok) {
@@ -304,6 +317,25 @@ export default function TenantEditor({ tenant, users, access }: Props) {
           </div>
         </div>
       </section>
+
+      {features.process_studio === true && (
+        <section style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 12, padding: 20, marginBottom: 16 }}>
+          <h2 style={{ margin: "0 0 4px", fontSize: 14, fontWeight: 600, color: "#374151" }}>AI allowance (Process Design Studio)</h2>
+          <p style={{ margin: "0 0 12px", fontSize: 12, color: "#6b7280" }}>
+            Tokens used this month: {aiTokensUsed === null ? "not available" : aiTokensUsed.toLocaleString("en-GB")}. Leave a box empty for the default. A monthly budget of 0 switches the studio&apos;s AI off for this workspace.
+          </p>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <div>
+              <label style={{ fontSize: 12, color: "#6b7280", display: "block", marginBottom: 4 }}>Monthly token budget</label>
+              <input style={inputStyle} inputMode="numeric" value={aiBudget} placeholder="1500000" onChange={(e) => setAiBudget(e.target.value.replace(/[^0-9]/g, ""))} />
+            </div>
+            <div>
+              <label style={{ fontSize: 12, color: "#6b7280", display: "block", marginBottom: 4 }}>Messages per study</label>
+              <input style={inputStyle} inputMode="numeric" value={aiMaxMessages} placeholder="40" onChange={(e) => setAiMaxMessages(e.target.value.replace(/[^0-9]/g, ""))} />
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* Feature flags */}
       <section style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 12, padding: 20, marginBottom: 16 }}>

@@ -173,7 +173,7 @@ async function all<T>(
 }
 
 /** Everything a study screen needs, read through the caller's own session. */
-export async function loadBundle(ctx: StudioCtx, study: StudyRow): Promise<StudyBundle> {
+export async function loadBundle(ctx: Pick<StudioCtx, "supabase" | "tenantId">, study: StudyRow): Promise<StudyBundle> {
   const [messages, steps, fit, changes, tasks, comments, requests] = await Promise.all([
     all<MessageRow>(ctx.supabase, "process_study_messages", "id, role, area, text, understood, questions, created_at", ctx.tenantId, study.id, ["created_at", "id"]),
     all<StepRow>(ctx.supabase, "process_study_steps", "id, area, lane, sort_order, name, what, how_today, frequency, assumed, hands_over", ctx.tenantId, study.id, ["sort_order", "created_at", "id"]),
@@ -274,4 +274,23 @@ export async function loadNotifyAddress(): Promise<{ address: string | null; sou
   const env = (process.env.PROCESS_STUDIO_NOTIFY_EMAIL ?? "").trim();
   if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(env)) return { address: env, source: "env" };
   return { address: null, source: "none" };
+}
+
+// ── Platform-admin reads (the one cross-tenant place) ────────────────────────
+
+/**
+ * A study by id for /admin/studies. Callers MUST have passed isPlatformAdmin():
+ * this reads across tenants on purpose. The tenant used for the child rows is the
+ * one stored on the study row itself, never one supplied by a request.
+ */
+export async function loadStudyForPlatformAdmin(id: string): Promise<{ bundle: StudyBundle; tenantId: string; tenantName: string; isDemo: boolean } | null> {
+  if (!isUuid(id)) return null;
+  const admin = createAdminSupabase();
+  const { data, error } = await admin.from("process_studies").select(`${STUDY_COLUMNS}, tenant_id`).eq("id", id).maybeSingle();
+  if (error || !data) return null;
+  const row = data as unknown as Record<string, unknown>;
+  const tenantId = row.tenant_id as string;
+  const { data: t } = await admin.from("tenants").select("name, is_demo").eq("id", tenantId).maybeSingle();
+  const bundle = await loadBundle({ supabase: admin, tenantId }, toStudyRow(row));
+  return { bundle, tenantId, tenantName: (t?.name as string | undefined) ?? "", isDemo: t?.is_demo === true };
 }

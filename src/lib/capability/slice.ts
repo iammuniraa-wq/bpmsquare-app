@@ -9,7 +9,7 @@ import type { AreaId } from "@/lib/studio/types";
 
 /** Modules each guided area can be covered by. Keys are TenantFeatures flags. */
 export const AREA_MODULES: Record<AreaId, string[]> = {
-  sales: ["accounts", "contacts", "leads", "pipeline", "quotations", "standard_quotes", "quote_lines_dw", "invoices", "partners", "estimator", "products", "pricing_engine"],
+  sales: ["accounts", "contacts", "leads", "pipeline", "quotations", "standard_quotes", "quote_lines_dw", "invoices", "partners", "estimator", "products", "pricing_engine", "amc"],
   service: ["cases", "assets", "work_orders", "technicians", "dispatch", "amc", "quotations", "invoices", "accounts", "contacts", "partners", "products"],
   production: ["estimator", "products", "purchasing", "dispatch", "fence_projects", "work_orders", "assets", "wfm_projects"],
   procurement: ["purchasing", "suppliers", "rfq", "products", "estimator"],

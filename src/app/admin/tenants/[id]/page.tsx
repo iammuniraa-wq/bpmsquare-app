@@ -3,6 +3,7 @@ import { createAdminSupabase } from "@/lib/supabase-server";
 import TenantEditor from "./TenantEditor";
 import { loadAccessInputs } from "@/lib/admin/accessInputs";
 import type { Tenant } from "@/lib/tenant";
+import { monthlyTokensUsed } from "@/lib/ai/structured";
 
 export default async function TenantDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -34,6 +35,7 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
   );
 
   const access = await loadAccessInputs(id);
+  const aiTokensUsed = await monthlyTokensUsed(id).catch(() => null);
 
-  return <TenantEditor tenant={tenant as Tenant} users={users} access={access} />;
+  return <TenantEditor tenant={tenant as Tenant} users={users} access={access} aiTokensUsed={aiTokensUsed} />;
 }

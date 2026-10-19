@@ -25,6 +25,7 @@ const OBJECT_TYPES: { value: string; label: string }[] = [
   { value: "purchase_orders", label: "Purchase Orders" },
   { value: "rfqs", label: "RFQs" },
   { value: "estimates", label: "Estimates" },
+  { value: "process_studies", label: "Process studies" },
   { value: "estimate_templates", label: "Estimate templates" },
   { value: "inventory", label: "Inventory" },
   { value: "employees", label: "Employees" },
