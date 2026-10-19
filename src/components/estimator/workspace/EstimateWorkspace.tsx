@@ -79,6 +79,8 @@ export default function EstimateWorkspace(p: WorkspaceProps) {
   const t = draft.template;
   const [accounts, setAccounts] = useState(p.accounts);
   const [contacts, setContacts] = useState(p.contacts);
+  const [customerOpen, setCustomerOpen] = useState(true);
+  const customerSummary = [accounts.find((a) => a.id === draft.accountId)?.name, contacts.find((c) => c.id === draft.contactId)?.name].filter(Boolean).join(" · ");
   const [highlightCode, setHighlightCode] = useState<string | null>(p.initialHighlight ?? null);
   const locked = !!saved?.locked;
   const editable = p.canEdit && !locked;
@@ -122,17 +124,28 @@ export default function EstimateWorkspace(p: WorkspaceProps) {
       <div className="est-stack">
         {!saved && (
           <Card padding={16}>
-            <div className="bpm-t-label" style={{ marginBottom: 4 }}>Customer</div>
-            <p className="bpm-t-help" style={{ margin: "0 0 10px" }}>
-              Start here: who is this quote for? Choose an account and contact, or read them from the customer&apos;s email below.
-            </p>
-            <AccountPicker accounts={accounts} contacts={contacts} accountId={draft.accountId} contactId={draft.contactId}
-              onAccount={draft.setAccountId} onContact={draft.setContactId} disabled={!editable || act.busy !== null} />
-            {editable && draft.sender && !draft.accountId && (
-              <SenderCard sender={draft.sender} accounts={accounts} contacts={contacts} disabled={act.busy !== null}
-                onUse={(a, c) => { draft.setAccountId(a); draft.setContactId(c); }}
-                onAccountCreated={(a) => setAccounts((l) => [...l, a])}
-                onContactCreated={(c) => setContacts((l) => [...l, c])} />
+            <button type="button" aria-expanded={customerOpen} aria-controls="est-customer-body" onClick={() => setCustomerOpen((o) => !o)}
+              style={{ all: "unset", cursor: "pointer", display: "flex", alignItems: "center", gap: 8, width: "100%", boxSizing: "border-box" }}>
+              <span className="bpm-t-label">Customer</span>
+              <span className="bpm-t-help" style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {customerSummary || "Not chosen yet"}
+              </span>
+              <span aria-hidden style={{ transition: "transform .15s", transform: customerOpen ? "rotate(180deg)" : "none" }}>▾</span>
+            </button>
+            {customerOpen && (
+              <div id="est-customer-body" style={{ marginTop: 10 }}>
+                <p className="bpm-t-help" style={{ margin: "0 0 10px" }}>
+                  Start here: who is this quote for? Choose an account and contact, or read them from the customer&apos;s email below.
+                </p>
+                <AccountPicker accounts={accounts} contacts={contacts} accountId={draft.accountId} contactId={draft.contactId}
+                  onAccount={draft.setAccountId} onContact={draft.setContactId} disabled={!editable || act.busy !== null} />
+                {editable && draft.sender && !draft.accountId && (
+                  <SenderCard sender={draft.sender} accounts={accounts} contacts={contacts} disabled={act.busy !== null}
+                    onUse={(a, c) => { draft.setAccountId(a); draft.setContactId(c); }}
+                    onAccountCreated={(a) => setAccounts((l) => [...l, a])}
+                    onContactCreated={(c) => setContacts((l) => [...l, c])} />
+                )}
+              </div>
             )}
           </Card>
         )}
