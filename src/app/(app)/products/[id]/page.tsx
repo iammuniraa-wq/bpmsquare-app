@@ -15,6 +15,8 @@ import ProductCostSheetCard from "./ProductCostSheetCard";
 import ProductQtyBreaksCard from "./ProductQtyBreaksCard";
 import ProductSupplierPanel from "./ProductSupplierPanel";
 import { supplierPickerOptions } from "@/lib/products/supplier";
+import ItemTypeBadge from "@/components/products/ItemTypeBadge";
+import { itemTypeLabel } from "@/lib/products/itemTypes";
 import { getSalesConfig } from "@/lib/fieldConfig";
 import { categoryLabel, subCategoryLabel } from "@/lib/picklists";
 import { getTenant, getTenantCurrency } from "@/lib/tenant";
@@ -66,6 +68,7 @@ export default async function ProductDetailPage({
   const costSheetOn = tenant?.features?.pricing_engine === true;
   const qtyBreaksOn = tenant?.features?.standard_quotes === true;
   const basePath = ROUTES.product(product.id);
+  const typeLabel = itemTypeLabel(tenant?.config, product.item_type);
   // Preferred supplier (0132): no supplier_id key on the row = migration
   // pending, so the picker is not offered at all.
   const supplierOptions = "supplier_id" in product ? await supplierPickerOptions(supabase, tenantId, product.supplier_id) : null;
@@ -100,7 +103,12 @@ export default async function ProductDetailPage({
       title={product.name}
       reference={product.ref}
       meta={`${catName || "Product"}${subName ? ` › ${subName}` : ""}${product.sku ? ` · ${product.sku}` : ""}`}
-      status={<StatusPill label={product.status === "active" ? "Active" : "Inactive"} tone={product.status === "active" ? "green" : "red"} />}
+      status={
+        <span style={{ display: "inline-flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+          <ItemTypeBadge typeKey={product.item_type} label={typeLabel} />
+          <StatusPill label={product.status === "active" ? "Active" : "Inactive"} tone={product.status === "active" ? "green" : "red"} />
+        </span>
+      }
       menu={
         <RecordMoreMenu
           inlineEdit={{ overviewHref: basePath }}
@@ -115,6 +123,7 @@ export default async function ProductDetailPage({
         />
       }
       facts={[
+        ...(typeLabel ? [{ label: "Item type", value: typeLabel }] : []),
         { label: "List price", value: inr(product.list_price) },
         { label: "Cost price", value: inr(product.cost_price) },
         ...(margin != null ? [{ label: "Margin", value: `${margin}%` }] : []),

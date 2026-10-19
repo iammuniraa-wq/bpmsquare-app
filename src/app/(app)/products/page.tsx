@@ -1,4 +1,4 @@
-import { requireFeature, getTenantCurrency } from "@/lib/tenant";
+import { requireFeature, getTenantCurrency, getTenant } from "@/lib/tenant";
 import { formatMoney } from "@/lib/currency";
 import Link from "next/link";
 import { requireTenantUser } from "@/lib/supabase-server";
@@ -14,6 +14,8 @@ import { requireWorkcenterView } from "@/lib/permissions";
 import { getSalesConfig } from "@/lib/fieldConfig";
 import { categoryLabel, subCategoryLabel } from "@/lib/picklists";
 import { rowsCarrySupplier, supplierNamesById } from "@/lib/products/supplier";
+import { itemTypeLabel, resolveItemTypes } from "@/lib/products/itemTypes";
+import ItemTypeBadge from "@/components/products/ItemTypeBadge";
 
 const MONO = "ui-monospace, SFMono-Regular, Menlo, monospace";
 
@@ -41,8 +43,12 @@ export default async function ProductsPage({
   const { supabase, tenantId } = await requireTenantUser();
   const params = await searchParams;
   const { q, af } = params;
+  const typeFilter = params.item_type;
   const colFilters = parseColFilterParams(params);
   const cfParams = colFilterQueryParams(colFilters);
+  const tenant = await getTenant();
+  const typeOptions = resolveItemTypes(tenant?.config);
+  const typeName = (p: Product) => itemTypeLabel(tenant?.config, p.item_type) ?? "";
   const { sort, dir } = readSortParams(params);
   const page = Math.max(1, Number(params.page) || 1);
 
@@ -66,7 +72,7 @@ export default async function ProductsPage({
   // No per-category chip row here (owner decision 2026-08-22): the list shows
   // everything, and category/sub-category narrowing is the advanced filter's
   // and the column filters' job — a tenant's tree can be far too wide for chips.
-  const extractors: Record<string, SortExtractor<Product>> = supplierOn ? { ...SORT_EXTRACTORS, supplier: supplierName } : SORT_EXTRACTORS;
+  const extractors: Record<string, SortExtractor<Product>> = { ...SORT_EXTRACTORS, item_type: typeName, ...(supplierOn ? { supplier: supplierName } : {}) };
   const searched = products.filter((p) => {
     if (!q) return true;
     const term = q.toLowerCase();
@@ -78,16 +84,21 @@ export default async function ProductsPage({
       (p.sub_category ?? "").toLowerCase().includes(term) ||
       subName(p).toLowerCase().includes(term) ||
       (p.description ?? "").toLowerCase().includes(term) ||
-      supplierName(p).toLowerCase().includes(term)
+      supplierName(p).toLowerCase().includes(term) ||
+      typeName(p).toLowerCase().includes(term)
     );
   });
-  const advFiltered = applyAdvancedFilter(searched, af, (p) => p as unknown as Record<string, unknown>);
+  // Item type filter: a type key, or "none" for products not classified yet.
+  const typed = typeFilter
+    ? searched.filter((p) => (typeFilter === "none" ? !p.item_type : p.item_type === typeFilter))
+    : searched;
+  const advFiltered = applyAdvancedFilter(typed, af, (p) => p as unknown as Record<string, unknown>);
   const colFiltered = applyColFilters(advFiltered, colFilters, extractors);
   const filtered = sortRows(colFiltered, sort, dir, extractors);
   const pageRows = paginate(filtered, page);
 
   const active = products.filter((p) => p.status === "active").length;
-  const hasFilter = !!(q || af || Object.keys(cfParams).length > 0);
+  const hasFilter = !!(q || af || typeFilter || Object.keys(cfParams).length > 0);
 
   const columns: ListColumn<Product>[] = [
     {
@@ -122,6 +133,10 @@ export default async function ProductsPage({
         ? <Link href={ROUTES.supplier(p.supplier_id)} style={{ color: c.accent, textDecoration: "none" }}>{supplierName(p)}</Link>
         : "—",
     } satisfies ListColumn<Product>] : []),
+    {
+      id: "item_type", label: "Item type", sortKey: "item_type",
+      render: (p) => p.item_type ? <ItemTypeBadge typeKey={p.item_type} label={typeName(p)} /> : <span style={{ color: c.hint }}>—</span>,
+    },
     { id: "uom", label: "UoM", sortKey: "uom", cellStyle: { color: c.muted, fontSize: 13 }, render: (p) => p.uom ?? "—" },
     { id: "list_price", label: "List price", sortKey: "list_price", cellStyle: { fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }, render: (p) => inr(p.list_price) },
     {
@@ -140,6 +155,13 @@ export default async function ProductsPage({
         value: q,
         placeholder: "Search by name, SKU, category, supplier or description…",
         hiddenParams: { af, ...cfParams },
+        selects: [{
+          name: "item_type", value: typeFilter, placeholder: "All item types",
+          options: [
+            ...typeOptions.filter((t) => !t.hidden || t.key === typeFilter).map((t) => ({ value: t.key, label: t.label })),
+            { value: "none", label: "Not classified" },
+          ],
+        }],
       }}
       advancedFilterObject="product"
       columns={columns}
@@ -151,7 +173,7 @@ export default async function ProductsPage({
       baseHref={ROUTES.products}
       sort={sort}
       dir={dir}
-      linkParams={{ q, af, ...cfParams }}
+      linkParams={{ q, af, item_type: typeFilter, ...cfParams }}
       filtered={hasFilter}
       empty={{
         title: "No products yet",

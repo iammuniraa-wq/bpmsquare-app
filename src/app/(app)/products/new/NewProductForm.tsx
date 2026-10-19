@@ -11,7 +11,9 @@ import Card from "@/components/ui/Card";
 import Field from "@/components/ui/Field";
 import { Input, Select, Textarea } from "@/components/ui/Input";
 
-export default function NewProductForm({ suppliers }: {
+export default function NewProductForm({ suppliers, itemTypes }: {
+  /** The types this workspace offers (Settings -> Item types). */
+  itemTypes: { key: string; label: string }[];
   /** The tenant's active suppliers; null while 0132 is pending (the control is hidden). */
   suppliers: { id: string; name: string }[] | null;
 }) {
@@ -22,7 +24,7 @@ export default function NewProductForm({ suppliers }: {
 
   const [form, setForm] = useState({
     name: "", sku: "", category: "", sub_category: "", uom: "", description: "",
-    list_price: "", cost_price: "", tax_percent: "", supplier_id: "",
+    list_price: "", cost_price: "", tax_percent: "", supplier_id: "", item_type: "",
   });
 
   const set = (k: keyof typeof form) =>
@@ -98,6 +100,12 @@ export default function NewProductForm({ suppliers }: {
             )}
           </Field>
         </div>
+        <Field label="Item type" hint="Raw material, finished product, BOM / kit and so on. Only BOM / kit items can have components.">
+          <Select value={form.item_type} onChange={set("item_type")}>
+            <option value="">— Not classified —</option>
+            {itemTypes.map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}
+          </Select>
+        </Field>
         {suppliers && (
           <Field label="Preferred supplier" hint="The supplier you normally buy this from">
             <Select value={form.supplier_id} onChange={set("supplier_id")}>
