@@ -8,7 +8,10 @@ import type { TenantFeatures } from "@/lib/constants";
 import { D365Client, D365Error } from "./odata";
 import { buildClientAssertion, certDerFromPem, tokenUrl, validDirectory } from "./jwt";
 import { entityConfig, apiBase, resourceFor, allowedHost, sovereignHost } from "./catalog";
-import { mapPullRow, fingerprint, buildPushBody, modifiedSinceFilter, odataString, buildTargetRecord } from "./mapping";
+import {
+  mapPullRow, fingerprint, buildPushBody, modifiedSinceFilter, odataString, buildTargetRecord, normalizeModified, nextModifiedWatermark,
+  formatCursor, parseCursor, keysetFilter, accountLookupKeys, selectFields, scopedExternalId, splitExternalId, withDataArea,
+} from "./mapping";
 import {
   D365_AUTH_FOR_PRODUCT, D365_ENTITY_TARGET,
   type D365Config, type D365EntityKey, type D365PublicState,
@@ -216,6 +219,7 @@ export async function previewEntity(admin: SupabaseClient, tenantId: string, cfg
 
 // ── Pull ────────────────────────────────────────────────────────────────────
 
+const IDENT_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
 const REF_TABLES = new Set<string>(["accounts", "contacts", "suppliers", "products", "wfm_projects"]);
 const MAX_ROWS_PER_RUN = 5000;
 
@@ -288,8 +292,9 @@ const toRecord = (table: string, values: Record<string, string | number | null>,
  * connector_links by the external id), never deletes, never touches a field
  * the map doesn't own. Incremental where the entity has a modified field.
  */
-export async function runPull(admin: SupabaseClient, tenantId: string, key: Exclude<D365EntityKey, "fence_projects">, opts: { trigger: "manual" | "schedule"; userId: string | null; full?: boolean; /** epoch ms after which no new row is started */ deadline?: number }): Promise<{ runId: string | null; counts: RunCounts; issues: string[]; error: string | null }> {
+export async function runPull(admin: SupabaseClient, tenantId: string, key: Exclude<D365EntityKey, "fence_projects">, opts: { trigger: "manual" | "schedule"; userId: string | null; full?: boolean; /** epoch ms after which no new row is started */ deadline?: number; /** rows per run (tests lower it) */ maxRows?: number }): Promise<{ runId: string | null; counts: RunCounts; issues: string[]; error: string | null }> {
   const deadline = opts.deadline ?? Date.now() + RUN_BUDGET_MS;
+  const maxRows = opts.maxRows ?? MAX_ROWS_PER_RUN;
   const counts: RunCounts = { read: 0, created: 0, updated: 0, unchanged: 0, skipped: 0, failed: 0 };
   const issues: string[] = [];
   const loaded = await loadD365(admin, tenantId);
@@ -308,12 +313,24 @@ export async function runPull(admin: SupabaseClient, tenantId: string, key: Excl
   const runId = started.runId;
   let stoppedEarly = false;
   try {
-    let watermark: string | null = opts.full ? null : await lastWatermark(admin, tenantId, key);
-    let maxSeen = watermark;
+    const startMark: string | null = opts.full ? null : await lastWatermark(admin, tenantId, key);
     const client = await clientFor(admin, tenantId, cfg, creds);
     const q = foCompanyQuery(cfg);
     const baseFilter = [ec.filter, q.filter].filter(Boolean).map((f) => `(${f})`).join(" and ") || undefined;
-    const filter = ec.modified_field ? modifiedSinceFilter(ec.modified_field, watermark, baseFilter) : baseFilter;
+    // Two ways to continue where the last run stopped. An entity with a
+    // modified field asks for what changed since; one without (Finance &
+    // Operations) is read in id order from a cursor, and a finished scan
+    // restarts from the top.
+    const modifiedMode = !!ec.modified_field && IDENT_RE.test(ec.modified_field);
+    const keysetMode = !modifiedMode && IDENT_RE.test(ec.id_field);
+    const cursorStart = keysetMode ? parseCursor(startMark, cfg.company).lastId : null;
+    const startIso = modifiedMode && startMark && /^\d{4}-/.test(startMark) ? startMark : null;
+    const filter = modifiedMode ? modifiedSinceFilter(ec.modified_field!, startIso, baseFilter)
+      : keysetMode ? keysetFilter(ec.id_field, cursorStart, baseFilter) : baseFilter;
+    let maxSeen: string | null = startIso;
+    let firstSeen: string | null = null;
+    let firstHold: string | null = null;
+    let lastId: string | null = cursorStart;
 
     // Existing links for this entity, and the account links contacts and
     // projects resolve their customer through.
@@ -326,27 +343,53 @@ export async function runPull(admin: SupabaseClient, tenantId: string, key: Excl
     }
 
     const changeRows: ChangeLogEntryParams[] = [];
+    // F&O links written before ids were scoped by company are bare. A bare
+    // link is adopted by the first company whose row matches it (and re-keyed
+    // to the scoped form on the spot, one link at a time), so a second
+    // company's identical number can never be mapped onto the same record.
+    const legacyClaimed = new Set<string>();
     for await (const row of client.list(ec.entity_set, {
-      filter, orderby: ec.modified_field && /^[A-Za-z_][A-Za-z0-9_]*$/.test(ec.modified_field) ? `${ec.modified_field} asc` : undefined,
-      maxRows: MAX_ROWS_PER_RUN, extraQuery: q.extraQuery,
+      select: selectFields(key, ec, cfg.product),
+      filter, orderby: modifiedMode ? `${ec.modified_field} asc` : keysetMode ? `${ec.id_field} asc` : undefined,
+      maxRows, extraQuery: q.extraQuery,
     })) {
       if (Date.now() > deadline) { stoppedEarly = true; break; }
       counts.read++;
-      const m = mapPullRow(key, ec, row);
-      if ("error" in m) { counts.skipped++; if (issues.length < 25) issues.push(`Skipped a row: ${m.error}`); continue; }
-      if (ec.modified_field) {
-        const mod = row[ec.modified_field];
-        if (typeof mod === "string" && /^\d{4}-\d{2}-\d{2}T/.test(mod) && (!maxSeen || mod > maxSeen)) maxSeen = mod.replace(/\.\d+Z$/, "Z");
+      const m = mapPullRow(key, ec, row, cfg.product);
+      const mod = modifiedMode ? normalizeModified(row[ec.modified_field!]) : null;
+      if (mod) {
+        firstSeen ??= mod;
+        if (!maxSeen || mod > maxSeen) maxSeen = mod;
       }
+      // A row this run could not apply keeps the watermark from moving past
+      // it, so it is read again instead of waiting for it to change.
+      const hold = () => { if (mod && firstHold === null) firstHold = mod; };
+      if ("error" in m) { counts.skipped++; if (issues.length < 25) issues.push(`Skipped a row: ${m.error}`); continue; }
+      if (keysetMode) lastId = m.rawId;
       const values: Record<string, string | number | null> = { ...m.values };
       if (key === "contacts" || key === "projects") {
-        const accId = m.accountExternalId ? accountOf.get(m.accountExternalId.toLowerCase()) : undefined;
-        if (key === "contacts" && !accId) { counts.skipped++; if (issues.length < 25) issues.push(`${m.values.name}: its customer hasn't been synced yet — sync Customers first`); continue; }
+        const accId = m.accountExternalId ? accountLookupKeys(m.area, m.accountExternalId).map((k) => accountOf.get(k)).find(Boolean) : undefined;
+        if (key === "contacts" && !accId) { hold(); counts.skipped++; if (issues.length < 25) issues.push(`${m.values.name}: its customer hasn't been synced yet — sync Customers first`); continue; }
         if (accId) (values as Record<string, unknown>).account_id = accId;
       }
       const hash = fingerprint(values);
-      const link = linkOf.get(m.externalId);
+      let link = linkOf.get(m.externalId);
       try {
+        if (!link && m.externalId !== m.rawId && !legacyClaimed.has(m.rawId)) {
+          const old = linkOf.get(m.rawId);
+          if (old) {
+            legacyClaimed.add(m.rawId);
+            const { error: rekeyErr } = await admin.from("connector_links").update({ external_id: m.externalId })
+              .eq("tenant_id", tenantId).eq("connector_id", CONNECTOR_ID).eq("entity", key).eq("external_id", m.rawId);
+            if (rekeyErr) {
+              link = old;
+            } else {
+              linkOf.delete(m.rawId);
+              link = { ...old, external_id: m.externalId };
+              linkOf.set(m.externalId, link);
+            }
+          }
+        }
         if (link) {
           if (link.content_hash === hash) { counts.unchanged++; continue; }
           const rec = toRecord(target.table, values, false);
@@ -355,12 +398,15 @@ export async function runPull(admin: SupabaseClient, tenantId: string, key: Excl
           if (!upd?.length) {
             // The BPMSquare record was deleted since: forget the link so the
             // next run creates it again rather than failing forever.
-            await admin.from("connector_links").delete().eq("tenant_id", tenantId).eq("connector_id", CONNECTOR_ID).eq("entity", key).eq("external_id", m.externalId);
+            await admin.from("connector_links").delete().eq("tenant_id", tenantId).eq("connector_id", CONNECTOR_ID).eq("entity", key).eq("external_id", link.external_id);
+            linkOf.delete(link.external_id);
+            hold();
             counts.skipped++;
             continue;
           }
           await admin.from("connector_links").update({ content_hash: hash, synced_at: new Date().toISOString(), external_key: m.externalKey })
-            .eq("tenant_id", tenantId).eq("connector_id", CONNECTOR_ID).eq("entity", key).eq("external_id", m.externalId);
+            .eq("tenant_id", tenantId).eq("connector_id", CONNECTOR_ID).eq("entity", key).eq("external_id", link.external_id);
+          link.content_hash = hash;
           counts.updated++;
           changeRows.push({ tenantId, objectType: target.table, objectId: link.object_id, objectLabel: String(values.name ?? ""), action: "update", actorId: opts.userId, actorEmail: null, changes: [{ field: "synced from Dynamics 365", from: null, to: m.externalKey ?? m.externalId }] });
         } else {
@@ -387,15 +433,26 @@ export async function runPull(admin: SupabaseClient, tenantId: string, key: Excl
           changeRows.push({ tenantId, objectType: target.table, objectId: id, objectLabel: String(values.name ?? ""), action: "create", actorId: opts.userId, actorEmail: null, changes: [{ field: "created from Dynamics 365", from: null, to: m.externalKey ?? m.externalId }] });
         }
       } catch (e) {
+        hold();
         counts.failed++;
         if (issues.length < 25) issues.push(`${m.values.name ?? m.externalId}: ${(e as { message?: string }).message ?? "failed"}`);
       }
       if (changeRows.length >= 200) await logChangeBatch(admin, changeRows.splice(0));
     }
     if (changeRows.length) await logChangeBatch(admin, changeRows);
-    watermark = maxSeen;
+
+    const capHit = counts.read >= maxRows;
+    const incomplete = stoppedEarly || capHit;
+    let watermark: string | null = null;
+    if (modifiedMode) {
+      const next = nextModifiedWatermark({ start: startIso, firstSeen, maxSeen, firstHold, stoppedEarly: incomplete });
+      watermark = next.watermark;
+      if (next.releasedStall) issues.push("Some rows could not be applied and were passed over so the sync could move on; they are tried again only when they change in Dynamics or on a full sync.");
+    } else if (keysetMode) {
+      watermark = formatCursor(cfg.company, incomplete ? lastId : null);
+    }
     if (stoppedEarly) issues.push("Stopped at this run's time limit — the next run continues from here.");
-    else if (counts.read >= MAX_ROWS_PER_RUN) issues.push(`Stopped at ${MAX_ROWS_PER_RUN} rows — the next run continues from here.`);
+    else if (capHit) issues.push(`Stopped at ${maxRows} rows — the next run continues from here.`);
     await markStatus(admin, tenantId, true);
     await finishRun(admin, tenantId, runId, counts, issues, null, watermark);
     return { runId, counts, issues, error: null };
@@ -447,17 +504,27 @@ export async function runPushFenceProjects(admin: SupabaseClient, tenantId: stri
       if (Date.now() > deadline) { issues.push("Stopped at this run's time limit — the next run continues from here."); break; }
       counts.read++;
       if (already.has(p.id)) { counts.unchanged++; continue; }
+      // An F&O customer link may carry its company (usmf|C0100): the field map
+      // is given the bare account number, and the company is sent as
+      // dataAreaId -- otherwise F&O creates the project in the app user's
+      // default company, which is not necessarily the customer's.
+      const accExt = p.account_id ? extAccount.get(p.account_id) ?? null : null;
+      const acc = accExt && cfg.product === "fo" ? splitExternalId(accExt) : { area: null, id: accExt };
       const vars = {
         name: p.name, ref: p.ref, status: p.status, total_length_m: p.total_length_m,
         summary: `${p.layout === "open_run" ? "Open run" : "Closed perimeter"}, ${Number(p.total_length_m)} m`,
-        account_external_id: p.account_id ? extAccount.get(p.account_id) ?? null : null,
+        account_external_id: acc.id,
       };
-      const body = buildPushBody(ec.field_map, vars);
-      if (!Object.keys(body).length) { counts.skipped++; issues.push(`${p.name}: nothing to send — check the field map`); continue; }
+      const built = buildPushBody(ec.field_map, vars);
+      if (!Object.keys(built).length) { counts.skipped++; issues.push(`${p.name}: nothing to send — check the field map`); continue; }
+      const body = withDataArea(cfg.product, built, ec.field_map, cfg.company ?? acc.area);
       try {
         const { row: created, entityId } = await client.create(ec.entity_set, body);
-        const extId = created[ec.id_field] ?? created.id ?? entityId;
-        if (!extId) throw new Error("Dynamics didn't return the new project's id");
+        const rawExt = created[ec.id_field] ?? created.id ?? entityId;
+        if (!rawExt) throw new Error("Dynamics didn't return the new project's id");
+        // Same id form a pull of Projects would store for it (company-scoped on F&O).
+        const createdArea = typeof created.dataAreaId === "string" ? created.dataAreaId : body.dataAreaId ?? null;
+        const extId = typeof rawExt === "string" && rawExt.includes("=") ? rawExt : scopedExternalId(cfg.product, createdArea, String(rawExt));
         const linkRow = {
           tenant_id: tenantId, connector_id: CONNECTOR_ID, entity: "fence_projects", object_type: "fence_projects", object_id: p.id,
           external_id: String(extId), external_key: (created.msdyn_subject ?? created.number ?? created.ProjectID ?? null) as string | null, direction: "push",
