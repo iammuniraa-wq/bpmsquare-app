@@ -73,7 +73,14 @@ seed `scripts/seed-rfq-demo.sql`.
   a PDF button for the buyer. The headless browser may load only data: URIs
   and the storage host.
 
-**Still not built:** supplier-per-product master data (Piece G), a
+**Preferred supplier on products (0132):** a product carries one preferred
+supplier (`products.supplier_id`, set on the product, in Data Workbench by
+supplier name, or via the API). The RFQ's current-supplier ranking uses it
+first, ahead of past awards and purchase orders. It is internal: never in the
+v1 API, `/ask` or MCP.
+
+**Still not built:** several approved suppliers per product (Piece G, a
+`product_suppliers` table), a
 Microsoft 365 mailbox (OAuth), supplier performance analytics.
 
 ## 0. The answer in five lines
