@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   DEFAULT_ITEM_TYPES, canHaveComponents, itemTypeLabel, matchItemType, resolveItemTypes,
-  sanitizeItemTypeConfig, selectableItemTypes, validateItemType,
+  itemTypeFromCell, sanitizeItemTypeConfig, selectableItemTypes, validateItemType,
 } from "./itemTypes";
 
 describe("default item types", () => {
@@ -105,6 +105,20 @@ describe("labels, matching and the kit rule", () => {
     expect(canHaveComponents({}, "finished_product")).toBe(false);
     expect(canHaveComponents({}, "mystery")).toBe(false);
     expect(canHaveComponents({}, null)).toBe(false);
+  });
+});
+
+describe("itemTypeFromCell", () => {
+  it("maps a label or key to the key, blank to unclassified", () => {
+    expect(itemTypeFromCell({}, "Raw material")).toEqual({ ok: true, key: "raw_material" });
+    expect(itemTypeFromCell({}, "bom_kit")).toEqual({ ok: true, key: "bom_kit" });
+    expect(itemTypeFromCell({}, "  ")).toEqual({ ok: true, key: null });
+  });
+  it("is an error for an unknown type, and for a hidden one unless the row already has it", () => {
+    expect(itemTypeFromCell({}, "Gizmo")).toMatchObject({ ok: false });
+    const cfg = { item_types: { hidden: ["service"] } };
+    expect(itemTypeFromCell(cfg, "Service")).toMatchObject({ ok: false });
+    expect(itemTypeFromCell(cfg, "Service", "service")).toEqual({ ok: true, key: "service" });
   });
 });
 

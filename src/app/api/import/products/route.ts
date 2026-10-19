@@ -13,6 +13,8 @@ import {
   summarise,
   type PreparedRow,
 } from "@/lib/import/server";
+import { itemTypeFromCell } from "@/lib/products/itemTypes";
+import { getTenantItemTypeConfig } from "@/lib/products/itemTypesServer";
 import { resolveSupplierName, supplierColumnAvailable, withoutSupplierFields } from "@/lib/products/supplier";
 import type { RowOutcome } from "@/lib/import/types";
 
@@ -48,6 +50,7 @@ export async function POST(request: NextRequest) {
     fetchAllRows<{ id: string; name: string }>(supabase, "suppliers", "id, name", tenantId),
     supplierColumnAvailable(supabase),
   ]);
+  const itemTypeConfig = await getTenantItemTypeConfig(supabase, tenantId);
   const built = buildObjectSpec("products", fieldConfig, salesConfig);
   const spec = supplierOn ? built : withoutSupplierFields(built);
 
@@ -56,7 +59,17 @@ export async function POST(request: NextRequest) {
 
   let refSeq = await nextMasterRefSeq(supabase, "products", tenantId);
 
-  for (const { rowNum, values } of rows) {
+  for (const { rowNum, values: rawValues } of rows) {
+    // The Item type column takes the type's label or its key; it is turned into
+    // the key (or refused) before the generic validation sees it.
+    const values = { ...rawValues };
+    let itemType: string | null = null;
+    if ((values.item_type ?? "").trim()) {
+      const t = itemTypeFromCell(itemTypeConfig, values.item_type);
+      if (!t.ok) { outcomes.push({ rowNum, status: "failed", reason: t.message }); continue; }
+      itemType = t.key;
+      values.item_type = t.key ?? "";
+    }
     const validated = validateRow(spec, values, rowNum);
     if (hasBlockingIssue(validated)) {
       outcomes.push({
@@ -102,6 +115,7 @@ export async function POST(request: NextRequest) {
         cost_price: num(v.cost_price),
         tax_percent: num(v.tax_percent),
         status: v.status || "active",
+        ...(itemType ? { item_type: itemType } : {}),
         // Named only when set: a database without 0132 is never asked for it.
         ...(supplierId ? { supplier_id: supplierId } : {}),
         ...(custom ? { custom_data: custom } : {}),

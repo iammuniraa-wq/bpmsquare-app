@@ -40,6 +40,7 @@ export async function POST(request: NextRequest) {
   const rows = products.map((raw) => {
     const values = rowToExportValues(raw, spec.fields);
     values.id = raw.id;
+    // The Item type column carries the KEY (stable across renames); Import also accepts the label.
     // Name for people, the real supplier id (a field of the registry) for
     // anything that must key off the record.
     if (supplierOn) values.supplier_name = raw.supplier_id ? supplierNameById.get(raw.supplier_id) ?? "" : "";

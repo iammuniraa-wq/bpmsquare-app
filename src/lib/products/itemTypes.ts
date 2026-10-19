@@ -129,6 +129,19 @@ export function matchItemType(config: Pick<TenantConfig, "item_types"> | null | 
   return all.find((x) => norm(x.key) === want) ?? all.find((x) => norm(x.label) === want) ?? null;
 }
 
+/** A cell from a Data Workbench file: the type's key or its label. Blank =
+ *  unclassified. An unknown or (for a new assignment) hidden type is an error. */
+export function itemTypeFromCell(
+  config: Pick<TenantConfig, "item_types"> | null | undefined,
+  text: string,
+  current?: string | null
+): ItemTypeCheck {
+  if (!text.trim()) return { ok: true, key: null };
+  const hit = matchItemType(config, text);
+  if (!hit) return { ok: false, message: `Item type "${text.trim()}" is not one of this workspace's item types` };
+  return validateItemType(config, hit.key, current);
+}
+
 export type ItemTypeConfigResult = { ok: true; value: TenantItemTypes } | { ok: false; message: string };
 
 /** Validate and normalise the settings payload: renames of built-ins, hidden

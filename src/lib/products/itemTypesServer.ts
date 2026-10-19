@@ -52,3 +52,23 @@ export async function checkItemTypeWrite(
   }
   return res;
 }
+
+/** Data Workbench Update: of these product ids, which are kits that still have
+ *  components? Two tenant-scoped queries for the whole file, not two per row.
+ *  Returns id -> component count for kits with at least one line. */
+export async function kitsWithComponents(
+  supabase: SupabaseClient,
+  tenantId: string,
+  ids: string[]
+): Promise<Map<string, number>> {
+  const out = new Map<string, number>();
+  if (ids.length === 0) return out;
+  const { data: lines, error } = await supabase
+    .from("product_bom_lines").select("parent_product_id").eq("tenant_id", tenantId).in("parent_product_id", ids);
+  if (error) return out;
+  for (const l of lines ?? []) {
+    const id = (l as { parent_product_id: string }).parent_product_id;
+    out.set(id, (out.get(id) ?? 0) + 1);
+  }
+  return out;
+}
