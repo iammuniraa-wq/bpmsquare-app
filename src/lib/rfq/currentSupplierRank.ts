@@ -66,3 +66,10 @@ export function currentNote(p: Pick<CurrentPick, "source" | "as_of" | "unit_pric
   if (p.source === "award") return p.as_of ? `last awarded ${fmtDate(p.as_of)}${price}` : "last awarded";
   return p.as_of ? `last purchase order ${fmtDate(p.as_of)}${price}` : "last purchase order";
 }
+
+/** The badge's second line: where the current supplier comes from, then what is known of the last deal. */
+export function currentDescription(p: Pick<CurrentPick, "source" | "as_of" | "unit_price" | "currency">, fmtDate: (s: string) => string): string {
+  const note = currentNote(p, fmtDate);
+  if (p.source === "product") return [CURRENT_SOURCE_LABEL.product, note].filter(Boolean).join(" · ");
+  return note.charAt(0).toUpperCase() + note.slice(1);
+}

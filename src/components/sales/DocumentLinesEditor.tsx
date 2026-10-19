@@ -1182,7 +1182,7 @@ export default function DocumentLinesEditor({
           onClose={() => setRfqLineOpen(null)}
           origin={{ type: documentType, id: documentId ?? null }}
           originLabel={docLabel}
-          lines={[{ key: l.id, source_line_id: l.id, product_id: l.product_id || null, description: l.description, uom: l.uom, qty: l.qty }]}
+          lines={[{ key: l.id, source_line_id: l.id, product_id: l.product_id || null, product_ref: products.find((p) => p.id === l.product_id)?.ref ?? null, description: l.description, uom: l.uom, qty: l.qty }]}
           onCreated={(r) => {
             const rfqLine = r.line_ids[0];
             setRfqLineOpen(null);

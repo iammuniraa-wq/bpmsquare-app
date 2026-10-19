@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { pickCurrentSupplier, currentNote, newestFirst, type Candidate } from "./currentSupplierRank";
+import { pickCurrentSupplier, currentNote, currentDescription, newestFirst, type Candidate } from "./currentSupplierRank";
 
 const cand = (supplier_id: string, as_of: string | null, unit_price: number | null = null, currency: string | null = null): Candidate => ({ supplier_id, as_of, unit_price, currency });
 const all = new Set(["A", "B", "C"]);
@@ -43,5 +43,15 @@ describe("currentNote", () => {
     expect(currentNote({ source: "award", as_of: "2026-08-12T10:00:00Z", unit_price: 41.5, currency: "USD" }, fmt)).toBe("last awarded 2026-08-12 at 41.5 USD");
     expect(currentNote({ source: "purchase_order", as_of: "2026-07-01", unit_price: null, currency: null }, fmt)).toBe("last purchase order 2026-07-01");
     expect(currentNote({ source: "product", as_of: null, unit_price: null, currency: null }, fmt)).toBe("");
+  });
+});
+
+describe("currentDescription", () => {
+  const fmt = (s: string) => s.slice(0, 10);
+  it("names the source the way the composer shows it", () => {
+    expect(currentDescription({ source: "product", as_of: null, unit_price: null, currency: null }, fmt)).toBe("Preferred supplier");
+    expect(currentDescription({ source: "product", as_of: "2026-08-12", unit_price: 3, currency: null }, fmt)).toBe("Preferred supplier · last awarded 2026-08-12 at 3");
+    expect(currentDescription({ source: "award", as_of: "2026-08-12", unit_price: null, currency: null }, fmt)).toBe("Last awarded 2026-08-12");
+    expect(currentDescription({ source: "purchase_order", as_of: "2026-07-01", unit_price: null, currency: null }, fmt)).toBe("Last purchase order 2026-07-01");
   });
 });

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { c } from "@/lib/theme";
 import type { RfqOriginType } from "@/lib/rfq/types";
 import RfqComposer, { type ComposerLine } from "./RfqComposer";
+import RfqSingleForm from "./RfqSingleForm";
 
 // The modal around the RFQ composer. Shared by the "Request quotation"
 // button (several lines) and the per-line action (one line, `single`), so
@@ -40,20 +41,33 @@ export default function RfqDialog({
           <button type="button" aria-label="Close" onClick={onClose} style={{ background: "none", border: "none", fontSize: 18, color: c.hint, cursor: "pointer", lineHeight: 1 }}>✕</button>
         </div>
         <div style={{ padding: 20 }}>
-          <RfqComposer
-            compact
-            single={single}
-            origin={origin}
-            originLabel={originLabel}
-            initialLines={lines}
-            initialTitle={title}
-            onCancel={onClose}
-            onCreated={(r) => {
-              onClose();
-              if (onCreated) onCreated(r);
-              else router.push(`/rfqs/${r.id}`);
-            }}
-          />
+          {single && lines?.length === 1 ? (
+            <RfqSingleForm
+              origin={origin}
+              originLabel={originLabel}
+              line={lines[0]}
+              onCancel={onClose}
+              onCreated={(r) => {
+                onClose();
+                if (onCreated) onCreated(r);
+                else router.push(`/rfqs/${r.id}`);
+              }}
+            />
+          ) : (
+            <RfqComposer
+              compact
+              origin={origin}
+              originLabel={originLabel}
+              initialLines={lines}
+              initialTitle={title}
+              onCancel={onClose}
+              onCreated={(r) => {
+                onClose();
+                if (onCreated) onCreated(r);
+                else router.push(`/rfqs/${r.id}`);
+              }}
+            />
+          )}
         </div>
       </div>
     </div>
