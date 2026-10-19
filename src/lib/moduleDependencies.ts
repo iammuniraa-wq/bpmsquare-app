@@ -33,6 +33,10 @@ export const FEATURE_DEPENDENCIES: FeatureDependency[] = [
     key: "pricing_engine_quotes", needs: "pricing_engine", strength: "hard",
     why: "Both flags are required at every place a quote line pulls a live price.",
   },
+  {
+    key: "marketing_scoring", needs: "marketing", strength: "hard",
+    why: "Scoring, consent and topics are settings of the Marketing module; its settings pages sit under Marketing campaigns being on.",
+  },
 ];
 
 /** The settings-menu group each module reads under in the tenant editor. */
@@ -41,7 +45,7 @@ export const FEATURE_GROUP: Partial<Record<Key, SettingsGroupId>> = {
   accounts: "sales", contacts: "sales", quotations: "sales", standard_quotes: "sales", quote_lines_dw: "sales",
   pipeline: "sales", leads: "sales", invoices: "sales", partners: "sales", marketing: "sales", rfq: "sales",
   products: "sales", suppliers: "sales", purchasing: "sales", pricing_engine: "sales", pricing_engine_quotes: "sales",
-  coverage_model: "sales", fence_projects: "sales", estimator: "sales",
+  coverage_model: "sales", fence_projects: "sales", estimator: "sales", marketing_scoring: "marketing",
   // Service
   cases: "service", work_orders: "service", technicians: "service", assets: "service", amc: "service", dispatch: "service",
   // Workforce

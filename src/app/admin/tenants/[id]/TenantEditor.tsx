@@ -65,6 +65,7 @@ const FEATURE_LABELS: { key: keyof TenantFeatures; label: string; premium?: bool
   { key: "gmail_reply_threading", label: "Gmail reply-threading",  group: "Platform & automation" },
   { key: "pricing_engine",        label: "Pricing Engine (dynamic pricing)", group: "Platform & automation" },
   { key: "pricing_engine_quotes", label: "Pricing Engine → live on Quote lines", premium: true, group: "Platform & automation" },
+  { key: "marketing_scoring", label: "Marketing scoring & consent (lead score, consent ledger, topics — needs Marketing campaigns)", premium: true, group: "Programs" },
   { key: "next_experience", label: "Nova — the Business OS experience", premium: true, group: "Programs" },
   { key: "enterprise_theme", label: "Enterprise theme (dark rail + light workspace)", premium: true, group: "Programs" },
   { key: "spectacular_theme", label: "Spectacular theme (navy or lilac palette)", premium: true, group: "Programs" },

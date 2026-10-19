@@ -3,6 +3,7 @@
 
 import type { PillarKey } from "./theme";
 import type { CurrencyCode } from "./currency";
+import type { ScoringRubric } from "./marketing/scoring";
 
 // The single shared app URL — every tenant without a `custom_domain` is reached here.
 // Hostnames other than this (and localhost, for dev) are resolved to a tenant via
@@ -149,6 +150,8 @@ export const ROUTES = {
   settingsAccount360: "/settings/account-360",
   settingsCoverage: "/settings/coverage",
   settingsRfq: "/settings/rfq",
+  settingsMarketingScoring: "/settings/marketing-scoring",
+  settingsMarketingConsent: "/settings/marketing-consent",
   settingsEstimateTemplates: "/settings/estimate-templates",
   settingsEstimateTemplate: (id: string) => `/settings/estimate-templates/${id}`,
   reports: "/reports",
@@ -589,6 +592,13 @@ export type TenantFeatures = {
   // build-up -> Standard Quote). A sold module: default OFF, missing key
   // reads false.
   estimator: boolean;
+  // Marketing platform M0 (docs/marketing-platform-architecture.md): lead
+  // scoring, the consent ledger's settings and the lead stages. A platform-
+  // admin-only flag (set in /admin/tenants, never by a workspace admin):
+  // default OFF, missing key reads false, and with it off every lead screen,
+  // lead route and settings page is exactly what it was before this existed.
+  // Needs `marketing`.
+  marketing_scoring: boolean;
 };
 
 // WfmConfig — tenant-level WFM (attendance) settings, stored in
@@ -1198,6 +1208,31 @@ export type TenantConfig = {
   // RFQ (0128, docs/rfq-architecture.md). Absent keys read as RFQ_DEFAULTS
   // in src/lib/rfq/types.ts.
   rfq?: RfqConfig;
+  // Marketing platform (docs/marketing-platform-architecture.md 10). Absent
+  // keys read as the defaults in src/lib/marketing/config.ts.
+  marketing?: MarketingConfig;
+};
+
+/** A topic a person can agree to or refuse separately ("Offers", "Events"). */
+export type MarketingTopic = {
+  /** Stable key stored in the consent ledger. Never reused for another meaning. */
+  key: string;
+  label: string;
+  /** One plain line saying what the topic covers. */
+  hint: string;
+};
+
+export type MarketingConfig = {
+  /** The topics offered. Absent = the four defaults. */
+  topics?: MarketingTopic[];
+  /**
+   * What applies to a person with no ledger entry, per jurisdiction.
+   * Absent or missing a key = "consent_required" (strict). The owner has not
+   * chosen a permissive default for any jurisdiction; only an admin can.
+   */
+  consent_defaults?: Partial<Record<"SA" | "AE" | "QA" | "KW" | "OM" | "BH" | "IN" | "EU" | "other", "consent_required" | "existing_customer">>;
+  /** The lead-scoring rubric (src/lib/marketing/scoring.ts). Absent = DEFAULT_RUBRIC. */
+  scoring?: ScoringRubric;
 };
 
 export type RfqMailMode = "platform" | "mailbox";
