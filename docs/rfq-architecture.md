@@ -83,6 +83,64 @@ v1 API, `/ask` or MCP.
 `product_suppliers` table), a
 Microsoft 365 mailbox (OAuth), supplier performance analytics.
 
+## A2. Per-line RFQ and current supplier (2026-10-19)
+
+**Per-line action.** In the shared line editor (Standard Quotes, Deals) every
+eligible line (not a quantity-break row, has a description) has its own
+**Request quotation** action in an RFQ column; a line already on an RFQ shows
+the RFQ chip instead (`RFQ-0012 · 1/3 replied`, green once a cost is awarded),
+which links straight to the RFQ. The top "Request quotation (N)" button is
+unchanged. On the read-only Quotation detail the same action is a small link
+under the line description (`LineRfqButton`). The action opens the composer
+with only that line: `source_line_id` = the saved quote line id, `product_id`
+and qty when the line has them, origin = the document. Unsaved document or
+unsaved line: disabled with "Save the quote first so the RFQ can be linked to
+it" (`rfqLineActionState`).
+
+**One-item form** (`RfqSingleForm`, opened from a line): item (read-only, name
+and SKU), quantity, then Suppliers, Reply by (empty = the tenant's default
+days from Settings -> RFQ), Send now / Save as draft; needed-by, delivery
+terms, notes to suppliers and the internal note sit under "More options". The
+multi-line composer shares the same `SupplierPicker`.
+
+**Current supplier** (`currentSuppliersForProducts`, exposed as the `current`
+map on `GET /api/rfqs/suggest-suppliers`; the old `suppliers` shape is
+unchanged). Per product, first match wins, and a supplier must be the
+tenant's and active:
+1. the product's own `supplier_id` (0132) -- "Preferred supplier", with the
+   last award date/price when that supplier has won this product before;
+2. the supplier of the most recent awarded RFQ response -- "Last awarded",
+   with date and price;
+3. the supplier on the most recent non-cancelled purchase order line
+   (`purchase_order_lines.product_id`, 0130) -- "Last purchase order";
+4. none -- the form says "No supplier on record yet, pick who to ask".
+Each source degrades on its own when its table/column is missing (42P01,
+42703, PGRST204, PGRST205). The price is the tenant's internal cost history
+and is labelled so; it is never sent to a supplier. Ranking is pure
+(`currentSupplierRank.ts`) and unit-tested.
+
+**Always linked.** `createRfq` (so `POST /api/rfqs` and the pricing route):
+an origin that is a record (standard quote, quotation, deal, case, inspection
+report, work order, fence project) requires `origin_id` (422 otherwise) and
+must be the tenant's; the origin label is read from the record, never taken
+from the client. Every `source_line_id` must be a line of that origin
+document, with no duplicates, checked before anything is inserted
+(`linkingServer.verifySourceLines`); `product_id` stays tenant-verified.
+Manual RFQs remain possible and read "No quote". Consequence: a stale line id
+(quote saved in another tab, which regenerates line ids) now answers "A line
+you selected is not on this quote. Reload the quote" instead of silently
+creating an unlinked RFQ.
+
+**Screens.** RFQ page: `From: <Standard Quote SQ-0007>` (link) under the
+header, and each line shows its quote line number (linking to the quote) and
+the item (name/SKU linking to the product). RFQ list: columns RFQ id, Title,
+Quote (link, or "No quote"), Items (first item +N), Replies, Reply by, Status;
+search matches ref, title, quote label and every item name; chip "From a
+quote" (standard quotes, quotations, deals).
+
+No new SQL. The Drive guides (Sales Cloud, Admin) have not been refreshed for
+this change yet: do that after the owner confirms it works.
+
 ## 0. The answer in five lines
 
 1. An RFQ object **already exists** (`pricing_rfqs`, ref `RFQ-####`), but it covers one product and one supplier. It sends plain text, the reply is keyed in by hand, and the quote line never learns what happened.
