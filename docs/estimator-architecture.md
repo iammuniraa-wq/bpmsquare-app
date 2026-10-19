@@ -226,10 +226,9 @@ on `develop`, never push; owner pushes)
 - The studio has two top-level modes: **Estimate** (inputs, BOM, costing,
   quote, import, export) and **Simulation** (section 10).
 - Everything PCBS-specific is data (templates/rates), never code.
-- Later option (noted 2026-10-19): an estimator rule line could reference a product
-  BOM / kit (`docs/products-bom.md`) and take its rolled-up cost, instead of
-  repeating the components as rule lines. Not built; kits roll up on the product
-  and are applied to `cost_price`, which the estimator can already read.
+- Later option (noted 2026-10-19), now built (section 17): an estimator rule line can
+  reference a product or a BOM / kit (`docs/products-bom.md`) by SKU or product reference
+  and takes its rolled-up cost, instead of repeating the components as rule lines.
 
 ## 10. Simulation mode (owner, 2026-10-17) — phase E4
 
@@ -923,3 +922,118 @@ chips, the old-URL map, the request parser and the reusable-cost helper.
 Remaining: the E4 list (glTF upload, IFC, ERP push, RFQ from estimate lines, saved
 scenarios, PDF or image briefs), and the Drive guide refresh once the owner has
 validated the new screens (standing rule).
+
+## 17. Products and kits as estimate items (as built) (owner, 2026-10-19)
+
+Owner request: "in estimator use products and BOM as items, not blank lines". An estimate
+line can now be a real catalogue product or a BOM kit, from three directions: a template
+rule, a hand-added line, and the demo data. **No new SQL**: `estimate_lines.product_id`
+(0131) and the products' `item_type` and `product_bom_lines` (0133) already exist. Every
+read degrades while 0133 is pending (a missing `item_type` column is read around, a missing
+BOM table means a kit is costed from its stored cost). `tsc` and `vitest` clean. Not
+verified in a browser or against a live database (a tenant login and the owner's SQL are needed).
+
+### 17.1 A rule line names a product
+
+A product rule's cost is `{ "kind": "product", "sku": "PC-HCS-200" }` or
+`{ "kind": "product", "ref": "PRD-0012" }` (either, or both; at least one). The key is
+resolved to a product **per tenant at calculation time**, never stored in the template:
+a SKU matches exactly, a reference matches in any case, a SKU wins if the two collide, and
+among several products with one key an active one wins, then the oldest. A key that
+matches nothing is `totals.unresolved`; the line says **Needs a product** and the quote is
+refused. Rate-only rules are untouched (a template with no product rule makes no catalogue
+read at all). The editor's rule row says "A catalogue product or kit" and takes a SKU or a
+reference (it writes back the key it read).
+
+Pricing, in this order (`priceProductRules`, `server.ts`):
+
+1. **A BOM / kit with components:** the products module's own roll-up (`rollUpBom`, the
+   function behind "Apply to product cost"), per unit of the kit. It is used only when
+   **complete**: a roll-up with a component that has no cost is never used as if it were the
+   whole cost. This comes before the engine because the engine's rate is a sell price and
+   a kit's roll-up is exactly the cost an estimate wants. Source `kit_rollup`. A kit with
+   no components yet is priced like any product.
+2. **The pricing engine** (`priceDocumentLine`, as Standard Quotes do). Source `engine`.
+3. **The product's own `cost_price`.** Source `product_cost`. For an incomplete kit this is
+   the fallback, with a warning naming the components that have no cost, and the line is
+   flagged **Kit cost incomplete**.
+4. Otherwise `totals.unpriced`: **Needs a cost**, the quote is refused.
+
+A preview (`/api/estimates/preview`, catalogue only, stores nothing) rolls kits up the same
+way. A finished calculation stores a small snapshot on each line (`custom_data`: the
+resolved `sku`, `product_ref`, `kit_incomplete`) so the BOM export's item number and the flags
+survive a product change; a recalculation that does not reprice keeps the old snapshot.
+The roll-up is read from the tenant's whole BOM graph (`loadBomGraph`, tenant-scoped).
+
+### 17.2 What a line shows
+
+On a saved estimate's Bill of materials, a line with a product shows the product's name
+(a link to its page when the Products module is on and the person may view it), its
+reference and SKU, and its item type (the tenant's own label). A **kit** line has
+**Show components**, which opens the kit's parts read-only (per unit of the kit: quantity,
+scrap, unit cost, cost, "used, not costed" for a tool, the kit's total and the components
+with no cost), fetched from `GET /api/estimates/[id]/lines/[lid]/components`. Flags (red
+pills, with the explanation on hover): **Needs a product** (the template's key matched
+nothing; the row says what it was looking for), **Needs a cost**, **Kit cost incomplete**.
+
+### 17.3 Adding a line from the catalogue
+
+"+ Add a line" now opens a catalogue search (name, SKU or reference; products and kits;
+`GET /api/estimates/catalogue?q=`, active items only, at most 25, **no costs in the reply**).
+Picking an item fills the description (its name), unit and a likely cost bucket (a tool
+defaults to Moulds, a service to Other, anything else to Materials; all editable). The
+unit cost can stay empty: the server prices it as in 17.1 (a typed unit cost is taken as
+typed and prices nothing). "Add a free-text line instead" is one click away and is the
+only mode in a workspace without the Products module. `POST .../lines` takes `product_id`
+(verified against the tenant) and no longer needs a description when one is given.
+
+### 17.4 Rules this keeps
+
+- Every query carries `.eq("tenant_id", tenantId)`; a product id from a request body is
+  resolved through a tenant-scoped read, so another tenant's id prices nothing (tested). The
+  catalogue and components routes are estimator-gated and return nothing when the tenant does
+  not own the Products module.
+- No cost reaches the v1 API or MCP: nothing in `api/v1`, `apiRows.ts` or `mcp.json` changed;
+  the existing tests that pin this are green. The catalogue route returns no cost at all.
+- Quote conversion is unchanged: it still refuses unresolved and unpriced lines (the message
+  now says "SKU or reference").
+
+### 17.5 Demo data
+
+`src/lib/estimator/demoProducts.ts` is the one source for the illustrative precast catalogue
+(21 products in SAR, three BOM kits with their components) and the product-based variant of the
+villa template. `scripts/gen-estimator-products-demo-seed.ts` writes
+`scripts/seed-estimator-products-demo.sql` (new; run AFTER 0133 and AFTER
+`seed-estimator-demo.sql`; demo tenants only; idempotent; writes each kit's rolled-up cost
+into `cost_price`; links the sample estimate's lines). `scripts/gen-estimator-demo-seed.ts`
+now builds the template from the same file, so `seed-estimator-demo.sql` was regenerated.
+The starter in `starterTemplates.ts` (and its golden numbers) is untouched; "Add the precast villa
+starter" still makes the rate-priced one.
+
+In the demo template: internal walls (solid panel per m2), slabs (hollow-core per m2),
+stairs (per no.), parapet (per lm) and the joints (plates, grout, sealant) are products; the
+external wall (per m2 of face), the boundary wall (per m2) and the beam-and-column frame
+(per m3) are BOM kits; transport (per trip) and the crane and erection crew (per day) are
+services. Moulds, the finish premium and the overhead stay on template rates because they are not
+catalogue items. Four small conversion rates (internal wall thickness, concrete per m2 of
+hollow-core slab, boundary panel thickness, parapet panel pitch) turn piece volumes into the
+unit each product is sold in; the frame kit's 35 / 65 column and beam split is an
+illustrative assumption. The default villa now costs 258 672.36 (351 018.39 incl. margin 18 %
+and VAT 15 %), against 174 256.59 for the rate-priced starter; the difference is the
+placeholder product costs, not a change in the engine.
+
+### 17.6 Not built, and caveats
+
+- The schedule import's quantities are in the rule's unit, which changed for the demo template
+  (slabs and walls are now m2, not m3); a tenant that adopts product rules re-issues its
+  schedule file from "Download the template".
+- The what-if sliders and the risk run hold product-priced lines fixed (section 14.3), so the
+  demo template, being mostly products, moves less than the rate-priced starter. A product
+  or kit cost as a risk driver is a later piece.
+- A kit's lines on the estimate are not exploded into the BOM export or the WBS: the kit is
+  one line, with the kit's item number. Exploding a kit into its components for the factory is a
+  later piece.
+- The template editor takes the SKU or reference as typed text; a product picker in the rule row
+  is not built (the hand-added line has one).
+- The roll-up uses stored component costs; it does not re-apply when a component's cost changes
+  until the estimate is calculated again.

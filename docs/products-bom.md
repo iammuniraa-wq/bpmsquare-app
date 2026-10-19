@@ -80,3 +80,7 @@ Object `product_bom_lines` (feature: products): import (parent and component by 
 - ERP BOM export / sync.
 - Using item-type flags to restrict anything (they are descriptive).
 - Automatic re-application of the cost when a component's cost changes (apply is a manual, confirmed step).
+
+## 7. Used by the Project Estimator
+
+An estimate template rule or a hand-added estimate line can name a product or a BOM / kit (by SKU or product reference). A kit with components and a complete roll-up is costed from that roll-up (the same `rollUpBom`), read live when the estimate is calculated; it does not need "Apply to product cost" first, though applying it keeps the stored cost and the engine in step. A kit whose roll-up is incomplete is never used as its cost: the stored cost is the fallback and the estimate line is flagged. See `docs/estimator-architecture.md` section 17.
