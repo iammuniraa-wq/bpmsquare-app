@@ -226,6 +226,10 @@ on `develop`, never push; owner pushes)
 - The studio has two top-level modes: **Estimate** (inputs, BOM, costing,
   quote, import, export) and **Simulation** (section 10).
 - Everything PCBS-specific is data (templates/rates), never code.
+- Later option (noted 2026-10-19): an estimator rule line could reference a product
+  BOM / kit (`docs/products-bom.md`) and take its rolled-up cost, instead of
+  repeating the components as rule lines. Not built; kits roll up on the product
+  and are applied to `cost_price`, which the estimator can already read.
 
 ## 10. Simulation mode (owner, 2026-10-17) — phase E4
 
