@@ -10,6 +10,7 @@ import { QUOTE_LINES_SPEC } from "@/lib/import/quoteLinesSchema";
 import { EMPLOYEES_SPEC, buildEmployeesSpec } from "@/lib/import/employeesSchema";
 import { requireWorkcenterView } from "@/lib/permissions";
 import { featureForObject } from "@/lib/objectFeatures";
+import { supplierColumnAvailable, withoutSupplierFields } from "@/lib/products/supplier";
 import type { ImportObjectId, ObjectSpec } from "@/lib/import/types";
 
 // Display order is alphabetical by label (sorted after specs are built,
@@ -57,7 +58,9 @@ export default async function DataWorkbenchPage() {
         }
         if (!registryType) return STATIC_SPECS[id]!;
         const fieldConfig = await getEffectiveFieldConfig(supabase, tenantId, registryType);
-        return buildObjectSpec(id, fieldConfig, salesConfig);
+        const built = buildObjectSpec(id, fieldConfig, salesConfig);
+        // Preferred supplier (0132): not offered until the column exists.
+        return id === "products" && !(await supplierColumnAvailable(supabase)) ? withoutSupplierFields(built) : built;
       })
     )
   ).sort((a, b) => a.label.localeCompare(b.label));

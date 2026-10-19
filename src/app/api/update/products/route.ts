@@ -5,7 +5,9 @@ import { readImportBody } from "@/lib/import/server";
 import { summariseUpdate, updateRows, type PreparedUpdate } from "@/lib/import/updateServer";
 import type { RowOutcome } from "@/lib/import/types";
 
-// Mirrors src/app/api/products/[id]/route.ts PATCH.
+// Mirrors src/app/api/products/[id]/route.ts PATCH -- supplier_id excluded: a
+// relationship changes on the record (and Update never keys off a name), so the
+// Supplier column is Import/Export only.
 const ALLOWED = ["name", "sku", "category", "sub_category", "uom", "description", "list_price", "cost_price", "tax_percent", "status", "custom_data"];
 
 export async function POST(request: NextRequest) {

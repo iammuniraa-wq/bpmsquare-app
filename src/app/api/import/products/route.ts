@@ -7,11 +7,13 @@ import { buildObjectSpec } from "@/lib/import/registrySchema";
 import { validateRow, hasBlockingIssue } from "@/lib/import/validate";
 import {
   collectCustomData,
+  fetchAllRows,
   insertRows,
   readImportBody,
   summarise,
   type PreparedRow,
 } from "@/lib/import/server";
+import { resolveSupplierName, supplierColumnAvailable, withoutSupplierFields } from "@/lib/products/supplier";
 import type { RowOutcome } from "@/lib/import/types";
 
 const num = (v: unknown): number | null => {
@@ -37,11 +39,17 @@ export async function POST(request: NextRequest) {
   const rows = readImportBody(await request.json());
   if (!rows) return NextResponse.json({ error: "No rows provided" }, { status: 400 });
 
-  const [fieldConfig, salesConfig] = await Promise.all([
+  // Supplier names resolve against THIS tenant's suppliers only
+  // (fetchAllRows filters on tenant_id); while migration 0132 is pending the
+  // Supplier column is not offered at all, so nothing is silently dropped.
+  const [fieldConfig, salesConfig, suppliers, supplierOn] = await Promise.all([
     getEffectiveFieldConfig(supabase, tenantId, "product"),
     getSalesConfig(supabase, tenantId),
+    fetchAllRows<{ id: string; name: string }>(supabase, "suppliers", "id, name", tenantId),
+    supplierColumnAvailable(supabase),
   ]);
-  const spec = buildObjectSpec("products", fieldConfig, salesConfig);
+  const built = buildObjectSpec("products", fieldConfig, salesConfig);
+  const spec = supplierOn ? built : withoutSupplierFields(built);
 
   const prepared: PreparedRow[] = [];
   const outcomes: RowOutcome[] = [];
@@ -60,6 +68,23 @@ export async function POST(request: NextRequest) {
     }
 
     const v = validated.values;
+
+    let supplierId: string | null = null;
+    if (v.supplier_name) {
+      const match = resolveSupplierName(v.supplier_name, suppliers);
+      if (!match.ok) {
+        outcomes.push({
+          rowNum,
+          status: "failed",
+          reason: match.reason === "ambiguous"
+            ? `Supplier "${v.supplier_name}" matches more than one supplier — rename one, or leave the column blank`
+            : `Supplier "${v.supplier_name}" was not found — import suppliers first, or leave the column blank`,
+        });
+        continue;
+      }
+      supplierId = match.id;
+    }
+
     const custom = collectCustomData(values);
 
     prepared.push({
@@ -77,6 +102,8 @@ export async function POST(request: NextRequest) {
         cost_price: num(v.cost_price),
         tax_percent: num(v.tax_percent),
         status: v.status || "active",
+        // Named only when set: a database without 0132 is never asked for it.
+        ...(supplierId ? { supplier_id: supplierId } : {}),
         ...(custom ? { custom_data: custom } : {}),
       },
     });

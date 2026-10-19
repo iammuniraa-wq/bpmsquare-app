@@ -5,6 +5,7 @@ import { getEffectiveFieldConfig, getSalesConfig } from "@/lib/fieldConfig";
 import { buildObjectSpec } from "@/lib/import/registrySchema";
 import { applyFilters, rowToExportValues } from "@/lib/import/exportServer";
 import { fetchAllRows } from "@/lib/import/server";
+import { supplierColumnAvailable, withoutSupplierFields } from "@/lib/products/supplier";
 import type { Product } from "@/lib/types";
 import type { ExportFilter, ExportResponse } from "@/lib/import/types";
 
@@ -24,16 +25,24 @@ export async function POST(request: NextRequest) {
 
   const { filters = [] } = (await request.json()) as { filters?: ExportFilter[] };
 
-  const [fieldConfig, salesConfig, products] = await Promise.all([
+  const [fieldConfig, salesConfig, products, suppliers, supplierOn] = await Promise.all([
     getEffectiveFieldConfig(supabase, tenantId, "product"),
     getSalesConfig(supabase, tenantId),
     fetchAllRows<Product>(supabase, "products", "*", tenantId),
+    fetchAllRows<{ id: string; name: string }>(supabase, "suppliers", "id, name", tenantId),
+    supplierColumnAvailable(supabase),
   ]);
-  const spec = buildObjectSpec("products", fieldConfig, salesConfig);
+  const built = buildObjectSpec("products", fieldConfig, salesConfig);
+  // 0132 pending: no Supplier / Supplier ID columns rather than empty ones.
+  const spec = supplierOn ? built : withoutSupplierFields(built);
+  const supplierNameById = new Map(suppliers.map((s) => [s.id, s.name]));
 
   const rows = products.map((raw) => {
     const values = rowToExportValues(raw, spec.fields);
     values.id = raw.id;
+    // Name for people, the real supplier id (a field of the registry) for
+    // anything that must key off the record.
+    if (supplierOn) values.supplier_name = raw.supplier_id ? supplierNameById.get(raw.supplier_id) ?? "" : "";
     return values;
   });
 
