@@ -73,7 +73,7 @@ const DATAVERSE: Defaults = {
     field_map: { name: "msdyn_subject", account_external_id: "_msdyn_customer_value" },
   },
   fence_projects: {
-    enabled: true, entity_set: "msdyn_projects", id_field: "msdyn_projectid",
+    enabled: false, entity_set: "msdyn_projects", id_field: "msdyn_projectid",
     field_map: {
       msdyn_subject: "{name}",
       msdyn_description: "{ref} · {summary}",
@@ -104,7 +104,7 @@ const BC: Defaults = {
     field_map: { name: "displayName", email: "email", phone: "phoneNumber" },
   },
   fence_projects: {
-    enabled: true, entity_set: "projects", id_field: "id",
+    enabled: false, entity_set: "projects", id_field: "id",
     field_map: { displayName: "{name}" },
   },
 };
@@ -147,5 +147,16 @@ export function allowedHost(cfg: Pick<D365Config, "product" | "auth_mode">, host
   const h = host.toLowerCase();
   if (cfg.product === "bc" && cfg.auth_mode === "basic") return true;
   if (cfg.product === "bc") return h === "api.businesscentral.dynamics.com";
-  return h.endsWith(".dynamics.com") || h.endsWith(".dynamics.cn") || h.endsWith(".microsoftdynamics.us") || h.endsWith(".dynamics365.us");
+  // Commercial cloud only: tokens come from login.microsoftonline.com, which
+  // can't issue for a sovereign-cloud resource (see sovereignHost).
+  return h.endsWith(".dynamics.com");
+}
+
+/** A US Government / China (21Vianet) Dynamics host. Those clouds sign in at
+ *  their own authority (login.microsoftonline.us / login.chinacloudapi.cn),
+ *  which this connector doesn't support yet -- say so instead of failing
+ *  with an opaque sign-in error. */
+export function sovereignHost(host: string): boolean {
+  const h = host.toLowerCase();
+  return h.endsWith(".dynamics.cn") || h.endsWith(".microsoftdynamics.us") || h.endsWith(".dynamics365.us") || h.endsWith(".appsplatform.us") || h.endsWith(".microsoftdynamics.de");
 }

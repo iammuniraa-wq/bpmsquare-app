@@ -7,7 +7,7 @@ import { logChangeBatch, type ChangeLogEntryParams } from "@/lib/changeLog";
 import type { TenantFeatures } from "@/lib/constants";
 import { D365Client, D365Error } from "./odata";
 import { buildClientAssertion, certDerFromPem, tokenUrl, validDirectory } from "./jwt";
-import { entityConfig, apiBase, resourceFor, allowedHost } from "./catalog";
+import { entityConfig, apiBase, resourceFor, allowedHost, sovereignHost } from "./catalog";
 import { mapPullRow, fingerprint, buildPushBody, modifiedSinceFilter, odataString, buildTargetRecord } from "./mapping";
 import {
   D365_AUTH_FOR_PRODUCT, D365_ENTITY_TARGET,
@@ -65,6 +65,7 @@ export async function validateConfig(cfg: D365Config): Promise<void> {
     if (!/^[A-Za-z0-9_-]{1,50}$/.test(cfg.environment_url.trim())) throw { status: 422, message: "For Business Central online, enter the environment name (e.g. Production)." };
   } else {
     const url = await assertSafeHttpsUrl(cfg.environment_url.trim()).catch((e: Error) => { throw { status: 422, message: e.message }; });
+    if (cfg.auth_mode !== "basic" && sovereignHost(url.hostname)) throw { status: 422, message: `${url.hostname} is in a US Government or China cloud. This connector signs in through the commercial Microsoft cloud only, so it can't connect there yet.` };
     if (!allowedHost(cfg, url.hostname)) throw { status: 422, message: `That isn't a Dynamics 365 address (${url.hostname}). Use your environment URL, e.g. https://yourorg.crm.dynamics.com.` };
   }
   if (cfg.product === "bc" && cfg.company && !/^[0-9a-f-]{36}$/i.test(cfg.company)) throw { status: 422, message: "Business Central company must be the company's id (a GUID) — Test connection lists them." };

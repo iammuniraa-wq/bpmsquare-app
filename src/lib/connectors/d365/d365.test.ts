@@ -3,7 +3,7 @@ import crypto from "crypto";
 import { buildClientAssertion, validDirectory, tokenUrl, checkCertificatePair } from "./jwt";
 import { mapPullRow, fingerprint, renderPushTemplate, buildPushBody, odataString, modifiedSinceFilter, buildTargetRecord } from "./mapping";
 import { D365Client, D365Error, retryDelayMs, idFromEntityIdHeader } from "./odata";
-import { entityConfig, apiBase, allowedHost, resourceFor } from "./catalog";
+import { entityConfig, apiBase, allowedHost, resourceFor, sovereignHost, D365_DEFAULTS } from "./catalog";
 
 describe("certificate client assertion", () => {
   const { privateKey, publicKey } = crypto.generateKeyPairSync("rsa", { modulusLength: 2048 });
@@ -232,5 +232,19 @@ describe("certificate upload checks", () => {
     expect(checkCertificatePair(undefined, "-----BEGIN ENCRYPTED PRIVATE KEY-----\nx\n-----END ENCRYPTED PRIVATE KEY-----")).toMatch(/password-protected/);
     const ec = crypto.generateKeyPairSync("ec", { namedCurve: "P-256" }).privateKey.export({ type: "pkcs8", format: "pem" }).toString();
     expect(checkCertificatePair(undefined, ec)).toMatch(/RSA/);
+  });
+});
+
+describe("catalog safety defaults", () => {
+  it("never pushes into a customer's ERP without an explicit opt-in", () => {
+    for (const p of ["fo", "dataverse", "bc"] as const) expect(D365_DEFAULTS[p].fence_projects?.enabled).toBe(false);
+  });
+  it("keeps online products on the commercial cloud and names sovereign hosts", () => {
+    expect(allowedHost({ product: "fo", auth_mode: "client_secret" }, "pcbs-uat.sandbox.operations.dynamics.com")).toBe(true);
+    for (const h of ["org.crm.dynamics.cn", "org.crm.microsoftdynamics.us", "org.crm.appsplatform.us"]) {
+      expect(allowedHost({ product: "dataverse", auth_mode: "client_secret" }, h)).toBe(false);
+      expect(sovereignHost(h)).toBe(true);
+    }
+    expect(sovereignHost("org.crm4.dynamics.com")).toBe(false);
   });
 });
