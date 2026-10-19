@@ -5,6 +5,8 @@ import {
   type EffectiveField, type FieldRule, type PilotObjectType,
 } from "@/lib/fieldRegistry";
 import { normalizeCategoryTree, type ProductCategoryNode } from "@/lib/picklists";
+import { selectableItemTypes } from "@/lib/products/itemTypes";
+import type { TenantConfig } from "@/lib/constants";
 
 type CustomFieldRow = {
   id: string;
@@ -49,6 +51,12 @@ export async function getEffectiveFieldConfig(
     supabase.from("field_rules").select("*").eq("tenant_id", tenantId).eq("object_type", objectType).order("position"),
   ]);
 
+  // Item type options are the tenant's own list, so product fields need the config.
+  const itemTypeOptions = objectType === "product"
+    ? await supabase.from("tenants").select("config").eq("id", tenantId).single().then(({ data }) =>
+        selectableItemTypes((data?.config ?? {}) as TenantConfig).map((x) => ({ value: x.key, label: x.label })))
+    : null;
+
   const overridesByKey = new Map<string, OverrideRow>(
     ((overrideRows ?? []) as OverrideRow[]).map((o) => [o.field_key, o]),
   );
@@ -74,7 +82,7 @@ export async function getEffectiveFieldConfig(
         exportOnly: def.exportOnly,
         kind: "standard",
         selectSource: def.selectSource,
-        enumOptions: def.enumOptions,
+        enumOptions: def.selectSource === "product_item_type" ? itemTypeOptions ?? [] : def.enumOptions,
         placeholder: def.placeholder,
       });
     });

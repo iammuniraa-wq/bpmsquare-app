@@ -21,7 +21,9 @@ export type WidgetType =
   | "tel" | "email" | "url"
   | "enum";
 
-export type SelectSource = "product_category" | "product_sub_category"; // resolved via useSalesConfig()
+// product_category / product_sub_category resolve via useSalesConfig(); product_item_type is resolved
+// on the server (getEffectiveFieldConfig puts the tenant's types into enumOptions).
+export type SelectSource = "product_category" | "product_sub_category" | "product_item_type";
 
 export type StandardFieldDef = {
   /** Permanent DB column name — never renamed, never changes. */
@@ -263,6 +265,9 @@ export const FIELD_REGISTRY: Record<PilotObjectType, ObjectFieldRegistry> = {
       { key: "category",     defaultLabel: "Category",     widget: "select", defaultSection: "Identity", selectSource: "product_category" },
       { key: "sub_category", defaultLabel: "Sub-category", widget: "select", defaultSection: "Identity", selectSource: "product_sub_category" },
       { key: "status", defaultLabel: "Status",   widget: "enum", defaultSection: "Identity", enumOptions: PRODUCT_STATUS_OPTIONS },
+      // Item type (0133): the options are the tenant's own list (Settings -> Item types),
+      // filled in server-side; the stored value is the type KEY. Empty = unclassified.
+      { key: "item_type", defaultLabel: "Item type", widget: "select", defaultSection: "Identity", selectSource: "product_item_type" },
 
       { key: "list_price",  defaultLabel: "List price", widget: "number", defaultSection: "Pricing" },
       { key: "cost_price",  defaultLabel: "Cost price", widget: "number", defaultSection: "Pricing" },

@@ -3,6 +3,7 @@ import { requireTenantUser, getAuthUser } from "@/lib/supabase-server";
 import { insertWithMasterRef } from "@/lib/masterRef";
 import { diffForLog, logChange } from "@/lib/changeLog";
 import { writeHeaderTolerant } from "@/lib/pricing/quoteLineFlags";
+import { checkItemTypeWrite } from "@/lib/products/itemTypesServer";
 import { parseSupplierInput, rowsCarrySupplier, supplierNamesById, verifySupplier, withSupplierNames } from "@/lib/products/supplier";
 
 export async function GET() {
@@ -63,6 +64,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Supplier not found" }, { status: 404 });
   }
 
+  // item_type must be a key in THIS tenant's list (config.item_types); empty = unclassified.
+  const itemType = await checkItemTypeWrite(supabase, tenantId, body.item_type);
+  if (!itemType.ok) return NextResponse.json({ error: itemType.message }, { status: 400 });
+
   const record: Record<string, unknown> = {
     tenant_id: tenantId,
     name: name.trim(),
@@ -77,6 +82,7 @@ export async function POST(request: NextRequest) {
     status: "active",
     // Only named when set, so a database without 0132 is never asked for it.
     ...(supplierId ? { supplier_id: supplierId } : {}),
+    ...(itemType.key ? { item_type: itemType.key } : {}),
   };
 
   // A pending 0132 drops supplier_id and retries instead of failing the create.

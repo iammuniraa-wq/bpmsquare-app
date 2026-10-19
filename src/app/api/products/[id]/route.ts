@@ -4,6 +4,7 @@ import { diffForLog, logChange } from "@/lib/changeLog";
 import { parseCostSheet } from "@/lib/pricing/costSheet";
 import { parseQtyBreaks } from "@/lib/sales/qtyBreaks";
 import { writeHeaderTolerant } from "@/lib/pricing/quoteLineFlags";
+import { checkItemTypeWrite } from "@/lib/products/itemTypesServer";
 import { parseSupplierInput, supplierNamesById, verifySupplier, withSupplierNames } from "@/lib/products/supplier";
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -70,6 +71,22 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     patch.cost_price_as_of = v === "" ? null : v;
   }
 
+  const { data: before } = await supabase
+    .from("products")
+    .select("*")
+    .eq("id", id).eq("tenant_id", tenantId).maybeSingle();
+
+  // item_type (0133): a key in this tenant's list; null / "" clears it. A kit that
+  // still has components can't be changed to another type.
+  if ("item_type" in body) {
+    const itemType = await checkItemTypeWrite(supabase, tenantId, body.item_type, {
+      productId: id,
+      currentType: (before as { item_type?: string | null } | null)?.item_type ?? null,
+    });
+    if (!itemType.ok) return NextResponse.json({ error: itemType.message }, { status: 400 });
+    patch.item_type = itemType.key;
+  }
+
   // supplier_id (0132) is a foreign id from the request body: null clears it,
   // anything else must be one of this tenant's suppliers before it is saved.
   const supplier = parseSupplierInput(body);
@@ -93,11 +110,6 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     }
     patch.available_segment_ids = segIds;
   }
-
-  const { data: before } = await supabase
-    .from("products")
-    .select("*")
-    .eq("id", id).eq("tenant_id", tenantId).maybeSingle();
 
   // A pending 0132 drops supplier_id and retries instead of failing the save.
   const { data, error, strippedColumns } = await writeHeaderTolerant(patch, async (row) => {

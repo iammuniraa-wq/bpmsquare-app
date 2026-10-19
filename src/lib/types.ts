@@ -978,6 +978,9 @@ export type Product = {
    *  LIST_SOURCES or MCP: who supplies a product is commercially sensitive,
    *  the same reason cost_price stays internal. */
   supplier_id?: string | null;
+  /** Item type key (0133), validated against the tenant's list in config.item_types
+   *  (src/lib/products/itemTypes.ts). Null / absent = unclassified. */
+  item_type?: string | null;
 };
 
 // ── Coverage (0101) ──────────────────────────────────────────────────────────

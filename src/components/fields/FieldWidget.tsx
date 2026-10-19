@@ -32,6 +32,8 @@ type Props = {
 // — records store the CODE, screens show the name (src/lib/picklists.ts).
 // Custom select fields keep their plain string options (value === label).
 function selectOptions(field: EffectiveField, salesCfg: ReturnType<typeof useSalesConfig>): { value: string; label: string }[] {
+  // Item types arrive already resolved from the server (tenant's list) in enumOptions.
+  if (field.selectSource === "product_item_type") return field.enumOptions ?? [];
   const items = field.selectSource === "product_category" ? salesCfg.product_categories
     : field.selectSource === "product_sub_category" ? [...new Map(salesCfg.product_categories.flatMap((pc) => pc.subs).map((s) => [s.code, s])).values()]
     : null;
