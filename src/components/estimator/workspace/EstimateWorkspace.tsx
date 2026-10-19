@@ -90,9 +90,11 @@ export default function EstimateWorkspace(p: WorkspaceProps) {
 
   const showStored = !!saved && !dirty;
   const preview = live.preview;
-  const view = showStored ? saved.view : preview?.view ?? null;
-  const shown = useMemo(() => (showStored ? saved.shown : shownFromPreview(preview)), [showStored, saved, preview]);
-  const options = showStored && preview ? shiftOptions(preview.options, saved.view.total - preview.view.total) : preview?.options ?? null;
+  // A new estimate opens blank: no villa and no price until the person starts.
+  const blank = !saved && !draft.started;
+  const view = showStored ? saved.view : blank ? null : preview?.view ?? null;
+  const shown = useMemo(() => (showStored ? saved.shown : shownFromPreview(blank ? null : preview)), [showStored, saved, preview, blank]);
+  const options = showStored && preview ? shiftOptions(preview.options, saved.view.total - preview.view.total) : blank ? null : preview?.options ?? null;
   const altKey = t ? alternativesInput(t.inputs)?.key : undefined;
 
   const marks = useMemo(() => {
@@ -127,6 +129,10 @@ export default function EstimateWorkspace(p: WorkspaceProps) {
         {editable && t && <EmailIntake key={t.id} templateId={t.id} inputs={t.inputs} onApply={draft.applyProposal} />}
         {locked && <div className="est-note" role="status">This estimate has a quote, so it is locked. Everything below is as it was quoted.</div>}
         {!t && <Card padding={16}><div className="bpm-t-help">This estimate&apos;s template was deleted, so its inputs can&apos;t be shown or recalculated. Its lines and totals are kept as they were.</div></Card>}
+
+        {blank && editable && (
+          <div className="est-note" role="status">Paste the customer&apos;s email above, or fill in any detail, and the villa and the price appear here.</div>
+        )}
 
         <div className="est-grid">
           {t && (

@@ -29,16 +29,23 @@ export function useEstimateDraft(templates: readonly WorkspaceTemplate[], init: 
   const [contactId, setContactId] = useState(init.contactId ?? "");
   const [notes, setNotes] = useState(init.notes ?? "");
   const [customData, setCustomData] = useState<Record<string, unknown>>({});
+  // A new estimate shows no villa and no price until the person starts: reads an email
+  // or changes a detail (a copy of an existing estimate starts with its own figures).
+  const [started, setStarted] = useState(!!init.params && Object.keys(init.params).length > 0);
 
   const pickTemplate = useCallback((id: string) => {
     setTemplateId(id);
     setValues(initialValues(templates.find((t) => t.id === id)?.inputs ?? []));
   }, [templates]);
 
-  const setValue = useCallback((key: string, v: string | boolean) => setValues((s) => ({ ...s, [key]: v })), []);
+  const setValue = useCallback((key: string, v: string | boolean) => {
+    setStarted(true);
+    setValues((s) => ({ ...s, [key]: v }));
+  }, []);
 
   const applyProposal = useCallback((p: IntakeProposal) => {
     if (!template) return;
+    setStarted(true);
     setValues((s) => {
       const next = { ...s };
       for (const i of template.inputs) {
@@ -57,7 +64,7 @@ export function useEstimateDraft(templates: readonly WorkspaceTemplate[], init: 
   }, [template, init.params, init.margin]);
 
   return {
-    template, templateId, pickTemplate, values, setValue, applyProposal, reset,
+    template, templateId, pickTemplate, values, setValue, started, applyProposal, reset,
     margin, setMargin, customer, setCustomer, accountId, setAccountId, contactId, setContactId, notes, setNotes, customData, setCustomData,
   };
 }
