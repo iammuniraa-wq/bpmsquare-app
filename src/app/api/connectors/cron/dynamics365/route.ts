@@ -12,6 +12,9 @@ import { D365_ENTITY_KEYS, type D365Config } from "@/lib/connectors/d365/types";
 
 export const maxDuration = 300;
 const BUDGET_MS = 250_000;
+// A run stops starting new rows here, leaving the rest of the 300 s for the
+// page in flight and its closing writes.
+const RUN_DEADLINE_MS = 265_000;
 
 export async function GET(request: NextRequest) {
   const auth = request.headers.get("authorization");
@@ -31,8 +34,8 @@ export async function GET(request: NextRequest) {
       if (Date.now() - started > BUDGET_MS) break;
       if (!entityConfig(cfg, entity)?.enabled) continue;
       const res = entity === "fence_projects"
-        ? await runPushFenceProjects(admin, r.tenant_id as string, { trigger: "schedule", userId: null })
-        : await runPull(admin, r.tenant_id as string, entity, { trigger: "schedule", userId: null });
+        ? await runPushFenceProjects(admin, r.tenant_id as string, { trigger: "schedule", userId: null, deadline: started + RUN_DEADLINE_MS })
+        : await runPull(admin, r.tenant_id as string, entity, { trigger: "schedule", userId: null, deadline: started + RUN_DEADLINE_MS });
       results.push({ tenant: r.tenant_id as string, entity, error: res.error, counts: res.counts });
     }
   }
