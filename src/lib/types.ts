@@ -874,7 +874,7 @@ export type EstimateTotals = {
   unpriced?: string[];
   /** Product rules whose SKU matched no product in this workspace. */
   unresolved?: string[];
-  /** How each product rule was priced: "engine" or "product_cost". */
+  /** How each product rule was priced: "engine", "product_cost" or "kit_rollup". */
   pricing?: Record<string, string>;
   warnings?: string[];
   computed_at?: string;

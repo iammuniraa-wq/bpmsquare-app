@@ -60,7 +60,7 @@ export default function RulesEditor({
             <Field label="Cost comes from">
               <Select value={r.costKind} onChange={(e) => set(i, { costKind: e.target.value as "product" | "rate" })}>
                 <option value="rate">A rate of this template</option>
-                <option value="product">A catalogue product (item number)</option>
+                <option value="product">A catalogue product or kit</option>
               </Select>
             </Field>
             {r.costKind === "rate" ? (
@@ -72,7 +72,7 @@ export default function RulesEditor({
                 </Select>
               </Field>
             ) : (
-              <Field label="Item number (SKU)" required><Input value={r.sku} onChange={(e) => set(i, { sku: e.target.value })} placeholder="STEEL-REBAR-12" /></Field>
+              <Field label="Product SKU or reference" required hint="A SKU or a product reference such as PRD-0012. A BOM / kit is costed from its components."><Input value={r.sku} onChange={(e) => set(i, { sku: e.target.value })} placeholder="STEEL-REBAR-12" /></Field>
             )}
             <Field label="Element type" hint="Optional. Rows of this type in an imported schedule supply this line's quantity."><Input value={r.element_type} onChange={(e) => set(i, { element_type: e.target.value })} placeholder="external wall panel" /></Field>
           </div>

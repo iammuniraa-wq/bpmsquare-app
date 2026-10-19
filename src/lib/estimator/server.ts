@@ -16,8 +16,10 @@ import type { ComputeSuccess, ScheduleQty, ComputedLine } from "./compute";
 import { applyOverrides, readOverride } from "./overrides";
 import {
   normaliseLine, persistLine, toSummarisable, toQuoteSource, templateGroupNames, unpricedCodes,
-  skuOf, reusableCosts, scheduleFromLines, type PersistLine,
+  skuOf, reusableCosts, scheduleFromLines, snapshotOf, type PersistLine, type ProductSnapshot,
 } from "./lines";
+import { indexByKey, isKitType, kitDecision, type CatalogueProduct, type KitCost } from "./productItems";
+import { loadBomGraph, rollUpFor } from "@/lib/products/bomServer";
 import {
   buildQuoteLines, alternativesInput, tagAlternatives, plainRows, quoteBlockers,
   type AlternativeSet, type QuoteRowDraft,
@@ -238,32 +240,91 @@ export async function verifyForeignIds(
 
 // ── Pricing (the two-pass flow from the E1 hand-off) ─────────────────────────
 
-type ProductRow = { id: string; sku: string | null; name: string; cost_price: number | null; status: string | null; created_at: string | null };
+const PRODUCT_COLS = "id, sku, ref, name, item_type, uom, cost_price, status, created_at";
+// Before migration 0133 there is no item_type column: read without it.
+const PRODUCT_COLS_NO_TYPE = "id, sku, ref, name, uom, cost_price, status, created_at";
 
-/** SKU -> product, tenant-scoped. If a SKU is on several products an active one
- *  wins, then the oldest, so the answer does not change between runs. */
-export async function resolveProductsBySku(supabase: SupabaseClient, tenantId: string, skus: string[]): Promise<Map<string, ProductRow>> {
-  const out = new Map<string, ProductRow>();
-  const unique = [...new Set(skus.filter(Boolean))];
-  for (let i = 0; i < unique.length; i += 100) {
-    const { data } = await supabase
-      .from("products").select("id, sku, name, cost_price, status, created_at")
-      .eq("tenant_id", tenantId).in("sku", unique.slice(i, i + 100));
-    const rank = (p: ProductRow) => (p.status === "active" ? 0 : 1);
-    for (const p of (data ?? []) as ProductRow[]) {
-      if (!p.sku) continue;
-      const cur = out.get(p.sku);
-      if (!cur || rank(p) < rank(cur) || (rank(p) === rank(cur) && (p.created_at ?? "") < (cur.created_at ?? ""))) out.set(p.sku, p);
+type PgResult = PromiseLike<{ data: unknown; error: { code?: string; message?: string } | null }>;
+type ProductQuery = { in: (col: string, vals: string[]) => PgResult };
+
+/** Tenant-scoped product read that degrades when the item_type column is not there yet. */
+async function readProducts(supabase: SupabaseClient, tenantId: string, narrow: (q: ProductQuery) => PgResult): Promise<CatalogueProduct[]> {
+  for (const cols of [PRODUCT_COLS, PRODUCT_COLS_NO_TYPE]) {
+    const { data, error } = await narrow(supabase.from("products").select(cols).eq("tenant_id", tenantId) as unknown as ProductQuery);
+    if (!error) return toCatalogueProducts(data);
+    if (!isMissingRelation(error)) return [];
+  }
+  return [];
+}
+
+export function toCatalogueProducts(data: unknown): CatalogueProduct[] {
+  return ((data ?? []) as Record<string, unknown>[]).map((r) => ({
+    id: String(r.id), sku: (r.sku as string | null) ?? null, ref: (r.ref as string | null) ?? null, name: String(r.name ?? ""),
+    item_type: (r.item_type as string | null | undefined) ?? null, uom: (r.uom as string | null) ?? null,
+    cost_price: r.cost_price === null || r.cost_price === undefined ? null : Number(r.cost_price),
+    status: (r.status as string | null) ?? null, created_at: (r.created_at as string | null) ?? null,
+  }));
+}
+
+export type ResolvedProducts = { byKey: Map<string, CatalogueProduct>; byId: Map<string, CatalogueProduct> };
+
+/**
+ * The tenant's products behind a set of template keys (a SKU or a product
+ * reference) and ids. Every read is tenant-scoped; an id that is not this
+ * tenant's simply does not come back. If a key is on several products an active
+ * one wins, then the oldest, so the answer does not change between runs.
+ */
+export async function resolveProducts(supabase: SupabaseClient, tenantId: string, keys: string[], ids: string[] = []): Promise<ResolvedProducts> {
+  const uniqueKeys = [...new Set(keys.map((k) => k.trim()).filter(Boolean))];
+  const uniqueIds = [...new Set(ids.filter(Boolean))];
+  const found: CatalogueProduct[] = [];
+  for (let i = 0; i < uniqueKeys.length; i += 100) {
+    const chunk = uniqueKeys.slice(i, i + 100);
+    found.push(...await readProducts(supabase, tenantId, (q) => q.in("sku", chunk)));
+    const refs = [...new Set([...chunk, ...chunk.map((k) => k.toUpperCase())])];
+    found.push(...await readProducts(supabase, tenantId, (q) => q.in("ref", refs)));
+  }
+  for (let i = 0; i < uniqueIds.length; i += 100) {
+    const chunk = uniqueIds.slice(i, i + 100);
+    found.push(...await readProducts(supabase, tenantId, (q) => q.in("id", chunk)));
+  }
+  const byId = new Map<string, CatalogueProduct>();
+  for (const p of found) byId.set(p.id, p);
+  return { byKey: indexByKey([...byId.values()], uniqueKeys), byId };
+}
+
+/**
+ * The rolled-up cost of each BOM / kit among these products, from the products
+ * module's own roll-up (`rollUpBom`, the function behind "Apply to product
+ * cost"). A kit with no components, or a database without the BOM table (0133
+ * pending), is simply absent: it is then costed like any other product.
+ */
+export async function loadKitCosts(supabase: SupabaseClient, tenantId: string, products: readonly CatalogueProduct[]): Promise<Map<string, KitCost>> {
+  const out = new Map<string, KitCost>();
+  const kits = [...new Map(products.filter((p) => isKitType(p.item_type)).map((p) => [p.id, p])).values()];
+  if (kits.length === 0) return out;
+  try {
+    const graph = await loadBomGraph(supabase, tenantId, kits[0].id, kits.slice(1).map((k) => k.id));
+    for (const k of kits) {
+      if (graph.getLines(k.id).length === 0) continue;
+      const r = rollUpFor(graph, k.id);
+      out.set(k.id, { total: r.total, incomplete: r.incomplete, missing: r.missing.map((m) => m.name) });
     }
+  } catch {
+    // The BOM tables are not readable: price the kits from their stored cost.
   }
   return out;
 }
 
-export type PricingSource = "engine" | "product_cost" | "reused";
+export type PricingSource = "engine" | "product_cost" | "kit_rollup" | "reused";
+
+/** What pricing found out about the product behind a rule line. */
+export type PricedProduct = { id: string; name: string; sku: string | null; ref: string | null; item_type: string | null; kit_incomplete: boolean };
 
 export type PriceOutcome = {
   unit_costs: Record<string, number>;
   product_ids: Record<string, string>;
+  products: Record<string, PricedProduct>;
   sources: Record<string, PricingSource>;
   unresolved: string[];
   unpriced: string[];
@@ -272,27 +333,50 @@ export type PriceOutcome = {
 
 const PRICE_CONCURRENCY = 6;
 
+export type PriceNeed = {
+  code: string;
+  /** A SKU or a product reference, as the template wrote it. */
+  sku?: string;
+  /** A catalogue pick: already a product id (still checked against the tenant). */
+  productId?: string;
+  qty: number;
+};
+
 /**
- * Price the product-backed rules that came back `needs_price`: the SKU names a
- * product in this tenant's catalogue, `priceDocumentLine()` (the same call
- * Standard Quotes and Fence make) prices it, and when the engine has nothing for
- * it (no price book, or no cost on file) the product's own cost_price is the
- * internal cost. A SKU with no product, or a product with neither, is reported
- * rather than guessed.
+ * Price the product-backed lines that came back `needs_price`: the key (SKU or
+ * product reference) names a product in this tenant's catalogue. A BOM / kit with
+ * components is costed from its rolled-up components; any other product goes
+ * through `priceDocumentLine()` (the same call Standard Quotes and Fence make) and
+ * when the engine has nothing for it (no price book, or no cost on file) the
+ * product's own cost_price is the internal cost. A key with no product, or a
+ * product with neither, is reported rather than guessed.
  */
 export async function priceProductRules(
   supabase: SupabaseClient, tenantId: string,
-  args: { estimateId: string | null; accountId: string | null; needs: { code: string; sku: string; qty: number }[]; catalogueOnly?: boolean }
+  args: { estimateId: string | null; accountId: string | null; needs: PriceNeed[]; catalogueOnly?: boolean }
 ): Promise<PriceOutcome> {
-  const out: PriceOutcome = { unit_costs: {}, product_ids: {}, sources: {}, unresolved: [], unpriced: [], warnings: [] };
+  const out: PriceOutcome = { unit_costs: {}, product_ids: {}, products: {}, sources: {}, unresolved: [], unpriced: [], warnings: [] };
   if (args.needs.length === 0) return out;
-  const products = await resolveProductsBySku(supabase, tenantId, args.needs.map((n) => n.sku));
-  const engineNote = new Set<string>();
+  const { byKey, byId } = await resolveProducts(
+    supabase, tenantId, args.needs.map((n) => n.sku ?? "").filter(Boolean), args.needs.map((n) => n.productId ?? "").filter(Boolean)
+  );
+  const kitCosts = await loadKitCosts(supabase, tenantId, [...byId.values()]);
+  const notes = new Set<string>();
 
-  const one = async (n: { code: string; sku: string; qty: number }) => {
-    const product = products.get(n.sku);
+  const one = async (n: PriceNeed) => {
+    const product = (n.productId ? byId.get(n.productId) : undefined) ?? (n.sku ? byKey.get(n.sku.trim()) : undefined);
     if (!product) { out.unresolved.push(n.code); return; }
+    const kit = kitCosts.get(product.id) ?? null;
+    const decision = kitDecision(product.name, kit);
+    if (decision.note) notes.add(decision.note);
     out.product_ids[n.code] = product.id;
+    out.products[n.code] = { id: product.id, name: product.name, sku: product.sku, ref: product.ref, item_type: product.item_type, kit_incomplete: !!kit?.incomplete };
+
+    if (decision.cost !== null) {
+      out.unit_costs[n.code] = decision.cost;
+      out.sources[n.code] = "kit_rollup";
+      return;
+    }
     // A preview must leave nothing behind, and every engine call stores a
     // pricing document and a meter row, so it prices from the product's own cost.
     if (!args.catalogueOnly) {
@@ -306,12 +390,12 @@ export async function priceProductRules(
           out.sources[n.code] = "engine";
           return;
         }
-        if (!priced.ok) engineNote.add(`No engine price for ${product.name}.`);
+        if (!priced.ok) notes.add(`No engine price for ${product.name}.`);
       } catch {
-        engineNote.add("The pricing engine is not available for this workspace.");
+        notes.add("The pricing engine is not available for this workspace.");
       }
     }
-    const cost = product.cost_price === null || product.cost_price === undefined ? null : Number(product.cost_price);
+    const cost = product.cost_price;
     if (cost !== null && Number.isFinite(cost) && cost > 0) {
       out.unit_costs[n.code] = cost;
       out.sources[n.code] = "product_cost";
@@ -325,7 +409,7 @@ export async function priceProductRules(
   }
   if (args.catalogueOnly) out.warnings.push("Priced from the catalogue's own costs. The saved estimate uses your pricing engine where it has a price.");
   else if (Object.values(out.sources).includes("product_cost")) out.warnings.push("Some product lines use the product's own cost because the pricing engine had no price for them.");
-  out.warnings.push(...engineNote);
+  out.warnings.push(...notes);
   return out;
 }
 
@@ -356,7 +440,7 @@ export async function computeAndPrice(supabase: SupabaseClient, input: CalcInput
   if (!first.ok) return { ok: false, issues: first.issues };
 
   const pricing: PriceOutcome = {
-    unit_costs: { ...(input.reuse ?? {}) }, product_ids: { ...(input.reuseProducts ?? {}) },
+    unit_costs: { ...(input.reuse ?? {}) }, product_ids: { ...(input.reuseProducts ?? {}) }, products: {},
     sources: Object.fromEntries(Object.keys(input.reuse ?? {}).map((c) => [c, "reused" as const])),
     unresolved: [], unpriced: [], warnings: [],
   };
@@ -368,6 +452,7 @@ export async function computeAndPrice(supabase: SupabaseClient, input: CalcInput
     const priced = await priceProductRules(supabase, input.tenantId, { estimateId: input.estimateId, accountId: input.accountId, needs, catalogueOnly: input.catalogueOnly });
     Object.assign(pricing.unit_costs, priced.unit_costs);
     Object.assign(pricing.product_ids, priced.product_ids);
+    Object.assign(pricing.products, priced.products);
     Object.assign(pricing.sources, priced.sources);
     pricing.unresolved = priced.unresolved;
     pricing.unpriced = priced.unpriced;
@@ -409,7 +494,15 @@ async function saveComputation(a: SaveArgs): Promise<{ lines: EstimateLine[]; to
   const manual = oldLines.filter((l) => l.source === "manual");
   const ruleDescription = new Map(template.rules.map((r) => [r.code, r.description]));
 
-  const fresh = result.lines.map((l) => persistLine(l, pricing.product_ids[l.code] ?? null, labelOf(l, ruleDescription)));
+  // What a priced line learned about its product rides on the line. A recalculation
+  // that did not reprice keeps the snapshot the old line already had.
+  const oldSnapshot = new Map<string, ProductSnapshot>();
+  for (const o of oldComputed) { const snap = o.code ? snapshotOf(o) : null; if (o.code && snap && !oldSnapshot.has(o.code)) oldSnapshot.set(o.code, snap); }
+  const snapshotFor = (code: string): ProductSnapshot | null => {
+    const p = pricing.products[code];
+    return p ? { sku: p.sku, ref: p.ref, kit_incomplete: p.kit_incomplete } : (oldSnapshot.get(code) ?? null);
+  };
+  const fresh = result.lines.map((l) => persistLine(l, pricing.product_ids[l.code] ?? null, labelOf(l, ruleDescription), snapshotFor(l.code)));
   const { rows, dropped } = applyOverrides<PersistLine>(fresh, oldComputed);
   const n = rows.length;
 
