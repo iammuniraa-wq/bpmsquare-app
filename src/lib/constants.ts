@@ -89,6 +89,12 @@ export const ROUTES = {
   marketingPreferences: (contactId: string, token: string) => `/marketing/preferences/${contactId}/${token}`,
   marketingClick: (campaignId: string, recipientId: string, index: number, token: string) => `/marketing/c/${campaignId}/${recipientId}/${index}/${token}`,
   marketingSignals: "/marketing/signals",
+  marketingAbm: "/marketing/abm",
+  marketingAbmNew: "/marketing/abm/new",
+  marketingAbmProgram: (id: string) => `/marketing/abm/${id}`,
+  marketingAbmTarget: (programId: string, targetId: string) => `/marketing/abm/${programId}/accounts/${targetId}`,
+  // Flat link for places that only know the target id (Nova inbox, search): resolves the program and redirects.
+  marketingAbmTargetShort: (targetId: string) => `/marketing/abm/targets/${targetId}`,
   marketingSegments: "/marketing/segments",
   marketingSegmentNew: "/marketing/segments/new",
   marketingSegment: (id: string) => `/marketing/segments/${id}`,
@@ -326,6 +332,7 @@ export const NAV: NavGroup[] = [
           { label: "Newsletters", href: ROUTES.marketingNewsletters, icon: "✎", pillar: "purple", featureKey: "newsletter_studio", workcenterKey: "marketing_newsletters" },
           { label: "Buying signals", href: ROUTES.marketingSignals, icon: "◎", pillar: "purple", featureKey: "buying_signals", workcenterKey: "signals" },
           { label: "Forms", href: ROUTES.marketingForms, icon: "☰", pillar: "purple", featureKey: "marketing_forms", workcenterKey: "marketing_forms" },
+          { label: "ABM programs", href: ROUTES.marketingAbm, icon: "◎", pillar: "purple", featureKey: "abm", workcenterKey: "abm" },
           { label: "Segmentation", href: ROUTES.marketingSegments, icon: "⌗", pillar: "purple", featureKey: "marketing", workcenterKey: "marketing_segments" },
           { label: "Leads", href: ROUTES.leads, icon: "✦", pillar: "purple", featureKey: "leads", workcenterKey: "leads" },
           { label: "Scored leads", href: ROUTES.marketingLeads, icon: "◎", pillar: "purple", featureKey: "marketing_scoring", workcenterKey: "leads" },
@@ -648,6 +655,12 @@ export type TenantFeatures = {
   // reads false. With it off the public routes answer 404 and there is no menu
   // item. Needs `marketing`.
   marketing_forms: boolean;
+  // Account-Based Marketing (0180-0182, docs/abm-architecture.md): programs,
+  // target accounts and buying groups as their own object. A platform-admin-
+  // only flag (set in /admin/tenants, never by a workspace admin): default
+  // OFF, missing key reads false, and with it off there is no menu item, no
+  // route and no card on any other screen. Needs `marketing`.
+  abm: boolean;
 };
 
 // WfmConfig — tenant-level WFM (attendance) settings, stored in
@@ -946,6 +959,7 @@ export type AnalyticsMetricId =
   | "pipeline_open_value"
   | "rfq_open"
   | "estimates_open"
+  | "abm_targets_engaged"
   | "wfm_attendance_today" | "wfm_night_shift_cost"
   | "wfm_corrections_queue" | "wfm_leave_requests_queue" | "wfm_recheck_queue"
   | "wfm_site_headcount" | "wfm_workforce_composition" | "wfm_leave_taken_by_type"

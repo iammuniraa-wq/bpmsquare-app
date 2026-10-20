@@ -179,6 +179,10 @@
     {
       "key": "marketing_forms",
       "comment": "Forms and the Preference Centre (0170-0172, docs/shells/forms-shell.md): forms hosted on the tenant's own domain and embedded on its website, each submit recording consent and creating the contact and a lead."
+    },
+    {
+      "key": "abm",
+      "comment": "Account-Based Marketing (0180-0182, docs/abm-architecture.md): programs, target accounts and buying groups as their own object."
     }
   ],
   "extensionHooks": [
@@ -212,7 +216,7 @@
     }
   ],
   "mcp": {
-    "version": "1.10.0",
+    "version": "1.11.0",
     "tools": [
       {
         "name": "list_accounts",
@@ -283,6 +287,22 @@
         "description": "List the tenant's RFQs (requests for quotation sent to suppliers when no cost or price was found): ref, title, status, what each was raised from, reply deadline."
       },
       {
+        "name": "list_abm_programs",
+        "description": "List the tenant's ABM (account-based marketing) programs: goal, time window, status and how many companies are targeted."
+      },
+      {
+        "name": "get_abm_program",
+        "description": "Fetch one ABM program by id with its funnel counted by company: targets, reached, engaged, in talks, in a deal, won, and the money linked to its deals."
+      },
+      {
+        "name": "list_abm_targets",
+        "description": "List ABM target accounts (a company inside a program): tier, progress, next step and linked deal."
+      },
+      {
+        "name": "get_abm_target",
+        "description": "Fetch one ABM target account by id with its buying group given as contact ids and roles only (no names, contact details or notes)."
+      },
+      {
         "name": "get_rfq",
         "description": "Fetch one RFQ by id with its lines, the suppliers asked, each supplier's quoted prices and which line was awarded to whom."
       },
@@ -321,6 +341,18 @@
     ]
   },
   "capabilityDocs": {
+    "abm": {
+      "status": "experimental",
+      "plain": "Choose the companies that matter, work each one as a team towards a stated goal, and see how many were reached, engaged, in a deal and won, counted by company instead of by lead.",
+      "rules": [
+        "A company can be in several programs at once, each with its own tier, progress, owner and next step.",
+        "Progress is a status set by fixed rules from what really happened (a quote opened, a deal opened), and a person can override it; an override always needs a reason and shows who made it.",
+        "Buying stage is read from Buying signals and is never changed or re-scored here; there is no ABM score.",
+        "The target list is a snapshot taken from a target group or segment and never changes by itself.",
+        "A buying group names people and their role for one program; naming someone sends nothing and needs no consent.",
+        "Switched on per workspace by a platform admin and needs Marketing campaigns; until then there is no menu item and no card on any other screen."
+      ]
+    },
     "accounts": {
       "status": "live",
       "plain": "Your customers and the companies you deal with, with their contacts, history and documents in one place.",

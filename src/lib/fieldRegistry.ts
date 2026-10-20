@@ -90,7 +90,7 @@ export type EffectiveField = {
 export type PilotObjectType =
   | "account" | "contact" | "asset" | "supplier"
   | "case" | "work_order" | "quote" | "invoice" | "purchase_order" | "inventory"
-  | "employee" | "product" | "project" | "opportunity" | "rfq" | "estimate" | "process_study" | "newsletter";
+  | "employee" | "product" | "project" | "opportunity" | "rfq" | "estimate" | "process_study" | "newsletter" | "abm_program" | "abm_target" | "abm_member";
 
 // ISO 639-1 codes the Newsletter Studio can write in (src/lib/newsletter/types.ts LANGUAGES); duplicated as data
 // here because this registry is imported by client code and must not pull the studio in.
@@ -411,6 +411,62 @@ export const FIELD_REGISTRY: Record<PilotObjectType, ObjectFieldRegistry> = {
     ],
   },
 
+  // ABM (0180-0182, docs/abm-architecture.md section 11). Program: the goal and
+  // the window. Target: one company in one program -- progress is rule-derived
+  // (an override needs a reason, so it is changed on the screen, not by a form
+  // or a bulk update). Member: a person's role in one target's buying group.
+  abm_program: {
+    sections: ["Program", "Goal", "Window"],
+    fields: [
+      { key: "ref",  defaultLabel: "Program ID", widget: "text", defaultSection: "Program", locked: true, editable: false, exportOnly: true },
+      { key: "name", defaultLabel: "Name",       widget: "text", defaultSection: "Program", locked: true },
+      { key: "kind", defaultLabel: "Kind",       widget: "enum", defaultSection: "Program", enumOptions: [
+        { value: "new_business", label: "New business" }, { value: "expansion", label: "Expansion" },
+      ] },
+      { key: "status", defaultLabel: "Status", widget: "enum", defaultSection: "Program", enumOptions: [
+        { value: "draft", label: "Draft" }, { value: "active", label: "Active" }, { value: "paused", label: "Paused" },
+        { value: "completed", label: "Completed" }, { value: "archived", label: "Archived" },
+      ] },
+      { key: "default_tier", defaultLabel: "Default tier", widget: "enum", defaultSection: "Program", enumOptions: [
+        { value: "one_to_one", label: "1:1" }, { value: "one_to_few", label: "1:few" }, { value: "one_to_many", label: "1:many" },
+      ] },
+      { key: "goal",        defaultLabel: "Goal",        widget: "textarea", defaultSection: "Goal" },
+      { key: "goal_metric", defaultLabel: "Goal is measured in", widget: "enum", defaultSection: "Goal", enumOptions: [
+        { value: "deals_won", label: "Deals won" }, { value: "deals_opened", label: "Deals opened" },
+        { value: "accounts_engaged", label: "Accounts engaged" }, { value: "revenue", label: "Revenue" },
+      ] },
+      { key: "goal_target", defaultLabel: "Goal target", widget: "number", defaultSection: "Goal" },
+      { key: "starts_on", defaultLabel: "Starts on", widget: "date", defaultSection: "Window" },
+      { key: "ends_on",   defaultLabel: "Ends on",   widget: "date", defaultSection: "Window" },
+    ],
+  },
+  abm_target: {
+    sections: ["Target", "Next step"],
+    fields: [
+      { key: "program_ref",  defaultLabel: "Program",  widget: "text", defaultSection: "Target", locked: true, editable: false, exportOnly: true },
+      { key: "tier", defaultLabel: "Tier", widget: "enum", defaultSection: "Target", enumOptions: [
+        { value: "one_to_one", label: "1:1" }, { value: "one_to_few", label: "1:few" }, { value: "one_to_many", label: "1:many" },
+      ] },
+      { key: "progress", defaultLabel: "Progress", widget: "enum", defaultSection: "Target", locked: true, editable: false, exportOnly: true, enumOptions: [
+        { value: "planned", label: "Planned" }, { value: "reached", label: "Reached" }, { value: "engaged", label: "Engaged" },
+        { value: "in_talks", label: "In talks" }, { value: "deal_open", label: "Deal open" }, { value: "won", label: "Won" },
+        { value: "lost", label: "Lost" }, { value: "dropped", label: "Dropped" },
+      ] },
+      { key: "next_step",     defaultLabel: "Next step", widget: "text", defaultSection: "Next step" },
+      { key: "next_step_due", defaultLabel: "Due on",    widget: "date", defaultSection: "Next step" },
+    ],
+  },
+  abm_member: {
+    sections: ["Person"],
+    fields: [
+      { key: "program_ref",  defaultLabel: "Program",   widget: "text", defaultSection: "Person", locked: true, editable: false, exportOnly: true },
+      { key: "role", defaultLabel: "Role", widget: "enum", defaultSection: "Person", enumOptions: [
+        { value: "decision_maker", label: "Decision maker" }, { value: "influencer", label: "Influencer" },
+        { value: "user", label: "User" }, { value: "blocker", label: "Blocker" }, { value: "unknown", label: "Unknown" },
+      ] },
+    ],
+  },
+
   // Workforce project (project costing). parent_id and the linked people /
   // shifts / sites are structure, managed on the project screens and the
   // roster -- not fields a form or an import edits directly.
@@ -640,7 +696,7 @@ export const DEFAULT_FIELD_RULES: Partial<Record<PilotObjectType, FieldRule[]>> 
 const PILOT_OBJECT_TYPES: readonly PilotObjectType[] = [
   "account", "contact", "asset", "supplier",
   "case", "work_order", "quote", "invoice", "purchase_order", "inventory",
-  "employee", "product", "project", "opportunity", "rfq", "estimate", "process_study", "newsletter",
+  "employee", "product", "project", "opportunity", "rfq", "estimate", "process_study", "newsletter", "abm_program", "abm_target", "abm_member",
 ];
 
 export function isPilotObjectType(objectType: string): objectType is PilotObjectType {

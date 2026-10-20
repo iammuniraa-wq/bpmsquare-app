@@ -1128,3 +1128,6 @@ export type PurchaseOrderLine = {
   rate: number;
   amount: number;
 };
+
+// ABM (0180-0182): the entity types live with their vocabulary in src/lib/abm/types.ts.
+export type { AbmProgram, AbmTargetAccount, AbmBuyingGroupMember } from "./abm/types";

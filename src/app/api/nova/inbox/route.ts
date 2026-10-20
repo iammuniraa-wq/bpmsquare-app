@@ -18,6 +18,7 @@ const LABEL: Record<string, string> = {
   invoices: "Invoice", assets: "Asset", suppliers: "Supplier",
   inventory: "Inventory item", purchase_orders: "Purchase Order", employees: "Employee",
   products: "Product", wfm_projects: "Project", opportunities: "Deal", rfqs: "RFQ", estimates: "Estimate", leads: "Lead",
+  abm_programs: "ABM program", abm_targets: "ABM target account",
 };
 const TABLE: Record<string, { table: string; nameCol: string; refCol?: string }> = {
   accounts:        { table: "accounts",         nameCol: "name", refCol: "ref" },
@@ -38,6 +39,9 @@ const TABLE: Record<string, { table: string; nameCol: string; refCol?: string }>
   rfqs: { table: "rfqs", nameCol: "title", refCol: "ref" },
   estimates: { table: "estimates", nameCol: "name", refCol: "ref" },
   leads: { table: "leads", nameCol: "title" },
+  abm_programs: { table: "abm_programs", nameCol: "name", refCol: "ref" },
+  // A target has no name or ref of its own: the inbox shows its id; the record page names the company.
+  abm_targets: { table: "abm_target_accounts", nameCol: "id" },
 };
 
 export async function GET() {
@@ -95,6 +99,16 @@ export async function GET() {
       names.set(`${type}:${row.id}`, row[def.nameCol] || (def.refCol ? row[def.refCol] : "") || "Untitled");
     }
   }));
+
+  // A target account is named by its company.
+  const targetIds = [...new Set(byType.get("abm_targets") ?? [])];
+  if (targetIds.length > 0) {
+    const { data: ts } = await admin.from("abm_target_accounts").select("id, account_id").eq("tenant_id", tenantId).in("id", targetIds);
+    const targets = (ts ?? []) as { id: string; account_id: string }[];
+    const { data: accs } = await admin.from("accounts").select("id, name").eq("tenant_id", tenantId).in("id", [...new Set(targets.map((t) => t.account_id))]);
+    const accName = new Map(((accs ?? []) as { id: string; name: string }[]).map((a) => [a.id, a.name]));
+    for (const t of targets) names.set(`abm_targets:${t.id}`, accName.get(t.account_id) ?? "Untitled");
+  }
 
   const items = rows
     .filter((r) => TABLE[r.object_type as string])

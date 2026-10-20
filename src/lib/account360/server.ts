@@ -12,6 +12,7 @@ import { marketingScoringOn } from "@/lib/marketing/config";
 import { buildMarketingCard } from "@/lib/marketing/leads/account360Card";
 import { signalsEnabled } from "@/lib/signals/flag";
 import { buildSignalsCard } from "@/lib/signals/account360";
+import { buildAbmAccountCard } from "@/lib/abm/account360";
 import { formatMoney, type CurrencyDef } from "@/lib/currency";
 import type {
   Account360Card,
@@ -66,6 +67,7 @@ export async function buildAccount360(
   const { data: tenantFeatureRow } = await admin.from("tenants").select("features").eq("id", tenantId).maybeSingle();
   const coverageOn = (tenantFeatureRow?.features as TenantFeatures | undefined)?.coverage_model === true;
   const wfmProjectsOn = (tenantFeatureRow?.features as TenantFeatures | undefined)?.wfm_projects === true;
+  const abmOn = (tenantFeatureRow?.features as TenantFeatures | undefined)?.abm === true;
 
   const [
     { data: contactRows },
@@ -362,6 +364,17 @@ export async function buildAccount360(
     }
   }
 
+  // ── In ABM programs ─────────────────────────────────────────────────────
+  // Only when the tenant owns the module (a tenant without it never sees the card). The card
+  // adds no factor to the rating below (docs/abm-architecture.md 9.6).
+  let abmSuggestions: Account360Suggestion[] = [];
+  if (abmOn) {
+    const abm = await buildAbmAccountCard(tenantId, accountId);
+    builtins.abm = abm.card;
+    abmSuggestions = abm.suggestions;
+    activeBuiltinIds = [...activeBuiltinIds, "abm"];
+  }
+
   // ── Rating ──────────────────────────────────────────────────────────────
   const activityDates = [
     ...quotes.map((q) => q.created_at),
@@ -465,6 +478,8 @@ export async function buildAccount360(
       urgency: "high",
     });
   }
+
+  suggestions.push(...abmSuggestions);
 
   // ── Card order + tenant's external sources ──────────────────────────────
   const hidden = new Set(config?.hidden_cards ?? []);

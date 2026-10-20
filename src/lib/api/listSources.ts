@@ -139,6 +139,40 @@ const RFQ_FIELDS: QueryableField[] = [
   { path: "updated_at", type: "date" },
 ];
 
+const ABM_PROGRAM_FIELDS: QueryableField[] = [
+  { path: "id", type: "string" },
+  { path: "ref", type: "string", searchable: true },
+  { path: "name", type: "string", searchable: true },
+  { path: "kind", type: "string" },
+  { path: "status", type: "string" },
+  { path: "goal", type: "string", searchable: true },
+  { path: "goal_metric", type: "string" },
+  { path: "goal_target", type: "number" },
+  { path: "default_tier", type: "string" },
+  { path: "starts_on", type: "date" },
+  { path: "ends_on", type: "date" },
+  { path: "targets_count", type: "number" },
+  { path: "created_at", type: "date" },
+];
+
+const ABM_TARGET_FIELDS: QueryableField[] = [
+  { path: "id", type: "string" },
+  { path: "program_id", type: "string" },
+  { path: "program_ref", type: "string", searchable: true },
+  { path: "program_name", type: "string", searchable: true },
+  { path: "account.id", type: "string" },
+  { path: "account.name", type: "string", searchable: true },
+  { path: "tier", type: "string" },
+  { path: "progress", type: "string" },
+  { path: "progress_source", type: "string" },
+  { path: "progress_changed_at", type: "date" },
+  { path: "next_step", type: "string", searchable: true },
+  { path: "next_step_due", type: "date" },
+  { path: "opportunity_id", type: "string" },
+  { path: "people_count", type: "number" },
+  { path: "created_at", type: "date" },
+];
+
 const ESTIMATE_FIELDS: QueryableField[] = [
   { path: "id", type: "string" },
   { path: "ref", type: "string", searchable: true },
@@ -429,6 +463,67 @@ export const LIST_SOURCES: Record<string, ListSource> = {
         .eq("tenant_id", tenantId)
         .order("created_at", { ascending: false });
       return (data ?? []).map((r) => ({ ...r, _links: { self: `/api/v1/rfqs/${r.id}` } }));
+    },
+  },
+  abm_programs: {
+    label: "ABM programs (account-based marketing)",
+    description: "Account-based marketing programs: a goal, a time window, a status and how many companies are targeted. Companies and their progress: abm_targets.",
+    relatedWorkcenter: "abm",
+    fields: ABM_PROGRAM_FIELDS,
+    load: async (tenantId) => {
+      const admin = createAdminSupabase();
+      const { data, error } = await admin
+        .from("abm_programs")
+        .select("id, ref, name, kind, goal, goal_metric, goal_target, starts_on, ends_on, status, default_tier, owner_user_id, custom_data, created_at, updated_at")
+        .eq("tenant_id", tenantId)
+        .order("created_at", { ascending: false });
+      if (error) return []; // migration 0180 pending: nothing to show yet
+      const counts = new Map<string, number>();
+      const { data: t } = await admin.from("abm_target_accounts").select("program_id").eq("tenant_id", tenantId).limit(20000);
+      for (const r of (t ?? []) as { program_id: string }[]) counts.set(r.program_id, (counts.get(r.program_id) ?? 0) + 1);
+      return (data ?? []).map((p) => ({ ...p, targets_count: counts.get(p.id as string) ?? 0, _links: { self: `/api/v1/abm-programs/${p.id}`, targets: `/api/v1/abm-programs/${p.id}/targets` } }));
+    },
+  },
+  abm_targets: {
+    label: "ABM target accounts (a company in a program)",
+    description: "One company inside one ABM program: tier, progress (planned, reached, engaged, in talks, deal open, won, lost, dropped), next step and linked deal. Buying-group roles are on /api/v1/abm-targets/:id.",
+    relatedWorkcenter: "abm",
+    fields: ABM_TARGET_FIELDS,
+    load: async (tenantId) => {
+      // Internal and deliberately NOT selected: notes (a rep's private note), dropped_reason and
+      // progress_reason (free text that can name people). Buying-group people are on the detail endpoint, by id and role only.
+      const admin = createAdminSupabase();
+      const { data, error } = await admin
+        .from("abm_target_accounts")
+        .select("id, program_id, account_id, tier, progress, progress_source, progress_changed_at, owner_user_id, next_step, next_step_due, opportunity_id, custom_data, created_at, updated_at")
+        .eq("tenant_id", tenantId)
+        .order("created_at", { ascending: false })
+        .limit(10000);
+      if (error) return [];
+      const rows = data ?? [];
+      const programIds = [...new Set(rows.map((r) => r.program_id as string))];
+      const accountIds = [...new Set(rows.map((r) => r.account_id as string))];
+      const programs = new Map<string, { ref: string | null; name: string }>();
+      const accounts = new Map<string, string>();
+      for (let i = 0; i < programIds.length; i += 150) {
+        const { data: p } = await admin.from("abm_programs").select("id, ref, name").eq("tenant_id", tenantId).in("id", programIds.slice(i, i + 150));
+        for (const r of (p ?? []) as { id: string; ref: string | null; name: string }[]) programs.set(r.id, { ref: r.ref, name: r.name });
+      }
+      for (let i = 0; i < accountIds.length; i += 150) {
+        const { data: a } = await admin.from("accounts").select("id, name").eq("tenant_id", tenantId).in("id", accountIds.slice(i, i + 150));
+        for (const r of (a ?? []) as { id: string; name: string }[]) accounts.set(r.id, r.name);
+      }
+      const people = new Map<string, number>();
+      const { data: m } = await admin.from("abm_buying_group_members").select("target_account_id").eq("tenant_id", tenantId).limit(50000);
+      for (const r of (m ?? []) as { target_account_id: string }[]) people.set(r.target_account_id, (people.get(r.target_account_id) ?? 0) + 1);
+      return rows.map((r) => ({
+        ...r,
+        program_ref: programs.get(r.program_id as string)?.ref ?? null,
+        program_name: programs.get(r.program_id as string)?.name ?? null,
+        account: { id: r.account_id, name: accounts.get(r.account_id as string) ?? null },
+        people_count: people.get(r.id as string) ?? 0,
+        _links: { self: `/api/v1/abm-targets/${r.id}`, program: `/api/v1/abm-programs/${r.program_id}`, account: `/api/v1/accounts/${r.account_id}` },
+      }));
     },
   },
   estimates: {

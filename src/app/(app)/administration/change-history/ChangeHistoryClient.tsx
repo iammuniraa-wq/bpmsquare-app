@@ -32,6 +32,9 @@ const OBJECT_TYPES: { value: string; label: string }[] = [
   { value: "signal_topics", label: "Signal topics" },
   { value: "account_intent", label: "Buying signals" },
   { value: "forms", label: "Forms" },
+  { value: "abm_programs", label: "ABM programs" },
+  { value: "abm_target_accounts", label: "ABM target accounts" },
+  { value: "abm_buying_group_members", label: "ABM buying group members" },
   { value: "estimate_templates", label: "Estimate templates" },
   { value: "inventory", label: "Inventory" },
   { value: "employees", label: "Employees" },
@@ -83,7 +86,8 @@ export default function ChangeHistoryClient() {
   const hasLeadScoring = useTenantFeature("marketing_scoring");
   const hasSignals = useTenantFeature("buying_signals");
   const hasForms = useTenantFeature("marketing_forms");
-  const objectTypes = OBJECT_TYPES.filter((o) => (o.value !== "newsletters" || hasNewsletters) && (o.value !== "leads" || hasLeadScoring) && (!["signal_topics", "account_intent"].includes(o.value) || hasSignals) && (o.value !== "forms" || hasForms));
+  const hasAbm = useTenantFeature("abm");
+  const objectTypes = OBJECT_TYPES.filter((o) => (o.value !== "newsletters" || hasNewsletters) && (o.value !== "leads" || hasLeadScoring) && (!["signal_topics", "account_intent"].includes(o.value) || hasSignals) && (o.value !== "forms" || hasForms) && (!o.value.startsWith("abm_") || hasAbm));
   const [objectType, setObjectType] = useState(OBJECT_TYPES[0].value);
   const [objectId, setObjectId] = useState("");
   const [rows, setRows] = useState<ChangeLogRow[] | null>(null);

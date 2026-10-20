@@ -49,6 +49,16 @@ export const OBJECT_FEATURE: Record<string, keyof TenantFeatures | null> = {
   signal_topics: "buying_signals",
   // Forms (0170). Platform-admin flag; every forms route also checks `marketing`.
   forms: "marketing_forms",
+  // ABM (0180-0182). Every spelling a surface uses: the tables, the Data
+  // Workbench routes (abm_programs / abm_targets / abm_members) and the v1
+  // endpoints (abm-programs / abm-targets).
+  abm_programs: "abm",
+  abm_target_accounts: "abm",
+  abm_buying_group_members: "abm",
+  abm_targets: "abm",
+  abm_members: "abm",
+  "abm-programs": "abm",
+  "abm-targets": "abm",
   // Inventory is the stock side of Purchasing; it has never had a key of
   // its own, and the nav gates it on `purchasing` too.
   inventory: "purchasing",

@@ -106,6 +106,22 @@ export const SEGMENT_FIELDS: SegmentFieldDef[] = [
   { key: "intent_score", label: "In-market score", category: "Buying signals", type: "number", operators: ["gt", "lt", "equals"], audience: { feature: "buying_signals" } },
   { key: "days_in_stage", label: "Days in current stage", category: "Buying signals", type: "number", operators: ["gt", "lt"], audience: { feature: "buying_signals" } },
   { key: "signal_topic", label: "Engaged with topic", category: "Buying signals", type: "text", operators: ["contains"], audience: { feature: "buying_signals" } },
+  // ABM (0180-0181) computed fields: loaded by computeAbmSignals() in src/lib/abm/signals.ts, the same
+  // way the Coverage ones above are, so a workspace without ABM simply never matches them.
+  { key: "in_abm_program", label: "Is in ABM program (ID or name)", category: "ABM", type: "text", operators: ["contains"] },
+  {
+    key: "abm_progress", label: "ABM progress (furthest, active programs)", category: "ABM", type: "select",
+    options: [
+      { value: "planned", label: "Planned" }, { value: "reached", label: "Reached" }, { value: "engaged", label: "Engaged" },
+      { value: "in_talks", label: "In talks" }, { value: "deal_open", label: "Deal open" }, { value: "won", label: "Won" }, { value: "lost", label: "Lost" },
+    ],
+    operators: ["equals", "not_equals"],
+  },
+  {
+    key: "abm_tier", label: "ABM tier (most personal, active programs)", category: "ABM", type: "select",
+    options: [{ value: "one_to_one", label: "1:1" }, { value: "one_to_few", label: "1:few" }, { value: "one_to_many", label: "1:many" }],
+    operators: ["equals", "not_equals"],
+  },
 ];
 
 /** The fields a palette may offer: marketing-scope ones only where the lead-scoring program is on. */

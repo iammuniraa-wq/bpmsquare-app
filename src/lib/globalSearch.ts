@@ -8,7 +8,7 @@ import type { WorkcenterKey, ViewableWorkcenters } from "./workcenters";
 export type SearchObjectType =
   | "account" | "contact" | "asset" | "case" | "quote"
   | "work_order" | "purchase_order" | "invoice" | "inventory_item"
-  | "supplier" | "lead" | "employee" | "product" | "project" | "opportunity" | "rfq" | "estimate";
+  | "supplier" | "lead" | "employee" | "product" | "project" | "opportunity" | "rfq" | "estimate" | "abm_program";
 
 export type SearchObjectDef = {
   type: SearchObjectType;
@@ -47,6 +47,7 @@ export const SEARCH_OBJECTS: SearchObjectDef[] = [
   { type: "opportunity", label: "Deals", icon: "◈", featureKeys: ["pipeline"], workcenters: ["pipeline"] },
   { type: "rfq", label: "RFQs", icon: "⇄", featureKeys: ["rfq"], workcenters: ["rfqs"] },
   { type: "estimate", label: "Estimates", icon: "∑", featureKeys: ["estimator"], workcenters: ["estimates"] },
+  { type: "abm_program", label: "ABM programs", icon: "◎", featureKeys: ["abm"], workcenters: ["abm"] },
   { type: "project", label: "Projects", icon: "▦", featureKeys: ["wfm_projects"], workcenters: ["wfm"] },
   { type: "lead", label: "Leads", icon: "✦", featureKeys: ["leads"], workcenters: ["leads"] },
   // Workforce: visible via the Employees master-data grant, or to WFM

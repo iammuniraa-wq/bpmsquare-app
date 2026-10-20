@@ -42,6 +42,7 @@ const CREATE_ACTIONS: { label: string; href: string; featureKey: string }[] = [
   { label: "New Estimate",  href: "/estimates/new",   featureKey: "estimator" },
   { label: "New Study",     href: "/process-studio/new", featureKey: "process_studio" },
   { label: "New Newsletter", href: "/marketing/newsletters/new", featureKey: "newsletter_studio" },
+  { label: "New ABM program", href: "/marketing/abm/new", featureKey: "abm" },
   { label: "New Project",   href: "/wfm/projects/new", featureKey: "wfm_projects" },
   { label: "New Technician", href: "/technicians/new", featureKey: "technicians" },
 ];

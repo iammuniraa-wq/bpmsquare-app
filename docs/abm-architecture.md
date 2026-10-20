@@ -1,6 +1,10 @@
 # Account-Based Marketing (ABM) — architecture v0.1 (2026-10-19)
 
-> **Status: design only. Nothing built, no SQL written, nothing staged.**
+> **Update 2026-10-20: the A1 shell is built (flagged off, migrations 0180 to 0183 pending).** What is
+> built and what comes next, in order: `docs/shells/abm-shell.md`. Where this document and the shell
+> doc differ, the shell doc is as-built.
+>
+> **Status of the design below: written before any code.**
 > Written for the owner to validate before any code. The clickable mock-up
 > is `docs/design/abm-mockup.html` — the programs list, a program record with
 > its target accounts, a target account with its buying group, the plays
@@ -642,7 +646,7 @@ is **deferred** until a program exceeds 500 targets (performance doc R4).
 
 | # | Item | Decision |
 |---|---|---|
-| 1 | DB | Three tables (§3) + four column additions, RLS `for all` tenant isolation in the same migration `0137_abm.sql` (next free after 0136; 0134 and 0135 are claimed by the Newsletter and Signals designs — verify before numbering); ledger entry pending on both DBs; degrade on 42P01 (§3.6); `custom_data` on all three; `scripts/seed-abm-demo.sql` (two programs — "Riyadh developers 2027" new business, "AMC expansion 2027" expansion — 12 + 8 targets over the demo accounts, one account in both, buying groups with two open gaps, progress history as events, one linked won deal; idempotent; flips `abm` on for `is_demo`; run AFTER 0137 and the marketing demo seed). |
+| 1 | DB | Three tables (§3) + four column additions, RLS `for all` tenant isolation in the same migrations `0180_abm_programs.sql`, `0181_abm_target_accounts.sql`, `0182_abm_buying_group_members.sql` and `0183_abm_custom_field_types.sql` (renumbered at build time: the doc first said 0137, which is the domain event table; 0180 to 0184 are reserved for ABM); ledger entry pending on both DBs; degrade on 42P01 (§3.6); `custom_data` on all three; `scripts/seed-abm-demo.sql` (two programs — "Riyadh developers 2027" new business, "AMC expansion 2027" expansion — 12 + 8 targets over the demo accounts, one account in both, buying groups with two open gaps, progress history as events, one linked won deal; idempotent; flips `abm` on for `is_demo`; run AFTER 0183 and the marketing demo seed). |
 | 2 | Types & registry | `AbmProgram`, `AbmTargetAccount`, `AbmBuyingGroupMember` in `types.ts`. Master ref: `abm_programs` → `ABM-####` via `insertWithMasterRef`; **skip on targets and members** (children, referenced through program + account / contact, like quote lines — their own `id` is the update contract). `PilotObjectType` + `PILOT_OBJECT_TYPES` + `FIELD_REGISTRY` for all three (sections: Program → Goal, Window, Ownership, Source; Target → Position, Ownership, Next step; Member → Person, Role), `ref`/`id`/`progress_changed_at` marked locked/exportOnly. |
 | 3 | Custom fields | all three in `VALID_OBJECTS`; tabs in the custom-fields page carrying `featureKey: abm`; PATCH routes accept `cf_`-filtered `custom_data`; `ObjectSections` on both record pages (excluding the hand-rendered header facts and the buying group). |
 | 3½ | CRUD + screens | §10 routes; list, record, create (program) pages; target and member create in drawers (no separate pages — a drawer keeps the person on the program; stated); `ROUTES`; `NAV` item **ABM** in the Marketing group with `featureKey: abm`, `workcenterKey: abm`; `WorkcenterKey` + catalog entry; flag `abm` in `TenantFeatures`, `TenantEditor` FEATURES (dependency: `marketing`; optional: `buying_signals`, `coverage_model`, shown in the dependency list), `DEFAULT_FEATURES` **off**. |
@@ -665,13 +669,13 @@ is **deferred** until a program exceeds 500 targets (performance doc R4).
   gated on `next_experience`: it is a standard module, not a Nova
   experiment; its Nova surfaces (inbox, palette, timeline) self-gate like
   every other object's.
-- **Migrations:** `0137_abm.sql` — the three tables with indexes
+- **Migrations:** `0180_abm_programs.sql`, `0181_abm_target_accounts.sql`, `0182_abm_buying_group_members.sql` (one per table, built in A1) and `0183_abm_custom_field_types.sql` — the three tables with indexes
   `(tenant_id, program_id)`, `(tenant_id, account_id)` on targets,
   `(tenant_id, target_account_id)` and `(tenant_id, contact_id)` on
   members, unique constraints in §3, RLS + policies; the four column
   additions with FKs; `StatusEntityType` seeds for `abm_program` and
   `abm_target_account` through the status engine's seed helper.
-  `0138_abm_segment_fields.sql` is **not** needed — segment fields are
+  A separate segment-fields migration is **not** needed — segment fields are
   code. Both listed in PROJECT.md's ledger as pending on both DBs.
 - **Settings → Marketing → ABM** (admin): default required roles, tiers in
   use, the Engaged rule toggle, play templates on/off, progress labels

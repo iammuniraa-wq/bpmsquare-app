@@ -82,6 +82,18 @@ export const EVENTS = {
   // Signals (sibling design)
   SIGNAL_DETECTED: "signal.detected",
   ACCOUNT_BUYING_STAGE_CHANGED: "account.buying_stage_changed",
+  // ABM (docs/abm-architecture.md section 8). Payloads carry ids and short codes, never names.
+  ABM_PROGRAM_CREATED: "abm.program.created",
+  ABM_PROGRAM_UPDATED: "abm.program.updated",
+  ABM_TARGET_ADDED: "abm.target.added",
+  ABM_TARGET_REMOVED: "abm.target.removed",
+  ABM_TARGET_PROGRESS_CHANGED: "abm.target.progress_changed",
+  ABM_TARGET_TIER_CHANGED: "abm.target.tier_changed",
+  ABM_TARGET_OWNER_CHANGED: "abm.target.owner_changed",
+  ABM_TARGET_NEXT_STEP_SET: "abm.target.next_step_set",
+  ABM_MEMBER_ADDED: "abm.buying_group.member_added",
+  ABM_MEMBER_REMOVED: "abm.buying_group.member_removed",
+  ABM_MEMBER_ROLE_CHANGED: "abm.buying_group.role_changed",
   // WFM (planned; no marketing use)
   WFM_LEAVE_REQUESTED: "wfm.leave_requested",
   WFM_OT_REQUESTED: "wfm.ot_requested",
