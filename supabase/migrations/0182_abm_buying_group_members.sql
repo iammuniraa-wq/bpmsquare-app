@@ -19,6 +19,8 @@ create table if not exists abm_buying_group_members (
   role               text not null default 'unknown'
     check (role in ('decision_maker', 'influencer', 'user', 'blocker', 'unknown')),
   is_primary         boolean not null default false,
+  -- Who on our side knows this person (the relationship owner).
+  owner_user_id      uuid,
   notes              text,
   added_by           uuid,
   added_via          text not null default 'manual' check (added_via in ('manual', 'suggested', 'import')),

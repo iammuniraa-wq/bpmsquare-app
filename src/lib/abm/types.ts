@@ -17,8 +17,8 @@ export const PROGRESS_LABEL: Record<AbmProgress, string> = {
   planned: "Planned", reached: "Reached", engaged: "Engaged", in_talks: "In talks",
   deal_open: "Deal open", won: "Won", lost: "Lost", dropped: "Dropped",
 };
-export const PROGRESS_TONE: Record<AbmProgress, "gray" | "blue" | "green" | "amber" | "red"> = {
-  planned: "gray", reached: "blue", engaged: "blue", in_talks: "amber", deal_open: "amber", won: "green", lost: "red", dropped: "gray",
+export const PROGRESS_TONE: Record<AbmProgress, "blue" | "purple" | "teal" | "amber" | "red" | "green"> = {
+  planned: "purple", reached: "blue", engaged: "teal", in_talks: "amber", deal_open: "amber", won: "green", lost: "red", dropped: "purple",
 };
 
 export const ABM_ROLES = ["decision_maker", "influencer", "user", "blocker", "unknown"] as const;
@@ -80,6 +80,7 @@ export type AbmTargetAccount = {
   progress_source: "rule" | "manual";
   progress_reason: string | null;
   progress_changed_at: string;
+  progress_changed_by: string | null;
   owner_user_id: string | null;
   owner_source: "coverage" | "program" | "manual";
   next_step: string | null;
@@ -102,6 +103,8 @@ export type AbmBuyingGroupMember = {
   contact_id: string;
   role: AbmRole;
   is_primary: boolean;
+  /** Who on our side knows this person. */
+  owner_user_id: string | null;
   /** A rep's private note: never returned by the v1 API, LIST_SOURCES or MCP. */
   notes: string | null;
   added_by: string | null;

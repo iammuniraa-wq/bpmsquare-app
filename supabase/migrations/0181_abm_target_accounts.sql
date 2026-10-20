@@ -25,6 +25,7 @@ create table if not exists abm_target_accounts (
   progress_source      text not null default 'rule' check (progress_source in ('rule', 'manual')),
   progress_reason      text,
   progress_changed_at  timestamptz not null default now(),
+  progress_changed_by  uuid,                              -- the person for a manual change, null for a rule
   owner_user_id        uuid,
   owner_source         text not null default 'coverage' check (owner_source in ('coverage', 'program', 'manual')),
   next_step            text,
