@@ -7,6 +7,7 @@ import { emitEvent } from "@/lib/events/emit";
 import { EVENTS } from "@/lib/events/catalog";
 import { BlindIndexKeyMissingError, emailBlindIndex } from "../blindIndex";
 import { stampContactEmailHash } from "../contactEmailHash";
+import { eventsEnabled, registerFromSubmission } from "../events/register";
 import { topicsOf } from "../config";
 import { recordConsent } from "../consentWrite";
 import { isSchemaPending } from "../pending";
@@ -251,6 +252,10 @@ export async function handleSubmission(admin: SupabaseClient, req: SubmitRequest
         contact_id: contactId, account_id: accountId, lead_id: lead.id, key: lead.id, payload: { source: "form", form_id: form.id },
       }, admin);
     }
+
+    // 5b. an open event whose registration form this is registers the person (Events; a no-op unless the
+    // workspace has that module, and it never throws, so it can never lose the answers above).
+    if (eventsEnabled(tenant.features)) await registerFromSubmission(admin, tenantId, { formId: form.id, contactId, submissionId });
 
     if (Math.random() < 0.05) await purgeExpired(admin, tenantId);
 
