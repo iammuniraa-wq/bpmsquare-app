@@ -23,10 +23,7 @@ export default async function MarketingScoringSettingsPage() {
 
   return (
     <>
-      <SettingsPageHeader
-        title="Scoring"
-        subtitle="How a lead earns points, and when it counts as ready for sales"
-      />
+      <SettingsPageHeader title="Scoring" />
       <ScoringClient />
     </>
   );
