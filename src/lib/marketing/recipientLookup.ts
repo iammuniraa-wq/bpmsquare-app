@@ -53,3 +53,37 @@ export async function contactsForEmails(
 
 /** The event field that identifies a recipient who is not a contact. Only a hash, never an address. */
 export const eventIdentity = (hash: string | null | undefined): { email_hash: string | null } => ({ email_hash: hash ?? null });
+
+export type MatchedContact = { id: string; account_id: string; name: string | null; country: string | null };
+
+/**
+ * Every contact of THIS tenant for each address, by blind index -- all of them, not one, so a caller that
+ * must not guess (the consent import: two people sharing an inbox) can see the ambiguity. An address with
+ * no key configured, or nobody's contact, is simply absent. Never throws.
+ */
+export async function contactsMatchingEmails(
+  admin: SupabaseClient,
+  tenantId: string,
+  emails: string[],
+): Promise<Map<string, MatchedContact[]>> {
+  const hashByEmail = new Map<string, string>();
+  for (const e of emails) {
+    try { const h = emailBlindIndex(e); if (h) hashByEmail.set(norm(e), h); } catch { /* no key: an address cannot be matched to a person */ }
+  }
+  const out = new Map<string, MatchedContact[]>();
+  if (hashByEmail.size === 0) return out;
+
+  const byHash = new Map<string, MatchedContact[]>();
+  for (const hs of chunk([...new Set(hashByEmail.values())], 150)) {
+    const res = await admin.from("contacts").select("id, account_id, name, country, email_hash").eq("tenant_id", tenantId).in("email_hash", hs);
+    for (const r of (res.data ?? []) as (MatchedContact & { email_hash?: string | null })[]) {
+      if (!r.email_hash) continue;
+      byHash.set(r.email_hash, [...(byHash.get(r.email_hash) ?? []), { id: r.id, account_id: r.account_id, name: r.name, country: r.country }]);
+    }
+  }
+  for (const [email, h] of hashByEmail) {
+    const list = byHash.get(h);
+    if (list?.length) out.set(email, list);
+  }
+  return out;
+}

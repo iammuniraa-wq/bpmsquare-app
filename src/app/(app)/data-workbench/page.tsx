@@ -8,6 +8,7 @@ import { REGISTRY_OBJECT_TYPE, buildObjectSpec } from "@/lib/import/registrySche
 import { USERS_SPEC } from "@/lib/import/usersSchema";
 import { QUOTE_LINES_SPEC } from "@/lib/import/quoteLinesSchema";
 import { PRODUCT_BOM_LINES_SPEC } from "@/lib/import/productBomLinesSchema";
+import { CONSENTS_SPEC } from "@/lib/import/consentsSchema";
 import { EMPLOYEES_SPEC, buildEmployeesSpec } from "@/lib/import/employeesSchema";
 import { requireWorkcenterView } from "@/lib/permissions";
 import { featureForObject } from "@/lib/objectFeatures";
@@ -20,7 +21,7 @@ import type { ImportObjectId, ObjectSpec } from "@/lib/import/types";
 const OBJECT_ORDER: ImportObjectId[] = [
   "accounts", "contacts", "assets", "suppliers", "products", "product_bom_lines", "wfm_projects", "opportunities", "rfqs", "estimates", "quotes", "quote_lines",
   "cases", "work_orders", "invoices", "purchase_orders", "inventory",
-  "users", "employees",
+  "users", "employees", "consents",
 ];
 
 // Objects with no FIELD_REGISTRY entry (REGISTRY_OBJECT_TYPE[id] === null) use
@@ -30,6 +31,7 @@ const STATIC_SPECS: Partial<Record<ImportObjectId, ObjectSpec>> = {
   quote_lines: QUOTE_LINES_SPEC,
   employees: EMPLOYEES_SPEC,
   product_bom_lines: PRODUCT_BOM_LINES_SPEC,
+  consents: CONSENTS_SPEC,
 };
 
 export default async function DataWorkbenchPage() {
@@ -45,6 +47,8 @@ export default async function DataWorkbenchPage() {
   // behind them enforce the same answer.
   const objectOrder = OBJECT_ORDER.filter((id) => {
     const key = featureForObject(id);
+    // Consents are the marketing program's: they need the marketing module as well as their own flag.
+    if (id === "consents" && tenant?.features?.marketing !== true) return false;
     return key === null || tenant?.features?.[key] === true;
   });
 

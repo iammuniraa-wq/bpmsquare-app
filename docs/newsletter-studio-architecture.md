@@ -717,3 +717,37 @@ Read this before extending the studio. Everything above still holds unless it is
   export/update of headers, `/api/v1/newsletters`, MCP tools, global search, Nova timeline, analytics metric and the
   custom-fields tab (N3), the per-language audience preview before sending, the built-in festival folders of
   `src/lib/marketingTemplates` (six built-in designs ship instead), and "paste anything" through Nova.
+
+## 14. As built: email health on the contact, and consent recorded by people (2026-10-20)
+
+- **Delivery events.** `POST /api/webhooks/resend` (Svix-verified with `RESEND_WEBHOOK_SECRET`; 503 and nothing accepted when
+  it is unset). Each newsletter message is sent with the tag `recipient_id` = the `marketing_campaign_recipients` row id and
+  the provider's message id is stored on that row (0144). The tenant, campaign and contact come from that row, never from the
+  body; the body's `to` is used only to notice a redirected message (a demo workspace), which never touches a real contact.
+  Maps `delivered` / `bounced` (Permanent = hard, anything else soft) / `complained` / `delivery_delayed` to
+  `email.delivered` / `email.bounced` (`bounce_type` hard, soft or delayed) / `email.complained`, idempotent on the Svix id
+  (`email_provider_events`, 0145, and the event stream's own key). The recipient's `delivery_status` is updated; its `status`
+  is not, so existing "sent" counts are unchanged.
+- **Contact health.** `contacts.email_status` unknown | valid | soft_bounce | bounced | complained | invalid (+ `_at`, `_reason`),
+  written only by the webhook and by the contact's three actions. One pure rule (`emailHealth.ts nextHealth`): a delivery returns
+  unknown / soft_bounce / invalid to valid; severity only rises from webhook events; a late event never undoes a newer one; only a
+  person can bring a bounced address back (by giving a new one). A hard bounce or complaint writes a `suppressions` row so
+  `canContact()` refuses it; a complaint also withdraws email consent for every topic (source `provider_webhook`). A new hard
+  bounce leaves a system comment mentioning the account owner, which is their Nova inbox item (Nova workspaces only).
+- **Actions** (Marketing tab on the contact, `POST /api/contacts/[id]/email-health`, contact-edit permission, every one in the change
+  history): *Check this address* (syntax + the domain's MX records over DNS only; private, loopback and internal targets refused; no
+  mail server contacted, no third party), *Fix the address* (resets health to unknown, re-hashes, re-checks), *Mark as checked* (needs a
+  reason; refused for a bounced or complained address, which stays blocked until it is replaced).
+- **Needs attention.** Not a new screen: a second view of the Contacts list (`?view=email`, chip "Email needs attention (n)"), with
+  status, since and the account owner; rows open the contact.
+- **Consent recorded by staff** (`marketing_scoring`). The contact's Consent card shows each answer per channel and topic with
+  its basis, since-date and how it is known; *Record consent* / *Record withdrawal* append to the ledger (source `rep`, evidence =
+  the required note and the rep's user id), never editing history. Staff may record `consent`, or `existing_customer` only where
+  the country recognises it, the workspace chose it and the account is a customer (the ledger's own `effectiveBasis` rule);
+  `contract` and `legitimate_interest` are not offered by hand.
+- **Data Workbench -> Consents.** Import (append-only): `email` (matched to an existing contact by the blind index, tenant-scoped;
+  unmatched rows are reported as skipped, an address shared by two contacts is refused), `channel`, `topic`, `status`, `basis`
+  (required for an opt-in, same jurisdiction limits), optional `given_on` and `note`; source `import`, the file name and row in
+  the evidence. Export is the current state, read-only. No Update mode: the ledger is history.
+- **Not built:** v1 API / MCP / search / analytics for consents (marketing roadmap M9); the preference centre and forms (M4);
+  mirroring a full withdrawal to the legacy `accounts.marketing_opt_out` flag; email health for mail other than newsletter sends.

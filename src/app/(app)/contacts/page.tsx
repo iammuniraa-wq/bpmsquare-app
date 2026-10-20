@@ -1,10 +1,10 @@
-import { requireFeature } from "@/lib/tenant";
+import { requireFeature, getTenant } from "@/lib/tenant";
 import Link from "next/link";
 import { listContacts } from "@/lib/data";
 import type { Account, Contact } from "@/lib/types";
 import { c, pillar, type PillarKey } from "@/lib/theme";
 import StatusPill from "@/components/ui/StatusPill";
-import ObjectListPage, { type ListColumn } from "@/components/page/ObjectListPage";
+import ObjectListPage, { type ListColumn, type ListChip } from "@/components/page/ObjectListPage";
 import { optionalColumnsMenu, parseOptionalCols, type OptionalColumn } from "@/components/page/optionalColumns";
 import { Phone, Mail } from "@/components/Icons";
 import { applyAdvancedFilter } from "@/lib/advancedFilter";
@@ -12,6 +12,10 @@ import { paginate } from "@/lib/paginate";
 import { sortRows, readSortParams, applyColFilters, parseColFilterParams, colFilterQueryParams, type SortExtractor } from "@/lib/listSort";
 import { ROUTES } from "@/lib/constants";
 import { requireWorkcenterView } from "@/lib/permissions";
+import { createAdminSupabase } from "@/lib/supabase-server";
+import { emailHealthOn } from "@/lib/marketing/contactHealth";
+import { loadAttention, ownerNames, type AttentionEntry } from "@/lib/marketing/attentionList";
+import { EMAIL_STATUS_COPY } from "@/lib/marketing/emailHealth";
 
 type Row = { contact: Contact; account: Account };
 
@@ -46,7 +50,7 @@ const initials = (name: string) =>
 export default async function ContactsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; af?: string; cols?: string; sort?: string; dir?: string; page?: string } & Record<string, string | undefined>>;
+  searchParams: Promise<{ q?: string; af?: string; cols?: string; sort?: string; dir?: string; page?: string; view?: string } & Record<string, string | undefined>>;
 }) {
   await requireWorkcenterView("contacts");
   await requireFeature("contacts");
@@ -60,7 +64,18 @@ export default async function ContactsPage({
 
   const allRows = await listContacts();
 
+  // Email health (Newsletter Studio): a second view of this same list -- the contacts whose
+  // address bounced, was reported as spam, looks invalid or is having trouble.
+  const tenant = await getTenant();
+  const healthOn = emailHealthOn(tenant?.features);
+  const attention: Map<string, AttentionEntry> | null = healthOn && tenant ? await loadAttention(createAdminSupabase(), tenant.id) : null;
+  const view = attention && params.view === "email" ? "email" : undefined;
+  const owners = view && tenant
+    ? await ownerNames(createAdminSupabase(), tenant.id, allRows.filter((r) => attention?.has(r.contact.id)).map((r) => r.account.owner_user_id ?? ""))
+    : new Map<string, string>();
+
   const basicFiltered = allRows.filter(({ contact, account }) => {
+    if (view && !attention?.has(contact.id)) return false;
     if (!q) return true;
     const term = q.toLowerCase();
     return (
@@ -74,7 +89,7 @@ export default async function ContactsPage({
   const filtered = sortRows(colFiltered, sort, dir, SORT_EXTRACTORS);
   const pageRows = paginate(filtered, page);
 
-  const baseParams = { q, af, ...cfParams };
+  const baseParams = { q, af, view, ...cfParams };
   const { colsParam, menuItems } = optionalColumnsMenu({ baseHref: ROUTES.contacts, optional: OPTIONAL, shown: shownOptional, linkParams: baseParams, sort, dir });
   const linkParams = { ...baseParams, cols: colsParam };
 
@@ -130,6 +145,24 @@ export default async function ContactsPage({
 
   const hasFilter = !!(q || af || Object.keys(cfParams).length > 0);
 
+  const chips: ListChip[] | undefined = attention ? [
+    { id: "all", label: "All contacts", href: ROUTES.contacts, active: !view },
+    { id: "email", label: `Email needs attention (${attention.size})`, href: `${ROUTES.contacts}?view=email`, active: view === "email" },
+  ] : undefined;
+
+  const fmtDate = (iso: string | null) => iso ? new Date(iso).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "—";
+  const healthColumns: ListColumn<Row>[] = view ? [
+    {
+      id: "email_status", label: "Email status",
+      render: ({ contact }) => {
+        const a = attention?.get(contact.id);
+        return a ? <StatusPill label={EMAIL_STATUS_COPY[a.status].label} tone={EMAIL_STATUS_COPY[a.status].tone} /> : <span style={{ color: c.line }}>—</span>;
+      },
+    },
+    { id: "since", label: "Since", cellStyle: { color: c.muted, whiteSpace: "nowrap", fontSize: 12.5 }, render: ({ contact }) => fmtDate(attention?.get(contact.id)?.at ?? null) },
+    { id: "owner", label: "Account owner", cellStyle: { color: c.muted }, render: ({ account }) => (account.owner_user_id && owners.get(account.owner_user_id)) || <span style={{ color: c.line }}>Nobody yet</span> },
+  ] : [];
+
   return (
     <ObjectListPage
       title="Contacts"
@@ -140,10 +173,11 @@ export default async function ContactsPage({
       search={{
         value: q,
         placeholder: "Search by name, role or account…",
-        hiddenParams: { af, cols: colsParam, ...cfParams },
+        hiddenParams: { af, view, cols: colsParam, ...cfParams },
       }}
       advancedFilterObject="contact"
-      columns={columns}
+      chips={chips}
+      columns={[...columns, ...healthColumns]}
       rows={pageRows}
       rowKey={({ contact }) => contact.id}
       rowHref={({ contact }) => ROUTES.contact(contact.id)}
@@ -153,11 +187,11 @@ export default async function ContactsPage({
       sort={sort}
       dir={dir}
       linkParams={linkParams}
-      filtered={hasFilter}
+      filtered={hasFilter || !!view}
       empty={{
         title: "No contacts yet",
         text: "Contacts are the people at your accounts. Add the first one to start.",
-        filteredTitle: q ? `No contacts match "${q}".` : "No contacts match these filters.",
+        filteredTitle: q ? `No contacts match "${q}".` : view ? "No contact has an email problem right now." : "No contacts match these filters.",
       }}
     />
   );

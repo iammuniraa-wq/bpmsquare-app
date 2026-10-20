@@ -124,7 +124,11 @@ export async function proxy(request: NextRequest) {
     /^\/api\/rfq-reply\/[^/]+\/[^/]+(\/upload)?$/.test(pathname) ||
     // Inbound email webhooks: the provider's signature is the credential,
     // verified before anything is read (lib/mail/webhookSignature.ts).
-    /^\/api\/inbound\/email\/(resend|generic)$/.test(pathname)
+    /^\/api\/inbound\/email\/(resend|generic)$/.test(pathname) ||
+    // Resend delivery events (delivered / bounced / complained): the Svix signature is the
+    // credential, verified before the body is read; the tenant comes from the stored
+    // recipient row, never the payload. Exact path, nothing deeper rides along.
+    pathname === "/api/webhooks/resend"
   ) {
     return NextResponse.next({ request: { headers: requestHeaders } });
   }

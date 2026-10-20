@@ -26,6 +26,9 @@ export const OBJECT_FEATURE: Record<string, keyof TenantFeatures | null> = {
   assets: "assets",
   cases: "cases",
   contacts: "contacts",
+  // Marketing consent ledger (0139): Data Workbench import (a sheet of opt-ins) and export (the
+  // current answers). Platform-admin flag; the routes also need the `marketing` module.
+  consents: "marketing_scoring",
   // Employees ship as part of the Business Roles/Business Users module --
   // same key the nav item uses (constants.ts NAV).
   employees: "business_roles",
