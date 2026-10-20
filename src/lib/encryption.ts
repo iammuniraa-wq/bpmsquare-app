@@ -76,5 +76,11 @@ export function decryptContact(c: Contact): Contact {
   // that returns a contact goes through here, so this is the one place it is
   // kept out of API responses, exports and page props.
   delete out.email_hash;
+  // Email health (0144) is an internal working field for sales: it is read through
+  // src/lib/marketing/contactHealth.ts for the contact record and the attention list,
+  // and kept out of every other reader (exports, the REST API, MCP, page props).
+  delete out.email_status;
+  delete out.email_status_at;
+  delete out.email_status_reason;
   return out as Contact;
 }
