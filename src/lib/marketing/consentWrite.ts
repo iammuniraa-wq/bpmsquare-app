@@ -2,7 +2,7 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminSupabase } from "@/lib/supabase-server";
 import type { TenantConfig } from "@/lib/constants";
-import { emitEvent } from "@/lib/events/emit";
+import { emitEvent, emitEventsBatch } from "@/lib/events/emit";
 import { EVENTS } from "@/lib/events/catalog";
 import { CONSENT_CHANNELS, type ConsentChannel } from "./consent";
 import { topicsOf } from "./config";
@@ -100,7 +100,71 @@ export async function recordConsent(tenantId: string, input: RecordConsentInput,
   }
 }
 
-export type SuppressionReason = "bounced_hard" | "complained" | "invalid" | "manual";
+export type ConsentBatchEntry = {
+  contactId: string;
+  accountId: string | null;
+  channel: ConsentChannel;
+  topic: string | null;
+  status: "granted" | "withdrawn";
+  basis: ConsentBasis;
+  jurisdiction: JurisdictionCode;
+  source: ConsentSource;
+  evidence: Record<string, unknown>;
+  actorId?: string | null;
+};
+export type ConsentBatchResult = ({ ok: true } | { ok: false; error: string; pending?: boolean })[];
+
+const BATCH_CHUNK = 100;
+
+/**
+ * Appends many answers in bulk (a spreadsheet of opt-ins): the same two writes and the same events as
+ * recordConsent, a hundred rows to a statement. The CALLER has already proved every contact belongs to
+ * `tenantId` (they were found by a tenant-scoped query) and every topic is the tenant's own; this does not
+ * look them up again. Returns one result per entry, in order, so a failed chunk is reported against its rows.
+ */
+export async function recordConsentBatch(tenantId: string, entries: ConsentBatchEntry[], client?: SupabaseClient): Promise<ConsentBatchResult> {
+  const results: ConsentBatchResult = entries.map(() => ({ ok: true as const }));
+  try {
+    const db = client ?? createAdminSupabase();
+    for (let from = 0; from < entries.length; from += BATCH_CHUNK) {
+      const chunk = entries.slice(from, from + BATCH_CHUNK);
+      const fail = (error: string, pending: boolean) => { for (let i = 0; i < chunk.length; i++) results[from + i] = { ok: false, error, ...(pending ? { pending } : {}) }; };
+      const now = new Date().toISOString();
+
+      const { error: eErr } = await db.from("consent_events").insert(chunk.map((e) => ({
+        tenant_id: tenantId, contact_id: e.contactId, account_id: e.accountId, channel: e.channel, topic: e.topic,
+        status: e.status, basis: e.basis, jurisdiction: e.jurisdiction, source: e.source, evidence: e.evidence, created_by: e.actorId ?? null,
+      })));
+      if (eErr) { fail(eErr.message, isSchemaPending(eErr)); continue; }
+
+      // One current answer per (contact, channel, topic): the last entry in the chunk wins, as it would one by one.
+      const latest = new Map<string, ConsentBatchEntry>();
+      for (const e of chunk) latest.set(`${e.contactId}|${e.channel}|${e.topic ?? ""}`, e);
+      const { error: sErr } = await db.from("consent_state").upsert(
+        [...latest.values()].map((e) => ({
+          tenant_id: tenantId, contact_id: e.contactId, channel: e.channel, topic: e.topic ?? "", status: e.status,
+          basis: e.basis, jurisdiction: e.jurisdiction, since: now, updated_at: now,
+        })),
+        { onConflict: "tenant_id,contact_id,channel,topic" },
+      );
+      if (sErr) { fail(sErr.message, isSchemaPending(sErr)); continue; }
+
+      await emitEventsBatch(tenantId, chunk.map((e, i) => ({
+        name: e.status === "granted" ? EVENTS.CONSENT_GRANTED : EVENTS.CONSENT_WITHDRAWN,
+        object_type: "contact", object_id: e.contactId, actor_id: e.actorId ?? null,
+        contact_id: e.contactId, account_id: e.accountId, topic: e.topic,
+        key: `${e.contactId}:${e.channel}:${e.topic ?? "*"}:${e.status}:${now}:${from + i}`,
+        payload: { channel: e.channel, basis: e.basis, jurisdiction: e.jurisdiction, source: e.source },
+      })), db);
+    }
+  } catch (e) {
+    console.error("[consent] recordConsentBatch failed", e);
+    return entries.map(() => ({ ok: false as const, error: "Could not record consent" }));
+  }
+  return results;
+}
+
+export type SuppressionReason ="bounced_hard" | "complained" | "invalid" | "manual";
 
 /** Suppresses an address (by blind-index hash) on a channel. Idempotent. */
 export async function addSuppression(

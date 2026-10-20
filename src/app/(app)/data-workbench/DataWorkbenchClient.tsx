@@ -91,7 +91,8 @@ export default function DataWorkbenchClient({ specs }: { specs: ObjectSpec[] }) 
   const [activeId, setActiveId] = useState<ImportObjectId>(specs[0]?.id ?? "accounts");
 
   const visibleSpecs = specs.filter((s) => {
-    if (mode === "update") return s.id !== "users"; // users are invite-only
+    // users are invite-only; consents are an append-only ledger -- an answer is changed by importing a new one.
+    if (mode === "update") return s.id !== "users" && s.id !== "consents";
     // RFQs are Export + Update only: an RFQ is born from a record (quote,
     // case, work order...) or the RFQ screen together with its lines and
     // suppliers, and a flat file can't carry that -- there is deliberately
@@ -334,6 +335,8 @@ function ImportFlow({ spec: baseSpec, mode }: { spec: ObjectSpec; mode: "import"
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             rows: readyRows.map((r) => ({ rowNum: r.rowNum, values: r.values })),
+            // Consents are stored with the file they came from as evidence; other objects ignore it.
+            fileName,
           }),
         });
 

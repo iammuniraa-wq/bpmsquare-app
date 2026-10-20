@@ -12,6 +12,13 @@ import RecordMoreMenu from "@/components/page/RecordMoreMenu";
 import RecordActivity from "@/components/page/RecordActivity";
 import RelatedList from "@/components/page/RelatedList";
 import ContactDetailSections from "./ContactDetailSections";
+import ContactMarketingTab from "./ContactMarketingTab";
+import { requireTenantUser, createAdminSupabase } from "@/lib/supabase-server";
+import { canEditWorkcenter, resolvePermissions } from "@/lib/permissions";
+import { emailHealthOn, loadContactHealth, type ContactHealth } from "@/lib/marketing/contactHealth";
+import { EMAIL_STATUS_COPY, needsAttention } from "@/lib/marketing/emailHealth";
+import { marketingScoringOn } from "@/lib/marketing/config";
+import { loadContactConsent, type ContactConsent } from "@/lib/marketing/contactConsent";
 
 const CASE_TONE: Record<string, PillarKey> = {
   intake: "blue", inspection: "teal",
@@ -38,6 +45,21 @@ export default async function ContactDetailPage({
   const { contact, account, cases } = data;
   const isAdmin = role === "admin";
   const casesOn = tenant?.features?.cases === true;
+  const healthOn = emailHealthOn(tenant?.features);
+  const consentOn = marketingScoringOn(tenant?.features);
+  const marketingTabOn = healthOn || consentOn;
+  let canEditMarketing = false;
+  let health: ContactHealth | null = null;
+  let consent: ContactConsent | null = null;
+  if (marketingTabOn) {
+    const { supabase, tenantId, userId, role: memberRole } = await requireTenantUser();
+    canEditMarketing = canEditWorkcenter(await resolvePermissions(supabase, tenantId, userId, memberRole), "contacts");
+    const admin = createAdminSupabase();
+    [health, consent] = await Promise.all([
+      healthOn ? loadContactHealth(admin, tenantId, contact.id) : Promise.resolve(null),
+      consentOn ? loadContactConsent(admin, tenantId, contact.id) : Promise.resolve(null),
+    ]);
+  }
   const basePath = ROUTES.contact(contact.id);
   const openCases = cases.filter((sc) => !["closed", "buyback", "scrapped"].includes(sc.status));
   const newCaseHref = account ? `${ROUTES.caseNew}?account_id=${account.id}` : undefined;
@@ -58,7 +80,14 @@ export default async function ContactDetailPage({
       facts={[
         { label: "Account", value: account ? <Link href={ROUTES.account(account.id)} style={{ color: c.accent, textDecoration: "none" }}>{account.name}</Link> : "—" },
         { label: "Phone", value: contact.phone ? <a href={`tel:${contact.phone}`} style={{ color: "inherit", textDecoration: "none" }}>{contact.phone}</a> : "—" },
-        { label: "Email", value: contact.email ? <a href={`mailto:${contact.email}`} style={{ color: c.accent, textDecoration: "none" }}>{contact.email}</a> : "—" },
+        { label: "Email", value: contact.email ? (
+          <>
+            <a href={`mailto:${contact.email}`} style={{ color: c.accent, textDecoration: "none" }}>{contact.email}</a>
+            {health?.available && needsAttention(health.status) && (
+              <> <Link href={`${basePath}?tab=marketing`} style={{ textDecoration: "none" }}><StatusPill label={EMAIL_STATUS_COPY[health.status].label} tone={EMAIL_STATUS_COPY[health.status].tone} /></Link></>
+            )}
+          </>
+        ) : "—" },
         ...(account?.city ? [{ label: "City", value: account.city }] : []),
       ]}
       basePath={basePath}
@@ -69,6 +98,11 @@ export default async function ContactDetailPage({
           label: "Overview",
           content: <ContactDetailSections contact={contact} accountAddress={account ?? null} />,
         },
+        ...(marketingTabOn ? [{
+          id: "marketing",
+          label: "Marketing",
+          content: <ContactMarketingTab contactId={contact.id} email={contact.email} canEdit={canEditMarketing} health={health} consent={consent} />,
+        }] : []),
         ...(casesOn ? [{
           id: "cases",
           label: "Cases",
