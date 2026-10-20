@@ -1,0 +1,60 @@
+/* The public form and the preference centre: one calm card on a plain page, the same look in
+   the hosted page, inside an embedding iframe and in the builder's preview. Colours come only
+   from the theme variables in globals.css. */
+
+.page { min-height: 100vh; display: flex; align-items: flex-start; justify-content: center; padding: 28px 16px; background: var(--panel2); color: var(--ink); font-family: inherit; }
+.page.embed { min-height: 0; padding: 0; background: transparent; }
+.preview { min-height: 0; padding: 14px; border-radius: 10px; }
+
+.card { width: 100%; max-width: 560px; background: var(--card-bg, var(--panel)); border: 1px solid var(--line); border-radius: 14px; padding: 26px 24px; display: grid; gap: 14px; }
+.embed .card { border: 0; border-radius: 0; padding: 4px 2px; background: transparent; }
+
+.brand { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--muted); font-weight: 600; }
+.brand img { height: 28px; width: auto; max-width: 140px; object-fit: contain; }
+
+.title { margin: 0; font-size: 21px; line-height: 1.25; font-weight: 700; color: var(--ink); }
+.intro { margin: 0; font-size: 14px; line-height: 1.55; color: var(--muted); white-space: pre-line; }
+
+.fields { display: grid; gap: 12px; }
+.field { display: grid; gap: 5px; }
+.label { font-size: 13px; font-weight: 600; color: var(--ink); }
+.req { color: var(--err-ink); margin-inline-start: 3px; }
+.input, .textarea { font: inherit; font-size: 14.5px; width: 100%; padding: 10px 12px; border: 1px solid var(--line); border-radius: 9px; background: var(--panel); color: var(--ink); box-sizing: border-box; }
+.textarea { min-height: 110px; resize: vertical; }
+.input:focus-visible, .textarea:focus-visible, .check input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.consent { border-top: 1px solid var(--line); padding-top: 12px; }
+.check { display: flex; gap: 10px; align-items: flex-start; font-size: 13px; line-height: 1.5; color: var(--ink); cursor: pointer; }
+.check input { margin-top: 3px; width: 17px; height: 17px; flex: none; accent-color: var(--accent); }
+
+/* The trap field: present for a script, invisible and unreachable for a person. */
+.trap { position: absolute; left: -9999px; top: auto; width: 1px; height: 1px; overflow: hidden; }
+
+.btn { font: inherit; font-size: 15px; font-weight: 700; padding: 11px 20px; border-radius: 10px; border: 0; background: var(--accent); color: var(--panel); cursor: pointer; justify-self: start; }
+.btn:disabled { opacity: .6; cursor: not-allowed; }
+.btn:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+.btn.ghost { background: transparent; color: var(--ink); border: 1px solid var(--line); }
+
+.err { background: var(--err-bg); border: 1px solid var(--err-line); border-radius: 9px; padding: 9px 12px; font-size: 13px; color: var(--err-ink); }
+.ok { background: var(--greenbg); color: var(--greenink); border-radius: 10px; padding: 14px 16px; font-size: 15px; line-height: 1.5; }
+.note { font-size: 12px; color: var(--hint); margin: 0; line-height: 1.5; }
+
+/* preference centre */
+.topics { display: grid; gap: 0; }
+.topic { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 14px; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--line); }
+.topic:last-child { border-bottom: 0; }
+.topic b { font-size: 14px; color: var(--ink); }
+.topic small { grid-column: 1; font-size: 12.5px; color: var(--muted); }
+.switch { grid-column: 2; grid-row: 1 / span 2; position: relative; width: 44px; height: 26px; }
+.switch input { position: absolute; inset: 0; opacity: 0; margin: 0; cursor: pointer; width: 100%; height: 100%; }
+.switch span { position: absolute; inset: 0; border-radius: 999px; background: var(--line); transition: background .15s; pointer-events: none; }
+.switch span::after { content: ""; position: absolute; top: 3px; inset-inline-start: 3px; width: 20px; height: 20px; border-radius: 50%; background: var(--panel); transition: transform .15s; }
+.switch input:checked + span { background: var(--accent); }
+.switch input:checked + span::after { transform: translateX(18px); }
+.switch input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 2px; }
+.switch input:disabled { cursor: not-allowed; }
+.switch input:disabled + span { opacity: .5; }
+.actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.history { display: grid; gap: 4px; font-size: 12.5px; color: var(--muted); margin: 0; padding: 0; list-style: none; }
+@media (prefers-reduced-motion: reduce) { .switch span, .switch span::after { transition: none; } }
+@media (max-width: 480px) { .card { padding: 20px 16px; } }
