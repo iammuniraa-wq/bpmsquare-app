@@ -1,0 +1,785 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>UX Simplification Mock-up</title>
+<meta name="description" content="Before and after for the BPMSquare Newsletter Studio panel and the Journey builder: explanations behind an i, pages split into tabs, one column on a phone. Sample content only; no application code.">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+<style>
+/* Tokens named as in src/app/globals.css so builders map them 1:1. */
+:root {
+  --panel: #ffffff; --panel2: #f4f6f9; --bg: #eef1f5; --ink: #1c2733; --muted: #505b6a; --hint: #66707e; --line: #e2e7ee;
+  --accent: #378add; --accentbg: #e6f1fb; --tip-accent: var(--accent);
+  --amberbg: #faeeda; --amberink: #633806; --greenbg: #eaf3de; --greenink: #173404; --bluebg: #e6f1fb; --blueink: #0c447c;
+  --err-bg: #fef2f2; --err-line: #fecaca; --err-ink: #dc2626;
+  --card-shadow: 0 1px 2px rgba(16, 24, 40, .06); --card-radius: 12px;
+  --font: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --brand: #16365c; --brand2: #c8892a;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --panel: #17181c; --panel2: #101114; --bg: #0b0c0f; --ink: #f2f3f5; --muted: #9aa1ac; --hint: #8a9099; --line: #26282e;
+    --accent: #6aa7e8; --accentbg: #1c2740; --amberbg: #2e2410; --amberink: #ecc87e; --greenbg: #1d2913; --greenink: #c0e18e;
+    --bluebg: #14243a; --blueink: #a8c9ef; --err-bg: #331a15; --err-line: #5a2d22; --err-ink: #f0705b; --card-shadow: 0 1px 2px rgba(0,0,0,.4);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --panel: #17181c; --panel2: #101114; --bg: #0b0c0f; --ink: #f2f3f5; --muted: #9aa1ac; --hint: #8a9099; --line: #26282e;
+  --accent: #6aa7e8; --accentbg: #1c2740; --amberbg: #2e2410; --amberink: #ecc87e; --greenbg: #1d2913; --greenink: #c0e18e;
+  --bluebg: #14243a; --blueink: #a8c9ef; --err-bg: #331a15; --err-line: #5a2d22; --err-ink: #f0705b; --card-shadow: 0 1px 2px rgba(0,0,0,.4);
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--bg); color: var(--ink); font-family: var(--font); font-size: 14px; line-height: 1.5; padding: 16px; }
+h1 { font-size: 22px; font-weight: 700; margin: 0; line-height: 1.25; }
+h2 { font-size: 16px; font-weight: 700; margin: 0; }
+p { margin: 0; }
+a { color: var(--accent); }
+button { font: inherit; }
+.wrap { max-width: 1280px; margin: 0 auto; display: grid; gap: 14px; }
+.top { display: grid; gap: 10px; }
+.top .sub { color: var(--muted); font-size: 13px; }
+.controls { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; }
+.seg { display: inline-flex; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 3px; gap: 2px; }
+.seg button { font-size: 12.5px; font-weight: 600; padding: 6px 11px; min-height: 32px; border: 0; border-radius: 7px; background: transparent; color: var(--muted); cursor: pointer; }
+.seg button[aria-pressed="true"] { background: var(--accentbg); color: var(--ink); }
+.seg button:focus-visible, .btn:focus-visible, .tab:focus-visible, .ptab:focus-visible, .sech:focus-visible, .blk:focus-visible, .tip:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, .ic:focus-visible, .start:focus-visible, .chipb:focus-visible { outline: 2px solid var(--tip-accent); outline-offset: 2px; }
+.lab { font-size: 12px; font-weight: 600; color: var(--muted); }
+.legend { font-size: 12.5px; color: var(--muted); }
+.legend b { color: var(--ink); }
+
+/* the device frame */
+.frame { container: studio / inline-size; background: var(--panel2); border: 1px solid var(--line); border-radius: 14px; padding: 16px; position: relative; }
+.frame .viewport { min-width: 0; }
+.frame.phone { width: 375px; height: 740px; max-width: 100%; margin: 0 auto; padding: 0; border: 8px solid var(--ink); border-radius: 30px; overflow: hidden; transform: translateZ(0); }
+.frame.phone .viewport { height: 100%; overflow-y: auto; overflow-x: hidden; padding: 12px 12px 0; }
+.frame .tag { position: absolute; top: -10px; left: 16px; font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; background: var(--panel); border: 1px solid var(--line); border-radius: 999px; padding: 1px 9px; color: var(--muted); z-index: 2; }
+.frame.phone .tag { display: none; }
+.frame[data-view="before"] .after { display: none; }
+.frame[data-view="after"] .before { display: none; }
+@media (max-width: 480px) {
+  body { padding: 12px; }
+  .frame.phone { width: 100%; height: auto; border: 1px solid var(--line); border-radius: 14px; overflow: visible; transform: none; padding: 12px; }
+  .frame.phone .viewport { height: auto; overflow: visible; padding: 0; }
+}
+
+/* page chrome inside the frame (PageHeader, studio grid, cards) */
+.pane { display: grid; gap: 14px; padding-bottom: 8px; }
+.head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 10px 16px; align-items: center; }
+.head h1 { font-size: 20px; }
+.head .r { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.headsub { color: var(--muted); font-size: 12.5px; }
+.pill { display: inline-block; font-size: 11px; font-weight: 600; padding: 2px 9px; border-radius: 999px; background: var(--accentbg); color: var(--ink); white-space: nowrap; vertical-align: middle; }
+.pill.g { background: var(--greenbg); color: var(--greenink); }
+.pill.a { background: var(--amberbg); color: var(--amberink); }
+.btn { font-weight: 600; font-size: 13px; height: 36px; padding: 0 14px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); cursor: pointer; white-space: nowrap; display: inline-flex; align-items: center; gap: 6px; }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn.quiet { border-color: transparent; background: transparent; color: var(--accent); }
+.btn.sm { height: 30px; padding: 0 10px; font-size: 12.5px; }
+.banner { background: var(--bluebg); color: var(--blueink); border-radius: 9px; padding: 8px 12px; font-size: 13px; font-weight: 500; }
+.banner.warn { background: var(--amberbg); color: var(--amberink); }
+.studio { display: grid; grid-template-columns: 330px minmax(0, 1fr); gap: 14px; align-items: start; }
+.panel { display: grid; gap: 10px; min-width: 0; }
+.canvas { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px; min-width: 0; display: grid; gap: 10px; box-shadow: var(--card-shadow); }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px; display: grid; gap: 10px; min-width: 0; box-shadow: var(--card-shadow); }
+.card h2 { font-size: 14px; }
+.card h2 small { font-weight: 500; color: var(--muted); font-size: 12.5px; margin-inline-start: 6px; }
+.lbl { font-size: 13px; font-weight: 600; color: var(--ink); display: flex; align-items: center; gap: 2px; }
+.field, .select, textarea.field { font: inherit; width: 100%; min-height: 36px; padding: 8px 11px; border: 1px solid var(--line); border-radius: 9px; background: var(--panel); color: var(--ink); }
+textarea.field { min-height: 72px; resize: vertical; }
+.num { width: 80px; }
+.row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.row > .col { flex: 1 1 120px; display: grid; gap: 4px; }
+.stack { display: grid; gap: 4px; }
+.chk { display: flex; gap: 8px; align-items: flex-start; font-size: 13px; color: var(--ink); min-height: 28px; }
+.chk input { width: 18px; height: 18px; margin-top: 2px; accent-color: var(--tip-accent); }
+.hint { font-size: 12px; color: var(--hint); line-height: 1.4; }
+.help { font-size: 12px; color: var(--hint); }
+.constraint { font-size: 12px; color: var(--muted); }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 999px; background: var(--bluebg); color: var(--blueink); }
+.chip.a { background: var(--amberbg); color: var(--amberink); }
+.chip.g { background: var(--greenbg); color: var(--greenink); }
+.chip.n { background: var(--panel2); color: var(--muted); }
+.chipb { font: inherit; font-size: 12px; font-weight: 600; padding: 6px 10px; min-height: 32px; border-radius: 999px; border: 1px dashed var(--line); background: transparent; color: var(--ink); cursor: pointer; }
+.starts { display: grid; gap: 8px; }
+.start { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; background: var(--panel2); cursor: pointer; display: grid; gap: 2px; text-align: left; color: var(--ink); min-height: 44px; }
+.start.sel { border-color: var(--tip-accent); background: var(--accentbg); }
+.start b { font-size: 13px; }
+.start span { font-size: 12px; color: var(--muted); }
+.kv { display: grid; gap: 8px; font-size: 12.5px; }
+.kv b { color: var(--muted); font-weight: 600; font-size: 11.5px; text-transform: uppercase; letter-spacing: .04em; display: block; }
+.fact { font-size: 13px; color: var(--ink); display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.fact b { font-weight: 600; }
+
+/* option groups (accordion on desktop) */
+.sec { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--card-shadow); }
+.sech { width: 100%; color: var(--ink); background: transparent; border: 0; cursor: pointer; text-align: left; padding: 11px 14px; min-height: 44px; display: grid; grid-template-columns: minmax(0, 1fr) auto 18px; gap: 2px 8px; align-items: center; border-radius: 12px; }
+.sech:hover { background: var(--panel2); }
+.sech .t { font-size: 13.5px; font-weight: 700; display: flex; align-items: center; gap: 2px; min-width: 0; }
+.sech .sum { font-size: 12px; color: var(--muted); white-space: nowrap; grid-column: 2; grid-row: 1; max-width: 140px; overflow: hidden; text-overflow: ellipsis; }
+.sech .hint { grid-column: 1 / 3; }
+.sech .chev { grid-column: 3; grid-row: 1; width: 16px; height: 16px; stroke: var(--muted); fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; transition: transform .2s; }
+.sec.open .chev { transform: rotate(180deg); }
+.sec .in { padding: 0 14px 14px; display: grid; gap: 10px; }
+.sec:not(.open) .in { display: none; }
+/* After: the header is a row, not one button, so the i can sit beside the title without nesting
+   a button in a button. The title button stretches over the whole row (::after); the i floats above it. */
+div.sech { position: relative; grid-template-columns: auto minmax(0, 1fr) auto 18px; }
+.secbtn { font: inherit; font-size: 13.5px; font-weight: 700; color: var(--ink); background: transparent; border: 0; padding: 0; cursor: pointer; text-align: left; white-space: nowrap; }
+.secbtn::after { content: ""; position: absolute; inset: 0; border-radius: 12px; }
+.secbtn:focus-visible { outline: none; }
+.secbtn:focus-visible::after { outline: 2px solid var(--tip-accent); outline-offset: -2px; }
+div.sech .tipw { position: relative; z-index: 1; justify-self: start; }
+div.sech .sum { grid-column: 3; }
+div.sech .chev { grid-column: 4; }
+.panel > .ptabs { display: none; }
+.ptabs.legacy { gap: 2px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 3px; overflow-x: auto; scrollbar-width: none; }
+.ptab { flex: 1 0 auto; font-size: 12px; font-weight: 600; padding: 7px 8px; border-radius: 7px; border: 0; background: transparent; color: var(--muted); cursor: pointer; white-space: nowrap; }
+.ptab.on { background: var(--accentbg); color: var(--ink); }
+
+/* kit tabs (.bpm-tab look, spec 13.5) */
+.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+.tabs::-webkit-scrollbar { display: none; }
+.tab { display: inline-flex; align-items: center; gap: 6px; padding: 11px 14px 10px; min-height: 44px; font-size: 13px; white-space: nowrap; cursor: pointer; background: none; border: none; border-bottom: 3px solid transparent; margin-bottom: -1px; border-radius: 7px 7px 0 0; color: var(--muted); font-weight: 500; }
+.tab:hover { color: var(--ink); background: var(--panel2); }
+.tab[aria-selected="true"] { color: color-mix(in srgb, var(--tip-accent) 72%, var(--ink)); font-weight: 700; border-bottom-color: var(--tip-accent); background: color-mix(in srgb, var(--tip-accent) 10%, transparent); }
+.tab .n { font-size: 11px; font-weight: 600; padding: 1px 7px; border-radius: 9px; background: var(--panel2); color: var(--muted); }
+.tab[aria-selected="true"] .n { background: color-mix(in srgb, var(--tip-accent) 20%, transparent); color: inherit; }
+.tabpanel:not(.active) { display: none; }
+.stack14.active { display: grid; gap: 14px; }
+
+/* segmented view toggles on the canvas (buttons, not tabs) */
+.segs { display: flex; gap: 4px; background: var(--panel2); padding: 3px; border-radius: 9px; flex-wrap: wrap; }
+.segs button { font-size: 12.5px; font-weight: 600; padding: 5px 11px; min-height: 30px; border-radius: 7px; border: 0; background: transparent; color: var(--muted); cursor: pointer; }
+.segs button.on { background: var(--panel); color: var(--ink); box-shadow: 0 1px 2px rgba(0,0,0,.12); }
+.tools { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; justify-content: space-between; }
+
+/* blocks */
+.blk { display: grid; grid-template-columns: 18px minmax(0, 1fr) auto; gap: 8px; align-items: center; padding: 7px 9px; min-height: 44px; border: 1px solid var(--line); border-radius: 9px; margin-bottom: 6px; background: var(--panel); cursor: pointer; }
+.blk.sel { border-color: var(--tip-accent); background: var(--accentbg); }
+.blk .h { color: var(--muted); font-size: 14px; cursor: grab; }
+.blk .n { font-weight: 600; font-size: 13px; display: flex; gap: 6px; align-items: center; min-width: 0; }
+.blk .n small { font-weight: 500; color: var(--muted); font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.blk .t { display: flex; gap: 2px; }
+.ic { width: 30px; height: 30px; border: 0; background: transparent; border-radius: 6px; cursor: pointer; color: var(--muted); display: inline-grid; place-items: center; padding: 0; font-size: 13px; position: relative; }
+.ic::before { content: ""; position: absolute; inset: -7px; }
+.ic:hover { background: var(--panel2); color: var(--ink); }
+.editor { border-top: 1px solid var(--line); padding-top: 10px; display: grid; gap: 8px; }
+.rw { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+
+/* email preview */
+.stage { background: var(--panel2); border-radius: 10px; padding: 18px 10px; display: grid; justify-items: center; }
+.email { width: 100%; max-width: 560px; background: #fff; color: #1c2733; border-radius: 6px; overflow: hidden; font-size: 13px; border: 1px solid var(--line); }
+.email .bh { background: var(--brand); color: #fff; padding: 14px 18px; font-weight: 700; }
+.email .bb { padding: 16px 18px; display: grid; gap: 10px; }
+.email .bb h3 { margin: 0; font-size: 17px; }
+.email .cta { display: inline-block; background: var(--brand2); color: #fff; padding: 8px 14px; border-radius: 6px; font-weight: 600; justify-self: start; }
+.email .bf { padding: 12px 18px; font-size: 11.5px; color: #5d6b7c; border-top: 1px solid #e2e7ee; }
+.subj { display: grid; gap: 6px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.subj label { font-size: 12px; color: var(--muted); display: grid; gap: 3px; }
+.subj label .lbl { font-size: 12.5px; color: var(--ink); }
+
+.fold { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; }
+.fold > summary { cursor: pointer; padding: 12px 14px; min-height: 44px; font-weight: 700; font-size: 13.5px; list-style: none; display: flex; justify-content: space-between; gap: 10px; }
+.fold > summary::-webkit-details-marker { display: none; }
+.fold > summary::after { content: "+"; color: var(--muted); font-weight: 500; }
+.fold[open] > summary::after { content: "\2013"; }
+.fold > summary small { font-weight: 500; color: var(--muted); }
+.foldIn { padding: 0 14px 14px; font-size: 13px; display: grid; gap: 6px; }
+.pre { background: var(--panel2); border-radius: 9px; padding: 10px 12px; font-size: 11.5px; line-height: 1.5; overflow: auto; margin: 0; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; white-space: pre-wrap; }
+
+/* journey steps */
+.steps { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.step { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; background: var(--panel); display: grid; gap: 6px; }
+.stepHead { display: grid; grid-template-columns: 24px minmax(0, 1fr) auto; gap: 8px; align-items: center; }
+.stepNo { width: 22px; height: 22px; border-radius: 999px; background: var(--accentbg); color: var(--ink); font-size: 11.5px; font-weight: 700; display: grid; place-items: center; }
+.stepTitle { font-size: 13.5px; font-weight: 600; }
+.stepBody { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-inline-start: 32px; }
+.stepBody .select { width: auto; flex: 1 1 180px; }
+.why { margin-inline-start: 32px; font-size: 12.5px; color: var(--ink); line-height: 1.45; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.whyNot { margin-inline-start: 32px; font-size: 12px; color: var(--muted); line-height: 1.45; }
+.whyNot b { color: var(--amberink); font-weight: 600; }
+.big { font-size: 26px; font-weight: 700; line-height: 1; }
+.checks { display: grid; gap: 6px; }
+.check { border-radius: 9px; padding: 8px 12px; font-size: 13px; background: var(--amberbg); color: var(--amberink); }
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(92px, 1fr)); gap: 8px; }
+.kpi { background: var(--panel2); border-radius: 10px; padding: 10px 12px; display: grid; gap: 2px; }
+.kpi b { font-size: 20px; line-height: 1.1; }
+.kpi span { font-size: 12px; color: var(--muted); }
+.list { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; font-size: 12.5px; }
+.list li { display: flex; flex-wrap: wrap; gap: 4px 10px; justify-content: space-between; padding: 7px 0; border-bottom: 1px solid var(--line); }
+.list li span { color: var(--muted); }
+.trace { display: grid; margin: 0; padding: 0; list-style: none; }
+.tl { display: grid; grid-template-columns: 52px 14px minmax(0, 1fr); gap: 0 8px; padding-bottom: 12px; }
+.tlDay { font-size: 12px; font-weight: 700; color: var(--muted); text-align: right; padding-top: 1px; }
+.tlDot { position: relative; }
+.tlDot::before { content: ""; position: absolute; left: 50%; top: 4px; transform: translateX(-50%); width: 10px; height: 10px; border-radius: 999px; background: var(--greenink); }
+.tlDot::after { content: ""; position: absolute; left: 50%; top: 16px; bottom: -12px; width: 2px; transform: translateX(-50%); background: var(--line); }
+.tl:last-child .tlDot::after { display: none; }
+.tl.held .tlDot::before { background: var(--amberink); }
+.tlTitle { font-size: 13.5px; font-weight: 600; display: block; }
+.tlWhy { font-size: 12.5px; color: var(--muted); display: block; }
+.empty { text-align: center; padding: 28px 16px; display: grid; gap: 6px; justify-items: center; }
+.empty b { font-size: 14.5px; }
+.empty span { font-size: 13px; color: var(--muted); }
+
+/* the InfoTip */
+.tipw { position: relative; display: inline-flex; align-items: center; }
+.tip { width: 16px; height: 16px; border-radius: 999px; padding: 0; margin-inline-start: 6px; border: 1px solid var(--line); background: transparent; color: var(--hint); font-size: 10.5px; font-weight: 700; line-height: 1; display: inline-grid; place-items: center; cursor: pointer; position: relative; font-family: var(--font); }
+.tip::before { content: ""; position: absolute; width: 44px; height: 44px; left: 50%; top: 50%; transform: translate(-50%, -50%); }
+.tip:hover, .tip:focus-visible { border-color: var(--tip-accent); color: var(--tip-accent); }
+.tip[aria-expanded="true"] { background: var(--tip-accent); border-color: var(--tip-accent); color: var(--panel); }
+.tippop { position: absolute; z-index: 30; top: calc(100% + 8px); left: 50%; transform: translateX(-50%); width: max-content; max-width: 280px; background: var(--panel); color: var(--ink); border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 10px 28px rgba(16,24,40,.18); padding: 10px 12px; font-size: 13px; font-weight: 400; line-height: 1.45; text-align: left; white-space: normal; }
+.tippop.above { top: auto; bottom: calc(100% + 8px); }
+.tippop a { display: inline-block; margin-top: 4px; font-weight: 600; }
+.tippop[hidden] { display: none; }
+.backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 40; }
+.backdrop[hidden] { display: none; }
+.sheet { position: fixed; left: 0; right: 0; bottom: 0; z-index: 41; background: var(--panel); color: var(--ink); border-top: 1px solid var(--line); border-radius: 16px 16px 0 0; padding: 16px 16px max(16px, env(safe-area-inset-bottom, 0px)); display: grid; gap: 8px; box-shadow: 0 -10px 30px rgba(0,0,0,.25); }
+.sheet[hidden] { display: none; }
+.sheet h3 { margin: 0; font-size: 15px; }
+.sheet p { font-size: 13.5px; line-height: 1.5; }
+.sheet .acts { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }
+.sheet .btn { min-height: 44px; }
+
+/* sticky bottom bar on phones (FormFooter-like) */
+.bar { position: sticky; bottom: 0; z-index: 20; display: none; gap: 8px; padding: 10px 12px max(10px, env(safe-area-inset-bottom, 0px)); margin: 0 -12px; background: var(--panel); border-top: 1px solid var(--line); }
+.bar .btn { flex: 1; min-height: 44px; justify-content: center; }
+.desk-only { }
+.phone-only { display: none; }
+
+/* Under 900px the studio is one column; the panel groups become the tab strip. */
+@container studio (max-width: 900px) {
+  .studio { grid-template-columns: minmax(0, 1fr); }
+  .panel > .ptabs { display: flex; }
+  .panel.tabbed > .sec:not(.on) { display: none; }
+  .panel.tabbed > .sec.on { border: 0; box-shadow: none; background: transparent; }
+  /* The open group keeps a slim title row (title · summary · i) so the i is still reachable; the strip does the switching. */
+  .panel.tabbed > .sec.on > .sech { padding: 4px 0 8px; pointer-events: none; }
+  .panel.tabbed > .sec.on > .sech .chev { display: none; }
+  .panel.tabbed > .sec.on > .sech .tipw { pointer-events: auto; }
+  .panel.tabbed > .sec.on > .in { display: grid; padding: 0; }
+  .bar { display: flex; }
+  .desk-only { display: none !important; }
+  .phone-only { display: inherit; }
+  .subj { grid-template-columns: minmax(0, 1fr); }
+  .head .r .btn.hide-phone { display: none; }
+  .stepBody, .why, .whyNot { margin-inline-start: 0; }
+  .jpanel:not(.active) { display: none; }
+}
+@container studio (min-width: 901px) {
+  .jpanel { display: grid !important; }
+  .setupTab { display: none; }
+}
+@media (prefers-reduced-motion: reduce) { .sech .chev { transition: none; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <h1>UX simplification — before and after</h1>
+    <p class="sub">Newsletter Studio panel and Journey builder. Explanations move behind an <b>i</b> (hover or focus on a PC, tap on a phone, Esc closes); long pages split into tabs (arrow keys, remembered in the URL); one column and a sticky bar on a phone. Sample content only.</p>
+    <div class="controls">
+      <span class="lab">Screen</span>
+      <div class="seg" role="group" aria-label="Screen"><button type="button" data-screen="newsletter" aria-pressed="true">Newsletter Studio</button><button type="button" data-screen="journey" aria-pressed="false">Journey builder</button></div>
+      <span class="lab">Version</span>
+      <div class="seg" role="group" aria-label="Version"><button type="button" data-view="before" aria-pressed="false">Before</button><button type="button" data-view="after" aria-pressed="true">After</button></div>
+      <span class="lab">Width</span>
+      <div class="seg" role="group" aria-label="Width"><button type="button" data-width="desktop" aria-pressed="true">Desktop</button><button type="button" data-width="phone" aria-pressed="false">Phone 375</button></div>
+      <span class="lab">Theme</span>
+      <div class="seg" role="group" aria-label="Theme"><button type="button" data-theme="light" aria-pressed="false">Light</button><button type="button" data-theme="dark" aria-pressed="false">Dark</button><button type="button" data-theme="system" aria-pressed="true">System</button></div>
+    </div>
+    <p class="legend" id="legend"></p>
+  </header>
+
+  <!-- ============================ NEWSLETTER STUDIO ============================ -->
+  <section class="screen" id="newsletter">
+    <div class="frame" data-view="after">
+      <span class="tag">Newsletter Studio</span>
+      <div class="viewport">
+
+        <!-- BEFORE: today's screen (develop 559d0048) -->
+        <div class="pane before">
+          <div class="head">
+            <div><h1>October update <span class="pill">Draft</span></h1><div class="headsub">Promotions · English + Arabic · not yet used in a campaign</div></div>
+            <div class="r"><button class="btn quiet" type="button">Show me how</button><button class="btn" type="button" aria-label="More">⋯</button></div>
+          </div>
+          <div class="studio">
+            <div class="panel tabbed">
+              <div class="ptabs legacy" role="tablist" aria-label="Options">
+                <button class="ptab" type="button">Start</button><button class="ptab on" type="button">Blocks</button><button class="ptab" type="button">Languages</button><button class="ptab" type="button">Health</button><button class="ptab" type="button">Brand</button><button class="ptab" type="button">Use it</button>
+              </div>
+              <section class="sec"><button class="sech" type="button" aria-expanded="false"><span class="t">Start</span><span class="sum">Details</span><span class="hint">How to begin: say what this issue is about, pick a design, or start blank.</span><svg class="chev" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></button></section>
+              <section class="sec open on"><button class="sech" type="button" aria-expanded="true"><span class="t">Blocks</span><span class="sum">6 blocks</span><span class="hint">The pieces your newsletter is built from. Click one to change its words; drag to reorder.</span><svg class="chev" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></button>
+                <div class="in">
+                  <div>
+                    <div class="blk"><span class="h">🔒</span><span class="n">Header<small>Acme Precast</small></span><span class="t"><span class="help">brand</span></span></div>
+                    <div class="blk sel"><span class="h">⋮⋮</span><span class="n">Text<small>Our new range is in stock</small></span><span class="t"><button class="ic" type="button" aria-label="Hide">👁</button><button class="ic" type="button" aria-label="Move up">↑</button><button class="ic" type="button" aria-label="Move down">↓</button><button class="ic" type="button" aria-label="Remove">🗑</button></span></div>
+                    <div class="blk"><span class="h">⋮⋮</span><span class="n">Product<small>Boundary wall panel</small></span><span class="t"><button class="ic" type="button" aria-label="Hide">👁</button><button class="ic" type="button" aria-label="Move up">↑</button><button class="ic" type="button" aria-label="Move down">↓</button><button class="ic" type="button" aria-label="Remove">🗑</button></span></div>
+                    <div class="blk"><span class="h">⋮⋮</span><span class="n">Button<small>See the range</small></span><span class="t"><button class="ic" type="button" aria-label="Hide">👁</button><button class="ic" type="button" aria-label="Move up">↑</button><button class="ic" type="button" aria-label="Move down">↓</button><button class="ic" type="button" aria-label="Remove">🗑</button></span></div>
+                    <div class="blk"><span class="h">🔒</span><span class="n">Footer<small>Unsubscribe · address</small></span><span class="t"><span class="help">brand</span></span></div>
+                  </div>
+                  <div class="chips"><span class="help" style="align-self:center">Add:</span><button class="chipb" type="button">Text</button><button class="chipb" type="button">Picture</button><button class="chipb" type="button">Product</button><button class="chipb" type="button">Button</button><button class="chipb" type="button">Event</button><button class="chipb" type="button">Divider</button></div>
+                  <p class="hint">Header and footer carry your brand and the unsubscribe line, so they stay in every design.</p>
+                  <div class="editor">
+                    <div class="lbl">Text · English</div>
+                    <div class="stack"><label class="lbl" for="b-t1">Title</label><input id="b-t1" class="field" value="Our new range is in stock"></div>
+                    <div class="stack"><label class="lbl" for="b-t2">Text</label><textarea id="b-t2" class="field">Boundary wall panels, kerbs and manholes, ready to ship from Riyadh this month.</textarea>
+                      <div class="rw"><span class="help">Rewrite:</span><button class="btn sm" type="button">Shorter</button><button class="btn sm" type="button">Friendlier</button><button class="btn sm" type="button">More formal</button></div></div>
+                    <p class="hint">Rewrite suggests new words; keep them or type your own. {{account_name}} is replaced for each person.</p>
+                  </div>
+                </div>
+              </section>
+              <section class="sec"><button class="sech" type="button" aria-expanded="false"><span class="t">Languages</span><span class="sum">English + Arabic</span><span class="hint">English is written first. Add a language on top and each person gets their own.</span><svg class="chev" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></button></section>
+              <section class="sec"><button class="sech" type="button" aria-expanded="false"><span class="t">Content health</span><span class="sum">2 to fix</span><span class="hint">Rules that run every time, never opinions or a score. Each amber item says what to change.</span><svg class="chev" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></button></section>
+              <section class="sec"><button class="sech" type="button" aria-expanded="false"><span class="t">Brand kit</span><span class="sum">Acme Precast</span><span class="hint">Your logo, colours and fonts, set once by an admin and used by every design.</span><svg class="chev" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></button></section>
+              <section class="sec"><button class="sech" type="button" aria-expanded="false"><span class="t">Use it</span><span class="sum">Save · Campaign</span><span class="hint">Keep this design, or hand it to a campaign.</span><svg class="chev" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></button></section>
+            </div>
+            <div class="canvas">
+              <div class="tools">
+                <div class="segs" aria-label="Language"><button type="button" class="on">English</button><button type="button">العربية <span class="pill a">3</span></button><button type="button">+ Add language</button></div>
+                <div class="row"><div class="segs" aria-label="Device"><button type="button" class="on">Desktop</button><button type="button">Phone</button></div><div class="segs" aria-label="Appearance"><button type="button" class="on">Light</button><button type="button">Dark</button></div></div>
+              </div>
+              <div class="subj"><label>Subject<input class="field" value="New range in stock: boundary walls, kerbs, manholes"></label><label>Preheader (the preview line after the subject)<input class="field" value="Ready to ship from Riyadh this month"></label></div>
+              <div class="stage"><div class="email"><div class="bh">Acme Precast</div><div class="bb"><h3>Our new range is in stock</h3><p>Boundary wall panels, kerbs and manholes, ready to ship from Riyadh this month.</p><span class="cta">See the range</span></div><div class="bf">Acme Precast · Industrial City 2, Riyadh · Unsubscribe</div></div></div>
+              <p class="hint">Shown exactly as it is built for email programs: tables, plain fonts, no scripts. Phone and Dark show what a small screen or a program that inverts colours does with it.</p>
+            </div>
+          </div>
+          <details class="fold"><summary>Versions <small>what a campaign actually sent</small></summary><div class="foldIn"><p class="hint">No versions yet. "Use in a campaign" keeps a copy of this design, so editing it later never changes a campaign that already went out.</p></div></details>
+          <details class="fold"><summary>Email HTML <small>for your IT team</small></summary><div class="foldIn"><p class="hint">Generated by the renderer from the blocks. Every text is escaped; links are checked; nothing you type is sent as HTML.</p></div></details>
+          <details class="fold"><summary>Details <small>reference, status, your own fields</small></summary><div class="foldIn"><p class="hint">NL-0042 · Draft · Category: Promotions · Created 12 Oct 2026</p></div></details>
+          <div class="bar"><button class="btn" type="button">Save</button><button class="btn primary" type="button">Use in a campaign</button></div>
+        </div>
+
+        <!-- AFTER -->
+        <div class="pane after">
+          <div class="head">
+            <div><h1>October update <span class="pill">Draft</span></h1><div class="headsub">NL-0042 · Promotions · English + Arabic · 0 versions</div></div>
+            <div class="r">
+              <button class="btn quiet" type="button">Show me how</button>
+              <button class="btn hide-phone" type="button">Save</button>
+              <button class="btn primary hide-phone" type="button">Use in a campaign</button>
+              <button class="btn" type="button" aria-label="More" title="Duplicate · Save as template · Versions · Export HTML · Archive · Delete">⋯</button>
+            </div>
+          </div>
+          <div class="studio">
+            <div class="panel tabbed" id="nlPanel">
+              <div class="ptabs tabs" role="tablist" aria-label="Options" data-urlkey="ntab" data-kind="panel">
+                <button class="tab" role="tab" type="button" aria-selected="false" data-tab="start">Start</button>
+                <button class="tab" role="tab" type="button" aria-selected="true" data-tab="blocks">Blocks <span class="n">6</span></button>
+                <button class="tab" role="tab" type="button" aria-selected="false" data-tab="lang">Languages</button>
+                <button class="tab" role="tab" type="button" aria-selected="false" data-tab="health">Health <span class="n">2</span></button>
+              </div>
+
+              <section class="sec" data-group="start">
+                <div class="sech"><button class="secbtn" type="button" aria-expanded="false">Start</button><span class="tipw"><button type="button" class="tip" aria-label="About Start" aria-expanded="false" data-text="Name it, choose the category and consent topic, then begin from a line for AI, a design, or a blank page." data-learn="#">i</button></span><span class="sum">Write it for me</span><svg class="chev" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></div>
+                <div class="in">
+                  <div class="stack"><label class="lbl" for="a-name">Name</label><input id="a-name" class="field" value="October update"></div>
+                  <div class="row">
+                    <div class="col"><label class="lbl" for="a-cat">Category</label><select id="a-cat" class="select"><option>Promotions</option><option>News</option></select></div>
+                    <div class="col"><span class="lbl"><label for="a-topic">Consent topic</label><span class="tipw"><button type="button" class="tip" aria-label="About Consent topic" aria-expanded="false" data-text="Only people who agreed to hear about this topic receive it. Checked for each person at send time." data-learn="#">i</button></span></span><select id="a-topic" class="select"><option>Offers</option><option>Any consent topic</option></select></div>
+                  </div>
+                  <div class="starts">
+                    <button class="start sel" type="button"><b>Write it for me</b><span>AI drafts, you review</span></button>
+                    <button class="start" type="button"><b>Start from a design</b><span>Templates and built-ins</span></button>
+                    <button class="start" type="button"><b>Blank</b><span>Header and footer only</span></button>
+                  </div>
+                  <div class="stack"><label class="lbl" for="a-brief">What is this newsletter about?</label><textarea id="a-brief" class="field" placeholder="New product range in stock. 10% off until the end of the month."></textarea></div>
+                  <div class="row"><button class="btn primary" type="button">Write it for me</button></div>
+                  <div class="fact"><b>Brand:</b> Acme Precast<span class="tipw"><button type="button" class="tip" aria-label="About Brand" aria-expanded="false" data-text="Logo, colours and fonts come from Settings → Brand kit and are used by every design. An admin changes them there." data-learn="#">i</button></span><a href="#">Change</a></div>
+                </div>
+              </section>
+
+              <section class="sec open on" data-group="blocks">
+                <div class="sech"><button class="secbtn" type="button" aria-expanded="true">Blocks</button><span class="tipw"><button type="button" class="tip" aria-label="About Blocks" aria-expanded="false" data-text="The pieces the email is built from. Click one to edit its words, drag to reorder. Header and footer carry your brand and the unsubscribe line, so they stay." data-learn="#">i</button></span><span class="sum">6 blocks</span><svg class="chev" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></div>
+                <div class="in">
+                  <div>
+                    <div class="blk" tabindex="0"><span class="h">🔒</span><span class="n">Header<small>Acme Precast</small></span><span class="t"><span class="help">brand</span></span></div>
+                    <div class="blk sel" tabindex="0"><span class="h">⋮⋮</span><span class="n">Text<small>Our new range is in stock</small></span><span class="t"><button class="ic" type="button" aria-label="Hide Text">👁</button><button class="ic" type="button" aria-label="Move up">↑</button><button class="ic" type="button" aria-label="Move down">↓</button><button class="ic" type="button" aria-label="Remove Text">🗑</button></span></div>
+                    <div class="blk" tabindex="0"><span class="h">⋮⋮</span><span class="n">Product<small>Boundary wall panel</small></span><span class="t"><button class="ic" type="button" aria-label="Hide Product">👁</button><button class="ic" type="button" aria-label="Move up">↑</button><button class="ic" type="button" aria-label="Move down">↓</button><button class="ic" type="button" aria-label="Remove Product">🗑</button></span></div>
+                    <div class="blk" tabindex="0"><span class="h">⋮⋮</span><span class="n">Button<small>See the range</small></span><span class="t"><button class="ic" type="button" aria-label="Hide Button">👁</button><button class="ic" type="button" aria-label="Move up">↑</button><button class="ic" type="button" aria-label="Move down">↓</button><button class="ic" type="button" aria-label="Remove Button">🗑</button></span></div>
+                    <div class="blk" tabindex="0"><span class="h">🔒</span><span class="n">Footer<small>Unsubscribe · address</small></span><span class="t"><span class="help">brand</span></span></div>
+                  </div>
+                  <div class="chips"><span class="help" style="align-self:center">Add:</span><button class="chipb" type="button">Text</button><button class="chipb" type="button">Picture</button><button class="chipb" type="button">Product</button><button class="chipb" type="button">Button</button><button class="chipb" type="button">Event</button><button class="chipb" type="button">Divider</button></div>
+                  <div class="editor">
+                    <div class="lbl">Text · English</div>
+                    <div class="stack"><label class="lbl" for="a-t1">Title</label><input id="a-t1" class="field" value="Our new range is in stock"></div>
+                    <div class="stack"><label class="lbl" for="a-t2">Text</label><textarea id="a-t2" class="field">Boundary wall panels, kerbs and manholes, ready to ship from Riyadh this month.</textarea>
+                      <div class="rw"><span class="lbl" style="font-weight:500;color:var(--muted)">Rewrite<span class="tipw"><button type="button" class="tip" aria-label="About Rewrite" aria-expanded="false" data-text="AI suggests new words; keep them or type your own. {{account_name}} is replaced for each person." data-learn="#">i</button></span></span><button class="btn sm" type="button">Shorter</button><button class="btn sm" type="button">Friendlier</button><button class="btn sm" type="button">More formal</button></div></div>
+                    <div class="stack"><span class="lbl"><label for="a-pic">Picture</label><span class="tipw"><button type="button" class="tip" aria-label="About Picture" aria-expanded="false" data-text="Pictures are kept in your own workspace; a picture from anywhere else is never used." data-learn="#">i</button></span></span><input id="a-pic" type="file" class="field"><span class="constraint">PNG, JPG, WebP · max 2 MB</span></div>
+                  </div>
+                </div>
+              </section>
+
+              <section class="sec" data-group="lang">
+                <div class="sech"><button class="secbtn" type="button" aria-expanded="false">Languages</button><span class="tipw"><button type="button" class="tip" aria-label="About Languages" aria-expanded="false" data-text="English is written first; each person gets their own language if the email has it, else English. The contact's language wins, then the account's." data-learn="#">i</button></span><span class="sum">English + Arabic</span><svg class="chev" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></div>
+                <div class="in">
+                  <div class="list" style="display:grid"><div class="list"><li><b>English (default)</b><span class="pill g">Written first</span></li><li><b>Arabic</b><span class="pill a">3 to check</span></li></div></div>
+                  <div class="stack"><span class="lbl"><label for="a-addl">Add language</label><span class="tipw"><button type="button" class="tip" aria-label="About Add language" aria-expanded="false" data-text="AI translates every block and keeps product names and prices. Lines it was unsure about show “Check this” until you accept or edit them." data-learn="#">i</button></span></span>
+                    <div class="row"><select id="a-addl" class="select" style="flex:1 1 140px;width:auto"><option>Hindi (हिन्दी)</option><option>Urdu (اردو)</option></select><button class="btn sm primary" type="button">Translate with AI</button><button class="btn sm" type="button">I'll write it</button></div></div>
+                </div>
+              </section>
+
+              <section class="sec" data-group="health">
+                <div class="sech"><button class="secbtn" type="button" aria-expanded="false">Health</button><span class="tipw"><button type="button" class="tip" aria-label="About Health" aria-expanded="false" data-text="Fixed rules that run every time, never opinions or a score. Each amber item says what to change." data-learn="#">i</button></span><span class="sum">2 to fix</span><svg class="chev" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></div>
+                <div class="in">
+                  <div class="chips" style="flex-direction:column;align-items:flex-start"><span class="chip a">⚠ Subject over 60 characters</span><span class="help">Shorten it so phones show all of it.</span><span class="chip a">⚠ Arabic has 3 unchecked lines</span><span class="help">Accept or edit them in the Arabic view.</span><span class="chip g">✓ Every link is https</span><span class="chip g">✓ Unsubscribe line present</span></div>
+                </div>
+              </section>
+            </div>
+
+            <div class="canvas">
+              <div class="tools">
+                <div class="segs" aria-label="Language"><button type="button" class="on">English</button><button type="button">العربية <span class="pill a">3</span></button><button type="button">+ Add language</button></div>
+                <div class="row"><span class="lbl" style="font-weight:500;color:var(--muted)">Preview<span class="tipw"><button type="button" class="tip" aria-label="About Preview" aria-expanded="false" data-text="Built exactly as email programs render it: tables, plain fonts, no scripts. Phone and Dark show a small screen or inverted colours." data-learn="#">i</button></span></span><div class="segs" aria-label="Device"><button type="button" class="on">Desktop</button><button type="button">Phone</button></div><div class="segs" aria-label="Appearance"><button type="button" class="on">Light</button><button type="button">Dark</button></div></div>
+              </div>
+              <div class="subj">
+                <label><span class="lbl">Subject</span><input class="field" value="New range in stock: boundary walls, kerbs, manholes"></label>
+                <label><span class="lbl">Preheader<span class="tipw"><button type="button" class="tip" aria-label="About Preheader" aria-expanded="false" data-text="The short line an inbox shows after the subject." data-learn="#">i</button></span></span><input class="field" value="Ready to ship from Riyadh this month"></label>
+              </div>
+              <div class="stage"><div class="email"><div class="bh">Acme Precast</div><div class="bb"><h3>Our new range is in stock</h3><p>Boundary wall panels, kerbs and manholes, ready to ship from Riyadh this month.</p><span class="cta">See the range</span></div><div class="bf">Acme Precast · Industrial City 2, Riyadh · Unsubscribe</div></div></div>
+            </div>
+          </div>
+          <div class="bar"><button class="btn" type="button">Save</button><button class="btn primary" type="button">Use in a campaign</button></div>
+        </div>
+      </div>
+      <div class="backdrop" hidden></div>
+      <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="nlSheetT" hidden><h3 id="nlSheetT"></h3><p></p><a class="learn" href="#" hidden>Learn more</a><div class="acts"><button class="btn" type="button" data-close>Close</button></div></div>
+    </div>
+  </section>
+
+  <!-- ============================ JOURNEY BUILDER ============================ -->
+  <section class="screen" id="journey" hidden>
+    <div class="frame" data-view="after">
+      <span class="tag">Journey builder</span>
+      <div class="viewport">
+
+        <!-- BEFORE -->
+        <div class="pane before">
+          <div class="head">
+            <div><h1>Quote follow-up <span class="pill">Draft</span></h1><div class="headsub">JN-0007 · 4 steps · runs within 5 minutes</div></div>
+            <div class="r"><button class="btn quiet" type="button">Show me how</button><button class="btn" type="button">Save</button><button class="btn primary" type="button">Turn on</button><button class="btn" type="button" aria-label="More">⋯</button></div>
+          </div>
+          <div class="studio">
+            <div class="panel">
+              <section class="sec"><button class="sech" type="button" aria-expanded="false"><span class="t">Name and start</span><span class="sum">Quote follow-up</span><span class="hint">What to call it, and a ready-made journey to start from.</span><svg class="chev" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></button></section>
+              <section class="sec open"><button class="sech" type="button" aria-expanded="true"><span class="t">When it starts</span><span class="sum">A quote is sent</span><span class="hint">The moment a person enters. It comes from Sales, Service, forms or events, not only from marketing.</span><svg class="chev" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></button>
+                <div class="in">
+                  <div class="stack"><label class="lbl" for="b-trig">It starts when</label><select id="b-trig" class="select"><option>A quote is sent</option><option>A form is submitted</option><option>A case is closed</option></select><span class="hint">Fires when a quotation leaves Draft for Sent. The contact on the quote enters.</span></div>
+                  <div class="stack"><label class="lbl" for="b-cond">But only if</label><select id="b-cond" class="select"><option>No extra condition</option><option>The amount is at least…</option></select><span class="hint">An extra check before anyone enters. Consent is always checked again at each send, whatever you pick here.</span></div>
+                  <div class="stack"><label class="lbl" for="b-look">Include the last (days)</label><input id="b-look" class="field num" type="number" value="7"><span class="hint">When you turn it on, people from events this recent also enter. 0 means only new events.</span></div>
+                </div>
+              </section>
+              <section class="sec"><button class="sech" type="button" aria-expanded="false"><span class="t">Rules</span><span class="sum">Safe defaults</span><span class="hint">Whether a person can go through it again, and the limits that protect your customers.</span><svg class="chev" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></button></section>
+              <section class="sec"><button class="sech" type="button" aria-expanded="false"><span class="t">Languages</span><span class="sum">EN, AR</span><span class="hint">Messages are written in English first. Each person gets their own language if the newsletter has it, otherwise English.</span><svg class="chev" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></button></section>
+            </div>
+            <div class="canvas" style="background:transparent;border:0;padding:0;box-shadow:none;gap:14px">
+              <div class="card"><h2>Who would enter today <small>by the same rules the runner uses</small></h2>
+                <div class="row"><span class="big">12</span><span class="help">people from events in the last 7 days who are not already in it</span></div>
+                <div class="chips"><span class="chip">Faisal Al-Harbi · Nile Build</span><span class="chip">Mona Said · Delta Precast</span><span class="chip">Yusuf Khan · Gulf Fencing</span><span class="chip n">+9 more</span></div>
+                <p class="help">Fires when a quotation leaves Draft for Sent. The contact on the quote enters.</p>
+                <div class="checks"><div class="check">More people than usual would enter (12 vs 3 a week). You will be asked to confirm.</div></div>
+              </div>
+              <div class="card"><h2>The journey <small>each line is a step; the sentence under it says when it fires</small></h2>
+                <ol class="steps">
+                  <li class="step"><div class="stepHead"><span class="stepNo">1</span><span class="stepTitle">Wait</span><span class="t"><button class="ic" type="button" aria-label="Move up">↑</button><button class="ic" type="button" aria-label="Move down">↓</button><button class="ic" type="button" aria-label="Remove">🗑</button></span></div><div class="stepBody"><input class="field num" type="number" value="3"><select class="select" style="width:auto;flex:0"><option>days</option></select></div><div class="why">Fires 3 days after the quote is sent, at the next allowed time.</div><div class="whyNot"><b>Held or skipped if:</b> the quote was accepted or lost in the meantime. The company is in trouble (a case open over 14 days or an overdue invoice).</div></li>
+                  <li class="step"><div class="stepHead"><span class="stepNo">2</span><span class="stepTitle">Send a newsletter version</span><span class="t"><button class="ic" type="button" aria-label="Move up">↑</button><button class="ic" type="button" aria-label="Move down">↓</button><button class="ic" type="button" aria-label="Remove">🗑</button></span></div><div class="stepBody"><select class="select"><option>October update · v2 (EN, AR)</option></select><select class="select" style="flex:0 1 160px"><option>Offers</option><option>No one subject</option></select></div><div class="why">Sends October update v2 in the person's language, about 09:00 on day 3.</div><div class="whyNot"><b>Held or skipped if:</b> no consent for Offers. The address bounced or complained. Quiet hours 20:00 to 08:00 or a Friday. Already 1 email today.</div></li>
+                  <li class="step"><div class="stepHead"><span class="stepNo">3</span><span class="stepTitle">Wait</span><span class="t"><button class="ic" type="button" aria-label="Move up">↑</button><button class="ic" type="button" aria-label="Move down">↓</button><button class="ic" type="button" aria-label="Remove">🗑</button></span></div><div class="stepBody"><input class="field num" type="number" value="4"><select class="select" style="width:auto;flex:0"><option>days</option></select></div><div class="why">Fires 4 days later, on day 7.</div><div class="whyNot"><b>Held or skipped if:</b> the quote was accepted or lost in the meantime.</div></li>
+                  <li class="step"><div class="stepHead"><span class="stepNo">4</span><span class="stepTitle">Create a task for the owner</span><span class="t"><button class="ic" type="button" aria-label="Move up">↑</button><button class="ic" type="button" aria-label="Move down">↓</button><button class="ic" type="button" aria-label="Remove">🗑</button></span></div><div class="stepBody"><input class="field" style="flex:1 1 200px;width:auto" value="Call {contact_name} about the quote"><span class="help">due in</span><input class="field num" type="number" value="1"><span class="help">days</span></div><div class="why">Creates a task for the account owner on day 7, due the next day.</div><div class="whyNot"><b>Held or skipped if:</b> the quote was accepted or lost. No owner is set: the task is left unassigned.</div></li>
+                </ol>
+                <div class="chips"><button class="chipb" type="button">+ Wait</button><button class="chipb" type="button">+ Send a newsletter version</button><button class="chipb" type="button">+ Create a task for the owner</button><button class="chipb" type="button">+ Notify the owner</button><button class="chipb" type="button">+ End</button></div>
+              </div>
+              <div class="card"><h2>Try it on one person <small>nothing is sent</small></h2>
+                <div class="stack"><label class="lbl" for="b-who">Pick someone</label><input id="b-who" class="field" placeholder="Type at least two letters of a name"><span class="hint">See the path this person would take, with the day and the reason at every turn. Uses what is on screen, saved or not.</span></div>
+                <div class="row"><button class="btn sm primary" type="button">Show the path</button></div>
+              </div>
+              <div class="card"><h2>What is happening <small>from the run log, not a guess</small></h2>
+                <div class="kpis"><div class="kpi"><b>0</b><span>entered</span></div><div class="kpi"><b>0</b><span>waiting</span></div><div class="kpi"><b>0</b><span>stuck</span></div><div class="kpi"><b>0</b><span>skipped or held</span></div><div class="kpi"><b>0</b><span>emails sent</span></div><div class="kpi"><b>0</b><span>tasks created</span></div></div>
+                <details class="fold"><summary>Run log <small>0 most recent</small></summary><div class="foldIn"><p class="help">Nobody has entered yet.</p></div></details>
+              </div>
+              <details class="fold"><summary>Details for your IT team <small>what the steps compile to</small></summary><div class="foldIn"><pre class="pre">trigger: quote.sent
+entry:   once per person · pause_when_in_trouble=true · lookback=7d
+step 1:  wait 3 days</pre></div></details>
+            </div>
+          </div>
+        </div>
+
+        <!-- AFTER -->
+        <div class="pane after">
+          <div class="head">
+            <div><h1>Quote follow-up <span class="pill">Draft</span></h1><div class="headsub">JN-0007 · 4 steps · 12 would enter</div></div>
+            <div class="r"><button class="btn quiet" type="button">Show me how</button><button class="btn hide-phone" type="button">Save</button><button class="btn primary hide-phone" type="button">Go live</button><button class="btn" type="button" aria-label="More" title="Definition · Duplicate · Archive">⋯</button></div>
+          </div>
+          <div class="tabs" role="tablist" aria-label="Journey" data-urlkey="jtab" data-kind="canvas">
+            <button class="tab setupTab" role="tab" type="button" aria-selected="false" data-tab="setup">Setup</button>
+            <button class="tab" role="tab" type="button" aria-selected="true" data-tab="build">Build</button>
+            <button class="tab" role="tab" type="button" aria-selected="false" data-tab="test">Test</button>
+            <button class="tab" role="tab" type="button" aria-selected="false" data-tab="running">Running <span class="n">0</span></button>
+          </div>
+          <div class="studio">
+            <div class="panel jpanel tabpanel" data-tabpanel="setup" id="jnPanel">
+              <section class="sec" data-group="start">
+                <div class="sech"><button class="secbtn" type="button" aria-expanded="false">Start</button><span class="tipw"><button type="button" class="tip" aria-label="About Start" aria-expanded="false" data-text="The name only your team sees, and a template that replaces the steps on the right." data-learn="#">i</button></span><span class="sum">Quote follow-up</span><svg class="chev" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></div>
+                <div class="in"><div class="stack"><label class="lbl" for="j-name">Name</label><input id="j-name" class="field" value="Quote follow-up"></div><div class="stack"><label class="lbl" for="j-tpl">Replace the steps with a template</label><select id="j-tpl" class="select"><option>Choose a template…</option><option>Quote follow-up</option></select></div></div>
+              </section>
+              <section class="sec open" data-group="when">
+                <div class="sech"><button class="secbtn" type="button" aria-expanded="true">When it starts</button><span class="tipw"><button type="button" class="tip" aria-label="About When it starts" aria-expanded="false" data-text="The moment a person enters. It can come from Sales, Service or a form, not only from marketing." data-learn="#">i</button></span><span class="sum">A quote is sent</span><svg class="chev" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></div>
+                <div class="in">
+                  <div class="stack"><span class="lbl"><label for="j-trig">It starts when</label><span class="tipw"><button type="button" class="tip" aria-label="About It starts when" aria-expanded="false" data-text="Fires when a quotation leaves Draft for Sent. The contact on the quote enters." data-learn="#">i</button></span></span><select id="j-trig" class="select"><option>A quote is sent</option><option>A form is submitted</option><option>A case is closed</option></select></div>
+                  <div class="stack"><span class="lbl"><label for="j-cond">But only if</label><span class="tipw"><button type="button" class="tip" aria-label="About But only if" aria-expanded="false" data-text="An extra check before anyone enters. Consent is always checked again at each send, whatever you pick." data-learn="#">i</button></span></span><select id="j-cond" class="select"><option>No extra condition</option><option>The amount is at least…</option></select></div>
+                  <div class="stack"><span class="lbl"><label for="j-look">Include the last (days)</label><span class="tipw"><button type="button" class="tip" aria-label="About Include the last" aria-expanded="false" data-text="When you go live, people from events this recent also enter. 0 means only new events." data-learn="#">i</button></span></span><input id="j-look" class="field num" type="number" value="7"></div>
+                </div>
+              </section>
+              <section class="sec" data-group="rules">
+                <div class="sech"><button class="secbtn" type="button" aria-expanded="false">Rules</button><span class="tipw"><button type="button" class="tip" aria-label="About Rules" aria-expanded="false" data-text="Whether a person can go through again, and the workspace limits that protect your customers." data-learn="#">i</button></span><span class="sum">Safe defaults</span><svg class="chev" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></div>
+                <div class="in">
+                  <div class="fact"><b>Re-entry:</b> never<span class="tipw"><button type="button" class="tip" aria-label="About Re-entry" aria-expanded="false" data-text="Each person goes through this journey once." data-learn="#">i</button></span></div>
+                  <label class="chk"><input type="checkbox" checked><span>One person per company<span class="tipw"><button type="button" class="tip" aria-label="About One person per company" aria-expanded="false" data-text="If two people at one company are on the quote, only one gets the journey." data-learn="#">i</button></span></span></label>
+                  <label class="chk"><input type="checkbox" checked><span>Pause when the company is in trouble<span class="tipw"><button type="button" class="tip" aria-label="About Pause when the company is in trouble" aria-expanded="false" data-text="No newsletter while a case has been open over 14 days or an invoice is overdue." data-learn="#">i</button></span></span></label>
+                  <div class="fact"><b>Limits:</b><span class="tipw"><button type="button" class="tip" aria-label="About Limits" aria-expanded="false" data-text="Set for the whole workspace (Asia/Riyadh) in Settings → Marketing. Messages wait for the next allowed time; they are never dropped." data-learn="#">i</button></span></div>
+                  <div class="chips"><span class="chip">No sends 20:00–08:00</span><span class="chip">Not on Friday</span><span class="chip">Max 1 email a day</span></div>
+                </div>
+              </section>
+            </div>
+
+            <div class="canvas" style="background:transparent;border:0;padding:0;box-shadow:none;gap:14px">
+              <div class="tabpanel stack14 active" data-tabpanel="build">
+                <div class="card"><h2>Who would enter today<span class="tipw"><button type="button" class="tip" aria-label="About Who would enter today" aria-expanded="false" data-text="Counted by the same rules the runner uses, from what is on screen, saved or not." data-learn="#">i</button></span></h2>
+                  <div class="row"><span class="big">12</span><span class="help">from events in the last 7 days</span></div>
+                  <div class="chips"><span class="chip">Faisal Al-Harbi · Nile Build</span><span class="chip">Mona Said · Delta Precast</span><span class="chip">Yusuf Khan · Gulf Fencing</span><span class="chip">Lina Haddad · Beacon Infra</span><span class="chip">Omar Sayed · Nile Build</span><button class="chipb" type="button">Show all 12</button></div>
+                  <div class="checks"><div class="check">More people than usual would enter (12 vs 3 a week). You will be asked to confirm.</div></div>
+                </div>
+                <div class="card"><h2>The journey<span class="tipw"><button type="button" class="tip" aria-label="About The journey" aria-expanded="false" data-text="Each line is a step. The sentence under it says when it fires; the guards chip says what can hold or skip it." data-learn="#">i</button></span></h2>
+                  <ol class="steps">
+                    <li class="step"><div class="stepHead"><span class="stepNo">1</span><span class="stepTitle">Wait</span><span class="t"><button class="ic" type="button" aria-label="Move up">↑</button><button class="ic" type="button" aria-label="Move down">↓</button><button class="ic" type="button" aria-label="Remove step">🗑</button></span></div><div class="stepBody"><input class="field num" type="number" value="3" aria-label="How long"><select class="select" style="width:auto;flex:0" aria-label="Unit"><option>days</option></select></div><div class="why">Fires 3 days after the quote is sent.<span class="chip n" style="display:inline-flex;align-items:center">2 guards<span class="tipw"><button type="button" class="tip" aria-label="About guards on step 1" aria-expanded="false" data-text="Held or skipped if the quote was accepted or lost, or the company is in trouble (a case open over 14 days or an overdue invoice).">i</button></span></span></div></li>
+                    <li class="step"><div class="stepHead"><span class="stepNo">2</span><span class="stepTitle">Send a newsletter version</span><span class="t"><button class="ic" type="button" aria-label="Move up">↑</button><button class="ic" type="button" aria-label="Move down">↓</button><button class="ic" type="button" aria-label="Remove step">🗑</button></span></div><div class="stepBody"><select class="select" aria-label="Newsletter version"><option>October update · v2</option></select><select class="select" style="flex:0 1 170px" aria-label="Consent topic"><option>Offers</option><option>Any consent topic</option></select></div><div class="why">Sends October update v2 about 09:00 on day 3.<span class="chip g">EN · AR</span><span class="chip n" style="display:inline-flex;align-items:center">4 guards<span class="tipw"><button type="button" class="tip" aria-label="About guards on step 2" aria-expanded="false" data-text="Held or skipped if there is no consent for Offers, the address bounced or complained, it is quiet hours or a Friday, or the person already had 1 email today.">i</button></span></span></div></li>
+                    <li class="step"><div class="stepHead"><span class="stepNo">3</span><span class="stepTitle">Wait</span><span class="t"><button class="ic" type="button" aria-label="Move up">↑</button><button class="ic" type="button" aria-label="Move down">↓</button><button class="ic" type="button" aria-label="Remove step">🗑</button></span></div><div class="stepBody"><input class="field num" type="number" value="4" aria-label="How long"><select class="select" style="width:auto;flex:0" aria-label="Unit"><option>days</option></select></div><div class="why">Fires 4 days later, on day 7.<span class="chip n" style="display:inline-flex;align-items:center">1 guard<span class="tipw"><button type="button" class="tip" aria-label="About guards on step 3" aria-expanded="false" data-text="Held or skipped if the quote was accepted or lost in the meantime.">i</button></span></span></div></li>
+                    <li class="step"><div class="stepHead"><span class="stepNo">4</span><span class="stepTitle">Create a task for the owner</span><span class="t"><button class="ic" type="button" aria-label="Move up">↑</button><button class="ic" type="button" aria-label="Move down">↓</button><button class="ic" type="button" aria-label="Remove step">🗑</button></span></div><div class="stepBody"><input class="field" style="flex:1 1 200px;width:auto" value="Call {contact_name} about the quote" aria-label="Task"><span class="help">due in</span><input class="field num" type="number" value="1" aria-label="Due in days"><span class="help">days</span></div><div class="why">Creates a task for the account owner on day 7, due the next day.<span class="chip n" style="display:inline-flex;align-items:center">2 guards<span class="tipw"><button type="button" class="tip" aria-label="About guards on step 4" aria-expanded="false" data-text="Skipped if the quote was accepted or lost. With no owner set, the task is left unassigned.">i</button></span></span></div></li>
+                  </ol>
+                  <div class="chips"><button class="chipb" type="button">+ Wait</button><button class="chipb" type="button">+ Send a newsletter</button><button class="chipb" type="button">+ Task for the owner</button><button class="chipb" type="button">+ Notify the owner</button><button class="chipb" type="button">+ End</button></div>
+                </div>
+              </div>
+
+              <div class="tabpanel" data-tabpanel="test">
+                <div class="card"><h2>Try it on one person<span class="tipw"><button type="button" class="tip" aria-label="About Try it on one person" aria-expanded="false" data-text="Shows the exact path and dates this person would get, with the reason at every turn. Nothing is sent." data-learn="#">i</button></span></h2>
+                  <div class="stack"><label class="lbl" for="j-who">Pick someone</label><input id="j-who" class="field" value="Mona Said · Delta Precast"></div>
+                  <div class="row"><button class="btn sm primary" type="button">Show the path</button></div>
+                  <ol class="trace">
+                    <li class="tl"><span class="tlDay">Day 0</span><span class="tlDot"></span><span><span class="tlTitle">Enters</span><span class="tlWhy">Quote QT-2041 sent on 18 Oct.</span></span></li>
+                    <li class="tl"><span class="tlDay">Day 3</span><span class="tlDot"></span><span><span class="tlTitle">Wait ends</span><span class="tlWhy">21 Oct, 09:00.</span></span></li>
+                    <li class="tl held"><span class="tlDay">Day 3</span><span class="tlDot"></span><span><span class="tlTitle">Newsletter held</span><span class="tlWhy">21 Oct is a Friday; sent Saturday 09:00 in Arabic.</span></span></li>
+                    <li class="tl"><span class="tlDay">Day 7</span><span class="tlDot"></span><span><span class="tlTitle">Task for Ahmed (owner)</span><span class="tlWhy">Due 26 Oct.</span></span></li>
+                  </ol>
+                </div>
+              </div>
+
+              <div class="tabpanel" data-tabpanel="running">
+                <div class="card"><h2>Running<span class="tipw"><button type="button" class="tip" aria-label="About Running" aria-expanded="false" data-text="Live counts from the run log, not a guess. Click a reason to see the people." data-learn="#">i</button></span></h2>
+                  <div class="kpis"><div class="kpi"><b>0</b><span>entered</span></div><div class="kpi"><b>0</b><span>waiting</span></div><div class="kpi"><b>0</b><span>stuck</span></div><div class="kpi"><b>0</b><span>skipped or held</span></div><div class="kpi"><b>0</b><span>emails sent</span></div><div class="kpi"><b>0</b><span>tasks</span></div></div>
+                  <div class="empty"><b>Not live yet</b><span>Go live and people enter as quotes are sent.</span><button class="btn primary" type="button">Go live</button></div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="bar"><button class="btn" type="button">Save</button><button class="btn primary" type="button">Go live</button></div>
+        </div>
+      </div>
+      <div class="backdrop" hidden></div>
+      <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="jnSheetT" hidden><h3 id="jnSheetT"></h3><p></p><a class="learn" href="#" hidden>Learn more</a><div class="acts"><button class="btn" type="button" data-close>Close</button></div></div>
+    </div>
+  </section>
+</div>
+
+<script>
+(function () {
+  "use strict";
+  var LEGEND = {
+    "newsletter|before": "<b>Before:</b> 6 panel groups, a hint line under every header and option, action buttons inside the panel, three folds under the canvas. On a phone the 6-tab strip scrolls and \"Use it\" duplicates the bottom bar.",
+    "newsletter|after": "<b>After:</b> 4 groups (Start · Blocks · Languages · Health), explanations behind the <b>i</b>, Save and Use in a campaign in the header (phone: bottom bar), the rest in ⋯. Hover or focus an <b>i</b>; Esc closes. In the phone frame, tap it.",
+    "journey|before": "<b>Before:</b> 4 panel groups with hints, four cards stacked on the canvas (five screens on a phone), a \"Held or skipped if\" paragraph under every step, no bottom bar on a phone.",
+    "journey|after": "<b>After:</b> Build · Test · Running tabs (arrow keys, ?jtab= in the URL); on a phone the panel becomes the Setup tab; guards behind an <b>i</b> on a chip; Save and Go live in the header and the phone bar."
+  };
+  var state = { screen: "newsletter", view: "after", width: "desktop" };
+
+  function $(sel, root) { return (root || document).querySelector(sel); }
+  function $$(sel, root) { return Array.prototype.slice.call((root || document).querySelectorAll(sel)); }
+
+  // Top controls
+  $$("[data-screen]").forEach(function (b) { b.addEventListener("click", function () { state.screen = b.dataset.screen; apply(); }); });
+  $$("[data-view]").forEach(function (b) { b.addEventListener("click", function () { state.view = b.dataset.view; apply(); }); });
+  $$("[data-width]").forEach(function (b) { b.addEventListener("click", function () { state.width = b.dataset.width; apply(); }); });
+  $$("[data-theme]").forEach(function (b) { b.addEventListener("click", function () {
+    var t = b.dataset.theme;
+    if (t === "system") delete document.documentElement.dataset.theme; else document.documentElement.dataset.theme = t;
+    $$("[data-theme]").forEach(function (x) { x.setAttribute("aria-pressed", String(x === b)); });
+  }); });
+
+  function apply() {
+    $$("[data-screen]").forEach(function (x) { x.setAttribute("aria-pressed", String(x.dataset.screen === state.screen)); });
+    $$("[data-view]").forEach(function (x) { x.setAttribute("aria-pressed", String(x.dataset.view === state.view)); });
+    $$("[data-width]").forEach(function (x) { x.setAttribute("aria-pressed", String(x.dataset.width === state.width)); });
+    $$(".screen").forEach(function (s) { s.hidden = s.id !== state.screen; });
+    $$(".frame").forEach(function (f) { f.dataset.view = state.view; f.classList.toggle("phone", state.width === "phone"); });
+    $("#legend").innerHTML = LEGEND[state.screen + "|" + state.view];
+    closeAllTips();
+  }
+
+  // Accordion groups: one open at a time (desktop); on a narrow container the strip drives them.
+  $$(".after .sec > .sech").forEach(function (h) {
+    h.addEventListener("click", function (e) {
+      if (e.target.closest(".tip")) return;
+      var sec = h.parentElement, panel = sec.parentElement, open = sec.classList.contains("open");
+      var strip = $(":scope > .ptabs", panel);
+      if (strip && getComputedStyle(strip).display !== "none") return; // the strip drives the groups on a phone
+      $$(":scope > .sec", panel).forEach(function (s) { s.classList.remove("open"); $(".secbtn", s).setAttribute("aria-expanded", "false"); });
+      if (!open) { sec.classList.add("open"); $(".secbtn", sec).setAttribute("aria-expanded", "true"); }
+    });
+  });
+
+  // Tabs: kit-style, arrow keys, URL state via history.replaceState (the useUrlTab behaviour).
+  function selectTab(strip, id, fromUrl) {
+    var tabs = $$('[role="tab"]', strip);
+    tabs.forEach(function (t) { t.setAttribute("aria-selected", String(t.dataset.tab === id)); });
+    if (strip.dataset.kind === "panel") {
+      var panel = strip.parentElement;
+      $$(":scope > .sec", panel).forEach(function (s) {
+        var on = s.dataset.group === id;
+        s.classList.toggle("on", on); s.classList.toggle("open", on);
+        $(".secbtn", s).setAttribute("aria-expanded", String(on));
+      });
+    } else {
+      var pane = strip.closest(".pane");
+      $$(".tabpanel", pane).forEach(function (p) { p.classList.toggle("active", p.dataset.tabpanel === id); });
+    }
+    var active = tabs.filter(function (t) { return t.dataset.tab === id; })[0];
+    if (active && active.scrollIntoView) active.scrollIntoView({ block: "nearest", inline: "nearest" });
+    if (!fromUrl) {
+      try {
+        var url = new URL(window.location.href), key = strip.dataset.urlkey, first = tabs[0] && tabs[0].classList.contains("setupTab") ? tabs[1] : tabs[0];
+        if (first && first.dataset.tab === id) url.searchParams.delete(key); else url.searchParams.set(key, id);
+        window.history.replaceState(window.history.state, "", url.pathname + url.search + url.hash);
+      } catch (err) { /* URL state is a convenience */ }
+    }
+  }
+  $$(".tabs[role=tablist]").forEach(function (strip) {
+    var tabs = $$('[role="tab"]', strip);
+    tabs.forEach(function (t, i) {
+      t.addEventListener("click", function () { selectTab(strip, t.dataset.tab); t.focus(); });
+      t.addEventListener("keydown", function (e) {
+        if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
+        e.preventDefault();
+        var visible = tabs.filter(function (x) { return x.offsetParent !== null; });
+        if (visible.length < 2) return;
+        var j = visible.indexOf(t), next = visible[(j + (e.key === "ArrowRight" ? 1 : -1) + visible.length) % visible.length];
+        selectTab(strip, next.dataset.tab); next.focus();
+      });
+    });
+    try {
+      var want = new URL(window.location.href).searchParams.get(strip.dataset.urlkey);
+      if (want && tabs.some(function (t) { return t.dataset.tab === want; })) selectTab(strip, want, true);
+    } catch (err) { /* ignore */ }
+  });
+
+  // InfoTip: hover/focus popover on a wide, fine-pointer container; bottom sheet otherwise.
+  var openTip = null, pinned = false, hoverTimer = null, leaveTimer = null;
+  function sheetMode(tip) {
+    var frame = tip.closest(".frame");
+    var w = frame ? frame.clientWidth : window.innerWidth;
+    return w < 900 || window.matchMedia("(pointer: coarse)").matches;
+  }
+  function popFor(tip) {
+    var w = tip.closest(".tipw"), pop = $(".tippop", w);
+    if (!pop) {
+      pop = document.createElement("span"); pop.className = "tippop"; pop.setAttribute("role", "tooltip"); pop.id = "tip-" + Math.random().toString(36).slice(2, 8); pop.hidden = true;
+      pop.textContent = tip.dataset.text;
+      if (tip.dataset.learn) { var a = document.createElement("a"); a.href = tip.dataset.learn; a.textContent = "Learn more"; pop.appendChild(document.createElement("br")); pop.appendChild(a); }
+      w.appendChild(pop);
+    }
+    return pop;
+  }
+  function placePop(tip, pop) {
+    pop.classList.remove("above"); pop.style.transform = ""; pop.style.left = "";
+    var frame = tip.closest(".frame"), bounds = frame && frame.classList.contains("phone") ? frame.getBoundingClientRect() : { left: 0, right: window.innerWidth, top: 0, bottom: window.innerHeight };
+    var r = pop.getBoundingClientRect();
+    if (r.bottom > bounds.bottom - 8) pop.classList.add("above");
+    r = pop.getBoundingClientRect();
+    var shift = 0;
+    if (r.left < bounds.left + 8) shift = bounds.left + 8 - r.left;
+    else if (r.right > bounds.right - 8) shift = bounds.right - 8 - r.right;
+    if (shift) pop.style.transform = "translateX(calc(-50% + " + shift + "px))";
+  }
+  function openPop(tip) {
+    if (openTip && openTip !== tip) closeTip();
+    var pop = popFor(tip);
+    pop.hidden = false; tip.setAttribute("aria-expanded", "true"); tip.setAttribute("aria-describedby", pop.id);
+    placePop(tip, pop); openTip = tip;
+  }
+  function openSheet(tip) {
+    if (openTip) closeTip();
+    var frame = tip.closest(".frame"), sheet = $(".sheet", frame), back = $(".backdrop", frame);
+    $("h3", sheet).textContent = tip.getAttribute("aria-label").replace(/^About /, "");
+    $("p", sheet).textContent = tip.dataset.text;
+    var learn = $(".learn", sheet); learn.hidden = !tip.dataset.learn; if (tip.dataset.learn) learn.href = tip.dataset.learn;
+    sheet.hidden = false; back.hidden = false; tip.setAttribute("aria-expanded", "true");
+    openTip = tip; pinned = true;
+    var vp = $(".viewport", frame); if (vp) vp.style.overflow = "hidden"; document.body.style.overflow = frame.classList.contains("phone") && window.innerWidth > 480 ? "" : "hidden";
+    $("[data-close]", sheet).focus();
+  }
+  function closeTip() {
+    if (!openTip) return;
+    var tip = openTip, frame = tip.closest(".frame");
+    tip.setAttribute("aria-expanded", "false"); tip.removeAttribute("aria-describedby");
+    var pop = $(".tippop", tip.closest(".tipw")); if (pop) pop.hidden = true;
+    var sheet = $(".sheet", frame), back = $(".backdrop", frame);
+    var wasSheet = !sheet.hidden;
+    sheet.hidden = true; back.hidden = true;
+    var vp = $(".viewport", frame); if (vp) vp.style.overflow = ""; document.body.style.overflow = "";
+    openTip = null; pinned = false;
+    if (wasSheet) tip.focus();
+  }
+  function closeAllTips() { closeTip(); }
+
+  $$(".tip").forEach(function (tip) {
+    tip.addEventListener("click", function (e) {
+      e.stopPropagation();
+      if (sheetMode(tip)) { if (openTip === tip) closeTip(); else openSheet(tip); return; }
+      if (openTip === tip && pinned) { closeTip(); return; }
+      openPop(tip); pinned = true;
+    });
+    tip.addEventListener("mouseenter", function () {
+      if (sheetMode(tip) || pinned) return;
+      clearTimeout(leaveTimer); hoverTimer = setTimeout(function () { openPop(tip); }, 150);
+    });
+    tip.addEventListener("mouseleave", function () {
+      clearTimeout(hoverTimer); if (pinned) return;
+      leaveTimer = setTimeout(function () { if (openTip === tip && !pinned) closeTip(); }, 200);
+    });
+    tip.addEventListener("focus", function () { if (!sheetMode(tip)) openPop(tip); });
+    tip.addEventListener("blur", function () { if (!pinned && openTip === tip) closeTip(); });
+    tip.addEventListener("keydown", function (e) { if (e.key === " " || e.key === "Enter") { e.preventDefault(); tip.click(); } });
+  });
+  document.addEventListener("mouseover", function (e) { if (e.target.closest(".tippop")) clearTimeout(leaveTimer); });
+  document.addEventListener("mouseout", function (e) {
+    var pop = e.target.closest(".tippop"); if (!pop || pinned) return;
+    if (e.relatedTarget && pop.contains(e.relatedTarget)) return;
+    leaveTimer = setTimeout(function () { if (!pinned) closeTip(); }, 200);
+  });
+  document.addEventListener("click", function (e) {
+    if (!openTip) return;
+    if (e.target.closest(".tippop") || e.target.closest(".sheet") && !e.target.closest("[data-close]")) return;
+    if (e.target.closest(".tip") === openTip) return;
+    closeTip();
+  });
+  $$("[data-close], .backdrop").forEach(function (x) { x.addEventListener("click", closeTip); });
+  document.addEventListener("keydown", function (e) { if (e.key === "Escape" && openTip) { var t = openTip; closeTip(); t.focus(); } });
+  window.addEventListener("resize", function () { if (openTip && $(".sheet", openTip.closest(".frame")).hidden) placePop(openTip, popFor(openTip)); });
+
+  apply();
+})();
+</script>
+</body>
+</html>
