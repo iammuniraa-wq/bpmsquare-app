@@ -49,3 +49,27 @@ export function cleanPreferredLanguage(v: unknown): string | null | undefined {
   const code = typeof v === "string" ? v.trim().toLowerCase() : "";
   return isKnownLanguage(code) ? code : undefined;
 }
+
+const LANG_NAME: Record<string, string> = { en: "English", ar: "Arabic", hi: "Hindi", ur: "Urdu", fr: "French" };
+const nameOf = (c: string): string => LANG_NAME[c] ?? c;
+
+/** One plain sentence saying which rule picked the language, for "See it as this person". */
+export function explainLanguage(input: {
+  person: string;
+  choice: LanguageChoice;
+  contactLanguage?: string | null;
+  accountLanguage?: string | null;
+}): string {
+  const { person, choice } = input;
+  const lang = nameOf(choice.lang);
+  const own = norm(input.contactLanguage);
+  const company = norm(input.accountLanguage);
+  if (choice.via === "contact") return `${person}'s own preferred language is ${lang}, and ${lang} is in this send, so ${person} gets ${lang}.`;
+  if (choice.via === "account") {
+    const why = own ? `${person}'s preferred language (${nameOf(own)}) is not in this send, so` : `${person} has no preferred language, so`;
+    return `${why} the company's preferred language is used: ${lang}.`;
+  }
+  const stated = [own, company].filter((x): x is string => !!x);
+  if (stated.length === 0) return `Neither ${person} nor the company has a preferred language, so ${person} gets the fallback for this send: ${lang}.`;
+  return `${person}'s preferred language (${[...new Set(stated)].map(nameOf).join(" / ")}) is not in this send, so ${person} gets the fallback for this send: ${lang}.`;
+}

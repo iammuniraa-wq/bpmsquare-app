@@ -64,18 +64,25 @@ export type SendInput = {
 export type SendResult = { sent: number; failed: number; skipped: number; byLanguage: Record<string, number> };
 
 type DbRes = { data: unknown; error: { code?: string; message?: string } | null };
-type ContactRow = { id: string; account_id: string; email: string | null; preferred_language?: string | null; name?: string | null; created_at?: string };
+type ContactRow = { id: string; account_id: string; email: string | null; email_status?: string | null; preferred_language?: string | null; name?: string | null; created_at?: string };
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const norm = (e: string | null | undefined): string => (e ?? "").trim().toLowerCase();
 const chunk = <T>(a: T[], n: number): T[][] => Array.from({ length: Math.ceil(a.length / n) }, (_, i) => a.slice(i * n, i * n + n));
 
 /** The contacts of these accounts, newest columns first and tolerant of a pending migration (preferred_language). */
-async function contactsOfAccounts(admin: SupabaseClient, tenantId: string, accountIds: string[]): Promise<ContactRow[]> {
+/** Does contacts have an address-health column yet? Nothing writes it today; when something does, the send honours it. */
+async function hasEmailStatus(admin: SupabaseClient, tenantId: string): Promise<boolean> {
+  const r = await admin.from("contacts").select("email_status").eq("tenant_id", tenantId).limit(1);
+  return !r.error;
+}
+
+async function contactsOfAccounts(admin: SupabaseClient, tenantId: string, accountIds: string[], withStatus: boolean): Promise<ContactRow[]> {
   const out: ContactRow[] = [];
+  const extra = withStatus ? ", email_status" : "";
   for (const ids of chunk(accountIds, 150)) {
-    let res: DbRes = await admin.from("contacts").select("id, account_id, name, email, preferred_language, created_at").eq("tenant_id", tenantId).in("account_id", ids);
-    if (res.error && isSchemaPending(res.error)) res = await admin.from("contacts").select("id, account_id, name, email, created_at").eq("tenant_id", tenantId).in("account_id", ids);
+    let res: DbRes = await admin.from("contacts").select(`id, account_id, name, email, preferred_language, created_at${extra}`).eq("tenant_id", tenantId).in("account_id", ids);
+    if (res.error && isSchemaPending(res.error)) res = await admin.from("contacts").select(`id, account_id, name, email, created_at${extra}`).eq("tenant_id", tenantId).in("account_id", ids);
     out.push(...((res.data ?? []) as unknown as ContactRow[]));
   }
   return out;
@@ -98,22 +105,96 @@ async function accountLanguages(admin: SupabaseClient, tenantId: string, account
   return map;
 }
 
-export async function sendNewsletterCampaign(d: SendInput): Promise<SendResult> {
+export type Decision =
+  | { kind: "skip"; status: string; reason: string; contact: ContactRow | null; lang: string | null }
+  | { kind: "send"; contact: ContactRow; lang: string; via: "contact" | "account" | "fallback" };
+
+type AudienceInput = Pick<SendInput, "admin" | "tenantId" | "campaign" | "version" | "candidates" | "gate">;
+
+/** Everything needed to decide about a recipient, found once for the whole audience rather than one query per person. */
+async function audienceContext(d: AudienceInput) {
   const { tenantId, campaign, version } = d;
   const ready = new Set(sendableLanguages(version));
   const included = (campaign.languages ?? []).filter((l) => ready.has(l) && typeof version.html[l] === "string");
-  const result: SendResult = { sent: 0, failed: 0, skipped: 0, byLanguage: {} };
   const gate = d.gate ?? ((t: string, c: string, topic: string | null) => canContact(t, c, "email", topic, d.admin));
-  const delay = d.delayMs ?? 200;
-
-  // Who each candidate is, found once for the whole audience rather than one query per person.
   const accountIds = [...new Set(d.candidates.map((c) => c.account_id).filter((x): x is string => !!x))];
-  const [accountContacts, accountLangs] = await Promise.all([contactsOfAccounts(d.admin, tenantId, accountIds), accountLanguages(d.admin, tenantId, accountIds)]);
+  const withStatus = await hasEmailStatus(d.admin, tenantId);
+  const [accountContacts, accountLangs] = await Promise.all([contactsOfAccounts(d.admin, tenantId, accountIds, withStatus), accountLanguages(d.admin, tenantId, accountIds)]);
   const byAccount = new Map<string, ContactRow[]>();
   for (const c of accountContacts) byAccount.set(c.account_id, [...(byAccount.get(c.account_id) ?? []), c]);
   for (const list of byAccount.values()) list.sort((a, b) => (a.created_at ?? "").localeCompare(b.created_at ?? ""));
-
   const { contactByEmail, hashByEmail } = await contactsForEmails(d.admin, tenantId, d.candidates.flatMap((c) => (c.manual_email ? [c.manual_email] : [])));
+  return { included, gate, byAccount, accountLangs, contactByEmail, hashByEmail };
+}
+
+type Ctx = Awaited<ReturnType<typeof audienceContext>>;
+
+/**
+ * The one decision about one recipient, in the order that matters: opt-out, address, the PERSON, the consent
+ * gate, the language. The real send and the before-send audience check both call this, so what the panel
+ * promises is what the send does.
+ */
+async function decide(d: AudienceInput, ctx: Ctx, candidate: MarketingRecipientCandidate): Promise<Decision> {
+  const skip = (status: string, reason: string, contact: ContactRow | null = null, lang: string | null = null): Decision => ({ kind: "skip", status, reason, contact, lang });
+  if (candidate.marketing_opt_out) return skip("skipped_opt_out", "account_opted_out");
+  if (!candidate.email) return skip("skipped_no_email", "no_email");
+
+  const email = norm(candidate.email);
+  let contact: ContactRow | null = null;
+  if (candidate.account_id) {
+    const list = ctx.byAccount.get(candidate.account_id) ?? [];
+    contact = list.find((c) => norm(decrypt(c.email)) === email) ?? list[0] ?? null;
+  } else {
+    const found = ctx.contactByEmail.get(email);
+    contact = found ? { ...found, email: found.email } : null;
+  }
+  if (!contact) return skip("skipped_no_contact", "no_contact");
+  // Present only once the address-health column exists; a bounced or complained address is never mailed again.
+  if (contact.email_status === "bounced" || contact.email_status === "complained") return skip("skipped_no_consent", contact.email_status, contact);
+
+  const decision = await ctx.gate(d.tenantId, contact.id, d.campaign.topic);
+  if (!decision.ok) return skip("skipped_no_consent", decision.reason, contact);
+
+  const choice = resolveRecipientLanguage({
+    contactLanguage: contact.preferred_language, accountLanguage: ctx.accountLangs.get(contact.account_id) ?? null, included: ctx.included, fallback: d.campaign.fallback_language,
+  });
+  const snap = d.version.snapshot.languages.find((l) => l.lang === choice.lang);
+  if (!ctx.included.includes(choice.lang) || typeof d.version.html[choice.lang] !== "string" || !snap) return skip("skipped_no_language", "no_language", contact);
+  return { kind: "send", contact, lang: choice.lang, via: choice.via };
+}
+
+export type AudiencePlan = {
+  total: number;
+  contactable: number;
+  byLanguage: Record<string, number>;
+  /** Why people would be skipped, with how many. Reasons are the same codes the send records. */
+  skipped: Record<string, number>;
+};
+
+/**
+ * Dry run: the same decisions as the send for everyone in the audience, sending and writing nothing.
+ * Contact lookups are batched; the consent gate runs a few people at a time.
+ */
+export async function planNewsletterAudience(d: AudienceInput & { concurrency?: number }): Promise<AudiencePlan> {
+  const ctx = await audienceContext(d);
+  const plan: AudiencePlan = { total: d.candidates.length, contactable: 0, byLanguage: {}, skipped: {} };
+  const width = Math.max(1, d.concurrency ?? 5);
+  for (let i = 0; i < d.candidates.length; i += width) {
+    const results = await Promise.all(d.candidates.slice(i, i + width).map((c) => decide(d, ctx, c)));
+    for (const r of results) {
+      if (r.kind === "send") { plan.contactable++; plan.byLanguage[r.lang] = (plan.byLanguage[r.lang] ?? 0) + 1; }
+      else plan.skipped[r.reason] = (plan.skipped[r.reason] ?? 0) + 1;
+    }
+  }
+  return plan;
+}
+
+export async function sendNewsletterCampaign(d: SendInput): Promise<SendResult> {
+  const { tenantId, campaign, version } = d;
+  const result: SendResult = { sent: 0, failed: 0, skipped: 0, byLanguage: {} };
+  const delay = d.delayMs ?? 200;
+  const ctx = await audienceContext(d);
+  const { hashByEmail } = ctx;
 
   const common = (rid: string | null, contact: ContactRow | null, lang: string | null, candidate: MarketingRecipientCandidate) => ({
     object_type: "marketing_campaign", object_id: campaign.id, actor_id: d.userId, source: "app" as const,
@@ -134,39 +215,20 @@ export async function sendNewsletterCampaign(d: SendInput): Promise<SendResult> 
   };
 
   for (const candidate of d.candidates) {
-    if (candidate.marketing_opt_out) { await skip(candidate, "skipped_opt_out", "account_opted_out", null, null); continue; }
-    if (!candidate.email) { await skip(candidate, "skipped_no_email", "no_email", null, null); continue; }
-
-    // 1. the person
-    const email = norm(candidate.email);
-    let contact: ContactRow | null = null;
-    if (candidate.account_id) {
-      const list = byAccount.get(candidate.account_id) ?? [];
-      contact = list.find((c) => norm(decrypt(c.email)) === email) ?? list[0] ?? null;
-    } else {
-      const found = contactByEmail.get(email);
-      contact = found ? { ...found, email: found.email } : null;
-    }
-    if (!contact) { await skip(candidate, "skipped_no_contact", "no_contact", null, null); continue; }
-
-    // 2. consent: the one gate
-    const decision = await gate(tenantId, contact.id, campaign.topic);
-    if (!decision.ok) { await skip(candidate, "skipped_no_consent", decision.reason, contact, null); continue; }
-
-    // 3. language
+    const decision = await decide(d, ctx, candidate);
+    if (decision.kind === "skip") { await skip(candidate, decision.status, decision.reason, decision.contact, decision.lang); continue; }
+    const { contact } = decision;
+    const choice = { lang: decision.lang };
+    const toEmail = candidate.email as string; // a skip above already handled a missing address
     const accountId = contact.account_id;
-    const choice = resolveRecipientLanguage({
-      contactLanguage: contact.preferred_language, accountLanguage: accountLangs.get(accountId) ?? null, included, fallback: campaign.fallback_language,
-    });
     const html = version.html[choice.lang];
     const text = version.text[choice.lang] ?? "";
-    const snap = version.snapshot.languages.find((l) => l.lang === choice.lang);
-    if (!included.includes(choice.lang) || typeof html !== "string" || !snap) { await skip(candidate, "skipped_no_language", "no_language", contact, null); continue; }
+    const snap = version.snapshot.languages.find((l) => l.lang === choice.lang)!;
 
     // The row exists before the send so the links in the email can name it.
     const { data: ins, error: insErr } = await d.supabase.from("marketing_campaign_recipients").insert({
       tenant_id: tenantId, campaign_id: campaign.id, account_id: candidate.account_id, manual_email: candidate.manual_email,
-      email: candidate.email, status: "pending", contact_id: contact.id, lang: choice.lang,
+      email: toEmail, status: "pending", contact_id: contact.id, lang: choice.lang,
     }).select("id").single();
     const rid = (ins as { id?: string } | null)?.id;
     if (insErr || !rid) { result.failed++; continue; }
@@ -192,7 +254,7 @@ export async function sendNewsletterCampaign(d: SendInput): Promise<SendResult> 
     }
 
     const subject = fillTokens(snap.subject, values, { html: false });
-    const routed = resolveOutbound(d.output, { to: [candidate.email], subject, html: fillTokens(html, values, { html: true }), text: fillTokens(text, values, { html: false }) });
+    const routed = resolveOutbound(d.output, { to: [toEmail], subject, html: fillTokens(html, values, { html: true }), text: fillTokens(text, values, { html: false }) });
     let resendId: string | null = null;
     let sendError: { message: string } | null = null;
     if (routed.ok) {
@@ -214,7 +276,7 @@ export async function sendNewsletterCampaign(d: SendInput): Promise<SendResult> 
     if (sendError) {
       await Promise.all([
         d.supabase.from("marketing_campaign_recipients").update({ status: "failed", error: sendError.message }).eq("id", rid).eq("tenant_id", tenantId),
-        logEmail(d.supabase, { tenantId, kind: "campaign", toEmail: candidate.email, subject, status: "failed", error: sendError.message, ...label }),
+        logEmail(d.supabase, { tenantId, kind: "campaign", toEmail: toEmail, subject, status: "failed", error: sendError.message, ...label }),
         emitEvent(tenantId, { name: EVENTS.EMAIL_FAILED, ...common(`${rid}:failed`, contact, choice.lang, candidate), payload: { error: sendError.message.slice(0, 200) } }, d.admin),
       ]);
       result.failed++;
@@ -222,7 +284,7 @@ export async function sendNewsletterCampaign(d: SendInput): Promise<SendResult> 
       await Promise.all([
         d.supabase.from("marketing_campaign_recipients").update({ status: "sent", sent_at: new Date().toISOString() }).eq("id", rid).eq("tenant_id", tenantId),
         rememberProviderId(d.supabase, tenantId, rid, resendId),
-        logEmail(d.supabase, { tenantId, kind: "campaign", toEmail: candidate.email, subject, status: "sent", ...label }),
+        logEmail(d.supabase, { tenantId, kind: "campaign", toEmail: toEmail, subject, status: "sent", ...label }),
         emitEvent(tenantId, { name: EVENTS.EMAIL_SENT, ...common(`${rid}:sent`, contact, choice.lang, candidate), payload: { resend_id: resendId, redirected: routed.ok ? routed.email.redirected : false } }, d.admin),
       ]);
       result.sent++;

@@ -42,8 +42,8 @@ export type PreviewData = {
 };
 export const previewNewsletter = (blocks: NewsletterBlock[], languages: LanguageRow[], lang: string) => post<PreviewData>("/api/newsletters/preview", { blocks, languages, lang });
 
-export async function uploadImage(file: File): Promise<ApiResult<{ path: string; url: string }>> {
+export async function uploadImage(file: File): Promise<ApiResult<{ path: string; url: string; bytes: number }>> {
   const fd = new FormData();
   fd.append("file", file);
-  return call<{ path: string; url: string }>("/api/newsletters/images", { method: "POST", body: fd });
+  return call<{ path: string; url: string; bytes: number }>("/api/newsletters/images", { method: "POST", body: fd });
 }

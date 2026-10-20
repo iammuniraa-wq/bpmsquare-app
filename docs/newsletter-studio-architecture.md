@@ -687,7 +687,21 @@ place).
 
 ---
 
-## 13. As built: N0 and N1 (2026-10-20) — where the build differs from the text above
+## 13. To enhance later (owner, 2026-10-20) — in this order, none of it built
+
+a. **Reusable content components** — a library of saved sections (case study, product highlight, testimonial)
+   written once and dropped into any design.
+b. **Comments, draft sharing and an approval flow** for teams of more than one person.
+c. **Dynamic blocks and recommended sections** driven by the Signals buying stage and the ABM tier.
+d. **Suggested subject lines and recommended send times.**
+e. **Language fallback rules editable per workspace** (today: contact, then company, then the campaign's fallback).
+f. **Insights on which blocks drive clicks** (the click rows already carry the block).
+g. **Inbox-rendering checks across mail clients** — needs an external service; decide later.
+
+Added 2026-10-20 after owner review and now built: the before-send audience panel (same decision function as the
+send), "See it as this person", language compare, and the Content health checklist (section 2, item 4).
+
+## 14. As built: N0 and N1 (2026-10-20) — where the build differs from the text above
 
 Read this before extending the studio. Everything above still holds unless it is listed here.
 

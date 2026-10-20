@@ -16,7 +16,7 @@ export async function POST(req: NextRequest) {
     if (!(file instanceof File)) return NextResponse.json({ error: "No file provided" }, { status: 400 });
     const stored = await storeCompanyImage(ctx.admin, ctx.tenantId, file, "assets");
     if (!stored.ok) return NextResponse.json({ error: stored.error }, { status: stored.status });
-    return NextResponse.json({ path: stored.path, url: stored.url }, { status: 201 });
+    return NextResponse.json({ path: stored.path, url: stored.url, bytes: file.size }, { status: 201 });
   } catch (e) {
     return errorResponse(e);
   }
