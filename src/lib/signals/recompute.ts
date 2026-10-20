@@ -31,6 +31,8 @@ export type RecomputeOpts = {
   /** Epoch ms after which no new batch is started. */
   deadline?: number;
   source?: string;
+  /** Score only these accounts (a person just changed one). Everything else is left as stored. */
+  only?: string[];
   resolveOwnerEmail?: OwnerEmailResolver;
 };
 
@@ -92,7 +94,7 @@ export async function recomputeTenant(admin: SupabaseClient, tenantId: string, o
     const accounts = new Map(accountRows.map((a) => [a.id, a]));
     const existing = new Map(existingRows.map((e) => [e.account_id, e]));
     // Only accounts of THIS tenant: a signal that names any other id is dropped.
-    const candidates = [...new Set([...collected.byAccount.keys(), ...existing.keys()])].filter((id) => accounts.has(id));
+    const candidates = [...new Set([...collected.byAccount.keys(), ...existing.keys()])].filter((id) => accounts.has(id) && (!opts.only || opts.only.includes(id)));
     candidates.sort((a, b) => (existing.get(a)?.computed_at ?? "").localeCompare(existing.get(b)?.computed_at ?? ""));
 
     let alertsLeft = MAX_ALERTS_PER_RUN;

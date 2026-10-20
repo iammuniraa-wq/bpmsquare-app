@@ -84,3 +84,16 @@ export function movement(
     scoreDelta,
   };
 }
+
+export type NextStep = { label: string; kind: "account" | "quote" | "campaign" | null };
+
+/** One suggested next step per account, by fixed rule (doc 4.1). */
+export function nextStep(stage: Stage, topKinds: string[]): NextStep {
+  if (stage === "deciding") return { label: "Call", kind: "account" };
+  if (stage === "comparing") {
+    const open = topKinds.some((k) => k === "inquiry" || k === "quote_waiting" || k === "deal_opened");
+    return open ? { label: "Follow up", kind: "account" } : { label: "Start a quote", kind: "quote" };
+  }
+  if (stage === "looking") return { label: "Add to a campaign", kind: "campaign" };
+  return { label: "", kind: null };
+}
