@@ -70,6 +70,7 @@ const FEATURE_LABELS: { key: keyof TenantFeatures; label: string; premium?: bool
   { key: "buying_signals", label: "Buying signals (who is in market, scored from your own quotes, cases and campaigns — needs Marketing campaigns)", premium: true, group: "Programs" },
   { key: "marketing_forms", label: "Forms & preference centre (forms on your own domain and website that record consent and file a lead — needs Marketing campaigns)", premium: true, group: "Programs" },
   { key: "abm", label: "ABM programs (account-based marketing: programs, target accounts, buying groups — needs Marketing campaigns)", premium: true, group: "Programs" },
+  { key: "journeys", label: "Journeys (automated follow-ups that start from an event — needs Marketing campaigns)", premium: true, group: "Programs" },
   { key: "process_studio", label: "Process Design Studio (describe a business, get a cited fit report and a plan)", premium: true, group: "Programs" },
   { key: "next_experience", label: "Nova — the Business OS experience", premium: true, group: "Programs" },
   { key: "enterprise_theme", label: "Enterprise theme (dark rail + light workspace)", premium: true, group: "Programs" },

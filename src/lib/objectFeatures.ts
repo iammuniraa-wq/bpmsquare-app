@@ -59,6 +59,8 @@ export const OBJECT_FEATURE: Record<string, keyof TenantFeatures | null> = {
   abm_members: "abm",
   "abm-programs": "abm",
   "abm-targets": "abm",
+  // Journeys (0165). Platform-admin flag; every journey route also checks `marketing`.
+  journeys: "journeys",
   // Inventory is the stock side of Purchasing; it has never had a key of
   // its own, and the nav gates it on `purchasing` too.
   inventory: "purchasing",

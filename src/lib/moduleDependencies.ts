@@ -50,6 +50,14 @@ export const FEATURE_DEPENDENCIES: FeatureDependency[] = [
     why: "Target lists are built from Marketing target groups, and ABM programs sit in the Marketing menu with its consent rules.",
   },
   {
+    key: "journeys", needs: "marketing", strength: "hard",
+    why: "Journeys follow people from Marketing audiences and respect its consent and unsubscribe rules.",
+  },
+  {
+    key: "journeys", needs: "newsletter_studio", strength: "partial",
+    why: "The Send newsletter step needs a kept version from the Newsletter Studio; the other steps work without it.",
+  },
+  {
     key: "marketing_scoring", needs: "marketing", strength: "hard",
     why: "Scoring, consent and topics are settings of the Marketing module; its settings pages sit under Marketing campaigns being on.",
   },
@@ -61,7 +69,7 @@ export const FEATURE_GROUP: Partial<Record<Key, SettingsGroupId>> = {
   accounts: "sales", contacts: "sales", quotations: "sales", standard_quotes: "sales", quote_lines_dw: "sales",
   pipeline: "sales", leads: "sales", invoices: "sales", partners: "sales", marketing: "sales", rfq: "sales",
   products: "sales", suppliers: "sales", purchasing: "sales", pricing_engine: "sales", pricing_engine_quotes: "sales",
-  coverage_model: "sales", fence_projects: "sales", estimator: "sales", marketing_scoring: "marketing", process_studio: "sales", newsletter_studio: "marketing", buying_signals: "marketing", marketing_forms: "marketing", abm: "marketing",
+  coverage_model: "sales", fence_projects: "sales", estimator: "sales", marketing_scoring: "marketing", process_studio: "sales", newsletter_studio: "marketing", buying_signals: "marketing", marketing_forms: "marketing", abm: "marketing", journeys: "marketing",
   // Service
   cases: "service", work_orders: "service", technicians: "service", assets: "service", amc: "service", dispatch: "service",
   // Workforce

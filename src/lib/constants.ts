@@ -80,6 +80,9 @@ export const ROUTES = {
   marketingCampaign: (id: string) => `/marketing/${id}`,
   marketingUnsubscribe: (accountId: string, token: string) => `/marketing/unsubscribe/${accountId}/${token}`,
   marketingInterest: (campaignId: string, accountId: string, token: string) => `/marketing/interest/${campaignId}/${accountId}/${token}`,
+  marketingJourneys: "/marketing/journeys",
+  marketingJourneyNew: "/marketing/journeys/new",
+  marketingJourney: (id: string) => `/marketing/journeys/${id}`,
   marketingNewsletters: "/marketing/newsletters",
   marketingNewsletterNew: "/marketing/newsletters/new",
   marketingNewsletter: (id: string) => `/marketing/newsletters/${id}`,
@@ -333,6 +336,7 @@ export const NAV: NavGroup[] = [
           { label: "Buying signals", href: ROUTES.marketingSignals, icon: "◎", pillar: "purple", featureKey: "buying_signals", workcenterKey: "signals" },
           { label: "Forms", href: ROUTES.marketingForms, icon: "☰", pillar: "purple", featureKey: "marketing_forms", workcenterKey: "marketing_forms" },
           { label: "ABM programs", href: ROUTES.marketingAbm, icon: "◎", pillar: "purple", featureKey: "abm", workcenterKey: "abm" },
+          { label: "Journeys", href: ROUTES.marketingJourneys, icon: "↠", pillar: "purple", featureKey: "journeys", workcenterKey: "marketing_journeys" },
           { label: "Segmentation", href: ROUTES.marketingSegments, icon: "⌗", pillar: "purple", featureKey: "marketing", workcenterKey: "marketing_segments" },
           { label: "Leads", href: ROUTES.leads, icon: "✦", pillar: "purple", featureKey: "leads", workcenterKey: "leads" },
           { label: "Scored leads", href: ROUTES.marketingLeads, icon: "◎", pillar: "purple", featureKey: "marketing_scoring", workcenterKey: "leads" },
@@ -661,6 +665,11 @@ export type TenantFeatures = {
   // OFF, missing key reads false, and with it off there is no menu item, no
   // route and no card on any other screen. Needs `marketing`.
   abm: boolean;
+  // Journeys (0165-0169, docs/shells/journeys-shell.md): automated follow-ups
+  // that start from an event and run over days. A platform-admin-only flag:
+  // default OFF, missing key reads false; with it off there is no menu item,
+  // no route and no runner work for the workspace. Needs `marketing`.
+  journeys: boolean;
 };
 
 // WfmConfig — tenant-level WFM (attendance) settings, stored in
@@ -1317,6 +1326,20 @@ export type MarketingConfig = {
    * `weekly_off` is 0 = Sunday ... 6 = Saturday.
    */
   lifecycle?: { sla_business_days?: number; weekly_off?: number[] };
+  /** Journey safety limits (src/lib/marketing/journeys/safety.ts). Absent keys read as the defaults there. */
+  journey_limits?: {
+    /** Most journey emails one person gets in a day. Default 1. */
+    max_per_day?: number;
+    /** Local hour sending stops and starts again. Defaults 20 and 8. */
+    quiet_from_hour?: number;
+    quiet_to_hour?: number;
+    /** 0 = Sunday ... 6 = Saturday. Default [5] (Friday). */
+    off_weekdays?: number[];
+    /** An open case older than this many days pauses promotional steps. Default 30. */
+    trouble_case_days?: number;
+    /** Turning a journey on that would enrol more people than this asks first. Default 200. */
+    blast_radius?: number;
+  };
 };
 
 /** The Newsletter Studio brand kit (docs/newsletter-studio-architecture.md 2.2): set once by an admin, used by every design. */
