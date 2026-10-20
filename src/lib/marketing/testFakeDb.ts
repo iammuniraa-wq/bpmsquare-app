@@ -41,6 +41,8 @@ export function fakeDb(seed: Record<string, Row[]> = {}, opts: { missingTables?:
     }
     range(from: number, to: number) { this.rangeFrom = from; this.rangeTo = to; return this; }
     gte(col: string, val: unknown) { this.filters.push({ col, test: (v) => String(v ?? "") >= String(val) }); return this; }
+    lt(col: string, val: unknown) { this.filters.push({ col, test: (v) => v != null && String(v) < String(val) }); return this; }
+    lte(col: string, val: unknown) { this.filters.push({ col, test: (v) => v != null && String(v) <= String(val) }); return this; }
     not() { return this; }
     order() { return this; }
     limit(x: number) { this.lim = x; return this; }

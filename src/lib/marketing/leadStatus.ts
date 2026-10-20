@@ -7,6 +7,7 @@ import { EVENTS } from "@/lib/events/catalog";
 import { marketingScoringOn } from "./config";
 import { effectiveLeadStage, isLeadStageKey, LEAD_STAGES, legacyStatusForStage, type LeadStageKey } from "./leadStages";
 import { isSchemaPending } from "./pending";
+import { applyStageEffects } from "./leads/stageEffects";
 
 // The lead lifecycle on the status engine (0070 + 0140). A tenant gets its
 // default 'leads' profile lazily, the first time the flow is used, rather than
@@ -91,9 +92,12 @@ export async function setLeadStage(p: {
   tenantId: string;
   leadId: string;
   to: LeadStageKey;
-  userId: string;
+  /** Null when the system moves the lead (the scorer); a person's id otherwise. */
+  userId: string | null;
   role: "admin" | "member";
   comment?: string | null;
+  /** False for moves nobody did by hand: the scorer promoting a lead is not "activity". */
+  touchActivity?: boolean;
   source?: "manual" | "system_action" | "api" | "integration";
   client?: SupabaseClient;
 }): Promise<SetLeadStageResult> {
@@ -106,7 +110,7 @@ export async function setLeadStage(p: {
     if (!isLeadStageKey(p.to)) return { ok: false, status: 400, error: "Unknown stage" };
 
     const { data: lead, error: lErr } = await admin
-      .from("leads").select("id, account_id, contact_id, status, custom_status_id")
+      .from("leads").select("id, account_id, contact_id, status, custom_status_id, title, owner_user_id, score")
       .eq("id", p.leadId).eq("tenant_id", p.tenantId).maybeSingle();
     if (lErr) return { ok: false, status: isSchemaPending(lErr) ? 503 : 500, error: isSchemaPending(lErr) ? "Lead stages need a database update that has not been applied yet" : lErr.message };
     if (!lead) return { ok: false, status: 404, error: "Lead not found" };
@@ -122,14 +126,17 @@ export async function setLeadStage(p: {
     const fromId = stages.get(from) ?? null;
     const toId = stages.get(p.to)!;
     const check = await validateStatusTransition(admin, {
-      tenantId: p.tenantId, userId: p.userId, role: p.role,
+      tenantId: p.tenantId, userId: p.userId ?? "", role: p.role,
       fromCustomStatusId: fromId, toCustomStatusId: toId, comment: p.comment,
     });
     if (!check.ok) return { ok: false, status: 409, error: check.error };
 
     const { error: uErr } = await admin
       .from("leads")
-      .update({ custom_status_id: toId, status: legacyStatusForStage(p.to), last_activity_at: new Date().toISOString() })
+      .update({
+        custom_status_id: toId, status: legacyStatusForStage(p.to),
+        ...(p.touchActivity === false ? {} : { last_activity_at: new Date().toISOString() }),
+      })
       .eq("id", p.leadId).eq("tenant_id", p.tenantId);
     if (uErr) return { ok: false, status: 500, error: uErr.message };
 
@@ -145,6 +152,10 @@ export async function setLeadStage(p: {
       key: `${p.leadId}:${from}->${p.to}:${new Date().toISOString().slice(0, 16)}`,
       payload: { from, to: p.to },
     }, admin);
+    await applyStageEffects(admin, {
+      tenantId: p.tenantId, to: p.to, actorUserId: p.userId,
+      lead: { id: p.leadId, account_id: lead.account_id, contact_id: lead.contact_id, title: lead.title, owner_user_id: lead.owner_user_id, score: lead.score },
+    });
     return { ok: true, stage: p.to, from };
   } catch (e) {
     console.error("[leadStatus] setLeadStage failed", e);
