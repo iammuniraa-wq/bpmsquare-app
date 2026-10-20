@@ -8,7 +8,7 @@ import { nextSeqFromRefs, firstFreeRef } from "./refSeq";
 // only -- every mutation still keys on the UUID `id`, per bpmsquarecore.md
 // §3.
 
-export const MASTER_REF_TABLES = ["accounts", "contacts", "assets", "suppliers", "inventory_items", "products", "wfm_projects", "pricing_rfqs", "opportunities", "fence_projects", "estimates"] as const;
+export const MASTER_REF_TABLES = ["accounts", "contacts", "assets", "suppliers", "inventory_items", "products", "wfm_projects", "pricing_rfqs", "opportunities", "fence_projects", "estimates", "process_studies"] as const;
 export type MasterRefTable = (typeof MASTER_REF_TABLES)[number];
 
 const PREFIX: Record<MasterRefTable, string> = {
@@ -23,6 +23,7 @@ const PREFIX: Record<MasterRefTable, string> = {
   opportunities: "OPP",
   fence_projects: "FNC",
   estimates: "EST",
+  process_studies: "STU",
 };
 
 export function formatMasterRef(table: MasterRefTable, seq: number): string {

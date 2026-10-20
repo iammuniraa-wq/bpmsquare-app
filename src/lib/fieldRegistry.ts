@@ -84,7 +84,7 @@ export type EffectiveField = {
 export type PilotObjectType =
   | "account" | "contact" | "asset" | "supplier"
   | "case" | "work_order" | "quote" | "invoice" | "purchase_order" | "inventory"
-  | "employee" | "product" | "project" | "opportunity" | "rfq" | "estimate";
+  | "employee" | "product" | "project" | "opportunity" | "rfq" | "estimate" | "process_study";
 
 const ACCOUNT_TYPE_OPTIONS: { value: AccountType; label: string }[] =
   (Object.keys(ACCOUNT_TYPE_LABEL) as AccountType[]).map((value) => ({ value, label: ACCOUNT_TYPE_LABEL[value] }));
@@ -360,6 +360,24 @@ export const FIELD_REGISTRY: Record<PilotObjectType, ObjectFieldRegistry> = {
     ],
   },
 
+  // Process study (0152, docs/process-design-studio-architecture.md). Header only:
+  // the conversation, map, fit report, changes and plan are produced by the studio
+  // screens, never typed into a generic form. Contact details are entered on the
+  // Talk to us step (the email is encrypted there), so they are not registry fields.
+  process_study: {
+    sections: ["Study"],
+    fields: [
+      { key: "ref",    defaultLabel: "Study ID", widget: "text", defaultSection: "Study", locked: true, editable: false, exportOnly: true },
+      { key: "name",   defaultLabel: "Name",     widget: "text", defaultSection: "Study", locked: true },
+      { key: "status", defaultLabel: "Status",   widget: "enum", defaultSection: "Study", locked: true, editable: false, exportOnly: true, enumOptions: [
+        { value: "telling", label: "Telling us" }, { value: "mapped", label: "Mapped" }, { value: "fit_ready", label: "Fit ready" },
+        { value: "changes_ready", label: "Changes ready" }, { value: "plan_ready", label: "Plan ready" }, { value: "submitted", label: "Sent to BPMSquare" },
+        { value: "reviewed", label: "Reviewed" }, { value: "accepted", label: "Accepted" }, { value: "rescoped", label: "Re-scoped" }, { value: "closed", label: "Closed" },
+      ] },
+      { key: "plan_start_date", defaultLabel: "Plan start date", widget: "date", defaultSection: "Study" },
+    ],
+  },
+
   // Workforce project (project costing). parent_id and the linked people /
   // shifts / sites are structure, managed on the project screens and the
   // roster -- not fields a form or an import edits directly.
@@ -589,7 +607,7 @@ export const DEFAULT_FIELD_RULES: Partial<Record<PilotObjectType, FieldRule[]>> 
 const PILOT_OBJECT_TYPES: readonly PilotObjectType[] = [
   "account", "contact", "asset", "supplier",
   "case", "work_order", "quote", "invoice", "purchase_order", "inventory",
-  "employee", "product", "project", "opportunity", "rfq", "estimate",
+  "employee", "product", "project", "opportunity", "rfq", "estimate", "process_study",
 ];
 
 export function isPilotObjectType(objectType: string): objectType is PilotObjectType {

@@ -1,0 +1,562 @@
+{
+  "features": [
+    {
+      "key": "leads",
+      "comment": ""
+    },
+    {
+      "key": "pipeline",
+      "comment": ""
+    },
+    {
+      "key": "amc",
+      "comment": ""
+    },
+    {
+      "key": "dispatch",
+      "comment": ""
+    },
+    {
+      "key": "invoices",
+      "comment": ""
+    },
+    {
+      "key": "partners",
+      "comment": ""
+    },
+    {
+      "key": "ai_assistant",
+      "comment": ""
+    },
+    {
+      "key": "db_export",
+      "comment": ""
+    },
+    {
+      "key": "purchasing",
+      "comment": ""
+    },
+    {
+      "key": "marketing",
+      "comment": ""
+    },
+    {
+      "key": "change_history",
+      "comment": "Rolled out to the demo tenant only for now -- off by default everywhere else (including existing clients) until explicitly turned on per tenant via /admin/tenants/[id]."
+    },
+    {
+      "key": "outbound_email",
+      "comment": ""
+    },
+    {
+      "key": "business_roles",
+      "comment": ""
+    },
+    {
+      "key": "standard_quotes",
+      "comment": ""
+    },
+    {
+      "key": "gmail_reply_threading",
+      "comment": ""
+    },
+    {
+      "key": "quote_lines_dw",
+      "comment": ""
+    },
+    {
+      "key": "wfm",
+      "comment": ""
+    },
+    {
+      "key": "wfm_projects",
+      "comment": "Project costing inside WFM (0104, WFM_PROJECT_COSTING.md)."
+    },
+    {
+      "key": "accounts",
+      "comment": "Core-module subscription flags (0067)."
+    },
+    {
+      "key": "contacts",
+      "comment": ""
+    },
+    {
+      "key": "quotations",
+      "comment": ""
+    },
+    {
+      "key": "cases",
+      "comment": ""
+    },
+    {
+      "key": "work_orders",
+      "comment": ""
+    },
+    {
+      "key": "technicians",
+      "comment": ""
+    },
+    {
+      "key": "assets",
+      "comment": ""
+    },
+    {
+      "key": "suppliers",
+      "comment": ""
+    },
+    {
+      "key": "products",
+      "comment": ""
+    },
+    {
+      "key": "reports",
+      "comment": ""
+    },
+    {
+      "key": "data_workbench",
+      "comment": ""
+    },
+    {
+      "key": "administration",
+      "comment": ""
+    },
+    {
+      "key": "pricing_engine",
+      "comment": "PricingEngine (docs/pricing-engine-architecture.md): the dynamic pricing product."
+    },
+    {
+      "key": "pricing_engine_quotes",
+      "comment": "Separate, narrower opt-in that lets a quote line actually pull a live price from PricingEngine's PUBLISHED \"default\" Price Book (spec: \"never a forced migration\") -- a tenant can have the Pricing workcenter without this "
+    },
+    {
+      "key": "next_experience",
+      "comment": "The Next Experience program (owner doctrine 2026-08-19, bpmsquarecore §10): the 3-layer theme, engagement layer, and every future \"2050\" interaction change live behind THIS platform-admin-only flag."
+    },
+    {
+      "key": "enterprise_theme",
+      "comment": "The \"Enterprise\" theme (owner correction 2026-08-25: it shipped without a gate and surfaced directly in the demo tenant's own picker -- not the design."
+    },
+    {
+      "key": "spectacular_theme",
+      "comment": "The \"Spectacular\" theme (owner request 2026-09-19, from an Able Pro dashboard reference): nextgen's structure with a softer, bluer, rounder palette."
+    },
+    {
+      "key": "coverage_model",
+      "comment": "Coverage (owner decision 2026-08-26, from the \"Orbit\" proposal): the rule-based Team/Segment/Coverage org model, replacing flat territory/ sales_org picklists with computed rules -- also drives auto-ownership, product av"
+    },
+    {
+      "key": "ai_reports",
+      "comment": "AI Report Builder (\"talk to data\", docs/ai-report-builder-architecture.md): natural-language questions compiled to the same validated query engine the v1 API uses, answered with a chart/table over live data."
+    },
+    {
+      "key": "fence_projects",
+      "comment": "Fence Configurator (docs/fence-configurator-architecture.md, Phase C): parametric takeoff + BOM, priced through the same engine standard_quotes already uses."
+    },
+    {
+      "key": "rfq",
+      "comment": "RFQ (0128, docs/rfq-architecture.md): request for quotation to suppliers when no cost or price can be found -- a standard object raised from quotes, deals, cases, inspections, work orders and fence projects, with the sup"
+    },
+    {
+      "key": "estimator",
+      "comment": "Project Estimator (0131, docs/estimator-architecture.md): generic, template-driven estimates (inputs + rates + rule lines -> BOM, WBS, cost build-up -> Standard Quote)."
+    },
+    {
+      "key": "marketing_scoring",
+      "comment": "Marketing platform M0 (docs/marketing-platform-architecture.md): lead scoring, the consent ledger's settings and the lead stages."
+    },
+    {
+      "key": "process_studio",
+      "comment": "Process Design Studio (0152, docs/process-design-studio-architecture.md): a prospect or client describes how they work and gets a cited fit report, proposed changes and a plan."
+    }
+  ],
+  "extensionHooks": [
+    {
+      "name": "extraCustomFields",
+      "doc": "Extra custom field definitions injected into an object form, on top of whatever is in tenants.config.custom_fields."
+    },
+    {
+      "name": "quoteSignatureSlot",
+      "doc": "Renders inside the quote print left signature box, between the \"For {company}\" label and the \"Authorised Signatory\" line."
+    },
+    {
+      "name": "quoteExtraSection",
+      "doc": "Renders an additional section appended after the standard quote body (before the footer)."
+    },
+    {
+      "name": "quoteSubject",
+      "doc": "Formats the quote print \"Subject:\" line from the quote's short name."
+    },
+    {
+      "name": "beforeSaveAccount",
+      "doc": "Called before an account is saved (create or update)."
+    },
+    {
+      "name": "beforeSaveContact",
+      "doc": "Called before a contact is saved."
+    },
+    {
+      "name": "beforeSaveAsset",
+      "doc": "Called before an asset is saved."
+    }
+  ],
+  "mcp": {
+    "version": "1.10.0",
+    "tools": [
+      {
+        "name": "list_accounts",
+        "description": "List all CRM accounts."
+      },
+      {
+        "name": "get_account",
+        "description": "Get full account detail including contacts, assets, open cases, quotations, AMC contracts, work orders and invoices."
+      },
+      {
+        "name": "list_cases",
+        "description": "List service cases."
+      },
+      {
+        "name": "list_quotations",
+        "description": "List quotations with totals and status."
+      },
+      {
+        "name": "list_inventory",
+        "description": "List inventory stock items with quantity on hand, reorder level, and preferred supplier."
+      },
+      {
+        "name": "get_inventory_item",
+        "description": "Get full detail for one inventory item, including custom fields."
+      },
+      {
+        "name": "list_projects",
+        "description": "List workforce projects and sub-projects (project costing): ref, name, contract/PO code, level (0 = project, 1-3 = sub-project), parent_id, account_id, status, dates, budget hours."
+      },
+      {
+        "name": "get_project",
+        "description": "Fetch one workforce project: parent, level, sub-projects, and the sites, employees and shifts it is linked to."
+      },
+      {
+        "name": "get_project_hours",
+        "description": "Worked hours for a project and everything beneath it over a date range -- the figure to invoice."
+      },
+      {
+        "name": "get_project_invoices",
+        "description": "Invoices already raised from a project's hours: the period each covers, hours and amount billed, and the invoice's status."
+      },
+      {
+        "name": "create_project_invoice",
+        "description": "Raise a draft invoice for a project's hours over a period, priced by the tenant's rate ladder (project rate, else employment-type rate, else workspace default)."
+      },
+      {
+        "name": "query_project_hours",
+        "description": "Worked hours attributed to projects, one row per work session over the last 12 months, each with the project (and its top-level project, level and account), minutes/hours, the bill rate that applies, the billable amount,"
+      },
+      {
+        "name": "list_products",
+        "description": "List the tenant's sellable products (catalog): name, SKU, category and sub-category, unit of measure, list price, tax percent, status and item type (a stable key such as finished_product, raw_material, bom_kit; null when"
+      },
+      {
+        "name": "get_product",
+        "description": "Fetch one product by id, including description and custom fields."
+      },
+      {
+        "name": "list_opportunities",
+        "description": "List the tenant's sales deals (pipeline): title, account, stage, outcome, amount, probability, expected close, owner."
+      },
+      {
+        "name": "get_opportunity",
+        "description": "Fetch one deal by id, including its lines and the quotes created from it."
+      },
+      {
+        "name": "list_rfqs",
+        "description": "List the tenant's RFQs (requests for quotation sent to suppliers when no cost or price was found): ref, title, status, what each was raised from, reply deadline."
+      },
+      {
+        "name": "get_rfq",
+        "description": "Fetch one RFQ by id with its lines, the suppliers asked, each supplier's quoted prices and which line was awarded to whom."
+      },
+      {
+        "name": "list_estimates",
+        "description": "List the tenant's project estimates: ref, name, status, customer, the template used and the price quoted to the customer before and after tax."
+      },
+      {
+        "name": "get_estimate",
+        "description": "Fetch one project estimate by id: customer, template, status and quoted price (before and after tax)."
+      },
+      {
+        "name": "list_purchase_orders",
+        "description": "List purchase orders raised to suppliers, optionally filtered by status or supplier."
+      },
+      {
+        "name": "get_purchase_order",
+        "description": "Get full purchase order detail including line items and receiving progress."
+      },
+      {
+        "name": "list_invoices",
+        "description": "List customer invoices with totals, paid amount and status."
+      },
+      {
+        "name": "get_invoice",
+        "description": "Get full invoice detail including line items, balance due and payment history."
+      },
+      {
+        "name": "list_employees",
+        "description": "List staff records for this tenant — employee code, name, work email/phone, department, designation, employment dates, status."
+      },
+      {
+        "name": "get_employee",
+        "description": "Get one employee record by id, including any tenant-defined custom fields."
+      }
+    ]
+  },
+  "capabilityDocs": {
+    "accounts": {
+      "status": "live",
+      "plain": "Your customers and the companies you deal with, with their contacts, history and documents in one place.",
+      "rules": [
+        "An account can have several contacts, assets, quotes and cases attached to it.",
+        "Phone, email and tax numbers on accounts are stored encrypted."
+      ]
+    },
+    "administration": {
+      "status": "live",
+      "plain": "The administration hub: workspace users, roles and the audit entry points.",
+      "rules": []
+    },
+    "ai_assistant": {
+      "status": "live",
+      "plain": "An AI assistant inside the workspace for drafting and for answering questions about records.",
+      "rules": []
+    },
+    "ai_reports": {
+      "status": "live",
+      "plain": "Ask a question in plain words and get a chart or table over live data.",
+      "rules": []
+    },
+    "amc": {
+      "status": "live",
+      "plain": "Yearly maintenance contracts with the equipment list, visit schedule and renewal dates.",
+      "rules": []
+    },
+    "assets": {
+      "status": "live",
+      "plain": "The equipment your customers own or that you service, with its history of cases and visits.",
+      "rules": []
+    },
+    "business_roles": {
+      "status": "live",
+      "plain": "Named roles that decide which modules and screens each person reaches, together with the employee master and business users.",
+      "rules": []
+    },
+    "cases": {
+      "status": "live",
+      "plain": "A repair or service job from intake to closed, with its status flow, inspection report, photos and quote.",
+      "rules": [
+        "A case has an inspection report that can be sent to the customer before the quote."
+      ]
+    },
+    "change_history": {
+      "status": "live",
+      "plain": "A record of who changed what and when on every object.",
+      "rules": []
+    },
+    "contacts": {
+      "status": "live",
+      "plain": "The people at your customers, each linked to an account.",
+      "rules": [
+        "A contact belongs to an account and can be chosen on a quote or a case."
+      ]
+    },
+    "coverage_model": {
+      "status": "live",
+      "plain": "Rule-based teams and segments that decide who owns an account, which products are available and how records are routed to an ERP.",
+      "rules": []
+    },
+    "data_workbench": {
+      "status": "live",
+      "plain": "Import, export and bulk update of records from spreadsheets, with a template per object.",
+      "rules": [
+        "Update always works from a previous export, matched by record id, never by name."
+      ]
+    },
+    "db_export": {
+      "status": "live",
+      "plain": "A full export of the workspace data for backup or migration.",
+      "rules": []
+    },
+    "dispatch": {
+      "status": "live",
+      "plain": "Plan which technician goes where and when.",
+      "rules": []
+    },
+    "enterprise_theme": {
+      "status": "experimental",
+      "plain": "An unreleased enterprise look for the workspace.",
+      "rules": []
+    },
+    "estimator": {
+      "status": "live",
+      "plain": "Turn a few answers or an element schedule into a bill of materials, a cost build-up and a standard quote, using templates your admin sets up once.",
+      "rules": [
+        "An estimate belongs to a template made of inputs, rates and rule lines.",
+        "Once an estimate has a quote, its numbers can no longer change."
+      ]
+    },
+    "fence_projects": {
+      "status": "live",
+      "plain": "A parametric fence takeoff and bill of materials, priced through Standard Quotes. Specific to fencing contractors.",
+      "rules": []
+    },
+    "gmail_reply_threading": {
+      "status": "live",
+      "plain": "Quotes sent as a real reply inside the customer's existing email thread, through the company's Gmail.",
+      "rules": []
+    },
+    "invoices": {
+      "status": "live",
+      "plain": "Invoice from a quote or a work order, send it by email and record payment.",
+      "rules": [
+        "BPMSquare is not an accounting system: invoices are handed over to the customer's own accounting software."
+      ]
+    },
+    "leads": {
+      "status": "live",
+      "plain": "Enquiries before they become a customer or a deal, including those that arrive from marketing campaigns.",
+      "rules": []
+    },
+    "marketing": {
+      "status": "live",
+      "plain": "Email campaigns to segments of accounts, with unsubscribe links and interest links that turn replies into leads.",
+      "rules": []
+    },
+    "marketing_scoring": {
+      "status": "experimental",
+      "plain": "Scores each lead from what the person actually did, moves it through clear stages, and checks consent before anyone is contacted.",
+      "rules": [
+        "Consent is required by default; an admin can relax it for a country, but not for India.",
+        "A score always shows the reasons behind it.",
+        "Switched on per workspace by a platform admin; until then no screen or lead changes."
+      ]
+    },
+    "next_experience": {
+      "status": "experimental",
+      "plain": "Nova, the unreleased Business OS experience layer.",
+      "rules": []
+    },
+    "outbound_email": {
+      "status": "live",
+      "plain": "Send quotes, invoices and campaigns by email from the workspace.",
+      "rules": [
+        "A demo workspace can only email one internal inbox, never a real customer."
+      ]
+    },
+    "partners": {
+      "status": "live",
+      "plain": "The OEMs and vendors who refer work to you, linked to the jobs they send.",
+      "rules": []
+    },
+    "pipeline": {
+      "status": "live",
+      "plain": "Deals on a board, stage by stage, with the quote lines attached and a won or lost outcome.",
+      "rules": [
+        "The deal stages are set by the workspace admin.",
+        "A rule such as a manager must approve above an amount is not a setting today."
+      ]
+    },
+    "pricing_engine": {
+      "status": "live",
+      "plain": "Dynamic pricing: price books, routing rules by customer or document type, margin guardrails and approvals.",
+      "rules": []
+    },
+    "pricing_engine_quotes": {
+      "status": "live",
+      "plain": "Lets a quote line pull a live price from the published price book.",
+      "rules": []
+    },
+    "process_studio": {
+      "status": "live",
+      "plain": "Describe how a business works and get a fit report against BPMSquare, proposed changes and a plan.",
+      "rules": [
+        "A fit rating is only given with a named module, screen or setting behind it.",
+        "Effort is shown as Small, Medium or Large, never as a price."
+      ]
+    },
+    "products": {
+      "status": "live",
+      "plain": "A product catalogue with prices and categories; a product can be a kit with a multi-level bill of materials and a cost roll-up.",
+      "rules": []
+    },
+    "purchasing": {
+      "status": "live",
+      "plain": "Purchase orders to suppliers, receiving, and inventory records of the stock you hold.",
+      "rules": []
+    },
+    "quotations": {
+      "status": "live",
+      "plain": "Repair, supply, technical, budgetary and installation offers with print, email and a WhatsApp link to the PDF.",
+      "rules": [
+        "A quotation moves through a status flow that the workspace admin can change.",
+        "A quotation prints as a PDF with the company's branding and terms."
+      ]
+    },
+    "quote_lines_dw": {
+      "status": "live",
+      "plain": "Bulk loading and editing of quote lines from a spreadsheet through the Data Workbench.",
+      "rules": []
+    },
+    "reports": {
+      "status": "live",
+      "plain": "Analytics tiles and reports over live data, on a dashboard.",
+      "rules": []
+    },
+    "rfq": {
+      "status": "live",
+      "plain": "Ask several suppliers for prices by email, receive their replies back inside BPMSquare, compare and award.",
+      "rules": [
+        "Supplier replies are read from the email and filled into the request for a person to confirm."
+      ]
+    },
+    "spectacular_theme": {
+      "status": "experimental",
+      "plain": "An unreleased alternative look for the workspace.",
+      "rules": []
+    },
+    "standard_quotes": {
+      "status": "live",
+      "plain": "Quotes with lines, alternative options, templates, PDF and email, with a status from draft to accepted.",
+      "rules": [
+        "A quote line can offer alternatives for the customer to choose from.",
+        "A standard quote can be created from an estimate or a fence project.",
+        "Quote lines can be priced from the pricing engine, a price list, or typed in."
+      ]
+    },
+    "suppliers": {
+      "status": "live",
+      "plain": "Your vendors, with contacts and the products they supply.",
+      "rules": []
+    },
+    "technicians": {
+      "status": "live",
+      "plain": "Your field people, their skills and their work orders.",
+      "rules": []
+    },
+    "wfm": {
+      "status": "live",
+      "plain": "Workforce: attendance by phone or door tablet, shifts, sites with a geofence, roster, leave, overtime and a monthly summary.",
+      "rules": [
+        "An employee cannot alter attendance data.",
+        "Overtime and attendance corrections are approved by a supervisor.",
+        "Shifts, sites and leave types are set up by the workspace admin."
+      ]
+    },
+    "wfm_projects": {
+      "status": "live",
+      "plain": "Hours per project taken from attendance, for project costing, without money shown at the first level.",
+      "rules": []
+    },
+    "work_orders": {
+      "status": "live",
+      "plain": "The job on site or in the workshop, assigned to a technician and completed into an invoice.",
+      "rules": []
+    }
+  }
+}

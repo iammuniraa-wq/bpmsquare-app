@@ -540,6 +540,24 @@ deploy for an automatic schema change.
   - **0138_contacts_email_hash.sql — PENDING** `contacts.email_hash` (blind index: HMAC of the normalised email, key derived from FIELD_ENCRYPTION_KEY, no new env var) and `contacts.do_not_contact`. Set best-effort after each contact write; existing rows by the backfill script above. Never returned by any API.
   - **0139_consent_ledger.sql — PENDING** `consent_events` (append-only), `consent_state`, `suppressions`; all select-only RLS, written by `recordConsent()`/`addSuppression()` only. `canContact()` reads them plus `accounts.marketing_opt_out`; the default is strict "consent required" per jurisdiction until an admin changes it in Settings -> Marketing -> Consent and topics. Run after 0138.
   - **0140_leads_scoring_and_stages.sql — PENDING** lead columns (`contact_id`, `owner_user_id`, `score`, `score_factors`, `scored_at`, `sla_due_at`, `last_activity_at`, `custom_data`, `custom_status_id`) and `'leads'` as a status-engine entity with eight seeded system statuses (the entity_type CHECK on the four 0070 tables is re-created). `leads.status` is untouched. Run after 0070. No demo seed in M0 (the doc schedules `seed-marketing-demo.sql` for M2).
+- **0152_process_studio.sql — PENDING on both DBs** (written 2026-10-19, Process Design Studio phase 1,
+  docs/process-design-studio-architecture.md). `process_studies` (STU-####) plus messages, steps, fit,
+  changes, tasks, comments, versions and requests. Every table is SELECT-ONLY for members (no write policy:
+  a study carries trust claims -- the reviewed tick, request status, ratings -- so all writes go through
+  routes with the service-role client), and `process_studio_can_see()` makes a study private to its creator on
+  an `is_demo` workspace (admins of a client workspace see all). Until it runs, the studio list/pages show
+  "waiting for a database update" and the flag stays off by default. Independent of 0150/0151.
+- **0151_platform_settings.sql — PENDING on both DBs** (written 2026-10-19). Key/value table for
+  PLATFORM settings (first use: the address "Talk to us" requests are emailed to, set in /admin/studies; or the
+  `PROCESS_STUDIO_NOTIFY_EMAIL` env var). RLS enabled with NO policy: only server code with the service-role
+  client reaches it. The one table without `tenant_id`, deliberately. Until it runs, the env var is the only source.
+- **0150_ai_usage_log.sql — PENDING on both DBs** (written 2026-10-19). The shared AI meter: one row per
+  model call, read by the per-tenant monthly token cap (`src/lib/ai/structured.ts`, default 1,500,000 tokens;
+  override on the tenant page in /admin). Members may read their tenant's rows; no write policy (service role only).
+  Until it runs the cap is simply not enforced (a missing table reads as zero usage) and AI keeps working.
+- **scripts/seed-process-studio-demo.sql: run AFTER 0152 on the demo tenant (pending)** -- switches the
+  `process_studio` flag on for `is_demo` tenants and adds the two labelled samples (Al-Khaleej Precast, Hosapete
+  Motor Works) owned by the demo workspace's oldest admin. Idempotent; never touches a client tenant.
 - **0133_item_types_and_bom.sql — APPLIED on dev AND production (owner, 2026-10-19)** (written 2026-10-19, item types + bill of materials). Adds nullable `products.item_type` (no check constraint: the type list is tenant config) and the `product_bom_lines` table (parent product, component product, qty, uom, scrap %, consumed/used, multi-level, tenant-isolation RLS, component `on delete restrict`). The app screens for it are NOT built yet (decisions pending); the schema is additive and safe to run any time. Run after 0132 (independent otherwise).
 - **0132_product_supplier.sql — APPLIED on dev AND production (owner, 2026-10-19)** (written 2026-10-19, preferred supplier on products). Adds nullable `products.supplier_id` (references `suppliers`, `on delete set null`) and an index. Code degrades on 42703 while pending (the Supplier field is hidden/ignored, RFQ "current supplier" falls back to RFQ award and purchase-order history). No demo seed needed. Run any time.
 - **0131_estimator.sql — APPLIED on dev AND production (owner, 2026-10-17)** (written 2026-10-17, Project Estimator,

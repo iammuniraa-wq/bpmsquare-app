@@ -24,6 +24,8 @@ const PII_FIELDS: Record<string, Set<string>> = {
   // consistent treatment of a person's contact details regardless of which
   // table they live in.
   employees: new Set(["phone", "email"]),
+  // The Talk to us contact email on a process study (encrypted at rest).
+  process_studies: new Set(["contact_email"]),
 };
 
 function deepEqual(a: unknown, b: unknown): boolean {

@@ -210,6 +210,9 @@ export const ROUTES = {
   estimates: "/estimates",
   estimateNew: "/estimates/new",
   estimate: (id: string) => `/estimates/${id}`,
+  processStudio: "/process-studio",
+  processStudioNew: "/process-studio/new",
+  processStudy: (id: string) => `/process-studio/${id}`,
   administration: "/administration",
   administrationChangeHistory: "/administration/change-history",
   administrationOutboundEmails: "/administration/outbound-emails",
@@ -257,6 +260,9 @@ export const NAV: NavGroup[] = [
     group: "WORKSPACE",
     items: [
       { label: "Dashboard", href: ROUTES.dashboard, icon: "◴", pillar: "blue", workcenterKey: "dashboard" },
+      // Process Design Studio (0152, docs/process-design-studio-architecture.md): about
+      // the whole business, not one pillar, so it sits under Dashboard.
+      { label: "Process Design Studio", href: ROUTES.processStudio, icon: "◇", pillar: "blue", featureKey: "process_studio", workcenterKey: "process_studio" },
     ],
   },
   {
@@ -599,6 +605,12 @@ export type TenantFeatures = {
   // lead route and settings page is exactly what it was before this existed.
   // Needs `marketing`.
   marketing_scoring: boolean;
+  // Process Design Studio (0152, docs/process-design-studio-architecture.md): a
+  // prospect or client describes how they work and gets a cited fit report,
+  // proposed changes and a plan. A sold module, set only by a platform admin
+  // in /admin/tenants: default OFF, missing key reads false. The demo
+  // tenant has it on (scripts/seed-process-studio-demo.sql).
+  process_studio: boolean;
 };
 
 // WfmConfig — tenant-level WFM (attendance) settings, stored in
@@ -1211,6 +1223,10 @@ export type TenantConfig = {
   // Marketing platform (docs/marketing-platform-architecture.md 10). Absent
   // keys read as the defaults in src/lib/marketing/config.ts.
   marketing?: MarketingConfig;
+  // Process Design Studio allowance (docs/process-design-studio-architecture.md
+  // section 6.3), set by a platform admin on the tenant page. Absent keys read as
+  // the defaults in src/lib/studio/caps.ts.
+  process_studio?: ProcessStudioConfig;
 };
 
 /** A topic a person can agree to or refuse separately ("Offers", "Events"). */
@@ -1233,6 +1249,13 @@ export type MarketingConfig = {
   consent_defaults?: Partial<Record<"SA" | "AE" | "QA" | "KW" | "OM" | "BH" | "IN" | "EU" | "other", "consent_required" | "existing_customer">>;
   /** The lead-scoring rubric (src/lib/marketing/scoring.ts). Absent = DEFAULT_RUBRIC. */
   scoring?: ScoringRubric;
+};
+
+export type ProcessStudioConfig = {
+  /** Client messages one study may hold before the chat stops (default 40). */
+  max_messages_per_study?: number;
+  /** AI tokens (input + output) this workspace may use per calendar month across studies. */
+  monthly_token_budget?: number;
 };
 
 export type RfqMailMode = "platform" | "mailbox";
