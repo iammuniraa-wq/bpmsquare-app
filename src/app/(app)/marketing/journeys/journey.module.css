@@ -10,6 +10,7 @@
 .headRow { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .headBtns { display: inline-flex; gap: 8px; align-items: center; }
 .stripDesk { display: block; }
+.stripDesk :global(.bpm-tabs), .stripPhone :global(.bpm-tabs) { overflow-y: hidden; }
 .stripPhone { display: none; }
 .fact { font-size: 12.5px; color: var(--ink); gap: 0; flex-wrap: wrap; }
 .fact b { color: var(--muted); font-weight: 600; }
@@ -51,11 +52,12 @@
 .big { font-size: 26px; font-weight: 700; color: var(--ink); line-height: 1; }
 
 /* steps */
-.steps { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
-.step { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; background: var(--panel); display: grid; gap: 6px; }
+.steps { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; margin: 0; padding: 0; list-style: none; }
+.step { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; background: var(--panel); display: grid; gap: 6px; min-width: 0; box-sizing: border-box; }
 .stepHead { display: grid; grid-template-columns: 24px minmax(0, 1fr) auto; gap: 8px; align-items: start; }
 .stepNo { width: 22px; height: 22px; border-radius: 999px; background: var(--accentbg); color: var(--ink); font-size: 11.5px; font-weight: 700; display: grid; place-items: center; }
 .stepTitle { font-size: 13.5px; font-weight: 600; color: var(--ink); }
+.stepBody select, .stepBody input { min-width: 0; max-width: 100%; box-sizing: border-box; }
 .stepBody { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-inline-start: 32px; }
 .tools { display: flex; gap: 2px; }
 .ic { width: 26px; height: 26px; border: 0; background: transparent; border-radius: 6px; cursor: pointer; color: var(--muted); display: inline-grid; place-items: center; padding: 0; }

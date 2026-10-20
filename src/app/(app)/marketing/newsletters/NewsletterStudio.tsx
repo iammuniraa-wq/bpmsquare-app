@@ -435,7 +435,7 @@ export default function NewsletterStudio(props: StudioProps) {
                   <select id="nlCat" className={styles.select} value={category} disabled={!canEdit} onChange={(e) => setCategory(e.target.value as NewsletterCategory)}>{CATEGORIES.map((c) => <option key={c}>{c}</option>)}</select>
                 </Opt>
               </div>
-              <div style={{ flex: "1 1 120px" }}>
+              <div style={{ flex: "1 1 220px" }}>
                 <Opt label="Consent topic" info={NEWSLETTER_TIPS.consentTopic} htmlFor="nlTopic">
                   <select id="nlTopic" className={styles.select} value={topic ?? ""} disabled={!canEdit} onChange={(e) => setTopic(e.target.value || null)}>
                     <option value="">Any consent topic</option>

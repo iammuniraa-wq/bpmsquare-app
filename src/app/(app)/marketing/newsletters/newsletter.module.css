@@ -149,6 +149,7 @@ textarea.field { min-height: 84px; resize: vertical; }
 .bar { position: fixed; left: 0; right: 0; bottom: 0; background: var(--panel); border-top: 1px solid var(--line); padding: 10px max(16px, env(safe-area-inset-left, 0px)) max(10px, env(safe-area-inset-bottom, 0px)); display: none; gap: 8px; z-index: 40; }
 .bar > * { flex: 1; min-height: 44px; }
 .ptabsWrap { display: none; }
+.ptabsWrap :global(.bpm-tabs) { overflow-y: hidden; }
 
 /* guided walkthrough: optional, starts closed, never forced */
 .tourHl { position: relative; z-index: 41; box-shadow: 0 0 0 4px var(--studio-accent, var(--accent)), 0 0 0 9999px rgba(0, 0, 0, .55); border-radius: 12px; }

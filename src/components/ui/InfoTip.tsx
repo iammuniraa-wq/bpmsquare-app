@@ -166,7 +166,7 @@ export default function InfoTip({ label, children, guide, placement = "below" }:
         <>
           <div className="bpm-sheet-backdrop" onClick={() => close()} />
           <div ref={pop} id={popId} role="dialog" aria-modal="true" aria-labelledby={`${popId}-t`} className="bpm-sheet" onKeyDown={trapTab}>
-            <h3 id={`${popId}-t`}>{label}</h3>
+            <h3 id={`${popId}-t`}>{label.charAt(0).toUpperCase() + label.slice(1)}</h3>
             <p>{children}</p>
             {href && <a className="bpm-tip-learn" href={href} target="_blank" rel="noopener noreferrer">Learn more</a>}
             <div className="bpm-sheet-acts"><button ref={closeBtn} type="button" className="bpm-btn bpm-btn-secondary bpm-btn-md" onClick={() => close()}>Close</button></div>
