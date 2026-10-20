@@ -44,6 +44,9 @@ export const REGISTRY_OBJECT_TYPE: Record<ImportObjectId, string | null> = {
   rfqs: "rfq",
   estimates: "estimate",
   product_bom_lines: null,
+  abm_programs: "abm_program",
+  abm_targets: "abm_target",
+  abm_members: "abm_member",
 };
 
 export type ReferenceFieldDef = {
@@ -80,6 +83,17 @@ export const REFERENCE_FIELDS: Partial<Record<ImportObjectId, ReferenceFieldDef[
     { key: "template_name", label: "Template", hint: "Name of an active estimate template in this workspace, e.g. Precast villa (illustrative)", target: "estimate_templates", required: true },
     { key: "account_name", label: "Account", hint: "Optional customer account this estimate is for", target: "accounts" },
     { key: "contact_name", label: "Contact", hint: "Optional contact at that account", target: "contacts" },
+  ],
+  // ABM (0180-0182). The parent ref and the names resolve the relationship at create
+  // time only; Update never keys off them (bpmsquarecore section 3).
+  abm_targets: [
+    { key: "program_ref", label: "Program", hint: "Program ID of an existing program, e.g. ABM-0001", target: "abm_programs", required: true, targetColumn: "ref" },
+    { key: "account_name", label: "Account", hint: "Must match an account already in the system", target: "accounts", required: true },
+  ],
+  abm_members: [
+    { key: "program_ref", label: "Program", hint: "Program ID of an existing program, e.g. ABM-0001", target: "abm_programs", required: true, targetColumn: "ref" },
+    { key: "account_name", label: "Account", hint: "The target account, already in that program", target: "accounts", required: true },
+    { key: "contact_name", label: "Person", hint: "A contact at that account, spelled as in your contacts", target: "contacts", required: true },
   ],
   wfm_projects: [
     { key: "parent_ref", label: "Sits under", hint: "Project ID of the parent (e.g. PRJ-0003) to create a sub-project — blank for a top-level project", target: "wfm_projects" },
@@ -137,6 +151,7 @@ const REQUIRED_KEYS: Partial<Record<ImportObjectId, string[]>> = {
   opportunities: ["title"],
   rfqs: ["title"],
   estimates: ["name"],
+  abm_programs: ["name"],
 };
 
 /** Quote line items — fixed shape, one row per line, never tenant-customizable. */
@@ -194,6 +209,9 @@ const OBJECT_META: Record<ImportObjectId, { label: string; icon: string; descrip
   opportunities: { label: "Deals (pipeline)", icon: "◈", description: "Sales opportunities — a pursuit with a customer, its stage and expected close. Amount and probability are computed, not imported.", dependsOn: ["accounts"] },
   rfqs: { label: "RFQs", icon: "⇄", description: "Requests for quotation to suppliers — export with real IDs, then update header fields in bulk. Not importable: an RFQ is raised from a record or the RFQ screen, with its lines and suppliers.", dependsOn: [] },
   estimates: { label: "Estimates", icon: "∑", description: "Project estimates (header fields only) — import creates a draft from a template by name; open it and press Calculate to produce its BOM and costs. Lines, quantities and costs come from the estimator, not from a file.", dependsOn: ["accounts", "contacts"] },
+  abm_programs: { label: "ABM programs", icon: "◎", description: "Account-based marketing programs: a goal, a window and an owner. Target lists and buying groups are their own objects.", dependsOn: [] },
+  abm_targets: { label: "ABM target accounts", icon: "◉", description: "One company in one program. Import adds companies to an existing program; progress is set by rules or on the screen with a reason, never by a file.", dependsOn: ["abm_programs", "accounts"] },
+  abm_members: { label: "ABM buying groups", icon: "☰", description: "People and their role in a target account's buying group, for one program. Private notes are not included.", dependsOn: ["abm_targets", "contacts"] },
   wfm_projects: { label: "Projects (workforce)", icon: "▦", description: "Project costing — projects and sub-projects that worked hours are attributed to. Import parents before children.", dependsOn: [] },
   users: { label: "Users", icon: "◍", description: "Invite team members and assign roles — each person receives an email invite", dependsOn: [] },
   // Never read -- employees is null in REGISTRY_OBJECT_TYPE (static spec,

@@ -18,7 +18,7 @@ import type { ImportObjectId, ObjectSpec } from "@/lib/import/types";
 // since labels are tenant-configurable) -- this list only defines WHICH
 // objects exist, not their order.
 const OBJECT_ORDER: ImportObjectId[] = [
-  "accounts", "contacts", "assets", "suppliers", "products", "product_bom_lines", "wfm_projects", "opportunities", "rfqs", "estimates", "quotes", "quote_lines",
+  "accounts", "contacts", "assets", "suppliers", "products", "product_bom_lines", "wfm_projects", "opportunities", "rfqs", "estimates", "abm_programs", "abm_targets", "abm_members", "quotes", "quote_lines",
   "cases", "work_orders", "invoices", "purchase_orders", "inventory",
   "users", "employees",
 ];

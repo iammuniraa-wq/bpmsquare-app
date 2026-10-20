@@ -8,7 +8,7 @@ import { EVENTS } from "@/lib/events/catalog";
 import { isSchemaPending } from "@/lib/marketing/pending";
 import { resolveCoverageForAccount } from "@/lib/coverage/resolve";
 import { matchesAllFilters, type SegmentFilter } from "@/lib/marketingSegmentation";
-import { resolveMarketingRecipientsLive } from "@/lib/data/live";
+import { ABM_SEGMENT_KEYS } from "./signals";
 import type { TenantFeatures } from "@/lib/constants";
 import type { Account, Segment } from "@/lib/types";
 import type { AbmProgram, AbmTargetAccount, AbmTier } from "./types";
@@ -148,7 +148,7 @@ export async function isTenantMember(ctx: Pick<AbmCtx, "admin" | "tenantId">, us
 
 // ── Source lists (a target list is a snapshot of one of these) ──────────────
 
-const SIGNAL_KEYS = new Set(["has_active_amc", "owned_product_skus"]);
+const SIGNAL_KEYS = new Set(["has_active_amc", "owned_product_skus", ...ABM_SEGMENT_KEYS]);
 
 /** The accounts a Coverage segment matches right now. Computed signals are loaded only when a rule actually uses them. */
 export async function accountIdsForSegment(ctx: Pick<AbmCtx, "supabase" | "tenantId">, segmentId: string): Promise<string[]> {
@@ -178,6 +178,8 @@ export async function accountIdsForSegment(ctx: Pick<AbmCtx, "supabase" | "tenan
 export async function accountIdsForTargetGroup(ctx: Pick<AbmCtx, "supabase" | "tenantId">, groupId: string): Promise<string[]> {
   const { data: g } = await ctx.supabase.from("marketing_target_groups").select("*").eq("id", groupId).eq("tenant_id", ctx.tenantId).maybeSingle();
   if (!g) return [];
+  // Loaded on demand: the data layer is large, and only this one path needs it.
+  const { resolveMarketingRecipientsLive } = await import("@/lib/data/live");
   const group = g as { account_types: string[]; include_account_ids: string[]; exclude_account_ids: string[]; manual_emails: string[]; filters: SegmentFilter[]; match: "all" | "any" };
   const candidates = await resolveMarketingRecipientsLive(ctx.tenantId, {
     account_types: (group.account_types ?? []) as never,
