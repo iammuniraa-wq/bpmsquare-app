@@ -38,6 +38,8 @@ export const OBJECT_FEATURE: Record<string, keyof TenantFeatures | null> = {
   // Newsletter Studio (0141). Platform-admin flag; the studio also needs
   // `marketing`, which every newsletter route checks beside this one.
   newsletters: "newsletter_studio",
+  // Forms (0170). Platform-admin flag; every forms route also checks `marketing`.
+  forms: "marketing_forms",
   // Inventory is the stock side of Purchasing; it has never had a key of
   // its own, and the nav gates it on `purchasing` too.
   inventory: "purchasing",

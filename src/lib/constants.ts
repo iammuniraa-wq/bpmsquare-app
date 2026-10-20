@@ -83,6 +83,10 @@ export const ROUTES = {
   marketingNewsletters: "/marketing/newsletters",
   marketingNewsletterNew: "/marketing/newsletters/new",
   marketingNewsletter: (id: string) => `/marketing/newsletters/${id}`,
+  marketingForms: "/marketing/forms",
+  marketingFormNew: "/marketing/forms/new",
+  marketingForm: (id: string) => `/marketing/forms/${id}`,
+  marketingPreferences: (contactId: string, token: string) => `/marketing/preferences/${contactId}/${token}`,
   marketingClick: (campaignId: string, recipientId: string, index: number, token: string) => `/marketing/c/${campaignId}/${recipientId}/${index}/${token}`,
   marketingSegments: "/marketing/segments",
   marketingSegmentNew: "/marketing/segments/new",
@@ -317,6 +321,7 @@ export const NAV: NavGroup[] = [
         children: [
           { label: "Campaigns", href: ROUTES.marketing, icon: "✉", pillar: "purple", featureKey: "marketing", workcenterKey: "marketing" },
           { label: "Newsletters", href: ROUTES.marketingNewsletters, icon: "✎", pillar: "purple", featureKey: "newsletter_studio", workcenterKey: "marketing_newsletters" },
+          { label: "Forms", href: ROUTES.marketingForms, icon: "☰", pillar: "purple", featureKey: "marketing_forms", workcenterKey: "marketing_forms" },
           { label: "Segmentation", href: ROUTES.marketingSegments, icon: "⌗", pillar: "purple", featureKey: "marketing", workcenterKey: "marketing_segments" },
           { label: "Leads", href: ROUTES.leads, icon: "✦", pillar: "purple", featureKey: "leads", workcenterKey: "leads" },
         ],
@@ -624,6 +629,13 @@ export type TenantFeatures = {
   // reads false, and with it off there is no menu item, no route and no
   // change to any campaign page. Needs `marketing`.
   newsletter_studio: boolean;
+  // Forms and the Preference Centre (0170-0172, docs/shells/forms-shell.md):
+  // forms hosted on the tenant's own domain and embedded on its website, each
+  // submit recording consent and creating the contact and a lead. A
+  // platform-admin-only flag (set in /admin/tenants): default OFF, missing key
+  // reads false. With it off the public routes answer 404 and there is no menu
+  // item. Needs `marketing`.
+  marketing_forms: boolean;
 };
 
 // WfmConfig — tenant-level WFM (attendance) settings, stored in

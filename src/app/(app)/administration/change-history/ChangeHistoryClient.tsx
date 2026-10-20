@@ -28,6 +28,7 @@ const OBJECT_TYPES: { value: string; label: string }[] = [
   { value: "estimates", label: "Estimates" },
   { value: "process_studies", label: "Process studies" },
   { value: "newsletters", label: "Newsletters" },
+  { value: "forms", label: "Forms" },
   { value: "estimate_templates", label: "Estimate templates" },
   { value: "inventory", label: "Inventory" },
   { value: "employees", label: "Employees" },
@@ -75,7 +76,8 @@ const ACTION_TONE: Record<ChangeLogRow["action"], { bg: string; fg: string }> = 
 export default function ChangeHistoryClient() {
   // Newsletters are listed only for a workspace that has the Newsletter Studio: nobody else has any.
   const hasNewsletters = useTenantFeature("newsletter_studio");
-  const objectTypes = OBJECT_TYPES.filter((o) => o.value !== "newsletters" || hasNewsletters);
+  const hasForms = useTenantFeature("marketing_forms");
+  const objectTypes = OBJECT_TYPES.filter((o) => (o.value !== "newsletters" || hasNewsletters) && (o.value !== "forms" || hasForms));
   const [objectType, setObjectType] = useState(OBJECT_TYPES[0].value);
   const [objectId, setObjectId] = useState("");
   const [rows, setRows] = useState<ChangeLogRow[] | null>(null);
