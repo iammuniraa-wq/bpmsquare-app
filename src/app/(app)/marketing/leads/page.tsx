@@ -13,6 +13,7 @@ import { leadPage } from "@/lib/marketing/leads/pageGuard";
 import { listScoredLeads, type ScoredLead } from "@/lib/marketing/leads/queries";
 import { listWorkspacePeople, personLabel } from "@/lib/marketing/leads/people";
 import { isLeadOverdue } from "@/lib/marketing/leads/timing";
+import { LEAD_SCORE_TIPS } from "@/lib/marketing/leads/tips";
 import { AssignmentChip, DueChip, ScoreMeter, StagePill } from "./ScoreBits";
 
 const fmtDate = (s: string) => new Date(s).toLocaleDateString("en-GB", { day: "2-digit", month: "short" });
@@ -34,7 +35,7 @@ export default async function ScoredLeadsPage({
   if (pending) {
     return (
       <>
-        <PageHeader title="Scored leads" />
+        <PageHeader title="Lead scores" />
         <Card padding={0}>
           <EmptyState title="Lead scoring is waiting for a database update" text="Ask your administrator to apply the latest database update, then come back. Nothing is lost in the meantime." />
         </Card>
@@ -87,7 +88,7 @@ export default async function ScoredLeadsPage({
         </>
       ),
     },
-    { id: "score", label: "Score", sortKey: "score", render: (l) => <ScoreMeter score={l.score} thresholds={ctx.rubric.thresholds} /> },
+    { id: "score", label: "Score", sortKey: "score", info: LEAD_SCORE_TIPS.score, render: (l) => <ScoreMeter score={l.score} thresholds={ctx.rubric.thresholds} /> },
     { id: "stage", label: "Stage", sortKey: "stage", render: (l) => <StagePill stage={l.stage} /> },
     {
       id: "owner", label: "Owner", sortKey: "owner", cellStyle: { fontSize: 13 },
@@ -100,8 +101,8 @@ export default async function ScoredLeadsPage({
 
   return (
     <ObjectListPage
-      title="Scored leads"
-      subtitle={`${rows.length} of ${leads.length} · best score first. A score is worked out from what each person did, so it is never a guess.`}
+      title="Lead scores"
+      subtitle={`${rows.length} of ${leads.length} · best first`}
       chips={chips}
       search={{ value: q, placeholder: "Search lead, company or person…", hiddenParams: { stage: stageFilter } }}
       columns={columns}
@@ -117,7 +118,7 @@ export default async function ScoredLeadsPage({
       filtered={!!(q || stageFilter || Object.keys(cfParams).length > 0)}
       empty={{
         title: "No leads yet",
-        text: "Leads appear here as people at your companies are scored. Add a lead from the Leads page, or wait for the nightly run to score the ones you have.",
+        text: "Leads appear here as people at your companies are scored, every 15 minutes. Add a lead from the Leads page, or press Score again on a lead.",
         filteredTitle: "No leads match these filters.",
       }}
     />
