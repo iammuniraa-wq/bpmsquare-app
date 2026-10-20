@@ -28,6 +28,12 @@ export type SegmentFieldDef = {
   type: SegmentFieldType;
   options?: { value: string; label: string }[];
   operators: SegmentOperator[];
+  /**
+   * Offered only where the recipient resolver supplies the value (Marketing
+   * target groups), and only to a workspace that owns this module. Absent = a
+   * plain field every builder offers.
+   */
+  audience?: { feature: "buying_signals" };
 };
 
 export type SegmentFilter = {
@@ -66,6 +72,21 @@ export const SEGMENT_FIELDS: SegmentFieldDef[] = [
   // the plain fields with no special-casing.
   { key: "has_active_amc", label: "Has active AMC", category: "Coverage", type: "boolean", operators: ["is_true", "is_false"] },
   { key: "owned_product_skus", label: "Has bought product (SKU/name)", category: "Coverage", type: "text", operators: ["contains"] },
+  // Buying signals (0176): read from the stored account_intent row by the
+  // recipient resolver (src/lib/signals/audience.ts). Example target group,
+  // "everyone Comparing on Precast": buying_stage is Comparing AND signal_topic
+  // contains Precast.
+  {
+    key: "buying_stage", label: "Buying stage", category: "Buying signals", type: "select",
+    options: [
+      { value: "quiet", label: "Quiet" }, { value: "looking", label: "Looking" },
+      { value: "comparing", label: "Comparing" }, { value: "deciding", label: "Deciding" },
+    ],
+    operators: ["equals", "not_equals"], audience: { feature: "buying_signals" },
+  },
+  { key: "intent_score", label: "In-market score", category: "Buying signals", type: "number", operators: ["gt", "lt", "equals"], audience: { feature: "buying_signals" } },
+  { key: "days_in_stage", label: "Days in current stage", category: "Buying signals", type: "number", operators: ["gt", "lt"], audience: { feature: "buying_signals" } },
+  { key: "signal_topic", label: "Engaged with topic", category: "Buying signals", type: "text", operators: ["contains"], audience: { feature: "buying_signals" } },
 ];
 
 export function getSegmentField(key: string): SegmentFieldDef | undefined {

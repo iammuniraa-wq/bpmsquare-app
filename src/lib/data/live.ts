@@ -20,7 +20,8 @@ import type {
   StandardQuote, StandardQuoteLine, StandardQuoteTemplate,
 } from "@/lib/types";
 import { sortBySlNo } from "@/lib/lineOrder";
-import { matchesAllFilters, type SegmentFilter } from "@/lib/marketingSegmentation";
+import { getSegmentField, matchesAllFilters, type SegmentFilter } from "@/lib/marketingSegmentation";
+import { loadAudienceValues, QUIET_VALUES } from "@/lib/signals/audience";
 import type { SearchObjectType, SearchResult } from "@/lib/globalSearch";
 import { formatMoney, resolveCurrency, type CurrencyDef } from "@/lib/currency";
 import { tenantOwnsObject } from "@/lib/objectFeatures";
@@ -2122,12 +2123,19 @@ export async function resolveMarketingRecipientsLive(
   const typeSet = new Set(rule.account_types as AccountType[]);
   const filters = rule.filters ?? [];
   const match = rule.match ?? "all";
+  // Buying signals fields are read from the stored score, only when a filter uses one.
+  const signalValues = filters.some((f) => getSegmentField(f.field)?.audience) ? await loadAudienceValues(tenantId) : undefined;
 
   const accountCandidates: MarketingRecipientCandidate[] = accounts
     .filter((a) => {
       if (excludeSet.has(a.id)) return false;
       if (includeSet.has(a.id)) return true;
-      if (filters.length > 0) return matchesAllFilters(a as unknown as Record<string, unknown>, filters, match);
+      if (filters.length > 0) {
+        // The module is off or its tables are pending: a signals condition cannot match.
+        if (signalValues === null) return false;
+        const record = signalValues ? { ...(a as unknown as Record<string, unknown>), ...(signalValues.get(a.id) ?? QUIET_VALUES) } : (a as unknown as Record<string, unknown>);
+        return matchesAllFilters(record, filters, match);
+      }
       return typeSet.has(a.type);
     })
     .map((a) => ({

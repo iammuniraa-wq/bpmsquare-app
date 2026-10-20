@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { c } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
 import { ROUTES } from "@/lib/constants";
+import { useTenantFeature } from "@/lib/tenant-context";
 import type { MarketingTargetGroup } from "@/lib/types";
 import {
   SEGMENT_FIELDS, OPERATOR_LABEL, getSegmentField,
@@ -46,14 +47,16 @@ export default function SegmentBuilder({ accounts, initial }: { accounts: Accoun
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
+  const signalsOn = useTenantFeature("buying_signals");
   const categories = useMemo(() => {
     const map = new Map<string, SegmentFieldDef[]>();
     for (const f of SEGMENT_FIELDS) {
+      if (f.audience && !(f.audience.feature === "buying_signals" && signalsOn)) continue;
       const list = map.get(f.category);
       if (list) list.push(f); else map.set(f.category, [f]);
     }
     return Array.from(map.entries());
-  }, []);
+  }, [signalsOn]);
 
   function addFilter(field: SegmentFieldDef) {
     setFilters((current) => [...current, {
