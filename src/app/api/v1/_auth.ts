@@ -88,7 +88,9 @@ export async function resolveApiAuth(req: Request): Promise<ApiAuth | null> {
 // them only by naming "rfqs", never through a pre-existing "*" key.
 // estimates: the price a customer will be quoted, before it is quoted (0131) --
 // commercially sensitive, so a key reaches it only by naming "estimates".
-const EXPLICIT_SCOPE_ONLY = new Set(["employees", "contacts", "rfqs", "estimates"]);
+// abm_targets: a buying group names people and their role in a buying decision (0182) -- a key reaches
+// it only by naming "abm_targets". ABM programs alone carry no personal data and stay in the normal scope.
+const EXPLICIT_SCOPE_ONLY = new Set(["employees", "contacts", "rfqs", "estimates", "abm_targets"]);
 
 /** Does this scope permit read (write=false) or write (write=true) on `object`? */
 export function scopeAllows(scopes: ApiScopes, object: string, write: boolean): boolean {

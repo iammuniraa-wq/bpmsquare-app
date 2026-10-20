@@ -1,6 +1,6 @@
 {
   "name": "bpmsquare",
-  "version": "1.10.0",
+  "version": "1.11.0",
   "description": "BPMSquare MCP server — field service CRM for electromechanical repair businesses. Generic across every tenant; nothing here is Vikas/Hosapete-specific.",
   "api_base": "https://<your-tenant-domain>/api/v1",
   "auth": {
@@ -404,6 +404,84 @@
             "description": "Only RFQs raised from this record"
           }
         }
+      }
+    },
+    {
+      "name": "list_abm_programs",
+      "description": "List the tenant's ABM (account-based marketing) programs: goal, time window, status and how many companies are targeted.",
+      "method": "GET",
+      "path": "/api/v1/abm-programs",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "description": "draft, active, paused, completed or archived"
+          },
+          "kind": {
+            "type": "string",
+            "description": "new_business or expansion"
+          }
+        }
+      }
+    },
+    {
+      "name": "get_abm_program",
+      "description": "Fetch one ABM program by id with its funnel counted by company: targets, reached, engaged, in talks, in a deal, won, and the money linked to its deals.",
+      "method": "GET",
+      "path": "/api/v1/abm-programs/{id}",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Program UUID"
+          }
+        },
+        "required": [
+          "id"
+        ]
+      }
+    },
+    {
+      "name": "list_abm_targets",
+      "description": "List ABM target accounts (a company inside a program): tier, progress, next step and linked deal. Buying-group people are not listed. Needs an API key explicitly scoped to \"abm_targets\".",
+      "method": "GET",
+      "path": "/api/v1/abm-targets",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "progress": {
+            "type": "string",
+            "description": "planned, reached, engaged, in_talks, deal_open, won, lost or dropped"
+          },
+          "tier": {
+            "type": "string",
+            "description": "one_to_one, one_to_few or one_to_many"
+          },
+          "program_id": {
+            "type": "string",
+            "description": "Only the companies of this program"
+          }
+        }
+      }
+    },
+    {
+      "name": "get_abm_target",
+      "description": "Fetch one ABM target account by id with its buying group given as contact ids and roles only (no names, contact details or notes). Needs an API key explicitly scoped to \"abm_targets\".",
+      "method": "GET",
+      "path": "/api/v1/abm-targets/{id}",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Target account UUID"
+          }
+        },
+        "required": [
+          "id"
+        ]
       }
     },
     {
