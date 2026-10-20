@@ -37,6 +37,7 @@ const OBJECT_TYPES: { value: string; label: string }[] = [
   { value: "abm_buying_group_members", label: "ABM buying group members" },
   { value: "journeys", label: "Journeys" },
   { value: "whatsapp_templates", label: "WhatsApp templates" },
+  { value: "whatsapp_identity", label: "WhatsApp number" },
   { value: "estimate_templates", label: "Estimate templates" },
   { value: "inventory", label: "Inventory" },
   { value: "employees", label: "Employees" },
@@ -91,7 +92,7 @@ export default function ChangeHistoryClient() {
   const hasAbm = useTenantFeature("abm");
   const hasJourneys = useTenantFeature("journeys");
   const hasWhatsapp = useTenantFeature("whatsapp_marketing");
-  const objectTypes = OBJECT_TYPES.filter((o) => (o.value !== "whatsapp_templates" || hasWhatsapp) && (o.value !== "newsletters" || hasNewsletters) && (o.value !== "leads" || hasLeadScoring) && (!["signal_topics", "account_intent"].includes(o.value) || hasSignals) && (o.value !== "forms" || hasForms) && (!o.value.startsWith("abm_") || hasAbm) && (o.value !== "journeys" || hasJourneys));
+  const objectTypes = OBJECT_TYPES.filter((o) => (!o.value.startsWith("whatsapp_") || hasWhatsapp) && (o.value !== "newsletters" || hasNewsletters) && (o.value !== "leads" || hasLeadScoring) && (!["signal_topics", "account_intent"].includes(o.value) || hasSignals) && (o.value !== "forms" || hasForms) && (!o.value.startsWith("abm_") || hasAbm) && (o.value !== "journeys" || hasJourneys));
   const [objectType, setObjectType] = useState(OBJECT_TYPES[0].value);
   const [objectId, setObjectId] = useState("");
   const [rows, setRows] = useState<ChangeLogRow[] | null>(null);

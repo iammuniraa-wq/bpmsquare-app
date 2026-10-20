@@ -134,6 +134,10 @@ export async function proxy(request: NextRequest) {
     // Inbound email webhooks: the provider's signature is the credential,
     // verified before anything is read (lib/mail/webhookSignature.ts).
     /^\/api\/inbound\/email\/(resend|generic)$/.test(pathname) ||
+    // Inbound WhatsApp (lib/marketing/whatsapp/inbound.ts): the provider's signature is the credential,
+    // checked over the raw body; [key] only names the stored identity row that holds the tenant and the
+    // secret. $-anchored so nothing deeper rides along.
+    /^\/api\/inbound\/whatsapp\/[A-Za-z0-9_-]{16,64}$/.test(pathname) ||
     // Resend delivery events (delivered / bounced / complained): the Svix signature is the
     // credential, verified before the body is read; the tenant comes from the stored
     // recipient row, never the payload. Exact path, nothing deeper rides along.
