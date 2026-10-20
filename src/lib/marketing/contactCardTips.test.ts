@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { tipTextProblems } from "@/lib/infoTip";
-import { EMAIL_STATUSES, needsAttention } from "./emailHealth";
-import { BASIS_TIP, CONSENT_CARD_TIPS, EMAIL_HEALTH_TIPS, clipTip, consentCardTip, consentRowTip, emailStatusTip } from "./contactCardTips";
+import { EMAIL_STATUSES, EMAIL_STATUS_COPY, needsAttention } from "./emailHealth";
+import { BASIS_TIP, CONSENT_CARD_TIPS, EMAIL_HEALTH_TIPS, clipTip, consentCardTip, consentRowTip, emailStatusTip, attentionStatusTip } from "./contactCardTips";
 
 describe("the contact card explanations behind the i", () => {
   it("every fixed one fits the InfoTip limit", () => {
@@ -28,5 +28,11 @@ describe("the contact card explanations behind the i", () => {
     expect(tipTextProblems(consentRowTip({ basis: "They agreed", source: "Recorded by a person", note }))).toEqual([]);
     expect(clipTip("short")).toBe("short");
     expect(consentRowTip({ basis: "They agreed", source: null, note: null })).toBe("They agreed");
+  });
+
+  it("the Needs attention legend fits and names every problem status", () => {
+    const tip = attentionStatusTip();
+    expect(tipTextProblems(tip)).toEqual([]);
+    for (const s of EMAIL_STATUSES.filter((x) => needsAttention(x))) expect(tip).toContain(EMAIL_STATUS_COPY[s].label);
   });
 });

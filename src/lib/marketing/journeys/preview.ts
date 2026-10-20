@@ -86,7 +86,7 @@ export function buildGoLiveChecks(i: GoLiveInput): GoLiveCheck[] {
   for (const p of i.problems) out.push({ code: "not_ready", level: "stop", text: p });
   if (i.entrants === 0 && i.problems.length === 0) out.push({ code: "nobody", level: "info", text: "Nobody would enter today. People will enter as new events happen." });
   if (i.entrants > i.blastRadius) {
-    out.push({ code: "blast_radius", level: "confirm", count: i.entrants, text: `${i.atLeast ? "At least " : ""}${i.entrants} people would enter within five minutes of turning this on (the limit before it asks is ${i.blastRadius}). Check the list, then confirm.` });
+    out.push({ code: "blast_radius", level: "confirm", count: i.entrants, text: `${i.atLeast ? "At least " : ""}${i.entrants} people would enter within five minutes of going live (the limit before it asks is ${i.blastRadius}). Check the list, then confirm.` });
   }
   if (i.hasSendStep && i.noConsent > 0) {
     const checked = i.consentChecked < i.entrants ? ` (checked ${i.consentChecked} of ${i.entrants})` : "";

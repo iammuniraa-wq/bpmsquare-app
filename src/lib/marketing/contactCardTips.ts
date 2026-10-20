@@ -48,3 +48,9 @@ export function consentRowTip(parts: { basis: string; source: string | null; not
   const head = [parts.basis, parts.source].filter(Boolean).join(", ");
   return clipTip(parts.note ? `${head}. ${parts.note}` : head);
 }
+
+/** The Needs attention list (Contacts, Email view): what each problem status means, built from the status names so they cannot drift. */
+export const attentionStatusTip = (): string => {
+  const l = (s: EmailStatus) => EMAIL_STATUS_COPY[s].label;
+  return `${l("bounced")} and ${l("complained")} are never emailed again. ${l("invalid")} needs a fix; ${l("soft_bounce")} may clear by itself.`;
+};

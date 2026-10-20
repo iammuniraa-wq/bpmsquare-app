@@ -11,7 +11,7 @@ import { listJourneyRows } from "@/lib/marketing/journeys/store";
 
 const MONO = "ui-monospace, SFMono-Regular, Menlo, monospace";
 const fmtDate = (s: string) => new Date(s).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
-const STATUS: Record<string, string> = { draft: "Draft", live: "On", paused: "Paused", archived: "Archived" };
+const STATUS: Record<string, string> = { draft: "Draft", live: "Live", paused: "Paused", archived: "Archived" };
 
 type Row = { id: string; ref: string | null; name: string; status: string; when: string; people: number; sent: number; updated_at: string };
 

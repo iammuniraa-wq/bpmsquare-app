@@ -405,7 +405,7 @@ export const FIELD_REGISTRY: Record<PilotObjectType, ObjectFieldRegistry> = {
         { value: "Announcement", label: "Announcement" }, { value: "Festival", label: "Festival" },
       ] },
       { key: "status",   defaultLabel: "Status",        widget: "enum", defaultSection: "Newsletter", locked: true, editable: false, exportOnly: true, enumOptions: [
-        { value: "draft", label: "Draft" }, { value: "ready", label: "Ready" }, { value: "archived", label: "Archived" },
+        { value: "draft", label: "Draft" }, { value: "ready", label: "Ready to use" }, { value: "archived", label: "Archived" },
       ] },
       { key: "source_language", defaultLabel: "Written first in", widget: "text", defaultSection: "Newsletter", locked: true, editable: false, exportOnly: true },
     ],
@@ -424,8 +424,8 @@ export const FIELD_REGISTRY: Record<PilotObjectType, ObjectFieldRegistry> = {
         { value: "new_business", label: "New business" }, { value: "expansion", label: "Expansion" },
       ] },
       { key: "status", defaultLabel: "Status", widget: "enum", defaultSection: "Program", enumOptions: [
-        { value: "draft", label: "Draft" }, { value: "active", label: "Active" }, { value: "paused", label: "Paused" },
-        { value: "completed", label: "Completed" }, { value: "archived", label: "Archived" },
+        { value: "draft", label: "Draft" }, { value: "active", label: "Live" }, { value: "paused", label: "Paused" },
+        { value: "completed", label: "Done" }, { value: "archived", label: "Archived" },
       ] },
       { key: "default_tier", defaultLabel: "Default tier", widget: "enum", defaultSection: "Program", enumOptions: [
         { value: "one_to_one", label: "1:1" }, { value: "one_to_few", label: "1:few" }, { value: "one_to_many", label: "1:many" },
@@ -448,7 +448,7 @@ export const FIELD_REGISTRY: Record<PilotObjectType, ObjectFieldRegistry> = {
         { value: "one_to_one", label: "1:1" }, { value: "one_to_few", label: "1:few" }, { value: "one_to_many", label: "1:many" },
       ] },
       { key: "progress", defaultLabel: "Progress", widget: "enum", defaultSection: "Target", locked: true, editable: false, exportOnly: true, enumOptions: [
-        { value: "planned", label: "Planned" }, { value: "reached", label: "Reached" }, { value: "engaged", label: "Engaged" },
+        { value: "planned", label: "Planned" }, { value: "reached", label: "Reached" }, { value: "engaged", label: "Responding" },
         { value: "in_talks", label: "In talks" }, { value: "deal_open", label: "Deal open" }, { value: "won", label: "Won" },
         { value: "lost", label: "Lost" }, { value: "dropped", label: "Dropped" },
       ] },

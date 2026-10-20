@@ -12,7 +12,7 @@ import { studioPage } from "./pageData";
 
 const MONO = "ui-monospace, SFMono-Regular, Menlo, monospace";
 const fmtDate = (s: string) => new Date(s).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
-const STATUS: Record<string, string> = { draft: "Draft", ready: "Ready", archived: "Archived" };
+const STATUS: Record<string, string> = { draft: "Draft", ready: "Ready to use", archived: "Archived" };
 
 export default async function NewslettersPage({ searchParams }: { searchParams: Promise<{ q?: string; template?: string; status?: string; page?: string }> }) {
   const ctx = await studioPage();

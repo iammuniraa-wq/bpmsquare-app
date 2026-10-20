@@ -16,6 +16,7 @@ import { createAdminSupabase } from "@/lib/supabase-server";
 import { emailHealthOn } from "@/lib/marketing/contactHealth";
 import { loadAttention, ownerNames, type AttentionEntry } from "@/lib/marketing/attentionList";
 import { EMAIL_STATUS_COPY } from "@/lib/marketing/emailHealth";
+import { attentionStatusTip } from "@/lib/marketing/contactCardTips";
 
 type Row = { contact: Contact; account: Account };
 
@@ -153,7 +154,7 @@ export default async function ContactsPage({
   const fmtDate = (iso: string | null) => iso ? new Date(iso).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "—";
   const healthColumns: ListColumn<Row>[] = view ? [
     {
-      id: "email_status", label: "Email status",
+      id: "email_status", label: "Email status", info: attentionStatusTip(),
       render: ({ contact }) => {
         const a = attention?.get(contact.id);
         return a ? <StatusPill label={EMAIL_STATUS_COPY[a.status].label} tone={EMAIL_STATUS_COPY[a.status].tone} /> : <span style={{ color: c.line }}>—</span>;

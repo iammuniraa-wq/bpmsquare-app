@@ -81,7 +81,7 @@ export default function MarketingComposeForm({ accounts, initialGroupId, newslet
       backHref={ROUTES.marketing}
       backLabel="All campaigns"
       title="New Campaign"
-      subtitle="Send a rich-text email to a filtered set of accounts"
+      subtitle={newsletter ? `From newsletter: ${newsletter.name} (v${newsletter.version})` : "Email · choose the audience and the newsletter or text"}
       onSubmit={(e) => { e.preventDefault(); void saveDraft(); }}
       saving={saving}
       saveLabel="Save draft"
