@@ -11,6 +11,7 @@ import { logEmail } from "@/lib/emailLog";
 import { resolveOutbound, type EmailOutput } from "@/lib/emailOutputRules";
 import { signUnsubscribeToken } from "@/lib/marketingUnsubscribe";
 import { signCampaignInterestToken } from "@/lib/campaignInterestLink";
+import { signPreferenceToken } from "@/lib/marketing/forms/preferenceToken";
 import { ROUTES } from "@/lib/constants";
 import type { MarketingRecipientCandidate } from "@/lib/data/live";
 import { resolveRecipientLanguage } from "./language";
@@ -52,6 +53,8 @@ export type SendInput = {
   replyTo?: string;
   fromAddress: string;
   absoluteUrl: (path: string) => Promise<string>;
+  /** The workspace has the preference centre (features.marketing_forms): "Manage preferences" opens it. Without it, the unsubscribe page. */
+  preferencesEnabled?: boolean;
   /** Injected in tests; production uses the real gate. */
   gate?: (tenantId: string, contactId: string, topic: string | null) => Promise<ContactDecision>;
   delayMs?: number;
@@ -163,11 +166,13 @@ export async function sendNewsletterCampaign(d: SendInput): Promise<SendResult> 
     const unsubToken = signUnsubscribeToken(accountId);
     const interestToken = signCampaignInterestToken(campaign.id, accountId);
     const unsubUrl = unsubToken ? await d.absoluteUrl(ROUTES.marketingUnsubscribe(accountId, unsubToken)) : "";
+    const prefToken = d.preferencesEnabled ? signPreferenceToken(contact.id) : null;
+    const prefUrl = prefToken ? await d.absoluteUrl(ROUTES.marketingPreferences(contact.id, prefToken)) : "";
     const values: TokenValues = {
       account_name: candidate.account_name, company_name: d.companyName, contact_name: (contact.name ?? "").trim().split(/\s+/)[0] ?? "",
       unsubscribe_url: unsubUrl,
-      // The preference centre arrives with the forms and tracking work; until then this opens the same signed page.
-      preferences_url: unsubUrl,
+      // The preference centre (lib/marketing/forms) when the workspace has it; otherwise the same signed unsubscribe page.
+      preferences_url: prefUrl || unsubUrl,
       interest_url: interestToken ? await d.absoluteUrl(ROUTES.marketingInterest(campaign.id, accountId, interestToken)) : "",
     };
     const openToken = signOpenToken(campaign.id, rid);

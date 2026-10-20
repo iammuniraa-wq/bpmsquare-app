@@ -65,6 +65,7 @@ export async function sendNewsletterBranch(input: {
     output: await loadEmailOutput(supabase, tenantId),
     companyName, replyTo, fromAddress: `${companyName} <${fromLocalPart}@${sendingDomain}>`,
     absoluteUrl: buildAbsoluteUrl,
+    preferencesEnabled: (tenant?.features as Partial<TenantFeatures> | undefined)?.marketing_forms === true,
   });
 
   await supabase.from("marketing_campaigns").update({
