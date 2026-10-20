@@ -66,6 +66,22 @@ export function fakeDb(seed: Record<string, Row[]> = {}, opts: { missingTables?:
         t.push(row);
         return { data: this.one ? row : [row], error: null };
       }
+      if (this.op === "upsert" && Array.isArray(this.payload)) {
+        const keys = (this.upsertOpts.onConflict ?? "id").split(",").map((s) => s.trim());
+        const out: Row[] = [];
+        for (const p of this.payload as Row[]) {
+          const found = t.find((r) => keys.every((k) => r[k] === p[k]));
+          if (found) {
+            if (!this.upsertOpts.ignoreDuplicates) Object.assign(found, p);
+            out.push(found);
+          } else {
+            const row: Row = { id: `id-${++n}`, ...p };
+            t.push(row);
+            out.push(row);
+          }
+        }
+        return { data: out, error: null };
+      }
       if (this.op === "upsert") {
         const keys = (this.upsertOpts.onConflict ?? "id").split(",").map((s) => s.trim());
         const existing = t.find((r) => keys.every((k) => r[k] === this.payload[k]));

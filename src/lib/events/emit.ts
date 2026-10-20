@@ -82,6 +82,30 @@ export function buildEventRow(tenantId: string, ev: EmitInput): Record<string, u
 }
 
 /**
+ * Records many events for a tenant in one statement (a bulk import). Same rules as emitEvent: unknown names are
+ * refused, a duplicate key records nothing twice, nothing throws. Returns true when the write was accepted.
+ */
+export async function emitEventsBatch(tenantId: string, evs: EmitInput[], client?: SupabaseClient): Promise<boolean> {
+  try {
+    if (!tenantId) return false;
+    const known = evs.filter((ev) => isKnownEvent(ev.name));
+    if (known.length === 0) return evs.length === 0;
+    const admin = client ?? createAdminSupabase();
+    const { error } = await admin
+      .from("domain_event")
+      .upsert(known.map((ev) => buildEventRow(tenantId, ev)), { onConflict: "tenant_id,dedupe_key", ignoreDuplicates: true });
+    if (error) {
+      if (!isSchemaPending(error)) console.error(`[events] batch of ${known.length} not recorded: ${error.message}`);
+      return false;
+    }
+    return known.length === evs.length;
+  } catch (e) {
+    console.error("[events] batch not recorded", e);
+    return false;
+  }
+}
+
+/**
  * Records one event for a tenant. Returns true when the write was attempted
  * and accepted (a duplicate key counts: it is already recorded), false when
  * it was refused or failed. Never throws.

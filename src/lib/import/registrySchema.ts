@@ -44,6 +44,7 @@ export const REGISTRY_OBJECT_TYPE: Record<ImportObjectId, string | null> = {
   rfqs: "rfq",
   estimates: "estimate",
   product_bom_lines: null,
+  consents: null,
 };
 
 export type ReferenceFieldDef = {
@@ -201,6 +202,8 @@ const OBJECT_META: Record<ImportObjectId, { label: string; icon: string; descrip
   employees: { label: "Employees", icon: "👥", description: "", dependsOn: [] },
   // Never read -- static spec (productBomLinesSchema.ts), null in REGISTRY_OBJECT_TYPE.
   product_bom_lines: { label: "BOM components", icon: "⊞", description: "", dependsOn: ["products"] },
+  // Never read -- static spec (consentsSchema.ts), null in REGISTRY_OBJECT_TYPE.
+  consents: { label: "Consents", icon: "✓", description: "", dependsOn: ["contacts"] },
 };
 
 function resolveOptions(field: FieldConfigResult["sections"][number]["fields"][number], salesConfig: SalesConfig): string[] | undefined {

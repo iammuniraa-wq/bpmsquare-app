@@ -2,7 +2,7 @@ export type ImportObjectId =
   | "accounts" | "contacts" | "assets" | "suppliers" | "quotes" | "quote_lines"
   | "cases" | "work_orders" | "invoices" | "purchase_orders" | "inventory"
   | "users" | "employees" | "products" | "wfm_projects" | "opportunities" | "rfqs" | "estimates"
-  | "product_bom_lines";
+  | "product_bom_lines" | "consents";
 
 /**
  * quotes is excluded from Export and Update: it isn't on FIELD_REGISTRY (reverted
@@ -12,8 +12,12 @@ export type ImportObjectId =
  */
 export type ExportableObjectId = Exclude<ImportObjectId, "quotes">;
 
-/** users is additionally excluded from Update — invite/role changes don't fit the id-match bulk-patch shape. */
-export type UpdatableObjectId = Exclude<ExportableObjectId, "users">;
+/**
+ * users is additionally excluded from Update — invite/role changes don't fit the id-match bulk-patch shape.
+ * consents is excluded too: the consent ledger is append-only history, so an answer is changed by importing a
+ * NEW answer, never by editing an old one.
+ */
+export type UpdatableObjectId = Exclude<ExportableObjectId, "users" | "consents">;
 
 export type FieldType =
   | "text"
