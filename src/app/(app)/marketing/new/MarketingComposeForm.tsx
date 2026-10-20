@@ -24,6 +24,7 @@ const RichTextEditor = dynamic(() => import("@/components/RichTextEditor"), {
 import TargetAudiencePicker, { type AccountLite } from "@/components/marketing/TargetAudiencePicker";
 import TemplatePicker from "@/components/marketing/TemplatePicker";
 import NewsletterSourceCard from "@/components/marketing/NewsletterSourceCard";
+import { AudiencePanel, SeeAsPerson } from "@/components/marketing/NewsletterAudience";
 import type { ComposeNewsletter } from "@/lib/newsletter/composeData";
 
 export default function MarketingComposeForm({ accounts, initialGroupId, newsletter }: { accounts: AccountLite[]; initialGroupId?: string; newsletter?: ComposeNewsletter | null }) {
@@ -129,6 +130,16 @@ export default function MarketingComposeForm({ accounts, initialGroupId, newslet
         match={match} setMatch={setMatch}
         autoLoadGroupId={initialGroupId}
       />
+
+      {newsletter && (
+        <>
+          <AudiencePanel
+            newsletter={newsletter} languages={nlLanguages} fallback={nlFallback} topic={nlTopic}
+            audienceRule={() => ({ account_types: [...types], include_account_ids: [...includeIds], exclude_account_ids: [...excludeIds], manual_emails: [...manualEmails], filters, match })}
+          />
+          <SeeAsPerson newsletter={newsletter} languages={nlLanguages} fallback={nlFallback} topic={nlTopic} />
+        </>
+      )}
     </ObjectFormPage>
   );
 }

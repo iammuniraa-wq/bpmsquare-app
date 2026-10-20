@@ -21,6 +21,7 @@ const RichTextEditor = dynamic(() => import("@/components/RichTextEditor"), {
 import TargetAudiencePicker, { type AccountLite } from "@/components/marketing/TargetAudiencePicker";
 import TemplatePicker from "@/components/marketing/TemplatePicker";
 import NewsletterSourceCard from "@/components/marketing/NewsletterSourceCard";
+import { AudiencePanel, SeeAsPerson } from "@/components/marketing/NewsletterAudience";
 import type { ComposeNewsletter } from "@/lib/newsletter/composeData";
 import type { MarketingTemplateId } from "@/lib/marketingTemplates";
 import type { MarketingCampaign, AccountType } from "@/lib/types";
@@ -142,6 +143,16 @@ export default function MarketingCampaignDetail({
         filters={filters} setFilters={setFilters}
         match={match} setMatch={setMatch}
       />
+
+      {newsletter && (
+        <>
+          <AudiencePanel
+            newsletter={newsletter} languages={nlLanguages} fallback={nlFallback} topic={nlTopic}
+            audienceRule={() => ({ account_types: [...types], include_account_ids: [...includeIds], exclude_account_ids: [...excludeIds], manual_emails: [...manualEmails], filters, match })}
+          />
+          <SeeAsPerson newsletter={newsletter} languages={nlLanguages} fallback={nlFallback} topic={nlTopic} />
+        </>
+      )}
 
       {error && <div role="alert" style={{ fontSize: 12.5, color: "var(--err-ink)" }}>{error}</div>}
 
