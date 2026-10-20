@@ -315,6 +315,38 @@ src/
 - Dark sidebar gradient (all inner pages): `linear-gradient(180deg, #152233 0%, #0e1a28 100%)`
 - Brand accent: configurable per tenant via `tenant.accent_color` — never hardcode `#F47C20`.
 
+### 6b. Screen cleanliness — simple screens, explanations behind an "i" (owner decision 2026-10-20)
+
+> Owner: "I don't want the screen filled with text. It has to be simple, with an 'i'
+> for explanation. If a page is too big for the options, split it into multiple tabs.
+> Check the layouts on PC and mobile." This applies to **every new or changed screen**,
+> and is part of "done" for any UI work, the same as `tsc` and `next build`.
+
+- **Show labels, values and actions — not paragraphs.** A screen carries no running
+  explanatory text. What an option is for, how a rule works, why a number is what it is:
+  that goes behind a small **"i"** icon next to the label (popover on desktop, tap-to-open
+  bottom sheet on touch; keyboard- and screen-reader-accessible; two short sentences at
+  most). Never print a hint line under every field.
+- **What must stay visible** (never hide it behind an "i"): errors, blockers that stop a
+  mistake ("no consent", "not ready to send"), the next step on an empty state, and
+  anything the user must read before a destructive or outward-facing action.
+- **Too many options → tabs.** More than about five option groups, more than roughly two
+  screens of scroll, or two separate jobs on one page: split into 3–5 named tabs (use
+  `useUrlTab` / `Tabs` from `src/components/ui`, so the tab survives a reload and a shared
+  link). Do not invent a second tab pattern. Studio screens keep the left-panel layout; the
+  panel's groups follow the same limits.
+- **Check PC and mobile (375 px) before calling UI done**: one column under 900 px, the
+  primary action in its one standard place (sticky bar on phones), tap targets at least
+  44 px, no horizontal scroll, long lists show a few rows plus "show all".
+- **One meaning per word.** Do not reuse a label for two different things (e.g. "Topic",
+  "Engaged", "Quiet"), and use one vocabulary for "switched on" across screens.
+- Use the shared **InfoTip** component from the UI kit once it exists; the standard, the
+  per-screen change list and the mock-up are in `docs/design/ux-simplification.md`. Do not
+  hand-roll tooltips or add new hint lines in the meantime — put the text in a prop so it
+  can move behind the "i" without a rewrite.
+- A new screen needs the how-to guide updated (`docs/guides/marketing-how-to.md` for the
+  marketing screens) when its labels or tabs change; see section 9 for the Drive docs.
+
 ---
 
 ## 7. Security rules
