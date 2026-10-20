@@ -6,6 +6,7 @@ import { c } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
 import { useTenantFeature } from "@/lib/tenant-context";
 import { ROUTES } from "@/lib/constants";
+import { useTenantFeature } from "@/lib/tenant-context";
 import type { MarketingTargetGroup } from "@/lib/types";
 import {
   offeredSegmentFields, OPERATOR_LABEL, getSegmentField,
@@ -48,14 +49,15 @@ export default function SegmentBuilder({ accounts, initial }: { accounts: Accoun
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
+  const signalsOn = useTenantFeature("buying_signals");
   const categories = useMemo(() => {
     const map = new Map<string, SegmentFieldDef[]>();
-    for (const f of offeredSegmentFields({ marketingBuilder: true, scoringOn })) {
+    for (const f of offeredSegmentFields({ marketingBuilder: true, scoringOn, signalsOn })) {
       const list = map.get(f.category);
       if (list) list.push(f); else map.set(f.category, [f]);
     }
     return Array.from(map.entries());
-  }, [scoringOn]);
+  }, [scoringOn, signalsOn]);
 
   function addFilter(field: SegmentFieldDef) {
     setFilters((current) => [...current, {

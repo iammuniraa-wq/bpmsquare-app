@@ -10,6 +10,8 @@ import { loadExternalCard } from "./externalSource";
 import { resolveCoverageForAccount } from "@/lib/coverage/resolve";
 import { marketingScoringOn } from "@/lib/marketing/config";
 import { buildMarketingCard } from "@/lib/marketing/leads/account360Card";
+import { signalsEnabled } from "@/lib/signals/flag";
+import { buildSignalsCard } from "@/lib/signals/account360";
 import { formatMoney, type CurrencyDef } from "@/lib/currency";
 import type {
   Account360Card,
@@ -347,6 +349,19 @@ export async function buildAccount360(
     }
   }
 
+  // ── Buying signals ──────────────────────────────────────────────────────
+  // Same shape as the two above: registered only for a workspace that owns the
+  // module, so nobody else pays for the queries or sees an empty card.
+  let signalsSuggestion: Account360Suggestion | null = null;
+  if (signalsEnabled(tenantFeatureRow?.features as Partial<TenantFeatures> | undefined)) {
+    const sig = await buildSignalsCard(admin, tenantId, accountId);
+    if (sig) {
+      builtins.buying_signals = sig.card;
+      activeBuiltinIds = [...activeBuiltinIds, "buying_signals"];
+      signalsSuggestion = sig.suggestion;
+    }
+  }
+
   // ── Rating ──────────────────────────────────────────────────────────────
   const activityDates = [
     ...quotes.map((q) => q.created_at),
@@ -378,6 +393,7 @@ export async function buildAccount360(
 
   // ── Suggestions ─────────────────────────────────────────────────────────
   const suggestions: Account360Suggestion[] = [];
+  if (signalsSuggestion) suggestions.push(signalsSuggestion);
   if (overdue.length > 0) {
     suggestions.push({
       id: "chase-overdue",

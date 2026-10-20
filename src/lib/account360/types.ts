@@ -37,6 +37,15 @@ export type Account360Card = {
   empty?: string;
   /** Set when an external source could not be reached -- never silently blank. */
   error?: string;
+  /** A small history line under the stats (the Buying signals card: eight weekly scores). The words beside it say the same thing. */
+  spark?: Account360Spark;
+};
+
+export type Account360Spark = {
+  values: number[];
+  tone: "warming" | "cooling" | "steady";
+  /** What the line shows, in words ("Warming · up 8 this week"). */
+  label: string;
 };
 
 export type Account360Factor = {

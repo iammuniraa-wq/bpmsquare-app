@@ -41,6 +41,12 @@ export const OBJECT_FEATURE: Record<string, keyof TenantFeatures | null> = {
   // Newsletter Studio (0141). Platform-admin flag; the studio also needs
   // `marketing`, which every newsletter route checks beside this one.
   newsletters: "newsletter_studio",
+  // Buying signals (0175-0179). In-app routes only in the shell: no Data
+  // Workbench route and no v1 endpoint yet, so these three keys exist for the
+  // day they get one (and so the map already says who owns them).
+  signals: "buying_signals",
+  account_intent: "buying_signals",
+  signal_topics: "buying_signals",
   // Inventory is the stock side of Purchasing; it has never had a key of
   // its own, and the nav gates it on `purchasing` too.
   inventory: "purchasing",

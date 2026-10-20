@@ -274,7 +274,7 @@ function SegmentsTab({ segments, accounts, onChanged }: { segments: Segment[]; a
 
   const categories = useMemo(() => {
     const map = new Map<string, SegmentFieldDef[]>();
-    for (const f of offeredSegmentFields({ marketingBuilder: false, scoringOn: false })) { const l = map.get(f.category); if (l) l.push(f); else map.set(f.category, [f]); }
+    for (const f of offeredSegmentFields({ marketingBuilder: false, scoringOn: false, signalsOn: false })) { const l = map.get(f.category); if (l) l.push(f); else map.set(f.category, [f]); }
     return Array.from(map.entries());
   }, []);
 

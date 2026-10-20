@@ -29,6 +29,8 @@ const OBJECT_TYPES: { value: string; label: string }[] = [
   { value: "process_studies", label: "Process studies" },
   { value: "newsletters", label: "Newsletters" },
   { value: "leads", label: "Leads" },
+  { value: "signal_topics", label: "Signal topics" },
+  { value: "account_intent", label: "Buying signals" },
   { value: "estimate_templates", label: "Estimate templates" },
   { value: "inventory", label: "Inventory" },
   { value: "employees", label: "Employees" },
@@ -78,7 +80,8 @@ export default function ChangeHistoryClient() {
   const hasNewsletters = useTenantFeature("newsletter_studio");
   // Lead changes are recorded only by the lead-scoring program.
   const hasLeadScoring = useTenantFeature("marketing_scoring");
-  const objectTypes = OBJECT_TYPES.filter((o) => (o.value !== "newsletters" || hasNewsletters) && (o.value !== "leads" || hasLeadScoring));
+  const hasSignals = useTenantFeature("buying_signals");
+  const objectTypes = OBJECT_TYPES.filter((o) => (o.value !== "newsletters" || hasNewsletters) && (o.value !== "leads" || hasLeadScoring) && (!["signal_topics", "account_intent"].includes(o.value) || hasSignals));
   const [objectType, setObjectType] = useState(OBJECT_TYPES[0].value);
   const [objectId, setObjectId] = useState("");
   const [rows, setRows] = useState<ChangeLogRow[] | null>(null);

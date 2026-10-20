@@ -18,7 +18,7 @@ export function fakeDb(seed: Record<string, Row[]> = {}, opts: { missingTables?:
   class Q implements PromiseLike<{ data: unknown; error: DbError }> {
     private filters: { col: string; test: (v: unknown) => boolean; val?: unknown }[] = [];
     private op: "select" | "insert" | "update" | "upsert" | "delete" = "select";
-    private payload: Row = {};
+    private payload: Row | Row[] = {};
     private upsertOpts: { onConflict?: string; ignoreDuplicates?: boolean } = {};
     private one: "single" | "maybe" | null = null;
     private lim: number | null = null;
@@ -26,9 +26,9 @@ export function fakeDb(seed: Record<string, Row[]> = {}, opts: { missingTables?:
     private rangeTo: number | null = null;
     constructor(private table: string) {}
     select() { return this; }
-    insert(r: Row) { this.op = "insert"; this.payload = r; return this; }
+    insert(r: Row | Row[]) { this.op = "insert"; this.payload = r; return this; }
     update(r: Row) { this.op = "update"; this.payload = r; return this; }
-    upsert(r: Row, o: { onConflict?: string; ignoreDuplicates?: boolean } = {}) { this.op = "upsert"; this.payload = r; this.upsertOpts = o; return this; }
+    upsert(r: Row | Row[], o: { onConflict?: string; ignoreDuplicates?: boolean } = {}) { this.op = "upsert"; this.payload = r; this.upsertOpts = o; return this; }
     delete() { this.op = "delete"; return this; }
     eq(col: string, val: unknown) { this.filters.push({ col, val, test: (v) => v === val }); return this; }
     is(col: string, val: unknown) { this.filters.push({ col, val, test: (v) => (val === null ? v == null : v === val) }); return this; }
@@ -64,7 +64,7 @@ export function fakeDb(seed: Record<string, Row[]> = {}, opts: { missingTables?:
           t.push(...made);
           return { data: made, error: null };
         }
-        const row: Row = { id: `id-${++n}`, ...this.payload };
+        const row: Row = { id: `id-${++n}`, ...(this.payload as Row) };
         t.push(row);
         return { data: this.one ? row : [row], error: null };
       }
@@ -86,18 +86,23 @@ export function fakeDb(seed: Record<string, Row[]> = {}, opts: { missingTables?:
       }
       if (this.op === "upsert") {
         const keys = (this.upsertOpts.onConflict ?? "id").split(",").map((s) => s.trim());
-        const existing = t.find((r) => keys.every((k) => r[k] === this.payload[k]));
-        if (existing) {
-          if (!this.upsertOpts.ignoreDuplicates) Object.assign(existing, this.payload);
-          return { data: this.one ? existing : [existing], error: null };
+        const written: Row[] = [];
+        for (const p of Array.isArray(this.payload) ? this.payload : [this.payload]) {
+          const existing = t.find((r) => keys.every((k) => r[k] === p[k]));
+          if (existing) {
+            if (!this.upsertOpts.ignoreDuplicates) Object.assign(existing, p);
+            written.push(existing);
+          } else {
+            const row: Row = { id: `id-${++n}`, ...p };
+            t.push(row);
+            written.push(row);
+          }
         }
-        const row: Row = { id: `id-${++n}`, ...this.payload };
-        t.push(row);
-        return { data: this.one ? row : [row], error: null };
+        return { data: this.one ? written[0] : written, error: null };
       }
       if (this.op === "update") {
         const hit = t.filter(match);
-        for (const r of hit) Object.assign(r, this.payload);
+        for (const r of hit) Object.assign(r, this.payload as Row);
         return { data: hit, error: null };
       }
       if (this.op === "delete") {

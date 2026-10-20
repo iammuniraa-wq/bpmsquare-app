@@ -26,6 +26,7 @@ const ALL_BUILTINS: { id: string; label: string; description: string }[] = [
   { id: "sales_coverage", label: "Sales coverage", description: "Owner/overlay/service teams from the Coverage module (only shown when it's on)" },
   { id: "projects", label: "Projects", description: "Workforce projects for this account and their hours this month (only shown when project costing is on)" },
   { id: "marketing", label: "Marketing", description: "The best lead for this account: its score, its stage and who has it (only shown with lead scoring)" },
+  { id: "buying_signals", label: "Buying signals", description: "Score, stage, the newest signals and an eight-week line (only shown when Buying signals is on)" },
 ];
 
 type SourceDraft = Omit<Account360SourceDef, "auth_value"> & { auth_value?: string; has_secret?: boolean };
