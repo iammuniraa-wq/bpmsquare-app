@@ -684,3 +684,36 @@ in a week) are inputs to `src/lib/marketing/scoring.ts` with the rubric the
 tenant's config holds — the studio emits, it does not score (same doctrine
 as Account 360's rating: a number a rep acts on comes from one explainable
 place).
+
+---
+
+## 13. As built: N0 and N1 (2026-10-20) — where the build differs from the text above
+
+Read this before extending the studio. Everything above still holds unless it is listed here.
+
+- **Flag and numbering.** Behind the existing `marketing` module **and** a new platform-admin flag
+  `newsletter_studio` (default off; `docs/capabilities/newsletter_studio.md`, status experimental).
+  Migrations are **0141** (tables), **0142** (campaign columns, `marketing_link_clicks`, three new recipient
+  statuses) and **0143** (`preferred_language`) — not 0134. `PROJECT.md` has the ledger and the seed.
+- **Words are plain text, not tiptap.** A text field is stored as clean plain text (tag-like strings and control
+  characters removed; paragraphs on blank lines). The "rich subset" of section 3 is deferred; nothing here stores
+  markup, which is the rule the subset was there to protect.
+- **Link slots.** The version's `links` list is built from the blocks and the brand kit, not from the words, so a
+  link has the **same index in every language**. A slot a language does not render is simply unused there.
+- **Preview.** The studio calls `POST /api/newsletters/preview` (same gate, same renderer as a send) on every edit.
+  The iframe is `sandbox="allow-same-origin"` — no `allow-scripts`, so no script can run — because the screen reads
+  its height and each block's row (`data-nl-block`, preview only, never in a version) to pin "Check this" to it.
+- **Who is emailed.** A newsletter send resolves each recipient to a **contact** (the account's contact whose address
+  matches, else its oldest contact; a typed-in address by blind index). Nobody's contact => skipped
+  (`skipped_no_contact`), not sent: consent belongs to a person. Then `canContact(tenant, contact, "email", topic)`.
+- **Preferences link.** The footer's "Manage preferences" opens the same signed page as "Unsubscribe" until the
+  preference centre (platform M4) exists. The send sets `List-Unsubscribe` + one-click `-Post` to the existing
+  unsubscribe endpoint.
+- **`preferred_language`** is offered on the contact and account forms, Data Workbench and exports only to a workspace
+  with the studio AND only once the column exists (`requiresFeature` in `FIELD_REGISTRY`, applied in
+  `getEffectiveFieldConfig`). It is not yet a `SEGMENT_FIELDS` audience field, in the v1 API or in MCP.
+- **Not built in N0-N1** (by the doc's own phasing): subject ideas and "explain checks" (N2), the catalogue product
+  picker and product-from-buying-signals (N2/N3 and Signals), Hindi/Urdu/French font verification (N2), Data Workbench
+  export/update of headers, `/api/v1/newsletters`, MCP tools, global search, Nova timeline, analytics metric and the
+  custom-fields tab (N3), the per-language audience preview before sending, the built-in festival folders of
+  `src/lib/marketingTemplates` (six built-in designs ship instead), and "paste anything" through Nova.
