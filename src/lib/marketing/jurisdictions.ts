@@ -26,7 +26,7 @@ export type JurisdictionRule = {
 export const JURISDICTION_RULES: Record<JurisdictionCode, JurisdictionRule> = {
   SA: {
     code: "SA", label: "Saudi Arabia", existingCustomerAllowed: true,
-    plain: "Under the Saudi data protection law, marketing needs the person's opt-in and must say what it is for. Existing customers can be told about similar products if every message has an easy way to opt out.",
+    plain: "Saudi law needs the person's opt-in and a stated purpose. Existing customers can hear about similar products if every message has an easy opt-out.",
   },
   AE: {
     code: "AE", label: "United Arab Emirates", existingCustomerAllowed: true,

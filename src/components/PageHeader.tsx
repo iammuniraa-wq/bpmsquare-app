@@ -7,17 +7,22 @@
 // always beats a stylesheet rule. The class on the wrapper is also what that
 // band's `main:has(.bpm-page-header)` selector looks for -- a page without
 // this component deliberately gets no band.
+import InfoTip from "@/components/ui/InfoTip";
+
 export default function PageHeader({
   title,
   subtitle,
   action,
   badge,
+  info,
 }: {
   title: string;
   subtitle?: string;
   action?: React.ReactNode;
   /** Status chip(s) shown beside the title (record pages). Absent, the markup is exactly as before. */
   badge?: React.ReactNode;
+  /** An explanation of the page, behind an "i" after the title (docs/design/ux-simplification.md §2a). */
+  info?: React.ReactNode;
 }) {
   return (
     <div
@@ -37,11 +42,12 @@ export default function PageHeader({
       }}
     >
       <div>
-        {badge ? (
+        {badge || info ? (
           <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
             <h1 className="bpm-page-header-title" style={{ margin: 0 }}>
               {title}
             </h1>
+            {info && <InfoTip label={title}>{info}</InfoTip>}
             {badge}
           </div>
         ) : (
