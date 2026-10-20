@@ -160,3 +160,18 @@ textarea.field { min-height: 84px; resize: vertical; }
   .tourCap { bottom: 74px; }
   .accent { padding-bottom: 64px; }
 }
+
+/* language compare */
+.cmp { display: grid; gap: 8px; }
+.cmpHead { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.cmpRow { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; align-items: start; }
+.cmpRow > .lbl { grid-column: 1 / 2; }
+.cmpBlock { border-top: 1px solid var(--line); padding-top: 8px; display: grid; gap: 6px; }
+.cmpCell { background: var(--panel2); border-radius: 9px; padding: 8px 10px; display: grid; gap: 4px; min-width: 0; }
+.cmpText { font-size: 13px; color: var(--ink); white-space: pre-wrap; overflow-wrap: anywhere; }
+.cmpActs { grid-column: 2; justify-self: end; display: flex; gap: 6px; }
+.cmpCell .st { grid-column: auto; grid-row: auto; justify-self: start; }
+@media (max-width: 900px) {
+  .cmpHead, .cmpRow { grid-template-columns: minmax(0, 1fr); }
+  .cmpActs { grid-column: 1; justify-self: start; }
+}

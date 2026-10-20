@@ -22,6 +22,7 @@ import {
 } from "./studioApi";
 import { AddLanguage, BlockEditor, BlockList, CheckChips, Group, LanguageRows, cx } from "./panels";
 import PreviewFrame from "./PreviewFrame";
+import LanguageCompare from "./LanguageCompare";
 import StudioTour, { type TourStep } from "./StudioTour";
 import styles from "./newsletter.module.css";
 
@@ -73,6 +74,8 @@ export default function NewsletterStudio(props: StudioProps) {
   const [lang, setLang] = useState(SOURCE_LANGUAGE);
   const [dev, setDev] = useState<"desktop" | "phone">("desktop");
   const [dark, setDark] = useState(false);
+  const [view, setView] = useState<"email" | "compare">("email");
+  const [cmpRight, setCmpRight] = useState("");
   const [selId, setSelId] = useState<string | null>(null);
   const [open, setOpen] = useState<Sec | null>(initial.id ? "blocksSec" : "startSec");
   const [tab, setTab] = useState<Sec>(initial.id ? "blocksSec" : "startSec");
@@ -516,6 +519,22 @@ export default function NewsletterStudio(props: StudioProps) {
         </div>
 
         <div className={styles.canvas} id="nlCanvas">
+          {doc.languages.length > 1 && (
+            <div className={styles.tabs} role="tablist" aria-label="View">
+              <button type="button" role="tab" aria-selected={view === "email"} className={cx(styles.tab, view === "email" && styles.on)} onClick={() => setView("email")}>The email</button>
+              <button type="button" role="tab" aria-selected={view === "compare"} className={cx(styles.tab, view === "compare" && styles.on)} onClick={() => setView("compare")}>Compare languages</button>
+            </div>
+          )}
+          {view === "compare" && doc.languages.length > 1 ? (
+            <LanguageCompare
+              blocks={doc.blocks} languages={doc.languages} left={activeLang}
+              right={doc.languages.some((l) => l.lang === cmpRight && l.lang !== activeLang) ? cmpRight : (doc.languages.find((l) => l.lang !== activeLang)?.lang ?? activeLang)}
+              onPick={(side, l) => { if (side === "left") setLang(l); else setCmpRight(l); }}
+              canEdit={canEdit}
+              onAccept={(l, bid) => { setDoc((d) => acceptBlock(d, l, bid)); toast("Accepted."); }}
+              onEdit={(l, bid) => { setLang(l); setView("email"); setSelId(bid); openSection("blocksSec"); }}
+            />
+          ) : (<>
           <div className={styles.tools}>
             <div className={styles.tabs} role="tablist" aria-label="Language">
               {doc.languages.map((l) => {
@@ -563,6 +582,7 @@ export default function NewsletterStudio(props: StudioProps) {
             />
           </div>
           <p className={styles.hint}>Shown exactly as it is built for email programs: tables, plain fonts, no scripts. Phone and Dark show what a small screen or a program that inverts colours does with it.</p>
+          </>)}
         </div>
       </div>
 
