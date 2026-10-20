@@ -5,12 +5,19 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import PageHeader from "@/components/PageHeader";
 import Button from "@/components/ui/Button";
+import InfoTip from "@/components/ui/InfoTip";
+import MoreMenu, { type MenuItem } from "@/components/ui/MoreMenu";
+import OptionGroup from "@/components/ui/OptionGroup";
+import { Opt } from "@/components/ui/Opt";
+import Tabs from "@/components/ui/Tabs";
+import { useUrlTab } from "@/components/ui/useUrlTab";
 import { useFeel } from "@/components/FeelProvider";
 import { BUILT_IN_DESIGNS, languageRowsOf, footerTexts, type BuiltInDesign } from "@/lib/newsletter/designs";
 import { countWarnings, type Check } from "@/lib/newsletter/checks";
 import {
   acceptAll, acceptBlock, addBlock, editWords, moveBlock, moveBlockTo, pendingCount, removeBlock, setHeading, setSetting, toggleBlock, type Doc,
 } from "@/lib/newsletter/studioState";
+import { NEWSLETTER_TIPS } from "@/lib/newsletter/tips";
 import {
   ADDABLE_BLOCKS, BLOCK_LABEL, CATEGORIES, SOURCE_LANGUAGE, directionOf, languageDef,
   type LanguageRow, type NewsletterBlock, type NewsletterCategory, type NewsletterStatus,
@@ -20,7 +27,7 @@ import {
   addLanguage, createNewsletter, deleteNewsletter, draftWithAi, keepVersion, loadTemplate, previewNewsletter, rewriteWithAi, saveAsTemplate, saveNewsletter,
   type PreviewData,
 } from "./studioApi";
-import { AddLanguage, BlockEditor, BlockList, CheckChips, Group, LanguageRows, cx } from "./panels";
+import { AddLanguage, BlockEditor, BlockList, CheckChips, LanguageRows, cx } from "./panels";
 import PreviewFrame from "./PreviewFrame";
 import LanguageCompare from "./LanguageCompare";
 import StudioTour, { type TourStep } from "./StudioTour";
@@ -53,11 +60,14 @@ export type StudioProps = {
   footerAddress: string;
 };
 
-type Sec = "startSec" | "blocksSec" | "langSec" | "checkSec" | "brandSec" | "useSec";
+type Sec = "startSec" | "blocksSec" | "langSec" | "checkSec";
 const SECTIONS: { id: Sec; tab: string }[] = [
-  { id: "startSec", tab: "Start" }, { id: "blocksSec", tab: "Blocks" }, { id: "langSec", tab: "Languages" },
-  { id: "checkSec", tab: "Health" }, { id: "brandSec", tab: "Brand" }, { id: "useSec", tab: "Use it" },
+  { id: "startSec", tab: "Start" }, { id: "blocksSec", tab: "Blocks" }, { id: "langSec", tab: "Languages" }, { id: "checkSec", tab: "Health" },
 ];
+const SECTION_IDS = SECTIONS.map((s) => s.id);
+
+/** A card under the header that a ⋯ menu item opens: Save as template, Versions, Email HTML. One at a time. */
+type UtilityCard = "template" | "versions" | "html";
 
 const snapshot = (d: { name: string; category: string; topic: string | null; blocks: NewsletterBlock[]; languages: LanguageRow[] }) => JSON.stringify(d);
 
@@ -77,8 +87,10 @@ export default function NewsletterStudio(props: StudioProps) {
   const [view, setView] = useState<"email" | "compare">("email");
   const [cmpRight, setCmpRight] = useState("");
   const [selId, setSelId] = useState<string | null>(null);
-  const [open, setOpen] = useState<Sec | null>(initial.id ? "blocksSec" : "startSec");
-  const [tab, setTab] = useState<Sec>(initial.id ? "blocksSec" : "startSec");
+  // `tab` is the group the phone's strip has selected and lives in ?panel=; `open` is the group expanded on a wide screen.
+  const [tabId, setTab] = useUrlTab(SECTION_IDS, "panel", initial.id ? "blocksSec" : "startSec");
+  const tab = tabId as Sec;
+  const [open, setOpen] = useState<Sec | null>(tab);
   const [startMode, setStartMode] = useState<"ai" | "design" | "blank">(initial.id ? "design" : "ai");
   const [unlocked, setUnlocked] = useState<Set<string>>(new Set());
 
@@ -92,8 +104,7 @@ export default function NewsletterStudio(props: StudioProps) {
   const [saving, setSaving] = useState(false);
   const [toastText, setToastText] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [menu, setMenu] = useState(false);
-  const [templateForm, setTemplateForm] = useState(false);
+  const [card, setCard] = useState<UtilityCard | null>(null);
   const [tplName, setTplName] = useState("");
   const [tplCategory, setTplCategory] = useState<NewsletterCategory>(initial.category);
 
@@ -141,7 +152,7 @@ export default function NewsletterStudio(props: StudioProps) {
   const checks: Check[] = preview?.checks ?? [];
   const warnings = countWarnings(checks);
 
-  const openSection = useCallback((s: Sec) => { setOpen(s); setTab(s); }, []);
+  const openSection = useCallback((s: Sec) => { setOpen(s); setTab(s); }, [setTab]);
   const toggleSection = (s: Sec) => { if (open === s) setOpen(null); else openSection(s); };
 
   const body = () => ({
@@ -271,7 +282,7 @@ export default function NewsletterStudio(props: StudioProps) {
     const r = await saveAsTemplate(savedId, tplName.trim() || `${name || "Newsletter"} (template)`, tplCategory);
     if (!id) router.replace(ROUTES.marketingNewsletter(savedId));
     if (!r.ok) { setError(r.error); return; }
-    setTemplateForm(false);
+    setCard(null);
     toast("Saved as a template: it now appears beside the built-in designs when you start a newsletter.");
   }
 
@@ -286,14 +297,12 @@ export default function NewsletterStudio(props: StudioProps) {
   }
 
   async function duplicate() {
-    setMenu(false);
     const r = await createNewsletter({ ...body(), name: `${name.trim() || "Newsletter"} (copy)` });
     if (!r.ok) { setError(r.error); return; }
     router.push(ROUTES.marketingNewsletter(r.data.id));
   }
 
   async function archive() {
-    setMenu(false);
     if (!id) return;
     if (!(await confirm({ title: "Archive this newsletter?", body: "It leaves your list. Campaigns that already used it are not affected.", confirmLabel: "Archive" }))) return;
     const r = await saveNewsletter(id, { ...body(), status: "archived" });
@@ -302,7 +311,6 @@ export default function NewsletterStudio(props: StudioProps) {
   }
 
   async function remove() {
-    setMenu(false);
     if (!id) return;
     if (!(await confirm({ title: "Delete this newsletter?", body: "It is removed for good. If a campaign has used it you will be asked to archive it instead.", confirmLabel: "Delete", tone: "danger" }))) return;
     const r = await deleteNewsletter(id);
@@ -318,7 +326,6 @@ export default function NewsletterStudio(props: StudioProps) {
   }
 
   async function exportHtml() {
-    setMenu(false);
     const html = htmlFold ?? (await loadVersionHtml());
     if (!html) return;
     const url = URL.createObjectURL(new Blob([html], { type: "text/html" }));
@@ -334,42 +341,28 @@ export default function NewsletterStudio(props: StudioProps) {
     { target: "langSec", text: "Add a language on top of the English. AI translates every block and keeps product names and prices as they are.", before: () => { openSection("langSec"); } },
     { target: "nlStage", text: "Check this marks the lines the translation was unsure about. Accept or edit each one; a language can be sent once every line is checked.", before: () => { const other = doc.languages.find((l) => l.lang !== SOURCE_LANGUAGE); if (other) setLang(other.lang); } },
     { target: "nlDevice", text: "See it as a phone or a desktop, light or dark, exactly as it is built for email programs.", before: () => { setDev("phone"); } },
-    { target: "nlTemplateBtn", text: "Save as template keeps this design to start from next time, beside the built-in designs.", before: () => { setDev("desktop"); setLang(SOURCE_LANGUAGE); openSection("useSec"); } },
-    { target: "nlCampaignBtn", text: "Use in a campaign hands the design to a campaign, which picks the audience and the languages. Each person gets their own.", before: () => openSection("useSec") },
+    { target: "nlHeadActions", text: "In the ⋯ menu, Save as template keeps this design to start from next time, beside the built-in designs. Versions and the email HTML are there too.", before: () => { setDev("desktop"); setLang(SOURCE_LANGUAGE); } },
+    { target: "nlHeadActions", text: "Use in a campaign hands the design to a campaign, which picks the audience and the languages. Each person gets their own. On a phone it is the button at the bottom.", before: () => { setCard(null); } },
   ];
 
   const langNames = doc.languages.filter((l) => l.lang !== SOURCE_LANGUAGE).map((l) => languageDef(l.lang)?.name ?? l.lang);
-  const statusPill = initial.status === "archived" ? "Archived" : initial.status === "ready" && !dirty ? "Ready" : dirty ? "Unsaved changes" : "Draft";
+  const statusPill = initial.status === "archived" ? "Archived" : initial.status === "ready" && !dirty ? "Ready to use" : dirty ? "Unsaved changes" : "Draft";
   const subtitleBits = [
     initial.isTemplate ? "Template" : category,
     langNames.length ? `English + ${langNames.join(", ")}` : "English",
     initial.versions.length ? `${initial.versions.length} version${initial.versions.length > 1 ? "s" : ""} kept` : "not yet used in a campaign",
   ];
 
-  const useActions = (
-    <>
-      <Button className={styles.useBtn} disabled={!canEdit || saving} loading={saving} onClick={() => void save()}>Save</Button>
-      <p className={styles.hint}>Keeps your work. Nothing is sent.</p>
-      {!templateForm ? (
-        <Button id="nlTemplateBtn" disabled={!canEdit} onClick={() => { setTplName(`${name || "Newsletter"} (template)`); setTemplateForm(true); }}>Save as template</Button>
-      ) : (
-        <div style={{ display: "grid", gap: 6 }}>
-          <label className={styles.lbl} htmlFor="tplName">Template name</label>
-          <input id="tplName" className={styles.field} value={tplName} maxLength={120} onChange={(e) => setTplName(e.target.value)} />
-          <label className={styles.lbl} htmlFor="tplCat">Category</label>
-          <select id="tplCat" className={styles.select} value={tplCategory} onChange={(e) => setTplCategory(e.target.value as NewsletterCategory)}>{CATEGORIES.map((c) => <option key={c}>{c}</option>)}</select>
-          <div className={styles.row}><Button variant="primary" size="sm" onClick={() => void onSaveTemplate()}>Save template</Button><Button size="sm" onClick={() => setTemplateForm(false)}>Cancel</Button></div>
-        </div>
-      )}
-      <p className={styles.hint}>Keeps this design to start from next time, beside the built-in designs.</p>
-      {!initial.isTemplate && (
-        <>
-          <Button id="nlCampaignBtn" variant="primary" className={styles.useBtn} disabled={!canEdit || saving} onClick={() => void onUseInCampaign()}>Use in a campaign</Button>
-          <p className={styles.hint}>A campaign (or a journey step) picks the audience and the languages. Each person gets their own language; sending follows the usual consent and unsubscribe rules.</p>
-        </>
-      )}
-    </>
-  );
+  const menuItems: MenuItem[] = [
+    { label: "Duplicate", hidden: !canEdit, onSelect: () => void duplicate() },
+    { label: "Save as template", hidden: !canEdit, onSelect: () => { setTplName(`${name || "Newsletter"} (template)`); setCard("template"); } },
+    { label: "Versions", onSelect: () => setCard("versions") },
+    { label: "Email HTML", onSelect: () => { setCard("html"); if (htmlFold === null) void loadVersionHtml(); } },
+    { label: "Export HTML", onSelect: () => void exportHtml() },
+    { label: "Brand kit", hidden: !isAdmin, href: ROUTES.settingsBrandKit },
+    { label: "Archive", hidden: !id || !canEdit, onSelect: () => void archive() },
+    { label: "Delete", danger: true, hidden: !id || !canEdit, onSelect: () => void remove() },
+  ];
 
   return (
     <div className={styles.accent}>
@@ -378,20 +371,13 @@ export default function NewsletterStudio(props: StudioProps) {
         subtitle={subtitleBits.join(" · ")}
         badge={<span className={cx(styles.pill, initial.status === "ready" && !dirty && styles.ready, initial.status === "archived" && styles.archived)}>{statusPill}</span>}
         action={
-          <span className={styles.headRow}>
+          <span className={styles.headRow} id="nlHeadActions">
             <StudioTour steps={tour} />
-            <span className={styles.menu}>
-              <Button aria-haspopup="true" aria-expanded={menu} aria-label="More" onClick={() => setMenu((m) => !m)}>⋯</Button>
-              {menu && (
-                <ul role="menu">
-                  <li><button type="button" role="menuitem" disabled={!canEdit} onClick={() => void duplicate()}>Duplicate</button></li>
-                  <li><button type="button" role="menuitem" onClick={() => { setMenu(false); document.getElementById("nlVersions")?.setAttribute("open", ""); document.getElementById("nlVersions")?.scrollIntoView({ block: "center" }); }}>Versions</button></li>
-                  <li><button type="button" role="menuitem" onClick={() => void exportHtml()}>Export the email HTML</button></li>
-                  {id && <li><button type="button" role="menuitem" disabled={!canEdit} onClick={() => void archive()}>Archive</button></li>}
-                  {id && <li><button type="button" role="menuitem" disabled={!canEdit} onClick={() => void remove()}>Delete</button></li>}
-                </ul>
-              )}
+            <span className={styles.headBtns}>
+              <Button variant={initial.isTemplate ? "primary" : undefined} disabled={!canEdit || saving} loading={saving} onClick={() => void save()}>Save</Button>
+              {!initial.isTemplate && <Button id="nlCampaignBtn" variant="primary" disabled={!canEdit || saving} onClick={() => void onUseInCampaign()}>Use in a campaign</Button>}
             </span>
+            <MoreMenu items={menuItems} />
           </span>
         }
       />
@@ -399,35 +385,69 @@ export default function NewsletterStudio(props: StudioProps) {
       {!canEdit && <div className={cx(styles.banner, styles.info)}>You can look at this newsletter but not change it.</div>}
       {error && <div className={styles.err} role="alert">{error}</div>}
 
+      {card === "template" && (
+        <div className={styles.utility}>
+          <div className={styles.utilHead}><b>Save as template</b></div>
+          <div className={styles.row}>
+            <div style={{ flex: "2 1 200px" }}>
+              <label className={styles.lbl} htmlFor="tplName">Template name</label>
+              <input id="tplName" className={styles.field} value={tplName} maxLength={120} onChange={(e) => setTplName(e.target.value)} />
+            </div>
+            <div style={{ flex: "1 1 140px" }}>
+              <label className={styles.lbl} htmlFor="tplCat">Category</label>
+              <select id="tplCat" className={styles.select} value={tplCategory} onChange={(e) => setTplCategory(e.target.value as NewsletterCategory)}>{CATEGORIES.map((c) => <option key={c}>{c}</option>)}</select>
+            </div>
+          </div>
+          <div className={styles.row}><Button variant="primary" size="sm" onClick={() => void onSaveTemplate()}>Save template</Button><Button size="sm" onClick={() => setCard(null)}>Cancel</Button></div>
+        </div>
+      )}
+      {card === "versions" && (
+        <div className={styles.utility}>
+          <div className={styles.utilHead}><b>Versions</b><Button size="sm" variant="quiet" onClick={() => setCard(null)}>Close</Button></div>
+          {initial.versions.length === 0
+            ? <p className={styles.note}>No versions yet. Use in a campaign keeps one.</p>
+            : initial.versions.map((v) => <p key={v.id} className={styles.note}>Version {v.version} · kept {new Date(v.created_at).toLocaleString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}</p>)}
+        </div>
+      )}
+      {card === "html" && (
+        <div className={styles.utility}>
+          <div className={styles.utilHead}>
+            <span className="bpm-label-row"><b>Email HTML</b><InfoTip label="Email HTML">{NEWSLETTER_TIPS.html}</InfoTip></span>
+            <Button size="sm" variant="quiet" onClick={() => setCard(null)}>Close</Button>
+          </div>
+          <pre className={styles.pre}>{htmlFold ?? "Building it…"}</pre>
+        </div>
+      )}
+
       <div className={styles.studio}>
-        <div className={styles.panel}>
-          <div className={styles.ptabs} role="tablist" aria-label="Options">
-            {SECTIONS.map((s) => <button key={s.id} type="button" role="tab" aria-selected={tab === s.id} className={cx(styles.ptab, tab === s.id && styles.on)} onClick={() => openSection(s.id)}>{s.tab}</button>)}
+        <div className={cx(styles.panel, "bpm-og-panel")}>
+          <div className={styles.ptabsWrap}>
+            <Tabs tabs={SECTIONS.map((s) => ({ id: s.id, label: s.tab, count: s.id === "checkSec" ? warnings : undefined }))} value={tab} onChange={(t) => openSection(t as Sec)} label="Options" />
           </div>
 
-          <Group id="startSec" title="Start" summary={initial.id ? "Details" : startMode === "ai" ? "Write it for me" : startMode === "design" ? "A design" : "Blank"} hint="How to begin: say what this issue is about, pick a design, or start blank." open={open === "startSec"} on={tab === "startSec"} onToggle={() => toggleSection("startSec")}>
-            <div>
-              <label className={styles.lbl} htmlFor="nlName">Name (only your team sees it)</label>
+          <OptionGroup id="startSec" title="Start" info={NEWSLETTER_TIPS.start} summary={initial.id ? "Details" : startMode === "ai" ? "Write it for me" : startMode === "design" ? "A design" : "Blank"} open={open === "startSec"} on={tab === "startSec"} onToggle={() => toggleSection("startSec")}>
+            <Opt label="Name" info={NEWSLETTER_TIPS.name} htmlFor="nlName">
               <input id="nlName" className={styles.nameInput} value={name} maxLength={120} disabled={!canEdit} placeholder="e.g. October update" onChange={(e) => setName(e.target.value)} />
-            </div>
+            </Opt>
             <div className={styles.row}>
               <div style={{ flex: "1 1 120px" }}>
-                <label className={styles.lbl} htmlFor="nlCat">Category</label>
-                <select id="nlCat" className={styles.select} value={category} disabled={!canEdit} onChange={(e) => setCategory(e.target.value as NewsletterCategory)}>{CATEGORIES.map((c) => <option key={c}>{c}</option>)}</select>
+                <Opt label="Category" htmlFor="nlCat">
+                  <select id="nlCat" className={styles.select} value={category} disabled={!canEdit} onChange={(e) => setCategory(e.target.value as NewsletterCategory)}>{CATEGORIES.map((c) => <option key={c}>{c}</option>)}</select>
+                </Opt>
               </div>
               <div style={{ flex: "1 1 120px" }}>
-                <label className={styles.lbl} htmlFor="nlTopic">Topic</label>
-                <select id="nlTopic" className={styles.select} value={topic ?? ""} disabled={!canEdit} onChange={(e) => setTopic(e.target.value || null)}>
-                  <option value="">No one topic</option>
-                  {topics.map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}
-                </select>
+                <Opt label="Consent topic" info={NEWSLETTER_TIPS.consentTopic} htmlFor="nlTopic">
+                  <select id="nlTopic" className={styles.select} value={topic ?? ""} disabled={!canEdit} onChange={(e) => setTopic(e.target.value || null)}>
+                    <option value="">Any consent topic</option>
+                    {topics.map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}
+                  </select>
+                </Opt>
               </div>
             </div>
-            <p className={styles.hint}>The topic decides which answers people gave about what they want to hear from you; it is checked for each person when you send.</p>
             <div className={styles.starts}>
-              <button type="button" className={cx(styles.start, startMode === "ai" && styles.sel)} onClick={() => setStartMode("ai")}><b>Write it for me</b><span>AI drafts the blocks from one line and your catalogue. You review every block.</span></button>
-              <button type="button" className={cx(styles.start, startMode === "design" && styles.sel)} onClick={() => setStartMode("design")}><b>Start from a design</b><span>Your saved templates and the built-in designs.</span></button>
-              <button type="button" className={cx(styles.start, startMode === "blank" && styles.sel)} onClick={() => { setStartMode("blank"); if (canEdit) void startBlank(); }}><b>Blank</b><span>Brand header and footer only.</span></button>
+              <button type="button" className={cx(styles.start, startMode === "ai" && styles.sel)} onClick={() => setStartMode("ai")}><b>Write it for me</b><span>AI drafts it from one line</span></button>
+              <button type="button" className={cx(styles.start, startMode === "design" && styles.sel)} onClick={() => setStartMode("design")}><b>Start from a design</b><span>Your templates and built-in designs</span></button>
+              <button type="button" className={cx(styles.start, startMode === "blank" && styles.sel)} onClick={() => { setStartMode("blank"); if (canEdit) void startBlank(); }}><b>Blank</b><span>Header and footer only</span></button>
             </div>
             {startMode === "ai" && (
               <div style={{ display: "grid", gap: 6 }}>
@@ -437,7 +457,7 @@ export default function NewsletterStudio(props: StudioProps) {
                 <label className={styles.chk}><input type="checkbox" checked={useCampaigns} onChange={(e) => setUseCampaigns(e.target.checked)} /> Use my recent campaigns</label>
                 <div className={styles.row}>
                   <Button variant="primary" loading={drafting} disabled={!canEdit || !aiReady || drafting || brief.trim().length < 10} onClick={() => void runDraft()}>Write it for me</Button>
-                  <span className={styles.help}>{aiReady ? "In English first. Nothing is saved until you press Save." : "AI is not set up for this workspace."}</span>
+                  {!aiReady && <span className={styles.help}>AI is not set up for this workspace.</span>}
                 </div>
                 <div className={styles.chips} aria-live="polite">
                   {drafting && <><div className={styles.skel} style={{ width: "60%" }} /><div className={styles.skel} style={{ width: "40%" }} /></>}
@@ -447,7 +467,6 @@ export default function NewsletterStudio(props: StudioProps) {
             )}
             {startMode === "design" && (
               <div style={{ display: "grid", gap: 8 }}>
-                <p className={styles.hint}>Pick one; its blocks and words come in and you change what you like.</p>
                 {templates.length > 0 && (
                   <div>
                     <div className={styles.lbl}>My templates ({templates.length})</div>
@@ -460,9 +479,14 @@ export default function NewsletterStudio(props: StudioProps) {
                 </div>
               </div>
             )}
-          </Group>
+            <div className={cx("bpm-label-row", styles.fact)}>
+              <b>Brand:</b>&nbsp;{kit.companyName}
+              <InfoTip label="Brand">{NEWSLETTER_TIPS.brand}</InfoTip>
+              {isAdmin && <Link href={ROUTES.settingsBrandKit} className={styles.factLink}>Change</Link>}
+            </div>
+          </OptionGroup>
 
-          <Group id="blocksSec" title="Blocks" summary={`${doc.blocks.filter((b) => b.visible).length} blocks`} hint="The pieces your newsletter is built from. Click one to change its words; drag to reorder." open={open === "blocksSec"} on={tab === "blocksSec"} onToggle={() => toggleSection("blocksSec")}>
+          <OptionGroup id="blocksSec" title="Blocks" info={NEWSLETTER_TIPS.blocks} summary={`${doc.blocks.filter((b) => b.visible).length} blocks`} open={open === "blocksSec"} on={tab === "blocksSec"} onToggle={() => toggleSection("blocksSec")}>
             <BlockList
               blocks={doc.blocks} row={row} selId={selId} canEdit={canEdit}
               onSelect={(bid) => { setSelId(bid); openSection("blocksSec"); }}
@@ -479,7 +503,6 @@ export default function NewsletterStudio(props: StudioProps) {
                 ))}
               </div>
             )}
-            <p className={styles.hint}>Header and footer carry your brand and the unsubscribe line, so they stay in every design.</p>
             {sel && row && (
               <BlockEditor
                 block={sel} row={row} lang={activeLang} canEdit={canEdit} isAdmin={isAdmin} unlocked={unlocked.has(sel.id)}
@@ -490,32 +513,16 @@ export default function NewsletterStudio(props: StudioProps) {
               />
             )}
             {rewriteUndo.current && <div><Button size="sm" onClick={undoRewrite}>Undo rewrite</Button></div>}
-          </Group>
+          </OptionGroup>
 
-          <Group id="langSec" title="Languages" summary={langNames.length ? `English + ${langNames.join(", ")}` : "English only"} hint="English is written first. Add a language on top and each person gets their own." open={open === "langSec"} on={tab === "langSec"} onToggle={() => toggleSection("langSec")}>
+          <OptionGroup id="langSec" title="Languages" info={NEWSLETTER_TIPS.languages} summary={langNames.length ? `English + ${langNames.join(", ")}` : "English only"} open={open === "langSec"} on={tab === "langSec"} onToggle={() => toggleSection("langSec")}>
             <LanguageRows blocks={doc.blocks} languages={doc.languages} canEdit={canEdit} onRemove={(l) => void removeLanguage(l)} />
             <AddLanguage present={doc.languages.map((l) => l.lang)} busy={addingLang} canEdit={canEdit} aiReady={aiReady} onAdd={(c, m) => void onAddLanguage(c, m)} />
-            <p className={styles.hint}>AI translates every block and keeps product names and prices as they are. Lines it was unsure about show &quot;Check this&quot; in the email until you accept or edit them.</p>
-            <p className={styles.hint}>Who gets which: the contact&apos;s preferred language, then the account&apos;s, then English.</p>
-          </Group>
+          </OptionGroup>
 
-          <Group id="checkSec" title="Content health" summary={warnings ? `${warnings} to fix` : checks.length ? "All clear" : "…"} hint="Rules that run every time, never opinions or a score. Each amber item says what to change." open={open === "checkSec"} on={tab === "checkSec"} onToggle={() => toggleSection("checkSec")}>
+          <OptionGroup id="checkSec" title="Health" info={NEWSLETTER_TIPS.health} summary={warnings ? `${warnings} to fix` : checks.length ? "All clear" : "…"} open={open === "checkSec"} on={tab === "checkSec"} onToggle={() => toggleSection("checkSec")}>
             <CheckChips checks={checks} loading={previewing} />
-          </Group>
-
-          <Group id="brandSec" title="Brand kit" summary={kit.companyName} hint="Your logo, colours and fonts, set once by an admin and used by every design." open={open === "brandSec"} on={tab === "brandSec"} onToggle={() => toggleSection("brandSec")}>
-            <div className={styles.kit}>
-              <div><b>Logo</b>{kit.hasLogo ? "Your logo" : "No logo yet; the company name is used"}</div>
-              <div><b>Colours</b><span className={styles.sw} style={{ background: kit.primary }} />Main <span className={styles.sw} style={{ background: kit.secondary, marginInlineStart: 8 }} />Accent</div>
-              <div><b>Fonts that survive email</b>{kit.fontLabel}</div>
-              <div><b>Footer</b>{kit.footerAddress || "No address yet"}</div>
-            </div>
-            <p className={styles.hint}>{isAdmin ? <Link href={ROUTES.settingsBrandKit}>Change it in Settings, Brand kit.</Link> : "An admin changes it in Settings, Brand kit."}</p>
-          </Group>
-
-          <Group id="useSec" title="Use it" summary="Save · Campaign" hint="Keep this design, or hand it to a campaign." open={open === "useSec"} on={tab === "useSec"} onToggle={() => toggleSection("useSec")}>
-            <div className={styles.use}>{useActions}</div>
-          </Group>
+          </OptionGroup>
         </div>
 
         <div className={styles.canvas} id="nlCanvas">
@@ -547,7 +554,8 @@ export default function NewsletterStudio(props: StudioProps) {
               })}
               <button type="button" className={styles.tab} onClick={() => { openSection("langSec"); setTimeout(() => document.getElementById("nlLangPick")?.focus(), 60); }}>+ Add language</button>
             </div>
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }} id="nlDevice">
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }} id="nlDevice">
+              <span className="bpm-label-row"><span className={styles.lbl}>Preview</span><InfoTip label="Preview">{NEWSLETTER_TIPS.preview}</InfoTip></span>
               <div className={styles.tabs} aria-label="Device">
                 <button type="button" className={cx(styles.tab, dev === "desktop" && styles.on)} onClick={() => setDev("desktop")}>Desktop</button>
                 <button type="button" className={cx(styles.tab, dev === "phone" && styles.on)} onClick={() => setDev("phone")}>Phone</button>
@@ -561,12 +569,14 @@ export default function NewsletterStudio(props: StudioProps) {
 
           {row && (
             <div className={styles.subj}>
-              <label>Subject
-                <input className={styles.field} value={row.subject} dir={row.dir} lang={row.lang} disabled={!canEdit} maxLength={200} onChange={(e) => setDoc((d) => setHeading(d, activeLang, "subject", e.target.value))} />
-              </label>
-              <label>Preheader (the preview line after the subject)
-                <input className={styles.field} value={row.preheader} dir={row.dir} lang={row.lang} disabled={!canEdit} maxLength={200} onChange={(e) => setDoc((d) => setHeading(d, activeLang, "preheader", e.target.value))} />
-              </label>
+              <div>
+                <label htmlFor="nlSubject">Subject</label>
+                <input id="nlSubject" className={styles.field} value={row.subject} dir={row.dir} lang={row.lang} disabled={!canEdit} maxLength={200} onChange={(e) => setDoc((d) => setHeading(d, activeLang, "subject", e.target.value))} />
+              </div>
+              <div>
+                <span className="bpm-label-row"><label htmlFor="nlPreheader">Preheader</label><InfoTip label="Preheader">{NEWSLETTER_TIPS.preheader}</InfoTip></span>
+                <input id="nlPreheader" className={styles.field} value={row.preheader} dir={row.dir} lang={row.lang} disabled={!canEdit} maxLength={200} onChange={(e) => setDoc((d) => setHeading(d, activeLang, "preheader", e.target.value))} />
+              </div>
             </div>
           )}
 
@@ -581,32 +591,9 @@ export default function NewsletterStudio(props: StudioProps) {
               onEdit={(bid) => { setSelId(bid); openSection("blocksSec"); setTimeout(() => document.getElementById("nlEditor")?.scrollIntoView({ block: "center", behavior: "smooth" }), 80); }}
             />
           </div>
-          <p className={styles.hint}>Shown exactly as it is built for email programs: tables, plain fonts, no scripts. Phone and Dark show what a small screen or a program that inverts colours does with it.</p>
           </>)}
         </div>
       </div>
-
-      <details className={styles.fold} id="nlVersions">
-        <summary>Versions <small>what a campaign actually sent</small></summary>
-        <div className={styles.foldIn}>
-          {initial.versions.length === 0
-            ? <p className={styles.note}>No versions yet. &quot;Use in a campaign&quot; keeps a copy of this design, so editing it later never changes a campaign that already went out.</p>
-            : initial.versions.map((v) => <p key={v.id} className={styles.note}>Version {v.version} · kept {new Date(v.created_at).toLocaleString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}</p>)}
-        </div>
-      </details>
-      <details className={styles.fold} onToggle={(e) => { if ((e.currentTarget as HTMLDetailsElement).open && htmlFold === null) void loadVersionHtml(); }}>
-        <summary>Email HTML <small>for your IT team</small></summary>
-        <div className={styles.foldIn}>
-          <pre className={styles.pre}>{htmlFold ?? "Open to build it."}</pre>
-          <p className={styles.note}>Generated by the renderer from the blocks. Every text is escaped; links are checked; nothing you type is sent as HTML. Fields replaced for each person show as {"{{…}}"}.</p>
-        </div>
-      </details>
-      <details className={styles.fold}>
-        <summary>Details <small>reference, status, your own fields</small></summary>
-        <div className={styles.foldIn}>
-          <p className={styles.note}>{[initial.ref, statusPill, `Category: ${category}`, initial.createdAt ? `Created ${new Date(initial.createdAt).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}` : null].filter(Boolean).join(" · ") || "Not saved yet."}</p>
-        </div>
-      </details>
 
       <div className={styles.bar}>
         <Button disabled={!canEdit || saving} loading={saving} onClick={() => void save()}>Save</Button>

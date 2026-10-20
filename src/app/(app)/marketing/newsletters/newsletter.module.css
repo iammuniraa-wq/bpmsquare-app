@@ -11,6 +11,7 @@
 .err { background: var(--err-bg); border: 1px solid var(--err-line); border-radius: 8px; padding: 10px 14px; font-size: 12.5px; color: var(--err-ink); }
 
 .headRow { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.headBtns { display: inline-flex; gap: 8px; align-items: center; }
 .nameInput { font: inherit; font-size: 13.5px; font-weight: 600; width: 100%; padding: 8px 11px; border: 1px solid var(--line); border-radius: 9px; background: var(--panel); color: var(--ink); }
 .pill { display: inline-block; font-size: 11px; font-weight: 600; padding: 2px 9px; border-radius: 999px; background: var(--accentbg); color: var(--ink); white-space: nowrap; }
 .pill.ready { background: var(--greenbg); color: var(--greenink); }
@@ -100,7 +101,11 @@ textarea.field { min-height: 84px; resize: vertical; }
 .kit { display: grid; gap: 8px; font-size: 12.5px; color: var(--ink); }
 .kit b { color: var(--muted); font-weight: 600; font-size: 11.5px; text-transform: uppercase; letter-spacing: .04em; display: block; }
 .sw { display: inline-block; width: 13px; height: 13px; border-radius: 4px; vertical-align: -2px; margin-inline-end: 4px; border: 1px solid var(--line); }
-.use { display: grid; gap: 8px; }
+.fact { font-size: 12.5px; color: var(--ink); gap: 0; flex-wrap: wrap; }
+.fact b { color: var(--muted); font-weight: 600; }
+.factLink { margin-inline-start: 10px; font-weight: 600; color: var(--studio-accent, var(--accent)); }
+.utility { background: var(--card-bg, var(--panel)); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; display: grid; gap: 10px; }
+.utilHead { display: flex; justify-content: space-between; align-items: center; gap: 10px; font-size: 13.5px; color: var(--ink); }
 
 /* canvas */
 .canvas { background: var(--card-bg, var(--panel)); border: 1px solid var(--line); border-radius: 12px; padding: 14px; min-width: 0; display: grid; gap: 10px; }
@@ -110,7 +115,8 @@ textarea.field { min-height: 84px; resize: vertical; }
 .tab.on { background: var(--panel); color: var(--ink); box-shadow: 0 1px 2px rgba(0, 0, 0, .12); }
 .tab .b { font-size: 10.5px; padding: 0 6px; border-radius: 999px; background: var(--amberbg); color: var(--amberink); }
 .subj { display: grid; gap: 6px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
-.subj label { font-size: 12px; color: var(--muted); display: grid; gap: 3px; }
+.subj > div { display: grid; gap: 3px; min-width: 0; }
+.subj label { font-size: 12px; color: var(--muted); }
 .stage { background: var(--panel2); border-radius: 10px; padding: 18px 10px; display: grid; justify-items: center; transition: background .2s; }
 .stage.dark { background: color-mix(in srgb, black 88%, var(--ink)); }
 .frameWrap { position: relative; width: 100%; max-width: 640px; margin: 0 auto; transition: max-width .25s; }
@@ -141,7 +147,8 @@ textarea.field { min-height: 84px; resize: vertical; }
 
 .toast { position: fixed; left: 50%; bottom: 76px; transform: translateX(-50%); background: var(--ink); color: var(--panel); padding: 10px 16px; border-radius: 10px; font-size: 13px; font-weight: 600; z-index: 70; max-width: calc(100vw - 32px); text-align: center; }
 .bar { position: fixed; left: 0; right: 0; bottom: 0; background: var(--panel); border-top: 1px solid var(--line); padding: 10px max(16px, env(safe-area-inset-left, 0px)) max(10px, env(safe-area-inset-bottom, 0px)); display: none; gap: 8px; z-index: 40; }
-.bar > * { flex: 1; }
+.bar > * { flex: 1; min-height: 44px; }
+.ptabsWrap { display: none; }
 
 /* guided walkthrough: optional, starts closed, never forced */
 .tourHl { position: relative; z-index: 41; box-shadow: 0 0 0 4px var(--studio-accent, var(--accent)), 0 0 0 9999px rgba(0, 0, 0, .55); border-radius: 12px; }
@@ -154,8 +161,10 @@ textarea.field { min-height: 84px; resize: vertical; }
   .studio { grid-template-columns: minmax(0, 1fr); }
   .ptabs { display: flex; }
   .panel > .sec:not(.on) { display: none; }
+  .ptabsWrap { display: block; }
+  .ptabsWrap :global(.bpm-tab) { min-height: 44px; }
+  .headBtns { display: none; }
   .bar { display: flex; }
-  .useBtn { display: none; }
   .subj { grid-template-columns: minmax(0, 1fr); }
   .tourCap { bottom: 74px; }
   .accent { padding-bottom: 64px; }
