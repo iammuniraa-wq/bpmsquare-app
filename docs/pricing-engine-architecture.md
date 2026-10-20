@@ -1170,3 +1170,61 @@ refresh the demo tenant's routing.
 **Open:** (1) The regional uplift needs a State on the
 account; demo accounts may have none. (3) The books set no currency, so the
 engine returns none and the forms show the tenant's own.
+
+## 21. Price list with quantity breaks (design 2026-10-20, Fable; build on Sonnet)
+
+**Owner's frame (2026-10-20):** "price list pricing will have scales; the only
+thing is to replicate the scales from the ERP." So a product's price list with
+its quantity bands is **data on the product**, replicated from the ERP or kept
+here, and the engine reads it. Nobody re-keys a price list as rules.
+
+**One place for the bands.** `products.qty_breaks` (0118) is that place:
+`[{ from, rate }]`, `rate` null = "price it normally at that quantity". With
+`products.list_price` as the band from 0, the product carries its whole price
+list. The Standard Quote add-line panel already offers these bands as
+alternative rows; nothing changes there.
+
+**Every surface carries it** (§3b): the product registry gets `qty_breaks`
+(section Pricing, text, `from:rate; from:rate`, e.g. `100:390; 500:360`, a
+blank rate allowed), so Data Workbench import, export and update move price
+lists with their scales in and out, which is the ERP replication path; the v1
+products endpoint and `LIST_SOURCES` include it (it is customer-facing list
+information, unlike `cost_price`). One parser/serialiser in
+`src/lib/products/qtyBreaks.ts` (the `parseQtyBreaks` in
+`standard-quotes/formData.ts` moves there): bands ascending, `from` > 0, rate ≥ 0
+or blank, at most 20.
+
+**The engine reads it.** `priceDocumentLine()` loads the product's
+`list_price` and `qty_breaks`. If the routed book's published version has a
+PRICE-class, `SCALE_TIERED` component (the Price list template's `LIST_PRICE`)
+and no rule in that version for that component already matches this product
+(`product.id` or `product.sku` in `match_attributes`), the adapter synthesises
+one `PriceRule` for the call: component = that one, `match_attributes:
+{ "product.id": id }`, `scale.entries` = `[{ from: 0, value: list_price },
+...breaks with a rate]`, `rule_id: "product:<id>:price-list"`, handed to
+`runPrice()` through a new `extraRules` option. A null-rate band is skipped
+(the previous band continues). No `list_price` and no bands: nothing is
+injected, the book behaves as today. The trace names the source: the why
+chip says "from the product's own price list, band from 100", not a rule
+code. Tier and region discounts in the book still apply after the list
+price, as before.
+
+**Not a rule the tenant has to look after.** The book's own rules win
+(most-specific-wins is untouched because the synthesised rule is only
+injected when none matches); the Pricing setup wizard's Price list step shows
+one fact line with an `i`: "Products' own quantity breaks are used
+automatically", and the product page's breaks card gets an `i` saying the
+same. Rule 6b: no paragraphs.
+
+**Demo.** Wire Rope 13mm (PRD-0010) stops being a formula: the product
+carries list price 420 with bands 100 → 390 and 500 → 360, routed to the
+Catalogue 2026 book like any list-priced product. Qty 40 prices at 420, qty
+150 at 390, and the why chip shows the band. The Cabin Wall Panel stays in
+the formula book. `scripts/pricing-demo-books.ts`, the generated seed,
+`seed-products-demo.sql` and `demoSeed.test.ts` change together; §20's
+table follows.
+
+**Deliberately not in this step:** customer-specific price lists as data
+(that is a rule with `customer.id`, which the Price list template already
+offers); graduated bands (`SCALE_GRADUATED` stays rule-only); currency per
+band.
