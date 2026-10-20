@@ -91,6 +91,15 @@ export async function proxy(request: NextRequest) {
     // only to an address stored in the newsletter version. $-anchored like the links above.
     /^\/marketing\/c\/[^/]+\/[^/]+\/\d+\/[^/]+$/.test(pathname) ||
     /^\/marketing\/o\/[^/]+\/[^/]+\/[^/]+$/.test(pathname) ||
+    // Hosted forms and their submit route (lib/marketing/forms). The page and the route resolve the
+    // tenant from the host and from the form's own public key, never from a request field, and answer
+    // 404 unless the workspace owns the marketing_forms flag. $-anchored.
+    /^\/f\/[^/]+$/.test(pathname) ||
+    /^\/api\/f\/[^/]+$/.test(pathname) ||
+    // Preference centre: a signed link per contact (lib/marketing/forms/preferenceToken.ts). The token
+    // is verified before anything is read; the tenant is the contact row's own.
+    /^\/marketing\/preferences\/[^/]+\/[^/]+$/.test(pathname) ||
+    /^\/api\/marketing\/preferences\/[^/]+\/[^/]+$/.test(pathname) ||
     // Public REST API. These carry their own auth -- a per-tenant bearer key
     // (tenants.api_key), resolved by resolveTenantFromBearer() in every single
     // route under /api/v1, which also decides the tenant. Same reasoning as the
