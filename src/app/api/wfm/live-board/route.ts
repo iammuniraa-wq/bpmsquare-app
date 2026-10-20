@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireWfmSupervisor, getWfmLiveBoardSnapshot } from "@/lib/wfm/server";
-import { resolveWfmScope } from "@/lib/wfm/scope";
+import { resolveWfmScope, scopeEmployeeIds } from "@/lib/wfm/scope";
 
 
 // Capped per route, not via vercel.json. That config carried
@@ -22,7 +22,7 @@ export async function GET() {
     const ctx = await requireWfmSupervisor();
     const scope = await resolveWfmScope(ctx);
     return NextResponse.json(
-      await getWfmLiveBoardSnapshot(ctx.tenantId, scope.unrestricted ? null : scope.employeeIds)
+      await getWfmLiveBoardSnapshot(ctx.tenantId, scopeEmployeeIds(scope))
     );
   } catch (e: unknown) {
     const err = e as { status: number; message: string };
