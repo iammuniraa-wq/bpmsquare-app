@@ -19,11 +19,11 @@ Here is the building, made from the numbers, with the actual precast pieces: wal
 SCENE 7: How the price is built (50 s)  (about 20 seconds, 51 words)
 Your team can open how the price is built: materials, production, transport, erection and overhead, then margin and VAT. The schedule section shows how long casting takes with your plant capacity, and a risk range for the cost. These rates are examples. In the project we set them with your numbers.
 
-SCENE 8: Products and kits (40 s)  (about 15 seconds, 37 words)
-The lines come from your product catalogue. A wall panel kit is made of concrete, rebar, insulation and connectors, and its cost is rolled up from those parts. Change a material cost once, and every estimate follows.
-
-SCENE 9: Create the quote (40 s)  (about 8 seconds, 20 words)
+SCENE 8: Create the quote and open it  (about 8 seconds, 20 words)
 One click turns the estimate into a customer quote, grouped in sections. The customer sees prices, not your internal costs.
+
+SCENE 9: Bill of materials and kit components  (about 15 seconds, 37 words)
+The lines come from your product catalogue. A wall panel kit is made of concrete, rebar, insulation and connectors, and its cost is rolled up from those parts. Change a material cost once, and every estimate follows.
 
 SCENE 10: Send to your ERP (30 s)  (about 14 seconds, 34 words)
 For your ERP, you can export the item list and the work breakdown as files. The Dynamics 365 connection is built, and we would test it together on your environment before anything goes live.

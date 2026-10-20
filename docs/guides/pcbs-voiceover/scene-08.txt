@@ -1,1 +1,1 @@
-The lines come from your product catalogue. A wall panel kit is made of concrete, rebar, insulation and connectors, and its cost is rolled up from those parts. Change a material cost once, and every estimate follows.
+One click turns the estimate into a customer quote, grouped in sections. The customer sees prices, not your internal costs.
