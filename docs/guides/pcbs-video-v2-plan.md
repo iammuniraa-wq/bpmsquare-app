@@ -23,7 +23,7 @@ Check each one is visible in the menu before the take.
 | Block | What the screen shows | Length |
 |---|---|---|
 | A. Overview | dashboard, menu tour | 1 min |
-| B. AI everywhere | ask your data; AI on a quote; email to estimate; supplier reply reader; Arabic newsletter; ask-to-report | 3 min |
+| B. AI everywhere | the CRM assistant slider; Analytics, Talk to data; Control+K, New quote from paste; Arabic newsletter; the AI slide | 3 min |
 | C. Estimator | the existing eleven scenes, shortened | 4 min |
 | D. Cost and pricing | today's rates; price books; quantity scales on a quote line | 3 min |
 | E. ERP integration | one clear diagram, then the import/export tools that exist | 2 min |
@@ -41,20 +41,17 @@ use the diagram slide instead).
 
 ## New voice-over text (blocks B, D and E)
 
-**B1: Ask your data**
-You can simply ask. Type a question in plain words, for example, which quotes are past their validity date, and BPMSquare answers from your own records, with the numbers behind the answer.
+**B1: Your CRM assistant (the slider at the bottom right)**
+On every screen, a slider at the bottom right brings up your assistant. Ask it a question in plain words, for example, what is the total value of open quotations. It answers from your live data, and follow-up questions keep their context. It can read, but it can never change or delete anything.
 
-**B2: AI on the screen you are working on**
-On a quote, the assistant explains it in plain words: what is in it, what is missing, and what to do next. It reads only this workspace's data.
+**B2: Talk to your data (Analytics)**
+On the Analytics page, the Talk to data tab goes further. Describe a report in your own words, and BPMSquare builds it. You can change it, save it, and put it on your dashboard.
 
-**B3: AI in email**
-Email is where work starts. Paste a customer's enquiry and BPMSquare fills in the estimate. Paste a supplier's reply and it reads the prices into your request for quotation. A person always checks before anything is saved.
+**B3: AI from an email**
+Email is where work starts. Press Control and K, choose New quote from paste, and paste a customer's message. BPMSquare drafts the account, the contact and the quote for you. In the Estimator, the same email fills in the whole estimate. A person always checks before anything is saved.
 
 **B4: AI in marketing**
-In the Newsletter Studio, the assistant drafts the email, and translates it into Arabic. Every translated block waits for a person to approve it, and the newsletter only goes to people who agreed to receive it.
-
-**B5: AI in reports**
-Describe a report in your own words, and BPMSquare builds it. You can change it, save it, and add it to your dashboard.
+In the Newsletter Studio, the assistant drafts the email and translates it into Arabic. Every translated block waits for a person to approve it, and the newsletter only goes to people who agreed to receive it.
 
 **D1: Cost-based rates**
 Prices start from what things cost you. Freight, handling and margin are set in one place, and the margin can differ by region or customer segment, instead of one number for everybody.
