@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { requireTenantUser, createAdminSupabase } from "@/lib/supabase-server";
 import { logChange } from "@/lib/changeLog";
+import { tenantHasFeature } from "@/lib/tenant";
 
 // Coverage's `teams`/`segments`/`coverages` tables are SELECT-only RLS
 // (0101_coverage.sql -- a forged row here can reassign account ownership or
@@ -65,9 +66,22 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  // How the team hands out sales-ready leads (lead-scoring program only).
+  const mode = (body as { assignment_mode?: unknown }).assignment_mode;
+  let assignmentMode: "lead" | "round_robin" | undefined;
+  if (mode !== undefined) {
+    if (mode !== "lead" && mode !== "round_robin") {
+      return NextResponse.json({ error: "assignment_mode must be lead or round_robin" }, { status: 400 });
+    }
+    if (!(await tenantHasFeature(supabase, tenantId, "marketing_scoring"))) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+    assignmentMode = mode;
+  }
+
   const { data: team, error } = await admin
     .from("teams")
-    .insert({ tenant_id: tenantId, name, lead_user_id: lead_user_id ?? null })
+    .insert({ tenant_id: tenantId, name, lead_user_id: lead_user_id ?? null, ...(assignmentMode ? { assignment_mode: assignmentMode } : {}) })
     .select("*").single();
   if (error) {
     if ((error as { code?: string }).code === "42P01") {

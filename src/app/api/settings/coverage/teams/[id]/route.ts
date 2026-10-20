@@ -1,6 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { requireTenantUser, createAdminSupabase } from "@/lib/supabase-server";
 import { diffForLog, logChange } from "@/lib/changeLog";
+import { tenantHasFeature } from "@/lib/tenant";
+import { isSchemaPending } from "@/lib/marketing/pending";
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -41,9 +43,27 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   if (typeof name === "string") patch.name = name;
   if (lead_user_id !== undefined) patch.lead_user_id = lead_user_id;
 
+  // How the team hands out sales-ready leads. Part of the lead-scoring
+  // program, so a workspace without it cannot set (or even see) it.
+  const assignment_mode = (body as { assignment_mode?: unknown }).assignment_mode;
+  if (assignment_mode !== undefined) {
+    if (assignment_mode !== "lead" && assignment_mode !== "round_robin") {
+      return NextResponse.json({ error: "assignment_mode must be lead or round_robin" }, { status: 400 });
+    }
+    if (!(await tenantHasFeature(supabase, tenantId, "marketing_scoring"))) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+    patch.assignment_mode = assignment_mode;
+  }
+
   const { data: team, error } = await admin
     .from("teams").update(patch).eq("id", id).eq("tenant_id", tenantId).select("*").single();
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) {
+    if (patch.assignment_mode !== undefined && isSchemaPending(error)) {
+      return NextResponse.json({ error: "Choosing how leads are shared needs a database update that has not been applied yet" }, { status: 503 });
+    }
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
 
   if (Array.isArray(member_user_ids)) {
     await admin.from("team_members").delete().eq("team_id", id).eq("tenant_id", tenantId);

@@ -28,6 +28,13 @@ export type SegmentFieldDef = {
   type: SegmentFieldType;
   options?: { value: string; label: string }[];
   operators: SegmentOperator[];
+  /**
+   * "marketing": offered only in the campaign target-group builder, and only
+   * to a workspace with the lead-scoring program (features.marketing_scoring).
+   * Coverage's segment builder never offers it: the value is loaded by the
+   * campaign recipient resolver, not by Coverage.
+   */
+  scope?: "marketing";
 };
 
 export type SegmentFilter = {
@@ -66,7 +73,24 @@ export const SEGMENT_FIELDS: SegmentFieldDef[] = [
   // the plain fields with no special-casing.
   { key: "has_active_amc", label: "Has active AMC", category: "Coverage", type: "boolean", operators: ["is_true", "is_false"] },
   { key: "owned_product_skus", label: "Has bought product (SKU/name)", category: "Coverage", type: "text", operators: ["contains"] },
+  // Lead scoring (src/lib/marketing/leads/segmentSignals.ts loads these from
+  // the account's best lead). An account with no scored lead has neither.
+  { key: "lead_score", label: "Lead score", category: "Lead scoring", type: "number", operators: ["gt", "lt", "equals"], scope: "marketing" },
+  {
+    key: "lead_stage", label: "Lead stage", category: "Lead scoring", type: "select", scope: "marketing",
+    options: [
+      { value: "new", label: "New" }, { value: "engaged", label: "Engaged" }, { value: "ready", label: "Ready for sales" },
+      { value: "working", label: "Working" }, { value: "deal", label: "Deal" }, { value: "customer", label: "Customer" },
+      { value: "not_now", label: "Not now" }, { value: "not_fit", label: "Not a fit" },
+    ],
+    operators: ["equals", "not_equals"],
+  },
 ];
+
+/** The fields a palette may offer: marketing-scope ones only where the lead-scoring program is on. */
+export function offeredSegmentFields(opts: { marketingBuilder: boolean; scoringOn: boolean }): SegmentFieldDef[] {
+  return SEGMENT_FIELDS.filter((f) => f.scope !== "marketing" || (opts.marketingBuilder && opts.scoringOn));
+}
 
 export function getSegmentField(key: string): SegmentFieldDef | undefined {
   return SEGMENT_FIELDS.find((f) => f.key === key);

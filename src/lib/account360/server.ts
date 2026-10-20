@@ -8,6 +8,8 @@ import { decryptAccount } from "@/lib/encryption";
 import { computeRating, type RatingSignals } from "./rating";
 import { loadExternalCard } from "./externalSource";
 import { resolveCoverageForAccount } from "@/lib/coverage/resolve";
+import { marketingScoringOn } from "@/lib/marketing/config";
+import { buildMarketingCard } from "@/lib/marketing/leads/account360Card";
 import { formatMoney, type CurrencyDef } from "@/lib/currency";
 import type {
   Account360Card,
@@ -331,6 +333,18 @@ export async function buildAccount360(
       empty: list.length === 0 ? "No project is linked to this account — link one from the project's form" : undefined,
     };
     activeBuiltinIds = [...activeBuiltinIds, "projects"];
+  }
+
+  // ── Marketing (lead scoring) ────────────────────────────────────────────
+  // Same shape as sales_coverage: only computed and registered when the
+  // workspace has the scoring program, so nobody else pays for the query or
+  // sees an empty card.
+  if (marketingScoringOn(tenantFeatureRow?.features as Partial<TenantFeatures> | undefined)) {
+    const marketingCard = await buildMarketingCard(admin, tenantId, accountId);
+    if (marketingCard) {
+      builtins.marketing = marketingCard;
+      activeBuiltinIds = [...activeBuiltinIds, "marketing"];
+    }
   }
 
   // ── Rating ──────────────────────────────────────────────────────────────
