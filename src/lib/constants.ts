@@ -88,6 +88,8 @@ export const ROUTES = {
   marketingAbmNew: "/marketing/abm/new",
   marketingAbmProgram: (id: string) => `/marketing/abm/${id}`,
   marketingAbmTarget: (programId: string, targetId: string) => `/marketing/abm/${programId}/accounts/${targetId}`,
+  // Flat link for places that only know the target id (Nova inbox, search): resolves the program and redirects.
+  marketingAbmTargetShort: (targetId: string) => `/marketing/abm/targets/${targetId}`,
   marketingSegments: "/marketing/segments",
   marketingSegmentNew: "/marketing/segments/new",
   marketingSegment: (id: string) => `/marketing/segments/${id}`,
