@@ -119,6 +119,20 @@ export async function saveEvent(ctx: ModuleCtx, id: string, body: unknown): Prom
   const current = await loadEvent(ctx, id);
   if (current.missing) return { missing: true };
   if (!current.data) throw { status: 404, message: "Event not found" };
+
+  // A status move on its own (Open registration, Cancel, Mark completed): { status } and nothing else.
+  const keys = body && typeof body === "object" ? Object.keys(body as object) : [];
+  if (keys.length === 1 && keys[0] === "status") {
+    const next = (body as { status: unknown }).status;
+    if (typeof next !== "string" || !(EVENT_STATUSES as readonly string[]).includes(next)) throw { status: 422, message: "That is not a status." };
+    if (next === current.data.status) return { ok: true };
+    if (next === "open" && current.data.form_id) await verifyReferences(ctx, { ...(current.data as unknown as EventSave), status: "open" }, id);
+    const { error: sErr } = await ctx.supabase.from("marketing_events").update({ status: next, updated_at: new Date().toISOString() }).eq("id", id).eq("tenant_id", ctx.tenantId);
+    if (sErr) throw { status: 500, message: "Could not save the event" };
+    await logChange(ctx.supabase, { tenantId: ctx.tenantId, objectType: "marketing_events", objectId: id, objectLabel: current.data.ref ?? current.data.name, action: "update", actorId: ctx.userId, actorEmail: ctx.email, changes: [{ field: "status", from: current.data.status, to: next }] });
+    return { ok: true };
+  }
+
   const r = sanitizeEvent(body, ctx.tenant.timezone);
   if (!r.ok) throw { status: 422, message: r.error };
   await verifyReferences(ctx, r.value, id);
