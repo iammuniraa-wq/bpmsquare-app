@@ -65,6 +65,9 @@ export const OBJECT_FEATURE: Record<string, keyof TenantFeatures | null> = {
   whatsapp_templates: "whatsapp_marketing",
   whatsapp_messages: "whatsapp_marketing",
   "whatsapp-templates": "whatsapp_marketing",
+  // Attribution (0190-0192). Platform-admin flag; every route also checks `marketing`.
+  marketing_touches: "marketing_attribution",
+  attribution_results: "marketing_attribution",
   // Inventory is the stock side of Purchasing; it has never had a key of
   // its own, and the nav gates it on `purchasing` too.
   inventory: "purchasing",

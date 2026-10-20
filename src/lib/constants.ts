@@ -87,6 +87,7 @@ export const ROUTES = {
   marketingWhatsappNew: "/marketing/whatsapp/new",
   marketingWhatsappTemplate: (id: string) => `/marketing/whatsapp/${id}`,
   marketingWhatsappSetup: "/marketing/whatsapp/setup",
+  marketingAttribution: "/marketing/attribution",
   marketingNewsletters: "/marketing/newsletters",
   marketingNewsletterNew: "/marketing/newsletters/new",
   marketingNewsletter: (id: string) => `/marketing/newsletters/${id}`,
@@ -342,6 +343,7 @@ export const NAV: NavGroup[] = [
           { label: "ABM programs", href: ROUTES.marketingAbm, icon: "◎", pillar: "purple", featureKey: "abm", workcenterKey: "abm" },
           { label: "Journeys", href: ROUTES.marketingJourneys, icon: "↠", pillar: "purple", featureKey: "journeys", workcenterKey: "marketing_journeys" },
           { label: "WhatsApp", href: ROUTES.marketingWhatsapp, icon: "☏", pillar: "purple", featureKey: "whatsapp_marketing", workcenterKey: "marketing_whatsapp" },
+          { label: "Revenue by campaign", href: ROUTES.marketingAttribution, icon: "⌁", pillar: "purple", featureKey: "marketing_attribution", workcenterKey: "marketing_attribution" },
           { label: "Segmentation", href: ROUTES.marketingSegments, icon: "⌗", pillar: "purple", featureKey: "marketing", workcenterKey: "marketing_segments" },
           { label: "Leads", href: ROUTES.leads, icon: "✦", pillar: "purple", featureKey: "leads", workcenterKey: "leads" },
           { label: "Scored leads", href: ROUTES.marketingLeads, icon: "◎", pillar: "purple", featureKey: "marketing_scoring", workcenterKey: "leads" },
@@ -681,6 +683,13 @@ export type TenantFeatures = {
   // there is no menu item, no route, no webhook and no journey step. Needs
   // `marketing`.
   whatsapp_marketing: boolean;
+  // Attribution (0190-0192, docs/shells/attribution-shell.md): "Revenue by
+  // campaign", the deals and revenue each campaign, newsletter, form, journey,
+  // WhatsApp template and event started or touched, by first touch, last touch
+  // or linear. Read-only on the data it reads. A platform-admin-only flag:
+  // default OFF, missing key reads false; with it off there is no menu item,
+  // no route and no cron work for the workspace. Needs `marketing`.
+  marketing_attribution: boolean;
 };
 
 // WfmConfig — tenant-level WFM (attendance) settings, stored in

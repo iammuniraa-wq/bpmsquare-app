@@ -7,7 +7,7 @@ export type WorkcenterKey =
   | "cases" | "amc" | "work_orders" | "dispatch" | "technicians"
   | "marketing" | "marketing_segments" | "leads" | "partners"
   | "assets" | "suppliers" | "inventory" | "purchase_orders" | "employees"
-  | "reports" | "data_workbench" | "administration" | "wfm" | "products" | "pricing" | "fence_projects" | "rfqs" | "estimates" | "process_studio" | "marketing_newsletters" | "signals" | "marketing_forms" | "abm" | "marketing_journeys" | "marketing_whatsapp";
+  | "reports" | "data_workbench" | "administration" | "wfm" | "products" | "pricing" | "fence_projects" | "rfqs" | "estimates" | "process_studio" | "marketing_newsletters" | "signals" | "marketing_forms" | "abm" | "marketing_journeys" | "marketing_whatsapp" | "marketing_attribution";
 
 export const WORKCENTERS: { key: WorkcenterKey; label: string }[] = [
   { key: "dashboard", label: "Dashboard" },
@@ -30,6 +30,7 @@ export const WORKCENTERS: { key: WorkcenterKey; label: string }[] = [
   { key: "abm", label: "ABM programs" },
   { key: "marketing_journeys", label: "Journeys" },
   { key: "marketing_whatsapp", label: "WhatsApp" },
+  { key: "marketing_attribution", label: "Revenue by campaign" },
   { key: "leads", label: "Leads" },
   { key: "partners", label: "Partners" },
   { key: "assets", label: "Assets" },
