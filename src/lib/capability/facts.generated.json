@@ -208,7 +208,7 @@
     }
   ],
   "mcp": {
-    "version": "1.10.0",
+    "version": "1.11.0",
     "tools": [
       {
         "name": "list_accounts",
@@ -277,6 +277,22 @@
       {
         "name": "list_rfqs",
         "description": "List the tenant's RFQs (requests for quotation sent to suppliers when no cost or price was found): ref, title, status, what each was raised from, reply deadline."
+      },
+      {
+        "name": "list_abm_programs",
+        "description": "List the tenant's ABM (account-based marketing) programs: goal, time window, status and how many companies are targeted."
+      },
+      {
+        "name": "get_abm_program",
+        "description": "Fetch one ABM program by id with its funnel counted by company: targets, reached, engaged, in talks, in a deal, won, and the money linked to its deals."
+      },
+      {
+        "name": "list_abm_targets",
+        "description": "List ABM target accounts (a company inside a program): tier, progress, next step and linked deal."
+      },
+      {
+        "name": "get_abm_target",
+        "description": "Fetch one ABM target account by id with its buying group given as contact ids and roles only (no names, contact details or notes)."
       },
       {
         "name": "get_rfq",
