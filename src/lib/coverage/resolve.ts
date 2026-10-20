@@ -2,6 +2,7 @@ import "server-only";
 import { createAdminSupabase } from "@/lib/supabase-server";
 import type { Account, Coverage, Segment, Team } from "@/lib/types";
 import { matchesAllFilters } from "@/lib/marketingSegmentation";
+import { computeAbmSignals, type AbmSignals } from "@/lib/abm/signals";
 
 /**
  * Coverage's matching/resolution engine -- computes which Segments an
@@ -22,7 +23,7 @@ export type AccountSignals = {
    * a plain string field, not a real column, so it reuses matchesAllFilters
    * unchanged rather than needing a new operator/type. */
   owned_product_skus: string;
-};
+} & AbmSignals;
 
 export async function computeAccountSignals(tenantId: string, accountId: string): Promise<AccountSignals> {
   const admin = createAdminSupabase();
@@ -49,7 +50,7 @@ export async function computeAccountSignals(tenantId: string, accountId: string)
       owned_product_skus = (productRows ?? []).map((p: { sku: string | null; name: string }) => `${p.sku ?? ""} ${p.name}`).join(", ");
     }
   }
-  return { has_active_amc, owned_product_skus };
+  return { has_active_amc, owned_product_skus, ...(await computeAbmSignals(tenantId, accountId)) };
 }
 
 /** Every Segment whose rule matches this account -- an explicit

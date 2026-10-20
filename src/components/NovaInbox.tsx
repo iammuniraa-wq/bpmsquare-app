@@ -25,6 +25,8 @@ const ROUTE_FOR: Record<string, (id: string) => string> = {
   wfm_projects: ROUTES.wfmProject, opportunities: ROUTES.pipelineDetail,
   rfqs: ROUTES.rfq,
   estimates: ROUTES.estimate,
+  abm_programs: ROUTES.marketingAbmProgram,
+  abm_targets: ROUTES.marketingAbmTargetShort,
 };
 
 const fmtWhen = (iso: string) => {

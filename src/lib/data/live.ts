@@ -21,6 +21,7 @@ import type {
 } from "@/lib/types";
 import { sortBySlNo } from "@/lib/lineOrder";
 import { matchesAllFilters, type SegmentFilter } from "@/lib/marketingSegmentation";
+import { ABM_SEGMENT_KEYS, computeAbmSignalsBulk } from "@/lib/abm/signals";
 import type { SearchObjectType, SearchResult } from "@/lib/globalSearch";
 import { formatMoney, resolveCurrency, type CurrencyDef } from "@/lib/currency";
 import { tenantOwnsObject } from "@/lib/objectFeatures";
@@ -1513,6 +1514,9 @@ export type AnalyticsData = {
     /** Draft and quoted project estimates (0131). */
     draftEstimates: number;
     quotedEstimates: number;
+    /** Targets in active ABM programs, and how many of them are engaged or further (0180). */
+    abmTargets: number;
+    abmEngaged: number;
   };
   accountsByType: Array<{ type: string; label: string; count: number }>;
   leadFunnel: Array<{ stage: string; count: number }>;
@@ -1561,7 +1565,7 @@ export async function getAnalyticsDataLive(): Promise<AnalyticsData> {
   const tenantId = await currentTenantId();
   if (!tenantId) {
     return {
-      totals: { accounts: 0, contacts: 0, customerAssets: 0, openCases: 0, workOrders: 0, activeContracts: 0, leads: 0, technicians: 0, products: 0, openDeals: 0, openDealValue: 0, weightedDealValue: 0, openRfqs: 0, rfqsToAward: 0, draftEstimates: 0, quotedEstimates: 0 },
+      totals: { accounts: 0, contacts: 0, customerAssets: 0, openCases: 0, workOrders: 0, activeContracts: 0, leads: 0, technicians: 0, products: 0, openDeals: 0, openDealValue: 0, weightedDealValue: 0, openRfqs: 0, rfqsToAward: 0, draftEstimates: 0, quotedEstimates: 0, abmTargets: 0, abmEngaged: 0 },
       accountsByType: [], leadFunnel: [], assetsByKind: [],
       loanerStock: { available: 0, onLoan: 0, total: 0 },
       quotesByStatus: [], quoteTrend: [], casesByStatus: [], workOrdersByStatus: [],
@@ -1596,7 +1600,7 @@ export async function getAnalyticsDataLive(): Promise<AnalyticsData> {
     { data: accounts }, { data: contacts }, { data: assets },
     { data: cases }, { data: workOrders }, { data: contracts },
     { data: leads }, { data: technicians }, { data: quotes },
-    { data: invoices }, { data: activities }, { count: productCount }, { data: openDealsRaw }, { data: rfqRaw }, { data: estimateRaw },
+    { data: invoices }, { data: activities }, { count: productCount }, { data: openDealsRaw }, { data: rfqRaw }, { data: estimateRaw }, { data: abmRaw },
   ] = await Promise.all([
     getTenant(),
     supabase.from("accounts").select("id, type").eq("tenant_id", tenantId),
@@ -1617,7 +1621,10 @@ export async function getAnalyticsDataLive(): Promise<AnalyticsData> {
     supabase.from("rfqs").select("status").eq("tenant_id", tenantId).in("status", ["sent", "partially_replied", "replied"]),
     // 0131 may be pending: an error reads as no estimates.
     supabase.from("estimates").select("status").eq("tenant_id", tenantId).in("status", ["draft", "quoted"]),
+    // 0180-0181 may be pending: an error reads as no ABM targets.
+    supabase.from("abm_target_accounts").select("progress, abm_programs!inner(status)").eq("tenant_id", tenantId).eq("abm_programs.status", "active").limit(20000),
   ]);
+  const abmRows = (abmRaw ?? []) as unknown as Array<{ progress: string }>;
   const estimateRows = (estimateRaw ?? []) as Array<{ status: string }>;
   const openRfqRows = (rfqRaw ?? []) as Array<{ status: string }>;
   const openDeals = (openDealsRaw ?? []) as Array<{ amount: number | null; probability: number | null }>;
@@ -1653,6 +1660,8 @@ export async function getAnalyticsDataLive(): Promise<AnalyticsData> {
     rfqsToAward:     openRfqRows.filter((r) => r.status !== "sent").length,
     draftEstimates:  estimateRows.filter((e) => e.status === "draft").length,
     quotedEstimates: estimateRows.filter((e) => e.status === "quoted").length,
+    abmTargets:      abmRows.filter((t) => t.progress !== "dropped").length,
+    abmEngaged:      abmRows.filter((t) => ["engaged", "in_talks", "deal_open", "won"].includes(t.progress)).length,
   };
 
   const accountTypeCounts = new Map<string, number>();
@@ -2123,11 +2132,17 @@ export async function resolveMarketingRecipientsLive(
   const filters = rule.filters ?? [];
   const match = rule.match ?? "all";
 
+  // ABM rules ("is in program X", "progress is Engaged") need the account's ABM signals; they are loaded
+  // in bulk, and only when a rule actually uses one, so every other audience is unchanged.
+  const abmSignals = filters.some((f) => ABM_SEGMENT_KEYS.includes(f.field))
+    ? await computeAbmSignalsBulk(tenantId, accounts.map((a) => a.id))
+    : null;
+
   const accountCandidates: MarketingRecipientCandidate[] = accounts
     .filter((a) => {
       if (excludeSet.has(a.id)) return false;
       if (includeSet.has(a.id)) return true;
-      if (filters.length > 0) return matchesAllFilters(a as unknown as Record<string, unknown>, filters, match);
+      if (filters.length > 0) return matchesAllFilters(abmSignals ? { ...a, ...(abmSignals.get(a.id) ?? {}) } as unknown as Record<string, unknown> : a as unknown as Record<string, unknown>, filters, match);
       return typeSet.has(a.type);
     })
     .map((a) => ({
@@ -2277,6 +2292,13 @@ const SEARCH_SPECS: SearchSpec[] = [
     textCols: ["title", "ref", "origin_label"],
     toResult: (r) => ({ id: r.id, title: r.title, subtitle: [r.ref, r.origin_label, r.status].filter(Boolean).join(" · ") || "RFQ", href: ROUTES.rfq(r.id), matched: "title" }),
     featureKeys: ["rfq"],
+  },
+  // ABM programs only: companies and buying-group people are reached through their program and account.
+  {
+    type: "abm_program", table: "abm_programs", columns: "id, ref, name, status, goal",
+    textCols: ["name", "ref"],
+    toResult: (r) => ({ id: r.id, title: r.name, subtitle: [r.ref, r.status, r.goal].filter(Boolean).join(" · ") || "ABM program", href: ROUTES.marketingAbmProgram(r.id), matched: "name" }),
+    featureKeys: ["abm"],
   },
   {
     type: "estimate", table: "estimates", columns: "id, ref, name, status",
