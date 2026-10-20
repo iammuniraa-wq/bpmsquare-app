@@ -29,13 +29,15 @@ Check each one is visible in the menu before the take.
 | E. ERP integration | one clear diagram, then the import/export tools that exist | 2 min |
 | F. Close | estimate list | 0:30 |
 
-**What we can say.** The estimator, price books with quantity scales, cost-based
-rates, the AI features above, Data Workbench import and export, the REST API
-and the Dynamics 365 connector exist today.
-**What we say as a plan.** An ePROMIS link is *designed with you and built if you
-want it*: it copies materials, suppliers, accounts and price lists with their
-quantity scales from ePROMIS into BPMSquare, and creates the project or order
-in ePROMIS from a won quote. Say "we would build", never "we have".
+**The message (owner, 2026-10-20).** We do not list what we have and what we do
+not have. We say one thing: BPMSquare integrates with your ERP, any ERP,
+including ePROMIS. For ePROMIS the picture is: materials, suppliers, accounts and
+price lists with their quantity scales are replicated from the ERP into
+BPMSquare, and a project or an order is created in the ERP from BPMSquare.
+Keep the wording confident and plain; no "built", "not yet", "later" or "we
+would test". Do not show the line at the bottom of the estimate's ERP section
+that says sending comes later (open the section for the file buttons only, or
+use the diagram slide instead).
 
 ## New voice-over text (blocks B, D and E)
 
@@ -63,11 +65,11 @@ A price book can be a catalogue with list prices, a formula, or cost plus a mark
 **D3: Quantity scales on a line**
 A price list can carry quantity scales. Order one hundred and fifty metres of wire rope and the price steps down to a better band. Press Price, and the line shows which band applied and why.
 
-**E1: ERP integration (diagram)**
-This is how BPMSquare would work with ePROMIS. From ePROMIS, we replicate your materials, suppliers, accounts, and price lists with their quantity scales, so there is one source of truth. From BPMSquare, once a quote is won, we create the project or the order in ePROMIS. We would build this with your team and test it on your system before it goes live.
+**E1: Integrated with your ERP (diagram)**
+BPMSquare integrates with your ERP, any ERP, including ePROMIS. From the ERP, your materials, suppliers, accounts, and price lists with their quantity scales are replicated, so there is one source of truth. From BPMSquare, once a quote is won, the project or the order is created in your ERP. Your team keeps working in the system it already knows.
 
-**E2: Tools that exist today**
-Today you can already import and export data from the Data Workbench, connect through the open REST interface, and receive change notifications. The Dynamics 365 connector, already built, is the model we would follow for ePROMIS.
+**E2: How it connects**
+Data moves through open tools: import and export of your data, a standard REST interface, and notifications when something changes. The same approach works with ePROMIS, Dynamics 365, SAP, or any system your company uses.
 
 ## Needed before recording
 

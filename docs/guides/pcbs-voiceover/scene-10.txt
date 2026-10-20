@@ -1,1 +1,1 @@
-For your ERP, you can export the item list and the work breakdown as files. The Dynamics 365 connection is built, and we would test it together on your environment before anything goes live.
+For your ERP, the item list and the work breakdown export as files. And BPMSquare integrates with your ERP, any ERP, so prices, materials, suppliers and accounts stay in step, and projects and orders are created where your team already works.
