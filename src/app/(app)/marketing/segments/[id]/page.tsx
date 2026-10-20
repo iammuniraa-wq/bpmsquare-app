@@ -1,11 +1,13 @@
 import { notFound } from "next/navigation";
 import { requireFeature } from "@/lib/tenant";
+import { requireWorkcenterView } from "@/lib/permissions";
 import { getMarketingTargetGroup, listAccounts } from "@/lib/data";
 import PageHeader from "@/components/PageHeader";
 import TabTitle from "@/components/TabTitle";
 import SegmentBuilder from "@/components/marketing/SegmentBuilder";
 
 export default async function EditSegmentPage({ params }: { params: Promise<{ id: string }> }) {
+  await requireWorkcenterView("marketing_segments");
   await requireFeature("marketing");
   const { id } = await params;
   const group = await getMarketingTargetGroup(id);

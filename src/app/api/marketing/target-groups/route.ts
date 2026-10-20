@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { requireTenantUser } from "@/lib/supabase-server";
+import { requireMarketingAccess } from "@/lib/marketingAccess";
 import { sanitizeSegmentFilters, sanitizeMatch } from "@/lib/marketingSegmentation";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -16,13 +16,9 @@ function cleanEmails(input: unknown): string[] {
 }
 
 export async function GET() {
-  let supabase, tenantId;
-  try {
-    ({ supabase, tenantId } = await requireTenantUser());
-  } catch (e: unknown) {
-    const err = e as { status: number; message: string };
-    return NextResponse.json({ error: err.message }, { status: err.status });
-  }
+  const guard = await requireMarketingAccess(["marketing", "marketing_segments"], "view");
+  if ("error" in guard) return guard.error;
+  const { supabase, tenantId } = guard.auth;
 
   const { data, error } = await supabase
     .from("marketing_target_groups")
@@ -35,13 +31,9 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
-  let supabase, tenantId, userId;
-  try {
-    ({ supabase, tenantId, userId } = await requireTenantUser());
-  } catch (e: unknown) {
-    const err = e as { status: number; message: string };
-    return NextResponse.json({ error: err.message }, { status: err.status });
-  }
+  const guard = await requireMarketingAccess(["marketing_segments"], "edit");
+  if ("error" in guard) return guard.error;
+  const { supabase, tenantId, userId } = guard.auth;
 
   const body = await request.json();
   const { name, account_types, include_account_ids, exclude_account_ids, manual_emails, filters, match } = body;

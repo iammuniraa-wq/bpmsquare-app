@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createAdminSupabase } from "@/lib/supabase-server";
 import { requireWfmSupervisor } from "@/lib/wfm/server";
 import { wfmLeaveRecordsPayload } from "@/lib/wfm/bootstrap";
+import { resolveWfmScope } from "@/lib/wfm/scope";
 import { loadLeaveType, monthlyLimitError } from "@/lib/wfm/leaveServer";
 
 
@@ -26,8 +27,9 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: err.message }, { status: err.status });
   }
   try {
+    const scope = await resolveWfmScope(ctx);
     return NextResponse.json(
-      await wfmLeaveRecordsPayload(ctx.supabase, ctx.tenantId, request.nextUrl.searchParams.get("employee_id"))
+      await wfmLeaveRecordsPayload(ctx.supabase, ctx.tenantId, request.nextUrl.searchParams.get("employee_id"), scope)
     );
   } catch (e: unknown) {
     return NextResponse.json({ error: (e as Error).message }, { status: 500 });

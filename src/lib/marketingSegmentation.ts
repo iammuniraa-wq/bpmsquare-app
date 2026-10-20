@@ -73,8 +73,9 @@ export const SEGMENT_FIELDS: SegmentFieldDef[] = [
   { key: "created_at", label: "Customer since", category: "Account info", type: "date", operators: ["before", "after"] },
   // Coverage (0101) computed fields -- not plain account columns, so the
   // caller building the `record` object passed to matchesAllFilters has to
-  // compute them first (see src/lib/coverage/resolve.ts's
-  // computeAccountSignals). Listed here, per this file's own extensibility
+  // compute them first (src/lib/coverage/signals.ts's loadAccountSignals --
+  // both the marketing recipient resolver and Coverage matching use it).
+  // Listed here, per this file's own extensibility
   // doctrine, so the same Segment rule builder UI can offer them alongside
   // the plain fields with no special-casing.
   { key: "has_active_amc", label: "Has active AMC", category: "Coverage", type: "boolean", operators: ["is_true", "is_false"] },

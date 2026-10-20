@@ -1,10 +1,12 @@
 import { requireFeature } from "@/lib/tenant";
+import { requireWorkcenterEdit } from "@/lib/permissions";
 import { listAccounts } from "@/lib/data";
 import { requireTenantUser } from "@/lib/supabase-server";
 import { loadComposeNewsletter } from "@/lib/newsletter/composeData";
 import MarketingComposeForm from "./MarketingComposeForm";
 
 export default async function NewCampaignPage({ searchParams }: { searchParams: Promise<{ group?: string; newsletter?: string }> }) {
+  await requireWorkcenterEdit("marketing");
   await requireFeature("marketing");
   const { group, newsletter } = await searchParams;
   // "Use in a campaign" arrives with a version id. A workspace without the Newsletter Studio, or an id

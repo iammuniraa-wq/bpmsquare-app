@@ -1,9 +1,11 @@
 import { requireFeature } from "@/lib/tenant";
+import { requireWorkcenterEdit } from "@/lib/permissions";
 import { listAccounts } from "@/lib/data";
 import PageHeader from "@/components/PageHeader";
 import SegmentBuilder from "@/components/marketing/SegmentBuilder";
 
 export default async function NewSegmentPage() {
+  await requireWorkcenterEdit("marketing_segments");
   await requireFeature("marketing");
   const summaries = await listAccounts();
   const accounts = summaries.map((s) => ({ id: s.account.id, name: s.account.name, type: s.account.type }));
