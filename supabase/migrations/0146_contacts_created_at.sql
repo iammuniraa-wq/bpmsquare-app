@@ -1,0 +1,11 @@
+-- 0146: contacts.created_at (schema drift reconcile, same idea as 0047).
+--
+-- Production has this column (Account 360 and contact search already read it)
+-- but it never landed in a tracked migration, so a database built from the
+-- tracked migrations (the dev database) lacks it. The marketing features order
+-- contacts by it ("the account's oldest contact") and the leads demo seed does
+-- too, and they fail with 42703 without it.
+--
+-- Guarded: a no-op where the column exists. Where it is added, existing rows
+-- get the time of this migration, which only affects "oldest first" ties.
+alter table contacts add column if not exists created_at timestamptz not null default now();
