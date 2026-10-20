@@ -22,6 +22,8 @@ create table if not exists account_intent (
   -- The newest few signals in words: [{kind, group, source, headline, occurred_at, href}].
   top_signals               jsonb not null default '[]'::jsonb,
   signal_count              int not null default 0,
+  -- Names of the tenant topics the counted signals were about (audience field signal_topic).
+  topics                    text[] not null default '{}',
   stage_changed_at          timestamptz,
   -- A person said "not in market": the score is held at zero for 30 days.
   marked_not_in_market_at   timestamptz,
