@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import Sparkline from "@/components/signals/Sparkline";
 
 /**
  * Nova — Account 360. A side drawer holding everything about one account:
@@ -25,6 +26,7 @@ type Row = { title: string; meta?: string; value?: string; tone?: Tone; href?: s
 type Card = {
   id: string; title: string; subtitle?: string; kind: "internal" | "external";
   stats?: Stat[]; rows?: Row[]; empty?: string; error?: string;
+  spark?: { values: number[]; tone: "warming" | "cooling" | "steady"; label: string };
 };
 type Payload = {
   account: { id: string; name: string; ref: string | null; type: string; city: string | null; industry: string | null; since: string };
@@ -285,6 +287,13 @@ export default function Account360Drawer() {
                             {s.hint && <span className="a360__statHint">{s.hint}</span>}
                           </div>
                         ))}
+                      </div>
+                    )}
+
+                    {card.spark && (
+                      <div className="a360__muted" style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8 }}>
+                        <Sparkline values={card.spark.values} tone={card.spark.tone} width={88} height={26} />
+                        <span>{card.spark.label}</span>
                       </div>
                     )}
 
