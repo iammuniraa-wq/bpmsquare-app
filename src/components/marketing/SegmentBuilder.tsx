@@ -6,7 +6,6 @@ import { c } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
 import { useTenantFeature } from "@/lib/tenant-context";
 import { ROUTES } from "@/lib/constants";
-import { useTenantFeature } from "@/lib/tenant-context";
 import type { MarketingTargetGroup } from "@/lib/types";
 import {
   offeredSegmentFields, OPERATOR_LABEL, getSegmentField,
