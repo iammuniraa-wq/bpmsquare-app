@@ -9,6 +9,9 @@ import ObjectRecordPage from "@/components/page/ObjectRecordPage";
 import { ROUTES } from "@/lib/constants";
 import type { MarketingCampaignStatus } from "@/lib/types";
 import MarketingCampaignDetail from "./MarketingCampaignDetail";
+import { loadComposeNewsletter } from "@/lib/newsletter/composeData";
+import { loadCampaignEngagement } from "@/lib/newsletter/engagement";
+import { languageDef } from "@/lib/newsletter/types";
 
 const STATUS_TONE: Record<MarketingCampaignStatus, PillarKey> = {
   draft: "blue", sending: "amber", sent: "green", failed: "red",
@@ -19,9 +22,11 @@ const STATUS_LABEL: Record<MarketingCampaignStatus, string> = {
 
 const RECIPIENT_STATUS_LABEL: Record<string, string> = {
   sent: "Sent", failed: "Failed", skipped_opt_out: "Skipped (opted out)", skipped_no_email: "Skipped (no email)", pending: "Pending",
+  skipped_no_consent: "Skipped (no consent)", skipped_no_contact: "Skipped (no contact)", skipped_no_language: "Skipped (no language)",
 };
 const RECIPIENT_STATUS_TONE: Record<string, "green" | "red" | "amber" | "blue"> = {
   sent: "green", failed: "red", skipped_opt_out: "amber", skipped_no_email: "amber", pending: "blue",
+  skipped_no_consent: "amber", skipped_no_contact: "amber", skipped_no_language: "amber",
 };
 
 export default async function CampaignDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -36,6 +41,9 @@ export default async function CampaignDetailPage({ params }: { params: Promise<{
   const accounts = summaries.map((s) => ({ id: s.account.id, name: s.account.name, type: s.account.type }));
   const tenant = await getTenant();
   const leadsGenerated = !isDraft && tenant ? await countLeadsForCampaign(id, tenant.id) : 0;
+  // Only a campaign that sends a newsletter version, in a workspace that has the studio, carries any of this.
+  const nl = campaign.newsletter_version_id && tenant ? await loadComposeNewsletter(tenant.id, campaign.newsletter_version_id) : null;
+  const engagement = nl && !isDraft && tenant ? await loadCampaignEngagement(tenant.id, campaign.id, campaign.newsletter_version_id as string) : null;
 
   return (
     <ObjectRecordPage
@@ -56,8 +64,33 @@ export default async function CampaignDetailPage({ params }: { params: Promise<{
           id: "overview",
           label: isDraft ? "Campaign" : "Recipients",
           content: isDraft ? (
-            <MarketingCampaignDetail campaign={campaign} accounts={accounts} />
+            <MarketingCampaignDetail campaign={campaign} accounts={accounts} newsletter={nl} />
           ) : (
+            <>
+            {engagement && (
+              <Card title="How it went, by language and by link">
+                <div style={{ display: "grid", gap: 14 }}>
+                  <div>
+                    <div style={{ fontSize: 11.5, fontWeight: 600, color: c.muted, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 6 }}>Language</div>
+                    {engagement.languages.length === 0 ? <span style={{ fontSize: 12.5, color: c.hint }}>Nothing was sent.</span> : engagement.languages.map((l) => (
+                      <div key={l.lang} style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5, color: c.ink, padding: "3px 0" }}>
+                        <span>{languageDef(l.lang)?.name ?? l.lang}</span>
+                        <span style={{ color: c.muted }}>{l.sent} sent{l.failed ? ` · ${l.failed} failed` : ""}{l.skipped ? ` · ${l.skipped} skipped` : ""}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 11.5, fontWeight: 600, color: c.muted, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 6 }}>Clicks per link</div>
+                    {engagement.links.length === 0 ? <span style={{ fontSize: 12.5, color: c.hint }}>No links in this newsletter.</span> : engagement.links.map((l) => (
+                      <div key={l.index} style={{ display: "flex", justifyContent: "space-between", gap: 10, fontSize: 12.5, color: c.ink, padding: "3px 0" }}>
+                        <span style={{ overflowWrap: "anywhere" }}>{l.label}</span>
+                        <span style={{ color: c.muted, whiteSpace: "nowrap" }}>{l.clicks} click{l.clicks === 1 ? "" : "s"}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </Card>
+            )}
             <Card
               title={`Recipients (${recipients.length})`}
               action={<span style={{ fontSize: 11, color: c.hint }}>
@@ -80,6 +113,7 @@ export default async function CampaignDetailPage({ params }: { params: Promise<{
                 </div>
               )}
             </Card>
+            </>
           ),
         },
       ]}

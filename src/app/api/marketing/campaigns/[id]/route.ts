@@ -4,6 +4,7 @@ import { sanitizeRichText } from "@/lib/sanitizeHtml";
 import { resolveCampaignContent } from "@/lib/marketingCampaignContent";
 import { getMarketingCampaign } from "@/lib/data";
 import { sanitizeSegmentFilters, sanitizeMatch } from "@/lib/marketingSegmentation";
+import { newsletterFieldsForUpdate } from "@/lib/newsletter/campaignFields";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -54,8 +55,19 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   const patch: Record<string, unknown> = {};
   if (name !== undefined) patch.name = String(name).trim();
 
+  // The newsletter side of a campaign (languages, fallback, consent topic). Only a body that carries
+  // one of these fields takes this branch, and only for a campaign that already sends a newsletter.
+  const isNewsletterEdit = body.languages !== undefined || body.fallback_language !== undefined || body.topic !== undefined;
+  if (isNewsletterEdit) {
+    const r = await newsletterFieldsForUpdate(tenantId, id, body);
+    if (!r.ok) return NextResponse.json({ error: r.error }, { status: r.status });
+    Object.assign(patch, r.fields);
+  }
+
   const effectiveTemplateId = template_id !== undefined ? template_id : existing.template_id;
-  if (effectiveTemplateId) {
+  if (isNewsletterEdit) {
+    // subject and body were set from the chosen version above; nothing here may overwrite them.
+  } else if (effectiveTemplateId) {
     // Template mode (already was, or just switched to one) -- re-render from
     // the template every time so subject/custom_message edits stay in sync.
     const content = resolveCampaignContent({

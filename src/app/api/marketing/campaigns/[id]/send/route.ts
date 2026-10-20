@@ -11,6 +11,7 @@ import { ROUTES } from "@/lib/constants";
 import { logEmail } from "@/lib/emailLog";
 import { loadEmailOutput, resolveOutbound } from "@/lib/emailOutput";
 import { emitCampaignSent } from "@/lib/events/emitters";
+import { sendNewsletterBranch } from "@/lib/newsletter/sendRoute";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -40,6 +41,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const { data: campaign } = await supabase.from("marketing_campaigns").select("*").eq("id", id).eq("tenant_id", tenantId).maybeSingle();
   if (!campaign) return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
   if (campaign.status !== "draft") return NextResponse.json({ error: "This campaign has already been sent" }, { status: 409 });
+  // A campaign that sends a newsletter version takes the studio's branch (consent per person, a
+  // language per person, tracked links). Every other campaign continues below, unchanged.
+  if (campaign.newsletter_version_id) return sendNewsletterBranch({ supabase, tenantId, campaign });
   if (!campaign.subject?.trim()) return NextResponse.json({ error: "Add a subject before sending" }, { status: 400 });
   if (!campaign.body?.trim()) return NextResponse.json({ error: "Add a message before sending" }, { status: 400 });
 
