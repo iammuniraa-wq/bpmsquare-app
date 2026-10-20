@@ -84,6 +84,7 @@ export const ROUTES = {
   marketingNewsletterNew: "/marketing/newsletters/new",
   marketingNewsletter: (id: string) => `/marketing/newsletters/${id}`,
   marketingClick: (campaignId: string, recipientId: string, index: number, token: string) => `/marketing/c/${campaignId}/${recipientId}/${index}/${token}`,
+  marketingSignals: "/marketing/signals",
   marketingSegments: "/marketing/segments",
   marketingSegmentNew: "/marketing/segments/new",
   marketingSegment: (id: string) => `/marketing/segments/${id}`,
@@ -317,6 +318,7 @@ export const NAV: NavGroup[] = [
         children: [
           { label: "Campaigns", href: ROUTES.marketing, icon: "✉", pillar: "purple", featureKey: "marketing", workcenterKey: "marketing" },
           { label: "Newsletters", href: ROUTES.marketingNewsletters, icon: "✎", pillar: "purple", featureKey: "newsletter_studio", workcenterKey: "marketing_newsletters" },
+          { label: "Buying signals", href: ROUTES.marketingSignals, icon: "◎", pillar: "purple", featureKey: "buying_signals", workcenterKey: "signals" },
           { label: "Segmentation", href: ROUTES.marketingSegments, icon: "⌗", pillar: "purple", featureKey: "marketing", workcenterKey: "marketing_segments" },
           { label: "Leads", href: ROUTES.leads, icon: "✦", pillar: "purple", featureKey: "leads", workcenterKey: "leads" },
         ],
@@ -624,6 +626,13 @@ export type TenantFeatures = {
   // reads false, and with it off there is no menu item, no route and no
   // change to any campaign page. Needs `marketing`.
   newsletter_studio: boolean;
+  // Buying signals (0175-0179, docs/signals-architecture.md): "Who is in
+  // market", a ranked, explainable list of accounts built only from first-party
+  // events. A platform-admin-only flag (set in /admin/tenants, never by a
+  // workspace admin): default OFF, missing key reads false, and with it off
+  // there is no menu item, no route and no cron work for the tenant. Needs
+  // `marketing`.
+  buying_signals: boolean;
 };
 
 // WfmConfig — tenant-level WFM (attendance) settings, stored in
