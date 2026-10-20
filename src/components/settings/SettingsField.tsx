@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { c } from "@/lib/theme";
 import { typeLabel, typeHelp } from "@/lib/typeScale";
+import { useTenant } from "@/lib/tenant-context";
+import InfoTip from "@/components/ui/InfoTip";
 
 /**
  * The two row shapes a settings page is built from, and the one rule they
@@ -12,7 +14,13 @@ import { typeLabel, typeHelp } from "@/lib/typeScale";
  * do" -- correct to have written, wrong to print all at once. Twenty settings
  * with their paragraphs showing is a page nobody reads, and it is exactly what
  * pushes the control someone wants off the bottom of a phone screen. So the
- * help sits behind a "?" next to its own label, one field at a time.
+ * help sits behind an "i" next to its own label, one field at a time.
+ *
+ * The "i" is the shared InfoTip (popover on desktop, bottom sheet on a phone).
+ * It is switched on per workspace -- the demo workspace and Nova workspaces
+ * first (owner, 2026-10-20: "demo tenant first") -- so a workspace that has
+ * not been moved over keeps the old "?" that opens a grey box under the field.
+ * When every workspace has moved, delete LegacyHelpDot and `useInfoTip`.
  */
 
 export const settingsLabel: React.CSSProperties = typeLabel;
@@ -28,7 +36,13 @@ const helpText: React.CSSProperties = {
   padding: "8px 10px", background: c.panel2, borderRadius: 7,
 };
 
-function HelpDot({ on, onClick, of }: { on: boolean; onClick: () => void; of: string }) {
+/** True when this workspace gets the shared "i" instead of the legacy "?". */
+function useInfoTip(): boolean {
+  const tenant = useTenant();
+  return tenant?.is_demo === true || tenant?.features?.next_experience === true;
+}
+
+function LegacyHelpDot({ on, onClick, of }: { on: boolean; onClick: () => void; of: string }) {
   return (
     <button
       type="button"
@@ -61,14 +75,15 @@ export function SettingsField({
   children: React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
+  const tip = useInfoTip();
   return (
     <div style={full ? { gridColumn: "1 / -1", minWidth: 0 } : { minWidth: 0 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: tip ? 0 : 6, marginBottom: 6 }}>
         <span style={settingsLabel}>{label}</span>
-        {help && <HelpDot on={open} onClick={() => setOpen((v) => !v)} of={label} />}
+        {help && (tip ? <InfoTip label={label}>{help}</InfoTip> : <LegacyHelpDot on={open} onClick={() => setOpen((v) => !v)} of={label} />)}
       </div>
       {children}
-      {help && open && <div style={helpText}>{help}</div>}
+      {help && !tip && open && <div style={helpText}>{help}</div>}
     </div>
   );
 }
@@ -89,16 +104,17 @@ export function SettingsRow({
   children: React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
+  const tip = useInfoTip();
   return (
     <div style={{ padding: "12px 2px", borderTop: first ? "none" : `1px solid ${c.line}` }}>
       <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-        <div style={{ minWidth: 0, flex: 1, display: "flex", alignItems: "center", gap: 6 }}>
+        <div style={{ minWidth: 0, flex: 1, display: "flex", alignItems: "center", gap: tip ? 0 : 6 }}>
           <span style={typeLabel}>{label}</span>
-          {help && <HelpDot on={open} onClick={() => setOpen((v) => !v)} of={label} />}
+          {help && (tip ? <InfoTip label={label}>{help}</InfoTip> : <LegacyHelpDot on={open} onClick={() => setOpen((v) => !v)} of={label} />)}
         </div>
         <div style={{ flexShrink: 0 }}>{children}</div>
       </div>
-      {help && open && <div style={helpText}>{help}</div>}
+      {help && !tip && open && <div style={helpText}>{help}</div>}
     </div>
   );
 }
