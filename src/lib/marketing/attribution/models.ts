@@ -48,7 +48,24 @@ const empty = (): AssetMetrics => ({
 const money = (n: number) => Math.round(n);
 const share = (n: number) => Math.round(n * 1000) / 1000;
 
-export type AttributeOptions = { model: Model; mode: Mode; assetType: AssetType; windowDays?: number; now: Date };
+/**
+ * One company touching the same asset several times within a day is one touch, not several: a person who registers
+ * for an event and then attends it, or clicks a link twice, must not hold three shares of a linear split. (The
+ * per-asset `touches` figure still counts every one.) Input is in time order.
+ */
+function collapse(list: Touch[]): Touch[] {
+  const lastKept = new Map<string, number>();
+  const out: Touch[] = [];
+  for (const t of list) {
+    const prev = lastKept.get(t.assetId);
+    if (prev !== undefined && t.at.getTime() - prev < DAY) continue;
+    lastKept.set(t.assetId, t.at.getTime());
+    out.push(t);
+  }
+  return out;
+}
+
+export type AttributeOptions ={ model: Model; mode: Mode; assetType: AssetType; windowDays?: number; now: Date };
 
 /**
  * For every asset of one kind, what it STARTED (credit shared among the touches before a deal existed, by the
@@ -88,7 +105,7 @@ export function attribute(deals: Deal[], touches: Touch[], o: AttributeOptions):
     if (d.outcome === "dropped") continue;
     const end = d.closedAt ?? o.now;
     const from = d.createdAt.getTime() - windowMs;
-    const inWindow = (byAccount.get(d.accountId) ?? []).filter((t) => t.at.getTime() >= from && t.at.getTime() <= end.getTime());
+    const inWindow = collapse((byAccount.get(d.accountId) ?? []).filter((t) => t.at.getTime() >= from && t.at.getTime() <= end.getTime()));
     if (inWindow.length === 0) continue;
 
     // Influenced: once per asset.

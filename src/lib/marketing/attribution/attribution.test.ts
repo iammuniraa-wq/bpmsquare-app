@@ -337,3 +337,15 @@ describe("reading events", () => {
     expect((await ingestTouches(db.client, T, null)).written).toBe(0);
   });
 });
+
+describe("repeat touches", () => {
+  it("one company touching the same asset several times in a day is one touch in the credit, but every touch is still counted", () => {
+    const deal: Deal[] = [{ id: "D", accountId: "A9", createdAt: d("2026-10-10"), closedAt: null, outcome: "open", amount: 900, invoiced: 0, paid: 0 }];
+    const E = "e0e0e0e0-0000-4000-8000-0000000000e0";
+    const many = [touch(C1, "2026-10-01", "A9"), touch(E, "2026-10-02", "A9"), touch(E, "2026-10-02", "A9"), touch(C2, "2026-10-03", "A9")];
+    const r = attribute(deal, many, { model: "linear", mode: "engaged", assetType: "campaign", now: NOW });
+    expect(r.get(E)).toMatchObject({ touches: 2, sourcedOpenValue: 300 });
+    expect(r.get(C1)).toMatchObject({ sourcedOpenValue: 300 });
+    expect(r.get(C2)).toMatchObject({ sourcedOpenValue: 300 });
+  });
+});

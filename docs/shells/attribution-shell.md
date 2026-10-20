@@ -27,6 +27,8 @@ same company in the 90 days before it was created up to the day it closed (or to
   these figures can be added;
 - **touched**: every asset with a touch in the window, once per deal. A deal appears under every asset that touched
   it, so these overlap and the page says never to add them up.
+One company touching the same asset several times within a day (a registration then the visit, two clicks) is one
+touch in the credit, so it cannot hold three shares of an even split; the per-asset touch count still shows every one.
 Each kind of asset (campaign, newsletter, form, journey, WhatsApp template, event) is its own question. A touch counts
 only when the person **did something** unless the person ticks "also people only sent something". Money: open pipeline
 and won revenue are the deal amounts; **paid** is the money received on invoices raised from the deal's quotes
