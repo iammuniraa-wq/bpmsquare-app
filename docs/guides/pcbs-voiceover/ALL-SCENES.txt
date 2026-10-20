@@ -1,0 +1,32 @@
+SCENE 1: Title (10 s)  (about 7 seconds, 18 words)
+Hello, this is a short walkthrough of how BPMSquare turns a customer's enquiry into a priced precast quote.
+
+SCENE 2: BPMSquare in 60 seconds (60 s)  (about 28 seconds, 69 words)
+BPMSquare is one platform for the whole customer journey. Your accounts and contacts; quotes and pricing; products with their bills of materials; supplier requests for quotation; and marketing and follow-up. It is built for companies that sell projects, in English and Arabic, and it connects to your ERP, including Dynamics 365. Everything you see starts from one customer record, so sales, pricing and marketing never work from different lists.
+
+SCENE 3: Start with the customer (30 s)  (about 9 seconds, 22 words)
+A new estimate starts blank, with the customer first. The villa and the price appear only once there is something to price.
+
+SCENE 4: Paste the email (40 s)  (about 17 seconds, 42 words)
+Your sales team gets an email from a customer. They paste it here. BPMSquare reads it and fills in the details: two floors, around 220 square metres per floor, premium finish, stairs, a boundary wall. It also picks up who sent it.
+
+SCENE 5: Create the customer (30 s)  (about 13 seconds, 32 words)
+The sender is not in the system yet. One click creates the account and the contact, with the email and phone from the signature. Nothing is created until you press the button.
+
+SCENE 6: The villa and the price (50 s)  (about 16 seconds, 41 words)
+Here is the building, made from the numbers, with the actual precast pieces: walls, slabs, columns, stairs. Change the finish and the price updates straight away. This is not a picture, the bill of materials is added up from these pieces.
+
+SCENE 7: How the price is built (50 s)  (about 20 seconds, 51 words)
+Your team can open how the price is built: materials, production, transport, erection and overhead, then margin and VAT. The schedule section shows how long casting takes with your plant capacity, and a risk range for the cost. These rates are examples. In the project we set them with your numbers.
+
+SCENE 8: Products and kits (40 s)  (about 15 seconds, 37 words)
+The lines come from your product catalogue. A wall panel kit is made of concrete, rebar, insulation and connectors, and its cost is rolled up from those parts. Change a material cost once, and every estimate follows.
+
+SCENE 9: Create the quote (40 s)  (about 8 seconds, 20 words)
+One click turns the estimate into a customer quote, grouped in sections. The customer sees prices, not your internal costs.
+
+SCENE 10: Send to your ERP (30 s)  (about 14 seconds, 34 words)
+For your ERP, you can export the item list and the work breakdown as files. The Dynamics 365 connection is built, and we would test it together on your environment before anything goes live.
+
+SCENE 11: Close (30 s)  (about 11 seconds, 28 words)
+This is an early version. Everything shown can be shaped with your real products, rates and rules. We would be glad to do that with you. Thank you.

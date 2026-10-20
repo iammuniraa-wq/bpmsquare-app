@@ -1,0 +1,1 @@
+Your sales team gets an email from a customer. They paste it here. BPMSquare reads it and fills in the details: two floors, around 220 square metres per floor, premium finish, stairs, a boundary wall. It also picks up who sent it.

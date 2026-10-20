@@ -1,0 +1,1 @@
+For your ERP, you can export the item list and the work breakdown as files. The Dynamics 365 connection is built, and we would test it together on your environment before anything goes live.

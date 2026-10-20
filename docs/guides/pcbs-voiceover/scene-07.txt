@@ -1,0 +1,1 @@
+Your team can open how the price is built: materials, production, transport, erection and overhead, then margin and VAT. The schedule section shows how long casting takes with your plant capacity, and a risk range for the cost. These rates are examples. In the project we set them with your numbers.

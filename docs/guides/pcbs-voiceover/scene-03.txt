@@ -1,0 +1,1 @@
+A new estimate starts blank, with the customer first. The villa and the price appear only once there is something to price.
