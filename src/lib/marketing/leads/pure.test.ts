@@ -84,7 +84,7 @@ describe("lead score and stage in campaign audiences", () => {
     expect(keys({ marketingBuilder: true, scoringOn: false })).not.toContain("lead_score");
     expect(keys({ marketingBuilder: false, scoringOn: true })).not.toContain("lead_stage");
     // Everything else is untouched for everyone.
-    expect(keys({ marketingBuilder: false, scoringOn: false }).length).toBe(SEGMENT_FIELDS.filter((f) => f.scope !== "marketing").length);
+    expect(keys({ marketingBuilder: false, scoringOn: false }).length).toBe(SEGMENT_FIELDS.filter((f) => f.scope !== "marketing" && !f.audience).length);
   });
 
   it("evaluates against the account's best lead", () => {

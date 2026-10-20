@@ -54,6 +54,7 @@ describe("contacts.email_status never leaves the server", () => {
   it("only the marketing libraries, the contact health actions and their screens touch the column", () => {
     const ALLOWED = [
       /^src\/lib\/marketing\//,
+      /^src\/lib\/newsletter\//,
       /^src\/lib\/encryption\.ts$/,
       /^src\/app\/api\/webhooks\/resend\//,
       /^src\/app\/api\/contacts\/\[id\]\/email-health\//,

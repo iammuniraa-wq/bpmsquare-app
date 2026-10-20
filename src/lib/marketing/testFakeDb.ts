@@ -7,6 +7,9 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 export type Row = Record<string, unknown>;
 type DbError = { code?: string; message: string } | null;
 
+// Column defaults the real tables have and the fake does not infer.
+const COLUMN_DEFAULTS: Record<string, Row> = { journey_runner_lock: { locked_until: "1970-01-01T00:00:00.000Z" } };
+
 export function fakeDb(seed: Record<string, Row[]> = {}, opts: { missingTables?: string[] } = {}) {
   const tables: Record<string, Row[]> = {};
   for (const [k, v] of Object.entries(seed)) tables[k] = v.map((r) => ({ ...r }));
@@ -69,7 +72,7 @@ export function fakeDb(seed: Record<string, Row[]> = {}, opts: { missingTables?:
           t.push(...made);
           return { data: made, error: null };
         }
-        const row: Row = { id: `id-${++n}`, ...(this.payload as Row) };
+        const row: Row = { id: `id-${++n}`, ...(COLUMN_DEFAULTS[this.table] ?? {}), ...(this.payload as Row) };
         t.push(row);
         return { data: this.one ? row : [row], error: null };
       }
@@ -82,7 +85,7 @@ export function fakeDb(seed: Record<string, Row[]> = {}, opts: { missingTables?:
             if (!this.upsertOpts.ignoreDuplicates) Object.assign(found, p);
             out.push(found);
           } else {
-            const row: Row = { id: `id-${++n}`, ...p };
+            const row: Row = { id: `id-${++n}`, ...(COLUMN_DEFAULTS[this.table] ?? {}), ...p };
             t.push(row);
             out.push(row);
           }
@@ -98,7 +101,7 @@ export function fakeDb(seed: Record<string, Row[]> = {}, opts: { missingTables?:
             if (!this.upsertOpts.ignoreDuplicates) Object.assign(existing, p);
             written.push(existing);
           } else {
-            const row: Row = { id: `id-${++n}`, ...p };
+            const row: Row = { id: `id-${++n}`, ...(COLUMN_DEFAULTS[this.table] ?? {}), ...p };
             t.push(row);
             written.push(row);
           }
