@@ -25,6 +25,8 @@ import { sortBySlNo } from "@/lib/lineOrder";
 import { getSegmentField, matchesAllFilters, type SegmentFilter } from "@/lib/marketingSegmentation";
 import { loadAudienceValues, QUIET_VALUES } from "@/lib/signals/audience";
 import { ABM_SEGMENT_KEYS, computeAbmSignalsBulk } from "@/lib/abm/signals";
+import { EMPTY_ACCOUNT_SIGNALS, filtersNeedSignals } from "@/lib/accountSignals";
+import { loadAccountSignals } from "@/lib/coverage/signals";
 import type { SearchObjectType, SearchResult } from "@/lib/globalSearch";
 import { formatMoney, resolveCurrency, type CurrencyDef } from "@/lib/currency";
 import { tenantOwnsObject } from "@/lib/objectFeatures";
@@ -2152,6 +2154,10 @@ export async function resolveMarketingRecipientsLive(
     ? await computeAbmSignalsBulk(tenantId, accounts.map((a) => a.id))
     : null;
 
+  // Coverage-driven fields (active AMC, bought product) aren't account
+  // columns; compute them once, only when a filter actually uses one.
+  const signals = filtersNeedSignals(filters) ? await loadAccountSignals(tenantId) : null;
+
   const accountCandidates: MarketingRecipientCandidate[] = accounts
     .filter((a) => {
       if (excludeSet.has(a.id)) return false;
@@ -2164,6 +2170,7 @@ export async function resolveMarketingRecipientsLive(
           ...(leadSignals ? leadSignals.get(a.id) : undefined),
           ...(signalValues ? (signalValues.get(a.id) ?? QUIET_VALUES) : undefined),
           ...(abmSignals ? (abmSignals.get(a.id) ?? {}) : undefined),
+          ...(signals ? (signals.get(a.id) ?? EMPTY_ACCOUNT_SIGNALS) : undefined),
         };
         return matchesAllFilters(record, filters, match);
       }

@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { requireTenantUser } from "@/lib/supabase-server";
+import { requireMarketingAccess } from "@/lib/marketingAccess";
 import { sanitizeRichText } from "@/lib/sanitizeHtml";
 import { resolveCampaignContent } from "@/lib/marketingCampaignContent";
 import { getMarketingCampaign } from "@/lib/data";
@@ -20,12 +20,8 @@ function cleanEmails(input: unknown): string[] {
 }
 
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  try {
-    await requireTenantUser();
-  } catch (e: unknown) {
-    const err = e as { status: number; message: string };
-    return NextResponse.json({ error: err.message }, { status: err.status });
-  }
+  const guard = await requireMarketingAccess(["marketing"], "view");
+  if ("error" in guard) return guard.error;
 
   const { id } = await params;
   const data = await getMarketingCampaign(id);
@@ -36,13 +32,9 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
 // Only draft campaigns can be edited -- once a send starts, the campaign
 // becomes a record of what was actually sent, not something to keep changing.
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  let supabase, tenantId;
-  try {
-    ({ supabase, tenantId } = await requireTenantUser());
-  } catch (e: unknown) {
-    const err = e as { status: number; message: string };
-    return NextResponse.json({ error: err.message }, { status: err.status });
-  }
+  const guard = await requireMarketingAccess(["marketing"], "edit");
+  if ("error" in guard) return guard.error;
+  const { supabase, tenantId } = guard.auth;
 
   const { id } = await params;
   const { data: existing } = await supabase.from("marketing_campaigns").select("status, template_id, custom_message, subject").eq("id", id).eq("tenant_id", tenantId).maybeSingle();
@@ -100,13 +92,9 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 }
 
 export async function DELETE(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  let supabase, tenantId;
-  try {
-    ({ supabase, tenantId } = await requireTenantUser());
-  } catch (e: unknown) {
-    const err = e as { status: number; message: string };
-    return NextResponse.json({ error: err.message }, { status: err.status });
-  }
+  const guard = await requireMarketingAccess(["marketing"], "edit");
+  if ("error" in guard) return guard.error;
+  const { supabase, tenantId } = guard.auth;
 
   const { id } = await params;
   const { data: existing } = await supabase.from("marketing_campaigns").select("status").eq("id", id).eq("tenant_id", tenantId).maybeSingle();

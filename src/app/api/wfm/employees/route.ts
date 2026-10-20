@@ -3,7 +3,7 @@ import { createAdminSupabase } from "@/lib/supabase-server";
 import { requireWfmSupervisor, getWfmConfig } from "@/lib/wfm/server";
 import { wfmEmployeesPayload } from "@/lib/wfm/bootstrap";
 import { generateNextEmployeeCode, isEmployeeCodeCollision } from "@/lib/employeeRef";
-import { resolveWfmScope } from "@/lib/wfm/scope";
+import { resolveWfmScope, filterEmployeesToScope } from "@/lib/wfm/scope";
 
 
 // Capped per route, not via vercel.json. That config carried
@@ -31,12 +31,7 @@ export async function GET() {
   try {
     const scope = await resolveWfmScope(ctx);
     const rows = await wfmEmployeesPayload(ctx.supabase, ctx.tenantId);
-    if (scope.unrestricted) return NextResponse.json(rows);
-    // A supervisor's own record is included here even though it is not in
-    // their subtree -- they need to see themselves on the Employees screen;
-    // they simply can't APPROVE their own requests (see canApproveFor).
-    const visible = new Set([...(scope.employeeIds ?? []), scope.selfEmployeeId].filter(Boolean) as string[]);
-    return NextResponse.json(rows.filter((r: { id: string }) => visible.has(r.id)));
+    return NextResponse.json(filterEmployeesToScope(rows, scope));
   } catch (e: unknown) {
     return NextResponse.json({ error: (e as Error).message }, { status: 500 });
   }

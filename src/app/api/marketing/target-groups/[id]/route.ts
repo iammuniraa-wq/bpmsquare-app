@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { requireTenantUser } from "@/lib/supabase-server";
+import { requireMarketingAccess } from "@/lib/marketingAccess";
 import { sanitizeSegmentFilters, sanitizeMatch } from "@/lib/marketingSegmentation";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -16,13 +16,9 @@ function cleanEmails(input: unknown): string[] {
 }
 
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  let supabase, tenantId;
-  try {
-    ({ supabase, tenantId } = await requireTenantUser());
-  } catch (e: unknown) {
-    const err = e as { status: number; message: string };
-    return NextResponse.json({ error: err.message }, { status: err.status });
-  }
+  const guard = await requireMarketingAccess(["marketing", "marketing_segments"], "view");
+  if ("error" in guard) return guard.error;
+  const { supabase, tenantId } = guard.auth;
 
   const { id } = await params;
   const { data, error } = await supabase.from("marketing_target_groups").select("*").eq("id", id).eq("tenant_id", tenantId).maybeSingle();
@@ -32,13 +28,9 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
 }
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  let supabase, tenantId;
-  try {
-    ({ supabase, tenantId } = await requireTenantUser());
-  } catch (e: unknown) {
-    const err = e as { status: number; message: string };
-    return NextResponse.json({ error: err.message }, { status: err.status });
-  }
+  const guard = await requireMarketingAccess(["marketing_segments"], "edit");
+  if ("error" in guard) return guard.error;
+  const { supabase, tenantId } = guard.auth;
 
   const { id } = await params;
   const body = await request.json();
@@ -63,13 +55,9 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 }
 
 export async function DELETE(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  let supabase, tenantId;
-  try {
-    ({ supabase, tenantId } = await requireTenantUser());
-  } catch (e: unknown) {
-    const err = e as { status: number; message: string };
-    return NextResponse.json({ error: err.message }, { status: err.status });
-  }
+  const guard = await requireMarketingAccess(["marketing_segments"], "edit");
+  if ("error" in guard) return guard.error;
+  const { supabase, tenantId } = guard.auth;
 
   const { id } = await params;
   const { error } = await supabase.from("marketing_target_groups").delete().eq("id", id).eq("tenant_id", tenantId);

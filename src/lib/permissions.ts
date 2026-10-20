@@ -130,3 +130,19 @@ export async function requireWorkcenterView(workcenter: WorkcenterKey): Promise<
   const perms = await resolvePermissions(supabase, tenantId, userId, role);
   if (!canViewWorkcenter(perms, workcenter)) redirect(ROUTES.dashboard);
 }
+
+/**
+ * Same as requireWorkcenterView, for create/edit-only pages (a "new" form or
+ * an editor with no read-only state) -- a view-only grant would let the user
+ * open a form whose save the API then refuses.
+ */
+export async function requireWorkcenterEdit(workcenter: WorkcenterKey): Promise<void> {
+  let supabase, tenantId, userId, role;
+  try {
+    ({ supabase, tenantId, userId, role } = await requireTenantUser());
+  } catch {
+    redirect(ROUTES.login);
+  }
+  const perms = await resolvePermissions(supabase, tenantId, userId, role);
+  if (!canEditWorkcenter(perms, workcenter)) redirect(ROUTES.dashboard);
+}

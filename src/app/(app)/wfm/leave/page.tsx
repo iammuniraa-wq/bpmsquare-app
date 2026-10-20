@@ -1,7 +1,7 @@
 import { requireWorkcenterView } from "@/lib/permissions";
 import { requireFeature } from "@/lib/tenant";
-import { requireWfmSupervisorPage } from "@/lib/wfm/server";
-import { requireTenantUser } from "@/lib/supabase-server";
+import { requireWfm, requireWfmSupervisorPage } from "@/lib/wfm/server";
+import { resolveWfmScope, filterEmployeesToScope } from "@/lib/wfm/scope";
 import { wfmEmployeesPayload, wfmLeaveTypesPayload, wfmLeaveRecordsPayload, wfmLeaveRequestsPayload } from "@/lib/wfm/bootstrap";
 import PageHeader from "@/components/PageHeader";
 import TabTitle from "@/components/TabTitle";
@@ -15,14 +15,19 @@ export default async function WfmLeavePage() {
 
   // Server-prefetch of the client's bootstrap (initial filter is "pending"
   // requests, matching LeaveClient's default). Falls back to client fetch.
-  const { supabase, tenantId } = await requireTenantUser();
+  // Scoped exactly as the /api/wfm routes the client refreshes from are, so
+  // the first paint (and the page payload) never carries people outside the
+  // caller's reporting tree.
   let initial = null;
   try {
+    const ctx = await requireWfm();
+    const { supabase, tenantId } = ctx;
+    const scope = await resolveWfmScope(ctx);
     const [types, records, employees, requests] = await Promise.all([
       wfmLeaveTypesPayload(supabase, tenantId),
-      wfmLeaveRecordsPayload(supabase, tenantId),
-      wfmEmployeesPayload(supabase, tenantId),
-      wfmLeaveRequestsPayload(supabase, tenantId, { status: "pending" }),
+      wfmLeaveRecordsPayload(supabase, tenantId, null, scope),
+      wfmEmployeesPayload(supabase, tenantId).then((rows) => filterEmployeesToScope(rows, scope)),
+      wfmLeaveRequestsPayload(supabase, tenantId, { status: "pending", scope }),
     ]);
     initial = { types, records, employees, requests } as unknown as React.ComponentProps<typeof LeaveClient>["initial"];
   } catch { /* client load() handles it */ }
