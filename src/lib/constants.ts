@@ -83,6 +83,14 @@ export const ROUTES = {
   marketingJourneys: "/marketing/journeys",
   marketingJourneyNew: "/marketing/journeys/new",
   marketingJourney: (id: string) => `/marketing/journeys/${id}`,
+  marketingWhatsapp: "/marketing/whatsapp",
+  marketingWhatsappNew: "/marketing/whatsapp/new",
+  marketingWhatsappTemplate: (id: string) => `/marketing/whatsapp/${id}`,
+  marketingWhatsappSetup: "/marketing/whatsapp/setup",
+  marketingAttribution: "/marketing/attribution",
+  marketingEvents: "/marketing/events",
+  marketingEventNew: "/marketing/events/new",
+  marketingEvent: (id: string) => `/marketing/events/${id}`,
   marketingNewsletters: "/marketing/newsletters",
   marketingNewsletterNew: "/marketing/newsletters/new",
   marketingNewsletter: (id: string) => `/marketing/newsletters/${id}`,
@@ -337,6 +345,9 @@ export const NAV: NavGroup[] = [
           { label: "Forms", href: ROUTES.marketingForms, icon: "☰", pillar: "purple", featureKey: "marketing_forms", workcenterKey: "marketing_forms" },
           { label: "ABM programs", href: ROUTES.marketingAbm, icon: "◎", pillar: "purple", featureKey: "abm", workcenterKey: "abm" },
           { label: "Journeys", href: ROUTES.marketingJourneys, icon: "↠", pillar: "purple", featureKey: "journeys", workcenterKey: "marketing_journeys" },
+          { label: "WhatsApp", href: ROUTES.marketingWhatsapp, icon: "☏", pillar: "purple", featureKey: "whatsapp_marketing", workcenterKey: "marketing_whatsapp" },
+          { label: "Events", href: ROUTES.marketingEvents, icon: "◷", pillar: "purple", featureKey: "marketing_events", workcenterKey: "marketing_events" },
+          { label: "Revenue by campaign", href: ROUTES.marketingAttribution, icon: "⌁", pillar: "purple", featureKey: "marketing_attribution", workcenterKey: "marketing_attribution" },
           { label: "Segmentation", href: ROUTES.marketingSegments, icon: "⌗", pillar: "purple", featureKey: "marketing", workcenterKey: "marketing_segments" },
           { label: "Leads", href: ROUTES.leads, icon: "✦", pillar: "purple", featureKey: "leads", workcenterKey: "leads" },
           { label: "Scored leads", href: ROUTES.marketingLeads, icon: "◎", pillar: "purple", featureKey: "marketing_scoring", workcenterKey: "leads" },
@@ -670,6 +681,26 @@ export type TenantFeatures = {
   // default OFF, missing key reads false; with it off there is no menu item,
   // no route and no runner work for the workspace. Needs `marketing`.
   journeys: boolean;
+  // WhatsApp marketing (0185-0188, docs/shells/whatsapp-shell.md): approved
+  // templates, a consent-gated send, an inbound webhook and a journey step. A
+  // platform-admin-only flag: default OFF, missing key reads false; with it off
+  // there is no menu item, no route, no webhook and no journey step. Needs
+  // `marketing`.
+  whatsapp_marketing: boolean;
+  // Attribution (0190-0192, docs/shells/attribution-shell.md): "Revenue by
+  // campaign", the deals and revenue each campaign, newsletter, form, journey,
+  // WhatsApp template and event started or touched, by first touch, last touch
+  // or linear. Read-only on the data it reads. A platform-admin-only flag:
+  // default OFF, missing key reads false; with it off there is no menu item,
+  // no route and no cron work for the workspace. Needs `marketing`.
+  marketing_attribution: boolean;
+  // Marketing events (0195-0196, docs/shells/events-shell.md): webinars, shows,
+  // roadshows and site visits, registration through an existing Form, check-in
+  // by staff, a results panel and a follow-up journey for attendees or
+  // no-shows. A platform-admin-only flag: default OFF, missing key reads false;
+  // with it off there is no menu item, no route and no hook on any form. Needs
+  // `marketing` and `marketing_forms`.
+  marketing_events: boolean;
 };
 
 // WfmConfig — tenant-level WFM (attendance) settings, stored in
@@ -1283,6 +1314,10 @@ export type TenantConfig = {
   // Marketing platform (docs/marketing-platform-architecture.md 10). Absent
   // keys read as the defaults in src/lib/marketing/config.ts.
   marketing?: MarketingConfig;
+  // WhatsApp marketing (docs/shells/whatsapp-shell.md). Nothing secret lives
+  // here: credentials are encrypted on whatsapp_identities (0186). On a demo
+  // workspace a send goes to redirect_number, or is logged as a dry run.
+  whatsapp?: { redirect_number?: string; weekly_cap?: number };
   // Process Design Studio allowance (docs/process-design-studio-architecture.md
   // section 6.3), set by a platform admin on the tenant page. Absent keys read as
   // the defaults in src/lib/studio/caps.ts.

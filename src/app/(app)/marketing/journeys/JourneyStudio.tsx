@@ -32,6 +32,8 @@ export type JourneyStudioProps = {
   limits: JourneyLimits;
   timezone: string;
   studioOn: boolean;
+  /** Approved and draft WhatsApp templates for the Send a WhatsApp template step; null when the workspace does not have WhatsApp. */
+  whatsappTemplates?: { id: string; label: string }[] | null;
   canEdit: boolean;
 };
 
@@ -52,7 +54,7 @@ const PHONE_TABS = [{ id: "setup", label: "Setup" }, ...CANVAS_TABS];
 const SHOWN = 5;
 
 const ADDABLE: { kind: StepKind; label: string }[] = [
-  { kind: "wait", label: "+ Wait" }, { kind: "send_newsletter", label: "+ Send a newsletter version" },
+  { kind: "wait", label: "+ Wait" }, { kind: "send_newsletter", label: "+ Send a newsletter version" }, { kind: "send_whatsapp", label: "+ Send a WhatsApp template" },
   { kind: "create_task", label: "+ Create a task for the owner" }, { kind: "notify_owner", label: "+ Notify the owner" }, { kind: "end", label: "+ End" },
 ];
 
@@ -62,6 +64,7 @@ function newStep(kind: StepKind, steps: JourneyStep[]): JourneyStep {
   switch (kind) {
     case "wait": return { id, kind, amount: 1, unit: "days" };
     case "send_newsletter": return { id, kind, newsletter_version_id: null, topic: "offers", languages: [], fallback_language: "en" };
+    case "send_whatsapp": return { id, kind, template_id: null };
     case "create_task": return { id, kind, title: "Call {contact_name}", due_in_days: 1 };
     case "notify_owner": return { id, kind, text: "Please follow up" };
     case "end": return { id, kind };
@@ -71,7 +74,7 @@ function newStep(kind: StepKind, steps: JourneyStep[]): JourneyStep {
 const fmtWhen = (s: string | null) => (s ? new Date(s).toLocaleString("en-GB", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) : "");
 const onPhone = () => typeof window !== "undefined" && window.matchMedia("(max-width: 900px)").matches;
 
-export default function JourneyStudio({ journey, topics, limits, timezone, studioOn, canEdit }: JourneyStudioProps) {
+export default function JourneyStudio({ journey, topics, limits, timezone, studioOn, whatsappTemplates = null, canEdit }: JourneyStudioProps) {
   const router = useRouter();
   const { confirm } = useFeel();
   const [name, setName] = useState(journey.name);
@@ -403,6 +406,17 @@ export default function JourneyStudio({ journey, topics, limits, timezone, studi
                           </select>
                         </div>
                       )}
+                      {s.kind === "send_whatsapp" && (
+                        <div className={styles.stepBody}>
+                          {whatsappTemplates ? (
+                            <select className={styles.select} style={{ flex: "1 1 220px", width: "auto" }} aria-label="WhatsApp template" value={s.template_id ?? ""} disabled={!editable} onChange={(e) => setStep(i, { template_id: e.target.value || null })}>
+                              <option value="">Choose a WhatsApp template…</option>
+                              {whatsappTemplates.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
+                            </select>
+                          ) : <span className={styles.help}>WhatsApp is not switched on for this workspace, so there is nothing to send yet.</span>}
+                        </div>
+                      )}
+                    
                       {s.kind === "create_task" && (
                         <div className={styles.stepBody}>
                           <input className={styles.field} style={{ flex: "1 1 240px", width: "auto" }} aria-label="Task" value={s.title} maxLength={120} disabled={!editable} onChange={(e) => setStep(i, { title: e.target.value })} />
@@ -429,7 +443,7 @@ export default function JourneyStudio({ journey, topics, limits, timezone, studi
               </ol>
               {def.steps.length === 0 && <EmptyState title="No steps yet" text="Add a step, or pick a template in Setup." />}
               <div className={styles.add}>
-                {ADDABLE.map((a) => <button key={a.kind} type="button" className={styles.stepBtn} disabled={!editable || def.steps.length >= MAX_STEPS} onClick={() => patchDef((d) => ({ ...d, steps: [...d.steps, newStep(a.kind, d.steps)] }))}>{a.label}</button>)}
+                {ADDABLE.filter((a) => a.kind !== "send_whatsapp" || whatsappTemplates !== null).map((a) => <button key={a.kind} type="button" className={styles.stepBtn} disabled={!editable || def.steps.length >= MAX_STEPS} onClick={() => patchDef((d) => ({ ...d, steps: [...d.steps, newStep(a.kind, d.steps)] }))}>{a.label}</button>)}
               </div>
             </div>
           </>)}

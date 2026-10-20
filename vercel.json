@@ -55,6 +55,10 @@
       "schedule": "*/5 * * * *"
     },
     {
+      "path": "/api/marketing/cron/attribution",
+      "schedule": "5 */3 * * *"
+    },
+    {
       "path": "/api/events/cron/invoice-overdue",
       "schedule": "45 20 * * *"
     },

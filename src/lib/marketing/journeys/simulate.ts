@@ -4,6 +4,9 @@ import { canContact, type ContactDecision } from "@/lib/marketing/consent";
 import { resolveRecipientLanguage } from "@/lib/newsletter/language";
 import { loadVersion, sendableLanguages } from "@/lib/newsletter/server";
 import { resolveOutbound } from "@/lib/emailOutputRules";
+import { decrypt } from "@/lib/encryption";
+import { normalisePhone } from "@/lib/marketing/whatsapp/phone";
+import { whatsappOutputFor } from "@/lib/marketing/whatsapp/rules";
 import { describeCondition, fillTaskText, triggerLabel, waitMs } from "./definition";
 import type { TenantEnv } from "./env";
 import { defaultOwnerLookup, loadAccount, loadContact, memberEmail, recentSendTimes, troubleFactsOf, type OwnerLookup } from "./facts";
@@ -37,6 +40,8 @@ export type SimulationResult = { person: { name: string; account: string }; line
 export type SimulateDeps = {
   now?: () => Date;
   gate?: (tenantId: string, contactId: string, topic: string | null) => Promise<ContactDecision>;
+  /** The same check for the WhatsApp channel. */
+  waGate?: (tenantId: string, contactId: string, topic: string | null) => Promise<ContactDecision>;
   owner?: OwnerLookup;
   /** Stand-in for the trigger payload (a quote reference, an amount); the real values only exist once an event happens. */
   sample?: Record<string, unknown>;
@@ -117,6 +122,39 @@ export async function simulateJourney(admin: SupabaseClient, env: TenantEnv, def
           step_id: step.id, day: dayOf(), title, outcome: contact.email ? "happens" : "skipped", reason: contact.email ? undefined : "no_email",
           why: `${where} Consent for ${step.topic ?? "this subject"}: ${consent.reason.replace(/_/g, " ")}.`,
           detail: `${version.snapshot.name}, version ${version.version}, in ${choice.lang.toUpperCase()}${subject ? ` — “${subject}”` : ""}`,
+        });
+        break;
+      }
+      case "send_whatsapp": {
+        const title = "Send a WhatsApp template";
+        const skipLine = (reason: string, why: string) => lines.push({ step_id: step.id, day: dayOf(), title, outcome: "skipped", reason, why });
+        if (env.features.whatsapp_marketing !== true) { skipLine("module_off", reasonLabel("module_off")); break; }
+        if (!step.template_id) { skipLine("no_template", reasonLabel("no_template")); break; }
+        const tpl = await admin.from("whatsapp_templates").select("name, language, status, topic, category").eq("id", step.template_id).eq("tenant_id", env.tenantId).maybeSingle();
+        const template = tpl.data as { name: string; language: string; status: string; topic: string | null; category: string } | null;
+        if (!template) { skipLine("template_missing", reasonLabel("template_missing")); break; }
+        const waConsent = await (deps.waGate ?? ((t: string, c: string, topic: string | null) => canContact(t, c, "whatsapp", topic, admin)))(env.tenantId, contact.id, template.topic);
+        if (!waConsent.ok) { skipLine(waConsent.reason, `${reasonLabel(waConsent.reason)}. The message is skipped and the journey carries on.`); break; }
+        if (template.status !== "approved") { skipLine("template_not_approved", reasonLabel("template_not_approved")); break; }
+        const ph = await admin.from("contacts").select("phone, country").eq("id", contact.id).eq("tenant_id", env.tenantId).maybeSingle();
+        const phoneRow = ph.data as { phone: string | null; country: string | null } | null;
+        if (!normalisePhone(decrypt(phoneRow?.phone ?? null), phoneRow?.country)) { skipLine("no_phone", reasonLabel("no_phone")); break; }
+        const waAt = new Date(clock);
+        let waSendAt = waAt;
+        const waTiming = timingCheck(waAt, env.timezone, env.limits);
+        if (!waTiming.ok) { waSendAt = waTiming.resumeAt; lines.push({ step_id: step.id, day: dayOf(), title: "Held", outcome: "held", reason: waTiming.reason, why: `${reasonLabel(waTiming.reason)}: it would go at ${fmtTime(waSendAt, env.timezone)}.` }); }
+        const waCap = capCheck(waSendAt, [...recent, ...simulatedSends], env.limits);
+        if (!waCap.ok) { waSendAt = waCap.resumeAt; lines.push({ step_id: step.id, day: dayOf(), title: "Held", outcome: "held", reason: "daily_cap", why: `${reasonLabel("daily_cap")}: it would go at ${fmtTime(waSendAt, env.timezone)}.` }); }
+        simulatedSends.push(waSendAt);
+        clock = Math.max(clock, waSendAt.getTime());
+        const out = whatsappOutputFor({ isDemo: env.isDemo, config: env.config });
+        const where = out.mode === "redirect" ? "This is a demo workspace, so it would go to the workspace's test number, not to the person."
+          : out.mode === "dry_run" ? "This is a demo workspace with no test number, so it would only be logged." : "It would go to the person.";
+        wouldSend += out.mode === "dry_run" ? 0 : 1;
+        lines.push({
+          step_id: step.id, day: dayOf(), title, outcome: "happens",
+          why: `${where} Consent for ${template.topic ?? "this subject"} on WhatsApp: ${waConsent.reason.replace(/_/g, " ")}.`,
+          detail: `${template.name}, in ${template.language.toUpperCase()}${template.category === "marketing" ? ", a marketing message (one a week per person)" : ""}`,
         });
         break;
       }

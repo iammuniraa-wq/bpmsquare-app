@@ -15,6 +15,7 @@ import { shouldEnrol, triggerSummary, type EventLike } from "./rules";
 import { MAX_ATTEMPTS, TROUBLE_RECHECK_MS, backoffMs, capCheck, inTrouble, localParts, timingCheck } from "./safety";
 import { sendJourneyNewsletter, type SendStepArgs, type SendStepDeps, type SendStepResult } from "./sendStep";
 import { listJourneyRows, type LoadedJourney } from "./store";
+import { sendWhatsAppTemplate, type SendArgs as WaSendArgs, type SendDeps as WaSendDeps, type SendOutcome as WaSendOutcome } from "@/lib/marketing/whatsapp/send";
 import type { RunRow, StepRow } from "./types";
 
 // The runner (docs/marketing-platform-architecture.md 3.3, shell scope in
@@ -30,6 +31,9 @@ export type RunnerDeps = {
   gate?: (tenantId: string, contactId: string, topic: string | null) => Promise<ContactDecision>;
   send?: (admin: SupabaseClient, a: SendStepArgs) => Promise<SendStepResult>;
   sendDeps?: SendStepDeps;
+  /** WhatsApp: the consent check (channel whatsapp) and the send function, replaceable in tests. */
+  waGate?: (tenantId: string, contactId: string, topic: string | null) => Promise<ContactDecision>;
+  sendWa?: (admin: SupabaseClient, a: WaSendArgs, d?: WaSendDeps) => Promise<WaSendOutcome>;
   owner?: OwnerLookup;
   /** Epoch ms after which no new run is started. */
   deadline?: number;
@@ -267,6 +271,63 @@ async function execSend(ctx: Ctx, run: RunRow, journey: LoadedJourney, step: Ext
   return "stop";
 }
 
+/** The WhatsApp step: the same safety rules as the email step, then the one WhatsApp send function (which asks consent again). */
+async function execWhatsapp(ctx: Ctx, run: RunRow, journey: LoadedJourney, step: Extract<LoadedJourney["definition"]["steps"][number], { kind: "send_whatsapp" }>, attempt: number): Promise<StepFlow> {
+  const { admin, env, deps } = ctx;
+  const now = deps.now();
+  const contact = run.contact_id ? await loadContact(admin, env.tenantId, run.contact_id) : null;
+  if (!contact) { await recordStep(ctx, run, step, attempt, "skipped", "no_contact"); ctx.res.skipped++; return "next"; }
+  if (!step.template_id) { await recordStep(ctx, run, step, attempt, "skipped", "no_template", { contact_id: contact.id }); ctx.res.skipped++; return "next"; }
+  if (env.features.whatsapp_marketing !== true) { await recordStep(ctx, run, step, attempt, "skipped", "module_off", { contact_id: contact.id }); ctx.res.skipped++; return "next"; }
+  const account = await loadAccount(admin, env.tenantId, contact.account_id);
+
+  // 1. Consent first, on the WhatsApp channel and the template's own subject, so a refusal is never hidden behind a wait.
+  const { data: tpl, error: tErr } = await admin.from("whatsapp_templates").select("id, topic, category").eq("id", step.template_id).eq("tenant_id", env.tenantId).maybeSingle();
+  if (tErr || !tpl) { await recordStep(ctx, run, step, attempt, "skipped", "template_missing", { contact_id: contact.id }); ctx.res.skipped++; return "next"; }
+  const template = tpl as { topic: string | null; category: string };
+  const gate = deps.waGate ?? ((t: string, c: string, topic: string | null) => canContact(t, c, "whatsapp", topic, admin));
+  const consent = await gate(env.tenantId, contact.id, template.topic);
+  if (!consent.ok) { await recordStep(ctx, run, step, attempt, "skipped", consent.reason, { contact_id: contact.id }); ctx.res.skipped++; return "next"; }
+
+  // 2. The rest defer the step; they never drop it.
+  const today = localParts(now, env.timezone).dateKey;
+  if (journey.definition.entry.pause_when_in_trouble && template.category === "marketing" && contact.account_id) {
+    const facts = await troubleFactsOf(admin, env.tenantId, contact.account_id, today);
+    if (inTrouble(now, facts, env.limits)) { await defer(ctx, run, new Date(now.getTime() + TROUBLE_RECHECK_MS), "account_in_trouble"); return "stop"; }
+  }
+  const timing = timingCheck(now, env.timezone, env.limits);
+  if (!timing.ok) { await defer(ctx, run, timing.resumeAt, timing.reason); return "stop"; }
+  const cap = capCheck(now, await recentSendTimes(admin, env.tenantId, contact.id, now), env.limits);
+  if (!cap.ok) { await defer(ctx, run, cap.resumeAt, cap.reason); return "stop"; }
+
+  // 3. The one WhatsApp send path.
+  const send = deps.sendWa ?? sendWhatsAppTemplate;
+  const amount = typeof run.trigger_payload?.total === "number" ? Math.round(run.trigger_payload.total as number).toLocaleString("en-US") : null;
+  const r = await send(admin, {
+    tenantId: env.tenantId, contactId: contact.id, templateId: step.template_id, origin: "journey", journeyId: journey.id, clientRef: `${run.id}:${step.id}`, depth: 1,
+    values: {
+      contact_name: contact.name.split(" ")[0] || null, account_name: account?.name ?? null, company_name: env.name,
+      quote_ref: typeof run.trigger_payload?.ref === "string" ? (run.trigger_payload.ref as string) : null, amount,
+    },
+  }, { now: deps.now });
+  if (r.status === "sent" || r.status === "dry_run") {
+    await recordStep(ctx, run, step, attempt, "done", r.reason === "already_sent" ? "already_sent" : r.status === "dry_run" ? "dry_run" : "sent", { contact_id: contact.id, sent: true });
+    ctx.res.sent++;
+    return "next";
+  }
+  if (r.status === "skipped") {
+    if (r.reason === "weekly_cap" && r.retryAt) { await defer(ctx, run, r.retryAt, "weekly_cap"); return "stop"; }
+    await recordStep(ctx, run, step, attempt, "skipped", r.reason, { contact_id: contact.id, detail: r.detail });
+    ctx.res.skipped++;
+    return "next";
+  }
+  await recordStep(ctx, run, step, attempt, "failed", r.reason, { detail: r.detail, contact_id: contact.id });
+  ctx.res.errors++;
+  if (attempt >= MAX_ATTEMPTS) await patchRun(ctx, run, { status: "stalled", last_note: `Stuck at the WhatsApp send: ${r.detail ?? reasonLabel(r.reason)}`, note_reason: r.reason });
+  else await patchRun(ctx, run, { next_due_at: new Date(now.getTime() + backoffMs(attempt)).toISOString(), last_note: `Trying again after a problem: ${r.detail ?? reasonLabel(r.reason)}`, note_reason: r.reason });
+  return "stop";
+}
+
 async function defer(ctx: Ctx, run: RunRow, until: Date, reason: string) {
   await patchRun(ctx, run, { next_due_at: until.toISOString(), last_note: `${reasonLabel(reason)}.`, note_reason: reason });
 }
@@ -340,6 +401,7 @@ export async function advanceRun(ctx: Ctx, run: RunRow, journey: LoadedJourney):
             break;
           }
           case "send_newsletter": flow = await execSend(ctx, run, journey, step, attempt); break;
+          case "send_whatsapp": flow = await execWhatsapp(ctx, run, journey, step, attempt); break;
           case "create_task": await execTask(ctx, run, journey, step, attempt); break;
           case "notify_owner": await execNotify(ctx, run, journey, step, attempt); break;
           case "end": await recordStep(ctx, run, step, attempt, "done", "finished"); break;

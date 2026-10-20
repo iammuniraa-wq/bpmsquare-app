@@ -54,6 +54,30 @@ export const FEATURE_DEPENDENCIES: FeatureDependency[] = [
     why: "Journeys follow people from Marketing audiences and respect its consent and unsubscribe rules.",
   },
   {
+    key: "whatsapp_marketing", needs: "marketing", strength: "hard",
+    why: "WhatsApp messages follow Marketing consent and topics, and sit in the Marketing menu.",
+  },
+  {
+    key: "marketing_events", needs: "marketing", strength: "hard",
+    why: "Events sit in the Marketing menu and follow its consent rules.",
+  },
+  {
+    key: "marketing_events", needs: "marketing_forms", strength: "hard",
+    why: "People register for an event through a Form, which records their consent.",
+  },
+  {
+    key: "marketing_events", needs: "journeys", strength: "partial",
+    why: "The follow-up for attendees or no-shows starts a journey; without Journeys the event works but nothing can be started.",
+  },
+  {
+    key: "marketing_attribution", needs: "marketing", strength: "hard",
+    why: "Attribution reads Marketing's campaign, form and journey activity and sits in the Marketing menu.",
+  },
+  {
+    key: "marketing_attribution", needs: "pipeline", strength: "partial",
+    why: "Revenue is read from deals; without Pipeline there are touches but nothing to credit.",
+  },
+  {
     key: "journeys", needs: "newsletter_studio", strength: "partial",
     why: "The Send newsletter step needs a kept version from the Newsletter Studio; the other steps work without it.",
   },
@@ -69,7 +93,7 @@ export const FEATURE_GROUP: Partial<Record<Key, SettingsGroupId>> = {
   accounts: "sales", contacts: "sales", quotations: "sales", standard_quotes: "sales", quote_lines_dw: "sales",
   pipeline: "sales", leads: "sales", invoices: "sales", partners: "sales", marketing: "sales", rfq: "sales",
   products: "sales", suppliers: "sales", purchasing: "sales", pricing_engine: "sales", pricing_engine_quotes: "sales",
-  coverage_model: "sales", fence_projects: "sales", estimator: "sales", marketing_scoring: "marketing", process_studio: "sales", newsletter_studio: "marketing", buying_signals: "marketing", marketing_forms: "marketing", abm: "marketing", journeys: "marketing",
+  coverage_model: "sales", fence_projects: "sales", estimator: "sales", marketing_scoring: "marketing", process_studio: "sales", newsletter_studio: "marketing", buying_signals: "marketing", marketing_forms: "marketing", abm: "marketing", journeys: "marketing", whatsapp_marketing: "marketing", marketing_attribution: "marketing", marketing_events: "marketing",
   // Service
   cases: "service", work_orders: "service", technicians: "service", assets: "service", amc: "service", dispatch: "service",
   // Workforce

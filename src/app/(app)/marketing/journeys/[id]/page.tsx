@@ -28,6 +28,12 @@ export default async function JourneyPage({ params }: { params: Promise<{ id: st
     }
     notFound();
   }
+  // Templates for the WhatsApp step, only when the workspace has the module (null hides the step everywhere).
+  let whatsappTemplates: { id: string; label: string }[] | null = null;
+  if (ctx.env.features.whatsapp_marketing === true) {
+    const t = await ctx.admin.from("whatsapp_templates").select("id, name, language, status").eq("tenant_id", ctx.tenantId).neq("status", "archived").order("name").limit(100);
+    whatsappTemplates = t.error ? [] : ((t.data ?? []) as { id: string; name: string; language: string; status: string }[]).map((x) => ({ id: x.id, label: `${x.name} (${x.language.toUpperCase()}${x.status === "approved" ? "" : `, ${x.status}`})` }));
+  }
   const runs = await ctx.admin.from("journey_runs").select("id").eq("tenant_id", ctx.tenantId).eq("journey_id", id).limit(1);
 
   return (
@@ -37,6 +43,7 @@ export default async function JourneyPage({ params }: { params: Promise<{ id: st
       limits={ctx.env.limits}
       timezone={ctx.env.timezone}
       studioOn={ctx.env.features.newsletter_studio === true}
+      whatsappTemplates={whatsappTemplates}
       canEdit={ctx.can.edit}
     />
   );

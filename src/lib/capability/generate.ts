@@ -73,7 +73,7 @@ export const MODULE_LABEL: Record<Key, string> = {
   pricing_engine_quotes: "Live prices on quote lines", next_experience: "Nova", enterprise_theme: "Enterprise theme",
   spectacular_theme: "Spectacular theme", coverage_model: "Coverage", ai_reports: "AI report builder",
   fence_projects: "Fence projects", rfq: "RFQs", estimator: "Estimates", process_studio: "Process Design Studio",
-  marketing_scoring: "Marketing scoring and consent", newsletter_studio: "Newsletter Studio", buying_signals: "Buying signals", marketing_forms: "Forms and preference centre", abm: "ABM programs", journeys: "Journeys",
+  marketing_scoring: "Marketing scoring and consent", newsletter_studio: "Newsletter Studio", buying_signals: "Buying signals", marketing_forms: "Forms and preference centre", abm: "ABM programs", journeys: "Journeys", whatsapp_marketing: "WhatsApp marketing", marketing_attribution: "Revenue by campaign", marketing_events: "Marketing events",
 };
 
 /** Which module owns each field-registry object type. Record<PilotObjectType,...> keeps it complete. */
