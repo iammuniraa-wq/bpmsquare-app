@@ -5,7 +5,7 @@ import { canContact, type ContactDecision } from "@/lib/marketing/consent";
 import { contactsForEmails, eventIdentity } from "@/lib/marketing/recipientLookup";
 import { isSchemaPending } from "@/lib/marketing/pending";
 import { emitEvent } from "@/lib/events/emit";
-import { EVENTS } from "@/lib/events/catalog";
+import { EVENTS, type EventSource } from "@/lib/events/catalog";
 import { emitCampaignSent } from "@/lib/events/emitters";
 import { logEmail } from "@/lib/emailLog";
 import { resolveOutbound, type EmailOutput } from "@/lib/emailOutputRules";
@@ -55,6 +55,28 @@ export type SendInput = {
   /** Injected in tests; production uses the real gate. */
   gate?: (tenantId: string, contactId: string, topic: string | null) => Promise<ContactDecision>;
   delayMs?: number;
+  /** A journey step passes its own loop-guard depth and source; a person pressing Send leaves this out (depth 0, "app"). */
+  events?: { depth: number; source: EventSource };
+  /** Called once per recipient with the outcome. */
+  onOutcome?: (o: SendOutcome) => void;
+  /** A journey sends one person at a time; it does not announce a campaign.sent for each. */
+  skipSummary?: boolean;
+};
+
+/**
+ * What happened to one recipient, reported to a caller that asked (the journey
+ * runner). It is the only extra the journey step needs from this path; the send
+ * itself is not duplicated anywhere.
+ */
+export type SendOutcome = {
+  status: "sent" | "failed" | "skipped";
+  /** The marketing_campaign_recipients status, e.g. skipped_no_consent. */
+  recipientStatus: string;
+  /** For a skip: the consent or language reason; for a failure: the provider message. */
+  reason: string | null;
+  recipientId: string | null;
+  contactId: string | null;
+  lang: string | null;
 };
 
 export type SendResult = { sent: number; failed: number; skipped: number; byLanguage: Record<string, number> };
@@ -105,7 +127,7 @@ export async function sendNewsletterCampaign(d: SendInput): Promise<SendResult> 
   const { contactByEmail, hashByEmail } = await contactsForEmails(d.admin, tenantId, d.candidates.flatMap((c) => (c.manual_email ? [c.manual_email] : [])));
 
   const common = (rid: string | null, contact: ContactRow | null, lang: string | null, candidate: MarketingRecipientCandidate) => ({
-    object_type: "marketing_campaign", object_id: campaign.id, actor_id: d.userId, source: "app" as const,
+    object_type: "marketing_campaign", object_id: campaign.id, actor_id: d.userId, source: d.events?.source ?? ("app" as const), depth: d.events?.depth ?? 0,
     contact_id: contact?.id ?? null, account_id: contact?.account_id ?? candidate.account_id ?? null,
     campaign_id: campaign.id, newsletter_id: version.newsletter_id, newsletter_version_id: version.id, lang, topic: campaign.topic,
     ...eventIdentity(contact ? null : candidate.manual_email ? hashByEmail.get(norm(candidate.manual_email)) : null),
@@ -120,6 +142,7 @@ export async function sendNewsletterCampaign(d: SendInput): Promise<SendResult> 
     const rid = (data as { id?: string } | null)?.id ?? null;
     await emitEvent(tenantId, { name: EVENTS.EMAIL_SKIPPED, ...common(rid ? `${rid}:skipped` : null, contact, lang, candidate), payload: { reason } }, d.admin);
     result.skipped++;
+    d.onOutcome?.({ status: "skipped", recipientStatus: status, reason, recipientId: rid, contactId: contact?.id ?? null, lang });
   };
 
   for (const candidate of d.candidates) {
@@ -158,7 +181,7 @@ export async function sendNewsletterCampaign(d: SendInput): Promise<SendResult> 
       email: candidate.email, status: "pending", contact_id: contact.id, lang: choice.lang,
     }).select("id").single();
     const rid = (ins as { id?: string } | null)?.id;
-    if (insErr || !rid) { result.failed++; continue; }
+    if (insErr || !rid) { result.failed++; d.onOutcome?.({ status: "failed", recipientStatus: "failed", reason: insErr?.message ?? "recipient_not_recorded", recipientId: null, contactId: contact.id, lang: choice.lang }); continue; }
 
     const unsubToken = signUnsubscribeToken(accountId);
     const interestToken = signCampaignInterestToken(campaign.id, accountId);
@@ -202,6 +225,7 @@ export async function sendNewsletterCampaign(d: SendInput): Promise<SendResult> 
         emitEvent(tenantId, { name: EVENTS.EMAIL_FAILED, ...common(`${rid}:failed`, contact, choice.lang, candidate), payload: { error: sendError.message.slice(0, 200) } }, d.admin),
       ]);
       result.failed++;
+      d.onOutcome?.({ status: "failed", recipientStatus: "failed", reason: sendError.message, recipientId: rid, contactId: contact.id, lang: choice.lang });
     } else {
       await Promise.all([
         d.supabase.from("marketing_campaign_recipients").update({ status: "sent", sent_at: new Date().toISOString() }).eq("id", rid).eq("tenant_id", tenantId),
@@ -210,10 +234,11 @@ export async function sendNewsletterCampaign(d: SendInput): Promise<SendResult> 
       ]);
       result.sent++;
       result.byLanguage[choice.lang] = (result.byLanguage[choice.lang] ?? 0) + 1;
+      d.onOutcome?.({ status: "sent", recipientStatus: "sent", reason: null, recipientId: rid, contactId: contact.id, lang: choice.lang });
     }
     if (delay > 0) await sleep(delay);
   }
 
-  await emitCampaignSent(tenantId, { campaignId: campaign.id, name: campaign.name, sent: result.sent, failed: result.failed, skipped: result.skipped, actorId: d.userId });
+  if (!d.skipSummary) await emitCampaignSent(tenantId, { campaignId: campaign.id, name: campaign.name, sent: result.sent, failed: result.failed, skipped: result.skipped, actorId: d.userId });
   return result;
 }
