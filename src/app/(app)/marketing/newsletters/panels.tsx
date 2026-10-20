@@ -2,6 +2,9 @@
 
 import { useRef, useState } from "react";
 import Button from "@/components/ui/Button";
+import InfoTip from "@/components/ui/InfoTip";
+import { Opt } from "@/components/ui/Opt";
+import { NEWSLETTER_TIPS } from "@/lib/newsletter/tips";
 import { uploadImage } from "./studioApi";
 import { pendingCount } from "@/lib/newsletter/studioState";
 import { BLOCK_LABEL, FIELD_LABEL, LANGUAGES, PRIMARY_FIELD, REQUIRED_BLOCKS, TEXT_FIELDS, SOURCE_LANGUAGE, languageDef, type LanguageRow, type NewsletterBlock } from "@/lib/newsletter/types";
@@ -12,24 +15,6 @@ import styles from "./newsletter.module.css";
 // the document, these only show it and report what a person did.
 
 export const cx = (...p: (string | false | null | undefined)[]): string => p.filter(Boolean).join(" ");
-
-const Chevron = () => (
-  <svg className={styles.chev} viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
-);
-
-/** One collapsible option group: a button carrying the label, a one-word summary and a one-line plain-words hint. */
-export function Group({ id, title, summary, hint, open, on, onToggle, children }: {
-  id: string; title: string; summary: string; hint: string; open: boolean; on: boolean; onToggle: () => void; children: React.ReactNode;
-}) {
-  return (
-    <section className={cx(styles.sec, open && styles.open, on && styles.on)} id={id}>
-      <button type="button" className={styles.sech} aria-expanded={open} aria-controls={`${id}Body`} onClick={onToggle}>
-        <b>{title}</b><span className={styles.sum}>{summary}</span><span className={styles.hint}>{hint}</span><Chevron />
-      </button>
-      <div className={styles.in} id={`${id}Body`} hidden={!open}>{children}</div>
-    </section>
-  );
-}
 
 const ICON = {
   eye: <svg viewBox="0 0 24 24"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12z" /><circle cx="12" cy="12" r="3" /></svg>,
@@ -116,7 +101,7 @@ export function BlockEditor({ block, row, lang, canEdit, isAdmin, unlocked, onUn
     <div className={styles.editor} id="nlEditor">
       <div className={styles.lbl}>{BLOCK_LABEL[block.type]} · {languageDef(lang)?.name ?? lang}{locked ? " (brand block, locked)" : ""}</div>
       {locked && isAdmin && <div><Button size="sm" onClick={onUnlock}>Unlock to edit</Button></div>}
-      {locked && !isAdmin && <p className={styles.hint}>Brand blocks carry your header, address and the unsubscribe line. An admin can unlock them.</p>}
+      {locked && !isAdmin && <p className={styles.hint}>Brand block: only an admin can unlock it.</p>}
 
       {fields.map((f) => (
         <div key={f} style={{ display: "grid", gap: 4 }}>
@@ -128,7 +113,7 @@ export function BlockEditor({ block, row, lang, canEdit, isAdmin, unlocked, onUn
           )}
           {REWRITABLE.has(f) && !disabled && (
             <div className={styles.rw}>
-              <span>Rewrite:</span>
+              <span className="bpm-label-row">Rewrite<InfoTip label="Rewrite">{NEWSLETTER_TIPS.rewrite}</InfoTip></span>
               {(["shorter", "warmer", "formal"] as const).map((t) => (
                 <Button key={t} size="sm" disabled={!aiReady || !words[f] || rewriting !== null} loading={rewriting === `${f}:${t}`} onClick={() => onRewrite(f, t)}>
                   {t === "shorter" ? "Shorter" : t === "warmer" ? "Friendlier" : "More formal"}
@@ -140,31 +125,26 @@ export function BlockEditor({ block, row, lang, canEdit, isAdmin, unlocked, onUn
       ))}
 
       {(block.type === "button" || block.type === "product" || block.type === "event" || block.type === "image") && (
-        <div style={{ display: "grid", gap: 4 }}>
-          <label className={styles.lbl} htmlFor="nlf-url">{block.type === "image" ? "Where a click goes (optional)" : "Where it goes"}</label>
+        <Opt label={block.type === "image" ? "Where a click goes (optional)" : "Where it goes"} info={NEWSLETTER_TIPS.link} htmlFor="nlf-url">
           <input
             id="nlf-url" className={styles.field} type="url" inputMode="url" placeholder="https://" disabled={!canEdit}
             value={String(block.settings[block.type === "image" ? "link" : "url"] ?? "")}
             onChange={(e) => onSetting(block.type === "image" ? "link" : "url", e.target.value)}
           />
-          <span className={styles.hint}>Only web, email and phone links are kept. Clicks are counted; the address stays yours.</span>
-        </div>
+        </Opt>
       )}
 
       {(block.type === "image" || block.type === "product") && (
-        <div style={{ display: "grid", gap: 6 }}>
-          <label className={styles.lbl} htmlFor="nlf-file">Picture</label>
+        <Opt label="Picture" info={NEWSLETTER_TIPS.picture} hint="PNG, JPG, WebP · max 2 MB" htmlFor="nlf-file">
           {typeof block.settings.path === "string" && block.settings.path && <span className={styles.chip}>A picture is chosen</span>}
           <input id="nlf-file" type="file" accept="image/png,image/jpeg,image/webp" disabled={!canEdit || uploading} onChange={(e) => { const f = e.target.files?.[0]; if (f) void pick(f); e.target.value = ""; }} />
-          <span className={styles.hint}>PNG, JPG or WebP up to 2 MB. Pictures are kept in your own workspace; a picture from anywhere else is never used.</span>
           {typeof block.settings.path === "string" && block.settings.path && canEdit && <div><Button size="sm" onClick={() => { onSetting("path", undefined); onSetting("bytes", undefined); }}>Remove the picture</Button></div>}
-        </div>
+        </Opt>
       )}
 
       {block.type === "product" && typeof block.settings.product_id === "string" && <span className={styles.chip}>Linked to your catalogue</span>}
-      {fields.length === 0 && block.type !== "social" && <p className={styles.hint}>This block has no words. It is a thin line between two blocks.</p>}
-      {block.type === "social" && <p className={styles.hint}>Shows the social links from your brand kit. Change them in Settings, Brand kit.</p>}
-      <p className={styles.hint}>Rewrite suggests new words; keep them or type your own. {"{{account_name}}"} is replaced for each person.</p>
+      {fields.length === 0 && block.type !== "social" && <p className={styles.hint}>No words in this block.</p>}
+      {block.type === "social" && <p className={styles.hint}>Social links come from your brand kit.</p>}
     </div>
   );
 }
@@ -199,6 +179,7 @@ export function AddLanguage({ present, busy, canEdit, aiReady, onAdd }: {
   if (options.length === 0) return <p className={styles.hint}>Every language the studio knows is already there.</p>;
   return (
     <div style={{ display: "grid", gap: 6 }}>
+      <div className="bpm-label-row"><span className={styles.lbl}>Add language</span><InfoTip label="Add language">{NEWSLETTER_TIPS.addLanguage}</InfoTip></div>
       <div className={styles.addlang}>
         <select id="nlLangPick" className={styles.select} aria-label="Language to add" value={chosen} onChange={(e) => setPick(e.target.value)} disabled={!canEdit}>
           {options.map((o) => <option key={o.code} value={o.code}>{o.name} ({o.native})</option>)}
@@ -206,7 +187,7 @@ export function AddLanguage({ present, busy, canEdit, aiReady, onAdd }: {
         <Button variant="primary" size="sm" loading={busy} disabled={!canEdit || !aiReady || busy} onClick={() => onAdd(chosen, "ai")}>Translate with AI</Button>
         <Button size="sm" disabled={!canEdit || busy} onClick={() => onAdd(chosen, "empty")}>I&apos;ll write it</Button>
       </div>
-      {!aiReady && <span className={styles.hint}>AI is not set up for this workspace, so you can add a language and write it yourself.</span>}
+      {!aiReady && <span className={styles.hint}>AI is not set up for this workspace, so you write the language yourself.</span>}
     </div>
   );
 }

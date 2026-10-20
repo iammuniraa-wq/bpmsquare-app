@@ -1,4 +1,6 @@
 
+import InfoTip from "./InfoTip";
+
 // Same surface as `cardStyle` in Shell.tsx (three theme variables). Declared
 // here rather than imported because Shell is a "use client" module, and a
 // server page cannot read a plain constant out of one.
@@ -15,9 +17,11 @@ export const CARD_SURFACE: React.CSSProperties = {
  * variant="quiet", or a Link.
  */
 export default function Card({
-  title, action, padding = 16, children, style,
+  title, info, action, padding = 16, children, style,
 }: {
   title?: string;
+  /** Explanation of the card, behind an "i" after the title (never inside a clickable title). */
+  info?: React.ReactNode;
   action?: React.ReactNode;
   padding?: number;
   children?: React.ReactNode;
@@ -28,7 +32,9 @@ export default function Card({
       {(title || action) && (
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 12 }}>
           {title ? (
-            <h2 className="bpm-t-section">{title}</h2>
+            info ? (
+              <span className="bpm-label-row"><h2 className="bpm-t-section">{title}</h2><InfoTip label={title}>{info}</InfoTip></span>
+            ) : <h2 className="bpm-t-section">{title}</h2>
           ) : <span />}
           {action}
         </div>

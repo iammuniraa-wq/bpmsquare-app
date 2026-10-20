@@ -8,6 +8,19 @@
 .banner.info { background: var(--bluebg); color: var(--blueink); }
 .err { background: var(--err-bg); border: 1px solid var(--err-line); border-radius: 8px; padding: 10px 14px; font-size: 12.5px; color: var(--err-ink); }
 .headRow { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.headBtns { display: inline-flex; gap: 8px; align-items: center; }
+.stripDesk { display: block; }
+.stripDesk :global(.bpm-tabs), .stripPhone :global(.bpm-tabs) { overflow-y: hidden; }
+.stripPhone { display: none; }
+.fact { font-size: 12.5px; color: var(--ink); gap: 0; flex-wrap: wrap; }
+.fact b { color: var(--muted); font-weight: 600; }
+.utility { background: var(--card-bg, var(--panel)); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; display: grid; gap: 10px; }
+.utilHead { display: flex; justify-content: space-between; align-items: center; gap: 10px; font-size: 13.5px; color: var(--ink); }
+.chipTip { display: inline-flex; align-items: center; margin-inline-start: 8px; padding-inline-end: 4px; }
+.chipBtn { border: 0; cursor: pointer; font: inherit; font-size: 12px; font-weight: 600; }
+.chipBtn:focus-visible { outline: 2px solid var(--studio-accent, var(--accent)); outline-offset: 2px; }
+.bar { position: fixed; left: 0; right: 0; bottom: 0; background: var(--panel); border-top: 1px solid var(--line); padding: 10px max(16px, env(safe-area-inset-left, 0px)) max(10px, env(safe-area-inset-bottom, 0px)); display: none; gap: 8px; z-index: 40; }
+.bar > * { flex: 1; min-height: 44px; }
 .nameInput { font: inherit; font-size: 13.5px; font-weight: 600; width: 100%; max-width: 360px; padding: 8px 11px; border: 1px solid var(--line); border-radius: 9px; background: var(--panel); color: var(--ink); }
 .pill { display: inline-block; font-size: 11px; font-weight: 600; padding: 2px 9px; border-radius: 999px; background: var(--panel2); color: var(--muted); white-space: nowrap; }
 .pill.live { background: var(--greenbg); color: var(--greenink); }
@@ -18,20 +31,7 @@
 .panel { display: grid; gap: 10px; min-width: 0; }
 .canvas { display: grid; gap: 14px; min-width: 0; }
 
-.sec { background: var(--card-bg, var(--panel)); border: 1px solid var(--line); border-radius: 12px; }
-.sech { width: 100%; font: inherit; color: var(--ink); background: transparent; border: 0; cursor: pointer; text-align: left; padding: 11px 14px; display: grid; grid-template-columns: minmax(0, 1fr) auto 18px; gap: 2px 8px; align-items: center; border-radius: 12px; }
-.sech:hover { background: var(--panel2); }
-.sech:focus-visible, .ic:focus-visible, .stepBtn:focus-visible { outline: 2px solid var(--studio-accent, var(--accent)); outline-offset: 2px; }
-.sech b { font-size: 13.5px; }
-.sum { font-size: 12px; color: var(--muted); white-space: nowrap; grid-column: 2; grid-row: 1; max-width: 140px; overflow: hidden; text-overflow: ellipsis; }
-.hint { font-size: 12px; color: var(--hint); line-height: 1.4; }
-.sech .hint { grid-column: 1 / 3; }
-.chev { grid-column: 3; grid-row: 1; width: 16px; height: 16px; color: var(--muted); transition: transform .2s; }
-.sec.open .chev { transform: rotate(180deg); }
-.sec.open .sech { border-radius: 12px 12px 0 0; }
-.in { padding: 0 14px 14px; display: grid; gap: 10px; }
-.sec:not(.open) .in { display: none; }
-@media (prefers-reduced-motion: reduce) { .chev { transition: none; } }
+.ic:focus-visible, .stepBtn:focus-visible { outline: 2px solid var(--studio-accent, var(--accent)); outline-offset: 2px; }
 
 .lbl { font-size: 12.5px; font-weight: 600; color: var(--ink); display: block; margin-bottom: 3px; }
 .field, .select { font: inherit; width: 100%; padding: 8px 11px; border: 1px solid var(--line); border-radius: 9px; background: var(--panel); color: var(--ink); }
@@ -49,15 +49,15 @@
 
 .card { background: var(--card-bg, var(--panel)); border: 1px solid var(--line); border-radius: 12px; padding: 14px; display: grid; gap: 10px; min-width: 0; }
 .card h2 { margin: 0; font-size: 13.5px; font-weight: 700; color: var(--ink); }
-.card h2 small { font-weight: 500; color: var(--muted); font-size: 12.5px; margin-inline-start: 6px; }
 .big { font-size: 26px; font-weight: 700; color: var(--ink); line-height: 1; }
 
 /* steps */
-.steps { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
-.step { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; background: var(--panel); display: grid; gap: 6px; }
+.steps { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; margin: 0; padding: 0; list-style: none; }
+.step { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; background: var(--panel); display: grid; gap: 6px; min-width: 0; box-sizing: border-box; }
 .stepHead { display: grid; grid-template-columns: 24px minmax(0, 1fr) auto; gap: 8px; align-items: start; }
 .stepNo { width: 22px; height: 22px; border-radius: 999px; background: var(--accentbg); color: var(--ink); font-size: 11.5px; font-weight: 700; display: grid; place-items: center; }
 .stepTitle { font-size: 13.5px; font-weight: 600; color: var(--ink); }
+.stepBody select, .stepBody input { min-width: 0; max-width: 100%; box-sizing: border-box; }
 .stepBody { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-inline-start: 32px; }
 .tools { display: flex; gap: 2px; }
 .ic { width: 26px; height: 26px; border: 0; background: transparent; border-radius: 6px; cursor: pointer; color: var(--muted); display: inline-grid; place-items: center; padding: 0; }
@@ -65,8 +65,6 @@
 .ic:disabled { opacity: .35; cursor: default; }
 .ic svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .why { margin-inline-start: 32px; font-size: 12.5px; color: var(--ink); line-height: 1.45; }
-.whyNot { margin-inline-start: 32px; font-size: 12px; color: var(--muted); line-height: 1.45; }
-.whyNot b { color: var(--amberink); font-weight: 600; }
 .add { display: flex; flex-wrap: wrap; gap: 6px; }
 .stepBtn { font: inherit; font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 999px; border: 1px dashed var(--line); background: transparent; color: var(--ink); cursor: pointer; }
 .stepBtn:hover:not(:disabled) { border-color: var(--studio-accent, var(--accent)); color: var(--studio-accent, var(--accent)); }
@@ -121,10 +119,6 @@
 .foldIn { padding: 0 14px 14px; font-size: 13px; color: var(--ink); display: grid; gap: 6px; }
 .pre { background: var(--panel2); border-radius: 9px; padding: 10px 12px; font-size: 11.5px; line-height: 1.5; overflow: auto; max-height: 320px; margin: 0; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color: var(--ink); white-space: pre-wrap; overflow-wrap: anywhere; }
 
-.menu { position: relative; display: inline-block; }
-.menu ul { position: absolute; right: 0; top: 40px; z-index: 5; list-style: none; margin: 0; padding: 6px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; min-width: 190px; box-shadow: 0 8px 24px rgba(0, 0, 0, .18); }
-.menu li button { width: 100%; text-align: left; font: inherit; font-size: 13px; padding: 8px 10px; border-radius: 7px; border: 0; background: transparent; color: var(--ink); cursor: pointer; }
-.menu li button:hover, .menu li button:focus-visible { background: var(--accentbg); outline: none; }
 .toast { position: fixed; left: 50%; bottom: 76px; transform: translateX(-50%); background: var(--ink); color: var(--panel); padding: 10px 16px; border-radius: 10px; font-size: 13px; font-weight: 600; z-index: 70; max-width: calc(100vw - 32px); text-align: center; }
 .skel { height: 12px; border-radius: 6px; background: linear-gradient(90deg, var(--panel2), var(--line), var(--panel2)); background-size: 200% 100%; animation: sh 1.1s linear infinite; margin: 6px 0; }
 @keyframes sh { from { background-position: 200% 0; } to { background-position: -200% 0; } }
@@ -145,9 +139,17 @@
 .tourBtns { display: flex; gap: 8px; justify-content: flex-end; align-items: center; }
 .tourBtns .skip { margin-inline-end: auto; }
 
+/* Under 900px the panel and the canvas share one strip: Setup is the panel, the others are the canvas tabs. */
 @media (max-width: 900px) {
   .studio { grid-template-columns: minmax(0, 1fr); }
-  .accent { padding-bottom: 16px; }
-  .stepBody, .why, .whyNot { margin-inline-start: 0; }
-  .tourCap { bottom: 16px; }
+  .accent { padding-bottom: 64px; }
+  .stripDesk { display: none; }
+  .stripPhone { display: block; }
+  .stripPhone :global(.bpm-tab) { min-height: 44px; }
+  .accent[data-tab="setup"] .canvas { display: none; }
+  .accent:not([data-tab="setup"]) .panel { display: none; }
+  .headBtns { display: none; }
+  .bar { display: flex; }
+  .stepBody, .why { margin-inline-start: 0; }
+  .tourCap { bottom: 74px; }
 }
