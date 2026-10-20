@@ -4,10 +4,12 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
+import EmptyState from "@/components/ui/EmptyState";
 import StatusPill from "@/components/ui/StatusPill";
 import { Input } from "@/components/ui/Input";
 import { c } from "@/lib/theme";
-import { EMAIL_STATUS_COPY } from "@/lib/marketing/emailHealth";
+import { EMAIL_STATUS_COPY, needsAttention } from "@/lib/marketing/emailHealth";
+import { EMAIL_HEALTH_TIPS, emailStatusTip } from "@/lib/marketing/contactCardTips";
 import type { ContactHealth } from "@/lib/marketing/contactHealth";
 
 const EVENT_WORDS: Record<string, string> = {
@@ -30,14 +32,15 @@ export default function EmailHealthCard({ contactId, email, health: initial, can
 
   if (!health.available) {
     return (
-      <Card title="Email health">
-        <p className="bpm-t-help" style={{ margin: 0 }}>Waiting for a database update. This card will fill in once it has been applied.</p>
+      <Card title="Email health" padding={0}>
+        <EmptyState title="Waiting for a database update" text="This card fills in once the update has been applied." />
       </Card>
     );
   }
 
   const copy = EMAIL_STATUS_COPY[health.status];
   const blockedStatus = health.status === "bounced" || health.status === "complained";
+  const problem = needsAttention(health.status);
 
   async function run(body: Record<string, string>) {
     setBusy(true);
@@ -47,7 +50,7 @@ export default function EmailHealthCard({ contactId, email, health: initial, can
       const json = await res.json().catch(() => ({}));
       if (!res.ok) { setNote({ tone: "err", text: json.error ?? "That did not work. Try again." }); return; }
       setHealth(json.health as ContactHealth);
-      setNote({ tone: "ok", text: json.message as string });
+      setNote({ tone: "ok", text: body.action === "check" ? `${json.message as string} Nothing was sent.` : (json.message as string) });
       setMode(null); setNewEmail(""); setReason("");
       router.refresh();
     } catch {
@@ -58,14 +61,14 @@ export default function EmailHealthCard({ contactId, email, health: initial, can
   }
 
   return (
-    <Card title="Email health">
+    <Card title="Email health" info={problem ? EMAIL_HEALTH_TIPS.card : emailStatusTip(health.status)}>
       <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
         <StatusPill label={copy.label} tone={copy.tone} />
         {health.at && <span className="bpm-t-help">since {fmt(health.at)}</span>}
         {health.blocked && <StatusPill label="No email will be sent" tone="red" />}
       </div>
-      <p style={{ margin: "10px 0 0", fontSize: 13.5, color: c.ink }}>{health.reason ?? copy.plain}</p>
-      <p className="bpm-t-help" style={{ margin: "6px 0 0" }}>{health.status === "unknown" || health.status === "valid" ? copy.todo : `What to do: ${copy.todo}`}</p>
+      {(problem || health.reason) && <p style={{ margin: "10px 0 0", fontSize: 13.5, color: c.ink }}>{health.reason ?? copy.plain}</p>}
+      {problem && <p className="bpm-t-help" style={{ margin: "6px 0 0" }}>What to do: {copy.todo}</p>}
       {health.lastEvent && (
         <p className="bpm-t-help" style={{ margin: "6px 0 0" }}>
           Last email event: {EVENT_WORDS[health.lastEvent.name] ?? "Activity"} on {fmt(health.lastEvent.at)}.
@@ -74,33 +77,25 @@ export default function EmailHealthCard({ contactId, email, health: initial, can
       {!email && <p className="bpm-t-help" style={{ margin: "6px 0 0" }}>This contact has no email address yet.</p>}
 
       {canEdit && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 16, paddingTop: 14, borderTop: `1px solid ${c.line}` }}>
-          <div>
-            <Button size="sm" onClick={() => run({ action: "check" })} loading={busy && mode === null} disabled={!email || busy}>Check this address</Button>
-            <div className="bpm-t-help" style={{ marginTop: 4 }}>Looks at the spelling and whether the domain can receive mail. Nothing is sent.</div>
-          </div>
-
-          <div>
+        <div className="bpm-tap" style={{ marginTop: 16, paddingTop: 14, borderTop: `1px solid ${c.line}` }}>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <Button size="sm" onClick={() => run({ action: "check" })} loading={busy && mode === null} disabled={!email || busy}>Check address</Button>
             <Button size="sm" onClick={() => { setMode(mode === "fix" ? null : "fix"); setNote(null); }} disabled={busy}>Fix the address</Button>
-            <div className="bpm-t-help" style={{ marginTop: 4 }}>Type the right address. The old problem is cleared and the new address is checked.</div>
-            {mode === "fix" && (
-              <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
-                <Input type="email" aria-label="New email address" placeholder="name@company.com" value={newEmail} onChange={(e) => setNewEmail(e.target.value)} style={{ flex: "1 1 200px", minWidth: 0 }} />
-                <Button size="sm" variant="primary" loading={busy} disabled={!newEmail.trim() || busy} onClick={() => run({ action: "fix", email: newEmail })}>Save address</Button>
-              </div>
+            {!blockedStatus && (
+              <Button size="sm" onClick={() => { setMode(mode === "confirm" ? null : "confirm"); setNote(null); }} disabled={busy}>Mark as checked</Button>
             )}
           </div>
 
-          {!blockedStatus && (
-            <div>
-              <Button size="sm" onClick={() => { setMode(mode === "confirm" ? null : "confirm"); setNote(null); }} disabled={busy}>Mark as checked</Button>
-              <div className="bpm-t-help" style={{ marginTop: 4 }}>Use this when you confirmed the address another way, like a phone call.</div>
-              {mode === "confirm" && (
-                <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
-                  <Input aria-label="How you confirmed it" placeholder="Confirmed by phone on 20 Oct" maxLength={160} value={reason} onChange={(e) => setReason(e.target.value)} style={{ flex: "1 1 200px", minWidth: 0 }} />
-                  <Button size="sm" variant="primary" loading={busy} disabled={reason.trim().length < 3 || busy} onClick={() => run({ action: "confirm", reason })}>Mark as checked</Button>
-                </div>
-              )}
+          {mode === "fix" && (
+            <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
+              <Input type="email" aria-label="New email address" placeholder="name@company.com" value={newEmail} onChange={(e) => setNewEmail(e.target.value)} style={{ flex: "1 1 200px", minWidth: 0 }} />
+              <Button size="sm" variant="primary" loading={busy} disabled={!newEmail.trim() || busy} onClick={() => run({ action: "fix", email: newEmail })}>Save address</Button>
+            </div>
+          )}
+          {mode === "confirm" && !blockedStatus && (
+            <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
+              <Input aria-label="How you confirmed it" placeholder="Confirmed by phone on 20 Oct" maxLength={160} value={reason} onChange={(e) => setReason(e.target.value)} style={{ flex: "1 1 200px", minWidth: 0 }} />
+              <Button size="sm" variant="primary" loading={busy} disabled={reason.trim().length < 3 || busy} onClick={() => run({ action: "confirm", reason })}>Save</Button>
             </div>
           )}
         </div>

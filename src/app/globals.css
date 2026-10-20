@@ -1904,14 +1904,14 @@ textarea.bpm-input { min-height: 72px; resize: vertical; }
 .bpm-tip:focus-visible { outline: 2px solid var(--tip-accent); outline-offset: 2px; }
 .bpm-tip[aria-expanded="true"] { background: var(--tip-accent); border-color: var(--tip-accent); color: var(--panel); }
 .bpm-tip-pop {
-  position: fixed; z-index: 80; width: max-content; max-width: min(280px, calc(100vw - 16px)); box-sizing: border-box;
+  position: fixed; z-index: 600; width: max-content; max-width: min(280px, calc(100vw - 16px)); box-sizing: border-box;
   padding: 10px 12px; background: var(--panel); color: var(--ink); border: 1px solid var(--line); border-radius: 10px;
   box-shadow: 0 10px 28px rgba(16, 24, 40, 0.18); font-size: 13px; font-weight: 400; line-height: 1.45; text-align: start;
 }
 .bpm-tip-learn { display: block; margin-top: 4px; font-weight: 600; color: var(--tip-accent); }
-.bpm-sheet-backdrop { position: fixed; inset: 0; z-index: 90; background: rgba(0, 0, 0, 0.45); }
+.bpm-sheet-backdrop { position: fixed; inset: 0; z-index: 610; background: rgba(0, 0, 0, 0.45); }
 .bpm-sheet {
-  position: fixed; left: 0; right: 0; bottom: 0; z-index: 91; box-sizing: border-box; display: grid; gap: 8px;
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 611; box-sizing: border-box; display: grid; gap: 8px;
   max-height: 80vh; overflow-y: auto; padding: 16px 16px max(16px, env(safe-area-inset-bottom, 0px));
   background: var(--panel); color: var(--ink); border-top: 1px solid var(--line); border-radius: 16px 16px 0 0;
   box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.25);
@@ -1998,6 +1998,15 @@ textarea.bpm-input { min-height: 72px; resize: vertical; }
   display: block; padding: 12px 14px; text-decoration: none; color: inherit;
   background: var(--card-bg); border: 1px solid var(--line);
   border-radius: var(--card-radius); box-shadow: var(--card-shadow);
+}
+
+/* A table that becomes stacked rows under 780px (consent card, buying group, by tier): both are rendered and CSS picks
+   one. .bpm-tap lifts the buttons and fields inside it to 44px on a phone (docs/design/ux-simplification.md §2c). */
+.bpm-rows-cards { display: none; }
+@media (max-width: 780px) {
+  .bpm-rows-table { display: none !important; }
+  .bpm-rows-cards { display: flex; flex-direction: column; }
+  .bpm-tap .bpm-btn, .bpm-tap .bpm-input { min-height: 44px; }
 }
 
 @media (max-width: 780px) {
