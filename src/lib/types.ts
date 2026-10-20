@@ -201,10 +201,12 @@ export type Lead = {
   id: string;
   account_id: string;
   title: string;
-  source: "oem_referral" | "amc" | "direct" | "campaign";
+  source: "oem_referral" | "amc" | "direct" | "campaign" | "form";
   /** Set when source === "campaign" -- which sent campaign generated this
    * lead, via the click-through "I'm interested" link. */
   source_campaign_id: string | null;
+  /** Set when source === "form" (0172) -- which form the person filled in. */
+  source_form_id?: string | null;
   status: LeadStatus;
   created_at: string;
 };

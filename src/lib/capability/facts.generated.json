@@ -175,6 +175,10 @@
     {
       "key": "buying_signals",
       "comment": "Buying signals (0175-0179, docs/signals-architecture.md): \"Who is in market\", a ranked, explainable list of accounts built only from first-party events."
+    },
+    {
+      "key": "marketing_forms",
+      "comment": "Forms and the Preference Centre (0170-0172, docs/shells/forms-shell.md): forms hosted on the tenant's own domain and embedded on its website, each submit recording consent and creating the contact and a lead."
     }
   ],
   "extensionHooks": [
@@ -447,24 +451,41 @@
       "plain": "Email campaigns to segments of accounts, with unsubscribe links and interest links that turn replies into leads.",
       "rules": []
     },
+    "marketing_forms": {
+      "status": "experimental",
+      "plain": "Put a contact form on the company website that records what the visitor agreed to, adds them as a contact and files a lead, and let every person change what they hear about from one page.",
+      "rules": [
+        "The consent box is never ticked for the visitor; the exact words shown, the time and the form are kept with each answer.",
+        "A person who ticks the box is recorded as agreeing to the topics the form names; a person who does not tick it is not recorded as agreeing to anything.",
+        "An existing contact is found by email and is never changed by a form; a new visitor becomes a prospect account, a contact and a lead.",
+        "Spam is stopped by a hidden trap field, a minimum time to fill in, a limit per visitor and a size cap; no CAPTCHA is shown.",
+        "The raw answers are kept for 180 days and stored encrypted; only the contact, lead and consent records remain after that.",
+        "The preference page opens from a signed link in each email and every change is added to the consent history.",
+        "Switched on per workspace by a platform admin and needs Marketing campaigns; until then the public pages answer not found and there is no menu item."
+      ]
+    },
     "marketing_scoring": {
       "status": "experimental",
-      "plain": "Scores each lead from what the person actually did, moves it through clear stages, and checks consent before anyone is contacted.",
+      "plain": "Scores each lead from what the person actually did, moves it through clear stages, and checks consent before anyone is contacted. Staff can record what a person told them, and bring a sheet of opt-ins in.",
       "rules": [
         "Consent is required by default; an admin can relax it for a country, but not for India.",
         "A score always shows the reasons behind it.",
+        "A person in sales can record that someone agreed or withdrew, with a required note on how it was obtained; answers are only ever added, never edited.",
+        "A sheet of opt-ins can be imported in the Data Workbench: each row needs its basis, is matched to an existing contact by email, and keeps the file name as evidence. It never creates contacts.",
         "Switched on per workspace by a platform admin; until then no screen or lead changes."
       ]
     },
     "newsletter_studio": {
       "status": "experimental",
-      "plain": "Design a newsletter once in English, add languages on top with AI translation you review, keep it as a template, and hand it to a campaign so each person gets their own language.",
+      "plain": "Design a newsletter once in English, add languages on top with AI translation you review, keep it as a template, and hand it to a campaign so each person gets their own language. Delivery problems are recorded on the contact so sales can fix the address.",
       "rules": [
         "English is written first for every newsletter; other languages are added on top and each translated block is marked until a person accepts it.",
         "A language can be sent only when every block has been reviewed by a person.",
         "The footer always carries the unsubscribe and preferences links and cannot be removed.",
         "Sending checks consent for each person and follows the workspace's email output setting, so a demo workspace never reaches a real customer.",
         "Clicks are tracked on signed links; opens are not tracked unless an admin turns that on.",
+        "When an email bounces or is marked as spam, the contact's email health shows it; an address that bounced for good or was reported as spam is never emailed again.",
+        "Sales can check an address, fix it, or mark it as checked with a reason; each of these is kept in the change history. Contacts with an email problem are listed under Contacts, \"Email needs attention\".",
         "Switched on per workspace by a platform admin and needs Marketing campaigns; until then there is no menu item and no campaign page changes."
       ]
     },

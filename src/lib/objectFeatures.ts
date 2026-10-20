@@ -47,6 +47,8 @@ export const OBJECT_FEATURE: Record<string, keyof TenantFeatures | null> = {
   signals: "buying_signals",
   account_intent: "buying_signals",
   signal_topics: "buying_signals",
+  // Forms (0170). Platform-admin flag; every forms route also checks `marketing`.
+  forms: "marketing_forms",
   // Inventory is the stock side of Purchasing; it has never had a key of
   // its own, and the nav gates it on `purchasing` too.
   inventory: "purchasing",
