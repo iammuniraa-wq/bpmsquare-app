@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 vi.mock("@/lib/supabase-server", () => ({ createAdminSupabase: vi.fn(), requireTenantUser: vi.fn(), getAuthUser: vi.fn() }));
 
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { fakeDb, type Row } from "@/lib/marketing/testFakeDb";
 import { templateById } from "./definition";
 import { runTenant, takeLock, tenantsToRun } from "./runner";
@@ -149,7 +150,7 @@ describe("advancing and idempotency", () => {
     db.tables.marketing_campaign_recipients.push({ id: "rcp", tenant_id: T, campaign_id: "camp", contact_id: run.contact_id, status: "sent" });
     db.tables.newsletter_versions = [version()];
     const mailer = vi.fn(async () => ({ data: { id: "re" }, error: null }));
-    const send = (c: never, a: SendStepArgs) => sendJourneyNewsletter(c, a, { mailer: { emails: { send: mailer } } as never, gate: okGate });
+    const send = (c: SupabaseClient, a: SendStepArgs) => sendJourneyNewsletter(c, a, { mailer: { emails: { send: mailer } } as never, gate: okGate });
     await runTenant(db.client, T, { now: () => at, gate: okGate, send, owner: async () => "owner1" });
     expect(mailer).not.toHaveBeenCalled();
     expect(db.tables.journey_run_steps.find((s) => s.step_id === "s2")).toMatchObject({ status: "done", reason: "already_sent", recipient_id: "rcp" });
@@ -199,7 +200,7 @@ describe("the safety rules at send time", () => {
     db.tables.newsletter_versions = [version()];
     process.env.QUOTE_PUBLIC_LINK_SECRET = "test-secret";
     const mailer = vi.fn(async () => ({ data: { id: "re" }, error: null }));
-    const send = (c: never, a: SendStepArgs) => sendJourneyNewsletter(c, a, { mailer: { emails: { send: mailer } } as never, gate: async () => ({ ok: false, reason: "withdrawn" }), delayMs: 0 });
+    const send = (c: SupabaseClient, a: SendStepArgs) => sendJourneyNewsletter(c, a, { mailer: { emails: { send: mailer } } as never, gate: async () => ({ ok: false, reason: "withdrawn" }), delayMs: 0 });
     await runTenant(db.client, T, { now: () => SAT, gate: okGate, send, owner: async () => "owner1" });
     expect(mailer).not.toHaveBeenCalled();
     expect(db.tables.journey_run_steps.find((s) => s.step_id === "s2")).toMatchObject({ status: "skipped", reason: "withdrawn" });
@@ -248,7 +249,7 @@ describe("the safety rules at send time", () => {
     process.env.QUOTE_PUBLIC_LINK_SECRET = "test-secret";
     const sent: Record<string, unknown>[] = [];
     const mailer = { emails: { send: async (m: Record<string, unknown>) => { sent.push(m); return { data: { id: "re" }, error: null }; } } };
-    const send = (c: never, a: SendStepArgs) => sendJourneyNewsletter(c, a, { mailer: mailer as never, gate: okGate, delayMs: 0 });
+    const send = (c: SupabaseClient, a: SendStepArgs) => sendJourneyNewsletter(c, a, { mailer: mailer as never, gate: okGate, delayMs: 0 });
     await runTenant(db.client, T, { now: () => SAT, gate: okGate, send, owner: async () => "owner1" });
     expect(sent).toHaveLength(1);
     expect(sent[0].to).toEqual(["review@bpmsquare.example"]);
@@ -262,7 +263,7 @@ describe("the safety rules at send time", () => {
     const { db } = await ready({ isDemo: true, extra: { newsletter_versions: [version()] } });
     process.env.QUOTE_PUBLIC_LINK_SECRET = "test-secret";
     const mailer = vi.fn(async () => ({ data: { id: "re" }, error: null }));
-    const send = (c: never, a: SendStepArgs) => sendJourneyNewsletter(c, a, { mailer: { emails: { send: mailer } } as never, gate: okGate, delayMs: 0 });
+    const send = (c: SupabaseClient, a: SendStepArgs) => sendJourneyNewsletter(c, a, { mailer: { emails: { send: mailer } } as never, gate: okGate, delayMs: 0 });
     await runTenant(db.client, T, { now: () => SAT, gate: okGate, send, owner: async () => "owner1" });
     expect(mailer).not.toHaveBeenCalled();
   });
