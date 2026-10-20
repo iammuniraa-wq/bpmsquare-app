@@ -1,0 +1,31 @@
+/* Form builder pieces that the Newsletter Studio stylesheet does not have: the Answers tab and the empty state in
+   Share. Colours come only from the theme variables in globals.css, never from hex. */
+
+.answers { background: var(--card-bg, var(--panel)); border: 1px solid var(--line); border-radius: 12px; padding: 14px; min-width: 0; display: grid; gap: 8px; }
+.answersHead { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.answersHead h2 { margin: 0; font-size: 16px; color: var(--ink); }
+.hd, .row { display: grid; grid-template-columns: 110px minmax(100px, 1fr) minmax(140px, 1.4fr) minmax(100px, 1fr) 120px 130px; gap: 10px; align-items: center; padding: 9px 4px; font-size: 13px; color: var(--ink); }
+.hd { padding-bottom: 6px; }
+.hd span { font-size: 11px; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+.row { border-top: 1px solid var(--line); }
+.row > span { min-width: 0; overflow-wrap: anywhere; }
+.when { white-space: nowrap; color: var(--muted); font-variant-numeric: tabular-nums; }
+.lab { display: none; }
+.pager { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; font-size: 12.5px; color: var(--muted); }
+.pager > span { display: inline-flex; gap: 8px; }
+
+.empty { border: 1px dashed var(--line); border-radius: 10px; padding: 14px 12px; display: grid; gap: 3px; text-align: center; color: var(--muted); font-size: 12.5px; }
+.empty b { color: var(--ink); font-size: 13.5px; }
+.emptyBig { text-align: center; padding: 28px 14px; color: var(--muted); font-size: 13px; display: grid; gap: 4px; }
+.emptyBig b { color: var(--ink); font-size: 14.5px; }
+
+@media (max-width: 780px) {
+  .hd { display: none; }
+  .row { grid-template-columns: 1fr 1fr; gap: 4px 10px; padding: 12px 4px; }
+  .row > span:nth-child(2), .row > span:nth-child(3) { grid-column: 1 / -1; }
+  .row > span:nth-child(2) { font-weight: 600; }
+  .lab { display: inline; color: var(--muted); font-size: 11.5px; margin-inline-end: 4px; }
+}
+@media (max-width: 900px) {
+  .pager button { min-height: 44px; }
+}
