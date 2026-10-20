@@ -2037,11 +2037,12 @@ export async function getAnalyticsDataLive(): Promise<AnalyticsData> {
 export async function listMarketingCampaignsLive(): Promise<MarketingCampaign[]> {
   const tenantId = await currentTenantId();
   if (!tenantId) return [];
-  const { data } = await createAdminSupabase()
-    .from("marketing_campaigns")
-    .select("*")
-    .eq("tenant_id", tenantId)
-    .order("created_at", { ascending: false });
+  const admin = createAdminSupabase();
+  // A journey step keeps a quiet campaign of its own (0169); it is not one anybody sent by hand, so the list leaves it out.
+  // Before that migration the column does not exist and the plain query is the right one.
+  const withoutJourneys = await admin.from("marketing_campaigns").select("*").eq("tenant_id", tenantId).is("journey_id", null).order("created_at", { ascending: false });
+  if (!withoutJourneys.error) return (withoutJourneys.data ?? []) as MarketingCampaign[];
+  const { data } = await admin.from("marketing_campaigns").select("*").eq("tenant_id", tenantId).order("created_at", { ascending: false });
   return (data ?? []) as MarketingCampaign[];
 }
 
