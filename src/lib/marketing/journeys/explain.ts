@@ -55,6 +55,35 @@ export function explainStep(def: JourneyDefinition, index: number, limits: Journ
   }
 }
 
+/**
+ * What can hold or skip a step, as one short sentence for the "guards" chip's "i" (the full per-rule sentences from
+ * explainStep stay the source; this only compresses them so a tip stays within two sentences). `count` is the number
+ * of rules the chip shows. Pure.
+ */
+export function guardSummary(def: JourneyDefinition, index: number, limits: JourneyLimits, opts: { topicLabel?: (key: string | null) => string } = {}): { count: number; text: string } {
+  const s: JourneyStep | undefined = def.steps[index];
+  if (!s) return { count: 0, text: "" };
+  switch (s.kind) {
+    case "send_newsletter": {
+      const topic = opts.topicLabel?.(s.topic) ?? (s.topic ?? "this subject");
+      const days = limits.offWeekdays.map(weekdayName).join(" or ");
+      const parts = [
+        `there is no consent for ${topic}`,
+        `it is quiet hours${days ? ` or ${days}` : ""}`,
+        `the person already had ${limits.maxPerDay === 1 ? "an email" : `${limits.maxPerDay} emails`} today`,
+      ];
+      if (def.entry.pause_when_in_trouble) parts.push("the company is in trouble");
+      return { count: parts.length, text: `Held or skipped if ${parts.slice(0, -1).join(", ")}, or ${parts[parts.length - 1]}.` };
+    }
+    case "create_task":
+      return { count: 1, text: "If nobody owns the company yet, the task is still created but left unassigned." };
+    case "notify_owner":
+      return { count: 1, text: "If nobody owns the company yet, nobody is told and the log says so." };
+    default:
+      return { count: 0, text: "" };
+  }
+}
+
 /** The line under the whole journey: who enters, and who never does. */
 export function explainEntry(def: JourneyDefinition): { fires: string; blockers: { code: string; text: string }[] } {
   const cond = describeCondition(def.trigger.condition);
