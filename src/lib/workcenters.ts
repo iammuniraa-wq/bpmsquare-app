@@ -7,7 +7,7 @@ export type WorkcenterKey =
   | "cases" | "amc" | "work_orders" | "dispatch" | "technicians"
   | "marketing" | "marketing_segments" | "leads" | "partners"
   | "assets" | "suppliers" | "inventory" | "purchase_orders" | "employees"
-  | "reports" | "data_workbench" | "administration" | "wfm" | "products" | "pricing" | "fence_projects" | "rfqs" | "estimates" | "process_studio";
+  | "reports" | "data_workbench" | "administration" | "wfm" | "products" | "pricing" | "fence_projects" | "rfqs" | "estimates" | "process_studio" | "marketing_newsletters";
 
 export const WORKCENTERS: { key: WorkcenterKey; label: string }[] = [
   { key: "dashboard", label: "Dashboard" },
@@ -24,6 +24,7 @@ export const WORKCENTERS: { key: WorkcenterKey; label: string }[] = [
   { key: "technicians", label: "Technicians" },
   { key: "marketing", label: "Marketing Campaigns" },
   { key: "marketing_segments", label: "Segmentation" },
+  { key: "marketing_newsletters", label: "Newsletters" },
   { key: "leads", label: "Leads" },
   { key: "partners", label: "Partners" },
   { key: "assets", label: "Assets" },

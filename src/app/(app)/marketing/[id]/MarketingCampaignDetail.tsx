@@ -20,18 +20,24 @@ const RichTextEditor = dynamic(() => import("@/components/RichTextEditor"), {
 });
 import TargetAudiencePicker, { type AccountLite } from "@/components/marketing/TargetAudiencePicker";
 import TemplatePicker from "@/components/marketing/TemplatePicker";
+import NewsletterSourceCard from "@/components/marketing/NewsletterSourceCard";
+import type { ComposeNewsletter } from "@/lib/newsletter/composeData";
 import type { MarketingTemplateId } from "@/lib/marketingTemplates";
 import type { MarketingCampaign, AccountType } from "@/lib/types";
 import type { SegmentFilter } from "@/lib/marketingSegmentation";
 
 /** The editor for a DRAFT campaign (a sent campaign's recipients render on the page itself). */
 export default function MarketingCampaignDetail({
-  campaign, accounts,
+  campaign, accounts, newsletter,
 }: {
   campaign: MarketingCampaign;
   accounts: AccountLite[];
+  newsletter?: ComposeNewsletter | null;
 }) {
   const router = useRouter();
+  const [nlLanguages, setNlLanguages] = useState<string[]>(campaign.languages ?? []);
+  const [nlFallback, setNlFallback] = useState(campaign.fallback_language ?? "en");
+  const [nlTopic, setNlTopic] = useState<string | null>(campaign.topic ?? null);
   const [name, setName] = useState(campaign.name);
   const [templateId, setTemplateId] = useState<MarketingTemplateId | null>(campaign.template_id as MarketingTemplateId | null);
   const [subject, setSubject] = useState(campaign.subject);
@@ -55,8 +61,10 @@ export default function MarketingCampaignDetail({
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          name, subject,
-          ...(templateId ? { template_id: templateId, custom_message: customMessage } : { html: body }),
+          name,
+          ...(newsletter
+            ? { languages: nlLanguages, fallback_language: nlFallback, topic: nlTopic }
+            : { subject, ...(templateId ? { template_id: templateId, custom_message: customMessage } : { html: body }) }),
           account_types: [...types],
           include_account_ids: [...includeIds],
           exclude_account_ids: [...excludeIds],
@@ -99,16 +107,23 @@ export default function MarketingCampaignDetail({
         </Field>
       </Card>
 
-      <TemplatePicker
-        selectedId={templateId}
-        onSelect={setTemplateId}
-        subject={subject}
-        onSubjectChange={setSubject}
-        customMessage={customMessage}
-        onCustomMessageChange={setCustomMessage}
-      />
+      {newsletter ? (
+        <NewsletterSourceCard
+          newsletter={newsletter} languages={nlLanguages} onLanguages={setNlLanguages} fallback={nlFallback} onFallback={setNlFallback}
+          topic={nlTopic} onTopic={setNlTopic}
+        />
+      ) : (
+        <TemplatePicker
+          selectedId={templateId}
+          onSelect={setTemplateId}
+          subject={subject}
+          onSubjectChange={setSubject}
+          customMessage={customMessage}
+          onCustomMessageChange={setCustomMessage}
+        />
+      )}
 
-      {!templateId && (
+      {!templateId && !newsletter && (
         <Card>
           <Field label="Subject">
             <Input value={subject} onChange={(e) => setSubject(e.target.value)} />

@@ -23,10 +23,16 @@ const RichTextEditor = dynamic(() => import("@/components/RichTextEditor"), {
 });
 import TargetAudiencePicker, { type AccountLite } from "@/components/marketing/TargetAudiencePicker";
 import TemplatePicker from "@/components/marketing/TemplatePicker";
+import NewsletterSourceCard from "@/components/marketing/NewsletterSourceCard";
+import type { ComposeNewsletter } from "@/lib/newsletter/composeData";
 
-export default function MarketingComposeForm({ accounts, initialGroupId }: { accounts: AccountLite[]; initialGroupId?: string }) {
+export default function MarketingComposeForm({ accounts, initialGroupId, newsletter }: { accounts: AccountLite[]; initialGroupId?: string; newsletter?: ComposeNewsletter | null }) {
   const router = useRouter();
-  const [name, setName] = useState("");
+  const readyLanguages = newsletter?.languages.filter((l) => l.ready).map((l) => l.lang) ?? [];
+  const [nlLanguages, setNlLanguages] = useState<string[]>(readyLanguages);
+  const [nlFallback, setNlFallback] = useState(readyLanguages.includes("en") ? "en" : readyLanguages[0] ?? "en");
+  const [nlTopic, setNlTopic] = useState<string | null>(newsletter?.topic ?? null);
+  const [name, setName] = useState(newsletter?.name ?? "");
   const [templateId, setTemplateId] = useState<MarketingTemplateId | null>(null);
   const [subject, setSubject] = useState("");
   const [customMessage, setCustomMessage] = useState("");
@@ -50,7 +56,9 @@ export default function MarketingComposeForm({ accounts, initialGroupId }: { acc
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name, subject,
-          ...(templateId ? { template_id: templateId, custom_message: customMessage } : { html: body }),
+          ...(newsletter
+            ? { newsletter_version_id: newsletter.versionId, languages: nlLanguages, fallback_language: nlFallback, topic: nlTopic }
+            : templateId ? { template_id: templateId, custom_message: customMessage } : { html: body }),
           account_types: [...types],
           include_account_ids: [...includeIds],
           exclude_account_ids: [...excludeIds],
@@ -85,16 +93,23 @@ export default function MarketingComposeForm({ accounts, initialGroupId }: { acc
         </Field>
       </Card>
 
-      <TemplatePicker
-        selectedId={templateId}
-        onSelect={setTemplateId}
-        subject={subject}
-        onSubjectChange={setSubject}
-        customMessage={customMessage}
-        onCustomMessageChange={setCustomMessage}
-      />
+      {newsletter ? (
+        <NewsletterSourceCard
+          newsletter={newsletter} languages={nlLanguages} onLanguages={setNlLanguages} fallback={nlFallback} onFallback={setNlFallback}
+          topic={nlTopic} onTopic={setNlTopic}
+        />
+      ) : (
+        <TemplatePicker
+          selectedId={templateId}
+          onSelect={setTemplateId}
+          subject={subject}
+          onSubjectChange={setSubject}
+          customMessage={customMessage}
+          onCustomMessageChange={setCustomMessage}
+        />
+      )}
 
-      {!templateId && (
+      {!templateId && !newsletter && (
         <Card>
           <Field label="Subject" hint={"Use {{account_name}} and {{company_name}} — replaced per recipient."}>
             <Input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="e.g. Happy Diwali from {{company_name}}!" />

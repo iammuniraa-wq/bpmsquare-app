@@ -45,6 +45,8 @@ export type Account = {
   created_at: string;
   custom_data: Record<string, unknown> | null;
   marketing_opt_out: boolean;
+  /** ISO 639-1 (0143). Present only once that migration is applied. */
+  preferred_language?: string | null;
   /** Coverage (0101) -- auto-resolved from the account's matching OWNER
    * coverage, never hand-picked from a dropdown. Null when no OWNER
    * coverage matches. Recomputed after every create/update. */
@@ -73,9 +75,15 @@ export type MarketingCampaign = {
   sent_at: string | null;
   template_id: string | null;
   custom_message: string | null;
+  /** Newsletter Studio (0142). Absent until that migration is applied; null on every campaign that does not send a newsletter. */
+  newsletter_version_id?: string | null;
+  languages?: string[];
+  fallback_language?: string | null;
+  topic?: string | null;
 };
 
-export type MarketingRecipientStatus = "pending" | "sent" | "failed" | "skipped_opt_out" | "skipped_no_email";
+export type MarketingRecipientStatus = "pending" | "sent" | "failed" | "skipped_opt_out" | "skipped_no_email"
+  | "skipped_no_consent" | "skipped_no_contact" | "skipped_no_language";
 
 export type MarketingCampaignRecipient = {
   id: string;
@@ -86,6 +94,8 @@ export type MarketingCampaignRecipient = {
   status: MarketingRecipientStatus;
   error: string | null;
   sent_at: string | null;
+  /** The language this person was sent (Newsletter Studio, 0142). */
+  lang?: string | null;
 };
 
 /** A saved, reusable audience definition -- same shape as a campaign's own
@@ -131,6 +141,8 @@ export type Contact = {
   country: string | null;
   notes: string | null;
   custom_data: Record<string, unknown> | null;
+  /** ISO 639-1 (0143). Present only once that migration is applied; read by the Newsletter Studio's language rule. */
+  preferred_language?: string | null;
 };
 
 export type Site = {

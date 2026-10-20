@@ -66,6 +66,7 @@ const FEATURE_LABELS: { key: keyof TenantFeatures; label: string; premium?: bool
   { key: "pricing_engine",        label: "Pricing Engine (dynamic pricing)", group: "Platform & automation" },
   { key: "pricing_engine_quotes", label: "Pricing Engine → live on Quote lines", premium: true, group: "Platform & automation" },
   { key: "marketing_scoring", label: "Marketing scoring & consent (lead score, consent ledger, topics — needs Marketing campaigns)", premium: true, group: "Programs" },
+  { key: "newsletter_studio", label: "Newsletter Studio (multilingual newsletter designs, templates and AI drafts — needs Marketing campaigns)", premium: true, group: "Programs" },
   { key: "process_studio", label: "Process Design Studio (describe a business, get a cited fit report and a plan)", premium: true, group: "Programs" },
   { key: "next_experience", label: "Nova — the Business OS experience", premium: true, group: "Programs" },
   { key: "enterprise_theme", label: "Enterprise theme (dark rail + light workspace)", premium: true, group: "Programs" },
@@ -133,6 +134,7 @@ export default function TenantEditor({ tenant, users, access, aiTokensUsed = nul
   const [currency, setCurrency]       = useState<CurrencyCode>(resolveCurrency(tenant.config).code);
   const [apiKey, setApiKey]           = useState(tenant.api_key ?? "");
   // Process Design Studio allowance (src/lib/studio/caps.ts). Blank = the default.
+  const [nlBudget, setNlBudget]       = useState(tenant.config?.newsletter_studio?.monthly_token_budget != null ? String(tenant.config.newsletter_studio.monthly_token_budget) : "");
   const [aiBudget, setAiBudget]       = useState(tenant.config?.process_studio?.monthly_token_budget != null ? String(tenant.config.process_studio.monthly_token_budget) : "");
   const [aiMaxMessages, setAiMaxMessages] = useState(tenant.config?.process_studio?.max_messages_per_study != null ? String(tenant.config.process_studio.max_messages_per_study) : "");
   const [saved, setSaved]             = useState(false);
@@ -217,6 +219,7 @@ export default function TenantEditor({ tenant, users, access, aiTokensUsed = nul
           custom_domain: customDomain || null, api_key: apiKey || null,
           config: {
             ...tenant.config, appearance: { ...tenant.config?.appearance, ui_theme: uiTheme }, currency,
+            newsletter_studio: nlBudget.trim() !== "" && Number.isFinite(Number(nlBudget)) ? { monthly_token_budget: Number(nlBudget) } : undefined,
             process_studio: (() => {
               const budget = aiBudget.trim() === "" ? undefined : Number(aiBudget);
               const msgs = aiMaxMessages.trim() === "" ? undefined : Number(aiMaxMessages);
@@ -334,6 +337,19 @@ export default function TenantEditor({ tenant, users, access, aiTokensUsed = nul
               <label style={{ fontSize: 12, color: "#6b7280", display: "block", marginBottom: 4 }}>Messages per study</label>
               <input style={inputStyle} inputMode="numeric" value={aiMaxMessages} placeholder="40" onChange={(e) => setAiMaxMessages(e.target.value.replace(/[^0-9]/g, ""))} />
             </div>
+          </div>
+        </section>
+      )}
+
+      {features.newsletter_studio === true && (
+        <section style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 12, padding: 20, marginBottom: 16 }}>
+          <h2 style={{ margin: "0 0 4px", fontSize: 14, fontWeight: 600, color: "#374151" }}>AI allowance (Newsletter Studio)</h2>
+          <p style={{ margin: "0 0 12px", fontSize: 12, color: "#6b7280" }}>
+            Drafts, rewrites and translations are metered. Tokens used this month, across every AI feature of this workspace: {aiTokensUsed === null ? "not available" : aiTokensUsed.toLocaleString("en-GB")}. Leave empty for the default. A budget of 0 switches the studio&apos;s AI off; writing and sending still work.
+          </p>
+          <div>
+            <label style={{ fontSize: 12, color: "#6b7280", display: "block", marginBottom: 4 }}>Monthly token budget</label>
+            <input style={{ ...inputStyle, maxWidth: 240 }} inputMode="numeric" value={nlBudget} placeholder="1500000" onChange={(e) => setNlBudget(e.target.value.replace(/[^0-9]/g, ""))} />
           </div>
         </section>
       )}

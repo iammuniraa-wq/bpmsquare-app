@@ -5,7 +5,7 @@ import {
   ACCOUNT_TYPE_LABEL, ASSET_KIND_LABEL, SUPPLIER_TYPE_LABEL, SUPPLIER_STATUS_LABEL,
   CASE_TYPE_LABEL, INVENTORY_ITEM_STATUS_LABEL,
 } from "@/lib/data/labels";
-import { UOM_OPTIONS, OFFER_TYPE_LABEL } from "@/lib/constants";
+import { UOM_OPTIONS, OFFER_TYPE_LABEL, type TenantFeatures } from "@/lib/constants";
 import type { AccountType, Asset, Supplier, ServiceCase, InventoryItem, QuoteOfferType } from "@/lib/types";
 
 // ── Widget types ─────────────────────────────────────────────────────────────
@@ -46,6 +46,12 @@ export type StandardFieldDef = {
   /** widget === "enum" only */
   enumOptions?: { value: string; label: string }[];
   placeholder?: string;
+  /**
+   * The field exists only for a workspace that has this (platform-admin) feature on, and only while the
+   * database has the column. Used by preferred_language (0143) so a workspace without the Newsletter
+   * Studio sees no new field on its forms, exports or imports. See getEffectiveFieldConfig().
+   */
+  requiresFeature?: keyof TenantFeatures;
 };
 
 export type ObjectFieldRegistry = {
@@ -84,7 +90,13 @@ export type EffectiveField = {
 export type PilotObjectType =
   | "account" | "contact" | "asset" | "supplier"
   | "case" | "work_order" | "quote" | "invoice" | "purchase_order" | "inventory"
-  | "employee" | "product" | "project" | "opportunity" | "rfq" | "estimate" | "process_study";
+  | "employee" | "product" | "project" | "opportunity" | "rfq" | "estimate" | "process_study" | "newsletter";
+
+// ISO 639-1 codes the Newsletter Studio can write in (src/lib/newsletter/types.ts LANGUAGES); duplicated as data
+// here because this registry is imported by client code and must not pull the studio in.
+const PREFERRED_LANGUAGE_OPTIONS: { value: string; label: string }[] = [
+  { value: "en", label: "English" }, { value: "ar", label: "Arabic" }, { value: "hi", label: "Hindi" }, { value: "ur", label: "Urdu" }, { value: "fr", label: "French" },
+];
 
 const ACCOUNT_TYPE_OPTIONS: { value: AccountType; label: string }[] =
   (Object.keys(ACCOUNT_TYPE_LABEL) as AccountType[]).map((value) => ({ value, label: ACCOUNT_TYPE_LABEL[value] }));
@@ -157,6 +169,7 @@ export const FIELD_REGISTRY: Record<PilotObjectType, ObjectFieldRegistry> = {
       { key: "email", defaultLabel: "Primary email", widget: "email", defaultSection: "Communication" },
       { key: "email2", defaultLabel: "Secondary email", widget: "email", defaultSection: "Communication" },
       { key: "website", defaultLabel: "Website", widget: "url", defaultSection: "Communication" },
+      { key: "preferred_language", defaultLabel: "Preferred language", widget: "enum", defaultSection: "Communication", enumOptions: PREFERRED_LANGUAGE_OPTIONS, requiresFeature: "newsletter_studio" },
 
       { key: "industry", defaultLabel: "Industry", widget: "text", defaultSection: "Business" },
       { key: "employee_count", defaultLabel: "Employees", widget: "text", defaultSection: "Business" },
@@ -179,6 +192,7 @@ export const FIELD_REGISTRY: Record<PilotObjectType, ObjectFieldRegistry> = {
       { key: "department", defaultLabel: "Department", widget: "text", defaultSection: "Identity" },
       { key: "birthday", defaultLabel: "Birthday", widget: "date", defaultSection: "Identity" },
       { key: "linkedin_url", defaultLabel: "LinkedIn", widget: "url", defaultSection: "Identity" },
+      { key: "preferred_language", defaultLabel: "Preferred language", widget: "enum", defaultSection: "Identity", enumOptions: PREFERRED_LANGUAGE_OPTIONS, requiresFeature: "newsletter_studio" },
 
       { key: "phone", defaultLabel: "Primary", widget: "tel", defaultSection: "Phone numbers" },
       { key: "phone2", defaultLabel: "Secondary", widget: "tel", defaultSection: "Phone numbers" },
@@ -375,6 +389,25 @@ export const FIELD_REGISTRY: Record<PilotObjectType, ObjectFieldRegistry> = {
         { value: "reviewed", label: "Reviewed" }, { value: "accepted", label: "Accepted" }, { value: "rescoped", label: "Re-scoped" }, { value: "closed", label: "Closed" },
       ] },
       { key: "plan_start_date", defaultLabel: "Plan start date", widget: "date", defaultSection: "Study" },
+    ],
+  },
+
+  // Newsletter (0141, docs/newsletter-studio-architecture.md section 8). Header
+  // only: the blocks and the words per language are a document, edited in the
+  // studio, never a generic form (same reason an estimate's lines are not fields).
+  newsletter: {
+    sections: ["Newsletter"],
+    fields: [
+      { key: "ref",      defaultLabel: "Newsletter ID", widget: "text", defaultSection: "Newsletter", locked: true, editable: false, exportOnly: true },
+      { key: "name",     defaultLabel: "Name",          widget: "text", defaultSection: "Newsletter", locked: true },
+      { key: "category", defaultLabel: "Category",      widget: "enum", defaultSection: "Newsletter", enumOptions: [
+        { value: "Newsletter", label: "Newsletter" }, { value: "Offer", label: "Offer" }, { value: "Event", label: "Event" },
+        { value: "Announcement", label: "Announcement" }, { value: "Festival", label: "Festival" },
+      ] },
+      { key: "status",   defaultLabel: "Status",        widget: "enum", defaultSection: "Newsletter", locked: true, editable: false, exportOnly: true, enumOptions: [
+        { value: "draft", label: "Draft" }, { value: "ready", label: "Ready" }, { value: "archived", label: "Archived" },
+      ] },
+      { key: "source_language", defaultLabel: "Written first in", widget: "text", defaultSection: "Newsletter", locked: true, editable: false, exportOnly: true },
     ],
   },
 
@@ -607,7 +640,7 @@ export const DEFAULT_FIELD_RULES: Partial<Record<PilotObjectType, FieldRule[]>> 
 const PILOT_OBJECT_TYPES: readonly PilotObjectType[] = [
   "account", "contact", "asset", "supplier",
   "case", "work_order", "quote", "invoice", "purchase_order", "inventory",
-  "employee", "product", "project", "opportunity", "rfq", "estimate", "process_study",
+  "employee", "product", "project", "opportunity", "rfq", "estimate", "process_study", "newsletter",
 ];
 
 export function isPilotObjectType(objectType: string): objectType is PilotObjectType {

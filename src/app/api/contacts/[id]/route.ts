@@ -4,6 +4,7 @@ import { requireTenantUser, getAuthUser } from "@/lib/supabase-server";
 import { encrypt, decrypt, decryptContact } from "@/lib/encryption";
 import { diffForLog, logChange } from "@/lib/changeLog";
 import { stampContactEmailHash } from "@/lib/marketing/contactEmailHash";
+import { cleanPreferredLanguage } from "@/lib/newsletter/language";
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   let supabase, tenantId;
@@ -22,7 +23,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     "phone", "phone2", "phone3", "email", "email2",
     "website", "linkedin_url", "birthday",
     "address_line1", "address_line2", "city", "state", "postal_code", "country",
-    "notes", "custom_data",
+    "notes", "custom_data", "preferred_language",
   ];
   const PII_FIELDS = new Set(["phone", "phone2", "phone3", "email", "email2"]);
   const DATE_FIELDS = new Set(["birthday"]);
@@ -30,6 +31,13 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   const patchPlaintext: Record<string, unknown> = {};
   for (const key of allowed) {
     if (key in body) {
+      if (key === "preferred_language") {
+        // Newsletter Studio (0143): a language code or null; anything else is ignored rather than written.
+        const lang = cleanPreferredLanguage(body[key]);
+        if (lang === undefined) continue;
+        patch[key] = lang; patchPlaintext[key] = lang;
+        continue;
+      }
       const value = DATE_FIELDS.has(key) && body[key] === "" ? null : body[key];
       patch[key] = PII_FIELDS.has(key) ? encrypt(value as string | null) : value;
       patchPlaintext[key] = value;

@@ -86,6 +86,11 @@ export async function proxy(request: NextRequest) {
     // lib/campaignInterestLink.ts) -- same reasoning as the unsubscribe link.
     /^\/marketing\/interest\/[^/]+\/[^/]+\/[^/]+$/.test(pathname) ||
     /^\/api\/marketing\/interest\/[^/]+\/[^/]+\/[^/]+$/.test(pathname) ||
+    // Signed, no-login newsletter click and open links (see lib/newsletter/linkTokens.ts).
+    // The token is verified inside the route BEFORE anything is read, and the redirect goes
+    // only to an address stored in the newsletter version. $-anchored like the links above.
+    /^\/marketing\/c\/[^/]+\/[^/]+\/\d+\/[^/]+$/.test(pathname) ||
+    /^\/marketing\/o\/[^/]+\/[^/]+\/[^/]+$/.test(pathname) ||
     // Public REST API. These carry their own auth -- a per-tenant bearer key
     // (tenants.api_key), resolved by resolveTenantFromBearer() in every single
     // route under /api/v1, which also decides the tenant. Same reasoning as the

@@ -71,6 +71,8 @@ export const SETTINGS_MENU: SettingsMenuEntry[] = [
   { id: "marketing-scoring", group: "marketing", label: "Scoring", description: "How a lead earns points, when it counts as ready for sales, and a way to try it on a sample lead", href: ROUTES.settingsMarketingScoring, keywords: ["lead score", "points", "ready for sales", "rubric", "marketing"], adminOnly: true, featureKey: "marketing_scoring" },
   { id: "marketing-consent", group: "marketing", label: "Consent and topics", description: "What you may email, the topics people can choose, and the rule that applies when nobody has said yes", href: ROUTES.settingsMarketingConsent, keywords: ["opt in", "unsubscribe", "gdpr", "pdpl", "permission", "marketing", "topics"], adminOnly: true, featureKey: "marketing_scoring" },
 
+  { id: "brand-kit", group: "marketing", label: "Brand kit", description: "Your logo, colours and email-safe fonts for newsletters, and whether opens are counted", href: ROUTES.settingsBrandKit, keywords: ["newsletter", "logo", "colours", "fonts", "footer", "social", "opens"], adminOnly: true, featureKey: "newsletter_studio" },
+
   // ── Service ──
   { id: "asset-print-fields", group: "service", label: "Asset print fields", description: "Which equipment fields appear in the Equipment Details section of a printed quote", href: ROUTES.settingsAssetPrintFields, keywords: ["equipment", "nameplate", "statuses & assets"], adminOnly: true, featureKey: "assets", relatedWorkcenter: "quotations" },
 

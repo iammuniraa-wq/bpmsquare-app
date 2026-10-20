@@ -5,6 +5,7 @@ import { encrypt, decrypt } from "@/lib/encryption";
 import { diffForLog, logChange } from "@/lib/changeLog";
 import { getTenant } from "@/lib/tenant";
 import { applyAutoOwnership } from "@/lib/coverage/resolve";
+import { cleanPreferredLanguage } from "@/lib/newsletter/language";
 import type { Account } from "@/lib/types";
 
 export async function GET() {
@@ -47,8 +48,9 @@ export async function POST(request: NextRequest) {
     address_line1, address_line2, city, state, postal_code, country,
     phone, phone2, email, email2, website,
     industry, employee_count, annual_revenue, gstin, notes,
-    referred_by_account_id, custom_data,
+    referred_by_account_id, custom_data, preferred_language,
   } = body;
+  const prefLang = cleanPreferredLanguage(preferred_language);
 
   if (!name || !type) {
     return NextResponse.json({ error: "name and type are required" }, { status: 400 });
@@ -84,6 +86,7 @@ export async function POST(request: NextRequest) {
       gstin: encrypt(gstin || null),
       notes: notes || null,
       referred_by_account_id: referred_by_account_id || null,
+      ...(prefLang ? { preferred_language: prefLang } : {}),
       ...(custom_data && Object.keys(custom_data).length > 0 ? { custom_data } : {}),
     }, "*");
 
