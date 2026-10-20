@@ -8,7 +8,12 @@ import styles from "./journey.module.css";
 // default, and can be left at any step with Skip or Escape. The step a person reached is remembered in
 // localStorage only (the platform rule, docs/marketing-platform-architecture.md section 6.0).
 
-export type TourStep = { target: string; text: string };
+export type TourStep = {
+  target: string;
+  text: string;
+  /** Switches to the tab or group that holds the target, so the person sees the real thing. */
+  before?: () => void;
+};
 
 const KEY = "bpm.journey.tour.step";
 const read = (): number => { try { const n = Number(localStorage.getItem(KEY)); return Number.isInteger(n) && n > 0 ? n : 0; } catch { return 0; } };
@@ -25,13 +30,14 @@ export default function JourneyTour({ steps }: { steps: TourStep[] }) {
   useEffect(() => {
     if (i === null) return;
     clear();
+    steps[i]?.before?.();
     const t = window.setTimeout(() => {
       const el = document.getElementById(steps[i]?.target ?? "");
       if (!el) return;
       el.classList.add(styles.tourHl);
       const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
       el.scrollIntoView({ block: "center", behavior: reduce ? "auto" : "smooth" });
-    }, 80);
+    }, 160);
     write(i);
     return () => window.clearTimeout(t);
     // steps are re-created by the parent on every render; only the step index drives this.
