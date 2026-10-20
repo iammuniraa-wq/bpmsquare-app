@@ -35,6 +35,9 @@ export const OBJECT_FEATURE: Record<string, keyof TenantFeatures | null> = {
   // Process Design Studio (0152). In-app routes only in phase 1: no Data
   // Workbench route and no v1 endpoint yet (doc section 9.5, phase 3).
   process_studies: "process_studio",
+  // Newsletter Studio (0141). Platform-admin flag; the studio also needs
+  // `marketing`, which every newsletter route checks beside this one.
+  newsletters: "newsletter_studio",
   // Inventory is the stock side of Purchasing; it has never had a key of
   // its own, and the nav gates it on `purchasing` too.
   inventory: "purchasing",

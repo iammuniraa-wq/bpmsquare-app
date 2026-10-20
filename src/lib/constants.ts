@@ -80,6 +80,10 @@ export const ROUTES = {
   marketingCampaign: (id: string) => `/marketing/${id}`,
   marketingUnsubscribe: (accountId: string, token: string) => `/marketing/unsubscribe/${accountId}/${token}`,
   marketingInterest: (campaignId: string, accountId: string, token: string) => `/marketing/interest/${campaignId}/${accountId}/${token}`,
+  marketingNewsletters: "/marketing/newsletters",
+  marketingNewsletterNew: "/marketing/newsletters/new",
+  marketingNewsletter: (id: string) => `/marketing/newsletters/${id}`,
+  marketingClick: (campaignId: string, recipientId: string, index: number, token: string) => `/marketing/c/${campaignId}/${recipientId}/${index}/${token}`,
   marketingSegments: "/marketing/segments",
   marketingSegmentNew: "/marketing/segments/new",
   marketingSegment: (id: string) => `/marketing/segments/${id}`,
@@ -152,6 +156,7 @@ export const ROUTES = {
   settingsRfq: "/settings/rfq",
   settingsMarketingScoring: "/settings/marketing-scoring",
   settingsMarketingConsent: "/settings/marketing-consent",
+  settingsBrandKit: "/settings/brand-kit",
   settingsEstimateTemplates: "/settings/estimate-templates",
   settingsEstimateTemplate: (id: string) => `/settings/estimate-templates/${id}`,
   reports: "/reports",
@@ -311,6 +316,7 @@ export const NAV: NavGroup[] = [
         label: "Marketing", href: ROUTES.marketing, icon: "📣", pillar: "purple",
         children: [
           { label: "Campaigns", href: ROUTES.marketing, icon: "✉", pillar: "purple", featureKey: "marketing", workcenterKey: "marketing" },
+          { label: "Newsletters", href: ROUTES.marketingNewsletters, icon: "✎", pillar: "purple", featureKey: "newsletter_studio", workcenterKey: "marketing_newsletters" },
           { label: "Segmentation", href: ROUTES.marketingSegments, icon: "⌗", pillar: "purple", featureKey: "marketing", workcenterKey: "marketing_segments" },
           { label: "Leads", href: ROUTES.leads, icon: "✦", pillar: "purple", featureKey: "leads", workcenterKey: "leads" },
         ],
@@ -611,6 +617,13 @@ export type TenantFeatures = {
   // in /admin/tenants: default OFF, missing key reads false. The demo
   // tenant has it on (scripts/seed-process-studio-demo.sql).
   process_studio: boolean;
+  // Newsletter Studio (0141-0143, docs/newsletter-studio-architecture.md):
+  // multilingual newsletter designs, templates and versions, handed to the
+  // existing campaign send path. A platform-admin-only flag (set in
+  // /admin/tenants, never by a workspace admin): default OFF, missing key
+  // reads false, and with it off there is no menu item, no route and no
+  // change to any campaign page. Needs `marketing`.
+  newsletter_studio: boolean;
 };
 
 // WfmConfig — tenant-level WFM (attendance) settings, stored in
@@ -1227,6 +1240,11 @@ export type TenantConfig = {
   // section 6.3), set by a platform admin on the tenant page. Absent keys read as
   // the defaults in src/lib/studio/caps.ts.
   process_studio?: ProcessStudioConfig;
+  // Newsletter Studio brand kit (docs/newsletter-studio-architecture.md 2.2),
+  // validated by src/lib/newsletter/brandKit.ts. Absent = derived defaults.
+  brand_kit?: BrandKit;
+  // Newsletter Studio AI allowance, set by a platform admin like process_studio's.
+  newsletter_studio?: { monthly_token_budget?: number };
 };
 
 /** A topic a person can agree to or refuse separately ("Offers", "Events"). */
@@ -1249,6 +1267,29 @@ export type MarketingConfig = {
   consent_defaults?: Partial<Record<"SA" | "AE" | "QA" | "KW" | "OM" | "BH" | "IN" | "EU" | "other", "consent_required" | "existing_customer">>;
   /** The lead-scoring rubric (src/lib/marketing/scoring.ts). Absent = DEFAULT_RUBRIC. */
   scoring?: ScoringRubric;
+  /**
+   * Whether a newsletter carries an open-tracking pixel. Absent or false = no
+   * pixel in the HTML at all (owner decision 2026-10-19: opens are unreliable
+   * and need a lawful basis in the Gulf; clicks are tracked, opens are not).
+   */
+  track_opens?: boolean;
+};
+
+/** The Newsletter Studio brand kit (docs/newsletter-studio-architecture.md 2.2): set once by an admin, used by every design. */
+export type BrandKit = {
+  /** Public image URL; absent = the workspace logo (tenants.logo_url). */
+  logo_url?: string;
+  /** Strict #rrggbb. */
+  primary?: string;
+  secondary?: string;
+  text?: string;
+  /** Key of an email-safe font pairing (src/lib/newsletter/types.ts FONT_PAIRINGS). */
+  font_pairing?: string;
+  /** Footer address lines, one per line. */
+  footer_address?: string;
+  social_links?: { label: string; url: string }[];
+  /** Spoken tone used by AI drafts and translations. */
+  tone?: "formal" | "warm";
 };
 
 export type ProcessStudioConfig = {
