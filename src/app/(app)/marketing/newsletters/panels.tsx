@@ -109,6 +109,7 @@ export function BlockEditor({ block, row, lang, canEdit, isAdmin, unlocked, onUn
     setUploading(false);
     if (!r.ok) { onError(r.error); return; }
     onSetting("path", r.data.path);
+    onSetting("bytes", String(r.data.bytes));
   }
 
   return (
@@ -156,7 +157,7 @@ export function BlockEditor({ block, row, lang, canEdit, isAdmin, unlocked, onUn
           {typeof block.settings.path === "string" && block.settings.path && <span className={styles.chip}>A picture is chosen</span>}
           <input id="nlf-file" type="file" accept="image/png,image/jpeg,image/webp" disabled={!canEdit || uploading} onChange={(e) => { const f = e.target.files?.[0]; if (f) void pick(f); e.target.value = ""; }} />
           <span className={styles.hint}>PNG, JPG or WebP up to 2 MB. Pictures are kept in your own workspace; a picture from anywhere else is never used.</span>
-          {typeof block.settings.path === "string" && block.settings.path && canEdit && <div><Button size="sm" onClick={() => onSetting("path", undefined)}>Remove the picture</Button></div>}
+          {typeof block.settings.path === "string" && block.settings.path && canEdit && <div><Button size="sm" onClick={() => { onSetting("path", undefined); onSetting("bytes", undefined); }}>Remove the picture</Button></div>}
         </div>
       )}
 
@@ -210,11 +211,28 @@ export function AddLanguage({ present, busy, canEdit, aiReady, onAdd }: {
   );
 }
 
+/** The content health checklist: green ticks and amber items, each amber one saying in plain words what to change. */
 export function CheckChips({ checks, loading }: { checks: Check[]; loading: boolean }) {
   if (checks.length === 0) return <div aria-live="polite">{loading ? <><div className={styles.skel} style={{ width: "60%" }} /><div className={styles.skel} style={{ width: "40%" }} /></> : <span className={styles.help}>Nothing to check yet.</span>}</div>;
+  const warn = checks.filter((c) => c.tone === "warn");
+  const good = checks.filter((c) => c.tone === "good");
   return (
-    <div className={styles.checks} aria-live="polite">
-      {checks.map((c) => <span key={c.id} className={cx(styles.chip, c.tone === "good" ? styles.g : styles.a)}>{c.tone === "good" ? "✓ " : "⚠ "}{c.label}</span>)}
+    <div className={styles.health} aria-live="polite">
+      {warn.length > 0 && (
+        <ul className={styles.healthList} aria-label="To change">
+          {warn.map((c) => (
+            <li key={c.id} className={styles.healthItem}>
+              <span className={cx(styles.chip, styles.a)}>{"⚠ "}{c.label}</span>
+              {c.fix && <span className={styles.healthFix}>{c.fix}</span>}
+            </li>
+          ))}
+        </ul>
+      )}
+      {good.length > 0 && (
+        <ul className={styles.healthList} aria-label="All good">
+          {good.map((c) => <li key={c.id}><span className={cx(styles.chip, styles.g)}>{"✓ "}{c.label}</span></li>)}
+        </ul>
+      )}
     </div>
   );
 }

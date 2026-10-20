@@ -27,11 +27,11 @@ const html = (p: StudioProps) => renderToString(createElement(NewsletterStudio, 
 describe("the studio screen", () => {
   it("renders the six option groups, each with a button, a summary and a plain-words hint", () => {
     const out = html(props());
-    for (const title of ["Start", "Blocks", "Languages", "Check before sending", "Brand kit", "Use it"]) expect(out).toContain(`<b>${title}</b>`);
+    for (const title of ["Start", "Blocks", "Languages", "Content health", "Brand kit", "Use it"]) expect(out).toContain(`<b>${title}</b>`);
     expect(out.match(/aria-expanded=/g)!.length).toBeGreaterThanOrEqual(6);
     expect(out).toContain("How to begin: say what this issue is about, pick a design, or start blank.");
     expect(out).toContain("English is written first. Add a language on top and each person gets their own.");
-    expect(out).toContain("Rules that run every time, not opinions. Fix the amber ones.");
+    expect(out).toContain("Rules that run every time, never opinions or a score. Each amber item says what to change.");
     expect(out).toContain("Your logo, colours and fonts, set once by an admin and used by every design.");
     expect(out).toContain("Keep this design, or hand it to a campaign.");
   });

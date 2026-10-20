@@ -175,3 +175,9 @@ textarea.field { min-height: 84px; resize: vertical; }
   .cmpHead, .cmpRow { grid-template-columns: minmax(0, 1fr); }
   .cmpActs { grid-column: 1; justify-self: start; }
 }
+
+/* content health */
+.health { display: grid; gap: 10px; }
+.healthList { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; justify-items: start; }
+.healthItem { display: grid; gap: 3px; justify-items: start; }
+.healthFix { font-size: 12px; color: var(--hint); line-height: 1.4; padding-inline-start: 4px; }

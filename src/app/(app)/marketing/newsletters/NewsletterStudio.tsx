@@ -56,7 +56,7 @@ export type StudioProps = {
 type Sec = "startSec" | "blocksSec" | "langSec" | "checkSec" | "brandSec" | "useSec";
 const SECTIONS: { id: Sec; tab: string }[] = [
   { id: "startSec", tab: "Start" }, { id: "blocksSec", tab: "Blocks" }, { id: "langSec", tab: "Languages" },
-  { id: "checkSec", tab: "Check" }, { id: "brandSec", tab: "Brand" }, { id: "useSec", tab: "Use it" },
+  { id: "checkSec", tab: "Health" }, { id: "brandSec", tab: "Brand" }, { id: "useSec", tab: "Use it" },
 ];
 
 const snapshot = (d: { name: string; category: string; topic: string | null; blocks: NewsletterBlock[]; languages: LanguageRow[] }) => JSON.stringify(d);
@@ -499,7 +499,7 @@ export default function NewsletterStudio(props: StudioProps) {
             <p className={styles.hint}>Who gets which: the contact&apos;s preferred language, then the account&apos;s, then English.</p>
           </Group>
 
-          <Group id="checkSec" title="Check before sending" summary={warnings ? `${warnings} to fix` : checks.length ? "All clear" : "…"} hint="Rules that run every time, not opinions. Fix the amber ones." open={open === "checkSec"} on={tab === "checkSec"} onToggle={() => toggleSection("checkSec")}>
+          <Group id="checkSec" title="Content health" summary={warnings ? `${warnings} to fix` : checks.length ? "All clear" : "…"} hint="Rules that run every time, never opinions or a score. Each amber item says what to change." open={open === "checkSec"} on={tab === "checkSec"} onToggle={() => toggleSection("checkSec")}>
             <CheckChips checks={checks} loading={previewing} />
           </Group>
 

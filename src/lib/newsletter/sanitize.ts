@@ -56,7 +56,13 @@ function cleanSettings(type: BlockType, raw: unknown, tenantId: string): BlockSe
   const out: BlockSettings = {};
   const url = (k: string) => { const u = safeUrl(r[k]); if (u) out[k] = u; };
   const align = () => { if (typeof r.align === "string" && ALIGN.has(r.align)) out.align = r.align; };
-  const asset = (k: string) => { if (isTenantAssetPath(r[k], tenantId)) out[k] = r[k] as string; };
+  const asset = (k: string) => {
+    if (!isTenantAssetPath(r[k], tenantId)) return;
+    out[k] = r[k] as string;
+    // The size recorded at upload (for the image-weight check). Informational: never trusted for anything but a warning.
+    const bytes = Number(r.bytes);
+    if (Number.isInteger(bytes) && bytes > 0 && bytes <= 20 * 1024 * 1024) out.bytes = bytes;
+  };
   switch (type) {
     case "image": asset("path"); url("link"); break;
     case "button": url("url"); align(); break;
