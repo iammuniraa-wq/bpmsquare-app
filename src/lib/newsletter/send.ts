@@ -13,6 +13,7 @@ import { signUnsubscribeToken } from "@/lib/marketingUnsubscribe";
 import { signCampaignInterestToken } from "@/lib/campaignInterestLink";
 import { ROUTES } from "@/lib/constants";
 import type { MarketingRecipientCandidate } from "@/lib/data/live";
+import { RECIPIENT_TAG } from "@/lib/marketing/resendEvents";
 import { resolveRecipientLanguage } from "./language";
 import { signClickToken, signOpenToken } from "./linkTokens";
 import { fillTokens, type TokenValues } from "./tokens";
@@ -75,6 +76,13 @@ async function contactsOfAccounts(admin: SupabaseClient, tenantId: string, accou
     out.push(...((res.data ?? []) as unknown as ContactRow[]));
   }
   return out;
+}
+
+/** Remembers the provider's message id (0144), on its own so a pending migration cannot fail the sent update above. */
+async function rememberProviderId(supabase: SupabaseClient, tenantId: string, rid: string, resendId: string | null): Promise<void> {
+  if (!resendId) return;
+  const { error } = await supabase.from("marketing_campaign_recipients").update({ resend_id: resendId }).eq("id", rid).eq("tenant_id", tenantId);
+  if (error && !isSchemaPending(error)) console.error(`[newsletter send] provider id not stored: ${error.message}`);
 }
 
 async function accountLanguages(admin: SupabaseClient, tenantId: string, accountIds: string[]): Promise<Map<string, string | null>> {
@@ -185,6 +193,9 @@ export async function sendNewsletterCampaign(d: SendInput): Promise<SendResult> 
     if (routed.ok) {
       const r = await d.resend.emails.send({
         from: d.fromAddress, to: routed.email.to, replyTo: d.replyTo, subject: routed.email.subject, html: routed.email.html, text: routed.email.text,
+        // Ties the provider's delivery events (/api/webhooks/resend) back to this row; the tenant
+        // is read from the row, never from the event.
+        tags: [{ name: RECIPIENT_TAG, value: rid }],
         headers: unsubToken ? {
           "List-Unsubscribe": `<${await d.absoluteUrl(`/api/marketing/unsubscribe/${accountId}/${unsubToken}`)}>`,
           "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
@@ -205,6 +216,7 @@ export async function sendNewsletterCampaign(d: SendInput): Promise<SendResult> 
     } else {
       await Promise.all([
         d.supabase.from("marketing_campaign_recipients").update({ status: "sent", sent_at: new Date().toISOString() }).eq("id", rid).eq("tenant_id", tenantId),
+        rememberProviderId(d.supabase, tenantId, rid, resendId),
         logEmail(d.supabase, { tenantId, kind: "campaign", toEmail: candidate.email, subject, status: "sent", ...label }),
         emitEvent(tenantId, { name: EVENTS.EMAIL_SENT, ...common(`${rid}:sent`, contact, choice.lang, candidate), payload: { resend_id: resendId, redirected: routed.ok ? routed.email.redirected : false } }, d.admin),
       ]);
