@@ -6,7 +6,8 @@ import {
 } from "@/lib/fieldRegistry";
 import { normalizeCategoryTree, type ProductCategoryNode } from "@/lib/picklists";
 import { selectableItemTypes } from "@/lib/products/itemTypes";
-import type { TenantConfig } from "@/lib/constants";
+import type { TenantConfig, TenantFeatures } from "@/lib/constants";
+import { isSchemaPending } from "@/lib/marketing/pending";
 
 type CustomFieldRow = {
   id: string;
@@ -57,6 +58,22 @@ export async function getEffectiveFieldConfig(
         selectableItemTypes((data?.config ?? {}) as TenantConfig).map((x) => ({ value: x.key, label: x.label })))
     : null;
 
+  // A field that belongs to a platform-admin feature (preferred_language: Newsletter Studio) is offered only to a
+  // workspace that has the feature AND only once the database has the column, so a workspace without it sees no
+  // new field on a form, an export or an import, and a pending migration can never turn a save into an error.
+  const gated = isPilotObjectType(objectType) ? FIELD_REGISTRY[objectType].fields.filter((f) => f.requiresFeature) : [];
+  const allowedGated = new Set<string>();
+  if (gated.length > 0) {
+    const { data: t } = await supabase.from("tenants").select("features").eq("id", tenantId).maybeSingle();
+    const features = (t?.features ?? {}) as Partial<TenantFeatures>;
+    const table = objectType === "account" ? "accounts" : objectType === "contact" ? "contacts" : null;
+    for (const f of gated) {
+      if (!f.requiresFeature || features[f.requiresFeature] !== true || !table) continue;
+      const probe = await supabase.from(table).select(f.key).eq("tenant_id", tenantId).limit(1);
+      if (!probe.error || !isSchemaPending(probe.error)) allowedGated.add(f.key);
+    }
+  }
+
   const overridesByKey = new Map<string, OverrideRow>(
     ((overrideRows ?? []) as OverrideRow[]).map((o) => [o.field_key, o]),
   );
@@ -68,6 +85,7 @@ export async function getEffectiveFieldConfig(
     sectionOrder.push(...FIELD_REGISTRY[objectType].sections);
 
     FIELD_REGISTRY[objectType].fields.forEach((def, index) => {
+      if (def.requiresFeature && !allowedGated.has(def.key)) return;
       const override = overridesByKey.get(def.key);
       fields.push({
         field_key: def.key,

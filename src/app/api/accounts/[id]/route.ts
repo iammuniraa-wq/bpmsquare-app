@@ -3,6 +3,7 @@ import { requireTenantUser, createAdminSupabase, getAuthUser } from "@/lib/supab
 import { encrypt, decrypt, decryptAccount } from "@/lib/encryption";
 import { diffForLog, logChange } from "@/lib/changeLog";
 import { getTenant } from "@/lib/tenant";
+import { cleanPreferredLanguage } from "@/lib/newsletter/language";
 import { applyAutoOwnership } from "@/lib/coverage/resolve";
 import type { Account } from "@/lib/types";
 
@@ -58,13 +59,20 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     "address_line1", "address_line2", "city", "state", "postal_code", "country",
     "phone", "phone2", "email", "email2", "website",
     "industry", "employee_count", "annual_revenue", "gstin", "notes",
-    "referred_by_account_id", "custom_data",
+    "referred_by_account_id", "custom_data", "preferred_language",
   ];
   const PII_FIELDS = new Set(["phone", "phone2", "email", "email2", "gstin"]);
   const patch: Record<string, unknown> = {};
   const patchPlaintext: Record<string, unknown> = {};
   for (const key of allowed) {
     if (key in body) {
+      if (key === "preferred_language") {
+        // Newsletter Studio (0143): a language code or null; anything else is ignored rather than written.
+        const lang = cleanPreferredLanguage(body[key]);
+        if (lang === undefined) continue;
+        patch[key] = lang; patchPlaintext[key] = lang;
+        continue;
+      }
       patch[key] = PII_FIELDS.has(key) ? encrypt(body[key] as string | null) : body[key];
       patchPlaintext[key] = body[key];
     }

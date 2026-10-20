@@ -5,6 +5,7 @@ import { c } from "@/lib/theme";
 import { csvCell, downloadCsv } from "@/lib/import/template";
 import Pager from "@/components/Pager";
 import { paginate, clampPage, DEFAULT_PAGE_SIZE } from "@/lib/paginate";
+import { useTenantFeature } from "@/lib/tenant-context";
 
 // Mirrors the objectType strings src/lib/changeLog.ts records -- kept as its
 // own small list rather than importing ImportObjectId, since not every
@@ -72,6 +73,9 @@ const ACTION_TONE: Record<ChangeLogRow["action"], { bg: string; fg: string }> = 
 };
 
 export default function ChangeHistoryClient() {
+  // Newsletters are listed only for a workspace that has the Newsletter Studio: nobody else has any.
+  const hasNewsletters = useTenantFeature("newsletter_studio");
+  const objectTypes = OBJECT_TYPES.filter((o) => o.value !== "newsletters" || hasNewsletters);
   const [objectType, setObjectType] = useState(OBJECT_TYPES[0].value);
   const [objectId, setObjectId] = useState("");
   const [rows, setRows] = useState<ChangeLogRow[] | null>(null);
@@ -132,7 +136,7 @@ export default function ChangeHistoryClient() {
             onChange={(e) => { setObjectType(e.target.value); setRows(null); }}
             style={{ padding: "8px 10px", borderRadius: 8, border: `1px solid ${c.line}`, fontSize: 13, background: c.panel, color: c.ink, minWidth: 180 }}
           >
-            {OBJECT_TYPES.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+            {objectTypes.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
           </select>
         </div>
         <div>

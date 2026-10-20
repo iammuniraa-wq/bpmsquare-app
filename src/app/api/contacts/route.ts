@@ -5,6 +5,7 @@ import { insertWithMasterRef } from "@/lib/masterRef";
 import { encrypt } from "@/lib/encryption";
 import { diffForLog, logChange } from "@/lib/changeLog";
 import { stampContactEmailHash } from "@/lib/marketing/contactEmailHash";
+import { cleanPreferredLanguage } from "@/lib/newsletter/language";
 
 export async function GET() {
   let supabase, tenantId;
@@ -40,8 +41,9 @@ export async function POST(request: NextRequest) {
     phone, phone2, phone3, email, email2,
     website, linkedin_url, birthday,
     address_line1, address_line2, city, state, postal_code, country,
-    notes, custom_data,
+    notes, custom_data, preferred_language,
   } = body;
+  const prefLang = cleanPreferredLanguage(preferred_language);
 
   if (!name || !account_id) {
     return NextResponse.json({ error: "name and account_id are required" }, { status: 400 });
@@ -77,6 +79,7 @@ export async function POST(request: NextRequest) {
       postal_code: postal_code || null,
       country: country || null,
       notes: notes || null,
+      ...(prefLang ? { preferred_language: prefLang } : {}),
       ...(custom_data && Object.keys(custom_data).length > 0 ? { custom_data } : {}),
     }, "id, name");
 
