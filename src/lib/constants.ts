@@ -87,6 +87,8 @@ export const ROUTES = {
   marketingSegments: "/marketing/segments",
   marketingSegmentNew: "/marketing/segments/new",
   marketingSegment: (id: string) => `/marketing/segments/${id}`,
+  marketingLeads: "/marketing/leads",
+  marketingLead: (id: string) => `/marketing/leads/${id}`,
   quotations: "/quotations",
   quotation: (id: string) => `/quotations/${id}`,
   quotationEdit: (id: string) => `/quotations/${id}/edit`,
@@ -319,6 +321,7 @@ export const NAV: NavGroup[] = [
           { label: "Newsletters", href: ROUTES.marketingNewsletters, icon: "✎", pillar: "purple", featureKey: "newsletter_studio", workcenterKey: "marketing_newsletters" },
           { label: "Segmentation", href: ROUTES.marketingSegments, icon: "⌗", pillar: "purple", featureKey: "marketing", workcenterKey: "marketing_segments" },
           { label: "Leads", href: ROUTES.leads, icon: "✦", pillar: "purple", featureKey: "leads", workcenterKey: "leads" },
+          { label: "Scored leads", href: ROUTES.marketingLeads, icon: "◎", pillar: "purple", featureKey: "marketing_scoring", workcenterKey: "leads" },
         ],
       },
     ],
@@ -1273,6 +1276,12 @@ export type MarketingConfig = {
    * and need a lawful basis in the Gulf; clicks are tracked, opens are not).
    */
   track_opens?: boolean;
+  /**
+   * How fast a salesperson must pick up a lead that is ready for sales.
+   * Absent = one working day, Sunday off (src/lib/marketing/leads/timing.ts).
+   * `weekly_off` is 0 = Sunday ... 6 = Saturday.
+   */
+  lifecycle?: { sla_business_days?: number; weekly_off?: number[] };
 };
 
 /** The Newsletter Studio brand kit (docs/newsletter-studio-architecture.md 2.2): set once by an admin, used by every design. */
