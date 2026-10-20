@@ -65,9 +65,9 @@ function shape(r: Raw, codes: Map<string, LeadStageKey>): ScoredLead {
   };
 }
 
-const COLS = "id, title, source, status, account_id, contact_id, score, score_factors, scored_at, owner_user_id, sla_due_at, ready_at, assignment_reason, custom_status_id, created_at, accounts(name), contacts(name)";
+const COLS: string = "id, title, source, status, account_id, contact_id, score, score_factors, scored_at, owner_user_id, sla_due_at, ready_at, assignment_reason, custom_status_id, created_at, accounts(name), contacts(name)";
 // The same list without the 0160 columns, for a database that has 0140 but not yet 0160.
-const COLS_BASE = "id, title, source, status, account_id, contact_id, score, score_factors, scored_at, owner_user_id, sla_due_at, custom_status_id, created_at, accounts(name), contacts(name)";
+const COLS_BASE: string = "id, title, source, status, account_id, contact_id, score, score_factors, scored_at, owner_user_id, sla_due_at, custom_status_id, created_at, accounts(name), contacts(name)";
 
 /** All of the workspace's leads with their scores, best first. `pending` is true while 0140 is not applied. */
 export async function listScoredLeads(admin: SupabaseClient, tenantId: string): Promise<{ leads: ScoredLead[]; pending: boolean }> {

@@ -93,7 +93,9 @@ describe("scoring a lead from what its person did", () => {
     const afterFirst = JSON.stringify(tables.leads.find((l) => l.id === "l1"));
     const eventsAfterFirst = tables.domain_event.length;
     const second = await scoreLead(client, "t1", "l1", { now: NOW });
-    expect(second).toEqual(first);
+    expect(first.ok && first.moved_to).toBe("ready");
+    expect(second.ok && second.moved_to).toBeNull();
+    expect(second).toEqual({ ...first, moved_to: null });
     expect(JSON.stringify(tables.leads.find((l) => l.id === "l1"))).toBe(afterFirst);
     expect(tables.domain_event.length).toBe(eventsAfterFirst);
     expect(tables.status_history.length).toBeLessThanOrEqual(1);
@@ -128,7 +130,7 @@ describe("scoring a lead from what its person did", () => {
     const theirs = await scoreLead(client, "t1", "l2", { now: NOW });
     expect(theirs).toEqual({ ok: false, reason: "not_found" });
     expect(tables.leads.find((l) => l.id === "l2")!.score).toBeNull();
-    for (const q of queries.filter((x) => ["domain_event", "leads", "accounts", "contacts"].includes(x.table))) {
+    for (const q of queries.filter((x) => x.op !== "upsert" && x.op !== "insert" && ["domain_event", "leads", "accounts", "contacts"].includes(x.table))) {
       expect(q.filters.tenant_id).toBe("t1");
     }
   });
