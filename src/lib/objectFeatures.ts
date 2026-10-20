@@ -66,6 +66,9 @@ export const OBJECT_FEATURE: Record<string, keyof TenantFeatures | null> = {
   whatsapp_messages: "whatsapp_marketing",
   "whatsapp-templates": "whatsapp_marketing",
   // Attribution (0190-0192). Platform-admin flag; every route also checks `marketing`.
+  // Events (0195-0196). Platform-admin flag; every route also checks `marketing` and `marketing_forms`.
+  marketing_events: "marketing_events",
+  event_registrations: "marketing_events",
   marketing_touches: "marketing_attribution",
   attribution_results: "marketing_attribution",
   // Inventory is the stock side of Purchasing; it has never had a key of
