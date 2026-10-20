@@ -94,6 +94,11 @@ export function sanitizeJourney(input: unknown): SanitizeResult {
         steps.push({ id, kind: "send_newsletter", newsletter_version_id: v, topic, languages, fallback_language: fb });
         break;
       }
+      case "send_whatsapp": {
+        const t = typeof s.template_id === "string" && UUID.test(s.template_id) ? s.template_id : null;
+        steps.push({ id, kind: "send_whatsapp", template_id: t });
+        break;
+      }
       case "create_task": {
         const title = text(s.title, 120);
         if (!title) errors.push(`Step ${i + 1}: say what the task is.`);
@@ -124,6 +129,7 @@ export function readinessProblems(def: JourneyDefinition): string[] {
   if (def.steps.length === 0) out.push("Add at least one step.");
   def.steps.forEach((s, i) => {
     if (s.kind === "send_newsletter" && !s.newsletter_version_id) out.push(`Step ${i + 1}: choose which newsletter version to send.`);
+    if (s.kind === "send_whatsapp" && !s.template_id) out.push(`Step ${i + 1}: choose which WhatsApp template to send.`);
   });
   return out;
 }
@@ -175,6 +181,7 @@ export function describeStep(s: JourneyStep): string {
   switch (s.kind) {
     case "wait": return `Wait ${s.amount} ${s.unit === "hours" ? (s.amount === 1 ? "hour" : "hours") : (s.amount === 1 ? "day" : "days")}`;
     case "send_newsletter": return "Send a newsletter version";
+    case "send_whatsapp": return "Send a WhatsApp template";
     case "create_task": return `Create a task for the owner: ${s.title}`;
     case "notify_owner": return `Tell the owner: ${s.text}`;
     case "end": return "End";

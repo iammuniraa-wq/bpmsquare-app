@@ -43,6 +43,17 @@ export function explainStep(def: JourneyDefinition, index: number, limits: Journ
       if (def.entry.pause_when_in_trouble) blockers.push({ code: "account_in_trouble", text: `Waits while the company has a case open for more than ${limits.troubleCaseDays} days or an overdue invoice.` });
       return { fires: `Sends ${sinceTrigger(def, index)}, if the person has consent for ${topic} and none of the rules below apply.`, blockers };
     }
+    case "send_whatsapp": {
+      const blockers = [
+        { code: "no_consent", text: "Will not send if the person has no WhatsApp consent for the template's subject, withdrew it (for example by replying STOP), or is marked do not contact. Consent is checked again at the moment of sending." },
+        { code: "template_not_approved", text: "Will not send while the template is not approved." },
+        { code: "no_phone", text: "Will not send if the person has no phone number with a country code." },
+        { code: "quiet_hours", text: `Waits if it is ${quiet}${days ? ` or ${days}` : ""} in workspace time.` },
+        { code: "weekly_cap", text: "Waits if the person already had a marketing WhatsApp message this week." },
+      ];
+      if (def.entry.pause_when_in_trouble) blockers.push({ code: "account_in_trouble", text: `Waits while the company has a case open for more than ${limits.troubleCaseDays} days or an overdue invoice.` });
+      return { fires: `Sends the template ${sinceTrigger(def, index)}, to people who agreed to hear from you on WhatsApp and none of the rules below apply.`, blockers };
+    }
     case "create_task":
       return {
         fires: `Creates the task ${sinceTrigger(def, index)} for the company's owner (Coverage), due in ${s.due_in_days} day${s.due_in_days === 1 ? "" : "s"}.`,

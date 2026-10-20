@@ -4,7 +4,7 @@
 export const JOURNEY_STATUSES = ["draft", "live", "paused", "archived"] as const;
 export type JourneyStatus = (typeof JOURNEY_STATUSES)[number];
 
-export const STEP_KINDS = ["wait", "send_newsletter", "create_task", "notify_owner", "end"] as const;
+export const STEP_KINDS = ["wait", "send_newsletter", "send_whatsapp", "create_task", "notify_owner", "end"] as const;
 export type StepKind = (typeof STEP_KINDS)[number];
 
 export type WaitUnit = "hours" | "days";
@@ -21,6 +21,12 @@ export type JourneyStep =
       /** Languages this step may send; empty = every language of the version that is ready. */
       languages: string[];
       fallback_language: string;
+    }
+  | {
+      id: string;
+      kind: "send_whatsapp";
+      /** An approved WhatsApp template (docs/shells/whatsapp-shell.md). The consent topic is the template's own. Null while the journey is a draft that has not picked one yet. */
+      template_id: string | null;
     }
   | { id: string; kind: "create_task"; title: string; due_in_days: number }
   | { id: string; kind: "notify_owner"; text: string }

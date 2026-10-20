@@ -40,6 +40,15 @@ export const REASONS: Record<string, Def> = {
   not_configured: { label: "Email sending is not set up yet", group: "setup" },
   journey_changed: { label: "The journey was changed and this step no longer exists", group: "setup" },
   journey_archived: { label: "The journey was archived", group: "setup" },
+  // WhatsApp (lib/marketing/whatsapp/reasons.ts has the full sentences)
+  template_not_approved: { label: "The WhatsApp template is not approved yet", group: "setup" },
+  template_missing: { label: "The chosen WhatsApp template no longer exists", group: "setup" },
+  no_template: { label: "No WhatsApp template was chosen for this step", group: "setup" },
+  no_identity: { label: "No WhatsApp number is set up for this workspace yet", group: "setup" },
+  module_off: { label: "WhatsApp is not switched on for this workspace", group: "setup" },
+  no_phone: { label: "The person has no phone number WhatsApp can use", group: "person" },
+  weekly_cap: { label: "Already had a marketing WhatsApp message this week", group: "cap" },
+  dry_run: { label: "Logged only: this workspace does not send to real numbers", group: "error" },
   // result
   sent: { label: "Sent", group: "error" },
   send_failed: { label: "The email could not be sent", group: "error" },

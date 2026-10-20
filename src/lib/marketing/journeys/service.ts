@@ -21,6 +21,13 @@ export class JourneyError extends Error {
 async function verifyReferences(ctx: JourneyCtx, def: JourneyDefinition): Promise<void> {
   const topicKeys = new Set(ctx.env.topics.map((t) => t.key));
   for (const s of def.steps) {
+    if (s.kind === "send_whatsapp" && s.template_id) {
+      if (ctx.env.features.whatsapp_marketing !== true) throw new JourneyError(422, "WhatsApp is not switched on for this workspace.");
+      const { data, error } = await ctx.admin.from("whatsapp_templates").select("id").eq("id", s.template_id).eq("tenant_id", ctx.tenantId).maybeSingle();
+      if (error && isSchemaPending(error)) throw new JourneyError(503, "WhatsApp is waiting for a database update.");
+      if (!data) throw new JourneyError(422, "That WhatsApp template could not be found.");
+      continue;
+    }
     if (s.kind !== "send_newsletter") continue;
     if (s.topic && !topicKeys.has(s.topic)) throw new JourneyError(422, "That subject is not one of this workspace's topics.");
     if (!s.newsletter_version_id) continue;
