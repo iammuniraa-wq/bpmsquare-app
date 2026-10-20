@@ -8,7 +8,8 @@ import Card from "@/components/ui/Card";
 import Field from "@/components/ui/Field";
 import { Input, Select, Textarea } from "@/components/ui/Input";
 import { useFeel } from "@/components/FeelProvider";
-import { ABM_TIERS, TIER_LABEL, TIER_HINT, type AbmTier } from "@/lib/abm/types";
+import { ABM_TIERS, TIER_LABEL, type AbmTier } from "@/lib/abm/types";
+import { ABM_TIPS, ownerTip } from "@/lib/abm/tips";
 
 type User = { id: string; name: string };
 type Deal = { id: string; ref: string | null; title: string; outcome: string };
@@ -83,29 +84,29 @@ export default function PlanPanel({ targetId, accountId, initial, users, canEdit
       </Card>
       <Card title="Who and how" padding={16}>
         <div className="fg2">
-          <Field label="Tier" hint={TIER_HINT[v.tier]}>
+          <Field label="Tier" info={ABM_TIPS.tier}>
             <Select value={v.tier} disabled={dis} onChange={(e) => set("tier", e.target.value as AbmTier)}>{ABM_TIERS.map((t) => <option key={t} value={t}>{TIER_LABEL[t]}</option>)}</Select>
           </Field>
-          <Field label="Owner for this program" hint={v.ownerId === initial.ownerId && initial.ownerSource === "coverage" ? "Set from Coverage. Change it to override for this program only." : initial.ownerSource === "manual" ? "Chosen by hand for this program." : "From the program owner: no Coverage rule matched this company."}>
+          <Field label="Owner for this program" info={ownerTip(initial.ownerSource as "coverage" | "program" | "manual", v.ownerId === initial.ownerId)}>
             <Select value={v.ownerId ?? ""} disabled={dis} onChange={(e) => set("ownerId", e.target.value || null)}>
               <option value="">—</option>{users.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
             </Select>
           </Field>
         </div>
-        <Field label="Deal this program is pursuing" hint="Linking a deal moves the company to Deal open, and to Won or Lost when the deal closes.">
+        <Field label="Deal this program is pursuing" info={ABM_TIPS.deal}>
           <Select value={v.opportunityId ?? ""} disabled={dis} onChange={(e) => set("opportunityId", e.target.value || null)}>
             <option value="">No deal linked</option>
             {deals.map((d) => <option key={d.id} value={d.id}>{d.ref ? `${d.ref} · ` : ""}{d.title} ({d.outcome})</option>)}
           </Select>
         </Field>
-        <Field label="Private note" hint="Only people in your workspace see this. It never goes out through the API." style={{ marginBottom: 0 }}>
+        <Field label="Private note" info={ABM_TIPS.note} style={{ marginBottom: 0 }}>
           <Textarea value={v.notes} disabled={dis} rows={3} onChange={(e) => set("notes", e.target.value)} />
         </Field>
       </Card>
       {canEdit && (
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+        <div className="bpm-tap" style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
           <Button variant="primary" loading={busy} disabled={!dirty} onClick={save}>Save plan</Button>
-          <Button onClick={check} disabled={busy} title="Looks at quotes, emails and deals and moves this company forward by the rules">Check progress</Button>
+          <Button onClick={check} disabled={busy}>Check progress</Button>
           {dirty && <span style={{ fontSize: 12, color: c.hint }}>Unsaved changes</span>}
         </div>
       )}

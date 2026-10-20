@@ -82,7 +82,7 @@ export async function buildAbmAccountCard(tenantId: string, accountId: string): 
     const missing = roleGaps(program.required_roles, roles.get(t.id) ?? []);
     if (t.progress === "engaged" && missing.length > 0) {
       suggestions.push({
-        id: `abm-gap-${t.id}`, title: `Engaged in ${program.name}, but no ${ROLE_LABEL[missing[0].role].toLowerCase()} named`,
+        id: `abm-gap-${t.id}`, title: `Responding in ${program.name}, but no ${ROLE_LABEL[missing[0].role].toLowerCase()} named`,
         detail: "Name the person who decides, so the program can move this company forward.", urgency: "medium", href: ROUTES.marketingAbmTarget(t.program_id, t.id),
       });
     }

@@ -22,7 +22,7 @@ export function CheckProgressButton({ programId }: { programId: string }) {
     toast({ text: j.changed ? `${j.changed} ${j.changed === 1 ? "company" : "companies"} moved forward` : "Nothing new has happened", tone: "success" });
     router.refresh();
   }
-  return <Button onClick={run} loading={busy} title="Looks at quotes, emails and deals and moves companies forward by the rules">Check progress</Button>;
+  return <Button onClick={run} loading={busy}>Check progress</Button>;
 }
 
 type Diff = { new: { id: string; name: string }[]; no_longer_matching: { target_id: string; name: string }[] };

@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { ROUTES } from "@/lib/constants";
+import { ABM_TIPS } from "@/lib/abm/tips";
 import { ABM_TIERS, TIER_LABEL, TIER_HINT, GOAL_METRICS, GOAL_METRIC_LABEL, PROGRAM_KINDS, KIND_LABEL, REQUIRABLE_ROLES, ROLE_LABEL, DEFAULT_REQUIRED_ROLES, type AbmRole } from "@/lib/abm/types";
 import ObjectFormPage from "@/components/page/ObjectFormPage";
 import Card from "@/components/ui/Card";
@@ -63,7 +64,6 @@ export default function NewProgramForm({ members, groups, segments, currentUserI
       backHref={ROUTES.marketingAbm}
       backLabel="All programs"
       title="New program"
-      subtitle="Choose the companies that matter and work each one as a team, for a goal you can state in one sentence."
       onSubmit={submit}
       saving={pending}
       saveLabel="Create program"
@@ -73,16 +73,16 @@ export default function NewProgramForm({ members, groups, segments, currentUserI
       <Card padding={18} title="The program">
         <Field label="Name" required><Input value={form.name} onChange={set("name")} placeholder="e.g. Riyadh developers 2027" autoFocus /></Field>
         <div className="fg2">
-          <Field label="Kind" hint="New business wins companies you do not serve yet; expansion grows companies you already serve.">
+          <Field label="Kind" info={ABM_TIPS.kind}>
             <Select value={form.kind} onChange={set("kind")}>{PROGRAM_KINDS.map((k) => <option key={k} value={k}>{KIND_LABEL[k]}</option>)}</Select>
           </Field>
-          <Field label="Owner" hint="Owns the program. Each company's own owner comes from Coverage.">
+          <Field label="Owner" info={ABM_TIPS.programOwner}>
             <Select value={form.owner_user_id} onChange={set("owner_user_id")}>
               {members.map((m) => <option key={m.user_id} value={m.user_id}>{m.name ?? m.email ?? m.user_id.slice(0, 8)}</option>)}
             </Select>
           </Field>
         </div>
-        <Field label="Goal" hint="One plain sentence, e.g. Win 3 precast supply contracts with Riyadh residential developers.">
+        <Field label="Goal" info={ABM_TIPS.goal}>
           <Textarea value={form.goal} onChange={set("goal")} rows={2} />
         </Field>
         <div className="fg2">
@@ -94,10 +94,10 @@ export default function NewProgramForm({ members, groups, segments, currentUserI
       </Card>
 
       <Card padding={18} title="How each company is worked">
-        <Field label="Default tier" hint="A company can be moved to another tier later.">
+        <Field label="Default tier" info={ABM_TIPS.defaultTier}>
           <Select value={form.default_tier} onChange={set("default_tier")}>{ABM_TIERS.map((t) => <option key={t} value={t}>{TIER_LABEL[t]} — {TIER_HINT[t]}</option>)}</Select>
         </Field>
-        <Field label="Roles every company needs" hint="A company with none of a required role shows a gap, and (by default) is not marked Engaged until the role is filled.">
+        <Field label="Roles every company needs" info={ABM_TIPS.requiredRoles}>
           <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
             {REQUIRABLE_ROLES.map((r) => (
               <label key={r} style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 13 }}>
@@ -109,7 +109,7 @@ export default function NewProgramForm({ members, groups, segments, currentUserI
       </Card>
 
       <Card padding={18} title="Start the target list from">
-        <Field label="Source" hint="The list is copied into the program once and never changes by itself. You can add or remove companies by hand afterwards." style={{ marginBottom: 0 }}>
+        <Field label="Source" info={ABM_TIPS.source} style={{ marginBottom: 0 }}>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             <Select value={source.kind} onChange={(e) => setSource({ kind: e.target.value as "none" | "group" | "segment", id: "" })} style={{ maxWidth: 220 }}>
               <option value="none">Start empty</option>

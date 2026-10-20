@@ -2003,6 +2003,7 @@ textarea.bpm-input { min-height: 72px; resize: vertical; }
 /* A table that becomes stacked rows under 780px (consent card, buying group, by tier): both are rendered and CSS picks
    one. .bpm-tap lifts the buttons and fields inside it to 44px on a phone (docs/design/ux-simplification.md §2c). */
 .bpm-rows-cards { display: none; }
+.bpm-rows-table select.bpm-input { width: auto; max-width: 190px; }
 @media (max-width: 780px) {
   .bpm-rows-table { display: none !important; }
   .bpm-rows-cards { display: flex; flex-direction: column; }

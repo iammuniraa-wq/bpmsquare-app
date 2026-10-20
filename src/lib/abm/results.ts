@@ -93,7 +93,7 @@ export function computeResults(
 /** The one-sentence goal line: "3 deals won target: 1 so far". */
 export function goalSentence(r: ProgramResults): string {
   const { metric, target, current } = r.goal;
-  const unit = metric === "deals_won" ? "won" : metric === "deals_opened" ? "deals opened" : metric === "accounts_engaged" ? "accounts engaged" : "revenue won";
+  const unit = metric === "deals_won" ? "won" : metric === "deals_opened" ? "deals opened" : metric === "accounts_engaged" ? "accounts responding" : "revenue won";
   const cur = metric === "revenue" ? Math.round(current).toLocaleString("en-US") : String(current);
   if (target == null) return `${cur} ${unit} so far`;
   const tgt = metric === "revenue" ? Math.round(target).toLocaleString("en-US") : String(target);
