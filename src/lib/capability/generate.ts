@@ -73,7 +73,7 @@ export const MODULE_LABEL: Record<Key, string> = {
   pricing_engine_quotes: "Live prices on quote lines", next_experience: "Nova", enterprise_theme: "Enterprise theme",
   spectacular_theme: "Spectacular theme", coverage_model: "Coverage", ai_reports: "AI report builder",
   fence_projects: "Fence projects", rfq: "RFQs", estimator: "Estimates", process_studio: "Process Design Studio",
-  marketing_scoring: "Marketing scoring and consent", newsletter_studio: "Newsletter Studio",
+  marketing_scoring: "Marketing scoring and consent", newsletter_studio: "Newsletter Studio", abm: "ABM programs",
 };
 
 /** Which module owns each field-registry object type. Record<PilotObjectType,...> keeps it complete. */
@@ -81,7 +81,7 @@ export const OBJECT_MODULE: Record<PilotObjectType, Key> = {
   account: "accounts", contact: "contacts", asset: "assets", supplier: "suppliers",
   case: "cases", work_order: "work_orders", quote: "quotations", invoice: "invoices",
   purchase_order: "purchasing", inventory: "purchasing", employee: "business_roles", product: "products",
-  project: "wfm_projects", opportunity: "pipeline", rfq: "rfq", estimate: "estimator", process_study: "process_studio", newsletter: "newsletter_studio",
+  project: "wfm_projects", opportunity: "pipeline", rfq: "rfq", estimate: "estimator", process_study: "process_studio", newsletter: "newsletter_studio", abm_program: "abm", abm_target: "abm", abm_member: "abm",
 };
 
 /** Limitations that must travel with a connector. The D365 one is the owner's: it stays visible as it is. */

@@ -84,6 +84,10 @@ export const ROUTES = {
   marketingNewsletterNew: "/marketing/newsletters/new",
   marketingNewsletter: (id: string) => `/marketing/newsletters/${id}`,
   marketingClick: (campaignId: string, recipientId: string, index: number, token: string) => `/marketing/c/${campaignId}/${recipientId}/${index}/${token}`,
+  marketingAbm: "/marketing/abm",
+  marketingAbmNew: "/marketing/abm/new",
+  marketingAbmProgram: (id: string) => `/marketing/abm/${id}`,
+  marketingAbmTarget: (programId: string, targetId: string) => `/marketing/abm/${programId}/accounts/${targetId}`,
   marketingSegments: "/marketing/segments",
   marketingSegmentNew: "/marketing/segments/new",
   marketingSegment: (id: string) => `/marketing/segments/${id}`,
@@ -317,6 +321,7 @@ export const NAV: NavGroup[] = [
         children: [
           { label: "Campaigns", href: ROUTES.marketing, icon: "✉", pillar: "purple", featureKey: "marketing", workcenterKey: "marketing" },
           { label: "Newsletters", href: ROUTES.marketingNewsletters, icon: "✎", pillar: "purple", featureKey: "newsletter_studio", workcenterKey: "marketing_newsletters" },
+          { label: "ABM programs", href: ROUTES.marketingAbm, icon: "◎", pillar: "purple", featureKey: "abm", workcenterKey: "abm" },
           { label: "Segmentation", href: ROUTES.marketingSegments, icon: "⌗", pillar: "purple", featureKey: "marketing", workcenterKey: "marketing_segments" },
           { label: "Leads", href: ROUTES.leads, icon: "✦", pillar: "purple", featureKey: "leads", workcenterKey: "leads" },
         ],
@@ -624,6 +629,12 @@ export type TenantFeatures = {
   // reads false, and with it off there is no menu item, no route and no
   // change to any campaign page. Needs `marketing`.
   newsletter_studio: boolean;
+  // Account-Based Marketing (0180-0182, docs/abm-architecture.md): programs,
+  // target accounts and buying groups as their own object. A platform-admin-
+  // only flag (set in /admin/tenants, never by a workspace admin): default
+  // OFF, missing key reads false, and with it off there is no menu item, no
+  // route and no card on any other screen. Needs `marketing`.
+  abm: boolean;
 };
 
 // WfmConfig — tenant-level WFM (attendance) settings, stored in

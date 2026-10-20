@@ -38,6 +38,16 @@ export const OBJECT_FEATURE: Record<string, keyof TenantFeatures | null> = {
   // Newsletter Studio (0141). Platform-admin flag; the studio also needs
   // `marketing`, which every newsletter route checks beside this one.
   newsletters: "newsletter_studio",
+  // ABM (0180-0182). Every spelling a surface uses: the tables, the Data
+  // Workbench routes (abm_programs / abm_targets / abm_members) and the v1
+  // endpoints (abm-programs / abm-targets).
+  abm_programs: "abm",
+  abm_target_accounts: "abm",
+  abm_buying_group_members: "abm",
+  abm_targets: "abm",
+  abm_members: "abm",
+  "abm-programs": "abm",
+  "abm-targets": "abm",
   // Inventory is the stock side of Purchasing; it has never had a key of
   // its own, and the nav gates it on `purchasing` too.
   inventory: "purchasing",

@@ -67,6 +67,7 @@ const FEATURE_LABELS: { key: keyof TenantFeatures; label: string; premium?: bool
   { key: "pricing_engine_quotes", label: "Pricing Engine → live on Quote lines", premium: true, group: "Platform & automation" },
   { key: "marketing_scoring", label: "Marketing scoring & consent (lead score, consent ledger, topics — needs Marketing campaigns)", premium: true, group: "Programs" },
   { key: "newsletter_studio", label: "Newsletter Studio (multilingual newsletter designs, templates and AI drafts — needs Marketing campaigns)", premium: true, group: "Programs" },
+  { key: "abm", label: "ABM programs (account-based marketing: programs, target accounts, buying groups — needs Marketing campaigns)", premium: true, group: "Programs" },
   { key: "process_studio", label: "Process Design Studio (describe a business, get a cited fit report and a plan)", premium: true, group: "Programs" },
   { key: "next_experience", label: "Nova — the Business OS experience", premium: true, group: "Programs" },
   { key: "enterprise_theme", label: "Enterprise theme (dark rail + light workspace)", premium: true, group: "Programs" },
