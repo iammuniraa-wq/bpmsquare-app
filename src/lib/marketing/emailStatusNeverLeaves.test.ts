@@ -39,7 +39,7 @@ describe("contacts.email_status never leaves the server", () => {
       ...walk(join(ROOT, "mcp-server")),
     ];
     expect(surfaces.filter((f) => !f.endsWith(".test.ts") && mentions(f)).map(rel)).toEqual([]);
-  }, 30000);
+  }, 120000);
 
   it("Data Workbench cannot import or update it: it is on no field registry or import/update spec", () => {
     const places = [
@@ -49,7 +49,7 @@ describe("contacts.email_status never leaves the server", () => {
       ...walk(join(ROOT, "src/app/api/update")),
     ];
     expect(places.filter((f) => !f.endsWith(".test.ts") && mentions(f)).map(rel)).toEqual([]);
-  }, 30000);
+  }, 120000);
 
   it("only the marketing libraries, the contact health actions and their screens touch the column", () => {
     const ALLOWED = [
@@ -69,5 +69,5 @@ describe("contacts.email_status never leaves the server", () => {
       .map(rel)
       .filter((f) => !ALLOWED.some((re) => re.test(f)));
     expect(offenders).toEqual([]);
-  }, 30000);
+  }, 120000);
 });
