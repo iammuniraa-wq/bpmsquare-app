@@ -26,7 +26,7 @@ export const triggerLabel = (event: string): string => TRIGGERS.find((t) => t.ev
 
 /** What a person can narrow the start by. Anything else is refused. */
 export const CONDITION_FIELDS: { field: string; label: string; kind: "choice" | "amount"; choices?: { value: string; label: string }[] }[] = [
-  { field: "object_type", label: "The kind of quote", kind: "choice", choices: [{ value: "standard_quote", label: "A Standard Quote" }, { value: "quote", label: "A Quotation" }] },
+  { field: "object_type", label: "The kind of quote", kind: "choice", choices: [{ value: "standard_quote", label: "A Standard Quote" }] },
   { field: "payload.total", label: "The amount", kind: "amount" },
 ];
 
