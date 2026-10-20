@@ -17,7 +17,7 @@ const LABEL: Record<string, string> = {
   standard_quotes: "Quote", cases: "Case", work_orders: "Work Order",
   invoices: "Invoice", assets: "Asset", suppliers: "Supplier",
   inventory: "Inventory item", purchase_orders: "Purchase Order", employees: "Employee",
-  products: "Product", wfm_projects: "Project", opportunities: "Deal", rfqs: "RFQ", estimates: "Estimate",
+  products: "Product", wfm_projects: "Project", opportunities: "Deal", rfqs: "RFQ", estimates: "Estimate", leads: "Lead",
 };
 const TABLE: Record<string, { table: string; nameCol: string; refCol?: string }> = {
   accounts:        { table: "accounts",         nameCol: "name", refCol: "ref" },
@@ -37,6 +37,7 @@ const TABLE: Record<string, { table: string; nameCol: string; refCol?: string }>
   opportunities: { table: "opportunities", nameCol: "title", refCol: "ref" },
   rfqs: { table: "rfqs", nameCol: "title", refCol: "ref" },
   estimates: { table: "estimates", nameCol: "name", refCol: "ref" },
+  leads: { table: "leads", nameCol: "title" },
 };
 
 export async function GET() {

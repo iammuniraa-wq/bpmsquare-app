@@ -4,10 +4,11 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { c } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
+import { useTenantFeature } from "@/lib/tenant-context";
 import { ROUTES } from "@/lib/constants";
 import type { MarketingTargetGroup } from "@/lib/types";
 import {
-  SEGMENT_FIELDS, OPERATOR_LABEL, getSegmentField,
+  offeredSegmentFields, OPERATOR_LABEL, getSegmentField,
   type SegmentFilter, type SegmentFieldDef,
 } from "@/lib/marketingSegmentation";
 import { AccountIncludeExclude, ManualEmailChips, type AccountLite } from "./AudienceExtras";
@@ -35,6 +36,7 @@ function newFilterId(fieldKey: string) {
  * is all that's needed for it to show up here automatically. */
 export default function SegmentBuilder({ accounts, initial }: { accounts: AccountLite[]; initial?: MarketingTargetGroup | null }) {
   const router = useRouter();
+  const scoringOn = useTenantFeature("marketing_scoring");
   const [name, setName] = useState(initial?.name ?? "");
   const [filters, setFilters] = useState<SegmentFilter[]>(initial?.filters ?? []);
   const [match, setMatch] = useState<"all" | "any">(initial?.match ?? "all");
@@ -48,12 +50,12 @@ export default function SegmentBuilder({ accounts, initial }: { accounts: Accoun
 
   const categories = useMemo(() => {
     const map = new Map<string, SegmentFieldDef[]>();
-    for (const f of SEGMENT_FIELDS) {
+    for (const f of offeredSegmentFields({ marketingBuilder: true, scoringOn })) {
       const list = map.get(f.category);
       if (list) list.push(f); else map.set(f.category, [f]);
     }
     return Array.from(map.entries());
-  }, []);
+  }, [scoringOn]);
 
   function addFilter(field: SegmentFieldDef) {
     setFilters((current) => [...current, {

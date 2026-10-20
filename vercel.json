@@ -53,6 +53,10 @@
     {
       "path": "/api/events/cron/invoice-overdue",
       "schedule": "45 20 * * *"
+    },
+    {
+      "path": "/api/events/cron/score-leads",
+      "schedule": "*/15 * * * *"
     }
   ]
 }

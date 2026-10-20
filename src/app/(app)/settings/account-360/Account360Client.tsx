@@ -7,6 +7,7 @@ import type { Account360SourceDef } from "@/lib/constants";
 import { SettingsSave } from "@/components/settings/SettingsHeaderActions";
 import { useSettingsDirty } from "@/components/settings/useSettingsDirty";
 import { typeLabel } from "@/lib/typeScale";
+import { useTenantFeature } from "@/lib/tenant-context";
 
 /**
  * Account 360 configuration. Two halves: which built-in cards the drawer
@@ -15,7 +16,7 @@ import { typeLabel } from "@/lib/typeScale";
  * a handful of JSON paths, with no code involved.
  */
 
-const BUILTINS: { id: string; label: string; description: string }[] = [
+const ALL_BUILTINS: { id: string; label: string; description: string }[] = [
   { id: "pipeline", label: "Pipeline", description: "Open and won value, win rate, the loss pattern, recent quotations" },
   { id: "revenue", label: "Revenue", description: "Invoiced, collected, outstanding and what's past due" },
   { id: "service", label: "Service", description: "Open cases, average turnaround, open work orders" },
@@ -24,6 +25,7 @@ const BUILTINS: { id: string; label: string; description: string }[] = [
   { id: "coverage", label: "Contracts", description: "Contracts, their dates and value" },
   { id: "sales_coverage", label: "Sales coverage", description: "Owner/overlay/service teams from the Coverage module (only shown when it's on)" },
   { id: "projects", label: "Projects", description: "Workforce projects for this account and their hours this month (only shown when project costing is on)" },
+  { id: "marketing", label: "Marketing", description: "The best lead for this account: its score, its stage and who has it (only shown with lead scoring)" },
 ];
 
 type SourceDraft = Omit<Account360SourceDef, "auth_value"> & { auth_value?: string; has_secret?: boolean };
@@ -35,6 +37,8 @@ const input: React.CSSProperties = {
 };
 
 export default function Account360Client() {
+  const scoringOn = useTenantFeature("marketing_scoring");
+  const BUILTINS = ALL_BUILTINS.filter((b) => b.id !== "marketing" || scoringOn);
   const [hidden, setHidden] = useState<string[]>([]);
   const [order, setOrder] = useState<string[]>(BUILTINS.map((b) => b.id));
   const [sources, setSources] = useState<SourceDraft[]>([]);

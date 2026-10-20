@@ -10,7 +10,9 @@ import { UNASSIGNED } from "@/lib/wfm/projectHours";
 import { resolveWfmScope } from "@/lib/wfm/scope";
 import type { CompanyInfo } from "@/lib/tenant";
 import { DEFAULT_QUOTE_STATUSES, ROUTES } from "@/lib/constants";
-import type { TenantConfig } from "@/lib/constants";
+import type { TenantConfig, TenantFeatures } from "@/lib/constants";
+import { marketingScoringOn } from "@/lib/marketing/config";
+import { filtersUseLeadSignals, loadLeadSignals, type LeadSignals } from "@/lib/marketing/leads/segmentSignals";
 import type {
   Invoice, Lead, Account, Contact, Asset, ServiceCase, Quote, WorkOrder,
   Contract, Activity, QuoteLine, QuoteRevision, Technician, TechnicianLeave,
@@ -2123,11 +2125,19 @@ export async function resolveMarketingRecipientsLive(
   const filters = rule.filters ?? [];
   const match = rule.match ?? "all";
 
+  // Lead score / stage exist only for a workspace running lead scoring, and
+  // are loaded only when a rule actually uses them.
+  let leadSignals: Map<string, LeadSignals> | null = null;
+  if (filtersUseLeadSignals(filters)) {
+    const { data: tf } = await supabase.from("tenants").select("features").eq("id", tenantId).maybeSingle();
+    if (marketingScoringOn(tf?.features as Partial<TenantFeatures> | undefined)) leadSignals = await loadLeadSignals(supabase, tenantId);
+  }
+
   const accountCandidates: MarketingRecipientCandidate[] = accounts
     .filter((a) => {
       if (excludeSet.has(a.id)) return false;
       if (includeSet.has(a.id)) return true;
-      if (filters.length > 0) return matchesAllFilters(a as unknown as Record<string, unknown>, filters, match);
+      if (filters.length > 0) return matchesAllFilters(leadSignals ? { ...a, ...leadSignals.get(a.id) } : (a as unknown as Record<string, unknown>), filters, match);
       return typeSet.has(a.type);
     })
     .map((a) => ({

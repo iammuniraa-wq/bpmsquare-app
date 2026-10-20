@@ -9,13 +9,14 @@ import MoreMenu from "@/components/ui/MoreMenu";
 import Tabs from "@/components/ui/Tabs";
 import { SettingsHeaderActions } from "@/components/settings/SettingsHeaderActions";
 import { typeLabel } from "@/lib/typeScale";
+import { useTenantFeature } from "@/lib/tenant-context";
 import {
-  SEGMENT_FIELDS, OPERATOR_LABEL, getSegmentField,
+  offeredSegmentFields, OPERATOR_LABEL, getSegmentField,
   type SegmentFilter, type SegmentFieldDef,
 } from "@/lib/marketingSegmentation";
 
 type Member = { user_id: string; email: string | null; name: string | null };
-type Team = { id: string; name: string; lead_user_id: string | null; team_members: { user_id: string }[] };
+type Team = { id: string; name: string; lead_user_id: string | null; assignment_mode?: "lead" | "round_robin"; team_members: { user_id: string }[] };
 type Segment = { id: string; code: string; name: string; filters: SegmentFilter[]; match: "all" | "any"; account_ids: string[] };
 type CoverageRole = "owner" | "overlay" | "service";
 type Coverage = {
@@ -131,6 +132,8 @@ function TeamsTab({ teams, members, memberLabel, onChanged }: {
 }) {
   const [name, setName] = useState("");
   const [lead, setLead] = useState("");
+  const scoringOn = useTenantFeature("marketing_scoring");
+  const [mode, setMode] = useState<"lead" | "round_robin">("lead");
   const [memberIds, setMemberIds] = useState<Set<string>>(new Set());
   const [editingId, setEditingId] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
@@ -143,17 +146,18 @@ function TeamsTab({ teams, members, memberLabel, onChanged }: {
     setAdding(true);
     setName(t.name);
     setLead(t.lead_user_id ?? "");
+    setMode(t.assignment_mode === "round_robin" ? "round_robin" : "lead");
     setMemberIds(new Set(t.team_members.map((m) => m.user_id)));
   }
   function resetForm() {
-    setEditingId(null); setAdding(false); setErr(""); setName(""); setLead(""); setMemberIds(new Set());
+    setEditingId(null); setAdding(false); setErr(""); setName(""); setLead(""); setMode("lead"); setMemberIds(new Set());
   }
 
   async function save() {
     if (!name.trim()) { setErr("Team name is required."); return; }
     setSaving(true); setErr("");
     try {
-      const payload = { name, lead_user_id: lead || null, member_user_ids: [...memberIds] };
+      const payload = { name, lead_user_id: lead || null, member_user_ids: [...memberIds], ...(scoringOn ? { assignment_mode: mode } : {}) };
       if (editingId) {
         await api(`/api/settings/coverage/teams/${editingId}`, { method: "PATCH", body: JSON.stringify(payload) });
       } else {
@@ -195,6 +199,16 @@ function TeamsTab({ teams, members, memberLabel, onChanged }: {
             </select>
           </div>
         </div>
+        {scoringOn && (
+          <div style={{ marginBottom: 12 }}>
+            <label style={lbl}>Who gets new sales-ready leads</label>
+            <select style={{ ...inp, width: "100%" }} value={mode} onChange={(e) => setMode(e.target.value as "lead" | "round_robin")}>
+              <option value="lead">The team lead</option>
+              <option value="round_robin">Each member in turn</option>
+            </select>
+            <div className="bpm-t-help">When a lead from a company this team owns becomes ready for sales, it goes to the lead, or to the next member in turn.</div>
+          </div>
+        )}
         <label style={lbl}>Members</label>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 12 }}>
           {members.map((m) => (
@@ -260,7 +274,7 @@ function SegmentsTab({ segments, accounts, onChanged }: { segments: Segment[]; a
 
   const categories = useMemo(() => {
     const map = new Map<string, SegmentFieldDef[]>();
-    for (const f of SEGMENT_FIELDS) { const l = map.get(f.category); if (l) l.push(f); else map.set(f.category, [f]); }
+    for (const f of offeredSegmentFields({ marketingBuilder: false, scoringOn: false })) { const l = map.get(f.category); if (l) l.push(f); else map.set(f.category, [f]); }
     return Array.from(map.entries());
   }, []);
 
