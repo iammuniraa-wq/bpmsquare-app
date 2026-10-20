@@ -340,10 +340,13 @@ src/
   44 px, no horizontal scroll, long lists show a few rows plus "show all".
 - **One meaning per word.** Do not reuse a label for two different things (e.g. "Topic",
   "Engaged", "Quiet"), and use one vocabulary for "switched on" across screens.
-- Use the shared **InfoTip** component from the UI kit once it exists; the standard, the
-  per-screen change list and the mock-up are in `docs/design/ux-simplification.md`. Do not
-  hand-roll tooltips or add new hint lines in the meantime — put the text in a prop so it
-  can move behind the "i" without a rewrite.
+- Use the shared **InfoTip** (`src/components/ui/InfoTip.tsx`) for every explanation: pass
+  `info` to `Field`, `Card`, `OptionGroup`, `Opt`/`CheckOpt`, or `help` to the settings kit.
+  The standard, the per-screen change list and the mock-up are in
+  `docs/design/ux-simplification.md`. Do not hand-roll tooltips or add hint lines. Keep a
+  screen's explanation texts in a `tips.ts` beside its lib and hold them to the limit
+  (two sentences, 160 characters) with `tipTextProblems` in a test, as the newsletter and
+  journey screens do.
 - A new screen needs the how-to guide updated (`docs/guides/marketing-how-to.md` for the
   marketing screens) when its labels or tabs change; see section 9 for the Drive docs.
 
