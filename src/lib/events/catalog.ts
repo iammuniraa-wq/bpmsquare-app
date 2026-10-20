@@ -61,6 +61,7 @@ export const EVENTS = {
   WEB_IDENTIFIED: "web.identified",
   // WhatsApp (later)
   WHATSAPP_SENT: "whatsapp.sent",
+  WHATSAPP_FAILED: "whatsapp.failed",
   WHATSAPP_DELIVERED: "whatsapp.delivered",
   WHATSAPP_READ: "whatsapp.read",
   WHATSAPP_REPLIED: "whatsapp.replied",
