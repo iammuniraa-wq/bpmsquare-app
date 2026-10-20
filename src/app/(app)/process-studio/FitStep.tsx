@@ -7,6 +7,7 @@ import {
   AREA_IDS, AREA_META, CONFIDENCE_LABEL, RATING_LABEL, type FitRow, type Rating, type StepRow,
 } from "@/lib/studio/types";
 import { useStepRunner, type StepProps } from "./studioClient";
+import { STUDIO_TIPS } from "@/lib/studio/tips";
 import { Head, OptionGroup, Opt, RatingPill, Switch, Tuck, cx } from "./ui";
 import styles from "./studio.module.css";
 
@@ -62,7 +63,7 @@ export default function FitStep({ bundle, canEdit, toast, openCap, caps }: StepP
   return (
     <>
       <aside className={styles.panel} aria-label="Options">
-        <OptionGroup id="p3filter" title="Show" hint="Pick which lines to see. All are on by default." defaultOpen>
+        <OptionGroup id="p3filter" title="Show" info={STUDIO_TIPS.fitShow} defaultOpen>
           <div style={{ display: "grid", gap: 6 }}>
             {(Object.keys(show) as Rating[]).filter((r) => TILES.includes(r) || counts[r] > 0).map((r) => (
               <label key={r} className={styles.chk}>
@@ -73,10 +74,10 @@ export default function FitStep({ bundle, canEdit, toast, openCap, caps }: StepP
           </div>
         </OptionGroup>
 
-        <OptionGroup title="More" hint="Technical ids for your IT team, and re-checking after edits.">
-          <Switch label="Show catalogue ids" checked={ids} onChange={setIds} hint="The technical id behind each named module or screen. Off for most people; on for your IT team." />
+        <OptionGroup title="More" info={STUDIO_TIPS.fitMore}>
+          <Switch label="Show catalogue ids" checked={ids} onChange={setIds} info={STUDIO_TIPS.catalogueIds} />
           {canEdit && (
-            <Opt label="Re-check the fit" hint="After you change the map. The old result is kept as a version.">
+            <Opt label="Re-check the fit" info={STUDIO_TIPS.recheck}>
               <Button style={{ width: "100%" }} loading={busy === "fit"} onClick={() => void run("fit")}>Check again</Button>
             </Opt>
           )}
@@ -92,7 +93,7 @@ export default function FitStep({ bundle, canEdit, toast, openCap, caps }: StepP
       </aside>
 
       <div className={styles.work}>
-        <Head title="How BPMSquare fits" sub="One line per step. Open a line for the why, and tap any name to see exactly what it is." />
+        <Head title="How BPMSquare fits" info={STUDIO_TIPS.fitHead} />
         <div id="reviewBanner" className={cx(styles.banner, reviewed ? styles.good : styles.warnb)} role="status">
           {reviewed
             ? "Reviewed by BPMSquare: every line has been checked by a person."

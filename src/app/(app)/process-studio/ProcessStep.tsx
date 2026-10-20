@@ -7,7 +7,8 @@ import { Input, Select } from "@/components/ui/Input";
 import { lanesOf } from "@/lib/studio/summary";
 import { AREA_IDS, AREA_META, type AreaId, type StepRow } from "@/lib/studio/types";
 import { studioApi, STUDIO_BASE, type StepProps } from "./studioClient";
-import { Head, OptionGroup, Opt, Switch, Tuck, cx } from "./ui";
+import { STUDIO_TIPS } from "@/lib/studio/tips";
+import { Head, OPEN_GROUP_EVENT, OptionGroup, Opt, Switch, Tuck, cx } from "./ui";
 import styles from "./studio.module.css";
 
 export default function ProcessStep({ bundle, canEdit, toast, refresh }: StepProps) {
@@ -56,8 +57,8 @@ export default function ProcessStep({ bundle, canEdit, toast, refresh }: StepPro
 
   function startAdd(lane: string, area: AreaId) {
     setDraft((d) => ({ ...d, lane, area }));
+    window.dispatchEvent(new CustomEvent(OPEN_GROUP_EVENT, { detail: "p2add" }));
     const group = document.getElementById("p2add");
-    if (group instanceof HTMLDetailsElement) group.open = true;
     group?.scrollIntoView({ block: "nearest" });
   }
 
@@ -86,14 +87,14 @@ export default function ProcessStep({ bundle, canEdit, toast, refresh }: StepPro
   return (
     <>
       <aside className={styles.panel} aria-label="Options">
-        <OptionGroup id="p2roles" title="Roles" hint="The people who do the work, one row each. Each role is a lane on the map." defaultOpen>
+        <OptionGroup id="p2roles" title="Roles" info={STUDIO_TIPS.roles} defaultOpen>
           <div className={styles.roles}>
             {lanes.map((l) => (
               <div key={l} className={styles.role}><span>{l}</span><span className={styles.help}>{steps.filter((s) => s.lane === l).length} steps</span></div>
             ))}
           </div>
           {canEdit && (
-            <Opt label="Add a role" htmlFor="psd-role" hint="Name it the way you call the job, for example Yard supervisor.">
+            <Opt label="Add a role" htmlFor="psd-role" info={STUDIO_TIPS.addRole}>
               <div style={{ display: "flex", gap: 6 }}>
                 <Input id="psd-role" value={newRole} maxLength={60} onChange={(e) => setNewRole(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); void addRole(); } }} />
                 <Button size="sm" onClick={() => void addRole()}>Add</Button>
@@ -102,27 +103,27 @@ export default function ProcessStep({ bundle, canEdit, toast, refresh }: StepPro
           )}
         </OptionGroup>
 
-        <OptionGroup title="Map options" hint="What the map shows.">
-          <Switch label="Show assumed steps" checked={showAssumed} onChange={setShowAssumed} hint="Steps we added because the order needed them. Dashed border; remove any that are wrong." />
-          <Switch label="Show hand-overs" checked={showHand} onChange={setShowHand} hint="An arrow where a step passes work to another role." />
+        <OptionGroup title="Map options">
+          <Switch label="Show assumed steps" checked={showAssumed} onChange={setShowAssumed} info={STUDIO_TIPS.showAssumed} />
+          <Switch label="Show hand-overs" checked={showHand} onChange={setShowHand} info={STUDIO_TIPS.showHandOvers} />
         </OptionGroup>
 
         {canEdit && (
-          <OptionGroup id="p2add" title="Add a step" hint="Something we missed. You name it and say how it is done today.">
-            <Opt label="Area" htmlFor="psd-area" hint="Which part of the business it belongs to.">
+          <OptionGroup id="p2add" title="Add a step" info={STUDIO_TIPS.addStepGroup}>
+            <Opt label="Area" htmlFor="psd-area" info={STUDIO_TIPS.stepArea}>
               <Select id="psd-area" value={draft.area} onChange={(e) => setDraft((d) => ({ ...d, area: e.target.value as AreaId }))}>
                 {AREA_IDS.map((a) => <option key={a} value={a}>{AREA_META[a].label}</option>)}
               </Select>
             </Opt>
-            <Opt label="Role" htmlFor="psd-lane" hint="Who does it.">
+            <Opt label="Role" htmlFor="psd-lane">
               <Select id="psd-lane" value={draft.lane || lanes[0] || ""} onChange={(e) => setDraft((d) => ({ ...d, lane: e.target.value }))}>
                 {(lanes.length ? lanes : ["Team"]).map((l) => <option key={l} value={l}>{l}</option>)}
               </Select>
             </Opt>
-            <Opt label="Step" htmlFor="psd-name" hint="A short verb phrase, for example Send the quote.">
+            <Opt label="Step" htmlFor="psd-name" info={STUDIO_TIPS.stepName}>
               <Input id="psd-name" value={draft.name} maxLength={120} onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))} />
             </Opt>
-            <Opt label="How it is done today" htmlFor="psd-how" hint="Email, Excel, WhatsApp, an ERP, paper.">
+            <Opt label="How it is done today" htmlFor="psd-how" info={STUDIO_TIPS.stepHow}>
               <Input id="psd-how" value={draft.how} maxLength={200} onChange={(e) => setDraft((d) => ({ ...d, how: e.target.value }))} />
             </Opt>
             <Button variant="primary" size="sm" loading={adding} onClick={() => void addStep()}>Add step</Button>
@@ -133,7 +134,7 @@ export default function ProcessStep({ bundle, canEdit, toast, refresh }: StepPro
       <div className={styles.work}>
         <Card padding={12}>
           <div id="w2map">
-            <Head title="Your process" sub="Drafted from what you told us. Change any step name or role; it is your map." />
+            <Head title="Your process" info={STUDIO_TIPS.processHead} />
             {steps.length === 0 ? (
               <p className={styles.empty}>No steps yet. Go back to Tell us and press Build my process map.</p>
             ) : (
