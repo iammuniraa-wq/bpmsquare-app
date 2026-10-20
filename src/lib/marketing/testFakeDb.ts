@@ -22,6 +22,8 @@ export function fakeDb(seed: Record<string, Row[]> = {}, opts: { missingTables?:
     private upsertOpts: { onConflict?: string; ignoreDuplicates?: boolean } = {};
     private one: "single" | "maybe" | null = null;
     private lim: number | null = null;
+    private rangeFrom: number | null = null;
+    private rangeTo: number | null = null;
     constructor(private table: string) {}
     select() { return this; }
     insert(r: Row) { this.op = "insert"; this.payload = r; return this; }
@@ -31,6 +33,14 @@ export function fakeDb(seed: Record<string, Row[]> = {}, opts: { missingTables?:
     eq(col: string, val: unknown) { this.filters.push({ col, val, test: (v) => v === val }); return this; }
     is(col: string, val: unknown) { this.filters.push({ col, val, test: (v) => (val === null ? v == null : v === val) }); return this; }
     in(col: string, vals: unknown[]) { this.filters.push({ col, test: (v) => vals.includes(v) }); return this; }
+    neq(col: string, val: unknown) { this.filters.push({ col, test: (v) => v !== val }); return this; }
+    like(col: string, pattern: string) {
+      const re = new RegExp(`^${pattern.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/%/g, ".*")}$`);
+      this.filters.push({ col, test: (v) => typeof v === "string" && re.test(v) });
+      return this;
+    }
+    range(from: number, to: number) { this.rangeFrom = from; this.rangeTo = to; return this; }
+    gte(col: string, val: unknown) { this.filters.push({ col, test: (v) => String(v ?? "") >= String(val) }); return this; }
     not() { return this; }
     order() { return this; }
     limit(x: number) { this.lim = x; return this; }
@@ -79,6 +89,7 @@ export function fakeDb(seed: Record<string, Row[]> = {}, opts: { missingTables?:
         return { data: Array.from({ length: gone }), error: null };
       }
       let out = t.filter(match);
+      if (this.rangeFrom !== null && this.rangeTo !== null) out = out.slice(this.rangeFrom, this.rangeTo + 1);
       if (this.lim !== null) out = out.slice(0, this.lim);
       if (this.one === "single") return out.length === 1 ? { data: out[0], error: null } : { data: null, error: { code: "PGRST116", message: "no single row" } };
       if (this.one === "maybe") return { data: out[0] ?? null, error: null };
