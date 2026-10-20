@@ -3,7 +3,7 @@
 -- newsletter that already exists (by name) in a demo workspace is left alone, so
 -- it is safe to run twice. Touches ONLY tenants where is_demo = true; never a client.
 --
--- It does four things per demo tenant:
+-- It does five things per demo tenant:
 --   1. switches the newsletter_studio feature flag on (and marketing, which it needs);
 --   2. gives the workspace a brand kit if it has none (navy and amber, the colours of the
 --      mock-up's sample company), so the first design already looks like somebody's;
@@ -13,6 +13,11 @@
 --   4. adds one sample newsletter, "October update (sample)", from
 --      docs/design/newsletter-studio-mockup.html, in English with the Arabic added on top
 --      and waiting for its "Check this" review.
+--   5. if the workspace has chosen no consent rule yet, lets existing customers be emailed in the Gulf
+--      jurisdictions so the sample can be sent end to end. The product's default is strict (everyone needs a
+--      recorded yes), and a demo workspace's email is redirected to one internal inbox in any case, so this
+--      is safe here and is NOT something to copy to a client: that choice is the client's admin's, made in
+--      Settings -> Marketing -> Consent and topics.
 -- Everything is owned by the workspace's oldest admin. Nothing here sends an email.
 --
 -- Words are structured blocks plus per-language texts -- never HTML (see 0141).
@@ -63,6 +68,14 @@ begin
                'footer_address', E'Industrial Area, Street 24, Doha\n+974 4400 0000'))
            end
      where id = t.id;
+
+    update tenants
+       set config = jsonb_set(coalesce(config, '{}'::jsonb), '{marketing}',
+             coalesce(config->'marketing', '{}'::jsonb) || jsonb_build_object('consent_defaults', jsonb_build_object(
+               'SA', 'existing_customer', 'AE', 'existing_customer', 'QA', 'existing_customer',
+               'KW', 'existing_customer', 'OM', 'existing_customer', 'BH', 'existing_customer')))
+     where id = t.id
+       and not (coalesce(config->'marketing', '{}'::jsonb) ? 'consent_defaults');
 
     -- ── Template: Monthly update ───────────────────────────────────────────
     perform pg_temp.nl_seed(t.id, v_user, $j${
