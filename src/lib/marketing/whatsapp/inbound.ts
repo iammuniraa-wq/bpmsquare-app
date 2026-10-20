@@ -142,9 +142,12 @@ async function applyMessage(admin: SupabaseClient, tenantId: string, msg: Extrac
     }, admin);
     return "opted_in";
   }
+  // The template this person was last sent, so attribution can credit the reply to it (ids only, never the text).
+  const { data: lastOut } = await admin.from("whatsapp_messages").select("template_id").eq("tenant_id", tenantId).eq("contact_id", contact.id).eq("direction", "out").order("created_at", { ascending: false }).limit(1);
+  const templateId = ((lastOut ?? []) as { template_id: string | null }[])[0]?.template_id ?? null;
   await emitEvent(tenantId, {
     name: EVENTS.WHATSAPP_REPLIED, object_type: "contact", object_id: contact.id, source: "provider_webhook", occurred_at: msg.at,
-    contact_id: contact.id, account_id: contact.account_id, key: `${messageId}:replied`, payload: { message_id: messageId },
+    contact_id: contact.id, account_id: contact.account_id, key: `${messageId}:replied`, payload: { message_id: messageId, template_id: templateId },
   }, admin);
   return "replied";
 }

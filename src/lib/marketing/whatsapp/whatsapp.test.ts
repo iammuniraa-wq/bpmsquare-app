@@ -329,7 +329,7 @@ describe("the inbound webhook", () => {
     expect((await send()).body).toMatchObject({ replied: 0, duplicate: 1 });
     const replied = db.tables.domain_event.filter((e) => e.name === "whatsapp.replied");
     expect(replied).toHaveLength(1);
-    expect(replied[0]).toMatchObject({ tenant_id: T, contact_id: "k1", source: "provider_webhook" });
+    expect(replied[0]).toMatchObject({ tenant_id: T, contact_id: "k1", source: "provider_webhook", payload: expect.objectContaining({ template_id: "p1" }) });
   });
 
   it("STOP withdraws WhatsApp consent in the ledger, and the next send is refused; START restores it", async () => {
