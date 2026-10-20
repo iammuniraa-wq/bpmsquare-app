@@ -146,8 +146,13 @@ export default function NewsletterStudio(props: StudioProps) {
     template_origin_id: initial.templateOriginId, built_in_origin: initial.builtInOrigin,
   });
 
-  /** Saves the whole design. Returns the id, or null when it failed (the error is shown). */
-  const save = useCallback(async (quiet = false): Promise<string | null> => {
+  /**
+   * Saves the whole design. Returns the id, or null when it failed (the error is shown). A first save moves
+   * the page to the new newsletter's address unless the caller is about to do more (add a language, hand
+   * over to a campaign): moving the page earlier would reload the screen from the database in the middle
+   * of that work, so those callers move it themselves when they are done.
+   */
+  const save = useCallback(async (quiet = false, move = true): Promise<string | null> => {
     if (!canEdit) return id;
     setSaving(true); setError(null);
     const b = { name: name.trim() || "Untitled newsletter", category, topic, blocks: doc.blocks, languages: doc.languages, template_origin_id: initial.templateOriginId, built_in_origin: initial.builtInOrigin };
@@ -158,7 +163,7 @@ export default function NewsletterStudio(props: StudioProps) {
     if (!quiet) toast(r.data.warnings.length ? `Saved. ${r.data.warnings[0]}` : "Saved.");
     if (!id) {
       setId(r.data.id);
-      router.replace(ROUTES.marketingNewsletter(r.data.id));
+      if (move) router.replace(ROUTES.marketingNewsletter(r.data.id));
     }
     return r.data.id;
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -233,10 +238,11 @@ export default function NewsletterStudio(props: StudioProps) {
   async function onAddLanguage(code: string, mode: "ai" | "empty") {
     if (!canEdit) return;
     setAddingLang(true); setError(null);
-    const savedId = await save(true);
+    const savedId = await save(true, false);
     if (!savedId) { setAddingLang(false); return; }
     const r = await addLanguage(savedId, code, mode);
     setAddingLang(false);
+    if (!id) router.replace(ROUTES.marketingNewsletter(savedId));
     if (!r.ok) {
       setError(r.code === "not_configured" ? "AI is not set up for this workspace. Use 'I'll write it' to add the language by hand." : r.error);
       return;
@@ -257,16 +263,17 @@ export default function NewsletterStudio(props: StudioProps) {
   }
 
   async function onSaveTemplate() {
-    const savedId = await save(true);
+    const savedId = await save(true, false);
     if (!savedId) return;
     const r = await saveAsTemplate(savedId, tplName.trim() || `${name || "Newsletter"} (template)`, tplCategory);
+    if (!id) router.replace(ROUTES.marketingNewsletter(savedId));
     if (!r.ok) { setError(r.error); return; }
     setTemplateForm(false);
     toast("Saved as a template: it now appears beside the built-in designs when you start a newsletter.");
   }
 
   async function onUseInCampaign() {
-    const savedId = await save(true);
+    const savedId = await save(true, false);
     if (!savedId) return;
     const r = await keepVersion(savedId);
     if (!r.ok) { setError(r.error); return; }
