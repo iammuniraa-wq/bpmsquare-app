@@ -72,7 +72,7 @@ export class D365Client {
    *  errors, 429, 503 and 504; a write only on 429 -- a write that timed out
    *  or hit a 503/504 may already have been applied, and repeating it would
    *  create a second record in the customer's ERP. */
-  async requestRaw(method: string, pathOrUrl: string, init: { query?: Record<string, string | undefined>; body?: unknown; headers?: Record<string, string> } = {}): Promise<{ json: unknown; headers: Headers; status: number }> {
+  async requestRaw(method: string, pathOrUrl: string, init: { query?: Record<string, string | undefined>; body?: unknown; headers?: Record<string, string> } = {}): Promise<{ json: unknown; headers: Headers; status: number; text: string }> {
     const fetcher = this.opts.fetch ?? (fetch as unknown as FetchLike);
     const sleep = this.opts.sleep ?? ((ms: number) => new Promise((r) => setTimeout(r, ms)));
     const maxRetries = this.opts.maxRetries ?? 4;
@@ -130,7 +130,7 @@ export class D365Client {
         const msg = err?.message || (res.status === 401 ? "Dynamics 365 refused the login (401)" : res.status === 403 ? "The app user has no permission for this (403)" : `Dynamics 365 returned ${res.status}`);
         throw new D365Error(msg.slice(0, 500), res.status, err?.code);
       }
-      return { json, headers: res.headers, status: res.status };
+      return { json, headers: res.headers, status: res.status, text };
     }
   }
 

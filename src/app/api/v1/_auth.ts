@@ -1,5 +1,21 @@
 import { createHash } from "crypto";
-import { tenantOwnsObject } from "@/lib/objectFeatures";
+import { tenantObjectAccess } from "@/lib/objectFeatures";
+
+/** Fire-and-forget: record the call in the message log. Loaded lazily so the auth
+ *  module has no hard dependency on the server-only middleware code. */
+function logApiCall(req: Request, tenantId: string, keyId: string | null, object: string, status: number | null): void {
+  let path = "";
+  try { path = new URL(req.url).pathname; } catch { /* keep empty */ }
+  const run = async () => {
+    try {
+      const [{ createAdminSupabase }, { recordApiCall }] = await Promise.all([import("@/lib/supabase-server"), import("@/lib/middleware/messages")]);
+      await recordApiCall(createAdminSupabase(), tenantId, { method: req.method, path, status, durationMs: null, keyId, object });
+    } catch {
+      // Logging is best effort.
+    }
+  };
+  void import("next/server").then(({ after }) => { try { after(run); } catch { void run(); } }, () => { void run(); });
+}
 
 /**
  * A v1 credential resolves to a tenant AND a scope. Two kinds of key exist:
@@ -132,11 +148,17 @@ export async function authorizeApi(
   // /ask takes its object from the request body, so this is also the path a
   // made-up name arrives on. Both answer 404, never a 500.
   let owned: boolean;
+  let logIt = false;
   try {
-    owned = await tenantOwnsObject(auth.tenantId, object);
+    const access = await tenantObjectAccess(auth.tenantId, object);
+    owned = access.owned;
+    logIt = access.middleware;
   } catch {
     owned = false;
   }
+  // Integration middleware: metadata of the call (method, path, key kind), only for a
+  // workspace with the flag, recorded after the response. Never blocks or fails the call.
+  if (logIt) logApiCall(req, auth.tenantId, auth.keyId, object, owned ? null : 404);
   if (!owned) return { error: jsonError(404, "Not found") };
 
   return { tenantId: auth.tenantId, scopes: auth.scopes, keyId: auth.keyId };

@@ -21,6 +21,10 @@ export const EVENTS = {
   QUOTE_OPENED: "quote.opened",
   QUOTE_ACCEPTED: "quote.accepted",
   QUOTE_CHANGE_REQUESTED: "quote.change_requested",
+  // Integration middleware vocabulary: a Standard Quote whose status became accepted / rejected.
+  // Core status values are not renamed; these sit next to quote.status_changed.
+  QUOTE_AWARDED: "quote.awarded",
+  QUOTE_REJECTED: "quote.rejected",
   // Pricing / RFQ
   PRICING_VERSION_PUBLISHED: "pricing.version_published",
   PRICING_RFQ_REPLIED: "pricing.rfq_replied",

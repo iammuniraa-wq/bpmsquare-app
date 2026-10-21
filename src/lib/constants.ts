@@ -702,6 +702,13 @@ export type TenantFeatures = {
   // with it off there is no menu item, no route and no hook on any form. Needs
   // `marketing` and `marketing_forms`.
   marketing_events: boolean;
+  // Integration middleware (docs/design/integration-middleware.md): one page for
+  // everything about sync -- connections, what goes out when a Standard Quote is
+  // awarded or rejected, mapping, the message monitor, resync. A platform-admin-
+  // only flag (set in /admin/tenants, never by a workspace admin): default OFF,
+  // missing key reads false; with it off nothing changes for the workspace -- no
+  // menu item, no route, no logging, no event dispatch.
+  integration_middleware: boolean;
 };
 
 // WfmConfig — tenant-level WFM (attendance) settings, stored in
@@ -1262,6 +1269,10 @@ export type TenantConfig = {
   // targets a coverage row can route to via its erp_endpoint_id (a
   // client-generated id, matched against endpoints[].id -- not a DB fk,
   // since these live in config jsonb like the default pair already did).
+  // Integration middleware rules and selections (no secrets): which outcomes
+  // go to the ERP, automatic or manual, and what fence / estimate data leaves
+  // with them. Stored as the admin saved it; read through parseRules().
+  integration_middleware?: import("@/lib/middleware/types").IntegrationMiddlewareConfig;
   integration_push?: {
     webhook_url?: string;
     webhook_secret?: string;
