@@ -333,3 +333,35 @@ tips per row (one InfoTip beside the title).
 2. The id line on a link with no readable number shows the ERP record's own name or its entity ("Opportunity"), never BPMSquare's own ref under the ERP's name.
 3. Choosing price list and currency one right after the other must keep both (functional state updates in the Connections form).
 4. "What goes out" set-up tick as above.
+
+## Monitor and Resync become ONE list (7), owner 2026-10-21
+Owner, comparing with the SAP C4C message monitor: "at the top filters and the data displayed,
+and at the top a restart option, nothing else; this is confusing, no separate section of
+everything. One big list with all the details and a filter on top, with options to process one
+record or multiple records."
+
+- **Tabs become four:** Connections, What goes out, Mapping, **Monitor**. The Resync tab is removed.
+- **Monitor is one table.** Filter row on top (status chips All / Failed / Waiting / OK,
+  direction, document or entity, date range, search by record or ERP number). Under it one list,
+  newest first, with every detail a row has: time, direction, what (document or entity), record,
+  ERP number, status, short reason; the "what to do" line is returned in the list (no extra read);
+  row click opens the full detail panel. Checkbox on every row and a select-all for the loaded page.
+- **One action bar above the list, nothing else:** **Restart** (acts on the ticked rows; with
+  nothing ticked and a Failed filter it offers "Restart all failed (n)", capped, confirmed once),
+  and a quiet **Send a record** button for sending one thing by hand. No cards, no history
+  component, no schedule here.
+- **Restart means the same for every row:** an outbound document row re-sends that document
+  (idempotent, as today); an inbound run row (a customers/contacts/products pull) re-runs that entity
+  (for a failed single record, only that record where the entity allows `ids`). A row that cannot
+  be restarted (already OK, skipped by design) shows no checkbox. Results come back per row (done,
+  still failing with the reason, already fine) and the list refreshes in place.
+- **Where the rest went:** per-entity enable and the automatic schedule (off / hourly / daily) sit
+  with the entity in the **Mapping** tab (they are configuration); "Sync now" and "Full resync" for
+  an entity are one menu on that entity's header in Mapping; the long run history is the Monitor
+  list itself (filter by entity).
+- **Contract:** `GET /api/middleware/messages` returns, per item, `restartable:boolean`,
+  `fix:string|null`, `erpNumber:string|null`, `entity|document` label and the existing fields;
+  `POST /api/middleware/restart` with `{ message_ids: string[] }` or `{ filter: {...same as the
+  list query}, limit?: number }` returns `{ results:[{id, outcome:"done"|"failed"|"already_ok"|
+  "not_restartable", message}] }`, tenant-verified per id, safe to repeat; the old `retry` route
+  keeps working for one id.
