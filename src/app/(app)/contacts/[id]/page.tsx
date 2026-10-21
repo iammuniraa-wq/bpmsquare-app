@@ -8,6 +8,7 @@ import StatusPill from "@/components/ui/StatusPill";
 import Card from "@/components/ui/Card";
 import { ROUTES } from "@/lib/constants";
 import ObjectRecordPage from "@/components/page/ObjectRecordPage";
+import ExternalRecordSlot from "@/components/ExternalRecordSlot";
 import RecordMoreMenu from "@/components/page/RecordMoreMenu";
 import RecordActivity from "@/components/page/RecordActivity";
 import RelatedList from "@/components/page/RelatedList";
@@ -90,6 +91,7 @@ export default async function ContactDetailPage({
         ) : "—" },
         ...(account?.city ? [{ label: "City", value: account.city }] : []),
       ]}
+      externalLine={<ExternalRecordSlot objectType="contacts" objectId={contact.id} />}
       basePath={basePath}
       activeTab={tab}
       tabs={[

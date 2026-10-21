@@ -11,6 +11,7 @@ import { ROUTES } from "@/lib/constants";
 import type { PurchaseOrderStatus } from "@/lib/types";
 import ObjectSections from "@/components/fields/ObjectSections";
 import ObjectRecordPage from "@/components/page/ObjectRecordPage";
+import ExternalRecordSlot from "@/components/ExternalRecordSlot";
 import RecordMoreMenu from "@/components/page/RecordMoreMenu";
 import RecordActivity from "@/components/page/RecordActivity";
 import RelatedList from "@/components/page/RelatedList";
@@ -100,6 +101,7 @@ export default async function PurchaseOrderDetailPage({
         { label: "Expected", value: po.expected_date ? fmtDate(po.expected_date) : "—" },
         { label: "Total", value: inr(po.total) },
       ]}
+      externalLine={<ExternalRecordSlot objectType="purchase_orders" objectId={id} />}
       basePath={basePath}
       activeTab={tab}
       tabs={[

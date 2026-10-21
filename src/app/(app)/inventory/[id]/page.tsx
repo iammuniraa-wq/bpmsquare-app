@@ -11,6 +11,7 @@ import EmptyState from "@/components/ui/EmptyState";
 import { ROUTES } from "@/lib/constants";
 import ObjectSections from "@/components/fields/ObjectSections";
 import ObjectRecordPage from "@/components/page/ObjectRecordPage";
+import ExternalRecordSlot from "@/components/ExternalRecordSlot";
 import RecordMoreMenu from "@/components/page/RecordMoreMenu";
 import RecordActivity from "@/components/page/RecordActivity";
 import InventorySupplierPanel from "./InventorySupplierPanel";
@@ -77,6 +78,7 @@ export default async function InventoryDetailPage({
         ...(item.unit_cost != null ? [{ label: "Unit cost", value: formatMoney(item.unit_cost, cur, {}) }] : []),
         { label: "Supplier", value: supplier ? <Link href={ROUTES.supplier(supplier.id)} style={{ color: c.accent, textDecoration: "none" }}>{supplier.name}</Link> : "None set" },
       ]}
+      externalLine={<ExternalRecordSlot objectType="inventory_items" objectId={id} />}
       basePath={basePath}
       activeTab={tab}
       tabs={[

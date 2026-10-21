@@ -6,6 +6,7 @@ import { requireWorkcenterView, resolvePermissions, canEditWorkcenter } from "@/
 import { c } from "@/lib/theme";
 import { ROUTES } from "@/lib/constants";
 import TabTitle from "@/components/TabTitle";
+import ExternalRecordSlot from "@/components/ExternalRecordSlot";
 import NovaTimelineSlot from "@/components/NovaTimelineSlot";
 import RfqDetailClient from "./RfqDetailClient";
 
@@ -23,7 +24,7 @@ export default async function RfqDetailPage({ params }: { params: Promise<{ id: 
       <div style={{ marginBottom: 8 }}>
         <Link href={ROUTES.rfqs} style={{ fontSize: 11.5, color: c.muted, textDecoration: "none" }}>← All RFQs</Link>
       </div>
-      <RfqDetailClient id={id} canEdit={canEditWorkcenter(perms, "rfqs")} isAdmin={role === "admin"} />
+      <RfqDetailClient id={id} canEdit={canEditWorkcenter(perms, "rfqs")} isAdmin={role === "admin"} externalLine={<ExternalRecordSlot objectType="rfqs" objectId={id} />} />
       <NovaTimelineSlot objectType="rfqs" objectId={id} />
     </>
   );

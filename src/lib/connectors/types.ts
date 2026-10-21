@@ -45,6 +45,8 @@ export type OAuthProvider = {
 export type ConnectorDef = {
   id: string;
   name: string;
+  /** The short name used on record pages ("Dynamics 365"); falls back to `name`. */
+  shortName?: string;
   description: string;
   icon: string;
   authType: ConnectorAuthType;
