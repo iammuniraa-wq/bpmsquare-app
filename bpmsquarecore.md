@@ -352,6 +352,42 @@ src/
 
 ---
 
+### 6c. Lean by default — one place, few options, nothing duplicated (owner decision 2026-10-22)
+
+> Owner: "The Integration middleware is simple now. I need the same level of simplicity in the whole
+> Settings tab: keep it simple, don't complicate, don't duplicate, keep it lean. It is a must to make
+> the product easy to use and consistent across all objects. In marketing I see a lot of confusion."
+> This is checked **before building anything**, not after. The Integration middleware page is the
+> reference implementation; the audit and the cleanup list is `docs/design/settings-simplification.md`.
+
+**Before you design or build any setting, screen or setup flow:**
+1. **Look first.** Search `settingsMenu.ts`, the Settings pages, the object's own screens and the
+   connector screens for something that already does the job. If it exists, extend it or point to it.
+   A design doc for a new screen opens with "What is already there" (list the screens checked).
+2. **One place per setting.** A setting lives on exactly one screen. Never repeat it on the object, in a
+   connector, on a second Settings page or as a shortcut copy. Other places show the *result* (a status
+   chip, an id line) and link to the one place.
+3. **Few options, good defaults.** Show only what a user must decide. A default decides everything else;
+   rarely-needed options sit behind one "More" or are not offered at all. If two options always move
+   together, they are one option. Target: a settings panel fits on one phone screen without scrolling
+   past about six controls; more than that is a smell and needs a reason in the design doc.
+4. **One pattern per kind of thing.** A list of things = one table, a row opens a side panel (bottom sheet
+   on phones), Save in the one standard place. A connection = a chip with Test / Edit / Disconnect. A
+   choice that has a target = a two-column mapping. Do not invent a new layout for a thing that already
+   has a pattern. Same word, same meaning, same place on every object (6b, "one meaning per word").
+5. **No blocks per variant.** Do not build one card or section per activity, status, object or channel when
+   a single table with a row each does it.
+6. **Marketing setup is held to the same bar:** a studio or program asks for the minimum to start (a
+   sensible default for everything else) and shows its next step; consent, topics, scoring and hand-over
+   each have one home.
+7. **Live clients keep what they have.** Simplifying an existing screen that a live client (Vikas, BIM)
+   uses ships behind a platform flag or after the owner's explicit visual-parity OK
+   (`client-familiarity`), never silently.
+
+**Definition of done for any settings/setup UI:** the design doc names what it replaced or reused, the
+duplicate count is zero, the option count is justified, and `docs/design/settings-simplification.md` is
+updated if the change adds, merges or removes a setting.
+
 ## 7. Security rules
 
 - PII fields (phone, email, GSTIN on accounts; phone, email on contacts) are encrypted at rest
