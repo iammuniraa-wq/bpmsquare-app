@@ -138,6 +138,24 @@ describe("the preference centre renders the person's choices", () => {
     expect(out).not.toContain("<b>Events</b>");
   });
 
+  it("offers the thank-you email, confirm-by-email and the notice in After sending, with their explanations behind the i", () => {
+    nav.search = "";
+    const out = renderToString(createElement(FormStudio, props({}, { people: [{ id: "0a0a0a0a-0a0a-4a0a-8a0a-0a0a0a0a0a0a", label: "Rana" }] })));
+    for (const label of ["Send a thank-you email", "Words in the email", "Ask the person to confirm by email", "Tell someone about each new answer"]) expect(out).toContain(label);
+    for (const text of [FORM_TIPS.thankYou, FORM_TIPS.thankYouWords, FORM_TIPS.confirm, FORM_TIPS.notify]) expect(out).not.toContain(text);
+    // The thank-you is on by default; the notice is off, so its chooser is not drawn.
+    expect(out).toMatch(/<input type="checkbox" checked=""[^>]*\/?><span>Send a thank-you email/);
+    expect(out).not.toContain("frNotify");
+  });
+
+  it("starts the confirm option on for a workspace in the EU and off elsewhere, and a form's own choice wins", () => {
+    const confirmChecked = (out: string) => /<input type="checkbox"( checked="")?[^>]*\/?><span>Ask the person to confirm by email/.exec(out)?.[1] === ' checked=""';
+    expect(confirmChecked(renderToString(createElement(FormStudio, props({}, { confirmDefault: true }))))).toBe(true);
+    expect(confirmChecked(renderToString(createElement(FormStudio, props({}, { confirmDefault: false }))))).toBe(false);
+    expect(confirmChecked(renderToString(createElement(FormStudio, props({ after_submit: { ...defaultAfterSubmit(), confirm_by_email: false } }, { confirmDefault: true }))))).toBe(false);
+    expect(confirmChecked(renderToString(createElement(FormStudio, props({ after_submit: { ...defaultAfterSubmit(), confirm_by_email: true } }, { confirmDefault: false }))))).toBe(true);
+  });
+
   it("says why nothing can be switched on for a person who opted out", () => {
     const out = renderToString(createElement(PreferencesForm, { contactId: "c1", token: "t", blocked: "opted_out", initial: [{ key: "offers", label: "Offers", hint: "", on: false }] }));
     expect(out).toContain("You asked us to stop all marketing emails.");

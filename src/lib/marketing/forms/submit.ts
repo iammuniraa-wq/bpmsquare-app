@@ -8,13 +8,15 @@ import { EVENTS } from "@/lib/events/catalog";
 import { BlindIndexKeyMissingError, emailBlindIndex } from "../blindIndex";
 import { stampContactEmailHash } from "../contactEmailHash";
 import { eventsEnabled, registerFromSubmission } from "../events/register";
-import { topicsOf } from "../config";
-import { recordConsent } from "../consentWrite";
+import { confirmByEmailDefault, topicsOf } from "../config";
+import { recordConsent, recordPendingConsent } from "../consentWrite";
 import { isSchemaPending } from "../pending";
 import { HONEYPOT_FIELD, LIMITS, type FormRow, type SubmitOutcome } from "./types";
 import { allowedRedirectHosts, cleanRedirectUrl, cleanText, normaliseAfter, normaliseConsent, normaliseFields, sanitizeSubmission } from "./sanitize";
 import { checkRenderToken, formBurst } from "./guards";
 import { PUBLIC_KEY_PATTERN } from "./links";
+import { signConfirmToken } from "./confirmToken";
+import { sendSubmissionEmails, type EmailDeps } from "./emails";
 
 // The public submit (docs/marketing-platform-architecture.md 5.1), in the order the
 // design states: guards, find or create the person, write the consent, file the lead,
@@ -28,6 +30,8 @@ import { PUBLIC_KEY_PATTERN } from "./links";
 export type TenantForSubmit = {
   id: string;
   name: string;
+  slug?: string | null;
+  company_info?: { email?: string } | null;
   custom_domain: string | null;
   is_demo: boolean | null;
   features: Partial<TenantFeatures> | null;
@@ -42,6 +46,9 @@ export type SubmitRequest = {
 };
 
 export type SubmitResponse = { status: number; body: SubmitOutcome };
+
+/** Test seams for the emails; production passes nothing. */
+export type SubmitDeps = EmailDeps;
 
 const fail = (status: number, error: string, fields?: string[]): SubmitResponse => ({ status, body: { ok: false, error, ...(fields ? { fields } : {}) } });
 
@@ -65,7 +72,7 @@ export async function loadByPublicKey(admin: SupabaseClient, key: string): Promi
   if (error || !data) return null;
   const form = toFormRow(data as Record<string, unknown>);
   const { data: t } = await admin
-    .from("tenants").select("id, name, custom_domain, is_demo, features, config").eq("id", form.tenant_id).maybeSingle();
+    .from("tenants").select("id, name, slug, company_info, custom_domain, is_demo, features, config").eq("id", form.tenant_id).maybeSingle();
   if (!t || !formsEnabled((t as TenantForSubmit).features)) return null;
   if (form.status !== "live") return null;
   return { form, tenant: t as TenantForSubmit };
@@ -141,7 +148,7 @@ export async function fileLead(
 
 // ── the whole submit ──────────────────────────────────────────────────────
 
-export async function handleSubmission(admin: SupabaseClient, req: SubmitRequest): Promise<SubmitResponse> {
+export async function handleSubmission(admin: SupabaseClient, req: SubmitRequest, deps: SubmitDeps = {}): Promise<SubmitResponse> {
   try {
     if (Buffer.byteLength(req.rawBody, "utf8") > LIMITS.bodyBytes) return fail(413, "That is too much to send in one go.");
     let parsed: unknown;
@@ -203,9 +210,21 @@ export async function handleSubmission(admin: SupabaseClient, req: SubmitRequest
       contactId = made.contactId; accountId = made.accountId; outcome = "created";
     }
 
-    // 2. consent: only for a box the person ticked; one row per topic the form named.
+    // Did this person send this form a moment ago? Then no second thank-you goes out (see skipThanks).
+    let repeat = false;
+    {
+      const { data: prior } = await admin
+        .from("form_submissions").select("id").eq("tenant_id", tenantId).eq("form_id", form.id).eq("contact_id", contactId)
+        .gte("created_at", new Date(Date.now() - 3_600_000).toISOString()).limit(1);
+      repeat = ((prior ?? []) as unknown[]).length > 0;
+    }
+
+    // 2. consent: only for a box the person ticked; one row per topic the form named. A form that asks people to
+    // confirm by email (double opt-in) records each as PENDING instead; the link in the thank-you email makes it a yes.
+    const confirmTopics: string[] = [];
     if (clean.consent) {
-      const known = new Set(topicsOf(tenant.config).map((t) => t.key));
+      const topicList = topicsOf(tenant.config);
+      const known = new Set(topicList.map((t) => t.key));
       const named = form.consent.topics;
       const topics: (string | null)[] = named.length === 0 ? [null] : named.filter((t) => known.has(t));
       const evidence = {
@@ -213,13 +232,34 @@ export async function handleSubmission(admin: SupabaseClient, req: SubmitRequest
         text: form.consent.text, topics: named,
         ip_hash: req.ipHash, ua_family: req.uaFamily,
       };
-      for (const topic of topics) {
-        const r = await recordConsent(tenantId, {
-          contactId, channel: "email", topic, status: "granted", basis: "consent", source: "form", evidence,
-        }, admin);
-        if (!r.ok) {
-          console.error(`[forms] consent not recorded for form ${form.id}: ${r.error}`);
-          return fail(503, "We could not save your choice. Please try again later.");
+      const doubleOptIn = form.after_submit.confirm_by_email ?? confirmByEmailDefault(tenant.config);
+      if (doubleOptIn && !signConfirmToken(contactId)) {
+        // Without the signing secret no link can be made, so nothing could ever confirm. Record nothing rather than a yes nobody gave.
+        console.error(`[forms] form ${form.id} asks for confirmation but QUOTE_PUBLIC_LINK_SECRET is not set: consent not recorded`);
+      } else {
+        for (const topic of topics) {
+          if (doubleOptIn) {
+            const r = await recordPendingConsent(tenantId, {
+              contactId, channel: "email", topic, source: "form", evidence: { ...evidence, double_opt_in: true },
+            }, admin);
+            if (r.ok) {
+              if (!r.skipped) confirmTopics.push(topic === null ? "our news and offers" : (topicList.find((t) => t.key === topic)?.label ?? topic));
+            } else if (r.pending) {
+              // Migration 0197 not applied yet: no pending state exists. Nothing is recorded and nothing is claimed.
+              console.error(`[forms] consent not recorded for form ${form.id}: the confirmation state is waiting for a database update`);
+            } else {
+              console.error(`[forms] consent not recorded for form ${form.id}: ${r.error}`);
+              return fail(503, "We could not save your choice. Please try again later.");
+            }
+            continue;
+          }
+          const r = await recordConsent(tenantId, {
+            contactId, channel: "email", topic, status: "granted", basis: "consent", source: "form", evidence,
+          }, admin);
+          if (!r.ok) {
+            console.error(`[forms] consent not recorded for form ${form.id}: ${r.error}`);
+            return fail(503, "We could not save your choice. Please try again later.");
+          }
         }
       }
     }
@@ -244,7 +284,7 @@ export async function handleSubmission(admin: SupabaseClient, req: SubmitRequest
       name: EVENTS.FORM_SUBMITTED, object_type: "form", object_id: form.id, source: "public_link",
       contact_id: contactId, account_id: accountId, lead_id: lead.id,
       key: submissionId ?? `${form.id}:${contactId}:${Date.now()}`,
-      payload: { form_id: form.id, outcome, consent: clean.consent, lead_created: lead.created },
+      payload: { form_id: form.id, outcome, consent: clean.consent, lead_created: lead.created, confirm_pending: confirmTopics.length > 0 },
     }, admin);
     if (lead.created && lead.id) {
       await emitEvent(tenantId, {
@@ -256,6 +296,12 @@ export async function handleSubmission(admin: SupabaseClient, req: SubmitRequest
     // 5b. an open event whose registration form this is registers the person (Events; a no-op unless the
     // workspace has that module, and it never throws, so it can never lose the answers above).
     if (eventsEnabled(tenant.features)) await registerFromSubmission(admin, tenantId, { formId: form.id, contactId, submissionId });
+
+    // 5c. the emails: the visitor's thank-you (with the confirm link when one is owed) and the notice to the owner.
+    // Never throws and never changes what the visitor sees.
+    await sendSubmissionEmails(admin, {
+      form, tenant, contactId, email, values: clean.values, confirmTopics, skipThanks: repeat,
+    }, deps);
 
     if (Math.random() < 0.05) await purgeExpired(admin, tenantId);
 

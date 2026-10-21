@@ -76,16 +76,33 @@ Everything is behind the existing platform-admin flag `features.marketing_scorin
     the flag), stage moves and hand-over, round robin and fallbacks, overdue flagging, tenant rotation and
     time budget, missing-table degradation, the Account 360 card, audience fields.
 
+## Added after the first shell (2026-10-21): the hand-over
+
+- **Settings, Marketing, Hand-over** (`/settings/marketing-handover`, admin only, behind `marketing_scoring`,
+  backed by `config.marketing.lifecycle`): response time in working days, the weekly days off, a rota of people
+  who take new leads in turn when Coverage matches nothing, who is told when a lead is overdue (the owner and/or
+  the team lead), and the switch for leads that appear by themselves. Every explanation sits behind an "i".
+  The route takes the tenant from the session, validates every person against `tenant_users` of this workspace
+  and keeps any other keys the block holds.
+- **Leads appear by themselves** (`autoCreate.ts`, off by default): in the 15-minute scoring run, for each person
+  who did something since the last run and has no open lead, the engine scores what they did; at Engaged or
+  above a lead is made (`source: inbound`, `lead.created`, titled "Interest from <name>") and scored at once, so
+  it moves to Ready for sales and is handed over if it has already earned it. Never in a request. One open
+  auto-made lead per person, enforced by a unique index (migration 0198). Only people with events since the
+  bookmark are looked at, so switching it on does not back-fill earlier interest.
+- **The rota**: when Coverage matches no team, the lead goes to the next person on the rota (whoever was given a
+  rota lead longest ago; reason `fallback_list`), else to the oldest admin as before.
+- **Overdue** (`notifyLeadOverdue`): when `lead.sla_breached` is flagged, one system comment on the lead mentions
+  the chosen people, so it appears in their Nova inbox like any mention. The comment is the once-only marker.
+  Only for a workspace with the Nova surfaces (like "Ready for sales"); no email fallback was built.
+
 ## To enhance later (in the order I suggest)
 
-1. **Leads appear by themselves**: a contact with no lead who crosses *Engaged* gets one created
-   (`source: inbound`, `lead.created`). Waits on the owner's open question 7; until then a person (or the
-   existing campaign interest link) creates every lead.
-2. **Settings screen for the hand-over**: response time and weekly-off days, a fallback list of
-   people to rotate when Coverage matches nothing, who is told when a lead is overdue. Today these are
-   defaults plus `config.marketing.lifecycle` with no screen.
-3. **Overdue actions**: an inbox row to the salesperson and the team lead when a lead breaches
-   (`lead.sla_breached` is already emitted once per lead), then an optional rule to reassign.
+1. ~~**Leads appear by themselves**~~ **Done 2026-10-21** (see above). Still open: a back-fill of people who
+   were already Engaged when it was switched on.
+2. ~~**Settings screen for the hand-over**~~ **Done 2026-10-21**.
+3. ~~**Overdue actions**~~ **Done 2026-10-21** (the inbox row). Still open: the optional rule that reassigns an
+   overdue lead, and an email for a workspace without the Nova surfaces.
 4. **Recycling**: *Not now* returns to *Engaged* on a new event after `recycle_after_days`; *Not a fit*
    is kept out of auto-creation for 12 months.
 5. **Vikas parity**: Score, Stage and Owner columns on the existing Leads list, only after the owner has

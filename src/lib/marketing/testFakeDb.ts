@@ -8,6 +8,8 @@ export type Row = Record<string, unknown>;
 type DbError = { code?: string; message: string } | null;
 
 // Column defaults the real tables have and the fake does not infer.
+// Tables whose created_at the tests read back in order (the consent ledger, kept form answers); the real column defaults to now().
+const STAMPED = new Set(["consent_events", "form_submissions"]);
 const COLUMN_DEFAULTS: Record<string, Row> = { journey_runner_lock: { locked_until: "1970-01-01T00:00:00.000Z" } };
 
 export function fakeDb(seed: Record<string, Row[]> = {}, opts: { missingTables?: string[] } = {}) {
@@ -68,11 +70,11 @@ export function fakeDb(seed: Record<string, Row[]> = {}, opts: { missingTables?:
       const match = (r: Row) => this.filters.every((f) => f.test(r[f.col]));
       if (this.op === "insert") {
         if (Array.isArray(this.payload)) {
-          const made = (this.payload as Row[]).map((p) => ({ id: `id-${++n}`, ...p }));
+          const made = (this.payload as Row[]).map((p) => ({ id: `id-${++n}`, ...(STAMPED.has(this.table) ? { created_at: new Date().toISOString() } : {}), ...p }));
           t.push(...made);
           return { data: made, error: null };
         }
-        const row: Row = { id: `id-${++n}`, ...(COLUMN_DEFAULTS[this.table] ?? {}), ...(this.payload as Row) };
+        const row: Row = { id: `id-${++n}`, ...(STAMPED.has(this.table) ? { created_at: new Date().toISOString() } : {}), ...(COLUMN_DEFAULTS[this.table] ?? {}), ...(this.payload as Row) };
         t.push(row);
         return { data: this.one ? row : [row], error: null };
       }

@@ -7,6 +7,8 @@ import { recordConsent } from "./consentWrite";
 import { JURISDICTION_RULES, jurisdictionForCountry, type JurisdictionCode } from "./jurisdictions";
 import { isSchemaPending } from "./pending";
 import { checkStaffConsent, offeredBases, type StaffBasis, type StaffConsentContext } from "./staffConsent";
+import { openPending } from "./forms/confirm";
+import { CONFIRM_DAYS } from "./forms/confirmToken";
 
 // The contact's Consent card: what this person has agreed to, per channel and topic,
 // and the two things a person in sales can do -- record that they agreed, or that
@@ -25,13 +27,18 @@ export type ConsentRow = {
 };
 
 export type ConsentHistoryRow = {
-  channel: string; topic: string | null; status: "granted" | "withdrawn"; basis: string; source: string; note: string | null; at: string;
+  channel: string; topic: string | null; status: "granted" | "withdrawn" | "pending"; basis: string; source: string; note: string | null; at: string;
 };
+
+/** A yes the person was asked to confirm by email (double opt-in). "expired" = the seven days passed without it. */
+export type WaitingConsent = { channel: string; topic: string; since: string; expired: boolean };
 
 export type ContactConsent = {
   /** False while the consent ledger (0139) is pending. */
   available: boolean;
   rows: ConsentRow[];
+  /** Answers waiting for the person to confirm by email. Never counted as a yes. */
+  waiting?: WaitingConsent[];
   history: ConsentHistoryRow[];
   topics: { key: string; label: string }[];
   bases: StaffBasis[];
@@ -39,7 +46,7 @@ export type ContactConsent = {
   jurisdictionLabel: string;
 };
 
-const UNAVAILABLE: ContactConsent = { available: false, rows: [], history: [], topics: [], bases: ["consent"], jurisdiction: "other", jurisdictionLabel: "" };
+const UNAVAILABLE: ContactConsent = { available: false, rows: [], waiting: [], history: [], topics: [], bases: ["consent"], jurisdiction: "other", jurisdictionLabel: "" };
 
 type Loaded = { ctx: StaffConsentContext; config: Partial<TenantConfig> | null; accountId: string; contactName: string | null };
 
@@ -74,18 +81,21 @@ export async function loadContactConsent(admin: SupabaseClient, tenantId: string
     if (sErr) return isSchemaPending(sErr) ? UNAVAILABLE : { ...UNAVAILABLE, available: true };
 
     const { data: events } = await admin.from("consent_events")
-      .select("channel, topic, status, basis, source, evidence, created_at")
+      .select("id, channel, topic, status, basis, source, evidence, created_at")
       .eq("tenant_id", tenantId).eq("contact_id", contactId).order("created_at", { ascending: false }).limit(60);
-    const evs = ((events ?? []) as { channel: string; topic: string | null; status: "granted" | "withdrawn"; basis: string; source: string; evidence: { note?: unknown } | null; created_at: string }[])
+    const rawEvents = (events ?? []) as { id: string; channel: string; topic: string | null; status: "granted" | "withdrawn" | "pending"; basis: string; source: string; evidence: { note?: unknown } | null; created_at: string }[];
+    const waiting: WaitingConsent[] = openPending(rawEvents.filter((e) => e.channel === "email"))
+      .map((p) => ({ channel: "email", topic: p.topic ?? "", since: p.created_at, expired: Date.now() - Date.parse(p.created_at) > CONFIRM_DAYS * 86_400_000 }));
+    const evs = rawEvents
       .map((e): ConsentHistoryRow => ({ channel: e.channel, topic: e.topic, status: e.status, basis: e.basis, source: e.source, note: typeof e.evidence?.note === "string" ? e.evidence.note : null, at: e.created_at }));
 
     const rows = ((states ?? []) as { channel: string; topic: string; status: "granted" | "withdrawn"; since: string; basis: string }[]).map((s): ConsentRow => {
-      const latest = evs.find((e) => e.channel === s.channel && (e.topic ?? "") === s.topic);
+      const latest = evs.find((e) => e.channel === s.channel && (e.topic ?? "") === s.topic && e.status !== "pending");
       return { ...s, source: latest?.source ?? null, note: latest?.note ?? null };
     }).sort((a, b) => a.channel.localeCompare(b.channel) || a.topic.localeCompare(b.topic));
 
     return {
-      available: true, rows, history: evs.slice(0, 15),
+      available: true, rows, waiting, history: evs.slice(0, 15),
       topics: topicsOf(loaded.config).map((t) => ({ key: t.key, label: t.label })),
       bases: offeredBases(loaded.ctx),
       jurisdiction: loaded.ctx.jurisdiction,

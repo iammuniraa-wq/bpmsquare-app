@@ -75,4 +75,15 @@ describe("the Consent card", () => {
     expect(out.match(/Agreed · Email · Offers/g)!.length).toBe(5);
     expect(out).toContain("Show all (7)");
   });
+  it("shows a tick that has not been confirmed by email as Waiting for confirmation, never as Agreed", () => {
+    const out = consentHtml(consent({ rows: [], history: [], waiting: [{ channel: "email", topic: "offers", since: "2026-10-20T00:00:00Z", expired: false }] }));
+    expect(out).toContain("Waiting for confirmation");
+    expect(out).not.toContain("No answer recorded yet");
+    expect(out).not.toContain(">Agreed<");
+  });
+  it("says Did not confirm once the seven days have passed", () => {
+    const out = consentHtml(consent({ rows: [], history: [], waiting: [{ channel: "email", topic: "", since: "2026-09-01T00:00:00Z", expired: true }] }));
+    expect(out).toContain("Did not confirm");
+    expect(out).not.toContain("Waiting for confirmation");
+  });
 });

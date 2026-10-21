@@ -1,6 +1,6 @@
 # BPMSquare Marketing: How to set up and run it
 
-Snapshot 2026-10-20
+Snapshot 2026-10-21
 
 > Screen names and button words may be refined as we improve the product. If a name in this guide is slightly different on your screen, look for the same idea nearby.
 
@@ -155,7 +155,10 @@ You need a web address for your workspace. If your administrator has not set one
 4. **Consent.** Write the words shown next to the tick box. Pick the topics it covers. Pick none to cover every topic.
    - Leave **The box must be ticked to send** off for a contact form. A person can ask a question without agreeing to emails.
    - The box is never ticked in advance.
-5. **After sending.** Choose **Show a message** (a thank-you on the form) or **Go to a page** (a page on your own domain, starting with https://).
+5. **After sending.** Choose **Show a message** (a thank-you on the form) or **Go to a page** (a page on your own domain, starting with https://). Then choose the emails:
+   - **Send a thank-you email** is on. Change **Words in the email** if you like. It is a confirmation of what the person just did, so it goes out even if they did not tick the consent box.
+   - **Ask the person to confirm by email** makes a ticked box count only after the person presses a link in that email. It is on for new forms if your workspace is in the European Union and off elsewhere (set this in **Settings → Marketing → Consent topics → Where you are based**). You can change it on each form.
+   - **Tell someone about each new answer** sends one person of your team a short email with the answers.
 6. **Share.** Change **Status** to **Live - visitors can send it**. Press **Save**.
 
 Use **Desktop** and **Phone** above the preview to see both layouts.
@@ -172,8 +175,11 @@ Use **Desktop** and **Phone** above the preview to see both layouts.
 
 1. The answers are saved (and kept for 180 days).
 2. If the email is new, a contact and a prospect company are created. If the email already belongs to a contact, that contact is not changed.
-3. If the person ticked the box, their consent is recorded with the exact words they saw.
+3. If the person ticked the box, their consent is recorded with the exact words they saw. If the form asks for confirmation, it is recorded as **waiting for confirmation** and does not count yet.
 4. A lead is created. A second submission by the same person refreshes the same lead.
+5. The person gets the thank-you email, with the confirm link if one is owed, and the person you chose is told. On a demo workspace these go to your test inbox, never to the visitor.
+
+**Confirming:** the person opens the link, then presses **Yes, confirm**. The link works for 7 days. After that the page says it has expired and the person fills in the form again. Until they confirm, you cannot email them about that topic.
 
 **Read the answers:** open the form and choose the **Answers** tab. It shows the latest 25, ten to a page.
 
@@ -188,6 +194,8 @@ Use **Desktop** and **Phone** above the preview to see both layouts.
 | Archived | Switched off. |
 | Agreed to emails: Yes / No | Whether the visitor ticked the box |
 | Already a contact / New contact | Whether the email matched someone you had |
+| Waiting for confirmation (on the contact's Consent card) | They ticked the box but have not pressed the link yet. Not counted as a yes. |
+| Did not confirm | Seven days passed without the link being pressed. They are not emailed. |
 
 ### If something looks wrong
 
@@ -198,8 +206,10 @@ Use **Desktop** and **Phone** above the preview to see both layouts.
 | The thank-you page will not save | It must start with https:// and be on your own domain. |
 | Someone submits but is not in your newsletter audience | They did not tick the box. An unticked box records nothing. |
 | A test submission seems missing | You may have hit the limit of 5 submissions an hour from one visitor. Wait and retry. |
+| The person did not get the thank-you email | Check **Send a thank-you email** is on. The same person is not emailed twice within an hour. On a demo workspace the email goes to your test inbox instead. |
+| A person ticked the box but cannot be emailed | The form asks for confirmation and they have not pressed the link. Look at **Waiting for confirmation** on their Consent card. |
 
-**Coming later:** a thank-you email to the visitor, a confirmation link (double opt-in), more field types, form languages, and a submissions screen with filters.
+**Coming later:** more field types, form languages, and a submissions screen with filters.
 
 ---
 
@@ -338,8 +348,11 @@ The score is worked out by fixed rules. It is never a guess by AI.
    - **Try it** tab: pretend a lead did certain things and see the score. Nothing is saved.
    - Tap the **i** next to a label to see what it does.
 2. **Settings → Coverage:** open a team and choose **Who gets new sales-ready leads**: **The team lead**, or **Each member in turn**.
-
-The standard response time is one working day, with Sunday off. If your week is different (for example Friday and Saturday off), ask us to set it. There is no screen for it yet.
+3. **Settings → Marketing → Hand-over** (administrator):
+   - **Leads by themselves:** switch on **Make a lead when someone becomes Warm**. Off by default.
+   - **Response time:** the working days a salesperson has, and the **Days off** (for example Friday and Saturday). The standard is one working day with Sunday off.
+   - **When no team covers it:** add the people who take new leads in turn. With nobody here, the oldest administrator has them.
+   - **When a lead is overdue:** choose whether the **owner** and/or the **team lead** is told in the Nova inbox.
 
 ### Do it day to day
 
@@ -349,6 +362,7 @@ The standard response time is one working day, with Sunday off. If your week is 
 4. On a lead that is **Ready for sales**, press **Pick this up**. It becomes yours and moves to **Working**.
 5. Use **Stage** on the right to move the lead (for example to **Deal** or **Not now**) and add a note. Use **Owner** to choose someone, or **Take this lead**.
 6. **Score again** works the score out right now. It is otherwise refreshed about every 15 minutes, and points fade as actions get older.
+7. With **Make a lead when someone becomes Warm** on, a person who has no open lead and has done enough to be Warm gets one by themselves, within about 15 minutes. It is titled "Interest from" and their name, with the source **Inbound**. It then moves on and is handed over like any other lead. It only looks at what people did after you switched it on.
 
 ### What the colours and labels mean
 
@@ -371,6 +385,7 @@ Scoring moves a lead up through New, Engaged and Ready for sales by itself. It n
 | Overdue (red) | Still **Ready for sales** and past the time. **Working** stops the clock. |
 | Needs an owner (amber) | Ready, but nobody has it |
 | No coverage matched, so an admin has it (amber) | No team owns this company, so the oldest administrator was given it |
+| No coverage matched, so it went to the next person on your hand-over list | No team owns this company, so the next person on your **Hand-over** list was given it |
 
 ### If something looks wrong
 
@@ -379,9 +394,11 @@ Scoring moves a lead up through New, Engaged and Ready for sales by itself. It n
 | "Not scored yet" | Press **Score again** or wait for the next run |
 | A lead is stuck on "New" | Nothing has added points. The score rises as the person clicks, opens quotes or fills in forms. |
 | Too many leads are Ready | Raise **Hot from** in Scoring (Thresholds tab), or lower the points for small actions |
-| The wrong person got a lead | Check the team setting in **Settings → Coverage** and the company's owner |
+| The wrong person got a lead | Check the team setting in **Settings → Coverage**, the list in **Settings → Marketing → Hand-over** and the company's owner |
+| Nobody is told about an overdue lead | In **Hand-over → When a lead is overdue**, choose who to tell. The message appears in the Nova inbox, so your workspace needs Nova. Each lead is announced once. |
+| No leads appear by themselves | Check **Make a lead when someone becomes Warm** is on. People who were already Warm before you switched it on are not added. |
 
-**Coming later:** leads created automatically when a contact becomes Engaged, a screen for response times and days off, alerts for overdue leads, and Score and Stage columns on the existing **Leads** page. The existing **Leads** page is unchanged; **Lead scores** is the new view.
+**Coming later:** reassigning an overdue lead by a rule, and Score and Stage columns on the existing **Leads** page. The existing **Leads** page is unchanged; **Lead scores** is the new view.
 
 ---
 

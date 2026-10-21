@@ -7,6 +7,8 @@ export const CONSENT_SETTINGS_TIPS = {
   topicName: "What people see when they choose.",
   topicCovers: "One line under the name, so people know what they are agreeing to.",
   defaults: "For a person with no recorded answer, choose whether they can still be emailed. The safe choice is that they cannot.",
+  home: "Where your business is based. It sets the starting answer for a new form's confirm-by-email option.",
+  homeField: "On a form, Ask the person to confirm by email starts on for the European Union and off elsewhere. Each form can change it.",
 } as const;
 
 /** Shown as an amber line, and only while at least one country group relies on the relaxed option. */

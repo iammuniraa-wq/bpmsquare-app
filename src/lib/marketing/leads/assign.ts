@@ -1,10 +1,11 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Account, Team } from "@/lib/types";
-import type { TenantFeatures } from "@/lib/constants";
+import type { TenantConfig, TenantFeatures } from "@/lib/constants";
 import { resolveCoverageForAccount } from "@/lib/coverage/resolve";
 import { isSchemaPending } from "../pending";
 import { nextInRotation } from "./roundRobin";
+import { handoverOf } from "./handover";
 
 // Who gets a lead that has become ready for sales (docs/marketing-platform-
 // architecture.md 4.3). The account's Coverage decides the owning team; the
@@ -12,16 +13,17 @@ import { nextInRotation } from "./roundRobin";
 //   lead         the team lead (the same person Coverage already makes the
 //                account owner)
 //   round_robin  the next member in turn
-// No Coverage (module off, or no segment matched) falls back to the
-// workspace's oldest admin, and the reason is recorded so a gap shows as a
-// chip on the lead instead of passing unseen. The account's own owner is never
+// No Coverage (module off, or no segment matched) falls back first to the
+// workspace's own list of people (Settings, Marketing, Hand-over), taken in
+// turn, and then to the workspace's oldest admin; the reason is recorded so a
+// gap shows as a chip on the lead instead of passing unseen. The account's own owner is never
 // changed by a lead assignment.
 
-export type AssignmentReason = "team_lead" | "round_robin" | "fallback_admin" | "unassigned";
+export type AssignmentReason = "team_lead" | "round_robin" | "fallback_list" | "fallback_admin" | "unassigned";
 
 export type Assignment = { owner_user_id: string | null; reason: AssignmentReason; team_id: string | null };
 
-type Deps = { resolveCoverage?: typeof resolveCoverageForAccount };
+type Deps = { resolveCoverage?: typeof resolveCoverageForAccount; /** The workspace config, for its fallback list. */ config?: Partial<TenantConfig> | null };
 
 export async function pickOwnerForLead(
   admin: SupabaseClient,
@@ -47,11 +49,58 @@ export async function pickOwnerForLead(
     }
   }
 
+  const fromList = await nextFallbackPerson(admin, tenantId, handoverOf(deps.config).fallback_user_ids);
+  if (fromList) return { owner_user_id: fromList, reason: "fallback_list", team_id: null };
+
   const { data: admins } = await admin
     .from("tenant_users").select("user_id, created_at")
     .eq("tenant_id", tenantId).eq("role", "admin").order("created_at", { ascending: true }).limit(1);
   const first = (admins ?? [])[0]?.user_id as string | undefined;
   return first ? { owner_user_id: first, reason: "fallback_admin", team_id: null } : { owner_user_id: null, reason: "unassigned", team_id: null };
+}
+
+/** The lead of the team Coverage says owns this company, or null (Coverage off, nothing matched, or the team has no lead). */
+export async function teamLeadForAccount(
+  admin: SupabaseClient, tenantId: string, accountId: string, features: Partial<TenantFeatures> | null | undefined, deps: Deps = {},
+): Promise<string | null> {
+  if (features?.coverage_model !== true) return null;
+  const { data: account } = await admin.from("accounts").select("*").eq("id", accountId).eq("tenant_id", tenantId).maybeSingle();
+  if (!account) return null;
+  const resolve = deps.resolveCoverage ?? resolveCoverageForAccount;
+  const resolved = await resolve(tenantId, account as Account).catch(() => null);
+  const team = resolved?.owner?.team as (Team & { lead_user_id?: string | null }) | undefined;
+  return team?.lead_user_id ?? null;
+}
+
+/**
+ * The next person on the workspace's own fallback list. Only people who still belong to THIS workspace count
+ * (the list is re-checked against tenant_users every time). The turn is read from the leads already handed out
+ * this way: whoever was given a lead longest ago goes next, and someone never given one goes first, in list order.
+ * Two leads at the same instant can land on the same person; that costs a little fairness, never a lead.
+ */
+export async function nextFallbackPerson(admin: SupabaseClient, tenantId: string, listed: string[]): Promise<string | null> {
+  if (listed.length === 0) return null;
+  const { data: members, error } = await admin.from("tenant_users").select("user_id").eq("tenant_id", tenantId).in("user_id", listed);
+  if (error) return null;
+  const valid = new Set((members ?? []).map((m) => m.user_id as string));
+  const people = listed.filter((id) => valid.has(id));
+  if (people.length === 0) return null;
+
+  const last = new Map<string, string>();
+  const { data: given } = await admin
+    .from("leads").select("owner_user_id, assigned_at")
+    .eq("tenant_id", tenantId).eq("assignment_reason", "fallback_list").in("owner_user_id", people)
+    .order("assigned_at", { ascending: false }).limit(200);
+  for (const r of (given ?? []) as { owner_user_id: string | null; assigned_at: string | null }[]) {
+    if (r.owner_user_id && r.assigned_at && r.assigned_at > (last.get(r.owner_user_id) ?? "")) last.set(r.owner_user_id, r.assigned_at);
+  }
+  let best = people[0];
+  for (const id of people) {
+    const a = last.get(id) ?? "";
+    const b = last.get(best) ?? "";
+    if (a < b) best = id;
+  }
+  return best;
 }
 
 /**

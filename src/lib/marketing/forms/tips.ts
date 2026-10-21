@@ -17,4 +17,10 @@ export const FORM_TIPS = {
   status: "Only a Live form can be opened or sent by a visitor. Save after changing it.",
   embed: "Paste it where the form should appear. It sits in its own frame, so your site's styles cannot break it.",
   answers: "The latest 25 answers, kept 180 days.",
+  thankYou: "A confirmation to the person about their own answer. It is sent whether or not they ticked the consent box.",
+  thankYouWords: "These words go under a short greeting with the person's first name. Plain text only.",
+  confirm: "The tick counts only after the person presses the link in the email, which works for 7 days. On by default for the European Union, off elsewhere.",
+  confirmNeeds: "The email with the link is sent even when the thank-you words are off, because without it nobody could confirm.",
+  notify: "One person of your workspace gets a short email with each new answer.",
+  notifyWho: "Only people who belong to this workspace can be chosen.",
 } as const;

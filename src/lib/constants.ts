@@ -180,6 +180,7 @@ export const ROUTES = {
   settingsRfq: "/settings/rfq",
   settingsMarketingScoring: "/settings/marketing-scoring",
   settingsMarketingConsent: "/settings/marketing-consent",
+  settingsMarketingHandover: "/settings/marketing-handover",
   settingsBrandKit: "/settings/brand-kit",
   settingsEstimateTemplates: "/settings/estimate-templates",
   settingsEstimateTemplate: (id: string) => `/settings/estimate-templates/${id}`,
@@ -1360,7 +1361,21 @@ export type MarketingConfig = {
    * Absent = one working day, Sunday off (src/lib/marketing/leads/timing.ts).
    * `weekly_off` is 0 = Sunday ... 6 = Saturday.
    */
-  lifecycle?: { sla_business_days?: number; weekly_off?: number[] };
+  lifecycle?: {
+    sla_business_days?: number;
+    weekly_off?: number[];
+    /** Create a lead by itself when a person with no open lead reaches the Engaged (Warm) band. Absent or false = off. */
+    auto_create_leads?: boolean;
+    /** People (user ids) handed a ready lead, in turn, when Coverage matches nothing. Absent or empty = the oldest admin. */
+    fallback_user_ids?: string[];
+    /** Who hears about an overdue lead, in the Nova inbox. Absent = nobody. */
+    overdue_notify?: { owner?: boolean; team_lead?: boolean };
+  };
+  /**
+   * Where this workspace is based. Decides the default of "Ask the person to confirm by email" on a form
+   * (on for the EU, off elsewhere); a form can always override it.
+   */
+  consent?: { jurisdiction?: "SA" | "AE" | "QA" | "KW" | "OM" | "BH" | "IN" | "EU" | "other" };
   /** Journey safety limits (src/lib/marketing/journeys/safety.ts). Absent keys read as the defaults there. */
   journey_limits?: {
     /** Most journey emails one person gets in a day. Default 1. */

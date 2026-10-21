@@ -71,12 +71,14 @@ describe("Forms are behind their own flag", () => {
 describe("the public paths", () => {
   const proxy = read("proxy.ts");
 
-  it("are four anchored patterns and nothing broader", () => {
+  it("are six anchored patterns and nothing broader", () => {
     for (const re of [
       String.raw`/^\/f\/[^/]+$/`,
       String.raw`/^\/api\/f\/[^/]+$/`,
       String.raw`/^\/marketing\/preferences\/[^/]+\/[^/]+$/`,
       String.raw`/^\/api\/marketing\/preferences\/[^/]+\/[^/]+$/`,
+      String.raw`/^\/marketing\/confirm\/[^/]+\/[^/]+$/`,
+      String.raw`/^\/api\/marketing\/confirm\/[^/]+\/[^/]+$/`,
     ]) expect(proxy).toContain(`${re}.test(pathname)`);
     expect(proxy).not.toMatch(/pathname\.startsWith\("\/f\//);
     expect(proxy).not.toMatch(/startsWith\("\/api\/marketing-forms/);
@@ -95,6 +97,16 @@ describe("the public paths", () => {
     expect(src.indexOf("verifyPreferenceToken")).toBeLessThan(src.indexOf("req.text()"));
     const page = read("app", "(print)", "marketing", "preferences", "[contactId]", "[token]", "page.tsx");
     expect(page.indexOf("verifyPreferenceToken(contactId, token)")).toBeLessThan(page.indexOf("loadPreferences("));
+  });
+
+  it("the confirm route and page verify the signed, expiring token before reading anything, and never read a tenant from the request", () => {
+    const route = read("app", "api", "marketing", "confirm", "[contactId]", "[token]", "route.ts");
+    expect(route.indexOf("verifyConfirmToken(contactId, token)")).toBeGreaterThan(-1);
+    expect(route.indexOf("verifyConfirmToken(contactId, token)")).toBeLessThan(route.indexOf("createAdminSupabase()"));
+    expect(route).not.toMatch(/searchParams|nextUrl\.search|req\.json|req\.text|body\./);
+    const page = read("app", "(print)", "marketing", "confirm", "[contactId]", "[token]", "page.tsx");
+    expect(page.indexOf("verifyConfirmToken(contactId, token)")).toBeLessThan(page.indexOf("loadConfirmView("));
+    expect(page).not.toMatch(/notFound\(|throw /);
   });
 
   it("the hosted page answers not found when the form cannot be reached", () => {

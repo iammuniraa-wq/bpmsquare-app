@@ -51,6 +51,10 @@ export type FormStudioProps = {
   submissions: SubmissionRow[];
   canEdit: boolean;
   canDelete: boolean;
+  /** Members of this workspace the answer can be sent to. */
+  people?: { id: string; label: string }[];
+  /** What "Ask the person to confirm by email" is when the form leaves it alone (on for a workspace in the EU). */
+  confirmDefault?: boolean;
 };
 
 type Sec = "basicsSec" | "fieldsSec" | "consentSec" | "afterSec" | "shareSec";
@@ -69,7 +73,7 @@ const attr = (s: string) => s.replace(/&/g, "&amp;").replace(/"/g, "&quot;").rep
 
 const snapshot = (d: unknown) => JSON.stringify(d);
 
-export default function FormStudio({ initial, topics, origin, redirectHost, brand, submissions, canEdit, canDelete }: FormStudioProps) {
+export default function FormStudio({ initial, topics, origin, redirectHost, brand, submissions, canEdit, canDelete, people = [], confirmDefault = false }: FormStudioProps) {
   const router = useRouter();
   const { confirm } = useFeel();
 
@@ -286,7 +290,7 @@ export default function FormStudio({ initial, topics, origin, redirectHost, bran
             <CheckOpt label="The box must be ticked to send" info={FORM_TIPS.consentRequired} checked={consent.required} disabled={!canEdit} onChange={(v) => setConsent((c) => ({ ...c, required: v }))} />
           </OptionGroup>
 
-          <OptionGroup id="afterSec" title="After sending" info={FORM_TIPS.after} summary={after.kind === "redirect" ? "Go to a page" : "Thank-you message"} open={open === "afterSec"} on={tab === "afterSec"} onToggle={() => toggleSection("afterSec")}>
+          <OptionGroup id="afterSec" title="After sending" info={FORM_TIPS.after} summary={[after.kind === "redirect" ? "Go to a page" : "Thank-you message", after.thank_you_email ? "email" : null].filter(Boolean).join(" + ")} open={open === "afterSec"} on={tab === "afterSec"} onToggle={() => toggleSection("afterSec")}>
             <div className={styles.starts}>
               <button type="button" className={cx(styles.start, after.kind === "message" && styles.sel)} disabled={!canEdit} onClick={() => setAfter((a) => ({ ...a, kind: "message" }))}><b>Show a message</b><span>A thank-you on the form</span></button>
               <button type="button" className={cx(styles.start, after.kind === "redirect" && styles.sel)} disabled={!canEdit} onClick={() => setAfter((a) => ({ ...a, kind: "redirect" }))}><b>Go to a page</b><span>{redirectHost || "No domain yet"}</span></button>
@@ -302,6 +306,21 @@ export default function FormStudio({ initial, topics, origin, redirectHost, bran
                   <input id="frUrl" className={styles.field} value={after.redirect_url} maxLength={LIMITS.redirect} disabled={!canEdit} placeholder={`https://${redirectHost || "your-domain.com"}/thanks`} onChange={(e) => setAfter((a) => ({ ...a, redirect_url: e.target.value }))} />
                 </Opt>
               </>
+            )}
+            <CheckOpt label="Send a thank-you email" info={FORM_TIPS.thankYou} checked={after.thank_you_email} disabled={!canEdit} onChange={(v) => setAfter((a) => ({ ...a, thank_you_email: v }))} />
+            {after.thank_you_email && (
+              <Opt label="Words in the email" info={FORM_TIPS.thankYouWords} htmlFor="frThanks">
+                <textarea id="frThanks" className={styles.field} value={after.thank_you_text} maxLength={LIMITS.thankYou} disabled={!canEdit} onChange={(e) => setAfter((a) => ({ ...a, thank_you_text: e.target.value }))} />
+              </Opt>
+            )}
+            <CheckOpt label="Ask the person to confirm by email" info={after.thank_you_email ? FORM_TIPS.confirm : FORM_TIPS.confirmNeeds} checked={after.confirm_by_email ?? confirmDefault} disabled={!canEdit} onChange={(v) => setAfter((a) => ({ ...a, confirm_by_email: v }))} />
+            <CheckOpt label="Tell someone about each new answer" info={FORM_TIPS.notify} checked={after.notify_owner} disabled={!canEdit || people.length === 0} onChange={(v) => setAfter((a) => ({ ...a, notify_owner: v, notify_user_id: v ? (a.notify_user_id ?? people[0]?.id ?? null) : a.notify_user_id }))} />
+            {after.notify_owner && (
+              <Opt label="Who" info={FORM_TIPS.notifyWho} htmlFor="frNotify">
+                <select id="frNotify" className={styles.select} value={after.notify_user_id ?? ""} disabled={!canEdit} onChange={(e) => setAfter((a) => ({ ...a, notify_user_id: e.target.value || null }))}>
+                  {people.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
+                </select>
+              </Opt>
             )}
           </OptionGroup>
 

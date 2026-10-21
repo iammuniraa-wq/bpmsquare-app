@@ -7,7 +7,26 @@ export type FormFieldKey = (typeof FORM_FIELD_KEYS)[number];
 
 export type FormField = { key: FormFieldKey; label: string; required: boolean; enabled: boolean };
 export type FormConsent = { text: string; topics: string[]; required: boolean };
-export type AfterSubmit = { kind: "message" | "redirect"; message: string; redirect_url: string };
+/**
+ * What happens once a submission is kept. `message` / `redirect_url` are what the visitor sees on screen;
+ * the rest are emails (docs/shells/forms-shell.md). All of them live in the form's after_submit JSON, so
+ * a form saved before they existed reads with the defaults and nothing needs migrating.
+ */
+export type AfterSubmit = {
+  kind: "message" | "redirect";
+  message: string;
+  redirect_url: string;
+  /** A confirmation email to the visitor for their own submission. On by default. */
+  thank_you_email: boolean;
+  /** The words of that email. */
+  thank_you_text: string;
+  /** Tell one person of the workspace about each new answer. Off by default. */
+  notify_owner: boolean;
+  /** The person to tell (a member of this workspace; checked again when sending). */
+  notify_user_id: string | null;
+  /** Ask the person to confirm by email before the box they ticked counts (double opt-in). null = the workspace's default. */
+  confirm_by_email: boolean | null;
+};
 
 export const FORM_STATUSES = ["draft", "live", "archived"] as const;
 export type FormStatus = (typeof FORM_STATUSES)[number];
@@ -21,6 +40,7 @@ export const LIMITS = {
   label: 60,
   consentText: 600,
   message: 300,
+  thankYou: 600,
   redirect: 500,
   value: { name: 120, company: 160, email: 254, phone: 24, message: 2000, custom: 300 },
   /** Whole request body, in bytes. The longest legitimate submit is a few KB. */
@@ -57,8 +77,15 @@ export function defaultConsentText(companyName: string): string {
   return `I agree to receive news and offers from ${who} by email. I can change my mind at any time.`;
 }
 
+export function defaultThankYouText(): string {
+  return "Thank you for getting in touch. We have your message and will reply as soon as we can.";
+}
+
 export function defaultAfterSubmit(): AfterSubmit {
-  return { kind: "message", message: "Thank you. We have your message and will be in touch soon.", redirect_url: "" };
+  return {
+    kind: "message", message: "Thank you. We have your message and will be in touch soon.", redirect_url: "",
+    thank_you_email: true, thank_you_text: defaultThankYouText(), notify_owner: false, notify_user_id: null, confirm_by_email: null,
+  };
 }
 
 export type FormRow = {
