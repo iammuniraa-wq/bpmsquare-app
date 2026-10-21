@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Nova Assistant mock-up</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+:root{--bg:#f3f1f8;--panel:#fff;--ink:#1d1a2c;--mut:#6b6683;--line:#e3e0ee;--acc:#5b3fb5;--acc-soft:#ece7fb;--warn:#b45309;--warn-soft:#fff4e5;--red:#b91c1c;--red-soft:#fde8e8;--ok:#047857;--ok-soft:#e6f7f0}
+*{box-sizing:border-box;margin:0}
+body{font-family:Inter,"Segoe UI",Arial,sans-serif;background:var(--bg);color:var(--ink);padding:24px;display:flex;gap:32px;flex-wrap:wrap;align-items:flex-start}
+h1{font-size:18px;margin-bottom:6px}
+.note{color:var(--mut);font-size:13px;max-width:380px;line-height:1.45}
+.note b{color:var(--ink)}
+.dock{width:420px;height:720px;background:var(--panel);border:1px solid var(--line);border-radius:18px;display:flex;flex-direction:column;box-shadow:0 12px 40px rgba(29,26,44,.12);overflow:hidden}
+.head{display:flex;align-items:center;gap:10px;padding:12px 14px;border-bottom:1px solid var(--line)}
+.head .t{font-weight:700;font-size:14px;flex:1}
+.pill{font-size:11px;padding:3px 8px;border-radius:999px;background:var(--acc-soft);color:var(--acc);font-weight:600}
+.i{display:inline-flex;width:16px;height:16px;border-radius:50%;border:1px solid var(--mut);color:var(--mut);font-size:10px;align-items:center;justify-content:center;margin-left:6px;vertical-align:middle}
+.ctx{font-size:12px;color:var(--mut);padding:8px 14px;border-bottom:1px solid var(--line)}
+.ctx b{color:var(--ink)}
+.sug{display:flex;gap:6px;padding:10px 14px;overflow-x:auto;border-bottom:1px solid var(--line)}
+.chip{white-space:nowrap;font-size:12px;padding:7px 10px;border-radius:999px;border:1px solid var(--line);background:#faf9fe;min-height:34px}
+.chat{flex:1;overflow:auto;padding:14px;display:flex;flex-direction:column;gap:10px}
+.msg{max-width:88%;padding:10px 12px;border-radius:12px;font-size:13px;line-height:1.4}
+.me{align-self:flex-end;background:var(--acc);color:#fff}
+.ai{align-self:flex-start;background:#f7f6fb;border:1px solid var(--line)}
+.card{align-self:stretch;border:1px solid var(--line);border-radius:12px;padding:10px 12px;font-size:13px;background:#fff}
+.card h4{font-size:12px;letter-spacing:.3px;text-transform:uppercase;color:var(--mut);margin-bottom:6px;display:flex;align-items:center}
+.row{display:flex;justify-content:space-between;gap:8px;padding:4px 0;border-bottom:1px dashed var(--line)}
+.row:last-of-type{border:0}
+.row span:first-child{color:var(--mut)}
+.btns{display:flex;gap:8px;margin-top:10px}
+.btn{min-height:40px;padding:0 14px;border-radius:10px;border:1px solid var(--line);background:#fff;font-weight:600;font-size:13px;cursor:pointer}
+.btn.p{background:var(--acc);color:#fff;border-color:var(--acc)}
+.btn.out{background:var(--warn);color:#fff;border-color:var(--warn)}
+.btn.del{background:var(--red);color:#fff;border-color:var(--red)}
+.plan li{display:flex;gap:8px;align-items:center;padding:5px 0}
+.plan .n{width:20px;height:20px;border-radius:50%;background:var(--acc-soft);color:var(--acc);font-size:11px;display:inline-flex;align-items:center;justify-content:center;font-weight:700}
+.done{color:var(--ok);background:var(--ok-soft);border-radius:999px;padding:1px 8px;font-size:11px;font-weight:600}
+.warnline{background:var(--warn-soft);color:var(--warn);font-size:12px;padding:6px 8px;border-radius:8px;margin-top:8px}
+.input{display:flex;gap:8px;padding:12px 14px;border-top:1px solid var(--line);background:#fff}
+.input input{flex:1;min-height:44px;border:1px solid var(--line);border-radius:12px;padding:0 12px;font-size:14px}
+.input .btn{min-height:44px}
+.over{opacity:.55}
+</style></head><body>
+<div>
+<h1>Nova Assistant: the dock after S1–S3</h1>
+<p class="note"><b>What the mock-up shows.</b> Context line (where the user is), a suggestions strip, an answer, a plan card with one Confirm, a navigation card, an outward action with its own named button and a consent fact, and the usage pill. Explanations are behind the <span class="i">i</span>. Every button is 40–44 px. Under 900 px the dock is full-screen with the input sticky at the bottom.</p>
+<p class="note" style="margin-top:12px"><b>Rules shown.</b> Reads run at once; a write waits for Confirm; an outward act has a button named after the act; a destructive act asks for the record's name. Numbers in cards come from engines, never the model.</p>
+</div>
+
+<div class="dock">
+  <div class="head"><span class="t">Nova</span><span class="pill">AI usage 41%<span class="i">i</span></span><button class="btn" style="min-height:32px;padding:0 10px">×</button></div>
+  <div class="ctx">On <b>SQ-2026-0012 · Al-Otaibi Contracting</b> (standard quote, draft)</div>
+  <div class="sug">
+    <button class="chip">Price all lines</button>
+    <button class="chip">Send to Faisal Al-Otaibi</button>
+    <button class="chip">Add the Riyadh site contact</button>
+  </div>
+  <div class="chat">
+    <div class="msg me">Add 150 m of wire rope, price it, and send the quote to Faisal.</div>
+    <div class="msg ai">Three steps. The price comes from the Catalogue 2026 book (band from 100 m: 390 per metre).</div>
+    <div class="card plan">
+      <h4>Plan<span class="i">i</span></h4>
+      <ul style="list-style:none">
+        <li><span class="n">1</span> Add line · Wire Rope 13mm · 150 Mtr <span class="done">done</span></li>
+        <li><span class="n">2</span> Price line 1 with the engine · ₹58,500 before tax <span class="done">done</span></li>
+        <li><span class="n">3</span> Send the quote to faisal@alotaibi-contracting.example</li>
+      </ul>
+      <div class="warnline">Step 3 sends an email. It runs only from the button below.</div>
+      <div class="btns"><button class="btn out">Send to Faisal</button><button class="btn">Change</button></div>
+    </div>
+    <div class="card">
+      <h4>Opened</h4>
+      <div class="row"><span>Quote</span><span>SQ-2026-0012, Lines tab</span></div>
+    </div>
+    <div class="msg me">Who owns this account?</div>
+    <div class="msg ai">South Pod (owner), from the SOUTH segment rule since 23 Aug 2026. Hospital Specialists overlay it.</div>
+    <div class="card over">
+      <h4>Delete contact<span class="i">i</span></h4>
+      <div class="row"><span>Contact</span><span>Khalid Al-Rashid</span></div>
+      <div class="row"><span>Type the name to confirm</span><span>______</span></div>
+      <div class="btns"><button class="btn del">Delete</button><button class="btn">Keep</button></div>
+    </div>
+  </div>
+  <div class="input"><input placeholder="Ask, or say what to do…"><button class="btn p">Send</button></div>
+</div>
+</body></html>
