@@ -232,7 +232,7 @@
     }
   ],
   "mcp": {
-    "version": "1.11.0",
+    "version": "1.12.0",
     "tools": [
       {
         "name": "list_accounts",
@@ -284,11 +284,11 @@
       },
       {
         "name": "list_products",
-        "description": "List the tenant's sellable products (catalog): name, SKU, category and sub-category, unit of measure, list price, tax percent, status and item type (a stable key such as finished_product, raw_material, bom_kit; null when"
+        "description": "List the tenant's sellable products (catalog): name, SKU, category and sub-category, unit of measure, list price, its quantity breaks (qty_breaks: from-quantity and rate bands above the list price, a null rate meaning pr"
       },
       {
         "name": "get_product",
-        "description": "Fetch one product by id, including description and custom fields."
+        "description": "Fetch one product by id, including description, quantity breaks (qty_breaks) and custom fields."
       },
       {
         "name": "list_opportunities",

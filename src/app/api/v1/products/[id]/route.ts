@@ -17,7 +17,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   // supplier_id (0132) is commercially sensitive for the same reason: deliberately omitted.
   const { data: product, error } = await admin
     .from("products")
-    .select("id, ref, sku, name, description, category, sub_category, item_type, uom, list_price, tax_percent, status, custom_data, created_at, updated_at")
+    .select("id, ref, sku, name, description, category, sub_category, item_type, uom, list_price, qty_breaks, tax_percent, status, custom_data, created_at, updated_at")
     .eq("id", id)
     .eq("tenant_id", tenantId)
     .maybeSingle();

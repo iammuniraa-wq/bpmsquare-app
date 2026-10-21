@@ -2,7 +2,7 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Tenant } from "@/lib/tenant";
 import type { StandardQuoteProduct } from "./new/StandardQuoteForm";
-import { parseQtyBreaks } from "@/lib/sales/qtyBreaks";
+import { parseQtyBreaks } from "@/lib/products/qtyBreaks";
 
 // What the Standard Quote form needs from the catalog (0114): the products
 // a line can name, only when the tenant bought the module. Shared by the

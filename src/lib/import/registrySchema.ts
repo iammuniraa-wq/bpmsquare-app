@@ -288,7 +288,8 @@ export function buildObjectSpec(
         label: f.label,
         type: WIDGET_TO_TYPE[f.widget],
         required: requiredKeys.has(f.field_key) || f.required,
-        hint: options?.length ? options.join(" · ") : (f.kind === "custom" ? `Custom field — ${f.label}` : f.label),
+        hint: options?.length ? options.join(" · ") : (f.kind === "custom" ? `Custom field — ${f.label}` : (f.description ?? f.label)),
+        example: f.example,
         options,
         aliases: [f.label],
         custom: f.kind === "custom",
@@ -332,6 +333,7 @@ export function buildObjectSpec(
  * type/options instead, so it's honest for whoever downloads it.
  */
 function exampleValue(field: FieldSpec, index: number): string {
+  if (field.example) return field.example;
   if (field.type === "ref") return "(name of an existing record)";
   if (field.options?.length) return field.options[index % field.options.length];
   switch (field.type) {

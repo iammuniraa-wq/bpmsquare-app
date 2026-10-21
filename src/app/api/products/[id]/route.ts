@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { requireTenantUser, getAuthUser } from "@/lib/supabase-server";
 import { diffForLog, logChange } from "@/lib/changeLog";
 import { parseCostSheet } from "@/lib/pricing/costSheet";
-import { parseQtyBreaks } from "@/lib/sales/qtyBreaks";
+import { validateQtyBreaks } from "@/lib/products/qtyBreaks";
 import { writeHeaderTolerant } from "@/lib/pricing/quoteLineFlags";
 import { whereUsed } from "@/lib/products/bomServer";
 import { checkItemTypeWrite } from "@/lib/products/itemTypesServer";
@@ -50,11 +50,12 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   for (const key of allowed) if (key in body) patch[key] = body[key];
   patch.updated_at = new Date().toISOString();
 
-  // Quantity breaks (0118): well-formed rows only; none stored as null.
+  // Quantity breaks (0118): validated like every other write surface (the
+  // shared check in lib/products/qtyBreaks.ts); none stored as null.
   if ("qty_breaks" in patch) {
-    if (patch.qty_breaks !== null && !Array.isArray(patch.qty_breaks)) return NextResponse.json({ error: "qty_breaks must be an array" }, { status: 400 });
-    const breaks = parseQtyBreaks(patch.qty_breaks);
-    patch.qty_breaks = breaks.length > 0 ? breaks : null;
+    const checked = validateQtyBreaks(patch.qty_breaks);
+    if (!checked.ok) return NextResponse.json({ error: checked.error }, { status: 400 });
+    patch.qty_breaks = checked.breaks.length > 0 ? checked.breaks : null;
   }
 
   // Cost sheet (0113): only well-formed rows survive; an empty sheet is

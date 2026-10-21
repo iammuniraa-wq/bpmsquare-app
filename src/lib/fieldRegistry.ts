@@ -6,6 +6,7 @@ import {
   CASE_TYPE_LABEL, INVENTORY_ITEM_STATUS_LABEL,
 } from "@/lib/data/labels";
 import { UOM_OPTIONS, OFFER_TYPE_LABEL, type TenantFeatures } from "@/lib/constants";
+import { QTY_BREAKS_FORMAT } from "@/lib/products/qtyBreaks";
 import type { AccountType, Asset, Supplier, ServiceCase, InventoryItem, QuoteOfferType } from "@/lib/types";
 
 // ── Widget types ─────────────────────────────────────────────────────────────
@@ -46,6 +47,10 @@ export type StandardFieldDef = {
   /** widget === "enum" only */
   enumOptions?: { value: string; label: string }[];
   placeholder?: string;
+  /** What the cell holds and how it is written -- shown as the Data Workbench column hint. */
+  description?: string;
+  /** A sample value for the Data Workbench template (otherwise a generic one is made up). */
+  example?: string;
   /**
    * The field exists only for a workspace that has this (platform-admin) feature on, and only while the
    * database has the column. Used by preferred_language (0143) so a workspace without the Newsletter
@@ -85,6 +90,8 @@ export type EffectiveField = {
   selectSource?: SelectSource;
   enumOptions?: { value: string; label: string }[];
   placeholder?: string;
+  description?: string;
+  example?: string;
 };
 
 export type PilotObjectType =
@@ -289,8 +296,16 @@ export const FIELD_REGISTRY: Record<PilotObjectType, ObjectFieldRegistry> = {
       // source ladder treats a stale figure as unusable, never as current.
       { key: "cost_price_as_of", defaultLabel: "Cost price as of", widget: "date", defaultSection: "Pricing" },
       { key: "tax_percent", defaultLabel: "Tax %",          widget: "number", defaultSection: "Pricing" },
+      // The product's price-list scales (0118): bands above the list price, replicated from
+      // the ERP or kept here, read by the pricing engine. One text cell so Data Workbench
+      // moves a price list with its scales. Edited in the product page's own card, so the
+      // generic sections exclude it there.
+      {
+        key: "qty_breaks", defaultLabel: "Quantity breaks", widget: "text", defaultSection: "Pricing",
+        description: QTY_BREAKS_FORMAT, example: "100:390; 500:360", placeholder: "100:390; 500:360",
+      },
 
-      { key: "uom",         defaultLabel: "Unit of measure", widget: "text",     defaultSection: "Details" },
+      { key: "uom",        defaultLabel: "Unit of measure", widget: "text",     defaultSection: "Details" },
       { key: "description", defaultLabel: "Description",     widget: "textarea", defaultSection: "Details" },
 
       // Preferred supplier (0132). There is no "reference/lookup" widget yet
