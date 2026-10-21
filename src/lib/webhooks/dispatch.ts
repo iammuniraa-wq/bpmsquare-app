@@ -1,6 +1,7 @@
 import "server-only";
 import { createHmac } from "crypto";
 import type { createAdminSupabase } from "@/lib/supabase-server";
+import { fetchPublic } from "@/lib/net/safeHost";
 
 type Admin = ReturnType<typeof createAdminSupabase>;
 
@@ -40,7 +41,9 @@ export async function postSigned(url: string, secret: string, payload: unknown, 
   const body = JSON.stringify(payload);
   const started = Date.now();
   try {
-    const res = await fetch(url, {
+    // The URL was typed by a tenant admin: a private, loopback or link-local host (or a redirect to
+    // one) is refused here whatever was stored (audit 2026-10-21).
+    const res = await fetchPublic(url, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

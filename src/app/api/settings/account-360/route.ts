@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { requireTenantUser, createAdminSupabase } from "@/lib/supabase-server";
 import { tenantHasNovaSurfaces } from "@/lib/tenant";
 import { assertSafeSourceUrl } from "@/lib/account360/externalSource";
+import { sealSecret } from "@/lib/encryption";
 import type { Account360Config, Account360SourceDef } from "@/lib/constants";
 
 /**
@@ -108,9 +109,12 @@ export async function PUT(request: NextRequest) {
     // only ever receives a masked placeholder for an already-saved secret,
     // so treating blank as a clear would wipe the credential on every save.
     const prior = existing.find((e) => e.id === id);
-    const authValue = typeof s.auth_value === "string" && s.auth_value.trim() && !/^•+$/.test(s.auth_value)
+    // Sealed (encrypted) before it is stored: tenants.config is readable by every member of the
+    // workspace through PostgREST, so the credential must not sit there in the clear. A prior
+    // plaintext value is sealed on this save too.
+    const authValue = sealSecret(typeof s.auth_value === "string" && s.auth_value.trim() && !/^•+$/.test(s.auth_value)
       ? s.auth_value.trim()
-      : prior?.auth_value;
+      : prior?.auth_value);
 
     sources.push({
       id,

@@ -1,5 +1,6 @@
 import "server-only";
 import { assertSafeHttpsUrl, BLOCKED_HOST_MESSAGE } from "@/lib/net/safeHost";
+import { unsealSecret } from "@/lib/encryption";
 import type { Account360SourceDef } from "@/lib/constants";
 import type { Account360Card } from "./types";
 
@@ -67,7 +68,9 @@ export async function loadExternalCard(
   }
 
   const headers: Record<string, string> = { Accept: "application/json" };
-  if (source.auth_header && source.auth_value) headers[source.auth_header] = source.auth_value;
+  // auth_value is stored sealed (settings/account-360 PUT); a legacy plaintext value still works.
+  const authValue = unsealSecret(source.auth_value);
+  if (source.auth_header && authValue) headers[source.auth_header] = authValue;
 
   let res: Response;
   try {

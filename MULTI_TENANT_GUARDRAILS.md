@@ -472,3 +472,46 @@ here).
   delete's reference-count check, the work-order→invoice conversion's quote
   lookup) — both used the session client so RLS already backstopped them,
   fixed anyway for defense-in-depth and consistency.
+
+## Fixed 2026-10-21 — audit of everything since 2026-08-01
+
+Full write-up, findings table and the "confirmed clean" list: `docs/security-audit-2026-10-21.md`. Method: every
+unauthenticated/signed-link route and every `createAdminSupabase()` call site re-read, every migration since 0079 replayed
+for RLS, plus the new marketing, AI, connector and v1 code. The code layer held up; the real gaps were in the database
+policies and in what a *member* can reach with their own session token.
+
+**The generalisable lesson (same family as the 2026-08-12 WFM fix): an admin check in an API route does not protect a table
+that a plain member can write through PostgREST.** The anon key is public and a member's session token is readable by their own
+browser. Before adding a policy to a table that holds a credential, a key, a URL the server will call, or anything that steers
+what the server does with a secret, ask "may a *member* write this row directly?" If the app only ever touches the table
+through `createAdminSupabase()`, leave it with **no policy at all** (RLS enabled, deny by default).
+
+- **High — `api_keys`, `webhooks`, `tenant_connectors` were writable by any member** (`for all` tenant-isolation policies).
+  A member could mint an API key with any scope, register a webhook that receives the whole change feed, or repoint the
+  mail-server connector so the next send authenticates to their host with the decrypted password.
+  `0199_rls_credential_tables.sql` (PENDING, applied by hand): `api_keys` and `webhooks` lose their policy (service role only);
+  `tenant_connectors` keeps member SELECT and gets admin-only INSERT/UPDATE/DELETE. `src/lib/rlsPolicies.test.ts` replays the
+  migrations and fails the build if a member write policy comes back.
+- **High — `tenants.api_key` and the secrets inside `tenants.config` were readable by every member** through
+  `GET /rest/v1/tenants` (a row policy cannot hide a column; `redactTenantForRole` only covered page props).
+  `0200_tenants_hide_api_key.sql` (PENDING) withdraws table-level SELECT and re-grants every column except `api_key`.
+  **When you add a column to `tenants`, add `grant select (<col>) on tenants to authenticated;` in the same migration**
+  (`src/lib/tenantsColumnGrants.test.ts` enforces it). `integration_push` secrets and Account 360 `auth_value` are now sealed
+  with `sealSecret()` (`src/lib/encryption.ts`); read them with `unsealSecret()`. Never put a new secret in `tenants.config`
+  in the clear: seal it, or keep it in a service-role-only table.
+- **Medium — `/api/v1/changes` ignored the key's object scope.** `src/lib/api/changeFeedScope.ts` maps
+  `change_log.object_type` to its v1 scope; explicit-scope-only objects need naming; `products.cost_price` is stripped from
+  diffs. A new object that is logged to `change_log` and has a v1 scope needs a line in `SCOPE_FOR_TYPE`, or it is wildcard-only.
+- **Medium — SSRF guard bypass.** `new URL("https://[::ffff:127.0.0.1]/").hostname` is `[::ffff:7f00:1]`, which the dotted-only
+  check called public. `isPrivateAddress` now parses IPv6 (mapped, compatible, NAT64, 6to4, Teredo, site-local, multicast).
+  **Every server-side fetch of a tenant-typed URL goes through `fetchPublic()` / `assertSafeHttpsUrl()`**
+  (`src/lib/net/safeHost.ts`): outbound webhooks, the ERP push and the Slack/iCal connector test now do (they did not).
+- **Medium — CSV formula injection** in Reports `quotes.csv` and the platform-admin tenant export; both use `csvCell`.
+
+What stays open (reasoning in the audit doc): Business Role grants are enforced by page guards, not by the Data Workbench or
+core CRUD routes (needs the owner's decision on whether roles are a boundary); anonymous forms record consent for an existing
+contact unless double opt-in is on; Nova comments have no workcenter check and their insert policy lets a member forge
+`author_email`/`mentions`; opportunity `owner_id`/`team` are not verified as workspace members; cron secrets are compared with
+`!==`; `api/auth/dev-signin` should be deleted; DNS rebinding between the host check and the connect is not pinned.
+**Action for a human:** apply 0199 and 0200 on dev and production, then regenerate the legacy tenant API key
+(Settings > General > Developer) for any workspace that had one, since members could read it until 0200 lands.

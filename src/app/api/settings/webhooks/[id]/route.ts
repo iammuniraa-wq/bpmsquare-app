@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireTenantUser, createAdminSupabase } from "@/lib/supabase-server";
+import { assertSafeHttpsUrl } from "@/lib/net/safeHost";
 
 async function requireAdmin() {
   const auth = await requireTenantUser();
@@ -31,6 +32,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   if (typeof body.name === "string" && body.name.trim()) patch.name = body.name.trim();
   if (typeof body.url === "string") {
     if (!/^https:\/\/.+/i.test(body.url.trim())) return NextResponse.json({ error: "`url` must be an https:// URL." }, { status: 422 });
+    try { await assertSafeHttpsUrl(body.url.trim()); } catch (e) { return NextResponse.json({ error: (e as Error).message }, { status: 422 }); }
     patch.url = body.url.trim();
   }
   if (typeof body.active === "boolean") {

@@ -3,6 +3,7 @@ import { isPlatformAdmin } from "@/lib/tenant";
 import { createAdminSupabase } from "@/lib/supabase-server";
 
 import { TENANT_TABLES } from "@/lib/tenantExport";
+import { csvCell } from "@/lib/import/template";
 
 const TABLES = TENANT_TABLES;
 
@@ -38,7 +39,9 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
           const v = (row as Record<string, unknown>)[k];
           if (v === null || v === undefined) return "";
           const s = typeof v === "object" ? JSON.stringify(v) : String(v);
-          return s.includes(",") || s.includes('"') || s.includes("\n") ? `"${s.replace(/"/g, '""')}"` : s;
+          // Tenant users type these values; a leading = + - @ would run as a formula in Excel
+          // on the platform admin's machine (audit 2026-10-21).
+          return csvCell(s);
         }).join(","));
       }
       lines.push("");
