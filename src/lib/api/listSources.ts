@@ -103,6 +103,8 @@ const PRODUCT_FIELDS: QueryableField[] = [
   { path: "item_type", type: "string" },
   { path: "uom", type: "string" },
   { path: "list_price", type: "number" },
+  // The price list's scales: [{ from, rate|null }]. Customer-facing list information.
+  { path: "qty_breaks", type: "string" },
   { path: "tax_percent", type: "number" },
   { path: "status", type: "string" },
 ];
@@ -420,7 +422,7 @@ export const LIST_SOURCES: Record<string, ListSource> = {
       // internal structure and cost, deliberately not exposed anywhere here.
       const { data } = await createAdminSupabase()
         .from("products")
-        .select("id, ref, sku, name, description, category, sub_category, item_type, uom, list_price, tax_percent, status, custom_data")
+        .select("id, ref, sku, name, description, category, sub_category, item_type, uom, list_price, qty_breaks, tax_percent, status, custom_data")
         .eq("tenant_id", tenantId)
         .order("name");
       return (data ?? []).map((p) => ({

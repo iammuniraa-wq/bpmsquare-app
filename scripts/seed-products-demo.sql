@@ -1,5 +1,6 @@
 -- Sample products for the DEMO tenant (run AFTER 0098_products.sql,
--- 0099_product_subcategory.sql and 0100_picklist_codes.sql). Idempotent:
+-- 0099_product_subcategory.sql and 0100_picklist_codes.sql; the Wire Rope
+-- price list at the end also needs 0118_quote_pdf_options_product_breaks.sql). Idempotent:
 -- skips any name that already exists for the tenant, and safe to RE-RUN on a
 -- tenant seeded by an earlier version — the sub-category backfill and
 -- category-tree config below update in place, and category values are CODES
@@ -64,3 +65,17 @@ where is_demo = true;
 update tenants
 set features = coalesce(features, '{}'::jsonb) || '{"products": true}'::jsonb
 where is_demo = true;
+
+-- Wire Rope's own price list (run AFTER 0118_quote_pdf_options_product_breaks.sql):
+-- 420 per metre, 390 from 100 m, 360 from 500 m. The pricing engine reads these
+-- as the product's price list (docs/pricing-engine-architecture.md section 21);
+-- the Catalogue 2026 book needs no rule for it. Idempotent.
+update products p
+set list_price = 420.00,
+    qty_breaks = '[{"from": 100, "rate": 390}, {"from": 500, "rate": 360}]'::jsonb
+from tenants t
+where t.is_demo = true
+  and p.tenant_id = t.id
+  and p.ref = 'PRD-0010'
+  and (p.list_price is distinct from 420.00
+       or p.qty_breaks is distinct from '[{"from": 100, "rate": 390}, {"from": 500, "rate": 360}]'::jsonb);

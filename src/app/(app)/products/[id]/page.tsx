@@ -148,7 +148,7 @@ export default async function ProductDetailPage({
               objectType="product"
               record={product as unknown as Record<string, unknown>}
               patchUrl={`/api/products/${product.id}`}
-              exclude={["name", "status", "supplier_id"]}
+              exclude={["name", "status", "supplier_id", "qty_breaks"]}
             />
           ),
         },

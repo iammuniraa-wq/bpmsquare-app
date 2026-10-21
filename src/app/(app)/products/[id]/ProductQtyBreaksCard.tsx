@@ -35,7 +35,7 @@ export default function ProductQtyBreaksCard({ productId, initial, uom }: {
     try {
       const breaks = rows
         .map((r) => ({ from: parseFloat(r.from), rate: r.rate.trim() === "" ? null : parseFloat(r.rate) }))
-        .filter((b) => Number.isFinite(b.from) && b.from > 1);
+        .filter((b) => Number.isFinite(b.from) && b.from > 0);
       const res = await fetch(`/api/products/${productId}`, {
         method: "PATCH", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ qty_breaks: breaks.length ? breaks : null }),
@@ -50,14 +50,11 @@ export default function ProductQtyBreaksCard({ productId, initial, uom }: {
   return (
     <Card
       title="Quantity breaks"
+      info="This is the product's price list with its quantity scales, replicated from your ERP or kept here. Quotes use it automatically."
       action={!editing ? <Button variant="quiet" size="sm" onClick={() => setEditing(true)}>Edit</Button> : undefined}
     >
-      <div style={{ fontSize: 12, color: c.hint, lineHeight: 1.45 }}>
-        Quantities this product is offered at another rate from. Quotes offer these when a rep adds the product. Leave the rate blank to price it normally at that quantity.
-      </div>
-
       {!editing ? (
-        <div style={{ marginTop: 10 }}>
+        <div>
           {saved.length === 0 ? (
             <div style={{ fontSize: 12.5, color: c.muted }}>None — the quote offers the quantity typed on the line only.</div>
           ) : saved.map((r, i) => (
@@ -68,13 +65,13 @@ export default function ProductQtyBreaksCard({ productId, initial, uom }: {
           ))}
         </div>
       ) : (
-        <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 8 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr) 30px", gap: 6, fontSize: 10.5, color: c.hint, textTransform: "uppercase", letterSpacing: 0.4 }}>
             <span>From qty</span><span>Rate</span><span />
           </div>
           {rows.map((r, i) => (
             <div key={i} style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr) 30px", gap: 6, alignItems: "center" }}>
-              <Input type="number" min="2" step="1" value={r.from} onChange={(e) => setRows(rows.map((x, j) => (j === i ? { ...x, from: e.target.value } : x)))} />
+              <Input type="number" min="0" step="any" value={r.from} onChange={(e) => setRows(rows.map((x, j) => (j === i ? { ...x, from: e.target.value } : x)))} />
               <Input type="number" min="0" step="0.01" placeholder="normal" value={r.rate} onChange={(e) => setRows(rows.map((x, j) => (j === i ? { ...x, rate: e.target.value } : x)))} />
               <Button variant="quiet" size="sm" iconOnly aria-label="Remove break" onClick={() => setRows(rows.filter((_, j) => j !== i))}>×</Button>
             </div>

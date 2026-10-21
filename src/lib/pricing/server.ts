@@ -10,6 +10,7 @@ import { buildPricingDocumentRow, type PricingCallMeta, type PricingDocumentRow,
 import { productCostCandidate, PURCHASE_PATH } from "./costSheet";
 import { tenantToday } from "@/lib/tenantClock";
 import { missingColumnName } from "./quoteLineFlags";
+import { extraDimensionWeight } from "./productPriceList";
 
 // Persistence adapter for the pricing engine (spec §11.1): the ONLY place
 // that maps ontology tables into the pure core's types. The core never sees
@@ -223,6 +224,12 @@ export type RunPriceOptions = {
   pricingDate?: string; configVersion?: number; pricingArea?: string; procedure?: string; currency?: string;
   /** Provenance for the stored context. Defaults to an anonymous API call. */
   meta?: PricingCallMeta;
+  /** Rules that exist for this call only, appended to the loaded version's
+   *  rules (never stored): the product's own price list is one. A function
+   *  sees the loaded config, so it can decide from the routed book. Any
+   *  attribute they match on that the tenant's registry lacks gets a weight
+   *  for the call (extraDimensionWeight). */
+  extraRules?: PriceRule[] | ((config: LoadedConfig) => PriceRule[]);
 };
 
 /**
@@ -253,13 +260,21 @@ export async function runPrice(
   // The tenant's calendar date, never the server's UTC date (tenantClock.ts).
   const pricingDate = opts.pricingDate ?? (await tenantToday(tenantId));
 
+  const extra = typeof opts.extraRules === "function" ? opts.extraRules(config) : (opts.extraRules ?? []);
+  const registry = { ...config.registry };
+  for (const r of extra) {
+    for (const attr of Object.keys(r.match_attributes)) {
+      if (registry[attr] === undefined) registry[attr] = extraDimensionWeight(attr, registry);
+    }
+  }
+
   const started = Date.now();
   const result = priceDocument({
     procedure,
     components: config.components,
-    rules: config.rules,
+    rules: extra.length > 0 ? [...config.rules, ...extra] : config.rules,
     cost_models: config.cost_models,
-    registry: config.registry,
+    registry,
     document,
     pricing_date: pricingDate,
     currency: opts.currency,

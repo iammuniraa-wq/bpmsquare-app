@@ -15,6 +15,7 @@ import {
 } from "@/lib/import/server";
 import { itemTypeFromCell } from "@/lib/products/itemTypes";
 import { getTenantItemTypeConfig } from "@/lib/products/itemTypesServer";
+import { parseQtyBreaksText } from "@/lib/products/qtyBreaks";
 import { resolveSupplierName, supplierColumnAvailable, withoutSupplierFields } from "@/lib/products/supplier";
 import type { RowOutcome } from "@/lib/import/types";
 
@@ -82,6 +83,10 @@ export async function POST(request: NextRequest) {
 
     const v = validated.values;
 
+    // Price-list scales: one text cell ("100:390; 500:360"), checked like any write.
+    const breaks = parseQtyBreaksText(v.qty_breaks);
+    if (!breaks.ok) { outcomes.push({ rowNum, status: "failed", reason: `Quantity breaks: ${breaks.error}` }); continue; }
+
     let supplierId: string | null = null;
     if (v.supplier_name) {
       const match = resolveSupplierName(v.supplier_name, suppliers);
@@ -116,6 +121,8 @@ export async function POST(request: NextRequest) {
         tax_percent: num(v.tax_percent),
         status: v.status || "active",
         ...(itemType ? { item_type: itemType } : {}),
+        // Named only when set, so a database without 0118 is never asked for it.
+        ...(breaks.breaks.length > 0 ? { qty_breaks: breaks.breaks } : {}),
         // Named only when set: a database without 0132 is never asked for it.
         ...(supplierId ? { supplier_id: supplierId } : {}),
         ...(custom ? { custom_data: custom } : {}),

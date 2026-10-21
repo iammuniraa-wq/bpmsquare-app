@@ -102,6 +102,8 @@ export async function getEffectiveFieldConfig(
         selectSource: def.selectSource,
         enumOptions: def.selectSource === "product_item_type" ? itemTypeOptions ?? [] : def.enumOptions,
         placeholder: def.placeholder,
+        description: def.description,
+        example: def.example,
       });
     });
   }

@@ -6,6 +6,7 @@ import { buildObjectSpec } from "@/lib/import/registrySchema";
 import { applyFilters, rowToExportValues } from "@/lib/import/exportServer";
 import { fetchAllRows } from "@/lib/import/server";
 import { supplierColumnAvailable, withoutSupplierFields } from "@/lib/products/supplier";
+import { serialiseQtyBreaks } from "@/lib/products/qtyBreaks";
 import type { Product } from "@/lib/types";
 import type { ExportFilter, ExportResponse } from "@/lib/import/types";
 
@@ -40,6 +41,8 @@ export async function POST(request: NextRequest) {
   const rows = products.map((raw) => {
     const values = rowToExportValues(raw, spec.fields);
     values.id = raw.id;
+    // The price-list scales as one text cell, the format Import and Update read back.
+    values.qty_breaks = serialiseQtyBreaks(raw.qty_breaks);
     // The Item type column carries the KEY (stable across renames); Import also accepts the label.
     // Name for people, the real supplier id (a field of the registry) for
     // anything that must key off the record.

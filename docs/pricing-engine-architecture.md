@@ -1114,18 +1114,19 @@ quote-line context, router and engine, and fails if the SQL drifts from the
 books.
 
 **Run, in order:** migrations 0083, 0098, 0099, 0100, 0111, 0113, 0114, 0115,
-0121, then `scripts/seed-products-demo.sql`, then `scripts/seed-pricing-demo.sql`.
+0118, 0121, then `scripts/seed-products-demo.sql` (re-run it: it now gives Wire
+Rope its price list, §21), then `scripts/seed-pricing-demo.sql`.
 No new migration. The cost-based walk (`seed-pricing-cost-based-demo.sql`) is
 compatible and optional; the `default` book it leads to is not touched.
 
 | Book (area) | Technique | Products | What a rep sees |
 |---|---|---|---|
-| **Catalogue 2026 (list)** `catalogue_2026` | Price list | Elevators, goods lift, home lift, both AMC plans | The 2026 list price. From 3 units a 2% lower band (AMC: 3 years -5%, 5 years -10%). Account type OEM gets 8% off, direct 5%. |
-| **Formula pricing** `formula_pricing` | Catalog + Formula | Wire Rope 13mm, Cabin Wall Panel (new, per m2) | Rope: 420 per metre, 390 from 100 m, 360 from 500 m. Panel: quantity is the area, 5,200 per m2, 8% off from 50 m2, never under 18,000. Both +4% when the account's State is set and is not Karnataka. OEM 5% off. Any other product routed here falls back to its catalogue price. |
+| **Catalogue 2026 (list)** `catalogue_2026` | Price list | Elevators, goods lift, home lift, both AMC plans, Wire Rope 13mm | The 2026 list price. From 3 units a 2% lower band (AMC: 3 years -5%, 5 years -10%). Wire Rope has no rule in the book: its 420 per metre, 390 from 100 m and 360 from 500 m are the product's own price list (§21). Account type OEM gets 8% off, direct 5%. |
+| **Formula pricing** `formula_pricing` | Catalog + Formula | Cabin Wall Panel (new, per m2) | Quantity is the area, 5,200 per m2, 8% off from 50 m2, never under 18,000. +4% when the account's State is set and is not Karnataka. OEM 5% off. Any other product routed here falls back to its catalogue price. |
 | **Cost plus** `cost_plus` | Cost-based | Controller Retrofit Kit, Door Operator Assembly, Motor Rewinding | The product's cost plus 25%. Spares 35%, services 40%. OEM 3% off. Floor flags a line under 15%. Motor Rewinding builds its cost from the cost sheet (copper, labour, salvage). |
 
-Routing (`config.pricing.routing`, first match wins): sub-category ROPES and
-CABINS go to Formula pricing, then by category: ELEVATORS, GOODS_LIFTS,
+Routing (`config.pricing.routing`, first match wins): sub-category ROPES goes
+to the Catalogue, CABINS to Formula pricing, then by category: ELEVATORS, GOODS_LIFTS,
 SERVICE_PLANS to the catalogue; MODERNISATION, SERVICES, SPARES to cost plus.
 The seed puts its rules first and keeps any others, and leaves `default_area`
 alone. Cost plus accepts a product cost up to a year old (the in-app walk keeps
@@ -1142,8 +1143,9 @@ alone. Cost plus accepts a product cost up to a year old (the in-app walk keeps
 | Passenger Elevator 8P, qty 1 | 1,850,000, from Catalogue 2026 |
 | Same, qty 3, an OEM account | 3 x 1,813,000 less 8% = 5,003,880 |
 | Elevator AMC Comprehensive, qty 3 (years), direct account | 3 x 91,200 less 5% = 259,920 |
-| Wire Rope, qty 150 | 150 x 390 = 58,500; the trace shows the formula and the values it read |
-| Wire Rope, qty 150, account State Maharashtra | 60,840 (+4%) |
+| Wire Rope, qty 40 | 40 x 420 = 16,800, from Catalogue 2026 via the product's price list |
+| Wire Rope, qty 150 | 150 x 390 = 58,500 from Catalogue 2026; the why chip says "from the product's own price list, band from 100". OEM 8% off, direct 5% off |
+| Wire Rope, qty 150, account State Maharashtra | Still 58,500: the State uplift no longer applies to rope |
 | Cabin Wall Panel, qty 60 (m2) | 60 x 5,200 x 0.92 = 287,040. Qty 2 gives the 18,000 minimum |
 | Controller Retrofit Kit, qty 1 | 265,000 cost + 25% = 331,250; the why chip names the cost source |
 | Door Operator Assembly, qty 1 | 82,000 + 35% = 110,700 |
@@ -1228,3 +1230,37 @@ table follows.
 (that is a rule with `customer.id`, which the Price list template already
 offers); graduated bands (`SCALE_GRADUATED` stays rule-only); currency per
 band.
+
+**As built (2026-10-21).** `src/lib/products/qtyBreaks.ts` (+ test) is the one
+parser/validator/serialiser: `parseQtyBreaks` (tolerant reader, moved from
+`src/lib/sales/qtyBreaks.ts`, now `from` > 0), `validateQtyBreaks` (strict:
+ascending, `from` > 0, rate >= 0 or blank, at most 20), and the text form
+`from:rate; from:rate`. Surfaces: `FIELD_REGISTRY` product `qty_breaks` (the
+registry gained optional `description` and `example`, which Data Workbench
+shows as the column hint and the template's sample cell); import, export and
+update product routes; the product PATCH (400 with the reason on a bad list);
+`LIST_SOURCES.products` and `GET /api/v1/products` + `/[id]` (still no cost or
+supplier); `mcp-server/mcp.json` descriptions, version 1.12.0. Engine:
+`src/lib/pricing/productPriceList.ts` makes the rule (`productPriceListRule`),
+`runPrice()` takes `extraRules` (a list, or a function of the loaded config so
+the routed book decides), `quoteLine.ts` supplies it. The synthesised rule
+matches `product.id`; a tenant registry that lacks that dimension gets a
+weight for the call only: one above the heaviest `product.*` dimension, so the
+product's own list outranks a category or model grouping and still loses to a
+named customer. A book rule "speaks for" the product by `product.id`,
+`product.sku` or `product.base_model` (the name the catalogue books key on;
+without it every elevator with a list price would lose its book band).
+`TraceStep.scale_from` records the band that priced the line; `PriceTrace`
+turns the rule id into "from the product's own price list, band from N" ("list
+price" for the base band). Tests: `productPriceList.golden.test.ts`,
+`demoSeed.test.ts`. `quoteLine.ts` reads `qty_breaks` tolerantly (a database
+without 0118 prices as before).
+
+**Deliberately not done:** the synthesised rule is only required to be a
+quantity-scaled PRICE component (`SCALE_TIERED` on `QUANTITY`); a book with
+only a flat list price is left as is. A stored document's replay uses the
+book's rules only, so it does not re-inject the product's list (the replay
+shows the book's price, not the quote line's). `POST /api/products` and the
+New product form do not take `qty_breaks` (set on the product page, imported
+or updated through Data Workbench). The Pricing Test & Trace screen has no
+product to read a price list from, so it never injects one.
