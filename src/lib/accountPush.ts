@@ -4,6 +4,8 @@ import { decryptAccount } from "@/lib/encryption";
 import { pushToWebhook } from "@/lib/webhookPush";
 import { resolveErpEndpointForAccount } from "@/lib/coverage/resolve";
 import type { TenantConfig, TenantFeatures } from "@/lib/constants";
+import { createAdminSupabase } from "@/lib/supabase-server";
+import { sendAccountViaWebhook, webhooksLibraryOn } from "@/lib/webhooks/recordSend";
 import type { Account } from "@/lib/types";
 
 export type AccountPushResult = { ok: true } | { ok: false; status: number; error: string };
@@ -14,13 +16,24 @@ export type AccountPushResult = { ok: true } | { ok: false; status: number; erro
  * integration middleware's "Send a record". The account is read with the
  * tenant filter whichever client is passed.
  */
-export async function pushAccountToErp(supabase: SupabaseClient, tenantId: string, id: string): Promise<AccountPushResult> {
+export async function pushAccountToErp(supabase: SupabaseClient, tenantId: string, id: string, userId: string | null = null): Promise<AccountPushResult> {
   const [{ data: account }, { data: tenantRow }] = await Promise.all([
     supabase.from("accounts").select("*").eq("id", id).eq("tenant_id", tenantId).maybeSingle(),
     supabase.from("tenants").select("config, features").eq("id", tenantId).maybeSingle(),
   ]);
 
   if (!account) return { ok: false, status: 404, error: "Account not found" };
+
+  // With the webhooks library the account goes to a library webhook (Coverage first, then the record button) and the call is a
+  // Monitor row; without it everything below behaves exactly as before.
+  if (webhooksLibraryOn(tenantRow?.features as TenantFeatures | null)) {
+    const sent = await sendAccountViaWebhook(createAdminSupabase(), tenantId, userId, id);
+    if (sent.kind === "not_found") return { ok: false, status: 404, error: "Account not found" };
+    if (sent.kind === "none") return { ok: false, status: 422, error: "No webhook is chosen for the account button. Choose one under Settings > Webhooks." };
+    const r = sent.result;
+    if (r.needsDatabaseUpdate) return { ok: false, status: 503, error: r.headline };
+    return r.ok ? { ok: true } : { ok: false, status: r.skipped ? 409 : 502, error: r.fix ? `${r.headline} ${r.fix}` : r.headline };
+  }
 
   const decrypted = decryptAccount(account as Account);
   let config = tenantRow?.config as TenantConfig | null;

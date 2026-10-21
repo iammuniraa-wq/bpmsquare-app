@@ -4,6 +4,8 @@ import { isSchemaPending } from "@/lib/marketing/pending";
 import { runPull, runPushFenceProjects } from "@/lib/connectors/d365/server";
 import type { D365EntityKey } from "@/lib/connectors/d365/types";
 import { dispatchQuoteOutcome, type DispatchResult } from "./dispatch";
+import { sendViaWebhook } from "./webhookTarget";
+import { fireWebhook, type FireDeps, type FireResult } from "@/lib/webhooks/sender";
 import type { ErpHttp } from "./erp";
 import { MESSAGES_TABLE } from "./messages";
 import { listMessages } from "./monitor";
@@ -31,6 +33,8 @@ export type RestartDeps = {
   /** The ERP client for quote sends (tests pass a fake; production builds its own). */
   http?: ErpHttp;
   now?: () => number;
+  /** The webhook sender's seams (tests pass a fake fetch). */
+  webhook?: FireDeps;
 };
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -74,6 +78,13 @@ function describeDocument(r: DispatchResult): { outcome: RestartOutcome; message
     case "not_found": return { outcome: "not_restartable", message: "That quote was not found." };
     case "disabled": return { outcome: "not_restartable", message: r.reason };
   }
+}
+
+function describeFire(r: FireResult): { outcome: RestartOutcome; message: string } {
+  if (r.needsDatabaseUpdate) return { outcome: "failed", message: "A database update is needed first." };
+  if (r.ok) return { outcome: "done", message: r.redirected ? "Demo workspace: nothing was sent." : "Sent." };
+  if (r.skipped) return { outcome: "not_restartable", message: r.headline };
+  return { outcome: "failed", message: `${r.headline} ${r.fix ?? ""}`.trim() };
 }
 
 type IntegrationRow = { id: string; object_type: string | null; object_id: string | null; status: string; entity: string | null; summary: Record<string, unknown> | null };
@@ -159,6 +170,24 @@ export async function restartMessages(
     }
     const kind = classifyIntegrationRow(row);
     if (!kind) { done("not_restartable", "This one can't be restarted."); continue; }
+
+    if (kind === "webhook_call") {
+      // webhook_id is read on its own, so the list query never depends on the column existing.
+      const { data: w } = await admin.from(MESSAGES_TABLE).select("webhook_id").eq("id", row.id).eq("tenant_id", tenantId).maybeSingle();
+      const webhookId = (w as { webhook_id?: string | null } | null)?.webhook_id ?? null;
+      if (!webhookId || !row.object_id || !row.object_type) { done("not_restartable", "This call has no webhook to send again."); continue; }
+      if (row.object_type === "standard_quotes" && row.summary?.outcome === "awarded") {
+        // The award path again, through its claim: the same quote is never sent to the same webhook twice.
+        const r = await sendViaWebhook(admin, tenantId, { quoteId: row.object_id, webhookId, trigger: "retry", userId, retryOf: row.id }, deps.webhook);
+        const d = describeDocument(r);
+        done(d.outcome, r.state === "already_sent" ? "Already sent to the webhook. Nothing was sent twice." : d.message);
+        continue;
+      }
+      const r = await fireWebhook(admin, { tenantId, webhookId, objectType: row.object_type, objectId: row.object_id, trigger: "retry", userId, retryOf: row.id }, deps.webhook);
+      const d = describeFire(r);
+      done(d.outcome, d.message);
+      continue;
+    }
 
     if (kind === "document") {
       const outcome = row.summary?.outcome;

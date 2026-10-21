@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { requireTenantUser, createAdminSupabase } from "@/lib/supabase-server";
 import { diffForLog, logChange } from "@/lib/changeLog";
+import { resolveCoverageWebhook } from "@/lib/webhooks/library";
 
 const ROLES = ["owner", "overlay", "service"] as const;
 
@@ -20,8 +21,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   if (!before) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   const body = await request.json();
-  const { role: coverageRole, priority, erp_endpoint_id, effective_from, effective_to } = body as {
-    role?: string; priority?: number; erp_endpoint_id?: string | null; effective_from?: string; effective_to?: string | null;
+  const { role: coverageRole, priority, erp_endpoint_id, effective_from, effective_to, webhook_id } = body as {
+    role?: string; priority?: number; erp_endpoint_id?: string | null; effective_from?: string; effective_to?: string | null; webhook_id?: string | null;
   };
 
   const patch: Record<string, unknown> = {};
@@ -42,6 +43,13 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       const endpoints = (tenant?.config as { integration_push?: { endpoints?: { id: string }[] } } | null)?.integration_push?.endpoints ?? [];
       patch.erp_endpoint_id = endpoints.some((e) => e.id === erp_endpoint_id) ? erp_endpoint_id : null;
     }
+  }
+
+  if (webhook_id !== undefined) {
+    // Resolved against this workspace, its kind and the object before it is stored (a miss is 422).
+    const w = await resolveCoverageWebhook(admin, tenantId, webhook_id);
+    if (!w.ok) return NextResponse.json({ error: w.message, errors: [{ field: "webhook_id", message: w.message }] }, { status: 422 });
+    patch.webhook_id = w.value;
   }
 
   const { data: coverage, error } = await admin

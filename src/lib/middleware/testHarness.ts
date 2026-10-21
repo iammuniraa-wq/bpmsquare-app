@@ -78,6 +78,8 @@ export function fakeAdmin(seed: Record<string, Row[]> = {}, opts: { missing?: st
     gte(c: string, v: unknown) { return this.f(`${c}>=`, (r) => r[c] != null && String(r[c]) >= String(v)); }
     not(c: string, _op: string, _v: unknown) { return this.f(`${c} notnull`, (r) => r[c] != null); }
     filter(c: string, _op: string, v: unknown) { return this.f(`${c} filter`, (r) => String((r.features as Record<string, unknown> | undefined)?.[c.split(">>")[1]?.replace(/'/g, "") ?? ""] ?? "") === String(v)); }
+    // Only the exact-name form the webhooks library uses (the pattern has no wildcard): case-insensitive equality.
+    ilike(c: string, pattern: string) { const want = pattern.split("\\").join("").toLowerCase(); return this.f(`${c} ilike`, (r) => String(r[c] ?? "").toLowerCase() === want); }
     or(expr: string) { return this.f(`or ${expr}`, parseOr(expr)); }
     order(col: string, o?: { ascending?: boolean }) { this.ords.push({ col, asc: o?.ascending !== false }); return this; }
     limit(n2: number) { this.lim = n2; return this; }
@@ -110,7 +112,7 @@ export function fakeAdmin(seed: Record<string, Row[]> = {}, opts: { missing?: st
         if (bad) return { data: null, error: bad };
         const hit = t.filter(match);
         for (const r of hit) Object.assign(r, this.payload);
-        return { data: hit, error: null };
+        return { data: this.one ? hit[0] ?? null : hit, error: null };
       }
       if (this.op === "delete") {
         tables[this.table] = t.filter((r) => !match(r));

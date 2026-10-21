@@ -48,13 +48,15 @@ export const payloadStillKept = (createdAt: unknown, nowMs: number = Date.now())
   return Number.isFinite(t) && nowMs - t < 48 * 3_600_000;
 };
 
-export type RowKind = "document" | "run" | null;
+export type RowKind = "document" | "run" | "webhook_call" | null;
 
 /** Restart can act on: an awarded-quote document that failed or is waiting, and a connector run that failed.
  *  Never an OK row, never one skipped by design, never a rejected quote (those are never sent). */
 export function classifyIntegrationRow(r: { object_type?: unknown; object_id?: unknown; status?: unknown; entity?: unknown; summary?: unknown }): RowKind {
   const sum = (r.summary && typeof r.summary === "object" ? r.summary : {}) as Record<string, unknown>;
   if (sum.kind === "connector_run") return r.status === "failed" && isRunnableEntity(r.entity) ? "run" : null;
+  // A library webhook call: Restart fires it again (the award path through its claim). A paused webhook reports itself when restarted.
+  if (sum.kind === "webhook_call") return r.status === "failed" && s(r.object_id) ? "webhook_call" : null;
   if (r.object_type === "standard_quotes" && s(r.object_id) && (r.status === "failed" || r.status === "pending") && sum.outcome === "awarded") return "document";
   return null;
 }
@@ -97,12 +99,13 @@ const integration: SourceSpec = {
     const kind = classifyIntegrationRow(r);
     const entity = s(r.entity);
     const what = sum.kind === "connector_run" ? (ENTITY_WORD[entity ?? ""] ?? entity ?? "Sync")
+      : sum.kind === "webhook_call" ? "Webhook"
       : objectType === "standard_quotes" || sum.outcome ? documentWord(entity, sum)
       : channel === "api" ? `API ${entity ?? ""}`.trim() : (entity ?? "Message");
     return {
       id: `integration:${r.id}`, source: "integration", at: String(r.created_at),
       direction: (s(r.direction) ?? "out") as MessageDirection, channel,
-      counterpart: s(r.connector_id) === "dynamics365" ? "Dynamics 365" : s(r.connector_id),
+      counterpart: sum.kind === "webhook_call" ? s(sum.webhook) : s(r.connector_id) === "dynamics365" ? "Dynamics 365" : s(r.connector_id),
       summary, status, record: objectType ? { type: objectType, id: s(r.object_id), label: s(r.ref_label) } : null,
       duration_ms: n(r.duration_ms),
       what, restartable: kind !== null, fix: s(sum.fix) ?? (kind === "run" ? "Restart to run it again." : null),

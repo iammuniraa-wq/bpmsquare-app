@@ -51,10 +51,10 @@ export const ESTIMATE_PART_LABEL: Record<EstimatePart, string> = {
  *  Sales; F&O and Business Central take a Sales Order too, preset-only) carry
  *  customer prices only; a Project (F&O, Business Central, later SAP / ePROMIS)
  *  carries tasks and bill of materials. */
-export const TARGET_KINDS = ["quote", "sales_order", "project"] as const;
+export const TARGET_KINDS = ["quote", "sales_order", "project", "webhook"] as const;
 export type TargetKind = (typeof TARGET_KINDS)[number];
 
-export const TARGET_LABEL: Record<TargetKind, string> = { quote: "Quote", sales_order: "Sales Order", project: "Project" };
+export const TARGET_LABEL: Record<TargetKind, string> = { quote: "Quote", sales_order: "Sales Order", project: "Project", webhook: "Webhook" };
 
 // ── The Quote document (redesign 2026-10-21, spec section 6) ────────────────
 // One outbound document replaces the separate rules + fence + estimate options.
@@ -84,6 +84,8 @@ export type DocumentConfig = {
   mode_rejected?: RuleMode;
   /** What to create in the ERP; null = the connected system's default. */
   target: TargetKind | null;
+  /** The Call webhook an awarded quote goes to when `target` is "webhook"; verified against the tenant when saved and again when fired. */
+  webhook_id?: string | null;
   include: IncludeSelection;
   /** Set by the first successful save of the document panel. */
   confirmed_at: string | null;
@@ -174,4 +176,5 @@ export type PlainFailure = { headline: string; fix: string };
 export const SQL_BUNDLES = {
   middleware: "scripts/run-bundle-10-middleware-2026-10-21.sql",
   connectors: "scripts/run-bundle-9-connectors-2026-10-21.sql",
+  webhooks: "scripts/run-bundle-11-webhooks-2026-10-21.sql",
 } as const;

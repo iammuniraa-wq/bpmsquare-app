@@ -24,6 +24,7 @@ import { erpDeepLink, PRODUCT_NAME, totalsNote } from "./links";
 import { findOpenMessage, messagesTableReady, recordMessage, resolveEarlier } from "./messages";
 import { loadQuoteSource, type QuoteSource } from "./source";
 import { middlewareClient } from "./client";
+import { sendViaWebhook } from "./webhookTarget";
 import { outcomeForStatus, STATUS_FOR_OUTCOME, type DocumentConfig, type IntegrationMiddlewareConfig, type Outcome, type TargetKind } from "./types";
 
 // The outbound engine: a Standard Quote that is awarded or rejected goes to the
@@ -210,7 +211,8 @@ function profileKeyFor(cfg: D365Config): string {
   return cfg.product === "fo" || cfg.product === "bc" ? "dynamics365" : "generic";
 }
 
-const nounFor = (t: TargetKind): "quote" | "order" | "project" => (t === "sales_order" ? "order" : t);
+// A webhook target never reaches the ERP engine (it is decided before the ERP is loaded); "quote" is only the type's fallback.
+const nounFor = (t: TargetKind): "quote" | "order" | "project" => (t === "sales_order" ? "order" : t === "webhook" ? "quote" : t);
 
 function buildQuoteForErp(source: QuoteSource, outcome: Outcome, accountExternalId: string | null, rules: IntegrationMiddlewareConfig, target: TargetKind, cfg: D365Config): {
   qfe: QuoteForErp; est: EstimateShape | null; included: string[]; refused: { part: string; hint: string }[];
@@ -323,6 +325,9 @@ export type PreviewResult =
 export async function previewQuoteOutcome(admin: SupabaseClient, tenantId: string, quoteId: string, opts: { outcome?: Outcome; http?: ErpHttp } = {}): Promise<PreviewResult> {
   const tenant = await loadTenant(admin, tenantId);
   if (!tenant?.features?.integration_middleware) return { ok: false, state: "disabled", message: "Integration middleware is not switched on for this workspace." };
+  if (tenant.features.webhooks_library === true && readDocument(tenant.config?.integration_middleware).target === "webhook") {
+    return { ok: false, state: "disabled", message: "This quote goes to a webhook. Preview it on the webhook's Test tab under Settings > Webhooks." };
+  }
   const loaded = await loadD365(admin, tenantId);
   if (!loaded) return { ok: false, state: "not_connected", message: "No ERP is connected yet. Connect one under Connections." };
   const source = await loadQuoteSource(admin, tenantId, quoteId, tenantOrigin(tenant.custom_domain));
@@ -545,6 +550,15 @@ export async function dispatchQuoteOutcome(
     }
   }
   if (!(await messagesTableReady(admin, tenantId))) return { state: "needs_database_update" };
+
+  // Links target "Webhook": an awarded quote goes to a library webhook, not the ERP. Decided BEFORE the ERP is loaded, so a
+  // workspace with no ERP at all can still send; only a workspace with the webhooks library can have chosen it.
+  if (tenant.features?.webhooks_library === true) {
+    const doc = readDocument(tenant.config?.integration_middleware);
+    if (doc.target === "webhook") {
+      return sendViaWebhook(admin, tenantId, { quoteId, webhookId: doc.webhook_id ?? null, trigger: opts.trigger, userId: opts.userId ?? null });
+    }
+  }
 
   const loaded = await loadD365(admin, tenantId);
   if (!loaded) {

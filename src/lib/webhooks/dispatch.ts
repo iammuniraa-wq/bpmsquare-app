@@ -2,6 +2,7 @@ import "server-only";
 import { createHmac } from "crypto";
 import type { createAdminSupabase } from "@/lib/supabase-server";
 import { fetchPublic } from "@/lib/net/safeHost";
+import { unsealSecret } from "@/lib/encryption";
 
 type Admin = ReturnType<typeof createAdminSupabase>;
 
@@ -95,7 +96,8 @@ export async function deliverWebhook(admin: Admin, wh: WebhookRow): Promise<{ de
     events: rows.map(mapEvent),
   };
 
-  const result = await postSigned(wh.url, wh.secret, payload, deliveryId);
+  // The secret may be sealed (webhooks created or edited in the library) or legacy plaintext; unsealSecret reads both.
+  const result = await postSigned(wh.url, unsealSecret(wh.secret) ?? wh.secret, payload, deliveryId);
 
   await admin.from("webhook_deliveries").insert({
     tenant_id: wh.tenant_id, webhook_id: wh.id, event_count: rows.length,
@@ -120,5 +122,9 @@ export async function deliverWebhook(admin: Admin, wh: WebhookRow): Promise<{ de
     last_error: result.error ?? "delivery failed", failure_count: failures,
     ...(failures >= MAX_FAILURES ? { active: false } : {}),
   }).eq("id", wh.id).eq("tenant_id", wh.tenant_id);
+  if (failures >= MAX_FAILURES) {
+    // Separate and best effort: paused_reason exists only once migration 0202 is applied, and must not fail the update above.
+    await admin.from("webhooks").update({ paused_reason: `Paused after ${MAX_FAILURES} failures` }).eq("id", wh.id).eq("tenant_id", wh.tenant_id);
+  }
   return { delivered: 0, ok: false };
 }
