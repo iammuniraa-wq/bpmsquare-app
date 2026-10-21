@@ -127,6 +127,7 @@ export async function proxy(request: NextRequest) {
     pathname.startsWith("/api/wfm/cron/") ||
     pathname.startsWith("/api/rfqs/cron/") ||
     pathname.startsWith("/api/connectors/cron/") ||
+    pathname.startsWith("/api/middleware/cron/") ||
     pathname.startsWith("/api/events/cron/") ||
     pathname.startsWith("/api/marketing/cron/") ||
     // RFQ supplier reply link (lib/rfq/token.ts + lib/rfq/publicReply.ts):

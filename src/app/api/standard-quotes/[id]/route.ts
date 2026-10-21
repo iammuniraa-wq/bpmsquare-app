@@ -9,9 +9,16 @@ import { computeStandardQuoteTotals, clampPct, clampAmount } from "@/lib/standar
 import { parseDateOverride, parseTimestampOverride } from "@/lib/dateProfile";
 import { derivePricingFlags, withPricingColumns, insertLinesTolerant, verifiedProductIds, verifiedRfqLineIds, resolveLineIdsAndSelection, writeHeaderTolerant } from "@/lib/pricing/quoteLineFlags";
 import { parsePrintOptions, isDefaultPrintOptions } from "@/lib/sales/printOptions";
-import { emitQuoteSent, emitQuoteStatusChanged } from "@/lib/events/emitters";
+import { emitQuoteSent, emitQuoteStatusChanged, emitQuoteOutcome } from "@/lib/events/emitters";
+import { outcomeForStatus } from "@/lib/middleware/types";
+import { scheduleQuoteDispatch } from "@/lib/middleware/schedule";
+import type { TenantFeatures } from "@/lib/constants";
 
 const VALID_STATUSES = ["draft", "sent", "accepted", "rejected", "expired"];
+
+// The integration middleware sends an awarded / rejected quote to the ERP in after(),
+// i.e. after this response, but inside this function's time limit.
+export const maxDuration = 60;
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   let supabase, tenantId;
@@ -44,7 +51,11 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     const err = e as { status: number; message: string };
     return NextResponse.json({ error: err.message }, { status: err.status });
   }
-  if (!(await tenantHasFeature(supabase, tenantId, "standard_quotes"))) {
+  // Same single features read as before, kept whole so the integration-middleware
+  // flag is known without a second query.
+  const { data: tenantRow } = await supabase.from("tenants").select("features").eq("id", tenantId).maybeSingle();
+  const features = tenantRow?.features as TenantFeatures | undefined;
+  if (!features?.standard_quotes) {
     return NextResponse.json({ error: "Standard Quotes isn't enabled for your workspace" }, { status: 403 });
   }
 
@@ -231,6 +242,12 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     };
     await emitQuoteStatusChanged(tenantId, { ...ctx, from: before.status as string, to: String(body.status) });
     if (body.status === "sent") await emitQuoteSent(tenantId, ctx);
+    const outcome = outcomeForStatus(String(body.status));
+    if (outcome) {
+      await emitQuoteOutcome(tenantId, { ...ctx, outcome, total: (updated as { total?: number } | null)?.total ?? null });
+      // Integration middleware: send the outcome to the ERP after this response.
+      if (features.integration_middleware) scheduleQuoteDispatch(tenantId, id, u?.id ?? null);
+    }
   }
 
   // A deal's amount follows its latest quote (§4.4): refresh the deal this

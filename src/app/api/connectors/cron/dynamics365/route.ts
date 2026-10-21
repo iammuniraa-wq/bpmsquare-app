@@ -34,10 +34,15 @@ export async function GET(request: NextRequest) {
   const ordered = rotateStart([...(rows ?? [])].sort((a, b) => String(a.tenant_id).localeCompare(String(b.tenant_id))), Math.floor(Date.now() / 3_600_000));
   for (const r of ordered) {
     const cfg = r.config as unknown as D365Config;
-    if (!cfg?.product || cfg.schedule === "off" || (cfg.schedule === "daily" && hour !== 2)) continue;
+    if (!cfg?.product) continue;
     for (const entity of D365_ENTITY_KEYS) {
       if (Date.now() - started > BUDGET_MS) break;
-      if (!entityConfig(cfg, entity)?.enabled) continue;
+      const ec = entityConfig(cfg, entity);
+      if (!ec?.enabled) continue;
+      // The middleware page sets a schedule per entity; without one the
+      // connector-wide schedule applies, exactly as before.
+      const schedule = ec.schedule ?? cfg.schedule;
+      if (schedule === "off" || (schedule === "daily" && hour !== 2)) continue;
       const res = entity === "fence_projects"
         ? await runPushFenceProjects(admin, r.tenant_id as string, { trigger: "schedule", userId: null, deadline: started + RUN_DEADLINE_MS })
         : await runPull(admin, r.tenant_id as string, entity, { trigger: "schedule", userId: null, deadline: started + RUN_DEADLINE_MS });

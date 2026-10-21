@@ -116,14 +116,24 @@ export function featureForObject(object: string): keyof TenantFeatures | null {
 
 /** Does this tenant own the module that owns `object`? */
 export async function tenantOwnsObject(tenantId: string, object: string): Promise<boolean> {
+  return (await tenantObjectAccess(tenantId, object)).owned;
+}
+
+/**
+ * The same single features read as tenantOwnsObject, keeping the flag the v1
+ * call log needs (integration_middleware) so logging an API call costs a
+ * workspace without the flag no extra query.
+ */
+export async function tenantObjectAccess(tenantId: string, object: string): Promise<{ owned: boolean; middleware: boolean }> {
   const key = featureForObject(object);
-  if (key === null) return true;
+  if (key === null) return { owned: true, middleware: false };
   const { data } = await createAdminSupabase()
     .from("tenants")
     .select("features")
     .eq("id", tenantId)
     .maybeSingle();
-  return !!(data?.features as TenantFeatures | undefined)?.[key];
+  const f = data?.features as TenantFeatures | undefined;
+  return { owned: !!f?.[key], middleware: f?.integration_middleware === true };
 }
 
 /**

@@ -1270,6 +1270,10 @@ export type TenantConfig = {
   // targets a coverage row can route to via its erp_endpoint_id (a
   // client-generated id, matched against endpoints[].id -- not a DB fk,
   // since these live in config jsonb like the default pair already did).
+  // Integration middleware rules and selections (no secrets): which outcomes
+  // go to the ERP, automatic or manual, and what fence / estimate data leaves
+  // with them. Stored as the admin saved it; read through parseRules().
+  integration_middleware?: import("@/lib/middleware/types").IntegrationMiddlewareConfig;
   integration_push?: {
     webhook_url?: string;
     webhook_secret?: string;

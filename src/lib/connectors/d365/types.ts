@@ -80,6 +80,30 @@ export type D365EntityConfig = {
   modified_field?: string;
   filter?: string;
   field_map: Record<string, string>;
+  /** Automatic sync for this entity (middleware page). Absent = the
+   *  connector-wide `schedule`. */
+  schedule?: "off" | "hourly" | "daily";
+};
+
+/**
+ * What the integration middleware sends when a Standard Quote is awarded or
+ * rejected. Every part is optional: each product ships a preset in
+ * catalog.ts (D365_OUTBOUND_PRESETS) and a quote goes out with no mapping at
+ * all. A map here replaces the preset's map whole.
+ */
+export type D365OutboundConfig = {
+  /** Dataverse quote header: external field -> template over the quote. */
+  quote?: { field_map?: Record<string, string> };
+  /** Dataverse write-in line: external field -> template over the line. */
+  quote_line?: { field_map?: Record<string, string> };
+  /** Finance & Operations / Business Central project. */
+  project?: {
+    entity_set?: string; id_field?: string; field_map?: Record<string, string>;
+    /** Where an estimate's WBS tasks and bill of materials go, once the project exists.
+     *  `link_field` is the field on each row that receives the project's id. */
+    tasks?: { entity_set: string; link_field?: string };
+    bom?: { entity_set: string; link_field?: string };
+  };
 };
 
 export type D365Config = {
@@ -96,6 +120,12 @@ export type D365Config = {
   username?: string;
   schedule: "off" | "hourly" | "daily";
   entities: Partial<Record<D365EntityKey, D365EntityConfig>>;
+  /** Day the client secret expires (YYYY-MM-DD); the middleware page warns 30 days before. */
+  secret_expires_on?: string;
+  /** Dataverse only: the price list and currency a quote must carry (chosen from the pick-lists, never typed). */
+  price_list_id?: string;
+  currency_id?: string;
+  outbound?: D365OutboundConfig;
 };
 
 export type D365PublicState = {
