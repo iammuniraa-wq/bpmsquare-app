@@ -10,6 +10,10 @@ import Tabs from "@/components/ui/Tabs";
 import { SettingsHeaderActions } from "@/components/settings/SettingsHeaderActions";
 import { typeLabel } from "@/lib/typeScale";
 import { useTenantFeature } from "@/lib/tenant-context";
+import { useLoad } from "../middleware/ui";
+import { callWebhooksFor, listWebhooks } from "../webhooks/api";
+import { useWebhooksLibrary } from "../webhooks/flag";
+import { WEBHOOKS_ROUTE } from "../webhooks/logic";
 import {
   offeredSegmentFields, OPERATOR_LABEL, getSegmentField,
   type SegmentFilter, type SegmentFieldDef,
@@ -21,7 +25,7 @@ type Segment = { id: string; code: string; name: string; filters: SegmentFilter[
 type CoverageRole = "owner" | "overlay" | "service";
 type Coverage = {
   id: string; segment_id: string; team_id: string; role: CoverageRole; priority: number;
-  erp_endpoint_id: string | null; effective_from: string; effective_to: string | null;
+  erp_endpoint_id: string | null; webhook_id?: string | null; effective_from: string; effective_to: string | null;
   segments: { code: string; name: string } | null; teams: { name: string } | null;
 };
 type Endpoint = { id: string; name: string; webhook_url: string };
@@ -482,6 +486,10 @@ function CoverageTab({ coverages, segments, teams, endpoints, teamLabel, segment
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState("");
   const { confirm } = useFeel();
+  // With the Webhooks library on, a coverage routes to a Call webhook for accounts and the endpoint list lives there.
+  const library = useWebhooksLibrary();
+  const hooks = useLoad(async () => (library ? callWebhooksFor((await listWebhooks()).webhooks, "accounts") : []), [library]);
+  const hookName = (id: string | null | undefined) => (id ? (hooks.data ?? []).find((w) => w.id === id)?.name ?? "a webhook" : null);
 
   const [endpointName, setEndpointName] = useState("");
   const [endpointUrl, setEndpointUrl] = useState("");
@@ -500,7 +508,7 @@ function CoverageTab({ coverages, segments, teams, endpoints, teamLabel, segment
         method: "POST",
         body: JSON.stringify({
           segment_id: segmentId, team_id: teamId, role, priority,
-          erp_endpoint_id: erpEndpointId || null,
+          ...(library ? { webhook_id: erpEndpointId || null } : { erp_endpoint_id: erpEndpointId || null }),
           effective_from: effectiveFrom, effective_to: effectiveTo || null,
         }),
       });
@@ -588,8 +596,10 @@ function CoverageTab({ coverages, segments, teams, endpoints, teamLabel, segment
           <div>
             <label style={lbl}>Push this coverage's accounts to</label>
             <select style={{ ...inp, width: "100%" }} value={erpEndpointId} onChange={(e) => setErpEndpointId(e.target.value)}>
-              <option value="">Tenant default endpoint</option>
-              {endpoints.map((ep) => <option key={ep.id} value={ep.id}>{ep.name}</option>)}
+              <option value="">{library ? "No webhook" : "Tenant default endpoint"}</option>
+              {library
+                ? (hooks.data ?? []).map((w) => <option key={w.id} value={w.id}>{w.name}</option>)
+                : endpoints.map((ep) => <option key={ep.id} value={ep.id}>{ep.name}</option>)}
             </select>
           </div>
           <div>
@@ -622,7 +632,8 @@ function CoverageTab({ coverages, segments, teams, endpoints, teamLabel, segment
                   <div style={{ fontSize: 13.5, color: c.ink }}>{cov.segments ? `${cov.segments.code} — ${cov.segments.name}` : segmentLabel(cov.segment_id)} → {cov.teams?.name ?? teamLabel(cov.team_id)}</div>
                   <div className="bpm-t-help">
                     priority {cov.priority} · from {cov.effective_from}{cov.effective_to ? ` to ${cov.effective_to}` : ""}
-                    {cov.erp_endpoint_id ? ` · pushes to ${endpoints.find((e) => e.id === cov.erp_endpoint_id)?.name ?? "custom endpoint"}` : ""}
+                    {library && cov.webhook_id ? ` · sends to ${hookName(cov.webhook_id)}` : null}
+                    {!library && cov.erp_endpoint_id ? ` · pushes to ${endpoints.find((e) => e.id === cov.erp_endpoint_id)?.name ?? "custom endpoint"}` : ""}
                   </div>
                 </div>
                 <MoreMenu label="Coverage actions" items={[
@@ -634,7 +645,16 @@ function CoverageTab({ coverages, segments, teams, endpoints, teamLabel, segment
         )}
       </section>
 
-      <section style={cardStyle}>
+      {library && (
+        <section style={cardStyle}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
+            <div style={lbl}>Webhooks</div>
+            <Button href={WEBHOOKS_ROUTE}>Managed in Settings &gt; Webhooks</Button>
+          </div>
+        </section>
+      )}
+
+      {!library && <section style={cardStyle}>
         <div style={{ ...lbl, marginBottom: 4 }}>ERP endpoints</div>
         <div className="bpm-t-help" style={{ marginBottom: 12 }}>Named push targets a coverage row can route to. The tenant's single default endpoint (Settings → Webhooks & push) is used when a coverage doesn't specify one.</div>
         <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
@@ -655,7 +675,7 @@ function CoverageTab({ coverages, segments, teams, endpoints, teamLabel, segment
             ))}
           </div>
         )}
-      </section>
+      </section>}
     </div>
   );
 }

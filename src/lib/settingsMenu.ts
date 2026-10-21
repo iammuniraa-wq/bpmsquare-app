@@ -35,11 +35,17 @@ export type SettingsMenuEntry = {
   featureKey?: keyof TenantFeatures;
   /** Shown when ANY of these features is on -- for pages serving several modules. */
   featureAnyOf?: (keyof TenantFeatures)[];
+  /** Hidden when this tenant feature is ON: the page it points to is replaced by another (Webhooks & push -> Webhooks). */
+  hiddenWhenFeature?: keyof TenantFeatures;
   /** For an adminOnly entry: also reachable by a non-admin whose Business
    * Role(s) grant EDIT on this workcenter. Omitted for surfaces that stay
    * strictly admin-only. */
   relatedWorkcenter?: WorkcenterKey;
 };
+
+// The platform-admin flag of the Webhooks library. Typed through a cast only until it is a TenantFeatures key; the
+// value is the key's name, so it behaves identically after.
+const WEBHOOKS_LIBRARY = "webhooks_library" as string as keyof TenantFeatures;
 
 const CRM_OBJECT_FEATURES: (keyof TenantFeatures)[] = ["accounts", "contacts", "quotations", "cases", "work_orders", "assets", "suppliers", "purchasing", "invoices"];
 
@@ -100,7 +106,8 @@ export const SETTINGS_MENU: SettingsMenuEntry[] = [
   { id: "middleware", group: "integrations", label: "Integration middleware", description: "Everything about syncing with your ERP in one place: connection, links, mapping, message monitor and resync", href: ROUTES.settingsMiddleware, keywords: ["integrations", "erp", "sync", "dynamics", "sap", "epromis", "connector", "monitor", "mapping", "messages", "resync"], adminOnly: true, featureKey: "integration_middleware" },
   { id: "connectors", group: "integrations", label: "Connectors", description: "Connect BPMSquare to other systems — Slack today, more on the way", href: ROUTES.settingsConnectors, keywords: ["slack", "dynamics", "d365"], adminOnly: true },
   { id: "developer", group: "integrations", label: "API keys & developer", description: "Your API key, scoped keys, the REST API endpoints and the integrations catalogue", href: ROUTES.settingsDeveloper, keywords: ["general", "api", "rest", "token", "mcp", "openapi", "bearer"], adminOnly: false },
-  { id: "push", group: "integrations", label: "Webhooks & push", description: "Event webhooks, and pushing a single record to your ERP on demand", href: ROUTES.settingsPush, keywords: ["erp", "signing secret", "events", "outbound"], adminOnly: true },
+  { id: "push", group: "integrations", label: "Webhooks & push", description: "Event webhooks, and pushing a single record to your ERP on demand", href: ROUTES.settingsPush, keywords: ["erp", "signing secret", "events", "outbound"], adminOnly: true, hiddenWhenFeature: WEBHOOKS_LIBRARY },
+  { id: "webhooks", group: "integrations", label: "Webhooks", description: "Every address BPMSquare calls, made and kept in one list: change feeds and one-record calls", href: "/settings/webhooks", keywords: ["webhook", "http", "api", "erp", "signing secret", "events", "outbound", "push", "token", "payload"], adminOnly: true, featureKey: WEBHOOKS_LIBRARY },
   { id: "email-output", group: "integrations", label: "Email output", description: "Where quotations, invoices, campaigns and workforce notifications are actually delivered", href: ROUTES.settingsEmailOutput, keywords: ["mail", "redirect", "demo", "inbox", "resend"], adminOnly: true },
 
   // ── Appearance ──
@@ -118,6 +125,7 @@ export function visibleSettingsMenu(ctx: {
   const canReach = (item: SettingsMenuEntry) =>
     (!item.adminOnly || ctx.isAdmin || (item.relatedWorkcenter ? ctx.canEdit(item.relatedWorkcenter) : false)) &&
     (!item.featureKey || ctx.features?.[item.featureKey] === true) &&
+    (!item.hiddenWhenFeature || ctx.features?.[item.hiddenWhenFeature] !== true) &&
     (!item.featureAnyOf || item.featureAnyOf.some((k) => ctx.features?.[k] === true));
 
   return SETTINGS_GROUPS

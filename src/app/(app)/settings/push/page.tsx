@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { useFeel } from "@/components/FeelProvider";
 import { c } from "@/lib/theme";
 import type { TenantConfig } from "@/lib/constants";
@@ -11,10 +12,16 @@ import { Input } from "@/components/ui/Input";
 import Button from "@/components/ui/Button";
 import { AdminOnlyNotice, Section, useSavedFlash } from "@/components/settings/generalShared";
 import WebhooksPanel from "./WebhooksPanel";
+import { useWebhooksLibrary } from "../webhooks/flag";
+import { WEBHOOKS_ROUTE } from "../webhooks/logic";
 
 export default function WebhooksAndPushPage() {
   const tenant = useTenant();
   const role = useUserRole();
+  // With the Webhooks library on, this page is replaced by Settings > Webhooks; the address redirects there.
+  const library = useWebhooksLibrary();
+  const router = useRouter();
+  useEffect(() => { if (library) router.replace(WEBHOOKS_ROUTE); }, [library, router]);
 
   // Push to external systems (on demand) -- see lib/webhookPush.ts
   const pushConfig = (tenant?.config as TenantConfig | undefined)?.integration_push;
@@ -55,6 +62,8 @@ export default function WebhooksAndPushPage() {
       else setPushError(json.error ?? "Failed to generate secret");
     });
   };
+
+  if (library) return null;
 
   if (role !== "admin") {
     return (

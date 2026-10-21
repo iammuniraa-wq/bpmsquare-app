@@ -1,0 +1,119 @@
+/* Settings > Webhooks. Theme variables only. Desktop: a list of rows in one card and a drawer; under 780px the rows stack
+   and the drawer is a bottom sheet (bpmsquarecore 6b). Tap targets are 44px on touch. */
+
+.shell { display: flex; flex-direction: column; gap: 16px; max-width: 1100px; min-width: 0; }
+.stack { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0; }
+.rowBetween { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; min-width: 0; }
+.muted { color: var(--muted); }
+.small { font-size: 12.5px; }
+.mono { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 12px; }
+.wrapAny { overflow-wrap: anywhere; }
+.block { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.greyLine { margin: 0; font-size: 12px; line-height: 1.4; color: var(--muted); }
+.issue { font-size: 12px; color: var(--err-ink); }
+.footIssue { flex: 1; min-width: 160px; }
+.fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 16px; }
+
+/* The list */
+.card { background: var(--card-bg); border: 1px solid var(--line); border-radius: var(--card-radius); box-shadow: var(--card-shadow); overflow: hidden; min-width: 0; }
+.listHead, .item {
+  display: grid; grid-template-columns: 78px minmax(0, 1.5fr) minmax(0, 1.1fr) minmax(0, 1.1fr) 90px 72px; gap: 4px 14px; align-items: center; min-width: 0;
+}
+.listHead { padding: 9px 16px; font-size: 12px; font-weight: 600; color: var(--hint); background: var(--panel2); }
+.item { position: relative; padding: 10px 16px; border-top: 1px solid var(--line); min-height: 56px; }
+.item:hover { background: var(--panel2); }
+.open {
+  grid-column: 2; display: flex; flex-direction: column; min-width: 0; min-height: 44px; justify-content: center; padding: 0; text-align: start;
+  font: inherit; color: inherit; background: none; border: 0; cursor: pointer;
+}
+/* The whole row opens the panel (a stretched link); Resume sits above it. */
+.open::after { content: ""; position: absolute; inset: 0; }
+.open:focus-visible { outline: none; }
+.open:focus-visible::after { outline: 2px solid var(--modern-accent, var(--tenant-accent, var(--accent))); outline-offset: -2px; border-radius: 6px; }
+.name { font-weight: 600; font-size: 13.5px; overflow-wrap: anywhere; }
+.target { font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
+.kindCell { grid-column: 1; }
+.stateCell { grid-column: 3; display: inline-flex; align-items: center; gap: 8px; font-size: 13px; min-width: 0; }
+.lastCell { grid-column: 4; font-size: 12.5px; color: var(--muted); }
+.usedCell { grid-column: 5; }
+.actionCell { grid-column: 6; position: relative; z-index: 1; display: flex; justify-content: flex-end; }
+.chip { display: inline-flex; align-items: center; font-size: 11.5px; font-weight: 700; padding: 2px 9px; border-radius: 999px; background: var(--panel2); color: var(--muted); border: 1px solid var(--line); white-space: nowrap; }
+.chipCall { background: var(--bluebg); color: var(--blueink); border-color: transparent; }
+.chipEvent { background: var(--tealbg); color: var(--tealink); border-color: transparent; }
+.chipUse { background: var(--panel); color: var(--ink); }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--hint); flex: none; }
+.dotOn { background: var(--green); }
+.dotWarn { background: var(--amberc); }
+.stateAttention { color: var(--amberink); font-weight: 600; }
+.stateErr { color: var(--err-ink); }
+.pending { padding: 14px 16px; }
+
+/* The panel */
+.tabs { margin: 0 -16px; padding: 0 16px; }
+.pill { font-size: 11.5px; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: var(--tealbg); color: var(--tealink); }
+.checkList { display: flex; flex-direction: column; gap: 2px; }
+.checkItem { display: flex; flex-direction: column; min-width: 0; }
+.checkItem :global(.bpm-opt-check) label { min-height: 36px; align-items: center; }
+.switchRow { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 44px; }
+.usedList { margin: 0; padding: 0; list-style: none; display: flex; flex-wrap: wrap; gap: 6px; }
+
+/* Headers editor */
+.headerRow { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr) auto; gap: 8px; align-items: center; }
+.headerRow :global(.bpm-input) { width: 100%; min-width: 0; }
+.headerValue { display: flex; align-items: center; gap: 8px; min-width: 0; flex-wrap: wrap; }
+
+/* Template + tokens */
+.template { width: 100%; min-height: 180px; resize: vertical; box-sizing: border-box; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 12.5px; line-height: 1.5; tab-size: 2; }
+.picker { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel2); min-width: 0; }
+.tokenGroup { display: flex; flex-direction: column; gap: 6px; }
+.tokenGroupName { font-size: 11.5px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--hint); }
+.tokens { display: flex; flex-wrap: wrap; gap: 6px; }
+.token {
+  display: inline-flex; align-items: center; gap: 6px; min-height: 32px; padding: 0 10px; font: inherit; font-size: 12.5px; color: var(--ink);
+  background: var(--panel); border: 1px solid var(--line); border-radius: 999px; cursor: pointer; text-align: start;
+}
+.token:hover { background: var(--panel2); }
+.token:focus-visible { outline: 2px solid var(--modern-accent, var(--tenant-accent, var(--accent))); outline-offset: 2px; }
+.tokenPii { border-color: var(--amberc); }
+.tokenTag { font-size: 10.5px; font-weight: 700; color: var(--amberink); }
+.tokenScroll { max-height: 220px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
+
+/* Test + log */
+.raw { margin: 0; padding: 10px 12px; max-height: 260px; overflow: auto; font-size: 12px; background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; white-space: pre-wrap; overflow-wrap: anywhere; font-family: ui-monospace, Menlo, Consolas, monospace; }
+.result { padding: 10px 12px; border-radius: 9px; border: 1px solid var(--line); background: var(--panel2); font-size: 13px; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.kv { display: grid; grid-template-columns: 90px minmax(0, 1fr); gap: 4px 12px; margin: 0; font-size: 13px; }
+.kv dt { color: var(--hint); }
+.kv dd { margin: 0; overflow-wrap: anywhere; }
+.logList { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+.logItem { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 10px; padding: 9px 12px; border-top: 1px solid var(--line); font-size: 13px; min-width: 0; }
+.logItem:first-child { border-top: 0; }
+.logHead { font-weight: 600; }
+.logOk { color: var(--greenink); }
+.logBad { color: var(--err-ink); }
+.logSub { grid-column: 1 / -1; font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
+
+/* A notice that must stay on screen: the one-time secret, a paused webhook, a refused delete */
+.secretBox { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0; }
+.secretBox code { flex: 1; min-width: 0; overflow-wrap: anywhere; font-size: 12.5px; }
+
+@media (max-width: 900px) {
+  .fields { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 780px) {
+  /* Rows stack: chip + name on the first line, address under it, then state, last call and use count */
+  .listHead { display: none; }
+  .item { grid-template-columns: auto minmax(0, 1fr) auto; padding: 10px 14px; row-gap: 2px; }
+  .kindCell { grid-column: 1; grid-row: 1; }
+  .open { grid-column: 2; grid-row: 1 / span 2; }
+  .actionCell { grid-column: 3; grid-row: 1; }
+  .stateCell { grid-column: 1 / -1; grid-row: 3; }
+  .lastCell { grid-column: 1 / -1; grid-row: 4; }
+  .usedCell { grid-column: 1 / -1; grid-row: 5; }
+  .usedCell:empty { display: none; }
+  .headerRow { grid-template-columns: 1fr; padding: 10px; border: 1px solid var(--line); border-radius: 10px; }
+  .token { min-height: 44px; }
+  .kv { grid-template-columns: 1fr; gap: 0; }
+  .kv dt { margin-top: 8px; }
+}
