@@ -1,0 +1,48 @@
+# Walkthrough video v7: scene times and voice-over (12:00, silent)
+
+File: Documents\pcbs-video-work\pcbs-full-v7.mp4. Paste each scene's text into Clipchamp text-to-speech at the time shown.
+
+0:00  SCENE 1: Title slide, BPMSquare AI CRM (25 s)
+A CRM is where a company keeps everything about its customers in one place: who they are, what they asked for, what was quoted, and what happened next. Most CRMs stop there. BPMSquare is an AI CRM built for companies that sell projects: it also prices the work, plans it, and follows up, in English and Arabic. This is a short walkthrough.
+
+0:25  SCENE 2: Features map (45 s)
+One platform, eight parts. Sales: accounts, contacts, quotations, standard quotes, pipeline and invoices. Service: cases, work orders, AMC contracts, dispatch and technicians. Marketing: newsletters, journeys, forms, lead scoring, buying signals and account-based programs. Pricing and estimating: price books, cost-based and price-list pricing, the project estimator and the fence design studio. Workforce: attendance, rosters, leave and overtime. Insights: dashboards, analytics and reports you ask for in plain words. Integration: your ERP, Dynamics 365, email, calendar, Slack, a REST API. And AI across all of it.
+
+1:10  SCENE 3: Spaces (40 s)
+Everything is grouped into spaces: Home, Sales, Service, Marketing, Master data, Workforce, Insights and Admin. Open a space and its menu opens beside it. Favourites pin what you use every day, and the top bar searches every object at once.
+
+1:50  SCENE 4: Your assistant (59 s)
+On every screen, a slider at the bottom right opens your assistant. It knows where you are: this quote, this customer. Ask in plain words: what is this quote's total, who owns the account. It answers from your live data, and follow-up questions keep their context. It also suggests the next step, worked out from the record in front of you, and it takes you where you ask: say "open products" and you are there. Every answer counts against a monthly allowance, shown here, so cost is never a surprise. It reads; it does not change anything: actions come next, each one confirmed by you.
+
+2:49  SCENE 5: Talk to data (37 s)
+On the Analytics page, Talk to data goes further. Describe a report in your own words and BPMSquare builds it: the question becomes a query against your data, never a guess, and the chart type is chosen by the engine. Change it, save it, and put it on your dashboard. Every number can be traced back to the records behind it.
+
+3:26  SCENE AI: Slide, AI wherever you work (15 s)
+AI is built into the screens your team already uses. Your data stays in your workspace, and a person checks every result before anything is saved or sent.
+
+3:41  SCENE 6: Connectors (53 s)
+BPMSquare integrates with your ERP, any ERP, including ePROMIS. For Dynamics 365 there is a ready connector: choose the login type, map the entities, preview the real fields, sync on a schedule. For every other system the same three lanes are open: files through Data Workbench, a REST API with a change feed and signed webhooks, and connectors.
+
+4:34  SCENE ERP: Slide, integrated with your ERP (20 s)
+From the ERP, your materials, suppliers, accounts and price lists with their quantity scales are replicated, so there is one source of truth. From BPMSquare, once a quote is won, the project or the order is created in your ERP.
+
+4:54  SCENE 7: Pricing and the quote (46 s)
+Prices come from rules you can read. Today's rates shows what is live in plain language: freight, handling, margin by region. A price book can be a catalogue, a formula, or cost plus a mark-up, and your team decides which book applies to which product group. Quantity scales live on the product, replicated from your ERP: forty metres of wire rope is priced at list; one hundred and fifty metres steps down to the next band on its own, and the line shows which band applied and why.
+
+5:40  SCENE 8: Estimator, bill of materials, fence (158 s)
+Email is where work starts. Paste the customer's message into a new estimate and BPMSquare reads it: two floors, two hundred and twenty square metres per floor, premium finish, stairs, a boundary wall, and who sent it. One click creates the account and the contact. Here is the building, made from those numbers, with the actual precast pieces. Change the finish and the price updates. Your team can open how the price is built: materials, production, transport, erection, overhead, margin and VAT, with the casting schedule and a risk range. One click turns it into a customer quote: prices, not your costs. The bill of materials comes from your product catalogue: a kit is made of its parts and its cost rolls up from them. The same system handles any kind of project. In the Fence Design Studio, set the length, posts, mesh and gates, see it in plan and in three dimensions, and the quantities list builds itself.
+
+8:18  SCENE 8b: Service (41 s)
+Service runs on the same records. Cases come in with their equipment and priority, work orders carry the scope and the technician, and dispatch shows who is on site and who is scheduled next. Every visit, part and invoice stays linked to the customer.
+
+8:59  SCENE 9: Marketing (122 s)
+Marketing works from the same customer records. The Newsletter Studio drafts the email and translates it into Arabic; every translated line waits for a person to approve it, and it goes only to people who agreed to hear from you. A journey is a follow-up you set once: three days after a quote, a newsletter goes out and the owner gets a task. Leads score themselves from what people do, and the hand-over is a setting: response time, days off, who hears when a lead is overdue. For the companies that matter most, an account-based program tracks each target through its buying stage and shows who in the buying group still needs to be reached.
+
+11:01  SCENE 10: Dashboard (7 s)
+Everything comes together on the dashboard: pipeline, cases, invoices, the news that matters to your accounts.
+
+11:08  SCENE P: Slide, your data stays yours (40 s)
+Your data stays yours. Each company's data is isolated in its own workspace; personal details are encrypted at rest; consent is recorded before any marketing message is sent; every change is logged. You choose where it lives: on our cloud, in your own workspace isolated by row-level security; in a private cloud, a separate database for you alone; or on your own premises, installed on your servers.
+
+11:48  SCENE E: Closing slide (12 s)
+BPMSquare integrates with your ERP, shaped around your business. Thank you.
