@@ -1,12 +1,20 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import { c } from "@/lib/theme";
 import { useIsNextgen3Layer, useTenantFeature } from "@/lib/tenant-context";
 import ChartRenderer from "@/components/charts/ChartRenderer";
+import InfoTip from "@/components/ui/InfoTip";
 import { normalizeReport, type ReportPayload } from "@/lib/reportView";
+import { parsePageContext } from "@/lib/assistant/objects";
+import { isInternalPath } from "@/lib/assistant/navTargets";
+import { ASSISTANT_TIPS, usageTip } from "@/lib/assistant/tips";
+import type { Suggestion } from "@/lib/assistant/suggestions";
 
-type Msg = { from: "bot" | "me"; text: string; report?: ReportPayload };
+type Card = { id: string; label: string; href: string };
+type Msg = { from: "bot" | "me"; text: string; report?: ReportPayload; cards?: Card[] };
+type Usage = { percent: number; off: boolean };
 
 // Per-user, per-browser preference -- separate from the tenant-level
 // ai_assistant feature flag (Shell only mounts this component when that's
@@ -16,8 +24,7 @@ const ENABLED_KEY = "bms_ai_dock_enabled";
 
 // Create-from-paste, on Nova tenants only. This is deliberately NOT the
 // chat/ask() path answering with a mutation -- it opens NovaDraft, the
-// same human-review-before-create modal the ⌘K palette uses, so the
-// READ-ONLY badge on the chat below stays true of what it actually labels.
+// same human-review-before-create modal the ⌘K palette uses.
 const CREATE_MODES: { mode: string; label: string; featureKey: "accounts" | "contacts" | "quotations" | "products" }[] = [
   { mode: "accounts", label: "New account", featureKey: "accounts" },
   { mode: "contacts", label: "New contact", featureKey: "contacts" },
@@ -26,33 +33,30 @@ const CREATE_MODES: { mode: string; label: string; featureKey: "accounts" | "con
 ];
 
 /**
- * Data assistant -- a persistent bottom-right launcher that expands into a
- * chat panel. The chat itself answers questions about the tenant's own
- * data and nothing else: it cannot create, update or delete, which is
- * enforced server-side (src/lib/ai/assistant.ts), not just stated here.
- * The empty state lists exactly what it can do, scoped to the caller's
- * Business Roles, so nobody has to guess what to type.
+ * Assistant dock -- a persistent bottom-right launcher that expands into a chat panel (full screen under 900 px).
  *
- * A breakdown/trend/ranking question can come back with an inline chart
- * (ChartRenderer, same component and same compile engine as the Talk to
- * data page -- src/lib/ai/reportCompile.ts) alongside the text reply, not
- * just prose. One assistant, rendered two ways, not two assistants.
+ * It knows where the person is: the current route goes with every ask and every open, and the server (never this
+ * component) loads the record behind it through the caller's own permissions. The panel shows labels, values and
+ * buttons only; every explanation sits behind an "i" (bpmsquarecore.md 6b, texts in assistant/tips.ts).
  *
- * On Nova tenants, the empty state also offers "create from a paste" —
- * reusing NovaDraft (nova:open-draft), never a second implementation.
- * Gated on useIsNextgen3Layer() specifically because NovaDraft itself only
- * mounts under that same condition; this dock alone can render on tenants
- * where Nova is off (ai_assistant is a separate flag), and dispatching the
- * event there would silently no-op.
+ * Three things in the panel: the context fact ("On SQ-2026-0012 · Al-Otaibi Contracting"), the suggestions strip
+ * (rules, not AI; each chip opens a screen or asks a prepared question), and the chat. Answers can carry buttons
+ * that open a screen or a record, and an inline chart (ChartRenderer, same engine as Talk to data). Nothing here
+ * can change data. On Nova tenants the empty state also offers "draft from a paste", reusing NovaDraft.
  */
 export default function AIDock({ liftForTabBar = false }: {
   /** Set on mobile where MobileTabBar (Nova only) is fixed to the same bottom
    *  edge -- without it the launcher sits on top of the tabs. */
   liftForTabBar?: boolean;
 }) {
+  const router = useRouter();
+  const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<Msg[]>([]);
   const [capabilities, setCapabilities] = useState<string[] | null>(null);
+  const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
+  const [context, setContext] = useState<string | null>(null);
+  const [usage, setUsage] = useState<Usage | null>(null);
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
   const [enabled, setEnabled] = useState(true);
@@ -84,19 +88,34 @@ export default function AIDock({ liftForTabBar = false }: {
     });
   }
 
-  // Fetched on first open rather than on mount -- this dock renders on every
-  // page, and most sessions never open it.
+  // Fetched when the panel opens and again when the person moves to another screen -- not on mount: this dock
+  // renders on every page and most sessions never open it. The server resolves the route to a record itself.
   useEffect(() => {
-    if (!open || capabilities !== null) return;
-    fetch("/api/ai/ask")
-      .then((r) => (r.ok ? r.json() : { capabilities: [] }))
-      .then((j) => setCapabilities(j.capabilities ?? []))
-      .catch(() => setCapabilities([]));
-  }, [open, capabilities]);
+    if (!open) return;
+    let alive = true;
+    fetch(`/api/ai/ask?route=${encodeURIComponent(pathname ?? "")}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => {
+        if (!alive) return;
+        setCapabilities(j?.capabilities ?? []);
+        setSuggestions(Array.isArray(j?.suggestions) ? j.suggestions : []);
+        setContext(j?.context?.label ?? null);
+        if (j?.usage) setUsage(j.usage);
+      })
+      .catch(() => { if (alive) setCapabilities((prev) => prev ?? []); });
+    return () => { alive = false; };
+  }, [open, pathname]);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages, busy]);
+
+  function go(href: string) {
+    if (!isInternalPath(href)) return;
+    router.push(href);
+    // Full-screen on a phone: leave it, or the page that was asked for stays hidden behind the chat.
+    if (typeof window !== "undefined" && window.innerWidth < 900) setOpen(false);
+  }
 
   async function ask(question: string) {
     const text = question.trim();
@@ -110,18 +129,25 @@ export default function AIDock({ liftForTabBar = false }: {
     setDraft("");
     setBusy(true);
     try {
+      // The page goes as ids only: the route, and the object type and record id read from it. Never record content.
+      const page = parsePageContext(pathname);
       const res = await fetch("/api/ai/ask", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question: text, history }),
+        body: JSON.stringify({
+          question: text, history, route: pathname,
+          objectType: page?.objectType ?? null, recordId: page?.recordId ?? null,
+        }),
       });
       const json = await res.json().catch(() => ({}));
-      setMessages((prev) => [
-        ...prev,
-        res.ok
-          ? { from: "bot", text: json.answer, report: json.report as ReportPayload | undefined }
-          : { from: "bot", text: json.error ?? "Something went wrong." },
-      ]);
+      if (res.ok) {
+        if (json.usage) setUsage(json.usage);
+        const cards: Card[] | undefined = Array.isArray(json.cards) ? json.cards : undefined;
+        setMessages((prev) => [...prev, { from: "bot", text: json.answer, report: json.report as ReportPayload | undefined, cards }]);
+        if (json.autoFollow && cards?.length === 1) go(cards[0].href);
+      } else {
+        setMessages((prev) => [...prev, { from: "bot", text: json.error ?? "Something went wrong." }]);
+      }
     } catch {
       setMessages((prev) => [...prev, { from: "bot", text: "Could not reach the server." }]);
     } finally {
@@ -130,6 +156,11 @@ export default function AIDock({ liftForTabBar = false }: {
   }
 
   function sendMessage() { ask(draft); }
+
+  function runSuggestion(s: Suggestion) {
+    if (s.kind === "navigate" && s.target) go(s.target);
+    else if (s.kind === "ask" && s.question) ask(s.question);
+  }
 
   // The dock stacks upward from the bottom-right corner. Two rules keep it on
   // screen: every offset clears the safe-area inset (a phone's home indicator,
@@ -143,9 +174,24 @@ export default function AIDock({ liftForTabBar = false }: {
     : "env(safe-area-inset-bottom, 0px)";
   const at = (px: number) => `calc(${px}px + ${FLOOR})`;
 
+  const pill = usage && (
+    <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+      <span
+        style={{
+          fontSize: 10.5, fontWeight: 700, borderRadius: 999, padding: "2px 8px", letterSpacing: 0.2,
+          color: usage.percent >= 100 ? "var(--bad, #b42318)" : c.muted, background: "var(--panel2)", border: "1px solid var(--line)",
+        }}
+      >
+        AI usage {usage.percent}%
+      </span>
+      <InfoTip label="AI usage">{usage.percent >= 100 ? ASSISTANT_TIPS.overBudget : usageTip(usage.percent, usage.off)}</InfoTip>
+    </span>
+  );
+
   return (
     <>
       <button
+        data-dock-open={open}
         onClick={toggleEnabled}
         aria-label={enabled ? "Turn off AI assistant" : "Turn on AI assistant"}
         title={enabled ? "Turn off AI assistant" : "Turn on AI assistant"}
@@ -166,6 +212,7 @@ export default function AIDock({ liftForTabBar = false }: {
 
       {enabled && (
         <button
+          data-dock-open={open}
           onClick={() => setOpen((v) => !v)}
           aria-label={open ? "Close assistant" : "Open assistant"}
           style={{
@@ -190,7 +237,7 @@ export default function AIDock({ liftForTabBar = false }: {
       )}
 
       {enabled && open && (
-        <div style={{
+        <div className="bms-dock-panel" style={{
           position: "fixed", right: 22, bottom: at(122), zIndex: 300,
           // Wide enough for an inline chart to stay legible (a bar chart's
           // labels shrink illegibly below this), capped so it never spills
@@ -206,33 +253,76 @@ export default function AIDock({ liftForTabBar = false }: {
           borderRadius: "var(--card-radius, 10px)", boxShadow: "0 24px 60px rgba(10,15,25,.28)",
           overflow: "hidden",
         }}>
-          <div style={{ padding: "12px 16px", background: "var(--accentbg)", color: c.accent, fontWeight: 700, fontSize: 13, display: "flex", alignItems: "center", gap: 8 }}>
-            ✦ BPMSquare Assistant
-            <span style={{ marginLeft: "auto", fontSize: 9.5, fontWeight: 700, color: c.muted, background: "var(--panel2)", border: "1px solid var(--line)", borderRadius: 5, padding: "2px 6px", letterSpacing: 0.4 }}>LIVE DATA</span>
+          <div style={{ padding: "10px 12px 10px 16px", background: "var(--accentbg)", color: c.accent, fontWeight: 700, fontSize: 13, display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
+            <span>✦ Assistant</span>
+            <InfoTip label="the assistant">{ASSISTANT_TIPS.header}</InfoTip>
+            <span style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 6 }}>
+              {pill}
+              <button
+                className="bms-dock-close"
+                onClick={() => setOpen(false)}
+                aria-label="Close assistant"
+                style={{ background: "transparent", border: "none", color: c.muted, cursor: "pointer", fontSize: 18, lineHeight: 1, padding: 4 }}
+              >
+                ×
+              </button>
+            </span>
           </div>
-          <div ref={scrollRef} style={{ padding: "14px 16px", display: "flex", flexDirection: "column", gap: 10, fontSize: 12.5, flex: 1, overflowY: "auto" }}>
+
+          {context && (
+            <div style={{ padding: "8px 16px", borderBottom: `1px solid ${c.line}`, fontSize: 12, color: c.ink, display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
+              <span style={{ fontWeight: 650, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>On {context}</span>
+              <InfoTip label="the open record">{ASSISTANT_TIPS.context}</InfoTip>
+            </div>
+          )}
+
+          {suggestions.length > 0 && (
+            <div style={{ padding: "8px 16px", borderBottom: `1px solid ${c.line}`, display: "flex", flexWrap: "wrap", gap: 6, flexShrink: 0 }}>
+              {suggestions.map((s) => (
+                <span key={s.id} className="bms-dock-chip-wrap" style={{ display: "inline-flex", alignItems: "center", gap: 2 }}>
+                  <button
+                    className="bms-dock-chip"
+                    onClick={() => runSuggestion(s)}
+                    disabled={busy && s.kind === "ask"}
+                    style={{
+                      background: "var(--accentbg)", border: "1px solid var(--line)", borderRadius: 999,
+                      padding: "6px 12px", fontSize: 11.5, fontWeight: 650, color: c.accent, cursor: "pointer", fontFamily: "inherit",
+                    }}
+                  >
+                    {s.label}{s.kind === "navigate" ? " →" : ""}
+                  </button>
+                  <InfoTip label={s.label}>{s.why}</InfoTip>
+                </span>
+              ))}
+              <InfoTip label="suggestions">{ASSISTANT_TIPS.suggestions}</InfoTip>
+            </div>
+          )}
+
+          <div ref={scrollRef} style={{ padding: "14px 16px", display: "flex", flexDirection: "column", gap: 10, fontSize: 12.5, flex: 1, overflowY: "auto", minHeight: 0 }}>
             {messages.length === 0 && (
               <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
-                <div style={{ color: c.muted, lineHeight: 1.5 }}>
-                  Ask me anything about your data — I query it live and follow-up questions keep their context. The chat itself can&apos;t change or delete anything.
-                  {createChips.length > 0 && " Use the buttons below to draft a new record from pasted text — you review it before anything is created."}
-                </div>
                 {createChips.length > 0 && (
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                    {createChips.map((item) => (
-                      <button
-                        key={item.mode}
-                        onClick={() => openDraft(item.mode)}
-                        style={{
-                          background: "var(--accentbg)", border: `1px solid var(--line)`,
-                          borderRadius: 999, padding: "6px 12px", fontSize: 11.5, fontWeight: 650,
-                          color: c.accent, cursor: "pointer", fontFamily: "inherit",
-                        }}
-                      >
-                        ✦ {item.label}
-                      </button>
-                    ))}
-                  </div>
+                  <>
+                    <div style={{ fontSize: 10.5, fontWeight: 700, color: c.hint, textTransform: "uppercase", letterSpacing: 0.4, display: "flex", alignItems: "center", gap: 4 }}>
+                      Draft from a paste <InfoTip label="draft from a paste">{ASSISTANT_TIPS.draft}</InfoTip>
+                    </div>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                      {createChips.map((item) => (
+                        <button
+                          key={item.mode}
+                          className="bms-dock-chip"
+                          onClick={() => openDraft(item.mode)}
+                          style={{
+                            background: "var(--accentbg)", border: `1px solid var(--line)`,
+                            borderRadius: 999, padding: "6px 12px", fontSize: 11.5, fontWeight: 650,
+                            color: c.accent, cursor: "pointer", fontFamily: "inherit",
+                          }}
+                        >
+                          ✦ {item.label}
+                        </button>
+                      ))}
+                    </div>
+                  </>
                 )}
                 {capabilities === null && <div style={{ color: c.hint }}>Loading…</div>}
                 {capabilities?.length === 0 && (
@@ -246,6 +336,7 @@ export default function AIDock({ liftForTabBar = false }: {
                     {capabilities.map((cap) => (
                       <button
                         key={cap}
+                        className="bms-dock-row"
                         onClick={() => ask(cap)}
                         style={{
                           textAlign: "left", background: "var(--panel2)", border: "1px solid var(--line)",
@@ -278,6 +369,20 @@ export default function AIDock({ liftForTabBar = false }: {
                 >
                   {m.text}
                 </div>
+                {m.cards?.map((card) => (
+                  <button
+                    key={card.id}
+                    className="bms-dock-row"
+                    onClick={() => go(card.href)}
+                    style={{
+                      alignSelf: "flex-start", textAlign: "left", background: "var(--accentbg)", border: "1px solid var(--line)",
+                      borderRadius: "var(--card-radius, 10px)", padding: "9px 12px", fontSize: 12, fontWeight: 650,
+                      color: c.accent, cursor: "pointer", fontFamily: "inherit",
+                    }}
+                  >
+                    {card.label} →
+                  </button>
+                ))}
                 {m.report && (
                   <div style={{ padding: 12, borderRadius: "var(--card-radius, 10px)", border: `1px solid ${c.line}`, background: "var(--card-bg, #fff)" }}>
                     <ChartRenderer report={normalizeReport(m.report)} />
@@ -287,18 +392,21 @@ export default function AIDock({ liftForTabBar = false }: {
             ))}
             {busy && <div style={{ alignSelf: "flex-start", color: c.hint }}>Looking that up…</div>}
           </div>
-          <div style={{ margin: "0 16px 14px", display: "flex", gap: 8, flexShrink: 0 }}>
+          <div className="bms-dock-input" style={{ padding: "8px 16px 14px", display: "flex", gap: 8, flexShrink: 0, background: "var(--card-bg, #fff)" }}>
             <input
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter") sendMessage(); }}
-              placeholder="Ask about your data…"
+              placeholder="Ask, or say where to go…"
+              aria-label="Message the assistant"
               disabled={busy}
-              style={{ flex: 1, border: "1px solid var(--line)", borderRadius: "var(--card-radius, 10px)", padding: "9px 12px", fontSize: 12.5, fontFamily: "inherit", outline: "none" }}
+              style={{ flex: 1, minWidth: 0, border: "1px solid var(--line)", borderRadius: "var(--card-radius, 10px)", padding: "9px 12px", fontSize: 16, fontFamily: "inherit", outline: "none" }}
             />
             <button
+              className="bms-dock-send"
               onClick={sendMessage}
               disabled={busy}
+              aria-label="Send"
               style={{ background: "var(--tenant-accent, #1e3a6e)", color: "#fff", border: "none", borderRadius: "var(--card-radius, 10px)", padding: "9px 14px", fontWeight: 700, fontSize: 12, cursor: "pointer" }}
             >
               →
@@ -311,6 +419,19 @@ export default function AIDock({ liftForTabBar = false }: {
         @keyframes vvcrm-pulse-ring {
           0% { transform: scale(.92); opacity: .5; }
           100% { transform: scale(1.35); opacity: 0; }
+        }
+        /* Phone and narrow tablet: the panel is the whole screen, the input row stays pinned at its bottom edge and
+           every control is at least 44 px. The launcher hides behind it, so the header carries a Close button. */
+        @media (max-width: 899px) {
+          .bms-dock-panel {
+            inset: 0 !important; width: 100% !important; max-width: none !important; max-height: none !important;
+            height: 100dvh; border-radius: 0 !important; border: none !important;
+            padding-top: env(safe-area-inset-top, 0px);
+          }
+          .bms-dock-input { padding-bottom: calc(14px + env(safe-area-inset-bottom, 0px)) !important; border-top: 1px solid var(--line); }
+          .bms-dock-chip, .bms-dock-row, .bms-dock-send, .bms-dock-close { min-height: 44px; min-width: 44px; }
+          .bms-dock-chip-wrap { max-width: 100%; }
+          [data-dock-open="true"] { display: none !important; }
         }
       `}</style>
     </>
