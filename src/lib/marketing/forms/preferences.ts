@@ -44,7 +44,7 @@ export type PreferenceView = {
 
 type Loaded = { tenantId: string; contactId: string; accountId: string; view: PreferenceView };
 
-const WORDS: Record<string, string> = { granted: "Agreed to", withdrawn: "Stopped" };
+const WORDS: Record<string, string> = { granted: "Agreed to", withdrawn: "Stopped", pending: "Asked to confirm" };
 
 export async function loadPreferences(admin: SupabaseClient, contactId: string): Promise<Loaded | null> {
   let c = await admin.from("contacts").select("id, tenant_id, account_id, name, do_not_contact").eq("id", contactId).maybeSingle();

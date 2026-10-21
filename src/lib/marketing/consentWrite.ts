@@ -100,6 +100,60 @@ export async function recordConsent(tenantId: string, input: RecordConsentInput,
   }
 }
 
+export type RecordPendingResult = { ok: true; skipped?: "already_granted" } | { ok: false; error: string; pending?: boolean };
+
+/**
+ * Double opt-in, step one: the person ticked the box but has not yet confirmed by email. Appends ONE
+ * consent_events row with status "pending" and writes nothing to consent_state, so canContact() cannot
+ * read it as a yes and it cannot cover over an earlier real answer. Skipped when the person has
+ * already said yes to this topic (there is nothing to confirm). The confirmation itself is
+ * confirmPendingConsent() in consentConfirm.ts.
+ */
+export async function recordPendingConsent(
+  tenantId: string,
+  input: { contactId: string; channel: ConsentChannel; topic: string | null; source: ConsentSource; evidence?: Record<string, unknown> },
+  client?: SupabaseClient,
+): Promise<RecordPendingResult> {
+  try {
+    if (!CONSENT_CHANNELS.includes(input.channel)) return { ok: false, error: "Unknown channel" };
+    if (!CONSENT_SOURCES.includes(input.source)) return { ok: false, error: "Unknown source" };
+    const db = client ?? createAdminSupabase();
+
+    const { data: contact, error: cErr } = await db
+      .from("contacts").select("id, account_id, country").eq("id", input.contactId).eq("tenant_id", tenantId).maybeSingle();
+    if (cErr) return { ok: false, error: cErr.message };
+    if (!contact) return { ok: false, error: "Contact not found" };
+
+    const [{ data: account }, { data: tenant }] = await Promise.all([
+      db.from("accounts").select("country").eq("id", contact.account_id).eq("tenant_id", tenantId).maybeSingle(),
+      db.from("tenants").select("config").eq("id", tenantId).maybeSingle(),
+    ]);
+    if (input.topic !== null && !topicsOf((tenant?.config ?? null) as Partial<TenantConfig> | null).some((t) => t.key === input.topic)) {
+      return { ok: false, error: "Unknown topic" };
+    }
+
+    const { data: states, error: sErr } = await db
+      .from("consent_state").select("topic, status, since")
+      .eq("tenant_id", tenantId).eq("contact_id", contact.id).eq("channel", input.channel);
+    if (sErr && !isSchemaPending(sErr)) return { ok: false, error: sErr.message };
+    const topic = input.topic ?? "";
+    const applicable = ((states ?? []) as { topic: string | null; status: string; since: string }[]).filter((s) => (s.topic ?? "") === "" || (s.topic ?? "") === topic);
+    const latest = [...applicable].sort((a, b) => Date.parse(b.since) - Date.parse(a.since))[0];
+    if (latest?.status === "granted") return { ok: true, skipped: "already_granted" };
+
+    const jurisdiction = jurisdictionForCountry((contact as { country?: string | null }).country || (account as { country?: string | null } | null)?.country);
+    const { error: eErr } = await db.from("consent_events").insert({
+      tenant_id: tenantId, contact_id: contact.id, account_id: contact.account_id, channel: input.channel, topic: input.topic,
+      status: "pending", basis: "consent", jurisdiction, source: input.source, evidence: input.evidence ?? {}, created_by: null,
+    });
+    if (eErr) return { ok: false, error: eErr.message, pending: isSchemaPending(eErr) || eErr.code === "23514" };
+    return { ok: true };
+  } catch (e) {
+    console.error("[consent] recordPendingConsent failed", e);
+    return { ok: false, error: "Could not record consent" };
+  }
+}
+
 export type ConsentBatchEntry = {
   contactId: string;
   accountId: string | null;

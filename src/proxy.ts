@@ -100,6 +100,10 @@ export async function proxy(request: NextRequest) {
     // is verified before anything is read; the tenant is the contact row's own.
     /^\/marketing\/preferences\/[^/]+\/[^/]+$/.test(pathname) ||
     /^\/api\/marketing\/preferences\/[^/]+\/[^/]+$/.test(pathname) ||
+    // Double opt-in confirm: a signed link with a seven-day expiry (lib/marketing/forms/confirmToken.ts).
+    // Verified before anything is read; opening the page changes nothing, only the button's POST does.
+    /^\/marketing\/confirm\/[^/]+\/[^/]+$/.test(pathname) ||
+    /^\/api\/marketing\/confirm\/[^/]+\/[^/]+$/.test(pathname) ||
     // Public REST API. These carry their own auth -- a per-tenant bearer key
     // (tenants.api_key), resolved by resolveTenantFromBearer() in every single
     // route under /api/v1, which also decides the tenant. Same reasoning as the

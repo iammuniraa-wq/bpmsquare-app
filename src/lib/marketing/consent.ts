@@ -40,7 +40,8 @@ export type ContactDecision = {
 
 export type ConsentStateRow = {
   topic: string; // '' = every topic
-  status: "granted" | "withdrawn";
+  /** "pending" never occurs in consent_state (0197 puts it in the append-only ledger only); it is tolerated and ignored. */
+  status: "granted" | "withdrawn" | "pending";
   since: string;
 };
 
@@ -68,7 +69,8 @@ export function decideContact(i: DecideInput): ContactDecision {
   if (i.channel === "email" && i.accountOptedOut) return { ok: false, reason: "account_opted_out" };
 
   const topic = i.topic ?? "";
-  const applicable = i.states.filter((s) => s.topic === "" || s.topic === topic);
+  // A pending answer (double opt-in, not yet confirmed) is not an answer: it can neither grant nor cover an earlier real one.
+  const applicable = i.states.filter((s) => s.status !== "pending" && (s.topic === "" || s.topic === topic));
   if (applicable.length > 0) {
     // The most recent answer wins; on a tie a withdrawal wins.
     const latest = [...applicable].sort((a, b) => {

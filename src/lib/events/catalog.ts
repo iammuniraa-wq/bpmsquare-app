@@ -77,6 +77,7 @@ export const EVENTS = {
   JOURNEY_EXITED: "journey.exited",
   CONSENT_GRANTED: "consent.granted",
   CONSENT_WITHDRAWN: "consent.withdrawn",
+  CONSENT_CONFIRMED: "consent.confirmed",
   EVENT_REGISTERED: "event.registered",
   EVENT_ATTENDED: "event.attended",
   EVENT_NO_SHOW: "event.no_show",
