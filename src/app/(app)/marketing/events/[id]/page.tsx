@@ -134,7 +134,7 @@ export default async function EventPage({ params, searchParams }: { params: Prom
               </div>
               <div style={{ fontSize: 13, marginTop: 12 }}>{resultsSentence(results, ev.status === "completed" || ev.status === "cancelled")}</div>
               {results.capacity !== null && <div style={{ fontSize: 12.5, color: c.muted, marginTop: 6 }}>Capacity {results.capacity}: {results.over > 0 ? `${results.over} over.` : `${Math.max(0, results.capacity - results.registered)} places left.`}</div>}
-              <div style={{ fontSize: 12, color: c.hint, marginTop: 8 }}>The show rate is people who came out of everyone marked either way. The revenue that events help start is on Revenue by campaign.</div>
+              <div style={{ fontSize: 12, color: c.hint, marginTop: 8 }}>The show rate is people who came out of everyone marked either way. The revenue that events help start is on Revenue by source.</div>
             </Card>
           ),
         },

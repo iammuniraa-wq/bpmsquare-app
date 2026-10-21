@@ -4,7 +4,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import PageHeader from "@/components/PageHeader";
 import Button from "@/components/ui/Button";
-import { Group, StudioTour, cx, studio as styles, type TourStep } from "@/components/marketing/StudioKit";
+import Tour, { type TourStep } from "@/components/marketing/Tour";
+import { Group, cx, studio as styles } from "@/components/marketing/StudioKit";
 import { formatMoney, type CurrencyDef } from "@/lib/currency";
 import {
   ASSET_HINT, ASSET_LABEL, ASSET_TYPES, MODEL_HINT, MODEL_LABEL, MODELS, MODES, MODE_HINT, MODE_LABEL, WINDOW_DAYS, interpretation,
@@ -12,7 +13,7 @@ import {
 } from "@/lib/marketing/attribution/models";
 import type { ReportRow } from "@/lib/marketing/attribution/server";
 
-// "Revenue by campaign" in the studio layout: the choices on the left (each with a one-line hint), the answer on the
+// "Revenue by source" in the studio layout: the choices on the left (each with a one-line hint), the answer on the
 // right, the panel above the answer on a phone. Changing a choice reloads the page with the new choice in the
 // address, so every view can be linked and nothing is computed in the browser.
 
@@ -61,11 +62,11 @@ export default function AttributionStudio({ by, model, mode, rows, computedAt, d
   return (
     <div className={styles.accent}>
       <PageHeader
-        title="Revenue by campaign"
+        title="Revenue by source"
         subtitle={updated ? `Figures updated ${updated}` : "Not calculated yet"}
         action={
           <span className={styles.headRow}>
-            <StudioTour steps={tour} storageKey="bpm.attribution.tour.step" />
+            <Tour steps={tour} storageKey="bpm.attribution.tour.step" />
             {canRefresh && <Button loading={busy} onClick={() => void refresh()}>Refresh figures</Button>}
           </span>
         }

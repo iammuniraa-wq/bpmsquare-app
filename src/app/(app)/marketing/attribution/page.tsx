@@ -17,8 +17,8 @@ export default async function AttributionPage({ searchParams }: { searchParams: 
   if (report.missing) {
     return (
       <>
-        <PageHeader title="Revenue by campaign" />
-        <Card padding={0}><EmptyState title="Revenue by campaign is waiting for a database update" text={pendingMessage(ATTRIBUTION_SPEC)} /></Card>
+        <PageHeader title="Revenue by source" />
+        <Card padding={0}><EmptyState title="Revenue by source is waiting for a database update" text={pendingMessage(ATTRIBUTION_SPEC)} /></Card>
       </>
     );
   }

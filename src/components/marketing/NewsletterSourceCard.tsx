@@ -6,6 +6,7 @@ import { ROUTES } from "@/lib/constants";
 import Card from "@/components/ui/Card";
 import Field from "@/components/ui/Field";
 import type { ComposeNewsletter } from "@/lib/newsletter/composeData";
+import { COMPOSE_TIPS } from "@/lib/marketing/composeTips";
 
 /**
  * "My newsletters" on a campaign: the design kept as a version, the languages this campaign sends
@@ -24,12 +25,12 @@ export default function NewsletterSourceCard({
   const toggle = (lang: string, on: boolean) => onLanguages(on ? [...new Set([...languages, lang])] : languages.filter((l) => l !== lang));
   const select: React.CSSProperties = { width: "100%", padding: "9px 11px", fontSize: 13, border: `1px solid ${c.line}`, borderRadius: 8, background: c.panel, color: c.ink, boxSizing: "border-box" };
   return (
-    <Card title={`Newsletter: ${newsletter.name}`} action={<span style={{ fontSize: 11, color: c.hint }}>version {newsletter.version}</span>}>
-      <p style={{ margin: "0 0 10px", fontSize: 12.5, color: c.muted }}>
-        This campaign sends a newsletter you designed. Each person gets their own language; sending follows the usual consent and unsubscribe rules.{" "}
-        <Link href={ROUTES.marketingNewsletter(newsletter.newsletterId)} style={{ color: c.accent, fontWeight: 600 }}>Open the design</Link>
-      </p>
-      <Field label="Languages to send" hint="Only languages with every line checked can be ticked. Tick more once they are ready.">
+    <Card
+      title={`Newsletter: ${newsletter.name}`}
+      info={COMPOSE_TIPS.newsletter}
+      action={<span style={{ display: "inline-flex", gap: 10, alignItems: "baseline" }}><span style={{ fontSize: 11, color: c.hint }}>version {newsletter.version}</span><Link href={ROUTES.marketingNewsletter(newsletter.newsletterId)} style={{ color: c.accent, fontWeight: 600, fontSize: 12.5 }}>Open the design</Link></span>}
+    >
+      <Field label="Languages to send" info={COMPOSE_TIPS.languages}>
         <div style={{ display: "grid", gap: 6 }}>
           {newsletter.languages.map((l) => (
             <label key={l.lang} style={{ display: "flex", gap: 8, alignItems: "flex-start", fontSize: 13, color: l.ready ? c.ink : c.hint, cursor: l.ready && !readOnly ? "pointer" : "default" }}>
@@ -39,12 +40,12 @@ export default function NewsletterSourceCard({
           ))}
         </div>
       </Field>
-      <Field label="If a person's language is not ticked" hint="Their preferred language is used when it is ticked, then their company's; otherwise this one.">
+      <Field label="If a person's language is not ticked" info={COMPOSE_TIPS.fallback}>
         <select aria-label="Fallback language" style={select} value={fallback} disabled={readOnly} onChange={(e) => onFallback(e.target.value)}>
           {newsletter.languages.filter((l) => languages.includes(l.lang)).map((l) => <option key={l.lang} value={l.lang}>{l.name}</option>)}
         </select>
       </Field>
-      <Field label="Consent topic" info="People agree to consent topics separately. Only people who agreed to this one are emailed." style={{ marginBottom: 0 }}>
+      <Field label="Consent topic" info={COMPOSE_TIPS.consentTopic} style={{ marginBottom: 0 }}>
         <select aria-label="Consent topic" style={select} value={topic ?? ""} disabled={readOnly} onChange={(e) => onTopic(e.target.value || null)}>
           <option value="">Any consent topic</option>
           {newsletter.topics.map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}

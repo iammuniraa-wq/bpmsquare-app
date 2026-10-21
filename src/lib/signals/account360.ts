@@ -28,7 +28,7 @@ export async function buildSignalsCard(
     stats: [
       { label: "Score", value: String(s.score), hint: delta ? `${delta > 0 ? "up" : "down"} ${Math.abs(delta)} this week` : undefined },
       {
-        label: "Stage", value: STAGE_LABEL[s.stage],
+        label: "Buying stage", value: STAGE_LABEL[s.stage],
         hint: s.movement.movedText ?? (s.movement.daysInStage !== null ? `${s.movement.daysInStage} days in stage` : undefined),
         tone: s.stage === "deciding" ? "good" : s.stage === "comparing" ? "neutral" : s.stage === "looking" ? "warn" : undefined,
       },

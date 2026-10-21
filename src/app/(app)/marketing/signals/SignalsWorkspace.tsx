@@ -14,8 +14,11 @@ import { GROUPS, GROUP_ORDER, SOURCE_LABEL, STAGE_LABEL, type SignalTopic, type 
 import { SIGNAL_TIPS } from "@/lib/signals/tips";
 import type { AccountSignals, Workspace, WorkspaceRow } from "@/lib/signals/queries";
 import type { DidItWork } from "@/lib/signals/didItWork";
-import SignalsTour, { type TourStep } from "./SignalsTour";
+import Tour, { type TourStep } from "@/components/marketing/Tour";
 import styles from "./signals.module.css";
+
+// Buying signals keeps its own highlight look (an outline, not a dimmed page); only the behaviour is shared.
+const TOUR_CLASSES = { hl: styles.tourHl, cap: styles.tourCap, n: styles.tourN, btns: styles.tourBtns };
 
 // "Who is in market": the workspace on the right, one Filters group on the left (a bottom sheet on a phone).
 // Labels, values and actions only; every explanation sits behind an "i" (docs/design/ux-simplification.md).
@@ -157,8 +160,8 @@ export default function SignalsWorkspace({ workspace, campaigns, canEdit, isAdmi
         {sheet && <div className={styles.backdrop} onClick={() => setSheet(false)} aria-hidden="true" />}
         <aside className={cx(styles.panel, "bpm-og-panel", sheet && styles.sheetOpen)} aria-label="Filters" {...(sheet ? { role: "dialog", "aria-modal": true } : {})}>
           <OptionGroup id="sgFilters" title="Filters" info={SIGNAL_TIPS.filters} summary={activeFilters ? `${activeFilters} on` : "None"} open={filtersOpen} on onToggle={() => setFiltersOpen((o) => !o)}>
-            <Opt label="Stage" info={SIGNAL_TIPS.stage}>
-              <div className={styles.chips} role="group" aria-label="Stage">
+            <Opt label="Buying stage" info={SIGNAL_TIPS.stage}>
+              <div className={styles.chips} role="group" aria-label="Buying stage">
                 {stageOptions.map((s) => (
                   <button key={s.id} type="button" className={styles.chip} aria-pressed={stage === s.id} onClick={() => { setStage(s.id); showList(); }}>
                     {s.label}<span className={styles.n}>{s.n}</span>
@@ -198,7 +201,7 @@ export default function SignalsWorkspace({ workspace, campaigns, canEdit, isAdmi
               <span className={styles.line}>{updated}</span>
               {onList && <button type="button" className={cx(styles.btn, styles.filterBtn)} aria-haspopup="dialog" onClick={() => setSheet(true)}>Filters{activeFilters ? ` (${activeFilters})` : ""}</button>}
               {isAdmin && <button type="button" className={styles.btn} disabled={busy} onClick={rescore}>Rescore now</button>}
-              <SignalsTour steps={tour} />
+              <Tour steps={tour} storageKey="bpm.signals.tour.step" buttonId="sgTourBtn" classes={TOUR_CLASSES} />
             </div>
           </div>
           {onList && <p className={styles.line}><b>Marketing moved {workspace.moved30} account{workspace.moved30 === 1 ? "" : "s"}</b> up a stage in the last 30 days.</p>}

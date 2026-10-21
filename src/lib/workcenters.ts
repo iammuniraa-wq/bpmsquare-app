@@ -30,7 +30,7 @@ export const WORKCENTERS: { key: WorkcenterKey; label: string }[] = [
   { key: "abm", label: "ABM programs" },
   { key: "marketing_journeys", label: "Journeys" },
   { key: "marketing_whatsapp", label: "WhatsApp" },
-  { key: "marketing_attribution", label: "Revenue by campaign" },
+  { key: "marketing_attribution", label: "Revenue by source" },
   { key: "marketing_events", label: "Events" },
   { key: "leads", label: "Leads" },
   { key: "partners", label: "Partners" },

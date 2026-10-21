@@ -4,7 +4,9 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
+import { Opt } from "@/components/ui/Opt";
 import { cx, studio as styles } from "@/components/marketing/StudioKit";
+import { WA_SETUP_TIPS } from "@/lib/marketing/whatsapp/tips";
 import type { IdentityView } from "@/lib/marketing/whatsapp/identity";
 
 // The admin's side of WhatsApp: the number customers see, which provider sends, the address and signing secret the
@@ -65,18 +67,14 @@ export default function SetupClient({ identity, providers, origin, canEdit, isDe
       <Card title="Number and provider" padding={16}>
         <div style={{ display: "grid", gap: 12, maxWidth: 560 }}>
           {isDemo && <div className={cx(styles.banner, styles.info)}>This is a demo workspace: messages are only logged (or sent to the workspace&apos;s test number), never to a customer.</div>}
-          <div>
-            <label className={styles.lbl} htmlFor="waProvider">Provider</label>
+          <Opt label="Provider" info={WA_SETUP_TIPS.provider} htmlFor="waProvider">
             <select id="waProvider" className={styles.select} value={provider} disabled={!canEdit || busy} onChange={(e) => setProvider(e.target.value)}>
               {providers.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
             </select>
-            <p className={styles.hint}>The provider is not chosen yet, so the sandbox is the only one. It logs every message and sends nothing anywhere. Meta, Twilio and a regional provider plug in here later.</p>
-          </div>
-          <div>
-            <label className={styles.lbl} htmlFor="waNumber">Business number{view?.maskedNumber ? ` (now ${view.maskedNumber})` : ""}</label>
+          </Opt>
+          <Opt label={`Business number${view?.maskedNumber ? ` (now ${view.maskedNumber})` : ""}`} info={WA_SETUP_TIPS.number} htmlFor="waNumber">
             <input id="waNumber" className={styles.field} value={number} disabled={!canEdit || busy} placeholder="+966 5X XXX XXXX" inputMode="tel" autoComplete="off" onChange={(e) => setNumber(e.target.value)} />
-            <p className={styles.hint}>The WhatsApp number customers see. Stored encrypted; only the last three digits are ever shown again.</p>
-          </div>
+          </Opt>
           {chosen?.fields.map((f) => (
             <div key={f.key}>
               <label className={styles.lbl} htmlFor={`waCred${f.key}`}>{f.label}</label>
@@ -93,28 +91,25 @@ export default function SetupClient({ identity, providers, origin, canEdit, isDe
       </Card>
 
       {view && (
-        <Card title="Replies and delivery updates" padding={16}>
+        <Card title="Replies and delivery updates" info={WA_SETUP_TIPS.replies} padding={16}>
           <div style={{ display: "grid", gap: 10, maxWidth: 640 }}>
-            <p className={styles.hint}>Give your provider this address to call when someone replies or a message is delivered. It only accepts calls that carry the signature made with the secret below.</p>
             <input className={styles.field} readOnly value={url} aria-label="Address for your provider to call" onFocus={(e) => e.currentTarget.select()} />
             {secret ? (
               <div className={cx(styles.check, styles.confirm)} role="status">
                 Signing secret (shown once, copy it now): <code style={{ overflowWrap: "anywhere" }}>{secret}</code>
               </div>
             ) : (
-              <p className={styles.hint}>{view.hasWebhookSecret ? "A signing secret is saved. It cannot be shown again; make a new one if it is lost." : "No signing secret yet."}</p>
+              <p className={styles.help}>{view.hasWebhookSecret ? "Signing secret: saved, cannot be shown again" : "Signing secret: none yet"}</p>
             )}
             <div className={styles.row}>
               <Button disabled={!canEdit || busy} onClick={() => void save({ rotate_secret: true })}>Make a new signing secret</Button>
             </div>
-            <p className={styles.hint}>A reply of STOP withdraws that person&apos;s WhatsApp consent straight away; START records it again. A message from a number we do not know creates nothing.</p>
           </div>
         </Card>
       )}
 
-      <Card title="Match my contacts' numbers" padding={16}>
+      <Card title="Match my contacts' numbers" info={WA_SETUP_TIPS.match} padding={16}>
         <div style={{ display: "grid", gap: 10, maxWidth: 640 }}>
-          <p className={styles.hint}>So a reply from someone you have not messaged yet (a START, for example) can be matched to their record. Only a scrambled fingerprint of each number is kept, never the number.</p>
           <div className={styles.row}>
             <Button disabled={!canEdit || busy} onClick={() => void matchNumbers()}>Match numbers</Button>
             {match && <span className={styles.help} role="status">{match}</span>}

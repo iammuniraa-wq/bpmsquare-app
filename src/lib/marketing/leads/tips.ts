@@ -8,7 +8,7 @@ export const LEAD_SCORE_TIPS = {
 
 /** "Why 72?": which rules produced the number. */
 export const whyScoreTip = (rulesVersion: number | string): string =>
-  `Points come from what this person did and who they are, by scoring rules version ${rulesVersion}. Change the rules in Settings, Marketing, Scoring.`;
+  `Points come from what this person did and who they are, by the scoring rules as of version ${rulesVersion}. Change the rules in Settings, Marketing, Scoring.`;
 
 // What the Hand-over screen keeps behind an "i" (docs/design/ux-simplification.md rule 6b). One place so a
 // test holds every text to the InfoTip limit (two sentences, 160 characters).

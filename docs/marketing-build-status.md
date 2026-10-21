@@ -19,8 +19,8 @@ detail page in `docs/shells/`.
 | ABM | `abm` | Programs, target accounts, buying groups, rule-based progress with override, results funnel, Account 360 card, full object surfaces | `shells/abm-shell.md` |
 | Process Design Studio | `process_studio` | Six-step intake to fit report to plan to "Talk to us", admin review | `process-design-studio-architecture.md` |
 
-| WhatsApp | `whatsapp` | Provider-agnostic adapter (log-only sandbox), templates with approval, one consent-gated send, signed inbound webhook, journey step | `shells/whatsapp-shell.md` |
-| Attribution | `marketing_attribution` | Touches ledger, first / last / shared models, three-hourly recompute, Revenue by campaign page | `shells/attribution-shell.md` |
+| WhatsApp | `whatsapp_marketing` | Provider-agnostic adapter (log-only sandbox), templates with approval, one consent-gated send, signed inbound webhook, journey step | `shells/whatsapp-shell.md` |
+| Attribution | `marketing_attribution` | Touches ledger, first / last / shared models, three-hourly recompute, Revenue by source page | `shells/attribution-shell.md` |
 | Events | `marketing_events` | Events with registration through forms, check-in, no-shows, follow-up journey, results | `shells/events-shell.md` |
 
 Also on develop (2026-10-21): screen simplification batches 1 and 2 with the

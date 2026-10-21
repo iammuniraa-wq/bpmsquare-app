@@ -4,7 +4,7 @@ import { consentDefaultsOf, marketingConfigOf, sanitizeConsentDefaults, sanitize
 import { JURISDICTIONS, JURISDICTION_RULES, isJurisdictionCode } from "@/lib/marketing/jurisdictions";
 import { isSchemaPending } from "@/lib/marketing/pending";
 
-// Settings -> Marketing -> Consent and topics. Admin-only; 404 without the
+// Settings -> Marketing -> Consent. Admin-only; 404 without the
 // marketing_scoring program. Two things live here: the topics people can opt
 // in to separately, and the rule that applies to someone with no entry in the
 // consent ledger. The rule defaults to strict ("consent required") and only

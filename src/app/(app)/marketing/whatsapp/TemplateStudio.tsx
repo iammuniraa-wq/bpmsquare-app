@@ -5,7 +5,11 @@ import { useRouter } from "next/navigation";
 import PageHeader from "@/components/PageHeader";
 import Button from "@/components/ui/Button";
 import { useFeel } from "@/components/FeelProvider";
-import { Group, StudioTour, cx, studio as styles, type TourStep } from "@/components/marketing/StudioKit";
+import OptionGroup from "@/components/ui/OptionGroup";
+import { Opt } from "@/components/ui/Opt";
+import Tour, { type TourStep } from "@/components/marketing/Tour";
+import { cx, studio as styles } from "@/components/marketing/StudioKit";
+import { WA_TEMPLATE_TIPS } from "@/lib/marketing/whatsapp/tips";
 import { ROUTES } from "@/lib/constants";
 import {
   CATEGORIES, CATEGORY_HINT, CATEGORY_LABEL, LANGUAGES, LIMITS, STATUS_LABEL, TEMPLATE_VARIABLES, checkBody, renderTemplate, sampleValues,
@@ -13,7 +17,7 @@ import {
 } from "@/lib/marketing/whatsapp/template";
 
 // The WhatsApp template editor in the studio layout every studio-type screen uses: options on the left (each group
-// collapsible, one-line hint always visible), the message as the person will see it on the right, the panel above
+// collapsible, its explanation behind an "i"), the message as the person will see it on the right, the panel above
 // the canvas on a phone, an optional English "Show me how".
 
 export type TemplateInitial = {
@@ -136,13 +140,13 @@ export default function TemplateStudio({ initial, topics, companyName, canEdit, 
 
   // The canvas
   const preview = renderTemplate(body || "Write the message on the left.", { ...sampleValues(), company_name: companyName });
-  const topicLabel = topics.find((t) => t.key === topic)?.label ?? "any subject";
+  const topicLabel = topics.find((t) => t.key === topic)?.label ?? "any consent topic";
   const pill = dirty ? "Unsaved changes" : STATUS_LABEL[status];
 
   const tour: TourStep[] = [
     { target: "basicsSec", text: "Name the template for your team and choose its language. Each language is its own template, because WhatsApp approves them separately.", before: () => setOpen("basicsSec") },
     { target: "messageSec", text: "Write the message. Pick a detail from the list to drop a person's name or a quote number in; the preview on the right shows how it will read.", before: () => setOpen("messageSec") },
-    { target: "topicSec", text: "Choose the subject. Only people who agreed to hear about it on WhatsApp will receive this message.", before: () => setOpen("topicSec") },
+    { target: "topicSec", text: "Choose the consent topic. Only people who agreed to hear about it on WhatsApp will receive this message.", before: () => setOpen("topicSec") },
     { target: "approvalSec", text: "WhatsApp only lets you start a conversation with an approved template. Mark it approved once your provider has accepted it; until then it cannot be sent.", before: () => setOpen("approvalSec") },
     { target: "waCanvas", text: "This is the message as the person sees it, with sample details filled in.", before: () => undefined },
   ];
@@ -155,7 +159,7 @@ export default function TemplateStudio({ initial, topics, companyName, canEdit, 
         badge={<span className={cx(styles.pill, status === "approved" && !dirty && styles.live, status === "rejected" && styles.paused)}>{pill}</span>}
         action={
           <span className={styles.headRow}>
-            <StudioTour steps={tour} storageKey="bpm.whatsapp.tour.step" />
+            <Tour steps={tour} storageKey="bpm.whatsapp.tour.step" />
             <Button variant="primary" disabled={!canEdit || saving || !dirty || !bodyCheck.ok} loading={saving} onClick={() => void save()}>Save</Button>
             {id && (
               <span className={styles.menu}>
@@ -177,77 +181,64 @@ export default function TemplateStudio({ initial, topics, companyName, canEdit, 
 
       <div className={styles.studio}>
         <div className={styles.panel}>
-          <Group id="basicsSec" title="Basics" summary={name || "Unnamed"} hint="Your team's name for it, the language, and what kind of message it is." open={open === "basicsSec"} onToggle={() => toggle("basicsSec")}>
-            <div>
-              <label className={styles.lbl} htmlFor="waName">Name (only your team sees it)</label>
+          <OptionGroup id="basicsSec" title="Basics" info={WA_TEMPLATE_TIPS.basics} summary={name || "Unnamed"} open={open === "basicsSec"} onToggle={() => toggle("basicsSec")}>
+            <Opt label="Name (only your team sees it)" htmlFor="waName">
               <input id="waName" className={styles.field} value={name} maxLength={LIMITS.name} disabled={!canEdit} placeholder="e.g. Quote ready" onChange={(e) => setName(e.target.value)} />
-            </div>
-            <div>
-              <label className={styles.lbl} htmlFor="waLang">Language</label>
+            </Opt>
+            <Opt label="Language" info={WA_TEMPLATE_TIPS.language} htmlFor="waLang">
               <select id="waLang" className={styles.select} value={language} disabled={!canEdit} onChange={(e) => setLanguage(e.target.value)}>
                 {LANGUAGES.map((l) => <option key={l.code} value={l.code}>{l.label}</option>)}
               </select>
-              <p className={styles.hint}>Write English first. For another language, make a second template with the same name.</p>
-            </div>
-            <div>
-              <label className={styles.lbl} htmlFor="waCat">Kind of message</label>
+            </Opt>
+            <Opt label="Kind of message" info={CATEGORY_HINT[category]} htmlFor="waCat">
               <select id="waCat" className={styles.select} value={category} disabled={!canEdit} onChange={(e) => setCategory(e.target.value as TemplateCategory)}>
                 {CATEGORIES.map((k) => <option key={k} value={k}>{CATEGORY_LABEL[k]}</option>)}
               </select>
-              <p className={styles.hint}>{CATEGORY_HINT[category]}</p>
-            </div>
-          </Group>
+            </Opt>
+          </OptionGroup>
 
-          <Group id="messageSec" title="The message" summary={`${body.length} characters`} hint="What the person reads. Details in double braces are filled in for each person." open={open === "messageSec"} onToggle={() => toggle("messageSec")}>
-            <div>
-              <label className={styles.lbl} htmlFor="waBody">Message</label>
+          <OptionGroup id="messageSec" title="The message" info={WA_TEMPLATE_TIPS.message} summary={`${body.length} characters`} open={open === "messageSec"} onToggle={() => toggle("messageSec")}>
+            <Opt label="Message" htmlFor="waBody">
               <textarea id="waBody" ref={bodyRef} className={styles.field} rows={6} value={body} maxLength={LIMITS.body} disabled={!canEdit} onChange={(e) => setBody(e.target.value)} />
               {!bodyCheck.ok && body.trim() !== "" && <p className={styles.help} role="status" style={{ color: "var(--amberink)" }}>{bodyCheck.error}</p>}
-            </div>
-            <div>
-              <span className={styles.lbl}>Add a detail</span>
+            </Opt>
+            <Opt label="Add a detail" info={WA_TEMPLATE_TIPS.addDetail}>
               <div className={styles.chips}>
                 {TEMPLATE_VARIABLES.map((v) => (
                   <button key={v.key} type="button" className={styles.stepBtn} disabled={!canEdit} onClick={() => insertVariable(v.key)}>{v.label}</button>
                 ))}
               </div>
-              <p className={styles.hint}>A message cannot start or end with a detail, so add a few words before and after.</p>
-            </div>
-          </Group>
+            </Opt>
+          </OptionGroup>
 
-          <Group id="topicSec" title="Who may receive it" summary={topicLabel} hint="The subject this message is about. Only people who agreed to it on WhatsApp are sent it." open={open === "topicSec"} onToggle={() => toggle("topicSec")}>
-            <div>
-              <label className={styles.lbl} htmlFor="waTopic">Subject</label>
+          <OptionGroup id="topicSec" title="Who may receive it" info={WA_TEMPLATE_TIPS.topic} summary={topicLabel} open={open === "topicSec"} onToggle={() => toggle("topicSec")}>
+            <Opt label="Consent topic" info={WA_TEMPLATE_TIPS.consentTopic} htmlFor="waTopic">
               <select id="waTopic" className={styles.select} value={topic ?? ""} disabled={!canEdit} onChange={(e) => setTopic(e.target.value || null)}>
-                <option value="">Any subject</option>
+                <option value="">Any consent topic</option>
                 {topics.map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}
               </select>
-              <p className={styles.hint}>Consent is checked again at the moment of sending. A person who replies STOP is never sent another.</p>
-            </div>
-          </Group>
+            </Opt>
+          </OptionGroup>
 
-          <Group id="approvalSec" title="Approval" summary={STATUS_LABEL[status]} hint="WhatsApp must approve a template before you can start a conversation with it." open={open === "approvalSec"} onToggle={() => toggle("approvalSec")}>
-            <div>
-              <label className={styles.lbl} htmlFor="waProv">Name at your provider (optional)</label>
+          <OptionGroup id="approvalSec" title="Approval" info={WA_TEMPLATE_TIPS.approval} summary={STATUS_LABEL[status]} open={open === "approvalSec"} onToggle={() => toggle("approvalSec")}>
+            <Opt label="Name at your provider (optional)" info={WA_TEMPLATE_TIPS.providerName} htmlFor="waProv">
               <input id="waProv" className={styles.field} value={providerName} maxLength={80} disabled={!canEdit} placeholder="quote_ready" onChange={(e) => setProviderName(e.target.value)} />
-              <p className={styles.hint}>The name you registered the template under, if it differs. Letters, numbers and underscores.</p>
-            </div>
+            </Opt>
             {id ? (
               <div className={styles.row}>
                 <Button variant="primary" disabled={!canEdit || !isAdmin || saving || status === "approved" || !bodyCheck.ok} onClick={() => void setApproval("approved")}>Mark approved</Button>
                 <Button disabled={!canEdit || saving || status === "rejected"} onClick={() => void setApproval("rejected")}>Mark rejected</Button>
                 <Button variant="quiet" disabled={!canEdit || saving || status === "draft"} onClick={() => void setApproval("draft")}>Back to draft</Button>
               </div>
-            ) : <p className={styles.hint}>Save the template first, then mark it approved.</p>}
+            ) : <p className={styles.help}>Save the template first, then mark it approved.</p>}
             {id && status === "rejected" && (
               <div>
                 <label className={styles.lbl} htmlFor="waRej">Why it was rejected</label>
                 <input id="waRej" className={styles.field} value={rejection} maxLength={LIMITS.reason} disabled={!canEdit} onChange={(e) => setRejection(e.target.value)} />
               </div>
             )}
-            {!isAdmin && <p className={styles.hint}>Only an admin can mark a template approved.</p>}
-            <p className={styles.hint}>In this version there is no live connection to WhatsApp, so you set the status yourself after your provider has approved the template.</p>
-          </Group>
+            {!isAdmin && <p className={styles.help}>Only an admin can mark a template approved.</p>}
+          </OptionGroup>
         </div>
 
         <div className={styles.canvas} id="waCanvas">

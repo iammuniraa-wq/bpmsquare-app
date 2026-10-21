@@ -3,6 +3,8 @@
 import { useMemo, useState } from "react";
 import { c } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
+import InfoTip from "@/components/ui/InfoTip";
+import { COMPOSE_TIPS } from "@/lib/marketing/composeTips";
 import { MARKETING_TEMPLATES, escapeCustomMessage, type MarketingTemplateId } from "@/lib/marketingTemplates";
 
 const lbl: React.CSSProperties = {
@@ -149,9 +151,11 @@ export default function TemplatePicker({
       </div>
 
       <div style={{ marginBottom: 12 }}>
-        <label style={lbl}>Subject</label>
-        <input style={inp} value={subject} onChange={(e) => onSubjectChange(e.target.value)} placeholder={template.defaultSubject} />
-        <div style={{ fontSize: 11, color: c.hint, marginTop: 4 }}>Use {"{{account_name}}"} and {"{{company_name}}"} — replaced per recipient.</div>
+        <div className="bpm-label-row" style={{ marginBottom: 5 }}>
+          <label htmlFor="tpSubject" style={{ ...lbl, marginBottom: 0 }}>Subject</label>
+          <InfoTip label="Subject">{COMPOSE_TIPS.subject}</InfoTip>
+        </div>
+        <input id="tpSubject" style={inp} value={subject} onChange={(e) => onSubjectChange(e.target.value)} placeholder={template.defaultSubject} />
       </div>
 
       <div style={{ marginBottom: 14 }}>
