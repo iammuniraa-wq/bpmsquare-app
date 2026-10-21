@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { ROUTES } from "@/lib/constants";
+import { SETTINGS_TIPS } from "@/lib/settingsTips";
 import { c } from "@/lib/theme";
 import { useTenant } from "@/lib/tenant-context";
 import SettingsPageHeader from "@/components/settings/SettingsPageHeader";
@@ -42,10 +43,10 @@ export default function CompanyProfilePage() {
 
   return (
     <div style={{ maxWidth: 680 }}>
-      <SettingsPageHeader title="Company profile" subtitle="Your organisation's name, shown in the sidebar header." />
+      <SettingsPageHeader title="Company profile" info={SETTINGS_TIPS.company} />
       <SettingsSave dirty={wsNameDirty} saving={wsSaving} saved={saved} error={error} onSave={saveWorkspaceName} />
 
-      <Section title="Workspace name" description="Your organisation's name, shown in the sidebar header.">
+      <Section title="Workspace name">
         <Input
           aria-label="Workspace name"
           value={wsName}

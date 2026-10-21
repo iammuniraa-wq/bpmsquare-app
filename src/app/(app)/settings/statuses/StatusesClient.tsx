@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { c } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
+import InfoTip from "@/components/ui/InfoTip";
+import { SETTINGS_TIPS } from "@/lib/settingsTips";
 import { SettingsSave } from "@/components/settings/SettingsHeaderActions";
 import { useSettingsDirty } from "@/components/settings/useSettingsDirty";
 import { DEFAULT_QUOTE_STATUSES, type QuoteStatusDef } from "@/lib/constants";
@@ -100,12 +102,6 @@ export default function StatusesClient({ initial }: { initial: QuoteStatusDef[] 
 
   return (
     <div style={{ maxWidth: 680 }}>
-      <div style={{ ...cardStyle, padding: "20px 24px", marginBottom: 20 }}>
-        <div style={{ fontSize: 13, color: c.muted, lineHeight: 1.6 }}>
-          Define the pipeline stages for quotations. The <strong>value</strong> (key) is stored in the database — once a quote has that status, renaming the value will break existing records. The <strong>label</strong> is what users see and can be changed freely.
-        </div>
-      </div>
-
       <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 16 }}>
         {statuses.map((s, idx) => (
           <div key={idx} style={{ ...cardStyle, padding: "14px 16px", display: "flex", alignItems: "flex-start", gap: 12 }}>
@@ -133,7 +129,7 @@ export default function StatusesClient({ initial }: { initial: QuoteStatusDef[] 
             {/* Fields */}
             <div style={{ flex: 1, display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px 12px" }}>
               <div>
-                <label style={lbl}>Value (key)</label>
+                <div style={{ ...lbl, display: "flex", alignItems: "center" }}>Value (key)<InfoTip label="Value (key)">{SETTINGS_TIPS.statusKey}</InfoTip></div>
                 <input
                   style={inp}
                   placeholder="e.g. po_received"

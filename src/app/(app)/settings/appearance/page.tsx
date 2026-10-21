@@ -9,6 +9,8 @@ import { useTenant } from "@/lib/tenant-context";
 import SettingsPageHeader from "@/components/settings/SettingsPageHeader";
 import { SettingsInstantStatus } from "@/components/settings/SettingsHeaderActions";
 import { Section, Toggle, useSavedFlash } from "@/components/settings/generalShared";
+import InfoTip from "@/components/ui/InfoTip";
+import { SETTINGS_TIPS } from "@/lib/settingsTips";
 
 // Nova's own accent presets -- independent of ACCENT_PRESETS (classic/nextgen
 // chrome). "Pink" (color: null) is Nova's shipped default -- it maps to no
@@ -199,14 +201,10 @@ export default function ThemeAndColoursPage() {
 
   return (
     <div style={{ maxWidth: 680 }}>
-      <SettingsPageHeader title="Theme & colours" subtitle="Applies to your whole workspace — every user, every device." />
+      <SettingsPageHeader title="Theme & colours" info={SETTINGS_TIPS.appearance} />
       <SettingsInstantStatus saved={saved} saving={themeSaving || apSaving} />
 
-      <Section
-        id="appearance"
-        title=""
-        description="Applies to your whole workspace — every user, every device."
-      >
+      <Section id="appearance" title="">
         <div style={{ marginBottom: 20 }}>
           <div className="bpm-t-label" style={{ marginBottom: 10 }}>Theme</div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 10 }}>
@@ -276,8 +274,7 @@ export default function ThemeAndColoursPage() {
         </div>
         {tenant?.features?.next_experience === true && (
           <div style={{ marginBottom: 20, paddingTop: 16, borderTop: `1px solid ${c.line}` }}>
-            <div className="bpm-t-label" style={{ marginBottom: 4 }}>Nova accent colour</div>
-            <div className="bpm-t-help" style={{ marginBottom: 10 }}>The signature hue Nova uses for its command bar, tab underline and highlights — independent of the accent colour above.</div>
+            <LabelWithTip label="Nova accent colour" tip={SETTINGS_TIPS.novaAccent} />
             <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
               {NOVA_ACCENT_PRESETS.map((preset) => {
                 const selected = novaAccentColor === "" ? preset.color === null : novaAccentColor.toLowerCase() === preset.color?.toLowerCase();
@@ -302,12 +299,7 @@ export default function ThemeAndColoursPage() {
           </div>
         )}
         <div style={{ marginBottom: 20, paddingTop: 16, borderTop: `1px solid ${c.line}` }}>
-          <div className="bpm-t-label" style={{ marginBottom: 4 }}>Dashboard</div>
-          <div className="bpm-t-help" style={{ marginBottom: 10 }}>
-            Which dashboard the workspace opens on. Everyone can switch between the two from the
-            dashboard itself — this only sets where they start, and neither choice touches anyone&apos;s
-            saved layout.
-          </div>
+          <LabelWithTip label="Dashboard" tip={SETTINGS_TIPS.dashboard} />
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
             {([
               { value: "curated" as const, label: "Curated", desc: "A fixed set of cards, in a set order" },
@@ -336,12 +328,7 @@ export default function ThemeAndColoursPage() {
         </div>
         {theme === "spectacular_purple" && (
           <div style={{ marginBottom: 20, paddingTop: 16, borderTop: `1px solid ${c.line}` }}>
-            <div className="bpm-t-label" style={{ marginBottom: 4 }}>Spectacular colours</div>
-            <div className="bpm-t-help" style={{ marginBottom: 12 }}>
-              The shell is a blend of two colours, so pick a mix — or set each end yourself.
-              The accent is the third: it colours links, buttons and the active nav row, and is
-              read as text on white, so it stays darker than the shell on purpose.
-            </div>
+            <LabelWithTip label="Spectacular colours" tip={SETTINGS_TIPS.spectacular} />
 
             {/* The live shell, not a description of it. Everything below sets
                 the same three values this strip is drawn from, so what you see
@@ -426,20 +413,16 @@ export default function ThemeAndColoursPage() {
             classic/modern build their chrome differently. */}
         {theme === "nextgen" && (
           <div style={{ marginBottom: 4, paddingTop: 16, borderTop: `1px solid ${c.line}` }}>
-            <div className="bpm-t-label" style={{ marginBottom: 4 }}>Layout</div>
-            <div className="bpm-t-help" style={{ marginBottom: 4 }}>
-              These come with Next-gen and are on already — turn one off if you don&apos;t want it.
-              Changing one reloads the page.
-            </div>
+            <LabelWithTip label="Layout" tip={SETTINGS_TIPS.layout} />
             {([
-              { key: "top_bar_identity" as const, label: "Sign-in name in the top right", hint: "Moves your name and sign-out out of the sidebar footer into the top bar, and frees up the bottom of the rail." },
-              { key: "command_palette" as const, label: "Command palette on Ctrl + K", hint: "One key opens a search-and-jump box over the page — records, screens, and \"new …\" actions. Search in the top bar keeps working; it just stops answering Ctrl + K." },
-              { key: "navy_sidebar" as const, label: "Navy sidebar in light mode", hint: "Dark navy left rail against the light workspace, with bright nav text and a clearly marked selected item. Dark mode is unaffected." },
+              { key: "top_bar_identity" as const, label: "Sign-in name in the top right", hint: SETTINGS_TIPS.layoutIdentity },
+              { key: "command_palette" as const, label: "Command palette on Ctrl + K", hint: SETTINGS_TIPS.layoutPalette },
+              { key: "navy_sidebar" as const, label: "Navy sidebar in light mode", hint: SETTINGS_TIPS.layoutNavy },
             ]).map(({ key, label, hint }, i) => (
               <div key={key} style={{ display: "flex", alignItems: "center", gap: 14, padding: "12px 0", borderTop: i > 0 ? `1px solid ${c.line}` : "none" }}>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 13, fontWeight: 500, color: c.ink }}>{label}</div>
-                  <div className="bpm-t-help" style={{ marginTop: 2 }}>{hint}</div>
+                <div style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center" }}>
+                  <span style={{ fontSize: 13, fontWeight: 500, color: c.ink }}>{label}</span>
+                  <InfoTip label={label}>{hint}</InfoTip>
                 </div>
                 <Toggle on={chrome[key]} onChange={(v) => !apSaving && saveChrome(key, v)} accent={accent} />
               </div>
@@ -449,12 +432,23 @@ export default function ThemeAndColoursPage() {
 
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingTop: 14, borderTop: `1px solid ${c.line}` }}>
           <div>
-            <div style={{ fontSize: 13, fontWeight: 500, color: c.ink }}>Compact sidebar</div>
-            <div className="bpm-t-help" style={{ marginTop: 2 }}>Reduce padding between navigation items</div>
+            <div style={{ display: "flex", alignItems: "center" }}>
+              <span style={{ fontSize: 13, fontWeight: 500, color: c.ink }}>Compact sidebar</span>
+              <InfoTip label="Compact sidebar">{SETTINGS_TIPS.compactSidebar}</InfoTip>
+            </div>
           </div>
           <Toggle on={compactSidebar} onChange={(v) => !apSaving && saveCompactSidebar(v)} accent={accent} />
         </div>
       </Section>
+    </div>
+  );
+}
+
+function LabelWithTip({ label, tip }: { label: string; tip: string }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", marginBottom: 10 }}>
+      <span className="bpm-t-label">{label}</span>
+      <InfoTip label={label}>{tip}</InfoTip>
     </div>
   );
 }

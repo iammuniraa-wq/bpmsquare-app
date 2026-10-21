@@ -7,6 +7,8 @@ import { Section } from "@/components/settings/generalShared";
 import { settingsInput as inp } from "@/components/settings/SettingsField";
 import { useTenant } from "@/lib/tenant-context";
 import { DEFAULT_NEWS_TOPICS_LABEL } from "@/lib/constants";
+import InfoTip from "@/components/ui/InfoTip";
+import { SETTINGS_TIPS } from "@/lib/settingsTips";
 
 type Extras = { business_news?: boolean; product_tips?: boolean; news_topics?: string[] };
 
@@ -70,15 +72,9 @@ export default function DashboardContentSection({ accent }: { accent: string }) 
   return (
     <div style={{ marginBottom: 12 }}>
       <Section title="">
-        <p className="bpm-t-help" style={{ margin: "0 0 14px" }}>
-          Blocks that have something to show before this workspace has data of its own.
-          Switching one on adds it to everyone&apos;s dashboard; they can move or resize it,
-          but not remove it.
-        </p>
-
         <Row
           label="Business news"
-          hint="Headlines for the topics below. Unlike Client news, this needs no accounts — it has content on day one."
+          hint={SETTINGS_TIPS.businessNews}
           on={news} onChange={setNews} accent={accent}
         />
 
@@ -93,15 +89,12 @@ export default function DashboardContentSection({ accent }: { accent: string }) 
               onChange={(e) => setTopics(e.target.value)}
               placeholder={DEFAULT_NEWS_TOPICS_LABEL}
             />
-            <div style={{ fontSize: 10.5, color: c.hint, marginTop: 4 }}>
-              Leave blank for the default: {DEFAULT_NEWS_TOPICS_LABEL}
-            </div>
           </div>
         )}
 
         <Row
           label="Tips & shortcuts"
-          hint="Rotating cards covering things the nav doesn't reveal — bulk import, custom fields, quote templates, API keys. Only tips for modules this workspace has are shown."
+          hint={SETTINGS_TIPS.productTips}
           on={tips} onChange={setTips} accent={accent}
         />
 
@@ -112,10 +105,10 @@ export default function DashboardContentSection({ accent }: { accent: string }) 
 }
 
 function Row({ label, hint, on, onChange, accent }: {
-  label: string; hint: string; on: boolean; onChange: (v: boolean) => void; accent: string;
+  label: string; hint: React.ReactNode; on: boolean; onChange: (v: boolean) => void; accent: string;
 }) {
   return (
-    <div style={{ display: "flex", gap: 12, alignItems: "flex-start", marginBottom: 14 }}>
+    <div style={{ display: "flex", gap: 12, alignItems: "center", marginBottom: 14 }}>
       <button
         type="button"
         role="switch"
@@ -136,8 +129,10 @@ function Row({ label, hint, on, onChange, accent }: {
         }} />
       </button>
       <div style={{ minWidth: 0 }}>
-        <div style={{ fontSize: 12.5, fontWeight: 600, color: c.ink }}>{label}</div>
-        <div className="bpm-t-help" style={{ marginTop: 2 }}>{hint}</div>
+        <div style={{ display: "flex", alignItems: "center" }}>
+          <span style={{ fontSize: 12.5, fontWeight: 600, color: c.ink }}>{label}</span>
+          <InfoTip label={label}>{hint}</InfoTip>
+        </div>
       </div>
     </div>
   );

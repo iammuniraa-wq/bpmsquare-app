@@ -4,6 +4,7 @@ import { useSettings, ACCENT_PRESETS } from "@/lib/settings";
 import { useTenant, useUserRole } from "@/lib/tenant-context";
 import SettingsPageHeader from "@/components/settings/SettingsPageHeader";
 import { AdminOnlyNotice } from "@/components/settings/generalShared";
+import { SETTINGS_TIPS } from "@/lib/settingsTips";
 import CurrencySection from "./CurrencySection";
 
 export default function CurrencySectionPage() {
@@ -14,7 +15,7 @@ export default function CurrencySectionPage() {
 
   return (
     <div style={{ maxWidth: 680 }}>
-      <SettingsPageHeader title="Currency" subtitle="How every amount in this workspace is shown, printed and emailed." />
+      <SettingsPageHeader title="Currency" info={SETTINGS_TIPS.currency} />
       {role === "admin" ? <CurrencySection accent={accent} /> : <AdminOnlyNotice what="change the workspace currency" />}
     </div>
   );

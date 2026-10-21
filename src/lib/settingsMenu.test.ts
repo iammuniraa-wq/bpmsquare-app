@@ -29,7 +29,7 @@ describe("visibleSettingsMenu", () => {
     expect(ids(withGrant)).not.toContain("team");
   });
 
-  it("gates Pipeline & quote statuses by Quotations (what the page edits), Asset print fields by Assets", () => {
+  it("gates Quote statuses by Quotations (what the page edits), Asset print fields by Assets", () => {
     const ids = (features: Record<string, boolean>) =>
       visibleSettingsMenu({ isAdmin: true, canEdit: () => true, features }).flatMap((g) => g.items.map((m) => m.id));
     expect(ids({ assets: true })).toContain("asset-print-fields");
@@ -38,12 +38,24 @@ describe("visibleSettingsMenu", () => {
     expect(ids({ quotations: true })).not.toContain("asset-print-fields");
   });
 
-  it("keeps Pipeline & quote statuses in Sales and Asset print fields in Service", () => {
+  it("keeps Quote statuses in Sales and Asset print fields in Service", () => {
     const menu = visibleSettingsMenu({ isAdmin: true, canEdit: () => true, features: { quotations: true, assets: true } });
     const groupOf = (id: string) => menu.find((g) => g.items.some((i) => i.id === id))?.id;
     expect(groupOf("statuses")).toBe("sales");
     expect(groupOf("asset-print-fields")).toBe("service");
     expect(groupOf("coverage")).toBeUndefined();
+  });
+
+  it("names Quote statuses for what it edits and keeps the old name searchable", () => {
+    const entry = SETTINGS_MENU.find((i) => i.id === "statuses");
+    expect(entry?.label).toBe("Quote statuses");
+    expect(entry?.keywords).toContain("pipeline");
+  });
+
+  it("describes Developer and Connectors without stale claims", () => {
+    const all = SETTINGS_MENU;
+    expect(all.find((i) => i.id === "developer")?.description).not.toMatch(/endpoints|catalogue/i);
+    expect(all.find((i) => i.id === "connectors")?.description).not.toMatch(/today|on the way/i);
   });
 
   it("lists the eight Workforce pages together, gated on the module and admin", () => {

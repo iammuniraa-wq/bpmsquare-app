@@ -7,6 +7,7 @@ import { c } from "@/lib/theme";
 import { useSettings } from "@/lib/settings";
 import { useTenant } from "@/lib/tenant-context";
 import SettingsPageHeader from "@/components/settings/SettingsPageHeader";
+import { SETTINGS_TIPS } from "@/lib/settingsTips";
 import Button from "@/components/ui/Button";
 import { Section, useSavedFlash } from "@/components/settings/generalShared";
 
@@ -38,13 +39,9 @@ export default function ResetLayoutPage() {
 
   return (
     <div style={{ maxWidth: 680 }}>
-      <SettingsPageHeader title="Reset layout" subtitle="Restore navigation visibility and the compact sidebar to their defaults." />
+      <SettingsPageHeader title="Reset layout" info={SETTINGS_TIPS.reset} />
 
       <Section id="reset" title="">
-        <p className="bpm-t-help" style={{ margin: "0 0 14px" }}>
-          Restore navigation visibility and compact sidebar to defaults, for the whole workspace. Accent colour and
-          workspace name aren't reset since there's no default to go back to. Your data is not affected.
-        </p>
         <Button variant="danger" onClick={resetTenantDefaults} loading={resetting}>
           {resetting ? "Resetting…" : "Reset navigation & layout to defaults"}
         </Button>

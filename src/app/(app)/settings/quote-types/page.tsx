@@ -10,6 +10,7 @@ import { useTenant } from "@/lib/tenant-context";
 import SettingsPageHeader from "@/components/settings/SettingsPageHeader";
 import { SettingsSave } from "@/components/settings/SettingsHeaderActions";
 import { FileText, Wrench, BarChart2, Package, CalendarCheck, Zap } from "@/components/Icons";
+import { SETTINGS_TIPS } from "@/lib/settingsTips";
 import EmptyState from "@/components/ui/EmptyState";
 import { Section, Toggle, useSavedFlash } from "@/components/settings/generalShared";
 
@@ -68,15 +69,11 @@ export default function QuoteTypesPage() {
 
   return (
     <div style={{ maxWidth: 680 }}>
-      <SettingsPageHeader title="Quote types" subtitle="Show or hide offer types in the New Quotation picker. Hidden types (including Coming Soon ones you don't need) won't appear there at all." />
+      <SettingsPageHeader title="Quote types" info={SETTINGS_TIPS.quoteTypes} />
       <SettingsSave dirty={qtDirty} saving={qtSaving} saved={saved} error={qtError} onSave={saveQtTypes} />
 
       {tenantFeatures?.quotations === true ? (
-      <Section
-        id="quote-types"
-        title=""
-        description="Show or hide offer types in the New Quotation picker. Hidden types (including Coming Soon ones you don't need) won't appear there at all."
-      >
+      <Section id="quote-types" title="">
         <div style={{ display: "flex", flexDirection: "column" }}>
           {QUOTE_TYPES.map((qt, idx) => {
             const visible = isQtVisible(qt.id as QuoteTypeId);
