@@ -20,6 +20,7 @@ import ObjectSections from "@/components/fields/ObjectSections";
 import QuickCreateDeck from "@/components/QuickCreateDeck";
 import { Gear, Activity as ActivityIcon, Package, FileText, Phone } from "@/components/Icons";
 import ObjectRecordPage from "@/components/page/ObjectRecordPage";
+import ExternalRecordSlot from "@/components/ExternalRecordSlot";
 import RecordMoreMenu from "@/components/page/RecordMoreMenu";
 import RecordActivity from "@/components/page/RecordActivity";
 import RelatedList from "@/components/page/RelatedList";
@@ -452,6 +453,7 @@ export default async function AccountHubPage({
         { label: "Email", value: account.email ? <a href={`mailto:${account.email}`} style={{ color: "inherit", textDecoration: "none" }}>{account.email}</a> : "—" },
         { label: "Customer since", value: fmtDate(account.created_at) },
       ]}
+      externalLine={<ExternalRecordSlot objectType="accounts" objectId={account.id} />}
       basePath={basePath}
       explicitFirstTab
       activeTab={rawTab}

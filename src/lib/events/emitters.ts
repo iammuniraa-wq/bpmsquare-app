@@ -32,6 +32,20 @@ export function emitQuoteStatusChanged(
   });
 }
 
+/** quote.awarded / quote.rejected: the integration-middleware vocabulary for a Standard Quote that
+ *  became accepted / rejected. Sits next to quote.status_changed, which is still emitted. */
+export function emitQuoteOutcome(
+  tenantId: string,
+  p: Actor & { quoteId: string; outcome: "awarded" | "rejected"; ref?: string | null; total?: number | null; accountId?: string | null; contactId?: string | null },
+) {
+  return emitEvent(tenantId, {
+    name: p.outcome === "awarded" ? EVENTS.QUOTE_AWARDED : EVENTS.QUOTE_REJECTED, object_type: "standard_quote", object_id: p.quoteId, actor_id: p.actorId,
+    account_id: p.accountId, contact_id: p.contactId,
+    key: `${p.quoteId}:${p.outcome}:${new Date().toISOString().slice(0, 16)}`,
+    payload: { ref: p.ref ?? null, total: p.total ?? null },
+  });
+}
+
 export function emitOpportunityCreated(
   tenantId: string,
   p: Actor & { opportunityId: string; ref?: string | null; stage: string; source?: string | null; accountId: string; contactId?: string | null; leadId?: string | null },

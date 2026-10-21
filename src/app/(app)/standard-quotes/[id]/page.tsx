@@ -21,6 +21,7 @@ import { rfqLineStatuses } from "@/lib/rfq/server";
 import { selectedLines } from "@/lib/sales/lineTotals";
 import { pricingOnStandardQuotes } from "../formData";
 import ObjectRecordPage from "@/components/page/ObjectRecordPage";
+import ExternalRecordSlot from "@/components/ExternalRecordSlot";
 import RecordMoreMenu from "@/components/page/RecordMoreMenu";
 import RecordActivity from "@/components/page/RecordActivity";
 import RelatedList from "@/components/page/RelatedList";
@@ -118,6 +119,7 @@ export default async function StandardQuoteDetailPage({
         { label: "Valid until", value: fmtDate(quote.valid_until) },
         ...(contact ? [{ label: "Contact", value: contact.name }] : []),
       ]}
+      externalLine={<ExternalRecordSlot objectType="standard_quotes" objectId={quote.id} />}
       basePath={basePath}
       activeTab={tab}
       tabs={[

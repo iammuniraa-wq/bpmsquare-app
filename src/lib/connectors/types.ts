@@ -45,6 +45,8 @@ export type OAuthProvider = {
 export type ConnectorDef = {
   id: string;
   name: string;
+  /** The short name used on record pages ("Dynamics 365"); falls back to `name`. */
+  shortName?: string;
   description: string;
   icon: string;
   authType: ConnectorAuthType;
@@ -59,6 +61,10 @@ export type ConnectorDef = {
   /** A connector too rich for the tile's inline form (several login types,
    * entity maps, sync runs) has its own settings page; the tile links there. */
   configureHref?: string;
+  /** A connector that syncs with another system: with the `integration_middleware`
+   * flag on, it is configured and run from Settings -> Integration middleware (one
+   * chip per connector in its switcher), and its tile here only links there. */
+  middleware?: boolean;
 };
 
 export type TenantConnectorRow = {

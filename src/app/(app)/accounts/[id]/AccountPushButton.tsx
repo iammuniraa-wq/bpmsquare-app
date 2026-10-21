@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Button from "@/components/ui/Button";
+import { useTenantFeature } from "@/lib/tenant-context";
 
 // On-demand push of this account to the tenant's configured external
 // endpoint (Settings -> Push to external systems). See lib/webhookPush.ts.
@@ -11,6 +12,8 @@ import Button from "@/components/ui/Button";
 // rather than deleted -- the route behind it is live and this is the working
 // UI for it, waiting on a decision about where it belongs.
 export default function AccountPushButton({ accountId }: { accountId: string }) {
+  // With the Integration middleware on, sending a record is done in Resync -> Send a record.
+  const middleware = useTenantFeature("integration_middleware");
   const [state, setState] = useState<"idle" | "pushing" | "sent" | "error">("idle");
   const [error, setError] = useState("");
 
@@ -28,6 +31,8 @@ export default function AccountPushButton({ accountId }: { accountId: string }) 
       setState("error");
     }
   }
+
+  if (middleware) return null;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 3 }}>

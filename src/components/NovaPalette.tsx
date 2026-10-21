@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { NAV } from "@/lib/constants";
+import { NAV, ROUTES } from "@/lib/constants";
 import { CREATE_ACTIONS } from "@/lib/createActions";
 import type { NavItem } from "@/lib/constants";
 import type { SearchResult } from "@/lib/globalSearch";
@@ -137,6 +137,11 @@ export default function NovaPalette() {
           nav.push({ kind: "nav", label: child.label, sub: item.label, href: child.href });
         }
       }
+    }
+
+    // Settings pages are not in NAV; the one Integrations door the owner asked for is offered by name.
+    if (features?.integration_middleware === true && viewable === "all") {
+      nav.push({ kind: "nav", label: "Integration middleware", sub: "Integrations", href: ROUTES.settingsMiddleware });
     }
 
     const create: Item[] = CREATE_ACTIONS

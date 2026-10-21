@@ -16,6 +16,7 @@ import type { WorkOrderStatus } from "@/lib/types";
 import { Zap, Gear, Droplet, Battery, Activity } from "@/components/Icons";
 import RecordRfqsCard from "@/components/rfq/RecordRfqsCard";
 import ObjectRecordPage from "@/components/page/ObjectRecordPage";
+import ExternalRecordSlot from "@/components/ExternalRecordSlot";
 import RecordMoreMenu from "@/components/page/RecordMoreMenu";
 import RecordActivity from "@/components/page/RecordActivity";
 
@@ -230,6 +231,7 @@ export default async function WorkOrderDetailPage({
         { label: "Scheduled", value: wo.scheduled_for ? fmtDate(wo.scheduled_for) : "—" },
         ...(quote ? [{ label: "Quote value", value: formatMoney(quote.total, cur, {}) }] : []),
       ]}
+      externalLine={<ExternalRecordSlot objectType="work_orders" objectId={id} />}
       basePath={basePath}
       activeTab={tab}
       tabs={[

@@ -7,12 +7,13 @@ import { c } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
 import { CONNECTOR_ICONS } from "@/components/connectorIcons";
 import type { ConnectorDef, TenantConnectorRow } from "@/lib/connectors/types";
+import { connectorTileHref } from "@/app/(app)/settings/middleware/connectors";
 
 type State = { catalog: ConnectorDef[]; connected: TenantConnectorRow[] } | null;
 
 const SPRING = { type: "spring" as const, stiffness: 420, damping: 38, mass: 0.9 };
 
-export default function ConnectorsClient() {
+export default function ConnectorsClient({ middlewareOn = false }: { middlewareOn?: boolean }) {
   const [state, setState] = useState<State>(null);
   const [loading, setLoading] = useState(true);
   // Only one tile is ever expanded -- lifted up here (not local to each
@@ -65,6 +66,7 @@ export default function ConnectorsClient() {
               key={def.id}
               def={def}
               row={row}
+              middlewareOn={middlewareOn}
               expanded={expanded}
               onOpen={() => setExpandedId(def.id)}
               onClose={() => setExpandedId(null)}
@@ -104,9 +106,9 @@ function statusBadge(connected: boolean) {
 }
 
 function ConnectorTile({
-  def, row, expanded, onOpen, onClose, onChange,
+  def, row, expanded, onOpen, onClose, onChange, middlewareOn,
 }: {
-  def: ConnectorDef; row: TenantConnectorRow | null; expanded: boolean;
+  def: ConnectorDef; row: TenantConnectorRow | null; expanded: boolean; middlewareOn: boolean;
   onOpen: () => void; onClose: () => void; onChange: () => void;
 }) {
   const [editing, setEditing] = useState(false);
@@ -225,8 +227,8 @@ function ConnectorTile({
               )}
 
               {def.configureHref && (
-                <a href={def.configureHref} style={{ ...actionBtn(c.accent), textDecoration: "none", display: "inline-flex" }}>
-                  {connected ? "Open settings" : "Set up"}
+                <a href={connectorTileHref(def, middlewareOn)} style={{ ...actionBtn(c.accent), textDecoration: "none", display: "inline-flex" }}>
+                  {middlewareOn && def.middleware ? "Managed in Integration middleware" : connected ? "Open settings" : "Set up"}
                 </a>
               )}
 

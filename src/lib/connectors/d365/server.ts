@@ -6,6 +6,7 @@ import { insertWithMasterRef, type MasterRefTable } from "@/lib/masterRef";
 import { logChangeBatch, type ChangeLogEntryParams } from "@/lib/changeLog";
 import type { TenantFeatures } from "@/lib/constants";
 import { stampContactEmailHash } from "@/lib/marketing/contactEmailHash";
+import { recordConnectorRun } from "@/lib/middleware/messages";
 import { D365Client, D365Error } from "./odata";
 import { buildClientAssertion, certDerFromPem, tokenUrl, validDirectory } from "./jwt";
 import { entityConfig, apiBase, resourceFor, allowedHost, sovereignHost } from "./catalog";
@@ -312,6 +313,11 @@ export async function runPull(admin: SupabaseClient, tenantId: string, key: Excl
   const started = await startRun(admin, tenantId, key, "pull", opts.trigger, opts.userId);
   if (started.locked) return { runId: null, counts, issues, error: ALREADY_RUNNING };
   const runId = started.runId;
+  // Integration middleware: one message per run, only for a workspace that has
+  // the flag (read from the features row this function already loaded).
+  const mw = (t?.features as TenantFeatures | undefined)?.integration_middleware === true;
+  const startedAtMs = Date.now();
+  const note = (error: string | null) => mw ? recordConnectorRun(admin, tenantId, { runId, entity: key, direction: "pull", trigger: opts.trigger, counts: { ...counts }, issues, error, startedAtMs }) : Promise.resolve();
   let stoppedEarly = false;
   try {
     const startMark: string | null = opts.full ? null : await lastWatermark(admin, tenantId, key);
@@ -458,11 +464,13 @@ export async function runPull(admin: SupabaseClient, tenantId: string, key: Excl
     else if (capHit) issues.push(`Stopped at ${maxRows} rows — the next run continues from here.`);
     await markStatus(admin, tenantId, true);
     await finishRun(admin, tenantId, runId, counts, issues, null, watermark);
+    await note(null);
     return { runId, counts, issues, error: null };
   } catch (e) {
     const msg = (e as Error).message ?? "Sync failed";
     await markStatus(admin, tenantId, false, msg);
     await finishRun(admin, tenantId, runId, counts, issues, msg, null);
+    await note(msg);
     return { runId, counts, issues, error: msg };
   }
 }
@@ -490,6 +498,9 @@ export async function runPushFenceProjects(admin: SupabaseClient, tenantId: stri
   const started = await startRun(admin, tenantId, "fence_projects", "push", opts.trigger, opts.userId);
   if (started.locked) return { runId: null, counts, issues, error: ALREADY_RUNNING };
   const runId = started.runId;
+  const mw = (t?.features as TenantFeatures | undefined)?.integration_middleware === true;
+  const startedAtMs = Date.now();
+  const note = (error: string | null) => mw ? recordConnectorRun(admin, tenantId, { runId, entity: "fence_projects", direction: "push", trigger: opts.trigger, counts: { ...counts }, issues, error, startedAtMs }) : Promise.resolve();
   try {
     let q = admin.from("fence_projects").select("id, ref, name, status, total_length_m, layout, account_id").eq("tenant_id", tenantId).limit(500);
     if (opts.ids?.length) q = q.in("id", opts.ids);
@@ -547,11 +558,13 @@ export async function runPushFenceProjects(admin: SupabaseClient, tenantId: stri
     if (changeRows.length) await logChangeBatch(admin, changeRows);
     await markStatus(admin, tenantId, true);
     await finishRun(admin, tenantId, runId, counts, issues, null, null);
+    await note(null);
     return { runId, counts, issues, error: null };
   } catch (e) {
     const msg = (e as Error).message ?? "Push failed";
     await markStatus(admin, tenantId, false, msg);
     await finishRun(admin, tenantId, runId, counts, issues, msg, null);
+    await note(msg);
     return { runId, counts, issues, error: msg };
   }
 }

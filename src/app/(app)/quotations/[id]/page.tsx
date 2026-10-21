@@ -3,6 +3,7 @@ import { getQuote } from "@/lib/data";
 import { getTenant } from "@/lib/tenant";
 import { OFFER_TYPE_LABEL, DEFAULT_QUOTE_STATUSES, type QuoteStatusDef } from "@/lib/constants";
 import PageHeader from "@/components/PageHeader";
+import ExternalRecordSlot from "@/components/ExternalRecordSlot";
 import TabTitle from "@/components/TabTitle";
 import QuoteDetailLayout from "@/components/QuoteDetailLayout";
 import { signQuotePublicToken, buildAbsoluteUrl } from "@/lib/quotePublicLink";
@@ -44,6 +45,7 @@ export default async function QuotationDetailPage({
         title={quote.ref}
         subtitle={`Sales · ${offerLabel} · ${account?.name ?? ""}`}
       />
+      <ExternalRecordSlot objectType="quotes" objectId={quote.id} />
       <QuoteDetailLayout
         quote={quote as Parameters<typeof QuoteDetailLayout>[0]["quote"]}
         account={account}

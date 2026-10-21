@@ -7,6 +7,7 @@ import { opportunityStages } from "@/lib/sales/opportunity";
 import { loadOpportunity, loadOpportunityLines, loadLinkedQuotes, stageSinceMap, listMembersForPicker } from "@/lib/sales/opportunityServer";
 import { standardQuoteProducts, pricingOnStandardQuotes } from "../../standard-quotes/formData";
 import OpportunityDetailClient from "./OpportunityDetailClient";
+import ExternalRecordSlot from "@/components/ExternalRecordSlot";
 import RecordRfqsCard from "@/components/rfq/RecordRfqsCard";
 import RecordActivity from "@/components/page/RecordActivity";
 import { rfqPrefill } from "@/components/rfq/prefill";
@@ -54,6 +55,7 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
       standardQuotesEnabled={tenant?.features?.standard_quotes === true}
       todayKey={todayKey}
       currentUserId={userId}
+      externalLine={<ExternalRecordSlot objectType="opportunities" objectId={id} />}
       related={rfqOn ? (
         <RecordRfqsCard
           origin={{ type: "opportunity", id }}

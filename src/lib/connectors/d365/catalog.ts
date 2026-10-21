@@ -160,3 +160,65 @@ export function sovereignHost(host: string): boolean {
   const h = host.toLowerCase();
   return h.endsWith(".dynamics.cn") || h.endsWith(".microsoftdynamics.us") || h.endsWith(".dynamics365.us") || h.endsWith(".appsplatform.us") || h.endsWith(".microsoftdynamics.de");
 }
+
+// ── Integration middleware presets ──────────────────────────────────────────
+// What an awarded or rejected Standard Quote becomes in each product, so a
+// quote goes out with no mapping done (docs/design/integration-middleware.md,
+// "Works with zero mapping"). A tenant's own map in config.outbound replaces
+// the matching preset whole.
+//
+// Dataverse: a Quote. The header map is external field -> template; the
+// customer, price list and currency binds are ALWAYS added by the builder (a
+// Dataverse quote is refused without them), so a custom map cannot lose them.
+// Lines are write-in lines (no catalogue product): productdescription +
+// isproductoverridden + quantity + priceperunit, and NEVER a uomid (Dataverse
+// refuses a write-in line that carries one -- verified live 2026-10-21).
+//
+// F&O and Business Central: a Project, created through the same entity and
+// map the older fence-project push uses.
+
+export type OutboundPreset = {
+  quote: { field_map: Record<string, string> };
+  quote_line: { field_map: Record<string, string> };
+  project: { entity_set: string; id_field: string; field_map: Record<string, string> };
+};
+
+export const D365_OUTBOUND_PRESETS: Record<D365Product, OutboundPreset> = {
+  dataverse: {
+    quote: { field_map: { name: "{name}", description: "{description}" } },
+    quote_line: { field_map: { productdescription: "{description}", quantity: "{qty}", priceperunit: "{net_rate}", isproductoverridden: "true" } },
+    project: { entity_set: "", id_field: "", field_map: {} },
+  },
+  fo: {
+    quote: { field_map: {} },
+    quote_line: { field_map: {} },
+    project: { entity_set: "Projects", id_field: "ProjectID", field_map: { ProjectName: "{name}", CustomerAccount: "{account_external_id}" } },
+  },
+  bc: {
+    quote: { field_map: {} },
+    quote_line: { field_map: {} },
+    project: { entity_set: "projects", id_field: "id", field_map: { displayName: "{name}" } },
+  },
+};
+
+/** The outbound maps in force: the tenant's own where set, else the preset. */
+export function outboundConfig(cfg: Pick<D365Config, "product" | "outbound">): OutboundPreset & { custom: { quote: boolean; quote_line: boolean; project: boolean } } {
+  const preset = D365_OUTBOUND_PRESETS[cfg.product];
+  const own = cfg.outbound ?? {};
+  const q = own.quote?.field_map;
+  const l = own.quote_line?.field_map;
+  const p = own.project;
+  const hasQ = !!q && Object.keys(q).length > 0;
+  const hasL = !!l && Object.keys(l).length > 0;
+  const hasP = !!p && (Object.keys(p.field_map ?? {}).length > 0 || !!p.entity_set);
+  return {
+    quote: { field_map: hasQ ? q! : preset.quote.field_map },
+    quote_line: { field_map: hasL ? l! : preset.quote_line.field_map },
+    project: {
+      entity_set: p?.entity_set || preset.project.entity_set,
+      id_field: p?.id_field || preset.project.id_field,
+      field_map: p?.field_map && Object.keys(p.field_map).length > 0 ? p.field_map : preset.project.field_map,
+    },
+    custom: { quote: hasQ, quote_line: hasL, project: hasP },
+  };
+}

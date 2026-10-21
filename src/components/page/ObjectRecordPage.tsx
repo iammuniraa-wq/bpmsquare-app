@@ -31,7 +31,7 @@ export type { RecordFact };
  */
 export default function ObjectRecordPage({
   backHref, backLabel, title, tabTitle, reference, meta, status,
-  primaryAction, menu, facts = [], tabs, activeTab, basePath, explicitFirstTab = false, rail,
+  primaryAction, menu, facts = [], externalLine, tabs, activeTab, basePath, explicitFirstTab = false, rail,
 }: {
   backHref: string;
   /** "All suppliers" -- the arrow is added here. */
@@ -45,6 +45,8 @@ export default function ObjectRecordPage({
   primaryAction?: React.ReactNode;
   menu?: React.ReactNode;
   facts?: RecordFact[];
+  /** A quiet line under the facts, e.g. <ExternalRecordSlot />; renders nothing of its own when empty. */
+  externalLine?: React.ReactNode;
   tabs: RecordTab[];
   /** The `tab` search param as received; unknown values fall back to the first tab. */
   activeTab?: string;
@@ -82,6 +84,7 @@ export default function ObjectRecordPage({
       />
 
       <RecordFacts facts={shownFacts} />
+      {externalLine}
 
       {tabs.length > 1 && (
         <div style={{ marginBottom: 14 }}>

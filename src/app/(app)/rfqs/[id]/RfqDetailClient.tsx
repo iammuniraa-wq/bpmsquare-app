@@ -72,7 +72,7 @@ function Modal({ title, onClose, children, width = 640 }: { title: string; onClo
   );
 }
 
-export default function RfqDetailClient(props: { id: string; canEdit: boolean; isAdmin: boolean }) {
+export default function RfqDetailClient(props: { id: string; canEdit: boolean; isAdmin: boolean; externalLine?: React.ReactNode }) {
   return (
     <RecordEditProvider>
       <RfqDetail {...props} />
@@ -80,7 +80,7 @@ export default function RfqDetailClient(props: { id: string; canEdit: boolean; i
   );
 }
 
-function RfqDetail({ id, canEdit, isAdmin }: { id: string; canEdit: boolean; isAdmin: boolean }) {
+function RfqDetail({ id, canEdit, isAdmin, externalLine }: { id: string; canEdit: boolean; isAdmin: boolean; externalLine?: React.ReactNode }) {
   const router = useRouter();
   const recordEdit = useRecordEdit();
   const [b, setB] = useState<Bundle | null>(null);
@@ -182,6 +182,7 @@ function RfqDetail({ id, canEdit, isAdmin }: { id: string; canEdit: boolean; isA
         }
       />
 
+      {externalLine}
       <div style={{ fontSize: 12.5, color: c.muted, marginTop: -8, marginBottom: 12 }}>
         From:{" "}
         {b.origin_href

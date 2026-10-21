@@ -115,8 +115,10 @@ const TABS: { key: Tab; label: string }[] = [
   { key: "recheck", label: "Flagged" },
 ];
 
-export default function EmployeeHubClient({ employeeId, initialProfile = null, initialLists = null, employmentTypes = [] }: {
+export default function EmployeeHubClient({ employeeId, initialProfile = null, initialLists = null, employmentTypes = [], externalLine }: {
   employeeId: string;
+  /** Read-only link line to the connected system's record (ExternalRecordSlot). */
+  externalLine?: React.ReactNode;
   /** The tenant's configured employment types (Settings -> Workforce). */
   employmentTypes?: { code: string; label: string }[];
   /** Server-rendered core profile for the current month, so the hub paints
@@ -474,6 +476,8 @@ export default function EmployeeHubClient({ employeeId, initialProfile = null, i
           </div>
         ) : null}
       </section>
+
+      {externalLine}
 
       {/* ── Tenant custom fields (Settings → Custom fields → Employee).
           Standard keys are excluded — this hub hand-renders them above —

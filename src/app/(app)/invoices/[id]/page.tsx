@@ -11,6 +11,7 @@ import { ROUTES } from "@/lib/constants";
 import type { InvoiceStatus } from "@/lib/types";
 import ObjectSections from "@/components/fields/ObjectSections";
 import ObjectRecordPage from "@/components/page/ObjectRecordPage";
+import ExternalRecordSlot from "@/components/ExternalRecordSlot";
 import RecordMoreMenu from "@/components/page/RecordMoreMenu";
 import RecordActivity from "@/components/page/RecordActivity";
 import RelatedList from "@/components/page/RelatedList";
@@ -118,6 +119,7 @@ export default async function InvoiceDetailPage({
         { label: "Balance due", value: <span style={{ color: balanceDue > 0 ? "var(--red)" : undefined }}>{inr(balanceDue)}</span> },
         { label: "Due", value: fmtDate(invoice.due_date) },
       ]}
+      externalLine={<ExternalRecordSlot objectType="invoices" objectId={id} />}
       basePath={basePath}
       activeTab={tab}
       tabs={[
