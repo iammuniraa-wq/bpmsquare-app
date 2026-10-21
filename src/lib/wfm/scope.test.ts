@@ -56,7 +56,7 @@ vi.mock("@/lib/supabase-server", () => ({
   createAdminSupabase: () => fakeAdmin(fixture),
 }));
 
-const { resolveWfmScope, canApproveFor } = await import("./scope");
+const { resolveWfmScope, canApproveFor, scopeEmployeeIds, filterEmployeesToScope } = await import("./scope");
 
 // Three sites, three supervisors, one manager over them — the client's shape.
 //   Arun (manager)
@@ -235,5 +235,31 @@ describe("extra site approvers", () => {
     const scope = await resolveWfmScope(ctxFor(KIRAN));
     expect(new Set(scope.employeeIds)).toEqual(new Set([RAVI, SUNIL, MEENA]));
     expect(scope.siteIds).toContain(SITE_A);
+  });
+});
+
+// ── Server-rendered initial data ────────────────────────────────────────────
+// The Live board and Leave pages prefetch on the server with these helpers, so
+// the page payload is narrowed exactly as the /api/wfm routes narrow theirs.
+describe("scope helpers shared by pages and routes", () => {
+  const everyone = [ARUN, PRIYA, KIRAN, LATHA, RAVI, SUNIL, MEENA].map((id) => ({ id }));
+
+  it("scopeEmployeeIds is null for an admin and the allowlist otherwise", async () => {
+    expect(scopeEmployeeIds(await resolveWfmScope(ctxFor(ARUN, "admin")))).toBeNull();
+    expect(new Set(scopeEmployeeIds(await resolveWfmScope(ctxFor(PRIYA))))).toEqual(new Set([RAVI, SUNIL]));
+  });
+
+  it("scopeEmployeeIds is an empty list, not null, for a supervisor with nobody", async () => {
+    // null would mean "no filter" -- a supervisor with an empty reach must see nothing.
+    expect(scopeEmployeeIds(await resolveWfmScope(ctxFor(LATHA)))).toEqual([]);
+  });
+
+  it("filterEmployeesToScope hides other sites but keeps the caller's own row", async () => {
+    const rows = filterEmployeesToScope(everyone, await resolveWfmScope(ctxFor(PRIYA)));
+    expect(new Set(rows.map((r) => r.id))).toEqual(new Set([PRIYA, RAVI, SUNIL]));
+  });
+
+  it("filterEmployeesToScope returns everyone for an unrestricted scope", async () => {
+    expect(filterEmployeesToScope(everyone, await resolveWfmScope(ctxFor(ARUN, "admin")))).toHaveLength(7);
   });
 });

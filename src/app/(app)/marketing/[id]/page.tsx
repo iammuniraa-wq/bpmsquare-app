@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { requireFeature, getTenant } from "@/lib/tenant";
+import { requireWorkcenterView } from "@/lib/permissions";
 import { getMarketingCampaign, listAccounts, countLeadsForCampaign } from "@/lib/data";
 import { c, type PillarKey } from "@/lib/theme";
 import StatusPill from "@/components/ui/StatusPill";
@@ -30,6 +31,7 @@ const RECIPIENT_STATUS_TONE: Record<string, "green" | "red" | "amber" | "blue"> 
 };
 
 export default async function CampaignDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  await requireWorkcenterView("marketing");
   await requireFeature("marketing");
   const { id } = await params;
   const data = await getMarketingCampaign(id);
