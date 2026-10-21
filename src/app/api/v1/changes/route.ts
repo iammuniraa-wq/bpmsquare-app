@@ -1,4 +1,5 @@
-import { resolveTenantFromBearer, ERR_401_TENANT, jsonOk, jsonError, optionsResponse } from "../_auth";
+import { resolveApiAuth, ERR_401_TENANT, ERR_403_SCOPE, jsonOk, jsonError, optionsResponse } from "../_auth";
+import { canReadChangeType, changeTypeFilter, scopeForChangeType, stripInternalChangeFields } from "@/lib/api/changeFeedScope";
 import { createAdminSupabase } from "@/lib/supabase-server";
 
 // GET /api/v1/changes?since=<cursor>&object_type=quotes&limit=100
@@ -28,11 +29,15 @@ function decodeCursor(c: string): { ts: string; id: string } | null {
 }
 
 export async function GET(req: Request) {
-  const tenantId = await resolveTenantFromBearer(req);
-  if (!tenantId) return ERR_401_TENANT();
+  const auth = await resolveApiAuth(req);
+  if (!auth || !auth.scopes.read) return ERR_401_TENANT();
+  const tenantId = auth.tenantId;
 
   const { searchParams } = new URL(req.url);
   const objectType = searchParams.get("object_type");
+  // The feed obeys the key's object scope like every list endpoint (audit 2026-10-21, M1).
+  if (objectType && !canReadChangeType(auth.scopes, objectType)) return ERR_403_SCOPE(scopeForChangeType(objectType) ?? "*", false);
+  const typeFilter = changeTypeFilter(auth.scopes);
   const limit = Math.min(MAX_LIMIT, Math.max(1, parseInt(searchParams.get("limit") ?? "100", 10) || 100));
 
   const sinceRaw = searchParams.get("since");
@@ -50,6 +55,8 @@ export async function GET(req: Request) {
     .order("id", { ascending: true })
     .limit(limit);
 
+  if (typeFilter.kind === "only") q = q.in("object_type", typeFilter.types.length ? typeFilter.types : ["__none__"]);
+  else if (typeFilter.types.length) q = q.not("object_type", "in", `(${typeFilter.types.join(",")})`);
   if (objectType) q = q.eq("object_type", objectType);
   // Keyset: rows strictly after the cursor's (created_at, id).
   if (cursor) q = q.or(`created_at.gt.${cursor.ts},and(created_at.eq.${cursor.ts},id.gt.${cursor.id})`);
@@ -69,7 +76,7 @@ export async function GET(req: Request) {
       object_id: r.object_id,
       object_label: r.object_label,
       action: r.action,
-      changes: r.changes,
+      changes: stripInternalChangeFields(r.object_type as string, r.changes),
       actor: r.actor_email ?? null,
       at: r.created_at,
     })),
