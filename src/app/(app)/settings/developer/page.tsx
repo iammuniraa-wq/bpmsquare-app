@@ -1,90 +1,16 @@
 "use client";
 
+import Link from "next/link";
 import { useState, useTransition } from "react";
 import { useFeel } from "@/components/FeelProvider";
 import { c } from "@/lib/theme";
 import { useTenant, useUserRole } from "@/lib/tenant-context";
-import { Mail, MessageSquare, LinkIcon, Globe, Phone } from "@/components/Icons";
+import { ROUTES } from "@/lib/constants";
+import { SETTINGS_TIPS } from "@/lib/settingsTips";
+import InfoTip from "@/components/ui/InfoTip";
 import SettingsPageHeader from "@/components/settings/SettingsPageHeader";
-import { Section, StatusBadge } from "@/components/settings/generalShared";
+import { Section } from "@/components/settings/generalShared";
 import ApiKeysPanel from "./ApiKeysPanel";
-
-// ── Integration catalogue ─────────────────────────────────────────────────────
-
-const INTEGRATIONS = [
-  {
-    icon: <Mail size={16} />, name: "Email — Resend",
-    desc: "Send quotations and invoices directly from the system as PDF attachments, from your own sender identity",
-    status: "active" as const,
-    note: "Free tier: 3,000 emails/month · where mail is delivered is governed by Settings → Email output · inspection reports not wired up yet",
-  },
-  {
-    icon: <MessageSquare size={16} />, name: "WhatsApp (embedded)",
-    desc: "Message contacts from cases, quotations and work orders via the Meta Business API — automated sends, delivery receipts, full inbox",
-    status: "coming-soon" as const,
-    note: "Meta Cloud API · 1,000 free conversations/month · recommended for India · a lighter-weight WhatsApp (external) option is already live on quotes and cases — opens a pre-filled wa.me chat for a rep to send manually",
-  },
-  {
-    icon: <LinkIcon size={16} />, name: "Webhooks",
-    desc: "Push real-time events to your systems when cases or quotations change status",
-    status: "coming-soon" as const,
-    note: "POST to any URL on: case.created, case.status_changed, quote.approved, invoice.sent",
-  },
-  {
-    icon: <Globe size={16} />, name: "MCP Server",
-    desc: "Allow any AI assistant to read and write CRM data via Model Context Protocol",
-    status: "ready" as const,
-    note: "Config at mcp-server/mcp.json · connect to Claude, Cursor, or any MCP-compatible client",
-  },
-  {
-    icon: <Phone size={16} />, name: "PWA / Mobile app",
-    desc: "Install on Android or iOS for field staff — the punch page works offline",
-    status: "active" as const,
-    note: "Add to Home Screen to install · a service worker caches the app shell so My Workforce loads and lets you punch with no network; punches queue and sync when back online",
-  },
-];
-
-const API_ENDPOINTS = [
-  { method: "GET", path: "/api/v1",                    desc: "API index + auth info" },
-  { method: "GET", path: "/api/v1/accounts",            desc: "List all accounts with counts" },
-  { method: "GET", path: "/api/v1/accounts/:id",        desc: "Account detail — contacts, cases, quotes, WOs" },
-  { method: "GET", path: "/api/v1/cases",               desc: "List cases · filter: ?status= &account_id=" },
-  { method: "GET", path: "/api/v1/quotations",          desc: "List quotations · filter: ?status= &account_id=" },
-  { method: "GET", path: "/api/v1/products",            desc: "List products · filters: ?category=, ?status=" },
-  { method: "GET", path: "/api/v1/products/:id",        desc: "Product detail" },
-  { method: "GET", path: "/api/v1/opportunities",       desc: "List deals · filters: ?stage=, ?outcome=, ?account_id=" },
-  { method: "GET", path: "/api/v1/opportunities/:id",   desc: "Deal detail with lines and linked quotes" },
-  { method: "GET", path: "/api/v1/rfqs",                desc: "List RFQs · key must be scoped to rfqs · filters: ?status=, ?origin_type=" },
-  { method: "GET", path: "/api/v1/estimates",           desc: "List project estimates · key must be scoped to estimates · customer-safe fields only (no costs) · filters: ?status=, ?account_id=" },
-  { method: "GET", path: "/api/v1/estimates/:id",       desc: "One estimate: customer, template, status and quoted price" },
-  { method: "GET", path: "/api/v1/rfqs/:id",            desc: "RFQ with lines, suppliers, quoted prices and awards" },
-  { method: "GET", path: "/api/v1/abm-programs",        desc: "List ABM programs · filters: ?status=, ?kind=" },
-  { method: "GET", path: "/api/v1/abm-programs/:id",    desc: "One ABM program with its funnel counts by company" },
-  { method: "GET", path: "/api/v1/abm-targets",         desc: "List ABM target accounts · key must be scoped to abm_targets · filters: ?progress=, ?tier=, ?program_id=" },
-  { method: "GET", path: "/api/v1/abm-targets/:id",     desc: "A target account with its buying group by contact id and role only" },
-  { method: "GET", path: "/api/v1/projects",            desc: "Workforce projects + sub-projects · filters: ?status=, ?level=, ?parent_id=" },
-  { method: "GET", path: "/api/v1/projects/:id",        desc: "Project detail — parent, level, sub-projects, links" },
-  { method: "GET", path: "/api/v1/projects/:id/hours",  desc: "Hours for a project and its sub-projects, for a period (?from=&to=)" },
-  { method: "GET", path: "/api/v1/projects/:id/invoices", desc: "Invoices raised from a project's hours" },
-  { method: "POST", path: "/api/v1/projects/:id/invoices", desc: "Raise a draft invoice for a period ({from, to, granularity?, dry_run?})" },
-  { method: "GET", path: "/api/v1/project-hours",       desc: "Hours by project, one row per work session, with bill rate and invoiced flag · group_by / aggregates supported" },
-  { method: "GET", path: "/api/v1/inventory",           desc: "List inventory · filter: ?low_stock=true" },
-  { method: "GET", path: "/api/v1/inventory/:id",       desc: "Inventory item detail + transaction history" },
-  { method: "GET", path: "/api/v1/invoices",            desc: "List invoices · filter: ?status= &account_id=" },
-  { method: "GET", path: "/api/v1/invoices/:id",        desc: "Invoice detail — lines, payments, balance due" },
-  { method: "GET", path: "/api/v1/purchase-orders",     desc: "List POs · filter: ?status= &supplier_id=" },
-  { method: "GET", path: "/api/v1/purchase-orders/:id", desc: "Purchase order detail + receiving progress" },
-  { method: "GET", path: "/api/v1/employees",           desc: "List staff · filter: ?status= &department= · key must name the employees scope" },
-  { method: "GET", path: "/api/v1/employees/:id",       desc: "Employee detail" },
-];
-
-const API_COMING_SOON = [
-  "POST /api/v1/cases",
-  "PATCH /api/v1/cases/:id/status",
-  "POST /api/v1/quotations",
-  "GET  /api/v1/openapi.json",
-  "POST /api/v1/webhooks",
-];
 
 export default function DeveloperSettingsPage() {
   const tenant = useTenant();
@@ -92,12 +18,17 @@ export default function DeveloperSettingsPage() {
   const { confirm } = useFeel();
   const [copied, setCopied] = useState(false);
   const [apiKey, setApiKey] = useState<string | null>(tenant?.api_key ?? null);
+  const [refCopied, setRefCopied] = useState(false);
   const [regenerating, startRegenerate] = useTransition();
   const [keyError, setKeyError] = useState("");
 
   const copyApiKey = () => {
     if (!apiKey) return;
     navigator.clipboard.writeText(apiKey).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000); });
+  };
+
+  const copyReference = () => {
+    navigator.clipboard.writeText(`${window.location.origin}/api/v1/openapi.json`).then(() => { setRefCopied(true); setTimeout(() => setRefCopied(false), 2000); });
   };
 
   const regenerateApiKey = async () => {
@@ -113,16 +44,9 @@ export default function DeveloperSettingsPage() {
 
   return (
     <div style={{ maxWidth: 680 }}>
-      <SettingsPageHeader
-        title="API keys & developer"
-        subtitle="Live REST API with an enriched query layer, an OpenAPI spec and a change feed. Authenticate with: Authorization: Bearer <API key>"
-      />
+      <SettingsPageHeader title="API keys & developer" info={SETTINGS_TIPS.developer} />
 
-      <Section
-        id="developer"
-        title=""
-        description="Live REST API with an enriched query layer (filter / select / sort / aggregate / search), an OpenAPI spec and a change feed. Authenticate with: Authorization: Bearer <API key>"
-      >
+      <Section id="developer" title="">
 
         {/* API key row — admin only: this key grants read access to every
             account/case/quote/invoice/etc. in this tenant via the v1 API. */}
@@ -152,50 +76,19 @@ export default function DeveloperSettingsPage() {
 
         {role === "admin" && <ApiKeysPanel />}
 
-        {/* Endpoints */}
-        <div style={{ marginBottom: 12 }}>
-          <div className="bpm-t-label" style={{ marginBottom: 8 }}>Available now</div>
-          {API_ENDPOINTS.map((ep) => (
-            <div key={ep.path} style={{ display: "flex", alignItems: "center", gap: 10, padding: "7px 0", borderTop: `1px solid ${c.line}` }}>
-              <span style={{ fontSize: 10, fontWeight: 700, color: "var(--blueink)", background: "var(--bluebg)", borderRadius: 5, padding: "2px 7px", flexShrink: 0, fontFamily: "monospace" }}>{ep.method}</span>
-              <code style={{ fontSize: 12, color: c.ink, flex: 1, fontFamily: "monospace" }}>{ep.path}</code>
-              <span style={{ fontSize: 11, color: c.muted, textAlign: "right" }}>{ep.desc}</span>
-            </div>
-          ))}
-        </div>
-
-        <div>
-          <div className="bpm-t-label" style={{ marginBottom: 8 }}>Coming soon</div>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-            {API_COMING_SOON.map((ep) => (
-              <code key={ep} style={{ fontSize: 11, color: c.hint, background: c.panel2, borderRadius: 5, padding: "3px 8px", border: `1px solid ${c.line}`, fontFamily: "monospace" }}>
-                {ep}
-              </code>
-            ))}
+        {role === "admin" && (
+        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", paddingTop: 12, borderTop: `1px solid ${c.line}` }}>
+          <div style={{ display: "flex", alignItems: "center", flex: 1, minWidth: 0 }}>
+            <span className="bpm-t-label">API reference</span>
+            <InfoTip label="API reference">{SETTINGS_TIPS.apiReference}</InfoTip>
+            <code style={{ fontSize: 12, color: c.ink, fontFamily: "monospace", marginLeft: 10 }}>/api/v1/openapi.json</code>
           </div>
+          <button onClick={copyReference} style={{ padding: "6px 14px", borderRadius: 7, fontSize: 12, fontWeight: 500, border: `1px solid ${c.line}`, background: "var(--panel)", cursor: "pointer", flexShrink: 0, color: refCopied ? "var(--teal)" : c.muted }}>
+            {refCopied ? "✓ Copied" : "Copy address"}
+          </button>
+          <Link href={ROUTES.settingsPush} style={{ fontSize: 12.5, color: c.accent, flexShrink: 0 }}>Webhooks</Link>
         </div>
-      </Section>
-
-      <Section
-        id="integrations"
-        title="Available integrations"
-        description="Connect external services. Items marked Coming Soon are on the roadmap."
-      >
-        {INTEGRATIONS.map((intg, idx) => (
-          <div key={intg.name} style={{ display: "flex", alignItems: "flex-start", gap: 12, padding: "13px 4px", borderTop: idx > 0 ? `1px solid ${c.line}` : "none" }}>
-            <div style={{ width: 36, height: 36, borderRadius: 9, background: c.panel2, border: `1px solid ${c.line}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, flexShrink: 0 }}>
-              {intg.icon}
-            </div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 3 }}>
-                <span style={{ fontSize: 13, fontWeight: 600, color: c.ink }}>{intg.name}</span>
-                <StatusBadge status={intg.status} />
-              </div>
-              <div className="bpm-t-help">{intg.desc}</div>
-              <div className="bpm-t-help" style={{ marginTop: 3 }}>{intg.note}</div>
-            </div>
-          </div>
-        ))}
+        )}
       </Section>
     </div>
   );

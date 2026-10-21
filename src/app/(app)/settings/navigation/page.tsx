@@ -9,6 +9,7 @@ import { useSettings, ACCENT_PRESETS } from "@/lib/settings";
 import { useTenant } from "@/lib/tenant-context";
 import SettingsPageHeader from "@/components/settings/SettingsPageHeader";
 import { SettingsSave } from "@/components/settings/SettingsHeaderActions";
+import { SETTINGS_TIPS } from "@/lib/settingsTips";
 import Pager from "@/components/Pager";
 import { PILLAR_DOT, Section, Toggle, useSavedFlash } from "@/components/settings/generalShared";
 
@@ -90,14 +91,10 @@ export default function NavigationVisibilityPage() {
 
   return (
     <div style={{ maxWidth: 680 }}>
-      <SettingsPageHeader title="Navigation visibility" subtitle="Show or hide sidebar items for the whole workspace — every user, every device." />
+      <SettingsPageHeader title="Navigation visibility" info={SETTINGS_TIPS.navigation} />
       <SettingsSave dirty={navDirty} saving={navSaving} saved={saved} error={navError} onSave={saveNav} />
 
-      <Section
-        id="nav"
-        title=""
-        description="Toggle sidebar items on or off for the whole workspace — every user, every device. Hidden items are still reachable by URL."
-      >
+      <Section id="nav" title="">
         <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
           {navGroupsOnPage.map((grp) => (
             <div key={grp.group}>

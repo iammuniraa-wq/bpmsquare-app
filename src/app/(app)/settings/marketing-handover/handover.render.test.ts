@@ -18,8 +18,8 @@ describe("the Hand-over screen", () => {
     for (const title of ["Leads by themselves", "Response time", "When no team covers it", "When a lead is overdue"]) expect(out).toContain(title);
     for (const label of ["Make a lead when someone becomes Warm", "Working days to pick up a lead", "Days off", "Tell the owner", "Tell the team lead"]) expect(out).toContain(label);
     for (const text of Object.values(HANDOVER_TIPS)) expect(out, text).not.toContain(text);
-    // Every explained option carries its own "?" / "i" button.
-    expect(out.match(/aria-label="What &quot;[^"]+&quot; does"/g)!.length).toBeGreaterThanOrEqual(6);
+    // Every explained option carries its own "i" button.
+    expect(out.match(/aria-label="About [^"]+"/g)!.length).toBeGreaterThanOrEqual(6);
   });
 
   it("shows the standard response time (one working day, Sunday off), the switch off, and no one on the list", () => {

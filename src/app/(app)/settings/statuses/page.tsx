@@ -2,6 +2,7 @@ import { createAdminSupabase, requireTenantUser } from "@/lib/supabase-server";
 import { redirect } from "next/navigation";
 import { ROUTES, type QuoteStatusDef } from "@/lib/constants";
 import SettingsPageHeader from "@/components/settings/SettingsPageHeader";
+import { SETTINGS_TIPS } from "@/lib/settingsTips";
 import StatusesClient from "./StatusesClient";
 
 export default async function StatusesPage() {
@@ -24,10 +25,7 @@ export default async function StatusesPage() {
 
   return (
     <>
-      <SettingsPageHeader
-        title="Pipeline & quote statuses"
-        subtitle="The stages a quotation moves through, and which ones close it"
-      />
+      <SettingsPageHeader title="Quote statuses" info={SETTINGS_TIPS.statuses} />
       <StatusesClient initial={statuses} />
     </>
   );

@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { c } from "@/lib/theme";
+import { SETTINGS_TIPS } from "@/lib/settingsTips";
+import InfoTip from "@/components/ui/InfoTip";
 
 // Scoped API keys manager (Settings -> Developer). Admin-only surface; the
 // route it talks to enforces that server-side. A freshly created token is
@@ -127,13 +129,13 @@ export default function ApiKeysPanel() {
   return (
     <div style={{ marginBottom: 18 }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-        <div className="bpm-t-label">Scoped API keys</div>
+        <div style={{ display: "flex", alignItems: "center" }}>
+          <span className="bpm-t-label">Scoped API keys</span>
+          <InfoTip label="Scoped API keys">{SETTINGS_TIPS.scopedKeys}</InfoTip>
+        </div>
         {!creating && (
           <button onClick={() => { setCreating(true); setNewToken(null); }} style={btn}>+ New key</button>
         )}
-      </div>
-      <div className="bpm-t-help" style={{ marginBottom: 10 }}>
-        Fine-grained alternative to the full-access key above: restrict a key to read-only, or to specific objects, and revoke it independently. The token is shown once at creation.
       </div>
 
       {error && <div style={{ fontSize: 11.5, color: "var(--err-ink)", marginBottom: 8 }}>{error}</div>}

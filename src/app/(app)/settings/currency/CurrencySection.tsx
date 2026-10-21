@@ -52,11 +52,8 @@ export default function CurrencySection({ accent }: { accent: string }) {
 
   return (
     <Section title="">
-      <p className="bpm-t-help" style={{ margin: "0 0 12px" }}>
-        How every amount in this workspace is shown, printed and emailed. Changing it relabels figures; it does not convert them.
-      </p>
       <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-        <select value={code} onChange={(e) => setCode(e.target.value as CurrencyCode)} style={{ ...inp, width: 280 }}>
+        <select aria-label="Currency" value={code} onChange={(e) => setCode(e.target.value as CurrencyCode)} style={{ ...inp, width: 280 }}>
           {(loaded?.options ?? Object.values(CURRENCIES)).map((o) => (
             <option key={o.code} value={o.code}>{o.code} — {o.name}</option>
           ))}

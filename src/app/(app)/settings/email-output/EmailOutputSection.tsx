@@ -76,15 +76,12 @@ export default function EmailOutputSection({ accent }: { accent: string }) {
   return (
     <div style={{ marginBottom: 12 }}>
       <Section title="">
-        <div className="bpm-t-help" style={{ marginBottom: 12 }}>
-          Where quotations, invoices, campaigns and workforce notifications are actually delivered.
-          {out?.forced && (
-            <>
-              {" "}<strong style={{ color: c.ink }}>This is a demo workspace:</strong> every outbound email is redirected to
-              the inbox below, so no test document can reach a real customer. Only the inbox can be changed here.
-            </>
-          )}
-        </div>
+        {out?.forced && (
+          <div className="bpm-t-help" style={{ marginBottom: 12 }}>
+            <strong style={{ color: c.ink }}>This is a demo workspace:</strong> every outbound email is redirected to
+            the inbox below, so no test document can reach a real customer. Only the inbox can be changed here.
+          </div>
+        )}
 
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {option(

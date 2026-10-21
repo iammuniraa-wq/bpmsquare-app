@@ -43,4 +43,5 @@ under about six controls; PC and 375 px checked; this file and `ux-simplificatio
 |---|---|
 | Audits (settings, marketing) | done 2026-10-22 |
 | Rule 6c | in `bpmsquarecore.md` |
-| Wave 1 | not started |
+| Wave 1, S1 Quiet text (settings) | done 2026-10-22 (branch worktree-agent-a8d6cedaf4d23e216, awaiting merge) |
+| Wave 1, M1 Quiet text (marketing) | not started |
