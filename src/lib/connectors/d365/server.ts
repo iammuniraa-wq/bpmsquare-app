@@ -10,6 +10,7 @@ import { recordConnectorRun } from "@/lib/middleware/messages";
 import { D365Client, D365Error } from "./odata";
 import { buildClientAssertion, certDerFromPem, tokenUrl, validDirectory } from "./jwt";
 import { entityConfig, apiBase, resourceFor, allowedHost, sovereignHost } from "./catalog";
+import { buildSelection, describeSelection, type RunSelection } from "./selection";
 import {
   mapPullRow, fingerprint, buildPushBody, modifiedSinceFilter, odataString, buildTargetRecord, normalizeModified, nextModifiedWatermark,
   formatCursor, parseCursor, keysetFilter, accountLookupKeys, selectFields, scopedExternalId, splitExternalId, withDataArea,
@@ -225,7 +226,8 @@ const IDENT_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
 const REF_TABLES = new Set<string>(["accounts", "contacts", "suppliers", "products", "wfm_projects"]);
 const MAX_ROWS_PER_RUN = 5000;
 
-export type RunCounts = { read: number; created: number; updated: number; unchanged: number; skipped: number; failed: number };
+export type RunCounts = { read: number; created: number; updated: number; unchanged: number; skipped: number; failed: number; /** 1 on a run that read a selection (filters or ids): its marker in the history. */ filtered?: number };
+export type PullResult = { runId: string | null; counts: RunCounts; issues: string[]; error: string | null; /** Filters that were asked for and could not be applied. */ unsupported?: string[] };
 
 /** A run older than this cannot still be alive: the routes stop at 300 s. */
 export const STALE_RUN_MS = 10 * 60 * 1000;
@@ -294,7 +296,11 @@ const toRecord = (table: string, values: Record<string, string | number | null>,
  * connector_links by the external id), never deletes, never touches a field
  * the map doesn't own. Incremental where the entity has a modified field.
  */
-export async function runPull(admin: SupabaseClient, tenantId: string, key: Exclude<D365EntityKey, "fence_projects">, opts: { trigger: "manual" | "schedule"; userId: string | null; full?: boolean; /** epoch ms after which no new row is started */ deadline?: number; /** rows per run (tests lower it) */ maxRows?: number }): Promise<{ runId: string | null; counts: RunCounts; issues: string[]; error: string | null }> {
+export async function runPull(admin: SupabaseClient, tenantId: string, key: Exclude<D365EntityKey, "fence_projects">, opts: {
+  trigger: "manual" | "schedule"; userId: string | null; full?: boolean; /** epoch ms after which no new row is started */ deadline?: number; /** rows per run (tests lower it) */ maxRows?: number;
+  /** Read only these records (filters and/or ids). Such a run never moves the incremental position. */
+  select?: RunSelection;
+}): Promise<PullResult> {
   const deadline = opts.deadline ?? Date.now() + RUN_BUDGET_MS;
   const maxRows = opts.maxRows ?? MAX_ROWS_PER_RUN;
   const counts: RunCounts = { read: 0, created: 0, updated: 0, unchanged: 0, skipped: 0, failed: 0 };
@@ -310,18 +316,31 @@ export async function runPull(admin: SupabaseClient, tenantId: string, key: Excl
     return { runId: null, counts, issues, error: `The ${target.table} module isn't enabled for this workspace.` };
   }
 
+  // A selection is planned before the run is opened: when none of it can be applied there is nothing
+  // to read, and a refused request must not leave a run row (or a lock) behind.
+  const sel = opts.select && Object.keys(opts.select).length ? opts.select : undefined;
+  const planned = sel ? buildSelection(cfg.product, ec, sel) : null;
+  if (sel && planned?.nothingUsable) {
+    return { runId: null, counts, issues, error: planned.unsupported.join(" ") || "Nothing matches that selection.", unsupported: planned.unsupported };
+  }
+
   const started = await startRun(admin, tenantId, key, "pull", opts.trigger, opts.userId);
   if (started.locked) return { runId: null, counts, issues, error: ALREADY_RUNNING };
   const runId = started.runId;
+  const filtered = !!planned;
+  if (filtered) counts.filtered = 1;
+  const selectionWord = sel ? describeSelection(sel) : null;
   // Integration middleware: one message per run, only for a workspace that has
   // the flag (read from the features row this function already loaded).
   const mw = (t?.features as TenantFeatures | undefined)?.integration_middleware === true;
   const startedAtMs = Date.now();
   const capture = (t?.config as { integration_middleware?: { payload_capture?: boolean } } | null)?.integration_middleware?.payload_capture === true;
-  const note = (error: string | null) => mw ? recordConnectorRun(admin, tenantId, { runId, entity: key, direction: "pull", trigger: opts.trigger, counts: { ...counts }, issues, error, startedAtMs, entitySet: ec.entity_set, capture }) : Promise.resolve();
+  const note = (error: string | null) => mw ? recordConnectorRun(admin, tenantId, { runId, entity: key, direction: "pull", trigger: opts.trigger, counts: { ...counts }, issues, error, startedAtMs, entitySet: ec.entity_set, capture, selection: selectionWord }) : Promise.resolve();
   let stoppedEarly = false;
   try {
-    const startMark: string | null = opts.full ? null : await lastWatermark(admin, tenantId, key);
+    // A filtered run is a one-off look at some records: it neither starts from the incremental
+    // position nor leaves a new one, or the records it skipped would never be read by the next run.
+    const startMark: string | null = opts.full || filtered ? null : await lastWatermark(admin, tenantId, key);
     const client = await clientFor(admin, tenantId, cfg, creds);
     const q = foCompanyQuery(cfg);
     const baseFilter = [ec.filter, q.filter].filter(Boolean).map((f) => `(${f})`).join(" and ") || undefined;
@@ -335,6 +354,8 @@ export async function runPull(admin: SupabaseClient, tenantId: string, key: Excl
     const startIso = modifiedMode && startMark && /^\d{4}-/.test(startMark) ? startMark : null;
     const filter = modifiedMode ? modifiedSinceFilter(ec.modified_field!, startIso, baseFilter)
       : keysetMode ? keysetFilter(ec.id_field, cursorStart, baseFilter) : baseFilter;
+    const requests = planned ? planned.filters.map((f) => (baseFilter ? `${baseFilter} and ${f}` : f)) : [filter];
+    const orderby = modifiedMode ? `${ec.modified_field} asc` : keysetMode ? `${ec.id_field} asc` : undefined;
     let maxSeen: string | null = startIso;
     let firstSeen: string | null = null;
     let firstHold: string | null = null;
@@ -356,11 +377,15 @@ export async function runPull(admin: SupabaseClient, tenantId: string, key: Excl
     // to the scoped form on the spot, one link at a time), so a second
     // company's identical number can never be mapped onto the same record.
     const legacyClaimed = new Set<string>();
-    for await (const row of client.list(ec.entity_set, {
-      select: selectFields(key, ec, cfg.product),
-      filter, orderby: modifiedMode ? `${ec.modified_field} asc` : keysetMode ? `${ec.id_field} asc` : undefined,
-      maxRows, extraQuery: q.extraQuery,
-    })) {
+    const columns = selectFields(key, ec, cfg.product);
+    const entitySet = ec.entity_set;
+    async function* readAll() {
+      for (const f of requests) {
+        if (counts.read >= maxRows) return;
+        yield* client.list(entitySet, { select: columns, filter: f, orderby, maxRows: maxRows - counts.read, extraQuery: q.extraQuery });
+      }
+    }
+    for await (const row of readAll()) {
       if (Date.now() > deadline) { stoppedEarly = true; break; }
       counts.read++;
       const m = mapPullRow(key, ec, row, cfg.product);
@@ -454,25 +479,35 @@ export async function runPull(admin: SupabaseClient, tenantId: string, key: Excl
     const capHit = counts.read >= maxRows;
     const incomplete = stoppedEarly || capHit;
     let watermark: string | null = null;
-    if (modifiedMode) {
+    if (filtered) {
+      // Left empty on purpose: lastWatermark() skips runs without one, so the next incremental run
+      // carries on from where the last unfiltered run stopped.
+    } else if (modifiedMode) {
       const next = nextModifiedWatermark({ start: startIso, firstSeen, maxSeen, firstHold, stoppedEarly: incomplete });
       watermark = next.watermark;
       if (next.releasedStall) issues.push("Some rows could not be applied and were passed over so the sync could move on; they are tried again only when they change in Dynamics or on a full sync.");
     } else if (keysetMode) {
       watermark = formatCursor(cfg.company, incomplete ? lastId : null);
     }
-    if (stoppedEarly) issues.push("Stopped at this run's time limit — the next run continues from here.");
+    if (filtered) {
+      if (stoppedEarly) issues.push("Stopped at this run's time limit — narrow the filters or run it again.");
+      else if (capHit) issues.push(`Stopped at ${maxRows} rows — narrow the filters to read the rest.`);
+      const asked = sel?.ids?.length ?? 0;
+      if (asked && !sel?.since && !sel?.text && !sel?.activeOnly && !planned?.unsupported.length && !incomplete && counts.read < asked) {
+        issues.push(`${asked - counts.read} of ${asked} ${asked === 1 ? "record was" : "records were"} not found in the ERP.`);
+      }
+    } else if (stoppedEarly) issues.push("Stopped at this run's time limit — the next run continues from here.");
     else if (capHit) issues.push(`Stopped at ${maxRows} rows — the next run continues from here.`);
     await markStatus(admin, tenantId, true);
     await finishRun(admin, tenantId, runId, counts, issues, null, watermark);
     await note(null);
-    return { runId, counts, issues, error: null };
+    return { runId, counts, issues, error: null, ...(planned?.unsupported.length ? { unsupported: planned.unsupported } : {}) };
   } catch (e) {
     const msg = (e as Error).message ?? "Sync failed";
     await markStatus(admin, tenantId, false, msg);
     await finishRun(admin, tenantId, runId, counts, issues, msg, null);
     await note(msg);
-    return { runId, counts, issues, error: msg };
+    return { runId, counts, issues, error: msg, ...(planned?.unsupported.length ? { unsupported: planned.unsupported } : {}) };
   }
 }
 

@@ -551,6 +551,8 @@ export type SyncEntity = {
   schedule_source: "entity" | "connector";
   running: boolean;
   linked: number;
+  /** What a filtered run can express for this entity (absent from an older server). */
+  filters?: { since: boolean; text: boolean; active: boolean; numbers: boolean };
   last_run: { status: string; trigger: string; started_at: string; finished_at: string | null; counts: Record<string, number> | null; error: string | null } | null;
 };
 export type SyncOverview =
@@ -558,7 +560,11 @@ export type SyncOverview =
   | { connected: true; product: { key: string; name: string }; pending_migration: boolean; entities: SyncEntity[] };
 
 export const getSync = () => get<SyncOverview>("/api/middleware/sync");
-export type SyncRunResult = { runId?: string; counts?: Record<string, number>; issues?: string[]; error?: string | null };
+export type SyncRunResult = { runId?: string; counts?: Record<string, number>; issues?: string[]; error?: string | null; unsupported?: string[] };
+export type RunFilters = { ids?: string[]; since?: string; text?: string; active_only?: boolean };
+/** A run that reads only some records (filters and/or ids). It never moves the incremental position. */
+export const runSelected = (entity: D365EntityKey, filters: RunFilters) =>
+  post<SyncRunResult>("/api/middleware/resync", { entity, full: true, ...filters });
 /** A refused run (one is already running, the ERP said no) comes back as an ApiProblem carrying the server's message. */
 export const runSync = (entity: D365EntityKey, full = false, ids?: string[]) =>
   post<SyncRunResult>("/api/middleware/resync", { entity, full, ...(ids && ids.length ? { ids } : {}) });

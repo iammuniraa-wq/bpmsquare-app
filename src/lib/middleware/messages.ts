@@ -123,6 +123,8 @@ export type RunNote = {
   entitySet?: string | null;
   /** The workspace switched payload capture on: keep the request and the counts of a run that went well. */
   capture?: boolean;
+  /** What a filtered run read ("changed since 2026-10-01, active only"); absent on an ordinary run. */
+  selection?: string | null;
 };
 
 /** One message per connector run: counts and the first failed rows. The run's
@@ -146,7 +148,13 @@ export async function recordConnectorRun(admin: SupabaseClient, tenantId: string
     error: n.error,
     durationMs,
     correlationId: n.runId,
-    summary: { kind: "connector_run", trigger: n.trigger, counts: n.counts, failed_rows: n.issues.slice(0, 5) },
+    summary: {
+      kind: "connector_run", trigger: n.trigger, counts: n.counts, failed_rows: n.issues.slice(0, 5),
+      ...(n.selection ? {
+        selection: n.selection,
+        headline: `Filtered run (${n.selection}): ${n.counts.read ?? 0} read, ${n.counts.created ?? 0} created, ${n.counts.updated ?? 0} updated, ${failed} failed`,
+      } : {}),
+    },
     exchange,
   });
 }

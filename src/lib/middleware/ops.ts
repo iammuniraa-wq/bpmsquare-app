@@ -4,6 +4,7 @@ import { isSchemaPending } from "@/lib/marketing/pending";
 import type { TenantConfig, TenantFeatures } from "@/lib/constants";
 import { CONNECTOR_ID, loadD365, previewEntity, publicState, runPull, runPushFenceProjects, testConnection, markStatus } from "@/lib/connectors/d365/server";
 import { entityConfig, outboundConfig } from "@/lib/connectors/d365/catalog";
+import { selectionSupport, type RunSelection } from "@/lib/connectors/d365/selection";
 import { D365_ENTITY_KEYS, D365_ENTITY_LABEL, D365_ENTITY_TARGET, type D365Config, type D365EntityKey, type D365PublicState } from "@/lib/connectors/d365/types";
 import { pushAccountToErp } from "@/lib/accountPush";
 import { middlewareClient } from "./client";
@@ -271,7 +272,7 @@ export async function syncOverview(admin: SupabaseClient, tenantId: string) {
     return {
       key, label: D365_ENTITY_LABEL[key], direction: D365_ENTITY_TARGET[key].direction, enabled: ec?.enabled === true, entity_set: ec?.entity_set ?? null,
       schedule: (ec?.schedule ?? cfg.schedule) as SyncSchedule, schedule_source: ec?.schedule ? ("entity" as const) : ("connector" as const),
-      running: running.has(key), linked: count ?? 0,
+      running: running.has(key), linked: count ?? 0, filters: selectionSupport(cfg.product, ec),
       last_run: run ? { status: run.status, trigger: run.trigger, started_at: run.started_at, finished_at: run.finished_at, counts: run.counts, error: run.error } : null,
     };
   }));
@@ -292,10 +293,11 @@ export async function setEntitySchedule(admin: SupabaseClient, tenantId: string,
   return { ok: true, schedule };
 }
 
-export async function resync(admin: SupabaseClient, tenantId: string, userId: string, entity: D365EntityKey, opts: { full?: boolean; ids?: string[] }) {
+/** `select` (already checked by parseSelection) narrows a pull to some records; it is ignored by the fence-project push, whose `ids` are its own. */
+export async function resync(admin: SupabaseClient, tenantId: string, userId: string, entity: D365EntityKey, opts: { full?: boolean; ids?: string[]; select?: RunSelection }) {
   return entity === "fence_projects"
     ? runPushFenceProjects(admin, tenantId, { trigger: "manual", userId, ids: opts.ids })
-    : runPull(admin, tenantId, entity, { trigger: "manual", userId, full: opts.full === true });
+    : runPull(admin, tenantId, entity, { trigger: "manual", userId, full: opts.full === true, select: opts.select });
 }
 
 export async function previewEntityRows(admin: SupabaseClient, tenantId: string, entity: D365EntityKey): Promise<{ rows: Record<string, unknown>[] } | { error: string; status: number }> {
