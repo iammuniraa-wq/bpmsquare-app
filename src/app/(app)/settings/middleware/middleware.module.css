@@ -292,3 +292,10 @@
 @media (max-width: 900px) {
   .runFilters { grid-template-columns: 1fr; }
 }
+
+.statusBtn { display: inline-flex; align-items: center; gap: 4px; min-height: 32px; padding: 0; border: 0; background: none; cursor: pointer; font: inherit; color: inherit; }
+.chev { font-size: 10px; color: var(--muted); }
+.detailRow td { padding-top: 0; border-top: 0; }
+.detailCell { padding: 4px 8px 12px; }
+.whyBtn { min-height: 44px; padding: 0 12px; border: 0; background: none; color: var(--accent, var(--ink)); font: inherit; font-size: 12.5px; cursor: pointer; text-align: left; }
+.cardDetail { grid-column: 1 / -1; padding: 0 12px 10px; }

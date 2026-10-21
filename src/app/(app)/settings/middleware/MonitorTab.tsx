@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import Button from "@/components/ui/Button";
 import EmptyState from "@/components/ui/EmptyState";
@@ -203,10 +203,15 @@ function Reason({ m, result }: { m: MonitorMessage; result?: RestartResult }) {
 }
 
 /** One table, newest first, every detail in the row. Under 780 px each row is a two-line card. Plain props only. */
-export function MonitorList({ items, ticked, results, system, onTick, onAll, more }: {
+export function MonitorList({ items, ticked, results, system, onTick, onAll, more, initialOpen }: {
   items: readonly MonitorMessage[]; ticked: readonly string[]; results: Record<string, RestartResult>; system: string;
-  onTick: (id: string) => void; onAll: () => void; more?: React.ReactNode;
+  onTick: (id: string) => void; onAll: () => void; more?: React.ReactNode; initialOpen?: readonly string[];
 }) {
+  // The reason is one click away, not printed on every line; a line you just restarted opens to show its answer.
+  const [open, setOpen] = useState<string[]>([...(initialOpen ?? [])]);
+  const toggle = (id: string) => setOpen((o) => (o.includes(id) ? o.filter((x) => x !== id) : [...o, id]));
+  useEffect(() => { const ids = Object.keys(results); if (ids.length) setOpen((o) => [...new Set([...o, ...ids])]); }, [results]);
+  const hasDetail = (m: MonitorMessage) => !!(m.summary || m.fix || results[m.id]);
   const ids = items.map((m) => m.id);
   const allOn = ids.length > 0 && ids.every((id) => ticked.includes(id));
   const someOn = ids.some((id) => ticked.includes(id));
@@ -223,12 +228,13 @@ export function MonitorList({ items, ticked, results, system, onTick, onAll, mor
               <th className={s.tickCol}>
                 <label className={s.tickTap}><input ref={allRef} type="checkbox" checked={allOn} disabled={ids.length === 0} onChange={onAll} aria-label="Select all lines" /></label>
               </th>
-              {["Time", "Direction", "What", "Record", "ERP number", "Status", "Reason"].map((h) => <th key={h}>{h}</th>)}
+              {["Time", "Direction", "What", "Record", "ERP number", "Status"].map((h) => <th key={h}>{h}</th>)}
             </tr>
           </thead>
           <tbody>
             {items.map((m) => (
-              <tr key={m.id} className={`${s.clickable} ${ticked.includes(m.id) ? s.selected : ""}`} onClick={() => onTick(m.id)}>
+              <Fragment key={m.id}>
+              <tr className={`${s.clickable} ${ticked.includes(m.id) ? s.selected : ""}`} onClick={() => onTick(m.id)}>
                 <td className={s.tickCol} onClick={(e) => e.stopPropagation()}>
                   <label className={s.tickTap}><input type="checkbox" checked={ticked.includes(m.id)} onChange={() => onTick(m.id)} aria-label={`Select ${label(m)}`} /></label>
                 </td>
@@ -239,9 +245,16 @@ export function MonitorList({ items, ticked, results, system, onTick, onAll, mor
                 </td>
                 <td className={s.recordCell} onClick={(e) => e.stopPropagation()}><RecordLink record={m.record} /></td>
                 <td className={s.wrapAny}>{m.erpNumber ?? "—"}</td>
-                <td><StatusPill label={statusWord(m, system)} tone={statusTone(m.status)} /></td>
-                <td className={s.reasonCell}><Reason m={m} result={results[m.id]} /></td>
+                <td onClick={(e) => e.stopPropagation()}>
+                  {hasDetail(m)
+                    ? <button type="button" className={s.statusBtn} aria-expanded={open.includes(m.id)} aria-label={`Why: ${label(m)}`} onClick={() => toggle(m.id)}><StatusPill label={statusWord(m, system)} tone={statusTone(m.status)} /><span className={s.chev} aria-hidden="true">{open.includes(m.id) ? "▴" : "▾"}</span></button>
+                    : <StatusPill label={statusWord(m, system)} tone={statusTone(m.status)} />}
+                </td>
               </tr>
+              {open.includes(m.id) && hasDetail(m) && (
+                <tr className={s.detailRow}><td /><td colSpan={6} className={s.detailCell}><Reason m={m} result={results[m.id]} /></td></tr>
+              )}
+              </Fragment>
             ))}
           </tbody>
         </table>
@@ -262,8 +275,9 @@ export function MonitorList({ items, ticked, results, system, onTick, onAll, mor
                 <StatusPill label={statusWord(m, system)} tone={statusTone(m.status)} />
               </span>
               <span className={`${s.small} ${s.muted}`}>{fmtDateTime(m.at)}{m.erpNumber ? ` · ${m.erpNumber}` : ""}</span>
-              <Reason m={m} result={results[m.id]} />
             </button>
+            {hasDetail(m) && <button type="button" className={s.whyBtn} aria-expanded={open.includes(m.id)} onClick={() => toggle(m.id)}>{open.includes(m.id) ? "Hide why" : "Why?"}</button>}
+            {open.includes(m.id) && hasDetail(m) && <div className={s.cardDetail}><Reason m={m} result={results[m.id]} /></div>}
           </div>
         ))}
       </div>

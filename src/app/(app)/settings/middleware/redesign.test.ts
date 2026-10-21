@@ -527,11 +527,18 @@ describe("Monitor", () => {
     expect(list).toContain("Select all lines");
     expect((list.match(/aria-label="Select Quote SQ-0001"/g) ?? []).length).toBe(4);
   });
-  it("shows the ERP number, the 'what to do' line and the answer of a restart in the row", () => {
+  it("keeps the reason off the screen until a line is opened: only the ERP number and a Why control show", () => {
     expect(list).toContain("QUO-01002");
-    expect(list).toContain("What to do:");
-    expect(list).toContain("Sync customers, then restart.");
-    expect(list).toContain("Still failing: Still no customer.");
+    expect(list).toContain("Why: Quote SQ-0001");
+    expect(list).not.toContain("What to do:");
+    expect(list).not.toContain("Still failing: Still no customer.");
+    expect(list).not.toContain(">Reason<");
+  });
+  it("opens the reason, the 'what to do' line and the answer of a restart under the line", () => {
+    const opened = html(el(MonitorList, { items, ticked: [], results: { a: { id: "a", outcome: "failed", message: "Still no customer." } }, system: "Dynamics 365", onTick: () => undefined, onAll: () => undefined, initialOpen: ["a"] }));
+    expect(opened).toContain("What to do:");
+    expect(opened).toContain("Sync customers, then restart.");
+    expect(opened).toContain("Still failing: Still no customer.");
   });
   it("draws no request or response body anywhere in the list", () => {
     expect(list).not.toContain("quotenumber");
