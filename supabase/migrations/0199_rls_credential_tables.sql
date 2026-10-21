@@ -27,28 +27,43 @@
 -- send path), so members keep SELECT (credentials are ciphertext) and only an
 -- admin of the workspace may write.
 
+-- Each block runs only if its table exists: the owner applies migrations by
+-- hand and a database that never had 0049 (tenant_connectors) or 0081/0082
+-- must not roll the whole script back on a missing table (42P01, 2026-10-21).
+
 -- api_keys: service role only.
-drop policy if exists "api_keys: tenant isolation" on api_keys;
+do $$ begin
+  if to_regclass('public.api_keys') is null then
+    return;
+  end if;
+  execute 'drop policy if exists "api_keys: tenant isolation" on api_keys';
+end $$;
 
 -- webhooks: service role only. webhook_deliveries keeps its member read policy.
-drop policy if exists "webhooks: tenant isolation" on webhooks;
+do $$ begin
+  if to_regclass('public.webhooks') is null then
+    return;
+  end if;
+  execute 'drop policy if exists "webhooks: tenant isolation" on webhooks';
+end $$;
 
 -- tenant_connectors: members read; admins write.
-drop policy if exists "tenant_connectors: tenant isolation" on tenant_connectors;
-drop policy if exists "tenant_connectors: tenant read" on tenant_connectors;
-drop policy if exists "tenant_connectors: admin insert" on tenant_connectors;
-drop policy if exists "tenant_connectors: admin update" on tenant_connectors;
-drop policy if exists "tenant_connectors: admin delete" on tenant_connectors;
-
-create policy "tenant_connectors: tenant read" on tenant_connectors for select
-  using (tenant_id in (select tenant_id from tenant_users where user_id = auth.uid()));
-
-create policy "tenant_connectors: admin insert" on tenant_connectors for insert
-  with check (tenant_id in (select tenant_id from tenant_users where user_id = auth.uid() and role = 'admin'));
-
-create policy "tenant_connectors: admin update" on tenant_connectors for update
-  using (tenant_id in (select tenant_id from tenant_users where user_id = auth.uid() and role = 'admin'))
-  with check (tenant_id in (select tenant_id from tenant_users where user_id = auth.uid() and role = 'admin'));
-
-create policy "tenant_connectors: admin delete" on tenant_connectors for delete
-  using (tenant_id in (select tenant_id from tenant_users where user_id = auth.uid() and role = 'admin'));
+do $$ begin
+  if to_regclass('public.tenant_connectors') is null then
+    return;
+  end if;
+  execute 'drop policy if exists "tenant_connectors: tenant isolation" on tenant_connectors';
+  execute 'drop policy if exists "tenant_connectors: tenant read" on tenant_connectors';
+  execute 'drop policy if exists "tenant_connectors: admin insert" on tenant_connectors';
+  execute 'drop policy if exists "tenant_connectors: admin update" on tenant_connectors';
+  execute 'drop policy if exists "tenant_connectors: admin delete" on tenant_connectors';
+  execute $p$create policy "tenant_connectors: tenant read" on tenant_connectors for select
+    using (tenant_id in (select tenant_id from tenant_users where user_id = auth.uid()))$p$;
+  execute $p$create policy "tenant_connectors: admin insert" on tenant_connectors for insert
+    with check (tenant_id in (select tenant_id from tenant_users where user_id = auth.uid() and role = 'admin'))$p$;
+  execute $p$create policy "tenant_connectors: admin update" on tenant_connectors for update
+    using (tenant_id in (select tenant_id from tenant_users where user_id = auth.uid() and role = 'admin'))
+    with check (tenant_id in (select tenant_id from tenant_users where user_id = auth.uid() and role = 'admin'))$p$;
+  execute $p$create policy "tenant_connectors: admin delete" on tenant_connectors for delete
+    using (tenant_id in (select tenant_id from tenant_users where user_id = auth.uid() and role = 'admin'))$p$;
+end $$;

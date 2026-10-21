@@ -19,7 +19,9 @@ function effectivePolicies(): Map<string, Map<string, Policy>> {
   for (const f of files) {
     const sql = readFileSync(path.join(DIR, f), "utf8").replace(/--[^\n]*/g, "");
     for (const stmt of sql.split(";")) {
-      const s = stmt.replace(/\s+/g, " ").trim();
+      // A guarded migration wraps its statements in execute '…' / execute $p$…$p$
+      // inside a DO block (0199): unwrap them so the replay still sees the policy.
+      const s = stmt.replace(/\s+/g, " ").trim().replace(/^execute\s+(?:'|\$\w*\$)\s*/i, "").replace(/\s*(?:'|\$\w*\$)$/, "");
       let m = /^drop policy (?:if exists )?"([^"]+)" on (?:public\.)?"?(\w+)"?/i.exec(s);
       if (m) { out.get(m[2])?.delete(m[1]); continue; }
       m = /^create policy "([^"]+)" on (?:public\.)?"?(\w+)"?\s*(?:as \w+ )?(?:for (all|select|insert|update|delete))?/i.exec(s);
