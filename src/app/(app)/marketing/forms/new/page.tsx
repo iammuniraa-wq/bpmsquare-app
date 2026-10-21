@@ -1,4 +1,5 @@
-import { topicsOf } from "@/lib/marketing/config";
+import { confirmByEmailDefault, topicsOf } from "@/lib/marketing/config";
+import { listWorkspacePeople, personLabel } from "@/lib/marketing/leads/people";
 import { newFormDefaults } from "@/lib/marketing/forms/server";
 import { tenantOrigin } from "@/lib/constants";
 import FormStudio from "../FormStudio";
@@ -8,6 +9,7 @@ import { formsPage } from "../pageData";
 export default async function NewFormPage() {
   const ctx = await formsPage();
   const d = newFormDefaults(ctx);
+  const people = (await listWorkspacePeople(ctx.admin, ctx.tenantId)).map((p) => ({ id: p.user_id, label: personLabel(p) }));
   return (
     <FormStudio
       initial={{
@@ -21,6 +23,8 @@ export default async function NewFormPage() {
       submissions={[]}
       canEdit={ctx.can.edit && ctx.can.create}
       canDelete={false}
+      people={people}
+      confirmDefault={confirmByEmailDefault(ctx.config)}
     />
   );
 }

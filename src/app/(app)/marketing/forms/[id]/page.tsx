@@ -3,7 +3,8 @@ import PageHeader from "@/components/PageHeader";
 import Card from "@/components/ui/Card";
 import EmptyState from "@/components/ui/EmptyState";
 import { tenantOrigin } from "@/lib/constants";
-import { topicsOf } from "@/lib/marketing/config";
+import { confirmByEmailDefault, topicsOf } from "@/lib/marketing/config";
+import { listWorkspacePeople, personLabel } from "@/lib/marketing/leads/people";
 import { PENDING_MESSAGE, loadForm, recentSubmissions } from "@/lib/marketing/forms/server";
 import FormStudio from "../FormStudio";
 import { formsPage } from "../pageData";
@@ -24,6 +25,7 @@ export default async function FormPage({ params }: { params: Promise<{ id: strin
   if (!r.data) notFound();
   const f = r.data;
   const submissions = await recentSubmissions(ctx, f.id);
+  const people = (await listWorkspacePeople(ctx.admin, ctx.tenantId)).map((p) => ({ id: p.user_id, label: personLabel(p) }));
 
   return (
     <FormStudio
@@ -38,6 +40,8 @@ export default async function FormPage({ params }: { params: Promise<{ id: strin
       submissions={submissions.map((s) => ({ id: s.id, created_at: s.created_at, name: s.name, email: s.email, company: s.company, message: s.message, consent_given: s.consent_given, outcome: s.outcome }))}
       canEdit={ctx.can.edit}
       canDelete={ctx.can.delete}
+      people={people}
+      confirmDefault={confirmByEmailDefault(ctx.config)}
     />
   );
 }

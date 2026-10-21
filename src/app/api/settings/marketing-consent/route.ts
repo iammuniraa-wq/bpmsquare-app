@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { loadMarketingSettingsContext } from "@/lib/marketing/settingsServer";
-import { consentDefaultsOf, marketingConfigOf, sanitizeConsentDefaults, sanitizeTopics, topicsOf } from "@/lib/marketing/config";
-import { JURISDICTIONS, JURISDICTION_RULES } from "@/lib/marketing/jurisdictions";
+import { consentDefaultsOf, marketingConfigOf, sanitizeConsentDefaults, sanitizeTopics, topicsOf, workspaceJurisdictionOf } from "@/lib/marketing/config";
+import { JURISDICTIONS, JURISDICTION_RULES, isJurisdictionCode } from "@/lib/marketing/jurisdictions";
 import { isSchemaPending } from "@/lib/marketing/pending";
 
 // Settings -> Marketing -> Consent and topics. Admin-only; 404 without the
@@ -17,6 +17,7 @@ export async function GET() {
   return NextResponse.json({
     topics: topicsOf(config),
     consent_defaults: consentDefaultsOf(config),
+    workspace_jurisdiction: workspaceJurisdictionOf(config),
     jurisdictions: JURISDICTIONS.map((code) => ({
       code, label: JURISDICTION_RULES[code].label, existing_customer_allowed: JURISDICTION_RULES[code].existingCustomerAllowed, plain: JURISDICTION_RULES[code].plain,
     })),
@@ -45,12 +46,16 @@ export async function PUT(request: NextRequest) {
     }
   }
 
+  // Where the workspace is based: absent from the body = unchanged, so an older page cannot wipe it.
+  const sentJurisdiction = (body as { workspace_jurisdiction?: unknown }).workspace_jurisdiction;
+  const jurisdiction = isJurisdictionCode(sentJurisdiction) ? sentJurisdiction : workspaceJurisdictionOf(config);
   const marketing = {
     ...marketingConfigOf(config),
     topics,
     consent_defaults: sanitizeConsentDefaults((body as { consent_defaults?: unknown }).consent_defaults),
+    consent: { ...marketingConfigOf(config).consent, jurisdiction },
   };
   const { error } = await admin.from("tenants").update({ config: { ...config, marketing } }).eq("id", tenantId);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ topics: marketing.topics, consent_defaults: marketing.consent_defaults });
+  return NextResponse.json({ topics: marketing.topics, consent_defaults: marketing.consent_defaults, workspace_jurisdiction: jurisdiction });
 }

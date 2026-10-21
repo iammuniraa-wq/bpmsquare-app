@@ -146,12 +146,20 @@ export function newFormDefaults(ctx: Pick<FormsCtx, "tenantName">): FormSavePayl
   };
 }
 
+/** The person told about each answer must belong to THIS workspace; an id from the request body is never trusted. */
+async function checkNotifyUser(ctx: FormsCtx, after: FormSavePayload["after_submit"]): Promise<void> {
+  if (!after.notify_user_id) return;
+  const { data } = await ctx.admin.from("tenant_users").select("user_id").eq("tenant_id", ctx.tenantId).eq("user_id", after.notify_user_id).maybeSingle();
+  if (!data) throw { status: 422, message: "That person is not a member of this workspace" };
+}
+
 const slugTaken = (e: { code?: string; message?: string } | null) => e?.code === "23505" && (e.message ?? "").includes("forms_tenant_slug_uniq");
 
 export async function createForm(ctx: FormsCtx, body: unknown): Promise<{ id: string; ref: string | null; slug: string; warnings: string[] } | { missing: true }> {
   const r = sanitizeFormSave(body, saveContext(ctx), ctx.tenantName);
   if (!r.ok) throw { status: 422, message: r.error };
   const v = r.value;
+  await checkNotifyUser(ctx, v.after_submit);
   for (let n = 0; n < 6; n++) {
     const slug = n === 0 ? v.slug : `${v.slug.slice(0, 54)}-${n + 1}`;
     const { data, error } = await insertWithMasterRef<{ id: string; ref: string | null }>(ctx.supabase, "forms", ctx.tenantId, {
@@ -178,6 +186,7 @@ export async function saveForm(ctx: FormsCtx, id: string, body: unknown): Promis
   const r = sanitizeFormSave(body, saveContext(ctx), ctx.tenantName);
   if (!r.ok) throw { status: 422, message: r.error };
   const v = r.value;
+  await checkNotifyUser(ctx, v.after_submit);
   const { error } = await ctx.supabase.from("forms").update({
     name: v.name, slug: v.slug, status: v.status, title: v.title, intro: v.intro, button_label: v.button_label,
     fields: v.fields, consent: v.consent, after_submit: v.after_submit, updated_at: new Date().toISOString(),

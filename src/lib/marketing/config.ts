@@ -28,6 +28,17 @@ export function consentDefaultsOf(config: Partial<TenantConfig> | null | undefin
   return marketingConfigOf(config).consent_defaults ?? {};
 }
 
+/** Where the workspace is based, as set in Settings, Consent and topics. Unset reads as "other". */
+export function workspaceJurisdictionOf(config: Partial<TenantConfig> | null | undefined): JurisdictionCode {
+  const j = marketingConfigOf(config).consent?.jurisdiction;
+  return isJurisdictionCode(j) ? j : "other";
+}
+
+/** A form's "Ask the person to confirm by email" when its own setting is left alone: on in the EU, off elsewhere. */
+export function confirmByEmailDefault(config: Partial<TenantConfig> | null | undefined): boolean {
+  return workspaceJurisdictionOf(config) === "EU";
+}
+
 const slug = (s: string) => s.toLowerCase().normalize("NFKD").replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 40);
 
 /**

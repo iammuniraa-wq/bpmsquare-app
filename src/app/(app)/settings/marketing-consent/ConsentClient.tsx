@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { c } from "@/lib/theme";
 import SettingsSection from "@/components/settings/SettingsSection";
 import { SettingsSave } from "@/components/settings/SettingsHeaderActions";
-import { settingsInput, settingsLabel } from "@/components/settings/SettingsField";
+import { SettingsField, settingsInput, settingsLabel } from "@/components/settings/SettingsField";
 import { useSettingsDirty } from "@/components/settings/useSettingsDirty";
 import type { MarketingTopic } from "@/lib/constants";
 
@@ -21,11 +21,12 @@ export default function ConsentClient() {
   const [topics, setTopics] = useState<MarketingTopic[]>([]);
   const [defaults, setDefaults] = useState<Record<string, Basis>>({});
   const [jurisdictions, setJurisdictions] = useState<Jurisdiction[]>([]);
+  const [home, setHome] = useState("other");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState("");
-  const { dirty, markSaved } = useSettingsDirty({ topics, defaults });
+  const { dirty, markSaved } = useSettingsDirty({ topics, defaults, home });
 
   useEffect(() => {
     fetch("/api/settings/marketing-consent")
@@ -35,7 +36,8 @@ export default function ConsentClient() {
         setTopics(json.topics);
         setDefaults(json.consent_defaults ?? {});
         setJurisdictions(json.jurisdictions);
-        markSaved({ topics: json.topics, defaults: json.consent_defaults ?? {} });
+        setHome(json.workspace_jurisdiction ?? "other");
+        markSaved({ topics: json.topics, defaults: json.consent_defaults ?? {}, home: json.workspace_jurisdiction ?? "other" });
       })
       .catch((e) => setError((e as Error).message))
       .finally(() => setLoading(false));
@@ -47,13 +49,14 @@ export default function ConsentClient() {
     try {
       const res = await fetch("/api/settings/marketing-consent", {
         method: "PUT", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ topics, consent_defaults: defaults }),
+        body: JSON.stringify({ topics, consent_defaults: defaults, workspace_jurisdiction: home }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? "Could not save");
       setTopics(json.topics);
       setDefaults(json.consent_defaults ?? {});
-      markSaved({ topics: json.topics, defaults: json.consent_defaults ?? {} });
+      setHome(json.workspace_jurisdiction ?? home);
+      markSaved({ topics: json.topics, defaults: json.consent_defaults ?? {}, home: json.workspace_jurisdiction ?? home });
       setSaved(true);
     } catch (e) {
       setError((e as Error).message);
@@ -99,6 +102,15 @@ export default function ConsentClient() {
             <button type="button" style={linkBtn} onClick={() => setTopics((p) => [...p, { key: "", label: "", hint: "" }])}>+ Add a topic</button>
           )}
         </div>
+      </SettingsSection>
+
+      <SettingsSection id="mk-consent-home" title="Where you are based" defaultOpen={false}
+        summary={jurisdictions.find((j) => j.code === home)?.label ?? "Not set"}>
+        <SettingsField label="Country group" help="Decides whether a new form asks people to confirm by email before they count as agreed: yes in the European Union, no elsewhere. Each form can change it.">
+          <select value={home} style={settingsInput} aria-label="Where you are based" onChange={(e) => setHome(e.target.value)}>
+            {jurisdictions.map((j) => <option key={j.code} value={j.code}>{j.label}</option>)}
+          </select>
+        </SettingsField>
       </SettingsSection>
 
       <SettingsSection id="mk-consent-defaults" title="When nobody has said yes" defaultOpen

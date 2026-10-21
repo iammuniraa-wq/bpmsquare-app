@@ -6,6 +6,8 @@ import PageHeader from "@/components/PageHeader";
 import Button from "@/components/ui/Button";
 import PublicFormView from "@/components/marketing/PublicFormView";
 import { useFeel } from "@/components/FeelProvider";
+import { CheckOpt, Opt } from "@/components/ui/Opt";
+import { FORM_TIPS } from "@/lib/marketing/forms/tips";
 import { ROUTES } from "@/lib/constants";
 import { FIELD_LABEL_DEFAULT, LIMITS, type AfterSubmit, type FormConsent, type FormField, type FormStatus, type PublicForm } from "@/lib/marketing/forms/types";
 import FormTour, { type TourStep } from "./FormTour";
@@ -43,6 +45,10 @@ export type FormStudioProps = {
   submissions: SubmissionRow[];
   canEdit: boolean;
   canDelete: boolean;
+  /** Members of this workspace the answer can be sent to. */
+  people?: { id: string; label: string }[];
+  /** What "Ask the person to confirm by email" is when the form leaves it alone (on for a workspace in the EU). */
+  confirmDefault?: boolean;
 };
 
 type Sec = "basicsSec" | "fieldsSec" | "consentSec" | "afterSec" | "shareSec";
@@ -75,7 +81,7 @@ function Group({ id, title, summary, hint, open, on, onToggle, children }: {
 
 const snapshot = (d: unknown) => JSON.stringify(d);
 
-export default function FormStudio({ initial, topics, origin, redirectHost, brand, submissions, canEdit, canDelete }: FormStudioProps) {
+export default function FormStudio({ initial, topics, origin, redirectHost, brand, submissions, canEdit, canDelete, people = [], confirmDefault = false }: FormStudioProps) {
   const router = useRouter();
   const { confirm } = useFeel();
 
@@ -296,7 +302,7 @@ export default function FormStudio({ initial, topics, origin, redirectHost, bran
             <p className={styles.hint}>Leave this off for a contact form: a person can ask a question without agreeing to emails. Someone who does not tick the box is not recorded as agreeing to anything.</p>
           </Group>
 
-          <Group id="afterSec" title="After sending" summary={after.kind === "redirect" ? "Go to a page" : "Thank-you message"} hint="What the visitor sees once the form is sent." open={open === "afterSec"} on={tab === "afterSec"} onToggle={() => toggleSection("afterSec")}>
+          <Group id="afterSec" title="After sending" summary={[after.kind === "redirect" ? "Go to a page" : "Thank-you message", after.thank_you_email ? "email" : null].filter(Boolean).join(" + ")} hint="What the visitor sees and gets once the form is sent." open={open === "afterSec"} on={tab === "afterSec"} onToggle={() => toggleSection("afterSec")}>
             <div className={styles.starts}>
               <button type="button" className={cx(styles.start, after.kind === "message" && styles.sel)} disabled={!canEdit} onClick={() => setAfter((a) => ({ ...a, kind: "message" }))}><b>Show a message</b><span>A short thank-you on the form itself.</span></button>
               <button type="button" className={cx(styles.start, after.kind === "redirect" && styles.sel)} disabled={!canEdit} onClick={() => setAfter((a) => ({ ...a, kind: "redirect" }))}><b>Go to a page</b><span>A page on your own domain ({redirectHost || "set a domain first"}).</span></button>
@@ -312,6 +318,21 @@ export default function FormStudio({ initial, topics, origin, redirectHost, bran
                 <input id="frUrl" className={styles.field} value={after.redirect_url} maxLength={LIMITS.redirect} disabled={!canEdit} placeholder={`https://${redirectHost || "your-domain.com"}/thanks`} onChange={(e) => setAfter((a) => ({ ...a, redirect_url: e.target.value }))} />
                 <p className={styles.hint}>Must start with https:// and be on {redirectHost || "your own domain"}. Anything after a ? is dropped.</p>
               </div>
+            )}
+            <CheckOpt label="Send a thank-you email" info={FORM_TIPS.thankYou} checked={after.thank_you_email} disabled={!canEdit} onChange={(v) => setAfter((a) => ({ ...a, thank_you_email: v }))} />
+            {after.thank_you_email && (
+              <Opt label="Words in the email" info={FORM_TIPS.thankYouWords} htmlFor="frThanks">
+                <textarea id="frThanks" className={styles.field} value={after.thank_you_text} maxLength={LIMITS.thankYou} disabled={!canEdit} onChange={(e) => setAfter((a) => ({ ...a, thank_you_text: e.target.value }))} />
+              </Opt>
+            )}
+            <CheckOpt label="Ask the person to confirm by email" info={after.thank_you_email ? FORM_TIPS.confirm : FORM_TIPS.confirmNeeds} checked={after.confirm_by_email ?? confirmDefault} disabled={!canEdit} onChange={(v) => setAfter((a) => ({ ...a, confirm_by_email: v }))} />
+            <CheckOpt label="Tell someone about each new answer" info={FORM_TIPS.notify} checked={after.notify_owner} disabled={!canEdit || people.length === 0} onChange={(v) => setAfter((a) => ({ ...a, notify_owner: v, notify_user_id: v ? (a.notify_user_id ?? people[0]?.id ?? null) : a.notify_user_id }))} />
+            {after.notify_owner && (
+              <Opt label="Who" info={FORM_TIPS.notifyWho} htmlFor="frNotify">
+                <select id="frNotify" className={styles.select} value={after.notify_user_id ?? ""} disabled={!canEdit} onChange={(e) => setAfter((a) => ({ ...a, notify_user_id: e.target.value || null }))}>
+                  {people.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
+                </select>
+              </Opt>
             )}
           </Group>
 

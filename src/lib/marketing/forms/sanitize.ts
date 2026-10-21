@@ -122,6 +122,7 @@ export function cleanRedirectUrl(v: unknown, hosts: string[]): string {
 }
 
 const bool = (v: unknown, d: boolean) => (typeof v === "boolean" ? v : d);
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export type SaveResult = { ok: true; value: FormSavePayload; warnings: string[] } | { ok: false; error: string };
 
@@ -160,7 +161,16 @@ export function sanitizeFormSave(body: unknown, ctx: SaveContext, companyName: s
   const kind = a.kind === "redirect" ? "redirect" : "message";
   const redirect_url = kind === "redirect" ? cleanRedirectUrl(a.redirect_url, ctx.redirectHosts) : "";
   if (kind === "redirect" && !redirect_url) return { ok: false, error: "The page after sending must be a full https address on your own domain" };
-  const after: AfterSubmit = { kind, message: cleanText(a.message, LIMITS.message) || d.message, redirect_url };
+  const notify_owner = bool(a.notify_owner, false);
+  const notify_user_id = typeof a.notify_user_id === "string" && UUID.test(a.notify_user_id) ? a.notify_user_id : null;
+  if (notify_owner && !notify_user_id) return { ok: false, error: "Choose who should be told about each new answer" };
+  const after: AfterSubmit = {
+    kind, message: cleanText(a.message, LIMITS.message) || d.message, redirect_url,
+    thank_you_email: bool(a.thank_you_email, d.thank_you_email),
+    thank_you_text: cleanText(a.thank_you_text, LIMITS.thankYou, { multiline: true }) || d.thank_you_text,
+    notify_owner, notify_user_id,
+    confirm_by_email: typeof a.confirm_by_email === "boolean" ? a.confirm_by_email : null,
+  };
 
   return {
     ok: true, warnings,
@@ -204,6 +214,11 @@ export function normaliseAfter(raw: unknown): AfterSubmit {
     kind: a.kind === "redirect" ? "redirect" : "message",
     message: cleanText(a.message, LIMITS.message) || d.message,
     redirect_url: typeof a.redirect_url === "string" ? a.redirect_url.slice(0, LIMITS.redirect) : "",
+    thank_you_email: bool(a.thank_you_email, d.thank_you_email),
+    thank_you_text: cleanText(a.thank_you_text, LIMITS.thankYou, { multiline: true }) || d.thank_you_text,
+    notify_owner: bool(a.notify_owner, false) && typeof a.notify_user_id === "string" && UUID.test(a.notify_user_id),
+    notify_user_id: typeof a.notify_user_id === "string" && UUID.test(a.notify_user_id) ? a.notify_user_id : null,
+    confirm_by_email: typeof a.confirm_by_email === "boolean" ? a.confirm_by_email : null,
   };
 }
 
