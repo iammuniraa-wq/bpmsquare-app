@@ -59,13 +59,13 @@ export async function allowanceFor(tenantId: string, budget: number): Promise<Al
   return evaluateAllowance(await monthlyTokensUsed(tenantId), budget);
 }
 
-async function logUsage(row: {
-  tenantId: string; userId: string | null; surface: string; studyId: string | null; inputTokens: number; outputTokens: number;
+export async function logUsage(row: {
+  tenantId: string; userId: string | null; surface: string; studyId: string | null; inputTokens: number; outputTokens: number; /** The model that ran; defaults to AI_MODEL for the callers that never named one. */ model?: string;
 }): Promise<void> {
   try {
     const { error } = await createAdminSupabase().from("ai_usage_log").insert({
       tenant_id: row.tenantId, user_id: row.userId, surface: row.surface, study_id: row.studyId,
-      model: AI_MODEL, input_tokens: row.inputTokens, output_tokens: row.outputTokens,
+      model: row.model ?? AI_MODEL, input_tokens: row.inputTokens, output_tokens: row.outputTokens,
     });
     if (error && !isMissing(error)) console.error("ai_usage_log insert failed:", error.message);
   } catch (e) {

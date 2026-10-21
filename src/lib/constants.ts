@@ -1328,6 +1328,9 @@ export type TenantConfig = {
   brand_kit?: BrandKit;
   // Newsletter Studio AI allowance, set by a platform admin like process_studio's.
   newsletter_studio?: { monthly_token_budget?: number };
+  // The in-app assistant's monthly allowance (docs/nova-assistant-architecture.md section 6). Read since S1;
+  // the platform-admin field that writes it arrives with S4, until then absent = DEFAULT_MONTHLY_TOKEN_BUDGET.
+  ai_assistant?: { monthly_token_budget?: number };
 };
 
 /** A topic a person can agree to or refuse separately ("Offers", "Events"). */
