@@ -67,7 +67,7 @@ export default function MapEditor({ mode, rows, onRows, erpFields, allowed, issu
           {erpFields.map((f) => <option key={f.name} value={f.name}>{fieldOptionLabel(f)}</option>)}
         </datalist>
       )}
-      <div className={s.mapRow} aria-hidden="true" style={{ fontSize: 11.5, fontWeight: 700, color: "var(--hint)", textTransform: "uppercase", letterSpacing: ".04em" }}>
+      <div className={`${s.mapRow} ${s.mapHead}`} aria-hidden="true" style={{ fontSize: 11.5, fontWeight: 700, color: "var(--hint)", textTransform: "uppercase", letterSpacing: ".04em" }}>
         <span>{left}</span><span /><span>{right}</span><span />
       </div>
       {rows.map((r, i) => {

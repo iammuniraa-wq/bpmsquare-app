@@ -12,7 +12,7 @@ export type MiddlewareConnector = { id: string; name: string; shortName: string 
 export const shortName = (name: string): string => name.replace(/^Microsoft\s+/i, "").trim();
 
 export function middlewareConnectors(catalog: readonly ConnectorDef[] = CONNECTOR_CATALOG): MiddlewareConnector[] {
-  return catalog.filter((d) => d.middleware === true).map((d) => ({ id: d.id, name: d.name, shortName: shortName(d.name) }));
+  return catalog.filter((d) => d.middleware === true).map((d) => ({ id: d.id, name: d.name, shortName: d.shortName ?? shortName(d.name) }));
 }
 
 /**

@@ -252,7 +252,7 @@ export async function getConnections(): Promise<ConnectionItem[]> {
 
 export type Secrets = Partial<Record<"client_secret" | "certificate" | "private_key" | "password", string>>;
 /** A blank or missing secret means "unchanged", never "clear". A setting left out of `config` keeps its stored value; null clears it (outbound: null = "Reset to standard"). */
-export const saveConnection = (connectorId: string, config: Partial<ConnectionConfig> & { outbound?: OutboundMaps | null }, secrets: Secrets = {}) =>
+export const saveConnection = (connectorId: string, config: Partial<Omit<ConnectionConfig, "outbound">> & { outbound?: OutboundMaps | null }, secrets: Secrets = {}) =>
   put<ConnectionState>(`/api/middleware/connections/${connectorId}`, { config, secrets });
 export const testConnection = (connectorId: string) => post<{ ok?: boolean; message?: string }>(`/api/middleware/connections/${connectorId}/test`);
 export const disconnect = (connectorId: string) => del<unknown>(`/api/middleware/connections/${connectorId}`);

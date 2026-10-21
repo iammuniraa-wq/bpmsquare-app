@@ -21,7 +21,7 @@ import {
 } from "./mapEditor";
 import { MIDDLEWARE_TIPS } from "./tips";
 import { Notice, ProblemNotice, useFlash, useLoad } from "./ui";
-import MapEditor, { MapView } from "./MapEditor";
+import MapEditor, { MapView } from "./MapRows";
 
 type Ready = Extract<MappingView, { connected: true }>;
 
@@ -58,7 +58,7 @@ export default function MappingTab() {
     <>
       {flash && <Notice tone={flash.ok ? "ok" : "err"}>{flash.text}</Notice>}
       <div className={s.rowBetween}>
-        <span className="bpm-label-row"><h2 className="bpm-t-section">What goes out</h2><InfoTip label="Mapping">{MIDDLEWARE_TIPS.mapping}</InfoTip></span>
+        <span className="bpm-label-row"><h2 className="bpm-t-section">Sent to the ERP</h2><InfoTip label="Sent to the ERP">{MIDDLEWARE_TIPS.mapping}</InfoTip></span>
       </div>
       {kinds.map(({ kind, title }) => (
         <OutboundCard
@@ -68,7 +68,7 @@ export default function MappingTab() {
       ))}
 
       <div className={s.rowBetween} style={{ marginTop: 6 }}>
-        <span className="bpm-label-row"><h2 className="bpm-t-section">What comes in</h2><InfoTip label="What comes in">{MIDDLEWARE_TIPS.inbound}</InfoTip></span>
+        <span className="bpm-label-row"><h2 className="bpm-t-section">Read from the ERP</h2><InfoTip label="Read from the ERP">{MIDDLEWARE_TIPS.inbound}</InfoTip></span>
       </div>
       {INBOUND_ENTITIES.map((k) => {
         const e = m.entities[k];
@@ -100,10 +100,9 @@ function useEditor(mode: MapMode, kind: MapKind | "inbound", entity: MetadataEnt
 function EditorTools({ meta, onRefresh, onSuggest, busy }: { meta: { loading: boolean }; onRefresh: () => void; onSuggest: () => void; busy: boolean }) {
   return (
     <div className={`${s.row} bpm-tap`}>
+      <span className="bpm-label-row"><span className="bpm-t-label">Fields</span><InfoTip label="Fields">{MIDDLEWARE_TIPS.editTools}</InfoTip></span>
       <Button size="sm" onClick={onSuggest} disabled={busy || meta.loading}>Suggest mapping</Button>
-      <InfoTip label="Suggest mapping">{MIDDLEWARE_TIPS.suggest}</InfoTip>
       <Button size="sm" onClick={onRefresh} loading={meta.loading} disabled={busy}>Refresh fields</Button>
-      <InfoTip label="Refresh fields">{MIDDLEWARE_TIPS.refreshFields}</InfoTip>
     </div>
   );
 }

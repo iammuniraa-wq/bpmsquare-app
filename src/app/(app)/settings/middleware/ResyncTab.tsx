@@ -46,7 +46,8 @@ function FailedItems() {
       getMessages(filtersToQuery({ direction: "out", channel: "connector", status: "failed" }, { limit: 30 })),
       getMessages(filtersToQuery({ direction: "out", channel: "connector", status: "pending" }, { limit: 30 })),
     ]);
-    return { items: [...waiting.items, ...failed.items], update: failed.needsDatabaseUpdate, bundle: failed.bundle };
+    const open = [...waiting.items, ...failed.items].filter((m, i, all) => (m.status === "failed" || m.status === "pending") && all.findIndex((x) => x.id === m.id) === i);
+    return { items: open, update: failed.needsDatabaseUpdate, bundle: failed.bundle };
   }, [mw.connector.id]);
 
   const items = list.data?.items ?? [];
@@ -190,7 +191,8 @@ function SyncSection({ connected, connectorId }: { connected: boolean; connector
   return (
     <>
       <div className={s.rowBetween} style={{ marginTop: 6 }}>
-        <span className="bpm-label-row"><h2 className="bpm-t-section">Pull from the ERP</h2><InfoTip label="Pull from the ERP">{MIDDLEWARE_TIPS.syncNow}</InfoTip></span>
+        <span className="bpm-label-row"><h2 className="bpm-t-section">Read from the ERP</h2><InfoTip label="Read from the ERP">{MIDDLEWARE_TIPS.syncNow}</InfoTip></span>
+        {rows.length > 0 && <span className="bpm-label-row"><span className={`${s.small} ${s.muted}`}>Automatic sync</span><InfoTip label="Automatic sync">{MIDDLEWARE_TIPS.schedule}</InfoTip></span>}
       </div>
       {sync.error != null && <ProblemNotice error={sync.error} onRetry={() => void sync.reload()} />}
       {problem != null && <ProblemNotice error={problem} />}
@@ -215,7 +217,6 @@ function SyncSection({ connected, connectorId }: { connected: boolean; connector
           }
         />
       ))}
-      {rows.length > 0 && <div className="bpm-label-row" style={{ justifyContent: "flex-end" }}><span className={`${s.small} ${s.muted}`}>Automatic sync</span><InfoTip label="Automatic sync">{MIDDLEWARE_TIPS.schedule}</InfoTip></div>}
 
       <D365Runs runs={hist.runs} loading={hist.loading} onRefresh={() => void hist.refresh()} pending={busy ? [{ entity: busy.replace("sync-", ""), label: "Running" }] : []} />
     </>

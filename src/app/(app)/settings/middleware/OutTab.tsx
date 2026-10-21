@@ -72,6 +72,7 @@ export default function OutTab() {
                 onChange={(v) => void save({ fence: { [p]: v } as Partial<Record<FencePart, boolean>> })} />
             ))}
           </div>
+          <Hints contract={r.contract.fence} />
         </Card>
         <Card title="Estimates" info={MIDDLEWARE_TIPS.estimate}>
           <div className={s.checks}>
@@ -80,6 +81,7 @@ export default function OutTab() {
                 onChange={(v) => void save({ estimate: { [p]: v } as Partial<Record<EstimatePart, boolean>> })} />
             ))}
           </div>
+          <Hints contract={r.contract.estimate} />
         </Card>
       </div>
 
@@ -101,28 +103,33 @@ function RuleCard({ title, info, rule, becomes, nothingToSend, disabled, onChang
           <Switch checked={rule.enabled} label={`${title}: ${rule.enabled ? "on" : "off"}`} disabled={disabled} onChange={(v) => onChange({ enabled: v })} />
         </div>
         <div className={s.row}>
+          <span className="bpm-label-row"><span className="bpm-t-label">How it is sent</span><InfoTip label="How it is sent">{MIDDLEWARE_TIPS.mode}</InfoTip></span>
           <Segmented
             label={`${title}: how it is sent`} value={rule.mode} disabled={disabled || !rule.enabled || nothingToSend === true}
             options={[{ id: "auto", label: "Automatic" }, { id: "manual", label: "Manual" }]}
             onChange={(mode) => onChange({ mode })}
           />
-          <InfoTip label="Automatic or manual">{MIDDLEWARE_TIPS.mode}</InfoTip>
         </div>
       </div>
     </Card>
   );
 }
 
-/** A tick-box; when the connected product cannot take it, it is greyed and the hint it returned stays visible. */
+/** A tick-box; when the connected product cannot take it, it is greyed (the reason is said once under the card). */
 function PartCheck({ label, checked, contract, disabled, onChange }: {
   label: string; checked: boolean; contract: { allowed: boolean; hint: string | null }; disabled: boolean; onChange: (v: boolean) => void;
 }) {
   return (
     <div className={s.checkItem}>
       <CheckOpt label={label} checked={contract.allowed ? checked : false} disabled={disabled || !contract.allowed} onChange={onChange} />
-      {!contract.allowed && contract.hint && <p className={s.optHint}>{contract.hint}</p>}
     </div>
   );
+}
+
+/** Why an option is greyed: the plain hint the server returned, once per distinct reason, always visible. */
+function Hints({ contract }: { contract: Record<string, { allowed: boolean; hint: string | null }> }) {
+  const hints = [...new Set(Object.values(contract).filter((o) => !o.allowed && o.hint).map((o) => o.hint as string))];
+  return <>{hints.map((h) => <p key={h} className={s.optHint} style={{ marginInlineStart: 0, marginTop: 8 }}>{h}</p>)}</>;
 }
 
 // ── Preview and send one quote ──────────────────────────────────────────────
@@ -150,12 +157,11 @@ function CheckQuoteCard({ rules }: { rules: RulesView }) {
   };
 
   return (
-    <Card title="Check a quote" info={MIDDLEWARE_TIPS.sendNow}>
+    <Card title="Check a quote" info={MIDDLEWARE_TIPS.checkQuote}>
       <div className={s.stack}>
         <QuoteSelect value={quoteId} onChange={pick} options={quotes.data} loading={quotes.loading} error={quotes.error} onRetry={() => void quotes.reload()} />
         <div className={`${s.row} bpm-tap`}>
           <Button onClick={doPreview} loading={busy === "preview"} disabled={!quoteId || !connected || !!busy}>Preview payload</Button>
-          <InfoTip label="Preview payload">{MIDDLEWARE_TIPS.preview}</InfoTip>
           <Button variant="primary" onClick={doSend} loading={busy === "send"} disabled={!quoteId || !connected || !!busy}>Send now</Button>
         </div>
         {!connected && <div className={`${s.small} ${s.muted}`}>Connect an ERP to preview or send.</div>}

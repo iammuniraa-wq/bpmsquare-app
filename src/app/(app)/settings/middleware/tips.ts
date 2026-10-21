@@ -30,15 +30,13 @@ export const MIDDLEWARE_TIPS = {
   mode: "Automatic sends the moment the status changes. Manual waits until you press Send now.",
   fence: "Which fence project data leaves with the quote. It applies only to quotes made from a fence project.",
   estimate: "What leaves with a quote made from an estimate. Internal costs are never customer-facing, so they start off.",
-  preview: "Shows what would be sent, in words first. Nothing is sent or recorded.",
-  sendNow: "Sends one quote now, whatever its rule says. Safe to repeat: a quote never lands twice.",
+  checkQuote: "Pick an awarded or rejected quote to see what would be sent, or send it now. Send now is safe to repeat; a quote never lands twice.",
   testQuote: "Sends a clearly named sample quote starting with ZZ, so you can see it arrive. The product never deletes it.",
 
   // Mapping
   mapping: "Works without any change. Edit only if your ERP is customised.",
   standardMap: "The standard mapping for your ERP product. Edit to change it; Reset to standard brings it back.",
-  suggest: "Matches your fields to the ERP's own by name. You review the new rows before saving.",
-  refreshFields: "Reads the ERP's field list again. It is kept for a few minutes to stay fast.",
+  editTools: "Suggest mapping matches your fields to the ERP's by name, for you to review. Refresh fields reads the ERP's list again.",
   templateValue: "Type text and add fields from the list, like {ref} and {description}. A field with no value is left out.",
   required: "The ERP refuses a record without these. Map them, or the send fails.",
   inbound: "How ERP columns fill BPMSquare fields when records are pulled in. Preview shows real rows first.",
@@ -47,6 +45,7 @@ export const MIDDLEWARE_TIPS = {
   // Monitor
   monitor: "Every message in and out, newest first. Open one for its details.",
   body: "Shown only when you ask, and each look is written to the change history.",
+  rowDetails: "Error text and, for admins, the message body. Each look is written to the change history.",
   capture: "Keeps the request and the answer for 30 days with personal data and tokens removed. Off unless you switch it on.",
 
   // Resync

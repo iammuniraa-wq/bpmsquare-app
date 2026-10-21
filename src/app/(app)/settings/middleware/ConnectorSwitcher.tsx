@@ -22,6 +22,7 @@ export default function ConnectorSwitcher({ connectors, value, connected, onChan
   const [adding, setAdding] = useState(false);
   return (
     <div className={s.stack} style={{ gap: 8 }}>
+      <span className="bpm-label-row"><span className="bpm-t-label">Connector</span><InfoTip label="Connector">{MIDDLEWARE_TIPS.switcher}</InfoTip></span>
       <div className={s.chips} role="group" aria-label="Connector">
         {connectors.map((c) => (
           <button key={c.id} type="button" className={s.chip} aria-pressed={c.id === value} onClick={() => onChange(c.id)}>
@@ -33,7 +34,6 @@ export default function ConnectorSwitcher({ connectors, value, connected, onChan
         <button type="button" className={`${s.chip} ${s.chipDash}`} aria-expanded={adding} onClick={() => setAdding((a) => !a)}>
           <PlusIcon /> Add connector
         </button>
-        <InfoTip label="Connectors">{MIDDLEWARE_TIPS.switcher}</InfoTip>
       </div>
       {adding && (
         <div className={s.addPanel} role="status">

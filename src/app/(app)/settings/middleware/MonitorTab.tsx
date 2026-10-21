@@ -263,8 +263,8 @@ function MessagePanel({ message: m, system, onClose, onOnlyRecord, onRetried }: 
         {problem != null && <ProblemNotice error={problem} />}
         {!detail ? (
           <div className={s.row}>
-            <Button onClick={() => void show()} loading={busy === "show"} disabled={!!busy}>Show details</Button>
-            <InfoTip label="Show details">{MIDDLEWARE_TIPS.body}</InfoTip>
+            <span className="bpm-label-row"><span className="bpm-t-label">Details</span><InfoTip label="Details">{MIDDLEWARE_TIPS.rowDetails}</InfoTip></span>
+            <Button onClick={() => void show()} loading={busy === "show"} disabled={!!busy}>Show</Button>
           </div>
         ) : (
           <div className={s.stack} style={{ gap: 10 }}>
