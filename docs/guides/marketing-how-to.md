@@ -12,7 +12,7 @@ This guide is for the marketing or sales manager. You do not need to be technica
 2. Forms and the preference centre
 3. Newsletter Studio
 4. Email health
-5. Scored leads
+5. Lead scores
 6. Journeys
 7. Buying signals
 8. ABM programs
@@ -291,7 +291,7 @@ Nothing to set up. It starts working once Newsletter Studio is on and you have s
 
 | Button | What it does |
 |---|---|
-| **Check this address** | Checks the spelling and whether the company's mail domain can receive mail. Sends nothing. |
+| **Check address** | Checks the spelling and whether the company's mail domain can receive mail. Sends nothing. |
 | **Fix the address** | You type the right address. The old problem is cleared and the new address is checked. |
 | **Mark as checked** | Use when you confirmed the address another way (a phone call). You must say how. Not offered for a bounced or spam-marked address. |
 
@@ -301,7 +301,7 @@ Nothing to set up. It starts working once Newsletter Studio is on and you have s
 
 | Label | Colour | Meaning | What to do |
 |---|---|---|---|
-| Not checked yet | Blue | Not sent to, not checked | Press **Check this address** |
+| Not checked yet | Blue | Not sent to, not checked | Press **Check address** |
 | Working | Green | Delivered, or the check passed | Nothing |
 | Trouble delivering | Amber | The last message failed for now (full mailbox, for example). It may clear up. | Wait for the next send, or phone and fix |
 | Bounced | Red | The mail server says the address does not exist. **We will not email it again.** | Phone for the right address, then **Fix the address** |
@@ -321,7 +321,7 @@ Nothing to set up. It starts working once Newsletter Studio is on and you have s
 
 ---
 
-## 5. Scored leads
+## 5. Lead scores
 
 ### What it is for
 
@@ -343,7 +343,7 @@ The standard response time is one working day, with Sunday off. If your week is 
 
 ### Do it day to day
 
-1. Open **Marketing → Scored leads**. The best score is at the top.
+1. Open **Marketing → Lead scores**. The best score is at the top.
 2. Use the chips to filter: **All**, each stage, and **Overdue**.
 3. Open a lead. The page shows the score and **Why 72?** (your number will differ). It lists each reason with its points, with what they did first, then who they are. It also shows how many points remain to reach the next stage.
 4. On a lead that is **Ready for sales**, press **Pick this up**. It becomes yours and moves to **Working**.
@@ -378,10 +378,10 @@ Scoring moves a lead up through New, Engaged and Ready for sales by itself. It n
 |---|---|
 | "Not scored yet" | Press **Score again** or wait for the next run |
 | A lead is stuck on "New" | Nothing has added points. The score rises as the person clicks, opens quotes or fills in forms. |
-| Too many leads are Ready | Raise **Ready for sales from** in Scoring, or lower the points for small actions |
+| Too many leads are Ready | Raise **Hot from** in Scoring (Thresholds tab), or lower the points for small actions |
 | The wrong person got a lead | Check the team setting in **Settings → Coverage** and the company's owner |
 
-**Coming later:** leads created automatically when a contact becomes Engaged, a screen for response times and days off, alerts for overdue leads, and Score and Stage columns on the existing **Leads** page. The existing **Leads** page is unchanged; **Scored leads** is the new view.
+**Coming later:** leads created automatically when a contact becomes Engaged, a screen for response times and days off, alerts for overdue leads, and Score and Stage columns on the existing **Leads** page. The existing **Leads** page is unchanged; **Lead scores** is the new view.
 
 ---
 
@@ -418,7 +418,7 @@ Messages wait for the next allowed time. They are never dropped. To change these
 
 **Going live safely**
 
-1. Press **Turn on**. If the group is large, a message lists the count and asks you to confirm.
+1. Press **Go live**. If the group is large, a message lists the count and asks you to confirm.
 2. When you turn it on, people from matching events in the last 3 days also enter (the "Include the last (days)" setting; use 0 for new events only). Check the count first.
 3. Steps are locked while the journey is on. Press **Pause** to change them.
 4. Steps run within about five minutes.
@@ -563,7 +563,7 @@ To set progress by hand, open the company and press **Update progress**. You mus
 
 **Plan.** On the company's **Plan** tab, set **What happens next**, **Due on**, **Who does it**, the **Tier**, the owner, and link the **Deal this program is pursuing**. A linked deal moves the company to **Deal open**, then **Won** or **Lost** when it closes.
 
-**Results.** On the program, open **Results**. You see the funnel: Targets, Reached, Engaged, In talks, In a deal, Won. You also see the goal sentence, the money from linked deals, and results by tier.
+**Results.** On the program, open **Results**. You see the funnel: Targets, Reached, Responding, In talks, In a deal, Won. You also see the goal sentence, the money from linked deals, and results by tier.
 
 ### What the colours and labels mean
 
@@ -571,7 +571,7 @@ To set progress by hand, open the company and press **Update progress**. You mus
 |---|---|
 | Planned | In the program, nothing has happened yet |
 | Reached | Something was sent to someone in the buying group (an email or a quote) |
-| Engaged | Someone in the buying group did something (clicked, opened a quote, filled in a form) |
+| Responding | Someone in the buying group did something (clicked, opened a quote, filled in a form) |
 | In talks | A meeting happened. Only a person can set this. |
 | Deal open | A deal is linked |
 | Won / Lost | Follows the linked deal |
@@ -579,7 +579,7 @@ To set progress by hand, open the company and press **Update progress**. You mus
 
 Click any progress pill to open **Why this status?** It names the rule, the events behind it with dates, and what would move it next.
 
-By default a company is not marked **Engaged** until the required roles are filled. The pill then says it would be Engaged, but no decision maker is named. This is on purpose.
+By default a company is not marked **Responding** until the required roles are filled. The pill then says it would be Responding, but no decision maker is named. This is on purpose.
 
 **Buying stage, Progress and Next step** always show together.
 
@@ -666,7 +666,7 @@ Ten minutes a day is enough once everything is set up.
 
 | Minutes | Do this |
 |---|---|
-| 3 | **Scored leads → Overdue** and **Ready for sales**. Press **Pick this up** on yours. Call the best one first. |
+| 3 | **Lead scores → Overdue** and **Ready for sales**. Press **Pick this up** on yours. Call the best one first. |
 | 3 | **Buying signals → Moved up this week**. Call every company at **Deciding**. |
 | 2 | Open a lead and read **Why** before you call, so you know what they did. |
 | 2 | Update stages and add a note. Mark journey tasks **Done**. |
@@ -712,7 +712,7 @@ Ten minutes a day is enough once everything is set up.
 If something looks wrong, send us three things:
 
 1. **A screenshot** of the whole screen, including the menu.
-2. **The name of the page**, as it appears at the top (for example "Scored leads" or "Journeys").
+2. **The name of the page**, as it appears at the top (for example "Lead scores" or "Journeys").
 3. **The time** it happened, with your time zone. If it is about one person or company, send their name.
 
 Please do not send passwords. Do not send lists of customers by email: tell us the page and we can look.

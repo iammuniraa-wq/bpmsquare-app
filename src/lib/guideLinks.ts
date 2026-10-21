@@ -10,7 +10,7 @@ export const GUIDE_LINKS: Record<string, string> = {
   languages: "#3-newsletter-studio",
   health: "#3-newsletter-studio",
   emailHealth: "#4-email-health",
-  leadScores: "#5-scored-leads",
+  leadScores: "#5-lead-scores",
   journeys: "#6-journeys",
   journeyGuards: "#6-journeys",
   signals: "#7-buying-signals",
