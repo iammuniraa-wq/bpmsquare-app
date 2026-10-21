@@ -283,18 +283,23 @@ describe("mapping edits", () => {
 
 describe("ticking lines", () => {
   const items = [msg({ id: "a" }), msg({ id: "b" }), msg({ id: "c", restartable: false, status: "ok" })];
-  it("only a restartable line can be ticked", () => {
+  it("every line can be ticked, an OK line included (to read its payload)", () => {
     expect(toggleTick([], items, "a")).toEqual(["a"]);
     expect(toggleTick(["a"], items, "a")).toEqual([]);
-    expect(toggleTick([], items, "c")).toEqual([]);
+    expect(toggleTick([], items, "c")).toEqual(["c"]);
+    expect(toggleTick([], items, "zzz")).toEqual([]);
   });
-  it("select-all covers the restartable lines and a second press clears them", () => {
-    expect(toggleAll([], items)).toEqual(["a", "b"]);
-    expect(toggleAll(["a", "b"], items)).toEqual([]);
-    expect(toggleAll(["a"], items)).toEqual(["a", "b"]);
+  it("select-all covers every loaded line and a second press clears them", () => {
+    expect(toggleAll([], items)).toEqual(["a", "b", "c"]);
+    expect(toggleAll(["a", "b", "c"], items)).toEqual([]);
+    expect(toggleAll(["a"], items)).toEqual(["a", "b", "c"]);
   });
-  it("drops a tick on a line that is no longer there or no longer restartable", () => {
-    expect(pruneTicks(["a", "c", "zzz"], items)).toEqual(["a"]);
+  it("drops a tick on a line that is no longer there", () => {
+    expect(pruneTicks(["a", "c", "zzz"], items)).toEqual(["a", "c"]);
+  });
+  it("Restart acts only on the ticked lines that can be restarted", () => {
+    expect(actionBar(items, ["c"], {}, false).restartEnabled).toBe(false);
+    expect(actionBar(items, ["a", "c"], {}, false)).toMatchObject({ restartEnabled: true, restartLabel: "Restart" });
   });
 });
 
@@ -517,11 +522,10 @@ describe("Mapping", () => {
 
 describe("Monitor", () => {
   const items = [msg({ id: "a" }), msg({ id: "b", restartable: false, status: "ok", fix: null, erpNumber: "QUO-01002" })];
-  const list = html(el(MonitorList, { items, ticked: [], results: { a: { id: "a", outcome: "failed", message: "Still no customer." } }, system: "Dynamics 365", openId: null, onTick: () => undefined, onAll: () => undefined, onOpen: () => undefined }));
-  it("gives a tick box only to a restartable line, plus select-all", () => {
-    expect(list).toContain("Select all lines that can be restarted");
-    expect(list).toContain("Select Quote SQ-0001");
-    expect(list).not.toMatch(/Select Quote SQ-0001[\s\S]*Select Quote SQ-0001[\s\S]*Select Quote SQ-0001[\s\S]*Select Quote SQ-0001/);
+  const list = html(el(MonitorList, { items, ticked: [], results: { a: { id: "a", outcome: "failed", message: "Still no customer." } }, system: "Dynamics 365", onTick: () => undefined, onAll: () => undefined }));
+  it("gives every line a tick box, plus select-all", () => {
+    expect(list).toContain("Select all lines");
+    expect((list.match(/aria-label="Select Quote SQ-0001"/g) ?? []).length).toBe(4);
   });
   it("shows the ERP number, the 'what to do' line and the answer of a restart in the row", () => {
     expect(list).toContain("QUO-01002");

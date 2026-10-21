@@ -33,21 +33,25 @@ export function matchesDocument(m: Pick<MonitorMessage, "what">, document: strin
 
 export const restartableIds = (items: readonly MonitorMessage[]): string[] => items.filter((m) => m.restartable).map((m) => m.id);
 
-/** Tick or untick one line. Only a restartable line can be ticked. */
+/** Tick or untick one line. Every line can be ticked (to read its payload); Restart acts on the restartable ones. */
 export function toggleTick(ticked: readonly string[], items: readonly MonitorMessage[], id: string): string[] {
-  const m = items.find((x) => x.id === id);
-  if (!m?.restartable) return [...ticked];
+  if (!items.some((x) => x.id === id)) return [...ticked];
   return ticked.includes(id) ? ticked.filter((x) => x !== id) : [...ticked, id];
 }
 
-/** Select-all covers the lines loaded now: all ticked -> none, otherwise every restartable one. */
+/** Select-all covers the lines loaded now: all ticked -> none, otherwise every line. */
 export function toggleAll(ticked: readonly string[], items: readonly MonitorMessage[]): string[] {
-  const all = restartableIds(items);
-  return all.length > 0 && all.every((id) => ticked.includes(id)) ? [] : all;
+  return items.length > 0 && items.every((m) => ticked.includes(m.id)) ? [] : items.map((m) => m.id);
 }
 
-/** After the list changes, a tick on a line that is no longer there (or no longer restartable) goes. */
+/** After the list changes, a tick on a line that is no longer there goes. */
 export const pruneTicks = (ticked: readonly string[], items: readonly MonitorMessage[]): string[] => {
+  const here = new Set(items.map((m) => m.id));
+  return ticked.filter((id) => here.has(id));
+};
+
+/** The ticked lines that Restart can act on. */
+export const restartableTicked = (ticked: readonly string[], items: readonly MonitorMessage[]): string[] => {
   const ok = new Set(restartableIds(items));
   return ticked.filter((id) => ok.has(id));
 };
@@ -71,8 +75,9 @@ export function actionBar(items: readonly MonitorMessage[], ticked: readonly str
   const failedShown = restartableIds(items).length;
   let restartLabel = "Restart";
   let restartMode: ActionBar["restartMode"] = "none";
-  if (lines.length > 0) { restartMode = "ticked"; restartLabel = lines.length === 1 ? "Restart" : `Restart (${lines.length})`; }
-  else if (filters.status === "failed" && failedShown > 0) { restartMode = "all-failed"; restartLabel = `Restart all failed (${failedShown}${hasMore ? "+" : ""})`; }
+  const canRestart = lines.filter((m) => m.restartable).length;
+  if (canRestart > 0) { restartMode = "ticked"; restartLabel = canRestart === 1 ? "Restart" : `Restart (${canRestart})`; }
+  else if (lines.length === 0 && filters.status === "failed" && failedShown > 0) { restartMode = "all-failed"; restartLabel = `Restart all failed (${failedShown}${hasMore ? "+" : ""})`; }
   const view = (): { disabled: boolean; reason: string | null } => {
     if (!one) return { disabled: true, reason: "Select one line" };
     if (!one.hasPayload) return { disabled: true, reason: "No payload recorded" };

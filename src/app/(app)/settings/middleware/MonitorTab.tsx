@@ -18,7 +18,7 @@ import {
   DIRECTION_WORD, EMPTY_FILTERS, durationWord, filterProblem, filtersToQuery, hasFilters, recordHref, recordTypeWord, statusTone, statusWord,
 } from "./monitorLogic";
 import {
-  DOCUMENT_FILTERS, STATUS_CHIPS, actionBar, filterAsRecord, hasSide, matchesDocument, payloadLine, payloadText, pruneTicks, resultLine, resultsSummary, restartableIds, toggleAll, toggleTick,
+  DOCUMENT_FILTERS, STATUS_CHIPS, actionBar, filterAsRecord, hasSide, matchesDocument, payloadLine, payloadText, pruneTicks, resultLine, resultsSummary, restartableIds, restartableTicked, toggleAll, toggleTick,
   type PayloadSide,
 } from "./monitorSelection";
 import { MIDDLEWARE_TIPS } from "./tips";
@@ -44,7 +44,6 @@ export default function MonitorTab() {
   const [summary, setSummary] = useState<string | null>(null);
   const [restarting, setRestarting] = useState(false);
   const [restartProblem, setRestartProblem] = useState<unknown>(null);
-  const [open, setOpen] = useState<MonitorMessage | null>(null);
   const [payload, setPayload] = useState<{ message: MonitorMessage; side: PayloadSide } | null>(null);
   const seq = useRef(0);
   const problem = filterProblem(filters);
@@ -84,7 +83,7 @@ export default function MonitorTab() {
     if (bar.restartMode === "all-failed" && !(await confirm({ title: "Restart all failed?", body: `${restartableIds(items).length}${cursor ? " or more" : ""} failed lines are sent again. Nothing lands twice in the ERP.`, confirmLabel: "Restart all" }))) return;
     setRestarting(true); setRestartProblem(null);
     try {
-      const out = await restartMessages(bar.restartMode === "ticked" ? { messageIds: ticked } : { filter: filterAsRecord(filters), limit: RESTART_ALL_CAP });
+      const out = await restartMessages(bar.restartMode === "ticked" ? { messageIds: restartableTicked(ticked, items) } : { filter: filterAsRecord(filters), limit: RESTART_ALL_CAP });
       setResults(Object.fromEntries(out.map((r) => [r.id, r])));
       setSummary(resultsSummary(out));
       setTicked([]);
@@ -123,22 +122,15 @@ export default function MonitorTab() {
           : <EmptyState title="No messages yet" text="Send a test quote from Links and it shows here." action={<Button onClick={() => mw.goTab("links")}>Open Links</Button>} />
       )}
 
+      {payload && <PayloadPanel message={payload.message} initial={payload.side} onClose={() => setPayload(null)} />}
+
       {items.length > 0 && (
         <MonitorList
-          items={items} ticked={ticked} results={results} system={system} openId={open?.id ?? null}
-          onTick={(id) => setTicked((t) => toggleTick(t, items, id))} onAll={() => setTicked((t) => toggleAll(t, items))} onOpen={setOpen}
+          items={items} ticked={ticked} results={results} system={system}           onTick={(id) => setTicked((t) => toggleTick(t, items, id))} onAll={() => setTicked((t) => toggleAll(t, items))}
           more={cursor ? <Button onClick={() => void load(filters, cursor)} loading={loading}>Load more</Button> : null}
         />
       )}
 
-      {open && (
-        <MessagePanel
-          message={open} system={system} onClose={() => setOpen(null)}
-          onOnlyRecord={(id) => { setFilters({ object_id: id }); setOpen(null); }}
-          onRestarted={() => { void load(filters, null); void mw.reloadAll(); }}
-        />
-      )}
-      {payload && <PayloadPanel message={payload.message} initial={payload.side} onClose={() => setPayload(null)} />}
     </>
   );
 }
@@ -211,11 +203,11 @@ function Reason({ m, result }: { m: MonitorMessage; result?: RestartResult }) {
 }
 
 /** One table, newest first, every detail in the row. Under 780 px each row is a two-line card. Plain props only. */
-export function MonitorList({ items, ticked, results, system, openId, onTick, onAll, onOpen, more }: {
-  items: readonly MonitorMessage[]; ticked: readonly string[]; results: Record<string, RestartResult>; system: string; openId: string | null;
-  onTick: (id: string) => void; onAll: () => void; onOpen: (m: MonitorMessage) => void; more?: React.ReactNode;
+export function MonitorList({ items, ticked, results, system, onTick, onAll, more }: {
+  items: readonly MonitorMessage[]; ticked: readonly string[]; results: Record<string, RestartResult>; system: string;
+  onTick: (id: string) => void; onAll: () => void; more?: React.ReactNode;
 }) {
-  const ids = restartableIds(items);
+  const ids = items.map((m) => m.id);
   const allOn = ids.length > 0 && ids.every((id) => ticked.includes(id));
   const someOn = ids.some((id) => ticked.includes(id));
   const allRef = useRef<HTMLInputElement>(null);
@@ -229,23 +221,21 @@ export function MonitorList({ items, ticked, results, system, openId, onTick, on
           <thead>
             <tr>
               <th className={s.tickCol}>
-                <label className={s.tickTap}><input ref={allRef} type="checkbox" checked={allOn} disabled={ids.length === 0} onChange={onAll} aria-label="Select all lines that can be restarted" /></label>
+                <label className={s.tickTap}><input ref={allRef} type="checkbox" checked={allOn} disabled={ids.length === 0} onChange={onAll} aria-label="Select all lines" /></label>
               </th>
               {["Time", "Direction", "What", "Record", "ERP number", "Status", "Reason"].map((h) => <th key={h}>{h}</th>)}
             </tr>
           </thead>
           <tbody>
             {items.map((m) => (
-              <tr key={m.id} className={`${s.clickable} ${openId === m.id ? s.selected : ""}`} onClick={() => onOpen(m)}>
+              <tr key={m.id} className={`${s.clickable} ${ticked.includes(m.id) ? s.selected : ""}`} onClick={() => onTick(m.id)}>
                 <td className={s.tickCol} onClick={(e) => e.stopPropagation()}>
-                  {m.restartable
-                    ? <label className={s.tickTap}><input type="checkbox" checked={ticked.includes(m.id)} onChange={() => onTick(m.id)} aria-label={`Select ${label(m)}`} /></label>
-                    : null}
+                  <label className={s.tickTap}><input type="checkbox" checked={ticked.includes(m.id)} onChange={() => onTick(m.id)} aria-label={`Select ${label(m)}`} /></label>
                 </td>
                 <td className={s.nowrap}>{fmtDateTime(m.at)}</td>
                 <td><span className={s.dir}><ArrowIcon dir={m.direction} />{DIRECTION_WORD[m.direction]}</span></td>
                 <td>
-                  <button type="button" className={s.linkBtn} onClick={(e) => { e.stopPropagation(); onOpen(m); }} aria-label={`Open details: ${label(m)}`}>{m.what ?? "Message"}</button>
+                  {m.what ?? "Message"}
                 </td>
                 <td className={s.recordCell} onClick={(e) => e.stopPropagation()}><RecordLink record={m.record} /></td>
                 <td className={s.wrapAny}>{m.erpNumber ?? "—"}</td>
@@ -258,15 +248,15 @@ export function MonitorList({ items, ticked, results, system, openId, onTick, on
       </div>
       <div className="bpm-rows-cards" style={{ gap: 8, padding: 10 }}>
         <label className={s.tickAllCard}>
-          <input type="checkbox" checked={allOn} disabled={ids.length === 0} onChange={onAll} aria-label="Select all lines that can be restarted" />
-          <span className={s.small}>Select all that can be restarted</span>
+          <input type="checkbox" checked={allOn} disabled={ids.length === 0} onChange={onAll} aria-label="Select all lines" />
+          <span className={s.small}>Select all</span>
         </label>
         {items.map((m) => (
-          <div key={m.id} className={`${s.msgCard} ${openId === m.id ? s.selected : ""}`}>
+          <div key={m.id} className={`${s.msgCard} ${ticked.includes(m.id) ? s.selected : ""}`}>
             <div className={s.msgTick}>
-              {m.restartable ? <label className={s.tickTap}><input type="checkbox" checked={ticked.includes(m.id)} onChange={() => onTick(m.id)} aria-label={`Select ${label(m)}`} /></label> : null}
+              <label className={s.tickTap}><input type="checkbox" checked={ticked.includes(m.id)} onChange={() => onTick(m.id)} aria-label={`Select ${label(m)}`} /></label>
             </div>
-            <button type="button" className={s.msgBody} onClick={() => onOpen(m)}>
+            <button type="button" className={s.msgBody} onClick={() => onTick(m.id)}>
               <span className={s.rowBetween}>
                 <span className={s.fieldName}><span className={s.dir}><ArrowIcon dir={m.direction} /></span> {m.what ?? "Message"}{m.record?.label ? ` · ${m.record.label}` : ""}</span>
                 <StatusPill label={statusWord(m, system)} tone={statusTone(m.status)} />
@@ -279,79 +269,6 @@ export function MonitorList({ items, ticked, results, system, openId, onTick, on
       </div>
       {more ? <div style={{ padding: 12, display: "flex", justifyContent: "center", borderTop: "1px solid var(--line)" }}>{more}</div> : null}
     </div>
-  );
-}
-
-// ── Detail panel (row click) ────────────────────────────────────────────────
-
-const SHOWN_TEXT = ["body_text", "html", "text"] as const;
-
-function MessagePanel({ message: m, system, onClose, onOnlyRecord, onRestarted }: {
-  message: MonitorMessage; system: string; onClose: () => void; onOnlyRecord: (id: string) => void; onRestarted: () => void;
-}) {
-  const [detail, setDetail] = useState<MessageDetail | null>(null);
-  const [busy, setBusy] = useState<"show" | "restart" | null>(null);
-  const [problem, setProblem] = useState<unknown>(null);
-  const [answer, setAnswer] = useState<RestartResult | null>(null);
-
-  useEffect(() => { setDetail(null); setProblem(null); setAnswer(null); }, [m.id]);
-
-  const show = async () => {
-    setBusy("show"); setProblem(null);
-    try {
-      const r = await getMessage(m.id);
-      if ("needsDatabaseUpdate" in r) setProblem(new Error("A database update is needed first."));
-      else setDetail(r);
-    } catch (e) { setProblem(e); } finally { setBusy(null); }
-  };
-  const restart = async () => {
-    setBusy("restart"); setProblem(null);
-    try { setAnswer((await restartMessages({ messageIds: [m.id] }))[0] ?? null); onRestarted(); } catch (e) { setProblem(e); } finally { setBusy(null); }
-  };
-
-  const err = detail && typeof detail.detail.error === "string" ? detail.detail.error : null;
-  const href = recordHref(m.record);
-  const { payload: _payload, ...rest } = (detail?.detail ?? {}) as Record<string, unknown>;
-  void _payload;
-
-  return (
-    <Panel title={m.summary} subtitle={<StatusPill label={statusWord(m, system)} tone={statusTone(m.status)} />} onClose={onClose} label="Message details">
-      <dl className={s.kv}>
-        <dt>Time</dt><dd>{fmtDateTime(m.at)}</dd>
-        <dt>Direction</dt><dd><span className={s.dir}><ArrowIcon dir={m.direction} />{DIRECTION_WORD[m.direction]}</span></dd>
-        <dt>What</dt><dd>{m.what ?? "—"}</dd>
-        <dt>Record</dt><dd>{m.record ? (href ? <Link href={href} style={{ color: "var(--blueink)" }}>{m.record.label ?? recordTypeWord(m.record.type)} <ExternalIcon /></Link> : (m.record.label ?? recordTypeWord(m.record.type))) : "—"}</dd>
-        <dt>ERP number</dt><dd>{m.erpNumber ?? "—"}</dd>
-        <dt>Took</dt><dd>{durationWord(m.duration_ms)}</dd>
-      </dl>
-      {m.fix && <Notice tone="warn"><span className={s.noticeStrong}>What to do:</span> {m.fix}</Notice>}
-      <div className={`${s.row} bpm-tap`}>
-        {m.record?.id && <Button size="sm" onClick={() => onOnlyRecord(m.record!.id!)}>Show only this record</Button>}
-        {m.restartable && <Button size="sm" variant="primary" onClick={() => void restart()} loading={busy === "restart"} disabled={!!busy}>Restart</Button>}
-      </div>
-      {answer && <Notice tone={answer.outcome === "done" || answer.outcome === "already_ok" ? "ok" : "warn"}>{resultLine(answer)}</Notice>}
-      {problem != null && <ProblemNotice error={problem} />}
-      {!detail ? (
-        <div className={s.row}>
-          <span className="bpm-label-row"><span className="bpm-t-label">Details</span><InfoTip label="Details">{MIDDLEWARE_TIPS.rowDetails}</InfoTip></span>
-          <Button onClick={() => void show()} loading={busy === "show"} disabled={!!busy}>Show</Button>
-        </div>
-      ) : (
-        <div className={s.stack} style={{ gap: 10 }}>
-          {err && <Notice tone="err"><span className={s.noticeStrong}>Error</span> <span className={s.mono}>{err}</span></Notice>}
-          {SHOWN_TEXT.filter((k) => rest[k] !== undefined && rest[k] !== null && rest[k] !== "").map((k) => (
-            <div key={k}>
-              <div className="bpm-t-label" style={{ marginBottom: 4 }}>{k.replace(/_/g, " ")}</div>
-              <pre className={`${s.raw} ${s.mono}`} tabIndex={0}>{typeof rest[k] === "string" ? (rest[k] as string) : JSON.stringify(rest[k], null, 2)}</pre>
-            </div>
-          ))}
-          <details>
-            <summary style={{ cursor: "pointer", minHeight: 32 }}>All fields</summary>
-            <pre className={`${s.raw} ${s.mono}`} tabIndex={0} style={{ marginTop: 6 }}>{JSON.stringify(rest, null, 2)}</pre>
-          </details>
-        </div>
-      )}
-    </Panel>
   );
 }
 
@@ -384,7 +301,14 @@ function PayloadPanel({ message, initial, onClose }: { message: MonitorMessage; 
   };
 
   return (
-    <Panel title={side === "request" ? "Request" : "Response"} subtitle={`${message.what ?? "Message"}${message.record?.label ? ` · ${message.record.label}` : ""}`} onClose={onClose} label="Request and response">
+    <section className={`${s.listCard} ${s.stack}`} style={{ padding: 14, gap: 12 }} aria-label="Request and response">
+      <div className={s.rowBetween}>
+        <div style={{ minWidth: 0 }}>
+          <div className="bpm-t-section">{side === "request" ? "Request" : "Response"}</div>
+          <div className={`${s.small} ${s.muted}`}>{`${message.what ?? "Message"}${message.record?.label ? ` · ${message.record.label}` : ""}`}</div>
+        </div>
+        <Button size="sm" onClick={onClose}>Close</Button>
+      </div>
       <Segmented label="Show" value={side} options={[{ id: "request", label: "Request" }, { id: "response", label: "Response" }]} onChange={setSide} />
       {problem != null && <ProblemNotice error={problem} />}
       {payload === undefined && problem == null && <div className={`${s.small} ${s.muted}`} role="status">Loading…</div>}
@@ -404,7 +328,7 @@ function PayloadPanel({ message, initial, onClose }: { message: MonitorMessage; 
             : <div className={`${s.small} ${s.muted}`}>{side === "request" ? "No request was recorded." : "No response was recorded."}</div>}
         </>
       )}
-    </Panel>
+    </section>
   );
 }
 
