@@ -48,6 +48,28 @@ export function decrypt(ciphertext: string | null | undefined): string | null {
   return decipher.update(Buffer.from(dataB64, "base64")).toString("utf8") + decipher.final("utf8");
 }
 
+/**
+ * Secrets that live inside tenants.config (an ERP webhook signing key, an
+ * external-source auth header). `tenants` is readable by every member of the
+ * workspace through PostgREST, so a secret kept there in the clear is readable
+ * by the lowest role (audit 2026-10-21, H3). Idempotent: an already sealed
+ * value is returned as is, so a re-save never double-encrypts.
+ */
+export function sealSecret(value: string | null | undefined): string | undefined {
+  if (value === null || value === undefined || value === "") return undefined;
+  return value.startsWith(ENC_PREFIX) ? value : (encrypt(value) ?? undefined);
+}
+
+/** The usable value of a stored secret; legacy plaintext passes through unchanged. */
+export function unsealSecret(value: string | null | undefined): string | undefined {
+  if (value === null || value === undefined || value === "") return undefined;
+  try {
+    return decrypt(value) ?? undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 const ACCOUNT_PII: (keyof Account)[] = ["phone", "phone2", "email", "email2", "gstin"];
 const CONTACT_PII: (keyof Contact)[] = ["phone", "phone2", "phone3", "email", "email2"];
 
