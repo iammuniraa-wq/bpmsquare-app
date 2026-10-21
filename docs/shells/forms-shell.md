@@ -67,12 +67,42 @@ on. Everything below the "To enhance later" line is deliberately not here.
   rejection, find-by-hash and no cross-tenant match, tenant from the key, flag-off 404, XSS-safe
   rendering, preference changes appending history, and the public-path allowlist.
 
+## Added after the first shell (2026-10-21): the thank-you email and double opt-in
+
+Settings on the form's **After sending** group, all kept in the form's own `after_submit` JSON (a form saved
+earlier reads with the defaults; nothing to migrate):
+
+- **Thank-you email** (on by default, with default words `defaultThankYouText()` that the form can rewrite).
+  A confirmation of the visitor's own submission, so it is sent whether or not the consent box was ticked.
+  Built in `forms/emails.ts`, sent through `resolveOutbound()`: a demo workspace is redirect-only (to its one
+  internal inbox, the intended person named) and with no inbox set it sends nothing. Never throws; the
+  submission is already kept. Logged in `email_log` (kind `campaign`, related object the form). Not sent a
+  second time to the same person within an hour (otherwise a form is a way to mail-bomb an address).
+- **Tell someone about each new answer** (off by default): one workspace member, chosen from a list, gets a short
+  email with the answers. The person is checked against `tenant_users` of this workspace when the form is saved
+  and again when sending. Also through `resolveOutbound()`.
+- **Ask the person to confirm by email** (double opt-in). Its default follows `config.marketing.consent.jurisdiction`
+  (Settings, Marketing, Consent and topics, "Where you are based"): on for the EU, off elsewhere; a form can
+  override it either way (`null` means "follow the workspace"). When on, each ticked topic is recorded as a
+  `pending` row in the consent ledger (migration 0197) instead of `granted`, with the same evidence. `pending`
+  lives only in `consent_events`; `consent_state` keeps its two values, so `canContact()` cannot read it as a
+  yes and it cannot cover an earlier real answer. The thank-you email carries a signed link
+  (`/marketing/confirm/<contactId>/<token>`, HMAC with the same secret as the unsubscribe link, 7 days, the
+  expiry inside the signed text). Opening the page changes nothing (mail scanners); the **Yes, confirm** button
+  POSTs, appends a `granted` row through `recordConsent` and emits `consent.confirmed`. An expired or invalid
+  link shows a plain sentence. A person who unsubscribed after ticking is not switched back on. A form that asks
+  for confirmation always sends the link, even with the thank-you words off.
+- The contact's **Consent** card shows a pending tick as "Waiting for confirmation" (and "Did not confirm" after
+  seven days), never as a yes.
+
+While 0197 is pending: a double-opt-in form records no consent at all (and logs it) rather than a yes nobody
+gave; the thank-you email is still sent.
+
 ## To enhance later (in the order I suggest)
 
-1. **Thank-you email through the consent gate**: a confirmation to the visitor sent with
-   `resolveOutbound()` (and a "notify the owner" email), plus a double opt-in confirm link for EU
-   jurisdiction (the design's 7-day expiring signed link). Highest value, because it also proves the
-   address belongs to the person.
+1. ~~**Thank-you email through the consent gate**~~ **Done 2026-10-21** (see above): thank-you email, notify the
+   owner, double opt-in. Still open from the same design: a "resend the confirmation" button on the contact,
+   and a reminder email before the link expires.
 2. **Call the existing contact "also at Acme" and show it on the lead**; let a form update empty fields
    of a known contact once the visitor is identified another way (never from an anonymous post).
 3. **Languages**: English first, then labels, consent text and thank-you per language, following the
