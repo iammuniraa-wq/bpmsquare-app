@@ -13,8 +13,9 @@
 --   2. Adds one product: Cabin Wall Panel — Stainless Steel (per m²), so there is something priced by area.
 --   3. Registers the dimensions the books match on (never re-weights existing ones).
 --   4. Creates three PUBLISHED Price Books, each at version 1:
---        catalogue_2026   "Catalogue 2026 (list)"  list prices + volume bands + tier discount
---        formula_pricing  "Formula pricing"        formulas: volume bands, price per m2 x area, regional uplift
+--        catalogue_2026   "Catalogue 2026 (list)"  list prices + volume bands + tier discount;
+--                                                  wire rope uses the product's own price list (qty_breaks)
+--        formula_pricing  "Formula pricing"        formulas: price per m2 x area, regional uplift
 --        cost_plus        "Cost plus"              product cost + 25% (spares 35%, services 40%)
 --      Re-running refreshes a book only while it is still the untouched version 1
 --      this script made; a book someone edited or re-published in the app is left alone.
@@ -90,7 +91,7 @@ begin
       delete from pricing_config_versions where tenant_id = v_t and pricing_area = 'catalogue_2026' and version = 1;
 
       insert into pricing_config_versions (tenant_id, pricing_area, version, status, dsl_version, notes, published_at)
-      values (v_t, 'catalogue_2026', 1, 'PUBLISHED', 1, $n$Demo seed: Catalogue 2026 (list) — list prices for elevators, goods lifts and AMC plans; OEM and direct customers get a tier discount.$n$, now());
+      values (v_t, 'catalogue_2026', 1, 'PUBLISHED', 1, $n$Demo seed: Catalogue 2026 (list) — list prices for elevators, goods lifts and AMC plans, and wire rope from the product's own price list and quantity breaks; OEM and direct customers get a tier discount.$n$, now());
 
       insert into pricing_components (tenant_id, pricing_area, config_version, code, name, class, calc_type, calc_basis, sign, rounding_rule, manual_override, is_statistical, resolution_strategy)
       select v_t, 'catalogue_2026', 1, c.* from (values
@@ -133,7 +134,7 @@ begin
       delete from pricing_config_versions where tenant_id = v_t and pricing_area = 'formula_pricing' and version = 1;
 
       insert into pricing_config_versions (tenant_id, pricing_area, version, status, dsl_version, notes, published_at)
-      values (v_t, 'formula_pricing', 1, 'PUBLISHED', 1, $n$Demo seed: Formula pricing — wire rope by volume band, cabin panels by area, both with a regional uplift; anything else falls back to the catalogue price.$n$, now());
+      values (v_t, 'formula_pricing', 1, 'PUBLISHED', 1, $n$Demo seed: Formula pricing — cabin panels by area with a regional uplift; anything else falls back to the catalogue price.$n$, now());
 
       insert into pricing_components (tenant_id, pricing_area, config_version, code, name, class, calc_type, calc_basis, sign, rounding_rule, manual_override, is_statistical, resolution_strategy)
       select v_t, 'formula_pricing', 1, c.* from (values
@@ -153,7 +154,6 @@ begin
 
       insert into pricing_rules (tenant_id, pricing_area, config_version, component_code, match_attributes, value, scale, formula, valid_from, origin)
       select v_t, 'formula_pricing', 1, r.component, r.match, r.value, r.scale, r.formula, r.valid_from, 'MANUAL' from (values
-      ('MATERIAL_RATE', $j${"product.sub_category":"ROPES"}$j$::jsonb, null::numeric, null::jsonb, $f$round(ctx.line.quantity * (ctx.line.quantity >= 500 ? 360 : (ctx.line.quantity >= 100 ? 390 : 420)) * (ctx.region == null ? 1 : (ctx.region == "Karnataka" ? 1 : 1.04)), 2)$f$::text, null::date),
       ('MATERIAL_RATE', $j${"product.sub_category":"CABINS"}$j$::jsonb, null::numeric, null::jsonb, $f$round(max(ctx.line.quantity * ctx.cost.material.ss_panel_per_m2 * (ctx.line.quantity >= 50 ? 0.92 : 1) * (ctx.region == null ? 1 : (ctx.region == "Karnataka" ? 1 : 1.04)), 18000), 2)$f$::text, null::date),
       ('MATERIAL_RATE', $j${}$j$::jsonb, null::numeric, null::jsonb, $f$ctx.line.product.list_price * ctx.line.quantity$f$::text, null::date),
       ('FREIGHT', $j${}$j$::jsonb, 0::numeric, null::jsonb, null::text, null::date),
@@ -221,7 +221,7 @@ begin
          coalesce(config, '{}'::jsonb), '{pricing}',
          coalesce(config->'pricing', '{}'::jsonb) || jsonb_build_object('routing',
            coalesce(config#>'{pricing,routing}', '{}'::jsonb) || jsonb_build_object('rules',
-             $r$[{"attribute":"product.sub_category","value":"ROPES","area":"formula_pricing","document_types":["standard_quote","opportunity"]},{"attribute":"product.sub_category","value":"CABINS","area":"formula_pricing","document_types":["standard_quote","opportunity"]},{"attribute":"product.category","value":"ELEVATORS","area":"catalogue_2026","document_types":["standard_quote","opportunity"]},{"attribute":"product.category","value":"GOODS_LIFTS","area":"catalogue_2026","document_types":["standard_quote","opportunity"]},{"attribute":"product.category","value":"SERVICE_PLANS","area":"catalogue_2026","document_types":["standard_quote","opportunity"]},{"attribute":"product.category","value":"MODERNISATION","area":"cost_plus","document_types":["standard_quote","opportunity"]},{"attribute":"product.category","value":"SERVICES","area":"cost_plus","document_types":["standard_quote","opportunity"]},{"attribute":"product.category","value":"SPARES","area":"cost_plus","document_types":["standard_quote","opportunity"]}]$r$::jsonb
+             $r$[{"attribute":"product.sub_category","value":"ROPES","area":"catalogue_2026","document_types":["standard_quote","opportunity"]},{"attribute":"product.sub_category","value":"CABINS","area":"formula_pricing","document_types":["standard_quote","opportunity"]},{"attribute":"product.category","value":"ELEVATORS","area":"catalogue_2026","document_types":["standard_quote","opportunity"]},{"attribute":"product.category","value":"GOODS_LIFTS","area":"catalogue_2026","document_types":["standard_quote","opportunity"]},{"attribute":"product.category","value":"SERVICE_PLANS","area":"catalogue_2026","document_types":["standard_quote","opportunity"]},{"attribute":"product.category","value":"MODERNISATION","area":"cost_plus","document_types":["standard_quote","opportunity"]},{"attribute":"product.category","value":"SERVICES","area":"cost_plus","document_types":["standard_quote","opportunity"]},{"attribute":"product.category","value":"SPARES","area":"cost_plus","document_types":["standard_quote","opportunity"]}]$r$::jsonb
              || coalesce((
                select jsonb_agg(x)
                  from jsonb_array_elements(coalesce(config#>'{pricing,routing,rules}', '[]'::jsonb)) x

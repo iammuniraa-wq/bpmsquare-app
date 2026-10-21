@@ -11,6 +11,7 @@ import {
 } from "@/lib/pricing/wizard";
 import RateSnapshotView, { type SnapshotRule } from "../RateSnapshotView";
 import { usePricingRefresh } from "../PricingRefreshContext";
+import InfoTip from "@/components/ui/InfoTip";
 
 type VersionRow = { version: number; status: "DRAFT" | "PUBLISHED" | "SUPERSEDED" };
 type SnapshotProcedure = { code: string; entry_mode: string; steps?: { step: number; component?: string; guardrail?: { policy?: string } | null }[] };
@@ -441,6 +442,14 @@ export default function PricingSetupClient({ canEdit }: { canEdit: boolean }) {
         <div style={{ fontSize: 12.5, color: c.muted, marginBottom: 16 }}>
           Set your numbers — add a rule for any segment, region or deal size that needs a different rate. You can change these any time before going live.
         </div>
+        {template.key === "price_list" && (
+          <div className="bpm-label-row" style={{ marginBottom: 14, fontSize: 12.5, color: c.muted }}>
+            <span>Products&rsquo; own quantity breaks are used automatically</span>
+            <InfoTip label="Product quantity breaks">
+              A product&rsquo;s list price and quantity breaks apply when this book has no rule for it. A rule you add here for the product always wins.
+            </InfoTip>
+          </div>
+        )}
         {error && <ErrorBox message={error} />}
         {template.costModel && version !== null && snapshot && (
           <CostSetup template={template} version={version} area={area} snapshot={snapshot} canEdit={canEdit} onChanged={() => refreshSnapshot(version)} />

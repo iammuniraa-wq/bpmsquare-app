@@ -52,6 +52,13 @@ export const DEMO_PRODUCTS = [
   { ref: "PRD-0010", name: "Wire Rope 13mm (per metre)", category: "SPARES", sub: "ROPES", uom: "Mtr", list: 420, cost: 290 },
 ] as const;
 
+/** The price-list scales a demo product carries on itself (products.qty_breaks, 0118),
+ *  keyed by ref. scripts/seed-products-demo.sql sets them; the demo test prices them
+ *  through the engine's own product price-list rule. */
+export const DEMO_QTY_BREAKS: Record<string, { from: number; rate: number | null }[]> = {
+  "PRD-0010": [{ from: 100, rate: 390 }, { from: 500, rate: 360 }],
+};
+
 /** Added by the pricing seed. Quantity on a line is the area in m². */
 export const PANEL_PRODUCT = {
   name: "Cabin Wall Panel — Stainless Steel (per m²)", sku: "CAB-SS-M2",
@@ -71,9 +78,11 @@ export const DEMO_DIMENSIONS = [
 ];
 
 /** First match wins; sub-category rules sit before the category rules so a
- *  formula-priced sub-category is not swallowed by its category's book. */
+ *  formula-priced sub-category is not swallowed by its category's book. Wire
+ *  rope (ROPES, a SPARES sub-category) goes to the catalogue: its price list
+ *  and quantity breaks live on the product itself. */
 export const DEMO_ROUTING_RULES = [
-  { attribute: "product.sub_category", value: "ROPES", area: "formula_pricing", document_types: ["standard_quote", "opportunity"] },
+  { attribute: "product.sub_category", value: "ROPES", area: "catalogue_2026", document_types: ["standard_quote", "opportunity"] },
   { attribute: "product.sub_category", value: "CABINS", area: "formula_pricing", document_types: ["standard_quote", "opportunity"] },
   { attribute: "product.category", value: "ELEVATORS", area: "catalogue_2026", document_types: ["standard_quote", "opportunity"] },
   { attribute: "product.category", value: "GOODS_LIFTS", area: "catalogue_2026", document_types: ["standard_quote", "opportunity"] },
@@ -105,7 +114,7 @@ const CATALOGUE: DemoBook = {
   area: "catalogue_2026",
   label: "Catalogue 2026 (list)",
   method: "price_list",
-  note: "list prices for elevators, goods lifts and AMC plans; OEM and direct customers get a tier discount.",
+  note: "list prices for elevators, goods lifts and AMC plans, and wire rope from the product's own price list and quantity breaks; OEM and direct customers get a tier discount.",
   rules: [
     ...catalogueListRules(),
     { component: "CUST_DISC", match: { "customer.tier": "oem" }, value: 8 },
@@ -124,8 +133,6 @@ const CATALOGUE: DemoBook = {
 const REGION = `(ctx.region == null ? 1 : (ctx.region == "Karnataka" ? 1 : 1.04))`;
 
 export const FORMULAS = {
-  // Volume bands: 1-99 m at 420, 100-499 at 390, 500+ at 360.
-  rope: `round(ctx.line.quantity * (ctx.line.quantity >= 500 ? 360 : (ctx.line.quantity >= 100 ? 390 : 420)) * ${REGION}, 2)`,
   // Price per m² times area (quantity = m²), 8% off from 50 m², never below a 18,000 job minimum.
   panel: `round(max(ctx.line.quantity * ctx.cost.material.ss_panel_per_m2 * (ctx.line.quantity >= 50 ? 0.92 : 1) * ${REGION}, 18000), 2)`,
   // Anything else routed here prices from the catalogue price on the product.
@@ -136,10 +143,9 @@ const FORMULA: DemoBook = {
   area: "formula_pricing",
   label: "Formula pricing",
   method: "catalog_formula",
-  note: "wire rope by volume band, cabin panels by area, both with a regional uplift; anything else falls back to the catalogue price.",
+  note: "cabin panels by area with a regional uplift; anything else falls back to the catalogue price.",
   costModel: { code: "CATALOG_FALLBACK_COST", name: "Fallback cost inputs", sources: [] },
   rules: [
-    { component: "MATERIAL_RATE", match: { "product.sub_category": "ROPES" }, formula: FORMULAS.rope },
     { component: "MATERIAL_RATE", match: { "product.sub_category": "CABINS" }, formula: FORMULAS.panel },
     { component: "MATERIAL_RATE", match: {}, formula: FORMULAS.fallback },
     // The formula IS the selling price, so margin and floor are 0 here.
@@ -293,8 +299,9 @@ export function renderSeedSql(): string {
 --   2. Adds one product: ${p.name}, so there is something priced by area.
 --   3. Registers the dimensions the books match on (never re-weights existing ones).
 --   4. Creates three PUBLISHED Price Books, each at version 1:
---        catalogue_2026   "Catalogue 2026 (list)"  list prices + volume bands + tier discount
---        formula_pricing  "Formula pricing"        formulas: volume bands, price per m2 x area, regional uplift
+--        catalogue_2026   "Catalogue 2026 (list)"  list prices + volume bands + tier discount;
+--                                                  wire rope uses the product's own price list (qty_breaks)
+--        formula_pricing  "Formula pricing"        formulas: price per m2 x area, regional uplift
 --        cost_plus        "Cost plus"              product cost + 25% (spares 35%, services 40%)
 --      Re-running refreshes a book only while it is still the untouched version 1
 --      this script made; a book someone edited or re-published in the app is left alone.
