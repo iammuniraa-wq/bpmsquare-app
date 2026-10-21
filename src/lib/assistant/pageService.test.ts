@@ -20,7 +20,7 @@ vi.mock("@/lib/api/listSources", () => {
   const src = (wc: string, key: "accounts" | "contacts" | "quotations" | "cases") => ({
     label: key, description: key, relatedWorkcenter: wc,
     fields: [{ path: "id", type: "string" }, { path: "name", type: "string" }, { path: "ref", type: "string" }, { path: "status", type: "string" }, { path: "created_at", type: "date" }, { path: "city", type: "string" }, { path: "account.id", type: "string" }, { path: "account.name", type: "string" }],
-    load: async (t: string) => ROWS[key][t] ?? [],
+    load: async (t: string) => (ROWS as unknown as Record<string, Record<string, Record<string, unknown>[]>>)[key][t] ?? [],
   });
   return { LIST_SOURCES: { accounts: src("accounts", "accounts"), contacts: src("contacts", "contacts"), quotations: src("quotations", "quotations"), cases: src("cases", "cases") } };
 });
