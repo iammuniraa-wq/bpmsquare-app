@@ -22,6 +22,7 @@ import { Gear, Activity as ActivityIcon, Package, FileText, Phone } from "@/comp
 import ObjectRecordPage from "@/components/page/ObjectRecordPage";
 import ExternalRecordSlot from "@/components/ExternalRecordSlot";
 import RecordMoreMenu from "@/components/page/RecordMoreMenu";
+import type { RecordAction } from "@/components/page/recordActions";
 import RecordActivity from "@/components/page/RecordActivity";
 import RelatedList from "@/components/page/RelatedList";
 import { projectHoursReport } from "@/lib/wfm/projectHoursServer";
@@ -31,6 +32,7 @@ import NovaAccountStorySlot from "@/components/NovaAccountStorySlot";
 import NovaAccountCanvasSlot from "@/components/NovaAccountCanvasSlot";
 import NovaAccountContextBeacon from "@/components/NovaAccountContextBeacon";
 import Account360Button from "@/components/Account360Button";
+import { recordButtonWebhookId, sendToWebhookAction } from "./sendAction";
 import { buildAccountStoryEvents, computeAccountHealth } from "@/lib/nova/accountStory";
 import { buildAccountCanvas } from "@/lib/nova/accountCanvas";
 import { isNovaTenant } from "@/lib/nova/isNovaTenant";
@@ -427,6 +429,16 @@ export default async function AccountHubPage({
     ),
   };
 
+  // Only with the Webhooks library on: the account's "Send to <webhook>" menu entry. Tenants without the flag run no
+  // extra query; a missing table (SQL still pending) or an inactive webhook simply means no entry.
+  const sendActions: RecordAction[] = [];
+  const hookId = (tenant?.features as unknown as Record<string, unknown> | undefined)?.webhooks_library === true ? recordButtonWebhookId(tenant?.config) : null;
+  if (tenant && hookId) {
+    const { data: hook } = await createAdminSupabase().from("webhooks").select("name")
+      .eq("id", hookId).eq("tenant_id", tenant.id).eq("kind", "call").eq("object_type", "accounts").eq("active", true).maybeSingle();
+    if (hook?.name) sendActions.push(sendToWebhookAction(account.id, hook.name as string));
+  }
+
   const counts: Partial<Record<Tab, number>> = {
     cases: hub.cases.length, contacts: hub.contacts.length, assets: hub.assets.length,
     quotations: hub.quotes.length, invoices: hub.invoices.length, estimates: estimateRows.length,
@@ -444,6 +456,7 @@ export default async function AccountHubPage({
         <RecordMoreMenu
           inlineEdit={{ overviewHref: tabHref("overview") }}
           extraItems={isNova ? [{ label: "Back to story", href: basePath }] : []}
+          actions={sendActions}
           adapt={{ objectType: "account", objectLabel: "Account", isAdmin: role === "admin" }}
         />
       }

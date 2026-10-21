@@ -10,13 +10,19 @@ export type DocDraft = {
   include: Record<string, boolean>;
   /** The fallback price list ("If the customer has none"); "" = none chosen. */
   priceList: string;
+  /** With the "Webhook" target: the library webhook chosen; "" = none yet. */
+  webhookId: string;
 };
+
+/** The Links target that sends a quote to a webhook from the library instead of the ERP. */
+export const WEBHOOK_TARGET = "webhook";
 
 export function draftFromDocument(d: DocumentView, priceList: string = d.fallbackPriceListId ?? ""): DocDraft {
   return {
     target: d.target.key,
     include: Object.fromEntries(d.include.map((i) => [i.key, i.on])),
     priceList,
+    webhookId: d.webhookId ?? "",
   };
 }
 
@@ -30,6 +36,8 @@ export function draftPatch(d: DocumentView, draft: DocDraft, storedPriceList: st
   for (const i of d.include) if (i.allowed && draft.include[i.key] !== undefined && draft.include[i.key] !== i.on) include[i.key] = draft.include[i.key];
   if (Object.keys(include).length) patch.include = include;
   if (priceListChanged(storedPriceList, draft)) patch.fallbackPriceListId = draft.priceList || null;
+  // The webhook is saved with its target: choosing the target alone is not a complete choice.
+  if (draft.target === WEBHOOK_TARGET && (draft.target !== d.target.key || draft.webhookId !== (d.webhookId ?? ""))) patch.webhookId = draft.webhookId || null;
   return patch;
 }
 
@@ -40,6 +48,7 @@ export const isDraftDirty = (d: DocumentView, draft: DocDraft, storedPriceList: 
 export function draftProblem(d: DocumentView, draft: DocDraft): string | null {
   const t = d.targets.find((x) => x.key === draft.target);
   if (t && !t.available) return t.hint ?? "That is not available for this ERP yet.";
+  if (draft.target === WEBHOOK_TARGET && !draft.webhookId) return "Choose which webhook to send to.";
   return null;
 }
 

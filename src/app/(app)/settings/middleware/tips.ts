@@ -21,6 +21,7 @@ export const MIDDLEWARE_TIPS = {
   // Links
   links: "Each row links a BPMSquare object with one in your ERP. A quote goes to the ERP when it is awarded; a rejected quote never leaves.",
   createAs: "What the quote becomes in your ERP. A choice that is greyed out is not ready for your ERP yet.",
+  whichWebhook: "The webhook from Settings > Webhooks that receives the quote when it is awarded. It is sent once, like any other link.",
   include: "What travels with the quote. A greyed item cannot be sent to the chosen target.",
   fallbackPriceList: "A quote uses the customer's own price list in Dynamics. This one is used only when the customer has none.",
   tryIt: "Preview shows what would be sent without sending anything. Send a quote now is safe to repeat; a quote never lands twice.",

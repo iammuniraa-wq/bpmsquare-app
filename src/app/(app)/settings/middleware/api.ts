@@ -174,6 +174,7 @@ export const SENDABLE_LABEL: Record<SendableObject, string> = { accounts: "Accou
 // ── Documents: what goes out (spec section 6) ──────────────────────────────
 
 export type DocumentTarget = { key: string; label: string; available: boolean; hint: string | null };
+export type WebhookChoice = { id: string; name: string };
 export type DocumentInclude = { key: string; label: string; on: boolean; allowed: boolean; hint: string | null };
 export type DocumentView = {
   key: string;
@@ -191,6 +192,9 @@ export type DocumentView = {
   showFallbackPriceList: boolean | null;
   /** Set once the owner has saved the panel; the set-up tick follows it, not the defaults. */
   confirmedAt: string | null;
+  /** Target "Webhook" only: the library webhook a quote is sent to, and the ones that can be chosen. Absent without the library. */
+  webhookId?: string | null;
+  webhooks?: WebhookChoice[];
 };
 export type DocumentsView = { documents: DocumentView[] };
 /** A quote goes only when it is awarded and a rejected one never leaves (round 2): there is no "when" and no "mode" to save. */
@@ -200,14 +204,16 @@ export type DocumentPatch = {
   include?: Record<string, boolean>;
   /** null clears it. */
   fallbackPriceListId?: string | null;
+  /** With target "webhook": the library webhook to send to. */
+  webhookId?: string | null;
 };
 
-type RawDoc = Partial<DocumentView> & { confirmed_at?: string | null };
+type RawDoc = Partial<DocumentView> & { confirmed_at?: string | null; webhook_id?: string | null };
 const bool = (v: unknown, d = false) => (typeof v === "boolean" ? v : d);
 const str = (v: unknown): string | null => (typeof v === "string" && v ? v : null);
 
 /** One document as the screens use it: every optional part given a safe default. */
-export function normalizeDocument(raw: RawDoc, fallbackConfirmed: string | null = null): DocumentView {
+export function normalizeDocument(raw: RawDoc, fallbackConfirmed: string | null = null, webhooks: WebhookChoice[] = []): DocumentView {
   const target = raw.target && typeof raw.target === "object" ? raw.target : { key: "", label: "" };
   return {
     key: String(raw.key ?? "quote"),
@@ -221,15 +227,24 @@ export function normalizeDocument(raw: RawDoc, fallbackConfirmed: string | null 
     fallbackPriceListId: str(raw.fallbackPriceListId),
     showFallbackPriceList: typeof raw.showFallbackPriceList === "boolean" ? raw.showFallbackPriceList : null,
     confirmedAt: str(raw.confirmed_at ?? raw.confirmedAt) ?? fallbackConfirmed,
+    webhookId: str(raw.webhook_id ?? raw.webhookId),
+    webhooks: Array.isArray(raw.webhooks) ? normalizeWebhookChoices(raw.webhooks) : webhooks,
   };
 }
 
+function normalizeWebhookChoices(v: unknown): WebhookChoice[] {
+  return Array.isArray(v) ? v.flatMap((w) => { const o = w as { id?: unknown; name?: unknown }; return typeof o?.id === "string" ? [{ id: o.id, name: String(o.name ?? o.id) }] : []; }) : [];
+}
+
 export async function getDocuments(): Promise<DocumentsView> {
-  const r = await get<{ documents?: RawDoc[]; confirmed_at?: string | null }>("/api/middleware/documents");
-  return { documents: (r.documents ?? []).map((d) => normalizeDocument(d, str(r.confirmed_at))) };
+  const r = await get<{ documents?: RawDoc[]; confirmed_at?: string | null; webhooks?: unknown }>("/api/middleware/documents");
+  const webhooks = normalizeWebhookChoices(r.webhooks);
+  return { documents: (r.documents ?? []).map((d) => normalizeDocument(d, str(r.confirmed_at), webhooks)) };
 }
 export async function saveDocument(key: string, patch: DocumentPatch): Promise<DocumentView> {
-  const r = await put<RawDoc | { document: RawDoc }>(`/api/middleware/documents/${encodeURIComponent(key)}`, patch);
+  const { webhookId, ...rest } = patch;
+  const body = webhookId === undefined ? rest : { ...rest, webhook_id: webhookId };
+  const r = await put<RawDoc | { document: RawDoc }>(`/api/middleware/documents/${encodeURIComponent(key)}`, body);
   return normalizeDocument("document" in r && r.document ? (r.document as RawDoc) : (r as RawDoc));
 }
 

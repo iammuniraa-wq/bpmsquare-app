@@ -14,7 +14,7 @@ import {
   type ConnectionConfig, type DocumentView, type PreviewView, type SendResult, type TestQuoteResult,
 } from "./api";
 import { useMw } from "./context";
-import { draftFromDocument, draftPatch, draftProblem, showsFallbackPriceList, targetOptions, type DocDraft } from "./documentsLogic";
+import { WEBHOOK_TARGET, draftFromDocument, draftPatch, draftProblem, showsFallbackPriceList, targetOptions, type DocDraft } from "./documentsLogic";
 import { buildLinks, type LinkRow } from "./linksLogic";
 import { MIDDLEWARE_TIPS } from "./tips";
 import { ExternalIcon, Notice, ProblemNotice, Switch, describeError, useFlash, useLoad } from "./ui";
@@ -157,6 +157,7 @@ export function LinkPanel({ doc, connected, onClose, onSaved }: {
   const problem = draftProblem(doc, draft);
   const needsFirstSave = !doc.confirmedAt;
   const options = targetOptions(doc);
+  const webhooks = doc.webhooks ?? [];
 
   const save = async () => {
     setSaving(true); setError(null); setSaved(false);
@@ -186,6 +187,14 @@ export function LinkPanel({ doc, connected, onClose, onSaved }: {
           </select>
         </Field>
         {options.filter((o) => o.disabled && o.hint).map((o) => <p key={o.key} className={s.greyLine}>{o.label}: {o.hint}</p>)}
+        {draft.target === WEBHOOK_TARGET && (
+          <Field label="Which webhook" info={MIDDLEWARE_TIPS.whichWebhook} htmlFor="doc-webhook" style={{ marginBottom: 0 }}>
+            <select id="doc-webhook" className="bpm-input" value={draft.webhookId} onChange={(e) => setDraft((x) => ({ ...x, webhookId: e.target.value }))}>
+              <option value="" disabled>{webhooks.length === 0 ? "None yet" : "Choose…"}</option>
+              {webhooks.map((w) => <option key={w.id} value={w.id}>{w.name}</option>)}
+            </select>
+          </Field>
+        )}
         {fallback && (
           <Field label="If the customer has none: price list" info={MIDDLEWARE_TIPS.fallbackPriceList} htmlFor="doc-pl" style={{ marginBottom: 0 }}>
             <select id="doc-pl" className="bpm-input" value={draft.priceList} disabled={!lists.data} onChange={(e) => setDraft((x) => ({ ...x, priceList: e.target.value }))}>
