@@ -38,7 +38,7 @@ export type ContactConsent = {
   available: boolean;
   rows: ConsentRow[];
   /** Answers waiting for the person to confirm by email. Never counted as a yes. */
-  waiting: WaitingConsent[];
+  waiting?: WaitingConsent[];
   history: ConsentHistoryRow[];
   topics: { key: string; label: string }[];
   bases: StaffBasis[];

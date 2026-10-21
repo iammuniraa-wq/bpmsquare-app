@@ -74,7 +74,7 @@ export default function ConsentCard({ contactId, consent: initial, canEdit }: { 
 
   return (
     <Card title="Consent" info={consentCardTip(consent.jurisdictionLabel)}>
-      {consent.rows.length === 0 && consent.waiting.length === 0 ? (
+      {consent.rows.length === 0 && (consent.waiting ?? []).length === 0 ? (
         <p style={{ margin: 0, fontSize: 13.5, color: c.ink }}>No answer recorded yet, so we do not email this person about marketing unless your workspace allows it for existing customers.</p>
       ) : (
         <>
@@ -103,7 +103,7 @@ export default function ConsentCard({ contactId, consent: initial, canEdit }: { 
                     </td>
                   </tr>
                 ))}
-                {consent.waiting.map((w) => (
+                {(consent.waiting ?? []).map((w) => (
                   <tr key={`waiting:${w.channel}:${w.topic}`} style={{ borderTop: `1px solid ${c.line}` }}>
                     <td style={{ padding: "8px 10px 8px 0" }}>{CHANNEL_LABEL[w.channel] ?? w.channel}</td>
                     <td style={{ padding: "8px 10px 8px 0" }}>{topicLabel(w.topic)}</td>
@@ -130,7 +130,7 @@ export default function ConsentCard({ contactId, consent: initial, canEdit }: { 
                 </InfoTip>
               </li>
             ))}
-            {consent.waiting.map((w) => (
+            {(consent.waiting ?? []).map((w) => (
               <li key={`waiting:${w.channel}:${w.topic}`} style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", minHeight: 44, padding: "8px 0", borderTop: `1px solid ${c.line}`, fontSize: 13 }}>
                 <span style={{ flex: "1 1 140px", minWidth: 0, fontWeight: 600, color: c.ink }}>
                   {CHANNEL_LABEL[w.channel] ?? w.channel} · {topicLabel(w.topic)}

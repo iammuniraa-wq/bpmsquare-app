@@ -13,7 +13,7 @@ import { WEEKDAYS, type HandoverSettings } from "@/lib/marketing/leads/handover"
 // Settings, Marketing, Hand-over: what happens to a lead between "someone is interested" and "a salesperson
 // has it". Labels and values only; every explanation sits behind the "i" (rule 6b).
 
-type Person = { user_id: string; label: string };
+export type Person = { user_id: string; label: string };
 
 const chip = (on: boolean): React.CSSProperties => ({
   minHeight: 44, minWidth: 44, padding: "0 12px", borderRadius: 10, cursor: "pointer", font: "inherit", fontSize: 13, fontWeight: 600,
@@ -62,6 +62,18 @@ export default function HandoverClient() {
   if (!s) return error ? <div role="alert" style={{ fontSize: 13, color: "var(--err-ink)" }}>{error}</div> : null;
 
   const set = (patch: Partial<HandoverSettings>) => setS((prev) => (prev ? { ...prev, ...patch } : prev));
+  return (
+    <HandoverView
+      s={s} people={people} coverage={coverage} set={set}
+      header={<SettingsSave dirty={dirty} saving={saving} saved={saved} error={error} onSave={save} />}
+    />
+  );
+}
+
+/** The screen itself, with its data passed in, so a test can draw it without a server. */
+export function HandoverView({ s, people, coverage, set, header }: {
+  s: HandoverSettings; people: Person[]; coverage: boolean; set: (patch: Partial<HandoverSettings>) => void; header?: React.ReactNode;
+}) {
   const nameOf = (id: string) => people.find((p) => p.user_id === id)?.label ?? "Former member";
   const rota = s.fallback_user_ids;
   const addable = people.filter((p) => !rota.includes(p.user_id));
@@ -69,7 +81,7 @@ export default function HandoverClient() {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14, maxWidth: 820 }}>
-      <SettingsSave dirty={dirty} saving={saving} saved={saved} error={error} onSave={save} />
+      {header}
 
       <SettingsSection id="mk-handover-auto" title="Leads by themselves" defaultOpen summary={s.auto_create_leads ? "On" : "Off"}>
         <SettingsRow first label="Make a lead when someone becomes Warm" help={HANDOVER_TIPS.autoCreate}>
