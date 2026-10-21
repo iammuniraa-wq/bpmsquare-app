@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { NAV } from "@/lib/constants";
+import { CREATE_ACTIONS } from "@/lib/createActions";
 import type { NavItem } from "@/lib/constants";
 import type { SearchResult } from "@/lib/globalSearch";
 import { getSearchObject } from "@/lib/globalSearch";
@@ -29,24 +30,6 @@ type Item =
   // object type instead of one long mixed list; the arrow expands that
   // category, newest-first. Enter/click toggles -- it never closes the palette.
   | { kind: "group"; label: string; sub: string; href: string; type: string; expanded: boolean; event?: undefined; eventDetail?: undefined };
-
-const CREATE_ACTIONS: { label: string; href: string; featureKey: string }[] = [
-  { label: "New Account",   href: "/accounts/new",    featureKey: "accounts" },
-  { label: "New Contact",   href: "/contacts/new",    featureKey: "contacts" },
-  { label: "New Quotation", href: "/quotations/new",  featureKey: "quotations" },
-  { label: "New Asset",     href: "/assets/new",      featureKey: "assets" },
-  { label: "New Supplier",  href: "/suppliers/new",   featureKey: "suppliers" },
-  { label: "New Product",   href: "/products/new",    featureKey: "products" },
-  { label: "New Deal",      href: "/pipeline/new",    featureKey: "pipeline" },
-  { label: "New RFQ",       href: "/rfqs/new",        featureKey: "rfq" },
-  { label: "New Estimate",  href: "/estimates/new",   featureKey: "estimator" },
-  { label: "New Study",     href: "/process-studio/new", featureKey: "process_studio" },
-  { label: "New Newsletter", href: "/marketing/newsletters/new", featureKey: "newsletter_studio" },
-  { label: "New ABM program", href: "/marketing/abm/new", featureKey: "abm" },
-  { label: "New Journey",   href: "/marketing/journeys/new", featureKey: "journeys" },
-  { label: "New Project",   href: "/wfm/projects/new", featureKey: "wfm_projects" },
-  { label: "New Technician", href: "/technicians/new", featureKey: "technicians" },
-];
 
 const SECTION_LABEL: Record<Item["kind"], string> = {
   nav: "Go to", create: "Create", record: "Records", group: "Records",
