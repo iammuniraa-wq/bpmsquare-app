@@ -17,6 +17,7 @@ import Pager from "@/components/Pager";
 import { paginate, clampPage, DEFAULT_PAGE_SIZE } from "@/lib/paginate";
 import { useCurrency } from "@/lib/tenant-context";
 import { moneyFormatter } from "@/lib/currency";
+import { csvCell } from "@/lib/import/template";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -511,9 +512,11 @@ export default function ReportsClient({
 
   const exportCsv = () => {
     const header = "Ref,Account,Status,Lines,Total,Date,Valid Until";
+    // csvCell quotes the value and neutralises a leading = + - @ (a typed account name is
+    // otherwise run as a formula when the file is opened in Excel; audit 2026-10-21).
     const csvRows = filtered.map((r) =>
-      [r.quote.ref, `"${r.account.name}"`, r.quote.status, r.lineCount,
-       r.quote.total, r.quote.created_at, r.quote.valid_until ?? ""].join(",")
+      [r.quote.ref, r.account.name, r.quote.status, r.lineCount,
+       r.quote.total, r.quote.created_at, r.quote.valid_until ?? ""].map((v) => csvCell(String(v ?? ""))).join(",")
     );
     const blob = new Blob([header + "\n" + csvRows.join("\n")], { type: "text/csv" });
     const url  = URL.createObjectURL(blob);
