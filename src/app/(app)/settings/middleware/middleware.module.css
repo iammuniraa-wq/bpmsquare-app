@@ -157,3 +157,130 @@
   .kv { grid-template-columns: 1fr; gap: 0; }
   .kv dt { margin-top: 8px; }
 }
+
+/* ── Redesign (spec sections 6 to 8) ────────────────────────────────────── */
+
+/* A plain table that becomes cards under 780px: What goes out, Resync */
+.listCard { background: var(--card-bg); border: 1px solid var(--line); border-radius: var(--card-radius); box-shadow: var(--card-shadow); overflow: hidden; min-width: 0; }
+.docTable { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+.docTable th { text-align: start; padding: 10px 14px; color: var(--hint); background: var(--panel2); font-weight: 600; font-size: 12px; white-space: nowrap; }
+.docTable td { padding: 10px 14px; border-top: 1px solid var(--line); vertical-align: middle; color: var(--ink); }
+.docRow:hover td { background: var(--panel2); }
+.docSub td { background: var(--panel2); }
+.docMenu { width: 56px; text-align: end; }
+.docOpen {
+  display: inline-flex; align-items: center; gap: 10px; min-height: 44px; padding: 0; text-align: start;
+  font: inherit; color: inherit; background: none; border: 0; cursor: pointer;
+}
+.docOpen > span:last-child { display: flex; flex-direction: column; min-width: 0; }
+.docOpen:focus-visible, .linkBtn:focus-visible { outline: 2px solid var(--modern-accent, var(--tenant-accent, var(--accent))); outline-offset: 2px; border-radius: 6px; }
+.runCell { text-align: end; }
+.runCell .row { justify-content: flex-end; }
+
+/* Round 2: the slim set-up line, the connector chip's extras and the connection panel */
+.slimLine { display: flex; align-items: center; gap: 6px; min-height: 36px; font-size: 13px; color: var(--muted); }
+.slimBtn { padding: 0; min-height: 36px; font: inherit; font-weight: 600; color: var(--ink); background: none; border: 0; cursor: pointer; text-align: start; }
+.slimBtn:hover { text-decoration: underline; }
+.slimBtn:focus-visible { outline: 2px solid var(--modern-accent, var(--tenant-accent, var(--accent))); outline-offset: 2px; border-radius: 6px; }
+.expiryChip { font-size: 11px; font-weight: 700; padding: 1px 8px; border-radius: 999px; background: var(--amberbg); color: var(--amberink); }
+.connLine { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; min-width: 0; }
+.connText { display: inline-flex; align-items: center; gap: 8px; font-size: 13.5px; font-weight: 600; min-width: 0; flex-wrap: wrap; }
+.linksTable td:nth-child(2) { width: 36px; text-align: center; color: var(--muted); }
+.arrowCell { font-size: 16px; }
+
+/* Panel blocks */
+.block { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.greyLine { margin: 0; font-size: 12px; line-height: 1.4; color: var(--muted); }
+.includeList { display: flex; flex-direction: column; gap: 2px; }
+.panelFooter {
+  position: sticky; bottom: -16px; margin: auto -16px -16px; padding: 12px 16px; display: flex; align-items: center; justify-content: flex-end; gap: 10px; flex-wrap: wrap;
+  background: var(--panel); border-top: 1px solid var(--line);
+}
+.panelFooter .issue { margin: 0; flex: 1; min-width: 160px; }
+
+/* Mapping: two columns, one row per field */
+.mapCard { background: var(--card-bg); border: 1px solid var(--line); border-radius: var(--card-radius); box-shadow: var(--card-shadow); overflow: hidden; min-width: 0; }
+.mapTbl { width: 100%; border-collapse: collapse; font-size: 13.5px; table-layout: fixed; }
+.mapTbl th { text-align: start; padding: 9px 14px; color: var(--hint); background: var(--panel2); font-weight: 600; font-size: 12px; }
+.mapTbl td { padding: 8px 14px; border-top: 1px solid var(--line); vertical-align: middle; overflow-wrap: anywhere; }
+.mapTbl td select { width: 100%; min-width: 0; }
+.fieldCell { display: flex; flex-direction: column; min-width: 0; }
+.readOnlyCell { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.standardWord { font-size: 11.5px; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: var(--panel2); color: var(--muted); border: 1px solid var(--line); }
+
+/* Monitor: filter row, action bar, one list */
+.filterRow { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.filterFields { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; min-width: 0; }
+.filterField { display: block; min-width: 0; }
+.filterField :global(.bpm-input) { width: auto; min-width: 130px; }
+.filterSearch { flex: 1; min-width: 200px; }
+.filterSearch :global(.bpm-input) { width: 100%; }
+.actionBar {
+  position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 8px 10px; min-width: 0;
+  background: var(--panel); border: 1px solid var(--line); border-radius: var(--card-radius); box-shadow: var(--card-shadow);
+}
+.actionBar > :last-child { margin-inline-start: auto; }
+.tickCol { width: 44px; padding-inline: 4px !important; text-align: center; }
+.tickTap { display: inline-flex; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; cursor: pointer; }
+.tickTap input, .tickAllCard input { width: 18px; height: 18px; cursor: pointer; }
+.tickAllCard { display: flex; align-items: center; gap: 8px; min-height: 44px; padding-inline: 4px; }
+.linkBtn { padding: 0; min-height: 32px; font: inherit; font-weight: 600; color: var(--ink); background: none; border: 0; cursor: pointer; text-align: start; }
+.linkBtn:hover { text-decoration: underline; }
+.reasonCell { max-width: 380px; }
+.reasonStack { display: block; }
+.reasonStack > span { display: block; }
+.msgBody .reasonStack { font-size: 12.5px; }
+.recordCell { white-space: nowrap; }
+.fixLine { color: var(--amberink); margin-top: 2px; }
+.resultGood { color: var(--greenink); font-weight: 600; margin-top: 2px; }
+.resultBad { color: var(--err-ink); font-weight: 600; margin-top: 2px; }
+.msgCard { display: flex; align-items: flex-start; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); min-width: 0; }
+.msgCard.selected { background: var(--panel2); }
+.msgTick { flex: none; width: 44px; display: flex; justify-content: center; }
+.msgBody { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; padding: 10px 12px 10px 0; text-align: start; font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
+.msgBody:focus-visible { outline: 2px solid var(--modern-accent, var(--tenant-accent, var(--accent))); outline-offset: 2px; border-radius: 8px; }
+.msgBody > span { display: block; }
+.msgBody > .rowBetween { display: flex; }
+
+@media (max-width: 780px) {
+  /* Tables become cards: one block per row, the label sits before each value */
+  .docTable thead { display: none; }
+  .docTable, .docTable tbody { display: block; }
+  .docTable tr.docRow { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 2px 10px; align-items: center; padding: 10px 14px; border-top: 1px solid var(--line); }
+  .docTable tbody tr.docRow:first-child { border-top: 0; }
+  .docTable tr.docRow td { display: block; padding: 0; border: 0; }
+  .docTable tr.docRow td:first-child { grid-column: 1; grid-row: 1; }
+  .docTable tr.docRow td[data-label="Goes to the ERP as"], .docTable tr.docRow td[data-label="When"], .docTable tr.docRow td[data-label="Last run"], .docTable tr.docRow td[data-label="Automatic"] { grid-column: 1 / -1; font-size: 12.5px; color: var(--muted); }
+  .docTable tr.docRow td[data-label="Goes to the ERP as"]::before, .docTable tr.docRow td[data-label="When"]::before, .docTable tr.docRow td[data-label="Last run"]::before, .docTable tr.docRow td[data-label="Automatic"]::before { content: attr(data-label) ": "; color: var(--hint); }
+  .docTable tr.docRow td[data-label="Automatic"] { color: var(--ink); }
+  .docTable tr.docRow td[data-label="Automatic"] select { width: 100%; margin-top: 4px; }
+  .docTable tr.docRow td[data-label="On"] { grid-column: 2; grid-row: 1; }
+  .docTable tr.docRow td.docMenu { grid-column: 3; grid-row: 1; width: auto; }
+  .docTable tr.docRow td.runCell { grid-column: 1 / -1; text-align: start; margin-top: 6px; }
+  .docTable tr.docRow td.runCell .row { justify-content: flex-start; }
+  .docTable tr.docSub { display: block; padding: 10px 14px; background: var(--panel2); }
+  .docTable tr.docSub td { display: block; padding: 0; border: 0; }
+
+  /* Links: one line "Standard Quote → Quote", the switch on the right, "Runs: ..." under it */
+  .linksTable tr.docRow { grid-template-columns: auto auto minmax(0, 1fr) auto auto; gap: 2px 8px; }
+  .linksTable tr.docRow td:first-child { grid-column: 1; grid-row: 1; }
+  .linksTable tr.docRow td.arrowCell { grid-column: 2; grid-row: 1; width: auto; }
+  .linksTable tr.docRow td[data-label="ERP"] { grid-column: 3; grid-row: 1; font-size: 13.5px; color: var(--ink); }
+  .linksTable tr.docRow td[data-label="Runs"] { grid-column: 1 / -1; grid-row: 2; font-size: 12.5px; color: var(--muted); }
+  .linksTable tr.docRow td[data-label="Runs"]::before { content: "Runs: "; color: var(--hint); }
+  .linksTable tr.docRow td[data-label="ERP"]::before, .linksTable tr.docRow td[data-label="BPMSquare"]::before, .linksTable tr.docRow td[data-label="Direction"]::before { content: none; }
+  .linksTable tr.docRow td[data-label="On"] { grid-column: 4; grid-row: 1; }
+  .linksTable tr.docRow td.docMenu { grid-column: 5; grid-row: 1; }
+
+  .mapTbl thead { display: none; }
+  .mapTbl, .mapTbl tbody, .mapTbl tr, .mapTbl td { display: block; width: 100%; box-sizing: border-box; }
+  .mapTbl tr { padding: 10px 14px; border-top: 1px solid var(--line); }
+  .mapTbl tbody tr:first-child { border-top: 0; }
+  .mapTbl td { padding: 0; border: 0; }
+  .mapTbl td + td { margin-top: 6px; }
+
+  .filterField :global(.bpm-input) { min-width: 0; width: 100%; }
+  .filterField { flex: 1 1 140px; }
+  .actionBar :global(.bpm-btn) { min-height: 44px; }
+  .panelFooter { bottom: calc(-16px - env(safe-area-inset-bottom, 0px)); }
+}

@@ -27,7 +27,7 @@ export const INSTALLING = "This part is still being installed.";
 
 type Json = Record<string, unknown>;
 
-async function request<T>(method: string, url: string, body?: unknown): Promise<T> {
+async function request<T>(method: string, url: string, body?: unknown, opts: { keep4xx?: boolean } = {}): Promise<T> {
   let res: Response;
   try {
     res = await fetch(url, {
@@ -42,6 +42,8 @@ async function request<T>(method: string, url: string, body?: unknown): Promise<
   let json: Json | null = null;
   try { json = text ? (JSON.parse(text) as Json) : null; } catch { json = null; }
   if (json === null && !res.ok) throw new ApiProblem(INSTALLING, res.status, res.status === 404 || res.status === 405 || res.status >= 500);
+  // A 4xx whose JSON body IS the answer (a refused test, a refused send) is returned, not thrown.
+  if (!res.ok && opts.keep4xx && res.status < 500 && json) return json as T;
   if (!res.ok) {
     const first = Array.isArray(json?.errors) ? (json!.errors as { field?: string; message?: string }[])[0] : undefined;
     const msg = (typeof json?.headline === "string" && json.headline) || (typeof json?.error === "string" && json.error) || first?.message || `Request failed (${res.status})`;
@@ -169,6 +171,68 @@ export const SENDABLE_OBJECTS = ["accounts", "standard_quotes"] as const;
 export type SendableObject = (typeof SENDABLE_OBJECTS)[number];
 export const SENDABLE_LABEL: Record<SendableObject, string> = { accounts: "Account", standard_quotes: "Standard Quote" };
 
+// ── Documents: what goes out (spec section 6) ──────────────────────────────
+
+export type DocumentTarget = { key: string; label: string; available: boolean; hint: string | null };
+export type DocumentInclude = { key: string; label: string; on: boolean; allowed: boolean; hint: string | null };
+export type DocumentView = {
+  key: string;
+  label: string;
+  source: string;
+  enabled: boolean;
+  /** One line, e.g. "Awarded → Dynamics 365 Quote". Not shown in the Links table (it has its own columns). */
+  summary: string;
+  target: { key: string; label: string };
+  targets: DocumentTarget[];
+  include: DocumentInclude[];
+  /** The Dynamics price list used when the customer has none of their own; null = none set. */
+  fallbackPriceListId: string | null;
+  /** The server says whether the fallback line applies (a Dynamics Quote or Sales Order); null when it did not say. */
+  showFallbackPriceList: boolean | null;
+  /** Set once the owner has saved the panel; the set-up tick follows it, not the defaults. */
+  confirmedAt: string | null;
+};
+export type DocumentsView = { documents: DocumentView[] };
+/** A quote goes only when it is awarded and a rejected one never leaves (round 2): there is no "when" and no "mode" to save. */
+export type DocumentPatch = {
+  enabled?: boolean;
+  target?: string;
+  include?: Record<string, boolean>;
+  /** null clears it. */
+  fallbackPriceListId?: string | null;
+};
+
+type RawDoc = Partial<DocumentView> & { confirmed_at?: string | null };
+const bool = (v: unknown, d = false) => (typeof v === "boolean" ? v : d);
+const str = (v: unknown): string | null => (typeof v === "string" && v ? v : null);
+
+/** One document as the screens use it: every optional part given a safe default. */
+export function normalizeDocument(raw: RawDoc, fallbackConfirmed: string | null = null): DocumentView {
+  const target = raw.target && typeof raw.target === "object" ? raw.target : { key: "", label: "" };
+  return {
+    key: String(raw.key ?? "quote"),
+    label: String(raw.label ?? "Quote"),
+    source: String(raw.source ?? ""),
+    enabled: bool(raw.enabled),
+    summary: String(raw.summary ?? ""),
+    target: { key: String(target.key ?? ""), label: String(target.label ?? "") },
+    targets: Array.isArray(raw.targets) ? raw.targets.map((t) => ({ key: String(t.key), label: String(t.label ?? t.key), available: bool(t.available, true), hint: str(t.hint) })) : [],
+    include: Array.isArray(raw.include) ? raw.include.map((i) => ({ key: String(i.key), label: String(i.label ?? i.key), on: bool(i.on), allowed: bool(i.allowed, true), hint: str(i.hint) })) : [],
+    fallbackPriceListId: str(raw.fallbackPriceListId),
+    showFallbackPriceList: typeof raw.showFallbackPriceList === "boolean" ? raw.showFallbackPriceList : null,
+    confirmedAt: str(raw.confirmed_at ?? raw.confirmedAt) ?? fallbackConfirmed,
+  };
+}
+
+export async function getDocuments(): Promise<DocumentsView> {
+  const r = await get<{ documents?: RawDoc[]; confirmed_at?: string | null }>("/api/middleware/documents");
+  return { documents: (r.documents ?? []).map((d) => normalizeDocument(d, str(r.confirmed_at))) };
+}
+export async function saveDocument(key: string, patch: DocumentPatch): Promise<DocumentView> {
+  const r = await put<RawDoc | { document: RawDoc }>(`/api/middleware/documents/${encodeURIComponent(key)}`, patch);
+  return normalizeDocument("document" in r && r.document ? (r.document as RawDoc) : (r as RawDoc));
+}
+
 // ── Monitor ─────────────────────────────────────────────────────────────────
 
 export const MESSAGE_DIRECTIONS = ["in", "out"] as const;
@@ -190,6 +254,16 @@ export type MonitorMessage = {
   status: MonitorStatus;
   record: { type: string; id: string | null; label: string | null } | null;
   duration_ms: number | null;
+  /** What the line is about in words: the document ("Quote") or the entity ("Customers"). */
+  what: string | null;
+  /** The ERP's own readable number (never a GUID). */
+  erpNumber: string | null;
+  /** A line that can be restarted shows a tick box. */
+  restartable: boolean;
+  /** The one thing to do, in plain words; null when there is nothing to do. */
+  fix: string | null;
+  /** The request and response were kept for this line. */
+  hasPayload: boolean;
 };
 
 export type MessageFilters = {
@@ -201,8 +275,29 @@ export type MessageFilters = {
   to?: string;
   /** Show only rows about one record. */
   object_id?: string;
+  /** A document (quote) or an inbound entity (customers, contacts, products, projects). */
+  document?: string;
   q?: string;
 };
+
+/** The server sends a label under `label`, `document` or `entity` depending on the source; the screens only know `what`. */
+export function normalizeMessage(raw: Partial<MonitorMessage> & Record<string, unknown>): MonitorMessage {
+  const pick = (...vals: unknown[]) => vals.find((v): v is string => typeof v === "string" && v.length > 0) ?? null;
+  return {
+    id: String(raw.id), source: String(raw.source ?? ""), at: String(raw.at ?? ""),
+    direction: raw.direction === "in" ? "in" : "out",
+    channel: (MESSAGE_CHANNELS as readonly string[]).includes(raw.channel as string) ? (raw.channel as MessageChannel) : "connector",
+    counterpart: pick(raw.counterpart), summary: String(raw.summary ?? ""),
+    status: (MONITOR_STATUSES as readonly string[]).includes(raw.status as string) ? (raw.status as MonitorStatus) : "ok",
+    record: (raw.record as MonitorMessage["record"]) ?? null,
+    duration_ms: typeof raw.duration_ms === "number" ? raw.duration_ms : null,
+    what: pick(raw.what, raw.label, raw.document, raw.entity),
+    erpNumber: pick(raw.erpNumber, raw.erp_number),
+    restartable: raw.restartable === true,
+    fix: pick(raw.fix),
+    hasPayload: raw.hasPayload === true || raw.has_payload === true,
+  };
+}
 
 export type MessagePage = {
   items: MonitorMessage[];
@@ -213,10 +308,33 @@ export type MessagePage = {
   failedSources: string[];
 };
 
-export const getMessages = (query: string) => get<MessagePage>(`/api/middleware/messages${query ? `?${query}` : ""}`);
+export async function getMessages(query: string): Promise<MessagePage> {
+  const r = await get<MessagePage>(`/api/middleware/messages${query ? `?${query}` : ""}`);
+  return { ...r, items: (r.items ?? []).map((m) => normalizeMessage(m as never)) };
+}
 
-export type MessageDetail = { message: MonitorMessage; detail: Record<string, unknown> };
-export const getMessage = (id: string) => get<MessageDetail | NeedsUpdate>(`/api/middleware/messages/${encodeURIComponent(id)}`);
+/** The request and the answer kept for one line (spec section 8). Read only when the person opens it. */
+export type PayloadView = {
+  request: { method: string; url: string; body: unknown } | null;
+  response: { status: number | null; body: unknown; durationMs: number | null } | null;
+  truncated: boolean;
+};
+export type MessageDetail = { message: MonitorMessage; detail: Record<string, unknown>; payload: PayloadView | null };
+export async function getMessage(id: string): Promise<MessageDetail | NeedsUpdate> {
+  const r = await get<(Omit<MessageDetail, "payload"> & { payload?: PayloadView | null }) | NeedsUpdate>(`/api/middleware/messages/${encodeURIComponent(id)}`);
+  if (needsUpdate(r)) return r;
+  const d = r as Omit<MessageDetail, "payload"> & { payload?: PayloadView | null };
+  return { ...d, message: normalizeMessage(d.message as never), payload: d.payload ?? null };
+}
+
+export type RestartOutcome = "done" | "failed" | "already_ok" | "not_restartable";
+export type RestartResult = { id: string; outcome: RestartOutcome; message: string };
+/** Restart ticked lines, or every line the filter shows (capped by the server). Safe to repeat. */
+export async function restartMessages(target: { messageIds: string[] } | { filter: Record<string, string>; limit?: number }): Promise<RestartResult[]> {
+  const body = "messageIds" in target ? { message_ids: target.messageIds } : { filter: target.filter, ...(target.limit ? { limit: target.limit } : {}) };
+  const r = await post<{ results?: RestartResult[] }>("/api/middleware/restart", body);
+  return (r.results ?? []).map((x) => ({ id: String(x.id), outcome: x.outcome, message: String(x.message ?? "") }));
+}
 
 // ── Connections ─────────────────────────────────────────────────────────────
 
@@ -254,28 +372,50 @@ export type Secrets = Partial<Record<"client_secret" | "certificate" | "private_
 /** A blank or missing secret means "unchanged", never "clear". A setting left out of `config` keeps its stored value; null clears it (outbound: null = "Reset to standard"). */
 export const saveConnection = (connectorId: string, config: Partial<Omit<ConnectionConfig, "outbound">> & { outbound?: OutboundMaps | null }, secrets: Secrets = {}) =>
   put<ConnectionState>(`/api/middleware/connections/${connectorId}`, { config, secrets });
-export const testConnection = (connectorId: string) => post<{ ok?: boolean; message?: string }>(`/api/middleware/connections/${connectorId}/test`);
+/** Test = the connection AND the permission probes, as ONE answer: one line, and only what failed for the details toggle.
+ *  A refused connection comes back as 400 with the same body; it is an answer to show, not an exception. */
+export type TestView = { ok: boolean; line: string; failures: { label: string; fix: string | null }[]; message?: string; error?: string };
+export async function testConnection(connectorId: string): Promise<TestView> {
+  const r = await request<Partial<TestView>>("POST", `/api/middleware/connections/${connectorId}/test`, {}, { keep4xx: true });
+  const failures = Array.isArray(r.failures) ? r.failures.map((f) => ({ label: String(f.label ?? ""), fix: str(f.fix) })) : [];
+  const ok = r.ok === true || (r.ok === undefined && !r.error);
+  return { ok, line: str(r.line) ?? str(r.message) ?? str(r.error) ?? (ok ? "The connection works." : "Could not connect."), failures, message: str(r.message) ?? undefined, error: str(r.error) ?? undefined };
+}
 export const disconnect = (connectorId: string) => del<unknown>(`/api/middleware/connections/${connectorId}`);
 /** "Sign in as a user" still starts at the connector's own route, which comes back to the connector screen's callback. */
 export const oauthStartUrl = (connectorId: string) => `/api/connectors/${connectorId}/oauth/start`;
 
-export type SecretExpiry = { state: "unknown" | "ok" | "soon" | "expired"; expires_on: string | null; days_left: number | null };
-export type SchemaRow = { table: string; label: string; exists: boolean; bundle: string | null };
+/** Only what needs attention: an empty `problems` means nothing to show. `secretSoon` only within 30 days of the secret ending. */
+export type HealthProblem = { kind: "database" | "connection" | "secret"; message: string; bundle: string | null };
 export type HealthView = {
-  connection: {
-    connected: boolean;
-    state: "connected" | "error" | "not_connected";
-    last_error: string | null;
-    product: { key: string; name: string } | null;
-    price_list_chosen: boolean;
-    currency_chosen: boolean;
-  };
-  secret: SecretExpiry;
-  schema: SchemaRow[];
-  needsDatabaseUpdate: boolean;
-  bundles: string[];
+  problems: HealthProblem[];
+  secretSoon: { days: number } | null;
+  connection: { connected: boolean; product: { key: string; name: string } | null };
 };
-export const getHealth = () => get<HealthView>("/api/middleware/health");
+type RawHealth = {
+  problems?: HealthProblem[];
+  secretSoon?: { days: number } | null;
+  connection?: Partial<HealthView["connection"]> & { state?: string; last_error?: string | null };
+  /** The older answer listed every table and the secret's state; it is folded into `problems` here. */
+  schema?: { label: string; exists: boolean; bundle: string | null }[];
+  secret?: { state: string; days_left: number | null };
+};
+export function normalizeHealth(raw: RawHealth): HealthView {
+  const problems: HealthProblem[] = Array.isArray(raw.problems)
+    ? raw.problems.map((p) => ({ kind: p.kind, message: String(p.message ?? ""), bundle: str(p.bundle) }))
+    : [];
+  if (!Array.isArray(raw.problems)) {
+    const missing = (raw.schema ?? []).filter((r) => !r.exists);
+    for (const bundle of [...new Set(missing.map((r) => r.bundle))]) problems.push({ kind: "database", message: `A database update is needed (${missing.filter((r) => r.bundle === bundle).map((r) => r.label).join(", ")}).`, bundle });
+    if (raw.connection?.state === "error") problems.push({ kind: "connection", message: raw.connection.last_error || "The connection needs attention. Press Test.", bundle: null });
+    if (raw.secret?.state === "expired") problems.push({ kind: "secret", message: "The Dynamics client secret has expired. Create a new one and save it under Edit.", bundle: null });
+  }
+  const soon = raw.secretSoon && typeof raw.secretSoon.days === "number" ? { days: raw.secretSoon.days }
+    : raw.secret?.state === "soon" && typeof raw.secret.days_left === "number" ? { days: raw.secret.days_left } : null;
+  const c = raw.connection ?? {};
+  return { problems, secretSoon: soon, connection: { connected: c.connected === true || c.state === "connected", product: c.product ?? null } };
+}
+export const getHealth = async () => normalizeHealth(await get<RawHealth>("/api/middleware/health"));
 
 export type PickItem = { id: string; name: string; code: string | null };
 export type PickList = { applicable: boolean; items: PickItem[]; hint?: string };
@@ -344,6 +484,61 @@ export type Suggestion = { bpm: string; erp: string; score: number; reason: stri
 export const suggestMapping = (entity: MetadataEntity, bpmFields: { key: string; label: string }[], mapped: string[]) =>
   post<{ suggestions: Suggestion[]; missing: ErpField[] }>("/api/middleware/mapping", { entity, bpm_fields: bpmFields, mapped });
 
+// ── Mapping, one row per field (spec section 6) ────────────────────────────
+
+export const MAP_DOCUMENTS = ["quote", "customers", "contacts", "products", "projects"] as const;
+export type MapDocumentKey = (typeof MAP_DOCUMENTS)[number];
+export type MapSide = { label: string; name: string };
+export type MapRowView = {
+  id: string;
+  bpm: MapSide;
+  /** null = "Not sent". */
+  erp: MapSide | null;
+  standard: boolean;
+  /** A standard row built from several fields (the name from reference and customer): shown, not edited. */
+  composite: string | null;
+};
+export type MapSection = { key: string; label: string; rows: MapRowView[] };
+export type MappingDocView = {
+  document: { key: string; label: string; targetLabel: string };
+  sections: MapSection[];
+  /** The ERP's own fields per section key, for the dropdown. */
+  erpFields: Record<string, MapSide[]>;
+  usingStandard: boolean;
+  /** Plain names of required ERP fields that nothing fills. */
+  missingRequired: string[];
+};
+export type MapRowEdit = { id: string; erp: string | null };
+
+const side = (v: unknown): MapSide | null =>
+  v && typeof v === "object" && "name" in v ? { label: String((v as MapSide).label ?? (v as MapSide).name), name: String((v as MapSide).name) } : null;
+
+type RawSection = { key?: unknown; label?: unknown; rows?: { id?: unknown; bpm?: unknown; erp?: unknown; standard?: unknown; composite?: unknown }[] };
+export function normalizeMappingDoc(raw: Record<string, unknown>): MappingDocView {
+  const sections = (Array.isArray(raw.sections) ? raw.sections : []) as RawSection[];
+  const fields = (raw.erpFields && typeof raw.erpFields === "object" ? raw.erpFields : {}) as Record<string, unknown[]>;
+  const doc = (raw.document && typeof raw.document === "object" ? raw.document : {}) as Record<string, unknown>;
+  return {
+    document: { key: String(doc.key ?? ""), label: String(doc.label ?? ""), targetLabel: String(doc.targetLabel ?? "") },
+    sections: sections.map((sec) => ({
+      key: String(sec.key), label: String(sec.label ?? sec.key),
+      rows: (sec.rows ?? []).map((r) => ({
+        id: String(r.id), bpm: side(r.bpm) ?? { label: String(r.id), name: String(r.id) }, erp: side(r.erp),
+        standard: r.standard === true, composite: typeof r.composite === "string" && r.composite ? r.composite : null,
+      })),
+    })),
+    erpFields: Object.fromEntries(Object.entries(fields).map(([k, v]) => [k, (Array.isArray(v) ? v : []).map(side).filter((x): x is MapSide => !!x)])),
+    usingStandard: raw.usingStandard === true,
+    missingRequired: Array.isArray(raw.missingRequired) ? raw.missingRequired.map(String) : [],
+  };
+}
+export async function getMappingDoc(document: MapDocumentKey): Promise<MappingDocView> {
+  return normalizeMappingDoc(await get<Record<string, unknown>>(`/api/middleware/mapping?document=${encodeURIComponent(document)}`));
+}
+export const saveMappingRows = (document: MapDocumentKey, section: string, rows: MapRowEdit[]) =>
+  put<unknown>("/api/middleware/mapping", { document, section, rows });
+export const resetMapping = (document: MapDocumentKey) => post<unknown>("/api/middleware/mapping/reset", { document });
+
 // ── Resync ──────────────────────────────────────────────────────────────────
 
 export type SyncEntity = {
@@ -365,7 +560,8 @@ export type SyncOverview =
 export const getSync = () => get<SyncOverview>("/api/middleware/sync");
 export type SyncRunResult = { runId?: string; counts?: Record<string, number>; issues?: string[]; error?: string | null };
 /** A refused run (one is already running, the ERP said no) comes back as an ApiProblem carrying the server's message. */
-export const runSync = (entity: D365EntityKey, full = false) => post<SyncRunResult>("/api/middleware/resync", { entity, full });
+export const runSync = (entity: D365EntityKey, full = false, ids?: string[]) =>
+  post<SyncRunResult>("/api/middleware/resync", { entity, full, ...(ids && ids.length ? { ids } : {}) });
 export const setSchedule = (entity: D365EntityKey, schedule: EntitySchedule) =>
   put<{ ok?: boolean; schedule?: EntitySchedule }>("/api/middleware/schedule", { entity, schedule });
 

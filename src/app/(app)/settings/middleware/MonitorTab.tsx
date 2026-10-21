@@ -3,37 +3,49 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import Button from "@/components/ui/Button";
-import Card from "@/components/ui/Card";
 import EmptyState from "@/components/ui/EmptyState";
-import Field from "@/components/ui/Field";
 import InfoTip from "@/components/ui/InfoTip";
 import StatusPill from "@/components/ui/StatusPill";
+import { useFeel } from "@/components/FeelProvider";
 import { fmtDateTime } from "@/components/rfq/rfqUi";
 import s from "./middleware.module.css";
 import {
-  MESSAGE_CHANNELS, MESSAGE_DIRECTIONS, MONITOR_STATUSES, getMessage, getMessages, retryMessage, saveRules,
-  type MessageDetail, type MessageFilters, type MessagePage, type MonitorMessage,
+  getMessage, getMessages, restartMessages,
+  type MessageDetail, type MessageFilters, type MessagePage, type MonitorMessage, type PayloadView, type RestartResult,
 } from "./api";
 import { useMw } from "./context";
 import {
-  CHANNEL_WORD, DIRECTION_WORD, EMPTY_FILTERS, durationWord, filterProblem, filtersToQuery, hasFilters, recordHref, recordTypeWord, statusFilterWord, statusTone, statusWord,
+  DIRECTION_WORD, EMPTY_FILTERS, durationWord, filterProblem, filtersToQuery, hasFilters, recordHref, recordTypeWord, statusTone, statusWord,
 } from "./monitorLogic";
+import {
+  DOCUMENT_FILTERS, STATUS_CHIPS, actionBar, filterAsRecord, hasSide, matchesDocument, payloadLine, payloadText, pruneTicks, resultLine, resultsSummary, restartableIds, toggleAll, toggleTick,
+  type PayloadSide,
+} from "./monitorSelection";
 import { MIDDLEWARE_TIPS } from "./tips";
-import { ArrowIcon, ExternalIcon, Notice, ProblemNotice, Switch, describeError, useFlash } from "./ui";
-import { SendOutcome } from "./OutTab";
+import { ArrowIcon, ExternalIcon, Notice, ProblemNotice, Segmented } from "./ui";
+import Panel from "./Panel";
 
 const PAGE = 50;
+const RESTART_ALL_CAP = 200;
 
 export default function MonitorTab() {
   const mw = useMw();
+  const { confirm } = useFeel();
   const system = mw.connector.shortName;
   const [filters, setFilters] = useState<MessageFilters>(EMPTY_FILTERS);
-  const [items, setItems] = useState<MonitorMessage[]>([]);
+  const [loaded, setItems] = useState<MonitorMessage[]>([]);
+  const items = loaded.filter((m) => matchesDocument(m, filters.document));
   const [cursor, setCursor] = useState<string | null>(null);
   const [page, setPage] = useState<MessagePage | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<unknown>(null);
+  const [ticked, setTicked] = useState<string[]>([]);
+  const [results, setResults] = useState<Record<string, RestartResult>>({});
+  const [summary, setSummary] = useState<string | null>(null);
+  const [restarting, setRestarting] = useState(false);
+  const [restartProblem, setRestartProblem] = useState<unknown>(null);
   const [open, setOpen] = useState<MonitorMessage | null>(null);
+  const [payload, setPayload] = useState<{ message: MonitorMessage; side: PayloadSide } | null>(null);
   const seq = useRef(0);
   const problem = filterProblem(filters);
 
@@ -44,7 +56,11 @@ export default function MonitorTab() {
       const p = await getMessages(filtersToQuery(f, { cursor: from, limit: PAGE }));
       if (mine !== seq.current) return;
       setPage(p);
-      setItems((cur) => (from ? [...cur, ...p.items] : p.items));
+      setItems((cur) => {
+        const next = from ? [...cur, ...p.items] : p.items;
+        setTicked((t) => pruneTicks(t, next));
+        return next;
+      });
       setCursor(p.nextCursor);
       setError(null);
     } catch (e) {
@@ -60,13 +76,26 @@ export default function MonitorTab() {
     return () => clearTimeout(t);
   }, [filters, load]);
 
-  const set = (p: Partial<MessageFilters>) => setFilters((f) => ({ ...f, ...p }));
+  const set = (p: Partial<MessageFilters>) => { setFilters((f) => ({ ...f, ...p })); setTicked([]); setSummary(null); };
+  const bar = actionBar(items, ticked, filters, cursor !== null);
+
+  const restart = async () => {
+    if (bar.restartMode === "none") return;
+    if (bar.restartMode === "all-failed" && !(await confirm({ title: "Restart all failed?", body: `${restartableIds(items).length}${cursor ? " or more" : ""} failed lines are sent again. Nothing lands twice in the ERP.`, confirmLabel: "Restart all" }))) return;
+    setRestarting(true); setRestartProblem(null);
+    try {
+      const out = await restartMessages(bar.restartMode === "ticked" ? { messageIds: ticked } : { filter: filterAsRecord(filters), limit: RESTART_ALL_CAP });
+      setResults(Object.fromEntries(out.map((r) => [r.id, r])));
+      setSummary(resultsSummary(out));
+      setTicked([]);
+      await Promise.all([load(filters, null), mw.reloadAll()]);
+    } catch (e) { setRestartProblem(e); } finally { setRestarting(false); }
+  };
 
   return (
     <>
       <div className={s.rowBetween}>
         <span className="bpm-label-row"><h2 className="bpm-t-section">Messages</h2><InfoTip label="Messages">{MIDDLEWARE_TIPS.monitor}</InfoTip></span>
-        <CaptureSwitch />
       </div>
 
       {page?.needsDatabaseUpdate && (
@@ -74,107 +103,95 @@ export default function MonitorTab() {
       )}
       {page && page.failedSources.length > 0 && <Notice tone="warn">Some sources could not be read just now: {page.failedSources.join(", ")}. The rest is shown.</Notice>}
 
-      <Card padding={14}>
-        <div className={`${s.filters} bpm-tap`}>
-          <Field label="Direction" htmlFor="mf-dir" style={{ marginBottom: 0 }}>
-            <select id="mf-dir" className="bpm-input" value={filters.direction ?? ""} onChange={(e) => set({ direction: (e.target.value || undefined) as MessageFilters["direction"] })}>
-              <option value="">All</option>
-              {MESSAGE_DIRECTIONS.map((d) => <option key={d} value={d}>{DIRECTION_WORD[d]}</option>)}
-            </select>
-          </Field>
-          <Field label="Channel" htmlFor="mf-ch" style={{ marginBottom: 0 }}>
-            <select id="mf-ch" className="bpm-input" value={filters.channel ?? ""} onChange={(e) => set({ channel: (e.target.value || undefined) as MessageFilters["channel"] })}>
-              <option value="">All</option>
-              {MESSAGE_CHANNELS.map((c) => <option key={c} value={c}>{CHANNEL_WORD[c]}</option>)}
-            </select>
-          </Field>
-          <Field label="Status" htmlFor="mf-st" style={{ marginBottom: 0 }}>
-            <select id="mf-st" className="bpm-input" value={filters.status ?? ""} onChange={(e) => set({ status: (e.target.value || undefined) as MessageFilters["status"] })}>
-              <option value="">All</option>
-              {MONITOR_STATUSES.map((st) => <option key={st} value={st}>{statusFilterWord(st, system)}</option>)}
-            </select>
-          </Field>
-          <Field label="From" htmlFor="mf-from" style={{ marginBottom: 0 }}>
-            <input id="mf-from" type="date" className="bpm-input" value={filters.from ?? ""} onChange={(e) => set({ from: e.target.value || undefined })} />
-          </Field>
-          <Field label="To" htmlFor="mf-to" style={{ marginBottom: 0 }}>
-            <input id="mf-to" type="date" className="bpm-input" value={filters.to ?? ""} onChange={(e) => set({ to: e.target.value || undefined })} />
-          </Field>
-          <div className={s.filtersSearch}>
-            <Field label="Search" htmlFor="mf-q" style={{ marginBottom: 0 }}>
-              <input id="mf-q" type="search" className="bpm-input" value={filters.q ?? ""} placeholder="Summary or counterpart" onChange={(e) => set({ q: e.target.value || undefined })} />
-            </Field>
-          </div>
-        </div>
-        <div className={`${s.row} bpm-tap`} style={{ marginTop: 10 }}>
-          {filters.object_id && <span className={s.doneChip} style={{ background: "var(--bluebg)", color: "var(--blueink)" }}>One record only</span>}
-          {hasFilters(filters) && <Button size="sm" variant="quiet" onClick={() => setFilters(EMPTY_FILTERS)}>Clear filters</Button>}
-          <Button size="sm" onClick={() => void load(filters, null)} loading={loading && !cursor}>Refresh</Button>
-        </div>
-        {problem && <div className={s.issue} role="alert">{problem}</div>}
-      </Card>
+      <FilterRow filters={filters} onChange={set} onClear={() => { setFilters(EMPTY_FILTERS); setTicked([]); setSummary(null); }} problem={problem} />
 
+      <div className={s.actionBar} role="toolbar" aria-label="Actions for the ticked lines">
+        <Button variant="primary" onClick={() => void restart()} loading={restarting} disabled={!bar.restartEnabled || restarting} title={MIDDLEWARE_TIPS.restart}>{bar.restartLabel}</Button>
+        <span title={bar.viewRequest.reason ?? undefined}><Button onClick={() => bar.one && setPayload({ message: bar.one, side: "request" })} disabled={bar.viewRequest.disabled}>View request</Button></span>
+        <span title={bar.viewResponse.reason ?? undefined}><Button onClick={() => bar.one && setPayload({ message: bar.one, side: "response" })} disabled={bar.viewResponse.disabled}>View response</Button></span>
+        <span className={`${s.small} ${s.muted}`} aria-live="polite">{ticked.length ? `${ticked.length} selected` : ""}</span>
+        <Button size="sm" variant="quiet" onClick={() => void load(filters, null)} loading={loading && !cursor}>Refresh</Button>
+      </div>
+
+      {summary && <Notice tone={Object.values(results).some((r) => r.outcome === "failed") ? "warn" : "ok"}>{summary}</Notice>}
+      {restartProblem != null && <ProblemNotice error={restartProblem} />}
       {error != null && <ProblemNotice error={error} onRetry={() => void load(filters, null)} />}
 
       {!error && items.length === 0 && !loading && (
         hasFilters(filters)
           ? <EmptyState title="No message matches" text="Widen the dates or clear the filters." action={<Button onClick={() => setFilters(EMPTY_FILTERS)}>Clear filters</Button>} />
-          : <EmptyState title="No messages yet" text="Send a test quote from What goes out and it shows here." action={<Button onClick={() => mw.goTab("out")}>Open What goes out</Button>} />
+          : <EmptyState title="No messages yet" text="Send a test quote from Links and it shows here." action={<Button onClick={() => mw.goTab("links")}>Open Links</Button>} />
       )}
 
       {items.length > 0 && (
-        <Card padding={0} style={{ overflow: "hidden" }}>
-          <div className="bpm-rows-table" style={{ overflowX: "auto" }}>
-            <table className={s.tbl}>
-              <thead><tr>{["Time", "", "Channel", "Counterpart", "Summary", "Status", "Record", "Took"].map((h, i) => <th key={i}>{h}</th>)}</tr></thead>
-              <tbody>
-                {items.map((m) => (
-                  <tr key={m.id} className={`${s.clickable} ${open?.id === m.id ? s.selected : ""}`} onClick={() => setOpen(m)}>
-                    <td className={s.nowrap}>{fmtDateTime(m.at)}</td>
-                    <td><span className={s.dir}><ArrowIcon dir={m.direction} />{DIRECTION_WORD[m.direction]}</span></td>
-                    <td>{CHANNEL_WORD[m.channel]}</td>
-                    <td className={s.wrapAny}>{m.counterpart ?? "—"}</td>
-                    <td className={s.wrapAny} style={{ maxWidth: 320 }}>
-                      <button type="button" className="bpm-menu-item" style={{ padding: 0, minHeight: 0, background: "none", textAlign: "start", display: "inline" }} onClick={(e) => { e.stopPropagation(); setOpen(m); }}>{m.summary}</button>
-                    </td>
-                    <td><StatusPill label={statusWord(m, system)} tone={statusTone(m.status)} /></td>
-                    <td onClick={(e) => e.stopPropagation()}><RecordLink record={m.record} /></td>
-                    <td className={s.nowrap}>{durationWord(m.duration_ms)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <div className="bpm-rows-cards" style={{ gap: 8, padding: 10 }}>
-            {items.map((m) => (
-              <button key={m.id} type="button" className={s.cardRow} onClick={() => setOpen(m)}>
-                <span className={s.rowBetween}>
-                  <span className={s.dir}><ArrowIcon dir={m.direction} />{DIRECTION_WORD[m.direction]} · {CHANNEL_WORD[m.channel]}</span>
-                  <StatusPill label={statusWord(m, system)} tone={statusTone(m.status)} />
-                </span>
-                <span className={s.wrapAny}>{m.summary}</span>
-                <span className={`${s.small} ${s.muted}`}>{fmtDateTime(m.at)}{m.counterpart ? ` · ${m.counterpart}` : ""}</span>
-              </button>
-            ))}
-          </div>
-          {cursor && (
-            <div style={{ padding: 12, display: "flex", justifyContent: "center", borderTop: "1px solid var(--line)" }}>
-              <Button onClick={() => void load(filters, cursor)} loading={loading}>Load more</Button>
-            </div>
-          )}
-        </Card>
+        <MonitorList
+          items={items} ticked={ticked} results={results} system={system} openId={open?.id ?? null}
+          onTick={(id) => setTicked((t) => toggleTick(t, items, id))} onAll={() => setTicked((t) => toggleAll(t, items))} onOpen={setOpen}
+          more={cursor ? <Button onClick={() => void load(filters, cursor)} loading={loading}>Load more</Button> : null}
+        />
       )}
 
       {open && (
         <MessagePanel
           message={open} system={system} onClose={() => setOpen(null)}
           onOnlyRecord={(id) => { setFilters({ object_id: id }); setOpen(null); }}
-          onRetried={() => { void load(filters, null); void mw.reloadAll(); }}
+          onRestarted={() => { void load(filters, null); void mw.reloadAll(); }}
         />
       )}
+      {payload && <PayloadPanel message={payload.message} initial={payload.side} onClose={() => setPayload(null)} />}
     </>
   );
 }
+
+// ── Filter row ──────────────────────────────────────────────────────────────
+
+export function FilterRow({ filters, onChange, onClear, problem }: {
+  filters: MessageFilters; onChange: (p: Partial<MessageFilters>) => void; onClear: () => void; problem: string | null;
+}) {
+  const chip = filters.status ?? "all";
+  return (
+    <div className={s.filterRow}>
+      <div className={s.seg} role="group" aria-label="Status">
+        {STATUS_CHIPS.map((c) => (
+          <button key={c.id} type="button" aria-pressed={chip === c.id} onClick={() => onChange({ status: c.id === "all" ? undefined : c.id })}>{c.label}</button>
+        ))}
+      </div>
+      <div className={`${s.filterFields} bpm-tap`}>
+        <label className={s.filterField}>
+          <span className="bpm-sr-only">Direction</span>
+          <select className="bpm-input" aria-label="Direction" value={filters.direction ?? ""} onChange={(e) => onChange({ direction: (e.target.value || undefined) as MessageFilters["direction"] })}>
+            <option value="">In and out</option>
+            <option value="out">Out</option>
+            <option value="in">In</option>
+          </select>
+        </label>
+        <label className={s.filterField}>
+          <span className="bpm-sr-only">Document or entity</span>
+          <select className="bpm-input" aria-label="Document or entity" value={filters.document ?? ""} onChange={(e) => onChange({ document: e.target.value || undefined })}>
+            {DOCUMENT_FILTERS.map((d) => <option key={d.id} value={d.id}>{d.label}</option>)}
+          </select>
+        </label>
+        <label className={s.filterField}>
+          <span className="bpm-sr-only">From</span>
+          <input type="date" className="bpm-input" aria-label="From date" value={filters.from ?? ""} onChange={(e) => onChange({ from: e.target.value || undefined })} />
+        </label>
+        <label className={s.filterField}>
+          <span className="bpm-sr-only">To</span>
+          <input type="date" className="bpm-input" aria-label="To date" value={filters.to ?? ""} onChange={(e) => onChange({ to: e.target.value || undefined })} />
+        </label>
+        <label className={`${s.filterField} ${s.filterSearch}`}>
+          <span className="bpm-sr-only">Search</span>
+          <input type="search" className="bpm-input" aria-label="Search by record or ERP number" placeholder="Record or ERP number" value={filters.q ?? ""} onChange={(e) => onChange({ q: e.target.value || undefined })} />
+        </label>
+        {hasFilters(filters) && <Button size="sm" variant="quiet" onClick={onClear}>Clear filters</Button>}
+      </div>
+      {filters.object_id && <span className={s.small}><span className={s.doneChip} style={{ background: "var(--bluebg)", color: "var(--blueink)" }}>One record only</span></span>}
+      {problem && <div className={s.issue} role="alert">{problem}</div>}
+    </div>
+  );
+}
+
+// ── The list ────────────────────────────────────────────────────────────────
 
 function RecordLink({ record }: { record: MonitorMessage["record"] }) {
   if (!record) return <span className={s.hint}>—</span>;
@@ -183,43 +200,101 @@ function RecordLink({ record }: { record: MonitorMessage["record"] }) {
   return href ? <Link href={href} style={{ color: "var(--blueink)" }}>{text}</Link> : <span>{text}</span>;
 }
 
-/** Keep message bodies for 30 days (redacted). Off unless an admin switches it on. */
-function CaptureSwitch() {
-  const mw = useMw();
-  const r = mw.rules.data;
-  const { flash, show } = useFlash();
-  if (!r) return null;
-  const toggle = async (v: boolean) => {
-    try { mw.rules.setData(await saveRules({ payload_capture: v })); show(true, v ? "Bodies are kept for 30 days." : "Bodies are no longer kept."); } catch (e) { show(false, describeError(e)); }
-  };
+function Reason({ m, result }: { m: MonitorMessage; result?: RestartResult }) {
   return (
-    <span className={`${s.row} bpm-tap`}>
-      {flash && <span role="status" className={`${s.small} ${flash.ok ? s.muted : ""}`} style={flash.ok ? undefined : { color: "var(--err-ink)" }}>{flash.text}</span>}
-      <span className="bpm-label-row"><span className="bpm-t-label" style={{ marginInlineEnd: 8 }}>Keep message bodies</span><InfoTip label="Keep message bodies">{MIDDLEWARE_TIPS.capture}</InfoTip></span>
-      <Switch checked={r.payload_capture} label={`Keep message bodies: ${r.payload_capture ? "on" : "off"}`} onChange={(v) => void toggle(v)} />
+    <span className={s.reasonStack}>
+      <span className={s.wrapAny}>{m.summary}</span>
+      {m.fix ? <span className={`${s.small} ${s.fixLine}`}><span className={s.noticeStrong}>What to do:</span> {m.fix}</span> : null}
+      {result ? <span className={`${s.small} ${result.outcome === "failed" || result.outcome === "not_restartable" ? s.resultBad : s.resultGood}`} role="status">{resultLine(result)}</span> : null}
     </span>
   );
 }
 
-// ── Side panel ──────────────────────────────────────────────────────────────
+/** One table, newest first, every detail in the row. Under 780 px each row is a two-line card. Plain props only. */
+export function MonitorList({ items, ticked, results, system, openId, onTick, onAll, onOpen, more }: {
+  items: readonly MonitorMessage[]; ticked: readonly string[]; results: Record<string, RestartResult>; system: string; openId: string | null;
+  onTick: (id: string) => void; onAll: () => void; onOpen: (m: MonitorMessage) => void; more?: React.ReactNode;
+}) {
+  const ids = restartableIds(items);
+  const allOn = ids.length > 0 && ids.every((id) => ticked.includes(id));
+  const someOn = ids.some((id) => ticked.includes(id));
+  const allRef = useRef<HTMLInputElement>(null);
+  useEffect(() => { if (allRef.current) allRef.current.indeterminate = someOn && !allOn; }, [someOn, allOn]);
 
-const SHOWN_TEXT = ["body", "body_text", "payload", "html", "text"] as const;
+  const label = (m: MonitorMessage) => `${m.what ?? "Message"} ${m.record?.label ?? ""}`.trim();
+  return (
+    <div className={s.listCard}>
+      <div className="bpm-rows-table" style={{ overflowX: "auto" }}>
+        <table className={s.tbl}>
+          <thead>
+            <tr>
+              <th className={s.tickCol}>
+                <label className={s.tickTap}><input ref={allRef} type="checkbox" checked={allOn} disabled={ids.length === 0} onChange={onAll} aria-label="Select all lines that can be restarted" /></label>
+              </th>
+              {["Time", "Direction", "What", "Record", "ERP number", "Status", "Reason"].map((h) => <th key={h}>{h}</th>)}
+            </tr>
+          </thead>
+          <tbody>
+            {items.map((m) => (
+              <tr key={m.id} className={`${s.clickable} ${openId === m.id ? s.selected : ""}`} onClick={() => onOpen(m)}>
+                <td className={s.tickCol} onClick={(e) => e.stopPropagation()}>
+                  {m.restartable
+                    ? <label className={s.tickTap}><input type="checkbox" checked={ticked.includes(m.id)} onChange={() => onTick(m.id)} aria-label={`Select ${label(m)}`} /></label>
+                    : null}
+                </td>
+                <td className={s.nowrap}>{fmtDateTime(m.at)}</td>
+                <td><span className={s.dir}><ArrowIcon dir={m.direction} />{DIRECTION_WORD[m.direction]}</span></td>
+                <td>
+                  <button type="button" className={s.linkBtn} onClick={(e) => { e.stopPropagation(); onOpen(m); }} aria-label={`Open details: ${label(m)}`}>{m.what ?? "Message"}</button>
+                </td>
+                <td className={s.recordCell} onClick={(e) => e.stopPropagation()}><RecordLink record={m.record} /></td>
+                <td className={s.wrapAny}>{m.erpNumber ?? "—"}</td>
+                <td><StatusPill label={statusWord(m, system)} tone={statusTone(m.status)} /></td>
+                <td className={s.reasonCell}><Reason m={m} result={results[m.id]} /></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div className="bpm-rows-cards" style={{ gap: 8, padding: 10 }}>
+        <label className={s.tickAllCard}>
+          <input type="checkbox" checked={allOn} disabled={ids.length === 0} onChange={onAll} aria-label="Select all lines that can be restarted" />
+          <span className={s.small}>Select all that can be restarted</span>
+        </label>
+        {items.map((m) => (
+          <div key={m.id} className={`${s.msgCard} ${openId === m.id ? s.selected : ""}`}>
+            <div className={s.msgTick}>
+              {m.restartable ? <label className={s.tickTap}><input type="checkbox" checked={ticked.includes(m.id)} onChange={() => onTick(m.id)} aria-label={`Select ${label(m)}`} /></label> : null}
+            </div>
+            <button type="button" className={s.msgBody} onClick={() => onOpen(m)}>
+              <span className={s.rowBetween}>
+                <span className={s.fieldName}><span className={s.dir}><ArrowIcon dir={m.direction} /></span> {m.what ?? "Message"}{m.record?.label ? ` · ${m.record.label}` : ""}</span>
+                <StatusPill label={statusWord(m, system)} tone={statusTone(m.status)} />
+              </span>
+              <span className={`${s.small} ${s.muted}`}>{fmtDateTime(m.at)}{m.erpNumber ? ` · ${m.erpNumber}` : ""}</span>
+              <Reason m={m} result={results[m.id]} />
+            </button>
+          </div>
+        ))}
+      </div>
+      {more ? <div style={{ padding: 12, display: "flex", justifyContent: "center", borderTop: "1px solid var(--line)" }}>{more}</div> : null}
+    </div>
+  );
+}
 
-function MessagePanel({ message: m, system, onClose, onOnlyRecord, onRetried }: {
-  message: MonitorMessage; system: string; onClose: () => void; onOnlyRecord: (id: string) => void; onRetried: () => void;
+// ── Detail panel (row click) ────────────────────────────────────────────────
+
+const SHOWN_TEXT = ["body_text", "html", "text"] as const;
+
+function MessagePanel({ message: m, system, onClose, onOnlyRecord, onRestarted }: {
+  message: MonitorMessage; system: string; onClose: () => void; onOnlyRecord: (id: string) => void; onRestarted: () => void;
 }) {
   const [detail, setDetail] = useState<MessageDetail | null>(null);
-  const [busy, setBusy] = useState<"show" | "retry" | null>(null);
+  const [busy, setBusy] = useState<"show" | "restart" | null>(null);
   const [problem, setProblem] = useState<unknown>(null);
-  const [sent, setSent] = useState<Awaited<ReturnType<typeof retryMessage>> | null>(null);
-  const closeRef = useRef<HTMLButtonElement>(null);
+  const [answer, setAnswer] = useState<RestartResult | null>(null);
 
-  useEffect(() => { setDetail(null); setProblem(null); setSent(null); closeRef.current?.focus(); }, [m.id]);
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [onClose]);
+  useEffect(() => { setDetail(null); setProblem(null); setAnswer(null); }, [m.id]);
 
   const show = async () => {
     setBusy("show"); setProblem(null);
@@ -229,59 +304,107 @@ function MessagePanel({ message: m, system, onClose, onOnlyRecord, onRetried }: 
       else setDetail(r);
     } catch (e) { setProblem(e); } finally { setBusy(null); }
   };
-  const retry = async () => {
-    setBusy("retry"); setProblem(null);
-    try { setSent(await retryMessage(m.id)); onRetried(); } catch (e) { setProblem(e); } finally { setBusy(null); }
+  const restart = async () => {
+    setBusy("restart"); setProblem(null);
+    try { setAnswer((await restartMessages({ messageIds: [m.id] }))[0] ?? null); onRestarted(); } catch (e) { setProblem(e); } finally { setBusy(null); }
   };
 
   const err = detail && typeof detail.detail.error === "string" ? detail.detail.error : null;
-  const canRetry = m.source === "integration" && (m.status === "failed" || m.status === "pending") && m.record?.type === "standard_quotes";
   const href = recordHref(m.record);
+  const { payload: _payload, ...rest } = (detail?.detail ?? {}) as Record<string, unknown>;
+  void _payload;
 
   return (
-    <>
-      <div className={s.backdrop} onClick={onClose} />
-      <aside className={s.drawer} role="dialog" aria-modal="true" aria-label="Message details">
-        <div className={s.rowBetween}>
-          <StatusPill label={statusWord(m, system)} tone={statusTone(m.status)} />
-          <button ref={closeRef} type="button" className="bpm-btn bpm-btn-secondary bpm-btn-sm" onClick={onClose}>Close</button>
+    <Panel title={m.summary} subtitle={<StatusPill label={statusWord(m, system)} tone={statusTone(m.status)} />} onClose={onClose} label="Message details">
+      <dl className={s.kv}>
+        <dt>Time</dt><dd>{fmtDateTime(m.at)}</dd>
+        <dt>Direction</dt><dd><span className={s.dir}><ArrowIcon dir={m.direction} />{DIRECTION_WORD[m.direction]}</span></dd>
+        <dt>What</dt><dd>{m.what ?? "—"}</dd>
+        <dt>Record</dt><dd>{m.record ? (href ? <Link href={href} style={{ color: "var(--blueink)" }}>{m.record.label ?? recordTypeWord(m.record.type)} <ExternalIcon /></Link> : (m.record.label ?? recordTypeWord(m.record.type))) : "—"}</dd>
+        <dt>ERP number</dt><dd>{m.erpNumber ?? "—"}</dd>
+        <dt>Took</dt><dd>{durationWord(m.duration_ms)}</dd>
+      </dl>
+      {m.fix && <Notice tone="warn"><span className={s.noticeStrong}>What to do:</span> {m.fix}</Notice>}
+      <div className={`${s.row} bpm-tap`}>
+        {m.record?.id && <Button size="sm" onClick={() => onOnlyRecord(m.record!.id!)}>Show only this record</Button>}
+        {m.restartable && <Button size="sm" variant="primary" onClick={() => void restart()} loading={busy === "restart"} disabled={!!busy}>Restart</Button>}
+      </div>
+      {answer && <Notice tone={answer.outcome === "done" || answer.outcome === "already_ok" ? "ok" : "warn"}>{resultLine(answer)}</Notice>}
+      {problem != null && <ProblemNotice error={problem} />}
+      {!detail ? (
+        <div className={s.row}>
+          <span className="bpm-label-row"><span className="bpm-t-label">Details</span><InfoTip label="Details">{MIDDLEWARE_TIPS.rowDetails}</InfoTip></span>
+          <Button onClick={() => void show()} loading={busy === "show"} disabled={!!busy}>Show</Button>
         </div>
-        <div className="bpm-t-section" style={{ overflowWrap: "anywhere" }}>{m.summary}</div>
-        <dl className={s.kv}>
-          <dt>Time</dt><dd>{fmtDateTime(m.at)}</dd>
-          <dt>Direction</dt><dd><span className={s.dir}><ArrowIcon dir={m.direction} />{DIRECTION_WORD[m.direction]}</span></dd>
-          <dt>Channel</dt><dd>{CHANNEL_WORD[m.channel]}</dd>
-          <dt>Counterpart</dt><dd>{m.counterpart ?? "—"}</dd>
-          <dt>Took</dt><dd>{durationWord(m.duration_ms)}</dd>
-          <dt>Record</dt><dd>{m.record ? (href ? <Link href={href} style={{ color: "var(--blueink)" }}>{m.record.label ?? recordTypeWord(m.record.type)} <ExternalIcon /></Link> : (m.record.label ?? recordTypeWord(m.record.type))) : "—"}</dd>
-        </dl>
-        <div className={`${s.row} bpm-tap`}>
-          {m.record?.id && <Button size="sm" onClick={() => onOnlyRecord(m.record!.id!)}>Show only this record</Button>}
-          {canRetry && <Button size="sm" variant="primary" onClick={() => void retry()} loading={busy === "retry"} disabled={!!busy}>Retry</Button>}
+      ) : (
+        <div className={s.stack} style={{ gap: 10 }}>
+          {err && <Notice tone="err"><span className={s.noticeStrong}>Error</span> <span className={s.mono}>{err}</span></Notice>}
+          {SHOWN_TEXT.filter((k) => rest[k] !== undefined && rest[k] !== null && rest[k] !== "").map((k) => (
+            <div key={k}>
+              <div className="bpm-t-label" style={{ marginBottom: 4 }}>{k.replace(/_/g, " ")}</div>
+              <pre className={`${s.raw} ${s.mono}`} tabIndex={0}>{typeof rest[k] === "string" ? (rest[k] as string) : JSON.stringify(rest[k], null, 2)}</pre>
+            </div>
+          ))}
+          <details>
+            <summary style={{ cursor: "pointer", minHeight: 32 }}>All fields</summary>
+            <pre className={`${s.raw} ${s.mono}`} tabIndex={0} style={{ marginTop: 6 }}>{JSON.stringify(rest, null, 2)}</pre>
+          </details>
         </div>
-        {sent && <SendOutcome result={sent} />}
-        {problem != null && <ProblemNotice error={problem} />}
-        {!detail ? (
-          <div className={s.row}>
-            <span className="bpm-label-row"><span className="bpm-t-label">Details</span><InfoTip label="Details">{MIDDLEWARE_TIPS.rowDetails}</InfoTip></span>
-            <Button onClick={() => void show()} loading={busy === "show"} disabled={!!busy}>Show</Button>
-          </div>
-        ) : (
-          <div className={s.stack} style={{ gap: 10 }}>
-            {err && <Notice tone="err"><span className={s.noticeStrong}>Error</span> <span className={s.mono}>{err}</span></Notice>}
-            {SHOWN_TEXT.filter((k) => detail.detail[k] !== undefined && detail.detail[k] !== null && detail.detail[k] !== "").map((k) => (
-              <div key={k}>
-                <div className="bpm-t-label" style={{ marginBottom: 4 }}>{k.replace(/_/g, " ")}</div>
-                <pre className={`${s.raw} ${s.mono}`} tabIndex={0}>{typeof detail.detail[k] === "string" ? (detail.detail[k] as string) : JSON.stringify(detail.detail[k], null, 2)}</pre>
-              </div>
-            ))}
-            <details>
-              <summary style={{ cursor: "pointer", minHeight: 32 }}>All fields</summary>
-              <pre className={`${s.raw} ${s.mono}`} tabIndex={0} style={{ marginTop: 6 }}>{JSON.stringify(detail.detail, null, 2)}</pre>
-            </details>
-          </div>
-        )}
-      </aside>
-    </>
+      )}
+    </Panel>
   );
 }
+
+// ── Request / response panel ────────────────────────────────────────────────
+
+/** The only place a request or response body is drawn. It is read when opened, never before. */
+function PayloadPanel({ message, initial, onClose }: { message: MonitorMessage; initial: PayloadSide; onClose: () => void }) {
+  const [side, setSide] = useState<PayloadSide>(initial);
+  const [payload, setPayload] = useState<PayloadView | null | undefined>(undefined);
+  const [problem, setProblem] = useState<unknown>(null);
+  const [copied, setCopied] = useState<"yes" | "no" | null>(null);
+
+  useEffect(() => {
+    let live = true;
+    (async () => {
+      try {
+        const r = await getMessage(message.id);
+        if (!live) return;
+        if ("needsDatabaseUpdate" in r) setProblem(new Error("A database update is needed first."));
+        else setPayload(r.payload);
+      } catch (e) { if (live) setProblem(e); }
+    })();
+    return () => { live = false; };
+  }, [message.id]);
+
+  const copy = async () => {
+    if (!payload) return;
+    try { await navigator.clipboard.writeText(payloadText(payload, side)); setCopied("yes"); } catch { setCopied("no"); }
+    setTimeout(() => setCopied(null), 2500);
+  };
+
+  return (
+    <Panel title={side === "request" ? "Request" : "Response"} subtitle={`${message.what ?? "Message"}${message.record?.label ? ` · ${message.record.label}` : ""}`} onClose={onClose} label="Request and response">
+      <Segmented label="Show" value={side} options={[{ id: "request", label: "Request" }, { id: "response", label: "Response" }]} onChange={setSide} />
+      {problem != null && <ProblemNotice error={problem} />}
+      {payload === undefined && problem == null && <div className={`${s.small} ${s.muted}`} role="status">Loading…</div>}
+      {payload === null && <Notice tone="info">No payload recorded for this line.</Notice>}
+      {payload && (
+        <>
+          <div className={`${s.rowBetween} bpm-tap`}>
+            <span className={`${s.small} ${s.mono} ${s.wrapAny}`}>{payloadLine(payload, side) || "—"}</span>
+            <span className={s.row}>
+              {copied && <span className={`${s.small} ${s.muted}`} role="status">{copied === "yes" ? "Copied" : "Could not copy"}</span>}
+              <Button size="sm" onClick={() => void copy()} disabled={!hasSide(payload, side)}>Copy</Button>
+            </span>
+          </div>
+          {payload.truncated && <Notice tone="warn">This payload is cut short. Only the first part was kept.</Notice>}
+          {hasSide(payload, side)
+            ? <pre className={`${s.raw} ${s.mono}`} tabIndex={0}>{payloadText(payload, side)}</pre>
+            : <div className={`${s.small} ${s.muted}`}>{side === "request" ? "No request was recorded." : "No response was recorded."}</div>}
+        </>
+      )}
+    </Panel>
+  );
+}
+

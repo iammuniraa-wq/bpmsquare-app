@@ -1,269 +1,159 @@
 "use client";
 
 import { useState } from "react";
-import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
-import EmptyState from "@/components/ui/EmptyState";
 import InfoTip from "@/components/ui/InfoTip";
-import StatusPill from "@/components/ui/StatusPill";
+import { useFeel } from "@/components/FeelProvider";
 import { SettingsSave } from "@/components/settings/SettingsHeaderActions";
-import { D365_ENTITY_LABEL, type D365EntityKey } from "@/lib/connectors/d365/types";
+import type { D365EntityKey } from "@/lib/connectors/d365/types";
 import D365Preview from "@/components/connectors/D365Preview";
 import s from "./middleware.module.css";
-import {
-  getMapping, getMetadata, previewEntity, saveConnection, suggestMapping,
-  type ConnectionConfig, type EntityMapView, type ErpField, type MapKind, type MappingView, type MetadataEntity, type OutboundMaps,
-} from "./api";
+import { getMappingDoc, previewEntity, resetMapping, saveMappingRows, type MapDocumentKey, type MappingDocView } from "./api";
 import { useMw } from "./context";
 import {
-  INBOUND_ENTITIES, INBOUND_FIELDS, applySuggestions, bpmFieldLabel, mapToRows, missingRequired, rowsToMap, sameMap, validateRows,
-  type MapMode, type MapRow,
-} from "./mapEditor";
+  changedSections, currentErp, documentChoices, erpOptions, isInboundDocument, isMapDirty, isReadOnlyRow, missingBar, sampleFieldMap, setEdit, NOT_SENT,
+  type MapEdits,
+} from "./mappingLogic";
 import { MIDDLEWARE_TIPS } from "./tips";
 import { Notice, ProblemNotice, useFlash, useLoad } from "./ui";
-import MapEditor, { MapView } from "./MapRows";
-
-type Ready = Extract<MappingView, { connected: true }>;
 
 export default function MappingTab() {
   const mw = useMw();
-  const mapping = useLoad(getMapping, [mw.connector.id]);
-  const [editing, setEditing] = useState<string | null>(null);
+  const { confirm } = useFeel();
+  const [doc, setDoc] = useState<MapDocumentKey>("quote");
+  const [edits, setEdits] = useState<MapEdits>({});
+  const [saving, setSaving] = useState(false);
+  const [busy, setBusy] = useState<"reset" | "sample" | null>(null);
+  const [sample, setSample] = useState<Record<string, unknown>[] | null>(null);
+  const [problem, setProblem] = useState<unknown>(null);
   const { flash, show } = useFlash();
+  const view = useLoad(() => getMappingDoc(doc), [doc, mw.connector.id]);
+  const inbound = isInboundDocument(doc);
 
-  if (mapping.error != null && !mapping.data) return <ProblemNotice error={mapping.error} onRetry={() => void mapping.reload()} />;
-  const m = mapping.data;
-  if (!m) return <div className={`${s.small} ${s.muted}`} role="status">Loading…</div>;
-  if (!m.connected) {
-    return (
-      <EmptyState
-        title="Connect an ERP first"
-        text="The standard mapping appears here as soon as a connection exists."
-        action={<Button variant="primary" onClick={() => mw.goTab("connections")}>Open Connections</Button>}
-      />
-    );
-  }
-  const cfg = mw.connection?.state.config ?? null;
-  const target = mw.rules.data?.contract.target ?? (m.product === "dataverse" ? "quote" : "project");
-  const kinds: { kind: MapKind; title: string }[] = target === "quote"
-    ? [{ kind: "quote", title: "Quote header" }, { kind: "quote_line", title: "Quote lines" }]
-    : [{ kind: "project", title: "Project" }];
+  const quote = mw.documents.data?.documents.find((d) => d.key === "quote");
+  const choices = documentChoices(mw.connector.shortName, quote?.target.label ?? null);
+  const v = view.data;
+  const dirty = isMapDirty(edits);
 
-  const changed = async (text: string) => {
-    show(true, text);
-    await Promise.all([mapping.reload(), mw.connections.reload()]);
+  const pickDocument = async (next: MapDocumentKey) => {
+    if (next === doc) return;
+    if (dirty && !(await confirm({ title: "Discard your changes?", body: "The fields you changed in this mapping have not been saved.", confirmLabel: "Discard", tone: "danger" }))) return;
+    setEdits({}); setSample(null); setProblem(null); setDoc(next);
   };
+
+  const save = async () => {
+    if (!v) return;
+    setSaving(true); setProblem(null);
+    try {
+      for (const part of changedSections(v, edits)) await saveMappingRows(doc, part.section, part.rows);
+      setEdits({});
+      await view.reload();
+      show(true, "Mapping saved.");
+    } catch (e) { setProblem(e); } finally { setSaving(false); }
+  };
+
+  const reset = async () => {
+    if (!(await confirm({ title: "Reset to standard?", body: "Your changes to this mapping are replaced by the standard one.", confirmLabel: "Reset", tone: "danger" }))) return;
+    setBusy("reset"); setProblem(null);
+    try { await resetMapping(doc); setEdits({}); await view.reload(); show(true, "Back to the standard mapping."); } catch (e) { setProblem(e); } finally { setBusy(null); }
+  };
+
+  const showSample = async () => {
+    if (sample) { setSample(null); return; }
+    setBusy("sample"); setProblem(null);
+    try { setSample((await previewEntity(doc as D365EntityKey)).rows); } catch (e) { setProblem(e); } finally { setBusy(null); }
+  };
+
+  const bar = v ? missingBar(v.missingRequired) : null;
 
   return (
     <>
+      <SettingsSave dirty={dirty} saving={saving} onSave={() => void save()} label="Save mapping" />
       {flash && <Notice tone={flash.ok ? "ok" : "err"}>{flash.text}</Notice>}
-      <div className={s.rowBetween}>
-        <span className="bpm-label-row"><h2 className="bpm-t-section">Sent to the ERP</h2><InfoTip label="Sent to the ERP">{MIDDLEWARE_TIPS.mapping}</InfoTip></span>
-      </div>
-      {kinds.map(({ kind, title }) => (
-        <OutboundCard
-          key={kind} kind={kind} title={title} m={m} cfg={cfg} connectorId={mw.connector.id}
-          editing={editing === `out:${kind}`} onEdit={(on) => setEditing(on ? `out:${kind}` : null)} onSaved={changed}
-        />
-      ))}
+      {bar && <Notice tone="warn">{bar}</Notice>}
+      {problem != null && <ProblemNotice error={problem} />}
 
-      <div className={s.rowBetween} style={{ marginTop: 6 }}>
-        <span className="bpm-label-row"><h2 className="bpm-t-section">Read from the ERP</h2><InfoTip label="Read from the ERP">{MIDDLEWARE_TIPS.inbound}</InfoTip></span>
+      <div className={s.rowBetween}>
+        <span className="bpm-label-row">
+          <h2 className="bpm-t-section">Field mapping</h2>
+          <InfoTip label="Field mapping">{MIDDLEWARE_TIPS.mapping}</InfoTip>
+        </span>
+        <span className={`${s.row} bpm-tap`}>
+          <select className="bpm-input" style={{ width: "auto", maxWidth: "100%" }} aria-label="Mapping for" value={doc} onChange={(e) => void pickDocument(e.target.value as MapDocumentKey)}>
+            {choices.map((c) => <option key={c.key} value={c.key}>{c.label}</option>)}
+          </select>
+          <Button variant="quiet" size="sm" onClick={() => void reset()} loading={busy === "reset"} disabled={!v || v.usingStandard || !!busy}>Reset to standard</Button>
+        </span>
       </div>
-      {INBOUND_ENTITIES.map((k) => {
-        const e = m.entities[k];
-        return e ? (
-          <InboundCard
-            key={k} entity={k} view={e} cfg={cfg} connectorId={mw.connector.id} editing={editing === `in:${k}`}
-            onEdit={(on) => setEditing(on ? `in:${k}` : null)} onSaved={changed}
-          />
-        ) : null;
-      })}
+
+      {inbound && (
+        <div className={`${s.row} bpm-tap`}>
+          <Button variant="quiet" size="sm" onClick={() => void showSample()} loading={busy === "sample"} aria-pressed={!!sample}>{sample ? "Hide sample data" : "Show sample data"}</Button>
+        </div>
+      )}
+      {sample && v && <D365Preview title={v.document.label || doc} rows={sample} fieldMap={sampleFieldMap(v)} onClose={() => setSample(null)} />}
+
+      {view.error != null && !v && <ProblemNotice error={view.error} onRetry={() => void view.reload()} />}
+      {!v && view.error == null && <div className={`${s.small} ${s.muted}`} role="status">Loading…</div>}
+      {v && <MappingSections view={v} edits={edits} inbound={inbound} onEdit={(section, row, value) => setEdits((e) => setEdit(e, section, row, value))} />}
     </>
   );
 }
 
-// ── Shared editing state ────────────────────────────────────────────────────
+// ── The two-column table ────────────────────────────────────────────────────
 
-/** Rows, the ERP's field list (fetched when editing starts), and the checks that gate Save. */
-function useEditor(mode: MapMode, kind: MapKind | "inbound", entity: MetadataEntity, initial: Record<string, string>, allowed: readonly string[], editing: boolean) {
-  const [rows, setRows] = useState<MapRow[]>(() => mapToRows(initial));
-  const meta = useLoad(async () => (editing ? getMetadata(entity) : null), [editing, entity]);
-  const [fields, setFields] = useState<ErpField[] | null>(null);
-  const erp = fields ?? meta.data?.fields ?? null;
-  const issues = validateRows(mode, kind, rows, allowed);
-  const missing = mode === "outbound" && erp && kind !== "inbound" ? missingRequired(erp, rows, kind) : [];
-  const dirty = !sameMap(rowsToMap(rows), initial);
-  return { rows, setRows, meta, erp, setFields, issues, missing, dirty, reset: () => setRows(mapToRows(initial)) };
-}
-
-function EditorTools({ meta, onRefresh, onSuggest, busy }: { meta: { loading: boolean }; onRefresh: () => void; onSuggest: () => void; busy: boolean }) {
-  return (
-    <div className={`${s.row} bpm-tap`}>
-      <span className="bpm-label-row"><span className="bpm-t-label">Fields</span><InfoTip label="Fields">{MIDDLEWARE_TIPS.editTools}</InfoTip></span>
-      <Button size="sm" onClick={onSuggest} disabled={busy || meta.loading}>Suggest mapping</Button>
-      <Button size="sm" onClick={onRefresh} loading={meta.loading} disabled={busy}>Refresh fields</Button>
-    </div>
-  );
-}
-
-// ── Outbound: what a quote becomes ──────────────────────────────────────────
-
-function OutboundCard({ kind, title, m, cfg, connectorId, editing, onEdit, onSaved }: {
-  kind: MapKind; title: string; m: Ready; cfg: ConnectionConfig | null; connectorId: string;
-  editing: boolean; onEdit: (on: boolean) => void; onSaved: (text: string) => Promise<void>;
+/** Plain props only, so it renders the same in the page and in a test. */
+export function MappingSections({ view, edits, inbound, onEdit }: {
+  view: MappingDocView; edits: MapEdits; inbound?: boolean; onEdit: (section: string, row: MappingDocView["sections"][number]["rows"][number], value: string) => void;
 }) {
-  const effective = m.effective[kind].field_map;
-  const standard = m.using_standard[kind];
-  const allowed = m.placeholders[kind];
-  const entity: MetadataEntity = kind;
-  const ed = useEditor("outbound", kind, entity, effective, allowed, editing);
-  const [busy, setBusy] = useState<"save" | "reset" | "suggest" | null>(null);
-  const [problem, setProblem] = useState<unknown>(null);
-
-  const withOutbound = (next: OutboundMaps | null) => saveConnection(connectorId, { ...(cfg as ConnectionConfig), outbound: next });
-  const current = cfg?.outbound ?? {};
-
-  const save = async () => {
-    if (!cfg || ed.issues.length) return;
-    setBusy("save"); setProblem(null);
-    const map = rowsToMap(ed.rows);
-    const next: OutboundMaps = { ...current };
-    next[kind] = kind === "project"
-      ? { ...(current.project ?? {}), entity_set: m.effective.project.entity_set, id_field: m.effective.project.id_field, field_map: map }
-      : { field_map: map };
-    try { await withOutbound(next); onEdit(false); await onSaved(`${title} mapping saved.`); } catch (e) { setProblem(e); } finally { setBusy(null); }
-  };
-  const resetToStandard = async () => {
-    if (!cfg) return;
-    setBusy("reset"); setProblem(null);
-    const { [kind]: _drop, ...rest } = current;
-    void _drop;
-    try { await withOutbound(Object.keys(rest).length ? rest : null); onEdit(false); await onSaved(`${title} is back to the standard mapping.`); } catch (e) { setProblem(e); } finally { setBusy(null); }
-  };
-  const suggest = async () => {
-    setBusy("suggest"); setProblem(null);
-    try {
-      const bpm = allowed.map((k) => ({ key: k, label: bpmFieldLabel(k) }));
-      const r = await suggestMapping(entity, bpm, ed.rows.map((x) => x.field).filter(Boolean));
-      ed.setRows(applySuggestions(ed.rows, r.suggestions, "outbound").rows);
-    } catch (e) { setProblem(e); } finally { setBusy(null); }
-  };
-  const refresh = async () => {
-    setProblem(null);
-    try { ed.setFields((await getMetadata(entity, true)).fields); } catch (e) { setProblem(e); }
-  };
-
   return (
-    <Card
-      title={title}
-      info={MIDDLEWARE_TIPS.standardMap}
-      action={
-        <span className={s.row}>
-          <StatusPill label={standard ? "Using the standard mapping" : "Custom mapping"} tone={standard ? "green" : "blue"} />
-          {!editing && <Button size="sm" onClick={() => onEdit(true)} disabled={!cfg}>Edit</Button>}
-        </span>
-      }
-    >
-      <div className={s.stack}>
-        {problem != null && <ProblemNotice error={problem} />}
-        {!editing ? (
-          <MapView map={effective} mode="outbound" fields={ed.erp} />
-        ) : (
-          <>
-            <SettingsSave dirty={ed.dirty} saving={busy === "save"} onSave={() => void save()} label="Save map" />
-            {ed.meta.error != null && <ProblemNotice error={ed.meta.error} onRetry={() => void ed.meta.reload()} />}
-            <EditorTools meta={ed.meta} onRefresh={() => void refresh()} onSuggest={() => void suggest()} busy={!!busy} />
-            <MapEditor mode="outbound" rows={ed.rows} onRows={ed.setRows} erpFields={ed.erp} allowed={allowed} issues={ed.issues} />
-            {ed.missing.length > 0 && (
-              <Notice tone="warn">
-                <span className={s.noticeStrong}>Required by the ERP and not mapped:</span> {ed.missing.map((f) => f.label).join(", ")}. {MIDDLEWARE_TIPS.required}
-              </Notice>
-            )}
-            <div className={`${s.row} bpm-tap`}>
-              <Button onClick={() => { ed.reset(); onEdit(false); }} disabled={!!busy}>Cancel</Button>
-              <Button variant="danger" onClick={() => void resetToStandard()} loading={busy === "reset"} disabled={!!busy || standard}>Reset to standard</Button>
-            </div>
-          </>
-        )}
-      </div>
-    </Card>
+    <>
+      {view.sections.map((sec) => (
+        <section key={sec.key} aria-label={sec.label}>
+          <h3 className="bpm-t-label" style={{ margin: "6px 0" }}>{sec.label}</h3>
+          <div className={s.mapCard}>
+            <table className={s.mapTbl}>
+              <thead><tr><th>BPMSquare field</th><th>{inbound ? "ERP source field" : "ERP field"}</th></tr></thead>
+              <tbody>
+                {sec.rows.length === 0 && <tr><td colSpan={2} className={s.muted}>No fields.</td></tr>}
+                {sec.rows.map((r) => {
+                  const readOnly = isReadOnlyRow(r);
+                  const cur = currentErp(sec.key, r, edits);
+                  const options = erpOptions(view.erpFields[sec.key] ?? [], r.erp);
+                  return (
+                    <tr key={r.id}>
+                      <td><FieldCell label={r.bpm.label} name={r.bpm.name} /></td>
+                      <td>
+                        {readOnly ? (
+                          <span className={s.readOnlyCell}>
+                            {r.erp ? <FieldCell label={r.erp.label} name={r.erp.name} /> : <span className={s.muted}>Not sent</span>}
+                            <span className={s.standardWord}>Standard</span>
+                          </span>
+                        ) : (
+                          <select className="bpm-input" aria-label={`${inbound ? "ERP source field" : "ERP field"} for ${r.bpm.label}`} value={cur} onChange={(e) => onEdit(sec.key, r, e.target.value)}>
+                            <option value={NOT_SENT}>{inbound ? "Not read" : "Not sent"}</option>
+                            {options.map((o) => <option key={o.name} value={o.name}>{o.label} · {o.name}</option>)}
+                          </select>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      ))}
+    </>
   );
 }
 
-// ── Inbound: what comes in, per entity ──────────────────────────────────────
-
-function InboundCard({ entity, view, cfg, connectorId, editing, onEdit, onSaved }: {
-  entity: (typeof INBOUND_ENTITIES)[number]; view: EntityMapView; cfg: ConnectionConfig | null; connectorId: string;
-  editing: boolean; onEdit: (on: boolean) => void; onSaved: (text: string) => Promise<void>;
-}) {
-  const allowed = INBOUND_FIELDS[entity] ?? [];
-  const label = D365_ENTITY_LABEL[entity as D365EntityKey];
-  const ed = useEditor("inbound", "inbound", entity, view.field_map, allowed, editing);
-  const [busy, setBusy] = useState<"save" | "enable" | "preview" | "suggest" | null>(null);
-  const [problem, setProblem] = useState<unknown>(null);
-  const [rows, setRows] = useState<Record<string, unknown>[] | null>(null);
-
-  const withEntity = (patch: Partial<EntityMapView>) => {
-    const cur = cfg?.entities[entity as D365EntityKey] ?? { ...view };
-    return saveConnection(connectorId, { ...(cfg as ConnectionConfig), entities: { ...(cfg as ConnectionConfig).entities, [entity]: { ...cur, ...patch } } });
-  };
-  const toggle = async (enabled: boolean) => {
-    if (!cfg) return;
-    setBusy("enable"); setProblem(null);
-    try { await withEntity({ enabled }); await onSaved(`${label}: ${enabled ? "included" : "left out"}.`); } catch (e) { setProblem(e); } finally { setBusy(null); }
-  };
-  const save = async () => {
-    if (!cfg || ed.issues.length) return;
-    setBusy("save"); setProblem(null);
-    try { await withEntity({ field_map: rowsToMap(ed.rows) }); onEdit(false); await onSaved(`${label} mapping saved.`); } catch (e) { setProblem(e); } finally { setBusy(null); }
-  };
-  const preview = async () => {
-    setBusy("preview"); setProblem(null);
-    try { setRows((await previewEntity(entity as D365EntityKey)).rows); } catch (e) { setProblem(e); } finally { setBusy(null); }
-  };
-  const suggest = async () => {
-    setBusy("suggest"); setProblem(null);
-    try {
-      const r = await suggestMapping(entity, allowed.map((k) => ({ key: k, label: bpmFieldLabel(k) })), []);
-      ed.setRows(applySuggestions(ed.rows, r.suggestions, "inbound").rows);
-    } catch (e) { setProblem(e); } finally { setBusy(null); }
-  };
-  const refresh = async () => {
-    setProblem(null);
-    try { ed.setFields((await getMetadata(entity, true)).fields); } catch (e) { setProblem(e); }
-  };
-
+function FieldCell({ label, name }: { label: string; name: string }) {
   return (
-    <Card padding={14}>
-      <div className={s.stack}>
-        <div className={`${s.rowBetween} bpm-tap`}>
-          <span className="bpm-label-row">
-            <label className="bpm-t-label" style={{ display: "flex", gap: 8, alignItems: "center", cursor: "pointer", minHeight: 32 }}>
-              <input type="checkbox" checked={view.enabled} disabled={!cfg || busy === "enable"} onChange={(e) => void toggle(e.target.checked)} />
-              {label}
-            </label>
-            <InfoTip label={label}>{MIDDLEWARE_TIPS.inboundOn}</InfoTip>
-          </span>
-          <span className={s.row}>
-            <Button size="sm" onClick={() => void preview()} loading={busy === "preview"} disabled={!!busy}>Preview</Button>
-            {!editing && <Button size="sm" onClick={() => onEdit(true)} disabled={!cfg}>Edit map</Button>}
-          </span>
-        </div>
-        {problem != null && <ProblemNotice error={problem} />}
-        {rows && <D365Preview title={label} rows={rows} fieldMap={view.field_map} onClose={() => setRows(null)} />}
-        {!editing ? (
-          <MapView map={view.field_map} mode="inbound" fields={ed.erp} />
-        ) : (
-          <>
-            <SettingsSave dirty={ed.dirty} saving={busy === "save"} onSave={() => void save()} label="Save map" />
-            {ed.meta.error != null && <ProblemNotice error={ed.meta.error} onRetry={() => void ed.meta.reload()} />}
-            <EditorTools meta={ed.meta} onRefresh={() => void refresh()} onSuggest={() => void suggest()} busy={!!busy} />
-            <MapEditor mode="inbound" rows={ed.rows} onRows={ed.setRows} erpFields={ed.erp} allowed={allowed} issues={ed.issues} />
-            <div className={`${s.row} bpm-tap`}><Button onClick={() => { ed.reset(); onEdit(false); }} disabled={!!busy}>Cancel</Button></div>
-          </>
-        )}
-      </div>
-    </Card>
+    <span className={s.fieldCell}>
+      <span className={s.fieldName}>{label}</span>
+      {name && name !== label ? <span className={s.fieldTech}>{name}</span> : null}
+    </span>
   );
 }
+
