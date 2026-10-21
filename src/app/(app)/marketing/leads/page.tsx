@@ -35,7 +35,7 @@ export default async function ScoredLeadsPage({
   if (pending) {
     return (
       <>
-        <PageHeader title="Lead scores" />
+        <PageHeader title="Scored leads" />
         <Card padding={0}>
           <EmptyState title="Lead scoring is waiting for a database update" text="Ask your administrator to apply the latest database update, then come back. Nothing is lost in the meantime." />
         </Card>
@@ -89,7 +89,7 @@ export default async function ScoredLeadsPage({
       ),
     },
     { id: "score", label: "Score", sortKey: "score", info: LEAD_SCORE_TIPS.score, render: (l) => <ScoreMeter score={l.score} thresholds={ctx.rubric.thresholds} /> },
-    { id: "stage", label: "Stage", sortKey: "stage", render: (l) => <StagePill stage={l.stage} /> },
+    { id: "stage", label: "Lead stage", sortKey: "stage", render: (l) => <StagePill stage={l.stage} /> },
     {
       id: "owner", label: "Owner", sortKey: "owner", cellStyle: { fontSize: 13 },
       render: (l) => (l.owner_user_id ? <span style={{ color: c.ink }}>{personLabel(byId.get(l.owner_user_id))}</span> : l.stage === "ready" ? <StatusPill label="Needs an owner" tone="amber" /> : <span style={{ color: c.hint }}>—</span>),
@@ -101,7 +101,7 @@ export default async function ScoredLeadsPage({
 
   return (
     <ObjectListPage
-      title="Lead scores"
+      title="Scored leads"
       subtitle={`${rows.length} of ${leads.length} · best first`}
       chips={chips}
       search={{ value: q, placeholder: "Search lead, company or person…", hiddenParams: { stage: stageFilter } }}

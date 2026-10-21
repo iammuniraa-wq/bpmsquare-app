@@ -30,7 +30,7 @@ import {
 import { AddLanguage, BlockEditor, BlockList, CheckChips, LanguageRows, cx } from "./panels";
 import PreviewFrame from "./PreviewFrame";
 import LanguageCompare from "./LanguageCompare";
-import StudioTour, { type TourStep } from "./StudioTour";
+import Tour, { type TourStep } from "@/components/marketing/Tour";
 import styles from "./newsletter.module.css";
 
 export type StudioInitial = {
@@ -372,7 +372,7 @@ export default function NewsletterStudio(props: StudioProps) {
         badge={<span className={cx(styles.pill, initial.status === "ready" && !dirty && styles.ready, initial.status === "archived" && styles.archived)}>{statusPill}</span>}
         action={
           <span className={styles.headRow} id="nlHeadActions">
-            <StudioTour steps={tour} />
+            <Tour steps={tour} storageKey="bpm.newsletter.tour.step" buttonId="nlTourBtn" />
             <span className={styles.headBtns}>
               <Button variant={initial.isTemplate ? "primary" : undefined} disabled={!canEdit || saving} loading={saving} onClick={() => void save()}>Save</Button>
               {!initial.isTemplate && <Button id="nlCampaignBtn" variant="primary" disabled={!canEdit || saving} onClick={() => void onUseInCampaign()}>Use in a campaign</Button>}

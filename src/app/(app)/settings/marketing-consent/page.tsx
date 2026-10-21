@@ -7,7 +7,7 @@ import { CONSENT_SETTINGS_TIPS } from "@/lib/marketing/consentSettingsTips";
 import ConsentClient from "./ConsentClient";
 
 /**
- * Settings -> Marketing -> Consent topics. Gated here as well as in the
+ * Settings -> Marketing -> Consent. Gated here as well as in the
  * menu: a workspace without the marketing_scoring program cannot reach it by URL.
  */
 export default async function MarketingConsentSettingsPage() {
@@ -25,7 +25,7 @@ export default async function MarketingConsentSettingsPage() {
   return (
     <>
       <SettingsPageHeader
-        title="Consent topics"
+        title="Consent"
         info={CONSENT_SETTINGS_TIPS.page}
       />
       <ConsentClient />

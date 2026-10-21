@@ -23,7 +23,7 @@ import {
   type ActivityData, type PreviewData,
 } from "./journeyApi";
 import type { TraceLine } from "@/lib/marketing/journeys/simulate";
-import JourneyTour, { type TourStep } from "./JourneyTour";
+import Tour, { type TourStep } from "@/components/marketing/Tour";
 import styles from "./journey.module.css";
 
 export type JourneyStudioProps = {
@@ -258,7 +258,7 @@ export default function JourneyStudio({ journey, topics, limits, timezone, studi
         badge={<span className={cx(styles.pill, live && !dirty && styles.live, status === "paused" && !dirty && styles.paused)}>{statusLabel}</span>}
         action={
           <span className={styles.headRow}>
-            <JourneyTour steps={tour} />
+            <Tour steps={tour} storageKey="bpm.journey.tour.step" buttonId="jnTourBtn" />
             <span className={styles.headBtns}>{saveBtn}{primary}</span>
             <MoreMenu items={menuItems} />
           </span>

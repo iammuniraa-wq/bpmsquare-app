@@ -12,7 +12,7 @@ export const EMAIL_HEALTH_TIPS = {
 export const CONSENT_CARD_TIPS = {
   card: "What this person has agreed to hear from us about. Every answer is kept; a new answer never erases an old one.",
   channel: "Where they agreed to be contacted.",
-  consentTopic: "One consent topic, or any. Topics are set in Settings, Marketing, Consent and topics.",
+  consentTopic: "One consent topic, or any. Topics are set in Settings, Marketing, Consent.",
   note: "In your own words, as evidence: for example \"agreed by phone on 20 Oct\".",
   basis: "The reason we may contact them. The stored word is what Data Workbench and the API use.",
 } as const;

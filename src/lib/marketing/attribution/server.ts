@@ -6,7 +6,7 @@ import { ASSET_TYPES, MODELS, MODES, type AssetType, type Mode, type Model } fro
 // The report's reads. Members read attribution_results through the SESSION client (select-only RLS is the real
 // backstop) and every query also names the tenant. Asset names are looked up in this tenant only.
 
-export const ATTRIBUTION_SPEC: ModuleSpec = { flag: "marketing_attribution", workcenter: "marketing_attribution", label: "Revenue by campaign", migrations: "0190 to 0192" };
+export const ATTRIBUTION_SPEC: ModuleSpec = { flag: "marketing_attribution", workcenter: "marketing_attribution", label: "Revenue by source", migrations: "0190 to 0192" };
 
 export type ReportRow = {
   assetId: string;

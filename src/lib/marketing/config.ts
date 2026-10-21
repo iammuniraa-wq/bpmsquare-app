@@ -28,7 +28,7 @@ export function consentDefaultsOf(config: Partial<TenantConfig> | null | undefin
   return marketingConfigOf(config).consent_defaults ?? {};
 }
 
-/** Where the workspace is based, as set in Settings, Consent and topics. Unset reads as "other". */
+/** Where the workspace is based, as set in Settings, Consent. Unset reads as "other". */
 export function workspaceJurisdictionOf(config: Partial<TenantConfig> | null | undefined): JurisdictionCode {
   const j = marketingConfigOf(config).consent?.jurisdiction;
   return isJurisdictionCode(j) ? j : "other";

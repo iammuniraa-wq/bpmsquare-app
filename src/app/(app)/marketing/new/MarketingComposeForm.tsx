@@ -11,6 +11,7 @@ import ObjectFormPage from "@/components/page/ObjectFormPage";
 import Card from "@/components/ui/Card";
 import Field from "@/components/ui/Field";
 import { Input } from "@/components/ui/Input";
+import { COMPOSE_TIPS } from "@/lib/marketing/composeTips";
 import dynamic from "next/dynamic";
 
 // tiptap (the editor's engine) is one of the heaviest client libraries in
@@ -112,7 +113,7 @@ export default function MarketingComposeForm({ accounts, initialGroupId, newslet
 
       {!templateId && !newsletter && (
         <Card>
-          <Field label="Subject" hint={"Use {{account_name}} and {{company_name}} — replaced per recipient."}>
+          <Field label="Subject" info={COMPOSE_TIPS.subject}>
             <Input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="e.g. Happy Diwali from {{company_name}}!" />
           </Field>
           <div style={{ fontSize: 11.5, fontWeight: 600, color: c.muted, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 5 }}>Message</div>

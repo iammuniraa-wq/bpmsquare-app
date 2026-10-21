@@ -15,7 +15,7 @@ import { useFeel } from "@/components/FeelProvider";
 import { ROUTES } from "@/lib/constants";
 import { FIELD_LABEL_DEFAULT, LIMITS, type AfterSubmit, type FormConsent, type FormField, type FormStatus, type PublicForm } from "@/lib/marketing/forms/types";
 import { FORM_TIPS } from "@/lib/marketing/forms/tips";
-import FormTour, { type TourStep } from "./FormTour";
+import Tour, { type TourStep } from "@/components/marketing/Tour";
 import styles from "../newsletters/newsletter.module.css";
 import answerStyles from "./form.module.css";
 
@@ -213,7 +213,7 @@ export default function FormStudio({ initial, topics, origin, redirectHost, bran
         badge={<span className={cx(styles.pill, status === "live" && !dirty && styles.ready, status === "archived" && styles.archived)}>{statusPill}</span>}
         action={
           <span className={styles.headRow}>
-            <FormTour steps={tour} />
+            <Tour steps={tour} storageKey="bpm.forms.tour.step" buttonId="frTourBtn" />
             <span className={styles.headBtns}>
               <Button variant="primary" disabled={!canEdit || saving || !dirty} loading={saving} onClick={() => void save()}>Save</Button>
             </span>

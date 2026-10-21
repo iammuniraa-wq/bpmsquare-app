@@ -8,6 +8,7 @@ import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
 import Field from "@/components/ui/Field";
 import { Input, Select, Textarea } from "@/components/ui/Input";
+import { EVENT_TIPS, eventDateTip } from "@/lib/marketing/events/tips";
 import { EVENT_KINDS, EVENT_STATUSES, FOLLOW_UP_LABEL, KIND_HINT, KIND_LABEL, LIMITS, STATUS_HINT, STATUS_LABEL, type EventKind, type EventStatus, type FollowUpOn } from "@/lib/marketing/events/rules";
 
 // One form for a new event and for editing one (the record's Details tab). Dates and times are the workspace's wall
@@ -55,29 +56,29 @@ export default function EventForm({ mode, id, initial, forms, journeys, members,
       <Card padding={18} title="The event">
         <Field label="Name" required><Input value={v.name} onChange={set("name")} maxLength={LIMITS.name} disabled={dis} placeholder="e.g. Precast open day, Riyadh" autoFocus={mode === "create"} /></Field>
         <div className="fg2">
-          <Field label="Kind" hint={KIND_HINT[v.kind]}>
+          <Field label="Kind" info={KIND_HINT[v.kind]}>
             <Select value={v.kind} onChange={set("kind")} disabled={dis}>{EVENT_KINDS.map((k) => <option key={k} value={k}>{KIND_LABEL[k]}</option>)}</Select>
           </Field>
-          <Field label="Status" hint={STATUS_HINT[v.status]}>
+          <Field label="Status" info={STATUS_HINT[v.status]}>
             <Select value={v.status} onChange={set("status")} disabled={dis}>{EVENT_STATUSES.map((s) => <option key={s} value={s}>{STATUS_LABEL[s]}</option>)}</Select>
           </Field>
-          <Field label="Date" required hint={`In ${timezone.replace(/_/g, " ")} time.`}><Input type="date" value={v.date} onChange={set("date")} disabled={dis} /></Field>
+          <Field label="Date" required info={eventDateTip(timezone)}><Input type="date" value={v.date} onChange={set("date")} disabled={dis} /></Field>
           <Field label="Starts"><Input type="time" value={v.time} onChange={set("time")} disabled={dis} /></Field>
           <Field label="Ends (optional)"><Input type="time" value={v.end_time} onChange={set("end_time")} disabled={dis} /></Field>
-          <Field label="Capacity (optional)" hint="Registration is never refused, but the page shows when you are over."><Input type="number" min={1} value={v.capacity} onChange={set("capacity")} disabled={dis} /></Field>
+          <Field label="Capacity (optional)" info={EVENT_TIPS.capacity}><Input type="number" min={1} value={v.capacity} onChange={set("capacity")} disabled={dis} /></Field>
         </div>
-        <Field label="Venue" hint="Where people go. Leave empty for a webinar."><Input value={v.venue} onChange={set("venue")} maxLength={LIMITS.venue} disabled={dis} /></Field>
-        <Field label="Link" hint="The join link for a webinar, or a map link. A full https address."><Input value={v.link} onChange={set("link")} maxLength={LIMITS.link} disabled={dis} placeholder="https://" inputMode="url" /></Field>
-        <Field label="Owner" hint="Who runs the event. Each company's own owner, for the follow-up, comes from Coverage.">
+        <Field label="Venue" info={EVENT_TIPS.venue}><Input value={v.venue} onChange={set("venue")} maxLength={LIMITS.venue} disabled={dis} /></Field>
+        <Field label="Link" info={EVENT_TIPS.link}><Input value={v.link} onChange={set("link")} maxLength={LIMITS.link} disabled={dis} placeholder="https://" inputMode="url" /></Field>
+        <Field label="Owner" info={EVENT_TIPS.owner}>
           <Select value={v.owner_user_id} onChange={set("owner_user_id")} disabled={dis}>
             {members.map((m) => <option key={m.user_id} value={m.user_id}>{m.name ?? m.email ?? m.user_id.slice(0, 8)}</option>)}
           </Select>
         </Field>
-        <Field label="About it" hint="A line or two for your team. Plain text." style={{ marginBottom: 0 }}><Textarea value={v.description} onChange={set("description")} rows={3} maxLength={LIMITS.description} disabled={dis} /></Field>
+        <Field label="About it" info={EVENT_TIPS.about} style={{ marginBottom: 0 }}><Textarea value={v.description} onChange={set("description")} rows={3} maxLength={LIMITS.description} disabled={dis} /></Field>
       </Card>
 
       <Card padding={18} title="Registration">
-        <Field label="Registration form" hint="Anyone who fills in this form while registration is open is registered, and their consent is recorded exactly as the form says. A form can belong to one running event." style={{ marginBottom: 0 }}>
+        <Field label="Registration form" info={EVENT_TIPS.registrationForm} style={{ marginBottom: 0 }}>
           <Select value={v.form_id} onChange={set("form_id")} disabled={dis}>
             <option value="">No form yet</option>
             {forms.map((f) => <option key={f.id} value={f.id}>{f.name}{f.status && f.status !== "live" ? ` (${f.status})` : ""}</option>)}
@@ -87,13 +88,13 @@ export default function EventForm({ mode, id, initial, forms, journeys, members,
 
       <Card padding={18} title="Follow-up">
         <div className="fg2">
-          <Field label="Journey" hint="A journey you already built and turned on. Starting the follow-up puts the chosen people through it; its own rules decide what is sent.">
+          <Field label="Journey" info={EVENT_TIPS.journey}>
             <Select value={v.follow_up_journey_id} onChange={set("follow_up_journey_id")} disabled={dis}>
               <option value="">None</option>
               {journeys.map((j) => <option key={j.id} value={j.id}>{j.name}{j.status && j.status !== "live" ? ` (${j.status})` : ""}</option>)}
             </Select>
           </Field>
-          <Field label="For" hint="Who it starts for.">
+          <Field label="For" info={EVENT_TIPS.followUpFor}>
             <Select value={v.follow_up_on} onChange={set("follow_up_on")} disabled={dis}>{(["attended", "no_show"] as const).map((k) => <option key={k} value={k}>{FOLLOW_UP_LABEL[k]}</option>)}</Select>
           </Field>
         </div>

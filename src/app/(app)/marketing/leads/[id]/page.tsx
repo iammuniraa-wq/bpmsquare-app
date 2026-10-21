@@ -145,14 +145,14 @@ export default async function ScoredLeadPage({ params, searchParams }: { params:
   return (
     <ObjectRecordPage
       backHref={ROUTES.marketingLeads}
-      backLabel="All lead scores"
+      backLabel="All scored leads"
       title={lead.title ?? "Untitled lead"}
       meta={[lead.account_name, lead.contact_name].filter(Boolean).join(" · ")}
       status={<StagePill stage={lead.stage} />}
       primaryAction={lead.stage === "ready" ? <AcceptButton leadId={lead.id} /> : undefined}
       facts={[
         { label: "Score", value: <ScoreMeter score={lead.score} thresholds={thresholds} width={70} /> },
-        { label: "Stage", value: stageDefOf(lead.stage).label },
+        { label: "Lead stage", value: stageDefOf(lead.stage).label },
         { label: "Owner", value: ownerLabel },
         { label: "Respond by", value: lead.stage === "ready" ? <DueChip stage={lead.stage} slaDueAt={lead.sla_due_at} now={ctx.now} /> : "—" },
       ]}
@@ -165,7 +165,7 @@ export default async function ScoredLeadPage({ params, searchParams }: { params:
       ]}
       rail={
         <>
-          <Card title="Stage and owner" padding={14}>
+          <Card title="Lead stage and owner" padding={14}>
             <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
               <StageControl leadId={lead.id} stage={lead.stage} />
               <OwnerControl
