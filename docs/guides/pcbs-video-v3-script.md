@@ -61,7 +61,7 @@ Marketing works from the same customer records. The Newsletter Studio drafts the
 
 | 10 | Dashboard (curated layout), then the privacy and hosting slide, then the end slide | 60 s |
 
-Everything comes together on the dashboard: pipeline, cases, invoices, the news that matters to your accounts. And your data stays yours. Each company's data is isolated in its own workspace; personal details are encrypted at rest; consent is recorded before any marketing message is sent; every change is logged. You choose where it lives: in your own private cloud, on your database, or in a public-cloud data centre near you. BPMSquare integrates with your ERP, shaped around your business. Thank you.
+Everything comes together on the dashboard: pipeline, cases, invoices, the news that matters to your accounts. And your data stays yours. Each company's data is isolated in its own workspace; personal details are encrypted at rest; consent is recorded before any marketing message is sent; every change is logged. You choose where it lives: on our cloud, in your own workspace isolated by row-level security; in a private cloud, a separate database for you alone; or on your own premises, installed on your servers. BPMSquare integrates with your ERP, shaped around your business. Thank you.
 
 ## Slides to build
 
@@ -69,7 +69,7 @@ Everything comes together on the dashboard: pipeline, cases, invoices, the news 
 - **2 Features map**: eight tiles with three or four words each.
 - **4 AI**: existing `slides/ai.html`, tiles refreshed to: Your assistant knows the screen · Suggests the next step · Takes you there · Talk to your data · Records from an email · Newsletters in English and Arabic.
 - **6 ERP**: existing `slides/erp.html`.
-- **10 Privacy and hosting**: four facts (isolated workspace, encrypted personal data, consent before sending, change log) and the two hosting choices. **Owner to confirm the exact hosting offer** (private cloud on the client's database; public cloud region) before this slide is final.
+- **10 Privacy and hosting**: four facts (isolated workspace, encrypted personal data, consent before sending, change log) and the three hosting choices (owner, 2026-10-21): public cloud with row-level security, private cloud as a separate database with nothing shared, on-premises on the client's own servers.
 - **End**: existing `slides/end.html`.
 
 ## Recording plan
