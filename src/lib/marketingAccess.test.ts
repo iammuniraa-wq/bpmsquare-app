@@ -50,6 +50,9 @@ describe("marketingAccessAllowed", () => {
 });
 
 describe("marketing API routes honour the workcenter grants", () => {
+  // The first import of a route module compiles the data layer behind it, which
+  // takes longer than the 5 s default on a loaded machine; the guard itself is fast.
+  vi.setConfig({ testTimeout: 60_000 });
   beforeEach(() => {
     vi.resetModules();
     requireTenantUser.mockReset();
