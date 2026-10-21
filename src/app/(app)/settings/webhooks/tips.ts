@@ -4,7 +4,7 @@
 
 export const WEBHOOK_TIPS = {
   page: "Every address BPMSquare calls is made and kept here. An Event webhook sends changes as they happen; a Call webhook sends one record when something fires it.",
-  kind: "Event sends every change to the objects you pick. Call sends one record when a quote is awarded, a button is pressed or a coverage rule fires. It cannot change later.",
+  kind: "Event sends every change to the objects you pick; Call sends one record when something fires it, such as an awarded quote. It cannot change later.",
   objectType: "The one kind of record this webhook sends. It decides which tokens you can use, and it cannot change later.",
   events: "Pick the objects whose changes are sent. All objects sends every change.",
   active: "Switch off to stop calls without losing the set-up. A webhook that failed too often pauses itself; Resume starts it again.",
