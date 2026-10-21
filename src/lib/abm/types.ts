@@ -14,7 +14,7 @@ export const TIER_HINT: Record<AbmTier, string> = {
 export const ABM_PROGRESS = ["planned", "reached", "engaged", "in_talks", "deal_open", "won", "lost", "dropped"] as const;
 export type AbmProgress = (typeof ABM_PROGRESS)[number];
 export const PROGRESS_LABEL: Record<AbmProgress, string> = {
-  planned: "Planned", reached: "Reached", engaged: "Engaged", in_talks: "In talks",
+  planned: "Planned", reached: "Reached", engaged: "Responding", in_talks: "In talks",
   deal_open: "Deal open", won: "Won", lost: "Lost", dropped: "Dropped",
 };
 export const PROGRESS_TONE: Record<AbmProgress, "blue" | "purple" | "teal" | "amber" | "red" | "green"> = {
@@ -33,7 +33,7 @@ export const DEFAULT_REQUIRED_ROLES: AbmRole[] = ["decision_maker", "influencer"
 export const PROGRAM_STATUSES = ["draft", "active", "paused", "completed", "archived"] as const;
 export type AbmProgramStatus = (typeof PROGRAM_STATUSES)[number];
 export const PROGRAM_STATUS_LABEL: Record<AbmProgramStatus, string> = {
-  draft: "Draft", active: "Active", paused: "Paused", completed: "Completed", archived: "Archived",
+  draft: "Draft", active: "Live", paused: "Paused", completed: "Done", archived: "Archived",
 };
 
 export const PROGRAM_KINDS = ["new_business", "expansion"] as const;
@@ -43,7 +43,7 @@ export const KIND_LABEL: Record<AbmKind, string> = { new_business: "New business
 export const GOAL_METRICS = ["deals_won", "deals_opened", "accounts_engaged", "revenue"] as const;
 export type AbmGoalMetric = (typeof GOAL_METRICS)[number];
 export const GOAL_METRIC_LABEL: Record<AbmGoalMetric, string> = {
-  deals_won: "Deals won", deals_opened: "Deals opened", accounts_engaged: "Accounts engaged", revenue: "Revenue",
+  deals_won: "Deals won", deals_opened: "Deals opened", accounts_engaged: "Accounts responding", revenue: "Revenue",
 };
 
 export type AbmProgram = {

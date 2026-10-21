@@ -88,7 +88,7 @@ export type StatusResult = { status: "live" | "paused"; enrolled: number } | { n
 export async function setJourneyStatus(ctx: JourneyCtx, id: string, action: "turn_on" | "pause", confirmed: boolean): Promise<StatusResult> {
   const j = await loadJourneyRow(ctx.admin, ctx.tenantId, id);
   if (!j) throw new JourneyError(404, "Not found");
-  if (j.status === "archived") throw new JourneyError(409, "An archived journey cannot be turned on.");
+  if (j.status === "archived") throw new JourneyError(409, "An archived journey cannot go live.");
   const now = new Date();
 
   if (action === "pause") {

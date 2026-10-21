@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Sparkline from "@/components/signals/Sparkline";
+import InfoTip from "@/components/ui/InfoTip";
 
 /**
  * Nova — Account 360. A side drawer holding everything about one account:
@@ -259,14 +260,18 @@ export default function Account360Drawer() {
                 const expandable = rows.length > 0;
                 return (
                   <section key={card.id} className="a360__card a360__enter" style={{ animationDelay: `${120 + i * 55}ms` }}>
-                    <button
+                    {/* An "i" is a button, so the header is a row: when the card expands, the row's click toggles, the title is the
+                        focusable button, and the "i" keeps its own clicks to itself. */}
+                    <div
                       className={`a360__cardHead ${expandable ? "is-expandable" : ""}`}
-                      onClick={() => expandable && toggleCard(card.id)}
-                      aria-expanded={expandable ? open : undefined}
-                      disabled={!expandable}
+                      onClick={expandable ? () => toggleCard(card.id) : undefined}
                     >
-                      <h3 className="a360__cardTitle">{card.title}</h3>
-                      {card.subtitle && <span className="a360__muted">{card.subtitle}</span>}
+                      {expandable ? (
+                        <button type="button" className="a360__cardTitleBtn" aria-expanded={open}><h3 className="a360__cardTitle">{card.title}</h3></button>
+                      ) : (
+                        <h3 className="a360__cardTitle">{card.title}</h3>
+                      )}
+                      {card.subtitle && <span className="a360__tipWrap" onClick={(e) => e.stopPropagation()}><InfoTip label={card.title}>{card.subtitle}</InfoTip></span>}
                       {card.kind === "external" && <span className="a360__tag">Source</span>}
                       {expandable && (
                         <span className="a360__cardToggle">
@@ -274,7 +279,7 @@ export default function Account360Drawer() {
                           <Chevron open={open} />
                         </span>
                       )}
-                    </button>
+                    </div>
 
                     {card.error && <p className="a360__warn">{card.error}</p>}
 
@@ -282,9 +287,8 @@ export default function Account360Drawer() {
                       <div className="a360__stats">
                         {card.stats.map((s) => (
                           <div className="a360__stat" key={s.label}>
-                            <span className="a360__statLabel">{s.label}</span>
+                            <span className="a360__statLabel">{s.label}{s.hint && <InfoTip label={s.label}>{s.hint}</InfoTip>}</span>
                             <span className={`a360__statValue ${s.tone ? `a360__tone--${s.tone}` : ""}`}>{s.value}</span>
-                            {s.hint && <span className="a360__statHint">{s.hint}</span>}
                           </div>
                         ))}
                       </div>
@@ -475,10 +479,17 @@ const CSS = `
 .a360__enter { animation: a360-rise .4s var(--a360-ease) both; }
 
 .a360__cardHead {
-  display: flex; align-items: baseline; gap: 8px; width: 100%; padding: 0; margin: 0 0 10px;
+  display: flex; align-items: center; gap: 0; width: 100%; padding: 0; margin: 0 0 10px;
   background: none; border: none; font: inherit; text-align: left; color: inherit;
 }
 .a360__cardHead.is-expandable { cursor: pointer; }
+.a360__cardTitleBtn { padding: 0; margin: 0; background: none; border: none; font: inherit; color: inherit; text-align: left; cursor: inherit; }
+.a360__cardTitleBtn:focus-visible { outline: 2px solid var(--a360-accent); outline-offset: 3px; border-radius: 4px; }
+.a360__tipWrap { display: inline-flex; }
+/* The shared "i" in this panel's own colours; its popover and sheet are portalled out of the panel and sit above it (globals.css). */
+.a360 .bpm-tip { border-color: var(--a360-line); color: var(--a360-dim); }
+.a360 .bpm-tip:hover, .a360 .bpm-tip:focus-visible { border-color: var(--a360-accent); color: var(--a360-accent); }
+.a360 .bpm-tip[aria-expanded="true"] { background: var(--a360-accent); border-color: var(--a360-accent); color: #fff; }
 .a360__cardTitle { margin: 0; font-size: 13px; font-weight: 750; color: var(--a360-ink); }
 .a360__cardToggle {
   margin-left: auto; display: inline-flex; align-items: center; gap: 4px; flex-shrink: 0;
@@ -546,7 +557,7 @@ const CSS = `
 
 .a360__stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(108px, 1fr)); gap: 10px; }
 .a360__stat { min-width: 0; }
-.a360__statLabel { display: block; font-size: 9.5px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--a360-dim); }
+.a360__statLabel { display: flex; align-items: center; font-size: 9.5px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--a360-dim); }
 .a360__statValue { display: block; font-size: 16.5px; font-weight: 750; margin-top: 2px; color: var(--a360-ink); font-variant-numeric: tabular-nums; }
 .a360__statHint { display: block; font-size: 10.5px; margin-top: 1px; color: var(--a360-dim); }
 .a360__tone--good { color: var(--a360-good); }

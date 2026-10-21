@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { c } from "@/lib/theme";
 import { ColSearchParam } from "@/components/ColSearch";
+import InfoTip from "@/components/ui/InfoTip";
 
 /**
  * A `<th>` that's also a sort toggle, for the server-rendered list pages
@@ -23,6 +24,7 @@ export default function SortableTh({
   style,
   className,
   searchId,
+  info,
 }: {
   label: string;
   sortKey: string;
@@ -35,6 +37,8 @@ export default function SortableTh({
   className?: string;
   /** Enables C4C-style per-column search (cf_<searchId> URL param). */
   searchId?: string;
+  /** The column's explanation, behind an "i" beside the header (outside the sort link: no button inside a link). */
+  info?: string;
 }) {
   const isActive = currentSort === sortKey;
   const nextDir = isActive && currentDir === "asc" ? "desc" : "asc";
@@ -58,6 +62,7 @@ export default function SortableTh({
           {isActive ? (currentDir === "desc" ? "↓" : "↑") : "↕"}
         </span>
       </Link>
+      {info && <InfoTip label={label}>{info}</InfoTip>}
       {searchId && <ColSearchParam id={searchId} label={label} />}
     </th>
   );

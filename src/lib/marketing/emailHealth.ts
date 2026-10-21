@@ -25,7 +25,7 @@ export const EMAIL_STATUS_COPY: Record<EmailStatus, StatusCopy> = {
   unknown: {
     label: "Not checked yet", tone: "blue",
     plain: "We have not sent to this address or checked it yet.",
-    todo: "Use Check this address to make sure it looks right and its domain can receive mail.",
+    todo: "Use Check address to make sure it looks right and its domain can receive mail.",
   },
   valid: {
     label: "Working", tone: "green",

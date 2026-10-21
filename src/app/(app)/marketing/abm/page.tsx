@@ -6,7 +6,7 @@ import StatusPill from "@/components/ui/StatusPill";
 import { paginate } from "@/lib/paginate";
 import { sortRows, readSortParams, applyColFilters, parseColFilterParams, colFilterQueryParams, type SortExtractor } from "@/lib/listSort";
 import { listPrograms, userNames, type ProgramListRow } from "@/lib/abm/views";
-import { PROGRAM_STATUS_LABEL, KIND_LABEL, GOAL_METRIC_LABEL } from "@/lib/abm/types";
+import { PROGRAM_STATUS_LABEL, PROGRESS_LABEL, KIND_LABEL, GOAL_METRIC_LABEL } from "@/lib/abm/types";
 import { abmPage, fmtDate } from "./pageData";
 
 const MONO = "ui-monospace, SFMono-Regular, Menlo, monospace";
@@ -24,14 +24,14 @@ const SORT: Record<string, SortExtractor<Row>> = {
 };
 
 const CHIPS: { id: string; label: string; match: (r: Row) => boolean }[] = [
-  { id: "active", label: "Active", match: (r) => r.status === "active" },
+  { id: "active", label: "Live", match: (r) => r.status === "active" },
   { id: "paused", label: "Paused", match: (r) => r.status === "paused" },
   { id: "draft", label: "Draft", match: (r) => r.status === "draft" },
-  { id: "completed", label: "Completed", match: (r) => r.status === "completed" },
+  { id: "completed", label: "Done", match: (r) => r.status === "completed" },
   { id: "all", label: "All", match: (r) => r.status !== "archived" },
 ];
 
-/** A compact stacked bar: how many targets are reached, engaged, in talks and in a deal, out of all of them. */
+/** A compact stacked bar: how many targets are reached, responding, in talks and in a deal, out of all of them. */
 function ProgressBar({ r }: { r: Row }) {
   const total = r.target_total;
   if (total === 0) return <span style={{ color: c.hint, fontSize: 12.5 }}>No targets yet</span>;
@@ -42,9 +42,9 @@ function ProgressBar({ r }: { r: Row }) {
   const seg = (n: number, bg: string, label: string) => n > 0 ? <i key={label} title={`${label}: ${n}`} style={{ display: "block", height: "100%", width: `${(n / total) * 100}%`, background: bg }} /> : null;
   return (
     <div style={{ minWidth: 150 }}>
-      <div style={{ display: "flex", height: 8, borderRadius: 4, overflow: "hidden", background: "var(--line)" }} role="img" aria-label={`${reached} reached, ${engaged} engaged, ${talks} in talks, ${deals} in a deal, of ${total}`}>
+      <div style={{ display: "flex", height: 8, borderRadius: 4, overflow: "hidden", background: "var(--line)" }} role="img" aria-label={`${reached} reached, ${engaged} responding, ${talks} in talks, ${deals} in a deal, of ${total}`}>
         {seg(reached, "var(--blueink)", "Reached")}
-        {seg(engaged, "var(--tealink)", "Engaged")}
+        {seg(engaged, "var(--tealink)", PROGRESS_LABEL.engaged)}
         {seg(talks, "var(--amberink)", "In talks")}
         {seg(deals, "var(--greenink)", "In a deal")}
       </div>
@@ -103,7 +103,7 @@ export default async function AbmProgramsPage({ searchParams }: { searchParams: 
   return (
     <ObjectListPage
       title="ABM programs"
-      subtitle={missing ? "Waiting for the ABM database update (migrations 0180 to 0183)" : `Account-based marketing: work the companies that matter as a team. ${activeCount} active.`}
+      subtitle={missing ? "Waiting for the ABM database update (migrations 0180 to 0183)" : `${activeCount} live`}
       newLabel="Program"
       newHref={ROUTES.marketingAbmNew}
       chips={chips}

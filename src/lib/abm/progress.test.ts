@@ -35,7 +35,7 @@ describe("progress rules", () => {
     expect(v.changed).toBe(false);
   });
 
-  it("moves to Engaged on a click once the required roles are filled", () => {
+  it("moves to Responding on a click once the required roles are filled", () => {
     const v = deriveProgress(base({ current: "reached", events: [{ name: "email.clicked", occurred_at: "2026-10-08T08:00:00Z", contact_id: "c-inf" }] }));
     expect(v).toMatchObject({ progress: "engaged", changed: true, rule: "engaged", held: null });
     expect(v.reason).toContain("Noura clicked a link in an email, 8 Oct 2026");
@@ -45,7 +45,7 @@ describe("progress rules", () => {
     const v = deriveProgress(base({ current: "reached", members: [INF], events: [{ name: "email.clicked", occurred_at: "2026-10-08T08:00:00Z", contact_id: "c-inf" }] }));
     expect(v.changed).toBe(false);
     expect(v.progress).toBe("reached");
-    expect(v.held).toBe("Would be Engaged, but no decision maker is named in the buying group");
+    expect(v.held).toBe("Would be Responding, but no decision maker is named in the buying group");
   });
 
   it("from Planned, an engagement with a gap still counts as Reached (we obviously reached them)", () => {
