@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { readFileSync, readdirSync, statSync } from "node:fs";
+import { readFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
 import { join } from "node:path";
 
 const auth = vi.hoisted(() => ({ role: "admin" as "admin" | "member", tenantId: "t1", db: null as unknown }));
@@ -145,18 +146,11 @@ describe("leads that appear by themselves", () => {
   });
 
   it("is reached only from the scoring run, never from a request", () => {
-    const root = join(__dirname, "..", "..", "..");
-    const users: string[] = [];
-    const walk = (dir: string) => {
-      for (const n of readdirSync(dir)) {
-        const p = join(dir, n);
-        if (statSync(p).isDirectory()) walk(p);
-        else if (/\.(ts|tsx)$/.test(n) && !n.endsWith(".test.ts") && /autoCreate["']/.test(readFileSync(p, "utf8"))) users.push(p.slice(root.length + 1).replace(/\\/g, "/"));
-      }
-    };
-    walk(root);
-    expect(users).toEqual(["lib/marketing/leads/runner.ts"]);
-  }, 60_000);
+    // git grep reads the index, so this stays fast however large src grows.
+    const out = execFileSync("git", ["grep", "-l", "-E", "from \"(@/lib/marketing/leads|[.])/autoCreate\"", "--", "src"], { cwd: join(__dirname, "..", "..", "..", ".."), encoding: "utf8" });
+    const users = out.split(/\r?\n/).filter((f) => f && !f.endsWith(".test.ts"));
+    expect(users).toEqual(["src/lib/marketing/leads/runner.ts"]);
+  });
 });
 
 describe("overdue", () => {
