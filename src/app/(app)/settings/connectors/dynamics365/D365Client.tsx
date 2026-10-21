@@ -1,10 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { c } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
 import Pill from "@/components/Pill";
-import { inp, lbl, btnPrimary, btnGhost, fmtDateTime } from "@/components/rfq/rfqUi";
+import { inp, lbl, btnGhost } from "@/components/rfq/rfqUi";
 import {
   D365_PRODUCTS, D365_PRODUCT_LABEL, D365_AUTH_LABEL, D365_AUTH_FOR_PRODUCT, D365_ENTITY_KEYS, D365_ENTITY_LABEL, D365_ENTITY_TARGET,
   type D365Config, type D365EntityConfig, type D365EntityKey, type D365PublicState, type D365Product, type D365AuthMode,
@@ -12,11 +12,12 @@ import {
 import { entityConfig } from "@/lib/connectors/d365/catalog";
 import { SettingsSave } from "@/components/settings/SettingsHeaderActions";
 import { useSettingsDirty } from "@/components/settings/useSettingsDirty";
-
-type Run = {
-  id: string; entity: string; direction: "pull" | "push"; trigger: string; status: string; started_at: string; finished_at: string | null;
-  counts: Record<string, number>; error: string | null; issues: string[];
-};
+import D365Preview from "@/components/connectors/D365Preview";
+import D365Runs from "@/components/connectors/D365Runs";
+import SyncRow from "@/components/connectors/SyncRow";
+import Button from "@/components/ui/Button";
+import { useD365Runs } from "@/components/connectors/useD365Runs";
+import { countsLine, latestRunByEntity, pickResult, resultFromRun, type SyncResult } from "@/lib/connectors/d365/runSummary";
 
 const EMPTY: D365Config = { product: "dataverse", auth_mode: "client_secret", environment_url: "", schedule: "off", entities: {} };
 
@@ -46,10 +47,11 @@ export default function D365Client() {
   const [state, setState] = useState<D365PublicState | null>(null);
   const [cfg, setCfg] = useState<D365Config>(EMPTY);
   const [secrets, setSecrets] = useState<Record<string, string>>({});
-  const [runs, setRuns] = useState<Run[]>([]);
-  const [linked, setLinked] = useState<Record<string, number>>({});
   const [flash, setFlash] = useState<{ ok: boolean; text: string } | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  // The last outcome per entity row, kept here so it survives re-renders and other rows' actions.
+  const [results, setResults] = useState<Record<string, SyncResult>>({});
+  const { runs, linked, loading: runsLoading, refresh: refreshRuns } = useD365Runs({ active: !!busy && /^(sync|prev)-/.test(busy) });
   const { dirty, markSaved } = useSettingsDirty({ cfg, secrets });
   const [preview, setPreview] = useState<{ entity: D365EntityKey; rows: Record<string, unknown>[] } | null>(null);
   // The full redirect URI to register on the app: it needs this site's own
@@ -57,18 +59,13 @@ export default function D365Client() {
   const [origin, setOrigin] = useState("");
   useEffect(() => { setOrigin(window.location.origin); }, []);
 
-  const loadRuns = useCallback(() => {
-    fetch("/api/connectors/dynamics365/runs").then((r) => r.json()).then((j) => { setRuns(j.runs ?? []); setLinked(j.linked ?? {}); }).catch(() => {});
-  }, []);
-
   useEffect(() => {
     call("/api/connectors/dynamics365").then((s: D365PublicState) => { setState(s); if (s.config) { setCfg(s.config); markSaved({ cfg: s.config, secrets: {} }); } }).catch((e) => setFlash({ ok: false, text: e.message }));
-    loadRuns();
     const sp = new URLSearchParams(window.location.search);
     if (sp.get("d365_error")) setFlash({ ok: false, text: sp.get("d365_error")! });
     if (sp.get("d365_connected")) setFlash({ ok: true, text: "Signed in to Microsoft — connection works." });
     if (sp.toString()) window.history.replaceState(null, "", window.location.pathname);
-  }, [loadRuns]);
+  }, []);
 
   const modes = D365_AUTH_FOR_PRODUCT[cfg.product];
   const set = (p: Partial<D365Config>) => setCfg((x) => ({ ...x, ...p }));
@@ -88,9 +85,24 @@ export default function D365Client() {
       setFlash({ ok: false, text: (e as Error).message });
     } finally {
       setBusy(null);
-      loadRuns();
+      void refreshRuns();
     }
   };
+
+  // An entity action reports on its own row (and stays there), not in the shared banner.
+  const runEntity = async (k: D365EntityKey, kind: "prev" | "sync", fn: () => Promise<{ ok: boolean; text: string; issues?: string[] } | void>) => {
+    setBusy(`${kind}-${k}`);
+    try {
+      const r = await fn();
+      if (r) setResults((x) => ({ ...x, [k]: { ...r, at: new Date().toISOString() } }));
+    } catch (e) {
+      setResults((x) => ({ ...x, [k]: { ok: false, text: (e as Error).message, at: new Date().toISOString() } }));
+    } finally {
+      setBusy(null);
+      void refreshRuns();
+    }
+  };
+  const latest = useMemo(() => latestRunByEntity(runs), [runs]);
 
   const save = () => run("save", async () => {
     const s: D365PublicState = await call("/api/connectors/dynamics365", json("PUT", { config: cfg, secrets }));
@@ -222,57 +234,37 @@ export default function D365Client() {
         <div className="bpm-t-help">Defaults are Microsoft&apos;s standard entities. A customised environment may name things differently — press Preview to see the real field names, adjust the map, Save, then Sync. Pulls create new records and update the mapped fields of records they created before; they never delete anything or touch fields outside the map.</div>
         {D365_ENTITY_KEYS.map((k) => (
           <EntityCard key={k} k={k} e={ent(k)} linked={linked[k] ?? 0} busy={busy} connected={!!state?.config}
+            result={pickResult(results[k], latest[k] ? resultFromRun(latest[k]) : null)}
             onChange={(p) => setEnt(k, p)}
-            onPreview={() => run(`prev-${k}`, async () => { const j = await call("/api/connectors/dynamics365/preview", json("POST", { entity: k })); setPreview({ entity: k, rows: j.rows }); return j.rows.length ? undefined : "Preview returned no rows."; })}
-            onSync={(full) => run(`sync-${k}`, async () => {
+            onPreview={() => runEntity(k, "prev", async () => {
+              const j = await call("/api/connectors/dynamics365/preview", json("POST", { entity: k }));
+              setPreview({ entity: k, rows: j.rows });
+              if (!j.rows.length) return { ok: true, text: "Preview returned no rows." };
+            })}
+            onSync={(full) => runEntity(k, "sync", async () => {
               const j = await call("/api/connectors/dynamics365/sync", json("POST", { entity: k, full }));
-              const ct = j.counts as Record<string, number>;
-              return `${D365_ENTITY_LABEL[k]}: ${ct.read} read · ${ct.created} created · ${ct.updated} updated · ${ct.unchanged} unchanged · ${ct.skipped} skipped · ${ct.failed} failed${j.issues?.length ? `\n${j.issues.slice(0, 5).join("\n")}` : ""}`;
+              return { ok: true, text: countsLine(j.counts as Record<string, number>), issues: (j.issues as string[] | undefined)?.slice(0, 5) };
             })}
           />
         ))}
       </section>
 
       {preview && (
-        <section style={{ ...cardStyle, padding: 0, overflow: "hidden" }}>
-          <div style={{ padding: "10px 14px", display: "flex", justifyContent: "space-between", borderBottom: `1px solid ${c.line}` }}>
-            <span style={{ fontSize: 13, fontWeight: 700, color: c.ink }}>Preview · {D365_ENTITY_LABEL[preview.entity]}</span>
-            <button type="button" style={{ ...btnGhost, padding: "3px 9px" }} onClick={() => setPreview(null)}>Close</button>
-          </div>
-          <PreviewTable rows={preview.rows} />
-        </section>
+        <D365Preview title={D365_ENTITY_LABEL[preview.entity]} rows={preview.rows} fieldMap={ent(preview.entity)?.field_map ?? {}} onClose={() => setPreview(null)} />
       )}
 
-      <section style={{ ...cardStyle, padding: 0, overflow: "hidden" }}>
-        <div style={{ padding: "10px 14px", fontSize: 13, fontWeight: 700, color: c.ink, borderBottom: `1px solid ${c.line}` }}>Recent runs</div>
-        {runs.length === 0 ? <div style={{ padding: 14, fontSize: 12.5, color: c.hint }}>No runs yet.</div> : (
-          <div style={{ overflowX: "auto" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5 }}>
-              <thead><tr>{["When", "What", "Result", "Read", "New", "Updated", "Unchanged", "Skipped", "Failed"].map((h) => <th key={h} style={{ textAlign: "left", padding: "8px 12px", color: c.hint, background: c.panel2, fontWeight: 600 }}>{h}</th>)}</tr></thead>
-              <tbody>
-                {runs.map((r) => (
-                  <tr key={r.id} style={{ borderTop: `1px solid ${c.line}`, verticalAlign: "top" }}>
-                    <td style={{ padding: "8px 12px", whiteSpace: "nowrap", color: c.muted }}>{fmtDateTime(r.started_at)}{r.trigger === "schedule" ? " · auto" : ""}</td>
-                    <td style={{ padding: "8px 12px", color: c.ink }}>{D365_ENTITY_LABEL[r.entity as D365EntityKey] ?? r.entity}</td>
-                    <td style={{ padding: "8px 12px" }}>
-                      <Pill label={r.status} tone={r.status === "succeeded" ? "green" : r.status === "partial" ? "amber" : r.status === "failed" ? "red" : "blue"} />
-                      {r.error && <div style={{ color: "var(--redink)", marginTop: 4, maxWidth: 360 }}>{r.error}</div>}
-                      {r.issues?.length > 0 && <details style={{ marginTop: 4 }}><summary style={{ cursor: "pointer", color: c.muted }}>{r.issues.length} note{r.issues.length === 1 ? "" : "s"}</summary><ul style={{ margin: "4px 0 0 16px", padding: 0, color: c.muted }}>{r.issues.map((x, i) => <li key={i}>{x}</li>)}</ul></details>}
-                    </td>
-                    {["read", "created", "updated", "unchanged", "skipped", "failed"].map((k) => <td key={k} style={{ padding: "8px 12px", fontVariantNumeric: "tabular-nums", color: c.muted }}>{r.counts?.[k] ?? 0}</td>)}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>
+      <D365Runs
+        runs={runs}
+        loading={runsLoading}
+        onRefresh={() => void refreshRuns()}
+        pending={busy?.startsWith("sync-") ? [{ entity: busy.slice(5), label: `${D365_ENTITY_TARGET[busy.slice(5) as D365EntityKey]?.direction === "push" ? "Pushing" : "Syncing"} ${D365_ENTITY_LABEL[busy.slice(5) as D365EntityKey] ?? busy.slice(5)}…` }] : []}
+      />
     </div>
   );
 }
 
-function EntityCard({ k, e, linked, busy, connected, onChange, onPreview, onSync }: {
-  k: D365EntityKey; e: D365EntityConfig | null; linked: number; busy: string | null; connected: boolean;
+function EntityCard({ k, e, linked, busy, connected, result, onChange, onPreview, onSync }: {
+  k: D365EntityKey; e: D365EntityConfig | null; linked: number; busy: string | null; connected: boolean; result: SyncResult | null;
   onChange: (p: Partial<D365EntityConfig>) => void; onPreview: () => void; onSync: (full: boolean) => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -285,18 +277,13 @@ function EntityCard({ k, e, linked, busy, connected, onChange, onPreview, onSync
     : "One line per BPMSquare field: field = DynamicsField. Fields: name, city, phone, email (customers, vendors) · name, email, phone, role (contacts) · name, sku, uom, list_price, description (products) · name, code (projects). account_external_id = the field holding the customer's id links contacts/projects to synced customers.", [push]);
   if (!e) return null;
   return (
-    <div style={{ ...cardStyle, padding: "12px 14px" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-        <label className="bpm-t-label" style={{ display: "flex", gap: 8, alignItems: "center", cursor: "pointer", flex: 1, minWidth: 220 }}>
-          <input type="checkbox" checked={e.enabled} onChange={(ev) => onChange({ enabled: ev.target.checked })} />
-          {D365_ENTITY_LABEL[k]}
-          <span className="bpm-t-help">{e.entity_set || "—"}{linked ? ` · ${linked} linked` : ""}</span>
-        </label>
-        <button type="button" style={{ ...btnGhost, padding: "4px 10px", fontSize: 12 }} onClick={() => setOpen((o) => !o)}>{open ? "Hide map" : "Map"}</button>
-        {!push && <button type="button" style={{ ...btnGhost, padding: "4px 10px", fontSize: 12 }} disabled={!connected || !!busy} onClick={onPreview}>{busy === `prev-${k}` ? "Loading…" : "Preview"}</button>}
-        <button type="button" style={{ ...btnPrimary, padding: "5px 12px", fontSize: 12 }} disabled={!connected || !e.enabled || !!busy} onClick={() => onSync(false)}>{busy === `sync-${k}` ? "Working…" : push ? "Push won projects" : "Sync now"}</button>
-        {!push && <button type="button" title={e.modified_field ? undefined : "This entity has no modified-on field, so each run reads on from where the last one stopped and starts over after the last row. This starts over now."} style={{ ...btnGhost, padding: "4px 10px", fontSize: 12 }} disabled={!connected || !e.enabled || !!busy} onClick={() => onSync(true)}>{e.modified_field ? "Full resync" : "Start over"}</button>}
-      </div>
+    <SyncRow
+      entityKey={k} label={D365_ENTITY_LABEL[k]} subtitle={`${e.entity_set || "—"}${linked ? ` · ${linked} linked` : ""}`}
+      direction={D365_ENTITY_TARGET[k].direction} enabled={e.enabled} onEnabledChange={(v) => onChange({ enabled: v })}
+      connected={connected} busy={busy} result={result} hasModifiedField={!!e.modified_field}
+      onPreview={onPreview} onSync={onSync}
+      actions={<Button size="sm" variant="quiet" aria-expanded={open} onClick={() => setOpen((o) => !o)}>{open ? "Hide map" : "Map"}</Button>}
+    >
       {open && (
         <div style={{ display: "grid", gap: 10, gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", marginTop: 12 }}>
           <div><label style={lbl}>Entity set</label><input style={small} value={e.entity_set} onChange={(ev) => onChange({ entity_set: ev.target.value })} /></div>
@@ -312,19 +299,6 @@ function EntityCard({ k, e, linked, busy, connected, onChange, onPreview, onSync
           </div>
         </div>
       )}
-    </div>
-  );
-}
-
-function PreviewTable({ rows }: { rows: Record<string, unknown>[] }) {
-  const cols = [...new Set(rows.flatMap((r) => Object.keys(r)))].slice(0, 40);
-  if (!rows.length) return <div style={{ padding: 14, fontSize: 12.5, color: c.hint }}>No rows.</div>;
-  return (
-    <div style={{ overflowX: "auto" }}>
-      <table style={{ borderCollapse: "collapse", fontSize: 11.5 }}>
-        <thead><tr>{cols.map((k) => <th key={k} style={{ textAlign: "left", padding: "6px 10px", background: c.panel2, color: c.hint, whiteSpace: "nowrap", fontFamily: "ui-monospace, Menlo, monospace" }}>{k}</th>)}</tr></thead>
-        <tbody>{rows.map((r, i) => <tr key={i} style={{ borderTop: `1px solid ${c.line}` }}>{cols.map((k) => <td key={k} style={{ padding: "6px 10px", color: c.ink, whiteSpace: "nowrap", maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis" }}>{r[k] === null || r[k] === undefined ? "" : typeof r[k] === "object" ? JSON.stringify(r[k]) : String(r[k])}</td>)}</tr>)}</tbody>
-      </table>
-    </div>
+    </SyncRow>
   );
 }

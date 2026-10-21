@@ -9,6 +9,7 @@ import PageHeader from "@/components/PageHeader";
 import Card from "@/components/ui/Card";
 import EmptyState from "@/components/ui/EmptyState";
 import ObjectRecordPage from "@/components/page/ObjectRecordPage";
+import ExternalRecordSlot from "@/components/ExternalRecordSlot";
 import RecordMoreMenu from "@/components/page/RecordMoreMenu";
 import EstimateStatusPill from "../EstimateStatusPill";
 import { quoteAbility } from "../quoteAbility";
@@ -80,6 +81,7 @@ export default async function EstimatePage({
           } : undefined}
         />
       }
+      externalLine={<ExternalRecordSlot objectType="estimates" objectId={id} />}
       basePath={basePath}
       tabs={[{
         id: "estimate",

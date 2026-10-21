@@ -2233,3 +2233,8 @@ textarea.bpm-input { min-height: 72px; resize: vertical; }
   .est-grid { grid-template-columns: minmax(0, 1fr); }
   .est-opts { grid-template-columns: minmax(0, 1fr); }
 }
+
+/* External record line (record pages): the "Open in ..." link reaches 44px on touch screens. */
+@media (pointer: coarse) {
+  .bpm-ext-open { display: inline-flex; align-items: center; min-height: 44px; }
+}

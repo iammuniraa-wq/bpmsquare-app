@@ -45,7 +45,7 @@ function toEditorLines(rows: OpportunityLine[]): Line[] {
   }));
 }
 
-export default function OpportunityDetailClient({ opp, accountName, contacts, initialLines, quotes, stages, members, products, pricingEnabled, standardQuotesEnabled, todayKey, currentUserId, related, activity }: {
+export default function OpportunityDetailClient({ opp, accountName, contacts, initialLines, quotes, stages, members, products, pricingEnabled, standardQuotesEnabled, todayKey, currentUserId, related, activity, externalLine }: {
   opp: Opportunity & { stage_since: string };
   accountName: string;
   contacts: { id: string; name: string }[];
@@ -60,6 +60,8 @@ export default function OpportunityDetailClient({ opp, accountName, contacts, in
   currentUserId: string;
   /** The deal's RFQ card, when the RFQ module is on. */
   related?: React.ReactNode;
+  /** Read-only link line to the connected system's record (ExternalRecordSlot), drawn under the facts. */
+  externalLine?: React.ReactNode;
   /** The Activity tab (Nova timeline + change history). */
   activity: React.ReactNode;
 }) {
@@ -236,6 +238,8 @@ export default function OpportunityDetailClient({ opp, accountName, contacts, in
           { label: "Owner", value: <>{memberName(opp.owner_id)}<div style={{ fontSize: 11, fontWeight: 400, color: c.hint }}>{daysBetween(opp.stage_since, todayKey)}d in {stageDefNow?.label ?? opp.stage}</div></> },
         ]}
       />
+
+      {externalLine}
 
       {error && <div role="alert" style={{ background: "var(--err-bg)", border: "1px solid var(--err-line)", borderRadius: 8, padding: "8px 12px", fontSize: 12.5, color: "var(--err-ink)", marginBottom: 10 }}>{error}</div>}
       {notice && <div role="status" style={{ background: "var(--tealbg)", borderRadius: 8, padding: "8px 12px", fontSize: 12.5, color: "var(--tealink)", marginBottom: 10 }}>{notice}</div>}

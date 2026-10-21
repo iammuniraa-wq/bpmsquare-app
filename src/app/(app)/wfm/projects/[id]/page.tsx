@@ -8,6 +8,7 @@ import ProjectBilling from "./ProjectBilling";
 import PageHeader from "@/components/PageHeader";
 import TabTitle from "@/components/TabTitle";
 import NovaTimelineSlot from "@/components/NovaTimelineSlot";
+import ExternalRecordSlot from "@/components/ExternalRecordSlot";
 import type { WfmProject } from "@/lib/wfm/types";
 import ProjectForm from "../ProjectForm";
 import ProjectHoursPanel from "./ProjectHoursPanel";
@@ -74,6 +75,8 @@ export default async function WfmProjectPage({ params, searchParams }: { params:
         title={project.name}
         subtitle={[parentLine, accountLine, project.ref, project.code].filter(Boolean).join(" · ") || undefined}
       />
+
+      <ExternalRecordSlot objectType="wfm_projects" objectId={id} />
 
       <div style={{ marginBottom: 16 }}>
         <Tabs

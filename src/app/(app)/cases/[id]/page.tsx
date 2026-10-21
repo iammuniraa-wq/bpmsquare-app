@@ -18,6 +18,7 @@ import CaseAssetsPanel from "./CaseAssetsPanel";
 import { sanitizePhoneForWhatsApp, buildWhatsAppLink, buildCaseWhatsAppMessage } from "@/lib/whatsapp";
 import RecordRfqsCard from "@/components/rfq/RecordRfqsCard";
 import ObjectRecordPage from "@/components/page/ObjectRecordPage";
+import ExternalRecordSlot from "@/components/ExternalRecordSlot";
 import RecordMoreMenu from "@/components/page/RecordMoreMenu";
 import RecordActivity from "@/components/page/RecordActivity";
 import RelatedList from "@/components/page/RelatedList";
@@ -304,6 +305,7 @@ export default async function CaseDetailPage({
         { label: "Intake", value: fmtDate(sc.intake_at) },
         ...(sc.closed_at ? [{ label: "Closed", value: fmtDate(sc.closed_at) }] : []),
       ]}
+      externalLine={<ExternalRecordSlot objectType="service_cases" objectId={id} />}
       basePath={basePath}
       activeTab={tab}
       tabs={[

@@ -8,6 +8,7 @@ import {
 } from "@/lib/wfm/bootstrap";
 import { buildEmployeeHubProfile } from "@/lib/wfm/employeeHub";
 import TabTitle from "@/components/TabTitle";
+import ExternalRecordSlot from "@/components/ExternalRecordSlot";
 import EmployeeHubClient from "./EmployeeHubClient";
 
 export default async function WfmEmployeeHubPage({ params }: { params: Promise<{ id: string }> }) {
@@ -77,6 +78,7 @@ export default async function WfmEmployeeHubPage({ params }: { params: Promise<{
         initialProfile={(profile ?? null) as HubProfile}
         initialLists={initialLists}
         employmentTypes={config.employment_types}
+        externalLine={<ExternalRecordSlot objectType="employees" objectId={id} />}
       />
     </>
   );

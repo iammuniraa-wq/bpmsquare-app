@@ -7,6 +7,7 @@ import { ROUTES } from "@/lib/constants";
 import StatusPill from "@/components/ui/StatusPill";
 import Card from "@/components/ui/Card";
 import ObjectRecordPage from "@/components/page/ObjectRecordPage";
+import ExternalRecordSlot from "@/components/ExternalRecordSlot";
 import RecordMoreMenu from "@/components/page/RecordMoreMenu";
 import RecordActivity from "@/components/page/RecordActivity";
 import ObjectSections from "@/components/fields/ObjectSections";
@@ -137,6 +138,7 @@ export default async function ProductDetailPage({
         ...(margin != null ? [{ label: "Margin", value: `${margin}%` }] : []),
         ...(product.tax_percent != null ? [{ label: "Tax", value: `${product.tax_percent}%` }] : []),
       ]}
+      externalLine={<ExternalRecordSlot objectType="products" objectId={product.id} />}
       basePath={basePath}
       activeTab={tab}
       tabs={[

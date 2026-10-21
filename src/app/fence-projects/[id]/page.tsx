@@ -4,6 +4,7 @@ import { requireTenantUser } from "@/lib/supabase-server";
 import { requireWorkcenterView } from "@/lib/permissions";
 import { getFenceSecurityProfiles } from "@/lib/fence/data";
 import { getFenceProductCatalog } from "@/lib/fence/materials";
+import ExternalRecordSlot from "@/components/ExternalRecordSlot";
 import FenceConfigurator, { type FenceProjectSnapshot } from "@/components/fence/FenceConfigurator";
 import type { FenceAccessories } from "@/lib/fence/bom";
 import type { FenceGate, FenceProject } from "@/lib/types";
@@ -50,12 +51,15 @@ export default async function FenceProjectDetailPage({ params }: { params: Promi
   };
 
   return (
-    <FenceConfigurator
-      profiles={profiles}
-      catalog={catalog}
-      accounts={accountRows ?? []}
-      contacts={contactRows ?? []}
-      project={snapshot}
-    />
+    <>
+      <ExternalRecordSlot objectType="fence_projects" objectId={project.id} />
+      <FenceConfigurator
+        profiles={profiles}
+        catalog={catalog}
+        accounts={accountRows ?? []}
+        contacts={contactRows ?? []}
+        project={snapshot}
+      />
+    </>
   );
 }
