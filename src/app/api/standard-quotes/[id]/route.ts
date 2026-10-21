@@ -243,10 +243,12 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     await emitQuoteStatusChanged(tenantId, { ...ctx, from: before.status as string, to: String(body.status) });
     if (body.status === "sent") await emitQuoteSent(tenantId, ctx);
     const outcome = outcomeForStatus(String(body.status));
-    if (outcome) {
+    // Only a workspace with the integration middleware flag gets the awarded/rejected
+    // event and the ERP dispatch, so every other workspace behaves exactly as before.
+    if (outcome && features.integration_middleware) {
       await emitQuoteOutcome(tenantId, { ...ctx, outcome, total: (updated as { total?: number } | null)?.total ?? null });
-      // Integration middleware: send the outcome to the ERP after this response.
-      if (features.integration_middleware) scheduleQuoteDispatch(tenantId, id, u?.id ?? null);
+      // Send the outcome to the ERP after this response.
+      scheduleQuoteDispatch(tenantId, id, u?.id ?? null);
     }
   }
 
