@@ -471,13 +471,9 @@ wording and restarts after the fix; a Call webhook sends the engine's body and s
 id; nothing visible without the flag; `tsc`, `next build`, all tests clean; no push, Drive guides
 only after the owner validates.
 
-**Decisions still open for the owner (recommendation in brackets)**
-1. **Unknown inbound code with no default**: keep the raw ERP code and count it (this spec), or
-   skip the record and fail the run. [Keep and count: a pull must never stall on one code; the
-   counter and the Monitor summary make it visible.]
-2. **Ship the AI step in round 1** behind `ai_assistant`, or hold it until the deterministic
-   proposal is validated on the demo tenant. [Hold: it is the last item of WP-A and the review
-   sheet of WP-B; both are built behind the flag but the owner switches it on after step 6.]
+**Decisions taken by the owner (2026-10-22)**
+1. **Unknown inbound code with no default**: keep the raw ERP code and count it (recommendation accepted). A pull never stalls on one code; the counter and the Monitor summary make it visible.
+2. **AI step ships in round 1, no waiting** (owner: "for AI step we don't wait"). It is built and switched on behind `ai_assistant`, in WP-A and WP-B as written, not held back until the deterministic proposal is validated. It still sends field names and types only, never record data, and every suggestion is confirmed row by row.
 
 ## 10. Later (hook points stated, not built)
 - **SOAP/WSDL**: a `schema/wsdl.ts` parser (XSD complex types → the same `TargetField` list) and a
