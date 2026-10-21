@@ -1,6 +1,7 @@
 import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { scopeEmployeeIds, type WfmScope } from "./scope";
 
 // Shared payload builders for the WFM screens' bootstrap data -- each one
 // produces EXACTLY what the corresponding /api/wfm/* GET route returns, and
@@ -143,12 +144,21 @@ export async function wfmLeaveTypesPayload(supabase: SupabaseClient, tenantId: s
   }));
 }
 
-export async function wfmLeaveRecordsPayload(supabase: SupabaseClient, tenantId: string, employeeId?: string | null) {
+/** `scope` (from resolveWfmScope) narrows the rows to the caller's reporting
+ * tree; omit it only where the caller is known to be unrestricted. */
+export async function wfmLeaveRecordsPayload(
+  supabase: SupabaseClient,
+  tenantId: string,
+  employeeId?: string | null,
+  scope?: WfmScope
+) {
   let query = supabase
     .from("wfm_leave_records")
     .select("id, employee_id, leave_type_id, date_from, date_to, half_day, remarks, created_at, employees(first_name, last_name, employee_code), wfm_leave_types(name, category)")
     .eq("tenant_id", tenantId)
     .order("date_from", { ascending: false });
+  const scoped = scope ? scopeEmployeeIds(scope) : null;
+  if (scoped) query = query.in("employee_id", scoped);
   if (employeeId) query = query.eq("employee_id", employeeId);
   return orThrow(await query);
 }
@@ -157,13 +167,15 @@ export async function wfmLeaveRecordsPayload(supabase: SupabaseClient, tenantId:
 export async function wfmLeaveRequestsPayload(
   supabase: SupabaseClient,
   tenantId: string,
-  opts: { status?: string | null; employeeId?: string | null } = {}
+  opts: { status?: string | null; employeeId?: string | null; scope?: WfmScope } = {}
 ) {
   let query = supabase
     .from("wfm_leave_requests")
     .select("*, employees(first_name, last_name, employee_code), wfm_leave_types(name, category)")
     .eq("tenant_id", tenantId)
     .order("created_at", { ascending: false });
+  const scoped = opts.scope ? scopeEmployeeIds(opts.scope) : null;
+  if (scoped) query = query.in("employee_id", scoped);
   if (opts.employeeId) query = query.eq("employee_id", opts.employeeId);
   if (opts.status) query = query.eq("status", opts.status);
   return orThrow(await query);

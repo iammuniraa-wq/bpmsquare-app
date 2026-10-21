@@ -1,4 +1,4 @@
-# Marketing platform: what is built, what comes next (2026-10-20)
+# Marketing platform: what is built, what comes next (2026-10-21)
 
 One page to choose the next step from. Everything below is on `develop` and
 `main` (commit 0303fe47), **off for every client** behind a platform-admin
@@ -19,7 +19,17 @@ detail page in `docs/shells/`.
 | ABM | `abm` | Programs, target accounts, buying groups, rule-based progress with override, results funnel, Account 360 card, full object surfaces | `shells/abm-shell.md` |
 | Process Design Studio | `process_studio` | Six-step intake to fit report to plan to "Talk to us", admin review | `process-design-studio-architecture.md` |
 
-In build: WhatsApp, attribution and events (one agent, migrations 0185-0199).
+| WhatsApp | `whatsapp` | Provider-agnostic adapter (log-only sandbox), templates with approval, one consent-gated send, signed inbound webhook, journey step | `shells/whatsapp-shell.md` |
+| Attribution | `marketing_attribution` | Touches ledger, first / last / shared models, three-hourly recompute, Revenue by campaign page | `shells/attribution-shell.md` |
+| Events | `marketing_events` | Events with registration through forms, check-in, no-shows, follow-up journey, results | `shells/events-shell.md` |
+
+Also on develop (2026-10-21): screen simplification batches 1 and 2 with the
+label fixes L1-L8 (`docs/design/ux-simplification.md`), the three side
+branches (segment Coverage fields now match; Business Role grants enforced on
+every marketing page and route; WFM supervisor scope on first paint), forms
+thank-you email + double opt-in, and the lead hand-over settings with
+auto-created leads and overdue notices (see the shell docs for what each
+left for later).
 
 ## Next enhancements, suggested order
 

@@ -1,6 +1,7 @@
 import { requireWorkcenterView } from "@/lib/permissions";
 import { requireFeature } from "@/lib/tenant";
-import { requireWfmSupervisorPage, getWfmLiveBoardSnapshot } from "@/lib/wfm/server";
+import { requireWfm, requireWfmSupervisorPage, getWfmLiveBoardSnapshot } from "@/lib/wfm/server";
+import { resolveWfmScope, scopeEmployeeIds } from "@/lib/wfm/scope";
 import { requireTenantUser, getTenantMembership } from "@/lib/supabase-server";
 import PageHeader from "@/components/PageHeader";
 import TabTitle from "@/components/TabTitle";
@@ -16,9 +17,14 @@ export default async function WfmLiveBoardPage() {
   // /wfm/me -- see lib/wfm/meState.ts). Client polling stays as-is.
   const { tenantId, userId } = await requireTenantUser();
   const [initialBoard, membership] = await Promise.all([
+    // Scoped like GET /api/wfm/live-board: a site supervisor's first paint
+    // (and page payload) must not carry other sites' people.
     // Cast: WfmLiveBoardSnapshot is the same shape with wider string types
     // (employment_type et al are unions on the client side).
-    getWfmLiveBoardSnapshot(tenantId).then((b) => b as unknown as Board).catch(() => null),
+    resolveWfmScope(await requireWfm())
+      .then((scope) => getWfmLiveBoardSnapshot(tenantId, scopeEmployeeIds(scope)))
+      .then((b) => b as unknown as Board)
+      .catch(() => null),
     getTenantMembership(tenantId, userId).catch(() => null),
   ]);
 
