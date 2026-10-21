@@ -1,15 +1,13 @@
 import type { MonitorMessage } from "./api";
 
-// The five ticks at the top of the page (docs/design/integration-middleware.md,
-// "Easy to use" 1): connected, price list and currency picked, what goes out
-// chosen, a test quote sent, the first real quote seen. Each opens the tab
-// where it is done. Pure: the page feeds it what it already read.
+// The one slim line at the top of the page: "Set up 3 of 5 · Next: send a test quote"
+// (docs/design/integration-middleware.md, round 2 C). Five checks from connected to the
+// first real quote; hidden when all are done. Pure: the page feeds it what it already read.
 
-export const TAB_IDS = ["connections", "out", "mapping", "monitor", "resync"] as const;
+export const TAB_IDS = ["links", "mapping", "monitor", "resync"] as const;
 export type TabId = (typeof TAB_IDS)[number];
 export const TAB_LABEL: Record<TabId, string> = {
-  connections: "Connections",
-  out: "What goes out",
+  links: "Links",
   mapping: "Mapping",
   monitor: "Monitor",
   resync: "Resync",
@@ -17,36 +15,39 @@ export const TAB_LABEL: Record<TabId, string> = {
 
 export type SetupInputs = {
   connected: boolean;
-  /** Only Dynamics 365 Sales needs a price list and a currency; other products tick this step by themselves. */
-  pickListsApplicable: boolean;
-  priceListChosen: boolean;
-  currencyChosen: boolean;
-  /** At least one of "awarded" and "rejected" is switched on. */
+  /** At least one link is switched on. */
   outcomeOn: boolean;
+  /** The link panel was saved once (`confirmed_at`); the defaults being on is not a choice. */
+  outcomeConfirmed: boolean;
+  /** Customers have been read from the ERP at least once (a quote needs its customer there). True where the product has no such step. */
+  customersSynced: boolean;
   testSent: boolean;
   realSeen: boolean;
 };
 
-export type SetupStepId = "connect" | "pick" | "out" | "test" | "real";
-export type SetupStep = { id: SetupStepId; label: string; state: string; done: boolean; tab: TabId };
+export type SetupStepId = "connect" | "links" | "customers" | "test" | "real";
+/** Where a step is finished: a tab, or the connection panel behind the connector chip. */
+export type SetupTarget = TabId | "connection";
+export type SetupStep = { id: SetupStepId; label: string; next: string; done: boolean; target: SetupTarget };
 
-export type SetupStatus = { steps: SetupStep[]; doneCount: number; complete: boolean };
+export type SetupStatus = { steps: SetupStep[]; doneCount: number; complete: boolean; next: SetupStep | null };
 
 export function deriveSetup(i: SetupInputs): SetupStatus {
-  const pickDone = i.connected && (!i.pickListsApplicable || (i.priceListChosen && i.currencyChosen));
   const steps: SetupStep[] = [
-    { id: "connect", label: "Connect", state: i.connected ? "Connected" : "Not yet", done: i.connected, tab: "connections" },
-    {
-      id: "pick", label: "Price list and currency",
-      state: !i.connected ? "Not yet" : !i.pickListsApplicable ? "Not needed" : pickDone ? "Chosen" : i.priceListChosen ? "Pick a currency" : "Pick a price list",
-      done: pickDone, tab: "connections",
-    },
-    { id: "out", label: "What goes out", state: i.connected && i.outcomeOn ? "Chosen" : i.connected ? "Nothing is switched on" : "Not yet", done: i.connected && i.outcomeOn, tab: "out" },
-    { id: "test", label: "Send a test quote", state: i.testSent ? "Sent" : "Not yet", done: i.testSent, tab: "out" },
-    { id: "real", label: "First real quote", state: i.realSeen ? "Seen" : "Not yet", done: i.realSeen, tab: "monitor" },
+    { id: "connect", label: "Connect", next: "connect your ERP", done: i.connected, target: "connection" },
+    { id: "links", label: "Choose the links", next: "open Links and save once", done: i.connected && i.outcomeOn && i.outcomeConfirmed, target: "links" },
+    { id: "customers", label: "Read customers", next: "read your customers in Resync", done: i.connected && i.customersSynced, target: "resync" },
+    { id: "test", label: "Send a test quote", next: "send a test quote", done: i.testSent, target: "links" },
+    { id: "real", label: "First real quote", next: "award a quote and watch it in Monitor", done: i.realSeen, target: "monitor" },
   ];
   const doneCount = steps.filter((s) => s.done).length;
-  return { steps, doneCount, complete: doneCount === steps.length };
+  return { steps, doneCount, complete: doneCount === steps.length, next: steps.find((s) => !s.done) ?? null };
+}
+
+/** "Set up 3 of 5 · Next: send a test quote"; empty once everything is done. */
+export function slimLine(status: SetupStatus): string {
+  if (status.complete || !status.next) return "";
+  return `Set up ${status.doneCount} of ${status.steps.length} · Next: ${status.next.next}`;
 }
 
 /** The test quote's reference starts with this (the product never deletes it). */

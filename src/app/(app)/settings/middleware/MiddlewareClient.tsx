@@ -2,19 +2,23 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import Button from "@/components/ui/Button";
+import EmptyState from "@/components/ui/EmptyState";
 import Tabs from "@/components/ui/Tabs";
 import { useUrlTab } from "@/components/ui/useUrlTab";
 import s from "./middleware.module.css";
-import { getConnections, getHealth, getMessages, getRules } from "./api";
+import { getConnections, getDocuments, getHealth, getMessages, getRules, getSync } from "./api";
 import { MiddlewareProvider, type MiddlewareCtx } from "./context";
-import { middlewareConnectors, needsPickLists } from "./connectors";
+import { middlewareConnectors } from "./connectors";
+import { expiryChip, healthBanner } from "./connectionLogic";
+import { documentsConfirmed } from "./documentsLogic";
 import { filtersToQuery } from "./monitorLogic";
-import { TAB_IDS, TAB_LABEL, deriveSetup, sentEvidence, type TabId } from "./setup";
-import { useLoad } from "./ui";
+import { TAB_IDS, TAB_LABEL, deriveSetup, sentEvidence, type SetupTarget, type TabId } from "./setup";
+import { Notice, useLoad } from "./ui";
 import ConnectorSwitcher from "./ConnectorSwitcher";
 import SetupGuide from "./SetupGuide";
-import ConnectionsTab from "./ConnectionsTab";
-import OutTab from "./OutTab";
+import ConnectionPanel, { useAuthReturn } from "./ConnectionPanel";
+import LinksTab from "./LinksTab";
 import MappingTab from "./MappingTab";
 import MonitorTab from "./MonitorTab";
 import ResyncTab from "./ResyncTab";
@@ -45,10 +49,15 @@ export default function MiddlewareClient() {
   const [connectorId, setConnector] = useConnectorParam(connectors.map((c) => c.id));
   const [tab, setTab] = useUrlTab(TAB_IDS);
   const connector = connectors.find((c) => c.id === connectorId) ?? connectors[0];
+  const authReturn = useAuthReturn();
+  const [panelOpen, setPanelOpen] = useState(false);
+  useEffect(() => { if (authReturn) setPanelOpen(true); }, [authReturn]);
 
   const connections = useLoad(getConnections, []);
   const health = useLoad(getHealth, [connectorId]);
   const rules = useLoad(getRules, [connectorId]);
+  const documents = useLoad(getDocuments, [connectorId]);
+  const sync = useLoad(getSync, [connectorId]);
   const evidence = useLoad(async () => {
     const page = await getMessages(filtersToQuery({ direction: "out", channel: "connector", status: "ok" }, { limit: 50 }));
     return sentEvidence(page.items);
@@ -56,17 +65,17 @@ export default function MiddlewareClient() {
 
   const connection = connections.data?.find((c) => c.id === connectorId) ?? null;
   const reloadAll = useCallback(async () => {
-    await Promise.all([connections.reload(), health.reload(), rules.reload(), evidence.reload()]);
-  }, [connections, health, rules, evidence]);
+    await Promise.all([connections.reload(), health.reload(), rules.reload(), documents.reload(), sync.reload(), evidence.reload()]);
+  }, [connections, health, rules, documents, sync, evidence]);
 
-  const productKey = health.data?.connection.product?.key ?? connection?.state.config?.product ?? null;
   const connected = health.data?.connection.connected ?? connection?.state.status === "connected";
+  const customers = sync.data && sync.data.connected ? sync.data.entities.find((e) => e.key === "customers") : undefined;
   const setup = deriveSetup({
     connected: connected === true,
-    pickListsApplicable: needsPickLists(productKey),
-    priceListChosen: health.data?.connection.price_list_chosen ?? !!connection?.state.config?.price_list_id,
-    currencyChosen: health.data?.connection.currency_chosen ?? !!connection?.state.config?.currency_id,
-    outcomeOn: !!rules.data && (rules.data.rules.quote_awarded.enabled || rules.data.rules.quote_rejected.enabled),
+    outcomeOn: !!documents.data && documents.data.documents.some((d) => d.enabled),
+    outcomeConfirmed: documentsConfirmed(documents.data?.documents),
+    // A product with no customers pull has nothing to wait for.
+    customersSynced: !!sync.data && sync.data.connected && (!customers || customers.linked > 0),
     testSent: evidence.data?.testSent ?? false,
     realSeen: evidence.data?.realSeen ?? false,
   });
@@ -77,33 +86,54 @@ export default function MiddlewareClient() {
     connections,
     health,
     rules,
+    documents,
+    sync,
     evidence: evidence.data ?? { testSent: false, realSeen: false },
     reloadEvidence: evidence.reload,
     goTab: (t: TabId) => setTab(t),
+    openConnection: () => setPanelOpen(true),
     reloadAll,
   };
 
   const connectedBy: Record<string, boolean | undefined> = {};
   for (const c of connections.data ?? []) connectedBy[c.id] = c.state.status === "connected";
 
+  const openTarget = (t: SetupTarget) => { if (t === "connection") setPanelOpen(true); else setTab(t); };
+  const banner = healthBanner(health.data);
+  // No stored connection at all: one empty state instead of tabs that have nothing to show.
+  const noConnection = !!connections.data && !connection?.state.config;
+
   return (
     <MiddlewareProvider value={ctx}>
       <div className={s.shell}>
-        <ConnectorSwitcher connectors={connectors} value={connectorId} connected={connectedBy} onChange={setConnector} />
-        <SetupGuide status={setup} loading={health.loading && !health.data} onOpen={setTab} />
-        <Tabs
-          label="Integration middleware"
-          tabs={TAB_IDS.map((id) => ({ id, label: TAB_LABEL[id] }))}
-          value={tab}
-          onChange={(id) => setTab(id as TabId)}
+        <ConnectorSwitcher
+          connectors={connectors} value={connectorId} connected={connectedBy} expiry={expiryChip(health.data)}
+          onChange={setConnector} onManage={() => setPanelOpen(true)}
         />
-        <div role="tabpanel" aria-label={TAB_LABEL[tab as TabId]} key={`${connectorId}:${tab}`} className={s.stack}>
-          {tab === "connections" && <ConnectionsTab />}
-          {tab === "out" && <OutTab />}
-          {tab === "mapping" && <MappingTab />}
-          {tab === "monitor" && <MonitorTab />}
-          {tab === "resync" && <ResyncTab />}
-        </div>
+        {banner && <Notice tone="warn">{banner}</Notice>}
+        {noConnection ? (
+          <EmptyState
+            title={`Connect ${connector.shortName}`} text="Sign in once; quotes, customers and products then move between the two."
+            action={<Button variant="primary" onClick={() => setPanelOpen(true)}>Connect {connector.shortName}</Button>}
+          />
+        ) : (
+          <>
+            <SetupGuide status={setup} loading={(health.loading && !health.data) || (documents.loading && !documents.data)} onOpen={openTarget} />
+            <Tabs
+              label="Integration middleware"
+              tabs={TAB_IDS.map((id) => ({ id, label: TAB_LABEL[id] }))}
+              value={tab}
+              onChange={(id) => setTab(id as TabId)}
+            />
+            <div role="tabpanel" aria-label={TAB_LABEL[tab as TabId]} key={`${connectorId}:${tab}`} className={s.stack}>
+              {tab === "links" && <LinksTab />}
+              {tab === "mapping" && <MappingTab />}
+              {tab === "monitor" && <MonitorTab />}
+              {tab === "resync" && <ResyncTab />}
+            </div>
+          </>
+        )}
+        {panelOpen && <ConnectionPanel authReturn={authReturn} onClose={() => setPanelOpen(false)} />}
       </div>
     </MiddlewareProvider>
   );

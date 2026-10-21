@@ -27,6 +27,7 @@ export function filtersToQuery(f: MessageFilters, opts: { cursor?: string | null
   if (validDay(f.from)) p.set("from", dayStart(f.from));
   if (validDay(f.to)) p.set("to", dayEnd(f.to));
   if (f.object_id && /^[0-9a-f-]{32,40}$/i.test(f.object_id)) p.set("object_id", f.object_id);
+  if (f.document && /^[a-z_]{1,30}$/.test(f.document)) p.set("document", f.document);
   const q = f.q?.trim();
   if (q) p.set("q", q.slice(0, 100));
   if (opts.cursor) p.set("cursor", opts.cursor);

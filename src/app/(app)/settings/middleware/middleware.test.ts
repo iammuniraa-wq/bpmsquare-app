@@ -5,7 +5,7 @@ import { CONNECTOR_CATALOG } from "@/lib/connectors/registry";
 import type { ConnectorDef } from "@/lib/connectors/types";
 import type { ErpField, MonitorMessage } from "./api";
 import { MIDDLEWARE_TIPS, environmentTip, secretExpiryTip } from "./tips";
-import { TAB_IDS, deriveSetup, sentEvidence, type SetupInputs } from "./setup";
+import { TAB_IDS, deriveSetup, sentEvidence, slimLine, type SetupInputs } from "./setup";
 import {
   durationWord, filterProblem, filtersToQuery, hasFilters, recordHref, statusFilterWord, statusWord,
 } from "./monitorLogic";
@@ -17,36 +17,34 @@ import { quoteOptions } from "./quotePick";
 import * as server from "@/lib/middleware/types";
 import * as client from "./api";
 
-const base: SetupInputs = { connected: false, pickListsApplicable: true, priceListChosen: false, currencyChosen: false, outcomeOn: true, testSent: false, realSeen: false };
+const base: SetupInputs = { connected: false, outcomeOn: true, outcomeConfirmed: true, customersSynced: true, testSent: false, realSeen: false };
 
-describe("the set-up guide", () => {
+describe("the set-up line", () => {
   it("ticks nothing before there is a connection, whatever else is true", () => {
-    const g = deriveSetup({ ...base, priceListChosen: true, currencyChosen: true });
-    expect(g.steps.map((s) => s.done)).toEqual([false, false, false, false, false]);
+    const g = deriveSetup({ ...base, testSent: true, realSeen: true });
+    expect(g.steps.filter((s) => s.id !== "test" && s.id !== "real").map((s) => s.done)).toEqual([false, false, false]);
     expect(g.complete).toBe(false);
   });
-  it("needs both the price list and the currency where the product has them", () => {
-    const one = deriveSetup({ ...base, connected: true, priceListChosen: true });
-    expect(one.steps[1].done).toBe(false);
-    expect(one.steps[1].state).toBe("Pick a currency");
-    expect(deriveSetup({ ...base, connected: true, priceListChosen: true, currencyChosen: true }).steps[1].done).toBe(true);
-  });
-  it("ticks the pick-list step by itself for a product that has none", () => {
-    const g = deriveSetup({ ...base, connected: true, pickListsApplicable: false });
-    expect(g.steps[1]).toMatchObject({ done: true, state: "Not needed" });
-  });
-  it("is complete only when all five are, and each step names the tab that finishes it", () => {
-    const all = deriveSetup({ connected: true, pickListsApplicable: true, priceListChosen: true, currencyChosen: true, outcomeOn: true, testSent: true, realSeen: true });
+  it("is complete only when all five are, and each step names where it is finished", () => {
+    const all = deriveSetup({ connected: true, outcomeOn: true, outcomeConfirmed: true, customersSynced: true, testSent: true, realSeen: true });
     expect(all.complete).toBe(true);
     expect(all.doneCount).toBe(5);
-    for (const s of all.steps) expect(TAB_IDS).toContain(s.tab);
+    for (const s of all.steps) expect([...TAB_IDS, "connection"]).toContain(s.target);
+    expect(slimLine(all)).toBe("");
   });
-  it("does not call 'what goes out' chosen when both outcomes are off", () => {
-    expect(deriveSetup({ ...base, connected: true, outcomeOn: false }).steps[2]).toMatchObject({ done: false, state: "Nothing is switched on" });
+  it("says how far along and what comes next, in one line", () => {
+    const g = deriveSetup({ ...base, connected: true });
+    expect(g.doneCount).toBe(3);
+    expect(slimLine(g)).toBe("Set up 3 of 5 · Next: send a test quote");
+    expect(slimLine(deriveSetup(base))).toBe("Set up 0 of 5 · Next: connect your ERP");
+  });
+  it("does not call the links chosen when everything is off or nothing was saved", () => {
+    expect(deriveSetup({ ...base, connected: true, outcomeOn: false }).steps[1].done).toBe(false);
+    expect(deriveSetup({ ...base, connected: true, outcomeConfirmed: false }).steps[1]).toMatchObject({ done: false, target: "links" });
   });
 });
 
-const msg = (over: Partial<MonitorMessage>): MonitorMessage => ({
+const msg = (over: Partial<MonitorMessage>): MonitorMessage => ({ what: null, erpNumber: null, restartable: false, fix: null, hasPayload: false,
   id: "integration:1", source: "integration", at: "2026-10-21T10:00:00Z", direction: "out", channel: "connector", counterpart: "Dynamics 365",
   summary: "SQ-0001 awarded", status: "ok", record: { type: "standard_quotes", id: "q1", label: "SQ-0001" }, duration_ms: 900, ...over,
 });
