@@ -211,7 +211,8 @@ function profileKeyFor(cfg: D365Config): string {
   return cfg.product === "fo" || cfg.product === "bc" ? "dynamics365" : "generic";
 }
 
-const nounFor = (t: TargetKind): "quote" | "order" | "project" => (t === "sales_order" ? "order" : t);
+// A webhook target never reaches the ERP engine (it is decided before the ERP is loaded); "quote" is only the type's fallback.
+const nounFor = (t: TargetKind): "quote" | "order" | "project" => (t === "sales_order" ? "order" : t === "webhook" ? "quote" : t);
 
 function buildQuoteForErp(source: QuoteSource, outcome: Outcome, accountExternalId: string | null, rules: IntegrationMiddlewareConfig, target: TargetKind, cfg: D365Config): {
   qfe: QuoteForErp; est: EstimateShape | null; included: string[]; refused: { part: string; hint: string }[];
