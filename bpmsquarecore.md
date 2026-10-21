@@ -380,9 +380,7 @@ src/
 6. **Marketing setup is held to the same bar:** a studio or program asks for the minimum to start (a
    sensible default for everything else) and shows its next step; consent, topics, scoring and hand-over
    each have one home.
-7. **Live clients keep what they have.** Simplifying an existing screen that a live client (Vikas, BIM)
-   uses ships behind a platform flag or after the owner's explicit visual-parity OK
-   (`client-familiarity`), never silently.
+7. **Live clients are not an exception.** Owner decision 2026-10-22: simplifying a screen that Vikas or BIM use is fine; lean design wins over keeping an old layout. No flag or visual-parity sign-off is needed for a settings or setup cleanup. Keep every capability reachable (nothing is removed that a client depends on without a new home), and note in the commit which live-client screens changed.
 
 **Definition of done for any settings/setup UI:** the design doc names what it replaced or reused, the
 duplicate count is zero, the option count is justified, and `docs/design/settings-simplification.md` is
