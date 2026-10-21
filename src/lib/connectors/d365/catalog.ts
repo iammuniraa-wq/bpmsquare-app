@@ -180,6 +180,10 @@ export function sovereignHost(host: string): boolean {
 export type OutboundPreset = {
   quote: { field_map: Record<string, string> };
   quote_line: { field_map: Record<string, string> };
+  /** Dataverse: a sales order is created like a quote (verified live 2026-10-21). F&O and Business
+   *  Central: preset-only, the entity set stays empty until the tenant sets it under Mapping. */
+  sales_order: { entity_set: string; id_field: string; field_map: Record<string, string> };
+  sales_order_line: { field_map: Record<string, string> };
   project: { entity_set: string; id_field: string; field_map: Record<string, string> };
 };
 
@@ -187,38 +191,54 @@ export const D365_OUTBOUND_PRESETS: Record<D365Product, OutboundPreset> = {
   dataverse: {
     quote: { field_map: { name: "{name}", description: "{description}" } },
     quote_line: { field_map: { productdescription: "{description}", quantity: "{qty}", priceperunit: "{net_rate}", isproductoverridden: "true" } },
+    sales_order: { entity_set: "salesorders", id_field: "salesorderid", field_map: { name: "{name}", description: "{description}" } },
+    sales_order_line: { field_map: { productdescription: "{description}", quantity: "{qty}", priceperunit: "{net_rate}", isproductoverridden: "true" } },
     project: { entity_set: "", id_field: "", field_map: {} },
   },
   fo: {
     quote: { field_map: {} },
     quote_line: { field_map: {} },
+    sales_order: { entity_set: "", id_field: "", field_map: { CustomerAccount: "{account_external_id}", CustomerReference: "{name}" } },
+    sales_order_line: { field_map: {} },
     project: { entity_set: "Projects", id_field: "ProjectID", field_map: { ProjectName: "{name}", CustomerAccount: "{account_external_id}" } },
   },
   bc: {
     quote: { field_map: {} },
     quote_line: { field_map: {} },
+    sales_order: { entity_set: "", id_field: "", field_map: { externalDocumentNumber: "{ref}" } },
+    sales_order_line: { field_map: {} },
     project: { entity_set: "projects", id_field: "id", field_map: { displayName: "{name}" } },
   },
 };
 
 /** The outbound maps in force: the tenant's own where set, else the preset. */
-export function outboundConfig(cfg: Pick<D365Config, "product" | "outbound">): OutboundPreset & { custom: { quote: boolean; quote_line: boolean; project: boolean } } {
+export function outboundConfig(cfg: Pick<D365Config, "product" | "outbound"> & { orders?: D365Config["orders"] }): OutboundPreset & { custom: { quote: boolean; quote_line: boolean; project: boolean; sales_order: boolean; sales_order_line: boolean } } {
   const preset = D365_OUTBOUND_PRESETS[cfg.product];
   const own = cfg.outbound ?? {};
   const q = own.quote?.field_map;
   const l = own.quote_line?.field_map;
   const p = own.project;
+  const so = cfg.orders?.sales_order;
+  const sol = cfg.orders?.sales_order_line?.field_map;
   const hasQ = !!q && Object.keys(q).length > 0;
   const hasL = !!l && Object.keys(l).length > 0;
   const hasP = !!p && (Object.keys(p.field_map ?? {}).length > 0 || !!p.entity_set);
+  const hasSo = !!so && (Object.keys(so.field_map ?? {}).length > 0 || !!so.entity_set);
+  const hasSol = !!sol && Object.keys(sol).length > 0;
   return {
     quote: { field_map: hasQ ? q! : preset.quote.field_map },
     quote_line: { field_map: hasL ? l! : preset.quote_line.field_map },
+    sales_order: {
+      entity_set: so?.entity_set || preset.sales_order.entity_set,
+      id_field: so?.id_field || preset.sales_order.id_field,
+      field_map: so?.field_map && Object.keys(so.field_map).length > 0 ? so.field_map : preset.sales_order.field_map,
+    },
+    sales_order_line: { field_map: hasSol ? sol! : preset.sales_order_line.field_map },
     project: {
       entity_set: p?.entity_set || preset.project.entity_set,
       id_field: p?.id_field || preset.project.id_field,
       field_map: p?.field_map && Object.keys(p.field_map).length > 0 ? p.field_map : preset.project.field_map,
     },
-    custom: { quote: hasQ, quote_line: hasL, project: hasP },
+    custom: { quote: hasQ, quote_line: hasL, project: hasP, sales_order: hasSo, sales_order_line: hasSol },
   };
 }

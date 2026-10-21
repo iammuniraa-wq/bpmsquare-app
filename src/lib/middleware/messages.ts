@@ -2,6 +2,7 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { isSchemaPending } from "@/lib/marketing/pending";
 import { redactPayload, redactText } from "./redact";
+import { buildExchangePayload, type StoredPayload } from "./exchange";
 import type { MessageChannel, MessageDirection, StoredStatus } from "./types";
 
 // The writer of integration_messages (0201). The table has RLS and no policy at
@@ -30,12 +31,19 @@ export type NewMessage = {
   summary?: Record<string, unknown>;
   /** Request/response body. Kept only when `capture` is true, and then redacted. */
   payload?: unknown;
+  /** The request and response of an outbound document send (or a connector call that failed): kept ALWAYS,
+   *  already redacted and size-capped (exchange.ts). Beats `payload`. */
+  exchange?: StoredPayload | null;
 };
 
 export type RecordResult = { id: string | null; needsDatabaseUpdate: boolean };
 
 /** The row to insert. Pure so the redaction and capture rules are testable. */
 export function buildMessageRow(m: NewMessage, capture: boolean): Record<string, unknown> {
+  const stored: unknown = m.exchange ?? (capture && m.payload !== undefined ? redactPayload(m.payload) : null);
+  const summary = (redactPayload(m.summary ?? {}) ?? {}) as Record<string, unknown>;
+  // The list tells the screen whether a payload exists without reading the (large) payload column.
+  if (stored !== null && stored !== undefined) summary.has_payload = true;
   return {
     tenant_id: m.tenantId,
     direction: m.direction,
@@ -50,8 +58,8 @@ export function buildMessageRow(m: NewMessage, capture: boolean): Record<string,
     error: m.error ? redactText(m.error).slice(0, 1000) : null,
     duration_ms: typeof m.durationMs === "number" ? Math.max(0, Math.round(m.durationMs)) : null,
     correlation_id: m.correlationId ?? null,
-    summary: redactPayload(m.summary ?? {}) ?? {},
-    payload: capture && m.payload !== undefined ? redactPayload(m.payload) : null,
+    summary,
+    payload: stored ?? null,
   };
 }
 
@@ -111,20 +119,35 @@ export type RunNote = {
   issues: string[];
   error: string | null;
   startedAtMs: number;
+  /** The entity set the run reads or writes, for the stored request line. */
+  entitySet?: string | null;
+  /** The workspace switched payload capture on: keep the request and the counts of a run that went well. */
+  capture?: boolean;
 };
 
 /** One message per connector run: counts and the first failed rows. The run's
  *  own id is the correlation id, which is how the monitor shows the run once
- *  (this row replaces its connector_sync_runs line). */
+ *  (this row replaces its connector_sync_runs line). A run that failed keeps its request line and the
+ *  ERP's own message as the payload; a run that went well only when payload capture is on. */
 export async function recordConnectorRun(admin: SupabaseClient, tenantId: string, n: RunNote): Promise<void> {
   const failed = n.counts.failed ?? 0;
+  const bad = !!n.error || failed > 0;
+  const durationMs = Date.now() - n.startedAtMs;
+  const exchange = bad || n.capture
+    ? buildExchangePayload({
+        method: n.direction === "pull" ? "GET" : "POST", path: n.entitySet || n.entity, requestBody: undefined,
+        status: bad ? null : 200, durationMs, failed: bad,
+        responseBody: bad ? { error: n.error ?? `${failed} row${failed === 1 ? "" : "s"} failed`, counts: n.counts, failed_rows: n.issues.slice(0, 5) } : { counts: n.counts },
+      })
+    : null;
   await recordMessage(admin, {
     tenantId, direction: n.direction === "pull" ? "in" : "out", channel: "connector", connectorId: "dynamics365", entity: n.entity,
-    status: n.error || failed > 0 ? "failed" : "ok",
+    status: bad ? "failed" : "ok",
     error: n.error,
-    durationMs: Date.now() - n.startedAtMs,
+    durationMs,
     correlationId: n.runId,
     summary: { kind: "connector_run", trigger: n.trigger, counts: n.counts, failed_rows: n.issues.slice(0, 5) },
+    exchange,
   });
 }
 
@@ -142,10 +165,14 @@ export async function recordApiCall(admin: SupabaseClient, tenantId: string, c: 
   });
 }
 
-/** Keep 30 days. Per tenant, so the delete is always tenant-filtered. */
+/** The line stays 30 days; its request and response payload only 48 hours (spec section 9E). */
 export const MESSAGE_RETENTION_DAYS = 30;
+export const PAYLOAD_RETENTION_HOURS = 48;
 
+/** Per tenant, so every statement names it: the payload column is nulled after 48 hours, the row deleted after 30 days. */
 export async function pruneMessages(admin: SupabaseClient, tenantId: string, nowMs: number = Date.now()): Promise<void> {
+  const payloadCutoff = new Date(nowMs - PAYLOAD_RETENTION_HOURS * 3_600_000).toISOString();
+  await admin.from(MESSAGES_TABLE).update({ payload: null }).eq("tenant_id", tenantId).lt("created_at", payloadCutoff).not("payload", "is", null);
   const cutoff = new Date(nowMs - MESSAGE_RETENTION_DAYS * 86_400_000).toISOString();
   await admin.from(MESSAGES_TABLE).delete().eq("tenant_id", tenantId).lt("created_at", cutoff);
 }

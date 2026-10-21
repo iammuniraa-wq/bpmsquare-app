@@ -106,6 +106,18 @@ export type D365OutboundConfig = {
   };
 };
 
+/**
+ * What a Sales Order becomes. Kept beside `outbound` rather than in it so the older screens that edit
+ * `outbound` as a whole never touch it. Dataverse: header map (same placeholders as a quote) and a
+ * write-in line map. Finance & Operations / Business Central: the entity set, id field and map of a
+ * sales order (preset-only and not verified live: it stays unavailable until the entity set is set
+ * under Mapping).
+ */
+export type D365OrderConfig = {
+  sales_order?: { entity_set?: string; id_field?: string; field_map?: Record<string, string> };
+  sales_order_line?: { field_map?: Record<string, string> };
+};
+
 export type D365Config = {
   product: D365Product;
   auth_mode: D365AuthMode;
@@ -126,6 +138,7 @@ export type D365Config = {
   price_list_id?: string;
   currency_id?: string;
   outbound?: D365OutboundConfig;
+  orders?: D365OrderConfig;
 };
 
 export type D365PublicState = {

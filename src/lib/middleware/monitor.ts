@@ -6,6 +6,7 @@ import {
   SOURCES, compareNewest, decodeCursor, encodeCursor, matchesQuery, rawId, type Cursor, type NormalizeCtx, type Plan, type Row, type SourceSpec,
 } from "./monitorRows";
 import { MESSAGES_TABLE } from "./messages";
+import { normalizePayload, type StoredPayload } from "./exchange";
 import { MESSAGE_SOURCES, SQL_BUNDLES, type MessageFilters, type MessageSource, type MonitorMessage } from "./types";
 
 // The message monitor: one list over the new integration_messages table and the
@@ -117,6 +118,9 @@ export type MessageDetail = {
   message: MonitorMessage;
   /** Raw facts for the side panel. Bodies and phone numbers appear here only, for an admin. */
   detail: Record<string, unknown>;
+  /** The request and response stored with an outbound document send or a failed connector call, in one shape.
+   *  Null for every other message, and for the older sources (email, WhatsApp, RFQ, webhooks). */
+  payload: StoredPayload | null;
 };
 
 export function parseMessageId(id: string): { source: MessageSource; uuid: string } | null {
@@ -155,10 +159,14 @@ export async function getMessageDetail(admin: SupabaseClient, tenantId: string, 
   const message = spec.normalize(row, ctx);
   const detail: Record<string, unknown> = { ...row };
   delete detail.tenant_id;
+  // The stored payload is returned once, in its own field and shape, not repeated inside the raw columns.
+  const payload = parsed.source === "integration" ? normalizePayload(row.payload) : null;
+  delete detail.payload;
+  if (parsed.source === "integration") message.hasPayload = payload !== null;
   if (parsed.source === "whatsapp") {
     detail.body = decrypt(typeof row.body === "string" ? row.body : null);
     detail.to_phone = decrypt(typeof row.to_phone === "string" ? row.to_phone : null);
     detail.redirected_to = decrypt(typeof row.redirected_to === "string" ? row.redirected_to : null);
   }
-  return { ok: true, value: { message, detail } };
+  return { ok: true, value: { message, detail, payload } };
 }

@@ -144,8 +144,10 @@ export async function saveConnection(admin: SupabaseClient, tenantId: string, us
     price_list_id: keep(c.price_list_id, p?.price_list_id, guid("price list")),
     currency_id: keep(c.currency_id, p?.currency_id, guid("currency")),
     outbound: rawOutbound === undefined ? p?.outbound : rawOutbound === null ? undefined : cleanOutbound(rawOutbound),
+    // The sales order maps are edited through the middleware Mapping API only; a connection save keeps them.
+    orders: p?.orders,
   };
-  for (const k of ["secret_expires_on", "price_list_id", "currency_id", "outbound"] as const) if (cfg[k] === undefined) delete cfg[k];
+  for (const k of ["secret_expires_on", "price_list_id", "currency_id", "outbound", "orders"] as const) if (cfg[k] === undefined) delete cfg[k];
   await validateConfig(cfg).catch((e: { status?: number; message?: string }) => { throw new SaveError(e.status ?? 422, e.message ?? "Invalid configuration"); });
 
   const { data: row } = await admin.from("tenant_connectors").select("credentials").eq("tenant_id", tenantId).eq("connector_id", CONNECTOR_ID).maybeSingle();

@@ -1,4 +1,5 @@
-import { ESTIMATE_PARTS, FENCE_PARTS, type EstimateSelection, type FenceSelection, type IntegrationMiddlewareConfig, type Outcome, type OutcomeRule, type RuleMode } from "./types";
+import { estimateFromInclude, fenceFromInclude, readDocument, rulesFromDocument } from "./documents";
+import { ESTIMATE_PARTS, FENCE_PARTS, type IntegrationMiddlewareConfig, type Outcome, type OutcomeRule, type RuleMode } from "./types";
 
 // Rules and fence selection live in tenants.config.integration_middleware
 // (no secrets there). Pure: parse what is stored, validate what is submitted.
@@ -16,32 +17,16 @@ export const DEFAULT_RULES: IntegrationMiddlewareConfig = {
 
 const isObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === "object" && !Array.isArray(v);
 
-function parseRule(raw: unknown, def: OutcomeRule): OutcomeRule {
-  if (!isObj(raw)) return { ...def };
-  return {
-    enabled: typeof raw.enabled === "boolean" ? raw.enabled : def.enabled,
-    mode: raw.mode === "manual" || raw.mode === "auto" ? raw.mode : def.mode,
-  };
-}
-
-/** The rules in force: what is stored, with anything missing or malformed
- *  falling back to the default. Never throws. */
+/** The rules in force, as the older rules + fence + estimate shape: a view of the Quote document
+ *  (documents.ts), which migrates a workspace that never saved it. Anything missing or malformed
+ *  falls back to the default. Never throws. */
 export function parseRules(raw: unknown): IntegrationMiddlewareConfig {
   const r = isObj(raw) ? raw : {};
-  const rules = isObj(r.rules) ? r.rules : {};
-  const fenceRaw = isObj(r.fence) ? r.fence : {};
-  const fence = { ...DEFAULT_RULES.fence } as FenceSelection;
-  for (const p of FENCE_PARTS) if (typeof fenceRaw[p] === "boolean") fence[p] = fenceRaw[p] as boolean;
-  const estRaw = isObj(r.estimate) ? r.estimate : {};
-  const estimate = { ...DEFAULT_RULES.estimate } as EstimateSelection;
-  for (const p of ESTIMATE_PARTS) if (typeof estRaw[p] === "boolean") estimate[p] = estRaw[p] as boolean;
+  const doc = readDocument(r);
   return {
-    rules: {
-      quote_awarded: parseRule(rules.quote_awarded, DEFAULT_RULES.rules.quote_awarded),
-      quote_rejected: parseRule(rules.quote_rejected, DEFAULT_RULES.rules.quote_rejected),
-    },
-    fence,
-    estimate,
+    rules: rulesFromDocument(doc),
+    fence: fenceFromInclude(doc.include),
+    estimate: estimateFromInclude(doc.include),
     payload_capture: r.payload_capture === true,
   };
 }
@@ -90,19 +75,26 @@ export function validateRulesInput(raw: unknown): RulesValidation {
   return { ok: true, value: parseRules(raw) };
 }
 
-/** Merge a validated partial change over what is stored. */
+/** Merge a validated partial change over what is stored. The two older selections (fence, estimate) stay apart here:
+ *  the Quote document folds them together when it is saved, and needs to see which side the change was on. */
 export function mergeRules(current: IntegrationMiddlewareConfig, patch: unknown): IntegrationMiddlewareConfig {
   const p = isObj(patch) ? patch : {};
   const pr = isObj(p.rules) ? p.rules : {};
-  return parseRules({
-    rules: {
-      quote_awarded: { ...current.rules.quote_awarded, ...(isObj(pr.quote_awarded) ? pr.quote_awarded : {}) },
-      quote_rejected: { ...current.rules.quote_rejected, ...(isObj(pr.quote_rejected) ? pr.quote_rejected : {}) },
-    },
-    fence: { ...current.fence, ...(isObj(p.fence) ? p.fence : {}) },
-    estimate: { ...current.estimate, ...(isObj(p.estimate) ? p.estimate : {}) },
+  const rule = (cur: OutcomeRule, pat: unknown): OutcomeRule => {
+    const o = isObj(pat) ? pat : {};
+    return { enabled: typeof o.enabled === "boolean" ? o.enabled : cur.enabled, mode: o.mode === "auto" || o.mode === "manual" ? o.mode : cur.mode };
+  };
+  const sel = <T extends Record<string, boolean>>(cur: T, pat: unknown, parts: readonly string[]): T => {
+    const out = { ...cur } as Record<string, boolean>;
+    if (isObj(pat)) for (const part of parts) if (typeof pat[part] === "boolean") out[part] = pat[part] as boolean;
+    return out as T;
+  };
+  return {
+    rules: { quote_awarded: rule(current.rules.quote_awarded, pr.quote_awarded), quote_rejected: rule(current.rules.quote_rejected, pr.quote_rejected) },
+    fence: sel(current.fence, p.fence, FENCE_PARTS),
+    estimate: sel(current.estimate, p.estimate, ESTIMATE_PARTS),
     payload_capture: typeof p.payload_capture === "boolean" ? p.payload_capture : current.payload_capture,
-  });
+  };
 }
 
 export function ruleFor(cfg: IntegrationMiddlewareConfig, outcome: Outcome): OutcomeRule {

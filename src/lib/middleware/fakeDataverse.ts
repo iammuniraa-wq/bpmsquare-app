@@ -18,15 +18,29 @@ export type FakeQuote = {
   lines: Record<string, unknown>[];
 };
 
+export type FakeOrder = {
+  salesorderid: string;
+  ordernumber: string;
+  name: string;
+  statecode: number;
+  statuscode: number;
+  totalamount: number;
+  body: Record<string, unknown>;
+  lines: Record<string, unknown>[];
+};
+
 export type Call = { method: string; path: string; body?: unknown; query?: Record<string, string | undefined> };
 
 export class FakeDataverse implements ErpHttp {
   quotes: FakeQuote[] = [];
+  orders: FakeOrder[] = [];
   calls: Call[] = [];
   /** Throw this once when the named step is reached. */
-  failOnce: Partial<Record<"create" | "activate" | "WinQuote" | "CloseQuote" | "get", { status: number; message: string }>> = {};
+  failOnce: Partial<Record<"create" | "createOrder" | "activate" | "WinQuote" | "CloseQuote" | "get", { status: number; message: string }>> = {};
   /** Wait this long (ms) inside every create, so two dispatches overlap the way they do on a real network. */
   createDelayMs = 0;
+  /** Dynamics account id -> its own price list (null = the account has none). An account not listed here is "not found". */
+  accountPriceLists: Record<string, string | null> = {};
   /** Extra read-only data: entity set -> rows, for list calls. */
   data: Record<string, Record<string, unknown>[]> = {};
   private n = 0;
@@ -48,13 +62,33 @@ export class FakeDataverse implements ErpHttp {
       if (!q) throw new D365Error("quote does not exist", 404);
       return this.view(q);
     }
+    const oneOrder = /^salesorders\(([^)]+)\)$/.exec(pathOrUrl);
+    if (oneOrder) {
+      const o = this.orders.find((x) => x.salesorderid === oneOrder[1]);
+      if (!o) throw new D365Error("salesorder does not exist", 404);
+      return this.orderView(o);
+    }
+    if (pathOrUrl === "salesorders") {
+      const m = /startswith\(name,'(.*)'\)/.exec(query?.$filter ?? "");
+      const prefix = m ? m[1].replace(/''/g, "'") : "";
+      return { value: this.orders.filter((o) => o.name.startsWith(prefix)).slice(0, Number(query?.$top ?? 50)).map((o) => this.orderView(o)) };
+    }
     if (pathOrUrl === "quotes") {
       const m = /startswith\(name,'(.*)'\)/.exec(query?.$filter ?? "");
       const prefix = m ? m[1].replace(/''/g, "'") : "";
       return { value: this.quotes.filter((q) => q.name.startsWith(prefix)).slice(0, Number(query?.$top ?? 50)).map((q) => this.view(q)) };
     }
+    const acct = /^accounts\(([^)]+)\)$/.exec(pathOrUrl);
+    if (acct && acct[1] in this.accountPriceLists) return { _defaultpricelevelid_value: this.accountPriceLists[acct[1]] };
     if (this.data[pathOrUrl]) return { value: this.data[pathOrUrl] };
     throw new D365Error(`unknown path ${pathOrUrl}`, 404);
+  }
+
+  private orderView(o: FakeOrder) {
+    return {
+      salesorderid: o.salesorderid, ordernumber: o.ordernumber, name: o.name, statecode: o.statecode, statuscode: o.statuscode, totalamount: o.totalamount,
+      description: typeof o.body.description === "string" ? o.body.description : null,
+    };
   }
 
   private view(q: FakeQuote) {
@@ -67,6 +101,24 @@ export class FakeDataverse implements ErpHttp {
   async create(entitySet: string, body: Record<string, unknown>) {
     this.calls.push({ method: "POST", path: entitySet, body });
     if (this.createDelayMs) await new Promise((r) => setTimeout(r, this.createDelayMs));
+    if (entitySet === "salesorders") {
+      this.hit("createOrder");
+      if (!body.name) throw new D365Error("name is required", 400);
+      if (!body["customerid_account@odata.bind"]) throw new D365Error("customerid is required", 400);
+      if (!body["pricelevelid@odata.bind"]) throw new D365Error("The price list is required", 400);
+      if (!body["transactioncurrencyid@odata.bind"]) throw new D365Error("transactioncurrencyid is required", 400);
+      const lines = (body.order_details as Record<string, unknown>[] | undefined) ?? [];
+      for (const l of lines) {
+        if ("uomid@odata.bind" in l || "uomid" in l) throw new D365Error("Cannot set both a product and a write-in: uomid", 400);
+        if (l.isproductoverridden !== true || typeof l.productdescription !== "string") throw new D365Error("A write-in line needs productdescription and isproductoverridden", 400);
+      }
+      const id = `00000000-0000-0000-0000-${String(++this.n).padStart(12, "0")}`;
+      const total = lines.reduce((sum, l) => sum + Number(l.quantity ?? 0) * Number(l.priceperunit ?? 0), 0);
+      // Born Active: statecode 0 / statuscode 1 (verified live).
+      const o: FakeOrder = { salesorderid: id, ordernumber: `ORD-${String(1000 + this.n).padStart(5, "0")}-TEST`, name: String(body.name), statecode: 0, statuscode: 1, totalamount: Math.round(total * 100) / 100, body, lines };
+      this.orders.push(o);
+      return { row: this.orderView(o), entityId: id, status: 201 };
+    }
     if (entitySet !== "quotes") {
       this.data[entitySet] ??= [];
       const row = { id: `rec-${++this.n}`, ...body };

@@ -71,3 +71,56 @@ export function probeResult(id: string, label: string, e: { status?: number; mes
   if (e.status === 404) return { id, label, ok: false, fix: "This table is not in the environment. Check the entity under Mapping." };
   return { id, label, ok: null, fix: "Could not check this just now. Try again, or use Send a test quote." };
 }
+
+// ── What the app user may do (Dataverse) ────────────────────────────────────
+
+export const NOT_CHECKED = "Not checked: use Send a test quote";
+
+export type UserAccess = {
+  /** The app user holds the System Administrator role, which carries every privilege. */
+  isSysAdmin: boolean;
+  /** What RetrieveUserPrivileges returned (null = it could not be read). */
+  privileges: { id: string | null; name: string | null }[] | null;
+  /** Privilege name (lower case) to its id, looked up from the privileges table. */
+  ids: Record<string, string>;
+};
+
+type Getter = { get(path: string, query?: Record<string, string | undefined>): Promise<unknown> };
+
+/** The roles and privileges of the connected app user: an application user is its OWN systemuser, found
+ *  through WhoAmI (which answers for the credential in use, not for any signed-in person). Every step is
+ *  allowed to fail: what cannot be read simply leaves the answer undetermined. */
+export async function userAccess(client: Getter, privilegeNames: readonly string[] = []): Promise<UserAccess> {
+  const none: UserAccess = { isSysAdmin: false, privileges: null, ids: {} };
+  let userId: string | undefined;
+  try { userId = ((await client.get("WhoAmI")) as { UserId?: string } | null)?.UserId; } catch { return none; }
+  if (!userId) return none;
+  const out: UserAccess = { ...none };
+  try {
+    const roles = (await client.get(`systemusers(${userId})/systemuserroles_association`, { $select: "name,roleid" })) as { value?: { name?: string }[] } | null;
+    out.isSysAdmin = (roles?.value ?? []).some((r) => r.name?.trim().toLowerCase() === "system administrator");
+  } catch { /* undetermined */ }
+  if (out.isSysAdmin) return out;
+  try {
+    const p = (await client.get(`systemusers(${userId})/Microsoft.Dynamics.CRM.RetrieveUserPrivileges`)) as { value?: Record<string, unknown>[] } | null;
+    out.privileges = (p?.value ?? []).map((x) => ({ id: typeof x.PrivilegeId === "string" ? x.PrivilegeId : null, name: typeof x.PrivilegeName === "string" ? x.PrivilegeName : null }));
+  } catch { /* undetermined */ }
+  if (privilegeNames.length && out.privileges?.length) {
+    try {
+      const filter = privilegeNames.map((n) => `name eq '${n.replace(/'/g, "''")}'`).join(" or ");
+      const r = (await client.get("privileges", { $select: "privilegeid,name", $filter: filter })) as { value?: { privilegeid?: string; name?: string }[] } | null;
+      for (const x of r?.value ?? []) if (x.privilegeid && x.name) out.ids[x.name.toLowerCase()] = x.privilegeid.toLowerCase();
+    } catch { /* names alone are used */ }
+  }
+  return out;
+}
+
+/** True only when every named privilege is confirmed. "False" never means "refused": it means "not confirmed",
+ *  and the screen then says to use Send a test quote. */
+export function privilegeVerdict(a: UserAccess, names: readonly string[]): boolean {
+  if (a.isSysAdmin) return true;
+  if (!a.privileges?.length) return false;
+  const byName = new Set(a.privileges.map((p) => p.name?.toLowerCase()).filter((x): x is string => !!x));
+  const byId = new Set(a.privileges.map((p) => p.id?.toLowerCase()).filter((x): x is string => !!x));
+  return names.every((n) => byName.has(n.toLowerCase()) || (a.ids[n.toLowerCase()] !== undefined && byId.has(a.ids[n.toLowerCase()])));
+}

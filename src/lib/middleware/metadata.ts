@@ -5,7 +5,7 @@
 export type ErpField = { name: string; label: string; type: string; required: boolean; creatable: boolean };
 
 export const METADATA_ENTITIES = [
-  "quote", "quote_line", "account", "contact", "product", "project", "customers", "contacts", "vendors", "products", "projects",
+  "quote", "quote_line", "sales_order", "sales_order_line", "account", "contact", "product", "project", "customers", "contacts", "vendors", "products", "projects",
 ] as const;
 export type MetadataEntity = (typeof METADATA_ENTITIES)[number];
 

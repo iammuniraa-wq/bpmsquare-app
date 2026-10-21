@@ -6,6 +6,8 @@ import { D365_ENTITY_KEYS } from "@/lib/connectors/d365/types";
 import { PLACEHOLDERS } from "@/lib/middleware/payload";
 import { getErpMetadata } from "@/lib/middleware/metadataServer";
 import { isMetadataEntity, missingRequired, suggestMapping, type BpmField } from "@/lib/middleware/metadata";
+import { isMappingDoc } from "@/lib/middleware/mappingDoc";
+import { getMapping, saveMapping } from "@/lib/middleware/mappingOps";
 
 // GET  -- the mapping in force for the connected product, so the Mapping tab opens read-only on it:
 //   { product, using_standard: { quote, quote_line, project }   (true = "Using the standard mapping"),
@@ -18,9 +20,23 @@ import { isMetadataEntity, missingRequired, suggestMapping, type BpmField } from
 //   -> { suggestions: [{ bpm, erp, score, reason }],        (name / label matches: "Suggest mapping")
 //        missing: ErpField[] }                              (required, creatable ERP fields nothing in `mapped` fills)
 //   Needs a connected ERP; uses the cached field list (/api/middleware/metadata).
-export async function GET() {
+//
+// With `?document=<quote|customers|contacts|products|projects>` GET returns the two-column mapping instead (the older form above is
+// what you get without it):
+//   { document:{key,label,targetLabel}, sections:[{key:"header"|"lines",label,rows:[{id,bpm:{label,name},erp:{label,name}|null,standard,composite?}]}],
+//     erpFields:{header:[{label,name}],lines:[...]}, usingStandard, missingRequired:[string], settings:{entity_set,id_field}|null }
+//   or { connected:false }.
+// PUT { document, section:"header"|"lines", rows:[{id, erp: string|null}], entity_set?, id_field? } saves those rows and answers with the mapping again.
+//   422 { error, errors:[{id,message}] } names each row that is unknown, read-only (composite), not an ERP field or already used.
+// POST /api/middleware/mapping/reset { document } is "Reset to standard".
+export async function GET(req: NextRequest) {
   const g = await guard();
   if (!g.ok) return g.res;
+  const docParam = req.nextUrl.searchParams.get("document");
+  if (docParam !== null) {
+    if (!isMappingDoc(docParam)) return fail(422, "Choose quote, customers, contacts, products or projects.");
+    return NextResponse.json(await getMapping(g.ctx.admin, g.ctx.tenantId, docParam));
+  }
   const loaded = await loadD365(g.ctx.admin, g.ctx.tenantId);
   if (!loaded) return NextResponse.json({ connected: false });
   const { cfg } = loaded;
@@ -53,4 +69,11 @@ export async function POST(req: NextRequest) {
     suggestions: bpm.length ? suggestMapping(bpm, r.fields) : [],
     missing: missingRequired(r.fields, strs(body.mapped), strs(body.always)),
   });
+}
+
+export async function PUT(req: NextRequest) {
+  const g = await guard();
+  if (!g.ok) return g.res;
+  const r = await saveMapping(g.ctx.admin, g.ctx.tenantId, await jsonBody(req));
+  return r.ok ? NextResponse.json(r.view) : fail(r.status, r.error, r.errors ? { errors: r.errors } : {});
 }

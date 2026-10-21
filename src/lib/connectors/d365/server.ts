@@ -305,7 +305,7 @@ export async function runPull(admin: SupabaseClient, tenantId: string, key: Excl
   const ec = entityConfig(cfg, key);
   const target = D365_ENTITY_TARGET[key];
   if (!ec?.enabled) return { runId: null, counts, issues, error: "This entity is switched off." };
-  const { data: t } = await admin.from("tenants").select("features").eq("id", tenantId).maybeSingle();
+  const { data: t } = await admin.from("tenants").select("features, config").eq("id", tenantId).maybeSingle();
   if (!(t?.features as TenantFeatures | undefined)?.[target.feature as keyof TenantFeatures]) {
     return { runId: null, counts, issues, error: `The ${target.table} module isn't enabled for this workspace.` };
   }
@@ -317,7 +317,8 @@ export async function runPull(admin: SupabaseClient, tenantId: string, key: Excl
   // the flag (read from the features row this function already loaded).
   const mw = (t?.features as TenantFeatures | undefined)?.integration_middleware === true;
   const startedAtMs = Date.now();
-  const note = (error: string | null) => mw ? recordConnectorRun(admin, tenantId, { runId, entity: key, direction: "pull", trigger: opts.trigger, counts: { ...counts }, issues, error, startedAtMs }) : Promise.resolve();
+  const capture = (t?.config as { integration_middleware?: { payload_capture?: boolean } } | null)?.integration_middleware?.payload_capture === true;
+  const note = (error: string | null) => mw ? recordConnectorRun(admin, tenantId, { runId, entity: key, direction: "pull", trigger: opts.trigger, counts: { ...counts }, issues, error, startedAtMs, entitySet: ec.entity_set, capture }) : Promise.resolve();
   let stoppedEarly = false;
   try {
     const startMark: string | null = opts.full ? null : await lastWatermark(admin, tenantId, key);
@@ -492,7 +493,7 @@ export async function runPushFenceProjects(admin: SupabaseClient, tenantId: stri
   const { cfg, creds } = loaded;
   const ec = entityConfig(cfg, "fence_projects");
   if (!ec?.enabled || !ec.entity_set) return { runId: null, counts, issues, error: "Pushing fence projects is switched off for this product — set the target entity and field map first." };
-  const { data: t } = await admin.from("tenants").select("features").eq("id", tenantId).maybeSingle();
+  const { data: t } = await admin.from("tenants").select("features, config").eq("id", tenantId).maybeSingle();
   if (!(t?.features as TenantFeatures | undefined)?.fence_projects) return { runId: null, counts, issues, error: "Fence projects aren't enabled for this workspace." };
 
   const started = await startRun(admin, tenantId, "fence_projects", "push", opts.trigger, opts.userId);
@@ -500,7 +501,8 @@ export async function runPushFenceProjects(admin: SupabaseClient, tenantId: stri
   const runId = started.runId;
   const mw = (t?.features as TenantFeatures | undefined)?.integration_middleware === true;
   const startedAtMs = Date.now();
-  const note = (error: string | null) => mw ? recordConnectorRun(admin, tenantId, { runId, entity: "fence_projects", direction: "push", trigger: opts.trigger, counts: { ...counts }, issues, error, startedAtMs }) : Promise.resolve();
+  const capture = (t?.config as { integration_middleware?: { payload_capture?: boolean } } | null)?.integration_middleware?.payload_capture === true;
+  const note = (error: string | null) => mw ? recordConnectorRun(admin, tenantId, { runId, entity: "fence_projects", direction: "push", trigger: opts.trigger, counts: { ...counts }, issues, error, startedAtMs, entitySet: ec.entity_set, capture }) : Promise.resolve();
   try {
     let q = admin.from("fence_projects").select("id, ref, name, status, total_length_m, layout, account_id").eq("tenant_id", tenantId).limit(500);
     if (opts.ids?.length) q = q.in("id", opts.ids);

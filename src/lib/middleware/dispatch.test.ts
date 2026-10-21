@@ -36,14 +36,20 @@ describe("awarded / rejected on Dynamics Sales (Dataverse = Quote)", () => {
     expect(String(openLink)).toContain(dv.quotes[0].quoteid);
   });
 
-  it("rejected: the Dynamics quote is closed as Lost", async () => {
+  it("rejected (round 2): a rejected quote never leaves BPMSquare -- nothing is sent and nothing is recorded", async () => {
     const seed = seedMiddleware();
     seed.standard_quotes[0].status = "rejected";
     const db = fakeAdmin(seed);
     const dv = new FakeDataverse();
-    expect((await run(db, dv)).state).toBe("sent");
-    expect(dv.quotes[0]).toMatchObject({ statecode: 3, statuscode: 5 });
-    expect((msgs(db)[0].summary as Record<string, unknown>).outcome).toBe("rejected");
+    for (const trigger of ["auto", "send_now", "retry"] as const) {
+      expect(await run(db, dv, { trigger })).toMatchObject({ state: "disabled", reason: "A rejected quote is never sent to the ERP." });
+    }
+    expect(await run(db, dv, { trigger: "send_now", outcome: "rejected" })).toMatchObject({ state: "disabled" });
+    expect(dv.calls).toHaveLength(0);
+    expect(dv.quotes).toHaveLength(0);
+    expect(msgs(db)).toHaveLength(0);
+    expect(db.tables.connector_links.filter((l) => l.entity === "standard_quotes")).toHaveLength(0);
+    expect(await previewQuoteOutcome(db.client, T1, "q-1", { outcome: "rejected", http: dv })).toMatchObject({ ok: false, state: "disabled" });
   });
 
   it("is idempotent: a second dispatch for the same quote and outcome makes no twin and no new message", async () => {
@@ -94,12 +100,13 @@ describe("awarded / rejected on Dynamics Sales (Dataverse = Quote)", () => {
     expect(msgs(db)[0].status).toBe("failed");
   });
 
-  it("no price list chosen: failed with the fix, nothing sent", async () => {
+  it("no price list on the customer and no fallback: failed with the plain message, nothing created", async () => {
     const db = fakeAdmin(seedMiddleware({ cfg: { price_list_id: undefined } }));
     const dv = new FakeDataverse();
     const r = await run(db, dv);
-    expect(r).toMatchObject({ state: "failed", headline: "No price list is chosen." });
-    expect(dv.calls).toHaveLength(0);
+    expect(r).toMatchObject({ state: "failed", headline: "This customer has no price list in Dynamics and no fallback is set" });
+    expect(dv.calls.filter((c) => c.method !== "GET")).toHaveLength(0);
+    expect(dv.quotes).toHaveLength(0);
   });
 
   it("the ERP's raw message is kept for Details, the headline is plain", async () => {
@@ -139,16 +146,15 @@ describe("Finance and Operations / Business Central = Project", () => {
     expect(dv.data.Projects).toHaveLength(1);
   });
 
-  it("rejected sends nothing and records a skipped message saying so", async () => {
+  it("rejected dispatches nothing and records nothing (a project is made only for an awarded quote)", async () => {
     const seed = foSeed();
     seed.standard_quotes[0].status = "rejected";
     const db = fakeAdmin(seed);
     const dv = new FakeDataverse();
     const r = await run(db, dv);
-    expect(r.state).toBe("skipped");
+    expect(r.state).toBe("disabled");
     expect(dv.calls).toHaveLength(0);
-    expect(msgs(db)[0]).toMatchObject({ status: "skipped" });
-    expect((msgs(db)[0].summary as Record<string, unknown>).headline).toMatch(/tracks projects, not quotes/);
+    expect(msgs(db)).toHaveLength(0);
   });
 
   it("Business Central: the same path with its own preset", async () => {
@@ -553,7 +559,7 @@ describe("one send per quote: the claim (concurrent dispatches, lost links)", ()
     const fresh = fakeAdmin({ ...seedMiddleware(), connector_links: [...seedMiddleware().connector_links, claim(new Date().toISOString())] });
     const dv1 = new FakeDataverse();
     expect((await run(fresh, dv1)).state).toBe("in_progress");
-    expect(dv1.calls).toHaveLength(0);
+    expect(dv1.calls.filter((c) => c.method !== "GET")).toHaveLength(0);
     expect(msgs(fresh)).toHaveLength(0);
 
     const stale = fakeAdmin({ ...seedMiddleware(), connector_links: [...seedMiddleware().connector_links, claim(OLD)] });
@@ -592,18 +598,18 @@ describe("one send per quote: the claim (concurrent dispatches, lost links)", ()
     const other = seedMiddleware({ tenantId: T2 });
     other.standard_quotes[0].id = "q-2";
     other.standard_quote_lines.forEach((l) => { l.standard_quote_id = "q-2"; });
-    other.standard_quotes[0].status = "rejected";
+    other.standard_quotes[0].status = "accepted";
     const dbA = fakeAdmin(seedMiddleware());
     const dbB = fakeAdmin(other);
     const dv = new FakeDataverse();
-    // workspace A (awarded SQ-0001) is sent but its link is lost; workspace B (rejected SQ-0001) sends into the same environment
+    // workspace A (awarded SQ-0001) is sent but its link is lost; workspace B (also SQ-0001) sends into the same environment
     await run(dbA, dv);
     dbA.tables.connector_links = dbA.tables.connector_links.filter((l) => l.entity !== "standard_quotes");
     const b = await run(dbB, dv, { trigger: "auto" }, "q-2", T2);
     expect(b.state).toBe("sent");
     expect(dv.quotes).toHaveLength(2);
-    expect(dv.quotes[0]).toMatchObject({ statecode: 2 }); // A's quote is still Won, not closed as Lost
-    expect(dv.quotes[1]).toMatchObject({ statecode: 3 });
+    expect(dv.quotes[0]).toMatchObject({ statecode: 2 }); // A's quote is still its own Won quote
+    expect(dv.quotes[1]).toMatchObject({ statecode: 2 }); // B made its own: it did not adopt A's
     // and A, resending with its lost link, finds its own and not B's
     const again = await run(dbA, dv, { trigger: "retry" });
     expect(again.state).toBe("already_sent");

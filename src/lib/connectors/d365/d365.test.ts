@@ -171,7 +171,7 @@ describe("D365Client writes and auth", () => {
   it("takes the new id from OData-EntityId when Dataverse answers 204", async () => {
     const f = fakeFetch([{ status: 204, headers: { "OData-EntityId": `${base}/msdyn_projects(11111111-2222-3333-4444-555555555555)` } }]);
     const c = new D365Client(base, async () => "Bearer t", { fetch: f.fn, sleep: async () => {} });
-    expect(await c.create("msdyn_projects", {})).toEqual({ row: {}, entityId: "11111111-2222-3333-4444-555555555555" });
+    expect(await c.create("msdyn_projects", {})).toEqual({ row: {}, entityId: "11111111-2222-3333-4444-555555555555", status: 204 });
     expect(idFromEntityIdHeader("https://x.operations.dynamics.com/data/Projects(dataAreaId='sa01',ProjectID='P-1')")).toBe("dataAreaId='sa01',ProjectID='P-1'");
     expect(idFromEntityIdHeader(null)).toBeNull();
   });

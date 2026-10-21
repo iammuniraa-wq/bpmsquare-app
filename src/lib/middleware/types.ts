@@ -47,10 +47,47 @@ export const ESTIMATE_PART_LABEL: Record<EstimatePart, string> = {
   internal_costs: "Internal cost breakdown",
 };
 
-/** What the connected product receives: a Quote (Dynamics Sales) carries
- *  prices only; a Project (F&O, Business Central, later SAP / ePROMIS) carries
- *  tasks and bill of materials. */
-export type TargetKind = "quote" | "project";
+/** What the connected product receives: a Quote or a Sales Order (Dynamics
+ *  Sales; F&O and Business Central take a Sales Order too, preset-only) carry
+ *  customer prices only; a Project (F&O, Business Central, later SAP / ePROMIS)
+ *  carries tasks and bill of materials. */
+export const TARGET_KINDS = ["quote", "sales_order", "project"] as const;
+export type TargetKind = (typeof TARGET_KINDS)[number];
+
+export const TARGET_LABEL: Record<TargetKind, string> = { quote: "Quote", sales_order: "Sales Order", project: "Project" };
+
+// ── The Quote document (redesign 2026-10-21, spec section 6) ────────────────
+// One outbound document replaces the separate rules + fence + estimate options.
+// `include` is ONE list of what leaves with the document; it maps onto the older
+// fence and estimate selections (see documents.ts).
+
+export const INCLUDE_KEYS = ["lines", "summary", "drawing_link", "notes_terms", "security_profile", "bom", "wbs", "internal_costs"] as const;
+export type IncludeKey = (typeof INCLUDE_KEYS)[number];
+export type IncludeSelection = Record<IncludeKey, boolean>;
+
+export const INCLUDE_LABEL: Record<IncludeKey, string> = {
+  summary: "Summary text",
+  lines: "Customer prices",
+  drawing_link: "Drawing link",
+  notes_terms: "Notes and terms",
+  security_profile: "Security profile",
+  bom: "Materials list",
+  wbs: "Project tasks",
+  internal_costs: "Internal costs",
+};
+
+export type DocumentConfig = {
+  enabled: boolean;
+  when: { awarded: boolean; rejected: boolean };
+  mode: RuleMode;
+  /** Only present when a legacy /rules call set a different mode for rejected quotes. */
+  mode_rejected?: RuleMode;
+  /** What to create in the ERP; null = the connected system's default. */
+  target: TargetKind | null;
+  include: IncludeSelection;
+  /** Set by the first successful save of the document panel. */
+  confirmed_at: string | null;
+};
 
 export type OptionContract = { allowed: boolean; hint: string | null };
 export type SelectionContract = {
@@ -68,6 +105,11 @@ export type IntegrationMiddlewareConfig = {
    *  days. Off unless an admin switches it on. */
   payload_capture: boolean;
 };
+
+/** What tenants.config.integration_middleware holds: the Quote document, plus the older
+ *  rules / fence / estimate keys kept in step with it (so the older /rules API reads and
+ *  writes the same data), plus payload capture. */
+export type StoredMiddlewareConfig = Partial<IntegrationMiddlewareConfig> & { documents?: { quote?: DocumentConfig } };
 
 // ── Messages ─────────────────────────────────────────────────────────────────
 
@@ -101,6 +143,16 @@ export type MonitorMessage = {
   /** The BPMSquare record it belongs to, when there is one. */
   record: { type: string; id: string | null; label: string | null } | null;
   duration_ms: number | null;
+  /** The document or entity this is about, in words ("Quote", "Customers"). */
+  what: string;
+  /** Restart can run it again: a failed or waiting document, a failed connector run. Never OK or by-design skipped. */
+  restartable: boolean;
+  /** The plain "what to do" line, from the stored summary (no extra read). */
+  fix: string | null;
+  /** The ERP's readable number (QUO-01002), never a GUID. */
+  erpNumber: string | null;
+  /** A request/response payload is stored for this message. */
+  hasPayload: boolean;
 };
 
 export type MessageFilters = {

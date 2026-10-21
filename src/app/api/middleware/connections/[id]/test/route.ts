@@ -1,16 +1,18 @@
 import { NextResponse } from "next/server";
 import { guard, fail } from "../../../_guard";
 import { CONNECTOR_ID } from "@/lib/connectors/d365/server";
-import { testConnectionOp } from "@/lib/middleware/ops";
+import { connectionCheck } from "@/lib/middleware/ops";
 
-// POST -- Test connection: a real, authenticated call against the ERP.
-// -> { ok: true, message }  or 400 { error }   (the connection's status is updated either way)
-export const maxDuration = 60;
+// POST -- Test: a real, authenticated call against the ERP AND the permission probes, as ONE answer.
+// -> { ok, line, failures: [{ label, fix }] }   (line = one plain sentence; failures = only what failed, for the Details toggle)
+// The connection's status is updated either way. A refused connection answers 400 with the same body plus `error`; the older
+// `message` is kept on success. POST /api/middleware/check-permissions still works on its own.
+export const maxDuration = 90;
 
 export async function POST(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const g = await guard();
   if (!g.ok) return g.res;
   if ((await params).id !== CONNECTOR_ID) return fail(404, "Connection not found.");
-  const r = await testConnectionOp(g.ctx.admin, g.ctx.tenantId);
-  return r.ok ? NextResponse.json(r) : fail(r.status, r.error);
+  const { status, ...body } = await connectionCheck(g.ctx.admin, g.ctx.tenantId);
+  return NextResponse.json(body, { status: body.error ? status : 200 });
 }

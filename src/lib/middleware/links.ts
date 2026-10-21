@@ -10,15 +10,18 @@ export const PRODUCT_NAME: Record<D365Product, string> = {
   bc: "Business Central",
 };
 
+/** The product as a short word in a one-line summary ("Awarded → Dynamics 365 Quote"). */
+export const PRODUCT_SHORT: Record<D365Product, string> = { dataverse: "Dynamics 365", fo: "Finance and Operations", bc: "Business Central" };
+
 /** What an awarded quote becomes in this product. */
 export const TARGET_NAME: Record<D365Product, string> = { dataverse: "Quote", fo: "Project", bc: "Project" };
 
 /** Open-in-ERP link for a record, or null where one cannot be built from what we hold. */
-export function erpDeepLink(cfg: Pick<D365Config, "product" | "environment_url">, kind: "quote", erpId: string): string | null {
-  if (cfg.product !== "dataverse" || kind !== "quote") return null;
+export function erpDeepLink(cfg: Pick<D365Config, "product" | "environment_url">, kind: "quote" | "salesorder", erpId: string): string | null {
+  if (cfg.product !== "dataverse") return null;
   try {
     const origin = new URL(cfg.environment_url).origin;
-    return `${origin}/main.aspx?etn=quote&pagetype=entityrecord&id=${encodeURIComponent(erpId)}`;
+    return `${origin}/main.aspx?etn=${kind}&pagetype=entityrecord&id=${encodeURIComponent(erpId)}`;
   } catch {
     return null;
   }

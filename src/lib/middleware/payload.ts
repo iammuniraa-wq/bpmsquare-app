@@ -24,8 +24,12 @@ export const LINE_PLACEHOLDERS = ["description", "qty", "rate", "net_rate", "uom
 /** ... a project map. */
 export const PROJECT_PLACEHOLDERS = ["name", "ref", "title", "customer_name", "account_external_id", "description", "summary", "total", "status", "outcome"] as const;
 
-export type MapKind = "quote" | "quote_line" | "project";
-export const PLACEHOLDERS: Record<MapKind, readonly string[]> = { quote: QUOTE_PLACEHOLDERS, quote_line: LINE_PLACEHOLDERS, project: PROJECT_PLACEHOLDERS };
+export type MapKind = "quote" | "quote_line" | "project" | "sales_order" | "sales_order_line";
+export const PLACEHOLDERS: Record<MapKind, readonly string[]> = {
+  quote: QUOTE_PLACEHOLDERS, quote_line: LINE_PLACEHOLDERS, project: PROJECT_PLACEHOLDERS,
+  // A sales order takes the same fields as a quote; on F&O / Business Central it is a mapped entity like a project.
+  sales_order: QUOTE_PLACEHOLDERS, sales_order_line: LINE_PLACEHOLDERS,
+};
 
 const FIELD_RE = /^[A-Za-z_][A-Za-z0-9_]*(@odata\.bind)?$/;
 
@@ -40,7 +44,7 @@ export function validateOutboundMap(kind: MapKind, map: unknown): { ok: true; va
   for (const [field, tpl] of Object.entries(map as Record<string, unknown>)) {
     if (!FIELD_RE.test(field) || field.length > 120) { errors.push({ field, message: "That isn't a valid field name." }); continue; }
     if (typeof tpl !== "string" || !tpl.trim() || tpl.length > 300) { errors.push({ field, message: "Give the field a value or a {placeholder}." }); continue; }
-    if (kind === "quote_line" && field.toLowerCase() === "uomid") { errors.push({ field, message: "A write-in line must not carry a unit of measure (Dynamics refuses it)." }); continue; }
+    if ((kind === "quote_line" || kind === "sales_order_line") && /^uomid(@odata\.bind)?$/i.test(field)) { errors.push({ field, message: "A write-in line must not carry a unit of measure (Dynamics refuses it)." }); continue; }
     const bad = [...tpl.matchAll(/\{([^{}]*)\}/g)].map((m) => m[1]).filter((p) => !allowed.has(p));
     if (bad.length) { errors.push({ field, message: `Unknown placeholder ${bad.map((b) => `{${b}}`).join(", ")}. Choose from the list.` }); continue; }
     if (/\{[^{}]*$/.test(tpl) || /^[^{]*\}/.test(tpl)) { errors.push({ field, message: "A { } is not closed." }); continue; }
@@ -140,7 +144,10 @@ export function buildDataverseQuote(
   q: QuoteForErp,
   cfg: { price_list_id?: string | null; currency_id?: string | null },
   maps: { quote: Record<string, string>; quote_line: Record<string, string> },
+  /** A sales order is built exactly like a quote (verified live 2026-10-21); only the line collection is named differently. */
+  kind: "quote" | "sales_order" = "quote",
 ): DataverseQuoteBuild {
+
   const problems: Problem[] = [];
   const title = `${q.ref} · ${q.title}`.slice(0, 300);
   const vars: Record<string, Primitive> = {
@@ -157,12 +164,12 @@ export function buildDataverseQuote(
   if (q.account_external_id) body["customerid_account@odata.bind"] = `/accounts(${q.account_external_id})`;
   else problems.push({ code: "customer_not_linked", message: "This customer is not in Dynamics yet.", fix: "Sync customers, then retry." });
   if (cfg.price_list_id) body["pricelevelid@odata.bind"] = `/pricelevels(${cfg.price_list_id})`;
-  else problems.push({ code: "no_price_list", message: "No price list is chosen.", fix: "Pick a price list under Connections." });
+  else problems.push({ code: "no_price_list", message: "This customer has no price list in Dynamics and no fallback is set", fix: "Set a fallback price list on the Quote link, or give the customer a price list in Dynamics, then retry." });
   if (cfg.currency_id) body["transactioncurrencyid@odata.bind"] = `/transactioncurrencies(${cfg.currency_id})`;
-  else problems.push({ code: "no_currency", message: "No currency is chosen.", fix: "Pick a currency under Connections." });
+  else problems.push({ code: "no_currency", message: "No Dynamics currency matches this quote's currency, and the base currency could not be read.", fix: "Add the currency in Dynamics (or check the app user can read currencies), then retry." });
 
   if (!q.lines.length) problems.push({ code: "no_lines", message: "The quote has no lines to send.", fix: "Add at least one line to the quote." });
-  body.quote_details = q.lines.map((l) => {
+  body[kind === "quote" ? "quote_details" : "order_details"] = q.lines.map((l) => {
     const lv: Record<string, Primitive> = {
       description: l.description, qty: l.qty, rate: money(l.rate), net_rate: netRate(l), uom: l.uom, amount: money(l.amount),
       discount_pct: l.discount_pct, sl_no: l.sl_no,
@@ -202,10 +209,11 @@ export type ProjectBuild = { body: Record<string, Primitive>; problems: Problem[
 export function buildProjectBody(
   q: QuoteForErp,
   project: { entity_set: string; field_map: Record<string, string> },
-  extra: { status: string; dataArea?: string | null; isFo: boolean },
+  extra: { status: string; dataArea?: string | null; isFo: boolean; /** the mapped entity is a sales order, not a project */ noun?: "project" | "sales order" },
 ): ProjectBuild {
   const problems: Problem[] = [];
-  if (!project.entity_set) problems.push({ code: "no_project_target", message: "No project target is set for this product.", fix: "Open Mapping and choose where projects go." });
+  const noun = extra.noun ?? "project";
+  if (!project.entity_set) problems.push({ code: "no_project_target", message: `No ${noun} target is set for this product.`, fix: `Open Mapping and choose where ${noun}s go.` });
   const name = `${q.ref} · ${q.title}`.slice(0, 200);
   const summary = q.description[0] ?? "";
   const vars: Record<string, Primitive> = {
@@ -214,7 +222,7 @@ export function buildProjectBody(
     summary: summary || null, total: money(q.total), status: extra.status, outcome: q.outcome,
   };
   const body = renderMap(project.field_map, vars);
-  if (!Object.keys(body).length) problems.push({ code: "empty_project_map", message: "The project map produced nothing to send.", fix: "Open Mapping and check the project fields." });
+  if (!Object.keys(body).length) problems.push({ code: "empty_project_map", message: `The ${noun} map produced nothing to send.`, fix: `Open Mapping and check the ${noun} fields.` });
   // F&O creates in the app user's default company unless told which.
   if (extra.isFo && extra.dataArea && !("dataAreaId" in project.field_map) && /^[A-Za-z0-9]{1,8}$/.test(extra.dataArea)) body.dataAreaId = extra.dataArea.toLowerCase();
   return { body, problems };
@@ -226,22 +234,23 @@ export type ErrorLike = { status?: number; message?: string; code?: string };
 
 /** What happened and the one thing to do, for an error from the ERP or from
  *  our own steps. The raw message stays on the stored message for "Details". */
-export function plainFailure(e: ErrorLike, step?: string): { headline: string; fix: string } {
+export function plainFailure(e: ErrorLike, step?: string, noun: "quote" | "order" | "project" = "quote"): { headline: string; fix: string } {
   const msg = (e.message ?? "").toLowerCase();
   const status = e.status ?? 0;
+  const system = noun === "project" ? "The ERP" : "Dynamics";
   if (status === 401) return { headline: "Dynamics refused the login.", fix: "Open Connections, check the secret and press Test connection." };
   if (status === 403 || msg.includes("privilege") || msg.includes("principal user")) {
-    return { headline: step === "create" ? "The connected app may not create quotes." : "The connected app has no permission for this step.", fix: "Give the app user a role that can create and close quotes, then retry." };
+    return { headline: step === "create" ? `The connected app may not create ${noun}s.` : "The connected app has no permission for this step.", fix: `Give the app user a role that can create${noun === "quote" ? " and close" : ""} ${noun}s, then retry.` };
   }
   if (status === 409) return { headline: e.message?.trim() || "The ERP quote is already closed the other way.", fix: "Change it in the ERP if that is really wanted; BPMSquare will not reopen it." };
-  if (status === 404 && step !== "create") return { headline: "The quote is no longer in Dynamics.", fix: "Press Send again to create it afresh." };
+  if (status === 404 && step !== "create") return { headline: `The ${noun} is no longer in ${system}.`, fix: "Press Send again to create it afresh." };
   if (msg.includes("price") && msg.includes("list")) return { headline: "Dynamics needs a valid price list.", fix: "Pick a price list under Connections, then retry." };
   if (msg.includes("currency")) return { headline: "The currency does not match.", fix: "Pick the currency under Connections, then retry." };
   if (msg.includes("uom") || msg.includes("unit of measure")) return { headline: "Dynamics refused a unit of measure on a line.", fix: "Remove the unit from the line map, then retry." };
   if (status === 429) return { headline: "Dynamics asked us to slow down.", fix: "Retry in a few minutes." };
   if (status === 0 || status >= 500) return { headline: "Dynamics did not answer properly.", fix: "Retry in a few minutes. If it repeats, check the connection." };
-  if (status === 400 || status === 422) return { headline: "Dynamics did not accept the quote.", fix: "Open Details, fix what it names, then retry." };
-  return { headline: "The quote could not be sent.", fix: "Open Details, then retry." };
+  if (status === 400 || status === 422) return { headline: `Dynamics did not accept the ${noun}.`, fix: "Open Details, fix what it names, then retry." };
+  return { headline: `The ${noun} could not be sent.`, fix: "Open Details, then retry." };
 }
 
 // ── Words first ─────────────────────────────────────────────────────────────
@@ -249,13 +258,17 @@ export function plainFailure(e: ErrorLike, step?: string): { headline: string; f
 /** The preview a sales admin reads before the raw body: customer, lines, total. */
 export function previewWords(a: { target: TargetKind; productLabel: string; ref: string; customer: string; lineCount: number; total: number; outcome: Outcome; steps: string[] }): string[] {
   const out: string[] = [];
-  out.push(a.target === "quote" ? `A quote called ${a.ref} for ${a.customer}, with ${a.lineCount} line${a.lineCount === 1 ? "" : "s"}, total ${money(a.total)}.` : `A project called ${a.ref} for ${a.customer}.`);
+  const lines = `with ${a.lineCount} line${a.lineCount === 1 ? "" : "s"}, total ${money(a.total)}`;
+  if (a.target === "quote") out.push(`A quote called ${a.ref} for ${a.customer}, ${lines}.`);
+  else if (a.target === "sales_order") out.push(`A sales order called ${a.ref} for ${a.customer}, ${lines}.`);
+  else out.push(`A project called ${a.ref} for ${a.customer}.`);
   out.push(`It goes to ${a.productLabel}.`);
   for (const s of a.steps) out.push(s);
   return out;
 }
 
-export function stepsFor(product: "dataverse" | "fo" | "bc", outcome: Outcome): string[] {
-  if (product !== "dataverse") return outcome === "awarded" ? ["The project is created. Nothing else is sent."] : ["Nothing is sent: rejected quotes are not tracked in projects."];
+export function stepsFor(product: "dataverse" | "fo" | "bc", outcome: Outcome, target: TargetKind = product === "dataverse" ? "quote" : "project"): string[] {
+  if (target === "sales_order") return outcome === "awarded" ? ["The order is created and is Active straight away. Nothing else is sent."] : ["Nothing is sent: a rejected quote has no order."];
+  if (target === "project") return outcome === "awarded" ? ["The project is created. Nothing else is sent."] : ["Nothing is sent: rejected quotes are not tracked in projects."];
   return outcome === "awarded" ? ["The quote is made Active, then marked Won."] : ["The quote is made Active, then closed as Lost."];
 }

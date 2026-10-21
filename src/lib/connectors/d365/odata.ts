@@ -145,9 +145,9 @@ export class D365Client {
   /** Create a record. Returns the created row when the API sends it back,
    *  and the new id from the OData-EntityId header when it doesn't (Dataverse
    *  answers 204 without a body unless return=representation is honoured). */
-  async create(entitySet: string, body: Record<string, unknown>): Promise<{ row: Record<string, unknown>; entityId: string | null }> {
+  async create(entitySet: string, body: Record<string, unknown>): Promise<{ row: Record<string, unknown>; entityId: string | null; status: number }> {
     const out = await this.requestRaw("POST", entitySet, { body, headers: { Prefer: "return=representation" } });
-    return { row: (out.json ?? {}) as Record<string, unknown>, entityId: idFromEntityIdHeader(out.headers.get("odata-entityid")) };
+    return { row: (out.json ?? {}) as Record<string, unknown>, entityId: idFromEntityIdHeader(out.headers.get("odata-entityid")), status: out.status };
   }
 
   /** Every row of an entity set, page by page, up to `maxRows`. */

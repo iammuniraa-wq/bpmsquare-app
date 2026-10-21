@@ -1273,7 +1273,7 @@ export type TenantConfig = {
   // Integration middleware rules and selections (no secrets): which outcomes
   // go to the ERP, automatic or manual, and what fence / estimate data leaves
   // with them. Stored as the admin saved it; read through parseRules().
-  integration_middleware?: import("@/lib/middleware/types").IntegrationMiddlewareConfig;
+  integration_middleware?: import("@/lib/middleware/types").StoredMiddlewareConfig;
   integration_push?: {
     webhook_url?: string;
     webhook_secret?: string;

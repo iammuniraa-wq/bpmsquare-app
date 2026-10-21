@@ -3,8 +3,8 @@ import { createAdminSupabase } from "@/lib/supabase-server";
 import { pruneAllTenants } from "@/lib/middleware/messages";
 import { cronSecretOk } from "@/lib/cronSecret";
 
-// GET /api/middleware/cron/prune -- daily (vercel.json): the message log and any captured payload are
-// kept 30 days. Every workspace is visited, not only those with the integration_middleware flag now,
+// GET /api/middleware/cron/prune -- daily (vercel.json): a message's request / response payload is nulled
+// after 48 hours (spec section 9E), the message line itself is kept 30 days. Every workspace is visited, not only those with the integration_middleware flag now,
 // so switching the flag off never leaves captured payloads behind; each delete names its tenant.
 export const maxDuration = 120;
 

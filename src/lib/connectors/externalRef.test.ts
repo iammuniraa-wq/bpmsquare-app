@@ -33,7 +33,7 @@ describe("externalRefsFor: what the line reads", () => {
         link({ object_type: "contacts", object_id: "c-1", external_id: "11111111-1111-1111-1111-111111111111" }),
         link({ object_type: "products", object_id: "p-1", external_id: "22222222-2222-2222-2222-222222222222" }),
         link({ object_type: "products", object_id: "p-2", external_id: "33333333-3333-3333-3333-333333333333" }),
-        link({ object_type: "standard_quotes", object_id: "q-1", external_id: "44444444-4444-4444-4444-444444444444", direction: "push" }),
+        link({ object_type: "standard_quotes", entity: "standard_quotes", object_id: "q-1", external_id: "44444444-4444-4444-4444-444444444444", direction: "push" }),
       ],
       {
         accounts: [{ id: "acc-1", tenant_id: TENANT, name: "Contoso" }],
@@ -48,7 +48,9 @@ describe("externalRefsFor: what the line reads", () => {
     expect(prods["p-1"][0].readable).toBe("Mesh roll");
     expect(prods["p-2"][0].readable).toBe("GATE-9");
     const q = await externalRefsForOne(admin, TENANT, "standard_quotes", "q-1");
-    expect(q[0]).toMatchObject({ readable: "SQ-0007", direction: "push" });
+    // BPMSquare's own reference is not what Dynamics calls the quote: with no number yet the line says what kind of record it is.
+    expect(q[0]).toMatchObject({ readable: "Quote", direction: "push" });
+    expect(q[0].readable).not.toContain("SQ-0007");
   });
 
   it("never shows a GUID as the label, even when the stored key is one or the name is missing", async () => {
@@ -162,12 +164,13 @@ describe("object table map", () => {
       wfm_projects: { ref: null, name: "Site A" }, employees: { employee_code: null, first_name: "Sam", last_name: "Lee" },
       fence_projects: { ref: "FNC-0002", name: "Perimeter" },
     };
+    // A name both systems share (a supplier, an item) is shown; a BPMSquare-made reference (OPP-3, PO-0009) never is: the line says what kind of record it is.
     const want: Record<string, string> = {
-      suppliers: "Acme Steel", inventory_items: "INV-5", estimates: "Roof estimate", opportunities: "OPP-3", rfqs: "Mesh RFQ", purchase_orders: "PO-0009",
-      invoices: "INV-0042", work_orders: "WO-0011", service_cases: "CS-0100", quotes: "Q-0501", wfm_projects: "Site A", employees: "Sam Lee", fence_projects: "FNC-0002",
+      suppliers: "Acme Steel", inventory_items: "INV-5", estimates: "Estimate", opportunities: "Opportunity", rfqs: "RFQ", purchase_orders: "Purchase order",
+      invoices: "Invoice", work_orders: "Work order", service_cases: "Case", quotes: "Quote", wfm_projects: "Project", employees: "Employee", fence_projects: "Fence project",
     };
     for (const [table, rec] of Object.entries(recs)) {
-      const admin = db([link({ object_type: table, object_id: "r-1" })], { [table]: [{ id: "r-1", tenant_id: TENANT, ...rec }] });
+      const admin = db([link({ object_type: table, entity: table, object_id: "r-1" })], { [table]: [{ id: "r-1", tenant_id: TENANT, ...rec }] });
       const r = await externalRefsForOne(admin, TENANT, table, "r-1");
       expect(r[0].readable, table).toBe(want[table]);
       expect(r[0].objectLabel, table).toBe(OBJECT_TABLES[table].label);

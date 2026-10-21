@@ -8,9 +8,12 @@ import { getConnectorDef } from "./registry";
 // there?" -- read-only, for the External record line on detail pages.
 //
 // The answer never carries a GUID as text: `readable` is the link's
-// business number (external_key) when there is one, else BPMSquare's own
-// display name for the record. The raw external id is returned only as
-// `title`, for a tooltip. Everything is tenant-scoped, and a missing
+// business number (external_key) when there is one, else the record's own
+// name where that name is the same thing in both systems (an account, a
+// contact, a product), else the ERP's own word for the kind of record
+// ("Opportunity", "Sales order"). It is NEVER BPMSquare's own reference
+// (SQ-0007): that is not what the ERP calls the record. The raw external id
+// is returned only as `title`, for a tooltip. Everything is tenant-scoped, and a missing
 // connector table (42P01 / PGRST205) or any other read failure yields no
 // links rather than breaking the page.
 //
@@ -44,7 +47,11 @@ function str(v: unknown): string {
  * it, the columns that name a record (selected for the readable fallback),
  * and its Dataverse table for the deep link (null = no stable address).
  */
-export type ObjectInfo = { label: string; cols: string; pick: (r: Rec) => string; dataverse: string | null };
+export type ObjectInfo = {
+  label: string; cols: string; pick: (r: Rec) => string; dataverse: string | null;
+  /** The record's name is a BPMSquare-made reference, not something the ERP also calls it. */
+  refBased?: boolean;
+};
 
 export const OBJECT_TABLES: Record<string, ObjectInfo> = {
   accounts: { label: "Account", cols: "id, name", pick: (r) => str(r.name), dataverse: "account" },
@@ -52,22 +59,34 @@ export const OBJECT_TABLES: Record<string, ObjectInfo> = {
   products: { label: "Product", cols: "id, name, sku", pick: (r) => str(r.name) || str(r.sku), dataverse: "product" },
   suppliers: { label: "Supplier", cols: "id, name", pick: (r) => str(r.name), dataverse: "account" },
   inventory_items: { label: "Inventory item", cols: "id, name, sku", pick: (r) => str(r.name) || str(r.sku), dataverse: "product" },
-  standard_quotes: { label: "Quote", cols: "id, ref", pick: (r) => str(r.ref), dataverse: "quote" },
-  quotes: { label: "Quotation", cols: "id, ref", pick: (r) => str(r.ref), dataverse: "quote" },
-  opportunities: { label: "Deal", cols: "id, ref, title", pick: (r) => str(r.ref) || str(r.title), dataverse: "opportunity" },
-  estimates: { label: "Estimate", cols: "id, ref, name", pick: (r) => str(r.ref) || str(r.name), dataverse: null },
-  fence_projects: { label: "Fence project", cols: "id, ref, name", pick: (r) => str(r.ref) || str(r.name), dataverse: null },
-  rfqs: { label: "RFQ", cols: "id, ref, title", pick: (r) => str(r.ref) || str(r.title), dataverse: null },
-  purchase_orders: { label: "Purchase order", cols: "id, ref", pick: (r) => str(r.ref), dataverse: null },
-  invoices: { label: "Invoice", cols: "id, ref", pick: (r) => str(r.ref), dataverse: "invoice" },
-  work_orders: { label: "Work order", cols: "id, ref", pick: (r) => str(r.ref), dataverse: "msdyn_workorder" },
-  service_cases: { label: "Case", cols: "id, ref", pick: (r) => str(r.ref), dataverse: "incident" },
-  wfm_projects: { label: "Project", cols: "id, ref, name", pick: (r) => str(r.ref) || str(r.name), dataverse: "msdyn_project" },
+  standard_quotes: { label: "Quote", cols: "id, ref", pick: (r) => str(r.ref), dataverse: "quote", refBased: true },
+  quotes: { label: "Quotation", cols: "id, ref", pick: (r) => str(r.ref), dataverse: "quote", refBased: true },
+  opportunities: { label: "Deal", cols: "id, ref, title", pick: (r) => str(r.ref) || str(r.title), dataverse: "opportunity", refBased: true },
+  estimates: { label: "Estimate", cols: "id, ref, name", pick: (r) => str(r.ref) || str(r.name), dataverse: null, refBased: true },
+  fence_projects: { label: "Fence project", cols: "id, ref, name", pick: (r) => str(r.ref) || str(r.name), dataverse: null, refBased: true },
+  rfqs: { label: "RFQ", cols: "id, ref, title", pick: (r) => str(r.ref) || str(r.title), dataverse: null, refBased: true },
+  purchase_orders: { label: "Purchase order", cols: "id, ref", pick: (r) => str(r.ref), dataverse: null, refBased: true },
+  invoices: { label: "Invoice", cols: "id, ref", pick: (r) => str(r.ref), dataverse: "invoice", refBased: true },
+  work_orders: { label: "Work order", cols: "id, ref", pick: (r) => str(r.ref), dataverse: "msdyn_workorder", refBased: true },
+  service_cases: { label: "Case", cols: "id, ref", pick: (r) => str(r.ref), dataverse: "incident", refBased: true },
+  wfm_projects: { label: "Project", cols: "id, ref, name", pick: (r) => str(r.ref) || str(r.name), dataverse: "msdyn_project", refBased: true },
   employees: {
     label: "Employee", cols: "id, first_name, last_name, employee_code",
-    pick: (r) => str(r.employee_code) || [str(r.first_name), str(r.last_name)].filter(Boolean).join(" "), dataverse: null,
+    pick: (r) => str(r.employee_code) || [str(r.first_name), str(r.last_name)].filter(Boolean).join(" "), dataverse: null, refBased: true,
   },
 };
+
+/** The ERP's own word for a linked record, from the link's `entity`. Sales orders are filed under "standard_quotes:sales_order". */
+const ENTITY_WORD: Record<string, string> = {
+  opportunities: "Opportunity", opportunity: "Opportunity", standard_quotes: "Quote", quotes: "Quote", "standard_quotes:sales_order": "Sales order",
+  salesorders: "Sales order", invoices: "Invoice", incidents: "Case", msdyn_projects: "Project", projects: "Project",
+  customers: "Account", accounts: "Account", contacts: "Contact", products: "Product", vendors: "Vendor",
+};
+
+/** What a link with no business number is called: the ERP's kind of record, never BPMSquare's reference. */
+export function entityWord(entity: string, fallback: string): string {
+  return ENTITY_WORD[entity.trim().toLowerCase()] ?? fallback;
+}
 
 const GUID_RE = /^\{?[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\}?$/i;
 const IDENT_RE = /^[a-z_][a-z0-9_]*$/;
@@ -97,11 +116,13 @@ export function buildDeepLink(
   cfg: Pick<D365Config, "product" | "auth_mode" | "environment_url" | "entities"> | null | undefined,
   objectType: string,
   externalId: string,
+  /** The link's own entity: a quote filed as a sales order opens as one. */
+  linkEntity?: string,
 ): string | null {
   if (!cfg || cfg.product !== "dataverse") return null;
   const id = externalId.trim();
   if (!GUID_RE.test(id)) return null;
-  let entity = OBJECT_TABLES[objectType]?.dataverse ?? null;
+  let entity = linkEntity === "standard_quotes:sales_order" ? "salesorder" : (OBJECT_TABLES[objectType]?.dataverse ?? null);
   if (!entity && objectType === "fence_projects") {
     const set = cfg.entities?.fence_projects?.entity_set;
     entity = set ? logicalNameOf(set) : null;
@@ -115,8 +136,8 @@ export function buildDeepLink(
 }
 
 /** Connectors that can build a record address, by connector_id. A connector not listed here shows its key and no link. */
-const DEEP_LINK: Record<string, (config: unknown, objectType: string, externalId: string) => string | null> = {
-  dynamics365: (config, objectType, externalId) => buildDeepLink(config as D365Config | null, objectType, externalId),
+const DEEP_LINK: Record<string, (config: unknown, objectType: string, externalId: string, entity?: string) => string | null> = {
+  dynamics365: (config, objectType, externalId, entity) => buildDeepLink(config as D365Config | null, objectType, externalId, entity),
 };
 
 type LinkRow = { object_id: string; connector_id: string; entity: string; external_id: string; external_key: string | null; direction: string };
@@ -153,7 +174,7 @@ export async function externalRefsFor(
       for (const cn of (conns ?? []) as unknown as { connector_id: string; config: unknown }[]) configs[cn.connector_id] = cn.config;
     }
 
-    const needName = info ? [...new Set(rows.filter((l) => !usableKey(l.external_key)).map((l) => l.object_id))] : [];
+    const needName = info && !info.refBased ? [...new Set(rows.filter((l) => !usableKey(l.external_key)).map((l) => l.object_id))] : [];
     const names: Record<string, string> = {};
     if (info && needName.length) {
       const { data: recs } = await admin.from(objectType).select(info.cols).eq("tenant_id", tenantId).in("id", needName);
@@ -170,9 +191,9 @@ export async function externalRefsFor(
       (out[l.object_id] ??= []).push({
         connectorId: l.connector_id,
         system: systemLabel(l.connector_id),
-        objectLabel: info?.label ?? "Record",
-        readable: key ?? (names[l.object_id] || "Linked record"),
-        deepLink: DEEP_LINK[l.connector_id]?.(configs[l.connector_id], objectType, l.external_id) ?? null,
+        objectLabel: l.entity === "standard_quotes:sales_order" ? "Sales order" : (info?.label ?? "Record"),
+        readable: key ?? (info?.refBased ? entityWord(l.entity, info.label) : (names[l.object_id] || "Linked record")),
+        deepLink: DEEP_LINK[l.connector_id]?.(configs[l.connector_id], objectType, l.external_id, l.entity) ?? null,
         direction: l.direction === "push" ? "push" : "pull",
         title: l.external_id,
       });

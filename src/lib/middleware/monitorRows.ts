@@ -1,4 +1,5 @@
-import type { MessageChannel, MessageDirection, MessageFilters, MessageSource, MonitorMessage, MonitorStatus } from "./types";
+import { D365_ENTITY_KEYS } from "@/lib/connectors/d365/types";
+import { TARGET_KINDS, TARGET_LABEL, type MessageChannel, type MessageDirection, type MessageFilters, type MessageSource, type MonitorMessage, type MonitorStatus, type TargetKind } from "./types";
 
 // The message monitor reads six tables and shows one shape. This file is the
 // pure half: which filters each source can answer (a plan, or null when the
@@ -32,6 +33,37 @@ export type NormalizeCtx = { webhookNames: Map<string, string> };
 const s = (v: unknown): string | null => (typeof v === "string" && v.trim() ? v : null);
 const n = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? v : null);
 
+// ── What a row is, and whether Restart can run it again ─────────────────────
+
+/** The connector entity a run row names, when Restart can run it again. */
+export const isRunnableEntity = (v: unknown): v is (typeof D365_ENTITY_KEYS)[number] => typeof v === "string" && (D365_ENTITY_KEYS as readonly string[]).includes(v);
+
+const ENTITY_WORD: Record<string, string> = {
+  customers: "Customers", contacts: "Contacts", vendors: "Suppliers", products: "Products", projects: "Projects", fence_projects: "Fence projects",
+};
+
+/** Payloads are kept 48 hours (the prune job nulls the column then); the line itself stays 30 days. */
+export const payloadStillKept = (createdAt: unknown, nowMs: number = Date.now()): boolean => {
+  const t = Date.parse(String(createdAt));
+  return Number.isFinite(t) && nowMs - t < 48 * 3_600_000;
+};
+
+export type RowKind = "document" | "run" | null;
+
+/** Restart can act on: an awarded-quote document that failed or is waiting, and a connector run that failed.
+ *  Never an OK row, never one skipped by design, never a rejected quote (those are never sent). */
+export function classifyIntegrationRow(r: { object_type?: unknown; object_id?: unknown; status?: unknown; entity?: unknown; summary?: unknown }): RowKind {
+  const sum = (r.summary && typeof r.summary === "object" ? r.summary : {}) as Record<string, unknown>;
+  if (sum.kind === "connector_run") return r.status === "failed" && isRunnableEntity(r.entity) ? "run" : null;
+  if (r.object_type === "standard_quotes" && s(r.object_id) && (r.status === "failed" || r.status === "pending") && sum.outcome === "awarded") return "document";
+  return null;
+}
+
+function documentWord(entity: string | null, sum: Record<string, unknown>): string {
+  if (sum.test === true) return "Test quote";
+  return (TARGET_KINDS as readonly string[]).includes(entity ?? "") ? TARGET_LABEL[entity as TargetKind] : "Quote";
+}
+
 // ── integration_messages ────────────────────────────────────────────────────
 
 const integration: SourceSpec = {
@@ -62,12 +94,19 @@ const integration: SourceSpec = {
       else summary = s(r.entity) ?? "Message";
     }
     const objectType = s(r.object_type);
+    const kind = classifyIntegrationRow(r);
+    const entity = s(r.entity);
+    const what = sum.kind === "connector_run" ? (ENTITY_WORD[entity ?? ""] ?? entity ?? "Sync")
+      : objectType === "standard_quotes" || sum.outcome ? documentWord(entity, sum)
+      : channel === "api" ? `API ${entity ?? ""}`.trim() : (entity ?? "Message");
     return {
       id: `integration:${r.id}`, source: "integration", at: String(r.created_at),
       direction: (s(r.direction) ?? "out") as MessageDirection, channel,
       counterpart: s(r.connector_id) === "dynamics365" ? "Dynamics 365" : s(r.connector_id),
       summary, status, record: objectType ? { type: objectType, id: s(r.object_id), label: s(r.ref_label) } : null,
       duration_ms: n(r.duration_ms),
+      what, restartable: kind !== null, fix: s(sum.fix) ?? (kind === "run" ? "Restart to run it again." : null),
+      erpNumber: s(sum.erp_number), hasPayload: sum.has_payload === true && payloadStillKept(r.created_at),
     };
   },
 };
@@ -95,6 +134,7 @@ const email: SourceSpec = {
       counterpart: s(r.to_email), summary: s(r.subject) ?? "Email",
       status: r.status === "failed" ? "failed" : r.status === "redirected" ? "redirected" : "ok",
       record: type ? { type, id: s(r.related_object_id), label: s(r.related_object_label) } : null, duration_ms: null,
+      what: "Email", restartable: false, fix: null, erpNumber: null, hasPayload: false,
     };
   },
 };
@@ -130,6 +170,7 @@ const rfq: SourceSpec = {
       channel: r.channel === "whatsapp" ? "whatsapp" : "email", counterpart, summary: s(r.subject) ?? "RFQ message",
       status: st === "failed" ? "failed" : st === "redirected" ? "redirected" : "ok",
       record: { type: "rfqs", id: s(r.rfq_id), label: null }, duration_ms: null,
+      what: "RFQ message", restartable: false, fix: null, erpNumber: null, hasPayload: false,
     };
   },
 };
@@ -164,6 +205,7 @@ const whatsapp: SourceSpec = {
       counterpart: null, // the number is encrypted; the detail route decrypts it for an admin
       summary: `WhatsApp ${s(r.kind) ?? "message"}${s(r.category) ? ` (${s(r.category)})` : ""}`,
       status, record: s(r.contact_id) ? { type: "contacts", id: s(r.contact_id), label: null } : null, duration_ms: null,
+      what: "WhatsApp", restartable: false, fix: null, erpNumber: null, hasPayload: false,
     };
   },
 };
@@ -189,6 +231,7 @@ const webhook: SourceSpec = {
       counterpart: ctx.webhookNames.get(String(r.webhook_id)) ?? "Webhook",
       summary: `${c} change${c === 1 ? "" : "s"} delivered${n(r.status) ? ` (HTTP ${r.status})` : ""}`,
       status: r.ok ? "ok" : "failed", record: null, duration_ms: n(r.duration_ms),
+      what: "Webhook", restartable: false, fix: null, erpNumber: null, hasPayload: false,
     };
   },
 };
@@ -221,6 +264,9 @@ const connector: SourceSpec = {
       summary: `${s(r.entity) ?? "Sync"}: ${c.read ?? 0} read, ${c.created ?? 0} created, ${c.updated ?? 0} updated, ${c.failed ?? 0} failed`,
       status: st === "succeeded" ? "ok" : st === "running" ? "pending" : "failed", record: null,
       duration_ms: Number.isFinite(start) && Number.isFinite(end) ? Math.max(0, end - start) : null,
+      what: ENTITY_WORD[s(r.entity) ?? ""] ?? s(r.entity) ?? "Sync",
+      restartable: (st === "failed" || st === "partial") && isRunnableEntity(r.entity),
+      fix: (st === "failed" || st === "partial") && isRunnableEntity(r.entity) ? "Restart to run it again." : null, erpNumber: null, hasPayload: false,
     };
   },
 };

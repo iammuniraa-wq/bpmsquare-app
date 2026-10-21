@@ -2,7 +2,7 @@ import {
   buildBomTable, buildWbsTable, resolveErpProfile, GENERIC_PROFILE,
   type Cell, type ErpExportProfile, type ExportLineInput,
 } from "@/lib/estimator/exports";
-import { selectionContract } from "./contract";
+import { isPriceOnly, selectionContract } from "./contract";
 import type { OutLine } from "./fence";
 import type { EstimateSelection, TargetKind } from "./types";
 
@@ -108,7 +108,7 @@ export function shapeEstimate(a: {
       // Only the internal costs are worth reporting when a target refuses them: bom and
       // wbs are on by default and simply do not apply to a Quote, and a project has no
       // price lines. Costs are a deliberate opt-in that must not silently vanish.
-      if (a.target === "quote" && part === "internal_costs") refused.push({ part, hint: contract[part].hint ?? "" });
+      if (isPriceOnly(a.target) && part === "internal_costs") refused.push({ part, hint: contract[part].hint ?? "" });
       return false;
     }
     return true;
@@ -119,7 +119,7 @@ export function shapeEstimate(a: {
   if (want("summary")) { description.push(...estimateSummaryText(a.estimate)); included.push("Estimate summary"); }
 
   let lines: OutLine[] = [];
-  if (a.target === "quote") {
+  if (isPriceOnly(a.target)) {
     if (want("quote_lines")) { lines = a.quoteLines; included.push("Quote lines at customer prices"); }
     else {
       lines = [{

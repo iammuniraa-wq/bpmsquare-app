@@ -20,7 +20,7 @@ export type MetadataResult =
   | { ok: false; state: "not_connected" | "error"; message: string };
 
 const DATAVERSE_LOGICAL: Partial<Record<MetadataEntity, string>> = {
-  quote: "quote", quote_line: "quotedetail", account: "account", customers: "account", vendors: "account",
+  quote: "quote", quote_line: "quotedetail", sales_order: "salesorder", sales_order_line: "salesorderdetail", account: "account", customers: "account", vendors: "account",
   contact: "contact", contacts: "contact", product: "product", products: "product",
 };
 
@@ -34,6 +34,10 @@ const q = (s: string) => s.replace(/'/g, "''");
 /** The entity set an ERP product exposes for a BPMSquare entity, or null when it has none. */
 export function entitySetFor(cfg: Pick<D365Config, "product" | "entities" | "outbound">, entity: MetadataEntity): string | null {
   if (entity === "quote" || entity === "quote_line") return cfg.product === "dataverse" ? (entity === "quote" ? "quotes" : "quotedetails") : null;
+  if (entity === "sales_order" || entity === "sales_order_line") {
+    if (cfg.product === "dataverse") return entity === "sales_order" ? "salesorders" : "salesorderdetails";
+    return entity === "sales_order" ? outboundConfig(cfg).sales_order.entity_set || null : null;
+  }
   if (entity === "project" || entity === "projects") {
     const own = outboundConfig(cfg).project.entity_set;
     if (cfg.product === "dataverse") return entityConfig(cfg, "projects")?.entity_set || null;

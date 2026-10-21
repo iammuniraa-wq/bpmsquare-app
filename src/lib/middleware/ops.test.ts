@@ -70,11 +70,11 @@ describe("rules view and storage", () => {
     expect(dv.contract.target).toBe("quote");
     expect(dv.contract.estimate.bom.allowed).toBe(false);
     expect(dv.awarded_target).toBe("Quote");
-    expect(dv.rejected_target).toBe("Closes the quote as lost");
+    expect(dv.rejected_target).toBe("Never sent");
     const fo = await getRules(fakeAdmin(seedMiddleware({ product: "fo" })).client, T1);
     expect(fo.contract.estimate.bom.allowed).toBe(true);
     expect(fo.awarded_target).toBe("Project");
-    expect(fo.rejected_target).toBe("Sends nothing");
+    expect(fo.rejected_target).toBe("Never sent");
   });
 
   it("with no ERP connected yet nothing is greyed", () => {
@@ -101,27 +101,48 @@ describe("rules view and storage", () => {
   });
 });
 
-describe("health: connection, secret expiry, schema", () => {
-  it("names the bundle for every missing table and never crashes", async () => {
-    const db = fakeAdmin(seedMiddleware(), { missing: ["integration_messages", "connector_sync_runs"] });
-    const h = await health(db.client, T1);
-    expect(h.needsDatabaseUpdate).toBe(true);
-    expect(h.schema.find((r) => r.table === "integration_messages")).toMatchObject({ exists: false, bundle: "scripts/run-bundle-10-middleware-2026-10-21.sql" });
-    expect(h.bundles).toEqual(["scripts/run-bundle-10-middleware-2026-10-21.sql", "scripts/run-bundle-9-connectors-2026-10-21.sql"]);
-    expect(h.connection).toMatchObject({ connected: true, price_list_chosen: true, currency_chosen: true, product: { name: "Dynamics 365 Sales" } });
+describe("health: only what needs attention", () => {
+  it("nothing wrong: no problems, no list of tables that are fine, and price list / currency are not requirements", async () => {
+    const h = await health(fakeAdmin(seedMiddleware({ cfg: { price_list_id: undefined, currency_id: undefined } })).client, T1);
+    expect(h.problems).toEqual([]);
+    expect(h).not.toHaveProperty("schema");
+    expect(h).not.toHaveProperty("secretSoon");
+    expect(JSON.stringify(h)).not.toMatch(/price_list|currency/);
+    expect(h.connection).toMatchObject({ connected: true, product: { name: "Dynamics 365 Sales" } });
   });
 
-  it("reports the secret's expiry from the connection", async () => {
-    const soon = new Date(Date.now() + 10 * 86_400_000).toISOString().slice(0, 10);
-    const h = await health(fakeAdmin(seedMiddleware({ cfg: { secret_expires_on: soon } })).client, T1);
-    expect(h.secret.state).toBe("soon");
-    expect(h.needsDatabaseUpdate).toBe(false);
+  it("names the SQL bundle for the missing tables and never crashes", async () => {
+    const db = fakeAdmin(seedMiddleware(), { missing: ["integration_messages", "connector_sync_runs"] });
+    const h = await health(db.client, T1);
+    expect(h.problems.map((p) => p.kind)).toEqual(["database", "database"]);
+    expect(h.problems.map((p) => p.bundle)).toEqual(["scripts/run-bundle-10-middleware-2026-10-21.sql", "scripts/run-bundle-9-connectors-2026-10-21.sql"]);
+    expect(h.problems[0].message).toMatch(/Message log/);
+  });
+
+  it("the secret's expiry shows only within 30 days (secretSoon), as a problem once it has passed", async () => {
+    const day = (n: number) => new Date(Date.now() + n * 86_400_000).toISOString().slice(0, 10);
+    const soon = await health(fakeAdmin(seedMiddleware({ cfg: { secret_expires_on: day(10) } })).client, T1);
+    expect(soon.secretSoon?.days).toBeGreaterThanOrEqual(9);
+    expect(soon.secretSoon?.days).toBeLessThanOrEqual(10);
+    expect(soon.problems).toEqual([]);
+    const far = await health(fakeAdmin(seedMiddleware({ cfg: { secret_expires_on: day(90) } })).client, T1);
+    expect(far).not.toHaveProperty("secretSoon");
+    const gone = await health(fakeAdmin(seedMiddleware({ cfg: { secret_expires_on: day(-3) } })).client, T1);
+    expect(gone.problems).toEqual([expect.objectContaining({ kind: "secret" })]);
+  });
+
+  it("a connection that needs attention is one problem with the ERP's own message", async () => {
+    const seed = seedMiddleware();
+    seed.tenant_connectors[0].status = "error";
+    seed.tenant_connectors[0].last_error = "Dynamics refused the login (401)";
+    const h = await health(fakeAdmin(seed).client, T1);
+    expect(h.problems).toEqual([{ kind: "connection", message: "Dynamics refused the login (401)" }]);
   });
 
   it("without the connector tables it reports not connected rather than failing", async () => {
     const h = await health(fakeAdmin(seedMiddleware(), { missing: ["tenant_connectors"] }).client, T1);
     expect(h.connection.connected).toBe(false);
-    expect(h.bundles).toContain("scripts/run-bundle-9-connectors-2026-10-21.sql");
+    expect(h.problems.map((p) => p.bundle)).toContain("scripts/run-bundle-9-connectors-2026-10-21.sql");
   });
 
   it("the connection list carries which secrets are stored, never their values", async () => {

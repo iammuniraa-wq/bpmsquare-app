@@ -12,7 +12,7 @@ import type { Outcome } from "./types";
 export interface ErpHttp {
   requestRaw(method: string, pathOrUrl: string, init?: { query?: Record<string, string | undefined>; body?: unknown; headers?: Record<string, string> }): Promise<{ json: unknown; headers: Headers; status: number }>;
   get(pathOrUrl: string, query?: Record<string, string | undefined>, headers?: Record<string, string>): Promise<unknown>;
-  create(entitySet: string, body: Record<string, unknown>): Promise<{ row: Record<string, unknown>; entityId: string | null }>;
+  create(entitySet: string, body: Record<string, unknown>): Promise<{ row: Record<string, unknown>; entityId: string | null; status?: number }>;
 }
 
 export type ErpStep = "find" | "create" | "activate" | "close";
@@ -24,7 +24,7 @@ export class ErpStepError extends Error {
   }
 }
 
-function asStepError(step: ErpStep, e: unknown): ErpStepError {
+export function asStepError(step: ErpStep, e: unknown): ErpStepError {
   if (e instanceof ErpStepError) return e;
   const x = e as { status?: number; message?: string; code?: string };
   return new ErpStepError(step, x.status ?? 0, x.message ?? "Unexpected error", x.code);
