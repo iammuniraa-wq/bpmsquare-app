@@ -6,6 +6,10 @@ import { EVENTS } from "@/lib/events/catalog";
 import { marketingScoringOn } from "../config";
 import { isSchemaPending } from "../pending";
 import { isLeadOverdue } from "./timing";
+import { teamLeadForAccount } from "./assign";
+import { autoCreateLeads } from "./autoCreate";
+import { handoverOf } from "./handover";
+import { leadsAlreadyAnnounced, notifyLeadOverdue } from "./notify";
 import { effectiveLeadStage, isLeadStageKey } from "../leadStages";
 import { rubricFromConfig, scoreLead, type ScorerDeps } from "./scorer";
 
@@ -32,6 +36,8 @@ export type RunSummary = {
   leads_scored: number;
   moved_to_ready: number;
   overdue_flagged: number;
+  overdue_announced: number;
+  leads_auto_created: number;
   budget_exhausted: boolean;
   errors: number;
 };
@@ -50,7 +56,7 @@ async function loadState(admin: SupabaseClient): Promise<{ rows: Map<string, Sta
 }
 
 /** Leads of this workspace whose contact or company had an event after the bookmark. Returns ids and the new bookmark. */
-async function leadsWithNewEvents(admin: SupabaseClient, tenantId: string, since: string): Promise<{ ids: Set<string>; cursor: string | null; full: boolean }> {
+async function leadsWithNewEvents(admin: SupabaseClient, tenantId: string, since: string): Promise<{ ids: Set<string>; contactIds: string[]; cursor: string | null; full: boolean }> {
   const { data, error } = await admin
     .from("domain_event").select("contact_id, account_id, created_at")
     .eq("tenant_id", tenantId).gte("created_at", since)
@@ -77,7 +83,7 @@ async function leadsWithNewEvents(admin: SupabaseClient, tenantId: string, since
   // gte re-reads the boundary row next time (harmless). If a whole batch shares
   // one timestamp, step past it so the bookmark cannot stall.
   const cursor = last && full && events[0].created_at === last ? new Date(Date.parse(last) + 1).toISOString() : last;
-  return { ids, cursor, full };
+  return { ids, contactIds, cursor, full };
 }
 
 async function staleLeadIds(admin: SupabaseClient, tenantId: string, before: string, limit: number): Promise<string[]> {
@@ -88,31 +94,51 @@ async function staleLeadIds(admin: SupabaseClient, tenantId: string, before: str
   return rows.filter((r) => r.status !== "won" && r.status !== "converted").map((r) => r.id).slice(0, limit);
 }
 
-/** Emits lead.sla_breached once per overdue ready lead (the event's natural key makes a repeat a no-op). */
-async function flagOverdue(admin: SupabaseClient, tenantId: string, now: Date): Promise<number> {
+/**
+ * Emits lead.sla_breached once per overdue ready lead (the event's natural key makes a repeat a no-op) and, for a
+ * workspace that chose who to tell, writes the one overdue notice per lead to the Nova inbox.
+ */
+async function flagOverdue(
+  admin: SupabaseClient, tenant: { id: string; features: Partial<TenantFeatures> | null; config: Partial<TenantConfig> | null }, now: Date,
+): Promise<{ flagged: number; announced: number }> {
+  const tenantId = tenant.id;
   const { data, error } = await admin
-    .from("leads").select("id, account_id, contact_id, status, custom_status_id, sla_due_at, owner_user_id")
+    .from("leads").select("id, account_id, contact_id, title, status, custom_status_id, sla_due_at, owner_user_id")
     .eq("tenant_id", tenantId).lt("sla_due_at", now.toISOString()).limit(100);
-  if (error) return 0;
-  const rows = (data ?? []) as { id: string; account_id: string; contact_id: string | null; status: string | null; custom_status_id: string | null; sla_due_at: string; owner_user_id: string | null }[];
+  if (error) return { flagged: 0, announced: 0 };
+  const rows = (data ?? []) as { id: string; account_id: string; contact_id: string | null; title: string | null; status: string | null; custom_status_id: string | null; sla_due_at: string; owner_user_id: string | null }[];
   const codes = new Map<string, string>();
   if (rows.some((r) => r.custom_status_id)) {
     const { data: cs } = await admin.from("custom_status").select("id, code").eq("tenant_id", tenantId).eq("entity_type", "leads");
     for (const c of cs ?? []) codes.set(c.id as string, c.code as string);
   }
-  let n = 0;
-  for (const r of rows) {
+  const overdue = rows.filter((r) => {
     const stored = r.custom_status_id ? codes.get(r.custom_status_id) : null;
     const stage = effectiveLeadStage({ status: r.status }, isLeadStageKey(stored) ? stored : null);
-    if (!isLeadOverdue(stage, r.sla_due_at, now)) continue;
+    return isLeadOverdue(stage, r.sla_due_at, now);
+  });
+
+  const choice = handoverOf(tenant.config).overdue_notify;
+  const told = choice.owner || choice.team_lead ? await leadsAlreadyAnnounced(admin, tenantId, overdue.map((r) => r.id)) : null;
+
+  let flagged = 0;
+  let announced = 0;
+  for (const r of overdue) {
     const ok = await emitEvent(tenantId, {
       name: EVENTS.LEAD_SLA_BREACHED, object_type: "lead", object_id: r.id, source: "runner",
       lead_id: r.id, account_id: r.account_id, contact_id: r.contact_id,
       key: `${r.id}:sla:${r.sla_due_at}`, payload: { due: r.sla_due_at, owner: r.owner_user_id },
     }, admin);
-    if (ok) n++;
+    if (ok) flagged++;
+    if (told && !told.has(r.id)) {
+      const n = await notifyLeadOverdue(admin, tenantId, {
+        lead: r, features: tenant.features, config: tenant.config,
+        teamLead: (accountId) => teamLeadForAccount(admin, tenantId, accountId, tenant.features),
+      });
+      if (n.written) { announced++; told.add(r.id); }
+    }
   }
-  return n;
+  return { flagged, announced };
 }
 
 export async function runLeadScoringPass(
@@ -124,7 +150,7 @@ export async function runLeadScoringPass(
   const started = clock();
   const budgetMs = opts.budgetMs ?? 40_000;
   const maxLeads = opts.maxLeadsPerTenant ?? 200;
-  const summary: RunSummary = { tenants_checked: 0, tenants_run: 0, leads_scored: 0, moved_to_ready: 0, overdue_flagged: 0, budget_exhausted: false, errors: 0 };
+  const summary: RunSummary = { tenants_checked: 0, tenants_run: 0, leads_scored: 0, moved_to_ready: 0, overdue_flagged: 0, overdue_announced: 0, leads_auto_created: 0, budget_exhausted: false, errors: 0 };
   const spent = () => clock() - started >= budgetMs;
 
   const { data: tenants, error } = await admin.from("tenants").select("id, features, config");
@@ -170,7 +196,15 @@ export async function runLeadScoringPass(
       // If the budget cut this workspace short, hold the bookmark so the
       // un-scored leads with events are found again next run.
       if (summary.budget_exhausted) cursor = prev?.event_cursor_at ?? null;
-      summary.overdue_flagged += await flagOverdue(admin, t.id, now);
+      // Leads that appear by themselves (off unless the workspace switched it on in Hand-over).
+      if (!summary.budget_exhausted && handoverOf(t.config).auto_create_leads) {
+        const made = await autoCreateLeads(admin, t.id, fresh.contactIds, { now, rubric, deps: opts.deps });
+        summary.leads_auto_created += made.created;
+        summary.moved_to_ready += made.moved_to_ready;
+      }
+      const overdue = await flagOverdue(admin, t, now);
+      summary.overdue_flagged += overdue.flagged;
+      summary.overdue_announced += overdue.announced;
     } catch (e) {
       summary.errors++;
       lastError = (e as { message?: string })?.message ?? "error";

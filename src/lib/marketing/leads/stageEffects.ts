@@ -22,7 +22,8 @@ type LeadForEffects = { id: string; account_id: string; contact_id?: string | nu
 
 async function writeLead(admin: SupabaseClient, tenantId: string, id: string, full: Record<string, unknown>, base: Record<string, unknown>) {
   const first = await admin.from("leads").update(full).eq("id", id).eq("tenant_id", tenantId);
-  if (first.error && isSchemaPending(first.error) && Object.keys(base).length > 0) {
+  // 23514: a check does not know a new value yet (0198's assignment reason); the lead still gets its clock and owner.
+  if (first.error && (isSchemaPending(first.error) || first.error.code === "23514") && Object.keys(base).length > 0) {
     await admin.from("leads").update(base).eq("id", id).eq("tenant_id", tenantId);
   }
 }
@@ -55,7 +56,7 @@ export async function applyStageEffects(
     const base: Record<string, unknown> = { sla_due_at: due.toISOString() };
     let reason: string | null = null;
     if (!ownerId) {
-      const pick = await pickOwnerForLead(admin, tenantId, lead, features);
+      const pick = await pickOwnerForLead(admin, tenantId, lead, features, { config });
       reason = pick.reason;
       ownerId = pick.owner_user_id;
       assignedNow = !!ownerId;

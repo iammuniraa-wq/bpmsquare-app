@@ -12,7 +12,7 @@ import NewLeadButton from "./NewLeadButton";
 import ConvertLeadButton from "./ConvertLeadButton";
 
 type LeadStatus = "new" | "inspecting" | "quoted" | "won" | "lost" | "converted";
-type LeadSource = "oem_referral" | "amc" | "direct" | "campaign";
+type LeadSource = "oem_referral" | "amc" | "direct" | "campaign" | "form" | "inbound";
 
 const STATUS_TONE: Record<LeadStatus, PillarKey> = {
   new: "blue", inspecting: "teal", quoted: "amber", won: "green", lost: "red", converted: "green",
@@ -21,7 +21,7 @@ const STATUS_LABEL: Record<LeadStatus, string> = {
   new: "New", inspecting: "Inspecting", quoted: "Quoted", won: "Won", lost: "Lost", converted: "Converted to deal",
 };
 const SOURCE_LABEL: Record<LeadSource, string> = {
-  oem_referral: "OEM Referral", amc: "AMC", direct: "Direct", campaign: "Campaign",
+  oem_referral: "OEM Referral", amc: "AMC", direct: "Direct", campaign: "Campaign", form: "Form", inbound: "Inbound",
 };
 
 const fmtDate = (s: string) =>
