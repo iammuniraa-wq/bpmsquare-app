@@ -263,3 +263,73 @@ the flag off nothing changes, so live clients keep today's screens):
   Settings, Integrations, with the flag on, lists "Integration middleware" first.
 - **Search for it in one place:** the settings search and Cmd+K "Integrations"
   both land on the middleware page.
+
+## Redesign after the first live test (6), owner 2026-10-21
+Owner: Mapping "didn't like it"; What goes out "is too detailed"; "what if the client
+wants the Quote created as an Order in the ERP"; "I see too much data that is not
+needed"; "be flexible". Rule for the whole page from now on: **a row says what it is and
+opens only on demand; never show a field the user did not ask for.**
+
+**Live-verified (Dynamics, 2026-10-21):** a Sales Order is one POST, like a quote:
+`salesorders` with `name`, `customerid_account@odata.bind`, `pricelevelid@odata.bind`,
+`transactioncurrencyid@odata.bind`, deep insert `order_details` (write-in lines:
+`productdescription`, `isproductoverridden: true`, `quantity`, `priceperunit`, no `uomid`),
+`Prefer: return=representation` returns `ordernumber` (e.g. `ORD-01000-Q3T6T0`) and
+`totalamount`; it is born Active (`statecode 0 / statuscode 1`), no win or close step.
+
+### What goes out: documents, not options
+The tab is a short list of **outbound documents**. Today one row: **Quote** (source: Standard
+Quote). A row shows only: name, where it goes in one line ("Awarded → Dynamics 365 Quote"),
+an on/off switch and a status dot. Click the row and a panel opens: **"What do you want to
+send?"** with exactly four things:
+1. **Send when**: two ticks, Awarded and Rejected; and **Automatically / Manually**.
+2. **Create in the ERP as**: a dropdown of what the connected system offers for this document
+   (Dynamics Sales: Quote, Sales Order; F&O: Project, Sales order; Business Central: Project,
+   Sales order; SAP and ePROMIS later). The default is per system (Dynamics Quote; ERPs Project).
+   Changing it swaps the mapping preset and the rejected behaviour (a Quote is closed as lost; an
+   Order or Project sends nothing for rejected, said in one grey line).
+3. **Include**: one plain checklist, only the items that make sense for the chosen target
+   (customer prices, summary text, drawing link, notes and terms, materials list, project tasks,
+   internal costs [off]); greyed items carry a three-word reason. Items map onto the existing
+   fence and estimate selections, one list for both sources.
+4. **Try it**: "Preview" and "Send a quote now" live inside this panel (the separate "Check a
+   quote" card goes). "Send a test quote" is in the row's menu.
+Nothing else is visible. "Add document" is a disabled chip for later (Invoice, Purchase order).
+
+**Contract (backend builds, UI consumes; the UI keeps it in `settings/middleware/api.ts`):**
+- `GET /api/middleware/documents` returns `{ documents: [{ key:"quote", label:"Quote",
+  source:"standard_quote", enabled, summary, target:{key,label}, targets:[{key,label,available,hint}],
+  when:{awarded,rejected}, mode:"auto"|"manual", rejectedNote, include:[{key,label,on,allowed,hint}] }] }`.
+- `PUT /api/middleware/documents/quote` with any of `{ enabled, target, when, mode, include:{key:boolean} }`
+  returns the same document; 422 with `errors[{field,message}]`. The old `/rules` route keeps working
+  and reads and writes the same stored data (compat), so nothing already live breaks.
+- Stored in `tenants.config.integration_middleware.documents.quote`; the reader migrates the old
+  `rules` + `fence` + `estimate` shape on read.
+- Targets are adapter capabilities: Dataverse `quote` and `sales_order` (verified above); F&O and
+  BC `project` and `sales_order` (sales_order is preset-only and flagged "not verified"); a target
+  with no preset reports `available:false` with a hint.
+- Set-up tick "What goes out" turns on only after the owner has saved the document panel once
+  (store `confirmed_at`), not because the defaults are on.
+
+### Mapping: two columns, one row per field
+Top of the tab: a compact selector "Quote → Dynamics Quote" (also lists the inbound entities:
+Customers, Contacts, Products, Projects). Under it two sections, **Header data** then **Lines**,
+each a plain table with exactly two columns: **BPMSquare field** | **ERP field**. One row per
+field. A cell shows the label and, smaller and muted, the technical name
+(`Reference · ref`, `Name · name`) and nothing else: no types, no required marks, no hints, no
+explanations. The ERP cell is a dropdown fed by the metadata endpoint (label and technical name,
+"Not sent" first). Composite standard mappings (for example the name built from ref and customer)
+show as one read-only row with a small "Standard" word until edited. Inbound entities use the same
+layout (BPMSquare field | ERP source field). One bar at the top appears only when a required ERP
+field is unmapped, naming it in plain words; "Reset to standard" is a text link. No cards, no
+tips per row (one InfoTip beside the title).
+- `GET /api/middleware/mapping?document=<quote|customers|contacts|products|projects>` returns
+  `{ document:{key,label,targetLabel}, sections:[{key:"header"|"lines",label,rows:[{id,bpm:{label,name},erp:{label,name}|null,standard:boolean,composite?:string}]}], erpFields:{header:[{label,name}],lines:[{label,name}]}, usingStandard, missingRequired:[string] }`.
+- `PUT /api/middleware/mapping` with `{ document, section, rows:[{id, erp:string|null}] }` saves; `POST /api/middleware/mapping/reset` with `{ document }`.
+- The stored map stays the existing `field = template` form; the API inverts it per row.
+
+### Fixes in the same round
+1. Check permissions must not report a false "no" (it said create and win quotes were not allowed when both work): fix the privilege lookup (application users are checked by their system user and role, not the signed-in person) or return `ok:null` "not checked, use Send a test quote".
+2. The id line on a link with no readable number shows the ERP record's own name or its entity ("Opportunity"), never BPMSquare's own ref under the ERP's name.
+3. Choosing price list and currency one right after the other must keep both (functional state updates in the Connections form).
+4. "What goes out" set-up tick as above.
