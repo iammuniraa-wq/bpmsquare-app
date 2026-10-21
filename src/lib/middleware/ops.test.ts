@@ -57,6 +57,7 @@ describe("Send a record", () => {
   it("dispatch states become plain answers", () => {
     expect(describeDispatch({ state: "sent", messageId: null, number: "QUO-1", link: "l" })).toMatchObject({ ok: true, number: "QUO-1" });
     expect(describeDispatch({ state: "already_sent", number: "QUO-1", link: null })).toMatchObject({ ok: true });
+    expect(describeDispatch({ state: "in_progress" })).toMatchObject({ ok: true, message: expect.stringMatching(/already being sent/) });
     expect(describeDispatch({ state: "failed", messageId: null, headline: "h", fix: "f" })).toEqual({ ok: false, status: 422, headline: "h", fix: "f" });
     expect(describeDispatch({ state: "needs_database_update" })).toMatchObject({ ok: false, needsDatabaseUpdate: true });
     expect(describeDispatch({ state: "not_found" })).toMatchObject({ ok: false, status: 404 });

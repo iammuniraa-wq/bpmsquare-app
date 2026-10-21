@@ -7,8 +7,9 @@ import { isSchemaPending } from "@/lib/marketing/pending";
 import { OUTCOMES, type Outcome } from "@/lib/middleware/types";
 
 // POST { message_id } -- retry a failed (or waiting) outbound quote message.
-// Safe to repeat: the engine finds the ERP quote through the stored link and
-// continues from where it stopped, so a second press never makes a twin.
+// Safe to repeat, even twice at once: the engine claims the quote before it calls the ERP (a
+// second send meanwhile does nothing), and once the ERP document exists the claim holds its id,
+// so this continues from where it stopped and never makes a twin.
 // -> { ok, message, number?, link? }  or  { ok:false, headline, fix }
 export const maxDuration = 120;
 

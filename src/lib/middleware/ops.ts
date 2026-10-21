@@ -247,6 +247,7 @@ export function describeDispatch(r: DispatchResult): SendRecordResult {
     case "sent": return { ok: true, message: r.number ? `Sent. The ERP number is ${r.number}.` : "Sent.", number: r.number, link: r.link };
     case "already_sent": return { ok: true, message: r.number ? `Already in the ERP as ${r.number}. Nothing was sent twice.` : "Already in the ERP. Nothing was sent twice.", number: r.number, link: r.link };
     case "waiting": return { ok: true, message: "Waiting for you to send it." };
+    case "in_progress": return { ok: true, message: "This quote is already being sent. Nothing was sent twice." };
     case "skipped": return { ok: true, message: r.headline };
     case "failed": return { ok: false, status: 422, headline: r.headline, fix: r.fix };
     case "needs_database_update": return { ok: false, status: 200, headline: "A database update is needed first.", fix: `Run ${SQL_BUNDLES.middleware} once.`, needsDatabaseUpdate: true };

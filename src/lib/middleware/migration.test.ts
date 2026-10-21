@@ -17,13 +17,18 @@ describe("migration 0201: integration_messages", () => {
     expect(sql).toMatch(/status\s+text not null check \(status in \('ok', 'failed', 'pending', 'skipped', 'redirected'\)\)/);
   });
 
-  it("enables RLS in the same migration, SELECT for admins of the tenant only, no member write policy", () => {
+  it("enables RLS in the same migration and creates NO policy: only the service role reaches the table", () => {
     expect(sql).toMatch(/alter table integration_messages enable row level security/);
-    const policies = [...sql.matchAll(/create policy "([^"]+)" on integration_messages for (\w+)/g)];
-    expect(policies).toHaveLength(1);
-    expect(policies[0][2]).toBe("select");
-    expect(sql).toMatch(/user_id = auth\.uid\(\) and role = 'admin'/);
-    expect(sql).not.toMatch(/for (all|insert|update|delete)/);
+    expect([...sql.matchAll(/create policy "([^"]+)" on integration_messages/g)]).toHaveLength(0);
+    expect(sql).not.toMatch(/for (all|select|insert|update|delete)/);
+    expect(sql).toMatch(/drop policy if exists "integration_messages: admin read"/);
+  });
+
+  it("adds the one-send-per-quote index on connector_links, partial and scoped to the middleware's own rows, skipped if the table is absent", () => {
+    expect(sql).toMatch(/to_regclass\('public\.connector_links'\) is null/);
+    expect(sql).toContain("create unique index if not exists connector_links_quote_claim_idx");
+    expect(sql).toContain("on connector_links (tenant_id, connector_id, entity, object_id)");
+    expect(sql).toMatch(/where direction = ''push'' and entity = ''standard_quotes''/);
   });
 
   it("indexes (tenant_id, created_at desc) and (tenant_id, status, created_at desc)", () => {

@@ -4,9 +4,9 @@ import { isSchemaPending } from "@/lib/marketing/pending";
 import { redactPayload, redactText } from "./redact";
 import type { MessageChannel, MessageDirection, StoredStatus } from "./types";
 
-// The writer of integration_messages (0201). The table has admin-select-only
-// RLS and no write policy, so every write is the service-role client, from
-// server code, after the thing it describes already happened. Nothing here
+// The writer of integration_messages (0201). The table has RLS and no policy at
+// all, so every read and write is the service-role client, from server code,
+// after the thing it describes already happened. Nothing here
 // ever throws into the caller: a message that cannot be recorded must not fail
 // a save, a sync or an API response.
 
@@ -148,4 +148,19 @@ export const MESSAGE_RETENTION_DAYS = 30;
 export async function pruneMessages(admin: SupabaseClient, tenantId: string, nowMs: number = Date.now()): Promise<void> {
   const cutoff = new Date(nowMs - MESSAGE_RETENTION_DAYS * 86_400_000).toISOString();
   await admin.from(MESSAGES_TABLE).delete().eq("tenant_id", tenantId).lt("created_at", cutoff);
+}
+
+/** Prune every workspace, not only those that have the flag now: a flag switched off must not leave
+ *  captured payloads behind for good. Each delete still names its own tenant. Returns how many were visited. */
+export async function pruneAllTenants(admin: SupabaseClient, nowMs: number = Date.now()): Promise<number> {
+  const PAGE = 500;
+  let visited = 0;
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await admin.from("tenants").select("id").order("id").range(from, from + PAGE - 1);
+    if (error) throw new Error(error.message);
+    const ids = ((data ?? []) as { id: string }[]).map((t) => t.id);
+    for (const id of ids) await pruneMessages(admin, id, nowMs);
+    visited += ids.length;
+    if (ids.length < PAGE) return visited;
+  }
 }

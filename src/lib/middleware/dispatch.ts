@@ -1,4 +1,5 @@
 import "server-only";
+import { randomUUID } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { tenantOrigin, type TenantConfig, type TenantFeatures } from "@/lib/constants";
 import { logChangeBatch } from "@/lib/changeLog";
@@ -27,8 +28,9 @@ import { outcomeForStatus, STATUS_FOR_OUTCOME, type IntegrationMiddlewareConfig,
 // it -- every outcome, good or bad, becomes an integration_messages row, and a
 // failure is retried from the Resync tab. One BPMSquare quote is one ERP
 // document, found again through connector_links (and, if that link was lost,
-// through the ref in the ERP document's name), so a second dispatch never makes
-// a twin.
+// through the quote-id marker written into the ERP document), and claimed
+// before the first ERP call, so a second or overlapping dispatch never makes a
+// twin.
 
 export type DispatchTrigger = "auto" | "manual" | "retry" | "send_now";
 
@@ -37,6 +39,8 @@ export type DispatchResult =
   | { state: "not_found" }
   | { state: "needs_database_update" }
   | { state: "waiting"; messageId: string | null }
+  /** Another send of this same quote holds the claim: nothing was done here. */
+  | { state: "in_progress" }
   | { state: "sent"; messageId: string | null; number: string | null; link: string | null }
   | { state: "already_sent"; number: string | null; link: string | null }
   | { state: "skipped"; messageId: string | null; headline: string }
@@ -49,28 +53,93 @@ async function loadTenant(admin: SupabaseClient, tenantId: string): Promise<Tena
   return (data as TenantRow | null) ?? null;
 }
 
-type Link = { id?: string; external_id: string; external_key: string | null };
+type Link = { id?: string; external_id: string; external_key: string | null; synced_at?: string | null };
 
 async function findLink(admin: SupabaseClient, tenantId: string, entity: string, objectId: string): Promise<Link | null> {
-  const { data } = await admin.from("connector_links").select("id, external_id, external_key").eq("tenant_id", tenantId).eq("connector_id", CONNECTOR_ID)
+  const { data } = await admin.from("connector_links").select("id, external_id, external_key, synced_at").eq("tenant_id", tenantId).eq("connector_id", CONNECTOR_ID)
     .eq("entity", entity).eq("object_id", objectId).limit(1).maybeSingle();
   return (data as Link | null) ?? null;
 }
 
-async function saveQuoteLink(admin: SupabaseClient, tenantId: string, quoteId: string, externalId: string, key: string | null): Promise<void> {
-  const existing = await findLink(admin, tenantId, "standard_quotes", quoteId);
-  if (existing) {
-    await admin.from("connector_links").update({ external_id: externalId, external_key: key, synced_at: new Date().toISOString() })
-      .eq("tenant_id", tenantId).eq("connector_id", CONNECTOR_ID).eq("entity", "standard_quotes").eq("object_id", quoteId);
-    return;
+// ── The per-document claim ──────────────────────────────────────────────────
+// One BPMSquare quote becomes one ERP document, even when two sends overlap (the
+// automatic send after the save plus an admin's Send now, or two Retry presses).
+// Before any ERP call the dispatcher INSERTS the quote's connector_links row with
+// external_id "pending:<uuid>"; a unique partial index (migration 0201) lets only
+// one insert win, and the loser does nothing. The winner replaces the placeholder
+// with the ERP's id as soon as the document exists. A failure before the ERP made
+// anything deletes the claim, so Retry works; a failure after keeps it, holding
+// the ERP id, so Retry resumes from that document instead of making a twin.
+
+const PENDING_PREFIX = "pending:";
+const isPending = (externalId: string) => externalId.startsWith(PENDING_PREFIX);
+/** A send that died before reaching the ERP leaves its claim behind (the routes stop at 120 s);
+ *  after this long a later send may take it over. */
+const CLAIM_STALE_MS = 10 * 60_000;
+
+type Claim = {
+  /** The placeholder this send holds, until the ERP document exists and its id is recorded. */
+  pendingId: string | null;
+  /** The ERP document is known to exist (or may exist): the claim must never be deleted. */
+  keep: boolean;
+  /** A real link from an earlier send: resume from it. */
+  existing: Link | null;
+};
+
+const linkKey = (tenantId: string, quoteId: string) => ({ tenant_id: tenantId, connector_id: CONNECTOR_ID, entity: "standard_quotes", object_id: quoteId });
+
+async function acquireClaim(admin: SupabaseClient, tenantId: string, quoteId: string): Promise<{ busy: true } | { busy: false; claim: Claim }> {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const found = await findLink(admin, tenantId, "standard_quotes", quoteId);
+    if (found && !isPending(found.external_id)) return { busy: false, claim: { pendingId: null, keep: false, existing: found } };
+    const pendingId = `${PENDING_PREFIX}${randomUUID()}`;
+    const now = new Date().toISOString();
+    if (!found) {
+      const { error } = await admin.from("connector_links").insert({
+        ...linkKey(tenantId, quoteId), object_type: "standard_quotes", external_id: pendingId, external_key: null, direction: "push", synced_at: now,
+      });
+      if (!error) return { busy: false, claim: { pendingId, keep: false, existing: null } };
+      if (error.code !== "23505") throw new Error(`could not start the send (${error.message})`);
+      continue;
+    }
+    // Someone else's claim is there. It is theirs unless it has gone stale; taking it over is a
+    // compare-and-swap on its placeholder, so only one waiting send can win it.
+    const age = Date.now() - Date.parse(found.synced_at ?? "");
+    if (!(age > CLAIM_STALE_MS)) return { busy: true };
+    const { data } = await admin.from("connector_links").update({ external_id: pendingId, synced_at: now })
+      .eq("tenant_id", tenantId).eq("connector_id", CONNECTOR_ID).eq("entity", "standard_quotes").eq("object_id", quoteId).eq("external_id", found.external_id).select("id");
+    if ((data as unknown[] | null)?.length) return { busy: false, claim: { pendingId, keep: false, existing: null } };
   }
-  const row = {
-    tenant_id: tenantId, connector_id: CONNECTOR_ID, entity: "standard_quotes", object_type: "standard_quotes", object_id: quoteId,
-    external_id: externalId, external_key: key, direction: "push",
-  };
-  let { error } = await admin.from("connector_links").insert(row);
-  if (error) ({ error } = await admin.from("connector_links").insert(row));
-  if (error) throw new Error(`created in the ERP but could not be recorded (${error.message}) — do not send it again`);
+  return { busy: true };
+}
+
+/** Put the ERP's id and readable number on the quote's link. Returns the error text, or null. */
+async function writeQuoteLink(admin: SupabaseClient, tenantId: string, quoteId: string, externalId: string, key: string | null): Promise<string | null> {
+  const patch = { external_id: externalId, external_key: key, synced_at: new Date().toISOString() };
+  const { data, error } = await admin.from("connector_links").update(patch)
+    .eq("tenant_id", tenantId).eq("connector_id", CONNECTOR_ID).eq("entity", "standard_quotes").eq("object_id", quoteId).select("id");
+  if (error) return error.message;
+  if ((data as unknown[] | null)?.length) return null;
+  // The link was removed since (someone unlinked it): write it again.
+  const ins = await admin.from("connector_links").insert({ ...linkKey(tenantId, quoteId), object_type: "standard_quotes", direction: "push", ...patch });
+  return ins.error ? ins.error.message : null;
+}
+
+async function recordLink(c: Ctx, externalId: string, key: string | null): Promise<void> {
+  if (!c.quoteId) return;
+  let err = await writeQuoteLink(c.admin, c.tenantId, c.quoteId, externalId, key);
+  if (err) err = await writeQuoteLink(c.admin, c.tenantId, c.quoteId, externalId, key);
+  if (err) throw new Error(`created in the ERP but could not be recorded (${err}) — do not send it again`);
+  if (c.claim) c.claim.pendingId = null;
+}
+
+/** A failure before the ERP made anything: give the claim back so Retry can send. */
+async function releaseClaim(c: Ctx): Promise<void> {
+  const cl = c.claim;
+  if (!c.quoteId || !cl?.pendingId || cl.keep) return;
+  // If this delete fails the placeholder simply goes stale and a later send takes it over.
+  await c.admin.from("connector_links").delete().eq("tenant_id", c.tenantId).eq("connector_id", CONNECTOR_ID).eq("entity", "standard_quotes")
+    .eq("object_id", c.quoteId).eq("external_id", cl.pendingId);
 }
 
 /** The ERP's own id for a customer, from the link a customer sync made. */
@@ -140,7 +209,7 @@ function buildQuoteForErp(source: QuoteSource, outcome: Outcome, accountExternal
   }
   return {
     qfe: {
-      ref: q.ref, title, customer_name: source.accountName, account_external_id: accountExternalId, description, lines,
+      ref: q.ref, doc_id: q.id, title, customer_name: source.accountName, account_external_id: accountExternalId, description, lines,
       subtotal: q.subtotal, total: q.total, valid_until: q.valid_until, outcome,
     },
     est, included, refused,
@@ -222,6 +291,8 @@ export async function previewQuoteOutcome(admin: SupabaseClient, tenantId: strin
 type Ctx = {
   admin: SupabaseClient; tenantId: string; quoteId: string | null; userId: string | null; trigger: DispatchTrigger;
   prep: Prepared; http: ErpHttp; t0: number; test: boolean; capture: boolean;
+  /** Held from just before the first ERP call; absent for the test quote, which has no BPMSquare record. */
+  claim?: Claim | null;
 };
 
 function failureMessage(c: Ctx, headline: string, fix: string, raw: string | null, status: number | null, extra: Record<string, unknown> = {}) {
@@ -252,9 +323,15 @@ async function runSend(c: Ctx): Promise<DispatchResult> {
   }
 
   try {
+    if (c.quoteId) {
+      const got = await acquireClaim(c.admin, c.tenantId, c.quoteId);
+      if (got.busy) return { state: "in_progress" };
+      c.claim = got.claim;
+    }
     if (product === "dataverse") return await sendQuote(c);
     return await sendProject(c);
   } catch (e) {
+    await releaseClaim(c);
     const x = e as { status?: number; message?: string; step?: string };
     const f = plainFailure(x, x.step);
     const r = await failureMessage(c, f.headline, f.fix, x.message ?? null, x.status ?? null, x.step ? { step: x.step } : {});
@@ -285,13 +362,17 @@ async function finish(c: Ctx, a: { number: string | null; erpId: string; link: s
 
 async function sendQuote(c: Ctx): Promise<DispatchResult> {
   const { prep } = c;
-  const existing = c.quoteId ? await findLink(c.admin, c.tenantId, "standard_quotes", c.quoteId) : null;
+  const existing = c.claim?.existing ?? null;
   const res = await sendDataverseQuote(c.http, {
-    ref: prep.qfe.ref, outcome: prep.outcome, existingId: existing?.external_id ?? null, create: prep.body!,
-    onCreated: async (s: DataverseQuoteState) => { if (c.quoteId) await saveQuoteLink(c.admin, c.tenantId, c.quoteId, s.quoteId, s.quoteNumber); },
+    ref: prep.qfe.ref, docId: c.quoteId, outcome: prep.outcome, existingId: existing?.external_id ?? null, create: prep.body!,
+    onCreated: async (s: DataverseQuoteState) => {
+      // The quote exists in the ERP from here on: whatever happens next, the claim stays.
+      if (c.claim) c.claim.keep = true;
+      await recordLink(c, s.quoteId, s.quoteNumber);
+    },
   });
   const link = erpDeepLink(prep.cfg, "quote", res.quoteId);
-  if (c.quoteId) await saveQuoteLink(c.admin, c.tenantId, c.quoteId, res.quoteId, res.quoteNumber);
+  await recordLink(c, res.quoteId, res.quoteNumber);
   if (res.alreadyDone) {
     if (c.quoteId) await resolveEarlier(c.admin, c.tenantId, c.quoteId, prep.outcome, null);
     return { state: "already_sent", number: res.quoteNumber, link };
@@ -302,7 +383,7 @@ async function sendQuote(c: Ctx): Promise<DispatchResult> {
 async function sendProject(c: Ctx): Promise<DispatchResult> {
   const { prep } = c;
   const proj = prep.project!;
-  const existing = c.quoteId ? await findLink(c.admin, c.tenantId, "standard_quotes", c.quoteId) : null;
+  const existing = c.claim?.existing ?? null;
   if (existing) {
     if (c.quoteId) await resolveEarlier(c.admin, c.tenantId, c.quoteId, prep.outcome, null);
     return { state: "already_sent", number: existing.external_key, link: null };
@@ -313,12 +394,14 @@ async function sendProject(c: Ctx): Promise<DispatchResult> {
   } catch (e) {
     throw new ErpStepError("create", (e as { status?: number }).status ?? 0, (e as Error).message);
   }
+  // The project exists in the ERP from here on, whether or not we can read its id back or save it.
+  if (c.claim) c.claim.keep = true;
   const row = created.row;
   const raw = row[proj.id_field] ?? row.id ?? created.entityId;
   if (raw === undefined || raw === null || raw === "") throw new ErpStepError("create", 0, "The ERP did not return the new project's id");
   const key = String(row.ProjectID ?? row.number ?? row.ProjectId ?? row[proj.id_field] ?? raw);
   const warnings: string[] = [];
-  if (c.quoteId) await saveQuoteLink(c.admin, c.tenantId, c.quoteId, String(raw), key);
+  await recordLink(c, String(raw), key);
 
   const children: [string, Row[] | null, { entity_set: string; link_field?: string } | null][] = [
     ["Project tasks", proj.tasks, proj.taskTarget], ["Bill of materials lines", proj.bom, proj.bomTarget],

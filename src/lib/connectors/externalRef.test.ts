@@ -63,6 +63,14 @@ describe("externalRefsFor: what the line reads", () => {
   });
 });
 
+describe("externalRefsFor: a send still in flight", () => {
+  it("never shows a pending claim as a linked ERP record", async () => {
+    const admin = db([link({ object_type: "standard_quotes", object_id: "q-1", entity: "standard_quotes", direction: "push", external_id: "pending:11111111-1111-4111-8111-111111111111" })],
+      { standard_quotes: [{ id: "q-1", tenant_id: TENANT, ref: "SQ-0007" }] });
+    expect(await externalRefsForOne(admin, TENANT, "standard_quotes", "q-1")).toEqual([]);
+  });
+});
+
 describe("externalRefsFor: tenant isolation and missing tables", () => {
   it("does not return another tenant's link or use another tenant's name", async () => {
     const admin = db(

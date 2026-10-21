@@ -89,8 +89,30 @@ export function netRate(l: Pick<OutLine, "rate" | "discount_pct" | "qty" | "amou
   return money(l.rate);
 }
 
+/** The line that ties an ERP document to the one BPMSquare quote it came from.
+ *  Refs (SQ-0003) repeat between workspaces that share one ERP environment; the
+ *  quote's own id does not, so a "find it again" matches on this and never on the ref alone. */
+export function bpmMarker(docId: string): string {
+  return `[bpmsquare:${docId}]`;
+}
+
+/** True when `text` carries exactly this document's marker, as a whole token. */
+export function hasMarker(text: unknown, docId: string): boolean {
+  return typeof text === "string" && text.split(/\s+/).includes(bpmMarker(docId));
+}
+
+/** `text` with the marker as its last line, trimmed to fit `max` characters without losing the marker. */
+export function withMarker(text: string | null | undefined, docId: string, max = 2000): string {
+  const marker = bpmMarker(docId);
+  const room = Math.max(0, max - marker.length - 1);
+  const body = (text ?? "").trimEnd().slice(0, room);
+  return body ? `${body}\n${marker}` : marker;
+}
+
 export type QuoteForErp = {
   ref: string;
+  /** The BPMSquare quote's id; written into the ERP document as a quiet marker. Absent for the test quote. */
+  doc_id?: string | null;
   /** Short name of the work, without the ref. */
   title: string;
   customer_name: string;
@@ -127,6 +149,7 @@ export function buildDataverseQuote(
     total: money(q.total), subtotal: money(q.subtotal), valid_until: q.valid_until, outcome: q.outcome,
   };
   const body: Record<string, unknown> = renderMap(maps.quote, vars);
+  if (q.doc_id) body.description = withMarker(typeof body.description === "string" ? body.description : "", q.doc_id);
   // The ref stays visible in the ERP whatever the map says.
   const name = typeof body.name === "string" && body.name.trim() ? body.name : title;
   body.name = name.startsWith(q.ref) ? name : `${q.ref} · ${name}`.slice(0, 300);
@@ -187,7 +210,8 @@ export function buildProjectBody(
   const summary = q.description[0] ?? "";
   const vars: Record<string, Primitive> = {
     name, ref: q.ref, title: q.title, customer_name: q.customer_name, account_external_id: q.account_external_id,
-    description: q.description.join("\n").slice(0, 2000) || null, summary: summary || null, total: money(q.total), status: extra.status, outcome: q.outcome,
+    description: q.doc_id ? withMarker(q.description.join("\n"), q.doc_id) : q.description.join("\n").slice(0, 2000) || null,
+    summary: summary || null, total: money(q.total), status: extra.status, outcome: q.outcome,
   };
   const body = renderMap(project.field_map, vars);
   if (!Object.keys(body).length) problems.push({ code: "empty_project_map", message: "The project map produced nothing to send.", fix: "Open Mapping and check the project fields." });

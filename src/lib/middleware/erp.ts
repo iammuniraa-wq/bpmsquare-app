@@ -1,4 +1,4 @@
-import { ACTIVATE_BODY, closeActionBody } from "./payload";
+import { ACTIVATE_BODY, closeActionBody, hasMarker } from "./payload";
 import type { Outcome } from "./types";
 
 // The Dataverse quote lifecycle as a resumable sequence of small steps, over a
@@ -37,6 +37,7 @@ export type DataverseQuoteState = {
   statuscode: number | null;
   total: number | null;
   name: string | null;
+  description: string | null;
 };
 
 function toState(row: Record<string, unknown>): DataverseQuoteState | null {
@@ -49,10 +50,11 @@ function toState(row: Record<string, unknown>): DataverseQuoteState | null {
     statuscode: typeof row.statuscode === "number" ? row.statuscode : null,
     total: typeof row.totalamount === "number" ? row.totalamount : null,
     name: typeof row.name === "string" ? row.name : null,
+    description: typeof row.description === "string" ? row.description : null,
   };
 }
 
-const STATE_SELECT = "quoteid,quotenumber,statecode,statuscode,totalamount,name";
+const STATE_SELECT = "quoteid,quotenumber,statecode,statuscode,totalamount,name,description";
 
 export async function getQuoteState(http: ErpHttp, quoteId: string): Promise<DataverseQuoteState | null> {
   try {
@@ -64,13 +66,16 @@ export async function getQuoteState(http: ErpHttp, quoteId: string): Promise<Dat
   }
 }
 
-/** A quote already made for this BPMSquare ref (its name starts with the ref).
- *  Catches the case where Dataverse took the quote but our link was not saved. */
-export async function findQuoteByRef(http: ErpHttp, ref: string): Promise<DataverseQuoteState | null> {
+/** The quote this BPMSquare quote already is in Dataverse, found again by the marker
+ *  written into its description (the quote's own id). Catches the case where Dataverse
+ *  took the quote but our link was not saved. The ref only narrows the search: two
+ *  workspaces sharing one Dataverse environment can both own an SQ-0003, and adopting
+ *  the other's quote would close the wrong customer's document. */
+export async function findQuoteByRef(http: ErpHttp, ref: string, docId: string): Promise<DataverseQuoteState | null> {
   const safe = ref.replace(/'/g, "''");
   try {
-    const page = (await http.get("quotes", { $select: STATE_SELECT, $filter: `startswith(name,'${safe} ')`, $top: "1" })) as { value?: Record<string, unknown>[] } | null;
-    const row = page?.value?.[0];
+    const page = (await http.get("quotes", { $select: STATE_SELECT, $filter: `startswith(name,'${safe} ')`, $top: "50" })) as { value?: Record<string, unknown>[] } | null;
+    const row = (page?.value ?? []).find((r) => hasMarker(r.description, docId));
     return row ? toState(row) : null;
   } catch (e) {
     throw asStepError("find", e);
@@ -99,7 +104,7 @@ export type SendResult = {
  */
 export async function sendDataverseQuote(
   http: ErpHttp,
-  a: { ref: string; outcome: Outcome; existingId: string | null; create: Record<string, unknown>; onCreated: (s: DataverseQuoteState) => Promise<void> },
+  a: { ref: string; /** the BPMSquare quote id behind the marker; null = nothing can be adopted (the test quote) */ docId: string | null; outcome: Outcome; existingId: string | null; create: Record<string, unknown>; onCreated: (s: DataverseQuoteState) => Promise<void> },
 ): Promise<SendResult> {
   const steps: string[] = [];
   let state: DataverseQuoteState | null = null;
@@ -109,8 +114,8 @@ export async function sendDataverseQuote(
     state = await getQuoteState(http, a.existingId);
     if (state) steps.push("Found the quote already in Dynamics.");
   }
-  if (!state) {
-    state = await findQuoteByRef(http, a.ref);
+  if (!state && a.docId) {
+    state = await findQuoteByRef(http, a.ref, a.docId);
     if (state) {
       steps.push("Found the quote already in Dynamics.");
       await a.onCreated(state);

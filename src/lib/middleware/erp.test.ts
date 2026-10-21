@@ -4,12 +4,14 @@ import { FakeDataverse } from "./fakeDataverse";
 import { buildDataverseQuote } from "./payload";
 import { D365_OUTBOUND_PRESETS } from "@/lib/connectors/d365/catalog";
 
+const DOC = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+const OTHER_DOC = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
 const q = {
-  ref: "SQ-0001", title: "Fence", customer_name: "A. Datum", account_external_id: "acc-guid", description: ["d"], subtotal: 30, total: 30, valid_until: null, outcome: "awarded" as const,
+  ref: "SQ-0001", doc_id: DOC, title: "Fence", customer_name: "A. Datum", account_external_id: "acc-guid", description: ["d"], subtotal: 30, total: 30, valid_until: null, outcome: "awarded" as const,
   lines: [{ sl_no: "1", description: "Post", uom: null, qty: 2, rate: 10, discount_pct: 0, amount: 20 }, { sl_no: "2", description: "Gate", uom: null, qty: 1, rate: 10, discount_pct: 0, amount: 10 }],
 };
 const create = () => buildDataverseQuote(q, { price_list_id: "pl", currency_id: "cur" }, { quote: D365_OUTBOUND_PRESETS.dataverse.quote.field_map, quote_line: D365_OUTBOUND_PRESETS.dataverse.quote_line.field_map }).body;
-const base = { ref: "SQ-0001", existingId: null as string | null, create: create(), onCreated: async () => {} };
+const base = { ref: "SQ-0001", docId: DOC as string | null, existingId: null as string | null, create: create(), onCreated: async () => {} };
 
 describe("Dataverse quote lifecycle", () => {
   it("awarded: creates (Draft), activates, then WinQuote -> Won, with the sum checked", async () => {
@@ -76,7 +78,7 @@ describe("Dataverse quote lifecycle", () => {
     expect(dv.calls.slice(before).every((c) => c.method === "GET")).toBe(true);
   });
 
-  it("adopts a quote found by its ref when the link was lost, instead of making a twin", async () => {
+  it("adopts a quote found by its marker when the link was lost, instead of making a twin", async () => {
     const dv = new FakeDataverse();
     await dv.create("quotes", create());
     const r = await sendDataverseQuote(dv, { ...base, outcome: "awarded", existingId: null });
@@ -120,11 +122,59 @@ describe("Dataverse quote lifecycle", () => {
     await expect(sendDataverseQuote(dv, { ...base, outcome: "awarded", create: body })).rejects.toMatchObject({ step: "create", status: 400 });
   });
 
-  it("finds by ref prefix and reads a state", async () => {
+  it("finds by ref AND marker, and reads a state", async () => {
     const dv = new FakeDataverse();
     await dv.create("quotes", create());
-    expect((await findQuoteByRef(dv, "SQ-0001"))?.statecode).toBe(0);
-    expect(await findQuoteByRef(dv, "SQ-0002")).toBeNull();
+    expect((await findQuoteByRef(dv, "SQ-0001", DOC))?.statecode).toBe(0);
+    expect(await findQuoteByRef(dv, "SQ-0002", DOC)).toBeNull();
     expect(await getQuoteState(dv, "nope")).toBeNull();
+  });
+});
+
+describe("another workspace's quote with the same ref is never adopted (shared Dataverse environment)", () => {
+  // Two BPMSquare workspaces (a dev one and a production demo) can both own an SQ-0001 and both
+  // point at one Dynamics environment. Only the marker (the quote's own id) tells them apart.
+  const otherCreate = () => buildDataverseQuote({ ...q, doc_id: OTHER_DOC }, { price_list_id: "pl", currency_id: "cur" }, { quote: D365_OUTBOUND_PRESETS.dataverse.quote.field_map, quote_line: D365_OUTBOUND_PRESETS.dataverse.quote_line.field_map }).body;
+
+  it("writes the marker as the last line of the description, whatever the map", () => {
+    const body = create();
+    expect(String(body.description).split("\n").pop()).toBe(`[bpmsquare:${DOC}]`);
+    const noDescription = buildDataverseQuote(q, { price_list_id: "pl", currency_id: "cur" }, { quote: { name: "{name}" }, quote_line: D365_OUTBOUND_PRESETS.dataverse.quote_line.field_map }).body;
+    expect(noDescription.description).toBe(`[bpmsquare:${DOC}]`);
+    const long = buildDataverseQuote({ ...q, description: ["x".repeat(5000)] }, { price_list_id: "pl", currency_id: "cur" }, { quote: D365_OUTBOUND_PRESETS.dataverse.quote.field_map, quote_line: D365_OUTBOUND_PRESETS.dataverse.quote_line.field_map }).body;
+    expect(String(long.description).length).toBeLessThanOrEqual(2000);
+    expect(String(long.description).endsWith(`[bpmsquare:${DOC}]`)).toBe(true);
+  });
+
+  it("a tenant whose ref matches but whose marker differs creates its own quote and leaves the other alone", async () => {
+    const dv = new FakeDataverse();
+    await dv.create("quotes", otherCreate());
+    await sendDataverseQuote(dv, { ...base, outcome: "awarded" });
+    expect(dv.quotes).toHaveLength(2);
+    const [theirs, mine] = dv.quotes;
+    expect(theirs.statecode).toBe(0);
+    expect(mine.statecode).toBe(2);
+    expect(String(mine.body.description)).toContain(`[bpmsquare:${DOC}]`);
+  });
+
+  it("rejecting SQ-0001 in one workspace does not close the other workspace's SQ-0001", async () => {
+    const dv = new FakeDataverse();
+    await sendDataverseQuote(dv, { ...base, docId: OTHER_DOC, create: otherCreate(), outcome: "awarded" });
+    await sendDataverseQuote(dv, { ...base, outcome: "rejected" });
+    expect(dv.quotes).toHaveLength(2);
+    expect(dv.quotes[0]).toMatchObject({ statecode: 2 });
+    expect(dv.quotes[1]).toMatchObject({ statecode: 3 });
+  });
+
+  it("only a whole marker token matches, and nothing is adopted without a marker to match", async () => {
+    const dv = new FakeDataverse();
+    const body = create();
+    body.description = `${DOC} [bpmsquare:${DOC}x]`;
+    await dv.create("quotes", body);
+    expect(await findQuoteByRef(dv, "SQ-0001", DOC)).toBeNull();
+    const dv2 = new FakeDataverse();
+    await dv2.create("quotes", create());
+    await sendDataverseQuote(dv2, { ...base, docId: null, outcome: "awarded" });
+    expect(dv2.quotes).toHaveLength(2);
   });
 });

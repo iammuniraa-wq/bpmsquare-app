@@ -25,6 +25,8 @@ export class FakeDataverse implements ErpHttp {
   calls: Call[] = [];
   /** Throw this once when the named step is reached. */
   failOnce: Partial<Record<"create" | "activate" | "WinQuote" | "CloseQuote" | "get", { status: number; message: string }>> = {};
+  /** Wait this long (ms) inside every create, so two dispatches overlap the way they do on a real network. */
+  createDelayMs = 0;
   /** Extra read-only data: entity set -> rows, for list calls. */
   data: Record<string, Record<string, unknown>[]> = {};
   private n = 0;
@@ -56,11 +58,15 @@ export class FakeDataverse implements ErpHttp {
   }
 
   private view(q: FakeQuote) {
-    return { quoteid: q.quoteid, quotenumber: q.quotenumber, name: q.name, statecode: q.statecode, statuscode: q.statuscode, totalamount: q.totalamount };
+    return {
+      quoteid: q.quoteid, quotenumber: q.quotenumber, name: q.name, statecode: q.statecode, statuscode: q.statuscode, totalamount: q.totalamount,
+      description: typeof q.body.description === "string" ? q.body.description : null,
+    };
   }
 
   async create(entitySet: string, body: Record<string, unknown>) {
     this.calls.push({ method: "POST", path: entitySet, body });
+    if (this.createDelayMs) await new Promise((r) => setTimeout(r, this.createDelayMs));
     if (entitySet !== "quotes") {
       this.data[entitySet] ??= [];
       const row = { id: `rec-${++this.n}`, ...body };

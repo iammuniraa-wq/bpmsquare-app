@@ -141,7 +141,9 @@ export async function externalRefsFor(
       .eq("tenant_id", tenantId).eq("object_type", objectType).in("object_id", ids)
       .order("created_at", { ascending: true });
     if (error || !links?.length) return {};
-    const rows = links as unknown as LinkRow[];
+    // A "pending:" id is the middleware's claim on a send in flight: nothing exists in the ERP yet.
+    const rows = (links as unknown as LinkRow[]).filter((l) => !l.external_id.startsWith("pending:"));
+    if (!rows.length) return {};
 
     const connectorIds = [...new Set(rows.map((l) => l.connector_id))].filter((id) => DEEP_LINK[id]);
     const configs: Record<string, unknown> = {};

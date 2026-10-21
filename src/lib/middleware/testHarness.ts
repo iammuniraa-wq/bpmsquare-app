@@ -45,7 +45,7 @@ function cond(p: string): (r: Row) => boolean {
   };
 }
 
-export function fakeAdmin(seed: Record<string, Row[]> = {}, opts: { missing?: string[]; failInsert?: (table: string, row: Row) => DbError } = {}) {
+export function fakeAdmin(seed: Record<string, Row[]> = {}, opts: { missing?: string[]; failInsert?: (table: string, row: Row) => DbError; failUpdate?: (table: string, patch: Row) => DbError } = {}) {
   const tables: Record<string, Row[]> = {};
   for (const [k, v] of Object.entries(seed)) tables[k] = v.map((r) => ({ ...r }));
   const missing = new Set(opts.missing ?? []);
@@ -96,12 +96,18 @@ export function fakeAdmin(seed: Record<string, Row[]> = {}, opts: { missing?: st
         const bad = opts.failInsert?.(this.table, this.payload);
         if (bad) return { data: null, error: bad };
         const row: Row = { id: `00000000-0000-4000-8000-${String(++n).padStart(12, "0")}`, created_at: new Date(Date.UTC(2026, 9, 21, 10, 0, n)).toISOString(), ...this.payload };
-        const dup = this.table === "connector_links" && t.some((x) => ["tenant_id", "connector_id", "entity", "external_id"].every((k) => x[k] === row[k]));
+        // 0129's unique (tenant, connector, entity, external_id) and 0201's partial unique
+        // index on the claim row of a sent quote (direction = 'push', entity = 'standard_quotes').
+        const dup = this.table === "connector_links" && t.some((x) => ["tenant_id", "connector_id", "entity", "external_id"].every((k) => x[k] === row[k])
+          || (row.direction === "push" && row.entity === "standard_quotes" && x.direction === "push" && x.entity === "standard_quotes"
+            && ["tenant_id", "connector_id", "object_id"].every((k) => x[k] === row[k])));
         if (dup) return { data: null, error: { message: "duplicate key value violates unique constraint", code: "23505" } };
         t.push(row);
         return { data: this.one ? row : [row], error: null };
       }
       if (this.op === "update") {
+        const bad = opts.failUpdate?.(this.table, this.payload);
+        if (bad) return { data: null, error: bad };
         const hit = t.filter(match);
         for (const r of hit) Object.assign(r, this.payload);
         return { data: hit, error: null };

@@ -7,11 +7,17 @@
 -- with email_log, rfq_messages, whatsapp_messages, webhook_deliveries and
 -- connector_sync_runs.
 --
--- Access: SELECT for the ADMINS of the workspace only (the monitor is an admin
--- screen and a row can carry a request body when payload capture is on). NO
--- insert / update / delete policy: every write is the service-role code, which
--- names the tenant explicitly, so a member cannot forge a "sent" row through
--- PostgREST with their own session (the 0078 / 0199 lesson).
+-- Access: service role ONLY -- RLS is enabled and there is deliberately NO
+-- policy, not even a read one. The app reads the table only through
+-- createAdminSupabase() with an explicit tenant_id filter, and reading a row's
+-- detail is itself written to the change log by the route; a PostgREST read with
+-- an admin's own session token would skip that record, and a row can carry a
+-- request body when payload capture is on. Nobody can forge a "sent" row either
+-- (the 0078 / 0199 lesson). src/lib/rlsPolicies.test.ts fails the build if a
+-- policy is ever added.
+--
+-- The same migration adds the "claim" index on connector_links that makes
+-- sending one quote to the ERP twice impossible (see the end of this file).
 --
 -- Additive and idempotent. Until it is applied the app shows "database update
 -- needed" on the middleware page and sends nothing; it never errors.
@@ -46,9 +52,24 @@ create index if not exists integration_messages_object_idx
 
 alter table integration_messages enable row level security;
 
+-- Service role only: no policy. (The drop covers a database that ran an earlier draft of this file.)
 drop policy if exists "integration_messages: admin read" on integration_messages;
-create policy "integration_messages: admin read" on integration_messages for select
-  using (tenant_id in (select tenant_id from tenant_users where user_id = auth.uid() and role = 'admin'));
+
+-- One send per quote. The dispatcher inserts the quote's connector_links row with
+-- external_id 'pending:<uuid>' BEFORE it calls the ERP; this index lets only one
+-- such insert win, so two overlapping sends (the automatic one plus Send now, or
+-- two Retry presses) cannot both create a quote or project in the customer's ERP.
+-- Scoped to the middleware's own entity: the fence push writes entity
+-- 'fence_projects' and the customer sync writes direction 'pull', so neither can
+-- clash. Skipped if the connector tables have not been created on this database.
+do $$ begin
+  if to_regclass('public.connector_links') is null then
+    return;
+  end if;
+  execute 'create unique index if not exists connector_links_quote_claim_idx
+    on connector_links (tenant_id, connector_id, entity, object_id)
+    where direction = ''push'' and entity = ''standard_quotes''';
+end $$;
 
 -- Ask PostgREST to reload its schema so the table is visible straight away.
 notify pgrst, 'reload schema';

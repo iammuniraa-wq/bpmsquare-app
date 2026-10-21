@@ -418,3 +418,196 @@ describe("preview and test quote", () => {
     expect(r).toMatchObject({ ok: false, headline: "A database update is needed first." });
   });
 });
+
+describe("one send per quote: the claim (concurrent dispatches, lost links)", () => {
+  const quoteLinks = (db: { tables: Record<string, Row[]> }) => db.tables.connector_links.filter((l) => l.entity === "standard_quotes");
+  const foSeed = () => {
+    const s = seedMiddleware({ product: "fo", cfg: { company: "usmf" } });
+    s.connector_links[0].external_id = "usmf|C0100";
+    return s;
+  };
+  const OLD = new Date(Date.now() - 30 * 60_000).toISOString();
+
+  it("the automatic send and an admin's Send now overlapping create exactly one Dataverse quote", async () => {
+    const db = fakeAdmin(seedMiddleware());
+    const dv = new FakeDataverse();
+    dv.createDelayMs = 15;
+    const [a, b] = await Promise.all([run(db, dv, { trigger: "auto" }), run(db, dv, { trigger: "send_now" })]);
+    expect([a.state, b.state].sort()).toEqual(["in_progress", "sent"]);
+    expect(dv.quotes).toHaveLength(1);
+    expect(dv.quotes[0].statecode).toBe(2);
+    expect(quoteLinks(db)).toHaveLength(1);
+    expect(quoteLinks(db)[0]).toMatchObject({ external_id: dv.quotes[0].quoteid, external_key: dv.quotes[0].quotenumber });
+    // the one that did nothing says so plainly and leaves no failed message behind
+    expect(msgs(db).filter((m) => m.status === "failed")).toHaveLength(0);
+    expect(msgs(db)).toHaveLength(1);
+  });
+
+  it("three overlapping sends still create one quote", async () => {
+    const db = fakeAdmin(seedMiddleware());
+    const dv = new FakeDataverse();
+    dv.createDelayMs = 10;
+    const all = await Promise.all([run(db, dv, { trigger: "retry" }), run(db, dv, { trigger: "retry" }), run(db, dv, { trigger: "send_now" })]);
+    expect(all.filter((r) => r.state === "sent")).toHaveLength(1);
+    expect(all.filter((r) => r.state === "in_progress")).toHaveLength(2);
+    expect(dv.quotes).toHaveLength(1);
+  });
+
+  it("two Retry presses at once on a project (no find-by-name fallback there) create exactly one project", async () => {
+    const db = fakeAdmin(foSeed());
+    const dv = new FakeDataverse();
+    dv.createDelayMs = 15;
+    const [a, b] = await Promise.all([run(db, dv, { trigger: "retry" }), run(db, dv, { trigger: "retry" })]);
+    expect([a.state, b.state].sort()).toEqual(["in_progress", "sent"]);
+    expect(dv.data.Projects).toHaveLength(1);
+    expect(quoteLinks(db)).toHaveLength(1);
+    expect(quoteLinks(db)[0].external_id).not.toMatch(/^pending:/);
+  });
+
+  it("the claim is written first, as pending, before any ERP call", async () => {
+    const db = fakeAdmin(seedMiddleware());
+    const dv = new FakeDataverse();
+    const seen: { rows: Row[] | null } = { rows: null };
+    const create = dv.create.bind(dv);
+    dv.create = async (set, body) => { seen.rows ??= quoteLinks(db).map((l) => ({ ...l })); return create(set, body); };
+    await run(db, dv);
+    expect(seen.rows).toHaveLength(1);
+    expect(seen.rows![0]).toMatchObject({ direction: "push", object_id: "q-1", tenant_id: T1 });
+    expect(String(seen.rows![0].external_id)).toMatch(/^pending:/);
+  });
+
+  it("a failure BEFORE the ERP made anything gives the claim back, so Retry sends", async () => {
+    const db = fakeAdmin(seedMiddleware());
+    const dv = new FakeDataverse();
+    dv.failOnce.create = { status: 503, message: "busy" };
+    expect((await run(db, dv)).state).toBe("failed");
+    expect(dv.quotes).toHaveLength(0);
+    expect(quoteLinks(db)).toHaveLength(0);
+    expect((await run(db, dv, { trigger: "retry" })).state).toBe("sent");
+    expect(dv.quotes).toHaveLength(1);
+  });
+
+  it("a failure AFTER the ERP made the quote keeps the claim holding its real id, and Retry resumes from it", async () => {
+    const db = fakeAdmin(seedMiddleware());
+    const dv = new FakeDataverse();
+    dv.failOnce.activate = { status: 500, message: "boom" };
+    expect((await run(db, dv)).state).toBe("failed");
+    expect(dv.quotes).toHaveLength(1);
+    expect(quoteLinks(db)).toHaveLength(1);
+    expect(quoteLinks(db)[0]).toMatchObject({ external_id: dv.quotes[0].quoteid, external_key: dv.quotes[0].quotenumber });
+    expect((await run(db, dv, { trigger: "retry" })).state).toBe("sent");
+    expect(dv.quotes).toHaveLength(1);
+    expect(dv.quotes[0].statecode).toBe(2);
+  });
+
+  it("a failure before a project exists gives the claim back too", async () => {
+    const db = fakeAdmin(foSeed());
+    const dv = new FakeDataverse();
+    const create = dv.create.bind(dv);
+    let fail = true;
+    dv.create = async (set, body) => { if (fail) { fail = false; throw Object.assign(new Error("gateway timeout"), { status: 504 }); } return create(set, body); };
+    expect((await run(db, dv)).state).toBe("failed");
+    expect(quoteLinks(db)).toHaveLength(0);
+    expect((await run(db, dv, { trigger: "retry" })).state).toBe("sent");
+    expect(dv.data.Projects).toHaveLength(1);
+  });
+
+  it("project created but the link cannot be saved: Retry makes no second project", async () => {
+    let breakLinks = true;
+    const db = fakeAdmin(foSeed(), { failUpdate: (t) => (breakLinks && t === "connector_links" ? { message: "connection reset", code: "08006" } : null) });
+    const dv = new FakeDataverse();
+    const first = await run(db, dv);
+    expect(first.state).toBe("failed");
+    expect(dv.data.Projects).toHaveLength(1);
+    expect(msgs(db)[0].error).toMatch(/do not send it again/);
+    // the claim is kept, not deleted: a Retry now must not send again
+    expect(quoteLinks(db)).toHaveLength(1);
+    breakLinks = false;
+    expect((await run(db, dv, { trigger: "retry" })).state).toBe("in_progress");
+    expect(dv.data.Projects).toHaveLength(1);
+  });
+
+  it("Dataverse quote created but the link cannot be saved: Retry makes no second quote, and a stale claim is adopted by its marker", async () => {
+    let breakLinks = true;
+    const db = fakeAdmin(seedMiddleware(), { failUpdate: (t) => (breakLinks && t === "connector_links" ? { message: "connection reset", code: "08006" } : null) });
+    const dv = new FakeDataverse();
+    expect((await run(db, dv)).state).toBe("failed");
+    expect(dv.quotes).toHaveLength(1);
+    breakLinks = false;
+    expect((await run(db, dv, { trigger: "retry" })).state).toBe("in_progress");
+    expect(dv.quotes).toHaveLength(1);
+    // the claim goes stale (the first send is long gone): the next send takes it over and finds the quote by its marker
+    quoteLinks(db)[0].synced_at = OLD;
+    const r = await run(db, dv, { trigger: "retry" });
+    expect(r.state).toBe("sent");
+    expect(dv.quotes).toHaveLength(1);
+    expect(dv.quotes[0].statecode).toBe(2);
+    expect(quoteLinks(db)[0]).toMatchObject({ external_id: dv.quotes[0].quoteid });
+  });
+
+  it("a fresh pending claim of another send blocks; a stale one (the send died) is taken over by exactly one", async () => {
+    const claim = (synced_at: string) => ({
+      tenant_id: T1, connector_id: "dynamics365", entity: "standard_quotes", object_type: "standard_quotes", object_id: "q-1",
+      external_id: "pending:11111111-1111-4111-8111-111111111111", external_key: null, direction: "push", synced_at,
+    });
+    const fresh = fakeAdmin({ ...seedMiddleware(), connector_links: [...seedMiddleware().connector_links, claim(new Date().toISOString())] });
+    const dv1 = new FakeDataverse();
+    expect((await run(fresh, dv1)).state).toBe("in_progress");
+    expect(dv1.calls).toHaveLength(0);
+    expect(msgs(fresh)).toHaveLength(0);
+
+    const stale = fakeAdmin({ ...seedMiddleware(), connector_links: [...seedMiddleware().connector_links, claim(OLD)] });
+    const dv2 = new FakeDataverse();
+    dv2.createDelayMs = 10;
+    const [a, b] = await Promise.all([run(stale, dv2), run(stale, dv2)]);
+    expect([a.state, b.state].sort()).toEqual(["in_progress", "sent"]);
+    expect(dv2.quotes).toHaveLength(1);
+  });
+
+  it("the pending claim of another workspace's quote never blocks this one", async () => {
+    const seed = seedMiddleware();
+    seed.connector_links.push({
+      tenant_id: T2, connector_id: "dynamics365", entity: "standard_quotes", object_type: "standard_quotes", object_id: "q-1",
+      external_id: "pending:22222222-2222-4222-8222-222222222222", external_key: null, direction: "push", synced_at: new Date().toISOString(),
+    });
+    const db = fakeAdmin(seed);
+    const dv = new FakeDataverse();
+    expect((await run(db, dv)).state).toBe("sent");
+  });
+
+  it("writes the quote's id into the ERP document as a marker", async () => {
+    const db = fakeAdmin(seedMiddleware());
+    const dv = new FakeDataverse();
+    await run(db, dv);
+    expect(String(dv.quotes[0].body.description).split("\n").pop()).toBe("[bpmsquare:q-1]");
+    // a project carries it wherever the tenant's map writes {description} (the preset maps only name and customer)
+    const mapped = seedMiddleware({ product: "fo", cfg: { company: "usmf", outbound: { project: { entity_set: "Projects", id_field: "ProjectID", field_map: { ProjectName: "{name}", CustomerAccount: "{account_external_id}", Description: "{description}" } } } } });
+    mapped.connector_links[0].external_id = "usmf|C0100";
+    const dv2 = new FakeDataverse();
+    await run(fakeAdmin(mapped), dv2);
+    expect(String(dv2.data.Projects[0].Description).split("\n").pop()).toBe("[bpmsquare:q-1]");
+  });
+
+  it("two workspaces with the same ref against one Dynamics environment never adopt each other's quote", async () => {
+    const other = seedMiddleware({ tenantId: T2 });
+    other.standard_quotes[0].id = "q-2";
+    other.standard_quote_lines.forEach((l) => { l.standard_quote_id = "q-2"; });
+    other.standard_quotes[0].status = "rejected";
+    const dbA = fakeAdmin(seedMiddleware());
+    const dbB = fakeAdmin(other);
+    const dv = new FakeDataverse();
+    // workspace A (awarded SQ-0001) is sent but its link is lost; workspace B (rejected SQ-0001) sends into the same environment
+    await run(dbA, dv);
+    dbA.tables.connector_links = dbA.tables.connector_links.filter((l) => l.entity !== "standard_quotes");
+    const b = await run(dbB, dv, { trigger: "auto" }, "q-2", T2);
+    expect(b.state).toBe("sent");
+    expect(dv.quotes).toHaveLength(2);
+    expect(dv.quotes[0]).toMatchObject({ statecode: 2 }); // A's quote is still Won, not closed as Lost
+    expect(dv.quotes[1]).toMatchObject({ statecode: 3 });
+    // and A, resending with its lost link, finds its own and not B's
+    const again = await run(dbA, dv, { trigger: "retry" });
+    expect(again.state).toBe("already_sent");
+    expect(dv.quotes).toHaveLength(2);
+    expect(quoteLinks(dbA)[0].external_id).toBe(dv.quotes[0].quoteid);
+  });
+});

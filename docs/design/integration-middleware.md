@@ -83,8 +83,13 @@ never a crash): `integration_messages` (tenant_id, direction in/out, channel,
 connector_id, entity, object_type, object_id, ref label, status
 ok|failed|pending|skipped|redirected, http_status, error, duration_ms,
 correlation_id, summary jsonb, payload jsonb null, created_at), RLS enabled,
-**select for admins of the tenant only, no member write policy**, service-role
-writes; index (tenant_id, created_at desc). Rules and selections live in
+**no policy at all (service role only)**, read and written through
+`createAdminSupabase()` with a tenant filter; index (tenant_id, created_at desc).
+One send per quote: the same migration adds a unique partial index on
+`connector_links` for the quote's push row; the dispatcher inserts that row as a
+`pending:<uuid>` claim before any ERP call, and an ERP document carries the
+quote's id as a `[bpmsquare:<uuid>]` marker, which is what "already in the ERP?"
+matches on (never the ref alone). Rules and selections live in
 `tenants.config.integration_middleware` (no secrets there). Mapping stays in the
 connector config. Listed in PROJECT.md ledger as pending on both DBs, with
 `scripts/seed-middleware-demo.sql` (run after it).

@@ -49,6 +49,10 @@ describe("credential tables are not member-writable (audit 2026-10-21)", () => {
     expect([...(policies.get("webhooks")?.values() ?? [])].map((p) => p.name)).toEqual([]);
   });
 
+  it("integration_messages has no policy at all: the app reads and writes it only through the service role", () => {
+    expect([...(policies.get("integration_messages")?.values() ?? [])].map((p) => p.name)).toEqual([]);
+  });
+
   it("tenant_connectors: every write policy is admin-only, members may only read", () => {
     const list = [...(policies.get("tenant_connectors")?.values() ?? [])];
     expect(list.length).toBeGreaterThan(0);

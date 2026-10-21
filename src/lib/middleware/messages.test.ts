@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { buildMessageRow, recordMessage, recordConnectorRun, recordApiCall, pruneMessages, resolveEarlier, findOpenMessage, messagesTableReady, MESSAGE_RETENTION_DAYS } from "./messages";
+import { buildMessageRow, recordMessage, recordConnectorRun, recordApiCall, pruneMessages, pruneAllTenants, resolveEarlier, findOpenMessage, messagesTableReady, MESSAGE_RETENTION_DAYS } from "./messages";
 import { fakeAdmin, T1, T2 } from "./testHarness";
 
 beforeEach(() => { vi.spyOn(console, "error").mockImplementation(() => {}); });
@@ -90,6 +90,23 @@ describe("housekeeping", () => {
     const db = fakeAdmin({ integration_messages: [{ id: "a", tenant_id: T1, created_at: old }, { id: "b", tenant_id: T1, created_at: fresh }, { id: "c", tenant_id: T2, created_at: old }] });
     await pruneMessages(db.client, T1, now);
     expect(db.tables.integration_messages.map((r) => r.id).sort()).toEqual(["b", "c"]);
+  });
+
+  it("prunes every workspace that has old rows, flag or not, and each delete stays inside its own tenant", async () => {
+    const now = Date.parse("2026-11-30T00:00:00Z");
+    const old = new Date(now - (MESSAGE_RETENTION_DAYS + 1) * 86_400_000).toISOString();
+    const fresh = new Date(now - 5 * 86_400_000).toISOString();
+    const T3 = "33333333-3333-4333-8333-333333333333";
+    const db = fakeAdmin({
+      // T1 has the flag, T2 had it switched off with payloads still stored, T3 never had it
+      tenants: [{ id: T1, features: { integration_middleware: true } }, { id: T2, features: { integration_middleware: false } }, { id: T3, features: {} }],
+      integration_messages: [
+        { id: "a", tenant_id: T1, created_at: old }, { id: "b", tenant_id: T1, created_at: fresh },
+        { id: "c", tenant_id: T2, created_at: old, payload: { request: { x: 1 } } }, { id: "d", tenant_id: T3, created_at: old }, { id: "e", tenant_id: T3, created_at: fresh },
+      ],
+    });
+    expect(await pruneAllTenants(db.client, now)).toBe(3);
+    expect(db.tables.integration_messages.map((r) => r.id).sort()).toEqual(["b", "e"]);
   });
 
   it("settles earlier failed items for the same quote and outcome only", async () => {
