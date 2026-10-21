@@ -365,3 +365,25 @@ record or multiple records."
   list query}, limit?: number }` returns `{ results:[{id, outcome:"done"|"failed"|"already_ok"|
   "not_restartable", message}] }`, tenant-verified per id, safe to repeat; the old `retry` route
   keeps working for one id.
+
+## Request and response payload next to Restart (8), owner 2026-10-21
+"Next to Restart there is an option to view the request payload and the response payload, at
+the same place, when one line is selected."
+
+- **Action bar:** with exactly ONE row ticked, the bar shows **Restart**, **View request** and
+  **View response** side by side. With none or several ticked the two view buttons are disabled
+  (tooltip "Select one line"). Opening either shows the payload in a panel with a small
+  Request / Response switch, pretty-printed, a Copy button, and the HTTP status and duration in
+  one line. Admin only; every open writes the change-log entry that the detail view already writes.
+- **What is captured (changes the earlier "off by default" rule for these rows only):** for every
+  **outbound document send** (Quote, Sales Order, Project...), and for any connector call that
+  fails, the request body and the response body are stored with the message, redacted by the
+  existing `redactPayload` (tokens, authorization values, secrets, personal data), size-capped
+  (truncate with a visible "truncated" note), kept 30 days by the existing prune. For inbound pulls
+  and v1 API calls only the existing metadata is stored unless the workspace switches **payload
+  capture** on (then request, a response sample and counts). Rows from the old sources (email,
+  WhatsApp, RFQ, webhooks) have no payload and the buttons say "No payload recorded".
+- **Contract:** `GET /api/middleware/messages/<id>` returns `payload: { request: {method, url,
+  body}|null, response: {status, body, durationMs}|null, truncated: boolean }|null` (url is path
+  and entity only, never a query string with credentials); list items carry
+  `hasPayload: boolean` so the buttons enable without a second read.
