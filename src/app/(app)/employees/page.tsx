@@ -78,7 +78,7 @@ export default async function EmployeesPage({
   return (
     <ObjectListPage
       title="Employees"
-      subtitle="Your people as master data — create them here or bulk-load from an HR export via Data Workbench, then give one a login in Administrator → Business Users."
+      subtitle="Your people as master data — create them here or bulk-load from an HR export via Data Workbench, then give one a login in Settings → People."
       newAction={canEdit ? <NewEmployeeButton /> : undefined}
       search={{ value: q, placeholder: "Search name, code, email, department…", hiddenParams: cfParams }}
       columns={columns}

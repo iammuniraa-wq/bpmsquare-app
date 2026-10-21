@@ -146,7 +146,7 @@ pattern in `3433239`) rather than working around it per tenant.
 
 ## 4. People
 
-- **Workspace admins** (no employee record): Settings → Team → invite with
+- **Workspace admins** (no employee record): Settings → People → invite with
   role Admin. Existing platform accounts are linked directly (password
   ignored, they keep their own).
 - **Employees + logins** (few): Workforce → Employees → Add employee
@@ -175,7 +175,7 @@ shift exist and are assigned.
 
 ## 6. Handover
 
-When the client names their own admin: Settings → Team → add them as
+When the client names their own admin: Settings → People → add them as
 Admin, then remove the provisioning alias **and** any plain-email
 membership the platform-admin auto-admit created during setup. Platform
 admins can always re-enter through the admin backdoor if support is needed.

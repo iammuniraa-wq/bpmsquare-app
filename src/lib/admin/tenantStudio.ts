@@ -338,7 +338,7 @@ export function manualSteps(plan: TenantStudioPlan): { title: string; detail: st
     },
     {
       title: "Hand over",
-      detail: "When the client names their own admin: Settings → Team → add them as Admin, then remove the provisioning alias and any plain-email membership the platform-admin auto-admit created during setup.",
+      detail: "When the client names their own admin: Settings → People → add them as Admin, then remove the provisioning alias and any plain-email membership the platform-admin auto-admit created during setup.",
     },
   ];
 }

@@ -86,7 +86,7 @@ export const DASHBOARD_TIPS: DashboardTip[] = [
     id: "roles",
     title: "People see only their own work centre",
     body: "Business roles decide which modules and screens each person gets, so a technician, a supervisor and an admin can share one workspace without sharing one view.",
-    href: ROUTES.settingsTeam,
+    href: ROUTES.settingsPeople,
     cta: "Review roles",
     tone: "purple",
   },

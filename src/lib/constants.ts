@@ -165,7 +165,7 @@ export const ROUTES = {
   settingsAppearance: "/settings/appearance",
   settingsDashboard: "/settings/dashboard",
   settingsReset: "/settings/reset",
-  settingsTeam: "/settings/team",
+  settingsPeople: "/settings/people",
   settingsEntities: "/settings/entities",
   settingsCustomFields: "/settings/custom-fields",
   settingsTemplates: "/settings/templates",
@@ -248,8 +248,6 @@ export const ROUTES = {
   administration: "/administration",
   administrationChangeHistory: "/administration/change-history",
   administrationOutboundEmails: "/administration/outbound-emails",
-  administrationBusinessRoles: "/administration/business-roles",
-  administrationBusinessUsers: "/administration/business-users",
 } as const;
 
 export type NavItem = {

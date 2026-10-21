@@ -54,8 +54,7 @@ export const SETTINGS_MENU: SettingsMenuEntry[] = [
   { id: "number-ranges", group: "company", label: "Number ranges", description: "One place for every business-ID convention — Quote ID format and all system-generated ranges", href: ROUTES.settingsNumberRanges, keywords: ["ids", "prefix", "numbering", "sequence"], adminOnly: true },
 
   // ── Users & access ──
-  { id: "team", group: "access", label: "Team", description: "Invite teammates and manage roles", href: ROUTES.settingsTeam, keywords: ["users", "invite", "members", "roles"], adminOnly: true },
-  { id: "business-roles", group: "access", label: "Business roles", description: "Named roles that decide which modules and screens each person reaches", href: ROUTES.administrationBusinessRoles, keywords: ["permissions", "workcenter", "access"], external: true, adminOnly: true, featureKey: "business_roles" },
+  { id: "people", group: "access", label: "People", description: "Invite people, set who is admin, and choose which screens each person reaches", href: ROUTES.settingsPeople, keywords: ["team", "users", "invite", "members", "roles", "business users", "business roles", "permissions", "workcenter", "access", "login", "lock"], adminOnly: true },
   { id: "navigation", group: "access", label: "Navigation visibility", description: "Show or hide sidebar items for the whole workspace", href: ROUTES.settingsNavigation, keywords: ["general", "sidebar", "menu", "hide"], adminOnly: false },
   { id: "coverage", group: "access", label: "Coverage", description: "Teams, rule-based segments and the wiring that replaces flat territory/sales org assignment — also drives auto-ownership, product availability and ERP routing", href: ROUTES.settingsCoverage, keywords: ["territory", "sales org", "segments", "ownership"], adminOnly: true, featureKey: "coverage_model" },
 
