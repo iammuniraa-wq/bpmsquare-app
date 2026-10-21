@@ -8,6 +8,7 @@ import SortableTh from "@/components/SortableTh";
 import PagerLink from "@/components/PagerLink";
 import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
+import InfoTip from "@/components/ui/InfoTip";
 import EmptyState from "@/components/ui/EmptyState";
 import MoreMenu from "@/components/ui/MoreMenu";
 import type { MenuItem } from "@/components/ui/menuItems";
@@ -26,6 +27,8 @@ export type ListColumn<T> = {
   cellStyle?: React.CSSProperties;
   /** Phone card: "title" is the card heading (one column), "meta" a label/value row, "hidden" is left out. */
   card?: "title" | "meta" | "hidden";
+  /** What the column means, behind an "i" in the header (and beside the label on a phone card): two short sentences at most. */
+  info?: string;
 };
 
 export type ListChip = { id: string; label: string; href: string; active: boolean };
@@ -126,6 +129,7 @@ export default function ObjectListPage<T>({
                           label={col.label}
                           sortKey={col.sortKey}
                           searchId={columnSearch ? col.id : undefined}
+                          info={col.info}
                           currentSort={sort}
                           currentDir={dir}
                           baseHref={baseHref}
@@ -133,7 +137,7 @@ export default function ObjectListPage<T>({
                           style={{ ...th, width: col.width }}
                         />
                       ) : (
-                        <th key={col.id} style={{ ...th, width: col.width }}>{col.label}</th>
+                        <th key={col.id} style={{ ...th, width: col.width }}>{col.label}{col.info && <InfoTip label={col.label}>{col.info}</InfoTip>}</th>
                       ))}
                       {rowHref && <th style={{ ...th, width: 60 }}><span style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0 0 0 0)" }}>Open</span></th>}
                     </tr>
@@ -170,7 +174,7 @@ export default function ObjectListPage<T>({
                 <dl style={{ margin: "8px 0 0", display: "grid", gridTemplateColumns: "auto minmax(0, 1fr)", gap: "4px 14px", fontSize: 12.5 }}>
                   {metaCols.map((col) => (
                     <div key={col.id} style={{ display: "contents" }}>
-                      <dt style={{ color: c.hint }}>{col.label}</dt>
+                      <dt style={{ color: c.hint }}>{col.label}{col.info && <InfoTip label={col.label}>{col.info}</InfoTip>}</dt>
                       <dd style={{ margin: 0, color: c.muted, minWidth: 0, wordBreak: "break-word" }}>{col.render(row)}</dd>
                     </div>
                   ))}

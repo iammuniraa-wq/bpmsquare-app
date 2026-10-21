@@ -44,9 +44,9 @@ export type ProfileRule = {
 };
 
 export type ScoringThresholds = {
-  /** Score at or above this is "Engaged". */
+  /** Score at or above this is Warm (stage "engaged"). */
   engaged: number;
-  /** Score at or above this is "Ready for sales". */
+  /** Score at or above this is Hot (stage "ready"). */
   ready: number;
 };
 
@@ -63,7 +63,7 @@ export type ScoringRubric = {
 };
 
 export type LeadScoreStage = "new" | "engaged" | "ready";
-export type LeadScoreLabel = "New" | "Engaged" | "Ready for sales";
+export type LeadScoreLabel = "Cold" | "Warm" | "Hot";
 
 export type LeadScoreFactor = Account360Factor & { kind: "behaviour" | "profile" | "market" };
 
@@ -80,9 +80,9 @@ const DAY_MS = 86_400_000;
 const clamp = (n: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, n));
 
 export const SCORE_LABEL: Record<LeadScoreStage, LeadScoreLabel> = {
-  new: "New",
-  engaged: "Engaged",
-  ready: "Ready for sales",
+  new: "Cold",
+  engaged: "Warm",
+  ready: "Hot",
 };
 
 export function stageForScore(score: number, t: ScoringThresholds): LeadScoreStage {

@@ -23,10 +23,10 @@ describe("computeLeadScore -- shape", () => {
     expect(r.rubric_version).toBe(DEFAULT_RUBRIC.version);
   });
 
-  it("an empty lead scores 0 and is New", () => {
+  it("an empty lead scores 0 and is Cold", () => {
     const r = score([]);
     expect(r.score).toBe(0);
-    expect(r.label).toBe("New");
+    expect(r.label).toBe("Cold");
     expect(r.stage).toBe("new");
     expect(r.factors).toEqual([]);
   });
@@ -129,7 +129,7 @@ describe("computeLeadScore -- profile and market", () => {
 });
 
 describe("stages and thresholds", () => {
-  it("New under 20, Engaged 20-59, Ready for sales from 60", () => {
+  it("Cold under 20, Warm 20-59, Hot from 60 (stages stay new, engaged, ready)", () => {
     const t = DEFAULT_RUBRIC.thresholds;
     expect(stageForScore(19, t)).toBe("new");
     expect(stageForScore(20, t)).toBe("engaged");
@@ -137,10 +137,10 @@ describe("stages and thresholds", () => {
     expect(stageForScore(60, t)).toBe("ready");
   });
 
-  it("an interest plus a form submit is Ready for sales", () => {
+  it("an interest plus a form submit is Hot", () => {
     const r = score([ev("email.interest", 0), ev("form.submitted", 0)]);
     expect(r.score).toBe(60);
-    expect(r.label).toBe("Ready for sales");
+    expect(r.label).toBe("Hot");
   });
 
   it("lead.scored is announced only when the stage changes or the score moves 10", () => {

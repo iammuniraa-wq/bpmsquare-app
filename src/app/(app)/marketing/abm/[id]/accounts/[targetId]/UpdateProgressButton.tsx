@@ -6,6 +6,7 @@ import Button from "@/components/ui/Button";
 import Field from "@/components/ui/Field";
 import { Select, Textarea } from "@/components/ui/Input";
 import { ABM_PROGRESS, PROGRESS_LABEL, type AbmProgress } from "@/lib/abm/types";
+import { ABM_TIPS } from "@/lib/abm/tips";
 import Modal from "../../../Modal";
 
 /**
@@ -38,13 +39,13 @@ export default function UpdateProgressButton({ targetId, current }: { targetId: 
       <Button variant="primary" onClick={() => { setTo(current); setReason(""); setError(""); setOpen(true); }}>Update progress</Button>
       {open && (
         <Modal title="Update progress" onClose={() => setOpen(false)}>
-          <Field label="Progress" hint="The rules only move a company forward. Use this to set what only a person can know, or to correct it.">
+          <Field label="Progress" info={ABM_TIPS.updateProgress}>
             <Select value={to} onChange={(e) => setTo(e.target.value as AbmProgress)}>
               {ABM_PROGRESS.map((p) => <option key={p} value={p}>{PROGRESS_LABEL[p]}</option>)}
             </Select>
           </Field>
           {to !== current && (
-            <Field label={to === "dropped" ? "Why is it being dropped?" : "Why?"} required hint="Kept with your name and the date.">
+            <Field label={to === "dropped" ? "Why is it being dropped?" : "Why?"} required info={ABM_TIPS.reason}>
               <Textarea value={reason} onChange={(e) => setReason(e.target.value)} rows={3} placeholder={to === "dropped" ? "e.g. Awarded to a competitor" : "e.g. Site meeting on 3 Nov"} autoFocus />
             </Field>
           )}

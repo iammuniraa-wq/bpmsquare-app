@@ -75,7 +75,7 @@ describe("recomputeTenant", () => {
     expect(second.alerts).toBe(1);
     const note = tables.record_comments.find((c) => c.object_id === "acc-2");
     expect(note).toMatchObject({ tenant_id: A, object_type: "accounts", mentions: ["owner@example.com"] });
-    expect(String(note!.body)).toContain("Quiet Ltd moved from Quiet to Comparing");
+    expect(String(note!.body)).toContain("Quiet Ltd moved from Silent to Comparing");
 
     // Run again: the stored stage is already Comparing, so no second alert.
     const third = await recomputeTenant(client, A, { now: NOW, resolveOwnerEmail: ownerEmail });

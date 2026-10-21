@@ -412,3 +412,19 @@ in parallel) — names and tabs that change, so the guide describes the
 5. **Scoring rules as compact rows** (object pattern: row + `⋯` Edit) is the
    cleaner end state but a larger refactor than `i` + tabs. Recommend **`i` +
    tabs now (M), rows in a later pass** once the rubric settles.
+
+## 6. Status (2026-10-21)
+
+- Batch 1 (screens 1-2, the InfoTip/OptionGroup/Opt kit): merged 35b37069.
+- Batch 2 (screens 3-14 and labels L1-L8): merged a7956d1b (3-6, L1 forms/signals,
+  L3 score bands and signal stages, L4, L7) and the batch 2b merge (7-14, L1
+  consent side, L2, L3 ABM, L5, L6, L8). Shared additions: `info` on
+  `ListColumn`/`SortableTh`, `SettingsSection`, `PageHeader`,
+  `SettingsPageHeader`; `.bpm-rows-table` / `.bpm-rows-cards` / `.bpm-tap`.
+- The how-to guide carries the new words (2f5ffdbf).
+- Still open: the owner's own look at 375 px and 1280 px (neither build agent
+  had a browser); the Forms builder has two tab levels on a phone (page tabs
+  plus the panel strip), which the table asked for but §2b discourages: decide
+  after seeing it; `SettingsField` shows the `i` on demo and Nova workspaces
+  and keeps the old `?` elsewhere (batch 1 decision), so Settings pages differ
+  by workspace until that is unified.

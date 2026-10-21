@@ -1,6 +1,7 @@
 "use client";
 
 import { c } from "@/lib/theme";
+import { isProductPriceListRuleId } from "@/lib/pricing/productPriceList";
 
 // The waterfall trace of one priced line -- the "why is my price X" view
 // (spec §6, §1.3: explainability is an output). One component, mounted by
@@ -12,7 +13,7 @@ export type PriceTraceStep = {
   rule_id?: string; matched_on?: Record<string, unknown>; specificity?: number;
   inputs?: { path: string; rate: number; qty: number; source?: string | null; quality?: string | null; as_of?: string | null }[];
   calc_type?: string;
-  basis?: number; value?: number; qty?: number; result?: number;
+  basis?: number; value?: number; qty?: number; result?: number; scale_from?: number;
   formula?: string; values_used?: { path: string; value: string | number | boolean }[];
   statistical?: boolean; manual?: boolean;
 };
@@ -94,10 +95,21 @@ function describeCalcDetail(t: PriceTraceStep): string | null {
   return null;
 }
 
+/** The engine made this rule from the product's own list price and quantity
+ *  breaks (productPriceList.ts): there is no rule code to show, so say where
+ *  the price came from and which band priced the line. */
+function describeProductPriceList(t: PriceTraceStep): string | null {
+  if (!isProductPriceListRuleId(t.rule_id)) return null;
+  const band = t.scale_from !== undefined && t.scale_from > 0 ? `band from ${fmtNum(t.scale_from)}` : "list price";
+  return `from the product's own price list, ${band}`;
+}
+
 /** Plain-language one-liner for a step: what happened and why. */
 export function describeTraceStep(t: PriceTraceStep): string {
   if (t.status === "SUBTOTAL") return `Subtotal ${t.subtotal}`;
   if (t.status === "APPLIED") {
+    const priceList = describeProductPriceList(t);
+    if (priceList) return `${t.component}: ${priceList}${t.statistical ? " (shown, not charged)" : ""}`;
     const who = t.manual ? "entered by hand" : `rule for ${describeMatch(t.matched_on)}`;
     return `${t.component}: ${who}${t.statistical ? " (shown, not charged)" : ""}`;
   }
@@ -149,7 +161,8 @@ export default function PriceTrace({
             <td style={td}><TraceStatusChip status={t.status} />{t.manual ? " ✎" : ""}{t.statistical ? " (stat)" : ""}</td>
             <td style={{ ...td, fontSize: 11.5, color: c.muted }}>
               {t.reason && <div>{t.reason}</div>}
-              {t.rule_id && <div>rule <span style={mono}>{t.rule_id.slice(0, 8)}</span>{t.specificity !== undefined ? ` · specificity ${t.specificity}` : ""}{t.matched_on && Object.keys(t.matched_on).length > 0 ? ` · ${describeMatch(t.matched_on)}` : ""}</div>}
+              {t.rule_id && describeProductPriceList(t) && <div>{describeProductPriceList(t)}</div>}
+              {t.rule_id && !describeProductPriceList(t) && <div>rule <span style={mono}>{t.rule_id.slice(0, 8)}</span>{t.specificity !== undefined ? ` · specificity ${t.specificity}` : ""}{t.matched_on && Object.keys(t.matched_on).length > 0 ? ` · ${describeMatch(t.matched_on)}` : ""}</div>}
               {describeCalcDetail(t) && <div style={mono}>{describeCalcDetail(t)}</div>}
               {t.inputs?.map((inp, j) => <div key={j} style={mono}>{inp.path}: {inp.rate} × {inp.qty}{describeCostSource(inp) ? ` · ${describeCostSource(inp)}` : ""}</div>)}
               {t.basis !== undefined && <div>basis {fmt(t.basis)}</div>}

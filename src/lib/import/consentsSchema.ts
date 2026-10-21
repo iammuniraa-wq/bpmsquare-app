@@ -16,9 +16,9 @@ export const CONSENTS_SPEC: ObjectSpec = {
   fields: [
     { key: "email", label: "Email", type: "email", required: true, hint: "The contact's email address — they must already be a contact in this workspace", aliases: ["email address", "e-mail", "mail", "contact email"] },
     { key: "channel", label: "Channel", type: "enum", options: ["email", "whatsapp", "sms", "phone"], hint: "Where they agreed to be contacted — blank means email", aliases: ["medium", "channel type"] },
-    { key: "topic", label: "Topic", type: "text", hint: "One of your workspace's topics (by name) — blank means every topic", aliases: ["topics", "subject", "interest", "list"] },
-    { key: "status", label: "Answer", type: "enum", required: true, options: ["granted", "withdrawn"], hint: "granted if they agreed, withdrawn if they asked to stop", aliases: ["status", "consent", "opt in", "optin", "opted in", "answer"] },
-    { key: "basis", label: "Basis", type: "enum", options: ["consent", "existing_customer"], hint: "Required for every granted row: consent (they agreed) or existing_customer (only where your country and settings allow it)", aliases: ["legal basis", "lawful basis", "consent basis"] },
+    { key: "topic", label: "Consent topic", type: "text", hint: "One of your workspace's consent topics (by name) — blank means every consent topic", aliases: ["topic", "consent topic", "topics", "subject", "interest", "list"] },
+    { key: "status", label: "Answer", type: "enum", required: true, options: ["granted", "withdrawn"], hint: "Type granted (shown as Agreed: they said yes) or withdrawn (shown as Withdrawn: they asked to stop)", aliases: ["status", "consent", "opt in", "optin", "opted in", "answer"] },
+    { key: "basis", label: "Basis", type: "enum", options: ["consent", "existing_customer"], hint: "Required for every granted row. Type consent (shown as They agreed) or existing_customer (shown as Existing customer, only where your country and settings allow it)", aliases: ["legal basis", "lawful basis", "consent basis"] },
     { key: "given_on", label: "Date they agreed", type: "date", hint: "When they originally agreed, if the sheet says — kept as evidence", aliases: ["date", "consent date", "agreed on", "opt in date", "date given"] },
     { key: "note", label: "Note", type: "text", hint: "How it was obtained, if the sheet says (for example: web form, trade show card)", aliases: ["notes", "source note", "evidence", "how obtained", "remark"] },
     // Export-only: the current state, as the ledger holds it. Never importable.

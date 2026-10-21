@@ -6,6 +6,7 @@ import {
   CASE_TYPE_LABEL, INVENTORY_ITEM_STATUS_LABEL,
 } from "@/lib/data/labels";
 import { UOM_OPTIONS, OFFER_TYPE_LABEL, type TenantFeatures } from "@/lib/constants";
+import { QTY_BREAKS_FORMAT } from "@/lib/products/qtyBreaks";
 import type { AccountType, Asset, Supplier, ServiceCase, InventoryItem, QuoteOfferType } from "@/lib/types";
 
 // ── Widget types ─────────────────────────────────────────────────────────────
@@ -46,6 +47,10 @@ export type StandardFieldDef = {
   /** widget === "enum" only */
   enumOptions?: { value: string; label: string }[];
   placeholder?: string;
+  /** What the cell holds and how it is written -- shown as the Data Workbench column hint. */
+  description?: string;
+  /** A sample value for the Data Workbench template (otherwise a generic one is made up). */
+  example?: string;
   /**
    * The field exists only for a workspace that has this (platform-admin) feature on, and only while the
    * database has the column. Used by preferred_language (0143) so a workspace without the Newsletter
@@ -85,6 +90,8 @@ export type EffectiveField = {
   selectSource?: SelectSource;
   enumOptions?: { value: string; label: string }[];
   placeholder?: string;
+  description?: string;
+  example?: string;
 };
 
 export type PilotObjectType =
@@ -289,8 +296,16 @@ export const FIELD_REGISTRY: Record<PilotObjectType, ObjectFieldRegistry> = {
       // source ladder treats a stale figure as unusable, never as current.
       { key: "cost_price_as_of", defaultLabel: "Cost price as of", widget: "date", defaultSection: "Pricing" },
       { key: "tax_percent", defaultLabel: "Tax %",          widget: "number", defaultSection: "Pricing" },
+      // The product's price-list scales (0118): bands above the list price, replicated from
+      // the ERP or kept here, read by the pricing engine. One text cell so Data Workbench
+      // moves a price list with its scales. Edited in the product page's own card, so the
+      // generic sections exclude it there.
+      {
+        key: "qty_breaks", defaultLabel: "Quantity breaks", widget: "text", defaultSection: "Pricing",
+        description: QTY_BREAKS_FORMAT, example: "100:390; 500:360", placeholder: "100:390; 500:360",
+      },
 
-      { key: "uom",         defaultLabel: "Unit of measure", widget: "text",     defaultSection: "Details" },
+      { key: "uom",        defaultLabel: "Unit of measure", widget: "text",     defaultSection: "Details" },
       { key: "description", defaultLabel: "Description",     widget: "textarea", defaultSection: "Details" },
 
       // Preferred supplier (0132). There is no "reference/lookup" widget yet
@@ -405,7 +420,7 @@ export const FIELD_REGISTRY: Record<PilotObjectType, ObjectFieldRegistry> = {
         { value: "Announcement", label: "Announcement" }, { value: "Festival", label: "Festival" },
       ] },
       { key: "status",   defaultLabel: "Status",        widget: "enum", defaultSection: "Newsletter", locked: true, editable: false, exportOnly: true, enumOptions: [
-        { value: "draft", label: "Draft" }, { value: "ready", label: "Ready" }, { value: "archived", label: "Archived" },
+        { value: "draft", label: "Draft" }, { value: "ready", label: "Ready to use" }, { value: "archived", label: "Archived" },
       ] },
       { key: "source_language", defaultLabel: "Written first in", widget: "text", defaultSection: "Newsletter", locked: true, editable: false, exportOnly: true },
     ],
@@ -424,8 +439,8 @@ export const FIELD_REGISTRY: Record<PilotObjectType, ObjectFieldRegistry> = {
         { value: "new_business", label: "New business" }, { value: "expansion", label: "Expansion" },
       ] },
       { key: "status", defaultLabel: "Status", widget: "enum", defaultSection: "Program", enumOptions: [
-        { value: "draft", label: "Draft" }, { value: "active", label: "Active" }, { value: "paused", label: "Paused" },
-        { value: "completed", label: "Completed" }, { value: "archived", label: "Archived" },
+        { value: "draft", label: "Draft" }, { value: "active", label: "Live" }, { value: "paused", label: "Paused" },
+        { value: "completed", label: "Done" }, { value: "archived", label: "Archived" },
       ] },
       { key: "default_tier", defaultLabel: "Default tier", widget: "enum", defaultSection: "Program", enumOptions: [
         { value: "one_to_one", label: "1:1" }, { value: "one_to_few", label: "1:few" }, { value: "one_to_many", label: "1:many" },
@@ -448,7 +463,7 @@ export const FIELD_REGISTRY: Record<PilotObjectType, ObjectFieldRegistry> = {
         { value: "one_to_one", label: "1:1" }, { value: "one_to_few", label: "1:few" }, { value: "one_to_many", label: "1:many" },
       ] },
       { key: "progress", defaultLabel: "Progress", widget: "enum", defaultSection: "Target", locked: true, editable: false, exportOnly: true, enumOptions: [
-        { value: "planned", label: "Planned" }, { value: "reached", label: "Reached" }, { value: "engaged", label: "Engaged" },
+        { value: "planned", label: "Planned" }, { value: "reached", label: "Reached" }, { value: "engaged", label: "Responding" },
         { value: "in_talks", label: "In talks" }, { value: "deal_open", label: "Deal open" }, { value: "won", label: "Won" },
         { value: "lost", label: "Lost" }, { value: "dropped", label: "Dropped" },
       ] },

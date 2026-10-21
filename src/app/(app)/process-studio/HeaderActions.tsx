@@ -6,6 +6,7 @@ import Button from "@/components/ui/Button";
 import { STEP_IDS, STEP_PRIMARY, type StepId } from "@/lib/studio/types";
 import { stepUrl, useStepRunner, type RunKind } from "./studioClient";
 import { SEND_EVENT } from "./TalkStep";
+import { OPEN_GROUP_EVENT } from "./ui";
 import styles from "./studio.module.css";
 
 // The two controls in the record header: the primary action (always "the next
@@ -72,7 +73,7 @@ const TOURS: Record<StepId, [string, string][]> = {
   plan: [
     ["w5gantt", "Your timeline. Pick a start date on the left and every date moves."],
     ["phases", "Open a phase, tick Looks right, change a duration, leave a comment."],
-    ["p5dates", "Start date, weekend and a filter for just your tasks. Save when you are done."],
+    ["p5dates", "Start date, weekend and a filter for just your tasks. Save is at the top of the page, or at the bottom on a phone."],
   ],
   talk: [
     ["w6sum", "The package in numbers."],
@@ -98,6 +99,7 @@ export function TourButton({ step }: { step: StepId }) {
     const el = document.getElementById(list[i]?.[0] ?? "");
     if (!el) { end(); return; }
     if (el instanceof HTMLDetailsElement) el.open = true;
+    window.dispatchEvent(new CustomEvent(OPEN_GROUP_EVENT, { detail: list[i][0] }));
     el.classList.add(styles.tourHl);
     const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     el.scrollIntoView({ block: "center", behavior: reduce ? "auto" : "smooth" });

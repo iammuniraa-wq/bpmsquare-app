@@ -2,13 +2,18 @@ import { describe, it, expect, vi } from "vitest";
 import { createElement } from "react";
 import { renderToString } from "react-dom/server";
 
-vi.mock("next/navigation", () => ({ useRouter: () => ({ push: () => {}, replace: () => {}, refresh: () => {} }) }));
+const nav = vi.hoisted(() => ({ search: "" }));
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: () => {}, replace: () => {}, refresh: () => {} }),
+  useSearchParams: () => new URLSearchParams(nav.search),
+}));
 vi.mock("next/link", () => ({ default: (p: { href: string; children: unknown }) => createElement("a", { href: p.href }, p.children as never) }));
 
 import FormStudio, { type FormStudioProps } from "./FormStudio";
 import PublicFormView from "@/components/marketing/PublicFormView";
 import PreferencesForm from "@/components/marketing/PreferencesForm";
 import { defaultAfterSubmit, defaultFields, type PublicForm } from "@/lib/marketing/forms/types";
+import { FORM_TIPS } from "@/lib/marketing/forms/tips";
 
 const props = (over: Partial<FormStudioProps["initial"]> = {}, extra: Partial<FormStudioProps> = {}): FormStudioProps => ({
   initial: {
@@ -23,30 +28,66 @@ const props = (over: Partial<FormStudioProps["initial"]> = {}, extra: Partial<Fo
 });
 
 describe("the form builder screen", () => {
-  it("renders the five option groups, each with a button and a plain-words hint, and Show me how", () => {
+  it("renders the five option groups, each a row with its own button and an i, and prints none of their explanations", () => {
+    nav.search = "";
     const out = renderToString(createElement(FormStudio, props()));
-    for (const title of ["Basics", "Fields", "Consent", "After sending", "Share"]) expect(out).toContain(`<b>${title}</b>`);
-    expect(out.match(/aria-expanded=/g)!.length).toBeGreaterThanOrEqual(5);
-    expect(out).toContain("What the visitor is asked. Email is always asked; the rest are your choice.");
-    expect(out).toContain("The words people agree to, and what they are agreeing to hear about. Never pre-ticked.");
+    for (const title of ["Basics", "Fields", "Consent", "After sending", "Share"]) {
+      expect(out).toMatch(new RegExp(`class="bpm-og-title"[^>]*>${title}</button><button[^>]*aria-label="About ${title}"`));
+    }
+    expect(out.match(/class="bpm-og(?: [a-z]+)*"/g)!.length).toBe(5);
+    for (const text of [FORM_TIPS.fields, FORM_TIPS.consent, FORM_TIPS.consentWords, FORM_TIPS.consentRequired, FORM_TIPS.status, FORM_TIPS.embed]) expect(out).not.toContain(text);
     expect(out).toContain("Show me how");
     expect(out).toContain("Desktop");
     expect(out).toContain("Phone");
   });
 
-  it("shows the hosted address, the embed code and the answers on a saved form", () => {
+  it("has the page tabs Design and Answers (N) and the phone's strip for the five groups", () => {
+    nav.search = "";
+    const out = renderToString(createElement(FormStudio, props()));
+    expect(out).toMatch(/role="tablist" aria-label="Form"/);
+    expect(out).toMatch(/role="tab"[^>]*class="bpm-tab"[^>]*>Design/);
+    expect(out).toMatch(/role="tab"[^>]*class="bpm-tab"[^>]*>Answers<span class="bpm-tab-count">1<\/span>/);
+    expect(out).toMatch(/role="tablist" aria-label="Options"/);
+    for (const t of ["Basics", "Fields", "Consent", "After sending", "Share"]) expect(out).toMatch(new RegExp(`role="tab"[^>]*class="bpm-tab"[^>]*>${t}`));
+  });
+
+  it("says consent topic on the consent side, keeps only constraints under the controls, and drops the Details fold", () => {
+    nav.search = "";
+    const out = renderToString(createElement(FormStudio, props()));
+    expect(out).toContain(">Consent topics<");
+    expect(out).not.toContain(">Topics this covers<");
+    expect(out).toContain("Changing it breaks shared links");
+    expect(out).not.toContain("Details");
+    expect(out).not.toContain("The form as a visitor sees it.");
+  });
+
+  it("shows the hosted address and the embed code in Share on a saved form", () => {
+    nav.search = "";
     const out = renderToString(createElement(FormStudio, props()));
     expect(out).toContain("https://crm.alnoor.test/f/contact");
     expect(out).toContain("&lt;iframe src=&quot;https://crm.alnoor.test/f/contact?embed=1&quot;");
+  });
+
+  it("lists the answers on the Answers tab, not under the design", () => {
+    nav.search = "tab=answers";
+    const out = renderToString(createElement(FormStudio, props()));
     expect(out).toContain("ali@gulf.test");
+    expect(out).not.toContain('id="basicsSec"');
+    nav.search = "";
+    expect(renderToString(createElement(FormStudio, props()))).not.toContain("ali@gulf.test");
   });
 
   it("asks to save before it can offer an address, and is read-only without permission", () => {
+    nav.search = "";
     expect(renderToString(createElement(FormStudio, props({ id: null, ref: null, createdAt: null }, { submissions: [] })))).toContain("Save the form to get its address and embed code.");
+    nav.search = "tab=answers";
+    expect(renderToString(createElement(FormStudio, props({ id: null, ref: null, createdAt: null }, { submissions: [] })))).toContain("Save the form to start collecting answers.");
+    nav.search = "";
     expect(renderToString(createElement(FormStudio, props({}, { canEdit: false })))).toContain("You can look at this form but not change it.");
   });
 
   it("escapes a hostile name, heading and consent wording", () => {
+    nav.search = "";
     const out = renderToString(createElement(FormStudio, props({
       name: "<img src=x onerror=alert(1)>", title: "<script>alert(1)</script>", consent: { text: "<b onmouseover=x>agree</b>", topics: [], required: false },
     })));

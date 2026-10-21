@@ -12,7 +12,7 @@ This guide is for the marketing or sales manager. You do not need to be technica
 2. Forms and the preference centre
 3. Newsletter Studio
 4. Email health
-5. Scored leads
+5. Lead scores
 6. Journeys
 7. Buying signals
 8. ABM programs
@@ -157,7 +157,7 @@ You need a web address for your workspace. If your administrator has not set one
    - The box is never ticked in advance.
 5. **After sending.** Choose **Show a message** (a thank-you on the form) or **Go to a page** (a page on your own domain, starting with https://). Then choose the emails:
    - **Send a thank-you email** is on. Change **Words in the email** if you like. It is a confirmation of what the person just did, so it goes out even if they did not tick the consent box.
-   - **Ask the person to confirm by email** makes a ticked box count only after the person presses a link in that email. It is on for new forms if your workspace is in the European Union and off elsewhere (set this in **Settings → Marketing → Consent and topics → Where you are based**). You can change it on each form.
+   - **Ask the person to confirm by email** makes a ticked box count only after the person presses a link in that email. It is on for new forms if your workspace is in the European Union and off elsewhere (set this in **Settings → Marketing → Consent topics → Where you are based**). You can change it on each form.
    - **Tell someone about each new answer** sends one person of your team a short email with the answers.
 6. **Share.** Change **Status** to **Live - visitors can send it**. Press **Save**.
 
@@ -181,7 +181,7 @@ Use **Desktop** and **Phone** above the preview to see both layouts.
 
 **Confirming:** the person opens the link, then presses **Yes, confirm**. The link works for 7 days. After that the page says it has expired and the person fills in the form again. Until they confirm, you cannot email them about that topic.
 
-**Read the answers:** open the form and unfold **Answers** under the preview. It shows the latest 25.
+**Read the answers:** open the form and choose the **Answers** tab. It shows the latest 25, ten to a page.
 
 **Preference centre:** you do not build it. Every newsletter has a **Manage preferences** link in the footer. The person sees their topics as switches, a **Save my choices** button, and **Unsubscribe from all**. Opening the page changes nothing by itself.
 
@@ -301,7 +301,7 @@ Nothing to set up. It starts working once Newsletter Studio is on and you have s
 
 | Button | What it does |
 |---|---|
-| **Check this address** | Checks the spelling and whether the company's mail domain can receive mail. Sends nothing. |
+| **Check address** | Checks the spelling and whether the company's mail domain can receive mail. Sends nothing. |
 | **Fix the address** | You type the right address. The old problem is cleared and the new address is checked. |
 | **Mark as checked** | Use when you confirmed the address another way (a phone call). You must say how. Not offered for a bounced or spam-marked address. |
 
@@ -311,7 +311,7 @@ Nothing to set up. It starts working once Newsletter Studio is on and you have s
 
 | Label | Colour | Meaning | What to do |
 |---|---|---|---|
-| Not checked yet | Blue | Not sent to, not checked | Press **Check this address** |
+| Not checked yet | Blue | Not sent to, not checked | Press **Check address** |
 | Working | Green | Delivered, or the check passed | Nothing |
 | Trouble delivering | Amber | The last message failed for now (full mailbox, for example). It may clear up. | Wait for the next send, or phone and fix |
 | Bounced | Red | The mail server says the address does not exist. **We will not email it again.** | Phone for the right address, then **Fix the address** |
@@ -331,7 +331,7 @@ Nothing to set up. It starts working once Newsletter Studio is on and you have s
 
 ---
 
-## 5. Scored leads
+## 5. Lead scores
 
 ### What it is for
 
@@ -342,26 +342,27 @@ The score is worked out by fixed rules. It is never a guess by AI.
 ### Set it up (once)
 
 1. **Settings → Marketing → Scoring** (administrator).
-   - **What people do:** each action earns points. You can change the points, how fast they fade, and a weekly limit.
-   - **Who they are:** extra points for kind of company, country or role. These do not fade.
-   - **Where the lines are:** **Engaged from** and **Ready for sales from**. The standard lines are 20 and 60.
-   - **Try it on a sample lead:** pretend a lead did certain things and see the score. Nothing is saved.
+   - **Rules** tab, **What people do:** each action earns points. You can change the points, how fast they fade, and a weekly limit.
+   - **Rules** tab, **Who they are:** extra points for kind of company, country or role. These do not fade.
+   - **Thresholds** tab: **Warm from** and **Hot from**. A lead below the first line is Cold. The standard lines are 20 and 60, and Hot must be higher than Warm.
+   - **Try it** tab: pretend a lead did certain things and see the score. Nothing is saved.
+   - Tap the **i** next to a label to see what it does.
 2. **Settings → Coverage:** open a team and choose **Who gets new sales-ready leads**: **The team lead**, or **Each member in turn**.
 3. **Settings → Marketing → Hand-over** (administrator):
-   - **Leads by themselves:** switch on **Make a lead when someone becomes Engaged**. Off by default.
+   - **Leads by themselves:** switch on **Make a lead when someone becomes Warm**. Off by default.
    - **Response time:** the working days a salesperson has, and the **Days off** (for example Friday and Saturday). The standard is one working day with Sunday off.
    - **When no team covers it:** add the people who take new leads in turn. With nobody here, the oldest administrator has them.
    - **When a lead is overdue:** choose whether the **owner** and/or the **team lead** is told in the Nova inbox.
 
 ### Do it day to day
 
-1. Open **Marketing → Scored leads**. The best score is at the top.
+1. Open **Marketing → Lead scores**. The best score is at the top.
 2. Use the chips to filter: **All**, each stage, and **Overdue**.
 3. Open a lead. The page shows the score and **Why 72?** (your number will differ). It lists each reason with its points, with what they did first, then who they are. It also shows how many points remain to reach the next stage.
 4. On a lead that is **Ready for sales**, press **Pick this up**. It becomes yours and moves to **Working**.
 5. Use **Stage** on the right to move the lead (for example to **Deal** or **Not now**) and add a note. Use **Owner** to choose someone, or **Take this lead**.
 6. **Score again** works the score out right now. It is otherwise refreshed about every 15 minutes, and points fade as actions get older.
-7. With **Make a lead when someone becomes Engaged** on, a person who has no open lead and has done enough to be Engaged gets one by themselves, within about 15 minutes. It is titled "Interest from" and their name, with the source **Inbound**. It then moves on and is handed over like any other lead. It only looks at what people did after you switched it on.
+7. With **Make a lead when someone becomes Warm** on, a person who has no open lead and has done enough to be Warm gets one by themselves, within about 15 minutes. It is titled "Interest from" and their name, with the source **Inbound**. It then moves on and is handed over like any other lead. It only looks at what people did after you switched it on.
 
 ### What the colours and labels mean
 
@@ -392,12 +393,12 @@ Scoring moves a lead up through New, Engaged and Ready for sales by itself. It n
 |---|---|
 | "Not scored yet" | Press **Score again** or wait for the next run |
 | A lead is stuck on "New" | Nothing has added points. The score rises as the person clicks, opens quotes or fills in forms. |
-| Too many leads are Ready | Raise **Ready for sales from** in Scoring, or lower the points for small actions |
+| Too many leads are Ready | Raise **Hot from** in Scoring (Thresholds tab), or lower the points for small actions |
 | The wrong person got a lead | Check the team setting in **Settings → Coverage**, the list in **Settings → Marketing → Hand-over** and the company's owner |
 | Nobody is told about an overdue lead | In **Hand-over → When a lead is overdue**, choose who to tell. The message appears in the Nova inbox, so your workspace needs Nova. Each lead is announced once. |
-| No leads appear by themselves | Check **Make a lead when someone becomes Engaged** is on. People who were already Engaged before you switched it on are not added. |
+| No leads appear by themselves | Check **Make a lead when someone becomes Warm** is on. People who were already Warm before you switched it on are not added. |
 
-**Coming later:** reassigning an overdue lead by a rule, and Score and Stage columns on the existing **Leads** page. The existing **Leads** page is unchanged; **Scored leads** is the new view.
+**Coming later:** reassigning an overdue lead by a rule, and Score and Stage columns on the existing **Leads** page. The existing **Leads** page is unchanged; **Lead scores** is the new view.
 
 ---
 
@@ -434,7 +435,7 @@ Messages wait for the next allowed time. They are never dropped. To change these
 
 **Going live safely**
 
-1. Press **Turn on**. If the group is large, a message lists the count and asks you to confirm.
+1. Press **Go live**. If the group is large, a message lists the count and asks you to confirm.
 2. When you turn it on, people from matching events in the last 3 days also enter (the "Include the last (days)" setting; use 0 for new events only). Check the count first.
 3. Steps are locked while the journey is on. Press **Pause** to change them.
 4. Steps run within about five minutes.
@@ -484,7 +485,7 @@ It uses your own data only. It does not use news or tenders yet. It is never an 
 ### Set it up (once)
 
 1. Open **Marketing → Buying signals**.
-2. An administrator opens **Topics** and adds the subjects you sell, for example Precast or Fire safety.
+2. An administrator opens **Interests** and adds the subjects you sell, for example Precast or Fire safety.
 3. Press **Rescore now** (administrator) the first time, so scores appear at once.
 
 Scores then refresh by themselves every few hours.
@@ -492,7 +493,7 @@ Scores then refresh by themselves every few hours.
 ### Do it day to day
 
 1. Open **Who is in market**. The highest score is at the top.
-2. Use **Options** on the left to filter by stage, topic, owner, or **Moved up this week**.
+2. Use **Filters** (a button at the top on a phone) to filter by stage, interest, owner, account name, or **Moved up this week**.
 3. Read each row: the stage, the score with an eight-week line, a one-line reason, the owner, and a suggested next step.
 4. Click a row to open the company. You see:
    - **How this is worked out**: every point with its source and date.
@@ -508,7 +509,7 @@ Scores then refresh by themselves every few hours.
 
 | Stage | Meaning |
 |---|---|
-| Quiet | Nothing recent to go on |
+| Silent | Nothing recent to go on |
 | Looking | Has shown some interest |
 | Comparing | Asked you for something, or is clearly engaged |
 | Deciding | Asked you for something and is very engaged |
@@ -528,7 +529,7 @@ When an account moves up to Comparing or Deciding, the company's owner gets a no
 | You see | What to do |
 |---|---|
 | "No signals yet" | Signals appear as your team sends quotes and campaigns. An administrator can press **Rescore now**. |
-| A company is Quiet but you know it is active | Only what is recorded counts. Check that quotes and deals are entered in BPMSquare. |
+| A company is Silent but you know it is active | Only what is recorded counts. Check that quotes and deals are entered in BPMSquare. |
 | A score dropped | Old signals fade. This is expected. |
 | The company is not buying | Open it and press **Not in market**. |
 
@@ -579,7 +580,7 @@ To set progress by hand, open the company and press **Update progress**. You mus
 
 **Plan.** On the company's **Plan** tab, set **What happens next**, **Due on**, **Who does it**, the **Tier**, the owner, and link the **Deal this program is pursuing**. A linked deal moves the company to **Deal open**, then **Won** or **Lost** when it closes.
 
-**Results.** On the program, open **Results**. You see the funnel: Targets, Reached, Engaged, In talks, In a deal, Won. You also see the goal sentence, the money from linked deals, and results by tier.
+**Results.** On the program, open **Results**. You see the funnel: Targets, Reached, Responding, In talks, In a deal, Won. You also see the goal sentence, the money from linked deals, and results by tier.
 
 ### What the colours and labels mean
 
@@ -587,7 +588,7 @@ To set progress by hand, open the company and press **Update progress**. You mus
 |---|---|
 | Planned | In the program, nothing has happened yet |
 | Reached | Something was sent to someone in the buying group (an email or a quote) |
-| Engaged | Someone in the buying group did something (clicked, opened a quote, filled in a form) |
+| Responding | Someone in the buying group did something (clicked, opened a quote, filled in a form) |
 | In talks | A meeting happened. Only a person can set this. |
 | Deal open | A deal is linked |
 | Won / Lost | Follows the linked deal |
@@ -595,7 +596,7 @@ To set progress by hand, open the company and press **Update progress**. You mus
 
 Click any progress pill to open **Why this status?** It names the rule, the events behind it with dates, and what would move it next.
 
-By default a company is not marked **Engaged** until the required roles are filled. The pill then says it would be Engaged, but no decision maker is named. This is on purpose.
+By default a company is not marked **Responding** until the required roles are filled. The pill then says it would be Responding, but no decision maker is named. This is on purpose.
 
 **Buying stage, Progress and Next step** always show together.
 
@@ -682,7 +683,7 @@ Ten minutes a day is enough once everything is set up.
 
 | Minutes | Do this |
 |---|---|
-| 3 | **Scored leads → Overdue** and **Ready for sales**. Press **Pick this up** on yours. Call the best one first. |
+| 3 | **Lead scores → Overdue** and **Ready for sales**. Press **Pick this up** on yours. Call the best one first. |
 | 3 | **Buying signals → Moved up this week**. Call every company at **Deciding**. |
 | 2 | Open a lead and read **Why** before you call, so you know what they did. |
 | 2 | Update stages and add a note. Mark journey tasks **Done**. |
@@ -715,7 +716,7 @@ Ten minutes a day is enough once everything is set up.
 | Ready for sales | A lead with a high enough score for a salesperson to call |
 | Journey | Steps that run by themselves after an event |
 | Quiet hours | The hours when no journey email is sent |
-| Buying stage | How close a company looks to buying: Quiet, Looking, Comparing or Deciding |
+| Buying stage | How close a company looks to buying: Silent, Looking, Comparing or Deciding |
 | Target group | A saved list of companies defined by rules, used for campaigns |
 | Buying group | The people at one company who take part in a purchase |
 | Tier | How personally you work a company: 1:1, 1:few or 1:many |
@@ -728,7 +729,7 @@ Ten minutes a day is enough once everything is set up.
 If something looks wrong, send us three things:
 
 1. **A screenshot** of the whole screen, including the menu.
-2. **The name of the page**, as it appears at the top (for example "Scored leads" or "Journeys").
+2. **The name of the page**, as it appears at the top (for example "Lead scores" or "Journeys").
 3. **The time** it happened, with your time zone. If it is about one person or company, send their name.
 
 Please do not send passwords. Do not send lists of customers by email: tell us the page and we can look.

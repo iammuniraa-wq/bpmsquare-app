@@ -44,9 +44,9 @@ export default function NewsletterSourceCard({
           {newsletter.languages.filter((l) => languages.includes(l.lang)).map((l) => <option key={l.lang} value={l.lang}>{l.name}</option>)}
         </select>
       </Field>
-      <Field label="Topic" hint="People agree to topics separately. Only people who agreed to this topic are emailed." style={{ marginBottom: 0 }}>
-        <select aria-label="Topic" style={select} value={topic ?? ""} disabled={readOnly} onChange={(e) => onTopic(e.target.value || null)}>
-          <option value="">No one topic</option>
+      <Field label="Consent topic" info="People agree to consent topics separately. Only people who agreed to this one are emailed." style={{ marginBottom: 0 }}>
+        <select aria-label="Consent topic" style={select} value={topic ?? ""} disabled={readOnly} onChange={(e) => onTopic(e.target.value || null)}>
+          <option value="">Any consent topic</option>
           {newsletter.topics.map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}
         </select>
       </Field>

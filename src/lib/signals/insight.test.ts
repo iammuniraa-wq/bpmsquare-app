@@ -12,7 +12,7 @@ describe("reasonLine", () => {
       .toBe("Comparing: asked for a quote (QT-0042) and clicked a link");
   });
   it("says so when there is nothing to go on", () => {
-    expect(reasonLine("quiet", [])).toBe("Quiet: nothing recent to go on");
+    expect(reasonLine("quiet", [])).toBe("Silent: nothing recent to go on");
   });
   it("says why an account is held", () => {
     expect(reasonLine("quiet", [top("Asked for a quote", 25)], true)).toContain("not in market");

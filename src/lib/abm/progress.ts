@@ -135,7 +135,7 @@ export function deriveProgress(input: ProgressInput): ProgressVerdict {
   if (engagedEvidence.length > 0 && rank(current) < rank("engaged")) {
     const gaps = roleGaps(input.requiredRoles, input.members);
     if (input.engagedNeedsRequiredRoles && gaps.length > 0) {
-      const held = `Would be Engaged, but ${gaps.map((g) => g.text.toLowerCase().replace(/ yet$/, "")).join(" and ")} is named in the buying group`;
+      const held = `Would be Responding, but ${gaps.map((g) => g.text.toLowerCase().replace(/ yet$/, "")).join(" and ")} is named in the buying group`;
       if (rank(current) < rank("reached")) {
         // Engagement implies we reached them; still move to Reached.
         return { progress: "reached", changed: true, rule: "reached", held, evidence: engagedEvidence, reason: engagedEvidence[0].text };
@@ -168,7 +168,7 @@ export function validateManualProgress(to: unknown, reason: unknown): { ok: true
 /** Plain words for the "Why this status" popover: what the status means and what moves it next. */
 export const PROGRESS_MEANING: Record<AbmProgress, { means: string; next: string }> = {
   planned: { means: "Nothing has reached anyone in the buying group yet.", next: "Moves to Reached when an email, WhatsApp message or quote is delivered to someone in the buying group." },
-  reached: { means: "Something was delivered to someone in the buying group.", next: "Moves to Engaged when someone in the buying group clicks, opens a quote, fills a form or replies. By default the required roles must be named first." },
+  reached: { means: "Something was delivered to someone in the buying group.", next: "Moves to Responding when someone in the buying group clicks, opens a quote, fills a form or replies. By default the required roles must be named first." },
   engaged: { means: "Someone in the buying group did something in response.", next: "Moves to In talks when a person sets it after a meeting, and to Deal open when a deal is linked." },
   in_talks: { means: "A person recorded that a conversation is under way.", next: "Moves to Deal open when a deal is linked." },
   deal_open: { means: "A deal is open for this company.", next: "Moves to Won or Lost when the linked deal is closed." },

@@ -72,8 +72,8 @@ export default function HandoverClient() {
       <SettingsSave dirty={dirty} saving={saving} saved={saved} error={error} onSave={save} />
 
       <SettingsSection id="mk-handover-auto" title="Leads by themselves" defaultOpen summary={s.auto_create_leads ? "On" : "Off"}>
-        <SettingsRow first label="Make a lead when someone becomes Engaged" help={HANDOVER_TIPS.autoCreate}>
-          <Toggle on={s.auto_create_leads} accent={c.accent} label="Make a lead when someone becomes Engaged" onChange={(v) => set({ auto_create_leads: v })} />
+        <SettingsRow first label="Make a lead when someone becomes Warm" help={HANDOVER_TIPS.autoCreate}>
+          <Toggle on={s.auto_create_leads} accent={c.accent} label="Make a lead when someone becomes Warm" onChange={(v) => set({ auto_create_leads: v })} />
         </SettingsRow>
       </SettingsSection>
 

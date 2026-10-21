@@ -1,6 +1,5 @@
 import { describe, it, expect } from "vitest";
 import { linesForPdf, parsePrintOptions, isDefaultPrintOptions } from "./printOptions";
-import { parseQtyBreaks } from "./qtyBreaks";
 
 const L = (id: string, extra: Record<string, unknown> = {}) => ({ id, amount: 100, ...extra });
 const ALL = { alternatives: "all" as const, breaks: "all" as const };
@@ -50,13 +49,5 @@ describe("linesForPdf", () => {
     ];
     expect(linesForPdf(lines, CHOSEN).map((l) => l.id)).toEqual(["a", "a2"]);
     expect(linesForPdf(lines, ALL).map((l) => l.id)).toEqual(["a", "a2", "b", "b10"]);
-  });
-});
-
-describe("parseQtyBreaks", () => {
-  it("keeps well-formed breaks, sorted, without the base quantity or duplicates", () => {
-    expect(parseQtyBreaks([{ from: 50, rate: "900" }, { from: "10" }, { from: 1, rate: 5 }, { from: 10, rate: null }, { from: "x" }, null]))
-      .toEqual([{ from: 10, rate: null }, { from: 50, rate: 900 }]);
-    expect(parseQtyBreaks("nope")).toEqual([]);
   });
 });

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { c } from "@/lib/theme";
+import InfoTip from "@/components/ui/InfoTip";
 
 /**
  * One collapsible block on a settings page.
@@ -21,6 +22,7 @@ export default function SettingsSection({
   id,
   title,
   summary,
+  info,
   defaultOpen = false,
   children,
 }: {
@@ -29,6 +31,8 @@ export default function SettingsSection({
   title: string;
   /** One line describing what is configured, shown while collapsed. */
   summary?: string;
+  /** What the section is for, behind an "i" after the title (docs/design/ux-simplification.md §2a). */
+  info?: React.ReactNode;
   defaultOpen?: boolean;
   children: React.ReactNode;
 }) {
@@ -63,55 +67,89 @@ export default function SettingsSection({
         overflow: "hidden",
       }}
     >
-      <button
-        type="button"
-        onClick={toggle}
-        aria-expanded={open}
-        style={{
-          width: "100%", display: "flex", alignItems: "center", gap: 12,
-          minHeight: 52, padding: "12px 16px", textAlign: "left",
-          background: "none", border: "none", cursor: "pointer", color: "inherit",
-        }}
-      >
-        <span style={{ minWidth: 0, flex: 1 }}>
-          <span className="bpm-t-section" style={{ display: "block" }}>
-            {title}
-          </span>
-          {summary && !open && (
-            <span
-              className="bpm-t-help"
-              style={{
-                display: "block", marginTop: 3,
-                overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-              }}
-            >
-              {summary}
+      {info ? (
+        // An "i" is a button, and a button cannot sit inside the header button: the header becomes a row whose click
+        // toggles, the title is the real (focusable) button, and the "i" stops its own clicks from toggling.
+        <div
+          onClick={toggle}
+          style={{ display: "flex", alignItems: "center", gap: 12, minHeight: 52, padding: "12px 16px", cursor: "pointer" }}
+        >
+          <span style={{ minWidth: 0, flex: 1 }}>
+            <span style={{ display: "flex", alignItems: "center" }}>
+              <button
+                type="button"
+                aria-expanded={open}
+                style={{ padding: 0, textAlign: "left", background: "none", border: "none", cursor: "pointer", color: "inherit", font: "inherit" }}
+              >
+                <span className="bpm-t-section">{title}</span>
+              </button>
+              <span onClick={(e) => e.stopPropagation()} style={{ display: "inline-flex" }}><InfoTip label={title}>{info}</InfoTip></span>
             </span>
-          )}
-        </span>
-        <span
-          aria-hidden
+            {summary && !open && (
+              <span className="bpm-t-help" style={{ display: "block", marginTop: 3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {summary}
+              </span>
+            )}
+          </span>
+          <Chevron open={open} />
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={toggle}
+          aria-expanded={open}
           style={{
-            flexShrink: 0, width: 26, height: 26, borderRadius: 7,
-            display: "flex", alignItems: "center", justifyContent: "center",
-            background: open ? "var(--tenant-accent, #378ADD)" : c.panel2,
-            color: open ? "#fff" : c.muted,
-            border: open ? "none" : `1px solid ${c.line}`,
+            width: "100%", display: "flex", alignItems: "center", gap: 12,
+            minHeight: 52, padding: "12px 16px", textAlign: "left",
+            background: "none", border: "none", cursor: "pointer", color: "inherit",
           }}
         >
-          <svg
-            width="14" height="14" viewBox="0 0 24 24" fill="none"
-            stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"
-            style={{ transform: open ? "rotate(180deg)" : "none", transition: "transform .15s ease" }}
-          >
-            <path d="M6 9l6 6 6-6" />
-          </svg>
-        </span>
-      </button>
+          <span style={{ minWidth: 0, flex: 1 }}>
+            <span className="bpm-t-section" style={{ display: "block" }}>
+              {title}
+            </span>
+            {summary && !open && (
+              <span
+                className="bpm-t-help"
+                style={{
+                  display: "block", marginTop: 3,
+                  overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                }}
+              >
+                {summary}
+              </span>
+            )}
+          </span>
+          <Chevron open={open} />
+        </button>
+      )}
 
       {open && (
         <div style={{ padding: "16px", borderTop: `1px solid ${c.line}` }}>{children}</div>
       )}
     </section>
+  );
+}
+
+function Chevron({ open }: { open: boolean }) {
+  return (
+    <span
+      aria-hidden
+      style={{
+        flexShrink: 0, width: 26, height: 26, borderRadius: 7,
+        display: "flex", alignItems: "center", justifyContent: "center",
+        background: open ? "var(--tenant-accent, #378ADD)" : c.panel2,
+        color: open ? "#fff" : c.muted,
+        border: open ? "none" : `1px solid ${c.line}`,
+      }}
+    >
+      <svg
+        width="14" height="14" viewBox="0 0 24 24" fill="none"
+        stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"
+        style={{ transform: open ? "rotate(180deg)" : "none", transition: "transform .15s ease" }}
+      >
+        <path d="M6 9l6 6 6-6" />
+      </svg>
+    </span>
   );
 }

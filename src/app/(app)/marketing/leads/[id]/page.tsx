@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { c, statusInk } from "@/lib/theme";
 import { ROUTES } from "@/lib/constants";
 import Card from "@/components/ui/Card";
+import InfoTip from "@/components/ui/InfoTip";
 import EmptyState from "@/components/ui/EmptyState";
 import ObjectRecordPage from "@/components/page/ObjectRecordPage";
 import RecordActivity from "@/components/page/RecordActivity";
@@ -13,6 +14,7 @@ import { getScoredLead, loadLeadTimeline } from "@/lib/marketing/leads/queries";
 import { listWorkspacePeople, personLabel } from "@/lib/marketing/leads/people";
 import { eventDetail, eventWords } from "@/lib/marketing/leads/eventWords";
 import { describeDue } from "@/lib/marketing/leads/timing";
+import { LEAD_SCORE_TIPS, whyScoreTip } from "@/lib/marketing/leads/tips";
 import { AcceptButton, OwnerControl, RescoreButton, StageControl } from "../LeadControls";
 import { AssignmentChip, DueChip, ScoreMeter, StagePill } from "../ScoreBits";
 
@@ -64,6 +66,7 @@ export default async function ScoredLeadPage({ params, searchParams }: { params:
   const scoreCard = (
     <Card
       title={lead.score != null ? `Why ${lead.score}?` : "Score"}
+      info={lead.score != null ? whyScoreTip(lead.factors?.rubric_version ?? ctx.rubric.version) : undefined}
       action={<RescoreButton leadId={lead.id} />}
     >
       {lead.score == null ? (
@@ -75,7 +78,7 @@ export default async function ScoredLeadPage({ params, searchParams }: { params:
             <span style={{ fontWeight: 600, color: c.ink }}>{band ? SCORE_LABEL[band] : ""}</span>
           </div>
           <div style={{ fontSize: 12.5, color: c.hint, marginBottom: 12 }}>
-            Worked out {ago(lead.scored_at, ctx.now)} from {lead.factors?.events_seen ?? 0} thing{(lead.factors?.events_seen ?? 0) === 1 ? "" : "s"} this person did, using scoring rules version {lead.factors?.rubric_version ?? ctx.rubric.version}.
+            Worked out {ago(lead.scored_at, ctx.now)} from {lead.factors?.events_seen ?? 0} thing{(lead.factors?.events_seen ?? 0) === 1 ? "" : "s"} this person did.
             {next ? ` ${next.need} more point${next.need === 1 ? "" : "s"} to reach "${next.label}".` : ""}
           </div>
           {factors.length === 0 ? (
@@ -105,9 +108,9 @@ export default async function ScoredLeadPage({ params, searchParams }: { params:
       <dl style={{ margin: 0, display: "grid", gridTemplateColumns: "max-content 1fr", gap: "8px 18px", fontSize: 13 }}>
         <dt style={{ color: c.hint }}>Company</dt>
         <dd style={{ margin: 0 }}><Link href={ROUTES.account(lead.account_id)} style={{ color: c.accent }}>{account?.name ?? lead.account_name}</Link>{account?.industry ? ` · ${account.industry}` : ""}</dd>
-        <dt style={{ color: c.hint }}>Person</dt>
+        <dt style={{ color: c.hint }}>Person{!(lead.contact_id && contact) && <InfoTip label="Person">{LEAD_SCORE_TIPS.person}</InfoTip>}</dt>
         <dd style={{ margin: 0 }}>
-          {lead.contact_id && contact ? <><Link href={ROUTES.contact(lead.contact_id)} style={{ color: c.accent }}>{contact.name}</Link>{contact.role ? ` · ${contact.role}` : ""}</> : <span style={{ color: c.muted }}>Not named. The score uses everyone at the company.</span>}
+          {lead.contact_id && contact ? <><Link href={ROUTES.contact(lead.contact_id)} style={{ color: c.accent }}>{contact.name}</Link>{contact.role ? ` · ${contact.role}` : ""}</> : <span style={{ color: c.muted }}>Not named</span>}
         </dd>
         <dt style={{ color: c.hint }}>Where</dt>
         <dd style={{ margin: 0 }}>{[account?.city, account?.country].filter(Boolean).join(", ") || "—"}</dd>
@@ -142,7 +145,7 @@ export default async function ScoredLeadPage({ params, searchParams }: { params:
   return (
     <ObjectRecordPage
       backHref={ROUTES.marketingLeads}
-      backLabel="All scored leads"
+      backLabel="All lead scores"
       title={lead.title ?? "Untitled lead"}
       meta={[lead.account_name, lead.contact_name].filter(Boolean).join(" · ")}
       status={<StagePill stage={lead.stage} />}

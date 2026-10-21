@@ -1,5 +1,4 @@
 import { notFound } from "next/navigation";
-import Link from "next/link";
 import { c, pillar } from "@/lib/theme";
 import { ROUTES } from "@/lib/constants";
 import ObjectRecordPage from "@/components/page/ObjectRecordPage";
@@ -95,9 +94,6 @@ export default async function AbmTargetPage({ params, searchParams }: { params: 
                 </div>
               )}
               <BuyingGroupGrid targetId={target.id} accountId={account.id} members={gridMembers} requiredRoles={closed ? [] : program.required_roles} users={users} canEdit={ctx.can.edit} />
-              <div style={{ fontSize: 12, color: c.hint }}>
-                Roles are for this program only. <Link href={ROUTES.account(account.id)} style={{ color: c.accent }}>Open the account</Link> to add a contact that is not listed.
-              </div>
             </>
           ),
         },

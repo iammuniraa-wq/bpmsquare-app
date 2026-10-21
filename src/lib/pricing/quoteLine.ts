@@ -5,6 +5,8 @@ import type { PricingConfig } from "@/lib/constants";
 import { runPrice, productCostCandidates, isNeedsCost, PricingConfigError } from "./server";
 import { costItemsForProduct } from "./costSheet";
 import { routeToArea, quoteLineContext } from "./routing";
+import { productPriceListRule } from "./productPriceList";
+import { missingColumnName } from "./quoteLineFlags";
 
 // Pricing one document line in-app (spec §11.2 client #3; cost-based step
 // 2). One function for the quote form, the standard-quote form and the
@@ -44,6 +46,24 @@ export type PricedLineOutcome =
       message: string;
     };
 
+type PricedProductRow = {
+  id: string; name: string; sku?: string | null; category?: string | null; sub_category?: string | null;
+  list_price?: number | null; uom?: string | null; tax_percent?: number | null; qty_breaks?: unknown;
+};
+
+/** The product row the line is priced from. qty_breaks (0118) is read when the
+ *  column exists; a database where that migration is pending prices exactly as
+ *  before rather than failing the line. */
+async function loadPricedProduct(admin: ReturnType<typeof createAdminSupabase>, tenantId: string, productId: string): Promise<{ data: PricedProductRow | null }> {
+  const withBreaks = await admin.from("products").select("id, name, sku, category, sub_category, list_price, uom, tax_percent, qty_breaks")
+    .eq("id", productId).eq("tenant_id", tenantId).maybeSingle();
+  if (!withBreaks.error) return { data: withBreaks.data as PricedProductRow | null };
+  if (missingColumnName(withBreaks.error) !== "qty_breaks") return { data: null };
+  const plain = await admin.from("products").select("id, name, sku, category, sub_category, list_price, uom, tax_percent")
+    .eq("id", productId).eq("tenant_id", tenantId).maybeSingle();
+  return { data: plain.data as PricedProductRow | null };
+}
+
 export async function priceDocumentLine(
   tenantId: string,
   args: {
@@ -59,8 +79,7 @@ export async function priceDocumentLine(
   const admin = createAdminSupabase();
   const [{ product, candidates }, { data: productRow }, { data: account }] = await Promise.all([
     productCostCandidates(tenantId, args.productId),
-    admin.from("products").select("id, name, category, sub_category, list_price, uom, tax_percent")
-      .eq("id", args.productId).eq("tenant_id", tenantId).maybeSingle(),
+    loadPricedProduct(admin, tenantId, args.productId),
     args.accountId
       ? admin.from("accounts").select("id, type, state, industry").eq("id", args.accountId).eq("tenant_id", tenantId).maybeSingle()
       : Promise.resolve({ data: null }),
@@ -81,7 +100,18 @@ export async function priceDocumentLine(
     const { result, config_version, document_id, tax_components } = await runPrice(
       tenantId,
       { attributes: ctx.header, lines: [{ line_no: 1, quantity: args.quantity, attributes: ctx.line, cost_items: costItems }] },
-      { pricingArea: area, meta: { source: args.documentType, sourceId: args.sourceId ?? null, actorId: args.actorId ?? null } }
+      {
+        pricingArea: area,
+        meta: { source: args.documentType, sourceId: args.sourceId ?? null, actorId: args.actorId ?? null },
+        // The product's own price list (list price + quantity breaks), when the
+        // routed book has a quantity-scaled PRICE component and no rule of its own for it.
+        extraRules: (config) => {
+          const rule = productPriceListRule(config, {
+            id: productRow.id, sku: productRow.sku, name: productRow.name, list_price: productRow.list_price, qty_breaks: productRow.qty_breaks,
+          });
+          return rule ? [rule] : [];
+        },
+      }
     );
     const line = result.lines[0];
     // Owner decision 2026-09-06: the LINE takes the pre-tax figure (NET_2 in

@@ -6,8 +6,9 @@ import { getMethodTemplate } from "./wizard";
 import { routeToArea, quoteLineContext } from "./routing";
 import { costItemsForProduct, productCostCandidate, PURCHASE_PATH } from "./costSheet";
 import { flattenContext } from "@/lib/pricing-core";
+import { productPriceListRule, extraDimensionWeight } from "./productPriceList";
 import {
-  DEMO_BOOKS, DEMO_COST_INPUTS, DEMO_DIMENSIONS, DEMO_PRODUCTS, DEMO_ROUTING_RULES, PANEL_PRODUCT, renderSeedSql,
+  DEMO_BOOKS, DEMO_COST_INPUTS, DEMO_DIMENSIONS, DEMO_PRODUCTS, DEMO_QTY_BREAKS, DEMO_ROUTING_RULES, PANEL_PRODUCT, renderSeedSql,
   type DemoBook,
 } from "../../../scripts/pricing-demo-books";
 
@@ -24,10 +25,10 @@ const COST_SHEET_PRD0007 = [
   { path: "salvage.credit_per_unit", qty: 6 },
 ];
 
-type Prod = { id: string; name: string; category: string; sub: string; uom: string; list: number; cost: number; sheet?: unknown; asOf?: string | null };
+type Prod = { id: string; name: string; category: string; sub: string; uom: string; list: number; cost: number; sheet?: unknown; asOf?: string | null; breaks?: unknown };
 
 const PRODUCTS: Prod[] = [
-  ...DEMO_PRODUCTS.map((p): Prod => ({ id: p.ref, ...p, sheet: p.ref === "PRD-0007" ? COST_SHEET_PRD0007 : undefined, asOf: p.ref === "PRD-0009" ? "2026-07-16" : "2026-10-16" })),
+  ...DEMO_PRODUCTS.map((p): Prod => ({ id: p.ref, ...p, sheet: p.ref === "PRD-0007" ? COST_SHEET_PRD0007 : undefined, breaks: DEMO_QTY_BREAKS[p.ref], asOf: p.ref === "PRD-0009" ? "2026-07-16" : "2026-10-16" })),
   { id: "PRD-0011", ...PANEL_PRODUCT, asOf: null },
 ];
 const byRef = (ref: string) => PRODUCTS.find((p) => p.id === ref)!;
@@ -71,8 +72,13 @@ function priceInBook(area: string, p: Prod, quantity: number, account?: { type?:
   const own = productCostCandidate({ cost_price: p.cost, cost_price_as_of: p.asOf, updated_at: "2026-10-01" });
   const candidates: Record<string, CostCandidate[]> = own ? { [PURCHASE_PATH]: [own] } : {};
 
+  // The product's own price list, exactly as the in-app line pricing adds it.
+  const ownList = productPriceListRule({ components: t.components, rules }, { id: p.id, name: p.name, list_price: p.list, qty_breaks: p.breaks });
+  const registry = { ...REGISTRY };
+  if (ownList) for (const attr of Object.keys(ownList.match_attributes)) registry[attr] ??= extraDimensionWeight(attr, registry);
+
   const input: PriceInput = {
-    procedure: t.procedure, components: t.components, rules, cost_models: costModels, registry: REGISTRY,
+    procedure: t.procedure, components: t.components, rules: ownList ? [...rules, ownList] : rules, cost_models: costModels, registry,
     document: {
       attributes: ctx.header,
       lines: [{ line_no: 1, quantity, attributes: ctx.line, cost_items: costItemsForProduct({ cost_sheet: p.sheet, cost_price: p.cost }, quantity, candidates) }],
@@ -88,7 +94,7 @@ describe("demo routing", () => {
     const area = (ref: string) => priceLine(byRef(ref), 1).area;
     for (const ref of ["PRD-0001", "PRD-0002", "PRD-0003", "PRD-0004", "PRD-0005", "PRD-0006"]) expect(area(ref)).toBe("catalogue_2026");
     for (const ref of ["PRD-0007", "PRD-0008", "PRD-0009"]) expect(area(ref)).toBe("cost_plus");
-    expect(area("PRD-0010")).toBe("formula_pricing"); // SPARES, but its ROPES sub-category is routed first
+    expect(area("PRD-0010")).toBe("catalogue_2026"); // SPARES, but its ROPES sub-category is routed first
     expect(area("PRD-0011")).toBe("formula_pricing"); // MODERNISATION, but CABINS is routed first
   });
 });
@@ -119,21 +125,37 @@ describe("Catalogue 2026 (list)", () => {
   });
 });
 
-describe("Formula pricing", () => {
-  it("wire rope steps down by volume band", () => {
-    const rope = byRef("PRD-0010");
-    expect(priceLine(rope, 50).preTax).toBe(50 * 420);
+describe("Wire rope: the product's own price list in the Catalogue book", () => {
+  const rope = byRef("PRD-0010");
+
+  it("steps down by the product's quantity breaks with no rule in the book", () => {
+    expect(priceLine(rope, 40).preTax).toBe(40 * 420);
     expect(priceLine(rope, 150).preTax).toBe(150 * 390);
     expect(priceLine(rope, 600).preTax).toBe(600 * 360);
   });
 
-  it("adds the regional uplift only outside the home state, and never when the account has no state", () => {
-    const rope = byRef("PRD-0010");
-    expect(priceLine(rope, 150, { type: "direct", state: "Karnataka" }).preTax).toBe(58_500);
-    expect(priceLine(rope, 150, { type: "direct", state: "Maharashtra" }).preTax).toBe(60_840);
-    expect(priceLine(rope, 150, { type: "direct" }).preTax).toBe(58_500);
+  it("names the product's price list and the band in the trace", () => {
+    const step = priceLine(rope, 150).line.trace.find((t) => t.component === "LIST_PRICE");
+    expect(step?.rule_id).toBe("product:PRD-0010:price-list");
+    expect(step?.scale_from).toBe(100);
   });
 
+  it("takes the tier discount like any list-priced product, and the regional uplift no longer applies", () => {
+    expect(priceLine(rope, 150, { type: "oem" }).preTax).toBeCloseTo(58_500 * 0.92, 2);
+    expect(priceLine(rope, 150, { type: "direct" }).preTax).toBeCloseTo(58_500 * 0.95, 2);
+    expect(priceLine(rope, 150, { type: "direct", state: "Maharashtra" }).preTax).toBeCloseTo(58_500 * 0.95, 2);
+  });
+
+  it("is set on the demo product by seed-products-demo.sql", () => {
+    const sql = readFileSync(join(__dirname, "../../../scripts/seed-products-demo.sql"), "utf8");
+    const set = /qty_breaks = '(\[[^']*\])'::jsonb/.exec(sql);
+    expect(set).not.toBeNull();
+    expect(JSON.parse(set![1])).toEqual(DEMO_QTY_BREAKS["PRD-0010"]);
+    expect(sql).toMatch(/list_price = 420\.00/);
+  });
+});
+
+describe("Formula pricing", () => {
   it("prices a panel as rate per m2 times area, with an area discount and a job minimum", () => {
     expect(priceLine(panel, 30).preTax).toBe(30 * 5200);
     expect(priceLine(panel, 60).preTax).toBe(287_040); // 60 x 5,200 x 0.92
@@ -149,8 +171,8 @@ describe("Formula pricing", () => {
   });
 
   it("an OEM gets 5% off a formula price, and the 0% floor raises no flag", () => {
-    const r = priceLine(byRef("PRD-0010"), 150, { type: "oem" });
-    expect(r.preTax).toBeCloseTo(58_500 * 0.95, 2);
+    const r = priceLine(panel, 30, { type: "oem" });
+    expect(r.preTax).toBeCloseTo(30 * 5200 * 0.95, 2);
     expect(r.line.flags).toEqual([]);
   });
 

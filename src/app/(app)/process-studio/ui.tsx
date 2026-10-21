@@ -1,12 +1,16 @@
 "use client";
 
-import { useEffect, useId } from "react";
+import { useEffect, useId, useState } from "react";
 import Button from "@/components/ui/Button";
+import InfoTip from "@/components/ui/InfoTip";
+import SharedOptionGroup from "@/components/ui/OptionGroup";
+import { Opt as SharedOpt } from "@/components/ui/Opt";
 import type { CapabilityView } from "@/lib/studio/types";
 import { RATING_LABEL, type Rating } from "@/lib/studio/types";
 import styles from "./studio.module.css";
 
-// Small building blocks shared by the six steps.
+// Small building blocks shared by the six steps. Labels, values and actions only: every explanation goes in `info`
+// and sits behind the shared "i" (docs/design/ux-simplification.md); the texts live in src/lib/studio/tips.ts.
 
 export const cx = (...parts: (string | false | null | undefined)[]): string => parts.filter(Boolean).join(" ");
 
@@ -14,52 +18,51 @@ export function RatingPill({ rating }: { rating: Rating }) {
   return <span className={cx(styles.pill, styles[rating])}>{RATING_LABEL[rating]}</span>;
 }
 
+/** Fired to open a group from outside it (a "+ Add step" button, the guided walkthrough). The detail is the group's id. */
+export const OPEN_GROUP_EVENT = "studio:open-group";
+
 /**
- * One collapsible group in the left panel (owner rule, Newsletter review: every
- * option group is collapsible, the group in use open, the rest closed). A native
- * details/summary, so it is keyboard-accessible with no extra code; `id` lets
- * the guided walkthrough find it.
+ * One collapsible group in the left panel: the shared OptionGroup (a header row with its own "i"), holding its own
+ * open state. `id` lets the guided walkthrough find it and open it.
  */
-export function OptionGroup({ id, title, hint, defaultOpen = false, children }: {
-  id?: string; title: string; hint: string; defaultOpen?: boolean; children: React.ReactNode;
+export function OptionGroup({ id, title, info, defaultOpen = false, children }: {
+  id?: string; title: string; info?: React.ReactNode; defaultOpen?: boolean; children: React.ReactNode;
 }) {
+  const auto = useId();
+  const gid = id ?? `og${auto.replace(/:/g, "")}`;
+  const [open, setOpen] = useState(defaultOpen);
+  useEffect(() => {
+    const h = (e: Event) => { if ((e as CustomEvent<string>).detail === gid) setOpen(true); };
+    window.addEventListener(OPEN_GROUP_EVENT, h);
+    return () => window.removeEventListener(OPEN_GROUP_EVENT, h);
+  }, [gid]);
   return (
-    <details className={styles.grp} id={id} open={defaultOpen || undefined}>
-      <summary>
-        <span><b>{title}</b><span className={styles.ghint}>{hint}</span></span>
-        <svg className={styles.chev} viewBox="0 0 20 20" aria-hidden="true">
-          <path d="M5 8l5 5 5-5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-      </summary>
-      <div className={styles.grpIn}>{children}</div>
-    </details>
+    <SharedOptionGroup id={gid} title={title} info={info} open={open} onToggle={() => setOpen((o) => !o)}>{children}</SharedOptionGroup>
   );
 }
 
-/** One option: a label, the control, and the one-line plain-words hint every option must carry. */
-export function Opt({ label, hint, children, htmlFor }: { label: string; hint: string; children: React.ReactNode; htmlFor?: string }) {
-  return (
-    <div className={styles.opt}>
-      {htmlFor ? <label className={styles.optLabel} htmlFor={htmlFor}>{label}</label> : <div className={styles.optLabel}>{label}</div>}
-      {children}
-      <span className={styles.optHint}>{hint}</span>
-    </div>
-  );
+/** One option: a label (with its "i" when it has an explanation) above the control. `hint` is a constraint of a few words only. */
+export function Opt({ label, info, hint, children, htmlFor }: { label: string; info?: React.ReactNode; hint?: string; children: React.ReactNode; htmlFor?: string }) {
+  return <SharedOpt label={label} info={info} hint={hint} htmlFor={htmlFor}>{children}</SharedOpt>;
 }
 
-export function Switch({ label, hint, checked, onChange, disabled }: {
-  label: string; hint: string; checked: boolean; onChange: (v: boolean) => void; disabled?: boolean;
+export function Switch({ label, info, checked, onChange, disabled }: {
+  label: string; info?: React.ReactNode; checked: boolean; onChange: (v: boolean) => void; disabled?: boolean;
 }) {
   const id = useId();
   return (
     <div className={styles.opt}>
-      <label className={styles.optLabel} htmlFor={id}>
-        {label}
+      <div className={styles.optLabel}>
+        <span className="bpm-label-row"><label htmlFor={id}>{label}</label>{info ? <InfoTip label={label}>{info}</InfoTip> : null}</span>
         <input id={id} type="checkbox" role="switch" className={styles.sw} checked={checked} disabled={disabled} onChange={(e) => onChange(e.target.checked)} />
-      </label>
-      <span className={styles.optHint}>{hint}</span>
+      </div>
     </div>
   );
+}
+
+/** A group's empty state: what is missing, in a few words, and the next step. */
+export function MiniEmpty({ title, text }: { title: string; text: string }) {
+  return <div className={styles.emptyMini}><b>{title}</b><span>{text}</span></div>;
 }
 
 export function Tuck({ title, note, children }: { title: string; note?: string; children: React.ReactNode }) {
@@ -71,10 +74,10 @@ export function Tuck({ title, note, children }: { title: string; note?: string; 
   );
 }
 
-export function Head({ title, sub, children }: { title: string; sub?: string; children?: React.ReactNode }) {
+export function Head({ title, info, children }: { title: string; info?: string; children?: React.ReactNode }) {
   return (
     <div className={styles.head}>
-      <div><h2>{title}</h2>{sub ? <p className={styles.sub}>{sub}</p> : null}</div>
+      <div>{info ? <span className="bpm-label-row"><h2>{title}</h2><InfoTip label={title}>{info}</InfoTip></span> : <h2>{title}</h2>}</div>
       {children}
     </div>
   );
