@@ -159,6 +159,7 @@ export const ROUTES = {
   settingsQuoteTypes: "/settings/quote-types",
   settingsDeveloper: "/settings/developer",
   settingsPush: "/settings/push",
+  settingsMiddleware: "/settings/middleware",
   settingsEmailOutput: "/settings/email-output",
   settingsAppearance: "/settings/appearance",
   settingsDashboard: "/settings/dashboard",
@@ -702,6 +703,13 @@ export type TenantFeatures = {
   // with it off there is no menu item, no route and no hook on any form. Needs
   // `marketing` and `marketing_forms`.
   marketing_events: boolean;
+  // Integration middleware (docs/design/integration-middleware.md): one page for
+  // everything about sync -- connections, what goes out when a Standard Quote is
+  // awarded or rejected, mapping, the message monitor, resync. A platform-admin-
+  // only flag (set in /admin/tenants, never by a workspace admin): default OFF,
+  // missing key reads false; with it off nothing changes for the workspace -- no
+  // menu item, no route, no logging, no event dispatch.
+  integration_middleware: boolean;
 };
 
 // WfmConfig — tenant-level WFM (attendance) settings, stored in

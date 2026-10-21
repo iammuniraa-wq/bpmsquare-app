@@ -59,6 +59,10 @@ export type ConnectorDef = {
   /** A connector too rich for the tile's inline form (several login types,
    * entity maps, sync runs) has its own settings page; the tile links there. */
   configureHref?: string;
+  /** A connector that syncs with another system: with the `integration_middleware`
+   * flag on, it is configured and run from Settings -> Integration middleware (one
+   * chip per connector in its switcher), and its tile here only links there. */
+  middleware?: boolean;
 };
 
 export type TenantConnectorRow = {

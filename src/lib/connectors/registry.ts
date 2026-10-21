@@ -84,6 +84,7 @@ export const CONNECTOR_CATALOG: ConnectorDef[] = [
     fields: [],
     testable: false,
     configureHref: "/settings/connectors/dynamics365",
+    middleware: true,
   },
 ];
 
