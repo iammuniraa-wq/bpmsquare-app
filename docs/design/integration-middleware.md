@@ -387,3 +387,21 @@ the same place, when one line is selected."
   body}|null, response: {status, body, durationMs}|null, truncated: boolean }|null` (url is path
   and entity only, never a query string with credentials); list items carry
   `hasPayload: boolean` so the buttons enable without a second read.
+
+## Correction to (7): Monitor is the list, Resync stays as its own tab for DATA (owner 2026-10-21)
+Owner: "We have this in Monitor; why not use that one and use Resync for something else?"
+So the tabs stay five: Connections, What goes out, Mapping, **Monitor**, **Resync**.
+- **Monitor** = the one big list (section 7 and 8): filters on top, every detail in the row,
+  tick one or many, **Restart**, and with one row ticked **View request / View response**.
+  It is the only place that shows messages, history and failures. Nothing in it duplicates elsewhere.
+- **Resync** = move DATA on demand, never messages. One short table, one row per inbound entity
+  (Customers, Contacts, Products, Projects): name, last run in one line ("Today 17:29, 6 records"),
+  the automatic schedule dropdown (Off / Hourly / Daily), and two buttons **Sync now** and **Full
+  resync**. Under the table one quiet block **Send a record** (type, record, Send; replaces the old
+  Push to ERP button) and, for a single entity, an optional "Only these records" field (ids or
+  numbers) so one or many records can be re-synced without the whole entity. No run history here
+  (it is Monitor, filter by entity), no failed list here (it is Monitor), no payloads here.
+- **Mapping** keeps only field mapping (and the entity's enable checkbox on its header); the
+  schedule and sync buttons are NOT repeated there.
+Each thing lives in exactly one place: messages in Monitor, data sync in Resync, field maps in
+Mapping, connection in Connections, what to send in What goes out.
