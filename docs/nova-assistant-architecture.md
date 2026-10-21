@@ -186,6 +186,53 @@ degrades to "no history" while pending. `ai_usage_log` gains nothing new.
 S1 is a week; S2 and S3 two weeks each; S4 and S5 a week each (Sonnet
 build time, before validation).
 
+### S1 as built (2026-10-21)
+
+Flag: `ai_assistant` only. Nothing writes to tenant data. Everything is under
+`src/lib/assistant/` except the loop (`src/lib/ai/assistant.ts`), the route
+(`src/app/api/ai/ask/route.ts`) and the dock (`src/components/AIDock.tsx`).
+
+| Point | Where | How it works |
+|---|---|---|
+| Page context | `objects.ts`, `sources.ts`, `pageService.ts` | The dock sends the route (plus object type and record id read from it; the server ignores those two and parses the route itself). The record is found among the workspace's own rows through the `LIST_SOURCES` load (Standard Quotes, which have no entry there, get a header-only source of the same shape in `sources.ts`), only when the module is on and the caller has the view grant. Only the declared, non-sensitive fields reach the prompt (`context.ts`), inside `<open_record>` tags as data. An id from another workspace is not among those rows, so nothing loads. The context line is the object's `title()`: reference and name. |
+| Navigation | `navTargets.ts`, `navTools.ts`, `createActions.ts` | Targets are built per caller from `NAV`, `visibleSettingsMenu`, and the palette's create list (moved to `createActions.ts`, shared by both), with the sidebar's own gates plus the create grant. `navigate` takes an id from that enum; the server maps id to path and checks it is an internal path. `open_record` resolves a reference or name inside the workspace to a detail path. Plain "open quotations", "new quotation", "open quote SQ-2026-0012" are answered with no model call. The dock follows a single card at once when the message starts with open / go to / take me to. |
+| Suggestions | `suggestions.ts`, `ownWork.ts` | Pure rules per object (account, contact, quote, standard quote, product, lead, opportunity, estimate), each suggestion tagged with the module and workcenter it needs; filtered by access, then capped at three. With no record: the person's own stale drafts (`quotes.created_by`), Ready-for-sales leads they own, and their overdue ABM next steps. |
+| Usage pill | `meter.ts`, `models.ts` | `AssistantMeter`: allowance read before the first model call, `ai_usage_log` row (`surface: assistant`, real model, billed tokens) after each call including the chart tool's nested call, and a running total that stops a long ask. Billed tokens = uncached input + cache writes x1.25 + cache reads x0.1 + output. Over the allowance: `OVER_BUDGET_MESSAGE`, no call; suggestions and navigation still work. The budget reads `config.ai_assistant.monthly_token_budget` (type added; the admin field is S4), default 1.5 M. |
+| Cost | `ai/assistant.ts`, `models.ts` | System prompt split into a stable block (role, rules, field catalogue, navigation list) with `cache_control` (1 h) and a volatile block (date, open record) after it; the last tool carries the breakpoint for the tool list. Query rows are trimmed to declared non-sensitive fields (20-row cap kept). |
+| Rule 6b | `tips.ts`, `AIDock.tsx` | No running text in the panel; the header, context line, suggestions, each suggestion's why and the usage pill carry `InfoTip`s. Texts held to the limit by `assistantUnits.test.ts`. Under 900 px the panel is full screen with the input pinned at the bottom, 44 px targets, a Close button. |
+
+**Routing heuristic** (`routeAsk`, one decision per ask, never mid-loop): `mid`
+when the question is over 220 characters, contains a multi-step cue (compare,
+versus, trend, over time, why, explain, analyse, insights, forecast,
+recommend, summarise, breakdown, chart, top N, rank, both, and then ...), or
+is a short follow-up to an answer that was a chart/trend/comparison;
+otherwise `small`. A wrong guess costs one rephrasing or a few tokens, never a
+wrong number, because numbers come from tools on either tier. Mid is
+`claude-opus-5` (what the dock has always used); small is `claude-opus-5-5`
+at low effort. No smaller family is used anywhere in the repo, so
+`ASSISTANT_SMALL_MODEL` (e.g. `claude-haiku-5-5`) is the one-line switch for
+decision 2 in section 11. Caches are per model, so each tier warms its own.
+
+**Deliberate skips and deviations**
+- `navigate` is an enum-constrained tool left on `tool_choice: auto`, not a
+  forced one: the newer models reject forced `tool_choice` with a 400. The
+  guarantee is the same (an id outside the enum is refused by the server).
+- A supervisor made so only by an employee record (`wfm_role`) does not see
+  supervisor-only Workforce targets; admins and Workforce editors do (safe
+  direction, avoids a lookup per ask).
+- Suggestion and context reads load the object's full tenant list through
+  `LIST_SOURCES.load()` and pick the row (same cost the chat's own queries
+  already have); a keyed single-row read is a later optimisation.
+- Event-driven suggestions, "Hot" lead wording and write actions are S2/S5.
+- The platform-admin field for the assistant budget and Settings -> AI usage
+  are S4; the pill reads the default until then.
+- `visibleSources` and the quick lookups now also respect the module flags
+  (before this, only the Business Role grant), and both verbs of
+  `/api/ai/ask` require `ai_assistant` server-side.
+- Docs: no Drive guide describes the dock yet. When S1 is validated, the
+  Admin & Setup guide gains "AI assistant" with the `i` texts from
+  `src/lib/assistant/tips.ts`, the usage pill and the allowance.
+
 ## 11. Open decisions for the owner
 
 1. Prices of the Included / Plus plans, and whether a top-up is sold.
