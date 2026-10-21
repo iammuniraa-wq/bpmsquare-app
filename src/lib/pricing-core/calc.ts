@@ -76,6 +76,7 @@ export type TraceStep = {
   basis?: number;
   value?: number;                            // rule value / rate before basis application
   qty?: number;                              // line quantity, set for PER_UNIT so rate x qty can be shown
+  scale_from?: number;                       // SCALE_TIERED: the lower bound of the band that priced the line
   formula?: string;                          // the DSL source actually evaluated (FORMULA components)
   values_used?: { path: string; value: AttrValue }[]; // ctx reads the formula made, for "show your work"
   result?: number;                           // signed amount contributed (0 for statistical display)
@@ -367,8 +368,16 @@ export function priceDocument(input: PriceInput): PriceResult {
         calc_type: component.calc_type,
         basis, value: first.rule.value ?? undefined, result: amount,
         qty: component.calc_type === "PER_UNIT" ? (line.quantity ?? undefined) : undefined,
+        scale_from: component.calc_type === "SCALE_TIERED" ? scaleBandFrom(first.rule.scale?.entries ?? [], basis) : undefined,
         statistical: component.is_statistical || step.statistical,
       };
+    }
+
+    /** The `from` of the tier resolveScaleTiered picked for this basis. */
+    function scaleBandFrom(table: { from: number }[], basis: number): number | undefined {
+      let from: number | undefined;
+      for (const entry of table) if (basis >= entry.from) from = entry.from;
+      return from;
     }
 
     function ruleAmount(rule: PriceRule, component: PriceComponent, basis: number): number {
