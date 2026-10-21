@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { randomBytes } from "crypto";
 import { requireTenantUser, createAdminSupabase } from "@/lib/supabase-server";
+import { assertSafeHttpsUrl } from "@/lib/net/safeHost";
 
 // Management API for outbound webhooks (Settings -> Developer). Admin-only.
 // A new webhook's cursor is seeded to the CURRENT tip of change_log, so it only
@@ -67,6 +68,8 @@ export async function POST(req: Request) {
   const url = typeof body.url === "string" ? body.url.trim() : "";
   if (!name) return NextResponse.json({ error: "A webhook name is required." }, { status: 422 });
   if (!/^https:\/\/.+/i.test(url)) return NextResponse.json({ error: "`url` must be an https:// URL." }, { status: 422 });
+  // Our dispatcher posts to this address, so a private or internal host is refused (and again at delivery).
+  try { await assertSafeHttpsUrl(url); } catch (e) { return NextResponse.json({ error: (e as Error).message }, { status: 422 }); }
 
   const objectTypes = normalizeObjectTypes(body.object_types);
   if (!objectTypes.ok) return NextResponse.json({ error: objectTypes.error }, { status: 422 });

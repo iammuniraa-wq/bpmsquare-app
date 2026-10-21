@@ -4,6 +4,7 @@ import { requireTenantUser } from "@/lib/supabase-server";
 import { getDecryptedCredentials } from "@/lib/connectors/server";
 import { parseIcsEvents } from "@/lib/connectors/ics";
 import { loadMailbox, testMailbox } from "@/lib/mail/mailbox";
+import { fetchPublic } from "@/lib/net/safeHost";
 
 /**
  * Sends a real test notification through the connector, not a canned
@@ -26,12 +27,20 @@ export async function POST(_request: NextRequest, { params }: { params: Promise<
   const creds = await getDecryptedCredentials(supabase, tenantId, id);
   if (!creds) return NextResponse.json({ error: "Not connected" }, { status: 404 });
 
+  // Both URLs below were typed by a tenant admin and are fetched by OUR server: fetchPublic()
+  // refuses a private/internal host and a redirect to one (audit 2026-10-21).
   if (id === "slack") {
-    const res = await fetch(creds.webhook_url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text: "✅ BPMSquare is connected to this Slack channel." }),
-    });
+    let res: Response;
+    try {
+      res = await fetchPublic(creds.webhook_url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: "✅ BPMSquare is connected to this Slack channel." }),
+        signal: AbortSignal.timeout(15_000),
+      });
+    } catch (e) {
+      return NextResponse.json({ error: `Could not reach that webhook: ${(e as Error).message}` }, { status: 400 });
+    }
     if (!res.ok) {
       const body = await res.text().catch(() => "");
       return NextResponse.json({ error: `Slack rejected the webhook (${res.status}): ${body || "no details"}` }, { status: 400 });
@@ -40,7 +49,12 @@ export async function POST(_request: NextRequest, { params }: { params: Promise<
   }
 
   if (id === "google_calendar") {
-    const res = await fetch(creds.ical_url);
+    let res: Response;
+    try {
+      res = await fetchPublic(creds.ical_url, { signal: AbortSignal.timeout(15_000) });
+    } catch (e) {
+      return NextResponse.json({ error: `Could not fetch that calendar feed: ${(e as Error).message}` }, { status: 400 });
+    }
     if (!res.ok) return NextResponse.json({ error: `Could not fetch that calendar feed (${res.status}) — double check the secret URL` }, { status: 400 });
     const text = await res.text();
     const now = Date.now();
