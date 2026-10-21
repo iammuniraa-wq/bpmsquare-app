@@ -29,7 +29,7 @@ export default async function BuyingSignalsPage() {
 
   return (
     <>
-      <PageHeader title="Who is in market" subtitle="Accounts that look ready to buy, scored from your own quotes, cases and campaigns" />
+      <PageHeader title="Who is in market" />
       <SignalsWorkspace workspace={workspace} campaigns={options} canEdit={ctx.can.edit} isAdmin={ctx.role === "admin" && ctx.can.edit} />
     </>
   );

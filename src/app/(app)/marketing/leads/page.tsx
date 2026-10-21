@@ -117,7 +117,7 @@ export default async function ScoredLeadsPage({
       filtered={!!(q || stageFilter || Object.keys(cfParams).length > 0)}
       empty={{
         title: "No leads yet",
-        text: "Leads appear here as people at your companies are scored. Add a lead from the Leads page, or wait for the nightly run to score the ones you have.",
+        text: "Leads appear here as people at your companies are scored, every 15 minutes. Add a lead from the Leads page, or press Score again on a lead.",
         filteredTitle: "No leads match these filters.",
       }}
     />

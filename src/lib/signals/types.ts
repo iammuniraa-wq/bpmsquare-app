@@ -7,7 +7,7 @@ export const STAGES = ["quiet", "looking", "comparing", "deciding"] as const;
 export type Stage = (typeof STAGES)[number];
 
 export const STAGE_LABEL: Record<Stage, string> = {
-  quiet: "Quiet", looking: "Looking", comparing: "Comparing", deciding: "Deciding",
+  quiet: "Silent", looking: "Looking", comparing: "Comparing", deciding: "Deciding",
 };
 
 /** One line under each stage, in the words a rep would use (shown in hints and the tour). */

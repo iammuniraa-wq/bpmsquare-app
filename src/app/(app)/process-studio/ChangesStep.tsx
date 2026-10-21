@@ -4,10 +4,12 @@ import { useState } from "react";
 import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
 import { Input, Select, Textarea } from "@/components/ui/Input";
+import { CheckOpt } from "@/components/ui/Opt";
 import {
   CHANGE_KINDS, CHANGE_KIND_HINT, CHANGE_KIND_LABEL, EFFORT_LABEL, type ChangeKind,
 } from "@/lib/studio/types";
 import { studioApi, STUDIO_BASE, useStepRunner, type StepProps } from "./studioClient";
+import { STUDIO_TIPS } from "@/lib/studio/tips";
 import { Head, OptionGroup, Opt, Switch, Tuck, cx } from "./ui";
 import styles from "./studio.module.css";
 
@@ -47,22 +49,19 @@ export default function ChangesStep({ bundle, canEdit, toast, refresh }: StepPro
   return (
     <>
       <aside className={styles.panel} aria-label="Options">
-        <OptionGroup id="p4kinds" title="Kinds of change" hint="The only five kinds there are. Untick a kind to hide those cards." defaultOpen>
-          <div style={{ display: "grid", gap: 8 }}>
+        <OptionGroup id="p4kinds" title="Kinds of change" info={STUDIO_TIPS.kinds} defaultOpen>
+          <div style={{ display: "grid", gap: 4 }}>
             {CHANGE_KINDS.map((k) => (
-              <label key={k} className={styles.chk}>
-                <input type="checkbox" checked={kinds[k]} onChange={(e) => setKinds((cur) => ({ ...cur, [k]: e.target.checked }))} />
-                <span><b style={{ fontWeight: 600 }}>{CHANGE_KIND_LABEL[k]}</b><br /><span className={styles.help}>{CHANGE_KIND_HINT[k]}</span></span>
-              </label>
+              <CheckOpt key={k} label={CHANGE_KIND_LABEL[k]} info={CHANGE_KIND_HINT[k]} checked={kinds[k]} onChange={(v) => setKinds((cur) => ({ ...cur, [k]: v }))} />
             ))}
           </div>
         </OptionGroup>
 
-        <OptionGroup title="More" hint="Hidden cards, and changes you add yourself.">
-          <Switch label="Show hidden changes" checked={showHidden} onChange={setShowHidden} hint="Cards you marked we can live without this stay listed, greyed out." />
+        <OptionGroup title="More" info={STUDIO_TIPS.changesMore}>
+          <Switch label="Show hidden changes" checked={showHidden} onChange={setShowHidden} info={STUDIO_TIPS.showHidden} />
           {canEdit && (
             <>
-              <Opt label="Add a change" htmlFor="psd-ck" hint="Something you want that we did not list. Plain words are fine.">
+              <Opt label="Add a change" htmlFor="psd-ck" info={STUDIO_TIPS.addChange}>
                 <Select id="psd-ck" value={draft.kind} onChange={(e) => setDraft((d) => ({ ...d, kind: e.target.value as ChangeKind }))}>
                   {CHANGE_KINDS.map((k) => <option key={k} value={k}>{CHANGE_KIND_LABEL[k]}</option>)}
                 </Select>
@@ -70,7 +69,7 @@ export default function ChangesStep({ bundle, canEdit, toast, refresh }: StepPro
                 <Textarea aria-label="What you want" placeholder="What you want, in your own words" rows={2} value={draft.plain} maxLength={400} onChange={(e) => setDraft((d) => ({ ...d, plain: e.target.value }))} />
               </Opt>
               <Button size="sm" loading={adding} onClick={() => void add()}>Add this change</Button>
-              <Opt label="Propose again" hint="Rework the cards we proposed from the current fit report. Changes you added stay.">
+              <Opt label="Propose again" info={STUDIO_TIPS.proposeAgain}>
                 <Button size="sm" loading={busy === "changes"} onClick={() => void run("changes")}>Propose again</Button>
               </Opt>
             </>
@@ -87,7 +86,7 @@ export default function ChangesStep({ bundle, canEdit, toast, refresh }: StepPro
       </aside>
 
       <div className={styles.work}>
-        <Head title="What we'd change" sub="One card for every partly or not covered line. Hide any you can live without." />
+        <Head title="What we'd change" info={STUDIO_TIPS.changesHead} />
         {list.length === 0 ? (
           <Card><p className={styles.empty} style={{ margin: 0 }}>
             <b>Nothing to change.</b><br />Every step is standard or needs only setup, or your filters hide the rest.

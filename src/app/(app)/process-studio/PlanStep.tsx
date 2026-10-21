@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
 import { Input, Select, Textarea } from "@/components/ui/Input";
@@ -10,6 +11,8 @@ import {
   type PhaseId, type TaskOwner, type TaskRow, type Weekend,
 } from "@/lib/studio/types";
 import { studioApi, STUDIO_BASE, useStepRunner, type StepProps } from "./studioClient";
+import InfoTip from "@/components/ui/InfoTip";
+import { STUDIO_TIPS } from "@/lib/studio/tips";
 import { Head, OptionGroup, Opt, Switch, cx } from "./ui";
 import styles from "./studio.module.css";
 
@@ -81,43 +84,52 @@ function PlanInner({ bundle, canEdit, toast, refresh }: StepProps) {
 
   const phaseList = PHASES.filter((ph) => live.some((t) => t.phase === ph));
 
+  // Save lives in the page header (a slot the study page leaves for it) and, on a phone, in the bottom bar: never in the panel.
+  const [saveSlot, setSaveSlot] = useState<HTMLElement | null>(null);
+  useEffect(() => { setSaveSlot(document.getElementById("studioSaveSlot")); }, []);
+  const saveButton = (
+    <span className={styles.savebar}>
+      {dirty && <span className={styles.unsaved}>Unsaved changes</span>}
+      <Button variant="primary" disabled={!dirty || !canEdit} loading={saving} onClick={() => void save()}>Save</Button>
+    </span>
+  );
+
   return (
     <>
       <aside className={styles.panel} aria-label="Options">
-        <OptionGroup id="p5dates" title="Dates and view" hint="Start date and weekend; every date in the plan follows." defaultOpen>
-          <Opt label="Start date" htmlFor="psd-start" hint="When you would like to begin. Every date in the plan moves with it.">
+        <OptionGroup id="p5dates" title="Dates and view" info={STUDIO_TIPS.dates} defaultOpen>
+          <Opt label="Start date" htmlFor="psd-start" info={STUDIO_TIPS.startDate}>
             <Input id="psd-start" type="date" value={start} disabled={!canEdit} onChange={(e) => e.target.value && setStart(e.target.value)} />
           </Opt>
-          <Opt label="Weekend" htmlFor="psd-weekend" hint="Days we skip when counting working days.">
+          <Opt label="Weekend" htmlFor="psd-weekend" info={STUDIO_TIPS.weekend}>
             <Select id="psd-weekend" value={weekend} disabled={!canEdit} onChange={(e) => setWeekend(e.target.value as Weekend)}>
               {WEEKENDS.map((w) => <option key={w} value={w}>{WEEKEND_LABEL[w]}</option>)}
             </Select>
           </Opt>
-          <Switch label="Only my tasks" checked={onlyMine} onChange={setOnlyMine} hint="Hide BPMSquare's tasks and see just what your team has to do." />
+          <Switch label="Only my tasks" checked={onlyMine} onChange={setOnlyMine} info={STUDIO_TIPS.onlyMine} />
         </OptionGroup>
 
-        <OptionGroup title="Save" hint="Ticks, comments and durations are saved together." defaultOpen>
-          <div className={styles.savebar}>
-            <Button variant="primary" disabled={!dirty || !canEdit} loading={saving} onClick={() => void save()}>Save</Button>
-            {dirty && <span className={styles.unsaved}>Unsaved changes</span>}
-          </div>
-          {canEdit && (
-            <Opt label="Build the plan again" hint="Starts from the standard plan again. Tasks you added yourself stay; ticks are cleared.">
+        {canEdit && (
+          <OptionGroup title="More" info={STUDIO_TIPS.planMore}>
+            <Opt label="Build the plan again" info={STUDIO_TIPS.buildPlanAgain}>
               <Button size="sm" loading={busy === "plan"} onClick={() => void run("plan")}>Build again</Button>
             </Opt>
-          )}
-        </OptionGroup>
+          </OptionGroup>
+        )}
       </aside>
+      {saveSlot && createPortal(<span className={styles.headSave}>{saveButton}</span>, saveSlot)}
+      <div className={styles.saveBar}>{saveButton}</div>
+      <div className={styles.saveSpacer} aria-hidden="true" />
 
       <div className={styles.work}>
-        <Head title="Your plan" sub="Phases, tasks and who does what. Tick a phase when it looks right, change a duration, leave a comment anywhere." />
+        <Head title="Your plan" info={STUDIO_TIPS.planHead} />
         {live.length === 0 ? (
           <Card><p className={styles.empty} style={{ margin: 0 }}>No plan yet. Press Build my plan on the previous step.</p></Card>
         ) : (
           <>
             <Card>
               <div id="w5gantt">
-                <h3 style={{ margin: "0 0 8px", fontSize: 13.5 }}>Timeline</h3>
+                <span className="bpm-label-row" style={{ marginBottom: 8 }}><h3 style={{ margin: 0, fontSize: 13.5 }}>Timeline</h3><InfoTip label="Timeline">{STUDIO_TIPS.timeline}</InfoTip></span>
                 <div className={styles.gantt}>
                   {phases.map((s) => {
                     let off = 0;
@@ -133,7 +145,7 @@ function PlanInner({ bundle, canEdit, toast, refresh }: StepProps) {
                   })}
                 </div>
                 <p className={styles.help} style={{ marginTop: 8 }}>
-                  About {total} working days from {phases.length ? fmt(phases[0].start) : fmt(start)} to {phases.length ? fmt(phases[phases.length - 1].end) : fmt(start)}, phases one after another. Change a duration and the dates move. &#9670; marks a milestone. Indicative, confirmed on the call.
+                  About {total} working days · {phases.length ? fmt(phases[0].start) : fmt(start)} – {phases.length ? fmt(phases[phases.length - 1].end) : fmt(start)}
                 </p>
               </div>
             </Card>

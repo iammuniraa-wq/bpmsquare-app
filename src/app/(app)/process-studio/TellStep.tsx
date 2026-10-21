@@ -7,7 +7,8 @@ import { Select, Textarea } from "@/components/ui/Input";
 import { AREA_IDS, AREA_META, type AreaId } from "@/lib/studio/types";
 import { MAX_MESSAGE_CHARS } from "@/lib/studio/caps";
 import { studioApi, STUDIO_BASE, useStepRunner, type StepProps } from "./studioClient";
-import { Head, OptionGroup, Opt, Switch, cx } from "./ui";
+import { STUDIO_TIPS } from "@/lib/studio/tips";
+import { Head, MiniEmpty, OptionGroup, Opt, Switch, cx } from "./ui";
 import styles from "./studio.module.css";
 
 const OPENING =
@@ -73,7 +74,7 @@ export default function TellStep({ bundle, canEdit, toast, refresh }: StepProps)
   return (
     <>
       <aside className={styles.panel} aria-label="Options">
-        <OptionGroup id="p1areas" title="Areas of your business" hint="Tap an area to answer three short questions. Switch off what does not apply." defaultOpen>
+        <OptionGroup id="p1areas" title="Areas of your business" info={STUDIO_TIPS.areas} defaultOpen>
           <div className={styles.areas}>
             {AREA_IDS.map((a) => {
               const off = !!study.areas[a]?.off;
@@ -109,14 +110,12 @@ export default function TellStep({ bundle, canEdit, toast, refresh }: StepProps)
           </div>
         </OptionGroup>
 
-        <OptionGroup id="p1docs" title="Documents you have" hint="SOPs, diagrams, spreadsheets, an old fit-gap list.">
-          <p className={styles.optHint} style={{ margin: 0 }}>
-            Reading your own documents is coming in the next release. For now, describe how you work in the conversation or paste the text of a procedure into it.
-          </p>
+        <OptionGroup id="p1docs" title="Documents you have" info={STUDIO_TIPS.docs}>
+          <MiniEmpty title="Coming next release" text="For now, describe how you work in the conversation or paste a procedure into it." />
         </OptionGroup>
 
-        <OptionGroup title="Studio options" hint="The language we talk in, and how much we ask back.">
-          <Opt label="Language" htmlFor="psd-lang" hint="The language the studio talks to you in. English for now; Arabic is planned.">
+        <OptionGroup title="Studio options" info={STUDIO_TIPS.studioOptions}>
+          <Opt label="Language" htmlFor="psd-lang" info={STUDIO_TIPS.language}>
             <Select id="psd-lang" value="en" onChange={() => undefined} disabled={!canEdit}>
               <option value="en">English</option>
               <option value="ar" disabled>Arabic (planned)</option>
@@ -124,11 +123,11 @@ export default function TellStep({ bundle, canEdit, toast, refresh }: StepProps)
           </Opt>
           <Switch
             label="Ask me follow-up questions" checked={study.follow_ups} disabled={!canEdit}
-            hint="Up to three short questions after each answer. Off means you just type and we map what you wrote."
+            info={STUDIO_TIPS.followUps}
             onChange={(v) => void patch({ follow_ups: v })}
           />
           {hasMap && (
-            <Opt label="Build the map again" hint="Use this after you add more to the conversation. It replaces the steps you have edited.">
+            <Opt label="Build the map again" info={STUDIO_TIPS.buildMapAgain}>
               <Button size="sm" loading={busy === "map"} disabled={!canEdit} onClick={() => void run("map")}>Build again</Button>
             </Opt>
           )}
@@ -138,7 +137,7 @@ export default function TellStep({ bundle, canEdit, toast, refresh }: StepProps)
       <div className={styles.work}>
         <Card>
           <div id="w1chat">
-            <Head title="Tell us how you work" sub="In your own words. Nothing is analysed until you press Build my process map." />
+            <Head title="Tell us how you work" info={STUDIO_TIPS.tellHead} />
             <div className={styles.chat} ref={chatRef} aria-live="polite" style={{ marginTop: 10 }}>
               {messages.length === 0 && !pendingText && (
                 <div className={cx(styles.msg, styles.studio)}><div className={styles.who}>Studio</div>{OPENING}</div>
@@ -175,9 +174,6 @@ export default function TellStep({ bundle, canEdit, toast, refresh }: StepProps)
                 <Button variant="primary" loading={sending} onClick={() => void onSend()}>Send</Button>
               </div>
             )}
-            <p className={styles.help} style={{ marginTop: 6 }}>
-              What we understood appears as chips: blue is what you said, amber is what we assumed. Correct anything by just saying so.
-            </p>
           </div>
         </Card>
       </div>

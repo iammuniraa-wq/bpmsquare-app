@@ -122,7 +122,7 @@ export type ChangeKind = (typeof CHANGE_KINDS)[number];
 export const CHANGE_KIND_LABEL: Record<ChangeKind, string> = {
   setting: "Setting",
   own_fields: "Your own fields",
-  extension: "Tenant extension",
+  extension: "Built for you",
   new_build: "New build",
   integration: "Integration",
 };
@@ -130,7 +130,7 @@ export const CHANGE_KIND_LABEL: Record<ChangeKind, string> = {
 export const CHANGE_KIND_HINT: Record<ChangeKind, string> = {
   setting: "A choice an admin makes in Settings.",
   own_fields: "Extra fields on an object.",
-  extension: "A change only for your workspace.",
+  extension: "Something we build only for your workspace, kept separate from the standard product.",
   new_build: "Something new in the product.",
   integration: "A connector, the API or a webhook.",
 };

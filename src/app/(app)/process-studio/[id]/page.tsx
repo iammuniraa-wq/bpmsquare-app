@@ -86,6 +86,7 @@ export default async function ProcessStudyPage({
       ].filter((f) => bundle.steps.length > 0 || f.label === "Steps mapped")}
       primaryAction={
         <>
+          <span id="studioSaveSlot" />
           <TourButton step={step} />
           <PrimaryAction
             studyId={study.id} step={step} reached={study.reached} canEdit={canEdit}

@@ -6,6 +6,7 @@ import Card from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 import { studySummary } from "@/lib/studio/summary";
 import { studioApi, STUDIO_BASE, type StepProps } from "./studioClient";
+import { STUDIO_TIPS, sendTip } from "@/lib/studio/tips";
 import { Head, OptionGroup, Opt } from "./ui";
 import styles from "./studio.module.css";
 
@@ -46,12 +47,11 @@ export default function TalkStep({ bundle, canEdit, toast, refresh }: StepProps)
   return (
     <>
       <aside className={styles.panel} aria-label="Options">
-        <OptionGroup id="p6send" title="Send to BPMSquare" hint={`Freezes version ${nextVersion} of your study and sends it to us.`} defaultOpen>
-          <p className={styles.optHint} style={{ margin: 0 }}>You can keep editing afterwards; the next send makes version {nextVersion + 1}.</p>
-          <Opt label="Your name" htmlFor="psd-cname" hint="Who we should ask for when we call.">
+        <OptionGroup id="p6send" title="Send to BPMSquare" info={sendTip(nextVersion)} defaultOpen>
+          <Opt label="Your name" htmlFor="psd-cname" info={STUDIO_TIPS.contactName}>
             <Input id="psd-cname" value={name} maxLength={120} disabled={!canEdit || sent} onChange={(e) => setName(e.target.value)} />
           </Opt>
-          <Opt label="Email for the call-back" htmlFor="psd-cmail" hint="We reply here within two working days.">
+          <Opt label="Email for the call-back" htmlFor="psd-cmail" info={STUDIO_TIPS.contactEmail}>
             <Input id="psd-cmail" type="email" value={email} maxLength={200} disabled={!canEdit || sent} onChange={(e) => setEmail(e.target.value)} />
           </Opt>
           {sent ? (
@@ -64,16 +64,15 @@ export default function TalkStep({ bundle, canEdit, toast, refresh }: StepProps)
           )}
         </OptionGroup>
 
-        <OptionGroup title="Download" hint="The same package for your own team.">
-          <Opt label="PDF" hint="The whole package, marked Indicative on every page and confirmed on the call.">
+        <OptionGroup title="Download" info={STUDIO_TIPS.download}>
+          <Opt label="PDF" info={STUDIO_TIPS.pdf}>
             <Button href={`${STUDIO_BASE}/${study.id}/pdf`} style={{ width: "100%" }}>Download PDF</Button>
           </Opt>
-          <p className={styles.optHint} style={{ margin: 0 }}>A Google Doc version comes with the next release.</p>
         </OptionGroup>
       </aside>
 
       <div className={styles.work}>
-        <Head title="Talk to us" sub="Here is your package. Send it and someone from BPMSquare calls you back." />
+        <Head title="Talk to us" info={STUDIO_TIPS.talkHead} />
         <Card>
           <div id="w6sum">
             <h3 style={{ margin: "0 0 4px", fontSize: 14 }}>{study.name}</h3>

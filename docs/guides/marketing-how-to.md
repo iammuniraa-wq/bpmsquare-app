@@ -175,7 +175,7 @@ Use **Desktop** and **Phone** above the preview to see both layouts.
 3. If the person ticked the box, their consent is recorded with the exact words they saw.
 4. A lead is created. A second submission by the same person refreshes the same lead.
 
-**Read the answers:** open the form and unfold **Answers** under the preview. It shows the latest 25.
+**Read the answers:** open the form and choose the **Answers** tab. It shows the latest 25, ten to a page.
 
 **Preference centre:** you do not build it. Every newsletter has a **Manage preferences** link in the footer. The person sees their topics as switches, a **Save my choices** button, and **Unsubscribe from all**. Opening the page changes nothing by itself.
 
@@ -332,10 +332,11 @@ The score is worked out by fixed rules. It is never a guess by AI.
 ### Set it up (once)
 
 1. **Settings → Marketing → Scoring** (administrator).
-   - **What people do:** each action earns points. You can change the points, how fast they fade, and a weekly limit.
-   - **Who they are:** extra points for kind of company, country or role. These do not fade.
-   - **Where the lines are:** **Engaged from** and **Ready for sales from**. The standard lines are 20 and 60.
-   - **Try it on a sample lead:** pretend a lead did certain things and see the score. Nothing is saved.
+   - **Rules** tab, **What people do:** each action earns points. You can change the points, how fast they fade, and a weekly limit.
+   - **Rules** tab, **Who they are:** extra points for kind of company, country or role. These do not fade.
+   - **Thresholds** tab: **Warm from** and **Hot from**. A lead below the first line is Cold. The standard lines are 20 and 60, and Hot must be higher than Warm.
+   - **Try it** tab: pretend a lead did certain things and see the score. Nothing is saved.
+   - Tap the **i** next to a label to see what it does.
 2. **Settings → Coverage:** open a team and choose **Who gets new sales-ready leads**: **The team lead**, or **Each member in turn**.
 
 The standard response time is one working day, with Sunday off. If your week is different (for example Friday and Saturday off), ask us to set it. There is no screen for it yet.
@@ -467,7 +468,7 @@ It uses your own data only. It does not use news or tenders yet. It is never an 
 ### Set it up (once)
 
 1. Open **Marketing → Buying signals**.
-2. An administrator opens **Topics** and adds the subjects you sell, for example Precast or Fire safety.
+2. An administrator opens **Interests** and adds the subjects you sell, for example Precast or Fire safety.
 3. Press **Rescore now** (administrator) the first time, so scores appear at once.
 
 Scores then refresh by themselves every few hours.
@@ -475,7 +476,7 @@ Scores then refresh by themselves every few hours.
 ### Do it day to day
 
 1. Open **Who is in market**. The highest score is at the top.
-2. Use **Options** on the left to filter by stage, topic, owner, or **Moved up this week**.
+2. Use **Filters** (a button at the top on a phone) to filter by stage, interest, owner, account name, or **Moved up this week**.
 3. Read each row: the stage, the score with an eight-week line, a one-line reason, the owner, and a suggested next step.
 4. Click a row to open the company. You see:
    - **How this is worked out**: every point with its source and date.
@@ -491,7 +492,7 @@ Scores then refresh by themselves every few hours.
 
 | Stage | Meaning |
 |---|---|
-| Quiet | Nothing recent to go on |
+| Silent | Nothing recent to go on |
 | Looking | Has shown some interest |
 | Comparing | Asked you for something, or is clearly engaged |
 | Deciding | Asked you for something and is very engaged |
@@ -511,7 +512,7 @@ When an account moves up to Comparing or Deciding, the company's owner gets a no
 | You see | What to do |
 |---|---|
 | "No signals yet" | Signals appear as your team sends quotes and campaigns. An administrator can press **Rescore now**. |
-| A company is Quiet but you know it is active | Only what is recorded counts. Check that quotes and deals are entered in BPMSquare. |
+| A company is Silent but you know it is active | Only what is recorded counts. Check that quotes and deals are entered in BPMSquare. |
 | A score dropped | Old signals fade. This is expected. |
 | The company is not buying | Open it and press **Not in market**. |
 
@@ -698,7 +699,7 @@ Ten minutes a day is enough once everything is set up.
 | Ready for sales | A lead with a high enough score for a salesperson to call |
 | Journey | Steps that run by themselves after an event |
 | Quiet hours | The hours when no journey email is sent |
-| Buying stage | How close a company looks to buying: Quiet, Looking, Comparing or Deciding |
+| Buying stage | How close a company looks to buying: Silent, Looking, Comparing or Deciding |
 | Target group | A saved list of companies defined by rules, used for campaigns |
 | Buying group | The people at one company who take part in a purchase |
 | Tier | How personally you work a company: 1:1, 1:few or 1:many |
