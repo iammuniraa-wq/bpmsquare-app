@@ -14,6 +14,8 @@ import {
 } from "./mapEditor";
 import { connectorTileHref, middlewareConnectors, needsPickLists, shortName } from "./connectors";
 import { quoteOptions } from "./quotePick";
+import * as server from "@/lib/middleware/types";
+import * as client from "./api";
 
 const base: SetupInputs = { connected: false, pickListsApplicable: true, priceListChosen: false, currencyChosen: false, outcomeOn: true, testSent: false, realSeen: false };
 
@@ -233,5 +235,17 @@ describe("the Standard Quote picker", () => {
     expect(o[0].group).toBe("Awarded");
     expect(o[0].label).toContain("Acme");
     expect(o[0].label).toContain("SQ-0003");
+  });
+});
+
+describe("the client layer stays in step with the server's vocabulary", () => {
+  it("shares the same parts, channels, statuses and labels", () => {
+    expect([...client.FENCE_PARTS]).toEqual([...server.FENCE_PARTS]);
+    expect([...client.ESTIMATE_PARTS]).toEqual([...server.ESTIMATE_PARTS]);
+    expect(client.FENCE_PART_LABEL).toEqual(server.FENCE_PART_LABEL);
+    expect(client.ESTIMATE_PART_LABEL).toEqual(server.ESTIMATE_PART_LABEL);
+    expect([...client.MESSAGE_CHANNELS]).toEqual([...server.MESSAGE_CHANNELS]);
+    expect([...client.MESSAGE_DIRECTIONS]).toEqual([...server.MESSAGE_DIRECTIONS]);
+    expect([...client.MONITOR_STATUSES].filter((x) => x !== "dry_run")).toEqual([...server.STORED_STATUSES]);
   });
 });
