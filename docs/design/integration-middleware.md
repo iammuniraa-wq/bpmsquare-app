@@ -405,3 +405,54 @@ So the tabs stay five: Connections, What goes out, Mapping, **Monitor**, **Resyn
   schedule and sync buttons are NOT repeated there.
 Each thing lives in exactly one place: messages in Monitor, data sync in Resync, field maps in
 Mapping, connection in Connections, what to send in What goes out.
+
+## Round 2: simplification, owner decisions 2026-10-21 evening (9)
+Supersedes sections (3), (6), (7) and (8) wherever they differ. Principle: **a sleek page, each
+thing in exactly one place, every item one row that opens on demand, nothing the user did not
+ask for.** Dynamics first; SAP and ePROMIS later on the same frame.
+
+**A. Links, not activities.** The tab "What goes out" becomes **Links**: one table, one row per
+object-to-object link, columns BPMSquare | direction arrow | ERP | Runs | On. Today: Standard
+Quote → (Quote or Sales Order or Project; Runs "When awarded"), and the inbound links Accounts ←,
+Contacts ←, Products ←, Projects ← (Runs "Daily", "Hourly", "Off"). There are NO per-activity
+settings: no awarded/rejected ticks, no automatic/manual choice. **A quote goes to the ERP only
+when it is awarded (accepted); a rejected quote never leaves BPMSquare** (the close-as-lost code
+stays dormant, not exposed, not dispatched). Outbound row click: panel with only **Create as**
+(dropdown of what the connected system offers), **Include** (one checklist), **Try it** (Preview,
+Send a quote now) and Save. Inbound rows: the On switch lives here (not repeated in Mapping);
+their schedule and Sync now stay in Resync. Rows are one line; the panel shows only what is needed.
+
+**B. No Connections tab: the connection is the connector chip.** Click the chip: one panel, one
+line "Connected · <address> · Test · Edit · Disconnect"; **Edit** opens login type, directory id,
+client id, secret (write-only) and its expiry date. **Test** runs the connection AND the
+permission probes and shows ONE result line (details only on failures, behind a toggle). The
+"Check permissions" section, the "Database" list (all tables "present") and the "Other lanes"
+cards are removed; a database problem shows as one warning banner naming the SQL bundle only
+when a table is missing. A workspace with no connection sees one empty state "Connect Dynamics 365".
+Secret expiry shows as a small chip on the connector only within 30 days. Tabs: **Links,
+Mapping, Monitor, Resync** (four).
+
+**C. Set-up guide is one slim line** ("Set up 3 of 5 · Next: send a test quote"), hidden when done.
+Connection state is shown once (the chip dot). No repeated "Connected" badges.
+
+**D. Price list and currency are not settings.** The global dropdowns are removed. At send time
+for a Dataverse Quote or Sales Order: the **price list is the customer's own Dynamics price list**
+(read live: `accounts(<linked id>)?$select=_defaultpricelevelid_value`, always current, no sync
+needed); only if the customer has none use the fallback `config.price_list_id`, shown in the Quote
+link panel as "If the customer has none" (visible only for a Dynamics Quote/Order target and only
+when needed). **Currency** = the BPMSquare quote's currency matched by ISO code to the Dynamics
+currency, else the Dynamics base currency. If neither resolves the send fails with a plain fix.
+Price lists with scales as a first-class sync (a Dynamics price list becomes a BPMSquare Price Book
+with its products, validity, currency and quantity scales; the account's list routes the customer
+to it; lookup order customer list, then group list, then the one base list, as in SAP C4C
+internal pricing) is **next stage, after validation**. SAP external pricing (ask the ERP for the
+price per line, simulate call) is a possible later pricing technique, not now.
+
+**E. Payload retention is 2 days.** Request and response payloads are kept 48 hours and then
+removed (payload column nulled by the prune job); the message line itself stays 30 days. Payload
+capture for document sends stays on; the viewer stays (View request / View response when one
+row is ticked).
+
+**F. Everything else from (6) to (8) stands:** two-column mapping with header and lines, Monitor
+as the one big list with restart and payload view, Resync for data (per-entity schedule, Sync now,
+Full resync, Send a record, Only these records).
