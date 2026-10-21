@@ -23,8 +23,10 @@ export function offeredTargets(product: D365Product | null | undefined): TargetK
 
 /** The stored choice if the product still offers it, else the product's default. */
 export function resolveTarget(product: D365Product | null | undefined, stored: TargetKind | null | undefined): TargetKind {
-  if (stored && offeredTargets(product).includes(stored)) return stored;
-  return targetFor(product) ?? stored ?? "quote";
+  // A webhook target is not an ERP document: the ERP side never sees it, it reads the product's own default.
+  const erp = stored === "webhook" ? null : stored;
+  if (erp && offeredTargets(product).includes(erp)) return erp;
+  return targetFor(product) ?? erp ?? "quote";
 }
 
 /** A Quote and a Sales Order are customer-facing documents: prices only. */

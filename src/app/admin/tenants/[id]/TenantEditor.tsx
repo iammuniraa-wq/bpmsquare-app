@@ -76,6 +76,7 @@ const FEATURE_LABELS: { key: keyof TenantFeatures; label: string; premium?: bool
   { key: "marketing_events", label: "Marketing events (webinars, shows and visits with registration through a Form, check-in and a follow-up journey — needs Marketing campaigns and Forms)", premium: true, group: "Programs" },
   { key: "process_studio", label: "Process Design Studio (describe a business, get a cited fit report and a plan)", premium: true, group: "Programs" },
   { key: "integration_middleware", label: "Integration middleware (one page for connections, what goes out on award or rejection, mapping, message monitor, resync)", premium: true, group: "Platform & automation" },
+  { key: "webhooks_library", label: "Webhooks library (one list for every webhook: change-feed events and calls fired by a quote award, a record button or a Coverage route)", premium: true, group: "Platform & automation" },
   { key: "next_experience", label: "Nova — the Business OS experience", premium: true, group: "Programs" },
   { key: "enterprise_theme", label: "Enterprise theme (dark rail + light workspace)", premium: true, group: "Programs" },
   { key: "spectacular_theme", label: "Spectacular theme (navy or lilac palette)", premium: true, group: "Programs" },

@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createAdminSupabase } from "@/lib/supabase-server";
 import { deliverWebhook, type WebhookRow } from "@/lib/webhooks/dispatch";
+import { isSchemaPending } from "@/lib/marketing/pending";
 
 // GET /api/webhooks/cron — periodic Vercel cron (vercel.json).
 // Drains every active webhook's change_log backlog and POSTs it, signed, to the
@@ -21,10 +22,11 @@ export async function GET(request: NextRequest) {
   }
 
   const admin = createAdminSupabase();
-  const { data: webhooks, error } = await admin
-    .from("webhooks")
-    .select("id, tenant_id, url, secret, object_types, cursor_ts, cursor_id, failure_count")
-    .eq("active", true);
+  // Only Event webhooks are drained here; a Call webhook is fired by something (an award, a button, a Coverage route) and has
+  // no cursor. Before migration 0202 there is no `kind` column and every row is an event, so the filter is dropped on 42703.
+  const cols = "id, tenant_id, url, secret, object_types, cursor_ts, cursor_id, failure_count";
+  let { data: webhooks, error } = await admin.from("webhooks").select(cols).eq("active", true).eq("kind", "event");
+  if (error && isSchemaPending(error)) ({ data: webhooks, error } = await admin.from("webhooks").select(cols).eq("active", true));
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   const results: { id: string; delivered: number; ok: boolean }[] = [];

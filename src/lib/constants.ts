@@ -160,6 +160,7 @@ export const ROUTES = {
   settingsDeveloper: "/settings/developer",
   settingsPush: "/settings/push",
   settingsMiddleware: "/settings/middleware",
+  settingsWebhooks: "/settings/webhooks",
   settingsEmailOutput: "/settings/email-output",
   settingsAppearance: "/settings/appearance",
   settingsDashboard: "/settings/dashboard",
@@ -710,6 +711,12 @@ export type TenantFeatures = {
   // missing key reads false; with it off nothing changes for the workspace -- no
   // menu item, no route, no logging, no event dispatch.
   integration_middleware: boolean;
+  // Webhooks library (docs/design/webhooks-library.md): one list where every webhook
+  // is created and kept -- Event webhooks (the change feed) and Call webhooks (fired
+  // by a Standard Quote award, a record button or a Coverage route, each a Monitor
+  // row). A platform-admin-only flag: default OFF, missing key reads false; with it
+  // off the workspace keeps today's Webhooks & push page and sees nothing new.
+  webhooks_library: boolean;
 };
 
 // WfmConfig — tenant-level WFM (attendance) settings, stored in
@@ -1274,6 +1281,9 @@ export type TenantConfig = {
   // go to the ERP, automatic or manual, and what fence / estimate data leaves
   // with them. Stored as the admin saved it; read through parseRules().
   integration_middleware?: import("@/lib/middleware/types").StoredMiddlewareConfig;
+  // Webhooks library: the record buttons (object type -> the id of the Call webhook
+  // it sends to). The id is tenant-verified when written and again when fired.
+  webhooks_library?: { record_buttons?: { accounts?: string | null } };
   integration_push?: {
     webhook_url?: string;
     webhook_secret?: string;

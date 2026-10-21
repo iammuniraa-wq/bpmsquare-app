@@ -1046,6 +1046,8 @@ export type Coverage = {
   priority: number;
   /** Matches config.integration_push.endpoints[].id; null = tenant default. */
   erp_endpoint_id: string | null;
+  /** The Call webhook its accounts go to (0202); read only with the webhooks_library flag on. */
+  webhook_id?: string | null;
   effective_from: string;
   effective_to: string | null;
   custom_data: Record<string, unknown> | null;

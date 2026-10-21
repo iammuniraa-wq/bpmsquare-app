@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { requireTenantUser, createAdminSupabase } from "@/lib/supabase-server";
 import { logChange } from "@/lib/changeLog";
+import { resolveCoverageWebhook } from "@/lib/webhooks/library";
 
 const ROLES = ["owner", "overlay", "service"] as const;
 
@@ -42,9 +43,9 @@ export async function POST(request: NextRequest) {
   if (role !== "admin") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const body = await request.json();
-  const { segment_id, team_id, role: coverageRole, priority, erp_endpoint_id, effective_from, effective_to } = body as {
+  const { segment_id, team_id, role: coverageRole, priority, erp_endpoint_id, effective_from, effective_to, webhook_id } = body as {
     segment_id?: string; team_id?: string; role?: string; priority?: number;
-    erp_endpoint_id?: string | null; effective_from?: string; effective_to?: string | null;
+    erp_endpoint_id?: string | null; effective_from?: string; effective_to?: string | null; webhook_id?: string | null;
   };
   if (!segment_id || !team_id || !ROLES.includes(coverageRole as (typeof ROLES)[number])) {
     return NextResponse.json({ error: `segment_id, team_id and a role in [${ROLES.join(", ")}] are required` }, { status: 400 });
@@ -59,6 +60,13 @@ export async function POST(request: NextRequest) {
   if (!team) return NextResponse.json({ error: "Team not found" }, { status: 404 });
 
   const resolvedEndpointId = await validateErpEndpointId(admin, tenantId, erp_endpoint_id);
+  // A webhook id is resolved against this workspace, its kind and the object before it is stored (a miss is 422).
+  let webhookId: string | null = null;
+  if (webhook_id !== undefined) {
+    const w = await resolveCoverageWebhook(admin, tenantId, webhook_id);
+    if (!w.ok) return NextResponse.json({ error: w.message, errors: [{ field: "webhook_id", message: w.message }] }, { status: 422 });
+    webhookId = w.value;
+  }
 
   const { data: coverage, error } = await admin
     .from("coverages")
@@ -66,6 +74,7 @@ export async function POST(request: NextRequest) {
       tenant_id: tenantId, segment_id, team_id, role: coverageRole,
       priority: Number.isFinite(priority) ? priority : 100,
       erp_endpoint_id: resolvedEndpointId ?? null,
+      ...(webhook_id !== undefined ? { webhook_id: webhookId } : {}),
       effective_from: effective_from || new Date().toISOString().slice(0, 10),
       effective_to: effective_to || null,
     })

@@ -138,6 +138,18 @@ export async function resolveErpEndpointForAccount(
   return null;
 }
 
+/** Which Call webhook an account's records go to when the workspace has the webhooks library: the owning coverage's
+ * webhook_id if set, else the record button's webhook. The ids are only ever used through fireWebhook, which loads the
+ * webhook with the tenant, kind and object and fires nothing for a foreign or wrong one. */
+export async function resolveWebhookForAccount(
+  tenantId: string, account: Account, buttonWebhookId: string | null
+): Promise<{ webhook_id: string; source: "coverage" | "button" } | null> {
+  const resolved = await resolveCoverageForAccount(tenantId, account);
+  const fromCoverage = resolved.owner?.coverage.webhook_id;
+  if (fromCoverage) return { webhook_id: fromCoverage, source: "coverage" };
+  return buttonWebhookId ? { webhook_id: buttonWebhookId, source: "button" } : null;
+}
+
 /** Product-availability gating: true when the account matches at least one
  * of the product's restricting segments. Only called when a product
  * actually carries restrictions -- an unrestricted product never needs

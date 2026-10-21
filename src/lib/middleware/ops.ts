@@ -15,6 +15,8 @@ import type { ErpHttp } from "./erp";
 import { PRODUCT_NAME } from "./links";
 import { recordMessage } from "./messages";
 import { NOT_CHECKED, REQUIRED_TABLES, parseCurrencies, parsePriceLists, privilegeVerdict, probeResult, schemaRows, secretExpiry, userAccess, type PermissionCheck, type PickItem } from "./health";
+import { listCallWebhooks, verifyCallWebhook } from "@/lib/webhooks/library";
+import { sendAccountViaWebhook, webhooksLibraryOn } from "@/lib/webhooks/recordSend";
 import { SQL_BUNDLES, TARGET_LABEL, type IntegrationMiddlewareConfig, type SelectionContract, type TargetKind } from "./types";
 
 // Everything the middleware page asks of the server that is not the engine or
@@ -70,7 +72,9 @@ export async function saveRules(admin: SupabaseClient, tenantId: string, rules: 
 
 // ── The Quote document ──────────────────────────────────────────────────────
 
-function documentContext(cfg: D365Config | null) {
+type DocContext = ReturnType<typeof baseDocumentContext> & { webhooks: { id: string; name: string }[] | null };
+
+function baseDocumentContext(cfg: D365Config | null) {
   const out = cfg ? outboundConfig(cfg) : null;
   return {
     product: cfg?.product ?? null,
@@ -80,10 +84,16 @@ function documentContext(cfg: D365Config | null) {
   };
 }
 
-export async function getDocuments(admin: SupabaseClient, tenantId: string): Promise<{ documents: DocumentView[] }> {
-  const [{ data: t }, loaded] = await Promise.all([admin.from("tenants").select("config").eq("id", tenantId).maybeSingle(), loadD365(admin, tenantId)]);
+/** The ERP-side context plus, for a workspace with the webhooks library, its Call webhooks for Standard Quotes (null otherwise: nothing new shows). */
+async function documentContext(admin: SupabaseClient, tenantId: string, cfg: D365Config | null, features: TenantFeatures | null | undefined): Promise<DocContext> {
+  return { ...baseDocumentContext(cfg), webhooks: features?.webhooks_library === true ? await listCallWebhooks(admin, tenantId, "standard_quotes") : null };
+}
+
+export async function getDocuments(admin: SupabaseClient, tenantId: string): Promise<{ documents: DocumentView[]; webhooks: { id: string; name: string }[] }> {
+  const [{ data: t }, loaded] = await Promise.all([admin.from("tenants").select("config, features").eq("id", tenantId).maybeSingle(), loadD365(admin, tenantId)]);
   const doc = readDocument((t?.config as TenantConfig | null)?.integration_middleware);
-  return { documents: [documentView(doc, documentContext(loaded?.cfg ?? null))] };
+  const ctx = await documentContext(admin, tenantId, loaded?.cfg ?? null, t?.features as TenantFeatures | null);
+  return { documents: [documentView(doc, ctx)], webhooks: ctx.webhooks ?? [] };
 }
 
 export type SaveDocumentResult = { ok: true; document: DocumentView } | { ok: false; errors: FieldError[] };
@@ -91,12 +101,18 @@ export type SaveDocumentResult = { ok: true; document: DocumentView } | { ok: fa
 /** Save the Quote document. The first successful save confirms it (the set-up tick waits for that). The fallback
  *  price list is a Dynamics id and lives on the connection; everything else lives on the document. */
 export async function saveDocument(admin: SupabaseClient, tenantId: string, body: unknown, now: Date = new Date()): Promise<SaveDocumentResult> {
-  const [{ data: t }, loaded] = await Promise.all([admin.from("tenants").select("config").eq("id", tenantId).maybeSingle(), loadD365(admin, tenantId)]);
+  const [{ data: t }, loaded] = await Promise.all([admin.from("tenants").select("config, features").eq("id", tenantId).maybeSingle(), loadD365(admin, tenantId)]);
   const config = ((t?.config ?? {}) as TenantConfig);
   const cur = readDocument(config.integration_middleware);
-  const ctx = documentContext(loaded?.cfg ?? null);
+  const ctx = await documentContext(admin, tenantId, loaded?.cfg ?? null, t?.features as TenantFeatures | null);
   const checked = validateDocumentPatch(body, { product: ctx.product, targets: targetOptions(ctx), current: cur });
   if (!checked.ok) return checked;
+  // The webhook id is resolved against this workspace, its kind and its object before it is stored: a foreign or wrong-kind id is refused.
+  const willBeWebhook = (checked.value.target ?? cur.target) === "webhook";
+  if (willBeWebhook) {
+    const id = checked.value.webhook_id !== undefined ? checked.value.webhook_id : cur.webhook_id ?? null;
+    if (!(await verifyCallWebhook(admin, tenantId, id, "standard_quotes"))) return { ok: false, errors: [{ field: "webhook_id", message: "Choose a webhook for Standard Quotes from the list." }] };
+  }
   if (checked.value.fallbackPriceListId !== undefined && !loaded) return { ok: false, errors: [{ field: "fallbackPriceListId", message: "Connect Dynamics first." }] };
 
   const next = mergeDocument(cur, checked.value, now);
@@ -104,6 +120,7 @@ export async function saveDocument(admin: SupabaseClient, tenantId: string, body
   await admin.from("tenants").update({ config: { ...config, integration_middleware: stored } }).eq("id", tenantId);
 
   let cfg = loaded?.cfg ?? null;
+  const viewCtx = ctx;
   if (loaded && checked.value.fallbackPriceListId !== undefined) {
     const nextCfg: D365Config = { ...loaded.cfg };
     if (checked.value.fallbackPriceListId) nextCfg.price_list_id = checked.value.fallbackPriceListId;
@@ -111,7 +128,7 @@ export async function saveDocument(admin: SupabaseClient, tenantId: string, body
     await admin.from("tenant_connectors").update({ config: nextCfg as unknown as Record<string, string>, updated_at: now.toISOString() }).eq("tenant_id", tenantId).eq("connector_id", CONNECTOR_ID);
     cfg = nextCfg;
   }
-  return { ok: true, document: documentView(next, documentContext(cfg)) };
+  return { ok: true, document: documentView(next, { ...viewCtx, ...baseDocumentContext(cfg), webhooks: ctx.webhooks }) };
 }
 
 // ── Connections tab ─────────────────────────────────────────────────────────
@@ -342,6 +359,18 @@ export async function sendRecord(admin: SupabaseClient, tenantId: string, userId
   if (!UUID_RE.test(id)) return { ok: false, status: 422, headline: "That is not a record id.", fix: null };
 
   if (objectType === "standard_quotes") return describeDispatch(await dispatchQuoteOutcome(admin, tenantId, id, { trigger: "send_now", userId }));
+
+  const { data: feat } = await admin.from("tenants").select("features").eq("id", tenantId).maybeSingle();
+  if (webhooksLibraryOn(feat?.features as TenantFeatures | null)) {
+    // The library records its own Monitor row for the call.
+    const sent = await sendAccountViaWebhook(admin, tenantId, userId, id);
+    if (sent.kind === "not_found") return { ok: false, status: 404, headline: "That account was not found.", fix: null };
+    if (sent.kind === "none") return { ok: false, status: 422, headline: "No webhook is chosen for accounts.", fix: "Choose one under Settings > Webhooks." };
+    const r = sent.result;
+    if (r.needsDatabaseUpdate) return { ok: false, status: 200, headline: r.headline, fix: r.fix, needsDatabaseUpdate: true };
+    if (r.ok) return { ok: true, message: r.redirected ? "Demo workspace: nothing was sent." : "The account was sent." };
+    return { ok: false, status: r.skipped ? 409 : 422, headline: r.headline, fix: r.fix };
+  }
 
   const t0 = Date.now();
   const res = await pushAccountToErp(admin, tenantId, id);

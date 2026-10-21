@@ -61,6 +61,15 @@ describe("credential tables are not member-writable (audit 2026-10-21)", () => {
     expect(list.some((p) => p.cmd === "select")).toBe(true);
   });
 
+  it("0202 (webhooks library) adds no policy to webhooks, and its bundle carries the migration verbatim", () => {
+    // The library puts header values and a signing secret on `webhooks`: a member must still not be able to write them.
+    const file = readFileSync(path.join(DIR, "0202_webhooks_library.sql"), "utf8");
+    expect(/create\s+policy/i.test(file.replace(/--[^\n]*/g, ""))).toBe(false);
+    expect([...(policies.get("webhooks")?.values() ?? [])]).toEqual([]);
+    const bundle = readFileSync(path.resolve(__dirname, "../../scripts/run-bundle-11-webhooks-2026-10-21.sql"), "utf8");
+    expect(bundle.replace(/\r\n/g, "\n")).toContain(file.replace(/\r\n/g, "\n").trim());
+  });
+
   it("the policy replay understands the migrations it is judging", () => {
     // 0081 created the open policy and 0199 dropped it: the replay must see both.
     expect(policies.get("webhook_deliveries")?.size).toBeGreaterThan(0);

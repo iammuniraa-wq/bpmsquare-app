@@ -27,6 +27,8 @@ export type NewMessage = {
   error?: string | null;
   durationMs?: number | null;
   correlationId?: string | null;
+  /** The library webhook that produced the row (0202). Sent only when given, so rows of other channels never touch the column. */
+  webhookId?: string | null;
   /** Short facts for the list and the plain-language failure. No personal data. */
   summary?: Record<string, unknown>;
   /** Request/response body. Kept only when `capture` is true, and then redacted. */
@@ -58,6 +60,7 @@ export function buildMessageRow(m: NewMessage, capture: boolean): Record<string,
     error: m.error ? redactText(m.error).slice(0, 1000) : null,
     duration_ms: typeof m.durationMs === "number" ? Math.max(0, Math.round(m.durationMs)) : null,
     correlation_id: m.correlationId ?? null,
+    ...(m.webhookId ? { webhook_id: m.webhookId } : {}),
     summary,
     payload: stored ?? null,
   };

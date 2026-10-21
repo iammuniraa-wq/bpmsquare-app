@@ -93,6 +93,7 @@ export function parseDocument(raw: unknown): DocumentConfig {
     mode,
     ...(modeRejected && modeRejected !== mode ? { mode_rejected: modeRejected } : {}),
     target: parseTarget(r.target),
+    ...(typeof r.webhook_id === "string" && r.webhook_id ? { webhook_id: r.webhook_id } : {}),
     include,
     confirmed_at: typeof r.confirmed_at === "string" && !Number.isNaN(Date.parse(r.confirmed_at)) ? r.confirmed_at : null,
   };
@@ -141,6 +142,7 @@ export function legacyToDocument(l: IntegrationMiddlewareConfig, prev: DocumentC
     mode: a.mode,
     ...(r.mode !== a.mode ? { mode_rejected: r.mode } : {}),
     target: prev.target,
+    ...(prev.webhook_id ? { webhook_id: prev.webhook_id } : {}),
     include: includeFromLegacy(l.fence, l.estimate, prev.include),
     confirmed_at: prev.confirmed_at,
   };
@@ -166,11 +168,12 @@ export type TargetOption = { key: TargetKind; label: string; available: boolean;
 
 export const NEEDS_ENTITY_SET = "Needs the entity set in Mapping";
 export const NEEDS_ERP = "Connect an ERP first";
+export const NEEDS_WEBHOOK = "Create one under Settings > Webhooks";
 
 /** What the connected product can create for a Standard Quote. A Sales Order on Finance and Operations or
  *  Business Central is preset-only: it is not verified live and stays unavailable until the entity set is set. */
-export function targetOptions(a: { product: D365Product | null; projectEntitySet: string | null; salesOrderEntitySet: string | null }): TargetOption[] {
-  return offeredTargets(a.product).map((key): TargetOption => {
+export function targetOptions(a: { product: D365Product | null; projectEntitySet: string | null; salesOrderEntitySet: string | null; webhooks?: { id: string; name: string }[] | null }): TargetOption[] {
+  const erp = offeredTargets(a.product).map((key): TargetOption => {
     const label = TARGET_LABEL[key];
     if (!a.product) return { key, label, available: false, hint: NEEDS_ERP, verified: false };
     if (a.product === "dataverse") return { key, label, available: true, hint: null, verified: true };
@@ -181,6 +184,10 @@ export function targetOptions(a: { product: D365Product | null; projectEntitySet
     const ok = !!a.salesOrderEntitySet;
     return { key, label, available: ok, hint: ok ? null : NEEDS_ENTITY_SET, verified: false };
   });
+  // Offered only to a workspace with the webhooks library (the caller passes the list then); everyone else sees nothing new.
+  if (!a.webhooks) return erp;
+  const has = a.webhooks.length > 0;
+  return [...erp, { key: "webhook", label: TARGET_LABEL.webhook, available: has, hint: has ? null : NEEDS_WEBHOOK, verified: true }];
 }
 
 // ── the view the screen reads ───────────────────────────────────────────────
@@ -203,21 +210,27 @@ export type DocumentView = {
   confirmedAt: string | null;
   /** The same instant, under the spec's name (section 6). */
   confirmed_at: string | null;
+  /** The Call webhooks for Standard Quotes the "Which webhook" dropdown offers; null = the workspace has no webhooks library. */
+  webhooks: { id: string; name: string }[] | null;
+  /** The chosen webhook when the target is a webhook. */
+  webhookId: string | null;
 };
 
-export function documentSummary(_d: DocumentConfig, product: D365Product | null, target: TargetKind): string {
+export function documentSummary(_d: DocumentConfig, product: D365Product | null, target: TargetKind, webhookName?: string | null): string {
   const words = "Awarded";
+  if (target === "webhook") return `${words} → Webhook${webhookName ? `: ${webhookName}` : ""}`;
   const dest = product ? `${PRODUCT_SHORT[product]} ${TARGET_LABEL[target]}` : `${TARGET_LABEL[target]} (no ERP connected yet)`;
   return `${words} → ${dest}`;
 }
 
-export function documentView(d: DocumentConfig, a: { product: D365Product | null; projectEntitySet: string | null; salesOrderEntitySet: string | null; fallbackPriceListId?: string | null }): DocumentView {
-  const target = resolveTarget(a.product, d.target);
+export function documentView(d: DocumentConfig, a: { product: D365Product | null; projectEntitySet: string | null; salesOrderEntitySet: string | null; fallbackPriceListId?: string | null; webhooks?: { id: string; name: string }[] | null }): DocumentView {
+  const target: TargetKind = d.target === "webhook" && a.webhooks ? "webhook" : resolveTarget(a.product, d.target);
+  const webhookId = target === "webhook" ? d.webhook_id ?? null : null;
   const contract = includeContract(target);
   return {
     key: "quote", label: "Quote", source: "standard_quote",
     enabled: d.enabled,
-    summary: documentSummary(d, a.product, target),
+    summary: documentSummary(d, a.product, target, a.webhooks?.find((w) => w.id === webhookId)?.name),
     target: { key: target, label: TARGET_LABEL[target] },
     targets: targetOptions(a),
     include: INCLUDE_KEYS.map((key) => ({ key, label: INCLUDE_LABEL[key], on: d.include[key] && contract[key].allowed, allowed: contract[key].allowed, hint: contract[key].hint })),
@@ -226,6 +239,8 @@ export function documentView(d: DocumentConfig, a: { product: D365Product | null
     confirmed: d.confirmed_at !== null,
     confirmedAt: d.confirmed_at,
     confirmed_at: d.confirmed_at,
+    webhooks: a.webhooks ?? null,
+    webhookId,
   };
 }
 
@@ -234,6 +249,8 @@ export function documentView(d: DocumentConfig, a: { product: D365Product | null
 export type DocumentPatch = {
   enabled?: boolean;
   target?: TargetKind;
+  /** The Call webhook when the target is "webhook". The route resolves it against the tenant before it is stored. */
+  webhook_id?: string | null;
   include?: Partial<IncludeSelection>;
   /** A GUID, or null to clear. Stored on the connection (it is a Dynamics id), not on the document. */
   fallbackPriceListId?: string | null;
@@ -248,7 +265,7 @@ export function validateDocumentPatch(raw: unknown, ctx: { product: D365Product 
   const errors: FieldError[] = [];
   if (!isObj(raw)) return { ok: false, errors: [{ field: "body", message: "Send the document as an object." }] };
   const out: DocumentPatch = {};
-  for (const k of Object.keys(raw)) if (!["enabled", "target", "include", "fallbackPriceListId"].includes(k)) errors.push({ field: k, message: "Unknown setting." });
+  for (const k of Object.keys(raw)) if (!["enabled", "target", "webhook_id", "include", "fallbackPriceListId"].includes(k)) errors.push({ field: k, message: "Unknown setting." });
 
   if (raw.enabled !== undefined) { if (typeof raw.enabled === "boolean") out.enabled = raw.enabled; else errors.push({ field: "enabled", message: "On or off." }); }
   if (raw.fallbackPriceListId !== undefined) {
@@ -264,6 +281,18 @@ export function validateDocumentPatch(raw: unknown, ctx: { product: D365Product 
     else if (!opt) errors.push({ field: "target", message: `${ctx.product ? PRODUCT_SHORT[ctx.product] : "That system"} cannot create a ${TARGET_LABEL[t]}.` });
     else if (!opt.available) errors.push({ field: "target", message: `${opt.label}: ${opt.hint ?? "not available yet"}.` });
     else { out.target = t; target = t; }
+  }
+  if (raw.webhook_id !== undefined) {
+    if (raw.webhook_id === null || raw.webhook_id === "") out.webhook_id = null;
+    else if (typeof raw.webhook_id === "string" && GUID_RE.test(raw.webhook_id.trim())) out.webhook_id = raw.webhook_id.trim();
+    else errors.push({ field: "webhook_id", message: "Choose the webhook from the list." });
+  }
+  const willBeWebhook = (out.target ?? ctx.current.target) === "webhook";
+  if (willBeWebhook && !errors.some((e) => e.field === "target" || e.field === "webhook_id")) {
+    const chosen = out.webhook_id !== undefined ? out.webhook_id : ctx.current.webhook_id ?? null;
+    if (!chosen) errors.push({ field: "webhook_id", message: "Choose which webhook an awarded quote goes to." });
+  } else if (!willBeWebhook && out.webhook_id) {
+    errors.push({ field: "webhook_id", message: "A webhook can only be chosen when the target is a webhook." });
   }
   if (raw.include !== undefined) {
     if (!isObj(raw.include)) errors.push({ field: "include", message: "Send the list as ticks." });
@@ -295,5 +324,8 @@ export function mergeDocument(cur: DocumentConfig, p: DocumentPatch, now: Date =
     confirmed_at: cur.confirmed_at ?? now.toISOString(),
   };
   delete next.mode_rejected;
+  const toWebhook = next.target === "webhook";
+  if (toWebhook) next.webhook_id = p.webhook_id !== undefined ? p.webhook_id : cur.webhook_id ?? null;
+  else delete next.webhook_id;
   return next;
 }
