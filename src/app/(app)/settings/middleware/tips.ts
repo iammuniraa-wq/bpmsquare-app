@@ -37,7 +37,12 @@ export const MIDDLEWARE_TIPS = {
   // Resync
   resync: "Moves data from the ERP into BPMSquare on demand. Messages and failures are in the Monitor.",
   schedule: "How often BPMSquare reads this from the ERP by itself. Daily runs at 02:00 UTC.",
-  onlyThese: "Type ids or numbers, separated by commas, to read only those records instead of the whole entity.",
+  filters: "A full resync reads only the records that match. Sync now ignores these and reads what changed.",
+  sinceDate: "Only records changed in the ERP on or after this day.",
+  containsText: "Matches part of a record's name or number. Entities without a name or number cannot use it.",
+  activeOnly: "Leaves out records marked inactive. Available for Dataverse only.",
+  getRecords: "Reads only the records you list, by their ERP id or number. Nothing else is read, and Sync now is not affected.",
+  recordIds: "Up to 100, separated by commas, spaces or new lines. An id is the long code of a record; a number is the one people see.",
   sendRecord: "Pick a record and send it now. A Standard Quote follows its awarded or rejected rule.",
 } as const;
 
