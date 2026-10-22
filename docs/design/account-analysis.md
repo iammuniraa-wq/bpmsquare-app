@@ -16,6 +16,13 @@ number; tenant-typed URLs only through `assertSafeHttpsUrl`/`fetchPublic`); MULT
 own records, the Buying signals score, and the consented web research call — plus one new cache table;
 AI classifies and phrases, every claim carries a source and a date, no number comes from the model.
 
+## Owner corrections 2026-10-22 evening (these OVERRIDE the card sections below wherever they differ)
+1. **Summary and highlights, not web pages.** The user reads a short written summary and a few highlight lines. No source links are shown, no "Sources" block at the end of the card. Source URLs and dates are still stored with the analysis (audit, QA, "what changed") but are not drawn on screen.
+2. **Less about the company, more about what they are doing and whether to follow up.** No company profile paragraph (what they make, size, history) beyond one line of identity. The card leads with a verdict and why.
+3. **Say what we have about this account in our own system.** A short block from our data: the account (type, owner, since), contacts and roles known, open quotes/deals and their value, open cases, invoices due, last contact and what happened, and what is missing (for example no procurement contact). For a company that is not an account yet: "Not in your system yet" plus similar existing accounts.
+4. **Card layout (replaces the section list):** (a) **Verdict**: "Worth following up: Yes / Not now / Unclear" with one sentence of reason and the explainable Fit and Timing factors behind an expandable line; (b) **What they are doing**: 3 to 5 highlight bullets, newest first, each one line, dated in words ("last month"), classified to the client's topics; (c) **What we have**: the in-system block above; (d) **Next steps**: the confirm-card actions. Nothing else on the card. No sources block, no website-visit block unless there were visits (then one line), no long "who to talk to" list: contacts appear only inside "What we have" with the gaps.
+5. **Display**: the analysis is returned as structured fields and rendered by the card; model text is never shown with raw markdown markers (the dock resolves bold/lists before display, see the dock fixes).
+
 ## 0. What is already there (checked on `develop` before designing)
 
 | Looked at | What it gives | Reused as |
