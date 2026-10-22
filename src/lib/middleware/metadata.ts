@@ -2,7 +2,8 @@
 // docs/design/integration-middleware.md). Pure: parse what the ERP returned,
 // suggest matches by name, flag required fields nobody mapped.
 
-export type ErpField = { name: string; label: string; type: string; required: boolean; creatable: boolean };
+/** `filterable` is set (to false) only where the ERP says a field cannot be used in a search. */
+export type ErpField = { name: string; label: string; type: string; required: boolean; creatable: boolean; filterable?: boolean };
 
 export const METADATA_ENTITIES = [
   "quote", "quote_line", "sales_order", "sales_order_line", "account", "contact", "product", "project", "customers", "contacts", "vendors", "products", "projects",
@@ -36,9 +37,60 @@ export function parseDataverseAttributes(json: unknown): ErpField[] {
       type: typeof r.AttributeType === "string" ? r.AttributeType : "Unknown",
       required: level === "SystemRequired" || level === "ApplicationRequired",
       creatable: r.IsValidForCreate !== false,
+      ...((r.IsValidForAdvancedFind as { Value?: boolean } | null | undefined)?.Value === false ? { filterable: false } : {}),
     });
   }
   return sortFields(out);
+}
+
+// ── Pick-list values (the Scope panel) ──────────────────────────────────────
+
+export type PickValue = { value: string; label: string };
+
+const labelOf = (l: unknown): string => {
+  const x = l as { UserLocalizedLabel?: { Label?: string } | null; LocalizedLabels?: { Label?: string }[] } | null | undefined;
+  return x?.UserLocalizedLabel?.Label?.trim() || x?.LocalizedLabels?.[0]?.Label?.trim() || "";
+};
+
+/**
+ * The allowed values of a Dataverse pick-list, status or yes/no attribute, as `{ value: code, label }`. The answer of
+ * `.../Attributes(LogicalName='x')/Microsoft.Dynamics.CRM.PicklistAttributeMetadata?$expand=OptionSet($select=Options)`
+ * (or the State, Status and Boolean variants).
+ */
+export function parseDataverseOptions(json: unknown): PickValue[] {
+  const set = (json as { OptionSet?: { Options?: unknown[]; TrueOption?: unknown; FalseOption?: unknown } | null } | null)?.OptionSet;
+  if (!set) return [];
+  if (set.TrueOption || set.FalseOption) {
+    const yes = set.TrueOption as { Label?: unknown } | undefined;
+    const no = set.FalseOption as { Label?: unknown } | undefined;
+    return [{ value: "true", label: labelOf(yes?.Label) || "Yes" }, { value: "false", label: labelOf(no?.Label) || "No" }];
+  }
+  const out: PickValue[] = [];
+  for (const o of (set.Options ?? []) as { Value?: unknown; Label?: unknown }[]) {
+    if (typeof o.Value !== "number" || !Number.isInteger(o.Value)) continue;
+    out.push({ value: String(o.Value), label: labelOf(o.Label) || String(o.Value) });
+  }
+  return out.sort((a, b) => a.label.localeCompare(b.label));
+}
+
+/** The tables a Dataverse lookup points at: `.../Microsoft.Dynamics.CRM.LookupAttributeMetadata?$select=Targets`. */
+export function parseLookupTargets(json: unknown): string[] {
+  const t = (json as { Targets?: unknown } | null)?.Targets;
+  return Array.isArray(t) ? t.filter((x): x is string => typeof x === "string" && /^[a-z][a-z0-9_]*$/.test(x)).slice(0, 3) : [];
+}
+
+/** The members of an enum type in an OData `$metadata` document (Finance and Operations, Business Central). */
+export function parseODataEnum(xml: string, typeName: string): PickValue[] {
+  const short = typeName.split(".").pop() ?? "";
+  const block = new RegExp(`<EnumType\\b[^>]*\\bName="${escapeRe(short)}"[^>]*>([\\s\\S]*?)</EnumType>`, "i").exec(xml);
+  if (!block) return [];
+  const out: PickValue[] = [];
+  for (const m of block[1].matchAll(/<Member\b[^>]*>/gi)) {
+    const name = attr(m[0], "Name");
+    if (!name || name.startsWith("_x")) continue;
+    out.push({ value: name, label: humanize(name) });
+  }
+  return out;
 }
 
 // ── OData $metadata (Finance and Operations, Business Central) ─────────────

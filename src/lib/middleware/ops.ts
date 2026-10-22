@@ -5,6 +5,7 @@ import type { TenantConfig, TenantFeatures } from "@/lib/constants";
 import { CONNECTOR_ID, loadD365, previewEntity, publicState, runPull, runPushFenceProjects, testConnection, markStatus } from "@/lib/connectors/d365/server";
 import { entityConfig, outboundConfig } from "@/lib/connectors/d365/catalog";
 import { selectionSupport, type RunSelection } from "@/lib/connectors/d365/selection";
+import { hasScope, scopeSummary } from "@/lib/connectors/d365/scope";
 import { D365_ENTITY_KEYS, D365_ENTITY_LABEL, D365_ENTITY_TARGET, type D365Config, type D365EntityKey, type D365PublicState } from "@/lib/connectors/d365/types";
 import { pushAccountToErp } from "@/lib/accountPush";
 import { middlewareClient } from "./client";
@@ -266,6 +267,8 @@ export async function connectionCheck(admin: SupabaseClient, tenantId: string, o
 
 // ── Sync (Resync tab and Mapping tab) ───────────────────────────────────────
 
+const SCOPE_PLURAL: Record<D365EntityKey, string> = { customers: "customers", contacts: "contacts", vendors: "vendors", products: "products", projects: "projects", fence_projects: "fence projects" };
+
 export const SYNC_SCHEDULES = ["off", "hourly", "daily"] as const;
 export type SyncSchedule = (typeof SYNC_SCHEDULES)[number];
 
@@ -290,6 +293,7 @@ export async function syncOverview(admin: SupabaseClient, tenantId: string) {
       key, label: D365_ENTITY_LABEL[key], direction: D365_ENTITY_TARGET[key].direction, enabled: ec?.enabled === true, entity_set: ec?.entity_set ?? null,
       schedule: (ec?.schedule ?? cfg.schedule) as SyncSchedule, schedule_source: ec?.schedule ? ("entity" as const) : ("connector" as const),
       running: running.has(key), linked: count ?? 0, filters: selectionSupport(cfg.product, ec),
+      scope: key === "fence_projects" ? null : { summary: scopeSummary(ec?.scope, SCOPE_PLURAL[key]), narrowed: hasScope(ec?.scope), needs_full: hasScope(ec?.scope) && ec?.scope?.needs_full === true },
       last_run: run ? { status: run.status, trigger: run.trigger, started_at: run.started_at, finished_at: run.finished_at, counts: run.counts, error: run.error } : null,
     };
   }));

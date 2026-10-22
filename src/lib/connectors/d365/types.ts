@@ -65,6 +65,33 @@ export const D365_ENTITY_TARGET: Record<D365EntityKey, { table: string; directio
   fence_projects: { table: "fence_projects", direction: "push", feature: "fence_projects" },
 };
 
+/** What an attribute of the connected system is filtered as. */
+export type ScopeKind = "option" | "lookup" | "text" | "number" | "boolean";
+
+/**
+ * One condition of a scope: the attribute (a field of the record in the connected system) is any of `values`.
+ * `values` are the system's own codes (option-set number, record id, text, number, true/false); `labels` and
+ * `attribute_label` are for display only.
+ */
+export type ScopeCondition = {
+  attribute: string;
+  kind: ScopeKind;
+  values: string[];
+  labels?: string[];
+  attribute_label?: string;
+  /** Finance & Operations: the enum type an option value belongs to. */
+  enum_type?: string;
+  /** "customer": the attribute belongs to the record's customer (Dataverse contacts). */
+  via?: "customer";
+};
+
+/** Which records of an entity every pull reads. Conditions are AND'd; the values inside one are OR'd. */
+export type EntityScope = {
+  conditions: ScopeCondition[];
+  /** The scope changed after a run had moved the incremental position: a Full resync brings in the rest. */
+  needs_full?: boolean;
+};
+
 /**
  * How one entity is read or written. `field_map` maps a BPMSquare field to
  * the external field holding it (pull), or an external field to a template
@@ -83,6 +110,8 @@ export type D365EntityConfig = {
   /** Automatic sync for this entity (middleware page). Absent = the
    *  connector-wide `schedule`. */
   schedule?: "off" | "hourly" | "daily";
+  /** Pull only: which records every run reads (Resync tab). Absent or empty = all. */
+  scope?: EntityScope;
 };
 
 /**

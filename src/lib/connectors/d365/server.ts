@@ -11,6 +11,7 @@ import { D365Client, D365Error } from "./odata";
 import { buildClientAssertion, certDerFromPem, tokenUrl, validDirectory } from "./jwt";
 import { entityConfig, apiBase, resourceFor, allowedHost, sovereignHost } from "./catalog";
 import { buildSelection, describeSelection, type RunSelection } from "./selection";
+import { SCOPE_CHANGED_LINE, buildScopeFilter, hasScope, scopeWords } from "./scope";
 import {
   mapPullRow, fingerprint, buildPushBody, modifiedSinceFilter, odataString, buildTargetRecord, normalizeModified, nextModifiedWatermark,
   formatCursor, parseCursor, keysetFilter, accountLookupKeys, selectFields, scopedExternalId, splitExternalId, withDataArea,
@@ -226,8 +227,22 @@ const IDENT_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
 const REF_TABLES = new Set<string>(["accounts", "contacts", "suppliers", "products", "wfm_projects"]);
 const MAX_ROWS_PER_RUN = 5000;
 
-export type RunCounts = { read: number; created: number; updated: number; unchanged: number; skipped: number; failed: number; /** 1 on a run that read a selection (filters or ids): its marker in the history. */ filtered?: number };
-export type PullResult = { runId: string | null; counts: RunCounts; issues: string[]; error: string | null; /** Filters that were asked for and could not be applied. */ unsupported?: string[] };
+export type RunCounts = {
+  read: number; created: number; updated: number; unchanged: number; skipped: number; failed: number;
+  /** 1 on a run that read a selection of ids: its marker in the history. */ filtered?: number;
+  /** Full run under a scope: linked records the scope no longer reaches. They are left as they are, never deleted or unlinked. */ outside_scope?: number;
+};
+export type PullResult = { runId: string | null; counts: RunCounts; issues: string[]; error: string | null; /** Ids that were asked for and could not be looked up. */ unsupported?: string[] };
+
+/** The scope was changed after a run had moved the incremental position; a finished Full resync settles it. */
+async function settleScope(admin: SupabaseClient, tenantId: string, key: D365EntityKey): Promise<void> {
+  const loaded = await loadD365(admin, tenantId);
+  const own = loaded?.cfg.entities?.[key];
+  if (!loaded || !own?.scope?.needs_full) return;
+  const entities = { ...loaded.cfg.entities, [key]: { ...own, scope: { conditions: own.scope.conditions } } };
+  await admin.from("tenant_connectors").update({ config: { ...loaded.cfg, entities } as unknown as Record<string, string>, updated_at: new Date().toISOString() })
+    .eq("tenant_id", tenantId).eq("connector_id", CONNECTOR_ID);
+}
 
 /** A run older than this cannot still be alive: the routes stop at 300 s. */
 export const STALE_RUN_MS = 10 * 60 * 1000;
@@ -324,6 +339,12 @@ export async function runPull(admin: SupabaseClient, tenantId: string, key: Excl
     return { runId: null, counts, issues, error: planned.unsupported.join(" ") || "Nothing matches that selection.", unsupported: planned.unsupported };
   }
 
+  // The saved scope narrows every ordinary run. A run for named ids is an explicit ask and ignores it.
+  const scopeOn = !planned && hasScope(ec.scope);
+  const builtScope = scopeOn ? buildScopeFilter(cfg.product, ec.scope, key) : { ok: true as const, filter: undefined };
+  if (!builtScope.ok) return { runId: null, counts, issues, error: `The saved scope cannot be used: ${builtScope.error} Open Scope and fix it.` };
+  const scopeWord = scopeOn ? scopeWords(ec.scope) : null;
+
   const started = await startRun(admin, tenantId, key, "pull", opts.trigger, opts.userId);
   if (started.locked) return { runId: null, counts, issues, error: ALREADY_RUNNING };
   const runId = started.runId;
@@ -335,7 +356,7 @@ export async function runPull(admin: SupabaseClient, tenantId: string, key: Excl
   const mw = (t?.features as TenantFeatures | undefined)?.integration_middleware === true;
   const startedAtMs = Date.now();
   const capture = (t?.config as { integration_middleware?: { payload_capture?: boolean } } | null)?.integration_middleware?.payload_capture === true;
-  const note = (error: string | null) => mw ? recordConnectorRun(admin, tenantId, { runId, entity: key, direction: "pull", trigger: opts.trigger, counts: { ...counts }, issues, error, startedAtMs, entitySet: ec.entity_set, capture, selection: selectionWord }) : Promise.resolve();
+  const note = (error: string | null) => mw ? recordConnectorRun(admin, tenantId, { runId, entity: key, direction: "pull", trigger: opts.trigger, counts: { ...counts }, issues, error, startedAtMs, entitySet: ec.entity_set, capture, selection: selectionWord, scope: scopeWord }) : Promise.resolve();
   let stoppedEarly = false;
   try {
     // A filtered run is a one-off look at some records: it neither starts from the incremental
@@ -343,7 +364,8 @@ export async function runPull(admin: SupabaseClient, tenantId: string, key: Excl
     const startMark: string | null = opts.full || filtered ? null : await lastWatermark(admin, tenantId, key);
     const client = await clientFor(admin, tenantId, cfg, creds);
     const q = foCompanyQuery(cfg);
-    const baseFilter = [ec.filter, q.filter].filter(Boolean).map((f) => `(${f})`).join(" and ") || undefined;
+    const entityFilter = [ec.filter, q.filter].filter(Boolean).map((f) => `(${f})`).join(" and ") || undefined;
+    const baseFilter = [entityFilter, builtScope.filter ? `(${builtScope.filter})` : undefined].filter(Boolean).join(" and ") || undefined;
     // Two ways to continue where the last run stopped. An entity with a
     // modified field asks for what changed since; one without (Finance &
     // Operations) is read in id order from a cursor, and a finished scan
@@ -354,12 +376,13 @@ export async function runPull(admin: SupabaseClient, tenantId: string, key: Excl
     const startIso = modifiedMode && startMark && /^\d{4}-/.test(startMark) ? startMark : null;
     const filter = modifiedMode ? modifiedSinceFilter(ec.modified_field!, startIso, baseFilter)
       : keysetMode ? keysetFilter(ec.id_field, cursorStart, baseFilter) : baseFilter;
-    const requests = planned ? planned.filters.map((f) => (baseFilter ? `${baseFilter} and ${f}` : f)) : [filter];
+    const requests = planned ? planned.filters.map((f) => (entityFilter ? `${entityFilter} and ${f}` : f)) : [filter];
     const orderby = modifiedMode ? `${ec.modified_field} asc` : keysetMode ? `${ec.id_field} asc` : undefined;
     let maxSeen: string | null = startIso;
     let firstSeen: string | null = null;
     let firstHold: string | null = null;
     let lastId: string | null = cursorStart;
+    let seenLinked = 0;
 
     // Existing links for this entity, and the account links contacts and
     // projects resolve their customer through.
@@ -424,6 +447,7 @@ export async function runPull(admin: SupabaseClient, tenantId: string, key: Excl
           }
         }
         if (link) {
+          seenLinked++;
           if (link.content_hash === hash) { counts.unchanged++; continue; }
           const rec = toRecord(target.table, values, false);
           const { data: upd, error } = await admin.from(target.table).update(rec).eq("id", link.object_id).eq("tenant_id", tenantId).select("id");
@@ -490,20 +514,32 @@ export async function runPull(admin: SupabaseClient, tenantId: string, key: Excl
       watermark = formatCursor(cfg.company, incomplete ? lastId : null);
     }
     if (filtered) {
-      if (stoppedEarly) issues.push("Stopped at this run's time limit — narrow the filters or run it again.");
-      else if (capHit) issues.push(`Stopped at ${maxRows} rows — narrow the filters to read the rest.`);
+      if (stoppedEarly) issues.push("Stopped at this run's time limit — run it again.");
       const asked = sel?.ids?.length ?? 0;
-      if (asked && !sel?.since && !sel?.text && !sel?.activeOnly && !planned?.unsupported.length && !incomplete && counts.read < asked) {
+      if (asked && !planned?.unsupported.length && !incomplete && counts.read < asked) {
         issues.push(`${asked - counts.read} of ${asked} ${asked === 1 ? "record was" : "records were"} not found in the ERP.`);
       }
     } else if (stoppedEarly) issues.push("Stopped at this run's time limit — the next run continues from here.");
     else if (capHit) issues.push(`Stopped at ${maxRows} rows — the next run continues from here.`);
+    if (scopeOn) {
+      // Records that fell out of the scope since they were linked are left exactly as they are: never deleted, never unlinked.
+      if (opts.full && !incomplete) {
+        const outside = Math.max(0, links.length - seenLinked);
+        if (outside > 0) counts.outside_scope = outside;
+      }
+      if (!opts.full && ec.scope?.needs_full) issues.push(SCOPE_CHANGED_LINE);
+    }
     await markStatus(admin, tenantId, true);
     await finishRun(admin, tenantId, runId, counts, issues, null, watermark);
+    if (opts.full && !filtered && ec.scope?.needs_full) await settleScope(admin, tenantId, key);
     await note(null);
     return { runId, counts, issues, error: null, ...(planned?.unsupported.length ? { unsupported: planned.unsupported } : {}) };
   } catch (e) {
-    const msg = (e as Error).message ?? "Sync failed";
+    const raw = (e as Error).message ?? "Sync failed";
+    // The ERP refusing the request while a scope is set almost always means an attribute the system no longer has.
+    const msg = scopeOn && e instanceof D365Error && e.status === 400
+      ? `The system did not accept the saved scope (${raw.slice(0, 200)}). Open Scope for ${key} and remove or change the condition that no longer exists.`
+      : raw;
     await markStatus(admin, tenantId, false, msg);
     await finishRun(admin, tenantId, runId, counts, issues, msg, null);
     await note(msg);

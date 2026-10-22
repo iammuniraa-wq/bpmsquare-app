@@ -5,7 +5,10 @@
 // Routes live under /api/middleware (see src/app/api/middleware/*); saving,
 // testing and disconnecting a connection reuse the connector's own routes.
 
-import type { D365Config, D365EntityConfig, D365EntityKey, D365PublicState } from "@/lib/connectors/d365/types";
+import type { D365Config, D365EntityConfig, D365EntityKey, D365PublicState, ScopeCondition } from "@/lib/connectors/d365/types";
+import type { ScopeAttribute } from "@/lib/connectors/d365/scope";
+
+export type ScopeEntityKey = Exclude<D365EntityKey, "fence_projects">;
 
 // ── Errors ──────────────────────────────────────────────────────────────────
 
@@ -566,8 +569,10 @@ export type SyncEntity = {
   schedule_source: "entity" | "connector";
   running: boolean;
   linked: number;
-  /** What a filtered run can express for this entity (absent from an older server). */
-  filters?: { since: boolean; text: boolean; active: boolean; numbers: boolean };
+  /** Whether single records can be read by number for this entity (absent from an older server). */
+  filters?: { numbers: boolean };
+  /** The saved scope in one line, and whether it narrows anything or was changed since the last full resync. Null for the push. */
+  scope?: { summary: string; narrowed: boolean; needs_full: boolean } | null;
   last_run: { status: string; trigger: string; started_at: string; finished_at: string | null; counts: Record<string, number> | null; error: string | null } | null;
 };
 export type SyncOverview =
@@ -576,10 +581,24 @@ export type SyncOverview =
 
 export const getSync = () => get<SyncOverview>("/api/middleware/sync");
 export type SyncRunResult = { runId?: string; counts?: Record<string, number>; issues?: string[]; error?: string | null; unsupported?: string[] };
-export type RunFilters = { ids?: string[]; since?: string; text?: string; active_only?: boolean };
-/** A run that reads only some records (filters and/or ids). It never moves the incremental position. */
-export const runSelected = (entity: D365EntityKey, filters: RunFilters) =>
-  post<SyncRunResult>("/api/middleware/resync", { entity, full: true, ...filters });
+export type RunSelection = { ids: string[] };
+/** A run that reads only the listed records. It ignores the scope and never moves the incremental position. */
+export const runSelected = (entity: D365EntityKey, selection: RunSelection) =>
+  post<SyncRunResult>("/api/middleware/resync", { entity, full: true, ...selection });
+
+// ── Scope ───────────────────────────────────────────────────────────────────
+
+export type ScopeViewData = {
+  entity: ScopeEntityKey; label: string; conditions: ScopeCondition[]; summary: string; needs_full: boolean;
+  attributes: ScopeAttribute[]; source: "system" | "presets";
+};
+export type ScopeValuesData = { kind: ScopeAttribute["kind"]; typed: boolean; values: { value: string; label: string }[]; more: boolean };
+export type ScopeSave = { attribute: string; values: string[]; labels?: string[]; via?: "customer" }[];
+
+export const getScope = (entity: ScopeEntityKey) => get<ScopeViewData>(`/api/middleware/scope?entity=${encodeURIComponent(entity)}`);
+export const getScopeValues = (entity: ScopeEntityKey, attribute: string, q = "") =>
+  get<ScopeValuesData>(`/api/middleware/scope/values?entity=${encodeURIComponent(entity)}&attribute=${encodeURIComponent(attribute)}${q ? `&q=${encodeURIComponent(q)}` : ""}`);
+export const saveScope = (entity: ScopeEntityKey, conditions: ScopeSave) => put<ScopeViewData>("/api/middleware/scope", { entity, conditions });
 /** A refused run (one is already running, the ERP said no) comes back as an ApiProblem carrying the server's message. */
 export const runSync = (entity: D365EntityKey, full = false, ids?: string[]) =>
   post<SyncRunResult>("/api/middleware/resync", { entity, full, ...(ids && ids.length ? { ids } : {}) });
