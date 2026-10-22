@@ -74,6 +74,10 @@ const ALIASES: Record<string, string[]> = {
   "nav:/cases": ["tickets", "service cases"],
   "nav:/reports": ["reports", "analytics"],
   "nav:/pipeline": ["deals", "opportunities", "pipeline"],
+  // Settings pages that were folded into tabs (batch S2) keep answering to their old names.
+  "settings:company": ["company profile", "entities and tax", "currency", "tax", "number ranges"],
+  "settings:appearance": ["theme", "theme and colours", "navigation visibility", "reset layout", "dashboard content"],
+  "settings:products": ["product categories", "item types"],
 };
 
 const norm = (s: string): string =>

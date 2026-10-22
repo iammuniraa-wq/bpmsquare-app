@@ -171,9 +171,10 @@ export const ROUTES = {
   settingsTemplates: "/settings/templates",
   settingsStatuses: "/settings/statuses",
   settingsEmailTemplates: "/settings/email-templates",
-  settingsSales: "/settings/sales", // redirects to settingsProductCategories
-  settingsProductCategories: "/settings/product-categories",
-  settingsItemTypes: "/settings/item-types",
+  settingsSales: "/settings/sales", // redirects to the Products categories tab
+  settingsProducts: "/settings/products",
+  settingsProductCategories: "/settings/product-categories", // redirects to settingsProducts
+  settingsItemTypes: "/settings/item-types", // redirects to settingsProducts
   settingsAssetPrintFields: "/settings/asset-print-fields",
   settingsDeletionLog: "/settings/deletion-log",
   settingsConnectors: "/settings/connectors",

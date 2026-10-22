@@ -87,8 +87,9 @@ describe("plain navigation is answered without a model", () => {
   it("matches a create form and a settings page", () => {
     expect(matchNavigation("new quotation", targets)?.href).toBe("/quotations/new");
     expect(matchNavigation("create a new account", targets)?.href).toBe("/accounts/new");
-    expect(matchNavigation("open settings currency", targets)?.id).toBe("settings:currency");
-    expect(matchNavigation("go to currency", targets)?.id).toBe("settings:currency");
+    expect(matchNavigation("open settings company", targets)?.id).toBe("settings:company");
+    expect(matchNavigation("go to currency", targets)?.id).toBe("settings:company");
+    expect(matchNavigation("open navigation visibility", targets)?.id).toBe("settings:appearance");
   });
   it("leaves questions, filters and anything it cannot reach to the model", () => {
     expect(matchNavigation("show me quotes by status", targets)).toBeNull();

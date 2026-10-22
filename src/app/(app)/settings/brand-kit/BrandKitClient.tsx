@@ -102,7 +102,7 @@ export default function BrandKitClient() {
             <img src={kit.logo_url ?? defaults?.logoUrl ?? ""} alt="Logo" style={{ maxHeight: 48, maxWidth: 220, objectFit: "contain", alignSelf: "flex-start" }} />
           )}
           <input type="file" accept="image/png,image/jpeg,image/webp" disabled={uploading} onChange={(e) => { const f = e.target.files?.[0]; if (f) void uploadLogo(f); }} aria-label="Upload a logo" />
-          <p className="bpm-t-help" style={hint}>PNG, JPG or WebP, up to 2 MB. Until you add one here, the workspace logo from Entities is used.</p>
+          <p className="bpm-t-help" style={hint}>PNG, JPG or WebP, up to 2 MB. Until you add one here, the workspace logo is used.</p>
           {kit.logo_url && <button type="button" style={linkBtn} onClick={() => set({ logo_url: undefined })}>Use the workspace logo instead</button>}
         </div>
       </SettingsSection>

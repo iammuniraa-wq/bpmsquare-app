@@ -48,14 +48,10 @@ const CRM_OBJECT_FEATURES: (keyof TenantFeatures)[] = ["accounts", "contacts", "
 
 export const SETTINGS_MENU: SettingsMenuEntry[] = [
   // ── Company ──
-  { id: "company", group: "company", label: "Company profile", description: "Your organisation's name, shown in the sidebar header", href: ROUTES.settingsCompany, keywords: ["general", "general settings", "workspace", "name", "organisation"], adminOnly: false },
-  { id: "entities", group: "company", label: "Entities & Tax", description: "Legal entities, print branding, and tax settings for quotations and PDFs", href: ROUTES.settingsEntities, keywords: ["gst", "vat", "legal", "branding", "logo"], adminOnly: true, featureKey: "quotations", relatedWorkcenter: "quotations" },
-  { id: "currency", group: "company", label: "Currency", description: "How every amount in this workspace is shown, printed and emailed", href: ROUTES.settingsCurrency, keywords: ["money", "rupee", "dollar", "format"], adminOnly: true },
-  { id: "number-ranges", group: "company", label: "Number ranges", description: "One place for every business-ID convention — Quote ID format and all system-generated ranges", href: ROUTES.settingsNumberRanges, keywords: ["ids", "prefix", "numbering", "sequence"], adminOnly: true },
+  { id: "company", group: "company", label: "Company", description: "Name, logo and letterhead, legal entities, tax and currency, and how IDs are numbered", href: ROUTES.settingsCompany, keywords: ["general", "general settings", "workspace", "name", "organisation", "company profile", "entities", "entities & tax", "gst", "vat", "legal", "branding", "logo", "letterhead", "currency", "money", "rupee", "dollar", "format", "number ranges", "ids", "prefix", "numbering", "sequence"], adminOnly: true },
 
   // ── Users & access ──
   { id: "people", group: "access", label: "People", description: "Invite people, set who is admin, and choose which screens each person reaches", href: ROUTES.settingsPeople, keywords: ["team", "users", "invite", "members", "roles", "business users", "business roles", "permissions", "workcenter", "access", "login", "lock"], adminOnly: true },
-  { id: "navigation", group: "access", label: "Navigation visibility", description: "Show or hide sidebar items for the whole workspace", href: ROUTES.settingsNavigation, keywords: ["general", "sidebar", "menu", "hide"], adminOnly: false },
   { id: "coverage", group: "access", label: "Coverage", description: "Teams, rule-based segments and the wiring that replaces flat territory/sales org assignment — also drives auto-ownership, product availability and ERP routing", href: ROUTES.settingsCoverage, keywords: ["territory", "sales org", "segments", "ownership"], adminOnly: true, featureKey: "coverage_model" },
 
   // ── Sales ──
@@ -90,11 +86,10 @@ export const SETTINGS_MENU: SettingsMenuEntry[] = [
 
   // ── Data ──
   { id: "custom-fields", group: "data", label: "Custom fields", description: "Add fields to any object — included automatically in the API and MCP", href: ROUTES.configCustomFields, keywords: ["fields", "columns", "extra"], adminOnly: true, featureAnyOf: [...CRM_OBJECT_FEATURES, "business_roles"] },
-  // featureAnyOf, not featureKey: "products" -- the tree feeds the products
-  // screens AND any field whose selectSource is product_category, which can
-  // sit on an object a tenant without the Products module still uses.
-  { id: "product-categories", group: "data", label: "Product categories", description: "The category tree products are filed under, and that category fields pick from", href: ROUTES.settingsSales, keywords: ["products", "tree"], adminOnly: true, featureAnyOf: ["products", "quotations"], relatedWorkcenter: "quotations" },
-  { id: "item-types", group: "data", label: "Item types", description: "What kinds of items your products are (raw material, finished product, BOM / kit, ...): rename, hide or add your own", href: ROUTES.settingsItemTypes, keywords: ["products", "bom", "kit", "raw material", "finished", "classification"], adminOnly: true, featureKey: "products" },
+  // featureAnyOf, not featureKey: "products" -- the category tree feeds the products screens AND any field whose
+  // selectSource is product_category, which can sit on an object a tenant without the Products module still uses.
+  // The Item types tab shows only with the Products module (decided in the page).
+  { id: "products", group: "data", label: "Products", description: "The category tree products are filed under, and the kinds of item they can be", href: ROUTES.settingsProducts, keywords: ["product categories", "categories", "tree", "item types", "bom", "kit", "raw material", "finished", "classification"], adminOnly: true, featureAnyOf: ["products", "quotations"], relatedWorkcenter: "quotations" },
   { id: "deletion-log", group: "data", label: "Deleted records", description: "Audit log of permanently deleted objects", href: ROUTES.settingsDeletionLog, keywords: ["audit", "trash", "removed"], adminOnly: true, featureAnyOf: CRM_OBJECT_FEATURES },
 
   // ── Integrations ──
@@ -106,9 +101,7 @@ export const SETTINGS_MENU: SettingsMenuEntry[] = [
   { id: "email-output", group: "integrations", label: "Email output", description: "Where quotations, invoices, campaigns and workforce notifications are actually delivered", href: ROUTES.settingsEmailOutput, keywords: ["mail", "redirect", "demo", "inbox", "resend"], adminOnly: true },
 
   // ── Appearance ──
-  { id: "appearance", group: "appearance", label: "Theme & colours", description: "Theme, accent colour and the compact sidebar for the whole workspace", href: ROUTES.settingsAppearance, keywords: ["general", "appearance", "look", "dark", "nova", "classic", "accent", "brand colour"], adminOnly: false },
-  { id: "dashboard", group: "appearance", label: "Dashboard content", description: "Business news and tips for a dashboard that has no data of its own yet", href: ROUTES.settingsDashboard, keywords: ["news", "tips", "home"], adminOnly: true },
-  { id: "reset", group: "appearance", label: "Reset layout", description: "Restore navigation visibility and the compact sidebar to their defaults", href: ROUTES.settingsReset, keywords: ["default", "restore"], adminOnly: false },
+  { id: "appearance", group: "appearance", label: "Appearance", description: "Theme and colour, which sidebar items show, and the dashboard", href: ROUTES.settingsAppearance, keywords: ["general", "appearance", "theme & colours", "look", "dark", "nova", "classic", "accent", "brand colour", "navigation", "navigation visibility", "sidebar", "menu", "hide", "reset layout", "default", "restore", "dashboard", "dashboard content", "news", "tips", "home"], adminOnly: true },
 ];
 
 /** Entries the signed-in person may open, grouped, empty groups dropped. */
