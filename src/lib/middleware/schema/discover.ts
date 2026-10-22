@@ -2,6 +2,8 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { unsealSecret } from "@/lib/encryption";
 import { assertSafeHttpsUrl, fetchPublic } from "@/lib/net/safeHost";
+import { BodyTooLargeError, readBounded as readBoundedBody } from "@/lib/net/readBounded";
+import { CREDENTIAL_PARAM } from "@/lib/net/credentialParam";
 import { parseOpenApi } from "./openapi";
 import { parseODataSchema } from "./odata";
 import { parseManualFields, parseSample } from "./sample";
@@ -21,7 +23,7 @@ export class SchemaFetchError extends Error {
 }
 
 /** Query-string names that carry a credential. A stored address must not hold one: the key belongs in a header. */
-const SECRET_PARAM = /(^|[_-])(key|apikey|api[_-]?key|token|access[_-]?token|secret|password|passwd|pwd|auth|authorization|sig|signature|credential)($|[_-])/i;
+const SECRET_PARAM = CREDENTIAL_PARAM;
 
 export async function validateSchemaUrl(raw: unknown): Promise<URL> {
   if (typeof raw !== "string" || !raw.trim()) throw new SchemaFetchError("Give the address of the spec.");
@@ -41,27 +43,12 @@ export async function validateSchemaUrl(raw: unknown): Promise<URL> {
 }
 
 async function readBounded(res: Response, maxBytes: number): Promise<string> {
-  const declared = Number(res.headers.get("content-length"));
-  if (Number.isFinite(declared) && declared > maxBytes) throw new SchemaFetchError(`That file is larger than ${Math.round(maxBytes / 1024 / 1024)} MB.`);
-  const reader = res.body?.getReader();
-  if (!reader) {
-    const t = await res.text();
-    if (t.length > maxBytes) throw new SchemaFetchError(`That file is larger than ${Math.round(maxBytes / 1024 / 1024)} MB.`);
-    return t;
+  try {
+    return await readBoundedBody(res, maxBytes);
+  } catch (e) {
+    if (e instanceof BodyTooLargeError) throw new SchemaFetchError(`That file is larger than ${Math.round(maxBytes / 1024 / 1024)} MB.`);
+    throw e;
   }
-  const chunks: Uint8Array[] = [];
-  let total = 0;
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    total += value.byteLength;
-    if (total > maxBytes) {
-      await reader.cancel().catch(() => {});
-      throw new SchemaFetchError(`That file is larger than ${Math.round(maxBytes / 1024 / 1024)} MB.`);
-    }
-    chunks.push(value);
-  }
-  return new TextDecoder().decode(Buffer.concat(chunks.map((c) => Buffer.from(c))));
 }
 
 export async function fetchSchemaText(url: URL, kind: "openapi" | "odata", headers: Record<string, string>, deps: FetchDeps = {}): Promise<string> {

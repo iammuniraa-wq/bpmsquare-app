@@ -271,6 +271,24 @@ describe("what it refuses to send", () => {
   });
 });
 
+describe("redirects and oversized answers", () => {
+  it("never follows a redirect, so a sealed header value is not sent to another origin", async () => {
+    const fetchSpy = vi.fn(async () => new Response(null, { status: 307, headers: { location: "https://1.1.1.1/steal" } }));
+    vi.stubGlobal("fetch", fetchSpy);
+    const r = await fireWebhook(world({ hook: { url: "https://93.184.216.34/hook" } }).client, input(), { sleep: async () => {} });
+    expect(r.ok).toBe(false);
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("reads at most 1 MB of the receiver's answer", async () => {
+    let pulled = 0;
+    const body = new ReadableStream<Uint8Array>({ pull(c) { pulled++; c.enqueue(new TextEncoder().encode("x".repeat(64 * 1024))); } });
+    const r = await fireWebhook(world().client, input(), deps(async () => new Response(body, { status: 200 })));
+    expect(r.ok).toBe(true);
+    expect(pulled).toBeLessThan(40);
+  });
+});
+
 describe("idempotency", () => {
   it("is stable across a restart of the same firing and new for a new firing", async () => {
     const db = world();

@@ -55,23 +55,23 @@ describe("calling out", () => {
     vi.stubGlobal("fetch", f);
     const db = fakeDb(seed("8.8.8.8"));
     const r = await runSapPull(db.client, T, "customers", { trigger: "manual", userId: null, sleep: async () => {} });
-    expect(r.error).toMatch(/private or internal network/);
+    expect(r.error).toMatch(/redirected/);
     expect(f).toHaveBeenCalledTimes(1);
     expect(String(f.mock.calls[0][0])).toContain("8.8.8.8");
     expect(JSON.stringify(r)).not.toContain("pw");
   });
 
-  it("does not carry the login to another address on a redirect between public hosts", async () => {
-    let n = 0;
-    const seen: (string | null)[] = [];
+  it("never follows a redirect between public hosts, so the login and an APIKey stay on the pinned host", async () => {
+    const seen: string[] = [];
     vi.stubGlobal("fetch", vi.fn(async (u: string | URL, init: RequestInit) => {
-      seen.push(new Headers(init.headers).get("authorization"));
-      n++;
-      return n === 1 ? new Response(null, { status: 302, headers: { location: "https://1.1.1.1/x" } }) : new Response(JSON.stringify({ d: { results: [] } }), { status: 200 });
+      seen.push(String(u));
+      expect(new Headers(init.headers).get("authorization")).toMatch(/^Basic /);
+      return new Response(null, { status: 307, headers: { location: "https://1.1.1.1/x" } });
     }));
     const db = fakeDb(seed("8.8.8.8"));
-    await runSapPull(db.client, T, "customers", { trigger: "manual", userId: null, sleep: async () => {} });
-    expect(seen[0]).toMatch(/^Basic /);
-    expect(seen[1]).toBeNull();
+    const r = await runSapPull(db.client, T, "customers", { trigger: "manual", userId: null, sleep: async () => {} });
+    expect(r.error).toMatch(/redirected/);
+    expect(seen).toHaveLength(1);
+    expect(seen[0]).toContain("8.8.8.8");
   });
 });

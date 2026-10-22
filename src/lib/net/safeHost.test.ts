@@ -81,4 +81,58 @@ describe("fetchPublic", () => {
     expect(new Headers(second[1].headers).get("authorization")).toBeNull();
     expect(second[1].redirect).toBe("manual");
   });
+
+  it("keeps only allow-listed headers on a cross-origin hop: a custom credential header never reaches the second origin", async () => {
+    const f = vi.fn()
+      .mockResolvedValueOnce(new Response(null, { status: 307, headers: { location: "https://1.1.1.1/next" } }))
+      .mockResolvedValueOnce(new Response("ok", { status: 200 }));
+    vi.stubGlobal("fetch", f);
+    await fetchPublic("https://8.8.8.8/start", {
+      method: "POST", body: "{\"pii\":1}",
+      headers: { APIKey: "sap-secret", "X-Api-Key": "k", "Proxy-Authorization": "p", Accept: "application/json", "Content-Type": "application/json", "X-BPMSquare-Signature": "sig", "X-Custom": "c" },
+    });
+    const second = f.mock.calls[1][1];
+    const h = new Headers(second.headers);
+    expect(h.get("apikey")).toBeNull();
+    expect(h.get("x-api-key")).toBeNull();
+    expect(h.get("proxy-authorization")).toBeNull();
+    expect(h.get("x-custom")).toBeNull();
+    expect(h.get("accept")).toBe("application/json");
+    expect(h.get("x-bpmsquare-signature")).toBe("sig");
+    expect(second.body).toBeUndefined();
+    expect(second.method).toBe("GET");
+  });
+
+  it("keeps headers and the method on a same-origin 307", async () => {
+    const f = vi.fn()
+      .mockResolvedValueOnce(new Response(null, { status: 307, headers: { location: "/other" } }))
+      .mockResolvedValueOnce(new Response("ok", { status: 200 }));
+    vi.stubGlobal("fetch", f);
+    await fetchPublic("https://8.8.8.8/start", { method: "POST", body: "{}", headers: { APIKey: "k" } });
+    const second = f.mock.calls[1][1];
+    expect(new Headers(second.headers).get("apikey")).toBe("k");
+    expect(second.method).toBe("POST");
+    expect(second.body).toBe("{}");
+  });
+
+  it("refuses a hop from https to http, even to a public host", async () => {
+    const f = vi.fn().mockResolvedValueOnce(new Response(null, { status: 307, headers: { location: "http://1.1.1.1/next" } }));
+    vi.stubGlobal("fetch", f);
+    await expect(fetchPublic("https://8.8.8.8/start", { method: "POST", body: "{}", headers: { APIKey: "k" } })).rejects.toThrow(/https to plain http/);
+    expect(f).toHaveBeenCalledTimes(1);
+  });
+
+  it("follows no redirect when the caller asks for redirect: error", async () => {
+    const f = vi.fn().mockResolvedValue(new Response(null, { status: 302, headers: { location: "https://1.1.1.1/next" } }));
+    vi.stubGlobal("fetch", f);
+    await expect(fetchPublic("https://8.8.8.8/start", { redirect: "error" })).rejects.toThrow(/redirected/);
+    expect(f).toHaveBeenCalledTimes(1);
+  });
+
+  it("stops after three redirects by default", async () => {
+    const f = vi.fn().mockImplementation(async () => new Response(null, { status: 302, headers: { location: "https://8.8.8.8/again" } }));
+    vi.stubGlobal("fetch", f);
+    await expect(fetchPublic("https://8.8.8.8/start")).rejects.toThrow(/redirected too many/);
+    expect(f).toHaveBeenCalledTimes(4);
+  });
 });
