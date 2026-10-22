@@ -8,6 +8,8 @@ export const ASSISTANT_TIPS = {
   usage: "Your workspace shares a monthly AI allowance across every AI feature. Suggestions and opening screens keep working when it runs out.",
   overBudget: "The monthly allowance is used up. Suggestions and opening screens still work; answers return next month or when the allowance is raised.",
   draft: "Paste an email or message and get a drafted record to review. Nothing is created until you press Create.",
+  guides: "Step-by-step help for the screen you are on, worked out from how the screen is built. It highlights the control; you press it.",
+  guideCard: "The highlighted control is the next thing to press, and Next follows you when you do. The assistant never presses anything for you.",
 } as const;
 
 /** The usage pill's own explanation, with the figures in it. */

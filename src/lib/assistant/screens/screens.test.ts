@@ -146,6 +146,12 @@ describe("a control that is named can be found on the page", () => {
     const tour = SOURCES.find((s) => s.file.endsWith(`marketing${path.sep}Tour.tsx`))!.text;
     expect(tour).toContain("findGuideTarget");
   });
+  it("guide mode never presses a control of the page: the one programmatic click in the overlay is a tab switch", () => {
+    const overlay = fs.readFileSync(path.join(SRC, "components", "GuideOverlay.tsx"), "utf8");
+    const code = overlay.split("\n").filter((l) => !l.trim().startsWith("*") && !l.trim().startsWith("//")).join("\n");
+    expect(code.match(/\.click\(\)|dispatchEvent|\.submit\(\)|requestSubmit/g) ?? []).toEqual([".click()"]);
+    expect(code).toMatch(/tab\.click\(\)/);
+  });
   it("normalizePath bounds and cleans what the client sends", () => {
     expect(normalizePath("/quotations/?tab=x#y")).toBe("/quotations");
     expect(normalizePath(`/${"a".repeat(500)}`)!.length).toBeLessThanOrEqual(300);
