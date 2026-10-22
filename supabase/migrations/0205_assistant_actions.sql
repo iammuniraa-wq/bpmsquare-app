@@ -6,8 +6,10 @@
 --   assistant_actions  one row for each thing the assistant did that reaches outside the chat or changes data: a web
 --                      search today (kind = 'web_search': the query, the source addresses, the tokens, who, when),
 --                      later a create or an update from a confirm card. This is also the audit standard Nova Crew
---                      adopts. It never holds a field value or a person's contact details: a search query is limited
---                      to the person's own words and a company name before it is sent, and the answer text is not stored.
+--                      adopts. A web_search row never holds a field value or contact details: the query is limited to the
+--                      person's own words and a company name before it is sent, and the answer text is not stored. A create
+--                      row holds the values the person confirmed (phone and e-mail redacted) and the card summary with
+--                      phone numbers and e-mail addresses scrubbed.
 --   change_log.via     which surface made a change ('assistant' when a confirm card did); null for the ordinary UI.
 --                      Added here so the create routes and Change History can use it without a second migration.
 --

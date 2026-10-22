@@ -231,6 +231,21 @@ describe("pressing the button", () => {
     expect(audit[0].result).toMatchObject({ label: "Tesla Germany" });
   });
 
+  it("scrubs a phone number or e-mail the model repeated in the card summary before it is stored (audit 2026-10-22 L7)", async () => {
+    world();
+    const built = await buildCard(
+      { supabase: S.db.client as never, tenantId: S.tenantId, userId: S.userId },
+      actionFor("account")!,
+      { values: { name: "Tesla Germany", type: "direct" }, references: {}, summary: "Add Tesla Germany, call +49 30 1234567 or jane.roe@tesla.example." },
+    );
+    if (!built.ok) throw new Error(built.reason);
+    expect((await press(built.card)).status).toBe(200);
+    const stored = JSON.stringify(rows("assistant_actions")[0]);
+    expect(stored).not.toContain("1234567");
+    expect(stored).not.toContain("jane.roe");
+    expect((rows("assistant_actions")[0].card as { summary: string }).summary).toBe("Add Tesla Germany, call [phone] or [email].");
+  });
+
   it("records which proposed values the person changed", async () => {
     world();
     const { card } = await propose({ name: "Tesla Germany", type: "end_customer" });

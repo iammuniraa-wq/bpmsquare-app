@@ -8,6 +8,7 @@ import { auditValues, dupHash, hash8, duplicatesFor, evaluateFields, loadSpec, n
 import { claimCard, finishCard, usedResult } from "./ledger";
 import { verifyToken } from "./token";
 import { runVia } from "./via";
+import { redactText } from "@/lib/middleware/redact";
 
 // A pressed confirm card becomes a create here, and nowhere else. Order matters and is the safety argument:
 //   1 the token proves this server showed this person this card, for this workspace, and has not expired
@@ -96,7 +97,7 @@ export async function executeCard(ctx: ExecCtx, body: ActBody): Promise<ExecOutc
 
   const label = def.labelOf(values);
   const shown = {
-    action: def.key, object: def.object, summary: payload.sm,
+    action: def.key, object: def.object, summary: redactText(payload.sm),
     fields: spec.fields.map((f) => ({ key: f.key, label: f.label, required: required.has(f.key) })),
     proposed_keys: Object.keys(payload.pv),
     edited: Object.keys(values).filter((k) => payload.pv[k] !== undefined && payload.pv[k] !== hash8(values[k])),
