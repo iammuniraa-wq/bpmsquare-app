@@ -59,6 +59,20 @@ describe("the briefing tile", () => {
     expect(out).not.toContain("**");
     expect(out).not.toContain("<b>");
   });
+  it("shows the AI paragraph above the rows, and the plain list is still there below it", () => {
+    const out = view({ briefing: briefing({ wording: { paragraph: "You created 2 quotes yesterday.", lang: "en", facts: "abc" } }) });
+    expect(out).toContain("You created 2 quotes yesterday.");
+    expect(out.indexOf("bms-brief-summary")).toBeLessThan(out.indexOf("bms-brief-row"));
+    expect(out).toContain(">Created 2 quotes</a>");
+    expect(view()).not.toContain('<p class="bms-brief-summary"');
+  });
+  it("draws the paragraph as plain text: markup and markers in it are escaped, not run or resolved", () => {
+    const out = view({ briefing: briefing({ wording: { paragraph: "<script>alert(1)</script> **bold** [x](https://evil.example)", lang: "en", facts: "abc" } }) });
+    expect(out).not.toContain("<script>");
+    expect(out).toContain("&lt;script&gt;");
+    expect(out).toContain("**bold**");
+    expect(out).not.toContain('href="https://evil.example"');
+  });
   it("a new user sees the one-line empty state and no rows", () => {
     const out = view({ briefing: briefing({ empty: true, yesterday: [], today: [], focus: [] }) });
     expect(out).toContain(BRIEFING_EMPTY);

@@ -14,7 +14,7 @@ import InfoTip from "./InfoTip";
  * 2 MB"); explanations never print (docs/design/ux-simplification.md §2a).
  */
 export default function Field({
-  label, hint, info, error, required, htmlFor, children, style,
+  label, hint, info, error, required, htmlFor, children, style, guide,
 }: {
   label: string;
   hint?: string;
@@ -24,6 +24,8 @@ export default function Field({
   htmlFor?: string;
   children: React.ReactNode;
   style?: React.CSSProperties;
+  /** A stable data-guide id (e.g. account.field.name) so the assistant can point at this field; see src/lib/assistant/screens. */
+  guide?: string;
 }) {
   const autoId = useId();
   const text = (
@@ -64,7 +66,7 @@ export default function Field({
   }
 
   return (
-    <div style={{ marginBottom: 16, ...style }}>
+    <div data-guide={guide} style={{ marginBottom: 16, ...style }}>
       {body}
       {error ? (
         <div role="alert" className="bpm-t-help" style={{ marginTop: 5, color: "var(--err-ink)" }}>{error}</div>

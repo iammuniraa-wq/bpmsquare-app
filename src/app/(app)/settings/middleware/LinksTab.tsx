@@ -116,7 +116,7 @@ export function LinksTable({ rows, connected, busy, onOpen, onToggle, onTest }: 
           <tr key={r.id} className={s.docRow}>
             <td data-label="BPMSquare">
               {r.kind === "out"
-                ? <button type="button" className={s.docOpen} onClick={() => onOpen(r)} aria-label={`${r.bpm}: change what it becomes in the ERP`}><span className={s.fieldName}>{r.bpm}</span></button>
+                ? <button type="button" className={s.docOpen} data-guide="middleware.link_row" onClick={() => onOpen(r)} aria-label={`${r.bpm}: change what it becomes in the ERP`}><span className={s.fieldName}>{r.bpm}</span></button>
                 : <span className={s.fieldName}>{r.bpm}</span>}
             </td>
             <td className={s.arrowCell} data-label="Direction"><span aria-label={r.kind === "out" ? "goes to" : "comes from"} role="img">{r.kind === "out" ? "→" : "←"}</span></td>

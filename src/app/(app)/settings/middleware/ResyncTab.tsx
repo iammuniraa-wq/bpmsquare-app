@@ -139,7 +139,7 @@ export function EntityRows({ rows, connected, busy, lines, onSync, onSchedule, o
                   <td data-label="Scope">
                     <span className={s.scopeCell}>
                       <span className={s.wrapAny}>{scopeCell(e)}</span>
-                      <button type="button" className={s.linkBtn} onClick={() => onScope?.(e)} disabled={!connected || !onScope} aria-label={`Edit the scope of ${entityWord(e.key, connectorId)}`}>Edit</button>
+                      <button type="button" className={s.linkBtn} data-guide="middleware.scope_edit" onClick={() => onScope?.(e)} disabled={!connected || !onScope} aria-label={`Edit the scope of ${entityWord(e.key, connectorId)}`}>Edit</button>
                     </span>
                   </td>
                   <td data-label="Last run"><span className={s.small}>{lastRunLine(e, now)}</span></td>

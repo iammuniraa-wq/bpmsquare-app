@@ -3,10 +3,11 @@ import fs from "node:fs";
 import path from "node:path";
 import { NAV, ROUTES } from "@/lib/constants";
 import { SETTINGS_MENU } from "@/lib/settingsMenu";
+import { FIELD_REGISTRY } from "@/lib/fieldRegistry";
 import { OBJECT_DEFS } from "../objects";
 import { STUDIOS } from "./generate";
 import { OVERLAYS, allManifests, fieldControlId, findManifest, manifestById, normalizePath, resolveScreen, screenIndex, toScreenFields } from "./index";
-import { MAX_BLOCK_CHARS, cleanText, renderScreenBlock } from "./filter";
+import { MAX_BLOCK_CHARS, applyAccess, cleanText, renderScreenBlock } from "./filter";
 import { MAX_CONTROLS, MAX_TASKS, MAX_TEXT, type ScreenAccess } from "./types";
 
 // Coverage, integrity, permission filtering, budget and hostile input for the screen manifests
@@ -48,7 +49,7 @@ describe("the hand-written half", () => {
   it("every overlay belongs to a generated screen", () => {
     for (const o of hand) expect(manifestById(o.id), o.id).not.toBeNull();
   });
-  it("stays small: at most 12 controls, 6 tasks, texts of 160 characters", () => {
+  it("stays small: at most 16 controls, 6 tasks, texts of 160 characters", () => {
     for (const o of hand) {
       expect((o.controls ?? []).length, `${o.id} controls`).toBeLessThanOrEqual(MAX_CONTROLS);
       expect((o.tasks ?? []).length, `${o.id} tasks`).toBeLessThanOrEqual(MAX_TASKS);
@@ -140,6 +141,54 @@ describe("a control that is named can be found on the page", () => {
           expect(registered(c.id), `${m.id} names ${c.id} but no component carries data-guide="${c.id}"`).toBe(true);
         }
       }
+    }
+  });
+  it("the ids the Webhooks and Integration middleware steps point at are on the real controls, not only on the tab strip", () => {
+    const wanted = {
+      "settings.webhooks": ["webhooks.new", "webhooks.row", "webhooks.save"],
+      "settings.middleware": [
+        "middleware.connector", "middleware.connect", "middleware.test", "middleware.edit", "middleware.link_row",
+        "middleware.scope_edit", "middleware.restart", "middleware.view_request", "middleware.view_response",
+      ],
+    };
+    for (const [screen, ids] of Object.entries(wanted)) {
+      const m = manifestById(screen)!;
+      for (const id of ids) {
+        expect(m.controls.map((c) => c.id), `${screen} lists ${id}`).toContain(id);
+        expect(literalIds.has(id), `${id} is on a component`).toBe(true);
+        expect(m.tasks.some((t) => t.steps.some((s) => s.control === id)), `${id} is used by a task`).toBe(true);
+      }
+    }
+  });
+  it("a step on a control that sits on a tab opens that tab first", () => {
+    const m = manifestById("settings.middleware")!;
+    for (const id of ["middleware.link_row", "middleware.scope_edit", "middleware.restart", "middleware.view_request", "middleware.view_response"]) {
+      const c = m.controls.find((x) => x.id === id)!;
+      expect(m.tabs!.map((t) => t.id), id).toContain(c.tab);
+    }
+  });
+  it("controls that need an admin are named as unavailable, with the reason, for anyone who reaches the screen without being one", () => {
+    // Both pages are closed to a non-admin as a whole; this checks the control-level gate that would apply if one got in.
+    for (const [screen, gated] of [["settings.middleware", "middleware.restart"], ["settings.webhooks", "webhooks.save"]] as const) {
+      const open = { ...manifestById(screen)!, adminOnly: false };
+      const v = applyAccess(open, [], access({ isAdmin: false }))!;
+      expect(v.hidden.find((h) => h.id === gated)?.reason, gated).toMatch(/only an admin/);
+      expect(v.manifest.controls.map((c) => c.id)).not.toContain(gated);
+      expect(v.manifest.controls.some((c) => c.id.startsWith("tab:"))).toBe(true);
+    }
+    expect(applyAccess(manifestById("settings.middleware")!, [], access({ isAdmin: false }))).toBeNull();
+  });
+  it("standard form fields carry guide ids that are real registry keys, on the Account and Contact create forms", () => {
+    for (const [file, object] of [
+      [path.join(SRC, "app", "(app)", "accounts", "new", "page.tsx"), "account"],
+      [path.join(SRC, "app", "(app)", "contacts", "new", "NewContactForm.tsx"), "contact"],
+    ] as const) {
+      const text = fs.readFileSync(file, "utf8");
+      const keys = [...text.matchAll(new RegExp(`<Field guide="${object}\\.field\\.([a-z0-9_]+)"`, "g"))].map((m) => m[1]);
+      expect(keys.length, file).toBeGreaterThan(8);
+      const reg = FIELD_REGISTRY[object as "account" | "contact"].fields.filter((f) => f.editable !== false && !f.exportOnly).map((f) => f.key);
+      for (const k of keys) expect(reg, `${object}.field.${k}`).toContain(k);
+      expect(text.match(/<Field /g)!.length - keys.length, `${file}: fields without a guide id`).toBeLessThanOrEqual(2);
     }
   });
   it("the Tour finds a data-guide target as well as an element id", () => {
