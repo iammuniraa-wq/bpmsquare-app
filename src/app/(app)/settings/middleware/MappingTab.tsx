@@ -10,8 +10,9 @@ import D365Preview from "@/components/connectors/D365Preview";
 import s from "./middleware.module.css";
 import { getMappingDoc, previewEntity, resetMapping, saveMappingRows, type MapDocumentKey, type MappingDocView } from "./api";
 import { useMw } from "./context";
+import { hasOutbound } from "./connectors";
 import {
-  changedSections, currentErp, documentChoices, erpOptions, isInboundDocument, isMapDirty, isReadOnlyRow, missingBar, sampleFieldMap, setEdit, NOT_SENT,
+  changedSections, currentErp, documentChoices, erpOptions, inboundChoices, isInboundDocument, isMapDirty, isReadOnlyRow, missingBar, sampleFieldMap, setEdit, NOT_SENT,
   type MapEdits,
 } from "./mappingLogic";
 import { MIDDLEWARE_TIPS } from "./tips";
@@ -20,7 +21,7 @@ import { Notice, ProblemNotice, useFlash, useLoad } from "./ui";
 export default function MappingTab() {
   const mw = useMw();
   const { confirm } = useFeel();
-  const [doc, setDoc] = useState<MapDocumentKey>("quote");
+  const [doc, setDoc] = useState<MapDocumentKey>(hasOutbound(mw.connector.id) ? "quote" : "customers");
   const [edits, setEdits] = useState<MapEdits>({});
   const [saving, setSaving] = useState(false);
   const [busy, setBusy] = useState<"reset" | "sample" | null>(null);
@@ -31,7 +32,7 @@ export default function MappingTab() {
   const inbound = isInboundDocument(doc);
 
   const quote = mw.documents.data?.documents.find((d) => d.key === "quote");
-  const choices = documentChoices(mw.connector.shortName, quote?.target.label ?? null);
+  const choices = hasOutbound(mw.connector.id) ? documentChoices(mw.connector.shortName, quote?.target.label ?? null) : inboundChoices(mw.connector.shortName);
   const v = view.data;
   const dirty = isMapDirty(edits);
 

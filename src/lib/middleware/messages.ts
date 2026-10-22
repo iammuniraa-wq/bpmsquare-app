@@ -115,6 +115,8 @@ export async function findOpenMessage(admin: SupabaseClient, tenantId: string, o
 
 export type RunNote = {
   runId: string | null;
+  /** The connector that ran; Dynamics 365 when absent. */
+  connectorId?: string;
   entity: string;
   direction: "pull" | "push";
   trigger: "manual" | "schedule";
@@ -148,7 +150,7 @@ export async function recordConnectorRun(admin: SupabaseClient, tenantId: string
       })
     : null;
   await recordMessage(admin, {
-    tenantId, direction: n.direction === "pull" ? "in" : "out", channel: "connector", connectorId: "dynamics365", entity: n.entity,
+    tenantId, direction: n.direction === "pull" ? "in" : "out", channel: "connector", connectorId: n.connectorId ?? "dynamics365", entity: n.entity,
     status: bad ? "failed" : "ok",
     error: n.error,
     durationMs,

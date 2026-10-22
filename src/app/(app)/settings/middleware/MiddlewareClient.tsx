@@ -7,13 +7,13 @@ import EmptyState from "@/components/ui/EmptyState";
 import Tabs from "@/components/ui/Tabs";
 import { useUrlTab } from "@/components/ui/useUrlTab";
 import s from "./middleware.module.css";
-import { getConnections, getDocuments, getHealth, getMessages, getRules, getSync } from "./api";
+import { getConnections, getDocuments, getHealth, getMessages, getRules, getSync, setActiveConnector } from "./api";
 import { MiddlewareProvider, type MiddlewareCtx } from "./context";
-import { middlewareConnectors } from "./connectors";
+import { hasOutbound, middlewareConnectors } from "./connectors";
 import { expiryChip, healthBanner } from "./connectionLogic";
 import { documentsConfirmed } from "./documentsLogic";
 import { filtersToQuery } from "./monitorLogic";
-import { TAB_IDS, TAB_LABEL, deriveSetup, sentEvidence, type SetupTarget, type TabId } from "./setup";
+import { TAB_IDS, TAB_LABEL, deriveInboundSetup, deriveSetup, sentEvidence, type SetupTarget, type TabId } from "./setup";
 import { Notice, useLoad } from "./ui";
 import ConnectorSwitcher from "./ConnectorSwitcher";
 import SetupGuide from "./SetupGuide";
@@ -49,6 +49,8 @@ export default function MiddlewareClient() {
   const [connectorId, setConnector] = useConnectorParam(connectors.map((c) => c.id));
   const [tab, setTab] = useUrlTab(TAB_IDS);
   const connector = connectors.find((c) => c.id === connectorId) ?? connectors[0];
+  // Every call below names this connector (api.ts); set before the first one is made.
+  setActiveConnector(connector.id);
   const authReturn = useAuthReturn();
   const [panelOpen, setPanelOpen] = useState(false);
   useEffect(() => { if (authReturn) setPanelOpen(true); }, [authReturn]);
@@ -59,6 +61,7 @@ export default function MiddlewareClient() {
   const documents = useLoad(getDocuments, [connectorId]);
   const sync = useLoad(getSync, [connectorId]);
   const evidence = useLoad(async () => {
+    if (!hasOutbound(connectorId)) return { testSent: false, realSeen: false };
     const page = await getMessages(filtersToQuery({ direction: "out", channel: "connector", status: "ok" }, { limit: 50 }));
     return sentEvidence(page.items);
   }, [connectorId]);
@@ -70,12 +73,14 @@ export default function MiddlewareClient() {
 
   const connected = health.data?.connection.connected ?? connection?.state.status === "connected";
   const customers = sync.data && sync.data.connected ? sync.data.entities.find((e) => e.key === "customers") : undefined;
-  const setup = deriveSetup({
+  const inboundOnly = !hasOutbound(connector.id);
+  const customersSynced = !!sync.data && sync.data.connected && (!customers || customers.linked > 0);
+  const setup = inboundOnly ? deriveInboundSetup({ connected: connected === true, customersSynced }) : deriveSetup({
     connected: connected === true,
     outcomeOn: !!documents.data && documents.data.documents.some((d) => d.enabled),
     outcomeConfirmed: documentsConfirmed(documents.data?.documents),
     // A product with no customers pull has nothing to wait for.
-    customersSynced: !!sync.data && sync.data.connected && (!customers || customers.linked > 0),
+    customersSynced,
     testSent: evidence.data?.testSent ?? false,
     realSeen: evidence.data?.realSeen ?? false,
   });
@@ -113,12 +118,12 @@ export default function MiddlewareClient() {
         {banner && <Notice tone="warn">{banner}</Notice>}
         {noConnection ? (
           <EmptyState
-            title={`Connect ${connector.shortName}`} text="Sign in once; quotes, customers and products then move between the two."
+            title={`Connect ${connector.shortName}`} text={inboundOnly ? "Sign in once; customers, suppliers and products then come in from it." : "Sign in once; quotes, customers and products then move between the two."}
             action={<Button variant="primary" onClick={() => setPanelOpen(true)}>Connect {connector.shortName}</Button>}
           />
         ) : (
           <>
-            <SetupGuide status={setup} loading={(health.loading && !health.data) || (documents.loading && !documents.data)} onOpen={openTarget} />
+            <SetupGuide status={setup} loading={(health.loading && !health.data) || (!inboundOnly && documents.loading && !documents.data)} onOpen={openTarget} />
             <Tabs
               label="Integration middleware"
               tabs={TAB_IDS.map((id) => ({ id, label: TAB_LABEL[id] }))}

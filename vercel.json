@@ -51,6 +51,10 @@
       "schedule": "10 * * * *"
     },
     {
+      "path": "/api/connectors/cron/sap_s4",
+      "schedule": "25 * * * *"
+    },
+    {
       "path": "/api/marketing/cron/journeys",
       "schedule": "*/5 * * * *"
     },

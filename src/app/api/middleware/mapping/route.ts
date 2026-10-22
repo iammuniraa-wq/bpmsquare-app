@@ -7,8 +7,10 @@ import { PLACEHOLDERS } from "@/lib/middleware/payload";
 import { getErpMetadata } from "@/lib/middleware/metadataServer";
 import { isMetadataEntity, missingRequired, suggestMapping, type BpmField } from "@/lib/middleware/metadata";
 import { isMappingDoc } from "@/lib/middleware/mappingDoc";
-import { saveMapping } from "@/lib/middleware/mappingOps";
+import { getMapping, saveMapping } from "@/lib/middleware/mappingOps";
 import { getView, saveEngine } from "@/lib/middleware/mapping/engineOps";
+import { wantsSap } from "@/lib/middleware/connectorParam";
+import { getSapMapping, isSapMapDoc, saveSapMapping } from "@/lib/connectors/sap_s4/server";
 
 // GET  -- the mapping in force for the connected product, so the Mapping tab opens read-only on it:
 //   { product, using_standard: { quote, quote_line, project }   (true = "Using the standard mapping"),
@@ -42,6 +44,11 @@ export async function GET(req: NextRequest) {
   const g = await guard();
   if (!g.ok) return g.res;
   const docParam = req.nextUrl.searchParams.get("document");
+  if (wantsSap(req)) {
+    // SAP S/4HANA: ?document=customers|vendors|products, one section of fields (SAP field -> BPMSquare field).
+    if (!isSapMapDoc(docParam)) return fail(422, "Choose customers, vendors or products.");
+    return NextResponse.json(await getSapMapping(g.ctx.admin, g.ctx.tenantId, docParam));
+  }
   if (docParam !== null) {
     if (!isMappingDoc(docParam)) return fail(422, "Choose quote, customers, contacts, products or projects.");
     const o = await getView(g.ctx, req.nextUrl.searchParams.get("connection"), docParam);
@@ -84,6 +91,10 @@ export async function POST(req: NextRequest) {
 export async function PUT(req: NextRequest) {
   const g = await guard();
   if (!g.ok) return g.res;
+  if (wantsSap(req)) {
+    const s = await saveSapMapping(g.ctx.admin, g.ctx.tenantId, await jsonBody(req));
+    return s.ok ? NextResponse.json(s.view) : fail(s.status, s.error, s.errors ? { errors: s.errors } : {});
+  }
   const body = await jsonBody(req);
   if (body.rows && typeof body.rows === "object" && !Array.isArray(body.rows)) {
     const o = await saveEngine(g.ctx, body);
