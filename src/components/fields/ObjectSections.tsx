@@ -158,6 +158,7 @@ export default function ObjectSections({ objectType, record, patchUrl, onSaved, 
         ) : !editing ? (
           <button
             type="button"
+            data-guide="record.edit_details"
             onClick={startEdit}
             style={{
               fontSize: 12, fontWeight: 600, color: saved ? c.muted : c.accent,
@@ -177,7 +178,7 @@ export default function ObjectSections({ objectType, record, patchUrl, onSaved, 
             }}>
               Cancel
             </button>
-            <button type="button" onClick={handleSave} disabled={pending} style={{
+            <button type="button" data-guide="record.save_details" onClick={handleSave} disabled={pending} style={{
               padding: "5px 14px", borderRadius: 6, border: "none",
               background: `var(--modern-accent, ${c.accent})`, color: "#fff", fontWeight: 600, fontSize: 12, cursor: "pointer",
             }}>
@@ -202,7 +203,7 @@ export default function ObjectSections({ objectType, record, patchUrl, onSaved, 
                 const isEditable = editing && f.editable !== false;
                 const { required } = fieldState(f);
                 return (
-                  <div key={f.field_key}>
+                  <div key={f.field_key} data-guide={`${objectType}.field.${f.field_key}`}>
                     <div style={{ fontSize: 10, fontWeight: 700, color: c.hint, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: isEditable ? 4 : 2 }}>
                       {f.label}{isEditable && required ? " *" : ""}
                     </div>

@@ -25,6 +25,8 @@ import {
 import { followNewsletters, newsletterOfStep, stepPatchForPick, withKeptVersion, type NewsletterChoice } from "@/lib/marketing/journeys/newsletterSteps";
 import type { TraceLine } from "@/lib/marketing/journeys/simulate";
 import Tour, { type TourStep } from "@/components/marketing/Tour";
+import { withBefore } from "@/lib/studio/tourSteps";
+import { JOURNEY_TOUR } from "@/lib/marketing/journeys/tourSteps";
 import styles from "./journey.module.css";
 
 export type JourneyStudioProps = {
@@ -247,14 +249,14 @@ export default function JourneyStudio({ journey, topics, limits, timezone, studi
   // A group in the panel lives under Setup on a phone; on a wide screen the panel is already beside the canvas.
   const showGroup = (s: Sec) => { if (onPhone()) setTab("setup"); setOpen(s); };
   const showCanvas = (t: "build" | "test" | "running") => setTab(t);
-  const tour: TourStep[] = [
-    { target: "whenSec", text: "Choose what starts the journey. It can come from Sales, Service or a form, not only from marketing.", before: () => showGroup("whenSec") },
-    { target: "rulesSec", text: "These rules protect your customers. Consent is always checked again at the moment of sending.", before: () => showGroup("rulesSec") },
-    { target: "jnSteps", text: "Each line is a step. Under every step is a plain sentence saying when it fires; the guards chip says what can stop it.", before: () => showCanvas("build") },
-    { target: "jnEntry", text: "Before you go live, see who would enter today and read the messages about consent and volume.", before: () => showCanvas("build") },
-    { target: "jnTry", text: "Pick a real person and see the exact path and dates they would get, with the reason at every turn. Nothing is sent.", before: () => showCanvas("test") },
-    { target: "jnActivity", text: "Once it is live, this shows who is waiting, who is stuck and who was skipped and why. Click a reason to see the people.", before: () => showCanvas("running") },
-  ];
+  const tour: TourStep[] = withBefore(JOURNEY_TOUR, [
+    () => showGroup("whenSec"),
+    () => showGroup("rulesSec"),
+    () => showCanvas("build"),
+    () => showCanvas("build"),
+    () => showCanvas("test"),
+    () => showCanvas("running"),
+  ]);
 
   const statusLabel = dirty ? "Unsaved changes" : status === "live" ? "Live" : status === "paused" ? "Paused" : status === "archived" ? "Archived" : "Draft";
   const activeGroup = activity?.skipped.find((g) => g.group === group) ?? null;

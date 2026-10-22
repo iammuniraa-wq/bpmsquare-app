@@ -15,6 +15,8 @@ import { SIGNAL_TIPS } from "@/lib/signals/tips";
 import type { AccountSignals, Workspace, WorkspaceRow } from "@/lib/signals/queries";
 import type { DidItWork } from "@/lib/signals/didItWork";
 import Tour, { type TourStep } from "@/components/marketing/Tour";
+import { withBefore } from "@/lib/studio/tourSteps";
+import { SIGNALS_TOUR } from "@/lib/signals/tourSteps";
 import styles from "./signals.module.css";
 
 // Buying signals keeps its own highlight look (an outline, not a dimmed page); only the behaviour is shared.
@@ -130,15 +132,15 @@ export default function SignalsWorkspace({ workspace, campaigns, canEdit, isAdmi
   }
 
   const phone = () => typeof window !== "undefined" && window.innerWidth <= 900;
-  const tour: TourStep[] = [
-    { target: "sgList", text: "This is who looks ready to buy. The highest score is at the top.", before: () => { setSheet(false); goTab("market"); } },
-    { target: "sgColStage", text: "Stage is plain words for how close they look: Silent, Looking, Comparing, Deciding. A highlighted row moved up in the last week." },
-    { target: "sgColScore", text: "The score is a sum of named signals with their points. Open an account to see every line. It is not a guess by AI. The small line shows the last eight weeks." },
-    { target: "sgColWhy", text: "Why is one sentence built from the strongest signals, such as a quote asked for or a link clicked." },
-    { target: "sgColNext", text: "One suggested next step per account: call, follow up, start a quote, or add to a campaign." },
-    { target: "sgInterest", text: "Interests are the subjects you sell. Tag a newsletter link with one and a click on it counts for more.", before: () => { if (phone()) setSheet(true); setFiltersOpen(true); } },
-    { target: "sgTabs", text: "After a campaign or newsletter, open Did it work? to see which accounts moved up a stage.", before: () => { setSheet(false); goTab("market"); } },
-  ];
+  const tour: TourStep[] = withBefore(SIGNALS_TOUR, [
+    () => { setSheet(false); goTab("market"); },
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    () => { if (phone()) setSheet(true); setFiltersOpen(true); },
+    () => { setSheet(false); goTab("market"); },
+  ]);
 
   const stageOptions: { id: StageFilter; label: string; n: number }[] = [
     { id: "all", label: "All", n: workspace.counts.all },

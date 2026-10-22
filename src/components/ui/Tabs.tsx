@@ -30,7 +30,7 @@ export default function Tabs({ tabs, value, onChange, hrefFor, label = "Sections
         );
         if (hrefFor) {
           return (
-            <Link key={t.id} role="tab" aria-selected={selected} href={hrefFor(t.id)} scroll={false} replace className="bpm-tab">
+            <Link key={t.id} role="tab" data-guide={`tab:${t.id}`} aria-selected={selected} href={hrefFor(t.id)} scroll={false} replace className="bpm-tab">
               {body}
             </Link>
           );
@@ -40,6 +40,7 @@ export default function Tabs({ tabs, value, onChange, hrefFor, label = "Sections
             key={t.id}
             type="button"
             role="tab"
+            data-guide={`tab:${t.id}`}
             aria-selected={selected}
             tabIndex={selected ? 0 : -1}
             className="bpm-tab"

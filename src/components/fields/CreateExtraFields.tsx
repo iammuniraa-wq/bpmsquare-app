@@ -49,7 +49,7 @@ export default function CreateExtraFields({ objectType, exclude, values, onChang
             {section.fields.map((f) => {
               const { required } = applyRules(rules, f.field_key, f.hidden, f.required, values);
               return (
-                <div key={f.field_key}>
+                <div key={f.field_key} data-guide={`${objectType}.field.${f.field_key}`}>
                   <label style={{ display: "block", fontSize: 11.5, fontWeight: 600, color: c.muted, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 5 }}>
                     {f.label}{required ? " *" : ""}
                   </label>

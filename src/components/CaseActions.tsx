@@ -218,7 +218,7 @@ export default function CaseActions({
           <PhotoUploader caseId={caseId} stage="intake" existingPhotos={intakePhotos} onUploaded={() => router.refresh()} />
         </div>
         <div style={actionRow}>
-          <Button variant="primary" onClick={() => patchCase({ status: "inspection" })} disabled={pending} type="button">
+          <Button variant="primary" data-guide="case.next_stage" onClick={() => patchCase({ status: "inspection" })} disabled={pending} type="button">
             {pending ? "…" : "Start Inspection →"}
           </Button>
           <Button variant="secondary" onClick={saveNotes} disabled={pending}>
@@ -278,12 +278,12 @@ export default function CaseActions({
 
         <div style={{ ...actionRow, borderTop: "none", paddingTop: 0, marginTop: 4 }}>
           <div>
-            <Button variant="primary" onClick={() => postInspectionReport("send")} disabled={pending} type="button">
+            <Button variant="primary" data-guide="case.send_report" onClick={() => postInspectionReport("send")} disabled={pending} type="button">
               {pending ? "…" : "Send report to customer →"}
             </Button>
             <div style={{ fontSize: 10.5, color: c.hint, marginTop: 4 }}>Marks the report as sent — no email is actually delivered yet</div>
           </div>
-          <Button variant="secondary" onClick={goToNewQuotation}>
+          <Button variant="secondary" data-guide="case.create_quote" onClick={goToNewQuotation}>
             Skip report — Create Quotation
           </Button>
         </div>
@@ -300,10 +300,10 @@ export default function CaseActions({
           Report sent to customer — waiting for approval.
         </div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <Button variant="primary" onClick={() => patchCase({ status: "report_approved" })} disabled={pending} type="button">
+          <Button variant="primary" data-guide="case.next_stage" onClick={() => patchCase({ status: "report_approved" })} disabled={pending} type="button">
             {pending ? "…" : "Customer approved →"}
           </Button>
-          <Button variant="secondary" onClick={goToNewQuotation}>
+          <Button variant="secondary" data-guide="case.create_quote" onClick={goToNewQuotation}>
             Create Quotation
           </Button>
         </div>
@@ -318,7 +318,7 @@ export default function CaseActions({
     return (
       <div style={card}>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <Button variant="primary" onClick={goToNewQuotation}>
+          <Button variant="primary" data-guide="case.create_quote" onClick={goToNewQuotation}>
             Create Quotation →
           </Button>
           <Button variant="secondary" onClick={() => patchCase({ status: "in_repair" })} disabled={pending} type="button">
@@ -338,7 +338,7 @@ export default function CaseActions({
         <div style={{ fontSize: 12.5, color: c.muted, marginBottom: 12 }}>
           {currentStatus === "quote_sent" ? "Quote sent — awaiting customer approval." : "Quote approved."}
         </div>
-        <Button variant="primary" onClick={() => patchCase({ status: "in_repair" })} disabled={pending} type="button">
+        <Button variant="primary" data-guide="case.next_stage" onClick={() => patchCase({ status: "in_repair" })} disabled={pending} type="button">
           {pending ? "…" : "Start Repair →"}
         </Button>
         {errorBox}
@@ -358,7 +358,7 @@ export default function CaseActions({
             placeholder="Repair progress, parts replaced…" />
         </div>
         <div style={actionRow}>
-          <Button variant="primary" onClick={() => patchCase({ status: "qa" })} disabled={pending} type="button">
+          <Button variant="primary" data-guide="case.next_stage" onClick={() => patchCase({ status: "qa" })} disabled={pending} type="button">
             {pending ? "…" : "Move to QA →"}
           </Button>
           <Button variant="secondary" onClick={saveNotes} disabled={pending}>
@@ -376,7 +376,7 @@ export default function CaseActions({
     return (
       <div style={card}>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <Button variant="primary" onClick={() => patchCase({ status: "ready" })} disabled={pending} type="button">
+          <Button variant="primary" data-guide="case.next_stage" onClick={() => patchCase({ status: "ready" })} disabled={pending} type="button">
             {pending ? "…" : "QA passed — Mark Ready →"}
           </Button>
           <Button variant="secondary" onClick={() => patchCase({ status: "in_repair" })} disabled={pending} type="button">
@@ -395,7 +395,7 @@ export default function CaseActions({
       <div style={{ ...card, borderLeftColor: "var(--teal)" }}>
         <div style={{ fontSize: 12.5, color: "var(--tealink)", marginBottom: 12 }}>Equipment is ready for pickup.</div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <Button variant="primary" onClick={() => patchCase({ status: "closed" })} disabled={pending} type="button">
+          <Button variant="primary" data-guide="case.next_stage" onClick={() => patchCase({ status: "closed" })} disabled={pending} type="button">
             {pending ? "…" : "Close — handed to customer ✓"}
           </Button>
           <Button variant="secondary" onClick={() => patchCase({ status: "buyback" })} disabled={pending} type="button">

@@ -16,6 +16,8 @@ import { ROUTES } from "@/lib/constants";
 import { FIELD_LABEL_DEFAULT, LIMITS, type AfterSubmit, type FormConsent, type FormField, type FormStatus, type PublicForm } from "@/lib/marketing/forms/types";
 import { FORM_TIPS } from "@/lib/marketing/forms/tips";
 import Tour, { type TourStep } from "@/components/marketing/Tour";
+import { withBefore } from "@/lib/studio/tourSteps";
+import { FORM_TOUR } from "@/lib/marketing/forms/tourSteps";
 import styles from "../newsletters/newsletter.module.css";
 import answerStyles from "./form.module.css";
 
@@ -185,15 +187,15 @@ export default function FormStudio({ initial, topics, origin, redirectHost, bran
   const statusPill = dirty ? "Unsaved changes" : STATUS_LABEL[status];
   const topicNames = consent.topics.map((k) => topics.find((t) => t.key === k)?.label ?? k);
 
-  const tour: TourStep[] = [
-    { target: "basicsSec", text: "Start with the name only your team sees, the web address and the heading your visitors read.", before: () => openSection("basicsSec") },
-    { target: "fieldsSec", text: "Choose what to ask. Email is always asked, because that is how we find a person again and attach their consent to them.", before: () => openSection("fieldsSec") },
-    { target: "consentSec", text: "Write the words people agree to and pick the consent topics they are agreeing to hear about. The box is never ticked for them, and these exact words are saved with every answer.", before: () => openSection("consentSec") },
-    { target: "afterSec", text: "Choose what happens after sending: a thank-you message, or a page on your own domain.", before: () => openSection("afterSec") },
-    { target: "shareSec", text: "When the form is Live, share the hosted address or paste the embed code into your website.", before: () => openSection("shareSec") },
-    { target: "frCanvas", text: "This is the form exactly as a visitor sees it. It updates as you change the options.", before: () => setPageTab("design") },
-    { target: "frTabs", text: "Answers lists the latest people who sent the form.", before: () => setPageTab("design") },
-  ];
+  const tour: TourStep[] = withBefore(FORM_TOUR, [
+    () => openSection("basicsSec"),
+    () => openSection("fieldsSec"),
+    () => openSection("consentSec"),
+    () => openSection("afterSec"),
+    () => openSection("shareSec"),
+    () => setPageTab("design"),
+    () => setPageTab("design"),
+  ]);
 
   const menuItems: MenuItem[] = [
     { label: "Archive", hidden: !id || !canEdit, onSelect: () => void archive() },
