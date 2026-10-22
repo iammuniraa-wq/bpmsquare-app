@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { AI_DOCK_ASK_EVENT, type DockAskDetail } from "@/lib/analysis/dockAsk";
+import { consentReplyOf } from "@/lib/assistant/consentReply";
 import { usePathname, useRouter } from "next/navigation";
 import { c } from "@/lib/theme";
 import { useIsNextgen3Layer, useTenantFeature } from "@/lib/tenant-context";
@@ -213,6 +214,16 @@ export default function AIDock({ liftForTabBar = false }: {
   async function ask(question: string, guideTask?: string, resume?: { base: Msg[]; allow: WebAllow; query: string; token: string }, analyse?: AnalyseRequest) {
     const text = question.trim();
     if (!text || busy) return;
+    // "ok" / "no" typed under a pending Yes / No question presses that chip.
+    if (!resume) {
+      const typed = consentReplyOf(text);
+      const at = typed ? messages.map((m) => m.consent?.state === "pending").lastIndexOf(true) : -1;
+      if (typed && at >= 0) {
+        setDraft("");
+        void answerConsent(at, typed);
+        return;
+      }
+    }
     // History travels with the question so follow-ups keep their context --
     // text only; the server treats it as conversation, never as a query. An analysis goes as its sentence plus a compact
     // digest of the card, flagged like any web answer so the tools that act stay off for the follow-up window.
@@ -521,17 +532,17 @@ export default function AIDock({ liftForTabBar = false }: {
               </div>
             )}
             {messages.map((m, i) => (
-              <div key={i} style={{ display: "flex", flexDirection: "column", gap: 8, alignSelf: m.from === "me" ? "flex-end" : "stretch" }}>
+              <div key={i} style={{ display: "flex", flexDirection: "column", gap: 8, alignSelf: m.from === "me" ? "flex-end" : "stretch", maxWidth: m.from === "me" ? "88%" : undefined }}>
                 <div
                   style={{
                     alignSelf: m.from === "me" ? "flex-end" : "flex-start",
-                    maxWidth: "88%",
+                    maxWidth: m.from === "me" ? "100%" : "88%",
                     background: m.from === "me" ? "var(--tenant-accent, #1e3a6e)" : "var(--panel2)",
                     color: m.from === "me" ? "#fff" : c.ink,
                     borderRadius: "var(--card-radius, 10px)",
                     padding: "9px 12px",
                     lineHeight: 1.45,
-                    overflowWrap: "anywhere",
+                    overflowWrap: "break-word",
                   }}
                 >
                   {/* The assistant's text is markdown (lists, bold); what the person typed is shown as typed. */}
