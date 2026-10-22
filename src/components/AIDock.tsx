@@ -6,6 +6,7 @@ import { c } from "@/lib/theme";
 import { useIsNextgen3Layer, useTenantFeature } from "@/lib/tenant-context";
 import ChartRenderer from "@/components/charts/ChartRenderer";
 import InfoTip from "@/components/ui/InfoTip";
+import { BriefingCard } from "@/components/BriefingTile";
 import { normalizeReport, type ReportPayload } from "@/lib/reportView";
 import { parsePageContext } from "@/lib/assistant/objects";
 import { isInternalPath } from "@/lib/assistant/navTargets";
@@ -301,6 +302,7 @@ export default function AIDock({ liftForTabBar = false }: {
           <div ref={scrollRef} style={{ padding: "14px 16px", display: "flex", flexDirection: "column", gap: 10, fontSize: 12.5, flex: 1, overflowY: "auto", minHeight: 0 }}>
             {messages.length === 0 && (
               <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
+                <BriefingCard />
                 {createChips.length > 0 && (
                   <>
                     <div style={{ fontSize: 10.5, fontWeight: 700, color: c.hint, textTransform: "uppercase", letterSpacing: 0.4, display: "flex", alignItems: "center", gap: 4 }}>
