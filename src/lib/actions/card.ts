@@ -197,12 +197,23 @@ export async function duplicatesFor(
 
 // ── the card ─────────────────────────────────────────────────────────────────────────────────────────────────
 
+/** What a web lookup proposed, already validated once (assistant/createResearch.ts) and validated again here. */
+export type WebFill = {
+  values: Record<string, string>;
+  confidence: Record<string, "found" | "likely">;
+  /** The fields the lookup was asked about; one of them without a value reads "Not found". */
+  asked: string[];
+  /** The id inside the signed consent that allowed the lookup; kept in the card's token for the audit row. */
+  consentId: string | null;
+};
+
 export type CardInput = {
   values: Record<string, unknown>;
   references: Record<string, string>;
   summary: string;
   /** An account the person is looking at; the default for a reference that wants one. */
   pageAccountId?: string | null;
+  web?: WebFill;
 };
 
 export type CardBuild =
@@ -230,6 +241,16 @@ export async function buildCard(
     if (n.value) values[k] = n.value;
   }
 
+  // Web values are untrusted input: only the registry's research keys, only standard fields, never over something the
+  // person said, and through the very validators a typed value goes through. One that fails is "not found", not a notice.
+  const webKept = new Set<string>();
+  for (const [k, raw] of Object.entries(input.web?.values ?? {})) {
+    const f = byKey.get(k);
+    if (!f || f.kind !== "standard" || !def.research?.[k] || values[k]) continue;
+    const n = normaliseValue(f, raw);
+    if (n.ok && n.value) { values[k] = n.value; webKept.add(k); }
+  }
+
   for (const r of def.refs) {
     const res = await resolveRef(ctx.supabase, ctx.tenantId, r, input.references?.[r.param], r.fromPage === "account" ? input.pageAccountId : null);
     if (res.options.length) optionsFor.set(r.key, res.options);
@@ -242,15 +263,19 @@ export async function buildCard(
   }
 
   const { required, hidden } = evaluateFields(spec, values);
-  for (const k of hidden) delete values[k];
+  for (const k of hidden) { delete values[k]; webKept.delete(k); }
 
   const duplicates = await duplicatesFor(ctx.supabase, ctx.tenantId, def, values);
 
+  const asked = new Set(input.web?.asked ?? []);
   const fields: CardField[] = spec.fields
     .filter((f) => !hidden.has(f.key))
     .map((f) => ({
       key: f.key, label: f.label, value: values[f.key] ?? "", required: required.has(f.key), widget: f.widget,
       options: optionsFor.get(f.key) ?? f.options,
+      ...(webKept.has(f.key)
+        ? { origin: "web" as const, confidence: input.web?.confidence[f.key] ?? ("likely" as const) }
+        : asked.has(f.key) && !values[f.key] ? { confidence: "not_found" as const } : {}),
     }));
 
   const cardId = newId();
@@ -259,6 +284,7 @@ export async function buildCard(
     h: structureHash(def, spec), dup: dupHash(duplicates),
     sm: input.summary.slice(0, 240),
     pv: Object.fromEntries(Object.entries(values).map(([k, v]) => [k, hash8(v)])),
+    ...(input.web ? { wb: { c: input.web.consentId, f: [...webKept] } } : {}),
   });
 
   const title = def.labelOf(values);

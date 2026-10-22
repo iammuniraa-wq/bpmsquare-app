@@ -122,6 +122,9 @@ const INJECTION = [
   /\breveal\b[^.\n]{0,30}\b(prompt|instructions|data|workspace|key)\b/i,
 ];
 
+/** Does this one value read like it is talking to the model? Used on field values a web lookup proposed. */
+export const readsLikeInstruction = (s: string): boolean => INJECTION.some((re) => re.test(s));
+
 export type CleanedWeb = { text: string; removed: number };
 
 /** Web text made safe to put in front of the model as data. */

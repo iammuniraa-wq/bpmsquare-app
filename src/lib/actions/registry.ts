@@ -49,6 +49,12 @@ export type CreateActionDef = {
   labelOf: (values: Record<string, string>) => string;
   hrefFor: (id: string) => string;
   next: (record: { id: string; label: string }) => NextStep[];
+  /**
+   * Present only on an organisation object (a company, never a person). The keys of the standard fields the assistant
+   * may propose from the web for it, each with the plain description the research call is given instead of the
+   * workspace's own label. A key the field config does not offer is simply not asked for.
+   */
+  research?: Record<string, string>;
 };
 
 export const ACTIONS: CreateActionDef[] = [
@@ -57,6 +63,18 @@ export const ACTIONS: CreateActionDef[] = [
     route: "/api/accounts", load: () => import("@/app/api/accounts/route"),
     featureKey: "accounts", workcenter: "accounts",
     requiredKeys: ["name", "type"], refs: [],
+    research: {
+      website: "the company's official website address",
+      industry: "its industry or sector in a few words",
+      address_line1: "the street address of its head office",
+      city: "the city of its head office",
+      state: "the state or region of its head office",
+      postal_code: "the postal code of its head office",
+      country: "the country of its head office",
+      phone: "the main telephone number the company itself publishes for general enquiries",
+      email: "a general enquiries email address the company itself publishes (info@, contact@), never a named person's",
+      employee_count: "its number of employees, or a range, if the company states it",
+    },
     labelOf: (v) => v.name ?? "",
     hrefFor: ROUTES.account,
     next: (r) => [

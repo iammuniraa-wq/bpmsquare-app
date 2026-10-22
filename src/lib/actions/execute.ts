@@ -21,6 +21,11 @@ import { redactText } from "@/lib/middleware/redact";
 //   6 the card id is claimed once; a second press cannot run it again
 //   7 the object's own route handler runs, in-process, on the person's own session
 // The assistant never holds a database client of its own for the write: the route does it, exactly as for a click.
+//
+// This is the one door the web taint rule (ai/assistant.ts, WEB_LOCKED_TOOLS) deliberately does not close. The rule
+// switches off the tools a MODEL can call after web text is in its context; a press here runs no model and no tool, and
+// everything in `values`, web-derived or typed, is untrusted input that steps 4 and 5 check exactly as for a manual
+// create. A card whose values came from the web therefore still creates after research, while create_record stays off.
 
 export type ExecCtx = {
   supabase: SupabaseClient;
@@ -104,6 +109,18 @@ export async function executeCard(ctx: ExecCtx, body: ActBody): Promise<ExecOutc
     added: Object.keys(values).filter((k) => payload.pv[k] === undefined),
     duplicates_shown: duplicates.map((d: CardDuplicate) => d.id),
     values: auditValues(def, values),
+    // A card some of whose values came from the web says so here, with the consent that allowed it. The addresses the
+    // lookup read are in its own audit row (kind create_research, params.card_id = this card's id), never on a card.
+    ...(payload.wb ? {
+      web: {
+        consent_id: payload.wb.c,
+        research_card_id: cardId,
+        fields: payload.wb.f,
+        kept: payload.wb.f.filter((k) => values[k] && payload.pv[k] === hash8(values[k])),
+        edited: payload.wb.f.filter((k) => values[k] && payload.pv[k] !== hash8(values[k])),
+        cleared: payload.wb.f.filter((k) => !values[k]),
+      },
+    } : {}),
   };
 
   const claim = await claimCard(ctx.admin, {
