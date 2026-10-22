@@ -63,6 +63,22 @@ function claimInMemory(cardId: string): ClaimResult {
 }
 
 /**
+ * The result of a card that has already been used, if it has. Asked before anything else is checked so a second
+ * press of a finished card always answers "already done" (the record it made now exists, so a fresh duplicate
+ * check would only confuse the answer).
+ */
+export async function usedResult(admin: SupabaseClient, c: { cardId: string; tenantId: string; userId: string }): Promise<{ result: unknown } | null> {
+  const seen = memory.get(c.cardId);
+  if (seen?.status === "done") return { result: seen.result };
+  try {
+    const { data, error } = await admin.from("assistant_actions").select("status, result")
+      .eq("id", c.cardId).eq("tenant_id", c.tenantId).eq("user_id", c.userId).maybeSingle();
+    if (!error && data?.status === "done") return { result: data.result };
+  } catch { /* the in-memory answer above is all there is */ }
+  return null;
+}
+
+/**
  * Takes the one execution a card has. The insert with the card id as the row id is the atomic claim: a second press
  * hits the primary key. A card whose run failed (the route refused it) can be pressed again once the person has
  * fixed it; a card that is done is never run twice and hands back its result so the dock can show it again.

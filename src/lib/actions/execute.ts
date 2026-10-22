@@ -5,7 +5,7 @@ import type { PermissionSet } from "@/lib/permissions";
 import type { CardDuplicate } from "@/lib/assistant/cards";
 import { actionByKey, availableActions } from "./registry";
 import { auditValues, dupHash, hash8, duplicatesFor, evaluateFields, loadSpec, normaliseValue, refExists, structureHash, toRouteBody } from "./card";
-import { claimCard, finishCard } from "./ledger";
+import { claimCard, finishCard, usedResult } from "./ledger";
 import { verifyToken } from "./token";
 import { runVia } from "./via";
 
@@ -49,6 +49,9 @@ export async function executeCard(ctx: ExecCtx, body: ActBody): Promise<ExecOutc
       : refuse(403, "token", "This card was not issued to you in this workspace.");
   }
   const payload = verified.payload;
+
+  const used = await usedResult(ctx.admin, { cardId, tenantId: ctx.tenantId, userId: ctx.userId });
+  if (used) return refuse(409, "already_done", "This card has already been used.", { result: used.result });
 
   const def = actionByKey(payload.act);
   const allowed = def && availableActions({ features: ctx.features, perms: ctx.perms }).some((a) => a.key === def.key);

@@ -80,22 +80,43 @@ export const actionByKey = (key: string): CreateActionDef | undefined => ACTIONS
 export const actionFor = (object: string): CreateActionDef | undefined => ACTIONS.find((a) => a.object === object);
 
 /**
- * Objects with a POST route under src/app/api that the assistant cannot create yet, each with the reason. The
- * registry test fails when a route is in neither list, so a new object is a decision, not an oversight.
+ * Every other top-level collection route under src/app/api with a POST, each with the reason the assistant cannot
+ * create it yet. The registry test fails when a route is in neither this list nor ACTIONS (so a new object is a
+ * decision, not an oversight) and when an entry here no longer has a POST (so the list cannot rot).
  */
 export const DEFERRED: Record<string, string> = {
-  quotes: "needs line items and pricing; the quote screens and the pricing engine stay the way in",
-  "standard-quotes": "needs line items and pricing; the quote screens stay the way in",
-  cases: "needs an account and assets; next in line after accounts and contacts",
-  invoices: "an outward financial document; a verb for a later step, not a plain create",
+  // Business objects: next in line, each needs its own required links or lines worked out first.
   assets: "needs an owning account and technical fields; next in line",
-  suppliers: "next in line; same shape as accounts",
-  products: "next in line; same shape as accounts",
-  leads: "next in line; carries consent and a source",
-  opportunities: "needs an account and a stage; next in line",
-  rfqs: "has lines and suppliers; the RFQ screen stays the way in",
+  cases: "needs an account and assets; next in line after accounts and contacts",
   estimates: "born from a template; the Estimator stays the way in",
-  "work-orders": "authorised by a quote; created by the dispatch flow",
+  "fence-projects": "has a site, lines and pricing; the project screens stay the way in",
+  inventory: "unique SKU and stock rules; next in line",
+  invoices: "an outward financial document; a verb for a later step, not a plain create",
+  leads: "carries consent and a source; next in line",
+  opportunities: "needs an account and a stage; next in line",
+  products: "next in line; same shape as accounts",
+  "purchase-orders": "has lines and a supplier and goes outward; a verb for a later step",
+  quotes: "needs line items and pricing; the quote screens and the pricing engine stay the way in",
+  rfqs: "has lines and suppliers; the RFQ screen stays the way in",
+  "standard-quotes": "needs line items and pricing; the quote screens stay the way in",
+  suppliers: "next in line; same shape as accounts",
+  technicians: "linked to a login and skills; set up from the Technicians screen",
+  // Marketing and studios: configuration-heavy, not a typed record.
+  journeys: "a flow of steps, built in the Journeys studio",
+  "marketing-events": "built in the Events screen with a form and a follow-up",
+  "marketing-forms": "built in the Forms studio",
+  newsletters: "built in the Newsletter Studio",
+  "process-studio": "a document-driven study, started from its own screen",
+  "signal-topics": "settings, not a record",
+  // Not records a person creates by asking.
+  "business-roles": "access control: never from a chat",
+  "business-users": "invites a person and sets a role: never from a chat",
+  employees: "payroll-adjacent master data: set up from Workforce",
+  "estimate-templates": "settings for the Estimator",
+  "standard-quote-templates": "settings for Standard Quotes",
+  reports: "saves a report definition, not a business record",
+  "saved-queries": "saves a filter, not a business record",
+  upload: "a file upload, not a record",
 };
 
 export type ActionGate = { features: Record<string, boolean | undefined>; perms: PermissionSet };

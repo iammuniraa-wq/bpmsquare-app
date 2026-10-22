@@ -80,8 +80,13 @@ export function fakeAdmin(seed: Record<string, Row[]> = {}, opts: { missing?: st
     gte(c: string, v: unknown) { return this.f(`${c}>=`, (r) => r[c] != null && String(r[c]) >= String(v)); }
     not(c: string, _op: string, _v: unknown) { return this.f(`${c} notnull`, (r) => r[c] != null); }
     filter(c: string, _op: string, v: unknown) { return this.f(`${c} filter`, (r) => String((r.features as Record<string, unknown> | undefined)?.[c.split(">>")[1]?.replace(/'/g, "") ?? ""] ?? "") === String(v)); }
-    // Only the exact-name form the webhooks library uses (the pattern has no wildcard): case-insensitive equality.
-    ilike(c: string, pattern: string) { const want = pattern.split("\\").join("").toLowerCase(); return this.f(`${c} ilike`, (r) => String(r[c] ?? "").toLowerCase() === want); }
+    // Two forms: no wildcard is case-insensitive equality (the webhooks library); "%x%" is case-insensitive contains.
+    ilike(c: string, pattern: string) {
+      const want = pattern.split("\\").join("").toLowerCase();
+      const contains = want.length > 2 && want.startsWith("%") && want.endsWith("%");
+      const needle = want.slice(1, -1);
+      return this.f(`${c} ilike`, (r) => (contains ? String(r[c] ?? "").toLowerCase().includes(needle) : String(r[c] ?? "").toLowerCase() === want));
+    }
     or(expr: string) { return this.f(`or ${expr}`, parseOr(expr)); }
     order(col: string, o?: { ascending?: boolean }) { this.ords.push({ col, asc: o?.ascending !== false }); return this; }
     limit(n2: number) { this.lim = n2; return this; }
@@ -100,6 +105,8 @@ export function fakeAdmin(seed: Record<string, Row[]> = {}, opts: { missing?: st
         const bad = opts.failInsert?.(this.table, this.payload);
         if (bad) return { data: null, error: bad };
         const row: Row = { id: `00000000-0000-4000-8000-${String(++n).padStart(12, "0")}`, created_at: new Date(Date.UTC(2026, 9, 21, 10, 0, n)).toISOString(), ...this.payload };
+        // A primary key given by the caller (the assistant's card id) collides like the real one does.
+        if (this.payload.id !== undefined && t.some((x) => x.id === this.payload.id)) return { data: null, error: { message: "duplicate key value violates unique constraint", code: "23505" } };
         // 0129's unique (tenant, connector, entity, external_id) and 0201's partial unique
         // index on the claim row of a sent quote (direction = 'push', entity = 'standard_quotes').
         const dup = this.table === "connector_links" && t.some((x) => ["tenant_id", "connector_id", "entity", "external_id"].every((k) => x[k] === row[k])
