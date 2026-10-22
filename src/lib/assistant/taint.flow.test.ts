@@ -72,8 +72,8 @@ function setup(replies: Reply[], over: { web?: boolean; consent?: string | null 
     route: `/quotations/${QA}`, meter, anthropic: { messages: { create } } as unknown as Anthropic, now: new Date("2026-10-22T09:00:00Z"),
     screenDeps: { loadFields: async () => [] as never },
     web: over.web === false ? undefined : {
-      enabled: true, userId: "user-1", allow: "once", consentQuery: over.consent === undefined ? "Tesla Germany company website" : over.consent,
-      deps: { research: research as never, audit: async () => {}, reserve: async () => ({ ok: true as const, release: async () => {} }) },
+      enabled: true, userId: "user-1", allow: "once", consentQuery: over.consent === undefined ? "Tesla Germany company website" : over.consent, consentId: "consent-1",
+      deps: { research: research as never, audit: async () => {}, claim: async () => true, reserve: async () => ({ ok: true as const, release: async () => {} }) },
     },
   };
   return { ctx, db, params, research };

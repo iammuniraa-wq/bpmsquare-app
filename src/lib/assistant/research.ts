@@ -152,8 +152,8 @@ export type WebAudit = {
   tokens: number;
   searches: number;
   removed: number;
-  /** How the person agreed: "once" to this query or "chat" for the chat, with the id of the signed consent that proved it. */
-  consent?: { mode: "once" | "chat"; id: string | null };
+  /** The id of the signed consent (one Yes on one chip) that proved the person agreed to this search. */
+  consent?: { id: string | null };
 };
 
 /** One assistant_actions row per search (kind web_search). A pending migration or a failed insert never stops the search. */
@@ -161,7 +161,7 @@ export async function recordWebAudit(a: WebAudit): Promise<void> {
   try {
     const { error } = await createAdminSupabase().from("assistant_actions").insert({
       tenant_id: a.tenantId, user_id: a.userId, kind: "web_search", action_key: "web_search", route: a.route,
-      params: { query: a.query, why: a.why, ...(a.consent ? { consent_mode: a.consent.mode, consent_id: a.consent.id } : {}) },
+      params: { query: a.query, why: a.why, ...(a.consent ? { consent_id: a.consent.id } : {}) },
       status: a.status,
       result: { reason: a.reason ?? null, searches: a.searches, instruction_like_removed: a.removed },
       sources: a.sources, tokens: a.tokens,
@@ -169,6 +169,31 @@ export async function recordWebAudit(a: WebAudit): Promise<void> {
     if (error && !isMissing(error)) console.error("assistant_actions insert failed:", error.message);
   } catch (e) {
     console.error("assistant_actions insert failed:", e);
+  }
+}
+
+export const CLAIM_SURFACE = "assistant_web_consent";
+
+/**
+ * Spends a consent token: true for the first claim of this consent id, false for any later one (a replayed request).
+ * Each claim is a zero-token row in the meter's own log, carrying the consent id; the earliest row for the id wins, so
+ * two requests racing with one token agree on the same winner. A claim that cannot be written or read is a refusal:
+ * a search is never run on a permission that could not be marked as used.
+ */
+export async function claimWebConsent(tenantId: string, userId: string, consentId: string): Promise<boolean> {
+  try {
+    const admin = createAdminSupabase();
+    const { data, error } = await admin.from("ai_usage_log")
+      .insert({ tenant_id: tenantId, user_id: userId, surface: CLAIM_SURFACE, model: consentId, input_tokens: 0, output_tokens: 0 })
+      .select("id").single();
+    if (error || !data) return false;
+    const { data: first, error: readError } = await admin.from("ai_usage_log").select("id")
+      .eq("tenant_id", tenantId).eq("surface", CLAIM_SURFACE).eq("model", consentId)
+      .order("created_at", { ascending: true }).order("id", { ascending: true }).limit(1);
+    if (readError || !first?.length) return false;
+    return first[0].id === data.id;
+  } catch {
+    return false;
   }
 }
 

@@ -3,12 +3,11 @@ import { sameQuery } from "./webQuery";
 // The consent state machine for web research (docs/design/assistant-smarter.md section 2). Pure and client-safe: the
 // server decides with decideWebSearch, the dock moves its chips with applyChoice, and both are tested.
 //
-// Consent is per chat and never stored for a person: "Always in this chat" lives in the dock's own state and is gone on
-// a reload. The model never has the web by itself; it can only ask, and a search runs when the person has said yes to
-// that exact query (once) or to this chat (always).
+// Consent is one search at a time: Yes on a chip runs exactly the query on that chip, once. The model never has the web
+// by itself; it can only ask, and there is no standing permission for a chat (owner decision 2026-10-22).
 
-export type WebAllow = "once" | "chat";
-export type WebChoice = "yes" | "no" | "always";
+export type WebAllow = "once";
+export type WebChoice = "yes" | "no";
 
 /** One research call per ask (it may search up to three times inside), and a ceiling per person per day. */
 export const MAX_RESEARCH_PER_ASK = 1;
@@ -17,7 +16,7 @@ export const MAX_RESEARCH_PER_DAY = 20;
 export const SEARCH_SURCHARGE_TOKENS = 5000;
 
 export function parseAllowWeb(v: unknown): WebAllow | null {
-  return v === "once" || v === "chat" ? v : null;
+  return v === "once" ? v : null;
 }
 
 export type WebAvailability = { enabled: true } | { enabled: false; reason: "flag_off" | "needs_assistant" | "policy" };
@@ -48,31 +47,23 @@ export function decideWebSearch(i: {
 }): WebDecision {
   if (!i.enabled) return { kind: "refuse", reason: "Web research is not switched on for this workspace." };
   if (i.researchedThisAsk >= MAX_RESEARCH_PER_ASK) return { kind: "refuse", reason: "One web search per question is the limit." };
-  if (i.allow === "chat") return { kind: "run" };
   if (i.allow === "once" && i.consentQuery && sameQuery(i.consentQuery, i.proposedQuery)) return { kind: "run" };
   return { kind: "ask" };
 }
 
 // --- the dock side -------------------------------------------------------------------------------------------------
 
-export type ConsentState = "pending" | "yes" | "always" | "no" | "skipped";
+export type ConsentState = "pending" | "yes" | "no" | "skipped";
 
 export type ChoiceOutcome = {
   state: ConsentState;
   /** Send the question again with this permission; null means send nothing. */
   allow: WebAllow | null;
-  /** The chat-wide switch after this choice. */
-  chatMode: boolean;
 };
 
-export function applyChoice(choice: WebChoice, chatMode: boolean): ChoiceOutcome {
-  if (choice === "yes") return { state: "yes", allow: "once", chatMode };
-  if (choice === "always") return { state: "always", allow: "chat", chatMode: true };
-  return { state: "no", allow: null, chatMode };
+export function applyChoice(choice: WebChoice): ChoiceOutcome {
+  return choice === "yes" ? { state: "yes", allow: "once" } : { state: "no", allow: null };
 }
-
-/** What a fresh question carries: the chat-wide permission, if the person gave it. */
-export const allowForAsk = (chatMode: boolean): WebAllow | null => (chatMode ? "chat" : null);
 
 /** A question typed while chips are still open leaves them unanswered: they close, nothing is searched. */
 export const settleOnNewAsk = (s: ConsentState): ConsentState => (s === "pending" ? "skipped" : s);

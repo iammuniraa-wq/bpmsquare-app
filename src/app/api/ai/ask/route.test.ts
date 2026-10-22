@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
+import crypto from "crypto";
 
 // The route's part in web research: whether the workspace has it, what of the request is trusted, and what the loop is
 // handed. The loop itself is covered by assistant/web.flow.test.ts.
@@ -33,8 +34,12 @@ vi.mock("@/lib/ai/assistant", () => ({
 }));
 
 import { GET, POST } from "./route";
-import { ONCE_TTL_MS, issueChatConsent, issueOnceConsent } from "@/lib/assistant/consentToken";
+import { ONCE_TTL_MS, issueOnceConsent } from "@/lib/assistant/consentToken";
 
+const signForTest = (body: string): string => {
+  const key = crypto.createHmac("sha256", "bpmsquare.assistant.consent.v1").update("service-role-key-for-tests").digest();
+  return crypto.createHmac("sha256", key).update(body).digest("base64url");
+};
 const post = (body: Record<string, unknown>) =>
   POST(new NextRequest("http://localhost/api/ai/ask", { method: "POST", body: JSON.stringify({ question: "Tesla Germany online?", ...body }) }));
 
@@ -42,7 +47,7 @@ beforeEach(() => { state.features = { ai_assistant: true }; state.config = {}; s
 
 describe("POST /api/ai/ask and web research", () => {
   it("flag off: a request that carries a web permission is a 404, and the loop never runs", async () => {
-    for (const body of [{ allow_web: "once", consent_query: "Tesla Germany company website" }, { allow_web: "chat" }]) {
+    for (const body of [{ allow_web: "once", consent_query: "Tesla Germany company website" }]) {
       const res = await post(body);
       expect(res.status).toBe(404);
     }
@@ -79,7 +84,7 @@ describe("POST /api/ai/ask and web research", () => {
     expect(res.status).toBe(200);
     expect(state.seen[0].web).toEqual({ enabled: true, userId: "u-1", allow: "once", consentQuery: Q, consentId: "consent-1" });
     expect(state.seen[0].tenantId).toBe("t-1");
-    expect((await res.json()).web_chat_token).toBeUndefined();
+    expect(Object.keys(await res.json())).not.toContain("web_chat_token");
   });
 
   describe("consent is verified on the server (audit 2026-10-22 L5)", () => {
@@ -88,7 +93,7 @@ describe("POST /api/ai/ask and web research", () => {
 
     it("a permission with no token is no permission, whatever it says", async () => {
       await post({ allow_web: "once", consent_query: Q });
-      await post({ allow_web: "chat" });
+      await post({ allow_web: "once" });
       noPermission(0);
       noPermission(1);
     });
@@ -121,29 +126,30 @@ describe("POST /api/ai/ask and web research", () => {
       expect(state.seen[0].web).toMatchObject({ allow: "once" });
     });
 
-    it("Always with the chip's token runs that one query now and hands back a chat token; that token then carries later asks", async () => {
+    it("there is no standing permission: 'chat' is not a permission, with or without a token, and no chat token is ever handed back", async () => {
       const first = await post({ allow_web: "chat", consent_query: Q, consent_token: onceFor() });
-      expect(state.seen[0].web).toMatchObject({ allow: "once", consentQuery: Q, consentId: "consent-1" });
-      const chat = (await first.json()).web_chat_token as string;
-      expect(typeof chat).toBe("string");
-
-      await post({ allow_web: "chat", consent_token: chat });
-      expect(state.seen[1].web).toMatchObject({ allow: "chat", consentQuery: null });
+      await post({ allow_web: "chat" });
+      noPermission(0);
+      noPermission(1);
+      expect(Object.keys(await first.json())).not.toContain("web_chat_token");
     });
 
-    it("a chat token only grants the chat, not a single query, and not for another person or workspace", async () => {
-      const chat = issueChatConsent({ tenantId: "t-1", userId: "u-1" });
-      await post({ allow_web: "once", consent_query: Q, consent_token: chat });
-      await post({ allow_web: "chat", consent_token: issueChatConsent({ tenantId: "t-1", userId: "u-2" }) });
-      await post({ allow_web: "chat", consent_token: issueChatConsent({ tenantId: "t-2", userId: "u-1" }) });
-      for (let i = 0; i < 3; i++) noPermission(i);
+    it("a token of the retired chat kind is refused (it verifies as malformed)", async () => {
+      const retired = (() => {
+        const good = onceFor();
+        const [body] = good.split(".");
+        const payload = { ...JSON.parse(Buffer.from(body, "base64url").toString()), k: "chat" };
+        const b64 = Buffer.from(JSON.stringify(payload)).toString("base64url");
+        // Signed with the same key as a genuine token would be, so only the kind can be what refuses it.
+        return b64 + "." + signForTest(b64);
+      })();
+      await post({ allow_web: "once", consent_query: Q, consent_token: retired });
+      noPermission(0);
     });
 
-    it("no token is minted without a valid chip token, and none with the flag off", async () => {
-      const res = await post({ allow_web: "chat", consent_token: "forged" });
-      expect((await res.json()).web_chat_token).toBeUndefined();
-      state.features = { ai_assistant: true };
-      expect((await post({})).status).toBe(200);
+    it("a token without a matching query is refused even when it is a genuine once-token", async () => {
+      await post({ allow_web: "once", consent_token: onceFor() });
+      noPermission(0);
     });
   });
 });

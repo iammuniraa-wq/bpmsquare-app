@@ -26,7 +26,7 @@ import type { ConfirmCard } from "@/lib/assistant/cards";
 import { MAX_QUERY_CHARS, RESEARCHABLE_OPEN_TYPES, webQueryAllowed, type WebSource } from "@/lib/assistant/webQuery";
 import { decideWebSearch, type WebAllow } from "@/lib/assistant/webConsent";
 import {
-  RESEARCH_SURFACE, ResearchError, recordWebAudit, researchTokens, reserveWebSlot, runResearch, wrapWebResult,
+  RESEARCH_SURFACE, ResearchError, claimWebConsent, recordWebAudit, researchTokens, reserveWebSlot, runResearch, wrapWebResult,
   type WebAudit, type WebSlot,
 } from "@/lib/assistant/research";
 import { issueOnceConsent } from "@/lib/assistant/consentToken";
@@ -112,7 +112,7 @@ export type AssistantReply = {
   guide?: GuideReply;
   /** Which model ran and why; absent when no model was called. */
   routed?: { tier: ModelTier; model: string; reason: string };
-  /** The assistant wants to search the web and waits for a yes: the dock shows Yes / No / Always in this chat. */
+  /** The assistant wants to search the web and waits for a yes: the dock shows Yes / No. */
   consent?: { id: string; kind: "web_search"; query: string; why?: string; token: string };
   /** The answer used the web: where it came from. The dock labels the message "From the web" and lists these. */
   web?: { sources: WebSource[] };
@@ -122,16 +122,17 @@ export type AssistantReply = {
 export type AssistantWebCtx = {
   enabled: boolean;
   userId: string;
-  /** Permission sent with this ask: "once" for the query in `consentQuery`, "chat" for any allowed query in this chat. */
+  /** Permission sent with this ask: "once", for exactly the query in `consentQuery`. */
   allow: WebAllow | null;
   consentQuery: string | null;
-  /** The id inside the signed consent that proved the person agreed (the route verified it); kept in the audit row. */
+  /** The id inside the signed consent that proved the person agreed (the route verified it); spent on first use and kept in the audit row. */
   consentId?: string | null;
   /** Test seam. */
   deps?: {
     research?: typeof runResearch;
     audit?: (a: WebAudit) => Promise<void>;
     reserve?: (tenantId: string, userId: string) => Promise<WebSlot>;
+    claim?: (tenantId: string, userId: string, consentId: string) => Promise<boolean>;
   };
 };
 
@@ -621,7 +622,8 @@ export async function askAssistant(history: ChatTurn[], ctx: AssistantAskCtx): P
   // Once a web result is in the conversation the ask is "tainted": every tool is switched off for the rest of it
   // (tool_choice none, plus a refusal below if a tool call shows up anyway), so nothing a page says can cause a call,
   // a navigation or a write. The result is data in the model's context and nothing more.
-  const webDeps = { research: runResearch, audit: recordWebAudit, reserve: reserveWebSlot, ...web?.deps };
+  const webDeps = { research: runResearch, audit: recordWebAudit, reserve: reserveWebSlot, claim: claimWebConsent, ...web?.deps };
+  let allow = web?.allow ?? null;
   const userTurns = history.filter((t) => t.role === "user").map((t) => t.text);
   const openCompany = open && RESEARCHABLE_OPEN_TYPES.includes(open.record.def.type) ? open.record.title : null;
   let researched = 0;
@@ -638,7 +640,7 @@ export async function askAssistant(history: ChatTurn[], ctx: AssistantAskCtx): P
       tenantId: ctx.tenantId, userId: web.userId, route: ctx.route ?? null,
       query: String(input.query ?? "").slice(0, MAX_QUERY_CHARS), why: String(input.why ?? "").slice(0, 160), status,
       sources: [], tokens: 0, searches: 0, removed: 0,
-      consent: web.allow ? { mode: web.allow, id: web.consentId ?? null } : undefined, ...extra,
+      consent: allow ? { id: web.consentId ?? null } : undefined, ...extra,
     }) : Promise.resolve();
 
   const webRefusal = async (input: { query?: string; why?: string }, reason: string): Promise<string> => {
@@ -673,7 +675,12 @@ export async function askAssistant(history: ChatTurn[], ctx: AssistantAskCtx): P
 
   // The person said yes to one query: run it now and hand the model the proposal and its result, so the answer does not
   // depend on the model proposing the same words twice.
-  if (web && web.allow === "once" && web.consentQuery) {
+  if (web && allow === "once" && web.consentQuery) {
+    // The yes is spent here: a consent already used, or one that cannot be marked used, is no permission at all.
+    const claimed = web.consentId ? await webDeps.claim(ctx.tenantId, web.userId, web.consentId).catch(() => false) : false;
+    if (!claimed) allow = null;
+  }
+  if (web && allow === "once" && web.consentQuery) {
     const input = { subject: "organisation", query: web.consentQuery, why: "The person agreed to this search." };
     const out = await webStep(input);
     const id = "toolu_consented_web_search";
@@ -739,7 +746,7 @@ export async function askAssistant(history: ChatTurn[], ctx: AssistantAskCtx): P
           const input = tu.input as { subject?: string; query?: string; why?: string };
           const check = vet(input);
           const decision = decideWebSearch({
-            enabled: true, allow: web.allow, consentQuery: web.consentQuery,
+            enabled: true, allow, consentQuery: web.consentQuery,
             proposedQuery: String(input.query ?? ""), researchedThisAsk: researched,
           });
           if (!check.ok) out = await webRefusal(input, check.reason);

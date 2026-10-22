@@ -4,16 +4,14 @@ import { normalizeQuery } from "./webQuery";
 import type { WebAllow } from "./webConsent";
 
 // Signed proof that THIS server showed THIS person a web-search chip (audit 2026-10-22 L5). The dock used to assert
-// consent by sending "once" or "chat" and the query; nothing showed the server had asked. Two kinds:
-//   once  tenant + person + hash of the query on the chip + the consent id shown with it; short-lived. "Yes" sends it back.
-//   chat  tenant + person + a chat id, minted when a valid "once" token comes back with "Always in this chat". The dock
-//         keeps it in memory only, so a reload ends it, exactly as before; the server still checks it on every ask.
+// consent by sending "once" and the query; nothing showed the server had asked. The token binds tenant + person + hash
+// of the query on the chip + the consent id shown with it, and is short-lived. "Yes" sends it back. It is also spent on
+// first use (claimWebConsent in research.ts), so a copy of one request cannot be replayed for a second search.
 // Same derived-key approach as the action token (actions/token.ts), with its own domain so one never verifies as the other.
 
 export const ONCE_TTL_MS = 10 * 60 * 1000;
-export const CHAT_TTL_MS = 8 * 60 * 60 * 1000;
 
-type Payload = { v: 1; k: "once" | "chat"; tid: string; uid: string; cid: string; q?: string; exp: number };
+type Payload = { v: 1; k: "once"; tid: string; uid: string; cid: string; q: string; exp: number };
 
 function key(): Buffer {
   const base = process.env.ASSISTANT_ACTION_SECRET || process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -31,18 +29,14 @@ export function issueOnceConsent(i: { tenantId: string; userId: string; query: s
   return encode({ v: 1, k: "once", tid: i.tenantId, uid: i.userId, cid: i.id, q: queryHash(i.query), exp: now + ONCE_TTL_MS });
 }
 
-export function issueChatConsent(i: { tenantId: string; userId: string }, now = Date.now()): string {
-  return encode({ v: 1, k: "chat", tid: i.tenantId, uid: i.userId, cid: crypto.randomUUID(), exp: now + CHAT_TTL_MS });
-}
-
 export type ConsentFailure = "malformed" | "signature" | "expired" | "tenant" | "user" | "query";
 
-/** Verifies signature, expiry, who it was issued to and (for a "once" token) the exact query. Never throws on a bad token. */
+/** Verifies signature, expiry, who it was issued to and the exact query. Never throws on a bad token. */
 export function verifyConsent(
   token: unknown,
   expect: { tenantId: string; userId: string; query?: string | null },
   now = Date.now(),
-): { ok: true; kind: "once" | "chat"; id: string } | { ok: false; reason: ConsentFailure } {
+): { ok: true; id: string } | { ok: false; reason: ConsentFailure } {
   if (typeof token !== "string" || token.length > 1000) return { ok: false, reason: "malformed" };
   const [body, sig, extra] = token.split(".");
   if (!body || !sig || extra !== undefined) return { ok: false, reason: "malformed" };
@@ -51,23 +45,22 @@ export function verifyConsent(
   if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return { ok: false, reason: "signature" };
   let p: Payload;
   try { p = JSON.parse(Buffer.from(body, "base64url").toString("utf8")); } catch { return { ok: false, reason: "malformed" }; }
-  if (p?.v !== 1 || (p.k !== "once" && p.k !== "chat") || typeof p.cid !== "string") return { ok: false, reason: "malformed" };
+  // A token of the retired "chat" kind verifies as malformed: nothing grants a standing permission any more.
+  if (p?.v !== 1 || p.k !== "once" || typeof p.cid !== "string") return { ok: false, reason: "malformed" };
   if (!Number.isFinite(p.exp) || now > p.exp) return { ok: false, reason: "expired" };
   if (p.tid !== expect.tenantId) return { ok: false, reason: "tenant" };
   if (p.uid !== expect.userId) return { ok: false, reason: "user" };
-  if (p.k === "once" && (!expect.query || p.q !== queryHash(expect.query))) return { ok: false, reason: "query" };
-  return { ok: true, kind: p.k, id: p.cid };
+  if (!expect.query || p.q !== queryHash(expect.query)) return { ok: false, reason: "query" };
+  return { ok: true, id: p.cid };
 }
 
 export type ResolvedConsent = {
   allow: WebAllow | null;
   consentQuery: string | null;
   consentId: string | null;
-  /** The person pressed "Always in this chat" on a chip this server issued: hand them the chat token. */
-  mintChat: boolean;
 };
 
-const NONE: ResolvedConsent = { allow: null, consentQuery: null, consentId: null, mintChat: false };
+const NONE: ResolvedConsent = { allow: null, consentQuery: null, consentId: null };
 
 /**
  * What the request is allowed to do on the web, after checking the claim against the signed token. Anything the token
@@ -80,7 +73,5 @@ export function resolveWebConsent(
   if (!i.allow) return NONE;
   const v = verifyConsent(i.token, { tenantId: i.tenantId, userId: i.userId, query: i.query }, now);
   if (!v.ok) return NONE;
-  if (v.kind === "chat") return i.allow === "chat" ? { allow: "chat", consentQuery: null, consentId: v.id, mintChat: false } : NONE;
-  // A "once" token proves one query. With "chat" it is the Always press: this ask runs that query, and the chat starts.
-  return { allow: "once", consentQuery: i.query, consentId: v.id, mintChat: i.allow === "chat" };
+  return { allow: "once", consentQuery: i.query, consentId: v.id };
 }

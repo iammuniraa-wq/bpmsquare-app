@@ -11,7 +11,7 @@ import { describePage } from "@/lib/assistant/pageService";
 import type { TenantConfig } from "@/lib/constants";
 import { parseAllowWeb, webAvailability } from "@/lib/assistant/webConsent";
 import { normalizeQuery } from "@/lib/assistant/webQuery";
-import { issueChatConsent, resolveWebConsent } from "@/lib/assistant/consentToken";
+import { resolveWebConsent } from "@/lib/assistant/consentToken";
 import { resolveScreen } from "@/lib/assistant/screens";
 import { offeredTasks } from "@/lib/assistant/guide";
 import { screenAccessFor } from "@/lib/assistant/screenAccess";
@@ -137,7 +137,6 @@ export async function POST(request: NextRequest) {
     });
     return NextResponse.json({
       ...reply,
-      web_chat_token: webEnabled && consent.mintChat ? issueChatConsent({ tenantId, userId }) : undefined,
       // Absent when the ask was answered without reading the meter (opening a screen); the dock keeps its last figure.
       usage: meter.percent === null ? undefined : { percent: meter.percent, off: budget <= 0 },
     });

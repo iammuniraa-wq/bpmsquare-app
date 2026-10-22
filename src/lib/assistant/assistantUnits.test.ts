@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { tipTextProblems } from "@/lib/infoTip";
 import type { QueryableField } from "@/lib/api/query";
-import { ASSISTANT_TIPS, listContextTip, usageTip } from "./tips";
+import { ASSISTANT_TIPS, DOCK_TIP_LIMIT, usageTip } from "./tips";
 import { summarizeRow, trimRows } from "./context";
 import { MID_MODEL, billedTokens, modelFor, routeAsk, smallModel, usagePercent } from "./models";
 import { AssistantMeter, ASSISTANT_SURFACE } from "./meter";
@@ -16,7 +16,10 @@ describe("the explanations behind the i", () => {
   it("so do the ones built from figures", () => {
     for (const p of [0, 7, 63, 99, 100]) expect(tipTextProblems(usageTip(p, false)), `${p}`).toEqual([]);
     expect(tipTextProblems(usageTip(0, true))).toEqual([]);
-    expect(tipTextProblems(listContextTip("quote"))).toEqual([]);
+  });
+  it("the dock keeps at most three: the header, the usage pill (two wordings) and the web-search question", () => {
+    expect(Object.keys(ASSISTANT_TIPS).sort()).toEqual(["header", "overBudget", "usage", "webConsent"]);
+    expect(DOCK_TIP_LIMIT).toBe(3);
   });
 });
 

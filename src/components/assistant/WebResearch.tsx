@@ -21,12 +21,11 @@ const label: React.CSSProperties = { fontSize: 10.5, fontWeight: 700, color: c.h
 
 const SETTLED: Record<Exclude<ConsentState, "pending">, string> = {
   yes: "Searched the web for this",
-  always: "Web searches are on for this chat",
   no: "Not searched",
   skipped: "Not searched",
 };
 
-/** "Search the web for ...?" with Yes / No / Always in this chat. Once answered it shrinks to one muted line. */
+/** "Search the web?" with Yes / No. Once answered it shrinks to one muted line. */
 export function WebConsentRow({ query, state, disabled, onChoice }: {
   query: string;
   state: ConsentState;
@@ -43,8 +42,6 @@ export function WebConsentRow({ query, state, disabled, onChoice }: {
       <div style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center" }}>
         <button className="bms-dock-chip" style={chip} disabled={disabled} onClick={() => onChoice("yes")}>Yes</button>
         <button className="bms-dock-chip" style={chip} disabled={disabled} onClick={() => onChoice("no")}>No</button>
-        <button className="bms-dock-chip" style={chip} disabled={disabled} onClick={() => onChoice("always")}>Always in this chat</button>
-        <InfoTip label="always in this chat">{ASSISTANT_TIPS.webAlways}</InfoTip>
       </div>
     </div>
   );
@@ -59,7 +56,7 @@ export function WebSources({ sources }: { sources: { title: string; url: string 
   const rows = all ? sources : sources.slice(0, SHOWN);
   return (
     <div style={card}>
-      <div style={label}>From the web <InfoTip label="web sources">{ASSISTANT_TIPS.webLabel}</InfoTip></div>
+      <div style={label}>From the web</div>
       <ol style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 4 }}>
         {rows.map((s, i) => (
           <li key={s.url} style={{ fontSize: 12, lineHeight: 1.4, overflowWrap: "anywhere" }}>

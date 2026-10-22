@@ -4,13 +4,16 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { c } from "@/lib/theme";
 import InfoTip from "@/components/ui/InfoTip";
+import { InlineMarkdown } from "@/components/assistant/Markdown";
+import { plainText } from "@/lib/assistant/markdown";
 import { BRIEFING_EMPTY, BRIEFING_TIPS } from "@/lib/briefing/tips";
 import type { Briefing, BriefingLine } from "@/lib/briefing/types";
 
 /**
  * The daily briefing, one pattern in two places: the dashboard tile (Adapt widget `my_briefing`) and the card at the
- * top of the assistant dock. Three rows -- Yesterday, Open, Focus -- as labels, counts and links; every explanation
- * sits behind an "i" (bpmsquarecore.md 6b). Worked out on the server by fixed rules; this file only draws it.
+ * top of the assistant dock. Three rows -- Yesterday, Open, Focus -- as labels, counts and links; the rows explain
+ * themselves, and the tile's one explanation sits behind an "i" on the dashboard only (bpmsquarecore.md 6b). Worked
+ * out on the server by fixed rules; this file only draws it, with any markdown markers in the wording resolved.
  * Under 480 px the row label stacks above its content and every link is a 44 px tap target.
  */
 
@@ -22,19 +25,18 @@ function Segments({ lines }: { lines: BriefingLine[] }) {
       {lines.map((l, i) => (
         <span key={l.id}>
           {i > 0 && <span aria-hidden="true" style={{ color: c.hint }}> · </span>}
-          <Link href={l.href} className="bms-brief-link">{l.label}</Link>
+          <Link href={l.href} className="bms-brief-link">{plainText(l.label)}</Link>
         </span>
       ))}
     </span>
   );
 }
 
-function Row({ label, tip, children }: { label: string; tip: string; children: React.ReactNode }) {
+function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="bms-brief-row">
       <div className="bms-brief-label">
         <span>{label}</span>
-        <InfoTip label={label}>{tip}</InfoTip>
       </div>
       <div className="bms-brief-body">{children}</div>
     </div>
@@ -62,7 +64,7 @@ export function BriefingView({ briefing, status, refreshing, onRefresh, showAll,
     <div className="bms-brief">
       <div className="bms-brief-head">
         {!bare && <span className="bms-brief-title">Your day</span>}
-        <InfoTip label="the briefing">{BRIEFING_TIPS.tile}</InfoTip>
+        {!bare && <InfoTip label="the briefing">{BRIEFING_TIPS.tile}</InfoTip>}
         <button
           type="button" className="bms-brief-refresh" onClick={onRefresh}
           disabled={!!refreshing || cooling || status === "loading"}
@@ -78,19 +80,19 @@ export function BriefingView({ briefing, status, refreshing, onRefresh, showAll,
 
       {status === "ready" && briefing && !briefing.empty && (
         <>
-          <Row label="Yesterday" tip={BRIEFING_TIPS.yesterday}>
+          <Row label="Yesterday">
             {briefing.yesterday.length > 0 ? <Segments lines={briefing.yesterday} /> : <span className="bms-brief-none">Nothing recorded</span>}
           </Row>
-          <Row label="Open" tip={BRIEFING_TIPS.open}>
+          <Row label="Open">
             {briefing.today.length > 0 ? <Segments lines={briefing.today} /> : <span className="bms-brief-none">Nothing open</span>}
           </Row>
-          <Row label="Focus" tip={BRIEFING_TIPS.focus}>
+          <Row label="Focus">
             {focus.length > 0 ? (
               <ol className="bms-brief-focus">
                 {focus.map((f) => (
                   <li key={f.id}>
-                    <Link href={f.href} className="bms-brief-link">{f.label}</Link>
-                    <span className="bms-brief-why">{f.why}</span>
+                    <Link href={f.href} className="bms-brief-link">{plainText(f.label)}</Link>
+                    <span className="bms-brief-why"><InlineMarkdown text={f.why} /></span>
                   </li>
                 ))}
               </ol>

@@ -15,7 +15,10 @@ import type { Suggestion } from "@/lib/assistant/suggestions";
 import type { ConfirmCard } from "@/lib/assistant/cards";
 import ConfirmCardView from "@/components/assistant/ConfirmCardView";
 import { WebConsentRow, WebSources } from "@/components/assistant/WebResearch";
-import { allowForAsk, applyChoice, settleOnNewAsk, type ConsentState, type WebAllow, type WebChoice } from "@/lib/assistant/webConsent";
+import { applyChoice, settleOnNewAsk, type ConsentState, type WebAllow, type WebChoice } from "@/lib/assistant/webConsent";
+import { Markdown, InlineMarkdown } from "@/components/assistant/Markdown";
+import { plainText } from "@/lib/assistant/markdown";
+import { DOCK_PANEL_CSS } from "@/components/assistant/dockLayout";
 import type { GuideReply } from "@/lib/assistant/guide";
 import GuideOverlay, { type GuideTargetState } from "@/components/GuideOverlay";
 
@@ -53,7 +56,8 @@ const CREATE_MODES: { mode: string; label: string; featureKey: "accounts" | "con
  *
  * It knows where the person is: the current route goes with every ask and every open, and the server (never this
  * component) loads the record behind it through the caller's own permissions. The panel shows labels, values and
- * buttons only; every explanation sits behind an "i" (bpmsquarecore.md 6b, texts in assistant/tips.ts).
+ * buttons only; the three explanations that earn an "i" sit behind it (bpmsquarecore.md 6b, texts in
+ * assistant/tips.ts), and the assistant's text is read as markdown before it is shown (assistant/Markdown.tsx).
  *
  * Three things in the panel: the context fact ("On SQ-2026-0012 · Al-Otaibi Contracting"), the suggestions strip
  * (rules, not AI; each chip opens a screen or asks a prepared question), and the chat. Answers can carry buttons
@@ -76,10 +80,6 @@ export default function AIDock({ liftForTabBar = false }: {
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
   const [enabled, setEnabled] = useState(true);
-  // "Always in this chat": held here only, so it ends with the page and is never stored for the person.
-  const [webChat, setWebChat] = useState(false);
-  // Signed by the server when the person pressed Always; memory only, so a reload ends the chat's permission.
-  const [webChatToken, setWebChatToken] = useState<string | null>(null);
   const [searching, setSearching] = useState(false);
   const [guides, setGuides] = useState<GuideOffer[]>([]);
   // Guide mode: the steps being followed, the one the person is on, and where its control stands on the page.
@@ -176,13 +176,12 @@ export default function AIDock({ liftForTabBar = false }: {
     if (typeof window !== "undefined" && window.innerWidth < 900) setOpen(false);
   }
 
-  // Yes / No / Always on a web-search proposal. Yes and Always send the same question again, with permission for that
+  // Yes / No on a web-search proposal. Yes sends the same question again, with the chip's signed token for that one
   // search; No sends nothing.
   function answerConsent(index: number, choice: WebChoice) {
     const m = messages[index];
     if (!m?.consent || m.consent.state !== "pending" || busy) return;
-    const out = applyChoice(choice, webChat);
-    setWebChat(out.chatMode);
+    const out = applyChoice(choice);
     setMessages((prev) => prev.map((x, k) => (k === index && x.consent ? { ...x, consent: { ...x.consent, state: out.state } } : x)));
     const base = messages.slice(0, index);
     const asked = base[base.length - 1];
@@ -210,9 +209,9 @@ export default function AIDock({ liftForTabBar = false }: {
         body: JSON.stringify({
           question: text, history, route: pathname,
           objectType: page?.objectType ?? null, recordId: page?.recordId ?? null,
-          allow_web: resume ? resume.allow : allowForAsk(webChat && !!webChatToken),
-          consent_query: resume ? resume.query : undefined,
-          consent_token: resume ? resume.token : webChatToken ?? undefined,
+          allow_web: resume?.allow,
+          consent_query: resume?.query,
+          consent_token: resume?.token,
           guideTask: guideTask ?? undefined,
         }),
       });
@@ -222,9 +221,6 @@ export default function AIDock({ liftForTabBar = false }: {
         const cards: Card[] | undefined = Array.isArray(json.cards) ? json.cards : undefined;
         const consent = json.consent?.kind === "web_search" && typeof json.consent.query === "string" && typeof json.consent.token === "string"
           ? { query: json.consent.query as string, state: "pending" as const, token: json.consent.token as string } : undefined;
-        // The chat's permission is whatever the server vouches for: a fresh token starts it, a new chip means it is over.
-        if (typeof json.web_chat_token === "string") setWebChatToken(json.web_chat_token);
-        else if (resume?.allow === "chat" || consent) { setWebChat(false); setWebChatToken(null); }
         const web: WebSource[] | undefined = Array.isArray(json.web?.sources) && json.web.sources.length ? json.web.sources : undefined;
         const reply: GuideReply | undefined = json.guide && Array.isArray(json.guide.steps) ? json.guide : undefined;
         setMessages((prev) => [...prev, { from: "bot", text: json.answer, report: json.report as ReportPayload | undefined, cards, guide: reply, consent, web, confirm: json.card as ConfirmCard | undefined }]);
@@ -334,8 +330,8 @@ export default function AIDock({ liftForTabBar = false }: {
         }}>
           <button className="bms-dock-row" onClick={() => setChatShown(true)} style={{ textAlign: "left", background: "none", border: "none", padding: 0, cursor: "pointer", fontFamily: "inherit", color: c.ink }}>
             <div style={{ fontSize: 10.5, fontWeight: 700, color: c.hint, textTransform: "uppercase", letterSpacing: 0.4 }}>Step {guide.i + 1} of {stepCount}</div>
-            <div style={{ fontSize: 13, lineHeight: 1.35, marginTop: 2 }}>{guide.reply.steps[guide.i].text}</div>
-            {guide.reply.steps[guide.i].hidden && <div style={{ fontSize: 11.5, color: c.hint, marginTop: 2 }}>{guide.reply.steps[guide.i].hidden!.reason}</div>}
+            <div style={{ fontSize: 13, lineHeight: 1.35, marginTop: 2 }}><InlineMarkdown text={guide.reply.steps[guide.i].text} /></div>
+            {guide.reply.steps[guide.i].hidden && <div style={{ fontSize: 11.5, color: c.hint, marginTop: 2 }}>{plainText(guide.reply.steps[guide.i].hidden!.reason)}</div>}
           </button>
           <div style={{ display: "flex", gap: 8 }}>
             <button className="bms-dock-chip" onClick={stopGuide} style={guideBtn(false)}>Stop</button>
@@ -347,22 +343,9 @@ export default function AIDock({ liftForTabBar = false }: {
       )}
 
       {enabled && open && !(narrow && guide && !chatShown) && (
-        <div className="bms-dock-panel" style={{
-          position: "fixed", right: 22, bottom: at(122), zIndex: 300,
-          // Wide enough for an inline chart to stay legible (a bar chart's
-          // labels shrink illegibly below this), capped so it never spills
-          // off a narrow viewport.
-          width: 400, maxWidth: "calc(100vw - 44px)",
-          // Never taller than the room above the launcher, or the panel runs
-          // off the TOP of a laptop viewport and its header scrolls out of
-          // reach (visible in the same 2026-09-06 report). 560 stays the cap
-          // on a tall screen; the viewport wins on a short one.
-          maxHeight: `min(560px, calc(100vh - ${at(150)}))`,
-          display: "flex", flexDirection: "column",
-          background: "var(--card-bg, #fff)", border: "1px solid var(--line)",
-          borderRadius: "var(--card-radius, 10px)", boxShadow: "0 24px 60px rgba(10,15,25,.28)",
-          overflow: "hidden",
-        }}>
+        // Size, position and the phone sheet live in dockLayout.ts (a stylesheet, so a media query can override them);
+        // only the lift under the panel (safe area, tab bar) is known here.
+        <div className="bms-dock-panel" style={{ ["--dock-floor" as string]: FLOOR }}>
           <div style={{ padding: "10px 12px 10px 16px", background: "var(--accentbg)", color: c.accent, fontWeight: 700, fontSize: 13, display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
             <span>✦ Assistant</span>
             <InfoTip label="the assistant">{ASSISTANT_TIPS.header}</InfoTip>
@@ -381,15 +364,14 @@ export default function AIDock({ liftForTabBar = false }: {
 
           {context && (
             <div style={{ padding: "8px 16px", borderBottom: `1px solid ${c.line}`, fontSize: 12, color: c.ink, display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
-              <span style={{ fontWeight: 650, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>On {context}</span>
-              <InfoTip label="the open record">{ASSISTANT_TIPS.context}</InfoTip>
+              <span style={{ fontWeight: 650, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>On {plainText(context)}</span>
             </div>
           )}
 
           {suggestions.length > 0 && (
-            <div style={{ padding: "8px 16px", borderBottom: `1px solid ${c.line}`, display: "flex", flexWrap: "wrap", gap: 6, flexShrink: 0 }}>
+            <div className="bms-dock-suggest" style={{ padding: "8px 16px", borderBottom: `1px solid ${c.line}`, display: "flex", flexWrap: "wrap", gap: 6, flexShrink: 0 }}>
               {suggestions.map((s) => (
-                <span key={s.id} className="bms-dock-chip-wrap" style={{ display: "inline-flex", alignItems: "center", gap: 2 }}>
+                <span key={s.id} className="bms-dock-chip-wrap" style={{ display: "inline-flex", alignItems: "center", flexShrink: 0 }}>
                   <button
                     className="bms-dock-chip"
                     onClick={() => runSuggestion(s)}
@@ -401,10 +383,8 @@ export default function AIDock({ liftForTabBar = false }: {
                   >
                     {s.label}{s.kind === "navigate" ? " →" : ""}
                   </button>
-                  <InfoTip label={s.label}>{s.why}</InfoTip>
                 </span>
               ))}
-              <InfoTip label="suggestions">{ASSISTANT_TIPS.suggestions}</InfoTip>
             </div>
           )}
 
@@ -415,7 +395,7 @@ export default function AIDock({ liftForTabBar = false }: {
                 {createChips.length > 0 && (
                   <>
                     <div style={{ fontSize: 10.5, fontWeight: 700, color: c.hint, textTransform: "uppercase", letterSpacing: 0.4, display: "flex", alignItems: "center", gap: 4 }}>
-                      Draft from a paste <InfoTip label="draft from a paste">{ASSISTANT_TIPS.draft}</InfoTip>
+                      Draft from a paste
                     </div>
                     <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
                       {createChips.map((item) => (
@@ -438,7 +418,7 @@ export default function AIDock({ liftForTabBar = false }: {
                 {guides.length > 0 && (
                   <>
                     <div style={{ fontSize: 10.5, fontWeight: 700, color: c.hint, textTransform: "uppercase", letterSpacing: 0.4, display: "flex", alignItems: "center", gap: 4 }}>
-                      Show me how <InfoTip label="show me how">{ASSISTANT_TIPS.guides}</InfoTip>
+                      Show me how
                     </div>
                     <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
                       {guides.map((g) => (
@@ -496,12 +476,11 @@ export default function AIDock({ liftForTabBar = false }: {
                     borderRadius: "var(--card-radius, 10px)",
                     padding: "9px 12px",
                     lineHeight: 1.45,
-                    // Answers are multi-line for list intents (recent quotes,
-                    // recent cases) -- without this they collapse to one line.
-                    whiteSpace: "pre-wrap",
+                    overflowWrap: "anywhere",
                   }}
                 >
-                  {m.text}
+                  {/* The assistant's text is markdown (lists, bold); what the person typed is shown as typed. */}
+                  {m.from === "bot" ? <Markdown text={m.text} links={!m.web} /> : <span style={{ whiteSpace: "pre-wrap" }}>{m.text}</span>}
                 </div>
                 {m.cards?.map((card) => (
                   <button
@@ -576,19 +555,7 @@ export default function AIDock({ liftForTabBar = false }: {
           0% { transform: scale(.92); opacity: .5; }
           100% { transform: scale(1.35); opacity: 0; }
         }
-        /* Phone and narrow tablet: the panel is the whole screen, the input row stays pinned at its bottom edge and
-           every control is at least 44 px. The launcher hides behind it, so the header carries a Close button. */
-        @media (max-width: 899px) {
-          .bms-dock-panel {
-            inset: 0 !important; width: 100% !important; max-width: none !important; max-height: none !important;
-            height: 100dvh; border-radius: 0 !important; border: none !important;
-            padding-top: env(safe-area-inset-top, 0px);
-          }
-          .bms-dock-input { padding-bottom: calc(14px + env(safe-area-inset-bottom, 0px)) !important; border-top: 1px solid var(--line); }
-          .bms-dock-chip, .bms-dock-row, .bms-dock-send, .bms-dock-close { min-height: 44px; min-width: 44px; }
-          .bms-dock-chip-wrap { max-width: 100%; }
-          [data-dock-open="true"] { display: none !important; }
-        }
+        ${DOCK_PANEL_CSS}
       `}</style>
     </>
   );
@@ -613,8 +580,7 @@ function GuideCard({ reply, active, index, target, onStart, onBack, onNext, onSt
   return (
     <div style={{ border: "1px solid var(--line)", borderRadius: "var(--card-radius, 10px)", background: "var(--card-bg, #fff)", padding: "10px 12px", display: "flex", flexDirection: "column", gap: 8 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11.5, fontWeight: 700, color: c.accent }}>
-        <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>Guide · {reply.task}</span>
-        <InfoTip label="the guide">{ASSISTANT_TIPS.guideCard}</InfoTip>
+        <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>Guide · {plainText(reply.task)}</span>
       </div>
       <ol style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 6 }}>
         {reply.steps.map((st, n) => {
@@ -624,8 +590,8 @@ function GuideCard({ reply, active, index, target, onStart, onBack, onNext, onSt
             <li key={n} aria-current={current ? "step" : undefined} style={{ display: "flex", gap: 8, opacity: st.hidden ? 0.6 : 1 }}>
               <span aria-hidden="true" style={{ width: 16, flexShrink: 0, color: current ? c.accent : c.hint, fontWeight: 700 }}>{done ? "✓" : current ? "●" : "○"}</span>
               <span style={{ fontSize: 12.5, lineHeight: 1.4, fontWeight: current ? 650 : 400, color: c.ink }}>
-                {st.text}
-                {st.hidden && <span style={{ display: "block", fontSize: 11.5, color: c.hint }}>Not available: {st.hidden.reason}.{st.hidden.alternative ? ` ${st.hidden.alternative}` : ""}</span>}
+                <InlineMarkdown text={st.text} />
+                {st.hidden && <span style={{ display: "block", fontSize: 11.5, color: c.hint }}>Not available: {plainText(st.hidden.reason)}.{st.hidden.alternative ? ` ${plainText(st.hidden.alternative)}` : ""}</span>}
                 {current && !st.hidden && st.control && target === "missing" && <span style={{ display: "block", fontSize: 11.5, color: c.hint }}>Not on the screen right now.</span>}
                 {current && !st.hidden && st.control && target === "parent" && <span style={{ display: "block", fontSize: 11.5, color: c.hint }}>Open this first; the step then shows.</span>}
               </span>

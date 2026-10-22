@@ -45,10 +45,19 @@ describe("the briefing tile", () => {
     expect(all).toContain("SQ-2026-0004");
     expect(all).toContain("Show fewer");
   });
-  it("puts each explanation behind an i and prints none of them", () => {
+  it("the rows carry no i; the tile keeps its one, and the dock's bare card has none (owner 2026-10-22)", () => {
     const out = view();
-    for (const label of ["Yesterday", "Open", "Focus", "the briefing"]) expect(out).toContain(`aria-label="About ${label}"`);
+    for (const label of ["Yesterday", "Open", "Focus"]) expect(out).not.toContain(`aria-label="About ${label}"`);
+    expect(out).toContain('aria-label="About the briefing"');
     for (const tip of Object.values(BRIEFING_TIPS)) expect(out).not.toContain(tip);
+    expect(view({ bare: true })).not.toContain('aria-label="About');
+  });
+  it("resolves markdown markers in the wording instead of printing them", () => {
+    const out = view({ briefing: briefing({ focus: [{ ...briefing().focus[0], label: "**SQ-1**", why: "Expires **tomorrow** <b>x</b>" }] }) });
+    expect(out).toContain(">SQ-1</a>");
+    expect(out).toContain("<strong>tomorrow</strong>");
+    expect(out).not.toContain("**");
+    expect(out).not.toContain("<b>");
   });
   it("a new user sees the one-line empty state and no rows", () => {
     const out = view({ briefing: briefing({ empty: true, yesterday: [], today: [], focus: [] }) });

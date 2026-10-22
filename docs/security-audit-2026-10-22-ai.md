@@ -152,8 +152,9 @@ the ask", so this is a gap against the intent of section 4 (Safety) rather than 
 - **L2** guide mode uses the workspace role (`isWorkspaceAdmin`), not "unrestricted".
 - **L4** the daily cap reserves a slot (a zero-token `ai_usage_log` row, counted after writing) before the search; any failure
   refuses; a search that fails to run gives its slot back.
-- **L5** the chip carries a signed once-token (tenant, person, query hash, expiry); "Always" returns a signed chat token the
-  dock keeps in memory; the audit row records the consent mode and id. A once-token can be reused for the same query within
-  10 minutes (it proves the same agreement); it is not single-use.
+- **L5** the chip carries a signed once-token (tenant, person, query hash, expiry); the audit row records the consent id.
+  Update 2026-10-22: "Always in this chat" and its chat token were removed (Yes / No only), and the once-token is now
+  single-use: the first search claims its consent id (`claimWebConsent`, a zero-token `ai_usage_log` row, earliest row
+  wins) and a replay is treated as no permission.
 - **L6** `promptText`/`promptJson` (`src/lib/assistant/promptSafe.ts`) on the open record and the CREATABLE labels/options.
 - **L7** the card summary is scrubbed with `redactText` before it is stored; the 0205 header says what a create row holds.

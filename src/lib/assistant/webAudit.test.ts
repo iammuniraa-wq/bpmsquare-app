@@ -5,7 +5,7 @@ import path from "node:path";
 // The audit row and the daily count: both tolerate the migration (0205) not being applied, and the migration itself
 // keeps the table service-role-write-only.
 
-const db = vi.hoisted(() => ({ inserted: [] as Record<string, unknown>[], deleted: [] as unknown[], insertError: null as null | { code?: string; message: string }, countError: null as null | { code?: string; message: string }, count: 0 as number | null, filters: [] as [string, unknown][] }));
+const db = vi.hoisted(() => ({ inserted: [] as Record<string, unknown>[], deleted: [] as unknown[], insertError: null as null | { code?: string; message: string }, countError: null as null | { code?: string; message: string }, count: 0 as number | null, filters: [] as [string, unknown][], first: [] as { id: string }[] | null, firstError: null as null | { message: string } }));
 
 vi.mock("@/lib/supabase-server", () => ({
   createAdminSupabase: () => ({
@@ -23,6 +23,7 @@ vi.mock("@/lib/supabase-server", () => ({
         const chain: Record<string, unknown> = {};
         const eq = (k: string, v: unknown) => { db.filters.push([k, v]); return chain; };
         Object.assign(chain, {
+          order: () => chain, limit: () => Promise.resolve({ data: db.first, error: db.firstError }),
           eq, gte: (k: string, v: unknown) => { db.filters.push([k, v]); return Promise.resolve({ count: db.count, error: db.countError }); },
         });
         return chain;
@@ -32,7 +33,7 @@ vi.mock("@/lib/supabase-server", () => ({
 }));
 
 import { MAX_RESEARCH_PER_DAY } from "./webConsent";
-import { SLOT_SURFACE, recordWebAudit, reserveWebSlot, type WebAudit } from "./research";
+import { CLAIM_SURFACE, SLOT_SURFACE, claimWebConsent, recordWebAudit, reserveWebSlot, type WebAudit } from "./research";
 
 const audit: WebAudit = {
   tenantId: "t-1", userId: "u-1", route: "/accounts/x", query: "Tesla Germany company website", why: "basics", status: "done",
@@ -40,13 +41,13 @@ const audit: WebAudit = {
 };
 
 let errors: ReturnType<typeof vi.spyOn>;
-beforeEach(() => { db.inserted = []; db.deleted = []; db.insertError = null; db.countError = null; db.count = 0; db.filters = []; errors = vi.spyOn(console, "error").mockImplementation(() => {}); });
+beforeEach(() => { db.inserted = []; db.deleted = []; db.insertError = null; db.countError = null; db.count = 0; db.filters = []; db.first = []; db.firstError = null; errors = vi.spyOn(console, "error").mockImplementation(() => {}); });
 afterEach(() => errors.mockRestore());
 
 describe("the audit row", () => {
-  it("records how the person agreed and the signed consent id when there is one (audit 2026-10-22 L5)", async () => {
-    await recordWebAudit({ ...audit, consent: { mode: "chat", id: "c-1" } });
-    expect(db.inserted[0].params).toEqual({ query: "Tesla Germany company website", why: "basics", consent_mode: "chat", consent_id: "c-1" });
+  it("records the signed consent id when there is one (audit 2026-10-22 L5)", async () => {
+    await recordWebAudit({ ...audit, consent: { id: "c-1" } });
+    expect(db.inserted[0].params).toEqual({ query: "Tesla Germany company website", why: "basics", consent_id: "c-1" });
   });
 
   it("is one assistant_actions row of kind web_search with the query, sources and tokens", async () => {
@@ -112,6 +113,30 @@ describe("the daily cap reserves a slot before the search (audit 2026-10-22 L4)"
     const slot = await reserveWebSlot("t-1", "u-1", NOW);
     if (slot.ok) await slot.release();
     expect(db.deleted).toEqual(["slot-1"]);
+  });
+});
+
+describe("a consent is spent on first use (audit 2026-10-22 L5)", () => {
+  beforeEach(() => { db.first = [{ id: "slot-1" }]; db.firstError = null; });
+
+  it("writes a zero-token claim row carrying the consent id and wins when its row is the earliest", async () => {
+    expect(await claimWebConsent("t-1", "u-1", "consent-1")).toBe(true);
+    expect(db.inserted[0]).toMatchObject({ table: "ai_usage_log", tenant_id: "t-1", user_id: "u-1", surface: CLAIM_SURFACE, model: "consent-1", input_tokens: 0, output_tokens: 0 });
+    expect(db.filters).toEqual([["tenant_id", "t-1"], ["surface", CLAIM_SURFACE], ["model", "consent-1"]]);
+  });
+
+  it("a replay loses: an earlier row for the same consent id already exists", async () => {
+    db.first = [{ id: "earlier-claim" }];
+    expect(await claimWebConsent("t-1", "u-1", "consent-1")).toBe(false);
+  });
+
+  it("fails closed: a failed write, a failed read or an empty read all refuse", async () => {
+    db.insertError = { code: "42P01", message: "x" };
+    expect(await claimWebConsent("t-1", "u-1", "consent-1")).toBe(false);
+    db.insertError = null; db.firstError = { message: "boom" };
+    expect(await claimWebConsent("t-1", "u-1", "consent-1")).toBe(false);
+    db.firstError = null; db.first = [];
+    expect(await claimWebConsent("t-1", "u-1", "consent-1")).toBe(false);
   });
 });
 

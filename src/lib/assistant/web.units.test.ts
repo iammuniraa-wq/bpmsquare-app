@@ -5,7 +5,7 @@ import {
   MAX_SOURCES, cleanSources, normalizeQuery, sameQuery, sanitizeWebText, webQueryAllowed,
 } from "./webQuery";
 import {
-  MAX_RESEARCH_PER_ASK, allowForAsk, applyChoice, decideWebSearch, parseAllowWeb, settleOnNewAsk, webAvailability,
+  MAX_RESEARCH_PER_ASK, applyChoice, decideWebSearch, parseAllowWeb, settleOnNewAsk, webAvailability,
 } from "./webConsent";
 
 // The database client is never reached from these tests; research.ts only touches it inside its audit helpers.
@@ -125,24 +125,21 @@ describe("the consent state machine", () => {
     expect(decideWebSearch({ ...base, allow: "once", consentQuery: null })).toEqual({ kind: "ask" });
   });
 
-  it("Always in this chat runs any allowed query without asking again", () => {
-    expect(decideWebSearch({ ...base, allow: "chat", proposedQuery: "another company news" })).toEqual({ kind: "run" });
+  it("a yes never covers a different query: there is no standing permission for the chat", () => {
+    expect(decideWebSearch({ ...base, allow: "once", consentQuery: "Tesla Germany company website", proposedQuery: "another company news" })).toEqual({ kind: "ask" });
+    expect(decideWebSearch({ ...base, allow: "chat" as never, proposedQuery: "another company news" })).toEqual({ kind: "ask" });
   });
 
   it("is refused when off, and after the per-question limit, whatever was agreed", () => {
-    expect(decideWebSearch({ ...base, enabled: false, allow: "chat" }).kind).toBe("refuse");
-    expect(decideWebSearch({ ...base, allow: "chat", researchedThisAsk: MAX_RESEARCH_PER_ASK }).kind).toBe("refuse");
+    const yes = { ...base, allow: "once", consentQuery: "Tesla Germany company website" } as const;
+    expect(decideWebSearch({ ...yes, enabled: false }).kind).toBe("refuse");
+    expect(decideWebSearch({ ...yes, researchedThisAsk: MAX_RESEARCH_PER_ASK }).kind).toBe("refuse");
   });
 
-  it("the dock's choices: Yes is one search, Always switches the chat on, No sends nothing", () => {
-    expect(applyChoice("yes", false)).toEqual({ state: "yes", allow: "once", chatMode: false });
-    expect(applyChoice("always", false)).toEqual({ state: "always", allow: "chat", chatMode: true });
-    expect(applyChoice("no", true)).toEqual({ state: "no", allow: null, chatMode: true });
-  });
-
-  it("Always is per chat: a fresh chat carries no permission, a switched-on one carries 'chat'", () => {
-    expect(allowForAsk(false)).toBeNull();
-    expect(allowForAsk(true)).toBe("chat");
+  it("the dock's choices: Yes is one search, No sends nothing, and there is no third choice", () => {
+    expect(applyChoice("yes")).toEqual({ state: "yes", allow: "once" });
+    expect(applyChoice("no")).toEqual({ state: "no", allow: null });
+    expect(applyChoice("always" as never)).toEqual({ state: "no", allow: null });
   });
 
   it("a question typed while the chips are open leaves them unanswered, never as a yes", () => {
@@ -150,10 +147,9 @@ describe("the consent state machine", () => {
     expect(settleOnNewAsk("yes")).toBe("yes");
   });
 
-  it("accepts only the two known permissions from a request", () => {
+  it("accepts only the one known permission from a request", () => {
     expect(parseAllowWeb("once")).toBe("once");
-    expect(parseAllowWeb("chat")).toBe("chat");
-    for (const v of ["always", "", null, undefined, true, 1, {}]) expect(parseAllowWeb(v)).toBeNull();
+    for (const v of ["chat", "always", "", null, undefined, true, 1, {}]) expect(parseAllowWeb(v)).toBeNull();
   });
 });
 
@@ -237,7 +233,8 @@ describe("the research call", () => {
 });
 
 describe("the explanations behind the i", () => {
-  it("the web ones fit the InfoTip limit", () => {
-    for (const k of ["webConsent", "webAlways", "webLabel"] as const) expect(tipTextProblems(ASSISTANT_TIPS[k]), k).toEqual([]);
+  it("the web one fits the InfoTip limit, and the retired chat tips are gone", () => {
+    expect(tipTextProblems(ASSISTANT_TIPS.webConsent)).toEqual([]);
+    expect(Object.keys(ASSISTANT_TIPS)).not.toContain("webAlways");
   });
 });

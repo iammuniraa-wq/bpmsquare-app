@@ -9,27 +9,27 @@ const consent = (state: Parameters<typeof WebConsentRow>[0]["state"], over: Part
   renderToString(createElement(WebConsentRow, { query: 'Tesla Germany company website', state, onChoice: () => {}, ...over }));
 
 describe("the consent row", () => {
-  it("shows the query verbatim with Yes, No and Always in this chat, and the explanation behind an i", () => {
+  it("shows the query verbatim with Yes and No only, and the explanation behind an i", () => {
     const out = consent("pending");
     expect(out).toContain("Search the web?");
     expect(out).toContain("Tesla Germany company website");
-    for (const label of ["Yes", "No", "Always in this chat"]) expect(out).toMatch(new RegExp(`<button[^>]*>${label}</button>`));
+    for (const label of ["Yes", "No"]) expect(out).toMatch(new RegExp(`<button[^>]*>${label}</button>`));
     expect(out).toContain('aria-label="About web search"');
-    expect(out).toContain('aria-label="About always in this chat"');
+    expect(out).not.toMatch(/always/i);
     // The explanation is not printed as running text.
     expect(out).not.toContain("only about companies");
   });
 
-  it("the three choices are chips of the dock's one chip pattern, at least 44 px high on a phone (class carries the rule)", () => {
-    expect((consent("pending").match(/class="bms-dock-chip"/g) ?? []).length).toBe(3);
+  it("the two choices are chips of the dock's one chip pattern, at least 44 px high on a phone (class carries the rule)", () => {
+    expect((consent("pending").match(/class="bms-dock-chip"/g) ?? []).length).toBe(2);
   });
 
   it("disables the chips while a request is in flight", () => {
-    expect((consent("pending", { disabled: true }).match(/disabled=""/g) ?? []).length).toBe(3);
+    expect((consent("pending", { disabled: true }).match(/disabled=""/g) ?? []).length).toBe(2);
   });
 
   it("once answered it shrinks to one line and offers no buttons", () => {
-    for (const [state, line] of [["yes", "Searched the web for this"], ["always", "Web searches are on for this chat"], ["no", "Not searched"], ["skipped", "Not searched"]] as const) {
+    for (const [state, line] of [["yes", "Searched the web for this"], ["no", "Not searched"], ["skipped", "Not searched"]] as const) {
       const out = consent(state);
       expect(out).toContain(line);
       expect(out).not.toContain("<button");
@@ -52,7 +52,7 @@ describe("the sources under a web answer", () => {
     expect(out).toContain('href="https://s1.example/page"');
     expect(out).toContain('target="_blank"');
     expect(out).toContain('rel="noopener noreferrer"');
-    expect(out).toContain('aria-label="About web sources"');
+    expect(out).not.toContain('aria-label="About');
   });
 
   it("shows a few rows and 'Show all' for a long list (rule 6b)", () => {

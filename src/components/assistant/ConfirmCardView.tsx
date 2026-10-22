@@ -2,15 +2,16 @@
 
 import { useMemo, useState } from "react";
 import { c, statusInk } from "@/lib/theme";
-import InfoTip from "@/components/ui/InfoTip";
-import { ASSISTANT_TIPS } from "@/lib/assistant/tips";
+import { InlineMarkdown } from "./Markdown";
+import { plainText } from "@/lib/assistant/markdown";
 import { missingRequired, type CardDuplicate, type CardField, type ConfirmCard, type NextStep } from "@/lib/assistant/cards";
 
 /**
  * The confirm card: one layout for every record the assistant proposes (label, value, one button named after the
  * act). A field with a value, and every required field, is shown; the rest sit behind "More fields". Every value
  * is editable here; nothing is created until the button is pressed, and the press goes to POST /api/ai/act, which
- * runs the object's own create route. Explanations sit behind the "i" (bpmsquarecore.md 6b).
+ * runs the object's own create route. The card carries no "i": its labels and buttons say what happens, and the
+ * duplicate warning and missing-field notices are visible text (bpmsquarecore.md 6b).
  */
 
 type Done = { id: string; href: string; label: string };
@@ -108,20 +109,17 @@ export default function ConfirmCardView({ card, onOpen, onAsk }: {
   return (
     <div style={box} data-testid="confirm-card">
       <div style={{ padding: "9px 12px", background: "var(--panel2)", display: "flex", alignItems: "center", gap: 6, fontSize: 12.5, fontWeight: 700 }}>
-        <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{card.title}</span>
-        <InfoTip label={card.noun}>{ASSISTANT_TIPS.card}</InfoTip>
+        <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{plainText(card.title)}</span>
       </div>
-      {card.summary && <div style={{ padding: "8px 12px 0", fontSize: 12, color: c.muted }}>{card.summary}</div>}
+      {card.summary && <div style={{ padding: "8px 12px 0", fontSize: 12, color: c.muted }}><InlineMarkdown text={card.summary} /></div>}
 
       {card.notices.map((n) => (
-        <div key={n} role="status" style={{ margin: "8px 12px 0", fontSize: 12, color: statusInk.warn }}>{n}</div>
+        <div key={n} role="status" style={{ margin: "8px 12px 0", fontSize: 12, color: statusInk.warn }}><InlineMarkdown text={n} /></div>
       ))}
 
       {dupes.length > 0 && (
         <div style={{ margin: "8px 12px 0", display: "flex", flexDirection: "column", gap: 4 }}>
-          <div style={{ fontSize: 12, fontWeight: 650, color: statusInk.warn, display: "flex", alignItems: "center", gap: 4 }}>
-            Similar already exists <InfoTip label="similar records">{ASSISTANT_TIPS.cardDuplicates}</InfoTip>
-          </div>
+          <div style={{ fontSize: 12, fontWeight: 650, color: statusInk.warn }}>Similar already exists</div>
           {dupes.map((d) => (
             <div key={d.id} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12 }}>
               <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{d.label}</span>
@@ -139,11 +137,10 @@ export default function ConfirmCardView({ card, onOpen, onAsk }: {
           </label>
         ))}
         {hiddenCount > 0 && (
-          <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+          <div>
             <button className="bms-dock-chip" onClick={() => setShowAll(true)} style={{ ...btn, padding: "5px 10px", background: "transparent", border: `1px dashed ${c.line}`, color: c.muted }}>
               More fields ({hiddenCount})
             </button>
-            <InfoTip label="more fields">{ASSISTANT_TIPS.cardMore}</InfoTip>
           </div>
         )}
       </div>

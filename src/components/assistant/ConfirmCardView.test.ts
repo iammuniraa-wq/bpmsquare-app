@@ -3,8 +3,6 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import ConfirmCardView from "./ConfirmCardView";
 import { missingRequired, type ConfirmCard } from "@/lib/assistant/cards";
-import { ASSISTANT_TIPS } from "@/lib/assistant/tips";
-import { tipTextProblems } from "@/lib/infoTip";
 
 const card: ConfirmCard = {
   id: "c1", token: "t", action: "create", object: "account", noun: "account",
@@ -57,7 +55,17 @@ describe("the confirm card", () => {
     expect(missingRequired(card.fields, { name: "x", type: "direct" })).toEqual([]);
   });
 
-  it("its explanations fit the limit", () => {
-    for (const k of ["card", "cardDuplicates", "cardMore"] as const) expect(tipTextProblems(ASSISTANT_TIPS[k]), k).toEqual([]);
+  it("carries no 'i': the duplicate warning, the missing-field notice and the buttons are visible text (owner 2026-10-22)", () => {
+    expect(html).not.toContain('aria-label="About');
+  });
+
+  it("reads markdown in the summary and notices instead of printing the markers, and escapes markup", () => {
+    const md: ConfirmCard = { ...card, title: "**New** account", summary: "Create **Tesla Germany** <img src=x onerror=alert(1)>.", notices: ["Pick *one* of `these`."] };
+    const out = renderToStaticMarkup(createElement(ConfirmCardView, { card: md, onOpen: () => {}, onAsk: () => {} }));
+    expect(out).toContain("<strong>Tesla Germany</strong>");
+    expect(out).toContain("<em>one</em>");
+    expect(out).not.toContain("**");
+    expect(out).not.toContain("<img");
+    expect(out).toContain("&lt;img");
   });
 });
