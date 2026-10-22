@@ -245,6 +245,16 @@ owner adds it to the demo tenant's dashboard first (rule 10: demo before any cli
 layout placement). The dock card follows `ai_assistant`. A tenant without `ai_assistant` has no
 dock and no tile. Cost: one small call per person per day at most, plus refreshes.
 
+**Built (WP7, 2026-10-22), where it differs from the plan above:** code in `src/lib/briefing/*` (`rules.ts` row to
+candidate, `score.ts` the rubric, `yesterday.ts`, `load.ts` the queries, `compute.ts` cache and refresh, `store.ts`),
+routes `GET /api/ai/briefing` and `POST /api/ai/briefing/refresh`, `components/BriefingTile.tsx` (tile and dock card).
+Day boundary: `config.wfm.timezone` (the only time zone a workspace stores today), else UTC. "Tasks" are
+`journey_tasks` assigned to the person (the product has no other task object). Cases are **deferred**: `service_cases`
+has no creator or owner column, so "my cases" cannot be told from anyone's. Approver lines (supervisor queues, failed
+syncs, mentions) count at 0.6 and carry counts and age only. The storage table is its own migration
+(`0204_assistant_briefings.sql`); WP4's `assistant_actions` and `change_log.via` must use the next free number. The tile's
+explanations live in `src/lib/briefing/tips.ts`, held to the InfoTip limit by `briefing.test.ts`.
+
 ## 5. Integration points (suite rule: integrated, never standalone)
 
 | Area | What the smarter assistant does there |
