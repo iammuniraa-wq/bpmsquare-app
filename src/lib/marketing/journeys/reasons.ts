@@ -34,8 +34,8 @@ export const REASONS: Record<string, Def> = {
   no_email: { label: "The person has no email address", group: "person" },
   no_language: { label: "The newsletter has no language this person can read", group: "setup" },
   // setup
-  no_version: { label: "No newsletter version was chosen for this step", group: "setup" },
-  version_missing: { label: "The chosen newsletter version no longer exists", group: "setup" },
+  no_version: { label: "No newsletter was chosen for this step", group: "setup" },
+  version_missing: { label: "The chosen newsletter no longer exists", group: "setup" },
   studio_off: { label: "The Newsletter Studio is not switched on", group: "setup" },
   not_configured: { label: "Email sending is not set up yet", group: "setup" },
   journey_changed: { label: "The journey was changed and this step no longer exists", group: "setup" },

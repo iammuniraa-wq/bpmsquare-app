@@ -74,9 +74,12 @@ describe("the journey screen", () => {
     expect(html(props({ studioOn: false }))).toContain("The Newsletter Studio is not switched on for this workspace");
   });
 
-  it("the send step asks for a consent topic, not a subject", () => {
+  it("the send step asks for a newsletter by name and never asks for a topic or a version", () => {
     const out = html(props());
-    expect(out).toContain('aria-label="Consent topic"');
-    expect(out).toContain("Any consent topic");
+    expect(out).toContain('aria-label="Newsletter"');
+    expect(out).toContain("Choose a newsletter");
+    expect(out).not.toContain('aria-label="Consent topic"');
+    expect(out).not.toContain("kept newsletter version");
+    expect(out).not.toContain("Send a newsletter version");
   });
 });

@@ -24,17 +24,10 @@ const RichTextEditor = dynamic(() => import("@/components/RichTextEditor"), {
 });
 import TargetAudiencePicker, { type AccountLite } from "@/components/marketing/TargetAudiencePicker";
 import TemplatePicker from "@/components/marketing/TemplatePicker";
-import NewsletterSourceCard from "@/components/marketing/NewsletterSourceCard";
-import { AudiencePanel, SeeAsPerson } from "@/components/marketing/NewsletterAudience";
-import type { ComposeNewsletter } from "@/lib/newsletter/composeData";
 
-export default function MarketingComposeForm({ accounts, initialGroupId, newsletter }: { accounts: AccountLite[]; initialGroupId?: string; newsletter?: ComposeNewsletter | null }) {
+export default function MarketingComposeForm({ accounts, initialGroupId }: { accounts: AccountLite[]; initialGroupId?: string }) {
   const router = useRouter();
-  const readyLanguages = newsletter?.languages.filter((l) => l.ready).map((l) => l.lang) ?? [];
-  const [nlLanguages, setNlLanguages] = useState<string[]>(readyLanguages);
-  const [nlFallback, setNlFallback] = useState(readyLanguages.includes("en") ? "en" : readyLanguages[0] ?? "en");
-  const [nlTopic, setNlTopic] = useState<string | null>(newsletter?.topic ?? null);
-  const [name, setName] = useState(newsletter?.name ?? "");
+  const [name, setName] = useState("");
   const [templateId, setTemplateId] = useState<MarketingTemplateId | null>(null);
   const [subject, setSubject] = useState("");
   const [customMessage, setCustomMessage] = useState("");
@@ -58,9 +51,7 @@ export default function MarketingComposeForm({ accounts, initialGroupId, newslet
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name, subject,
-          ...(newsletter
-            ? { newsletter_version_id: newsletter.versionId, languages: nlLanguages, fallback_language: nlFallback, topic: nlTopic }
-            : templateId ? { template_id: templateId, custom_message: customMessage } : { html: body }),
+          ...(templateId ? { template_id: templateId, custom_message: customMessage } : { html: body }),
           account_types: [...types],
           include_account_ids: [...includeIds],
           exclude_account_ids: [...excludeIds],
@@ -82,7 +73,7 @@ export default function MarketingComposeForm({ accounts, initialGroupId, newslet
       backHref={ROUTES.marketing}
       backLabel="All campaigns"
       title="New Campaign"
-      subtitle={newsletter ? `From newsletter: ${newsletter.name} (v${newsletter.version})` : "Email · choose the audience and the newsletter or text"}
+      subtitle="Email · choose the audience and the text"
       onSubmit={(e) => { e.preventDefault(); void saveDraft(); }}
       saving={saving}
       saveLabel="Save draft"
@@ -95,23 +86,16 @@ export default function MarketingComposeForm({ accounts, initialGroupId, newslet
         </Field>
       </Card>
 
-      {newsletter ? (
-        <NewsletterSourceCard
-          newsletter={newsletter} languages={nlLanguages} onLanguages={setNlLanguages} fallback={nlFallback} onFallback={setNlFallback}
-          topic={nlTopic} onTopic={setNlTopic}
-        />
-      ) : (
-        <TemplatePicker
-          selectedId={templateId}
-          onSelect={setTemplateId}
-          subject={subject}
-          onSubjectChange={setSubject}
-          customMessage={customMessage}
-          onCustomMessageChange={setCustomMessage}
-        />
-      )}
+      <TemplatePicker
+        selectedId={templateId}
+        onSelect={setTemplateId}
+        subject={subject}
+        onSubjectChange={setSubject}
+        customMessage={customMessage}
+        onCustomMessageChange={setCustomMessage}
+      />
 
-      {!templateId && !newsletter && (
+      {!templateId && (
         <Card>
           <Field label="Subject" info={COMPOSE_TIPS.subject}>
             <Input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="e.g. Happy Diwali from {{company_name}}!" />
@@ -131,16 +115,6 @@ export default function MarketingComposeForm({ accounts, initialGroupId, newslet
         match={match} setMatch={setMatch}
         autoLoadGroupId={initialGroupId}
       />
-
-      {newsletter && (
-        <>
-          <AudiencePanel
-            newsletter={newsletter} languages={nlLanguages} fallback={nlFallback} topic={nlTopic}
-            audienceRule={() => ({ account_types: [...types], include_account_ids: [...includeIds], exclude_account_ids: [...excludeIds], manual_emails: [...manualEmails], filters, match })}
-          />
-          <SeeAsPerson newsletter={newsletter} languages={nlLanguages} fallback={nlFallback} topic={nlTopic} />
-        </>
-      )}
     </ObjectFormPage>
   );
 }

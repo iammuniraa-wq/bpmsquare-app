@@ -24,11 +24,12 @@ import {
 } from "@/lib/newsletter/types";
 import { ROUTES } from "@/lib/constants";
 import {
-  addLanguage, createNewsletter, deleteNewsletter, draftWithAi, keepVersion, loadTemplate, previewNewsletter, rewriteWithAi, saveAsTemplate, saveNewsletter,
+  addLanguage, createNewsletter, deleteNewsletter, draftWithAi, loadTemplate, previewNewsletter, rewriteWithAi, saveAsTemplate, saveNewsletter,
   type PreviewData,
 } from "./studioApi";
 import { AddLanguage, BlockEditor, BlockList, CheckChips, LanguageRows, cx } from "./panels";
 import PreviewFrame from "./PreviewFrame";
+import SendPanel from "./SendPanel";
 import LanguageCompare from "./LanguageCompare";
 import Tour, { type TourStep } from "@/components/marketing/Tour";
 import styles from "./newsletter.module.css";
@@ -107,6 +108,7 @@ export default function NewsletterStudio(props: StudioProps) {
   const [card, setCard] = useState<UtilityCard | null>(null);
   const [tplName, setTplName] = useState("");
   const [tplCategory, setTplCategory] = useState<NewsletterCategory>(initial.category);
+  const [sendOpen, setSendOpen] = useState(false);
 
   const [preview, setPreview] = useState<PreviewData | null>(null);
   const [previewing, setPreviewing] = useState(true);
@@ -286,14 +288,15 @@ export default function NewsletterStudio(props: StudioProps) {
     toast("Saved as a template: it now appears beside the built-in designs when you start a newsletter.");
   }
 
-  async function onUseInCampaign() {
-    const savedId = await save(true, false);
-    if (!savedId) return;
-    const r = await keepVersion(savedId);
-    if (!r.ok) { setError(r.error); return; }
-    const waiting = doc.languages.filter((l) => pendingCount(l, doc.blocks) > 0).map((l) => languageDef(l.lang)?.name ?? l.lang);
-    toast(`Version ${r.data.version} kept.${waiting.length ? ` ${waiting.join(", ")} still has lines to check, so the campaign can send the other languages until then.` : ""}`);
-    router.push(r.data.next);
+  /** The panel sends what is saved, so the design is saved first. A first save does not move the page yet: that would remount the screen under the open panel. */
+  async function openSend() {
+    if (!(await save(true, false))) return;
+    setSendOpen(true);
+  }
+
+  function closeSend() {
+    setSendOpen(false);
+    if (!initial.id && id) router.replace(ROUTES.marketingNewsletter(id));
   }
 
   async function duplicate() {
@@ -342,7 +345,7 @@ export default function NewsletterStudio(props: StudioProps) {
     { target: "nlStage", text: "Check this marks the lines the translation was unsure about. Accept or edit each one; a language can be sent once every line is checked.", before: () => { const other = doc.languages.find((l) => l.lang !== SOURCE_LANGUAGE); if (other) setLang(other.lang); } },
     { target: "nlDevice", text: "See it as a phone or a desktop, light or dark, exactly as it is built for email programs.", before: () => { setDev("phone"); } },
     { target: "nlHeadActions", text: "In the ⋯ menu, Save as template keeps this design to start from next time, beside the built-in designs. Versions and the email HTML are there too.", before: () => { setDev("desktop"); setLang(SOURCE_LANGUAGE); } },
-    { target: "nlHeadActions", text: "Use in a campaign hands the design to a campaign, which picks the audience and the languages. Each person gets their own. On a phone it is the button at the bottom.", before: () => { setCard(null); } },
+    { target: "nlHeadActions", text: "Send opens one panel: pick who gets it and send. Each person gets their own language, and only people who agreed to this topic are emailed. On a phone it is the button at the bottom.", before: () => { setCard(null); } },
   ];
 
   const langNames = doc.languages.filter((l) => l.lang !== SOURCE_LANGUAGE).map((l) => languageDef(l.lang)?.name ?? l.lang);
@@ -350,7 +353,7 @@ export default function NewsletterStudio(props: StudioProps) {
   const subtitleBits = [
     initial.isTemplate ? "Template" : category,
     langNames.length ? `English + ${langNames.join(", ")}` : "English",
-    initial.versions.length ? `${initial.versions.length} version${initial.versions.length > 1 ? "s" : ""} kept` : "not yet used in a campaign",
+    initial.versions.length ? `${initial.versions.length} version${initial.versions.length > 1 ? "s" : ""}` : "never sent",
   ];
 
   const menuItems: MenuItem[] = [
@@ -375,7 +378,7 @@ export default function NewsletterStudio(props: StudioProps) {
             <Tour steps={tour} storageKey="bpm.newsletter.tour.step" buttonId="nlTourBtn" />
             <span className={styles.headBtns}>
               <Button variant={initial.isTemplate ? "primary" : undefined} disabled={!canEdit || saving} loading={saving} onClick={() => void save()}>Save</Button>
-              {!initial.isTemplate && <Button id="nlCampaignBtn" variant="primary" disabled={!canEdit || saving} onClick={() => void onUseInCampaign()}>Use in a campaign</Button>}
+              {!initial.isTemplate && <Button id="nlCampaignBtn" variant="primary" disabled={!canEdit || saving} onClick={() => void openSend()}>Send...</Button>}
             </span>
             <MoreMenu items={menuItems} />
           </span>
@@ -405,8 +408,8 @@ export default function NewsletterStudio(props: StudioProps) {
         <div className={styles.utility}>
           <div className={styles.utilHead}><b>Versions</b><Button size="sm" variant="quiet" onClick={() => setCard(null)}>Close</Button></div>
           {initial.versions.length === 0
-            ? <p className={styles.note}>No versions yet. Use in a campaign keeps one.</p>
-            : initial.versions.map((v) => <p key={v.id} className={styles.note}>Version {v.version} · kept {new Date(v.created_at).toLocaleString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}</p>)}
+            ? <p className={styles.note}>No versions yet. One is kept each time you send.</p>
+            : initial.versions.map((v) => <p key={v.id} className={styles.note}>Version {v.version} · {new Date(v.created_at).toLocaleString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}</p>)}
         </div>
       )}
       {card === "html" && (
@@ -597,8 +600,16 @@ export default function NewsletterStudio(props: StudioProps) {
 
       <div className={styles.bar}>
         <Button disabled={!canEdit || saving} loading={saving} onClick={() => void save()}>Save</Button>
-        {!initial.isTemplate && <Button variant="primary" disabled={!canEdit || saving} onClick={() => void onUseInCampaign()}>Use in a campaign</Button>}
+        {!initial.isTemplate && <Button variant="primary" disabled={!canEdit || saving} onClick={() => void openSend()}>Send...</Button>}
       </div>
+      {sendOpen && id && (
+        <SendPanel
+          newsletterId={id} name={name} onClose={closeSend} onSent={() => router.refresh()}
+          topicLabel={topics.find((t) => t.key === topic)?.label ?? "Any topic"}
+          languageNames={doc.languages.map((l) => languageDef(l.lang)?.name ?? l.lang)}
+          waiting={doc.languages.filter((l) => pendingCount(l, doc.blocks) > 0).map((l) => languageDef(l.lang)?.name ?? l.lang)}
+        />
+      )}
       {toastText && <div className={styles.toast} role="status">{toastText}</div>}
     </div>
   );

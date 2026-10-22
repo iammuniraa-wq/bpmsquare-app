@@ -191,3 +191,17 @@ textarea.field { min-height: 84px; resize: vertical; }
 .healthList { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; justify-items: start; }
 .healthItem { display: grid; gap: 3px; justify-items: start; }
 .healthFix { font-size: 12px; color: var(--hint); line-height: 1.4; padding-inline-start: 4px; }
+
+/* Send panel: a result box that updates as the audience changes, and a one-off block behind More. */
+.res { background: var(--panel2); border-radius: 10px; padding: 12px 14px; display: grid; gap: 8px; min-width: 0; }
+.resBig { font-size: 17px; font-weight: 700; color: var(--ink); overflow-wrap: anywhere; }
+.leftOut { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; font-size: 13px; color: var(--ink); }
+.leftOut li { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+.sendMore { display: grid; gap: 8px; }
+.sendMore .chips { gap: 4px 14px; }
+.moreBtn { font: inherit; font-size: 12.5px; font-weight: 600; color: var(--studio-accent, var(--accent)); background: transparent; border: 0; padding: 10px 0; min-height: 44px; cursor: pointer; }
+.moreBtn:focus-visible { outline: 2px solid var(--studio-accent, var(--accent)); outline-offset: 2px; }
+@media (max-width: 780px) {
+  .chk { min-height: 44px; align-items: center; }
+  .sendCtl { min-height: 44px; font-size: 16px; }
+}

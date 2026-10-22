@@ -133,3 +133,19 @@ export function fakeDb(seed: Record<string, Row[]> = {}, opts: { missingTables?:
   const client = { from: (table: string) => new Q(table) } as unknown as SupabaseClient;
   return { client, tables, queries };
 }
+
+/** Wraps a fake client so rows inserted into the named tables get UUID ids: code that validates an id with isUuid() refuses the fake's "id-1". */
+export function uuidIds(client: SupabaseClient, tables: string[]): SupabaseClient {
+  let n = 0;
+  const make = () => `00000000-0000-4000-8000-${String(++n).padStart(12, "0")}`;
+  return {
+    from: (table: string) => {
+      const q = client.from(table) as unknown as { insert: (r: Row | Row[]) => unknown };
+      if (tables.includes(table)) {
+        const insert = q.insert.bind(q);
+        q.insert = (r) => insert(Array.isArray(r) ? r.map((x) => ({ id: make(), ...x })) : { id: make(), ...r });
+      }
+      return q;
+    },
+  } as unknown as SupabaseClient;
+}

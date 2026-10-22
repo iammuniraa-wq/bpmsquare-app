@@ -14,7 +14,7 @@ import { NEWSLETTER_TIPS } from "@/lib/newsletter/tips";
 import { tipTextProblems } from "@/lib/infoTip";
 
 // A render smoke test: the screen must produce its markup from real props without throwing, with the four option
-// groups each carrying an "i" (their explanations are not printed), and Save / Use in a campaign in the header.
+// groups each carrying an "i" (their explanations are not printed), and Save / Send... in the header.
 
 const eid = BUILT_IN_DESIGNS.find((d) => d.id === "festival-eid")!;
 const props = (over: Partial<StudioProps["initial"]> = {}, extra: Partial<StudioProps> = {}): StudioProps => ({
@@ -60,10 +60,11 @@ describe("the studio screen", () => {
     for (const t of ["Desktop", "Phone", "Light", "Dark", "Show me how"]) expect(out).toContain(t);
   });
 
-  it("puts Save and Use in a campaign in the header and the phone's bottom bar, with Save as template behind the more menu", () => {
+  it("puts Save and Send... in the header and the phone's bottom bar, with Save as template behind the more menu", () => {
     const out = html(props());
-    expect(out).toContain("Use in a campaign");
-    expect(out.match(/Use in a campaign/g)!.length).toBe(2);
+    expect(out).toContain("Send...");
+    expect(out.match(/Send\.\.\./g)!.length).toBe(2);
+    expect(out).not.toContain("Use in a campaign");
     expect(out).toContain('aria-label="More actions"');
     expect(out).not.toContain("Save as template");
   });
@@ -73,7 +74,7 @@ describe("the studio screen", () => {
     expect(out).toMatch(/<span class="[^"]*">4<\/span>|>4</);
   });
 
-  it("a template cannot be used in a campaign", () => {
+  it("a template cannot be sent", () => {
     expect(html(props({ isTemplate: true }))).not.toContain('id="nlCampaignBtn"');
     expect(html(props())).toContain('id="nlCampaignBtn"');
   });

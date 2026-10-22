@@ -16,5 +16,7 @@ export const NEWSLETTER_TIPS = {
   health: "Fixed rules that run every time, never opinions or a score. Each amber item says what to change.",
   preview: "Built exactly as email programs show it: tables, plain fonts, no scripts. Phone and Dark show a small screen or inverted colours.",
   preheader: "The short line an inbox shows after the subject.",
+  sendAudience: "Consent is still checked for each person, so anyone who has not agreed to this topic is left out. Build saved audiences in Segmentation.",
+  sendMore: "Narrow a one-off send to some account types, or add addresses that are not in your accounts. A saved audience uses its own rules.",
   html: "Generated from the blocks. Every text is escaped, links are checked, and nothing you type is sent as HTML.",
 } as const;
