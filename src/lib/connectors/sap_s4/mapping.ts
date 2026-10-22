@@ -176,16 +176,18 @@ export function needsExpand(key: SapEntityKey, fieldMap: Record<string, string>)
   return Object.values(fieldMap).some((s) => s.startsWith(prefix));
 }
 
-/** The columns a pull needs. Undefined (read everything) when a source is not a plain name, as the system would refuse the rest. */
+/** The columns a pull needs. Undefined (read everything) when a source is not a plain name, as the system would refuse
+ *  the rest -- and whenever the map reads an expanded part: how SAP Gateway combines $select with a nested $expand
+ *  (to_BusinessPartnerAddress/to_EmailAddress) differs between releases, and a dropped expansion would silently leave
+ *  every address blank. Whole rows cost bandwidth only; a missing part costs data. */
 export function selectFields(key: SapEntityKey, fieldMap: Record<string, string>): string[] | undefined {
   const p = SAP_PRESETS[key];
+  if (needsExpand(key, fieldMap)) return undefined;
   const cols = new Set<string>([p.id_field, p.key_field, p.modified_field]);
   for (const s of Object.values(fieldMap)) {
-    if (!SAP_FIELD_RE.test(s)) return undefined;
-    if (s.includes(".")) { if (s.startsWith(`${p.prefix}.`)) continue; return undefined; }
+    if (!SAP_FIELD_RE.test(s) || s.includes(".")) return undefined;
     cols.add(s);
   }
-  if (needsExpand(key, fieldMap)) cols.add(p.prefix === "address" ? "to_BusinessPartnerAddress" : "to_Description");
   return [...cols];
 }
 

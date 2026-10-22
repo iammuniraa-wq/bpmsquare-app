@@ -172,8 +172,10 @@ describe("mapping: dates, positions, flattening", () => {
     expect(needsExpand("customers", SAP_PRESETS.customers.field_map)).toBe(true);
     expect(needsExpand("customers", { name: "BusinessPartnerFullName" })).toBe(false);
     expect(selectFields("customers", { name: "BusinessPartnerFullName" })).toEqual(["BusinessPartner", "LastChangeDate", "BusinessPartnerFullName"]);
-    expect(selectFields("customers", SAP_PRESETS.customers.field_map)).toContain("to_BusinessPartnerAddress");
-    expect(selectFields("products", SAP_PRESETS.products.field_map)).toEqual(expect.arrayContaining(["Product", "BaseUnit", "to_Description"]));
+    // a map that reads an expanded part asks for whole rows: a $select that loses the nested expansion would lose the data
+    expect(selectFields("customers", SAP_PRESETS.customers.field_map)).toBeUndefined();
+    expect(selectFields("products", SAP_PRESETS.products.field_map)).toBeUndefined();
+    expect(selectFields("products", { name: "Product", sku: "Product" })).toEqual(["Product", "LastChangeDate"]);
   });
 
   it("builds an id filter that no typed value can break out of", () => {
@@ -369,6 +371,7 @@ describe("pull: customers", () => {
     expect(q.get("$filter")).toBe("(Customer ne '')");
     expect(q.get("$orderby")).toBe("BusinessPartner asc");
     expect(q.get("$expand")).toContain("to_BusinessPartnerAddress/to_EmailAddress");
+    expect(q.get("$select")).toBeNull();
     expect(f.calls[0].headers.get("authorization")).toBe(`Basic ${Buffer.from(`BPM_USER:${SECRET}`).toString("base64")}`);
     expect(lastRun(db, "customers")).toMatchObject({ connector_id: "sap_s4", direction: "pull", status: "succeeded", watermark: "d|2026-10-02" });
   });

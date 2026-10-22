@@ -139,7 +139,11 @@ First SAP step, on the frame above, behind `integration_middleware`; nothing is 
   suppliers, products (`API_PRODUCT_SRV/A_Product` with the English description) to products. The key is the readable
   SAP number, the pull is incremental by `LastChangeDate` (position `d|day`, or `k|...` while a capped scan continues),
   a content hash says "unchanged", the run row is the lock, and each run writes one Monitor message
-  (`connector_id = sap_s4`). Contacts are later.
+  (`connector_id = sap_s4`). Contacts are later. A map that reads an expanded part (the address, the description)
+  asks for whole rows, no `$select`: a nested expansion dropped by a `$select` would silently leave the part blank.
+- **Verified live (sandbox):** `A_BusinessPartner` with `$select` and the API key answers the shape the fake server
+  serves. **Not verified live:** the pull requests themselves (`$filter`, nested `$expand`, `$orderby`, paging) and
+  `A_Product` — `scripts/sap-s4-smoke.mjs` sends exactly those and says what came back.
 - **Scope:** structured attributes of the main entity set only (sales area and country are not offered); the panel says so.
 - **Frame:** `src/lib/connectors/adapter.ts` (`ErpAdapter`), implemented by `sapAdapter()`; Dynamics is not rewritten.
 - **Needs in SAP:** Communication Arrangements for SAP_COM_0008 (Business Partner, Customer and Supplier Integration)

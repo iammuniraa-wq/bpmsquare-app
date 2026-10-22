@@ -76,4 +76,22 @@ await step("Products (first row)", async () => {
 });
 await step("Products total", async () => await count("API_PRODUCT_SRV", "A_Product", "IsMarkedForDeletion eq false"));
 
+// The exact requests a pull makes (filter, expansion, key order, a page of 2): proves the system accepts the shape and
+// that the expanded parts come back, which the Test button does not check. Sample numbers and names only are printed.
+const q = (parts) => Object.entries(parts).map(([k, v]) => `${k}=${encodeURIComponent(v)}`).join("&");
+await step("Customers pull shape (2 rows)", async () => {
+  const j = JSON.parse(await get("API_BUSINESS_PARTNER", `A_BusinessPartner?${q({
+    $filter: "(Customer ne '')", $expand: "to_BusinessPartnerAddress/to_EmailAddress,to_BusinessPartnerAddress/to_PhoneNumber", $orderby: "BusinessPartner asc", $top: "2", $format: "json",
+  })}`));
+  const rows = j.d?.results ?? [];
+  const withAddress = rows.filter((r) => (r.to_BusinessPartnerAddress?.results ?? []).length > 0).length;
+  return `ok (${rows.map((r) => `${r.BusinessPartner} ${r.BusinessPartnerFullName ?? ""}`).join("; ")}; ${withAddress} with an address)`;
+});
+await step("Products pull shape (2 rows)", async () => {
+  const j = JSON.parse(await get("API_PRODUCT_SRV", `A_Product?${q({ $filter: "(IsMarkedForDeletion eq false)", $expand: "to_Description", $orderby: "Product asc", $top: "2", $format: "json" })}`));
+  const rows = j.d?.results ?? [];
+  const named = rows.filter((r) => (r.to_Description?.results ?? []).some((d) => d.Language === "EN")).length;
+  return `ok (${rows.map((r) => r.Product).join("; ")}; ${named} with an English description)`;
+});
+
 process.exit(failed ? 1 : 0);
