@@ -110,8 +110,9 @@ export async function executeCard(ctx: ExecCtx, body: ActBody): Promise<ExecOutc
     actionKey: def.key, route: def.route, card: shown, params: auditValues(def, values),
   });
   if (claim.state === "done") return refuse(409, "already_done", "This card has already been used.", { result: claim.result });
+  if (claim.state === "unavailable") return refuse(503, "unavailable", "The assistant cannot make changes yet: its setup is not finished in this workspace. Use the New form instead.");
   if (claim.state === "busy") return refuse(409, "in_progress", "This card is already being processed.");
-  const handle = { cardId, tenantId: ctx.tenantId, userId: ctx.userId, durable: claim.durable };
+  const handle = { cardId, tenantId: ctx.tenantId, userId: ctx.userId };
 
   try {
     const { POST } = await def.load();

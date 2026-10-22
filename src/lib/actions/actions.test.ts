@@ -42,7 +42,6 @@ import type { ConfirmCard } from "@/lib/assistant/cards";
 import { actionFor } from "./registry";
 import { buildCard } from "./card";
 import { executeCard, type ExecCtx } from "./execute";
-import { resetLedgerMemory } from "./ledger";
 import { signToken, verifyToken } from "./token";
 import { currentVia, runVia } from "./via";
 import { POST as accountsPost } from "@/app/api/accounts/route";
@@ -100,7 +99,6 @@ const press = (card: ConfirmCard, values?: Record<string, unknown>, extra: Recor
 const rows = (t: string) => S.db.tables[t] ?? [];
 
 beforeEach(() => {
-  resetLedgerMemory();
   resetViaColumnCache();
   vi.spyOn(console, "error").mockImplementation(() => {});
 });
@@ -359,14 +357,23 @@ describe("one execution per card", () => {
     expect(rows("accounts").filter((r) => r.name === "Tesla Germany")).toHaveLength(1);
   });
 
-  it("still single-use in this process while the audit table is not there yet", async () => {
+  it("creates nothing while the audit table is not there yet (audit 2026-10-22 L3): a plain 503, no record, no history row", async () => {
     world({ missing: ["assistant_actions"] });
     const { card } = await propose({ name: "Tesla Germany", type: "direct" });
-    expect((await press(card)).status).toBe(200);
-    expect(rows("assistant_actions")).toHaveLength(0);
-    expect(rows("change_log")).toHaveLength(1);
-    expect((await press(card)).status).toBe(409);
-    expect(rows("accounts").filter((r) => r.name === "Tesla Germany")).toHaveLength(1);
+    for (let i = 0; i < 2; i++) {
+      const out = await press(card);
+      expect(out).toMatchObject({ status: 503, body: { ok: false, code: "unavailable" } });
+      expect(String(out.body.error)).toMatch(/cannot make changes yet/);
+    }
+    expect(rows("accounts").filter((r) => r.name === "Tesla Germany")).toHaveLength(0);
+    expect(rows("change_log")).toHaveLength(0);
+  });
+
+  it("creates nothing when the ledger insert fails for another reason", async () => {
+    world({ failInsert: (table) => (table === "assistant_actions" ? { message: "connection reset", code: "08006" } : null) });
+    const { card } = await propose({ name: "Tesla Germany", type: "direct" });
+    expect((await press(card)).status).toBe(503);
+    expect(rows("accounts").filter((r) => r.name === "Tesla Germany")).toHaveLength(0);
   });
 
   it("keeps the change-history row when the 'via' column is not there yet", async () => {
