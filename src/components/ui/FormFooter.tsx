@@ -20,11 +20,11 @@ export default function FormFooter({
     <div className="bpm-form-footer">
       {left && <div className="bpm-form-footer-left">{left}</div>}
       {cancelHref ? (
-        <Button href={cancelHref} variant="secondary">Cancel</Button>
+        <Button href={cancelHref} variant="secondary" data-guide="form.cancel">Cancel</Button>
       ) : (
-        <Button variant="secondary" onClick={onCancel} disabled={saving}>Cancel</Button>
+        <Button variant="secondary" onClick={onCancel} disabled={saving} data-guide="form.cancel">Cancel</Button>
       )}
-      <Button type="submit" variant="primary" loading={saving} disabled={disabled}>
+      <Button type="submit" variant="primary" loading={saving} disabled={disabled} data-guide="form.save">
         {saving ? "Saving…" : saveLabel}
       </Button>
     </div>

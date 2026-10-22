@@ -75,7 +75,7 @@ function StatusChanger({ quoteId, currentStatus, statuses, onChanged }: {
   }
 
   return (
-    <div ref={ref} style={{ position: "relative", display: "inline-block" }}>
+    <div ref={ref} data-guide="quote.status" style={{ position: "relative", display: "inline-block" }}>
       <button
         onClick={() => setOpen((o) => !o)}
         disabled={saving}
@@ -213,7 +213,7 @@ function OutcomeChanger({ quoteId, currentOutcome, currentStatus, statuses, onCh
   }
 
   return (
-    <div ref={ref} style={{ position: "relative", display: "inline-block" }}>
+    <div ref={ref} data-guide="quote.outcome" style={{ position: "relative", display: "inline-block" }}>
       <button
         onClick={() => setOpen((o) => !o)}
         disabled={saving}
@@ -1016,6 +1016,7 @@ export default function QuoteDetailLayout({ quote, account, contact, lines, work
                 if (res.ok) { const j = await res.json(); router.push(ROUTES.invoice(j.id)); }
               }}
               disabled={converting}
+              data-guide="quote.convert_invoice"
               style={{ display: "inline-flex", alignItems: "center", gap: 5, background: "var(--teal)", color: "#fff", borderRadius: 7, padding: "6px 14px", fontSize: 12.5, fontWeight: 600, border: "none", cursor: converting ? "wait" : "pointer" }}
             >
               {converting ? "Converting…" : "⊟ Convert to Invoice"}
@@ -1030,6 +1031,7 @@ export default function QuoteDetailLayout({ quote, account, contact, lines, work
           {!adaptMode && (
             <div ref={moreRef} style={{ position: "relative" }}>
               <button
+                data-guide="quote.more"
                 onClick={() => setMoreOpen((o) => !o)}
                 style={{ display: "inline-flex", alignItems: "center", gap: 5, background: c.panel2, color: c.ink, border: `1px solid ${c.line}`, borderRadius: 7, padding: "6px 14px", fontSize: 12.5, fontWeight: 500, cursor: "pointer" }}
               >
@@ -1051,6 +1053,7 @@ export default function QuoteDetailLayout({ quote, account, contact, lines, work
                     href={`${ROUTES.quotationPrint(quote.id)}?download=1`}
                     target="_blank"
                     rel="noopener"
+                    data-guide="quote.menu_pdf"
                     onClick={() => setMoreOpen(false)}
                     style={{ display: "flex", alignItems: "center", gap: 10, padding: "11px 16px", fontSize: 13, color: c.ink, textDecoration: "none", borderBottom: `1px solid ${c.line}` }}
                   >
@@ -1070,6 +1073,7 @@ export default function QuoteDetailLayout({ quote, account, contact, lines, work
                     <span style={{ fontSize: 15 }}>⊙</span> Adapt layout
                   </button>
                   <button
+                    data-guide="quote.menu_copy"
                     onClick={async () => {
                       setMoreOpen(false);
                       setCopying(true);
@@ -1082,6 +1086,7 @@ export default function QuoteDetailLayout({ quote, account, contact, lines, work
                     <span style={{ fontSize: 15 }}>⎘</span> {copying ? "Copying…" : "Copy quote"}
                   </button>
                   <button
+                    data-guide="quote.menu_email"
                     onClick={() => { setMoreOpen(false); setComposeOpen(true); }}
                     disabled={emailState === "sent"}
                     style={{
@@ -1100,6 +1105,7 @@ export default function QuoteDetailLayout({ quote, account, contact, lines, work
                       href={waLink}
                       target="_blank"
                       rel="noopener"
+                      data-guide="quote.menu_whatsapp"
                       onClick={() => setMoreOpen(false)}
                       style={{ display: "flex", alignItems: "center", gap: 10, padding: "11px 16px", fontSize: 13, color: c.ink, textDecoration: "none", borderBottom: `1px solid ${c.line}` }}
                     >
@@ -1129,6 +1135,7 @@ export default function QuoteDetailLayout({ quote, account, contact, lines, work
           {(["overview", "versions"] as const).map((tab) => (
             <button
               key={tab}
+              data-guide={`tab:${tab}`}
               onClick={() => setActiveTab(tab)}
               style={{
                 padding: "8px 16px", fontSize: 13, fontWeight: 600, background: "none", border: "none",

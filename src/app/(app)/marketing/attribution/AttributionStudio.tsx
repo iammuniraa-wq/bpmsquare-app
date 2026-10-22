@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import PageHeader from "@/components/PageHeader";
 import Button from "@/components/ui/Button";
 import Tour, { type TourStep } from "@/components/marketing/Tour";
+import { withBefore } from "@/lib/studio/tourSteps";
+import { ATTRIBUTION_TOUR } from "@/lib/marketing/attribution/tourSteps";
 import { Group, cx, studio as styles } from "@/components/marketing/StudioKit";
 import { formatMoney, type CurrencyDef } from "@/lib/currency";
 import {
@@ -52,12 +54,12 @@ export default function AttributionStudio({ by, model, mode, rows, computedAt, d
   const updated = computedAt ? new Date(computedAt).toLocaleString("en-GB", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) : null;
   const toggle = (s: Sec) => setOpen((o) => (o === s ? null : s));
 
-  const tour: TourStep[] = [
-    { target: "bySec", text: "Choose what you want to look at: campaigns, newsletters, forms, journeys, WhatsApp templates or events." },
-    { target: "modelSec", text: "Choose who gets the credit for starting a deal. First touch, last touch and an even share answer different questions, so try all three." },
-    { target: "modeSec", text: "Choose what counts as a touch. By default only something a person did counts, because being sent a message is not influence." },
-    { target: "attCanvas", text: "Here is the answer. Read the notes under the table: they say what these figures can and cannot tell you." },
-  ];
+  const tour: TourStep[] = withBefore(ATTRIBUTION_TOUR, [
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+  ]);
 
   return (
     <div className={styles.accent}>

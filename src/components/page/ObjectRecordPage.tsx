@@ -66,7 +66,7 @@ export default function ObjectRecordPage({
       <TabTitle title={tabTitle ?? title} />
 
       <div style={{ marginBottom: 8 }}>
-        <Link href={backHref} className="bpm-backlink">
+        <Link href={backHref} className="bpm-backlink" data-guide="record.back">
           ← {backLabel}
         </Link>
       </div>
@@ -77,7 +77,7 @@ export default function ObjectRecordPage({
         badge={status}
         action={(primaryAction || menu) ? (
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-            {primaryAction}
+            {primaryAction && <span data-guide="record.primary" style={{ display: "inline-flex" }}>{primaryAction}</span>}
             {menu}
           </div>
         ) : undefined}

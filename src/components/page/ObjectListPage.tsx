@@ -203,7 +203,7 @@ export default function ObjectListPage<T>({
         action={(newHref || newAction || (menuItems && menuItems.length > 0)) ? (
           <>
             {menuItems && menuItems.length > 0 && <MoreMenu items={menuItems} />}
-            {newAction ?? (newHref && <Button href={newHref} variant="primary">+ New {newLabel}</Button>)}
+            {newAction ?? (newHref && <Button href={newHref} variant="primary" data-guide="list.new">+ New {newLabel}</Button>)}
           </>
         ) : undefined}
       />

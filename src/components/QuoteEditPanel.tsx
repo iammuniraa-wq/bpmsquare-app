@@ -56,6 +56,7 @@ export default function QuoteEditPanel({ quote, quoteStatuses = DEFAULT_QUOTE_ST
       {isEditable && (
         <Link
           href={ROUTES.quotationEdit(quote.id)}
+          data-guide="quote.edit"
           style={{
             display: "inline-flex", alignItems: "center", gap: 5, background: c.accent, color: "#fff",
             border: "none", borderRadius: 7, padding: "6px 14px",
@@ -67,6 +68,7 @@ export default function QuoteEditPanel({ quote, quoteStatuses = DEFAULT_QUOTE_ST
       )}
       <button
         type="button"
+        data-guide="quote.new_version"
         onClick={createVersion}
         disabled={saving}
         title="Create an editable copy as a new version. This version becomes read-only once it exists."
