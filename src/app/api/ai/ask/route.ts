@@ -27,6 +27,8 @@ type Access = {
   perms: Awaited<ReturnType<typeof resolvePermissions>>;
   features: Record<string, boolean | undefined>;
   budget: number;
+  /** The workspace role. A member with no Business Role is unrestricted for data (perms.unrestricted) but is not an admin. */
+  isAdmin: boolean;
   /** Platform flag, the assistant it hangs off and the workspace's own external-calls policy, folded into one answer. */
   webEnabled: boolean;
 };
@@ -50,6 +52,7 @@ async function resolveAccess(): Promise<Access | NextResponse> {
   const config = (tenant?.config ?? {}) as Partial<TenantConfig>;
   return {
     supabase, tenantId, userId, perms, features, budget: resolveMonthlyBudget(config.ai_assistant?.monthly_token_budget),
+    isAdmin: role === "admin",
     webEnabled: webAvailability(features, config).enabled,
   };
 }
@@ -61,13 +64,13 @@ async function resolveAccess(): Promise<Access | NextResponse> {
 export async function GET(request: NextRequest) {
   const access = await resolveAccess();
   if (access instanceof NextResponse) return access;
-  const { tenantId, userId, perms, features, budget } = access;
+  const { tenantId, userId, perms, features, budget, isAdmin } = access;
 
   const route = request.nextUrl.searchParams.get("route");
   const [used, page, screen] = await Promise.all([
     monthlyTokensUsed(tenantId).catch(() => 0),
     describePage(createAdminSupabase(), { tenantId, perms, features }, userId, route).catch(() => ({ context: null, suggestions: [] })),
-    resolveScreen(route, screenAccessFor(perms, features, perms.unrestricted)).catch(() => null),
+    resolveScreen(route, screenAccessFor(perms, features, isAdmin)).catch(() => null),
   ]);
   return NextResponse.json({
     capabilities: capabilityList(perms),
@@ -86,7 +89,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const access = await resolveAccess();
   if (access instanceof NextResponse) return access;
-  const { supabase, tenantId, userId, perms, features, budget, webEnabled } = access;
+  const { supabase, tenantId, userId, perms, features, budget, isAdmin, webEnabled } = access;
 
   const body = await request.json().catch(() => null);
   const guideTask = typeof body?.guideTask === "string" && /^[a-z0-9_]{1,40}$/.test(body.guideTask) ? body.guideTask : null;
@@ -124,7 +127,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const reply = await askAssistant(history, {
-      supabase, tenantId, userId, perms, currency, features, isAdmin: perms.unrestricted, route, meter, guideTask,
+      supabase, tenantId, userId, perms, currency, features, isAdmin: perms.unrestricted, isWorkspaceAdmin: isAdmin, route, meter, guideTask,
       web: webEnabled ? { enabled: true, userId, allow: allowWeb, consentQuery } : undefined,
     });
     return NextResponse.json({

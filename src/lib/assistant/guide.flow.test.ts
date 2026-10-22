@@ -101,6 +101,19 @@ describe("the screen reaches the prompt, filtered for the caller", () => {
     expect(v.slice(v.indexOf("NOT AVAILABLE"))).toMatch(/quote\.edit \| Edit quote: your role has no edit grant on Quotations/);
   });
 
+  it("a member with no Business Role (unrestricted data, not an admin) gets no admin-only screen; a workspace admin does (audit 2026-10-22 L2)", async () => {
+    const member = setup({ route: "/settings/webhooks", features: { ...WITHOUT_INVOICES, webhooks_library: true } });
+    member.ctx.isWorkspaceAdmin = false;
+    await askAssistant(ask("how do I add a webhook?"), member.ctx);
+    expect(volatile(member.params[0])).toContain("No screen knowledge for this page");
+    expect(toolNames(member.params[0])).not.toContain("guide");
+
+    const admin = setup({ route: "/settings/webhooks", features: { ...WITHOUT_INVOICES, webhooks_library: true } });
+    admin.ctx.isWorkspaceAdmin = true;
+    await askAssistant(ask("how do I add a webhook?"), admin.ctx);
+    expect(volatile(admin.params[0])).toContain("<screen_guide>");
+  });
+
   it("a page without a manifest says so and offers no guide tool", async () => {
     const s = setup({ route: "/no/such/screen" });
     await askAssistant(ask("how do I do this?"), s.ctx);

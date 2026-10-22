@@ -8,17 +8,20 @@ const state = vi.hoisted(() => ({
   features: {} as Record<string, boolean>,
   config: {} as Record<string, unknown>,
   seen: [] as Record<string, unknown>[],
+  role: "admin" as "admin" | "member",
+  screenAdmin: [] as boolean[],
 }));
 
 vi.mock("@/lib/supabase-server", () => {
   const tenants = { select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: { features: state.features, config: state.config } }) }) }) };
   return {
-    requireTenantUser: async () => ({ supabase: { from: () => tenants }, tenantId: "t-1", userId: "u-1", role: "admin" }),
+    requireTenantUser: async () => ({ supabase: { from: () => tenants }, tenantId: "t-1", userId: "u-1", role: state.role }),
     createAdminSupabase: () => ({}),
   };
 });
 vi.mock("@/lib/permissions", () => ({ resolvePermissions: async () => ({ unrestricted: true, grants: new Map() }) }));
 vi.mock("@/lib/tenant", () => ({ getTenantCurrency: async () => ({ code: "SAR", symbol: "SAR", grouping: "standard" }) }));
+vi.mock("@/lib/assistant/screens", () => ({ resolveScreen: async (_r: unknown, a: { isAdmin: boolean }) => { state.screenAdmin.push(a.isAdmin); return null; } }));
 vi.mock("@/lib/ai/structured", () => ({ allowanceFor: vi.fn(), logUsage: vi.fn(), monthlyTokensUsed: async () => 0 }));
 vi.mock("@/lib/assistant/pageService", () => ({ describePage: async () => ({ context: null, suggestions: [] }) }));
 vi.mock("@/lib/ai/assistant", () => ({
@@ -27,12 +30,12 @@ vi.mock("@/lib/ai/assistant", () => ({
   AssistantError: class extends Error {},
 }));
 
-import { POST } from "./route";
+import { GET, POST } from "./route";
 
 const post = (body: Record<string, unknown>) =>
   POST(new NextRequest("http://localhost/api/ai/ask", { method: "POST", body: JSON.stringify({ question: "Tesla Germany online?", ...body }) }));
 
-beforeEach(() => { state.features = { ai_assistant: true }; state.config = {}; state.seen = []; });
+beforeEach(() => { state.features = { ai_assistant: true }; state.config = {}; state.seen = []; state.role = "admin"; state.screenAdmin = []; });
 
 describe("POST /api/ai/ask and web research", () => {
   it("flag off: a request that carries a web permission is a 404, and the loop never runs", async () => {
@@ -77,5 +80,23 @@ describe("POST /api/ai/ask and web research", () => {
     expect(state.seen[0].web).toMatchObject({ allow: "chat", consentQuery: null });
     await post({ allow_web: "always", consent_query: "Tesla Germany company website" });
     expect(state.seen[1].web).toMatchObject({ allow: null, consentQuery: null });
+  });
+});
+
+describe("guide mode and who is an admin (audit 2026-10-22 L2)", () => {
+  // The mocked permission set is unrestricted, as for a member with no Business Role.
+  it("a member with no Business Role is not an admin for the screen manifests, on GET and POST", async () => {
+    state.role = "member";
+    await GET(new NextRequest("http://localhost/api/ai/ask?route=/settings/webhooks-library"));
+    await post({ route: "/settings/webhooks-library" });
+    expect(state.screenAdmin).toEqual([false]);
+    expect(state.seen[0].isWorkspaceAdmin).toBe(false);
+  });
+
+  it("a workspace admin is one", async () => {
+    await GET(new NextRequest("http://localhost/api/ai/ask?route=/settings/webhooks-library"));
+    await post({});
+    expect(state.screenAdmin).toEqual([true]);
+    expect(state.seen[0].isWorkspaceAdmin).toBe(true);
   });
 });

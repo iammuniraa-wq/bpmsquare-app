@@ -132,6 +132,8 @@ export type AssistantAskCtx = {
   features: Record<string, boolean | undefined>;
   /** Admin, or a member with no Business Role. */
   isAdmin: boolean;
+  /** The workspace role is admin. Guide mode uses this one: a member with no Business Role is not an admin (audit 2026-10-22 L2). */
+  isWorkspaceAdmin?: boolean;
   /** The signed-in person. Required for create_record, whose card is bound to them. */
   userId?: string;
   /** The route the person is on (path only). The server parses it again; ids are verified against this workspace. */
@@ -503,7 +505,7 @@ export async function askAssistant(history: ChatTurn[], ctx: AssistantAskCtx): P
   });
 
   // 0. A task the person picked from the screen's own list is answered from the manifest: no model, no allowance.
-  const accessFor = () => screenAccessFor(ctx.perms, ctx.features, ctx.isAdmin);
+  const accessFor = () => screenAccessFor(ctx.perms, ctx.features, ctx.isWorkspaceAdmin ?? ctx.isAdmin);
   const deps: ScreenDeps = ctx.screenDeps ?? { loadFields: (objectType) => loadFieldSections(ctx.supabase, ctx.tenantId, objectType) };
   if (ctx.guideTask) {
     const picked = await resolveScreen(ctx.route, accessFor(), {}).catch(() => null);
