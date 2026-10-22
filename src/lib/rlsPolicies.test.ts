@@ -94,6 +94,30 @@ describe("credential tables are not member-writable (audit 2026-10-21)", () => {
     expect(bundle.replace(/\r\n/g, "\n")).toContain(file.replace(/\r\n/g, "\n").trim());
   });
 
+  it("change_log (audit 2026-10-22 AI, M1): members may only read; the only writer is changeLog.ts", () => {
+    const list = [...(policies.get("change_log")?.values() ?? [])];
+    expect(list.filter(writes).map((p) => p.name)).toEqual([]);
+    expect(list.some((p) => p.cmd === "select")).toBe(true);
+
+    const offenders: string[] = [];
+    const root = path.resolve(__dirname, "../..");
+    const walk = (dir: string) => {
+      for (const e of readdirSync(dir, { withFileTypes: true })) {
+        const p = path.join(dir, e.name);
+        if (e.isDirectory()) { walk(p); continue; }
+        if (!/\.(ts|tsx)$/.test(e.name) || /\.test\./.test(e.name) || e.name === "changeLog.ts") continue;
+        if (/\.from\(\s*["'`]change_log["'`]\s*\)\s*\.(insert|update|delete|upsert)\(/.test(readFileSync(p, "utf8"))) offenders.push(path.relative(root, p));
+      }
+    };
+    walk(path.resolve(__dirname, ".."));
+    expect(offenders).toEqual([]);
+
+    const file = readFileSync(path.join(DIR, "0208_change_log_member_insert.sql"), "utf8");
+    expect(file).toMatch(/to_regclass\('public\.change_log'\)/);
+    const bundle = readFileSync(path.resolve(__dirname, "../../scripts/run-bundle-17-changelog-2026-10-22.sql"), "utf8");
+    expect(bundle.replace(/\r\n/g, "\n")).toContain(file.replace(/\r\n/g, "\n").trim());
+  }, 30_000);
+
   it("0202 (webhooks library) adds no policy to webhooks, and its bundle carries the migration verbatim", () => {
     // The library puts header values and a signing secret on `webhooks`: a member must still not be able to write them.
     const file = readFileSync(path.join(DIR, "0202_webhooks_library.sql"), "utf8");

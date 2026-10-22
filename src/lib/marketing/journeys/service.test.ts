@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 
 vi.mock("@/lib/supabase-server", () => ({ createAdminSupabase: vi.fn(), requireTenantUser: vi.fn(), getAuthUser: vi.fn() }));
 
+import { createAdminSupabase } from "@/lib/supabase-server";
 import { fakeDb, type Row } from "@/lib/marketing/testFakeDb";
 import { templateById } from "./definition";
 import { loadTenantEnv } from "./env";
@@ -35,6 +36,7 @@ async function ctxFor(over: { status?: string; events?: number; limits?: Record<
     newsletter_versions: [{ id: VID, tenant_id: T }, { id: FOREIGN_VID, tenant_id: "other" }],
     domain_event: events, contacts, accounts, journey_runs: [], journey_run_steps: [], consent_state: [], change_log: [], service_cases: [], invoices: [],
   });
+  vi.mocked(createAdminSupabase).mockReturnValue(db.client as never);
   const env = (await loadTenantEnv(db.client, T))!;
   const ctx: JourneyCtx = { supabase: db.client, admin: db.client, tenantId: T, userId: "u1", role: "admin", env, can: { view: true, create: true, edit: true, delete: true } };
   return { db, ctx };

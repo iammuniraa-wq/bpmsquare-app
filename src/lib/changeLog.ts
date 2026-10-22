@@ -1,6 +1,7 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { currentVia } from "@/lib/actions/via";
+import { createAdminSupabase } from "@/lib/supabase-server";
 
 // "reopen" is a distinct action from "update" -- moving a quote off a closed
 // status back into the pipeline undoes a closed deal, which is worth being
@@ -99,14 +100,22 @@ export function diffLineItems(before: LineSnapshot[], after: LineSnapshot[]): Ch
 }
 
 /**
+ * change_log is written only here, with the service role: a member must not be able to insert rows
+ * themselves (audit 2026-10-22 M1), because the actor and the "via assistant" mark are audit evidence.
+ * The caller's tenantId/actor come from requireTenantUser(), never from a request body. Callers still
+ * hand over their own client; it is not used for the write.
+ */
+function logWriter(): SupabaseClient {
+  return createAdminSupabase() as unknown as SupabaseClient;
+}
+
+/**
  * Records one change_log row. Never throws -- a logging failure must not
- * fail the mutation it's describing. Call this with the tenant-scoped
- * session client (never createAdminSupabase()) so RLS enforces tenant_id
- * even if a caller ever got that field wrong; call it AFTER the real
- * mutation has already succeeded.
+ * fail the mutation it's describing. Call it AFTER the real mutation has
+ * already succeeded, with the tenantId and actor from requireTenantUser().
  */
 export async function logChange(
-  supabase: SupabaseClient,
+  _session: SupabaseClient,
   params: {
     tenantId: string;
     objectType: string;
@@ -121,6 +130,7 @@ export async function logChange(
   }
 ): Promise<void> {
   try {
+    const supabase = logWriter();
     const row = {
       tenant_id: params.tenantId,
       object_type: params.objectType,
@@ -180,15 +190,15 @@ export type ChangeLogEntryParams = {
 };
 
 /**
- * Same contract as logChange() (never throws, session client only, call
+ * Same contract as logChange() (never throws, service-role write, call
  * after the real mutation succeeds) but for bulk operations -- Data
  * Workbench import/update can touch hundreds of rows in one request, and
  * one round trip beats one logChange() call per row.
  */
-export async function logChangeBatch(supabase: SupabaseClient, rows: ChangeLogEntryParams[]): Promise<void> {
+export async function logChangeBatch(_session: SupabaseClient, rows: ChangeLogEntryParams[]): Promise<void> {
   if (rows.length === 0) return;
   try {
-    const { error } = await supabase.from("change_log").insert(
+    const { error } = await logWriter().from("change_log").insert(
       rows.map((r) => ({
         tenant_id: r.tenantId,
         object_type: r.objectType,

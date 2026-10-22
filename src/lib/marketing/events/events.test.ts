@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 vi.mock("@/lib/supabase-server", () => ({ createAdminSupabase: vi.fn(), requireTenantUser: vi.fn(), getAuthUser: vi.fn() }));
 
+import { createAdminSupabase } from "@/lib/supabase-server";
 import { fakeDb, type Row } from "@/lib/marketing/testFakeDb";
 import type { ModuleCtx } from "@/lib/marketing/moduleAccess";
 import { templateById } from "@/lib/marketing/journeys/definition";
@@ -29,6 +30,12 @@ beforeEach(() => { vi.spyOn(console, "error").mockImplementation(() => {}); });
 afterEach(() => { vi.restoreAllMocks(); });
 
 function world(extra: Record<string, Row[]> = {}) {
+  const db = buildWorld(extra);
+  vi.mocked(createAdminSupabase).mockReturnValue(db.client as never);
+  return db;
+}
+
+function buildWorld(extra: Record<string, Row[]>) {
   return fakeDb({
     tenants: [
       { id: T, name: "Al Noor", slug: "alnoor", custom_domain: null, company_info: null, features: { marketing: true, marketing_forms: true, marketing_events: true, journeys: true }, config: { wfm: { timezone: "Asia/Riyadh" } }, is_demo: false },
