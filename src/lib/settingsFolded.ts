@@ -14,6 +14,9 @@ export type ProductTab = (typeof PRODUCT_TABS)[number];
 
 export const QUOTATION_TABS = ["statuses", "types", "templates", "print"] as const;
 export type QuotationTab = (typeof QUOTATION_TABS)[number];
+// Workforce (batch S5): eight pages became the tabs of one screen. The tab ids live with the screen's logic.
+export const WORKFORCE_TABS = ["rules", "shifts", "places", "leave", "alerts", "billing"] as const;
+export type WorkforceTab = (typeof WORKFORCE_TABS)[number];
 
 /** The address of one tab. The first tab of a screen is its default and keeps the address clean. */
 export function tabHref(base: string, tab: string, defaultTab: string): string {
@@ -34,4 +37,12 @@ export const OLD_SETTINGS_ROUTES = {
   textTemplates: tabHref(ROUTES.settingsQuotations, "templates", "statuses"),
   emailTemplates: tabHref(ROUTES.settingsQuotations, "templates", "statuses"),
   assetPrintFields: tabHref(ROUTES.settingsQuotations, "print", "statuses"),
+  workforceAttendance: tabHref(ROUTES.settingsWorkforce, "rules", "rules"),
+  workforceVerification: tabHref(ROUTES.settingsWorkforce, "rules", "rules"),
+  workforceShifts: tabHref(ROUTES.settingsWorkforce, "shifts", "rules"),
+  workforceSites: tabHref(ROUTES.settingsWorkforce, "places", "rules"),
+  workforceKiosks: tabHref(ROUTES.settingsWorkforce, "places", "rules"),
+  workforceLeaveTypes: tabHref(ROUTES.settingsWorkforce, "leave", "rules"),
+  workforceReminders: tabHref(ROUTES.settingsWorkforce, "alerts", "rules"),
+  workforceEmployment: tabHref(ROUTES.settingsWorkforce, "billing", "rules"),
 } as const;

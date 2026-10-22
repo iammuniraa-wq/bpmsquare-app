@@ -1,13 +1,7 @@
-import SettingsPageHeader from "@/components/settings/SettingsPageHeader";
-import WorkforceConfigClient from "../WorkforceConfigClient";
-import { loadWorkforceSettings } from "../guard";
+import { redirect } from "next/navigation";
+import { OLD_SETTINGS_ROUTES } from "@/lib/settingsFolded";
 
-export default async function WorkforceVerificationPage() {
-  const { config, projectsOn } = await loadWorkforceSettings();
-  return (
-    <>
-      <SettingsPageHeader title="Punching & verification" subtitle="Which punch types exist, and how a punch is verified and located." />
-      <WorkforceConfigClient initial={config} projectsOn={projectsOn} page="verification" />
-    </>
-  );
+// Batch S5: this page is now a tab of Settings > Workforce.
+export default function WorkforceVerificationRedirect() {
+  redirect(OLD_SETTINGS_ROUTES.workforceVerification);
 }

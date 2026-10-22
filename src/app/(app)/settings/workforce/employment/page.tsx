@@ -1,13 +1,7 @@
-import SettingsPageHeader from "@/components/settings/SettingsPageHeader";
-import WorkforceConfigClient from "../WorkforceConfigClient";
-import { loadWorkforceSettings } from "../guard";
+import { redirect } from "next/navigation";
+import { OLD_SETTINGS_ROUTES } from "@/lib/settingsFolded";
 
-export default async function WorkforceEmploymentPage() {
-  const { config, projectsOn } = await loadWorkforceSettings();
-  return (
-    <>
-      <SettingsPageHeader title="Employment & billing" subtitle="Employment types, and the rates project hours are billed at." />
-      <WorkforceConfigClient initial={config} projectsOn={projectsOn} page="employment" />
-    </>
-  );
+// Batch S5: this page is now a tab of Settings > Workforce.
+export default function WorkforceEmploymentRedirect() {
+  redirect(OLD_SETTINGS_ROUTES.workforceEmployment);
 }

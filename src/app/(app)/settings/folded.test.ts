@@ -6,7 +6,7 @@ const redirect = vi.fn((to: string) => { throw new Error(`REDIRECT:${to}`); });
 vi.mock("next/navigation", () => ({ redirect: (to: string) => redirect(to), useRouter: () => ({}), useSearchParams: () => new URLSearchParams() }));
 
 import { ROUTES } from "@/lib/constants";
-import { OLD_SETTINGS_ROUTES, tabHref, COMPANY_TABS, APPEARANCE_TABS, PRODUCT_TABS, QUOTATION_TABS } from "@/lib/settingsFolded";
+import { OLD_SETTINGS_ROUTES, tabHref, COMPANY_TABS, APPEARANCE_TABS, PRODUCT_TABS, QUOTATION_TABS, WORKFORCE_TABS } from "@/lib/settingsFolded";
 import { SETTINGS_MENU } from "@/lib/settingsMenu";
 
 import EntitiesRedirect from "./entities/page";
@@ -23,6 +23,14 @@ import QuoteTypesRedirect from "./quote-types/page";
 import TextTemplatesRedirect from "./templates/page";
 import EmailTemplatesRedirect from "./email-templates/page";
 import AssetPrintFieldsRedirect from "./asset-print-fields/page";
+import WfAttendanceRedirect from "./workforce/attendance/page";
+import WfVerificationRedirect from "./workforce/verification/page";
+import WfShiftsRedirect from "./workforce/shifts/page";
+import WfSitesRedirect from "./workforce/sites/page";
+import WfKiosksRedirect from "./workforce/kiosks/page";
+import WfLeaveRedirect from "./workforce/leave-types/page";
+import WfRemindersRedirect from "./workforce/reminders/page";
+import WfEmploymentRedirect from "./workforce/employment/page";
 
 const target = (fn: () => void) => {
   try { fn(); } catch (e) { return (e as Error).message.replace("REDIRECT:", ""); }
@@ -47,6 +55,14 @@ describe("old addresses redirect to the tab that holds what they showed (batch S
     ["/settings/templates", TextTemplatesRedirect, "/settings/quotations?tab=templates"],
     ["/settings/email-templates", EmailTemplatesRedirect, "/settings/quotations?tab=templates"],
     ["/settings/asset-print-fields", AssetPrintFieldsRedirect, "/settings/quotations?tab=print"],
+    ["/settings/workforce/attendance", WfAttendanceRedirect, "/settings/workforce"],
+    ["/settings/workforce/verification", WfVerificationRedirect, "/settings/workforce"],
+    ["/settings/workforce/shifts", WfShiftsRedirect, "/settings/workforce?tab=shifts"],
+    ["/settings/workforce/sites", WfSitesRedirect, "/settings/workforce?tab=places"],
+    ["/settings/workforce/kiosks", WfKiosksRedirect, "/settings/workforce?tab=places"],
+    ["/settings/workforce/leave-types", WfLeaveRedirect, "/settings/workforce?tab=leave"],
+    ["/settings/workforce/reminders", WfRemindersRedirect, "/settings/workforce?tab=alerts"],
+    ["/settings/workforce/employment", WfEmploymentRedirect, "/settings/workforce?tab=billing"],
   ];
   for (const [from, page, to] of cases) {
     it(`${from} -> ${to}`, () => expect(target(page)).toBe(to));
@@ -58,6 +74,7 @@ describe("old addresses redirect to the tab that holds what they showed (batch S
     for (const url of [OLD_SETTINGS_ROUTES.navigation, OLD_SETTINGS_ROUTES.dashboard]) expect(APPEARANCE_TABS).toContain(tab(url));
     expect(PRODUCT_TABS).toContain(tab(OLD_SETTINGS_ROUTES.itemTypes));
     for (const url of [OLD_SETTINGS_ROUTES.quoteTypes, OLD_SETTINGS_ROUTES.textTemplates, OLD_SETTINGS_ROUTES.emailTemplates, OLD_SETTINGS_ROUTES.assetPrintFields]) expect(QUOTATION_TABS).toContain(tab(url));
+    for (const url of Object.values(OLD_SETTINGS_ROUTES).filter((u) => u.startsWith(ROUTES.settingsWorkforce))) expect(WORKFORCE_TABS).toContain(tab(url) ?? "rules");
   });
 
   it("the first tab keeps the address clean", () => {
@@ -83,6 +100,11 @@ describe("the menu points at the folded screens, not the old pages", () => {
 
 describe("the removed screens leave no component behind", () => {
   const dir = join(process.cwd(), "src/app/(app)/settings");
+  it("the eight Workforce pages and their five components are gone, leaving redirect stubs", () => {
+    const wf = join(dir, "workforce");
+    for (const folder of ["attendance", "verification", "shifts", "sites", "kiosks", "leave-types", "reminders", "employment"]) expect(readdirSync(join(wf, folder)), folder).toEqual(["page.tsx"]);
+    for (const old of ["WorkforceConfigClient", "ShiftsClient", "SitesClient", "LeaveTypesClient", "KiosksClient"]) expect(existsSync(join(wf, `${old}.tsx`)), old).toBe(false);
+  });
   it("the old pages are redirect stubs only", () => {
     for (const folder of ["entities", "currency", "number-ranges", "navigation", "reset", "dashboard", "product-categories", "item-types", "sales", "statuses", "quote-types", "templates", "email-templates", "asset-print-fields"]) {
       const files = readdirSync(join(dir, folder));
