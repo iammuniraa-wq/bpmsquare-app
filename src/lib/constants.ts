@@ -1010,7 +1010,9 @@ export type AnalyticsMetricId =
   | "wfm_attendance_today" | "wfm_night_shift_cost"
   | "wfm_corrections_queue" | "wfm_leave_requests_queue" | "wfm_recheck_queue"
   | "wfm_site_headcount" | "wfm_workforce_composition" | "wfm_leave_taken_by_type"
-  | "wfm_project_hours" | "wfm_project_budget" | "wfm_project_billing";
+  | "wfm_project_hours" | "wfm_project_budget" | "wfm_project_billing"
+  // The signed-in person's own daily briefing (assistant). Not a report metric: it is per person, not per workspace.
+  | "my_briefing";
 
 // Dashboard layout block — covers native cards and analytics widgets.
 // id is a NativeDashBlockId or AnalyticsMetricId string.
