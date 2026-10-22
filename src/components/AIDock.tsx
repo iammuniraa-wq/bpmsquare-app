@@ -6,6 +6,7 @@ import { c } from "@/lib/theme";
 import { useIsNextgen3Layer, useTenantFeature } from "@/lib/tenant-context";
 import ChartRenderer from "@/components/charts/ChartRenderer";
 import InfoTip from "@/components/ui/InfoTip";
+import { BriefingCard } from "@/components/BriefingTile";
 import { normalizeReport, type ReportPayload } from "@/lib/reportView";
 import { parsePageContext } from "@/lib/assistant/objects";
 import { isInternalPath } from "@/lib/assistant/navTargets";
@@ -13,9 +14,22 @@ import { ASSISTANT_TIPS, usageTip } from "@/lib/assistant/tips";
 import type { Suggestion } from "@/lib/assistant/suggestions";
 import type { ConfirmCard } from "@/lib/assistant/cards";
 import ConfirmCardView from "@/components/assistant/ConfirmCardView";
+import { WebConsentRow, WebSources } from "@/components/assistant/WebResearch";
+import { allowForAsk, applyChoice, settleOnNewAsk, type ConsentState, type WebAllow, type WebChoice } from "@/lib/assistant/webConsent";
+import type { GuideReply } from "@/lib/assistant/guide";
+import GuideOverlay, { type GuideTargetState } from "@/components/GuideOverlay";
 
 type Card = { id: string; label: string; href: string };
-type Msg = { from: "bot" | "me"; text: string; report?: ReportPayload; cards?: Card[]; confirm?: ConfirmCard };
+type WebSource = { title: string; url: string };
+type Msg = {
+  from: "bot" | "me"; text: string; report?: ReportPayload; cards?: Card[]; guide?: GuideReply;
+  /** A create the assistant proposes: the confirm card. */
+  confirm?: ConfirmCard;
+  /** The assistant asked to search the web; answered with the chips. */
+  consent?: { query: string; state: ConsentState };
+  web?: WebSource[];
+};
+type GuideOffer = { id: string; label: string };
 type Usage = { percent: number; off: boolean };
 
 // Per-user, per-browser preference -- separate from the tenant-level
@@ -62,6 +76,16 @@ export default function AIDock({ liftForTabBar = false }: {
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
   const [enabled, setEnabled] = useState(true);
+  // "Always in this chat": held here only, so it ends with the page and is never stored for the person.
+  const [webChat, setWebChat] = useState(false);
+  const [searching, setSearching] = useState(false);
+  const [guides, setGuides] = useState<GuideOffer[]>([]);
+  // Guide mode: the steps being followed, the one the person is on, and where its control stands on the page.
+  const [guide, setGuide] = useState<{ reply: GuideReply; i: number } | null>(null);
+  const [target, setTarget] = useState<GuideTargetState>("none");
+  const [narrow, setNarrow] = useState(false);
+  // Under 900 px the panel is full screen and would hide the control: in guide mode it gives way to a bottom bar.
+  const [chatShown, setChatShown] = useState(true);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const nova = useIsNextgen3Layer();
   const hasAccounts = useTenantFeature("accounts");
@@ -81,11 +105,41 @@ export default function AIDock({ liftForTabBar = false }: {
     } catch { /* ignore */ }
   }, []);
 
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 899px)");
+    const on = () => setNarrow(mq.matches);
+    on();
+    mq.addEventListener("change", on);
+    return () => mq.removeEventListener("change", on);
+  }, []);
+
+  // A guide belongs to the screen it was written for.
+  useEffect(() => { setGuide(null); setChatShown(true); }, [pathname]);
+
+  function startGuide(reply: GuideReply) {
+    setGuide({ reply, i: 0 });
+    setTarget("none");
+    if (narrow) setChatShown(false);
+  }
+  function stopGuide() { setGuide(null); setTarget("none"); setChatShown(true); }
+  const stepCount = guide?.reply.steps.length ?? 0;
+  function nextStep() {
+    setGuide((g) => (g ? { ...g, i: g.i + 1 } : g));
+  }
+  useEffect(() => { if (guide && guide.i >= stepCount) stopGuide(); }, [guide, stepCount]);
+  function backStep() { setGuide((g) => (g && g.i > 0 ? { ...g, i: g.i - 1 } : g)); }
+
+  function closePanel() {
+    if (narrow && guide) { setChatShown(false); return; }
+    setGuide(null);
+    setOpen(false);
+  }
+
   function toggleEnabled() {
     setEnabled((v) => {
       const next = !v;
       try { localStorage.setItem(ENABLED_KEY, next ? "1" : "0"); } catch { /* ignore */ }
-      if (!next) setOpen(false);
+      if (!next) { setOpen(false); setGuide(null); }
       return next;
     });
   }
@@ -101,6 +155,7 @@ export default function AIDock({ liftForTabBar = false }: {
         if (!alive) return;
         setCapabilities(j?.capabilities ?? []);
         setSuggestions(Array.isArray(j?.suggestions) ? j.suggestions : []);
+        setGuides(Array.isArray(j?.guides) ? j.guides : []);
         setContext(j?.context?.label ?? null);
         if (j?.usage) setUsage(j.usage);
       })
@@ -119,17 +174,31 @@ export default function AIDock({ liftForTabBar = false }: {
     if (typeof window !== "undefined" && window.innerWidth < 900) setOpen(false);
   }
 
-  async function ask(question: string) {
+  // Yes / No / Always on a web-search proposal. Yes and Always send the same question again, with permission for that
+  // search; No sends nothing.
+  function answerConsent(index: number, choice: WebChoice) {
+    const m = messages[index];
+    if (!m?.consent || m.consent.state !== "pending" || busy) return;
+    const out = applyChoice(choice, webChat);
+    setWebChat(out.chatMode);
+    setMessages((prev) => prev.map((x, k) => (k === index && x.consent ? { ...x, consent: { ...x.consent, state: out.state } } : x)));
+    const base = messages.slice(0, index);
+    const asked = base[base.length - 1];
+    if (out.allow && asked?.from === "me") void ask(asked.text, undefined, { base, allow: out.allow, query: m.consent.query });
+  }
+
+  async function ask(question: string, guideTask?: string, resume?: { base: Msg[]; allow: WebAllow; query: string }) {
     const text = question.trim();
     if (!text || busy) return;
     // History travels with the question so follow-ups keep their context --
     // text only; the server treats it as conversation, never as a query.
-    const history = [...messages, { from: "me" as const, text }]
+    const history = (resume ? resume.base : [...messages, { from: "me" as const, text }])
       .slice(-12)
       .map((m) => ({ role: m.from === "me" ? "user" : "assistant", text: m.text }));
-    setMessages((prev) => [...prev, { from: "me", text }]);
+    if (!resume) setMessages((prev) => [...prev.map((m) => (m.consent ? { ...m, consent: { ...m.consent, state: settleOnNewAsk(m.consent.state) } } : m)), { from: "me", text }]);
     setDraft("");
     setBusy(true);
+    setSearching(!!resume);
     try {
       // The page goes as ids only: the route, and the object type and record id read from it. Never record content.
       const page = parsePageContext(pathname);
@@ -139,13 +208,20 @@ export default function AIDock({ liftForTabBar = false }: {
         body: JSON.stringify({
           question: text, history, route: pathname,
           objectType: page?.objectType ?? null, recordId: page?.recordId ?? null,
+          allow_web: resume ? resume.allow : allowForAsk(webChat),
+          consent_query: resume?.allow === "once" ? resume.query : undefined,
+          guideTask: guideTask ?? undefined,
         }),
       });
       const json = await res.json().catch(() => ({}));
       if (res.ok) {
         if (json.usage) setUsage(json.usage);
         const cards: Card[] | undefined = Array.isArray(json.cards) ? json.cards : undefined;
-        setMessages((prev) => [...prev, { from: "bot", text: json.answer, report: json.report as ReportPayload | undefined, cards, confirm: json.card as ConfirmCard | undefined }]);
+        const consent = json.consent?.kind === "web_search" && typeof json.consent.query === "string" ? { query: json.consent.query as string, state: "pending" as const } : undefined;
+        const web: WebSource[] | undefined = Array.isArray(json.web?.sources) && json.web.sources.length ? json.web.sources : undefined;
+        const reply: GuideReply | undefined = json.guide && Array.isArray(json.guide.steps) ? json.guide : undefined;
+        setMessages((prev) => [...prev, { from: "bot", text: json.answer, report: json.report as ReportPayload | undefined, cards, guide: reply, consent, web, confirm: json.card as ConfirmCard | undefined }]);
+        if (reply) startGuide(reply);
         if (json.autoFollow && cards?.length === 1) go(cards[0].href);
       } else {
         setMessages((prev) => [...prev, { from: "bot", text: json.error ?? "Something went wrong." }]);
@@ -154,6 +230,7 @@ export default function AIDock({ liftForTabBar = false }: {
       setMessages((prev) => [...prev, { from: "bot", text: "Could not reach the server." }]);
     } finally {
       setBusy(false);
+      setSearching(false);
     }
   }
 
@@ -238,7 +315,31 @@ export default function AIDock({ liftForTabBar = false }: {
         </button>
       )}
 
-      {enabled && open && (
+      {enabled && guide && (
+        <GuideOverlay step={guide.reply.steps[guide.i] ?? null} onAdvance={nextStep} onStop={stopGuide} onState={setTarget} />
+      )}
+
+      {enabled && open && narrow && guide && !chatShown && guide.i < stepCount && (
+        <div className="bms-guide-bar" role="region" aria-label="Guide" style={{
+          position: "fixed", left: 0, right: 0, bottom: liftForTabBar ? "calc(58px + env(safe-area-inset-bottom, 0px))" : 0, zIndex: 300,
+          background: "var(--card-bg, #fff)", borderTop: "1px solid var(--line)", boxShadow: "0 -8px 24px rgba(10,15,25,.2)",
+          padding: `10px 12px calc(10px + ${liftForTabBar ? "0px" : "env(safe-area-inset-bottom, 0px)"})`, display: "flex", flexDirection: "column", gap: 8,
+        }}>
+          <button className="bms-dock-row" onClick={() => setChatShown(true)} style={{ textAlign: "left", background: "none", border: "none", padding: 0, cursor: "pointer", fontFamily: "inherit", color: c.ink }}>
+            <div style={{ fontSize: 10.5, fontWeight: 700, color: c.hint, textTransform: "uppercase", letterSpacing: 0.4 }}>Step {guide.i + 1} of {stepCount}</div>
+            <div style={{ fontSize: 13, lineHeight: 1.35, marginTop: 2 }}>{guide.reply.steps[guide.i].text}</div>
+            {guide.reply.steps[guide.i].hidden && <div style={{ fontSize: 11.5, color: c.hint, marginTop: 2 }}>{guide.reply.steps[guide.i].hidden!.reason}</div>}
+          </button>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button className="bms-dock-chip" onClick={stopGuide} style={guideBtn(false)}>Stop</button>
+            <span style={{ flex: 1 }} />
+            <button className="bms-dock-chip" onClick={backStep} disabled={guide.i === 0} style={guideBtn(false)}>Back</button>
+            <button className="bms-dock-chip" onClick={nextStep} style={guideBtn(true)}>{guide.i >= stepCount - 1 ? "Done" : "Next"}</button>
+          </div>
+        </div>
+      )}
+
+      {enabled && open && !(narrow && guide && !chatShown) && (
         <div className="bms-dock-panel" style={{
           position: "fixed", right: 22, bottom: at(122), zIndex: 300,
           // Wide enough for an inline chart to stay legible (a bar chart's
@@ -262,7 +363,7 @@ export default function AIDock({ liftForTabBar = false }: {
               {pill}
               <button
                 className="bms-dock-close"
-                onClick={() => setOpen(false)}
+                onClick={closePanel}
                 aria-label="Close assistant"
                 style={{ background: "transparent", border: "none", color: c.muted, cursor: "pointer", fontSize: 18, lineHeight: 1, padding: 4 }}
               >
@@ -303,6 +404,7 @@ export default function AIDock({ liftForTabBar = false }: {
           <div ref={scrollRef} style={{ padding: "14px 16px", display: "flex", flexDirection: "column", gap: 10, fontSize: 12.5, flex: 1, overflowY: "auto", minHeight: 0 }}>
             {messages.length === 0 && (
               <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
+                <BriefingCard />
                 {createChips.length > 0 && (
                   <>
                     <div style={{ fontSize: 10.5, fontWeight: 700, color: c.hint, textTransform: "uppercase", letterSpacing: 0.4, display: "flex", alignItems: "center", gap: 4 }}>
@@ -321,6 +423,29 @@ export default function AIDock({ liftForTabBar = false }: {
                           }}
                         >
                           ✦ {item.label}
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
+                {guides.length > 0 && (
+                  <>
+                    <div style={{ fontSize: 10.5, fontWeight: 700, color: c.hint, textTransform: "uppercase", letterSpacing: 0.4, display: "flex", alignItems: "center", gap: 4 }}>
+                      Show me how <InfoTip label="show me how">{ASSISTANT_TIPS.guides}</InfoTip>
+                    </div>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                      {guides.map((g) => (
+                        <button
+                          key={g.id}
+                          className="bms-dock-chip"
+                          onClick={() => ask(`Show me how: ${g.label}`, g.id)}
+                          disabled={busy}
+                          style={{
+                            background: "var(--accentbg)", border: "1px solid var(--line)", borderRadius: 999,
+                            padding: "6px 12px", fontSize: 11.5, fontWeight: 650, color: c.accent, cursor: "pointer", fontFamily: "inherit",
+                          }}
+                        >
+                          {g.label}
                         </button>
                       ))}
                     </div>
@@ -386,6 +511,20 @@ export default function AIDock({ liftForTabBar = false }: {
                   </button>
                 ))}
                 {m.confirm && <ConfirmCardView card={m.confirm} onOpen={go} onAsk={ask} />}
+                {m.consent && <WebConsentRow query={m.consent.query} state={m.consent.state} disabled={busy} onChoice={(choice) => answerConsent(i, choice)} />}
+                {m.web && <WebSources sources={m.web} />}
+                {m.guide && (
+                  <GuideCard
+                    reply={m.guide}
+                    active={guide?.reply === m.guide}
+                    index={guide?.reply === m.guide ? guide.i : 0}
+                    target={target}
+                    onStart={() => startGuide(m.guide!)}
+                    onBack={backStep}
+                    onNext={nextStep}
+                    onStop={stopGuide}
+                  />
+                )}
                 {m.report && (
                   <div style={{ padding: 12, borderRadius: "var(--card-radius, 10px)", border: `1px solid ${c.line}`, background: "var(--card-bg, #fff)" }}>
                     <ChartRenderer report={normalizeReport(m.report)} />
@@ -393,7 +532,7 @@ export default function AIDock({ liftForTabBar = false }: {
                 )}
               </div>
             ))}
-            {busy && <div style={{ alignSelf: "flex-start", color: c.hint }}>Looking that up…</div>}
+            {busy && <div style={{ alignSelf: "flex-start", color: c.hint }}>{searching ? "Searching the web…" : "Looking that up…"}</div>}
           </div>
           <div className="bms-dock-input" style={{ padding: "8px 16px 14px", display: "flex", gap: 8, flexShrink: 0, background: "var(--card-bg, #fff)" }}>
             <input
@@ -419,6 +558,13 @@ export default function AIDock({ liftForTabBar = false }: {
       )}
 
       <style>{`
+        .bms-guide-hl {
+          outline: 3px solid var(--tenant-accent, #1e3a6e); outline-offset: 3px; border-radius: 6px;
+          box-shadow: 0 0 0 8px color-mix(in srgb, var(--tenant-accent, #1e3a6e) 22%, transparent);
+          animation: bms-guide-pulse 1.6s ease-in-out infinite;
+        }
+        @keyframes bms-guide-pulse { 50% { box-shadow: 0 0 0 12px color-mix(in srgb, var(--tenant-accent, #1e3a6e) 10%, transparent); } }
+        @media (prefers-reduced-motion: reduce) { .bms-guide-hl { animation: none; } }
         @keyframes vvcrm-pulse-ring {
           0% { transform: scale(.92); opacity: .5; }
           100% { transform: scale(1.35); opacity: 0; }
@@ -438,5 +584,59 @@ export default function AIDock({ liftForTabBar = false }: {
         }
       `}</style>
     </>
+  );
+}
+
+const guideBtn = (primary: boolean): React.CSSProperties => ({
+  background: primary ? "var(--tenant-accent, #1e3a6e)" : "var(--panel2)", color: primary ? "#fff" : c.ink,
+  border: "1px solid var(--line)", borderRadius: "var(--card-radius, 10px)", padding: "8px 16px", fontSize: 12.5, fontWeight: 700,
+  cursor: "pointer", fontFamily: "inherit", minHeight: 44, minWidth: 44,
+});
+
+/**
+ * The numbered steps of a guide. The current step is marked, a step this person cannot take stays in the list greyed
+ * with its reason (a blocker is never hidden behind the "i"), and Next also moves by itself when the highlighted
+ * control is pressed. Nothing here presses a control of the page.
+ */
+function GuideCard({ reply, active, index, target, onStart, onBack, onNext, onStop }: {
+  reply: GuideReply; active: boolean; index: number; target: GuideTargetState;
+  onStart: () => void; onBack: () => void; onNext: () => void; onStop: () => void;
+}) {
+  const last = reply.steps.length - 1;
+  return (
+    <div style={{ border: "1px solid var(--line)", borderRadius: "var(--card-radius, 10px)", background: "var(--card-bg, #fff)", padding: "10px 12px", display: "flex", flexDirection: "column", gap: 8 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11.5, fontWeight: 700, color: c.accent }}>
+        <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>Guide · {reply.task}</span>
+        <InfoTip label="the guide">{ASSISTANT_TIPS.guideCard}</InfoTip>
+      </div>
+      <ol style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 6 }}>
+        {reply.steps.map((st, n) => {
+          const done = active && n < index;
+          const current = active && n === index;
+          return (
+            <li key={n} aria-current={current ? "step" : undefined} style={{ display: "flex", gap: 8, opacity: st.hidden ? 0.6 : 1 }}>
+              <span aria-hidden="true" style={{ width: 16, flexShrink: 0, color: current ? c.accent : c.hint, fontWeight: 700 }}>{done ? "✓" : current ? "●" : "○"}</span>
+              <span style={{ fontSize: 12.5, lineHeight: 1.4, fontWeight: current ? 650 : 400, color: c.ink }}>
+                {st.text}
+                {st.hidden && <span style={{ display: "block", fontSize: 11.5, color: c.hint }}>Not available: {st.hidden.reason}.{st.hidden.alternative ? ` ${st.hidden.alternative}` : ""}</span>}
+                {current && !st.hidden && st.control && target === "missing" && <span style={{ display: "block", fontSize: 11.5, color: c.hint }}>Not on the screen right now.</span>}
+                {current && !st.hidden && st.control && target === "parent" && <span style={{ display: "block", fontSize: 11.5, color: c.hint }}>Open this first; the step then shows.</span>}
+              </span>
+            </li>
+          );
+        })}
+      </ol>
+      <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
+        {active ? (
+          <>
+            <button className="bms-dock-chip" onClick={onStop} style={{ ...guideBtn(false), marginRight: "auto" }}>Stop guide</button>
+            <button className="bms-dock-chip" onClick={onBack} disabled={index === 0} style={guideBtn(false)}>Back</button>
+            <button className="bms-dock-chip" onClick={onNext} style={guideBtn(true)}>{index >= last ? "Done" : "Next"}</button>
+          </>
+        ) : (
+          <button className="bms-dock-chip" onClick={onStart} style={guideBtn(true)}>Show me</button>
+        )}
+      </div>
+    </div>
   );
 }

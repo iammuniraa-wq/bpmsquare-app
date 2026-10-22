@@ -8,6 +8,8 @@ import { useFeel } from "@/components/FeelProvider";
 import OptionGroup from "@/components/ui/OptionGroup";
 import { Opt } from "@/components/ui/Opt";
 import Tour, { type TourStep } from "@/components/marketing/Tour";
+import { withBefore } from "@/lib/studio/tourSteps";
+import { WHATSAPP_TOUR } from "@/lib/marketing/whatsapp/tourSteps";
 import { cx, studio as styles } from "@/components/marketing/StudioKit";
 import { WA_TEMPLATE_TIPS } from "@/lib/marketing/whatsapp/tips";
 import { ROUTES } from "@/lib/constants";
@@ -143,13 +145,13 @@ export default function TemplateStudio({ initial, topics, companyName, canEdit, 
   const topicLabel = topics.find((t) => t.key === topic)?.label ?? "any consent topic";
   const pill = dirty ? "Unsaved changes" : STATUS_LABEL[status];
 
-  const tour: TourStep[] = [
-    { target: "basicsSec", text: "Name the template for your team and choose its language. Each language is its own template, because WhatsApp approves them separately.", before: () => setOpen("basicsSec") },
-    { target: "messageSec", text: "Write the message. Pick a detail from the list to drop a person's name or a quote number in; the preview on the right shows how it will read.", before: () => setOpen("messageSec") },
-    { target: "topicSec", text: "Choose the consent topic. Only people who agreed to hear about it on WhatsApp will receive this message.", before: () => setOpen("topicSec") },
-    { target: "approvalSec", text: "WhatsApp only lets you start a conversation with an approved template. Mark it approved once your provider has accepted it; until then it cannot be sent.", before: () => setOpen("approvalSec") },
-    { target: "waCanvas", text: "This is the message as the person sees it, with sample details filled in.", before: () => undefined },
-  ];
+  const tour: TourStep[] = withBefore(WHATSAPP_TOUR, [
+    () => setOpen("basicsSec"),
+    () => setOpen("messageSec"),
+    () => setOpen("topicSec"),
+    () => setOpen("approvalSec"),
+    () => undefined,
+  ]);
 
   return (
     <div className={styles.accent}>

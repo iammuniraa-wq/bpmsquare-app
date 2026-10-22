@@ -40,7 +40,7 @@ export default function RelatedList<T>({
   /** Under the table (a total row). */
   footer?: React.ReactNode;
 }) {
-  const action = newHref ? <Button href={newHref} variant="quiet" size="sm">+ New {newLabel}</Button> : null;
+  const action = newHref ? <Button href={newHref} variant="quiet" size="sm" data-guide="related.new">+ New {newLabel}</Button> : null;
   return (
     <section style={{ ...CARD_SURFACE, padding: 0, overflow: "hidden", minWidth: 0 }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap", padding: "12px 16px", borderBottom: rows.length ? `1px solid ${c.line}` : undefined }}>

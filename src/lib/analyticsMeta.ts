@@ -61,6 +61,8 @@ export const ANALYTICS_META: Record<AnalyticsMetricId, { label: string; feature?
   wfm_project_hours:        { label: "Hours by project (this month)", feature: "wfm_projects" },
   wfm_project_budget:       { label: "Project budget burn",           feature: "wfm_projects" },
   wfm_project_billing:      { label: "Project billing (this month)",  feature: "wfm_projects" },
+  // In no default layout: a platform admin adds it to the demo workspace first (rule 10).
+  my_briefing:              { label: "My day (daily briefing)",       feature: "ai_assistant" },
 };
 
 export function isAnalyticsId(id: string): id is AnalyticsMetricId {

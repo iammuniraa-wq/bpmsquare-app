@@ -713,6 +713,10 @@ export type TenantFeatures = {
   // object's own create route. A platform-admin-only flag: default OFF, missing key reads false; needs `ai_assistant`
   // and `next_experience`. With it off the assistant has no create tool and POST /api/ai/act answers 403.
   ai_assistant_actions: boolean;
+  // Assistant web research (docs/design/assistant-smarter.md section 2): the dock may ask "Do you want me to search the
+  // web for this?" and, on a yes, run one isolated search on our key and answer with sources. A platform-admin-only
+  // flag: default OFF, missing key reads false; needs ai_assistant. With it off the search tool is not offered.
+  ai_assistant_web: boolean;
 };
 
 // WfmConfig — tenant-level WFM (attendance) settings, stored in
@@ -1015,7 +1019,9 @@ export type AnalyticsMetricId =
   | "wfm_attendance_today" | "wfm_night_shift_cost"
   | "wfm_corrections_queue" | "wfm_leave_requests_queue" | "wfm_recheck_queue"
   | "wfm_site_headcount" | "wfm_workforce_composition" | "wfm_leave_taken_by_type"
-  | "wfm_project_hours" | "wfm_project_budget" | "wfm_project_billing";
+  | "wfm_project_hours" | "wfm_project_budget" | "wfm_project_billing"
+  // The signed-in person's own daily briefing (assistant). Not a report metric: it is per person, not per workspace.
+  | "my_briefing";
 
 // Dashboard layout block — covers native cards and analytics widgets.
 // id is a NativeDashBlockId or AnalyticsMetricId string.
@@ -1348,7 +1354,12 @@ export type TenantConfig = {
   newsletter_studio?: { monthly_token_budget?: number };
   // The in-app assistant's monthly allowance (docs/nova-assistant-architecture.md section 6). Read since S1;
   // the platform-admin field that writes it arrives with S4, until then absent = DEFAULT_MONTHLY_TOKEN_BUDGET.
-  ai_assistant?: { monthly_token_budget?: number };
+  ai_assistant?: {
+    monthly_token_budget?: number;
+    // The workspace's own policy: true keeps every call that leaves for the internet (web research) switched off,
+    // whatever the platform flag says.
+    block_external_calls?: boolean;
+  };
 };
 
 /** A topic a person can agree to or refuse separately ("Offers", "Events"). */

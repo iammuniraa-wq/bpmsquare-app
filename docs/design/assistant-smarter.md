@@ -151,6 +151,27 @@ not offered and the model says it cannot search here.
 URLs, tokens, who, when). Market Signals (`api/nova/market-intel`) stays as is; later it can
 call the same research function with its own prompt (one implementation, two buttons).
 
+### WP4 as built (2026-10-22)
+
+- Files: `assistant/webQuery.ts` (query check, web-text cleaning, source cleaning), `webConsent.ts` (consent state machine,
+  availability), `research.ts` (the isolated call, surcharge, audit, daily count), `components/assistant/WebResearch.tsx`
+  (consent chips, sources), the `propose_web_search` tool and the taint rule in `ai/assistant.ts`, `allow_web` /
+  `consent_query` on `POST /api/ai/ask`. Migration is **0205** (0204 went to the briefing work): `assistant_actions` + `change_log.via`;
+  `assistant_briefings` is not in it.
+- "Yes" resends the question with `allow_web: "once"` and the query shown; the server then runs exactly that query and hands
+  the model the proposal and its result as a tool exchange, so the answer never depends on the model proposing the same words
+  twice. "Always" sends `allow_web: "chat"` with every ask of that chat (dock state only). "No" sends nothing.
+- The query rule has a short fixed list of research words ("company", "website", "news") beside the person's words and the
+  open account's or supplier's name, otherwise the design's own example query would be refused. Emails, phone numbers and
+  person or contact-detail terms are always refused; the model must also say `subject: organisation`.
+- After a web result the ask is tainted: `tool_choice: none` for every later call, and a tool call that arrives anyway is
+  answered with an error and not run. A result with no citable source is replaced by "could not verify"; its text never
+  reaches the model.
+- Per-tenant policy: `config.ai_assistant.block_external_calls: true` keeps it off whatever the flag says (no editor field
+  until S4). One research call per ask, 20 per person per day (counted from `ai_usage_log`, surface `assistant_web`).
+- Not done here: the Settings → AI usage switch (S4), Market Signals on the same function, `kind: create/update` audit rows
+  (WP5/WP6), the Drive guides (after the owner validates).
+
 ## 3. Create from chat, with or without research (ask 3)
 
 Needs **S2's core first** (action registry, confirm card, `assistant_actions`, "via assistant"
@@ -244,6 +265,16 @@ row remembers it; the rule texts are English until a per-user language preferenc
 owner adds it to the demo tenant's dashboard first (rule 10: demo before any client, flag plus
 layout placement). The dock card follows `ai_assistant`. A tenant without `ai_assistant` has no
 dock and no tile. Cost: one small call per person per day at most, plus refreshes.
+
+**Built (WP7, 2026-10-22), where it differs from the plan above:** code in `src/lib/briefing/*` (`rules.ts` row to
+candidate, `score.ts` the rubric, `yesterday.ts`, `load.ts` the queries, `compute.ts` cache and refresh, `store.ts`),
+routes `GET /api/ai/briefing` and `POST /api/ai/briefing/refresh`, `components/BriefingTile.tsx` (tile and dock card).
+Day boundary: `config.wfm.timezone` (the only time zone a workspace stores today), else UTC. "Tasks" are
+`journey_tasks` assigned to the person (the product has no other task object). Cases are **deferred**: `service_cases`
+has no creator or owner column, so "my cases" cannot be told from anyone's. Approver lines (supervisor queues, failed
+syncs, mentions) count at 0.6 and carry counts and age only. The storage table is its own migration
+(`0204_assistant_briefings.sql`); WP4's `assistant_actions` and `change_log.via` must use the next free number. The tile's
+explanations live in `src/lib/briefing/tips.ts`, held to the InfoTip limit by `briefing.test.ts`.
 
 ## 5. Integration points (suite rule: integrated, never standalone)
 
@@ -398,3 +429,22 @@ Voice input in the dock; proactive nudges from `domain_event` into the briefing 
 inbox (S5); a manager's team briefing (needs the Business-Roles-as-boundary decision from the
 2026-10-21 audit first); hand-over summaries between users; Market Signals moved onto the
 research function; `POST /api/v1/assistant` with a key's scopes.
+
+## 11. WP1 and WP2 as built (2026-10-22)
+
+Flag `ai_assistant` only; nothing writes tenant data; no migration.
+
+- **Manifests**: `src/lib/assistant/screens/` (`generate.ts` builds list/new/edit/detail per `OBJECT_DEFS`, one per Settings
+  page and sidebar route, and the six studios from their `tourSteps.ts`; `quote|standardQuote|account|case|webhooks|middleware.ts`
+  are the hand-written verbs and tasks; `index.ts` is the loader; `filter.ts` gates by module, role grant and admin and renders
+  the bounded block). Fields come from `getEffectiveFieldConfig` per ask, so custom fields are in the manifest at once.
+- **Ids**: components carry `data-guide`. Shared ones cover every record page: `record.back|primary|more`, `menu:<slug>` for
+  every More-menu entry, `tab:<id>` for every tab, `form.save|cancel`, `list.new`, `related.new`, `<object>.field.<key>` on
+  detail fields and custom create fields. `screens.test.ts` fails the build when a manifest names an id no component carries.
+- **Prompt split**: the cached block is untouched. The screen block, the live "not available" list and the guide rule are in the
+  per-ask block. The `guide` tool is offered only when the screen has a manifest, so there are two cached tool-list variants
+  (with and without it). The control id is validated server-side, not as a per-screen enum, because an enum would give every
+  screen its own tool list and cache.
+- **Deviations**: new/edit forms are hand-built, so their standard fields have no `data-guide` yet (custom fields do); a step on
+  one is shown as text with no highlight. Webhooks and middleware use the shared tab strip only until their own page files
+  get `data-guide` ids. `screen_help(id)`, the live `screen` object and the cached screen index are WP3.

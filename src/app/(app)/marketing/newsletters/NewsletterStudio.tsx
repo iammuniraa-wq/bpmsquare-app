@@ -32,6 +32,8 @@ import PreviewFrame from "./PreviewFrame";
 import SendPanel from "./SendPanel";
 import LanguageCompare from "./LanguageCompare";
 import Tour, { type TourStep } from "@/components/marketing/Tour";
+import { withBefore } from "@/lib/studio/tourSteps";
+import { NEWSLETTER_TOUR } from "@/lib/newsletter/tourSteps";
 import styles from "./newsletter.module.css";
 
 export type StudioInitial = {
@@ -337,16 +339,16 @@ export default function NewsletterStudio(props: StudioProps) {
     URL.revokeObjectURL(url);
   }
 
-  const tour: TourStep[] = [
-    { target: "startSec", text: "Start here. Write one line about this issue and press Write it for me, or pick one of your templates or a built-in design. English comes first.", before: () => openSection("startSec") },
-    { target: "nlBlocksList", text: "These are the pieces your newsletter is built from. Drag to reorder, hide what you do not need, add more from the list below.", before: () => openSection("blocksSec") },
-    { target: "nlEditor", text: "Click a block to change its words. Rewrite makes it shorter, friendlier or more formal; you keep what you like.", before: () => { openSection("blocksSec"); const b = doc.blocks.find((x) => x.type === "text") ?? doc.blocks[1]; if (b) setSelId(b.id); } },
-    { target: "langSec", text: "Add a language on top of the English. AI translates every block and keeps product names and prices as they are.", before: () => { openSection("langSec"); } },
-    { target: "nlStage", text: "Check this marks the lines the translation was unsure about. Accept or edit each one; a language can be sent once every line is checked.", before: () => { const other = doc.languages.find((l) => l.lang !== SOURCE_LANGUAGE); if (other) setLang(other.lang); } },
-    { target: "nlDevice", text: "See it as a phone or a desktop, light or dark, exactly as it is built for email programs.", before: () => { setDev("phone"); } },
-    { target: "nlHeadActions", text: "In the ⋯ menu, Save as template keeps this design to start from next time, beside the built-in designs. Versions and the email HTML are there too.", before: () => { setDev("desktop"); setLang(SOURCE_LANGUAGE); } },
-    { target: "nlHeadActions", text: "Send opens one panel: pick who gets it and send. Each person gets their own language, and only people who agreed to this topic are emailed. On a phone it is the button at the bottom.", before: () => { setCard(null); } },
-  ];
+  const tour: TourStep[] = withBefore(NEWSLETTER_TOUR, [
+    () => openSection("startSec"),
+    () => openSection("blocksSec"),
+    () => { openSection("blocksSec"); const b = doc.blocks.find((x) => x.type === "text") ?? doc.blocks[1]; if (b) setSelId(b.id); },
+    () => { openSection("langSec"); },
+    () => { const other = doc.languages.find((l) => l.lang !== SOURCE_LANGUAGE); if (other) setLang(other.lang); },
+    () => { setDev("phone"); },
+    () => { setDev("desktop"); setLang(SOURCE_LANGUAGE); },
+    () => { setCard(null); },
+  ]);
 
   const langNames = doc.languages.filter((l) => l.lang !== SOURCE_LANGUAGE).map((l) => languageDef(l.lang)?.name ?? l.lang);
   const statusPill = initial.status === "archived" ? "Archived" : initial.status === "ready" && !dirty ? "Ready to use" : dirty ? "Unsaved changes" : "Draft";

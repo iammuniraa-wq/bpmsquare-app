@@ -22,6 +22,10 @@ export const FEATURE_DEPENDENCIES: FeatureDependency[] = [
     why: "The employee master, Business Users and the automatic Workforce roles hang off Business Roles (tenant provisioning runbook section 0; the Tenant Studio turns it on for you).",
   },
   {
+    key: "ai_assistant_web", needs: "ai_assistant", strength: "hard",
+    why: "Web research is a tool inside the assistant chat and is metered against its allowance.",
+  },
+  {
     key: "wfm_projects", needs: "wfm", strength: "hard",
     why: "Project costing is a layer inside Workforce: hours come from attendance and the Projects screen sits under the Workforce nav.",
   },
@@ -111,7 +115,7 @@ export const FEATURE_GROUP: Partial<Record<Key, SettingsGroupId>> = {
   // Data
   reports: "data", data_workbench: "data", db_export: "data", change_history: "data",
   // Integrations
-  outbound_email: "integrations", gmail_reply_threading: "integrations", ai_assistant: "integrations", ai_assistant_actions: "integrations", ai_reports: "integrations",
+  outbound_email: "integrations", gmail_reply_threading: "integrations", ai_assistant: "integrations", ai_assistant_web: "integrations", ai_assistant_actions: "integrations", ai_reports: "integrations",
   // Appearance
   next_experience: "appearance", enterprise_theme: "appearance", spectacular_theme: "appearance",
 };

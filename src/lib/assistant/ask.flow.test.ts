@@ -171,7 +171,9 @@ describe("cost controls", () => {
   it("the cached block is byte-identical across asks, whatever the date or the open record", async () => {
     const first = setup({ route: `/quotations/${QA}` });
     await askAssistant(ask("what is this quote's total"), first.ctx);
-    const second = setup({ route: null });
+    // Another screen with a manifest: the tool list carries the guide tool on both, so it is the same bytes. (A page
+    // without a manifest offers no guide tool, which is a second cached variant; see guide.flow.test.ts.)
+    const second = setup({ route: `/accounts/${ACC_A}` });
     second.ctx.now = new Date("2026-11-30T09:00:00Z");
     await askAssistant(ask("how many accounts"), second.ctx);
     const text0 = (s: ReturnType<typeof setup>) => (s.params[0] as { system: { text: string }[] }).system[0].text;

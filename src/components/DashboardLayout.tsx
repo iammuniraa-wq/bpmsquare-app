@@ -12,6 +12,7 @@ import { moneyFormatter, type CurrencyDef } from "@/lib/currency";
 import SilenceDetector from "@/components/SilenceDetector";
 import LossIntelligence from "@/components/LossIntelligence";
 import WfmSummaryWidget from "@/components/wfm/WfmSummaryWidget";
+import BriefingTile from "@/components/BriefingTile";
 import { ROUTES } from "@/lib/constants";
 import type { AnalyticsMetricId, TenantFeatures, DashLayoutItem } from "@/lib/constants";
 import { AlertTriangle, Activity, CheckIcon, Package, Phone, Gear, Globe, Wrench, CalendarCheck, Zap, Clipboard, Battery, FileText, Clock } from "@/components/Icons";
@@ -946,6 +947,7 @@ export function renderWidget(id: AnalyticsMetricId, a: AnalyticsData, size: "com
         ]} />
       </AnalyticsCard>;
     }
+    case "my_briefing": return <AnalyticsCard title="My day"><BriefingTile /></AnalyticsCard>;
     case "wfm_project_hours": {
       const rows = a.wfmProjectHours.slice(0, 6);
       const total = a.wfmProjectHours.reduce((s, x) => s + x.minutes, 0);

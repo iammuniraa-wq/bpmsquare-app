@@ -7,7 +7,7 @@ import { isSchemaPending } from "@/lib/marketing/pending";
 // against the shape in docs/design/assistant-smarter.md and degrades while it is pending: the action still runs
 // and is still in Change History, the audit row is skipped, and single use falls back to this server process only.
 
-export type AssistantActionStatus = "executing" | "done" | "failed";
+export type AssistantActionStatus = "pending" | "done" | "failed";
 
 export type AssistantActionRow = {
   id: string;
@@ -56,9 +56,9 @@ export function resetLedgerMemory(): void { memory.clear(); }
 
 function claimInMemory(cardId: string): ClaimResult {
   const seen = memory.get(cardId);
-  if (!seen) { remember(cardId, { status: "executing", result: null }); return { state: "claimed", durable: false }; }
+  if (!seen) { remember(cardId, { status: "pending", result: null }); return { state: "claimed", durable: false }; }
   if (seen.status === "done") return { state: "done", result: seen.result };
-  if (seen.status === "failed") { remember(cardId, { status: "executing", result: null }); return { state: "claimed", durable: false }; }
+  if (seen.status === "failed") { remember(cardId, { status: "pending", result: null }); return { state: "claimed", durable: false }; }
   return { state: "busy" };
 }
 
@@ -86,7 +86,7 @@ export async function usedResult(admin: SupabaseClient, c: { cardId: string; ten
 export async function claimCard(admin: SupabaseClient, c: ClaimInput): Promise<ClaimResult> {
   const row = {
     id: c.cardId, tenant_id: c.tenantId, user_id: c.userId, kind: c.kind, card: c.card,
-    action_key: c.actionKey, route: c.route, params: c.params, status: "executing" as const,
+    action_key: c.actionKey, route: c.route, params: c.params, status: "pending" as const,
   };
   try {
     const { error } = await admin.from("assistant_actions").insert(row);
@@ -98,7 +98,7 @@ export async function claimCard(admin: SupabaseClient, c: ClaimInput): Promise<C
       if (existing.status === "done") return { state: "done", result: existing.result };
       if (existing.status === "failed") {
         const { data: retaken } = await admin.from("assistant_actions")
-          .update({ status: "executing", card: c.card, params: c.params, result: null })
+          .update({ status: "pending", card: c.card, params: c.params, result: null })
           .eq("id", c.cardId).eq("tenant_id", c.tenantId).eq("user_id", c.userId).eq("status", "failed")
           .select("id");
         return retaken && retaken.length > 0 ? { state: "claimed", durable: true } : { state: "busy" };
