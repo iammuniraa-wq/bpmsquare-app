@@ -428,3 +428,4 @@ in parallel) — names and tabs that change, so the guide describes the
   after seeing it; `SettingsField` shows the `i` on demo and Nova workspaces
   and keeps the old `?` elsewhere (batch 1 decision), so Settings pages differ
   by workspace until that is unified.
+- Settings batch S2 (2026-10-22): Company, Appearance and Products are folded screens (tabs, one draft, one Save, shared `SettingsList` table + `SidePanel`); the rest of the screen list in `settings-simplification.md`.

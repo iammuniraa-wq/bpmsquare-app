@@ -66,6 +66,26 @@ describe("visibleSettingsMenu", () => {
     expect(wf(false, { wfm: true })).toBe(0);
   });
 
+  it("folds Company, Appearance and Products into one entry each (batch S2)", () => {
+    const ids = (features: Record<string, boolean>) =>
+      visibleSettingsMenu({ isAdmin: true, canEdit: () => true, features }).flatMap((g) => g.items.map((i) => i.id));
+    const all = ids({ quotations: true, products: true, wfm: true });
+    for (const gone of ["entities", "currency", "number-ranges", "navigation", "dashboard", "reset", "product-categories", "item-types"]) expect(all).not.toContain(gone);
+    expect(all).toEqual(expect.arrayContaining(["company", "appearance", "products"]));
+    // Company and Appearance reach every workspace; Products only one with Products or Quotations.
+    expect(ids({ wfm: true })).toEqual(expect.arrayContaining(["company", "appearance"]));
+    expect(ids({ wfm: true })).not.toContain("products");
+    expect(ids({ quotations: true })).toContain("products");
+  });
+
+  it("keeps Company, Appearance and Products to admins (every write behind them is an admin write)", () => {
+    const features = { quotations: true, products: true };
+    const member = visibleSettingsMenu({ isAdmin: false, canEdit: () => false, features }).flatMap((g) => g.items.map((i) => i.id));
+    expect(member).not.toContain("company");
+    expect(member).not.toContain("appearance");
+    expect(member).not.toContain("products");
+  });
+
   it("keeps every entry id and href unique", () => {
     expect(new Set(SETTINGS_MENU.map((m) => m.id)).size).toBe(SETTINGS_MENU.length);
     expect(new Set(SETTINGS_MENU.map((m) => m.href)).size).toBe(SETTINGS_MENU.length);
@@ -85,10 +105,20 @@ describe("filterSettingsMenu", () => {
 
   it("still finds pages by the names they had before the split", () => {
     const find = (q: string) => filterSettingsMenu(groups, q).flatMap((g) => g.items.map((i) => i.id));
-    expect(find("general")).toEqual(expect.arrayContaining(["company", "appearance", "navigation", "developer"]));
+    expect(find("general")).toEqual(expect.arrayContaining(["company", "appearance", "developer"]));
     expect(find("statuses")).toContain("statuses");
     expect(find("statuses & assets")).toEqual(expect.arrayContaining(["statuses", "asset-print-fields"]));
     expect(find("appearance")).toContain("appearance");
+  });
+
+  it("finds the folded pages by the names they had before batch S2", () => {
+    const find = (q: string) => filterSettingsMenu(groups, q).flatMap((g) => g.items.map((i) => i.id));
+    expect(find("entities & tax")).toContain("company");
+    expect(find("number ranges")).toContain("company");
+    expect(find("currency")).toContain("company");
+    expect(find("navigation visibility")).toContain("appearance");
+    expect(find("reset layout")).toContain("appearance");
+    expect(find("dashboard content")).toContain("appearance");
   });
 
   it("requires every typed word and returns everything for a blank query", () => {

@@ -28,7 +28,7 @@ unclassified and behaves exactly as products did before.
   `itemTypeFromCell`, `sanitizeItemTypeConfig`), `itemTypesServer.ts` (config read, write check).
 - Tenant overrides live in `tenants.config.item_types`: `labels` (renames of built-ins), `hidden` (keys) and
   `custom` (added types with their stocked / sellable / purchasable flags). Custom types never have components.
-- Settings -> Data -> Item types (`/settings/item-types`, admin only, Products module). API:
+- Settings -> Data -> Products -> Item types tab (`/settings/products?tab=types`, admin only, Products module; `/settings/item-types` redirects there). API:
   `/api/settings/item-types` (GET / PUT, admin). A custom type that products still carry can be hidden but not removed.
 - A hidden type stays on the products that have it and can be kept on edit, but cannot be newly assigned.
 
