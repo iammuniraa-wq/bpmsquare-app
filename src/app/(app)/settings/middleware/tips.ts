@@ -27,7 +27,19 @@ export const MIDDLEWARE_TIPS = {
   tryIt: "Preview shows what would be sent without sending anything. Send a quote now is safe to repeat; a quote never lands twice.",
 
   // Mapping
-  mapping: "Left is the BPMSquare field, right is the ERP field it fills. Works without any change; edit only if your ERP is customised.",
+  mapping: "Left is the BPMSquare field, right is the field it fills in the target. Works without any change; edit only if your system is customised.",
+  mappingFields: "Each line sends one BPMSquare field to one field of the target. Lines the target has no use for stay as Not sent.",
+  valueMapping: "Lists turn BPMSquare values into the codes your system uses, such as Mtr into M. One list serves every document of this connection.",
+  convert: "Changes a value on its way: a code from a list, a date format, a join of fields or a fixed value. Leave it empty to send the value as it is.",
+  fetchFields: "Reads the target's field list from its own description, a pasted sample or a list you type. Fields that are new or gone are flagged, never dropped.",
+  propose: "Matches fields by name and type and fills only the empty lines. Nothing is saved until you press Save.",
+  proposeAi: "Suggests matches for lines still empty, from field names and types only; no record data is sent. You accept each suggestion yourself.",
+  listInbound: "When a code comes back from your system, this row gives the BPMSquare value. Exactly one row per code answers.",
+  listDefault: "The BPMSquare value used when an unknown code comes back. Empty keeps the code as it arrived and counts it.",
+  ifEmpty: "Sent when the BPMSquare field is empty. Leave it blank to send nothing.",
+  tryMapping: "Shows the exact body the saved mapping would send for a sample quote. Nothing is sent and nothing is recorded.",
+  sendHeaders: "Sends this webhook's own headers, such as an API key, when reading the description. They are not kept in the mapping.",
+  manualFields: "One field per line: its name, then its type, such as city text. Add * after the type if the target requires it.",
 
   // Monitor
   monitor: "Every message in and out, newest first. Tick lines to restart them; open a line for its details.",

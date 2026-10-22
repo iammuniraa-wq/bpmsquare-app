@@ -7,6 +7,7 @@
 
 import type { D365Config, D365EntityConfig, D365EntityKey, D365PublicState, ScopeCondition } from "@/lib/connectors/d365/types";
 import type { ScopeAttribute } from "@/lib/connectors/d365/scope";
+import type { Converter, EngineMappingExtras, MapRow as MapRowT, TryResult, ValueListRow } from "@/lib/middleware/mapping/types";
 
 export type ScopeEntityKey = Exclude<D365EntityKey, "fence_projects">;
 
@@ -21,10 +22,14 @@ export class ApiProblem extends Error {
     readonly installing = false,
     readonly fix: string | null = null,
     readonly field: string | null = null,
+    /** Every row the server refused (a save answers 422 with one entry per row). */
+    readonly errors: ErrorItem[] = [],
   ) {
     super(message);
   }
 }
+
+export type ErrorItem = { rowId?: string; field?: string; row?: number; message: string };
 
 export const INSTALLING = "This part is still being installed.";
 
@@ -48,9 +53,10 @@ async function request<T>(method: string, url: string, body?: unknown, opts: { k
   // A 4xx whose JSON body IS the answer (a refused test, a refused send) is returned, not thrown.
   if (!res.ok && opts.keep4xx && res.status < 500 && json) return json as T;
   if (!res.ok) {
-    const first = Array.isArray(json?.errors) ? (json!.errors as { field?: string; message?: string }[])[0] : undefined;
+    const all = Array.isArray(json?.errors) ? (json!.errors as ErrorItem[]).filter((x) => x && typeof x.message === "string") : [];
+    const first = all[0];
     const msg = (typeof json?.headline === "string" && json.headline) || (typeof json?.error === "string" && json.error) || first?.message || `Request failed (${res.status})`;
-    throw new ApiProblem(msg, res.status, false, typeof json?.fix === "string" ? json.fix : null, first?.field ?? null);
+    throw new ApiProblem(msg, res.status, false, typeof json?.fix === "string" ? json.fix : null, first?.field ?? null, all);
   }
   return (json ?? {}) as T;
 }
@@ -445,21 +451,6 @@ export const checkPermissions = () => post<{ checks: PermissionCheck[] }>("/api/
 
 // ── Mapping ─────────────────────────────────────────────────────────────────
 
-export const METADATA_ENTITIES = ["quote", "quote_line", "account", "contact", "product", "project", "customers", "contacts", "vendors", "products", "projects"] as const;
-export type MetadataEntity = (typeof METADATA_ENTITIES)[number];
-export type ErpField = { name: string; label: string; type: string; required: boolean; creatable: boolean };
-export type MetadataView = {
-  fields: ErpField[];
-  fetchedAt: string | null;
-  /** false where the product has no such table (a quote on Finance and Operations): `hint` says so. */
-  applicable?: boolean;
-  hint?: string;
-  /** "sample" = the keys of a sample row (no required marks). */
-  source?: string;
-};
-export const getMetadata = (entity: MetadataEntity, refresh = false) =>
-  get<MetadataView>(`/api/middleware/metadata?entity=${encodeURIComponent(entity)}${refresh ? "&refresh=1" : ""}`);
-
 /** Inbound preview: the first rows of an entity as the ERP returns them. Nothing is written. */
 export const previewEntity = (entity: D365EntityKey) => post<{ rows: Record<string, unknown>[] }>("/api/middleware/preview-entity", { entity });
 
@@ -497,46 +488,95 @@ export type MappingView =
     };
 export const getMapping = () => get<MappingView>("/api/middleware/mapping");
 
-export type Suggestion = { bpm: string; erp: string; score: number; reason: string };
-/** "Suggest mapping": matches between BPMSquare fields and the ERP's own, by name. */
-export const suggestMapping = (entity: MetadataEntity, bpmFields: { key: string; label: string }[], mapped: string[]) =>
-  post<{ suggestions: Suggestion[]; missing: ErpField[] }>("/api/middleware/mapping", { entity, bpm_fields: bpmFields, mapped });
-
-// ── Mapping, one row per field (spec section 6) ────────────────────────────
+// ── Mapping: the engine (docs/design/mapping-engine.md) ────────────────────
 
 export const MAP_DOCUMENTS = ["quote", "customers", "contacts", "products", "projects"] as const;
 export type MapDocumentKey = (typeof MAP_DOCUMENTS)[number];
 export type MapSide = { label: string; name: string };
-export type MapRowView = {
-  id: string;
-  bpm: MapSide;
-  /** null = "Not sent". */
-  erp: MapSide | null;
-  standard: boolean;
-  /** A standard row built from several fields (the name from reference and customer): shown, not edited. */
-  composite: string | null;
-};
+/** The older per-field row the server still sends (the preset lane); the screen works from `engine.rows`. */
+export type MapRowView = { id: string; bpm: MapSide; erp: MapSide | null; standard: boolean; composite: string | null };
 export type MapSection = { key: string; label: string; rows: MapRowView[] };
+export type MapRowEdit = { id: string; erp: string | null };
+
+export type EngineRow = MapRowT;
+export type EngineData = EngineMappingExtras;
+export type EngineRows = { header: MapRowT[]; lines: MapRowT[] };
+
 export type MappingDocView = {
+  connected: boolean;
   document: { key: string; label: string; targetLabel: string };
   sections: MapSection[];
-  /** The ERP's own fields per section key, for the dropdown. */
   erpFields: Record<string, MapSide[]>;
   usingStandard: boolean;
-  /** Plain names of required ERP fields that nothing fills. */
   missingRequired: string[];
+  /** Null when the server does not send the engine's part. */
+  engine: EngineData | null;
+  /** Set while the database update (bundle 12) has not been run: one plain notice, never a crash. */
+  pending: { bundle: string | null } | null;
 };
-export type MapRowEdit = { id: string; erp: string | null };
+
+/** The 200 answer a mapping route gives while the database update is pending. */
+export const pendingBundle = (x: unknown): { bundle: string | null } | null =>
+  x && typeof x === "object" && (x as Json).needsDatabaseUpdate === true ? { bundle: typeof (x as Json).bundle === "string" ? ((x as Json).bundle as string) : null } : null;
+
+export const pendingWords = (bundle: string | null): string =>
+  bundle ? `A database update is needed first: run ${bundle} once.` : "A database update is needed first.";
+
+export class PendingProblem extends ApiProblem {
+  constructor(readonly bundle: string | null) {
+    super(pendingWords(bundle), 200);
+  }
+}
+/** Every call below throws this instead of returning a half answer while the update is pending. */
+function settled<T>(x: T): T {
+  const p = pendingBundle(x);
+  if (p) throw new PendingProblem(p.bundle);
+  return x;
+}
 
 const side = (v: unknown): MapSide | null =>
   v && typeof v === "object" && "name" in v ? { label: String((v as MapSide).label ?? (v as MapSide).name), name: String((v as MapSide).name) } : null;
 
 type RawSection = { key?: unknown; label?: unknown; rows?: { id?: unknown; bpm?: unknown; erp?: unknown; standard?: unknown; composite?: unknown }[] };
+
+const arr = <T,>(v: unknown): T[] => (Array.isArray(v) ? (v as T[]) : []);
+
+export function normalizeEngine(raw: Record<string, unknown>): EngineData | null {
+  const rows = raw.rows as { header?: unknown; lines?: unknown } | undefined;
+  if (!rows || typeof rows !== "object" || Array.isArray(rows) || !raw.engine || !raw.target) return null;
+  const eng = raw.engine as Json;
+  const tgt = raw.target as Json;
+  const schema = (tgt.schema && typeof tgt.schema === "object" ? tgt.schema : {}) as Json;
+  const counts = (schema.counts && typeof schema.counts === "object" ? schema.counts : {}) as Json;
+  const sf = (raw.sourceFields ?? {}) as Json;
+  const tf = (raw.targetFields ?? {}) as Json;
+  return {
+    engine: {
+      active: eng.active === true, version: typeof eng.version === "number" ? eng.version : null,
+      versions: arr(eng.versions), usingStandard: eng.usingStandard === true,
+    },
+    target: {
+      kind: (tgt.kind as EngineData["target"]["kind"]) ?? "adapter", entity: String(tgt.entity ?? ""), linesPath: typeof tgt.linesPath === "string" ? tgt.linesPath : null,
+      schema: {
+        fetchedAt: typeof schema.fetchedAt === "string" ? schema.fetchedAt : null, sourceUrl: typeof schema.sourceUrl === "string" ? schema.sourceUrl : null,
+        counts: { total: Number(counts.total ?? 0), new: Number(counts.new ?? 0), missing: Number(counts.missing ?? 0) },
+      },
+    },
+    sourceFields: { header: arr(sf.header), lines: arr(sf.lines) },
+    targetFields: { header: arr(tf.header), lines: arr(tf.lines) },
+    rows: { header: arr(rows.header), lines: arr(rows.lines) },
+    missingRequired: arr<unknown>(raw.missingRequired).map(String),
+    lists: arr(raw.lists),
+    ai: { available: (raw.ai as Json | undefined)?.available === true },
+  };
+}
+
 export function normalizeMappingDoc(raw: Record<string, unknown>): MappingDocView {
-  const sections = (Array.isArray(raw.sections) ? raw.sections : []) as RawSection[];
+  const sections = arr<RawSection>(raw.sections);
   const fields = (raw.erpFields && typeof raw.erpFields === "object" ? raw.erpFields : {}) as Record<string, unknown[]>;
   const doc = (raw.document && typeof raw.document === "object" ? raw.document : {}) as Record<string, unknown>;
   return {
+    connected: raw.connected !== false,
     document: { key: String(doc.key ?? ""), label: String(doc.label ?? ""), targetLabel: String(doc.targetLabel ?? "") },
     sections: sections.map((sec) => ({
       key: String(sec.key), label: String(sec.label ?? sec.key),
@@ -548,14 +588,117 @@ export function normalizeMappingDoc(raw: Record<string, unknown>): MappingDocVie
     erpFields: Object.fromEntries(Object.entries(fields).map(([k, v]) => [k, (Array.isArray(v) ? v : []).map(side).filter((x): x is MapSide => !!x)])),
     usingStandard: raw.usingStandard === true,
     missingRequired: Array.isArray(raw.missingRequired) ? raw.missingRequired.map(String) : [],
+    engine: normalizeEngine(raw),
+    pending: pendingBundle(raw),
   };
 }
-export async function getMappingDoc(document: MapDocumentKey): Promise<MappingDocView> {
-  return normalizeMappingDoc(await get<Record<string, unknown>>(`/api/middleware/mapping?document=${encodeURIComponent(document)}`));
+
+const q = (connection: string | undefined) => (connection ? `&connection=${encodeURIComponent(connection)}` : "");
+
+export async function getMappingDoc(document: MapDocumentKey, connection?: string): Promise<MappingDocView> {
+  return normalizeMappingDoc(await get<Record<string, unknown>>(`/api/middleware/mapping?document=${encodeURIComponent(document)}${q(connection)}`));
 }
+/** The older per-section save: plain field changes keep working while the database update is pending. */
 export const saveMappingRows = (document: MapDocumentKey, section: string, rows: MapRowEdit[]) =>
   put<unknown>("/api/middleware/mapping", { document, section, rows });
-export const resetMapping = (document: MapDocumentKey) => post<unknown>("/api/middleware/mapping/reset", { document });
+export async function saveEngineRows(connection: string, document: MapDocumentKey, rows: EngineRows, target?: { entity?: string; linesPath?: string | null }): Promise<MappingDocView> {
+  const r = settled(await put<Record<string, unknown>>("/api/middleware/mapping", { connection, document, rows, ...(target ? { target } : {}) }));
+  return normalizeMappingDoc(r);
+}
+export async function resetMapping(document: MapDocumentKey, connection?: string): Promise<void> {
+  await post<unknown>("/api/middleware/mapping/reset", { document, ...(connection ? { connection } : {}) });
+}
+
+export type SchemaSource = "adapter" | "openapi" | "odata" | "sample" | "manual";
+export type ManualField = { path: string; type: string; required?: boolean; block?: "lines" };
+export type SchemaRequest = {
+  source: SchemaSource; url?: string; sample?: string; fields?: ManualField[];
+  linesPath?: string; sendWebhookHeaders?: boolean; operation?: { method: string; path: string };
+};
+export type SchemaOperation = { method: string; path: string; summary: string };
+export type SchemaResult = {
+  needsOperation: boolean; message: string | null; operations: SchemaOperation[];
+  target: EngineData["target"] | null; targetFields: EngineData["targetFields"]; counts: { total: number; new: number; missing: number };
+};
+export async function fetchSchema(connection: string, document: MapDocumentKey, req: SchemaRequest): Promise<SchemaResult> {
+  const r = settled(await post<Record<string, unknown>>("/api/middleware/mapping/schema", { connection, document, ...req }));
+  const tf = (r.targetFields ?? {}) as Json;
+  const c = (r.counts ?? {}) as Json;
+  return {
+    needsOperation: r.needsOperation === true, message: typeof r.message === "string" ? r.message : null, operations: arr(r.operations),
+    target: (r.target as SchemaResult["target"]) ?? null, targetFields: { header: arr(tf.header), lines: arr(tf.lines) },
+    counts: { total: Number(c.total ?? 0), new: Number(c.new ?? 0), missing: Number(c.missing ?? 0) },
+  };
+}
+
+export type ProposedList = { kind: string; label: string; rows: ValueListRow[]; default_in: string | null; proposed?: true };
+export type ProposeResult = { rows: EngineRows; lists: ProposedList[]; missingRequired: string[] };
+export async function proposeRows(connection: string, document: MapDocumentKey, mode: "fill" | "replace"): Promise<ProposeResult> {
+  const r = settled(await post<Record<string, unknown>>("/api/middleware/mapping/propose", { connection, document, mode }));
+  const rows = (r.rows ?? {}) as Json;
+  return { rows: { header: arr(rows.header), lines: arr(rows.lines) }, lists: arr(r.lists), missingRequired: arr<unknown>(r.missingRequired).map(String) };
+}
+
+export type AiSuggestion = { source: string; target: string; reason: string; convert: Converter | null; block: "header" | "lines" };
+export async function proposeAi(connection: string, document: MapDocumentKey): Promise<{ suggestions: AiSuggestion[]; usage: { percent: number; off: boolean } | null }> {
+  const r = settled(await post<Record<string, unknown>>("/api/middleware/mapping/propose-ai", { connection, document }));
+  const u = r.usage as { percent?: unknown; off?: unknown } | undefined;
+  return { suggestions: arr(r.suggestions), usage: u ? { percent: Number(u.percent ?? 0), off: u.off === true } : null };
+}
+
+export async function tryMapping(connection: string, document: MapDocumentKey, recordId?: string): Promise<TryResult> {
+  const r = settled(await post<Record<string, unknown>>("/api/middleware/mapping/try", { connection, document, ...(recordId ? { record_id: recordId } : {}) }));
+  const req = (r.request ?? {}) as Json;
+  return {
+    words: arr<unknown>(r.words).map(String),
+    request: { method: String(req.method ?? ""), url: String(req.url ?? ""), headers: arr<unknown>(req.headers).map(String), body: req.body ?? null },
+    problems: arr(r.problems),
+  };
+}
+
+// ── Value lists ─────────────────────────────────────────────────────────────
+
+export type ValueListView = {
+  kind: string; label: string; rows: ValueListRow[]; default_in: string | null;
+  counts: { rows: number; unused: number; unmapped: number };
+  unmapped: { out: string[]; in: string[] };
+};
+export type ValueListsView = { lists: ValueListView[]; standardKinds: { kind: string; label: string; created: boolean }[]; pending: { bundle: string | null } | null };
+
+export async function getValueLists(connection: string): Promise<ValueListsView> {
+  const r = await get<Record<string, unknown>>(`/api/middleware/value-lists?connection=${encodeURIComponent(connection)}`);
+  return { lists: arr(r.lists), standardKinds: arr(r.standardKinds), pending: pendingBundle(r) };
+}
+export async function saveValueList(connection: string, kind: string, body: { label?: string; rows: ValueListRow[]; default_in: string | null }): Promise<ValueListView> {
+  return settled(await put<ValueListView>(`/api/middleware/value-lists/${encodeURIComponent(kind)}?connection=${encodeURIComponent(connection)}`, body));
+}
+export async function deleteValueList(connection: string, kind: string): Promise<void> {
+  settled(await del<unknown>(`/api/middleware/value-lists/${encodeURIComponent(kind)}?connection=${encodeURIComponent(connection)}`));
+}
+export async function proposeValueLists(connection: string, kind?: string): Promise<ProposedList[]> {
+  const r = settled(await post<Record<string, unknown>>(`/api/middleware/value-lists/propose?connection=${encodeURIComponent(connection)}`, kind ? { kind } : {}));
+  return arr(r.lists);
+}
+export const valueListCsvUrl = (connection: string, kind: string) =>
+  `/api/middleware/value-lists/${encodeURIComponent(kind)}/csv?connection=${encodeURIComponent(connection)}`;
+export type CsvPreview = { added: number; changed: number; removed: number };
+/** Without `confirm` the file is only compared; with it the list is replaced. */
+export async function importValueListCsv(connection: string, kind: string, file: File, confirm: boolean): Promise<{ preview: CsvPreview; rows: number; applied: boolean }> {
+  const form = new FormData();
+  form.set("file", file);
+  let res: Response;
+  try {
+    res = await fetch(`${valueListCsvUrl(connection, kind)}${confirm ? "&confirm=1" : ""}`, { method: "POST", body: form });
+  } catch {
+    throw new ApiProblem("Could not reach the server. Check your connection and try again.", 0);
+  }
+  let json: Json | null = null;
+  try { json = (await res.json()) as Json; } catch { json = null; }
+  if (!res.ok || !json) throw new ApiProblem(typeof json?.error === "string" ? json.error : `Request failed (${res.status})`, res.status);
+  settled(json);
+  const p = (json.preview ?? {}) as Json;
+  return { preview: { added: Number(p.added ?? 0), changed: Number(p.changed ?? 0), removed: Number(p.removed ?? 0) }, rows: Number(json.rows ?? 0), applied: json.applied === true };
+}
 
 // ── Resync ──────────────────────────────────────────────────────────────────
 

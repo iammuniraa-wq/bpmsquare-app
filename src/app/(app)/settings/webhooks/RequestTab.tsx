@@ -1,14 +1,18 @@
 "use client";
 
 import { useRef } from "react";
+import Link from "next/link";
 import Button from "@/components/ui/Button";
 import Field from "@/components/ui/Field";
 import InfoTip from "@/components/ui/InfoTip";
 import { Input, Select, Textarea } from "@/components/ui/Input";
 import { CheckOpt } from "@/components/ui/Opt";
 import s from "./webhooks.module.css";
-import { METHODS, type Method, type TokenChoice } from "./api";
-import { Notice, Segmented } from "../middleware/ui";
+import { ROUTES } from "@/lib/constants";
+import { METHODS, type Method, type PayloadMode, type TokenChoice } from "./api";
+import { getMappingDoc } from "../middleware/api";
+import { generatedTemplate } from "../middleware/mappingLogic";
+import { Notice, ProblemNotice, Segmented, useLoad } from "../middleware/ui";
 import { DEFAULT_TEMPLATE, MAX_HEADERS, insertToken, type Draft, type HeaderDraft } from "./logic";
 import { WEBHOOK_TIPS } from "./tips";
 import TokenPicker from "./TokenPicker";
@@ -16,7 +20,7 @@ import TokenPicker from "./TokenPicker";
 type Errors = Record<string, string | undefined>;
 
 /** Request: the address, the method, the headers, the body. An Event webhook has only the address (a signed change feed). */
-export default function RequestTab({ draft, onChange, errors, attention, tokens, tokensLoading, tokensError }: {
+export default function RequestTab({ draft, onChange, errors, attention, tokens, tokensLoading, tokensError, webhook }: {
   draft: Draft;
   onChange: (patch: Partial<Draft>) => void;
   errors: Errors;
@@ -25,9 +29,15 @@ export default function RequestTab({ draft, onChange, errors, attention, tokens,
   tokens: readonly TokenChoice[];
   tokensLoading: boolean;
   tokensError: string | null;
+  /** The saved webhook, when there is one: "Body from mapping" needs it (the mapping is saved against its id). */
+  webhook?: { id: string; name: string } | null;
 }) {
   const isCall = draft.kind === "call";
   const sendsBody = isCall && draft.method !== "GET";
+  const mappable = !!webhook && draft.objectType === "standard_quotes";
+  const modes: { id: PayloadMode; label: string }[] = [
+    { id: "standard", label: "Standard" }, { id: "template", label: "Template" }, ...(mappable ? [{ id: "mapping" as const, label: "Body from mapping" }] : []),
+  ];
   return (
     <>
       {attention && <Notice tone="warn">{attention}</Notice>}
@@ -53,9 +63,13 @@ export default function RequestTab({ draft, onChange, errors, attention, tokens,
           </div>
           <Segmented
             label="Payload" value={draft.payloadMode}
-            options={[{ id: "standard", label: "Standard" }, { id: "template", label: "Template" }]}
+            options={modes}
             onChange={(v) => onChange({ payloadMode: v, template: v === "template" && !draft.template ? DEFAULT_TEMPLATE : draft.template })}
           />
+          {errors.payload_mode && <div className={s.issue} role="alert">{errors.payload_mode}</div>}
+          {draft.payloadMode === "mapping" && webhook && (
+            <MappingBody webhook={webhook} responseKeyPath={draft.responseKeyPath} error={errors.response_key_path} onChange={(responseKeyPath) => onChange({ responseKeyPath })} />
+          )}
           {draft.payloadMode === "template" && (
             <TemplateEditor
               value={draft.template} onChange={(template) => onChange({ template })} error={errors.template}
@@ -71,6 +85,34 @@ export default function RequestTab({ draft, onChange, errors, attention, tokens,
           onChange={(e) => onChange({ timeoutSec: Number(e.target.value) })} />
       </Field>
     </>
+  );
+}
+
+// ── Body from mapping ───────────────────────────────────────────────────────
+
+/** Mode "mapping": the mapping is the only store; this shows its result with a token where each value goes, and where to change it. */
+export function MappingBody({ webhook, responseKeyPath, error, onChange }: {
+  webhook: { id: string; name: string }; responseKeyPath: string; error?: string; onChange: (v: string) => void;
+}) {
+  const connection = `webhook:${webhook.id}`;
+  const doc = useLoad(() => getMappingDoc("quote", connection), [connection]);
+  const eng = doc.data?.engine ?? null;
+  const href = `${ROUTES.settingsMiddleware}?tab=mapping&connection=${encodeURIComponent(connection)}`;
+  return (
+    <div className={s.block}>
+      <div className="bpm-label-row">
+        <span className={s.small}>{`Body from Mapping: Quote → ${webhook.name}`}</span>
+        <InfoTip label="Body from mapping">{WEBHOOK_TIPS.payloadMapping}</InfoTip>
+        <Link href={href} className="bpm-btn bpm-btn-secondary bpm-btn-sm">Open mapping</Link>
+      </div>
+      {doc.error != null && !doc.data && <ProblemNotice error={doc.error} onRetry={() => void doc.reload()} />}
+      {doc.data?.pending && <Notice tone="info">{`Database update needed: run ${doc.data.pending.bundle ?? "the mapping update"} once.`}</Notice>}
+      {doc.data && !doc.data.pending && (!eng || !eng.engine.active) && <Notice tone="warn">No mapping saved for this webhook yet. Build it under Mapping, then choose this.</Notice>}
+      {eng?.engine.active && <pre className={s.raw} aria-label="Generated body">{generatedTemplate(eng.rows, eng.target.linesPath)}</pre>}
+      <Field label="Read the id from the answer" info={WEBHOOK_TIPS.responseKey} htmlFor="wh-key-path" error={error} style={{ marginBottom: 0 }}>
+        <Input id="wh-key-path" autoComplete="off" spellCheck={false} placeholder="$.data.number" value={responseKeyPath} invalid={!!error} onChange={(e) => onChange(e.target.value)} />
+      </Field>
+    </div>
   );
 }
 

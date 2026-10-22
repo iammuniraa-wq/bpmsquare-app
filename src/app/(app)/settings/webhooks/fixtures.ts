@@ -4,7 +4,7 @@ import type { Webhook } from "./api";
 export const hook = (over: Partial<Webhook> = {}): Webhook => ({
   id: "w1", kind: "call", name: "ERP push", url: "https://erp.acme.com/hooks/accounts", method: "POST", object_type: "accounts", object_types: [],
   headers: [{ name: "X-Api-Key", set: true }], payload_mode: "standard", template: null, allow_personal_data: false, timeout_ms: 15000,
-  active: true, paused_reason: null, secret: "set", last_delivery_at: "2026-10-21T14:02:00", last_status: "200", last_error: null,
+  active: true, paused_reason: null, mapping_id: null, response_key_path: null, secret: "set", last_delivery_at: "2026-10-21T14:02:00", last_status: "200", last_error: null,
   failure_count: 0, needs_attention: null, used_by: [{ kind: "link", label: "Quote" }, { kind: "coverage", label: "EU team" }],
   created_at: "2026-10-01T10:00:00", updated_at: null, ...over,
 });
