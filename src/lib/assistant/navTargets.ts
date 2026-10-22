@@ -78,6 +78,7 @@ const ALIASES: Record<string, string[]> = {
   "settings:company": ["company profile", "entities and tax", "currency", "tax", "number ranges"],
   "settings:appearance": ["theme", "theme and colours", "navigation visibility", "reset layout", "dashboard content"],
   "settings:products": ["product categories", "item types"],
+  "settings:workforce": ["attendance rules", "shifts", "sites", "leave types", "punching and verification", "kiosks", "reminders and notifications", "employment and billing"],
 };
 
 const norm = (s: string): string =>

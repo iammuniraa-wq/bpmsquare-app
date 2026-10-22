@@ -1,13 +1,7 @@
-import SettingsPageHeader from "@/components/settings/SettingsPageHeader";
-import SitesClient from "../SitesClient";
-import { loadWorkforceSettings } from "../guard";
+import { redirect } from "next/navigation";
+import { OLD_SETTINGS_ROUTES } from "@/lib/settingsFolded";
 
-export default async function WorkforceSitesPage() {
-  await loadWorkforceSettings();
-  return (
-    <>
-      <SettingsPageHeader title="Sites" subtitle="The places people punch in at, their geofence and who approves their requests." />
-      <SitesClient canEdit={true} />
-    </>
-  );
+// Batch S5: this page is now a tab of Settings > Workforce.
+export default function WorkforceSitesRedirect() {
+  redirect(OLD_SETTINGS_ROUTES.workforceSites);
 }

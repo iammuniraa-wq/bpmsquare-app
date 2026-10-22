@@ -1,13 +1,7 @@
-import SettingsPageHeader from "@/components/settings/SettingsPageHeader";
-import LeaveTypesClient from "../LeaveTypesClient";
-import { loadWorkforceSettings } from "../guard";
+import { redirect } from "next/navigation";
+import { OLD_SETTINGS_ROUTES } from "@/lib/settingsFolded";
 
-export default async function WorkforceLeaveTypesPage() {
-  await loadWorkforceSettings();
-  return (
-    <>
-      <SettingsPageHeader title="Leave types" subtitle="What people can request time off as, and the quota for each." />
-      <LeaveTypesClient />
-    </>
-  );
+// Batch S5: this page is now a tab of Settings > Workforce.
+export default function WorkforceLeaveTypesRedirect() {
+  redirect(OLD_SETTINGS_ROUTES.workforceLeaveTypes);
 }

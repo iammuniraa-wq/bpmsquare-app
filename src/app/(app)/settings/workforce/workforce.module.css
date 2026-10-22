@@ -1,0 +1,92 @@
+/* Settings > Workforce. Theme variables only. One column under 900 px, tap targets 44 px on a phone, no horizontal
+   scroll at 375 px (bpmsquarecore 6b). */
+
+.shell { display: flex; flex-direction: column; gap: 14px; max-width: 860px; min-width: 0; }
+.card { background: var(--card-bg); border: 1px solid var(--line); border-radius: var(--card-radius); box-shadow: var(--card-shadow); padding: 16px; min-width: 0; }
+.grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 16px; min-width: 0; }
+.grid :global(.bpm-input) { width: 100%; min-width: 0; }
+.full { grid-column: 1 / -1; }
+.stack { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 16px; min-width: 0; }
+.fields :global(.bpm-input) { width: 100%; min-width: 0; }
+.muted { color: var(--muted); }
+.small { font-size: 12.5px; }
+.issue { font-size: 12.5px; color: var(--err-ink); }
+.footIssue { flex: 1; min-width: 160px; }
+.pushStart { margin-inline-end: auto; }
+.switchRow { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 44px; }
+.bar { display: flex; align-items: center; justify-content: space-between; gap: 10px 16px; flex-wrap: wrap; min-width: 0; }
+.barStart { display: flex; align-items: center; gap: 10px 16px; flex-wrap: wrap; min-width: 0; flex: 1; }
+.barStart :global(.bpm-input) { min-width: 0; }
+
+/* Weekly off days: seven chips, one control */
+.days { display: flex; flex-wrap: wrap; gap: 8px; }
+.pick {
+  display: inline-flex; align-items: center; justify-content: center; min-height: 40px; min-width: 48px; padding: 0 12px; font: inherit; font-size: 13px; color: var(--ink);
+  background: var(--panel); border: 1px solid var(--line); border-radius: 999px; cursor: pointer;
+}
+.pick[aria-pressed="true"] { font-weight: 600; background: color-mix(in srgb, var(--modern-accent, var(--tenant-accent, var(--accent))) 14%, var(--panel)); border-color: var(--modern-accent, var(--tenant-accent, var(--accent))); }
+.pick:focus-visible { outline: 2px solid var(--modern-accent, var(--tenant-accent, var(--accent))); outline-offset: 2px; }
+.pick:disabled { opacity: .55; cursor: default; }
+
+/* Rare options: one "More" per tab */
+.more { margin-top: 4px; border-top: 1px solid var(--line); }
+.more > summary { cursor: pointer; display: flex; align-items: center; min-height: 44px; font-size: 13px; font-weight: 600; color: var(--muted); list-style: none; }
+.more > summary::-webkit-details-marker { display: none; }
+.more > summary::before { content: "+"; display: inline-block; width: 16px; }
+.more[open] > summary::before { content: "\2212"; }
+.moreBody { padding-top: 6px; }
+.panelMore { border: 1px solid var(--line); border-radius: 10px; background: var(--panel2); }
+.panelMore > summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; padding: 0 12px; font-size: 13px; font-weight: 600; color: var(--muted); list-style: none; }
+.panelMore > summary::-webkit-details-marker { display: none; }
+.panelMore > summary::after { content: "+"; margin-inline-start: auto; font-size: 16px; }
+.panelMore[open] > summary::after { content: "\2212"; }
+.panelMoreBody { display: flex; flex-direction: column; gap: 12px; padding: 4px 12px 12px; }
+.panelMoreBody :global(.bpm-input) { width: 100%; min-width: 0; }
+
+/* Employment types in More: one input per type */
+.typeRow { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: center; margin-bottom: 8px; }
+.typeRow :global(.bpm-input) { width: 100%; min-width: 0; }
+
+/* Alerts: one grid, supervisor and employee columns */
+.matrix { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+.matrix th { text-align: center; padding: 8px 10px; font-size: 12px; font-weight: 600; color: var(--hint); background: var(--panel2); white-space: nowrap; }
+.matrix th:first-child { text-align: start; }
+.matrix td { padding: 4px 10px; border-top: 1px solid var(--line); text-align: center; vertical-align: middle; }
+.matrix td:first-child { text-align: start; }
+.matrix label { display: inline-flex; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; cursor: pointer; }
+.matrix input[type="checkbox"] { width: 18px; height: 18px; }
+.sectionHead { display: flex; align-items: center; gap: 6px; margin: 0 0 6px; font-size: 13px; font-weight: 600; }
+
+/* A phone reminder: switch, then the number it needs */
+.remind { display: flex; align-items: center; justify-content: space-between; gap: 8px 12px; flex-wrap: wrap; min-height: 44px; padding: 4px 0; border-top: 1px solid var(--line); }
+.remind:first-of-type { border-top: 0; }
+.remindText { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 13.5px; }
+.remindText :global(.bpm-input) { width: 84px; }
+
+/* Billing: rates by employment type */
+.rates { width: 100%; border-collapse: collapse; font-size: 13px; }
+.rates th { text-align: start; padding: 6px 8px 6px 0; font-size: 12px; font-weight: 600; color: var(--hint); }
+.rates td { padding: 4px 8px 4px 0; }
+.rates :global(.bpm-input) { width: 100%; min-width: 0; }
+
+/* A site's door tablets inside its panel */
+.tablet { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; min-height: 44px; border-top: 1px solid var(--line); padding: 4px 0; }
+.tablet:first-of-type { border-top: 0; }
+.tabletActs { display: inline-flex; gap: 6px; flex-wrap: wrap; }
+.code { font-size: 12.5px; overflow-wrap: anywhere; display: block; margin: 6px 0; }
+.approvers { max-height: 200px; overflow-y: auto; border: 1px solid var(--line); border-radius: 8px; padding: 4px; background: var(--panel); }
+.approvers label { display: flex; align-items: center; gap: 8px; min-height: 40px; padding: 0 8px; font-size: 13px; cursor: pointer; }
+.chip { display: inline-flex; align-items: center; font-size: 11.5px; font-weight: 700; padding: 2px 9px; border-radius: 999px; background: var(--panel2); color: var(--muted); border: 1px solid var(--line); white-space: nowrap; }
+.warn { color: var(--amberc); font-weight: 600; }
+
+@media (max-width: 900px) {
+  .grid, .fields { grid-template-columns: 1fr; }
+}
+@media (max-width: 780px) {
+  .shell :global(.bpm-btn), .shell :global(.bpm-input) { min-height: 44px; }
+  .pick, .approvers label { min-height: 44px; }
+  .matrix th, .matrix td { padding-inline: 4px; }
+  .matrix { font-size: 13px; }
+  .remindText :global(.bpm-input) { width: 76px; }
+}
