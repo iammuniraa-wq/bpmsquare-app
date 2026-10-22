@@ -49,13 +49,13 @@ describe("navigation targets are generated per caller", () => {
   });
 
   it("Settings pages are for admins, or members who can edit the page's workcenter", () => {
-    expect(ids(ctx()).some((i) => i.startsWith("settings:team"))).toBe(false);
+    expect(ids(ctx()).some((i) => i.startsWith("settings:people"))).toBe(false);
     const admin = ids(ctx({ isAdmin: true }));
-    expect(admin).toContain("settings:team");
+    expect(admin).toContain("settings:people");
     expect(admin).toContain("nav:/settings");
     const editor = ids(ctx({ canEdit: (wc) => wc === "quotations" }));
     expect(editor).toContain("settings:statuses"); // adminOnly, but this member can edit quotations
-    expect(editor).not.toContain("settings:team");
+    expect(editor).not.toContain("settings:people");
   });
 
   it("supervisor-only workforce pages are hidden from a plain employee", () => {

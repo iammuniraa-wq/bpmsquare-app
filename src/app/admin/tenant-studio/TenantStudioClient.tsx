@@ -128,7 +128,7 @@ export default function TenantStudioClient() {
               <div style={{ fontSize: 12.5, color: "#6b7280", marginTop: 8, lineHeight: 1.6 }}>
                 The tenant itself is live — finish these in{" "}
                 <Link href={`/admin/tenants/${result.tenant_id}`} style={{ color: "#1f6feb" }}>its admin page</Link>{" "}
-                or the tenant&apos;s own Settings → Team.
+                or the tenant&apos;s own Settings → People.
               </div>
             </>
           )}

@@ -1,0 +1,95 @@
+/* Settings > People. Theme variables only. Desktop: one table in a card and a drawer; under 780px a row stacks into
+   name + status, email, chips, and the drawer is a bottom sheet (bpmsquarecore 6b). Tap targets are 44px on a phone. */
+
+.shell { display: flex; flex-direction: column; gap: 14px; max-width: 1100px; min-width: 0; }
+.bar { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; min-width: 0; }
+.barStart { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; flex-wrap: wrap; }
+.search { flex: 1; min-width: 180px; max-width: 360px; }
+.search :global(.bpm-input) { width: 100%; }
+.muted { color: var(--muted); }
+.small { font-size: 12.5px; }
+.stack { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.block { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 16px; }
+.fields :global(.bpm-input) { width: 100%; min-width: 0; }
+.issue { font-size: 12.5px; color: var(--err-ink); }
+.footIssue { flex: 1; min-width: 160px; }
+.pushStart { margin-inline-end: auto; }
+.switchRow { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 44px; }
+
+/* The table */
+.card { background: var(--card-bg); border: 1px solid var(--line); border-radius: var(--card-radius); box-shadow: var(--card-shadow); overflow: hidden; min-width: 0; }
+.listHead, .item { display: grid; gap: 4px 14px; align-items: center; min-width: 0; }
+.people .listHead, .people .item { grid-template-columns: minmax(0, 1.2fr) minmax(0, 1.4fr) minmax(0, 1.5fr) 130px; }
+.roles .listHead, .roles .item { grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) 90px; }
+.listHead { padding: 9px 16px; font-size: 12px; font-weight: 600; color: var(--hint); background: var(--panel2); }
+.item { position: relative; padding: 10px 16px; border-top: 1px solid var(--line); min-height: 56px; }
+.item:hover { background: var(--panel2); }
+.open {
+  display: flex; flex-direction: column; min-width: 0; min-height: 44px; justify-content: center; padding: 0; text-align: start;
+  font: inherit; color: inherit; background: none; border: 0; cursor: pointer;
+}
+/* The whole row opens the panel (a stretched button). */
+.open::after { content: ""; position: absolute; inset: 0; }
+.open:focus-visible { outline: none; }
+.open:focus-visible::after { outline: 2px solid var(--modern-accent, var(--tenant-accent, var(--accent))); outline-offset: -2px; border-radius: 6px; }
+.name { font-weight: 600; font-size: 13.5px; overflow-wrap: anywhere; }
+.sub { font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
+.email { font-size: 13px; color: var(--muted); overflow-wrap: anywhere; min-width: 0; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; min-width: 0; }
+.chip { display: inline-flex; align-items: center; font-size: 11.5px; font-weight: 700; padding: 2px 9px; border-radius: 999px; background: var(--panel2); color: var(--muted); border: 1px solid var(--line); white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+.chipAdmin { background: var(--bluebg); color: var(--blueink); border-color: transparent; }
+.chipStd { background: var(--tealbg); color: var(--tealink); border-color: transparent; }
+.status { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; min-width: 0; }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--hint); flex: none; }
+.dotOn { background: var(--green); }
+.dotWarn { background: var(--amberc); }
+.dotOff { background: var(--redink); }
+.count { font-size: 13px; color: var(--muted); }
+
+/* The panel */
+.chipPick { display: flex; flex-wrap: wrap; gap: 8px; }
+.pick {
+  display: inline-flex; align-items: center; min-height: 36px; padding: 0 12px; font: inherit; font-size: 13px; color: var(--ink);
+  background: var(--panel); border: 1px solid var(--line); border-radius: 999px; cursor: pointer;
+}
+.pick[aria-pressed="true"] { color: var(--ink); font-weight: 600; background: color-mix(in srgb, var(--modern-accent, var(--tenant-accent, var(--accent))) 14%, var(--panel)); border-color: var(--modern-accent, var(--tenant-accent, var(--accent))); }
+.pick:focus-visible { outline: 2px solid var(--modern-accent, var(--tenant-accent, var(--accent))); outline-offset: 2px; }
+.pick:disabled { opacity: .55; cursor: default; }
+.more { border: 1px solid var(--line); border-radius: 10px; background: var(--panel2); }
+.more > summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; padding: 0 12px; font-size: 13px; font-weight: 600; color: var(--muted); list-style: none; }
+.more > summary::-webkit-details-marker { display: none; }
+.more > summary::after { content: "+"; margin-inline-start: auto; font-size: 16px; }
+.more[open] > summary::after { content: "\2212"; }
+.moreBody { display: flex; flex-direction: column; gap: 12px; padding: 4px 12px 12px; }
+.moreBody :global(.bpm-input) { width: 100%; min-width: 0; }
+
+/* The role checklist */
+.checklist { display: flex; flex-direction: column; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+.checkRow { display: flex; align-items: center; justify-content: space-between; gap: 6px 12px; flex-wrap: wrap; padding: 4px 12px; min-height: 44px; border-top: 1px solid var(--line); }
+.checkRow:first-child { border-top: 0; }
+.checkRow :global(.bpm-opt-check) label { min-height: 36px; align-items: center; }
+.acts { display: inline-flex; gap: 12px; flex-wrap: wrap; }
+.acts label { display: inline-flex; align-items: center; gap: 5px; font-size: 12.5px; color: var(--muted); min-height: 36px; cursor: pointer; }
+
+/* A sign-in details box that must stay on screen until dismissed */
+.creds { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.creds code { font-size: 12.5px; overflow-wrap: anywhere; }
+
+@media (max-width: 900px) {
+  .fields { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 780px) {
+  .listHead { display: none; }
+  .people .item { grid-template-columns: minmax(0, 1fr) auto; padding: 10px 14px; row-gap: 2px; }
+  .people .nameCell { grid-column: 1; grid-row: 1; }
+  .people .statusCell { grid-column: 2; grid-row: 1; }
+  .people .emailCell { grid-column: 1 / -1; grid-row: 2; }
+  .people .chipsCell { grid-column: 1 / -1; grid-row: 3; }
+  .roles .item { grid-template-columns: minmax(0, 1fr) auto; padding: 10px 14px; row-gap: 2px; }
+  .roles .accessCell { grid-column: 1; grid-row: 2; }
+  .roles .countCell { grid-column: 2; grid-row: 1; }
+  .search { max-width: none; }
+  .pick, .acts label, .checkRow :global(.bpm-opt-check) label { min-height: 44px; }
+}

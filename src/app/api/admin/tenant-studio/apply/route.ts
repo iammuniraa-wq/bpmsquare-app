@@ -31,7 +31,7 @@ import { normalisePlan, manualSteps } from "@/lib/admin/tenantStudio";
  * and what failed per item rather than a bare ok/error. The tenant row is
  * the one thing created first and alone -- if it fails, nothing else has
  * happened; if a later step fails, the operator has a live tenant they can
- * finish by hand in /admin/tenants/[id] and Settings → Team, which is
+ * finish by hand in /admin/tenants/[id] and Settings → People, which is
  * exactly the pre-studio flow.
  */
 export async function POST(request: NextRequest) {

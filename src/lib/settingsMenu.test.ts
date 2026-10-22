@@ -26,7 +26,7 @@ describe("visibleSettingsMenu", () => {
     expect(ids(without)).not.toContain("statuses");
     const withGrant = visibleSettingsMenu({ isAdmin: false, canEdit: (w) => w === "quotations", features });
     expect(ids(withGrant)).toContain("statuses");
-    expect(ids(withGrant)).not.toContain("team");
+    expect(ids(withGrant)).not.toContain("people");
   });
 
   it("gates Quote statuses by Quotations (what the page edits), Asset print fields by Assets", () => {
@@ -78,7 +78,7 @@ describe("filterSettingsMenu", () => {
   }));
 
   it("matches by name, description, keyword and group", () => {
-    expect(filterSettingsMenu(groups, "invite").flatMap((g) => g.items.map((i) => i.id))).toEqual(["team"]);
+    expect(filterSettingsMenu(groups, "invite").flatMap((g) => g.items.map((i) => i.id))).toEqual(["people"]);
     expect(filterSettingsMenu(groups, "supplier").flatMap((g) => g.items.map((i) => i.id))).toContain("rfq");
     expect(filterSettingsMenu(groups, "workforce").flatMap((g) => g.items.map((i) => i.id))).toContain("wf-shifts");
   });
@@ -92,7 +92,7 @@ describe("filterSettingsMenu", () => {
   });
 
   it("requires every typed word and returns everything for a blank query", () => {
-    expect(filterSettingsMenu(groups, "team zzz")).toEqual([]);
+    expect(filterSettingsMenu(groups, "people zzz")).toEqual([]);
     expect(filterSettingsMenu(groups, "   ")).toBe(groups);
   });
 });
@@ -101,14 +101,21 @@ describe("activeSettingsItemId", () => {
   const groups = toMenuGroups(visibleSettingsMenu({ isAdmin: true, canEdit: () => true, features: { wfm: true } }));
 
   it("matches a page and its sub-pages, and nothing at the landing", () => {
-    expect(activeSettingsItemId(groups, "/settings/team")).toBe("team");
+    expect(activeSettingsItemId(groups, "/settings/people")).toBe("people");
     expect(activeSettingsItemId(groups, "/settings/workforce/attendance")).toBe("wf-attendance");
     expect(activeSettingsItemId(groups, "/settings/workforce/sites")).toBe("wf-sites");
     expect(activeSettingsItemId(groups, "/settings")).toBeNull();
   });
 
   it("never marks an external link active", () => {
-    const g = toMenuGroups(visibleSettingsMenu({ isAdmin: true, canEdit: () => true, features: { business_roles: true } }));
-    expect(activeSettingsItemId(g, "/administration/business-roles")).toBeNull();
+    const g = toMenuGroups(visibleSettingsMenu({ isAdmin: true, canEdit: () => true, features: { pricing_engine: true } }));
+    expect(activeSettingsItemId(g, "/pricing/setup")).toBeNull();
+  });
+
+  it("has one People entry and none for the retired Team, Business users and Business roles", () => {
+    const people = SETTINGS_MENU.filter((m) => /people|team|business/i.test(m.id));
+    expect(people.map((m) => m.id)).toEqual(["people"]);
+    expect(people[0].featureKey).toBeUndefined();
+    expect(people[0].keywords).toEqual(expect.arrayContaining(["team", "business users", "business roles"]));
   });
 });
