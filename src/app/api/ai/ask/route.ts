@@ -22,7 +22,7 @@ import { analysisAccess } from "@/lib/analysis/service";
 // The chart tool makes a nested model call inside a turn (compileAndRun),
 // so a turn that uses it costs two sequential calls, not one -- same
 // reasoning as reports/ask's bump to 75.
-export const maxDuration = 75;
+export const maxDuration = 120;
 
 type Access = {
   supabase: Awaited<ReturnType<typeof requireTenantUser>>["supabase"];

@@ -1,6 +1,6 @@
 import "server-only";
 import Anthropic from "@anthropic-ai/sdk";
-import { MID_MODEL, type ApiUsage } from "@/lib/assistant/models";
+import { smallModel, type ApiUsage } from "@/lib/assistant/models";
 import { researchTokens } from "@/lib/assistant/research";
 import { promptJson, promptText } from "@/lib/assistant/promptSafe";
 import { cleanText, type Citation } from "./validate";
@@ -14,7 +14,11 @@ import type { Subject } from "./subject";
 
 export class AnalysisResearchError extends Error {}
 
-export const MAX_SEARCHES = 4;
+export const MAX_SEARCHES = 3;
+
+// A research turn that runs past the route's limit is killed by the platform and the person sees a bare failure; this
+// ends it first, with a message. The faster model keeps a three-search turn well inside it.
+export const RESEARCH_TIMEOUT_MS = 80_000;
 
 export const RESEARCH_SYSTEM =
   "You are a research tool inside a business app. Use web search to find what the ORGANISATION named in <subject> has been doing in the last 12 months: " +
@@ -102,18 +106,19 @@ export async function runCompanyResearch(client: MessagesClient, subject: Subjec
   let response: Anthropic.Message;
   try {
     response = await client.messages.create({
-      model: MID_MODEL,
+      model: smallModel(),
       // Search results share this output budget with the answer (see marketIntel.ts for the failure a tight one caused).
-      max_tokens: 6000,
+      max_tokens: 5000,
       system: RESEARCH_SYSTEM,
       tools: [{ type: "web_search_20260209", name: "web_search", max_uses: MAX_SEARCHES }],
       messages: [{ role: "user", content: buildResearchPrompt(subject, topics) }],
-    });
+    }, { timeout: RESEARCH_TIMEOUT_MS, maxRetries: 0 });
   } catch (e) {
     console.error("Company analysis research failed:", e);
     if (e instanceof Anthropic.AuthenticationError) throw new AnalysisResearchError("The AI service rejected ANTHROPIC_API_KEY.");
     if (e instanceof Anthropic.PermissionDeniedError) throw new AnalysisResearchError("This API key doesn't have access to web search.");
     if (e instanceof Anthropic.RateLimitError) throw new AnalysisResearchError("The AI service is rate-limited right now. Try again in a moment.");
+    if (e instanceof Anthropic.APIConnectionTimeoutError) throw new AnalysisResearchError("The research took too long. Try again in a moment.");
     if (e instanceof Anthropic.APIConnectionError) throw new AnalysisResearchError("Could not reach the AI service. Try again in a moment.");
     throw new AnalysisResearchError("The web research could not run.");
   }
@@ -123,6 +128,6 @@ export async function runCompanyResearch(client: MessagesClient, subject: Subjec
   const usage = response.usage as unknown as ApiUsage;
   return {
     raw: parseResearchJson(content), citations: collectCitations(content), searches, usage,
-    model: response.model ?? MID_MODEL, tokens: researchTokens(usage, searches),
+    model: response.model ?? smallModel(), tokens: researchTokens(usage, searches),
   };
 }

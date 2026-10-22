@@ -3,7 +3,7 @@ import { resolveAnalysisAccess, parseAnalyseInput } from "@/lib/analysis/access"
 import { analyseCompany, readCachedAnalysis } from "@/lib/analysis/service";
 
 // A web analysis runs up to four searches server-side before the model answers, then a second small call words one sentence.
-export const maxDuration = 75;
+export const maxDuration = 120;
 
 // POST /api/ai/analysis { account_id? | name? domain? country?, refresh?, allow_web } -> the company analysis card.
 // allow_web is the person's yes to web research for this company; without it nothing leaves the workspace and a saved
