@@ -14,7 +14,9 @@ import { ASSISTANT_TIPS, usageTip } from "@/lib/assistant/tips";
 import type { Suggestion } from "@/lib/assistant/suggestions";
 import type { ConfirmCard } from "@/lib/assistant/cards";
 import ConfirmCardView from "@/components/assistant/ConfirmCardView";
-import { WebConsentRow, WebSources } from "@/components/assistant/WebResearch";
+import { AnalysisConsentRow, WebConsentRow, WebSources } from "@/components/assistant/WebResearch";
+import AnalysisCardView from "@/components/analysis/AnalysisCardView";
+import type { DockAnalysis } from "@/lib/assistant/analysisTool";
 import { applyChoice, settleOnNewAsk, type ConsentState, type WebAllow, type WebChoice } from "@/lib/assistant/webConsent";
 import { Markdown, InlineMarkdown } from "@/components/assistant/Markdown";
 import { plainText } from "@/lib/assistant/markdown";
@@ -28,10 +30,14 @@ type Msg = {
   from: "bot" | "me"; text: string; report?: ReportPayload; cards?: Card[]; guide?: GuideReply;
   /** A create the assistant proposes: the confirm card. */
   confirm?: ConfirmCard;
-  /** The assistant asked to search the web; answered with the chips. */
-  consent?: { query: string; state: ConsentState; token: string };
+  /** The assistant asked to search the web, or to analyse a company with web research; answered with the chips. */
+  consent?: { kind: "web_search" | "analyse_company"; query: string; subject?: string; state: ConsentState; token: string };
   web?: WebSource[];
+  /** A company analysis, drawn as a card from its fields. */
+  analysis?: DockAnalysis;
 };
+/** What an Analyse or Refresh press sends: the company, never record content. */
+type AnalyseRequest = { account_id?: string; name?: string; domain?: string; country?: string; refresh?: boolean };
 type GuideOffer = { id: string; label: string };
 type Usage = { percent: number; off: boolean };
 
@@ -82,6 +88,7 @@ export default function AIDock({ liftForTabBar = false }: {
   const [enabled, setEnabled] = useState(true);
   const [searching, setSearching] = useState(false);
   const [guides, setGuides] = useState<GuideOffer[]>([]);
+  const [canAnalyse, setCanAnalyse] = useState(false);
   // Guide mode: the steps being followed, the one the person is on, and where its control stands on the page.
   const [guide, setGuide] = useState<{ reply: GuideReply; i: number } | null>(null);
   const [target, setTarget] = useState<GuideTargetState>("none");
@@ -158,6 +165,7 @@ export default function AIDock({ liftForTabBar = false }: {
         setCapabilities(j?.capabilities ?? []);
         setSuggestions(Array.isArray(j?.suggestions) ? j.suggestions : []);
         setGuides(Array.isArray(j?.guides) ? j.guides : []);
+        setCanAnalyse(j?.analysis === true);
         setContext(j?.context?.label ?? null);
         if (j?.usage) setUsage(j.usage);
       })
@@ -188,14 +196,19 @@ export default function AIDock({ liftForTabBar = false }: {
     if (out.allow && asked?.from === "me") void ask(asked.text, undefined, { base, allow: out.allow, query: m.consent.query, token: m.consent.token });
   }
 
-  async function ask(question: string, guideTask?: string, resume?: { base: Msg[]; allow: WebAllow; query: string; token: string }) {
+  async function ask(question: string, guideTask?: string, resume?: { base: Msg[]; allow: WebAllow; query: string; token: string }, analyse?: AnalyseRequest) {
     const text = question.trim();
     if (!text || busy) return;
     // History travels with the question so follow-ups keep their context --
-    // text only; the server treats it as conversation, never as a query.
+    // text only; the server treats it as conversation, never as a query. An analysis goes as its sentence plus a compact
+    // digest of the card, flagged like any web answer so the tools that act stay off for the follow-up window.
     const history = (resume ? resume.base : [...messages, { from: "me" as const, text }])
       .slice(-12)
-      .map((m) => ({ role: m.from === "me" ? "user" : "assistant", text: m.text, ...(m.from === "bot" && m.web ? { web: true } : {}) }));
+      .map((m) => ({
+        role: m.from === "me" ? "user" : "assistant",
+        text: m.analysis ? `${m.text}\n${m.analysis.digest}` : m.text,
+        ...(m.from === "bot" && (m.web || m.analysis?.webDerived) ? { web: true } : {}),
+      }));
     if (!resume) setMessages((prev) => [...prev.map((m) => (m.consent ? { ...m, consent: { ...m.consent, state: settleOnNewAsk(m.consent.state) } } : m)), { from: "me", text }]);
     setDraft("");
     setBusy(true);
@@ -213,17 +226,20 @@ export default function AIDock({ liftForTabBar = false }: {
           consent_query: resume?.query,
           consent_token: resume?.token,
           guideTask: guideTask ?? undefined,
+          analyse,
         }),
       });
       const json = await res.json().catch(() => ({}));
       if (res.ok) {
         if (json.usage) setUsage(json.usage);
         const cards: Card[] | undefined = Array.isArray(json.cards) ? json.cards : undefined;
-        const consent = json.consent?.kind === "web_search" && typeof json.consent.query === "string" && typeof json.consent.token === "string"
-          ? { query: json.consent.query as string, state: "pending" as const, token: json.consent.token as string } : undefined;
+        const kind = json.consent?.kind === "web_search" || json.consent?.kind === "analyse_company" ? (json.consent.kind as "web_search" | "analyse_company") : null;
+        const consent = kind && typeof json.consent.query === "string" && typeof json.consent.token === "string"
+          ? { kind, query: json.consent.query as string, subject: typeof json.consent.subject === "string" ? (json.consent.subject as string) : undefined, state: "pending" as const, token: json.consent.token as string } : undefined;
+        const analysis: DockAnalysis | undefined = json.analysis?.card && typeof json.analysis.digest === "string" ? json.analysis : undefined;
         const web: WebSource[] | undefined = Array.isArray(json.web?.sources) && json.web.sources.length ? json.web.sources : undefined;
         const reply: GuideReply | undefined = json.guide && Array.isArray(json.guide.steps) ? json.guide : undefined;
-        setMessages((prev) => [...prev, { from: "bot", text: json.answer, report: json.report as ReportPayload | undefined, cards, guide: reply, consent, web, confirm: json.card as ConfirmCard | undefined }]);
+        setMessages((prev) => [...prev, { from: "bot", text: json.answer, report: json.report as ReportPayload | undefined, cards, guide: reply, consent, web, analysis, confirm: json.card as ConfirmCard | undefined }]);
         if (reply) startGuide(reply);
         if (json.autoFollow && cards?.length === 1) go(cards[0].href);
       } else {
@@ -238,6 +254,16 @@ export default function AIDock({ liftForTabBar = false }: {
   }
 
   function sendMessage() { ask(draft); }
+
+  // Refresh and Analyse are requests of their own: the server answers with the Yes / No chip (or the saved card) and no model runs.
+  function refreshAnalysis(a: DockAnalysis) {
+    const s = a.subject;
+    void ask(`Refresh the analysis of ${s.name}`, undefined, undefined, s.accountId
+      ? { account_id: s.accountId, refresh: true }
+      : { name: s.name, domain: s.domain ?? undefined, country: s.country ?? undefined, refresh: true });
+  }
+  const here = parsePageContext(pathname);
+  const analyseHere = canAnalyse && here?.objectType === "account" && here.recordId && context ? { id: here.recordId, name: context } : null;
 
   function runSuggestion(s: Suggestion) {
     if (s.kind === "navigate" && s.target) go(s.target);
@@ -368,8 +394,23 @@ export default function AIDock({ liftForTabBar = false }: {
             </div>
           )}
 
-          {suggestions.length > 0 && (
+          {(suggestions.length > 0 || analyseHere) && (
             <div className="bms-dock-suggest" style={{ padding: "8px 16px", borderBottom: `1px solid ${c.line}`, display: "flex", flexWrap: "wrap", gap: 6, flexShrink: 0 }}>
+              {analyseHere && (
+                <span className="bms-dock-chip-wrap" style={{ display: "inline-flex", alignItems: "center", flexShrink: 0 }}>
+                  <button
+                    className="bms-dock-chip"
+                    onClick={() => ask(`Analyse ${plainText(analyseHere.name)}`, undefined, undefined, { account_id: analyseHere.id })}
+                    disabled={busy}
+                    style={{
+                      background: "var(--accentbg)", border: "1px solid var(--line)", borderRadius: 999,
+                      padding: "6px 12px", fontSize: 11.5, fontWeight: 650, color: c.accent, cursor: "pointer", fontFamily: "inherit",
+                    }}
+                  >
+                    Analyse company
+                  </button>
+                </span>
+              )}
               {suggestions.map((s) => (
                 <span key={s.id} className="bms-dock-chip-wrap" style={{ display: "inline-flex", alignItems: "center", flexShrink: 0 }}>
                   <button
@@ -497,7 +538,13 @@ export default function AIDock({ liftForTabBar = false }: {
                   </button>
                 ))}
                 {m.confirm && <ConfirmCardView card={m.confirm} onOpen={go} onAsk={ask} />}
-                {m.consent && <WebConsentRow query={m.consent.query} state={m.consent.state} disabled={busy} onChoice={(choice) => answerConsent(i, choice)} />}
+                {m.analysis && (
+                  <AnalysisCardView data={m.analysis} busy={busy} onOpen={go} onRefresh={() => refreshAnalysis(m.analysis!)} onAsk={(q) => ask(q)} />
+                )}
+                {m.consent?.kind === "analyse_company" && (
+                  <AnalysisConsentRow subject={m.consent.subject ?? "this company"} state={m.consent.state} disabled={busy} onChoice={(choice) => answerConsent(i, choice)} />
+                )}
+                {m.consent?.kind === "web_search" && <WebConsentRow query={m.consent.query} state={m.consent.state} disabled={busy} onChoice={(choice) => answerConsent(i, choice)} />}
                 {m.web && <WebSources sources={m.web} />}
                 {m.guide && (
                   <GuideCard

@@ -47,6 +47,35 @@ export function WebConsentRow({ query, state, disabled, onChoice }: {
   );
 }
 
+const ANALYSIS_SETTLED: Record<Exclude<ConsentState, "pending">, string> = {
+  yes: "Analysed with web research",
+  no: "Not analysed",
+  skipped: "Not analysed",
+};
+
+/**
+ * The same question for a company analysis: Yes / No only. It carries no "i" (the dock keeps at most three) because the
+ * line says what happens. Once answered it shrinks to one muted line.
+ */
+export function AnalysisConsentRow({ subject, state, disabled, onChoice }: {
+  subject: string;
+  state: ConsentState;
+  disabled?: boolean;
+  onChoice: (choice: WebChoice) => void;
+}) {
+  if (state !== "pending") return <div style={{ fontSize: 11.5, color: c.hint }}>{ANALYSIS_SETTLED[state]}</div>;
+  return (
+    <div style={card} role="group" aria-label="Analyse with web research?">
+      <div style={label}>Analyse with web research?</div>
+      <div style={{ fontSize: 12.5, color: c.ink, lineHeight: 1.4, overflowWrap: "anywhere" }}>{subject}</div>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center" }}>
+        <button className="bms-dock-chip" style={chip} disabled={disabled} onClick={() => onChoice("yes")}>Yes</button>
+        <button className="bms-dock-chip" style={chip} disabled={disabled} onClick={() => onChoice("no")}>No</button>
+      </div>
+    </div>
+  );
+}
+
 const SHOWN = 3;
 
 /** The "From the web" label and the sources an answer used, numbered to match the [n] markers in its text. */

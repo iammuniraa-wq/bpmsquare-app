@@ -15,6 +15,9 @@ import { resolveWebConsent } from "@/lib/assistant/consentToken";
 import { resolveScreen } from "@/lib/assistant/screens";
 import { offeredTasks } from "@/lib/assistant/guide";
 import { screenAccessFor } from "@/lib/assistant/screenAccess";
+import { ANALYSIS_CONSENT_PREFIX, decodeAnalysisQuery, parseToolInput } from "@/lib/assistant/analysisTool";
+import type { AnalysisSetup } from "@/lib/assistant/analysisRun";
+import { analysisAccess } from "@/lib/analysis/service";
 
 // The chart tool makes a nested model call inside a turn (compileAndRun),
 // so a turn that uses it costs two sequential calls, not one -- same
@@ -32,6 +35,7 @@ type Access = {
   isAdmin: boolean;
   /** Platform flag, the assistant it hangs off and the workspace's own external-calls policy, folded into one answer. */
   webEnabled: boolean;
+  config: Partial<TenantConfig>;
 };
 
 // Tenant, person, permissions, the workspace's modules and its allowance, all from the session. The assistant is
@@ -55,6 +59,7 @@ async function resolveAccess(): Promise<Access | NextResponse> {
     supabase, tenantId, userId, perms, features, budget: resolveMonthlyBudget(config.ai_assistant?.monthly_token_budget),
     isAdmin: role === "admin",
     webEnabled: webAvailability(features, config).enabled,
+    config,
   };
 }
 
@@ -65,7 +70,7 @@ async function resolveAccess(): Promise<Access | NextResponse> {
 export async function GET(request: NextRequest) {
   const access = await resolveAccess();
   if (access instanceof NextResponse) return access;
-  const { tenantId, userId, perms, features, budget, isAdmin } = access;
+  const { tenantId, userId, perms, features, budget, isAdmin, config } = access;
 
   const route = request.nextUrl.searchParams.get("route");
   const [used, page, screen] = await Promise.all([
@@ -78,6 +83,8 @@ export async function GET(request: NextRequest) {
     usage: { percent: usagePercent(used, budget), off: budget <= 0 },
     context: page.context ? { label: page.context.label, objectType: page.context.objectType } : null,
     suggestions: page.suggestions,
+    // Whether the dock may offer "Analyse company" (the card's own button). The same gate the tool and POST use.
+    analysis: analysisAccess({ features, config, perms }).ok,
     // The screen's own jobs, as "show me how" chips. Answered from the manifest, so they cost no AI allowance.
     guides: offeredTasks(screen),
   });
@@ -90,7 +97,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const access = await resolveAccess();
   if (access instanceof NextResponse) return access;
-  const { supabase, tenantId, userId, perms, features, budget, isAdmin, webEnabled } = access;
+  const { supabase, tenantId, userId, perms, features, budget, isAdmin, webEnabled, config } = access;
 
   const body = await request.json().catch(() => null);
   const guideTask = typeof body?.guideTask === "string" && /^[a-z0-9_]{1,40}$/.test(body.guideTask) ? body.guideTask : null;
@@ -127,13 +134,31 @@ export async function POST(request: NextRequest) {
   const claimedQuery = typeof body?.consent_query === "string" ? normalizeQuery(body.consent_query).slice(0, 300) : null;
   const consent = resolveWebConsent({ tenantId, userId, allow: allowWeb, query: claimedQuery, token: body?.consent_token });
 
+  // Company analysis. A Yes on an analysis chip carries that chip's signed subject: it is run with no model, and a
+  // token that does not verify leaves `consentId` empty, so the person is simply asked again. Analyse and Refresh send
+  // the subject with no consent and are answered with the chip. Either way the analysis path never reads the web
+  // permission below, and the web-search path never sees an analysis subject.
+  const yesToAnalysis = allowWeb !== null && !!claimedQuery?.startsWith(ANALYSIS_CONSENT_PREFIX);
+  const analyseBody = body?.analyse && typeof body.analyse === "object" ? body.analyse : null;
+  if ((yesToAnalysis || analyseBody) && !webEnabled) return NextResponse.json({ error: "Web research is not enabled for this workspace." }, { status: 404 });
+  const directInput = yesToAnalysis ? decodeAnalysisQuery(claimedQuery) : analyseBody ? parseToolInput(analyseBody) : null;
+  if ((yesToAnalysis || analyseBody) && !directInput) return NextResponse.json({ error: "That analysis request is not valid." }, { status: 400 });
+  const analysis: AnalysisSetup | undefined = webEnabled
+    ? {
+        admin: createAdminSupabase(), config, budget,
+        ...(directInput ? { direct: { input: directInput, consentId: yesToAnalysis ? consent.consentId : null } } : {}),
+      }
+    : undefined;
+  const webAllow = yesToAnalysis ? { allow: null, consentQuery: null, consentId: null } : consent;
+
   const currency = await getTenantCurrency();
   const meter = new AssistantMeter({ tenantId, userId, budget });
 
   try {
     const reply = await askAssistant(history, {
       supabase, tenantId, userId, perms, currency, features, isAdmin: perms.unrestricted, isWorkspaceAdmin: isAdmin, route, meter, guideTask,
-      web: webEnabled ? { enabled: true, userId, allow: consent.allow, consentQuery: consent.consentQuery, consentId: consent.consentId } : undefined,
+      web: webEnabled ? { enabled: true, userId, allow: webAllow.allow, consentQuery: webAllow.consentQuery, consentId: webAllow.consentId } : undefined,
+      analysis,
     });
     return NextResponse.json({
       ...reply,
