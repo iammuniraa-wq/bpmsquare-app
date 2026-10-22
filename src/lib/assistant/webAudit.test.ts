@@ -5,12 +5,20 @@ import path from "node:path";
 // The audit row and the daily count: both tolerate the migration (0205) not being applied, and the migration itself
 // keeps the table service-role-write-only.
 
-const db = vi.hoisted(() => ({ inserted: [] as Record<string, unknown>[], insertError: null as null | { code?: string; message: string }, countError: null as null | { code?: string; message: string }, count: 0, filters: [] as [string, unknown][] }));
+const db = vi.hoisted(() => ({ inserted: [] as Record<string, unknown>[], deleted: [] as unknown[], insertError: null as null | { code?: string; message: string }, countError: null as null | { code?: string; message: string }, count: 0 as number | null, filters: [] as [string, unknown][] }));
 
 vi.mock("@/lib/supabase-server", () => ({
   createAdminSupabase: () => ({
     from: (table: string) => ({
-      insert: async (row: Record<string, unknown>) => { db.inserted.push({ table, ...row }); return { error: db.insertError }; },
+      insert: (row: Record<string, unknown>) => {
+        db.inserted.push({ table, ...row });
+        const result = { error: db.insertError };
+        return {
+          then: (res: (v: typeof result) => unknown) => Promise.resolve(result).then(res),
+          select: () => ({ single: async () => ({ data: db.insertError ? null : { id: "slot-1" }, error: db.insertError }) }),
+        };
+      },
+      delete: () => ({ eq: (_k: string, id: unknown) => ({ eq: async () => { db.deleted.push(id); return { error: null }; } }) }),
       select: () => {
         const chain: Record<string, unknown> = {};
         const eq = (k: string, v: unknown) => { db.filters.push([k, v]); return chain; };
@@ -23,7 +31,8 @@ vi.mock("@/lib/supabase-server", () => ({
   }),
 }));
 
-import { RESEARCH_SURFACE, recordWebAudit, webResearchToday, type WebAudit } from "./research";
+import { MAX_RESEARCH_PER_DAY } from "./webConsent";
+import { SLOT_SURFACE, recordWebAudit, reserveWebSlot, type WebAudit } from "./research";
 
 const audit: WebAudit = {
   tenantId: "t-1", userId: "u-1", route: "/accounts/x", query: "Tesla Germany company website", why: "basics", status: "done",
@@ -31,10 +40,15 @@ const audit: WebAudit = {
 };
 
 let errors: ReturnType<typeof vi.spyOn>;
-beforeEach(() => { db.inserted = []; db.insertError = null; db.countError = null; db.count = 0; db.filters = []; errors = vi.spyOn(console, "error").mockImplementation(() => {}); });
+beforeEach(() => { db.inserted = []; db.deleted = []; db.insertError = null; db.countError = null; db.count = 0; db.filters = []; errors = vi.spyOn(console, "error").mockImplementation(() => {}); });
 afterEach(() => errors.mockRestore());
 
 describe("the audit row", () => {
+  it("records how the person agreed and the signed consent id when there is one (audit 2026-10-22 L5)", async () => {
+    await recordWebAudit({ ...audit, consent: { mode: "chat", id: "c-1" } });
+    expect(db.inserted[0].params).toEqual({ query: "Tesla Germany company website", why: "basics", consent_mode: "chat", consent_id: "c-1" });
+  });
+
   it("is one assistant_actions row of kind web_search with the query, sources and tokens", async () => {
     await recordWebAudit(audit);
     expect(db.inserted).toEqual([{
@@ -64,15 +78,40 @@ describe("the audit row", () => {
   });
 });
 
-describe("the daily count", () => {
-  it("counts this person's research calls today from the usage log, scoped to the tenant", async () => {
-    db.count = 7;
-    expect(await webResearchToday("t-1", "u-1", new Date("2026-10-22T15:00:00Z"))).toBe(7);
-    expect(db.filters).toEqual([["tenant_id", "t-1"], ["user_id", "u-1"], ["surface", RESEARCH_SURFACE], ["created_at", "2026-10-22T00:00:00.000Z"]]);
+describe("the daily cap reserves a slot before the search (audit 2026-10-22 L4)", () => {
+  const NOW = new Date("2026-10-22T15:00:00Z");
+
+  it("writes a zero-token reservation row, counts today's reservations for this person, and keeps the slot when under the cap", async () => {
+    db.count = 3;
+    const slot = await reserveWebSlot("t-1", "u-1", NOW);
+    expect(slot.ok).toBe(true);
+    expect(db.inserted[0]).toMatchObject({ table: "ai_usage_log", tenant_id: "t-1", user_id: "u-1", surface: SLOT_SURFACE, input_tokens: 0, output_tokens: 0 });
+    expect(db.filters).toEqual([["tenant_id", "t-1"], ["user_id", "u-1"], ["surface", SLOT_SURFACE], ["created_at", "2026-10-22T00:00:00.000Z"]]);
+    expect(db.deleted).toEqual([]);
   });
-  it("reads a missing log as zero", async () => {
-    db.countError = { code: "42P01", message: "x" };
-    expect(await webResearchToday("t-1", "u-1")).toBe(0);
+
+  it("the last allowed slot is still granted; the one past the cap is refused and gives its row back", async () => {
+    db.count = MAX_RESEARCH_PER_DAY;
+    expect((await reserveWebSlot("t-1", "u-1", NOW)).ok).toBe(true);
+    db.count = MAX_RESEARCH_PER_DAY + 1;
+    expect((await reserveWebSlot("t-1", "u-1", NOW)).ok).toBe(false);
+    expect(db.deleted).toEqual(["slot-1"]);
+  });
+
+  it("fails closed: a failed count, a null count, a failed insert or a missing log all refuse", async () => {
+    db.countError = { code: "XX000", message: "boom" };
+    expect((await reserveWebSlot("t-1", "u-1", NOW)).ok).toBe(false);
+    db.countError = null; db.count = null;
+    expect((await reserveWebSlot("t-1", "u-1", NOW)).ok).toBe(false);
+    db.count = 0; db.insertError = { code: "42P01", message: "x" };
+    expect((await reserveWebSlot("t-1", "u-1", NOW)).ok).toBe(false);
+  });
+
+  it("releasing a slot deletes its row, scoped to the tenant", async () => {
+    db.count = 1;
+    const slot = await reserveWebSlot("t-1", "u-1", NOW);
+    if (slot.ok) await slot.release();
+    expect(db.deleted).toEqual(["slot-1"]);
   });
 });
 

@@ -26,7 +26,7 @@ type Msg = {
   /** A create the assistant proposes: the confirm card. */
   confirm?: ConfirmCard;
   /** The assistant asked to search the web; answered with the chips. */
-  consent?: { query: string; state: ConsentState };
+  consent?: { query: string; state: ConsentState; token: string };
   web?: WebSource[];
 };
 type GuideOffer = { id: string; label: string };
@@ -78,6 +78,8 @@ export default function AIDock({ liftForTabBar = false }: {
   const [enabled, setEnabled] = useState(true);
   // "Always in this chat": held here only, so it ends with the page and is never stored for the person.
   const [webChat, setWebChat] = useState(false);
+  // Signed by the server when the person pressed Always; memory only, so a reload ends the chat's permission.
+  const [webChatToken, setWebChatToken] = useState<string | null>(null);
   const [searching, setSearching] = useState(false);
   const [guides, setGuides] = useState<GuideOffer[]>([]);
   // Guide mode: the steps being followed, the one the person is on, and where its control stands on the page.
@@ -184,17 +186,17 @@ export default function AIDock({ liftForTabBar = false }: {
     setMessages((prev) => prev.map((x, k) => (k === index && x.consent ? { ...x, consent: { ...x.consent, state: out.state } } : x)));
     const base = messages.slice(0, index);
     const asked = base[base.length - 1];
-    if (out.allow && asked?.from === "me") void ask(asked.text, undefined, { base, allow: out.allow, query: m.consent.query });
+    if (out.allow && asked?.from === "me") void ask(asked.text, undefined, { base, allow: out.allow, query: m.consent.query, token: m.consent.token });
   }
 
-  async function ask(question: string, guideTask?: string, resume?: { base: Msg[]; allow: WebAllow; query: string }) {
+  async function ask(question: string, guideTask?: string, resume?: { base: Msg[]; allow: WebAllow; query: string; token: string }) {
     const text = question.trim();
     if (!text || busy) return;
     // History travels with the question so follow-ups keep their context --
     // text only; the server treats it as conversation, never as a query.
     const history = (resume ? resume.base : [...messages, { from: "me" as const, text }])
       .slice(-12)
-      .map((m) => ({ role: m.from === "me" ? "user" : "assistant", text: m.text }));
+      .map((m) => ({ role: m.from === "me" ? "user" : "assistant", text: m.text, ...(m.from === "bot" && m.web ? { web: true } : {}) }));
     if (!resume) setMessages((prev) => [...prev.map((m) => (m.consent ? { ...m, consent: { ...m.consent, state: settleOnNewAsk(m.consent.state) } } : m)), { from: "me", text }]);
     setDraft("");
     setBusy(true);
@@ -208,8 +210,9 @@ export default function AIDock({ liftForTabBar = false }: {
         body: JSON.stringify({
           question: text, history, route: pathname,
           objectType: page?.objectType ?? null, recordId: page?.recordId ?? null,
-          allow_web: resume ? resume.allow : allowForAsk(webChat),
-          consent_query: resume?.allow === "once" ? resume.query : undefined,
+          allow_web: resume ? resume.allow : allowForAsk(webChat && !!webChatToken),
+          consent_query: resume ? resume.query : undefined,
+          consent_token: resume ? resume.token : webChatToken ?? undefined,
           guideTask: guideTask ?? undefined,
         }),
       });
@@ -217,7 +220,11 @@ export default function AIDock({ liftForTabBar = false }: {
       if (res.ok) {
         if (json.usage) setUsage(json.usage);
         const cards: Card[] | undefined = Array.isArray(json.cards) ? json.cards : undefined;
-        const consent = json.consent?.kind === "web_search" && typeof json.consent.query === "string" ? { query: json.consent.query as string, state: "pending" as const } : undefined;
+        const consent = json.consent?.kind === "web_search" && typeof json.consent.query === "string" && typeof json.consent.token === "string"
+          ? { query: json.consent.query as string, state: "pending" as const, token: json.consent.token as string } : undefined;
+        // The chat's permission is whatever the server vouches for: a fresh token starts it, a new chip means it is over.
+        if (typeof json.web_chat_token === "string") setWebChatToken(json.web_chat_token);
+        else if (resume?.allow === "chat" || consent) { setWebChat(false); setWebChatToken(null); }
         const web: WebSource[] | undefined = Array.isArray(json.web?.sources) && json.web.sources.length ? json.web.sources : undefined;
         const reply: GuideReply | undefined = json.guide && Array.isArray(json.guide.steps) ? json.guide : undefined;
         setMessages((prev) => [...prev, { from: "bot", text: json.answer, report: json.report as ReportPayload | undefined, cards, guide: reply, consent, web, confirm: json.card as ConfirmCard | undefined }]);

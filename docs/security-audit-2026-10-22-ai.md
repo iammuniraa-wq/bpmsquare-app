@@ -141,3 +141,19 @@ the ask", so this is a gap against the intent of section 4 (Safety) rather than 
 - How well the provider's `web_search` and the research model resist a hostile page in practice (the structural defences
   above do not depend on it).
 - Live RLS on `change_log` (M1 assumes 0050 as tracked).
+
+## Status: fixed on develop (2026-10-22)
+
+- **M1** `logChange`/`logChangeBatch` write with the service role; `0208_change_log_member_insert.sql` (bundle 17, PENDING on both
+  DBs) drops the member insert policy. `rlsPolicies.test.ts` pins it and the single writer.
+- **L3** `/api/ai/act` answers a plain 503 and creates nothing while `assistant_actions` is missing; no per-process fallback.
+- **L1** a web-derived assistant turn (flag `web` in `history`) returns to the model as quoted `<web_result>` data, and
+  navigate, open_record, guide and create_record stay off while one is within the last 6 turns.
+- **L2** guide mode uses the workspace role (`isWorkspaceAdmin`), not "unrestricted".
+- **L4** the daily cap reserves a slot (a zero-token `ai_usage_log` row, counted after writing) before the search; any failure
+  refuses; a search that fails to run gives its slot back.
+- **L5** the chip carries a signed once-token (tenant, person, query hash, expiry); "Always" returns a signed chat token the
+  dock keeps in memory; the audit row records the consent mode and id. A once-token can be reused for the same query within
+  10 minutes (it proves the same agreement); it is not single-use.
+- **L6** `promptText`/`promptJson` (`src/lib/assistant/promptSafe.ts`) on the open record and the CREATABLE labels/options.
+- **L7** the card summary is scrubbed with `redactText` before it is stored; the 0205 header says what a create row holds.

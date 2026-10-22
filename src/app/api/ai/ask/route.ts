@@ -11,6 +11,7 @@ import { describePage } from "@/lib/assistant/pageService";
 import type { TenantConfig } from "@/lib/constants";
 import { parseAllowWeb, webAvailability } from "@/lib/assistant/webConsent";
 import { normalizeQuery } from "@/lib/assistant/webQuery";
+import { issueChatConsent, resolveWebConsent } from "@/lib/assistant/consentToken";
 import { resolveScreen } from "@/lib/assistant/screens";
 import { offeredTasks } from "@/lib/assistant/guide";
 import { screenAccessFor } from "@/lib/assistant/screenAccess";
@@ -105,7 +106,9 @@ export async function POST(request: NextRequest) {
   const history: ChatTurn[] = rawHistory
     .filter((t: { role?: string; text?: string }) => (t?.role === "user" || t?.role === "assistant") && typeof t?.text === "string" && t.text.trim())
     .slice(-12)
-    .map((t: { role: "user" | "assistant"; text: string }) => ({ role: t.role, text: t.text.slice(0, 4000) }));
+    .map((t: { role: "user" | "assistant"; text: string; web?: unknown }) => ({
+      role: t.role, text: t.text.slice(0, 4000), ...(t.role === "assistant" && t.web === true ? { web: true } : {}),
+    }));
   if (history.length === 0 || history[history.length - 1].text !== question || history[history.length - 1].role !== "user") {
     history.push({ role: "user", text: question });
   }
@@ -120,7 +123,9 @@ export async function POST(request: NextRequest) {
   // forged client learns that the route for it does not exist here. The tool is never offered when this is off.
   const allowWeb = parseAllowWeb(body?.allow_web);
   if (allowWeb && !webEnabled) return NextResponse.json({ error: "Web research is not enabled for this workspace." }, { status: 404 });
-  const consentQuery = allowWeb === "once" && typeof body?.consent_query === "string" ? normalizeQuery(body.consent_query).slice(0, 300) : null;
+  // What the client claims is checked against a token this server signed when it showed the chip (audit 2026-10-22 L5).
+  const claimedQuery = typeof body?.consent_query === "string" ? normalizeQuery(body.consent_query).slice(0, 300) : null;
+  const consent = resolveWebConsent({ tenantId, userId, allow: allowWeb, query: claimedQuery, token: body?.consent_token });
 
   const currency = await getTenantCurrency();
   const meter = new AssistantMeter({ tenantId, userId, budget });
@@ -128,10 +133,11 @@ export async function POST(request: NextRequest) {
   try {
     const reply = await askAssistant(history, {
       supabase, tenantId, userId, perms, currency, features, isAdmin: perms.unrestricted, isWorkspaceAdmin: isAdmin, route, meter, guideTask,
-      web: webEnabled ? { enabled: true, userId, allow: allowWeb, consentQuery } : undefined,
+      web: webEnabled ? { enabled: true, userId, allow: consent.allow, consentQuery: consent.consentQuery, consentId: consent.consentId } : undefined,
     });
     return NextResponse.json({
       ...reply,
+      web_chat_token: webEnabled && consent.mintChat ? issueChatConsent({ tenantId, userId }) : undefined,
       // Absent when the ask was answered without reading the meter (opening a screen); the dock keeps its last figure.
       usage: meter.percent === null ? undefined : { percent: meter.percent, off: budget <= 0 },
     });

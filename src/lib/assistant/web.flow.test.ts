@@ -6,6 +6,10 @@ import type Anthropic from "@anthropic-ai/sdk";
 // exact query, workspace data cannot reach the query, whatever the web says cannot cause a tool call, every search is
 // metered under its own surface and audited, and with the flag off none of it exists.
 
+vi.hoisted(() => { process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role-key-for-tests"; });
+
+let released = 0;
+
 const { DATA } = vi.hoisted(() => {
   const A = "11111111-1111-4111-8111-111111111111";
   const ACC = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
@@ -41,6 +45,8 @@ vi.mock("@/lib/ai/structured", () => ({ allowanceFor: vi.fn(), logUsage: vi.fn()
 import { askAssistant, type AssistantAskCtx, type AssistantWebCtx } from "@/lib/ai/assistant";
 import { AssistantMeter } from "./meter";
 import { ResearchError, type ResearchResult } from "./research";
+import { MAX_RESEARCH_PER_DAY } from "./webConsent";
+import { verifyConsent } from "./consentToken";
 import type { WebAudit } from "./research";
 import type { PermissionSet } from "@/lib/permissions";
 
@@ -89,7 +95,7 @@ function setup(o: {
   const research = vi.fn(async (_c: Anthropic, q: string) => { queries.push(q); return o.research ? o.research(q) : RESULT; });
   const web: AssistantWebCtx | undefined = o.web === null ? undefined : {
     enabled: true, userId: "user-1", allow: null, consentQuery: null,
-    deps: { research: research as never, audit: async (a) => { audits.push(a); }, dailyCount: async () => o.daily ?? 0 },
+    deps: { research: research as never, audit: async (a) => { audits.push(a); }, reserve: async () => ((o.daily ?? 0) >= MAX_RESEARCH_PER_DAY ? { ok: false as const } : { ok: true as const, release: async () => { released++; } }) },
     ...o.web,
   };
   const ctx: AssistantAskCtx = {
@@ -101,7 +107,7 @@ function setup(o: {
 const ask = (q: string, ...earlier: { role: "user" | "assistant"; text: string }[]) => [...earlier, { role: "user" as const, text: q }];
 const toolNames = (p: Record<string, unknown>) => ((p.tools as { name: string }[]) ?? []).map((t) => t.name);
 
-beforeEach(() => { vi.clearAllMocks(); });
+beforeEach(() => { vi.clearAllMocks(); released = 0; });
 
 describe("flag off: nothing of it exists", () => {
   it("the search tool is not offered and the prompt does not mention it", async () => {
@@ -132,6 +138,9 @@ describe("asking first", () => {
     const reply = await askAssistant(ask("Create an account Tesla Germany and tell me about them online"), s.ctx);
     expect(reply.consent).toMatchObject({ kind: "web_search", query: '"Tesla Germany" company website industry headquarters' });
     expect(reply.web).toBeUndefined();
+    // The chip carries a token signed for this workspace, person and exact query: the Yes must send it back.
+    expect(verifyConsent(reply.consent?.token, { tenantId: A, userId: "user-1", query: '"Tesla Germany" company website industry headquarters' })).toMatchObject({ ok: true, kind: "once", id: reply.consent?.id });
+    expect(verifyConsent(reply.consent?.token, { tenantId: A, userId: "user-1", query: "something else" })).toMatchObject({ ok: false, reason: "query" });
     expect(s.research).not.toHaveBeenCalled();
     expect(s.audits).toEqual([]);
     expect(s.logs.map((l) => l.surface)).toEqual(["assistant"]);
@@ -295,6 +304,23 @@ describe("limits and failures", () => {
     expect(s.audits[0]).toMatchObject({ status: "refused" });
   });
 
+  it("a slot that cannot be taken (the count failed) refuses the search: the cap never fails open (audit 2026-10-22 L4)", async () => {
+    const s = setup({ web: { allow: "chat" }, replies: [propose("Tesla Germany company website"), text("Not now.")] });
+    s.ctx.web!.deps!.reserve = async () => ({ ok: false });
+    await askAssistant(ask("Tesla Germany online?"), s.ctx);
+    expect(s.research).not.toHaveBeenCalled();
+    expect(s.audits[0]).toMatchObject({ status: "refused" });
+  });
+
+  it("the audit row records how the person agreed and the signed consent behind it (audit 2026-10-22 L5)", async () => {
+    const once = setup({ web: { allow: "once", consentQuery: "Tesla Germany company website", consentId: "consent-1" }, replies: [text("ok")] });
+    await askAssistant(ask("Tesla Germany online?"), once.ctx);
+    expect(once.audits[0]).toMatchObject({ status: "done", consent: { mode: "once", id: "consent-1" } });
+    const chat = setup({ web: { allow: "chat", consentId: "chat-1" }, replies: [propose("Tesla Germany company website"), text("ok")] });
+    await askAssistant(ask("Tesla Germany online?"), chat.ctx);
+    expect(chat.audits[0]).toMatchObject({ consent: { mode: "chat", id: "chat-1" } });
+  });
+
   it("a spent allowance means no search", async () => {
     const s = setup({ web: { allow: "chat" }, budget: 500, replies: [propose("Tesla Germany company website"), text("never")] });
     const reply = await askAssistant(ask("Tesla Germany online?"), s.ctx);
@@ -311,6 +337,7 @@ describe("limits and failures", () => {
     expect(reply.answer).toContain("could not search");
     expect(s.logs.map((l) => l.surface)).not.toContain("assistant_web");
     expect(s.audits[0]).toMatchObject({ status: "failed", reason: "The AI service is rate-limited right now." });
+    expect(released).toBe(1); // a search that never ran gives its slot back
     expect(s.params[1].tool_choice).toBeUndefined();
   });
 });

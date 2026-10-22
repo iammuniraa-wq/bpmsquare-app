@@ -2,7 +2,7 @@ import "server-only";
 import Anthropic from "@anthropic-ai/sdk";
 import { createAdminSupabase } from "@/lib/supabase-server";
 import { MID_MODEL, billedTokens, type ApiUsage } from "./models";
-import { SEARCH_SURCHARGE_TOKENS } from "./webConsent";
+import { MAX_RESEARCH_PER_DAY, SEARCH_SURCHARGE_TOKENS } from "./webConsent";
 import { MAX_SOURCES, cleanSources, sanitizeWebText, type WebSource } from "./webQuery";
 
 // The isolated research call (docs/design/assistant-smarter.md section 2). It is the mechanism src/lib/nova/marketIntel.ts
@@ -152,6 +152,8 @@ export type WebAudit = {
   tokens: number;
   searches: number;
   removed: number;
+  /** How the person agreed: "once" to this query or "chat" for the chat, with the id of the signed consent that proved it. */
+  consent?: { mode: "once" | "chat"; id: string | null };
 };
 
 /** One assistant_actions row per search (kind web_search). A pending migration or a failed insert never stops the search. */
@@ -159,7 +161,7 @@ export async function recordWebAudit(a: WebAudit): Promise<void> {
   try {
     const { error } = await createAdminSupabase().from("assistant_actions").insert({
       tenant_id: a.tenantId, user_id: a.userId, kind: "web_search", action_key: "web_search", route: a.route,
-      params: { query: a.query, why: a.why },
+      params: { query: a.query, why: a.why, ...(a.consent ? { consent_mode: a.consent.mode, consent_id: a.consent.id } : {}) },
       status: a.status,
       result: { reason: a.reason ?? null, searches: a.searches, instruction_like_removed: a.removed },
       sources: a.sources, tokens: a.tokens,
@@ -170,16 +172,36 @@ export async function recordWebAudit(a: WebAudit): Promise<void> {
   }
 }
 
-/** Research calls this person has made today (UTC), read from the meter's own log so it works before the migration. */
-export async function webResearchToday(tenantId: string, userId: string, now: Date = new Date()): Promise<number> {
+export const SLOT_SURFACE = "assistant_web_slot";
+
+export type WebSlot = { ok: true; release: () => Promise<void> } | { ok: false };
+
+/**
+ * Takes one of this person's searches for today BEFORE the search runs (audit 2026-10-22 L4). The reservation is a
+ * zero-token row in the meter's own log, counted straight after it is written: parallel asks each see the others'
+ * rows, so at most the cap get through, and when more than the cap raced, the extra ones give their row back and
+ * stop. Any failure to write or count refuses the search: the cap never fails open.
+ */
+export async function reserveWebSlot(tenantId: string, userId: string, now: Date = new Date()): Promise<WebSlot> {
   try {
+    const admin = createAdminSupabase();
+    const { data, error } = await admin.from("ai_usage_log")
+      .insert({ tenant_id: tenantId, user_id: userId, surface: SLOT_SURFACE, model: "reservation", input_tokens: 0, output_tokens: 0 })
+      .select("id").single();
+    if (error || !data) return { ok: false };
+    const id = data.id as string;
+    const release = async () => {
+      try { await admin.from("ai_usage_log").delete().eq("id", id).eq("tenant_id", tenantId); } catch { /* a leftover row only makes the cap stricter */ }
+    };
     const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())).toISOString();
-    const { count, error } = await createAdminSupabase()
-      .from("ai_usage_log").select("id", { count: "exact", head: true })
-      .eq("tenant_id", tenantId).eq("user_id", userId).eq("surface", RESEARCH_SURFACE).gte("created_at", start);
-    if (error) return 0;
-    return count ?? 0;
+    const { count, error: countError } = await admin.from("ai_usage_log").select("id", { count: "exact", head: true })
+      .eq("tenant_id", tenantId).eq("user_id", userId).eq("surface", SLOT_SURFACE).gte("created_at", start);
+    if (countError || count === null || count === undefined || count > MAX_RESEARCH_PER_DAY) {
+      await release();
+      return { ok: false };
+    }
+    return { ok: true, release };
   } catch {
-    return 0;
+    return { ok: false };
   }
 }
