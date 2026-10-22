@@ -54,7 +54,7 @@ describe("navigation targets are generated per caller", () => {
     expect(admin).toContain("settings:people");
     expect(admin).toContain("nav:/settings");
     const editor = ids(ctx({ canEdit: (wc) => wc === "quotations" }));
-    expect(editor).toContain("settings:statuses"); // adminOnly, but this member can edit quotations
+    expect(editor).toContain("settings:products"); // adminOnly, but this member can edit quotations
     expect(editor).not.toContain("settings:people");
   });
 
@@ -90,6 +90,8 @@ describe("plain navigation is answered without a model", () => {
     expect(matchNavigation("open settings company", targets)?.id).toBe("settings:company");
     expect(matchNavigation("go to currency", targets)?.id).toBe("settings:company");
     expect(matchNavigation("open navigation visibility", targets)?.id).toBe("settings:appearance");
+    expect(matchNavigation("open email templates", targets)?.id).toBe("settings:quotations");
+    expect(matchNavigation("go to small scale pricing", targets)?.id).toBe("settings:pricing");
   });
   it("leaves questions, filters and anything it cannot reach to the model", () => {
     expect(matchNavigation("show me quotes by status", targets)).toBeNull();

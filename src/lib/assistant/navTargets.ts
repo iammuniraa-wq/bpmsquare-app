@@ -78,6 +78,8 @@ const ALIASES: Record<string, string[]> = {
   "settings:company": ["company profile", "entities and tax", "currency", "tax", "number ranges"],
   "settings:appearance": ["theme", "theme and colours", "navigation visibility", "reset layout", "dashboard content"],
   "settings:products": ["product categories", "item types"],
+  "settings:quotations": ["quote statuses", "quote types", "offer types", "text templates", "email templates", "asset print fields"],
+  "settings:pricing": ["small scale pricing", "dynamic pricing"],
 };
 
 const norm = (s: string): string =>
