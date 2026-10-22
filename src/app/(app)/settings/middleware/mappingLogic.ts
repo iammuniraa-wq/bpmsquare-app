@@ -254,7 +254,14 @@ export function documentChoices(system: string, quoteTarget: string | null, conn
   ];
 }
 
-export const INBOUND_DOCUMENTS = ["customers", "contacts", "products", "projects"] as const;
+/** A connector that only reads (SAP S/4HANA) maps what comes in, and nothing else. */
+export const inboundChoices = (system: string, connection = "dynamics365"): MapChoice[] => [
+  { key: "customers", label: `Customers (from ${system})`, document: "customers", connection },
+  { key: "vendors", label: `Suppliers (from ${system})`, document: "vendors", connection },
+  { key: "products", label: `Products (from ${system})`, document: "products", connection },
+];
+
+export const INBOUND_DOCUMENTS = ["customers", "contacts", "vendors", "products", "projects"] as const;
 export const isInboundDocument = (key: string): boolean => (INBOUND_DOCUMENTS as readonly string[]).includes(key);
 export const isWebhookConnection = (c: string): boolean => c.startsWith("webhook:");
 
@@ -263,6 +270,33 @@ export function sampleFieldMap(rows: EngineRows): Record<string, string> {
   const out: Record<string, string> = {};
   for (const r of rows.header) if (r.source && r.target) out[r.source] = r.target;
   return out;
+}
+
+// ── A preset-only view (SAP S/4HANA), drawn by the same blocks ──────────────
+
+/** The older two-column view as engine data, so a connector without the engine still renders in the same blocks. Saves go
+ *  through the per-section route (`legacyEdits`), never the engine. */
+export function legacyEngine(view: MappingDocView): EngineData | null {
+  if (view.engine) return view.engine;
+  if (view.sections.length === 0) return null;
+  const block = (key: Block) => view.sections.find((s) => s.key === key);
+  const rows = (key: Block): MapRow[] => (block(key)?.rows ?? []).filter((r) => r.erp).map((r) => ({
+    id: r.id, target: r.erp!.name, source: r.bpm.name, convert: null, ifEmpty: null, origin: r.standard ? "standard" : "user", confidence: null,
+  }));
+  const sources = (key: Block): SourceField[] => (block(key)?.rows ?? []).map((r) => ({ key: r.bpm.name, label: r.bpm.label, type: "text", custom: false }));
+  const targets = (key: Block): TargetField[] => (view.erpFields[key] ?? []).map((f) => ({ path: f.name, label: f.label, type: "text", required: false, creatable: true }));
+  const header = targets("header");
+  const lines = targets("lines");
+  return {
+    engine: { active: false, version: null, versions: [], usingStandard: view.usingStandard },
+    target: { kind: "adapter", entity: view.document.key, linesPath: null, schema: { fetchedAt: null, sourceUrl: null, counts: { total: header.length + lines.length, new: 0, missing: 0 } } },
+    sourceFields: { header: sources("header"), lines: sources("lines") },
+    targetFields: { header, lines },
+    rows: { header: rows("header"), lines: rows("lines") },
+    missingRequired: view.missingRequired,
+    lists: [],
+    ai: { available: false },
+  };
 }
 
 // ── While the database update is pending ────────────────────────────────────

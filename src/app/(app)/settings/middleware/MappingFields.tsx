@@ -18,7 +18,7 @@ import ConverterSheet from "./ConverterSheet";
 import { useMw } from "./context";
 import {
   NOT_SENT, acceptRow, addSuggestions, aiProblemWords, blankRow, cleanRows, confidenceWord, convertLabel, copyRows, errorsByRow, isInboundDocument, isMapDirty,
-  legacyEdits, listChoices, missingBar, needsAccept, onlyPlainChanges, removeRow, sampleFieldMap, schemaBar, setRowConvert, setRowTarget, stillMissing, tryBlocker, usedListKinds,
+  legacyEdits, legacyEngine, listChoices, missingBar, needsAccept, onlyPlainChanges, removeRow, sampleFieldMap, schemaBar, setRowConvert, setRowTarget, stillMissing, tryBlocker, usedListKinds,
   viewRows, type Block, type MapChoice, type ViewRow,
 } from "./mappingLogic";
 import ProposeMenu from "./ProposeMenu";
@@ -131,7 +131,9 @@ export default function MappingFields({ choice, onDirty }: { choice: MapChoice; 
   const webhook = choice.connection.startsWith("webhook:");
   const view = useLoad(() => getMappingDoc(document, choice.connection), [choice.key, mw.connector.id]);
   const v = view.data;
-  const eng = v?.engine ?? null;
+  const eng = v ? legacyEngine(v) : null;
+  // No engine part at all (a preset-only connector such as SAP S/4HANA): plain field changes save through the per-section route.
+  const legacy = !!v && !v.engine && !!eng;
   const pending = v?.pending ?? null;
 
   const [rows, setRows] = useState<EngineRows | null>(null);
@@ -225,8 +227,8 @@ export default function MappingFields({ choice, onDirty }: { choice: MapChoice; 
     if (!rows || !base || !v) return;
     setBusy("save"); setProblem(null); setErrors({}); setGeneral([]);
     try {
-      if (pending) {
-        if (!onlyPlainChanges(base, rows)) throw new PendingProblem(pending.bundle);
+      if (pending || legacy) {
+        if (!onlyPlainChanges(base, rows)) throw new PendingProblem(pending?.bundle ?? null);
         for (const part of legacyEdits(v, rows)) await saveMappingRows(document, part.section, part.rows);
         await view.reload();
       } else {
@@ -266,6 +268,7 @@ export default function MappingFields({ choice, onDirty }: { choice: MapChoice; 
   const label = (block: Block, key: string) => (block === "lines" ? sources.lines : sources.header).find((f) => f.key === key)?.label ?? key;
   const tlabel = (block: Block, path: string) => (block === "lines" ? targetFields.lines : targetFields.header).find((f) => f.path === path)?.label ?? path;
   const canReset = eng.engine.active || (!v.usingStandard && !webhook);
+  const plainOnly = !!pending || legacy;
 
   const blocks: { block: Block; title: string; fields: readonly SourceField[] }[] = [
     { block: "header", title: inbound ? "Fields" : "Header data", fields: sources.header },
@@ -276,7 +279,7 @@ export default function MappingFields({ choice, onDirty }: { choice: MapChoice; 
     <>
       <SettingsSave dirty={dirty} saving={busy === "save"} onSave={() => void save()} label="Save mapping" />
       {pending && <Notice tone="info">{`Database update needed: run ${pending.bundle ?? "the mapping update"} once. Until then only plain field changes save; converters, value lists and fetched field lists wait.`}</Notice>}
-      <SchemaBar bar={bar} automatic={target?.kind === "adapter"} busy={busy === "fetch"} onFetch={() => (webhook || !target || target.kind !== "adapter" ? setPanel("fetch") : void fetchNow({ source: "adapter" }))} />
+      <SchemaBar bar={bar} automatic={target?.kind === "adapter"} busy={busy === "fetch"} onFetch={legacy ? undefined : () => (webhook || !target || target.kind !== "adapter" ? setPanel("fetch") : void fetchNow({ source: "adapter" }))} />
       {needLine && <Notice tone="warn">{needLine}</Notice>}
       {flash && <Notice tone={flash.ok ? "ok" : "err"}>{flash.text}</Notice>}
       {general.map((g) => <Notice key={g} tone="err">{g}</Notice>)}
@@ -284,11 +287,11 @@ export default function MappingFields({ choice, onDirty }: { choice: MapChoice; 
 
       <div className={s.rowBetween}>
         <span className={`${s.row} bpm-tap`}>
-          {!inbound && <ProposeMenu disabled={counts.total === 0} busy={busy === "propose" || busy === "ai"} aiAvailable={eng.ai.available} onFill={() => void proposeNow("fill")} onReplace={() => void proposeNow("replace")} onAi={() => void askAi()} />}
+          {!inbound && !legacy && <ProposeMenu disabled={counts.total === 0} busy={busy === "propose" || busy === "ai"} aiAvailable={eng.ai.available} onFill={() => void proposeNow("fill")} onReplace={() => void proposeNow("replace")} onAi={() => void askAi()} />}
           <Button variant="quiet" size="sm" onClick={() => void reset()} loading={busy === "reset"} disabled={!canReset || !!busy}>Reset to standard</Button>
           {inbound && <Button variant="quiet" size="sm" onClick={() => void showSample()} loading={busy === "sample"} aria-pressed={!!sample}>{sample ? "Hide sample data" : "Show sample data"}</Button>}
         </span>
-        {!inbound && (
+        {!inbound && !legacy && (
           <span className={s.row}>
             {blocker && <span className={`${s.small} ${s.muted}`}>{blocker}</span>}
             <Button size="sm" onClick={() => setPanel("try")} disabled={!!blocker || !!pending}>Try it</Button>
@@ -300,13 +303,13 @@ export default function MappingFields({ choice, onDirty }: { choice: MapChoice; 
       {none && <Notice tone="info">No field list yet: fetch one, paste a sample, or add fields.</Notice>}
       {blocks.map(({ block, title, fields }) => (
         <FieldBlock
-          key={block} title={title} block={block} rows={viewRows(rows[block], fields)} targets={targetFields[block]} errors={errors} inbound={inbound} locked={!!pending}
+          key={block} title={title} block={block} rows={viewRows(rows[block], fields)} targets={targetFields[block]} errors={errors} inbound={inbound} locked={plainOnly}
           showAll={showAll[block]} onShowAll={() => setShowAll((a) => ({ ...a, [block]: true }))}
           onTarget={(b, row, t) => setBlock(b, (list) => setRowTarget(list, row, t, uid))}
           onConvert={(b, row) => row.rowId && setPanel({ convert: { block: b, rowId: row.rowId } })}
           onAccept={(b, id) => setBlock(b, (list) => acceptRow(list, id))}
           onRemove={(b, id) => setBlock(b, (list) => removeRow(list, id))}
-          onAdd={(b) => setBlock(b, (list) => [...list, blankRow(uid())])}
+          onAdd={plainOnly ? undefined : (b) => setBlock(b, (list) => [...list, blankRow(uid())])}
         />
       ))}
 

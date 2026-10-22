@@ -52,7 +52,7 @@ export default function ConnectorSwitcher({ connectors, value, connected, expiry
       </div>
       {adding && (
         <div className={s.addPanel} role="status">
-          <span>SAP and ePROMIS are coming. They will appear here with the same four tabs.</span>
+          <span>ePROMIS is coming. It will appear here with the same four tabs.</span>
           <Button size="sm" onClick={() => setAdding(false)}>Close</Button>
         </div>
       )}

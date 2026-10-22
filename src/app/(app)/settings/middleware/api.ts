@@ -7,6 +7,7 @@
 
 import type { D365Config, D365EntityConfig, D365EntityKey, D365PublicState, ScopeCondition } from "@/lib/connectors/d365/types";
 import type { ScopeAttribute } from "@/lib/connectors/d365/scope";
+import type { SapAuthMode, SapPublicState } from "@/lib/connectors/sap_s4/types";
 import type { Converter, EngineMappingExtras, MapRow as MapRowT, TryResult, ValueListRow } from "@/lib/middleware/mapping/types";
 
 export type ScopeEntityKey = Exclude<D365EntityKey, "fence_projects">;
@@ -35,10 +36,21 @@ export const INSTALLING = "This part is still being installed.";
 
 type Json = Record<string, unknown>;
 
+// The connector the page is showing. Every /api/middleware call names it (`?connector=`) unless it is the first one, Dynamics
+// 365, whose calls are exactly what they always were.
+let activeConnector = "dynamics365";
+export function setActiveConnector(id: string): void { activeConnector = id; }
+export const getActiveConnector = (): string => activeConnector;
+/** Add `connector=<id>` to a middleware url for a connector other than the first. */
+export function withConnector(url: string, id: string = activeConnector): string {
+  if (id === "dynamics365" || !url.startsWith("/api/middleware/") || /[?&]connector=/.test(url)) return url;
+  return `${url}${url.includes("?") ? "&" : "?"}connector=${encodeURIComponent(id)}`;
+}
+
 async function request<T>(method: string, url: string, body?: unknown, opts: { keep4xx?: boolean } = {}): Promise<T> {
   let res: Response;
   try {
-    res = await fetch(url, {
+    res = await fetch(withConnector(url), {
       method,
       headers: body === undefined ? undefined : { "Content-Type": "application/json" },
       body: body === undefined ? undefined : JSON.stringify(body),
@@ -396,6 +408,10 @@ export type Secrets = Partial<Record<"client_secret" | "certificate" | "private_
 /** A blank or missing secret means "unchanged", never "clear". A setting left out of `config` keeps its stored value; null clears it (outbound: null = "Reset to standard"). */
 export const saveConnection = (connectorId: string, config: Partial<Omit<ConnectionConfig, "outbound">> & { outbound?: OutboundMaps | null }, secrets: Secrets = {}) =>
   put<ConnectionState>(`/api/middleware/connections/${connectorId}`, { config, secrets });
+/** SAP S/4HANA: the login type, the host and user (a Communication user) or nothing more (the sandbox API key). Secrets are write-only. */
+export type SapConnectionInput = { auth_mode: SapAuthMode; api_host?: string; username?: string };
+export const saveSapConnection = (config: SapConnectionInput, secrets: Partial<Record<"password" | "api_key", string>> = {}) =>
+  put<SapPublicState>("/api/middleware/connections/sap_s4", { config, secrets });
 /** Test = the connection AND the permission probes, as ONE answer: one line, and only what failed for the details toggle.
  *  A refused connection comes back as 400 with the same body; it is an answer to show, not an exception. */
 export type TestView = { ok: boolean; line: string; failures: { label: string; fix: string | null }[]; message?: string; error?: string };
@@ -490,7 +506,7 @@ export const getMapping = () => get<MappingView>("/api/middleware/mapping");
 
 // ── Mapping: the engine (docs/design/mapping-engine.md) ────────────────────
 
-export const MAP_DOCUMENTS = ["quote", "customers", "contacts", "products", "projects"] as const;
+export const MAP_DOCUMENTS = ["quote", "customers", "contacts", "vendors", "products", "projects"] as const;
 export type MapDocumentKey = (typeof MAP_DOCUMENTS)[number];
 export type MapSide = { label: string; name: string };
 /** The older per-field row the server still sends (the preset lane); the screen works from `engine.rows`. */

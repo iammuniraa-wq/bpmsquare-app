@@ -14,7 +14,8 @@ import { MIDDLEWARE_TIPS } from "./tips";
 import { Notice, Segmented } from "./ui";
 
 /** The one compact bar that holds everything about the target's field list. Plain props, so a test renders it as it is. */
-export function SchemaBar({ bar, automatic, busy, onFetch }: { bar: BarLine; automatic: boolean; busy: boolean; onFetch: () => void }) {
+/** Without `onFetch` (a preset-only connector) the bar is the count alone. */
+export function SchemaBar({ bar, automatic, busy, onFetch }: { bar: BarLine; automatic: boolean; busy: boolean; onFetch?: () => void }) {
   const chips = changeChips(bar);
   return (
     <div className={s.schemaBar} role="group" aria-label="Target fields">
@@ -24,8 +25,8 @@ export function SchemaBar({ bar, automatic, busy, onFetch }: { bar: BarLine; aut
       </span>
       {chips.map((c) => <span key={c} className={c.endsWith("missing") ? `${s.chipFlag} ${s.chipGone}` : s.chipFlag}>{c}</span>)}
       <span className={s.schemaSpacer} />
-      <InfoTip label="Fetch fields">{MIDDLEWARE_TIPS.fetchFields}</InfoTip>
-      <Button size="sm" onClick={onFetch} loading={busy}>Fetch fields</Button>
+      {onFetch && <InfoTip label="Fetch fields">{MIDDLEWARE_TIPS.fetchFields}</InfoTip>}
+      {onFetch && <Button size="sm" onClick={onFetch} loading={busy}>Fetch fields</Button>}
     </div>
   );
 }

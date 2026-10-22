@@ -8,7 +8,8 @@ import { useFeel } from "@/components/FeelProvider";
 import s from "./middleware.module.css";
 import { callWebhooksFor, listWebhooks } from "../webhooks/api";
 import { useMw } from "./context";
-import { documentChoices, isWebhookConnection } from "./mappingLogic";
+import { hasOutbound } from "./connectors";
+import { documentChoices, inboundChoices, isWebhookConnection } from "./mappingLogic";
 import MappingFields from "./MappingFields";
 import MappingValueLists from "./MappingValueLists";
 import { MIDDLEWARE_TIPS } from "./tips";
@@ -20,27 +21,31 @@ export default function MappingTab() {
   const mw = useMw();
   const { confirm } = useFeel();
   const params = useSearchParams();
+  // A connector that only reads (SAP S/4HANA) maps what comes in: no quote, no webhook targets, and no value lists (the preset
+  // lane reads none), so the view switch is not offered there.
+  const outbound = hasOutbound(mw.connector.id);
   const [view, setView] = useUrlTab(VIEWS, "view");
   const [key, setKey] = useState<string>(() => {
     const c = params.get("connection");
-    return c && isWebhookConnection(c) ? c : "quote";
+    return c && isWebhookConnection(c) && outbound ? c : outbound ? "quote" : "customers";
   });
   const [dirty, setDirty] = useState(false);
   const [webhooks, setWebhooks] = useState<{ id: string; name: string }[]>([]);
 
   // A Call webhook for Standard Quotes is a target of its own; a workspace without webhooks simply has none.
   useEffect(() => {
+    if (!outbound) return;
     let live = true;
     listWebhooks()
       .then((l) => { if (live) setWebhooks(callWebhooksFor(l.webhooks, "standard_quotes").map((w) => ({ id: w.id, name: w.name }))); })
       .catch(() => { if (live) setWebhooks([]); });
     return () => { live = false; };
-  }, []);
+  }, [outbound]);
 
   const quote = mw.documents.data?.documents.find((d) => d.key === "quote");
   const choices = useMemo(
-    () => documentChoices(mw.connector.shortName, quote?.target.label ?? null, mw.connector.id, webhooks),
-    [mw.connector.shortName, mw.connector.id, quote?.target.label, webhooks],
+    () => (outbound ? documentChoices(mw.connector.shortName, quote?.target.label ?? null, mw.connector.id, webhooks) : inboundChoices(mw.connector.shortName, mw.connector.id)),
+    [outbound, mw.connector.shortName, mw.connector.id, quote?.target.label, webhooks],
   );
   const choice = choices.find((c) => c.key === key) ?? choices[0];
 
@@ -65,13 +70,15 @@ export default function MappingTab() {
           <select className="bpm-input" style={{ width: "auto", maxWidth: "100%" }} aria-label="Mapping for" value={choice.key} onChange={(e) => void pick(e.target.value)}>
             {choices.map((c) => <option key={c.key} value={c.key}>{c.label}</option>)}
           </select>
-          <Segmented
-            label="Mapping view" value={view as (typeof VIEWS)[number]} onChange={(v) => void switchView(v)}
-            options={[{ id: "fields", label: "Fields" }, { id: "values", label: "Value mapping" }]}
-          />
+          {outbound && (
+            <Segmented
+              label="Mapping view" value={view as (typeof VIEWS)[number]} onChange={(v) => void switchView(v)}
+              options={[{ id: "fields", label: "Fields" }, { id: "values", label: "Value mapping" }]}
+            />
+          )}
         </span>
       </div>
-      {view === "values"
+      {view === "values" && outbound
         ? <MappingValueLists connection={choice.connection} system={choice.connection.startsWith("webhook:") ? choice.label : mw.connector.shortName} />
         : <MappingFields key={choice.key} choice={choice} onDirty={setDirty} />}
     </>

@@ -27,6 +27,10 @@ const PRODUCT_NEEDS: Record<string, { pickLists: boolean }> = {
 };
 export const needsPickLists = (productKey: string | null | undefined): boolean => (productKey ? PRODUCT_NEEDS[productKey]?.pickLists === true : false);
 
+/** SAP S/4HANA only reads: it has no outbound link, so the page asks it for nothing to send and shows no steps about sending. */
+export const SAP_S4 = "sap_s4";
+export const hasOutbound = (connectorId: string): boolean => connectorId !== SAP_S4;
+
 export const middlewareHref =(connectorId: string): string => `${ROUTES.settingsMiddleware}?connector=${encodeURIComponent(connectorId)}`;
 
 /**

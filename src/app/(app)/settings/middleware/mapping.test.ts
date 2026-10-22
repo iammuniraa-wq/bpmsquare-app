@@ -5,7 +5,7 @@ import type { MapRow, SourceField, TargetField } from "@/lib/middleware/mapping/
 import { normalizeMappingDoc, type EngineRows } from "./api";
 import {
   acceptRow, addSuggestions, aiProblemWords, blankRow, changeChips, cleanRows, confidenceWord, convertLabel, converterExample, describeSource, documentChoices,
-  errorsByRow, fetchedWord, generatedTemplate, isMapDirty, legacyEdits, listChoices, missingBar, onlyPlainChanges, parseManualText, sampleFieldMap, schemaBar,
+  errorsByRow, fetchedWord, generatedTemplate, inboundChoices, isMapDirty, legacyEdits, legacyEngine, listChoices, missingBar, onlyPlainChanges, parseManualText, sampleFieldMap, schemaBar,
   setRowConvert, setRowTarget, stillMissing, tryBlocker, usedListKinds, viewRows,
 } from "./mappingLogic";
 import {
@@ -164,6 +164,41 @@ describe("while the database update is pending", () => {
     expect(legacyEdits(view, now)).toEqual([{ section: "header", rows: [{ id: "name", erp: "name" }, { id: "desc", erp: "description" }] }]);
     expect(onlyPlainChanges(view.engine!.rows, now)).toBe(true);
     expect(onlyPlainChanges(view.engine!.rows, { header: [row({ id: "std:header:name", convert: { kind: "text", op: "upper" } })], lines: [] })).toBe(false);
+  });
+});
+
+describe("a preset-only connector (SAP S/4HANA) in the same blocks", () => {
+  const view = normalizeMappingDoc({
+    document: { key: "customers", label: "Customers", targetLabel: "SAP S/4HANA Customers" },
+    sections: [{ key: "header", label: "Fields", rows: [
+      { id: "name", bpm: { label: "Name", name: "name" }, erp: { label: "Business partner name", name: "BusinessPartnerFullName" }, standard: true },
+      { id: "city", bpm: { label: "City", name: "city" }, erp: null, standard: true },
+    ] }],
+    erpFields: { header: [{ label: "Business partner name", name: "BusinessPartnerFullName" }, { label: "City", name: "CityName" }], lines: [] },
+    usingStandard: true, missingRequired: [],
+  });
+  it("turns the two-column view into engine data: one row per mapped field, the SAP fields as targets, no AI, no lists", () => {
+    const eng = legacyEngine(view)!;
+    expect(view.engine).toBeNull();
+    expect(eng.rows.header).toEqual([{ id: "name", target: "BusinessPartnerFullName", source: "name", convert: null, ifEmpty: null, origin: "standard", confidence: null }]);
+    expect(eng.sourceFields.header.map((f) => f.key)).toEqual(["name", "city"]);
+    expect(eng.targetFields.header.map((f) => f.path)).toEqual(["BusinessPartnerFullName", "CityName"]);
+    expect(eng.target.schema.counts.total).toBe(2);
+    expect(eng.ai.available).toBe(false);
+    expect(eng.engine.usingStandard).toBe(true);
+    expect(legacyEngine(normalizeMappingDoc({ connected: false }))).toBeNull();
+  });
+  it("saves a changed field through the older per-section route, as the SAP route expects", () => {
+    const eng = legacyEngine(view)!;
+    const now = { header: [...eng.rows.header, { id: "u1", target: "CityName", source: "city", convert: null, ifEmpty: null, origin: "user" as const, confidence: null }], lines: [] };
+    expect(legacyEdits(view, now)).toEqual([{ section: "header", rows: [{ id: "name", erp: "BusinessPartnerFullName" }, { id: "city", erp: "CityName" }] }]);
+  });
+  it("offers only the inbound documents, in the shape the selector reads", () => {
+    expect(inboundChoices("SAP S/4HANA", "sap_s4")).toEqual([
+      { key: "customers", label: "Customers (from SAP S/4HANA)", document: "customers", connection: "sap_s4" },
+      { key: "vendors", label: "Suppliers (from SAP S/4HANA)", document: "vendors", connection: "sap_s4" },
+      { key: "products", label: "Products (from SAP S/4HANA)", document: "products", connection: "sap_s4" },
+    ]);
   });
 });
 

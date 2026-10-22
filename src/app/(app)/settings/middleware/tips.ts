@@ -18,8 +18,16 @@ export const MIDDLEWARE_TIPS = {
   company: "The company or legal entity inside the ERP that records are written to.",
   certificate: "The certificate and its private key. The key never leaves the server and is not shown again.",
 
+  // SAP S/4HANA connection
+  sapLogin: "A Communication user signs in to your SAP system. The API key login reads sample data from the SAP Business Accelerator Hub.",
+  sapHost: "The API host of your SAP system, such as my426318-api.s4hana.cloud.sap. No https:// and no path.",
+  sapUser: "The Communication User of a Communication Arrangement. The arrangement needs scenario SAP_COM_0008, and SAP_COM_0009 for products.",
+  sapPassword: "Paste it once. After saving it shows as Stored and cannot be read back; leave it blank to keep it.",
+  sapApiKey: "In the SAP Business Accelerator Hub open an API and choose Show API Key. It is stored sealed and cannot be read back.",
+
   // Links
   links: "Each row links a BPMSquare object with one in your ERP. A quote goes to the ERP when it is awarded; a rejected quote never leaves.",
+  linksSap: "Each row brings records from SAP into BPMSquare. Nothing is sent to SAP yet.",
   createAs: "What the quote becomes in your ERP. A choice that is greyed out is not ready for your ERP yet.",
   whichWebhook: "The webhook from Settings > Webhooks that receives the quote when it is awarded. It is sent once, like any other link.",
   include: "What travels with the quote. A greyed item cannot be sent to the chosen target.",
@@ -54,6 +62,7 @@ export const MIDDLEWARE_TIPS = {
   scopeAttribute: "A field of the record in your ERP, such as its class, territory or country. The common ones come first.",
   scopeValues: "A record matches a row when its value is any of the values picked. It must match every row.",
   scopeCustomer: "For a contact, the field belongs to its customer. A contact without that customer value is left out.",
+  scopeSap: "Narrows what every run reads. For SAP it filters the record itself (category, grouping, industry); sales area and country are not offered yet.",
   getRecords: "Reads only the records you list, by their ERP id or number. The scope does not apply, and Sync now is not affected.",
   recordIds: "Up to 100, separated by commas, spaces or new lines. An id is the long code of a record; a number is the one people see.",
   sendRecord: "Pick a record and send it now. A Standard Quote follows its awarded or rejected rule.",

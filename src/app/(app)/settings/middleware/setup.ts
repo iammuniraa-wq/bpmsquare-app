@@ -44,6 +44,16 @@ export function deriveSetup(i: SetupInputs): SetupStatus {
   return { steps, doneCount, complete: doneCount === steps.length, next: steps.find((s) => !s.done) ?? null };
 }
 
+/** A connector that only reads (SAP S/4HANA): connect, then read customers. Nothing is sent, so nothing about sending is asked. */
+export function deriveInboundSetup(i: Pick<SetupInputs, "connected" | "customersSynced">): SetupStatus {
+  const steps: SetupStep[] = [
+    { id: "connect", label: "Connect", next: "connect your ERP", done: i.connected, target: "connection" },
+    { id: "customers", label: "Read customers", next: "read your customers in Resync", done: i.connected && i.customersSynced, target: "resync" },
+  ];
+  const doneCount = steps.filter((s) => s.done).length;
+  return { steps, doneCount, complete: doneCount === steps.length, next: steps.find((s) => !s.done) ?? null };
+}
+
 /** "Set up 3 of 5 · Next: send a test quote"; empty once everything is done. */
 export function slimLine(status: SetupStatus): string {
   if (status.complete || !status.next) return "";

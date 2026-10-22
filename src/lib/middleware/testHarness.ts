@@ -56,7 +56,8 @@ export function fakeAdmin(seed: Record<string, Row[]> = {}, opts: { missing?: st
   class Q implements PromiseLike<{ data: unknown; error: DbError; count?: number | null }> {
     private filters: ((r: Row) => boolean)[] = [];
     private described: string[] = [];
-    private op: "select" | "insert" | "update" | "delete" = "select";
+    private op: "select" | "insert" | "update" | "delete" | "upsert" = "select";
+    private conflict: string[] = [];
     private payload: Row = {};
     private one: "single" | "maybe" | null = null;
     private lim: number | null = null;
@@ -68,6 +69,7 @@ export function fakeAdmin(seed: Record<string, Row[]> = {}, opts: { missing?: st
     select(_c?: string, o?: { count?: string; head?: boolean }) { if (o?.count) this.countMode = true; if (o?.head) this.head = true; return this; }
     insert(r: Row) { this.op = "insert"; this.payload = r; return this; }
     update(r: Row) { this.op = "update"; this.payload = r; return this; }
+    upsert(r: Row, o?: { onConflict?: string }) { this.op = "upsert"; this.payload = r; this.conflict = (o?.onConflict ?? "").split(",").filter(Boolean); return this; }
     delete() { this.op = "delete"; return this; }
     private f(desc: string, fn: (r: Row) => boolean) { this.described.push(desc); this.filters.push(fn); return this; }
     eq(c: string, v: unknown) { return this.f(`${c}=${String(v)}`, (r) => r[c] === v); }
@@ -106,6 +108,12 @@ export function fakeAdmin(seed: Record<string, Row[]> = {}, opts: { missing?: st
         if (dup) return { data: null, error: { message: "duplicate key value violates unique constraint", code: "23505" } };
         t.push(row);
         return { data: this.one ? row : [row], error: null };
+      }
+      if (this.op === "upsert") {
+        const hit = t.find((x) => this.conflict.length > 0 && this.conflict.every((c) => x[c] === this.payload[c]));
+        if (hit) Object.assign(hit, this.payload);
+        else t.push({ id: `00000000-0000-4000-8000-${String(++n).padStart(12, "0")}`, ...this.payload });
+        return { data: null, error: null };
       }
       if (this.op === "update") {
         const bad = opts.failUpdate?.(this.table, this.payload);

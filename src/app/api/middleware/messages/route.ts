@@ -27,6 +27,8 @@ export async function GET(req: NextRequest) {
   f.to = ISO(sp.get("to"));
   const oid = sp.get("object_id");
   if (oid && UUID.test(oid)) f.object_id = oid;
+  const cn = sp.get("connector");
+  if (cn && /^[a-z0-9_]{1,40}$/.test(cn) && cn !== "dynamics365") f.connector = cn;
   const q = sp.get("q");
   if (q) f.q = q.slice(0, 100);
   const page = await listMessages(g.ctx.admin, g.ctx.tenantId, f, sp.get("cursor"), Number(sp.get("limit") ?? 50));

@@ -87,7 +87,23 @@ export const CONNECTOR_CATALOG: ConnectorDef[] = [
     configureHref: "/settings/connectors/dynamics365",
     middleware: true,
   },
+  {
+    id: "sap_s4",
+    name: "SAP S/4HANA",
+    description: "Bring customers, suppliers and products in from SAP S/4HANA (Cloud public edition or any S/4HANA with the standard OData APIs). Sign in with the Communication User of a Communication Arrangement, or try it first with an API key from the SAP Business Accelerator Hub sandbox.",
+    icon: "⇄",
+    authType: "api_key",
+    fields: [],
+    testable: false,
+    middleware: true,
+    middlewareOnly: true,
+  },
 ];
+
+/** The connectors a workspace sees as tiles: one that lives only on the Integration middleware page needs that module. */
+export function visibleConnectors(middlewareOn: boolean, catalog: readonly ConnectorDef[] = CONNECTOR_CATALOG): ConnectorDef[] {
+  return catalog.filter((d) => !d.middlewareOnly || middlewareOn);
+}
 
 export function getConnectorDef(id: string): ConnectorDef | undefined {
   return CONNECTOR_CATALOG.find((c) => c.id === id);

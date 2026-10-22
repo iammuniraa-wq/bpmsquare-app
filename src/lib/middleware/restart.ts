@@ -3,6 +3,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { isSchemaPending } from "@/lib/marketing/pending";
 import { runPull, runPushFenceProjects } from "@/lib/connectors/d365/server";
 import type { D365EntityKey } from "@/lib/connectors/d365/types";
+import { runSapPull } from "@/lib/connectors/sap_s4/server";
+import { SAP_CONNECTOR_ID, isSapEntity } from "@/lib/connectors/sap_s4/types";
 import { dispatchQuoteOutcome, type DispatchResult } from "./dispatch";
 import { sendViaWebhook } from "./webhookTarget";
 import { fireWebhook, type FireDeps, type FireResult } from "@/lib/webhooks/sender";
@@ -87,21 +89,27 @@ function describeFire(r: FireResult): { outcome: RestartOutcome; message: string
   return { outcome: "failed", message: `${r.headline} ${r.fix ?? ""}`.trim() };
 }
 
-type IntegrationRow = { id: string; object_type: string | null; object_id: string | null; status: string; entity: string | null; summary: Record<string, unknown> | null };
+type IntegrationRow = { id: string; object_type: string | null; object_id: string | null; status: string; entity: string | null; connector_id?: string | null; summary: Record<string, unknown> | null };
 
-async function runEntity(admin: SupabaseClient, tenantId: string, userId: string, entity: D365EntityKey): Promise<{ outcome: RestartOutcome; message: string }> {
-  const res = entity === "fence_projects"
-    ? await runPushFenceProjects(admin, tenantId, { trigger: "manual", userId })
-    : await runPull(admin, tenantId, entity, { trigger: "manual", userId });
+async function runEntity(admin: SupabaseClient, tenantId: string, userId: string, entity: D365EntityKey, connectorId: string | null = null): Promise<{ outcome: RestartOutcome; message: string }> {
+  // A SAP S/4HANA run is run again by SAP's own pull, never by the Dynamics one.
+  if (connectorId === SAP_CONNECTOR_ID && !isSapEntity(entity)) return { outcome: "not_restartable", message: "This one can't be restarted." };
+  const res = connectorId === SAP_CONNECTOR_ID && isSapEntity(entity)
+    ? await runSapPull(admin, tenantId, entity, { trigger: "manual", userId })
+    : entity === "fence_projects"
+      ? await runPushFenceProjects(admin, tenantId, { trigger: "manual", userId })
+      : await runPull(admin, tenantId, entity, { trigger: "manual", userId });
   if (res.error) return { outcome: "failed", message: res.error };
   if (res.counts.failed > 0) return { outcome: "failed", message: `${res.counts.failed} still failing. ${res.issues[0] ?? ""}`.trim() };
   return { outcome: "done", message: `Ran again: ${res.counts.read} read, ${res.counts.created} created, ${res.counts.updated} updated.` };
 }
 
 /** After a run went well, the failed run rows of that entity are settled, so only open items stay failed. */
-async function settleRuns(admin: SupabaseClient, tenantId: string, entity: string): Promise<void> {
+async function settleRuns(admin: SupabaseClient, tenantId: string, entity: string, connectorId: string | null = null): Promise<void> {
   try {
-    const { data } = await admin.from(MESSAGES_TABLE).select("id, summary").eq("tenant_id", tenantId).eq("channel", "connector").eq("entity", entity).eq("status", "failed").limit(100);
+    let q = admin.from(MESSAGES_TABLE).select("id, summary").eq("tenant_id", tenantId).eq("channel", "connector").eq("entity", entity).eq("status", "failed");
+    if (connectorId) q = q.eq("connector_id", connectorId);
+    const { data } = await q.limit(100);
     for (const r of (data ?? []) as { id: string; summary: Record<string, unknown> | null }[]) {
       if (r.summary?.kind !== "connector_run") continue;
       await admin.from(MESSAGES_TABLE).update({ status: "skipped", summary: { ...r.summary, resolved: true } }).eq("id", r.id).eq("tenant_id", tenantId);
@@ -142,20 +150,21 @@ export async function restartMessages(
 
     if (parsed.source === "connector") {
       // An older sync-run line (before the message log existed).
-      const { data, error } = await admin.from("connector_sync_runs").select("id, entity, status").eq("id", parsed.uuid).eq("tenant_id", tenantId).maybeSingle();
+      const { data, error } = await admin.from("connector_sync_runs").select("id, entity, status, connector_id").eq("id", parsed.uuid).eq("tenant_id", tenantId).maybeSingle();
       if (error || !data) { done("not_restartable", "Message not found."); continue; }
-      const row = data as { entity: string; status: string };
+      const row = data as { entity: string; status: string; connector_id?: string | null };
       if (row.status === "succeeded") { done("already_ok", "That run went well. Nothing to restart."); continue; }
       if (row.status === "running") { done("already_ok", "That run is still going."); continue; }
       if (!isRunnableEntity(row.entity)) { done("not_restartable", "This one can't be restarted."); continue; }
-      const prior = ranEntity.get(row.entity);
-      const r = prior ?? (await runEntity(admin, tenantId, userId, row.entity));
-      ranEntity.set(row.entity, r);
+      const runKey = `${row.connector_id ?? ""}:${row.entity}`;
+      const prior = ranEntity.get(runKey);
+      const r = prior ?? (await runEntity(admin, tenantId, userId, row.entity, row.connector_id ?? null));
+      ranEntity.set(runKey, r);
       done(r.outcome, prior ? "Run again together with the others of the same kind." : r.message);
       continue;
     }
 
-    const { data, error } = await admin.from(MESSAGES_TABLE).select("id, object_type, object_id, status, entity, summary").eq("id", parsed.uuid).eq("tenant_id", tenantId).maybeSingle();
+    const { data, error } = await admin.from(MESSAGES_TABLE).select("id, object_type, object_id, status, entity, connector_id, summary").eq("id", parsed.uuid).eq("tenant_id", tenantId).maybeSingle();
     if (error) {
       if (isSchemaPending(error)) return { needsDatabaseUpdate: true };
       done("failed", "Could not read the message.");
@@ -201,10 +210,11 @@ export async function restartMessages(
     }
 
     const entity = row.entity as D365EntityKey;
-    const prior = ranEntity.get(entity);
-    const r = prior ?? (await runEntity(admin, tenantId, userId, entity));
-    ranEntity.set(entity, r);
-    if (!prior && r.outcome === "done") await settleRuns(admin, tenantId, entity);
+    const runKey = `${row.connector_id ?? ""}:${entity}`;
+    const prior = ranEntity.get(runKey);
+    const r = prior ?? (await runEntity(admin, tenantId, userId, entity, row.connector_id ?? null));
+    ranEntity.set(runKey, r);
+    if (!prior && r.outcome === "done") await settleRuns(admin, tenantId, entity, row.connector_id ?? null);
     done(r.outcome, prior ? "Run again together with the others of the same kind." : r.message);
   }
   return { results: [...results, ...skipped] };

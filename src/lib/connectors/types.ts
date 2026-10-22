@@ -65,6 +65,9 @@ export type ConnectorDef = {
    * flag on, it is configured and run from Settings -> Integration middleware (one
    * chip per connector in its switcher), and its tile here only links there. */
   middleware?: boolean;
+  /** With `middleware`: there is no screen of its own at all, so a workspace without the `integration_middleware`
+   *  flag does not see the connector. */
+  middlewareOnly?: boolean;
 };
 
 export type TenantConnectorRow = {

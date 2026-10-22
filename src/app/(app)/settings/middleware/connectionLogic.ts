@@ -38,6 +38,13 @@ export function addressWord(url: string | undefined | null): string {
   return url.replace(/^https?:\/\//i, "").replace(/\/+$/, "");
 }
 
+/** What the connection panel shows beside "Connected": the address, or for the SAP sandbox login the plain words that it is sample data. */
+export function addressLine(connectorId: string, cfg: { environment_url?: string; sandbox?: boolean } | null | undefined): string {
+  if (!cfg) return "";
+  if (connectorId === "sap_s4" && cfg.sandbox === true) return "Sandbox (sample data)";
+  return addressWord(cfg.environment_url);
+}
+
 /** The small chip on the connector, only within 30 days of the secret ending. An ended secret is a problem banner, not a chip. */
 export function expiryChip(health: Pick<HealthView, "secretSoon"> | null | undefined): string | null {
   const d = health?.secretSoon?.days;

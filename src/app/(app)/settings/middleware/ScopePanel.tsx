@@ -25,8 +25,8 @@ function useDebounced<T>(value: T, ms = 300): T {
   return v;
 }
 
-export default function ScopePanel({ entity, entityName, onClose, onSaved }: {
-  entity: ScopeEntityKey; entityName: string; onClose: () => void; onSaved: () => Promise<void> | void;
+export default function ScopePanel({ entity, entityName, connectorId, onClose, onSaved }: {
+  entity: ScopeEntityKey; entityName: string; connectorId?: string; onClose: () => void; onSaved: () => Promise<void> | void;
 }) {
   const view = useLoad(() => getScope(entity), [entity]);
   const [draft, setDraft] = useState<ScopeDraft>([]);
@@ -66,7 +66,7 @@ export default function ScopePanel({ entity, entityName, onClose, onSaved }: {
         </>
       }
     >
-      <div className="bpm-label-row"><h3 className="bpm-t-label">Read only records where</h3><InfoTip label="Scope">{MIDDLEWARE_TIPS.scope}</InfoTip></div>
+      <div className="bpm-label-row"><h3 className="bpm-t-label">Read only records where</h3><InfoTip label="Scope">{connectorId === "sap_s4" ? MIDDLEWARE_TIPS.scopeSap : MIDDLEWARE_TIPS.scope}</InfoTip></div>
       {view.error != null && <ProblemNotice error={view.error} onRetry={() => void view.reload()} />}
       {view.loading && !view.data && <span className={`${s.small} ${s.muted}`} role="status">Loading the system&apos;s fields…</span>}
       {view.data?.source === "presets" && <Notice tone="warn">The system&apos;s field list could not be read, so only the common attributes are offered.</Notice>}

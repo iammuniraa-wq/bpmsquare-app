@@ -6,7 +6,7 @@ import { Input, Select } from "@/components/ui/Input";
 import { CheckOpt } from "@/components/ui/Opt";
 import type { WfmConfig } from "@/lib/constants";
 import type { WfmShift } from "@/lib/wfm/types";
-import { faceMode, hhmm, withFaceMode, slugCode, type FaceMode } from "./logic";
+import { cleanCode, hhmm, slugCode } from "./logic";
 import { More, SwitchRow } from "./parts";
 import { WORKFORCE_TIPS as T } from "./tips";
 import s from "./workforce.module.css";
@@ -40,9 +40,13 @@ export default function RulesTab({ cfg, savedCodes, shifts, onChange }: {
         if (j !== i) return t;
         if (savedCodes.includes(t.code)) return { ...t, label };
         const others = cfg.employment_types.filter((_, k) => k !== i).map((x) => x.code);
-        return { code: slugCode(label, others), label };
+        // A code the person typed stays; one made from the label follows the label.
+        const made = t.code === "" || t.code === slugCode(t.label, others);
+        return { code: made ? slugCode(label, others) : t.code, label };
       }),
     });
+  const setTypeCode = (i: number, raw: string) =>
+    onChange({ employment_types: cfg.employment_types.map((t, j) => (j === i && !savedCodes.includes(t.code) ? { ...t, code: cleanCode(raw) } : t)) });
 
   return (
     <div className={s.card}>
@@ -111,11 +115,16 @@ export default function RulesTab({ cfg, savedCodes, shifts, onChange }: {
               <option value="my_workforce">My Workforce</option>
             </Select>
           </Field>
-          <Field label="Face recognition" info={T.face}>
-            <Select value={faceMode(cfg)} onChange={(e) => onChange(withFaceMode(e.target.value as FaceMode))}>
+          <Field label="Face punch" info={T.facePunch}>
+            <Select value={cfg.face_punch} onChange={(e) => onChange({ face_punch: e.target.value as WfmConfig["face_punch"] })}>
               <option value="off">Off</option>
-              <option value="tablet">Door tablet</option>
-              <option value="tablet_signin">Door tablet and sign-in</option>
+              <option value="kiosk">Door tablet</option>
+            </Select>
+          </Field>
+          <Field label="Face sign-in" info={T.faceLogin}>
+            <Select value={cfg.face_login ? "on" : "off"} onChange={(e) => onChange({ face_login: e.target.value === "on" })}>
+              <option value="off">Off</option>
+              <option value="on">On</option>
             </Select>
           </Field>
           <Field label="Check selfies against the face" info={T.faceVerify}>
@@ -147,8 +156,11 @@ export default function RulesTab({ cfg, savedCodes, shifts, onChange }: {
         <Field label="Employment types" info={T.employmentTypes} htmlFor="wf-emp-0">
           <div>
             {cfg.employment_types.map((t, i) => (
-              <div key={i} className={s.typeRow}>
+              <div key={i} className={`${s.typeRow} ${savedCodes.includes(t.code) ? "" : s.typeRowNew}`}>
                 <Input id={`wf-emp-${i}`} aria-label={`Employment type ${i + 1}`} value={t.label} placeholder="Intern" onChange={(e) => setTypeLabel(i, e.target.value)} />
+                {!savedCodes.includes(t.code) && (
+                  <Input aria-label={`Code for employment type ${i + 1}`} value={t.code} placeholder="code" maxLength={40} onChange={(e) => setTypeCode(i, e.target.value)} />
+                )}
                 <Button
                   size="sm"
                   aria-label={`Remove ${t.label || "type"}`}
