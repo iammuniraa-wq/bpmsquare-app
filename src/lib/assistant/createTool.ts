@@ -4,6 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { CreateActionDef } from "@/lib/actions/registry";
 import { buildCard, loadSpec } from "@/lib/actions/card";
 import type { ConfirmCard } from "./cards";
+import { promptText } from "./promptSafe";
 
 // The assistant's one way to propose a create: it can only ever produce a CARD. The tool result tells the model that
 // nothing exists yet; the record appears only when the person presses the card's button (POST /api/ai/act).
@@ -35,7 +36,7 @@ export async function createCatalog(supabase: SupabaseClient, tenantId: string, 
     const spec = await loadSpec(supabase, tenantId, a);
     const fields = spec.fields
       .filter((f) => f.kind !== "ref")
-      .map((f) => `${f.key}${f.baseRequired ? "*" : ""} (${f.label}${f.options?.length ? `: ${f.options.map((o) => o.value).join("|")}` : ""})`)
+      .map((f) => `${f.key}${f.baseRequired ? "*" : ""} (${promptText(f.label, 60)}${f.options?.length ? `: ${f.options.map((o) => promptText(o.value, 40)).join("|")}` : ""})`)
       .join(", ");
     const refs = a.refs.map((r) => `${r.param}${r.required ? "*" : ""} (name of the ${r.label.toLowerCase()})`).join(", ");
     return `- ${a.object}: fields: ${fields}${refs ? `\n  references: ${refs}` : ""}`;
