@@ -89,7 +89,7 @@ export default function NewContactForm({ accounts, defaultAccountId, isAdmin }: 
       error={error}
     >
       <Card title="Identity" padding={18}>
-        <Field label="Full name" required>
+        <Field guide="contact.field.name" label="Full name" required>
           <Input value={form.name} onChange={set("name")} required placeholder="e.g. Rajesh Kumar" />
         </Field>
         <Field label="Account" required>
@@ -100,16 +100,16 @@ export default function NewContactForm({ accounts, defaultAccountId, isAdmin }: 
           </Select>
         </Field>
         <div className="fg2">
-          <Field label="Role / designation">
+          <Field guide="contact.field.role" label="Role / designation">
             <Input value={form.role} onChange={set("role")} placeholder="e.g. Purchase Manager" />
           </Field>
-          <Field label="Department">
+          <Field guide="contact.field.department" label="Department">
             <Input value={form.department} onChange={set("department")} placeholder="e.g. Maintenance" />
           </Field>
-          <Field label="Birthday">
+          <Field guide="contact.field.birthday" label="Birthday">
             <Input type="date" value={form.birthday} onChange={set("birthday")} />
           </Field>
-          <Field label="LinkedIn URL">
+          <Field guide="contact.field.linkedin_url" label="LinkedIn URL">
             <Input value={form.linkedin_url} onChange={set("linkedin_url")} placeholder="https://linkedin.com/in/..." />
           </Field>
         </div>
@@ -118,13 +118,13 @@ export default function NewContactForm({ accounts, defaultAccountId, isAdmin }: 
 
       <Card title="Phone numbers" padding={18}>
         <div className="fg3">
-          <Field label="Primary phone">
+          <Field guide="contact.field.phone" label="Primary phone">
             <Input value={form.phone} onChange={set("phone")} placeholder="+91 98765 43210" />
           </Field>
-          <Field label="Secondary phone">
+          <Field guide="contact.field.phone2" label="Secondary phone">
             <Input value={form.phone2} onChange={set("phone2")} placeholder="+91 98765 43211" />
           </Field>
-          <Field label="Third phone">
+          <Field guide="contact.field.phone3" label="Third phone">
             <Input value={form.phone3} onChange={set("phone3")} placeholder="+91 98765 43212" />
           </Field>
         </div>
@@ -133,14 +133,14 @@ export default function NewContactForm({ accounts, defaultAccountId, isAdmin }: 
 
       <Card title="Email & web" padding={18}>
         <div className="fg2">
-          <Field label="Primary email">
+          <Field guide="contact.field.email" label="Primary email">
             <Input type="email" value={form.email} onChange={set("email")} placeholder="rajesh@company.com" />
           </Field>
-          <Field label="Secondary email">
+          <Field guide="contact.field.email2" label="Secondary email">
             <Input type="email" value={form.email2} onChange={set("email2")} placeholder="rajesh.personal@gmail.com" />
           </Field>
         </div>
-        <Field label="Website">
+        <Field guide="contact.field.website" label="Website">
           <Input value={form.website} onChange={set("website")} placeholder="https://linkedin.com/in/..." />
         </Field>
         {cfInputs("Email & web")}
@@ -152,23 +152,23 @@ export default function NewContactForm({ accounts, defaultAccountId, isAdmin }: 
         action={<Button variant="quiet" size="sm" onClick={copyAddressFromAccount}>↙ Copy from account</Button>}
       >
         <div style={{ fontSize: 12, color: c.hint, marginBottom: 12 }}>Contact&apos;s personal or delivery address</div>
-        <Field label="Address line 1">
+        <Field guide="contact.field.address_line1" label="Address line 1">
           <Input value={form.address_line1} onChange={set("address_line1")} placeholder="Street / building / flat" />
         </Field>
-        <Field label="Address line 2">
+        <Field guide="contact.field.address_line2" label="Address line 2">
           <Input value={form.address_line2} onChange={set("address_line2")} placeholder="Area / landmark" />
         </Field>
         <div className="fg2">
-          <Field label="City">
+          <Field guide="contact.field.city" label="City">
             <Input value={form.city} onChange={set("city")} placeholder="Bengaluru" />
           </Field>
-          <Field label="State">
+          <Field guide="contact.field.state" label="State">
             <Input value={form.state} onChange={set("state")} placeholder="Karnataka" />
           </Field>
-          <Field label="Postal code">
+          <Field guide="contact.field.postal_code" label="Postal code">
             <Input value={form.postal_code} onChange={set("postal_code")} placeholder="560001" />
           </Field>
-          <Field label="Country">
+          <Field guide="contact.field.country" label="Country">
             <Input value={form.country} onChange={set("country")} placeholder="India" />
           </Field>
         </div>
@@ -176,7 +176,7 @@ export default function NewContactForm({ accounts, defaultAccountId, isAdmin }: 
       </Card>
 
       <Card title="Notes" padding={18}>
-        <Field label="Notes">
+        <Field guide="contact.field.notes" label="Notes">
           <Textarea value={form.notes} onChange={set("notes")} placeholder="Any notes about this contact…" />
         </Field>
         {cfInputs("Notes")}

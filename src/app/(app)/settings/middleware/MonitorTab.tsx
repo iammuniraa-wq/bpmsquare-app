@@ -105,9 +105,9 @@ export default function MonitorTab() {
       <FilterRow filters={filters} onChange={set} onClear={() => { setFilters(EMPTY_FILTERS); setTicked([]); setSummary(null); }} problem={problem} />
 
       <div className={s.actionBar} role="toolbar" aria-label="Actions for the ticked lines">
-        <Button variant="primary" onClick={() => void restart()} loading={restarting} disabled={!bar.restartEnabled || restarting} title={MIDDLEWARE_TIPS.restart}>{bar.restartLabel}</Button>
-        <span title={bar.viewRequest.reason ?? undefined}><Button onClick={() => bar.one && setPayload({ message: bar.one, side: "request" })} disabled={bar.viewRequest.disabled}>View request</Button></span>
-        <span title={bar.viewResponse.reason ?? undefined}><Button onClick={() => bar.one && setPayload({ message: bar.one, side: "response" })} disabled={bar.viewResponse.disabled}>View response</Button></span>
+        <Button variant="primary" data-guide="middleware.restart" onClick={() => void restart()} loading={restarting} disabled={!bar.restartEnabled || restarting} title={MIDDLEWARE_TIPS.restart}>{bar.restartLabel}</Button>
+        <span title={bar.viewRequest.reason ?? undefined}><Button data-guide="middleware.view_request" onClick={() => bar.one && setPayload({ message: bar.one, side: "request" })} disabled={bar.viewRequest.disabled}>View request</Button></span>
+        <span title={bar.viewResponse.reason ?? undefined}><Button data-guide="middleware.view_response" onClick={() => bar.one && setPayload({ message: bar.one, side: "response" })} disabled={bar.viewResponse.disabled}>View response</Button></span>
         <span className={`${s.small} ${s.muted}`} aria-live="polite">{ticked.length ? `${ticked.length} selected` : ""}</span>
         <Button size="sm" variant="quiet" onClick={() => void load(filters, null)} loading={loading && !cursor}>Refresh</Button>
       </div>

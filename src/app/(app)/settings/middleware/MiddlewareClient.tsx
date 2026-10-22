@@ -119,7 +119,7 @@ export default function MiddlewareClient() {
         {noConnection ? (
           <EmptyState
             title={`Connect ${connector.shortName}`} text={inboundOnly ? "Sign in once; customers, suppliers and products then come in from it." : "Sign in once; quotes, customers and products then move between the two."}
-            action={<Button variant="primary" onClick={() => setPanelOpen(true)}>Connect {connector.shortName}</Button>}
+            action={<Button variant="primary" data-guide="middleware.connect" onClick={() => setPanelOpen(true)}>Connect {connector.shortName}</Button>}
           />
         ) : (
           <>

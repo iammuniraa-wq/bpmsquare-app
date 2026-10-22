@@ -27,7 +27,7 @@ export default function ConnectorSwitcher({ connectors, value, connected, expiry
   const [adding, setAdding] = useState(false);
   return (
     <div className={s.stack} style={{ gap: 8 }}>
-      <div className={s.chips} role="group" aria-label="Connector">
+      <div className={s.chips} role="group" aria-label="Connector" data-guide="middleware.connector">
         {connectors.map((c) => {
           const open = c.id === value;
           return (

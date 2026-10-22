@@ -85,6 +85,6 @@ export type VisibleScreen = {
   hidden: HiddenControl[];
 };
 
-export const MAX_CONTROLS = 12;
+export const MAX_CONTROLS = 16;
 export const MAX_TASKS = 6;
 export const MAX_TEXT = 160;

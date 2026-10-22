@@ -44,7 +44,7 @@ export default function WebhooksClient() {
       <div className={s.rowBetween}>
         <span className={`${s.small} ${s.muted}`} aria-live="polite">{data.webhooks.length === 0 ? "" : `${data.webhooks.length} webhook${data.webhooks.length === 1 ? "" : "s"}`}</span>
         {!data.needsDatabaseUpdate && (
-          <Button variant="primary" icon={<PlusIcon />} onClick={() => setSel({ key: "new", id: null })}>New webhook</Button>
+          <Button variant="primary" data-guide="webhooks.new" icon={<PlusIcon />} onClick={() => setSel({ key: "new", id: null })}>New webhook</Button>
         )}
       </div>
 
@@ -53,7 +53,7 @@ export default function WebhooksClient() {
           <EmptyState
             title="No webhooks yet"
             text="Create one to send changes or records to another system."
-            action={data.needsDatabaseUpdate ? undefined : <Button variant="primary" icon={<PlusIcon />} onClick={() => setSel({ key: "new", id: null })}>New webhook</Button>}
+            action={data.needsDatabaseUpdate ? undefined : <Button variant="primary" data-guide="webhooks.new" icon={<PlusIcon />} onClick={() => setSel({ key: "new", id: null })}>New webhook</Button>}
           />
         ) : (
           <WebhookRows items={data.webhooks} onOpen={(w) => setSel({ key: w.id, id: w.id })} onResume={(w) => void resume(w)} />
@@ -92,7 +92,7 @@ export function WebhookRows({ items, onOpen, onResume, now }: { items: readonly 
         return (
           <div key={w.id} className={s.item} role="listitem">
             <span className={`${s.kindCell}`}><span className={`${s.chip} ${w.kind === "call" ? s.chipCall : s.chipEvent}`}>{KIND_LABEL[w.kind]}</span></span>
-            <button type="button" className={s.open} onClick={() => onOpen(w)} aria-label={`${w.name}: open`}>
+            <button type="button" className={s.open} data-guide="webhooks.row" onClick={() => onOpen(w)} aria-label={`${w.name}: open`}>
               <span className={s.name}>{w.name}</span>
               <span className={`${s.target} ${s.mono}`}>{targetWord(w)}</span>
             </button>

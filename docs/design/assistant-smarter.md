@@ -58,7 +58,7 @@ conventions, the studios from their exported `TOUR_STEPS` (today built inline in
 move each to `tourSteps.ts` beside its `tips.ts` so the Tour and the manifest read one list).
 A new object wired per 3b, or a new custom field, is in its manifest the moment it exists.
 **Hand-written only**: verbs and tasks (`quote.send`, `quote.revise`, "turn a case into a
-quote"), one small file per screen, held to a limit (≤ 12 controls, ≤ 6 tasks, texts ≤ 160
+quote"), one small file per screen, held to a limit (≤ 16 controls, ≤ 6 tasks, texts ≤ 160
 chars) by `screens.test.ts`. The same test walks `NAV` + `SETTINGS_MENU`: every route has a
 manifest or is in an exclusion list with a reason, and every `control.id` named in a manifest
 exists as a `data-guide="<id>"` in `src/` (grep), so a renamed control fails the build instead
@@ -460,3 +460,8 @@ Flag `ai_assistant` only; nothing writes tenant data; no migration.
 - **Deviations**: new/edit forms are hand-built, so their standard fields have no `data-guide` yet (custom fields do); a step on
   one is shown as text with no highlight. Webhooks and middleware use the shared tab strip only until their own page files
   get `data-guide` ids. `screen_help(id)`, the live `screen` object and the cached screen index are WP3.
+  **Update 2026-10-22:** Webhooks (`webhooks.new|row|save`) and Integration middleware (`middleware.connector|connect|test|edit|
+  link_row|scope_edit|restart|view_request|view_response`) now carry their own ids and their steps point at the real controls.
+  `Field` takes a `guide` prop; the Account and Contact create forms tag every standard field `<object>.field.<registry key>`
+  (a test checks the key exists in the registry). Other hand-built forms (asset, case, product, supplier, invoice, ...) are still
+  text-only steps. The overlay limit is now 16 controls (middleware needs 13).

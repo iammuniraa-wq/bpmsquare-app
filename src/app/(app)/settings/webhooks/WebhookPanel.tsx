@@ -121,7 +121,7 @@ export default function WebhookPanel({ webhook, startKind, callObjects, recordBu
         <>
           {(first || error) && <div className={`${s.issue} ${s.footIssue}`} role="alert">{error ?? first.message}{!error && problems.length > 1 ? ` (and ${problems.length - 1} more)` : ""}</div>}
           {saved && !dirty && <span className={`${s.small} ${s.muted}`} role="status">Saved.</span>}
-          <Button variant="primary" onClick={() => void save()} loading={saving} disabled={saving || (!isNew && !dirty)}>{isNew ? "Create" : "Save"}</Button>
+          <Button variant="primary" data-guide="webhooks.save" onClick={() => void save()} loading={saving} disabled={saving || (!isNew && !dirty)}>{isNew ? "Create" : "Save"}</Button>
         </>
       }
     >

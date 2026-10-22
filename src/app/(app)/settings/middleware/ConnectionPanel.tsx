@@ -80,8 +80,8 @@ export default function ConnectionPanel({ authReturn, onClose }: { authReturn: {
               {addressLine(connector.id, stored) ? <> · <span className={s.wrapAny}>{addressLine(connector.id, stored)}</span></> : null}
             </span>
             <span className={`${s.row} bpm-tap`}>
-              <Button size="sm" onClick={() => void test()} loading={busy === "test"} disabled={!!busy}>Test</Button>
-              <Button size="sm" aria-pressed={editing} onClick={() => setEditing((e) => !e)} disabled={!!busy}>Edit</Button>
+              <Button size="sm" data-guide="middleware.test" onClick={() => void test()} loading={busy === "test"} disabled={!!busy}>Test</Button>
+              <Button size="sm" data-guide="middleware.edit" aria-pressed={editing} onClick={() => setEditing((e) => !e)} disabled={!!busy}>Edit</Button>
               <Button size="sm" variant="danger" onClick={() => void remove()} loading={busy === "disconnect"} disabled={!!busy}>Disconnect</Button>
             </span>
           </div>
