@@ -64,7 +64,14 @@ export function documentChoices(system: string, quoteTarget: string | null): { k
   ];
 }
 
-export const INBOUND_DOCUMENTS = ["customers", "contacts", "products", "projects"] as const;
+/** A connector that only reads (SAP S/4HANA) maps what comes in, and nothing else. */
+export const inboundChoices = (system: string): { key: string; label: string }[] => [
+  { key: "customers", label: `Customers (from ${system})` },
+  { key: "vendors", label: `Suppliers (from ${system})` },
+  { key: "products", label: `Products (from ${system})` },
+];
+
+export const INBOUND_DOCUMENTS = ["customers", "contacts", "vendors", "products", "projects"] as const;
 export const isInboundDocument = (key: string): boolean => (INBOUND_DOCUMENTS as readonly string[]).includes(key);
 
 /** The field map the sample-data preview reads: BPMSquare field name -> ERP column, for the rows that have one. */

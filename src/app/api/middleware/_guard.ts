@@ -4,7 +4,6 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { requireTenantUser, createAdminSupabase } from "@/lib/supabase-server";
 import { flagOn } from "@/lib/middleware/ops";
 import { SQL_BUNDLES } from "@/lib/middleware/types";
-
 // Every /api/middleware route starts here: a signed-in ADMIN of this host's
 // workspace, in a workspace that has the integration_middleware flag. The
 // tenant comes from the session only -- never from the request body or query.

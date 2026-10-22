@@ -38,6 +38,9 @@ const n = (v: unknown): number | null => (typeof v === "number" && Number.isFini
 /** The connector entity a run row names, when Restart can run it again. */
 export const isRunnableEntity = (v: unknown): v is (typeof D365_ENTITY_KEYS)[number] => typeof v === "string" && (D365_ENTITY_KEYS as readonly string[]).includes(v);
 
+/** The system a connector row is about, in a column ("Dynamics 365", "SAP S/4HANA"). */
+export const connectorWord = (id: string | null): string | null => (id === "dynamics365" ? "Dynamics 365" : id === "sap_s4" ? "SAP S/4HANA" : id);
+
 const ENTITY_WORD: Record<string, string> = {
   customers: "Customers", contacts: "Contacts", vendors: "Suppliers", products: "Products", projects: "Projects", fence_projects: "Fence projects",
 };
@@ -80,6 +83,7 @@ const integration: SourceSpec = {
     if (f.channel) eq.channel = f.channel;
     if (f.status) eq.status = f.status;
     if (f.object_id) eq.object_id = f.object_id;
+    if (f.connector) eq.connector_id = f.connector;
     return { eq };
   },
   normalize(r) {
@@ -105,7 +109,7 @@ const integration: SourceSpec = {
     return {
       id: `integration:${r.id}`, source: "integration", at: String(r.created_at),
       direction: (s(r.direction) ?? "out") as MessageDirection, channel,
-      counterpart: sum.kind === "webhook_call" ? s(sum.webhook) : s(r.connector_id) === "dynamics365" ? "Dynamics 365" : s(r.connector_id),
+      counterpart: sum.kind === "webhook_call" ? s(sum.webhook) : connectorWord(s(r.connector_id)),
       summary, status, record: objectType ? { type: objectType, id: s(r.object_id), label: s(r.ref_label) } : null,
       duration_ms: n(r.duration_ms),
       what, restartable: kind !== null, fix: s(sum.fix) ?? (kind === "run" ? "Restart to run it again." : null),
@@ -122,7 +126,7 @@ const email: SourceSpec = {
   timeCol: "created_at",
   cols: "id, kind, to_email, subject, status, error, related_object_type, related_object_id, related_object_label, created_at",
   plan(f) {
-    if (f.direction === "in" || (f.channel && f.channel !== "email")) return null;
+    if (f.connector || f.direction === "in" || (f.channel && f.channel !== "email")) return null;
     const eq: Record<string, string> = {};
     if (f.status === "ok") eq.status = "sent";
     else if (f.status === "failed") eq.status = "failed";
@@ -151,6 +155,7 @@ const rfq: SourceSpec = {
   timeCol: "created_at",
   cols: "id, rfq_id, direction, channel, from_address, to_addresses, subject, status, error, created_at",
   plan(f) {
+    if (f.connector) return null;
     const p: Plan = { in: { direction: ["in", "out"] } };
     if (f.direction) p.in = { direction: [f.direction] };
     if (f.channel === "email") p.in = { ...p.in, channel: ["email", "portal"] };
@@ -187,7 +192,7 @@ const whatsapp: SourceSpec = {
   timeCol: "created_at",
   cols: "id, direction, contact_id, account_id, kind, category, status, redirected_to, error, created_at",
   plan(f) {
-    if (f.channel && f.channel !== "whatsapp") return null;
+    if (f.connector || (f.channel && f.channel !== "whatsapp")) return null;
     const p: Plan = {};
     if (f.direction) p.eq = { direction: f.direction };
     if (f.status === "ok") p.in = { status: WA_OK };
@@ -221,7 +226,7 @@ const webhook: SourceSpec = {
   timeCol: "created_at",
   cols: "id, webhook_id, event_count, status, ok, error, duration_ms, created_at",
   plan(f) {
-    if (f.direction === "in" || (f.channel && f.channel !== "webhook") || f.object_id) return null;
+    if (f.connector || f.direction === "in" || (f.channel && f.channel !== "webhook") || f.object_id) return null;
     if (f.status === "ok") return { eq: { ok: true } };
     if (f.status === "failed") return { eq: { ok: false } };
     if (f.status) return null;
@@ -249,7 +254,8 @@ const connector: SourceSpec = {
   plan(f) {
     if ((f.channel && f.channel !== "connector") || f.object_id) return null;
     const p: Plan = {};
-    if (f.direction) p.eq = { direction: f.direction === "in" ? "pull" : "push" };
+    if (f.connector) p.eq = { connector_id: f.connector };
+    if (f.direction) p.eq = { ...p.eq, direction: f.direction === "in" ? "pull" : "push" };
     if (f.status === "ok") p.eq = { ...p.eq, status: "succeeded" };
     else if (f.status === "failed") p.in = { status: ["failed", "partial"] };
     else if (f.status === "pending") p.eq = { ...p.eq, status: "running" };
@@ -263,7 +269,7 @@ const connector: SourceSpec = {
     const end = r.finished_at ? Date.parse(String(r.finished_at)) : NaN;
     return {
       id: `connector:${r.id}`, source: "connector", at: String(r.started_at), direction: r.direction === "pull" ? "in" : "out", channel: "connector",
-      counterpart: s(r.connector_id) === "dynamics365" ? "Dynamics 365" : s(r.connector_id),
+      counterpart: connectorWord(s(r.connector_id)),
       summary: `${s(r.entity) ?? "Sync"}: ${c.read ?? 0} read, ${c.created ?? 0} created, ${c.updated ?? 0} updated, ${c.failed ?? 0} failed`,
       status: st === "succeeded" ? "ok" : st === "running" ? "pending" : "failed", record: null,
       duration_ms: Number.isFinite(start) && Number.isFinite(end) ? Math.max(0, end - start) : null,

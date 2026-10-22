@@ -15,7 +15,8 @@ import {
 } from "./api";
 import { useMw } from "./context";
 import { WEBHOOK_TARGET, draftFromDocument, draftPatch, draftProblem, showsFallbackPriceList, targetOptions, type DocDraft } from "./documentsLogic";
-import { buildLinks, type LinkRow } from "./linksLogic";
+import { SAP_INBOUND_LINKS, buildLinks, type LinkRow } from "./linksLogic";
+import { hasOutbound } from "./connectors";
 import { MIDDLEWARE_TIPS } from "./tips";
 import { ExternalIcon, Notice, ProblemNotice, Switch, describeError, useFlash, useLoad } from "./ui";
 import { QuoteSelect, useQuoteOptions } from "./Pickers";
@@ -38,7 +39,8 @@ export default function LinksTab() {
   if (docs.error != null && !docs.data) return <ProblemNotice error={docs.error} onRetry={() => void docs.reload()} />;
   if (!docs.data) return <div className={`${s.small} ${s.muted}`} role="status">Loading…</div>;
   const entities = mw.sync.data && mw.sync.data.connected ? mw.sync.data.entities : [];
-  const rows = buildLinks(docs.data.documents, entities);
+  const inboundOnly = !hasOutbound(mw.connector.id);
+  const rows = inboundOnly ? buildLinks([], entities, SAP_INBOUND_LINKS) : buildLinks(docs.data.documents, entities);
   const open = rows.find((r) => r.id === openId && r.kind === "out")?.doc ?? null;
 
   const toggle = async (row: LinkRow, enabled: boolean) => {
@@ -69,7 +71,7 @@ export default function LinksTab() {
       {test && !test.ok && <Notice tone="err"><span className={s.noticeStrong}>{test.headline}</span>{test.fix ? <> {test.fix}</> : null}</Notice>}
 
       <div className={s.rowBetween}>
-        <span className="bpm-label-row"><h2 className="bpm-t-section">Links</h2><InfoTip label="Links">{MIDDLEWARE_TIPS.links}</InfoTip></span>
+        <span className="bpm-label-row"><h2 className="bpm-t-section">Links</h2><InfoTip label="Links">{inboundOnly ? MIDDLEWARE_TIPS.linksSap : MIDDLEWARE_TIPS.links}</InfoTip></span>
       </div>
       <div className={s.listCard}>
         <LinksTable rows={rows} connected={connected} busy={busy} onOpen={(r) => setOpenId(r.id)} onToggle={(r, v) => void toggle(r, v)} onTest={() => void sendTest()} />

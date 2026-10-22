@@ -14,6 +14,7 @@ import {
   type AccountChoice, type EntitySchedule, type ScopeEntityKey, type SendResult, type SendableObject, type SyncEntity, type SyncRunResult,
 } from "./api";
 import { useMw } from "./context";
+import { hasOutbound } from "./connectors";
 import { SCOPE_CHANGED_LINE } from "@/lib/connectors/d365/scope";
 import {
   RESYNC_TABS, RESYNC_TAB_LABEL, SCHEDULE_CHOICES, lastRunLine, numbersProblem, parseRecordIds, recordIdsProblem, resultLine, scopeCell, type ResyncTabId,
@@ -30,7 +31,8 @@ import { SendOutcome } from "./SendOutcome";
 // failures are the Monitor's and never appear here.
 
 const ENTITY_WORD: Record<string, string> = { customers: "Customers", contacts: "Contacts", vendors: "Vendors", products: "Products", projects: "Projects" };
-export const entityWord = (key: string): string => ENTITY_WORD[key] ?? key;
+/** SAP calls what Dynamics calls vendors "suppliers". */
+export const entityWord = (key: string, connectorId?: string): string => (connectorId === "sap_s4" && key === "vendors" ? "Suppliers" : ENTITY_WORD[key] ?? key);
 
 export type RunLine = { ok: boolean; text: string };
 
@@ -53,7 +55,7 @@ export default function ResyncTab() {
         {sub === "records" && (
           <>
             <GetRecords connected={connected} />
-            <SendRecord connected={connected} />
+            {hasOutbound(mw.connector.id) && <SendRecord connected={connected} />}
           </>
         )}
       </div>
@@ -108,18 +110,18 @@ function FullResync({ connected, connectorId }: { connected: boolean; connectorI
         ? <EmptyState title="Connect an ERP first" text="Syncing starts once there is a connection." />
         : null}
       {rows.length > 0 && (
-        <EntityRows rows={rows} connected={connected} busy={busy} lines={lines} onSync={(e, full) => void run(e, full)} onSchedule={(e, v) => void schedule(e, v)} onScope={setScoping} />
+        <EntityRows rows={rows} connectorId={connectorId} connected={connected} busy={busy} lines={lines} onSync={(e, full) => void run(e, full)} onSchedule={(e, v) => void schedule(e, v)} onScope={setScoping} />
       )}
       {scoping && (
-        <ScopePanel entity={scoping.key as ScopeEntityKey} entityName={entityWord(scoping.key)} onClose={() => setScoping(null)} onSaved={() => sync.reload()} />
+        <ScopePanel entity={scoping.key as ScopeEntityKey} entityName={entityWord(scoping.key, connectorId)} connectorId={connectorId} onClose={() => setScoping(null)} onSaved={() => sync.reload()} />
       )}
     </section>
   );
 }
 
 /** The table itself, plain props only. Under 780 px each row becomes a card. */
-export function EntityRows({ rows, connected, busy, lines, onSync, onSchedule, onScope, now }: {
-  rows: readonly SyncEntity[]; connected: boolean; busy: string | null; lines: Record<string, RunLine>;
+export function EntityRows({ rows, connected, busy, lines, onSync, onSchedule, onScope, now, connectorId }: {
+  rows: readonly SyncEntity[]; connectorId?: string; connected: boolean; busy: string | null; lines: Record<string, RunLine>;
   onSync: (e: SyncEntity, full: boolean) => void; onSchedule: (e: SyncEntity, v: EntitySchedule) => void; onScope?: (e: SyncEntity) => void; now?: Date;
 }) {
   return (
@@ -133,16 +135,16 @@ export function EntityRows({ rows, connected, busy, lines, onSync, onSchedule, o
             return (
               <Fragment key={e.key}>
                 <tr className={s.docRow}>
-                  <td data-label="Entity"><span className={s.fieldName}>{entityWord(e.key)}</span>{!e.enabled && <span className={`${s.small} ${s.muted}`}>Switched off in Links</span>}</td>
+                  <td data-label="Entity"><span className={s.fieldName}>{entityWord(e.key, connectorId)}</span>{!e.enabled && <span className={`${s.small} ${s.muted}`}>Switched off in Links</span>}</td>
                   <td data-label="Scope">
                     <span className={s.scopeCell}>
                       <span className={s.wrapAny}>{scopeCell(e)}</span>
-                      <button type="button" className={s.linkBtn} onClick={() => onScope?.(e)} disabled={!connected || !onScope} aria-label={`Edit the scope of ${entityWord(e.key)}`}>Edit</button>
+                      <button type="button" className={s.linkBtn} onClick={() => onScope?.(e)} disabled={!connected || !onScope} aria-label={`Edit the scope of ${entityWord(e.key, connectorId)}`}>Edit</button>
                     </span>
                   </td>
                   <td data-label="Last run"><span className={s.small}>{lastRunLine(e, now)}</span></td>
                   <td data-label="Automatic">
-                    <select className="bpm-input" aria-label={`Automatic sync for ${entityWord(e.key)}`} value={e.schedule} onChange={(ev) => onSchedule(e, ev.target.value as EntitySchedule)}>
+                    <select className="bpm-input" aria-label={`Automatic sync for ${entityWord(e.key, connectorId)}`} value={e.schedule} onChange={(ev) => onSchedule(e, ev.target.value as EntitySchedule)}>
                       {SCHEDULE_CHOICES.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
                     </select>
                   </td>
@@ -196,7 +198,7 @@ function GetRecords({ connected }: { connected: boolean }) {
           <>
             <Field label="Entity" htmlFor="gr-entity" style={{ marginBottom: 0 }}>
               <select id="gr-entity" className="bpm-input" value={current?.key ?? ""} onChange={(e) => { setEntity(e.target.value); setLine(null); }}>
-                {entities.map((e) => <option key={e.key} value={e.key}>{entityWord(e.key)}</option>)}
+                {entities.map((e) => <option key={e.key} value={e.key}>{entityWord(e.key, mw.connector.id)}</option>)}
               </select>
             </Field>
             <Field label="Ids or numbers" info={MIDDLEWARE_TIPS.recordIds} htmlFor="gr-ids" style={{ marginBottom: 0 }}>

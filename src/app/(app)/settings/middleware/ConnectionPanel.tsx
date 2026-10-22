@@ -7,10 +7,12 @@ import { useFeel } from "@/components/FeelProvider";
 import s from "./middleware.module.css";
 import { disconnect, saveRules, testConnection } from "./api";
 import { useMw } from "./context";
-import { addressWord, testOutcome, type TestOutcome } from "./connectionLogic";
+import { addressLine, testOutcome, type TestOutcome } from "./connectionLogic";
+import { SAP_S4 } from "./connectors";
 import { MIDDLEWARE_TIPS } from "./tips";
 import { Notice, Switch, describeError, useFlash } from "./ui";
 import ConnectionForm from "./ConnectionForm";
+import SapConnectionForm from "./SapConnectionForm";
 import Panel from "./Panel";
 
 /** Coming back from the Microsoft sign-in leaves the result in the address; read it once, then tidy the address. */
@@ -39,6 +41,7 @@ export default function ConnectionPanel({ authReturn, onClose }: { authReturn: {
   const { connector, connection, health } = mw;
   const stored = connection?.state.config ?? null;
   const connected = health.data?.connection.connected === true || connection?.state.status === "connected";
+  const Form = connector.id === SAP_S4 ? SapConnectionForm : ConnectionForm;
   const [editing, setEditing] = useState(false);
   const [busy, setBusy] = useState<"test" | "disconnect" | null>(null);
   const [outcome, setOutcome] = useState<TestOutcome | null>(null);
@@ -66,7 +69,7 @@ export default function ConnectionPanel({ authReturn, onClose }: { authReturn: {
       {!stored ? (
         <>
           <h3 className="bpm-t-label">Connect {connector.shortName}</h3>
-          <ConnectionForm item={connection} connectorId={connector.id} onChanged={mw.reloadAll} />
+          <Form item={connection} connectorId={connector.id} onChanged={mw.reloadAll} />
         </>
       ) : (
         <>
@@ -74,7 +77,7 @@ export default function ConnectionPanel({ authReturn, onClose }: { authReturn: {
             <span className={s.connText}>
               <span className={`${s.dot} ${connected ? s.dotOn : s.dotWarn}`} aria-hidden="true" />
               {connected ? "Connected" : connection?.state.status === "error" ? "Needs attention" : "Not connected"}
-              {addressWord(stored.environment_url) ? <> · <span className={s.wrapAny}>{addressWord(stored.environment_url)}</span></> : null}
+              {addressLine(connector.id, stored) ? <> · <span className={s.wrapAny}>{addressLine(connector.id, stored)}</span></> : null}
             </span>
             <span className={`${s.row} bpm-tap`}>
               <Button size="sm" onClick={() => void test()} loading={busy === "test"} disabled={!!busy}>Test</Button>
@@ -97,7 +100,7 @@ export default function ConnectionPanel({ authReturn, onClose }: { authReturn: {
             </ul>
           )}
 
-          {editing && <ConnectionForm item={connection} connectorId={connector.id} onChanged={mw.reloadAll} onSaved={() => setEditing(false)} />}
+          {editing && <Form item={connection} connectorId={connector.id} onChanged={mw.reloadAll} onSaved={() => setEditing(false)} />}
           <CaptureRow />
         </>
       )}

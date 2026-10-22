@@ -165,6 +165,8 @@ export type MessageFilters = {
   to?: string;
   /** Show only rows about one record. */
   object_id?: string;
+  /** Show only the runs and messages of one connector (the page sets it for every connector but the first). */
+  connector?: string;
   /** Free text over summary and counterpart (applied to the page after reading). */
   q?: string;
 };
