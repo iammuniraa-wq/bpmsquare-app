@@ -32,8 +32,8 @@ export type Briefing = {
   yesterday: BriefingLine[];
   today: BriefingLine[];
   focus: FocusLine[];
-  /** AI wording of the headings (WP8). Absent here: the rule's own wording is the text. */
-  wording?: { yesterday: string; today: string; focus: string[] } | null;
+  /** The optional AI paragraph (WP8), made only from the facts above and checked against them. Absent: the list stands alone. */
+  wording?: { paragraph: string; lang: string; facts: string } | null;
   computedAt: string;
   /** Nothing yesterday and nothing open: the new-user state. */
   empty: boolean;

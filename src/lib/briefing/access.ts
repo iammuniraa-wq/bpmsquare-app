@@ -5,7 +5,9 @@ import { resolvePermissions } from "@/lib/permissions";
 import { formatMoneyCompact, resolveCurrency } from "@/lib/currency";
 import { requireWfm } from "@/lib/wfm/server";
 import { resolveWfmScope } from "@/lib/wfm/scope";
+import { resolveMonthlyBudget } from "@/lib/ai/usageCap";
 import { getBriefing } from "./compute";
+import { liveWordingDeps, resolveWording } from "./wording";
 import type { BriefingCtx, WfmAccess } from "./load";
 
 // The shared body of GET /api/ai/briefing and POST /api/ai/briefing/refresh. Tenant, person, role, modules and time
@@ -39,16 +41,19 @@ export async function briefingResponse(lang: unknown, refresh: boolean): Promise
   ]);
   const features = (tenant?.features ?? {}) as Record<string, boolean | undefined>;
   if (features.ai_assistant !== true) return NextResponse.json({ error: "The assistant is not enabled for this workspace." }, { status: 403 });
-  const config = (tenant?.config ?? {}) as { currency?: string | null; wfm?: { timezone?: string } };
+  const config = (tenant?.config ?? {}) as { currency?: string | null; wfm?: { timezone?: string }; ai_assistant?: { monthly_token_budget?: number } };
 
   const ctx: BriefingCtx = {
     tenantId, perms, features, userId, email: user?.email?.toLowerCase() ?? null, isAdmin: role === "admin",
     wfm: features.wfm === true ? await wfmAccess() : null,
   };
   const cur = resolveCurrency(config);
+  const admin = createAdminSupabase();
+  const budget = resolveMonthlyBudget(config.ai_assistant?.monthly_token_budget);
   const briefing = await getBriefing({
-    admin: createAdminSupabase(), ctx, timeZone: config.wfm?.timezone, lang: cleanLang(lang), refresh,
+    admin, ctx, timeZone: config.wfm?.timezone, lang: cleanLang(lang), refresh,
     formatValue: (n) => formatMoneyCompact(n, cur),
+    wording: (req) => resolveWording(req, liveWordingDeps({ admin, tenantId, userId, budget, since: req.since })),
   });
   return NextResponse.json(briefing);
 }
