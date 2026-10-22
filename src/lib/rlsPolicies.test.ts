@@ -61,6 +61,39 @@ describe("credential tables are not member-writable (audit 2026-10-21)", () => {
     expect(list.some((p) => p.cmd === "select")).toBe(true);
   });
 
+  it.each(["business_roles", "business_role_grants", "business_user_roles"])(
+    "%s (audit 2026-10-22 M2): every write policy is admin-only, members may only read", (table) => {
+      const list = [...(policies.get(table)?.values() ?? [])];
+      expect(list.length).toBeGreaterThan(0);
+      for (const p of list.filter(writes)) expect(adminOnly(p), `${p.name} must require role = 'admin'`).toBe(true);
+      expect(list.some((p) => p.cmd === "all")).toBe(false);
+      expect(list.some((p) => p.cmd === "select")).toBe(true);
+      expect(list.map((p) => p.cmd).sort()).toEqual(["delete", "insert", "select", "update"]);
+    },
+  );
+
+  it("no route writes the Business Role tables with the member's session client", () => {
+    const offenders: string[] = [];
+    const walk = (dir: string) => {
+      for (const e of readdirSync(dir, { withFileTypes: true })) {
+        const p = path.join(dir, e.name);
+        if (e.isDirectory()) { walk(p); continue; }
+        if (!/\.(ts|tsx)$/.test(e.name) || /\.test\./.test(e.name)) continue;
+        const src = readFileSync(p, "utf8");
+        const re = /\bsupabase\s*\.from\(\s*"(business_roles|business_role_grants|business_user_roles)"\s*\)\s*\.(insert|update|delete|upsert)\(/g;
+        if (re.test(src)) offenders.push(path.relative(path.resolve(__dirname, "../.."), p));
+      }
+    };
+    walk(path.resolve(__dirname, ".."));
+    expect(offenders).toEqual([]);
+  });
+
+  it("0207's bundle carries the migration verbatim", () => {
+    const file = readFileSync(path.join(DIR, "0207_business_roles_rls.sql"), "utf8");
+    const bundle = readFileSync(path.resolve(__dirname, "../../scripts/run-bundle-16-security-2026-10-22.sql"), "utf8");
+    expect(bundle.replace(/\r\n/g, "\n")).toContain(file.replace(/\r\n/g, "\n").trim());
+  });
+
   it("0202 (webhooks library) adds no policy to webhooks, and its bundle carries the migration verbatim", () => {
     // The library puts header values and a signing secret on `webhooks`: a member must still not be able to write them.
     const file = readFileSync(path.join(DIR, "0202_webhooks_library.sql"), "utf8");
