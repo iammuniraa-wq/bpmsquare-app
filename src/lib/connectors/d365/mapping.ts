@@ -85,14 +85,19 @@ function areaOf(product: D365Product | undefined, row: Record<string, unknown>):
   return typeof a === "string" && a.trim() ? a.trim().toLowerCase() : null;
 }
 
-export function mapPullRow(entity: Exclude<D365EntityKey, "fence_projects">, cfg: D365EntityConfig, row: Record<string, unknown>, product?: D365Product): MappedPull | { error: string } {
+export function mapPullRow(
+  entity: Exclude<D365EntityKey, "fence_projects">, cfg: D365EntityConfig, row: Record<string, unknown>, product?: D365Product,
+  /** A saved mapping document's reverse converters: the ERP value of one BPMSquare field, turned back (value lists, dates, scales). */
+  transform?: (target: string, raw: unknown) => unknown,
+): MappedPull | { error: string } {
   const rawId = read(row, cfg.id_field);
   if (rawId === null || rawId === undefined || String(rawId).trim() === "") return { error: `no ${cfg.id_field}` };
   const allowed = TARGET_FIELDS[entity];
   const values: Record<string, string | number | null> = {};
   for (const [target, source] of Object.entries(cfg.field_map ?? {})) {
     if (!(target in allowed)) continue;
-    values[target] = clean(allowed[target], read(row, source));
+    const raw = read(row, source);
+    values[target] = clean(allowed[target], transform ? transform(target, raw) : raw);
   }
   if (!values.name) {
     // A name is the one thing every target needs; fall back to the key so a

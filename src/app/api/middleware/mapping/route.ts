@@ -7,7 +7,8 @@ import { PLACEHOLDERS } from "@/lib/middleware/payload";
 import { getErpMetadata } from "@/lib/middleware/metadataServer";
 import { isMetadataEntity, missingRequired, suggestMapping, type BpmField } from "@/lib/middleware/metadata";
 import { isMappingDoc } from "@/lib/middleware/mappingDoc";
-import { getMapping, saveMapping } from "@/lib/middleware/mappingOps";
+import { saveMapping } from "@/lib/middleware/mappingOps";
+import { getView, saveEngine } from "@/lib/middleware/mapping/engineOps";
 
 // GET  -- the mapping in force for the connected product, so the Mapping tab opens read-only on it:
 //   { product, using_standard: { quote, quote_line, project }   (true = "Using the standard mapping"),
@@ -29,13 +30,22 @@ import { getMapping, saveMapping } from "@/lib/middleware/mappingOps";
 // PUT { document, section:"header"|"lines", rows:[{id, erp: string|null}], entity_set?, id_field? } saves those rows and answers with the mapping again.
 //   422 { error, errors:[{id,message}] } names each row that is unknown, read-only (composite), not an ERP field or already used.
 // POST /api/middleware/mapping/reset { document } is "Reset to standard".
+//
+// Mapping engine (docs/design/mapping-engine.md, bundle 12). The same GET adds `connection` ("dynamics365" | "sap" | "epromis" |
+// "webhook:<id>", default dynamics365) and answers the two-column view PLUS
+//   { engine:{active,version,versions:[{version,at,by}],usingStandard}, target:{kind,entity,linesPath,schema:{fetchedAt,sourceUrl,counts:{total,new,missing}}},
+//     sourceFields:{header,lines}, targetFields:{header,lines}, rows:{header:MapRow[],lines:MapRow[]}, missingRequired, lists:[{kind,label,rowCount}], ai:{available} }
+// and, while the database update is pending, { needsDatabaseUpdate:true, bundle }.
+// PUT { connection, document, rows:{header,lines}, target?:{entity,linesPath}, note? } saves a new version of the engine mapping
+// (422 { error, errors:[{rowId|field,message}] }). A body whose `rows` is a list is the older per-section save, unchanged.
 export async function GET(req: NextRequest) {
   const g = await guard();
   if (!g.ok) return g.res;
   const docParam = req.nextUrl.searchParams.get("document");
   if (docParam !== null) {
     if (!isMappingDoc(docParam)) return fail(422, "Choose quote, customers, contacts, products or projects.");
-    return NextResponse.json(await getMapping(g.ctx.admin, g.ctx.tenantId, docParam));
+    const o = await getView(g.ctx, req.nextUrl.searchParams.get("connection"), docParam);
+    return NextResponse.json(o.body, { status: o.status });
   }
   const loaded = await loadD365(g.ctx.admin, g.ctx.tenantId);
   if (!loaded) return NextResponse.json({ connected: false });
@@ -74,6 +84,11 @@ export async function POST(req: NextRequest) {
 export async function PUT(req: NextRequest) {
   const g = await guard();
   if (!g.ok) return g.res;
-  const r = await saveMapping(g.ctx.admin, g.ctx.tenantId, await jsonBody(req));
+  const body = await jsonBody(req);
+  if (body.rows && typeof body.rows === "object" && !Array.isArray(body.rows)) {
+    const o = await saveEngine(g.ctx, body);
+    return NextResponse.json(o.body, { status: o.status });
+  }
+  const r = await saveMapping(g.ctx.admin, g.ctx.tenantId, body);
   return r.ok ? NextResponse.json(r.view) : fail(r.status, r.error, r.errors ? { errors: r.errors } : {});
 }

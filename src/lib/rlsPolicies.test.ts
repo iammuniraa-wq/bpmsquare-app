@@ -70,6 +70,18 @@ describe("credential tables are not member-writable (audit 2026-10-21)", () => {
     expect(bundle.replace(/\r\n/g, "\n")).toContain(file.replace(/\r\n/g, "\n").trim());
   });
 
+  it("0203 (mapping engine): integration_mappings and integration_value_lists have no policy at all, and the file adds none", () => {
+    // A mapping steers what the server sends to a third party: a member must never write one with their own session.
+    expect([...(policies.get("integration_mappings")?.values() ?? [])]).toEqual([]);
+    expect([...(policies.get("integration_value_lists")?.values() ?? [])]).toEqual([]);
+    const file = readFileSync(path.join(DIR, "0203_mapping_engine.sql"), "utf8");
+    expect(/create\s+policy/i.test(file.replace(/--[^\n]*/g, ""))).toBe(false);
+    expect(file).toMatch(/alter table integration_mappings enable row level security/);
+    expect(file).toMatch(/alter table integration_value_lists enable row level security/);
+    const bundle = readFileSync(path.resolve(__dirname, "../../scripts/run-bundle-12-mapping-2026-10-21.sql"), "utf8");
+    expect(bundle.replace(/\r\n/g, "\n")).toContain(file.replace(/\r\n/g, "\n").trim());
+  });
+
   it("the policy replay understands the migrations it is judging", () => {
     // 0081 created the open policy and 0199 dropped it: the replay must see both.
     expect(policies.get("webhook_deliveries")?.size).toBeGreaterThan(0);

@@ -25,6 +25,8 @@ import { findOpenMessage, messagesTableReady, recordMessage, resolveEarlier } fr
 import { loadQuoteSource, type QuoteSource } from "./source";
 import { middlewareClient } from "./client";
 import { sendViaWebhook } from "./webhookTarget";
+import { mapQuoteForAdapter, problemsForMonitor } from "./mapping/engineServer";
+import { ALWAYS_HEADER } from "./mappingDoc";
 import { outcomeForStatus, STATUS_FOR_OUTCOME, type DocumentConfig, type IntegrationMiddlewareConfig, type Outcome, type TargetKind } from "./types";
 
 // The outbound engine: a Standard Quote that is awarded or rejected goes to the
@@ -205,7 +207,22 @@ type Prepared = {
   nothingToSend: string | null;
   /** Building the send needed the ERP and could not reach it; the send reports this as the failure. */
   httpError: unknown | null;
+  /** Set when the saved mapping document produced the problems: the Monitor files the row under this kind. */
+  mappingKind?: "mapping_value" | "mapping_invalid";
+  /** The value-list entries that had no ERP code, so the Value mapping tab can offer "Add row". */
+  unmapped?: { list: string; value: string }[];
 };
+
+type MappedQuote = Awaited<ReturnType<typeof mapQuoteForAdapter>>;
+
+/** The mapping engine's problems as the one leading Problem of a send, and what the Monitor row needs to file it. */
+function foldMapping(prep: Prepared, mapped: MappedQuote): void {
+  if (!mapped.used || !mapped.problems.length) return;
+  const d = problemsForMonitor(mapped.problems);
+  prep.problems = [{ code: d.codes[0], message: d.headline, fix: d.fix }, ...prep.problems];
+  prep.mappingKind = d.kind;
+  prep.unmapped = mapped.problems.filter((p) => p.code === "value_unmapped" && p.list && p.value).map((p) => ({ list: p.list as string, value: p.value as string }));
+}
 
 function profileKeyFor(cfg: D365Config): string {
   return cfg.product === "fo" || cfg.product === "bc" ? "dynamics365" : "generic";
@@ -289,21 +306,35 @@ async function prepare(
         return prep;
       }
     }
+    qfe.currency = quoteCurrencyCode(tenant);
+    // A saved mapping document builds the body when the workspace has one; otherwise the field maps do, as they always did.
+    const mapped = await mapQuoteForAdapter(admin, tenantId, {
+      connection: CONNECTOR_ID, qfe, headerKind: order ? "sales_order" : "quote", currentEntity: order ? "salesorders" : "quotes",
+      accountId: source.quote.account_id, quoteId: source.quote.id, engineSets: ALWAYS_HEADER,
+    });
     const b = buildDataverseQuote(
       qfe, { price_list_id: pricing.priceListId, currency_id: pricing.currencyId },
       order ? { quote: out.sales_order.field_map, quote_line: out.sales_order_line.field_map } : { quote: out.quote.field_map, quote_line: out.quote_line.field_map },
       order ? "sales_order" : "quote",
+      mapped.used ? mapped.prebuilt : null,
     );
     prep.body = b.body;
     prep.problems = b.problems;
+    foldMapping(prep, mapped);
     return prep;
   }
   // Finance and Operations / Business Central: a Project, or a Sales Order through the mapped entity.
   const order = target === "sales_order";
   const mapped = order ? out.sales_order : out.project;
-  const b = buildProjectBody(qfe, mapped, { status: "awarded", dataArea: cfg.company ?? cust?.area ?? null, isFo: cfg.product === "fo", noun: order ? "sales order" : "project" });
+  qfe.currency = quoteCurrencyCode(tenant);
+  const viaMapping = await mapQuoteForAdapter(admin, tenantId, {
+    connection: CONNECTOR_ID, qfe, headerKind: order ? "sales_order" : "project", currentEntity: mapped.entity_set,
+    accountId: source.quote.account_id, quoteId: source.quote.id, engineSets: [],
+  });
+  const b = buildProjectBody(qfe, mapped, { status: "awarded", dataArea: cfg.company ?? cust?.area ?? null, isFo: cfg.product === "fo", noun: order ? "sales order" : "project" }, viaMapping.used ? viaMapping.prebuilt : null);
   prep.body = b.body;
   prep.problems = b.problems;
+  foldMapping(prep, viaMapping);
   if (!cust) prep.problems.unshift({ code: "customer_not_linked", message: "This customer is not in the ERP yet.", fix: "Sync customers, then retry." });
   const own = cfg.outbound?.project;
   prep.project = {
@@ -352,6 +383,47 @@ export async function previewQuoteOutcome(admin: SupabaseClient, tenantId: strin
   };
 }
 
+/** A sample quote for "Try it" when no record is named: clearly ZZ, with a line per unit people ask about. */
+async function sampleSource(admin: SupabaseClient, tenantId: string): Promise<QuoteSource> {
+  const { data: link } = await admin.from("connector_links").select("object_id").eq("tenant_id", tenantId).eq("connector_id", CONNECTOR_ID).eq("entity", "customers").order("created_at").limit(1).maybeSingle();
+  const accountId = (link as { object_id?: string } | null)?.object_id ?? "";
+  const { data: acct } = accountId ? await admin.from("accounts").select("name").eq("id", accountId).eq("tenant_id", tenantId).maybeSingle() : { data: null };
+  return {
+    quote: {
+      id: "sample", ref: "ZZ-SAMPLE", account_id: accountId, contact_id: null, status: "accepted", valid_until: null, terms: null, notes: null,
+      subtotal: 25, total: 25, header_discount_pct: 0, tax_pct: 0, shipping_amount: 0, intro_text: null,
+    },
+    lines: [
+      { sl_no: "1", description: "Sample line A (safe to ignore)", uom: "Nos", qty: 2, rate: 10, discount_pct: 0, amount: 20 },
+      { sl_no: "2", description: "Sample line B (safe to ignore)", uom: "Mtr", qty: 1, rate: 5, discount_pct: 0, amount: 5 },
+    ],
+    accountName: String((acct as { name?: string } | null)?.name ?? "Sample customer"), fence: null, estimate: null,
+  };
+}
+
+export type MappedPreview =
+  | { ok: true; words: string[]; body: Record<string, unknown> | null; problems: Problem[]; entitySet: string; target: TargetKind; unmapped: { list: string; value: string }[] }
+  | { ok: false; message: string; status: number };
+
+/** The exact body the ERP would get for one quote (or the ZZ sample) through the saved mapping, nothing sent, nothing recorded. Any status. */
+export async function previewMappedQuote(admin: SupabaseClient, tenantId: string, opts: { quoteId: string | null; http?: ErpHttp }): Promise<MappedPreview> {
+  const tenant = await loadTenant(admin, tenantId);
+  if (!tenant?.features?.integration_middleware) return { ok: false, message: "Integration middleware is not switched on for this workspace.", status: 404 };
+  const loaded = await loadD365(admin, tenantId);
+  if (!loaded) return { ok: false, message: "No ERP is connected yet. Connect one under Connections.", status: 400 };
+  const source = opts.quoteId ? await loadQuoteSource(admin, tenantId, opts.quoteId, tenantOrigin(tenant.custom_domain)) : await sampleSource(admin, tenantId);
+  if (!source) return { ok: false, message: "That quote was not found.", status: 404 };
+  let hp: Promise<ErpHttp> | null = null;
+  const getHttp = () => (hp ??= opts.http ? Promise.resolve(opts.http) : middlewareClient(admin, tenantId, loaded.cfg, loaded.creds));
+  const p = await prepare(admin, tenantId, tenant, source, "awarded", loaded, getHttp, {});
+  const words = previewWords({
+    target: p.target, productLabel: PRODUCT_NAME[p.cfg.product], ref: p.qfe.ref, customer: p.qfe.customer_name,
+    lineCount: p.qfe.lines.length, total: p.qfe.total, outcome: "awarded", steps: stepsFor(p.cfg.product, "awarded", p.target),
+  });
+  const set = p.cfg.product === "dataverse" ? (p.target === "sales_order" ? "salesorders" : "quotes") : (p.project?.entity_set ?? "");
+  return { ok: true, words, body: p.body, problems: p.problems, entitySet: set, target: p.target, unmapped: p.unmapped ?? [] };
+}
+
 // ── Sending ─────────────────────────────────────────────────────────────────
 
 type Ctx = {
@@ -389,7 +461,8 @@ async function runSend(c: Ctx): Promise<DispatchResult> {
   }
   if (prep.problems.length) {
     const p = prep.problems[0];
-    const r = await failureMessage(c, p.message, p.fix, null, null, { problems: prep.problems.map((x) => x.code) });
+    const mapping = prep.mappingKind ? { kind: prep.mappingKind, ...(prep.unmapped?.length ? { unmapped: prep.unmapped.slice(0, 50) } : {}) } : {};
+    const r = await failureMessage(c, p.message, p.fix, null, null, { problems: prep.problems.map((x) => x.code), ...mapping });
     return { state: "failed", messageId: r.id, headline: p.message, fix: p.fix };
   }
 

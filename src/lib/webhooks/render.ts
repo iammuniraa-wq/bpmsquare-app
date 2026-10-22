@@ -80,7 +80,7 @@ function renderNode(node: unknown, ctx: RenderContext): unknown {
 
 export type RenderedBody = { ok: true; value: unknown; json: string } | { ok: false; message: string };
 
-function sized(value: unknown): RenderedBody {
+export function sized(value: unknown): RenderedBody {
   const json = JSON.stringify(value);
   if (bytes(json) > MAX_BODY_BYTES) return { ok: false, message: "The payload is too large." };
   return { ok: true, value, json };

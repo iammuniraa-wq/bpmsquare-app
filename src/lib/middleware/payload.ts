@@ -128,11 +128,43 @@ export type QuoteForErp = {
   total: number;
   valid_until: string | null;
   outcome: Outcome;
+  /** ISO code of the quote's currency; offered to the mapping engine as the `currency` field, never read by the older maps. */
+  currency?: string | null;
 };
 
 export type Problem = { code: string; message: string; fix: string };
 
 export type DataverseQuoteBuild = { body: Record<string, unknown>; problems: Problem[] };
+
+/** The values a Dataverse quote or order header map reads ({placeholder}); also what the mapping engine offers as source fields. */
+export function quoteHeaderVars(q: QuoteForErp): Record<string, Primitive> {
+  return {
+    name: `${q.ref} · ${q.title}`.slice(0, 300), ref: q.ref, title: q.title, customer_name: q.customer_name, account_external_id: q.account_external_id,
+    description: q.description.join("\n").slice(0, 2000) || null,
+    total: money(q.total), subtotal: money(q.subtotal), valid_until: q.valid_until, outcome: q.outcome, currency: q.currency ?? null,
+  };
+}
+
+/** ... and one line's. */
+export function quoteLineVars(l: OutLine): Record<string, Primitive> {
+  return {
+    description: l.description, qty: l.qty, rate: money(l.rate), net_rate: netRate(l), uom: l.uom, amount: money(l.amount),
+    discount_pct: l.discount_pct, sl_no: l.sl_no,
+  };
+}
+
+/** ... and a Project's (Finance and Operations, Business Central), or a sales order mapped like one. */
+export function projectHeaderVars(q: QuoteForErp, status: string): Record<string, Primitive> {
+  const summary = q.description[0] ?? "";
+  return {
+    name: `${q.ref} · ${q.title}`.slice(0, 200), ref: q.ref, title: q.title, customer_name: q.customer_name, account_external_id: q.account_external_id,
+    description: q.doc_id ? withMarker(q.description.join("\n"), q.doc_id) : q.description.join("\n").slice(0, 2000) || null,
+    summary: summary || null, total: money(q.total), status, outcome: q.outcome, currency: q.currency ?? null,
+  };
+}
+
+/** What the mapping engine produced for a send: the header body and one body per line. */
+export type PrebuiltBody = { header: Record<string, unknown>; lines: Record<string, unknown>[] };
 
 /**
  * The Dataverse quote with its lines (deep insert). `maps` are the header and
@@ -146,16 +178,13 @@ export function buildDataverseQuote(
   maps: { quote: Record<string, string>; quote_line: Record<string, string> },
   /** A sales order is built exactly like a quote (verified live 2026-10-21); only the line collection is named differently. */
   kind: "quote" | "sales_order" = "quote",
+  /** A saved mapping document ran instead of the maps: its body is the starting point, and every contract step below still applies. */
+  prebuilt?: PrebuiltBody | null,
 ): DataverseQuoteBuild {
 
   const problems: Problem[] = [];
   const title = `${q.ref} · ${q.title}`.slice(0, 300);
-  const vars: Record<string, Primitive> = {
-    name: title, ref: q.ref, title: q.title, customer_name: q.customer_name, account_external_id: q.account_external_id,
-    description: q.description.join("\n").slice(0, 2000) || null,
-    total: money(q.total), subtotal: money(q.subtotal), valid_until: q.valid_until, outcome: q.outcome,
-  };
-  const body: Record<string, unknown> = renderMap(maps.quote, vars);
+  const body: Record<string, unknown> = prebuilt ? { ...prebuilt.header } : renderMap(maps.quote, quoteHeaderVars(q));
   if (q.doc_id) body.description = withMarker(typeof body.description === "string" ? body.description : "", q.doc_id);
   // The ref stays visible in the ERP whatever the map says.
   const name = typeof body.name === "string" && body.name.trim() ? body.name : title;
@@ -169,12 +198,8 @@ export function buildDataverseQuote(
   else problems.push({ code: "no_currency", message: "No Dynamics currency matches this quote's currency, and the base currency could not be read.", fix: "Add the currency in Dynamics (or check the app user can read currencies), then retry." });
 
   if (!q.lines.length) problems.push({ code: "no_lines", message: "The quote has no lines to send.", fix: "Add at least one line to the quote." });
-  body[kind === "quote" ? "quote_details" : "order_details"] = q.lines.map((l) => {
-    const lv: Record<string, Primitive> = {
-      description: l.description, qty: l.qty, rate: money(l.rate), net_rate: netRate(l), uom: l.uom, amount: money(l.amount),
-      discount_pct: l.discount_pct, sl_no: l.sl_no,
-    };
-    const line = renderMap(maps.quote_line, lv) as Record<string, unknown>;
+  body[kind === "quote" ? "quote_details" : "order_details"] = q.lines.map((l, i) => {
+    const line = (prebuilt ? { ...(prebuilt.lines[i] ?? {}) } : renderMap(maps.quote_line, quoteLineVars(l))) as Record<string, unknown>;
     for (const k of Object.keys(line)) if (k.toLowerCase() === "uomid" || k.toLowerCase() === "uomid@odata.bind") delete line[k];
     if (line.productdescription === undefined) line.productdescription = l.description;
     if (line.quantity === undefined) line.quantity = l.qty;
@@ -210,21 +235,16 @@ export function buildProjectBody(
   q: QuoteForErp,
   project: { entity_set: string; field_map: Record<string, string> },
   extra: { status: string; dataArea?: string | null; isFo: boolean; /** the mapped entity is a sales order, not a project */ noun?: "project" | "sales order" },
+  /** A saved mapping document ran instead of the map: its header is the body. */
+  prebuilt?: PrebuiltBody | null,
 ): ProjectBuild {
   const problems: Problem[] = [];
   const noun = extra.noun ?? "project";
   if (!project.entity_set) problems.push({ code: "no_project_target", message: `No ${noun} target is set for this product.`, fix: `Open Mapping and choose where ${noun}s go.` });
-  const name = `${q.ref} · ${q.title}`.slice(0, 200);
-  const summary = q.description[0] ?? "";
-  const vars: Record<string, Primitive> = {
-    name, ref: q.ref, title: q.title, customer_name: q.customer_name, account_external_id: q.account_external_id,
-    description: q.doc_id ? withMarker(q.description.join("\n"), q.doc_id) : q.description.join("\n").slice(0, 2000) || null,
-    summary: summary || null, total: money(q.total), status: extra.status, outcome: q.outcome,
-  };
-  const body = renderMap(project.field_map, vars);
+  const body = (prebuilt ? { ...prebuilt.header } : renderMap(project.field_map, projectHeaderVars(q, extra.status))) as Record<string, Primitive>;
   if (!Object.keys(body).length) problems.push({ code: "empty_project_map", message: `The ${noun} map produced nothing to send.`, fix: `Open Mapping and check the ${noun} fields.` });
   // F&O creates in the app user's default company unless told which.
-  if (extra.isFo && extra.dataArea && !("dataAreaId" in project.field_map) && /^[A-Za-z0-9]{1,8}$/.test(extra.dataArea)) body.dataAreaId = extra.dataArea.toLowerCase();
+  if (extra.isFo && extra.dataArea && !("dataAreaId" in project.field_map) && !("dataAreaId" in body) && /^[A-Za-z0-9]{1,8}$/.test(extra.dataArea)) body.dataAreaId = extra.dataArea.toLowerCase();
   return { body, problems };
 }
 

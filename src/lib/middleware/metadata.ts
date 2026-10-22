@@ -3,7 +3,13 @@
 // suggest matches by name, flag required fields nobody mapped.
 
 /** `filterable` is set (to false) only where the ERP says a field cannot be used in a search. */
-export type ErpField = { name: string; label: string; type: string; required: boolean; creatable: boolean; filterable?: boolean };
+export type ErpField = {
+  name: string; label: string; type: string; required: boolean; creatable: boolean; filterable?: boolean;
+  /** Choice columns: the codes the ERP accepts, and their labels (mapping engine, spec section 2). */
+  enum?: string[]; enumLabels?: Record<string, string>;
+  /** Lookup columns: the table the field points at. */
+  lookup?: string;
+};
 
 export const METADATA_ENTITIES = [
   "quote", "quote_line", "sales_order", "sales_order_line", "account", "contact", "product", "project", "customers", "contacts", "vendors", "products", "projects",

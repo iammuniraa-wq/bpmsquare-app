@@ -12,6 +12,7 @@ import {
   type ApiWebhook, type DefinitionPatch, type StoredHeader, type UsedBy, type WebhookRow,
 } from "./validate";
 import type { TenantConfig } from "@/lib/constants";
+import { getActive, getActiveById } from "@/lib/middleware/mapping/mappingStore";
 
 // The library behind Settings > Webhooks: list, create, change, delete. Every query
 // names the tenant (the admin client skips RLS) and every id that points at another
@@ -20,6 +21,20 @@ import type { TenantConfig } from "@/lib/constants";
 // secret and header values) are sealed on write and never read back out.
 
 export const NEEDS_UPDATE = { needsDatabaseUpdate: true as const, bundle: SQL_BUNDLES.webhooks };
+
+const MAPPING_UPDATE = `A database update is needed first: run ${SQL_BUNDLES.mapping} once.`;
+
+/**
+ * `mapping_id` and `response_key_path` live in columns migration 0203 adds. They are read in a query of their own, so a database
+ * that has not run it yet still lists, creates and changes webhooks exactly as before.
+ */
+export async function withMappingColumns(admin: SupabaseClient, tenantId: string, rows: WebhookRow[]): Promise<WebhookRow[]> {
+  if (!rows.length) return rows;
+  const { data, error } = await admin.from("webhooks").select("id, mapping_id, response_key_path").eq("tenant_id", tenantId).in("id", rows.map((r) => r.id));
+  if (error) return rows;
+  const by = new Map(((data ?? []) as { id: string; mapping_id: string | null; response_key_path: string | null }[]).map((r) => [r.id, r]));
+  return rows.map((r) => ({ ...r, mapping_id: by.get(r.id)?.mapping_id ?? null, response_key_path: by.get(r.id)?.response_key_path ?? null }));
+}
 
 export type LibraryResult<T> = { ok: true; value: T } | { ok: false; status: number; errors?: FieldError[]; error?: string; pending?: true; usedBy?: UsedBy[] };
 
@@ -86,7 +101,7 @@ export async function listLibrary(admin: SupabaseClient, tenantId: string): Prom
   return {
     ok: true,
     value: {
-      webhooks: ((data ?? []) as WebhookRow[]).map((r) => toApiWebhook(r, used.get(r.id) ?? [])),
+      webhooks: (await withMappingColumns(admin, tenantId, (data ?? []) as WebhookRow[])).map((r) => toApiWebhook(r, used.get(r.id) ?? [])),
       recordButtons: { accounts: config.webhooks_library?.record_buttons?.accounts ?? null },
       objects: CALL_OBJECTS.map((o) => ({ key: o.key, label: o.label })),
     },
@@ -96,7 +111,8 @@ export async function listLibrary(admin: SupabaseClient, tenantId: string): Prom
 export async function getWebhookRow(admin: SupabaseClient, tenantId: string, id: string): Promise<{ row: WebhookRow | null; pending: boolean }> {
   const { data, error } = await admin.from("webhooks").select(WEBHOOK_COLUMNS).eq("id", id).eq("tenant_id", tenantId).maybeSingle();
   if (isSchemaPending(error)) return { row: null, pending: true };
-  return { row: (data as WebhookRow | null) ?? null, pending: false };
+  const row = (data as WebhookRow | null) ?? null;
+  return { row: row ? (await withMappingColumns(admin, tenantId, [row]))[0] : null, pending: false };
 }
 
 async function oneApi(admin: SupabaseClient, tenantId: string, row: WebhookRow): Promise<ApiWebhook> {
@@ -229,6 +245,23 @@ export async function updateWebhook(admin: SupabaseClient, tenantId: string, id:
   for (const k of ["name", "url", "method", "object_types", "payload_mode", "template", "allow_personal_data", "timeout_ms"] as const) {
     if (d[k] !== undefined) patch[k] = d[k];
   }
+  // A mapping pointer from a request body is resolved against the tenant and THIS webhook before it is stored.
+  const mappingPatch: Record<string, unknown> = {};
+  if (d.mapping_id !== undefined) {
+    if (d.mapping_id === null) mappingPatch.mapping_id = null;
+    else {
+      const hit = await getActiveById(admin, tenantId, d.mapping_id, `webhook:${id}`);
+      if (!hit) return unprocessable([{ field: "mapping_id", message: "Choose a mapping saved for this webhook." }]);
+      mappingPatch.mapping_id = hit.id;
+    }
+  }
+  if (d.response_key_path !== undefined) mappingPatch.response_key_path = d.response_key_path;
+  if (d.payload_mode === "mapping" && mappingPatch.mapping_id === undefined && !row.mapping_id) {
+    const active = await getActive(admin, tenantId, `webhook:${id}`, "quote");
+    if (active.pending) return { ok: false, status: 409, error: MAPPING_UPDATE };
+    if (!active.value) return unprocessable([{ field: "payload_mode", message: "Build this webhook's body in Mapping and save it, then choose Mapping here." }]);
+    mappingPatch.mapping_id = active.value.id;
+  }
   if (d.headers) {
     const m = mergeHeaders(d.headers, Array.isArray(row.headers) ? row.headers : []);
     if (!m.ok) return unprocessable(m.errors);
@@ -247,8 +280,16 @@ export async function updateWebhook(admin: SupabaseClient, tenantId: string, id:
 
   const { data, error } = await admin.from("webhooks").update(patch).eq("id", id).eq("tenant_id", tenantId).select(WEBHOOK_COLUMNS).single();
   if (isSchemaPending(error)) return { ok: false, status: 200, pending: true };
+  // The payload_mode check only allows "mapping" once 0203 has run.
+  if (error?.code === "23514" && d.payload_mode === "mapping") return { ok: false, status: 409, error: MAPPING_UPDATE };
   if (error) return serverError(error.message);
-  const after = data as WebhookRow;
+  let after = data as WebhookRow;
+  if (Object.keys(mappingPatch).length) {
+    const m = await admin.from("webhooks").update(mappingPatch).eq("id", id).eq("tenant_id", tenantId);
+    if (m.error) return isSchemaPending(m.error) ? { ok: false, status: 409, error: MAPPING_UPDATE } : serverError(m.error.message);
+    Object.assign(patch, mappingPatch);
+  }
+  after = (await withMappingColumns(admin, tenantId, [after]))[0];
 
   if (d.button_on !== undefined) {
     const config = await loadConfig(admin, tenantId);

@@ -8,7 +8,8 @@ import { buildExchangePayload } from "@/lib/middleware/exchange";
 import { MESSAGES_TABLE, recordMessage } from "@/lib/middleware/messages";
 import { SQL_BUNDLES, type StoredStatus } from "@/lib/middleware/types";
 import { loadCallRecord, loadTenantInfo, type TenantInfo } from "./loaders";
-import { renderStandard, renderTemplate, renderUrl, validateTemplate, validateUrlTemplate } from "./render";
+import { renderStandard, renderTemplate, renderUrl, sized, validateTemplate, validateUrlTemplate } from "./render";
+import { mapForWebhook } from "@/lib/middleware/mapping/engineServer";
 import { CALL_OBJECTS, isCallObject, type CallObject, type RenderContext } from "./tokens";
 import { AUTO_PAUSE_AFTER, WEBHOOK_COLUMNS, needsAttention, type WebhookRow } from "./validate";
 
@@ -145,7 +146,12 @@ async function prepare(
 
     if (method !== "GET") {
       let rendered;
-      if (def.payload_mode === "template") {
+      if (def.payload_mode === "mapping") {
+        // The body is the saved mapping's: the same engine as the ERP path, with the webhook's own signing and headers below.
+        const mapped = await mapForWebhook(admin, input.tenantId, { id: def.id, allow_personal_data: def.allow_personal_data === true }, loaded.parts, { event, workspace: tenant.name, sentAt, deliveryId });
+        if (!mapped.ok) return { ok: false, headline: mapped.headline, fix: mapped.fix, label };
+        rendered = sized(mapped.body);
+      } else if (def.payload_mode === "template") {
         const t = validateTemplate(def.template ?? "", objectTypeOk, def.allow_personal_data === true);
         if (!t.ok) return { ok: false, headline: t.errors[0].message, fix: "Fix the template on the Request tab.", label };
         rendered = renderTemplate(t.value, ctx);

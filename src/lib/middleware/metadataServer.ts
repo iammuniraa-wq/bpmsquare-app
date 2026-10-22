@@ -7,6 +7,7 @@ import type { D365Config, D365Product } from "@/lib/connectors/d365/types";
 import type { D365Client } from "@/lib/connectors/d365/odata";
 import { middlewareClient } from "./client";
 import { fieldsFromSampleRow, parseDataverseAttributes, parseODataMetadata, type ErpField, type MetadataEntity } from "./metadata";
+import { enrichFields, parseLookupTargets, parsePicklists } from "./schema/dataverse";
 
 // Live field lists from the connected ERP. Admin-only (the route enforces it),
 // tenant-scoped, fetched through the middleware client (fetchPublic), and
@@ -70,7 +71,13 @@ async function fetchFields(tenantId: string, entity: MetadataEntity, product: D3
     const client = await middlewareClient(admin, tenantId, cfg, creds);
     const logical = await dataverseLogicalName(client, entity, set);
     const json = await client.get(`EntityDefinitions(LogicalName='${q(logical)}')/Attributes`, { $select: "LogicalName,DisplayName,AttributeType,RequiredLevel,IsValidForCreate,AttributeOf,IsValidForAdvancedFind" });
-    return { fields: parseDataverseAttributes(json), source: "metadata", fetchedAt: new Date().toISOString() };
+    const base = `EntityDefinitions(LogicalName='${q(logical)}')/Attributes`;
+    // The codes of a choice column and the table a lookup points at feed the mapping engine; the list is complete without them.
+    const [picks, looks] = await Promise.all([
+      client.get(`${base}/Microsoft.Dynamics.CRM.PicklistAttributeMetadata`, { $select: "LogicalName", $expand: "OptionSet($select=Options)" }).catch(() => null),
+      client.get(`${base}/Microsoft.Dynamics.CRM.LookupAttributeMetadata`, { $select: "LogicalName,Targets" }).catch(() => null),
+    ]);
+    return { fields: enrichFields(parseDataverseAttributes(json), parsePicklists(picks), parseLookupTargets(looks)), source: "metadata", fetchedAt: new Date().toISOString() };
   }
 
   // Business Central lists companies one level above a company-scoped base; its

@@ -48,6 +48,9 @@ export const payloadStillKept = (createdAt: unknown, nowMs: number = Date.now())
   return Number.isFinite(t) && nowMs - t < 48 * 3_600_000;
 };
 
+/** ", 3 unknown codes": a saved mapping's value list met ERP codes it has no row for (kept as they came). */
+const unknownWord = (c: Record<string, number>): string => (c.unknown_codes ? `, ${c.unknown_codes} unknown code${c.unknown_codes === 1 ? "" : "s"}` : "");
+
 export type RowKind = "document" | "run" | "webhook_call" | null;
 
 /** Restart can act on: an awarded-quote document that failed or is waiting, and a connector run that failed.
@@ -57,6 +60,8 @@ export function classifyIntegrationRow(r: { object_type?: unknown; object_id?: u
   if (sum.kind === "connector_run") return r.status === "failed" && isRunnableEntity(r.entity) ? "run" : null;
   // A library webhook call: Restart fires it again (the award path through its claim). A paused webhook reports itself when restarted.
   if (sum.kind === "webhook_call") return r.status === "failed" && s(r.object_id) ? "webhook_call" : null;
+  // A send refused by the saved mapping (summary.kind "mapping_value" for an unmapped value, "mapping_invalid" for a row that needs a fix)
+  // is an ordinary failed document: Restart sends it again after the fix, through the same claim.
   if (r.object_type === "standard_quotes" && s(r.object_id) && (r.status === "failed" || r.status === "pending") && sum.outcome === "awarded") return "document";
   return null;
 }
@@ -91,7 +96,7 @@ const integration: SourceSpec = {
       if (channel === "api") summary = `${s(sum.method) ?? "GET"} ${s(sum.path) ?? ""}${n(r.http_status) ? ` → ${r.http_status}` : ""}`.trim();
       else if (sum.kind === "connector_run") {
         const c = (sum.counts ?? {}) as Record<string, number>;
-        summary = `${s(r.entity) ?? "Sync"}: ${c.read ?? 0} read, ${c.created ?? 0} created, ${c.updated ?? 0} updated, ${c.failed ?? 0} failed`;
+        summary = `${s(r.entity) ?? "Sync"}: ${c.read ?? 0} read, ${c.created ?? 0} created, ${c.updated ?? 0} updated, ${c.failed ?? 0} failed${unknownWord(c)}`;
       } else if (s(sum.ref)) summary = `${s(sum.ref)} ${s(sum.outcome) ?? ""}${s(sum.erp_number) ? ` → ${s(sum.erp_number)}` : ""}`.trim();
       else summary = s(r.entity) ?? "Message";
     }
@@ -264,7 +269,7 @@ const connector: SourceSpec = {
     return {
       id: `connector:${r.id}`, source: "connector", at: String(r.started_at), direction: r.direction === "pull" ? "in" : "out", channel: "connector",
       counterpart: s(r.connector_id) === "dynamics365" ? "Dynamics 365" : s(r.connector_id),
-      summary: `${s(r.entity) ?? "Sync"}: ${c.read ?? 0} read, ${c.created ?? 0} created, ${c.updated ?? 0} updated, ${c.failed ?? 0} failed`,
+      summary: `${s(r.entity) ?? "Sync"}: ${c.read ?? 0} read, ${c.created ?? 0} created, ${c.updated ?? 0} updated, ${c.failed ?? 0} failed${unknownWord(c)}`,
       status: st === "succeeded" ? "ok" : st === "running" ? "pending" : "failed", record: null,
       duration_ms: Number.isFinite(start) && Number.isFinite(end) ? Math.max(0, end - start) : null,
       what: ENTITY_WORD[s(r.entity) ?? ""] ?? s(r.entity) ?? "Sync",

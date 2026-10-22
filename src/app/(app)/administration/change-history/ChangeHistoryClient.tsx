@@ -14,6 +14,8 @@ import { useTenantFeature } from "@/lib/tenant-context";
 const OBJECT_TYPES: { value: string; label: string }[] = [
   { value: "accounts", label: "Accounts" },
   { value: "webhooks", label: "Webhooks" },
+  { value: "integration_mapping", label: "Integration mappings" },
+  { value: "value_list", label: "Value lists" },
   { value: "contacts", label: "Contacts" },
   { value: "assets", label: "Assets" },
   { value: "suppliers", label: "Suppliers" },
@@ -96,9 +98,10 @@ export default function ChangeHistoryClient() {
   const hasAbm = useTenantFeature("abm");
   const hasJourneys = useTenantFeature("journeys");
   const hasWebhooks = useTenantFeature("webhooks_library");
+  const hasMiddleware = useTenantFeature("integration_middleware");
   const hasWhatsapp = useTenantFeature("whatsapp_marketing");
   const hasEvents = useTenantFeature("marketing_events");
-  const objectTypes = OBJECT_TYPES.filter((o) => (!o.value.startsWith("whatsapp_") || hasWhatsapp) && (!["marketing_events", "event_registrations"].includes(o.value) || hasEvents) && (o.value !== "newsletters" || hasNewsletters) && (!["leads", "marketing_settings"].includes(o.value) || hasLeadScoring) && (!["signal_topics", "account_intent"].includes(o.value) || hasSignals) && (o.value !== "forms" || hasForms) && (!o.value.startsWith("abm_") || hasAbm) && (o.value !== "journeys" || hasJourneys) && (o.value !== "webhooks" || hasWebhooks));
+  const objectTypes = OBJECT_TYPES.filter((o) => (!o.value.startsWith("whatsapp_") || hasWhatsapp) && (!["marketing_events", "event_registrations"].includes(o.value) || hasEvents) && (o.value !== "newsletters" || hasNewsletters) && (!["leads", "marketing_settings"].includes(o.value) || hasLeadScoring) && (!["signal_topics", "account_intent"].includes(o.value) || hasSignals) && (o.value !== "forms" || hasForms) && (!o.value.startsWith("abm_") || hasAbm) && (o.value !== "journeys" || hasJourneys) && (o.value !== "webhooks" || hasWebhooks) && (!["integration_mapping", "value_list"].includes(o.value) || hasMiddleware));
   const [objectType, setObjectType] = useState(OBJECT_TYPES[0].value);
   const [objectId, setObjectId] = useState("");
   const [rows, setRows] = useState<ChangeLogRow[] | null>(null);
