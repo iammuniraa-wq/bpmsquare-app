@@ -11,6 +11,8 @@ export const ASSISTANT_TIPS = {
   webConsent: "The assistant asks before it searches the web, and only about companies. Nothing from your records or contacts is sent.",
   webAlways: "Always applies to this chat only and is forgotten when you reload the page. The assistant asks again next time.",
   webLabel: "This comes from public web pages, not from your workspace data. Open the sources and check them before you rely on it.",
+  guides: "Step-by-step help for the screen you are on, worked out from how the screen is built. It highlights the control; you press it.",
+  guideCard: "The highlighted control is the next thing to press, and Next follows you when you do. The assistant never presses anything for you.",
 } as const;
 
 /** The usage pill's own explanation, with the figures in it. */

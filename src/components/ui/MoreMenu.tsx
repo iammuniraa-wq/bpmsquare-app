@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { normalizeMenuItems, type MenuItem } from "./menuItems";
+import { menuGuideId, normalizeMenuItems, type MenuItem } from "./menuItems";
 
 export type { MenuItem };
 
@@ -59,6 +59,7 @@ export default function MoreMenu({ items, label = "More actions" }: { items: Men
       <button
         ref={triggerRef}
         type="button"
+        data-guide="record.more"
         className="bpm-btn bpm-btn-secondary bpm-btn-md bpm-btn-icon"
         aria-label={label}
         aria-haspopup="menu"
@@ -83,6 +84,7 @@ export default function MoreMenu({ items, label = "More actions" }: { items: Men
               role: "menuitem" as const,
               className: "bpm-menu-item",
               "data-danger": item.danger ? "true" : undefined,
+              "data-guide": menuGuideId(item.label),
               tabIndex: -1,
             };
             if (item.href) {

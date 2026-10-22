@@ -11,6 +11,9 @@ export type MenuItem = {
   divider?: boolean;
 };
 
+/** The stable guide id of a menu entry ("Print / PDF" -> "menu:print-pdf"); the assistant's manifests use the same one. */
+export const menuGuideId = (label: string): string => `menu:${label.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}`;
+
 /**
  * Turns the caller's item list into what is actually drawn: hidden items gone,
  * danger items last behind a separator, and no separator at the start, the

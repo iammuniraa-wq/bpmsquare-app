@@ -3,13 +3,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Button from "@/components/ui/Button";
 import journey from "@/app/(app)/marketing/journeys/journey.module.css";
+import { findGuideTarget } from "@/lib/assistant/screens/dom";
 
 // The one "Show me how" for every marketing studio: optional, closed by default, never starts on its own, left at any
 // step with Skip or Escape. The step a person reached is remembered in localStorage only (platform rule,
 // docs/marketing-platform-architecture.md section 6.0) and used to resume when the button is pressed again.
 
 export type TourStep = {
-  /** id of the element to highlight. */
+  /** id of the element to highlight, or the data-guide id of a control a component has registered. */
   target: string;
   text: string;
   /** What the step does first, so the person sees the real thing: switch a tab, open a group, select a block. */
@@ -46,7 +47,7 @@ export default function Tour({ steps, storageKey, buttonId, classes = STUDIO_CLA
       // Let the panel and the preview settle after the step changed them.
       await new Promise((r) => window.setTimeout(r, 120));
       if (cancelled) return;
-      const el = document.getElementById(stepsRef.current[i]?.target ?? "");
+      const el = findGuideTarget(stepsRef.current[i]?.target ?? "");
       if (!el) return;
       if (el instanceof HTMLDetailsElement) el.open = true;
       el.classList.add(classes.hl);

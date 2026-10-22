@@ -11,6 +11,9 @@ import { describePage } from "@/lib/assistant/pageService";
 import type { TenantConfig } from "@/lib/constants";
 import { parseAllowWeb, webAvailability } from "@/lib/assistant/webConsent";
 import { normalizeQuery } from "@/lib/assistant/webQuery";
+import { resolveScreen } from "@/lib/assistant/screens";
+import { offeredTasks } from "@/lib/assistant/guide";
+import { screenAccessFor } from "@/lib/assistant/screenAccess";
 
 // The chart tool makes a nested model call inside a turn (compileAndRun),
 // so a turn that uses it costs two sequential calls, not one -- same
@@ -61,15 +64,18 @@ export async function GET(request: NextRequest) {
   const { tenantId, userId, perms, features, budget } = access;
 
   const route = request.nextUrl.searchParams.get("route");
-  const [used, page] = await Promise.all([
+  const [used, page, screen] = await Promise.all([
     monthlyTokensUsed(tenantId).catch(() => 0),
     describePage(createAdminSupabase(), { tenantId, perms, features }, userId, route).catch(() => ({ context: null, suggestions: [] })),
+    resolveScreen(route, screenAccessFor(perms, features, perms.unrestricted)).catch(() => null),
   ]);
   return NextResponse.json({
     capabilities: capabilityList(perms),
     usage: { percent: usagePercent(used, budget), off: budget <= 0 },
     context: page.context ? { label: page.context.label, objectType: page.context.objectType } : null,
     suggestions: page.suggestions,
+    // The screen's own jobs, as "show me how" chips. Answered from the manifest, so they cost no AI allowance.
+    guides: offeredTasks(screen),
   });
 }
 
@@ -83,7 +89,8 @@ export async function POST(request: NextRequest) {
   const { supabase, tenantId, userId, perms, features, budget, webEnabled } = access;
 
   const body = await request.json().catch(() => null);
-  const question = typeof body?.question === "string" ? body.question.trim() : "";
+  const guideTask = typeof body?.guideTask === "string" && /^[a-z0-9_]{1,40}$/.test(body.guideTask) ? body.guideTask : null;
+  const question = typeof body?.question === "string" ? body.question.trim() : guideTask ? "Show me how" : "";
   if (!question) return NextResponse.json({ error: "Ask me something first." }, { status: 400 });
   if (question.length > 1000) return NextResponse.json({ error: "That question is too long." }, { status: 400 });
 
@@ -117,7 +124,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const reply = await askAssistant(history, {
-      supabase, tenantId, perms, currency, features, isAdmin: perms.unrestricted, route, meter,
+      supabase, tenantId, perms, currency, features, isAdmin: perms.unrestricted, route, meter, guideTask,
       web: webEnabled ? { enabled: true, userId, allow: allowWeb, consentQuery } : undefined,
     });
     return NextResponse.json({

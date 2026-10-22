@@ -34,7 +34,7 @@ export default function Account360Button({ accountId, variant = "button" }: { ac
   }
 
   return (
-    <Button variant="secondary" icon={<Glyph />} onClick={() => openAccount360(accountId)}>
+    <Button variant="secondary" icon={<Glyph />} data-guide="account.360" onClick={() => openAccount360(accountId)}>
       Account 360
     </Button>
   );
