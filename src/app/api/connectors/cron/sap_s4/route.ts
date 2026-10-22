@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createAdminSupabase } from "@/lib/supabase-server";
+import { cronSecretOk } from "@/lib/cronSecret";
 import { rotateStart } from "@/lib/connectors/d365/mapping";
 import { entityConfig, scheduleOf } from "@/lib/connectors/sap_s4/catalog";
 import { runSapPull } from "@/lib/connectors/sap_s4/server";
@@ -15,8 +16,7 @@ const BUDGET_MS = 250_000;
 const RUN_DEADLINE_MS = 265_000;
 
 export async function GET(request: NextRequest) {
-  const auth = request.headers.get("authorization");
-  if (!process.env.CRON_SECRET || auth !== `Bearer ${process.env.CRON_SECRET}`) {
+  if (!cronSecretOk(request.headers.get("authorization"), process.env.CRON_SECRET)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   const started = Date.now();
