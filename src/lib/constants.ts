@@ -1360,6 +1360,14 @@ export type TenantConfig = {
     // whatever the platform flag says.
     block_external_calls?: boolean;
   };
+  // Company analysis (docs/design/account-analysis.md 4): the daily ceiling on web analyses for the whole workspace,
+  // the fit rubric's weights and the workspace's own size band in staff. Absent keys read as the defaults in
+  // src/lib/analysis/budget.ts and fit.ts.
+  company_analysis?: {
+    daily_limit?: number;
+    fit_weights?: Partial<Record<"industry" | "coverage" | "size" | "topic" | "customer" | "notInMarket" | "risk", number>>;
+    size_band?: { min?: number; max?: number };
+  };
 };
 
 /** A topic a person can agree to or refuse separately ("Offers", "Events"). */

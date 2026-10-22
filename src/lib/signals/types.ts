@@ -37,18 +37,19 @@ export const GROUPS: Record<SignalGroup, { label: string; cap: number; hint: str
 };
 
 /** Where a signal came from, as the person reads it. */
-export type SignalSource = "quotes" | "deals" | "cases" | "contracts" | "campaigns" | "newsletters" | "team";
+export type SignalSource = "quotes" | "deals" | "cases" | "contracts" | "campaigns" | "newsletters" | "team" | "web";
 
 export const SOURCE_LABEL: Record<SignalSource, string> = {
   quotes: "Quotes", deals: "Deals", cases: "Cases", contracts: "Contracts",
-  campaigns: "Campaigns", newsletters: "Newsletters", team: "Your team",
+  campaigns: "Campaigns", newsletters: "Newsletters", team: "Your team", web: "Web",
 };
 
 /** The rubric row key. Every kind belongs to exactly one group. */
 export type SignalKind =
   | "inquiry" | "deal_opened" | "quote_waiting" | "service_trouble" | "contract_renewal"
   | "interested" | "quote_opened" | "quote_accepted" | "quote_change"
-  | "link_click_topic" | "link_click" | "email_opened" | "unsubscribed";
+  | "link_click_topic" | "link_click" | "email_opened" | "unsubscribed"
+  | "web_tender_issued" | "web_tender_named" | "web_award" | "web_hiring" | "web_risk";
 
 export type KindDef = {
   group: SignalGroup;
@@ -58,6 +59,11 @@ export type KindDef = {
   maxItems?: number;
   /** Days a signal holds at full weight before it starts to fade, and when it is gone. Negatives hold longer. */
   holdDays?: number;
+  /**
+   * No nightly collector feeds this kind yet (the company analysis writes it for one company at a time), so it does not
+   * count towards the live groups that scale the stage thresholds: existing workspaces keep their stages exactly.
+   */
+  offLine?: boolean;
 };
 
 export const KINDS: Record<SignalKind, KindDef> = {
@@ -74,6 +80,13 @@ export const KINDS: Record<SignalKind, KindDef> = {
   link_click: { group: "responded", points: 3, label: "Clicked a link", maxItems: 3 },
   email_opened: { group: "responded", points: 1, label: "Opened an email", maxItems: 2 },
   unsubscribed: { group: "responded", points: -15, label: "Unsubscribed", maxItems: 1, holdDays: 90 },
+  // Public sources found by the company analysis (docs/design/account-analysis.md 6.2). Points are the ones fixed in
+  // docs/signals-architecture.md 5.1.
+  web_tender_issued: { group: "moving", points: 14, label: "Issued a tender", maxItems: 1, offLine: true },
+  web_tender_named: { group: "moving", points: 8, label: "Named in a tender", maxItems: 1, offLine: true },
+  web_award: { group: "moving", points: 8, label: "Won work, expanding or funded", maxItems: 2, offLine: true },
+  web_hiring: { group: "moving", points: 5, label: "Hiring", maxItems: 2, offLine: true },
+  web_risk: { group: "moving", points: -6, label: "Bad news reported", maxItems: 1, holdDays: 90, offLine: true },
 };
 
 /** A thing that happened, as the collectors hand it to the rubric. Nothing in here is PII. */

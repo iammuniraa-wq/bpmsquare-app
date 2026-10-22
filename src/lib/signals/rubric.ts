@@ -36,7 +36,7 @@ export function dayLabel(iso: string): string {
 
 /** Groups that have at least one kind today. The doc's thresholds assume all four; the shell only has two. */
 export function liveGroups(): SignalGroup[] {
-  const used = new Set<SignalGroup>(Object.values(KINDS).map((k) => k.group));
+  const used = new Set<SignalGroup>(Object.values(KINDS).filter((k) => !k.offLine).map((k) => k.group));
   return GROUP_ORDER.filter((g) => used.has(g));
 }
 
