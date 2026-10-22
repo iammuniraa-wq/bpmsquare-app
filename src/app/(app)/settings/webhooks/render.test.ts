@@ -138,6 +138,17 @@ describe("Request", () => {
     expect(out).not.toContain("Method");
     expect(out).not.toContain("Payload");
   });
+  it("offers Body from mapping only on a saved Standard Quote webhook, and shows where the body comes from", () => {
+    const saved = { id: "w1", name: "ERP push" };
+    expect(req(draftOf({ objectType: "standard_quotes" }), { webhook: saved })).toContain("Body from mapping");
+    expect(req(draftOf({ objectType: "standard_quotes" }), { webhook: null })).not.toContain("Body from mapping");
+    expect(req(draftOf(), { webhook: saved })).not.toContain("Body from mapping");
+    const out = req(draftOf({ objectType: "standard_quotes", payloadMode: "mapping" }), { webhook: saved });
+    expect(out).toContain("Body from Mapping: Quote → ERP push");
+    expect(out).toContain("Open mapping");
+    expect(out).toContain("connection=webhook%3Aw1");
+    expect(out).toContain("Read the id from the answer");
+  });
   it("sends no body for GET", () => {
     expect(req(draftOf({ method: "GET" }))).not.toContain("Payload");
   });

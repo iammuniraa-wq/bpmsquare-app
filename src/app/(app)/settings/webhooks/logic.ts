@@ -131,6 +131,8 @@ export type Draft = {
   headers: HeaderDraft[];
   payloadMode: PayloadMode;
   template: string;
+  /** Mode "mapping" only: where the readable id sits in the answer, or "". */
+  responseKeyPath: string;
   allowPii: boolean;
   timeoutSec: number;
   active: boolean;
@@ -143,7 +145,7 @@ export const DEFAULT_TEMPLATE = '{\n  "event": "{{event}}",\n  "id": "{{record.i
 export function emptyDraft(kind: WebhookKind, objectType = "accounts"): Draft {
   return {
     kind, name: "", url: "", method: "POST", objectType: kind === "call" ? objectType : "", objectTypes: kind === "event" ? ["*"] : [],
-    headers: [], payloadMode: "standard", template: "", allowPii: false, timeoutSec: 15, active: true, buttonOnAccounts: false,
+    headers: [], payloadMode: "standard", template: "", responseKeyPath: "", allowPii: false, timeoutSec: 15, active: true, buttonOnAccounts: false,
   };
 }
 
@@ -151,7 +153,7 @@ export function draftFromWebhook(w: Webhook, recordButtonAccounts: string | null
   return {
     kind: w.kind, name: w.name, url: w.url, method: w.method, objectType: w.object_type ?? "", objectTypes: [...w.object_types],
     headers: w.headers.map((h: HeaderView) => ({ name: h.name, value: "", stored: true, replacing: false })),
-    payloadMode: w.payload_mode, template: w.template ?? "", allowPii: w.allow_personal_data, timeoutSec: Math.round(w.timeout_ms / 1000),
+    payloadMode: w.payload_mode, template: w.template ?? "", responseKeyPath: w.response_key_path ?? "", allowPii: w.allow_personal_data, timeoutSec: Math.round(w.timeout_ms / 1000),
     active: w.active, buttonOnAccounts: recordButtonAccounts === w.id,
   };
 }
@@ -170,7 +172,8 @@ export function buildInput(draft: Draft, original: Webhook | null, recordButtonA
     else {
       input.object_type = draft.objectType;
       input.method = draft.method;
-      input.payload_mode = draft.payloadMode;
+      // A mapping needs the saved webhook first (the server refuses it on create), so a new one starts standard.
+      input.payload_mode = draft.payloadMode === "mapping" ? "standard" : draft.payloadMode;
       if (draft.payloadMode === "template") input.template = draft.template;
       input.allow_personal_data = draft.allowPii;
       input.timeout_ms = draft.timeoutSec * 1000;
@@ -192,6 +195,7 @@ export function buildInput(draft: Draft, original: Webhook | null, recordButtonA
     if (draft.method !== base.method) input.method = draft.method;
     if (draft.payloadMode !== base.payloadMode) input.payload_mode = draft.payloadMode;
     if (draft.payloadMode === "template" && (draft.template !== base.template || draft.payloadMode !== base.payloadMode)) input.template = draft.template;
+    if (draft.payloadMode === "mapping" && draft.responseKeyPath.trim() !== base.responseKeyPath) input.response_key_path = draft.responseKeyPath.trim() || null;
     if (draft.allowPii !== base.allowPii) input.allow_personal_data = draft.allowPii;
     if (original.object_type === "accounts" && draft.buttonOnAccounts !== base.buttonOnAccounts) input.button_on = draft.buttonOnAccounts ? "accounts" : null;
   }
@@ -210,6 +214,9 @@ export const isReservedHeader = (name: string): boolean => {
 };
 export const MAX_HEADERS = 10;
 export const TEMPLATE_MAX_BYTES = 16 * 1024;
+
+/** The same shape the server accepts for `response_key_path` (src/lib/webhooks/validate.ts). */
+export const RESPONSE_PATH_RE = /^\$(?:\.[A-Za-z_][A-Za-z0-9_]{0,40}|\[\d{1,3}\]){1,10}$/;
 
 const TOKEN_RE = /\{\{\s*([^{}]+?)\s*\}\}/g;
 /** Every token in a text, as the bare name ("account.name"). */
@@ -256,6 +263,9 @@ export function draftProblems(draft: Draft, tokens: readonly TokenChoice[] = [])
     if (h.value.length > 1024) add("headers", `The value of "${hn}" is too long.`);
   }
 
+  if (draft.kind === "call" && draft.payloadMode === "mapping" && draft.responseKeyPath.trim() && !RESPONSE_PATH_RE.test(draft.responseKeyPath.trim())) {
+    add("response_key_path", "Write a path like $.data.number or $.items[0].id.");
+  }
   if (draft.kind === "call" && draft.payloadMode === "template") {
     const t = draft.template;
     if (!t.trim()) add("template", "Write the body to send, or choose the standard body.");

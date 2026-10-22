@@ -312,3 +312,64 @@
 .detailCell { padding: 4px 8px 12px; }
 .whyBtn { min-height: 44px; padding: 0 12px; border: 0; background: none; color: var(--accent, var(--ink)); font: inherit; font-size: 12.5px; cursor: pointer; text-align: left; }
 .cardDetail { grid-column: 1 / -1; padding: 0 12px 10px; }
+
+/* Mapping engine: the schema bar, three-column field blocks, the converter sheet, value lists */
+.schemaBar {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0; padding: 8px 12px; font-size: 13px;
+  background: var(--panel2); border: 1px solid var(--line); border-radius: var(--card-radius);
+}
+.schemaText { min-width: 0; overflow-wrap: anywhere; }
+.schemaSpacer { flex: 1; }
+.chipFlag { font-size: 11.5px; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: var(--bluebg); color: var(--blueink); }
+.chipGone { background: var(--amberbg); color: var(--amberink); }
+.mapTbl3 th:nth-child(1) { width: 34%; }
+.mapTbl3 th:nth-child(3) { width: 150px; }
+.targetCell { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.targetCell select { flex: 1; }
+.conf { flex: none; font-size: 11.5px; color: var(--muted); }
+.conf[data-guess="true"] { text-decoration: underline dotted; }
+.convertBtn {
+  width: 100%; min-height: 36px; padding: 0 10px; font: inherit; font-size: 13px; color: var(--ink); text-align: start;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 8px; cursor: pointer;
+}
+.convertBtn:hover:not(:disabled) { background: var(--panel2); }
+.convertBtn:disabled { color: var(--hint); cursor: default; background: transparent; border-color: transparent; }
+.convertBtn:focus-visible { outline: 2px solid var(--modern-accent, var(--tenant-accent, var(--accent))); outline-offset: 2px; }
+.blockFoot { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 6px 10px; border-top: 1px solid var(--line); }
+.example { padding: 10px 12px; font-size: 13px; background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; overflow-wrap: anywhere; }
+.aiList { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.aiItem { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); }
+.aiItem[data-accepted="true"] { border-color: var(--green); background: var(--greenbg); }
+.aiPair { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.srOnly { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+.listHead {
+  display: flex; align-items: center; gap: 12px; width: 100%; min-height: 48px; padding: 8px 14px; box-sizing: border-box; text-align: start;
+  font: inherit; color: var(--ink); background: none; border: 0; cursor: pointer;
+}
+.listHead:hover { background: var(--panel2); }
+.listHead:focus-visible { outline: 2px solid var(--modern-accent, var(--tenant-accent, var(--accent))); outline-offset: -2px; }
+.listHead .chev { margin-inline-start: auto; }
+.listBody { display: flex; flex-direction: column; gap: 12px; padding: 12px 14px 14px; border-top: 1px solid var(--line); }
+.vlTbl th:nth-child(3) { width: 80px; }
+.vlTbl th:nth-child(4) { width: 96px; }
+.inCell { text-align: center; }
+.inCell input { width: 18px; height: 18px; }
+.inLabel { display: none; }
+.vlRemove { text-align: end; }
+
+@media (max-width: 780px) {
+  /* A field row stacks: BPMSquare label, the target select, the converter chip */
+  .mapTbl3 th:nth-child(n) { width: auto; }
+  .convertBtn { min-height: 44px; }
+  .targetCell select { min-height: 44px; }
+  .schemaBar { gap: 6px; }
+  .schemaSpacer { display: none; }
+  /* A value row: both values on top, then "Answers inbound" and Remove, with the In column folded into the row */
+  .vlTbl tr { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 6px 8px; align-items: center; }
+  .vlTbl td + td { margin-top: 0; }
+  .vlTbl td.inCell { grid-column: 1; text-align: start; display: flex; align-items: center; gap: 8px; min-height: 44px; }
+  .vlTbl td.vlRemove { grid-column: 2; }
+  .vlTbl .inLabel { display: inline; font-size: 12.5px; color: var(--muted); }
+  .vlTbl td:nth-child(n) { width: auto; }
+}

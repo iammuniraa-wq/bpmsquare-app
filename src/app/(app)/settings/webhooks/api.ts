@@ -12,7 +12,8 @@ const BASE = "/api/settings/webhooks-library";
 export type WebhookKind = "event" | "call";
 export const METHODS = ["GET", "POST", "PUT", "PATCH"] as const;
 export type Method = (typeof METHODS)[number];
-export type PayloadMode = "standard" | "template";
+/** "mapping": the body is built by the saved mapping for `webhook:<id>` (Mapping tab); only a saved Call webhook can choose it. */
+export type PayloadMode = "standard" | "template" | "mapping";
 export type UsedBy = { kind: "link" | "coverage" | "button"; label: string };
 export type HeaderView = { name: string; set: true };
 
@@ -31,6 +32,10 @@ export type Webhook = {
   timeout_ms: number;
   active: boolean;
   paused_reason: string | null;
+  /** Mode "mapping": the active mapping row this webhook sends; null until Mapping has saved one. */
+  mapping_id: string | null;
+  /** A plain `$.a.b[0].c` path that reads the readable id from the answer; null = none. */
+  response_key_path: string | null;
   /** Always "set" once created: the signing secret is never returned. */
   secret: "set";
   last_delivery_at: string | null;
@@ -69,6 +74,8 @@ export type WebhookInput = {
   button_on?: "accounts" | null;
   active?: boolean;
   regenerate_secret?: boolean;
+  mapping_id?: string | null;
+  response_key_path?: string | null;
 };
 
 export type TokenKind = "text" | "number" | "array" | "object";
@@ -167,12 +174,14 @@ export function normalizeWebhook(raw: Partial<Webhook> & Json): Webhook {
     object_type: str(raw.object_type),
     object_types: Array.isArray(raw.object_types) ? raw.object_types.map(String) : [],
     headers: Array.isArray(raw.headers) ? raw.headers.flatMap((h) => (h && typeof (h as HeaderView).name === "string" ? [{ name: (h as HeaderView).name, set: true as const }] : [])) : [],
-    payload_mode: raw.payload_mode === "template" ? "template" : "standard",
+    payload_mode: raw.payload_mode === "template" || raw.payload_mode === "mapping" ? raw.payload_mode : "standard",
     template: str(raw.template),
     allow_personal_data: raw.allow_personal_data === true,
     timeout_ms: num(raw.timeout_ms) ?? 15000,
     active: raw.active !== false,
     paused_reason: str(raw.paused_reason),
+    mapping_id: str(raw.mapping_id),
+    response_key_path: str(raw.response_key_path),
     secret: "set",
     last_delivery_at: str(raw.last_delivery_at),
     last_status: raw.last_status == null || raw.last_status === "" ? null : String(raw.last_status),

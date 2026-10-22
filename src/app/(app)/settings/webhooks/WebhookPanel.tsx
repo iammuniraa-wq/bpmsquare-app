@@ -142,6 +142,7 @@ export default function WebhookPanel({ webhook, startKind, callObjects, recordBu
         <RequestTab
           draft={draft} onChange={patch} errors={errors} attention={current?.needs_attention ?? null}
           tokens={tokenList} tokensLoading={tokens.loading} tokensError={tokens.error != null && !tokens.data ? describeError(tokens.error) : null}
+          webhook={current ? { id: current.id, name: current.name } : null}
         />
       )}
       {current && visibleTab === "security" && (

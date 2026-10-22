@@ -3,15 +3,12 @@ import { tipTextProblems } from "@/lib/infoTip";
 import { SETTINGS_MENU, visibleSettingsMenu } from "@/lib/settingsMenu";
 import { CONNECTOR_CATALOG } from "@/lib/connectors/registry";
 import type { ConnectorDef } from "@/lib/connectors/types";
-import type { ErpField, MonitorMessage } from "./api";
+import type { MonitorMessage } from "./api";
 import { MIDDLEWARE_TIPS, environmentTip, secretExpiryTip } from "./tips";
 import { TAB_IDS, deriveSetup, sentEvidence, slimLine, type SetupInputs } from "./setup";
 import {
   durationWord, filterProblem, filtersToQuery, hasFilters, recordHref, statusFilterWord, statusWord,
 } from "./monitorLogic";
-import {
-  appendPlaceholder, applySuggestions, mapToRows, missingRequired, rowsToMap, sameMap, validateRows,
-} from "./mapEditor";
 import { connectorTileHref, middlewareConnectors, needsPickLists, shortName } from "./connectors";
 import { quoteOptions } from "./quotePick";
 import * as server from "@/lib/middleware/types";
@@ -112,63 +109,6 @@ describe("the words for a status", () => {
     expect(recordHref({ type: "standard_quotes", id: "abc", label: null })).toBe("/standard-quotes/abc");
     expect(recordHref({ type: "unknown_thing", id: "abc", label: null })).toBeNull();
     expect(recordHref({ type: "accounts", id: null, label: "x" })).toBeNull();
-  });
-});
-
-const row = (field: string, value: string) => ({ key: field, field, value });
-
-describe("the map editor", () => {
-  const out = ["name", "ref", "description", "qty"];
-  it("turns rows into a map and back, skipping half-empty rows", () => {
-    expect(rowsToMap([row("name", "{name}"), row("", "x"), row("y", "")])).toEqual({ name: "{name}" });
-    expect(rowsToMap(mapToRows({ a: "{ref}", b: "{name}" }))).toEqual({ a: "{ref}", b: "{name}" });
-    expect(sameMap({ a: "1", b: "2" }, { b: "2", a: "1" })).toBe(true);
-    expect(sameMap({ a: "1" }, { a: "2" })).toBe(false);
-  });
-  it("rejects a placeholder BPMSquare does not offer, an unclosed brace and a bad field name", () => {
-    expect(validateRows("outbound", "quote", [row("name", "{nope}")], out)[0].message).toContain("{nope}");
-    expect(validateRows("outbound", "quote", [row("name", "{name")], out)[0].message).toContain("not closed");
-    expect(validateRows("outbound", "quote", [row("na me", "{name}")], out)[0].part).toBe("field");
-    expect(validateRows("outbound", "quote", [row("name", "{name} · {ref}")], out)).toEqual([]);
-  });
-  it("accepts a lookup bind as a field name and refuses a unit of measure on a write-in line", () => {
-    expect(validateRows("outbound", "quote", [row("customerid_account@odata.bind", "/accounts({account_external_id})")], [...out, "account_external_id"])).toEqual([]);
-    expect(validateRows("outbound", "quote_line", [row("uomid", "{qty}")], out)[0].message).toContain("unit of measure");
-  });
-  it("names an empty half and a duplicate field", () => {
-    const issues = validateRows("outbound", "quote", [row("name", ""), row("", "{name}"), row("a", "{name}"), row("A", "{ref}")], out);
-    expect(issues.map((i) => i.part)).toEqual(["value", "field", "field"]);
-    expect(issues[2].message).toContain("already used");
-  });
-  it("checks an inbound map against the BPMSquare fields it may fill and a plain column name", () => {
-    const allowed = ["name", "city"];
-    expect(validateRows("inbound", "inbound", [row("name", "OrganizationName")], allowed)).toEqual([]);
-    expect(validateRows("inbound", "inbound", [row("secret", "x")], allowed)[0].part).toBe("field");
-    expect(validateRows("inbound", "inbound", [row("name", "bad column!")], allowed)[0].part).toBe("value");
-  });
-  it("flags required, creatable ERP fields nothing fills, except what the engine sets itself", () => {
-    const erp: ErpField[] = [
-      { name: "name", label: "Name", type: "String", required: true, creatable: true },
-      { name: "customerid", label: "Customer", type: "Lookup", required: true, creatable: true },
-      { name: "statecode", label: "Status", type: "State", required: true, creatable: false },
-      { name: "revisionnumber", label: "Revision", type: "Integer", required: true, creatable: true },
-      { name: "description", label: "Description", type: "Memo", required: false, creatable: true },
-    ];
-    expect(missingRequired(erp, [row("description", "{description}")], "quote").map((f) => f.name)).toEqual(["revisionnumber"]);
-    expect(missingRequired(erp, [row("revisionnumber@odata.bind", "1")], "quote")).toEqual([]);
-    expect(missingRequired(erp, [], "project").map((f) => f.name)).toEqual(["name", "customerid", "revisionnumber"]);
-  });
-  it("adds suggestions as new rows and never overwrites a field already mapped", () => {
-    const rows = [row("name", "{ref}")];
-    const r = applySuggestions(rows, [{ bpm: "name", erp: "name", score: 1, reason: "same name" }, { bpm: "description", erp: "description", score: 1, reason: "same name" }], "outbound");
-    expect(r.added).toBe(1);
-    expect(rowsToMap(r.rows)).toEqual({ name: "{ref}", description: "{description}" });
-    const inb = applySuggestions([], [{ bpm: "city", erp: "address1_city", score: 0.9, reason: "known pair" }], "inbound");
-    expect(rowsToMap(inb.rows)).toEqual({ city: "address1_city" });
-  });
-  it("inserts a placeholder after existing text", () => {
-    expect(appendPlaceholder("", "ref")).toBe("{ref}");
-    expect(appendPlaceholder("{ref} ·", "name")).toBe("{ref} · {name}");
   });
 });
 

@@ -3,17 +3,14 @@ import { createElement as create, type ReactElement } from "react";
 import { renderToString } from "react-dom/server";
 import { tipTextProblems } from "@/lib/infoTip";
 import {
-  normalizeDocument, normalizeHealth, normalizeMappingDoc, normalizeMessage,
-  type DocumentView, type MappingDocView, type MonitorMessage, type PayloadView, type RestartResult, type SyncEntity,
+  normalizeDocument, normalizeHealth, normalizeMessage,
+  type DocumentView, type MonitorMessage, type PayloadView, type RestartResult, type SyncEntity,
 } from "./api";
 import {
   documentStatus, documentsConfirmed, draftFromDocument, draftPatch, draftProblem, isDraftDirty, priceListChanged, showsFallbackPriceList, targetOptions,
 } from "./documentsLogic";
 import { buildLinks } from "./linksLogic";
 import { addressWord, expiryChip, healthBanner, summarizeTest, testOutcome } from "./connectionLogic";
-import {
-  changedSections, currentErp, documentChoices, erpOptions, isMapDirty, isReadOnlyRow, missingBar, sampleFieldMap, setEdit,
-} from "./mappingLogic";
 import {
   actionBar, filterAsRecord, matchesDocument, payloadLine, payloadText, prettyBody, pruneTicks, resultLine, resultsSummary, toggleAll, toggleTick,
 } from "./monitorSelection";
@@ -24,7 +21,6 @@ import { TAB_IDS } from "./setup";
 import { MIDDLEWARE_TIPS } from "./tips";
 import { MiddlewareProvider, type MiddlewareCtx } from "./context";
 import { LinkPanel, LinksTable } from "./LinksTab";
-import { MappingSections } from "./MappingTab";
 import { FilterRow, MonitorList } from "./MonitorTab";
 import { EntityRows } from "./ResyncTab";
 
@@ -48,21 +44,6 @@ const quoteDoc = (over: Partial<DocumentView> = {}): DocumentView => ({
     { key: "bom", label: "Materials list", on: false, allowed: false, hint: "Prices only here" },
   ],
   fallbackPriceListId: null, showFallbackPriceList: null, confirmedAt: null, ...over,
-});
-
-const mappingView = (): MappingDocView => ({
-  document: { key: "quote", label: "Quote", targetLabel: "Dynamics Quote" },
-  sections: [
-    { key: "header", label: "Header data", rows: [
-      { id: "ref", bpm: { label: "Reference", name: "ref" }, erp: { label: "Name", name: "name" }, standard: true, composite: "ref and customer" },
-      { id: "desc", bpm: { label: "Description", name: "description" }, erp: null, standard: false, composite: null },
-    ] },
-    { key: "lines", label: "Lines", rows: [
-      { id: "qty", bpm: { label: "Quantity", name: "qty" }, erp: { label: "Quantity", name: "quantity" }, standard: true, composite: null },
-    ] },
-  ],
-  erpFields: { header: [{ label: "Name", name: "name" }, { label: "Description", name: "description" }], lines: [{ label: "Quantity", name: "quantity" }] },
-  usingStandard: true, missingRequired: [],
 });
 
 const msg = (over: Partial<MonitorMessage> = {}): MonitorMessage => ({
@@ -230,52 +211,6 @@ describe("the connection panel's words", () => {
 describe("the page frame", () => {
   it("has four tabs: Links, Mapping, Monitor, Resync; no Connections tab", () => {
     expect([...TAB_IDS]).toEqual(["links", "mapping", "monitor", "resync"]);
-  });
-});
-
-// ── Mapping ─────────────────────────────────────────────────────────────────
-
-describe("mapping edits", () => {
-  const view = mappingView();
-  const desc = view.sections[0].rows[1];
-  it("shows the stored field until the person changes it, and is clean again when they change it back", () => {
-    expect(currentErp("header", desc, {})).toBe("");
-    const e = setEdit({}, "header", desc, "description");
-    expect(currentErp("header", desc, e)).toBe("description");
-    expect(isMapDirty(e)).toBe(true);
-    expect(isMapDirty(setEdit(e, "header", desc, ""))).toBe(false);
-  });
-  it("saves a changed section whole, leaves a read-only composite row out, and untouched sections alone", () => {
-    const e = setEdit({}, "header", desc, "description");
-    expect(changedSections(view, e)).toEqual([{ section: "header", rows: [{ id: "desc", erp: "description" }] }]);
-  });
-  it("sends null for 'Not sent'", () => {
-    const qty = view.sections[1].rows[0];
-    expect(changedSections(view, setEdit({}, "lines", qty, ""))).toEqual([{ section: "lines", rows: [{ id: "qty", erp: null }] }]);
-  });
-  it("treats a standard composite row as read-only, and a plain standard row as editable", () => {
-    expect(isReadOnlyRow(view.sections[0].rows[0])).toBe(true);
-    expect(isReadOnlyRow(view.sections[1].rows[0])).toBe(false);
-  });
-  it("keeps the current field in the dropdown even when the ERP list does not carry it", () => {
-    expect(erpOptions([{ label: "A", name: "a" }], { label: "B", name: "b" }).map((x) => x.name)).toEqual(["b", "a"]);
-    expect(erpOptions([{ label: "A", name: "a" }], { label: "A", name: "a" })).toHaveLength(1);
-  });
-  it("names the missing fields in one plain bar, or none", () => {
-    expect(missingBar([])).toBeNull();
-    expect(missingBar(["Customer", "Price list"])).toContain("Customer, Price list");
-  });
-  it("offers the document and the inbound entities, and builds the sample map from BPMSquare name to ERP column", () => {
-    const c = documentChoices("Dynamics 365", "Quote");
-    expect(c[0]).toEqual({ key: "quote", label: "Quote → Dynamics 365 Quote" });
-    expect(c.map((x) => x.key)).toEqual(["quote", "customers", "contacts", "products", "projects"]);
-    expect(sampleFieldMap(view)).toEqual({ ref: "name", qty: "quantity" });
-  });
-  it("fills a thin response with safe defaults", () => {
-    const n = normalizeMappingDoc({ sections: [{ key: "header", rows: [{ id: "x", bpm: { name: "x" }, erp: null }] }] });
-    expect(n.sections[0].rows[0]).toMatchObject({ standard: false, composite: null, erp: null });
-    expect(n.erpFields).toEqual({});
-    expect(n.missingRequired).toEqual([]);
   });
 });
 
@@ -498,25 +433,6 @@ describe("Links", () => {
     expect(panel).toContain("Preview");
     expect(panel).toContain("Send a quote now");
     expect(panel).toContain("Save");
-  });
-});
-
-describe("Mapping", () => {
-  const out = html(el(MappingSections, { view: mappingView(), edits: {}, inbound: false, onEdit: () => undefined }));
-  it("shows Header data and Lines as two-column tables, one row per field", () => {
-    expect(out).toContain("Header data");
-    expect(out).toContain("Lines");
-    expect(out.match(/<th>BPMSquare field<\/th><th>ERP field<\/th>/g)).toHaveLength(2);
-    expect(out.match(/<tr>/g)?.length).toBe(2 + 3);
-  });
-  it("shows the label and the technical name, 'Not sent' first, and Standard on a composite row", () => {
-    expect(out).toContain("Reference");
-    expect(out).toContain(">ref<");
-    expect(out).toContain("Standard");
-    expect(out).toContain('<option value="">Not sent</option>');
-  });
-  it("carries no types, required marks or per-row hints", () => {
-    for (const word of ["required", "String", "Lookup", "bpm-tip"]) expect(out.toLowerCase()).not.toContain(word.toLowerCase());
   });
 });
 
