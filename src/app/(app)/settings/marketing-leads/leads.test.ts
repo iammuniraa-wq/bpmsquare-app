@@ -165,11 +165,13 @@ describe("the Settings menu for Marketing", () => {
 
   it("keeps the gates the separate pages had", () => {
     expect(marketing().find((m) => m.id === "marketing-leads")).toMatchObject({ adminOnly: true, featureKey: "marketing_scoring", href: "/settings/marketing-leads" });
-    expect(marketing().find((m) => m.id === "marketing-consent")).toMatchObject({ adminOnly: true, featureKey: "marketing_scoring" });
+    expect(marketing().find((m) => m.id === "marketing-consent")).toMatchObject({ adminOnly: true, featureAnyOf: ["marketing_scoring", "newsletter_studio"] });
     const ids = (features: Record<string, boolean>, isAdmin = true) =>
       visibleSettingsMenu({ isAdmin, canEdit: () => false, features }).flatMap((g) => g.items.map((i) => i.id));
     expect(ids({ marketing_scoring: true })).toEqual(expect.arrayContaining(["marketing-consent", "marketing-leads"]));
     expect(ids({})).not.toContain("marketing-leads");
+    expect(ids({ newsletter_studio: true })).toContain("marketing-consent");
+    expect(ids({ newsletter_studio: true })).not.toContain("marketing-leads");
     expect(ids({ marketing_scoring: true }, false)).not.toContain("marketing-leads");
   });
 
