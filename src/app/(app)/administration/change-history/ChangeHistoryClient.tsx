@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { c } from "@/lib/theme";
-import { csvCell, downloadCsv } from "@/lib/import/template";
+import { downloadCsv } from "@/lib/import/template";
+import { buildCsv, summarizeChanges, viaLabel, type ChangeLogRow } from "./changeHistoryRows";
 import Pager from "@/components/Pager";
 import { paginate, clampPage, DEFAULT_PAGE_SIZE } from "@/lib/paginate";
 import { useTenantFeature } from "@/lib/tenant-context";
@@ -56,31 +57,6 @@ const OBJECT_TYPES: { value: string; label: string }[] = [
   { value: "marketing_settings", label: "Marketing settings" },
 ];
 
-type ChangeEntry = { field: string; from: unknown; to: unknown; redacted?: boolean };
-type ChangeLogRow = {
-  id: string;
-  object_type: string;
-  object_id: string;
-  object_label: string | null;
-  action: "create" | "update" | "delete" | "reopen";
-  changes: ChangeEntry[];
-  actor_id: string | null;
-  actor_email: string | null;
-  created_at: string;
-};
-
-function formatValue(v: unknown): string {
-  if (v === null || v === undefined || v === "") return "—";
-  return String(v);
-}
-
-function summarizeChanges(row: ChangeLogRow): string {
-  if (row.action === "create") return "Record created";
-  if (row.action === "delete") return "Record deleted";
-  if (row.changes.length === 0) return "—";
-  return row.changes.map((ch) => `${ch.field}: ${formatValue(ch.from)} → ${formatValue(ch.to)}`).join("; ");
-}
-
 const ACTION_TONE: Record<ChangeLogRow["action"], { bg: string; fg: string }> = {
   create: { bg: "#e5f6ee", fg: "#1c8a5a" },
   update: { bg: "#eaf2fd", fg: "#2563eb" },
@@ -133,13 +109,7 @@ export default function ChangeHistoryClient() {
 
   function download() {
     if (!rows || rows.length === 0) return;
-    const header = ["Date", "Action", "Object Type", "Object ID", "Record", "Changed by", "Changes"];
-    const body = rows.map((r) =>
-      [r.created_at, r.action, r.object_type, r.object_id, r.object_label ?? "", r.actor_email ?? "", summarizeChanges(r)]
-        .map((v) => csvCell(String(v)))
-        .join(",")
-    );
-    const csv = "﻿" + [header.join(","), ...body].join("\r\n") + "\r\n";
+    const csv = buildCsv(rows);
     const label = OBJECT_TYPES.find((o) => o.value === objectType)?.label ?? objectType;
     downloadCsv(`change_history_${label.toLowerCase().replace(/\s+/g, "_")}${objectId ? `_${objectId}` : ""}.csv`, csv);
   }
@@ -232,6 +202,11 @@ export default function ChangeHistoryClient() {
                     </td>
                     <td style={{ padding: "8px 11px", borderBottom: `1px solid ${c.line}`, color: c.muted, whiteSpace: "nowrap" }}>
                       {row.actor_email ?? "—"}
+                      {viaLabel(row.via) && (
+                        <span style={{ marginLeft: 6, fontSize: 10.5, fontWeight: 600, color: c.hint, border: `1px solid ${c.line}`, borderRadius: 6, padding: "1px 6px" }}>
+                          {viaLabel(row.via)}
+                        </span>
+                      )}
                     </td>
                   </tr>
                 );

@@ -42,18 +42,28 @@ export async function GET(request: NextRequest) {
   const limitParam = Number(searchParams.get("limit"));
   const limit = Number.isFinite(limitParam) && limitParam > 0 ? Math.min(limitParam, MAX_ROWS) : MAX_ROWS;
 
-  let query = supabase
-    .from("change_log")
-    .select("id, object_type, object_id, object_label, action, changes, actor_id, actor_email, created_at")
-    .eq("tenant_id", tenantId)
-    .eq("object_type", objectType)
-    .order("created_at", { ascending: false })
-    .limit(limit);
+  const read = (columns: string) => {
+    let query = supabase
+      .from("change_log")
+      .select(columns)
+      .eq("tenant_id", tenantId)
+      .eq("object_type", objectType)
+      .order("created_at", { ascending: false })
+      .limit(limit);
+    if (objectId) query = query.eq("object_id", objectId);
+    return query;
+  };
 
-  if (objectId) query = query.eq("object_id", objectId);
-
-  const { data, error } = await query;
+  // `via` exists from migration 0205; until the owner has run it the page simply shows no "via" labels.
+  let { data, error } = await read(`${COLUMNS}, via`);
+  if (error && isMissingColumn(error)) ({ data, error } = await read(COLUMNS));
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   return NextResponse.json({ rows: data ?? [] });
+}
+
+const COLUMNS = "id, object_type, object_id, object_label, action, changes, actor_id, actor_email, created_at";
+
+function isMissingColumn(err: { code?: string; message?: string }): boolean {
+  return err.code === "42703" || err.code === "PGRST204" || err.code === "PGRST200" || /column .* does not exist|Could not find the .* column|schema cache/i.test(err.message ?? "");
 }
