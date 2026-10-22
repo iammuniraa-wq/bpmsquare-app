@@ -45,3 +45,4 @@ under about six controls; PC and 375 px checked; this file and `ux-simplificatio
 | Rule 6c | in `bpmsquarecore.md` |
 | Wave 1, S1 Quiet text (settings) | done 2026-10-22 |
 | Wave 1, M1 Words and text | done 2026-10-22: WhatsApp setup, Template Studio, Events create, New campaign and newsletter card hints behind "i"; Scored leads, Consent, Revenue by source names; one shared Tour; Buying stage and Lead stage labels |
+| Wave 3, S4 People | done 2026-10-22: Settings > People (tabs People, Roles) replaces Settings > Team, Administration > Business users and Business roles. Screens 3 to 1 (old addresses redirect); settings menu entries 2 to 1, Administration tiles 2 to 1; main view from 1 button plus 2 to 3 buttons per row on every row, to a search and one Invite / New role button with no per-row buttons; person panel 6 visible controls (login details behind More); `+ New Employee` removed (Employees creates employees); `/api/*` routes and guards unchanged |
