@@ -117,6 +117,14 @@ describe("the client: plain words, paging, retries, no stray address", () => {
     expect(f.calls.filter((c) => c.headers.get("authorization") === "Basic wrong")).toHaveLength(1);
     expect(SapError).toBeDefined();
   });
+
+  it("refuses an answer past the body cap instead of reading it whole", async () => {
+    let pulled = 0;
+    const big = () => new Response(new ReadableStream<Uint8Array>({ pull(c) { pulled++; c.enqueue(new TextEncoder().encode("x".repeat(1024))); } }), { status: 200 });
+    const c = new SapClient(`https://${HOST}/sap/opu/odata/sap/API_BUSINESS_PARTNER`, async () => ({}), { fetch: (async () => big()) as never, maxBodyBytes: 10 * 1024, maxRetries: 3, sleep: async () => {} });
+    await expect(c.get("A_BusinessPartner")).rejects.toMatchObject({ message: expect.stringContaining("more data than one request") });
+    expect(pulled).toBeLessThan(30);
+  });
 });
 
 // ── Pure transforms ─────────────────────────────────────────────────────────
@@ -453,6 +461,17 @@ describe("pull: customers", () => {
     expect(lastRun(db, "customers")!.watermark).toBeNull();
     const missing = await pull(db, "customers", { ids: ["777"] });
     expect(missing.issues.join(" ")).toMatch(/1 of 1 record was not found in SAP/);
+  });
+
+  it("a scheduled pull needs the Integration middleware module; a manual one is not affected", async () => {
+    const f = serve(customers(server()));
+    const off = fakeDb(seed({ mw: false }));
+    const scheduled = await pull(off, "customers", { trigger: "schedule", userId: null });
+    expect(scheduled.error).toMatch(/Integration middleware isn't enabled/);
+    expect(f.calls).toHaveLength(0);
+    expect(runs(off, "customers")).toHaveLength(0);
+    const on = fakeDb(seed());
+    expect((await pull(on, "customers", { trigger: "schedule", userId: null })).error).toBeNull();
   });
 
   it("refuses an id with a quote before opening a run", async () => {

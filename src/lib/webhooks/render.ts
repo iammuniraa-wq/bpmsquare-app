@@ -2,6 +2,7 @@ import {
   PRIMARY_ALIAS, readPath, recordFields, resolveToken, scanTokens, soleToken,
   type CallObject, type RenderContext,
 } from "./tokens";
+import { hasCredentialParam } from "@/lib/net/credentialParam";
 
 // Validation and rendering of a Call webhook's payload and address. Pure.
 //
@@ -144,6 +145,8 @@ export function validateUrlTemplate(raw: string, objectType: CallObject | null):
   const m = /^https:\/\/([^/?#]*)/i.exec(url);
   if (!m) return { ok: false, errors: [{ field: "url", message: /^http:\/\//i.test(url) ? "The address must use https." : "The address must start with https://." }] };
   if (m[1].includes("{{") || m[1].includes("}}")) errors.push({ field: "url", message: "Tokens can go in the path or the query, not in the host." });
+  if (m[1].includes("@")) errors.push({ field: "url", message: "Put the key in a header, not in the address." });
+  if (hasCredentialParam(url)) errors.push({ field: "url", message: "Put the key in a header, not in the address." });
   const scan = scanTokens(url);
   if (scan.stray) errors.push({ field: "url", message: 'A "{{" or "}}" in the address is not part of a token.' });
   if (scan.names.length && !objectType) errors.push({ field: "url", message: "Tokens in the address need a call webhook for one object." });
@@ -155,6 +158,16 @@ export function validateUrlTemplate(raw: string, objectType: CallObject | null):
   }
   if (errors.length) return { ok: false, errors };
   return { ok: true, value: { sample: url.replace(/\{\{[^{}]*\}\}/g, "x") } };
+}
+
+/** What change history may show of an address: host and path, never the query, user info or fragment. Receivers such as
+ *  Slack and Teams carry the credential in a long path segment, so a segment that long is masked too. */
+export function addressForLog(raw: string | null | undefined): string {
+  if (!raw) return "";
+  const m = /^(https?):\/\/(?:[^/?#@]*@)?([^/?#]*)([^?#]*)/i.exec(raw.trim());
+  if (!m) return "";
+  const path = m[3].split("/").map((s) => (/^[A-Za-z0-9_-]{16,}$/.test(s) ? "..." : s)).join("/");
+  return `${m[1].toLowerCase()}://${m[2]}${path}`;
 }
 
 /** The address with each token URL-encoded into place. Throws on a personal-data token: the check is repeated at send time. */

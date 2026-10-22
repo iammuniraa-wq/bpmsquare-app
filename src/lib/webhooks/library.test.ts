@@ -148,6 +148,17 @@ describe("update", () => {
     expect(text).not.toContain("enc:v1:");
     expect(text).not.toContain("whsec_");
   });
+
+  it("the change-log diff shows host and path of an address, never its query", async () => {
+    const { db, id } = await made();
+    const r = await updateWebhook(db.client, T1, id, { url: "https://erp.example.com/in/v2?region=gcc&page=2" });
+    if (!r.ok) throw new Error("update failed");
+    const entries = changeEntries(r.value.before, r.value.patch);
+    expect(entries).toEqual([{ field: "url", from: "https://erp.example.com/in", to: "https://erp.example.com/in/v2" }]);
+    const same = changeEntries({ ...r.value.before, url: "https://erp.example.com/in?x=1" }, { url: "https://erp.example.com/in?x=2" });
+    expect(JSON.stringify(same)).not.toContain("x=");
+    expect(same[0].to).toMatch(/address changed/);
+  });
 });
 
 describe("references are tenant-verified", () => {

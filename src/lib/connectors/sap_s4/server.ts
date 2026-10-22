@@ -552,6 +552,10 @@ export async function runSapPull(admin: SupabaseClient, tenantId: string, key: S
   if (!(t?.features as TenantFeatures | undefined)?.[target.feature as keyof TenantFeatures]) {
     return { runId: null, counts, issues, error: `The ${target.table} module isn't enabled for this workspace.` };
   }
+  // SAP is configured only on the Integration middleware screens; a workspace without that module has no way to see or stop a schedule.
+  if (opts.trigger === "schedule" && (t?.features as TenantFeatures | undefined)?.integration_middleware !== true) {
+    return { runId: null, counts, issues, error: "Integration middleware isn't enabled for this workspace." };
+  }
 
   // A selection is checked before the run opens: a refused request must not leave a run row (or a lock) behind.
   let selectedIds: string[] | null = null;

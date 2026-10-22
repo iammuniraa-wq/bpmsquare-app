@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { guard, jsonBody, needsUpdate, fail } from "./_guard";
 import { createWebhook, listLibrary } from "@/lib/webhooks/library";
+import { addressForLog } from "@/lib/webhooks/render";
 import { logChange } from "@/lib/changeLog";
 
 // GET  -> { webhooks, recordButtons: { accounts }, objects, needsDatabaseUpdate, bundle }
@@ -26,7 +27,7 @@ export async function POST(req: NextRequest) {
   await logChange(g.ctx.supabase, {
     tenantId: g.ctx.tenantId, objectType: "webhooks", objectId: r.value.webhook.id, objectLabel: r.value.webhook.name, action: "create",
     actorId: g.ctx.userId, actorEmail: g.ctx.email,
-    changes: [{ field: "kind", from: null, to: r.value.webhook.kind }, { field: "url", from: null, to: r.value.webhook.url }],
+    changes: [{ field: "kind", from: null, to: r.value.webhook.kind }, { field: "url", from: null, to: addressForLog(r.value.webhook.url) }],
   });
   return NextResponse.json({ webhook: r.value.webhook, signing_secret: r.value.secret }, { status: 201 });
 }

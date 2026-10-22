@@ -135,13 +135,20 @@ export async function assertPublicHttpUrl(raw: string): Promise<URL> {
   return url;
 }
 
+// Only these survive a hop to another origin. A deny-list (authorization, cookie)
+// misses every custom credential header (SAP APIKey, a webhook's X-Api-Key), so the
+// rule is the other way round: anything not named here is dropped.
+const CROSS_ORIGIN_SAFE_HEADERS = /^(accept|accept-language|content-type|user-agent|x-bpmsquare-[a-z0-9-]+)$/;
+
 /**
  * fetch() for a URL a tenant typed. The host is checked before the request and
- * again for every redirect hop (a 302 to 169.254.169.254 is the classic bypass),
- * and credentials are not carried across to another origin.
+ * again for every redirect hop (a 302 to 169.254.169.254 is the classic bypass).
+ * On a hop to another origin only the headers in CROSS_ORIGIN_SAFE_HEADERS are kept
+ * and the body is not re-sent; a hop from https to http is refused. A caller that
+ * sets `redirect: "error"` gets no redirect followed at all.
  */
 export async function fetchPublic(raw: string, init: RequestInit = {}, opts: { maxRedirects?: number } = {}): Promise<Response> {
-  const maxRedirects = opts.maxRedirects ?? 3;
+  const maxRedirects = init.redirect === "error" ? 0 : (opts.maxRedirects ?? 3);
   let url = await assertPublicHttpUrl(raw);
   let method = init.method ?? "GET";
   let body = init.body;
@@ -152,12 +159,16 @@ export async function fetchPublic(raw: string, init: RequestInit = {}, opts: { m
     if (res.status < 300 || res.status >= 400 || !location) return res;
     if (hop >= maxRedirects) throw new Error("The address redirected too many times");
     const next = await assertPublicHttpUrl(new URL(location, url).toString());
-    if (next.origin !== url.origin) {
-      headers = new Headers(headers);
-      headers.delete("authorization");
-      headers.delete("cookie");
+    if (url.protocol === "https:" && next.protocol === "http:") {
+      throw new Error("The address redirected from https to plain http, which is not allowed");
     }
-    if (res.status !== 307 && res.status !== 308) {
+    const crossOrigin = next.origin !== url.origin;
+    if (crossOrigin) {
+      const kept = new Headers();
+      headers.forEach((v, k) => { if (CROSS_ORIGIN_SAFE_HEADERS.test(k.toLowerCase())) kept.set(k, v); });
+      headers = kept;
+    }
+    if (crossOrigin || (res.status !== 307 && res.status !== 308)) {
       method = "GET";
       body = undefined;
       headers = new Headers(headers);

@@ -22,6 +22,18 @@ beforeEach(() => {
 });
 afterEach(() => { vi.unstubAllEnvs(); });
 
+describe("retention schedule", () => {
+  it("runs at least hourly, so a payload kept for 48 hours does not live to 72", async () => {
+    const { readFileSync } = await import("node:fs");
+    const cfg = JSON.parse(readFileSync("vercel.json", "utf8")) as { crons: { path: string; schedule: string }[] };
+    const prune = cfg.crons.find((c) => c.path === "/api/middleware/cron/prune");
+    expect(prune).toBeTruthy();
+    const [minute, hour, dom, month, dow] = prune!.schedule.split(" ");
+    expect(/^\d+$/.test(minute)).toBe(true);
+    expect([hour, dom, month, dow]).toEqual(["*", "*", "*", "*"]);
+  });
+});
+
 describe("GET /api/middleware/cron/prune", () => {
   it("refuses a missing, wrong or unset secret and deletes nothing", async () => {
     const { GET } = await import("./route");

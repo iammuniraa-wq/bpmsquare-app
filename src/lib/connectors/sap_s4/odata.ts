@@ -9,7 +9,10 @@
 //  - Paging stops at a row cap; the caller resumes next run from its position.
 
 import { retryDelayMs } from "@/lib/connectors/d365/odata";
+import { BodyTooLargeError, readBounded } from "@/lib/net/readBounded";
 import { SAP_SCENARIO } from "./types";
+
+const MAX_SAP_BODY_BYTES = 20 * 1024 * 1024;
 
 export type FetchLike = (url: string, init: RequestInit) => Promise<Response>;
 
@@ -59,6 +62,7 @@ export type SapClientOptions = {
   fetch?: FetchLike;
   timeoutMs?: number;
   maxRetries?: number;
+  maxBodyBytes?: number;
   sleep?: (ms: number) => Promise<void>;
   scenario?: SapScenario;
   sandbox?: boolean;
@@ -93,12 +97,13 @@ export class SapClient {
       let text: string;
       try {
         res = await fetcher(url, { method: "GET", redirect: "error", signal: ctrl.signal, headers: { Accept: init.accept ?? "application/json", ...(await this.auth()) } });
-        text = await res.text();
+        text = await readBounded(res, this.opts.maxBodyBytes ?? MAX_SAP_BODY_BYTES);
       } catch (e) {
         clearTimeout(timer);
         if (e instanceof SapError) throw e;
+        if (e instanceof BodyTooLargeError) throw new SapError("SAP answered with more data than one request may carry. Narrow the scope or the page size.", 0);
         // An address the guard refused (private network, not https, too many redirects) will not get better by asking again.
-        const refused = /private or internal network|must use https|valid URL|redirected too many|could not be resolved/i.test((e as Error).message ?? "");
+        const refused = /private or internal network|must use https|valid URL|redirected|could not be resolved/i.test((e as Error).message ?? "");
         if (!refused && attempt < maxRetries) { await sleep(Math.min(30_000, 500 * 2 ** attempt)); continue; }
         const word = this.opts.hostWord ?? "SAP";
         const msg = (e as Error).name === "AbortError" ? `${word} did not answer in time.` : `Could not reach ${word}: ${(e as Error).message}`;

@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { requireTenantUser } from "@/lib/supabase-server";
+import { requireTenantUser, createAdminSupabase } from "@/lib/supabase-server";
 import { tenantHasFeature } from "@/lib/tenant";
 
 // PUT /api/settings/team/[id]/roles -- replace a member's full set of
@@ -39,11 +39,11 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     }
   }
 
-  const { error: dErr } = await supabase.from("business_user_roles").delete().eq("tenant_id", tenantId).eq("user_id", targetUserId);
+  const { error: dErr } = await createAdminSupabase().from("business_user_roles").delete().eq("tenant_id", tenantId).eq("user_id", targetUserId);
   if (dErr) return NextResponse.json({ error: dErr.message }, { status: 500 });
 
   if (roleIds.length > 0) {
-    const { error: iErr } = await supabase.from("business_user_roles").insert(
+    const { error: iErr } = await createAdminSupabase().from("business_user_roles").insert(
       roleIds.map((roleId) => ({ tenant_id: tenantId, user_id: targetUserId, role_id: roleId }))
     );
     if (iErr) return NextResponse.json({ error: iErr.message }, { status: 500 });

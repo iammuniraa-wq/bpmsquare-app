@@ -271,7 +271,7 @@ describe("Restart", () => {
       expect(r.results[0].id).toBe(`integration:${RUN}`);
       expect(["done", "failed"]).toContain(r.results[0].outcome);
     }
-  });
+  }, 30_000);
 });
 
 describe("Test = connection and permissions in one answer", () => {

@@ -76,7 +76,7 @@
     },
     {
       "path": "/api/middleware/cron/prune",
-      "schedule": "50 20 * * *"
+      "schedule": "50 * * * *"
     }
   ]
 }

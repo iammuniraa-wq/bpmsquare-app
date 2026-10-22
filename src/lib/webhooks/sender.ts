@@ -4,6 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { isSchemaPending } from "@/lib/marketing/pending";
 import { unsealSecret } from "@/lib/encryption";
 import { fetchPublic } from "@/lib/net/safeHost";
+import { readTruncated } from "@/lib/net/readBounded";
 import { buildExchangePayload } from "@/lib/middleware/exchange";
 import { MESSAGES_TABLE, recordMessage } from "@/lib/middleware/messages";
 import { SQL_BUNDLES, type StoredStatus } from "@/lib/middleware/types";
@@ -63,6 +64,7 @@ export type FireResult = {
 
 export const RETRY_DELAY_MS = 2000;
 const MAX_RESPONSE_CHARS = 8000;
+const MAX_RESPONSE_BYTES = 1024 * 1024;
 
 /** accounts -> account.pushed (what today's push sends); a quote -> quote.awarded. */
 export function defaultEvent(objectType: string): string {
@@ -77,7 +79,7 @@ export const signBody = (secret: string, body: string): string => createHmac("sh
 
 // ── plain-language failures ─────────────────────────────────────────────────
 
-const NOT_RETRYABLE = /private or internal network|must use https|valid URL|could not be resolved|redirected too many|No host/i;
+const NOT_RETRYABLE = /private or internal network|must use https|valid URL|could not be resolved|redirected|No host/i;
 
 export function describeFailure(a: { status: number | null; message?: string | null; timedOut?: boolean }): { headline: string; fix: string } {
   const s = a.status;
@@ -242,7 +244,7 @@ async function settleEarlier(admin: SupabaseClient, tenantId: string, webhookId:
 
 async function readResponse(res: Response): Promise<unknown> {
   let t = "";
-  try { t = (await res.text()).slice(0, MAX_RESPONSE_CHARS); } catch { return null; }
+  try { t = (await readTruncated(res, MAX_RESPONSE_BYTES)).slice(0, MAX_RESPONSE_CHARS); } catch { return null; }
   if (!t) return null;
   try { return JSON.parse(t); } catch { return t; }
 }
@@ -251,7 +253,7 @@ export async function fireWebhook(admin: SupabaseClient, input: FireInput, deps:
   const now = deps.now ?? Date.now;
   const t0 = now();
   const sleep = deps.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
-  const doFetch = deps.fetch ?? ((u: string, init: RequestInit) => fetchPublic(u, init));
+  const doFetch = deps.fetch ?? ((u: string, init: RequestInit) => fetchPublic(u, init, { maxRedirects: 0 }));
   const event = input.event ?? defaultEvent(input.objectType);
   const deliveryId = randomUUID();
   const sentAt = new Date(t0).toISOString();
@@ -322,7 +324,7 @@ export async function fireWebhook(admin: SupabaseClient, input: FireInput, deps:
   const attempt = async (): Promise<{ res: Response | null; err: Error | null; ms: number }> => {
     const a0 = now();
     try {
-      const res = await doFetch(p.url, { method: p.method, headers: p.headers, ...(p.bodyText !== null ? { body: p.bodyText } : {}), signal: AbortSignal.timeout(def.timeout_ms ?? 15000) });
+      const res = await doFetch(p.url, { method: p.method, headers: p.headers, redirect: "error", ...(p.bodyText !== null ? { body: p.bodyText } : {}), signal: AbortSignal.timeout(def.timeout_ms ?? 15000) });
       return { res, err: null, ms: now() - a0 };
     } catch (e) {
       return { res: null, err: e instanceof Error ? e : new Error(String(e)), ms: now() - a0 };
@@ -334,7 +336,7 @@ export async function fireWebhook(admin: SupabaseClient, input: FireInput, deps:
   let r = await attempt();
   if (retryable(r)) {
     // Drain the first response so the connection is released, wait, and try exactly once more.
-    if (r.res) await r.res.text().catch(() => "");
+    if (r.res) await readTruncated(r.res, MAX_RESPONSE_BYTES).catch(() => "");
     await sleep(RETRY_DELAY_MS);
     r = await attempt();
   }

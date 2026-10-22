@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { requireTenantUser } from "@/lib/supabase-server";
+import { requireTenantUser, createAdminSupabase } from "@/lib/supabase-server";
 import { tenantHasFeature } from "@/lib/tenant";
 import type { DashLayoutItem } from "@/lib/constants";
 
@@ -39,7 +39,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   }
 
   const { id } = await params;
-  const { data: existing } = await supabase.from("business_roles").select("id, is_standard").eq("id", id).eq("tenant_id", tenantId).maybeSingle();
+  const { data: existing } = await createAdminSupabase().from("business_roles").select("id, is_standard").eq("id", id).eq("tenant_id", tenantId).maybeSingle();
   if (!existing) return NextResponse.json({ error: "Role not found" }, { status: 404 });
   if (existing.is_standard) {
     return NextResponse.json(
@@ -51,7 +51,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   const body = await request.json().catch(() => null);
   const layout = body?.dashboard_layout === null ? null : sanitizeLayout(body?.dashboard_layout);
 
-  const { error } = await supabase.from("business_roles").update({ dashboard_layout: layout }).eq("id", id).eq("tenant_id", tenantId);
+  const { error } = await createAdminSupabase().from("business_roles").update({ dashboard_layout: layout }).eq("id", id).eq("tenant_id", tenantId);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   return NextResponse.json({ ok: true });

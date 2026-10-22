@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { requireTenantUser } from "@/lib/supabase-server";
+import { requireTenantUser, createAdminSupabase } from "@/lib/supabase-server";
 import { tenantHasFeature } from "@/lib/tenant";
 import { WORKCENTERS, type WorkcenterKey } from "@/lib/permissions";
 import type { GrantInput } from "../route";
@@ -43,7 +43,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   }
 
   const { id } = await params;
-  const { data: existing } = await supabase.from("business_roles").select("id, is_standard").eq("id", id).eq("tenant_id", tenantId).maybeSingle();
+  const { data: existing } = await createAdminSupabase().from("business_roles").select("id, is_standard").eq("id", id).eq("tenant_id", tenantId).maybeSingle();
   if (!existing) return NextResponse.json({ error: "Role not found" }, { status: 404 });
   // Enforced here, not just hidden in the UI -- a locked standard role is
   // what lets the catalog be re-synced later without ever overwriting a
@@ -60,19 +60,19 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   if (typeof body.name === "string" && body.name.trim()) patch.name = body.name.trim();
   if ("description" in body) patch.description = body.description || null;
 
-  const { error: uErr } = await supabase.from("business_roles").update(patch).eq("id", id).eq("tenant_id", tenantId);
+  const { error: uErr } = await createAdminSupabase().from("business_roles").update(patch).eq("id", id).eq("tenant_id", tenantId);
   if (uErr) {
     if (uErr.code === "23505") return NextResponse.json({ error: "A role with this name already exists" }, { status: 409 });
     return NextResponse.json({ error: uErr.message }, { status: 500 });
   }
 
   if ("grants" in body) {
-    const { error: dErr } = await supabase.from("business_role_grants").delete().eq("role_id", id).eq("tenant_id", tenantId);
+    const { error: dErr } = await createAdminSupabase().from("business_role_grants").delete().eq("role_id", id).eq("tenant_id", tenantId);
     if (dErr) return NextResponse.json({ error: dErr.message }, { status: 500 });
 
     const grantRows = sanitizeGrants(body.grants, tenantId, id);
     if (grantRows.length > 0) {
-      const { error: iErr } = await supabase.from("business_role_grants").insert(grantRows);
+      const { error: iErr } = await createAdminSupabase().from("business_role_grants").insert(grantRows);
       if (iErr) return NextResponse.json({ error: iErr.message }, { status: 500 });
     }
   }
@@ -98,7 +98,7 @@ export async function DELETE(_request: NextRequest, { params }: { params: Promis
   }
 
   const { id } = await params;
-  const { data: existing } = await supabase
+  const { data: existing } = await createAdminSupabase()
     .from("business_roles").select("id, is_standard").eq("id", id).eq("tenant_id", tenantId).maybeSingle();
   if (!existing) return NextResponse.json({ error: "Role not found" }, { status: 404 });
   // Deleting a standard role would just have it re-provisioned on the next
@@ -111,7 +111,7 @@ export async function DELETE(_request: NextRequest, { params }: { params: Promis
     );
   }
 
-  const { error } = await supabase.from("business_roles").delete().eq("id", id).eq("tenant_id", tenantId);
+  const { error } = await createAdminSupabase().from("business_roles").delete().eq("id", id).eq("tenant_id", tenantId);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   return NextResponse.json({ ok: true });

@@ -102,6 +102,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Business Roles isn't enabled for your workspace" }, { status: 403 });
   }
 
+  // The role tables take no member write policy (0207): writes go through the service role after the admin check above,
+  // and every statement below still names the tenant.
+  const db = createAdminSupabase();
   const body = await request.json();
 
   // Duplicate mode: { duplicate_of: <role id> } copies an existing role --
@@ -110,7 +113,7 @@ export async function POST(request: NextRequest) {
   // §2). The copy is a normal editable role: is_standard false, no
   // template_key.
   if (typeof body.duplicate_of === "string" && body.duplicate_of) {
-    const { data: source } = await supabase
+    const { data: source } = await db
       .from("business_roles")
       .select("id, name, description, template_key")
       .eq("id", body.duplicate_of)
@@ -118,14 +121,14 @@ export async function POST(request: NextRequest) {
       .maybeSingle();
     if (!source) return NextResponse.json({ error: "Role not found" }, { status: 404 });
 
-    const { data: sourceGrants } = await supabase
+    const { data: sourceGrants } = await db
       .from("business_role_grants")
       .select("workcenter, can_view, can_create, can_edit, can_delete")
       .eq("tenant_id", tenantId)
       .eq("role_id", source.id);
 
-    const copyName = await uniqueName(supabase, tenantId, (body.name ?? `${source.name} (copy)`).trim());
-    const { data: created, error } = await supabase
+    const copyName = await uniqueName(db, tenantId, (body.name ?? `${source.name} (copy)`).trim());
+    const { data: created, error } = await db
       .from("business_roles")
       .insert({ tenant_id: tenantId, name: copyName, description: source.description })
       .select("id, name, description, created_at, template_key, is_standard")
@@ -134,7 +137,7 @@ export async function POST(request: NextRequest) {
 
     const rows = (sourceGrants ?? []).map((g) => ({ ...g, tenant_id: tenantId, role_id: created.id }));
     if (rows.length > 0) {
-      const { error: gErr } = await supabase.from("business_role_grants").insert(rows);
+      const { error: gErr } = await db.from("business_role_grants").insert(rows);
       if (gErr) return NextResponse.json({ error: gErr.message }, { status: 500 });
     }
     return NextResponse.json({ ...created, grants: rows }, { status: 201 });
@@ -143,7 +146,7 @@ export async function POST(request: NextRequest) {
   const name = (body.name ?? "").trim();
   if (!name) return NextResponse.json({ error: "Name is required" }, { status: 400 });
 
-  const { data: created, error } = await supabase
+  const { data: created, error } = await db
     .from("business_roles")
     .insert({ tenant_id: tenantId, name, description: body.description || null })
     .select("id, name, description, created_at, template_key, is_standard")
@@ -161,7 +164,7 @@ export async function POST(request: NextRequest) {
     ? grantRowsFor(template, tenantId, created.id)
     : sanitizeGrants(body.grants, tenantId, created.id);
   if (grantRows.length > 0) {
-    const { error: gErr } = await supabase.from("business_role_grants").insert(grantRows);
+    const { error: gErr } = await db.from("business_role_grants").insert(grantRows);
     if (gErr) return NextResponse.json({ error: gErr.message }, { status: 500 });
   }
 
