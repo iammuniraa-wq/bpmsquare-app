@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { AI_DOCK_ASK_EVENT, type DockAskDetail } from "@/lib/analysis/dockAsk";
 import { usePathname, useRouter } from "next/navigation";
 import { c } from "@/lib/theme";
 import { useIsNextgen3Layer, useTenantFeature } from "@/lib/tenant-context";
@@ -124,6 +125,19 @@ export default function AIDock({ liftForTabBar = false }: {
 
   // A guide belongs to the screen it was written for.
   useEffect(() => { setGuide(null); setChatShown(true); }, [pathname]);
+  // A screen (Account 360 card, the Analyse buttons) asks the slider to run a prepared question as if the person typed it.
+  const askRef = useRef(ask);
+  askRef.current = ask;
+  useEffect(() => {
+    const onAsk = (e: Event) => {
+      const d = (e as CustomEvent<DockAskDetail>).detail;
+      if (!d || typeof d.question !== "string" || !d.question.trim()) return;
+      setOpen(true);
+      setTimeout(() => { void askRef.current(d.question); }, 60);
+    };
+    window.addEventListener(AI_DOCK_ASK_EVENT, onAsk);
+    return () => window.removeEventListener(AI_DOCK_ASK_EVENT, onAsk);
+  }, []);
 
   function startGuide(reply: GuideReply) {
     setGuide({ reply, i: 0 });
