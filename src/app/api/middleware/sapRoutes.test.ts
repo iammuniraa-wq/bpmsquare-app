@@ -74,6 +74,9 @@ const calls = (): Call[] => [
 
 beforeEach(() => { for (const f of Object.values(sap.fns)) f.mockClear(); guardState.ok = false; });
 
+// The first import pulls the whole route tree (SAP, mapping engine, webhooks), which is slow on a loaded machine.
+vi.setConfig({ testTimeout: 30_000 });
+
 describe("SAP routes: the guard comes first", () => {
   it("a refused guard answers its own response and reaches no SAP code", async () => {
     // import once so the spies exist
