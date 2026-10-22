@@ -5,7 +5,7 @@ import { isSchemaPending } from "@/lib/marketing/pending";
 import { sealSecret } from "@/lib/encryption";
 import { assertSafeHttpsUrl } from "@/lib/net/safeHost";
 import { SQL_BUNDLES } from "@/lib/middleware/types";
-import { validateUrlTemplate, type FieldError } from "./render";
+import { addressForLog, validateUrlTemplate, type FieldError } from "./render";
 import { CALL_OBJECTS, isCallObject, tokenSpecs, type CallObject } from "./tokens";
 import {
   WEBHOOK_COLUMNS, toApiWebhook, validateDefinition,
@@ -330,6 +330,14 @@ export function changeEntries(before: WebhookRow, patch: Record<string, unknown>
       continue;
     }
     const from = (before as unknown as Record<string, unknown>)[k] ?? null;
+    if (k === "url") {
+      // change_log is readable by every member; an address can hold a credential, so history shows host and path only.
+      if (from === to) continue;
+      const shownFrom = addressForLog(String(from ?? ""));
+      const shownTo = addressForLog(String(to ?? ""));
+      out.push({ field: "url", from: shownFrom, to: shownFrom === shownTo ? `${shownTo} (address changed)` : shownTo });
+      continue;
+    }
     if (JSON.stringify(from) !== JSON.stringify(to ?? null)) out.push({ field: k, from, to: to ?? null });
   }
   if ("secret" in patch) out.push({ field: "signing secret", from: null, to: "regenerated" });

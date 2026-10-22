@@ -62,6 +62,20 @@ describe("create", () => {
     expect(errs(validateDefinition({ ...base, url: "https://erp.example.com/?e={{account.email}}" }, "create"))).toContain("url");
   });
 
+  it.each(["token", "key", "secret", "sig", "signature", "code", "password", "auth", "apikey", "access_token", "api-key", "X-Auth"])(
+    "refuses the credential-like query name %s and says to use a header", (name) => {
+      const r = validateDefinition({ ...base, url: `https://erp.example.com/in?${name}=abc` }, "create");
+      expect(errs(r)).toContain("url");
+      expect(JSON.stringify(r)).toContain("header");
+    },
+  );
+
+  it("refuses a credential name after another parameter and a user:password address, accepts a plain query", () => {
+    expect(errs(validateDefinition({ ...base, url: "https://erp.example.com/in?a=1&sig=zz" }, "create"))).toContain("url");
+    expect(errs(validateDefinition({ ...base, url: "https://user:pw@erp.example.com/in" }, "create"))).toContain("url");
+    expect(validateDefinition({ ...base, url: "https://erp.example.com/in?region=gcc&page=2&country_code=IN" }, "create").ok).toBe(true);
+  });
+
   it("bounds the timeout to 5-30 seconds and the method to four verbs", () => {
     expect(errs(validateDefinition({ ...base, timeout_ms: 1000 }, "create"))).toContain("timeout_ms");
     expect(errs(validateDefinition({ ...base, timeout_ms: 31000 }, "create"))).toContain("timeout_ms");

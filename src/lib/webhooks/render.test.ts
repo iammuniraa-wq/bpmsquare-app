@@ -1,8 +1,22 @@
 import { describe, expect, it } from "vitest";
 import {
-  MAX_BODY_BYTES, MAX_TEMPLATE_BYTES, renderStandard, renderTemplate, renderUrl, standardRecord, validateTemplate, validateUrlTemplate,
+  MAX_BODY_BYTES, MAX_TEMPLATE_BYTES, addressForLog, renderStandard, renderTemplate, renderUrl, standardRecord, validateTemplate, validateUrlTemplate,
 } from "./render";
 import type { RenderContext } from "./tokens";
+
+describe("addressForLog", () => {
+  it("keeps host and path, drops the query, user info and fragment", () => {
+    expect(addressForLog("https://erp.example.com/in/v2?sig=abc&code=1#frag")).toBe("https://erp.example.com/in/v2");
+    expect(addressForLog("https://user:pw@erp.example.com/in")).toBe("https://erp.example.com/in");
+  });
+  it("masks a long path segment (Slack and Teams carry the credential there)", () => {
+    expect(addressForLog("https://hooks.slack.com/services/T0001/B0002/abcdEFGH1234ijklMNOP5678")).toBe("https://hooks.slack.com/services/T0001/B0002/...");
+  });
+  it("is empty for nothing or a non-address", () => {
+    expect(addressForLog(null)).toBe("");
+    expect(addressForLog("nope")).toBe("");
+  });
+});
 
 const ctx = (over: Partial<RenderContext> = {}): RenderContext => ({
   event: "account.pushed", sent_at: "2026-10-21T10:00:00.000Z", delivery_id: "d-1", workspace: { name: "Acme" },
