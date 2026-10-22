@@ -77,6 +77,7 @@ const FEATURE_LABELS: { key: keyof TenantFeatures; label: string; premium?: bool
   { key: "process_studio", label: "Process Design Studio (describe a business, get a cited fit report and a plan)", premium: true, group: "Programs" },
   { key: "integration_middleware", label: "Integration middleware (one page for connections, what goes out on award or rejection, mapping, message monitor, resync)", premium: true, group: "Platform & automation" },
   { key: "webhooks_library", label: "Webhooks library (one list for every webhook: change-feed events and calls fired by a quote award, a record button or a Coverage route)", premium: true, group: "Platform & automation" },
+  { key: "ai_assistant_actions", label: "Assistant actions (the AI assistant proposes a new record as a card; nothing is created until the person presses it — needs AI Assistant and Nova)", premium: true, group: "Platform & automation" },
   { key: "next_experience", label: "Nova — the Business OS experience", premium: true, group: "Programs" },
   { key: "enterprise_theme", label: "Enterprise theme (dark rail + light workspace)", premium: true, group: "Programs" },
   { key: "spectacular_theme", label: "Spectacular theme (navy or lilac palette)", premium: true, group: "Programs" },

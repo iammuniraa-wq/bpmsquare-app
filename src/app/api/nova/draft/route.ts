@@ -6,6 +6,7 @@ import { getEffectiveFieldConfig, getSalesConfig, type SalesConfig } from "@/lib
 import { buildObjectSpec } from "@/lib/import/registrySchema";
 import type { ObjectSpec } from "@/lib/import/types";
 import { extractRowsFromDocument, ExtractionError } from "@/lib/import/extract";
+import { findAccountDuplicates } from "@/lib/assistant/duplicates";
 
 /**
  * Nova pillar 2 — AI record creation. Paste anything (a WhatsApp message,
@@ -45,39 +46,6 @@ function toFieldDefs(spec: ObjectSpec): DraftField[] {
       options: f.options && f.options.length > 0 ? [...f.options] : null,
       long: f.type === "longtext",
     }));
-}
-
-// Name-based ILIKE duplicate search, case-insensitive contains both ways --
-// phone/email/GSTIN are encrypted at rest and can't be matched, and account
-// names are legitimately non-unique in this product, so this only ever
-// warns, never blocks.
-async function findAccountDuplicates(supabase: SupabaseClient, tenantId: string, draftName: string | undefined) {
-  const dupes: { id: string; name: string; ref: string | null }[] = [];
-  const name = draftName?.trim();
-  if (!name) return dupes;
-  const needle = name.replace(/[%_,()]/g, " ").replace(/\s+/g, " ").trim().slice(0, 80);
-  if (needle.length < 3) return dupes;
-  const { data } = await supabase
-    .from("accounts")
-    .select("id, name, ref")
-    .eq("tenant_id", tenantId)
-    .ilike("name", `%${needle}%`)
-    .limit(3);
-  dupes.push(...(data ?? []).map((d) => ({ id: d.id, name: d.name, ref: d.ref ?? null })));
-  if (dupes.length === 0) {
-    // Reverse direction: the DB name may be the shorter one.
-    const firstWords = needle.split(" ").slice(0, 2).join(" ");
-    if (firstWords.length >= 4) {
-      const { data: rev } = await supabase
-        .from("accounts")
-        .select("id, name, ref")
-        .eq("tenant_id", tenantId)
-        .ilike("name", `%${firstWords}%`)
-        .limit(3);
-      dupes.push(...(rev ?? []).map((d) => ({ id: d.id, name: d.name, ref: d.ref ?? null })));
-    }
-  }
-  return dupes;
 }
 
 // Draft the ACCOUNT this text is about, whether the object being created is

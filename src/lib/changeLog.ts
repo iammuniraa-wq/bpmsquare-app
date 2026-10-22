@@ -1,5 +1,6 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { currentVia } from "@/lib/actions/via";
 
 // "reopen" is a distinct action from "update" -- moving a quote off a closed
 // status back into the pipeline undoes a closed deal, which is worth being
@@ -115,10 +116,12 @@ export async function logChange(
     actorId?: string | null;
     actorEmail?: string | null;
     changes?: ChangeEntry[];
+    /** Overrides the surface read from the running request; normally left out. */
+    via?: string | null;
   }
 ): Promise<void> {
   try {
-    const { error } = await supabase.from("change_log").insert({
+    const row = {
       tenant_id: params.tenantId,
       object_type: params.objectType,
       object_id: params.objectId,
@@ -127,11 +130,42 @@ export async function logChange(
       changes: params.changes ?? [],
       actor_id: params.actorId ?? null,
       actor_email: params.actorEmail ?? null,
-    });
+    };
+    const via = params.via ?? currentVia();
+    // `via` is a person-pressed-it-through-the-assistant mark; it only exists once the database has the column.
+    // Until then the entry is written without it: losing the mark is better than losing the history row.
+    if (via && !viaColumnKnownMissing()) {
+      const { error } = await supabase.from("change_log").insert({ ...row, via });
+      if (!error) return;
+      if (!isMissingViaColumn(error)) {
+        console.error(`[changeLog] insert failed for ${params.objectType}/${params.objectId}`, error.message);
+        return;
+      }
+      viaMissingSince = Date.now();
+    }
+    const { error } = await supabase.from("change_log").insert(row);
     if (error) console.error(`[changeLog] insert failed for ${params.objectType}/${params.objectId}`, error.message);
   } catch (e) {
     console.error(`[changeLog] failed to record ${params.action} on ${params.objectType}/${params.objectId}`, e);
   }
+}
+
+// A schema fact, not tenant data: remembered for a minute so a workspace waiting on the migration does not pay a
+// failed insert on every assistant create.
+let viaMissingSince = 0;
+const viaColumnKnownMissing = (): boolean => Date.now() - viaMissingSince < 60_000;
+function isMissingViaColumn(err: { code?: string; message?: string }): boolean {
+  return err.code === "42703" || err.code === "PGRST204" || /column.*via|'via' column/i.test(err.message ?? "");
+}
+
+/** Test seam: forget that the via column was missing. */
+export function resetViaColumnCache(): void { viaMissingSince = 0; }
+
+/** The values with every encrypted-at-rest field replaced, for audit rows that are not the change log itself. */
+export function redactPii(objectType: string, values: Record<string, unknown>): Record<string, unknown> {
+  const pii = PII_FIELDS[objectType];
+  if (!pii) return { ...values };
+  return Object.fromEntries(Object.entries(values).map(([k, v]) => [k, pii.has(k) && v ? "[redacted]" : v]));
 }
 
 export type ChangeLogEntryParams = {

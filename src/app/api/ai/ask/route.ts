@@ -104,7 +104,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const reply = await askAssistant(history, {
-      supabase, tenantId, perms, currency, features, isAdmin: perms.unrestricted, route, meter,
+      supabase, tenantId, userId, perms, currency, features, isAdmin: perms.unrestricted, route, meter,
     });
     return NextResponse.json({
       ...reply,

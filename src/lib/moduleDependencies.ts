@@ -82,6 +82,14 @@ export const FEATURE_DEPENDENCIES: FeatureDependency[] = [
     why: "The Send newsletter step needs a newsletter from the Newsletter Studio; the other steps work without it.",
   },
   {
+    key: "ai_assistant_actions", needs: "ai_assistant", strength: "hard",
+    why: "The cards are shown by the assistant's chat and the create tool is part of its loop.",
+  },
+  {
+    key: "ai_assistant_actions", needs: "next_experience", strength: "hard",
+    why: "Writing from the assistant is an experimental surface: it is gated on Nova like the rest of it (bpmsquarecore.md section 10, rule 1).",
+  },
+  {
     key: "marketing_scoring", needs: "marketing", strength: "hard",
     why: "Scoring, consent and topics are settings of the Marketing module; its settings pages sit under Marketing campaigns being on.",
   },
@@ -103,7 +111,7 @@ export const FEATURE_GROUP: Partial<Record<Key, SettingsGroupId>> = {
   // Data
   reports: "data", data_workbench: "data", db_export: "data", change_history: "data",
   // Integrations
-  outbound_email: "integrations", gmail_reply_threading: "integrations", ai_assistant: "integrations", ai_reports: "integrations",
+  outbound_email: "integrations", gmail_reply_threading: "integrations", ai_assistant: "integrations", ai_assistant_actions: "integrations", ai_reports: "integrations",
   // Appearance
   next_experience: "appearance", enterprise_theme: "appearance", spectacular_theme: "appearance",
 };

@@ -11,9 +11,11 @@ import { parsePageContext } from "@/lib/assistant/objects";
 import { isInternalPath } from "@/lib/assistant/navTargets";
 import { ASSISTANT_TIPS, usageTip } from "@/lib/assistant/tips";
 import type { Suggestion } from "@/lib/assistant/suggestions";
+import type { ConfirmCard } from "@/lib/assistant/cards";
+import ConfirmCardView from "@/components/assistant/ConfirmCardView";
 
 type Card = { id: string; label: string; href: string };
-type Msg = { from: "bot" | "me"; text: string; report?: ReportPayload; cards?: Card[] };
+type Msg = { from: "bot" | "me"; text: string; report?: ReportPayload; cards?: Card[]; confirm?: ConfirmCard };
 type Usage = { percent: number; off: boolean };
 
 // Per-user, per-browser preference -- separate from the tenant-level
@@ -42,7 +44,7 @@ const CREATE_MODES: { mode: string; label: string; featureKey: "accounts" | "con
  * Three things in the panel: the context fact ("On SQ-2026-0012 · Al-Otaibi Contracting"), the suggestions strip
  * (rules, not AI; each chip opens a screen or asks a prepared question), and the chat. Answers can carry buttons
  * that open a screen or a record, and an inline chart (ChartRenderer, same engine as Talk to data). Nothing here
- * can change data. On Nova tenants the empty state also offers "draft from a paste", reusing NovaDraft.
+ * changes data except a confirm card's own button (ConfirmCardView, flag ai_assistant_actions). On Nova tenants the empty state also offers "draft from a paste", reusing NovaDraft.
  */
 export default function AIDock({ liftForTabBar = false }: {
   /** Set on mobile where MobileTabBar (Nova only) is fixed to the same bottom
@@ -143,7 +145,7 @@ export default function AIDock({ liftForTabBar = false }: {
       if (res.ok) {
         if (json.usage) setUsage(json.usage);
         const cards: Card[] | undefined = Array.isArray(json.cards) ? json.cards : undefined;
-        setMessages((prev) => [...prev, { from: "bot", text: json.answer, report: json.report as ReportPayload | undefined, cards }]);
+        setMessages((prev) => [...prev, { from: "bot", text: json.answer, report: json.report as ReportPayload | undefined, cards, confirm: json.card as ConfirmCard | undefined }]);
         if (json.autoFollow && cards?.length === 1) go(cards[0].href);
       } else {
         setMessages((prev) => [...prev, { from: "bot", text: json.error ?? "Something went wrong." }]);
@@ -383,6 +385,7 @@ export default function AIDock({ liftForTabBar = false }: {
                     {card.label} →
                   </button>
                 ))}
+                {m.confirm && <ConfirmCardView card={m.confirm} onOpen={go} onAsk={ask} />}
                 {m.report && (
                   <div style={{ padding: 12, borderRadius: "var(--card-radius, 10px)", border: `1px solid ${c.line}`, background: "var(--card-bg, #fff)" }}>
                     <ChartRenderer report={normalizeReport(m.report)} />

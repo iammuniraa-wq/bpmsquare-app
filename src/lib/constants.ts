@@ -708,6 +708,11 @@ export type TenantFeatures = {
   // row). A platform-admin-only flag: default OFF, missing key reads false; with it
   // off the workspace keeps today's Webhooks & push page and sees nothing new.
   webhooks_library: boolean;
+  // Assistant actions (docs/design/assistant-smarter.md, section 3): lets the AI assistant propose a new record as a
+  // confirm card. Nothing is created until the person presses the button on the card, and the record is made by the
+  // object's own create route. A platform-admin-only flag: default OFF, missing key reads false; needs `ai_assistant`
+  // and `next_experience`. With it off the assistant has no create tool and POST /api/ai/act answers 403.
+  ai_assistant_actions: boolean;
 };
 
 // WfmConfig — tenant-level WFM (attendance) settings, stored in
