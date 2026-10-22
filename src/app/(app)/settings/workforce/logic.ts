@@ -40,18 +40,6 @@ export function changedConfig(saved: WfmConfig, draft: WfmConfig, projectsOn: bo
   return out as Partial<WfmConfig>;
 }
 
-// ── Face: two stored keys, one choice. Sign-in by face needs a face enrolled, which only the tablet flow creates.
-export type FaceMode = "off" | "tablet" | "tablet_signin";
-
-export function faceMode(cfg: Pick<WfmConfig, "face_punch" | "face_login">): FaceMode {
-  if (cfg.face_punch !== "kiosk") return "off";
-  return cfg.face_login ? "tablet_signin" : "tablet";
-}
-
-export function withFaceMode(mode: FaceMode): Pick<WfmConfig, "face_punch" | "face_login"> {
-  return { face_punch: mode === "off" ? "off" : "kiosk", face_login: mode === "tablet_signin" };
-}
-
 // ── Employment types: the label is what people edit; the code is made from it once and never changes.
 export function slugCode(label: string, taken: readonly string[]): string {
   const base = label.trim().toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 36) || "type";

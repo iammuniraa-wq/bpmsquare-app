@@ -6,7 +6,7 @@ import { Input, Select } from "@/components/ui/Input";
 import { CheckOpt } from "@/components/ui/Opt";
 import type { WfmConfig } from "@/lib/constants";
 import type { WfmShift } from "@/lib/wfm/types";
-import { faceMode, hhmm, withFaceMode, slugCode, type FaceMode } from "./logic";
+import { hhmm, slugCode } from "./logic";
 import { More, SwitchRow } from "./parts";
 import { WORKFORCE_TIPS as T } from "./tips";
 import s from "./workforce.module.css";
@@ -111,11 +111,16 @@ export default function RulesTab({ cfg, savedCodes, shifts, onChange }: {
               <option value="my_workforce">My Workforce</option>
             </Select>
           </Field>
-          <Field label="Face recognition" info={T.face}>
-            <Select value={faceMode(cfg)} onChange={(e) => onChange(withFaceMode(e.target.value as FaceMode))}>
+          <Field label="Face punch" info={T.facePunch}>
+            <Select value={cfg.face_punch} onChange={(e) => onChange({ face_punch: e.target.value as WfmConfig["face_punch"] })}>
               <option value="off">Off</option>
-              <option value="tablet">Door tablet</option>
-              <option value="tablet_signin">Door tablet and sign-in</option>
+              <option value="kiosk">Door tablet</option>
+            </Select>
+          </Field>
+          <Field label="Face sign-in" info={T.faceLogin}>
+            <Select value={cfg.face_login ? "on" : "off"} onChange={(e) => onChange({ face_login: e.target.value === "on" })}>
+              <option value="off">Off</option>
+              <option value="on">On</option>
             </Select>
           </Field>
           <Field label="Check selfies against the face" info={T.faceVerify}>

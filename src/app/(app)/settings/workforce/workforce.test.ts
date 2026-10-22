@@ -13,8 +13,8 @@ vi.mock("next/navigation", () => ({
 import { tipTextProblems } from "@/lib/infoTip";
 import { DEFAULT_WFM_CONFIG, type WfmConfig } from "@/lib/constants";
 import {
-  ALERT_ROWS, alertCount, blankLeave, blankShift, blankSite, changedConfig, cleanEmploymentTypes, faceMode, leaveDraftFrom, leavePayload,
-  leaveUsage, shiftPayload, shiftProblem, sitePayload, siteProblem, slugCode, withFaceMode, workforceTabs, type LeaveType,
+  ALERT_ROWS, alertCount, blankLeave, blankShift, blankSite, changedConfig, cleanEmploymentTypes, leaveDraftFrom, leavePayload,
+  leaveUsage, shiftPayload, shiftProblem, sitePayload, siteProblem, slugCode, workforceTabs, type LeaveType,
 } from "./logic";
 import { WORKFORCE_TIPS } from "./tips";
 import RulesTab from "./RulesTab";
@@ -55,16 +55,6 @@ describe("one Save sends only what changed", () => {
     const base = cfg();
     const added = { ...base, employment_types: [...base.employment_types, { code: "", label: "" }] };
     expect(changedConfig(base, added, false)).toEqual({});
-  });
-});
-
-describe("face recognition is one choice over two stored keys", () => {
-  it("round-trips the three states", () => {
-    for (const m of ["off", "tablet", "tablet_signin"] as const) expect(faceMode(withFaceMode(m))).toBe(m);
-  });
-  it("cannot leave sign-in on while the tablet is off", () => {
-    expect(withFaceMode("off")).toEqual({ face_punch: "off", face_login: false });
-    expect(faceMode({ face_punch: "off", face_login: true })).toBe("off");
   });
 });
 
@@ -129,7 +119,7 @@ describe("the tabs render", () => {
     const out = html(el(RulesTab, { cfg: cfg(), savedCodes: [], shifts: [], onChange: noop }));
     for (const label of ["Timezone", "Late marks per half-day", "Weekly off days", "Take breaks off worked hours", "Extra punch types", "Selfie with a punch"]) expect(out, label).toContain(label);
     expect((out.match(/<details/g) ?? []).length).toBe(1);
-    for (const inMore of ["Employee self-service", "Face recognition", "Passkey sign-in", "Alternate Saturdays", "Employment types", "Keep selfies for"]) expect(out, inMore).toContain(inMore);
+    for (const inMore of ["Employee self-service", "Face punch", "Face sign-in", "Passkey sign-in", "Alternate Saturdays", "Employment types", "Keep selfies for"]) expect(out, inMore).toContain(inMore);
     expect(out).not.toMatch(/defaultOpen/);
   });
   it("Rules shows the overtime rate only while overtime is on", () => {
