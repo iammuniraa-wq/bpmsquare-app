@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Sparkline from "@/components/signals/Sparkline";
 import InfoTip from "@/components/ui/InfoTip";
+import { askDock } from "@/lib/analysis/dockAsk";
 
 /**
  * Nova — Account 360. A side drawer holding everything about one account:
@@ -28,6 +29,8 @@ type Card = {
   id: string; title: string; subtitle?: string; kind: "internal" | "external";
   stats?: Stat[]; rows?: Row[]; empty?: string; error?: string;
   spark?: { values: number[]; tone: "warming" | "cooling" | "steady"; label: string };
+  summary?: string;
+  action?: { label: string; ask: string; accountId: string };
 };
 type Payload = {
   account: { id: string; name: string; ref: string | null; type: string; city: string | null; industry: string | null; since: string };
@@ -113,6 +116,12 @@ export default function Account360Drawer() {
   function go(href: string) {
     close();
     router.push(href);
+  }
+
+  // A card's button asks the AI slider. The drawer covers the slider, so it closes first.
+  function runAction(a: NonNullable<Card["action"]>) {
+    close();
+    window.setTimeout(() => askDock(a.ask, a.accountId), 200);
   }
 
   function toggleCard(id: string) {
@@ -294,6 +303,8 @@ export default function Account360Drawer() {
                       </div>
                     )}
 
+                    {card.summary && <p className="a360__muted" style={{ margin: "8px 0 0" }}>{card.summary}</p>}
+
                     {card.spark && (
                       <div className="a360__muted" style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8 }}>
                         <Sparkline values={card.spark.values} tone={card.spark.tone} width={88} height={26} />
@@ -327,6 +338,10 @@ export default function Account360Drawer() {
 
                     {!card.error && !card.stats?.length && rows.length === 0 && (
                       <p className="a360__muted a360__emptyLine">{card.empty ?? "Nothing here yet"}</p>
+                    )}
+
+                    {card.action && (
+                      <button type="button" className="a360__linkBtn a360__cardAction" onClick={() => runAction(card.action!)}>{card.action.label}</button>
                     )}
                   </section>
                 );
@@ -501,6 +516,9 @@ const CSS = `
   padding: 2px 6px; border-radius: 5px; color: var(--a360-dim); border: 1px solid var(--a360-line);
 }
 .a360__cardHead .a360__tag + .a360__cardToggle { margin-left: 8px; }
+
+.a360__cardAction { min-height: 32px; margin-top: 8px; }
+@media (max-width: 640px) { .a360__cardAction { min-height: 44px; } }
 
 .a360__chev { transition: transform .24s var(--a360-ease); }
 .a360__chev.is-open { transform: rotate(180deg); }

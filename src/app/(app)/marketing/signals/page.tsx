@@ -1,6 +1,8 @@
 import { notFound } from "next/navigation";
-import { requireFeature } from "@/lib/tenant";
-import { requireWorkcenterView } from "@/lib/permissions";
+import { getTenant, requireFeature } from "@/lib/tenant";
+import { requireWorkcenterView, resolvePermissions } from "@/lib/permissions";
+import { analysisAccess } from "@/lib/analysis/gate";
+import type { TenantConfig } from "@/lib/constants";
 import PageHeader from "@/components/PageHeader";
 import { signalsAccess } from "@/lib/signals/access";
 import { loadWorkspace } from "@/lib/signals/queries";
@@ -19,6 +21,11 @@ export default async function BuyingSignalsPage() {
     throw e;
   }
 
+  const [tenant, perms] = await Promise.all([getTenant(), resolvePermissions(ctx.supabase, ctx.tenantId, ctx.userId, ctx.role)]);
+  const canAnalyse = analysisAccess({
+    features: (tenant?.features ?? {}) as Record<string, boolean | undefined>, config: (tenant?.config ?? {}) as Partial<TenantConfig>, perms,
+  }).ok;
+
   const [workspace, camps] = await Promise.all([
     loadWorkspace(ctx),
     ctx.admin.from("marketing_campaigns").select("id, name, sent_at").eq("tenant_id", ctx.tenantId)
@@ -30,7 +37,7 @@ export default async function BuyingSignalsPage() {
   return (
     <>
       <PageHeader title="Who is in market" />
-      <SignalsWorkspace workspace={workspace} campaigns={options} canEdit={ctx.can.edit} isAdmin={ctx.role === "admin" && ctx.can.edit} />
+      <SignalsWorkspace workspace={workspace} campaigns={options} canEdit={ctx.can.edit} isAdmin={ctx.role === "admin" && ctx.can.edit} canAnalyse={canAnalyse} />
     </>
   );
 }

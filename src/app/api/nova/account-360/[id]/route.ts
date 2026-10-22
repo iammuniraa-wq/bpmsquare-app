@@ -4,6 +4,8 @@ import { tenantHasNovaSurfaces } from "@/lib/tenant";
 import { buildAccount360 } from "@/lib/account360/server";
 import type { Account360Config, TenantConfig } from "@/lib/constants";
 import { resolveCurrency } from "@/lib/currency";
+import { resolveAnalysisAccess } from "@/lib/analysis/access";
+import { loadAnalysis360 } from "@/lib/analysis/account360";
 
 /**
  * Nova — Account 360. Everything known about one account in a single
@@ -33,7 +35,11 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   const tenantConfig = tenantRow?.config as TenantConfig | null | undefined;
   const config = (tenantConfig as { account_360?: Account360Config } | null | undefined)?.account_360;
 
-  const payload = await buildAccount360(tenantId, id, config, resolveCurrency(tenantConfig));
+  // The saved company analysis, for a person who may use it. Cache only: nothing is searched and nothing is spent.
+  const access = await resolveAnalysisAccess();
+  const analysis = access instanceof NextResponse ? null : await loadAnalysis360(access, id).catch(() => null);
+
+  const payload = await buildAccount360(tenantId, id, config, resolveCurrency(tenantConfig), analysis);
   if (!payload) return NextResponse.json({ error: "Account not found" }, { status: 404 });
   return NextResponse.json(payload);
 }
