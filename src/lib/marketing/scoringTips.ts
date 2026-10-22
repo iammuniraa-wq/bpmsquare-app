@@ -1,4 +1,4 @@
-// The explanations Settings -> Marketing -> Scoring keeps behind an "i" (docs/design/ux-simplification.md §3 row 3).
+// The explanations Settings -> Marketing -> Leads -> Scoring keeps behind an "i" (docs/design/ux-simplification.md §3 row 3).
 // One place, so a test can hold every text to the InfoTip limit (two sentences, 160 characters). The screen never
 // prints these.
 

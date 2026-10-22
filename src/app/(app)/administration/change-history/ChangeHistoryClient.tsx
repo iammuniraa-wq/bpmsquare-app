@@ -51,6 +51,7 @@ const OBJECT_TYPES: { value: string; label: string }[] = [
   { value: "teams", label: "Coverage: Teams" },
   { value: "segments", label: "Coverage: Segments" },
   { value: "coverages", label: "Coverage: Assignments" },
+  { value: "marketing_settings", label: "Marketing settings" },
 ];
 
 type ChangeEntry = { field: string; from: unknown; to: unknown; redacted?: boolean };
@@ -97,7 +98,7 @@ export default function ChangeHistoryClient() {
   const hasWebhooks = useTenantFeature("webhooks_library");
   const hasWhatsapp = useTenantFeature("whatsapp_marketing");
   const hasEvents = useTenantFeature("marketing_events");
-  const objectTypes = OBJECT_TYPES.filter((o) => (!o.value.startsWith("whatsapp_") || hasWhatsapp) && (!["marketing_events", "event_registrations"].includes(o.value) || hasEvents) && (o.value !== "newsletters" || hasNewsletters) && (o.value !== "leads" || hasLeadScoring) && (!["signal_topics", "account_intent"].includes(o.value) || hasSignals) && (o.value !== "forms" || hasForms) && (!o.value.startsWith("abm_") || hasAbm) && (o.value !== "journeys" || hasJourneys) && (o.value !== "webhooks" || hasWebhooks));
+  const objectTypes = OBJECT_TYPES.filter((o) => (!o.value.startsWith("whatsapp_") || hasWhatsapp) && (!["marketing_events", "event_registrations"].includes(o.value) || hasEvents) && (o.value !== "newsletters" || hasNewsletters) && (!["leads", "marketing_settings"].includes(o.value) || hasLeadScoring) && (!["signal_topics", "account_intent"].includes(o.value) || hasSignals) && (o.value !== "forms" || hasForms) && (!o.value.startsWith("abm_") || hasAbm) && (o.value !== "journeys" || hasJourneys) && (o.value !== "webhooks" || hasWebhooks));
   const [objectType, setObjectType] = useState(OBJECT_TYPES[0].value);
   const [objectId, setObjectId] = useState("");
   const [rows, setRows] = useState<ChangeLogRow[] | null>(null);

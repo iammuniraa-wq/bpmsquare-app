@@ -11,6 +11,8 @@ import { marketingScoringOn } from "./config";
 
 export type MarketingSettingsContext = {
   admin: SupabaseClient;
+  /** The signed-in person's own client: change history is written with it, never with the admin client. */
+  session: SupabaseClient;
   tenantId: string;
   userId: string;
   config: TenantConfig;
@@ -18,9 +20,9 @@ export type MarketingSettingsContext = {
 };
 
 export async function loadMarketingSettingsContext(): Promise<{ ok: true; ctx: MarketingSettingsContext } | { ok: false; response: NextResponse }> {
-  let tenantId: string, userId: string, role: string;
+  let tenantId: string, userId: string, role: string, session: SupabaseClient;
   try {
-    ({ tenantId, userId, role } = await requireTenantUser());
+    ({ tenantId, userId, role, supabase: session } = await requireTenantUser());
   } catch (e: unknown) {
     const err = e as { status: number; message: string };
     return { ok: false, response: NextResponse.json({ error: err.message }, { status: err.status }) };
@@ -34,5 +36,5 @@ export async function loadMarketingSettingsContext(): Promise<{ ok: true; ctx: M
   if (!marketingScoringOn(features)) {
     return { ok: false, response: NextResponse.json({ error: "Marketing scoring isn't enabled for your workspace" }, { status: 404 }) };
   }
-  return { ok: true, ctx: { admin, tenantId, userId, config: (data.config ?? {}) as TenantConfig, features } };
+  return { ok: true, ctx: { admin, session, tenantId, userId, config: (data.config ?? {}) as TenantConfig, features } };
 }

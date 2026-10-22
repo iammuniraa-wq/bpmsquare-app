@@ -4,7 +4,7 @@ import { marketingConfigOf } from "@/lib/marketing/config";
 import { rubricChanged, rubricOf, sanitizeRubric, PROFILE_FIELDS } from "@/lib/marketing/scoring";
 import { EVENTS } from "@/lib/events/catalog";
 
-// Settings -> Marketing -> Scoring. Admin-only, and a 404 for any workspace
+// Settings -> Marketing -> Leads -> Scoring. Admin-only, and a 404 for any workspace
 // without the marketing_scoring program. The rubric is validated here, not
 // trusted from the page: unknown events and fields are dropped, numbers are
 // clamped, and the version is the server's to bump.

@@ -14,7 +14,7 @@ import { handoverOf } from "./handover";
 //                account owner)
 //   round_robin  the next member in turn
 // No Coverage (module off, or no segment matched) falls back first to the
-// workspace's own list of people (Settings, Marketing, Hand-over), taken in
+// workspace's own list of people (Settings, Marketing, Leads, Hand-over), taken in
 // turn, and then to the workspace's oldest admin; the reason is recorded so a
 // gap shows as a chip on the lead instead of passing unseen. The account's own owner is never
 // changed by a lead assignment.

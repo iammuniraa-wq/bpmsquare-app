@@ -4,7 +4,7 @@ import { marketingConfigOf } from "@/lib/marketing/config";
 import { handoverOf, mergeLifecycle, sanitizeHandover } from "@/lib/marketing/leads/handover";
 import { listWorkspacePeople, personLabel } from "@/lib/marketing/leads/people";
 
-// Settings -> Marketing -> Hand-over. Admin-only, and a 404 for any workspace without the
+// Settings -> Marketing -> Leads -> Hand-over. Admin-only, and a 404 for any workspace without the
 // marketing_scoring program (loadMarketingSettingsContext). The tenant is the one that call returns;
 // nothing in the body names one. People are checked against tenant_users of THIS workspace before they
 // are stored, so an id from the request cannot put someone else's person on the rota. No secrets live
@@ -15,10 +15,21 @@ export async function GET() {
   if (!g.ok) return g.response;
   const { admin, tenantId, config, features } = g.ctx;
   const people = await listWorkspacePeople(admin, tenantId);
+
+  // The result of Coverage's per-team choice, shown read-only on the screen; the choice itself stays on the team.
+  let teams: { in_turn: number; team_lead: number } | null = null;
+  if (features.coverage_model === true) {
+    const { data, error } = await admin.from("teams").select("assignment_mode").eq("tenant_id", tenantId);
+    if (!error) {
+      const modes = ((data ?? []) as { assignment_mode: string | null }[]).map((t) => t.assignment_mode);
+      teams = { in_turn: modes.filter((m) => m === "round_robin").length, team_lead: modes.filter((m) => m !== "round_robin").length };
+    }
+  }
   return NextResponse.json({
     settings: handoverOf(config),
     people: people.map((p) => ({ user_id: p.user_id, label: personLabel(p) })),
     coverage: features.coverage_model === true,
+    teams,
   });
 }
 

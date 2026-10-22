@@ -1,15 +1,14 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createAdminSupabase, requireTenantUser } from "@/lib/supabase-server";
 import type { TenantConfig, TenantFeatures } from "@/lib/constants";
-import { marketingConfigOf } from "@/lib/marketing/config";
 import { resolveBrandKit, sanitizeBrandKit } from "@/lib/newsletter/brandKit";
 import { FONT_PAIRINGS } from "@/lib/newsletter/types";
 import { studioEnabled } from "@/lib/newsletter/server";
 
 // Settings -> Marketing -> Brand kit. Admin only; 404 without the Newsletter Studio.
 // The kit lives in tenants.config.brand_kit (strict #rrggbb colours, a known font
-// pairing, https links only). The opens switch lives beside it in config.marketing:
-// off unless an admin turns it on, because opens are unreliable and need a lawful basis.
+// pairing, https links only). Counting opens is not here: it lives with consent
+// (Settings, Marketing, Consent) because it needs a lawful basis.
 
 async function gate() {
   let tenantId: string, role: string;
@@ -31,7 +30,6 @@ function payload(config: TenantConfig, name: string, logoUrl: string | null) {
   return {
     brand_kit: sanitizeBrandKit(config.brand_kit),
     resolved: resolveBrandKit(config.brand_kit, { name, logo_url: logoUrl }),
-    track_opens: marketingConfigOf(config).track_opens === true,
     fonts: Object.entries(FONT_PAIRINGS).map(([key, f]) => ({ key, label: f.label })),
   };
 }
@@ -45,13 +43,12 @@ export async function GET() {
 export async function PUT(request: NextRequest) {
   const g = await gate();
   if (!g.ok) return g.response;
-  const body = (await request.json().catch(() => null)) as { brand_kit?: unknown; track_opens?: unknown } | null;
+  const body = (await request.json().catch(() => null)) as { brand_kit?: unknown } | null;
   if (!body || typeof body !== "object") return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
 
   const config: TenantConfig = {
     ...g.config,
     brand_kit: sanitizeBrandKit(body.brand_kit),
-    marketing: { ...marketingConfigOf(g.config), track_opens: body.track_opens === true },
   };
   const { error } = await g.admin.from("tenants").update({ config }).eq("id", g.tenantId);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });

@@ -1,30 +1,7 @@
 import { redirect } from "next/navigation";
-import { requireTenantUser, createAdminSupabase } from "@/lib/supabase-server";
-import { ROUTES, type TenantFeatures } from "@/lib/constants";
-import { marketingScoringOn } from "@/lib/marketing/config";
-import SettingsPageHeader from "@/components/settings/SettingsPageHeader";
-import HandoverClient from "./HandoverClient";
+import { ROUTES } from "@/lib/constants";
 
-/**
- * Settings -> Marketing -> Hand-over. Gated here as well as in the menu: a workspace without the
- * marketing_scoring program, or a person who is not an admin, cannot reach it by URL.
- */
-export default async function MarketingHandoverSettingsPage() {
-  let tenantId: string, role: string;
-  try {
-    ({ tenantId, role } = await requireTenantUser());
-  } catch {
-    redirect(ROUTES.settings);
-  }
-  if (role !== "admin") redirect(ROUTES.settings);
-
-  const { data } = await createAdminSupabase().from("tenants").select("features").eq("id", tenantId!).single();
-  if (!marketingScoringOn(data?.features as Partial<TenantFeatures> | undefined)) redirect(ROUTES.settings);
-
-  return (
-    <>
-      <SettingsPageHeader title="Hand-over" subtitle="How a lead reaches a salesperson, and what happens when nobody picks it up" />
-      <HandoverClient />
-    </>
-  );
+// Hand-over moved into Settings, Marketing, Leads (its second tab). The old address keeps working.
+export default function MarketingHandoverSettingsRedirect() {
+  redirect(`${ROUTES.settingsMarketingLeads}?tab=handover`);
 }

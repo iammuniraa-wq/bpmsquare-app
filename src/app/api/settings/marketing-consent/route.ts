@@ -3,21 +3,24 @@ import { loadMarketingSettingsContext } from "@/lib/marketing/settingsServer";
 import { consentDefaultsOf, marketingConfigOf, sanitizeConsentDefaults, sanitizeTopics, topicsOf, workspaceJurisdictionOf } from "@/lib/marketing/config";
 import { JURISDICTIONS, JURISDICTION_RULES, isJurisdictionCode } from "@/lib/marketing/jurisdictions";
 import { isSchemaPending } from "@/lib/marketing/pending";
+import { diffForLog, logChange } from "@/lib/changeLog";
 
 // Settings -> Marketing -> Consent. Admin-only; 404 without the
-// marketing_scoring program. Two things live here: the topics people can opt
-// in to separately, and the rule that applies to someone with no entry in the
-// consent ledger. The rule defaults to strict ("consent required") and only
-// an admin choosing otherwise, per country, relaxes it.
+// marketing_scoring program. Three things live here: the topics people can opt
+// in to separately, the rule that applies to someone with no entry in the
+// consent ledger (strict by default; only an admin choosing otherwise, per
+// country, relaxes it) and whether newsletter opens are counted.
 
 export async function GET() {
   const g = await loadMarketingSettingsContext();
   if (!g.ok) return g.response;
-  const { config } = g.ctx;
+  const { config, features } = g.ctx;
   return NextResponse.json({
     topics: topicsOf(config),
     consent_defaults: consentDefaultsOf(config),
     workspace_jurisdiction: workspaceJurisdictionOf(config),
+    track_opens: marketingConfigOf(config).track_opens === true,
+    newsletter_studio: features.newsletter_studio === true,
     jurisdictions: JURISDICTIONS.map((code) => ({
       code, label: JURISDICTION_RULES[code].label, existing_customer_allowed: JURISDICTION_RULES[code].existingCustomerAllowed, plain: JURISDICTION_RULES[code].plain,
     })),
@@ -49,13 +52,26 @@ export async function PUT(request: NextRequest) {
   // Where the workspace is based: absent from the body = unchanged, so an older page cannot wipe it.
   const sentJurisdiction = (body as { workspace_jurisdiction?: unknown }).workspace_jurisdiction;
   const jurisdiction = isJurisdictionCode(sentJurisdiction) ? sentJurisdiction : workspaceJurisdictionOf(config);
+  // Counting opens moved here from the Brand kit page: absent = unchanged, so an older page cannot switch it off.
+  const sentOpens = (body as { track_opens?: unknown }).track_opens;
+  const before = marketingConfigOf(config);
   const marketing = {
-    ...marketingConfigOf(config),
+    ...before,
     topics,
     consent_defaults: sanitizeConsentDefaults((body as { consent_defaults?: unknown }).consent_defaults),
-    consent: { ...marketingConfigOf(config).consent, jurisdiction },
+    consent: { ...before.consent, jurisdiction },
+    track_opens: typeof sentOpens === "boolean" ? sentOpens : before.track_opens === true,
   };
   const { error } = await admin.from("tenants").update({ config: { ...config, marketing } }).eq("id", tenantId);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ topics: marketing.topics, consent_defaults: marketing.consent_defaults, workspace_jurisdiction: jurisdiction });
+
+  const changes = diffForLog(
+    "marketing_settings",
+    { topics: topicsOf(config), consent_defaults: consentDefaultsOf(config), workspace_jurisdiction: workspaceJurisdictionOf(config), track_opens: before.track_opens === true },
+    { topics: marketing.topics, consent_defaults: marketing.consent_defaults, workspace_jurisdiction: jurisdiction, track_opens: marketing.track_opens },
+  );
+  if (changes.length > 0) {
+    await logChange(g.ctx.session, { tenantId, objectType: "marketing_settings", objectId: tenantId, objectLabel: "Marketing consent", action: "update", actorId: g.ctx.userId, changes });
+  }
+  return NextResponse.json({ topics: marketing.topics, consent_defaults: marketing.consent_defaults, workspace_jurisdiction: jurisdiction, track_opens: marketing.track_opens });
 }

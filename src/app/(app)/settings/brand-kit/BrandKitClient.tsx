@@ -12,7 +12,6 @@ type Font = { key: string; label: string };
 type Loaded = {
   brand_kit: BrandKit;
   resolved: { primary: string; secondary: string; text: string; fontPairing: string; logoUrl: string | null; tone: "formal" | "warm" };
-  track_opens: boolean;
   fonts: Font[];
 };
 
@@ -24,20 +23,18 @@ export default function BrandKitClient() {
   const [kit, setKit] = useState<BrandKit>({});
   const [fonts, setFonts] = useState<Font[]>([]);
   const [defaults, setDefaults] = useState<Loaded["resolved"] | null>(null);
-  const [trackOpens, setTrackOpens] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState("");
   const [uploading, setUploading] = useState(false);
-  const { dirty, markSaved } = useSettingsDirty({ kit, trackOpens });
+  const { dirty, markSaved } = useSettingsDirty({ kit });
 
   function apply(json: Loaded) {
     setKit(json.brand_kit);
     setFonts(json.fonts);
     setDefaults(json.resolved);
-    setTrackOpens(json.track_opens);
-    markSaved({ kit: json.brand_kit, trackOpens: json.track_opens });
+    markSaved({ kit: json.brand_kit });
   }
 
   useEffect(() => {
@@ -57,7 +54,7 @@ export default function BrandKitClient() {
     try {
       const res = await fetch("/api/settings/brand-kit", {
         method: "PUT", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ brand_kit: kit, track_opens: trackOpens }),
+        body: JSON.stringify({ brand_kit: kit }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? "Could not save");
@@ -157,19 +154,6 @@ export default function BrandKitClient() {
           {links.length < 6 && <button type="button" style={linkBtn} onClick={() => set({ social_links: [...links, { label: "", url: "" }] })}>+ Add a social link</button>}
           <p className="bpm-t-help" style={hint}>Only https addresses are kept. They appear where a design has a Social block.</p>
         </div>
-      </SettingsSection>
-
-      <SettingsSection id="bk-opens" title="Counting opens" summary={trackOpens ? "On" : "Off"}>
-        <label style={{ display: "flex", gap: 8, alignItems: "flex-start", fontSize: 13, cursor: "pointer", color: c.ink }}>
-          <input type="checkbox" checked={trackOpens} onChange={(e) => setTrackOpens(e.target.checked)} style={{ marginTop: 3 }} />
-          <span>
-            Count when a newsletter is opened
-            <span className="bpm-t-help" style={{ display: "block", marginTop: 4 }}>
-              Off by default. Opens are unreliable (Apple Mail loads images for everyone), and counting them is tracking, which needs a lawful basis in many
-              Gulf countries. Clicks are always counted, on signed links. Turn this on only after your legal adviser agrees; it applies to newsletters kept after you switch it on.
-            </span>
-          </span>
-        </label>
       </SettingsSection>
     </div>
   );

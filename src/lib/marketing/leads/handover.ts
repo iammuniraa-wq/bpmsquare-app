@@ -2,7 +2,7 @@ import type { MarketingConfig, TenantConfig } from "@/lib/constants";
 import { marketingConfigOf } from "../config";
 import { DEFAULT_SLA_BUSINESS_DAYS, DEFAULT_WEEKLY_OFF } from "./timing";
 
-// The hand-over settings (Settings, Marketing, Hand-over): what happens to a lead between "someone is
+// The hand-over settings (Settings, Marketing, Leads, Hand-over): what happens to a lead between "someone is
 // interested" and "a salesperson has it". They live in config.marketing.lifecycle, which
 // slaDueFrom() and the assignment already read. Pure, so the settings route, the screen and the
 // tests share one reading of them.
