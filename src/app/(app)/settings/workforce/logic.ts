@@ -49,13 +49,28 @@ export function slugCode(label: string, taken: readonly string[]): string {
   return `${base}_${n}`;
 }
 
-/** A new type with no label is what an abandoned "+ Add type" leaves behind, so it is dropped; a stored type keeps its code. */
+/** What the code box accepts: what the server accepts (lower-case letters, digits, underscore, 40 at most). */
+export const cleanCode = (raw: string): string => raw.toLowerCase().replace(/[^a-z0-9_]+/g, "_").slice(0, 40);
+
+/** A new type with no label is what an abandoned "+ Add type" leaves behind, so it is dropped; a stored type keeps its code.
+ *  A new type whose typed code is empty or already taken gets a made-up unique one, so the server never silently drops it. */
 export function cleanEmploymentTypes(types: WfmConfig["employment_types"], savedCodes: readonly string[]): WfmConfig["employment_types"] {
   const out: WfmConfig["employment_types"] = [];
+  const used = new Set<string>(savedCodes);
+  const keptStored = new Set<string>();
   for (const t of types) {
     const label = t.label.trim();
-    if (!label && !savedCodes.includes(t.code)) continue;
-    out.push({ code: t.code, label: label || t.code });
+    // The first row with a saved code is that stored type; a second one can only be a new row that typed the same code.
+    const stored = savedCodes.includes(t.code) && !keptStored.has(t.code);
+    if (stored) keptStored.add(t.code);
+    if (!label && !stored) continue;
+    let code = t.code;
+    if (!stored) {
+      code = cleanCode(code) || slugCode(label, [...used]);
+      if (used.has(code)) code = slugCode(code, [...used]);
+    }
+    used.add(code);
+    out.push({ code, label: label || t.code });
   }
   return out;
 }

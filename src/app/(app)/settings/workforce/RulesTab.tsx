@@ -6,7 +6,7 @@ import { Input, Select } from "@/components/ui/Input";
 import { CheckOpt } from "@/components/ui/Opt";
 import type { WfmConfig } from "@/lib/constants";
 import type { WfmShift } from "@/lib/wfm/types";
-import { hhmm, slugCode } from "./logic";
+import { cleanCode, hhmm, slugCode } from "./logic";
 import { More, SwitchRow } from "./parts";
 import { WORKFORCE_TIPS as T } from "./tips";
 import s from "./workforce.module.css";
@@ -40,9 +40,13 @@ export default function RulesTab({ cfg, savedCodes, shifts, onChange }: {
         if (j !== i) return t;
         if (savedCodes.includes(t.code)) return { ...t, label };
         const others = cfg.employment_types.filter((_, k) => k !== i).map((x) => x.code);
-        return { code: slugCode(label, others), label };
+        // A code the person typed stays; one made from the label follows the label.
+        const made = t.code === "" || t.code === slugCode(t.label, others);
+        return { code: made ? slugCode(label, others) : t.code, label };
       }),
     });
+  const setTypeCode = (i: number, raw: string) =>
+    onChange({ employment_types: cfg.employment_types.map((t, j) => (j === i && !savedCodes.includes(t.code) ? { ...t, code: cleanCode(raw) } : t)) });
 
   return (
     <div className={s.card}>
@@ -152,8 +156,11 @@ export default function RulesTab({ cfg, savedCodes, shifts, onChange }: {
         <Field label="Employment types" info={T.employmentTypes} htmlFor="wf-emp-0">
           <div>
             {cfg.employment_types.map((t, i) => (
-              <div key={i} className={s.typeRow}>
+              <div key={i} className={`${s.typeRow} ${savedCodes.includes(t.code) ? "" : s.typeRowNew}`}>
                 <Input id={`wf-emp-${i}`} aria-label={`Employment type ${i + 1}`} value={t.label} placeholder="Intern" onChange={(e) => setTypeLabel(i, e.target.value)} />
+                {!savedCodes.includes(t.code) && (
+                  <Input aria-label={`Code for employment type ${i + 1}`} value={t.code} placeholder="code" maxLength={40} onChange={(e) => setTypeCode(i, e.target.value)} />
+                )}
                 <Button
                   size="sm"
                   aria-label={`Remove ${t.label || "type"}`}

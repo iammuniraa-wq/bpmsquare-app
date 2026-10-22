@@ -23,7 +23,7 @@ export const WORKFORCE_TIPS = {
   passkey: "Employees unlock sign-in with their phone's fingerprint or Face ID. Only a public key is stored.",
   saturday: "The 1st, 3rd, 4th and 5th Saturdays use a short shift and the 2nd is a holiday, planned a month ahead. Working the 2nd needs an overtime punch.",
   saturdayShift: "Create the shift under Shifts first if it does not exist yet.",
-  employmentTypes: "Each type gets its own sheet in the monthly payroll export. You can rename a type; its code is fixed once saved.",
+  employmentTypes: "Each type gets its own sheet in the monthly payroll export. A code can be set when a type is new; it stays fixed after saving.",
   geofence: "Flag keeps the punch and marks it outside. Block rejects a punch outside every site.",
   requireLocation: "Check in and out are refused without a location. Breaks and overtime are never blocked.",
   sites: "A place people punch in at. The radius is how far from the pin a punch still counts as on site.",

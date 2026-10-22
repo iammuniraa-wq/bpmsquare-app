@@ -13,7 +13,7 @@ vi.mock("next/navigation", () => ({
 import { tipTextProblems } from "@/lib/infoTip";
 import { DEFAULT_WFM_CONFIG, type WfmConfig } from "@/lib/constants";
 import {
-  ALERT_ROWS, alertCount, blankLeave, blankShift, blankSite, changedConfig, cleanEmploymentTypes, leaveDraftFrom, leavePayload,
+  ALERT_ROWS, alertCount, blankLeave, blankShift, blankSite, changedConfig, cleanCode, cleanEmploymentTypes, leaveDraftFrom, leavePayload,
   leaveUsage, shiftPayload, shiftProblem, sitePayload, siteProblem, slugCode, workforceTabs, type LeaveType,
 } from "./logic";
 import { WORKFORCE_TIPS } from "./tips";
@@ -154,5 +154,20 @@ describe("the screen carries no running text and no default-open sections", () =
     const css = readFileSync(join(dir, "workforce.module.css"), "utf8");
     expect(css).toMatch(/@media \(max-width: 900px\)[\s\S]*grid-template-columns: 1fr/);
     expect(css).toMatch(/@media \(max-width: 780px\)[\s\S]*min-height: 44px/);
+  });
+});
+
+describe("a code typed for a new employment type", () => {
+  it("is cleaned to what the server accepts", () => {
+    expect(cleanCode("FT-01 x")).toBe("ft_01_x");
+    expect(cleanCode("a".repeat(60))).toHaveLength(40);
+  });
+  it("is kept for a new type and never changes a stored one", () => {
+    const out = cleanEmploymentTypes([{ code: "full_time", label: "Full time" }, { code: "ft", label: "Fixed term" }], ["full_time"]);
+    expect(out).toEqual([{ code: "full_time", label: "Full time" }, { code: "ft", label: "Fixed term" }]);
+  });
+  it("gets a unique made-up code when empty or already taken, so the server never drops the row", () => {
+    const out = cleanEmploymentTypes([{ code: "full_time", label: "Full time" }, { code: "full_time", label: "Full time again" }, { code: "", label: "Intern" }], ["full_time"]);
+    expect(out.map((x) => x.code)).toEqual(["full_time", "full_time_2", "intern"]);
   });
 });
