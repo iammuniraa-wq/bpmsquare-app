@@ -7,6 +7,9 @@ import { logChangeBatch, type ChangeLogEntryParams } from "@/lib/changeLog";
 import type { TenantFeatures } from "@/lib/constants";
 import { stampContactEmailHash } from "@/lib/marketing/contactEmailHash";
 import { recordConnectorRun } from "@/lib/middleware/messages";
+import { loadInbound } from "@/lib/middleware/mapping/engineServer";
+import { recordUnknownInbound } from "@/lib/middleware/mapping/valueListStore";
+import { isMappingDoc } from "@/lib/middleware/mappingDoc";
 import { D365Client, D365Error } from "./odata";
 import { buildClientAssertion, certDerFromPem, tokenUrl, validDirectory } from "./jwt";
 import { entityConfig, apiBase, resourceFor, allowedHost, sovereignHost } from "./catalog";
@@ -231,6 +234,7 @@ export type RunCounts = {
   read: number; created: number; updated: number; unchanged: number; skipped: number; failed: number;
   /** 1 on a run that read a selection of ids: its marker in the history. */ filtered?: number;
   /** Full run under a scope: linked records the scope no longer reaches. They are left as they are, never deleted or unlinked. */ outside_scope?: number;
+  /** A saved mapping's value list met ERP codes it has no row for: kept as they came and counted, never a failure. */ unknown_codes?: number;
 };
 export type PullResult = { runId: string | null; counts: RunCounts; issues: string[]; error: string | null; /** Ids that were asked for and could not be looked up. */ unsupported?: string[] };
 
@@ -330,6 +334,9 @@ export async function runPull(admin: SupabaseClient, tenantId: string, key: Excl
   if (!(t?.features as TenantFeatures | undefined)?.[target.feature as keyof TenantFeatures]) {
     return { runId: null, counts, issues, error: `The ${target.table} module isn't enabled for this workspace.` };
   }
+  // A saved mapping document for this entity reads the rows through its reverse converters; without one the older field map does, as before.
+  const inbound = isMappingDoc(key) ? await loadInbound(admin, tenantId, CONNECTOR_ID, key) : null;
+  const ecRun = inbound ? { ...ec, field_map: inbound.fieldMap } : ec;
 
   // A selection is planned before the run is opened: when none of it can be applied there is nothing
   // to read, and a refused request must not leave a run row (or a lock) behind.
@@ -400,7 +407,7 @@ export async function runPull(admin: SupabaseClient, tenantId: string, key: Excl
     // to the scoped form on the spot, one link at a time), so a second
     // company's identical number can never be mapped onto the same record.
     const legacyClaimed = new Set<string>();
-    const columns = selectFields(key, ec, cfg.product);
+    const columns = selectFields(key, ecRun, cfg.product);
     const entitySet = ec.entity_set;
     async function* readAll() {
       for (const f of requests) {
@@ -411,7 +418,7 @@ export async function runPull(admin: SupabaseClient, tenantId: string, key: Excl
     for await (const row of readAll()) {
       if (Date.now() > deadline) { stoppedEarly = true; break; }
       counts.read++;
-      const m = mapPullRow(key, ec, row, cfg.product);
+      const m = mapPullRow(key, ecRun, row, cfg.product, inbound?.transform);
       const mod = modifiedMode ? normalizeModified(row[ec.modified_field!]) : null;
       if (mod) {
         firstSeen ??= mod;
@@ -499,6 +506,10 @@ export async function runPull(admin: SupabaseClient, tenantId: string, key: Excl
       if (changeRows.length >= 200) await logChangeBatch(admin, changeRows.splice(0));
     }
     if (changeRows.length) await logChangeBatch(admin, changeRows);
+    if (inbound?.unknown.length) {
+      counts.unknown_codes = inbound.unknown.length;
+      await recordUnknownInbound(admin, tenantId, CONNECTOR_ID, inbound.unknown);
+    }
 
     const capHit = counts.read >= maxRows;
     const incomplete = stoppedEarly || capHit;

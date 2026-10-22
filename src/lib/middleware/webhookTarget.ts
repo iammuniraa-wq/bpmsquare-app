@@ -2,6 +2,7 @@ import "server-only";
 import { randomUUID } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { fireWebhook, type FireDeps, type FireResult } from "@/lib/webhooks/sender";
+import { readResponsePath } from "@/lib/webhooks/responsePath";
 import type { DispatchResult } from "./dispatch";
 
 // An awarded Standard Quote whose Links target is a webhook. Everything else about the award
@@ -86,8 +87,10 @@ export async function sendViaWebhook(admin: SupabaseClient, tenantId: string, a:
     return { state: "failed", messageId: null, headline: "The webhook call did not complete.", fix: "Restart it from the Monitor." };
   }
   if (r.ok && !r.redirected) {
-    // external_key stays empty in round 1: the response is kept in the Monitor, not mapped back onto the quote.
-    await admin.from("connector_links").update({ external_id: `delivery:${r.deliveryId ?? pendingId}`, synced_at: new Date().toISOString() })
+    // The readable id of what the receiver created, when the webhook says where its answer holds it (migration 0203's response_key_path).
+    const { data: pathRow, error: pathErr } = await admin.from("webhooks").select("response_key_path").eq("id", a.webhookId).eq("tenant_id", tenantId).maybeSingle();
+    const key = pathErr ? null : readResponsePath(r.response?.body, (pathRow as { response_key_path?: string | null } | null)?.response_key_path);
+    await admin.from("connector_links").update({ external_id: `delivery:${r.deliveryId ?? pendingId}`, external_key: key, synced_at: new Date().toISOString() })
       .eq("tenant_id", tenantId).eq("connector_id", connectorId).eq("entity", ENTITY).eq("object_id", a.quoteId).eq("external_id", pendingId);
   } else {
     await release(admin, tenantId, connectorId, a.quoteId, pendingId);

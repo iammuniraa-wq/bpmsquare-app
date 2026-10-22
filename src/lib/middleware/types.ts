@@ -177,4 +177,5 @@ export const SQL_BUNDLES = {
   middleware: "scripts/run-bundle-10-middleware-2026-10-21.sql",
   connectors: "scripts/run-bundle-9-connectors-2026-10-21.sql",
   webhooks: "scripts/run-bundle-11-webhooks-2026-10-21.sql",
+  mapping: "scripts/run-bundle-12-mapping-2026-10-21.sql",
 } as const;

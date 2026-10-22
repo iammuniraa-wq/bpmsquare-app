@@ -17,7 +17,7 @@ import type { TargetKind } from "./types";
 
 export type FieldFetcher = (entity: MetadataEntity) => Promise<ErpField[]>;
 
-const KIND_ENTITY: Record<MapKind, MetadataEntity> = {
+export const KIND_ENTITY: Record<MapKind, MetadataEntity> = {
   quote: "quote", quote_line: "quote_line", sales_order: "sales_order", sales_order_line: "sales_order_line", project: "project",
 };
 
@@ -27,13 +27,13 @@ export const metadataFetcher = (tenantId: string): FieldFetcher => async (entity
   return r.ok && r.applicable ? r.fields : [];
 };
 
-async function context(admin: SupabaseClient, tenantId: string) {
+export async function context(admin: SupabaseClient, tenantId: string) {
   const [{ data: t }, loaded] = await Promise.all([admin.from("tenants").select("config").eq("id", tenantId).maybeSingle(), loadD365(admin, tenantId)]);
   const target = loaded ? resolveTarget(loaded.cfg.product, readDocument((t?.config as TenantConfig | null)?.integration_middleware).target) : ("quote" as TargetKind);
   return { loaded, target };
 }
 
-async function fieldLists(cfg: D365Config, doc: MappingDocKey, target: TargetKind, fetch: FieldFetcher): Promise<{ header: ErpField[]; lines: ErpField[] }> {
+export async function fieldLists(cfg: D365Config, doc: MappingDocKey, target: TargetKind, fetch: FieldFetcher): Promise<{ header: ErpField[]; lines: ErpField[] }> {
   if (doc !== "quote") return { header: await fetch(doc as MetadataEntity), lines: [] };
   const k = quoteKinds(cfg.product, target);
   const [header, lines] = await Promise.all([fetch(KIND_ENTITY[k.header]), k.lines ? fetch(KIND_ENTITY[k.lines]) : Promise.resolve([] as ErpField[])]);

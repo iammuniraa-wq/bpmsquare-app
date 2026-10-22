@@ -9,7 +9,7 @@ export const WEBHOOK_KINDS = ["event", "call"] as const;
 export type WebhookKind = (typeof WEBHOOK_KINDS)[number];
 export const METHODS = ["GET", "POST", "PUT", "PATCH"] as const;
 export type Method = (typeof METHODS)[number];
-export const PAYLOAD_MODES = ["standard", "template"] as const;
+export const PAYLOAD_MODES = ["standard", "template", "mapping"] as const;
 export type PayloadMode = (typeof PAYLOAD_MODES)[number];
 
 /** Consecutive failures after which a webhook pauses itself (the dispatcher's existing threshold). */
@@ -54,6 +54,9 @@ export type WebhookRow = {
   legacy_key: string | null;
   created_at: string;
   updated_at: string | null;
+  /** Read separately from WEBHOOK_COLUMNS (migration 0203): absent until the database update has run. */
+  mapping_id?: string | null;
+  response_key_path?: string | null;
 };
 
 export const WEBHOOK_COLUMNS =
@@ -66,6 +69,8 @@ export type ApiWebhook = {
   headers: { name: string; set: true }[]; payload_mode: PayloadMode; template: string | null; allow_personal_data: boolean; timeout_ms: number;
   active: boolean; paused_reason: string | null; secret: "set"; last_delivery_at: string | null; last_status: number | null; last_error: string | null;
   failure_count: number; needs_attention: string | null; used_by: UsedBy[]; created_at: string; updated_at: string | null;
+  /** The mapping that builds the body in payload mode "mapping" (Integration middleware > Mapping), and where the readable id sits in the response. */
+  mapping_id: string | null; response_key_path: string | null;
 };
 
 /** Why a webhook will not fire as it stands, in the words the list shows; null = fine. A migrated http:// address
@@ -83,6 +88,7 @@ export function toApiWebhook(row: WebhookRow, usedBy: UsedBy[] = []): ApiWebhook
     timeout_ms: row.timeout_ms ?? TIMEOUT_DEFAULT_MS, active: row.active === true, paused_reason: row.paused_reason ?? null,
     secret: "set", last_delivery_at: row.last_delivery_at ?? null, last_status: row.last_status ?? null, last_error: row.last_error ?? null,
     failure_count: row.failure_count ?? 0, needs_attention: needsAttention(row), used_by: usedBy, created_at: row.created_at, updated_at: row.updated_at ?? null,
+    mapping_id: row.mapping_id ?? null, response_key_path: row.response_key_path ?? null,
   };
 }
 
@@ -137,10 +143,16 @@ export type DefinitionPatch = {
   active?: boolean;
   regenerate_secret?: boolean;
   button_on?: "accounts" | null;
+  /** Verified against the tenant by the library before it is stored. */
+  mapping_id?: string | null;
+  response_key_path?: string | null;
 };
 
+/** `$.data.number`, `$.items[0].id`: a literal path of names and numbers, never an expression. */
+export const RESPONSE_PATH_RE = /^\$(?:\.[A-Za-z_][A-Za-z0-9_]{0,40}|\[\d{1,3}\]){1,10}$/;
+
 const isObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === "object" && !Array.isArray(v);
-const KNOWN = ["kind", "name", "url", "method", "object_type", "object_types", "headers", "payload_mode", "template", "allow_personal_data", "timeout_ms", "active", "regenerate_secret", "button_on"];
+const KNOWN = ["kind", "name", "url", "method", "object_type", "object_types", "headers", "payload_mode", "template", "allow_personal_data", "timeout_ms", "active", "regenerate_secret", "button_on", "mapping_id", "response_key_path"];
 
 /**
  * Check a submitted definition against the rules of the spec. `existing` is the stored row on an update (kind and
@@ -227,8 +239,10 @@ export function validateDefinition(raw: unknown, mode: "create" | "update", exis
   }
 
   if (raw.payload_mode !== undefined) {
-    if (!(PAYLOAD_MODES as readonly unknown[]).includes(raw.payload_mode)) errors.push({ field: "payload_mode", message: "Choose Standard or Template." });
+    if (!(PAYLOAD_MODES as readonly unknown[]).includes(raw.payload_mode)) errors.push({ field: "payload_mode", message: "Choose Standard, Template or Mapping." });
     else if (kind === "event" && raw.payload_mode !== "standard") errors.push({ field: "payload_mode", message: "An Event webhook sends the change feed." });
+    else if (raw.payload_mode === "mapping" && mode === "create") errors.push({ field: "payload_mode", message: "Save the webhook first, then build its body in Mapping and choose it here." });
+    else if (raw.payload_mode === "mapping" && objectType !== "standard_quotes") errors.push({ field: "payload_mode", message: "Mapping builds the body of a Standard Quote webhook." });
     else out.payload_mode = raw.payload_mode as PayloadMode;
   }
   const payloadMode = out.payload_mode ?? existing?.payload_mode ?? "standard";
@@ -245,6 +259,18 @@ export function validateDefinition(raw: unknown, mode: "create" | "update", exis
       const t = validateTemplate(template, objectType, allowPii);
       if (!t.ok) errors.push(...t.errors);
     }
+  }
+
+  if (raw.mapping_id !== undefined) {
+    if (kind !== "call") errors.push({ field: "mapping_id", message: "Only a Call webhook can take its body from a mapping." });
+    else if (raw.mapping_id !== null && (typeof raw.mapping_id !== "string" || !/^[0-9a-f-]{32,40}$/i.test(raw.mapping_id))) errors.push({ field: "mapping_id", message: "Choose a mapping from the list." });
+    else out.mapping_id = raw.mapping_id as string | null;
+  }
+  if (raw.response_key_path !== undefined) {
+    if (kind !== "call") errors.push({ field: "response_key_path", message: "Only a Call webhook reads an id from the response." });
+    else if (raw.response_key_path === null || raw.response_key_path === "") out.response_key_path = null;
+    else if (typeof raw.response_key_path !== "string" || !RESPONSE_PATH_RE.test(raw.response_key_path)) errors.push({ field: "response_key_path", message: "Write a path like $.data.number or $.items[0].id." });
+    else out.response_key_path = raw.response_key_path;
   }
 
   if (raw.active !== undefined) {

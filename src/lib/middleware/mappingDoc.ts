@@ -36,24 +36,24 @@ export type MappingView = {
   settings: { entity_set: string; id_field: string } | null;
 };
 
-const QUOTE_LABELS: Record<string, string> = {
+export const QUOTE_LABELS: Record<string, string> = {
   name: "Name", ref: "Reference", title: "Title", customer_name: "Customer", account_external_id: "Customer link", description: "Description",
   summary: "Summary", total: "Total", subtotal: "Subtotal", valid_until: "Valid until", outcome: "Outcome", status: "Status",
 };
-const LINE_LABELS: Record<string, string> = {
+export const LINE_LABELS: Record<string, string> = {
   description: "Description", qty: "Quantity", rate: "Rate", net_rate: "Net rate", uom: "Unit", amount: "Amount", discount_pct: "Discount %", sl_no: "Line number",
 };
-const INBOUND_LABELS: Record<string, string> = {
+export const INBOUND_LABELS: Record<string, string> = {
   name: "Name", city: "City", phone: "Phone", email: "Email", role: "Role", sku: "SKU", uom: "Unit", list_price: "List price", description: "Description",
   code: "Code", account_external_id: "Customer link",
 };
-const INBOUND_FIELDS: Record<string, readonly string[]> = {
+export const INBOUND_FIELDS: Record<string, readonly string[]> = {
   customers: ["name", "city", "phone", "email"],
   contacts: ["name", "phone", "email", "role", "account_external_id"],
   products: ["name", "sku", "uom", "list_price", "description"],
   projects: ["name", "code", "account_external_id"],
 };
-const INBOUND_LABEL_WORD: Record<string, string> = { customers: "Customers", contacts: "Contacts", products: "Products", projects: "Projects" };
+export const INBOUND_LABEL_WORD: Record<string, string> = { customers: "Customers", contacts: "Contacts", products: "Products", projects: "Projects" };
 
 const FIELD_RE = /^[A-Za-z_][A-Za-z0-9_]*(@odata\.bind)?$/;
 const PULL_FIELD_RE = /^[A-Za-z_][A-Za-z0-9_.]*(@odata\.bind)?$/;
@@ -82,8 +82,8 @@ export function quoteKinds(product: D365Config["product"], target: TargetKind): 
   return { header: target === "sales_order" ? "sales_order" : "project", lines: null, targetKey: target === "sales_order" ? "sales_order" : "project" };
 }
 
-const placeholdersOf = (k: MapKind): readonly string[] => (k === "quote_line" || k === "sales_order_line" ? LINE_PLACEHOLDERS : k === "project" ? PROJECT_PLACEHOLDERS : QUOTE_PLACEHOLDERS);
-const labelsOf = (k: MapKind) => (k === "quote_line" || k === "sales_order_line" ? LINE_LABELS : QUOTE_LABELS);
+export const placeholdersOf = (k: MapKind): readonly string[] => (k === "quote_line" || k === "sales_order_line" ? LINE_PLACEHOLDERS : k === "project" ? PROJECT_PLACEHOLDERS : QUOTE_PLACEHOLDERS);
+export const labelsOf = (k: MapKind) => (k === "quote_line" || k === "sales_order_line" ? LINE_LABELS : QUOTE_LABELS);
 
 /** The map in force for one outbound kind, and the standard one. */
 export function outboundMaps(cfg: Pick<D365Config, "product" | "outbound" | "orders">, kind: MapKind): { effective: Record<string, string>; standard: Record<string, string>; custom: boolean } {
@@ -216,8 +216,8 @@ export function applyInboundRows(
 // ── The view ────────────────────────────────────────────────────────────────
 
 /** Fields the engine always sets itself, so they are never reported as unmapped. */
-const ALWAYS_HEADER = ["name", "customerid", "pricelevelid", "transactioncurrencyid", "ownerid", "owningbusinessunit", "owninguser", "owningteam", "statecode", "statuscode"];
-const ALWAYS_LINES = ["quoteid", "salesorderid", "uomid", "isproductoverridden", "lineitemnumber", "ownerid", "owningbusinessunit", "owninguser", "owningteam"];
+export const ALWAYS_HEADER = ["name", "customerid", "pricelevelid", "transactioncurrencyid", "ownerid", "owningbusinessunit", "owninguser", "owningteam", "statecode", "statuscode"];
+export const ALWAYS_LINES = ["quoteid", "salesorderid", "uomid", "isproductoverridden", "lineitemnumber", "ownerid", "owningbusinessunit", "owninguser", "owningteam"];
 
 export type MappingInput = {
   doc: MappingDocKey;
