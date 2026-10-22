@@ -298,8 +298,8 @@ describe("the settings", () => {
   });
 
   it("sits in the Marketing group of Settings, for admins of a workspace with the scoring program", () => {
-    const e = SETTINGS_MENU.find((x) => x.id === "marketing-handover")!;
-    expect(e).toMatchObject({ group: "marketing", adminOnly: true, featureKey: "marketing_scoring", href: "/settings/marketing-handover" });
+    const e = SETTINGS_MENU.find((x) => x.id === "marketing-leads")!;
+    expect(e).toMatchObject({ group: "marketing", adminOnly: true, featureKey: "marketing_scoring", href: "/settings/marketing-leads" });
   });
 });
 
@@ -336,6 +336,16 @@ describe("the settings route", () => {
     expect(j.settings.sla_business_days).toBe(1);
   });
 
+  it("counts this workspace's teams by how they hand out leads, only when Coverage is on", async () => {
+    expect((await (await GET()).json() as { teams: unknown }).teams).toBeNull();
+    db.tables.tenants[0].features = { ...ON, coverage_model: true };
+    db.tables.teams = [
+      { id: "g1", tenant_id: "t1", assignment_mode: "round_robin" }, { id: "g2", tenant_id: "t1", assignment_mode: "lead" },
+      { id: "g3", tenant_id: "t1", assignment_mode: "lead" }, { id: "g4", tenant_id: "t2", assignment_mode: "round_robin" },
+    ];
+    expect((await (await GET()).json() as { teams: unknown }).teams).toEqual({ in_turn: 1, team_lead: 2 });
+  });
+
   it("saves into this workspace's config, keeps its other keys, and ignores a tenant named in the body", async () => {
     const r = await put({ ...body, tenant_id: "t2", tenantId: "t2" });
     expect(r.status).toBe(200);
@@ -362,7 +372,7 @@ describe("the settings route", () => {
     const route = readFileSync(join(__dirname, "..", "..", "..", "app", "api", "settings", "marketing-handover", "route.ts"), "utf8");
     expect(route).toMatch(/loadMarketingSettingsContext\(\)/);
     expect(route).not.toMatch(/body\.tenant|searchParams|tenant_id\s*[:=]\s*(body|json)/);
-    const page = readFileSync(join(__dirname, "..", "..", "..", "app", "(app)", "settings", "marketing-handover", "page.tsx"), "utf8");
+    const page = readFileSync(join(__dirname, "..", "..", "..", "app", "(app)", "settings", "marketing-leads", "page.tsx"), "utf8");
     expect(page).toMatch(/role !== "admin"\) redirect/);
     expect(page).toMatch(/marketingScoringOn/);
   });
