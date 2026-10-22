@@ -27,7 +27,14 @@ export type SaveBody = {
 export const createNewsletter = (b: SaveBody) => post<{ id: string; ref: string | null; warnings: string[] }>("/api/newsletters", b);
 export const saveNewsletter = (id: string, b: SaveBody) => call<{ id: string; ref: string | null; warnings: string[] }>(`/api/newsletters/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) });
 export const saveAsTemplate = (id: string, name: string, category: string) => post<{ id: string }>(`/api/newsletters/${id}/template`, { name, category });
-export const keepVersion = (id: string) => post<{ id: string; version: number; reused: boolean; next: string }>(`/api/newsletters/${id}/versions`, {});
+export type SendAudience = { group_id?: string | null; account_types?: string[]; manual_emails?: string[] };
+export type SendCheck = {
+  total: number; contactable: number; byLanguage: Record<string, number>; languages: string[]; topic: string | null;
+  groups: { id: string; label: string; count: number; fix: string }[];
+};
+export type SendResult = { sent: number; failed: number; skipped: number; by_language: Record<string, number>; campaign_id: string };
+export const checkSend = (id: string, audience: SendAudience) => post<SendCheck>(`/api/newsletters/${id}/send`, { audience, check: true });
+export const sendNewsletter = (id: string, audience: SendAudience) => post<SendResult>(`/api/newsletters/${id}/send`, { audience });
 export const addLanguage = (id: string, lang: string, mode: "ai" | "empty") => post<{ language: LanguageRow; kept: string[] }>(`/api/newsletters/${id}/translate`, { lang, mode });
 export const draftWithAi = (b: { brief: string; use_products: boolean; use_campaigns: boolean; topic: string | null }) =>
   post<{ subject: string; preheader: string; blocks: NewsletterBlock[]; texts: LanguageRow["texts"]; understood: string[]; assumed: string[]; warnings: string[] }>("/api/newsletters/ai/draft", b);

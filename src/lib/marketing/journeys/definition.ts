@@ -128,7 +128,7 @@ export function readinessProblems(def: JourneyDefinition): string[] {
   const out: string[] = [];
   if (def.steps.length === 0) out.push("Add at least one step.");
   def.steps.forEach((s, i) => {
-    if (s.kind === "send_newsletter" && !s.newsletter_version_id) out.push(`Step ${i + 1}: choose which newsletter version to send.`);
+    if (s.kind === "send_newsletter" && !s.newsletter_version_id) out.push(`Step ${i + 1}: choose which newsletter to send.`);
     if (s.kind === "send_whatsapp" && !s.template_id) out.push(`Step ${i + 1}: choose which WhatsApp template to send.`);
   });
   return out;
@@ -140,7 +140,7 @@ export const TEMPLATES: { id: string; name: string; hint: string; build: () => J
   {
     id: "quote_follow_up",
     name: "Quote follow-up",
-    hint: "A Standard Quote is sent. Three days later the customer gets your newsletter version, and the owner gets a task to call.",
+    hint: "A Standard Quote is sent. Three days later the customer gets your newsletter, and the owner gets a task to call.",
     build: () => ({
       version: 1,
       trigger: { event: "quote.sent", condition: { field: "object_type", op: "eq", value: "standard_quote" } },

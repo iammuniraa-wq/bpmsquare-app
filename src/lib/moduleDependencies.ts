@@ -79,7 +79,7 @@ export const FEATURE_DEPENDENCIES: FeatureDependency[] = [
   },
   {
     key: "journeys", needs: "newsletter_studio", strength: "partial",
-    why: "The Send newsletter step needs a kept version from the Newsletter Studio; the other steps work without it.",
+    why: "The Send newsletter step needs a newsletter from the Newsletter Studio; the other steps work without it.",
   },
   {
     key: "marketing_scoring", needs: "marketing", strength: "hard",

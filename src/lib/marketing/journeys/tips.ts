@@ -13,7 +13,7 @@ export const JOURNEY_TIPS = {
   onePerCompany: "If two people at one company are on the quote, only one gets the journey.",
   entry: "Counted by the same rules the runner uses, from what is on screen, saved or not.",
   steps: "Each line is a step. The sentence under it says when it fires; the guards chip says what can hold or skip it.",
-  languages: "Each person gets their own language if the newsletter version has it, otherwise English. Add languages in the Newsletter Studio.",
+  languages: "Each person gets their own language if the newsletter has it, otherwise English. Add languages in the Newsletter Studio.",
   try: "Shows the exact path and dates this person would get, with the reason at every turn. Nothing is sent.",
   pick: "Uses what is on screen, saved or not.",
   running: "Live counts from the run log, not a guess. Click a reason to see the people.",

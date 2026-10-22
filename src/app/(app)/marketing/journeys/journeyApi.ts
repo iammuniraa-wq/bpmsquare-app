@@ -1,6 +1,7 @@
 import type { Activity } from "@/lib/marketing/journeys/activity";
 import type { GoLiveCheck, Entrant } from "@/lib/marketing/journeys/preview";
 import type { TraceLine } from "@/lib/marketing/journeys/simulate";
+import type { NewsletterChoice, PickResult } from "@/lib/marketing/journeys/newsletterSteps";
 import type { JourneyDefinition } from "@/lib/marketing/journeys/types";
 
 // The builder's calls to its own routes. Every call answers { ok, data } or { ok: false, error, status } and the
@@ -37,6 +38,7 @@ export const previewJourney = (id: string) => call<PreviewData>(`/api/journeys/$
 export const simulate = (id: string, contactId: string, definition: JourneyDefinition) =>
   send<{ person: { name: string; account: string }; lines: TraceLine[]; wouldSend: number }>("POST", `/api/journeys/${id}/simulate`, { contact_id: contactId, definition });
 export const loadActivity = (id: string) => call<ActivityData>(`/api/journeys/${id}/activity`);
-export const lookupVersions = () => call<{ versions: { id: string; label: string; languages: string[] }[] }>("/api/journeys/lookup?kind=versions");
+export const lookupNewsletters = () => call<{ newsletters: NewsletterChoice[] }>("/api/journeys/lookup?kind=newsletters");
+export const pickNewsletter = (newsletterId: string) => send<PickResult>("POST", "/api/journeys/newsletter-version", { newsletter_id: newsletterId });
 export const lookupContacts = (q: string) => call<{ contacts: { id: string; name: string; account: string }[] }>(`/api/journeys/lookup?kind=contacts&q=${encodeURIComponent(q)}`);
 export const completeTask = (id: string) => send<{ ok: true }>("PATCH", `/api/journeys/tasks/${id}`, { status: "done" });

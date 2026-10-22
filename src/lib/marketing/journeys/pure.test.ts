@@ -54,7 +54,7 @@ describe("the definition", () => {
 
   it("is not ready to turn on without steps or without a chosen newsletter version", () => {
     expect(readinessProblems({ ...quote(), steps: [] })[0]).toMatch(/at least one step/);
-    expect(readinessProblems(quote()).join(" ")).toMatch(/Step 2: choose which newsletter version/);
+    expect(readinessProblems(quote()).join(" ")).toMatch(/Step 2: choose which newsletter/);
   });
 
   it("counts days only through waits", () => {

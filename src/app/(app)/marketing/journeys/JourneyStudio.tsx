@@ -19,9 +19,10 @@ import { JOURNEY_TIPS, inTroubleTip, limitsTip } from "@/lib/marketing/journeys/
 import { MAX_LOOKBACK_DAYS, MAX_STEPS, type JourneyDefinition, type JourneyStatus, type JourneyStep, type StepKind } from "@/lib/marketing/journeys/types";
 import { ROUTES } from "@/lib/constants";
 import {
-  completeTask, loadActivity, lookupContacts, lookupVersions, previewJourney, removeJourney, saveJourney, setStatus, simulate,
+  completeTask, loadActivity, lookupContacts, lookupNewsletters, pickNewsletter, previewJourney, removeJourney, saveJourney, setStatus, simulate,
   type ActivityData, type PreviewData,
 } from "./journeyApi";
+import { followNewsletters, newsletterOfStep, stepPatchForPick, withKeptVersion, type NewsletterChoice } from "@/lib/marketing/journeys/newsletterSteps";
 import type { TraceLine } from "@/lib/marketing/journeys/simulate";
 import Tour, { type TourStep } from "@/components/marketing/Tour";
 import styles from "./journey.module.css";
@@ -54,7 +55,7 @@ const PHONE_TABS = [{ id: "setup", label: "Setup" }, ...CANVAS_TABS];
 const SHOWN = 5;
 
 const ADDABLE: { kind: StepKind; label: string }[] = [
-  { kind: "wait", label: "+ Wait" }, { kind: "send_newsletter", label: "+ Send a newsletter version" }, { kind: "send_whatsapp", label: "+ Send a WhatsApp template" },
+  { kind: "wait", label: "+ Wait" }, { kind: "send_newsletter", label: "+ Send a newsletter" }, { kind: "send_whatsapp", label: "+ Send a WhatsApp template" },
   { kind: "create_task", label: "+ Create a task for the owner" }, { kind: "notify_owner", label: "+ Notify the owner" }, { kind: "end", label: "+ End" },
 ];
 
@@ -91,7 +92,7 @@ export default function JourneyStudio({ journey, topics, limits, timezone, studi
   const [error, setError] = useState<string | null>(null);
   const [toastText, setToastText] = useState<string | null>(null);
   const [showDef, setShowDef] = useState(false);
-  const [versions, setVersions] = useState<{ id: string; label: string; languages: string[] }[]>([]);
+  const [newsletters, setNewsletters] = useState<NewsletterChoice[]>([]);
   const [preview, setPreview] = useState<PreviewData | null>(null);
   const [previewing, setPreviewing] = useState(false);
   const [activity, setActivity] = useState<ActivityData | null>(null);
@@ -122,7 +123,7 @@ export default function JourneyStudio({ journey, topics, limits, timezone, studi
   useEffect(() => {
     void refreshActivity();
     if (status !== "live") void refreshPreview();
-    if (studioOn) void lookupVersions().then((r) => { if (r.ok) setVersions(r.data.versions); });
+    if (studioOn) void lookupNewsletters().then((r) => { if (r.ok) { setNewsletters(r.data.newsletters); void preselectOnly(r.data.newsletters); } });
     // run once for the page that was opened
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -149,15 +150,42 @@ export default function JourneyStudio({ journey, topics, limits, timezone, studi
     return { ...d, steps };
   });
 
+  /** Choosing a newsletter keeps a version of it on the server; the step inherits the topic and sends every ready language. */
+  async function chooseNewsletter(i: number, newsletterId: string) {
+    if (!newsletterId) { setStep(i, { newsletter_version_id: null }); return; }
+    const r = await pickNewsletter(newsletterId);
+    if (!r.ok) { setError(r.error); return; }
+    setError(null);
+    setNewsletters((list) => withKeptVersion(list, newsletterId, r.data));
+    setStep(i, stepPatchForPick(r.data));
+  }
+
+  /** A workspace with exactly one newsletter has nothing to choose: an empty send step takes it. */
+  async function preselectOnly(list: NewsletterChoice[]) {
+    if (list.length !== 1 || !editable) return;
+    const empties = def.steps.map((s, i) => (s.kind === "send_newsletter" && !s.newsletter_version_id ? i : -1)).filter((i) => i >= 0);
+    if (empties.length === 0) return;
+    const r = await pickNewsletter(list[0].id);
+    if (!r.ok) return;
+    setNewsletters((l) => withKeptVersion(l, list[0].id, r.data));
+    for (const i of empties) setStep(i, stepPatchForPick(r.data));
+  }
+
   async function save(quiet = false): Promise<boolean> {
     if (!canEdit) return true;
     setSaving(true); setError(null);
+    let toSave = def;
+    if (!live && studioOn && newsletters.length > 0) {
+      // A step follows its newsletter: a version is kept again only if the newsletter changed since.
+      const followed = await followNewsletters(def, newsletters, async (nid) => { const p = await pickNewsletter(nid); if (!p.ok) return null; setNewsletters((l) => withKeptVersion(l, nid, p.data)); return p.data; });
+      if (followed.changed) { toSave = followed.def; setDef(followed.def); }
+    }
     const body: { name: string; definition?: JourneyDefinition } = { name: name.trim() || journey.name };
-    if (!live) body.definition = def;
+    if (!live) body.definition = toSave;
     const r = await saveJourney(journey.id, body);
     setSaving(false);
     if (!r.ok) { setError(r.pending ? "Journeys are waiting for a database update." : r.error); return false; }
-    setSaved(JSON.stringify({ n: name, d: def }));
+    setSaved(JSON.stringify({ n: name, d: toSave }));
     if (!quiet) toast("Saved.");
     if (!live) void refreshPreview();
     return true;
@@ -216,7 +244,6 @@ export default function JourneyStudio({ journey, topics, limits, timezone, studi
   }));
 
   const entry = explainEntry(def);
-  const versionLabel = (id: string | null) => versions.find((v) => v.id === id)?.label ?? (id ? "A kept version" : "");
   // A group in the panel lives under Setup on a phone; on a wide screen the panel is already beside the canvas.
   const showGroup = (s: Sec) => { if (onPhone()) setTab("setup"); setOpen(s); };
   const showCanvas = (t: "build" | "test" | "running") => setTab(t);
@@ -373,12 +400,13 @@ export default function JourneyStudio({ journey, topics, limits, timezone, studi
                 {def.steps.map((s, i) => {
                   const why = explainStep(def, i, limits, { topicLabel });
                   const guards = guardSummary(def, i, limits, { topicLabel });
-                  const stepLanguages = s.kind === "send_newsletter" && s.newsletter_version_id ? versions.find((v) => v.id === s.newsletter_version_id)?.languages ?? [] : [];
+                  const picked = s.kind === "send_newsletter" ? newsletterOfStep(newsletters, s) : null;
+                  const stepLanguages = picked?.languages ?? [];
                   return (
                     <li key={s.id} className={styles.step}>
                       <div className={styles.stepHead}>
                         <span className={styles.stepNo}>{i + 1}</span>
-                        <span className={styles.stepTitle}>{s.kind === "send_newsletter" ? "Send a newsletter version" : s.kind === "wait" ? "Wait" : s.kind === "create_task" ? "Create a task for the owner" : s.kind === "notify_owner" ? "Notify the owner" : describeStep(s)}</span>
+                        <span className={styles.stepTitle}>{s.kind === "send_newsletter" ? "Send a newsletter" : s.kind === "wait" ? "Wait" : s.kind === "create_task" ? "Create a task for the owner" : s.kind === "notify_owner" ? "Notify the owner" : describeStep(s)}</span>
                         <span className={styles.tools}>
                           <button type="button" className={styles.ic} aria-label="Move up" disabled={!editable || i === 0} onClick={() => moveStep(i, -1)}><Icon d={UP} /></button>
                           <button type="button" className={styles.ic} aria-label="Move down" disabled={!editable || i === def.steps.length - 1} onClick={() => moveStep(i, 1)}><Icon d={DOWN} /></button>
@@ -394,16 +422,15 @@ export default function JourneyStudio({ journey, topics, limits, timezone, studi
                       {s.kind === "send_newsletter" && (
                         <div className={styles.stepBody}>
                           {studioOn ? (
-                            <select className={styles.select} style={{ flex: "1 1 220px", width: "auto" }} aria-label="Newsletter version" value={s.newsletter_version_id ?? ""} disabled={!editable} onChange={(e) => setStep(i, { newsletter_version_id: e.target.value || null })}>
-                              <option value="">Choose a kept newsletter version…</option>
-                              {versions.map((v) => <option key={v.id} value={v.id}>{v.label}</option>)}
-                              {s.newsletter_version_id && !versions.some((v) => v.id === s.newsletter_version_id) && <option value={s.newsletter_version_id}>{versionLabel(s.newsletter_version_id)}</option>}
-                            </select>
+                            <>
+                              <select className={styles.select} style={{ flex: "1 1 220px", width: "auto" }} aria-label="Newsletter" value={picked?.id ?? (s.newsletter_version_id ? "kept" : "")} disabled={!editable} onChange={(e) => void chooseNewsletter(i, e.target.value)}>
+                                <option value="">Choose a newsletter…</option>
+                                {newsletters.map((n) => <option key={n.id} value={n.id}>{n.name}</option>)}
+                                {s.newsletter_version_id && !picked && <option value="kept" disabled>A saved newsletter</option>}
+                              </select>
+                              {s.newsletter_version_id && <span className={cx(styles.chip, styles.n)}>{topicLabel(s.topic)}</span>}
+                            </>
                           ) : <span className={styles.help}>The Newsletter Studio is not switched on for this workspace, so there is nothing to send yet.</span>}
-                          <select className={styles.select} style={{ width: "auto" }} aria-label="Consent topic" value={s.topic ?? ""} disabled={!editable} onChange={(e) => setStep(i, { topic: e.target.value || null })}>
-                            <option value="">Any consent topic</option>
-                            {topics.map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}
-                          </select>
                         </div>
                       )}
                       {s.kind === "send_whatsapp" && (

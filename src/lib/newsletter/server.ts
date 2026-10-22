@@ -401,7 +401,7 @@ export type StoredVersion = {
 };
 
 /**
- * Takes an immutable version of a newsletter ("Use in a campaign"). If nothing
+ * Takes an immutable version of a newsletter (a send or a journey picking it keeps one). If nothing
  * changed since the latest version, that version is returned instead of a new
  * number. The HTML is rendered once per language here, with the merge tokens
  * still in place; the send fills them per recipient.

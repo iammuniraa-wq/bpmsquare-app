@@ -1,21 +1,19 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { errorResponse, journeyAccess } from "@/lib/marketing/journeys/access";
-import { isSchemaPending } from "@/lib/marketing/pending";
+import { listPickableNewsletters } from "@/lib/marketing/journeys/newsletterPick";
 
 // The two pickers the builder needs.
 //
-// GET /api/journeys/lookup?kind=versions            -> kept newsletter versions: { id, label, languages }
+// GET /api/journeys/lookup?kind=newsletters         -> newsletters by name: { id, name, topic, languages, versionIds }
 // GET /api/journeys/lookup?kind=contacts&q=abc      -> up to 15 people by name: { id, name, account }
 
 export async function GET(req: NextRequest) {
   try {
     const ctx = await journeyAccess("view");
     const kind = req.nextUrl.searchParams.get("kind");
-    if (kind === "versions") {
-      const { data, error } = await ctx.admin.from("newsletter_versions").select("id, version, snapshot, newsletter_id, created_at").eq("tenant_id", ctx.tenantId).order("created_at", { ascending: false }).limit(60);
-      if (error) return NextResponse.json({ versions: [], ...(isSchemaPending(error) ? { pending_migration: true } : {}) });
-      const rows = (data ?? []) as { id: string; version: number; snapshot: { name?: string; languages?: { lang: string; status?: string }[] } }[];
-      return NextResponse.json({ versions: rows.map((r) => ({ id: r.id, label: `${r.snapshot?.name ?? "Newsletter"} · version ${r.version}`, languages: (r.snapshot?.languages ?? []).map((l) => l.lang) })) });
+    if (kind === "newsletters") {
+      const { newsletters, pending } = await listPickableNewsletters(ctx);
+      return NextResponse.json({ newsletters, ...(pending ? { pending_migration: true } : {}) });
     }
     if (kind === "contacts") {
       const q = (req.nextUrl.searchParams.get("q") ?? "").replace(/[%,()*\\]/g, " ").trim().slice(0, 60);

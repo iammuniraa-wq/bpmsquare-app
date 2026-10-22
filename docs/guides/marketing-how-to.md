@@ -1,6 +1,6 @@
 # BPMSquare Marketing: How to set up and run it
 
-Snapshot 2026-10-21
+Snapshot 2026-10-22
 
 > Screen names and button words may be refined as we improve the product. If a name in this guide is slightly different on your screen, look for the same idea nearby.
 
@@ -254,12 +254,10 @@ Languages in the list: English, Arabic, Hindi, Urdu, French. Arabic is the one w
 
 **Send it**
 
-1. Press **Use in a campaign**. This keeps a copy of the newsletter so editing it later never changes a campaign that already went out.
-2. On the **New Campaign** page, name the campaign, choose the **Languages to send** (only fully checked languages can be ticked), the fallback language, and the **Topic**.
-3. Choose your audience in **Target audience**. Start with a small group of colleagues. They must already be contacts with a recorded yes for the topic.
-4. In **Who will get this**, press **Check the audience**. It shows, for example, "120 of 140 people can be emailed", how many get each language, and a list of who is left out and why, with a fix for each reason. It sends nothing.
-5. In **See it as this person**, type a contact or company name. You see the exact email that person would get, in their language.
-6. Press **Save draft**. Open the campaign and press **Send now**. A message asks you to confirm. Emails go out at once and cannot be recalled.
+1. Press **Send...** (on a phone, the button at the bottom). Your design is saved first, and a copy is kept automatically so editing it later never changes what already went out.
+2. Choose the **Audience**: everyone we can email, or one of your saved audiences from Segmentation. Behind **More** you can narrow a one-off send to some account types or add email addresses. Start with a small group of colleagues. They must already be contacts with a recorded yes for the topic.
+3. The panel shows, for example, "120 of 140 people will receive it", how many get each language, and who is left out and why. Nothing is sent yet. The topic and the languages are the newsletter's own; a language that still has lines to check is not sent.
+4. Press **Send to N**. A message asks you to confirm. Emails go out at once and cannot be recalled. **See what was sent** opens the send record, which is created for you and named after the newsletter and the day.
 
 ### What the colours and labels mean
 
@@ -276,10 +274,10 @@ Languages in the list: English, Arabic, Hindi, Urdu, French. Arabic is the one w
 
 | You see | What to do |
 |---|---|
-| A language cannot be ticked in the campaign | It still has lines to check. Accept or edit them in the Studio. |
-| "Who will get this" shows fewer people than expected | Read **Who is left out, and why**. Each reason says what to do. |
+| The Send panel says a language is not sent | It still has lines to check. Accept or edit them in the Studio. |
+| The Send panel shows fewer people than expected | Read the list of who is left out. Each reason has an **i** that says what to do. |
 | Arabic text looks reversed or misaligned | Check the preview with the Arabic tab selected. Report it to us with a screenshot. |
-| "Check again" is greyed out | Choose at least one language first. |
+| **Send** is greyed out | Nobody in the audience can be emailed yet, or the check is still running. |
 
 **Coming later:** reusable content sections, comments and approvals for teams, suggested subject lines and send times, and a report on which blocks get clicks. Linking a newsletter button to a "buying signals" topic is not yet possible from the editor.
 
@@ -410,7 +408,7 @@ A journey is a set of steps that runs by itself after something happens, for exa
 
 ### Set it up (once)
 
-Before your first journey you need a **kept newsletter version** to send. Make a newsletter in Newsletter Studio and press **Use in a campaign** once (you do not have to send it).
+Before your first journey you need a newsletter to send. Make one in Newsletter Studio; you do not have to send it first.
 
 The safety limits apply to your whole workspace:
 
@@ -427,8 +425,8 @@ Messages wait for the next allowed time. They are never dropped. To change these
 ### Do it day to day: the Quote follow-up example
 
 1. Open **Marketing → Journeys** and press **+ New Journey**. Pick **Quote follow-up**, and press **Create journey**.
-2. This journey does the following: a Standard Quote is sent, wait 3 days, send a newsletter version, create a task for the owner to call.
-3. In the **Send a newsletter version** step, choose your kept newsletter version and the topic (**Offers** is the standard).
+2. This journey does the following: a Standard Quote is sent, wait 3 days, send a newsletter, create a task for the owner to call.
+3. In the **Send a newsletter** step, choose your newsletter by name (if you have only one, it is already chosen). The topic is the newsletter's own. A copy is kept when you save, and again if you changed the newsletter since.
 4. Under **Who would enter today**, read the count and the messages. They tell you about people with no consent and people who could get more than one email a day.
 5. **Try it on one person.** Type at least two letters of a name, pick a person, and press **Show the path**. You see Day 0, Day 3 and so on, with the reason at every turn. Nothing is sent and nothing is saved.
 6. Press **Save**.

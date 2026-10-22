@@ -145,10 +145,12 @@ Left panel, top to bottom:
    used by every design."* Read-only, link to Settings.
 6. **Use it** — *"Keep this design, or hand it to a campaign."* Save
    (*"Keeps your work. Nothing is sent."*), Save as template (*"Keeps this
-   design to start from next time, beside the built-in designs."*), **Use in
-   a campaign** (*"A campaign or a journey step picks the audience and the
-   languages. Each person gets their own language."*) — takes a version and
-   opens `/marketing/new?newsletter=<versionId>`.
+   design to start from next time, beside the built-in designs."*), **Send...**
+   (2026-10-22, batch M3; replaced "Use in a campaign") — opens one panel:
+   audience, a live "N will receive", Send. It keeps a version, creates the
+   campaign row (named newsletter + day) and sends through the same
+   `sendNewsletterBranch()`; a journey step picks a newsletter by name and
+   keeps its own version the same way.
 
 Right, the email: language tabs (**English · العربية · + Add language**),
 Desktop / Phone, Light / Dark. The preview is the real renderer's HTML in a
@@ -181,7 +183,7 @@ the person sees the real thing, not a picture of it. Eight steps: (1) Start
 — write a brief or pick a design, English first; (2) Blocks — the pieces;
 (3) Edit a block and Rewrite; (4) Add a language, translated by AI; (5)
 "Check this" — accept or edit; (6) Phone / desktop, light / dark preview;
-(7) Save as template; (8) Use in a campaign. On a phone the walkthrough also
+(7) Save as template; (8) Send. On a phone the walkthrough also
 switches the panel tab for each step. Implementation: a small
 `src/components/marketing/StudioWalkthrough.tsx` with a step list of
 `{ target selector, panel section, caption, before() }`, no library;
