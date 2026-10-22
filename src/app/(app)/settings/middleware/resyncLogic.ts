@@ -1,8 +1,10 @@
-import { MAX_SELECT_IDS, MAX_SELECT_TEXT, parseSelection } from "@/lib/connectors/d365/selection";
-import type { EntitySchedule, RunFilters, SyncEntity } from "./api";
+import { MAX_SELECT_IDS, parseSelection } from "@/lib/connectors/d365/selection";
+import { MAX_SCOPE_CONDITIONS, MAX_SCOPE_VALUES, conditionId, type ScopeAttribute } from "@/lib/connectors/d365/scope";
+import type { ScopeCondition } from "@/lib/connectors/d365/types";
+import type { EntitySchedule, ScopeSave, SyncEntity } from "./api";
 
 // The Resync tab's pure parts: the one-line "last run", the schedule choices, the
-// filters of a full resync and the "Specific records" box. Messages and failures
+// Scope of an entity and the "Specific records" box. Messages and failures
 // are the Monitor's, not here.
 
 export const RESYNC_TABS = ["full", "records"] as const;
@@ -62,52 +64,76 @@ export function recordIdsProblem(text: string): string | null {
   return r.ok ? null : r.error;
 }
 
-// ── Filters of a full resync ────────────────────────────────────────────────
+// ── Scope of an entity ───────────────────────────────────────────────────────
 
-export type FilterDraft = { since: string; text: string; activeOnly: boolean };
-export const NO_FILTERS: FilterDraft = { since: "", text: "", activeOnly: false };
+/** The cell under "Scope": the saved words, or "All customers". An older server that sends none reads as all. */
+export function scopeCell(e: Pick<SyncEntity, "key" | "scope">): string {
+  return e.scope?.summary ?? `All ${e.key.replace(/_/g, " ")}`;
+}
 
-export const hasFilters = (d: FilterDraft): boolean => !!d.since || !!d.text.trim() || d.activeOnly;
+/** One condition being edited. `id` is the attribute id the scope route lists ("territoryid", "customer:territoryid"). */
+export type ConditionDraft = { id: string; values: string[]; labels: string[] };
+export type ScopeDraft = ConditionDraft[];
 
-/** The request body for the filters, or a problem to show beside the field. */
-export function filtersToRequest(d: FilterDraft): { ok: true; filters: RunFilters } | { ok: false; error: string } {
-  const text = d.text.trim();
-  if (text.length > MAX_SELECT_TEXT) return { ok: false, error: `Contains takes at most ${MAX_SELECT_TEXT} characters.` };
-  const filters: RunFilters = {};
-  if (d.since) {
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(d.since)) return { ok: false, error: "Changed since must be a date." };
-    filters.since = d.since;
+export function draftFromScope(conditions: readonly ScopeCondition[]): ScopeDraft {
+  return conditions.map((c) => ({ id: conditionId(c), values: [...c.values], labels: c.values.map((v, i) => c.labels?.[i] || v) }));
+}
+
+/** The next attribute not used yet, the common ones first (they come first in the list). */
+export function addCondition(draft: ScopeDraft, attributes: readonly ScopeAttribute[]): ScopeDraft {
+  if (draft.length >= MAX_SCOPE_CONDITIONS) return draft;
+  const free = attributes.find((a) => !draft.some((c) => c.id === a.id));
+  return free ? [...draft, { id: free.id, values: [], labels: [] }] : draft;
+}
+
+/** Changing the attribute of a row starts its values again: a code of one attribute means nothing for another. */
+export function setConditionAttribute(draft: ScopeDraft, index: number, id: string): ScopeDraft {
+  return draft.map((c, i) => (i === index ? { id, values: [], labels: [] } : c));
+}
+
+export function toggleConditionValue(draft: ScopeDraft, index: number, value: string, label: string): ScopeDraft {
+  return draft.map((c, i) => {
+    if (i !== index) return c;
+    const at = c.values.indexOf(value);
+    if (at !== -1) return { ...c, values: c.values.filter((_, j) => j !== at), labels: c.labels.filter((_, j) => j !== at) };
+    if (c.values.length >= MAX_SCOPE_VALUES) return c;
+    return { ...c, values: [...c.values, value], labels: [...c.labels, label || value] };
+  });
+}
+
+export const removeCondition = (draft: ScopeDraft, index: number): ScopeDraft => draft.filter((_, i) => i !== index);
+
+/** Why the draft cannot be saved yet, or null. The server checks again; this only saves the round trip. */
+export function scopeProblem(draft: ScopeDraft, attributes: readonly ScopeAttribute[]): string | null {
+  if (draft.length > MAX_SCOPE_CONDITIONS) return `A scope takes at most ${MAX_SCOPE_CONDITIONS} conditions.`;
+  const seen = new Set<string>();
+  for (const c of draft) {
+    const a = attributes.find((x) => x.id === c.id);
+    if (!a) return "One of the attributes is no longer in the system. Remove it or choose another.";
+    if (seen.has(c.id)) return `${a.label} is used twice. Put its values in one row.`;
+    seen.add(c.id);
+    if (c.values.length === 0) return `Choose at least one value for ${a.label}.`;
   }
-  if (text) filters.text = text;
-  if (d.activeOnly) filters.active_only = true;
-  return { ok: true, filters };
+  return null;
 }
 
-/** "1 Oct" this year, "1 Oct 2025" otherwise. Read from the text, not through Date, so no time zone can move the day. */
-export function dayWord(ymd: string, now: Date = new Date()): string {
-  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(ymd);
-  if (!m) return ymd;
-  const mon = new Date(2000, Number(m[2]) - 1, 1).toLocaleString("en", { month: "short" });
-  return `${Number(m[3])} ${mon}${Number(m[1]) === now.getFullYear() ? "" : ` ${m[1]}`}`;
+/** The request body of a save. */
+export function draftToSave(draft: ScopeDraft): ScopeSave {
+  return draft.map((c) => ({ attribute: c.id.replace(/^customer:/, ""), values: c.values, labels: c.labels, ...(c.id.startsWith("customer:") ? { via: "customer" as const } : {}) }));
 }
 
-/** What a full resync will read, in the words the owner used: `Customers changed since 1 Oct, name contains "AG"`. Without filters: everything. */
-export function filterLine(entity: string, d: FilterDraft, now: Date = new Date()): string {
-  if (!hasFilters(d)) return `${entity}: everything`;
-  const bits: string[] = [];
-  if (d.since) bits.push(`changed since ${dayWord(d.since, now)}`);
-  if (d.text.trim()) bits.push(`name or number contains "${d.text.trim()}"`);
-  if (d.activeOnly) bits.push("active only");
-  return `${entity} ${bits.join(", ")}`;
+export function sameDraft(a: ScopeDraft, b: ScopeDraft): boolean {
+  return JSON.stringify(a.map((c) => [c.id, c.values])) === JSON.stringify(b.map((c) => [c.id, c.values]));
 }
 
-/** Filters set that this entity cannot apply, so the row can say so before the run rather than after. */
-export function unsupportedFilters(support: SyncEntity["filters"], d: FilterDraft): string[] {
-  if (!support) return [];
+/** Typed values: commas or new lines, blanks and duplicates dropped, at most 50 like the server. */
+export function parseTypedValues(text: string): string[] {
   const out: string[] = [];
-  if (d.since && !support.since) out.push("Changed since");
-  if (d.text.trim() && !support.text) out.push("Contains");
-  if (d.activeOnly && !support.active) out.push("Active only");
+  for (const part of text.split(/[\n,;]+/)) {
+    const p = part.trim().slice(0, 100);
+    if (p && !out.includes(p)) out.push(p);
+    if (out.length >= MAX_SCOPE_VALUES) break;
+  }
   return out;
 }
 
@@ -117,6 +143,7 @@ export function resultLine(r: { counts?: Record<string, number> }): string {
   const bits = [`${c.read ?? 0} read`, `${c.created ?? 0} new`, `${c.updated ?? 0} updated`, `${c.unchanged ?? 0} unchanged`];
   if (c.skipped) bits.push(`${c.skipped} skipped`);
   if (c.failed) bits.push(`${c.failed} failed`);
+  if (c.outside_scope) bits.push(`${c.outside_scope} outside scope left unchanged`);
   return bits.join(", ");
 }
 

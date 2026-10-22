@@ -38,11 +38,11 @@ export const MIDDLEWARE_TIPS = {
   // Resync
   resync: "Moves data from the ERP into BPMSquare on demand. Messages and failures are in the Monitor.",
   schedule: "How often BPMSquare reads this from the ERP by itself. Daily runs at 02:00 UTC.",
-  filters: "A full resync reads only the records that match. Sync now ignores these and reads what changed.",
-  sinceDate: "Only records changed in the ERP on or after this day.",
-  containsText: "Matches part of a record's name or number. Entities without a name or number cannot use it.",
-  activeOnly: "Leaves out records marked inactive. Available for Dataverse only.",
-  getRecords: "Reads only the records you list, by their ERP id or number. Nothing else is read, and Sync now is not affected.",
+  scope: "Narrows what every run reads: Sync now, the schedule and Full resync. Records that later fall outside it stay as they are; nothing is deleted.",
+  scopeAttribute: "A field of the record in your ERP, such as its class, territory or country. The common ones come first.",
+  scopeValues: "A record matches a row when its value is any of the values picked. It must match every row.",
+  scopeCustomer: "For a contact, the field belongs to its customer. A contact without that customer value is left out.",
+  getRecords: "Reads only the records you list, by their ERP id or number. The scope does not apply, and Sync now is not affected.",
   recordIds: "Up to 100, separated by commas, spaces or new lines. An id is the long code of a record; a number is the one people see.",
   sendRecord: "Pick a record and send it now. A Standard Quote follows its awarded or rejected rule.",
 } as const;

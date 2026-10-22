@@ -128,6 +128,8 @@ export type RunNote = {
   capture?: boolean;
   /** What a filtered run read ("changed since 2026-10-01, active only"); absent on an ordinary run. */
   selection?: string | null;
+  /** The saved scope the run read under ("Class A, B, C · Territory North"); absent when the run read everything. */
+  scope?: string | null;
 };
 
 /** One message per connector run: counts and the first failed rows. The run's
@@ -156,6 +158,9 @@ export async function recordConnectorRun(admin: SupabaseClient, tenantId: string
       ...(n.selection ? {
         selection: n.selection,
         headline: `Filtered run (${n.selection}): ${n.counts.read ?? 0} read, ${n.counts.created ?? 0} created, ${n.counts.updated ?? 0} updated, ${failed} failed`,
+      } : n.scope ? {
+        scope: n.scope,
+        headline: `Scope (${n.scope}): ${n.counts.read ?? 0} read, ${n.counts.created ?? 0} created, ${n.counts.updated ?? 0} updated, ${failed} failed${n.counts.outside_scope ? `, ${n.counts.outside_scope} outside scope left unchanged` : ""}`,
       } : {}),
     },
     exchange,

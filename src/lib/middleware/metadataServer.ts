@@ -4,6 +4,7 @@ import { createAdminSupabase } from "@/lib/supabase-server";
 import { loadD365 } from "@/lib/connectors/d365/server";
 import { entityConfig, outboundConfig } from "@/lib/connectors/d365/catalog";
 import type { D365Config, D365Product } from "@/lib/connectors/d365/types";
+import type { D365Client } from "@/lib/connectors/d365/odata";
 import { middlewareClient } from "./client";
 import { fieldsFromSampleRow, parseDataverseAttributes, parseODataMetadata, type ErpField, type MetadataEntity } from "./metadata";
 
@@ -47,6 +48,16 @@ export function entitySetFor(cfg: Pick<D365Config, "product" | "entities" | "out
   return key ? entityConfig(cfg, key)?.entity_set || null : null;
 }
 
+/** The table's logical name: known for the standard ones, otherwise looked up from its entity set. */
+export async function dataverseLogicalName(client: Pick<D365Client, "get">, entity: MetadataEntity, set: string): Promise<string> {
+  const known = DATAVERSE_LOGICAL[entity];
+  if (known) return known;
+  const r = (await client.get("EntityDefinitions", { $select: "LogicalName", $filter: `EntitySetName eq '${q(set)}'` })) as { value?: { LogicalName?: string }[] };
+  const logical = r.value?.[0]?.LogicalName;
+  if (!logical) throw new Error(`Dynamics does not know the table ${set}.`);
+  return logical;
+}
+
 async function fetchFields(tenantId: string, entity: MetadataEntity, product: D365Product): Promise<{ fields: ErpField[]; source: "metadata" | "sample"; fetchedAt: string } | { notApplicable: string; fetchedAt: string }> {
   const admin = createAdminSupabase();
   const loaded = await loadD365(admin, tenantId);
@@ -57,13 +68,8 @@ async function fetchFields(tenantId: string, entity: MetadataEntity, product: D3
 
   if (product === "dataverse") {
     const client = await middlewareClient(admin, tenantId, cfg, creds);
-    let logical = DATAVERSE_LOGICAL[entity];
-    if (!logical) {
-      const r = (await client.get("EntityDefinitions", { $select: "LogicalName", $filter: `EntitySetName eq '${q(set)}'` })) as { value?: { LogicalName?: string }[] };
-      logical = r.value?.[0]?.LogicalName;
-      if (!logical) throw new Error(`Dynamics does not know the table ${set}.`);
-    }
-    const json = await client.get(`EntityDefinitions(LogicalName='${q(logical)}')/Attributes`, { $select: "LogicalName,DisplayName,AttributeType,RequiredLevel,IsValidForCreate,AttributeOf" });
+    const logical = await dataverseLogicalName(client, entity, set);
+    const json = await client.get(`EntityDefinitions(LogicalName='${q(logical)}')/Attributes`, { $select: "LogicalName,DisplayName,AttributeType,RequiredLevel,IsValidForCreate,AttributeOf,IsValidForAdvancedFind" });
     return { fields: parseDataverseAttributes(json), source: "metadata", fetchedAt: new Date().toISOString() };
   }
 

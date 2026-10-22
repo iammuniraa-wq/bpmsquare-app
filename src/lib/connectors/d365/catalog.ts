@@ -1,4 +1,4 @@
-import type { D365Config, D365EntityConfig, D365EntityKey, D365Product } from "./types";
+import type { D365Config, D365EntityConfig, D365EntityKey, D365Product, ScopeKind } from "./types";
 
 // Default entity + field maps per Dynamics 365 product. These are the
 // out-of-the-box Microsoft entities; a customised environment differs, which
@@ -110,6 +110,48 @@ const BC: Defaults = {
 };
 
 export const D365_DEFAULTS: Record<D365Product, Defaults> = { fo: FO, dataverse: DATAVERSE, bc: BC };
+
+// ── Scope presets ───────────────────────────────────────────────────────────
+// The attributes the Resync "Scope" panel lists first for each product and entity. They are only a
+// starting list: one that the connected system does not have is not offered, and every other attribute
+// of the system sits behind "More attributes". `kind` is used only while the system's own field list
+// cannot be read; otherwise the system decides.
+
+export type ScopeCommon = { name: string; label: string; kind: ScopeKind };
+type CommonSet = { own: ScopeCommon[]; /** Dataverse contacts: attributes of the contact's customer. */ customer?: ScopeCommon[] };
+
+const c = (name: string, label: string, kind: ScopeKind): ScopeCommon => ({ name, label, kind });
+
+const DV_CUSTOMER = [
+  c("accountclassificationcode", "Classification", "option"), c("customertypecode", "Relationship type", "option"), c("territoryid", "Territory", "lookup"),
+  c("address1_country", "Country", "text"), c("industrycode", "Industry", "option"), c("ownerid", "Owner", "lookup"), c("statecode", "Status", "option"),
+];
+
+export const D365_SCOPE_COMMON: Record<D365Product, Partial<Record<D365EntityKey, CommonSet>>> = {
+  dataverse: {
+    customers: { own: DV_CUSTOMER },
+    vendors: { own: [c("customertypecode", "Relationship type", "option"), c("address1_country", "Country", "text"), c("ownerid", "Owner", "lookup"), c("statecode", "Status", "option")] },
+    contacts: {
+      own: [c("statecode", "Status", "option"), c("address1_country", "Country", "text"), c("ownerid", "Owner", "lookup"), c("jobtitle", "Job title", "text")],
+      customer: [c("accountclassificationcode", "Classification", "option"), c("territoryid", "Territory", "lookup"), c("address1_country", "Country", "text"), c("industrycode", "Industry", "option")],
+    },
+    products: { own: [c("subjectid", "Category", "lookup"), c("producttypecode", "Product type", "option"), c("statecode", "Status", "option")] },
+    projects: { own: [c("msdyn_projecttype", "Project type", "option"), c("statecode", "Status", "option"), c("statuscode", "Status reason", "option"), c("msdyn_contractorganizationalunitid", "Company", "lookup"), c("ownerid", "Owner", "lookup")] },
+  },
+  fo: {
+    customers: { own: [c("CustomerGroupId", "Customer group", "text"), c("SalesDistrictId", "Sales district", "text"), c("AddressCountryRegionId", "Country", "text"), c("PartyType", "Type", "option")] },
+    vendors: { own: [c("VendorGroupId", "Vendor group", "text"), c("AddressCountryRegionId", "Country", "text"), c("PartyType", "Type", "option")] },
+    products: { own: [c("ProductType", "Product type", "option"), c("ProductSubType", "Subtype", "option"), c("ItemModelGroupId", "Item model group", "text")] },
+    projects: { own: [c("ProjectGroupId", "Project group", "text"), c("ProjectType", "Project type", "option"), c("ProjectStage", "Status", "option")] },
+  },
+  bc: {
+    customers: { own: [c("country", "Country", "text"), c("type", "Type", "option"), c("blocked", "Blocked", "option"), c("currencyCode", "Currency", "text"), c("city", "City", "text")] },
+    vendors: { own: [c("country", "Country", "text"), c("blocked", "Blocked", "option"), c("currencyCode", "Currency", "text"), c("city", "City", "text")] },
+    products: { own: [c("type", "Type", "option"), c("itemCategoryCode", "Category", "text"), c("blocked", "Blocked", "boolean")] },
+    contacts: { own: [c("type", "Type", "option"), c("city", "City", "text")] },
+    projects: { own: [c("status", "Status", "option"), c("blocked", "Blocked", "option")] },
+  },
+};
 
 /** The entity config in force: the tenant's override where set, else the
  *  product default. Field maps are replaced whole, never merged key by key

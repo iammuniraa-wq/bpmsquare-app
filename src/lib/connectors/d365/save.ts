@@ -54,6 +54,8 @@ export function cleanEntities(raw: unknown, prev?: Partial<Record<D365EntityKey,
       filter: typeof e.filter === "string" && e.filter.trim() ? e.filter.trim().slice(0, 500) : undefined,
       field_map: map,
       ...(sched ? { schedule: sched as "off" | "hourly" | "daily" } : {}),
+      // The scope has its own route (Resync tab); a connection save keeps it exactly as stored.
+      ...(prev?.[key]?.scope ? { scope: prev[key]!.scope } : {}),
     };
   }
   return out;

@@ -456,3 +456,24 @@ row is ticked).
 **F. Everything else from (6) to (8) stands:** two-column mapping with header and lines, Monitor
 as the one big list with restart and payload view, Resync for data (per-entity schedule, Sync now,
 Full resync, Send a record, Only these records).
+
+**G. Resync scope, owner correction 2026-10-22 (replaces the Changed since / Contains / Active only card).**
+A filter is an **attribute of the record in the connected system**, never name text: customers of class A,
+B or C, by territory, sales area, country, owner, industry or status; products by group, type, status;
+vendors by group or country; projects by type, status, company; contacts by their own attributes or by their
+customer's (Dataverse). It is a **saved Scope per entity** (`config.entities[key].scope`) that applies to
+every run of that entity: Sync now, the automatic schedule and Full resync. The Resync table has one
+"Scope" cell per row ("All customers" or "Class A, B, C · Territory North") and one side panel: rows
+`[Attribute] [is any of] [values]`, at most 5 rows, AND between rows and OR inside one. The attribute list
+is the system's own field list (common ones first, "More attributes" for the rest); pick-lists, statuses and
+lookups load their values from the system. Rules:
+- A scoped run reads only matching records. A record that later falls outside the scope is not deleted and
+  not unlinked; a full run says how many ("N outside scope left unchanged").
+- The incremental position covers the old scope, so changing a scope that already narrowed (or clearing it)
+  shows "Scope changed: run Full resync to bring in the rest" until a full resync finishes. Narrowing from
+  "all" needs no such step.
+- "Specific records" (ids) is an explicit ask and ignores the scope.
+- An attribute the system no longer has stops the run with a plain line that names the entity to open.
+- Not offered: dates, ids, and anything the product has no concept of. F&O and Business Central have no
+  lookups: a sales area or territory there is a text or enum field and is offered as such.
+Routes: `GET/PUT /api/middleware/scope`, `GET /api/middleware/scope/values`.

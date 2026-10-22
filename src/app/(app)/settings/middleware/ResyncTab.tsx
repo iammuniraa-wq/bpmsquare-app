@@ -11,21 +11,22 @@ import { useUrlTab } from "@/components/ui/useUrlTab";
 import s from "./middleware.module.css";
 import {
   SENDABLE_LABEL, SENDABLE_OBJECTS, getSync, runSelected, runSync, sendRecord, setSchedule,
-  type AccountChoice, type EntitySchedule, type SendResult, type SendableObject, type SyncEntity, type SyncRunResult,
+  type AccountChoice, type EntitySchedule, type ScopeEntityKey, type SendResult, type SendableObject, type SyncEntity, type SyncRunResult,
 } from "./api";
 import { useMw } from "./context";
+import { SCOPE_CHANGED_LINE } from "@/lib/connectors/d365/scope";
 import {
-  NO_FILTERS, RESYNC_TABS, RESYNC_TAB_LABEL, SCHEDULE_CHOICES, filterLine, filtersToRequest, hasFilters, lastRunLine, numbersProblem,
-  parseRecordIds, recordIdsProblem, resultLine, unsupportedFilters, type FilterDraft, type ResyncTabId,
+  RESYNC_TABS, RESYNC_TAB_LABEL, SCHEDULE_CHOICES, lastRunLine, numbersProblem, parseRecordIds, recordIdsProblem, resultLine, scopeCell, type ResyncTabId,
 } from "./resyncLogic";
+import ScopePanel from "./ScopePanel";
 import { MIDDLEWARE_TIPS } from "./tips";
-import { Notice, ProblemNotice, Switch, describeError, useLoad } from "./ui";
+import { Notice, ProblemNotice, describeError, useLoad } from "./ui";
 import { AccountPick, QuoteSelect, useQuoteOptions } from "./Pickers";
 import { SendOutcome } from "./SendOutcome";
 
 // Resync moves DATA on demand. "Full resync" reads an entity from the ERP now or on a
-// schedule, all of it or only what matches some filters; "Specific records" reads a
-// list of records by id or number, and sends one record by hand. Messages, history and
+// schedule, under the entity's saved Scope (which records of the ERP it reads); "Specific records"
+// reads a list of records by id or number, and sends one record by hand. Messages, history and
 // failures are the Monitor's and never appear here.
 
 const ENTITY_WORD: Record<string, string> = { customers: "Customers", contacts: "Contacts", vendors: "Vendors", products: "Products", projects: "Projects" };
@@ -60,17 +61,16 @@ export default function ResyncTab() {
   );
 }
 
-// ── Tab 1: one row per inbound entity, with the filters of a full resync ────
+// ── Tab 1: one row per inbound entity, each with its saved scope ────────────
 
 function FullResync({ connected, connectorId }: { connected: boolean; connectorId: string }) {
   const sync = useLoad(getSync, [connectorId]);
   const [busy, setBusy] = useState<string | null>(null);
   const [problem, setProblem] = useState<unknown>(null);
   const [lines, setLines] = useState<Record<string, RunLine>>({});
-  const [filters, setFilters] = useState<FilterDraft>(NO_FILTERS);
+  const [scoping, setScoping] = useState<SyncEntity | null>(null);
   const rows = sync.data && sync.data.connected ? sync.data.entities.filter((e) => e.key !== "fence_projects") : [];
   const anyRunning = rows.some((e) => e.running);
-  const request = filtersToRequest(filters);
 
   useEffect(() => {
     if (!anyRunning && !busy) return;
@@ -82,13 +82,8 @@ function FullResync({ connected, connectorId }: { connected: boolean; connectorI
     setBusy(`${e.key}:${full ? "full" : "now"}`); setProblem(null);
     setLines((x) => { const { [e.key]: _drop, ...rest } = x; void _drop; return rest; });
     try {
-      // "Sync now" is the incremental run and never takes the filters; "Full resync" takes them, or reads everything.
-      if (!full) await runSync(e.key, false);
-      else if (!hasFilters(filters)) await runSync(e.key, true);
-      else if (request.ok) {
-        const res = await runSelected(e.key, request.filters);
-        setLines((x) => ({ ...x, [e.key]: runLine(res) }));
-      }
+      const res = await runSync(e.key, full);
+      setLines((x) => ({ ...x, [e.key]: runLine(res) }));
     } catch (err) {
       setLines((x) => ({ ...x, [e.key]: { ok: false, text: describeError(err) } }));
     } finally {
@@ -102,73 +97,49 @@ function FullResync({ connected, connectorId }: { connected: boolean; connectorI
   };
 
   return (
-    <>
-      <RunFilters value={filters} onChange={setFilters} error={request.ok ? null : request.error} />
-      <section className={s.stack} style={{ gap: 10 }}>
-        <div className={s.rowBetween}>
-          <span className="bpm-label-row"><h2 className="bpm-t-section">Data from the ERP</h2><InfoTip label="Data from the ERP">{MIDDLEWARE_TIPS.resync}</InfoTip></span>
-        </div>
-        {sync.error != null && <ProblemNotice error={sync.error} onRetry={() => void sync.reload()} />}
-        {problem != null && <ProblemNotice error={problem} />}
-        {sync.data && sync.data.connected && sync.data.pending_migration && <Notice tone="warn">A database update is needed before runs can be recorded.</Notice>}
-        {(sync.data && !sync.data.connected) || (!connected && !sync.data && !sync.loading)
-          ? <EmptyState title="Connect an ERP first" text="Syncing starts once there is a connection." />
-          : null}
-        {rows.length > 0 && (
-          <EntityRows rows={rows} connected={connected} busy={busy} lines={lines} filters={filters} filtersValid={request.ok} onSync={(e, full) => void run(e, full)} onSchedule={(e, v) => void schedule(e, v)} />
-        )}
-      </section>
-    </>
-  );
-}
-
-/** Changed since, Contains, Active only: one shared row for every entity below it. */
-export function RunFilters({ value, onChange, error }: { value: FilterDraft; onChange: (v: FilterDraft) => void; error: string | null }) {
-  const set = hasFilters(value);
-  return (
-    <Card title="Filters" info={MIDDLEWARE_TIPS.filters} action={set ? <Button size="sm" variant="quiet" onClick={() => onChange(NO_FILTERS)}>Clear</Button> : undefined}>
-      <div className={s.stack} style={{ gap: 10 }}>
-        <div className={s.runFilters}>
-          <Field label="Changed since" info={MIDDLEWARE_TIPS.sinceDate} htmlFor="rf-since" style={{ marginBottom: 0 }}>
-            <input id="rf-since" type="date" className="bpm-input" value={value.since} onChange={(e) => onChange({ ...value, since: e.target.value })} />
-          </Field>
-          <Field label="Contains" info={MIDDLEWARE_TIPS.containsText} htmlFor="rf-text" style={{ marginBottom: 0 }}>
-            <input id="rf-text" className="bpm-input" autoComplete="off" maxLength={80} value={value.text} onChange={(e) => onChange({ ...value, text: e.target.value })} />
-          </Field>
-          <div className={s.switchField}>
-            <Switch checked={value.activeOnly} label={`Active only: ${value.activeOnly ? "on" : "off"}`} onChange={(v) => onChange({ ...value, activeOnly: v })} />
-            <span className="bpm-label-row"><span className="bpm-t-label">Active only</span><InfoTip label="Active only">{MIDDLEWARE_TIPS.activeOnly}</InfoTip></span>
-          </div>
-        </div>
-        {error && <div className={s.issue} role="alert">{error}</div>}
-        {set && !error && <span className={`${s.small} ${s.muted}`}>{`Full resync reads: ${filterLine("records", value)}`}</span>}
+    <section className={s.stack} style={{ gap: 10 }}>
+      <div className={s.rowBetween}>
+        <span className="bpm-label-row"><h2 className="bpm-t-section">Data from the ERP</h2><InfoTip label="Data from the ERP">{MIDDLEWARE_TIPS.resync}</InfoTip></span>
       </div>
-    </Card>
+      {sync.error != null && <ProblemNotice error={sync.error} onRetry={() => void sync.reload()} />}
+      {problem != null && <ProblemNotice error={problem} />}
+      {sync.data && sync.data.connected && sync.data.pending_migration && <Notice tone="warn">A database update is needed before runs can be recorded.</Notice>}
+      {(sync.data && !sync.data.connected) || (!connected && !sync.data && !sync.loading)
+        ? <EmptyState title="Connect an ERP first" text="Syncing starts once there is a connection." />
+        : null}
+      {rows.length > 0 && (
+        <EntityRows rows={rows} connected={connected} busy={busy} lines={lines} onSync={(e, full) => void run(e, full)} onSchedule={(e, v) => void schedule(e, v)} onScope={setScoping} />
+      )}
+      {scoping && (
+        <ScopePanel entity={scoping.key as ScopeEntityKey} entityName={entityWord(scoping.key)} onClose={() => setScoping(null)} onSaved={() => sync.reload()} />
+      )}
+    </section>
   );
 }
 
 /** The table itself, plain props only. Under 780 px each row becomes a card. */
-export function EntityRows({ rows, connected, busy, lines, filters = NO_FILTERS, filtersValid = true, onSync, onSchedule, now }: {
+export function EntityRows({ rows, connected, busy, lines, onSync, onSchedule, onScope, now }: {
   rows: readonly SyncEntity[]; connected: boolean; busy: string | null; lines: Record<string, RunLine>;
-  filters?: FilterDraft; filtersValid?: boolean;
-  onSync: (e: SyncEntity, full: boolean) => void; onSchedule: (e: SyncEntity, v: EntitySchedule) => void; now?: Date;
+  onSync: (e: SyncEntity, full: boolean) => void; onSchedule: (e: SyncEntity, v: EntitySchedule) => void; onScope?: (e: SyncEntity) => void; now?: Date;
 }) {
-  const filtered = hasFilters(filters);
-  const setCount = (filters.since ? 1 : 0) + (filters.text.trim() ? 1 : 0) + (filters.activeOnly ? 1 : 0);
   return (
     <div className={s.listCard}>
       <table className={s.docTable}>
-        <thead><tr><th>Entity</th><th>Last run</th><th>Automatic</th><th><span className="bpm-sr-only">Run now</span></th></tr></thead>
+        <thead><tr><th>Entity</th><th>Scope</th><th>Last run</th><th>Automatic</th><th><span className="bpm-sr-only">Run now</span></th></tr></thead>
         <tbody>
           {rows.map((e) => {
             const off = !connected || !e.enabled || !!busy || e.running;
-            const cannot = filtered ? unsupportedFilters(e.filters, filters) : [];
-            // Every filter set is one this entity cannot express: a run would read the wrong thing, so it does not start.
-            const nothingLeft = filtered && cannot.length >= setCount;
+            const changed = e.scope?.narrowed && e.scope.needs_full;
             return (
               <Fragment key={e.key}>
                 <tr className={s.docRow}>
                   <td data-label="Entity"><span className={s.fieldName}>{entityWord(e.key)}</span>{!e.enabled && <span className={`${s.small} ${s.muted}`}>Switched off in Links</span>}</td>
+                  <td data-label="Scope">
+                    <span className={s.scopeCell}>
+                      <span className={s.wrapAny}>{scopeCell(e)}</span>
+                      <button type="button" className={s.linkBtn} onClick={() => onScope?.(e)} disabled={!connected || !onScope} aria-label={`Edit the scope of ${entityWord(e.key)}`}>Edit</button>
+                    </span>
+                  </td>
                   <td data-label="Last run"><span className={s.small}>{lastRunLine(e, now)}</span></td>
                   <td data-label="Automatic">
                     <select className="bpm-input" aria-label={`Automatic sync for ${entityWord(e.key)}`} value={e.schedule} onChange={(ev) => onSchedule(e, ev.target.value as EntitySchedule)}>
@@ -178,14 +149,14 @@ export function EntityRows({ rows, connected, busy, lines, filters = NO_FILTERS,
                   <td className={s.runCell}>
                     <span className={`${s.row} bpm-tap`}>
                       <Button size="sm" variant="primary" onClick={() => onSync(e, false)} loading={busy === `${e.key}:now`} disabled={off}>Sync now</Button>
-                      <Button size="sm" onClick={() => onSync(e, true)} loading={busy === `${e.key}:full`} disabled={off || !filtersValid || nothingLeft}>Full resync</Button>
+                      <Button size="sm" onClick={() => onSync(e, true)} loading={busy === `${e.key}:full`} disabled={off}>Full resync</Button>
                     </span>
                   </td>
                 </tr>
-                {(cannot.length > 0 || lines[e.key]) && (
+                {(changed || lines[e.key]) && (
                   <tr className={s.docSub}>
-                    <td colSpan={4}>
-                      {cannot.length > 0 && <div className={`${s.small} ${s.muted}`}>{`Not available here: ${cannot.join(", ")}.`}</div>}
+                    <td colSpan={5}>
+                      {changed && <div className={s.small} role="status">{SCOPE_CHANGED_LINE}</div>}
                       {lines[e.key] && <div className={lines[e.key].ok ? s.small : s.issue} role={lines[e.key].ok ? "status" : "alert"}>{lines[e.key].text}</div>}
                     </td>
                   </tr>
