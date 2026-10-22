@@ -125,3 +125,22 @@ of the spec apply unchanged: set-up guide, presets, pick-lists, send a test
 4. **SAP follow-up (awarded as Project or Sales Order, what a rejected quote
    sends):** open, the owner decides later. Default until then: awarded =
    Project, rejected = nothing, both configurable.
+
+## 9. Built: SAP S/4HANA pull (2026-10-22)
+First SAP step, on the frame above, behind `integration_middleware`; nothing is sent to SAP yet.
+- **What is already there (6c):** the connector chips, the connection panel, Links, Mapping, Resync (Scope, schedule,
+  specific records), Monitor and Restart, `tenant_connectors`, `connector_links`, `connector_sync_runs`,
+  `integration_messages`. SAP adds a chip (`sap_s4` in the registry, `middlewareOnly`: no tile without the flag) and no
+  tab, no table, no migration.
+- **Login (one choice on the panel):** Communication user (HTTP Basic: host, user, password) or an API key against the
+  SAP Business Accelerator Hub sandbox (`sandbox.api.sap.com/s4hanacloud`, read only, sample data). Secrets are sealed in
+  `tenant_connectors.credentials`, write only. Every call goes through `fetchPublic`.
+- **Pull:** customers (`A_BusinessPartner` where `Customer ne ''`) to accounts, suppliers (`Supplier ne ''`) to
+  suppliers, products (`API_PRODUCT_SRV/A_Product` with the English description) to products. The key is the readable
+  SAP number, the pull is incremental by `LastChangeDate` (position `d|day`, or `k|...` while a capped scan continues),
+  a content hash says "unchanged", the run row is the lock, and each run writes one Monitor message
+  (`connector_id = sap_s4`). Contacts are later.
+- **Scope:** structured attributes of the main entity set only (sales area and country are not offered); the panel says so.
+- **Frame:** `src/lib/connectors/adapter.ts` (`ErpAdapter`), implemented by `sapAdapter()`; Dynamics is not rewritten.
+- **Needs in SAP:** Communication Arrangements for SAP_COM_0008 (Business Partner, Customer and Supplier Integration)
+  and SAP_COM_0009 (Product Integration). `scripts/sap-s4-smoke.mjs` checks a real system from the environment.

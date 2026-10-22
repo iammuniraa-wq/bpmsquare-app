@@ -97,7 +97,9 @@ export class SapClient {
       } catch (e) {
         clearTimeout(timer);
         if (e instanceof SapError) throw e;
-        if (attempt < maxRetries) { await sleep(Math.min(30_000, 500 * 2 ** attempt)); continue; }
+        // An address the guard refused (private network, not https, too many redirects) will not get better by asking again.
+        const refused = /private or internal network|must use https|valid URL|redirected too many|could not be resolved/i.test((e as Error).message ?? "");
+        if (!refused && attempt < maxRetries) { await sleep(Math.min(30_000, 500 * 2 ** attempt)); continue; }
         const word = this.opts.hostWord ?? "SAP";
         const msg = (e as Error).name === "AbortError" ? `${word} did not answer in time.` : `Could not reach ${word}: ${(e as Error).message}`;
         throw new SapError(msg.slice(0, 500), 0);

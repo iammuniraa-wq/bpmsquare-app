@@ -118,7 +118,7 @@ export default function MiddlewareClient() {
         {banner && <Notice tone="warn">{banner}</Notice>}
         {noConnection ? (
           <EmptyState
-            title={`Connect ${connector.shortName}`} text="Sign in once; quotes, customers and products then move between the two."
+            title={`Connect ${connector.shortName}`} text={inboundOnly ? "Sign in once; customers, suppliers and products then come in from it." : "Sign in once; quotes, customers and products then move between the two."}
             action={<Button variant="primary" onClick={() => setPanelOpen(true)}>Connect {connector.shortName}</Button>}
           />
         ) : (
