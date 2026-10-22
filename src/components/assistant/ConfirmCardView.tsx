@@ -42,10 +42,30 @@ function Control({ f, value, onChange, disabled }: { f: CardField; value: string
   return <input {...common} type={f.widget === "date" ? "date" : f.widget === "number" ? "number" : "text"} value={value} onChange={(e) => onChange(e.target.value)} />;
 }
 
-export default function ConfirmCardView({ card, onOpen, onAsk }: {
+const CONFIDENCE_WORD = { found: "Found", likely: "Likely", not_found: "Not found" } as const;
+
+/** The small line under a field's label: where a value came from, how sure the lookup was, or that the person changed it. */
+export function fieldMeta(f: CardField, current: string): string | null {
+  if (f.origin === "web") return current !== f.value ? "Edited by you" : `From the web · ${CONFIDENCE_WORD[f.confidence ?? "likely"] ?? "Likely"}`;
+  if (f.confidence === "not_found") return current !== "" ? "Added by you" : CONFIDENCE_WORD.not_found;
+  return null;
+}
+
+/** The buttons under a created record: the "Open" button already covers the record itself, and in the web window an "ask" step is left out. */
+export function visibleNextSteps(next: NextStep[], recordHref: string, modelLocked: boolean): NextStep[] {
+  return next.filter((n) => !(n.kind === "navigate" && n.target === recordHref) && !(modelLocked && n.kind === "ask"));
+}
+
+export default function ConfirmCardView({ card, onOpen, onAsk, modelLocked = false }: {
   card: ConfirmCard;
   onOpen: (href: string) => void;
   onAsk: (question: string) => void;
+  /**
+   * The chat is in the web-derived window (assistant.ts, WEB_TAINT_WINDOW), where the assistant cannot propose another
+   * record. This card's own button still works (it runs no model); a "next step" that would ask the assistant to create
+   * something is left out rather than shown as a button that answers "ask again later".
+   */
+  modelLocked?: boolean;
 }) {
   const [values, setValues] = useState<Record<string, string>>(() => Object.fromEntries(card.fields.map((f) => [f.key, f.value])));
   const [showAll, setShowAll] = useState(false);
@@ -59,6 +79,7 @@ export default function ConfirmCardView({ card, onOpen, onAsk }: {
   const missing = useMemo(() => missingRequired(card.fields, values), [card.fields, values]);
   const visible = card.fields.filter((f) => showAll || f.required || (values[f.key] ?? "") !== "" || f.value !== "");
   const hiddenCount = card.fields.length - visible.length;
+  const notFound = card.fields.filter((f) => f.confidence === "not_found" && (values[f.key] ?? "") === "").map((f) => f.label);
 
   async function press() {
     if (busy || missing.length > 0) return;
@@ -94,7 +115,7 @@ export default function ConfirmCardView({ card, onOpen, onAsk }: {
         <div style={{ fontSize: 12.5, fontWeight: 700 }}>Created {done.record.label}</div>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
           <button className="bms-dock-chip" onClick={() => onOpen(done.record.href)} style={{ ...btn, background: "var(--accentbg)", border: `1px solid ${c.line}`, color: c.accent }}>Open →</button>
-          {done.next.filter((n) => !(n.kind === "navigate" && n.target === done.record.href)).map((n) => (
+          {visibleNextSteps(done.next, done.record.href, modelLocked).map((n) => (
             <button
               key={n.id} className="bms-dock-chip"
               onClick={() => (n.kind === "navigate" && n.target ? onOpen(n.target) : n.question ? onAsk(n.question) : undefined)}
@@ -130,12 +151,21 @@ export default function ConfirmCardView({ card, onOpen, onAsk }: {
       )}
 
       <div style={{ padding: "10px 12px", display: "flex", flexDirection: "column", gap: 8 }}>
-        {visible.map((f) => (
-          <label key={f.key} style={{ display: "grid", gridTemplateColumns: "minmax(86px, 34%) 1fr", alignItems: "center", gap: 8, fontSize: 12 }}>
-            <span style={{ color: c.muted, fontWeight: 600 }}>{f.label}{f.required ? " *" : ""}</span>
-            <Control f={f} value={values[f.key] ?? ""} disabled={busy} onChange={(v) => setValues((p) => ({ ...p, [f.key]: v }))} />
-          </label>
-        ))}
+        {visible.map((f) => {
+          const meta = fieldMeta(f, values[f.key] ?? "");
+          return (
+            <label key={f.key} style={{ display: "grid", gridTemplateColumns: "minmax(86px, 34%) 1fr", alignItems: "center", gap: 8, fontSize: 12 }}>
+              <span style={{ color: c.muted, fontWeight: 600 }}>
+                {f.label}{f.required ? " *" : ""}
+                {meta && <span data-testid="field-meta" style={{ display: "block", fontSize: 10.5, fontWeight: 600, color: c.hint }}>{meta}</span>}
+              </span>
+              <Control f={f} value={values[f.key] ?? ""} disabled={busy} onChange={(v) => setValues((p) => ({ ...p, [f.key]: v }))} />
+            </label>
+          );
+        })}
+        {notFound.length > 0 && (
+          <div style={{ fontSize: 11.5, color: c.hint }}>Not found on the web: {notFound.join(", ")}</div>
+        )}
         {hiddenCount > 0 && (
           <div>
             <button className="bms-dock-chip" onClick={() => setShowAll(true)} style={{ ...btn, padding: "5px 10px", background: "transparent", border: `1px dashed ${c.line}`, color: c.muted }}>

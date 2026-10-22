@@ -23,6 +23,11 @@ export type TokenPayload = {
   sm: string;
   /** What the card proposed, as a short hash per non-empty field, so the audit can say which values the person changed. */
   pv: Record<string, string>;
+  /**
+   * Present when some proposed values came from a web lookup: the id of the signed consent that allowed it and the keys
+   * of the fields it filled. Signed, so the press cannot claim a web origin it did not have, or hide one it did.
+   */
+  wb?: { c: string | null; f: string[] };
   exp: number;
 };
 

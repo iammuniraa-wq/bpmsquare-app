@@ -76,6 +76,34 @@ export function AnalysisConsentRow({ subject, state, disabled, onChoice }: {
   );
 }
 
+export type CreateDetailsState = "pending" | "manual" | "web" | "skipped";
+export type CreateDetailsMode = "manual" | "web";
+
+const DETAILS_SETTLED: Record<Exclude<CreateDetailsState, "pending">, string> = {
+  manual: "You will give the details",
+  web: "Looking it up on the web",
+  skipped: "Not answered",
+};
+
+/**
+ * The one question under "Create an account <name>": two chips, no free text. Both are requests of their own that the
+ * server answers without a model. It carries no "i" (the dock keeps at most three): the two labels say what happens.
+ * Once answered it shrinks to one muted line.
+ */
+export function CreateDetailsRow({ state, disabled, onChoice }: {
+  state: CreateDetailsState;
+  disabled?: boolean;
+  onChoice: (mode: CreateDetailsMode) => void;
+}) {
+  if (state !== "pending") return <div style={{ fontSize: 11.5, color: c.hint }}>{DETAILS_SETTLED[state]}</div>;
+  return (
+    <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }} role="group" aria-label="How to fill in the details">
+      <button className="bms-dock-chip" style={chip} disabled={disabled} onClick={() => onChoice("manual")}>I&apos;ll give the details</button>
+      <button className="bms-dock-chip" style={chip} disabled={disabled} onClick={() => onChoice("web")}>Look it up on the web</button>
+    </div>
+  );
+}
+
 const SHOWN = 3;
 
 /** The "From the web" label and the sources an answer used, numbered to match the [n] markers in its text. */

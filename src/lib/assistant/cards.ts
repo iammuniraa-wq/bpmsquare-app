@@ -12,9 +12,13 @@ export type CardField = {
   widget: CardWidget;
   /** enum, select and ref fields: what the person can pick. A ref's value is the record id. */
   options?: { value: string; label: string }[];
-  /** Where the value came from, when it did not come from the person (research fill, WP6). */
-  source?: { url: string; title: string };
-  confidence?: "found" | "unsure" | "not_found";
+  /**
+   * "web": the value was proposed from a web lookup the person agreed to, not typed by them. The card says so in words;
+   * the addresses it came from are never part of a card (they live only in the audit row).
+   */
+  origin?: "web";
+  /** Only on a web lookup: how sure the lookup was, or that it found nothing for this field. */
+  confidence?: "found" | "likely" | "not_found";
 };
 
 export type CardDuplicate = { id: string; label: string; href: string };

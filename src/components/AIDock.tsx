@@ -16,10 +16,10 @@ import { ASSISTANT_TIPS, usageTip } from "@/lib/assistant/tips";
 import type { Suggestion } from "@/lib/assistant/suggestions";
 import type { ConfirmCard } from "@/lib/assistant/cards";
 import ConfirmCardView from "@/components/assistant/ConfirmCardView";
-import { AnalysisConsentRow, WebConsentRow, WebSources } from "@/components/assistant/WebResearch";
+import { AnalysisConsentRow, CreateDetailsRow, WebConsentRow, WebSources, type CreateDetailsMode, type CreateDetailsState } from "@/components/assistant/WebResearch";
 import AnalysisCardView from "@/components/analysis/AnalysisCardView";
 import type { DockAnalysis } from "@/lib/assistant/analysisTool";
-import { applyChoice, settleOnNewAsk, type ConsentState, type WebAllow, type WebChoice } from "@/lib/assistant/webConsent";
+import { WEB_TAINT_WINDOW, applyChoice, settleOnNewAsk, type ConsentState, type WebAllow, type WebChoice } from "@/lib/assistant/webConsent";
 import { Markdown, InlineMarkdown } from "@/components/assistant/Markdown";
 import { plainText } from "@/lib/assistant/markdown";
 import { DOCK_PANEL_CSS } from "@/components/assistant/dockLayout";
@@ -33,8 +33,16 @@ type Msg = {
   /** A create the assistant proposes: the confirm card. */
   confirm?: ConfirmCard;
   /** The assistant asked to search the web, or to analyse a company with web research; answered with the chips. */
-  consent?: { kind: "web_search" | "analyse_company"; query: string; subject?: string; state: ConsentState; token: string };
+  consent?: {
+    kind: "web_search" | "analyse_company" | "create_research"; query: string; subject?: string; state: ConsentState; token: string;
+    /** create_research: what the chip shows (the search words); `query` is the signed string sent back with the Yes. */
+    shown?: string; object?: string;
+  };
   web?: WebSource[];
+  /** The person gave only a company name: how to fill the details (two chips). */
+  clarify?: { object: string; name: string; state: CreateDetailsState };
+  /** The card on this message holds values from the web lookup: it counts as web-derived for the assistant's action tools. */
+  fromWeb?: boolean;
   /** A company analysis, drawn as a card from its fields. */
   analysis?: DockAnalysis;
 };
@@ -207,11 +215,32 @@ export default function AIDock({ liftForTabBar = false }: {
     const out = applyChoice(choice);
     setMessages((prev) => prev.map((x, k) => (k === index && x.consent ? { ...x, consent: { ...x.consent, state: out.state } } : x)));
     const base = messages.slice(0, index);
-    const asked = base[base.length - 1];
-    if (out.allow && asked?.from === "me") void ask(asked.text, undefined, { base, allow: out.allow, query: m.consent.query, token: m.consent.token });
+    // The question this answers is the person's last message before the chip; for a lookup it sits behind the two-chip question.
+    const asked = [...base].reverse().find((x) => x.from === "me");
+    if (!asked) return;
+    if (out.allow) void ask(asked.text, undefined, { base, allow: out.allow, query: m.consent.query, token: m.consent.token });
+    // No to the lookup is not a dead end: the card opens with just the name.
+    else if (m.consent.kind === "create_research" && m.consent.object && m.consent.subject) {
+      void ask(asked.text, undefined, { base, createFlow: { object: m.consent.object, name: m.consent.subject, mode: "manual" } });
+    }
   }
 
-  async function ask(question: string, guideTask?: string, resume?: { base: Msg[]; allow: WebAllow; query: string; token: string }, analyse?: AnalyseRequest) {
+  // The two chips under "how do you want to fill in the details?". Neither is read by a model: each is a request of its own.
+  function answerClarify(index: number, mode: CreateDetailsMode) {
+    const m = messages[index];
+    if (!m?.clarify || m.clarify.state !== "pending" || busy) return;
+    const base = messages.slice(0, index);
+    const asked = [...base].reverse().find((x) => x.from === "me");
+    if (!asked) return;
+    setMessages((prev) => prev.map((x, k) => (k === index && x.clarify ? { ...x, clarify: { ...x.clarify, state: mode } } : x)));
+    void ask(asked.text, undefined, { base, createFlow: { object: m.clarify.object, name: m.clarify.name, mode } });
+  }
+
+  async function ask(
+    question: string, guideTask?: string,
+    resume?: { base: Msg[]; allow?: WebAllow; query?: string; token?: string; createFlow?: { object: string; name: string; mode: CreateDetailsMode } },
+    analyse?: AnalyseRequest,
+  ) {
     const text = question.trim();
     if (!text || busy) return;
     // "ok" / "no" typed under a pending Yes / No question presses that chip.
@@ -232,12 +261,21 @@ export default function AIDock({ liftForTabBar = false }: {
       .map((m) => ({
         role: m.from === "me" ? "user" : "assistant",
         text: m.analysis ? `${m.text}\n${m.analysis.digest}` : m.text,
-        ...(m.from === "bot" && (m.web || m.analysis?.webDerived) ? { web: true } : {}),
+        ...(m.from === "bot" && (m.web || m.analysis?.webDerived || m.fromWeb) ? { web: true } : {}),
       }));
-    if (!resume) setMessages((prev) => [...prev.map((m) => (m.consent ? { ...m, consent: { ...m.consent, state: settleOnNewAsk(m.consent.state) } } : m)), { from: "me", text }]);
+    if (!resume) {
+      setMessages((prev) => [
+        ...prev.map((m) => ({
+          ...m,
+          ...(m.consent ? { consent: { ...m.consent, state: settleOnNewAsk(m.consent.state) } } : {}),
+          ...(m.clarify?.state === "pending" ? { clarify: { ...m.clarify, state: "skipped" as const } } : {}),
+        })),
+        { from: "me", text },
+      ]);
+    }
     setDraft("");
     setBusy(true);
-    setSearching(!!resume);
+    setSearching(!!resume?.allow);
     try {
       // The page goes as ids only: the route, and the object type and record id read from it. Never record content.
       const page = parsePageContext(pathname);
@@ -250,6 +288,7 @@ export default function AIDock({ liftForTabBar = false }: {
           allow_web: resume?.allow,
           consent_query: resume?.query,
           consent_token: resume?.token,
+          create_flow: resume?.createFlow,
           guideTask: guideTask ?? undefined,
           analyse,
         }),
@@ -258,13 +297,21 @@ export default function AIDock({ liftForTabBar = false }: {
       if (res.ok) {
         if (json.usage) setUsage(json.usage);
         const cards: Card[] | undefined = Array.isArray(json.cards) ? json.cards : undefined;
-        const kind = json.consent?.kind === "web_search" || json.consent?.kind === "analyse_company" ? (json.consent.kind as "web_search" | "analyse_company") : null;
+        const kind = json.consent?.kind === "web_search" || json.consent?.kind === "analyse_company" || json.consent?.kind === "create_research"
+          ? (json.consent.kind as "web_search" | "analyse_company" | "create_research") : null;
         const consent = kind && typeof json.consent.query === "string" && typeof json.consent.token === "string"
-          ? { kind, query: json.consent.query as string, subject: typeof json.consent.subject === "string" ? (json.consent.subject as string) : undefined, state: "pending" as const, token: json.consent.token as string } : undefined;
+          ? {
+              kind, query: json.consent.query as string, subject: typeof json.consent.subject === "string" ? (json.consent.subject as string) : undefined,
+              state: "pending" as const, token: json.consent.token as string,
+              shown: typeof json.consent.shown === "string" ? (json.consent.shown as string) : undefined,
+              object: typeof json.consent.object === "string" ? (json.consent.object as string) : undefined,
+            } : undefined;
+        const clarify = json.clarify?.kind === "create_details" && typeof json.clarify.object === "string" && typeof json.clarify.name === "string"
+          ? { object: json.clarify.object as string, name: json.clarify.name as string, state: "pending" as const } : undefined;
         const analysis: DockAnalysis | undefined = json.analysis?.card && typeof json.analysis.digest === "string" ? json.analysis : undefined;
         const web: WebSource[] | undefined = Array.isArray(json.web?.sources) && json.web.sources.length ? json.web.sources : undefined;
         const reply: GuideReply | undefined = json.guide && Array.isArray(json.guide.steps) ? json.guide : undefined;
-        setMessages((prev) => [...prev, { from: "bot", text: json.answer, report: json.report as ReportPayload | undefined, cards, guide: reply, consent, web, analysis, confirm: json.card as ConfirmCard | undefined }]);
+        setMessages((prev) => [...prev, { from: "bot", text: json.answer, report: json.report as ReportPayload | undefined, cards, guide: reply, consent, web, analysis, clarify, fromWeb: json.fromWeb === true, confirm: json.card as ConfirmCard | undefined }]);
         if (reply) startGuide(reply);
         if (json.autoFollow && cards?.length === 1) go(cards[0].href);
       } else {
@@ -546,7 +593,7 @@ export default function AIDock({ liftForTabBar = false }: {
                   }}
                 >
                   {/* The assistant's text is markdown (lists, bold); what the person typed is shown as typed. */}
-                  {m.from === "bot" ? <Markdown text={m.text} links={!m.web} /> : <span style={{ whiteSpace: "pre-wrap" }}>{m.text}</span>}
+                  {m.from === "bot" ? <Markdown text={m.text} links={!m.web && !m.fromWeb} /> : <span style={{ whiteSpace: "pre-wrap" }}>{m.text}</span>}
                 </div>
                 {m.cards?.map((card) => (
                   <button
@@ -562,14 +609,17 @@ export default function AIDock({ liftForTabBar = false }: {
                     {card.label} →
                   </button>
                 ))}
-                {m.confirm && <ConfirmCardView card={m.confirm} onOpen={go} onAsk={ask} />}
+                {m.clarify && <CreateDetailsRow state={m.clarify.state} disabled={busy} onChoice={(mode) => answerClarify(i, mode)} />}
+                {m.confirm && <ConfirmCardView card={m.confirm} onOpen={go} onAsk={ask} modelLocked={!!m.fromWeb && messages.length - 1 - i < WEB_TAINT_WINDOW} />}
                 {m.analysis && (
                   <AnalysisCardView data={m.analysis} busy={busy} onOpen={go} onRefresh={() => refreshAnalysis(m.analysis!)} onAsk={(q) => ask(q)} />
                 )}
                 {m.consent?.kind === "analyse_company" && (
                   <AnalysisConsentRow subject={m.consent.subject ?? "this company"} state={m.consent.state} disabled={busy} onChoice={(choice) => answerConsent(i, choice)} />
                 )}
-                {m.consent?.kind === "web_search" && <WebConsentRow query={m.consent.query} state={m.consent.state} disabled={busy} onChoice={(choice) => answerConsent(i, choice)} />}
+                {(m.consent?.kind === "web_search" || m.consent?.kind === "create_research") && (
+                  <WebConsentRow query={m.consent.shown ?? m.consent.query} state={m.consent.state} disabled={busy} onChoice={(choice) => answerConsent(i, choice)} />
+                )}
                 {m.web && <WebSources sources={m.web} />}
                 {m.guide && (
                   <GuideCard

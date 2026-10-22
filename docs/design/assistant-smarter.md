@@ -465,3 +465,42 @@ Flag `ai_assistant` only; nothing writes tenant data; no migration.
   `Field` takes a `guide` prop; the Account and Contact create forms tag every standard field `<object>.field.<registry key>`
   (a test checks the key exists in the registry). Other hand-built forms (asset, case, product, supplier, invoice, ...) are still
   text-only steps. The overlay limit is now 16 controls (middleware needs 13).
+
+
+## 12. WP6 "Create with web research" as built (2026-10-22)
+
+Needs `ai_assistant`, `ai_assistant_web` and `ai_assistant_actions` (plus Nova, as the actions already do) and the workspace
+not blocking external calls. Any one missing: today's card with just the name, no question. No migration (`kind` is free text).
+
+- **Where**: `assistant/createResearch.ts` (question, consent, isolated call, validators, audit, the flow), `registry.ts`
+  (`research` on the account entry: the only keys a lookup may fill, each with a plain description), `actions/card.ts`
+  (`CardInput.web`), `ai/assistant.ts` (the question at `create_record`, the no-model path `createFlow`), `/api/ai/ask`
+  (`create_flow`, and a Yes whose signed string starts `create_research|`), `WebResearch.tsx` (`CreateDetailsRow`),
+  `ConfirmCardView.tsx`, `AIDock.tsx`. Suppliers have no create entry in the registry yet; when they get one, `research` on it
+  is the whole switch. Contacts never have it.
+- **Flow**: the model proposes `create_record` with only a name for an object that has `research` -> the reply is one question,
+  "How do you want to fill in the details for X?", with two chips. "I'll give the details" and "Look it up on the web" are
+  requests of their own (`create_flow`), answered with no model. The second shows the search (`"X" company website industry
+  headquarters`, checked by `webQueryAllowed` against what the person typed) with the existing Yes / No. Yes carries a token
+  bound to `create_research|account|X`, spent on first use, inside the person's 20 searches a day. No opens the card with the name.
+- **The lookup**: one isolated call (web search tool and nothing else) that answers JSON `{fields:{key:{value,confidence,
+  source_url}}}`. It is never shown and never handed to the chat model. `validateProposals` reads only the registry's keys, drops
+  any value without a source on a host the search returned, anything that is not short plain text of the field's shape, anything
+  that reads like an instruction, an option that is not one of the field's options, an email that is not a general mailbox on a
+  returned host, and a website that is not a bare origin on a returned host. Dropped is "Not found"; nothing is invented.
+- **The card**: each web value carries "From the web · Found / Likely"; asked-but-empty fields read "Not found" (one visible
+  line, the rows sit behind "More fields"); everything stays editable and shows "Edited by you" once changed. No source
+  addresses on screen. The duplicate check (name and website domain, this workspace only) runs before the card is shown.
+- **Press and audit**: `POST /api/ai/act` is unchanged in its checks. The signed token now carries `wb: {c: consent id, f: web
+  field keys}` beside `pv` (a hash of every proposed value), so the create row's `card.web` lists which web fields were kept,
+  edited or cleared and under which consent. The lookup writes its own row (`kind: create_research`, `params.card_id`, consent
+  id, query, `sources` with the addresses, found and dropped keys): the only place a source address is stored.
+- **Taint**: the reply is marked `fromWeb`, so the dock sends it back as web-derived and `create_record`, navigate, open_record
+  and guide stay off for the 6-turn window. The card's Create button is not a tool: it runs no model, and the press path
+  contains no taint check (a test reads the source to hold that). In that window the done card hides "ask" next steps ("Add a
+  contact") rather than showing a button that cannot work; "Open" stays.
+- **Metering**: surface `assistant_create_research` (tokens plus the 5000-token per-search surcharge) beside the monthly
+  allowance; the daily cap is the existing slot (`assistant_web_slot`). Allowance spent, slot refused, lookup failed: the card
+  with just the name and one sentence saying why.
+- **Not done**: Market Signals on the same call, supplier and lead lookups (no create entry yet), per-tenant switch in Settings
+  (S4), the Drive guides (after the owner validates).
