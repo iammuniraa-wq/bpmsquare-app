@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { ROUTES } from "@/lib/constants";
 import { isSchemaPending } from "@/lib/marketing/pending";
 import { HORIZON_DAYS } from "./rubric";
+import { collectWebSignals } from "./collectWeb";
 import type { RawSignal } from "./types";
 
 // The first-party collectors: read what the product already holds for one
@@ -177,6 +178,11 @@ export async function collectSignals(admin: SupabaseClient, tenantId: string, no
     } else if (e.name === "email.opened") {
       push(byAccount, e.account_id, { kind: "email_opened", source: "campaigns", key: `open:${e.object_id}:${e.account_id}`, occurredAt: e.occurred_at, headline: "Opened an email" });
     }
+  }
+
+  // ── The web: what saved company analyses found for an account ────────────
+  for (const [accountId, list] of await collectWebSignals(admin, tenantId, now, warnings)) {
+    for (const s of list) push(byAccount, accountId, s);
   }
 
   return { byAccount, warnings };

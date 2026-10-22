@@ -30,8 +30,8 @@ import { getWfmConfig, dateKeyInTz } from "@/lib/wfm/server";
 import { createAdminSupabase } from "@/lib/supabase-server";
 import NovaAccountStorySlot from "@/components/NovaAccountStorySlot";
 import NovaAccountCanvasSlot from "@/components/NovaAccountCanvasSlot";
-import NovaAccountContextBeacon from "@/components/NovaAccountContextBeacon";
 import Account360Button from "@/components/Account360Button";
+import AnalyseButton from "@/components/analysis/AnalyseButton";
 import { recordButtonWebhookId, sendToWebhookAction } from "./sendAction";
 import { buildAccountStoryEvents, computeAccountHealth } from "@/lib/nova/accountStory";
 import { buildAccountCanvas } from "@/lib/nova/accountCanvas";
@@ -212,7 +212,6 @@ export default async function AccountHubPage({
             Go to details →
           </Link>
         </div>
-        <NovaAccountContextBeacon accountId={id} accountName={account.name} />
         <NovaAccountStorySlot accountName={account.name} events={storyEvents} health={health} />
         <NovaAccountCanvasSlot accountName={account.name} accountMeta={canvasMeta} contactNodes={contactNodes} dealNodes={dealNodes} />
       </>
@@ -451,7 +450,7 @@ export default async function AccountHubPage({
       title={account.name}
       reference={account.ref}
       status={<StatusPill label={ACCOUNT_TYPE_LABEL[account.type]} tone={TYPE_TONE[account.type]} />}
-      primaryAction={<Account360Button accountId={account.id} />}
+      primaryAction={<span style={{ display: "inline-flex", gap: 8, flexWrap: "wrap" }}><Account360Button accountId={account.id} /><AnalyseButton name={account.name} accountId={account.id} /></span>}
       menu={
         <RecordMoreMenu
           inlineEdit={{ overviewHref: tabHref("overview") }}

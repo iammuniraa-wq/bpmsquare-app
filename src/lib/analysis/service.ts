@@ -3,9 +3,11 @@ import Anthropic from "@anthropic-ai/sdk";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { allowanceFor, askStructuredMetered, AiError } from "@/lib/ai/structured";
 import type { Allowance } from "@/lib/ai/usageCap";
-import { webAvailability } from "@/lib/assistant/webConsent";
-import { canViewWorkcenter, type PermissionSet } from "@/lib/permissions";
-import type { TenantConfig } from "@/lib/constants";
+import type { PermissionSet } from "@/lib/permissions";
+import type { TenantConfig, TenantFeatures } from "@/lib/constants";
+import { signalsEnabled } from "@/lib/signals/flag";
+import { recomputeTenant } from "@/lib/signals/recompute";
+import { analysisAccess } from "./gate";
 import { readAnalysis, saveAnalysis, type CacheRow } from "./cache";
 import { dayStartIso, expiresAtFor, isFresh, refreshBlockedUntil, resolveDailyLimit } from "./budget";
 import { cardId, composeCard, toStored, type StoredResearch } from "./compose";
@@ -65,6 +67,8 @@ export type AnalyseDeps = {
   phrase: (a: AnalysisAccess, input: ReturnType<typeof phraseInput>) => Promise<string | null>;
   allowance: (tenantId: string, budget: number) => Promise<Allowance>;
   live: (c: LiveCtx, account: AccountRow | null, subject: Subject) => Promise<LiveInputs>;
+  /** After a fresh analysis of an account is saved: score that account again so what was found reaches Buying signals now. */
+  rescore?: (a: AnalysisAccess, accountId: string) => Promise<void>;
 };
 
 const SENTENCE_SCHEMA = {
@@ -79,6 +83,10 @@ export function defaultDeps(): AnalyseDeps {
     website: (d) => checkWebsite(d),
     allowance: allowanceFor,
     live: loadLive,
+    rescore: async (a, accountId) => {
+      if (!signalsEnabled(a.features as Partial<TenantFeatures>)) return;
+      await recomputeTenant(a.admin, a.tenantId, { only: [accountId], source: "analysis" });
+    },
     phrase: async (a, input) => {
       try {
         const out = await askStructuredMetered({
@@ -99,13 +107,7 @@ export function defaultDeps(): AnalyseDeps {
 
 const fail = (status: 400 | 403 | 404 | 429 | 502, code: string, error: string): AnalyseResult => ({ ok: false, status, code, error });
 
-/** Whether this person may use company analysis at all, and why not. */
-export function analysisAccess(a: Pick<AnalysisAccess, "features" | "config" | "perms">): { ok: true } | { ok: false; status: 403; error: string; code: string } {
-  const web = webAvailability(a.features, a.config);
-  if (!web.enabled) return { ok: false, status: 403, code: web.reason, error: "Company analysis is not switched on for this workspace." };
-  if (!canViewWorkcenter(a.perms, "accounts")) return { ok: false, status: 403, code: "no_access", error: "You do not have access to Accounts." };
-  return { ok: true };
-}
+export { analysisAccess };
 
 async function resolveAccount(a: AnalysisAccess, id: string): Promise<AccountRow | null> {
   const { data } = await a.supabase.from("accounts").select(ACCOUNT_COLUMNS).eq("id", id).eq("tenant_id", a.tenantId).maybeSingle();
@@ -270,6 +272,10 @@ export async function analyseCompany(a: AnalysisAccess, input: AnalyseInput, dep
     searches: run.searches, inputTokens: run.tokens.input, outputTokens: run.tokens.output, requestedBy: a.userId, computedAt, expiresAt,
   });
   if (!save.saved) card = { ...card, notes: [...new Set([...card.notes, ANALYSIS_EMPTY.pending])] };
+  // The finding is saved: the account's score may move. Never allowed to fail the analysis, which already succeeded.
+  if (save.saved && account && deps.rescore) {
+    try { await deps.rescore(a, account.id); } catch (e) { console.error("Rescore after analysis failed:", e); }
+  }
   return { ok: true, card, cached: false, saved: save.saved, pendingDb: save.pending || pending };
 }
 

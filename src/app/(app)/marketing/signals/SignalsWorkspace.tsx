@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { ROUTES } from "@/lib/constants";
 import Sparkline from "@/components/signals/Sparkline";
+import AnalyseButton from "@/components/analysis/AnalyseButton";
 import InfoTip from "@/components/ui/InfoTip";
 import OptionGroup from "@/components/ui/OptionGroup";
 import { Opt } from "@/components/ui/Opt";
@@ -47,7 +48,7 @@ function hrefFor(row: Pick<WorkspaceRow, "account_id" | "next">): string {
   return ROUTES.account(row.account_id);
 }
 
-export default function SignalsWorkspace({ workspace, campaigns, canEdit, isAdmin }: { workspace: Workspace; campaigns: CampaignOption[]; canEdit: boolean; isAdmin: boolean }) {
+export default function SignalsWorkspace({ workspace, campaigns, canEdit, isAdmin, canAnalyse }: { workspace: Workspace; campaigns: CampaignOption[]; canEdit: boolean; isAdmin: boolean; canAnalyse: boolean }) {
   const [tab, setTab] = useUrlTab(TAB_IDS);
   const [stage, setStage] = useState<StageFilter>("all");
   const [topic, setTopic] = useState("");
@@ -250,7 +251,7 @@ export default function SignalsWorkspace({ workspace, campaigns, canEdit, isAdmi
           )}
 
           {tab === "market" && account && (
-            <AccountView data={account} canEdit={canEdit} busy={busy} onBack={() => setAccount(null)} onMark={mark} />
+            <AccountView data={account} canEdit={canEdit} canAnalyse={canAnalyse} busy={busy} onBack={() => setAccount(null)} onMark={mark} />
           )}
 
           {tab === "didit" && (
@@ -278,7 +279,7 @@ export default function SignalsWorkspace({ workspace, campaigns, canEdit, isAdmi
   );
 }
 
-function AccountView({ data, canEdit, busy, onBack, onMark }: { data: AccountSignals; canEdit: boolean; busy: boolean; onBack: () => void; onMark: (a: "not_in_market" | "clear") => void }) {
+function AccountView({ data, canEdit, canAnalyse, busy, onBack, onMark }: { data: AccountSignals; canEdit: boolean; canAnalyse: boolean; busy: boolean; onBack: () => void; onMark: (a: "not_in_market" | "clear") => void }) {
   const byGroup = GROUP_ORDER.map((g) => ({ g, items: data.factors.filter((f) => f.group === g) })).filter((x) => x.items.length > 0);
   const notes = data.factors.filter((f) => f.group === "note");
   const nextHref = data.next.kind === "quote" ? ROUTES.quotationNew : data.next.kind === "campaign" ? ROUTES.marketingNew : ROUTES.account(data.account.id);
@@ -316,6 +317,7 @@ function AccountView({ data, canEdit, busy, onBack, onMark }: { data: AccountSig
         <div className={styles.actions}>
           {data.next.kind && <Link className={cx(styles.btn, styles.primary)} href={nextHref}>{data.next.label}</Link>}
           <Link className={styles.btn} href={ROUTES.account(data.account.id)}>Open account</Link>
+          <AnalyseButton name={data.account.name} accountId={data.account.id} label="Analyse" show={canAnalyse} className={styles.btn} />
           {canEdit && (data.held
             ? <button type="button" className={styles.btn} disabled={busy} onClick={() => onMark("clear")}>Clear “not in market”</button>
             : <button type="button" className={styles.btn} disabled={busy} onClick={() => onMark("not_in_market")}>Not in market</button>)}

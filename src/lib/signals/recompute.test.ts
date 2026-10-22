@@ -100,7 +100,9 @@ describe("recomputeTenant", () => {
     const writes = queries.filter((q) => q.table !== "domain_event" || q.op === "select");
     for (const q of writes) {
       if (q.op === "insert" || q.op === "upsert") continue; // rows carry tenant_id in their body (checked above)
-      expect(q.filters.tenant_id, `${q.op} on ${q.table}`).toBe(A);
+      // The workspace's own row is keyed by id (the web feed reads its flags); every other table by tenant_id.
+      if (q.table === "tenants") expect(q.filters.id, `${q.op} on tenants`).toBe(A);
+      else expect(q.filters.tenant_id, `${q.op} on ${q.table}`).toBe(A);
     }
   });
 
@@ -146,5 +148,54 @@ describe("getBuyingStage", () => {
     expect(await getBuyingStage(A, "acc-1", client)).toBeNull();
     const off = fakeDb(seed({ buying_signals: true }));
     expect(await getBuyingStage(A, "acc-1", off.client)).toBeNull();
+  });
+});
+
+describe("recomputeTenant: what a saved company analysis found on the web", () => {
+  const claim = (text: string, kind: string, d: number) => ({
+    text, kind, confidence: "found", stale: false, publishedOn: daysAgo(d).slice(0, 10),
+    source: { id: "s1", url: "https://news.example.com/a", title: "t", fetchedAt: daysAgo(1) },
+  });
+  const analysis = (tenant: string, account: string, claims: unknown[]) => ({
+    tenant_id: tenant, account_id: account, computed_at: daysAgo(1),
+    data: { v: 1, claims, checkThese: [], size: null, people: [], sources: [], sentence: null, snapshot: { claims: [], fit: "unknown", stage: "quiet", verdict: "not_enough" } },
+  });
+  const ON = { ai_assistant: true, ai_assistant_web: true };
+  const seed = (features: Record<string, boolean>) => ({
+    ...baseSeed(),
+    tenants: [{ id: A, features, config: {} }, { id: B, features: ON, config: {} }],
+    company_analyses: [
+      analysis(A, "acc-2", [claim("Won a housing package", "award", 3), claim("Hiring site engineers", "hiring", 4)]),
+      analysis(B, "acc-b", [claim("Won a housing package", "award", 3)]),
+    ],
+  });
+
+  it("scores an account that had nothing else: a quiet account with fresh news becomes Looking, as 'They are moving'", async () => {
+    const { client, tables } = fakeDb(seed(ON));
+    await recomputeTenant(client, A, { now: NOW, resolveOwnerEmail: ownerEmail });
+    const row = tables.account_intent.find((x) => x.account_id === "acc-2")!;
+    expect(row).toMatchObject({ tenant_id: A, score: 13, stage: "looking" });
+    expect((row.factors as { group: string }[]).every((f) => f.group === "moving")).toBe(true);
+    const top = row.top_signals as { source: string; href?: string; headline: string }[];
+    expect(top.every((t) => t.source === "web" && t.href === undefined)).toBe(true);
+    // The other workspace's analysis does not score this workspace's accounts, and the first account is unchanged.
+    expect(tables.account_intent.some((x) => x.account_id === "acc-b")).toBe(false);
+    expect(tables.account_intent.find((x) => x.account_id === "acc-1")).toMatchObject({ score: 35, stage: "comparing" });
+  });
+
+  it("adds to an account that already asked (35 + 8 reaches Deciding, the one stage rule unchanged) and is the same on a second run", async () => {
+    const { client, tables } = fakeDb({ ...seed(ON), company_analyses: [analysis(A, "acc-1", [claim("Won a housing package", "award", 3)])] });
+    await recomputeTenant(client, A, { now: NOW, resolveOwnerEmail: ownerEmail });
+    const first = JSON.stringify(tables.account_intent);
+    await recomputeTenant(client, A, { now: new Date(NOW.getTime() + 3_600_000), resolveOwnerEmail: ownerEmail });
+    expect(tables.account_intent).toHaveLength(1);
+    expect(tables.account_intent[0]).toMatchObject({ score: 43, stage: "deciding" });
+    expect(JSON.parse(first)[0].score).toBe(43);
+  });
+
+  it("changes nothing for a workspace without web research", async () => {
+    const { client, tables } = fakeDb(seed({ ai_assistant: true }));
+    await recomputeTenant(client, A, { now: NOW, resolveOwnerEmail: ownerEmail });
+    expect(tables.account_intent.map((x) => x.account_id)).toEqual(["acc-1"]);
   });
 });

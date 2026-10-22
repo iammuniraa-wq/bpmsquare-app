@@ -23,9 +23,9 @@ export function claimsToSignals(claims: readonly Claim[]): RawSignal[] {
     if (!kind || c.confidence !== "found" || c.stale || c.instructionLike || !c.publishedOn) continue;
     out.push({
       kind, source: "web", key: `web:${sourceId(c.source.url)}`, occurredAt: `${c.publishedOn}T00:00:00.000Z`,
-      headline: `${c.text}${c.source.publisher ? ` (${c.source.publisher})` : ""}`,
-      // The one place the audit trail reaches the Buying signals timeline: an https address, not an app path.
-      href: c.source.url, ...(c.topic ? { topic: c.topic } : {}),
+      // The line is the finding in the company's own words. The page it came from is kept for audit and is never drawn
+      // (owner correction 2026-10-22): no publisher in the line, no address on the signal.
+      headline: c.text, ...(c.topic ? { topic: c.topic } : {}),
     });
   }
   return out;

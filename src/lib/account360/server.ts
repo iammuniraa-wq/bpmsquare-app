@@ -13,6 +13,8 @@ import { buildMarketingCard } from "@/lib/marketing/leads/account360Card";
 import { signalsEnabled } from "@/lib/signals/flag";
 import { buildSignalsCard } from "@/lib/signals/account360";
 import { buildAbmAccountCard } from "@/lib/abm/account360";
+import { buildAnalysisSummaryCard } from "@/lib/analysis/card360";
+import type { Analysis360 } from "@/lib/analysis/account360";
 import { formatMoney, type CurrencyDef } from "@/lib/currency";
 import type {
   Account360Card,
@@ -52,7 +54,9 @@ export async function buildAccount360(
   tenantId: string,
   accountId: string,
   config: Account360Config | undefined,
-  cur: CurrencyDef
+  cur: CurrencyDef,
+  /** The saved company analysis, read by the route with the caller's own permissions. Null or absent: no such card. */
+  analysis?: Analysis360 | null,
 ): Promise<Account360Payload | null> {
   const admin = createAdminSupabase();
 
@@ -362,6 +366,14 @@ export async function buildAccount360(
       activeBuiltinIds = [...activeBuiltinIds, "buying_signals"];
       signalsSuggestion = sig.suggestion;
     }
+  }
+
+  // ── Company analysis ────────────────────────────────────────────────────
+  // The route only passes this for a person who may use company analysis (web research on, Accounts view), so everyone
+  // else sees no card. It is the saved answer only; the card's button opens the AI slider.
+  if (analysis) {
+    builtins.company_analysis = buildAnalysisSummaryCard({ id: account.id, name: account.name }, analysis.card, new Date());
+    activeBuiltinIds = [...activeBuiltinIds, "company_analysis"];
   }
 
   // ── In ABM programs ─────────────────────────────────────────────────────

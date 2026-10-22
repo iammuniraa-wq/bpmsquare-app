@@ -151,7 +151,7 @@ export async function tenantHasFeature(
  *
  * Still two closed flags, both platform-admin-only, so bpmsquarecore.md
  * section 10 rule 1 is intact. The routes that back Nova STRUCTURE rather
- * than a portable surface -- nav, draft, market-intel -- deliberately keep
+ * than a portable surface -- nav, draft -- deliberately keep
  * the narrower next_experience check.
  */
 export async function tenantHasNovaSurfaces(

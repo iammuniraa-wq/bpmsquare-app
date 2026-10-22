@@ -8,6 +8,7 @@ export const ANALYSIS_TIPS = {
   doing: "Dated items found on the public web. Anything we could not tie to this company is left out.",
   inSystem: "Read from your own records, only the parts you are allowed to see.",
   refresh: "A saved analysis is reused for seven days. A fresh one can be run once an hour.",
+  card360: "The saved answer for this company: is it worth following up, and what it has been doing lately. Open the AI slider to refresh it.",
   limit: "Each workspace has a daily limit on web analyses. A saved card still opens.",
 } as const;
 

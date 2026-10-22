@@ -39,6 +39,18 @@ export type Account360Card = {
   error?: string;
   /** A small history line under the stats (the Buying signals card: eight weekly scores). The words beside it say the same thing. */
   spark?: Account360Spark;
+  /** One plain line under the stats, for a card whose point is a sentence (the Company analysis card's reason). */
+  summary?: string;
+  /** One button on the card. It asks the AI slider a prepared question; the drawer closes and the slider answers. */
+  action?: Account360Action;
+};
+
+export type Account360Action = {
+  label: string;
+  /** The prepared question the AI slider receives. */
+  ask: string;
+  /** The account it is about, so the slider can open on that record. */
+  accountId: string;
 };
 
 export type Account360Spark = {

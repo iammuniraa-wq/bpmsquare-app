@@ -28,6 +28,7 @@ const ALL_BUILTINS: { id: string; label: string; description: string }[] = [
   { id: "projects", label: "Projects", description: "Workforce projects for this account and their hours this month (only shown when project costing is on)" },
   { id: "marketing", label: "Marketing", description: "The best lead for this account: its score, its stage and who has it (only shown with lead scoring)" },
   { id: "buying_signals", label: "Buying signals", description: "Score, stage, the newest signals and an eight-week line (only shown when Buying signals is on)" },
+  { id: "company_analysis", label: "Company analysis", description: "Is it worth following up, what the company has been doing, and a button to refresh (only shown with web research)" },
 ];
 
 type SourceDraft = Omit<Account360SourceDef, "auth_value"> & { auth_value?: string; has_secret?: boolean };
@@ -40,7 +41,8 @@ const input: React.CSSProperties = {
 
 export default function Account360Client() {
   const scoringOn = useTenantFeature("marketing_scoring");
-  const BUILTINS = ALL_BUILTINS.filter((b) => b.id !== "marketing" || scoringOn);
+  const webOn = useTenantFeature("ai_assistant_web");
+  const BUILTINS = ALL_BUILTINS.filter((b) => (b.id !== "marketing" || scoringOn) && (b.id !== "company_analysis" || webOn));
   const [hidden, setHidden] = useState<string[]>([]);
   const [order, setOrder] = useState<string[]>(BUILTINS.map((b) => b.id));
   const [sources, setSources] = useState<SourceDraft[]>([]);
