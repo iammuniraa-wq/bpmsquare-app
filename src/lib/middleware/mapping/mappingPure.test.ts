@@ -160,7 +160,7 @@ describe("the AI step sends names and types, nothing else", () => {
     expect(out.map((s) => [s.source, s.target])).toEqual([["total", "amount"], ["cf_secret_note", "status"]]);
     expect(out[0].convert).toBeNull();
     expect(out[1].convert).toEqual({ kind: "value_list", list: "status" });
-    expect(out[1].reason).toBe("bnote/b with markup");
+    expect(out[1].reason).toBe("b note /b with markup");
     expect(JSON.stringify(out)).not.toContain("1000");
     expect(normaliseAiAnswer(null, index)).toEqual([]);
     expect(normaliseAiAnswer({ suggestions: "x" }, index)).toEqual([]);
