@@ -1,33 +1,7 @@
-import { createAdminSupabase, requireTenantUser } from "@/lib/supabase-server";
 import { redirect } from "next/navigation";
-import { ROUTES } from "@/lib/constants";
-import type { EmailTemplate } from "@/lib/types";
-import SettingsPageHeader from "@/components/settings/SettingsPageHeader";
-import EmailTemplatesClient from "./EmailTemplatesClient";
+import { OLD_SETTINGS_ROUTES } from "@/lib/settingsFolded";
 
-export default async function EmailTemplatesPage() {
-  let tenantId: string, role: string;
-  try {
-    ({ tenantId, role } = await requireTenantUser());
-  } catch {
-    redirect(ROUTES.settings);
-  }
-  if (role !== "admin") redirect(ROUTES.settings);
-
-  const { data } = await createAdminSupabase()
-    .from("email_templates")
-    .select("*")
-    .eq("tenant_id", tenantId!)
-    .order("category")
-    .order("created_at");
-
-  return (
-    <>
-      <SettingsPageHeader
-        title="Email templates"
-        subtitle="Subject and body pairs your team can pick between when emailing a quote"
-      />
-      <EmailTemplatesClient initial={(data ?? []) as EmailTemplate[]} />
-    </>
-  );
+// Email templates is now part of the Templates tab of Quotations; the old address keeps working.
+export default function EmailTemplatesRedirect() {
+  redirect(OLD_SETTINGS_ROUTES.emailTemplates);
 }

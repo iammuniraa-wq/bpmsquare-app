@@ -4,7 +4,6 @@
 
 export const SETTINGS_TIPS = {
   navigation: "Show or hide sidebar items for the whole workspace, on every device. Hidden items can still be opened by their address.",
-  quoteTypes: "Show or hide offer types in the New Quotation picker. Hidden types, including Coming Soon ones you do not need, do not appear there.",
   appearance: "Applies to your whole workspace, every user and every device.",
   accent: "The workspace accent for links, tabs and focus rings. The theme colour above is separate.",
   dashboard: "Which dashboard the workspace opens on. Everyone can still switch from the dashboard itself, and their saved layouts are untouched.",
@@ -20,6 +19,4 @@ export const SETTINGS_TIPS = {
   emailOutput: "Where quotations, invoices, campaigns and workforce notifications are actually delivered.",
   businessNews: "Headlines for the topics below. Unlike Client news it needs no accounts, so it has content on day one.",
   productTips: "Rotating cards on things the menu does not reveal, such as bulk import and API keys. Only tips for modules this workspace has are shown.",
-  statuses: "The stages a quotation moves through, and which ones close it.",
-  statusKey: "Stored on every quote with this status, so renaming it breaks existing records. The label is what people see and can change freely.",
 } as const;

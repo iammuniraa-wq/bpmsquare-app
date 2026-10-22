@@ -1,0 +1,57 @@
+.shell { display: flex; flex-direction: column; gap: 14px; max-width: 760px; min-width: 0; }
+.more { margin-top: 4px; border-top: 1px solid var(--line); }
+.more > summary { cursor: pointer; display: flex; align-items: center; min-height: 44px; font-size: 13px; font-weight: 600; color: var(--muted); list-style: none; }
+.more > summary::-webkit-details-marker { display: none; }
+.more > summary::before { content: "+"; display: inline-block; width: 16px; }
+.more[open] > summary::before { content: "\2212"; }
+.moreBody { display: flex; flex-direction: column; gap: 10px; padding-top: 6px; }
+.dot { display: inline-block; width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; border: 1px solid var(--line); }
+.pill { margin-inline-start: 8px; font-size: 11px; font-weight: 700; padding: 1px 8px; border-radius: 999px; background: var(--bluebg); color: var(--blueink); }
+.pillMuted { background: var(--panel2); color: var(--muted); border: 1px solid var(--line); }
+.switchRow { display: flex; align-items: center; justify-content: space-between; gap: 14px; min-height: 44px; }
+.rowGap { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+.barLabel { margin-inline-end: auto; display: inline-flex; align-items: center; }
+.linkBtn { align-self: flex-start; background: none; border: 0; padding: 0 2px; min-height: 44px; font: inherit; font-size: 13px; color: var(--muted); text-decoration: underline; cursor: pointer; }
+
+/* Colour swatches in the status panel: a radio group, the last cell is the free colour picker. */
+.swatches { display: flex; flex-wrap: wrap; gap: 8px; }
+.swatch { width: 36px; height: 36px; border-radius: 8px; border: 2px solid transparent; cursor: pointer; padding: 0; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .15); }
+.swatch[aria-checked="true"] { border-color: var(--ink); }
+.swatch:focus-visible { outline: 2px solid var(--tenant-accent, var(--accent)); outline-offset: 2px; }
+.custom { width: 36px; height: 36px; padding: 2px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); cursor: pointer; }
+
+/* Offer types: a toggle list, one row each. */
+.listCard { background: var(--card-bg); border: 1px solid var(--line); border-radius: var(--card-radius); box-shadow: var(--card-shadow); padding: 4px 16px; }
+.toggleRow { display: flex; align-items: center; gap: 12px; min-height: 52px; border-top: 1px solid var(--line); transition: opacity .15s; }
+.toggleRow:first-child { border-top: 0; }
+.toggleRow[data-off="true"] { opacity: 0.45; }
+.toggleName { flex: 1; min-width: 0; font-size: 13.5px; font-weight: 500; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+/* Templates: kind chips above one table. */
+.chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.chip {
+  display: inline-flex; align-items: center; min-height: 36px; padding: 0 12px; border-radius: 999px; cursor: pointer; font: inherit; font-size: 12.5px;
+  background: var(--panel); border: 1px solid var(--line); color: var(--muted);
+}
+.chip[aria-pressed="true"] { border-color: var(--tenant-accent, var(--accent)); color: var(--ink); font-weight: 600; }
+.chip:focus-visible { outline: 2px solid var(--tenant-accent, var(--accent)); outline-offset: 2px; }
+.code { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 11.5px; background: var(--panel2); border: 1px solid var(--line); border-radius: 5px; padding: 2px 7px; }
+.textarea { min-height: 140px; resize: vertical; line-height: 1.5; }
+.err { color: var(--err-ink); font-size: 12.5px; }
+
+/* Print: fields as toggle chips. */
+.fieldChips { display: flex; flex-wrap: wrap; gap: 8px; }
+.fieldChip {
+  display: inline-flex; align-items: center; min-height: 44px; padding: 0 14px; border-radius: 8px; cursor: pointer; font: inherit; font-size: 13px;
+  background: var(--panel); border: 2px solid var(--line); color: var(--muted);
+}
+.fieldChip[aria-pressed="true"] { border-color: var(--tenant-accent, var(--accent)); color: var(--ink); font-weight: 600; }
+.fieldChip:focus-visible { outline: 2px solid var(--tenant-accent, var(--accent)); outline-offset: 2px; }
+.card { background: var(--card-bg); border: 1px solid var(--line); border-radius: var(--card-radius); box-shadow: var(--card-shadow); padding: 16px; display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+
+@media (max-width: 780px) {
+  .shell :global(.bpm-btn) { min-height: 44px; }
+  .swatch, .custom { width: 44px; height: 44px; }
+  .chip { min-height: 44px; }
+}

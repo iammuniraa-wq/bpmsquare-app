@@ -126,7 +126,7 @@ export const ROUTES = {
   employees: "/employees",
   configPricing: "/settings/pricing",
   settingsNumberRanges: "/settings/number-ranges",
-  configTemplates: "/settings/templates",
+  configTemplates: "/settings/templates", // redirects to the Quotations templates tab
   configCustomFields: "/settings/custom-fields",
   cases: "/cases",
   caseNew: "/cases/new",
@@ -156,7 +156,7 @@ export const ROUTES = {
   settingsCompany: "/settings/company",
   settingsCurrency: "/settings/currency",
   settingsNavigation: "/settings/navigation",
-  settingsQuoteTypes: "/settings/quote-types",
+  settingsQuoteTypes: "/settings/quote-types", // redirects to the Quotations offer types tab
   settingsDeveloper: "/settings/developer",
   settingsPush: "/settings/push",
   settingsMiddleware: "/settings/middleware",
@@ -169,13 +169,14 @@ export const ROUTES = {
   settingsEntities: "/settings/entities",
   settingsCustomFields: "/settings/custom-fields",
   settingsTemplates: "/settings/templates",
-  settingsStatuses: "/settings/statuses",
-  settingsEmailTemplates: "/settings/email-templates",
+  settingsQuotations: "/settings/quotations",
+  settingsStatuses: "/settings/statuses", // redirects to the Quotations statuses tab
+  settingsEmailTemplates: "/settings/email-templates", // redirects to the Quotations templates tab
   settingsSales: "/settings/sales", // redirects to the Products categories tab
   settingsProducts: "/settings/products",
   settingsProductCategories: "/settings/product-categories", // redirects to settingsProducts
   settingsItemTypes: "/settings/item-types", // redirects to settingsProducts
-  settingsAssetPrintFields: "/settings/asset-print-fields",
+  settingsAssetPrintFields: "/settings/asset-print-fields", // redirects to the Quotations print tab
   settingsDeletionLog: "/settings/deletion-log",
   settingsConnectors: "/settings/connectors",
   settingsAccount360: "/settings/account-360",

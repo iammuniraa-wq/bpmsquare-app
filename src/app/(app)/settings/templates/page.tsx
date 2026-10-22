@@ -1,13 +1,7 @@
-import { listTextFragments } from "@/lib/data";
-import SettingsPageHeader from "@/components/settings/SettingsPageHeader";
-import TemplatesClient from "./TemplatesClient";
+import { redirect } from "next/navigation";
+import { OLD_SETTINGS_ROUTES } from "@/lib/settingsFolded";
 
-export default async function QuoteConfigPage() {
-  const fragments = await listTextFragments();
-  return (
-    <>
-      <SettingsPageHeader title="Text templates" subtitle="Saved snippets for line items, notes and terms — insert with one click when creating quotes" />
-      <TemplatesClient initialFragments={fragments} />
-    </>
-  );
+// Text templates is now part of the Templates tab of Quotations; the old address keeps working.
+export default function TextTemplatesRedirect() {
+  redirect(OLD_SETTINGS_ROUTES.textTemplates);
 }

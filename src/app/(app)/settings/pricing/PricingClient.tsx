@@ -1,197 +1,129 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { useFeel } from "@/components/FeelProvider";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
-import type { PricingItem, PricingCategory } from "@/lib/types";
-import { c } from "@/lib/theme";
-import Pill from "@/components/Pill";
-import type { PillarKey } from "@/lib/theme";
-import { useCurrency } from "@/lib/tenant-context";
-import { formatMoney, moneyLabel } from "@/lib/currency";
+import { useFeel } from "@/components/FeelProvider";
 import Button from "@/components/ui/Button";
-import MoreMenu from "@/components/ui/MoreMenu";
-import { SettingsHeaderActions } from "@/components/settings/SettingsHeaderActions";
+import Field from "@/components/ui/Field";
+import InfoTip from "@/components/ui/InfoTip";
+import { Input, Select } from "@/components/ui/Input";
+import SidePanel from "@/components/ui/SidePanel";
+import SettingsList from "@/components/settings/SettingsList";
+import { ROUTES } from "@/lib/constants";
+import { formatMoney, moneyLabel } from "@/lib/currency";
+import { useCurrency } from "@/lib/tenant-context";
+import type { PricingCategory, PricingItem } from "@/lib/types";
+import {
+  blankPrice, CATEGORY_LABEL, draftOfItem, filterItems, PRICE_FILTERS, PRICING_CATEGORIES, planPriceSave, priceProblem, type PriceDraft, type PriceFilter,
+} from "./pricingLogic";
+import { PRICING_TIPS } from "./tips";
+import s from "./pricing.module.css";
 
-const CAT_TONE: Record<PricingCategory, PillarKey> = {
-  labour: "blue", material: "teal", testing: "purple", transport: "amber",
-};
-export const PRICING_CATEGORY_LABEL: Record<PricingCategory, string> = {
-  labour: "Labour", material: "Material", testing: "Testing", transport: "Transport",
-};
-const CATEGORIES: PricingCategory[] = ["labour", "material", "testing", "transport"];
-
-const inputSt: React.CSSProperties = {
-  height: 34, border: `1px solid ${c.line}`, borderRadius: 7,
-  padding: "0 9px", fontSize: 12.5, width: "100%", boxSizing: "border-box", color: c.ink,
-};
-
-function AddRow({ open, setOpen, onAdd }: { open: boolean; setOpen: (v: boolean) => void; onAdd: (item: PricingItem) => void }) {
-  const cur = useCurrency();
-  const [pending, startTransition] = useTransition();
-  const [form, setForm] = useState({ category: "labour" as PricingCategory, description: "", unit: "", rate: "", notes: "" });
-  const [err, setErr] = useState("");
-
-  function set(k: string, v: string) { setForm((p) => ({ ...p, [k]: v })); }
-
-  function submit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!form.description || !form.unit) { setErr("Description and unit are required"); return; }
-    setErr("");
-    startTransition(async () => {
-      const res = await fetch("/api/settings/pricing", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...form, rate: parseFloat(form.rate) || 0 }),
-      });
-      const json = await res.json();
-      if (!res.ok) { setErr(json.error ?? "Failed"); return; }
-      onAdd(json);
-      setForm({ category: "labour", description: "", unit: "", rate: "", notes: "" });
-      setOpen(false);
-    });
-  }
-
-  if (!open) return null;
-
-  return (
-    <form onSubmit={submit} style={{ background: "var(--panel2)", border: `1px solid ${c.line}`, borderRadius: 10, padding: 16, marginBottom: 16 }}>
-      <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 12, color: c.ink }}>New pricing item</div>
-      <div className="stack-grid" style={{ display: "grid", gridTemplateColumns: "160px 1fr 110px 100px", gap: 10, marginBottom: 10 }}>
-        <div>
-          <label style={{ fontSize: 11, color: c.muted, display: "block", marginBottom: 3 }}>Category</label>
-          <select style={{ ...inputSt }} value={form.category} onChange={(e) => set("category", e.target.value)}>
-            {CATEGORIES.map((c) => <option key={c} value={c}>{PRICING_CATEGORY_LABEL[c]}</option>)}
-          </select>
-        </div>
-        <div>
-          <label style={{ fontSize: 11, color: c.muted, display: "block", marginBottom: 3 }}>Description *</label>
-          <input style={inputSt} value={form.description} onChange={(e) => set("description", e.target.value)} placeholder="e.g. Rewinding — LT Motor up to 50 HP" />
-        </div>
-        <div>
-          <label style={{ fontSize: 11, color: c.muted, display: "block", marginBottom: 3 }}>Unit *</label>
-          <input style={inputSt} value={form.unit} onChange={(e) => set("unit", e.target.value)} placeholder="per job" />
-        </div>
-        <div>
-          <label style={{ fontSize: 11, color: c.muted, display: "block", marginBottom: 3 }}>{moneyLabel("Rate", cur)}</label>
-          <input style={inputSt} type="number" min="0" value={form.rate} onChange={(e) => set("rate", e.target.value)} placeholder="0" />
-        </div>
-      </div>
-      <div style={{ marginBottom: 12 }}>
-        <label style={{ fontSize: 11, color: c.muted, display: "block", marginBottom: 3 }}>Notes (optional)</label>
-        <input style={inputSt} value={form.notes} onChange={(e) => set("notes", e.target.value)} placeholder="Any extra detail…" />
-      </div>
-      {err && <div style={{ fontSize: 12, color: "var(--err-ink)", marginBottom: 10 }}>{err}</div>}
-      <div style={{ display: "flex", gap: 8 }}>
-        <Button type="submit" variant="primary" loading={pending}>{pending ? "Saving…" : "Save"}</Button>
-        <Button onClick={() => setOpen(false)}>Cancel</Button>
-      </div>
-    </form>
-  );
-}
-
-function ItemRow({ item, onUpdate, onDelete }: { item: PricingItem; onUpdate: (item: PricingItem) => void; onDelete: (id: string) => void }) {
-  const cur = useCurrency();
-  const [editing, setEditing] = useState(false);
-  const [pending, startTransition] = useTransition();
-  const [form, setForm] = useState({ description: item.description, unit: item.unit, rate: String(item.rate), notes: item.notes ?? "" });
-
-  function set(k: string, v: string) { setForm((p) => ({ ...p, [k]: v })); }
-
-  function save() {
-    startTransition(async () => {
-      const res = await fetch(`/api/settings/pricing/${item.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ description: form.description, unit: form.unit, rate: parseFloat(form.rate) || 0, notes: form.notes || null }),
-      });
-      const json = await res.json();
-      if (res.ok) { onUpdate(json); setEditing(false); }
-    });
-  }
-
-  const { confirm } = useFeel();
-  async function del() {
-    if (!(await confirm({ title: "Delete this pricing item?", body: "Quotes already priced with it keep the figures they were given.", tone: "danger" }))) return;
-    startTransition(async () => {
-      await fetch(`/api/settings/pricing/${item.id}`, { method: "DELETE" });
-      onDelete(item.id);
-    });
-  }
-
-  if (editing) {
-    return (
-      <div className="row-grid" style={{ display: "grid", gridTemplateColumns: "1fr 110px 100px 150px", gap: 10, padding: "10px 0", borderBottom: `1px solid ${c.line}`, alignItems: "center" }}>
-        <input style={inputSt} value={form.description} onChange={(e) => set("description", e.target.value)} />
-        <input style={inputSt} value={form.unit} onChange={(e) => set("unit", e.target.value)} />
-        <input style={{ ...inputSt }} type="number" value={form.rate} onChange={(e) => set("rate", e.target.value)} />
-        <div style={{ display: "flex", gap: 5 }}>
-          <Button size="sm" variant="primary" onClick={save} loading={pending}>Save</Button>
-          <Button size="sm" onClick={() => setEditing(false)}>Cancel</Button>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="row-grid" style={{ display: "grid", gridTemplateColumns: "1fr 110px 100px 150px", gap: 12, padding: "10px 0", borderBottom: `1px solid ${c.line}`, alignItems: "start" }}>
-      <div>
-        <div style={{ fontSize: 13, color: c.ink }}>{item.description}</div>
-        {item.notes && <div className="bpm-t-help" style={{ marginTop: 2 }}>{item.notes}</div>}
-      </div>
-      <div className="bpm-t-help">{item.unit}</div>
-      <div style={{ fontSize: 13.5, fontWeight: 700, color: c.ink }}>{formatMoney(item.rate, cur, {})}</div>
-      <MoreMenu
-        label={`Actions for ${item.description}`}
-        items={[
-          { label: "Edit", onSelect: () => setEditing(true) },
-          { label: "Delete", onSelect: () => { void del(); }, danger: true },
-        ]}
-      />
-    </div>
-  );
-}
-
-export default function PricingClient({ initialItems }: { initialItems: PricingItem[] }) {
+/**
+ * Settings > Pricing. Small Scale Pricing is one table (a row per rate, the category a chip filter) instead of a card
+ * per category; Dynamic Pricing is a single link row when that module is on. The panel saves on its own: a rate is a
+ * record with its own routes.
+ */
+export default function PricingClient({ initialItems, rateCard, engine }: { initialItems: PricingItem[]; rateCard: boolean; engine: boolean }) {
   const router = useRouter();
   const cur = useCurrency();
+  const { confirm } = useFeel();
   const [items, setItems] = useState(initialItems);
-  const [adding, setAdding] = useState(false);
+  const [filter, setFilter] = useState<PriceFilter>("all");
+  const [draft, setDraft] = useState<PriceDraft | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
 
-  const add = (item: PricingItem) => { setItems((p) => [...p, item]); router.refresh(); };
-  const update = (item: PricingItem) => setItems((p) => p.map((i) => i.id === item.id ? item : i));
-  const remove = (id: string) => setItems((p) => p.filter((i) => i.id !== id));
+  const rows = filterItems(items, filter);
+
+  async function save() {
+    if (!draft) return;
+    const problem = priceProblem(draft);
+    if (problem) { setError(problem); return; }
+    setSaving(true); setError("");
+    const plan = planPriceSave(draft);
+    const res = await fetch(plan.url, { method: plan.method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(plan.body) }).catch(() => null);
+    setSaving(false);
+    if (!res || !res.ok) { setError(res ? ((await res.json().catch(() => ({}))).error ?? "Could not save") : "Network error"); return; }
+    const saved = (await res.json()) as PricingItem;
+    setItems((p) => (p.some((i) => i.id === saved.id) ? p.map((i) => (i.id === saved.id ? saved : i)) : [...p, saved]));
+    setDraft(null);
+    // Quotes read the rate card on the server.
+    router.refresh();
+  }
+
+  async function remove() {
+    const item = items.find((i) => i.id === draft?.id);
+    if (!item) return;
+    if (!(await confirm({ title: `Delete "${item.description}"?`, body: "Quotes already priced with it keep the figures they were given.", tone: "danger" }))) return;
+    const res = await fetch(`/api/settings/pricing/${item.id}`, { method: "DELETE" }).catch(() => null);
+    if (!res || !(res.ok || res.status === 204)) { setError("Could not delete"); return; }
+    setItems((p) => p.filter((i) => i.id !== item.id));
+    setDraft(null);
+    router.refresh();
+  }
 
   return (
-    <>
-      <SettingsHeaderActions>
-        <Button variant="primary" onClick={() => setAdding(true)}>+ New item</Button>
-      </SettingsHeaderActions>
-      <AddRow open={adding} setOpen={setAdding} onAdd={add} />
-      <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-        {CATEGORIES.map((cat) => {
-          const catItems = items.filter((i) => i.category === cat);
-          return (
-            <section key={cat} style={{ background: "var(--panel)", border: `1px solid ${c.line}`, borderRadius: 12, padding: 16 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
-                <Pill label={PRICING_CATEGORY_LABEL[cat]} tone={CAT_TONE[cat]} />
-                <span className="bpm-t-help">{catItems.length} items</span>
-              </div>
-              <div className="row-grid-head" style={{ display: "grid", gridTemplateColumns: "1fr 110px 100px 150px", gap: 12, padding: "0 0 6px", borderBottom: `1px solid ${c.line}` }}>
-                {["Description", "Unit", moneyLabel("Rate", cur), ""].map((h, i) => (
-                  <div key={i} className="bpm-t-label">{h}</div>
-                ))}
-              </div>
-              {catItems.length === 0 && (
-                <div style={{ padding: "16px 0", fontSize: 12.5, color: c.hint }}>No items yet — use + New item.</div>
-              )}
-              {catItems.map((item) => (
-                <ItemRow key={item.id} item={item} onUpdate={update} onDelete={remove} />
-              ))}
-            </section>
-          );
-        })}
-      </div>
-    </>
+    <div className={s.shell}>
+      {engine && (
+        <div className={s.engine}>
+          <span className={s.engineName}>Dynamic Pricing<InfoTip label="Dynamic Pricing">{PRICING_TIPS.engine}</InfoTip></span>
+          <Button href={ROUTES.pricingSetup}>Open Pricing setup</Button>
+        </div>
+      )}
+      {rateCard && (
+        <>
+          <div className={s.bar}>
+            <span className={s.barLabel}><span className="bpm-t-label">Small Scale Pricing</span></span>
+            <Button variant="primary" onClick={() => { setDraft(blankPrice(filter)); setError(""); }}>+ New rate</Button>
+          </div>
+          <div className={s.chips} role="group" aria-label="Category">
+            {PRICE_FILTERS.map((f) => (
+              <button key={f.id} type="button" className={s.chip} aria-pressed={filter === f.id} onClick={() => setFilter(f.id)}>{f.label}</button>
+            ))}
+          </div>
+          <SettingsList
+            label="Small Scale Pricing"
+            headers={["Category", "Unit", moneyLabel("Rate", cur)]}
+            rows={rows.map((i) => ({
+              key: i.id,
+              title: i.description,
+              cells: [CATEGORY_LABEL[i.category], i.unit, formatMoney(i.rate, cur, {})],
+            }))}
+            onOpen={(id) => { const i = items.find((x) => x.id === id); if (i) { setDraft(draftOfItem(i)); setError(""); } }}
+            empty="No rates yet. Use + New rate."
+          />
+        </>
+      )}
+
+      {draft && (
+        <SidePanel
+          title={draft.id === null ? "New rate" : draft.description || "Rate"}
+          onClose={() => setDraft(null)}
+          footer={
+            <>
+              {draft.id !== null && <Button variant="danger" onClick={() => { void remove(); }}>Delete</Button>}
+              <Button variant="primary" loading={saving} onClick={() => { void save(); }}>Save</Button>
+            </>
+          }
+        >
+          <Field label="Description"><Input value={draft.description} onChange={(e) => setDraft({ ...draft, description: e.target.value })} placeholder="Rewinding, LT motor up to 50 HP" autoFocus /></Field>
+          <Field label="Category">
+            <Select value={draft.category} onChange={(e) => setDraft({ ...draft, category: e.target.value as PricingCategory })}>
+              {PRICING_CATEGORIES.map((c) => <option key={c} value={c}>{CATEGORY_LABEL[c]}</option>)}
+            </Select>
+          </Field>
+          <Field label="Unit"><Input value={draft.unit} onChange={(e) => setDraft({ ...draft, unit: e.target.value })} placeholder="per job" /></Field>
+          <Field label={moneyLabel("Rate", cur)}><Input type="number" min="0" inputMode="decimal" value={draft.rate} onChange={(e) => setDraft({ ...draft, rate: e.target.value })} placeholder="0" /></Field>
+          <details className={s.more}>
+            <summary>More</summary>
+            <div className={s.moreBody}>
+              <Field label="Notes"><Input value={draft.notes} onChange={(e) => setDraft({ ...draft, notes: e.target.value })} /></Field>
+            </div>
+          </details>
+          {error && <div role="alert" className={s.err}>{error}</div>}
+        </SidePanel>
+      )}
+    </div>
   );
 }

@@ -6,7 +6,7 @@ const redirect = vi.fn((to: string) => { throw new Error(`REDIRECT:${to}`); });
 vi.mock("next/navigation", () => ({ redirect: (to: string) => redirect(to), useRouter: () => ({}), useSearchParams: () => new URLSearchParams() }));
 
 import { ROUTES } from "@/lib/constants";
-import { OLD_SETTINGS_ROUTES, tabHref, COMPANY_TABS, APPEARANCE_TABS, PRODUCT_TABS } from "@/lib/settingsFolded";
+import { OLD_SETTINGS_ROUTES, tabHref, COMPANY_TABS, APPEARANCE_TABS, PRODUCT_TABS, QUOTATION_TABS } from "@/lib/settingsFolded";
 import { SETTINGS_MENU } from "@/lib/settingsMenu";
 
 import EntitiesRedirect from "./entities/page";
@@ -18,6 +18,11 @@ import DashboardRedirect from "./dashboard/page";
 import ProductCategoriesRedirect from "./product-categories/page";
 import ItemTypesRedirect from "./item-types/page";
 import SalesRedirect from "./sales/page";
+import StatusesRedirect from "./statuses/page";
+import QuoteTypesRedirect from "./quote-types/page";
+import TextTemplatesRedirect from "./templates/page";
+import EmailTemplatesRedirect from "./email-templates/page";
+import AssetPrintFieldsRedirect from "./asset-print-fields/page";
 
 const target = (fn: () => void) => {
   try { fn(); } catch (e) { return (e as Error).message.replace("REDIRECT:", ""); }
@@ -37,6 +42,11 @@ describe("old addresses redirect to the tab that holds what they showed (batch S
     ["/settings/product-categories", ProductCategoriesRedirect, "/settings/products"],
     ["/settings/item-types", ItemTypesRedirect, "/settings/products?tab=types"],
     ["/settings/sales", SalesRedirect, "/settings/products"],
+    ["/settings/statuses", StatusesRedirect, "/settings/quotations"],
+    ["/settings/quote-types", QuoteTypesRedirect, "/settings/quotations?tab=types"],
+    ["/settings/templates", TextTemplatesRedirect, "/settings/quotations?tab=templates"],
+    ["/settings/email-templates", EmailTemplatesRedirect, "/settings/quotations?tab=templates"],
+    ["/settings/asset-print-fields", AssetPrintFieldsRedirect, "/settings/quotations?tab=print"],
   ];
   for (const [from, page, to] of cases) {
     it(`${from} -> ${to}`, () => expect(target(page)).toBe(to));
@@ -47,6 +57,7 @@ describe("old addresses redirect to the tab that holds what they showed (batch S
     for (const url of [OLD_SETTINGS_ROUTES.entities, OLD_SETTINGS_ROUTES.currency, OLD_SETTINGS_ROUTES.numberRanges]) expect(COMPANY_TABS).toContain(tab(url));
     for (const url of [OLD_SETTINGS_ROUTES.navigation, OLD_SETTINGS_ROUTES.dashboard]) expect(APPEARANCE_TABS).toContain(tab(url));
     expect(PRODUCT_TABS).toContain(tab(OLD_SETTINGS_ROUTES.itemTypes));
+    for (const url of [OLD_SETTINGS_ROUTES.quoteTypes, OLD_SETTINGS_ROUTES.textTemplates, OLD_SETTINGS_ROUTES.emailTemplates, OLD_SETTINGS_ROUTES.assetPrintFields]) expect(QUOTATION_TABS).toContain(tab(url));
   });
 
   it("the first tab keeps the address clean", () => {
@@ -65,7 +76,7 @@ describe("the menu points at the folded screens, not the old pages", () => {
   });
 
   it("no menu entry points at a page that only redirects", () => {
-    const redirectsOnly = [ROUTES.settingsEntities, ROUTES.settingsCurrency, ROUTES.settingsNumberRanges, ROUTES.settingsNavigation, ROUTES.settingsReset, ROUTES.settingsDashboard, ROUTES.settingsProductCategories, ROUTES.settingsItemTypes, ROUTES.settingsSales];
+    const redirectsOnly = [ROUTES.settingsEntities, ROUTES.settingsCurrency, ROUTES.settingsNumberRanges, ROUTES.settingsNavigation, ROUTES.settingsReset, ROUTES.settingsDashboard, ROUTES.settingsProductCategories, ROUTES.settingsItemTypes, ROUTES.settingsSales, ROUTES.settingsStatuses, ROUTES.settingsQuoteTypes, ROUTES.configTemplates, ROUTES.settingsEmailTemplates, ROUTES.settingsAssetPrintFields];
     for (const m of SETTINGS_MENU) expect(redirectsOnly, m.id).not.toContain(m.href);
   });
 });
@@ -73,13 +84,13 @@ describe("the menu points at the folded screens, not the old pages", () => {
 describe("the removed screens leave no component behind", () => {
   const dir = join(process.cwd(), "src/app/(app)/settings");
   it("the old pages are redirect stubs only", () => {
-    for (const folder of ["entities", "currency", "number-ranges", "navigation", "reset", "dashboard", "product-categories", "item-types", "sales"]) {
+    for (const folder of ["entities", "currency", "number-ranges", "navigation", "reset", "dashboard", "product-categories", "item-types", "sales", "statuses", "quote-types", "templates", "email-templates", "asset-print-fields"]) {
       const files = readdirSync(join(dir, folder));
       expect(files, folder).toEqual(["page.tsx"]);
     }
   });
   it("the folded screens exist", () => {
-    for (const f of ["company/CompanyClient.tsx", "appearance/AppearanceClient.tsx", "products/ProductsClient.tsx"]) expect(existsSync(join(dir, f)), f).toBe(true);
+    for (const f of ["company/CompanyClient.tsx", "appearance/AppearanceClient.tsx", "products/ProductsClient.tsx", "quotations/QuotationsClient.tsx", "pricing/PricingClient.tsx"]) expect(existsSync(join(dir, f)), f).toBe(true);
   });
 });
 

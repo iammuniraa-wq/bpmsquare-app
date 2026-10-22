@@ -10,7 +10,7 @@ describe("visibleSettingsMenu", () => {
     const menu = visibleSettingsMenu({ isAdmin: true, canEdit: () => true, features: { wfm: true } });
     expect(ids(menu)).toContain("wf-attendance");
     expect(ids(menu)).not.toContain("entities");
-    expect(ids(menu)).not.toContain("email-templates");
+    expect(ids(menu)).not.toContain("quotations");
     expect(ids(menu)).not.toContain("coverage");
   });
 
@@ -21,35 +21,44 @@ describe("visibleSettingsMenu", () => {
   });
 
   it("lets a non-admin reach an admin-only entry only through its workcenter grant", () => {
-    const features = { quotations: true, assets: true };
+    const features = { quotations: true, products: true };
     const without = visibleSettingsMenu({ isAdmin: false, canEdit: () => false, features });
-    expect(ids(without)).not.toContain("statuses");
+    expect(ids(without)).not.toContain("products");
     const withGrant = visibleSettingsMenu({ isAdmin: false, canEdit: (w) => w === "quotations", features });
-    expect(ids(withGrant)).toContain("statuses");
+    expect(ids(withGrant)).toContain("products");
     expect(ids(withGrant)).not.toContain("people");
   });
 
-  it("gates Quote statuses by Quotations (what the page edits), Asset print fields by Assets", () => {
-    const ids = (features: Record<string, boolean>) =>
-      visibleSettingsMenu({ isAdmin: true, canEdit: () => true, features }).flatMap((g) => g.items.map((m) => m.id));
-    expect(ids({ assets: true })).toContain("asset-print-fields");
-    expect(ids({ assets: true })).not.toContain("statuses");
-    expect(ids({ quotations: true })).toContain("statuses");
-    expect(ids({ quotations: true })).not.toContain("asset-print-fields");
+  it("folds five quotation pages into one Quotations entry and two pricing entries into one Pricing entry (batch S3)", () => {
+    const all = SETTINGS_MENU.map((m) => m.id);
+    for (const gone of ["statuses", "quote-types", "text-templates", "email-templates", "asset-print-fields", "dynamic-pricing"]) expect(all, gone).not.toContain(gone);
+    expect(all).toEqual(expect.arrayContaining(["quotations", "pricing"]));
+    expect(SETTINGS_MENU.find((m) => m.id === "quotations")?.href).toBe("/settings/quotations");
+    expect(SETTINGS_MENU.find((m) => m.id === "pricing")?.label).toBe("Pricing");
   });
 
-  it("keeps Quote statuses in Sales and Asset print fields in Service", () => {
+  it("gates Quotations by Quotations or Assets (Print), Pricing by Quotations or Dynamic Pricing, both admin only", () => {
+    const ids = (features: Record<string, boolean>, isAdmin = true) =>
+      visibleSettingsMenu({ isAdmin, canEdit: () => true, features }).flatMap((g) => g.items.map((m) => m.id));
+    expect(ids({ quotations: true })).toEqual(expect.arrayContaining(["quotations", "pricing"]));
+    expect(ids({ assets: true })).toContain("quotations");
+    expect(ids({ assets: true })).not.toContain("pricing");
+    expect(ids({ pricing_engine: true })).toContain("pricing");
+    expect(ids({ pricing_engine: true })).not.toContain("quotations");
+    expect(ids({ wfm: true })).not.toContain("quotations");
+    const member = ids({ quotations: true, assets: true, pricing_engine: true }, false);
+    expect(member).not.toContain("quotations");
+    expect(member).not.toContain("pricing");
+  });
+
+  it("keeps Quotations and Pricing in Sales, and finds them by every name the five pages had", () => {
     const menu = visibleSettingsMenu({ isAdmin: true, canEdit: () => true, features: { quotations: true, assets: true } });
     const groupOf = (id: string) => menu.find((g) => g.items.some((i) => i.id === id))?.id;
-    expect(groupOf("statuses")).toBe("sales");
-    expect(groupOf("asset-print-fields")).toBe("service");
-    expect(groupOf("coverage")).toBeUndefined();
-  });
-
-  it("names Quote statuses for what it edits and keeps the old name searchable", () => {
-    const entry = SETTINGS_MENU.find((i) => i.id === "statuses");
-    expect(entry?.label).toBe("Quote statuses");
-    expect(entry?.keywords).toContain("pipeline");
+    expect(groupOf("quotations")).toBe("sales");
+    expect(groupOf("pricing")).toBe("sales");
+    const entry = SETTINGS_MENU.find((i) => i.id === "quotations");
+    expect(entry?.keywords).toEqual(expect.arrayContaining(["pipeline", "quote statuses", "quote types", "text templates", "email templates", "asset print fields"]));
+    expect(SETTINGS_MENU.find((i) => i.id === "pricing")?.keywords).toEqual(expect.arrayContaining(["small scale pricing", "dynamic pricing"]));
   });
 
   it("describes Developer and Connectors without stale claims", () => {
@@ -106,8 +115,8 @@ describe("filterSettingsMenu", () => {
   it("still finds pages by the names they had before the split", () => {
     const find = (q: string) => filterSettingsMenu(groups, q).flatMap((g) => g.items.map((i) => i.id));
     expect(find("general")).toEqual(expect.arrayContaining(["company", "appearance", "developer"]));
-    expect(find("statuses")).toContain("statuses");
-    expect(find("statuses & assets")).toEqual(expect.arrayContaining(["statuses", "asset-print-fields"]));
+    expect(find("statuses")).toContain("quotations");
+    expect(find("statuses & assets")).toContain("quotations");
     expect(find("appearance")).toContain("appearance");
   });
 
