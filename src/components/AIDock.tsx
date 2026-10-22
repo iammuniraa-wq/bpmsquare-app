@@ -11,9 +11,17 @@ import { parsePageContext } from "@/lib/assistant/objects";
 import { isInternalPath } from "@/lib/assistant/navTargets";
 import { ASSISTANT_TIPS, usageTip } from "@/lib/assistant/tips";
 import type { Suggestion } from "@/lib/assistant/suggestions";
+import { WebConsentRow, WebSources } from "@/components/assistant/WebResearch";
+import { allowForAsk, applyChoice, settleOnNewAsk, type ConsentState, type WebAllow, type WebChoice } from "@/lib/assistant/webConsent";
 
 type Card = { id: string; label: string; href: string };
-type Msg = { from: "bot" | "me"; text: string; report?: ReportPayload; cards?: Card[] };
+type WebSource = { title: string; url: string };
+type Msg = {
+  from: "bot" | "me"; text: string; report?: ReportPayload; cards?: Card[];
+  /** The assistant asked to search the web; answered with the chips. */
+  consent?: { query: string; state: ConsentState };
+  web?: WebSource[];
+};
 type Usage = { percent: number; off: boolean };
 
 // Per-user, per-browser preference -- separate from the tenant-level
@@ -60,6 +68,9 @@ export default function AIDock({ liftForTabBar = false }: {
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
   const [enabled, setEnabled] = useState(true);
+  // "Always in this chat": held here only, so it ends with the page and is never stored for the person.
+  const [webChat, setWebChat] = useState(false);
+  const [searching, setSearching] = useState(false);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const nova = useIsNextgen3Layer();
   const hasAccounts = useTenantFeature("accounts");
@@ -117,17 +128,31 @@ export default function AIDock({ liftForTabBar = false }: {
     if (typeof window !== "undefined" && window.innerWidth < 900) setOpen(false);
   }
 
-  async function ask(question: string) {
+  // Yes / No / Always on a web-search proposal. Yes and Always send the same question again, with permission for that
+  // search; No sends nothing.
+  function answerConsent(index: number, choice: WebChoice) {
+    const m = messages[index];
+    if (!m?.consent || m.consent.state !== "pending" || busy) return;
+    const out = applyChoice(choice, webChat);
+    setWebChat(out.chatMode);
+    setMessages((prev) => prev.map((x, k) => (k === index && x.consent ? { ...x, consent: { ...x.consent, state: out.state } } : x)));
+    const base = messages.slice(0, index);
+    const asked = base[base.length - 1];
+    if (out.allow && asked?.from === "me") void ask(asked.text, { base, allow: out.allow, query: m.consent.query });
+  }
+
+  async function ask(question: string, resume?: { base: Msg[]; allow: WebAllow; query: string }) {
     const text = question.trim();
     if (!text || busy) return;
     // History travels with the question so follow-ups keep their context --
     // text only; the server treats it as conversation, never as a query.
-    const history = [...messages, { from: "me" as const, text }]
+    const history = (resume ? resume.base : [...messages, { from: "me" as const, text }])
       .slice(-12)
       .map((m) => ({ role: m.from === "me" ? "user" : "assistant", text: m.text }));
-    setMessages((prev) => [...prev, { from: "me", text }]);
+    if (!resume) setMessages((prev) => [...prev.map((m) => (m.consent ? { ...m, consent: { ...m.consent, state: settleOnNewAsk(m.consent.state) } } : m)), { from: "me", text }]);
     setDraft("");
     setBusy(true);
+    setSearching(!!resume);
     try {
       // The page goes as ids only: the route, and the object type and record id read from it. Never record content.
       const page = parsePageContext(pathname);
@@ -137,13 +162,17 @@ export default function AIDock({ liftForTabBar = false }: {
         body: JSON.stringify({
           question: text, history, route: pathname,
           objectType: page?.objectType ?? null, recordId: page?.recordId ?? null,
+          allow_web: resume ? resume.allow : allowForAsk(webChat),
+          consent_query: resume?.allow === "once" ? resume.query : undefined,
         }),
       });
       const json = await res.json().catch(() => ({}));
       if (res.ok) {
         if (json.usage) setUsage(json.usage);
         const cards: Card[] | undefined = Array.isArray(json.cards) ? json.cards : undefined;
-        setMessages((prev) => [...prev, { from: "bot", text: json.answer, report: json.report as ReportPayload | undefined, cards }]);
+        const consent = json.consent?.kind === "web_search" && typeof json.consent.query === "string" ? { query: json.consent.query as string, state: "pending" as const } : undefined;
+        const web: WebSource[] | undefined = Array.isArray(json.web?.sources) && json.web.sources.length ? json.web.sources : undefined;
+        setMessages((prev) => [...prev, { from: "bot", text: json.answer, report: json.report as ReportPayload | undefined, cards, consent, web }]);
         if (json.autoFollow && cards?.length === 1) go(cards[0].href);
       } else {
         setMessages((prev) => [...prev, { from: "bot", text: json.error ?? "Something went wrong." }]);
@@ -152,6 +181,7 @@ export default function AIDock({ liftForTabBar = false }: {
       setMessages((prev) => [...prev, { from: "bot", text: "Could not reach the server." }]);
     } finally {
       setBusy(false);
+      setSearching(false);
     }
   }
 
@@ -383,6 +413,8 @@ export default function AIDock({ liftForTabBar = false }: {
                     {card.label} →
                   </button>
                 ))}
+                {m.consent && <WebConsentRow query={m.consent.query} state={m.consent.state} disabled={busy} onChoice={(choice) => answerConsent(i, choice)} />}
+                {m.web && <WebSources sources={m.web} />}
                 {m.report && (
                   <div style={{ padding: 12, borderRadius: "var(--card-radius, 10px)", border: `1px solid ${c.line}`, background: "var(--card-bg, #fff)" }}>
                     <ChartRenderer report={normalizeReport(m.report)} />
@@ -390,7 +422,7 @@ export default function AIDock({ liftForTabBar = false }: {
                 )}
               </div>
             ))}
-            {busy && <div style={{ alignSelf: "flex-start", color: c.hint }}>Looking that up…</div>}
+            {busy && <div style={{ alignSelf: "flex-start", color: c.hint }}>{searching ? "Searching the web…" : "Looking that up…"}</div>}
           </div>
           <div className="bms-dock-input" style={{ padding: "8px 16px 14px", display: "flex", gap: 8, flexShrink: 0, background: "var(--card-bg, #fff)" }}>
             <input

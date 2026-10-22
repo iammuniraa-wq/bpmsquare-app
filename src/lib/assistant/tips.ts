@@ -8,6 +8,9 @@ export const ASSISTANT_TIPS = {
   usage: "Your workspace shares a monthly AI allowance across every AI feature. Suggestions and opening screens keep working when it runs out.",
   overBudget: "The monthly allowance is used up. Suggestions and opening screens still work; answers return next month or when the allowance is raised.",
   draft: "Paste an email or message and get a drafted record to review. Nothing is created until you press Create.",
+  webConsent: "The assistant asks before it searches the web, and only about companies. Nothing from your records or contacts is sent.",
+  webAlways: "Always applies to this chat only and is forgotten when you reload the page. The assistant asks again next time.",
+  webLabel: "This comes from public web pages, not from your workspace data. Open the sources and check them before you rely on it.",
 } as const;
 
 /** The usage pill's own explanation, with the figures in it. */

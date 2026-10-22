@@ -40,7 +40,7 @@ const FEATURE_LABELS: { key: keyof TenantFeatures; label: string; premium?: bool
 
 const DEFAULT_FEATURES: TenantFeatures = {
   leads: false, pipeline: false, amc: false, dispatch: false,
-  invoices: false, partners: false, ai_assistant: false, db_export: false,
+  invoices: false, partners: false, ai_assistant: false, ai_assistant_web: false, db_export: false,
   purchasing: false, marketing: false, products: false,
   change_history: false, outbound_email: false, business_roles: false,
   standard_quotes: false, gmail_reply_threading: false, quote_lines_dw: false,

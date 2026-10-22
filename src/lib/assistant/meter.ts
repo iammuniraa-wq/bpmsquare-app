@@ -55,6 +55,19 @@ export class AssistantMeter {
   }
 
   /**
+   * Logs a call that is not the chat loop itself (web research) under its own surface; the caller has already added the
+   * per-search surcharge to `tokens`. The total joins the running figure so the pill moves. Returns the tokens counted.
+   */
+  async recordSurface(surface: string, tokens: { input: number; output: number }, model: string): Promise<number> {
+    this.used += tokens.input + tokens.output;
+    await this.deps.logUsage({
+      tenantId: this.o.tenantId, userId: this.o.userId, surface, studyId: null,
+      inputTokens: tokens.input, outputTokens: tokens.output, model,
+    });
+    return tokens.input + tokens.output;
+  }
+
+  /**
    * A client for code that makes its own model calls inside an ask (the chart tool's compile step). Every
    * messages.create through it is checked against the allowance first and logged after, so nothing the assistant
    * causes can run unmetered.

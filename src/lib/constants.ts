@@ -708,6 +708,10 @@ export type TenantFeatures = {
   // row). A platform-admin-only flag: default OFF, missing key reads false; with it
   // off the workspace keeps today's Webhooks & push page and sees nothing new.
   webhooks_library: boolean;
+  // Assistant web research (docs/design/assistant-smarter.md section 2): the dock may ask "Do you want me to search the
+  // web for this?" and, on a yes, run one isolated search on our key and answer with sources. A platform-admin-only
+  // flag: default OFF, missing key reads false; needs ai_assistant. With it off the search tool is not offered.
+  ai_assistant_web: boolean;
 };
 
 // WfmConfig — tenant-level WFM (attendance) settings, stored in
@@ -1343,7 +1347,12 @@ export type TenantConfig = {
   newsletter_studio?: { monthly_token_budget?: number };
   // The in-app assistant's monthly allowance (docs/nova-assistant-architecture.md section 6). Read since S1;
   // the platform-admin field that writes it arrives with S4, until then absent = DEFAULT_MONTHLY_TOKEN_BUDGET.
-  ai_assistant?: { monthly_token_budget?: number };
+  ai_assistant?: {
+    monthly_token_budget?: number;
+    // The workspace's own policy: true keeps every call that leaves for the internet (web research) switched off,
+    // whatever the platform flag says.
+    block_external_calls?: boolean;
+  };
 };
 
 /** A topic a person can agree to or refuse separately ("Offers", "Events"). */

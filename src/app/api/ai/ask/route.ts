@@ -9,6 +9,8 @@ import { AssistantMeter } from "@/lib/assistant/meter";
 import { usagePercent } from "@/lib/assistant/models";
 import { describePage } from "@/lib/assistant/pageService";
 import type { TenantConfig } from "@/lib/constants";
+import { parseAllowWeb, webAvailability } from "@/lib/assistant/webConsent";
+import { normalizeQuery } from "@/lib/assistant/webQuery";
 
 // The chart tool makes a nested model call inside a turn (compileAndRun),
 // so a turn that uses it costs two sequential calls, not one -- same
@@ -22,6 +24,8 @@ type Access = {
   perms: Awaited<ReturnType<typeof resolvePermissions>>;
   features: Record<string, boolean | undefined>;
   budget: number;
+  /** Platform flag, the assistant it hangs off and the workspace's own external-calls policy, folded into one answer. */
+  webEnabled: boolean;
 };
 
 // Tenant, person, permissions, the workspace's modules and its allowance, all from the session. The assistant is
@@ -41,7 +45,10 @@ async function resolveAccess(): Promise<Access | NextResponse> {
   const features = (tenant?.features ?? {}) as Record<string, boolean | undefined>;
   if (features.ai_assistant !== true) return NextResponse.json({ error: "The assistant is not enabled for this workspace." }, { status: 403 });
   const config = (tenant?.config ?? {}) as Partial<TenantConfig>;
-  return { supabase, tenantId, userId, perms, features, budget: resolveMonthlyBudget(config.ai_assistant?.monthly_token_budget) };
+  return {
+    supabase, tenantId, userId, perms, features, budget: resolveMonthlyBudget(config.ai_assistant?.monthly_token_budget),
+    webEnabled: webAvailability(features, config).enabled,
+  };
 }
 
 // GET /api/ai/ask?route=/quotations/<id> -- what the dock shows when it opens: example questions, the usage pill, the
@@ -73,7 +80,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const access = await resolveAccess();
   if (access instanceof NextResponse) return access;
-  const { supabase, tenantId, userId, perms, features, budget } = access;
+  const { supabase, tenantId, userId, perms, features, budget, webEnabled } = access;
 
   const body = await request.json().catch(() => null);
   const question = typeof body?.question === "string" ? body.question.trim() : "";
@@ -99,12 +106,19 @@ export async function POST(request: NextRequest) {
   // derives both from the route itself (assistant/objects.ts) and checks the id against this workspace's rows.
   const route = typeof body?.route === "string" ? body.route.slice(0, 300) : null;
 
+  // Web research: a permission sent while the workspace does not have it is a 404, not a quiet no-op, so a stale or
+  // forged client learns that the route for it does not exist here. The tool is never offered when this is off.
+  const allowWeb = parseAllowWeb(body?.allow_web);
+  if (allowWeb && !webEnabled) return NextResponse.json({ error: "Web research is not enabled for this workspace." }, { status: 404 });
+  const consentQuery = allowWeb === "once" && typeof body?.consent_query === "string" ? normalizeQuery(body.consent_query).slice(0, 300) : null;
+
   const currency = await getTenantCurrency();
   const meter = new AssistantMeter({ tenantId, userId, budget });
 
   try {
     const reply = await askAssistant(history, {
       supabase, tenantId, perms, currency, features, isAdmin: perms.unrestricted, route, meter,
+      web: webEnabled ? { enabled: true, userId, allow: allowWeb, consentQuery } : undefined,
     });
     return NextResponse.json({
       ...reply,

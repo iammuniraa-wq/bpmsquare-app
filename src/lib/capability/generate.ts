@@ -63,7 +63,7 @@ type Key = keyof TenantFeatures;
 /** Display names for every module flag. Record<Key,...> makes a new flag a compile error until named. */
 export const MODULE_LABEL: Record<Key, string> = {
   leads: "Leads", pipeline: "Pipeline", amc: "AMC contracts", dispatch: "Dispatch", invoices: "Invoices",
-  partners: "Partners", ai_assistant: "AI assistant", db_export: "Data export", purchasing: "Purchase orders and inventory",
+  partners: "Partners", ai_assistant: "AI assistant", ai_assistant_web: "Assistant web research", db_export: "Data export", purchasing: "Purchase orders and inventory",
   marketing: "Marketing campaigns", change_history: "Change history", outbound_email: "Outbound email",
   business_roles: "Business roles and employees", standard_quotes: "Standard Quotes", gmail_reply_threading: "Gmail reply threading",
   quote_lines_dw: "Quote lines in the Data Workbench", wfm: "Workforce", wfm_projects: "Workforce project costing",
