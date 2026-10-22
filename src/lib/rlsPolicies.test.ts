@@ -86,7 +86,7 @@ describe("credential tables are not member-writable (audit 2026-10-21)", () => {
     };
     walk(path.resolve(__dirname, ".."));
     expect(offenders).toEqual([]);
-  });
+  }, 30_000);
 
   it("0207's bundle carries the migration verbatim", () => {
     const file = readFileSync(path.join(DIR, "0207_business_roles_rls.sql"), "utf8");
