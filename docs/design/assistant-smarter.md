@@ -398,3 +398,22 @@ Voice input in the dock; proactive nudges from `domain_event` into the briefing 
 inbox (S5); a manager's team briefing (needs the Business-Roles-as-boundary decision from the
 2026-10-21 audit first); hand-over summaries between users; Market Signals moved onto the
 research function; `POST /api/v1/assistant` with a key's scopes.
+
+## 11. WP1 and WP2 as built (2026-10-22)
+
+Flag `ai_assistant` only; nothing writes tenant data; no migration.
+
+- **Manifests**: `src/lib/assistant/screens/` (`generate.ts` builds list/new/edit/detail per `OBJECT_DEFS`, one per Settings
+  page and sidebar route, and the six studios from their `tourSteps.ts`; `quote|standardQuote|account|case|webhooks|middleware.ts`
+  are the hand-written verbs and tasks; `index.ts` is the loader; `filter.ts` gates by module, role grant and admin and renders
+  the bounded block). Fields come from `getEffectiveFieldConfig` per ask, so custom fields are in the manifest at once.
+- **Ids**: components carry `data-guide`. Shared ones cover every record page: `record.back|primary|more`, `menu:<slug>` for
+  every More-menu entry, `tab:<id>` for every tab, `form.save|cancel`, `list.new`, `related.new`, `<object>.field.<key>` on
+  detail fields and custom create fields. `screens.test.ts` fails the build when a manifest names an id no component carries.
+- **Prompt split**: the cached block is untouched. The screen block, the live "not available" list and the guide rule are in the
+  per-ask block. The `guide` tool is offered only when the screen has a manifest, so there are two cached tool-list variants
+  (with and without it). The control id is validated server-side, not as a per-screen enum, because an enum would give every
+  screen its own tool list and cache.
+- **Deviations**: new/edit forms are hand-built, so their standard fields have no `data-guide` yet (custom fields do); a step on
+  one is shown as text with no highlight. Webhooks and middleware use the shared tab strip only until their own page files
+  get `data-guide` ids. `screen_help(id)`, the live `screen` object and the cached screen index are WP3.
