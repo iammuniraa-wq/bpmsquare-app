@@ -676,7 +676,7 @@ export const FIELD_REGISTRY: Record<PilotObjectType, ObjectFieldRegistry> = {
         key: "status", defaultLabel: "Status", widget: "enum", defaultSection: "Employment",
         enumOptions: [
           { value: "active", label: "Active" },
-          { value: "inactive", label: "Inactive" },
+          { value: "inactive", label: "Obsolete" },
         ],
       },
     ],

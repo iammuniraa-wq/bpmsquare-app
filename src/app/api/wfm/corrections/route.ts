@@ -4,6 +4,7 @@ import { requireWfm, requireWfmEmployee, getWfmConfig } from "@/lib/wfm/server";
 import { resolveWfmScope } from "@/lib/wfm/scope";
 import { getSupervisorEmails, sendWfmNotification } from "@/lib/wfm/notify";
 import { ROUTES } from "@/lib/constants";
+import { markObsoleteEmbeds } from "@/lib/wfm/obsolete";
 import type { CorrectionIssue, PresenceKind } from "@/lib/wfm/types";
 
 
@@ -47,7 +48,7 @@ export async function GET(request: NextRequest) {
     .from("wfm_correction_requests")
     .select(
       isSupervisor
-        ? "*, employees(first_name, last_name, employee_code)"
+        ? "*, employees(first_name, last_name, employee_code, status)"
         : "*"
     )
     .eq("tenant_id", tenantId)
@@ -69,7 +70,7 @@ export async function GET(request: NextRequest) {
 
   const { data, error } = await query;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json(data ?? []);
+  return NextResponse.json(markObsoleteEmbeds(data ?? []));
 }
 
 // POST /api/wfm/corrections — an employee requests a correction to their

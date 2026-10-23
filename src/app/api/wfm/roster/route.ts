@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createAdminSupabase } from "@/lib/supabase-server";
 import { requireWfm, requireWfmSupervisor } from "@/lib/wfm/server";
+import { markObsoleteEmbeds } from "@/lib/wfm/obsolete";
 import { tenantHasFeature } from "@/lib/tenant";
 
 
@@ -43,7 +44,7 @@ export async function GET(request: NextRequest) {
     .select(
       "id, employee_id, date, shift_id, site_id, is_day_off, note, " +
       "wfm_shifts(name, start_time, end_time, is_night_shift), wfm_sites(name), " +
-      "employees(first_name, last_name, employee_code)"
+      "employees(first_name, last_name, employee_code, status)"
     )
     .eq("tenant_id", tenantId)
     .gte("date", from)
@@ -88,7 +89,7 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  return NextResponse.json(rows);
+  return NextResponse.json(markObsoleteEmbeds(rows));
 }
 
 // DELETE /api/wfm/roster — remove many roster rows at once. The screen shows a

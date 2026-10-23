@@ -10,6 +10,7 @@ import type { WfmEmployee, PresenceKind, PunchState } from "./types";
 import { deriveState } from "./types";
 import { computeDayHours, shiftDayKey, workSessions, type DayHours } from "./hours";
 import { makeShiftResolver, type RosterLike, type ShiftLike } from "./effectiveShift";
+import { inRangeOrFilter, obsoleteLabel } from "./obsolete";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 export type WfmContext = {
@@ -267,11 +268,12 @@ export async function getTechnicianLiveStates(
   if (ids.length === 0) return new Map();
 
   const admin = createAdminSupabase();
+  const todayKey = dateKeyInTz(new Date(), (await getWfmConfig(admin, tenantId)).timezone);
   const { data: employees } = await admin
     .from("employees")
     .select("id, technician_id")
     .eq("tenant_id", tenantId)
-    .eq("status", "active")
+    .or(inRangeOrFilter(todayKey))
     .in("technician_id", ids);
 
   const empIdByTechId = new Map(
@@ -328,7 +330,7 @@ export async function getTechnicianAttendanceForDate(
     .select("id, shift_id")
     .eq("tenant_id", tenantId)
     .eq("technician_id", technicianId)
-    .eq("status", "active")
+    .or(inRangeOrFilter(dateKey))
     .maybeSingle();
   if (!employee) return null;
 
@@ -418,9 +420,10 @@ export async function getWfmLiveBoardSnapshot(
       (() => {
         let q = admin
           .from("employees")
-          .select("id, employee_code, first_name, last_name, employment_type, wfm_role, shift_id, site_id, status")
+          .select("id, employee_code, first_name, last_name, employment_type, wfm_role, shift_id, site_id, status, valid_to")
           .eq("tenant_id", tenantId)
-          .eq("status", "active");
+          // Active, plus an obsolete employee through their last day (valid_to).
+          .or(inRangeOrFilter(todayKey));
         if (employeeIds) q = q.in("id", employeeIds);
         return q.order("first_name");
       })(),
@@ -525,7 +528,7 @@ export async function getWfmLiveBoardSnapshot(
     return {
       employee_id: emp.id,
       employee_code: emp.employee_code,
-      full_name: [emp.first_name, emp.last_name].filter(Boolean).join(" "),
+      full_name: obsoleteLabel([emp.first_name, emp.last_name].filter(Boolean).join(" "), emp),
       employment_type: emp.employment_type,
       home_site_id: emp.site_id,
       home_site_name: emp.site_id ? (siteById.get(emp.site_id)?.name ?? null) : null,

@@ -3,6 +3,7 @@ import { createAdminSupabase } from "@/lib/supabase-server";
 import { requireWfm, getWfmConfig } from "@/lib/wfm/server";
 import { resolveWfmScope } from "@/lib/wfm/scope";
 import { getSupervisorEmails, getEmployeeLoginEmail, sendWfmNotification } from "@/lib/wfm/notify";
+import { markObsoleteEmbeds } from "@/lib/wfm/obsolete";
 import { ROUTES } from "@/lib/constants";
 
 
@@ -50,7 +51,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
   const admin = createAdminSupabase();
   const { data: thread } = await admin
     .from("wfm_clarification_threads")
-    .select("*, employees(first_name, last_name, employee_code)")
+    .select("*, employees(first_name, last_name, employee_code, status)")
     .eq("id", id).eq("tenant_id", tenantId).maybeSingle();
   if (!thread) return NextResponse.json({ error: "Not found" }, { status: 404 });
   if (!(await canAccessThread(ctx, thread.employee_id as string))) {
@@ -64,7 +65,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     .order("created_at", { ascending: true });
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  return NextResponse.json({ ...thread, messages: messages ?? [] });
+  return NextResponse.json({ ...markObsoleteEmbeds([thread])[0], messages: messages ?? [] });
 }
 
 // PATCH /api/wfm/clarifications/[id] — post a reply and/or resolve/reopen.

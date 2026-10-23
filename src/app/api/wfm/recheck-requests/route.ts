@@ -3,6 +3,7 @@ import { createAdminSupabase } from "@/lib/supabase-server";
 import { requireWfm, requireWfmSupervisor, getWfmConfig } from "@/lib/wfm/server";
 import { resolveWfmScope } from "@/lib/wfm/scope";
 import { getEmployeeLoginEmail, sendWfmNotification } from "@/lib/wfm/notify";
+import { markObsoleteEmbeds } from "@/lib/wfm/obsolete";
 import { ROUTES } from "@/lib/constants";
 
 
@@ -35,7 +36,7 @@ export async function GET(request: NextRequest) {
 
   let query = supabase
     .from("wfm_recheck_requests")
-    .select(isSupervisor ? "*, employees(first_name, last_name, employee_code)" : "*")
+    .select(isSupervisor ? "*, employees(first_name, last_name, employee_code, status)" : "*")
     .eq("tenant_id", tenantId)
     .order("created_at", { ascending: false });
 
@@ -55,7 +56,7 @@ export async function GET(request: NextRequest) {
 
   const { data, error } = await query;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json(data ?? []);
+  return NextResponse.json(markObsoleteEmbeds(data ?? []));
 }
 
 // POST /api/wfm/recheck-requests — a supervisor flags a punch (or a whole

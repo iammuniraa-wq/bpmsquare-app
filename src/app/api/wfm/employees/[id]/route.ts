@@ -2,11 +2,12 @@ import { NextResponse, type NextRequest } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminSupabase, findOrCreateUserForInvite, getAuthUser } from "@/lib/supabase-server";
 import { logChange } from "@/lib/changeLog";
-import { requireWfmSupervisor, getWfmConfig } from "@/lib/wfm/server";
+import { requireWfmSupervisor, getWfmConfig, dateKeyInTz } from "@/lib/wfm/server";
 import { normalizeRemoteMode, modeIncludesWfh, modeIncludesSite } from "@/lib/wfm/selfService";
 import { buildEmployeeHubProfile } from "@/lib/wfm/employeeHub";
 import { tenantOrigin } from "@/lib/constants";
 import { revokeFaceEnrollment } from "@/lib/wfm/faceEnrollment";
+import { reconcileObsoletePatch } from "@/lib/wfm/obsolete";
 
 
 // Capped per route, not via vercel.json. That config carried
@@ -101,7 +102,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
   const { data: employee } = await admin
     .from("employees")
-    .select("id, first_name, last_name, wfm_role")
+    .select("id, first_name, last_name, wfm_role, status, valid_to")
     .eq("id", id)
     .eq("tenant_id", tenantId)
     .maybeSingle();
@@ -208,7 +209,12 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     patch.employment_type = body.employment_type;
   }
   if (["employee", "supervisor"].includes(body.wfm_role)) patch.wfm_role = body.wfm_role;
-  if (["active", "inactive"].includes(body.status)) patch.status = body.status;
+  if (["active", "inactive"].includes(body.status)) {
+    patch.status = body.status;
+    // Obsolete = inactive + valid_to: stamp today on the way in, clear it on
+    // the way back (reports count an obsolete employee up to that date).
+    reconcileObsoletePatch(employee as { status: string; valid_to: string | null }, patch, dateKeyInTz(new Date(), wfmConfig.timezone));
+  }
   // null is accepted explicitly: typeof null is "object", so a bare boolean
   // check would silently drop "reset to the workspace default".
   if (body.self_service_override === null || typeof body.self_service_override === "boolean") {
@@ -370,7 +376,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     .update(patch)
     .eq("id", id)
     .eq("tenant_id", tenantId)
-    .select("id, employee_code, first_name, last_name, phone, employment_type, wfm_role, shift_id, site_id, supervisor_id, status, consent_recorded_at")
+    .select("id, employee_code, first_name, last_name, phone, employment_type, wfm_role, shift_id, site_id, supervisor_id, status, valid_to, consent_recorded_at")
     .maybeSingle();
   if (error) {
     if ((error as { code?: string }).code === "23505") {
@@ -384,6 +390,14 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   const logChanges: { field: string; from: unknown; to: unknown }[] = [];
   if (touchesSelfService && "self_service_override" in patch && selfServiceBefore !== (patch.self_service_override as boolean | null)) {
     logChanges.push({ field: "self_service_override", from: selfServiceBefore, to: patch.self_service_override as boolean | null });
+  }
+  // Making an employee obsolete (and back) is recorded as an ordinary update
+  // carrying the status and valid_to diff.
+  if ("status" in patch && patch.status !== employee.status) {
+    logChanges.push({ field: "status", from: employee.status, to: patch.status });
+  }
+  if ("valid_to" in patch && (patch.valid_to ?? null) !== (employee.valid_to ?? null)) {
+    logChanges.push({ field: "valid_to", from: employee.valid_to ?? null, to: patch.valid_to ?? null });
   }
   if ("remote_mode" in patch && remoteModeBefore !== (patch.remote_mode as string | null)) {
     logChanges.push({ field: "remote_mode", from: remoteModeBefore, to: patch.remote_mode as string | null });

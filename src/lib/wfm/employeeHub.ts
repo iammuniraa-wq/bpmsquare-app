@@ -27,7 +27,7 @@ export async function buildEmployeeHubProfile(
   const { data: employee } = await supabase
     .from("employees")
     .select(
-      `id, employee_code, first_name, last_name, phone, status, employment_type, wfm_role,
+      `id, employee_code, first_name, last_name, phone, status, valid_from, valid_to, employment_type, wfm_role,
        supervisor_id, consent_recorded_at,
        wfm_shifts(id, name, start_time, end_time, is_night_shift), wfm_sites!site_id(id, name)`
     )

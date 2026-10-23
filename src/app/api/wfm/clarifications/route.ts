@@ -4,6 +4,7 @@ import { requireWfm, getWfmConfig } from "@/lib/wfm/server";
 import { resolveWfmScope } from "@/lib/wfm/scope";
 import { getSupervisorEmails, getEmployeeLoginEmail, sendWfmNotification } from "@/lib/wfm/notify";
 import { ROUTES } from "@/lib/constants";
+import { markObsoleteEmbeds } from "@/lib/wfm/obsolete";
 import { PUNCH_KIND_LABEL, type ClarificationAnchorType, type PresenceKind } from "@/lib/wfm/types";
 
 
@@ -36,7 +37,7 @@ export async function GET(request: NextRequest) {
 
   let query = supabase
     .from("wfm_clarification_threads")
-    .select(isSupervisor ? "*, employees(first_name, last_name, employee_code)" : "*")
+    .select(isSupervisor ? "*, employees(first_name, last_name, employee_code, status)" : "*")
     .eq("tenant_id", tenantId)
     .order("updated_at", { ascending: false });
 
@@ -52,7 +53,7 @@ export async function GET(request: NextRequest) {
 
   const { data, error } = await query;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json(data ?? []);
+  return NextResponse.json(markObsoleteEmbeds(data ?? []));
 }
 
 // POST /api/wfm/clarifications — start a new thread with its first message.

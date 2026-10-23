@@ -5,6 +5,7 @@ import { resolveWfmScope } from "@/lib/wfm/scope";
 import { getSupervisorEmails, sendWfmNotification } from "@/lib/wfm/notify";
 import { loadLeaveType, monthlyLimitError } from "@/lib/wfm/leaveServer";
 import { ROUTES } from "@/lib/constants";
+import { markObsoleteEmbeds } from "@/lib/wfm/obsolete";
 import type { LeaveRequestStatus } from "@/lib/wfm/types";
 
 
@@ -39,7 +40,7 @@ export async function GET(request: NextRequest) {
     .from("wfm_leave_requests")
     .select(
       isSupervisor
-        ? "*, employees(first_name, last_name, employee_code), wfm_leave_types(name, category)"
+        ? "*, employees(first_name, last_name, employee_code, status), wfm_leave_types(name, category)"
         : "*, wfm_leave_types(name, category)"
     )
     .eq("tenant_id", tenantId)
@@ -61,7 +62,7 @@ export async function GET(request: NextRequest) {
 
   const { data, error } = await query;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json(data ?? []);
+  return NextResponse.json(markObsoleteEmbeds(data ?? []));
 }
 
 // POST /api/wfm/leave-requests — an employee requests leave. Never writes

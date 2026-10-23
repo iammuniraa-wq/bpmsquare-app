@@ -4,6 +4,7 @@ import { requireWfm, requireWfmEmployee, getWfmConfig } from "@/lib/wfm/server";
 import { resolveWfmScope } from "@/lib/wfm/scope";
 import { getSupervisorEmails, sendWfmNotification } from "@/lib/wfm/notify";
 import { ROUTES } from "@/lib/constants";
+import { markObsoleteEmbeds } from "@/lib/wfm/obsolete";
 import type { AdvanceRequestKind, AdvanceRequestStatus } from "@/lib/wfm/types";
 
 
@@ -39,7 +40,7 @@ export async function GET(request: NextRequest) {
 
   let query = supabase
     .from("wfm_advance_requests")
-    .select(isSupervisor ? "*, employees(first_name, last_name, employee_code)" : "*")
+    .select(isSupervisor ? "*, employees(first_name, last_name, employee_code, status)" : "*")
     .eq("tenant_id", tenantId)
     .order("created_at", { ascending: false });
 
@@ -56,7 +57,7 @@ export async function GET(request: NextRequest) {
 
   const { data, error } = await query;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json(data ?? []);
+  return NextResponse.json(markObsoleteEmbeds(data ?? []));
 }
 
 // POST /api/wfm/advance-requests — an employee gives advance notice of OT,

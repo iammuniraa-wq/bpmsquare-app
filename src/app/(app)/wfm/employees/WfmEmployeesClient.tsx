@@ -13,6 +13,7 @@ import { paginate, clampPage, DEFAULT_PAGE_SIZE } from "@/lib/paginate";
 import FaceEnrollModal from "@/components/wfm/FaceEnrollModal";
 import { suggestUsername } from "@/lib/wfm/employeeLogin";
 import { useIsMobile } from "@/lib/useIsMobile";
+import { isEmployeeActiveOn, localToday, restoreNote, statusLabel } from "@/lib/wfm/obsolete";
 
 type Row = {
   id: string;
@@ -21,6 +22,8 @@ type Row = {
   last_name: string;
   phone: string | null;
   status: "active" | "inactive";
+  valid_from?: string | null;
+  valid_to?: string | null;
   employment_type: string;
   wfm_role: "employee" | "supervisor";
   /** KAN-29. null = follow the workspace setting. */
@@ -265,9 +268,16 @@ export default function WfmEmployeesClient({ initial = null, employmentTypes = [
   }
 
   async function toggleStatus(row: Row) {
+    const nextStatus = row.status === "active" ? "inactive" : "active";
+    const name = `${row.first_name} ${row.last_name}`.trim();
+    // Obsolete keeps every record and counts the person in reports through
+    // their valid_to; restoring says what happens to that date.
+    const ok = await feelConfirm(nextStatus === "inactive"
+      ? { title: `Make ${name} obsolete?`, body: "All records stay. The employee counts in reports up to today and drops out after." }
+      : { title: `Make ${name} active again?`, body: restoreNote(row.valid_to, new Date().toLocaleDateString("en-CA")) || undefined });
+    if (!ok) return;
     setBusy(true);
     try {
-      const nextStatus = row.status === "active" ? "inactive" : "active";
       await fetch(`/api/wfm/employees/${row.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -361,7 +371,7 @@ export default function WfmEmployeesClient({ initial = null, employmentTypes = [
           <label style={lbl}>Supervisor</label>
           <select style={inp} value={draft.supervisor_id} onChange={(e) => setDraft({ ...draft, supervisor_id: e.target.value })}>
             <option value="">— tenant-wide (any supervisor) —</option>
-            {rows.filter((r) => r.wfm_role === "supervisor" && r.id !== editing).map((r) => (
+            {rows.filter((r) => r.wfm_role === "supervisor" && r.id !== editing && isEmployeeActiveOn(r, localToday())).map((r) => (
               <option key={r.id} value={r.id}>{[r.first_name, r.last_name].filter(Boolean).join(" ")}</option>
             ))}
           </select>
@@ -465,7 +475,7 @@ export default function WfmEmployeesClient({ initial = null, employmentTypes = [
           />
           <select style={{ ...inp, ...(isMobile ? { flex: "1 1 0", minWidth: 0, fontSize: 12, padding: "8px 6px" } : { width: "auto" }) }} value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
             <option value="active">Active only</option>
-            <option value="inactive">Inactive only</option>
+            <option value="inactive">Obsolete only</option>
             <option value="">All statuses</option>
           </select>
           <select style={{ ...inp, ...(isMobile ? { flex: "1 1 0", minWidth: 0, fontSize: 12, padding: "8px 6px" } : { width: "auto" }) }} value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)}>
@@ -548,7 +558,14 @@ export default function WfmEmployeesClient({ initial = null, employmentTypes = [
                       ) : "—"}
                     </td>
                   )}
-                  <td style={td}><Pill label={r.status === "active" ? "Active" : "Inactive"} tone={r.status === "active" ? "green" : "red"} /></td>
+                  <td style={td}>
+                    <Pill label={statusLabel(r)} tone={r.status === "active" ? "green" : "red"} />
+                    {(r.valid_from || r.valid_to) && (
+                      <div style={{ fontSize: 11, color: c.muted, marginTop: 3, whiteSpace: "nowrap" }}>
+                        {r.valid_from ?? "…"} – {r.valid_to ?? "…"}
+                      </div>
+                    )}
+                  </td>
                   <td style={{ ...td, whiteSpace: "nowrap" }}>
                     <button
                       style={btn}
@@ -575,7 +592,7 @@ export default function WfmEmployeesClient({ initial = null, employmentTypes = [
                       Edit
                     </button>{" "}
                     <button style={btn} disabled={busy} onClick={() => toggleStatus(r)}>
-                      {r.status === "active" ? "Deactivate" : "Activate"}
+                      {r.status === "active" ? "Make obsolete" : "Make active again"}
                     </button>
                     {loginMode === "code" && r.status === "active" && (
                       <>
