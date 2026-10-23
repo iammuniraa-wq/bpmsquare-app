@@ -15,6 +15,10 @@ import { ROUTES, DEFAULT_QUOTE_STATUSES, type QuoteStatusDef } from "@/lib/const
 import ObjectSections from "@/components/fields/ObjectSections";
 import CaseActions from "@/components/CaseActions";
 import CaseAssetsPanel from "./CaseAssetsPanel";
+import CreateWorkOrder from "./CreateWorkOrder";
+import { requireTenantUser } from "@/lib/supabase-server";
+import { resolvePermissions, canCreateWorkcenter, canViewWorkcenter } from "@/lib/permissions";
+import { isWorkableCaseStatus, resolveWorkOrderAuth } from "@/lib/workOrderFromCase";
 import { sanitizePhoneForWhatsApp, buildWhatsAppLink, buildCaseWhatsAppMessage } from "@/lib/whatsapp";
 import RecordRfqsCard from "@/components/rfq/RecordRfqsCard";
 import ObjectRecordPage from "@/components/page/ObjectRecordPage";
@@ -68,6 +72,13 @@ const typeTone: Record<ServiceCase["type"], PillarKey> = {
   amc: "teal", adhoc: "amber", direct: "blue",
 };
 
+const WO_STATUS_TONE: Record<"scheduled" | "in_progress" | "completed" | "invoiced", PillarKey> = {
+  scheduled: "blue", in_progress: "amber", completed: "green", invoiced: "teal",
+};
+const WO_STATUS_LABEL: Record<"scheduled" | "in_progress" | "completed" | "invoiced", string> = {
+  scheduled: "Scheduled", in_progress: "In Progress", completed: "Completed", invoiced: "Invoiced",
+};
+
 const irStatusTone: Record<InspectionReport["status"], PillarKey> = {
   draft: "blue", sent: "purple", approved: "teal", rejected: "red",
 };
@@ -92,7 +103,27 @@ export default async function CaseDetailPage({
   const inr = moneyFormatter(cur, { maximumFractionDigits: 0 });
   const isAdmin = role === "admin";
 
-  const { serviceCase: sc, account, contact, assets, technician, contract, quote, photos, inspectionReport, loanerAsset, subCases } = data;
+  const { serviceCase: sc, account, contact, assets, technician, contract, quote, photos, inspectionReport, loanerAsset, subCases, workOrders } = data;
+
+  // Work orders raised from this case. The card exists only for a workspace that owns the Work Orders module
+  // and a user who may view it; creating needs the create grant and a case that is still workable.
+  const woModule = tenant?.features?.work_orders === true;
+  let woCanView = false;
+  let woCanCreate = false;
+  let woTechnicians: { id: string; name: string }[] = [];
+  if (woModule) {
+    const { supabase, tenantId, userId, role: memberRole } = await requireTenantUser();
+    const perms = await resolvePermissions(supabase, tenantId, userId, memberRole);
+    woCanView = canViewWorkcenter(perms, "work_orders");
+    woCanCreate = woCanView && canCreateWorkcenter(perms, "work_orders") && isWorkableCaseStatus(sc.status);
+    if (woCanCreate) {
+      const { data: techRows } = await supabase
+        .from("technicians").select("id, name, status")
+        .eq("tenant_id", tenantId).neq("status", "inactive").order("name");
+      woTechnicians = ((techRows ?? []) as { id: string; name: string }[]).map((t) => ({ id: t.id, name: t.name }));
+    }
+  }
+  const woAuthMissing = !resolveWorkOrderAuth(sc);
   const quoteStatuses: QuoteStatusDef[] =
     (tenant?.config as { quote_statuses?: QuoteStatusDef[] })?.quote_statuses ?? DEFAULT_QUOTE_STATUSES;
 
@@ -428,6 +459,43 @@ export default async function CaseDetailPage({
           </Card>
 
           <CaseAssetsPanel caseId={sc.id} accountId={sc.account_id} assets={assets} />
+
+          {woModule && woCanView && (
+            <Card
+              title="Work orders"
+              padding={14}
+              action={woCanCreate && !woAuthMissing ? (
+                <CreateWorkOrder caseId={sc.id} caseRef={sc.ref} technicians={woTechnicians} defaultTechnicianId={sc.assigned_to ?? null} />
+              ) : undefined}
+            >
+              {workOrders.length === 0 ? (
+                <div style={{ fontSize: 12.5, color: c.hint }}>
+                  {woCanCreate && woAuthMissing
+                    ? "Link a quotation or an AMC contract to this case before raising a work order."
+                    : "No work orders yet."}
+                </div>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  {workOrders.slice(0, 4).map((w) => (
+                    <div key={w.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
+                      <Link href={ROUTES.workOrder(w.id)} style={{ fontFamily: "monospace", fontWeight: 600, fontSize: 12.5, color: c.accent, textDecoration: "none" }}>
+                        {w.ref}
+                      </Link>
+                      <StatusPill label={WO_STATUS_LABEL[w.status]} tone={WO_STATUS_TONE[w.status]} />
+                      <span style={{ fontSize: 11.5, color: c.hint, width: "100%" }}>
+                        {[w.scheduled_for ? fmtDate(w.scheduled_for) : null, w.technician_name].filter(Boolean).join(" · ") || "Not scheduled"}
+                      </span>
+                    </div>
+                  ))}
+                  {workOrders.length > 4 && (
+                    <Link href={ROUTES.workOrders} style={{ fontSize: 12, color: c.accent, textDecoration: "none" }}>
+                      Show all {workOrders.length} →
+                    </Link>
+                  )}
+                </div>
+              )}
+            </Card>
+          )}
 
           {!waLink && (
             <div style={{ fontSize: 11.5, color: c.hint }} title="No phone number on file for this contact/account">

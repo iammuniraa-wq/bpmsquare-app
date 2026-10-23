@@ -1122,6 +1122,8 @@ export type PurchaseOrderLine = {
   tenant_id: string;
   po_id: string;
   inventory_item_id: string | null;
+  /** Set on lines raised from an RFQ award (0130); absent on hand-made lines. */
+  product_id?: string | null;
   sl_no: number | null;
   description: string;
   uom: string | null;

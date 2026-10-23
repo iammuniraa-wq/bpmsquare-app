@@ -4,6 +4,7 @@ import { resolvePermissions, canEditWorkcenter } from "@/lib/permissions";
 import { generateNextPoRef } from "@/lib/poRef";
 import { logChange } from "@/lib/changeLog";
 import type { TenantFeatures } from "@/lib/constants";
+import { inventoryItemForProduct, loadInventoryCandidates, loadProductSkus } from "@/lib/inventoryForProduct";
 
 // Awards -> purchase orders (0130).
 // GET   -- the POs raised from this RFQ, and which awarded lines are not
@@ -72,6 +73,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const bySupplier = new Map<string, typeof todo>();
     for (const r of todo) bySupplier.set(r.rfq_supplier_id, [...(bySupplier.get(r.rfq_supplier_id) ?? []), r]);
 
+    // Products and stock items match only by SKU. A line whose product maps to exactly one of this tenant's
+    // inventory items carries that item, so receiving the PO moves stock; anything else stays a free-text line.
+    const productSkus = await loadProductSkus(supabase, tenantId, todo.map((r) => b.lines.find((l) => l.id === r.rfq_line_id)?.product_id));
+    const inventory = productSkus.size ? await loadInventoryCandidates(supabase, tenantId) : [];
+
     const created: { id: string; ref: string; supplier: string; lines: number }[] = [];
     for (const [rsId, resps] of bySupplier) {
       const rs = b.suppliers.find((s) => s.id === rsId);
@@ -90,6 +96,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           rate,
           amount: Math.round(qty * rate * 100) / 100,
           product_id: line.product_id,
+          inventory_item_id: line.product_id && productSkus.has(line.product_id)
+            ? inventoryItemForProduct(tenantId, productSkus.get(line.product_id)!, inventory)
+            : null,
           rfq_response_id: r.id,
         };
       });

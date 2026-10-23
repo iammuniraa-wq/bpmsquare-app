@@ -130,7 +130,20 @@ export default async function PurchaseOrderDetailPage({
                 rows={lines}
                 rowKey={(l) => l.id}
                 columns={[
-                  { label: "Description", render: (l) => l.description },
+                  {
+                    label: "Description",
+                    render: (l) => (
+                      <>
+                        {l.description}
+                        {l.product_id && !l.inventory_item_id && (
+                          <div style={{ fontSize: 11.5, color: c.hint, marginTop: 3 }}>
+                            Not in stock list ·{" "}
+                            <Link href={ROUTES.inventoryNew} style={{ color: c.accent, textDecoration: "none" }}>Add item</Link>
+                          </div>
+                        )}
+                      </>
+                    ),
+                  },
                   { label: "UOM", align: "center", cellStyle: { color: c.muted, fontSize: 12.5 }, render: (l) => l.uom ?? "" },
                   { label: "Ordered", align: "right", render: (l) => l.qty_ordered },
                   {
