@@ -12,7 +12,8 @@ const inp: React.CSSProperties = {
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 function formatPlainDate(s: string): string {
-  const [y, m, d] = s.split("-");
+  // A timestamp column arrives as 2026-10-23T12:00:00+00:00; only its date part is a plain date.
+  const [y, m, d] = s.slice(0, 10).split("-");
   if (!y || !m || !d) return s;
   return `${d} ${MONTHS[Number(m) - 1] ?? m} ${y}`;
 }
