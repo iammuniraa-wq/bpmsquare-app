@@ -189,7 +189,8 @@ export default function EstimateWorkspace(p: WorkspaceProps) {
           <div className="est-stack" style={{ gridColumn: t ? undefined : "1 / -1" }}>
             {t?.geometry && shown.model && (
               <VillaCard model={shown.model} lines={shown.lines} rates={t.rates} money={money} highlightMarks={marks}
-                note={highlightCode && marks && marks.length > 0 ? `Lighting up the ${marks.length} pieces of the line "${highlightCode}".` : undefined} />
+                note={highlightCode && marks && marks.length > 0 ? `Lighting up the ${marks.length} pieces of the line "${highlightCode}".` : undefined}
+                onUsePattern={editable ? (n) => { const o = t.inputs.find((i) => i.key === "pattern")?.options?.find((x) => x.value === n); if (o) draft.setValue("pattern", o.key); } : undefined} />
             )}
             <div id="price-card" style={{ scrollMarginTop: 80, minWidth: 0 }}>
             <PriceCard view={view} options={options} money={money}

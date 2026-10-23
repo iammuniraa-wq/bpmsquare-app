@@ -1,17 +1,11 @@
 "use client";
 
-import dynamic from "next/dynamic";
 import Card from "@/components/ui/Card";
+import GeometryView, { geometryCardTitle } from "@/components/estimator/GeometryView";
 import type { GeometryModel } from "@/lib/estimator/geometry";
 import { densityFromRates } from "@/lib/estimator/geometry";
 import type { TemplateRate } from "@/lib/estimator/types";
 import type { WorkspaceLine } from "./types";
-
-// three.js is only fetched when a villa is drawn.
-const BuildingViewer = dynamic(() => import("@/components/estimator/BuildingViewer"), {
-  ssr: false,
-  loading: () => <div className="bpm-t-help" style={{ padding: 16 }}>Loading the 3D view…</div>,
-});
 
 /**
  * The exact model, drawn from the same pieces the price is added up from:
@@ -20,7 +14,7 @@ const BuildingViewer = dynamic(() => import("@/components/estimator/BuildingView
  * materials ("Show in 3D").
  */
 export default function VillaCard({
-  model, lines, rates, money, highlightMarks, note,
+  model, lines, rates, money, highlightMarks, note, onUsePattern,
 }: {
   model: GeometryModel | null;
   lines: readonly WorkspaceLine[];
@@ -28,11 +22,13 @@ export default function VillaCard({
   money: (n: number) => string;
   highlightMarks?: readonly string[];
   note?: string;
+  /** Floor plans: make the previewed tile pattern the estimate's own. */
+  onUsePattern?: (pattern: number) => void;
 }) {
   return (
     <div id="villa" style={{ scrollMarginTop: 80, minWidth: 0 }}>
-      <Card title="The villa" padding={16}>
-      <BuildingViewer model={model} lines={lines} densityTm3={densityFromRates([...rates])} money={money} highlightMarks={highlightMarks} />
+      <Card title={geometryCardTitle(model?.geometry)} padding={16}>
+      <GeometryView model={model} lines={lines} densityTm3={densityFromRates([...rates])} money={money} highlightMarks={highlightMarks} onUsePattern={onUsePattern} />
       {note && <div className="bpm-t-help" style={{ marginTop: 8 }}>{note}</div>}
       </Card>
     </div>
