@@ -27,12 +27,27 @@
 10. **Change log.** `logChange` on every mutation, object in the history filter, actor as a name, "via integration" when the ERP changed it.
 11. **Order types.** `sales_order_types` (data, edited in Settings): name, numbering format, default statuses and required fields, custom fields, PDF template (block list, accent, logo position, same mechanism as `0054`), default pricing mode, default ERP order type, and any customer attribute that selects it (for example customer group or region picks the type). A workspace can have several; the order shows its type as a chip. Settings has one screen: a table of types, a row opens a side panel (6c pattern 4).
 12. **Visual record page** (mock-ups v1 and v2 shown to the owner in chat; v2 is the direction):
-    - **Tabs:** Overview, Lines, ERP, Documents, History (`useUrlTab`).
-    - **Overview:** the journey strip (Draft, Sent, Submitted, Delivered, Invoiced, Paid) as one segmented bar replacing a status dropdown, check chips under it (Credit, Price, Stock), the total with its one-line breakdown, and customer / delivery / terms collapsed.
+    - **Tabs:** Overview, Lines, **Availability** (ATP and lead times), ERP, Documents, History (`useUrlTab`).
+    - **Overview:** basic customer info (name, contact, bill-to and ship-to in two lines), the journey strip (Draft, Sent, Submitted, Delivered, Invoiced, Paid) as one segmented bar replacing a status dropdown, check chips under it (Credit, Price, Stock), the total with its one-line breakdown, and customer / delivery / terms collapsed.
+    - **Availability:** per line, requested quantity and date against confirmed quantity and date (the SAP schedule-line idea). Source is shown on each row: **ERP** (read-only, with the time it was fetched) when the order is replicated or checked in the ERP, otherwise **master data** (stock on hand from inventory, lead time from the product, a promise date computed from both, labelled an estimate). One tab, one rule, no bars elsewhere.
     - **Lines:** a real line table with unit price, discount, tax and line total per line, and an expandable **Printed text** per line for the PDF. No fulfilment bars: they only mean something when the ERP data is available, so that information lives in the ERP tab.
     - **ERP:** deliveries and invoices (number, date, amount, status) read from the ERP, with "last synced" and a Refresh; shown only when the connection returns it; nothing editable.
     - **Documents:** the linked-documents flow (email, quote, order, deliveries, invoices), each a link.
     - Phone: tabs scroll, blocks stack, the journey strip stays one row.
+
+## Decisions made by the owner (2026-10-23)
+
+- Draft orders can be deleted; once sent, never.
+- Anything that comes from the ERP is read-only here. An order sent from BPMSquare is read-only here once the ERP accepts it, the same way a Cloud for Customer order is read-only in C4C once transferred.
+- Overview carries basic customer info; a dedicated Availability tab holds ATP and lead times (ERP data when replicated, else master data).
+
+## How others do it (research, schematic visuals shown in chat)
+
+- **SAP ECC (VA01/VA03):** header plus item grid in tabs; each item has Conditions (pricing) and **Schedule lines** (requested vs confirmed quantity and date) where the availability check shows; short stock opens delivery proposals; Document flow as a tree. Steal: schedule-line pairs for the Availability tab, document flow with per-document status.
+- **SAP S/4HANA Fiori and Sales Cloud V2 / C4C:** header facets with separate overall, delivery and billing statuses; a Process flow graph; **Simulate** (pricing, ATP, credit, nothing saved) then **Transfer**; the ERP order id written to External ID; transfer, pricing and cancellation statuses with logs; delivery and billing data flow back; ATP is cleared when the quantity changes until simulated again; all follow-up (delivery, billing) runs in the ERP. Steal: Simulate before Send ("Check with ERP"), separate delivery and billing statuses, ATP invalidated on edit, a transfer log.
+- **Dynamics 365 Sales:** command bar (Submit, Fulfill, Create invoice, Cancel), one status field (Active, Submitted, Fulfilled complete/partial, Invoiced, Canceled), Invoices as a related list; ATP lives outside the order. Steal: few clear actions, partial fulfilment as a reason, invoices as related records.
+- **Salesforce:** a path (Draft, Activated, then fulfilment states), Order Products and related lists (fulfilment orders, invoices, payments, shipments), and an Order Summary rollup; Activate locks the lines. Steal: the path across the top (our journey strip) and the hub-of-linked-records idea (our Documents tab).
+- Common to all of them: pricing, ATP and credit are asked of the system of record at a defined moment (simulate or save), the order is locked after the transfer, and the follow-up documents come back as read-only records. That is the model chosen here.
 
 ## Statuses
 
