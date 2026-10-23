@@ -81,7 +81,7 @@ export default function OrderLinesEditor({ lines, onChange, products, currency, 
               <div className={s.editMain}>
                 <div>
                   <label htmlFor={`${id}-d`}>Item</label>
-                  <Input id={`${id}-d`} value={l.description} onChange={(e) => patch(l.key, { description: e.target.value })} placeholder="What is being sold" />
+                  <Input id={`${id}-d`} data-guide="sales_order.line_item" value={l.description} onChange={(e) => patch(l.key, { description: e.target.value })} placeholder="What is being sold" />
                 </div>
                 <div style={{ paddingTop: 20 }}>
                   <Button
@@ -91,16 +91,16 @@ export default function OrderLinesEditor({ lines, onChange, products, currency, 
                 </div>
               </div>
               <div className={s.editNums}>
-                <div><label htmlFor={`${id}-q`}>Qty</label><Input id={`${id}-q`} type="number" inputMode="decimal" min="0" step="any" value={l.qty} onChange={(e) => patch(l.key, { qty: e.target.value })} /></div>
-                <div><label htmlFor={`${id}-u`}>Unit</label><Input id={`${id}-u`} value={l.uom} onChange={(e) => patch(l.key, { uom: e.target.value })} /></div>
-                <div><label htmlFor={`${id}-p`}>Unit price</label><Input id={`${id}-p`} type="number" inputMode="decimal" min="0" step="any" value={l.unit_price} disabled={priceLocked} onChange={(e) => patch(l.key, { unit_price: e.target.value })} /></div>
-                <div><label htmlFor={`${id}-x`}>Disc. %</label><Input id={`${id}-x`} type="number" inputMode="decimal" min="0" max="100" step="any" value={l.discount_pct} disabled={priceLocked} onChange={(e) => patch(l.key, { discount_pct: e.target.value })} /></div>
-                <div><label htmlFor={`${id}-t`}>Tax %</label><Input id={`${id}-t`} type="number" inputMode="decimal" min="0" max="100" step="any" value={l.tax_pct} disabled={priceLocked} onChange={(e) => patch(l.key, { tax_pct: e.target.value })} /></div>
+                <div><label htmlFor={`${id}-q`}>Qty</label><Input id={`${id}-q`} data-guide="sales_order.line_qty" type="number" inputMode="decimal" min="0" step="any" value={l.qty} onChange={(e) => patch(l.key, { qty: e.target.value })} /></div>
+                <div><label htmlFor={`${id}-u`}>Unit</label><Input id={`${id}-u`} data-guide="sales_order.line_unit" value={l.uom} onChange={(e) => patch(l.key, { uom: e.target.value })} /></div>
+                <div><label htmlFor={`${id}-p`}>Unit price</label><Input id={`${id}-p`} data-guide="sales_order.line_price" type="number" inputMode="decimal" min="0" step="any" value={l.unit_price} disabled={priceLocked} onChange={(e) => patch(l.key, { unit_price: e.target.value })} /></div>
+                <div><label htmlFor={`${id}-x`}>Disc. %</label><Input id={`${id}-x`} data-guide="sales_order.line_discount" type="number" inputMode="decimal" min="0" max="100" step="any" value={l.discount_pct} disabled={priceLocked} onChange={(e) => patch(l.key, { discount_pct: e.target.value })} /></div>
+                <div><label htmlFor={`${id}-t`}>Tax %</label><Input id={`${id}-t`} data-guide="sales_order.line_tax" type="number" inputMode="decimal" min="0" max="100" step="any" value={l.tax_pct} disabled={priceLocked} onChange={(e) => patch(l.key, { tax_pct: e.target.value })} /></div>
               </div>
               <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end", justifyContent: "space-between" }}>
                 <div style={{ minWidth: 0 }}>
                   <label htmlFor={`${id}-r`} style={{ display: "block", fontSize: 10.5, fontWeight: 700, color: "var(--hint)", textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 4 }}>Wanted by</label>
-                  <Input id={`${id}-r`} type="date" value={l.requested_date} onChange={(e) => patch(l.key, { requested_date: e.target.value })} />
+                  <Input id={`${id}-r`} data-guide="sales_order.line_wanted" type="date" value={l.requested_date} onChange={(e) => patch(l.key, { requested_date: e.target.value })} />
                 </div>
                 <div className={s.num} style={{ fontWeight: 700, fontSize: 14 }}>{priceLocked ? "Priced by the ERP" : fmtMoney(lineAmount(l), currency)}</div>
               </div>
@@ -113,7 +113,7 @@ export default function OrderLinesEditor({ lines, onChange, products, currency, 
                   <InfoTip label="Printed text">{ORDER_TIPS.printedText}</InfoTip>
                 </span>
                 {(openText.has(l.key) || l.printed_text !== "") && (
-                  <Textarea value={l.printed_text} onChange={(e) => patch(l.key, { printed_text: e.target.value })} aria-label={`Printed text for line ${i + 1}`} style={{ minHeight: 64, marginTop: 4 }} />
+                  <Textarea data-guide="sales_order.line_printed" value={l.printed_text} onChange={(e) => patch(l.key, { printed_text: e.target.value })} aria-label={`Printed text for line ${i + 1}`} style={{ minHeight: 64, marginTop: 4 }} />
                 )}
               </div>
             </div>

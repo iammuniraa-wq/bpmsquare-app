@@ -5,7 +5,6 @@ import { getTenant, getTenantCurrency, requireFeature } from "@/lib/tenant";
 import { ROUTES } from "@/lib/constants";
 import ExternalRecordSlot from "@/components/ExternalRecordSlot";
 import SalesOrderDetail from "@/components/salesOrders/SalesOrderDetail";
-import { orderCustomerPhone } from "@/components/salesOrders/serverData";
 import { standardQuoteProducts } from "../../standard-quotes/formData";
 
 /**
@@ -18,7 +17,7 @@ export default async function SalesOrderPage({ params }: { params: Promise<{ id:
   await requireFeature("sales_orders");
   const { id } = await params;
   const [{ supabase, tenantId, role }, tenant] = await Promise.all([requireTenantUser(), getTenant()]);
-  const [products, currency, whatsappPhone] = await Promise.all([standardQuoteProducts(supabase, tenantId, tenant), getTenantCurrency(), orderCustomerPhone(supabase, tenantId, id)]);
+  const [products, currency] = await Promise.all([standardQuoteProducts(supabase, tenantId, tenant), getTenantCurrency()]);
   const isAdmin = role === "admin";
 
   return (
@@ -28,9 +27,7 @@ export default async function SalesOrderPage({ params }: { params: Promise<{ id:
         isAdmin={isAdmin}
         products={products}
         tenantCurrency={currency.code}
-        companyName={tenant?.company_info?.name || tenant?.name || ""}
         middlewareHref={isAdmin && tenant?.features?.integration_middleware ? ROUTES.settingsMiddleware : null}
-        whatsappPhone={whatsappPhone}
         externalLine={<ExternalRecordSlot objectType="sales_orders" objectId={id} />}
       />
     </Suspense>

@@ -11,7 +11,7 @@ import type {
 
 export type ApiResult<T> =
   | { ok: true; data: T }
-  | { ok: false; status: number; error: string; missing: boolean; /** 409 "an order already exists for this source": ask, then send again with confirm_another. */ needsConfirmation?: true };
+  | { ok: false; status: number; error: string; missing: boolean; /** 409 "an order already exists for this source": ask, then send again with confirm_another. */ needsConfirmation?: true; /** 503: the Sales Orders database update has not been applied yet. */ needsDatabaseUpdate?: true };
 
 /** A delivery or invoice read from the ERP (SO2 fills these; SO1 shows an empty shell). */
 export type ErpDocument = {
@@ -43,8 +43,6 @@ export type OrderDetail = {
   /** A connector that can check/send orders exists (SO3): "Check with ERP" shows only then. */
   erpAvailable: boolean;
   erpDocuments: ErpDocument[];
-  /** Signed no-login PDF link, when the server has one (for the WhatsApp message). */
-  publicPdfLink: string | null;
   /** The server's own answers about the lock (the same rule the PATCH route applies); null when it sent none. */
   permissions: { editable: boolean; annotatable: boolean; deletable: boolean } | null;
   /** Why the order is locked, in the server's words (so the chip, the greyed controls and a 409 agree). */
@@ -54,6 +52,8 @@ export type OrderDetail = {
 };
 
 export type OrderLineInput = {
+  /** An existing line keeps its id, so its history and later ERP links stay attached. */
+  id?: string;
   product_id: string | null;
   description: string;
   printed_text: string | null;
@@ -130,6 +130,7 @@ async function call<T>(url: string, init: RequestInit | undefined, parse: (json:
     return {
       ok: false, status: res.status, error: message ?? `Request failed (${res.status})`, missing: json === null || res.status === 404 || res.status === 501,
       ...(res.status === 409 && r?.needs_confirmation === true ? { needsConfirmation: true as const } : {}),
+      ...(r?.needsDatabaseUpdate === true ? { needsDatabaseUpdate: true as const } : {}),
     };
   }
   const data = parse(json);
@@ -305,7 +306,6 @@ export function readDetail(json: unknown): OrderDetail | null {
     erpLinked: link === true || (link !== null && typeof link === "object"),
     erpAvailable: root.erp_available === true || root.erpAvailable === true,
     erpDocuments: arr(root.erp_documents ?? root.erpDocuments).flatMap((d) => { const x = readErpDocument(d); return x ? [x] : []; }),
-    publicPdfLink: str(root.public_pdf_link) ?? str(root.publicPdfLink),
     permissions: typeof root.editable === "boolean"
       ? { editable: root.editable, annotatable: root.annotatable === true, deletable: root.deletable === true }
       : null,
@@ -360,7 +360,28 @@ export const putLines = (id: string, lines: OrderLineInput[]) => call(`${base}/$
 export const confirmOrder = (id: string) => call(`${base}/${id}/confirm`, jsonInit("POST", {}), () => true as const);
 export const cancelOrder = (id: string, reason: string) => call(`${base}/${id}/cancel`, jsonInit("POST", { reason }), () => true as const);
 export const reopenOrder = (id: string) => call(`${base}/${id}/reopen`, jsonInit("POST", {}), () => true as const);
-export const emailOrder = (id: string, to?: string) => call(`${base}/${id}/email`, jsonInit("POST", to ? { to } : {}), (j) => ({ sentTo: str(rec(j)?.sentTo) ?? str(rec(j)?.sent_to) }));
+/** { ok, sentTo, redirected, intended }: a demo workspace's mail is redirected, never sent to the customer. */
+export const emailOrder = (id: string, email?: string) =>
+  call(`${base}/${id}/email`, jsonInit("POST", email ? { email } : {}), (j) => {
+    const r = rec(j);
+    return { sentTo: str(r?.sentTo) ?? str(r?.sent_to), redirected: r?.redirected === true, intended: str(r?.intended) };
+  });
+
+export type ShareLinks = {
+  pdfUrl: string | null;
+  publicPdfUrl: string | null;
+  /** A wa.me click-to-chat link with the message ready; null when the customer has no phone number. */
+  whatsappUrl: string | null;
+  /** What the WhatsApp button does today (the provider is sandbox only), in the server's words. */
+  whatsappNote: string | null;
+};
+
+/** What the PDF and WhatsApp buttons need, in one call. */
+export const getShare = (id: string) =>
+  call(`${base}/${id}/share`, undefined, (j): ShareLinks | null => {
+    const r = rec(j);
+    return r ? { pdfUrl: str(r.pdf_url), publicPdfUrl: str(r.public_pdf_url), whatsappUrl: str(r.whatsapp_url), whatsappNote: str(r.whatsapp_note) } : null;
+  });
 
 /** Availability: the server answers with the order's lines (now carrying the confirmed values) or nothing we need. */
 export const getAvailability = (id: string) => call(`${base}/${id}/availability`, undefined, (j) => ({ lines: pickArray(j, ["lines"]).flatMap((l, i) => { const x = readLine(l, i, id); return x ? [x] : []; }) }));
@@ -388,8 +409,14 @@ export const removeAttachment = (id: string, attachmentId: string) => call(`${ba
 
 // ── order types ───────────────────────────────────────────────────────────────
 
+export type OrderTypeRow = SalesOrderType & { order_count: number };
+
+/** `needsDatabaseUpdate`: the tables are not there yet (the server answers an empty list and says so). */
 export const listOrderTypes = () =>
-  call("/api/sales-order-types", undefined, (j) => pickArray(j, ["rows", "types"]).flatMap((t) => { const x = readType(t); return x ? [x] : []; }));
+  call("/api/sales-order-types", undefined, (j) => ({
+    types: pickArray(j, ["rows", "types"]).flatMap((t): OrderTypeRow[] => { const x = readType(t); return x ? [{ ...x, order_count: num(rec(t)?.order_count) }] : []; }),
+    needsDatabaseUpdate: rec(j)?.needsDatabaseUpdate === true,
+  }));
 
 export const createOrderType = (body: NewTypeBody) =>
   call("/api/sales-order-types", jsonInit("POST", body), (j) => ({ id: str(rec(j)?.id) ?? str(rec(rec(j)?.type)?.id) }));

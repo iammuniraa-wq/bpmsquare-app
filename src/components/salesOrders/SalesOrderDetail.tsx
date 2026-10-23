@@ -18,15 +18,14 @@ import Tabs from "@/components/ui/Tabs";
 import { useUrlTab } from "@/components/ui/useUrlTab";
 import { useFeel } from "@/components/FeelProvider";
 import { ROUTES } from "@/lib/constants";
-import { buildWhatsAppLink, sanitizePhoneForWhatsApp } from "@/lib/whatsapp";
+import InfoTip from "@/components/ui/InfoTip";
 import { useUnsavedChangesGuard } from "@/lib/unsavedChanges";
 import {
-  cancelOrder, confirmOrder, deleteOrder, emailOrder, getOrder, listAttachments, listOrderTypes, refreshAvailability, reopenOrder,
-  type ApiResult, type Attachment, type OrderDetail,
+  cancelOrder, confirmOrder, deleteOrder, emailOrder, getOrder, getShare, listAttachments, listOrderTypes, refreshAvailability, reopenOrder,
+  type ApiResult, type Attachment, type OrderDetail, type ShareLinks,
 } from "@/lib/salesOrders/client";
 import { orderAnnotatable } from "@/lib/salesOrders/types";
-import { documentFlow, orderActions, orderWhatsAppMessage, pricingLine, type FlowRoutes } from "./logic";
-import { fmtMoney } from "./money";
+import { documentFlow, orderActions, pricingLine, type FlowRoutes } from "./logic";
 import { ORDER_TIPS } from "./tips";
 import type { PickProduct } from "./lines";
 import OrderChips from "./OrderChips";
@@ -48,25 +47,23 @@ export const FLOW_ROUTES: FlowRoutes = {
 
 type State =
   | { phase: "loading" }
-  | { phase: "ready"; detail: OrderDetail; attachments: Attachment[] | null }
-  | { phase: "failed"; status: number; error: string; missing: boolean };
+  | { phase: "ready"; detail: OrderDetail; attachments: Attachment[] | null; share: ShareLinks | null }
+  | { phase: "failed"; status: number; error: string; missing: boolean; needsDatabaseUpdate?: boolean };
 
 /** What to say when the order cannot be shown: gone, no access, or the service not answering (never a crash). */
 export function failureCopy(f: Extract<State, { phase: "failed" }>): { title: string; text: string; retry: boolean } {
+  if (f.needsDatabaseUpdate) return { title: "Sales orders need a database update", text: "An admin has to apply the Sales Orders update first. Nothing is lost.", retry: true };
   if (f.status === 404 && !f.error.toLowerCase().includes("network")) return { title: "Order not found", text: "It may have been deleted, or it belongs to another workspace.", retry: false };
   if (f.status === 401 || f.status === 403) return { title: "You cannot open this order", text: "Ask an admin for access to Sales Orders.", retry: false };
   return { title: "Sales orders are not available right now", text: "The order service did not answer. Try again in a moment.", retry: true };
 }
 
-export default function SalesOrderDetail({ orderId, isAdmin, products, tenantCurrency, companyName, middlewareHref, externalLine, whatsappPhone }: {
+export default function SalesOrderDetail({ orderId, isAdmin, products, tenantCurrency, middlewareHref, externalLine }: {
   orderId: string;
   isAdmin: boolean;
   products: PickProduct[];
   tenantCurrency: string;
-  companyName: string;
   middlewareHref: string | null;
-  /** The customer's phone for the WhatsApp message, read on the server (it is stored encrypted); null = none on file. */
-  whatsappPhone: string | null;
   /** The ERP id line, rendered on the server (ExternalRecordSlot). */
   externalLine: React.ReactNode;
 }) {
@@ -74,7 +71,6 @@ export default function SalesOrderDetail({ orderId, isAdmin, products, tenantCur
   const { confirm, toast } = useFeel();
   const [tab, setTab] = useUrlTab(TAB_IDS);
   const [state, setState] = useState<State>({ phase: "loading" });
-  const [version, setVersion] = useState(0);
   const [busy, setBusy] = useState<"" | "email" | "confirm" | "availability" | "reopen">("");
   const [panel, setPanel] = useState<"" | "details" | "cancel">("");
   const [reason, setReason] = useState("");
@@ -83,15 +79,14 @@ export default function SalesOrderDetail({ orderId, isAdmin, products, tenantCur
   const [linesDirty, setLinesDirty] = useState(false);
 
   const load = useCallback(async () => {
-    const [o, a] = await Promise.all([getOrder(orderId), listAttachments(orderId)]);
-    if (!o.ok) { setState({ phase: "failed", status: o.status, error: o.error, missing: o.missing }); return; }
+    const [o, a, sh] = await Promise.all([getOrder(orderId), listAttachments(orderId), getShare(orderId)]);
+    if (!o.ok) { setState({ phase: "failed", status: o.status, error: o.error, missing: o.missing, needsDatabaseUpdate: o.needsDatabaseUpdate === true }); return; }
     let type = o.data.type;
     if (!type && o.data.order.type_id) {
       const t = await listOrderTypes();
-      if (t.ok) type = t.data.find((x) => x.id === o.data.order.type_id) ?? null;
+      if (t.ok) type = t.data.types.find((x) => x.id === o.data.order.type_id) ?? null;
     }
-    setState({ phase: "ready", detail: { ...o.data, type }, attachments: a.ok ? a.data : null });
-    setVersion((v) => v + 1);
+    setState({ phase: "ready", detail: { ...o.data, type }, attachments: a.ok ? a.data : null, share: sh.ok ? sh.data : null });
   }, [orderId]);
 
   useEffect(() => { void load(); }, [load]);
@@ -115,7 +110,7 @@ export default function SalesOrderDetail({ orderId, isAdmin, products, tenantCur
     );
   }
 
-  const { detail, attachments } = state;
+  const { detail, attachments, share } = state;
   const { order, lines } = detail;
   const currency = order.currency || tenantCurrency;
   const can = orderActions(order, detail.erpLinked, { erpAvailable: detail.erpAvailable });
@@ -125,10 +120,8 @@ export default function SalesOrderDetail({ orderId, isAdmin, products, tenantCur
   const deletable = detail.permissions?.deletable ?? can.remove;
   const customerName = detail.account?.name ?? "";
 
-  const phone = sanitizePhoneForWhatsApp(whatsappPhone ?? detail.contact?.phone ?? detail.account?.phone);
-  const waLink = phone
-    ? buildWhatsAppLink(phone, orderWhatsAppMessage({ customer: detail.contact?.name ?? customerName, company: companyName, ref: order.ref, total: fmtMoney(order.total, currency), link: detail.publicPdfLink }))
-    : null;
+  // The server builds the click-to-chat link (it reads the customer's phone, which is stored encrypted).
+  const waLink = share?.whatsappUrl ?? null;
 
   async function run<T>(key: typeof busy, work: () => Promise<ApiResult<T>>, ok: string) {
     setBusy(key);
@@ -144,7 +137,7 @@ export default function SalesOrderDetail({ orderId, isAdmin, products, tenantCur
     const res = await emailOrder(order.id);
     setBusy("");
     if (!res.ok) { toast({ text: res.error, tone: "error" }); return; }
-    toast({ text: res.data.sentTo ? `Sent to ${res.data.sentTo}` : "Email sent", tone: "success" });
+    toast({ text: res.data.redirected ? `Demo workspace: sent to ${res.data.sentTo ?? "the test inbox"}, not the customer` : res.data.sentTo ? `Sent to ${res.data.sentTo}` : "Email sent", tone: "success" });
     await load();
   }
 
@@ -213,9 +206,14 @@ export default function SalesOrderDetail({ orderId, isAdmin, products, tenantCur
           <div className={s.actions}>
             <Button href={`/api/sales-orders/${order.id}/pdf`} target="_blank" data-guide="sales_order.pdf">PDF</Button>
             {can.email && <Button loading={busy === "email"} onClick={() => void sendEmail()} data-guide="sales_order.email">Email</Button>}
-            {can.whatsapp && (waLink
-              ? <Button href={waLink} target="_blank" data-guide="sales_order.whatsapp">WhatsApp</Button>
-              : <Button disabled title="This customer has no phone number" data-guide="sales_order.whatsapp">WhatsApp</Button>)}
+            {can.whatsapp && (
+              <span className="bpm-label-row">
+                {waLink
+                  ? <Button href={waLink} target="_blank" data-guide="sales_order.whatsapp">WhatsApp</Button>
+                  : <Button disabled title={share === null ? "WhatsApp is not available right now" : "This customer has no phone number"} data-guide="sales_order.whatsapp">WhatsApp</Button>}
+                <InfoTip label="WhatsApp">{share?.whatsappNote ?? ORDER_TIPS.whatsapp}</InfoTip>
+              </span>
+            )}
             {can.checkWithErp && <Button disabled title="Checking with the ERP arrives with the ERP connection" data-guide="sales_order.check_erp">Check with ERP</Button>}
             {primary}
             <MoreMenu items={menu} />
@@ -276,7 +274,7 @@ export default function SalesOrderDetail({ orderId, isAdmin, products, tenantCur
 
       {panel === "details" && (
         <EditDetailsPanel
-          key={version}
+          key={order.updated_at}
           detail={detail}
           editable={editable}
           onClose={() => setPanel("")}
@@ -291,7 +289,7 @@ export default function SalesOrderDetail({ orderId, isAdmin, products, tenantCur
           footer={<><Button onClick={() => setPanel("")} disabled={cancelling}>Keep order</Button><Button variant="danger" loading={cancelling} onClick={() => void submitCancel()} data-guide="sales_order.cancel_confirm">Cancel order</Button></>}
         >
           <Field label="Reason" required htmlFor="so-cancel-reason">
-            <Textarea id="so-cancel-reason" value={reason} onChange={(e) => setReason(e.target.value)} autoFocus placeholder="Why is this order cancelled?" />
+            <Textarea id="so-cancel-reason" data-guide="sales_order.cancel_reason" value={reason} onChange={(e) => setReason(e.target.value)} autoFocus placeholder="Why is this order cancelled?" />
           </Field>
           {reasonError && <div role="alert" className="bpm-t-help" style={{ color: "var(--err-ink)" }}>{reasonError}</div>}
         </SidePanel>

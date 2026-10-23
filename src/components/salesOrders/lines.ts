@@ -7,6 +7,8 @@ import { estimateTotals } from "./logic";
 
 export type EditLine = {
   key: string;
+  /** The id of the stored line this row was loaded from ("" for a new row); sent back so the line keeps its history. */
+  lineId: string;
   product_id: string;
   description: string;
   printed_text: string;
@@ -25,7 +27,7 @@ let seq = 0;
 const nextKey = () => `nl-${Date.now().toString(36)}-${(seq += 1)}`;
 
 export const newEditLine = (defaults: { tax_pct?: string; requested_date?: string } = {}): EditLine => ({
-  key: nextKey(), product_id: "", description: "", printed_text: "", qty: "1", uom: "Nos", unit_price: "0", discount_pct: "0",
+  key: nextKey(), lineId: "", product_id: "", description: "", printed_text: "", qty: "1", uom: "Nos", unit_price: "0", discount_pct: "0",
   tax_pct: defaults.tax_pct ?? "0", requested_date: defaults.requested_date ?? "",
 });
 
@@ -34,7 +36,7 @@ export const fromProduct = (p: PickProduct, defaults: { tax_pct?: string; reques
 });
 
 export const fromLine = (l: SalesOrderLine): EditLine => ({
-  key: l.id, product_id: l.product_id ?? "", description: l.description, printed_text: l.printed_text ?? "", qty: String(l.qty), uom: l.uom ?? "",
+  key: l.id, lineId: l.id, product_id: l.product_id ?? "", description: l.description, printed_text: l.printed_text ?? "", qty: String(l.qty), uom: l.uom ?? "",
   unit_price: String(l.unit_price), discount_pct: String(l.discount_pct), tax_pct: String(l.tax_pct), requested_date: l.requested_date ?? "",
 });
 
@@ -45,6 +47,7 @@ export const meaningful = (lines: EditLine[]): EditLine[] => lines.filter((l) =>
 
 export function toInput(l: EditLine): OrderLineInput {
   return {
+    ...(l.lineId ? { id: l.lineId } : {}),
     product_id: l.product_id || null,
     description: l.description.trim(),
     printed_text: l.printed_text.trim() === "" ? null : l.printed_text.trim(),

@@ -12,8 +12,7 @@ import { Toggle } from "@/components/settings/generalShared";
 import { useFeel } from "@/components/FeelProvider";
 import type { CompanyInfo } from "@/lib/tenant";
 import type { CurrencyCode } from "@/lib/currency";
-import { createOrderType, deleteOrderType, listOrderTypes, patchOrderType } from "@/lib/salesOrders/client";
-import type { SalesOrderType } from "@/lib/salesOrders/types";
+import { createOrderType, deleteOrderType, listOrderTypes, patchOrderType, type OrderTypeRow } from "@/lib/salesOrders/client";
 import SalesOrderPrintDocument from "@/components/salesOrders/SalesOrderPrintDocument";
 import { sampleOrder } from "@/components/salesOrders/previewSample";
 import { ORDER_TIPS } from "@/components/salesOrders/tips";
@@ -60,8 +59,9 @@ function Preview({ draft, currency, companyInfo, logoUrl, onClose }: { draft: Ty
  */
 export default function OrderTypesClient({ currency, companyInfo, logoUrl }: { currency: CurrencyCode; companyInfo: CompanyInfo; logoUrl: string | null }) {
   const { confirm, toast } = useFeel();
-  const [types, setTypes] = useState<SalesOrderType[] | null>(null);
+  const [types, setTypes] = useState<OrderTypeRow[] | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
+  const [needsUpdate, setNeedsUpdate] = useState(false);
   const [sel, setSel] = useState<Sel>(null);
   const [draft, setDraft] = useState<TypeDraft | null>(null);
   const [busy, setBusy] = useState(false);
@@ -71,7 +71,7 @@ export default function OrderTypesClient({ currency, companyInfo, logoUrl }: { c
 
   const load = useCallback(async () => {
     const res = await listOrderTypes();
-    if (res.ok) { setTypes(res.data); setFailed(null); } else { setTypes([]); setFailed(res.error); }
+    if (res.ok) { setTypes(res.data.types); setNeedsUpdate(res.data.needsDatabaseUpdate); setFailed(null); } else { setTypes([]); setNeedsUpdate(res.needsDatabaseUpdate === true); setFailed(res.error); }
   }, []);
   useEffect(() => { void load(); }, [load]);
 
@@ -104,7 +104,8 @@ export default function OrderTypesClient({ currency, companyInfo, logoUrl }: { c
 
   async function remove() {
     if (!current) return;
-    if (!(await confirm({ title: `Remove "${current.name}"?`, body: "A type that already has orders is switched off instead of removed.", tone: "danger" }))) return;
+    const used = current.order_count > 0;
+    if (!(await confirm({ title: `${used ? "Switch off" : "Remove"} "${current.name}"?`, body: used ? "It has orders, so it is switched off: new orders cannot use it, existing ones keep it." : "Nothing uses it yet, so it is removed.", tone: "danger" }))) return;
     setBusy(true);
     const res = await deleteOrderType(current.id);
     setBusy(false);
@@ -130,21 +131,23 @@ export default function OrderTypesClient({ currency, companyInfo, logoUrl }: { c
     <div className={s.shell}>
       <ListBar>
         <span className="bpm-t-label" style={{ marginInlineEnd: "auto" }}>Order types</span>
-        <Button variant="primary" onClick={openNew} disabled={failed !== null} data-guide="order_types.new">+ New order type</Button>
+        <Button variant="primary" onClick={openNew} disabled={failed !== null || needsUpdate} data-guide="order_types.new">+ New order type</Button>
       </ListBar>
 
-      {failed !== null ? (
+      {needsUpdate ? (
+        <EmptyState title="Sales orders need a database update" text="An admin has to apply the Sales Orders update first. Nothing is lost." action={<Button variant="primary" onClick={() => void load()}>Check again</Button>} />
+      ) : failed !== null ? (
         <EmptyState title="Order types are not available right now" text="The service did not answer. Try again in a moment." action={<Button variant="primary" onClick={() => void load()}>Try again</Button>} />
       ) : (
         <SettingsList
           label="Order types"
-          headers={["Prefix", "Pricing", "Chosen when"]}
+          headers={["Prefix", "Pricing", "Chosen when", "Orders"]}
           rows={rows.map((t) => ({
             key: t.id,
             label: t.name,
             dim: !t.active,
             title: <>{t.name}{t.is_default && <span className={s.pill}>Default</span>}{!t.active && <span className={`${s.pill} ${s.pillDim}`}>Off</span>}</>,
-            cells: [t.prefix, t.pricing_mode === "external" ? "External" : "Internal", ruleSummary(t.rules)],
+            cells: [t.prefix, t.pricing_mode === "external" ? "External" : "Internal", ruleSummary(t.rules), t.order_count],
           }))}
           onOpen={openRow}
           empty="No order types yet. Add one to start taking sales orders."
@@ -158,7 +161,7 @@ export default function OrderTypesClient({ currency, companyInfo, logoUrl }: { c
           onClose={close}
           footer={
             <>
-              {current && !current.is_default && current.active && <Button variant="danger" disabled={busy} onClick={() => void remove()} data-guide="order_types.remove">Remove</Button>}
+              {current && !current.is_default && current.active && <Button variant="danger" disabled={busy} onClick={() => void remove()} data-guide="order_types.remove">{current.order_count > 0 ? "Switch off" : "Remove"}</Button>}
               {current && !current.active && <Button disabled={busy} onClick={() => void reactivate()} data-guide="order_types.reactivate">Switch on</Button>}
               <Button disabled={busy} onClick={close}>Cancel</Button>
               <Button variant="primary" loading={busy} onClick={() => void save()} data-guide="order_types.save">{sel.id ? "Save" : "Add order type"}</Button>
@@ -179,7 +182,7 @@ export default function OrderTypesClient({ currency, companyInfo, logoUrl }: { c
           </Field>
           <div className={s.switchRow}>
             <span className="bpm-label-row"><span className="bpm-t-label">Default type</span><InfoTip label="Default type">{ORDER_TIPS.isDefault}</InfoTip></span>
-            <Toggle on={draft.is_default} onChange={(v) => set({ is_default: v })} accent={ACCENT} label="Default type" />
+            {current?.is_default ? <span className={s.pill} style={{ marginInlineStart: 0 }}>Yes</span> : <span data-guide="order_types.default"><Toggle on={draft.is_default} onChange={(v) => set({ is_default: v })} accent={ACCENT} label="Default type" /></span>}
           </div>
 
           <details className={s.more}>
@@ -188,16 +191,16 @@ export default function OrderTypesClient({ currency, companyInfo, logoUrl }: { c
               <div className="bpm-label-row" style={{ marginBottom: 8 }}><span className="bpm-t-label">Choose this type when</span><InfoTip label="Selection rules">{ORDER_TIPS.rules}</InfoTip></div>
               {draft.rules.map((r, i) => (
                 <div key={i} className={s.ruleRow}>
-                  <Select aria-label={`Rule ${i + 1} field`} value={r.field} onChange={(e) => set({ rules: draft.rules.map((x, j) => (j === i ? { field: e.target.value, equals: "" } : x)) })}>
+                  <Select data-guide="order_types.rule_field" aria-label={`Rule ${i + 1} field`} value={r.field} onChange={(e) => set({ rules: draft.rules.map((x, j) => (j === i ? { field: e.target.value, equals: "" } : x)) })}>
                     {RULE_FIELDS.map((f) => <option key={f.id} value={f.id}>{f.label}</option>)}
                   </Select>
                   {r.field === "source_type" ? (
-                    <Select aria-label={`Rule ${i + 1} value`} value={r.equals} onChange={(e) => set({ rules: draft.rules.map((x, j) => (j === i ? { ...x, equals: e.target.value } : x)) })}>
+                    <Select data-guide="order_types.rule_value" aria-label={`Rule ${i + 1} value`} value={r.equals} onChange={(e) => set({ rules: draft.rules.map((x, j) => (j === i ? { ...x, equals: e.target.value } : x)) })}>
                       <option value="">Choose…</option>
                       {SOURCE_CHOICES.map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}
                     </Select>
                   ) : (
-                    <Input aria-label={`Rule ${i + 1} value`} value={r.equals} placeholder="equals…" onChange={(e) => set({ rules: draft.rules.map((x, j) => (j === i ? { ...x, equals: e.target.value } : x)) })} />
+                    <Input data-guide="order_types.rule_value" aria-label={`Rule ${i + 1} value`} value={r.equals} placeholder="equals…" onChange={(e) => set({ rules: draft.rules.map((x, j) => (j === i ? { ...x, equals: e.target.value } : x)) })} />
                   )}
                   <Button variant="quiet" size="sm" iconOnly aria-label={`Remove rule ${i + 1}`} onClick={() => set({ rules: draft.rules.filter((_, j) => j !== i) })}>×</Button>
                 </div>
@@ -222,7 +225,7 @@ export default function OrderTypesClient({ currency, companyInfo, logoUrl }: { c
                           <span className="bpm-t-help">always shown</span>
                         ) : (
                           <label style={{ display: "inline-flex", alignItems: "center", gap: 6, minHeight: 44, cursor: "pointer", fontSize: 12.5 }}>
-                            <input type="checkbox" checked={b.visible} onChange={() => set({ blocks: toggleBlock(draft.blocks, i) })} /> Shown
+                            <input data-guide="order_types.block_shown" type="checkbox" checked={b.visible} onChange={() => set({ blocks: toggleBlock(draft.blocks, i) })} /> Shown
                           </label>
                         )}
                         {hasText && <Button variant="quiet" size="sm" aria-expanded={openText === b.id} onClick={() => setOpenText(openText === b.id ? null : b.id)}>{openText === b.id ? "Close" : "Text"}</Button>}
@@ -230,7 +233,7 @@ export default function OrderTypesClient({ currency, companyInfo, logoUrl }: { c
                         <Button variant="quiet" size="sm" iconOnly aria-label={`Move ${BLOCK_LABELS[b.type]} down`} disabled={i === draft.blocks.length - 1} onClick={() => set({ blocks: moveBlock(draft.blocks, i, 1) })}>↓</Button>
                       </div>
                       {hasText && openText === b.id && (
-                        <Textarea aria-label={`${BLOCK_LABELS[b.type]} text`} value={b.content ?? ""} placeholder={CONTENT_HELP[b.type]} onChange={(e) => set({ blocks: setBlockText(draft.blocks, i, e.target.value) })} style={{ minHeight: 70, marginBottom: 8 }} />
+                        <Textarea data-guide="order_types.block_text" aria-label={`${BLOCK_LABELS[b.type]} text`} value={b.content ?? ""} placeholder={CONTENT_HELP[b.type]} onChange={(e) => set({ blocks: setBlockText(draft.blocks, i, e.target.value) })} style={{ minHeight: 70, marginBottom: 8 }} />
                       )}
                     </div>
                   );
@@ -239,11 +242,11 @@ export default function OrderTypesClient({ currency, companyInfo, logoUrl }: { c
               <Field label="Accent colour" htmlFor="ot-accent">
                 <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                   <input type="color" aria-label="Pick the accent colour" value={draft.accent_color} onChange={(e) => set({ accent_color: e.target.value })} style={{ width: 44, height: 44, border: "1px solid var(--line)", borderRadius: 8, background: "none", cursor: "pointer", padding: 2 }} />
-                  <Input id="ot-accent" value={draft.accent_color} onChange={(e) => set({ accent_color: e.target.value })} style={{ maxWidth: 140, fontFamily: "monospace" }} />
+                  <Input id="ot-accent" data-guide="order_types.accent" value={draft.accent_color} onChange={(e) => set({ accent_color: e.target.value })} style={{ maxWidth: 140, fontFamily: "monospace" }} />
                 </div>
               </Field>
               <Field label="Logo position" htmlFor="ot-logo">
-                <Select id="ot-logo" value={draft.logo_position} onChange={(e) => set({ logo_position: e.target.value as TypeDraft["logo_position"] })}>
+                <Select id="ot-logo" data-guide="order_types.logo" value={draft.logo_position} onChange={(e) => set({ logo_position: e.target.value as TypeDraft["logo_position"] })}>
                   <option value="left">Left</option>
                   <option value="center">Centre</option>
                   <option value="right">Right</option>

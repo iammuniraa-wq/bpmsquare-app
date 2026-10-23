@@ -26,6 +26,10 @@ describe("the order line editor's rules", () => {
     const t = editTotals([{ ...newEditLine(), description: "a", qty: "10", unit_price: "100", discount_pct: "10", tax_pct: "5" }, newEditLine()]);
     expect(t).toMatchObject({ subtotal: 900, tax: 45, total: 945 });
   });
+  it("sends the id of a stored line back, and none for a new row", () => {
+    expect(toInput(fromLine(line({ id: "l-9" }))).id).toBe("l-9");
+    expect(toInput({ ...newEditLine(), description: "x" })).not.toHaveProperty("id");
+  });
   it("tells a changed set from an untouched one, ignoring row keys", () => {
     const a = [fromLine(line())];
     expect(linesChanged(a, [fromLine(line())])).toBe(false);

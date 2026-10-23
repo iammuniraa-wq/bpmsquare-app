@@ -13,6 +13,7 @@ export const ORDER_TIPS = {
   deliveries: "Deliveries and invoices are read from the ERP and cannot be edited here. They fill the document flow and the path.",
   files: "Keep the customer's PO, drawings and other papers with the order. Files and links stay open after the order is confirmed.",
   fileKind: "Customer PO, Drawing or Other. The kind only helps you find a file again.",
+  whatsapp: "WhatsApp sending is not connected yet. This opens WhatsApp with the message ready, and you press send.",
   flow: "Each box is a document. A dashed box has not happened yet; click any other box to open it.",
   // create
   type: "The type decides the numbering, the PDF layout and how lines are priced. Leave it on Automatic to let your rules choose.",

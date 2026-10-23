@@ -1,16 +1,18 @@
+import Link from "next/link";
 import Card from "@/components/ui/Card";
 import InfoTip from "@/components/ui/InfoTip";
+import { ROUTES } from "@/lib/constants";
 import type { Attachment, OrderDetail } from "@/lib/salesOrders/client";
 import { attention, attentionText, customerPoFact, expectedDelivery, fmtDate, partyBlocks, tagText, type PartyBlock } from "./logic";
 import { fmtMoney } from "./money";
 import { ORDER_TIPS } from "./tips";
 import s from "./salesOrders.module.css";
 
-function Party({ label, block }: { label: string; block: PartyBlock }) {
+function Party({ label, block, href }: { label: string; block: PartyBlock; href?: string }) {
   return (
     <div>
       <div className={s.partyLabel}>{label}</div>
-      <div className={s.partyName}>{block.name}</div>
+      <div className={s.partyName}>{href ? <Link href={href} style={{ color: "inherit", textDecoration: "none" }}>{block.name}</Link> : block.name}</div>
       {block.lines.map((l) => <div key={l} className={s.partyLine}>{l}</div>)}
     </div>
   );
@@ -44,7 +46,7 @@ export default function OverviewTab({ detail, attachments, currency, onSeeAvaila
 
       <Card padding={16}>
         <div className={s.parties}>
-          <Party label={parties.merged ? "Sold to and bill to" : "Sold to"} block={parties.soldTo} />
+          <Party label={parties.merged ? "Sold to and bill to" : "Sold to"} block={parties.soldTo} href={detail.account ? ROUTES.account(detail.account.id) : undefined} />
           {parties.billTo && <Party label="Bill to" block={parties.billTo} />}
           {parties.shipTo ? <Party label="Ship to" block={parties.shipTo} /> : null}
         </div>

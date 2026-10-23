@@ -23,5 +23,5 @@ export async function loadOrderRows(supabase: SupabaseClient, tenantId: string):
     const { data: accounts } = await supabase.from("accounts").select("id, name").eq("tenant_id", tenantId).in("id", ids);
     for (const a of accounts ?? []) names.set(a.id as string, a.name as string);
   }
-  return { rows: orders.map((o) => ({ ...o, account_name: names.get(o.account_id) ?? "—" })), available: true };
+  return { rows: orders.map((o) => ({ ...o, total: Number(o.total ?? 0), account_name: names.get(o.account_id) ?? "—" })), available: true };
 }

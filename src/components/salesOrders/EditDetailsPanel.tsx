@@ -47,18 +47,18 @@ export default function EditDetailsPanel({ detail, editable, onClose, onSaved }:
       footer={<><Button onClick={onClose} disabled={busy}>Cancel</Button><Button variant="primary" loading={busy} onClick={() => void save()} data-guide="sales_order.details_save">Save</Button></>}
     >
       <Field label="Customer PO" info={ORDER_TIPS.customerPo} htmlFor="so-po">
-        <Input id="so-po" value={d.customer_po} onChange={(e) => set({ customer_po: e.target.value })} autoFocus />
+        <Input id="so-po" data-guide="sales_order.details_po" value={d.customer_po} onChange={(e) => set({ customer_po: e.target.value })} autoFocus />
       </Field>
       {editable && (
         <>
           <Field label="Requested date" info={ORDER_TIPS.requestedDate} htmlFor="so-rd">
-            <Input id="so-rd" type="date" value={d.requested_date} onChange={(e) => set({ requested_date: e.target.value })} />
+            <Input id="so-rd" data-guide="sales_order.details_wanted" type="date" value={d.requested_date} onChange={(e) => set({ requested_date: e.target.value })} />
           </Field>
           <Field label="Ship to" info={ORDER_TIPS.shipTo} htmlFor="so-sn">
-            <Input id="so-sn" value={d.ship_name} onChange={(e) => set({ ship_name: e.target.value })} placeholder="Name" />
+            <Input id="so-sn" data-guide="sales_order.details_ship_name" value={d.ship_name} onChange={(e) => set({ ship_name: e.target.value })} placeholder="Name" />
           </Field>
           <Field label="Ship-to address" htmlFor="so-sa">
-            <Textarea id="so-sa" value={d.ship_address} onChange={(e) => set({ ship_address: e.target.value })} style={{ minHeight: 60 }} />
+            <Textarea id="so-sa" data-guide="sales_order.details_ship_address" value={d.ship_address} onChange={(e) => set({ ship_address: e.target.value })} style={{ minHeight: 60 }} />
           </Field>
         </>
       )}
@@ -68,18 +68,18 @@ export default function EditDetailsPanel({ detail, editable, onClose, onSaved }:
           {editable && (
             <>
               <Field label="Bill to" hint="Leave empty if it is the customer" htmlFor="so-bn">
-                <Input id="so-bn" value={d.bill_name} onChange={(e) => set({ bill_name: e.target.value })} placeholder="Name" />
+                <Input id="so-bn" data-guide="sales_order.details_bill_name" value={d.bill_name} onChange={(e) => set({ bill_name: e.target.value })} placeholder="Name" />
               </Field>
               <Field label="Bill-to address" htmlFor="so-ba">
-                <Textarea id="so-ba" value={d.bill_address} onChange={(e) => set({ bill_address: e.target.value })} style={{ minHeight: 60 }} />
+                <Textarea id="so-ba" data-guide="sales_order.details_bill_address" value={d.bill_address} onChange={(e) => set({ bill_address: e.target.value })} style={{ minHeight: 60 }} />
               </Field>
               <Field label="Terms" htmlFor="so-terms">
-                <Textarea id="so-terms" value={d.terms} onChange={(e) => set({ terms: e.target.value })} placeholder="Payment terms…" />
+                <Textarea id="so-terms" data-guide="sales_order.details_terms" value={d.terms} onChange={(e) => set({ terms: e.target.value })} placeholder="Payment terms…" />
               </Field>
             </>
           )}
           <Field label="Notes" htmlFor="so-notes">
-            <Textarea id="so-notes" value={d.notes} onChange={(e) => set({ notes: e.target.value })} />
+            <Textarea id="so-notes" data-guide="sales_order.details_notes" value={d.notes} onChange={(e) => set({ notes: e.target.value })} />
           </Field>
         </div>
       </details>

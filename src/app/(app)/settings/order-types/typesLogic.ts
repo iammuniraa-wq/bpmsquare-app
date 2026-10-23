@@ -104,5 +104,5 @@ export const ruleSummary = (rules: { field: string; equals: string }[]): string 
   rules.length === 0 ? "—" : rules.map((r) => `${RULE_FIELDS.find((f) => f.id === r.field)?.label ?? r.field} = ${r.field === "source_type" ? SOURCE_CHOICES.find((s) => s.id === r.equals)?.label ?? r.equals : r.equals}`).join("; ");
 
 /** Types in the order the list shows them: default first, then by name; inactive last. */
-export const sortedTypes = (types: SalesOrderType[]): SalesOrderType[] =>
+export const sortedTypes = <T extends SalesOrderType>(types: T[]): T[] =>
   [...types].sort((a, b) => Number(b.active) - Number(a.active) || Number(b.is_default) - Number(a.is_default) || a.sort_order - b.sort_order || a.name.localeCompare(b.name));

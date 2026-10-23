@@ -114,20 +114,20 @@ export default function FilesAndLinks({ orderId, items, canAdd, onChanged }: {
         >
           {panel === "file" ? (
             <Field label="File" hint="PDF, image, spreadsheet or document" htmlFor="so-file">
-              <input id="so-file" ref={fileRef} type="file" onChange={(e) => setFile(e.target.files?.[0] ?? null)} style={{ fontSize: 13, minHeight: 44 }} />
+              <input id="so-file" data-guide="sales_order.file_input" ref={fileRef} type="file" onChange={(e) => setFile(e.target.files?.[0] ?? null)} style={{ fontSize: 13, minHeight: 44 }} />
             </Field>
           ) : (
             <Field label="Link" hint="Starts with https://" htmlFor="so-link">
-              <Input id="so-link" type="url" inputMode="url" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://" autoFocus />
+              <Input id="so-link" data-guide="sales_order.link_input" type="url" inputMode="url" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://" autoFocus />
             </Field>
           )}
           <Field label="Kind" info={ORDER_TIPS.fileKind} htmlFor="so-kind">
-            <Select id="so-kind" value={kind} onChange={(e) => setKind(e.target.value as OrderAttachment["kind"])}>
+            <Select id="so-kind" data-guide="sales_order.file_kind" value={kind} onChange={(e) => setKind(e.target.value as OrderAttachment["kind"])}>
               {(Object.keys(KIND_LABEL) as OrderAttachment["kind"][]).map((k) => <option key={k} value={k}>{KIND_LABEL[k]}</option>)}
             </Select>
           </Field>
           <Field label="Name" htmlFor="so-fname">
-            <Input id="so-fname" value={name} onChange={(e) => setName(e.target.value)} placeholder={panel === "file" ? "Defaults to the file name" : "Defaults to the address"} />
+            <Input id="so-fname" data-guide="sales_order.file_name" value={name} onChange={(e) => setName(e.target.value)} placeholder={panel === "file" ? "Defaults to the file name" : "Defaults to the address"} />
           </Field>
           {error && <div role="alert" className="bpm-t-help" style={{ color: "var(--err-ink)" }}>{error}</div>}
         </SidePanel>

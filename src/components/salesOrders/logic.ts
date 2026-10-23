@@ -381,17 +381,6 @@ export function layoutFlow(m: FlowModel, orientation: Orientation): FlowLayout {
   return { width, height, orientation, nodes, links };
 }
 
-// ── sending ───────────────────────────────────────────────────────────────────
-
-export function orderWhatsAppMessage(v: { customer: string; company: string; ref: string; total: string; link: string | null }): string {
-  return [
-    `Hello ${v.customer},`,
-    `Your sales order ${v.ref} from ${v.company} (total ${v.total}) is ready.`,
-    v.link ? `View it here: ${v.link}` : "",
-    `Thank you,\n${v.company}`,
-  ].filter(Boolean).join("\n\n");
-}
-
 // ── files and links ───────────────────────────────────────────────────────────
 
 export const KIND_LABEL = { customer_po: "Customer PO", drawing: "Drawing", other: "Other" } as const;

@@ -121,13 +121,13 @@ export default function SalesOrderForm({ accounts, contacts, types, products, cu
               <summary>More</summary>
               <div className={s.formGrid} style={{ paddingTop: 8 }}>
                 <Field label="Ship to" info={ORDER_TIPS.shipTo} htmlFor="so-shipname">
-                  <Input id="so-shipname" value={shipName} onChange={(e) => { setShipName(e.target.value); setShipTouched(true); }} placeholder="Name" />
+                  <Input id="so-shipname" data-guide="sales_order.ship_name" value={shipName} onChange={(e) => { setShipName(e.target.value); setShipTouched(true); }} placeholder="Name" />
                 </Field>
                 <Field label="Ship-to address" htmlFor="so-shipaddr">
-                  <Textarea id="so-shipaddr" value={shipAddress} onChange={(e) => { setShipAddress(e.target.value); setShipTouched(true); }} style={{ minHeight: 60 }} />
+                  <Textarea id="so-shipaddr" data-guide="sales_order.ship_address" value={shipAddress} onChange={(e) => { setShipAddress(e.target.value); setShipTouched(true); }} style={{ minHeight: 60 }} />
                 </Field>
                 <Field label="Notes" htmlFor="so-notes">
-                  <Textarea id="so-notes" value={notes} onChange={(e) => setNotes(e.target.value)} />
+                  <Textarea id="so-notes" data-guide="sales_order.notes" value={notes} onChange={(e) => setNotes(e.target.value)} />
                 </Field>
               </div>
             </details>

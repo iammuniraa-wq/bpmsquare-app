@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { orderEditable } from "@/lib/salesOrders/types";
 import {
   attention, attentionText, availabilityRows, availabilityStatus, documentFlow, estimateTotals, expectedDelivery, layoutFlow, lockInfo,
-  orderActions, orderPath, orderWhatsAppMessage, partyBlocks, pricingLine, sourceTag, subStatus, tagText, FLOW_BOX,
+  orderActions, orderPath, partyBlocks, pricingLine, sourceTag, subStatus, tagText, FLOW_BOX,
 } from "./logic";
 import { delivery, detail, invoice, line, order, ROUTES_STUB } from "./fixtures";
 
@@ -213,14 +213,5 @@ describe("the document flow", () => {
     expect(a.find((n) => n.id === "delivery-d2")!.y).toBeGreaterThan(a.find((n) => n.id === "delivery-d1")!.y);
     const d = layoutFlow(m, "down").nodes;
     expect(d.find((n) => n.id === "delivery-d2")!.x).toBeGreaterThan(d.find((n) => n.id === "delivery-d1")!.x);
-  });
-});
-
-describe("the WhatsApp message", () => {
-  it("carries the ref, total and link, and leaves the link line out when there is none", () => {
-    const m = orderWhatsAppMessage({ customer: "Omar", company: "Acme", ref: "SO-0001", total: "AED 10,500", link: "https://x.test/p" });
-    expect(m).toContain("SO-0001");
-    expect(m).toContain("https://x.test/p");
-    expect(orderWhatsAppMessage({ customer: "Omar", company: "Acme", ref: "SO-0001", total: "AED 1", link: null })).not.toContain("View it here");
   });
 });

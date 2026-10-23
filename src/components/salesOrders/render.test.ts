@@ -181,6 +181,7 @@ describe("LinesTab", () => {
     expect(out).toContain("sales_order.lines_save");
     expect(out).toContain("sales_order.add_line");
     expect(out).toContain('aria-label="Remove line 1"');
+    for (const g of ["line_item", "line_qty", "line_unit", "line_price", "line_discount", "line_tax", "line_wanted", "remove_line", "printed_text"]) expect(out, g).toContain(`data-guide="sales_order.${g}"`);
   });
   it("says so when an order has no lines", () => {
     expect(html(el(LinesTab, { ...props, detail: detail({ lines: [] }), editable: false }))).toContain("No lines on this order");
@@ -265,6 +266,7 @@ describe("failureCopy", () => {
     const down = failureCopy({ phase: "failed", status: 0, error: "Network error", missing: true });
     expect(down).toMatchObject({ title: "Sales orders are not available right now", retry: true });
     expect(failureCopy({ phase: "failed", status: 503, error: "x", missing: false }).retry).toBe(true);
+    expect(failureCopy({ phase: "failed", status: 503, error: "A database update is needed", missing: false, needsDatabaseUpdate: true }).title).toBe("Sales orders need a database update");
   });
 });
 

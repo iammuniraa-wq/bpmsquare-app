@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
-  addLink, cancelOrder, confirmOrder, createOrder, createOrderFromSource, deleteOrderType, getAvailability, getOrder, listAttachments, listOrderTypes, patchOrder, putLines, readDetail, refreshAvailability,
+  addLink, cancelOrder, confirmOrder, createOrder, createOrderFromSource, deleteOrderType, emailOrder, getAvailability, getOrder, getShare, listAttachments, listOrderTypes, patchOrder, putLines, readDetail, refreshAvailability,
 } from "./client";
 
 type Reply = { status?: number; body?: unknown; text?: string; throws?: boolean };
@@ -23,6 +23,7 @@ describe("a failing endpoint never throws and never crashes a screen", () => {
     stub({ throws: true });
     expect(await getOrder("o1")).toEqual({ ok: false, status: 0, error: "Network error", missing: true });
     expect(await listOrderTypes()).toMatchObject({ ok: false, missing: true });
+    expect(await getShare("o1")).toMatchObject({ ok: false, missing: true });
     expect(await refreshAvailability("o1")).toMatchObject({ ok: false, missing: true });
   });
   it("a 404 with an HTML body (route not deployed yet) is missing", async () => {
