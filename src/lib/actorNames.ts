@@ -25,7 +25,9 @@ export async function loadActorNames(admin: SupabaseClient, tenantId: string, ac
     }
   }
   for (const u of rows) {
-    const name = u.display_name?.trim() || (u.employee_id ? emps.get(u.employee_id) : undefined);
+    // The employee's own name first; a label that is really an e-mail address is no name at all.
+    const label = u.display_name?.trim();
+    const name = (u.employee_id ? emps.get(u.employee_id) : undefined) || (label && !label.includes("@") ? label : undefined);
     if (name) out.set(u.user_id, name);
   }
   return out;
