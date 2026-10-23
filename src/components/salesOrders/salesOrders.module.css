@@ -153,6 +153,9 @@
 .previewBody { flex: 1; min-height: 0; overflow: auto; padding: 16px; }
 .previewPaper { background: white; color: black; max-width: 800px; margin: 0 auto; }
 
+.previewPaper table { border-collapse: collapse; width: 100%; }
+.previewPaper td, .previewPaper th { vertical-align: top; }
+
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
 @media (max-width: 900px) {
@@ -171,6 +174,7 @@
   .actions :global(.bpm-btn), .fileRow :global(.bpm-btn), .banner .bannerLink { min-height: 44px; }
   .pickItem { min-height: 48px; }
   .ruleRow { grid-template-columns: 1fr; }
+  .shell :global(.bpm-btn), .blockRow :global(.bpm-btn), .ruleRow :global(.bpm-btn) { min-height: 44px; }
   /* the primary action sits in the one standard place on a phone: a bar at the bottom edge */
   .primarySlot {
     position: fixed; left: 0; right: 0; bottom: env(safe-area-inset-bottom, 0px); z-index: 30; padding: 10px 14px; justify-content: stretch;

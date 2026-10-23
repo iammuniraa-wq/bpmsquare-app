@@ -123,6 +123,11 @@ export const ROUTES = {
   standardQuotePrint: (id: string) => `/standard-quotes/${id}/print`,
   standardQuoteTemplates: "/standard-quotes/templates",
   standardQuoteTemplate: (id: string) => `/standard-quotes/templates/${id}`,
+  salesOrders: "/sales-orders",
+  salesOrder: (id: string) => `/sales-orders/${id}`,
+  salesOrderNew: "/sales-orders/new",
+  salesOrderPrint: (id: string) => `/sales-orders/${id}/print`,
+  settingsOrderTypes: "/settings/order-types",
   employees: "/employees",
   configPricing: "/settings/pricing",
   settingsNumberRanges: "/settings/number-ranges",
@@ -150,11 +155,6 @@ export const ROUTES = {
   invoices: "/invoices",
   invoiceNew: "/invoices/new",
   invoice: (id: string) => `/invoices/${id}`,
-  salesOrders: "/sales-orders",
-  salesOrder: (id: string) => `/sales-orders/${id}`,
-  salesOrderNew: "/sales-orders/new",
-  salesOrderPrint: (id: string) => `/sales-orders/${id}/print`,
-  settingsOrderTypes: "/settings/order-types",
   case: (id: string) => `/cases/${id}`,
   settings: "/settings",
   settingsGeneral: "/settings/general", // redirects to settingsCompany
@@ -301,8 +301,8 @@ export const NAV: NavGroup[] = [
         children: [
           { label: "Quotations", href: ROUTES.quotations, icon: "₹", pillar: "blue", featureKey: "quotations", workcenterKey: "quotations" },
           { label: "Standard Quotes", href: ROUTES.standardQuotes, icon: "≡", pillar: "blue", featureKey: "standard_quotes", workcenterKey: "standard_quotes" },
+          { label: "Sales Orders", href: ROUTES.salesOrders, icon: "▣", pillar: "blue", featureKey: "sales_orders", workcenterKey: "sales_orders" },
           { label: "Pipeline",   href: ROUTES.pipeline,   icon: "▦", pillar: "blue", featureKey: "pipeline", workcenterKey: "pipeline" },
-          { label: "Sales Orders", href: ROUTES.salesOrders, icon: "⊞", pillar: "blue", featureKey: "sales_orders", workcenterKey: "sales_orders" },
           { label: "Invoices",   href: ROUTES.invoices,   icon: "⊟", pillar: "blue", featureKey: "invoices", workcenterKey: "invoices" },
           { label: "Purchase Orders", href: ROUTES.purchaseOrders, icon: "⇱", pillar: "blue", featureKey: "purchasing", workcenterKey: "purchase_orders" },
           // RFQ (0128): supplier quotations asked for when no cost/price is
@@ -531,8 +531,6 @@ export type TenantFeatures = {
   amc: boolean;
   dispatch: boolean;
   invoices: boolean;
-  /** Sales Orders (docs/design/sales-order.md): the order object, its types and screens. Platform-admin flag, default off. */
-  sales_orders: boolean;
   partners: boolean;
   ai_assistant: boolean;
   db_export: boolean;
@@ -725,6 +723,11 @@ export type TenantFeatures = {
   // web for this?" and, on a yes, run one isolated search on our key and answer with sources. A platform-admin-only
   // flag: default OFF, missing key reads false; needs ai_assistant. With it off the search tool is not offered.
   ai_assistant_web: boolean;
+  // Sales Orders (docs/design/sales-order.md, build spec SO1): an order made here from an accepted quote or won
+  // deal, with order types, availability from master data, PDF/email/WhatsApp and files. A platform-admin-only
+  // flag: default OFF, missing key reads false; with it off there is no menu item, no route, no API answer and no
+  // button on a quote. ERP replication, ERP checks and sending to an ERP are later phases (SO2/SO3).
+  sales_orders: boolean;
 };
 
 // WfmConfig — tenant-level WFM (attendance) settings, stored in

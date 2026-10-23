@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
-  addLink, cancelOrder, confirmOrder, createOrder, deleteOrderType, getAvailability, getOrder, listAttachments, listOrderTypes, patchOrder, putLines, readDetail, refreshAvailability,
+  addLink, cancelOrder, confirmOrder, createOrder, createOrderFromSource, deleteOrderType, getAvailability, getOrder, listAttachments, listOrderTypes, patchOrder, putLines, readDetail, refreshAvailability,
 } from "./client";
 
 type Reply = { status?: number; body?: unknown; text?: string; throws?: boolean };
@@ -71,6 +71,26 @@ describe("what each wrapper sends", () => {
     const r = await createOrder({ account_id: "a1", lines: [], source: { type: "quotation", id: "q1" }, confirm_another: true });
     expect(r).toEqual({ ok: true, data: { id: "o9", ref: "SO-0009" } });
     expect(JSON.parse((f.mock.calls[0] as unknown as [string, RequestInit])[1].body as string)).toMatchObject({ source: { type: "quotation", id: "q1" }, confirm_another: true });
+  });
+});
+
+describe("create sales order from a quote", () => {
+  it("sends only the source, so the server copies the rest", async () => {
+    const f = stub({ status: 201, body: { id: "o1", ref: "SO-0001" } });
+    expect(await createOrderFromSource({ type: "standard_quote", id: "sq1" })).toEqual({ ok: true, data: { id: "o1", ref: "SO-0001" } });
+    expect(JSON.parse((f.mock.calls[0] as unknown as [string, RequestInit])[1].body as string)).toEqual({ source: { type: "standard_quote", id: "sq1" }, lines: [] });
+  });
+  it("marks the 'an order already exists' answer so the screen can ask, then sends confirm_another", async () => {
+    const f = stub({ status: 409, body: { error: "An order already exists for this standard quote: SO-0001.", needs_confirmation: true, existing: [{ id: "o1", ref: "SO-0001" }] } });
+    const first = await createOrderFromSource({ type: "standard_quote", id: "sq1" });
+    expect(first).toMatchObject({ ok: false, status: 409, needsConfirmation: true });
+    await createOrderFromSource({ type: "standard_quote", id: "sq1" }, true);
+    expect(JSON.parse((f.mock.calls[1] as unknown as [string, RequestInit])[1].body as string)).toMatchObject({ confirm_another: true });
+  });
+  it("does not mark an ordinary 409 (a locked order) as needing confirmation", async () => {
+    stub({ status: 409, body: { error: "Locked", lock_reason: "Locked" } });
+    const r = await createOrder({ account_id: "a", lines: [] });
+    expect(r).not.toHaveProperty("needsConfirmation");
   });
 });
 

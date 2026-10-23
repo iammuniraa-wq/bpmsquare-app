@@ -11,7 +11,7 @@ import type {
 
 export type ApiResult<T> =
   | { ok: true; data: T }
-  | { ok: false; status: number; error: string; missing: boolean };
+  | { ok: false; status: number; error: string; missing: boolean; /** 409 "an order already exists for this source": ask, then send again with confirm_another. */ needsConfirmation?: true };
 
 /** A delivery or invoice read from the ERP (SO2 fills these; SO1 shows an empty shell). */
 export type ErpDocument = {
@@ -127,7 +127,10 @@ async function call<T>(url: string, init: RequestInit | undefined, parse: (json:
   if (!res.ok) {
     const r = rec(json);
     const message = r ? str(r.error) ?? str(r.message) : null;
-    return { ok: false, status: res.status, error: message ?? `Request failed (${res.status})`, missing: json === null || res.status === 404 || res.status === 501 };
+    return {
+      ok: false, status: res.status, error: message ?? `Request failed (${res.status})`, missing: json === null || res.status === 404 || res.status === 501,
+      ...(res.status === 409 && r?.needs_confirmation === true ? { needsConfirmation: true as const } : {}),
+    };
   }
   const data = parse(json);
   if (data === null) return { ok: false, status: res.status, error: "The server sent an answer this screen could not read", missing: true };
@@ -336,6 +339,15 @@ export const getOrder = (id: string) => call(`${base}/${id}`, undefined, readDet
 
 export const createOrder = (body: CreateOrderBody) =>
   call(base, jsonInit("POST", body), (j) => {
+    const r = rec(j);
+    const inner = rec(r?.order);
+    const id = str(r?.id) ?? str(inner?.id);
+    return id ? { id, ref: str(r?.ref) ?? str(inner?.ref) } : null;
+  });
+
+/** "Create sales order" on an accepted quote / won deal: the server copies lines, prices, tax, currency, customer and pricing mode. */
+export const createOrderFromSource = (source: { type: "standard_quote" | "quotation" | "opportunity"; id: string }, confirmAnother = false) =>
+  call(base, jsonInit("POST", { source, lines: [], ...(confirmAnother ? { confirm_another: true } : {}) }), (j) => {
     const r = rec(j);
     const inner = rec(r?.order);
     const id = str(r?.id) ?? str(inner?.id);
