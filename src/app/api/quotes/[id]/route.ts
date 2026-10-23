@@ -4,6 +4,7 @@ import { diffForLog, logChange } from "@/lib/changeLog";
 import { parseDateOverride, parseTimestampOverride } from "@/lib/dateProfile";
 import { applyDateProfile } from "@/lib/api/quoteService";
 import { LOSS_REASONS } from "@/lib/constants";
+import { emitQuotationOutcome } from "@/lib/events/quotationOutcome";
 
 export async function DELETE(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   let supabase, tenantId, userId;
@@ -163,6 +164,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       action: dateProfile.reopened ? "reopen" : "update", actorId: user?.id, actorEmail: user?.email, changes,
     });
   }
+
+  await emitQuotationOutcome(tenantId, before as Record<string, unknown>, data as Record<string, unknown>, user?.id);
 
   return NextResponse.json(data);
 }

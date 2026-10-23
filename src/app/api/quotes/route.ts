@@ -7,6 +7,7 @@ import { diffForLog, logChange } from "@/lib/changeLog";
 import { getTenant } from "@/lib/tenant";
 import { accountMatchesAnySegment } from "@/lib/coverage/resolve";
 import { derivePricingFlags, withPricingColumns, insertQuoteLinesTolerant, verifiedRfqLineIds } from "@/lib/pricing/quoteLineFlags";
+import { emitQuoteCreated } from "@/lib/events/emitters";
 import type { Account } from "@/lib/types";
 
 export async function POST(request: NextRequest) {
@@ -224,6 +225,8 @@ export async function POST(request: NextRequest) {
       valid_until, ref_no, po_number, po_amount, gst_rate,
     }),
   });
+
+  await emitQuoteCreated(tenantId, { quoteId: quote.id, objectType: "quote", ref: quote.ref, total: Number(total) || 0, accountId: account_id, actorId: user?.id });
 
   return NextResponse.json({ id: quote.id, ref: quote.ref }, { status: 201 });
 }

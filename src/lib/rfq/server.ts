@@ -9,6 +9,7 @@ import { nextSeqFromRefs } from "@/lib/refSeq";
 import { emailOutputFor, resolveOutbound } from "@/lib/emailOutput";
 import { logEmail } from "@/lib/emailLog";
 import { logChange } from "@/lib/changeLog";
+import { emitRfqSent, emitRfqReplied, emitRfqAwarded } from "@/lib/events/emitters";
 import { tenantToday } from "@/lib/tenantClock";
 import { loadMailbox, sendViaMailbox } from "@/lib/mail/mailbox";
 import {
@@ -577,6 +578,9 @@ export async function sendToSupplier(admin: SupabaseClient, args: {
   if (kind === "request" && bundle.rfq.status === "draft") {
     await admin.from("rfqs").update({ status: "sent", updated_at: now }).eq("id", bundle.rfq.id).eq("tenant_id", tenantId);
   }
+  if (kind === "request") {
+    await emitRfqSent(tenantId, { rfqId: bundle.rfq.id, rfqSupplierId: rs.id, supplierId: rs.supplier_id, ref: bundle.rfq.ref, redirected: mail.redirected, actorId: args.actor.id });
+  }
   return { ok: true, to: mail.to, redirected: mail.redirected, via };
 }
 
@@ -626,6 +630,10 @@ export async function saveResponses(admin: SupabaseClient, args: {
   }
   await admin.from("rfq_suppliers").update(patch).eq("id", rs.id).eq("tenant_id", tenantId);
   await refreshRfqStatus(admin, tenantId, rfqId);
+  // The first answer from this supplier is the event; a later edit of the same answers is not a second reply.
+  if ((patch.status === "replied" || patch.status === "declined") && rs.status !== "replied" && rs.status !== "declined") {
+    await emitRfqReplied(tenantId, { rfqId, rfqSupplierId: rs.id, source: args.source, declined: patch.status === "declined", lines: rows.length });
+  }
   return { saved: rows.length };
 }
 
@@ -726,6 +734,11 @@ export async function awardLine(admin: SupabaseClient, ctx: { tenantId: string; 
   await logChange(admin, {
     tenantId, objectType: "rfqs", objectId: args.rfq.id, objectLabel: args.rfq.ref, action: "update", actorId: ctx.userId, actorEmail: ctx.email,
     changes: [{ field: `line ${line.sl_no} awarded`, from: null, to: `${supplierName} @ ${resp.unit_price}${resp.currency ? " " + resp.currency : ""}${fx !== 1 ? ` × ${fx}` : ""}` }],
+  });
+  await emitRfqAwarded(tenantId, {
+    rfqId: args.rfq.id, ref: args.rfq.ref, lineId: args.lineId, responseId: args.responseId,
+    supplierId: (resp as unknown as { rfq_suppliers?: { supplier_id?: string | null } }).rfq_suppliers?.supplier_id ?? null,
+    unitCost, actorId: ctx.userId,
   });
   return { status: "awarded", cost_input_id: costInputId, unit_cost: unitCost, warning };
 }

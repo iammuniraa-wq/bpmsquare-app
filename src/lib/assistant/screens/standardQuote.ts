@@ -10,7 +10,7 @@ export const STANDARD_QUOTE_DETAIL: ScreenOverlay = {
     { id: "activity", label: "Activity", what: "Who changed what, and when." },
   ],
   controls: [
-    { id: "record.primary", label: "Email to customer / Mark accepted", does: "On a draft it emails the quote; on a sent quote it marks it accepted." },
+    { id: "record.primary", label: "Email to customer / Mark accepted / Create invoice", does: "On a draft it emails the quote; on a sent quote it marks it accepted; on an accepted quote (Invoices on) it raises a draft invoice." },
     { id: "menu:mark-as-sent", label: "Mark as sent", does: "Sets the status to Sent without emailing.", within: "record.more", needs: "edit" },
     { id: "menu:mark-rejected", label: "Mark rejected", does: "Sets the status to Rejected.", within: "record.more", needs: "edit" },
     { id: "menu:print-pdf", label: "Print / PDF", does: "Opens the quote as a PDF.", within: "record.more" },
@@ -28,6 +28,10 @@ export const STANDARD_QUOTE_DETAIL: ScreenOverlay = {
     {
       id: "accept", label: "Record that the customer accepted",
       steps: [{ control: "record.primary", text: "On a sent quote, press Mark accepted." }],
+    },
+    {
+      id: "invoice", label: "Raise the invoice for an accepted quote",
+      steps: [{ control: "record.primary", text: "On an accepted quote, press Create invoice; the draft invoice opens, once per quote." }],
     },
     {
       id: "price", label: "Price or change the lines",

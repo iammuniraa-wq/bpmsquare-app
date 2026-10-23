@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { requireTenantUser, createAdminSupabase, getAuthUser } from "@/lib/supabase-server";
 import { diffForLog, logChange } from "@/lib/changeLog";
+import { emitWorkOrderCompleted } from "@/lib/events/emitters";
 
 export async function DELETE(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   let supabase, tenantId, userId;
@@ -75,6 +76,12 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       tenantId, objectType: "work_orders", objectId: id, objectLabel: (data as { ref?: string }).ref ?? null,
       action: "update", actorId: user?.id, actorEmail: user?.email, changes,
     });
+  }
+
+  const beforeStatus = (before as { status?: string } | null)?.status ?? null;
+  if (before && patch.status === "completed" && beforeStatus !== "completed") {
+    const row = data as { ref?: string; account_id?: string | null; case_id?: string | null };
+    await emitWorkOrderCompleted(tenantId, { workOrderId: id, ref: row.ref, from: beforeStatus, accountId: row.account_id, caseId: row.case_id, actorId: user?.id });
   }
 
   return NextResponse.json(data);
