@@ -16,7 +16,7 @@ import type { OrderSourceType } from "@/lib/salesOrders/types";
 
 // Sales orders (docs/design/sales-order-build-spec-so1.md).
 //
-// GET  /api/sales-orders?status=&account_id=&q=&sort=&dir=&page=&page_size=
+// GET  /api/sales-orders?status=&account_id=&source_id=&q=&sort=&dir=&page=&page_size=
 //   -> { rows: [{ id, ref, status, status_label, spine, origin, account_id, account_name, type_id, type_name, pricing_mode,
 //                 total, currency, requested_date, expected_date, customer_po, source_type, source_id, created_at, updated_at }],
 //        total, page, page_size, pages, needsDatabaseUpdate? }
@@ -34,6 +34,7 @@ export async function GET(req: NextRequest) {
   let query = supabase.from("sales_orders").select("*", { count: "exact" }).eq("tenant_id", tenantId);
   if (p.status) query = query.eq("status", p.status);
   if (p.account_id) query = query.eq("account_id", p.account_id);
+  if (p.source_id) query = query.eq("source_id", p.source_id);
   if (p.q) {
     const term = searchTerm(p.q);
     if (term) {

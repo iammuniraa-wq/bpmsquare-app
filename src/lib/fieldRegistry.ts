@@ -307,6 +307,8 @@ export const FIELD_REGISTRY: Record<PilotObjectType, ObjectFieldRegistry> = {
       },
 
       { key: "uom",        defaultLabel: "Unit of measure", widget: "text",     defaultSection: "Details" },
+      // Days to deliver when nothing is in stock (0212): the sales order's master-data availability adds it to today.
+      { key: "lead_time_days", defaultLabel: "Lead time (days)", widget: "number", defaultSection: "Details" },
       { key: "description", defaultLabel: "Description",     widget: "textarea", defaultSection: "Details" },
 
       // Preferred supplier (0132). There is no "reference/lookup" widget yet

@@ -252,7 +252,7 @@
     }
   ],
   "mcp": {
-    "version": "1.13.0",
+    "version": "1.14.0",
     "tools": [
       {
         "name": "list_accounts",
@@ -327,6 +327,10 @@
         "description": "List the tenant's standard quotes (the Standard Quotes module, separate from Quotations): ref, status (draft, sent, accepted, rejected, expired), customer account, validity, header discount, tax and shipping, subtotal an"
       },
       {
+        "name": "list_sales_orders",
+        "description": "List the tenant's sales orders (the Sales Orders module): ref, order type, status (draft, confirmed, cancelled), customer account, customer PO, pricing mode, subtotal, discount, tax, shipping and total, requested and exp"
+      },
+      {
         "name": "list_abm_programs",
         "description": "List the tenant's ABM (account-based marketing) programs: goal, time window, status and how many companies are targeted."
       },
@@ -349,6 +353,10 @@
       {
         "name": "get_standard_quote",
         "description": "Fetch one standard quote by id with its lines (description, quantity, rate, discount, amount, option group and whether it counts toward the total), introduction, notes and terms."
+      },
+      {
+        "name": "get_sales_order",
+        "description": "Fetch one sales order by id with its lines (description, printed text, quantity, unit price, discount, tax, line total, requested date, and the confirmed quantity and date with where that answer came from: the ERP or mas"
       },
       {
         "name": "list_estimates",

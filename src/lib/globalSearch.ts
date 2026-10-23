@@ -8,7 +8,7 @@ import type { WorkcenterKey, ViewableWorkcenters } from "./workcenters";
 export type SearchObjectType =
   | "account" | "contact" | "asset" | "case" | "quote"
   | "work_order" | "purchase_order" | "invoice" | "inventory_item"
-  | "supplier" | "lead" | "employee" | "product" | "project" | "opportunity" | "rfq" | "estimate" | "abm_program" | "standard_quote";
+  | "supplier" | "lead" | "employee" | "product" | "project" | "opportunity" | "rfq" | "estimate" | "abm_program" | "standard_quote" | "sales_order";
 
 export type SearchObjectDef = {
   type: SearchObjectType;
@@ -38,6 +38,7 @@ export const SEARCH_OBJECTS: SearchObjectDef[] = [
   { type: "case", label: "Cases", icon: "☎", featureKeys: ["cases"], workcenters: ["cases"] },
   { type: "quote", label: "Quotations", icon: "₹", featureKeys: ["quotations"], workcenters: ["quotations"] },
   { type: "standard_quote", label: "Standard Quotes", icon: "≡", featureKeys: ["standard_quotes"], workcenters: ["standard_quotes"] },
+  { type: "sales_order", label: "Sales Orders", icon: "▣", featureKeys: ["sales_orders"], workcenters: ["sales_orders"] },
   { type: "work_order", label: "Work Orders", icon: "▦", featureKeys: ["work_orders"], workcenters: ["work_orders"] },
   { type: "invoice", label: "Invoices", icon: "▥", featureKeys: ["invoices"], workcenters: ["invoices"] },
   { type: "purchase_order", label: "Purchase Orders", icon: "▤", featureKeys: ["purchasing"], workcenters: ["purchase_orders"] },

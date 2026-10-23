@@ -1025,6 +1025,7 @@ export type AnalyticsMetricId =
   | "pipeline_open_value"
   | "rfq_open"
   | "estimates_open"
+  | "sales_orders_open"
   | "abm_targets_engaged"
   | "wfm_attendance_today" | "wfm_night_shift_cost"
   | "wfm_corrections_queue" | "wfm_leave_requests_queue" | "wfm_recheck_queue"

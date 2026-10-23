@@ -981,6 +981,8 @@ export type Product = {
    *  Offered by the Standard Quote add-line panel. */
   qty_breaks?: { from: number; rate: number | null }[] | null;
   tax_percent: number | null;
+  /** Days from order to delivery when nothing is in stock (0212). Master-data availability on a sales order adds it to today. Absent while 0212 is pending. */
+  lead_time_days?: number | null;
   status: ProductStatus;
   custom_data: Record<string, unknown> | null;
   created_at: string;

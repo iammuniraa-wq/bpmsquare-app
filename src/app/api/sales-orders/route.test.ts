@@ -287,6 +287,11 @@ describe("GET /api/sales-orders", () => {
     expect((await (await get("?account_id=a2")).json()).rows).toEqual([]);
   });
 
+  it("filters by the quote, deal or order an order was made from, never across tenants", async () => {
+    seed({ sales_orders: [order("1", { source_type: "standard_quote", source_id: "sq1" }), order("2"), order("3", { tenant_id: "t2", account_id: "a2", source_type: "standard_quote", source_id: "sq1" })] });
+    expect((await (await get("?source_id=sq1")).json()).rows.map((r: Row) => r.id)).toEqual(["1"]);
+  });
+
   it("answers an empty list with needsDatabaseUpdate while migration 0212 is pending", async () => {
     current = fakeDb({}, { missingTables: ["sales_orders"] });
     const j = await (await get()).json();

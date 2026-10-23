@@ -6,7 +6,7 @@ import type { WorkcenterKey } from "@/lib/workcenters";
 // instead of trusting the client's object type. The detail paths come from ROUTES, so a moved page moves here too.
 
 export type AssistantObjectType =
-  | "account" | "contact" | "quote" | "standard_quote" | "product" | "lead" | "opportunity" | "estimate"
+  | "account" | "contact" | "quote" | "standard_quote" | "sales_order" | "product" | "lead" | "opportunity" | "estimate"
   | "case" | "invoice" | "asset" | "supplier" | "rfq" | "work_order";
 
 type Row = Record<string, unknown>;
@@ -34,6 +34,8 @@ export const OBJECT_DEFS: ObjectDef[] = [
   { type: "quote", noun: "quote", sourceKey: "quotations", featureKey: "quotations", workcenter: "quotations", detail: ROUTES.quotation, list: ROUTES.quotations,
     title: (r) => join(s(r.ref), named(r.account)) },
   { type: "standard_quote", noun: "standard quote", sourceKey: "standard_quotes", featureKey: "standard_quotes", workcenter: "standard_quotes", detail: ROUTES.standardQuote, list: ROUTES.standardQuotes,
+    title: (r) => join(s(r.ref), named(r.account)) },
+  { type: "sales_order", noun: "sales order", sourceKey: "sales_orders", featureKey: "sales_orders", workcenter: "sales_orders", detail: ROUTES.salesOrder, list: ROUTES.salesOrders,
     title: (r) => join(s(r.ref), named(r.account)) },
   { type: "account", noun: "account", sourceKey: "accounts", featureKey: "accounts", workcenter: "accounts", detail: ROUTES.account, list: ROUTES.accounts,
     title: (r) => s(r.name) },

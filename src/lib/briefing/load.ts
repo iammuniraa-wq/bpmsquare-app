@@ -7,7 +7,7 @@ import { canUseObject, type AssistantCtx } from "@/lib/assistant/sources";
 import { objectDef } from "@/lib/assistant/objects";
 import { daysFromToday, type DayWindow } from "./day";
 import {
-  abmCandidates, dealCandidates, invoiceCandidates, leadCandidates, mentionCandidates, quoteCandidates,
+  abmCandidates, dealCandidates, invoiceCandidates, leadCandidates, mentionCandidates, orderCandidates, quoteCandidates,
   syncCandidates, taskCandidates, wfmCandidates, type QueueSummary,
 } from "./rules";
 import type { ChangeRow, CommentRow } from "./yesterday";
@@ -92,6 +92,17 @@ export async function loadOpen(admin: SupabaseClient, ctx: BriefingCtx, win: Day
         .or("outcome.is.null,outcome.eq.open")
         .order("created_at", { ascending: false }).limit(300);
       return error ? [] : quoteCandidates((data ?? []) as Record<string, unknown>[], today, tz);
+    }, []));
+  }
+
+  if (canUseObject(ctx, objectDef("sales_order"))) {
+    jobs.push(safe(async () => {
+      // 0212 may be pending: an error reads as no orders.
+      const { data, error } = await admin.from("sales_orders")
+        .select("id, ref, status, total, created_at")
+        .eq("tenant_id", ctx.tenantId).eq("created_by", ctx.userId).eq("status", "draft")
+        .order("created_at", { ascending: false }).limit(100);
+      return error ? [] : orderCandidates((data ?? []) as Record<string, unknown>[], today, tz);
     }, []));
   }
 

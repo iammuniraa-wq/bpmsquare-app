@@ -31,6 +31,8 @@ export const cleanCurrency = (v: unknown): string | null => (isCurrencyCode(v) ?
 export type ListParams = {
   status: string | null;
   account_id: string | null;
+  /** Orders made from one quote, deal or order: the quote page's "order SO-0007" fact. */
+  source_id: string | null;
   q: string | null;
   page: number;
   page_size: number;
@@ -47,6 +49,7 @@ export function parseListParams(sp: URLSearchParams): ListParams {
   return {
     status: cleanText(sp.get("status"), 20),
     account_id: cleanText(sp.get("account_id"), 64),
+    source_id: cleanText(sp.get("source_id"), 64),
     q: cleanText(sp.get("q"), 100),
     page,
     page_size: Number.isFinite(size) && size > 0 ? Math.min(100, size) : 25,

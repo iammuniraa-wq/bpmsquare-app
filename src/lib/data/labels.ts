@@ -117,6 +117,9 @@ export type AnalyticsData = {
     quotedEstimates: number;
     abmTargets: number;
     abmEngaged: number;
+    draftOrders: number;
+    openOrders: number;
+    openOrderValue: number;
   };
   accountsByType: Array<{ type: string; label: string; count: number }>;
   leadFunnel: Array<{ stage: string; count: number }>;

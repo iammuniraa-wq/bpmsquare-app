@@ -130,7 +130,7 @@ describe("PATCH /api/sales-order-types/[id]", () => {
     expect(types()[0].name).toBe("Standard order");
   });
 
-  it("an empty body is a 400 and a duplicate name is a 409-class refusal from the database", async () => {
+  it("an empty body is a 400", async () => {
     expect((await patch("ty2", {})).status).toBe(400);
   });
 });

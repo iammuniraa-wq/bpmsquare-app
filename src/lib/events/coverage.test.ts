@@ -54,7 +54,7 @@ describe("event catalogue coverage", () => {
   });
 
   it("the events this piece of work wired are emitted", () => {
-    for (const k of ["QUOTE_ACCEPTED", "QUOTE_CREATED", "QUOTE_REVISED", "QUOTE_OUTCOME_CHANGED", "WORK_ORDER_COMPLETED", "RFQ_SENT", "RFQ_REPLIED", "RFQ_AWARDED", "OPPORTUNITY_UPDATED"]) {
+    for (const k of ["QUOTE_ACCEPTED", "QUOTE_CREATED", "QUOTE_REVISED", "QUOTE_OUTCOME_CHANGED", "WORK_ORDER_COMPLETED", "RFQ_SENT", "RFQ_REPLIED", "RFQ_AWARDED", "OPPORTUNITY_UPDATED", "ORDER_CREATED", "ORDER_CONFIRMED", "ORDER_CANCELLED", "ORDER_SENT"]) {
       expect(used.has(k), k).toBe(true);
     }
   });
