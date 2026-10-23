@@ -109,6 +109,7 @@ export const DEFERRED: Record<string, string> = {
   estimates: "born from a template; the Estimator stays the way in",
   "fence-projects": "has a site, lines and pricing; the project screens stay the way in",
   inventory: "unique SKU and stock rules; next in line",
+  "work-orders": "created from a case with its authorisation (quote or contract); the Create work order action on the case stays the way in",
   invoices: "an outward financial document; a verb for a later step, not a plain create",
   leads: "carries consent and a source; next in line",
   opportunities: "needs an account and a stage; next in line",
