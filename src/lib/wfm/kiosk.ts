@@ -73,27 +73,48 @@ function ticketKey(): Buffer {
     .digest();
 }
 
-function ticketSig(employeeId: string, deviceId: string, exp: number): string {
+function ticketSig(employeeId: string, deviceId: string, exp: number, conf?: number): string {
   return createHmac("sha256", ticketKey())
-    .update(`${employeeId}.${deviceId}.${exp}`)
+    .update(conf === undefined ? `${employeeId}.${deviceId}.${exp}` : `${employeeId}.${deviceId}.${exp}.${conf}`)
     .digest("base64url");
 }
 
-export function signMatchTicket(employeeId: string, deviceId: string): string {
+/**
+ * `confidence` is the provider's match similarity (0-100). It travels INSIDE the
+ * signed ticket so the punch call can stamp it into the event's flags without
+ * the tablet ever being able to see it or choose it. Stored as hundredths so the
+ * ticket's "." separators stay unambiguous.
+ */
+export function signMatchTicket(employeeId: string, deviceId: string, confidence?: number): string {
   const exp = Date.now() + TICKET_TTL_MS;
-  return `${employeeId}.${exp}.${ticketSig(employeeId, deviceId, exp)}`;
+  if (confidence === undefined || !Number.isFinite(confidence)) {
+    return `${employeeId}.${exp}.${ticketSig(employeeId, deviceId, exp)}`;
+  }
+  const conf = Math.max(0, Math.min(10000, Math.round(confidence * 100)));
+  return `${employeeId}.${exp}.${conf}.${ticketSig(employeeId, deviceId, exp, conf)}`;
+}
+
+/** Ticketed employee id plus the signed match confidence (0-100; null on a ticket without one), or null if invalid/expired/foreign. */
+export function readMatchTicket(ticket: string, deviceId: string): { employeeId: string; confidence: number | null } | null {
+  const parts = ticket.split(".");
+  if (parts.length !== 3 && parts.length !== 4) return null;
+  const employeeId = parts[0];
+  const exp = Number(parts[1]);
+  if (!Number.isFinite(exp) || Date.now() > exp) return null;
+  let conf: number | undefined;
+  if (parts.length === 4) {
+    if (!/^\d{1,5}$/.test(parts[2])) return null;
+    conf = Number(parts[2]);
+  }
+  const sig = parts[parts.length - 1];
+  const expected = ticketSig(employeeId, deviceId, exp, conf);
+  const a = Buffer.from(sig);
+  const b = Buffer.from(expected);
+  if (a.length !== b.length || !timingSafeEqual(a, b)) return null;
+  return { employeeId, confidence: conf === undefined ? null : conf / 100 };
 }
 
 /** Returns the ticketed employee id, or null if invalid/expired/foreign. */
 export function verifyMatchTicket(ticket: string, deviceId: string): string | null {
-  const parts = ticket.split(".");
-  if (parts.length !== 3) return null;
-  const [employeeId, expStr, sig] = parts;
-  const exp = Number(expStr);
-  if (!Number.isFinite(exp) || Date.now() > exp) return null;
-  const expected = ticketSig(employeeId, deviceId, exp);
-  const a = Buffer.from(sig);
-  const b = Buffer.from(expected);
-  if (a.length !== b.length || !timingSafeEqual(a, b)) return null;
-  return employeeId;
+  return readMatchTicket(ticket, deviceId)?.employeeId ?? null;
 }

@@ -5,6 +5,7 @@ import { diffForLog, logChange } from "@/lib/changeLog";
 import { LOSS_REASONS, QUOTE_OUTCOMES } from "@/lib/constants";
 import { opportunityStages, stageDef, outcomeForStage, probabilityFor, parseTeam, OPPORTUNITY_SOURCES } from "@/lib/sales/opportunity";
 import { loadOpportunity, loadOpportunityLines, loadLinkedQuotes, refreshOpportunityDerived, stageSinceMap } from "@/lib/sales/opportunityServer";
+import { ownerTeamProblem } from "@/lib/sales/opportunityMembers";
 import { emitOpportunityStageChanged, emitOpportunityClosed, emitOpportunityUpdated } from "@/lib/events/emitters";
 
 async function guard() {
@@ -75,6 +76,15 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   }
   if ("team" in body) patch.team = parseTeam(body.team);
   if ("owner_id" in body) patch.owner_id = typeof body.owner_id === "string" && body.owner_id ? body.owner_id : null;
+  if ("team" in body || "owner_id" in body) {
+    // Owner and team must be members of THIS workspace (audit 2026-10-21, L2). Ids already on the deal are not re-checked.
+    const problem = await ownerTeamProblem(
+      admin, tenantId,
+      { owner: "owner_id" in patch ? (patch.owner_id as string | null) : null, team: "team" in patch ? (patch.team as { user_id: string }[]) : [] },
+      [before.owner_id, ...(before.team ?? []).map((t) => t.user_id)].filter((x): x is string => !!x),
+    );
+    if (problem) return NextResponse.json({ error: problem }, { status: 422 });
+  }
   if ("contact_id" in body) {
     if (body.contact_id) {
       const { data: contact } = await admin.from("contacts").select("id").eq("id", body.contact_id).eq("tenant_id", tenantId).maybeSingle();

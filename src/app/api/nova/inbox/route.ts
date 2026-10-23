@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { requireTenantUser, createAdminSupabase, getAuthUser } from "@/lib/supabase-server";
 import { tenantHasNovaSurfaces } from "@/lib/tenant";
+import { allowedNovaTypes } from "@/lib/novaAccess";
 
 /**
  * Nova pillar 4 — the inbox. A notification IS a comment that mentions
@@ -45,9 +46,9 @@ const TABLE: Record<string, { table: string; nameCol: string; refCol?: string }>
 };
 
 export async function GET() {
-  let supabase, tenantId;
+  let supabase, tenantId, userId, role;
   try {
-    ({ supabase, tenantId } = await requireTenantUser());
+    ({ supabase, tenantId, userId, role } = await requireTenantUser());
   } catch (e: unknown) {
     const err = e as { status: number; message: string };
     return NextResponse.json({ error: err.message }, { status: err.status });
@@ -72,7 +73,12 @@ export async function GET() {
   // degradation, never a broken bell.
   if (error) return NextResponse.json({ items: [], unread: 0 });
 
-  const rows = mentions ?? [];
+  // A mention on a record the caller may no longer see (module off, or no
+  // view grant on its workcenter) must not surface its text or name.
+  const visible = await allowedNovaTypes({
+    supabase, tenantId, userId, role, types: (mentions ?? []).map((m) => m.object_type as string),
+  });
+  const rows = (mentions ?? []).filter((m) => visible.has(m.object_type as string));
   if (rows.length === 0) return NextResponse.json({ items: [], unread: 0 });
 
   const { data: reads } = await admin

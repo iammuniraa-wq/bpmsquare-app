@@ -112,13 +112,14 @@ export async function POST(request: NextRequest) {
   // and the match confidence are deliberately NOT returned -- a device-
   // token holder could otherwise turn identify into an oracle ("does this
   // face belong to an employee here, what's their code, are they on site")
-  // by submitting arbitrary photos. Confidence is kept server-side (stamped
-  // into the punch event's flags), never handed to the tablet.
+  // by submitting arbitrary photos. Confidence is not returned as a field: it
+  // rides inside the HMAC-signed ticket (so the tablet cannot choose it) and
+  // the punch call stamps it into the event's flags as match_confidence.
   return NextResponse.json({
     match: true,
     name: [employee.first_name, employee.last_name].filter(Boolean).join(" "),
     state,
     kinds,
-    ticket: signMatchTicket(employee.id, device.id),
+    ticket: signMatchTicket(employee.id, device.id, match.confidence),
   });
 }
