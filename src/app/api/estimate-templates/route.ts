@@ -37,7 +37,7 @@ export async function POST(req: NextRequest) {
 
     const r = await insertTemplate(supabase, tenantId, userId, {
       name: header.header.name as string, description: header.header.description, trade: header.header.trade,
-      quote_granularity: header.header.quote_granularity,
+      quote_granularity: header.header.quote_granularity, keywords: header.header.keywords, icon: header.header.icon,
     }, v.template);
     if (!r.data) {
       if (r.status === 503) return pendingResponse();

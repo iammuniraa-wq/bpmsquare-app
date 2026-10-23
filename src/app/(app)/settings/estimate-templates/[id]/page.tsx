@@ -7,6 +7,7 @@ import { PENDING_MESSAGE, loadTemplate, templateUsage } from "@/lib/estimator/se
 import SettingsPageHeader from "@/components/settings/SettingsPageHeader";
 import Card from "@/components/ui/Card";
 import EmptyState from "@/components/ui/EmptyState";
+import Button from "@/components/ui/Button";
 import TemplateEditor from "./TemplateEditor";
 
 export default async function EstimateTemplatePage({ params }: { params: Promise<{ id: string }> }) {
@@ -26,6 +27,20 @@ export default async function EstimateTemplatePage({ params }: { params: Promise
     );
   }
   if (!t.data) notFound();
+  if (t.data.locked === true) {
+    return (
+      <>
+        <SettingsPageHeader title={t.data.name} subtitle="Starter template" />
+        <Card padding={0}>
+          <EmptyState
+            title="This starter can't be edited"
+            text="Make your own copy from the template list (Copy to customise), then change the copy."
+            action={<Button href={ROUTES.settingsEstimateTemplates} variant="primary">Back to the templates</Button>}
+          />
+        </Card>
+      </>
+    );
+  }
   const usage = await templateUsage(supabase, tenantId, [id]);
 
   return (
