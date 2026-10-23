@@ -59,6 +59,7 @@ export const OBJECT_TABLES: Record<string, ObjectInfo> = {
   products: { label: "Product", cols: "id, name, sku", pick: (r) => str(r.name) || str(r.sku), dataverse: "product" },
   suppliers: { label: "Supplier", cols: "id, name", pick: (r) => str(r.name), dataverse: "account" },
   inventory_items: { label: "Inventory item", cols: "id, name, sku", pick: (r) => str(r.name) || str(r.sku), dataverse: "product" },
+  sales_orders: { label: "Sales order", cols: "id, ref", pick: (r) => str(r.ref), dataverse: "salesorder", refBased: true },
   standard_quotes: { label: "Quote", cols: "id, ref", pick: (r) => str(r.ref), dataverse: "quote", refBased: true },
   quotes: { label: "Quotation", cols: "id, ref", pick: (r) => str(r.ref), dataverse: "quote", refBased: true },
   opportunities: { label: "Deal", cols: "id, ref, title", pick: (r) => str(r.ref) || str(r.title), dataverse: "opportunity", refBased: true },

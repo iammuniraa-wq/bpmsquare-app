@@ -121,7 +121,7 @@ export function matchNavigation(message: string, targets: readonly NavTarget[]):
 }
 
 const RECORD_WORDS: [RegExp, AssistantObjectType][] = [
-  [/standard quotes?/, "standard_quote"], [/quotations?|quotes?/, "quote"], [/deals?|opportunit(?:y|ies)/, "opportunity"],
+  [/standard quotes?/, "standard_quote"], [/sales orders?/, "sales_order"], [/quotations?|quotes?/, "quote"], [/deals?|opportunit(?:y|ies)/, "opportunity"],
   [/estimates?/, "estimate"], [/cases?/, "case"], [/invoices?/, "invoice"], [/rfqs?/, "rfq"],
   [/work orders?/, "work_order"], [/products?/, "product"], [/assets?/, "asset"], [/suppliers?/, "supplier"],
 ];

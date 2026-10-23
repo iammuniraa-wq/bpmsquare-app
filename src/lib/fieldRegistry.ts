@@ -98,7 +98,7 @@ export type PilotObjectType =
   | "account" | "contact" | "asset" | "supplier"
   | "case" | "work_order" | "quote" | "invoice" | "purchase_order" | "inventory"
   | "employee" | "product" | "project" | "opportunity" | "rfq" | "estimate" | "process_study" | "newsletter" | "abm_program" | "abm_target" | "abm_member"
-  | "standard_quote";
+  | "standard_quote" | "sales_order";
 
 // ISO 639-1 codes the Newsletter Studio can write in (src/lib/newsletter/types.ts LANGUAGES); duplicated as data
 // here because this registry is imported by client code and must not pull the studio in.
@@ -307,6 +307,8 @@ export const FIELD_REGISTRY: Record<PilotObjectType, ObjectFieldRegistry> = {
       },
 
       { key: "uom",        defaultLabel: "Unit of measure", widget: "text",     defaultSection: "Details" },
+      // Days to deliver when nothing is in stock (0212): the sales order's master-data availability adds it to today.
+      { key: "lead_time_days", defaultLabel: "Lead time (days)", widget: "number", defaultSection: "Details" },
       { key: "description", defaultLabel: "Description",     widget: "textarea", defaultSection: "Details" },
 
       // Preferred supplier (0132). There is no "reference/lookup" widget yet
@@ -619,6 +621,38 @@ export const FIELD_REGISTRY: Record<PilotObjectType, ObjectFieldRegistry> = {
     ],
   },
 
+  // Sales Order (0212): header only -- the lines are the sales_order_lines family (their own static Data Workbench spec,
+  // salesOrderLinesSchema.ts). Account, contact and order type are resolved by name on import. Everything that feeds the
+  // stored total (shipping) is settable on a draft; the totals, the status (its own actions emit events), the pricing
+  // mode (from the order type or the source quote) and every date the system stamps are export-only.
+  sales_order: {
+    sections: ["Order", "Commercial", "Notes"],
+    fields: [
+      { key: "ref",    defaultLabel: "Order ID", widget: "text", defaultSection: "Order", locked: true, editable: false, exportOnly: true },
+      { key: "status", defaultLabel: "Status",   widget: "enum", defaultSection: "Order", locked: true, editable: false, exportOnly: true, enumOptions: [
+        { value: "draft", label: "Draft" }, { value: "confirmed", label: "Confirmed" }, { value: "cancelled", label: "Cancelled" },
+      ] },
+      { key: "customer_po",    defaultLabel: "Customer PO",    widget: "text", defaultSection: "Order" },
+      { key: "requested_date", defaultLabel: "Requested date", widget: "date", defaultSection: "Order" },
+      { key: "expected_date",  defaultLabel: "Expected delivery", widget: "date", defaultSection: "Order", locked: true, editable: false, exportOnly: true },
+      { key: "confirmed_at",   defaultLabel: "Confirmed",      widget: "date", defaultSection: "Order", locked: true, editable: false, exportOnly: true },
+      { key: "source_type",    defaultLabel: "Made from",      widget: "text", defaultSection: "Order", locked: true, editable: false, exportOnly: true },
+
+      { key: "currency",        defaultLabel: "Currency",     widget: "text",   defaultSection: "Commercial" },
+      { key: "pricing_mode",    defaultLabel: "Pricing",      widget: "text",   defaultSection: "Commercial", locked: true, editable: false, exportOnly: true },
+      { key: "shipping_amount", defaultLabel: "Shipping",     widget: "number", defaultSection: "Commercial" },
+      { key: "subtotal",        defaultLabel: "Subtotal",     widget: "number", defaultSection: "Commercial", locked: true, editable: false, exportOnly: true },
+      { key: "discount_total",  defaultLabel: "Discount",     widget: "number", defaultSection: "Commercial", locked: true, editable: false, exportOnly: true },
+      { key: "tax_total",       defaultLabel: "Tax",          widget: "number", defaultSection: "Commercial", locked: true, editable: false, exportOnly: true },
+      { key: "total",           defaultLabel: "Total",        widget: "number", defaultSection: "Commercial", locked: true, editable: false, exportOnly: true },
+
+      { key: "notes", defaultLabel: "Notes", widget: "textarea", defaultSection: "Notes" },
+      { key: "terms", defaultLabel: "Terms", widget: "textarea", defaultSection: "Notes" },
+      // account_id/contact_id/type_id/opportunity_id/source_id/bill_to/ship_to/created_by (pointers and structured
+      // parties) and status_label/spine/origin (the ERP's own wording, SO2) are excluded.
+    ],
+  },
+
   invoice: {
     sections: ["Identity", "Commercial", "Notes"],
     fields: [
@@ -745,7 +779,7 @@ const PILOT_OBJECT_TYPES: readonly PilotObjectType[] = [
   "account", "contact", "asset", "supplier",
   "case", "work_order", "quote", "invoice", "purchase_order", "inventory",
   "employee", "product", "project", "opportunity", "rfq", "estimate", "process_study", "newsletter", "abm_program", "abm_target", "abm_member",
-  "standard_quote",
+  "standard_quote", "sales_order",
 ];
 
 export function isPilotObjectType(objectType: string): objectType is PilotObjectType {

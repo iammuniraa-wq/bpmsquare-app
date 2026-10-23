@@ -259,3 +259,42 @@ export function emitCampaignSent(
     payload: { name: p.name ?? null, sent: p.sent, failed: p.failed, skipped: p.skipped },
   });
 }
+
+type OrderCtx = Actor & { orderId: string; ref?: string | null; total?: number | null; accountId?: string | null; contactId?: string | null };
+
+export function emitOrderCreated(tenantId: string, p: OrderCtx & { sourceType?: string | null; sourceId?: string | null; typeId?: string | null }) {
+  return emitEvent(tenantId, {
+    name: EVENTS.ORDER_CREATED, object_type: "sales_order", object_id: p.orderId, actor_id: p.actorId,
+    account_id: p.accountId, contact_id: p.contactId,
+    key: `${p.orderId}:created`,
+    payload: { ref: p.ref ?? null, total: p.total ?? null, source_type: p.sourceType ?? null, source_id: p.sourceId ?? null, type_id: p.typeId ?? null },
+  });
+}
+
+export function emitOrderConfirmed(tenantId: string, p: OrderCtx) {
+  return emitEvent(tenantId, {
+    name: EVENTS.ORDER_CONFIRMED, object_type: "sales_order", object_id: p.orderId, actor_id: p.actorId,
+    account_id: p.accountId, contact_id: p.contactId,
+    // A reopened order can be confirmed again, so the minute is part of the key.
+    key: `${p.orderId}:confirmed:${new Date().toISOString().slice(0, 16)}`,
+    payload: { ref: p.ref ?? null, total: p.total ?? null },
+  });
+}
+
+export function emitOrderCancelled(tenantId: string, p: OrderCtx & { reason?: string | null }) {
+  return emitEvent(tenantId, {
+    name: EVENTS.ORDER_CANCELLED, object_type: "sales_order", object_id: p.orderId, actor_id: p.actorId,
+    account_id: p.accountId, contact_id: p.contactId,
+    key: `${p.orderId}:cancelled`,
+    // The reason is free text a person typed: it stays in the change history, not in the event.
+    payload: { ref: p.ref ?? null, total: p.total ?? null, has_reason: !!p.reason },
+  });
+}
+
+export function emitOrderSent(tenantId: string, p: OrderCtx & { redirected?: boolean }) {
+  return emitEvent(tenantId, {
+    name: EVENTS.ORDER_SENT, object_type: "sales_order", object_id: p.orderId, actor_id: p.actorId,
+    account_id: p.accountId, contact_id: p.contactId,
+    payload: { ref: p.ref ?? null, total: p.total ?? null, redirected: p.redirected === true },
+  });
+}

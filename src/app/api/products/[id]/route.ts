@@ -45,7 +45,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   const { id } = await params;
   const body = await request.json();
 
-  const allowed = ["name", "sku", "category", "sub_category", "uom", "description", "list_price", "cost_price", "tax_percent", "status", "custom_data", "available_segment_ids", "cost_sheet", "cost_price_as_of", "qty_breaks"];
+  const allowed = ["name", "sku", "category", "sub_category", "uom", "description", "list_price", "cost_price", "tax_percent", "status", "custom_data", "available_segment_ids", "cost_sheet", "cost_price_as_of", "qty_breaks", "lead_time_days"];
   const patch: Record<string, unknown> = {};
   for (const key of allowed) if (key in body) patch[key] = body[key];
   patch.updated_at = new Date().toISOString();
@@ -64,6 +64,16 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     const rows = patch.cost_sheet === null ? [] : parseCostSheet(patch.cost_sheet);
     if (patch.cost_sheet !== null && !Array.isArray(patch.cost_sheet)) return NextResponse.json({ error: "cost_sheet must be an array" }, { status: 400 });
     patch.cost_sheet = rows.length > 0 ? rows : null;
+  }
+  // Lead time (0212): whole days, none stored as null.
+  if ("lead_time_days" in patch) {
+    const v = patch.lead_time_days;
+    if (v === null || v === "") patch.lead_time_days = null;
+    else {
+      const n = Number(v);
+      if (!Number.isInteger(n) || n < 0 || n > 3650) return NextResponse.json({ error: "lead_time_days must be a whole number of days, 0 to 3650" }, { status: 400 });
+      patch.lead_time_days = n;
+    }
   }
   if ("cost_price_as_of" in patch) {
     const v = patch.cost_price_as_of;

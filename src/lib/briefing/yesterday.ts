@@ -12,6 +12,7 @@ import type { BriefingLine } from "./types";
 const FAMILY: Record<string, AssistantObjectType> = {
   accounts: "account", account: "account", contacts: "contact", contact: "contact",
   quotes: "quote", quote: "quote", standard_quotes: "standard_quote", standard_quote: "standard_quote",
+  sales_orders: "sales_order", sales_order: "sales_order",
   products: "product", product: "product", leads: "lead", lead: "lead", opportunities: "opportunity", opportunity: "opportunity",
   estimates: "estimate", estimate: "estimate", cases: "case", case: "case", invoices: "invoice", invoice: "invoice",
   assets: "asset", asset: "asset", suppliers: "supplier", supplier: "supplier", rfqs: "rfq", rfq: "rfq",

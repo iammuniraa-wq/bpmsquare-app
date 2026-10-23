@@ -15,7 +15,7 @@ import { allowedNovaTypes } from "@/lib/novaAccess";
 
 const LABEL: Record<string, string> = {
   accounts: "Account", contacts: "Contact", quotes: "Quotation",
-  standard_quotes: "Quote", cases: "Case", work_orders: "Work Order",
+  standard_quotes: "Quote", sales_orders: "Sales Order", cases: "Case", work_orders: "Work Order",
   invoices: "Invoice", assets: "Asset", suppliers: "Supplier",
   inventory: "Inventory item", purchase_orders: "Purchase Order", employees: "Employee",
   products: "Product", wfm_projects: "Project", opportunities: "Deal", rfqs: "RFQ", estimates: "Estimate", leads: "Lead",
@@ -26,6 +26,7 @@ const TABLE: Record<string, { table: string; nameCol: string; refCol?: string }>
   contacts:        { table: "contacts",         nameCol: "name", refCol: "ref" },
   quotes:          { table: "quotes",           nameCol: "ref" },
   standard_quotes: { table: "standard_quotes",  nameCol: "ref" },
+  sales_orders:    { table: "sales_orders",     nameCol: "ref" },
   cases:           { table: "service_cases",    nameCol: "ref" },
   work_orders:     { table: "work_orders",      nameCol: "ref" },
   invoices:        { table: "invoices",         nameCol: "ref" },

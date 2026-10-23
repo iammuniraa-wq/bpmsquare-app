@@ -121,6 +121,8 @@ export async function POST(request: NextRequest) {
         tax_percent: num(v.tax_percent),
         status: v.status || "active",
         ...(itemType ? { item_type: itemType } : {}),
+        // Named only when set, so a database without 0212 is never asked for it.
+        ...(num(v.lead_time_days) != null ? { lead_time_days: Math.max(0, Math.min(3650, Math.round(num(v.lead_time_days) as number))) } : {}),
         // Named only when set, so a database without 0118 is never asked for it.
         ...(breaks.breaks.length > 0 ? { qty_breaks: breaks.breaks } : {}),
         // Named only when set: a database without 0132 is never asked for it.
