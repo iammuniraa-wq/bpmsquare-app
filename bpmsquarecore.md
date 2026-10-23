@@ -278,6 +278,47 @@ deliberate skip and the exact SQL files the owner must run.
 
 ---
 
+## 3c. NEW OBJECT — ground rules for the experience (owner decision 2026-10-23)
+
+> Owner, before the Sales Order build: "These rules apply when we build any new object." Section 3b says which
+> surfaces to wire; this section says how the object must *feel* and *behave*. A design doc for a new object opens with
+> "What is already there" (6c) and answers each rule below in one line; a rule that does not apply says why.
+
+1. **Simple.** Few fields up front, sensible defaults, nothing the user does not need to decide.
+2. **Ease of use.** The common path is a few taps; the same word means the same thing on every object (6b).
+3. **Not crowded.** Labels, values and actions only; explanations behind the shared InfoTip. No running text.
+4. **Collapsible and expandable.** Sections open and close and remember their state; long lists page; a big form or
+   record splits into tabs (`useUrlTab`); a list shows a few rows plus "show all".
+5. **Pricing choice.** Where an object carries prices, each document chooses **internal** pricing (the pricing engine and
+   price lists, `priceDocumentLine`) or **external** pricing (entered by hand or supplied by the ERP, then read-only
+   where the ERP owns it). One switch on the document, one line saying where each price came from.
+6. **Documents and sending.** Every document object has a PDF and can be sent by email or WhatsApp from the record,
+   through the existing senders (`resolveOutbound`, the WhatsApp identity), and logged. Related documents link both ways
+   (quote to order, order to invoice), shown as one "Linked documents" strip.
+7. **Document flow.** A record can be born from the places the business starts it: an incoming email (shared inbox), a
+   lead, a deal, a standard quote or an earlier document. The source is stored (`source_*`) and shown.
+8. **AI by default.** Assistant slider read access and the `create_record` confirm card (or a stated reason it is
+   deferred in `src/lib/actions/registry.ts`), Talk to data (`LIST_SOURCES`), analytics tiles and reports, global search,
+   ⌘K, briefing facts, guide-mode `data-guide` ids on every control. Not an afterthought phase.
+9. **ERP integration.** Every object that has an ERP counterpart gets an entity row in the Integration middleware (Links,
+   Mapping, Resync) and shows only the ERP id line on the record (`ExternalRecordSlot`). Replicated-in records are
+   read-only here; records we send lock when the ERP accepts them. API and webhook only; no manual ERP steps.
+10. **Change log.** Create, update and delete logged with `logChange`; the actor shown as the person's name; the object in
+    the change-history filter; "via assistant / integration" where it applies.
+11. **Types per object.** An object that businesses use in several ways has **document types** (for example several order
+    types): each type carries its own numbering, default statuses, required fields, custom fields, **PDF design** and any
+    other customer attribute that changes the behaviour. A type is data a workspace edits, never a code branch. Reuse the
+    template mechanism of Standard Quote templates (`0054`) rather than inventing another.
+12. **Show the data in a considered way.** The record page is not a column of stacked fields. It opens with a visual
+    summary of what matters (state, progress, money, risk) that a person reads in seconds, and the detail sits behind it,
+    expandable. Each new object proposes its visual and shows a mock-up before building (the Sales Order record
+    page mock-up in `docs/design/sales-order.md` is the starting pattern).
+
+**Definition of done for a new object:** the design doc answers all twelve, the 3b list is complete, and the screens are
+checked at 375 px and on PC.
+
+---
+
 ## 4. Do not hallucinate
 
 Before writing ANY code, verify:
