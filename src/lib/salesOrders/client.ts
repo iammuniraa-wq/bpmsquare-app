@@ -45,6 +45,12 @@ export type OrderDetail = {
   erpDocuments: ErpDocument[];
   /** Signed no-login PDF link, when the server has one (for the WhatsApp message). */
   publicPdfLink: string | null;
+  /** The server's own answers about the lock (the same rule the PATCH route applies); null when it sent none. */
+  permissions: { editable: boolean; annotatable: boolean; deletable: boolean } | null;
+  /** Why the order is locked, in the server's words (so the chip, the greyed controls and a 409 agree). */
+  lockReason: string | null;
+  /** The quiet pricing line as the server words it, when it sent one. */
+  pricingLabel: string | null;
 };
 
 export type OrderLineInput = {
@@ -150,7 +156,8 @@ function readParty(v: unknown): OrderParty | null {
 export function readLine(v: unknown, index: number, orderId: string): SalesOrderLine | null {
   const r = rec(v);
   if (!r) return null;
-  const source = r.availability_source === "erp" || r.availability_source === "master" ? r.availability_source : null;
+  const rawSource = r.availability_source ?? r.source;
+  const source = rawSource === "erp" || rawSource === "master" ? rawSource : null;
   return {
     id: str(r.id) ?? `line-${index}`,
     order_id: str(r.order_id) ?? orderId,
@@ -168,7 +175,7 @@ export function readLine(v: unknown, index: number, orderId: string): SalesOrder
     confirmed_qty: numOrNull(r.confirmed_qty),
     confirmed_date: str(r.confirmed_date),
     availability_source: source,
-    availability_at: str(r.availability_at),
+    availability_at: str(r.availability_at) ?? str(r.checked_at),
   };
 }
 
@@ -296,10 +303,15 @@ export function readDetail(json: unknown): OrderDetail | null {
     erpAvailable: root.erp_available === true || root.erpAvailable === true,
     erpDocuments: arr(root.erp_documents ?? root.erpDocuments).flatMap((d) => { const x = readErpDocument(d); return x ? [x] : []; }),
     publicPdfLink: str(root.public_pdf_link) ?? str(root.publicPdfLink),
+    permissions: typeof root.editable === "boolean"
+      ? { editable: root.editable, annotatable: root.annotatable === true, deletable: root.deletable === true }
+      : null,
+    lockReason: str(root.lock_reason),
+    pricingLabel: str(root.pricing_label),
   };
 }
 
-export function readAttachment(v: unknown, orderId: string): (OrderAttachment & { created_by_name: string | null }) | null {
+export function readAttachment(v: unknown, orderId: string): (OrderAttachment & { created_by_name: string | null; href: string | null }) | null {
   const r = rec(v);
   if (!r) return null;
   const id = str(r.id);
@@ -310,6 +322,7 @@ export function readAttachment(v: unknown, orderId: string): (OrderAttachment & 
     id, order_id: str(r.order_id) ?? orderId, kind, type: r.type === "link" ? "link" : "file", name,
     ref: str(r.ref) ?? "", size_bytes: numOrNull(r.size_bytes), created_by: str(r.created_by), created_at: str(r.created_at) ?? "",
     created_by_name: str(r.created_by_name) ?? str(r.created_by_email),
+    href: str(r.href),
   };
 }
 

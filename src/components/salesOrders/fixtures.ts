@@ -28,13 +28,13 @@ export const invoice = (over: Partial<ErpDocument> = {}): ErpDocument => ({ id: 
 
 export const attachment = (over: Partial<Attachment> = {}): Attachment => ({
   id: "f1", order_id: "o1", kind: "customer_po", type: "file", name: "po-77123.pdf", ref: "t1/o1/po.pdf", size_bytes: 51200,
-  created_by: "u1", created_at: "2026-10-21T09:00:00Z", created_by_name: "Asha", ...over,
+  created_by: "u1", created_at: "2026-10-21T09:00:00Z", created_by_name: "Asha", href: null, ...over,
 });
 
 export const detail = (over: Partial<OrderDetail> = {}): OrderDetail => ({
   order: order(), lines: [line()], type: type(), account: { id: "a1", name: "Gulf Steel LLC", phone: "+971500000000", email: "buy@gulfsteel.example" },
   contact: { id: "c1", name: "Omar Haddad", phone: "+971500000001" }, source: { type: "standard_quote", id: "sq1", ref: "SQ-2026-0012" },
-  erpLinked: false, erpAvailable: false, erpDocuments: [], publicPdfLink: null, ...over,
+  erpLinked: false, erpAvailable: false, erpDocuments: [], publicPdfLink: null, permissions: null, lockReason: null, pricingLabel: null, ...over,
 });
 
 export const ROUTES_STUB = {

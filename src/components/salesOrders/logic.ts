@@ -185,6 +185,20 @@ export function availabilityRows(lines: SalesOrderLine[]): AvailRow[] {
   }));
 }
 
+const DAY = 86_400_000;
+const daysBetween = (from: string, to: string): number => Math.round((new Date(`${to}T00:00:00Z`).getTime() - new Date(`${from}T00:00:00Z`).getTime()) / DAY);
+const trim = (n: number) => String(Math.round(n * 1000) / 1000);
+
+/** The plain-words result for a row: "OK", "Short by 4", "Short by 4 · 9 days late", "Not checked". */
+export function rowNote(r: AvailRow): string {
+  const l = r.line;
+  if (r.state === "unchecked") return "Not checked";
+  const parts: string[] = [];
+  if (isShort(l)) parts.push(`Short by ${trim(l.qty - (l.confirmed_qty ?? 0))}`);
+  if (isLate(l) && l.requested_date && l.confirmed_date) { const d = daysBetween(l.requested_date, l.confirmed_date); parts.push(`${d} ${d === 1 ? "day" : "days"} late`); }
+  return parts.length > 0 ? parts.join(" · ") : "OK";
+}
+
 /** "stale" = there are confirmed values whose check time was cleared by an edit; "unchecked" = nothing was ever confirmed. */
 export function availabilityStatus(lines: SalesOrderLine[]): "unchecked" | "stale" | "fresh" {
   const confirmed = lines.some((l) => l.confirmed_qty !== null || l.confirmed_date !== null);
@@ -376,6 +390,19 @@ export function orderWhatsAppMessage(v: { customer: string; company: string; ref
     v.link ? `View it here: ${v.link}` : "",
     `Thank you,\n${v.company}`,
   ].filter(Boolean).join("\n\n");
+}
+
+// ── files and links ───────────────────────────────────────────────────────────
+
+export const KIND_LABEL = { customer_po: "Customer PO", drawing: "Drawing", other: "Other" } as const;
+
+/** A link must be an https address (the server checks again). Returns the problem, or null when it is fine. */
+export function linkProblem(raw: string): string | null {
+  const u = raw.trim();
+  if (!u) return "Paste the address of the file";
+  let url: URL;
+  try { url = new URL(u); } catch { return "That is not a web address"; }
+  return url.protocol === "https:" ? null : "Only https:// links are accepted";
 }
 
 // ── create form ───────────────────────────────────────────────────────────────
