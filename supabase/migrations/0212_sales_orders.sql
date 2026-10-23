@@ -170,3 +170,14 @@ create policy "sales_order_attachments: tenant isolation" on sales_order_attachm
 insert into storage.buckets (id, name, public)
 values ('order-attachments', 'order-attachments', false)
 on conflict (id) do nothing;
+
+-- An emailed order is logged in the Outbound Emails view as kind 'order' (email_log.kind has a CHECK list,
+-- last widened by 0125). Guarded: runs only where email_log exists; adds one value, removes none.
+do $$ begin
+  if to_regclass('public.email_log') is null then
+    return;
+  end if;
+  execute 'alter table email_log drop constraint if exists email_log_kind_check';
+  execute $c$alter table email_log add constraint email_log_kind_check
+    check (kind in ('quote', 'invoice', 'campaign', 'wfm', 'auth', 'rfq', 'order'))$c$;
+end $$;

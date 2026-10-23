@@ -8,7 +8,7 @@ import { paginate, clampPage, DEFAULT_PAGE_SIZE } from "@/lib/paginate";
 
 // Mirrors EmailLogKind (src/lib/emailLog.ts), redeclared here because that
 // module is server-only.
-type EmailKind = "quote" | "invoice" | "campaign" | "wfm" | "auth" | "rfq";
+type EmailKind = "quote" | "invoice" | "campaign" | "wfm" | "auth" | "rfq" | "order";
 
 // Invoice and RFQ were missing here as well as in the database's own CHECK
 // constraint (0125) -- so even once those rows start arriving, an admin could
@@ -17,6 +17,7 @@ const KINDS: { value: string; label: string }[] = [
   { value: "", label: "All channels" },
   { value: "quote", label: "Quote emails" },
   { value: "invoice", label: "Invoice emails" },
+  { value: "order", label: "Sales order emails" },
   { value: "rfq", label: "Supplier RFQs" },
   { value: "campaign", label: "Campaign sends" },
   { value: "wfm", label: "Workforce alerts" },
@@ -48,6 +49,7 @@ const KIND_LABEL: Record<EmailKind, string> = {
   quote: "Quote",
   invoice: "Invoice",
   rfq: "Supplier RFQ",
+  order: "Sales order",
   campaign: "Campaign",
   wfm: "Workforce",
   auth: "Password reset",
