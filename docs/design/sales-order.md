@@ -35,6 +35,21 @@
     - **Documents:** the linked-documents flow (email, quote, order, deliveries, invoices), each a link.
     - Phone: tabs scroll, blocks stack, the journey strip stays one row.
 
+## Final design (v3 mock-up, owner delegated the combination 2026-10-23)
+
+The best of each system, in BPMSquare's own shape:
+- **From SAP:** a **Check with ERP** step before sending (Simulate: price, credit, availability, nothing saved) and a separate **Send to ERP** (Transfer) with a transfer log on the ERP tab; availability as **schedule-line pairs** (asked and wanted-by against confirmed and date); availability marked **stale** when quantities change until checked again; delivery and billing sub-status next to the main status; a **document flow** graph.
+- **From Dynamics:** few, clear actions (Check, Send, PDF, Email, WhatsApp); deliveries and invoices as plain related records; partial fulfilment shown as "1 of 2".
+- **From Salesforce:** the **path** across the top (Draft, Sent, Submitted, Delivered, Invoiced, Paid) and a hub of linked records (Documents tab).
+- **BPMSquare's own:** one quiet pricing line (no toggle), source tags on every ERP-fed value (ERP read-only with fetch time, or Master data estimate), printed text per line, order types with their own PDF design, everything AI-ready.
+- **Tabs:** Overview (customer info, path, check chips, total), Lines, Availability, ERP, Documents (plus History). Mobile: tabs scroll, blocks stack.
+
+**Choices made without the owner (revisit if wrong):**
+- **Order-type selection:** an ordered list of rules per workspace (customer group, region, source quote type); the first match wins; otherwise the default type; the person can always change the type on a draft.
+- **Lead time:** a `lead_time_days` product custom field (products have none today). Master-data availability = stock on hand now, else today + lead time, labelled an estimate.
+- **Fetched invoices** are display-only on the order for now.
+- **Stale rule:** editing quantity, date or lines on a draft marks previous check results stale; Send to ERP re-runs the check automatically.
+
 ## Decisions made by the owner (2026-10-23)
 
 - Draft orders can be deleted; once sent, never.
