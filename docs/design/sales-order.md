@@ -19,20 +19,20 @@
 2. **Ease of use.** From a quote, "Create order" is one tap and copies lines and price source. Same words as quotes and invoices.
 3. **Not crowded.** The record opens on the visual page below; no field list; explanations behind InfoTip.
 4. **Collapsible.** Sections (Lines, Price, Linked documents, Customer and terms) open and close and remember it; lines page at 20; tabs on the full page: Overview, Lines, Documents, History.
-5. **Pricing choice.** Per order: **Internal** (price list and pricing engine, editable until sent) or **External** (entered, or supplied by the ERP and then read-only). One switch, one line saying where the prices came from. Replicated-in orders are always External.
+5. **Pricing mode is a company decision per order type, not a switch on the order.** The order type says Internal (price list and pricing engine) or External (supplied by the ERP, read-only). An order always uses its type's mode; an order made from a quote uses that quote's mode, so a quote priced internally gives an internally priced order. No Internal/External toggle on the order or the quote. The order shows one quiet line saying which it is. Line level: unit price, discount, tax and line total are primary columns; each line also has **printed text** that appears on the PDF.
 6. **PDF, email, WhatsApp, links.** PDF per order type (rule 11); Email and WhatsApp buttons on the record through the existing senders, logged; quote and order link both ways, shown in the Linked documents strip.
 7. **Document flow.** An order is created from: a Standard Quote or Quotation (accepted), a Deal, a Lead, an incoming email (shared inbox "Create order"), another order (copy), or directly. `source_type` and `source_id` are stored and shown.
 8. **AI by default.** Assistant reads orders; `create_record` card for "create an order for X from quote Y" (or deferral reason recorded); Talk to data source; analytics (orders by status, value, fulfilment, late promises); global search; ⌘K "New order"; briefing facts ("3 orders short on stock"); `data-guide` ids on every control.
 9. **ERP.** Entity row `sales_orders` in D365 and SAP (inbound with watermark, status back, webhook for near-real-time); ERP checks (credit, price, tax, ATP) as connector calls with Passed / Warning / Failed chips; origin `erp` is read-only; origin `bpmsquare` locks when the ERP accepts it. Config only on the middleware page.
 10. **Change log.** `logChange` on every mutation, object in the history filter, actor as a name, "via integration" when the ERP changed it.
 11. **Order types.** `sales_order_types` (data, edited in Settings): name, numbering format, default statuses and required fields, custom fields, PDF template (block list, accent, logo position, same mechanism as `0054`), default pricing mode, default ERP order type, and any customer attribute that selects it (for example customer group or region picks the type). A workspace can have several; the order shows its type as a chip. Settings has one screen: a table of types, a row opens a side panel (6c pattern 4).
-12. **Visual record page** (mock-up shown to the owner in chat):
-    - **Journey strip:** Draft, Checked, Sent, Submitted, Fulfilled, Invoiced as one segmented bar with the current step marked, replacing a status dropdown. Chips under it: Credit, Prices, Stock.
-    - **Lines at a glance:** each line is a bar split into shipped, available and short against the ordered quantity, not a table row of numbers; tap for price source and promise date.
-    - **Price waterfall:** list, discount, tax, total as proportional bars, with the Internal / External switch above it.
-    - **Linked documents strip:** email, quote, order, ERP order, invoice (planned, dashed), each a link.
-    - **Collapsed by default:** customer, delivery and terms.
-    - Phone: the same blocks stacked; the journey strip stays one row.
+12. **Visual record page** (mock-ups v1 and v2 shown to the owner in chat; v2 is the direction):
+    - **Tabs:** Overview, Lines, ERP, Documents, History (`useUrlTab`).
+    - **Overview:** the journey strip (Draft, Sent, Submitted, Delivered, Invoiced, Paid) as one segmented bar replacing a status dropdown, check chips under it (Credit, Price, Stock), the total with its one-line breakdown, and customer / delivery / terms collapsed.
+    - **Lines:** a real line table with unit price, discount, tax and line total per line, and an expandable **Printed text** per line for the PDF. No fulfilment bars: they only mean something when the ERP data is available, so that information lives in the ERP tab.
+    - **ERP:** deliveries and invoices (number, date, amount, status) read from the ERP, with "last synced" and a Refresh; shown only when the connection returns it; nothing editable.
+    - **Documents:** the linked-documents flow (email, quote, order, deliveries, invoices), each a link.
+    - Phone: tabs scroll, blocks stack, the journey strip stays one row.
 
 ## Statuses
 
@@ -42,9 +42,18 @@ Stored as the ERP's label plus a spine (open / in progress / completed / cancell
 
 `orderEditable(order)`: false when `origin = erp`, or when a `connector_links` row exists (the ERP accepted it), or when status is past Draft. PATCH, UI and API all call it. The same `origin` convention is reusable for invoices and POs.
 
+## ERP follow-up: deliveries and invoices after the order is sent
+
+**What exists:** scheduled pull jobs (`/api/connectors/cron/dynamics365` hourly, `sap_s4` hourly) that pull customers, vendors and products by watermark, the Resync tab, `connector_links`, the Monitor tab. **What does not:** any entity for orders, deliveries or invoices, so today nothing fetches an invoice after an order is sent.
+
+**Plan:** add three inbound entities to the connectors, each linked to the order by the ERP's own order reference (stored in `connector_links` when the ERP accepts it): `sales_order_status` (header state and status), `deliveries` (D365 Dataverse and F&O shipments or packing slips; SAP outbound deliveries) and `invoices` (customer invoices with amount, due date, paid state, and their payments). Two ways in, both configured only on the middleware page:
+1. **Follow-up job:** every cycle, for orders sent and not yet closed, ask the ERP for their related documents (a lookup by order id, so cost grows with open orders, not with the whole ERP). Closed orders drop out of the job.
+2. **ERP webhook:** the ERP calls the workspace's inbound endpoint on a status, delivery or invoice change, for near-real-time updates; the job stays as the safety net.
+Stored as read-only rows (`erp_documents`: order, kind, number, date, amount, status, raw reference), shown on the ERP tab and rolled up into the journey strip (Delivered, Invoiced, Paid). A Refresh button runs the same lookup for one order. The exact D365 tables and fields (Dataverse `invoice.salesorderid`, F&O packing slip and customer invoice journals) and the SAP document flow are **verified on the trial orgs before building**. Customer invoices fetched this way are shown against the order; creating BPMSquare invoices from them is a separate decision.
+
 ## Phasing
 
-SO1 object, types, PDF, send, link to quote, lock rule, 3b surfaces. SO2 D365 replication in, status back. SO3 ERP checks and send. SO4 SAP both ways.
+SO1 object, types, PDF, send, link to quote, lock rule, 3b surfaces. SO2 D365 replication in, status back, ERP tab (deliveries, invoices) and the follow-up job. SO3 ERP checks and send. SO4 SAP both ways.
 
 ## Open for the owner
 
