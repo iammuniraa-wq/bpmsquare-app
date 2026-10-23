@@ -38,7 +38,7 @@ export function WebConsentRow({ query, state, disabled, onChoice }: {
   return (
     <div style={card} role="group" aria-label="Search the web?">
       <div style={label}>Search the web? <InfoTip label="web search">{ASSISTANT_TIPS.webConsent}</InfoTip></div>
-      <div style={{ fontSize: 12.5, color: c.ink, lineHeight: 1.4, overflowWrap: "anywhere" }}>&ldquo;{query}&rdquo;</div>
+      <div style={{ fontSize: 12.5, color: c.ink, lineHeight: 1.4, overflowWrap: "anywhere" }}>&ldquo;{query.replace(/"/g, "")}&rdquo;</div>
       <div style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center" }}>
         <button className="bms-dock-chip" style={chip} disabled={disabled} onClick={() => onChoice("yes")}>Yes</button>
         <button className="bms-dock-chip" style={chip} disabled={disabled} onClick={() => onChoice("no")}>No</button>
