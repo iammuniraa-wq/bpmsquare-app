@@ -1012,11 +1012,13 @@ export async function getCaseLive(id: string) {
     { data: photos },
     { data: inspectionReport },
     { data: subCases },
+    { data: caseWorkOrders },
   ] = await Promise.all([
     supabase.from("service_cases").select("*, accounts(*), technicians(*), asset:asset_id(*), contracts(*), quotes(*)").eq("id", id).eq("tenant_id", tenantId).maybeSingle(),
     supabase.from("case_photos").select("*").eq("case_id", id).order("taken_at"),
     supabase.from("inspection_reports").select("*").eq("case_id", id).maybeSingle(),
     supabase.from("service_cases").select("*").eq("parent_case_id", id),
+    supabase.from("work_orders").select("id, ref, status, scheduled_for, technicians(name)").eq("case_id", id).eq("tenant_id", tenantId).order("created_at", { ascending: false }),
   ]);
 
   // Bail before returning anything derived from the sibling queries above --
@@ -1060,6 +1062,13 @@ export async function getCaseLive(id: string) {
     inspectionReport: (inspectionReport ?? null) as InspectionReport | null,
     loanerAsset,
     subCases: (subCases ?? []) as ServiceCase[],
+    workOrders: ((caseWorkOrders ?? []) as unknown as {
+      id: string; ref: string; status: WorkOrder["status"]; scheduled_for: string | null;
+      technicians: { name: string } | { name: string }[] | null;
+    }[]).map((w) => ({
+      id: w.id, ref: w.ref, status: w.status, scheduled_for: w.scheduled_for,
+      technician_name: (Array.isArray(w.technicians) ? w.technicians[0]?.name : w.technicians?.name) ?? null,
+    })),
   };
 }
 
