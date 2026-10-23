@@ -1,20 +1,14 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { requireTenantUser, getAuthUser } from "@/lib/supabase-server";
-import { tenantHasFeature } from "@/lib/tenant";
+import { getAuthUser, createAdminSupabase } from "@/lib/supabase-server";
 import { diffForLog, logChange } from "@/lib/changeLog";
+import { loadEmployeeImpact, describeImpact } from "@/lib/wfm/employeeImpact";
+import { reconcileObsoletePatch } from "@/lib/wfm/obsolete";
+import { tenantToday } from "@/lib/wfm/tenantToday";
+import { employeesAdminGuard as guard } from "../_guard";
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const cleanDate = (v: unknown) => (typeof v === "string" && DATE_RE.test(v) ? v : null);
 const cleanText = (v: unknown, max = 200) => (typeof v === "string" && v.trim() ? v.trim().slice(0, max) : null);
-
-async function guard() {
-  const { supabase, tenantId, role } = await requireTenantUser();
-  if (role !== "admin") throw { status: 403, message: "Forbidden" };
-  if (!(await tenantHasFeature(supabase, tenantId, "business_roles"))) {
-    throw { status: 403, message: "Business Roles isn't enabled for your workspace" };
-  }
-  return { supabase, tenantId };
-}
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   let supabase, tenantId;
@@ -47,6 +41,11 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   if ("valid_from" in body) patch.valid_from = cleanDate(body.valid_from);
   if ("valid_to" in body) patch.valid_to = cleanDate(body.valid_to);
   if ("status" in body) patch.status = body.status === "inactive" ? "inactive" : "active";
+  // Obsolete = inactive + valid_to; keep the two telling one story (making
+  // obsolete stamps today, making active again clears that date).
+  if ("status" in body || "valid_to" in body) {
+    reconcileObsoletePatch(before as { status: string; valid_to: string | null }, patch, await tenantToday(tenantId));
+  }
   // Custom-field values (cf_* keys only, same shape the CRM objects accept).
   if (typeof body.custom_data === "object" && body.custom_data !== null && !Array.isArray(body.custom_data)) {
     patch.custom_data = Object.fromEntries(
@@ -91,6 +90,28 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
   const { id } = await params;
   const { data: employee } = await supabase.from("employees").select("first_name, last_name").eq("id", id).eq("tenant_id", tenantId).maybeSingle();
   if (!employee) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  // Every WFM table cascades from employees, so a delete would silently erase
+  // the person's punches, leave and overtime (BIM, 2026-10-23). With any work
+  // data on file the only way out is Make obsolete. Checked here, not just in
+  // the dialog, and fail closed if the counts can't be read.
+  let impact;
+  try {
+    impact = await loadEmployeeImpact(createAdminSupabase(), tenantId, id);
+  } catch (e) {
+    console.error("employee delete: impact check failed:", (e as Error).message);
+    return NextResponse.json({ error: "Could not check this employee's records, so nothing was deleted" }, { status: 500 });
+  }
+  if (impact.total > 0) {
+    return NextResponse.json(
+      {
+        error: `This employee has ${describeImpact(impact).join(", ")} on file. It can't be deleted; make the employee obsolete instead.`,
+        code: "has_work_data",
+        impact,
+      },
+      { status: 409 }
+    );
+  }
 
   // tenant_users.employee_id is ON DELETE SET NULL -- deleting the employee
   // record never deletes or locks the login; it just unlinks it. Locking is

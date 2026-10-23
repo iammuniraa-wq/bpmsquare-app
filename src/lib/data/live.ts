@@ -2362,7 +2362,7 @@ const SEARCH_SPECS: SearchSpec[] = [
       title: [r.first_name, r.last_name].filter(Boolean).join(" ") || r.employee_code || "Employee",
       // Leads with the employee code so two same-named people (or an
       // accidental duplicate record) are tellable apart in search results.
-      subtitle: [r.employee_code, r.designation, r.department, r.status === "inactive" ? "Inactive" : null].filter(Boolean).join(" · ") || "Employee",
+      subtitle: [r.employee_code, r.designation, r.department, r.status === "inactive" ? "Obsolete" : null].filter(Boolean).join(" · ") || "Employee",
       href: ROUTES.wfmEmployee(r.id),
       matched: "name",
     }),

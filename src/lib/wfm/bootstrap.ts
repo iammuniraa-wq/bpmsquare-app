@@ -2,6 +2,7 @@ import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { scopeEmployeeIds, type WfmScope } from "./scope";
+import { markObsoleteEmbeds } from "./obsolete";
 
 // Shared payload builders for the WFM screens' bootstrap data -- each one
 // produces EXACTLY what the corresponding /api/wfm/* GET route returns, and
@@ -27,7 +28,7 @@ export async function wfmEmployeesPayload(supabase: SupabaseClient, tenantId: st
     supabase
       .from("employees")
       .select(
-        "id, employee_code, first_name, last_name, phone, status, employment_type, wfm_role, shift_id, site_id, supervisor_id, consent_recorded_at, custom_data, wfm_shifts(name), wfm_sites!site_id(name)"
+        "id, employee_code, first_name, last_name, phone, status, valid_from, valid_to, employment_type, wfm_role, shift_id, site_id, supervisor_id, consent_recorded_at, custom_data, wfm_shifts(name), wfm_sites!site_id(name)"
       )
       .eq("tenant_id", tenantId)
       .order("employee_code"),
@@ -154,13 +155,13 @@ export async function wfmLeaveRecordsPayload(
 ) {
   let query = supabase
     .from("wfm_leave_records")
-    .select("id, employee_id, leave_type_id, date_from, date_to, half_day, remarks, created_at, employees(first_name, last_name, employee_code), wfm_leave_types(name, category)")
+    .select("id, employee_id, leave_type_id, date_from, date_to, half_day, remarks, created_at, employees(first_name, last_name, employee_code, status), wfm_leave_types(name, category)")
     .eq("tenant_id", tenantId)
     .order("date_from", { ascending: false });
   const scoped = scope ? scopeEmployeeIds(scope) : null;
   if (scoped) query = query.in("employee_id", scoped);
   if (employeeId) query = query.eq("employee_id", employeeId);
-  return orThrow(await query);
+  return markObsoleteEmbeds(orThrow(await query));
 }
 
 /** Supervisor-shaped select (includes employee identity join). */
@@ -171,14 +172,14 @@ export async function wfmLeaveRequestsPayload(
 ) {
   let query = supabase
     .from("wfm_leave_requests")
-    .select("*, employees(first_name, last_name, employee_code), wfm_leave_types(name, category)")
+    .select("*, employees(first_name, last_name, employee_code, status), wfm_leave_types(name, category)")
     .eq("tenant_id", tenantId)
     .order("created_at", { ascending: false });
   const scoped = opts.scope ? scopeEmployeeIds(opts.scope) : null;
   if (scoped) query = query.in("employee_id", scoped);
   if (opts.employeeId) query = query.eq("employee_id", opts.employeeId);
   if (opts.status) query = query.eq("status", opts.status);
-  return orThrow(await query);
+  return markObsoleteEmbeds(orThrow(await query));
 }
 
 /** Supervisor-shaped select (includes employee identity join). */
@@ -189,12 +190,12 @@ export async function wfmCorrectionsPayload(
 ) {
   let query = supabase
     .from("wfm_correction_requests")
-    .select("*, employees(first_name, last_name, employee_code)")
+    .select("*, employees(first_name, last_name, employee_code, status)")
     .eq("tenant_id", tenantId)
     .order("created_at", { ascending: false });
   if (opts.employeeId) query = query.eq("employee_id", opts.employeeId);
   if (opts.status) query = query.eq("status", opts.status);
-  return orThrow(await query);
+  return markObsoleteEmbeds(orThrow(await query));
 }
 
 /** Supervisor-shaped select (includes employee identity join). */
@@ -205,12 +206,12 @@ export async function wfmRecheckPayload(
 ) {
   let query = supabase
     .from("wfm_recheck_requests")
-    .select("*, employees(first_name, last_name, employee_code)")
+    .select("*, employees(first_name, last_name, employee_code, status)")
     .eq("tenant_id", tenantId)
     .order("created_at", { ascending: false });
   if (opts.employeeId) query = query.eq("employee_id", opts.employeeId);
   if (opts.status) query = query.eq("status", opts.status);
-  return orThrow(await query);
+  return markObsoleteEmbeds(orThrow(await query));
 }
 
 export async function wfmRosterPayload(
@@ -223,7 +224,7 @@ export async function wfmRosterPayload(
   const BASE =
     "id, employee_id, date, shift_id, site_id, is_day_off, note, " +
     "wfm_shifts(name, start_time, end_time, is_night_shift), wfm_sites(name), " +
-    "employees(first_name, last_name, employee_code)";
+    "employees(first_name, last_name, employee_code, status)";
 
   const run = (select: string) => {
     let q = supabase
@@ -244,6 +245,6 @@ export async function wfmRosterPayload(
   // Project column after a reload while the same data was present via the
   // API. One select or the other; never a half-populated row.
   const withProject = await run(`${BASE}, project_id, wfm_projects(name)`);
-  if (!withProject.error) return withProject.data ?? [];
-  return orThrow(await run(BASE));
+  if (!withProject.error) return markObsoleteEmbeds(withProject.data ?? []);
+  return markObsoleteEmbeds(orThrow(await run(BASE)));
 }

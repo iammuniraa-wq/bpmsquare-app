@@ -5,6 +5,7 @@ import { tenantHasFeature } from "@/lib/tenant";
 import { getWfmConfig } from "@/lib/wfm/server";
 import { loadProjectSessions, sessionDay } from "@/lib/wfm/projectHoursServer";
 import { resolveBillRate, periodsOverlap, round2 } from "@/lib/wfm/billing";
+import { obsoleteLabel } from "./obsolete";
 import type { QueryableField } from "@/lib/api/query";
 
 // "Project hours" as a flat, queryable object: ONE ROW PER WORK SESSION,
@@ -72,7 +73,7 @@ export async function loadProjectHoursRows(tenantId: string): Promise<Record<str
     getWfmConfig(admin, tenantId),
     loadProjectSessions(admin, tenantId, from, to, null),
     admin.from("wfm_projects").select("id, ref, name, parent_id, account_id, status, bill_rate").eq("tenant_id", tenantId),
-    admin.from("employees").select("id, first_name, last_name, employee_code, employment_type").eq("tenant_id", tenantId),
+    admin.from("employees").select("id, first_name, last_name, employee_code, employment_type, status").eq("tenant_id", tenantId),
     admin.from("wfm_project_invoices").select("project_id, period_from, period_to, invoices!inner(status)").eq("tenant_id", tenantId),
   ]);
   if ("pending_migration" in loaded) return [];
@@ -116,7 +117,7 @@ export async function loadProjectHoursRows(tenantId: string): Promise<Record<str
   const rows: Record<string, unknown>[] = [];
   for (const emp of loaded.sessions) {
     const e = empById.get(emp.employee_id);
-    const name = e ? [e.first_name, e.last_name].filter(Boolean).join(" ") : "Unknown";
+    const name = e ? obsoleteLabel([e.first_name, e.last_name].filter(Boolean).join(" "), e) : "Unknown";
     const type = (e?.employment_type as string | null) ?? null;
     for (const s of emp.sessions) {
       const minutes = config.deduct_breaks ? s.net_minutes : s.gross_minutes;

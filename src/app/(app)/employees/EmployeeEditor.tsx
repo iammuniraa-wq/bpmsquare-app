@@ -9,6 +9,8 @@ import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
 import Field from "@/components/ui/Field";
 import { Input, Select } from "@/components/ui/Input";
+import RemoveEmployeeDialog from "./RemoveEmployeeDialog";
+import { restoreNote } from "@/lib/wfm/obsolete";
 
 type Draft = {
   first_name: string; last_name: string; employee_code: string; email: string;
@@ -74,10 +76,10 @@ function EmployeeDialog({ employee, onClose }: { employee: Employee | null; onCl
             <Field label="Designation"><Input value={draft.designation} onChange={(e) => setDraft({ ...draft, designation: e.target.value })} /></Field>
             <Field label="Valid from"><Input type="date" value={draft.valid_from} onChange={(e) => setDraft({ ...draft, valid_from: e.target.value })} /></Field>
             <Field label="Valid to"><Input type="date" value={draft.valid_to} onChange={(e) => setDraft({ ...draft, valid_to: e.target.value })} /></Field>
-            <Field label="Status">
+            <Field label="Status" info="Obsolete employees stay in reports up to their Valid to date, then drop out. Valid dates on an active employee are not enforced in reports.">
               <Select value={draft.status} onChange={(e) => setDraft({ ...draft, status: e.target.value as Draft["status"] })}>
                 <option value="active">Active</option>
-                <option value="inactive">Inactive</option>
+                <option value="inactive">Obsolete</option>
               </Select>
             </Field>
           </div>
@@ -112,21 +114,27 @@ export function EmployeeRowActions({ employee }: { employee: Employee }) {
   const router = useRouter();
   const { confirm, toast } = useFeel();
   const [editing, setEditing] = useState(false);
+  const [removing, setRemoving] = useState(false);
+  const obsolete = employee.status === "inactive";
 
-  async function remove() {
-    if (!(await confirm({ title: `Delete ${employee.first_name} ${employee.last_name}?`, body: "A business user linked to this employee keeps their login, but loses the employee link.", tone: "danger" }))) return;
-    const res = await fetch(`/api/employees/${employee.id}`, { method: "DELETE" });
+  async function reactivate() {
+    const today = new Date().toLocaleDateString("en-CA");
+    const note = restoreNote(employee.valid_to, today);
+    if (!(await confirm({ title: `Make ${employee.first_name} ${employee.last_name} active again?`, body: note || undefined }))) return;
+    const res = await fetch(`/api/employees/${employee.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: "active" }) });
     if (res.ok) router.refresh();
-    else { const j = await res.json().catch(() => ({})); toast({ text: j.error ?? "Failed to delete employee", tone: "error" }); }
+    else { const j = await res.json().catch(() => ({})); toast({ text: j.error ?? "Failed to update employee", tone: "error" }); }
   }
 
   return (
     <>
       <span style={{ display: "inline-flex", gap: 4, whiteSpace: "nowrap" }}>
         <Button variant="quiet" size="sm" onClick={() => setEditing(true)}>Edit</Button>
-        <Button variant="quiet" size="sm" onClick={() => { void remove(); }} style={{ color: "var(--err-ink)" }}>Delete</Button>
+        {obsolete && <Button variant="quiet" size="sm" onClick={() => { void reactivate(); }}>Make active</Button>}
+        <Button variant="quiet" size="sm" onClick={() => setRemoving(true)} style={{ color: "var(--err-ink)" }}>Delete</Button>
       </span>
       {editing && <EmployeeDialog employee={employee} onClose={() => setEditing(false)} />}
+      {removing && <RemoveEmployeeDialog employee={employee} onClose={() => setRemoving(false)} />}
     </>
   );
 }

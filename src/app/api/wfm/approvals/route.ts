@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createAdminSupabase } from "@/lib/supabase-server";
 import { requireWfmSupervisor } from "@/lib/wfm/server";
+import { obsoleteLabel } from "@/lib/wfm/obsolete";
 import { resolveWfmScope } from "@/lib/wfm/scope";
 
 
@@ -39,7 +40,7 @@ export async function GET() {
     scoped(
       admin
         .from("wfm_correction_requests")
-        .select("id, target_date, created_at, employees(first_name, last_name)", { count: "exact" })
+        .select("id, target_date, created_at, employees(first_name, last_name, status)", { count: "exact" })
         .eq("tenant_id", ctx.tenantId)
         .eq("status", "pending")
         .order("created_at", { ascending: false })
@@ -48,7 +49,7 @@ export async function GET() {
     scoped(
       admin
         .from("wfm_leave_requests")
-        .select("id, date_from, date_to, created_at, employees(first_name, last_name)", { count: "exact" })
+        .select("id, date_from, date_to, created_at, employees(first_name, last_name, status)", { count: "exact" })
         .eq("tenant_id", ctx.tenantId)
         .eq("status", "pending")
         .order("created_at", { ascending: false })
@@ -57,7 +58,7 @@ export async function GET() {
     scoped(
       admin
         .from("wfm_ot_sessions")
-        .select("id, ot_date, minutes, employees(first_name, last_name)", { count: "exact" })
+        .select("id, ot_date, minutes, employees(first_name, last_name, status)", { count: "exact" })
         .eq("tenant_id", ctx.tenantId)
         .eq("status", "pending")
         .order("started_at", { ascending: false })
@@ -66,7 +67,7 @@ export async function GET() {
     scoped(
       admin
         .from("wfm_advance_requests")
-        .select("id, kind, date_from, date_to, employees(first_name, last_name)", { count: "exact" })
+        .select("id, kind, date_from, date_to, employees(first_name, last_name, status)", { count: "exact" })
         .eq("tenant_id", ctx.tenantId)
         .eq("status", "pending")
         .order("created_at", { ascending: false })
@@ -75,7 +76,7 @@ export async function GET() {
     scoped(
       admin
         .from("wfm_clarification_threads")
-        .select("id, subject, updated_at, employees(first_name, last_name)", { count: "exact" })
+        .select("id, subject, updated_at, employees(first_name, last_name, status)", { count: "exact" })
         .eq("tenant_id", ctx.tenantId)
         .eq("status", "open")
         .order("updated_at", { ascending: false })
@@ -84,8 +85,9 @@ export async function GET() {
   ]);
 
   const name = (e: unknown): string => {
-    const emp = (Array.isArray(e) ? e[0] : e) as { first_name?: string; last_name?: string } | null;
-    return [emp?.first_name, emp?.last_name].filter(Boolean).join(" ") || "—";
+    const emp = (Array.isArray(e) ? e[0] : e) as { first_name?: string; last_name?: string; status?: string } | null;
+    const full = [emp?.first_name, emp?.last_name].filter(Boolean).join(" ");
+    return full ? obsoleteLabel(full, emp ?? {}) : "—";
   };
 
   return NextResponse.json({

@@ -1,5 +1,6 @@
 "use client";
 
+import { isEmployeeActiveOn, localToday } from "@/lib/wfm/obsolete";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { c, statusInk } from "@/lib/theme";
@@ -72,6 +73,7 @@ type EmployeeRow = {
   shift_id: string | null;
   site_id: string | null;
   status: string;
+  valid_to?: string | null;
 };
 
 type OverrideRow = {
@@ -205,7 +207,7 @@ function EmployeePicker({ employees, sites, shifts, selected, onChange }: {
   // Site AND shift, because "everyone on the second shift at Hosapete" is
   // exactly the group a supervisor moves in one go.
   const visible = employees.filter((e) =>
-    e.status === "active" &&
+    isEmployeeActiveOn(e, localToday()) &&
     (!needle || empName(e).toLowerCase().includes(needle) || (e.employee_code ?? "").toLowerCase().includes(needle)) &&
     (!site || (site === UNASSIGNED ? e.site_id === null : e.site_id === site)) &&
     (!shift || (shift === UNASSIGNED ? e.shift_id === null : e.shift_id === shift))
@@ -407,7 +409,7 @@ export default function RosterClient({ initial = null }: {
     // shift/site are left blank per row for them to fill in (or delete rows
     // for anyone not being rostered this time).
     const activeEmployees = employees
-      .filter((e) => e.status === "active")
+      .filter((e) => isEmployeeActiveOn(e, localToday()))
       .sort((a, b) => `${a.first_name} ${a.last_name}`.localeCompare(`${b.first_name} ${b.last_name}`));
     const header = "Employee Code,Employee Name,Date From,Date To,Shift,Site,Day Off,Note";
     const rows = activeEmployees.length > 0
@@ -457,7 +459,7 @@ export default function RosterClient({ initial = null }: {
   const qA = searchA.trim().toLowerCase();
   const visibleEmployeesA = useMemo(
     () => employees.filter((e) =>
-      e.status === "active" &&
+      isEmployeeActiveOn(e, localToday()) &&
       (!qA || empName(e).toLowerCase().includes(qA) || (e.employee_code ?? "").toLowerCase().includes(qA)) &&
       (!siteFilterA || (siteFilterA === UNASSIGNED ? effectiveSite(e) === null : effectiveSite(e) === siteFilterA))
     ),

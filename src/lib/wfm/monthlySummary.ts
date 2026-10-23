@@ -8,6 +8,7 @@ import { computeDayHours, shiftDayKey, workSessions, overnightTail, type BreakSe
 import type { PresenceKind } from "./types";
 import { paidWithinMonthlyAllowance } from "./leaveRules";
 import { isSecondSaturday } from "./saturdayRule";
+import { clipDatesToValidity, inRangeOrFilter, isEmployeeInRange, isObsolete, obsoleteLabel } from "./obsolete";
 
 // Shared per-employee-per-month aggregation — the one place the "rules
 // engine" (§6) actually runs across a whole month, used by BOTH the
@@ -57,7 +58,10 @@ export type EmployeeDayRecord = {
 export type EmployeeMonthSummary = {
   employee_id: string;
   employee_code: string | null;
+  /** "Name (obsolete)" for an obsolete employee, so reports and history say so. */
   full_name: string;
+  /** Made obsolete (inactive + valid_to): `days` stops at valid_to. */
+  obsolete?: boolean;
   /** Tenant-configured employment-type code (WfmConfig.employment_types). */
   employment_type: string;
   shift_name: string | null;
@@ -205,7 +209,8 @@ function weekdayIndex(dateKey: string, timezone: string): number {
  * Per-employee, per-day rules-engine pass for one calendar month. Pass
  * `employeeIds` to scope to specific employees (e.g. the calling
  * employee's own timesheet); omit for every active employee (the admin
- * monthly summary).
+ * monthly summary). Obsolete employees are included for the days up to and
+ * including their valid_to (see ./obsolete).
  */
 export async function getMonthlySummary(
   tenantId: string,
@@ -246,9 +251,11 @@ async function buildSummaries(
 
   let employeeQuery = admin
     .from("employees")
-    .select("id, employee_code, first_name, last_name, employment_type, shift_id, site_id, status")
+    .select("id, employee_code, first_name, last_name, employment_type, shift_id, site_id, status, valid_to")
     .eq("tenant_id", tenantId)
-    .eq("status", "active");
+    // Active employees, plus obsolete ones whose valid_to falls on or after
+    // the first day of this report; their later days are clipped below.
+    .or(inRangeOrFilter(dates[0]));
   // `undefined` is the ONLY "unrestricted" signal. An empty array means
   // "this scoped caller may see nobody" -- it must yield zero rows, never
   // fall through to the whole tenant. (A zero-scope supervisor -- one with
@@ -294,7 +301,9 @@ async function buildSummaries(
       .lte("date", dates[dates.length - 1]),
   ]);
 
-  const employeeRows = employees ?? [];
+  const rangeFrom = dates[0];
+  const rangeTo = dates[dates.length - 1];
+  const employeeRows = (employees ?? []).filter((e) => isEmployeeInRange(e, rangeFrom, rangeTo));
   if (employeeRows.length === 0) return [];
 
   const shiftById = new Map((shifts ?? []).map((s) => [s.id, s]));
@@ -419,7 +428,9 @@ async function buildSummaries(
       else eventsByDay.set(key, [e]);
     }
 
-    const days: EmployeeDayRecord[] = dates.map((date) => {
+    // An obsolete employee counts up to and including valid_to; later days
+    // are dropped, so they add no absences and never show on a later day.
+    const days: EmployeeDayRecord[] = clipDatesToValidity(dates, emp).map((date) => {
       const effective = resolveShift(emp.id as string, date);
       const dayShift = effective.shift;
       const dayEvents = eventsByDay.get(date) ?? [];
@@ -519,7 +530,8 @@ async function buildSummaries(
     return {
       employee_id: emp.id,
       employee_code: emp.employee_code,
-      full_name: [emp.first_name, emp.last_name].filter(Boolean).join(" "),
+      full_name: obsoleteLabel([emp.first_name, emp.last_name].filter(Boolean).join(" "), emp),
+      obsolete: isObsolete(emp),
       employment_type: emp.employment_type,
       shift_name: shift?.name ?? null,
       site_id: emp.site_id ?? null,

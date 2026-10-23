@@ -13,12 +13,13 @@ import { isWithinEditWindow } from "@/lib/wfm/timeCorrection";
 import ObjectSections from "@/components/fields/ObjectSections";
 import { ROUTES } from "@/lib/constants";
 import { groupSpans, type Span } from "@/lib/wfm/rosterSpans";
+import { isEmployeeActiveOn, localToday, statusLabel } from "@/lib/wfm/obsolete";
 import type {
   WfmShift, WfmSite, CorrectionIssue, WfmCorrectionRequest, WfmLeaveRequest, WfmRecheckRequest,
 } from "@/lib/wfm/types";
 
 type Person = { id: string; first_name: string; last_name: string };
-type EmployeeOpt = Person & { employee_code: string | null; wfm_role: "employee" | "supervisor" };
+type EmployeeOpt = Person & { employee_code: string | null; wfm_role: "employee" | "supervisor"; status?: string; valid_to?: string | null };
 
 type DayRecord = {
   date: string; first_in: string | null; last_out: string | null;
@@ -38,7 +39,7 @@ type LeaveBalanceRow = { leave_type_id: string; name: string; category: string; 
 
 type Profile = {
   id: string; employee_code: string | null; first_name: string; last_name: string; phone: string | null;
-  status: "active" | "inactive"; employment_type: string; wfm_role: "employee" | "supervisor";
+  status: "active" | "inactive"; valid_from?: string | null; valid_to?: string | null; employment_type: string; wfm_role: "employee" | "supervisor";
   supervisor_id: string | null; consent_recorded_at: string | null;
   custom_data?: Record<string, unknown> | null;
   wfm_shifts: { id: string; name: string; start_time: string; end_time: string; is_night_shift: boolean } | { id: string; name: string; start_time: string; end_time: string; is_night_shift: boolean }[] | null;
@@ -221,7 +222,7 @@ export default function EmployeeHubClient({ employeeId, initialProfile = null, i
     await loadCore(month);
     if (shiftRes.ok) setShifts(await shiftRes.json());
     if (siteRes.ok) setSites(await siteRes.json());
-    if (empRes.ok) setSupervisors((await empRes.json()).filter((e: EmployeeOpt) => e.wfm_role === "supervisor" && e.id !== employeeId));
+    if (empRes.ok) setSupervisors((await empRes.json()).filter((e: EmployeeOpt) => e.wfm_role === "supervisor" && e.id !== employeeId && isEmployeeActiveOn(e, localToday())));
     if (rosterRes.ok) setUpcoming(await rosterRes.json());
     if (corrRes.ok) setCorrections(await corrRes.json());
     if (leaveReqRes.ok) setLeaveRequests(await leaveReqRes.json());
@@ -347,7 +348,10 @@ export default function EmployeeHubClient({ employeeId, initialProfile = null, i
           <div style={{ minWidth: 0 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
               <h1 style={{ fontSize: 19, fontWeight: 800, color: c.ink, margin: 0 }}>{fullName}</h1>
-              <Pill label={profile.status === "active" ? "Active" : "Inactive"} tone={profile.status === "active" ? "green" : "red"} />
+              <Pill label={statusLabel(profile)} tone={profile.status === "active" ? "green" : "red"} />
+              {(profile.valid_from || profile.valid_to) && (
+                <span style={{ fontSize: 12, color: c.muted }}>Valid {profile.valid_from ?? "…"} – {profile.valid_to ?? "…"}</span>
+              )}
               <Pill label={profile.wfm_role === "supervisor" ? "Supervisor" : "Employee"} tone={profile.wfm_role === "supervisor" ? "purple" : "teal"} />
               {!profile.has_login && <Pill label="No login" tone="amber" />}
             </div>
@@ -467,7 +471,7 @@ export default function EmployeeHubClient({ employeeId, initialProfile = null, i
               <label style={lbl}>Status</label>
               <select style={inp} value={draft.status} onChange={(e) => setDraft({ ...draft, status: e.target.value as "active" | "inactive" })}>
                 <option value="active">Active</option>
-                <option value="inactive">Inactive</option>
+                <option value="inactive">Obsolete</option>
               </select>
             </div>
             <div style={{ display: "flex", alignItems: "flex-end" }}>

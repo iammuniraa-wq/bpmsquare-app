@@ -1,5 +1,7 @@
 "use client";
 
+import { isEmployeeActiveOn, localToday } from "@/lib/wfm/obsolete";
+
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -252,7 +254,7 @@ export default function ProjectForm({
       setSites(s.map((x: { id: string; name: string }) => ({ id: x.id, name: x.name })));
       setEmployees(
         e
-          .filter((x: { status?: string }) => x.status !== "inactive")
+          .filter((x: { status?: string; valid_to?: string | null }) => isEmployeeActiveOn(x, localToday()))
           .map((x: { id: string; first_name: string; last_name: string; employee_code: string | null }) => ({
             id: x.id,
             name: [x.first_name, x.last_name].filter(Boolean).join(" ") + (x.employee_code ? ` (${x.employee_code})` : ""),
