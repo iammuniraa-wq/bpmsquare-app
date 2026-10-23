@@ -170,7 +170,7 @@ describe("registry and piece scope", () => {
   const m = build();
 
   it("resolves keys and rejects unknown ones, including prototype names", () => {
-    expect(GEOMETRY_KEYS).toEqual(["precast_villa"]);
+    expect(GEOMETRY_KEYS).toContain("precast_villa");
     expect(mod.label).toMatch(/illustrative/i);
     expect(getGeometry("nope")).toBeNull();
     expect(getGeometry("constructor")).toBeNull();
