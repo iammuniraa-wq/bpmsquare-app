@@ -200,6 +200,7 @@ describe("the document flow", () => {
     expect(across.links).toHaveLength(m.links.length);
     expect(across.links[0].d).toMatch(/^M[\d.]+,[\d.]+ C/);
     expect(across.width).toBe(FLOW_BOX.pad * 2 + 4 * FLOW_BOX.w + 3 * FLOW_BOX.gapAlong);
+    expect(layoutFlow(documentFlow(detail({ erpDocuments: [delivery(), delivery({ id: "d2", number: "DL-2" })] }), ROUTES_STUB), "down").width).toBeLessThanOrEqual(311);
     const down = layoutFlow(m, "down");
     const dOrder = down.nodes.find((n) => n.id === "order")!;
     const dDel = down.nodes.find((n) => n.id === "delivery-d1")!;

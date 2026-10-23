@@ -351,17 +351,19 @@ export function documentFlow(d: Pick<OrderDetail, "order" | "erpDocuments" | "so
 
 export type Orientation = "across" | "down";
 export const FLOW_BOX = { w: 156, h: 62, gapAlong: 52, gapAcross: 16, pad: 8 };
+/** Top to bottom is for a phone: narrower boxes, so two deliveries side by side still fit a 375px card without scrolling. */
+export const FLOW_BOX_DOWN = { w: 134, h: 62, gapAlong: 34, gapAcross: 12, pad: 6 };
 
 export type FlowLayout = {
-  width: number; height: number; orientation: Orientation;
+  width: number; height: number; orientation: Orientation; box: { w: number; h: number };
   nodes: (FlowNode & { x: number; y: number })[];
   links: (FlowLink & { d: string })[];
 };
 
 /** Positions the boxes and draws each link as a curve. "across" flows left to right; "down" flows top to bottom (phones). */
 export function layoutFlow(m: FlowModel, orientation: Orientation): FlowLayout {
-  const { w, h, gapAlong, gapAcross, pad } = FLOW_BOX;
   const across = orientation === "across";
+  const { w, h, gapAlong, gapAcross, pad } = across ? FLOW_BOX : FLOW_BOX_DOWN;
   const place = (n: FlowNode) => across
     ? { x: pad + n.col * (w + gapAlong), y: pad + n.row * (h + gapAcross) }
     : { x: pad + n.row * (w + gapAcross), y: pad + n.col * (h + gapAlong) };
@@ -378,7 +380,7 @@ export function layoutFlow(m: FlowModel, orientation: Orientation): FlowLayout {
   });
   const width = across ? pad * 2 + m.cols * w + (m.cols - 1) * gapAlong : pad * 2 + m.rows * w + (m.rows - 1) * gapAcross;
   const height = across ? pad * 2 + m.rows * h + (m.rows - 1) * gapAcross : pad * 2 + m.cols * h + (m.cols - 1) * gapAlong;
-  return { width, height, orientation, nodes, links };
+  return { width, height, orientation, box: { w, h }, nodes, links };
 }
 
 // ── files and links ───────────────────────────────────────────────────────────

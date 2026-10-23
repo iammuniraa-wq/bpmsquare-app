@@ -173,6 +173,7 @@
   .linkBtn { min-height: 44px; }
   .actions :global(.bpm-btn), .fileRow :global(.bpm-btn), .banner .bannerLink { min-height: 44px; }
   .pickItem { min-height: 48px; }
+  .screen :global(.bpm-input), .formShell :global(.bpm-input) { min-height: 44px; }
   .ruleRow { grid-template-columns: 1fr; }
   .shell :global(.bpm-btn), .blockRow :global(.bpm-btn), .ruleRow :global(.bpm-btn) { min-height: 44px; }
   /* the primary action sits in the one standard place on a phone: a bar at the bottom edge */

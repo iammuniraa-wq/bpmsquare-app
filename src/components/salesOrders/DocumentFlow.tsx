@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { FLOW_BOX, layoutFlow, type FlowLayout, type FlowModel, type FlowTone, type Orientation } from "./logic";
+import { layoutFlow, type FlowLayout, type FlowModel, type FlowTone, type Orientation } from "./logic";
 import { fmtMoney } from "./money";
 import s from "./salesOrders.module.css";
 
@@ -7,17 +7,17 @@ const DOT: Record<FlowTone, string> = { done: s.dotDone, active: s.dotActive, ba
 
 const clip = (t: string, n: number) => (t.length > n ? `${t.slice(0, n - 1)}…` : t);
 
-function Node({ n, currency }: { n: FlowLayout["nodes"][number]; currency: string }) {
-  const { w, h } = FLOW_BOX;
+function Node({ n, currency, dims, narrow }: { n: FlowLayout["nodes"][number]; currency: string; dims: FlowLayout["box"]; narrow: boolean }) {
+  const { w, h } = dims;
   const amount = n.amount !== null ? fmtMoney(n.amount, currency) : "";
   const label = [n.title, n.ref, n.statusLabel, amount].filter(Boolean).join(", ");
   const box = (
     <>
       <rect className={s.nodeBox} x={n.x} y={n.y} width={w} height={h} rx={9} />
-      <circle className={DOT[n.tone]} cx={n.x + w - 14} cy={n.y + 16} r={5} />
+      <circle className={DOT[n.tone]} cx={n.x + w - 13} cy={n.y + 16} r={5} />
       <text className={s.nodeTitle} x={n.x + 12} y={n.y + 19}>{n.title}</text>
-      <text className={s.nodeRef} x={n.x + 12} y={n.y + 38}>{clip(n.ref || (n.planned ? "Not yet" : "—"), 17)}</text>
-      <text className={s.nodeSub} x={n.x + 12} y={n.y + 54}>{clip([n.statusLabel, amount].filter(Boolean).join(" · "), 26)}</text>
+      <text className={s.nodeRef} x={n.x + 12} y={n.y + 38}>{clip(n.ref || (n.planned ? "Not yet" : "—"), narrow ? 13 : 17)}</text>
+      <text className={s.nodeSub} x={n.x + 12} y={n.y + 54}>{clip([n.statusLabel, amount].filter(Boolean).join(" · "), narrow ? 19 : 26)}</text>
     </>
   );
   const cls = `${s.node} ${n.planned ? s.nodePlanned : ""} ${n.current ? s.nodeCurrent : ""}`;
@@ -50,7 +50,7 @@ function Svg({ layout, currency }: { layout: FlowLayout; currency: string }) {
           <path key={`${l.from}-${l.to}`} d={l.d} className={`${s.linkPath} ${l.planned ? s.linkPlanned : ""}`} data-link={`${l.from}>${l.to}`} />
         ))}
       </g>
-      {layout.nodes.map((n) => <Node key={n.id} n={n} currency={currency} />)}
+      {layout.nodes.map((n) => <Node key={n.id} n={n} currency={currency} dims={layout.box} narrow={layout.orientation === "down"} />)}
     </svg>
   );
 }
