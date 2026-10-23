@@ -46,6 +46,117 @@ export function emitQuoteOutcome(
   });
 }
 
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** quote.accepted: the customer said yes. A Standard Quote whose status became accepted, or a Quotation whose
+ *  outcome became won -- whichever route set it. A Quotation's contact_id is free text, so only a real uuid is kept. */
+export function emitQuoteAccepted(
+  tenantId: string,
+  p: Actor & { quoteId: string; objectType: "quote" | "standard_quote"; ref?: string | null; total?: number | null; accountId?: string | null; contactId?: string | null },
+) {
+  return emitEvent(tenantId, {
+    name: EVENTS.QUOTE_ACCEPTED, object_type: p.objectType, object_id: p.quoteId, actor_id: p.actorId,
+    account_id: p.accountId, contact_id: p.contactId && UUID.test(p.contactId) ? p.contactId : null,
+    key: `${p.quoteId}:accepted:${new Date().toISOString().slice(0, 16)}`,
+    payload: { ref: p.ref ?? null, total: p.total ?? null },
+  });
+}
+
+/** quote.outcome_changed: a Quotation's result (open / won / lost / dropped) moved. */
+export function emitQuoteOutcomeChanged(
+  tenantId: string,
+  p: Actor & { quoteId: string; ref?: string | null; from: string | null; to: string; accountId?: string | null },
+) {
+  return emitEvent(tenantId, {
+    name: EVENTS.QUOTE_OUTCOME_CHANGED, object_type: "quote", object_id: p.quoteId, actor_id: p.actorId, account_id: p.accountId,
+    key: `${p.quoteId}:${p.from ?? "none"}->${p.to}:${new Date().toISOString().slice(0, 16)}`,
+    payload: { ref: p.ref ?? null, from: p.from, to: p.to },
+  });
+}
+
+/** quote.created: a Standard Quote or Quotation came into being (typed, copied or converted from another object). */
+export function emitQuoteCreated(
+  tenantId: string,
+  p: Actor & { quoteId: string; objectType: "quote" | "standard_quote"; ref?: string | null; total?: number | null; accountId?: string | null; from?: string | null },
+) {
+  return emitEvent(tenantId, {
+    name: EVENTS.QUOTE_CREATED, object_type: p.objectType, object_id: p.quoteId, actor_id: p.actorId, account_id: p.accountId,
+    key: `${p.quoteId}:created`,
+    payload: { ref: p.ref ?? null, total: p.total ?? null, from: p.from ?? null },
+  });
+}
+
+/** quote.revised: a Quotation got a new version. The event is about the NEW version; the old one is named in the payload. */
+export function emitQuoteRevised(
+  tenantId: string,
+  p: Actor & { quoteId: string; ref?: string | null; revisedFrom: string; previousId: string; revision: number; accountId?: string | null },
+) {
+  return emitEvent(tenantId, {
+    name: EVENTS.QUOTE_REVISED, object_type: "quote", object_id: p.quoteId, actor_id: p.actorId, account_id: p.accountId,
+    key: `${p.quoteId}:revised`,
+    payload: { ref: p.ref ?? null, revised_from: p.revisedFrom, previous_id: p.previousId, revision: p.revision },
+  });
+}
+
+export function emitWorkOrderCompleted(
+  tenantId: string,
+  p: Actor & { workOrderId: string; ref?: string | null; from: string | null; accountId?: string | null; caseId?: string | null },
+) {
+  return emitEvent(tenantId, {
+    name: EVENTS.WORK_ORDER_COMPLETED, object_type: "work_order", object_id: p.workOrderId, actor_id: p.actorId, account_id: p.accountId,
+    key: `${p.workOrderId}:completed:${new Date().toISOString().slice(0, 16)}`,
+    payload: { ref: p.ref ?? null, from: p.from, case_id: p.caseId ?? null },
+  });
+}
+
+/** rfq.sent: the request went to one supplier (one event per supplier, so a reminder is not a second one). */
+export function emitRfqSent(
+  tenantId: string,
+  p: Actor & { rfqId: string; rfqSupplierId: string; supplierId?: string | null; ref?: string | null; redirected?: boolean },
+) {
+  return emitEvent(tenantId, {
+    name: EVENTS.RFQ_SENT, object_type: "rfq", object_id: p.rfqId, actor_id: p.actorId,
+    key: `${p.rfqId}:${p.rfqSupplierId}:sent`,
+    payload: { ref: p.ref ?? null, rfq_supplier_id: p.rfqSupplierId, supplier_id: p.supplierId ?? null, redirected: p.redirected === true },
+  });
+}
+
+/** rfq.replied: a supplier answered (or declined). Once per supplier; a later edit of the answers is not a new reply. */
+export function emitRfqReplied(
+  tenantId: string,
+  p: Actor & { rfqId: string; rfqSupplierId: string; source: string; declined: boolean; lines: number },
+) {
+  return emitEvent(tenantId, {
+    name: EVENTS.RFQ_REPLIED, object_type: "rfq", object_id: p.rfqId, actor_id: p.actorId,
+    key: `${p.rfqId}:${p.rfqSupplierId}:replied`,
+    payload: { rfq_supplier_id: p.rfqSupplierId, source: p.source, declined: p.declined, lines: p.lines },
+  });
+}
+
+/** rfq.awarded: one line was awarded to one supplier's answer (an RFQ is awarded line by line). */
+export function emitRfqAwarded(
+  tenantId: string,
+  p: Actor & { rfqId: string; ref?: string | null; lineId: string; responseId: string; supplierId?: string | null; unitCost?: number | null },
+) {
+  return emitEvent(tenantId, {
+    name: EVENTS.RFQ_AWARDED, object_type: "rfq", object_id: p.rfqId, actor_id: p.actorId,
+    key: `${p.rfqId}:${p.lineId}:awarded:${p.responseId}`,
+    payload: { ref: p.ref ?? null, line_id: p.lineId, response_id: p.responseId, supplier_id: p.supplierId ?? null, unit_cost: p.unitCost ?? null },
+  });
+}
+
+export function emitOpportunityUpdated(
+  tenantId: string,
+  p: Actor & { opportunityId: string; ref?: string | null; fields: string[]; accountId: string; contactId?: string | null; stamp: string },
+) {
+  return emitEvent(tenantId, {
+    name: EVENTS.OPPORTUNITY_UPDATED, object_type: "opportunity", object_id: p.opportunityId, actor_id: p.actorId,
+    account_id: p.accountId, contact_id: p.contactId,
+    key: `${p.opportunityId}:updated:${p.stamp}`,
+    payload: { ref: p.ref ?? null, fields: p.fields.slice(0, 20) },
+  });
+}
+
 export function emitOpportunityCreated(
   tenantId: string,
   p: Actor & { opportunityId: string; ref?: string | null; stage: string; source?: string | null; accountId: string; contactId?: string | null; leadId?: string | null },

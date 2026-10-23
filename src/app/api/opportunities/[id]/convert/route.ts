@@ -9,6 +9,7 @@ import { priceDocumentLine } from "@/lib/pricing/quoteLine";
 import { PricingConfigError } from "@/lib/pricing/server";
 import { opportunityStages, stageDef, initialStage } from "@/lib/sales/opportunity";
 import { loadOpportunity, loadOpportunityLines, refreshOpportunityDerived } from "@/lib/sales/opportunityServer";
+import { emitQuoteCreated } from "@/lib/events/emitters";
 import type { PricingConfig } from "@/lib/constants";
 
 // Convert a deal into a quote (§4.3): a Standard Quote linked to the deal,
@@ -125,5 +126,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     action: "create", actorId: user?.id, actorEmail: user?.email,
     changes: [{ field: "Created from deal", from: null, to: `${opp.ref ?? ""} ${opp.title}`.trim() }],
   });
+  await emitQuoteCreated(tenantId, { quoteId: quote.id, objectType: "standard_quote", ref: quote.ref, total: totals.total, accountId: opp.account_id, from: opp.ref, actorId: user?.id });
   return NextResponse.json({ id: quote.id, ref: quote.ref, lines: cleanLines.length, repriced }, { status: 201 });
 }

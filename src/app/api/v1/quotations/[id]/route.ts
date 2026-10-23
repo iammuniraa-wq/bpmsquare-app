@@ -1,6 +1,7 @@
 import { createAdminSupabase } from "@/lib/supabase-server";
 import { diffForLog, diffLineItems, logChange, type LineSnapshot } from "@/lib/changeLog";
 import { QUOTE_ENTITY } from "@/lib/api/quotes";
+import { emitQuotationOutcome } from "@/lib/events/quotationOutcome";
 import { validateBody, validateChildren } from "@/lib/api/schema";
 import {
   API_ACTOR_EMAIL, applyDateProfile, buildLineRows, replaceQuoteLines, sanitizeQuoteValues, serializeQuote, totalsFor, verifyQuoteRelations,
@@ -129,6 +130,8 @@ export async function PATCH(req: Request, { params }: Ctx) {
       action: dateProfile.reopened ? "reopen" : "update", actorEmail: API_ACTOR_EMAIL, changes,
     });
   }
+
+  await emitQuotationOutcome(tenantId, before as Record<string, unknown>, updated as Record<string, unknown>);
 
   return jsonOk({ data: serializeQuote(updated, finalLines) }, RW_METHODS);
 }

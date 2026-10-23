@@ -12,7 +12,7 @@ type DbError = { code?: string; message: string } | null;
 const STAMPED = new Set(["consent_events", "form_submissions"]);
 const COLUMN_DEFAULTS: Record<string, Row> = { journey_runner_lock: { locked_until: "1970-01-01T00:00:00.000Z" } };
 
-export function fakeDb(seed: Record<string, Row[]> = {}, opts: { missingTables?: string[] } = {}) {
+export function fakeDb(seed: Record<string, Row[]> = {}, opts: { missingTables?: string[]; copyReads?: boolean } = {}) {
   const tables: Record<string, Row[]> = {};
   for (const [k, v] of Object.entries(seed)) tables[k] = v.map((r) => ({ ...r }));
   const missing = new Set(opts.missingTables ?? []);
@@ -40,8 +40,14 @@ export function fakeDb(seed: Record<string, Row[]> = {}, opts: { missingTables?:
     in(col: string, vals: unknown[]) { this.filters.push({ col, test: (v) => vals.includes(v) }); return this; }
     neq(col: string, val: unknown) { this.filters.push({ col, test: (v) => v !== val }); return this; }
     like(col: string, pattern: string) {
-      const re = new RegExp(`^${pattern.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/%/g, ".*")}$`);
+      const re = new RegExp(`^${pattern.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/%/g, "[\\s\\S]*")}$`);
       this.filters.push({ col, test: (v) => typeof v === "string" && re.test(v) });
+      return this;
+    }
+    /** `filter("custom_data->>key", "eq", value)`: a JSON text field compared for equality (the only form the app uses). */
+    filter(col: string, op: string, val: unknown) {
+      const [column, key] = col.split("->>");
+      this.filters.push({ col: column, test: (v) => { const x = key ? (v as Row | null | undefined)?.[key] : v; return op === "eq" && x === val; } });
       return this;
     }
     range(from: number, to: number) { this.rangeFrom = from; this.rangeTo = to; return this; }
@@ -113,6 +119,8 @@ export function fakeDb(seed: Record<string, Row[]> = {}, opts: { missingTables?:
       if (this.op === "update") {
         const hit = t.filter(match);
         for (const r of hit) Object.assign(r, this.payload as Row);
+        if (this.one === "single") return hit.length === 1 ? { data: hit[0], error: null } : { data: null, error: { code: "PGRST116", message: "no single row" } };
+        if (this.one === "maybe") return { data: hit[0] ?? null, error: null };
         return { data: hit, error: null };
       }
       if (this.op === "delete") {
@@ -122,6 +130,8 @@ export function fakeDb(seed: Record<string, Row[]> = {}, opts: { missingTables?:
         return { data: Array.from({ length: gone }), error: null };
       }
       let out = t.filter(match);
+      // A real database hands back copies: with copyReads a row read before an update keeps its old values.
+      if (opts.copyReads) out = out.map((r) => ({ ...r }));
       if (this.rangeFrom !== null && this.rangeTo !== null) out = out.slice(this.rangeFrom, this.rangeTo + 1);
       if (this.lim !== null) out = out.slice(0, this.lim);
       if (this.one === "single") return out.length === 1 ? { data: out[0], error: null } : { data: null, error: { code: "PGRST116", message: "no single row" } };

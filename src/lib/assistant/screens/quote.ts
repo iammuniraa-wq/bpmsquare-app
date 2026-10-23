@@ -18,6 +18,7 @@ export const QUOTE_DETAIL: ScreenOverlay = {
     { id: "quote.menu_pdf", label: "Download PDF", does: "Downloads the quote as it prints.", within: "quote.more" },
     { id: "quote.menu_whatsapp", label: "WhatsApp", does: "Opens WhatsApp with a message and the public PDF link.", within: "quote.more" },
     { id: "quote.menu_copy", label: "Copy quote", does: "Makes a brand-new quote from this one.", within: "quote.more", needs: "create" },
+    { id: "quote.menu_standard_quote", label: "Create standard quote", does: "Makes a draft Standard Quote from this quotation's lines; the quotation is left as it is.", within: "quote.more", featureKey: "standard_quotes", workcenter: "standard_quotes", needs: "create" },
     { id: "tab:versions", label: "Versions tab", does: "Lists every revision of this quote." },
     { id: "tab:overview", label: "Overview tab", does: "Back to the quote's details." },
   ],

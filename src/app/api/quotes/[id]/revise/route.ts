@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { requireTenantUser, getAuthUser } from "@/lib/supabase-server";
 import { diffForLog, logChange } from "@/lib/changeLog";
+import { emitQuoteRevised } from "@/lib/events/emitters";
 
 // Clone a quote (and its lines) into a new draft revision -- available from
 // any phase (Draft through Rejected/Approved), not just once the original is
@@ -125,6 +126,8 @@ export async function POST(_request: NextRequest, { params }: { params: Promise<
     action: "create", actorId: user?.id, actorEmail: user?.email,
     changes: diffForLog("quotes", {}, { revised_from: original.ref, revision: newRev }),
   });
+
+  await emitQuoteRevised(tenantId, { quoteId: created.id, ref: created.ref, revisedFrom: original.ref, previousId: id, revision: newRev, accountId: original.account_id, actorId: user?.id });
 
   return NextResponse.json({ id: created.id, ref: created.ref }, { status: 201 });
 }
