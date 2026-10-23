@@ -509,7 +509,7 @@ through `createAdminSupabase()`, leave it with **no policy at all** (RLS enabled
 - **Medium — CSV formula injection** in Reports `quotes.csv` and the platform-admin tenant export; both use `csvCell`.
 
 What stays open (reasoning in the audit doc): Business Role grants are enforced by page guards, not by the Data Workbench or
-core CRUD routes (needs the owner's decision on whether roles are a boundary); anonymous forms record consent for an existing
+core CRUD routes (**owner decision 2026-10-23: Business Roles are a menu-visibility feature, not a security boundary, and employees are never shown them; accepted, not to be re-raised**); anonymous forms record consent for an existing
 contact unless double opt-in is on; Nova comments have no workcenter check and their insert policy lets a member forge
 `author_email`/`mentions`; opportunity `owner_id`/`team` are not verified as workspace members; cron secrets are compared with
 `!==`; `api/auth/dev-signin` should be deleted; DNS rebinding between the host check and the connect is not pinned.
