@@ -127,6 +127,7 @@ export const ROUTES = {
   salesOrder: (id: string) => `/sales-orders/${id}`,
   salesOrderNew: "/sales-orders/new",
   salesOrderPrint: (id: string) => `/sales-orders/${id}/print`,
+  settingsOrderTypes: "/settings/order-types",
   employees: "/employees",
   configPricing: "/settings/pricing",
   settingsNumberRanges: "/settings/number-ranges",
