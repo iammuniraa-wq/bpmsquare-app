@@ -12,6 +12,7 @@ type Row = {
   action: "create" | "update" | "delete" | "reopen";
   changes: { field: string; from: unknown; to: unknown }[];
   actor_email: string | null;
+  actor_name?: string | null;
   created_at: string;
 };
 
@@ -76,7 +77,7 @@ export default function RecordActivity({
               <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap", color: c.hint }}>
                 <span style={{ textTransform: "capitalize", fontWeight: 600, color: c.muted }}>{r.action}</span>
                 <span>
-                  {r.actor_email ? `${r.actor_email} · ` : ""}
+                  {r.actor_name || r.actor_email ? `${r.actor_name || r.actor_email?.split("@")[0]} · ` : ""}
                   {new Date(r.created_at).toLocaleString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}
                 </span>
               </div>

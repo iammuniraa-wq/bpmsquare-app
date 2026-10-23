@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { requireTenantUser } from "@/lib/supabase-server";
+import { requireTenantUser, createAdminSupabase } from "@/lib/supabase-server";
+import { loadActorNames } from "@/lib/actorNames";
 import { tenantHasFeature } from "@/lib/tenant";
 
 const MAX_ROWS = 5000;
@@ -59,7 +60,9 @@ export async function GET(request: NextRequest) {
   if (error && isMissingColumn(error)) ({ data, error } = await read(COLUMNS));
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  return NextResponse.json({ rows: data ?? [] });
+  const rows = (data ?? []) as unknown as { actor_id: string | null }[];
+  const names = await loadActorNames(createAdminSupabase(), tenantId, rows.map((r) => r.actor_id)).catch(() => new Map<string, string>());
+  return NextResponse.json({ rows: rows.map((r) => ({ ...r, actor_name: (r.actor_id && names.get(r.actor_id)) || null })) });
 }
 
 const COLUMNS = "id, object_type, object_id, object_label, action, changes, actor_id, actor_email, created_at";

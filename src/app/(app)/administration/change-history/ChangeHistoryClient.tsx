@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { Fragment, useState, useEffect } from "react";
 import { c } from "@/lib/theme";
 import { downloadCsv } from "@/lib/import/template";
-import { buildCsv, summarizeChanges, viaLabel, type ChangeLogRow } from "./changeHistoryRows";
+import { buildCsv, byLabel, formatValue, viaLabel, type ChangeLogRow } from "./changeHistoryRows";
 import Pager from "@/components/Pager";
 import { paginate, clampPage, DEFAULT_PAGE_SIZE } from "@/lib/paginate";
 import { useTenantFeature } from "@/lib/tenant-context";
@@ -84,6 +84,7 @@ export default function ChangeHistoryClient() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [page, setPage] = useState(1);
+  const [open, setOpen] = useState<string | null>(null);
 
   async function search() {
     setLoading(true);
@@ -174,7 +175,7 @@ export default function ChangeHistoryClient() {
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5 }}>
             <thead>
               <tr>
-                {["When", "Action", "Record", "Changes", "By"].map((h) => (
+                {["When", "Action", "Record", "By"].map((h) => (
                   <th key={h} style={{ padding: "9px 11px", textAlign: "left", color: c.hint, fontWeight: 600, fontSize: 11, textTransform: "uppercase", letterSpacing: 0.4, borderBottom: `1px solid ${c.line}`, background: c.panel2, whiteSpace: "nowrap" }}>
                     {h}
                   </th>
@@ -184,36 +185,56 @@ export default function ChangeHistoryClient() {
             <tbody>
               {visible.map((row) => {
                 const tone = ACTION_TONE[row.action];
+                const detail = row.action === "update" && row.changes.length > 0;
+                const isOpen = open === row.id;
+                const cell = { padding: "8px 11px", borderBottom: isOpen ? "none" : `1px solid ${c.line}` } as const;
                 return (
-                  <tr key={row.id}>
-                    <td style={{ padding: "8px 11px", borderBottom: `1px solid ${c.line}`, color: c.hint, whiteSpace: "nowrap", fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace" }}>
-                      {new Date(row.created_at).toLocaleString()}
-                    </td>
-                    <td style={{ padding: "8px 11px", borderBottom: `1px solid ${c.line}` }}>
-                      <span style={{ fontSize: 11, fontWeight: 700, color: tone.fg, background: tone.bg, borderRadius: 6, padding: "3px 9px", whiteSpace: "nowrap" }}>
-                        {row.action}
-                      </span>
-                    </td>
-                    <td style={{ padding: "8px 11px", borderBottom: `1px solid ${c.line}`, color: c.ink }}>
-                      {row.object_label ?? row.object_id}
-                    </td>
-                    <td style={{ padding: "8px 11px", borderBottom: `1px solid ${c.line}`, color: c.ink, maxWidth: 420 }}>
-                      {summarizeChanges(row)}
-                    </td>
-                    <td style={{ padding: "8px 11px", borderBottom: `1px solid ${c.line}`, color: c.muted, whiteSpace: "nowrap" }}>
-                      {row.actor_email ?? "—"}
-                      {viaLabel(row.via) && (
-                        <span style={{ marginLeft: 6, fontSize: 10.5, fontWeight: 600, color: c.hint, border: `1px solid ${c.line}`, borderRadius: 6, padding: "1px 6px" }}>
-                          {viaLabel(row.via)}
+                  <Fragment key={row.id}>
+                    <tr
+                      onClick={detail ? () => setOpen(isOpen ? null : row.id) : undefined}
+                      onKeyDown={detail ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setOpen(isOpen ? null : row.id); } } : undefined}
+                      tabIndex={detail ? 0 : undefined}
+                      aria-expanded={detail ? isOpen : undefined}
+                      style={{ cursor: detail ? "pointer" : "default" }}
+                    >
+                      <td style={{ ...cell, color: c.hint, whiteSpace: "nowrap", fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace" }}>
+                        {new Date(row.created_at).toLocaleString()}
+                      </td>
+                      <td style={cell}>
+                        <span style={{ fontSize: 11, fontWeight: 700, color: tone.fg, background: tone.bg, borderRadius: 6, padding: "3px 9px", whiteSpace: "nowrap" }}>
+                          {row.action}
                         </span>
-                      )}
-                    </td>
-                  </tr>
+                      </td>
+                      <td style={{ ...cell, color: c.ink }}>
+                        {row.object_label ?? row.object_id}
+                        {detail && <span aria-hidden style={{ marginLeft: 8, color: c.hint, fontSize: 11 }}>{isOpen ? "▾" : "▸"}</span>}
+                      </td>
+                      <td style={{ ...cell, color: c.muted, whiteSpace: "nowrap" }}>
+                        {byLabel(row)}
+                        {viaLabel(row.via) && (
+                          <span style={{ marginLeft: 6, fontSize: 10.5, fontWeight: 600, color: c.hint, border: `1px solid ${c.line}`, borderRadius: 6, padding: "1px 6px" }}>
+                            {viaLabel(row.via)}
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                    {isOpen && (
+                      <tr>
+                        <td colSpan={4} style={{ padding: "2px 11px 10px", borderBottom: `1px solid ${c.line}`, background: c.panel2 }}>
+                          {row.changes.map((ch, k) => (
+                            <div key={k} style={{ fontSize: 12.5, color: c.ink, padding: "3px 0", wordBreak: "break-word" }}>
+                              <span style={{ color: c.hint }}>{ch.field}</span>: {formatValue(ch.from)} → {formatValue(ch.to)}
+                            </div>
+                          ))}
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
                 );
               })}
               {visible.length === 0 && (
                 <tr>
-                  <td colSpan={5} style={{ padding: "20px 11px", textAlign: "center", color: c.hint }}>
+                  <td colSpan={4} style={{ padding: "20px 11px", textAlign: "center", color: c.hint }}>
                     No changes recorded yet for this {objectId ? "record" : "object"}.
                   </td>
                 </tr>

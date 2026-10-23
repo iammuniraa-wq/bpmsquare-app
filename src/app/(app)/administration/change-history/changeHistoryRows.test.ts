@@ -1,9 +1,21 @@
 import { describe, expect, it } from "vitest";
-import { buildCsv, csvRow, viaLabel, CSV_HEADER, type ChangeLogRow } from "./changeHistoryRows";
+import { buildCsv, byLabel, csvRow, viaLabel, CSV_HEADER, type ChangeLogRow } from "./changeHistoryRows";
 
 const row = (over: Partial<ChangeLogRow> = {}): ChangeLogRow => ({
   id: "c1", object_type: "accounts", object_id: "a1", object_label: "Acme", action: "create", changes: [],
   actor_id: "u1", actor_email: "u@x.com", created_at: "2026-10-22T10:00:00Z", ...over,
+});
+
+describe("change history: the By name", () => {
+  it("shows the person's name, never the login address", () => {
+    expect(byLabel({ actor_name: " Asha Rao ", actor_email: "emp-asha.136f@x.com" })).toBe("Asha Rao");
+    expect(byLabel({ actor_name: null, actor_email: "ravi@x.com" })).toBe("ravi");
+    expect(byLabel({})).toBe("—");
+  });
+  it("puts the name in the CSV's Changed by column", () => {
+    const at = CSV_HEADER.indexOf("Changed by");
+    expect(csvRow(row({ actor_name: "Asha Rao" })).split(",")[at]).toBe("Asha Rao");
+  });
 });
 
 describe("change history: the 'via' mark", () => {
