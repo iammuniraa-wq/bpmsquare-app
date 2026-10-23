@@ -216,5 +216,5 @@ export async function runDirectAnalysis(c: StepCtx, direct: NonNullable<Analysis
     return { answer: `Analysing ${o.consent.subject} needs a web search first.`, consent: { ...o.consent, kind: "analyse_company" } };
   }
   const a = o.analysis;
-  return { answer: a.cached ? `Here is the saved analysis of ${a.card.name}.` : `Here is the analysis of ${a.card.name}.`, analysis: a };
+  return { answer: `Here is the ${a.cached ? "saved analysis" : "analysis"} of ${a.card.name.replace(/\.+$/, "")}.`, analysis: a };
 }

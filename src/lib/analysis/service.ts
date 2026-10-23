@@ -1,3 +1,4 @@
+import { normaliseName, normaliseDomain } from "./companyKey";
 import "server-only";
 import Anthropic from "@anthropic-ai/sdk";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -114,6 +115,22 @@ async function resolveAccount(a: AnalysisAccess, id: string): Promise<AccountRow
   return (data as AccountRow | null) ?? null;
 }
 
+/**
+ * A company typed by name that is already an account here IS that account ("abb india" is "ABB India Limited"): same
+ * normalised name, or the same website. Only a single match counts; two accounts of one name are left for the person to
+ * pick. Read through the person's own session, so an account they may not see is not matched.
+ */
+export async function matchAccountId(a: AnalysisAccess, input: AnalyseInput): Promise<string | null> {
+  const name = normaliseName(typeof input.name === "string" ? input.name : null);
+  const domain = normaliseDomain(typeof input.domain === "string" ? input.domain : null);
+  if (!name && !domain) return null;
+  const { data, error } = await a.supabase.from("accounts").select("id, name, website").eq("tenant_id", a.tenantId).limit(2000);
+  if (error || !data) return null;
+  const hits = (data as { id: string; name: string | null; website: string | null }[]).filter((r) =>
+    (!!name && normaliseName(r.name) === name) || (!!domain && normaliseDomain(r.website) === domain));
+  return hits.length === 1 ? hits[0].id : null;
+}
+
 type Slot = { ok: true; id: string } | { ok: false };
 
 /**
@@ -189,9 +206,10 @@ export async function analyseCompany(a: AnalysisAccess, input: AnalyseInput, dep
   if (!gate.ok) return fail(gate.status, gate.code, gate.error);
 
   let account: AccountRow | null = null;
-  if (input.accountId) {
+  const accountId = input.accountId ?? (await matchAccountId(a, input));
+  if (accountId) {
     // Verified against the workspace before its name can reach a search (MULTI_TENANT_GUARDRAILS).
-    account = await resolveAccount(a, input.accountId);
+    account = await resolveAccount(a, accountId);
     if (!account) return fail(404, "not_found", "Account not found");
   }
   const s = subjectFrom(account, input);
@@ -284,8 +302,9 @@ export async function readCachedAnalysis(a: AnalysisAccess, input: AnalyseInput,
   const gate = analysisAccess(a);
   if (!gate.ok) return fail(gate.status, gate.code, gate.error) as Extract<AnalyseResult, { ok: false }>;
   let account: AccountRow | null = null;
-  if (input.accountId) {
-    account = await resolveAccount(a, input.accountId);
+  const accountId = input.accountId ?? (await matchAccountId(a, input));
+  if (accountId) {
+    account = await resolveAccount(a, accountId);
     if (!account) return fail(404, "not_found", "Account not found") as Extract<AnalyseResult, { ok: false }>;
   }
   const s = subjectFrom(account, input);

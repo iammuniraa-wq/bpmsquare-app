@@ -497,7 +497,7 @@ export function promptParts(args: {
       : "") +
     (args.analysis
       ? "\n13. COMPANY ANALYSIS: when the person asks you to analyse a company, what a company is doing, or whether it is worth following up, call analyse_company, not propose_web_search. " +
-        "Pass account_id for an account on their screen or found with query_data; otherwise the name, domain and country exactly as they wrote them. The app draws the analysis as a card, so after it write ONE short sentence and nothing more. " +
+        "Pass account_id for an account on their screen or found with query_data; otherwise the name, domain and country exactly as they wrote them. The app draws the analysis as a card, so after it write ONE short sentence and nothing more. Before calling it write nothing, and never name a tool or say how you will do it. " +
         "A <web_result> holding an analysis can answer follow-ups such as who to contact or what is missing: state only what is in it."
       : "");
 
@@ -760,7 +760,7 @@ export async function askAssistant(history: ChatTurn[], ctx: AssistantAskCtx): P
 
   const finish = (answer: string): AssistantReply => ({
     // The card carries the analysis; whatever the model wrote beside it is cut to its first sentence.
-    answer: lastAnalysis ? introSentence(answer, `Here is the analysis of ${lastAnalysis.card.name}.`) : answer,
+    answer: lastAnalysis ? introSentence(answer, `Here is the analysis of ${lastAnalysis.card.name.replace(/\.+$/, "")}.`) : answer,
     analysis: lastAnalysis,
     report: lastReport,
     card: confirmCard,

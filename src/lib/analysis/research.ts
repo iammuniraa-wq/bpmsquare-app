@@ -102,32 +102,58 @@ export function parseResearchJson(content: Block[]): unknown {
 
 export type MessagesClient = Pick<Anthropic, "messages">;
 
-export async function runCompanyResearch(client: MessagesClient, subject: Subject, topics: readonly string[]): Promise<ResearchRun> {
-  let response: Anthropic.Message;
-  try {
-    response = await client.messages.create({
-      model: smallModel(),
-      // Search results share this output budget with the answer (see marketIntel.ts for the failure a tight one caused).
-      max_tokens: 5000,
-      system: RESEARCH_SYSTEM,
-      tools: [{ type: "web_search_20260209", name: "web_search", max_uses: MAX_SEARCHES }],
-      messages: [{ role: "user", content: buildResearchPrompt(subject, topics) }],
-    }, { timeout: RESEARCH_TIMEOUT_MS, maxRetries: 0 });
-  } catch (e) {
-    console.error("Company analysis research failed:", e);
-    if (e instanceof Anthropic.AuthenticationError) throw new AnalysisResearchError("The AI service rejected ANTHROPIC_API_KEY.");
-    if (e instanceof Anthropic.PermissionDeniedError) throw new AnalysisResearchError("This API key doesn't have access to web search.");
-    if (e instanceof Anthropic.RateLimitError) throw new AnalysisResearchError("The AI service is rate-limited right now. Try again in a moment.");
-    if (e instanceof Anthropic.APIConnectionTimeoutError) throw new AnalysisResearchError("The research took too long. Try again in a moment.");
-    if (e instanceof Anthropic.APIConnectionError) throw new AnalysisResearchError("Could not reach the AI service. Try again in a moment.");
-    throw new AnalysisResearchError("The web research could not run.");
-  }
-  if (response.stop_reason === "refusal") throw new AnalysisResearchError("The AI declined this research.");
-  const content = response.content as unknown as Block[];
-  const searches = countSearches(response.usage, content);
-  const usage = response.usage as unknown as ApiUsage;
+function addUsage(a: ApiUsage & { server_tool_use?: { web_search_requests?: number } }, b: ApiUsage & { server_tool_use?: { web_search_requests?: number } }) {
+  const n = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : 0);
   return {
-    raw: parseResearchJson(content), citations: collectCitations(content), searches, usage,
-    model: response.model ?? smallModel(), tokens: researchTokens(usage, searches),
+    input_tokens: n(a.input_tokens) + n(b.input_tokens),
+    output_tokens: n(a.output_tokens) + n(b.output_tokens),
+    cache_creation_input_tokens: n(a.cache_creation_input_tokens) + n(b.cache_creation_input_tokens),
+    cache_read_input_tokens: n(a.cache_read_input_tokens) + n(b.cache_read_input_tokens),
+    server_tool_use: { web_search_requests: n(a.server_tool_use?.web_search_requests) + n(b.server_tool_use?.web_search_requests) },
+  };
+}
+
+// The provider ends a long search turn with "pause_turn" and expects the turn to be continued. Stopping there left no
+// answer, which read as "little public information found" for a company with plenty of it.
+const MAX_CONTINUES = 2;
+
+export async function runCompanyResearch(client: MessagesClient, subject: Subject, topics: readonly string[]): Promise<ResearchRun> {
+  const started = Date.now();
+  const messages: Anthropic.MessageParam[] = [{ role: "user", content: buildResearchPrompt(subject, topics) }];
+  let content: Block[] = [];
+  let usage: ReturnType<typeof addUsage> = addUsage({}, {});
+  let response: Anthropic.Message | null = null;
+  for (let turn = 0; turn <= MAX_CONTINUES; turn++) {
+    try {
+      response = await client.messages.create({
+        model: smallModel(),
+        // Search results share this output budget with the answer (see marketIntel.ts for the failure a tight one caused).
+        max_tokens: 5000,
+        system: RESEARCH_SYSTEM,
+        tools: [{ type: "web_search_20260209", name: "web_search", max_uses: MAX_SEARCHES }],
+        messages,
+      }, { timeout: Math.max(5_000, RESEARCH_TIMEOUT_MS - (Date.now() - started)), maxRetries: 0 });
+    } catch (e) {
+      console.error("Company analysis research failed:", e);
+      if (e instanceof Anthropic.AuthenticationError) throw new AnalysisResearchError("The AI service rejected ANTHROPIC_API_KEY.");
+      if (e instanceof Anthropic.PermissionDeniedError) throw new AnalysisResearchError("This API key doesn't have access to web search.");
+      if (e instanceof Anthropic.RateLimitError) throw new AnalysisResearchError("The AI service is rate-limited right now. Try again in a moment.");
+      if (e instanceof Anthropic.APIConnectionTimeoutError) throw new AnalysisResearchError("The research took too long. Try again in a moment.");
+      if (e instanceof Anthropic.APIConnectionError) throw new AnalysisResearchError("Could not reach the AI service. Try again in a moment.");
+      throw new AnalysisResearchError("The web research could not run.");
+    }
+    if (response.stop_reason === "refusal") throw new AnalysisResearchError("The AI declined this research.");
+    const got = response.content as unknown as Block[];
+    content = [...content, ...got];
+    usage = addUsage(usage, response.usage as unknown as ApiUsage);
+    if (response.stop_reason !== "pause_turn" || turn === MAX_CONTINUES) break;
+    messages.push({ role: "assistant", content: response.content });
+  }
+  const searches = countSearches(usage, content);
+  const raw = parseResearchJson(content);
+  if (raw === null) console.error("Company analysis research returned no JSON; stop_reason:", response?.stop_reason, "blocks:", content.map((b) => b.type).join(","));
+  return {
+    raw, citations: collectCitations(content), searches, usage: usage as unknown as ApiUsage,
+    model: response?.model ?? smallModel(), tokens: researchTokens(usage as unknown as ApiUsage, searches),
   };
 }
