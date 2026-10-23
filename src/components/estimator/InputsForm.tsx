@@ -55,17 +55,19 @@ function hintFor(i: TemplateInput): string | undefined {
 }
 
 function InputControl({
-  input: i, value, onChange, error, disabled,
+  input: i, value, onChange, error, disabled, note,
 }: {
   input: TemplateInput;
   value: string | boolean | undefined;
   onChange: (key: string, value: string | boolean) => void;
   error?: string;
+  /** What the email reading says about this input (missing or likely); shown in place of the usual hint. */
+  note?: string;
   disabled: boolean;
 }) {
   if (i.type === "boolean") {
     return (
-      <Field label={i.label} hint={hintFor(i)} error={error}>
+      <Field label={i.label} hint={note ?? hintFor(i)} error={error}>
         <Select value={value === true ? "yes" : "no"} onChange={(e) => onChange(i.key, e.target.value === "yes")} disabled={disabled} invalid={!!error}>
           <option value="no">No</option>
           <option value="yes">Yes</option>
@@ -75,7 +77,7 @@ function InputControl({
   }
   if (i.type === "select") {
     return (
-      <Field label={i.label} hint={hintFor(i)} error={error}>
+      <Field label={i.label} hint={note ?? hintFor(i)} error={error}>
         <Select value={String(value ?? "")} onChange={(e) => onChange(i.key, e.target.value)} disabled={disabled} invalid={!!error}>
           {(i.options ?? []).map((o) => <option key={o.key} value={o.key}>{o.label}</option>)}
         </Select>
@@ -83,7 +85,7 @@ function InputControl({
     );
   }
   return (
-    <Field label={i.unit ? `${i.label} (${i.unit})` : i.label} hint={hintFor(i)} error={error}>
+    <Field label={i.unit ? `${i.label} (${i.unit})` : i.label} hint={note ?? hintFor(i)} error={error}>
       <Input
         type="number" inputMode="decimal" step="any" min={i.min} max={i.max}
         value={String(value ?? "")} onChange={(e) => onChange(i.key, e.target.value)}
@@ -99,13 +101,15 @@ function InputControl({
  * (`params.<key>`) show under the field. Rendered inside the caller's card.
  */
 export default function InputsForm({
-  inputs, values, onChange, issues = [], disabled = false,
+  inputs, values, onChange, issues = [], disabled = false, notes,
 }: {
   inputs: readonly TemplateInput[];
   values: InputValues;
   onChange: (key: string, value: string | boolean) => void;
   issues?: InputIssue[];
   disabled?: boolean;
+  /** Per input key: a note to show instead of the hint (from reading an email). */
+  notes?: Record<string, string>;
 }) {
   if (inputs.length === 0) {
     return <div className="bpm-t-help">This template has no inputs; the quantities come from its rules and rates alone.</div>;
@@ -118,7 +122,7 @@ export default function InputsForm({
         <div key={section}>
           {sections.length > 1 && <h3 className="bpm-t-label" style={{ margin: "4px 0 8px", color: "var(--muted)" }}>{section}</h3>}
           {items.map((i) => (
-            <InputControl key={i.key} input={i} value={values[i.key]} onChange={onChange} error={errorOf(i.key)} disabled={disabled} />
+            <InputControl key={i.key} input={i} value={values[i.key]} onChange={onChange} error={errorOf(i.key)} disabled={disabled} note={notes?.[i.key]} />
           ))}
         </div>
       ))}
