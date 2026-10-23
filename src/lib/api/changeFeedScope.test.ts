@@ -23,7 +23,7 @@ describe("change feed scope", () => {
 
   it("the wildcard still reaches ordinary objects but not the explicit-only ones", () => {
     const s = key(["*"]);
-    for (const t of ["accounts", "quotes", "cases", "invoices", "suppliers", "assets", "work_orders", "standard_quotes", "settings"]) {
+    for (const t of ["accounts", "quotes", "cases", "invoices", "suppliers", "assets", "work_orders", "standard_quotes", "sales_orders", "settings"]) {
       expect(canReadChangeType(s, t), t).toBe(true);
     }
     for (const t of ["employees", "contacts", "rfqs", "pricing_rfqs", "estimates", "estimate_templates", "abm_target_accounts", "abm_buying_group_members"]) {

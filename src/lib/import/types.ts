@@ -3,7 +3,8 @@ export type ImportObjectId =
   | "cases" | "work_orders" | "invoices" | "purchase_orders" | "inventory"
   | "users" | "employees" | "products" | "wfm_projects" | "opportunities" | "rfqs" | "estimates"
   | "product_bom_lines" | "consents" | "abm_programs" | "abm_targets" | "abm_members"
-  | "standard_quotes" | "standard_quote_lines";
+  | "standard_quotes" | "standard_quote_lines"
+  | "sales_orders" | "sales_order_lines";
 
 /**
  * quotes is excluded from Export and Update: it isn't on FIELD_REGISTRY (reverted
