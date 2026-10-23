@@ -150,6 +150,11 @@ export const ROUTES = {
   invoices: "/invoices",
   invoiceNew: "/invoices/new",
   invoice: (id: string) => `/invoices/${id}`,
+  salesOrders: "/sales-orders",
+  salesOrder: (id: string) => `/sales-orders/${id}`,
+  salesOrderNew: "/sales-orders/new",
+  salesOrderPrint: (id: string) => `/sales-orders/${id}/print`,
+  settingsOrderTypes: "/settings/order-types",
   case: (id: string) => `/cases/${id}`,
   settings: "/settings",
   settingsGeneral: "/settings/general", // redirects to settingsCompany
@@ -297,6 +302,7 @@ export const NAV: NavGroup[] = [
           { label: "Quotations", href: ROUTES.quotations, icon: "₹", pillar: "blue", featureKey: "quotations", workcenterKey: "quotations" },
           { label: "Standard Quotes", href: ROUTES.standardQuotes, icon: "≡", pillar: "blue", featureKey: "standard_quotes", workcenterKey: "standard_quotes" },
           { label: "Pipeline",   href: ROUTES.pipeline,   icon: "▦", pillar: "blue", featureKey: "pipeline", workcenterKey: "pipeline" },
+          { label: "Sales Orders", href: ROUTES.salesOrders, icon: "⊞", pillar: "blue", featureKey: "sales_orders", workcenterKey: "sales_orders" },
           { label: "Invoices",   href: ROUTES.invoices,   icon: "⊟", pillar: "blue", featureKey: "invoices", workcenterKey: "invoices" },
           { label: "Purchase Orders", href: ROUTES.purchaseOrders, icon: "⇱", pillar: "blue", featureKey: "purchasing", workcenterKey: "purchase_orders" },
           // RFQ (0128): supplier quotations asked for when no cost/price is
@@ -525,6 +531,8 @@ export type TenantFeatures = {
   amc: boolean;
   dispatch: boolean;
   invoices: boolean;
+  /** Sales Orders (docs/design/sales-order.md): the order object, its types and screens. Platform-admin flag, default off. */
+  sales_orders: boolean;
   partners: boolean;
   ai_assistant: boolean;
   db_export: boolean;
