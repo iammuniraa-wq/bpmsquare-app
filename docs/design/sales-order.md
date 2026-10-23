@@ -42,7 +42,8 @@ The best of each system, in BPMSquare's own shape:
 - **From Dynamics:** few, clear actions (Check, Send, PDF, Email, WhatsApp); deliveries and invoices as plain related records; partial fulfilment shown as "1 of 2".
 - **From Salesforce:** the **path** across the top (Draft, Sent, Submitted, Delivered, Invoiced, Paid) and a hub of linked records (Documents tab).
 - **BPMSquare's own:** one quiet pricing line (no toggle), source tags on every ERP-fed value (ERP read-only with fetch time, or Master data estimate), printed text per line, order types with their own PDF design, everything AI-ready.
-- **Tabs:** Overview (customer info, path, check chips, total), Lines, Availability, ERP, Documents (plus History). Mobile: tabs scroll, blocks stack.
+- **The path sits at the very top of the page, above the order id, and stays on every tab** (owner, 2026-10-23); delivery and billing sub-status sit just under it, right-aligned.
+- **Tabs:** Overview (customer info, check chips, total), Lines, Availability, ERP, Documents (plus History). Mobile: tabs scroll, blocks stack.
 
 **Choices made without the owner (revisit if wrong):**
 - **Order-type selection:** an ordered list of rules per workspace (customer group, region, source quote type); the first match wins; otherwise the default type; the person can always change the type on a draft.
