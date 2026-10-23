@@ -6,6 +6,7 @@ import { diffForLog, logChange } from "@/lib/changeLog";
 import { opportunityStages, initialStage, stageDef, probabilityFor, OPPORTUNITY_SOURCES } from "@/lib/sales/opportunity";
 import { listOpportunities } from "@/lib/sales/opportunityServer";
 import { emitOpportunityCreated } from "@/lib/events/emitters";
+import { ownerTeamProblem } from "@/lib/sales/opportunityMembers";
 
 // Opportunities (deals) -- Sales Engine Piece B (docs/
 // sales-engine-architecture.md §4.3). GET lists with filters; POST creates
@@ -56,6 +57,12 @@ export async function POST(request: NextRequest) {
     if (!lead) return NextResponse.json({ error: "Lead not found" }, { status: 404 });
   }
 
+  const requestedOwner = typeof body.owner_id === "string" && body.owner_id ? body.owner_id : null;
+  if (requestedOwner && requestedOwner !== userId) {
+    const problem = await ownerTeamProblem(admin, tenantId, { owner: requestedOwner });
+    if (problem) return NextResponse.json({ error: problem }, { status: 422 });
+  }
+
   const tenant = await getTenant();
   const stages = opportunityStages(tenant?.config);
   const stage = body.stage && stageDef(stages, String(body.stage)) && !stageDef(stages, String(body.stage))?.is_closed ? String(body.stage) : initialStage(stages).value;
@@ -76,7 +83,7 @@ export async function POST(request: NextRequest) {
     expected_close: expectedClose,
     amount: 0,
     probability: probabilityFor(stages, stage, null),
-    owner_id: typeof body.owner_id === "string" && body.owner_id ? body.owner_id : userId,
+    owner_id: requestedOwner ?? userId,
     team: [],
     competitor: typeof body.competitor === "string" && body.competitor.trim() ? body.competitor.trim() : null,
     created_by: userId,

@@ -118,6 +118,22 @@ describe("credential tables are not member-writable (audit 2026-10-21)", () => {
     expect(bundle.replace(/\r\n/g, "\n")).toContain(file.replace(/\r\n/g, "\n").trim());
   }, 30_000);
 
+  it("record_comments (audit 2026-10-21 L1): members may only read; the only writer is the comments route, with the service role", () => {
+    const list = [...(policies.get("record_comments")?.values() ?? [])];
+    expect(list.filter(writes).map((p) => p.name)).toEqual([]);
+    expect(list.some((p) => p.cmd === "select")).toBe(true);
+
+    const root = path.resolve(__dirname, "../..");
+    const route = readFileSync(path.join(root, "src/app/api/nova/comments/route.ts"), "utf8");
+    expect(route).toMatch(/createAdminSupabase\(\)\.from\("record_comments"\)\.insert\(/);
+    expect(route).not.toMatch(/\bsupabase\s*\.from\("record_comments"\)\s*\.insert\(/);
+
+    const file = readFileSync(path.join(DIR, "0211_record_comments_member_insert.sql"), "utf8");
+    expect(file).toMatch(/to_regclass\('public\.record_comments'\)/);
+    const bundle = readFileSync(path.join(root, "scripts/run-bundle-20-record-comments-2026-10-23.sql"), "utf8");
+    expect(bundle.replace(/\r\n/g, "\n")).toContain(file.replace(/\r\n/g, "\n").trim());
+  });
+
   it("0202 (webhooks library) adds no policy to webhooks, and its bundle carries the migration verbatim", () => {
     // The library puts header values and a signing secret on `webhooks`: a member must still not be able to write them.
     const file = readFileSync(path.join(DIR, "0202_webhooks_library.sql"), "utf8");

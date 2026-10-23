@@ -510,8 +510,9 @@ through `createAdminSupabase()`, leave it with **no policy at all** (RLS enabled
 
 What stays open (reasoning in the audit doc): Business Role grants are enforced by page guards, not by the Data Workbench or
 core CRUD routes (needs the owner's decision on whether roles are a boundary); anonymous forms record consent for an existing
-contact unless double opt-in is on; Nova comments have no workcenter check and their insert policy lets a member forge
-`author_email`/`mentions`; opportunity `owner_id`/`team` are not verified as workspace members; cron secrets are compared with
+contact unless double opt-in is on; cron secrets are compared with
 `!==`; `api/auth/dev-signin` should be deleted; DNS rebinding between the host check and the connect is not pinned.
 **Action for a human:** apply 0199 and 0200 on dev and production, then regenerate the legacy tenant API key
 (Settings > General > Developer) for any workspace that had one, since members could read it until 0200 lands.
+
+**Update 2026-10-23:** Nova comments now check module + workcenter (404) and write with the service role (policy withdrawn by 0211, PENDING); the inbox drops mentions on objects the caller cannot see; opportunity `owner_id`/`team` are verified against `tenant_users` (422); the kiosk punch stamps the signed `match_confidence` and treats a same-kind repeat within 20 s as an idempotent success.
