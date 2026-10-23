@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { c } from "@/lib/theme";
 import { ROUTES } from "@/lib/constants";
 import { LINE_FLAG_HELP, LINE_FLAG_LABEL } from "@/lib/estimator/productItems";
+import { itemKeyLabel } from "@/lib/estimator/productMatch";
 import Button from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import StatusPill from "@/components/ui/StatusPill";
@@ -95,7 +96,7 @@ export default function BomRow({
             <StatusPill label={SOURCE_LABEL[line.source]} tone={SOURCE_TONE[line.source]} />
             {line.overridden && <StatusPill label="Edited by hand" tone="purple" />}
             {line.flags.map((f) => <span key={f} title={LINE_FLAG_HELP[f]}><StatusPill label={LINE_FLAG_LABEL[f]} tone="red" /></span>)}
-            {line.flags.includes("unresolved") && line.sku && <span style={{ fontSize: 11, color: c.hint }}>Looking for {line.sku}</span>}
+            {line.flags.includes("unresolved") && line.sku && <span style={{ fontSize: 11, color: c.hint }}>Looking for {itemKeyLabel(line.sku)}</span>}
             {line.element_ref && <span style={{ fontSize: 11, color: c.hint }}>{line.element_ref}</span>}
             {line.element_ref && line.code && focus && (
               <button type="button" onClick={() => focus.show(line.code as string)}

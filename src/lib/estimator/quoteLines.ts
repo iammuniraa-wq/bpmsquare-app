@@ -16,6 +16,7 @@
 import { roundHalfAway } from "./formula";
 import { roundMoney, roundQty } from "./compute";
 import type { QuoteGranularity, TemplateInput } from "./types";
+import { itemKeyLabel } from "./productMatch";
 
 /** What the builder needs of an estimate line. */
 export type QuoteSourceLine = {
@@ -170,9 +171,9 @@ export type QuotableLine = QuoteSourceLine & { sku: string | null; product_id: s
 export function quoteBlockers(lines: readonly QuotableLine[]): string[] {
   const live = lines.filter((l) => Number.isFinite(l.qty) && l.qty > 0);
   const out: string[] = [];
-  const unresolved = [...new Set(live.filter((l) => l.sku && !l.product_id).map((l) => l.sku as string))];
+  const unresolved = [...new Set(live.filter((l) => l.sku && !l.product_id).map((l) => itemKeyLabel(l.sku as string)))];
   if (unresolved.length > 0) {
-    out.push(`No product in your catalogue matches the SKU or reference ${unresolved.slice(0, 5).join(", ")}${unresolved.length > 5 ? ", ..." : ""}. Add or correct the product, then calculate again.`);
+    out.push(`No product in your catalogue matches ${unresolved.slice(0, 5).join(", ")}${unresolved.length > 5 ? ", ..." : ""}. Add or correct the product, then calculate again.`);
   }
   const built = buildQuoteLines(live, { granularity: "group", margin_pct: 0 });
   if (!built.ok) out.push(...built.problems);
