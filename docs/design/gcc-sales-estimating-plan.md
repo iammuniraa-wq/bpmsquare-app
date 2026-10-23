@@ -1,4 +1,4 @@
-# Sales Order, GCC pack, e-invoicing, shared mailbox, one estimator — plan
+# Sales Order, GCC pack, Saudi e-invoicing, shared mailbox, one estimator — plan
 
 > Draft for the owner, 2026-10-23. A brainstorm and plan, nothing built. Every fact below was read from the code by three
 > scouting passes (sales/ERP, WFM, estimating/mailbox). Owner rules applied: lean (6c), simple screens (6b), "look first",
@@ -95,18 +95,21 @@ coverage test). In camera mode the phone surfaces are hidden, supervisors keep e
 Ramadan, caps, auto-break). W4 WPS/Mudad, document expiry, leave and holiday seeds, IBAN. W5 privacy, Arabic/RTL (deferred
 until a paying GCC workspace asks, as already noted).
 
-## 3. E-invoicing for GCC (the owner wrote "FATCA"; read as ZATCA, see decisions)
+## 3. E-invoicing: Saudi Arabia (ZATCA, Fatoora Phase 2) only
 
-Invoices have no tax breakdown, no tax-registration numbers and no e-invoice fields today. Design:
-- Invoice gains per-line tax code and rate, totals by rate, seller and buyer tax id (TRN / VAT number), and an
-  **E-invoice status chip** (Not required / Prepared / Cleared / Reported / Rejected) with the document id, QR and a link to
-  the signed XML. All filled by the provider, never typed.
-- A new connector kind **e-invoicing provider** in the Integration middleware: a certified solution provider's API for KSA
-  (ZATCA Phase 2 clearance and reporting) and an accredited Peppol access point for the UAE. Flow: invoice sent → submitted
-  through the connector → provider's webhook returns status, QR and clearance → stored and the invoice locks (changes go by
-  credit note). **We do not build the cryptographic signing ourselves** (also the standing advice in `GCC_READINESS.md`).
-- The pack chooses the scheme (`ksa_zatca`, `uae_peppol`, none for other countries); the invoice screen only shows the chip
-  when a scheme is on.
+Owner confirmed 2026-10-23: Saudi e-invoicing. The UAE Peppol scheme is out of scope for now (the pack mechanism keeps the door open).
+
+What ZATCA Phase 2 requires of an invoice (to verify against the current ZATCA specification before building):
+- **Two document types.** Standard tax invoice (B2B, buyer has a VAT number): sent to ZATCA for **clearance** first and only valid once cleared. Simplified tax invoice (B2C): issued at once, **reported** to ZATCA within 24 hours. Credit and debit notes follow the same two paths; a cleared invoice is never edited, it is corrected by a note.
+- **Machine data on every invoice:** UBL 2.1 XML, a per-invoice UUID, a running invoice counter (ICV), the hash of the previous invoice (PIH, a hash chain), a cryptographic stamp, and a QR code carrying signed data. Seller and buyer VAT numbers, seller CRN, and full structured addresses (building number, street, district, city, postal code) are mandatory; per-line VAT category and rate; totals by rate; Arabic text on the printed invoice (bilingual is accepted).
+- **Onboarding per seller device/branch:** a compliance certificate and a production certificate (CSID) obtained with a one-time code from the seller's Fatoora portal account.
+
+Design:
+- Invoice gains per-line tax code and rate, totals by rate, seller and buyer tax ids and address fields, document type (standard / simplified / credit / debit) and an **E-invoice status chip** (Not required / Prepared / Cleared or Reported / Rejected) with UUID, QR and a link to the signed XML. All filled by the connector, never typed.
+- **Where the signing happens is the one real choice:** (A) a ZATCA-certified solution provider's API, we send the invoice data and receive status, QR and the signed XML (fast, a per-invoice or subscription cost, their certification); (B) our own connector to ZATCA's published APIs using ZATCA's SDK (no per-invoice fee, but we own the certificates, key storage, hash chain, counter and ongoing certification). **Recommendation: A first**, behind a connector interface so B can replace it. The connector kind is **e-invoicing** in the Integration middleware; the invoice screen only shows the chip when the Saudi pack turned it on.
+- Flow: invoice approved → middleware submits → provider/ZATCA response by webhook or poll → status, QR and XML stored → invoice locks. Failures show the reason and a Retry on the Monitor tab, like any other message.
+- **If the client's ERP (D365) already issues the legal invoice and does the ZATCA step,** BPMSquare does not duplicate it: the invoice is then read from the ERP and shows the status chip only. This must be asked per client.
+- Keys and certificates are secrets: sealed (`sealSecret`), service-role-only table, never in `tenants.config` in the clear.
 
 **ERP touch points to put in the middleware (one entity row each, nothing new on the objects).** Built: customers,
 contacts, suppliers, products, awarded quote to ERP quote/order/project. Missing, in priority order: sales orders in + status;
@@ -168,8 +171,8 @@ with Big Blue first; the post-count formula still needs engineering sign-off). E
 
 ## 7. Decisions needed from the owner
 
-1. "FATCA" on GCC invoices: confirm it means ZATCA (KSA) and the UAE Peppol scheme. FATCA itself is US tax reporting.
-2. E-invoicing: buy not build (certified provider connector). Which provider, or recommend one in a short comparison?
+1. (Answered: Saudi ZATCA e-invoicing only.) Does each Saudi client issue invoices from BPMSquare, or from their ERP?
+2. E-invoicing: certified provider first (A) or our own ZATCA connector (B)? I recommend A first. Which provider, or should I prepare a short comparison?
 3. Camera: who supplies the CCTV vision system, and what does it send (events with a person id, or only video)? This fixes the
    ingest contract.
 4. Under camera mode: is derived overtime with supervisor approval acceptable, and are fixed auto-breaks acceptable?
@@ -178,6 +181,6 @@ with Big Blue first; the post-count formula still needs engineering sign-off). E
 6. Fence: may Big Blue's live fence data migrate into the estimate model, and when?
 7. Mailbox: start with the forwarding address (recommended) and add IMAP later?
 8. Tiles client: where does the tile catalogue and its pictures come from?
-9. Which countries first: UAE and KSA (per `GCC_READINESS.md`), then Qatar for Big Blue?
+9. Which countries first for the WFM pack: KSA (e-invoicing is Saudi), UAE, then Qatar for Big Blue?
 
 Docs to refresh after these ship and the owner validates: Sales Cloud, WFM, Admin & Setup, Marketing and API guides.
