@@ -12,6 +12,7 @@ export const CREATE_ACTIONS: CreateAction[] = [
   { label: "New Account",   href: "/accounts/new",    featureKey: "accounts", workcenterKey: "accounts" },
   { label: "New Contact",   href: "/contacts/new",    featureKey: "contacts", workcenterKey: "contacts" },
   { label: "New Quotation", href: "/quotations/new",  featureKey: "quotations", workcenterKey: "quotations" },
+  { label: "New Standard Quote", href: "/standard-quotes/new", featureKey: "standard_quotes", workcenterKey: "standard_quotes" },
   { label: "New Asset",     href: "/assets/new",      featureKey: "assets", workcenterKey: "assets" },
   { label: "New Supplier",  href: "/suppliers/new",   featureKey: "suppliers", workcenterKey: "suppliers" },
   { label: "New Product",   href: "/products/new",    featureKey: "products", workcenterKey: "products" },

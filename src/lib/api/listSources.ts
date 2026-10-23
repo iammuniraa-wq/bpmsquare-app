@@ -5,6 +5,7 @@ import type { QueryableField } from "./query";
 import type { WorkcenterKey } from "@/lib/workcenters";
 import { PROJECT_HOURS_FIELDS, loadProjectHoursRows } from "@/lib/wfm/projectHoursRows";
 import { loadEstimatesForApi } from "@/lib/estimator/apiRows";
+import { loadStandardQuotesForApi } from "@/lib/api/standardQuoteRows";
 
 // One place that defines, per list object, both its queryable-field
 // whitelist and how to load its tenant-scoped, PII-decrypted rows. The v1
@@ -137,6 +138,28 @@ const RFQ_FIELDS: QueryableField[] = [
   { path: "origin_label", type: "string", searchable: true },
   { path: "respond_by", type: "date" },
   { path: "required_by", type: "date" },
+  { path: "created_at", type: "date" },
+  { path: "updated_at", type: "date" },
+];
+
+const STANDARD_QUOTE_FIELDS: QueryableField[] = [
+  { path: "id", type: "string" },
+  { path: "ref", type: "string", searchable: true },
+  { path: "status", type: "string" },
+  { path: "inquiry_date", type: "date" },
+  { path: "valid_until", type: "date" },
+  { path: "sent_at", type: "date" },
+  { path: "closed_at", type: "date" },
+  { path: "subtotal", type: "number" },
+  { path: "header_discount_pct", type: "number" },
+  { path: "tax_pct", type: "number" },
+  { path: "shipping_amount", type: "number" },
+  { path: "total", type: "number" },
+  { path: "line_count", type: "number" },
+  { path: "account.id", type: "string" },
+  { path: "account.name", type: "string", searchable: true },
+  { path: "contact_id", type: "string" },
+  { path: "opportunity_id", type: "string" },
   { path: "created_at", type: "date" },
   { path: "updated_at", type: "date" },
 ];
@@ -466,6 +489,15 @@ export const LIST_SOURCES: Record<string, ListSource> = {
         .order("created_at", { ascending: false });
       return (data ?? []).map((r) => ({ ...r, _links: { self: `/api/v1/rfqs/${r.id}` } }));
     },
+  },
+  standard_quotes: {
+    label: "Standard quotes",
+    description: "Standard Quotes (separate from Quotations): status, value, validity, header discount/tax/shipping and the customer. Lines are on /api/v1/standard-quotes/:id.",
+    relatedWorkcenter: "standard_quotes",
+    fields: STANDARD_QUOTE_FIELDS,
+    // Header only. The guardrail margin on lines (pricing_flags), the supplier-request link, notes,
+    // the template and the contact's details are deliberately not selected: see standardQuoteRows.ts.
+    load: loadStandardQuotesForApi,
   },
   abm_programs: {
     label: "ABM programs (account-based marketing)",

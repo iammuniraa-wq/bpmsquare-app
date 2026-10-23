@@ -2274,6 +2274,12 @@ const SEARCH_SPECS: SearchSpec[] = [
     toResult: (r, cur) => ({ id: r.id, title: r.ref, subtitle: r.name || (r.po_number ? `PO ${r.po_number}` : formatMoney(Number(r.total ?? 0), cur)), href: ROUTES.quotation(r.id), matched: "ref" }),
   },
   {
+    type: "standard_quote", table: "standard_quotes", columns: "id, ref, status, total",
+    textCols: ["ref"],
+    toResult: (r, cur) => ({ id: r.id, title: r.ref, subtitle: `${formatMoney(Number(r.total ?? 0), cur)} · ${r.status}`, href: ROUTES.standardQuote(r.id), matched: "ref" }),
+    featureKeys: ["standard_quotes"],
+  },
+  {
     type: "work_order", table: "work_orders", columns: "id, ref, description, status",
     textCols: ["ref", "description"],
     toResult: (r) => ({ id: r.id, title: r.ref, subtitle: r.description || r.status, href: ROUTES.workOrder(r.id), matched: "ref" }),

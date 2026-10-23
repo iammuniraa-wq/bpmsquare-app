@@ -13,6 +13,7 @@ import { emitQuoteSent, emitQuoteStatusChanged, emitQuoteOutcome } from "@/lib/e
 import { outcomeForStatus } from "@/lib/middleware/types";
 import { scheduleQuoteDispatch } from "@/lib/middleware/schedule";
 import type { TenantFeatures } from "@/lib/constants";
+import { cfOnly } from "@/lib/customData";
 
 const VALID_STATUSES = ["draft", "sent", "accepted", "rejected", "expired"];
 
@@ -98,6 +99,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     } else patch.opportunity_id = null;
   }
   if ("status" in body) patch.status = body.status;
+  // Tenant fields (0209): cf_ keys only; writeHeaderTolerant drops the column while 0209 is pending.
+  if (cfOnly(body.custom_data)) patch.custom_data = cfOnly(body.custom_data);
 
   // Date profile (0059). Manual overrides first -- null clears, a valid
   // YYYY-MM-DD sets, anything malformed is a 400 -- then auto-stamps, which

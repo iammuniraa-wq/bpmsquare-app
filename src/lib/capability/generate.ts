@@ -81,7 +81,7 @@ export const OBJECT_MODULE: Record<PilotObjectType, Key> = {
   account: "accounts", contact: "contacts", asset: "assets", supplier: "suppliers",
   case: "cases", work_order: "work_orders", quote: "quotations", invoice: "invoices",
   purchase_order: "purchasing", inventory: "purchasing", employee: "business_roles", product: "products",
-  project: "wfm_projects", opportunity: "pipeline", rfq: "rfq", estimate: "estimator", process_study: "process_studio", newsletter: "newsletter_studio", abm_program: "abm", abm_target: "abm", abm_member: "abm",
+  project: "wfm_projects", opportunity: "pipeline", rfq: "rfq", estimate: "estimator", process_study: "process_studio", newsletter: "newsletter_studio", abm_program: "abm", abm_target: "abm", abm_member: "abm", standard_quote: "standard_quotes",
 };
 
 /** Limitations that must travel with a connector. The D365 one is the owner's: it stays visible as it is. */

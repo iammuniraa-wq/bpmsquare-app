@@ -48,6 +48,15 @@ describe("change feed scope", () => {
     expect(canReadChangeType(key(["*"], false), "accounts")).toBe(false);
   });
 
+  it("standard quote changes follow the standard_quotes scope, not the quotations one", () => {
+    expect(scopeForChangeType("standard_quotes")).toBe("standard_quotes");
+    expect(scopeForChangeType("standard_quote")).toBe("standard_quotes");
+    expect(canReadChangeType(key(["standard_quotes"]), "standard_quotes")).toBe(true);
+    expect(canReadChangeType(key(["quotations"]), "standard_quotes")).toBe(false);
+    expect(canReadChangeType(key(["standard_quotes"]), "quotes")).toBe(false);
+    expect(changeTypeFilter(key(["standard_quotes"])).types).toEqual(expect.arrayContaining(["standard_quotes", "standard_quote"]));
+  });
+
   it("an unmapped type has no scope of its own", () => {
     expect(scopeForChangeType("suppliers")).toBeNull();
     expect(scopeForChangeType("quotes")).toBe("quotations");

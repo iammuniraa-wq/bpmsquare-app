@@ -9,6 +9,7 @@ import { diffForLog, logChange } from "@/lib/changeLog";
 import { computeStandardQuoteTotals, clampPct, clampAmount } from "@/lib/standardQuoteTotals";
 import { derivePricingFlags, withPricingColumns, insertLinesTolerant, verifiedProductIds, verifiedRfqLineIds, resolveLineIdsAndSelection, writeHeaderTolerant } from "@/lib/pricing/quoteLineFlags";
 import { parsePrintOptions, isDefaultPrintOptions } from "@/lib/sales/printOptions";
+import { cfOnly } from "@/lib/customData";
 
 export async function GET(request: NextRequest) {
   let supabase, tenantId;
@@ -148,6 +149,8 @@ export async function POST(request: NextRequest) {
     total: totals.total,
     created_by: userId,
     template_id: templateId,
+    // Tenant fields (0209): cf_ keys only; dropped by writeHeaderTolerant while 0209 is pending.
+    ...(Object.keys(cfOnly(body.custom_data) ?? {}).length > 0 ? { custom_data: cfOnly(body.custom_data) } : {}),
   };
 
   let quote: { id: string; ref: string } | null = null;

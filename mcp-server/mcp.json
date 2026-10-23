@@ -1,6 +1,6 @@
 {
   "name": "bpmsquare",
-  "version": "1.12.0",
+  "version": "1.13.0",
   "description": "BPMSquare MCP server — field service CRM for electromechanical repair businesses. Generic across every tenant; nothing here is Vikas/Hosapete-specific.",
   "api_base": "https://<your-tenant-domain>/api/v1",
   "auth": {
@@ -407,6 +407,29 @@
       }
     },
     {
+      "name": "list_standard_quotes",
+      "description": "List the tenant's standard quotes (the Standard Quotes module, separate from Quotations): ref, status (draft, sent, accepted, rejected, expired), customer account, validity, header discount, tax and shipping, subtotal and total, and how many lines each has. Contacts are returned as an id only. Needs an API key scoped to \"standard_quotes\" (or to all objects).",
+      "method": "GET",
+      "path": "/api/v1/standard-quotes",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "description": "draft, sent, accepted, rejected or expired"
+          },
+          "account_id": {
+            "type": "string",
+            "description": "Only quotes for this account"
+          },
+          "opportunity_id": {
+            "type": "string",
+            "description": "Only quotes linked to this deal"
+          }
+        }
+      }
+    },
+    {
       "name": "list_abm_programs",
       "description": "List the tenant's ABM (account-based marketing) programs: goal, time window, status and how many companies are targeted.",
       "method": "GET",
@@ -495,6 +518,24 @@
           "id": {
             "type": "string",
             "description": "RFQ UUID"
+          }
+        },
+        "required": [
+          "id"
+        ]
+      }
+    },
+    {
+      "name": "get_standard_quote",
+      "description": "Fetch one standard quote by id with its lines (description, quantity, rate, discount, amount, option group and whether it counts toward the total), introduction, notes and terms. Line margin checks, supplier-request links and contact details are never returned. Needs an API key scoped to \"standard_quotes\" (or to all objects).",
+      "method": "GET",
+      "path": "/api/v1/standard-quotes/{id}",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Standard quote UUID"
           }
         },
         "required": [
