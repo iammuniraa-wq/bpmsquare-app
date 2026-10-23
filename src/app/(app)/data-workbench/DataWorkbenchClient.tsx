@@ -162,6 +162,16 @@ export default function DataWorkbenchClient({ specs }: { specs: ObjectSpec[] }) 
                   Only adds lines to a quote that already exists. To create a new quote, use Quotes instead — its file includes both the header and the lines.
                 </div>
               )}
+              {spec?.id === "standard_quotes" && (
+                <div style={{ fontSize: 11, color: c.hint, lineHeight: 1.6, marginTop: 8 }}>
+                  Creates draft quotes without lines. Export them to see each Quote ID, then add the lines with Standard Quote Lines.
+                </div>
+              )}
+              {spec?.id === "standard_quote_lines" && (
+                <div style={{ fontSize: 11, color: c.hint, lineHeight: 1.6, marginTop: 8 }}>
+                  Only adds lines to a draft standard quote that already exists, found by its Quote ID.
+                </div>
+              )}
             </div>
           )}
         </nav>

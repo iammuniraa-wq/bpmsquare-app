@@ -53,6 +53,16 @@ describe("OBJECT_FEATURE", () => {
     }
   });
 
+  it("every spelling of the Standard Quotes object is owned by the standard_quotes module", () => {
+    // The header and its lines are two Data Workbench families, the v1 endpoint is spelled with a
+    // dash and the scope with an underscore; one missing spelling would fail closed (a 404 for a
+    // tenant that owns the module) or, worse, never be asked at all.
+    for (const name of ["standard_quotes", "standard_quote_lines", "standard-quotes"]) {
+      expect(featureForObject(name), name).toBe("standard_quotes");
+    }
+    expect(OBJECT_FEATURE.quotes).toBe("quotations");
+  });
+
   it("throws on an object nobody has decided about", () => {
     expect(() => featureForObject("sales_orders")).toThrow(/No feature mapping/);
   });

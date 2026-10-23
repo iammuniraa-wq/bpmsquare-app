@@ -27,6 +27,11 @@ import RecordMoreMenu from "@/components/page/RecordMoreMenu";
 import RecordActivity from "@/components/page/RecordActivity";
 import RelatedList from "@/components/page/RelatedList";
 import RecordActionButton, { type RecordAction } from "@/components/page/recordActions";
+import ObjectSections from "@/components/fields/ObjectSections";
+import { FIELD_REGISTRY } from "@/lib/fieldRegistry";
+
+// The page hand-renders every standard field; only the tenant's own (cf_) fields come from ObjectSections.
+const STANDARD_FIELD_KEYS = FIELD_REGISTRY.standard_quote.fields.map((f) => f.key);
 
 const STATUS_TONE: Record<StandardQuoteStatus, PillarKey> = {
   draft: "blue", sent: "amber", accepted: "green", rejected: "red", expired: "red",
@@ -137,6 +142,7 @@ export default async function StandardQuoteDetailPage({
           id: "overview",
           label: "Overview",
           content: (
+            <>
             <Card title="Quote details">
               <CtxRow label="Account" value={account ? <Link href={ROUTES.account(account.id)} style={{ color: c.accent, textDecoration: "none" }}>{account.name}</Link> : "—"} />
               <CtxRow label="Contact" value={contact?.name ?? "—"} />
@@ -155,6 +161,8 @@ export default async function StandardQuoteDetailPage({
                 </>
               )}
             </Card>
+            <ObjectSections objectType="standard_quote" record={quote as unknown as Record<string, unknown>} patchUrl={`/api/standard-quotes/${quote.id}`} exclude={STANDARD_FIELD_KEYS} />
+            </>
           ),
         },
         {

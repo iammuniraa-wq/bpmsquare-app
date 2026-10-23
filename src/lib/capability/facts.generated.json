@@ -248,7 +248,7 @@
     }
   ],
   "mcp": {
-    "version": "1.12.0",
+    "version": "1.13.0",
     "tools": [
       {
         "name": "list_accounts",
@@ -319,6 +319,10 @@
         "description": "List the tenant's RFQs (requests for quotation sent to suppliers when no cost or price was found): ref, title, status, what each was raised from, reply deadline."
       },
       {
+        "name": "list_standard_quotes",
+        "description": "List the tenant's standard quotes (the Standard Quotes module, separate from Quotations): ref, status (draft, sent, accepted, rejected, expired), customer account, validity, header discount, tax and shipping, subtotal an"
+      },
+      {
         "name": "list_abm_programs",
         "description": "List the tenant's ABM (account-based marketing) programs: goal, time window, status and how many companies are targeted."
       },
@@ -337,6 +341,10 @@
       {
         "name": "get_rfq",
         "description": "Fetch one RFQ by id with its lines, the suppliers asked, each supplier's quoted prices and which line was awarded to whom."
+      },
+      {
+        "name": "get_standard_quote",
+        "description": "Fetch one standard quote by id with its lines (description, quantity, rate, discount, amount, option group and whether it counts toward the total), introduction, notes and terms."
       },
       {
         "name": "list_estimates",

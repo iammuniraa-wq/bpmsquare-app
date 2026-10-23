@@ -446,6 +446,8 @@ export type StandardQuote = {
   print_options?: { alternatives?: "all" | "chosen"; breaks?: "all" | "chosen" } | null;
   /** The deal this quote belongs to (0120). Optional, never required. */
   opportunity_id?: string | null;
+  /** Tenant-defined fields (0209), cf_-prefixed keys only. Absent while 0209 is pending. */
+  custom_data?: Record<string, unknown> | null;
 };
 
 export type StandardQuoteLine = {

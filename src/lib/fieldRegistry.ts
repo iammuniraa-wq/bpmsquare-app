@@ -97,7 +97,8 @@ export type EffectiveField = {
 export type PilotObjectType =
   | "account" | "contact" | "asset" | "supplier"
   | "case" | "work_order" | "quote" | "invoice" | "purchase_order" | "inventory"
-  | "employee" | "product" | "project" | "opportunity" | "rfq" | "estimate" | "process_study" | "newsletter" | "abm_program" | "abm_target" | "abm_member";
+  | "employee" | "product" | "project" | "opportunity" | "rfq" | "estimate" | "process_study" | "newsletter" | "abm_program" | "abm_target" | "abm_member"
+  | "standard_quote";
 
 // ISO 639-1 codes the Newsletter Studio can write in (src/lib/newsletter/types.ts LANGUAGES); duplicated as data
 // here because this registry is imported by client code and must not pull the studio in.
@@ -586,6 +587,38 @@ export const FIELD_REGISTRY: Record<PilotObjectType, ObjectFieldRegistry> = {
     ],
   },
 
+  // Standard Quote (0053/0055/0059): its own object, apart from Quotation. Header only --
+  // the lines are the standard_quote_lines family (their own static Data Workbench spec,
+  // standardQuoteLinesSchema.ts). Account and contact are resolved by name on import.
+  // Everything that feeds the stored total (discount, tax, shipping) is settable, but
+  // the total itself and the status (own action UI, emits events) are export-only.
+  standard_quote: {
+    sections: ["Quote", "Commercial", "Notes"],
+    fields: [
+      { key: "ref",    defaultLabel: "Quote ID", widget: "text", defaultSection: "Quote", locked: true, editable: false, exportOnly: true },
+      { key: "status", defaultLabel: "Status",   widget: "enum", defaultSection: "Quote", locked: true, editable: false, exportOnly: true, enumOptions: [
+        { value: "draft", label: "Draft" }, { value: "sent", label: "Sent" }, { value: "accepted", label: "Accepted" },
+        { value: "rejected", label: "Rejected" }, { value: "expired", label: "Expired" },
+      ] },
+      { key: "inquiry_date", defaultLabel: "Inquiry date", widget: "date", defaultSection: "Quote" },
+      { key: "valid_until",  defaultLabel: "Valid until",  widget: "date", defaultSection: "Quote" },
+      { key: "sent_at",   defaultLabel: "Sent",   widget: "date", defaultSection: "Quote", locked: true, editable: false, exportOnly: true },
+      { key: "closed_at", defaultLabel: "Closed", widget: "date", defaultSection: "Quote", locked: true, editable: false, exportOnly: true },
+
+      { key: "header_discount_pct", defaultLabel: "Discount %",  widget: "number", defaultSection: "Commercial" },
+      { key: "tax_pct",             defaultLabel: "Tax %",       widget: "number", defaultSection: "Commercial" },
+      { key: "shipping_amount",     defaultLabel: "Shipping",    widget: "number", defaultSection: "Commercial" },
+      { key: "subtotal", defaultLabel: "Subtotal", widget: "number", defaultSection: "Commercial", locked: true, editable: false, exportOnly: true },
+      { key: "total",    defaultLabel: "Total",    widget: "number", defaultSection: "Commercial", locked: true, editable: false, exportOnly: true },
+
+      { key: "intro_text", defaultLabel: "Introduction", widget: "textarea", defaultSection: "Notes" },
+      { key: "notes",      defaultLabel: "Notes",        widget: "textarea", defaultSection: "Notes" },
+      { key: "terms",      defaultLabel: "Terms",        widget: "textarea", defaultSection: "Notes" },
+      // account_id/contact_id/template_id/opportunity_id/created_by (pointers), print_options
+      // (presentation) and the pricing flags on lines (guardrail state) are excluded.
+    ],
+  },
+
   invoice: {
     sections: ["Identity", "Commercial", "Notes"],
     fields: [
@@ -712,6 +745,7 @@ const PILOT_OBJECT_TYPES: readonly PilotObjectType[] = [
   "account", "contact", "asset", "supplier",
   "case", "work_order", "quote", "invoice", "purchase_order", "inventory",
   "employee", "product", "project", "opportunity", "rfq", "estimate", "process_study", "newsletter", "abm_program", "abm_target", "abm_member",
+  "standard_quote",
 ];
 
 export function isPilotObjectType(objectType: string): objectType is PilotObjectType {

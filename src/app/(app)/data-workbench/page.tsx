@@ -9,6 +9,7 @@ import { USERS_SPEC } from "@/lib/import/usersSchema";
 import { QUOTE_LINES_SPEC } from "@/lib/import/quoteLinesSchema";
 import { PRODUCT_BOM_LINES_SPEC } from "@/lib/import/productBomLinesSchema";
 import { CONSENTS_SPEC } from "@/lib/import/consentsSchema";
+import { STANDARD_QUOTE_LINES_SPEC } from "@/lib/import/standardQuoteLinesSchema";
 import { EMPLOYEES_SPEC, buildEmployeesSpec } from "@/lib/import/employeesSchema";
 import { requireWorkcenterView } from "@/lib/permissions";
 import { featureForObject } from "@/lib/objectFeatures";
@@ -19,7 +20,7 @@ import type { ImportObjectId, ObjectSpec } from "@/lib/import/types";
 // since labels are tenant-configurable) -- this list only defines WHICH
 // objects exist, not their order.
 const OBJECT_ORDER: ImportObjectId[] = [
-  "accounts", "contacts", "assets", "suppliers", "products", "product_bom_lines", "wfm_projects", "opportunities", "rfqs", "estimates", "abm_programs", "abm_targets", "abm_members", "quotes", "quote_lines",
+  "accounts", "contacts", "assets", "suppliers", "products", "product_bom_lines", "wfm_projects", "opportunities", "rfqs", "estimates", "abm_programs", "abm_targets", "abm_members", "quotes", "quote_lines", "standard_quotes", "standard_quote_lines",
   "cases", "work_orders", "invoices", "purchase_orders", "inventory",
   "users", "employees", "consents",
 ];
@@ -32,6 +33,7 @@ const STATIC_SPECS: Partial<Record<ImportObjectId, ObjectSpec>> = {
   employees: EMPLOYEES_SPEC,
   product_bom_lines: PRODUCT_BOM_LINES_SPEC,
   consents: CONSENTS_SPEC,
+  standard_quote_lines: STANDARD_QUOTE_LINES_SPEC,
 };
 
 export default async function DataWorkbenchPage() {

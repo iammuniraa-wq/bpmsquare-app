@@ -94,6 +94,12 @@ export const OBJECT_FEATURE: Record<string, keyof TenantFeatures | null> = {
   // own Quotations without being allowed to bulk-edit lines).
   quote_lines: "quote_lines_dw",
   rfqs: "rfq",
+  // Standard Quotes (0053): a module of its own, apart from Quotations. The header and its
+  // lines are two Data Workbench families, the v1 endpoint says standard-quotes and the
+  // scope / list source say standard_quotes -- every spelling a surface uses.
+  standard_quotes: "standard_quotes",
+  standard_quote_lines: "standard_quotes",
+  "standard-quotes": "standard_quotes",
   suppliers: "suppliers",
   work_orders: "work_orders",
   "work-orders": "work_orders",

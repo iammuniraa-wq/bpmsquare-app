@@ -48,6 +48,9 @@ export const REGISTRY_OBJECT_TYPE: Record<ImportObjectId, string | null> = {
   abm_programs: "abm_program",
   abm_targets: "abm_target",
   abm_members: "abm_member",
+  standard_quotes: "standard_quote",
+  // Static spec (standardQuoteLinesSchema.ts), like quote_lines.
+  standard_quote_lines: null,
 };
 
 export type ReferenceFieldDef = {
@@ -95,6 +98,12 @@ export const REFERENCE_FIELDS: Partial<Record<ImportObjectId, ReferenceFieldDef[
     { key: "program_ref", label: "Program", hint: "Program ID of an existing program, e.g. ABM-0001", target: "abm_programs", required: true, targetColumn: "ref" },
     { key: "account_name", label: "Account", hint: "The target account, already in that program", target: "accounts", required: true },
     { key: "contact_name", label: "Person", hint: "A contact at that account, spelled as in your contacts", target: "contacts", required: true },
+  ],
+  // Standard Quotes (header only): account/contact resolve the relationship at create time by
+  // name. Update never keys off them; the lines are the standard_quote_lines family.
+  standard_quotes: [
+    { key: "account_name", label: "Account", hint: "Must match an account already in the system", target: "accounts", required: true },
+    { key: "contact_name", label: "Contact", hint: "Contact person at that account, spelled as in your contacts", target: "contacts" },
   ],
   wfm_projects: [
     { key: "parent_ref", label: "Sits under", hint: "Project ID of the parent (e.g. PRJ-0003) to create a sub-project — blank for a top-level project", target: "wfm_projects" },
@@ -212,6 +221,9 @@ const OBJECT_META: Record<ImportObjectId, { label: string; icon: string; descrip
   estimates: { label: "Estimates", icon: "∑", description: "Project estimates (header fields only) — import creates a draft from a template by name; open it and press Calculate to produce its BOM and costs. Lines, quantities and costs come from the estimator, not from a file.", dependsOn: ["accounts", "contacts"] },
   abm_programs: { label: "ABM programs", icon: "◎", description: "Account-based marketing programs: a goal, a window and an owner. Target lists and buying groups are their own objects.", dependsOn: [] },
   abm_targets: { label: "ABM target accounts", icon: "◉", description: "One company in one program. Import adds companies to an existing program; progress is set by rules or on the screen with a reason, never by a file.", dependsOn: ["abm_programs", "accounts"] },
+  standard_quotes: { label: "Standard Quotes", icon: "≡", description: "Creates draft standard quotes (header only: customer, validity, discount, tax, shipping, texts). Add the lines with Standard Quote Lines, using the Quote ID from an export. Total, status and Quote ID are computed, not imported.", dependsOn: ["accounts", "contacts"] },
+  // Never read -- standard_quote_lines is null in REGISTRY_OBJECT_TYPE (static spec).
+  standard_quote_lines: { label: "Standard Quote Lines", icon: "≣", description: "", dependsOn: ["standard_quotes"] },
   abm_members: { label: "ABM buying groups", icon: "☰", description: "People and their role in a target account's buying group, for one program. Private notes are not included.", dependsOn: ["abm_targets", "contacts"] },
   wfm_projects: { label: "Projects (workforce)", icon: "▦", description: "Project costing — projects and sub-projects that worked hours are attributed to. Import parents before children.", dependsOn: [] },
   users: { label: "Users", icon: "◍", description: "Invite team members and assign roles — each person receives an email invite", dependsOn: [] },
