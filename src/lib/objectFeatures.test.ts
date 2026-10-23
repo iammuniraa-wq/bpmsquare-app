@@ -63,8 +63,15 @@ describe("OBJECT_FEATURE", () => {
     expect(OBJECT_FEATURE.quotes).toBe("quotations");
   });
 
+  it("every spelling of the Sales Orders object is owned by the sales_orders module", () => {
+    // Header and lines are two Data Workbench families, the v1 endpoint has a dash, the scope an underscore.
+    for (const name of ["sales_orders", "sales_order_lines", "sales-orders"]) {
+      expect(featureForObject(name), name).toBe("sales_orders");
+    }
+  });
+
   it("throws on an object nobody has decided about", () => {
-    expect(() => featureForObject("sales_orders")).toThrow(/No feature mapping/);
+    expect(() => featureForObject("not_an_object_yet")).toThrow(/No feature mapping/);
   });
 });
 

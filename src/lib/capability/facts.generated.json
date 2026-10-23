@@ -215,6 +215,10 @@
     {
       "key": "ai_assistant_web",
       "comment": "Assistant web research (docs/design/assistant-smarter.md section 2): the dock may ask \"Do you want me to search the web for this?\" and, on a yes, run one isolated search on our key and answer with sources."
+    },
+    {
+      "key": "sales_orders",
+      "comment": "Sales Orders (docs/design/sales-order.md, build spec SO1): an order made here from an accepted quote or won deal, with order types, availability from master data, PDF/email/WhatsApp and files."
     }
   ],
   "extensionHooks": [
@@ -714,6 +718,16 @@
       "plain": "Ask several suppliers for prices by email, receive their replies back inside BPMSquare, compare and award.",
       "rules": [
         "Supplier replies are read from the email and filled into the request for a person to confirm."
+      ]
+    },
+    "sales_orders": {
+      "status": "live",
+      "plain": "Sales orders made from an accepted quote or a won deal, with an order type per workspace, availability from stock and lead times, a PDF to send, and files.",
+      "rules": [
+        "An order is made from an accepted standard quote, a won quotation or a won deal; the lines and prices are copied, never retyped.",
+        "Each order has a type; the type sets the numbering prefix, the pricing mode and the PDF design.",
+        "A draft can be changed freely; a confirmed order stays open only for notes, customer PO and files.",
+        "Sending the order to an ERP and checking it there are not part of this module yet."
       ]
     },
     "spectacular_theme": {
