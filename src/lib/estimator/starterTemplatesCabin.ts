@@ -10,12 +10,24 @@
 // partitions, and the rules price the counts and areas the layout works out to
 // (n_unit, area_wall, area_roof, area_floor, n_door, n_window, area_partition,
 // len_joint). Group names are what the customer reads on the quote.
+//
+// ROOMS AND EQUIPMENT. "Room plan" (default None) divides the units into offices, bedrooms, toilets, a pantry and so
+// on, and furnishes each room (cabinEquipment.ts). The furniture and fittings are counted as n_eq_<item> and priced
+// one by one in "Rooms and equipment"; with a room plan chosen the lump-sum lines they replace (one air-conditioner per
+// cabin, the points allowance, the wet room allowance) fall to zero, so nothing is priced twice. With no room plan the
+// bill is exactly what it was before rooms existed.
+//
+// LOOK AND FINISH. Three select inputs repaint the 3D model (`paints` names the design slot, each option's `visual` the
+// material). The same choice reaches the bill only through a small extra rate for anything other than the standard
+// look, so the standard choices price exactly as before.
 
 import { groupSlug } from "./types";
+import { CABIN_EQUIPMENT } from "./geometry/cabinEquipment";
 import type { CatalogueStarter } from "./starterTemplatesTiles";
 
 const G_SHELL = "Cabin shell and cladding";
 const G_FIT = "Fit-out and services";
+const G_EQ = "Rooms and equipment";
 const G_ASM = "Assembly and site installation";
 const G_DEL = "Delivery";
 const sub = (group: string) => `sub_${groupSlug(group)}`;
@@ -23,7 +35,7 @@ const sub = (group: string) => `sub_${groupSlug(group)}`;
 export const PORTA_CABIN_STARTER: CatalogueStarter = {
   name: "Porta cabin (illustrative)",
   description:
-    "ILLUSTRATIVE starter for modular porta cabins: units on a grid (single, row, L-shape or stacked two high) with doors, windows, partitions and a basic, standard or premium fit-out, shown as a 3D model and priced from the pieces. All rates are placeholders, not any manufacturer's prices. Copy it and replace them with your own.",
+    "ILLUSTRATIVE starter for modular porta cabins: units on a grid (single, row, L-shape or stacked two high) with doors, windows, partitions and a basic, standard or premium fit-out, optionally divided into rooms (offices, bedrooms, toilets, pantry) with furniture and air conditioning, shown as a 3D model and priced from the pieces. All rates are placeholders, not any manufacturer's prices. Copy it and replace them with your own.",
   trade: "modular buildings",
   icon: "cabin",
   keywords: [
@@ -60,7 +72,46 @@ export const PORTA_CABIN_STARTER: CatalogueStarter = {
         { key: "standard", label: "Standard", value: 2 },
         { key: "premium", label: "Premium", value: 3 },
       ] },
-    { key: "include_ac", label: "Air conditioning (one split unit per cabin)", type: "boolean", default: true, section: "Fit-out" },
+    { key: "include_ac", label: "Air conditioning (a split unit per cabin, or per room with a room plan)", type: "boolean", default: true, section: "Fit-out" },
+    { key: "rooms_mode", label: "Room plan", type: "select", default: "none", section: "Rooms and equipment",
+      help: "Divides each unit into rooms with a partition and a door between them, and furnishes every room. None keeps the units as open shells.",
+      options: [
+        { key: "none", label: "None", value: 0 },
+        { key: "office_block", label: "Office block", value: 1 },
+        { key: "accommodation", label: "Accommodation", value: 2 },
+        { key: "toilet_block", label: "Toilet block", value: 3 },
+        { key: "site_office_wc", label: "Site office with WC", value: 4 },
+        { key: "custom", label: "Custom", value: 5 },
+      ] },
+    { key: "room_offices", label: "Offices (custom plan)", type: "number", default: 0, min: 0, max: 20, unit: "rooms", section: "Rooms and equipment",
+      help: "Only the Custom room plan reads the four room counts. Rooms are shared out over the units, up to four to a unit." },
+    { key: "room_bedrooms", label: "Bedrooms (custom plan)", type: "number", default: 0, min: 0, max: 20, unit: "rooms", section: "Rooms and equipment" },
+    { key: "room_toilets", label: "Toilets (custom plan)", type: "number", default: 0, min: 0, max: 20, unit: "rooms", section: "Rooms and equipment" },
+    { key: "room_pantries", label: "Pantries (custom plan)", type: "number", default: 0, min: 0, max: 20, unit: "rooms", section: "Rooms and equipment" },
+    { key: "extinguisher_count", label: "Fire extinguishers", type: "number", default: 1, min: 0, max: 10, unit: "nr", section: "Rooms and equipment",
+      help: "Used with a room plan. They go to the reception or offices first." },
+    { key: "water_cooler_count", label: "Water coolers", type: "number", default: 0, min: 0, max: 4, unit: "nr", section: "Rooms and equipment",
+      help: "Used with a room plan. They go to the pantry first." },
+    { key: "cladding_colour", label: "Cladding colour", type: "select", default: "white", paints: "cladding", section: "Look and finish",
+      options: [
+        { key: "white", label: "White", value: 1, visual: "cladding_white" },
+        { key: "grey", label: "Grey", value: 2, visual: "cladding_grey" },
+        { key: "sand", label: "Sand", value: 3, visual: "cladding_sand" },
+        { key: "blue", label: "Blue", value: 4, visual: "cladding_blue" },
+      ] },
+    { key: "floor_finish", label: "Floor finish", type: "select", default: "grey_tile", paints: "floor", section: "Look and finish",
+      options: [
+        { key: "grey_tile", label: "Grey tile", value: 1, visual: "porcelain_grey" },
+        { key: "oak", label: "Oak", value: 2, visual: "wood_oak" },
+        { key: "terrazzo", label: "Terrazzo", value: 3, visual: "terrazzo" },
+      ] },
+    { key: "roof_colour", label: "Roof colour", type: "select", default: "sheet", paints: "roof", section: "Look and finish",
+      options: [
+        { key: "sheet", label: "Profiled sheet", value: 1, visual: "roof_sheet" },
+        { key: "light_grey", label: "Light grey", value: 2, visual: "#c9cdd1" },
+        { key: "dark_grey", label: "Dark grey", value: 3, visual: "#4a4f55" },
+        { key: "terracotta", label: "Terracotta", value: 4, visual: "#a65a3c" },
+      ] },
     { key: "transport_distance_km", label: "Distance to site", type: "number", default: 150, min: 0, max: 3000, unit: "km", section: "Delivery" },
   ],
 
@@ -81,6 +132,15 @@ export const PORTA_CABIN_STARTER: CatalogueStarter = {
     { key: "ac_cost", label: "Air conditioning split unit", unit: "per nr", value: 430, low: 390, high: 520 },
     { key: "wet_room_cost", label: "Toilet / wet room fixtures and plumbing", unit: "per room", value: 680 },
     { key: "premium_allowance_m2", label: "Premium finishes allowance", unit: "per m²", value: 48 },
+    { key: "cladding_colour_cost_m2", label: "Coloured cladding finish (any colour but white)", unit: "per m²", value: 3.5 },
+    { key: "floor_oak_extra_m2", label: "Oak floor, extra over grey tile", unit: "per m²", value: 12 },
+    { key: "floor_terrazzo_extra_m2", label: "Terrazzo floor, extra over grey tile", unit: "per m²", value: 21 },
+    { key: "roof_colour_cost_m2", label: "Coated roof colour (any colour but profiled sheet)", unit: "per m²", value: 4 },
+    // Rooms and equipment: ILLUSTRATIVE unit prices, one per item of the cabin equipment catalogue (the split air
+    // conditioner reuses ac_cost above and covers its outdoor unit).
+    { key: "internal_door_cost", label: "Internal door, with frame", unit: "per nr", value: 120 },
+    { key: "wet_plumbing_cost", label: "Plumbing and drainage allowance per toilet or shower room", unit: "per room", value: 260 },
+    ...CABIN_EQUIPMENT.filter((i) => i.rate && i.key !== "ac_split").map((i) => ({ key: i.rate as string, label: i.label, unit: "per nr", value: i.price })),
     // Labour and site
     { key: "labour_rate_hr", label: "Factory labour rate", unit: "per h", value: 15, low: 13.5, high: 18 },
     { key: "assembly_hours_per_m2", label: "Factory assembly time", unit: "h/m²", value: 4.5, low: 4, high: 5.6 },
@@ -108,6 +168,10 @@ export const PORTA_CABIN_STARTER: CatalogueStarter = {
       qty: "area_partition", waste_pct: 5, component: "materials", cost: { kind: "rate", rate: "partition_cost_m2" } },
     { code: "jnt", group: G_SHELL, description: "Joints between units", uom: "m",
       qty: "len_joint", component: "materials", cost: { kind: "rate", rate: "joint_cost_m" } },
+    { code: "clad", group: G_SHELL, description: "Coloured cladding finish", uom: "m2",
+      qty: "if(cladding_colour > 1, area_wall, 0)", component: "materials", cost: { kind: "rate", rate: "cladding_colour_cost_m2" } },
+    { code: "roofc", group: G_SHELL, description: "Coated roof colour", uom: "m2",
+      qty: "if(roof_colour > 1, area_roof, 0)", component: "materials", cost: { kind: "rate", rate: "roof_colour_cost_m2" } },
 
     // ── Fit-out and services ──
     { code: "flr", group: G_FIT, description: "Flooring", uom: "m2",
@@ -115,15 +179,30 @@ export const PORTA_CABIN_STARTER: CatalogueStarter = {
     { code: "lin", group: G_FIT, description: "Internal wall and ceiling lining", uom: "m2",
       qty: "if(fit_out >= 2, area_wall + area_roof, 0)", waste_pct: 8, component: "materials", cost: { kind: "rate", rate: "lining_cost_m2" } },
     { code: "elec", group: G_FIT, description: "Electrical points (lights, sockets, switches)", uom: "nr",
-      qty: "n_unit * electrical_points_per_unit * fit_out", component: "materials", cost: { kind: "rate", rate: "electrical_point_cost" } },
+      qty: "if(n_room > 0, 0, n_unit * electrical_points_per_unit * fit_out)", component: "materials", cost: { kind: "rate", rate: "electrical_point_cost" } },
     { code: "db", group: G_FIT, description: "Distribution boards", uom: "nr",
       qty: "n_unit", component: "materials", cost: { kind: "rate", rate: "db_cost" } },
     { code: "ac", group: G_FIT, description: "Air conditioning split units", uom: "nr",
-      qty: "n_unit * include_ac", component: "materials", cost: { kind: "rate", rate: "ac_cost" } },
+      qty: "if(n_room > 0, 0, n_unit * include_ac)", component: "materials", cost: { kind: "rate", rate: "ac_cost" } },
     { code: "wet", group: G_FIT, description: "Toilet and wet room fixtures and plumbing", uom: "room",
-      qty: "wet_room_count", component: "materials", cost: { kind: "rate", rate: "wet_room_cost" } },
+      qty: "if(n_room > 0, 0, wet_room_count)", component: "materials", cost: { kind: "rate", rate: "wet_room_cost" } },
     { code: "prem", group: G_FIT, description: "Premium finishes allowance", uom: "m2",
       qty: "if(fit_out == 3, area_floor, 0)", component: "materials", cost: { kind: "rate", rate: "premium_allowance_m2" } },
+    { code: "flro", group: G_FIT, description: "Oak floor, extra over grey tile", uom: "m2",
+      qty: "if(floor_finish == 2, area_floor, 0)", component: "materials", cost: { kind: "rate", rate: "floor_oak_extra_m2" } },
+    { code: "flrt", group: G_FIT, description: "Terrazzo floor, extra over grey tile", uom: "m2",
+      qty: "if(floor_finish == 3, area_floor, 0)", component: "materials", cost: { kind: "rate", rate: "floor_terrazzo_extra_m2" } },
+
+    // ── Rooms and equipment (only with a room plan) ──
+    { code: "idoor", group: G_EQ, description: "Internal doors", uom: "nr",
+      qty: "n_door_int", component: "materials", cost: { kind: "rate", rate: "internal_door_cost" } },
+    { code: "wetp", group: G_EQ, description: "Plumbing and drainage, toilet and shower rooms", uom: "room",
+      qty: "n_room_toilet + n_room_shower", component: "materials", cost: { kind: "rate", rate: "wet_plumbing_cost" } },
+    ...CABIN_EQUIPMENT.filter((i) => i.rate).map((i) => ({
+      code: `eq_${i.key}`, group: G_EQ,
+      description: i.key === "ac_split" ? "Air conditioning split units, one for each room that has one" : i.label,
+      uom: "nr", qty: `n_eq_${i.key}`, component: "materials" as const, cost: { kind: "rate" as const, rate: i.rate as string },
+    })),
 
     // ── Assembly and site installation ──
     { code: "asm", group: G_ASM, description: "Factory assembly", uom: "h",
@@ -141,7 +220,7 @@ export const PORTA_CABIN_STARTER: CatalogueStarter = {
 
     // ── Overhead ──
     { code: "ovh", group: "Overhead", description: "Overhead", uom: "cost",
-      qty: `${sub(G_SHELL)} + ${sub(G_FIT)} + ${sub(G_ASM)}`, component: "overhead", cost: { kind: "rate", rate: "overhead_factor" } },
+      qty: `${sub(G_SHELL)} + ${sub(G_FIT)} + ${sub(G_EQ)} + ${sub(G_ASM)}`, component: "overhead", cost: { kind: "rate", rate: "overhead_factor" } },
   ],
 };
 

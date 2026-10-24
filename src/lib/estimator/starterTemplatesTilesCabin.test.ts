@@ -5,6 +5,10 @@ import { validateTemplate } from "./template";
 import { previewEstimate } from "./preview";
 import { TILES_FLOOR_STARTER, TILES_STARTERS } from "./starterTemplatesTiles";
 import { PORTA_CABIN_STARTER, CABIN_STARTERS } from "./starterTemplatesCabin";
+import { CABIN_EQUIPMENT } from "./geometry/cabinEquipment";
+import { getGeometry } from "./geometry";
+import { isVisualValue } from "./materialCatalog";
+import { resolveVisuals } from "./visuals";
 import type { CatalogueStarter } from "./starterTemplatesTiles";
 
 function body(t: CatalogueStarter) {
@@ -225,5 +229,133 @@ describe("porta cabin starter", () => {
     expect(big.summary.cost_total).toBeGreaterThan(small.summary.cost_total * 4);
     expect(big.summary.by_group.map((g) => g.name)).toEqual(["Cabin shell and cladding", "Fit-out and services", "Assembly and site installation", "Delivery", "Overhead"]);
     expect(big.summary.by_group.reduce((a, g) => a + g.cost, 0)).toBeCloseTo(big.summary.cost_total, 2);
+  });
+});
+
+describe("porta cabin starter, rooms and equipment", () => {
+  const T = PORTA_CABIN_STARTER;
+  const one = { layout: "single", units_along: 1, door_count: 1, window_count: 2, partition_count: 0, fit_out: "standard" };
+  const office2 = { ...one, layout: "row", units_along: 2, rooms_mode: "office_block", window_count: 4 };
+  const NEW_CODES = ["clad", "roofc", "flro", "flrt", "idoor", "wetp", ...CABIN_EQUIPMENT.filter((i) => i.rate).map((i) => `eq_${i.key}`)];
+
+  /** The template as it was before rooms: the three lump-sum rules as they read, none of the new lines. */
+  const legacy: CatalogueStarter = {
+    ...T,
+    rules: T.rules
+      .filter((r) => !NEW_CODES.includes(r.code))
+      .map((r) => {
+        if (r.code === "elec") return { ...r, qty: "n_unit * electrical_points_per_unit * fit_out" };
+        if (r.code === "ac") return { ...r, qty: "n_unit * include_ac" };
+        if (r.code === "wet") return { ...r, qty: "wet_room_count" };
+        if (r.code === "ovh") return { ...r, qty: "sub_cabin_shell_and_cladding + sub_fit_out_and_services + sub_assembly_and_site_installation" };
+        return r;
+      }),
+  };
+
+  it("with no room plan the bill is exactly what it was, line for line", () => {
+    const cases: Record<string, unknown>[] = [
+      { ...one },
+      { ...one, wet_room_count: 2, include_ac: false },
+      { layout: "row", units_along: 3, fit_out: "premium", partition_count: 4 },
+      { layout: "l_shape", units_along: 2, units_across: 3, window_count: 5 },
+      { layout: "stacked", units_along: 2, door_count: 2, fit_out: "basic" },
+    ];
+    for (const params of cases) {
+      const now = run(T, params);
+      const was = run(legacy, params);
+      expect(now.lines.map((l) => [l.code, l.qty, l.cost_total])).toEqual(was.lines.map((l) => [l.code, l.qty, l.cost_total]));
+      expect(now.summary.cost_total).toBe(was.summary.cost_total);
+      expect(now.model!.pieces.filter((p) => p.code === "EQ")).toHaveLength(0);
+    }
+  });
+
+  it("an office block is priced room by room: the equipment counts are the quantities", () => {
+    const r = run(T, office2);
+    expect(r.complete).toBe(true);
+    expect(r.warnings).toEqual([]);
+    const e = r.model!.extras!;
+    expect(qty(r, "eq_desk")).toBe(e.n_eq_desk);
+    expect(qty(r, "eq_desk")).toBe(3);
+    expect(qty(r, "eq_chair")).toBe(9);
+    expect(qty(r, "eq_meeting_table")).toBe(1);
+    expect(qty(r, "eq_ac_split")).toBe(3);
+    expect(qty(r, "eq_light")).toBe(7);
+    expect(qty(r, "eq_socket")).toBe(8);
+    expect(qty(r, "eq_pantry_counter")).toBe(1);
+    expect(qty(r, "eq_fridge")).toBe(1);
+    expect(qty(r, "eq_water_heater")).toBe(1);
+    expect(qty(r, "eq_extinguisher")).toBe(1);
+    expect(qty(r, "idoor")).toBe(2);
+    expect(line(r, "eq_bed_bunk")).toBeUndefined();
+    expect(line(r, "eq_wc")).toBeUndefined();
+    for (const l of r.lines) expect(l.cost_total !== null && l.cost_total > 0).toBe(true);
+  });
+
+  it("nothing is priced twice: the lump-sum air conditioning, points and wet room lines fall away", () => {
+    const r = run(T, { ...office2, wet_room_count: 2 });
+    expect(line(r, "ac")).toBeUndefined();
+    expect(line(r, "elec")).toBeUndefined();
+    expect(line(r, "wet")).toBeUndefined();
+    expect(qty(r, "db")).toBe(2);
+  });
+
+  it("air conditioning can still be switched off, and every other item stays", () => {
+    const r = run(T, { ...office2, include_ac: false });
+    expect(line(r, "eq_ac_split")).toBeUndefined();
+    expect(qty(r, "eq_desk")).toBe(3);
+  });
+
+  it("a toilet block prices its fixtures and a plumbing allowance for each wet room", () => {
+    const r = run(T, { ...one, rooms_mode: "toilet_block", window_count: 0 });
+    expect(qty(r, "eq_wc")).toBe(2);
+    expect(qty(r, "eq_shower")).toBe(2);
+    expect(qty(r, "eq_basin")).toBe(2);
+    expect(qty(r, "wetp")).toBe(4);
+  });
+
+  it("rooms add a group of their own between the fit-out and the assembly, and the overhead follows it", () => {
+    const none = run(T, { ...one, layout: "row", units_along: 2 });
+    const r = run(T, office2);
+    expect(r.summary.by_group.map((g) => g.name)).toEqual(["Cabin shell and cladding", "Fit-out and services", "Rooms and equipment", "Assembly and site installation", "Delivery", "Overhead"]);
+    expect(r.summary.by_group.reduce((a, g) => a + g.cost, 0)).toBeCloseTo(r.summary.cost_total, 2);
+    expect(r.summary.cost_total).toBeGreaterThan(none.summary.cost_total);
+    expect(line(r, "ovh")!.cost_total).toBeCloseTo(0.1 * r.summary.by_group.slice(0, 4).reduce((a, g) => a + g.cost, 0), 1);
+  });
+
+  it("every priced equipment rate is a placeholder in the template, one per catalogue item", () => {
+    for (const i of CABIN_EQUIPMENT.filter((q) => q.rate)) {
+      expect(T.rates.some((r) => r.key === i.rate), i.key).toBe(true);
+      expect(T.rules.some((r) => r.code === `eq_${i.key}` && r.qty === `n_eq_${i.key}`), i.key).toBe(true);
+    }
+    expect(T.description).toMatch(/illustrative/i);
+  });
+
+  it("the finish inputs repaint the model and cost nothing extra at the standard choice", () => {
+    const base = run(T, one);
+    for (const code of ["clad", "roofc", "flro", "flrt"]) expect(line(base, code)).toBeUndefined();
+    const grey = run(T, { ...one, cladding_colour: "grey" });
+    expect(qty(grey, "clad")).toBeCloseTo(base.model!.extras!.area_wall, 3);
+    const oak = run(T, { ...one, floor_finish: "oak" });
+    expect(qty(oak, "flro")).toBeCloseTo(14.4, 3);
+    expect(line(oak, "flrt")).toBeUndefined();
+    expect(qty(run(T, { ...one, floor_finish: "terrazzo" }), "flrt")).toBeCloseTo(14.4, 3);
+    expect(qty(run(T, { ...one, roof_colour: "terracotta" }), "roofc")).toBeCloseTo(14.4, 3);
+    expect(oak.summary.cost_total).toBeGreaterThan(base.summary.cost_total);
+  });
+
+  it("each look input names a slot the geometry declares and options that are catalogue materials or colours", () => {
+    const slots = getGeometry("porta_cabin")!.slots!.map((s) => s.key);
+    const painters = T.inputs.filter((i) => i.paints);
+    expect(painters.map((i) => i.paints)).toEqual(["cladding", "floor", "roof"]);
+    for (const inp of painters) {
+      expect(slots).toContain(inp.paints);
+      expect(inp.type).toBe("select");
+      for (const o of inp.options!) expect(isVisualValue(o.visual), `${inp.key}.${o.key}`).toBe(true);
+    }
+    const resolved = resolveVisuals(getGeometry("porta_cabin")!.slots, T.inputs, { cladding_colour: "blue", floor_finish: "oak", roof_colour: "dark_grey" });
+    expect(resolved.cladding).toBe("cladding_blue");
+    expect(resolved.floor).toBe("wood_oak");
+    expect(resolved.roof).toBe("#4a4f55");
+    expect(resolveVisuals(getGeometry("porta_cabin")!.slots, T.inputs, {}).cladding).toBe("cladding_white");
   });
 });
