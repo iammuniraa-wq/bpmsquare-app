@@ -18,7 +18,7 @@
 // tile centred in the room). Metres everywhere except the mm inputs.
 
 import { roundHalfAway } from "../formula";
-import type { GeometryInputSpec, GeometryModel, GeometryModule, GeometryResult, Piece, PieceCodeInfo } from "./types";
+import type { DesignSlot, GeometryInputSpec, GeometryModel, GeometryModule, GeometryResult, Piece, PieceCodeInfo } from "./types";
 
 export const TILES_FLOOR_KEY = "tiles_floor";
 
@@ -54,6 +54,13 @@ const LIMITS = {
 
 const PIECE_CODES: readonly PieceCodeInfo[] = [{ code: "FL", label: "Floor to be tiled" }];
 
+/** The parts of the 3D room a design attribute may repaint (the tile finish, the grout, the skirting board). */
+export const TILES_SLOTS: readonly DesignSlot[] = [
+  { key: "tile", label: "Tile finish", default: "porcelain_white" },
+  { key: "grout", label: "Grout", default: "#9a9a96" },
+  { key: "skirting", label: "Skirting board", default: "#f2f2ee" },
+];
+
 const INPUTS: readonly GeometryInputSpec[] = [
   { key: "room_length_m", required: true },
   { key: "room_width_m", required: true },
@@ -63,6 +70,8 @@ const INPUTS: readonly GeometryInputSpec[] = [
   { key: "pattern", required: false, default: PATTERN_GRID, allow_select: true },
   { key: "direction", required: false, default: 1, allow_select: true },
   { key: "tile_color", required: false, default: 1, allow_select: true },
+  // The finish choice (a select that paints the "tile" slot); the module only keeps it on the model.
+  { key: "finish", required: false, default: 1, allow_select: true },
   { key: "cutout_length_m", required: false, default: 0 },
   { key: "cutout_width_m", required: false, default: 0 },
   { key: "border_mm", required: false, default: 0 },
@@ -233,7 +242,7 @@ function normalise(raw: Readonly<Record<string, number>>): Norm {
   };
   const echo: Record<string, number> = {
     room_length_m: length, room_width_m: width, tile_length_mm: tl, tile_width_mm: tw, grout_mm: groutMm,
-    pattern, direction, tile_color: v.color, cutout_length_m: cutL, cutout_width_m: cutW, border_mm: border,
+    pattern, direction, tile_color: v.color, finish: Number.isFinite(num("finish", 1)) ? num("finish", 1) : 1, cutout_length_m: cutL, cutout_width_m: cutW, border_mm: border,
     include_skirting: v.skirting ? 1 : 0, skirting_height_mm: skirtingHeightMm, door_width_m: doorWidth, waste_pct: wasteGiven,
   };
   return { ok: true, v, echo, warnings };
@@ -249,6 +258,8 @@ export type LaidTile = {
   area: number;
   /** 0, 1 or 2: a slight tone variation so the floor reads as separate tiles. */
   tone: number;
+  /** The whole tile this one is (or was cut from); the 3D view maps its texture through it. */
+  frame: TileFrame;
 };
 
 export type TileLayout = {
@@ -269,7 +280,15 @@ export type TileLayout = {
 
 export type LayTilesResult = { ok: true; layout: TileLayout } | { ok: false; error: string };
 
-type Cell = { poly: Poly; tone: number };
+/**
+ * Where a laid tile sits on its own axes: `o` is the corner the tile starts from (before any
+ * clipping), `ang` the direction of its first side, `du` / `dv` its size along and across that
+ * side. A cut tile keeps the frame of the whole tile it was cut from, so a 3D texture mapped
+ * through it carries on across the cut instead of restarting.
+ */
+export type TileFrame = { ox: number; oy: number; ang: number; du: number; dv: number };
+
+type Cell = { poly: Poly; tone: number; frame: TileFrame };
 
 /** The tile positions of a pattern over a rectangle, before clipping. */
 function cellsFor(v: TileInputs, f: Rect, px: number, py: number): { cells: Cell[]; joints: [Pt, Pt][] } {
@@ -296,7 +315,8 @@ function cellsFor(v: TileInputs, f: Rect, px: number, py: number): { cells: Cell
         const my = cy + i * px * ex[1] + j * py * ey[1];
         if (mx < f.x0 - reach || mx > f.x1 + reach || my < f.y0 - reach || my > f.y1 + reach) continue;
         const corner = (su: number, sv: number): Pt => [mx + su * (v.tx / 2) * ex[0] + sv * (v.ty / 2) * ey[0], my + su * (v.tx / 2) * ex[1] + sv * (v.ty / 2) * ey[1]];
-        cells.push({ poly: [corner(-1, -1), corner(1, -1), corner(1, 1), corner(-1, 1)], tone: (((i * 7 + j * 13) % 3) + 3) % 3 });
+        const poly: Poly = [corner(-1, -1), corner(1, -1), corner(1, 1), corner(-1, 1)];
+        cells.push({ poly, tone: (((i * 7 + j * 13) % 3) + 3) % 3, frame: { ox: poly[0][0], oy: poly[0][1], ang, du: v.tx, dv: v.ty } });
       }
     }
     // Joint centre lines sit half a pitch from the tile centres.
@@ -322,7 +342,7 @@ function cellsFor(v: TileInputs, f: Rect, px: number, py: number): { cells: Cell
     for (let c = 0; ; c++) {
       const x = f.x0 + shift + c * px;
       if (x >= f.x1 - EPS) break;
-      cells.push({ poly: rect(x, y), tone: (r * 7 + c * 13) % 3 });
+      cells.push({ poly: rect(x, y), tone: (r * 7 + c * 13) % 3, frame: { ox: x, oy: y, ang: 0, du: v.tx, dv: v.ty } });
       // Vertical joint after this tile (brick: per row; grid: one line per column, added below).
       if (brick) {
         const jx = x + px - g / 2;
@@ -384,7 +404,7 @@ export function layTiles(raw: Readonly<Record<string, number>>): LayTilesResult 
     if (polys.length === 0) continue;
     const area = polys.reduce((a, p) => a + polyArea(p), 0);
     const whole = polys.length === 1 && area >= tileArea - 1e-6;
-    tiles.push({ polys, whole, area, tone: cell.tone });
+    tiles.push({ polys, whole, area, tone: cell.tone, frame: cell.frame });
   }
 
   // Border strips: a ring one strip wide, cut from the same tile.
@@ -399,7 +419,10 @@ export function layTiles(raw: Readonly<Record<string, number>>): LayTilesResult 
         const poly: Poly = alongX
           ? [[x0 + s, y0], [x0 + s + l, y0], [x0 + s + l, y0 + b], [x0 + s, y0 + b]]
           : [[x0, y0 + s], [x0 + b, y0 + s], [x0 + b, y0 + s + l], [x0, y0 + s + l]];
-        strips.push({ polys: [poly], whole: l >= v.tileLength - 1e-6, area: l * b, tone: i % 3 });
+        strips.push({
+          polys: [poly], whole: l >= v.tileLength - 1e-6, area: l * b, tone: i % 3,
+          frame: { ox: poly[0][0], oy: poly[0][1], ang: alongX ? 0 : Math.PI / 2, du: v.tileLength, dv: v.tileWidth },
+        });
       }
     };
     sideStrips(0, 0, v.length, true);
@@ -485,5 +508,6 @@ export const TILES_FLOOR_MODULE: GeometryModule = {
   inputs: INPUTS,
   extra_identifiers: TILES_EXTRA_IDENTIFIERS,
   view: "floor_plan",
+  slots: TILES_SLOTS,
   layout: layoutTilesFloor,
 };

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import Button from "@/components/ui/Button";
 import EmptyState from "@/components/ui/EmptyState";
 import InfoTip from "@/components/ui/InfoTip";
@@ -8,10 +8,23 @@ import type { GeometryModel } from "@/lib/estimator/geometry";
 import { layTiles, PATTERNS, PATTERN_DIAGONAL } from "@/lib/estimator/geometry/tilesFloor";
 import type { TileLayout } from "@/lib/estimator/geometry/tilesFloor";
 import { buildFloorDrawing, speckleDots } from "@/lib/estimator/geometry/floorDrawing";
-import { swatchFor } from "@/lib/estimator/geometry/tileSwatches";
+import { swatchFor, swatchFromVisuals } from "@/lib/estimator/geometry/tileSwatches";
 import type { TileSwatch } from "@/lib/estimator/geometry/tileSwatches";
+import TilesRoom3D from "./TilesRoom3D";
 
 const REVEAL_MS = 2200;
+const VIEW_KEY = "bpm-tiles-view";
+type View = "3d" | "2d";
+
+function readView(): View | null {
+  try {
+    const v = window.sessionStorage.getItem(VIEW_KEY);
+    return v === "2d" || v === "3d" ? v : null;
+  } catch { return null; }
+}
+function rememberView(v: View): void {
+  try { window.sessionStorage.setItem(VIEW_KEY, v); } catch { /* a private window keeps no preference */ }
+}
 
 function useReducedMotion(): boolean {
   const [reduced, setReduced] = useState(false);
@@ -58,12 +71,13 @@ function TexturePattern({ id, swatch }: { id: string; swatch: TileSwatch }) {
 const fmt = (n: number, dp = 1): string => n.toLocaleString(undefined, { maximumFractionDigits: dp });
 
 /**
- * The floor from above: the room outline, every tile (whole ones in the tile
- * colour, cut ones hatched), the joints, the dimensions, and a pattern switcher
- * that re-lays the floor live. It lays from the numbers stored on the model
+ * The floor as a lit 3D room (the default where the device has WebGL) or from above as a 2D plan: the
+ * room outline, every tile (whole ones in the tile colour, cut ones hatched), the joints, the dimensions.
+ * A pattern switcher re-lays the floor live in both. It lays from the numbers stored on the model
  * (`model.inputs`), so a saved estimate draws the floor it was priced from.
  * Switching the pattern here only previews it; `onUsePattern` (when given)
- * makes it the estimate's own pattern.
+ * makes it the estimate's own pattern. `visuals` (design slot -> material key or "#rrggbb": tile,
+ * grout, skirting) repaints both views without laying the floor again.
  */
 export default function FloorPreview({
   model, onUsePattern, visuals,
@@ -81,6 +95,16 @@ export default function FloorPreview({
   const [reveal, setReveal] = useState(1);
   const raf = useRef(0);
   useEffect(() => () => cancelAnimationFrame(raf.current), []);
+
+  // 3D where this device draws it (remembered for the session); null until the browser has been asked.
+  const [view, setView] = useState<View | null>(null);
+  const [noGl, setNoGl] = useState(false);
+  useEffect(() => {
+    if (typeof WebGLRenderingContext === "undefined") { setNoGl(true); setView("2d"); return; }
+    setView(readView() ?? "3d");
+  }, []);
+  const chooseView = (v: View) => { setView(v); rememberView(v); };
+  const gl3dFailed = useCallback(() => { setNoGl(true); setView("2d"); }, []);
 
   // A new estimate pattern (typed in the form) takes over the preview.
   const basePattern = base?.pattern;
@@ -102,7 +126,7 @@ export default function FloorPreview({
   }
   const layout: TileLayout = current.res.layout;
   const draw = buildFloorDrawing(layout);
-  const swatch = swatchFor(base.tile_color);
+  const swatch = visuals ? swatchFromVisuals(visuals, swatchFor(base.tile_color)) : swatchFor(base.tile_color);
   const vb = draw.viewBox;
   const s = layout.stats;
   const previewing = shown !== base.pattern;
@@ -139,7 +163,28 @@ export default function FloorPreview({
         ))}
       </div>
 
-      <div
+      {!noGl && (
+        <div style={{ display: "flex", alignItems: "center", gap: 8, margin: "0 0 10px" }}>
+          <div role="group" aria-label="View" style={{ display: "flex", gap: 6 }}>
+            <Button size="sm" variant={view === "3d" ? "primary" : "secondary"} style={{ minHeight: 44, minWidth: 64 }} aria-pressed={view === "3d"} onClick={() => chooseView("3d")}>3D room</Button>
+            <Button size="sm" variant={view === "2d" ? "primary" : "secondary"} style={{ minHeight: 44, minWidth: 64 }} aria-pressed={view === "2d"} onClick={() => chooseView("2d")}>2D plan</Button>
+          </div>
+          {view === "3d" && <InfoTip label="Moving around the room">Drag to turn the room, scroll or pinch to zoom. The arrow keys and + / - work too; Esc resets the view.</InfoTip>}
+        </div>
+      )}
+
+      {view === null && (
+        <div aria-hidden="true" style={{ height: "clamp(300px, 56vw, 520px)", border: "1px solid var(--line)", borderRadius: 10, background: "var(--panel2)" }} />
+      )}
+
+      {view === "3d" && (
+        <TilesRoom3D
+          layout={layout} visuals={visuals} reveal={reveal} reducedMotion={reduced} onUnavailable={gl3dFailed}
+          label={`3D view of the floor: ${fmt(layout.inputs.length, 2)} by ${fmt(layout.inputs.width, 2)} metres, ${s.n_tile} whole tiles and ${s.n_cut} cut tiles in a ${current.p.label.toLowerCase()} pattern.`}
+        />
+      )}
+
+      {view === "2d" && <div
         style={{ border: "1px solid var(--line)", borderRadius: 10, background: "var(--panel2)", padding: 8, overflow: "hidden" }}
       >
         <svg
@@ -184,7 +229,7 @@ export default function FloorPreview({
             >{draw.dims.left.label}</text>
           </g>
         </svg>
-      </div>
+      </div>}
 
       <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center", margin: "10px 0 4px" }}>
         {!reduced && <Button size="sm" variant="secondary" style={{ minHeight: 44 }} onClick={play} disabled={revealing}>Watch it being laid</Button>}

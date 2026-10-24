@@ -11,7 +11,6 @@
 // quote, so they are plain words.
 
 import { groupSlug } from "./types";
-import { TILE_COLOR_OPTIONS } from "./geometry/tileSwatches";
 import type { StarterTemplate } from "./starterTemplates";
 
 /** A starter as the template catalogue shows it: a template plus the words that find it and its picture. */
@@ -51,7 +50,16 @@ export const TILES_FLOOR_STARTER: CatalogueStarter = {
     { key: "tile_width_mm", label: "Tile width", type: "number", default: 600, min: 100, max: 1200, unit: "mm", section: "Tile" },
     { key: "tile_thickness_mm", label: "Tile thickness", type: "number", default: 10, min: 5, max: 30, unit: "mm", section: "Tile" },
     { key: "grout_mm", label: "Grout joint", type: "number", default: 3, min: 0, max: 10, unit: "mm", section: "Tile" },
-    { key: "tile_color", label: "Tile colour", type: "select", default: "ivory", section: "Tile", options: TILE_COLOR_OPTIONS.map((o) => ({ ...o })) },
+    { key: "finish", label: "Tile finish", type: "select", default: "porcelain_white", section: "Tile", paints: "tile",
+      help: "Paints the floor in the 3D room and the plan. Wood is drawn as planks of the tile size you give.",
+      options: [
+        { key: "porcelain_white", label: "White porcelain", value: 1, visual: "porcelain_white" },
+        { key: "porcelain_grey", label: "Grey porcelain", value: 2, visual: "porcelain_grey" },
+        { key: "marble_white", label: "White marble", value: 3, visual: "marble_white" },
+        { key: "terrazzo", label: "Terrazzo", value: 4, visual: "terrazzo" },
+        { key: "ceramic_beige", label: "Beige ceramic", value: 5, visual: "ceramic_beige" },
+        { key: "wood_oak", label: "Oak plank", value: 6, visual: "wood_oak" },
+      ] },
     { key: "tile_range", label: "Tile range", type: "select", default: "standard", section: "Tile", quote_alternatives: true,
       help: "Standard adds 25% and Premium 60% to the tile price.",
       options: [
