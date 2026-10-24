@@ -15,6 +15,8 @@
 // formulas. The rates are the mock-up's (docs/estimator-reference), so the
 // reference villa lands on the mock-up's own figures.
 
+import { TILES_STARTERS } from "./starterTemplatesTiles";
+import { CABIN_STARTERS } from "./starterTemplatesCabin";
 import { groupSlug } from "./types";
 import type { EstimateTemplateBody, QuoteGranularity } from "./types";
 
@@ -276,4 +278,9 @@ export const CHAINLINK_FENCE_STARTER: StarterTemplate = {
   ],
 };
 
-export const STARTER_TEMPLATES: readonly StarterTemplate[] = [PRECAST_VILLA_STARTER, CHAINLINK_FENCE_STARTER];
+export const STARTER_TEMPLATES: readonly StarterTemplate[] = [
+  PRECAST_VILLA_STARTER, CHAINLINK_FENCE_STARTER,
+  // The tiles and porta cabin starters carry illustrative rates; installed locked like the fence, copied to customise.
+  ...TILES_STARTERS.map((t) => ({ ...t, locked: true })),
+  ...CABIN_STARTERS.map((t) => ({ ...t, locked: true })),
+];
