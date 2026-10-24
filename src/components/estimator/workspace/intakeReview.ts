@@ -17,7 +17,16 @@ export type ReviewRow = {
   /** The default the form is showing for a missing input. */
   placeholder: string;
   source: string | null;
+  /** The attached file the value was read from, and the PDF page, when it did not come from the email text. */
+  file: string | null;
+  page: number | null;
 };
+
+/** "from plan.pdf, page 2" for a value read from a file, or null when it came from the email text. */
+export function fileOrigin(r: Pick<ReviewRow, "file" | "page">): string | null {
+  if (!r.file) return null;
+  return `from ${r.file}${r.page ? `, page ${r.page}` : ""}`;
+}
 
 const STATUS: Record<IntakeStatus, { label: string; tone: PillarKey }> = {
   found: { label: "Found", tone: "green" },
@@ -48,6 +57,8 @@ export function reviewRows(inputs: readonly TemplateInput[], proposal: Pick<Inta
         value: status === "missing" ? "" : describeValue(i, proposal.values[i.key]),
         placeholder: describeValue(i, i.default),
         source: status === "missing" ? null : (f?.source ?? null),
+        file: status === "missing" ? null : (f?.file ?? null),
+        page: status === "missing" ? null : (f?.page ?? null),
       } satisfies ReviewRow,
     };
   });
@@ -63,7 +74,10 @@ export function fieldNotes(inputs: readonly TemplateInput[], proposal: Pick<Inta
   const out: Record<string, string> = {};
   for (const r of reviewRows(inputs, proposal)) {
     if (r.status === "missing") out[r.key] = `The email did not say. ${r.placeholder} is only a placeholder: check it.`;
-    else if (r.status === "likely") out[r.key] = r.source ? `Read as likely from: "${r.source}". Check it.` : "Read as likely from the email. Check it.";
+    else if (r.status === "likely") {
+      const origin = fileOrigin(r);
+      out[r.key] = r.source ? `Read as likely ${origin ?? "from"}: "${r.source}". Check it.` : `Read as likely ${origin ?? "from the email"}. Check it.`;
+    }
   }
   return out;
 }

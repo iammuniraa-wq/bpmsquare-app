@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { describeValue, fieldNotes, reviewCounts, reviewRows } from "./intakeReview";
+import { describeValue, fieldNotes, fileOrigin, reviewCounts, reviewRows } from "./intakeReview";
 import { CHAINLINK_FENCE_STARTER } from "@/lib/estimator/starterTemplates";
 import { clampIntakeV2 } from "@/lib/estimator/aiIntake";
 
@@ -62,6 +62,35 @@ describe("review rows", () => {
     expect(describeValue(inputs[0], 1234.5678)).toBe("1,234.568 m");
     expect(describeValue(inputs[1], false)).toBe("No");
     expect(describeValue(inputs[2], undefined)).toBe("");
+  });
+});
+
+describe("values read from an attached file", () => {
+  const fromFile = clampIntakeV2(inputs, {
+    name: "", sender: null, assumptions: [],
+    answers: [
+      { key: "total_length_m", status: "found", number: 450, choice: "", yes: false, source: "Total fence run 450 m", file: "plan.pdf", page: 2 },
+      { key: "closed_perimeter", status: "likely", number: 0, choice: "", yes: true, source: "around the yard", file: "", page: 0 },
+    ],
+  }, email, [{ name: "plan.pdf", kind: "pdf" }]);
+
+  it("rows carry the file and page, and say where the value came from", () => {
+    const by = Object.fromEntries(reviewRows(inputs, fromFile).map((r) => [r.key, r]));
+    expect(by.total_length_m).toMatchObject({ value: "450 m", file: "plan.pdf", page: 2, source: "Total fence run 450 m" });
+    expect(fileOrigin(by.total_length_m)).toBe("from plan.pdf, page 2");
+    expect(by.closed_perimeter).toMatchObject({ file: null, page: null });
+    expect(fileOrigin(by.closed_perimeter)).toBeNull();
+    expect(fileOrigin({ file: "scan.png", page: null })).toBe("from scan.png");
+  });
+
+  it("a missing row never claims a file, and the form note names the file for a likely one", () => {
+    const rows = reviewRows(inputs, fromFile);
+    expect(rows.find((r) => r.status === "missing")).toMatchObject({ file: null, page: null });
+    const likely = clampIntakeV2(inputs, {
+      name: "", sender: null, assumptions: [],
+      answers: [{ key: "total_length_m", status: "likely", number: 450, choice: "", yes: false, source: "", file: "plan.pdf", page: 3 }],
+    }, email, [{ name: "plan.pdf", kind: "pdf" }]);
+    expect(fieldNotes(inputs, likely).total_length_m).toBe("Read as likely from plan.pdf, page 3. Check it.");
   });
 });
 

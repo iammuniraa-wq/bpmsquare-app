@@ -11,10 +11,13 @@ import type { EstimateTemplate } from "@/lib/types";
 import { MAX_BRIEF_CHARS } from "./ai";
 import type { IntakeProposal } from "./ai";
 import { buildIntakePromptV2, clampIntakeV2, intakeSchemaV2 } from "./aiIntake";
+import type { AskBlock } from "./intakeFiles/convert";
+import { fileReports, type FileReport, type LoadedFiles } from "./intakeFiles/load";
 import { buildPickPrompt, clampPick, pickSchema, toCandidate } from "./pick";
 import type { PickCandidate, PickResult } from "./pick";
 
-export type Ask = (prompt: string, schema: Record<string, unknown>) => Promise<unknown>;
+/** The model call. `extra` is the attached files' content blocks, sent before the prompt; text-only callers pass none. */
+export type Ask = (prompt: string, schema: Record<string, unknown>, extra?: AskBlock[]) => Promise<unknown>;
 
 export type RunFailure = { ok: false; status: number; error: string };
 
@@ -53,9 +56,14 @@ export async function runPick(d: { supabase: SupabaseClient; tenantId: string; t
   return { ok: true, templates: candidates.length, result: clampPick(candidates, raw) };
 }
 
+/** The reading plus, when files were ticked, what happened to each one. */
+export type IntakeResult = IntakeProposal & { files?: FileReport[] };
+
 export async function runIntake(d: {
   supabase: SupabaseClient; tenantId: string; templateId: string; text: string; ask: Ask;
-}): Promise<{ ok: true; proposal: IntakeProposal } | RunFailure> {
+  /** The attachments already loaded and converted (intakeFiles/load.ts). Absent = the email text alone. */
+  files?: LoadedFiles;
+}): Promise<{ ok: true; proposal: IntakeResult } | RunFailure> {
   const problem = textProblem(d.text);
   if (problem) return { ok: false, status: 400, error: problem };
   const { data, error } = await d.supabase.from("estimate_templates").select("*").eq("id", d.templateId).eq("tenant_id", d.tenantId).maybeSingle();
@@ -65,6 +73,21 @@ export async function runIntake(d: {
   const inputs = tpl.inputs ?? [];
   if (inputs.length === 0) return { ok: false, status: 422, error: "This template has no inputs to fill in." };
   const text = d.text.trim();
-  const raw = await d.ask(buildIntakePromptV2(tpl.name, inputs, text), intakeSchemaV2(inputs));
-  return { ok: true, proposal: clampIntakeV2(inputs, raw, text) };
+  const read = d.files?.files ?? [];
+  const skipped = d.files?.skipped ?? [];
+  if (read.length === 0) {
+    const raw = await d.ask(buildIntakePromptV2(tpl.name, inputs, text), intakeSchemaV2(inputs));
+    const proposal: IntakeResult = clampIntakeV2(inputs, raw, text);
+    if (skipped.length > 0) {
+      proposal.assumptions = [...proposal.assumptions, ...skipped.map((s) => `${s.name} was not read: ${s.reason}`)];
+      proposal.files = fileReports({ files: [], skipped });
+    }
+    return { ok: true, proposal };
+  }
+  const promptFiles = read.map((f) => ({ name: f.name, kind: f.kind, text: f.text }));
+  const raw = await d.ask(buildIntakePromptV2(tpl.name, inputs, text, promptFiles), intakeSchemaV2(inputs), read.flatMap((f) => f.blocks));
+  const proposal: IntakeResult = clampIntakeV2(inputs, raw, text, promptFiles);
+  proposal.assumptions = [...proposal.assumptions, ...skipped.map((s) => `${s.name} was not read: ${s.reason}`)];
+  proposal.files = fileReports({ files: read, skipped });
+  return { ok: true, proposal };
 }

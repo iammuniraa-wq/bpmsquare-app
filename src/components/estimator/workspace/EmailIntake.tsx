@@ -7,13 +7,19 @@ import InfoTip from "@/components/ui/InfoTip";
 import { Select, Textarea } from "@/components/ui/Input";
 import type { IntakeProposal } from "@/lib/estimator/ai";
 import type { PickMatch, PickLevel } from "@/lib/estimator/pick";
+import type { IntakeResult } from "@/lib/estimator/aiRun";
+import { INTAKE_LIMITS, KIND_LABEL, LIMITS_TEXT, type FileKind } from "@/lib/estimator/intakeFiles/kinds";
+import { QUALITY_LABEL, type QualityLabel } from "@/lib/inbox/types";
 import Chip from "./Chip";
-import { reviewCounts, reviewRows } from "./intakeReview";
+import { fileOrigin, reviewCounts, reviewRows } from "./intakeReview";
 import { wordsFor } from "./layoutKind";
 import type { WorkspaceTemplate } from "./types";
 
 type PickJson = { template_id: string | null; name: string | null; confidence: number; level: PickLevel; alternatives: PickMatch[]; not_sure: boolean; reason: string | null };
-type Reading = { templateId: string; proposal: IntakeProposal };
+type Reading = { templateId: string; proposal: IntakeResult };
+type Attachment = { id: string; name: string; kind: FileKind; size_bytes: number; quality: QualityLabel; quality_note: string | null; readable: boolean; note: string | null };
+
+const sizeText = (n: number) => (n >= 1024 * 1024 ? `${(n / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`);
 
 const LEVEL_TEXT: Record<PickLevel, string> = { high: "sure", medium: "fairly sure", low: "not sure" };
 
@@ -26,7 +32,7 @@ const LEVEL_TEXT: Record<PickLevel, string> = { high: "sure", medium: "fairly su
  * The manual inputs are always there, so a workspace without AI loses nothing.
  */
 export default function EmailIntake({
-  templates, template, autoPick, onTemplate, onApply, initialText = "",
+  templates, template, autoPick, onTemplate, onApply, initialText = "", emailId,
 }: {
   templates: readonly WorkspaceTemplate[];
   template: WorkspaceTemplate;
@@ -36,6 +42,8 @@ export default function EmailIntake({
   onApply: (proposal: IntakeProposal) => void;
   /** The email, already in the box (when the estimate is started from the shared Inbox). */
   initialText?: string;
+  /** The Inbox message the estimate is started from: its attachments are offered to be read with the text. */
+  emailId?: string;
 }) {
   const id = useId();
   const canChoose = templates.length > 1;
@@ -47,6 +55,25 @@ export default function EmailIntake({
   const [pick, setPick] = useState<PickJson | null>(null);
   const [reading, setReading] = useState<Reading | null>(null);
   const [showAll, setShowAll] = useState(false);
+  const [attachments, setAttachments] = useState<Attachment[]>([]);
+  const [ticked, setTicked] = useState<Set<string>>(new Set());
+
+  // The message's files, listed once: the readable ones start ticked (up to the cap), the others say why not.
+  useEffect(() => {
+    if (!emailId) return;
+    let live = true;
+    (async () => {
+      try {
+        const res = await fetch(`/api/estimates/ai/intake?email_id=${encodeURIComponent(emailId)}`);
+        if (!res.ok) return;
+        const json = (await res.json()) as { files?: Attachment[] };
+        if (!live || !Array.isArray(json.files)) return;
+        setAttachments(json.files);
+        setTicked(new Set(json.files.filter((f) => f.readable).slice(0, INTAKE_LIMITS.maxFiles).map((f) => f.id)));
+      } catch { /* no files listed: the email text alone still reads */ }
+    })();
+    return () => { live = false; };
+  }, [emailId]);
 
   // The async steps below outlive the render that started them; they must call the CURRENT callbacks
   // (after a template switch the page's draft belongs to the new template).
@@ -65,9 +92,10 @@ export default function EmailIntake({
 
   async function readFor(templateId: string) {
     setBusy("read");
-    const r = await post("/api/estimates/ai/intake", { template_id: templateId, text });
+    const withFiles = !!emailId && ticked.size > 0;
+    const r = await post("/api/estimates/ai/intake", { template_id: templateId, text, ...(withFiles ? { email_id: emailId, attachment_ids: [...ticked] } : {}) });
     if (!r.ok) return;
-    const proposal = r.json as unknown as IntakeProposal;
+    const proposal = r.json as unknown as IntakeResult;
     // Wait for the page to be on this template before filling it in.
     for (let i = 0; i < 20 && pageTemplate.current !== templateId; i++) await new Promise((ok) => setTimeout(ok, 50));
     setReading({ templateId, proposal });
@@ -104,8 +132,31 @@ export default function EmailIntake({
     try { await readFor(templateId); } catch { setError("Could not reach the server. Try again."); } finally { setBusy(null); }
   }
 
+  function toggle(id: string, on: boolean) {
+    setTicked((cur) => { const next = new Set(cur); if (on) next.add(id); else next.delete(id); return next; });
+  }
+
+  // The signed link is made on demand (it lasts a minute) and opens in a new tab; a PDF opens at its page.
+  async function openPage(name: string, page: number | null) {
+    const id = reading?.proposal.files?.find((f) => f.name === name)?.id;
+    if (!id) return;
+    const tab = window.open("about:blank", "_blank");
+    try {
+      const res = await fetch(`/api/inbox/attachments/${encodeURIComponent(id)}?view=1`);
+      const json = (await res.json().catch(() => ({}))) as { url?: string };
+      if (!res.ok || !json.url) throw new Error("no link");
+      const url = `${json.url}${page ? `#page=${page}` : ""}`;
+      if (tab) { tab.opener = null; tab.location.href = url; } else window.open(url, "_blank", "noopener");
+    } catch {
+      tab?.close();
+      setError("Could not open that file. Try again.");
+    }
+  }
+
   const rows = useMemo(() => (reading && reading.templateId === template.id ? reviewRows(template.inputs, reading.proposal) : []), [reading, template]);
   const counts = reviewCounts(rows);
+  const hasFileRows = rows.some((r) => r.file);
+  const notRead = reading?.proposal.files?.filter((f) => f.status === "skipped") ?? [];
   const shownRows = showAll ? rows : rows.slice(0, 8);
   const words = wordsFor(template.geometry);
 
@@ -120,6 +171,29 @@ export default function EmailIntake({
         <>
           <label htmlFor={id} className="bpm-t-label" style={{ display: "block", marginBottom: 6 }}>Paste the email</label>
           <Textarea id={id} value={text} onChange={(e) => setText(e.target.value)} maxLength={20000} rows={5} placeholder={words.placeholder} />
+          {attachments.length > 0 && (
+            <div role="group" aria-label="Attached files to read" style={{ marginTop: 10 }}>
+              <div className="bpm-t-label" style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 2 }}>
+                Attached files
+                <InfoTip label="Attached files">{LIMITS_TEXT}</InfoTip>
+              </div>
+              {attachments.map((a) => {
+                const on = ticked.has(a.id);
+                const atCap = !on && ticked.size >= INTAKE_LIMITS.maxFiles;
+                return (
+                  <label key={a.id} style={{ display: "flex", alignItems: "flex-start", gap: 10, minHeight: 44, padding: "6px 0", opacity: a.readable ? 1 : 0.7 }}>
+                    <input type="checkbox" checked={on} disabled={!a.readable || atCap || busy !== null} onChange={(e) => toggle(a.id, e.target.checked)} style={{ marginTop: 3 }} />
+                    <span style={{ minWidth: 0 }}>
+                      <span className="bpm-t-body" style={{ overflowWrap: "anywhere" }}>{a.name}</span>
+                      <span className="bpm-t-help" style={{ display: "block" }}>
+                        {KIND_LABEL[a.kind]} · {sizeText(a.size_bytes)}{a.readable ? ` · ${QUALITY_LABEL[a.quality]}` : ""}{a.note ? ` · ${a.note}` : ""}
+                      </span>
+                    </span>
+                  </label>
+                );
+              })}
+            </div>
+          )}
           <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center", marginTop: 10 }}>
             <Button variant="primary" size="sm" loading={busy !== null} disabled={busy !== null || text.trim() === ""} onClick={run}>
               {choose && canChoose ? "Choose the template and read" : "Read the email"}
@@ -171,17 +245,33 @@ export default function EmailIntake({
                 <Chip tone="amber" label={`${counts.missing} missing`} />
               </div>
               <table className="est-review">
-                <thead><tr><th>Detail</th><th>Read as</th><th>Source in the email</th></tr></thead>
+                <thead><tr><th>Detail</th><th>Read as</th><th>{hasFileRows ? "Source" : "Source in the email"}</th></tr></thead>
                 <tbody>
-                  {shownRows.map((r) => (
-                    <tr key={r.key}>
-                      <td><Chip tone={r.tone} label={r.statusLabel} /> <span style={{ marginLeft: 6 }}>{r.label}</span></td>
-                      <td>{r.status === "missing" ? <span className="est-src">Needs your answer (form shows {r.placeholder})</span> : r.value}</td>
-                      <td>{r.source ? <span className="est-src">&ldquo;{r.source}&rdquo;</span> : r.status === "missing" ? "" : <span className="est-src">implied</span>}</td>
-                    </tr>
-                  ))}
+                  {shownRows.map((r) => {
+                    const origin = fileOrigin(r);
+                    return (
+                      <tr key={r.key}>
+                        <td><Chip tone={r.tone} label={r.statusLabel} /> <span style={{ marginLeft: 6 }}>{r.label}</span></td>
+                        <td>{r.status === "missing" ? <span className="est-src">Needs your answer (form shows {r.placeholder})</span> : r.value}</td>
+                        <td>
+                          {origin && <span className="est-src" style={{ fontStyle: "normal", fontWeight: 600, display: "block" }}>{origin}</span>}
+                          {r.source ? <span className="est-src">&ldquo;{r.source}&rdquo;</span> : r.status === "missing" ? "" : <span className="est-src">implied</span>}
+                          {origin && r.file && (
+                            <Button variant="quiet" size="sm" onClick={() => void openPage(r.file!, r.page)} aria-label={r.page ? `Open page ${r.page} of ${r.file}` : `Open ${r.file}`}>
+                              {r.page ? "Open page" : "Open file"}
+                            </Button>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
+              {notRead.length > 0 && (
+                <div role="status" style={{ marginTop: 8, fontSize: 13, color: "var(--err-ink)" }}>
+                  {notRead.map((f) => <div key={f.id}>Not read: {f.name}. {f.note}</div>)}
+                </div>
+              )}
               {rows.length > 8 && (
                 <Button variant="quiet" size="sm" onClick={() => setShowAll((v) => !v)}>{showAll ? "Show fewer" : `Show all ${rows.length}`}</Button>
               )}
