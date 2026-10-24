@@ -71,6 +71,8 @@ const SHADOW_RADIUS_MAX_M = 150;
 /** A fence whose whole-run view is farther out than this opens close up at a gate instead. */
 const CLOSE_UP_ABOVE_M = 55;
 const CLOSE_UP_DIST_M = 34;
+/** Camera distance per metre of (length + depth) for a fence, so the whole run fits the frame. */
+const FENCE_FIT_FACTOR = 0.78;
 
 export class ViewerScene {
   private renderer: THREE.WebGLRenderer;
@@ -99,7 +101,7 @@ export class ViewerScene {
   private step = 0;
   private explode = 0;
   private cutaway = false;
-  /** A long fence is first shown close up at a gate (the whole run is a thin line from far away); set by setModel. */
+  /** A long fence can also be viewed close up at a gate (a button on the viewer); set by setModel. */
   closeUpAvailable = false;
   private closeView: { target: [number, number, number]; dist: number } | null = null;
   private wholeView: { target: [number, number, number]; dist: number } = { target: [0, 1, 0], dist: 30 };
@@ -193,7 +195,8 @@ export class ViewerScene {
     this.stepCount = Math.max(1, model.step_names.length);
     this.step = this.stepCount - 1;
     this.target = [0, maxY / 2, 0];
-    const dist = Math.max(model.view_min_dist ?? 30, (model.w + model.d) * 1.25 + maxY * 0.5);
+    // A fence is a long thin shape: frame it tight so the whole run just fits the view.
+    const dist = Math.max(model.view_min_dist ?? 30, desert ? (model.w + model.d) * FENCE_FIT_FACTOR + maxY : (model.w + model.d) * 1.25 + maxY * 0.5);
     const maxDist = dist * 3.5;
     this.wholeView = { target: [0, maxY / 2, 0], dist };
     this.closeView = null;
@@ -205,7 +208,6 @@ export class ViewerScene {
     this.orbit = keepView
       ? { ...this.orbit, maxDist: Math.max(this.orbit.maxDist, maxDist) }
       : { ...this.orbit, dist, minDist: 8, maxDist };
-    if (!keepView && this.closeView) { this.target = this.closeView.target; this.orbit.dist = this.closeView.dist; }
     const reach = Math.max(this.orbit.maxDist, maxDist);
     this.fitAtmosphere(dist, reach, radius, maxY);
 
