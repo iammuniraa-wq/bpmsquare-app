@@ -16,17 +16,20 @@ import { loadEstimatePrefill } from "@/lib/inbox/estimateLink";
 import { quoteAbility } from "../quoteAbility";
 import NewEstimateScreen from "./NewEstimateScreen";
 import StarterButton from "./StarterButton";
+import TemplateCards from "./TemplateCards";
+import { aiConfigured } from "@/lib/estimator/aiServer";
 
-type TemplateRow = Pick<EstimateTemplate, "id" | "name" | "description" | "geometry" | "inputs" | "rates" | "rules" | "quote_granularity">;
+type TemplateRow = Pick<EstimateTemplate, "id" | "name" | "description" | "geometry" | "inputs" | "rates" | "rules" | "quote_granularity" | "icon" | "keywords" | "locked">;
 
-export default async function NewEstimatePage({ searchParams }: { searchParams: Promise<{ account_id?: string; from?: string; email?: string; template?: string }> }) {
+export default async function NewEstimatePage({ searchParams }: { searchParams: Promise<{ account_id?: string; from?: string; template?: string; email?: string; from_email?: string }> }) {
   await requireWorkcenterView("estimates");
   await requireFeature("estimator");
   const { supabase, tenantId, userId, role } = await requireTenantUser();
-  const { account_id, from, email: fromEmail, template: wantedTemplate } = await searchParams;
+  const { account_id, from, template: templateParam, email: emailParam, from_email: fromEmail } = await searchParams;
 
   const [tpl, accounts, contacts] = await Promise.all([
-    supabase.from("estimate_templates").select("id, name, description, geometry, inputs, rates, rules, quote_granularity").eq("tenant_id", tenantId).eq("is_active", true).order("name"),
+    // "*": the catalogue columns (icon, keywords, locked) exist only once 0213 is applied.
+    supabase.from("estimate_templates").select("*").eq("tenant_id", tenantId).eq("is_active", true).order("name"),
     supabase.from("accounts").select("id, name").eq("tenant_id", tenantId).order("name"),
     supabase.from("contacts").select("id, name, account_id").eq("tenant_id", tenantId).order("name"),
   ]);
@@ -47,7 +50,8 @@ export default async function NewEstimatePage({ searchParams }: { searchParams: 
     );
   }
 
-  const templates = ((tpl.data ?? []) as TemplateRow[]).map((t): WorkspaceTemplate => ({
+  const rows = (tpl.data ?? []) as TemplateRow[];
+  const templates = rows.map((t): WorkspaceTemplate => ({
     id: t.id, name: t.name, description: t.description, geometry: t.geometry ?? null,
     inputs: t.inputs ?? [], rates: t.rates ?? [], rules: t.rules ?? [], quote_granularity: t.quote_granularity ?? "group",
   }));
@@ -64,6 +68,7 @@ export default async function NewEstimatePage({ searchParams }: { searchParams: 
             action={
               <div style={{ display: "flex", gap: 10, flexWrap: "wrap", justifyContent: "center" }}>
                 <StarterButton />
+                <StarterButton starter="Chain-link fence" label="Start from the chain-link fence starter" variant="secondary" />
                 {role === "admin" && <Button href={ROUTES.settingsEstimateTemplates} variant="secondary">Open template settings</Button>}
               </div>
             }
@@ -85,9 +90,28 @@ export default async function NewEstimatePage({ searchParams }: { searchParams: 
     );
   }
 
+  // With more than one template the page opens on "What are you estimating?"; a card (or an
+  // old link with ?from=) goes on to the working page with that template chosen.
+  const chosen = templateParam && templates.some((t) => t.id === templateParam) ? templateParam : null;
+  const viaInbox = !!fromEmail && /^[0-9a-f-]{36}$/i.test(fromEmail);
+  if (templates.length > 1 && !chosen && !viaInbox && !(from && /^[0-9a-f-]{36}$/i.test(from))) {
+    return (
+      <>
+        <TabTitle title="New estimate" />
+        {back}
+        <PageHeader title="What are you estimating?" subtitle="Choose a template. You can paste the customer's email on the next page." />
+        <TemplateCards
+          templates={rows.map((t) => ({ id: t.id, name: t.name, description: t.description, geometry: t.geometry ?? null, icon: t.icon ?? null, keywords: t.keywords ?? null, locked: t.locked === true }))}
+          accountId={account_id && (accounts.data ?? []).some((a) => a.id === account_id) ? account_id : undefined}
+          canPick={aiConfigured()}
+        />
+      </>
+    );
+  }
+
   // Duplicate: start from another estimate's template, inputs, margin and account.
   let init: DraftInit = {
-    templateId: templates[0].id,
+    templateId: chosen ?? templates[0].id,
     accountId: account_id && (accounts.data ?? []).some((a) => a.id === account_id) ? account_id : undefined,
   };
   if (from && /^[0-9a-f-]{36}$/i.test(from)) {
@@ -118,7 +142,6 @@ export default async function NewEstimatePage({ searchParams }: { searchParams: 
         customer: init.customer ?? prefill.customer ?? undefined,
       };
     }
-    if (wantedTemplate && templates.some((t) => t.id === wantedTemplate)) init = { ...init, templateId: wantedTemplate };
   }
 
   const [meta, tenant] = await Promise.all([loadTenantMeta(tenantId), getTenant()]);
@@ -128,7 +151,7 @@ export default async function NewEstimatePage({ searchParams }: { searchParams: 
     <>
       <TabTitle title="New estimate" />
       {back}
-      <PageHeader title="New estimate" subtitle="Start from the customer's email or fill in the details. Nothing is saved until you create the quote or save a draft." />
+      <PageHeader title={templates.length > 1 ? `New estimate: ${templates.find((t) => t.id === init.templateId)?.name ?? ""}` : "New estimate"} subtitle="Start from the customer's email or fill in the details. Nothing is saved until you create the quote or save a draft." action={templates.length > 1 ? <Button href={ROUTES.estimateNew} variant="secondary" size="sm">Change template</Button> : undefined} />
       <NewEstimateScreen
         templates={templates}
         init={init}
@@ -138,6 +161,7 @@ export default async function NewEstimatePage({ searchParams }: { searchParams: 
         canEdit
         canQuote={canQuote}
         quoteUnavailable={quoteUnavailable}
+        emailFirst={emailParam === "1" || (viaInbox && !chosen)}
       />
     </>
   );

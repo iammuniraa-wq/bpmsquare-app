@@ -48,6 +48,7 @@ export type Briefing = {
 /** What the briefing rules look at: one thing that wants the person's attention today. */
 export type CandidateKind =
   | "quote_expired" | "quote_expiring" | "quote_draft"
+  | "order_confirm"
   | "lead_ready" | "lead_new"
   | "deal_late" | "deal_closing"
   | "abm_step" | "task_due" | "invoice_overdue" | "mention"

@@ -18,8 +18,9 @@
 
 import { ESTIMATE_COMPONENTS, groupSlug } from "./types";
 import type {
-  EstimateTemplateBody, TemplateInput, TemplateInputOption, TemplateRate, TemplateRule, TemplateRuleCost,
+  EstimateTemplateBody, ProductMatch, TemplateInput, TemplateInputOption, TemplateRate, TemplateRule, TemplateRuleCost,
 } from "./types";
+import { ATTR_KEY_RE, MAX_ATTRS, MAX_ATTR_VALUE } from "./productMatch";
 import { FORMULA_FUNCTIONS, formulaIdentifiers, parseFormula } from "./formula";
 import { getGeometry, geometryIdentifiers, TOTAL_IDENTIFIERS, GEOMETRY_KEYS } from "./geometry";
 import { SIM_CAPACITY_RATES, SIM_RATE_KEYS } from "./simRates";
@@ -143,9 +144,26 @@ function validateOptions(raw: unknown, path: string, issues: TemplateIssue[]): T
     else if (seen.has(key)) { issues.push({ path: `${p}.key`, message: `Duplicate option key "${key}".` }); bad = true; }
     if (!label) { issues.push({ path: `${p}.label`, message: "Every option needs a label." }); bad = true; }
     if (!isNum(o.value)) { issues.push({ path: `${p}.value`, message: "Every option needs a numeric value; formulas see this number." }); bad = true; }
-    if (key && label && isNum(o.value)) { seen.add(key); out.push({ key, label, value: o.value }); }
+    const attrs = validateAttrs(o.attrs, `${p}.attrs`, issues);
+    if (attrs === null) bad = true;
+    if (key && label && isNum(o.value) && attrs !== null) { seen.add(key); out.push({ key, label, value: o.value, ...(attrs ? { attrs } : {}) }); }
   });
   return bad ? null : out;
+}
+
+/** Catalogue attributes: lowercase names, short text values. undefined = none given, null = invalid. */
+function validateAttrs(raw: unknown, path: string, issues: TemplateIssue[]): Record<string, string> | undefined | null {
+  if (raw === undefined || raw === null) return undefined;
+  if (!isRecord(raw)) { issues.push({ path, message: "Attributes must be name and text pairs." }); return null; }
+  const entries = Object.entries(raw);
+  if (entries.length > MAX_ATTRS) { issues.push({ path, message: `At most ${MAX_ATTRS} attributes.` }); return null; }
+  const out: Record<string, string> = {};
+  for (const [k, v] of entries) {
+    if (!ATTR_KEY_RE.test(k)) { issues.push({ path, message: `Attribute name "${k.slice(0, 40)}" must be lowercase letters, digits and underscores.` }); return null; }
+    if (!isStr(v) || v.trim() === "" || v.trim().length > MAX_ATTR_VALUE) { issues.push({ path: `${path}.${k}`, message: `Attribute "${k}" needs a text value of up to ${MAX_ATTR_VALUE} characters.` }); return null; }
+    out[k] = v.trim();
+  }
+  return Object.keys(out).length > 0 ? out : undefined;
 }
 
 function validateRates(raw: unknown, issues: TemplateIssue[]): TemplateRate[] {
@@ -197,7 +215,7 @@ type RawRule = {
   waste_pct: number | string | undefined; component: TemplateRule["component"]; cost: TemplateRuleCost; element_type: string | undefined;
 };
 
-function validateRuleShapes(raw: unknown, rateKeys: Set<string>, issues: TemplateIssue[]): RawRule[] {
+function validateRuleShapes(raw: unknown, rateKeys: Set<string>, inputs: readonly TemplateInput[], issues: TemplateIssue[]): RawRule[] {
   const out: RawRule[] = [];
   if (!Array.isArray(raw)) { issues.push({ path: "rules", message: "rules must be a list." }); return out; }
   if (raw.length === 0) issues.push({ path: "rules", message: "A template needs at least one rule line." });
@@ -242,8 +260,31 @@ function validateRuleShapes(raw: unknown, rateKeys: Set<string>, issues: Templat
     else if (r.cost.kind === "product") {
       const sku = text(r.cost.sku, 80);
       const ref = text(r.cost.ref, 80);
-      if (!sku && !ref) fail("cost.sku", "A product cost needs the product's SKU or its product reference.");
-      else cost = { kind: "product", ...(sku ? { sku } : {}), ...(ref ? { ref } : {}) };
+      let match: ProductMatch | undefined;
+      if (r.cost.match !== undefined && r.cost.match !== null) {
+        const m = r.cost.match;
+        if (!isRecord(m)) fail("cost.match", "A product match must have attributes.");
+        else {
+          const before = issues.length;
+          const attrs = validateAttrs(m.attrs, `${path}.cost.match.attrs`, issues);
+          let from: string[] | undefined;
+          if (m.from !== undefined && m.from !== null) {
+            if (!Array.isArray(m.from) || m.from.some((x) => !isStr(x))) fail("cost.match.from", "\"from\" must be a list of select input keys.");
+            else {
+              from = [...new Set(m.from as string[])];
+              for (const k of from) {
+                const input = inputs.find((x) => x.key === k);
+                if (!input || input.type !== "select") fail("cost.match.from", `Match input "${k}" must be one of the template's select inputs.`);
+              }
+            }
+          }
+          if (issues.length > before) ok = false;
+          else if (!attrs && !(from && from.length > 0)) fail("cost.match", "A product match needs at least one attribute or one select input.");
+          else match = { attrs: attrs ?? {}, ...(from && from.length > 0 ? { from } : {}) };
+        }
+      }
+      if (!sku && !ref && !match) { if (ok) fail("cost.sku", "A product cost needs the product's SKU or its product reference, or a catalogue match."); }
+      else if (ok) cost = { kind: "product", ...(sku ? { sku } : {}), ...(ref ? { ref } : {}), ...(match ? { match } : {}) };
     } else if (r.cost.kind === "rate") {
       if (!isStr(r.cost.rate) || !rateKeys.has(r.cost.rate)) fail("cost.rate", `Cost rate "${String(r.cost.rate)}" is not one of the template's rates.`);
       else cost = { kind: "rate", rate: r.cost.rate };
@@ -288,7 +329,7 @@ export function validateTemplate(raw: unknown): TemplateValidation {
     else names.set(x.key, "another rate or input");
   });
 
-  const rules = validateRuleShapes(raw.rules, new Set(rates.map((r) => r.key)), issues);
+  const rules = validateRuleShapes(raw.rules, new Set(rates.map((r) => r.key)), inputs, issues);
 
   // Geometry module: optional, must exist, and the template must supply the
   // inputs the module reads. Its pieces then add vol_/n_/area_ names.
@@ -308,7 +349,7 @@ export function validateTemplate(raw: unknown): TemplateValidation {
           issues.push({ path: "inputs", message: `The "${mod.key}" geometry needs an input with the key "${spec.key}".` });
         } else if (input) {
           used.add(spec.key);
-          if (input.type === "select") issues.push({ path: "inputs", message: `Input "${spec.key}" is read by the "${mod.key}" geometry and must be a number or yes/no input.` });
+          if (input.type === "select" && !spec.allow_select) issues.push({ path: "inputs", message: `Input "${spec.key}" is read by the "${mod.key}" geometry and must be a number or yes/no input.` });
         }
       }
       // The density rate feeds weight_total.
@@ -367,6 +408,7 @@ export function validateTemplate(raw: unknown): TemplateValidation {
     checkFormula(rule.qty, i, "qty");
     if (isStr(rule.waste_pct)) checkFormula(rule.waste_pct, i, "waste_pct");
     if (rule.cost.kind === "rate") used.add(rule.cost.rate);
+    if (rule.cost.kind === "product") for (const k of rule.cost.match?.from ?? []) used.add(k);
   });
 
   inputs.forEach((x, i) => { if (!used.has(x.key)) warnings.push({ path: `inputs[${i}]`, message: `Input "${x.key}" is not used by any rule.` }); });

@@ -99,6 +99,11 @@ export const RULES: Record<CandidateKind, Rule> = {
     reason: (c) => `draft for ${plural(c.days, "day")}`,
     group: (n) => `${plural(n, "draft quote")} to finish`, list: ROUTES.quotations, order: 14,
   },
+  order_confirm: {
+    urgency: (c) => 52 + clamp(c.days, 0, 10),
+    reason: (c) => (c.days <= 0 ? "draft order made today, not confirmed" : `draft order not confirmed for ${plural(c.days, "day")}`),
+    group: (n) => `${plural(n, "order")} to confirm`, list: ROUTES.salesOrders, order: 5.5,
+  },
   sync_failed: {
     urgency: (c) => 55 + extra(c, 2, 5),
     reason: (c) => `${c.count ?? 1} failed in the last 24 hours`,

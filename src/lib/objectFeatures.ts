@@ -106,6 +106,11 @@ export const OBJECT_FEATURE: Record<string, keyof TenantFeatures | null> = {
   standard_quotes: "standard_quotes",
   standard_quote_lines: "standard_quotes",
   "standard-quotes": "standard_quotes",
+  // Sales Orders (0212): a module of its own (platform-admin flag). The header and its lines are two Data
+  // Workbench families; the v1 endpoint is spelled with a dash, the scope and list source with an underscore.
+  sales_orders: "sales_orders",
+  sales_order_lines: "sales_orders",
+  "sales-orders": "sales_orders",
   suppliers: "suppliers",
   work_orders: "work_orders",
   "work-orders": "work_orders",

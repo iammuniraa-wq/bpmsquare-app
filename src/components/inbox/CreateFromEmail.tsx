@@ -61,7 +61,7 @@ export default function CreateFromEmail({ email, options, match, suggestedAccoun
   async function startEstimate() {
     setMenu(false);
     setBusy(true);
-    const go = (q: string) => router.push(`${ROUTES.estimateNew}?email=${email.id}${q}`);
+    const go = (q: string) => router.push(`${ROUTES.estimateNew}?from_email=${email.id}${q}`);
     try {
       const res = await fetch("/api/estimates/ai/pick", {
         method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text: emailAsBrief(email) }),

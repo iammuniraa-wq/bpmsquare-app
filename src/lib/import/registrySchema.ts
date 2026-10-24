@@ -51,6 +51,9 @@ export const REGISTRY_OBJECT_TYPE: Record<ImportObjectId, string | null> = {
   standard_quotes: "standard_quote",
   // Static spec (standardQuoteLinesSchema.ts), like quote_lines.
   standard_quote_lines: null,
+  sales_orders: "sales_order",
+  // Static spec (salesOrderLinesSchema.ts), like standard_quote_lines.
+  sales_order_lines: null,
 };
 
 export type ReferenceFieldDef = {
@@ -104,6 +107,13 @@ export const REFERENCE_FIELDS: Partial<Record<ImportObjectId, ReferenceFieldDef[
   standard_quotes: [
     { key: "account_name", label: "Account", hint: "Must match an account already in the system", target: "accounts", required: true },
     { key: "contact_name", label: "Contact", hint: "Contact person at that account, spelled as in your contacts", target: "contacts" },
+  ],
+  // Sales Orders (header only): account / contact / order type resolve the relationship at create time by
+  // name. Update never keys off them; the lines are the sales_order_lines family.
+  sales_orders: [
+    { key: "account_name", label: "Account", hint: "Must match an account already in the system", target: "accounts", required: true },
+    { key: "contact_name", label: "Contact", hint: "Contact person at that account, spelled as in your contacts", target: "contacts" },
+    { key: "type_name", label: "Order type", hint: "Name of one of your order types; blank lets the type rules (or the default type) decide", target: "sales_orders" },
   ],
   wfm_projects: [
     { key: "parent_ref", label: "Sits under", hint: "Project ID of the parent (e.g. PRJ-0003) to create a sub-project — blank for a top-level project", target: "wfm_projects" },
@@ -224,6 +234,9 @@ const OBJECT_META: Record<ImportObjectId, { label: string; icon: string; descrip
   standard_quotes: { label: "Standard Quotes", icon: "≡", description: "Creates draft standard quotes (header only: customer, validity, discount, tax, shipping, texts). Add the lines with Standard Quote Lines, using the Quote ID from an export. Total, status and Quote ID are computed, not imported.", dependsOn: ["accounts", "contacts"] },
   // Never read -- standard_quote_lines is null in REGISTRY_OBJECT_TYPE (static spec).
   standard_quote_lines: { label: "Standard Quote Lines", icon: "≣", description: "", dependsOn: ["standard_quotes"] },
+  sales_orders: { label: "Sales Orders", icon: "▣", description: "Creates draft sales orders (header only: customer, contact, order type, customer PO, requested date, currency, shipping, texts). Add the lines with Sales Order Lines, using the Order ID from an export. Total, status and Order ID are computed, not imported.", dependsOn: ["accounts", "contacts"] },
+  // Never read -- sales_order_lines is null in REGISTRY_OBJECT_TYPE (static spec).
+  sales_order_lines: { label: "Sales Order Lines", icon: "≣", description: "", dependsOn: ["sales_orders"] },
   abm_members: { label: "ABM buying groups", icon: "☰", description: "People and their role in a target account's buying group, for one program. Private notes are not included.", dependsOn: ["abm_targets", "contacts"] },
   wfm_projects: { label: "Projects (workforce)", icon: "▦", description: "Project costing — projects and sub-projects that worked hours are attributed to. Import parents before children.", dependsOn: [] },
   users: { label: "Users", icon: "◍", description: "Invite team members and assign roles — each person receives an email invite", dependsOn: [] },

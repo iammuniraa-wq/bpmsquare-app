@@ -155,7 +155,7 @@ export class ViewerScene {
     this.stepCount = Math.max(1, model.step_names.length);
     this.step = this.stepCount - 1;
     this.target = [0, maxY / 2, 0];
-    const dist = Math.max(30, (model.w + model.d) * 1.25 + maxY * 0.5);
+    const dist = Math.max(model.view_min_dist ?? 30, (model.w + model.d) * 1.25 + maxY * 0.5);
     this.orbit = keepView
       ? { ...this.orbit, maxDist: Math.max(this.orbit.maxDist, dist * 3.5) }
       : { ...this.orbit, dist, minDist: 8, maxDist: dist * 3.5 };

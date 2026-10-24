@@ -5,6 +5,7 @@ import { initialValues } from "@/components/estimator/InputsForm";
 import type { InputValues } from "@/components/estimator/InputsForm";
 import type { IntakeProposal, SenderInfo } from "@/lib/estimator/ai";
 import type { WorkspaceTemplate } from "./types";
+import { fieldNotes } from "./intakeReview";
 
 export type DraftInit = {
   templateId: string;
@@ -37,15 +38,19 @@ export function useEstimateDraft(templates: readonly WorkspaceTemplate[], init: 
   // Who the email said it is from; offered as a new account and contact until one is chosen.
   const [sender, setSender] = useState<SenderInfo | null>(null);
   const [started, setStarted] = useState(!!init.params && Object.keys(init.params).length > 0);
+  // Inputs the email did not state (or only implied): marked on the form until the person changes them.
+  const [flags, setFlags] = useState<Record<string, string>>({});
 
   const pickTemplate = useCallback((id: string) => {
     setTemplateId(id);
     setValues(initialValues(templates.find((t) => t.id === id)?.inputs ?? []));
+    setFlags({});
   }, [templates]);
 
   const setValue = useCallback((key: string, v: string | boolean) => {
     setStarted(true);
     setValues((s) => ({ ...s, [key]: v }));
+    setFlags((f) => { if (!(key in f)) return f; const { [key]: _gone, ...rest } = f; return rest; });
   }, []);
 
   const applyProposal = useCallback((p: IntakeProposal) => {
@@ -62,6 +67,7 @@ export function useEstimateDraft(templates: readonly WorkspaceTemplate[], init: 
       return next;
     });
     if (p.name) setCustomer((c) => (c.trim() ? c : p.name as string));
+    setFlags(p.fields ? fieldNotes(template.inputs, p) : {});
   }, [template]);
 
   const reset = useCallback(() => {
@@ -70,7 +76,7 @@ export function useEstimateDraft(templates: readonly WorkspaceTemplate[], init: 
   }, [template, init.params, init.margin]);
 
   return {
-    template, templateId, pickTemplate, values, setValue, started, sender, setSender, applyProposal, reset,
+    template, templateId, pickTemplate, values, setValue, flags, started, sender, setSender, applyProposal, reset,
     margin, setMargin, customer, setCustomer, accountId, setAccountId, contactId, setContactId, notes, setNotes, customData, setCustomData,
     brief: init.brief, sourceEmailId: init.sourceEmailId,
   };

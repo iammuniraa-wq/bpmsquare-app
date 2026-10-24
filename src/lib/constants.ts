@@ -126,6 +126,11 @@ export const ROUTES = {
   standardQuotePrint: (id: string) => `/standard-quotes/${id}/print`,
   standardQuoteTemplates: "/standard-quotes/templates",
   standardQuoteTemplate: (id: string) => `/standard-quotes/templates/${id}`,
+  salesOrders: "/sales-orders",
+  salesOrder: (id: string) => `/sales-orders/${id}`,
+  salesOrderNew: "/sales-orders/new",
+  salesOrderPrint: (id: string) => `/sales-orders/${id}/print`,
+  settingsOrderTypes: "/settings/order-types",
   employees: "/employees",
   configPricing: "/settings/pricing",
   settingsNumberRanges: "/settings/number-ranges",
@@ -302,6 +307,7 @@ export const NAV: NavGroup[] = [
         children: [
           { label: "Quotations", href: ROUTES.quotations, icon: "₹", pillar: "blue", featureKey: "quotations", workcenterKey: "quotations" },
           { label: "Standard Quotes", href: ROUTES.standardQuotes, icon: "≡", pillar: "blue", featureKey: "standard_quotes", workcenterKey: "standard_quotes" },
+          { label: "Sales Orders", href: ROUTES.salesOrders, icon: "▣", pillar: "blue", featureKey: "sales_orders", workcenterKey: "sales_orders" },
           { label: "Pipeline",   href: ROUTES.pipeline,   icon: "▦", pillar: "blue", featureKey: "pipeline", workcenterKey: "pipeline" },
           { label: "Invoices",   href: ROUTES.invoices,   icon: "⊟", pillar: "blue", featureKey: "invoices", workcenterKey: "invoices" },
           { label: "Purchase Orders", href: ROUTES.purchaseOrders, icon: "⇱", pillar: "blue", featureKey: "purchasing", workcenterKey: "purchase_orders" },
@@ -729,6 +735,11 @@ export type TenantFeatures = {
   // workspace admin): default OFF, missing key reads false; with it off there is no menu item, no route, no webhook
   // routing and no polling for the workspace. Mail content is private: there is no v1 API endpoint for it.
   inbox: boolean;
+  // Sales Orders (docs/design/sales-order.md, build spec SO1): an order made here from an accepted quote or won
+  // deal, with order types, availability from master data, PDF/email/WhatsApp and files. A platform-admin-only
+  // flag: default OFF, missing key reads false; with it off there is no menu item, no route, no API answer and no
+  // button on a quote. ERP replication, ERP checks and sending to an ERP are later phases (SO2/SO3).
+  sales_orders: boolean;
 };
 
 // WfmConfig — tenant-level WFM (attendance) settings, stored in
@@ -1028,6 +1039,7 @@ export type AnalyticsMetricId =
   | "rfq_open"
   | "estimates_open"
   | "inbox_open"
+  | "sales_orders_open"
   | "abm_targets_engaged"
   | "wfm_attendance_today" | "wfm_night_shift_cost"
   | "wfm_corrections_queue" | "wfm_leave_requests_queue" | "wfm_recheck_queue"

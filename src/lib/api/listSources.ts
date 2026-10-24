@@ -6,6 +6,7 @@ import type { WorkcenterKey } from "@/lib/workcenters";
 import { PROJECT_HOURS_FIELDS, loadProjectHoursRows } from "@/lib/wfm/projectHoursRows";
 import { loadEstimatesForApi } from "@/lib/estimator/apiRows";
 import { loadStandardQuotesForApi } from "@/lib/api/standardQuoteRows";
+import { loadSalesOrdersForApi } from "@/lib/api/salesOrderRows";
 
 // One place that defines, per list object, both its queryable-field
 // whitelist and how to load its tenant-scoped, PII-decrypted rows. The v1
@@ -160,6 +161,38 @@ const STANDARD_QUOTE_FIELDS: QueryableField[] = [
   { path: "account.name", type: "string", searchable: true },
   { path: "contact_id", type: "string" },
   { path: "opportunity_id", type: "string" },
+  { path: "created_at", type: "date" },
+  { path: "updated_at", type: "date" },
+];
+
+const SALES_ORDER_FIELDS: QueryableField[] = [
+  { path: "id", type: "string" },
+  { path: "ref", type: "string", searchable: true },
+  { path: "status", type: "string" },
+  { path: "status_label", type: "string" },
+  { path: "spine", type: "string" },
+  { path: "origin", type: "string" },
+  { path: "type.id", type: "string" },
+  { path: "type.name", type: "string" },
+  { path: "pricing_mode", type: "string" },
+  { path: "currency", type: "string" },
+  { path: "customer_po", type: "string", searchable: true },
+  { path: "source_type", type: "string" },
+  { path: "source_id", type: "string" },
+  { path: "opportunity_id", type: "string" },
+  { path: "subtotal", type: "number" },
+  { path: "discount_total", type: "number" },
+  { path: "tax_total", type: "number" },
+  { path: "shipping_amount", type: "number" },
+  { path: "total", type: "number" },
+  { path: "line_count", type: "number" },
+  { path: "requested_date", type: "date" },
+  { path: "expected_date", type: "date" },
+  { path: "confirmed_at", type: "date" },
+  { path: "sent_at", type: "date" },
+  { path: "account.id", type: "string" },
+  { path: "account.name", type: "string", searchable: true },
+  { path: "contact_id", type: "string" },
   { path: "created_at", type: "date" },
   { path: "updated_at", type: "date" },
 ];
@@ -498,6 +531,15 @@ export const LIST_SOURCES: Record<string, ListSource> = {
     // Header only. The guardrail margin on lines (pricing_flags), the supplier-request link, notes,
     // the template and the contact's details are deliberately not selected: see standardQuoteRows.ts.
     load: loadStandardQuotesForApi,
+  },
+  sales_orders: {
+    label: "Sales orders",
+    description: "Sales orders made from accepted quotes and won deals: status, customer, type, pricing mode, totals, requested and expected delivery. Lines are on /api/v1/sales-orders/:id.",
+    relatedWorkcenter: "sales_orders",
+    fields: SALES_ORDER_FIELDS,
+    // Header only. The creator and owner, the cancellation note, a party's contact details and the order type's template
+    // are deliberately not selected: see salesOrderRows.ts.
+    load: loadSalesOrdersForApi,
   },
   abm_programs: {
     label: "ABM programs (account-based marketing)",

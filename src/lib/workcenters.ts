@@ -3,7 +3,7 @@
 // no "server-only" restriction unlike permissions.ts itself.
 
 export type WorkcenterKey =
-  | "dashboard" | "accounts" | "contacts" | "quotations" | "standard_quotes" | "pipeline" | "invoices"
+  | "dashboard" | "accounts" | "contacts" | "quotations" | "standard_quotes" | "sales_orders" | "pipeline" | "invoices"
   | "cases" | "amc" | "work_orders" | "dispatch" | "technicians"
   | "marketing" | "marketing_segments" | "leads" | "partners"
   | "assets" | "suppliers" | "inventory" | "purchase_orders" | "employees"
@@ -16,6 +16,7 @@ export const WORKCENTERS: { key: WorkcenterKey; label: string }[] = [
   { key: "contacts", label: "Contacts" },
   { key: "quotations", label: "Quotations" },
   { key: "standard_quotes", label: "Standard Quotes" },
+  { key: "sales_orders", label: "Sales Orders" },
   { key: "pipeline", label: "Pipeline" },
   { key: "invoices", label: "Invoices" },
   { key: "cases", label: "Cases" },

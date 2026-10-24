@@ -3,12 +3,12 @@
 import { useEffect, useRef, useState } from "react";
 import { AI_DOCK_ASK_EVENT, type DockAskDetail } from "@/lib/analysis/dockAsk";
 import { consentReplyOf } from "@/lib/assistant/consentReply";
+import { DOCK_CHAT_KEY } from "@/lib/assistant/dockChat";
 import { usePathname, useRouter } from "next/navigation";
 import { c } from "@/lib/theme";
-import { useIsNextgen3Layer, useTenantFeature } from "@/lib/tenant-context";
+import { useIsNextgen3Layer, useTenant, useTenantFeature } from "@/lib/tenant-context";
 import ChartRenderer from "@/components/charts/ChartRenderer";
 import InfoTip from "@/components/ui/InfoTip";
-import { BriefingCard } from "@/components/BriefingTile";
 import { normalizeReport, type ReportPayload } from "@/lib/reportView";
 import { parsePageContext } from "@/lib/assistant/objects";
 import { isInternalPath } from "@/lib/assistant/navTargets";
@@ -56,6 +56,8 @@ type Usage = { percent: number; off: boolean };
 // on). A tenant can offer the assistant while an individual user still
 // hides the launcher for themselves, same pattern as bms_nextgen_dark etc.
 const ENABLED_KEY = "bms_ai_dock_enabled";
+const DOCK_CHAT_MAX = 60;
+const DOCK_CHAT_BYTES = 400_000;
 
 // Create-from-paste, on Nova tenants only. This is deliberately NOT the
 // chat/ask() path answering with a mutation -- it opens NovaDraft, the
@@ -89,6 +91,11 @@ export default function AIDock({ liftForTabBar = false }: {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<Msg[]>([]);
+  // The conversation survives closing the panel, moving between screens and reloads, until the person starts a new chat
+  // or signs out. Kept per workspace in this browser only.
+  const tenantId = useTenant()?.id ?? "x";
+  const chatKey = `${DOCK_CHAT_KEY}${tenantId}`;
+  const [hydrated, setHydrated] = useState(false);
   const [capabilities, setCapabilities] = useState<string[] | null>(null);
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [context, setContext] = useState<string | null>(null);
@@ -123,6 +130,33 @@ export default function AIDock({ liftForTabBar = false }: {
       setEnabled(localStorage.getItem(ENABLED_KEY) !== "0");
     } catch { /* ignore */ }
   }, []);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(chatKey);
+      const saved = raw ? JSON.parse(raw) : null;
+      if (Array.isArray(saved)) setMessages(saved.filter((m) => m && (m.from === "me" || m.from === "bot") && typeof m.text === "string").slice(-DOCK_CHAT_MAX));
+    } catch { /* ignore: a blank chat is the fallback */ }
+    setHydrated(true);
+  }, [chatKey]);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    try {
+      if (messages.length === 0) { localStorage.removeItem(chatKey); return; }
+      let keep = messages.slice(-DOCK_CHAT_MAX);
+      let json = JSON.stringify(keep);
+      while (json.length > DOCK_CHAT_BYTES && keep.length > 2) { keep = keep.slice(2); json = JSON.stringify(keep); }
+      localStorage.setItem(chatKey, json);
+    } catch { /* storage full or blocked: the chat still works for this visit */ }
+  }, [messages, hydrated, chatKey]);
+
+  function newChat() {
+    setMessages([]);
+    setDraft("");
+    setGuide(null);
+    try { localStorage.removeItem(chatKey); } catch { /* ignore */ }
+  }
 
   useEffect(() => {
     const mq = window.matchMedia("(max-width: 899px)");
@@ -449,6 +483,16 @@ export default function AIDock({ liftForTabBar = false }: {
             <InfoTip label="the assistant">{ASSISTANT_TIPS.header}</InfoTip>
             <span style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 6 }}>
               {pill}
+              {messages.length > 0 && (
+                <button
+                  onClick={newChat}
+                  disabled={busy}
+                  aria-label="Start a new chat"
+                  style={{ background: "transparent", border: `1px solid ${c.line}`, color: c.muted, cursor: "pointer", fontSize: 11, borderRadius: 999, padding: "3px 9px", fontFamily: "inherit" }}
+                >
+                  New chat
+                </button>
+              )}
               <button
                 className="bms-dock-close"
                 onClick={closePanel}
@@ -460,123 +504,9 @@ export default function AIDock({ liftForTabBar = false }: {
             </span>
           </div>
 
-          {context && (
-            <div style={{ padding: "8px 16px", borderBottom: `1px solid ${c.line}`, fontSize: 12, color: c.ink, display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
-              <span style={{ fontWeight: 650, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>On {plainText(context)}</span>
-            </div>
-          )}
-
-          {(suggestions.length > 0 || analyseHere) && (
-            <div className="bms-dock-suggest" style={{ padding: "8px 16px", borderBottom: `1px solid ${c.line}`, display: "flex", flexWrap: "wrap", gap: 6, flexShrink: 0 }}>
-              {analyseHere && (
-                <span className="bms-dock-chip-wrap" style={{ display: "inline-flex", alignItems: "center", flexShrink: 0 }}>
-                  <button
-                    className="bms-dock-chip"
-                    onClick={() => ask(`Analyse ${plainText(analyseHere.name)}`, undefined, undefined, { account_id: analyseHere.id })}
-                    disabled={busy}
-                    style={{
-                      background: "var(--accentbg)", border: "1px solid var(--line)", borderRadius: 999,
-                      padding: "6px 12px", fontSize: 11.5, fontWeight: 650, color: c.accent, cursor: "pointer", fontFamily: "inherit",
-                    }}
-                  >
-                    Analyse company
-                  </button>
-                </span>
-              )}
-              {suggestions.map((s) => (
-                <span key={s.id} className="bms-dock-chip-wrap" style={{ display: "inline-flex", alignItems: "center", flexShrink: 0 }}>
-                  <button
-                    className="bms-dock-chip"
-                    onClick={() => runSuggestion(s)}
-                    disabled={busy && s.kind === "ask"}
-                    style={{
-                      background: "var(--accentbg)", border: "1px solid var(--line)", borderRadius: 999,
-                      padding: "6px 12px", fontSize: 11.5, fontWeight: 650, color: c.accent, cursor: "pointer", fontFamily: "inherit",
-                    }}
-                  >
-                    {s.label}{s.kind === "navigate" ? " →" : ""}
-                  </button>
-                </span>
-              ))}
-            </div>
-          )}
-
           <div ref={scrollRef} style={{ padding: "14px 16px", display: "flex", flexDirection: "column", gap: 10, fontSize: 12.5, flex: 1, overflowY: "auto", minHeight: 0 }}>
             {messages.length === 0 && (
-              <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
-                <BriefingCard />
-                {createChips.length > 0 && (
-                  <>
-                    <div style={{ fontSize: 10.5, fontWeight: 700, color: c.hint, textTransform: "uppercase", letterSpacing: 0.4, display: "flex", alignItems: "center", gap: 4 }}>
-                      Draft from a paste
-                    </div>
-                    <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                      {createChips.map((item) => (
-                        <button
-                          key={item.mode}
-                          className="bms-dock-chip"
-                          onClick={() => openDraft(item.mode)}
-                          style={{
-                            background: "var(--accentbg)", border: `1px solid var(--line)`,
-                            borderRadius: 999, padding: "6px 12px", fontSize: 11.5, fontWeight: 650,
-                            color: c.accent, cursor: "pointer", fontFamily: "inherit",
-                          }}
-                        >
-                          ✦ {item.label}
-                        </button>
-                      ))}
-                    </div>
-                  </>
-                )}
-                {guides.length > 0 && (
-                  <>
-                    <div style={{ fontSize: 10.5, fontWeight: 700, color: c.hint, textTransform: "uppercase", letterSpacing: 0.4, display: "flex", alignItems: "center", gap: 4 }}>
-                      Show me how
-                    </div>
-                    <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                      {guides.map((g) => (
-                        <button
-                          key={g.id}
-                          className="bms-dock-chip"
-                          onClick={() => ask(`Show me how: ${g.label}`, g.id)}
-                          disabled={busy}
-                          style={{
-                            background: "var(--accentbg)", border: "1px solid var(--line)", borderRadius: 999,
-                            padding: "6px 12px", fontSize: 11.5, fontWeight: 650, color: c.accent, cursor: "pointer", fontFamily: "inherit",
-                          }}
-                        >
-                          {g.label}
-                        </button>
-                      ))}
-                    </div>
-                  </>
-                )}
-                {capabilities === null && <div style={{ color: c.hint }}>Loading…</div>}
-                {capabilities?.length === 0 && (
-                  <div style={{ color: c.hint }}>There&apos;s no data I can report on for your account yet.</div>
-                )}
-                {capabilities && capabilities.length > 0 && (
-                  <>
-                    <div style={{ fontSize: 10.5, fontWeight: 700, color: c.hint, textTransform: "uppercase", letterSpacing: 0.4, marginTop: 2 }}>
-                      Try asking
-                    </div>
-                    {capabilities.map((cap) => (
-                      <button
-                        key={cap}
-                        className="bms-dock-row"
-                        onClick={() => ask(cap)}
-                        style={{
-                          textAlign: "left", background: "var(--panel2)", border: "1px solid var(--line)",
-                          borderRadius: "var(--card-radius, 10px)", padding: "8px 11px", fontSize: 12,
-                          color: c.ink, cursor: "pointer", fontFamily: "inherit", lineHeight: 1.4,
-                        }}
-                      >
-                        {cap}
-                      </button>
-                    ))}
-                  </>
-                )}
-              </div>
+              <div style={{ color: c.hint, fontSize: 13.5, padding: "6px 2px" }}>How can I help you today?</div>
             )}
             {messages.map((m, i) => (
               <div key={i} style={{ display: "flex", flexDirection: "column", gap: 8, alignSelf: m.from === "me" ? "flex-end" : "stretch", maxWidth: m.from === "me" ? "88%" : undefined }}>

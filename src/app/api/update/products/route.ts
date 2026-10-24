@@ -11,7 +11,7 @@ import type { RowOutcome } from "@/lib/import/types";
 // Mirrors src/app/api/products/[id]/route.ts PATCH -- supplier_id excluded: a
 // relationship changes on the record (and Update never keys off a name), so the
 // Supplier column is Import/Export only.
-const ALLOWED = ["name", "sku", "category", "sub_category", "uom", "description", "list_price", "cost_price", "tax_percent", "status", "item_type", "custom_data", "qty_breaks"];
+const ALLOWED = ["name", "sku", "category", "sub_category", "uom", "description", "list_price", "cost_price", "tax_percent", "status", "item_type", "custom_data", "qty_breaks", "lead_time_days"];
 
 export async function POST(request: NextRequest) {
   let supabase, tenantId;
@@ -53,7 +53,8 @@ export async function POST(request: NextRequest) {
     }
 
     const patch: Record<string, unknown> = {};
-    for (const key of ALLOWED) if (key in values) patch[key] = values[key] || null;
+    // lead_time_days (0212) is skipped when blank so a database without 0212 is never asked for the column.
+    for (const key of ALLOWED) if (key in values && !(key === "lead_time_days" && !values[key])) patch[key] = values[key] || null;
 
     // A blank cell clears the scales; anything else must be a valid price-list text.
     if ("qty_breaks" in patch) {

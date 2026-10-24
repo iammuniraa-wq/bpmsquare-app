@@ -47,8 +47,20 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       return NextResponse.json({ error: "This template was changed by someone else. Reload it and apply your edit again.", version: before.version }, { status: 409 });
     }
 
+    // A starter template is read-only: the only thing a workspace may do to it is switch it
+    // on or off. Everything else goes through "Copy to customise" (the duplicate route).
+    if (before.locked === true) {
+      const touched = Object.keys(b).filter((k) => k !== "is_active" && k !== "expected_version");
+      if (touched.length > 0) {
+        return NextResponse.json({ error: "This is a starter template, so it can't be changed. Use Copy to customise to make your own version.", locked: true }, { status: 409 });
+      }
+    }
+
     const patch: Record<string, unknown> = {};
     const h = header.header;
+    if (h.keywords !== undefined) patch.keywords = h.keywords;
+    if (h.icon !== undefined) patch.icon = h.icon;
+    if (h.customer_visible !== undefined) patch.customer_visible = h.customer_visible;
     if (h.name !== undefined) patch.name = h.name;
     if (h.description !== undefined) patch.description = h.description;
     if (h.trade !== undefined) patch.trade = h.trade;

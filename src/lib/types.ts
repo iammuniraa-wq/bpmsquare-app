@@ -869,6 +869,12 @@ export type EstimateTemplate = {
   rates: EstimatorTemplateRate[];
   rules: EstimatorTemplateRule[];
   quote_granularity: EstimatorQuoteGranularity;
+  /** 0213 (absent while it is pending): the catalogue card and the AI template pick. */
+  keywords?: string[] | null;
+  icon?: string | null;
+  /** A starter template: read-only, changed by "Copy to customise". */
+  locked?: boolean;
+  customer_visible?: boolean;
   custom_data: Record<string, unknown> | null;
   created_by: string | null;
   created_at: string;
@@ -981,6 +987,8 @@ export type Product = {
    *  Offered by the Standard Quote add-line panel. */
   qty_breaks?: { from: number; rate: number | null }[] | null;
   tax_percent: number | null;
+  /** Days from order to delivery when nothing is in stock (0212). Master-data availability on a sales order adds it to today. Absent while 0212 is pending. */
+  lead_time_days?: number | null;
   status: ProductStatus;
   custom_data: Record<string, unknown> | null;
   created_at: string;

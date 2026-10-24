@@ -25,6 +25,11 @@ export const EVENTS = {
   // Core status values are not renamed; these sit next to quote.status_changed.
   QUOTE_AWARDED: "quote.awarded",
   QUOTE_REJECTED: "quote.rejected",
+  // Sales orders (docs/design/sales-order.md). Payloads carry ids and numbers, never names.
+  ORDER_CREATED: "order.created",
+  ORDER_CONFIRMED: "order.confirmed",
+  ORDER_CANCELLED: "order.cancelled",
+  ORDER_SENT: "order.sent",
   // Pricing / RFQ
   PRICING_VERSION_PUBLISHED: "pricing.version_published",
   PRICING_RFQ_REPLIED: "pricing.rfq_replied",

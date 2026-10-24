@@ -1533,6 +1533,10 @@ export type AnalyticsData = {
     /** Targets in active ABM programs, and how many of them are engaged or further (0180). */
     abmTargets: number;
     abmEngaged: number;
+    /** Sales orders still to confirm (drafts), confirmed ones, and the value of the confirmed (0212). */
+    draftOrders: number;
+    openOrders: number;
+    openOrderValue: number;
   };
   accountsByType: Array<{ type: string; label: string; count: number }>;
   leadFunnel: Array<{ stage: string; count: number }>;
@@ -1583,7 +1587,7 @@ export async function getAnalyticsDataLive(): Promise<AnalyticsData> {
   const tenantId = await currentTenantId();
   if (!tenantId) {
     return {
-      totals: { accounts: 0, contacts: 0, customerAssets: 0, openCases: 0, workOrders: 0, activeContracts: 0, leads: 0, technicians: 0, products: 0, openDeals: 0, openDealValue: 0, weightedDealValue: 0, openRfqs: 0, rfqsToAward: 0, draftEstimates: 0, quotedEstimates: 0, abmTargets: 0, abmEngaged: 0 },
+      totals: { accounts: 0, contacts: 0, customerAssets: 0, openCases: 0, workOrders: 0, activeContracts: 0, leads: 0, technicians: 0, products: 0, openDeals: 0, openDealValue: 0, weightedDealValue: 0, openRfqs: 0, rfqsToAward: 0, draftEstimates: 0, quotedEstimates: 0, abmTargets: 0, abmEngaged: 0, draftOrders: 0, openOrders: 0, openOrderValue: 0 },
       accountsByType: [], leadFunnel: [], assetsByKind: [],
       loanerStock: { available: 0, onLoan: 0, total: 0 },
       quotesByStatus: [], quoteTrend: [], casesByStatus: [], workOrdersByStatus: [],
@@ -1619,7 +1623,7 @@ export async function getAnalyticsDataLive(): Promise<AnalyticsData> {
     { data: accounts }, { data: contacts }, { data: assets },
     { data: cases }, { data: workOrders }, { data: contracts },
     { data: leads }, { data: technicians }, { data: quotes },
-    { data: invoices }, { data: activities }, { count: productCount }, { data: openDealsRaw }, { data: rfqRaw }, { data: estimateRaw }, { data: abmRaw },
+    { data: invoices }, { data: activities }, { count: productCount }, { data: openDealsRaw }, { data: rfqRaw }, { data: estimateRaw }, { data: abmRaw }, { data: orderRaw },
   ] = await Promise.all([
     getTenant(),
     supabase.from("accounts").select("id, type").eq("tenant_id", tenantId),
@@ -1642,7 +1646,10 @@ export async function getAnalyticsDataLive(): Promise<AnalyticsData> {
     supabase.from("estimates").select("status").eq("tenant_id", tenantId).in("status", ["draft", "quoted"]),
     // 0180-0181 may be pending: an error reads as no ABM targets.
     supabase.from("abm_target_accounts").select("progress, abm_programs!inner(status)").eq("tenant_id", tenantId).eq("abm_programs.status", "active").limit(20000),
+    // 0212 may be pending: an error reads as no orders.
+    supabase.from("sales_orders").select("status, total").eq("tenant_id", tenantId).in("status", ["draft", "confirmed"]).limit(20000),
   ]);
+  const orderRows = (orderRaw ?? []) as Array<{ status: string; total: number | null }>;
   const abmRows = (abmRaw ?? []) as unknown as Array<{ progress: string }>;
   const estimateRows = (estimateRaw ?? []) as Array<{ status: string }>;
   const openRfqRows = (rfqRaw ?? []) as Array<{ status: string }>;
@@ -1681,6 +1688,9 @@ export async function getAnalyticsDataLive(): Promise<AnalyticsData> {
     quotedEstimates: estimateRows.filter((e) => e.status === "quoted").length,
     abmTargets:      abmRows.filter((t) => t.progress !== "dropped").length,
     abmEngaged:      abmRows.filter((t) => ["engaged", "in_talks", "deal_open", "won"].includes(t.progress)).length,
+    draftOrders:     orderRows.filter((o) => o.status === "draft").length,
+    openOrders:      orderRows.filter((o) => o.status === "confirmed").length,
+    openOrderValue:  orderRows.filter((o) => o.status === "confirmed").reduce((s, o) => s + Number(o.total ?? 0), 0),
   };
 
   const accountTypeCounts = new Map<string, number>();
@@ -2296,6 +2306,12 @@ const SEARCH_SPECS: SearchSpec[] = [
     textCols: ["ref"],
     toResult: (r, cur) => ({ id: r.id, title: r.ref, subtitle: `${formatMoney(Number(r.total ?? 0), cur)} · ${r.status}`, href: ROUTES.standardQuote(r.id), matched: "ref" }),
     featureKeys: ["standard_quotes"],
+  },
+  {
+    type: "sales_order", table: "sales_orders", columns: "id, ref, status, total, customer_po",
+    textCols: ["ref", "customer_po"],
+    toResult: (r, cur) => ({ id: r.id, title: r.ref, subtitle: `${formatMoney(Number(r.total ?? 0), cur)} · ${r.status}${r.customer_po ? ` · PO ${r.customer_po}` : ""}`, href: ROUTES.salesOrder(r.id), matched: "ref" }),
+    featureKeys: ["sales_orders"],
   },
   {
     type: "work_order", table: "work_orders", columns: "id, ref, description, status",

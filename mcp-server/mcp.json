@@ -1,6 +1,6 @@
 {
   "name": "bpmsquare",
-  "version": "1.13.0",
+  "version": "1.14.0",
   "description": "BPMSquare MCP server — field service CRM for electromechanical repair businesses. Generic across every tenant; nothing here is Vikas/Hosapete-specific.",
   "api_base": "https://<your-tenant-domain>/api/v1",
   "auth": {
@@ -430,6 +430,29 @@
       }
     },
     {
+      "name": "list_sales_orders",
+      "description": "List the tenant's sales orders (the Sales Orders module): ref, order type, status (draft, confirmed, cancelled), customer account, customer PO, pricing mode, subtotal, discount, tax, shipping and total, requested and expected delivery dates, what it was made from, and how many lines each has. Contacts are returned as an id only and a bill-to / ship-to as name and address only. Needs an API key scoped to \"sales_orders\" (or to all objects).",
+      "method": "GET",
+      "path": "/api/v1/sales-orders",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "description": "draft, confirmed or cancelled"
+          },
+          "account_id": {
+            "type": "string",
+            "description": "Only orders for this account"
+          },
+          "source_id": {
+            "type": "string",
+            "description": "Only orders made from this quote or deal"
+          }
+        }
+      }
+    },
+    {
       "name": "list_abm_programs",
       "description": "List the tenant's ABM (account-based marketing) programs: goal, time window, status and how many companies are targeted.",
       "method": "GET",
@@ -536,6 +559,24 @@
           "id": {
             "type": "string",
             "description": "Standard quote UUID"
+          }
+        },
+        "required": [
+          "id"
+        ]
+      }
+    },
+    {
+      "name": "get_sales_order",
+      "description": "Fetch one sales order by id with its lines (description, printed text, quantity, unit price, discount, tax, line total, requested date, and the confirmed quantity and date with where that answer came from: the ERP or master data), notes and terms. The creator, cancellation note, contact details and attachments are never returned. Needs an API key scoped to \"sales_orders\" (or to all objects).",
+      "method": "GET",
+      "path": "/api/v1/sales-orders/{id}",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Sales order UUID"
           }
         },
         "required": [

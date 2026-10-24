@@ -76,6 +76,10 @@ export async function proxy(request: NextRequest) {
     // not a session; every tenant-owned query behind them is still tenant-scoped.
     /^\/quotations\/[^/]+\/print-public\//.test(pathname) ||
     /^\/api\/quotes\/[^/]+\/pdf-public\//.test(pathname) ||
+    // Same for a sales order (lib/salesOrderPublicLink.ts): the token is signed against the order id
+    // and verified inside the page / route before any data is read. $-anchored.
+    /^\/sales-orders\/[^/]+\/print-public\/[^/]+$/.test(pathname) ||
+    /^\/api\/sales-orders\/[^/]+\/pdf-public\/[^/]+$/.test(pathname) ||
     // Signed, no-login marketing-email unsubscribe link (see
     // lib/marketingUnsubscribe.ts) -- same reasoning as the quote links above.
     // $-anchored so this can never match a deeper/future path under the same

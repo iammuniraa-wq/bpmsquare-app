@@ -4,6 +4,7 @@ import { useState } from "react";
 import EstimateWorkspace from "@/components/estimator/workspace/EstimateWorkspace";
 import type { WorkspaceProps } from "@/components/estimator/workspace/EstimateWorkspace";
 import { PriceBuiltFold, ScheduleRiskFold } from "@/components/estimator/workspace/InternalFolds";
+import { hasBuildSchedule } from "@/components/estimator/workspace/layoutKind";
 
 type Open = { price: boolean; schedule: boolean };
 
@@ -22,7 +23,7 @@ export default function NewEstimateScreen(props: Omit<WorkspaceProps, "renderInt
       renderInternal={(shown, tpl) => (shown.totals && tpl ? (
         <>
           <PriceBuiltFold shown={shown} fold={fold("price")} />
-          <ScheduleRiskFold shown={shown} rules={tpl.rules} rates={tpl.rates} fold={fold("schedule")} />
+          {hasBuildSchedule(tpl.geometry) && <ScheduleRiskFold shown={shown} rules={tpl.rules} rates={tpl.rates} fold={fold("schedule")} />}
           <p className="bpm-t-help" style={{ margin: 0 }}>
             The bill of materials, the files for your ERP and the details appear once the estimate is saved: press Save as draft or Create quote.
           </p>

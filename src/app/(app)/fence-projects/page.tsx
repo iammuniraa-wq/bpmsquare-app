@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { requireFeature } from "@/lib/tenant";
+import { getTenant, requireFeature } from "@/lib/tenant";
+import EstimatesNote from "@/components/fence/EstimatesNote";
 import { requireTenantUser } from "@/lib/supabase-server";
 import { requireWorkcenterView } from "@/lib/permissions";
 import { ROUTES } from "@/lib/constants";
@@ -28,6 +29,7 @@ export default async function FenceProjectsPage({
   const { q, page: pageParam } = await searchParams;
   const page = Math.max(1, Number(pageParam) || 1);
   const { supabase, tenantId } = await requireTenantUser();
+  const tenant = await getTenant();
 
   const { data: rows, error } = await supabase
     .from("fence_projects")
@@ -67,6 +69,7 @@ export default async function FenceProjectsPage({
       search={{ value: q, placeholder: "Search by ID, name or account…" }}
       columns={columns}
       rows={pageRows}
+      beforeTable={tenant?.features?.estimator ? <EstimatesNote /> : undefined}
       rowKey={(p) => p.id}
       rowHref={(p) => ROUTES.fenceProject(p.id)}
       total={filtered.length}

@@ -22,6 +22,7 @@ export const NOVA_OBJECTS: Record<string, { table: string; feature: string; work
   contacts: { table: "contacts", feature: "contacts", workcenters: ["contacts"] },
   quotes: { table: "quotes", feature: "quotes", workcenters: ["quotations"] },
   standard_quotes: { table: "standard_quotes", feature: "standard_quotes", workcenters: ["standard_quotes"] },
+  sales_orders: { table: "sales_orders", feature: "sales_orders", workcenters: ["sales_orders"] },
   cases: { table: "service_cases", feature: "cases", workcenters: ["cases"] },
   work_orders: { table: "work_orders", feature: "work_orders", workcenters: ["work_orders"] },
   invoices: { table: "invoices", feature: "invoices", workcenters: ["invoices"] },

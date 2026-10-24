@@ -48,6 +48,13 @@ export type GeometryModel = {
   step_names: string[];
   /** Things the module adjusted or assumed (clamped inputs, fallback footprint). */
   warnings: string[];
+  /** Named numbers beyond the piece totals (tile counts, joint length, ...): they join the
+   *  formula scope under exactly these names, which the module lists in `extra_identifiers`. */
+  extras?: Record<string, number>;
+  /** The module inputs this model was laid from (normalised), so a 2D drawing can re-lay itself. */
+  inputs?: Record<string, number>;
+  /** Closest the 3D camera starts, metres (the viewer's default suits a villa; a small model asks for less). */
+  view_min_dist?: number;
 };
 
 export type GeometryResult = { ok: true; model: GeometryModel } | { ok: false; error: string };
@@ -58,6 +65,8 @@ export type GeometryInputSpec = {
   required: boolean;
   /** Value used when the template does not define an optional input. */
   default?: number;
+  /** A select input (its chosen option's number) may feed this input; the default is numbers and yes/no only. */
+  allow_select?: boolean;
 };
 
 export type PieceCodeInfo = { code: string; label: string };
@@ -68,6 +77,10 @@ export type GeometryModule = {
   /** Piece families the module can emit; each one exposes vol_/n_/area_ identifiers. */
   piece_codes: readonly PieceCodeInfo[];
   inputs: readonly GeometryInputSpec[];
+  /** Names the module's `extras` put in the formula scope (none for a module that only emits pieces). */
+  extra_identifiers?: readonly string[];
+  /** How the workspace draws the model: the 3D piece viewer (default) or the 2D floor plan. */
+  view?: "building" | "floor_plan";
   /** Pure: same inputs, same pieces. Never throws; failure is a returned error. */
   layout(inputs: Readonly<Record<string, number>>): GeometryResult;
 };

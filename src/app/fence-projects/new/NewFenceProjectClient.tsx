@@ -11,17 +11,19 @@ export default function NewFenceProjectClient({
   catalog,
   accounts,
   contacts,
+  estimatesNote = false,
 }: {
   profiles: FenceSecurityProfileRow[];
   catalog: FenceCatalogRow[];
   accounts: { id: string; name: string }[];
   contacts: { id: string; name: string; account_id: string }[];
+  estimatesNote?: boolean;
 }) {
   const [mode, setMode] = useState<"intake" | "configure">("intake");
   const [draft, setDraft] = useState<FenceDraftValues | undefined>(undefined);
 
   if (mode === "configure") {
-    return <FenceConfigurator profiles={profiles} catalog={catalog} accounts={accounts} contacts={contacts} draft={draft} />;
+    return <FenceConfigurator profiles={profiles} catalog={catalog} accounts={accounts} contacts={contacts} draft={draft} estimatesNote={estimatesNote} />;
   }
 
   const profileLabels = Object.fromEntries(profiles.map((p) => [p.id, p.label]));

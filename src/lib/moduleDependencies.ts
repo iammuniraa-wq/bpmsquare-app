@@ -94,6 +94,18 @@ export const FEATURE_DEPENDENCIES: FeatureDependency[] = [
     why: "Writing from the assistant is an experimental surface: it is gated on Nova like the rest of it (bpmsquarecore.md section 10, rule 1).",
   },
   {
+    key: "sales_orders", needs: "accounts", strength: "hard",
+    why: "An order is for a customer account, picked or copied from a quote.",
+  },
+  {
+    key: "sales_orders", needs: "standard_quotes", strength: "partial",
+    why: "\"Create sales order\" on a quote needs the quote module; without it orders are made directly, from a quotation or from a deal.",
+  },
+  {
+    key: "sales_orders", needs: "products", strength: "partial",
+    why: "Master-data availability reads a line's product (lead time) and the stock matched to it; free-text lines have none.",
+  },
+  {
     key: "marketing_scoring", needs: "marketing", strength: "hard",
     why: "Scoring, consent and topics are settings of the Marketing module; its settings pages sit under Marketing campaigns being on.",
   },
@@ -102,7 +114,7 @@ export const FEATURE_DEPENDENCIES: FeatureDependency[] = [
 /** The settings-menu group each module reads under in the tenant editor. */
 export const FEATURE_GROUP: Partial<Record<Key, SettingsGroupId>> = {
   // Sales
-  accounts: "sales", contacts: "sales", quotations: "sales", standard_quotes: "sales", quote_lines_dw: "sales",
+  accounts: "sales", contacts: "sales", quotations: "sales", standard_quotes: "sales", sales_orders: "sales", quote_lines_dw: "sales",
   pipeline: "sales", leads: "sales", invoices: "sales", partners: "sales", marketing: "sales", rfq: "sales", inbox: "sales",
   products: "sales", suppliers: "sales", purchasing: "sales", pricing_engine: "sales", pricing_engine_quotes: "sales",
   coverage_model: "sales", fence_projects: "sales", estimator: "sales", marketing_scoring: "marketing", process_studio: "sales", newsletter_studio: "marketing", buying_signals: "marketing", marketing_forms: "marketing", abm: "marketing", journeys: "marketing", whatsapp_marketing: "marketing", marketing_attribution: "marketing", marketing_events: "marketing",

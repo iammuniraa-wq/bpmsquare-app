@@ -1,5 +1,6 @@
 "use client";
 
+import { clearDockChats } from "@/lib/assistant/dockChat";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
@@ -420,6 +421,7 @@ function UserFooter({ accent, collapsed }: { accent: string; collapsed?: boolean
 
   async function signOut() {
     const { createBrowserSupabase } = await import("@/lib/supabase-browser");
+    clearDockChats();
     await createBrowserSupabase().auth.signOut();
     router.push("/login");
   }

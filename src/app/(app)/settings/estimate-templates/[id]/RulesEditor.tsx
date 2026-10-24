@@ -71,6 +71,10 @@ export default function RulesEditor({
                   {r.rate && !rates.some((x) => x.key.trim() === r.rate) && <option value={r.rate}>{r.rate} (not defined)</option>}
                 </Select>
               </Field>
+            ) : r.match && !r.sku ? (
+              <Field label="Product" info="Picked from your catalogue by its tags (for example the post type, pipe class and coating the customer chose). This is set by the template; remove the rule and add a SKU rule to change it.">
+                <Input readOnly value={[...Object.entries(r.match.attrs).map(([k, v]) => `${k.replace(/_/g, " ")}: ${v}`), ...(r.match.from ?? []).map((k) => `by ${k.replace(/_/g, " ")}`)].join(", ")} />
+              </Field>
             ) : (
               <Field label="Product SKU or reference" required hint="A SKU or a product reference such as PRD-0012. A BOM / kit is costed from its components."><Input value={r.sku} onChange={(e) => set(i, { sku: e.target.value })} placeholder="STEEL-REBAR-12" /></Field>
             )}

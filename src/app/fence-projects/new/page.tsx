@@ -25,6 +25,7 @@ export default async function NewFenceProjectPage() {
       catalog={catalog}
       accounts={accountRows ?? []}
       contacts={contactRows ?? []}
+      estimatesNote={!!tenant?.features?.estimator}
     />
   );
 }

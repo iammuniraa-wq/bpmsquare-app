@@ -37,6 +37,20 @@ export function quoteCandidates(rows: readonly Row[], today: string, tz: string)
   return out;
 }
 
+/** Draft sales orders the person created and has not confirmed: "N orders to confirm". One candidate per order. */
+export function orderCandidates(rows: readonly Row[], today: string, tz: string): Candidate[] {
+  const out: Candidate[] = [];
+  for (const o of rows) {
+    const id = str(o.id);
+    if (!id || o.status !== "draft") continue;
+    out.push({
+      id: `order:${id}`, kind: "order_confirm", objectType: "sales_order", label: str(o.ref) || "Sales order",
+      href: ROUTES.salesOrder(id), days: over(daysFromToday(today, o.created_at, tz)) ?? 0, value: num(o.total) || undefined, ownership: "own",
+    });
+  }
+  return out;
+}
+
 export type LeadRow = {
   id: string; title: string | null; account_name: string; status: string | null; stage: string;
   owner_user_id: string | null; ready_at: string | null; created_at: string;

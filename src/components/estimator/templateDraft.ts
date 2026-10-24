@@ -3,11 +3,12 @@
 // the API validates only when a check or a save is made. Pure, no I/O.
 
 import type {
-  EstimateComponent, EstimateTemplateBody, QuoteGranularity, TemplateInput, TemplateInputType, TemplateRate, TemplateRule,
+  EstimateComponent, EstimateTemplateBody, ProductMatch, QuoteGranularity, TemplateInput, TemplateInputType, TemplateRate, TemplateRule,
 } from "@/lib/estimator/types";
 import { groupSlug } from "@/lib/estimator/types";
 
-export type OptionDraft = { key: string; label: string; value: string };
+/** `attrs` are the catalogue attributes a choice stands for; kept as read, not edited here. */
+export type OptionDraft = { key: string; label: string; value: string; attrs?: Record<string, string> };
 
 export type InputDraft = {
   key: string; label: string; type: TemplateInputType;
@@ -31,6 +32,8 @@ export type RuleDraft = {
   sku: string; rate: string;
   /** The product is named by its reference (PRD-0012), not a SKU; kept so a save writes back the key it read. */
   skuIsRef?: boolean;
+  /** A product named by catalogue attributes; kept as read (a save writes it back). */
+  match?: ProductMatch;
   element_type: string;
 };
 
@@ -52,12 +55,12 @@ export function toDraft(t: {
       key: i.key, label: i.label, type: i.type, default: str(i.default),
       min: str(i.min), max: str(i.max), unit: str(i.unit), help: str(i.help), section: str(i.section),
       quote_alternatives: i.quote_alternatives === true,
-      options: (i.options ?? []).map((o) => ({ key: o.key, label: o.label, value: str(o.value) })),
+      options: (i.options ?? []).map((o) => ({ key: o.key, label: o.label, value: str(o.value), ...(o.attrs ? { attrs: o.attrs } : {}) })),
     })),
     rates: (t.rates ?? []).map((r) => ({ key: r.key, label: r.label, unit: r.unit, value: str(r.value), low: r.low === undefined ? "" : str(r.low), high: r.high === undefined ? "" : str(r.high) })),
     rules: (t.rules ?? []).map((r) => ({
       code: r.code, group: r.group, description: r.description, uom: r.uom, qty: r.qty, waste_pct: str(r.waste_pct),
-      component: r.component, costKind: r.cost.kind, sku: r.cost.kind === "product" ? (r.cost.sku ?? r.cost.ref ?? "") : "", skuIsRef: r.cost.kind === "product" && !r.cost.sku && !!r.cost.ref, rate: r.cost.kind === "rate" ? r.cost.rate : "",
+      component: r.component, costKind: r.cost.kind, sku: r.cost.kind === "product" ? (r.cost.sku ?? r.cost.ref ?? "") : "", skuIsRef: r.cost.kind === "product" && !r.cost.sku && !!r.cost.ref, ...(r.cost.kind === "product" && r.cost.match ? { match: r.cost.match } : {}), rate: r.cost.kind === "rate" ? r.cost.rate : "",
       element_type: str(r.element_type),
     })),
   };
@@ -81,7 +84,7 @@ export function toBody(d: TemplateDraft): EstimateTemplateBody & { geometry?: st
       if (max !== undefined) base.max = max;
     }
     if (i.type === "select") {
-      base.options = i.options.map((o) => ({ key: o.key.trim(), label: o.label.trim(), value: Number(o.value) }));
+      base.options = i.options.map((o) => ({ key: o.key.trim(), label: o.label.trim(), value: Number(o.value), ...(o.attrs ? { attrs: o.attrs } : {}) }));
       if (i.quote_alternatives) base.quote_alternatives = true;
     }
     return base;
@@ -97,7 +100,9 @@ export function toBody(d: TemplateDraft): EstimateTemplateBody & { geometry?: st
     const rule: TemplateRule = {
       code: r.code.trim(), group: r.group.trim(), description: r.description.trim(), uom: r.uom.trim(), qty: r.qty.trim(),
       component: r.component,
-      cost: r.costKind === "product" ? (r.skuIsRef ? { kind: "product", ref: r.sku.trim() } : { kind: "product", sku: r.sku.trim() }) : { kind: "rate", rate: r.rate.trim() },
+      cost: r.costKind === "product"
+        ? (r.match && !r.sku.trim() ? { kind: "product", match: r.match } : r.skuIsRef ? { kind: "product", ref: r.sku.trim(), ...(r.match ? { match: r.match } : {}) } : { kind: "product", sku: r.sku.trim(), ...(r.match ? { match: r.match } : {}) })
+        : { kind: "rate", rate: r.rate.trim() },
     };
     const w = r.waste_pct.trim();
     if (w !== "") rule.waste_pct = Number.isFinite(Number(w)) ? Number(w) : w;

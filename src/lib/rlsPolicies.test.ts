@@ -155,6 +155,46 @@ describe("credential tables are not member-writable (audit 2026-10-21)", () => {
     expect(bundle.replace(/\r\n/g, "\n")).toContain(file.replace(/\r\n/g, "\n").trim());
   });
 
+  it("0212 (sales orders): every table has RLS and a tenant policy in the same file; order types are admin-write, members read", () => {
+    const file = readFileSync(path.join(DIR, "0212_sales_orders.sql"), "utf8");
+    const sql = file.replace(/--[^\n]*/g, "");
+    for (const table of ["sales_order_types", "sales_orders", "sales_order_lines", "sales_order_attachments"]) {
+      expect(sql, table).toMatch(new RegExp(`alter table ${table} enable row level security`));
+      expect(new RegExp(`create table if not exists ${table} \\([^;]*tenant_id\\s+uuid not null references tenants\\(id\\)`).test(sql), `${table} has tenant_id`).toBe(true);
+      expect([...(policies.get(table)?.values() ?? [])].length, `${table} has a policy`).toBeGreaterThan(0);
+    }
+    // Documents edited by their users carry the standard tenant-isolation policy.
+    for (const table of ["sales_orders", "sales_order_lines", "sales_order_attachments"]) {
+      const list = [...(policies.get(table)?.values() ?? [])];
+      expect(list.map((p) => p.cmd), table).toEqual(["all"]);
+      expect(list[0].text, table).toMatch(/tenant_id in \(select tenant_id from tenant_users where user_id = auth\.uid\(\)\)/);
+    }
+    // The type steers how every order prints and prices: a member may read it, only a workspace admin may write it.
+    const types = [...(policies.get("sales_order_types")?.values() ?? [])];
+    for (const p of types.filter(writes)) expect(adminOnly(p), `${p.name} must require role = 'admin'`).toBe(true);
+    expect(types.some((p) => p.cmd === "all")).toBe(false);
+    expect(types.some((p) => p.cmd === "select")).toBe(true);
+    expect(types.map((p) => p.cmd).sort()).toEqual(["delete", "insert", "select", "update"]);
+    expect(file).toMatch(/to_regclass\('public\.email_log'\)/);
+    const bundle = readFileSync(path.resolve(__dirname, "../../scripts/run-bundle-21-sales-orders-2026-10-23.sql"), "utf8");
+    expect(bundle.replace(/\r\n/g, "\n")).toContain(file.replace(/\r\n/g, "\n").trim());
+  });
+
+  it("no route writes sales_order_types with the member's session client: only the service role, after the admin check", () => {
+    const offenders: string[] = [];
+    const root = path.resolve(__dirname, "../..");
+    const walk = (dir: string) => {
+      for (const e of readdirSync(dir, { withFileTypes: true })) {
+        const p = path.join(dir, e.name);
+        if (e.isDirectory()) { walk(p); continue; }
+        if (!/\.(ts|tsx)$/.test(e.name) || /\.test\./.test(e.name)) continue;
+        if (/\bsupabase\s*\.from\(\s*"sales_order_types"\s*\)\s*\.(insert|update|delete|upsert)\(/.test(readFileSync(p, "utf8"))) offenders.push(path.relative(root, p));
+      }
+    };
+    walk(path.resolve(__dirname, ".."));
+    expect(offenders).toEqual([]);
+  }, 30_000);
+
   it("the policy replay understands the migrations it is judging", () => {
     // 0081 created the open policy and 0199 dropped it: the replay must see both.
     expect(policies.get("webhook_deliveries")?.size).toBeGreaterThan(0);

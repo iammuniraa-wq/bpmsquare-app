@@ -50,6 +50,7 @@ export const ANALYTICS_META: Record<AnalyticsMetricId, { label: string; feature?
   rfq_open:                { label: "RFQs (open / to award)", feature: "rfq" },
   estimates_open:          { label: "Estimates (draft / quoted)", feature: "estimator" },
   inbox_open:              { label: "Inbox (unhandled / reply time)", feature: "inbox" },
+  sales_orders_open:       { label: "Sales orders (to confirm / open)", feature: "sales_orders" },
   abm_targets_engaged:     { label: "ABM (targets engaged)", feature: "abm" },
   wfm_attendance_today:    { label: "Attendance by site (today)", feature: "wfm" },
   wfm_night_shift_cost:    { label: "Night shift cost (today)",   feature: "wfm" },

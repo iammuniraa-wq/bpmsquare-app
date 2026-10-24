@@ -33,6 +33,9 @@ const SCOPE_FOR_TYPE: Record<string, string> = {
   // Standard quotes (0053): the same class of data as quotations (a customer-facing price, no personal
   // data), so like quotations the wildcard reaches them and a named key must name "standard_quotes".
   standard_quotes: "standard_quotes", standard_quote: "standard_quotes",
+  // Sales orders (0212): a customer-facing document with no personal data in the v1 shape, so like quotations the wildcard
+  // reaches them and a named key must name "sales_orders". Order types are settings, not an API object: wildcard-only.
+  sales_orders: "sales_orders", sales_order: "sales_orders",
 };
 
 /** Columns that are internal by design and are kept out of every API select; the feed must not
