@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { requireTenantUser, createAdminSupabase, getAuthUser } from "@/lib/supabase-server";
 import { tenantHasNovaSurfaces } from "@/lib/tenant";
 import { NOVA_OBJECTS, allowedNovaTypes } from "@/lib/novaAccess";
+import { userCanSeeEmail } from "@/lib/inbox/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 /**
@@ -21,6 +22,12 @@ async function verifyRecord(tenantId: string, objectType: string, objectId: stri
   const { data } = await createAdminSupabase()
     .from(def.table).select("id").eq("id", objectId).eq("tenant_id", tenantId).maybeSingle();
   return !!data;
+}
+
+/** A thread of customer mail is private to the team of its channel (0214); every other object type has no such rule. */
+async function canSeeChannelOfRecord(tenantId: string, userId: string, role: "admin" | "member", objectType: string, objectId: string): Promise<boolean> {
+  if (objectType !== "inbound_emails") return true;
+  return userCanSeeEmail(createAdminSupabase(), tenantId, userId, role === "admin", objectId);
 }
 
 /** 404 (not 403) so a member without the module or workcenter grant cannot tell a record exists. */
@@ -50,7 +57,8 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "object_type and object_id are required" }, { status: 400 });
   }
   if (!(await canReachObject({ supabase, tenantId, userId, role }, objectType)) ||
-      !(await verifyRecord(tenantId, objectType, objectId))) {
+      !(await verifyRecord(tenantId, objectType, objectId)) ||
+      !(await canSeeChannelOfRecord(tenantId, userId, role, objectType, objectId))) {
     return NextResponse.json({ error: "Record not found" }, { status: 404 });
   }
 
@@ -104,7 +112,8 @@ export async function POST(request: NextRequest) {
   }
   if (!text) return NextResponse.json({ error: "Write something first" }, { status: 400 });
   if (!(await canReachObject({ supabase, tenantId, userId, role }, objectType)) ||
-      !(await verifyRecord(tenantId, objectType, objectId))) {
+      !(await verifyRecord(tenantId, objectType, objectId)) ||
+      !(await canSeeChannelOfRecord(tenantId, userId, role, objectType, objectId))) {
     return NextResponse.json({ error: "Record not found" }, { status: 404 });
   }
 

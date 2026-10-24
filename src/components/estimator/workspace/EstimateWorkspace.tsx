@@ -154,7 +154,7 @@ export default function EstimateWorkspace(p: WorkspaceProps) {
           </Card>
         )}
         {editable && t && (
-          <EmailIntake templates={p.templates} template={t} autoPick={!!p.emailFirst} onTemplate={draft.pickTemplate} onApply={draft.applyProposal} />
+          <EmailIntake templates={p.templates} template={t} autoPick={!!p.emailFirst} onTemplate={draft.pickTemplate} onApply={draft.applyProposal} initialText={draft.brief} />
         )}
         {locked && <div className="est-note" role="status">This estimate has a quote, so it is locked. Everything below is as it was quoted.</div>}
         {!t && <Card padding={16}><div className="bpm-t-help">This estimate&apos;s template was deleted, so its inputs can&apos;t be shown or recalculated. Its lines and totals are kept as they were.</div></Card>}

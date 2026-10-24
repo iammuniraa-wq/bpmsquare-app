@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { logChange, diffForLog } from "@/lib/changeLog";
+import { linkEstimateToEmail } from "@/lib/inbox/estimateLink";
 import { validateTemplate } from "@/lib/estimator/template";
 import { parseEstimateCreate, parseListParams } from "@/lib/estimator/requests";
 import {
@@ -34,7 +35,8 @@ export async function POST(req: NextRequest) {
   try {
     const ctx = await estimatorAccess("create");
     const { supabase, tenantId, userId, email } = ctx;
-    const parsed = parseEstimateCreate(await req.json().catch(() => null));
+    const raw = await req.json().catch(() => null);
+    const parsed = parseEstimateCreate(raw);
     if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 422 });
     const v = parsed.value;
 
@@ -72,6 +74,9 @@ export async function POST(req: NextRequest) {
       action: "create", actorId: userId, actorEmail: email,
       changes: diffForLog("estimates", {}, { name: v.name, account_id: v.account_id, template_id: tpl.data.id, margin_pct: v.margin_pct }),
     });
+    // Started from the shared Inbox: link the email to this estimate and copy its files across (ignored if the person may not).
+    const fromEmail = (raw as { source_email_id?: unknown } | null)?.source_email_id;
+    if (fromEmail) await linkEstimateToEmail({ sourceEmailId: fromEmail, estimate: { id: created.id, label: created.ref ?? created.name }, accountId: v.account_id });
     return NextResponse.json({
       id: created.id, ref: created.ref, estimate: calc.estimate, lines: calc.lines, totals: calc.totals,
       warnings: calc.totals.warnings ?? [],

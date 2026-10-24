@@ -132,6 +132,8 @@ Nothing stores non-RFQ inbound mail today; it is dropped. Plan, reusing what exi
 
 **Phases.** M1 alias, table, Inbox. M2 Create-from-email. M3 IMAP intake. M4 reply and threading.
 
+> **Built 2026-10-24, all four phases together:** see `docs/design/inbox.md`, `docs/capabilities/inbox.md`, migration 0214.
+
 ## 5. One estimator instead of fence + estimates + tiles
 
 **What the scout found.** The Estimator is already the superset: template data, stored BOM lines, formula rules, products and

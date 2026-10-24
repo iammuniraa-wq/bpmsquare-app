@@ -115,7 +115,7 @@ export const FEATURE_DEPENDENCIES: FeatureDependency[] = [
 export const FEATURE_GROUP: Partial<Record<Key, SettingsGroupId>> = {
   // Sales
   accounts: "sales", contacts: "sales", quotations: "sales", standard_quotes: "sales", sales_orders: "sales", quote_lines_dw: "sales",
-  pipeline: "sales", leads: "sales", invoices: "sales", partners: "sales", marketing: "sales", rfq: "sales",
+  pipeline: "sales", leads: "sales", invoices: "sales", partners: "sales", marketing: "sales", rfq: "sales", inbox: "sales",
   products: "sales", suppliers: "sales", purchasing: "sales", pricing_engine: "sales", pricing_engine_quotes: "sales",
   coverage_model: "sales", fence_projects: "sales", estimator: "sales", marketing_scoring: "marketing", process_studio: "sales", newsletter_studio: "marketing", buying_signals: "marketing", marketing_forms: "marketing", abm: "marketing", journeys: "marketing", whatsapp_marketing: "marketing", marketing_attribution: "marketing", marketing_events: "marketing",
   // Service

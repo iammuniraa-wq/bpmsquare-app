@@ -30,6 +30,8 @@ import { loadAccountSignals } from "@/lib/coverage/signals";
 import type { SearchObjectType, SearchResult } from "@/lib/globalSearch";
 import { formatMoney, resolveCurrency, type CurrencyDef } from "@/lib/currency";
 import { tenantOwnsObject } from "@/lib/objectFeatures";
+import { searchInboxMail } from "@/lib/inbox/search";
+import { getInboxAnalytics, NO_INBOX_ANALYTICS, type InboxAnalytics } from "@/lib/inbox/analytics";
 
 /**
  * Every read helper below scopes to this tenant explicitly (service-role client
@@ -1571,6 +1573,8 @@ export type AnalyticsData = {
   wfmProjectHours: Array<{ id: string | null; name: string; ref: string | null; minutes: number }>;
   wfmProjectBudget: Array<{ id: string; name: string; ref: string | null; workedMinutes: number; budgetHours: number; pct: number }>;
   wfmProjectBilling: { invoicedAmount: number; invoicedCount: number; unbilledMinutes: number; unbilledProjects: number };
+  /** Shared Inbox (0214), only populated with features.inbox: counts, never mail. */
+  inbox: InboxAnalytics;
 };
 
 const CASE_STATUS_LABEL_MAP: Record<string, string> = {
@@ -1609,6 +1613,7 @@ export async function getAnalyticsDataLive(): Promise<AnalyticsData> {
       wfmProjectHours: [],
       wfmProjectBudget: [],
       wfmProjectBilling: { invoicedAmount: 0, invoicedCount: 0, unbilledMinutes: 0, unbilledProjects: 0 },
+      inbox: NO_INBOX_ANALYTICS,
     };
   }
   const supabase = createAdminSupabase();
@@ -2052,6 +2057,9 @@ export async function getAnalyticsDataLive(): Promise<AnalyticsData> {
     }
   }
 
+  // Shared Inbox: counts only, and only for a workspace that owns it (a missing table reads as zero).
+  const inbox = tenant?.features?.inbox ? await getInboxAnalytics(supabase, tenantId) : NO_INBOX_ANALYTICS;
+
   return {
     totals, accountsByType, leadFunnel, assetsByKind, loanerStock,
     quotesByStatus, quoteTrend, quoteOutcomeTotals, quoteOutcomeCounts, quoteOverdueCount, quoteSource,
@@ -2062,6 +2070,7 @@ export async function getAnalyticsDataLive(): Promise<AnalyticsData> {
     wfmCorrectionsByStatus, wfmLeaveRequestsByStatus, wfmRecheckByStatus,
     wfmHeadcountBySite, wfmWorkforceComposition, wfmLeaveTakenByType,
     wfmProjectHours, wfmProjectBudget, wfmProjectBilling,
+    inbox,
   };
 }
 
@@ -2438,6 +2447,8 @@ export async function globalSearchLive(
     /** True when the caller can open the supervisor Employee Hub -- false
      * rewrites employee results to the master-data Employees list. */
     employeeHub: boolean;
+    /** Inbox channels the caller is on the team of. Mail is searched only in these; absent means the Inbox is not searched. */
+    inboxChannels?: () => Promise<string[]>;
   }
 ): Promise<SearchResult[]> {
   const term = sanitizeSearchTerm(query);
@@ -2531,6 +2542,13 @@ export async function globalSearchLive(
         });
       }
     }
+  }
+
+  // Customer mail: sender and subject, in the channels the caller may open (a spec with only a tenant filter would
+  // show a team channel's subjects to everyone). Never the body, which is encrypted.
+  if ((!objectType || objectType === "inbox_email") && typeAllowed("inbox_email") && features.inbox === true && access?.inboxChannels) {
+    const channelIds = await access.inboxChannels();
+    results.push(...(await searchInboxMail(supabase, tenantId, channelIds, term, perTypeLimit)));
   }
 
   // Non-supervisors can't open the Employee Hub (requireWfmSupervisorPage

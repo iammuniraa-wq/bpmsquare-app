@@ -105,6 +105,10 @@ export const EVENTS = {
   ABM_MEMBER_ADDED: "abm.buying_group.member_added",
   ABM_MEMBER_REMOVED: "abm.buying_group.member_removed",
   ABM_MEMBER_ROLE_CHANGED: "abm.buying_group.role_changed",
+  // Shared Inbox (0214). Payloads carry ids and counts, never an address, a subject or any of the mail.
+  EMAIL_RECEIVED: "email.received",
+  EMAIL_HANDLED: "email.handled",
+  EMAIL_CONVERTED: "email.converted",
   // WFM (planned; no marketing use)
   WFM_LEAVE_REQUESTED: "wfm.leave_requested",
   WFM_OT_REQUESTED: "wfm.ot_requested",

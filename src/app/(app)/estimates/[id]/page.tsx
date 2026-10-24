@@ -14,6 +14,7 @@ import RecordMoreMenu from "@/components/page/RecordMoreMenu";
 import EstimateStatusPill from "../EstimateStatusPill";
 import { quoteAbility } from "../quoteAbility";
 import EstimateScreen from "./EstimateScreen";
+import SourceEmailSlot from "@/components/inbox/SourceEmailSlot";
 
 const fmtDate = (s: string) => new Date(s).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
 
@@ -87,6 +88,8 @@ export default async function EstimatePage({
         id: "estimate",
         label: "Estimate",
         content: (
+          <>
+          <SourceEmailSlot objectType="estimates" objectId={estimate.id} />
           <EstimateScreen
             estimate={estimate} lines={lines} template={template} templateOutdated={template_outdated}
             account={account} contact={contact} quote={quote}
@@ -97,6 +100,7 @@ export default async function EstimatePage({
             lineProducts={lineProducts}
             tab={tab} line={line}
           />
+          </>
         ),
       }]}
     />

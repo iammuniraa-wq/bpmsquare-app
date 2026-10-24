@@ -26,7 +26,7 @@ const LEVEL_TEXT: Record<PickLevel, string> = { high: "sure", medium: "fairly su
  * The manual inputs are always there, so a workspace without AI loses nothing.
  */
 export default function EmailIntake({
-  templates, template, autoPick, onTemplate, onApply,
+  templates, template, autoPick, onTemplate, onApply, initialText = "",
 }: {
   templates: readonly WorkspaceTemplate[];
   template: WorkspaceTemplate;
@@ -34,10 +34,12 @@ export default function EmailIntake({
   autoPick: boolean;
   onTemplate: (id: string) => void;
   onApply: (proposal: IntakeProposal) => void;
+  /** The email, already in the box (when the estimate is started from the shared Inbox). */
+  initialText?: string;
 }) {
   const id = useId();
   const canChoose = templates.length > 1;
-  const [text, setText] = useState("");
+  const [text, setText] = useState(initialText);
   const [choose, setChoose] = useState(autoPick && canChoose);
   const [busy, setBusy] = useState<null | "pick" | "read">(null);
   const [error, setError] = useState("");

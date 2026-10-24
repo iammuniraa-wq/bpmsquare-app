@@ -10,6 +10,7 @@ import { SIGNALS_TOUR } from "@/lib/signals/tourSteps";
 import { WHATSAPP_TOUR } from "@/lib/marketing/whatsapp/tourSteps";
 import type { TourStepDef } from "@/lib/studio/tourSteps";
 import type { Control, ScreenManifest, Task } from "./types";
+import { INBOX_DETAIL } from "./inbox";
 
 // The generated half of every screen manifest: built from the tables the product already runs on (the object
 // definitions, the Settings menu, the sidebar, the studios' Tour lists), so a new screen wired the usual way is
@@ -167,7 +168,7 @@ export function generatedManifests(): ScreenManifest[] {
   // A sidebar route already covered by an object's list or by a studio that IS that page gets no second manifest.
   const taken = new Set<string>([...OBJECT_DEFS.map((d) => d.list), ...STUDIOS.filter((s) => s.match(s.navHref)).map((s) => s.navHref)]);
   // Studios first: their paths are more specific than a list or a detail with a UUID.
-  return [...studios, ...objects, ...settingsScreens(), ...navScreens(taken)];
+  return [...studios, ...objects, INBOX_DETAIL, ...settingsScreens(), ...navScreens(taken)];
 }
 
 export { STUDIOS };

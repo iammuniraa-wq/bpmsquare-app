@@ -12,6 +12,7 @@ import { PENDING_MESSAGE, isMissingRelation, loadTenantMeta } from "@/lib/estima
 import type { EstimateTemplate } from "@/lib/types";
 import type { WorkspaceTemplate } from "@/components/estimator/workspace/types";
 import type { DraftInit } from "@/components/estimator/workspace/useEstimateDraft";
+import { loadEstimatePrefill } from "@/lib/inbox/estimateLink";
 import { quoteAbility } from "../quoteAbility";
 import NewEstimateScreen from "./NewEstimateScreen";
 import StarterButton from "./StarterButton";
@@ -20,11 +21,11 @@ import { aiConfigured } from "@/lib/estimator/aiServer";
 
 type TemplateRow = Pick<EstimateTemplate, "id" | "name" | "description" | "geometry" | "inputs" | "rates" | "rules" | "quote_granularity" | "icon" | "keywords" | "locked">;
 
-export default async function NewEstimatePage({ searchParams }: { searchParams: Promise<{ account_id?: string; from?: string; template?: string; email?: string }> }) {
+export default async function NewEstimatePage({ searchParams }: { searchParams: Promise<{ account_id?: string; from?: string; template?: string; email?: string; from_email?: string }> }) {
   await requireWorkcenterView("estimates");
   await requireFeature("estimator");
   const { supabase, tenantId, userId, role } = await requireTenantUser();
-  const { account_id, from, template: templateParam, email: emailParam } = await searchParams;
+  const { account_id, from, template: templateParam, email: emailParam, from_email: fromEmail } = await searchParams;
 
   const [tpl, accounts, contacts] = await Promise.all([
     // "*": the catalogue columns (icon, keywords, locked) exist only once 0213 is applied.
@@ -92,7 +93,8 @@ export default async function NewEstimatePage({ searchParams }: { searchParams: 
   // With more than one template the page opens on "What are you estimating?"; a card (or an
   // old link with ?from=) goes on to the working page with that template chosen.
   const chosen = templateParam && templates.some((t) => t.id === templateParam) ? templateParam : null;
-  if (templates.length > 1 && !chosen && !(from && /^[0-9a-f-]{36}$/i.test(from))) {
+  const viaInbox = !!fromEmail && /^[0-9a-f-]{36}$/i.test(fromEmail);
+  if (templates.length > 1 && !chosen && !viaInbox && !(from && /^[0-9a-f-]{36}$/i.test(from))) {
     return (
       <>
         <TabTitle title="New estimate" />
@@ -126,6 +128,22 @@ export default async function NewEstimatePage({ searchParams }: { searchParams: 
     }
   }
 
+  // Started from the shared Inbox: the customer's email goes in the intake card, the template suggested for it is
+  // chosen (when it is one of this workspace's active ones), and the sender's account is picked if they are known.
+  if (fromEmail && /^[0-9a-f-]{36}$/i.test(fromEmail)) {
+    const prefill = await loadEstimatePrefill(fromEmail);
+    if (prefill) {
+      const known = (id: string | null) => !!id && (accounts.data ?? []).some((a) => a.id === id);
+      init = {
+        ...init,
+        brief: prefill.brief, sourceEmailId: fromEmail,
+        accountId: init.accountId ?? (known(prefill.accountId) ? prefill.accountId! : undefined),
+        contactId: known(prefill.accountId) ? prefill.contactId ?? undefined : undefined,
+        customer: init.customer ?? prefill.customer ?? undefined,
+      };
+    }
+  }
+
   const [meta, tenant] = await Promise.all([loadTenantMeta(tenantId), getTenant()]);
   const { canQuote, quoteUnavailable } = quoteAbility(perms, tenant, canEditWorkcenter(perms, "estimates"), false);
 
@@ -143,7 +161,7 @@ export default async function NewEstimatePage({ searchParams }: { searchParams: 
         canEdit
         canQuote={canQuote}
         quoteUnavailable={quoteUnavailable}
-        emailFirst={emailParam === "1"}
+        emailFirst={emailParam === "1" || (viaInbox && !chosen)}
       />
     </>
   );

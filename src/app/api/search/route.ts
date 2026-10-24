@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { requireTenantUser, getTenantMembership } from "@/lib/supabase-server";
+import { requireTenantUser, getTenantMembership, createAdminSupabase } from "@/lib/supabase-server";
+import { visibleChannelIds } from "@/lib/inbox/server";
 import { globalSearch } from "@/lib/data";
 import { resolvePermissions, toViewableWorkcenters } from "@/lib/permissions";
 import { allowedSearchTypes, getSearchObject, type SearchObjectType } from "@/lib/globalSearch";
@@ -48,6 +49,10 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ results: [] });
   }
 
-  const results = await globalSearch(tenantId, q, objectType, 8, { types, employeeHub });
+  // Mail is searched only in the Inbox channels this person is on the team of; looked up lazily, only for a workspace
+  // that owns the Inbox and a search that reaches it.
+  const inboxChannels = () => visibleChannelIds(createAdminSupabase(), tenantId, userId, role === "admin");
+
+  const results = await globalSearch(tenantId, q, objectType, 8, { types, employeeHub, inboxChannels });
   return NextResponse.json({ results });
 }

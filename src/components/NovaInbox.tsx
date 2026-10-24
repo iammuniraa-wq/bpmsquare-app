@@ -26,6 +26,7 @@ const ROUTE_FOR: Record<string, (id: string) => string> = {
   rfqs: ROUTES.rfq,
   estimates: ROUTES.estimate,
   leads: ROUTES.marketingLead,
+  inbound_emails: ROUTES.inboxMessage,
   abm_programs: ROUTES.marketingAbmProgram,
   abm_targets: ROUTES.marketingAbmTargetShort,
 };

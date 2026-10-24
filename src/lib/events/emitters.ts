@@ -298,3 +298,43 @@ export function emitOrderSent(tenantId: string, p: OrderCtx & { redirected?: boo
     payload: { ref: p.ref ?? null, total: p.total ?? null, redirected: p.redirected === true },
   });
 }
+
+// ── Shared Inbox (0214) ─────────────────────────────────────────────────────────────────────────────────────────────
+// Payloads are ids and counts only. A sender's address, a subject and the mail itself never go into this table: it feeds
+// scores and webhooks, and mail is private correspondence.
+
+/** email.received: a customer's message landed in a channel. Once per stored message (a provider retry is a no-op). */
+export function emitEmailReceived(
+  tenantId: string,
+  p: { emailId: string; channelId: string; attachments: number; replyInThread: boolean },
+) {
+  return emitEvent(tenantId, {
+    name: EVENTS.EMAIL_RECEIVED, object_type: "inbound_emails", object_id: p.emailId, source: "provider_webhook",
+    key: `${p.emailId}:received`,
+    payload: { channel_id: p.channelId, attachments: p.attachments, reply_in_thread: p.replyInThread },
+  });
+}
+
+/** email.handled: someone marked a message handled (or spam), or converted it. */
+export function emitEmailHandled(
+  tenantId: string,
+  p: Actor & { emailId: string; channelId: string; status: "handled" | "spam"; via: "manual" | "conversion" },
+) {
+  return emitEvent(tenantId, {
+    name: EVENTS.EMAIL_HANDLED, object_type: "inbound_emails", object_id: p.emailId, actor_id: p.actorId,
+    key: `${p.emailId}:${p.status}:${new Date().toISOString().slice(0, 16)}`,
+    payload: { channel_id: p.channelId, status: p.status, via: p.via },
+  });
+}
+
+/** email.converted: a message became a Quote, Project, Case, Lead or Estimate. */
+export function emitEmailConverted(
+  tenantId: string,
+  p: Actor & { emailId: string; channelId: string; objectType: string; objectId: string; accountId?: string | null; attachments: number },
+) {
+  return emitEvent(tenantId, {
+    name: EVENTS.EMAIL_CONVERTED, object_type: "inbound_emails", object_id: p.emailId, actor_id: p.actorId, account_id: p.accountId,
+    key: `${p.emailId}:converted:${p.objectType}:${p.objectId}`,
+    payload: { channel_id: p.channelId, to_object_type: p.objectType, to_object_id: p.objectId, attachments: p.attachments },
+  });
+}

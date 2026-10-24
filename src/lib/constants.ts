@@ -111,6 +111,9 @@ export const ROUTES = {
   marketingSegment: (id: string) => `/marketing/segments/${id}`,
   marketingLeads: "/marketing/leads",
   marketingLead: (id: string) => `/marketing/leads/${id}`,
+  inbox: "/inbox",
+  inboxMessage: (id: string) => `/inbox/${id}`,
+  settingsInbox: "/settings/inbox",
   quotations: "/quotations",
   quotation: (id: string) => `/quotations/${id}`,
   quotationEdit: (id: string) => `/quotations/${id}/edit`,
@@ -288,6 +291,9 @@ export const NAV: NavGroup[] = [
     group: "WORKSPACE",
     items: [
       { label: "Dashboard", href: ROUTES.dashboard, icon: "◴", pillar: "blue", workcenterKey: "dashboard" },
+      // Shared Inbox (0214, docs/design/estimator-unification-and-inbox.md): customer mail, read by a team and turned
+      // into a Quote, Project, Case, Lead or Estimate. About the whole business, so it sits under Dashboard.
+      { label: "Inbox", href: ROUTES.inbox, icon: "✉", pillar: "blue", featureKey: "inbox", workcenterKey: "inbox" },
       // Process Design Studio (0152, docs/process-design-studio-architecture.md): about
       // the whole business, not one pillar, so it sits under Dashboard.
       { label: "Process Design Studio", href: ROUTES.processStudio, icon: "◇", pillar: "blue", featureKey: "process_studio", workcenterKey: "process_studio" },
@@ -723,6 +729,12 @@ export type TenantFeatures = {
   // web for this?" and, on a yes, run one isolated search on our key and answer with sources. A platform-admin-only
   // flag: default OFF, missing key reads false; needs ai_assistant. With it off the search tool is not offered.
   ai_assistant_web: boolean;
+  // Shared Inbox (0214, docs/design/estimator-unification-and-inbox.md): customer mail arrives on a forwarding address (or
+  // is read from the company's own mailbox), is read and answered by a team, and is turned into a Quote, Project, Case,
+  // Lead or Estimate with its drawings copied across. A platform-admin-only flag (set in /admin/tenants, never by a
+  // workspace admin): default OFF, missing key reads false; with it off there is no menu item, no route, no webhook
+  // routing and no polling for the workspace. Mail content is private: there is no v1 API endpoint for it.
+  inbox: boolean;
   // Sales Orders (docs/design/sales-order.md, build spec SO1): an order made here from an accepted quote or won
   // deal, with order types, availability from master data, PDF/email/WhatsApp and files. A platform-admin-only
   // flag: default OFF, missing key reads false; with it off there is no menu item, no route, no API answer and no
@@ -1026,6 +1038,7 @@ export type AnalyticsMetricId =
   | "pipeline_open_value"
   | "rfq_open"
   | "estimates_open"
+  | "inbox_open"
   | "sales_orders_open"
   | "abm_targets_engaged"
   | "wfm_attendance_today" | "wfm_night_shift_cost"
