@@ -19,6 +19,9 @@ export const INTAKE_LIMITS = {
 
 export const LIMITS_TEXT = `Up to ${INTAKE_LIMITS.maxFiles} files, ${INTAKE_LIMITS.maxTotalBytes / 1024 / 1024} MB in all, PDFs up to ${INTAKE_LIMITS.maxPdfPages} pages. PDF, Word, Excel, PNG and JPG are read; DXF drawings go to the drawing reader.`;
 
+/** The reason load.ts gives a DXF: the route hands those to the drawing reader instead. */
+export const DXF_SKIP_REASON = "DXF files are read by the drawing reader.";
+
 export const KIND_LABEL: Record<FileKind, string> = { pdf: "PDF", image: "Photo", docx: "Word", xlsx: "Excel", dxf: "DXF", other: "File" };
 
 const cleanExt = (ext: string | null | undefined, name: string): string => {
@@ -41,7 +44,7 @@ export function classifyFile(name: string, mime: string | null | undefined, ext?
 
 /** Why a file will not be read, judged from its row alone (before any download), or null when it can be tried. */
 export function skipReason(kind: FileKind, sizeBytes: number, ext?: string | null, name = ""): string | null {
-  if (kind === "dxf") return "DXF files are read by the drawing reader.";
+  if (kind === "dxf") return DXF_SKIP_REASON;
   if (kind === "other") {
     const e = cleanExt(ext, name);
     if (e === "dwg") return "DWG files are not read. Save the drawing as DXF.";

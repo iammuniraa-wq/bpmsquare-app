@@ -71,7 +71,12 @@ else
     locked = true,
     version = case when inputs is distinct from ${dq("inputs", b.inputs)} or rules is distinct from ${dq("rules", b.rules)} then version + 1 else version end
   where tenant_id = t and lower(name) = lower(${name}) and locked = true;` : ""}
-end if;`;
+end if;${s.drawing_map && s.locked ? `
+-- The layer map needs migration 0215 (estimate_templates.drawing_map); without it the starter is simply left without one.
+if exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'estimate_templates' and column_name = 'drawing_map') then
+  update estimate_templates set drawing_map = ${dq("drawing_map", s.drawing_map)}
+  where tenant_id = t and lower(name) = lower(${name}) and locked = true and drawing_map is distinct from ${dq("drawing_map", s.drawing_map)};
+end if;` : ""}`;
   return lines.split("\n").map((l) => (l ? indent + l : l)).join("\n");
 }
 

@@ -10,7 +10,7 @@ import { classifyFile, INTAKE_LIMITS, skipReason } from "./kinds";
 export type SkippedFile = { id: string; name: string; reason: string };
 
 /** What the response tells the page about each file: read (with the page link's attachment id) or skipped and why. */
-export type FileReport = { id: string; name: string; status: "read" | "skipped"; kind: ReadFile["kind"] | null; pages: number | null; note: string | null };
+export type FileReport = { id: string; name: string; status: "read" | "skipped"; kind: ReadFile["kind"] | "dxf" | null; pages: number | null; note: string | null };
 
 export type LoadDeps = {
   admin: SupabaseClient;

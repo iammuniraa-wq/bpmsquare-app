@@ -20,6 +20,8 @@ export type ReviewRow = {
   /** The attached file the value was read from, and the PDF page, when it did not come from the email text. */
   file: string | null;
   page: number | null;
+  /** A DXF drawing: the layer(s) the number was measured on, for "Show on drawing". */
+  layer: string | null;
 };
 
 /** "from plan.pdf, page 2" for a value read from a file, or null when it came from the email text. */
@@ -59,6 +61,7 @@ export function reviewRows(inputs: readonly TemplateInput[], proposal: Pick<Inta
         source: status === "missing" ? null : (f?.source ?? null),
         file: status === "missing" ? null : (f?.file ?? null),
         page: status === "missing" ? null : (f?.page ?? null),
+        layer: status === "missing" ? null : (f?.layer ?? null),
       } satisfies ReviewRow,
     };
   });

@@ -2,9 +2,10 @@ import { NextResponse, type NextRequest } from "next/server";
 import { isUuid } from "@/lib/estimator/requests";
 import { estimatorAccess, errorResponse } from "@/lib/estimator/server";
 import { aiConfigured, EstimatorAiError, notConfiguredResponse, meteredAsk, ESTIMATE_INTAKE_SURFACE } from "@/lib/estimator/aiServer";
-import { runIntake } from "@/lib/estimator/aiRun";
+import { runIntake, type DrawingRead } from "@/lib/estimator/aiRun";
+import { measureAttachment } from "@/lib/estimator/drawing/run";
 import { loadIntakeFiles, type LoadedFiles } from "@/lib/estimator/intakeFiles/load";
-import { classifyFile, skipReason } from "@/lib/estimator/intakeFiles/kinds";
+import { classifyFile, DXF_SKIP_REASON, skipReason } from "@/lib/estimator/intakeFiles/kinds";
 import { ATTACHMENT_BUCKET, inboxAccess, loadAttachments, loadEmailForViewer } from "@/lib/inbox/server";
 
 // POST { template_id, text, email_id?, attachment_ids? } -- read a pasted brief or email (and, optionally, the files the
@@ -36,7 +37,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       files: rows.map((a) => {
         const kind = classifyFile(a.file_name, a.mime_type, a.ext);
-        const note = skipReason(kind, a.size_bytes, a.ext, a.file_name);
+        const note = kind === "dxf" ? null : skipReason(kind, a.size_bytes, a.ext, a.file_name);
         return { id: a.id, name: a.file_name, kind, size_bytes: a.size_bytes, quality: a.quality, quality_note: a.quality_note, readable: !note, note };
       }),
     }, { headers: { "Cache-Control": "no-store" } });
@@ -49,10 +50,12 @@ export async function POST(req: NextRequest) {
   try {
     const { supabase, tenantId, userId } = await estimatorAccess("create");
     if (!aiConfigured()) return notConfiguredResponse();
-    const body = (await req.json().catch(() => null)) as { template_id?: unknown; text?: unknown; email_id?: unknown; attachment_ids?: unknown } | null;
+    const body = (await req.json().catch(() => null)) as { template_id?: unknown; text?: unknown; email_id?: unknown; attachment_ids?: unknown; unit_factor?: unknown } | null;
+    const unitFactor = typeof body?.unit_factor === "number" && Number.isFinite(body.unit_factor) && body.unit_factor > 0 ? body.unit_factor : undefined;
     if (!isUuid(body?.template_id)) return NextResponse.json({ error: "Choose a template first." }, { status: 422 });
 
     let files: LoadedFiles = { files: [], skipped: [] };
+    const drawings: DrawingRead[] = [];
     if (isUuid(body?.email_id) && Array.isArray(body?.attachment_ids) && body!.attachment_ids.length > 0) {
       let ctx;
       try { ctx = await inboxAccess(false); } catch { ctx = null; }
@@ -67,13 +70,21 @@ export async function POST(req: NextRequest) {
             return error || !data ? null : new Uint8Array(await data.arrayBuffer());
           },
         }, { emailId: body!.email_id, attachmentIds: body!.attachment_ids });
+        // DXF drawings are measured, not sent to the model: at most two, each loaded with the person's own access.
+        const dxf = files.skipped.filter((s) => s.id && s.reason === DXF_SKIP_REASON).slice(0, 2);
+        files = { ...files, skipped: files.skipped.filter((s) => !dxf.includes(s)) };
+        for (const s of dxf) {
+          const m = await measureAttachment(ctx, { emailId: body!.email_id, attachmentId: s.id, ...(unitFactor ? { factor: unitFactor } : {}) });
+          if (m.ok) drawings.push({ id: s.id, name: s.name, table: m.payload.layers });
+          else files = { ...files, skipped: [...files.skipped, { id: s.id, name: s.name, reason: m.error }] };
+        }
       }
     }
 
     const r = await runIntake({
       supabase, tenantId, templateId: body!.template_id as string, text: typeof body?.text === "string" ? body.text : "",
       ask: meteredAsk({ tenantId, userId }, ESTIMATE_INTAKE_SURFACE, files.files.length > 0 ? FILE_TOKENS : TEXT_TOKENS),
-      files,
+      files, drawings,
     });
     if (!r.ok) return NextResponse.json({ error: r.error }, { status: r.status });
     return NextResponse.json({ configured: true, ...r.proposal });

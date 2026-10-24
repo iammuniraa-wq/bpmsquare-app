@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { runIntake } from "./aiRun";
+import { mergeDrawings, runIntake } from "./aiRun";
 import type { ReadFile } from "./intakeFiles/convert";
 import { CHAINLINK_FENCE_STARTER } from "./starterTemplates";
 
@@ -77,5 +77,31 @@ describe("reading the email with its files", () => {
     const r = await runIntake({ supabase: fakeDb(), tenantId: "22222222-2222-4222-8222-222222222222", templateId: FENCE, text: EMAIL, ask, files: { files: [pdf], skipped: [] } });
     expect(r).toMatchObject({ ok: false, status: 404 });
     expect(ask).not.toHaveBeenCalled();
+  });
+});
+
+describe("measured DXF drawings merge into the reading", () => {
+  const inputs = [
+    { key: "total_length_m", label: "Fence length", type: "number" as const, default: 100, min: 1, max: 5000, unit: "m" },
+    { key: "gates_n", label: "Gates", type: "number" as const, default: 0, min: 0, max: 20 },
+  ];
+  const table = {
+    factor: 1,
+    rows: [{ layer: "FENCE", length: 300, area: 0, blocks: {}, entities: 4 }],
+  } as unknown as Parameters<typeof mergeDrawings>[3][number]["table"];
+
+  it("a layer map fills the input as Found with the file and layer, and leaves the others to the model", () => {
+    const proposal: Parameters<typeof mergeDrawings>[0] = { name: null, sender: null, values: { gates_n: 2 }, assumptions: [], adjusted: [], fields: { gates_n: { status: "likely", source: "two gates" } } };
+    mergeDrawings(proposal, inputs, [{ input: "total_length_m", measure: "length_m", layers: ["FENCE"] }], [{ id: "a1", name: "yard.dxf", table }]);
+    expect(proposal.values).toEqual({ gates_n: 2, total_length_m: 300 });
+    expect(proposal.fields?.total_length_m).toMatchObject({ status: "found", file: "yard.dxf", layer: "FENCE" });
+    expect(proposal.fields?.gates_n.status).toBe("likely");
+    expect((proposal as { files?: { kind: string }[] }).files?.[0].kind).toBe("dxf");
+  });
+  it("without a layer map nothing is measured into the form and the reading says why", () => {
+    const proposal: Parameters<typeof mergeDrawings>[0] = { name: null, sender: null, values: {}, assumptions: [], adjusted: [], fields: {} };
+    mergeDrawings(proposal, inputs, null, [{ id: "a1", name: "yard.dxf", table }]);
+    expect(proposal.values).toEqual({});
+    expect(proposal.assumptions.join(" ")).toMatch(/no drawing layers set up/);
   });
 });

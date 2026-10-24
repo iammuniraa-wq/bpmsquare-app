@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useId, useMemo, useRef, useState } from "react";
+import dynamic from "next/dynamic";
 import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
 import InfoTip from "@/components/ui/InfoTip";
@@ -8,12 +9,26 @@ import { Select, Textarea } from "@/components/ui/Input";
 import type { IntakeProposal } from "@/lib/estimator/ai";
 import type { PickMatch, PickLevel } from "@/lib/estimator/pick";
 import type { IntakeResult } from "@/lib/estimator/aiRun";
+import type { DxfModel } from "@/lib/estimator/drawing/model";
 import { INTAKE_LIMITS, KIND_LABEL, LIMITS_TEXT, type FileKind } from "@/lib/estimator/intakeFiles/kinds";
 import { QUALITY_LABEL, type QualityLabel } from "@/lib/inbox/types";
 import Chip from "./Chip";
 import { fileOrigin, reviewCounts, reviewRows } from "./intakeReview";
 import { wordsFor } from "./layoutKind";
 import type { WorkspaceTemplate } from "./types";
+
+// The drawing picture (and its geometry code) is only fetched when a DXF is opened.
+const DxfViewer = dynamic(() => import("@/components/estimator/drawing/DxfViewer"), {
+  ssr: false,
+  loading: () => <div className="bpm-t-help" style={{ padding: 16 }}>Loading the drawing…</div>,
+});
+
+/** Metres per drawing unit, for a drawing that does not say (or says it wrongly). "" = what the drawing states. */
+const DRAWING_UNITS: readonly { value: string; label: string }[] = [
+  { value: "", label: "As the drawing says" }, { value: "0.001", label: "Millimetres" }, { value: "0.01", label: "Centimetres" },
+  { value: "1", label: "Metres" }, { value: "0.3048", label: "Feet" }, { value: "0.0254", label: "Inches" },
+];
+type DrawingView = { id: string; name: string; model: DxfModel | null; note: string | null };
 
 type PickJson = { template_id: string | null; name: string | null; confidence: number; level: PickLevel; alternatives: PickMatch[]; not_sure: boolean; reason: string | null };
 type Reading = { templateId: string; proposal: IntakeResult };
@@ -57,6 +72,10 @@ export default function EmailIntake({
   const [showAll, setShowAll] = useState(false);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [ticked, setTicked] = useState<Set<string>>(new Set());
+  const [unit, setUnit] = useState("");
+  const [drawing, setDrawing] = useState<DrawingView | null>(null);
+  const [highlight, setHighlight] = useState<string[]>([]);
+  const [drawingBusy, setDrawingBusy] = useState(false);
 
   // The message's files, listed once: the readable ones start ticked (up to the cap), the others say why not.
   useEffect(() => {
@@ -93,7 +112,10 @@ export default function EmailIntake({
   async function readFor(templateId: string) {
     setBusy("read");
     const withFiles = !!emailId && ticked.size > 0;
-    const r = await post("/api/estimates/ai/intake", { template_id: templateId, text, ...(withFiles ? { email_id: emailId, attachment_ids: [...ticked] } : {}) });
+    const r = await post("/api/estimates/ai/intake", {
+      template_id: templateId, text,
+      ...(withFiles ? { email_id: emailId, attachment_ids: [...ticked], ...(unit ? { unit_factor: Number(unit) } : {}) } : {}),
+    });
     if (!r.ok) return;
     const proposal = r.json as unknown as IntakeResult;
     // Wait for the page to be on this template before filling it in.
@@ -153,6 +175,28 @@ export default function EmailIntake({
     }
   }
 
+  // Opens a DXF attachment in the viewer (measured on the server), optionally lighting up the layers a number came from.
+  async function showDrawing(attachmentId: string, name: string, layers: string[]) {
+    setHighlight(layers);
+    if (drawing?.id === attachmentId && drawing.model) return;
+    if (!emailId) return;
+    setDrawingBusy(true); setError("");
+    try {
+      const res = await fetch("/api/estimates/drawing/measure", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email_id: emailId, attachment_id: attachmentId, ...(unit ? { unit_factor: Number(unit) } : {}) }),
+      });
+      const json = (await res.json().catch(() => ({}))) as { model?: DxfModel | null; modelNote?: string | null; error?: string };
+      if (!res.ok) { setError(json.error ?? "Could not open the drawing."); return; }
+      setDrawing({ id: attachmentId, name, model: json.model ?? null, note: json.modelNote ?? null });
+    } catch {
+      setError("Could not open the drawing. Try again.");
+    } finally {
+      setDrawingBusy(false);
+    }
+  }
+
+  const hasDxfTicked = attachments.some((a) => a.kind === "dxf" && ticked.has(a.id));
   const rows = useMemo(() => (reading && reading.templateId === template.id ? reviewRows(template.inputs, reading.proposal) : []), [reading, template]);
   const counts = reviewCounts(rows);
   const hasFileRows = rows.some((r) => r.file);
@@ -189,10 +233,31 @@ export default function EmailIntake({
                         {KIND_LABEL[a.kind]} · {sizeText(a.size_bytes)}{a.readable ? ` · ${QUALITY_LABEL[a.quality]}` : ""}{a.note ? ` · ${a.note}` : ""}
                       </span>
                     </span>
+                    {a.kind === "dxf" && a.readable && (
+                      <Button variant="quiet" size="sm" disabled={drawingBusy} onClick={(ev) => { ev.preventDefault(); void showDrawing(a.id, a.name, []); }}>View drawing</Button>
+                    )}
                   </label>
                 );
               })}
             </div>
+          )}
+      {drawing && (
+        <div style={{ marginTop: 10 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+            <span className="bpm-t-label">{drawing.name}</span>
+            <Button variant="quiet" size="sm" onClick={() => { setDrawing(null); setHighlight([]); }}>Close drawing</Button>
+          </div>
+          {drawing.model ? <DxfViewer model={drawing.model} highlightLayers={highlight} note={drawing.note} /> : <div className="bpm-t-help">{drawing.note ?? "This drawing is too large to show here. The measurements above come from the whole drawing."}</div>}
+        </div>
+      )}
+          {hasDxfTicked && (
+            <label style={{ display: "inline-flex", alignItems: "center", gap: 6, marginTop: 8 }}>
+              <span className="bpm-t-label">Drawing units</span>
+              <InfoTip label="Drawing units">Most drawings state their units. Choose one here only when the drawing does not, or states them wrongly: every length and area is measured in it.</InfoTip>
+              <Select value={unit} onChange={(e) => setUnit(e.target.value)} style={{ maxWidth: 200 }}>
+                {DRAWING_UNITS.map((u) => <option key={u.value} value={u.value}>{u.label}</option>)}
+              </Select>
+            </label>
           )}
           <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center", marginTop: 10 }}>
             <Button variant="primary" size="sm" loading={busy !== null} disabled={busy !== null || text.trim() === ""} onClick={run}>
@@ -256,7 +321,13 @@ export default function EmailIntake({
                         <td>
                           {origin && <span className="est-src" style={{ fontStyle: "normal", fontWeight: 600, display: "block" }}>{origin}</span>}
                           {r.source ? <span className="est-src">&ldquo;{r.source}&rdquo;</span> : r.status === "missing" ? "" : <span className="est-src">implied</span>}
-                          {origin && r.file && (
+                          {origin && r.file && r.layer && (
+                            <Button variant="quiet" size="sm" disabled={drawingBusy}
+                              onClick={() => { const id = reading?.proposal.files?.find((f) => f.name === r.file)?.id; if (id) void showDrawing(id, r.file!, r.layer!.split(", ")); }}>
+                              Show on drawing
+                            </Button>
+                          )}
+                          {origin && r.file && !r.layer && (
                             <Button variant="quiet" size="sm" onClick={() => void openPage(r.file!, r.page)} aria-label={r.page ? `Open page ${r.page} of ${r.file}` : `Open ${r.file}`}>
                               {r.page ? "Open page" : "Open file"}
                             </Button>

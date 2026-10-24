@@ -10,6 +10,9 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { EstimateTemplate } from "@/lib/types";
 import { MAX_BRIEF_CHARS } from "./ai";
 import type { IntakeProposal } from "./ai";
+import { dxfProposal } from "./drawing/proposal";
+import type { MeasuredTable } from "./drawing/measure";
+import type { DrawingMapRule, TemplateInput } from "./types";
 import { buildIntakePromptV2, clampIntakeV2, intakeSchemaV2 } from "./aiIntake";
 import type { AskBlock } from "./intakeFiles/convert";
 import { fileReports, type FileReport, type LoadedFiles } from "./intakeFiles/load";
@@ -56,6 +59,28 @@ export async function runPick(d: { supabase: SupabaseClient; tenantId: string; t
   return { ok: true, templates: candidates.length, result: clampPick(candidates, raw) };
 }
 
+/** A measured DXF drawing of the opened message (drawing/run.ts), merged into the reading by the template's layer map. */
+export type DrawingRead = { id: string; name: string; table: MeasuredTable };
+
+/** The measured numbers replace what the model read for the same inputs: they are counted, not inferred. */
+export function mergeDrawings(proposal: IntakeResult, inputs: readonly TemplateInput[], map: readonly DrawingMapRule[] | null | undefined, drawings: readonly DrawingRead[]): void {
+  const reports: FileReport[] = [];
+  for (const d of drawings) {
+    const hasMap = !!map && map.length > 0;
+    if (hasMap) {
+      const p = dxfProposal(inputs, map, d.table, { file: d.name });
+      Object.assign(proposal.values, p.values);
+      proposal.fields = { ...(proposal.fields ?? {}), ...p.fields };
+      proposal.assumptions = [...proposal.assumptions, ...p.assumptions];
+      proposal.adjusted = [...new Set([...proposal.adjusted, ...p.adjusted])];
+    } else {
+      proposal.assumptions = [...proposal.assumptions, `${d.name}: this template has no drawing layers set up (Settings, Estimate templates), so nothing was measured into the form.`];
+    }
+    reports.push({ id: d.id, name: d.name, status: "read", kind: "dxf", pages: null, note: hasMap ? null : "No drawing layers are set up for this template." });
+  }
+  if (reports.length > 0) proposal.files = [...(proposal.files ?? []), ...reports];
+}
+
 /** The reading plus, when files were ticked, what happened to each one. */
 export type IntakeResult = IntakeProposal & { files?: FileReport[] };
 
@@ -63,6 +88,8 @@ export async function runIntake(d: {
   supabase: SupabaseClient; tenantId: string; templateId: string; text: string; ask: Ask;
   /** The attachments already loaded and converted (intakeFiles/load.ts). Absent = the email text alone. */
   files?: LoadedFiles;
+  /** Measured DXF attachments (the route loads them with the person's access). */
+  drawings?: readonly DrawingRead[];
 }): Promise<{ ok: true; proposal: IntakeResult } | RunFailure> {
   const problem = textProblem(d.text);
   if (problem) return { ok: false, status: 400, error: problem };
@@ -82,6 +109,7 @@ export async function runIntake(d: {
       proposal.assumptions = [...proposal.assumptions, ...skipped.map((s) => `${s.name} was not read: ${s.reason}`)];
       proposal.files = fileReports({ files: [], skipped });
     }
+    mergeDrawings(proposal, inputs, tpl.drawing_map, d.drawings ?? []);
     return { ok: true, proposal };
   }
   const promptFiles = read.map((f) => ({ name: f.name, kind: f.kind, text: f.text }));
@@ -89,5 +117,6 @@ export async function runIntake(d: {
   const proposal: IntakeResult = clampIntakeV2(inputs, raw, text, promptFiles);
   proposal.assumptions = [...proposal.assumptions, ...skipped.map((s) => `${s.name} was not read: ${s.reason}`)];
   proposal.files = fileReports({ files: read, skipped });
+  mergeDrawings(proposal, inputs, tpl.drawing_map, d.drawings ?? []);
   return { ok: true, proposal };
 }
