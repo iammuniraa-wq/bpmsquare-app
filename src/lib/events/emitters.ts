@@ -296,6 +296,8 @@ export function emitOrderSent(tenantId: string, p: OrderCtx & { redirected?: boo
     name: EVENTS.ORDER_SENT, object_type: "sales_order", object_id: p.orderId, actor_id: p.actorId,
     account_id: p.accountId, contact_id: p.contactId,
     payload: { ref: p.ref ?? null, total: p.total ?? null, redirected: p.redirected === true },
+  });
+}
 
 // ── Shared Inbox (0214) ─────────────────────────────────────────────────────────────────────────────────────────────
 // Payloads are ids and counts only. A sender's address, a subject and the mail itself never go into this table: it feeds
