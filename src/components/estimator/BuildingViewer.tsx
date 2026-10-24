@@ -55,6 +55,7 @@ export default function BuildingViewer({
   const steps = model ? Math.max(1, model.step_names.length) : 1;
   const [step, setStepState] = useState(steps - 1);
   const [explode, setExplode] = useState(0);
+  const [inside, setInside] = useState(false);
   const [mode, setMode] = useState<ColourMode>("family");
   const [playing, setPlaying] = useState(false);
   const [selected, setSelected] = useState<string | null>(null);
@@ -107,6 +108,7 @@ export default function BuildingViewer({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { sceneRef.current?.setVisuals(visualsRef.current); }, [visualsKey, hasModel]);
   useEffect(() => { sceneRef.current?.setExplode(explode); }, [explode]);
+  useEffect(() => { sceneRef.current?.setCutaway(inside); }, [inside, hasModel]);
   useEffect(() => { sceneRef.current?.setColourMode(mode); }, [mode]);
   useEffect(() => { sceneRef.current?.setSelected(selected); }, [selected]);
   useEffect(() => { sceneRef.current?.setHighlight(highlight); }, [highlight]);
@@ -168,6 +170,7 @@ export default function BuildingViewer({
           step={step} steps={steps} stepName={model.step_names[step] ?? ""} playing={playing} reducedMotion={reduced}
           explode={explode} mode={mode} onStep={(n) => { setPlaying(false); goStep(n); }} onPlay={onPlay}
           onExplode={setExplode} onMode={setMode}
+          inside={model.geometry === "porta_cabin" ? inside : undefined} onInside={setInside}
         />
       )}
       <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "end", margin: "12px 0 4px" }}>

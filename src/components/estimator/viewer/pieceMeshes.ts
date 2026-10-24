@@ -46,7 +46,14 @@ export function buildPieceGroup(piece: Piece, ctx: BuildCtx): THREE.Group {
   g.rotation.y = piece.rot ?? 0;
   g.userData = { mark: piece.id };
 
-  if (piece.kind === "equip") { g.add(buildEquipment(piece, ctx.lib)); return g; }
+  if (piece.kind === "equip") {
+    // buildEquipment positions its own group (it can stand alone in a scene); here the piece group already is at the piece.
+    const eq = buildEquipment(piece, ctx.lib);
+    eq.position.set(0, 0, 0);
+    eq.rotation.set(0, 0, 0);
+    g.add(eq);
+    return g;
+  }
   if (ctx.model.geometry === CHAINLINK_FENCE_KEY) { buildFencePiece(piece, ctx, g); mergeGroupParts(g, ctx); return g; }
   buildBody(g, piece, ctx);
   mergeGroupParts(g, ctx);

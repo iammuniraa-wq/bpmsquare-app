@@ -92,6 +92,8 @@ export class ViewerScene {
   private stepCount = 1;
   private step = 0;
   private explode = 0;
+  private cutaway = false;
+  private cutInfo: { cabin: boolean; d: number } = { cabin: false, d: 0 };
   private selected: string | null = null;
   private highlight: ReadonlySet<string> = new Set();
   private visuals: Readonly<Record<string, string>> = {};
@@ -175,6 +177,7 @@ export class ViewerScene {
       maxY = Math.max(maxY, piece.pos[1] + piece.dims.h / 2);
       radius = Math.max(radius, Math.hypot(piece.pos[0], piece.pos[2]) + Math.max(piece.dims.w, piece.dims.t) / 2);
     });
+    this.cutInfo = { cabin: model.geometry === "porta_cabin", d: model.d };
     this.stepCount = Math.max(1, model.step_names.length);
     this.step = this.stepCount - 1;
     this.target = [0, maxY / 2, 0];
@@ -432,8 +435,16 @@ export class ViewerScene {
     this.dirty = true;
   }
 
+  /** See inside a cabin: the roof and the front long wall are hidden (the rooms and their equipment show). */
+  setCutaway(on: boolean): void { this.cutaway = on; this.applyVisibility(); this.dirty = true; }
+
+  private cutAway(p: Piece): boolean {
+    if (!this.cutaway || !this.cutInfo.cabin) return false;
+    return p.code === "RF" || (p.code === "WL" && Math.abs(Math.sin(p.rot ?? 0)) < 0.5 && p.pos[2] > this.cutInfo.d / 2 - 0.3);
+  }
+
   private applyVisibility(): void {
-    for (const e of this.entries.values()) e.group.visible = e.piece.step <= this.step;
+    for (const e of this.entries.values()) e.group.visible = e.piece.step <= this.step && !this.cutAway(e.piece);
     this.shadowDirty = true;
   }
 
