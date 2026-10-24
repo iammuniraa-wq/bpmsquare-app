@@ -109,6 +109,20 @@ export type TemplateRule = {
 
 export type QuoteGranularity = "group" | "line";
 
+/** What a DXF drawing measures into one input of a template (drawing intake): lengths and areas by layer, counts by block. */
+export type DrawingMeasure = "length_m" | "area_m2" | "count";
+export type DrawingMapRule = {
+  /** The template input that receives the measured number. */
+  input: string;
+  measure: DrawingMeasure;
+  /** Layers whose lines / closed shapes are summed (length_m, area_m2) or whose block inserts are counted (count). Case-insensitive. */
+  layers?: string[];
+  /** count only: block names counted (case-insensitive); empty = every insert on the layers. */
+  blocks?: string[];
+  /** Multiplier from drawing units to the input's unit when the drawing's own units are missing or wrong. */
+  scale?: number;
+};
+
 export type EstimateTemplateBody = {
   /** Geometry module key (e.g. "precast_villa"): the template's pieces, 3D
    *  model and vol_/n_/area_ identifiers come from it. Absent = formula-only. */

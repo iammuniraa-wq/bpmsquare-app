@@ -99,6 +99,10 @@ export type IntakeField = {
   status: IntakeStatus;
   /** The words in the email that this came from (found and likely only). */
   source: string | null;
+  /** When the value was read from an attachment rather than the email text: the file name, the page (PDF) and, for a DXF drawing, the layer. */
+  file?: string | null;
+  page?: number | null;
+  layer?: string | null;
 };
 
 const str = (v: unknown, max: number): string | null => (typeof v === "string" && v.trim() ? v.trim().slice(0, max) : null);
