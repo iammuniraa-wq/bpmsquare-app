@@ -48,3 +48,10 @@ export const hasBuildSchedule = (geometry: string | null | undefined): boolean =
 export type PreviewKind = "fence" | "pieces" | "none";
 export const previewKindFor = (geometry: string | null | undefined): PreviewKind =>
   geometry === "chainlink_fence" ? "fence" : geometry ? "pieces" : "none";
+
+/**
+ * Layouts whose inputs all have sensible defaults open straight onto a floor, a fence or a cabin and its price. The precast
+ * villa keeps opening blank: it has no honest default to price.
+ */
+const OPENS_WITH_DEFAULTS = new Set(["chainlink_fence", "tiles_floor", "porta_cabin"]);
+export const opensWithDefaults = (geometry: string | null | undefined): boolean => !!geometry && OPENS_WITH_DEFAULTS.has(geometry);

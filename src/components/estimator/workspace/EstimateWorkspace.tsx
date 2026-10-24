@@ -22,7 +22,7 @@ import SenderCard from "./SenderCard";
 import VillaCard from "./VillaCard";
 import FenceCard from "./FenceCard";
 import { fenceViewOf } from "@/lib/estimator/fenceView";
-import { previewKindFor, wordsFor } from "./layoutKind";
+import { previewKindFor, wordsFor, opensWithDefaults } from "./layoutKind";
 import { EstimateFocusContext } from "./focus";
 import { isDirty, shownFromPreview } from "./shown";
 import { useEstimateActions } from "./useEstimateActions";
@@ -99,7 +99,7 @@ export default function EstimateWorkspace(p: WorkspaceProps) {
   const showStored = !!saved && !dirty;
   const preview = live.preview;
   // A new estimate opens blank: no villa and no price until the person starts.
-  const blank = !saved && !draft.started;
+  const blank = !saved && !draft.started && !opensWithDefaults(t?.geometry);
   const view = showStored ? saved.view : blank ? null : preview?.view ?? null;
   const shown = useMemo(() => (showStored ? saved.shown : shownFromPreview(blank ? null : preview)), [showStored, saved, preview, blank]);
   const options = showStored && preview ? shiftOptions(preview.options, saved.view.total - preview.view.total) : blank ? null : preview?.options ?? null;
