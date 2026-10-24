@@ -9,14 +9,17 @@ import { ATTACHMENT_BUCKET, loadEmailForViewer, type InboxCtx } from "./server";
 export const SIGNED_URL_SECONDS = 60;
 const INLINE_OK = new Set(["image/png", "image/jpeg"]);
 
-async function sign(admin: SupabaseClient, bucket: string, path: string, name: string, mime: string | null): Promise<string | null> {
-  const inline = !!mime && INLINE_OK.has(mime);
+async function sign(admin: SupabaseClient, bucket: string, path: string, name: string, mime: string | null, viewPdf = false): Promise<string | null> {
+  const inline = !!mime && (INLINE_OK.has(mime) || (viewPdf && mime === "application/pdf"));
   const { data, error } = await admin.storage.from(bucket).createSignedUrl(path, SIGNED_URL_SECONDS, inline ? undefined : { download: name });
   return error || !data ? null : data.signedUrl;
 }
 
-/** A link to one attachment of a message the person may see, or null (a 404). */
-export async function attachmentLink(ctx: Pick<InboxCtx, "admin" | "tenantId" | "viewer">, attachmentId: string): Promise<{ url: string; name: string } | null> {
+/**
+ * A link to one attachment of a message the person may see, or null (a 404). `viewPdf` opens a PDF in the browser's
+ * viewer instead of downloading it (the estimate review's "Open page" link, which appends #page=N).
+ */
+export async function attachmentLink(ctx: Pick<InboxCtx, "admin" | "tenantId" | "viewer">, attachmentId: string, viewPdf = false): Promise<{ url: string; name: string } | null> {
   if (!/^[0-9a-f-]{36}$/i.test(attachmentId)) return null;
   const { data } = await ctx.admin.from("inbound_email_attachments").select("email_id, file_name, storage_path, mime_type")
     .eq("id", attachmentId).eq("tenant_id", ctx.tenantId).maybeSingle();
@@ -24,7 +27,7 @@ export async function attachmentLink(ctx: Pick<InboxCtx, "admin" | "tenantId" | 
   if (!a) return null;
   if (!(await loadEmailForViewer(ctx, a.email_id))) return null;
   if (!a.storage_path.startsWith(`${ctx.tenantId}/`)) return null;
-  const url = await sign(ctx.admin, ATTACHMENT_BUCKET, a.storage_path, a.file_name, a.mime_type);
+  const url = await sign(ctx.admin, ATTACHMENT_BUCKET, a.storage_path, a.file_name, a.mime_type, viewPdf);
   return url ? { url, name: a.file_name } : null;
 }
 
