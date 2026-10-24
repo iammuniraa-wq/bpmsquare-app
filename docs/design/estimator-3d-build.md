@@ -24,3 +24,14 @@ picture and BOM.
 
 Deferred (stated): uploading a workspace's own texture images (colours and the catalogue are in); loading Autodesk Platform Services for a
 client's own DWG.
+
+## Status (2026-10-24, built and pushed)
+
+Built and live-checked on the demo workspace: PBR scene with CC0 textures (`public/textures`, sources in `CREDITS.md`), precast villa with framed windows and
+timber door, chain-link fence drawn as round posts, footings, diamond mesh and gates (a long fence opens close up at a gate, with a button for the whole run),
+a lit tiles room with real finishes and the window light, porta cabins with room plans and 19 pieces of equipment ("See inside" cuts the roof and front wall),
+and design attributes (a select input repaints a slot; swatch chips on the form; picker in the template editor). Starter templates are refreshed by
+`scripts/run-bundle-24-estimate-starters-2026-10-24.sql`.
+
+Known and deferred: uploading a workspace's own texture images; instancing for very long fences; the equipment slot colour is only applied when set; the
+tiles module still accepts the older `tile_color` input.
