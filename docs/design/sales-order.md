@@ -91,3 +91,21 @@ SO1 object, types, PDF, send, link to quote, lock rule, 3b surfaces. SO2 D365 re
 ## Open for the owner
 
 Order-type attributes that should auto-select a type (customer group? region? quote type?); whether Draft orders may be deleted; whether an order can be created without a quote for every customer or only for those with an account.
+
+## SO2 (decided 2026-10-24): Dynamics 365 orders in, invoices and deliveries as read-only ERP documents
+
+Scope of what can be built and proven on the owner's trial (Dataverse Sales Premium; the Finance trial has no environment, so F&O is untested):
+- **Orders in:** a new inbound entity `sales_orders` on the D365 connector (`salesorders` with `order_details` lines expanded), idempotent through `connector_links`,
+  written to `sales_orders` as `origin = 'erp'` (read-only through `orderEditable`), customer matched to an Account through its linked external id, lines copied as
+  read-only lines, order number shown as the ERP number. Status is stored as the ERP's own label (OData formatted value of `statuscode`) plus a spine from
+  `statecode` (0 Active = in progress, 1 Submitted = in progress, 2 Canceled = cancelled, 3 Fulfilled = completed, 4 Invoiced = completed); no exact status
+  code table is assumed, labels come from the organisation.
+- **Status back for orders BPMSquare sent:** the follow-up job refreshes `sales_orders` whose `connector_links` row exists (status, totals, ERP number) and rolls the
+  journey strip forward (Submitted, Delivered, Invoiced, Paid).
+- **ERP documents:** table `erp_documents` (tenant, order, kind `delivery|invoice`, ERP number, date, amount, currency, status, raw reference id, fetched_at), read-only,
+  service-role writes only. Dataverse invoices (`invoices` with `_salesorderid_value`: `invoicenumber`, `totalamount`, `duedate`, `statecode` 0 Active / 1 Closed / 2 Paid /
+  3 Canceled) are fetched per order and in the follow-up job; the delivery kind is written only when a connector returns it (F&O packing slips and SAP deliveries are SO4).
+- **ERP tab:** deliveries and invoices tables with "last synced" and Refresh (same lookup for one order), nothing editable, empty states that say what is connected.
+- **Middleware page:** Links row "Sales orders" (inbound, off by default, `When` = schedule), Resync supports it, messages appear in the Monitor with the ERP number.
+- **Webhook:** inbound ERP endpoint `POST /api/middleware/webhook/sales-order` (signed with the workspace's existing webhook secret machinery) triggers the same refresh for one order id.
+SO3 follows: ERP checks (Check with ERP: price, credit, availability, nothing saved) and Send to ERP with a transfer log.
