@@ -23,30 +23,17 @@ type JsonSchema = Record<string, unknown>;
 
 const STATUSES: readonly IntakeStatus[] = ["found", "likely", "missing"];
 
-/** Output schema: per input a status, a value (null when missing) and the email's own words. */
+/**
+ * Output schema: ONE list of answers, an item per input the email says something about. The size of the schema does not
+ * grow with the template (a fence has two dozen inputs; a schema with an object per input was refused as too complex).
+ * An item carries the number, the choice or the yes/no, whichever the input needs, and the email's own words.
+ */
 export function intakeSchemaV2(inputs: readonly TemplateInput[]): JsonSchema {
-  const fields: Record<string, JsonSchema> = {};
-  for (const i of inputs) {
-    const value: JsonSchema = i.type === "number" ? { type: "number" }
-      : i.type === "boolean" ? { type: "boolean" }
-      : { type: "string", enum: ["", ...(i.options ?? []).map((o) => o.key)] };
-    const options = i.type === "select" ? ` Options: ${(i.options ?? []).map((o) => `${o.key} = ${o.label}`).join("; ")}.` : "";
-    fields[i.key] = {
-      type: "object",
-      additionalProperties: false,
-      required: ["status", "value", "source"],
-      description: `${i.label}${i.unit ? ` (${i.unit})` : ""}${i.help ? `. ${i.help}` : ""}.${options}`,
-      properties: {
-        status: { type: "string", enum: [...STATUSES], description: "found: the email states it. likely: you inferred it from what the email says. missing: the email does not say." },
-        value: { ...value, description: "The value, converted to the unit above. When status is missing give 0 (number), false (yes/no) or an empty string (choice)." },
-        source: { type: "string", description: "The exact words copied from the email that this comes from. An empty string when missing." },
-      },
-    };
-  }
+  const keys = inputs.map((i) => i.key);
   return {
     type: "object",
     additionalProperties: false,
-    required: ["name", "sender", "values", "assumptions"],
+    required: ["name", "sender", "answers", "assumptions"],
     properties: {
       name: { type: "string", description: "A short name for the estimate (project or site), or an empty string." },
       sender: {
@@ -61,7 +48,23 @@ export function intakeSchemaV2(inputs: readonly TemplateInput[]): JsonSchema {
           phone: { type: "string" },
         },
       },
-      values: { type: "object", additionalProperties: false, required: Object.keys(fields), properties: fields },
+      answers: {
+        type: "array",
+        description: "One item for every input in the list, in the same order.",
+        items: {
+          type: "object",
+          additionalProperties: false,
+          required: ["key", "status", "number", "choice", "yes", "source"],
+          properties: {
+            key: { type: "string", enum: keys, description: "The input this answers." },
+            status: { type: "string", enum: [...STATUSES], description: "found: the email states it. likely: you inferred it from what the email says. missing: the email does not say." },
+            number: { type: "number", description: "For a number input: the value in the unit shown. 0 for any other input or when missing." },
+            choice: { type: "string", description: "For a choice input: the option key. An empty string for any other input or when missing." },
+            yes: { type: "boolean", description: "For a yes/no input: the answer. false for any other input or when missing." },
+            source: { type: "string", description: "The exact words copied from the email that this comes from. An empty string when missing." },
+          },
+        },
+      },
       assumptions: { type: "array", items: { type: "string" }, description: "Anything unclear or inconsistent in the email, one short sentence each." },
     },
   };
@@ -78,10 +81,10 @@ export function buildIntakePromptV2(templateName: string, inputs: readonly Templ
 For EACH input below give a status:
 - found: the email states it. Copy the exact words that state it into source.
 - likely: the email does not state it but clearly implies it. Copy the words that led you to it into source.
-- missing: the email does not say. Set value and source to null. Never invent or guess a number to fill a gap, and do not use a typical value.
+- missing: the email does not say. Leave number, choice and yes at their empty value and source empty. Never invent or guess a number to fill a gap, and do not use a typical value.
 Convert every number to the unit shown for the input (for example feet to metres, square feet to square metres). Do not give prices.
 
-Also read who the enquiry is from (the From line or the signature): company, the person's name, email and phone. Use null for any part that is not written; never guess one.
+Also read who the enquiry is from (the From line or the signature): company, the person's name, email and phone. Leave any part that is not written empty; never guess one.
 
 Inputs:
 ${list}
@@ -100,7 +103,18 @@ const clip = (v: unknown, max: number): string | null => (typeof v === "string" 
  */
 export function clampIntakeV2(inputs: readonly TemplateInput[], raw: unknown, email?: string): IntakeProposal {
   const obj = typeof raw === "object" && raw !== null ? (raw as Record<string, unknown>) : {};
-  const given = typeof obj.values === "object" && obj.values !== null ? (obj.values as Record<string, unknown>) : {};
+  const given: Record<string, unknown> = typeof obj.values === "object" && obj.values !== null ? { ...(obj.values as Record<string, unknown>) } : {};
+  // The list form the model returns: one item per input, the value in the field that fits the input's type.
+  if (Array.isArray(obj.answers)) {
+    const byKey = new Map(inputs.map((i) => [i.key, i]));
+    for (const a of obj.answers) {
+      const item = typeof a === "object" && a !== null ? (a as Record<string, unknown>) : null;
+      const input = item && typeof item.key === "string" ? byKey.get(item.key) : undefined;
+      if (!item || !input || input.key in given) continue;
+      const value = input.type === "number" ? item.number : input.type === "boolean" ? item.yes : item.choice;
+      given[input.key] = { status: item.status, value: input.type === "select" && value === "" ? null : value, source: item.source };
+    }
+  }
   const haystack = email === undefined ? null : norm(email);
   const values: Record<string, number | string | boolean> = {};
   const fields: Record<string, IntakeField> = {};

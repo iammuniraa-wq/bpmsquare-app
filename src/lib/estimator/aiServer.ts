@@ -37,7 +37,11 @@ export async function askStructured(prompt: string, schema: Record<string, unkno
   } catch (e) {
     if (e instanceof Anthropic.AuthenticationError) throw new EstimatorAiError("The AI service rejected the API key.", 502);
     if (e instanceof Anthropic.RateLimitError) throw new EstimatorAiError("The AI service is busy. Try again in a moment.", 429);
-    if (e instanceof Anthropic.BadRequestError) throw new EstimatorAiError("The AI service could not read this request.", 422);
+    if (e instanceof Anthropic.BadRequestError) {
+      const why = String((e.error as { error?: { message?: unknown } } | undefined)?.error?.message ?? "").slice(0, 160);
+      console.error(`[ai] request refused: ${why}`);
+      throw new EstimatorAiError(`The AI service could not read this request.${why ? ` (${why})` : ""}`, 422);
+    }
     if (e instanceof Anthropic.APIConnectionError) throw new EstimatorAiError("Could not reach the AI service. Try again.", 502);
     if (e instanceof Anthropic.APIError) throw new EstimatorAiError(`AI service error (${e.status}).`, 502);
     throw new EstimatorAiError("The AI request failed.", 502);
