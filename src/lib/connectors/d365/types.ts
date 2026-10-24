@@ -44,7 +44,7 @@ export const D365_AUTH_FOR_PRODUCT: Record<D365Product, D365AuthMode[]> = {
 };
 
 /** The BPMSquare objects a pull can fill, and the one a push can send. */
-export const D365_ENTITY_KEYS = ["customers", "contacts", "vendors", "products", "projects", "fence_projects"] as const;
+export const D365_ENTITY_KEYS = ["customers", "contacts", "vendors", "products", "projects", "fence_projects", "sales_orders"] as const;
 export type D365EntityKey = (typeof D365_ENTITY_KEYS)[number];
 
 export const D365_ENTITY_LABEL: Record<D365EntityKey, string> = {
@@ -54,6 +54,7 @@ export const D365_ENTITY_LABEL: Record<D365EntityKey, string> = {
   products: "Products / items → Products",
   projects: "Projects → Workforce projects",
   fence_projects: "Fence projects → Projects (push)",
+  sales_orders: "Sales orders → Sales orders",
 };
 
 export const D365_ENTITY_TARGET: Record<D365EntityKey, { table: string; direction: "pull" | "push"; feature: string }> = {
@@ -63,6 +64,7 @@ export const D365_ENTITY_TARGET: Record<D365EntityKey, { table: string; directio
   products: { table: "products", direction: "pull", feature: "products" },
   projects: { table: "wfm_projects", direction: "pull", feature: "wfm_projects" },
   fence_projects: { table: "fence_projects", direction: "push", feature: "fence_projects" },
+  sales_orders: { table: "sales_orders", direction: "pull", feature: "sales_orders" },
 };
 
 /** What an attribute of the connected system is filtered as. */

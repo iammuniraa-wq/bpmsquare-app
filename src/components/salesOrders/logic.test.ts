@@ -216,3 +216,25 @@ describe("the document flow", () => {
     expect(d.find((n) => n.id === "delivery-d2")!.x).toBeGreaterThan(d.find((n) => n.id === "delivery-d1")!.x);
   });
 });
+
+describe("the path from ERP documents (erp_documents spine)", () => {
+  const confirmed = order({ status: "confirmed", confirmed_at: "2026-10-21T00:00:00Z" });
+  it("lights Delivered, Invoiced and Paid from the spine the ERP reported", () => {
+    const m = orderPath(confirmed, [delivery({ spine: "delivered", status: "Delivered" }), invoice({ spine: "paid", status: "Paid" })]);
+    expect(states(m)).toEqual(["draft:done", "confirmed:done", "delivered:done", "invoiced:done", "paid:current"]);
+  });
+  it("an open invoice is Invoiced, not Paid, whatever its wording says", () => {
+    const m = orderPath(confirmed, [invoice({ spine: "open", status: "Paid by cheque soon" })]);
+    // The path is a line: a step before the furthest one reached reads as passed, as it always has.
+    expect(states(m)).toEqual(["draft:done", "confirmed:done", "delivered:done", "invoiced:current", "paid:pending"]);
+  });
+  it("a cancelled invoice or delivery counts for nothing", () => {
+    const m = orderPath(confirmed, [invoice({ spine: "cancelled" }), delivery({ spine: "cancelled" })]);
+    expect(states(m)).toEqual(["draft:done", "confirmed:current", "delivered:pending", "invoiced:pending", "paid:pending"]);
+    expect(subStatus([invoice({ spine: "cancelled" })])).toEqual({ delivery: null, billing: null });
+  });
+  it("needs every live invoice paid for Paid", () => {
+    const m = orderPath(confirmed, [invoice({ id: "i1", spine: "paid" }), invoice({ id: "i2", spine: "open" })]);
+    expect(states(m).slice(3)).toEqual(["invoiced:current", "paid:pending"]);
+  });
+});

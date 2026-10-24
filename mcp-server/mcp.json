@@ -1,6 +1,6 @@
 {
   "name": "bpmsquare",
-  "version": "1.14.0",
+  "version": "1.15.0",
   "description": "BPMSquare MCP server — field service CRM for electromechanical repair businesses. Generic across every tenant; nothing here is Vikas/Hosapete-specific.",
   "api_base": "https://<your-tenant-domain>/api/v1",
   "auth": {
@@ -408,7 +408,7 @@
     },
     {
       "name": "list_standard_quotes",
-      "description": "List the tenant's standard quotes (the Standard Quotes module, separate from Quotations): ref, status (draft, sent, accepted, rejected, expired), customer account, validity, header discount, tax and shipping, subtotal and total, and how many lines each has. Contacts are returned as an id only. Needs an API key scoped to \"standard_quotes\" (or to all objects).",
+      "description": "List the tenant's standard quotes (the Standard Quotes module, separate from Quotations): ref, status (draft, sent, accepted, rejected, expired), customer account, validity, header discount, tax and shipping, subtotal and total, and how many lines each has, and the ERP invoices rolled up (invoice_count, invoiced_total, paid_total). Contacts are returned as an id only. Needs an API key scoped to \"standard_quotes\" (or to all objects).",
       "method": "GET",
       "path": "/api/v1/standard-quotes",
       "inputSchema": {
@@ -568,7 +568,7 @@
     },
     {
       "name": "get_sales_order",
-      "description": "Fetch one sales order by id with its lines (description, printed text, quantity, unit price, discount, tax, line total, requested date, and the confirmed quantity and date with where that answer came from: the ERP or master data), notes and terms. The creator, cancellation note, contact details and attachments are never returned. Needs an API key scoped to \"sales_orders\" (or to all objects).",
+      "description": "Fetch one sales order by id with its lines (description, printed text, quantity, unit price, discount, tax, line total, requested date, and the confirmed quantity and date with where that answer came from: the ERP or master data), notes and terms, and erp_documents: the invoices and deliveries the ERP reported for the order (number, date, due date, amount, currency, status). The creator, cancellation note, contact details and attachments are never returned. Needs an API key scoped to \"sales_orders\" (or to all objects).",
       "method": "GET",
       "path": "/api/v1/sales-orders/{id}",
       "inputSchema": {

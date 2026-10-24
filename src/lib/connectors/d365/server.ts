@@ -262,7 +262,7 @@ export const ALREADY_RUNNING = "A sync of this entity is already running — try
  * start. Migration 0136's partial unique index makes the check atomic; until
  * it is applied the select below still catches every non-simultaneous start.
  */
-async function startRun(admin: SupabaseClient, tenantId: string, entity: string, direction: "pull" | "push", trigger: "manual" | "schedule", userId: string | null): Promise<{ runId: string | null; locked: boolean }> {
+export async function startRun(admin: SupabaseClient, tenantId: string, entity: string, direction: "pull" | "push", trigger: "manual" | "schedule", userId: string | null): Promise<{ runId: string | null; locked: boolean }> {
   const now = Date.now();
   await admin.from("connector_sync_runs").update({
     status: "failed", finished_at: new Date(now).toISOString(),
@@ -275,7 +275,7 @@ async function startRun(admin: SupabaseClient, tenantId: string, entity: string,
   return { runId: (data?.id as string | undefined) ?? null, locked: false };
 }
 
-async function finishRun(admin: SupabaseClient, tenantId: string, runId: string | null, counts: RunCounts, issues: string[], error: string | null, watermark: string | null) {
+export async function finishRun(admin: SupabaseClient, tenantId: string, runId: string | null, counts: RunCounts, issues: string[], error: string | null, watermark: string | null) {
   if (!runId) return;
   const status = error ? "failed" : counts.failed > 0 ? "partial" : "succeeded";
   await admin.from("connector_sync_runs").update({
@@ -283,7 +283,7 @@ async function finishRun(admin: SupabaseClient, tenantId: string, runId: string 
   }).eq("id", runId).eq("tenant_id", tenantId);
 }
 
-async function lastWatermark(admin: SupabaseClient, tenantId: string, entity: string): Promise<string | null> {
+export async function lastWatermark(admin: SupabaseClient, tenantId: string, entity: string): Promise<string | null> {
   const { data } = await admin.from("connector_sync_runs").select("watermark").eq("tenant_id", tenantId).eq("connector_id", CONNECTOR_ID)
     .eq("entity", entity).eq("direction", "pull").in("status", ["succeeded", "partial"]).not("watermark", "is", null)
     .order("started_at", { ascending: false }).limit(1).maybeSingle();
@@ -295,7 +295,7 @@ const LINK_PAGE = 1000;
 /** Every link of one entity. PostgREST answers at most 1000 rows to a plain
  *  select; a partial map would make a pull re-create records it already has
  *  and a push re-send projects it already sent. */
-async function fetchLinks<T>(admin: SupabaseClient, tenantId: string, entity: string, cols: string): Promise<T[]> {
+export async function fetchLinks<T>(admin: SupabaseClient, tenantId: string, entity: string, cols: string): Promise<T[]> {
   const out: T[] = [];
   for (let from = 0; ; from += LINK_PAGE) {
     const { data, error } = await admin.from("connector_links").select(cols)
@@ -320,6 +320,12 @@ export async function runPull(admin: SupabaseClient, tenantId: string, key: Excl
   /** Read only these records (filters and/or ids). Such a run never moves the incremental position. */
   select?: RunSelection;
 }): Promise<PullResult> {
+  // Sales orders have a header, lines and invoices rather than a field map: they have their own reader (orders.ts).
+  // Imported on use so the two files never import each other at load time.
+  if (key === "sales_orders") {
+    const { runPullSalesOrders } = await import("./orders");
+    return runPullSalesOrders(admin, tenantId, opts);
+  }
   const deadline = opts.deadline ?? Date.now() + RUN_BUDGET_MS;
   const maxRows = opts.maxRows ?? MAX_ROWS_PER_RUN;
   const counts: RunCounts = { read: 0, created: 0, updated: 0, unchanged: 0, skipped: 0, failed: 0 };

@@ -20,7 +20,29 @@ export const SALES_ORDER_DETAIL_EXTRA = "notes, terms";
 export const SALES_ORDER_LINE_COLUMNS =
   "id, line_no, product_id, description, printed_text, qty, uom, unit_price, discount_pct, tax_pct, line_total, requested_date, confirmed_qty, confirmed_date, availability_source, availability_at";
 
+// erp_documents (the ERP's invoices and deliveries for an order) are returned on the detail endpoint: number, dates, amount,
+// currency, status and its spine, and the ERP's own record id. They carry no cost or margin; the table is read with an explicit
+// column list and a missing table (0216 pending) reads as none.
+export const ERP_DOCUMENT_API_COLUMNS = "order_id, kind, erp_number, doc_date, due_date, amount, currency, status, status_spine, raw_ref, fetched_at";
+
 type Row = Record<string, unknown>;
+
+export function shapeErpDocumentForApi(r: Row): Row {
+  return {
+    kind: r.kind,
+    number: r.erp_number ?? null,
+    date: r.doc_date ?? null,
+    due_date: r.due_date ?? null,
+    amount: r.amount === null || r.amount === undefined ? null : Number(r.amount),
+    currency: r.currency ?? null,
+    status: r.status ?? null,
+    status_spine: r.status_spine ?? null,
+    erp_id: r.raw_ref ?? null,
+    fetched_at: r.fetched_at ?? null,
+  };
+}
+
+export type InvoiceSummary = { count: number; total: number; paid: number };
 
 const one = (v: unknown): { id?: string; name?: string | null } | null =>
   Array.isArray(v) ? ((v[0] as { id?: string; name?: string | null }) ?? null) : ((v as { id?: string; name?: string | null }) ?? null);
@@ -31,7 +53,7 @@ const party = (v: unknown): { name: string; address: string | null } | null => {
   return typeof p.name === "string" && p.name ? { name: p.name, address: typeof p.address === "string" ? p.address : null } : null;
 };
 
-export function shapeSalesOrderRow(raw: Row, lineCount?: number): Row {
+export function shapeSalesOrderRow(raw: Row, lineCount?: number, invoices?: InvoiceSummary): Row {
   const acc = one(raw.accounts);
   const typ = one(raw.sales_order_types);
   const id = String(raw.id);
@@ -63,6 +85,7 @@ export function shapeSalesOrderRow(raw: Row, lineCount?: number): Row {
     confirmed_at: raw.confirmed_at ?? null,
     sent_at: raw.sent_at ?? null,
     ...(lineCount !== undefined ? { line_count: lineCount } : {}),
+    ...(invoices ? { invoice_count: invoices.count, invoiced_total: invoices.total, paid_total: invoices.paid } : {}),
     custom_data: raw.custom_data ?? null,
     created_at: raw.created_at,
     updated_at: raw.updated_at,
@@ -104,7 +127,21 @@ export async function loadSalesOrdersForApi(tenantId: string): Promise<Row[]> {
   const counts = new Map<string, number>();
   const { data: lines } = await admin.from("sales_order_lines").select("order_id").eq("tenant_id", tenantId).limit(50000);
   for (const l of (lines ?? []) as { order_id: string }[]) counts.set(l.order_id, (counts.get(l.order_id) ?? 0) + 1);
-  return ((res.data ?? []) as unknown as Row[]).map((r) => shapeSalesOrderRow(r, counts.get(String(r.id)) ?? 0));
+  // Invoices the ERP reported, rolled up per order (a missing table reads as none).
+  const invoices = new Map<string, InvoiceSummary>();
+  const docs = await admin.from("erp_documents").select("order_id, amount, status_spine").eq("tenant_id", tenantId).eq("kind", "invoice").limit(50000);
+  if (!docs.error) {
+    for (const d of (docs.data ?? []) as { order_id: string; amount: number | string | null; status_spine: string | null }[]) {
+      if (d.status_spine === "cancelled") continue;
+      const cur = invoices.get(d.order_id) ?? { count: 0, total: 0, paid: 0 };
+      const amount = Number(d.amount ?? 0);
+      cur.count += 1;
+      cur.total = Math.round((cur.total + amount) * 100) / 100;
+      if (d.status_spine === "paid") cur.paid = Math.round((cur.paid + amount) * 100) / 100;
+      invoices.set(d.order_id, cur);
+    }
+  }
+  return ((res.data ?? []) as unknown as Row[]).map((r) => shapeSalesOrderRow(r, counts.get(String(r.id)) ?? 0, invoices.get(String(r.id)) ?? { count: 0, total: 0, paid: 0 }));
 }
 
 /** One sales order with its lines and customer-facing text, or null. */
@@ -120,5 +157,10 @@ export async function loadSalesOrderForApi(tenantId: string, id: string): Promis
   const header = res.data as unknown as Row;
   const lines = await admin.from("sales_order_lines").select(SALES_ORDER_LINE_COLUMNS).eq("order_id", id).eq("tenant_id", tenantId).order("line_no");
   const lineRows = ((lines.data ?? []) as unknown as Row[]).map(shapeSalesOrderLine);
-  return { ...shapeSalesOrderRow(header, lineRows.length), notes: header.notes ?? null, terms: header.terms ?? null, lines: lineRows };
+  const docs = await admin.from("erp_documents").select(ERP_DOCUMENT_API_COLUMNS).eq("order_id", id).eq("tenant_id", tenantId).order("doc_date", { ascending: true });
+  const docRows = docs.error ? [] : ((docs.data ?? []) as unknown as Row[]);
+  const invoices = docRows.filter((d) => d.kind === "invoice" && d.status_spine !== "cancelled");
+  const sum = (rows: Row[]) => Math.round(rows.reduce((t, d) => t + Number(d.amount ?? 0), 0) * 100) / 100;
+  const summary: InvoiceSummary = { count: invoices.length, total: sum(invoices), paid: sum(invoices.filter((d) => d.status_spine === "paid")) };
+  return { ...shapeSalesOrderRow(header, lineRows.length, summary), notes: header.notes ?? null, terms: header.terms ?? null, lines: lineRows, erp_documents: docRows.map(shapeErpDocumentForApi) };
 }

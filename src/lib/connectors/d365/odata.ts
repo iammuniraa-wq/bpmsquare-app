@@ -151,11 +151,12 @@ export class D365Client {
   }
 
   /** Every row of an entity set, page by page, up to `maxRows`. */
-  async *list(entitySet: string, q: { select?: string[]; filter?: string; orderby?: string; top?: number; pageSize?: number; maxRows?: number; extraQuery?: Record<string, string> } = {}): AsyncGenerator<Record<string, unknown>> {
+  async *list(entitySet: string, q: { select?: string[]; filter?: string; orderby?: string; top?: number; pageSize?: number; maxRows?: number; extraQuery?: Record<string, string>; /** More Prefer preferences, e.g. the annotations a status label is read from. */ prefer?: string } = {}): AsyncGenerator<Record<string, unknown>> {
     const maxRows = q.maxRows ?? 5000;
     let seen = 0;
     let next: string | null = null;
     let first = true;
+    const prefer = `odata.maxpagesize=${q.pageSize ?? 500}${q.prefer ? `,${q.prefer}` : ""}`;
     while (first || next) {
       const page = (first
         ? await this.get(entitySet, {
@@ -164,8 +165,8 @@ export class D365Client {
             $orderby: q.orderby,
             $top: q.top ? String(q.top) : undefined,
             ...(q.extraQuery ?? {}),
-          }, { Prefer: `odata.maxpagesize=${q.pageSize ?? 500}` })
-        : await this.get(next!, undefined, { Prefer: `odata.maxpagesize=${q.pageSize ?? 500}` })) as { value?: Record<string, unknown>[]; "@odata.nextLink"?: string };
+          }, { Prefer: prefer })
+        : await this.get(next!, undefined, { Prefer: prefer })) as { value?: Record<string, unknown>[]; "@odata.nextLink"?: string };
       first = false;
       for (const row of page.value ?? []) {
         yield row;

@@ -72,6 +72,12 @@ const DATAVERSE: Defaults = {
     enabled: false, entity_set: "msdyn_projects", id_field: "msdyn_projectid", modified_field: "modifiedon",
     field_map: { name: "msdyn_subject", account_external_id: "_msdyn_customer_value" },
   },
+  // Orders are read whole, never through a field map: the header, the lines (order_details) and the invoices have fixed
+  // shapes (orderMap.ts). Off until the workspace switches it on under Integration middleware > Links.
+  sales_orders: {
+    enabled: false, entity_set: "salesorders", id_field: "salesorderid", key_field: "ordernumber", modified_field: "modifiedon",
+    field_map: {},
+  },
   fence_projects: {
     enabled: false, entity_set: "msdyn_projects", id_field: "msdyn_projectid",
     field_map: {

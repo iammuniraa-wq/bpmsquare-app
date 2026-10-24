@@ -22,7 +22,7 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 /** The fields each BPMSquare target accepts from a sync, and how. Anything
  *  else in a field map is ignored -- a map can never write a column the
  *  sync didn't mean to own (status, ref, custom data, tenant_id...). */
-const TARGET_FIELDS: Record<Exclude<D365EntityKey, "fence_projects">, Record<string, "text" | "email" | "number">> = {
+const TARGET_FIELDS: Record<Exclude<D365EntityKey, "fence_projects" | "sales_orders">, Record<string, "text" | "email" | "number">> = {
   customers: { name: "text", city: "text", phone: "text", email: "email" },
   contacts: { name: "text", phone: "text", email: "email", role: "text" },
   vendors: { name: "text", city: "text", phone: "text", email: "email" },
@@ -86,7 +86,7 @@ function areaOf(product: D365Product | undefined, row: Record<string, unknown>):
 }
 
 export function mapPullRow(
-  entity: Exclude<D365EntityKey, "fence_projects">, cfg: D365EntityConfig, row: Record<string, unknown>, product?: D365Product,
+  entity: Exclude<D365EntityKey, "fence_projects" | "sales_orders">, cfg: D365EntityConfig, row: Record<string, unknown>, product?: D365Product,
   /** A saved mapping document's reverse converters: the ERP value of one BPMSquare field, turned back (value lists, dates, scales). */
   transform?: (target: string, raw: unknown) => unknown,
 ): MappedPull | { error: string } {
@@ -285,7 +285,7 @@ const IDENT_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
  * everything, as before) when any source is not a plain column name, e.g. a
  * dotted path into a nested object.
  */
-export function selectFields(entity: Exclude<D365EntityKey, "fence_projects">, cfg: D365EntityConfig, product?: D365Product): string[] | undefined {
+export function selectFields(entity: Exclude<D365EntityKey, "fence_projects" | "sales_orders">, cfg: D365EntityConfig, product?: D365Product): string[] | undefined {
   const allowed = TARGET_FIELDS[entity];
   const cols = new Set<string>();
   const add = (c: string | undefined): boolean => {

@@ -109,3 +109,10 @@ Scope of what can be built and proven on the owner's trial (Dataverse Sales Prem
 - **Middleware page:** Links row "Sales orders" (inbound, off by default, `When` = schedule), Resync supports it, messages appear in the Monitor with the ERP number.
 - **Webhook:** inbound ERP endpoint `POST /api/middleware/webhook/sales-order` (signed with the workspace's existing webhook secret machinery) triggers the same refresh for one order id.
 SO3 follows: ERP checks (Check with ERP: price, credit, availability, nothing saved) and Send to ERP with a transfer log.
+
+### SO2 built (2026-10-24)
+
+- **Where it lives:** `src/lib/connectors/d365/orders.ts` (pull, refresh, follow-up), `orderMap.ts` (pure mapping), `src/lib/salesOrders/erpDocs.ts`, migration `0216` / bundle 27, `POST /api/sales-orders/[id]/erp-refresh`, `POST /api/middleware/webhook/sales-order`.
+- **Webhook credential:** the workspace's existing ERP webhook secret (Settings > Integrations). The ERP signs the raw body the same way BPMSquare signs what it sends: `X-BPMSquare-Signature` = hex HMAC-SHA256. The tenant is the request host's, never the body's; anything that fails to verify is a bare 401.
+- **Cron:** no new entry. The hourly Dynamics 365 cron pulls `sales_orders` when its entity is on and runs a bounded follow-up (25 orders per workspace, least recently checked first) for open linked orders. With the pull off it follows only orders made here that an ERP accepted.
+- **Unverified on a live org:** the `$expand=order_details,transactioncurrencyid` query, the formatted-value annotations, the invoice `_salesorderid_value` filter and the deep link to an invoice. An environment that refuses the expand is read with lines per order. Deliveries are never written (Dataverse Sales has no shipment record; F&O and SAP are SO4).

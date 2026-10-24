@@ -43,10 +43,12 @@ export type PathModel = { steps: PathStep[]; cancelled: boolean };
 const LABEL: Record<PathKey, string> = { draft: "Draft", confirmed: "Confirmed", delivered: "Delivered", invoiced: "Invoiced", paid: "Paid" };
 const KEYS: PathKey[] = ["draft", "confirmed", "delivered", "invoiced", "paid"];
 
-const deliveries = (docs: ErpDocument[]) => docs.filter((d) => d.kind === "delivery");
-const invoices = (docs: ErpDocument[]) => docs.filter((d) => d.kind === "invoice");
-const isDelivered = (d: ErpDocument) => d.delivered === true || /deliver|complete|posted|shipped/i.test(d.status ?? "");
-const isPaid = (d: ErpDocument) => d.paid === true || /paid/i.test(d.status ?? "");
+// A document the ERP cancelled is history, not progress: it never lights Delivered, Invoiced or Paid. When the ERP's
+// own spine is known (erp_documents.status_spine) it decides; the wording of the status is only the fallback.
+const deliveries = (docs: ErpDocument[]) => docs.filter((d) => d.kind === "delivery" && d.spine !== "cancelled");
+const invoices = (docs: ErpDocument[]) => docs.filter((d) => d.kind === "invoice" && d.spine !== "cancelled");
+const isDelivered = (d: ErpDocument) => (d.spine ? d.spine === "delivered" : d.delivered === true || /deliver|complete|posted|shipped/i.test(d.status ?? ""));
+const isPaid = (d: ErpDocument) => (d.spine ? d.spine === "paid" : d.paid === true || /paid/i.test(d.status ?? ""));
 
 /**
  * Draft, Confirmed, Delivered, Invoiced, Paid. The first two come from the order itself; the last three only from what
@@ -229,7 +231,7 @@ export const tagText = (t: SourceTag): string => (t.kind === "none" ? t.label : 
 export type PartyBlock = { name: string; lines: string[] };
 
 export function partyBlocks(d: Pick<OrderDetail, "order" | "account" | "contact">): { soldTo: PartyBlock; billTo: PartyBlock | null; shipTo: PartyBlock | null; merged: boolean } {
-  const soldTo: PartyBlock = { name: d.account?.name ?? "—", lines: [d.contact?.name].filter((x): x is string => !!x) };
+  const soldTo: PartyBlock = { name: d.account?.name ?? d.order.erp_customer_name ?? "—", lines: [d.contact?.name].filter((x): x is string => !!x) };
   const b = d.order.bill_to;
   const merged = !b || (b.name.trim().toLowerCase() === soldTo.name.trim().toLowerCase() && !b.address);
   const block = (p: { name: string; address?: string | null; contact?: string | null }): PartyBlock => ({

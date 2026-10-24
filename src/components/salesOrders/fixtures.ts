@@ -34,7 +34,7 @@ export const attachment = (over: Partial<Attachment> = {}): Attachment => ({
 export const detail = (over: Partial<OrderDetail> = {}): OrderDetail => ({
   order: order(), lines: [line()], type: type(), account: { id: "a1", name: "Gulf Steel LLC", phone: "+971500000000", email: "buy@gulfsteel.example" },
   contact: { id: "c1", name: "Omar Haddad", phone: "+971500000001" }, source: { type: "standard_quote", id: "sq1", ref: "SQ-2026-0012" },
-  erpLinked: false, erpAvailable: false, erpDocuments: [], permissions: null, lockReason: null, pricingLabel: null, ...over,
+  erpLinked: false, erpAvailable: false, erpDocuments: [], erpLink: null, customerNote: null, permissions: null, lockReason: null, pricingLabel: null, ...over,
 });
 
 export const ROUTES_STUB = {

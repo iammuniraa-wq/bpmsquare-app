@@ -62,7 +62,10 @@ export type SalesOrder = {
   /** The ERP's own wording when the ERP owns the status (SO2); null otherwise. */
   status_label: string | null;
   spine: OrderSpine;
-  account_id: string;
+  /** Null only for an order read from the ERP whose customer has no Account here yet (see erp_customer_name). */
+  account_id: string | null;
+  /** The customer's name as the ERP gave it; set on ERP orders, null on orders made here. */
+  erp_customer_name?: string | null;
   contact_id: string | null;
   /** Null = same as the sold-to account. */
   bill_to: OrderParty | null;

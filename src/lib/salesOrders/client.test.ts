@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
-  addLink, cancelOrder, confirmOrder, createOrder, createOrderFromSource, deleteOrderType, emailOrder, getAvailability, getOrder, getShare, listAttachments, listOrderTypes, patchOrder, putLines, readDetail, refreshAvailability,
+  addLink, cancelOrder, confirmOrder, createOrder, createOrderFromSource, deleteOrderType, emailOrder, getAvailability, getOrder, getShare, listAttachments, listOrderTypes, patchOrder, putLines, readDetail, refreshAvailability, refreshFromErp,
 } from "./client";
 
 type Reply = { status?: number; body?: unknown; text?: string; throws?: boolean };
@@ -125,5 +125,39 @@ describe("tolerant readers", () => {
     expect(await deleteOrderType("t1")).toEqual({ ok: true, data: { deactivated: true } });
     stub({ status: 200, body: { ok: true } });
     expect(await deleteOrderType("t1")).toEqual({ ok: true, data: { deactivated: false } });
+  });
+});
+
+describe("readDetail: what the ERP added (SO2)", () => {
+  it("reads the ERP link, the documents with their spine and the customer note", () => {
+    const d = readDetail({
+      ...orderRow, origin: "erp", account_id: null, erp_customer_name: "Contoso Ltd", erp_linked: true,
+      erp_link: { number: "ORD-01000", synced_at: "2026-10-24T08:00:00Z", checked_at: "2026-10-24T09:00:00Z" },
+      customer_note: "This customer is not in BPMSquare yet.",
+      erp_documents: [{ id: "d1", kind: "invoice", number: "INV-1", date: "2026-11-02", due: "2026-12-01", amount: 472, currency: "USD", status: "Billed", spine: "open", fetched_at: "2026-10-24T09:00:00Z", href: "https://x.example/y" }],
+    });
+    expect(d?.order).toMatchObject({ account_id: null, erp_customer_name: "Contoso Ltd", origin: "erp" });
+    expect(d?.erpLink).toEqual({ number: "ORD-01000", syncedAt: "2026-10-24T08:00:00Z", checkedAt: "2026-10-24T09:00:00Z" });
+    expect(d?.customerNote).toMatch(/not in BPMSquare/);
+    expect(d?.erpDocuments[0]).toMatchObject({ kind: "invoice", spine: "open", due: "2026-12-01", currency: "USD", fetchedAt: "2026-10-24T09:00:00Z" });
+  });
+  it("an older server that sends none reads as no link and no note", () => {
+    const d = readDetail(orderRow);
+    expect(d?.erpLink).toBeNull();
+    expect(d?.customerNote).toBeNull();
+    expect(d?.erpDocuments).toEqual([]);
+  });
+});
+
+describe("refreshFromErp", () => {
+  it("posts to the order's erp-refresh route and reports a throttled answer", async () => {
+    const fn = stub({ body: { ok: true, throttled: true, invoices: 0 } });
+    expect(await refreshFromErp("o1")).toEqual({ ok: true, data: { throttled: true, invoices: 0 } });
+    expect(fn.mock.calls[0]).toEqual(["/api/sales-orders/o1/erp-refresh", expect.objectContaining({ method: "POST" })]);
+  });
+  it("carries the database-update marker", async () => {
+    stub({ status: 503, body: { error: "A database update is needed", needsDatabaseUpdate: true } });
+    const r = await refreshFromErp("o1");
+    expect(r).toMatchObject({ ok: false, needsDatabaseUpdate: true });
   });
 });

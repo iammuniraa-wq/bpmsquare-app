@@ -232,7 +232,8 @@ export default function D365Client() {
       <section style={{ display: "flex", flexDirection: "column", gap: 10 }}>
         <div className="bpm-t-section">What syncs</div>
         <div className="bpm-t-help">Defaults are Microsoft&apos;s standard entities. A customised environment may name things differently — press Preview to see the real field names, adjust the map, Save, then Sync. Pulls create new records and update the mapped fields of records they created before; they never delete anything or touch fields outside the map.</div>
-        {D365_ENTITY_KEYS.map((k) => (
+        {/* Sales orders are switched on and run from Integration middleware > Links; they have no field map to edit here. */}
+        {D365_ENTITY_KEYS.filter((k) => k !== "sales_orders").map((k) => (
           <EntityCard key={k} k={k} e={ent(k)} linked={linked[k] ?? 0} busy={busy} connected={!!state?.config}
             result={pickResult(results[k], latest[k] ? resultFromRun(latest[k]) : null)}
             onChange={(p) => setEnt(k, p)}

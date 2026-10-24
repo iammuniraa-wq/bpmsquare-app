@@ -17,7 +17,7 @@ export const PRODUCT_SHORT: Record<D365Product, string> = { dataverse: "Dynamics
 export const TARGET_NAME: Record<D365Product, string> = { dataverse: "Quote", fo: "Project", bc: "Project" };
 
 /** Open-in-ERP link for a record, or null where one cannot be built from what we hold. */
-export function erpDeepLink(cfg: Pick<D365Config, "product" | "environment_url">, kind: "quote" | "salesorder", erpId: string): string | null {
+export function erpDeepLink(cfg: Pick<D365Config, "product" | "environment_url">, kind: "quote" | "salesorder" | "invoice", erpId: string): string | null {
   if (cfg.product !== "dataverse") return null;
   try {
     const origin = new URL(cfg.environment_url).origin;

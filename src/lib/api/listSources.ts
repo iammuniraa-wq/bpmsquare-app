@@ -186,6 +186,10 @@ const SALES_ORDER_FIELDS: QueryableField[] = [
   { path: "shipping_amount", type: "number" },
   { path: "total", type: "number" },
   { path: "line_count", type: "number" },
+  // The ERP's invoices for the order, rolled up (erp_documents): "orders with unpaid invoices" is a one-object question.
+  { path: "invoice_count", type: "number" },
+  { path: "invoiced_total", type: "number" },
+  { path: "paid_total", type: "number" },
   { path: "requested_date", type: "date" },
   { path: "expected_date", type: "date" },
   { path: "confirmed_at", type: "date" },

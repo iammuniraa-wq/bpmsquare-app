@@ -21,7 +21,7 @@ import { ROUTES } from "@/lib/constants";
 import InfoTip from "@/components/ui/InfoTip";
 import { useUnsavedChangesGuard } from "@/lib/unsavedChanges";
 import {
-  cancelOrder, confirmOrder, deleteOrder, emailOrder, getOrder, getShare, listAttachments, listOrderTypes, refreshAvailability, reopenOrder,
+  cancelOrder, confirmOrder, deleteOrder, emailOrder, getOrder, getShare, listAttachments, listOrderTypes, refreshAvailability, refreshFromErp, reopenOrder,
   type ApiResult, type Attachment, type OrderDetail, type ShareLinks,
 } from "@/lib/salesOrders/client";
 import { orderAnnotatable } from "@/lib/salesOrders/types";
@@ -71,7 +71,7 @@ export default function SalesOrderDetail({ orderId, isAdmin, products, tenantCur
   const { confirm, toast } = useFeel();
   const [tab, setTab] = useUrlTab(TAB_IDS);
   const [state, setState] = useState<State>({ phase: "loading" });
-  const [busy, setBusy] = useState<"" | "email" | "confirm" | "availability" | "reopen">("");
+  const [busy, setBusy] = useState<"" | "email" | "confirm" | "availability" | "reopen" | "erp">("");
   const [panel, setPanel] = useState<"" | "details" | "cancel">("");
   const [reason, setReason] = useState("");
   const [reasonError, setReasonError] = useState("");
@@ -118,7 +118,7 @@ export default function SalesOrderDetail({ orderId, isAdmin, products, tenantCur
   const editable = detail.permissions?.editable ?? can.editLines;
   const annotatable = detail.permissions?.annotatable ?? orderAnnotatable(order);
   const deletable = detail.permissions?.deletable ?? can.remove;
-  const customerName = detail.account?.name ?? "";
+  const customerName = detail.account?.name ?? order.erp_customer_name ?? "";
 
   // The server builds the click-to-chat link (it reads the customer's phone, which is stored encrypted).
   const waLink = share?.whatsappUrl ?? null;
@@ -138,6 +138,15 @@ export default function SalesOrderDetail({ orderId, isAdmin, products, tenantCur
     setBusy("");
     if (!res.ok) { toast({ text: res.error, tone: "error" }); return; }
     toast({ text: res.data.redirected ? `Demo workspace: sent to ${res.data.sentTo ?? "the test inbox"}, not the customer` : res.data.sentTo ? `Sent to ${res.data.sentTo}` : "Email sent", tone: "success" });
+    await load();
+  }
+
+  async function refreshErp() {
+    setBusy("erp");
+    const res = await refreshFromErp(order.id);
+    setBusy("");
+    if (!res.ok) { toast({ text: res.needsDatabaseUpdate ? "A database update is needed before the ERP can be read" : res.error, tone: "error" }); return; }
+    toast({ text: res.data.throttled ? "Just refreshed" : "Read from the ERP", tone: "success" });
     await load();
   }
 
@@ -258,7 +267,7 @@ export default function SalesOrderDetail({ orderId, isAdmin, products, tenantCur
           />
         )}
 
-        {tab === "erp" && <ErpTab detail={detail} currency={currency} externalLine={externalLine} middlewareHref={middlewareHref} />}
+        {tab === "erp" && <ErpTab detail={detail} currency={currency} externalLine={externalLine} middlewareHref={middlewareHref} onRefresh={detail.erpLinked ? () => void refreshErp() : undefined} refreshing={busy === "erp"} />}
 
         {tab === "documents" && (
           <>

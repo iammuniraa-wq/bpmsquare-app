@@ -24,6 +24,11 @@ export type ErpDocument = {
   status: string | null;
   delivered?: boolean;
   paid?: boolean;
+  /** invoice: open | closed | paid | cancelled. A cancelled invoice never counts toward Invoiced or Paid. */
+  spine?: string | null;
+  due?: string | null;
+  currency?: string | null;
+  fetchedAt?: string | null;
   /** An invoice that follows a delivery names it, so the flow can draw the pair. */
   delivery_id?: string | null;
   href?: string | null;
@@ -43,6 +48,10 @@ export type OrderDetail = {
   /** A connector that can check/send orders exists (SO3): "Check with ERP" shows only then. */
   erpAvailable: boolean;
   erpDocuments: ErpDocument[];
+  /** The ERP's order number and when it was last read; null when no ERP holds the order. */
+  erpLink: { number: string | null; syncedAt: string | null; checkedAt: string | null } | null;
+  /** Shown when the ERP named a customer that has no Account here yet. */
+  customerNote: string | null;
   /** The server's own answers about the lock (the same rule the PATCH route applies); null when it sent none. */
   permissions: { editable: boolean; annotatable: boolean; deletable: boolean } | null;
   /** Why the order is locked, in the server's words (so the chip, the greyed controls and a 409 agree). */
@@ -204,7 +213,8 @@ export function readOrder(v: unknown): SalesOrder | null {
     status,
     status_label: str(r.status_label),
     spine,
-    account_id: str(r.account_id) ?? "",
+    account_id: str(r.account_id),
+    erp_customer_name: str(r.erp_customer_name),
     contact_id: str(r.contact_id),
     bill_to: readParty(r.bill_to),
     ship_to: readParty(r.ship_to),
@@ -278,6 +288,7 @@ export function readErpDocument(v: unknown): ErpDocument | null {
   return {
     id, kind, number: str(r.number), date: str(r.date), amount: numOrNull(r.amount), status: str(r.status),
     delivered: r.delivered === true, paid: r.paid === true, delivery_id: str(r.delivery_id), href: str(r.href),
+    spine: str(r.spine), due: str(r.due), currency: str(r.currency), fetchedAt: str(r.fetched_at),
   };
 }
 
@@ -306,6 +317,11 @@ export function readDetail(json: unknown): OrderDetail | null {
     erpLinked: link === true || (link !== null && typeof link === "object"),
     erpAvailable: root.erp_available === true || root.erpAvailable === true,
     erpDocuments: arr(root.erp_documents ?? root.erpDocuments).flatMap((d) => { const x = readErpDocument(d); return x ? [x] : []; }),
+    erpLink: (() => {
+      const l = rec(root.erp_link);
+      return l ? { number: str(l.number), syncedAt: str(l.synced_at), checkedAt: str(l.checked_at) } : null;
+    })(),
+    customerNote: str(root.customer_note),
     permissions: typeof root.editable === "boolean"
       ? { editable: root.editable, annotatable: root.annotatable === true, deletable: root.deletable === true }
       : null,
@@ -353,6 +369,10 @@ export const createOrderFromSource = (source: { type: "standard_quote" | "quotat
     const id = str(r?.id) ?? str(inner?.id);
     return id ? { id, ref: str(r?.ref) ?? str(inner?.ref) } : null;
   });
+
+/** Ask the ERP again about this order: its status and its invoices. `throttled` = one was done a moment ago and this one did nothing. */
+export const refreshFromErp = (id: string) =>
+  call(`${base}/${id}/erp-refresh`, jsonInit("POST", {}), (j) => ({ throttled: rec(j)?.throttled === true, invoices: num(rec(j)?.invoices) }));
 
 export const patchOrder = (id: string, body: PatchOrderBody) => call(`${base}/${id}`, jsonInit("PATCH", body), () => true as const);
 export const deleteOrder = (id: string) => call(`${base}/${id}`, { method: "DELETE" }, () => true as const);

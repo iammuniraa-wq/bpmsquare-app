@@ -123,7 +123,7 @@ export function LinksTable({ rows, connected, busy, onOpen, onToggle, onTest }: 
             <td data-label="ERP">{r.erp}</td>
             <td data-label="Runs">{r.runs}</td>
             <td data-label="On">
-              <Switch checked={r.enabled} label={`${r.bpm} ${r.kind === "out" ? "to" : "from"} ${r.erp}: ${r.enabled ? "on" : "off"}`} disabled={busy === r.id || !connected} onChange={(v) => onToggle(r, v)} />
+              <Switch checked={r.enabled} label={`${r.bpm} ${r.kind === "out" ? "to" : "from"} ${r.erp}: ${r.enabled ? "on" : "off"}`} disabled={busy === r.id || !connected || (r.blocked === true && !r.enabled)} onChange={(v) => onToggle(r, v)} />
             </td>
             <td className={s.docMenu}>
               {r.kind === "out" ? <MoreMenu label={`More for ${r.bpm}`} items={[{ label: "Send a test quote", onSelect: onTest, hidden: !connected }]} /> : null}
