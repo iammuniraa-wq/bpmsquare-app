@@ -116,3 +116,25 @@ SO3 follows: ERP checks (Check with ERP: price, credit, availability, nothing sa
 - **Webhook credential:** the workspace's existing ERP webhook secret (Settings > Integrations). The ERP signs the raw body the same way BPMSquare signs what it sends: `X-BPMSquare-Signature` = hex HMAC-SHA256. The tenant is the request host's, never the body's; anything that fails to verify is a bare 401.
 - **Cron:** no new entry. The hourly Dynamics 365 cron pulls `sales_orders` when its entity is on and runs a bounded follow-up (25 orders per workspace, least recently checked first) for open linked orders. With the pull off it follows only orders made here that an ERP accepted.
 - **Unverified on a live org:** the `$expand=order_details,transactioncurrencyid` query, the formatted-value annotations, the invoice `_salesorderid_value` filter and the deep link to an invoice. An environment that refuses the expand is read with lines per order. Deliveries are never written (Dataverse Sales has no shipment record; F&O and SAP are SO4).
+
+## SO3 (decided 2026-10-24): Check with ERP, then Send to ERP
+
+Reuse, do not rebuild: `sendDataverseSalesOrder` (`src/lib/middleware/erpOrder.ts`, idempotent through the BPMSquare marker and `connector_links`), the dispatch and Monitor
+machinery, `ErpHttp`, the Links/Monitor pages and the SO2 `erp_documents`/refresh. Scope for the Dataverse trial (Sales Premium); SAP is SO4.
+- **Check with ERP** (button on the ERP tab and in the send confirmation; **nothing is saved in the ERP**): three read-only checks, each returned as Passed / Warning / Failed with a
+  one-line reason and the time it ran, stored on the order (`sales_order_checks`: order, kind `credit|price|stock`, status, message, checked_at, quantity_hash of the lines it
+  was run on): **Credit** (the account's `creditonhold` and `creditlimit` against its open ERP orders plus this order); **Price** (each line's unit price against the product's
+  list price in the ERP price list; a difference is a Warning, not a failure, since negotiated prices are normal); **Stock** (each line's quantity against the product's
+  `quantityonhand` in the ERP, with the ERP's figure shown per line on the Availability tab, labelled **ERP**, which replaces the master-data estimate for that order).
+  A customer or product not linked to the ERP gives Warning "not in the ERP yet", never a crash. A check goes stale (chip says "Out of date, check again") when lines,
+  quantities or the customer change after it ran (compare `quantity_hash`). Field names are the standard Dataverse ones; every call is tolerant of a missing field and says
+  which check could not run and why.
+- **Send to ERP** (explicit, separate from the check): disabled with the reason until the order is Submitted-ready (customer linked, at least one line); warns (does not block) when a
+  check is Failed, Warning or stale and asks to confirm; calls `sendDataverseSalesOrder` with the order's lines (write-in lines as for quotes), writes the `connector_links` row
+  (direction `push`, the ERP order id and number), flips the order to Submitted (status label from the ERP), which locks it through `orderEditable`, writes the transfer log, and
+  triggers the SO2 refresh. Second press while linked is a 409 with the ERP number; a failed send leaves the order editable and shows the step that failed (create, find) with Retry.
+- **Transfer log:** one row per attempt on the ERP tab (time, who, result, ERP number or the step and message) and the same message in the Monitor (kind `Sales order`, direction out).
+- **Permissions and safety:** both actions need the Sales Orders edit permission and the connector; tenant from the session; the order id is verified with `tenant_id`; the demo
+  workspace follows the existing demo send rules of the middleware (it already points at the owner's trial, not a customer system).
+- **Surfaces (3b/3c):** change log entries ("sent to ERP", "checked with ERP", via the person), assistant action "Check this order with the ERP" as a confirm card (read-only checks) and
+  "Send order to ERP" as a confirm card, v1 API read of checks on the order, capability facts regenerated, guide ids on every control, 375 px layout.
