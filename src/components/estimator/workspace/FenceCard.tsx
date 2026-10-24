@@ -80,7 +80,7 @@ export default function FenceCard({
             </text>
           </svg>
         ) : (
-          <div style={{ height: 380, position: "relative" }}>
+          <div style={{ position: "relative", minWidth: 0 }}>
             <BuildingViewer model={model} lines={lines} densityTm3={densityFromRates([...rates])} money={money} highlightMarks={highlightMarks} visuals={visuals} />
           </div>
         )}
