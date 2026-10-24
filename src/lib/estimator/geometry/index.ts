@@ -9,6 +9,8 @@
 import { roundHalfAway } from "../formula";
 import { PRECAST_VILLA_MODULE } from "./precastVilla";
 import { CHAINLINK_FENCE_MODULE } from "./chainlinkFence";
+import { TILES_FLOOR_MODULE } from "./tilesFloor";
+import { PORTA_CABIN_MODULE } from "./portaCabin";
 import type { GeometryModel, GeometryModule, PieceFamilyTotals } from "./types";
 
 export type { GeometryModel, GeometryModule, GeometryResult, Piece, PieceOpening, Vec3, PieceKind, PieceCodeInfo, PieceFamilyTotals } from "./types";
@@ -16,6 +18,8 @@ export type { GeometryModel, GeometryModule, GeometryResult, Piece, PieceOpening
 const MODULES: Readonly<Record<string, GeometryModule>> = {
   [PRECAST_VILLA_MODULE.key]: PRECAST_VILLA_MODULE,
   [CHAINLINK_FENCE_MODULE.key]: CHAINLINK_FENCE_MODULE,
+  [TILES_FLOOR_MODULE.key]: TILES_FLOOR_MODULE,
+  [PORTA_CABIN_MODULE.key]: PORTA_CABIN_MODULE,
 };
 
 export const GEOMETRY_KEYS: readonly string[] = Object.keys(MODULES);
@@ -34,6 +38,7 @@ export const TOTAL_IDENTIFIERS = ["vol_total", "n_total", "area_total", "weight_
 export function geometryIdentifiers(mod: GeometryModule): string[] {
   const out: string[] = [...TOTAL_IDENTIFIERS];
   for (const p of mod.piece_codes) out.push(`vol_${p.code}`, `n_${p.code}`, `area_${p.code}`);
+  if (mod.extra_identifiers) out.push(...mod.extra_identifiers);
   return out;
 }
 
@@ -79,6 +84,7 @@ export function pieceScope(mod: GeometryModule, model: GeometryModel, density: n
   scope.n_total = n;
   scope.area_total = roundHalfAway(area, 3);
   scope.weight_total = roundHalfAway(scope.vol_total * density, 3);
+  if (model.extras) for (const k of mod.extra_identifiers ?? []) scope[k] = model.extras[k] ?? 0;
   return scope;
 }
 

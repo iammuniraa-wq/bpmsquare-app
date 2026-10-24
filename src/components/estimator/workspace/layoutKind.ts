@@ -18,6 +18,14 @@ const WORDS: Record<string, LayoutWords> = {
     about: "About the villa", model: "The villa", subject: "villa",
     placeholder: "Hi, we'd like a price for a villa in Riyadh. Two floors, about 180 m² each, with a 70 m boundary wall…",
   },
+  tiles_floor: {
+    about: "About the floor", model: "The floor", subject: "floor",
+    placeholder: "Hi, we'd like to tile a 5 m by 4 m living room with 600 by 600 mm porcelain tiles, brick pattern, with skirting…",
+  },
+  porta_cabin: {
+    about: "About the cabin", model: "The cabin", subject: "cabin",
+    placeholder: "Hi, we need four porta cabins in a row, each 6 by 2.4 m, with two windows and a door each, standard fit-out…",
+  },
   chainlink_fence: {
     about: "About the fence", model: "The fence", subject: "fence",
     placeholder: "Hi, we need a 2.4 m high chain-link fence all the way round our yard, about 600 m, with two 6 m sliding gates…",

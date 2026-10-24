@@ -349,7 +349,7 @@ export function validateTemplate(raw: unknown): TemplateValidation {
           issues.push({ path: "inputs", message: `The "${mod.key}" geometry needs an input with the key "${spec.key}".` });
         } else if (input) {
           used.add(spec.key);
-          if (input.type === "select" && !spec.select_ok) issues.push({ path: "inputs", message: `Input "${spec.key}" is read by the "${mod.key}" geometry and must be a number or yes/no input.` });
+          if (input.type === "select" && !spec.allow_select) issues.push({ path: "inputs", message: `Input "${spec.key}" is read by the "${mod.key}" geometry and must be a number or yes/no input.` });
         }
       }
       // The density rate feeds weight_total.

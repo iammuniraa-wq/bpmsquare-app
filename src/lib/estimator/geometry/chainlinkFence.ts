@@ -84,7 +84,7 @@ export const CHAINLINK_FENCE_MODULE: GeometryModule = {
   inputs: [
     { key: "total_length_m", required: true },
     { key: "closed_perimeter", required: false, default: 1 },
-    { key: "post_spacing_m", required: false, default: 3, select_ok: true },
+    { key: "post_spacing_m", required: false, default: 3, allow_select: true },
     { key: "straining_spacing_m", required: false, default: 100 },
     { key: "fabric_height_m", required: false, default: 2 },
     { key: "gates_single_n", required: false, default: 0 },
