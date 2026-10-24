@@ -17,7 +17,9 @@ import type { IntakeField, IntakeProposal, IntakeStatus } from "./ai";
 import type { TemplateInput } from "./types";
 
 type JsonSchema = Record<string, unknown>;
-const nullable = (inner: JsonSchema): JsonSchema => ({ anyOf: [inner, { type: "null" }] });
+// No "or null" unions anywhere in the output schema: the model service refuses a schema with more than a handful of
+// union-typed fields ("too complex"), and a template has a dozen or more inputs. A missing answer is an empty string
+// (or 0 / false) beside status "missing", which clampIntakeV2 ignores by rule.
 
 const STATUSES: readonly IntakeStatus[] = ["found", "likely", "missing"];
 
@@ -25,9 +27,9 @@ const STATUSES: readonly IntakeStatus[] = ["found", "likely", "missing"];
 export function intakeSchemaV2(inputs: readonly TemplateInput[]): JsonSchema {
   const fields: Record<string, JsonSchema> = {};
   for (const i of inputs) {
-    const value: JsonSchema = i.type === "number" ? nullable({ type: "number" })
-      : i.type === "boolean" ? nullable({ type: "boolean" })
-      : nullable({ type: "string", enum: (i.options ?? []).map((o) => o.key) });
+    const value: JsonSchema = i.type === "number" ? { type: "number" }
+      : i.type === "boolean" ? { type: "boolean" }
+      : { type: "string", enum: ["", ...(i.options ?? []).map((o) => o.key)] };
     const options = i.type === "select" ? ` Options: ${(i.options ?? []).map((o) => `${o.key} = ${o.label}`).join("; ")}.` : "";
     fields[i.key] = {
       type: "object",
@@ -36,8 +38,8 @@ export function intakeSchemaV2(inputs: readonly TemplateInput[]): JsonSchema {
       description: `${i.label}${i.unit ? ` (${i.unit})` : ""}${i.help ? `. ${i.help}` : ""}.${options}`,
       properties: {
         status: { type: "string", enum: [...STATUSES], description: "found: the email states it. likely: you inferred it from what the email says. missing: the email does not say." },
-        value: { ...value, description: "The value, converted to the unit above. null when status is missing." },
-        source: { ...nullable({ type: "string" }), description: "The exact words copied from the email that this comes from. null when missing." },
+        value: { ...value, description: "The value, converted to the unit above. When status is missing give 0 (number), false (yes/no) or an empty string (choice)." },
+        source: { type: "string", description: "The exact words copied from the email that this comes from. An empty string when missing." },
       },
     };
   }
@@ -48,18 +50,16 @@ export function intakeSchemaV2(inputs: readonly TemplateInput[]): JsonSchema {
     properties: {
       name: { type: "string", description: "A short name for the estimate (project or site), or an empty string." },
       sender: {
-        ...nullable({
-          type: "object",
-          additionalProperties: false,
-          required: ["company", "contact_name", "email", "phone"],
-          properties: {
-            company: nullable({ type: "string" }),
-            contact_name: nullable({ type: "string" }),
-            email: nullable({ type: "string" }),
-            phone: nullable({ type: "string" }),
-          },
-        }),
-        description: "Who the enquiry is from, read from the From line or the signature. Each part null when the email does not say. null for the whole thing if nobody is named.",
+        type: "object",
+        additionalProperties: false,
+        required: ["company", "contact_name", "email", "phone"],
+        description: "Who the enquiry is from, read from the From line or the signature. An empty string for any part the email does not say; never guess.",
+        properties: {
+          company: { type: "string" },
+          contact_name: { type: "string" },
+          email: { type: "string" },
+          phone: { type: "string" },
+        },
       },
       values: { type: "object", additionalProperties: false, required: Object.keys(fields), properties: fields },
       assumptions: { type: "array", items: { type: "string" }, description: "Anything unclear or inconsistent in the email, one short sentence each." },
