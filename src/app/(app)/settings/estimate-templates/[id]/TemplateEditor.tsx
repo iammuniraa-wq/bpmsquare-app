@@ -90,7 +90,7 @@ export default function TemplateEditor({ template, estimateCount }: { template: 
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 14, maxWidth: 900 }}>
         {tab === "details" && <DetailsSection draft={draft} onChange={patch} />}
-        {tab === "inputs" && <InputsEditor inputs={draft.inputs} onChange={(inputs) => patch({ inputs })} issues={issues} />}
+        {tab === "inputs" && <InputsEditor inputs={draft.inputs} geometry={draft.geometry} onChange={(inputs) => patch({ inputs })} issues={issues} />}
         {tab === "rates" && <RatesEditor rates={draft.rates} onChange={(rates) => patch({ rates })} issues={issues} />}
         {tab === "rules" && (
           <RulesEditor

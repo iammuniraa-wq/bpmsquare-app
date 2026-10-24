@@ -8,7 +8,7 @@ import type {
 import { groupSlug } from "@/lib/estimator/types";
 
 /** `attrs` are the catalogue attributes a choice stands for; kept as read, not edited here. */
-export type OptionDraft = { key: string; label: string; value: string; attrs?: Record<string, string> };
+export type OptionDraft = { key: string; label: string; value: string; attrs?: Record<string, string>; /** Design attribute: a material key or "#rrggbb"; empty = not set. */ visual?: string };
 
 export type InputDraft = {
   key: string; label: string; type: TemplateInputType;
@@ -16,6 +16,8 @@ export type InputDraft = {
   default: string;
   min: string; max: string; unit: string; help: string; section: string;
   quote_alternatives: boolean;
+  /** select only: the model part this input repaints ("" = nothing). */
+  paints: string;
   options: OptionDraft[];
 };
 
@@ -55,7 +57,8 @@ export function toDraft(t: {
       key: i.key, label: i.label, type: i.type, default: str(i.default),
       min: str(i.min), max: str(i.max), unit: str(i.unit), help: str(i.help), section: str(i.section),
       quote_alternatives: i.quote_alternatives === true,
-      options: (i.options ?? []).map((o) => ({ key: o.key, label: o.label, value: str(o.value), ...(o.attrs ? { attrs: o.attrs } : {}) })),
+      paints: str(i.paints),
+      options: (i.options ?? []).map((o) => ({ key: o.key, label: o.label, value: str(o.value), ...(o.attrs ? { attrs: o.attrs } : {}), ...(o.visual ? { visual: o.visual } : {}) })),
     })),
     rates: (t.rates ?? []).map((r) => ({ key: r.key, label: r.label, unit: r.unit, value: str(r.value), low: r.low === undefined ? "" : str(r.low), high: r.high === undefined ? "" : str(r.high) })),
     rules: (t.rules ?? []).map((r) => ({
@@ -84,8 +87,9 @@ export function toBody(d: TemplateDraft): EstimateTemplateBody & { geometry?: st
       if (max !== undefined) base.max = max;
     }
     if (i.type === "select") {
-      base.options = i.options.map((o) => ({ key: o.key.trim(), label: o.label.trim(), value: Number(o.value), ...(o.attrs ? { attrs: o.attrs } : {}) }));
+      base.options = i.options.map((o) => ({ key: o.key.trim(), label: o.label.trim(), value: Number(o.value), ...(o.attrs ? { attrs: o.attrs } : {}), ...(o.visual ? { visual: o.visual } : {}) }));
       if (i.quote_alternatives) base.quote_alternatives = true;
+      if (i.paints) base.paints = i.paints;
     }
     return base;
   });
@@ -123,7 +127,7 @@ export function templateIdentifiers(d: TemplateDraft): { inputs: string[]; rates
 }
 
 export const blankInput = (): InputDraft => ({
-  key: "", label: "", type: "number", default: "0", min: "", max: "", unit: "", help: "", section: "", quote_alternatives: false, options: [],
+  key: "", label: "", type: "number", default: "0", min: "", max: "", unit: "", help: "", section: "", quote_alternatives: false, paints: "", options: [],
 });
 export const blankRate = (): RateDraft => ({ key: "", label: "", unit: "", value: "0", low: "", high: "" });
 export const blankRule = (): RuleDraft => ({

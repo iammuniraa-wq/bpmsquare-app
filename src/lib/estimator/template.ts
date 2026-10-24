@@ -24,6 +24,7 @@ import { ATTR_KEY_RE, MAX_ATTRS, MAX_ATTR_VALUE } from "./productMatch";
 import { FORMULA_FUNCTIONS, formulaIdentifiers, parseFormula } from "./formula";
 import { getGeometry, geometryIdentifiers, TOTAL_IDENTIFIERS, GEOMETRY_KEYS } from "./geometry";
 import { SIM_CAPACITY_RATES, SIM_RATE_KEYS } from "./simRates";
+import { isVisualValue } from "./materialCatalog";
 
 const SIM_CAPACITY_BY_KEY = new Map<string, (typeof SIM_CAPACITY_RATES)[number]>(SIM_CAPACITY_RATES.map((r) => [r.key, r]));
 
@@ -102,6 +103,10 @@ function validateInputs(raw: unknown, issues: TemplateIssue[]): TemplateInput[] 
     }
     const base = { unit: optText(r.unit, 30), help: optText(r.help, 300), section: optText(r.section, 60) };
     if (!key || !label) return;
+    if (type !== "select" && r.paints !== undefined && r.paints !== null && r.paints !== "") {
+      issues.push({ path: `${path}.paints`, message: "Only a choice input can repaint the 3D model; change the type to Choice or clear \"Paints\"." });
+      return;
+    }
 
     if (type === "number") {
       if (!isNum(r.default)) { issues.push({ path: `${path}.default`, message: "A number input needs a numeric default." }); return; }
@@ -123,7 +128,9 @@ function validateInputs(raw: unknown, issues: TemplateIssue[]): TemplateInput[] 
         issues.push({ path: `${path}.default`, message: "A select input's default must be the key of one of its options." });
         return;
       }
-      out.push({ key, label, type, default: r.default, options: opts, ...(r.quote_alternatives === true ? { quote_alternatives: true } : {}), ...stripUndef(base) });
+      const paints = validatePaints(r.paints, `${path}.paints`, issues);
+      if (paints === null) return;
+      out.push({ key, label, type, default: r.default, options: opts, ...(r.quote_alternatives === true ? { quote_alternatives: true } : {}), ...(paints ? { paints } : {}), ...stripUndef(base) });
     }
   });
   return out;
@@ -146,9 +153,23 @@ function validateOptions(raw: unknown, path: string, issues: TemplateIssue[]): T
     if (!isNum(o.value)) { issues.push({ path: `${p}.value`, message: "Every option needs a numeric value; formulas see this number." }); bad = true; }
     const attrs = validateAttrs(o.attrs, `${p}.attrs`, issues);
     if (attrs === null) bad = true;
-    if (key && label && isNum(o.value) && attrs !== null) { seen.add(key); out.push({ key, label, value: o.value, ...(attrs ? { attrs } : {}) }); }
+    let visual: string | undefined;
+    if (o.visual !== undefined && o.visual !== null && o.visual !== "") {
+      if (isVisualValue(o.visual)) visual = o.visual;
+      else { issues.push({ path: `${p}.visual`, message: `"${String(o.visual).slice(0, 40)}" is not a material in the catalogue or a colour like #b9bcbf.` }); bad = true; }
+    }
+    if (key && label && isNum(o.value) && attrs !== null) { seen.add(key); out.push({ key, label, value: o.value, ...(attrs ? { attrs } : {}), ...(visual ? { visual } : {}) }); }
   });
   return bad ? null : out;
+}
+
+const SLOT_KEY_RE = /^[a-z][a-z0-9_]{0,31}$/;
+
+/** The design slot a choice input repaints. undefined = none, null = invalid. */
+function validatePaints(raw: unknown, path: string, issues: TemplateIssue[]): string | undefined | null {
+  if (raw === undefined || raw === null || raw === "") return undefined;
+  if (!isStr(raw) || !SLOT_KEY_RE.test(raw)) { issues.push({ path, message: "Paints must name a part of the model, in lowercase letters, digits and underscores (e.g. mesh)." }); return null; }
+  return raw;
 }
 
 /** Catalogue attributes: lowercase names, short text values. undefined = none given, null = invalid. */
@@ -352,6 +373,16 @@ export function validateTemplate(raw: unknown): TemplateValidation {
           if (input.type === "select" && !spec.allow_select) issues.push({ path: "inputs", message: `Input "${spec.key}" is read by the "${mod.key}" geometry and must be a number or yes/no input.` });
         }
       }
+      // A design attribute must name a part this layout can repaint. A layout that declares no
+      // parts yet ignores paints (the choice still works as an ordinary input).
+      const slots = mod.slots ?? [];
+      inputs.forEach((x, i) => {
+        if (!x.paints) return;
+        used.add(x.key);
+        if (slots.length > 0 && !slots.some((sl) => sl.key === x.paints)) {
+          issues.push({ path: `inputs[${i}].paints`, message: `The "${mod.key}" model has no part called "${x.paints}". Parts you can repaint: ${slots.map((sl) => sl.key).join(", ")}.` });
+        }
+      });
       // The density rate feeds weight_total.
       for (const r of rates) if (/density_t_m3$/.test(r.key)) used.add(r.key);
     }
@@ -411,6 +442,7 @@ export function validateTemplate(raw: unknown): TemplateValidation {
     if (rule.cost.kind === "product") for (const k of rule.cost.match?.from ?? []) used.add(k);
   });
 
+  if (!geometry) inputs.forEach((x, i) => { if (x.paints) { used.add(x.key); warnings.push({ path: `inputs[${i}].paints`, message: `"${x.key}" paints a part of the model, but this template has no 3D layout, so it changes nothing.` }); } });
   inputs.forEach((x, i) => { if (!used.has(x.key)) warnings.push({ path: `inputs[${i}]`, message: `Input "${x.key}" is not used by any rule.` }); });
   rates.forEach((x, i) => { if (!used.has(x.key) && !SIM_RATE_KEYS.has(x.key)) warnings.push({ path: `rates[${i}]`, message: `Rate "${x.key}" is not used by any rule.` }); });
 

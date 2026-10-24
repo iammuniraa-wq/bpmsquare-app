@@ -8,6 +8,8 @@ import { moneyFormatter } from "@/lib/currency";
 import { alternativesInput } from "@/lib/estimator/quoteLines";
 import { shiftOptions } from "@/lib/estimator/preview";
 import { marksForRef } from "@/lib/estimator/pieceInfo";
+import { getGeometry } from "@/lib/estimator/geometry";
+import { resolveVisuals, sameVisuals } from "@/lib/estimator/visuals";
 import { toParams } from "@/components/estimator/InputsForm";
 import AccountPicker from "@/components/estimator/AccountPicker";
 import type { AccountOption, ContactOption } from "@/components/estimator/AccountPicker";
@@ -29,6 +31,7 @@ import { useEstimateActions } from "./useEstimateActions";
 import { useEstimateDraft } from "./useEstimateDraft";
 import type { DraftInit } from "./useEstimateDraft";
 import { useLivePreview } from "./useLivePreview";
+import { sameModel, useStable } from "./stable";
 import type { ShownData, WorkspaceTemplate } from "./types";
 import type { PriceView } from "@/lib/estimator/preview";
 import type { ScheduleQty } from "@/lib/estimator/compute";
@@ -105,6 +108,13 @@ export default function EstimateWorkspace(p: WorkspaceProps) {
   const options = showStored && preview ? shiftOptions(preview.options, saved.view.total - preview.view.total) : blank ? null : preview?.options ?? null;
   const altKey = t ? alternativesInput(t.inputs)?.key : undefined;
   const fenceView = useMemo(() => (t && previewKindFor(t.geometry) === "fence" ? fenceViewOf(shown.model, t.inputs, params) : null), [t, shown.model, params]);
+
+  // Design attributes: the chosen options paint the model's slots. The model and the visuals keep their identity
+  // while their content is unchanged, so picking a colour repaints the 3D view without rebuilding it.
+  const model = useStable(shown.model, sameModel);
+  const slots = t ? getGeometry(t.geometry)?.slots : undefined;
+  const visualsNow = useMemo(() => (t && slots ? resolveVisuals(slots, t.inputs, draft.values) : undefined), [t, slots, draft.values]);
+  const visuals = useStable(visualsNow, sameVisuals);
 
   const marks = useMemo(() => {
     const line = highlightCode ? shown.lines.find((l) => l.code === highlightCode) : null;
@@ -186,7 +196,7 @@ export default function EstimateWorkspace(p: WorkspaceProps) {
           <div className="est-stack" style={{ gridColumn: t ? undefined : "1 / -1" }}>
             {t?.geometry && shown.model && previewKindFor(t.geometry) === "fence" && fenceView && <FenceCard view={fenceView} />}
             {t?.geometry && shown.model && previewKindFor(t.geometry) === "pieces" && (
-              <VillaCard model={shown.model} lines={shown.lines} rates={t.rates} money={money} highlightMarks={marks}
+              <VillaCard model={model ?? shown.model} lines={shown.lines} rates={t.rates} money={money} highlightMarks={marks} visuals={visuals}
                 note={highlightCode && marks && marks.length > 0 ? `Lighting up the ${marks.length} pieces of the line "${highlightCode}".` : undefined}
                 onUsePattern={editable ? (n) => { const o = t.inputs.find((i) => i.key === "pattern")?.options?.find((x) => x.value === n); if (o) draft.setValue("pattern", o.key); } : undefined} />
             )}

@@ -3,7 +3,7 @@
 // a material key or "#rrggbb"). The same chosen option also feeds the bill of materials through its
 // value / attrs, so one choice changes both the picture and the parts.
 
-import { isVisualValue } from "./materialCatalog";
+import { getMaterialDef, HEX_COLOUR, isVisualValue } from "./materialCatalog";
 import type { DesignSlot } from "./geometry/types";
 import type { TemplateInput } from "./types";
 
@@ -25,4 +25,22 @@ export function resolveVisuals(
     if (opt && isVisualValue(opt.visual)) out[inp.paints] = opt.visual;
   }
   return out;
+}
+
+export type VisualSwatch = { colour: string; label: string; textured: boolean };
+
+/** What to draw for a chip or picker button: the colour, a name and whether the material is a texture set. Null for anything that is not a visual value. */
+export function visualSwatch(v: string | null | undefined): VisualSwatch | null {
+  if (typeof v !== "string") return null;
+  if (HEX_COLOUR.test(v)) return { colour: v, label: v.toLowerCase(), textured: false };
+  const m = getMaterialDef(v);
+  return m ? { colour: m.color, label: m.label, textured: m.textured === true } : null;
+}
+
+/** Same slot to material map (so the page can keep the previous object and the 3D view does not repaint for nothing). */
+export function sameVisuals(a: ResolvedVisuals | undefined, b: ResolvedVisuals | undefined): boolean {
+  if (a === b) return true;
+  if (!a || !b) return false;
+  const ka = Object.keys(a);
+  return ka.length === Object.keys(b).length && ka.every((k) => a[k] === b[k]);
 }

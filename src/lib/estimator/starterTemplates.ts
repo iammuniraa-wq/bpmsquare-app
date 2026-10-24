@@ -43,6 +43,14 @@ export type StarterTemplate = EstimateTemplateBody & {
   customer_visible?: boolean;
 };
 
+/** Design attribute options for a precast surface: the number is never read by a formula; `visual` is what the 3D model shows. */
+const PRECAST_SURFACE_OPTIONS = [
+  { key: "grey", label: "Precast grey", value: 1, visual: "concrete_precast" },
+  { key: "smooth", label: "Smooth concrete", value: 2, visual: "concrete_smooth" },
+  { key: "sand", label: "Sand", value: 3, visual: "#d9ccb4" },
+  { key: "white", label: "White", value: 4, visual: "#ecebe7" },
+] as const;
+
 export const PRECAST_VILLA_STARTER: StarterTemplate = {
   name: "Precast villa (illustrative)",
   description:
@@ -73,6 +81,10 @@ export const PRECAST_VILLA_STARTER: StarterTemplate = {
     { key: "stair_flights", label: "Stair flights", type: "number", default: 2, min: 0, max: 10, unit: "flights", section: "Stairs" },
     { key: "boundary_wall_length_m", label: "Boundary wall length", type: "number", default: 60, min: 0, max: 2000, unit: "m", section: "Boundary wall" },
     { key: "boundary_wall_height_m", label: "Boundary wall height", type: "number", default: 2.4, min: 1, max: 4, unit: "m", section: "Boundary wall" },
+    // Design attributes: they repaint the 3D model only. No rule or formula reads these keys, so the bill of
+    // materials and the price do not change with the choice.
+    { key: "wall_colour", label: "Wall colour", type: "select", default: "grey", section: "Appearance", paints: "wall", options: PRECAST_SURFACE_OPTIONS.map((o) => ({ ...o })) },
+    { key: "slab_colour", label: "Roof and slab colour", type: "select", default: "grey", section: "Appearance", paints: "slab", options: PRECAST_SURFACE_OPTIONS.map((o) => ({ ...o })) },
   ],
 
   // Every value here is an ILLUSTRATIVE placeholder (the mock-up's). `low` and
@@ -211,6 +223,14 @@ export const FENCE_COATING_OPTIONS = [
   { key: "pvc", label: "PVC coated", value: 1, attrs: { coating: "PVC coated" } },
 ] as const;
 
+/** Design attribute options: the number is never read by a formula; `visual` is what the 3D model shows. */
+const FENCE_COLOUR_OPTIONS = [
+  { key: "galvanised", label: "Galvanised", value: 1, visual: "galvanised" },
+  { key: "green", label: "Green PVC", value: 2, visual: "pvc_green" },
+  { key: "black", label: "Black PVC", value: 3, visual: "pvc_black" },
+  { key: "blue", label: "Blue PVC", value: 4, visual: "pvc_blue" },
+] as const;
+
 const fenceProduct = (fence_kind: string, from: string[]) => ({ kind: "product" as const, match: { attrs: { fence_kind }, from } });
 const POST_FROM = ["post_spacing_m", "coating"];
 const HARDWARE_FROM = ["coating"];
@@ -253,6 +273,11 @@ export const CHAINLINK_FENCE_STARTER: StarterTemplate = {
     { key: "tension_wire", label: "Tension wire (3 rows)", type: "boolean", default: true, section: "Fittings" },
     { key: "tie_wire", label: "Tie wire", type: "boolean", default: true, section: "Fittings" },
     { key: "barbed_wire", label: "Barbed wire on top (3 strands)", type: "boolean", default: false, section: "Fittings" },
+
+    // Design attributes: they repaint the 3D model only. No rule or formula reads these keys, so the bill of
+    // materials and the price do not change with the choice.
+    { key: "mesh_colour", label: "Mesh colour", type: "select", default: "green", section: "Appearance", paints: "mesh", options: FENCE_COLOUR_OPTIONS.map((o) => ({ ...o })) },
+    { key: "post_colour", label: "Post colour", type: "select", default: "green", section: "Appearance", paints: "posts", options: FENCE_COLOUR_OPTIONS.map((o) => ({ ...o })) },
   ],
 
   rates: [],

@@ -3,6 +3,7 @@
 import Field from "@/components/ui/Field";
 import { Input, Select } from "@/components/ui/Input";
 import type { TemplateInput } from "@/lib/estimator/types";
+import { SwatchChoice } from "./VisualPicker";
 
 /** Form state: numbers stay text while typing so "1." and "" are possible. */
 export type InputValues = Record<string, string | boolean>;
@@ -72,6 +73,14 @@ function InputControl({
           <option value="no">No</option>
           <option value="yes">Yes</option>
         </Select>
+      </Field>
+    );
+  }
+  if (i.type === "select" && i.paints && (i.options ?? []).some((o) => o.visual)) {
+    return (
+      // htmlFor keeps the label a sibling: a label that wrapped the chips would nest labels and forward clicks to the first one.
+      <Field label={i.label} htmlFor={`swatch-${i.key}`} hint={note ?? hintFor(i)} error={error}>
+        <SwatchChoice label={i.label} options={i.options ?? []} value={String(value ?? "")} onChange={(k) => onChange(i.key, k)} disabled={disabled} />
       </Field>
     );
   }
