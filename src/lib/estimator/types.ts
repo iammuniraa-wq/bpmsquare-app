@@ -31,6 +31,8 @@ export type TemplateInputOption = {
   /** Catalogue attributes this choice stands for (e.g. { pipe_class: "SS20" }). A product rule
    *  that lists the input in its `match.from` looks for a product with these attributes. */
   attrs?: Record<string, string>;
+  /** Design attribute: a material key (materialCatalog.ts) or "#rrggbb" this choice paints on the input's `paints` slot. */
+  visual?: string;
 };
 
 export type TemplateInput = {
@@ -51,6 +53,8 @@ export type TemplateInput = {
   /** select only: quote every option as an alternative (e.g. finish levels)
    *  instead of only the chosen one. Read by the quote assembler. */
   quote_alternatives?: boolean;
+  /** select only: the geometry design slot (GeometryModule.slots) this input repaints; its options carry `visual`. */
+  paints?: string;
 };
 
 /** A named constant: usable as an identifier in any formula AND as the unit

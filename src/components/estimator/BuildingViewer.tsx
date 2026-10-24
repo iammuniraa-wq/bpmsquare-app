@@ -32,13 +32,15 @@ function useReducedMotion(): boolean {
  * client's own BIM model. `highlightMarks` lights up the pieces of a BOM line.
  */
 export default function BuildingViewer({
-  model, lines, densityTm3, money, highlightMarks,
+  model, lines, densityTm3, money, highlightMarks, visuals,
 }: {
   model: GeometryModel | null;
   lines: readonly AllocLine[];
   densityTm3: number;
   money: (n: number) => string;
   highlightMarks?: readonly string[];
+  /** Design slot -> material key or "#rrggbb" (resolveVisuals); absent = the module defaults. */
+  visuals?: Readonly<Record<string, string>>;
 }) {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const sceneRef = useRef<ViewerScene | null>(null);

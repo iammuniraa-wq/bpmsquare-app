@@ -31,7 +31,7 @@ export function geometryCardTitle(key: string | null | undefined): string {
  * new module needs no change here beyond its `view` setting.
  */
 export default function GeometryView({
-  model, lines, densityTm3, money, highlightMarks, onUsePattern,
+  model, lines, densityTm3, money, highlightMarks, onUsePattern, visuals,
 }: {
   model: GeometryModel | null;
   lines: readonly AllocLine[];
@@ -40,8 +40,10 @@ export default function GeometryView({
   highlightMarks?: readonly string[];
   /** Floor plan only: make the previewed pattern the estimate's own. */
   onUsePattern?: (pattern: number) => void;
+  /** Design slot -> material key or "#rrggbb" (resolveVisuals); absent = the module defaults. */
+  visuals?: Readonly<Record<string, string>>;
 }) {
   const mod = model ? getGeometry(model.geometry) : null;
-  if (model && mod?.view === "floor_plan") return <FloorPreview model={model} onUsePattern={onUsePattern} />;
-  return <BuildingViewer model={model} lines={lines} densityTm3={densityTm3} money={money} highlightMarks={highlightMarks} />;
+  if (model && mod?.view === "floor_plan") return <FloorPreview model={model} onUsePattern={onUsePattern} visuals={visuals} />;
+  return <BuildingViewer model={model} lines={lines} densityTm3={densityTm3} money={money} highlightMarks={highlightMarks} visuals={visuals} />;
 }

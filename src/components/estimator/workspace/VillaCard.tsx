@@ -14,7 +14,7 @@ import type { WorkspaceLine } from "./types";
  * materials ("Show in 3D").
  */
 export default function VillaCard({
-  model, lines, rates, money, highlightMarks, note, onUsePattern,
+  model, lines, rates, money, highlightMarks, note, onUsePattern, visuals,
 }: {
   model: GeometryModel | null;
   lines: readonly WorkspaceLine[];
@@ -24,11 +24,13 @@ export default function VillaCard({
   note?: string;
   /** Floor plans: make the previewed tile pattern the estimate's own. */
   onUsePattern?: (pattern: number) => void;
+  /** Design slot -> material key or "#rrggbb" (resolveVisuals); absent = the module defaults. */
+  visuals?: Readonly<Record<string, string>>;
 }) {
   return (
     <div id="villa" style={{ scrollMarginTop: 80, minWidth: 0 }}>
       <Card title={geometryCardTitle(model?.geometry)} padding={16}>
-      <GeometryView model={model} lines={lines} densityTm3={densityFromRates([...rates])} money={money} highlightMarks={highlightMarks} onUsePattern={onUsePattern} />
+      <GeometryView model={model} lines={lines} densityTm3={densityFromRates([...rates])} money={money} highlightMarks={highlightMarks} onUsePattern={onUsePattern} visuals={visuals} />
       {note && <div className="bpm-t-help" style={{ marginTop: 8 }}>{note}</div>}
       </Card>
     </div>

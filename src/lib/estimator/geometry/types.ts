@@ -12,7 +12,7 @@ export type Vec3 = [number, number, number];
 /** A window or door cut into a panel. Metres, sill measured from the floor. */
 export type PieceOpening = { w: number; h: number; sill: number; door: boolean };
 
-export type PieceKind = "col" | "box" | "panel" | "plank" | "stair";
+export type PieceKind = "col" | "box" | "panel" | "plank" | "stair" | "equip";
 
 export type Piece = {
   /** The mark: the code plus a running number, e.g. EW-07. Unique per model. */
@@ -35,6 +35,20 @@ export type Piece = {
   vol: number;
   /** Net face area, m2, on pieces where it matters (external panels). */
   area?: number;
+  /** Design slot this piece is painted by (see GeometryModule.slots); absent = the module's default for its code. */
+  slot?: string;
+  /** kind "equip" only: the catalogue item drawn (e.g. "ac_split", "wc", "desk"); see viewer/equipmentMeshes.ts. */
+  item?: string;
+  /** kind "equip" only: the room it stands in, e.g. "office-1" (a label for the inspector and the schedule). */
+  room?: string;
+};
+
+/** A part of the model a design attribute can repaint (colour, finish, texture). */
+export type DesignSlot = {
+  key: string;
+  label: string;
+  /** Material key (materialCatalog.ts) or "#rrggbb" used when no attribute sets it. */
+  default: string;
 };
 
 export type GeometryModel = {
@@ -79,6 +93,8 @@ export type GeometryModule = {
   inputs: readonly GeometryInputSpec[];
   /** Names the module's `extras` put in the formula scope (none for a module that only emits pieces). */
   extra_identifiers?: readonly string[];
+  /** Parts a template's design attributes may repaint (colour, cladding, tile finish, mesh coating). */
+  slots?: readonly DesignSlot[];
   /** How the workspace draws the model: the 3D piece viewer (default) or the 2D floor plan. */
   view?: "building" | "floor_plan";
   /** Pure: same inputs, same pieces. Never throws; failure is a returned error. */

@@ -33,6 +33,12 @@ input and map rows in Settings > Estimate templates (copy of a locked starter), 
 folder per workspace. Limits: the geometry module decides what can be drawn (a fence can show mesh type and coating, not a new building shape);
 a new shape still needs a layout module.
 
+## 3b. Owner steer (2026-10-24): use outside models and textures, keep our core light
+
+Agreed direction: do **not** build heavy 3D in the core. Use free CC0 texture sets and glTF parts (Poly Haven, ambientCG, Kenney), bundled or
+stored in our own storage, and keep our own code to the thin layer that places them from the estimate's counts. No paid configurator, no
+per-seat or per-render API in this slice (option C stays a later choice for viewing client CAD files).
+
 ## 4. Build slice to prove it (first)
 
 Floor tiles in 3D with real porcelain, marble and wood textures and a lit room; the chain-link fence with galvanised mesh, concrete bases and a

@@ -66,10 +66,12 @@ const fmt = (n: number, dp = 1): string => n.toLocaleString(undefined, { maximum
  * makes it the estimate's own pattern.
  */
 export default function FloorPreview({
-  model, onUsePattern,
+  model, onUsePattern, visuals,
 }: {
   model: GeometryModel | null;
   onUsePattern?: (pattern: number) => void;
+  /** Design slot -> material key or "#rrggbb" (resolveVisuals); absent = the module defaults. */
+  visuals?: Readonly<Record<string, string>>;
 }) {
   const uid = useId().replace(/:/g, "");
   const reduced = useReducedMotion();

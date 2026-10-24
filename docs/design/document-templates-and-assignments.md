@@ -44,8 +44,15 @@ the preview; the person adjusts and saves. Metered like other AI calls; the uplo
 - Every 3b and 3c surface that applies: change log, v1 read of template names and assignments (not blocks), assistant ("which template will this
   customer get?"), guide ids, one capability doc.
 
-## Decisions for the owner
+## Decided by the owner (2026-10-24)
 
-1. Is "first matching rule wins, with a manual override per document" the right behaviour?
-2. Which customer attributes must be usable in rules first (coverage team, country, account group, language)?
-3. Do clients need to design from scratch (full block editor) or mostly pick and tweak AI drafts?
+**Rule conditions, in this order: document type, then coverage, then account group, then account id.** Document type is the table the
+rule lives in (one assignment table per document type); the other three narrow it. Country, currency, language, amount and custom fields
+come later, after these four work.
+Resolver behaviour: the **most specific matching rule wins** (an account id beats an account group, which beats a coverage, which beats the
+document type's default); rules of the same specificity are taken in list order. A person can still pick another template on one document.
+(If the owner wants strict list order instead, it is a one-line change in `resolveTemplate`.)
+
+## Still open
+
+1. Do clients need to design from scratch (full block editor) or mostly pick and tweak AI drafts?
