@@ -3,13 +3,14 @@ import { createAdminSupabase } from "@/lib/supabase-server";
 import { CONNECTOR_ID, runPull, runPushFenceProjects } from "@/lib/connectors/d365/server";
 import { entityConfig } from "@/lib/connectors/d365/catalog";
 import { rotateStart } from "@/lib/connectors/d365/mapping";
+import { followUpOrders, hasSentOrders } from "@/lib/connectors/d365/orders";
 import { D365_ENTITY_KEYS, type D365Config } from "@/lib/connectors/d365/types";
 
 // GET /api/connectors/cron/dynamics365 -- hourly (vercel.json). Runs every
 // tenant whose Dynamics 365 connector is scheduled: "hourly" on every run,
 // "daily" on the 02:00 UTC run. The tenant order rotates hourly so a slow tenant
 // cannot starve the rest. Customers go first so contacts and projects
-// can link to them. A time budget stops starting new work late in the run;
+// can link to them; the sales orders follow-up (invoices of open orders) runs last. A time budget stops starting new work late in the run;
 // whatever is left continues next hour from its watermark.
 
 export const maxDuration = 300;
@@ -47,6 +48,18 @@ export async function GET(request: NextRequest) {
         ? await runPushFenceProjects(admin, r.tenant_id as string, { trigger: "schedule", userId: null, deadline: started + RUN_DEADLINE_MS })
         : await runPull(admin, r.tenant_id as string, entity, { trigger: "schedule", userId: null, deadline: started + RUN_DEADLINE_MS });
       results.push({ tenant: r.tenant_id as string, entity, error: res.error, counts: res.counts });
+    }
+    // After the pulls: sales orders that are not finished get their invoices (and, with the pull off, their status) read
+    // again. A bounded batch per workspace, oldest check first. It runs when the Sales orders pull is on and due, or when
+    // an order made here has been accepted by the ERP and is waiting for its status to come back.
+    if (cfg.product === "dataverse" && Date.now() - started < BUDGET_MS) {
+      const so = entityConfig(cfg, "sales_orders");
+      const soSchedule = so?.schedule ?? cfg.schedule;
+      const pullDue = so?.enabled === true && soSchedule !== "off" && (soSchedule === "hourly" || hour === 2);
+      if (pullDue || (await hasSentOrders(admin, r.tenant_id as string))) {
+        const fu = await followUpOrders(admin, r.tenant_id as string, { deadline: started + RUN_DEADLINE_MS });
+        results.push({ tenant: r.tenant_id as string, entity: "sales_orders_follow_up", error: fu.skipped, counts: fu });
+      }
     }
   }
   return NextResponse.json({ ok: true, results });

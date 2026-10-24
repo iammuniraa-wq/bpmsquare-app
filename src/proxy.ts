@@ -148,6 +148,10 @@ export async function proxy(request: NextRequest) {
     // checked over the raw body; [key] only names the stored identity row that holds the tenant and the
     // secret. $-anchored so nothing deeper rides along.
     /^\/api\/inbound\/whatsapp\/[A-Za-z0-9_-]{16,64}$/.test(pathname) ||
+    // ERP -> BPMSquare "this sales order changed" call (api/middleware/webhook/sales-order): the workspace's own
+    // webhook secret signs the raw body and is checked before anything is read; the tenant is the host's, never the body's.
+    // Exact path, nothing deeper rides along.
+    pathname === "/api/middleware/webhook/sales-order" ||
     // Resend delivery events (delivered / bounced / complained): the Svix signature is the
     // credential, verified before the body is read; the tenant comes from the stored
     // recipient row, never the payload. Exact path, nothing deeper rides along.

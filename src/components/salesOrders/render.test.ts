@@ -193,7 +193,9 @@ describe("ErpTab", () => {
     const out = html(el(ErpTab, { detail: detail(), currency: "AED", externalLine: null, middlewareHref: "/settings/middleware" }));
     expect(out).toContain("Not in an ERP");
     expect(out).toContain("Nothing sent yet");
-    expect(out).toContain("No deliveries or invoices");
+    expect(out).toContain("Invoices from Dynamics 365 appear here. Nothing yet.");
+    expect(out).toContain("Deliveries come from F&amp;O or SAP, which are not connected.");
+    expect(out).not.toContain("sales_order.erp_refresh");
     expect(out).toContain('href="/settings/middleware"');
     expect(html(el(ErpTab, { detail: detail(), currency: "AED", externalLine: null, middlewareHref: null }))).not.toContain("sales_order.erp_setup");
   });
@@ -202,7 +204,27 @@ describe("ErpTab", () => {
     expect(out).toContain("DL-9001");
     expect(out).toContain("INV-5001");
     expect(out).not.toContain("<input");
-    expect(out).not.toContain("No deliveries or invoices");
+    expect(out).not.toContain("Nothing yet.");
+  });
+  it("shows the ERP number, the ERP's status and when it was read, with a Refresh, for an order the ERP holds", () => {
+    const d = detail({
+      erpLinked: true, erpDocuments: [invoice({ spine: "paid", status: "Paid", due: "2026-12-01", href: "https://org.crm.dynamics.com/main.aspx?etn=invoice&id=x" })],
+      erpLink: { number: "ORD-01000", syncedAt: "2026-10-24T08:00:00Z", checkedAt: "2026-10-24T09:30:00Z" }, order: order({ status_label: "Complete", spine: "completed" }),
+    });
+    const out = html(el(ErpTab, { detail: d, currency: "AED", externalLine: null, middlewareHref: null, onRefresh: noop }));
+    expect(out).toContain("ORD-01000");
+    expect(out).toContain("Complete");
+    expect(out).toContain("sales_order.erp_refresh");
+    expect(out).toContain("Paid");
+    expect(out).toContain("Due");
+    expect(out).toContain('target="_blank"');
+    expect(out).toContain('rel="noopener noreferrer"');
+  });
+  it("calls an ERP-read order's own ref its ERP number and offers no Refresh without a handler", () => {
+    const d = detail({ erpLinked: true, order: order({ origin: "erp", ref: "ORD-77", status: "confirmed", status_label: "New" }) });
+    const out = html(el(ErpTab, { detail: d, currency: "AED", externalLine: null, middlewareHref: null }));
+    expect(out).toContain("ORD-77");
+    expect(out).not.toContain("sales_order.erp_refresh");
   });
 });
 

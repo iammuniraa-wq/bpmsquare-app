@@ -30,7 +30,7 @@ import { SendOutcome } from "./SendOutcome";
 // reads a list of records by id or number, and sends one record by hand. Messages, history and
 // failures are the Monitor's and never appear here.
 
-const ENTITY_WORD: Record<string, string> = { customers: "Customers", contacts: "Contacts", vendors: "Vendors", products: "Products", projects: "Projects" };
+const ENTITY_WORD: Record<string, string> = { customers: "Customers", contacts: "Contacts", vendors: "Vendors", products: "Products", projects: "Projects", sales_orders: "Sales orders" };
 /** SAP calls what Dynamics calls vendors "suppliers". */
 export const entityWord = (key: string, connectorId?: string): string => (connectorId === "sap_s4" && key === "vendors" ? "Suppliers" : ENTITY_WORD[key] ?? key);
 
@@ -138,8 +138,8 @@ export function EntityRows({ rows, connected, busy, lines, onSync, onSchedule, o
                   <td data-label="Entity"><span className={s.fieldName}>{entityWord(e.key, connectorId)}</span>{!e.enabled && <span className={`${s.small} ${s.muted}`}>Switched off in Links</span>}</td>
                   <td data-label="Scope">
                     <span className={s.scopeCell}>
-                      <span className={s.wrapAny}>{scopeCell(e)}</span>
-                      <button type="button" className={s.linkBtn} data-guide="middleware.scope_edit" onClick={() => onScope?.(e)} disabled={!connected || !onScope} aria-label={`Edit the scope of ${entityWord(e.key, connectorId)}`}>Edit</button>
+                      <span className={s.wrapAny}>{e.key === "sales_orders" ? "All orders" : scopeCell(e)}</span>
+                      {e.key !== "sales_orders" && <button type="button" className={s.linkBtn} data-guide="middleware.scope_edit" onClick={() => onScope?.(e)} disabled={!connected || !onScope} aria-label={`Edit the scope of ${entityWord(e.key, connectorId)}`}>Edit</button>}
                     </span>
                   </td>
                   <td data-label="Last run"><span className={s.small}>{lastRunLine(e, now)}</span></td>

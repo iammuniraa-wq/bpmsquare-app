@@ -17,7 +17,8 @@ import { parseDataverseOptions, parseLookupTargets, parseODataEnum, type ErpFiel
 // when the connected system lists them (or, while its field list cannot be read, when the product's presets do),
 // and the kind and option list of a condition always come from here, never from the request.
 
-export const SCOPE_ENTITIES = D365_ENTITY_KEYS.filter((k): k is Exclude<D365EntityKey, "fence_projects"> => k !== "fence_projects");
+// Sales orders are read whole (no scope panel): the incremental position and the Resync tab are how a run is narrowed.
+export const SCOPE_ENTITIES = D365_ENTITY_KEYS.filter((k): k is Exclude<D365EntityKey, "fence_projects" | "sales_orders"> => k !== "fence_projects" && k !== "sales_orders");
 export type ScopeEntity = (typeof SCOPE_ENTITIES)[number];
 export const isScopeEntity = (v: unknown): v is ScopeEntity => typeof v === "string" && (SCOPE_ENTITIES as readonly string[]).includes(v);
 

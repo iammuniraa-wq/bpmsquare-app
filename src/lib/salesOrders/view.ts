@@ -3,6 +3,9 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { lineIsLate, lineIsShort } from "./availability";
 import { orderPermissions, type OrderPermissions } from "./lock";
 import { loadLines, type OrderRow } from "./server";
+import { erpDeepLink } from "@/lib/middleware/links";
+import type { D365Config } from "@/lib/connectors/d365/types";
+import { ERP_DOCUMENT_COLUMNS, shapeErpDocument, type ErpDocumentRow, type ErpDocumentView } from "./erpDocs";
 import type { SalesOrderLine } from "./types";
 
 // The shape GET /api/sales-orders/[id] answers and every action returns, so the detail screen can redraw from
@@ -20,7 +23,33 @@ export type OrderView = OrderRow & OrderPermissions & {
   attachment_count: number;
   /** A line is late (confirmed after the date asked) or short (confirmed less than asked). Drives the Overview banner. */
   needs_attention: boolean;
+  /** Deliveries and invoices an ERP reported for this order (migration 0216); empty while that is pending. */
+  erp_documents: ErpDocumentView[];
+  /** The ERP's own order number and when it was last read, from the order's connector link; null when no ERP holds it. */
+  erp_link: { number: string | null; synced_at: string | null; checked_at: string | null } | null;
+  /** Set when the ERP named a customer that has no Account here yet. */
+  customer_note: string | null;
 };
+
+const GUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+async function loadErpExtras(db: SupabaseClient, tenantId: string, order: OrderRow): Promise<{ docs: ErpDocumentView[]; link: OrderView["erp_link"] }> {
+  const [docsRes, linkRes] = await Promise.all([
+    db.from("erp_documents").select(ERP_DOCUMENT_COLUMNS).eq("order_id", order.id).eq("tenant_id", tenantId).order("doc_date", { ascending: true }),
+    db.from("connector_links").select("external_key, synced_at").eq("tenant_id", tenantId).eq("object_type", "sales_orders").eq("object_id", order.id).limit(1),
+  ]);
+  const rows = docsRes.error ? [] : ((docsRes.data ?? []) as unknown as ErpDocumentRow[]);
+  const l = linkRes.error ? null : ((linkRes.data ?? []) as { external_key: string | null; synced_at: string | null }[])[0] ?? null;
+  let base: Pick<D365Config, "product" | "environment_url"> | null = null;
+  if (rows.length > 0 && l) {
+    const { data } = await db.from("tenant_connectors").select("config").eq("tenant_id", tenantId).eq("connector_id", "dynamics365").maybeSingle();
+    const cfg = (data?.config ?? null) as D365Config | null;
+    if (cfg?.product && cfg.environment_url) base = cfg;
+  }
+  const docs = rows.map((r) => shapeErpDocument(r, base && r.kind === "invoice" && GUID.test(r.raw_ref) ? erpDeepLink(base, "invoice", r.raw_ref) : null));
+  const checked = (order as unknown as { erp_docs_checked_at?: string | null }).erp_docs_checked_at ?? null;
+  return { docs, link: l ? { number: l.external_key, synced_at: l.synced_at, checked_at: checked } : null };
+}
 
 const SOURCE_TABLE: Record<string, string> = { standard_quote: "standard_quotes", quotation: "quotes", opportunity: "opportunities", order: "sales_orders" };
 
@@ -38,13 +67,14 @@ async function sourceRefOf(db: SupabaseClient, tenantId: string, sourceType: str
 }
 
 export async function buildOrderView(db: SupabaseClient, tenantId: string, order: OrderRow, erpLinked: boolean): Promise<OrderView> {
-  const [lines, accountRes, contactRes, typeRes, sourceRef, attachments] = await Promise.all([
+  const [lines, accountRes, contactRes, typeRes, sourceRef, attachments, erp] = await Promise.all([
     loadLines(db, tenantId, order.id),
-    db.from("accounts").select("id, name").eq("id", order.account_id).eq("tenant_id", tenantId).maybeSingle(),
+    order.account_id ? db.from("accounts").select("id, name").eq("id", order.account_id).eq("tenant_id", tenantId).maybeSingle() : Promise.resolve({ data: null }),
     order.contact_id ? db.from("contacts").select("id, name").eq("id", order.contact_id).eq("tenant_id", tenantId).maybeSingle() : Promise.resolve({ data: null }),
     order.type_id ? db.from("sales_order_types").select("id, name, prefix, pricing_mode").eq("id", order.type_id).eq("tenant_id", tenantId).maybeSingle() : Promise.resolve({ data: null }),
     sourceRefOf(db, tenantId, order.source_type, order.source_id),
     db.from("sales_order_attachments").select("id").eq("order_id", order.id).eq("tenant_id", tenantId),
+    loadErpExtras(db, tenantId, order),
   ]);
   return {
     ...order,
@@ -57,5 +87,8 @@ export async function buildOrderView(db: SupabaseClient, tenantId: string, order
     pricing_label: pricingLabel(order.pricing_mode, order.source_type, sourceRef),
     attachment_count: attachments.error ? 0 : (attachments.data ?? []).length,
     needs_attention: order.status !== "cancelled" && lines.some((l) => lineIsLate(l) || lineIsShort(l)),
+    erp_documents: erp.docs,
+    erp_link: erp.link,
+    customer_note: !order.account_id && order.erp_customer_name ? "This customer is not in BPMSquare yet. Sync Customers from the ERP and it is linked on the next order refresh." : null,
   };
 }

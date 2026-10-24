@@ -10,7 +10,7 @@ import type { ScopeAttribute } from "@/lib/connectors/d365/scope";
 import type { SapAuthMode, SapPublicState } from "@/lib/connectors/sap_s4/types";
 import type { Converter, EngineMappingExtras, MapRow as MapRowT, TryResult, ValueListRow } from "@/lib/middleware/mapping/types";
 
-export type ScopeEntityKey = Exclude<D365EntityKey, "fence_projects">;
+export type ScopeEntityKey = Exclude<D365EntityKey, "fence_projects" | "sales_orders">;
 
 // ── Errors ──────────────────────────────────────────────────────────────────
 
@@ -728,6 +728,8 @@ export type SyncEntity = {
   schedule_source: "entity" | "connector";
   running: boolean;
   linked: number;
+  /** Why this entity cannot run yet (a database update is pending); null when nothing blocks it. */
+  blocked?: string | null;
   /** Whether single records can be read by number for this entity (absent from an older server). */
   filters?: { numbers: boolean };
   /** The saved scope in one line, and whether it narrows anything or was changed since the last full resync. Null for the push. */

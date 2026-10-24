@@ -82,3 +82,25 @@ where o.id = agg.order_id and o.total = 0;
 update tenants
 set features = coalesce(features, '{}'::jsonb) || '{"sales_orders": true}'::jsonb
 where is_demo = true;
+
+-- 4. A sample invoice and delivery on SO-0001, so the ERP tab and the order path have something to show on the demo workspace.
+-- Run AFTER supabase/migrations/0216_erp_documents.sql (scripts/run-bundle-27-erp-documents-2026-10-24.sql); a database without
+-- erp_documents skips this part. These are SAMPLE rows (numbers start SAMPLE-, raw_ref starts sample-): nothing came from an ERP.
+do $erp$
+begin
+  if to_regclass('public.erp_documents') is null then
+    raise notice 'erp_documents does not exist yet: run the 0216 bundle, then this script again for the sample ERP documents.';
+    return;
+  end if;
+  insert into erp_documents (tenant_id, order_id, kind, erp_number, doc_date, due_date, amount, currency, status, status_spine, raw_ref)
+  select o.tenant_id, o.id, v.kind, v.erp_number, (current_date - v.age_days)::date, v.due_in, round(o.total * v.share, 2), o.currency, v.status, v.spine, v.raw_ref
+  from sales_orders o
+  join tenants t on t.id = o.tenant_id and t.is_demo = true
+  join (values
+    ('delivery', 'SAMPLE-DLV-0001', 'Delivered', 'delivered', 'sample-delivery-0001', 1.0, 6, null::date),
+    ('invoice',  'SAMPLE-INV-0001', 'Active',    'open',      'sample-invoice-0001',  0.5, 5, (current_date + 25)::date)
+  ) as v(kind, erp_number, status, spine, raw_ref, share, age_days, due_in) on true
+  where o.ref = 'SO-0001'
+    and not exists (select 1 from erp_documents d where d.tenant_id = o.tenant_id and d.order_id = o.id and d.kind = v.kind and d.raw_ref = v.raw_ref);
+end
+$erp$;

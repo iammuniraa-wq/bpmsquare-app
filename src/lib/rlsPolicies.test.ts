@@ -180,6 +180,34 @@ describe("credential tables are not member-writable (audit 2026-10-21)", () => {
     expect(bundle.replace(/\r\n/g, "\n")).toContain(file.replace(/\r\n/g, "\n").trim());
   });
 
+  it("0216 (ERP documents): erp_documents has RLS and a member SELECT policy and nothing that writes; the bundle carries the file verbatim", () => {
+    const file = readFileSync(path.join(DIR, "0216_erp_documents.sql"), "utf8");
+    const sql = file.replace(/--[^\n]*/g, "");
+    expect(sql).toMatch(/alter table erp_documents enable row level security/);
+    expect(new RegExp("create table if not exists erp_documents \\([^;]*tenant_id\\s+uuid not null references tenants\\(id\\)").test(sql)).toBe(true);
+    // The ERP is the source of truth: a member must not be able to forge a document that lights Invoiced or Paid on the order path.
+    const list = [...(policies.get("erp_documents")?.values() ?? [])];
+    expect(list.map((p) => p.cmd)).toEqual(["select"]);
+    expect(list[0].text).toMatch(/tenant_id in \(select tenant_id from tenant_users where user_id = auth\.uid\(\)\)/);
+    const bundle = readFileSync(path.resolve(__dirname, "../../scripts/run-bundle-27-erp-documents-2026-10-24.sql"), "utf8");
+    expect(bundle.replace(/\r\n/g, "\n")).toContain(file.replace(/\r\n/g, "\n").trim());
+  });
+
+  it("no route writes erp_documents with the member's session client: only the connector code, on the service role", () => {
+    const offenders: string[] = [];
+    const root = path.resolve(__dirname, "../..");
+    const walk = (dir: string) => {
+      for (const e of readdirSync(dir, { withFileTypes: true })) {
+        const p = path.join(dir, e.name);
+        if (e.isDirectory()) { walk(p); continue; }
+        if (!/\.(ts|tsx)$/.test(e.name) || /\.test\./.test(e.name)) continue;
+        if (/\bsupabase\s*\.from\(\s*"erp_documents"\s*\)\s*\.(insert|update|delete|upsert)\(/.test(readFileSync(p, "utf8"))) offenders.push(path.relative(root, p));
+      }
+    };
+    walk(path.resolve(__dirname, ".."));
+    expect(offenders).toEqual([]);
+  }, 30_000);
+
   it("no route writes sales_order_types with the member's session client: only the service role, after the admin check", () => {
     const offenders: string[] = [];
     const root = path.resolve(__dirname, "../..");

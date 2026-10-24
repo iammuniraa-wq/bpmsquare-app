@@ -44,6 +44,10 @@ export default function OverviewTab({ detail, attachments, currency, onSeeAvaila
         </div>
       )}
 
+      {detail.customerNote && (
+        <div className={s.banner} role="status" data-guide="sales_order.customer_note"><span>{detail.customerNote}</span></div>
+      )}
+
       <Card padding={16}>
         <div className={s.parties}>
           <Party label={parties.merged ? "Sold to and bill to" : "Sold to"} block={parties.soldTo} href={detail.account ? ROUTES.account(detail.account.id) : undefined} />
