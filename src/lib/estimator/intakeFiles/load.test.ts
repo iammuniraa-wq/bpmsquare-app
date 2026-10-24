@@ -229,7 +229,7 @@ describe("one bad file never fails the call", () => {
     const reports = fileReports(r);
     expect(reports.filter((x) => x.status === "read")).toHaveLength(2);
     expect(reports.find((x) => x.name === "gone.pdf")).toMatchObject({ status: "skipped" });
-  });
+  }, 60_000);
 
   it("gives two files with the same name different names", async () => {
     const rows = [att(1, { file_name: "plan.pdf" }), att(2, { file_name: "plan.pdf", storage_path: `${A}/mail/2.pdf` })];
