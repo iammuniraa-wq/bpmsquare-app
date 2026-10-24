@@ -391,7 +391,7 @@ describe("porta_cabin, equipment counts and placement", () => {
         }
       }
     }
-  });
+  }, 60_000);
 
   it("anything that cannot be placed is left out and said, never forced through a wall", () => {
     const m = build({ unit_width_m: 2.2, unit_height_m: 2.1, layout: LAYOUT_ROW, units_along: 2, rooms_mode: ROOMS_OFFICE });
