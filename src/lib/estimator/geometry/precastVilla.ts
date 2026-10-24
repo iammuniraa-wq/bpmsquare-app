@@ -16,7 +16,7 @@
 // area). Axes: x runs along w, z along d, y is up; the origin is the centre of
 // the footprint at ground level.
 
-import type { GeometryInputSpec, GeometryModel, GeometryModule, GeometryResult, Piece, PieceCodeInfo, PieceOpening } from "./types";
+import type { DesignSlot, GeometryInputSpec, GeometryModel, GeometryModule, GeometryResult, Piece, PieceCodeInfo, PieceOpening } from "./types";
 
 export const PRECAST_VILLA_KEY = "precast_villa";
 
@@ -71,6 +71,27 @@ const PIECE_CODES: readonly PieceCodeInfo[] = [
   { code: "ST", label: "Stair flights" },
   { code: "BW", label: "Boundary wall panels" },
 ];
+
+/**
+ * Parts a design attribute can repaint. "window", "door" and "plinth" are drawn details of the wall panels and the
+ * foundation, not pieces of their own; the others are the piece families (see PRECAST_SLOT_BY_CODE).
+ */
+export const PRECAST_VILLA_SLOTS: readonly DesignSlot[] = [
+  { key: "wall", label: "Walls and parapet", default: "concrete_precast" },
+  { key: "slab", label: "Floor and roof slabs", default: "concrete_precast" },
+  { key: "frame", label: "Beams and columns", default: "concrete_precast" },
+  { key: "stair", label: "Stair flights", default: "concrete_smooth" },
+  { key: "boundary", label: "Boundary wall", default: "concrete_precast" },
+  { key: "window", label: "Window and door frames", default: "alu_dark" },
+  { key: "door", label: "Front door", default: "wood_door" },
+  { key: "plinth", label: "Foundation plinth", default: "concrete_smooth" },
+  { key: "ground", label: "Ground", default: "ground_grass" },
+];
+
+/** The slot each piece family is painted by when the piece carries no `slot` of its own (also true of models stored before slots existed). */
+export const PRECAST_SLOT_BY_CODE: Readonly<Record<string, string>> = {
+  EW: "wall", IW: "wall", PR: "wall", SL: "slab", FR: "frame", ST: "stair", BW: "boundary",
+};
 
 const INPUTS: readonly GeometryInputSpec[] = [
   { key: "floors", required: true },
@@ -300,5 +321,6 @@ export const PRECAST_VILLA_MODULE: GeometryModule = {
   label: "Precast villa (illustrative)",
   piece_codes: PIECE_CODES,
   inputs: INPUTS,
+  slots: PRECAST_VILLA_SLOTS,
   layout: layoutPrecastVilla,
 };

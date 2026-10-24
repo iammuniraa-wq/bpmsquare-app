@@ -15,9 +15,48 @@
 // rectangle); the counts and the fabric area are exact and are what is priced.
 
 import { computeGeometry, type FenceGateInput } from "../../fence/geometry";
-import type { GeometryModel, GeometryModule, GeometryResult, Piece, PieceKind } from "./types";
+import type { DesignSlot, GeometryModel, GeometryModule, GeometryResult, Piece, PieceKind } from "./types";
 
 export const CHAINLINK_FENCE_KEY = "chainlink_fence";
+
+/** Parts a design attribute can repaint; "footing" is the concrete base drawn at the foot of every post. */
+export const CHAINLINK_FENCE_SLOTS: readonly DesignSlot[] = [
+  { key: "posts", label: "Posts and rails", default: "galvanised" },
+  { key: "mesh", label: "Chain-link mesh", default: "galvanised" },
+  { key: "footing", label: "Post footings", default: "concrete_smooth" },
+  { key: "gate", label: "Gate frames", default: "galvanised" },
+  { key: "ground", label: "Ground", default: "ground_grass" },
+];
+
+/** The slot each piece family is painted by when the piece carries no `slot` of its own. */
+export const CHAINLINK_FENCE_SLOT_BY_CODE: Readonly<Record<string, string>> = {
+  LP: "posts", SP: "posts", CP: "posts", TP: "posts", GP: "posts", FB: "mesh", GT: "gate",
+};
+
+/** What a gate piece is, so the viewer can draw hinges (swing), a centre bolt (double) or a track (sliding). Stored on `Piece.item`. */
+export type FenceGateKind = "single_swing" | "double_swing" | "sliding";
+
+/**
+ * Where a gate and its two posts stand: the posts are moved along the fence to straddle the gate's width (never past
+ * 0.8 of a post bay, so a neighbour is not run over); the gate sits midway, turned along the fence. Pure drawing
+ * geometry: counts, marks and areas are not touched.
+ */
+export function placeGate(a: Point, b: Point, width: number, bay: number): { a: Point; b: Point; mid: Point; rot: number } {
+  const mid = { x: (a.x + b.x) / 2, z: (a.z + b.z) / 2 };
+  const dx = b.x - a.x;
+  const dz = b.z - a.z;
+  const dist = Math.hypot(dx, dz);
+  const ux = dist > 1e-6 ? dx / dist : 1;
+  const uz = dist > 1e-6 ? dz / dist : 0;
+  const slack = 0.8 * bay;
+  const half = Math.min(dist / 2 + slack, Math.max(Math.max(0.25, dist / 2 - slack), width / 2));
+  return {
+    a: { x: mid.x - ux * half, z: mid.z - uz * half },
+    b: { x: mid.x + ux * half, z: mid.z + uz * half },
+    mid,
+    rot: -Math.atan2(uz, ux),
+  };
+}
 
 /** More posts than this and the model is refused rather than stored: a fence this long is several estimates. */
 export const MAX_FENCE_POSTS = 4000;
@@ -34,7 +73,7 @@ const n = (v: number | undefined, fallback: number): number => (typeof v === "nu
 const pad = (i: number) => String(i).padStart(3, "0");
 const r3 = (x: number) => Math.round(x * 1000) / 1000;
 
-type Point = { x: number; z: number };
+export type Point = { x: number; z: number };
 
 /** A point `s` metres along the fence: a straight line, or the edge of a 2:1 rectangle. */
 function pointAlong(s: number, total: number, closed: boolean): Point {
@@ -95,6 +134,8 @@ export const CHAINLINK_FENCE_MODULE: GeometryModule = {
     { key: "gates_sliding_w", required: false, default: 6 },
   ],
 
+  slots: CHAINLINK_FENCE_SLOTS,
+
   layout(inputs): GeometryResult {
     const length = n(inputs.total_length_m, 0);
     const closed = n(inputs.closed_perimeter, 1) >= 0.5;
@@ -140,9 +181,28 @@ export const CHAINLINK_FENCE_MODULE: GeometryModule = {
 
     const pieces: Piece[] = [];
     const postHeight = height + 0.6;
-    kinds.forEach((code, i) => {
+    const spots: Point[] = kinds.map((_, i) => {
       const s = geo.total_posts <= 1 ? 0 : closed ? (i * length) / geo.total_posts : (i * length) / (geo.total_posts - 1);
-      const p = pointAlong(s, length, closed);
+      return pointAlong(s, length, closed);
+    });
+    // Each gate stands between a pair of gate posts (in index order, the gate's own two): stand the pair apart by the
+    // gate's width and put the gate between them, so the drawing shows a gate in its opening.
+    const gatePostIdx = kinds.flatMap((c, i) => (c === "GP" ? [i] : []));
+    const bay = geo.total_posts > 0 ? length / geo.total_posts : length;
+    const gateSpots = gates.map((g, j) => {
+      const ia = gatePostIdx[2 * j];
+      const ib = gatePostIdx[2 * j + 1];
+      if (ia === undefined || ib === undefined) {
+        const p = pointAlong(((j + 0.5) * length) / gates.length, length, closed);
+        return { mid: p, rot: 0 };
+      }
+      const placed = placeGate(spots[ia], spots[ib], g.width_m, bay);
+      spots[ia] = placed.a;
+      spots[ib] = placed.b;
+      return { mid: placed.mid, rot: placed.rot };
+    });
+    kinds.forEach((code, i) => {
+      const p = spots[i];
       pieces.push({
         id: next(code), code, kind: "col" as PieceKind, step: 1, floor: 0,
         pos: [r3(p.x), r3(postHeight / 2 - 0.3), r3(p.z)],
@@ -156,10 +216,10 @@ export const CHAINLINK_FENCE_MODULE: GeometryModule = {
       });
     }
     gates.forEach((g, i) => {
-      const s = ((i + 0.5) * length) / gates.length;
-      const p = pointAlong(s, length, closed);
+      const at = gateSpots[i];
       pieces.push({
-        id: next("GT"), code: "GT", kind: "panel", step: 3, floor: 0, pos: [r3(p.x), r3(height / 2), r3(p.z)],
+        id: next("GT"), code: "GT", kind: "panel", step: 3, floor: 0, pos: [r3(at.mid.x), r3(height / 2), r3(at.mid.z)],
+        rot: Math.round(at.rot * 10000) / 10000, item: g.type as FenceGateKind,
         dims: { w: g.width_m, h: height, t: 0.05 }, vol: 0, area: g.width_m * height,
       });
     });

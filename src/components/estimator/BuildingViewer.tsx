@@ -48,6 +48,8 @@ export default function BuildingViewer({
   const reduced = useReducedMotion();
   const reducedRef = useRef(reduced);
   reducedRef.current = reduced;
+  const visualsRef = useRef(visuals);
+  visualsRef.current = visuals;
 
   const [webgl, setWebgl] = useState(true);
   const steps = model ? Math.max(1, model.step_names.length) : 1;
@@ -89,6 +91,7 @@ export default function BuildingViewer({
   useEffect(() => {
     const scene = sceneRef.current;
     if (!scene || !model) return;
+    scene.setVisuals(visualsRef.current);
     scene.setModel(model, !firstModel.current);
     firstModel.current = false;
     setStepState(Math.max(1, model.step_names.length) - 1);
@@ -99,6 +102,10 @@ export default function BuildingViewer({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [model, hasModel]);
 
+  // A design choice repaints the pieces in place: no rebuild, the camera stays where it is.
+  const visualsKey = visuals ? JSON.stringify(visuals) : "";
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { sceneRef.current?.setVisuals(visualsRef.current); }, [visualsKey, hasModel]);
   useEffect(() => { sceneRef.current?.setExplode(explode); }, [explode]);
   useEffect(() => { sceneRef.current?.setColourMode(mode); }, [mode]);
   useEffect(() => { sceneRef.current?.setSelected(selected); }, [selected]);
