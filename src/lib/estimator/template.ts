@@ -18,7 +18,7 @@
 
 import { ESTIMATE_COMPONENTS, groupSlug } from "./types";
 import type {
-  EstimateTemplateBody, ProductMatch, TemplateInput, TemplateInputOption, TemplateRate, TemplateRule, TemplateRuleCost,
+  DrawingMapRule, EstimateTemplateBody, ProductMatch, TemplateInput, TemplateInputOption, TemplateRate, TemplateRule, TemplateRuleCost,
 } from "./types";
 import { ATTR_KEY_RE, MAX_ATTRS, MAX_ATTR_VALUE } from "./productMatch";
 import { FORMULA_FUNCTIONS, formulaIdentifiers, parseFormula } from "./formula";
@@ -32,6 +32,9 @@ export const MAX_INPUTS = 100;
 export const MAX_RATES = 200;
 export const MAX_RULES = 300;
 export const MAX_OPTIONS = 50;
+export const MAX_DRAWING_RULES = 50;
+export const MAX_DRAWING_NAMES = 40;
+export const MAX_DRAWING_NAME_LENGTH = 80;
 
 const KEY_RE = /^[a-z][a-z0-9_]{0,63}$/;
 const OPTION_KEY_RE = /^[a-z0-9][a-z0-9_]{0,63}$/;
@@ -185,6 +188,59 @@ function validateAttrs(raw: unknown, path: string, issues: TemplateIssue[]): Rec
     out[k] = v.trim();
   }
   return Object.keys(out).length > 0 ? out : undefined;
+}
+
+const DRAWING_MEASURES = ["length_m", "area_m2", "count"] as const;
+
+function drawingNames(raw: unknown, path: string, what: string, issues: TemplateIssue[]): string[] | null {
+  if (raw === undefined || raw === null) return [];
+  if (!Array.isArray(raw)) { issues.push({ path, message: `${what} must be a list of names.` }); return null; }
+  if (raw.length > MAX_DRAWING_NAMES) { issues.push({ path, message: `At most ${MAX_DRAWING_NAMES} ${what.toLowerCase()} per row.` }); return null; }
+  const out: string[] = [];
+  for (const n of raw) {
+    const t = isStr(n) ? n.trim() : "";
+    if (!t || t.length > MAX_DRAWING_NAME_LENGTH) { issues.push({ path, message: `Each ${what.toLowerCase().replace(/s$/, "")} name needs 1 to ${MAX_DRAWING_NAME_LENGTH} characters.` }); return null; }
+    if (!out.some((x) => x.toLowerCase() === t.toLowerCase())) out.push(t);
+  }
+  return out;
+}
+
+/** The drawing layer map: which DXF layers or blocks feed which number input. undefined = none. */
+function validateDrawingMap(raw: unknown, inputs: readonly TemplateInput[], issues: TemplateIssue[]): DrawingMapRule[] | undefined {
+  if (raw === undefined || raw === null) return undefined;
+  if (!Array.isArray(raw)) { issues.push({ path: "drawing_map", message: "The drawing layer map must be a list." }); return undefined; }
+  if (raw.length > MAX_DRAWING_RULES) issues.push({ path: "drawing_map", message: `A template can map at most ${MAX_DRAWING_RULES} drawing rows.` });
+  const byKey = new Map(inputs.map((i) => [i.key, i]));
+  const seen = new Set<string>();
+  const out: DrawingMapRule[] = [];
+  raw.slice(0, MAX_DRAWING_RULES).forEach((r, i) => {
+    const path = `drawing_map[${i}]`;
+    if (!isRecord(r)) { issues.push({ path, message: "Each drawing row must be an object." }); return; }
+    let ok = true;
+    const fail = (p: string, message: string) => { issues.push({ path: `${path}.${p}`, message }); ok = false; };
+    const input = isStr(r.input) ? byKey.get(r.input) : undefined;
+    if (!input) fail("input", `Choose an input of this template${isStr(r.input) && r.input ? ` ("${r.input.slice(0, 40)}" is not one)` : ""}.`);
+    else if (input.type !== "number") fail("input", `"${input.key}" is not a number input; a drawing can only fill numbers.`);
+    else if (seen.has(input.key)) fail("input", `"${input.key}" is already filled by another row.`);
+    const measure = DRAWING_MEASURES.find((m) => m === r.measure);
+    if (!measure) fail("measure", 'Measures must be "length_m", "area_m2" or "count".');
+    const layers = drawingNames(r.layers, `${path}.layers`, "Layers", issues);
+    const blocks = drawingNames(r.blocks, `${path}.blocks`, "Blocks", issues);
+    if (layers === null || blocks === null) ok = false;
+    if (measure && measure !== "count" && layers && layers.length === 0) fail("layers", "Name at least one layer to measure.");
+    if (measure === "count" && layers && blocks && layers.length === 0 && blocks.length === 0) fail("layers", "Name the layers or the blocks to count.");
+    if (measure && measure !== "count" && blocks && blocks.length > 0) fail("blocks", "Blocks are only used when counting.");
+    let scale: number | undefined;
+    if (r.scale !== undefined && r.scale !== null && r.scale !== "") {
+      if (!isNum(r.scale) || r.scale <= 0) fail("scale", "Scale must be a number above zero.");
+      else scale = r.scale;
+    }
+    if (ok && input && measure) {
+      seen.add(input.key);
+      out.push({ input: input.key, measure, ...(layers && layers.length ? { layers } : {}), ...(blocks && blocks.length ? { blocks } : {}), ...(scale !== undefined ? { scale } : {}) });
+    }
+  });
+  return out.length > 0 ? out : undefined;
 }
 
 function validateRates(raw: unknown, issues: TemplateIssue[]): TemplateRate[] {
@@ -351,6 +407,7 @@ export function validateTemplate(raw: unknown): TemplateValidation {
   });
 
   const rules = validateRuleShapes(raw.rules, new Set(rates.map((r) => r.key)), inputs, issues);
+  const drawingMap = validateDrawingMap(raw.drawing_map, inputs, issues);
 
   // Geometry module: optional, must exist, and the template must supply the
   // inputs the module reads. Its pieces then add vol_/n_/area_ names.
@@ -458,6 +515,7 @@ export function validateTemplate(raw: unknown): TemplateValidation {
       component: r.component, cost: r.cost,
       ...(r.element_type ? { element_type: r.element_type } : {}),
     })),
+    ...(drawingMap ? { drawing_map: drawingMap } : {}),
   };
   return { ok: true, issues, warnings, template };
 }

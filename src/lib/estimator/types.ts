@@ -130,6 +130,8 @@ export type EstimateTemplateBody = {
   inputs: TemplateInput[];
   rates: TemplateRate[];
   rules: TemplateRule[];
+  /** Drawing intake (0215): which DXF layers feed which number input. Absent = none. */
+  drawing_map?: DrawingMapRule[];
 };
 
 export type EstimateLineSource = "rule" | "schedule" | "manual";

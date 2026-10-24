@@ -3,7 +3,7 @@
 // the API validates only when a check or a save is made. Pure, no I/O.
 
 import type {
-  EstimateComponent, EstimateTemplateBody, ProductMatch, QuoteGranularity, TemplateInput, TemplateInputType, TemplateRate, TemplateRule,
+  DrawingMapRule, DrawingMeasure, EstimateComponent, EstimateTemplateBody, ProductMatch, QuoteGranularity, TemplateInput, TemplateInputType, TemplateRate, TemplateRule,
 } from "@/lib/estimator/types";
 import { groupSlug } from "@/lib/estimator/types";
 
@@ -39,19 +39,24 @@ export type RuleDraft = {
   element_type: string;
 };
 
+/** One row of the drawing layer map; `layers` and `blocks` are the comma-separated text the person types. */
+export type DrawingRowDraft = { input: string; measure: DrawingMeasure; layers: string; blocks: string; scale: string };
+
 export type TemplateDraft = {
   name: string; description: string; trade: string; quote_granularity: QuoteGranularity;
   geometry: string;
   inputs: InputDraft[]; rates: RateDraft[]; rules: RuleDraft[];
+  drawing_map: DrawingRowDraft[];
 };
 
 const str = (v: unknown): string => (v === undefined || v === null ? "" : String(v));
 
 export function toDraft(t: {
   name: string; description: string | null; trade: string | null; quote_granularity: QuoteGranularity; geometry: string | null;
-  inputs: TemplateInput[]; rates: TemplateRate[]; rules: TemplateRule[];
+  inputs: TemplateInput[]; rates: TemplateRate[]; rules: TemplateRule[]; drawing_map?: DrawingMapRule[] | null;
 }): TemplateDraft {
   return {
+    drawing_map: (t.drawing_map ?? []).map((r) => ({ input: r.input, measure: r.measure, layers: (r.layers ?? []).join(", "), blocks: (r.blocks ?? []).join(", "), scale: str(r.scale) })),
     name: t.name, description: t.description ?? "", trade: t.trade ?? "", quote_granularity: t.quote_granularity, geometry: t.geometry ?? "",
     inputs: (t.inputs ?? []).map((i) => ({
       key: i.key, label: i.label, type: i.type, default: str(i.default),
@@ -113,8 +118,19 @@ export function toBody(d: TemplateDraft): EstimateTemplateBody & { geometry?: st
     if (r.element_type.trim()) rule.element_type = r.element_type.trim();
     return rule;
   });
-  return { ...(d.geometry ? { geometry: d.geometry } : {}), inputs, rates, rules };
+  return { ...(d.geometry ? { geometry: d.geometry } : {}), inputs, rates, rules, ...(d.drawing_map.length > 0 ? { drawing_map: d.drawing_map.map(toDrawingRule) } : {}) };
 }
+
+/** Comma- or semicolon-separated names to a list; empty pieces are dropped. */
+export const splitNames = (s: string): string[] => s.split(/[,;\n]/).map((x) => x.trim()).filter(Boolean);
+
+function toDrawingRule(r: DrawingRowDraft): DrawingMapRule {
+  const layers = splitNames(r.layers), blocks = splitNames(r.blocks);
+  const scale = optNum(r.scale);
+  return { input: r.input.trim(), measure: r.measure, ...(layers.length ? { layers } : {}), ...(blocks.length ? { blocks } : {}), ...(scale !== undefined ? { scale } : {}) };
+}
+
+export const blankDrawingRow = (): DrawingRowDraft => ({ input: "", measure: "length_m", layers: "", blocks: "", scale: "" });
 
 /** Names a formula in this template may use, for the reference panel. */
 export function templateIdentifiers(d: TemplateDraft): { inputs: string[]; rates: string[]; lines: string[]; groups: string[] } {

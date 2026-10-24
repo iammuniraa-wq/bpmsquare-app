@@ -15,6 +15,7 @@ import DetailsSection from "./DetailsSection";
 import InputsEditor from "./InputsEditor";
 import RatesEditor from "./RatesEditor";
 import RulesEditor from "./RulesEditor";
+import DrawingEditor from "./DrawingEditor";
 import CheckPanel from "./CheckPanel";
 
 const TAB_IDS = ["details", "inputs", "rates", "rules", "check"] as const;
@@ -34,6 +35,8 @@ export default function TemplateEditor({ template, estimateCount }: { template: 
   const [saveIssues, setSaveIssues] = useState<TemplateIssue[]>([]);
   const [activeRule, setActiveRule] = useState<number | null>(null);
 
+  // The layer map needs migration 0215; while the column is missing the section says so and the map is never sent.
+  const drawingAvailable = "drawing_map" in template;
   const dirty = JSON.stringify(draft) !== savedJson;
   const body = useMemo(() => toBody(draft), [draft]);
   const formula = activeRule !== null ? (draft.rules[activeRule]?.qty ?? null) : null;
@@ -49,6 +52,7 @@ export default function TemplateEditor({ template, estimateCount }: { template: 
         body: JSON.stringify({
           name: draft.name, description: draft.description, trade: draft.trade, quote_granularity: draft.quote_granularity,
           geometry: draft.geometry, inputs: body.inputs, rates: body.rates, rules: body.rules, expected_version: version,
+          ...(drawingAvailable ? { drawing_map: body.drawing_map ?? [] } : {}),
         }),
       });
       const json = await res.json().catch(() => ({}));
@@ -80,7 +84,7 @@ export default function TemplateEditor({ template, estimateCount }: { template: 
         <Tabs
           tabs={[
             { id: "details", label: "Details" },
-            { id: "inputs", label: "Inputs", count: countUnder(issues, "inputs") },
+            { id: "inputs", label: "Inputs", count: countUnder(issues, "inputs") + countUnder(issues, "drawing_map") },
             { id: "rates", label: "Rates", count: countUnder(issues, "rates") },
             { id: "rules", label: "Rules", count: countUnder(issues, "rules") },
             { id: "check", label: "Check", count: problemCount },
@@ -90,7 +94,12 @@ export default function TemplateEditor({ template, estimateCount }: { template: 
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 14, maxWidth: 900 }}>
         {tab === "details" && <DetailsSection draft={draft} onChange={patch} />}
-        {tab === "inputs" && <InputsEditor inputs={draft.inputs} geometry={draft.geometry} onChange={(inputs) => patch({ inputs })} issues={issues} />}
+        {tab === "inputs" && (
+          <>
+            <InputsEditor inputs={draft.inputs} geometry={draft.geometry} onChange={(inputs) => patch({ inputs })} issues={issues} />
+            <DrawingEditor rows={draft.drawing_map} inputs={draft.inputs} onChange={(drawing_map) => patch({ drawing_map })} issues={issues} available={drawingAvailable} />
+          </>
+        )}
         {tab === "rates" && <RatesEditor rates={draft.rates} onChange={(rates) => patch({ rates })} issues={issues} />}
         {tab === "rules" && (
           <RulesEditor

@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { checkTemplate, checkFormula } from "@/lib/estimator/editorCheck";
 import { estimatorAccess, errorResponse } from "@/lib/estimator/server";
 
-// POST /api/estimate-templates/validate { geometry?, inputs, rates, rules, formula? }
+// POST /api/estimate-templates/validate { geometry?, inputs, rates, rules, drawing_map?, formula? }
 // For the template editor. Nothing is saved.
 //   -> { ok, issues, warnings, example, example_issues, formula? }
 // `example` is the template worked out with its default inputs and a zero margin (product
@@ -18,7 +18,7 @@ export async function POST(req: NextRequest) {
     }
     const body = (await req.json().catch(() => null)) as Record<string, unknown> | null;
     if (!body || typeof body !== "object" || Array.isArray(body)) return NextResponse.json({ error: "A JSON body is required." }, { status: 422 });
-    const template = { geometry: body.geometry, inputs: body.inputs, rates: body.rates, rules: body.rules };
+    const template = { geometry: body.geometry, inputs: body.inputs, rates: body.rates, rules: body.rules, drawing_map: body.drawing_map };
     const check = checkTemplate(template);
     const formula = typeof body.formula === "string" ? checkFormula(template, body.formula.slice(0, 2000)) : undefined;
     return NextResponse.json({ ...check, ...(formula ? { formula } : {}) });
