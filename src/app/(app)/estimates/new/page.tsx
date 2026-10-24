@@ -12,17 +12,18 @@ import { PENDING_MESSAGE, isMissingRelation, loadTenantMeta } from "@/lib/estima
 import type { EstimateTemplate } from "@/lib/types";
 import type { WorkspaceTemplate } from "@/components/estimator/workspace/types";
 import type { DraftInit } from "@/components/estimator/workspace/useEstimateDraft";
+import { loadEstimatePrefill } from "@/lib/inbox/estimateLink";
 import { quoteAbility } from "../quoteAbility";
 import NewEstimateScreen from "./NewEstimateScreen";
 import StarterButton from "./StarterButton";
 
 type TemplateRow = Pick<EstimateTemplate, "id" | "name" | "description" | "geometry" | "inputs" | "rates" | "rules" | "quote_granularity">;
 
-export default async function NewEstimatePage({ searchParams }: { searchParams: Promise<{ account_id?: string; from?: string }> }) {
+export default async function NewEstimatePage({ searchParams }: { searchParams: Promise<{ account_id?: string; from?: string; email?: string; template?: string }> }) {
   await requireWorkcenterView("estimates");
   await requireFeature("estimator");
   const { supabase, tenantId, userId, role } = await requireTenantUser();
-  const { account_id, from } = await searchParams;
+  const { account_id, from, email: fromEmail, template: wantedTemplate } = await searchParams;
 
   const [tpl, accounts, contacts] = await Promise.all([
     supabase.from("estimate_templates").select("id, name, description, geometry, inputs, rates, rules, quote_granularity").eq("tenant_id", tenantId).eq("is_active", true).order("name"),
@@ -101,6 +102,23 @@ export default async function NewEstimatePage({ searchParams }: { searchParams: 
         params: s.params ?? {}, margin: Number(s.margin_pct ?? 0),
       };
     }
+  }
+
+  // Started from the shared Inbox: the customer's email goes in the intake card, the template suggested for it is
+  // chosen (when it is one of this workspace's active ones), and the sender's account is picked if they are known.
+  if (fromEmail && /^[0-9a-f-]{36}$/i.test(fromEmail)) {
+    const prefill = await loadEstimatePrefill(fromEmail);
+    if (prefill) {
+      const known = (id: string | null) => !!id && (accounts.data ?? []).some((a) => a.id === id);
+      init = {
+        ...init,
+        brief: prefill.brief, sourceEmailId: fromEmail,
+        accountId: init.accountId ?? (known(prefill.accountId) ? prefill.accountId! : undefined),
+        contactId: known(prefill.accountId) ? prefill.contactId ?? undefined : undefined,
+        customer: init.customer ?? prefill.customer ?? undefined,
+      };
+    }
+    if (wantedTemplate && templates.some((t) => t.id === wantedTemplate)) init = { ...init, templateId: wantedTemplate };
   }
 
   const [meta, tenant] = await Promise.all([loadTenantMeta(tenantId), getTenant()]);

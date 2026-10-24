@@ -28,6 +28,7 @@ import RecordActivity from "@/components/page/RecordActivity";
 import RelatedList from "@/components/page/RelatedList";
 import RecordActionButton, { type RecordAction } from "@/components/page/recordActions";
 import ObjectSections from "@/components/fields/ObjectSections";
+import SourceEmailSlot from "@/components/inbox/SourceEmailSlot";
 import { FIELD_REGISTRY } from "@/lib/fieldRegistry";
 
 // The page hand-renders every standard field; only the tenant's own (cf_) fields come from ObjectSections.
@@ -267,6 +268,7 @@ export default async function StandardQuoteDetailPage({
         <>
           <StandardQuoteDatesCard quote={quote} />
           {pipelineOn && <StandardQuoteDealCard quoteId={quote.id} accountId={quote.account_id} deal={deal} />}
+          <SourceEmailSlot objectType="standard_quotes" objectId={quote.id} />
         </>
       }
     />

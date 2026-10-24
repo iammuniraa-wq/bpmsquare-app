@@ -47,6 +47,8 @@ export function useEstimateActions(a: { draft: EstimateDraft; savedId?: string; 
       body: JSON.stringify({
         name: draft.customer.trim(), template_id: draft.template?.id, account_id: accountId || null, contact_id: draft.contactId || null,
         params: params(), margin_pct: margin(), notes: draft.notes.trim() || null, custom_data: draft.customData,
+        // From the shared Inbox: the server links the email to the estimate once it exists (and ignores it if it may not).
+        source_email_id: draft.sourceEmailId,
       }),
     });
     const json = (await res.json().catch(() => ({}))) as Json;

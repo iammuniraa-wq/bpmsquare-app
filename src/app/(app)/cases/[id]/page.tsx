@@ -26,6 +26,7 @@ import ExternalRecordSlot from "@/components/ExternalRecordSlot";
 import RecordMoreMenu from "@/components/page/RecordMoreMenu";
 import RecordActivity from "@/components/page/RecordActivity";
 import RelatedList from "@/components/page/RelatedList";
+import SourceEmailSlot from "@/components/inbox/SourceEmailSlot";
 import type { MenuItem } from "@/components/ui/menuItems";
 
 // ── Stage groups ──────────────────────────────────────────────────────────────
@@ -253,6 +254,7 @@ export default async function CaseDetailPage({
         patchUrl={`/api/cases/${sc.id}`}
         exclude={["ref", "type", "equipment_label"]}
       />
+      <SourceEmailSlot objectType="cases" objectId={sc.id} />
     </>
   );
 

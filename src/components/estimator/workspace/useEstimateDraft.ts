@@ -14,6 +14,9 @@ export type DraftInit = {
   accountId?: string;
   contactId?: string;
   notes?: string;
+  /** From the shared Inbox: the customer's email, put in the email-intake card, and the message that becomes this estimate. */
+  brief?: string;
+  sourceEmailId?: string;
 };
 
 /** Everything the person is editing on the working page, held in one place. */
@@ -69,6 +72,7 @@ export function useEstimateDraft(templates: readonly WorkspaceTemplate[], init: 
   return {
     template, templateId, pickTemplate, values, setValue, started, sender, setSender, applyProposal, reset,
     margin, setMargin, customer, setCustomer, accountId, setAccountId, contactId, setContactId, notes, setNotes, customData, setCustomData,
+    brief: init.brief, sourceEmailId: init.sourceEmailId,
   };
 }
 

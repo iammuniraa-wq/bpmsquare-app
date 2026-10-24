@@ -16,14 +16,16 @@ import { assumedChips, understoodChips } from "./intakeChips";
  * manual inputs below are always there, so a workspace without AI loses nothing.
  */
 export default function EmailIntake({
-  templateId, inputs, onApply,
+  templateId, inputs, onApply, initialText = "",
 }: {
   templateId: string;
   inputs: readonly TemplateInput[];
   onApply: (proposal: IntakeProposal) => void;
+  /** The email, already in the box (when the estimate is started from the shared Inbox). */
+  initialText?: string;
 }) {
   const id = useId();
-  const [text, setText] = useState("");
+  const [text, setText] = useState(initialText);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notConfigured, setNotConfigured] = useState(false);
