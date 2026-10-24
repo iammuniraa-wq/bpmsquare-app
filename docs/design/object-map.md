@@ -20,6 +20,12 @@
 5. **Workforce to invoice.** Employee + shift + site + roster (with project), then punch stamped with the project, then
    corrections / OT / leave, then project hours, then a draft Invoice per period (manual, month-end cron or API), guarded
    against double billing. Payroll leaves only as an XLSX file.
+6. **Mail to record (shared Inbox, built 2026-10-24).** A customer writes to a channel address (forwarding) or the company
+   mailbox (IMAP, read-only), then an `inbound_emails` row (body encrypted, files in a private bucket, labelled by type and
+   size), then Create from this email makes a Standard Quote, WFM Project, Case, Lead or (via the workspace) Estimate, copies the
+   files onto it (`record_files`, or the quote's own Attachments), stores sender and summary (`record_sources`) and links the
+   message back. Replies leave through the channel's mailbox or `resolveOutbound`, logged as `email_log` kind `inbox`. Not
+   exposed on v1, Data Workbench, Talk to data or the assistant: it is private correspondence.
 
 ## What leaves BPMSquare today
 
