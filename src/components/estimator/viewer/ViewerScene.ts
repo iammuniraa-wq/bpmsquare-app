@@ -101,7 +101,7 @@ export class ViewerScene {
   private step = 0;
   private explode = 0;
   private cutaway = false;
-  /** A long fence can also be viewed close up at a gate (a button on the viewer); set by setModel. */
+  /** A long fence opens close up at a gate, with a button for the whole run; set by setModel. */
   closeUpAvailable = false;
   private closeView: { target: [number, number, number]; dist: number } | null = null;
   private wholeView: { target: [number, number, number]; dist: number } = { target: [0, 1, 0], dist: 30 };
@@ -208,6 +208,7 @@ export class ViewerScene {
     this.orbit = keepView
       ? { ...this.orbit, maxDist: Math.max(this.orbit.maxDist, maxDist) }
       : { ...this.orbit, dist, minDist: 8, maxDist };
+    if (!keepView && this.closeView) { this.target = this.closeView.target; this.orbit.dist = this.closeView.dist; }
     const reach = Math.max(this.orbit.maxDist, maxDist);
     this.fitAtmosphere(dist, reach, radius, maxY);
 
