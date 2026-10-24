@@ -27,6 +27,9 @@ export type InboundEmail = {
   html: string | null;
   messageId: string | null;
   inReplyTo: string | null;
+  /** Used by the shared Inbox, not by RFQ routing: the References header and the headers that mark an auto-reply. */
+  references?: string | null;
+  headers?: Record<string, string>;
   attachments: { filename: string; contentType: string; content: Buffer }[];
 };
 
