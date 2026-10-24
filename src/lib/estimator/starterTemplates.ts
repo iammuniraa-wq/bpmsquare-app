@@ -32,6 +32,13 @@ export type StarterTemplate = EstimateTemplateBody & {
   description: string;
   trade: string;
   quote_granularity: QuoteGranularity;
+  /** Words an email might use for this job; the AI template pick reads them (never prices). */
+  keywords?: string[];
+  /** Icon key for the template card (components/estimator/TemplateIcon). */
+  icon?: string;
+  /** Installed read-only: a workspace changes it by "Copy to customise". */
+  locked?: boolean;
+  customer_visible?: boolean;
 };
 
 export const PRECAST_VILLA_STARTER: StarterTemplate = {
@@ -41,6 +48,8 @@ export const PRECAST_VILLA_STARTER: StarterTemplate = {
   trade: "precast",
   quote_granularity: "group",
   geometry: "precast_villa",
+  keywords: ["precast", "villa", "house", "building", "prefab", "wall panels", "hollow core", "boundary wall", "residential", "floors"],
+  icon: "building",
 
   inputs: [
     // ILLUSTRATIVE ranges and defaults. The first seven keys are read by the
@@ -163,4 +172,108 @@ export const PRECAST_VILLA_STARTER: StarterTemplate = {
   ],
 };
 
-export const STARTER_TEMPLATES: readonly StarterTemplate[] = [PRECAST_VILLA_STARTER];
+// ── Chain-link fence ─────────────────────────────────────────────────────────
+//
+// The Fence configurator (src/lib/fence, 0122) expressed as a template. The
+// `chainlink_fence` layout module returns the post and fabric COUNTS (n_LP, n_SP,
+// n_CP, n_TP, n_GP, area_FB); the hardware rules below replicate src/lib/fence/bom.ts
+// line for line, and every line is priced from the workspace's own catalogue by the
+// tags on its products (`custom_data.fence_kind` and the pipe class, mesh and coating
+// the customer chose), exactly how materialMatch.ts picked them. fence.parity.test.ts
+// holds the two to the same numbers. There are no rates: a fence is priced from products.
+//
+// Unlike the precast villa this is a REAL method (the configurator's), not an
+// illustration; what is workspace-specific is the product catalogue and the choices
+// below (pipe classes, meshes, coatings), which a workspace changes by copying the
+// template ("Copy to customise") and editing the copy.
+
+const G_FENCE_POSTS = "Posts";
+const G_FENCE_FABRIC = "Chain-link fabric";
+const G_FENCE_FITTINGS = "Fittings and hardware";
+const G_FENCE_WIRE = "Wire";
+
+/** The pipe class each security profile uses, with the post spacing it needs (the option's number). */
+export const FENCE_PROFILE_OPTIONS = [
+  { key: "general", label: "General yard and storage", value: 3, attrs: { pipe_class: "Schedule 40" } },
+  { key: "vehicle", label: "Vehicle and equipment compound", value: 2.5, attrs: { pipe_class: "SS20" } },
+  { key: "bonded", label: "Bonded or high-value storage", value: 2, attrs: { pipe_class: "SS40" } },
+] as const;
+
+export const FENCE_MESH_OPTIONS = [
+  { key: "standard", label: "Standard 50x50, 2.5 mm", value: 1, attrs: { mesh_spec: "Chain-link 50x50 . 2.5mm" } },
+  { key: "high_security", label: "High security 25x25, 3.0 mm", value: 2, attrs: { mesh_spec: "Chain-link 25x25 . 3.0mm (high security)" } },
+  { key: "mini_mesh", label: "Mini-mesh 16x16, 4.9 mm", value: 3, attrs: { mesh_spec: "Chain-link 16x16 . 4.9mm (mini-mesh)" } },
+] as const;
+
+export const FENCE_COATING_OPTIONS = [
+  { key: "pvc", label: "PVC coated", value: 1, attrs: { coating: "PVC coated" } },
+] as const;
+
+const fenceProduct = (fence_kind: string, from: string[]) => ({ kind: "product" as const, match: { attrs: { fence_kind }, from } });
+const POST_FROM = ["post_spacing_m", "coating"];
+const HARDWARE_FROM = ["coating"];
+/** Posts that take bands, rail ends and bolts (everything but line posts), as bom.ts counts them. */
+const TERMINAL_TYPE = "(n_CP + n_TP + n_SP + n_GP)";
+
+export const CHAINLINK_FENCE_STARTER: StarterTemplate = {
+  name: "Chain-link fence",
+  description: "Perimeter or straight-run chain-link fence: posts, fabric, gates and fittings, priced from your catalogue.",
+  trade: "fencing",
+  quote_granularity: "line",
+  geometry: "chainlink_fence",
+  keywords: ["fence", "fencing", "chain link", "chainlink", "perimeter", "boundary", "compound", "yard", "gate", "posts", "mesh", "security fence", "barbed wire"],
+  icon: "fence",
+  locked: true,
+
+  inputs: [
+    { key: "total_length_m", label: "Fence length", type: "number", default: 500, min: 1, max: 5000, unit: "m", section: "The fence",
+      help: "The whole length of fence, gates included." },
+    { key: "closed_perimeter", label: "Goes all the way round", type: "boolean", default: true, section: "The fence",
+      help: "Yes for a closed boundary (four corners). No for a single straight run (two end posts)." },
+    { key: "post_spacing_m", label: "What is being protected", type: "select", default: "general", section: "The fence",
+      help: "Sets how far apart the posts are and which pipe class they use.",
+      options: FENCE_PROFILE_OPTIONS.map((o) => ({ ...o, attrs: { ...o.attrs } })) },
+    { key: "fabric_height_m", label: "Fence height", type: "number", default: 2, min: 1, max: 6, unit: "m", section: "The fence" },
+    { key: "mesh", label: "Mesh", type: "select", default: "standard", section: "The fence",
+      options: FENCE_MESH_OPTIONS.map((o) => ({ ...o, attrs: { ...o.attrs } })) },
+    { key: "coating", label: "Coating", type: "select", default: "pvc", section: "The fence",
+      options: FENCE_COATING_OPTIONS.map((o) => ({ ...o, attrs: { ...o.attrs } })) },
+    { key: "straining_spacing_m", label: "Distance between straining posts", type: "number", default: 100, min: 10, max: 500, unit: "m", section: "The fence" },
+
+    { key: "gates_single_n", label: "Single gates", type: "number", default: 0, min: 0, max: 20, unit: "gates", section: "Gates" },
+    { key: "gates_single_w", label: "Single gate width", type: "number", default: 1.2, min: 0.6, max: 3, unit: "m", section: "Gates" },
+    { key: "gates_double_n", label: "Double gates", type: "number", default: 2, min: 0, max: 20, unit: "gates", section: "Gates" },
+    { key: "gates_double_w", label: "Double gate width", type: "number", default: 5, min: 2, max: 12, unit: "m", section: "Gates" },
+    { key: "gates_sliding_n", label: "Sliding gates", type: "number", default: 0, min: 0, max: 20, unit: "gates", section: "Gates" },
+    { key: "gates_sliding_w", label: "Sliding gate width", type: "number", default: 6, min: 2, max: 20, unit: "m", section: "Gates" },
+
+    { key: "truss_rods", label: "Truss rods at corners and straining posts", type: "boolean", default: true, section: "Fittings" },
+    { key: "tension_wire", label: "Tension wire (3 rows)", type: "boolean", default: true, section: "Fittings" },
+    { key: "tie_wire", label: "Tie wire", type: "boolean", default: true, section: "Fittings" },
+    { key: "barbed_wire", label: "Barbed wire on top (3 strands)", type: "boolean", default: false, section: "Fittings" },
+  ],
+
+  rates: [],
+
+  rules: [
+    { code: "line_posts", group: G_FENCE_POSTS, description: "Line posts", uom: "pcs", qty: "n_LP", component: "materials", cost: fenceProduct("line_post", POST_FROM) },
+    { code: "straining_posts", group: G_FENCE_POSTS, description: "Straining posts", uom: "pcs", qty: "n_SP", component: "materials", cost: fenceProduct("straining_post", POST_FROM) },
+    { code: "corner_posts", group: G_FENCE_POSTS, description: "Corner posts", uom: "pcs", qty: "n_CP", component: "materials", cost: fenceProduct("corner_post", POST_FROM) },
+    { code: "terminal_posts", group: G_FENCE_POSTS, description: "Terminal posts", uom: "pcs", qty: "n_TP", component: "materials", cost: fenceProduct("terminal_post", POST_FROM) },
+    { code: "gate_posts", group: G_FENCE_POSTS, description: "Gate posts", uom: "pcs", qty: "n_GP", component: "materials", cost: fenceProduct("gate_post", POST_FROM) },
+
+    { code: "fabric", group: G_FENCE_FABRIC, description: "Chain-link fabric", uom: "m2", qty: "area_FB", component: "materials", cost: fenceProduct("fabric", ["mesh", "coating"]) },
+
+    { code: "tension_bands", group: G_FENCE_FITTINGS, description: "Tension bands", uom: "pcs", qty: `${TERMINAL_TYPE} * max(3, ceil(fabric_height_m / 0.3))`, component: "materials", cost: fenceProduct("tension_band", HARDWARE_FROM) },
+    { code: "brace_bands", group: G_FENCE_FITTINGS, description: "Brace bands", uom: "pcs", qty: `${TERMINAL_TYPE} * 2`, component: "materials", cost: fenceProduct("brace_band", HARDWARE_FROM) },
+    { code: "rail_ends", group: G_FENCE_FITTINGS, description: "Rail ends", uom: "pcs", qty: `${TERMINAL_TYPE} * 2`, component: "materials", cost: fenceProduct("rail_end", HARDWARE_FROM) },
+    { code: "carriage_bolts", group: G_FENCE_FITTINGS, description: "Carriage bolt sets", uom: "sets", qty: "qty_tension_bands + qty_brace_bands", component: "materials", cost: fenceProduct("carriage_bolt_set", HARDWARE_FROM) },
+    { code: "truss_sets", group: G_FENCE_FITTINGS, description: "Truss rod sets", uom: "sets", qty: "truss_rods * (n_CP + n_SP)", component: "materials", cost: fenceProduct("truss_rod_set", HARDWARE_FROM) },
+
+    { code: "tension_wire_m", group: G_FENCE_WIRE, description: "Tension wire", uom: "m", qty: "tension_wire * round(total_length_m * 3)", component: "materials", cost: fenceProduct("tension_wire", HARDWARE_FROM) },
+    { code: "tie_wire_kg", group: G_FENCE_WIRE, description: "Tie wire", uom: "kg", qty: "tie_wire * round(total_length_m * 0.0186, 1)", component: "materials", cost: fenceProduct("tie_wire", HARDWARE_FROM) },
+    { code: "barbed_wire_m", group: G_FENCE_WIRE, description: "Barbed wire", uom: "m", qty: "barbed_wire * total_length_m * 3", component: "materials", cost: fenceProduct("barbed_wire", HARDWARE_FROM) },
+  ],
+};
+
+export const STARTER_TEMPLATES: readonly StarterTemplate[] = [PRECAST_VILLA_STARTER, CHAINLINK_FENCE_STARTER];

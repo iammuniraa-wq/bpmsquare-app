@@ -8,12 +8,14 @@
 
 import { roundHalfAway } from "../formula";
 import { PRECAST_VILLA_MODULE } from "./precastVilla";
+import { CHAINLINK_FENCE_MODULE } from "./chainlinkFence";
 import type { GeometryModel, GeometryModule, PieceFamilyTotals } from "./types";
 
 export type { GeometryModel, GeometryModule, GeometryResult, Piece, PieceOpening, Vec3, PieceKind, PieceCodeInfo, PieceFamilyTotals } from "./types";
 
 const MODULES: Readonly<Record<string, GeometryModule>> = {
   [PRECAST_VILLA_MODULE.key]: PRECAST_VILLA_MODULE,
+  [CHAINLINK_FENCE_MODULE.key]: CHAINLINK_FENCE_MODULE,
 };
 
 export const GEOMETRY_KEYS: readonly string[] = Object.keys(MODULES);

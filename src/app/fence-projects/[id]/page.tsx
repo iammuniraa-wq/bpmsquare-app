@@ -59,6 +59,7 @@ export default async function FenceProjectDetailPage({ params }: { params: Promi
         accounts={accountRows ?? []}
         contacts={contactRows ?? []}
         project={snapshot}
+        estimatesNote={!!tenant?.features?.estimator}
       />
     </>
   );

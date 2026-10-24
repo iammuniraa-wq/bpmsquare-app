@@ -58,6 +58,8 @@ export type GeometryInputSpec = {
   required: boolean;
   /** Value used when the template does not define an optional input. */
   default?: number;
+  /** The input may be a select: the module reads the chosen option's number (e.g. post spacing). */
+  select_ok?: boolean;
 };
 
 export type PieceCodeInfo = { code: string; label: string };

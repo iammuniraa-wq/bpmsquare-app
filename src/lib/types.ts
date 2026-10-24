@@ -869,6 +869,12 @@ export type EstimateTemplate = {
   rates: EstimatorTemplateRate[];
   rules: EstimatorTemplateRule[];
   quote_granularity: EstimatorQuoteGranularity;
+  /** 0213 (absent while it is pending): the catalogue card and the AI template pick. */
+  keywords?: string[] | null;
+  icon?: string | null;
+  /** A starter template: read-only, changed by "Copy to customise". */
+  locked?: boolean;
+  customer_visible?: boolean;
   custom_data: Record<string, unknown> | null;
   created_by: string | null;
   created_at: string;

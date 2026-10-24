@@ -10,7 +10,9 @@ import { useFeel } from "@/components/FeelProvider";
 import { RecordList, RecordRow } from "@/components/settings/RecordRows";
 import { SettingsHeaderActions } from "@/components/settings/SettingsHeaderActions";
 import type { TemplateSummary } from "@/lib/estimator/server";
+import { STARTER_TEMPLATES } from "@/lib/estimator/starterTemplates";
 import StarterButton from "../../estimates/new/StarterButton";
+import TemplatePanel from "./TemplatePanel";
 
 // The smallest template that validates: one input, one rate, one rule.
 const BLANK_BODY = {
@@ -26,6 +28,10 @@ export default function TemplatesListClient({ templates }: { templates: Template
   const router = useRouter();
   const { confirm, toast } = useFeel();
   const [busy, setBusy] = useState(false);
+  const [openId, setOpenId] = useState<string | null>(null);
+  const open = templates.find((t) => t.id === openId) ?? null;
+  const have = new Set(templates.map((t) => t.name.toLowerCase()));
+  const missingStarters = STARTER_TEMPLATES.filter((s) => !have.has(s.name.toLowerCase()));
 
   async function call(url: string, init: RequestInit, failText: string): Promise<Record<string, unknown> | null> {
     setBusy(true);
@@ -56,7 +62,11 @@ export default function TemplatesListClient({ templates }: { templates: Template
   async function duplicate(t: TemplateSummary) {
     const json = await call(`/api/estimate-templates/${t.id}/duplicate`, { method: "POST" }, "Could not duplicate the template.");
     const id = (json?.template as { id?: string } | undefined)?.id;
-    if (id) { toast({ text: `Duplicated "${t.name}"`, tone: "success" }); router.push(ROUTES.settingsEstimateTemplate(id)); }
+    if (id) {
+      toast({ text: t.locked ? `Made your own copy of "${t.name}"` : `Duplicated "${t.name}"`, tone: "success" });
+      setOpenId(null);
+      router.push(ROUTES.settingsEstimateTemplate(id));
+    }
   }
 
   async function setActive(t: TemplateSummary, active: boolean) {
@@ -93,6 +103,7 @@ export default function TemplatesListClient({ templates }: { templates: Template
             subtitle={t.description ?? undefined}
             dim={!t.is_active}
             facts={[
+              ...(t.locked ? [{ label: "Type", value: "Starter, read-only" }] : []),
               { label: "Inputs", value: t.input_count },
               { label: "Rules", value: t.rule_count },
               { label: "Estimates", value: t.estimate_count },
@@ -100,16 +111,33 @@ export default function TemplatesListClient({ templates }: { templates: Template
             ]}
             status={<StatusPill label={t.is_active ? "Active" : "Inactive"} tone={t.is_active ? "green" : "red"} />}
             menu={[
-              { label: "Edit", href: ROUTES.settingsEstimateTemplate(t.id) },
-              { label: "Duplicate", onSelect: () => { void duplicate(t); } },
+              { label: "Details", onSelect: () => setOpenId(t.id) },
+              { label: "Copy to customise", hidden: !t.locked, onSelect: () => { void duplicate(t); } },
+              { label: "Edit", href: ROUTES.settingsEstimateTemplate(t.id), hidden: t.locked },
+              { label: "Duplicate", hidden: t.locked, onSelect: () => { void duplicate(t); } },
               { label: t.is_active ? "Deactivate" : "Activate", onSelect: () => { void setActive(t, !t.is_active); } },
               { label: "Delete", danger: true, onSelect: () => { void remove(t); } },
             ]}
           />
         ))}
       </RecordList>
-      {templates.length > 0 && !templates.some((t) => t.name.toLowerCase().startsWith("precast villa")) && (
-        <div style={{ marginTop: 14 }}><StarterButton variant="secondary" label="Add the precast villa starter" /></div>
+      {templates.length > 0 && missingStarters.length > 0 && (
+        <div style={{ marginTop: 14, display: "flex", gap: 10, flexWrap: "wrap" }}>
+          {missingStarters.map((s) => (
+            <StarterButton key={s.name} variant="secondary" starter={s.name} label={`Add the ${s.name.replace(/ \(illustrative\)$/i, "").toLowerCase()} starter`} />
+          ))}
+        </div>
+      )}
+      {open && (
+        <TemplatePanel
+          key={open.id}
+          template={open}
+          busy={busy}
+          onClose={() => setOpenId(null)}
+          onCopy={() => { void duplicate(open); }}
+          onEdit={() => router.push(ROUTES.settingsEstimateTemplate(open.id))}
+          onSaved={() => { setOpenId(null); router.refresh(); }}
+        />
       )}
     </>
   );

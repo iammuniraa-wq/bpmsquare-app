@@ -16,6 +16,7 @@ import type { QuoteSourceLine } from "./quoteLines";
 import type { OverridableRow } from "./overrides";
 import { readOverride } from "./overrides";
 import { groupSlug } from "./types";
+import { isMatchKey } from "./productMatch";
 import type { EstimateComponent } from "./types";
 import type { EstimateLine } from "@/lib/types";
 
@@ -77,7 +78,7 @@ export function customDataFor(
   line: Pick<ComputedLine, "group" | "sku" | "source" | "qty">, label: string | null, product?: ProductSnapshot | null
 ): Record<string, unknown> {
   // The real item number wins over the key the template wrote (which may be a reference).
-  const sku = product?.sku || line.sku;
+  const sku = product?.sku || (product && isMatchKey(line.sku) ? null : line.sku);
   return {
     group: line.group,
     ...(sku ? { sku } : {}),
@@ -138,7 +139,8 @@ export function toSummarisable(lines: readonly Pick<EstimateLine, "group_key" | 
 export function toExportLine(l: EstimateLine, groups: ReadonlyMap<string, string>): ExportLineInput {
   return {
     code: l.code,
-    sku: skuOf(l),
+    // A line whose product was never found still carries its match key; that is not an item number for an ERP.
+    sku: isMatchKey(skuOf(l)) ? null : skuOf(l),
     description: l.description,
     uom: l.uom,
     qty: l.qty,

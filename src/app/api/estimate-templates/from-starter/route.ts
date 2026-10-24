@@ -22,7 +22,7 @@ export async function GET() {
     const have = new Set(((data ?? []) as { name: string }[]).map((r) => r.name.toLowerCase()));
     return NextResponse.json({
       starters: STARTER_TEMPLATES.map((s) => ({
-        name: s.name, description: s.description, trade: s.trade, geometry: s.geometry ?? null,
+        name: s.name, description: s.description, trade: s.trade, geometry: s.geometry ?? null, icon: s.icon ?? null, locked: s.locked === true,
         input_count: s.inputs.length, rule_count: s.rules.length, installed: have.has(s.name.toLowerCase()),
       })),
       ...(error ? { pending_migration: true } : {}),
@@ -53,6 +53,7 @@ export async function POST(req: NextRequest) {
     if (!v.ok || !v.template) return NextResponse.json({ error: "The starter template failed validation.", issues: v.issues }, { status: 500 });
     const r = await insertTemplate(supabase, tenantId, userId, {
       name: starter.name, description: starter.description, trade: starter.trade, quote_granularity: starter.quote_granularity,
+      keywords: starter.keywords, icon: starter.icon, locked: starter.locked, customer_visible: starter.customer_visible,
     }, v.template);
     if (!r.data) {
       if (r.status === 503) return pendingResponse();

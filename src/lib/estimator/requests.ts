@@ -264,7 +264,15 @@ export type TemplateHeader = {
   is_active?: boolean;
   quote_granularity?: "group" | "line";
   geometry?: string | null;
+  /** Words an email might use for this job (the AI template pick reads them). */
+  keywords?: string[] | null;
+  /** Icon key for the template card. */
+  icon?: string | null;
+  customer_visible?: boolean;
 };
+
+export const MAX_KEYWORDS = 20;
+export const TEMPLATE_ICONS = ["fence", "building", "tiles", "cabin", "grid"] as const;
 
 /** The header fields of a template body (everything except inputs/rates/rules,
  *  which validateTemplate owns). Returns only the keys present. */
@@ -286,6 +294,22 @@ export function parseTemplateHeader(body: unknown, opts: { requireName: boolean 
   if ("quote_granularity" in body) {
     if (body.quote_granularity !== "group" && body.quote_granularity !== "line") return { ok: false, error: 'quote_granularity must be "group" or "line".' };
     header.quote_granularity = body.quote_granularity;
+  }
+  if ("keywords" in body) {
+    if (body.keywords === null) header.keywords = null;
+    else if (Array.isArray(body.keywords) && body.keywords.every((k) => typeof k === "string")) {
+      const list = [...new Set((body.keywords as string[]).map((k) => k.trim().toLowerCase().slice(0, 40)).filter(Boolean))].slice(0, MAX_KEYWORDS);
+      header.keywords = list.length > 0 ? list : null;
+    } else return { ok: false, error: "Keywords must be a list of words." };
+  }
+  if ("icon" in body) {
+    if (body.icon === null || body.icon === "") header.icon = null;
+    else if (typeof body.icon === "string" && (TEMPLATE_ICONS as readonly string[]).includes(body.icon)) header.icon = body.icon;
+    else return { ok: false, error: `Icon must be one of: ${TEMPLATE_ICONS.join(", ")}.` };
+  }
+  if ("customer_visible" in body) {
+    if (typeof body.customer_visible !== "boolean") return { ok: false, error: "customer_visible must be true or false." };
+    header.customer_visible = body.customer_visible;
   }
   if ("geometry" in body) header.geometry = typeof body.geometry === "string" && body.geometry.trim() ? body.geometry.trim() : null;
   return { ok: true, header };
