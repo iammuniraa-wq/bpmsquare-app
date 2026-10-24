@@ -3,8 +3,6 @@
 import { useCallback, useMemo, useState } from "react";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
-import Field from "@/components/ui/Field";
-import { Select } from "@/components/ui/Input";
 import { useCurrency } from "@/lib/tenant-context";
 import { moneyFormatter } from "@/lib/currency";
 import { alternativesInput } from "@/lib/estimator/quoteLines";
@@ -22,6 +20,9 @@ import PriceCard from "./PriceCard";
 import QuoteActions from "./QuoteActions";
 import SenderCard from "./SenderCard";
 import VillaCard from "./VillaCard";
+import FenceCard from "./FenceCard";
+import { fenceViewOf } from "@/lib/estimator/fenceView";
+import { previewKindFor, wordsFor } from "./layoutKind";
 import { EstimateFocusContext } from "./focus";
 import { isDirty, shownFromPreview } from "./shown";
 import { useEstimateActions } from "./useEstimateActions";
@@ -60,6 +61,8 @@ export type WorkspaceProps = {
   saved?: SavedEstimate;
   /** A bill-of-materials code to light up on arrival (old ?line= links). */
   initialHighlight?: string | null;
+  /** Arrived from "start from the customer's email": the AI chooses the template when the email is read. */
+  emailFirst?: boolean;
   /** The internal sections under the page, given the figures being shown. */
   renderInternal?: (shown: ShownData, template: WorkspaceTemplate | null) => React.ReactNode;
 };
@@ -101,6 +104,7 @@ export default function EstimateWorkspace(p: WorkspaceProps) {
   const shown = useMemo(() => (showStored ? saved.shown : shownFromPreview(blank ? null : preview)), [showStored, saved, preview, blank]);
   const options = showStored && preview ? shiftOptions(preview.options, saved.view.total - preview.view.total) : blank ? null : preview?.options ?? null;
   const altKey = t ? alternativesInput(t.inputs)?.key : undefined;
+  const fenceView = useMemo(() => (t && previewKindFor(t.geometry) === "fence" ? fenceViewOf(shown.model, t.inputs, params) : null), [t, shown.model, params]);
 
   const marks = useMemo(() => {
     const line = highlightCode ? shown.lines.find((l) => l.code === highlightCode) : null;
@@ -149,21 +153,14 @@ export default function EstimateWorkspace(p: WorkspaceProps) {
             )}
           </Card>
         )}
-        {!saved && p.templates.length > 1 && (
-          <Card padding={16}>
-            <Field label="Template" hint={t?.description ?? undefined} style={{ marginBottom: 0 }}>
-              <Select value={draft.templateId} onChange={(e) => draft.pickTemplate(e.target.value)} disabled={act.busy !== null}>
-                {p.templates.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
-              </Select>
-            </Field>
-          </Card>
+        {editable && t && (
+          <EmailIntake templates={p.templates} template={t} autoPick={!!p.emailFirst} onTemplate={draft.pickTemplate} onApply={draft.applyProposal} />
         )}
-        {editable && t && <EmailIntake key={t.id} templateId={t.id} inputs={t.inputs} onApply={draft.applyProposal} />}
         {locked && <div className="est-note" role="status">This estimate has a quote, so it is locked. Everything below is as it was quoted.</div>}
         {!t && <Card padding={16}><div className="bpm-t-help">This estimate&apos;s template was deleted, so its inputs can&apos;t be shown or recalculated. Its lines and totals are kept as they were.</div></Card>}
 
         {blank && editable && (
-          <div className="est-note" role="status">Paste the customer&apos;s email above, or fill in any detail, and the villa and the price appear here.</div>
+          <div className="est-note" role="status">Paste the customer&apos;s email above, or fill in any detail, and the {wordsFor(t?.geometry).subject} and the price appear here.</div>
         )}
 
         <div className="est-grid">
@@ -187,7 +184,8 @@ export default function EstimateWorkspace(p: WorkspaceProps) {
             </div>
           )}
           <div className="est-stack" style={{ gridColumn: t ? undefined : "1 / -1" }}>
-            {t?.geometry && shown.model && (
+            {t?.geometry && shown.model && previewKindFor(t.geometry) === "fence" && fenceView && <FenceCard view={fenceView} />}
+            {t?.geometry && shown.model && previewKindFor(t.geometry) === "pieces" && (
               <VillaCard model={shown.model} lines={shown.lines} rates={t.rates} money={money} highlightMarks={marks}
                 note={highlightCode && marks && marks.length > 0 ? `Lighting up the ${marks.length} pieces of the line "${highlightCode}".` : undefined} />
             )}

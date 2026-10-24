@@ -1037,3 +1037,84 @@ placeholder product costs, not a change in the engine.
   is not built (the hand-added line has one).
 - The roll-up uses stored component costs; it does not re-apply when a component's cost changes
   until the estimate is calculated again.
+
+## 18. One Estimates module, part 1 (as built 2026-10-24) -- fence as a locked starter template
+
+Decisions: `docs/design/estimator-unification-and-inbox.md`; plan: `docs/design/gcc-sales-estimating-plan.md` section 5.
+`tsc` and `vitest` clean; **not run in a browser and `next build` not run** (see 18.7).
+
+### 18.1 Template catalogue and the picker
+- `0213_estimate_template_catalogue.sql` (OPTIONAL, additive): `estimate_templates.keywords text[]`, `icon text`,
+  `locked boolean`, `customer_visible boolean` (`description` already existed). Everything degrades while it is pending.
+- `/estimates/new` opens on **"What are you estimating?"**: one big card per active template (icon, name, one plain
+  line) -> `?template=<id>` -> the working page. A last card, "Not sure? Start from the customer's email", goes to the
+  working page with the AI choosing (`?email=1`). One template = straight to the working page. `Change template` is in
+  the page header. Cards: `estimates/new/TemplateCards.tsx`, pure helpers `lib/estimator/templateCard.ts`.
+- Settings > Estimate templates: the list gets a **Details** side panel (description, "words an email would use", card
+  icon, customers-may-request). A **locked** template shows "Starter, read-only", has no Edit, and offers **Copy to
+  customise** (`POST /api/estimate-templates/[id]/duplicate`, name "<name> (custom)", never locked). The API enforces
+  the lock: `PATCH` on a locked template is 409 except `is_active`; `locked` cannot be set through the API (only a
+  starter install or the seed script sets it). `customer_visible` is stored and has no reader yet.
+
+### 18.2 Products picked by catalogue tags (`lib/estimator/productMatch.ts`)
+A product rule's cost may be `{ kind: "product", match: { attrs: { fence_kind: "line_post" }, from: ["post_spacing_m", "coating"] } }`.
+The chosen option of each `from` select input contributes its `attrs` (`{ pipe_class: "SS20" }`); the merged tags are
+matched against `products.custom_data` (text equality, tenant-scoped, active first then oldest). Internally the match is a
+synthetic item key (`@match:{...}`) carried where a SKU used to be, so the compute, pricing, snapshot and quote code is
+unchanged; `itemKeyLabel()` turns it into words ("line post, PVC coated, Schedule 40") wherever a person reads it. The
+template validator checks the attributes and that every `from` input is a select; the editor keeps `match` and option
+`attrs` through a save. A geometry input may be a select when the module says `select_ok` (post spacing is the profile).
+
+### 18.3 The `chainlink_fence` layout module (`geometry/chainlinkFence.ts`)
+Wraps `lib/fence/geometry.ts` (unchanged). Pieces and the identifiers formulas read: `n_LP` line, `n_SP` straining,
+`n_CP` corner, `n_TP` terminal, `n_GP` gate posts, `area_FB` fabric m2, `n_GT` / `area_GT` gates. Inputs: length,
+closed perimeter (yes/no), post spacing (the profile select's number), straining spacing, fabric height, and a count and a
+width for each of single, double and sliding gates. Capped at 4000 posts (refused in words, not stored). Positions are for
+drawing only; the counts are exact. The BOM is **rule lines in the template** (`starterTemplates.ts`
+`CHAINLINK_FENCE_STARTER`), line for line `lib/fence/bom.ts`. **`fence.parity.test.ts`** holds the template to the
+configurator's quantities (seven fixed inputs, every material, plus the product tags and the cost total): the safety net for
+the later Big Blue migration. The post-count split remains the open engineering-review item of
+`fence-configurator-architecture.md` section 5; nothing here changes it.
+
+### 18.4 Preview and quote
+The working page draws `FenceCard` for this module: a **Plan** (every post where it stands, gates marked) and the
+configurator's own **3D** view (`components/fence/Fence3DView`), both read from the stored/previewed model so the picture
+is what is priced. The build-schedule/risk section is hidden for modules that do not opt in (`layoutKind.ts`). Quoting is
+`assembleEstimateQuote` like every template (the fence starter quotes one line per material, margin on cost, no cost on the
+quote); the old `assembleFenceStandardQuote` and `/api/fence-projects/[id]/quote` are untouched for old fence projects. Note:
+the estimate quote prices each line as "N pcs, 1 lot" at cost plus margin, not per unit through the pricing engine as the old
+fence quote did. The old fence screens show "Fence estimates now live under Estimates" only when the workspace also has the
+`estimator` flag.
+
+### 18.5 AI: pick a template, then read the email (`pick.ts`, `aiIntake.ts`, `aiRun.ts`)
+- `POST /api/estimates/ai/pick { text }` -> best template (or `null` = not sure), confidence and level, up to three
+  alternatives. The model is sent ONLY the workspace's active templates (name, description, keywords, input labels) and the
+  email; never rates, formulas, prices or another workspace's data. Ids it returns that were not offered are dropped; two
+  near-equal leaders count as "not sure".
+- `POST /api/estimates/ai/intake { template_id, text }` now returns `fields`: every input **found** (the email says it),
+  **likely** (inferred) or **missing**, with the email's own words. A missing input never carries a value (enforced in code);
+  a quoted source that is not in the email drops the reading to likely; numbers are held to the input's range and units are
+  asked for in the input's unit. `values` still holds only found and likely inputs, so older callers work.
+- Both are **metered** through `lib/ai/structured.ts` (surfaces `estimate_pick`, `estimate_intake`; the workspace's monthly
+  allowance is checked first, `ai_usage_log` written after). The email is data in tags, never instructions.
+- The email card: paste -> "Choose the template and read" (or "Read the email" with the box unticked) -> a **review table**
+  (Missing first, then Likely, then Found; template switcher; counts) -> the form is filled in with Missing inputs marked
+  "The email did not say" and the default only a placeholder. **Nothing is saved** until Create quote / Save as draft.
+
+### 18.6 Seeds
+`scripts/gen-estimate-seeds.ts` writes `seed-estimate-templates-starter.sql` and `seed-estimates-demo.sql` from the real
+engine, reading the product tags and costs out of `seed-fence-materials-demo.sql` (the products are not repeated). The demo
+seed refuses to run without the 26 fence products, turns `estimator` on for demo tenants and adds two sample fence
+estimates (a 620 m logistics yard and a 340 m bonded warehouse) with lines, totals and model stored.
+
+### 18.7 Not done, not verified
+- **Not verified in a browser or on a device**: the cards, the side panel, the review table, the plan, the 3D view, the
+  seeds (SQL not executed), 375 px layout, both colour modes. `next build` not run (no build in the worktree).
+- Fence **projects are not migrated**: no estimate is created from an existing fence project, FNC refs are not aliased, the
+  old routes do not redirect. That waits for the Big Blue decision (plan section 7, item 6).
+- The coating select has one option (PVC coated, the only coating the fence products carry); a workspace with other
+  coatings or pipe classes copies the template and adds options with the matching tags.
+- The old Fence Studio per-profile compare and "tune profile" are not in the estimate (profiles are the three options of the
+  "what is being protected" select; edit them in a copy).
+- Customer self-serve "Request an estimate", the shared inbox, drawings (DXF) and the tiles and porta-cabin modules are
+  later parts. Drive guides are not refreshed (waits for the owner's validation).

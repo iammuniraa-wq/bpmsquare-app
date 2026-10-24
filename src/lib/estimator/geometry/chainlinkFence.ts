@@ -32,6 +32,7 @@ const STEP_NAMES = ["Foundations", "Posts", "Fabric", "Gates"];
 
 const n = (v: number | undefined, fallback: number): number => (typeof v === "number" && Number.isFinite(v) ? v : fallback);
 const pad = (i: number) => String(i).padStart(3, "0");
+const r3 = (x: number) => Math.round(x * 1000) / 1000;
 
 type Point = { x: number; z: number };
 
@@ -144,7 +145,7 @@ export const CHAINLINK_FENCE_MODULE: GeometryModule = {
       const p = pointAlong(s, length, closed);
       pieces.push({
         id: next(code), code, kind: "col" as PieceKind, step: 1, floor: 0,
-        pos: [p.x, postHeight / 2 - 0.3, p.z],
+        pos: [r3(p.x), r3(postHeight / 2 - 0.3), r3(p.z)],
         dims: { w: POST_SIZE_M, h: postHeight, t: POST_SIZE_M }, vol: 0,
       });
     });
@@ -158,13 +159,13 @@ export const CHAINLINK_FENCE_MODULE: GeometryModule = {
       const s = ((i + 0.5) * length) / gates.length;
       const p = pointAlong(s, length, closed);
       pieces.push({
-        id: next("GT"), code: "GT", kind: "panel", step: 3, floor: 0, pos: [p.x, height / 2, p.z],
+        id: next("GT"), code: "GT", kind: "panel", step: 3, floor: 0, pos: [r3(p.x), r3(height / 2), r3(p.z)],
         dims: { w: g.width_m, h: height, t: 0.05 }, vol: 0, area: g.width_m * height,
       });
     });
 
-    const w = closed ? length / 3 : length;
-    const d = closed ? length / 6 : 1;
+    const w = r3(closed ? length / 3 : length);
+    const d = r3(closed ? length / 6 : 1);
     const model: GeometryModel = { geometry: CHAINLINK_FENCE_KEY, pieces, w, d, step_names: STEP_NAMES, warnings };
     return { ok: true, model };
   },

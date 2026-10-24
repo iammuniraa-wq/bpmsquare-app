@@ -11,6 +11,7 @@ import { computeEstimate } from "./compute";
 import { validateTemplate } from "./template";
 import { CHAINLINK_FENCE_STARTER, FENCE_MESH_OPTIONS, FENCE_PROFILE_OPTIONS } from "./starterTemplates";
 import { parseMatchKey } from "./productMatch";
+import { buildQuoteLines, priceForCost, quoteBlockers } from "./quoteLines";
 
 type Case = {
   name: string;
@@ -148,5 +149,39 @@ describe("fence parity: the cost", () => {
     const oldTotal = old.requests.reduce((s, q) => s + list[q.fence_kind as string] * q.qty, 0);
     expect(r2.summary.cost_total).toBeCloseTo(oldTotal, 1);
     expect(r2.complete).toBe(true);
+  });
+});
+
+// One quote assembler: a fence estimate becomes a Standard Quote through the same pure
+// builder every template uses (assembleEstimateQuote -> quoteBlockers + buildQuoteLines).
+describe("fence estimate -> quote lines (the one assembler)", () => {
+  const c = CASES[0];
+  const r1 = computeEstimate(valid.template!, params(c));
+  if (!r1.ok) throw new Error("did not compute");
+  const unit = Object.fromEntries(r1.lines.map((l, i) => [l.code, 5 + i]));
+  const r2 = computeEstimate(valid.template!, params(c), { margin_pct: 20, vat_pct: 5, unit_costs: unit });
+  if (!r2.ok) throw new Error("did not compute");
+  const source = (productId: string | null) => r2.lines.map((l) => ({
+    description: l.description, uom: l.uom, qty: l.qty, waste_pct: l.waste_pct, group: l.group, group_key: l.group_key,
+    cost_total: l.cost_total, sku: l.sku, product_id: productId,
+  }));
+
+  it("is quotable once every line resolved to a product, one quote line per material", () => {
+    expect(quoteBlockers(source("p1"))).toEqual([]);
+    const built = buildQuoteLines(source("p1"), { granularity: CHAINLINK_FENCE_STARTER.quote_granularity, margin_pct: 20 });
+    expect(built.ok).toBe(true);
+    if (!built.ok) return;
+    expect(built.lines).toHaveLength(r2.lines.length);
+    expect(built.lines[0].description).toMatch(/^Line posts \(\d+ pcs\)$/);
+    expect(built.lines.reduce((a, l) => a + l.amount, 0)).toBeCloseTo(priceForCost(r2.summary.cost_total, 20), 2);
+    // Never a cost on the customer's quote.
+    expect(JSON.stringify(built.lines)).not.toMatch(/unit_cost|cost_total|margin/);
+  });
+
+  it("refuses a line whose product the catalogue does not have, naming it in plain words", () => {
+    const blockers = quoteBlockers(source(null));
+    expect(blockers).toHaveLength(1);
+    expect(blockers[0]).toContain("line post, PVC coated, Schedule 40");
+    expect(blockers[0]).not.toContain("@match");
   });
 });

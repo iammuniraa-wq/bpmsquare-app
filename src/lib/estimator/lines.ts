@@ -139,7 +139,8 @@ export function toSummarisable(lines: readonly Pick<EstimateLine, "group_key" | 
 export function toExportLine(l: EstimateLine, groups: ReadonlyMap<string, string>): ExportLineInput {
   return {
     code: l.code,
-    sku: skuOf(l),
+    // A line whose product was never found still carries its match key; that is not an item number for an ERP.
+    sku: isMatchKey(skuOf(l)) ? null : skuOf(l),
     description: l.description,
     uom: l.uom,
     qty: l.qty,
