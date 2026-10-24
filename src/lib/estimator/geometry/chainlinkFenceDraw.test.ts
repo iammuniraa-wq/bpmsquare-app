@@ -109,7 +109,7 @@ describe("design slots", () => {
     expect(PRECAST_VILLA_MODULE.slots).toBe(PRECAST_VILLA_SLOTS);
     expect(CHAINLINK_FENCE_MODULE.slots).toBe(CHAINLINK_FENCE_SLOTS);
     expect(CHAINLINK_FENCE_SLOTS.map((s) => [s.key, s.default])).toEqual([
-      ["posts", "galvanised"], ["mesh", "galvanised"], ["footing", "concrete_smooth"], ["gate", "galvanised"], ["ground", "ground_grass"],
+      ["posts", "galvanised"], ["mesh", "galvanised"], ["footing", "concrete_smooth"], ["gate", "galvanised"], ["ground", "ground_sand"],
     ]);
     expect(PRECAST_VILLA_SLOTS.find((s) => s.key === "wall")?.default).toBe("concrete_precast");
     expect(getMaterialDef("concrete_precast")?.textured).toBe(true);

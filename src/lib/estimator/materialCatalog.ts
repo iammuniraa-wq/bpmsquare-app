@@ -65,7 +65,7 @@ export const MATERIALS: readonly MaterialDef[] = [
   // ground
   { key: "ground_grass", label: "Grass", group: "ground", color: "#6f8f4a", roughness: 1, metalness: 0, textured: true, repeat_m: 4, tint: "#dff0b8", source: "polyhaven:grass_ground" },
   { key: "ground_paving", label: "Paving", group: "ground", color: "#b8b2a6", roughness: 0.9, metalness: 0, textured: true, repeat_m: 2, source: "polyhaven:concrete_pavement_02" },
-  { key: "ground_sand", label: "Sand", group: "ground", color: "#d6cdbf", roughness: 1, metalness: 0, textured: true, repeat_m: 3, source: "polyhaven:sand_01" },
+  { key: "ground_sand", label: "Sand", group: "ground", color: "#d6cdbf", roughness: 1, metalness: 0, textured: true, repeat_m: 4, tint: "#f6e8cc", source: "polyhaven:sand_01" },
 ];
 
 const BY_KEY: Readonly<Record<string, MaterialDef>> = Object.fromEntries(MATERIALS.map((m) => [m.key, m]));

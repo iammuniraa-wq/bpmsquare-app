@@ -26,6 +26,14 @@ const DARK: SkyPalette = {
   zenith: "#3a5a8a", horizon: "#7d97bb", bounce: "#6a6a6a", sun: "#e6edff", sunLight: 2.3, env: 0.85, exposure: 1.5, groundTint: "#e0e0e0",
 };
 
+/** The Middle East look: a hazy sand horizon, a warm sun and a sand ground, so a fence reads cleanly against it. */
+const DESERT_DAY: SkyPalette = {
+  zenith: "#78aee0", horizon: "#f1e2c8", bounce: "#cdb084", sun: "#fff0d2", sunLight: 2.8, env: 0.9, exposure: 1, groundTint: "#ffffff",
+};
+const DESERT_DARK: SkyPalette = {
+  zenith: "#44648f", horizon: "#a8967a", bounce: "#7a6c58", sun: "#ffeccc", sunLight: 2.4, env: 0.85, exposure: 1.5, groundTint: "#d8cdb8",
+};
+
 /** Relative luminance 0..1 of a "#rrggbb" colour (sRGB, no gamma decode: it only has to tell a dark theme from a light one). */
 export function hexLuminance(hex: string): number {
   const m = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
@@ -39,7 +47,8 @@ export function isDarkTheme(groundHex: string): boolean {
   return hexLuminance(groundHex) < 0.3;
 }
 
-export function skyPalette(dark: boolean): SkyPalette {
+export function skyPalette(dark: boolean, desert = false): SkyPalette {
+  if (desert) return dark ? DESERT_DARK : DESERT_DAY;
   return dark ? DARK : DAY;
 }
 

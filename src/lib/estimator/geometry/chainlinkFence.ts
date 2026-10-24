@@ -25,7 +25,7 @@ export const CHAINLINK_FENCE_SLOTS: readonly DesignSlot[] = [
   { key: "mesh", label: "Chain-link mesh", default: "galvanised" },
   { key: "footing", label: "Post footings", default: "concrete_smooth" },
   { key: "gate", label: "Gate frames", default: "galvanised" },
-  { key: "ground", label: "Ground", default: "ground_grass" },
+  { key: "ground", label: "Ground", default: "ground_sand" },
 ];
 
 /** The slot each piece family is painted by when the piece carries no `slot` of its own. */

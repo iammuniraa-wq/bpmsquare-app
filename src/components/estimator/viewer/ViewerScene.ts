@@ -87,6 +87,8 @@ export class ViewerScene {
   private sky: THREE.Mesh | null = null;
   private envRT: THREE.WebGLRenderTarget | null = null;
   private palette: SkyPalette | null = null;
+  /** The Middle East look (sand ground, hazy desert sky) for a fence. */
+  private desert = false;
   private fog = new THREE.Fog("#dbe8f3", 50, 400);
   private skyRadius = 400;
   private orbit: OrbitState = { yaw: 0.7, pitch: 0.45, dist: 46, minDist: 8, maxDist: 160 };
@@ -186,6 +188,8 @@ export class ViewerScene {
       radius = Math.max(radius, Math.hypot(piece.pos[0], piece.pos[2]) + Math.max(piece.dims.w, piece.dims.t) / 2);
     });
     this.cutInfo = { cabin: model.geometry === "porta_cabin", d: model.d };
+    const desert = model.geometry === CHAINLINK_FENCE_KEY;
+    if (desert !== this.desert) { this.desert = desert; this.palette = null; this.applyTheme(); }
     this.stepCount = Math.max(1, model.step_names.length);
     this.step = this.stepCount - 1;
     this.target = [0, maxY / 2, 0];
@@ -206,10 +210,11 @@ export class ViewerScene {
     this.fitAtmosphere(dist, reach, radius, maxY);
 
     const withPlinth = model.geometry !== CHAINLINK_FENCE_KEY;
-    const ground = new THREE.Mesh(metricGroundGeometry(this.fogFar * 1.05), this.lib.get("ground_grass"));
+    const groundKey = this.desert ? "ground_sand" : "ground_grass";
+    const ground = new THREE.Mesh(metricGroundGeometry(this.fogFar * 1.05), this.lib.get(groundKey));
     ground.position.y = withPlinth ? -0.41 : 0;
     ground.receiveShadow = true;
-    this.fixed = [this.fixedPart(ground, "ground", "ground_grass")];
+    this.fixed = [this.fixedPart(ground, "ground", groundKey)];
     this.root.add(ground);
     if (withPlinth) {
       const plinth = new THREE.Mesh(metricBoxGeometry(model.w + 2, 0.4, model.d + 2), this.lib.get("concrete_smooth"));
@@ -327,7 +332,7 @@ export class ViewerScene {
 
   private applyTheme(): void {
     this.colors = readSceneColors(this.host);
-    const pal = skyPalette(isDarkTheme(this.colors.ground));
+    const pal = skyPalette(isDarkTheme(this.colors.ground), this.desert);
     if (pal !== this.palette) {
       this.palette = pal;
       this.renderer.toneMappingExposure = pal.exposure;

@@ -36,7 +36,7 @@ export class TilesRoomScene {
   private skirtMat = new THREE.MeshStandardMaterial({ color: "#f2f2ee", roughness: 0.55, metalness: 0 });
   private wallBase = new THREE.MeshStandardMaterial({ color: "#d9d5cc", roughness: 0.92, metalness: 0, side: THREE.DoubleSide });
   private slabMat = new THREE.MeshStandardMaterial({ color: "#a8a6a0", roughness: 0.95, metalness: 0 });
-  private skyMat = new THREE.MeshBasicMaterial({ color: "#dcebff", toneMapped: false });
+  private skyMat = new THREE.MeshBasicMaterial({ color: "#f3e6cf", toneMapped: false });
   private tileMesh: THREE.Mesh | null = null;
   private tileData: TileMeshData | null = null;
   private tileGeo: THREE.BufferGeometry | null = null;
