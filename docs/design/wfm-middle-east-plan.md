@@ -5,6 +5,42 @@
 > country branch in code** (`WFM_PROJECT_COSTING.md` section 7, bpmsquarecore.md section 1). Dates and percentages marked *verify*
 > must be confirmed with each country's current labour regulation before they ship as pack defaults.
 
+## 0. Build-ready update (2026-10-24, after the owner asked for the next WFM plan)
+
+**Changes since this plan was written** (all on develop and main): employees now have **validity dates** (valid from / to) and **obsolete instead of delete**
+when work data exists (reports include active employees plus obsolete ones until their end date); the remove dialog shows the impact first; the kiosk punch
+stamps the signed match confidence and ignores a same-kind repeat within 20 s (idempotent); history shows the person's name. These are the base the camera
+reducer and the region pack build on, so none of them is redone.
+
+**Recommended answers to the section 6 decisions** (so work can start; change any of them and only the named phase moves):
+1. Camera system: **the client's vendor sends events with the employee code** (door controllers and NVR-based recognition systems do). Video-only is a later
+   option that needs a regional face service; it is not planned.
+2. Overtime under camera mode: **derived OT with supervisor approval, and a fixed break deduction per shift**. Acceptable because nobody punches breaks.
+3. First country and client: **KSA first** (it pairs with Saudi e-invoicing and Mudad), with the client's own HR policy as the source of truth for every
+   percentage and date marked *verify*. UAE second, Qatar (Big Blue) third.
+4. Payroll files: **produce Mudad (KSA) and WPS/SIF (UAE) as export templates** from the monthly summary; do not post to payroll. A client that only needs the
+   summary skips them (they are an export option, not a mode).
+5. Data protection: **store only the camera event and a confidence by default; no images**. If a client wants images, they are kept for a configurable number of
+   days (default 30) in a region-appropriate bucket, with the consent text per country.
+
+**Order and size** (each phase ships behind the platform-admin flag and is demoed on the demo workspace with a camera simulator before any client sees it):
+- **W1 Pack framework and employee fields** (small to medium): `config.country`, KSA and UAE packs as typed preset tables, employee statutory fields with
+  expiry alerts, IBAN, six GCC timezones, consent wording per country, Studio field. Mostly data and one migration.
+- **W2 Camera mode** (medium to large): ingest route and camera tokens, `source = 'camera'`, the pure reducer with tests, review queue, camera-mode UI hiding,
+  settings screen (one table, side panel), the simulator script and a demo seed. The riskiest phase: its tests carry the weight (duplicate sightings,
+  out-of-order events, missing exit, cross-midnight, two cameras at one site).
+- **W3 Rules engine** (medium): OT candidates and multipliers, caps, Ramadan range, midday ban, auto-break; the summary and billing read it; a parity switch so
+  BIM and Vikas stay byte-identical.
+- **W4 Statutory content and payroll files** (medium): holiday and leave seeds per pack, EOSB report, Mudad and WPS/SIF exports.
+- **W5 Privacy and Arabic** (later, when a paying GCC workspace asks).
+
+**Dependencies and risks:** W3 needs the client's HR policy before percentages ship; W2 needs one real vendor payload sample to fix the event shape (until then
+the simulator defines it); W4 file formats must be checked against the current bank and Mudad specifications before release. None of the phases touches live BIM
+or Vikas behaviour unless their config opts in; `configPatchCoverage.test.ts` lists every new key.
+
+**What the owner needs to provide:** a sample event from the camera vendor (or the vendor's name), the first client's HR policy and holiday calendar, and one
+decision on image retention. Everything else has a default above.
+
 ## 1. What already fits
 
 Hours engine (pure, shift-day logic, cross-midnight), roster, shifts and sites, leave, corrections, OT approval flow, monthly summary and
