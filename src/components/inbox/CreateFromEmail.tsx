@@ -67,9 +67,10 @@ export default function CreateFromEmail({ email, options, match, suggestedAccoun
         method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text: emailAsBrief(email) }),
       });
       if (res.status === 403) { toast({ text: "Your role cannot create estimates.", tone: "error" }); return; }
-      const json = (await res.json().catch(() => ({}))) as { template?: { id?: string } | null; confidence?: number };
-      if (res.ok && json.template?.id) { go(`&template=${encodeURIComponent(json.template.id)}`); return; }
-      toast({ text: res.ok ? "Not sure which template fits. Choose one on the next screen." : "Template suggestion is not available yet. Choose the template on the next screen.", tone: "info" });
+      // The merged pick endpoint answers { configured, template_id, name, confidence, level, alternatives, not_sure, reason }.
+      const json = (await res.json().catch(() => ({}))) as { configured?: boolean; template_id?: string | null; not_sure?: boolean };
+      if (res.ok && json.configured !== false && json.template_id && !json.not_sure) { go(`&template=${encodeURIComponent(json.template_id)}`); return; }
+      toast({ text: res.ok && json.configured !== false ? "Not sure which template fits. Choose one on the next screen." : "Template suggestion is not available. Choose the template on the next screen.", tone: "info" });
       go("");
     } catch {
       toast({ text: "Template suggestion is not available. Choose the template on the next screen.", tone: "info" });
