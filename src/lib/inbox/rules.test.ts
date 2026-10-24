@@ -277,3 +277,16 @@ describe("numbers", () => {
     expect(orderCreateTypes(["quote", "case"], null)).toEqual(["quote", "case"]);
   });
 });
+
+describe("the name suggested for a new account", () => {
+  it("is the company in the signature, not the person", async () => {
+    const { suggestedAccountName } = await import("./rules");
+    expect(suggestedAccountName({ name: "Layla Haddad", address: "projects@oasis-retail.example" }, "Hello,\nWe need tiles.\n\nThanks,\nLayla Haddad\nOasis Retail")).toBe("Oasis Retail");
+    expect(suggestedAccountName({ name: "Khalid Al-Harbi", address: "p@d.example" }, "Best regards,\nKhalid Al-Harbi\nDammam Build Co.")).toBe("Dammam Build Co.");
+  });
+  it("falls back to the person's name when no company is written", async () => {
+    const { suggestedAccountName } = await import("./rules");
+    expect(suggestedAccountName({ name: "Sam Lee", address: "sam@x.example" }, "Hi,\nplease quote.\nSam")).toBe("Sam Lee");
+    expect(suggestedAccountName({ name: null, address: "sam.lee@x.example" }, null)).toBe("Sam Lee");
+  });
+});

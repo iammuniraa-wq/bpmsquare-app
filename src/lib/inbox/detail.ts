@@ -7,7 +7,7 @@ import {
 } from "./server";
 import { matchSender } from "./convert";
 import { LINK_ACCESS } from "./links";
-import { needsBetterDrawing, orderCreateTypes, parseAddress, suggestedName } from "./rules";
+import { needsBetterDrawing, orderCreateTypes, parseAddress, suggestedAccountName } from "./rules";
 import { CREATE_TO_OBJECT, CREATE_TYPES, type CreateOption, type InboxChannel, type InboxDetailView, type InboxStatus } from "./types";
 import type { toEmail } from "./server";
 
@@ -40,7 +40,7 @@ export async function loadDetail(ctx: InboxCtx, id: string): Promise<Detail | nu
   const inbound = attachments.filter((a) => thread.some((m) => m.id === a.email_id && m.direction === "in"));
   return {
     email, channel, thread, attachments,
-    sender: { name: from.name ?? email.from_name, address: from.address ?? email.from_address, suggestedName: suggestedName({ name: from.name ?? email.from_name, address: from.address ?? email.from_address }), match },
+    sender: { name: from.name ?? email.from_name, address: from.address ?? email.from_address, suggestedName: suggestedAccountName({ name: from.name ?? email.from_name, address: from.address ?? email.from_address }, email.body_text), match },
     createOptions: createOptionsFor(ctx, channel),
     members,
     needsBetterDrawing: needsBetterDrawing(inbound),

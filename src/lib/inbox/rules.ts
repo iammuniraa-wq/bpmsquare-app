@@ -162,6 +162,21 @@ export function suggestedName(from: { name: string | null; address: string | nul
   return local.replace(/[._-]+/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()).trim().slice(0, 120) || "New customer";
 }
 
+const COMPANY_WORDS = /\b(co|company|corp|corporation|inc|ltd|limited|llc|llp|plc|gmbh|group|holding|holdings|trading|contracting|contractors|construction|industries|enterprises|retail|developers|development|engineering|solutions|services|projects|est|establishment|fze|fzco)\b\.?/i;
+
+/**
+ * The name for a NEW ACCOUNT made from an email: the company in the signature when there is one ("Dammam Build Co."),
+ * else the person's name as before. The person's own name still goes to the contact. Looks only at the last lines.
+ */
+export function suggestedAccountName(from: { name: string | null; address: string | null }, body: string | null | undefined): string {
+  const lines = (body ?? "").split(/\r?\n/).map((l) => l.trim()).filter(Boolean).slice(-8);
+  for (const line of lines.reverse()) {
+    if (line.length > 80 || /[@:]|https?:|\d{5,}/.test(line)) continue;
+    if (COMPANY_WORDS.test(line)) return line.replace(/[,;]+$/, "").slice(0, 120);
+  }
+  return suggestedName(from);
+}
+
 /** The email as the pasted brief the estimator's intake reads: subject, sender, and what they wrote (no quoted history). */
 export function emailAsBrief(email: { subject: string; from_name: string | null; from_address: string | null; body_text: string | null }, max = 19_000): string {
   const fresh = summarise(email.body_text ?? "", max);
