@@ -161,6 +161,25 @@ export function wfmCandidates(q: { leave?: QueueSummary; correction?: QueueSumma
   return out;
 }
 
+/**
+ * New customer email waiting in the Inbox channels the person is on the team of, unassigned or assigned to them: one
+ * candidate per channel. The channel's name and counts only; never a sender, a subject or a word of the mail.
+ */
+export function inboxCandidates(rows: readonly { channelId: string; channelName: string; count: number; oldestAt: string }[], today: string, tz: string): Candidate[] {
+  const out: Candidate[] = [];
+  for (const r of rows) {
+    if (r.count <= 0) continue;
+    const n = r.count;
+    out.push({
+      id: `inbox:${r.channelId}`, kind: "inbox_new", objectType: "inbound_emails",
+      label: `${n} new ${n === 1 ? "email" : "emails"} in ${r.channelName}`,
+      href: `${ROUTES.inbox}?channel=${r.channelId}&status=new`,
+      days: over(daysFromToday(today, r.oldestAt, tz)) ?? 0, count: n, ownership: "own",
+    });
+  }
+  return out;
+}
+
 /** Failed integration messages of the last 24 hours, for workspace admins. */
 export function syncCandidates(s: QueueSummary | undefined): Candidate[] {
   if (!s || s.count <= 0) return [];

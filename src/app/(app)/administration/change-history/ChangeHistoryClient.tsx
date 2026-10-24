@@ -33,6 +33,8 @@ const OBJECT_TYPES: { value: string; label: string }[] = [
   { value: "process_studies", label: "Process studies" },
   { value: "newsletters", label: "Newsletters" },
   { value: "leads", label: "Leads" },
+  { value: "inbound_emails", label: "Inbox: Emails" },
+  { value: "inbox_channels", label: "Inbox: Channels" },
   { value: "signal_topics", label: "Signal topics" },
   { value: "account_intent", label: "Buying signals" },
   { value: "forms", label: "Forms" },
@@ -77,7 +79,8 @@ export default function ChangeHistoryClient() {
   const hasMiddleware = useTenantFeature("integration_middleware");
   const hasWhatsapp = useTenantFeature("whatsapp_marketing");
   const hasEvents = useTenantFeature("marketing_events");
-  const objectTypes = OBJECT_TYPES.filter((o) => (!o.value.startsWith("whatsapp_") || hasWhatsapp) && (!["marketing_events", "event_registrations"].includes(o.value) || hasEvents) && (o.value !== "newsletters" || hasNewsletters) && (!["leads", "marketing_settings"].includes(o.value) || hasLeadScoring) && (!["signal_topics", "account_intent"].includes(o.value) || hasSignals) && (o.value !== "forms" || hasForms) && (!o.value.startsWith("abm_") || hasAbm) && (o.value !== "journeys" || hasJourneys) && (o.value !== "webhooks" || hasWebhooks) && (!["integration_mapping", "value_list"].includes(o.value) || hasMiddleware));
+  const hasInbox = useTenantFeature("inbox");
+  const objectTypes = OBJECT_TYPES.filter((o) => (!["inbound_emails", "inbox_channels"].includes(o.value) || hasInbox) &&(!o.value.startsWith("whatsapp_") || hasWhatsapp) && (!["marketing_events", "event_registrations"].includes(o.value) || hasEvents) && (o.value !== "newsletters" || hasNewsletters) && (!["leads", "marketing_settings"].includes(o.value) || hasLeadScoring) && (!["signal_topics", "account_intent"].includes(o.value) || hasSignals) && (o.value !== "forms" || hasForms) && (!o.value.startsWith("abm_") || hasAbm) && (o.value !== "journeys" || hasJourneys) && (o.value !== "webhooks" || hasWebhooks) && (!["integration_mapping", "value_list"].includes(o.value) || hasMiddleware));
   const [objectType, setObjectType] = useState(OBJECT_TYPES[0].value);
   const [objectId, setObjectId] = useState("");
   const [rows, setRows] = useState<ChangeLogRow[] | null>(null);

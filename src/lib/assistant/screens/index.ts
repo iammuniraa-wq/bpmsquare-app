@@ -5,6 +5,7 @@ import { SETTINGS_MIDDLEWARE } from "./middleware";
 import { QUOTE_DETAIL } from "./quote";
 import { STANDARD_QUOTE_DETAIL } from "./standardQuote";
 import { SETTINGS_WEBHOOKS } from "./webhooks";
+import { NAV_INBOX, SETTINGS_INBOX_CHANNELS } from "./inbox";
 import { applyAccess } from "./filter";
 import type { ScreenAccess, ScreenField, ScreenManifest, ScreenOverlay, VisibleScreen } from "./types";
 
@@ -12,7 +13,7 @@ import type { ScreenAccess, ScreenField, ScreenManifest, ScreenOverlay, VisibleS
 // sends the path). A screen without a manifest returns null and the assistant says it has no screen knowledge.
 
 /** Hand-written verbs and tasks, one small file per screen. An id that matches no generated screen fails the tests. */
-export const OVERLAYS: ScreenOverlay[] = [QUOTE_DETAIL, STANDARD_QUOTE_DETAIL, ACCOUNT_DETAIL, CASE_DETAIL, SETTINGS_WEBHOOKS, SETTINGS_MIDDLEWARE];
+export const OVERLAYS: ScreenOverlay[] = [QUOTE_DETAIL, STANDARD_QUOTE_DETAIL, ACCOUNT_DETAIL, CASE_DETAIL, SETTINGS_WEBHOOKS, SETTINGS_MIDDLEWARE, NAV_INBOX, SETTINGS_INBOX_CHANNELS];
 
 const byId = <T extends { id: string }>(base: T[], extra: T[] = []): T[] => {
   const map = new Map(base.map((x) => [x.id, x]));

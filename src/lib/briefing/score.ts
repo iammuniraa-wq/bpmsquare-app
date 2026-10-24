@@ -104,6 +104,11 @@ export const RULES: Record<CandidateKind, Rule> = {
     reason: (c) => `${c.count ?? 1} failed in the last 24 hours`,
     group: (n) => `${plural(n, "failed sync")}`, list: ROUTES.settingsMiddleware, order: 15,
   },
+  inbox_new: {
+    urgency: (c) => 55 + clamp(c.days, 0, 10) * 2 + extra(c, 1, 10),
+    reason: (c) => (c.days <= 0 ? "oldest arrived today" : `oldest ${plural(c.days, "day")} ago`),
+    group: (n) => `${plural(n, "new email")} to read`, list: ROUTES.inbox, order: 16,
+  },
 };
 
 /** The kinds the rubric knows, in section order. */

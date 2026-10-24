@@ -52,7 +52,8 @@ export type CandidateKind =
   | "deal_late" | "deal_closing"
   | "abm_step" | "task_due" | "invoice_overdue" | "mention"
   | "wfm_leave" | "wfm_correction" | "wfm_overtime"
-  | "sync_failed";
+  | "sync_failed"
+  | "inbox_new";
 
 export type Candidate = {
   /** Unique across kinds, e.g. "quote:<uuid>". Used for the final tie-break so ranking is deterministic. */

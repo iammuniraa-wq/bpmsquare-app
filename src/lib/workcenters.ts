@@ -7,10 +7,11 @@ export type WorkcenterKey =
   | "cases" | "amc" | "work_orders" | "dispatch" | "technicians"
   | "marketing" | "marketing_segments" | "leads" | "partners"
   | "assets" | "suppliers" | "inventory" | "purchase_orders" | "employees"
-  | "reports" | "data_workbench" | "administration" | "wfm" | "products" | "pricing" | "fence_projects" | "rfqs" | "estimates" | "process_studio" | "marketing_newsletters" | "signals" | "marketing_forms" | "abm" | "marketing_journeys" | "marketing_whatsapp" | "marketing_attribution" | "marketing_events";
+  | "reports" | "data_workbench" | "administration" | "wfm" | "products" | "pricing" | "fence_projects" | "rfqs" | "estimates" | "process_studio" | "marketing_newsletters" | "signals" | "marketing_forms" | "abm" | "marketing_journeys" | "marketing_whatsapp" | "marketing_attribution" | "marketing_events" | "inbox";
 
 export const WORKCENTERS: { key: WorkcenterKey; label: string }[] = [
   { key: "dashboard", label: "Dashboard" },
+  { key: "inbox", label: "Inbox" },
   { key: "accounts", label: "Accounts" },
   { key: "contacts", label: "Contacts" },
   { key: "quotations", label: "Quotations" },

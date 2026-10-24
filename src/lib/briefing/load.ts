@@ -7,9 +7,10 @@ import { canUseObject, type AssistantCtx } from "@/lib/assistant/sources";
 import { objectDef } from "@/lib/assistant/objects";
 import { daysFromToday, type DayWindow } from "./day";
 import {
-  abmCandidates, dealCandidates, invoiceCandidates, leadCandidates, mentionCandidates, quoteCandidates,
+  abmCandidates, dealCandidates, inboxCandidates, invoiceCandidates, leadCandidates, mentionCandidates, quoteCandidates,
   syncCandidates, taskCandidates, wfmCandidates, type QueueSummary,
 } from "./rules";
+import { inboxBriefingRows } from "@/lib/inbox/analytics";
 import type { ChangeRow, CommentRow } from "./yesterday";
 import type { Candidate } from "./types";
 
@@ -171,6 +172,13 @@ export async function loadOpen(admin: SupabaseClient, ctx: BriefingCtx, win: Day
       ]);
       return wfmCandidates({ leave, correction, overtime });
     }, []));
+  }
+
+  // Customer mail waiting in the person's own channels (counts and the channel's name only).
+  if (can(ctx, "inbox", "inbox")) {
+    jobs.push(safe(async () => inboxCandidates(
+      await inboxBriefingRows(admin, { tenantId: ctx.tenantId, userId: ctx.userId, isAdmin: ctx.isAdmin }), today, tz,
+    ), []));
   }
 
   if (ctx.isAdmin && ctx.features.integration_middleware === true) {

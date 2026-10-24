@@ -37,6 +37,8 @@ export const NOVA_OBJECTS: Record<string, { table: string; feature: string; work
   rfqs: { table: "rfqs", feature: "rfqs", workcenters: ["rfqs"] },
   estimates: { table: "estimates", feature: "estimates", workcenters: ["estimates"] },
   leads: { table: "leads", feature: "leads", workcenters: ["leads"] },
+  // An email thread (0214). The comments route additionally checks the person is on the team of the message's channel.
+  inbound_emails: { table: "inbound_emails", feature: "inbound_emails", workcenters: ["inbox"] },
   abm_programs: { table: "abm_programs", feature: "abm_programs", workcenters: ["abm"] },
   abm_targets: { table: "abm_target_accounts", feature: "abm_targets", workcenters: ["abm"] },
 };

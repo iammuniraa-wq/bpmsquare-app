@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { requireTenantUser, createAdminSupabase, getAuthUser } from "@/lib/supabase-server";
 import { tenantHasNovaSurfaces } from "@/lib/tenant";
 import { allowedNovaTypes } from "@/lib/novaAccess";
+import { hiddenEmailIds } from "@/lib/inbox/server";
 
 /**
  * Nova pillar 4 — the inbox. A notification IS a comment that mentions
@@ -19,7 +20,7 @@ const LABEL: Record<string, string> = {
   invoices: "Invoice", assets: "Asset", suppliers: "Supplier",
   inventory: "Inventory item", purchase_orders: "Purchase Order", employees: "Employee",
   products: "Product", wfm_projects: "Project", opportunities: "Deal", rfqs: "RFQ", estimates: "Estimate", leads: "Lead",
-  abm_programs: "ABM program", abm_targets: "ABM target account",
+  abm_programs: "ABM program", abm_targets: "ABM target account", inbound_emails: "Email",
 };
 const TABLE: Record<string, { table: string; nameCol: string; refCol?: string }> = {
   accounts:        { table: "accounts",         nameCol: "name", refCol: "ref" },
@@ -43,6 +44,8 @@ const TABLE: Record<string, { table: string; nameCol: string; refCol?: string }>
   abm_programs: { table: "abm_programs", nameCol: "name", refCol: "ref" },
   // A target has no name or ref of its own: the inbox shows its id; the record page names the company.
   abm_targets: { table: "abm_target_accounts", nameCol: "id" },
+  // The mention shows an email by its subject, to a person a colleague on that channel chose to mention.
+  inbound_emails: { table: "inbound_emails", nameCol: "subject" },
 };
 
 export async function GET() {
@@ -78,7 +81,11 @@ export async function GET() {
   const visible = await allowedNovaTypes({
     supabase, tenantId, userId, role, types: (mentions ?? []).map((m) => m.object_type as string),
   });
-  const rows = (mentions ?? []).filter((m) => visible.has(m.object_type as string));
+  const granted = (mentions ?? []).filter((m) => visible.has(m.object_type as string));
+  // An email is further limited to the channels the caller is on the team of.
+  const mailIds = [...new Set(granted.filter((m) => m.object_type === "inbound_emails").map((m) => m.object_id as string))];
+  const hiddenMail = mailIds.length ? await hiddenEmailIds(admin, tenantId, userId, role === "admin", mailIds) : new Set<string>();
+  const rows = granted.filter((m) => !(m.object_type === "inbound_emails" && hiddenMail.has(m.object_id as string)));
   if (rows.length === 0) return NextResponse.json({ items: [], unread: 0 });
 
   const { data: reads } = await admin

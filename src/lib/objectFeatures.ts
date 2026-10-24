@@ -35,6 +35,12 @@ export const OBJECT_FEATURE: Record<string, keyof TenantFeatures | null> = {
   // Project Estimator (0131). Header records only on the bulk surfaces; the
   // v1 API exposes no cost fields (docs/estimator-architecture.md section 7).
   estimates: "estimator",
+  // Shared Inbox (0214). In-app routes only, on purpose: mail is private correspondence, so there is no Data Workbench
+  // route, no v1 endpoint and no LIST_SOURCES entry. These keys exist for the surfaces that name the object (Nova
+  // comments, the change history) and so the map already says who owns it.
+  inbox: "inbox",
+  inbound_emails: "inbox",
+  inbox_channels: "inbox",
   // Process Design Studio (0152). In-app routes only in phase 1: no Data
   // Workbench route and no v1 endpoint yet (doc section 9.5, phase 3).
   process_studies: "process_studio",

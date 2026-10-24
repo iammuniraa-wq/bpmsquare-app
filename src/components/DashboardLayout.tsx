@@ -18,6 +18,7 @@ import type { AnalyticsMetricId, TenantFeatures, DashLayoutItem } from "@/lib/co
 import { AlertTriangle, Activity, CheckIcon, Package, Phone, Gear, Globe, Wrench, CalendarCheck, Zap, Clipboard, Battery, FileText, Clock } from "@/components/Icons";
 import type { AnalyticsData } from "@/lib/data/labels";
 import { ANALYTICS_META, isAnalyticsId } from "@/lib/analyticsMeta";
+import { minutesWord } from "@/lib/inbox/rules";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -815,7 +816,7 @@ const WIDGET_TONE: Partial<Record<string, PillarKey>> = {
 // restyle nextgen and modern for existing tenants -- these are read ONLY by
 // Spectacular's card fill, which is why they live apart.
 const STAT_FILL: Partial<Record<string, PillarKey>> = {
-  contracts: "green", pipeline_open_value: "blue", rfq_open: "blue", estimates_open: "blue", abm_targets_engaged: "purple", products: "teal",
+  contracts: "green", pipeline_open_value: "blue", rfq_open: "blue", estimates_open: "blue", inbox_open: "blue", abm_targets_engaged: "purple", products: "teal",
   loaner_availability: "purple",
 };
 
@@ -839,6 +840,7 @@ export function renderWidget(id: AnalyticsMetricId, a: AnalyticsData, size: "com
     case "rfq_open":        return <AnalyticsCard fill={fill} title="RFQs" href={ROUTES.rfqs}><div style={{ display: "flex" }}><StatTile tone={tone} value={a.totals.openRfqs} label="Open" icon={<Zap size={14} color={iconColor} />} href={`${ROUTES.rfqs}?view=awaiting`} /><StatTile tone={tone} value={a.totals.rfqsToAward} label="Replies to award" icon={<Zap size={14} color={iconColor} />} href={`${ROUTES.rfqs}?view=to_award`} /></div></AnalyticsCard>;
     case "abm_targets_engaged": return <AnalyticsCard fill={fill} title="ABM" href={ROUTES.marketingAbm}><div style={{ display: "flex" }}><StatTile tone={tone} value={a.totals.abmEngaged} label={`Engaged of ${a.totals.abmTargets}`} icon={<Zap size={14} color={iconColor} />} href={ROUTES.marketingAbm} /></div></AnalyticsCard>;
     case "estimates_open":  return <AnalyticsCard fill={fill} title="Estimates" href={ROUTES.estimates}><div style={{ display: "flex" }}><StatTile tone={tone} value={a.totals.draftEstimates} label="Drafts" icon={<Zap size={14} color={iconColor} />} href={`${ROUTES.estimates}?status=draft`} /><StatTile tone={tone} value={a.totals.quotedEstimates} label="Quoted" icon={<Zap size={14} color={iconColor} />} href={`${ROUTES.estimates}?status=quoted`} /></div></AnalyticsCard>;
+    case "inbox_open":      return <AnalyticsCard fill={fill} title="Inbox" href={ROUTES.inbox}><div style={{ display: "flex" }}><StatTile tone={tone} value={a.inbox.unhandled} label="Unhandled" icon={<Zap size={14} color={iconColor} />} href={`${ROUTES.inbox}?status=new`} /><StatTile tone={tone} value={a.inbox.newThisWeek} label="New this week" icon={<Zap size={14} color={iconColor} />} href={ROUTES.inbox} /><StatTile tone={tone} value={minutesWord(a.inbox.medianFirstReplyMinutes)} label="Median first reply" icon={<Zap size={14} color={iconColor} />} href={ROUTES.inbox} /></div></AnalyticsCard>;
     case "products":        return <AnalyticsCard fill={fill} title="Products" href={ROUTES.products}><StatTile tone={tone} value={a.totals.products} label="Active products" icon={<Package size={14} color={iconColor} />} href={ROUTES.products} /></AnalyticsCard>;
     case "technicians":     return <AnalyticsCard fill={fill} title="Technicians" href={ROUTES.technicians}><StatTile tone={tone} value={a.totals.technicians} label="Total technicians" icon={<Clipboard size={14} color={iconColor} />} href={ROUTES.technicians} /></AnalyticsCard>;
     case "accounts_by_type": {
