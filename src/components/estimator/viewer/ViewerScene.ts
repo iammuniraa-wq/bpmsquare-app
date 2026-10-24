@@ -72,7 +72,7 @@ const SHADOW_RADIUS_MAX_M = 150;
 const CLOSE_UP_ABOVE_M = 55;
 const CLOSE_UP_DIST_M = 34;
 /** Camera distance per metre of (length + depth) for a fence, so the whole run fits the frame. */
-const FENCE_FIT_FACTOR = 0.78;
+const FENCE_FIT_FACTOR = 1;
 
 export class ViewerScene {
   private renderer: THREE.WebGLRenderer;
@@ -101,7 +101,7 @@ export class ViewerScene {
   private step = 0;
   private explode = 0;
   private cutaway = false;
-  /** A long fence opens close up at a gate, with a button for the whole run; set by setModel. */
+  /** A long fence opens on the whole run with a button for a close-up at a gate; set by setModel. */
   closeUpAvailable = false;
   private closeView: { target: [number, number, number]; dist: number } | null = null;
   private wholeView: { target: [number, number, number]; dist: number } = { target: [0, 1, 0], dist: 30 };
@@ -208,7 +208,6 @@ export class ViewerScene {
     this.orbit = keepView
       ? { ...this.orbit, maxDist: Math.max(this.orbit.maxDist, maxDist) }
       : { ...this.orbit, dist, minDist: 8, maxDist };
-    if (!keepView && this.closeView) { this.target = this.closeView.target; this.orbit.dist = this.closeView.dist; }
     const reach = Math.max(this.orbit.maxDist, maxDist);
     this.fitAtmosphere(dist, reach, radius, maxY);
 

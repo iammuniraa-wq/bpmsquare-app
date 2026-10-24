@@ -56,7 +56,7 @@ export default function BuildingViewer({
   const [step, setStepState] = useState(steps - 1);
   const [explode, setExplode] = useState(0);
   const [inside, setInside] = useState(false);
-  const [closeUp, setCloseUp] = useState(true);
+  const [closeUp, setCloseUp] = useState(false);
   const [canFrame, setCanFrame] = useState(false);
   const [mode, setMode] = useState<ColourMode>("family");
   const [playing, setPlaying] = useState(false);
