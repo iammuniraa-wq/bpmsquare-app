@@ -5,6 +5,8 @@
 // template's options must use these values. The colours are product data, not
 // theme tokens (a terracotta tile is terracotta in dark mode too).
 
+import { getMaterialDef, HEX_COLOUR } from "../materialCatalog";
+
 export type TileTexture = "plain" | "speckle" | "veined" | "wood";
 
 export type TileSwatch = {
@@ -41,3 +43,39 @@ export function swatchFor(value: number | undefined): TileSwatch {
 export const TILE_COLOR_OPTIONS: readonly { key: string; label: string; value: number }[] = TILE_SWATCHES.map((s) => ({
   key: s.key, label: s.name, value: s.value,
 }));
+
+// ── from a design slot ───────────────────────────────────────────────────────
+
+function mix(hex: string, towards: number, k: number): string {
+  const n = parseInt(hex.slice(1), 16);
+  const ch = (shift: number): string => {
+    const c = (n >> shift) & 255;
+    return Math.round(c + (towards - c) * k).toString(16).padStart(2, "0");
+  };
+  return `#${ch(16)}${ch(8)}${ch(0)}`;
+}
+
+/** A plan colour for a material key or "#rrggbb": what the 2D drawing paints when a slot (not tile_color) chooses the tile. */
+function plain(value: string): { color: string; name: string; texture: TileTexture } {
+  if (HEX_COLOUR.test(value)) return { color: value, name: value, texture: "plain" };
+  const def = getMaterialDef(value);
+  if (!def) return { color: DEFAULT_TILE_SWATCH.tones[0], name: DEFAULT_TILE_SWATCH.name, texture: "plain" };
+  const texture: TileTexture = def.group === "wood" ? "wood" : value === "marble_white" ? "veined" : value === "terrazzo" || value === "porcelain_grey" ? "speckle" : "plain";
+  return { color: def.color, name: def.label, texture };
+}
+
+/**
+ * The 2D swatch for the design slots (`tile`, `grout`) the 3D room is painted with, so the plan and the
+ * room show the same floor. Three close tones around the material colour, a grout from the grout slot.
+ */
+export function swatchFromVisuals(visuals: Readonly<Record<string, string>>, fallback: TileSwatch = DEFAULT_TILE_SWATCH): TileSwatch {
+  const tile = visuals.tile;
+  if (!tile) return fallback;
+  const t = plain(tile);
+  const grout = visuals.grout && HEX_COLOUR.test(visuals.grout) ? visuals.grout : fallback.grout;
+  return {
+    value: 0, key: tile, name: t.name,
+    tones: [t.color, mix(t.color, 0, 0.05), mix(t.color, 255, 0.08)],
+    grout, texture: t.texture, mark: mix(t.color, 0, 0.22),
+  };
+}
