@@ -4,9 +4,14 @@ import { useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import Card from "@/components/ui/Card";
 import type { FenceView } from "@/lib/estimator/fenceView";
+import type { GeometryModel } from "@/lib/estimator/geometry";
+import { densityFromRates } from "@/lib/estimator/geometry";
+import type { TemplateRate } from "@/lib/estimator/types";
+import type { WorkspaceLine } from "./types";
 
-// three.js is only fetched when the 3D view is opened.
-const Fence3DView = dynamic(() => import("@/components/fence/Fence3DView"), {
+// three.js is only fetched when the 3D view is opened. The 3D view is the shared piece viewer, so the fence is
+// drawn from the same pieces the price is added up from, with the design colours painted on.
+const BuildingViewer = dynamic(() => import("@/components/estimator/BuildingViewer"), {
   ssr: false,
   loading: () => <div className="bpm-t-help" style={{ padding: 16 }}>Loading the 3D view…</div>,
 });
@@ -19,7 +24,18 @@ const POST_FILL: Record<string, string> = { LP: "var(--muted)", SP: "var(--ink)"
  * where it stands, gates marked) and the Fence configurator's own 3D view. Replaces the
  * villa card for a fence template.
  */
-export default function FenceCard({ view }: { view: FenceView }) {
+export default function FenceCard({
+  view, model, lines, rates, money, highlightMarks, visuals,
+}: {
+  view: FenceView;
+  model: GeometryModel | null;
+  lines: readonly WorkspaceLine[];
+  rates: readonly TemplateRate[];
+  money: (n: number) => string;
+  highlightMarks?: readonly string[];
+  /** Design slot -> material key or "#rrggbb" (resolveVisuals). */
+  visuals?: Readonly<Record<string, string>>;
+}) {
   const [mode, setMode] = useState<"plan" | "3d">("plan");
   const { posts, gatePoints, w, d, layout } = view;
 
@@ -65,8 +81,7 @@ export default function FenceCard({ view }: { view: FenceView }) {
           </svg>
         ) : (
           <div style={{ height: 380, position: "relative" }}>
-            <Fence3DView layout={view.layout} totalLength={view.totalLength} gates={view.gates} fabricHeight={view.fabricHeight}
-              geometry={view.geometry} coating={view.coating} meshSpec={view.meshSpec} />
+            <BuildingViewer model={model} lines={lines} densityTm3={densityFromRates([...rates])} money={money} highlightMarks={highlightMarks} visuals={visuals} />
           </div>
         )}
         <div className="est-chips" style={{ marginTop: 10 }}>

@@ -20,7 +20,7 @@ function view(params: Record<string, unknown>) {
 describe("the fence card (plan)", () => {
   it("draws every post and the gates, and says what it shows", () => {
     const v = view({});
-    const html = renderToString(createElement(FenceCard, { view: v })).replace(/<!-- -->/g, "");
+    const html = renderToString(createElement(FenceCard, { view: v, model: null, lines: [], rates: [], money: (n: number) => String(n) })).replace(/<!-- -->/g, "");
     expect(html).toContain("The fence");
     expect(html).toContain("<svg");
     expect(html.match(/<circle/g)!.length).toBe(v.geometry.total_posts);
@@ -34,7 +34,7 @@ describe("the fence card (plan)", () => {
 
   it("draws an open run as a line with end posts", () => {
     const v = view({ closed_perimeter: false, total_length_m: 90, gates_double_n: 0 });
-    const html = renderToString(createElement(FenceCard, { view: v })).replace(/<!-- -->/g, "");
+    const html = renderToString(createElement(FenceCard, { view: v, model: null, lines: [], rates: [], money: (n: number) => String(n) })).replace(/<!-- -->/g, "");
     expect(html).toContain("<line");
     expect(html).toContain("straight run");
     expect(html).toContain("end posts");

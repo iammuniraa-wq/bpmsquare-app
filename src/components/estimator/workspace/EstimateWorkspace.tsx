@@ -194,7 +194,7 @@ export default function EstimateWorkspace(p: WorkspaceProps) {
             </div>
           )}
           <div className="est-stack" style={{ gridColumn: t ? undefined : "1 / -1" }}>
-            {t?.geometry && shown.model && previewKindFor(t.geometry) === "fence" && fenceView && <FenceCard view={fenceView} />}
+            {t?.geometry && shown.model && previewKindFor(t.geometry) === "fence" && fenceView && <FenceCard view={fenceView} model={model ?? shown.model} lines={shown.lines} rates={t.rates} money={money} highlightMarks={marks} visuals={visuals} />}
             {t?.geometry && shown.model && previewKindFor(t.geometry) === "pieces" && (
               <VillaCard model={model ?? shown.model} lines={shown.lines} rates={t.rates} money={money} highlightMarks={marks} visuals={visuals}
                 note={highlightCode && marks && marks.length > 0 ? `Lighting up the ${marks.length} pieces of the line "${highlightCode}".` : undefined}
