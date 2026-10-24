@@ -915,9 +915,17 @@ export async function insertTemplate(
     ...(header.locked ? { locked: true } : {}),
     ...(header.customer_visible ? { customer_visible: true } : {}),
   };
-  let { data, error } = await supabase.from("estimate_templates").insert({ ...base, ...catalogue }).select("*").single();
-  // 0213 not applied yet: the template is still created, as an ordinary editable one.
-  if (error && Object.keys(catalogue).length > 0 && error.code !== "23505" && isMissingRelation(error)) {
+  const drawing = body.drawing_map && body.drawing_map.length > 0 ? { drawing_map: body.drawing_map } : {};
+  // Each extra column family arrives with its own migration (0213 catalogue, 0215 drawing map). Try with everything, then
+  // without the drawing map, then with neither: the template is still created, as an ordinary editable one.
+  const attempts = [{ ...catalogue, ...drawing }, ...(Object.keys(drawing).length > 0 && Object.keys(catalogue).length > 0 ? [catalogue] : [])];
+  let data: unknown = null;
+  let error: { code?: string; message: string } | null = null;
+  for (const extras of attempts) {
+    ({ data, error } = await supabase.from("estimate_templates").insert({ ...base, ...extras }).select("*").single());
+    if (!error || error.code === "23505" || !isMissingRelation(error)) break;
+  }
+  if (error && isMissingRelation(error) && attempts.some((a) => Object.keys(a).length > 0)) {
     ({ data, error } = await supabase.from("estimate_templates").insert(base).select("*").single());
   }
   if (error) {

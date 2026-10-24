@@ -22,8 +22,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
     // Copy what is stored, in the validator's canonical form; a template that no
     // longer validates (it predates a rule) is copied as it is rather than refused.
-    const v = validateTemplate(templateBody(t.data));
-    const content = v.ok && v.template ? v.template : templateBody(t.data);
+    const stored = { ...templateBody(t.data), ...(t.data.drawing_map && t.data.drawing_map.length > 0 ? { drawing_map: t.data.drawing_map } : {}) };
+    const v = validateTemplate(stored);
+    const content = v.ok && v.template ? v.template : stored;
 
     const base = (given || `${t.data.name} (${t.data.locked ? "custom" : "copy"})`).slice(0, MAX_TEMPLATE_NAME);
     // The copy is the editable one: never locked, and not customer-visible until someone says so.

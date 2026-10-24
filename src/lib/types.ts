@@ -11,6 +11,7 @@ import type {
   QuoteGranularity as EstimatorQuoteGranularity,
   EstimateComponent as EstimatorComponent,
   EstimateLineSource as EstimatorLineSource,
+  DrawingMapRule as EstimatorDrawingMapRule,
 } from "@/lib/estimator/types";
 
 export type AccountType = "prospect" | "oem" | "direct" | "end_customer";
@@ -875,6 +876,8 @@ export type EstimateTemplate = {
   /** A starter template: read-only, changed by "Copy to customise". */
   locked?: boolean;
   customer_visible?: boolean;
+  /** 0215 (absent while it is pending): which DXF layers feed which number input (drawing intake). */
+  drawing_map?: EstimatorDrawingMapRule[] | null;
   custom_data: Record<string, unknown> | null;
   created_by: string | null;
   created_at: string;

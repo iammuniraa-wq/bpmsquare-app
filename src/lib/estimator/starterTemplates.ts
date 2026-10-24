@@ -246,6 +246,8 @@ export const CHAINLINK_FENCE_STARTER: StarterTemplate = {
   keywords: ["fence", "fencing", "chain link", "chainlink", "perimeter", "boundary", "compound", "yard", "gate", "posts", "mesh", "security fence", "barbed wire"],
   icon: "fence",
   locked: true,
+  // A DXF drawing with the fence on a layer called FENCE fills the length; copy the template to point it at your own layer names.
+  drawing_map: [{ input: "total_length_m", measure: "length_m", layers: ["FENCE"] }],
 
   inputs: [
     { key: "total_length_m", label: "Fence length", type: "number", default: 500, min: 1, max: 5000, unit: "m", section: "The fence",
