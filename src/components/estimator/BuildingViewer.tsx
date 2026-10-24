@@ -56,6 +56,8 @@ export default function BuildingViewer({
   const [step, setStepState] = useState(steps - 1);
   const [explode, setExplode] = useState(0);
   const [inside, setInside] = useState(false);
+  const [closeUp, setCloseUp] = useState(true);
+  const [canFrame, setCanFrame] = useState(false);
   const [mode, setMode] = useState<ColourMode>("family");
   const [playing, setPlaying] = useState(false);
   const [selected, setSelected] = useState<string | null>(null);
@@ -95,6 +97,7 @@ export default function BuildingViewer({
     scene.setVisuals(visualsRef.current);
     scene.setModel(model, !firstModel.current);
     firstModel.current = false;
+    setCanFrame(scene.closeUpAvailable);
     setStepState(Math.max(1, model.step_names.length) - 1);
     setSelected(null);
     scene.setExplode(explode);
@@ -109,6 +112,8 @@ export default function BuildingViewer({
   useEffect(() => { sceneRef.current?.setVisuals(visualsRef.current); }, [visualsKey, hasModel]);
   useEffect(() => { sceneRef.current?.setExplode(explode); }, [explode]);
   useEffect(() => { sceneRef.current?.setCutaway(inside); }, [inside, hasModel]);
+  const frameFirst = useRef(true);
+  useEffect(() => { if (frameFirst.current) { frameFirst.current = false; return; } sceneRef.current?.setFraming(closeUp); }, [closeUp]);
   useEffect(() => { sceneRef.current?.setColourMode(mode); }, [mode]);
   useEffect(() => { sceneRef.current?.setSelected(selected); }, [selected]);
   useEffect(() => { sceneRef.current?.setHighlight(highlight); }, [highlight]);
@@ -171,6 +176,7 @@ export default function BuildingViewer({
           explode={explode} mode={mode} onStep={(n) => { setPlaying(false); goStep(n); }} onPlay={onPlay}
           onExplode={setExplode} onMode={setMode}
           inside={model.geometry === "porta_cabin" ? inside : undefined} onInside={setInside}
+          closeUp={canFrame ? closeUp : undefined} onCloseUp={setCloseUp}
         />
       )}
       <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "end", margin: "12px 0 4px" }}>

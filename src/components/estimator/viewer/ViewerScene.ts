@@ -68,6 +68,10 @@ const BLACK = new THREE.Color(0, 0, 0);
 const SUN_FLOOR_M = 40;
 const SHADOW_RADIUS_MAX_M = 150;
 
+/** A fence whose whole-run view is farther out than this opens close up at a gate instead. */
+const CLOSE_UP_ABOVE_M = 55;
+const CLOSE_UP_DIST_M = 34;
+
 export class ViewerScene {
   private renderer: THREE.WebGLRenderer;
   private scene = new THREE.Scene();
@@ -93,6 +97,10 @@ export class ViewerScene {
   private step = 0;
   private explode = 0;
   private cutaway = false;
+  /** A long fence is first shown close up at a gate (the whole run is a thin line from far away); set by setModel. */
+  closeUpAvailable = false;
+  private closeView: { target: [number, number, number]; dist: number } | null = null;
+  private wholeView: { target: [number, number, number]; dist: number } = { target: [0, 1, 0], dist: 30 };
   private cutInfo: { cabin: boolean; d: number } = { cabin: false, d: 0 };
   private selected: string | null = null;
   private highlight: ReadonlySet<string> = new Set();
@@ -183,9 +191,17 @@ export class ViewerScene {
     this.target = [0, maxY / 2, 0];
     const dist = Math.max(model.view_min_dist ?? 30, (model.w + model.d) * 1.25 + maxY * 0.5);
     const maxDist = dist * 3.5;
+    this.wholeView = { target: [0, maxY / 2, 0], dist };
+    this.closeView = null;
+    if (model.geometry === CHAINLINK_FENCE_KEY && dist > CLOSE_UP_ABOVE_M) {
+      const at = model.pieces.find((p) => p.code === "GT") ?? model.pieces.find((p) => p.code === "CP") ?? model.pieces[0];
+      if (at) this.closeView = { target: [at.pos[0], 1.1, at.pos[2]], dist: CLOSE_UP_DIST_M };
+    }
+    this.closeUpAvailable = this.closeView !== null;
     this.orbit = keepView
       ? { ...this.orbit, maxDist: Math.max(this.orbit.maxDist, maxDist) }
       : { ...this.orbit, dist, minDist: 8, maxDist };
+    if (!keepView && this.closeView) { this.target = this.closeView.target; this.orbit.dist = this.closeView.dist; }
     const reach = Math.max(this.orbit.maxDist, maxDist);
     this.fitAtmosphere(dist, reach, radius, maxY);
 
@@ -432,6 +448,14 @@ export class ViewerScene {
       v.mat.dispose();
       this.variants.delete(key);
     }
+    this.dirty = true;
+  }
+
+  /** A long fence: look at one gate from close by, or at the whole run. */
+  setFraming(closeUp: boolean): void {
+    const v = closeUp && this.closeView ? this.closeView : this.wholeView;
+    this.target = [...v.target] as [number, number, number];
+    this.orbit = { ...this.orbit, dist: v.dist };
     this.dirty = true;
   }
 
