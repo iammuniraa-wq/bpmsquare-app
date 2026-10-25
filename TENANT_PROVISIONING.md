@@ -21,6 +21,13 @@
   must be run on their DB too, forever). The full env-var list the app
   needs is in the 2026-08-16 session notes; regenerate with
   `grep -rhoE "process\.env\.[A-Z_]+" src | sort -u`.
+  **The step-by-step procedure for a dedicated instance now lives in
+  `docs/dedicated-instance.md`** (host choice, fresh database from
+  `scripts/dedicated/build-fresh-schema.mjs` and `bootstrap.sql`, storage
+  buckets, Auth settings, Vercel project and crons, every environment
+  variable with which must be fresh, data-residency of each external service,
+  smoke tests, backups, the per-instance migration ledger). Once the instance
+  is up, create the tenant on it by sections 1 to 6 below, unchanged.
 - **Module package** (drives the feature flags in step 2):
 
   | Package | Flags ON (everything else OFF) |
