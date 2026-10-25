@@ -98,11 +98,31 @@ export const CONNECTOR_CATALOG: ConnectorDef[] = [
     middleware: true,
     middlewareOnly: true,
   },
+  {
+    // Not `middleware`: the Integration middleware routes serve Dynamics for a connector id they do not know, so a chip
+    // there would show another system's data. ePROMIS has its own settings page until its entities exist.
+    id: "epromis",
+    name: "ePROMIS",
+    description: "Read tenders, the Resource Master, Cost Codes and justifications from ePROMIS, and send an awarded tender's project and budget to it. Sign in with an API key, a bearer token or a user name and password; where each operation lives is filled in once the ePROMIS API documentation is available.",
+    icon: "⇄",
+    authType: "api_key",
+    fields: [],
+    testable: false,
+    configureHref: "/settings/connectors/epromis",
+    featureKey: "gcc_tender",
+  },
 ];
 
-/** The connectors a workspace sees as tiles: one that lives only on the Integration middleware page needs that module. */
-export function visibleConnectors(middlewareOn: boolean, catalog: readonly ConnectorDef[] = CONNECTOR_CATALOG): ConnectorDef[] {
-  return catalog.filter((d) => !d.middlewareOnly || middlewareOn);
+/**
+ * The connectors a workspace sees as tiles: one that lives only on the Integration middleware page needs that module,
+ * and one that belongs to a sold module needs that tenant feature (a call that passes no `features` sees none of them).
+ */
+export function visibleConnectors(
+  middlewareOn: boolean,
+  catalog: readonly ConnectorDef[] = CONNECTOR_CATALOG,
+  features?: Readonly<Record<string, boolean | undefined>> | null,
+): ConnectorDef[] {
+  return catalog.filter((d) => (!d.middlewareOnly || middlewareOn) && (!d.featureKey || features?.[d.featureKey] === true));
 }
 
 export function getConnectorDef(id: string): ConnectorDef | undefined {

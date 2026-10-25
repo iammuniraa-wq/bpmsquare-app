@@ -3,7 +3,7 @@
 // read an adapter's description. Dynamics 365 is wired to the page directly and is not rewritten onto this yet;
 // SAP S/4HANA is the first adapter written against it.
 
-export type ErpAuthMode = "basic" | "api_key" | "oauth_client_credentials" | "client_secret" | "certificate" | "authorization_code";
+export type ErpAuthMode = "basic" | "api_key" | "bearer" | "oauth_client_credentials" | "client_secret" | "certificate" | "authorization_code";
 
 export type ErpCapabilities = {
   /** Entities BPMSquare can read from the system, by the keys the Links and Resync tabs use. */
