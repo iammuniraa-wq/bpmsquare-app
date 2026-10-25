@@ -351,3 +351,66 @@ Section 10 (slice 3) is the spec. What exists, and where it differs from the tex
 **Live-test fixes (2026-10-26).** (1) The BOQ tab is split into Upload / Prices / Download (`?boq=`, opens on Prices once a BOQ exists; the unpriced warning heads Download). (2) After any BOQ action that changes lines the page refreshes and remounts the Lines editor; the lines PUT takes the optional `base_version` (`linesVersion`) and answers 409 `lines_changed` for a deal with a BOQ when it is stale; a save from the editor re-points each BOQ row at the new line, so links, prices and order survive. (3) Lines are shown in the file's row order (`boqOrderedLines`); other deals sort item numbers numerically. (4) The client's unit stays on the BOQ row and in the answer sheet; the editor keeps a unit outside `UOM_OPTIONS` as its own option and maps obvious synonyms (`src/lib/sales/uom.ts`). (5) Releasing the bond asks inline first (`BondRelease`).
 
 **Live-test fixes, round 2 (2026-10-26).** (1) A tender deal's Lines tab has its actions in one toolbar ABOVE the table: Lines total, one "Request supplier prices (N)" button (N = unpriced lines; the editor's own "Request quotation" is hidden for a tender with the RFQ module, the per-line chips stay) and Save lines; Convert to Standard Quote is only the deal header's primary button. On a phone a Save bar sticks above the tab bar once the toolbar has scrolled away and there are unsaved edits. A standard deal's tab is byte-identical to before. (2) **Match to products** on the BOQ Prices tab (`boq/match`, `match.ts` scorer, `matchServer.ts`): a "N lines without a product" chip opens each unlinked line with up to 3 ranked products (SKU = cost code 100, SKU in the description 85, else word overlap 45-90, +5 same unit; strong >= 75, a different size caps at possible); accept one, search another, or leave as free text; "Accept N strong matches" links only unambiguous strong ones, chosen by the server. Only `product_id` is written to the deal line, tenant-verified, checked against the lines fingerprint (409 `lines_changed`); the fingerprint now includes `product_id` so the Lines editor cannot save over a link. Name, SKU and unit only are shown; never a cost. No migration.
+
+## 15. Slice 4 (bid versions, calls, outcome) and slice 5a (contract project and budget) — design, 2026-10-26
+
+Owner: "go ahead with next steps". Decisions are mine unless marked; change on request. ePROMIS API documentation is not in hand, so
+5a is complete inside BPMSquare and fills its lists from files; the push to ePROMIS and the read-back of actuals are slice 5b.
+
+### Slice 4 — migration 0225, bundle 35, flag `gcc_tender`
+1. **Bid versions** (new deal tab "Bids"). "Submit bid" on a tender deal in Estimating or Clarifications saves an append-only snapshot
+   `tender_bid_versions`: `version_no` (1, 2, 3 ... no cap), `submitted_at/by`, `currency`, `total`, `lines jsonb` (item no, description,
+   unit, qty, rate, amount, product ref, price source; never cost or markup), `note`, `revision_reason` (required from version 2),
+   and moves the deal to Submitted. "Revise bid" returns the deal to Estimating and the next submit makes the next version. Compare any
+   two versions: lines added, removed, changed (rate and qty), total delta in amount and percent. A version cannot be edited or deleted.
+2. **Log a call** (button on the deal's Activity tab and in the Room header): `deal_activities` (`kind` call|meeting|site_visit|note,
+   `occurred_at`, `with_whom`, `summary`, `outcome`, `next_step`, `next_step_due`, `logged_by`). Shown newest first on the Activity tab
+   beside the change history; a next step with a due date shows in "Closing soon"-style chip on the Tender tab when overdue.
+3. **Outcome facts** on `opportunity_tenders` (add columns): `award_value`, `winning_bidder`, `award_date`, `outcome_note`. The Tender tab
+   shows an "Outcome" section when the stage is Awarded, Lost or No-bid; for Lost, the existing `loss_reason` and `competitor` are shown there
+   too and required. Our final submitted total is shown beside the winning price with the difference.
+4. Wiring: `OBJECT_FEATURE`, change history for submit and calls, capability doc, LIST_SOURCES only if cheap (say what is skipped).
+
+### Slice 5a — migration 0226, bundle 36, new flag `contract_projects` (platform admin, default off, needs `gcc_tender`)
+Object name in the UI: **Contract projects** (ref `CPR-0001`); the existing Workforce "Projects" stay untouched.
+Ground rules 3c: (1) simple: create from a won tender in one click, grid edits only cost type, cost code and amounts; (2) one tab pattern
+(`useUrlTab`); (3) explanations behind InfoTip; (4) sections collapse and remember state; (5) no pricing choice (budget is cost);
+(6) PDF/Excel of the budget; sending is the handover; (7) born from a won tender (`source_opportunity_id`, unique) or by hand;
+(8) AI: Talk to data source, Assistant read access; create card deferred with a stated reason; (9) ERP: entity row "Contract project"
+in the Integration middleware (Links, Mapping) prepared, push is 5b; ERP id line only; (10) `logChange` on everything, "via approval"
+shown; (11) types: none now (one project type), the mechanism is not needed; (12) record page opens with a visual (see mock-up).
+
+**Tables.** `contract_projects` (ref, name, account_id, source_opportunity_id, status draft|baseline_pending|active|closed, contract_value,
+currency, planned_start, planned_end, manager_id, erp_system, erp_id, custom_data); `project_budget_revisions` (project_id, rev_no,
+status draft|pending|approved|superseded, justification_code, justification_text, created_by, approved_by, approved_at, locked_at, total);
+`project_budget_lines` (revision_id, project_id, line_no, resource_code, cost_code, wbs, description, qty, unit, unit_cost, amount,
+cost_known boolean, source_ref, reserve boolean, committed numeric null, actual numeric null — the last two read-only, filled by 5b);
+`erp_masters` (kind resource|cost_code|justification|reserve_type|division|job_location, code, name, parent_code, flags jsonb with
+`link_to_inventory`, `budget_validation`, `revenue_side`, source manual|file|epromis, active) — one generic table. Also two columns on
+`tender_boq_lines`: `cost_rate`, `markup_pct`, written when a line is priced from a cost source (never exported, never shown to the client).
+All tables: tenant_id, RLS on, tenant SELECT policy only, writes through service-role routes.
+
+**Masters now.** Seed the eight resource levels the owner showed (11 Material, 21 Asset, 31 Man Power, 32 Hiring Man Power, 41 Sub Contractor,
+51 Other Direct Cost; 91 Revenue and 92 On Account marked `revenue_side`) and a small justification list (client variation, scope change,
+price change, error correction, other). Cost codes, resources below level 11, reserve types and divisions come by **file import** (CSV/XLSX
+with code, name, parent) on Settings > Contract projects, one place only; later the same table is refreshed from ePROMIS (5b).
+
+**Create from a won tender.** Action "Create contract project" on an Awarded tender (also in the header menu). Copies the deal's lines into
+budget revision 0: resource defaults to Material (11), cost code from the BOQ's own code column when it exists in `erp_masters` (else left
+for the user, flagged), unit cost = BOQ `cost_rate` when known, else the rate less a default margin (workspace setting, default 15 percent)
+and `cost_known = false` shown as "estimated". Contract value = the awarded value if recorded else the final bid total.
+
+**Baseline.** Revision 0 is edited freely while draft. "Ask for approval" uses `approval_requests` kind `project_baseline` (same approvers as
+the bid decision, self-approval rule applies). Approval sets status approved, locks the revision, makes the project active. Every later
+change is a new draft revision copied from the approved one, needs a justification (code from the list plus a note), and the same approval.
+Superseded revisions stay readable; the grid can show any revision and a diff against the baseline.
+
+**Pages.** `/contract-projects` list (status chips, contract value, budget, margin), detail with tabs: **Overview** (visual: contract value
+vs budget as a bar, planned margin percent, budget by cost type as stacked bar, revision and approval state, a "needs attention" strip for
+unknown costs and unmapped cost codes), **Budget** (grid grouped by resource type with subtotals, cost code picker from masters, reserve
+lines, add/remove lines while draft), **Revisions** (list, diff, justification), **Handover** (Excel export of project header, budget by
+line with resource and cost code, and BOM, as the stand-in; a disabled "Send to ePROMIS" button says it needs the connection), **Activity**.
+Phones: one column, grid scrolls inside its container, primary action in the sticky bar.
+
+**Not in 5a (said plainly):** ePROMIS push and read-back (5b), subcontract packages (slice 6), committed and actual values (5b), progress
+claims, Data Workbench and v1 API for the new object unless cheap (list every skip in the commit), Drive guides.
