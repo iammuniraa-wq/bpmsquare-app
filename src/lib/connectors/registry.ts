@@ -90,7 +90,7 @@ export const CONNECTOR_CATALOG: ConnectorDef[] = [
   {
     id: "sap_s4",
     name: "SAP S/4HANA",
-    description: "Bring customers, suppliers and products in from SAP S/4HANA (Cloud public edition or any S/4HANA with the standard OData APIs). Sign in with the Communication User of a Communication Arrangement, or try it first with an API key from the SAP Business Accelerator Hub sandbox.",
+    description: "Bring customers, suppliers and products in from SAP S/4HANA (Cloud public edition or any S/4HANA with the standard OData APIs), and read its sales orders, deliveries and invoices; Sales Orders can be checked with SAP and sent to it. Sign in with the Communication User of a Communication Arrangement, or try it first with an API key from the SAP Business Accelerator Hub sandbox.",
     icon: "⇄",
     authType: "api_key",
     fields: [],

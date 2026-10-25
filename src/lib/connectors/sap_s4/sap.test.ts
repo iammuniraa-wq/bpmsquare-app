@@ -290,7 +290,7 @@ describe("saving a connection", () => {
   it("publicState lists every entity with its effective settings and no secret", async () => {
     const db = fakeAdmin(seed());
     const s = publicState(await loadSap(db.client, T1));
-    expect(Object.keys(s.config!.entities)).toEqual(["customers", "vendors", "products"]);
+    expect(Object.keys(s.config!.entities)).toEqual(["customers", "vendors", "products", "sales_orders"]);
     expect(s.config!.entities.customers).toMatchObject({ enabled: true, entity_set: "A_BusinessPartner", field_map: SAP_PRESETS.customers.field_map });
     expect(JSON.stringify(s)).not.toContain(SECRET);
     expect(publicState(null)).toMatchObject({ config: null, status: "not_connected" });
@@ -628,7 +628,7 @@ describe("overview, health, schedule, preview, adapter", () => {
     const db = fakeAdmin({ ...seed(), connector_sync_runs: [{ tenant_id: T1, connector_id: "sap_s4", entity: "customers", status: "succeeded", trigger: "manual", started_at: "2026-10-21T10:00:00Z", finished_at: "2026-10-21T10:01:00Z", counts: { read: 2 } }], connector_links: [{ tenant_id: T1, connector_id: "sap_s4", entity: "customers" }, { tenant_id: T2, connector_id: "sap_s4", entity: "customers" }] });
     const o = await sapSyncOverview(db.client, T1);
     if (!o.connected) throw new Error("expected connected");
-    expect(o.entities.map((e) => e.key)).toEqual(["customers", "vendors", "products"]);
+    expect(o.entities.map((e) => e.key)).toEqual(["customers", "vendors", "products", "sales_orders"]);
     expect(o.entities[0]).toMatchObject({ direction: "pull", enabled: true, linked: 1, filters: { numbers: true }, scope: { summary: "All customers", narrowed: false, needs_full: false }, last_run: { status: "succeeded" } });
     expect(o.entities[1].scope!.summary).toBe("All suppliers");
   });
@@ -666,7 +666,7 @@ describe("overview, health, schedule, preview, adapter", () => {
 
   it("the adapter describes the connector and reads a number from a row", () => {
     const a = sapAdapter(fakeAdmin(seed()).client);
-    expect(a).toMatchObject({ id: "sap_s4", label: "SAP S/4HANA", authModes: ["basic", "api_key"], capabilities: { pull: ["customers", "vendors", "products"], pushQuote: false, pushProject: false, metadata: true } });
+    expect(a).toMatchObject({ id: "sap_s4", label: "SAP S/4HANA", authModes: ["basic", "api_key"], capabilities: { pull: ["customers", "vendors", "products", "sales_orders"], pushQuote: false, pushProject: false, pushOrder: true, metadata: true } });
     expect(a.presets.customers.name).toBe("BusinessPartnerFullName");
     expect(a.readableKey("products", { Product: " FG-1 " })).toBe("FG-1");
     expect(a.readableKey("nope", {})).toBeNull();

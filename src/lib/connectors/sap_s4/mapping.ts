@@ -3,7 +3,7 @@
 
 import { odataString } from "@/lib/connectors/d365/mapping";
 import { SAP_FIELD_RE, SAP_PRESETS } from "./catalog";
-import type { SapEntityKey } from "./types";
+import type { SapBpKey } from "./types";
 
 // ── What each BPMSquare record accepts from a pull ──────────────────────────
 
@@ -11,7 +11,7 @@ type Kind = "text" | "email";
 
 /** The fields a map may fill, per entity. Anything else in a stored map is ignored: a map can never write a column
  *  the sync did not mean to own (status, ref, custom data, tenant_id ...). */
-const TARGET_FIELDS: Record<SapEntityKey, Record<string, Kind>> = {
+const TARGET_FIELDS: Record<SapBpKey, Record<string, Kind>> = {
   customers: { name: "text", address_line1: "text", city: "text", postal_code: "text", country: "text", phone: "text", email: "email" },
   vendors: { name: "text", city: "text", phone: "text", email: "email" },
   products: { name: "text", sku: "text", uom: "text", description: "text" },
@@ -118,7 +118,7 @@ const strip = (o: Record<string, unknown>): Record<string, unknown> => Object.fr
 
 /** The first address (its default e-mail and phone) as `address.*`; the English description as `description.*`.
  *  Nothing is written for a part the row does not carry. */
-export function flattenRow(key: SapEntityKey, row: Record<string, unknown>): Record<string, unknown> {
+export function flattenRow(key: SapBpKey, row: Record<string, unknown>): Record<string, unknown> {
   const out = { ...row };
   if (SAP_PRESETS[key].prefix === "address") {
     const a = results(row.to_BusinessPartnerAddress)[0];
@@ -151,7 +151,7 @@ export type MappedSapRow = {
   changed: string | null;
 };
 
-export function mapSapRow(key: SapEntityKey, fieldMap: Record<string, string>, raw: Record<string, unknown>): MappedSapRow | { error: string } {
+export function mapSapRow(key: SapBpKey, fieldMap: Record<string, string>, raw: Record<string, unknown>): MappedSapRow | { error: string } {
   const p = SAP_PRESETS[key];
   const row = flattenRow(key, raw);
   const rawId = row[p.id_field];
@@ -171,7 +171,7 @@ export function mapSapRow(key: SapEntityKey, fieldMap: Record<string, string>, r
 }
 
 /** Does this map read anything from the expanded part? Only then is the (heavier) expansion asked for. */
-export function needsExpand(key: SapEntityKey, fieldMap: Record<string, string>): boolean {
+export function needsExpand(key: SapBpKey, fieldMap: Record<string, string>): boolean {
   const prefix = `${SAP_PRESETS[key].prefix}.`;
   return Object.values(fieldMap).some((s) => s.startsWith(prefix));
 }
@@ -180,7 +180,7 @@ export function needsExpand(key: SapEntityKey, fieldMap: Record<string, string>)
  *  the rest -- and whenever the map reads an expanded part: how SAP Gateway combines $select with a nested $expand
  *  (to_BusinessPartnerAddress/to_EmailAddress) differs between releases, and a dropped expansion would silently leave
  *  every address blank. Whole rows cost bandwidth only; a missing part costs data. */
-export function selectFields(key: SapEntityKey, fieldMap: Record<string, string>): string[] | undefined {
+export function selectFields(key: SapBpKey, fieldMap: Record<string, string>): string[] | undefined {
   const p = SAP_PRESETS[key];
   if (needsExpand(key, fieldMap)) return undefined;
   const cols = new Set<string>([p.id_field, p.key_field, p.modified_field]);
@@ -192,7 +192,7 @@ export function selectFields(key: SapEntityKey, fieldMap: Record<string, string>
 }
 
 /** `(Key eq 'a' or Key eq 'b')` groups of at most `per` ids; ids are matched by the key, never the name. */
-export function idsFilters(key: SapEntityKey, ids: readonly string[], per = 20): string[] {
+export function idsFilters(key: SapBpKey, ids: readonly string[], per = 20): string[] {
   const col = SAP_PRESETS[key].id_field;
   const out: string[] = [];
   for (let i = 0; i < ids.length; i += per) out.push(`(${ids.slice(i, i + per).map((id) => `${col} eq ${odataString(id)}`).join(" or ")})`);
@@ -205,7 +205,7 @@ export function idVariants(id: string): string[] {
 }
 
 /** Validate a stored or submitted map: known BPMSquare fields, plain SAP names. Returns the cleaned map and the problems. */
-export function cleanFieldMap(key: SapEntityKey, raw: unknown): { map: Record<string, string>; problems: { field: string; message: string }[] } {
+export function cleanFieldMap(key: SapBpKey, raw: unknown): { map: Record<string, string>; problems: { field: string; message: string }[] } {
   const map: Record<string, string> = {};
   const problems: { field: string; message: string }[] = [];
   const allowed = TARGET_FIELDS[key];
@@ -218,4 +218,4 @@ export function cleanFieldMap(key: SapEntityKey, raw: unknown): { map: Record<st
   return { map, problems };
 }
 
-export const SAP_TARGET_KEYS = (key: SapEntityKey): string[] => Object.keys(TARGET_FIELDS[key]);
+export const SAP_TARGET_KEYS = (key: SapBpKey): string[] => Object.keys(TARGET_FIELDS[key]);

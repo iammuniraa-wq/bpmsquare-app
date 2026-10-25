@@ -193,8 +193,8 @@ describe("ErpTab", () => {
     const out = html(el(ErpTab, { detail: detail(), currency: "AED", externalLine: null, middlewareHref: "/settings/middleware" }));
     expect(out).toContain("Not in an ERP");
     expect(out).toContain("Nothing sent yet");
-    expect(out).toContain("Invoices from Dynamics 365 appear here. Nothing yet.");
-    expect(out).toContain("Deliveries come from F&amp;O or SAP, which are not connected.");
+    expect(out).toContain("Invoices from the ERP appear here. Nothing yet.");
+    expect(out).toContain("Deliveries from the ERP appear here. Nothing yet.");
     expect(out).not.toContain("sales_order.erp_refresh");
     expect(out).toContain('href="/settings/middleware"');
     expect(html(el(ErpTab, { detail: detail(), currency: "AED", externalLine: null, middlewareHref: null }))).not.toContain("sales_order.erp_setup");

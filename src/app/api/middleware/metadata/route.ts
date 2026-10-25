@@ -4,7 +4,7 @@ import { getErpMetadata } from "@/lib/middleware/metadataServer";
 import { isMetadataEntity, METADATA_ENTITIES } from "@/lib/middleware/metadata";
 import { wantsSap } from "@/lib/middleware/connectorParam";
 import { getSapFields } from "@/lib/connectors/sap_s4/server";
-import { isSapEntity } from "@/lib/connectors/sap_s4/types";
+import { isSapBpEntity } from "@/lib/connectors/sap_s4/types";
 
 // GET /api/middleware/metadata?entity=quote|quote_line|account|contact|product|project|customers|contacts|vendors|products|projects[&refresh=1]
 // The ERP's own field list, the pick-list for every target field in the Mapping tab.
@@ -22,7 +22,7 @@ export async function GET(req: NextRequest) {
   const entity = req.nextUrl.searchParams.get("entity");
   if (wantsSap(req)) {
     // SAP S/4HANA: the service's $metadata (customers, vendors, products), plus the address / description parts the map reads.
-    if (!isSapEntity(entity)) return fail(422, "entity must be one of: customers, vendors, products.");
+    if (!isSapBpEntity(entity)) return fail(422, "entity must be one of: customers, vendors, products.");
     const r = await getSapFields(g.ctx.admin, g.ctx.tenantId, entity, { refresh: req.nextUrl.searchParams.get("refresh") === "1" });
     if (!r.ok) return fail(r.state === "not_connected" ? 400 : 502, r.message, { state: r.state });
     return NextResponse.json({ ok: true, entity, applicable: true, fields: [...r.extra, ...r.main], fetchedAt: r.fetchedAt, source: r.source });

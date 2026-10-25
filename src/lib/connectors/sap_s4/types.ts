@@ -10,31 +10,53 @@ import type { EntityScope } from "@/lib/connectors/d365/types";
 export const SAP_CONNECTOR_ID = "sap_s4";
 export const SAP_NAME = "SAP S/4HANA";
 
-export const SAP_ENTITY_KEYS = ["customers", "vendors", "products"] as const;
+/** Master data read by field map (business partners and products). */
+export const SAP_BP_KEYS = ["customers", "vendors", "products"] as const;
+export type SapBpKey = (typeof SAP_BP_KEYS)[number];
+/** Everything the middleware lists for SAP. Sales orders are read whole (orders.ts), never through a field map. */
+export const SAP_ENTITY_KEYS = [...SAP_BP_KEYS, "sales_orders"] as const;
 export type SapEntityKey = (typeof SAP_ENTITY_KEYS)[number];
 export const isSapEntity = (v: unknown): v is SapEntityKey => typeof v === "string" && (SAP_ENTITY_KEYS as readonly string[]).includes(v);
+/** The entities that have a field map, a scope and a field list. */
+export const isSapBpEntity = (v: unknown): v is SapBpKey => typeof v === "string" && (SAP_BP_KEYS as readonly string[]).includes(v);
 
 export const SAP_ENTITY_LABEL: Record<SapEntityKey, string> = {
   customers: "Customers → Accounts",
   vendors: "Suppliers → Suppliers",
   products: "Products → Products",
+  sales_orders: "Sales orders → Sales orders",
 };
 
 /** The word on the Resync and Mapping tabs. */
-export const SAP_ENTITY_WORD: Record<SapEntityKey, string> = { customers: "Customers", vendors: "Suppliers", products: "Products" };
+export const SAP_ENTITY_WORD: Record<SapEntityKey, string> = { customers: "Customers", vendors: "Suppliers", products: "Products", sales_orders: "Sales orders" };
 
 /** The BPMSquare table a pull fills, and the module (feature flag) that owns it. */
-export const SAP_ENTITY_TARGET: Record<SapEntityKey, { table: "accounts" | "suppliers" | "products"; feature: "accounts" | "suppliers" | "products" }> = {
+export const SAP_ENTITY_TARGET: Record<SapEntityKey, { table: "accounts" | "suppliers" | "products" | "sales_orders"; feature: "accounts" | "suppliers" | "products" | "sales_orders" }> = {
   customers: { table: "accounts", feature: "accounts" },
   vendors: { table: "suppliers", feature: "suppliers" },
   products: { table: "products", feature: "products" },
+  sales_orders: { table: "sales_orders", feature: "sales_orders" },
 };
 
-/** The two Communication Scenarios the pulls need. Named in every message that tells an admin what to add. */
+/** The Communication Scenarios the pulls need. Named in every message that tells an admin what to add. `id` is empty for the order
+ *  services: the message then names the service itself, so no scenario number is claimed that this product has not verified. */
 export const SAP_SCENARIO = {
   businessPartner: { id: "SAP_COM_0008", name: "Business Partner, Customer and Supplier Integration" },
   product: { id: "SAP_COM_0009", name: "Product Integration" },
+  salesOrder: { id: "", name: "API_SALES_ORDER_SRV" },
+  outboundDelivery: { id: "", name: "API_OUTBOUND_DELIVERY_SRV" },
+  billingDocument: { id: "", name: "API_BILLING_DOCUMENT_SRV" },
+  salesOrderSimulation: { id: "", name: "API_SALES_ORDER_SIMULATION_SRV" },
 } as const;
+
+/** The order-side services, by the step that needs them. */
+export const SAP_ORDER_SERVICES = {
+  orders: "API_SALES_ORDER_SRV",
+  deliveries: "API_OUTBOUND_DELIVERY_SRV",
+  billing: "API_BILLING_DOCUMENT_SRV",
+  simulation: "API_SALES_ORDER_SIMULATION_SRV",
+} as const;
+export type SapOrderService = (typeof SAP_ORDER_SERVICES)[keyof typeof SAP_ORDER_SERVICES];
 
 export const SAP_AUTH_MODES = ["basic", "api_key"] as const;
 export type SapAuthMode = (typeof SAP_AUTH_MODES)[number];

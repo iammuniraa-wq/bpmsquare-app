@@ -9,7 +9,7 @@ import type { ScopeAttribute } from "@/lib/connectors/d365/scope";
 import { odataString } from "@/lib/connectors/d365/mapping";
 import type { EntityScope, ScopeCondition, ScopeKind } from "@/lib/connectors/d365/types";
 import { SAP_SCOPE_COMMON } from "./catalog";
-import type { SapEntityKey } from "./types";
+import type { SapBpKey } from "./types";
 
 const IDENT_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
 const INT_RE = /^-?\d{1,9}$/;
@@ -94,7 +94,7 @@ export function kindOfSapField(f: Pick<ErpField, "name" | "type">): ScopeKind | 
 
 /** The attributes offered: the common ones first, then every other filterable property the system lists.
  *  Without the system's list (it could not be read) only the common ones are offered. */
-export function sapScopeAttributes(entity: SapEntityKey, fields: readonly ErpField[] | null): ScopeAttribute[] {
+export function sapScopeAttributes(entity: SapBpKey, fields: readonly ErpField[] | null): ScopeAttribute[] {
   const commons = SAP_SCOPE_COMMON[entity];
   const out: ScopeAttribute[] = [];
   const byName = new Map((fields ?? []).map((f) => [f.name, f]));
@@ -118,6 +118,6 @@ export function sapScopeAttributes(entity: SapEntityKey, fields: readonly ErpFie
 }
 
 /** The fixed pick-list of a common attribute, when it has one. */
-export function sapScopeOptions(entity: SapEntityKey, attribute: string): { value: string; label: string }[] | null {
+export function sapScopeOptions(entity: SapBpKey, attribute: string): { value: string; label: string }[] | null {
   return SAP_SCOPE_COMMON[entity].find((c) => c.name === attribute)?.options ?? null;
 }

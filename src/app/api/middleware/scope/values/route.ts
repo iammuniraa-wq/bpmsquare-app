@@ -3,7 +3,7 @@ import { guard, fail } from "../../_guard";
 import { getScopeValues, isScopeEntity, SCOPE_ENTITIES } from "@/lib/middleware/scopeServer";
 import { wantsSap } from "@/lib/middleware/connectorParam";
 import { getSapScopeValues } from "@/lib/connectors/sap_s4/server";
-import { isSapEntity } from "@/lib/connectors/sap_s4/types";
+import { isSapBpEntity } from "@/lib/connectors/sap_s4/types";
 
 // GET ?entity=customers&attribute=territoryid[&q=north]
 //   -> { kind, typed, values: [{ value, label }], more }
@@ -19,7 +19,7 @@ export async function GET(req: NextRequest) {
   const p = req.nextUrl.searchParams;
   const entity = p.get("entity");
   if (wantsSap(req)) {
-    if (!isSapEntity(entity)) return fail(422, "entity must be one of: customers, vendors, products.");
+    if (!isSapBpEntity(entity)) return fail(422, "entity must be one of: customers, vendors, products.");
     const attr = p.get("attribute") ?? "";
     if (!/^[A-Za-z_][A-Za-z0-9_]{0,99}$/.test(attr)) return fail(422, "Choose an attribute.");
     const v = await getSapScopeValues(g.ctx.admin, g.ctx.tenantId, entity, attr);
