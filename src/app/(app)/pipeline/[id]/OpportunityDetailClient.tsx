@@ -30,6 +30,8 @@ import type { TenderView } from "@/lib/tender/views";
 import type { ApprovalView } from "@/lib/tender/approval";
 import TenderTab from "./TenderTab";
 import DealRoom from "@/components/tender/DealRoom";
+import TenderLinesRfq from "@/components/rfq/TenderLinesRfq";
+import type { ComposerLine } from "@/components/rfq/RfqComposer";
 
 // The deal page (§4.5): the record-page look (header with one primary step and
 // the "..." menu, facts, tabs) built client-side, because the Lines editor and
@@ -58,7 +60,7 @@ function toEditorLines(rows: OpportunityLine[]): Line[] {
   }));
 }
 
-export default function OpportunityDetailClient({ opp, accountName, contacts, initialLines, quotes, stages, members, products, pricingEnabled, standardQuotesEnabled, todayKey, currentUserId, related, activity, externalLine, tender, sourceEmail }: {
+export default function OpportunityDetailClient({ opp, accountName, contacts, initialLines, quotes, stages, members, products, pricingEnabled, standardQuotesEnabled, todayKey, currentUserId, related, activity, externalLine, tender, sourceEmail, tenderRfq }: {
   opp: Opportunity & { stage_since: string };
   accountName: string;
   contacts: { id: string; name: string }[];
@@ -81,6 +83,8 @@ export default function OpportunityDetailClient({ opp, accountName, contacts, in
   tender?: TenderTabData | null;
   /** "From email" for a tender made from an Inbox message (renders nothing otherwise). */
   sourceEmail?: React.ReactNode;
+  /** Tender deal in a workspace with the RFQ module: the saved lines as RFQ starting lines, for "Request supplier prices" on the Lines tab. */
+  tenderRfq?: { originLabel: string; lines: ComposerLine[] } | null;
 }) {
   const cur = useCurrency();
   const inr = (n: number) => formatMoney(Math.round(n), cur, {});
@@ -380,6 +384,7 @@ export default function OpportunityDetailClient({ opp, accountName, contacts, in
             <span style={{ fontSize: 12.5, color: c.muted }}>Lines total <b style={{ color: c.ink }}>{inr(linesTotal)}</b>{quotes.length > 0 ? " · the deal amount follows its latest quote" : ""}</span>
             <span style={{ marginLeft: "auto" }} />
             {linesDirty && <span style={{ fontSize: 11.5, color: "var(--amberink)" }}>Unsaved changes</span>}
+            {tenderRfq && <TenderLinesRfq opportunityId={opp.id} originLabel={tenderRfq.originLabel} lines={tenderRfq.lines} dirty={linesDirty} />}
             {canConvert && <Button variant="secondary" onClick={convert} disabled={pending}>Convert to Standard Quote</Button>}
             <Button variant="primary" onClick={saveLines} disabled={!linesDirty} loading={pending}>{pending ? "Saving…" : "Save lines"}</Button>
           </div>

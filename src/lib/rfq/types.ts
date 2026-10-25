@@ -157,6 +157,7 @@ export const RFQ_DEFAULTS: Required<Omit<RfqConfig, "terms">> & { terms: string 
   link_grace_days: 14,
   terms: "",
   attach_pdf: true,
+  price_valid_days: 180,
 };
 
 export function rfqConfig(cfg: RfqConfig | null | undefined): typeof RFQ_DEFAULTS {
@@ -173,6 +174,7 @@ export function rfqConfig(cfg: RfqConfig | null | undefined): typeof RFQ_DEFAULT
     link_grace_days: clampInt(c.link_grace_days, 0, 90, RFQ_DEFAULTS.link_grace_days),
     terms: typeof c.terms === "string" ? c.terms.slice(0, 4000) : "",
     attach_pdf: c.attach_pdf !== false,
+    price_valid_days: clampInt(c.price_valid_days, 30, 730, RFQ_DEFAULTS.price_valid_days),
   };
 }
 

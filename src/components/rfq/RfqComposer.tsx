@@ -38,7 +38,7 @@ export type ComposerLine = {
 type Product = { id: string; name: string; ref: string | null; uom: string | null };
 
 export default function RfqComposer({
-  origin, originLabel, initialLines, initialTitle, onCreated, onCancel, compact,
+  origin, originLabel, initialLines, initialTitle, onCreated, onCancel, compact, supplierTypeFilter,
 }: {
   origin?: { type: RfqOriginType; id: string | null };
   originLabel?: string | null;
@@ -47,6 +47,8 @@ export default function RfqComposer({
   onCreated: (r: { id: string; ref: string; line_ids: string[]; line_keys: (string | null)[]; sent?: { supplier: string; ok: boolean; reason?: string }[] }) => void;
   onCancel?: () => void;
   compact?: boolean;
+  /** Offer the vendors / subcontractors filter in the supplier list (tender deals). */
+  supplierTypeFilter?: boolean;
 }) {
   const [title, setTitle] = useState(initialTitle ?? "");
   const [lines, setLines] = useState<ComposerLine[]>(initialLines?.length ? initialLines : [{ description: "", qty: 1, uom: "Nos" }]);
@@ -174,7 +176,7 @@ export default function RfqComposer({
       <div>
         <span style={lbl}>Suppliers to ask {chosen.length ? `(${chosen.length})` : ""}</span>
         <div style={{ marginTop: 6 }}>
-          <SupplierPicker suppliers={suppliers ?? []} chosen={chosen} onToggle={toggle} suggested={suggested ?? []} current={current ?? []} />
+          <SupplierPicker suppliers={suppliers ?? []} chosen={chosen} onToggle={toggle} suggested={suggested ?? []} current={current ?? []} typeFilter={supplierTypeFilter} />
         </div>
       </div>
 

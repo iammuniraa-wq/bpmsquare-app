@@ -14,7 +14,7 @@ import RfqSingleForm from "./RfqSingleForm";
 export type RfqCreated = { id: string; ref: string; line_ids: string[]; line_keys: (string | null)[] };
 
 export default function RfqDialog({
-  onClose, origin, originLabel, lines, title, single, onCreated,
+  onClose, origin, originLabel, lines, title, single, onCreated, supplierTypeFilter,
 }: {
   onClose: () => void;
   origin: { type: RfqOriginType; id: string | null };
@@ -24,6 +24,7 @@ export default function RfqDialog({
   /** Opened from one document line: the simple one-item form. */
   single?: boolean;
   onCreated?: (r: RfqCreated) => void;
+  supplierTypeFilter?: boolean;
 }) {
   const router = useRouter();
 
@@ -56,6 +57,7 @@ export default function RfqDialog({
           ) : (
             <RfqComposer
               compact
+              supplierTypeFilter={supplierTypeFilter}
               origin={origin}
               originLabel={originLabel}
               initialLines={lines}

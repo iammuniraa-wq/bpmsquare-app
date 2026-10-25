@@ -112,6 +112,10 @@ export const OBJECT_FEATURE: Record<string, keyof TenantFeatures | null> = {
   // own Quotations without being allowed to bulk-edit lines).
   quote_lines: "quote_lines_dw",
   rfqs: "rfq",
+  // Recorded RFQ award decisions (0224): in-app routes only (no Data Workbench, v1 or list source), owned by the RFQ module.
+  rfq_line_awards: "rfq",
+  // What a supplier last quoted for a catalog product (0224); written by RFQ awards, read nowhere over an API yet.
+  product_suppliers: "products",
   // Standard Quotes (0053): a module of its own, apart from Quotations. The header and its
   // lines are two Data Workbench families, the v1 endpoint says standard-quotes and the
   // scope / list source say standard_quotes -- every spelling a surface uses.

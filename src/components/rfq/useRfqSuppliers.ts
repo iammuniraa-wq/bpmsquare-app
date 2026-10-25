@@ -7,7 +7,7 @@ import type { CurrentSupplier } from "@/lib/rfq/currentSupplier";
 // tenant, the tenant's own RFQ history for the products asked about, and the
 // current supplier of each product.
 
-export type PickerSupplier = { id: string; name: string; email: string | null; city: string | null; status: string; ref?: string | null };
+export type PickerSupplier = { id: string; name: string; email: string | null; city: string | null; status: string; ref?: string | null; type?: string | null };
 export type SuggestedSupplier = { supplier_id: string; name: string; awarded: number; quoted: number; last_awarded_at: string | null };
 export type CurrentForProduct = CurrentSupplier & { product_id: string };
 

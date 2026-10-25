@@ -5,6 +5,9 @@ import { RFQ_LIMITS, rfqConfig } from "@/lib/rfq/types";
 import { linkExpiry } from "@/lib/rfq/rules";
 import { getTenant } from "@/lib/tenant";
 import { whatsappText } from "@/lib/rfq/compose";
+import { loadCurrentAwards } from "@/lib/rfq/awards";
+import { loadActorNames } from "@/lib/actorNames";
+import { tenantToday } from "@/lib/tenantClock";
 
 // One RFQ. GET is the whole bundle the detail screen needs; PATCH edits the
 // header (explicit allowlist) or runs an action; DELETE removes a draft.
@@ -47,9 +50,17 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
         whatsapp_text: link && tenant ? whatsappText({ ref: b.rfq.ref ?? "RFQ", title: b.rfq.title, tenantName: tenant.name, respondBy: b.rfq.respond_by }, link) : null,
       };
     });
+    // Recorded award decisions (0224): empty and flagged while the migration is pending, so the screen can still compare.
+    const awardState = await loadCurrentAwards(admin, tenantId, id).catch(() => ({ rows: [], pending: true }));
+    const names = await loadActorNames(admin, tenantId, awardState.rows.map((a) => a.chosen_by));
     return NextResponse.json({
       ...b,
       suppliers,
+      awards: awardState.rows.map((a) => ({ ...a, chosen_by_name: a.chosen_by ? names.get(a.chosen_by) ?? null : null })),
+      awards_pending: awardState.pending,
+      today: await tenantToday(tenantId),
+      stale_days: cfg.price_valid_days,
+      max_reminders: cfg.max_reminders,
       unread_marked: unread.length,
       products: products ?? [],
       origin_href: originHref(b.rfq.origin_type, b.rfq.origin_id, { caseId }),

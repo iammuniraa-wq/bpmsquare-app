@@ -1559,6 +1559,9 @@ export type RfqConfig = {
   terms?: string;
   /** Attach the printable RFQ (PDF) to each request email. Default on. */
   attach_pdf?: boolean;
+  /** Days after which a supplier answer with no validity date of its own is stale on the comparison (amber, never the lowest valid
+   *  price). Default 180, clamped 30..730. */
+  price_valid_days?: number;
 };
 
 export type PricingConfig = {

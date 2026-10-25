@@ -7,5 +7,6 @@ rules:
 - A team member proposes go or no-go with a reason and a manager approves or rejects it with a comment; the tender cannot leave Bid/No-bid for Estimating without an approved go, nor go to No-bid without an approved no-go, and the system records who and when.
 - Approvers are chosen in Settings, Tenders (workspace admins by default); the proposer cannot approve their own proposal unless the workspace allows it.
 - A bid bond is held until someone releases it; a released bond stops the expiry warning and the bond line in reminders.
+- On a tender deal's Lines tab, Request supplier prices raises an RFQ from the saved lines, carrying the client's item numbers, to any number of suppliers (vendors or subcontractors can be filtered); the replies are compared and awarded on the RFQ.
 - The owner and team are emailed 7, 3 and 1 days before the closing date and on the day, once each, until the bid is submitted.
 - The flag is set by a platform admin; a workspace without it sees no new tab, menu entry or screen, and standard deals behave exactly as before.

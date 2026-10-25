@@ -12,7 +12,7 @@ import { btnGhost } from "./rfqUi";
 // its lines became).
 
 export default function CreateRfqButton({
-  origin, originLabel, lines, title, label = "Request quotation", onCreated, buttonStyle,
+  origin, originLabel, lines, title, label = "Request quotation", onCreated, buttonStyle, supplierTypeFilter, disabled, guideId,
 }: {
   origin: { type: RfqOriginType; id: string | null };
   originLabel?: string | null;
@@ -21,11 +21,14 @@ export default function CreateRfqButton({
   label?: string;
   onCreated?: (r: RfqCreated) => void;
   buttonStyle?: React.CSSProperties;
+  supplierTypeFilter?: boolean;
+  disabled?: boolean;
+  guideId?: string;
 }) {
   const [open, setOpen] = useState(false);
   return (
     <>
-      <button type="button" style={{ ...btnGhost, ...buttonStyle }} onClick={() => setOpen(true)}>{label}</button>
+      <button type="button" data-guide={guideId} disabled={disabled} style={{ ...btnGhost, ...buttonStyle, ...(disabled ? { opacity: 0.55, cursor: "not-allowed" } : {}) }} onClick={() => setOpen(true)}>{label}</button>
       {open && (
         <RfqDialog
           onClose={() => setOpen(false)}
@@ -34,6 +37,7 @@ export default function CreateRfqButton({
           lines={lines}
           title={title}
           onCreated={onCreated}
+          supplierTypeFilter={supplierTypeFilter}
         />
       )}
     </>
