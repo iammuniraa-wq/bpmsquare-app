@@ -193,6 +193,36 @@ describe("credential tables are not member-writable (audit 2026-10-21)", () => {
     expect(bundle.replace(/\r\n/g, "\n")).toContain(file.replace(/\r\n/g, "\n").trim());
   });
 
+  it("0217 (order checks and transfers): both tables have RLS and a member SELECT policy and nothing that writes; the bundle carries the file verbatim", () => {
+    const file = readFileSync(path.join(DIR, "0217_sales_order_checks.sql"), "utf8");
+    const sql = file.replace(/--[^\n]*/g, "");
+    for (const table of ["sales_order_checks", "sales_order_transfers"]) {
+      expect(sql, table).toMatch(new RegExp(`alter table ${table} enable row level security`));
+      expect(new RegExp(`create table if not exists ${table} \\([^;]*tenant_id\\s+uuid not null references tenants\\(id\\)`).test(sql), table).toBe(true);
+      // A check result or a transfer row is evidence of what the ERP said and did: a member must not be able to forge one.
+      const list = [...(policies.get(table)?.values() ?? [])];
+      expect(list.map((p) => p.cmd), table).toEqual(["select"]);
+      expect(list[0].text).toMatch(/tenant_id in \(select tenant_id from tenant_users where user_id = auth\.uid\(\)\)/);
+    }
+    const bundle = readFileSync(path.resolve(__dirname, "../../scripts/run-bundle-28-sales-order-checks-2026-10-24.sql"), "utf8");
+    expect(bundle.replace(/\r\n/g, "\n")).toContain(file.replace(/\r\n/g, "\n").trim());
+  });
+
+  it("no route writes sales_order_checks or sales_order_transfers with the member's session client", () => {
+    const offenders: string[] = [];
+    const root = path.resolve(__dirname, "../..");
+    const walk = (dir: string) => {
+      for (const e of readdirSync(dir, { withFileTypes: true })) {
+        const p = path.join(dir, e.name);
+        if (e.isDirectory()) { walk(p); continue; }
+        if (!/\.(ts|tsx)$/.test(e.name) || /\.test\./.test(e.name)) continue;
+        if (/\bsupabase\s*\.from\(\s*"(sales_order_checks|sales_order_transfers)"\s*\)\s*\.(insert|update|delete|upsert)\(/.test(readFileSync(p, "utf8"))) offenders.push(path.relative(root, p));
+      }
+    };
+    walk(path.resolve(__dirname, ".."));
+    expect(offenders).toEqual([]);
+  }, 30_000);
+
   it("no route writes erp_documents with the member's session client: only the connector code, on the service role", () => {
     const offenders: string[] = [];
     const root = path.resolve(__dirname, "../..");

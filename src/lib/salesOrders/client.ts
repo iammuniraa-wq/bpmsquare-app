@@ -4,6 +4,10 @@
 // instead of crashing while the backend lands. Response shapes are read tolerantly: the spec fixes the routes and the
 // row types (types.ts), not the envelope, so every reader below accepts the flat row and the `{ order, lines }` form.
 
+import {
+  CHECK_KINDS, CHECK_STATUSES, TRANSFER_RESULTS,
+  type CheckKind, type CheckStatus, type ErpCheckView, type ErpTransferView, type TransferResult,
+} from "./erpChecks";
 import type {
   OrderAttachment, OrderOrigin, OrderParty, OrderSourceType, OrderSpine, OrderStatus, PricingMode,
   SalesOrder, SalesOrderLine, SalesOrderType,
@@ -52,6 +56,14 @@ export type OrderDetail = {
   erpLink: { number: string | null; syncedAt: string | null; checkedAt: string | null } | null;
   /** Shown when the ERP named a customer that has no Account here yet. */
   customerNote: string | null;
+  /** Why Send to ERP is disabled (no customer in the ERP, no lines, already sent...); null when it can be pressed. */
+  erpSendBlocker: string | null;
+  /** The latest credit, price and stock results; a result whose lines or customer changed afterwards has `stale` set. */
+  erpChecks: ErpCheckView[];
+  /** Every attempt to send the order to the ERP, newest first. */
+  erpTransfers: ErpTransferView[];
+  /** Migration 0217 is not applied: the ERP buttons say "Needs a database update". */
+  erpChecksPending: boolean;
   /** The server's own answers about the lock (the same rule the PATCH route applies); null when it sent none. */
   permissions: { editable: boolean; annotatable: boolean; deletable: boolean } | null;
   /** Why the order is locked, in the server's words (so the chip, the greyed controls and a 409 agree). */
@@ -279,6 +291,26 @@ function readParty2(v: unknown): PartyRef | null {
   return id && name ? { id, name, phone: str(r.phone), email: str(r.email) } : null;
 }
 
+export function readCheck(v: unknown): ErpCheckView | null {
+  const r = rec(v);
+  if (!r) return null;
+  const kind = (CHECK_KINDS as readonly unknown[]).includes(r.kind) ? (r.kind as CheckKind) : null;
+  const status = (CHECK_STATUSES as readonly unknown[]).includes(r.status) ? (r.status as CheckStatus) : null;
+  const at = str(r.checked_at);
+  if (!kind || !status || !at) return null;
+  return { kind, status, message: str(r.message), detail: rec(r.detail), checked_at: at, stale: r.stale === true };
+}
+
+export function readTransfer(v: unknown): ErpTransferView | null {
+  const r = rec(v);
+  if (!r) return null;
+  const id = str(r.id);
+  const at = str(r.attempted_at);
+  const result = (TRANSFER_RESULTS as readonly unknown[]).includes(r.result) ? (r.result as TransferResult) : null;
+  if (!id || !at || !result) return null;
+  return { id, attempted_at: at, by: str(r.by), result, erp_number: str(r.erp_number), step: str(r.step), message: str(r.message) };
+}
+
 export function readErpDocument(v: unknown): ErpDocument | null {
   const r = rec(v);
   if (!r) return null;
@@ -322,6 +354,10 @@ export function readDetail(json: unknown): OrderDetail | null {
       return l ? { number: str(l.number), syncedAt: str(l.synced_at), checkedAt: str(l.checked_at) } : null;
     })(),
     customerNote: str(root.customer_note),
+    erpSendBlocker: str(root.erp_send_blocker),
+    erpChecks: arr(root.erp_checks).flatMap((c) => { const x = readCheck(c); return x ? [x] : []; }),
+    erpTransfers: arr(root.erp_transfers).flatMap((t) => { const x = readTransfer(t); return x ? [x] : []; }),
+    erpChecksPending: root.erp_checks_pending === true,
     permissions: typeof root.editable === "boolean"
       ? { editable: root.editable, annotatable: root.annotatable === true, deletable: root.deletable === true }
       : null,
@@ -373,6 +409,17 @@ export const createOrderFromSource = (source: { type: "standard_quote" | "quotat
 /** Ask the ERP again about this order: its status and its invoices. `throttled` = one was done a moment ago and this one did nothing. */
 export const refreshFromErp = (id: string) =>
   call(`${base}/${id}/erp-refresh`, jsonInit("POST", {}), (j) => ({ throttled: rec(j)?.throttled === true, invoices: num(rec(j)?.invoices) }));
+
+/** Check with ERP: credit, price and stock read from the ERP (nothing is saved there). -> the three results. */
+export const checkWithErp = (id: string) =>
+  call(`${base}/${id}/erp-check`, jsonInit("POST", {}), (j) => {
+    const checks = arr(rec(j)?.checks).flatMap((c) => { const x = readCheck(c); return x ? [x] : []; });
+    return checks.length > 0 ? { checks } : null;
+  });
+
+/** Send to ERP. `confirm` says the person has read the checks that are not a current pass. -> the ERP's number. */
+export const sendToErp = (id: string, confirm: boolean) =>
+  call(`${base}/${id}/erp-send`, jsonInit("POST", { confirm }), (j) => ({ erpNumber: str(rec(j)?.erp_number), link: str(rec(j)?.link) }));
 
 export const patchOrder = (id: string, body: PatchOrderBody) => call(`${base}/${id}`, jsonInit("PATCH", body), () => true as const);
 export const deleteOrder = (id: string) => call(`${base}/${id}`, { method: "DELETE" }, () => true as const);

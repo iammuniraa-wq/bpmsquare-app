@@ -41,6 +41,12 @@ export class FakeDataverse implements ErpHttp {
   createDelayMs = 0;
   /** Dynamics account id -> its own price list (null = the account has none). An account not listed here is "not found". */
   accountPriceLists: Record<string, string | null> = {};
+  /** Extra fields an account answers with (creditonhold, creditlimit...), by Dynamics account id. */
+  accountRows: Record<string, Record<string, unknown>> = {};
+  /** A product's answer (price, quantityonhand...), by Dynamics product id. A product not listed is "not found". */
+  productRows: Record<string, Record<string, unknown>> = {};
+  /** Orders already in the ERP for a customer (open orders for the credit check): { _customerid_value, totalamount, statecode }. */
+  existingOrders: Record<string, unknown>[] = [];
   /** Extra read-only data: entity set -> rows, for list calls. */
   data: Record<string, Record<string, unknown>[]> = {};
   private n = 0;
@@ -68,6 +74,10 @@ export class FakeDataverse implements ErpHttp {
       if (!o) throw new D365Error("salesorder does not exist", 404);
       return this.orderView(o);
     }
+    if (pathOrUrl === "salesorders" && /_customerid_value eq/.test(query?.$filter ?? "")) {
+      const cust = /_customerid_value eq ([0-9a-f-]+)/i.exec(query?.$filter ?? "")?.[1];
+      return { value: this.existingOrders.filter((o) => o._customerid_value === cust && (o.statecode === 0 || o.statecode === 1)) };
+    }
     if (pathOrUrl === "salesorders") {
       const m = /startswith\(name,'(.*)'\)/.exec(query?.$filter ?? "");
       const prefix = m ? m[1].replace(/''/g, "'") : "";
@@ -79,7 +89,19 @@ export class FakeDataverse implements ErpHttp {
       return { value: this.quotes.filter((q) => q.name.startsWith(prefix)).slice(0, Number(query?.$top ?? 50)).map((q) => this.view(q)) };
     }
     const acct = /^accounts\(([^)]+)\)$/.exec(pathOrUrl);
+    if (acct && acct[1] in this.accountRows) return { ...this.accountRows[acct[1]], _defaultpricelevelid_value: this.accountPriceLists[acct[1]] ?? null };
     if (acct && acct[1] in this.accountPriceLists) return { _defaultpricelevelid_value: this.accountPriceLists[acct[1]] };
+    const prod = /^products\(([^)]+)\)$/.exec(pathOrUrl);
+    if (prod) {
+      if (!(prod[1] in this.productRows)) throw new D365Error("product does not exist", 404);
+      return this.productRows[prod[1]];
+    }
+    if (pathOrUrl === "productpricelevels") {
+      const f = query?.$filter ?? "";
+      const pl = /_pricelevelid_value eq ([0-9a-f-]+)/i.exec(f)?.[1];
+      const pr = /_productid_value eq ([0-9a-f-]+)/i.exec(f)?.[1];
+      return { value: (this.data[pathOrUrl] ?? []).filter((r) => r._pricelevelid_value === pl && r._productid_value === pr) };
+    }
     if (this.data[pathOrUrl]) return { value: this.data[pathOrUrl] };
     throw new D365Error(`unknown path ${pathOrUrl}`, 404);
   }

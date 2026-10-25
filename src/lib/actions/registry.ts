@@ -140,6 +140,19 @@ export const DEFERRED: Record<string, string> = {
   upload: "a file upload, not a record",
 };
 
+/**
+ * Verbs on an existing record that the assistant cannot do yet, each with the route that does it and the reason. The
+ * registry holds creates only (kind "create"), and registry.test.ts checks every route named here still exists with a POST so
+ * the list cannot rot. "Check this order with the ERP" is read-only but is a call to an outside system the person watches the
+ * result of; "Send order to the ERP" creates a document in the customer's ERP. Both need a verb card (a confirm card for a
+ * named record, not a field form) that the assistant does not have: until then the assistant reads the results through Talk to
+ * data (credit_check, price_check, stock_check on sales orders) and the buttons on the ERP tab stay the way in.
+ */
+export const DEFERRED_VERBS: Record<string, { route: string; why: string }> = {
+  check_order_with_erp: { route: "sales-orders/[id]/erp-check", why: "a read-only check of one named order against the ERP; needs a verb confirm card, not a create form" },
+  send_order_to_erp: { route: "sales-orders/[id]/erp-send", why: "creates a document in the customer's ERP and locks the order; needs a verb confirm card that lists the checks that are not a pass" },
+};
+
 export type ActionGate = { features: Record<string, boolean | undefined>; perms: PermissionSet };
 
 /** The assistant's actions are a platform-admin flag that needs the assistant and Nova both on. */

@@ -104,3 +104,26 @@ begin
     and not exists (select 1 from erp_documents d where d.tenant_id = o.tenant_id and d.order_id = o.id and d.kind = v.kind and d.raw_ref = v.raw_ref);
 end
 $erp$;
+
+-- 5. A Check with ERP result on the draft SO-0002, so the ERP tab shows what a check looks like on the demo workspace.
+-- Run AFTER supabase/migrations/0217_sales_order_checks.sql (scripts/run-bundle-28-sales-order-checks-2026-10-24.sql); a database without
+-- sales_order_checks skips this part. These are SAMPLE results (the message starts with "Sample:"): nothing came from an ERP.
+-- No quantity_hash is stored, so the sample never reads as out of date; the first real check replaces both rows.
+do $checks$
+begin
+  if to_regclass('public.sales_order_checks') is null then
+    raise notice 'sales_order_checks does not exist yet: run the 0217 bundle, then this script again for the sample checks.';
+    return;
+  end if;
+  insert into sales_order_checks (tenant_id, order_id, kind, status, message, detail, checked_at)
+  select o.tenant_id, o.id, v.kind, v.status, v.message, v.detail::jsonb, now() - interval '20 minutes'
+  from sales_orders o
+  join tenants t on t.id = o.tenant_id and t.is_demo = true
+  join (values
+    ('credit', 'passed',  'Sample: within the credit limit, nothing on hold.', '{"sample": true}'),
+    ('price',  'warning', 'Sample: 1 of 2 lines is priced differently from the ERP price list.', '{"sample": true, "lines": [{"line_no": 2, "bpm_price": 118000, "erp_price": 121500}]}')
+  ) as v(kind, status, message, detail) on true
+  where o.ref = 'SO-0002'
+  on conflict (tenant_id, order_id, kind) do nothing;
+end
+$checks$;

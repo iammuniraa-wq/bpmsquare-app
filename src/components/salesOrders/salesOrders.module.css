@@ -54,6 +54,8 @@
 .tagErp { background: var(--bluebg); color: var(--blueink); }
 .tagMaster { background: var(--amberbg); color: var(--amberink); }
 .tagNone { background: var(--panel2); color: var(--hint); }
+.tagOk { background: var(--greenbg); color: var(--greenink); }
+.tagBad { background: var(--redbg); color: var(--redink); }
 
 /* ── tables that become cards on a phone ──────────────────────────────────── */
 .tableWrap { overflow-x: auto; }
@@ -98,6 +100,14 @@
 
 /* ── ERP tab ──────────────────────────────────────────────────────────────── */
 .erpId { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; min-height: 28px; }
+.cardHead { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px 12px; margin-bottom: 10px; }
+.cardActions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.checkRow { display: grid; grid-template-columns: 90px auto minmax(0, 1fr); gap: 4px 14px; align-items: start; padding: 10px 0; border-top: 1px solid var(--line); }
+.checkRow:first-of-type { border-top: none; }
+.checkName { font-size: 13px; font-weight: 700; color: var(--ink); }
+.checkText { font-size: 13px; color: var(--ink); overflow-wrap: anywhere; }
+.checkTime { font-size: 12px; color: var(--muted); margin-top: 2px; }
+.sendList { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 6px; font-size: 13px; overflow-wrap: anywhere; }
 
 /* ── document flow (SVG swimlane) ─────────────────────────────────────────── */
 .flowWrap { overflow-x: auto; padding-bottom: 4px; }
@@ -159,6 +169,7 @@
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
 @media (max-width: 900px) {
+  .checkRow { grid-template-columns: 1fr; }
   .facts { grid-template-columns: 1fr; }
   .formGrid { grid-template-columns: 1fr; }
   .editNums { grid-template-columns: repeat(2, minmax(0, 1fr)); }

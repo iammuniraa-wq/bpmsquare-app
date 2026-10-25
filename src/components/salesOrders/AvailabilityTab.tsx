@@ -2,7 +2,7 @@ import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
 import InfoTip from "@/components/ui/InfoTip";
 import type { SalesOrderLine } from "@/lib/salesOrders/types";
-import { availabilityRows, availabilityStatus, fmtDate, fmtDateTime, lastChecked, rowNote, tagText, type AvailRow } from "./logic";
+import { availabilityRows, type ErpStock, availabilityStatus, fmtDate, fmtDateTime, lastChecked, rowNote, tagText, type AvailRow } from "./logic";
 import { ORDER_TIPS } from "./tips";
 import s from "./salesOrders.module.css";
 
@@ -36,8 +36,10 @@ const confirmed = (l: SalesOrderLine) => (
  * source of every value tagged: ERP (read-only, with the time it was fetched) or Master data (an estimate). One tab, one
  * rule; no bars anywhere else. A stale banner appears when lines changed since the last check.
  */
-export default function AvailabilityTab({ lines, canRefresh, refreshing, onRefresh }: {
+export default function AvailabilityTab({ lines, canRefresh, refreshing, onRefresh, erpStock }: {
   lines: SalesOrderLine[];
+  /** The ERP's stock figure per line id, from the last Check with ERP; absent or empty until one has run. */
+  erpStock?: Map<string, ErpStock>;
   canRefresh: boolean;
   refreshing: boolean;
   onRefresh: () => void;
@@ -45,6 +47,18 @@ export default function AvailabilityTab({ lines, canRefresh, refreshing, onRefre
   const rows = availabilityRows(lines);
   const status = availabilityStatus(lines);
   const checked = lastChecked(lines);
+  const showStock = !!erpStock && erpStock.size > 0;
+  const stockCell = (l: SalesOrderLine) => {
+    const f = erpStock?.get(l.id);
+    if (!f) return <span className={s.muted}>—</span>;
+    return (
+      <span>
+        <span className={`${s.tag} ${s.tagErp}`} data-source="erp">ERP</span>{" "}
+        <span>{f.onHand === null ? "no figure" : `${f.onHand}${l.uom ? ` ${l.uom}` : ""} on hand`}</span>
+        <div className={s.pairSub}>{f.stale ? "out of date" : `checked ${fmtDateTime(f.checkedAt)}`}</div>
+      </span>
+    );
+  };
 
   return (
     <div className={s.overview} data-guide="sales_order.availability">
@@ -77,7 +91,7 @@ export default function AvailabilityTab({ lines, canRefresh, refreshing, onRefre
               <div className={s.tableWrap}>
                 <table className={s.table}>
                   <thead>
-                    <tr><th scope="col">Item</th><th scope="col">Asked</th><th scope="col">Confirmed</th><th scope="col">Result</th><th scope="col">Source</th></tr>
+                    <tr><th scope="col">Item</th><th scope="col">Asked</th><th scope="col">Confirmed</th><th scope="col">Result</th><th scope="col">Source</th>{showStock && <th scope="col">ERP stock</th>}</tr>
                   </thead>
                   <tbody>
                     {rows.map((r) => (
@@ -87,6 +101,7 @@ export default function AvailabilityTab({ lines, canRefresh, refreshing, onRefre
                         <td>{confirmed(r.line)}</td>
                         <td className={noteClass(r)}>{rowNote(r)}</td>
                         <td><Tag r={r} /></td>
+                        {showStock && <td data-guide="sales_order.erp_stock">{stockCell(r.line)}</td>}
                       </tr>
                     ))}
                   </tbody>
@@ -102,6 +117,7 @@ export default function AvailabilityTab({ lines, canRefresh, refreshing, onRefre
                     <dt>Confirmed</dt><dd>{confirmed(r.line)}</dd>
                     <dt>Result</dt><dd className={noteClass(r)}>{rowNote(r)}</dd>
                     <dt>Source</dt><dd><Tag r={r} /></dd>
+                    {showStock && <><dt>ERP stock</dt><dd>{stockCell(r.line)}</dd></>}
                   </dl>
                 </div>
               ))}

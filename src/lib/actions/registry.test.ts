@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
-import { ACTIONS, DEFERRED, actionByKey, actionFor, actionsEnabled, availableActions } from "./registry";
+import { ACTIONS, DEFERRED, DEFERRED_VERBS, actionByKey, actionFor, actionsEnabled, availableActions } from "./registry";
 import { FIELD_REGISTRY } from "@/lib/fieldRegistry";
 import { WORKCENTERS } from "@/lib/workcenters";
 import { OBJECT_DEFS } from "@/lib/assistant/objects";
@@ -50,6 +50,14 @@ describe("the action registry is complete", () => {
     expect(stale, "DEFERRED entries whose route no longer has a POST").toEqual([]);
     for (const n of registered) expect(found, `registered ${n}`).toContain(n);
     for (const [n, why] of Object.entries(DEFERRED)) expect(why.length, n).toBeGreaterThan(10);
+  });
+
+  it("every deferred verb names a route that still exists with a POST, and a reason", () => {
+    for (const [key, v] of Object.entries(DEFERRED_VERBS)) {
+      expect(hasPost(path.join(API, v.route, "route.ts")), `${key}: POST in ${v.route}`).toBe(true);
+      expect(v.why.length, key).toBeGreaterThan(10);
+      expect(actionByKey(key), `${key} must not be registered and deferred`).toBeUndefined();
+    }
   });
 
   it("the assistant has no update or delete action at all in this step", () => {
