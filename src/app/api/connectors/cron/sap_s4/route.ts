@@ -4,6 +4,7 @@ import { cronSecretOk } from "@/lib/cronSecret";
 import { rotateStart } from "@/lib/connectors/d365/mapping";
 import { entityConfig, scheduleOf } from "@/lib/connectors/sap_s4/catalog";
 import { runSapPull } from "@/lib/connectors/sap_s4/server";
+import { followUpSapOrders, hasSentSapOrders } from "@/lib/connectors/sap_s4/orders";
 import { SAP_CONNECTOR_ID, SAP_ENTITY_KEYS, type SapConfig } from "@/lib/connectors/sap_s4/types";
 
 // GET /api/connectors/cron/sap_s4 -- hourly (vercel.json). Runs every workspace whose SAP S/4HANA connection is
@@ -36,6 +37,18 @@ export async function GET(request: NextRequest) {
       if (schedule === "off" || (schedule === "daily" && hour !== 2)) continue;
       const res = await runSapPull(admin, r.tenant_id as string, entity, { trigger: "schedule", userId: null, deadline: started + RUN_DEADLINE_MS });
       results.push({ tenant: r.tenant_id as string, entity, error: res.error, counts: res.counts });
+    }
+    // After the pulls: sales orders that are not finished get their deliveries and billing documents (and, with the pull off, their
+    // status) read again. A bounded batch per workspace, oldest check first. It runs when the Sales orders pull is on and due, or when an
+    // order made here has been accepted by SAP and is waiting for its status to come back.
+    if (Date.now() - started < BUDGET_MS) {
+      const so = entityConfig(cfg, "sales_orders");
+      const soSchedule = scheduleOf(cfg, "sales_orders");
+      const pullDue = so.enabled === true && soSchedule !== "off" && (soSchedule === "hourly" || hour === 2);
+      if (pullDue || (await hasSentSapOrders(admin, r.tenant_id as string))) {
+        const fu = await followUpSapOrders(admin, r.tenant_id as string, { deadline: started + RUN_DEADLINE_MS });
+        results.push({ tenant: r.tenant_id as string, entity: "sales_orders_follow_up", error: fu.skipped, counts: fu });
+      }
     }
   }
   return NextResponse.json({ ok: true, results });

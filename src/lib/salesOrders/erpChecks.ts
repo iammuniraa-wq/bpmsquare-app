@@ -147,7 +147,8 @@ export type StockLineInput = {
   erp: ErpRead<{ onHand: number | null }> | null;
 };
 
-export function compareStock(a: { lines: StockLineInput[] }): CheckOutcome {
+/** `figure` names what the ERP's number is: "on hand" for a stock record, "confirmed" for an availability check that confirms a quantity. */
+export function compareStock(a: { lines: StockLineInput[]; figure?: string }): CheckOutcome {
   const out = (status: CheckStatus, message: string, detail: Record<string, unknown> | null = null): CheckOutcome => ({ kind: "stock", status, message, detail });
   if (a.lines.length === 0) return out("not_run", "The order has no lines to check.");
   const product = a.lines.filter((l) => l.hasProduct);
@@ -173,7 +174,7 @@ export function compareStock(a: { lines: StockLineInput[] }): CheckOutcome {
   const short = rows.filter((r) => r.state === "short");
   if (short.length > 0) {
     const s = short[0];
-    const e = `${s.description}: ${s.qty} asked, ${s.on_hand} on hand`;
+    const e = `${s.description}: ${s.qty} asked, ${s.on_hand} ${a.figure ?? "on hand"}`;
     return out("failed", `${plural(short.length, "line is", "lines are")} short on stock in the ERP (${e}).`, detail);
   }
   const issues: string[] = [];

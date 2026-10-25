@@ -5,6 +5,7 @@ import { orderPermissions, type OrderPermissions } from "./lock";
 import { loadLines, type OrderRow } from "./server";
 import { erpDeepLink } from "@/lib/middleware/links";
 import type { D365Config } from "@/lib/connectors/d365/types";
+import { lineBlocker } from "@/lib/connectors/sap_s4/orderMap";
 import { ERP_DOCUMENT_COLUMNS, shapeErpDocument, type ErpDocumentRow, type ErpDocumentView } from "./erpDocs";
 import { failedChecks, sendReadiness, type ErpCheckView, type ErpTransferView } from "./erpChecks";
 import { loadChecks, loadTransfers } from "./erpState";
@@ -32,7 +33,7 @@ export type OrderView = OrderRow & OrderPermissions & {
   erp_link: { number: string | null; synced_at: string | null; checked_at: string | null } | null;
   /** Set when the ERP named a customer that has no Account here yet. */
   customer_note: string | null;
-  /** A Dynamics 365 Sales connection exists, so Check with ERP and Send to ERP can be offered. */
+  /** An ERP that takes orders is connected (Dynamics 365 Sales or SAP S/4HANA), so Check with ERP and Send to ERP can be offered. */
   erp_available: boolean;
   /** Why Send to ERP is disabled (no customer in the ERP, no lines, already sent...); null when it can be pressed. */
   erp_send_blocker: string | null;
@@ -66,14 +67,30 @@ async function loadErpExtras(db: SupabaseClient, tenantId: string, order: OrderR
   return { docs, link: l ? { number: l.external_key, synced_at: l.synced_at, checked_at: checked } : null };
 }
 
-/** Is a Dataverse connection configured, and does the order's customer have an ERP counterpart? Both tenant-scoped. */
-async function loadErpReach(db: SupabaseClient, tenantId: string, order: OrderRow): Promise<{ available: boolean; customerLinked: boolean }> {
+/** Is an ERP that takes orders configured (Dataverse first, else SAP S/4HANA), and does the order's customer have a counterpart there? All tenant-scoped. */
+async function loadErpReach(db: SupabaseClient, tenantId: string, order: OrderRow, lines: SalesOrderLine[]): Promise<{ available: boolean; customerLinked: boolean; lineBlocker: string | null }> {
   const { data, error } = await db.from("tenant_connectors").select("config").eq("tenant_id", tenantId).eq("connector_id", "dynamics365").maybeSingle();
   const product = error ? null : ((data?.config ?? null) as { product?: string } | null)?.product;
-  const available = product === "dataverse";
-  if (!available || !order.account_id) return { available, customerLinked: false };
-  const link = await db.from("connector_links").select("id").eq("tenant_id", tenantId).eq("connector_id", "dynamics365").eq("entity", "customers").eq("object_id", order.account_id).limit(1);
-  return { available, customerLinked: !link.error && (link.data ?? []).length > 0 };
+  let connectorId: "dynamics365" | "sap_s4" | null = product === "dataverse" ? "dynamics365" : null;
+  if (!connectorId) {
+    const sap = await db.from("tenant_connectors").select("config").eq("tenant_id", tenantId).eq("connector_id", "sap_s4").maybeSingle();
+    if (!sap.error && (sap.data?.config as { auth_mode?: string } | null)?.auth_mode) connectorId = "sap_s4";
+  }
+  const available = connectorId !== null;
+  if (!connectorId || !order.account_id) return { available, customerLinked: false, lineBlocker: null };
+  const link = await db.from("connector_links").select("id").eq("tenant_id", tenantId).eq("connector_id", connectorId).eq("entity", "customers").eq("object_id", order.account_id).limit(1);
+  // SAP takes catalogue products only: a line without one, or one SAP does not know, is named before the button is pressed.
+  let blocker: string | null = null;
+  if (connectorId === "sap_s4") {
+    const productIds = lines.map((l) => l.product_id).filter((x): x is string => !!x);
+    const erp = new Map<string, string>();
+    if (productIds.length > 0) {
+      const { data: pl } = await db.from("connector_links").select("object_id, external_id").eq("tenant_id", tenantId).eq("connector_id", "sap_s4").eq("entity", "products").in("object_id", productIds);
+      for (const r of (pl ?? []) as { object_id: string; external_id: string }[]) erp.set(r.object_id, r.external_id);
+    }
+    blocker = lineBlocker(lines, erp);
+  }
+  return { available, customerLinked: !link.error && (link.data ?? []).length > 0, lineBlocker: blocker };
 }
 
 const SOURCE_TABLE: Record<string, string> = { standard_quote: "standard_quotes", quotation: "quotes", opportunity: "opportunities", order: "sales_orders" };
@@ -101,12 +118,12 @@ export async function buildOrderView(db: SupabaseClient, tenantId: string, order
     db.from("sales_order_attachments").select("id").eq("order_id", order.id).eq("tenant_id", tenantId),
     loadErpExtras(db, tenantId, order),
   ]);
-  const [checkRes, transferRes, reach] = await Promise.all([loadChecks(db, tenantId, order, lines), loadTransfers(db, tenantId, order.id), loadErpReach(db, tenantId, order)]);
+  const [checkRes, transferRes, reach] = await Promise.all([loadChecks(db, tenantId, order, lines), loadTransfers(db, tenantId, order.id), loadErpReach(db, tenantId, order, lines)]);
   const erpOrg = await loadErpOrgLines(db, tenantId, order, reach.available);
   const blocker = !reach.available ? "No ERP is connected." : sendReadiness({
     origin: order.origin, status: order.status, erpLinked, hasAccount: !!order.account_id, customerLinked: reach.customerLinked,
     lineCount: lines.length, allQuantitiesPositive: lines.every((l) => Number(l.qty) > 0),
-  });
+  }) ?? reach.lineBlocker;
   return {
     ...order,
     ...orderPermissions(order, erpLinked),

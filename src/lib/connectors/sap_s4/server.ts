@@ -12,12 +12,14 @@ import { hasScope, scopeSignature, scopeSummary, scopeWords, SCOPE_CHANGED_LINE,
 import { describeSelection, parseSelection } from "@/lib/connectors/d365/selection";
 import type { EntityScope, ScopeCondition } from "@/lib/connectors/d365/types";
 import { recordConnectorRun } from "@/lib/middleware/messages";
+import { ERP_DOCUMENTS_BUNDLE } from "@/lib/salesOrders/erpDocs";
+import { ordersSchemaReady } from "@/lib/salesOrders/erpOrderWrite";
 import { fieldsFromSampleRow, parseODataMetadata, type ErpField } from "@/lib/middleware/metadata";
 import { REQUIRED_TABLES, schemaRows } from "@/lib/middleware/health";
 import type { ErpAdapter } from "@/lib/connectors/adapter";
 import { ALREADY_RUNNING, RUN_BUDGET_MS, fetchLinks, finishRun, lastWatermark, startRun, type RunCounts } from "@/lib/connectors/runs";
 import {
-  SAP_ADDRESS_EXTRAS, SAP_FIELD_RE, SAP_PRESETS, SAP_PREFIX_SETS, effectiveEntities, entityConfig, isSandbox, sapOrigin, sapServiceBase, scheduleOf,
+  SAP_ADDRESS_EXTRAS, SAP_FIELD_RE, SAP_ORDER_PRESET, SAP_PRESETS, SAP_PREFIX_SETS, effectiveEntities, entityConfig, isSandbox, sapOrigin, sapServiceBase, scheduleOf,
 } from "./catalog";
 import {
   EMPTY_POSITION, changedSinceFilter, cleanFieldMap, idVariants, idsFilters, keysetFilter, mapSapRow, needsExpand, nextPosition, parsePosition, selectFields,
@@ -26,8 +28,8 @@ import {
 import { SapClient, SapError, type FetchLike } from "./odata";
 import { buildSapScopeFilter, cleanSapScope, sapScopeAttributes, sapScopeOptions } from "./scope";
 import {
-  SAP_AUTH_MODES, SAP_CONNECTOR_ID, SAP_ENTITY_KEYS, SAP_ENTITY_LABEL, SAP_ENTITY_TARGET, SAP_ENTITY_WORD, SAP_NAME, SAP_SANDBOX_HOST, SAP_SCENARIO,
-  type SapAuthMode, type SapConfig, type SapEntityConfig, type SapEntityKey, type SapPublicState, type SapSchedule,
+  SAP_AUTH_MODES, SAP_BP_KEYS, SAP_CONNECTOR_ID, SAP_ENTITY_KEYS, SAP_ENTITY_LABEL, SAP_ENTITY_TARGET, SAP_ENTITY_WORD, SAP_NAME, SAP_SANDBOX_HOST, SAP_SCENARIO,
+  type SapAuthMode, type SapConfig, type SapEntityConfig, type SapBpKey, type SapEntityKey, type SapOrderService, type SapPublicState, type SapSchedule, isSapBpEntity,
 } from "./types";
 
 // SAP S/4HANA connector, server side. Everything here runs on the service-role client (connector rows and sync
@@ -36,8 +38,8 @@ import {
 // fetchPublic() (a public host only, re-checked on each redirect hop), and a pull never follows a server link to
 // another address.
 
-type Creds = { password?: string; api_key?: string };
-type Loaded = { cfg: SapConfig; creds: Creds; status: string; last_error: string | null };
+export type Creds = { password?: string; api_key?: string };
+export type Loaded = { cfg: SapConfig; creds: Creds; status: string; last_error: string | null };
 
 export class SapSaveError extends Error {
   constructor(readonly status: number, message: string) {
@@ -106,7 +108,8 @@ function cleanEntities(raw: unknown, prev: SapConfig["entities"]): SapConfig["en
     const e = src?.[key] as Partial<SapEntityConfig> | undefined;
     const before = prev[key];
     if (!e || typeof e !== "object") { if (before) out[key] = before; continue; }
-    const { map, problems } = cleanFieldMap(key, e.field_map);
+    // Sales orders are read whole; they carry a switch and a schedule and no map.
+    const { map, problems } = key === "sales_orders" ? { map: {} as Record<string, string>, problems: [] } : cleanFieldMap(key, e.field_map);
     if (problems.length) throw new SapSaveError(422, `${SAP_ENTITY_WORD[key]}: ${problems[0].message}`);
     const sched = e.schedule === "off" || e.schedule === "hourly" || e.schedule === "daily" ? e.schedule : before?.schedule;
     out[key] = {
@@ -178,10 +181,16 @@ export function authHeaders(cfg: SapConfig, creds: Creds): Record<string, string
 
 export type SapDeps = { fetch?: FetchLike; sleep?: (ms: number) => Promise<void> };
 
-async function clientFor(cfg: SapConfig, creds: Creds, service: "API_BUSINESS_PARTNER" | "API_PRODUCT_SRV", deps: SapDeps = {}): Promise<SapClient> {
+const SCENARIO_OF = {
+  API_BUSINESS_PARTNER: SAP_SCENARIO.businessPartner, API_PRODUCT_SRV: SAP_SCENARIO.product, API_SALES_ORDER_SRV: SAP_SCENARIO.salesOrder,
+  API_OUTBOUND_DELIVERY_SRV: SAP_SCENARIO.outboundDelivery, API_BILLING_DOCUMENT_SRV: SAP_SCENARIO.billingDocument, API_SALES_ORDER_SIMULATION_SRV: SAP_SCENARIO.salesOrderSimulation,
+} as const;
+
+/** A client for one service of the connected system. Every address goes through the SSRF guard (assertSafeHttpsUrl here, fetchPublic on each call). */
+export async function clientFor(cfg: SapConfig, creds: Creds, service: "API_BUSINESS_PARTNER" | "API_PRODUCT_SRV" | SapOrderService, deps: SapDeps = {}): Promise<SapClient> {
   const base = sapServiceBase(cfg, service);
   await assertSafeHttpsUrl(base);
-  const scenario = service === "API_PRODUCT_SRV" ? SAP_SCENARIO.product : SAP_SCENARIO.businessPartner;
+  const scenario = SCENARIO_OF[service];
   return new SapClient(base, async () => authHeaders(cfg, creds), {
     fetch: deps.fetch ?? ((u, init) => fetchPublic(u, init)), sleep: deps.sleep, scenario, sandbox: isSandbox(cfg), hostWord: isSandbox(cfg) ? SAP_SANDBOX_HOST : cfg.api_host,
   });
@@ -211,8 +220,21 @@ export async function testSap(admin: SupabaseClient, tenantId: string, deps: Sap
     } catch (e) {
       failures.push({ label: sandbox ? "Products" : `Products (${SAP_SCENARIO.product.id})`, fix: (e as Error).message });
     }
+    // The order services are probed only when Sales orders are switched on; a failing one is named, nothing else is claimed.
+    if (entityConfig(cfg, "sales_orders").enabled) {
+      for (const [word, service, set] of [["Sales orders", "API_SALES_ORDER_SRV", "A_SalesOrder"], ["Deliveries", "API_OUTBOUND_DELIVERY_SRV", "A_OutbDeliveryHeader"], ["Billing documents", "API_BILLING_DOCUMENT_SRV", "A_BillingDocument"]] as const) {
+        try {
+          await (await clientFor(cfg, creds, service, deps)).get(set, { $top: "1" });
+        } catch (e) {
+          failures.push({ label: word, fix: (e as Error).message });
+        }
+      }
+    }
     const where = sandbox ? "Sandbox (sample data) answers" : "SAP answers";
-    if (failures.length) return { ok: false, line: `Connected, but products can not be read. ${where} for business partners.`, failures, status: 200, message: `${where}.` };
+    if (failures.length) {
+      const names = failures.map((f) => f.label.replace(/ \(.*\)$/, "").toLowerCase());
+      return { ok: false, line: `Connected, but ${names.join(" and ")} can not be read. ${where} for business partners.`, failures, status: 200, message: `${where}.` };
+    }
     const line = `Connected. ${where} for business partners and products${fieldList ? "" : "; the field list ($metadata) could not be read, so Mapping lists sample fields"}.`;
     return { ok: true, line, failures: [], status: 200, message: line };
   } catch (e) {
@@ -247,7 +269,7 @@ const humanize = (k: string) => k.replace(/([a-z0-9])([A-Z])/g, "$1 $2").replace
 
 export type SapFields = { main: ErpField[]; extra: ErpField[]; source: "metadata" | "sample"; fetchedAt: string };
 
-async function fetchFields(row: Loaded, key: SapEntityKey, deps: SapDeps): Promise<SapFields> {
+async function fetchFields(row: Loaded, key: SapBpKey, deps: SapDeps): Promise<SapFields> {
   const p = SAP_PRESETS[key];
   const client = await clientFor(row.cfg, row.creds, p.service, deps);
   const dotted = (prefix: string, fields: ErpField[], label: string): ErpField[] => fields.map((f) => ({ ...f, name: `${prefix}.${f.name}`, label: `${label} · ${f.label}`, required: false }));
@@ -272,7 +294,7 @@ async function fetchFields(row: Loaded, key: SapEntityKey, deps: SapDeps): Promi
 
 export type SapFieldsResult = ({ ok: true } & SapFields) | { ok: false; state: "not_connected" | "error"; message: string };
 
-export async function getSapFields(admin: SupabaseClient, tenantId: string, key: SapEntityKey, opts: { refresh?: boolean } & SapDeps = {}): Promise<SapFieldsResult> {
+export async function getSapFields(admin: SupabaseClient, tenantId: string, key: SapBpKey, opts: { refresh?: boolean } & SapDeps = {}): Promise<SapFieldsResult> {
   const row = await loadSap(admin, tenantId);
   if (!row) return { ok: false, state: "not_connected", message: "No ERP is connected yet. Connect one under Connections." };
   const tag = `mw-sap-metadata:${tenantId}`;
@@ -288,11 +310,11 @@ export async function getSapFields(admin: SupabaseClient, tenantId: string, key:
 // ── Mapping ─────────────────────────────────────────────────────────────────
 
 export const SAP_MAP_DOCS = ["customers", "vendors", "products"] as const;
-export const isSapMapDoc = (v: unknown): v is SapEntityKey => typeof v === "string" && (SAP_MAP_DOCS as readonly string[]).includes(v);
+export const isSapMapDoc = (v: unknown): v is SapBpKey => typeof v === "string" && (SAP_MAP_DOCS as readonly string[]).includes(v);
 
 type Side = { label: string; name: string };
 
-export function buildSapMappingView(key: SapEntityKey, cfg: Pick<SapConfig, "entities">, fields: { main: ErpField[]; extra: ErpField[] } | null) {
+export function buildSapMappingView(key: SapBpKey, cfg: Pick<SapConfig, "entities">, fields: { main: ErpField[]; extra: ErpField[] } | null) {
   const p = SAP_PRESETS[key];
   const eff = entityConfig(cfg, key).field_map;
   const known: Side[] = [...(fields?.extra ?? []), ...(fields?.main ?? [])].map((f) => ({ label: f.label, name: f.name }));
@@ -313,7 +335,7 @@ export function buildSapMappingView(key: SapEntityKey, cfg: Pick<SapConfig, "ent
   };
 }
 
-export async function getSapMapping(admin: SupabaseClient, tenantId: string, key: SapEntityKey, deps: SapDeps = {}) {
+export async function getSapMapping(admin: SupabaseClient, tenantId: string, key: SapBpKey, deps: SapDeps = {}) {
   const row = await loadSap(admin, tenantId);
   if (!row) return { connected: false as const };
   const f = await getSapFields(admin, tenantId, key, deps);
@@ -374,29 +396,29 @@ export async function resetSapMapping(admin: SupabaseClient, tenantId: string, b
 type Fail = { error: string; status: number };
 
 export type SapScopeView = {
-  entity: SapEntityKey; label: string; conditions: ScopeCondition[]; summary: string; needs_full: boolean; attributes: ScopeAttribute[]; source: "system" | "presets";
+  entity: SapBpKey; label: string; conditions: ScopeCondition[]; summary: string; needs_full: boolean; attributes: ScopeAttribute[]; source: "system" | "presets";
 };
 
-const PLURAL: Record<SapEntityKey, string> = { customers: "customers", vendors: "suppliers", products: "products" };
+const PLURAL: Record<SapEntityKey, string> = { customers: "customers", vendors: "suppliers", products: "products", sales_orders: "orders" };
 
-const scopeView = (key: SapEntityKey, scope: EntityScope | undefined, attributes: ScopeAttribute[], source: "system" | "presets"): SapScopeView => ({
+const scopeView = (key: SapBpKey, scope: EntityScope | undefined, attributes: ScopeAttribute[], source: "system" | "presets"): SapScopeView => ({
   entity: key, label: SAP_ENTITY_LABEL[key], conditions: scope?.conditions ?? [], summary: scopeSummary(scope, PLURAL[key]),
   needs_full: scope?.needs_full === true && hasScope(scope), attributes, source,
 });
 
-async function attributesOf(admin: SupabaseClient, tenantId: string, key: SapEntityKey, deps: SapDeps) {
+async function attributesOf(admin: SupabaseClient, tenantId: string, key: SapBpKey, deps: SapDeps) {
   const f = await getSapFields(admin, tenantId, key, deps);
   return { attributes: sapScopeAttributes(key, f.ok ? f.main : null), source: f.ok ? ("system" as const) : ("presets" as const) };
 }
 
-export async function getSapScope(admin: SupabaseClient, tenantId: string, key: SapEntityKey, deps: SapDeps = {}): Promise<SapScopeView | Fail> {
+export async function getSapScope(admin: SupabaseClient, tenantId: string, key: SapBpKey, deps: SapDeps = {}): Promise<SapScopeView | Fail> {
   const row = await loadSap(admin, tenantId);
   if (!row) return { error: "Connect your ERP first.", status: 400 };
   const { attributes, source } = await attributesOf(admin, tenantId, key, deps);
   return scopeView(key, entityConfig(row.cfg, key).scope, attributes, source);
 }
 
-export async function saveSapScope(admin: SupabaseClient, tenantId: string, key: SapEntityKey, body: unknown, deps: SapDeps = {}): Promise<SapScopeView | Fail> {
+export async function saveSapScope(admin: SupabaseClient, tenantId: string, key: SapBpKey, body: unknown, deps: SapDeps = {}): Promise<SapScopeView | Fail> {
   const row = await loadSap(admin, tenantId);
   if (!row) return { error: "Connect your ERP first.", status: 400 };
   const first = cleanSapScope((body as { conditions?: unknown } | null)?.conditions ?? []);
@@ -428,7 +450,7 @@ export async function saveSapScope(admin: SupabaseClient, tenantId: string, key:
 
 export type SapScopeValues = { kind: ScopeAttribute["kind"]; typed: boolean; values: { value: string; label: string }[]; more: boolean };
 
-export async function getSapScopeValues(admin: SupabaseClient, tenantId: string, key: SapEntityKey, attributeId: string, deps: SapDeps = {}): Promise<SapScopeValues | Fail> {
+export async function getSapScopeValues(admin: SupabaseClient, tenantId: string, key: SapBpKey, attributeId: string, deps: SapDeps = {}): Promise<SapScopeValues | Fail> {
   const row = await loadSap(admin, tenantId);
   if (!row) return { error: "Connect your ERP first.", status: 400 };
   const { attributes } = await attributesOf(admin, tenantId, key, deps);
@@ -464,6 +486,8 @@ export async function sapSyncOverview(admin: SupabaseClient, tenantId: string) {
     if (!latest.has(e)) latest.set(e, r);
     if (r.status === "running") running.add(e);
   }
+  // Sales orders need the 0216 tables; until the owner has run that update the row says so instead of failing a run.
+  const ordersReady = await ordersSchemaReady(admin, tenantId).catch(() => true);
   const entities = await Promise.all(SAP_ENTITY_KEYS.map(async (key) => {
     const ec = entityConfig(cfg, key);
     const { count } = await admin.from("connector_links").select("id", { count: "exact", head: true }).eq("tenant_id", tenantId).eq("connector_id", SAP_CONNECTOR_ID).eq("entity", key);
@@ -472,6 +496,7 @@ export async function sapSyncOverview(admin: SupabaseClient, tenantId: string) {
       key, label: SAP_ENTITY_LABEL[key], direction: "pull" as const, enabled: ec.enabled, entity_set: ec.entity_set,
       schedule: scheduleOf(cfg, key), schedule_source: cfg.entities?.[key]?.schedule ? ("entity" as const) : ("connector" as const),
       running: running.has(key), linked: count ?? 0, filters: { numbers: true },
+      blocked: key === "sales_orders" && !ordersReady ? `A database update is needed first (${ERP_DOCUMENTS_BUNDLE}).` : null,
       scope: { summary: scopeSummary(ec.scope, PLURAL[key]), narrowed: hasScope(ec.scope), needs_full: hasScope(ec.scope) && ec.scope?.needs_full === true },
       last_run: run ? { status: run.status, trigger: run.trigger, started_at: run.started_at, finished_at: run.finished_at, counts: run.counts, error: run.error } : null,
     };
@@ -479,7 +504,7 @@ export async function sapSyncOverview(admin: SupabaseClient, tenantId: string) {
   return { connected: true as const, product: { key: SAP_CONNECTOR_ID, name: SAP_NAME }, pending_migration: !!error, entities };
 }
 
-export async function previewSapEntity(admin: SupabaseClient, tenantId: string, key: SapEntityKey, deps: SapDeps = {}): Promise<{ rows: Record<string, unknown>[] } | Fail> {
+export async function previewSapEntity(admin: SupabaseClient, tenantId: string, key: SapBpKey, deps: SapDeps = {}): Promise<{ rows: Record<string, unknown>[] } | Fail> {
   const row = await loadSap(admin, tenantId);
   if (!row) return { error: "Connect your ERP first.", status: 400 };
   const p = SAP_PRESETS[key];
@@ -524,7 +549,7 @@ export type PullOptions = SapDeps & {
   ids?: string[];
 };
 
-async function settleScope(admin: SupabaseClient, tenantId: string, key: SapEntityKey): Promise<void> {
+async function settleScope(admin: SupabaseClient, tenantId: string, key: SapBpKey): Promise<void> {
   const row = await loadSap(admin, tenantId);
   const own = row?.cfg.entities?.[key];
   if (!row || !own?.scope?.needs_full) return;
@@ -537,6 +562,12 @@ async function settleScope(admin: SupabaseClient, tenantId: string, key: SapEnti
  * Rows are read in key order; the position of an incremental pull is "changed since <day>" (mapping.ts).
  */
 export async function runSapPull(admin: SupabaseClient, tenantId: string, key: SapEntityKey, opts: PullOptions): Promise<PullResult> {
+  // Sales orders have their own reader; imported late so orders.ts (which uses this file's connection helpers) is no import cycle.
+  if (key === "sales_orders") return (await import("./orders")).runPullSapOrders(admin, tenantId, opts);
+  return runSapBpPull(admin, tenantId, key, opts);
+}
+
+async function runSapBpPull(admin: SupabaseClient, tenantId: string, key: SapBpKey, opts: PullOptions): Promise<PullResult> {
   const deadline = opts.deadline ?? Date.now() + RUN_BUDGET_MS;
   const maxRows = opts.maxRows ?? MAX_ROWS_PER_RUN;
   const counts: RunCounts = { read: 0, created: 0, updated: 0, unchanged: 0, skipped: 0, failed: 0 };
@@ -712,29 +743,30 @@ export function sapAdapter(admin: SupabaseClient): ErpAdapter {
     id: SAP_CONNECTOR_ID,
     label: SAP_NAME,
     authModes: SAP_AUTH_MODES,
-    capabilities: { pull: SAP_ENTITY_KEYS, pushQuote: false, pushProject: false, metadata: true, pickLists: [] },
+    // pushQuote stays false (an awarded Standard Quote is not sent to SAP); Sales Orders are sent through the order seam (salesOrders/orderConnector.ts).
+    capabilities: { pull: SAP_ENTITY_KEYS, pushQuote: false, pushProject: false, pushOrder: true, metadata: true, pickLists: [] },
     async testConnection(tenantId) {
       const r = await testSap(admin, tenantId);
       return { ok: r.ok, line: r.line, failures: r.failures };
     },
     async metadata(tenantId, entity, opts) {
-      if (!(SAP_ENTITY_KEYS as readonly string[]).includes(entity)) return { error: "Unknown entity." };
-      const r = await getSapFields(admin, tenantId, entity as SapEntityKey, opts);
+      if (!isSapBpEntity(entity)) return { error: "Unknown entity." };
+      const r = await getSapFields(admin, tenantId, entity as SapBpKey, opts);
       return r.ok ? { fields: [...r.main, ...r.extra], source: r.source } : { error: r.message };
     },
     async preview(tenantId, entity) {
-      if (!(SAP_ENTITY_KEYS as readonly string[]).includes(entity)) return { error: "Unknown entity.", status: 422 };
-      return previewSapEntity(admin, tenantId, entity as SapEntityKey);
+      if (!isSapBpEntity(entity)) return { error: "Unknown entity.", status: 422 };
+      return previewSapEntity(admin, tenantId, entity as SapBpKey);
     },
     async pull(tenantId, entity, opts) {
       if (!(SAP_ENTITY_KEYS as readonly string[]).includes(entity)) return { runId: null, counts: { read: 0, created: 0, updated: 0, unchanged: 0, skipped: 0, failed: 0 }, issues: [], error: "Unknown entity." };
       return runSapPull(admin, tenantId, entity as SapEntityKey, opts);
     },
     readableKey(entity, row) {
-      const p = (SAP_PRESETS as Record<string, (typeof SAP_PRESETS)[SapEntityKey]>)[entity];
-      const v = p ? row[p.key_field] : null;
+      const p = (SAP_PRESETS as Record<string, (typeof SAP_PRESETS)[SapBpKey]>)[entity];
+      const v = p ? row[p.key_field] : entity === "sales_orders" ? row[SAP_ORDER_PRESET.key_field] : null;
       return v === null || v === undefined ? null : String(v).trim() || null;
     },
-    presets: Object.fromEntries(SAP_ENTITY_KEYS.map((k) => [k, { ...SAP_PRESETS[k].field_map }])),
+    presets: Object.fromEntries(SAP_BP_KEYS.map((k) => [k, { ...SAP_PRESETS[k].field_map }])),
   };
 }

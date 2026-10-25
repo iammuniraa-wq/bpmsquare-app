@@ -229,8 +229,8 @@ export default function ErpTab({ detail, currency, externalLine, middlewareHref,
           <InfoTip label="Invoices and deliveries">{ORDER_TIPS.deliveries}</InfoTip>
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          <Docs title="Invoices" docs={invoices} currency={currency} empty="Invoices from Dynamics 365 appear here. Nothing yet." />
-          <Docs title="Deliveries" docs={deliveries} currency={currency} delivery empty="Deliveries come from F&O or SAP, which are not connected." />
+          <Docs title="Invoices" docs={invoices} currency={currency} empty="Invoices from the ERP appear here. Nothing yet." />
+          <Docs title="Deliveries" docs={deliveries} currency={currency} delivery empty="Deliveries from the ERP appear here. Nothing yet." />
         </div>
       </Card>
 

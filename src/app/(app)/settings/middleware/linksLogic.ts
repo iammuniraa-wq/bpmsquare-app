@@ -38,6 +38,7 @@ export const SAP_INBOUND_LINKS: { key: string; bpm: string; erp: string }[] = [
   { key: "customers", bpm: "Accounts", erp: "Customers" },
   { key: "vendors", bpm: "Suppliers", erp: "Suppliers" },
   { key: "products", bpm: "Products", erp: "Products" },
+  { key: "sales_orders", bpm: "Sales orders", erp: "Sales orders" },
 ];
 
 export function buildLinks(documents: readonly DocumentView[], entities: readonly SyncEntity[], inbound: readonly { key: string; bpm: string; erp: string }[] = INBOUND_LINKS): LinkRow[] {

@@ -1,17 +1,18 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { logChange, type ChangeEntry } from "@/lib/changeLog";
 import { isSchemaPending } from "@/lib/marketing/pending";
 import { recordConnectorRun, recordMessage } from "@/lib/middleware/messages";
 import type { TenantFeatures } from "@/lib/constants";
-import { ERP_DOCUMENTS_BUNDLE, invoiceSettled, refreshedJustNow } from "@/lib/salesOrders/erpDocs";
+import { refreshedJustNow } from "@/lib/salesOrders/erpDocs";
+import { FOLLOW_UP_BATCH, hasSentOrdersTo, pickFollowUpOrders } from "@/lib/salesOrders/erpFollowUp";
+import { PENDING_MESSAGE, applyOrder, mirrorDocuments, ordersSchemaReady, stampChecked, type ApplyResult, type DocumentsResult, type LinkRow, type WriteCtx } from "@/lib/salesOrders/erpOrderWrite";
 import { entityConfig } from "./catalog";
 import { D365Error, type D365Client } from "./odata";
-import { fingerprint, modifiedSinceFilter, nextModifiedWatermark, normalizeModified } from "./mapping";
+import { modifiedSinceFilter, nextModifiedWatermark, normalizeModified } from "./mapping";
 import { buildSelection, describeSelection, type RunSelection } from "./selection";
 import {
   INVOICE_COLUMNS, LINE_COLUMNS, ORDER_COLUMNS, ORDER_EXPAND, PREFER_FORMATTED,
-  mapInvoiceRow, mapLineRow, mapOrderRow, orderFingerprintValues, orderStatusOf, type MappedInvoice, type MappedOrder,
+  mapInvoiceRow, mapLineRow, mapOrderRow, type MappedInvoice, type MappedOrder,
 } from "./orderMap";
 import {
   ALREADY_RUNNING, CONNECTOR_ID, RUN_BUDGET_MS, clientFor, fetchLinks, finishRun, lastWatermark, loadD365, markStatus, startRun,
@@ -32,183 +33,36 @@ import type { D365Config } from "./types";
 const IDENT_GUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const MAX_ROWS_PER_RUN = 2000;
 const INVOICE_CAP = 200;
-/** A follow-up run touches this many orders per workspace, oldest check first. */
-export const FOLLOW_UP_BATCH = 25;
-/** An order checked more recently than this is left for the next hour's run. */
-const FOLLOW_UP_MIN_AGE_MS = 50 * 60 * 1000;
+export { FOLLOW_UP_BATCH };
 
 type Row = Record<string, unknown>;
 
-/** Which migration-0216 objects are missing, or none. A missing table or column is "nothing there yet", never a crash. */
-export async function ordersSchemaReady(admin: SupabaseClient, tenantId: string): Promise<boolean> {
-  const docs = await admin.from("erp_documents").select("id").eq("tenant_id", tenantId).limit(1);
-  if (docs.error && isSchemaPending(docs.error)) return false;
-  const cols = await admin.from("sales_orders").select("erp_customer_name, erp_docs_checked_at").eq("tenant_id", tenantId).limit(1);
-  if (cols.error && isSchemaPending(cols.error)) return false;
-  return true;
-}
+export { ordersSchemaReady, PENDING_MESSAGE };
 
-export const PENDING_MESSAGE = `A database update is needed first: run ${ERP_DOCUMENTS_BUNDLE} once.`;
-
-type Ctx = {
-  admin: SupabaseClient;
-  tenantId: string;
+type Ctx = WriteCtx & {
   client: D365Client;
   cfg: D365Config;
-  /** The workspace currency, used when the ERP row names none. */
-  fallbackCurrency: string;
-  linkCache: Map<string, string | null>;
 };
 
-/** The BPMSquare record a connector link points at (an account for a customer, a product for an item), or null. */
-async function linkedObject(ctx: Ctx, entity: "customers" | "products", externalId: string | null): Promise<string | null> {
-  if (!externalId) return null;
-  const key = `${entity}:${externalId}`;
-  if (ctx.linkCache.has(key)) return ctx.linkCache.get(key) ?? null;
-  const { data } = await ctx.admin.from("connector_links").select("object_id").eq("tenant_id", ctx.tenantId).eq("connector_id", CONNECTOR_ID)
-    .eq("entity", entity).eq("external_id", externalId).maybeSingle();
-  const id = (data as { object_id?: string } | null)?.object_id ?? null;
-  ctx.linkCache.set(key, id);
-  return id;
-}
-
-type LinkRow = { external_id: string; object_id: string; content_hash: string | null };
-
-type ApplyResult = { result: "created" | "updated" | "unchanged" | "skipped"; orderId: string | null; /** The link a created order now has. */ link?: LinkRow };
-
-async function readLines(ctx: Ctx, externalId: string): Promise<ReturnType<typeof mapLineRow>[]> {
+async function readLines(client: D365Client, externalId: string): Promise<ReturnType<typeof mapLineRow>[]> {
   const out: ReturnType<typeof mapLineRow>[] = [];
   let i = 0;
-  for await (const r of ctx.client.list("salesorderdetails", { select: LINE_COLUMNS, filter: `_salesorderid_value eq ${externalId}`, maxRows: 500, prefer: PREFER_FORMATTED })) out.push(mapLineRow(r, i++));
+  for await (const r of client.list("salesorderdetails", { select: LINE_COLUMNS, filter: `_salesorderid_value eq ${externalId}`, maxRows: 500, prefer: PREFER_FORMATTED })) out.push(mapLineRow(r, i++));
   return out.sort((a, b) => a.lineNo - b.lineNo);
-}
-
-async function replaceLines(ctx: Ctx, orderId: string, m: MappedOrder, productIds: (string | null)[]): Promise<void> {
-  const { admin, tenantId } = ctx;
-  const { data: old } = await admin.from("sales_order_lines").select("id").eq("order_id", orderId).eq("tenant_id", tenantId);
-  const oldIds = ((old ?? []) as { id: string }[]).map((r) => r.id);
-  if (m.lines.length) {
-    const rows = m.lines.map((l, i) => ({
-      tenant_id: tenantId, order_id: orderId, line_no: l.lineNo, product_id: productIds[i] ?? null, description: l.description, printed_text: null,
-      qty: l.qty, uom: l.uom, unit_price: l.unitPrice, discount_pct: l.discountPct, tax_pct: l.taxPct, line_total: l.lineTotal, requested_date: l.requestedDate,
-    }));
-    const { error } = await admin.from("sales_order_lines").insert(rows);
-    if (error) throw error;
-  }
-  // The new set is in; only now go the old one. A failed insert leaves the order with the lines it had.
-  if (oldIds.length) await admin.from("sales_order_lines").delete().in("id", oldIds).eq("tenant_id", tenantId);
-}
-
-const viaIntegration = { via: "integration" as string };
-
-async function note(admin: SupabaseClient, tenantId: string, orderId: string, label: string, action: "create" | "update", changes: ChangeEntry[]): Promise<void> {
-  await logChange(admin, { tenantId, objectType: "sales_orders", objectId: orderId, objectLabel: label, action, actorId: null, actorEmail: null, changes, ...viaIntegration });
-}
-
-/**
- * Write one ERP order. `link` is the connector_links row it already has, if any. Never throws for a customer that is not
- * synced; throws for a real database failure so the caller can count the row as failed and keep the watermark.
- */
-async function applyOrder(ctx: Ctx, m: MappedOrder, link: LinkRow | undefined): Promise<ApplyResult> {
-  const { admin, tenantId } = ctx;
-  const now = new Date().toISOString();
-  const status = orderStatusOf(m.spine);
-
-  if (link) {
-    const { data: cur } = await admin.from("sales_orders").select("id, ref, origin, status, status_label, spine").eq("id", link.object_id).eq("tenant_id", tenantId).maybeSingle();
-    if (!cur) {
-      // The BPMSquare order is gone: forget the link so the next run makes it again instead of failing for ever.
-      await admin.from("connector_links").delete().eq("tenant_id", tenantId).eq("connector_id", CONNECTOR_ID).eq("entity", "sales_orders").eq("external_id", link.external_id);
-      return { result: "skipped", orderId: null };
-    }
-    const order = cur as { id: string; ref: string; origin: string; status: string; status_label: string | null; spine: string };
-
-    if (order.origin === "bpmsquare") {
-      // Made here, accepted by the ERP: only the status words follow the ERP. Lines, totals and customer stay as sent.
-      const hash = fingerprint({ s: m.statusLabel, sp: m.spine, n: m.number });
-      if (link.content_hash === hash) return { result: "unchanged", orderId: order.id };
-      const beforeLabel = order.status_label;
-      const patch: Row = { status_label: m.statusLabel, spine: m.spine, updated_at: now };
-      if (m.spine === "cancelled" && order.status !== "cancelled") { patch.status = "cancelled"; patch.cancelled_at = now; patch.cancel_reason = "Cancelled in the ERP"; }
-      const { error } = await admin.from("sales_orders").update(patch).eq("id", order.id).eq("tenant_id", tenantId);
-      if (error) throw error;
-      await admin.from("connector_links").update({ content_hash: hash, synced_at: now, external_key: m.number })
-        .eq("tenant_id", tenantId).eq("connector_id", CONNECTOR_ID).eq("entity", "sales_orders").eq("external_id", link.external_id);
-      link.content_hash = hash;
-      if (beforeLabel !== m.statusLabel) await note(admin, tenantId, order.id, order.ref, "update", [{ field: "ERP status", from: beforeLabel, to: m.statusLabel }]);
-      return { result: "updated", orderId: order.id };
-    }
-
-    const lines = m.hasLines ? m.lines : await readLines(ctx, m.externalId);
-    const full: MappedOrder = { ...m, lines, hasLines: true };
-    const accountId = full.customerIsAccount ? await linkedObject(ctx, "customers", full.customerExternalId) : null;
-    const productIds = await Promise.all(full.lines.map((l) => linkedObject(ctx, "products", l.externalProductId)));
-    const hash = fingerprint(orderFingerprintValues(full, accountId, productIds));
-    if (link.content_hash === hash) return { result: "unchanged", orderId: order.id };
-    const beforeLabel = order.status_label;
-    const patch: Row = {
-      status, status_label: full.statusLabel, spine: full.spine, account_id: accountId, erp_customer_name: full.customerName,
-      currency: full.currency ?? ctx.fallbackCurrency, subtotal: full.subtotal, discount_total: full.discountTotal, tax_total: full.taxTotal,
-      shipping_amount: full.shipping, total: full.total, requested_date: full.requestedDate, updated_at: now,
-    };
-    const { error } = await admin.from("sales_orders").update(patch).eq("id", order.id).eq("tenant_id", tenantId);
-    if (error) throw error;
-    await replaceLines(ctx, order.id, full, productIds);
-    await admin.from("connector_links").update({ content_hash: hash, synced_at: now, external_key: full.number })
-      .eq("tenant_id", tenantId).eq("connector_id", CONNECTOR_ID).eq("entity", "sales_orders").eq("external_id", link.external_id);
-    link.content_hash = hash;
-    const changes: ChangeEntry[] = [];
-    if (beforeLabel !== full.statusLabel) changes.push({ field: "ERP status", from: beforeLabel, to: full.statusLabel });
-    if (changes.length === 0) changes.push({ field: "synced from Dynamics 365", from: null, to: full.number });
-    await note(admin, tenantId, order.id, order.ref, "update", changes);
-    return { result: "updated", orderId: order.id };
-  }
-
-  const lines = m.hasLines ? m.lines : await readLines(ctx, m.externalId);
-  const full: MappedOrder = { ...m, lines, hasLines: true };
-  const accountId = full.customerIsAccount ? await linkedObject(ctx, "customers", full.customerExternalId) : null;
-  const productIds = await Promise.all(full.lines.map((l) => linkedObject(ctx, "products", l.externalProductId)));
-  const hash = fingerprint(orderFingerprintValues(full, accountId, productIds));
-  const base = {
-    tenant_id: tenantId, origin: "erp", status, status_label: full.statusLabel, spine: full.spine, account_id: accountId, erp_customer_name: full.customerName,
-    contact_id: null, source_type: "erp", pricing_mode: "external", type_id: null,
-    currency: full.currency ?? ctx.fallbackCurrency, subtotal: full.subtotal, discount_total: full.discountTotal, tax_total: full.taxTotal,
-    shipping_amount: full.shipping, total: full.total, requested_date: full.requestedDate, confirmed_at: full.createdOn ?? now,
-  };
-  // Order numbers are unique per workspace; a number that is already a BPMSquare ref (SO-0001 against an ERP SO-0001) keeps the ERP's marked.
-  let ins = await admin.from("sales_orders").insert({ ...base, ref: full.number }).select("id").single();
-  if (ins.error?.code === "23505") ins = await admin.from("sales_orders").insert({ ...base, ref: `ERP-${full.number}`.slice(0, 100) }).select("id").single();
-  if (ins.error || !ins.data) throw ins.error ?? new Error("insert failed");
-  const orderId = (ins.data as { id: string }).id;
-  try {
-    await replaceLines(ctx, orderId, full, productIds);
-  } catch (e) {
-    await admin.from("sales_orders").delete().eq("id", orderId).eq("tenant_id", tenantId);
-    throw e;
-  }
-  const { error: linkErr } = await admin.from("connector_links").insert({
-    tenant_id: tenantId, connector_id: CONNECTOR_ID, entity: "sales_orders", object_type: "sales_orders", object_id: orderId,
-    external_id: full.externalId, external_key: full.number, direction: "pull", content_hash: hash,
-  });
-  if (linkErr) {
-    // An order without its link would be made again by every run: take it back out (a concurrent run that won keeps its own).
-    const { error: undo } = await admin.from("sales_orders").delete().eq("id", orderId).eq("tenant_id", tenantId);
-    if (undo) throw new Error(`could not link the new order (${linkErr.message}) and could not remove it (${undo.message}) -- remove the duplicate by hand`);
-    throw new Error(`could not link the new order (${linkErr.message}); it was removed and will be retried`);
-  }
-  await note(admin, tenantId, orderId, full.number, "create", [{ field: "created from Dynamics 365", from: null, to: full.number }]);
-  return { result: "created", orderId, link: { external_id: full.externalId, object_id: orderId, content_hash: hash } };
 }
 
 async function contextFor(admin: SupabaseClient, tenantId: string, cfg: D365Config, creds: Record<string, string>, config: unknown): Promise<Ctx> {
   const client = await clientFor(admin, tenantId, cfg, creds);
   const cur = (config as { currency?: unknown } | null)?.currency;
-  return { admin, tenantId, client, cfg, fallbackCurrency: typeof cur === "string" && /^[A-Za-z]{3}$/.test(cur) ? cur.toUpperCase() : "USD", linkCache: new Map() };
+  return {
+    admin, tenantId, client, cfg, connectorId: CONNECTOR_ID, erpWord: "Dynamics 365", fallbackCurrency: typeof cur === "string" && /^[A-Za-z]{3}$/.test(cur) ? cur.toUpperCase() : "USD",
+    linkCache: new Map(), readLines: (externalId) => readLines(client, externalId),
+  };
 }
 
 // ── Invoices ────────────────────────────────────────────────────────────────
 
-export type DocumentsResult = { read: number; created: number; updated: number; unchanged: number; removed: number; failed: number; error: string | null };
+export type { DocumentsResult };
 
 /**
  * Read the ERP's invoices for one order and mirror them into erp_documents (kind 'invoice'). `externalOrderId` is the
@@ -216,17 +70,14 @@ export type DocumentsResult = { read: number; created: number; updated: number; 
  * not written here: Dataverse Sales has no shipment record, and F&O / SAP deliveries arrive with their own connectors.
  */
 async function syncInvoices(ctx: Ctx, orderId: string, orderLabel: string, externalOrderId: string, currency: string | null): Promise<DocumentsResult> {
-  const { admin, tenantId } = ctx;
   const res: DocumentsResult = { read: 0, created: 0, updated: 0, unchanged: 0, removed: 0, failed: 0, error: null };
   if (!IDENT_GUID.test(externalOrderId)) return { ...res, error: "The order's ERP id is not a record id." };
-  const seen = new Set<string>();
   const found: MappedInvoice[] = [];
   try {
     for await (const r of ctx.client.list("invoices", { select: INVOICE_COLUMNS, filter: `_salesorderid_value eq ${externalOrderId}`, maxRows: INVOICE_CAP, prefer: PREFER_FORMATTED })) {
       res.read++;
       const m = mapInvoiceRow(r);
       if ("error" in m) { res.failed++; continue; }
-      seen.add(m.rawRef);
       found.push(m);
     }
   } catch (e) {
@@ -234,48 +85,8 @@ async function syncInvoices(ctx: Ctx, orderId: string, orderLabel: string, exter
     return { ...res, error: (e as Error).message ?? "Could not read invoices" };
   }
 
-  const { data: have, error: haveErr } = await admin.from("erp_documents").select("id, kind, erp_number, doc_date, due_date, amount, currency, status, status_spine, raw_ref")
-    .eq("tenant_id", tenantId).eq("order_id", orderId).eq("kind", "invoice");
-  if (haveErr) return { ...res, error: isSchemaPending(haveErr) ? PENDING_MESSAGE : haveErr.message };
-  const existing = new Map(((have ?? []) as { id: string; raw_ref: string; erp_number: string | null; doc_date: string | null; due_date: string | null; amount: number | string; currency: string | null; status: string | null; status_spine: string | null }[]).map((r) => [r.raw_ref, r]));
-  const now = new Date().toISOString();
-  const changes: ChangeEntry[] = [];
-
-  for (const m of found) {
-    const row = { erp_number: m.number, doc_date: m.docDate, due_date: m.dueDate, amount: m.amount, currency, status: m.status, status_spine: m.spine };
-    const cur = existing.get(m.rawRef);
-    try {
-      if (cur) {
-        const beforeStatus = cur.status;
-        const same = cur.erp_number === row.erp_number && cur.doc_date === row.doc_date && cur.due_date === row.due_date && Number(cur.amount) === row.amount && cur.status === row.status && cur.status_spine === row.status_spine;
-        if (same) { res.unchanged++; await admin.from("erp_documents").update({ fetched_at: now }).eq("id", cur.id).eq("tenant_id", tenantId); continue; }
-        const { error } = await admin.from("erp_documents").update({ ...row, fetched_at: now }).eq("id", cur.id).eq("tenant_id", tenantId);
-        if (error) throw error;
-        res.updated++;
-        if (beforeStatus !== row.status) changes.push({ field: `Invoice ${m.number ?? m.rawRef}`, from: beforeStatus, to: row.status });
-      } else {
-        const { error } = await admin.from("erp_documents").insert({ ...row, tenant_id: tenantId, order_id: orderId, kind: "invoice", raw_ref: m.rawRef, fetched_at: now });
-        // A webhook and the hourly job can race to the same invoice; the unique index keeps one and the loser is a no-op.
-        if (error && error.code !== "23505") throw error;
-        if (error) res.unchanged++;
-        else { res.created++; changes.push({ field: `Invoice ${m.number ?? m.rawRef}`, from: null, to: m.status }); }
-      }
-    } catch (e) {
-      res.failed++;
-      res.error ??= (e as Error).message;
-    }
-  }
-
-  // An invoice the ERP no longer has is no longer shown. Only when the whole list was read.
-  if (res.read < INVOICE_CAP && !res.error) {
-    for (const [ref, cur] of existing) {
-      if (seen.has(ref)) continue;
-      const { error } = await admin.from("erp_documents").delete().eq("id", cur.id).eq("tenant_id", tenantId);
-      if (!error) { res.removed++; changes.push({ field: `Invoice ${cur.erp_number ?? ref}`, from: cur.status, to: "removed in the ERP" }); }
-    }
-  }
-  if (changes.length) await note(admin, tenantId, orderId, orderLabel, "update", changes);
-  return res;
+  // Nothing is removed when the list hit the read cap or a read failed: only a whole list says what the ERP no longer has.
+  return mirrorDocuments(ctx, orderId, orderLabel, "invoice", found, currency, res.read < INVOICE_CAP && !res.error, res);
 }
 
 // ── Pull ────────────────────────────────────────────────────────────────────
@@ -415,10 +226,6 @@ export type RefreshOpts = {
   prepared?: { cfg: D365Config; creds: Record<string, string>; config: unknown; mw: boolean };
 };
 
-async function stampChecked(admin: SupabaseClient, tenantId: string, orderId: string, iso: string): Promise<void> {
-  await admin.from("sales_orders").update({ erp_docs_checked_at: iso }).eq("id", orderId).eq("tenant_id", tenantId);
-}
-
 /**
  * Bring one order's ERP state up to date: its header (optionally) and its invoices. `orderId` must be an id of THIS
  * tenant; it is looked up with the tenant filter and a foreign id finds nothing. Used by the Refresh button, the
@@ -505,38 +312,14 @@ export async function followUpOrders(admin: SupabaseClient, tenantId: string, op
 
   const ec = entityConfig(loaded.cfg, "sales_orders");
   const pullOn = ec?.enabled === true && (ec.schedule ?? loaded.cfg.schedule) !== "off";
-  const nowMs = opts.nowMs ?? Date.now();
-
-  const { data: cand, error } = await admin.from("sales_orders").select("id, origin, spine, erp_docs_checked_at").eq("tenant_id", tenantId)
-    .in("spine", ["open", "in_progress", "completed"]).order("erp_docs_checked_at", { ascending: true, nullsFirst: true }).limit(200);
-  if (error) return { ...out, skipped: isSchemaPending(error) ? "database update pending" : error.message };
-  const orders = ((cand ?? []) as { id: string; origin: string; spine: string; erp_docs_checked_at: string | null }[])
-    .filter((o) => !o.erp_docs_checked_at || nowMs - Date.parse(o.erp_docs_checked_at) >= FOLLOW_UP_MIN_AGE_MS);
-  if (orders.length === 0) return out;
-
-  const ids = orders.map((o) => o.id);
-  const linked = new Set<string>();
-  const docs = new Map<string, string[]>();
-  for (let i = 0; i < ids.length; i += 50) {
-    const chunk = ids.slice(i, i + 50);
-    const { data: ls } = await admin.from("connector_links").select("object_id").eq("tenant_id", tenantId).eq("connector_id", CONNECTOR_ID).eq("entity", "sales_orders").in("object_id", chunk);
-    for (const l of (ls ?? []) as { object_id: string }[]) linked.add(l.object_id);
-    const { data: ds } = await admin.from("erp_documents").select("order_id, status_spine").eq("tenant_id", tenantId).eq("kind", "invoice").in("order_id", chunk);
-    for (const d of (ds ?? []) as { order_id: string; status_spine: string | null }[]) docs.set(d.order_id, [...(docs.get(d.order_id) ?? []), d.status_spine ?? "open"]);
-  }
-  const todo = orders.filter((o) => {
-    if (!linked.has(o.id)) return false;
-    // With the Sales orders pull off, only orders made here (and accepted by the ERP) are followed; an order read from the ERP stops being refreshed.
-    if (!pullOn && o.origin !== "bpmsquare") return false;
-    const spines = docs.get(o.id) ?? [];
-    return !(o.spine === "completed" && spines.length > 0 && spines.every((s) => invoiceSettled(s)));
-  }).slice(0, opts.batch ?? FOLLOW_UP_BATCH);
-  if (todo.length === 0) return out;
+  const picked = await pickFollowUpOrders(admin, tenantId, { connectorId: CONNECTOR_ID, pullOn, batch: opts.batch, nowMs: opts.nowMs });
+  if ("skipped" in picked) return { ...out, skipped: picked.skipped };
+  if (picked.ids.length === 0) return out;
 
   const prepared = { cfg: loaded.cfg, creds: loaded.creds, config: t?.config, mw: features.integration_middleware === true };
-  for (const o of todo) {
+  for (const id of picked.ids) {
     if (Date.now() > opts.deadline) break;
-    const r = await refreshOrderDocuments(admin, tenantId, o.id, { withHeader: !pullOn, trigger: "schedule", skipThrottle: true, prepared });
+    const r = await refreshOrderDocuments(admin, tenantId, id, { withHeader: !pullOn, trigger: "schedule", skipThrottle: true, prepared });
     out.checked++;
     if (r.kind === "error" || r.kind === "pending") out.failed++;
   }
@@ -544,7 +327,4 @@ export async function followUpOrders(admin: SupabaseClient, tenantId: string, op
 }
 
 /** Does this workspace have an order made here that an ERP accepted (a link written by a send)? Decides whether the follow-up job runs while the Sales orders pull is off. */
-export async function hasSentOrders(admin: SupabaseClient, tenantId: string): Promise<boolean> {
-  const { data, error } = await admin.from("connector_links").select("id").eq("tenant_id", tenantId).eq("connector_id", CONNECTOR_ID).eq("entity", "sales_orders").eq("direction", "push").limit(1);
-  return !error && (data ?? []).length > 0;
-}
+export const hasSentOrders = (admin: SupabaseClient, tenantId: string): Promise<boolean> => hasSentOrdersTo(admin, tenantId, CONNECTOR_ID);

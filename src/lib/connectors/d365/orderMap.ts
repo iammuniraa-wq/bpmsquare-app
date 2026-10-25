@@ -62,6 +62,9 @@ export type MappedLine = {
   taxPct: number;
   lineTotal: number;
   requestedDate: string | null;
+  /** Only a connector that reports a confirmed quantity per line sets these (SAP schedule lines); undefined = not reported. */
+  confirmedQty?: number | null;
+  confirmedDate?: string | null;
 };
 
 export type MappedOrder = {
@@ -179,6 +182,6 @@ export function orderFingerprintValues(m: MappedOrder, accountId: string | null,
   return {
     n: m.number, s: m.statusLabel, sp: m.spine, a: accountId, cn: m.customerName, cur: m.currency, st: m.subtotal, dt: m.discountTotal, tt: m.taxTotal,
     sh: m.shipping, t: m.total, rd: m.requestedDate,
-    l: m.lines.map((l, i) => [l.lineNo, productIds[i] ?? null, l.description, l.qty, l.uom, l.unitPrice, l.discountPct, l.taxPct, l.lineTotal, l.requestedDate]),
+    l: m.lines.map((l, i) => [l.lineNo, productIds[i] ?? null, l.description, l.qty, l.uom, l.unitPrice, l.discountPct, l.taxPct, l.lineTotal, l.requestedDate, ...(l.confirmedQty !== undefined ? [l.confirmedQty, l.confirmedDate ?? null] : [])]),
   };
 }

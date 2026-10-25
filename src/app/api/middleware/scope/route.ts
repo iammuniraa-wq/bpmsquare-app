@@ -3,7 +3,7 @@ import { guard, jsonBody, fail } from "../_guard";
 import { getScope, isScopeEntity, saveScope, SCOPE_ENTITIES } from "@/lib/middleware/scopeServer";
 import { wantsSap } from "@/lib/middleware/connectorParam";
 import { getSapScope, saveSapScope } from "@/lib/connectors/sap_s4/server";
-import { isSapEntity } from "@/lib/connectors/sap_s4/types";
+import { isSapBpEntity } from "@/lib/connectors/sap_s4/types";
 
 // The saved Scope of one pulled entity: which records of the connected system every run reads (Sync now, the
 // automatic schedule and Full resync). Admin only, tenant from the session.
@@ -24,7 +24,7 @@ export async function GET(req: NextRequest) {
   const entity = req.nextUrl.searchParams.get("entity");
   if (wantsSap(req)) {
     // SAP S/4HANA narrows the main record only (business partner, product).
-    if (!isSapEntity(entity)) return fail(422, "entity must be one of: customers, vendors, products.");
+    if (!isSapBpEntity(entity)) return fail(422, "entity must be one of: customers, vendors, products.");
     const s = await getSapScope(g.ctx.admin, g.ctx.tenantId, entity);
     return "error" in s ? fail(s.status, s.error) : NextResponse.json(s);
   }
@@ -38,7 +38,7 @@ export async function PUT(req: NextRequest) {
   if (!g.ok) return g.res;
   const body = await jsonBody<{ entity?: unknown; conditions?: unknown }>(req);
   if (wantsSap(req)) {
-    if (!isSapEntity(body.entity)) return fail(422, "entity must be one of: customers, vendors, products.");
+    if (!isSapBpEntity(body.entity)) return fail(422, "entity must be one of: customers, vendors, products.");
     const s = await saveSapScope(g.ctx.admin, g.ctx.tenantId, body.entity, { conditions: body.conditions });
     return "error" in s ? fail(s.status, s.error) : NextResponse.json(s);
   }

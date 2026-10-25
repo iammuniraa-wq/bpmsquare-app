@@ -7,9 +7,9 @@ import type { ErpHttp } from "@/lib/middleware/erp";
 import { middlewareClient } from "@/lib/middleware/client";
 import { plainFailure } from "@/lib/middleware/payload";
 
-// What Check with ERP and Send to ERP both need before they talk to the ERP: the workspace's own connector (read with the
-// tenant filter, never from a request), checked to be the Dataverse one these actions are built for, and a client for it.
-// A test hands in its own `http`, as the quote dispatcher's tests do.
+// What the Dynamics 365 side of Check with ERP and Send to ERP needs before it talks to the ERP: the workspace's own connector (read
+// with the tenant filter, never from a request), checked to be the Dataverse one, and a client for it. A test hands in its own `http`,
+// as the quote dispatcher's tests do. The customer and product lookups take the connector id so SAP uses them too (SO4b).
 
 export type TenantRow = { features: TenantFeatures | null; config: TenantConfig | null; custom_domain: string | null };
 
@@ -24,7 +24,7 @@ export async function loadTenantRow(admin: SupabaseClient, tenantId: string): Pr
 
 export async function openErp(admin: SupabaseClient, tenantId: string, tenant: TenantRow, injected?: ErpHttp): Promise<ErpOpen> {
   const loaded = await loadD365(admin, tenantId);
-  if (!loaded) return { ok: false, kind: "no_connector", message: "No ERP is connected. Connect Dynamics 365 under Settings > Integration middleware." };
+  if (!loaded) return { ok: false, kind: "no_connector", message: "No ERP is connected. Connect one under Settings > Integration middleware." };
   if (loaded.cfg.product !== "dataverse") {
     return { ok: false, kind: "unsupported", message: "Checking and sending orders is built for Dynamics 365 Sales (Dataverse). This connection is a different product." };
   }
@@ -39,9 +39,9 @@ export async function openErp(admin: SupabaseClient, tenantId: string, tenant: T
 }
 
 /** The ERP's id of the order's customer, from the link a customer sync made (tenant-scoped). */
-export async function customerErpId(admin: SupabaseClient, tenantId: string, accountId: string | null): Promise<string | null> {
+export async function customerErpId(admin: SupabaseClient, tenantId: string, accountId: string | null, connectorId: string = CONNECTOR_ID): Promise<string | null> {
   if (!accountId) return null;
-  const { data } = await admin.from("connector_links").select("external_id").eq("tenant_id", tenantId).eq("connector_id", CONNECTOR_ID)
+  const { data } = await admin.from("connector_links").select("external_id").eq("tenant_id", tenantId).eq("connector_id", connectorId)
     .eq("entity", "customers").eq("object_id", accountId).limit(1).maybeSingle();
   const id = (data as { external_id?: string } | null)?.external_id;
   if (!id) return null;
@@ -50,11 +50,11 @@ export async function customerErpId(admin: SupabaseClient, tenantId: string, acc
 }
 
 /** ERP ids of the products that have a counterpart there, keyed by the BPMSquare product id. */
-export async function productErpIds(admin: SupabaseClient, tenantId: string, productIds: string[]): Promise<Map<string, string>> {
+export async function productErpIds(admin: SupabaseClient, tenantId: string, productIds: string[], connectorId: string = CONNECTOR_ID): Promise<Map<string, string>> {
   const out = new Map<string, string>();
   const ids = [...new Set(productIds)];
   for (let i = 0; i < ids.length; i += 100) {
-    const { data } = await admin.from("connector_links").select("object_id, external_id").eq("tenant_id", tenantId).eq("connector_id", CONNECTOR_ID)
+    const { data } = await admin.from("connector_links").select("object_id, external_id").eq("tenant_id", tenantId).eq("connector_id", connectorId)
       .eq("entity", "products").in("object_id", ids.slice(i, i + 100));
     for (const r of (data ?? []) as { object_id: string; external_id: string }[]) out.set(r.object_id, r.external_id);
   }

@@ -11,6 +11,8 @@ export type ErpCapabilities = {
   /** An awarded quote can be created in the system (a quote, a sales order or a project). */
   pushQuote: boolean;
   pushProject: boolean;
+  /** A Sales Order can be checked in the system and sent to it (Check with ERP, Send to ERP): the OrderConnector seam, src/lib/salesOrders/orderConnector.ts. */
+  pushOrder: boolean;
   /** The system describes its own fields, so the Mapping tab can list them. */
   metadata: boolean;
   /** The sign-in needs a price list / currency style pick-list before a quote can go out. */

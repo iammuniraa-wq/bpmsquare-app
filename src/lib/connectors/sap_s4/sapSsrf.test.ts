@@ -8,7 +8,8 @@ vi.mock("@/lib/masterRef", () => ({ insertWithMasterRef: async () => ({ data: nu
 
 import { fakeAdmin } from "@/lib/middleware/testHarness";
 import { fakeDb } from "@/lib/connectors/d365/syncHarness";
-import { runSapPull, saveSapConnection, testSap } from "./server";
+import { clientFor, runSapPull, saveSapConnection, testSap } from "./server";
+import { refreshSapOrder } from "./orders";
 
 afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 
@@ -59,6 +60,32 @@ describe("calling out", () => {
     expect(f).toHaveBeenCalledTimes(1);
     expect(String(f.mock.calls[0][0])).toContain("8.8.8.8");
     expect(JSON.stringify(r)).not.toContain("pw");
+  });
+
+  it("the order services are guarded the same way: a private stored host sends nothing, for the pull and for a refresh", async () => {
+    const f = vi.fn(async () => new Response("{}"));
+    vi.stubGlobal("fetch", f);
+    const s = seed("10.0.0.5") as Record<string, Record<string, unknown>[]>;
+    s.tenants[0].features = { accounts: true, integration_middleware: true, sales_orders: true };
+    (s.tenant_connectors[0].config as { entities: unknown }).entities = { sales_orders: { enabled: true, field_map: {} } };
+    s.erp_documents = []; s.sales_orders = [{ id: "so-1", tenant_id: T, ref: "SO-1", origin: "bpmsquare", currency: "EUR" }];
+    s.connector_links = [{ tenant_id: T, connector_id: "sap_s4", entity: "sales_orders", object_type: "sales_orders", object_id: "so-1", external_id: "0000000069", external_key: "0000000069", direction: "push" }];
+    const db = fakeDb(s as never);
+    const r = await runSapPull(db.client, T, "sales_orders", { trigger: "manual", userId: null, sleep: async () => {} });
+    expect(r.error).toMatch(/private or internal network/);
+    const refreshed = await refreshSapOrder(db.client, T, "so-1", { withHeader: true, trigger: "manual", sleep: async () => {} });
+    expect(refreshed).toMatchObject({ kind: "error", message: expect.stringMatching(/private or internal network/) });
+    expect(f).not.toHaveBeenCalled();
+  });
+
+  it("a write is never sent to a host the token request was redirected to, and is not retried", async () => {
+    const seen: string[] = [];
+    vi.stubGlobal("fetch", vi.fn(async (u: string | URL) => { seen.push(String(u)); return new Response(null, { status: 307, headers: { location: "https://1.1.1.1/x" } }); }));
+    const cfg = { auth_mode: "basic" as const, api_host: "8.8.8.8", username: "U", schedule: "off" as const, entities: {} };
+    const client = await clientFor(cfg, { password: "pw" }, "API_SALES_ORDER_SRV", { sleep: async () => {} });
+    await expect(client.create("A_SalesOrder", { SoldToParty: "1" })).rejects.toThrow(/redirected/);
+    expect(seen).toHaveLength(1);
+    expect(seen[0]).toContain("8.8.8.8");
   });
 
   it("never follows a redirect between public hosts, so the login and an APIKey stay on the pinned host", async () => {
