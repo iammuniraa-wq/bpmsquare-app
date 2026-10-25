@@ -7,6 +7,7 @@ import { renderTemplate, DEFAULT_EMAIL_TEMPLATES } from "@/lib/emailTemplates";
 import { logEmail } from "@/lib/emailLog";
 import { emailOutputFor, resolveOutbound } from "@/lib/emailOutput";
 import { Resend } from "resend";
+import { gateIssue } from "@/lib/einvoicing/server";
 import type { Account, Contact } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -128,6 +129,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   const tenant = await getTenant();
   if (!tenant) return NextResponse.json({ error: "Invoice not found" }, { status: 404 });
+
+  // Saudi e-invoicing: sending a draft makes it a tax document, so it must be ready first, and the PDF that goes out carries the
+  // counter number and issue time this step stamps. A workspace without e-invoicing passes straight through.
+  if (invoice.status === "draft") {
+    const gate = await gateIssue(createAdminSupabase(), tenantId, id);
+    if (gate.block) return NextResponse.json(gate.body, { status: gate.status });
+  }
 
   const cookieHeader = request.headers.get("cookie") ?? "";
   const pdfRes = await fetch(new URL(`/api/invoices/${id}/pdf`, request.nextUrl.origin).toString(), {

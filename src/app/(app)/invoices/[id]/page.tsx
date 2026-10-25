@@ -1,7 +1,13 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { requireFeature, getUserRole, getTenantCurrency } from "@/lib/tenant";
+import { requireFeature, getUserRole, getTenantCurrency, getTenant } from "@/lib/tenant";
 import { moneyFormatter } from "@/lib/currency";
+import { createAdminSupabase } from "@/lib/supabase-server";
+import { einvoicingOn } from "@/lib/einvoicing/gate";
+import { evaluateInvoice } from "@/lib/einvoicing/evaluate";
+import { isNote } from "@/lib/einvoicing/parties";
+import { fromHalalas } from "@/lib/einvoicing/totals";
+import { DOC_CHIP, VAT_CATEGORY_LABEL } from "@/lib/einvoicing/labels";
 import { getInvoiceLive } from "@/lib/data/live";
 import { c, type PillarKey } from "@/lib/theme";
 import StatusPill from "@/components/ui/StatusPill";
@@ -19,6 +25,7 @@ import type { MenuItem } from "@/components/ui/menuItems";
 import type { RecordAction } from "@/components/page/recordActions";
 import RecordPaymentPanel from "./RecordPaymentPanel";
 import EmailInvoicePanel from "./EmailInvoicePanel";
+import EinvoicePanel from "./EinvoicePanel";
 
 const STATUS_TONE: Record<InvoiceStatus, PillarKey> = {
   draft: "blue", sent: "amber", partial: "purple", paid: "green", overdue: "red", cancelled: "red",
@@ -56,9 +63,30 @@ export default async function InvoiceDetailPage({
   const inr = moneyFormatter(await getTenantCurrency(), { maximumFractionDigits: 0 });
   const { id } = await params;
   const { tab } = await searchParams;
-  const [data, role] = await Promise.all([getInvoiceLive(id), getUserRole()]);
+  const [data, role, tenant] = await Promise.all([getInvoiceLive(id), getUserRole(), getTenant()]);
   if (!data) notFound();
   const { invoice, lines, payments, account, contact, quote, workOrder, serviceCase, contract } = data;
+
+  // Saudi e-invoicing (flag einvoicing_ksa + scheme): readiness, the type chip and the "Saudi e-invoice" section. Shown only
+  // when migration 0219 has put the columns on the row (until then there is nothing to show and nothing is computed).
+  const einvActive = !!tenant && einvoicingOn(tenant.features, tenant.config) && "einvoice_doc_type" in invoice;
+  const einv = einvActive && tenant
+    ? evaluateInvoice({ invoice, lines, account, entities: tenant.config?.entities, config: tenant.config, currency: (await getTenantCurrency()).code })
+    : null;
+  const money2 = moneyFormatter(await getTenantCurrency(), { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  let originalInvoice: { ref: string; id: string } | null = null;
+  let creditNotes: { id: string; ref: string }[] = [];
+  if (einvActive && tenant) {
+    const admin = createAdminSupabase();
+    const [orig, notes] = await Promise.all([
+      invoice.original_invoice_id
+        ? admin.from("invoices").select("id, ref").eq("id", invoice.original_invoice_id).eq("tenant_id", tenant.id).maybeSingle()
+        : Promise.resolve({ data: null }),
+      admin.from("invoices").select("id, ref").eq("original_invoice_id", invoice.id).eq("tenant_id", tenant.id).neq("status", "cancelled"),
+    ]);
+    originalInvoice = (orig.data as { ref: string; id: string } | null) ?? null;
+    creditNotes = (notes.data ?? []) as { id: string; ref: string }[];
+  }
   const isAdmin = role === "admin";
   const basePath = ROUTES.invoice(invoice.id);
 
@@ -100,6 +128,8 @@ export default async function InvoiceDetailPage({
         <>
           <StatusPill label={STATUS_LABEL[invoice.status]} tone={STATUS_TONE[invoice.status]} />
           {isOverdue && <StatusPill label="Overdue" tone="red" />}
+          {einv && <StatusPill label={DOC_CHIP[einv.docType]} tone={isNote(einv.docType) ? "purple" : "blue"} />}
+          {einv && <StatusPill label={einv.ready ? "E-invoice ready" : "E-invoice not ready"} tone={einv.ready ? "green" : "amber"} />}
         </>
       }
       primaryAction={primaryAction}
@@ -127,12 +157,50 @@ export default async function InvoiceDetailPage({
           id: "overview",
           label: "Overview",
           content: (
-            <ObjectSections
-              objectType="invoice"
-              record={invoice as unknown as Record<string, unknown>}
-              patchUrl={`/api/invoices/${invoice.id}`}
-              exclude={["ref"]}
-            />
+            <>
+              {einv && (
+                <div style={{ marginBottom: 14 }}>
+                  <EinvoicePanel
+                    invoiceId={invoice.id}
+                    basePath={basePath}
+                    editable={isDraft}
+                    docType={einv.docType}
+                    typeLocked={isNote(einv.docType) || invoice.einvoice_seq != null}
+                    ready={einv.ready}
+                    issues={einv.issues}
+                    accountHref={account ? ROUTES.account(account.id) : null}
+                    uuid={invoice.einvoice_uuid ?? null}
+                    seq={invoice.einvoice_seq ?? null}
+                    original={originalInvoice ? { ref: originalInvoice.ref, href: ROUTES.invoice(originalInvoice.id) } : null}
+                    creditNotes={creditNotes}
+                    canCreditNote={!isNote(einv.docType) && !isDraft && invoice.status !== "cancelled" && creditNotes.length === 0}
+                    lines={lines.map((l, i) => ({
+                      id: l.id, label: l.sl_no ?? String(i + 1), description: l.description,
+                      vat_category: l.vat_category ?? null, vat_rate: l.vat_rate ?? null, vat_exemption_reason: l.vat_exemption_reason ?? null,
+                    }))}
+                    groups={einv.totals.groups.map((g) => ({
+                      label: g.category ? VAT_CATEGORY_LABEL[g.category].en : "Not set",
+                      rate: g.rate == null ? "" : `${g.rate}%`,
+                      taxable: money2(fromHalalas(g.taxable)),
+                      vat: money2(fromHalalas(g.vat)),
+                    }))}
+                    totals={{
+                      subtotal: money2(fromHalalas(einv.totals.subtotal)),
+                      discount: einv.totals.discount > 0 ? money2(fromHalalas(einv.totals.discount)) : null,
+                      taxable: money2(fromHalalas(einv.totals.taxableTotal)),
+                      vat: money2(fromHalalas(einv.totals.vatTotal)),
+                      grand: money2(fromHalalas(einv.totals.grandTotal)),
+                    }}
+                  />
+                </div>
+              )}
+              <ObjectSections
+                objectType="invoice"
+                record={invoice as unknown as Record<string, unknown>}
+                patchUrl={`/api/invoices/${invoice.id}`}
+                exclude={einv ? ["ref", "einvoice_doc_type", "einvoice_seq", "einvoice_uuid"] : ["ref"]}
+              />
+            </>
           ),
         },
         {

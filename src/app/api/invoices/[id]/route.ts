@@ -2,6 +2,10 @@ import { NextResponse, type NextRequest } from "next/server";
 import { requireTenantUser, getAuthUser } from "@/lib/supabase-server";
 import { diffForLog, logChange } from "@/lib/changeLog";
 import { emitInvoiceSent, emitInvoiceOverdue } from "@/lib/events/emitters";
+import { createAdminSupabase } from "@/lib/supabase-server";
+import { einvoicingEnabled, gateIssue } from "@/lib/einvoicing/server";
+import { INVOICE_EINVOICE_KEYS, cleanInvoiceEinvoicePatch, shapeInvoiceForApi, shapeLineForApi } from "@/lib/einvoicing/invoiceFields";
+import type { EinvoiceDocType } from "@/lib/einvoicing/rules";
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   let supabase, tenantId;
@@ -20,7 +24,13 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   if (!invoice) return NextResponse.json({ error: "Not found" }, { status: 404 });
-  return NextResponse.json({ ...invoice, lines: lines ?? [] });
+  const einv = await einvoicingEnabled(supabase, tenantId);
+  if (einv) return NextResponse.json({ ...invoice, lines: lines ?? [] });
+  // The e-invoice columns exist on every row once migration 0219 is applied; only an e-invoicing workspace is shown them.
+  return NextResponse.json({
+    ...shapeInvoiceForApi(invoice as Record<string, unknown>, false),
+    lines: (lines ?? []).map((l) => shapeLineForApi(l as Record<string, unknown>, false)),
+  });
 }
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -49,6 +59,20 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     .from("invoices")
     .select("*")
     .eq("id", id).eq("tenant_id", tenantId).maybeSingle();
+
+  // Saudi e-invoicing (0219): the supply date, a note's reason and the standard/simplified choice are the only e-invoice
+  // fields a body may set. The UUID, counter and original-invoice link are the server's alone. A future "cleared" status
+  // (E3) will make this route refuse every edit of a cleared or reported invoice here.
+  const wantsEinvoice = INVOICE_EINVOICE_KEYS.some((k) => k in body);
+  const einv = (wantsEinvoice || patch.status === "sent") && await einvoicingEnabled(supabase, tenantId);
+  if (einv && wantsEinvoice) {
+    Object.assign(patch, cleanInvoiceEinvoicePatch(body, ((before as { einvoice_doc_type?: EinvoiceDocType | null } | null)?.einvoice_doc_type) ?? null));
+  }
+  // Sending a draft is the moment an invoice becomes a tax document: it must be ready, and it takes its UUID and counter number.
+  if (einv && patch.status === "sent" && (before as { status?: string } | null)?.status === "draft") {
+    const gate = await gateIssue(createAdminSupabase(), tenantId, id);
+    if (gate.block) return NextResponse.json(gate.body, { status: gate.status });
+  }
 
   const { data, error } = await supabase
     .from("invoices")
@@ -94,6 +118,11 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
   if (!invoice) return NextResponse.json({ error: "Not found" }, { status: 404 });
   if (invoice.status !== "draft") {
     return NextResponse.json({ error: "Only draft invoices can be deleted" }, { status: 409 });
+  }
+  // Saudi e-invoicing: a number in the seller's counter is never given back, so an invoice that holds one is cancelled, not deleted.
+  const { data: numbered } = await supabase.from("invoices").select("einvoice_seq").eq("id", id).eq("tenant_id", tenantId).maybeSingle();
+  if ((numbered as { einvoice_seq?: number | null } | null)?.einvoice_seq != null) {
+    return NextResponse.json({ error: "This invoice has an e-invoice number. Cancel it instead of deleting it." }, { status: 409 });
   }
 
   const { error } = await supabase.from("invoices").delete().eq("id", id).eq("tenant_id", tenantId);

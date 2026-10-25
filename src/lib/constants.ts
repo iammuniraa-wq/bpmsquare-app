@@ -497,6 +497,19 @@ export type TenantEntity = {
   email?: string;
   gstin?: string;
   is_default: boolean;
+  // Saudi e-invoicing seller unit (einvoicing_ksa, E1). An entity IS the seller unit: these are the fields ZATCA
+  // needs on top of the generic ones above. `vat_number` is the 15-digit VAT registration number; when it is empty
+  // the generic `gstin` ("Tax ID") is read instead, so a workspace that already typed its VAT number there does not
+  // re-enter it. All optional and ignored unless the workspace has the flag.
+  vat_number?: string;
+  crn?: string;
+  name_ar?: string;
+  building_number?: string;
+  street?: string;
+  district?: string;
+  city?: string;
+  postal_code?: string;
+  country?: string;
 };
 
 // TenantTaxConfig — shape stored in tenants.config.tax.
@@ -740,6 +753,14 @@ export type TenantFeatures = {
   // flag: default OFF, missing key reads false; with it off there is no menu item, no route, no API answer and no
   // button on a quote. ERP replication, ERP checks and sending to an ERP are later phases (SO2/SO3).
   sales_orders: boolean;
+  // Saudi e-invoicing, phase E1 "Data readiness" (docs/design/saudi-einvoicing-plan.md): the seller and buyer tax
+  // identity, per-line VAT category and rate, document types (standard, simplified, credit and debit note), a gap-free
+  // per-seller counter, a bilingual Arabic/English invoice and a Ready / Not ready check that lists what is missing.
+  // No submission to ZATCA yet (E2+). A platform-admin-only flag: default OFF, missing key reads false; with it off
+  // nothing new appears on a screen, an export, the API or a printed invoice. Until the Region pack framework exists
+  // this flag together with `config.einvoicing.scheme` IS the Region pack switch (see src/lib/einvoicing/gate.ts).
+  // Needs `invoices`.
+  einvoicing_ksa: boolean;
 };
 
 // WfmConfig — tenant-level WFM (attendance) settings, stored in
@@ -1165,6 +1186,10 @@ export const LOSS_REASON_LABEL: Record<LossReason, string> = {
 export type TenantConfig = {
   entities: TenantEntity[];
   tax: TenantTaxConfig;
+  // E-invoicing scheme of the workspace (Region pack switch until the pack framework exists, einvoicing_ksa flag).
+  // `scheme: null` switches the feature off even with the flag on; an absent key with the flag on means ksa_zatca.
+  // `default_doc_type` is what a buyer without a VAT number gets (default simplified).
+  einvoicing?: { scheme: "ksa_zatca" | null; default_doc_type?: "standard" | "simplified" };
   // Which quote types are shown in the New Quotation picker. Omitted key = visible.
   quote_type_visibility?: Partial<Record<QuoteTypeId, boolean>>;
   // Analytics metrics the tenant has explicitly hidden on the Analytics page.

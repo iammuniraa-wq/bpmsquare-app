@@ -8,6 +8,7 @@ import { normalizeCategoryTree, type ProductCategoryNode } from "@/lib/picklists
 import { selectableItemTypes } from "@/lib/products/itemTypes";
 import type { TenantConfig, TenantFeatures } from "@/lib/constants";
 import { isSchemaPending } from "@/lib/marketing/pending";
+import { einvoicingOn } from "@/lib/einvoicing/gate";
 
 type CustomFieldRow = {
   id: string;
@@ -64,11 +65,14 @@ export async function getEffectiveFieldConfig(
   const gated = isPilotObjectType(objectType) ? FIELD_REGISTRY[objectType].fields.filter((f) => f.requiresFeature) : [];
   const allowedGated = new Set<string>();
   if (gated.length > 0) {
-    const { data: t } = await supabase.from("tenants").select("features").eq("id", tenantId).maybeSingle();
+    const { data: t } = await supabase.from("tenants").select("features, config").eq("id", tenantId).maybeSingle();
     const features = (t?.features ?? {}) as Partial<TenantFeatures>;
-    const table = objectType === "account" ? "accounts" : objectType === "contact" ? "contacts" : null;
+    const table = objectType === "account" ? "accounts" : objectType === "contact" ? "contacts" : objectType === "invoice" ? "invoices" : null;
     for (const f of gated) {
-      if (!f.requiresFeature || features[f.requiresFeature] !== true || !table) continue;
+      if (!f.requiresFeature || !table) continue;
+      // The e-invoice fields also need the workspace's scheme (Region pack switch); every other gated field is the flag alone.
+      const on = f.requiresFeature === "einvoicing_ksa" ? einvoicingOn(features, t?.config as TenantConfig | null) : features[f.requiresFeature] === true;
+      if (!on) continue;
       const probe = await supabase.from(table).select(f.key).eq("tenant_id", tenantId).limit(1);
       if (!probe.error || !isSchemaPending(probe.error)) allowedGated.add(f.key);
     }

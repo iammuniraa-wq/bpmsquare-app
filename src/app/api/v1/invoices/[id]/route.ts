@@ -1,5 +1,6 @@
 import { authorizeApi, jsonOk } from "../../_auth";
 import { createAdminSupabase } from "@/lib/supabase-server";
+import { evaluateInvoiceById, loadEinvoiceTenant } from "@/lib/einvoicing/server";
 
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const auth = await authorizeApi(req, "invoices");
@@ -17,6 +18,22 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     supabase.from("accounts").select("id, name").eq("id", invoice.account_id).maybeSingle(),
     supabase.from("invoice_payments").select("amount, paid_on, method").eq("invoice_id", id).order("paid_on", { ascending: false }),
   ]);
+
+  // Saudi e-invoicing workspaces also get the e-invoice identity, the Ready flag and each line's VAT category. Everyone else gets
+  // exactly the keys they always had: nothing is added, not even as null.
+  const tenant = await loadEinvoiceTenant(supabase, tenantId);
+  const ev = tenant.on && "einvoice_doc_type" in invoice ? await evaluateInvoiceById(supabase, tenantId, id, tenant) : null;
+  const einvoiceFields = ev
+    ? {
+        einvoice_doc_type: ev.docType,
+        einvoice_ready: ev.ready,
+        einvoice_uuid: invoice.einvoice_uuid ?? null,
+        einvoice_seq: invoice.einvoice_seq ?? null,
+        original_invoice_id: invoice.original_invoice_id ?? null,
+        credit_reason: invoice.credit_reason ?? null,
+        supply_date: invoice.supply_date ?? null,
+      }
+    : {};
 
   return jsonOk({
     data: {
@@ -36,8 +53,10 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
       balance_due: Math.max(0, invoice.total - invoice.paid_amount),
       custom_data: invoice.custom_data,
       issued_at: invoice.issued_at,
+      ...einvoiceFields,
       lines: (lines ?? []).map((l) => ({
         id: l.id, description: l.description, uom: l.uom, qty: l.qty, rate: l.rate, amount: l.amount,
+        ...(ev ? { vat_category: l.vat_category ?? null, vat_rate: l.vat_rate ?? null, vat_exemption_reason: l.vat_exemption_reason ?? null } : {}),
       })),
       payments: payments ?? [],
       _links: { self: `/api/v1/invoices/${invoice.id}` },

@@ -52,6 +52,16 @@ export type Account = {
    * coverage, never hand-picked from a dropdown. Null when no OWNER
    * coverage matches. Recomputed after every create/update. */
   owner_user_id: string | null;
+  // Saudi e-invoicing buyer data (0219, einvoicing_ksa): present only once that migration is applied.
+  vat_number?: string | null;
+  crn?: string | null;
+  name_ar?: string | null;
+  buyer_type?: import("@/lib/einvoicing/rules").BuyerType | null;
+  address_building?: string | null;
+  address_district?: string | null;
+  /** Encrypted at rest (an individual's ID), like the other PII on an account. */
+  buyer_id_number?: string | null;
+  buyer_id_scheme?: string | null;
 };
 
 export type MarketingCampaignStatus = "draft" | "sending" | "sent" | "failed";
@@ -367,6 +377,15 @@ export type Invoice = {
   created_by: string | null;
   created_at: string;
   issued_at: string | null;
+  // Saudi e-invoicing (0219, einvoicing_ksa). Present only once that migration is applied and only meaningful in a
+  // workspace with the flag; absent everywhere else.
+  einvoice_doc_type?: import("@/lib/einvoicing/rules").EinvoiceDocType | null;
+  einvoice_uuid?: string | null;
+  einvoice_seq?: number | null;
+  einvoice_unit?: string | null;
+  original_invoice_id?: string | null;
+  credit_reason?: string | null;
+  supply_date?: string | null;
 };
 
 export type InvoiceLine = {
@@ -379,6 +398,10 @@ export type InvoiceLine = {
   qty: number;
   rate: number;
   amount: number;
+  // Saudi e-invoicing (0219, einvoicing_ksa).
+  vat_category?: import("@/lib/einvoicing/rules").VatCategory | null;
+  vat_rate?: number | null;
+  vat_exemption_reason?: string | null;
 };
 
 // Employee -- pure master data (0057). A person on the org's books; may or

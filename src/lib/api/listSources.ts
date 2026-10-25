@@ -7,6 +7,7 @@ import { PROJECT_HOURS_FIELDS, loadProjectHoursRows } from "@/lib/wfm/projectHou
 import { loadEstimatesForApi } from "@/lib/estimator/apiRows";
 import { loadStandardQuotesForApi } from "@/lib/api/standardQuoteRows";
 import { loadSalesOrdersForApi } from "@/lib/api/salesOrderRows";
+import { loadEinvoiceSummaries } from "@/lib/einvoicing/listRows";
 
 // One place that defines, per list object, both its queryable-field
 // whitelist and how to load its tenant-scoped, PII-decrypted rows. The v1
@@ -302,6 +303,9 @@ const INVOICE_FIELDS: QueryableField[] = [
   { path: "total", type: "number" },
   { path: "paid_amount", type: "number" },
   { path: "issued_at", type: "date" },
+  // Saudi e-invoicing (0219): present on the rows only for a workspace with einvoicing_ksa on; null/absent for everyone else.
+  { path: "einvoice_doc_type", type: "string" },
+  { path: "einvoice_ready", type: "boolean" },
 ];
 
 const PO_FIELDS: QueryableField[] = [
@@ -688,11 +692,13 @@ export const LIST_SOURCES: Record<string, ListSource> = {
         ? await supabase.from("accounts").select("id, name").in("id", accountIds)
         : { data: [] };
       const nameById = new Map((accounts ?? []).map((a) => [a.id, a.name]));
+      const einvoice = await loadEinvoiceSummaries(supabase, tenantId, data ?? []);
       return (data ?? []).map((inv) => ({
         id: inv.id, ref: inv.ref, status: inv.status,
         account: { id: inv.account_id, name: nameById.get(inv.account_id) ?? null },
         quote_id: inv.quote_id, work_order_id: inv.work_order_id, due_date: inv.due_date,
         total: inv.total, paid_amount: inv.paid_amount, issued_at: inv.issued_at,
+        ...(einvoice ? einvoice.get(inv.id) ?? {} : {}),
         _links: { self: `/api/v1/invoices/${inv.id}` },
       }));
     },

@@ -1,5 +1,8 @@
 import { getAccountHubForTenant } from "@/lib/data";
 import { authorizeApi, jsonOk } from "../../_auth";
+import { createAdminSupabase } from "@/lib/supabase-server";
+import { einvoicingEnabled } from "@/lib/einvoicing/server";
+import { shapeAccountForApi } from "@/lib/einvoicing/accountFields";
 
 export async function GET(
   req: Request,
@@ -17,7 +20,7 @@ export async function GET(
 
   return jsonOk({
     data: {
-      ...hub.account,
+      ...shapeAccountForApi(hub.account as unknown as Record<string, unknown>, await einvoicingEnabled(createAdminSupabase(), tenantId)),
       referred_by: hub.referredBy ? { id: hub.referredBy.id, name: hub.referredBy.name } : null,
       contacts:    hub.contacts,
       sites:       hub.sites,
