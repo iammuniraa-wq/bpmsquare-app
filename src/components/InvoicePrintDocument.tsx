@@ -3,6 +3,8 @@ import type { CompanyInfo } from "@/lib/tenant";
 import type { TenantEntity, TenantTaxConfig } from "@/lib/constants";
 import { Mail, Globe, MapPin } from "@/components/Icons";
 import { CURRENCIES, moneyFormatter, moneyLabel, type CurrencyCode } from "@/lib/currency";
+import type { KsaPrintData } from "@/lib/einvoicing/printData";
+import InvoicePrintKsa from "./InvoicePrintKsa";
 
 export type InvoicePrintDocumentProps = {
   invoice: Invoice;
@@ -18,6 +20,8 @@ export type InvoicePrintDocumentProps = {
    *  (print) layout with no TenantProvider, where the hook would silently
    *  fall back to INR. */
   currency?: CurrencyCode;
+  /** Saudi e-invoicing workspaces only: when present the bilingual Arabic/English layout is printed instead of this one. */
+  ksa?: KsaPrintData;
 };
 
 const fmtDate = (s: string | null) =>
@@ -33,8 +37,11 @@ function initials(name: string): string {
 // server-rendered PDF route (api/invoices/[id]/pdf) -- mirrors QuotePrintDocument.tsx.
 export default function InvoicePrintDocument({
   invoice, lines, payments, account, contact,
-  companyInfo = {}, logoUrl, tenantEntities = [], tenantTax, currency = "INR",
+  companyInfo = {}, logoUrl, tenantEntities = [], tenantTax, currency = "INR", ksa,
 }: InvoicePrintDocumentProps) {
+  if (ksa) {
+    return <InvoicePrintKsa invoice={invoice} lines={lines} payments={payments} account={account} contact={contact} companyInfo={companyInfo} logoUrl={logoUrl} currency={currency} ksa={ksa} />;
+  }
   const cur = CURRENCIES[currency];
   const inr = moneyFormatter(cur, { maximumFractionDigits: 0 });
   const entity = tenantEntities.find((e) => e.id === invoice.entity_id) ?? null;

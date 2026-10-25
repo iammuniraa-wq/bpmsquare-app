@@ -1,6 +1,6 @@
 {
   "name": "bpmsquare",
-  "version": "1.16.0",
+  "version": "1.17.0",
   "description": "BPMSquare MCP server — field service CRM for electromechanical repair businesses. Generic across every tenant; nothing here is Vikas/Hosapete-specific.",
   "api_base": "https://<your-tenant-domain>/api/v1",
   "auth": {
@@ -667,7 +667,7 @@
     },
     {
       "name": "list_invoices",
-      "description": "List customer invoices with totals, paid amount and status. Optionally filter by status or account.",
+      "description": "List customer invoices with totals, paid amount and status. Optionally filter by status or account. For a Saudi e-invoicing workspace each row also carries einvoice_doc_type (standard, simplified, credit_note, debit_note) and einvoice_ready.",
       "method": "GET",
       "path": "/api/v1/invoices",
       "inputSchema": {
@@ -694,7 +694,7 @@
     },
     {
       "name": "get_invoice",
-      "description": "Get full invoice detail including line items, balance due and payment history.",
+      "description": "Get full invoice detail including line items, balance due and payment history. For a Saudi e-invoicing workspace it also returns the document type, UUID, counter number, whether it is ready for e-invoicing, the original invoice and reason of a credit note, the supply date and each line's VAT category, rate and exemption reason.",
       "method": "GET",
       "path": "/api/v1/invoices/{id}",
       "inputSchema": {

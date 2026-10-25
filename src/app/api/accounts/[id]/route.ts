@@ -6,6 +6,8 @@ import { getTenant } from "@/lib/tenant";
 import { cleanPreferredLanguage } from "@/lib/newsletter/language";
 import { applyAutoOwnership } from "@/lib/coverage/resolve";
 import type { Account } from "@/lib/types";
+import { einvoicingEnabled } from "@/lib/einvoicing/server";
+import { ACCOUNT_EINVOICE_ENCRYPTED, cleanAccountEinvoice, hasAccountEinvoiceKeys } from "@/lib/einvoicing/accountFields";
 
 export async function DELETE(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   let supabase, tenantId, userId;
@@ -75,6 +77,15 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       }
       patch[key] = PII_FIELDS.has(key) ? encrypt(body[key] as string | null) : body[key];
       patchPlaintext[key] = body[key];
+    }
+  }
+
+  // Saudi e-invoicing buyer fields (0219): accepted only in a workspace with the flag. A body that carries them for any
+  // other workspace has them dropped, so nothing new is ever written for a tenant that does not use the feature.
+  if (hasAccountEinvoiceKeys(body) && await einvoicingEnabled(supabase, tenantId)) {
+    for (const [key, value] of Object.entries(cleanAccountEinvoice(body))) {
+      patch[key] = (ACCOUNT_EINVOICE_ENCRYPTED as readonly string[]).includes(key) ? encrypt(value as string | null) : value;
+      patchPlaintext[key] = value;
     }
   }
 

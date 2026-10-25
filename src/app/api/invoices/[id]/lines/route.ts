@@ -1,6 +1,9 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { requireTenantUser, getAuthUser } from "@/lib/supabase-server";
 import { logChange } from "@/lib/changeLog";
+import { defaultLineVat, einvoicingEnabled } from "@/lib/einvoicing/server";
+import { cleanLineVat } from "@/lib/einvoicing/invoiceFields";
+import { isSchemaPending } from "@/lib/marketing/pending";
 
 async function recomputeTotal(supabase: Awaited<ReturnType<typeof requireTenantUser>>["supabase"], invoiceId: string, tenantId: string) {
   const { data: lines } = await supabase.from("invoice_lines").select("amount").eq("invoice_id", invoiceId);
@@ -30,22 +33,25 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const q = Math.max(0, parseFloat(qty) || 1);
   const r = Math.max(0, parseFloat(rate) || 0);
 
-  const { data, error } = await supabase
-    .from("invoice_lines")
-    .insert({
-      tenant_id: tenantId,
-      invoice_id: id,
-      sl_no: String((count ?? 0) + 1),
-      description: description.trim(),
-      uom: uom || null,
-      qty: q,
-      rate: r,
-      amount: q * r,
-    })
-    .select("*")
-    .single();
+  const baseRow = {
+    tenant_id: tenantId,
+    invoice_id: id,
+    sl_no: String((count ?? 0) + 1),
+    description: description.trim(),
+    uom: uom || null,
+    qty: q,
+    rate: r,
+    amount: q * r,
+  };
+  // Saudi e-invoicing (0219): a new line gets the VAT category it was sent with, else the standard one. Other workspaces: nothing added.
+  const einv = await einvoicingEnabled(supabase, tenantId);
+  const vat = einv ? (() => { const v = cleanLineVat(body); return v.vat_category ? v : defaultLineVat(); })() : {};
+  let { data, error } = await supabase.from("invoice_lines").insert({ ...baseRow, ...vat }).select("*").single();
+  if (error && einv && isSchemaPending(error)) {
+    ({ data, error } = await supabase.from("invoice_lines").insert(baseRow).select("*").single());
+  }
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error || !data) return NextResponse.json({ error: error?.message ?? "Failed to add the line" }, { status: 500 });
   await recomputeTotal(supabase, id, tenantId);
 
   const user = await getAuthUser();

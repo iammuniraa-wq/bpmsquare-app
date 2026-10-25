@@ -19,7 +19,7 @@ export type ChangeEntry = { field: string; from: unknown; to: unknown; redacted?
  * and reviewed here, not inherited silently.
  */
 const PII_FIELDS: Record<string, Set<string>> = {
-  accounts: new Set(["phone", "phone2", "email", "email2", "gstin"]),
+  accounts: new Set(["phone", "phone2", "email", "email2", "gstin", "buyer_id_number"]),
   contacts: new Set(["phone", "phone2", "phone3", "email", "email2"]),
   // employees stores these plaintext (bpmsquarecore.md §7's encryption scope
   // is accounts/contacts only), but the audit log redacts them anyway --

@@ -223,6 +223,10 @@
     {
       "key": "sales_orders",
       "comment": "Sales Orders (docs/design/sales-order.md, build spec SO1): an order made here from an accepted quote or won deal, with order types, availability from master data, PDF/email/WhatsApp and files."
+    },
+    {
+      "key": "einvoicing_ksa",
+      "comment": "Saudi e-invoicing, phase E1 \"Data readiness\" (docs/design/saudi-einvoicing-plan.md): the seller and buyer tax identity, per-line VAT category and rate, document types (standard, simplified, credit and debit note), a gap-"
     }
   ],
   "extensionHooks": [
@@ -256,7 +260,7 @@
     }
   ],
   "mcp": {
-    "version": "1.16.0",
+    "version": "1.17.0",
     "tools": [
       {
         "name": "list_accounts",
@@ -524,6 +528,16 @@
       "status": "live",
       "plain": "Plan which technician goes where and when.",
       "rules": []
+    },
+    "einvoicing_ksa": {
+      "status": "live",
+      "plain": "Saudi e-invoicing readiness. An invoice gets the seller and buyer tax identity, a VAT category per line, a document type, credit notes, a per-seller counter and a bilingual Arabic and English print, and says exactly what is still missing.",
+      "rules": [
+        "Nothing is sent to ZATCA yet; this only makes an invoice ready, and a draft that is not ready cannot be sent.",
+        "A buyer with a VAT number gets a Standard invoice, anyone else a Simplified one; a credit note corrects an issued invoice in full and keeps every amount positive.",
+        "The invoice counter is taken when the invoice is sent, one gap-free sequence per seller unit (a legal entity in Company settings).",
+        "The flag is set by a platform admin; a workspace without it sees no new field, screen, API key or printed change."
+      ]
     },
     "enterprise_theme": {
       "status": "experimental",

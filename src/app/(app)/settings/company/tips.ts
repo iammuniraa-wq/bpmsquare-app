@@ -16,6 +16,8 @@ export const COMPANY_TIPS = {
   partners: "Brand logos, for example ABB or Siemens, shown top right of the quote letterhead.",
   oldIso: "Plain text used only while no accreditation logo is added.",
   entities: "Add one for each legal body that issues quotes. The default one is picked on new quotations.",
+  einvoiceSeller: "What ZATCA needs to see about the seller on every e-invoice. Each entity is one seller unit with its own invoice counter.",
+  vatNumber: "15 digits, starting and ending with 3. When empty, the Tax ID above is used.",
   entityBlank: "Quotations use the company details until an entity is added.",
   currency: "How every amount is shown, printed and emailed. It relabels figures; it does not convert them.",
   taxLabel: "The name printed beside the tax line, for example GST, VAT or MwSt.",

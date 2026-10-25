@@ -1,6 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { requireTenantUser, getAuthUser } from "@/lib/supabase-server";
 import { logChange } from "@/lib/changeLog";
+import { einvoicingEnabled } from "@/lib/einvoicing/server";
+import { LINE_EINVOICE_KEYS, cleanLineVat } from "@/lib/einvoicing/invoiceFields";
 
 async function recomputeTotal(supabase: Awaited<ReturnType<typeof requireTenantUser>>["supabase"], invoiceId: string, tenantId: string) {
   const { data: lines } = await supabase.from("invoice_lines").select("amount").eq("invoice_id", invoiceId);
@@ -29,8 +31,13 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   if ("qty" in body) patch.qty = Math.max(0, parseFloat(body.qty) || 0);
   if ("rate" in body) patch.rate = Math.max(0, parseFloat(body.rate) || 0);
 
-  const { data: existing } = await supabase.from("invoice_lines").select("description, qty, rate").eq("id", lineId).eq("invoice_id", id).single();
+  const { data: existing } = await supabase.from("invoice_lines").select("*").eq("id", lineId).eq("invoice_id", id).eq("tenant_id", tenantId).single();
   if (!existing) return NextResponse.json({ error: "Line not found" }, { status: 404 });
+
+  // Saudi e-invoicing (0219): VAT category, rate and reason, made consistent (Z/E/O are 0%). Ignored for other workspaces.
+  if (LINE_EINVOICE_KEYS.some((k) => k in body) && await einvoicingEnabled(supabase, tenantId)) {
+    Object.assign(patch, cleanLineVat(body, existing as { vat_category?: null; vat_rate?: number | null; vat_exemption_reason?: string | null }));
+  }
   const qty = "qty" in patch ? (patch.qty as number) : existing.qty;
   const rate = "rate" in patch ? (patch.rate as number) : existing.rate;
   patch.amount = qty * rate;
@@ -50,11 +57,18 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   await logChange(supabase, {
     tenantId, objectType: "invoices", objectId: id, objectLabel: invoice.ref,
     action: "update", actorId: user?.id, actorEmail: user?.email,
-    changes: [{
-      field: `Line: ${existing.description}`,
-      from: `qty ${existing.qty} × rate ${existing.rate}`,
-      to: `qty ${qty} × rate ${rate}`,
-    }],
+    changes: [
+      ...(qty !== existing.qty || rate !== existing.rate || !LINE_EINVOICE_KEYS.some((k) => k in patch) ? [{
+        field: `Line: ${existing.description}`,
+        from: `qty ${existing.qty} × rate ${existing.rate}`,
+        to: `qty ${qty} × rate ${rate}`,
+      }] : []),
+      ...LINE_EINVOICE_KEYS.filter((k) => k in patch && patch[k] !== (existing as Record<string, unknown>)[k]).map((k) => ({
+        field: `Line ${existing.description}: ${k}`,
+        from: (existing as Record<string, unknown>)[k] ?? null,
+        to: patch[k] ?? null,
+      })),
+    ],
   });
 
   return NextResponse.json(data);

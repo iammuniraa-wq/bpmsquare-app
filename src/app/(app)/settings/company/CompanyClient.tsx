@@ -8,6 +8,7 @@ import { useUrlTab } from "@/components/ui/useUrlTab";
 import { SettingsSave } from "@/components/settings/SettingsHeaderActions";
 import { ACCENT_PRESETS, useSettings } from "@/lib/settings";
 import { useTenant } from "@/lib/tenant-context";
+import { einvoicingOn } from "@/lib/einvoicing/gate";
 import type { TenantConfig } from "@/lib/constants";
 import type { CompanyInfo } from "@/lib/tenant";
 import type { CompanyTab } from "@/lib/settingsFolded";
@@ -102,7 +103,7 @@ export default function CompanyClient() {
             onName={(name) => edit({ name })} onPrintName={(printName) => edit({ printName })} onProfile={editProfile}
           />
         )}
-        {tab === "entities" && <EntitiesTab entities={draft.entities} onChange={(entities) => edit({ entities })} />}
+        {tab === "entities" && <EntitiesTab entities={draft.entities} onChange={(entities) => edit({ entities })} einvoicing={einvoicingOn(features, tenant?.config)} />}
         {tab === "tax" && (
           <TaxTab
             currency={draft.currency} tax={draft.tax} showTax={letterhead} accent={accent}

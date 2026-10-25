@@ -7,6 +7,8 @@ import { getTenant } from "@/lib/tenant";
 import { applyAutoOwnership } from "@/lib/coverage/resolve";
 import { cleanPreferredLanguage } from "@/lib/newsletter/language";
 import type { Account } from "@/lib/types";
+import { einvoicingEnabled } from "@/lib/einvoicing/server";
+import { ACCOUNT_EINVOICE_ENCRYPTED, cleanAccountEinvoice, hasAccountEinvoiceKeys } from "@/lib/einvoicing/accountFields";
 
 export async function GET() {
   let supabase, tenantId;
@@ -66,6 +68,15 @@ export async function POST(request: NextRequest) {
     if (!referrer) return NextResponse.json({ error: "Referring account not found" }, { status: 404 });
   }
 
+  // Saudi e-invoicing buyer fields (0219): only for a workspace with the flag; dropped for everyone else.
+  const einvoiceFields: Record<string, string | null> = {};
+  if (hasAccountEinvoiceKeys(body) && await einvoicingEnabled(supabase, tenantId)) {
+    for (const [key, value] of Object.entries(cleanAccountEinvoice(body))) {
+      if (value == null) continue;
+      einvoiceFields[key] = (ACCOUNT_EINVOICE_ENCRYPTED as readonly string[]).includes(key) ? encrypt(value) : value;
+    }
+  }
+
   const { data, error } = await insertWithMasterRef(supabase, "accounts", tenantId, {
       tenant_id: tenantId,
       name, type,
@@ -87,6 +98,7 @@ export async function POST(request: NextRequest) {
       notes: notes || null,
       referred_by_account_id: referred_by_account_id || null,
       ...(prefLang ? { preferred_language: prefLang } : {}),
+      ...einvoiceFields,
       ...(custom_data && Object.keys(custom_data).length > 0 ? { custom_data } : {}),
     }, "*");
 

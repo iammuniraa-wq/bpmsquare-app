@@ -106,6 +106,10 @@ export const FEATURE_DEPENDENCIES: FeatureDependency[] = [
     why: "Master-data availability reads a line's product (lead time) and the stock matched to it; free-text lines have none.",
   },
   {
+    key: "einvoicing_ksa", needs: "invoices", strength: "hard",
+    why: "The e-invoice data, the readiness check and the bilingual print are parts of the invoice.",
+  },
+  {
     key: "marketing_scoring", needs: "marketing", strength: "hard",
     why: "Scoring, consent and topics are settings of the Marketing module; its settings pages sit under Marketing campaigns being on.",
   },
@@ -114,7 +118,7 @@ export const FEATURE_DEPENDENCIES: FeatureDependency[] = [
 /** The settings-menu group each module reads under in the tenant editor. */
 export const FEATURE_GROUP: Partial<Record<Key, SettingsGroupId>> = {
   // Sales
-  accounts: "sales", contacts: "sales", quotations: "sales", standard_quotes: "sales", sales_orders: "sales", quote_lines_dw: "sales",
+  accounts: "sales", contacts: "sales", quotations: "sales", standard_quotes: "sales", sales_orders: "sales", einvoicing_ksa: "sales", quote_lines_dw: "sales",
   pipeline: "sales", leads: "sales", invoices: "sales", partners: "sales", marketing: "sales", rfq: "sales", inbox: "sales",
   products: "sales", suppliers: "sales", purchasing: "sales", pricing_engine: "sales", pricing_engine_quotes: "sales",
   coverage_model: "sales", fence_projects: "sales", estimator: "sales", marketing_scoring: "marketing", process_studio: "sales", newsletter_studio: "marketing", buying_signals: "marketing", marketing_forms: "marketing", abm: "marketing", journeys: "marketing", whatsapp_marketing: "marketing", marketing_attribution: "marketing", marketing_events: "marketing",

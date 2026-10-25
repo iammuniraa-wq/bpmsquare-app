@@ -123,6 +123,25 @@ const PRODUCT_STATUS_OPTIONS: { value: "active" | "inactive"; label: string }[] 
   { value: "inactive", label: "Inactive" },
 ];
 
+// Saudi e-invoicing option lists (plain English; the printed wording lives in src/lib/einvoicing/labels.ts).
+const BUYER_TYPE_OPTIONS: { value: string; label: string }[] = [
+  { value: "business", label: "Business" },
+  { value: "individual", label: "Individual" },
+];
+const BUYER_ID_SCHEME_OPTIONS: { value: string; label: string }[] = [
+  { value: "NAT", label: "National ID" },
+  { value: "IQA", label: "Iqama" },
+  { value: "PAS", label: "Passport" },
+  { value: "GCC", label: "GCC ID" },
+  { value: "OTH", label: "Other" },
+];
+const EINVOICE_DOC_TYPE_OPTIONS: { value: string; label: string }[] = [
+  { value: "standard", label: "Standard" },
+  { value: "simplified", label: "Simplified" },
+  { value: "credit_note", label: "Credit note" },
+  { value: "debit_note", label: "Debit note" },
+];
+
 const DISCOUNT_TYPE_OPTIONS: { value: "pct" | "fixed"; label: string }[] = [
   { value: "pct",   label: "Percentage" },
   { value: "fixed", label: "Fixed amount" },
@@ -159,7 +178,7 @@ const UOM_ENUM_OPTIONS: { value: string; label: string }[] = UOM_OPTIONS.map((u)
 
 export const FIELD_REGISTRY: Record<PilotObjectType, ObjectFieldRegistry> = {
   account: {
-    sections: ["Identity", "Address", "Communication", "Sales", "Business", "Notes"],
+    sections: ["Identity", "Address", "Communication", "Sales", "Business", "Saudi e-invoicing", "Notes"],
     fields: [
       { key: "ref", defaultLabel: "Account ID", widget: "text", defaultSection: "Identity", locked: true, editable: false, exportOnly: true },
       { key: "name", defaultLabel: "Name", widget: "text", defaultSection: "Identity", locked: true },
@@ -183,6 +202,18 @@ export const FIELD_REGISTRY: Record<PilotObjectType, ObjectFieldRegistry> = {
       { key: "employee_count", defaultLabel: "Employees", widget: "text", defaultSection: "Business" },
       { key: "annual_revenue", defaultLabel: "Annual revenue", widget: "text", defaultSection: "Business" },
       { key: "gstin", defaultLabel: "GSTIN", widget: "text", defaultSection: "Business" },
+
+      // Saudi e-invoicing buyer data (0219). Exists only for a workspace with the einvoicing_ksa flag and a database that has
+      // the columns (requiresFeature). exportOnly: they export from Data Workbench but are not import/update columns in E1
+      // (bulk writes would skip the 15-digit and address checks, and buyer_id_number must go through encrypt()).
+      { key: "buyer_type", defaultLabel: "Buyer type", widget: "enum", defaultSection: "Saudi e-invoicing", enumOptions: BUYER_TYPE_OPTIONS, exportOnly: true, requiresFeature: "einvoicing_ksa" },
+      { key: "vat_number", defaultLabel: "VAT number", widget: "text", defaultSection: "Saudi e-invoicing", placeholder: "15 digits, 3...3", exportOnly: true, requiresFeature: "einvoicing_ksa" },
+      { key: "crn", defaultLabel: "Commercial registration (CRN)", widget: "text", defaultSection: "Saudi e-invoicing", exportOnly: true, requiresFeature: "einvoicing_ksa" },
+      { key: "name_ar", defaultLabel: "Name in Arabic", widget: "text", defaultSection: "Saudi e-invoicing", exportOnly: true, requiresFeature: "einvoicing_ksa" },
+      { key: "address_building", defaultLabel: "Building number", widget: "text", defaultSection: "Saudi e-invoicing", placeholder: "4 digits", exportOnly: true, requiresFeature: "einvoicing_ksa" },
+      { key: "address_district", defaultLabel: "District", widget: "text", defaultSection: "Saudi e-invoicing", exportOnly: true, requiresFeature: "einvoicing_ksa" },
+      { key: "buyer_id_scheme", defaultLabel: "Buyer ID type (individuals)", widget: "enum", defaultSection: "Saudi e-invoicing", enumOptions: BUYER_ID_SCHEME_OPTIONS, exportOnly: true, requiresFeature: "einvoicing_ksa" },
+      { key: "buyer_id_number", defaultLabel: "Buyer ID number (individuals)", widget: "text", defaultSection: "Saudi e-invoicing", exportOnly: true, requiresFeature: "einvoicing_ksa" },
 
       { key: "notes", defaultLabel: "Notes", widget: "textarea", defaultSection: "Notes" },
 
@@ -654,7 +685,7 @@ export const FIELD_REGISTRY: Record<PilotObjectType, ObjectFieldRegistry> = {
   },
 
   invoice: {
-    sections: ["Identity", "Commercial", "Notes"],
+    sections: ["Identity", "Commercial", "Saudi e-invoice", "Notes"],
     fields: [
       { key: "ref",       defaultLabel: "Invoice ID", widget: "text", defaultSection: "Identity", locked: true, editable: false },
       { key: "due_date",  defaultLabel: "Due date",    widget: "date", defaultSection: "Identity" },
@@ -666,6 +697,14 @@ export const FIELD_REGISTRY: Record<PilotObjectType, ObjectFieldRegistry> = {
       { key: "discount_type",  defaultLabel: "Discount type",   widget: "enum",   defaultSection: "Commercial", enumOptions: DISCOUNT_TYPE_OPTIONS, editable: false },
       { key: "discount_pct",   defaultLabel: "Discount %",      widget: "number", defaultSection: "Commercial", editable: false },
       { key: "discount_fixed", defaultLabel: "Discount amount", widget: "number", defaultSection: "Commercial", editable: false },
+
+      // Saudi e-invoice (0219, einvoicing_ksa). The type, counter and UUID are read-only here -- the type is chosen and the
+      // number taken on the invoice's own "Saudi e-invoice" panel; they exist in the registry so Data Workbench can export them.
+      { key: "einvoice_doc_type", defaultLabel: "E-invoice type", widget: "enum", defaultSection: "Saudi e-invoice", enumOptions: EINVOICE_DOC_TYPE_OPTIONS, editable: false, exportOnly: true, requiresFeature: "einvoicing_ksa" },
+      { key: "einvoice_seq", defaultLabel: "E-invoice counter", widget: "number", defaultSection: "Saudi e-invoice", editable: false, exportOnly: true, requiresFeature: "einvoicing_ksa" },
+      { key: "einvoice_uuid", defaultLabel: "E-invoice UUID", widget: "text", defaultSection: "Saudi e-invoice", editable: false, exportOnly: true, requiresFeature: "einvoicing_ksa" },
+      { key: "supply_date", defaultLabel: "Supply date", widget: "date", defaultSection: "Saudi e-invoice", exportOnly: true, requiresFeature: "einvoicing_ksa" },
+      { key: "credit_reason", defaultLabel: "Credit / debit note reason", widget: "text", defaultSection: "Saudi e-invoice", exportOnly: true, requiresFeature: "einvoicing_ksa" },
 
       { key: "notes", defaultLabel: "Notes", widget: "textarea", defaultSection: "Notes" },
       { key: "terms", defaultLabel: "Terms", widget: "textarea", defaultSection: "Notes" },

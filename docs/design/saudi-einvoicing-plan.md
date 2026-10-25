@@ -79,3 +79,17 @@ secrets and certificates are never logged. Everything additive and behind the pa
   branch; (5) Arabic names for customers captured at account creation or only on invoices.
 - Risks: regulatory changes (version the XML builder and rules), provider outage (queue and retry), clock and sequence integrity,
   cut-over date for each client's wave.
+
+## 8. E1 as built (2026-10-25)
+
+Built behind the platform-admin flag `einvoicing_ksa` (with `config.einvoicing.scheme`; absent with the flag on = `ksa_zatca`, `null` = off). Data: migration `0219` / bundle 30
+(buyer fields on `accounts`, document fields on `invoices`, VAT fields on `invoice_lines`, the counter table and `allocate_einvoice_seq()`, a guard trigger). The seller unit is an
+entity in `tenants.config.entities` (no column). Code: `src/lib/einvoicing/` (rules in `rules.ts` only, halala maths in `totals.ts`, readiness in `validate.ts`, counter wrapper in
+`counter.ts`, labels in `labels.ts`, DB side in `server.ts`).
+
+- **Readiness** lists what is missing in plain words with a link to where it is fixed (seller: Company > Entities; buyer: the account; lines and invoice: the invoice's "Saudi e-invoice" section).
+- **Sending a draft** (status to sent, or the email) is the issue step: it requires Ready, then stamps UUID, type, issue time, supply date and takes the counter number. No number is taken at creation, and an invoice that holds one cannot be deleted.
+- **Rounding:** VAT is rounded once per VAT group (category + rate) on the taxable amount after the document discount, which is split across the groups by largest remainder. Per-line VAT is indicative only and is not printed.
+- **Credit note:** a new draft invoice typed `credit_note`, positive amounts, linked by `original_invoice_id`, with a reason; ledger views count it with `ledgerSign()`.
+- **Not done:** any call to ZATCA, XML, hash chain, QR (a marked placeholder prints), the connector, `einvoice_documents`, onboarding, locking a cleared invoice, Data Workbench import/update of these fields, foreign-currency invoices.
+- **Assumed, to verify against the current ZATCA specification before E2:** VAT number 15 digits starting and ending with 3; CRN 10 digits; postal code 5 digits; building number 4 digits; standard-invoice buyer needs VAT number, name, Arabic name and full address; supply date required on a standard invoice; Z/E/O lines are 0% with a stated reason; a Standard line is above 0%; notes need the original and a reason; per-group VAT rounding.
