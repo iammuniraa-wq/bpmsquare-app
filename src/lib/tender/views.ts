@@ -3,6 +3,7 @@
 
 import type { OpportunityRow } from "@/lib/sales/opportunityServer";
 import type { TenderDecision, TenderPortal } from "./rules";
+import type { BondStatus } from "./bond";
 
 export type TenderSummary = {
   tender_no: string | null;
@@ -30,4 +31,7 @@ export type TenderView = {
   decided_by_name: string | null;
   decided_at: string | null;
   source_email_id: string | null;
+  bond_status: BondStatus;
+  bond_released_at: string | null;
+  bond_released_by_name: string | null;
 };

@@ -6,6 +6,7 @@ import { tenantToday } from "@/lib/tenantClock";
 import { opportunityStages } from "@/lib/sales/opportunity";
 import { tenderStages } from "@/lib/tender/rules";
 import { tenderForDeal } from "@/lib/tender/server";
+import { buildApprovalView } from "@/lib/tender/approvalServer";
 import type { TenderView } from "@/lib/tender/views";
 import { tenantTimezone } from "@/lib/tenantClock";
 import { loadActorNames } from "@/lib/actorNames";
@@ -45,10 +46,11 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
   const tender = await tenderForDeal(admin, tenantId, tenant?.features, id);
   let tenderTab: TenderTabData | null = null;
   if (tender) {
-    const [names, timezone, { data: allAccounts }] = await Promise.all([
-      loadActorNames(admin, tenantId, [tender.decided_by]),
+    const [names, timezone, { data: allAccounts }, approval] = await Promise.all([
+      loadActorNames(admin, tenantId, [tender.decided_by, tender.bond_released_by]),
       tenantTimezone(tenantId),
       admin.from("accounts").select("id, name").eq("tenant_id", tenantId).order("name"),
+      buildApprovalView(admin, { tenantId, userId, config: tenant?.config, deal: opp, tender, opportunityId: id }),
     ]);
     const view: TenderView = {
       tender_no: tender.tender_no, issuer_name: tender.issuer_name, issuer_account_id: tender.issuer_account_id, portal: tender.portal,
@@ -56,8 +58,10 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
       bid_bond_expiry: tender.bid_bond_expiry, addenda_count: tender.addenda_count, decision: tender.decision,
       decision_reason: tender.decision_reason, decided_by_name: tender.decided_by ? names.get(tender.decided_by) ?? null : null,
       decided_at: tender.decided_at, source_email_id: tender.source_email_id,
+      bond_status: tender.bond_status, bond_released_at: tender.bond_released_at,
+      bond_released_by_name: tender.bond_released_by ? names.get(tender.bond_released_by) ?? null : null,
     };
-    tenderTab = { view, accounts: (allAccounts ?? []) as { id: string; name: string }[], nowIso: new Date().toISOString(), timezone };
+    tenderTab = { view, approval, accounts: (allAccounts ?? []) as { id: string; name: string }[], nowIso: new Date().toISOString(), timezone };
   }
 
   // RFQ (0128): ask suppliers about this deal's lines; only with the module.

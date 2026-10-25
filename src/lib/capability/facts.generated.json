@@ -234,7 +234,7 @@
     },
     {
       "key": "deal_room",
-      "comment": "The Deal Room (slice 2 of the same design): one room per tender deal for the team and, in a separate channel, the client."
+      "comment": "The Deal Room (slice 2 of the same design): one internal room per tender deal where colleagues discuss the bid (messages, files, questions, decisions)."
     }
   ],
   "extensionHooks": [
@@ -579,7 +579,9 @@
       "rules": [
         "A tender is an ordinary deal plus a tender block; the Deals tab and board never show it, and the Tenders tab never shows a standard deal.",
         "Tender stages are Received, Bid/No-bid, Estimating, Submitted, Clarifications, then Awarded, Lost or No-bid, which close the deal as won, lost or dropped.",
-        "A no-go decision needs a reason; the person and the time are recorded by the system, not typed.",
+        "A team member proposes go or no-go with a reason and a manager approves or rejects it with a comment; the tender cannot leave Bid/No-bid for Estimating without an approved go, nor go to No-bid without an approved no-go, and the system records who and when.",
+        "Approvers are chosen in Settings, Tenders (workspace admins by default); the proposer cannot approve their own proposal unless the workspace allows it.",
+        "A bid bond is held until someone releases it; a released bond stops the expiry warning and the bond line in reminders.",
         "The owner and team are emailed 7, 3 and 1 days before the closing date and on the day, once each, until the bid is submitted.",
         "The flag is set by a platform admin; a workspace without it sees no new tab, menu entry or screen, and standard deals behave exactly as before."
       ]

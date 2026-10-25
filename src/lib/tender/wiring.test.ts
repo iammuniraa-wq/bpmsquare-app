@@ -21,7 +21,6 @@ describe("the flags", () => {
   it("gcc_tender and deal_room are platform-admin modules, default off, in the editor and the new-tenant form", () => {
     expect(read("src/lib/constants.ts")).toMatch(/gcc_tender: boolean;/);
     expect(read("src/lib/constants.ts")).toMatch(/deal_room: boolean;/);
-    expect(read("src/lib/constants.ts")).toMatch(/DECLARED NOW, USED IN SLICE 2/);
     const editor = read("src/app/admin/tenants/[id]/TenantEditor.tsx");
     expect(editor).toMatch(/key: "gcc_tender"/);
     expect(editor).toMatch(/key: "deal_room"/);
@@ -125,7 +124,7 @@ describe("the standard flow does not know the edition exists", () => {
   });
 
   it("the tender routes never read the tenant from the request", () => {
-    for (const f of ["src/app/api/opportunities/tender/route.ts", "src/app/api/opportunities/[id]/tender/route.ts", "src/app/api/opportunities/[id]/tender/decision/route.ts"]) {
+    for (const f of ["src/app/api/opportunities/tender/route.ts", "src/app/api/opportunities/[id]/tender/route.ts", "src/app/api/opportunities/[id]/tender/approval/route.ts", "src/app/api/opportunities/[id]/tender/approval/[requestId]/route.ts", "src/app/api/opportunities/[id]/tender/bond/route.ts"]) {
       const src = read(f);
       expect(src, f).toMatch(/requireTenantUser\(\)/);
       expect(src, f).not.toMatch(/body\.tenant_id|searchParams\.get\("tenant/);

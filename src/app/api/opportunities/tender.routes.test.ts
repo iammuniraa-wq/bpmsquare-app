@@ -67,7 +67,7 @@ import { POST as stdPost } from "./route";
 import { PATCH as stdPatch } from "./[id]/route";
 import { POST as tenderPost } from "./tender/route";
 import { GET as tenderGet, PATCH as tenderPatch } from "./[id]/tender/route";
-import { POST as decisionPost } from "./[id]/tender/decision/route";
+import { POST as approvalPost } from "./[id]/tender/approval/route";
 
 const req = (method: string, body?: unknown) => new NextRequest(new URL("http://internal.invalid/x"), { method, headers: { "content-type": "application/json" }, body: body === undefined ? undefined : JSON.stringify(body) });
 const ctx = (id: string) => ({ params: Promise.resolve({ id }) });
@@ -141,7 +141,7 @@ describe("the standard flow with the flag OFF", () => {
     expect(res.status).toBe(404);
     expect(opps()).toHaveLength(3);
     expect(tenders()).toHaveLength(0);
-    for (const call of [() => tenderGet(req("GET"), ctx(OPP_TENDER)), () => tenderPatch(req("PATCH", { tender_no: "Z" }), ctx(OPP_TENDER)), () => decisionPost(req("POST", { decision: "go" }), ctx(OPP_TENDER))]) {
+    for (const call of [() => tenderGet(req("GET"), ctx(OPP_TENDER)), () => tenderPatch(req("PATCH", { tender_no: "Z" }), ctx(OPP_TENDER)), () => approvalPost(req("POST", { decision: "go", reason: "x" }), ctx(OPP_TENDER))]) {
       expect((await call()).status).toBe(404);
     }
   });
@@ -193,6 +193,8 @@ describe("a tender deal's stages (flag ON, tender row present)", () => {
     await stdPatch(req("PATCH", { stage: "bid_lost", loss_reason: "price" }), ctx(OPP_TENDER));
     expect(opps().find((o) => o.id === OPP_TENDER)).toMatchObject({ stage: "bid_lost", outcome: "lost", loss_reason: "price", probability: 0 });
 
+    // No-bid needs an approved no-go (slice 1b); the approval flow itself is proved in tender.approval.routes.test.ts.
+    state.db.rows("approval_requests").push({ id: "ar-1", tenant_id: T1, object_type: "opportunity_tenders", object_id: OPP_TENDER, kind: "tender_bid_decision", proposed_value: "no_go", reason: "r", requested_by: U1, status: "approved", decided_by: "boss", decided_at: "2026-10-02T00:00:00Z", created_at: "2026-10-01T00:00:00Z" });
     await stdPatch(req("PATCH", { stage: "no_bid" }), ctx(OPP_TENDER));
     expect(opps().find((o) => o.id === OPP_TENDER)).toMatchObject({ stage: "no_bid", outcome: "dropped", loss_reason: "price" });
 
@@ -372,47 +374,5 @@ describe("GET / PATCH /api/opportunities/[id]/tender", () => {
     state.db.rows("opportunity_tenders").push(tenderRow({ opportunity_id: OPP_T2, tenant_id: T2, tender_no: "T2-1" }));
     expect((await tenderPatch(req("PATCH", { portal: "excel" }), ctx(OPP_T2))).status).toBe(404);
     expect(tenders().find((r) => r.opportunity_id === OPP_T2)?.portal).toBe("ariba");
-  });
-});
-
-describe("POST /api/opportunities/[id]/tender/decision", () => {
-  beforeEach(() => {
-    state.features = { pipeline: true, gcc_tender: true };
-    state.db.rows("opportunity_tenders").push(tenderRow());
-  });
-
-  it("a no-go needs a reason", async () => {
-    const res = await decisionPost(req("POST", { decision: "no_go" }), ctx(OPP_TENDER));
-    expect(res.status).toBe(400);
-    expect((await res.json()).error).toMatch(/reason/i);
-    expect(tenders()[0].decision).toBeNull();
-  });
-
-  it("records who and when from the session and the server clock, whatever the body claims", async () => {
-    const before = Date.now();
-    const res = await decisionPost(req("POST", { decision: "no_go", reason: "Out of our scope", decided_by: "someone-else", decided_at: "2001-01-01T00:00:00Z" }), ctx(OPP_TENDER));
-    expect(res.status).toBe(200);
-    const t = tenders()[0];
-    expect(t).toMatchObject({ decision: "no_go", decision_reason: "Out of our scope", decided_by: U1 });
-    expect(Date.parse(t.decided_at as string)).toBeGreaterThanOrEqual(before);
-    const log = state.changes.find((c) => c.objectType === "opportunity_tenders")!;
-    expect(log.changes?.map((c) => c.field)).toEqual(["decision", "decision_reason"]);
-  });
-
-  it("a go needs no reason, and recording the same decision again changes and logs nothing", async () => {
-    expect((await decisionPost(req("POST", { decision: "go" }), ctx(OPP_TENDER))).status).toBe(200);
-    expect(tenders()[0]).toMatchObject({ decision: "go", decision_reason: null, decided_by: U1 });
-    const at = tenders()[0].decided_at;
-    state.changes = [];
-    state.user = { id: "u-other", email: "x@t1.test" };
-    expect((await decisionPost(req("POST", { decision: "go" }), ctx(OPP_TENDER))).status).toBe(200);
-    expect(tenders()[0]).toMatchObject({ decided_by: U1, decided_at: at });
-    expect(state.changes).toHaveLength(0);
-  });
-
-  it("refuses an unknown decision and a deal that is not a tender or not this workspace's", async () => {
-    expect((await decisionPost(req("POST", { decision: "maybe" }), ctx(OPP_TENDER))).status).toBe(400);
-    expect((await decisionPost(req("POST", { decision: "go" }), ctx(OPP_STD))).status).toBe(404);
-    expect((await decisionPost(req("POST", { decision: "go" }), ctx(OPP_T2))).status).toBe(404);
   });
 });

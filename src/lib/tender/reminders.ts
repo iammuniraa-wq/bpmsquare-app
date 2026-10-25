@@ -1,11 +1,12 @@
 import "server-only";
-import { Resend } from "resend";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { DEFAULT_WFM_CONFIG, ROUTES, tenantOrigin, type TenantConfig } from "@/lib/constants";
 import { emailOutputFor, resolveOutbound } from "@/lib/emailOutputRules";
 import { logEmail } from "@/lib/emailLog";
 import { parseSent, reminderDecision, reminderMessage, tenderIsLive } from "./rules";
 import { isMissingSchema } from "./server";
+import { bondReminderLine, parseBondStatus } from "./bond";
+import { defaultMailer, displayName, memberEmails, type TenderMailer } from "./notify";
 
 // Closing-date reminders for tender deals (docs/design/gcc-tender-deals.md section 3). Run daily by
 // /api/tenders/cron/reminders. For every workspace with the platform-admin flag `gcc_tender`, a live tender 7, 3 and 1
@@ -15,20 +16,7 @@ import { isMissingSchema } from "./server";
 // second run finds the row changed and sends nothing; if the send then fails the claim is handed back so tomorrow retries.
 // Every message goes through resolveOutbound (a demo workspace is redirect-only) and is logged in email_log (kind tender).
 
-export type ReminderMailer = {
-  send(p: { from: string; to: string[]; subject: string; text: string }): Promise<{ error?: string | null }>;
-};
-
-function defaultMailer(): ReminderMailer | null {
-  if (!process.env.RESEND_API_KEY) return null;
-  const resend = new Resend(process.env.RESEND_API_KEY);
-  return {
-    async send(p) {
-      const r = await resend.emails.send({ from: p.from, to: p.to, subject: p.subject, text: p.text });
-      return { error: r.error?.message ?? null };
-    },
-  };
-}
+export type ReminderMailer = TenderMailer;
 
 export type ReminderSummary = {
   tenants: number;
@@ -41,10 +29,9 @@ export type ReminderSummary = {
 };
 
 type TenantRow = { id: string; slug: string; name: string; is_demo: boolean | null; config: TenantConfig | null; custom_domain: string | null };
-type TenderDbRow = { opportunity_id: string; tender_no: string | null; issuer_name: string | null; closing_at: string | null; decision: string | null; reminders_sent: unknown; updated_at: string };
+type TenderDbRow = { opportunity_id: string; tender_no: string | null; issuer_name: string | null; closing_at: string | null; decision: string | null; reminders_sent: unknown; updated_at: string; bid_bond_amount?: number | string | null; bid_bond_currency?: string | null; bid_bond_expiry?: string | null; bond_status?: string | null };
 type DealRow = { id: string; ref: string | null; title: string; outcome: string; stage: string; owner_id: string | null; team: { user_id?: string }[] | null };
 
-const displayName = (s: string) => s.replace(/[<>",\r\n]/g, "").trim().slice(0, 60) || "BPMSquare";
 
 export async function sendTenderReminders(admin: SupabaseClient, deps: { now?: Date; mailer?: ReminderMailer | null } = {}): Promise<ReminderSummary> {
   const now = deps.now ?? new Date();
@@ -62,14 +49,17 @@ export async function sendTenderReminders(admin: SupabaseClient, deps: { now?: D
       const tz = t.config?.wfm?.timezone || DEFAULT_WFM_CONFIG.timezone;
       // Only tenders that have not already closed more than a day ago can be due; the rest never need loading.
       const since = new Date(now.getTime() - 2 * 86_400_000).toISOString();
-      const { data: rows, error: tErr } = await admin
-        .from("opportunity_tenders").select("opportunity_id, tender_no, issuer_name, closing_at, decision, reminders_sent, updated_at").eq("tenant_id", t.id).not("closing_at", "is", null).gte("closing_at", since);
+      const readTenders = (cols: string) => admin.from("opportunity_tenders").select(cols).eq("tenant_id", t.id).not("closing_at", "is", null).gte("closing_at", since);
+      const BASE = "opportunity_id, tender_no, issuer_name, closing_at, decision, reminders_sent, updated_at";
+      // The bond columns arrive with 0221; until then the reminders simply carry no bond line.
+      let { data: rows, error: tErr } = await readTenders(`${BASE}, bid_bond_amount, bid_bond_currency, bid_bond_expiry, bond_status`);
+      if (tErr && isMissingSchema(tErr)) ({ data: rows, error: tErr } = await readTenders(BASE));
       if (tErr) {
         if (isMissingSchema(tErr)) { out.pending_migration = true; continue; }
         out.errors.push(`${t.slug}: ${tErr.message}`);
         continue;
       }
-      const tenders = (rows ?? []) as TenderDbRow[];
+      const tenders = (rows ?? []) as unknown as TenderDbRow[];
       if (tenders.length === 0) continue;
 
       const { data: deals } = await admin
@@ -86,7 +76,7 @@ export async function sendTenderReminders(admin: SupabaseClient, deps: { now?: D
         out.considered++;
 
         const userIds = [...new Set([deal.owner_id, ...(deal.team ?? []).map((m) => m?.user_id)].filter((x): x is string => typeof x === "string" && !!x))];
-        const emails = await memberEmails(admin, t.id, userIds);
+        const emails = (await memberEmails(admin, t.id, userIds)).map((m) => m.email);
         if (emails.length === 0) { out.skipped++; continue; }
 
         // Claim first (compare-and-set on updated_at), send second.
@@ -101,6 +91,10 @@ export async function sendTenderReminders(admin: SupabaseClient, deps: { now?: D
         const msg = reminderMessage({
           title: deal.title, tenderNo: tender.tender_no, issuer: tender.issuer_name, closingAt: tender.closing_at as string,
           days: decision.days, timezone: tz, link: `${tenantOrigin(t.custom_domain)}${ROUTES.pipelineDetail(deal.id)}`,
+          bondLine: bondReminderLine({
+            bid_bond_amount: tender.bid_bond_amount == null ? null : Number(tender.bid_bond_amount), bid_bond_currency: tender.bid_bond_currency ?? null,
+            bid_bond_expiry: tender.bid_bond_expiry ?? null, bond_status: parseBondStatus(tender.bond_status),
+          }),
         });
         const routed = resolveOutbound(emailOutputFor({ is_demo: t.is_demo, config: t.config }), { to: emails, subject: msg.subject, text: msg.text });
         const label = `${deal.ref ?? ""} ${deal.title}`.trim();
@@ -128,18 +122,4 @@ export async function sendTenderReminders(admin: SupabaseClient, deps: { now?: D
     }
   }
   return out;
-}
-
-/** The login e-mail of each id that is a member of THIS workspace (an id of another workspace matches nothing). */
-async function memberEmails(admin: SupabaseClient, tenantId: string, userIds: string[]): Promise<string[]> {
-  if (userIds.length === 0) return [];
-  const { data: members } = await admin.from("tenant_users").select("user_id").eq("tenant_id", tenantId).in("user_id", userIds);
-  const ok = ((members ?? []) as { user_id: string }[]).map((m) => m.user_id);
-  const emails: string[] = [];
-  for (const id of ok) {
-    const { data } = await admin.auth.admin.getUserById(id);
-    const e = data?.user?.email;
-    if (e) emails.push(e);
-  }
-  return [...new Set(emails)];
 }

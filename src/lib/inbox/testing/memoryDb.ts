@@ -36,6 +36,8 @@ export class MemoryDb {
   };
   /** Tables that answer "does not exist" (migration pending). */
   missing = new Set<string>();
+  /** Columns that do not exist yet (a migration that adds a column is pending): a select naming one, or a write carrying one, answers 42703. */
+  missingColumns: Record<string, Set<string>> = {};
 
   constructor(seed: Record<string, Row[]> = {}) {
     for (const [t, rows] of Object.entries(seed)) this.tables[t] = rows.map((r) => ({ ...r }));
@@ -103,10 +105,12 @@ class Query implements PromiseLike<Result> {
   private single_: "single" | "maybe" | null = null;
   private returning = false;
   private touched: Row[] = [];
+  private cols: string | null = null;
 
   constructor(private db: MemoryDb, private table: string) {}
 
   select(_cols?: string, opts?: { count?: string; head?: boolean }) {
+    if (this.mode === "select" && typeof _cols === "string") this.cols = _cols;
     if (this.mode !== "select") this.returning = true;
     this.wantCount = opts?.count === "exact";
     this.head = !!opts?.head;
@@ -153,6 +157,13 @@ class Query implements PromiseLike<Result> {
 
   private run(): Result {
     if (this.db.missing.has(this.table)) return { data: null, error: { code: "42P01", message: `relation "${this.table}" does not exist` } };
+    const gone = this.db.missingColumns[this.table];
+    if (gone && gone.size > 0) {
+      const named = this.cols ? this.cols.split(",").map((x) => x.trim()) : [];
+      const written = this.payload ? (Array.isArray(this.payload) ? this.payload : [this.payload]).flatMap((r) => Object.keys(r)) : [];
+      const bad = [...named, ...written].find((c) => gone.has(c));
+      if (bad) return { data: null, error: { code: "42703", message: `column "${bad}" does not exist` } };
+    }
     const rows = this.db.rows(this.table);
     let out: Row[] = [];
 

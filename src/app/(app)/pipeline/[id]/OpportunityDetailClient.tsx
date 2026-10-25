@@ -27,6 +27,7 @@ import RecordFacts from "@/components/page/RecordFacts";
 import ClosingChip from "@/components/tender/ClosingChip";
 import { TENDER_DECISION_LABEL, tenderIsLive } from "@/lib/tender/rules";
 import type { TenderView } from "@/lib/tender/views";
+import type { ApprovalView } from "@/lib/tender/approval";
 import TenderTab from "./TenderTab";
 
 // The deal page (§4.5): the record-page look (header with one primary step and
@@ -38,7 +39,7 @@ type Member = { user_id: string; name: string | null; email: string | null };
 type Tab = "overview" | "tender" | "lines" | "quotes" | "related" | "activity";
 
 /** A tender deal's extras (GCC tender deals): its tender block and what the countdown needs. Absent for every other deal. */
-export type TenderTabData = { view: TenderView; accounts: { id: string; name: string }[]; nowIso: string; timezone: string };
+export type TenderTabData = { view: TenderView; /** null while migration 0221 is pending. */ approval: ApprovalView | null; accounts: { id: string; name: string }[]; nowIso: string; timezone: string };
 
 const fmtDate = (s: string | null | undefined) => (s ? new Date(s).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—");
 
@@ -215,7 +216,9 @@ export default function OpportunityDetailClient({ opp, accountName, contacts, in
           label: "Decision",
           value: tender.view.decision
             ? <>{TENDER_DECISION_LABEL[tender.view.decision]}<div style={{ fontSize: 11, fontWeight: 400, color: c.hint }}>{[tender.view.decided_by_name, fmtDate(tender.view.decided_at)].filter((x) => x && x !== "—").join(" · ")}</div></>
-            : <span style={{ color: c.hint, fontWeight: 400 }}>Not decided</span>,
+            : tender.approval?.pending
+              ? <>Awaiting approval<div style={{ fontSize: 11, fontWeight: 400, color: c.hint }}>{TENDER_DECISION_LABEL[tender.approval.pending.decision]} proposed</div></>
+              : <span style={{ color: c.hint, fontWeight: 400 }}>Not decided</span>,
         },
       ]
     : null;
@@ -279,7 +282,7 @@ export default function OpportunityDetailClient({ opp, accountName, contacts, in
 
       {tab === "tender" && tender && (
         <TenderTab
-          opportunityId={opp.id} tender={tender.view} accounts={tender.accounts} nowIso={tender.nowIso} timezone={tender.timezone}
+          opportunityId={opp.id} stage={opp.stage} tender={tender.view} approval={tender.approval} accounts={tender.accounts} nowIso={tender.nowIso} timezone={tender.timezone}
           finished={!tenderLive} onError={setError} onNotice={setNotice}
         />
       )}

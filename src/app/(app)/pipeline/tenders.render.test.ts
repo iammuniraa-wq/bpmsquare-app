@@ -16,6 +16,7 @@ import ClosingChip from "@/components/tender/ClosingChip";
 import { DEFAULT_OPPORTUNITY_STAGES, DEFAULT_TENDER_STAGES } from "@/lib/constants";
 import { TENDER_TIPS } from "@/lib/tender/tips";
 import type { TenderBoardRow, TenderView } from "@/lib/tender/views";
+import type { ApprovalEntry, ApprovalView } from "@/lib/tender/approval";
 
 // The tender screens render, with the right things on them and none of their explanations printed (6b). This is a server
 // render of the real components with sample rows; the layout itself (one column under 900 px) comes from the kit classes
@@ -125,10 +126,17 @@ describe("the Tender tab of a deal", () => {
     tender_no: "ARB-4400123", issuer_name: "Saudi Aramco", issuer_account_id: null, portal: "ariba", closing_at: "2026-10-30T09:00:00.000Z",
     bid_bond_amount: 96000, bid_bond_currency: "SAR", bid_bond_expiry: "2027-01-30", addenda_count: 2, decision: "go", decision_reason: null,
     decided_by_name: "A. Nasser", decided_at: "2026-10-21T08:00:00.000Z", source_email_id: null,
+    bond_status: "held", bond_released_at: null, bond_released_by_name: null,
   };
-  const out = renderToString(createElement(TenderTab, {
-    opportunityId: "o1", tender: view, accounts: [{ id: "a1", name: "Acme" }], nowIso: NOW, timezone: TZ, finished: false, onError: () => {}, onNotice: () => {},
+  const entry = (over: Partial<ApprovalEntry> = {}): ApprovalEntry => ({
+    id: "r1", decision: "go", reason: "Strong fit", status: "approved", requested_by_name: "S. Khan", requested_at: "2026-10-20T08:00:00.000Z",
+    decided_by_name: "A. Nasser", decided_at: "2026-10-21T08:00:00.000Z", comment: "Go ahead", ...over,
+  });
+  const approval = (over: Partial<ApprovalView> = {}): ApprovalView => ({ standing: null, recordedBefore: false, pending: null, canDecide: false, proposalBlocked: null, history: [], ...over });
+  const render = (v: TenderView, a: ApprovalView | null, stage = "bid_no_bid") => renderToString(createElement(TenderTab, {
+    opportunityId: "o1", stage, tender: v, approval: a, accounts: [{ id: "a1", name: "Acme" }], nowIso: NOW, timezone: TZ, finished: false, onError: () => {}, onNotice: () => {},
   }));
+  const out = render(view, approval({ standing: entry(), recordedBefore: false }));
 
   it("has the details, the bid decision and the bond as sections that open and close", () => {
     for (const title of ["Tender details", "Bid decision", "Bid bond"]) expect(out).toContain(title);
@@ -136,18 +144,53 @@ describe("the Tender tab of a deal", () => {
     expect(out).toContain('data-guide="tender.tab"');
   });
 
-  it("shows the recorded decision with who decided, and the bond as a one-line digest", () => {
-    expect(out).toContain("Go");
+  it("shows the approved decision with who approved it, and the bond as a one-line digest", () => {
+    expect(out).toContain("Approved");
     expect(out).toContain("A. Nasser");
+    expect(out).toContain("Strong fit");
     expect(out).toContain("SAR 96,000");
     expect(out).toContain("valid to 30 Jan 2027");
+    expect(out).toContain("Move to Estimating");
   });
 
-  it("offers Go and No-go as two large buttons and a Record decision button, and the countdown", () => {
-    expect(out).toContain('data-guide="tender.decision.go"');
-    expect(out).toContain('data-guide="tender.decision.no_go"');
-    expect(out).toContain('data-guide="tender.decision.save"');
-    expect(out).toContain("Closes in 5 days");
+  it("offers a proposal (Go, No-go, a reason) when none is waiting, and the countdown", () => {
+    const form = render({ ...view, decision: null }, approval());
+    expect(form).toContain('data-guide="tender.decision.propose"');
+    expect(form).toContain('data-guide="tender.decision.go"');
+    expect(form).toContain('data-guide="tender.decision.no_go"');
+    expect(form).toContain('data-guide="tender.decision.save"');
+    expect(form).toContain("Ask for approval");
+    expect(form).toContain("Closes in 5 days");
+  });
+
+  it("a waiting proposal shows Approve and Reject to an approver, and Withdraw to its proposer, never the form", () => {
+    const waiting = render({ ...view, decision: null }, approval({ pending: { ...entry({ status: "pending", decided_by_name: null, decided_at: null, comment: null }), mine: false }, canDecide: true }));
+    expect(waiting).toContain("Waiting for approval");
+    expect(waiting).toContain('data-guide="tender.decision.approve"');
+    expect(waiting).toContain('data-guide="tender.decision.reject"');
+    expect(waiting).not.toContain('data-guide="tender.decision.propose"');
+    expect(waiting).not.toContain('data-guide="tender.decision.withdraw"');
+    const mine = render({ ...view, decision: null }, approval({ pending: { ...entry({ status: "pending" }), mine: true }, canDecide: false }));
+    expect(mine).toContain('data-guide="tender.decision.withdraw"');
+    expect(mine).not.toContain('data-guide="tender.decision.approve"');
+  });
+
+  it("a decision saved before approval was required stays readable and says so", () => {
+    const legacy = render(view, approval({ recordedBefore: true }));
+    expect(legacy).toContain("Recorded before approval was required");
+    expect(legacy).not.toContain("Move to Estimating");
+  });
+
+  it("with the approval table missing it says a database update is needed", () => {
+    expect(render(view, null)).toContain("migration 0221");
+  });
+
+  it("the bond digest says released once it is, and the Release bond button is in the section", () => {
+    // The bond section starts closed (a section remembers its own state), so the digest is what the first paint shows.
+    expect(out).toContain("SAR 96,000 · valid to 30 Jan 2027");
+    const released = render({ ...view, bond_status: "released", bond_released_at: "2026-10-24T08:00:00.000Z", bond_released_by_name: "S. Khan" }, approval());
+    expect(released).toContain("SAR 96,000 · released");
+    expect(released).not.toContain("valid to 30 Jan 2027");
   });
 
   it("prints none of its explanations", () => {

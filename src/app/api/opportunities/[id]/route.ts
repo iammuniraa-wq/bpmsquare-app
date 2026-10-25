@@ -9,6 +9,8 @@ import { ownerTeamProblem } from "@/lib/sales/opportunityMembers";
 import { emitOpportunityStageChanged, emitOpportunityClosed, emitOpportunityUpdated } from "@/lib/events/emitters";
 import { stagesForDeal } from "@/lib/tender/rules";
 import { tenderForDeal } from "@/lib/tender/server";
+import { stageGuard } from "@/lib/tender/approval";
+import { standingDecision } from "@/lib/tender/approvalServer";
 
 async function guard() {
   const ctx = await requireTenantUser();
@@ -112,6 +114,13 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if (!def) return NextResponse.json({ error: `Unknown stage "${body.stage}"` }, { status: 400 });
     stage = def.value;
     patch.stage = stage;
+    // A tender deal cannot leave Bid/No-bid for the bid stages without an approved go, nor go to No-bid without an approved
+    // no-go (migration 0221). Only a deal with a tender row is asked; until 0221 is applied the guard stays off.
+    if (tender !== null && stage !== before.stage) {
+      const standing = await standingDecision(admin, tenantId, id);
+      const problem = standing.available ? stageGuard({ from: before.stage, to: stage, effective: standing.effective }) : null;
+      if (problem) return NextResponse.json({ error: problem }, { status: 409 });
+    }
   }
   let outcome = before.outcome;
   if ("outcome" in body) {

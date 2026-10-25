@@ -5,16 +5,19 @@ import { useRouter } from "next/navigation";
 import { c } from "@/lib/theme";
 import Button from "@/components/ui/Button";
 import Field from "@/components/ui/Field";
-import StatusPill from "@/components/ui/StatusPill";
-import { Input, Select, Textarea } from "@/components/ui/Input";
+import { Input, Select } from "@/components/ui/Input";
 import SettingsSection from "@/components/settings/SettingsSection";
 import ClosingChip from "@/components/tender/ClosingChip";
-import { TENDER_DECISION_LABEL, TENDER_PORTALS, TENDER_PORTAL_LABEL, type TenderDecision } from "@/lib/tender/rules";
+import InfoTip from "@/components/ui/InfoTip";
+import BondChip from "@/components/tender/BondChip";
+import { useFeel } from "@/components/FeelProvider";
+import { TENDER_DECISION_LABEL, TENDER_PORTALS, TENDER_PORTAL_LABEL } from "@/lib/tender/rules";
+import type { ApprovalView } from "@/lib/tender/approval";
+import BidDecision from "./BidDecision";
 import { TENDER_TIPS } from "@/lib/tender/tips";
 import type { TenderView } from "@/lib/tender/views";
 
 const fmtDate = (s: string | null | undefined) => (s ? new Date(s).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "");
-const fmtStamp = (s: string | null | undefined) => (s ? new Date(s).toLocaleString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "");
 
 /** A timestamptz as the value of a datetime-local input, in the browser's own zone. */
 function toLocalInput(iso: string | null): string {
@@ -31,11 +34,14 @@ const money = (amount: number | null, currency: string | null) =>
 /**
  * The Tender tab of a tender deal: the tender details, the recorded bid / no-bid decision and the bid bond, each a section
  * that opens and closes and remembers its state. Saves go to /api/opportunities/[id]/tender (an explicit field list) and
- * /api/opportunities/[id]/tender/decision (reason required for a no-go; who and when are the server's, not this form's).
+ * /api/opportunities/[id]/tender/approval (BidDecision) and .../tender/bond (release); who and when are the server's, not this form's.
  */
-export default function TenderTab({ opportunityId, tender, accounts, nowIso, timezone, finished, onError, onNotice }: {
+export default function TenderTab({ opportunityId, stage, tender, approval, accounts, nowIso, timezone, finished, onError, onNotice }: {
   opportunityId: string;
+  stage: string;
   tender: TenderView;
+  /** null while migration 0221 is pending. */
+  approval: ApprovalView | null;
   accounts: { id: string; name: string }[];
   nowIso: string;
   timezone: string;
@@ -52,8 +58,7 @@ export default function TenderTab({ opportunityId, tender, accounts, nowIso, tim
     bid_bond_amount: tender.bid_bond_amount != null ? String(tender.bid_bond_amount) : "", bid_bond_currency: tender.bid_bond_currency ?? "",
     bid_bond_expiry: tender.bid_bond_expiry ?? "",
   });
-  const [decision, setDecision] = useState<TenderDecision | null>(tender.decision);
-  const [reason, setReason] = useState(tender.decision_reason ?? "");
+  const { confirm } = useFeel();
 
   // The browser's own zone is only known after mount; reading it during render would make the server and client pages differ.
   useEffect(() => { setForm((f) => ({ ...f, closing_at: toLocalInput(tender.closing_at) })); }, [tender.closing_at]);
@@ -78,23 +83,27 @@ export default function TenderTab({ opportunityId, tender, accounts, nowIso, tim
     });
   }
 
-  function saveDecision() {
-    if (!decision) { onError("Choose Go or No-go"); return; }
+  async function releaseBond() {
+    if (!(await confirm({ title: "Release the bid bond?", body: "Do this once the issuer has handed the bond back. The expiry warning and the bond lines in reminders stop.", confirmLabel: "Release bond" }))) return;
     startTransition(async () => {
       onError(""); onNotice("");
-      const res = await fetch(`/api/opportunities/${opportunityId}/tender/decision`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ decision, reason }) });
+      const res = await fetch(`/api/opportunities/${opportunityId}/tender/bond`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "release" }) });
       const j = await res.json().catch(() => ({}));
-      if (!res.ok) { onError(j.error ?? "Could not save the decision"); return; }
-      onNotice("Decision recorded");
+      if (!res.ok) { onError(j.error ?? "Could not release the bond"); return; }
+      onNotice("Bond released");
       router.refresh();
     });
   }
 
   const bondSummary = tender.bid_bond_amount != null
-    ? `${money(tender.bid_bond_amount, tender.bid_bond_currency)}${tender.bid_bond_expiry ? ` · valid to ${fmtDate(tender.bid_bond_expiry)}` : ""}`
+    ? `${money(tender.bid_bond_amount, tender.bid_bond_currency)}${tender.bond_status === "released" ? " · released" : tender.bid_bond_expiry ? ` · valid to ${fmtDate(tender.bid_bond_expiry)}` : ""}`
     : "No bond recorded";
-  const decisionSummary = tender.decision ? `${TENDER_DECISION_LABEL[tender.decision]}${tender.decided_by_name ? ` · ${tender.decided_by_name}` : ""}` : "Not decided yet";
-  const decisionDirty = decision !== tender.decision || (reason.trim() || "") !== (tender.decision_reason ?? "");
+  const decisionSummary = approval?.pending
+    ? "Waiting for approval"
+    : tender.decision
+      ? `${TENDER_DECISION_LABEL[tender.decision]}${tender.decided_by_name ? ` · ${tender.decided_by_name}` : ""}${approval?.standing ? "" : " · before approval"}`
+      : "Not decided yet";
+  const bondHeld = tender.bond_status !== "released" && (tender.bid_bond_amount != null || !!tender.bid_bond_expiry);
 
   return (
     <div data-guide="tender.tab" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
@@ -135,29 +144,7 @@ export default function TenderTab({ opportunityId, tender, accounts, nowIso, tim
       </SettingsSection>
 
       <SettingsSection id="tender.decision" title="Bid decision" info={TENDER_TIPS.decision} summary={decisionSummary} defaultOpen>
-        <div data-guide="tender.decision" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          {tender.decision && (
-            <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", fontSize: 12.5, color: c.muted }}>
-              <StatusPill label={TENDER_DECISION_LABEL[tender.decision]} tone={tender.decision === "go" ? "green" : "red"} />
-              <span>{[tender.decided_by_name, fmtStamp(tender.decided_at)].filter(Boolean).join(" · ")}</span>
-            </div>
-          )}
-          <div role="group" aria-label="Decision" style={{ display: "flex", gap: 8 }}>
-            {(["go", "no_go"] as const).map((d) => (
-              <Button
-                key={d} type="button" variant={decision === d ? "primary" : "secondary"} aria-pressed={decision === d}
-                data-guide={d === "go" ? "tender.decision.go" : "tender.decision.no_go"} style={{ flex: 1, minHeight: 44 }}
-                onClick={() => setDecision(d)}
-              >{TENDER_DECISION_LABEL[d]}</Button>
-            ))}
-          </div>
-          <Field label={decision === "no_go" ? "Reason (required)" : "Reason"} guide="tender.decision.reason">
-            <Textarea value={reason} onChange={(e) => setReason(e.target.value)} maxLength={1000} style={{ minHeight: 70 }} />
-          </Field>
-          <div>
-            <Button variant="primary" loading={pending} disabled={!decisionDirty || !decision} data-guide="tender.decision.save" onClick={saveDecision}>Record decision</Button>
-          </div>
-        </div>
+        <BidDecision opportunityId={opportunityId} stage={stage} tender={tender} approval={approval} onError={onError} onNotice={onNotice} />
       </SettingsSection>
 
       <SettingsSection id="tender.bond" title="Bid bond" info={TENDER_TIPS.bond} summary={bondSummary}>
@@ -166,7 +153,14 @@ export default function TenderTab({ opportunityId, tender, accounts, nowIso, tim
           <Field label="Currency" guide="tender.field.bond_currency"><Input value={form.bid_bond_currency} onChange={set("bid_bond_currency")} maxLength={3} placeholder="SAR" style={{ textTransform: "uppercase" }} /></Field>
           <Field label="Valid until" guide="tender.field.bond_expiry"><Input type="date" value={form.bid_bond_expiry} onChange={set("bid_bond_expiry")} /></Field>
         </div>
-        <Button variant="primary" loading={pending} data-guide="tender.bond.save" onClick={() => save(["bid_bond_amount", "bid_bond_currency", "bid_bond_expiry"], "Bid bond saved")}>Save</Button>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+          <Button variant="primary" loading={pending} data-guide="tender.bond.save" onClick={() => save(["bid_bond_amount", "bid_bond_currency", "bid_bond_expiry"], "Bid bond saved")}>Save</Button>
+          {bondHeld && <><Button variant="secondary" loading={pending} data-guide="tender.bond.release" style={{ minHeight: 44 }} onClick={releaseBond}>Release bond</Button><InfoTip label="Release bond">{TENDER_TIPS.bondRelease}</InfoTip></>}
+          <BondChip amount={tender.bid_bond_amount} expiry={tender.bid_bond_expiry} status={tender.bond_status} nowIso={nowIso} timezone={timezone} />
+          {tender.bond_status === "released" && tender.bond_released_at && (
+            <span style={{ fontSize: 12, color: "var(--muted)" }}>{[tender.bond_released_by_name, fmtDate(tender.bond_released_at)].filter(Boolean).join(" · ")}</span>
+          )}
+        </div>
       </SettingsSection>
     </div>
   );

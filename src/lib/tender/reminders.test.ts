@@ -145,4 +145,29 @@ describe("closing-date reminders", () => {
     expect(r.errors).toEqual([]);
     expect(sent).toEqual([]);
   });
+
+  describe("the bid bond line (migration 0221)", () => {
+    const bond = { bid_bond_amount: 96000, bid_bond_currency: "SAR", bid_bond_expiry: "2027-01-30" };
+
+    it("a held bond is mentioned in the reminder", async () => {
+      Object.assign(db.rows("opportunity_tenders")[0], bond, { bond_status: "held" });
+      await run("2026-10-23T05:00:00Z");
+      expect(sent[0].text).toContain("Bid bond: SAR 96,000, valid to 2027-01-30");
+    });
+
+    it("a released bond is not mentioned", async () => {
+      Object.assign(db.rows("opportunity_tenders")[0], bond, { bond_status: "released" });
+      await run("2026-10-23T05:00:00Z");
+      expect(sent).toHaveLength(1);
+      expect(sent[0].text).not.toContain("Bid bond");
+    });
+
+    it("while the bond columns are pending the reminder still goes, without a bond line", async () => {
+      // A database without the columns has no such data in the row either.
+      db.missingColumns.opportunity_tenders = new Set(["bond_status", "bid_bond_amount", "bid_bond_currency", "bid_bond_expiry"]);
+      const r = await run("2026-10-23T05:00:00Z");
+      expect(r).toMatchObject({ sent: 1, failed: 0, errors: [] });
+      expect(sent[0].text).not.toContain("Bid bond");
+    });
+  });
 });

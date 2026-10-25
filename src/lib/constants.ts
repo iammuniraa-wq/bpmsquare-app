@@ -132,6 +132,7 @@ export const ROUTES = {
   salesOrderNew: "/sales-orders/new",
   salesOrderPrint: (id: string) => `/sales-orders/${id}/print`,
   settingsOrderTypes: "/settings/order-types",
+  settingsTenders: "/settings/tenders",
   employees: "/employees",
   configPricing: "/settings/pricing",
   settingsNumberRanges: "/settings/number-ranges",
@@ -769,8 +770,9 @@ export type TenantFeatures = {
   // default OFF, missing key reads false; with it off every standard path (deal create, board, stage change, Inbox menu,
   // nav) behaves exactly as before. Needs `pipeline`.
   gcc_tender: boolean;
-  // The Deal Room (slice 2 of the same design): one room per tender deal for the team and, in a separate channel, the
-  // client. DECLARED NOW, USED IN SLICE 2: nothing reads this flag yet. Platform-admin-only, default OFF; needs gcc_tender.
+  // The Deal Room (slice 2 of the same design): one internal room per tender deal where colleagues discuss the bid (messages,
+  // files, questions, decisions). Internal workspace members only (design section 10). Platform-admin-only, default OFF;
+  // needs gcc_tender.
   deal_room: boolean;
 };
 
@@ -1214,6 +1216,10 @@ export const LOSS_REASON_LABEL: Record<LossReason, string> = {
 export type TenantConfig = {
   entities: TenantEntity[];
   tax: TenantTaxConfig;
+  // GCC tender deals (slice 1b): who may approve a bid / no-bid proposal. `approvers` are user ids chosen in Settings ->
+  // Tenders; absent or empty = every workspace admin. `allow_self_approval` (default off) lets a proposer approve their own
+  // proposal, for a one-admin workspace. Read through src/lib/tender/approval.ts, never directly.
+  tender?: { approvers?: string[]; allow_self_approval?: boolean };
   // E-invoicing scheme of the workspace (Region pack switch until the pack framework exists, einvoicing_ksa flag).
   // `scheme: null` switches the feature off even with the flag on; an absent key with the flag on means ksa_zatca.
   // `default_doc_type` is what a buyer without a VAT number gets (default simplified).

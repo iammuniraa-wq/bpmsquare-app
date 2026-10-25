@@ -142,7 +142,7 @@ export function reminderDecision(args: { closingAt: string | null | undefined; n
 }
 
 /** The wording of one reminder. Plain text; the deal title and issuer are the workspace's own data, never HTML. */
-export function reminderMessage(args: { title: string; tenderNo: string | null; issuer: string | null; closingAt: string; days: number; timezone: string; link: string | null }): { subject: string; text: string } {
+export function reminderMessage(args: { title: string; tenderNo: string | null; issuer: string | null; closingAt: string; days: number; timezone: string; link: string | null; bondLine?: string | null }): { subject: string; text: string } {
   const when = args.days === 0 ? "today" : args.days === 1 ? "tomorrow" : `in ${args.days} days`;
   const what = [args.tenderNo, args.issuer].filter(Boolean).join(" · ") || args.title;
   let at = args.closingAt;
@@ -154,6 +154,7 @@ export function reminderMessage(args: { title: string; tenderNo: string | null; 
     `The tender "${args.title}" closes ${when} (${at}).`,
     args.issuer ? `Issuer: ${args.issuer}` : "",
     args.tenderNo ? `Tender no.: ${args.tenderNo}` : "",
+    args.bondLine ?? "",
     args.link ? `Open the deal: ${args.link}` : "",
     "You are receiving this because you own this deal or are on its team.",
   ].filter(Boolean).join("\n");

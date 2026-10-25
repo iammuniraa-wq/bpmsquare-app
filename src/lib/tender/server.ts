@@ -2,6 +2,7 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { DEFAULT_TENDER_STAGES, type TenantFeatures } from "@/lib/constants";
 import { parseSent, type TenderDecision, type TenderFields } from "./rules";
+import { parseBondStatus, type BondStatus } from "./bond";
 
 // Server-side helpers for tender deals (migration 0220). Every query is tenant-scoped on the admin client
 // (MULTI_TENANT_GUARDRAILS.md) and every one tolerates the migration being pending: a missing table or column reads as
@@ -19,12 +20,27 @@ export type TenderRow = TenderFields & {
   source_email_id: string | null;
   custom_data: Record<string, unknown> | null;
   reminders_sent: number[];
+  /** 0221: held until released. Reads "held" while that migration is pending. */
+  bond_status: BondStatus;
+  bond_released_at: string | null;
+  bond_released_by: string | null;
   created_at: string;
   updated_at: string;
 };
 
-export const TENDER_COLUMNS =
+// The columns slice 1 (0220) created, and the three the bond adds (0221). Reads ask for both and fall back to the first
+// when the second migration is still pending, so a half-applied database never makes a tender disappear.
+export const TENDER_COLUMNS_BASE =
   "opportunity_id, tenant_id, deal_type_id, tender_no, issuer_name, issuer_account_id, portal, closing_at, bid_bond_amount, bid_bond_currency, bid_bond_expiry, addenda_count, decision, decision_reason, decided_by, decided_at, source_email_id, custom_data, reminders_sent, created_at, updated_at";
+export const BOND_COLUMNS = "bond_status, bond_released_at, bond_released_by";
+export const TENDER_COLUMNS = `${TENDER_COLUMNS_BASE}, ${BOND_COLUMNS}`;
+
+/** Run a tender read with the full column list, then without the 0221 columns if they are not there yet. */
+async function withBondFallback<T>(run: (columns: string) => PromiseLike<{ data: T | null; error: { code?: string; message?: string } | null }>): Promise<{ data: T | null; error: { code?: string; message?: string } | null }> {
+  const first = await run(TENDER_COLUMNS);
+  if (first.error && isMissingSchema(first.error)) return run(TENDER_COLUMNS_BASE);
+  return first;
+}
 
 /** The flag, read from a features object. Missing key = off. */
 export const tenderEnabled = (features: Partial<TenantFeatures> | null | undefined): boolean =>
@@ -43,12 +59,15 @@ function normalise(r: Record<string, unknown>): TenderRow {
     closing_at: typeof r.closing_at === "string" && !Number.isNaN(Date.parse(r.closing_at)) ? new Date(r.closing_at).toISOString() : null,
     bid_bond_amount: r.bid_bond_amount == null ? null : Number(r.bid_bond_amount),
     reminders_sent: parseSent(r.reminders_sent),
+    bond_status: parseBondStatus(r.bond_status),
+    bond_released_at: typeof r.bond_released_at === "string" ? r.bond_released_at : null,
+    bond_released_by: typeof r.bond_released_by === "string" ? r.bond_released_by : null,
   };
 }
 
 /** One deal's tender row, or null (no row, no table, no column). */
 export async function loadTender(admin: SupabaseClient, tenantId: string, opportunityId: string): Promise<TenderRow | null> {
-  const { data, error } = await admin.from("opportunity_tenders").select(TENDER_COLUMNS).eq("opportunity_id", opportunityId).eq("tenant_id", tenantId).maybeSingle();
+  const { data, error } = await withBondFallback((cols) => admin.from("opportunity_tenders").select(cols).eq("opportunity_id", opportunityId).eq("tenant_id", tenantId).maybeSingle());
   if (error || !data) return null;
   return normalise(data as Record<string, unknown>);
 }
@@ -64,9 +83,9 @@ export async function tenderForDeal(admin: SupabaseClient, tenantId: string, fea
 
 /** Every tender row of a workspace; `pending` is true when migration 0220 has not been applied. */
 export async function listTenders(admin: SupabaseClient, tenantId: string): Promise<{ rows: TenderRow[]; pending: boolean }> {
-  const { data, error } = await admin.from("opportunity_tenders").select(TENDER_COLUMNS).eq("tenant_id", tenantId).limit(2000);
+  const { data, error } = await withBondFallback((cols) => admin.from("opportunity_tenders").select(cols).eq("tenant_id", tenantId).limit(2000));
   if (error) return { rows: [], pending: isMissingSchema(error) };
-  return { rows: ((data ?? []) as Record<string, unknown>[]).map(normalise), pending: false };
+  return { rows: ((data ?? []) as unknown as Record<string, unknown>[]).map(normalise), pending: false };
 }
 
 /** Is the table there? A cheap probe used before a create so a pending migration answers 503 instead of leaving a half-made deal. */

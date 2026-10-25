@@ -92,6 +92,7 @@ export const OBJECT_FEATURE: Record<string, keyof TenantFeatures | null> = {
   opportunity_tenders: "gcc_tender",
   deal_types: "gcc_tender",
   tenders: "gcc_tender",
+  approval_requests: "gcc_tender",
   pricing: "pricing_engine",
   products: "products",
   // BOM components (0133) are lines of a product: the Products module owns them.
