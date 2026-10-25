@@ -120,6 +120,7 @@ export const DEFERRED: Record<string, string> = {
   "standard-quotes": "needs line items and pricing; the quote screens stay the way in",
   "sales-orders": "made from an accepted quote or a won deal with its lines and prices copied; Create sales order on the quote stays the way in, and the assistant reads orders through Talk to data",
   "sales-order-types": "settings for Sales Orders",
+  "contract-projects": "made from an awarded tender with its lines and costs copied, and its budget is approved by a manager; Create contract project on the awarded deal stays the way in, and the assistant reads projects (header and totals only) through Talk to data",
   suppliers: "next in line; same shape as accounts",
   technicians: "linked to a login and skills; set up from the Technicians screen",
   // Marketing and studios: configuration-heavy, not a typed record.

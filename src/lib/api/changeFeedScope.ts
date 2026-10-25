@@ -29,6 +29,8 @@ const SCOPE_FOR_TYPE: Record<string, string> = {
   opportunities: "opportunities",
   // Tender block of a deal (0220): bid decisions and bond amounts are sensitive, so the "tenders" scope, never the wildcard.
   opportunity_tenders: "tenders",
+  // Contract projects (0226): budget totals and margin are internal cost, so the explicit "contract_projects" scope, never the wildcard.
+  contract_projects: "contract_projects",
   wfm_projects: "projects",
   abm_programs: "abm_programs", abm_program: "abm_programs",
   abm_target_accounts: "abm_targets", abm_buying_group_members: "abm_targets", abm_target: "abm_targets",

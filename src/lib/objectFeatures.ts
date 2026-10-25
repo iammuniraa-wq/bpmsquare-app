@@ -101,6 +101,13 @@ export const OBJECT_FEATURE: Record<string, keyof TenantFeatures | null> = {
   deal_room_members: "deal_room",
   deal_room_messages: "deal_room",
   deal_room_files: "deal_room",
+  // Contract projects (0226, slice 5a): the project a won tender becomes, its budget revisions and lines, and the ERP code lists
+  // (resource levels, cost codes, justifications) that budget lines use. In-app routes only: the budget is internal cost.
+  contract_projects: "contract_projects",
+  "contract-projects": "contract_projects",
+  project_budget_revisions: "contract_projects",
+  project_budget_lines: "contract_projects",
+  erp_masters: "contract_projects",
   pricing: "pricing_engine",
   products: "products",
   // BOM components (0133) are lines of a product: the Products module owns them.

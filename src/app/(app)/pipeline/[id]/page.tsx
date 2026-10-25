@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { requireFeature, getTenant, getUserRole } from "@/lib/tenant";
-import { requireWorkcenterView, resolvePermissions, canEditWorkcenter } from "@/lib/permissions";
+import { requireWorkcenterView, resolvePermissions, canEditWorkcenter, canViewWorkcenter } from "@/lib/permissions";
 import { requireTenantUser, createAdminSupabase } from "@/lib/supabase-server";
 import { tenantToday } from "@/lib/tenantClock";
 import { opportunityStages } from "@/lib/sales/opportunity";
@@ -23,6 +23,7 @@ import { tenderRfqLines } from "@/lib/tender/rfqLines";
 import { boqOrderedLines } from "@/lib/tender/boq/lineSync";
 import { linesVersion } from "@/lib/sales/dealLines";
 import { rfqLineStatuses } from "@/lib/rfq/server";
+import { loadProjectBySource } from "@/lib/contractProjects/server";
 
 export default async function OpportunityDetailPage({ params }: { params: Promise<{ id: string }> }) {
   await requireWorkcenterView("pipeline");
@@ -73,6 +74,16 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
     tenderTab = { view, approval, boqEdit, room: room ? { pending: room.pending, unread: room.unread, openQuestions: room.openQuestions, isAdmin: role === "admin" } : null, accounts: (allAccounts ?? []) as { id: string; name: string }[], nowIso: new Date().toISOString(), timezone };
   }
 
+  // Contract projects (slice 5a): only for a tender, and only in a workspace with the module (otherwise no query at all).
+  let contractProject: { existing: { id: string; ref: string | null } | null; canCreate: boolean } | null = null;
+  if (tender && tenant?.features?.contract_projects === true) {
+    const perms = await resolvePermissions(supabase, tenantId, userId, role === "admin" ? "admin" : "member");
+    contractProject = {
+      existing: await loadProjectBySource(admin, tenantId, id),
+      canCreate: opp.stage === "awarded" && opp.outcome === "won" && canViewWorkcenter(perms, "contract_projects") && canEditWorkcenter(perms, "contract_projects"),
+    };
+  }
+
   // RFQ (0128): ask suppliers about this deal's lines; only with the module.
   const rfqOn = tenant?.features?.rfq === true;
   const rfqStatus = rfqOn
@@ -106,6 +117,7 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
       ) : undefined}
       activity={<RecordActivity objectType="opportunities" objectId={id} extraChangeLogTypes={tender ? ["opportunity_tenders"] : undefined} isAdmin={role === "admin"} />}
       tender={tenderTab}
+      contractProject={contractProject}
       tenderRfq={tender && rfqOn ? { originLabel: `Deal ${opp.ref ?? opp.title}${account?.name ? ` for ${account.name}` : ""}`, lines: tenderRfqLines(lines as unknown as Parameters<typeof rfqPrefill>[0], (rl) => rfqStatus[rl]?.ref ?? null) } : null}
       sourceEmail={tender ? <SourceEmailSlot objectType="opportunities" objectId={id} /> : undefined}
     />
