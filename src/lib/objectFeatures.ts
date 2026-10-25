@@ -93,6 +93,9 @@ export const OBJECT_FEATURE: Record<string, keyof TenantFeatures | null> = {
   deal_types: "gcc_tender",
   tenders: "gcc_tender",
   approval_requests: "gcc_tender",
+  // The tender BOQ (0223): the client's workbook and the per-line price source of a tender deal.
+  tender_boq_sources: "gcc_tender",
+  tender_boq_lines: "gcc_tender",
   // The Deal Room (0222): internal only, behind its own platform-admin flag.
   deal_rooms: "deal_room",
   deal_room_members: "deal_room",

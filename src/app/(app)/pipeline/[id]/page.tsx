@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { requireFeature, getTenant, getUserRole } from "@/lib/tenant";
-import { requireWorkcenterView } from "@/lib/permissions";
+import { requireWorkcenterView, resolvePermissions, canEditWorkcenter } from "@/lib/permissions";
 import { requireTenantUser, createAdminSupabase } from "@/lib/supabase-server";
 import { tenantToday } from "@/lib/tenantClock";
 import { opportunityStages } from "@/lib/sales/opportunity";
@@ -65,7 +65,8 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
       bond_status: tender.bond_status, bond_released_at: tender.bond_released_at,
       bond_released_by_name: tender.bond_released_by ? names.get(tender.bond_released_by) ?? null : null,
     };
-    tenderTab = { view, approval, room: room ? { pending: room.pending, unread: room.unread, openQuestions: room.openQuestions, isAdmin: role === "admin" } : null, accounts: (allAccounts ?? []) as { id: string; name: string }[], nowIso: new Date().toISOString(), timezone };
+    const boqEdit = canEditWorkcenter(await resolvePermissions(supabase, tenantId, userId, role === "admin" ? "admin" : "member"), "pipeline");
+    tenderTab = { view, approval, boqEdit, room: room ? { pending: room.pending, unread: room.unread, openQuestions: room.openQuestions, isAdmin: role === "admin" } : null, accounts: (allAccounts ?? []) as { id: string; name: string }[], nowIso: new Date().toISOString(), timezone };
   }
 
   // RFQ (0128): ask suppliers about this deal's lines; only with the module.
