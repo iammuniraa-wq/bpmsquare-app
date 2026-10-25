@@ -30,6 +30,7 @@ import type { TenderView } from "@/lib/tender/views";
 import type { ApprovalView } from "@/lib/tender/approval";
 import TenderTab from "./TenderTab";
 import DealRoom from "@/components/tender/DealRoom";
+import BoqTab from "@/components/tender/BoqTab";
 
 // The deal page (§4.5): the record-page look (header with one primary step and
 // the "..." menu, facts, tabs) built client-side, because the Lines editor and
@@ -37,13 +38,16 @@ import DealRoom from "@/components/tender/DealRoom";
 // are state, not ?tab=. Tabs: Overview · Lines · Quotes · Related · Activity.
 
 type Member = { user_id: string; name: string | null; email: string | null };
-type Tab = "overview" | "tender" | "room" | "lines" | "quotes" | "related" | "activity";
+type Tab = "overview" | "tender" | "room" | "boq" | "lines" | "quotes" | "related" | "activity";
 
 /** A tender deal's extras (GCC tender deals): its tender block and what the countdown needs. Absent for every other deal. */
 export type TenderTabData = {
   view: TenderView;
   /** The Deal Room, when the workspace has the deal_room flag: its unread and open-question counts. null = no room on this workspace. */
-  room: { pending: boolean; unread: number; openQuestions: number; isAdmin: boolean } | null; /** null while migration 0221 is pending. */ approval: ApprovalView | null; accounts: { id: string; name: string }[]; nowIso: string; timezone: string;
+  room: { pending: boolean; unread: number; openQuestions: number; isAdmin: boolean } | null;
+  /** The caller may change the BOQ (edit access to the Pipeline). Absent = yes; the server decides anyway. */
+  boqEdit?: boolean;
+  /** null while migration 0221 is pending. */ approval: ApprovalView | null; accounts: { id: string; name: string }[]; nowIso: string; timezone: string;
 };
 
 const fmtDate = (s: string | null | undefined) => (s ? new Date(s).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—");
@@ -215,6 +219,7 @@ export default function OpportunityDetailClient({ opp, accountName, contacts, in
     { id: "overview", label: "Overview" },
     ...(tender ? [{ id: "tender" as Tab, label: "Tender" }] : []),
     ...(tender?.room ? [{ id: "room" as Tab, label: "Room", count: tab === "room" ? 0 : roomUnread }] : []),
+    ...(tender ? [{ id: "boq" as Tab, label: "BOQ" }] : []),
     { id: "lines", label: linesDirty ? "Lines •" : "Lines", count: lineCount },
     { id: "quotes", label: "Quotes", count: quotes.length },
     ...(related ? [{ id: "related" as Tab, label: "Related" }] : []),
@@ -321,6 +326,7 @@ export default function OpportunityDetailClient({ opp, accountName, contacts, in
           />
         )
       )}
+      {tab === "boq" && tender && <BoqTab opportunityId={opp.id} canEdit={tender.boqEdit !== false} onError={setError} onNotice={setNotice} />}
       {tab === "tender" && tender && sourceEmail}
 
       {tab === "overview" && (

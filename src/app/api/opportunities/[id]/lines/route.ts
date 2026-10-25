@@ -61,6 +61,8 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
   });
   const cleanLines = resolveLineIdsAndSelection(withAmounts);
   const beforeLines = await loadOpportunityLines(admin, tenantId, id);
+  // This editor keeps at most 200 lines. A deal that already has more (a tender BOQ) must not be saved here, or the rest would be deleted.
+  if (beforeLines.length > 200) return NextResponse.json({ error: `This deal has ${beforeLines.length} lines, more than this editor can save (200). Change them on the BOQ tab.` }, { status: 409 });
 
   const { error: dErr } = await admin.from("opportunity_lines").delete().eq("opportunity_id", id).eq("tenant_id", tenantId);
   if (dErr) return NextResponse.json({ error: dErr.message }, { status: 500 });

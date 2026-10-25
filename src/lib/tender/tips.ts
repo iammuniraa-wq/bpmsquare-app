@@ -24,6 +24,18 @@ export const TENDER_TIPS = {
   roomMembers: "The owner and team are added automatically. Members see an unread count and get an email summary, at most every 15 minutes.",
   roomFiles: "Attach PDF, Office, DXF, CSV, text or picture files: up to 5 per message and 15 MB each.",
   roomQuestionsLink: "Open questions in the Deal Room for this tender. Open the room to answer them.",
+  priceValidity: "A supplier or past-project price older than this many days is marked stale and never applied automatically. You can still choose it knowingly.",
+  boqTab: "The client's BOQ as deal lines. Upload their Excel, price each line, then download their own file back with your rates in it.",
+  boqUpload: "Upload the client's .xlsx, up to 15 MB. The first sheet that looks like a BOQ is read; pick another sheet if it is not the right one.",
+  boqMapping: "Pick the column for each field. The item number and cost code are kept as the client wrote them, and the choice is remembered for this upload.",
+  boqReupload: "A revised BOQ updates lines by item number. Lines no longer in the file are removed only if they are unpriced; priced ones are kept and flagged.",
+  boqPriceSource: "Each rate says where it came from and how old that source is. A stale price is shown in amber and is only used if you choose it.",
+  boqPriceAll: "Prices the lines that have no rate, using fresh sources only: supplier first, then BOM, then past project. Lines it cannot price are listed with the reason.",
+  boqMarkup: "Supplier and BOM figures are costs, so the rate is the cost plus this markup. Past-project and client rates are used as they are.",
+  boqCost: "Your internal cost behind a rate. It never appears in the downloaded BOQ or the answer sheet.",
+  boqDownload: "Writes your unit rate and amount into the client's own file and keeps their layout. Lines without a rate are left blank.",
+  boqAddedColumns: "The client's file has no rate or amount column, so they are added after its last column. Existing cells and formulas are not moved.",
+  boqAnswerSheet: "A plain Excel list of the lines with your rates, for copying into a portal form such as Ariba. Nothing is sent anywhere.",
   reminders:"Reminders go by email to the owner and team and are logged under Outbound emails. Changing the closing date restarts them.",
 } as const;
 

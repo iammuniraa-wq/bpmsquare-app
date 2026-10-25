@@ -9,7 +9,7 @@ import { useSettingsDirty } from "@/components/settings/useSettingsDirty";
 import { TENDER_TIPS } from "@/lib/tender/tips";
 
 type Member = { user_id: string; name: string | null; email: string | null; is_admin: boolean };
-type Cfg = { approvers: string[]; allow_self_approval: boolean };
+type Cfg = { approvers: string[]; allow_self_approval: boolean; price_validity_days: number };
 
 /**
  * Settings > Tenders: the one place that says who approves a bid / no-bid proposal. An empty list means every workspace
@@ -25,7 +25,7 @@ export default function TendersSettingsClient() {
   useEffect(() => {
     fetch("/api/settings/tender").then((r) => r.json()).then((j) => {
       if (j.error) { setMsg({ ok: false, text: j.error }); return; }
-      const next = { approvers: j.approvers as string[], allow_self_approval: !!j.allow_self_approval };
+      const next = { approvers: j.approvers as string[], allow_self_approval: !!j.allow_self_approval, price_validity_days: Number(j.price_validity_days) || 180 };
       setCfg(next); markSaved(next); setMembers(j.members as Member[]);
     }).catch(() => setMsg({ ok: false, text: "Couldn't load the settings." }));
   }, []);
@@ -65,6 +65,19 @@ export default function TendersSettingsClient() {
           <input type="checkbox" checked={cfg.allow_self_approval} onChange={(e) => setCfg({ ...cfg, allow_self_approval: e.target.checked })} style={{ width: 18, height: 18 }} />
           <span>Allow self-approval</span>
           <InfoTip label="Allow self-approval">{TENDER_TIPS.selfApproval}</InfoTip>
+        </label>
+      </section>
+
+      <section style={{ ...cardStyle }}>
+        <label data-guide="tender.settings.price_validity" style={{ display: "flex", alignItems: "center", gap: 10, minHeight: 44, fontSize: 13, color: c.ink, flexWrap: "wrap" }}>
+          <span>Price validity</span>
+          <InfoTip label="Price validity">{TENDER_TIPS.priceValidity}</InfoTip>
+          <input
+            type="number" min={1} max={3650} step={1} inputMode="numeric" value={cfg.price_validity_days} aria-label="Price validity in days"
+            onChange={(e) => setCfg({ ...cfg, price_validity_days: Math.trunc(Number(e.target.value)) || 0 })}
+            className="bpm-input" style={{ width: 96, marginLeft: "auto" }}
+          />
+          <span style={{ color: c.hint }}>days</span>
         </label>
       </section>
 

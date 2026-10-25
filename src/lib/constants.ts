@@ -1219,7 +1219,9 @@ export type TenantConfig = {
   // GCC tender deals (slice 1b): who may approve a bid / no-bid proposal. `approvers` are user ids chosen in Settings ->
   // Tenders; absent or empty = every workspace admin. `allow_self_approval` (default off) lets a proposer approve their own
   // proposal, for a one-admin workspace. Read through src/lib/tender/approval.ts, never directly.
-  tender?: { approvers?: string[]; allow_self_approval?: boolean };
+  // `price_validity_days` (slice 3a, default 180): a supplier or past-project price older than this is shown as stale on a BOQ line and
+  // never applied automatically. Read through priceValidityDays() in src/lib/tender/boq/price.ts.
+  tender?: { approvers?: string[]; allow_self_approval?: boolean; price_validity_days?: number };
   // E-invoicing scheme of the workspace (Region pack switch until the pack framework exists, einvoicing_ksa flag).
   // `scheme: null` switches the feature off even with the flag on; an absent key with the flag on means ksa_zatca.
   // `default_doc_type` is what a buyer without a VAT number gets (default simplified).
