@@ -3,10 +3,12 @@ import { requireTenantUser, createAdminSupabase, getAuthUser } from "@/lib/supab
 import { getTenant, tenantHasFeature } from "@/lib/tenant";
 import { diffForLog, logChange } from "@/lib/changeLog";
 import { LOSS_REASONS, QUOTE_OUTCOMES } from "@/lib/constants";
-import { opportunityStages, stageDef, outcomeForStage, probabilityFor, parseTeam, OPPORTUNITY_SOURCES } from "@/lib/sales/opportunity";
+import { stageDef, outcomeForStage, probabilityFor, parseTeam, OPPORTUNITY_SOURCES } from "@/lib/sales/opportunity";
 import { loadOpportunity, loadOpportunityLines, loadLinkedQuotes, refreshOpportunityDerived, stageSinceMap } from "@/lib/sales/opportunityServer";
 import { ownerTeamProblem } from "@/lib/sales/opportunityMembers";
 import { emitOpportunityStageChanged, emitOpportunityClosed, emitOpportunityUpdated } from "@/lib/events/emitters";
+import { stagesForDeal } from "@/lib/tender/rules";
+import { tenderForDeal } from "@/lib/tender/server";
 
 async function guard() {
   const ctx = await requireTenantUser();
@@ -49,7 +51,10 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   if (!before) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   const tenant = await getTenant();
-  const stages = opportunityStages(tenant?.config);
+  // A tender deal (flag gcc_tender on AND a row in opportunity_tenders) is governed by the tender stages; every other deal by
+  // the workspace's own list, exactly as before. With the flag off tenderForDeal answers null without asking the database.
+  const tender = await tenderForDeal(admin, tenantId, tenant?.features, id);
+  const stages = stagesForDeal(tenant?.config, tender !== null);
   const patch: Record<string, unknown> = {};
 
   for (const key of ["title", "description", "loss_note", "currency", "probability_override_reason", "competitor"] as const) {

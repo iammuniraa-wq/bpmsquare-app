@@ -23,7 +23,7 @@ type Channel = {
 };
 type Data = {
   channels: Channel[]; roles: { id: string; name: string }[]; connectors: { gmail: boolean; mail_server: boolean };
-  templates: { id: string; name: string }[]; estimator: boolean; inbound_domain: string | null; sending_configured: boolean;
+  templates: { id: string; name: string }[]; estimator: boolean; tender?: boolean; inbound_domain: string | null; sending_configured: boolean;
   pending_migration?: boolean; message?: string;
 };
 type Draft = {
@@ -217,7 +217,7 @@ function ChannelPanel({ data, channel, onClose, onSaved, onRotated, confirm }: {
 
       <Field label="Create offers first" info={INBOX_TIPS.defaultAction}>
         <Select value={d.default_action} onChange={(e) => set("default_action", e.target.value as DefaultAction)}>
-          {DEFAULT_ACTIONS.map((a) => <option key={a} value={a}>{ACTION_WORD[a]}</option>)}
+          {DEFAULT_ACTIONS.filter((a) => a !== "deal" || data.tender).map((a) => <option key={a} value={a}>{ACTION_WORD[a]}</option>)}
         </Select>
       </Field>
       {d.default_action === "estimate" && data.estimator && data.templates.length > 0 && (

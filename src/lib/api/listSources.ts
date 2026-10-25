@@ -130,6 +130,30 @@ const OPPORTUNITY_FIELDS: QueryableField[] = [
   { path: "closed_at", type: "date" },
 ];
 
+// GCC tender deals (0220): one row per tender deal -- the deal's own columns plus the tender block. The bid decision's REASON,
+// who decided, the source e-mail, custom data and the reminders already sent are internal and are not here (see the loader).
+const TENDER_FIELDS: QueryableField[] = [
+  { path: "id", type: "string" },
+  { path: "ref", type: "string", searchable: true },
+  { path: "title", type: "string", searchable: true },
+  { path: "account_name", type: "string", searchable: true },
+  { path: "stage", type: "string" },
+  { path: "outcome", type: "string" },
+  { path: "amount", type: "number" },
+  { path: "expected_close", type: "date" },
+  { path: "tender_no", type: "string", searchable: true },
+  { path: "issuer_name", type: "string", searchable: true },
+  { path: "portal", type: "string" },
+  { path: "closing_at", type: "date" },
+  { path: "bid_bond_amount", type: "number" },
+  { path: "bid_bond_currency", type: "string" },
+  { path: "bid_bond_expiry", type: "date" },
+  { path: "addenda_count", type: "number" },
+  { path: "decision", type: "string" },
+  { path: "decided_at", type: "date" },
+  { path: "created_at", type: "date" },
+];
+
 const RFQ_FIELDS: QueryableField[] = [
   { path: "id", type: "string" },
   { path: "ref", type: "string", searchable: true },
@@ -516,6 +540,40 @@ export const LIST_SOURCES: Record<string, ListSource> = {
         const acc = Array.isArray(o.accounts) ? o.accounts[0] : o.accounts;
         const { accounts: _a, ...rest } = o as Record<string, unknown> & { accounts?: unknown };
         return { ...rest, account_name: (acc as { name?: string } | null)?.name ?? null, _links: { self: `/api/v1/opportunities/${o.id}`, account: `/api/v1/accounts/${o.account_id}` } };
+      });
+    },
+  },
+  tenders: {
+    label: "Tenders (GCC tender deals)",
+    description: "Tender deals: tender number, issuer, portal, closing date, bid bond, addenda, the go / no-go decision, and the deal's tender stage, outcome and amount.",
+    relatedWorkcenter: "pipeline",
+    fields: TENDER_FIELDS,
+    load: async (tenantId) => {
+      // Tender block + its deal, tenant-scoped on both sides. Deliberately not selected: decision_reason (the internal
+      // reasoning behind a no-go), decided_by, source_email_id (a private e-mail), custom_data and reminders_sent.
+      const admin = createAdminSupabase();
+      const { data: tenders } = await admin
+        .from("opportunity_tenders")
+        .select("opportunity_id, tender_no, issuer_name, portal, closing_at, bid_bond_amount, bid_bond_currency, bid_bond_expiry, addenda_count, decision, decided_at")
+        .eq("tenant_id", tenantId);
+      const rows = tenders ?? [];
+      if (rows.length === 0) return [];
+      const { data: deals } = await admin
+        .from("opportunities")
+        .select("id, ref, title, stage, outcome, amount, expected_close, created_at, accounts(name)")
+        .eq("tenant_id", tenantId)
+        .in("id", rows.map((r) => r.opportunity_id as string));
+      const byId = new Map((deals ?? []).map((d) => [d.id as string, d]));
+      return rows.flatMap((r) => {
+        const d = byId.get(r.opportunity_id as string);
+        if (!d) return [];
+        const acc = Array.isArray(d.accounts) ? d.accounts[0] : d.accounts;
+        const { opportunity_id: _o, ...tender } = r;
+        return [{
+          id: d.id, ref: d.ref, title: d.title, account_name: (acc as { name?: string } | null)?.name ?? null,
+          stage: d.stage, outcome: d.outcome, amount: d.amount, expected_close: d.expected_close, created_at: d.created_at,
+          ...tender, _links: { deal: `/api/v1/opportunities/${d.id}` },
+        }];
       });
     },
   },

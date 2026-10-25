@@ -7,25 +7,25 @@ export type InboxStatus = (typeof INBOX_STATUSES)[number];
 export const INBOX_STATUS_LABEL: Record<InboxStatus, string> = { new: "New", handled: "Handled", spam: "Spam" };
 
 /** What "Create from this email" offers first for a channel. `none` = no default; the menu lists all. */
-export const CREATE_TYPES = ["quote", "project", "case", "estimate", "lead"] as const;
+export const CREATE_TYPES = ["quote", "project", "case", "estimate", "lead", "deal"] as const;
 export type CreateType = (typeof CREATE_TYPES)[number];
 export const DEFAULT_ACTIONS = [...CREATE_TYPES, "none"] as const;
 export type DefaultAction = (typeof DEFAULT_ACTIONS)[number];
 
 export const CREATE_LABEL: Record<CreateType, string> = {
-  quote: "Quote", project: "Project", case: "Case", estimate: "Estimate", lead: "Lead",
+  quote: "Quote", project: "Project", case: "Case", estimate: "Estimate", lead: "Lead", deal: "Deal",
 };
 
 /** Object types a converted email can link to. These are the keys change history and OBJECT_FEATURE use. */
-export const LINK_OBJECT_TYPES = ["standard_quotes", "wfm_projects", "cases", "estimates", "leads"] as const;
+export const LINK_OBJECT_TYPES = ["standard_quotes", "wfm_projects", "cases", "estimates", "leads", "opportunities"] as const;
 export type LinkObjectType = (typeof LINK_OBJECT_TYPES)[number];
 
 export const CREATE_TO_OBJECT: Record<CreateType, LinkObjectType> = {
-  quote: "standard_quotes", project: "wfm_projects", case: "cases", estimate: "estimates", lead: "leads",
+  quote: "standard_quotes", project: "wfm_projects", case: "cases", estimate: "estimates", lead: "leads", deal: "opportunities",
 };
 
 export const OBJECT_LABEL: Record<LinkObjectType, string> = {
-  standard_quotes: "Quote", wfm_projects: "Project", cases: "Case", estimates: "Estimate", leads: "Lead",
+  standard_quotes: "Quote", wfm_projects: "Project", cases: "Case", estimates: "Estimate", leads: "Lead", opportunities: "Deal",
 };
 
 export const MAILBOX_CONNECTORS = ["gmail", "mail_server"] as const;

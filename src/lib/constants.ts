@@ -71,6 +71,7 @@ export const ROUTES = {
   login: "/login",
   pipeline: "/pipeline",
   pipelineNew: "/pipeline/new",
+  pipelineNewTender: "/pipeline/new/tender",
   pipelineDetail: (id: string) => `/pipeline/${id}`,
   dashboard: "/",
   leads: "/leads",
@@ -761,6 +762,16 @@ export type TenantFeatures = {
   // this flag together with `config.einvoicing.scheme` IS the Region pack switch (see src/lib/einvoicing/gate.ts).
   // Needs `invoices`.
   einvoicing_ksa: boolean;
+  // GCC tender deals, slice 1 (docs/design/gcc-tender-deals.md): the Pipeline gains a Tenders tab. A tender is an ordinary
+  // deal plus one row in `opportunity_tenders` (no column is added to `opportunities`); it has its own stages (received,
+  // bid/no-bid, estimating, submitted, clarifications, awarded, lost, no-bid), a closing-date countdown, a recorded bid
+  // decision, a bid-bond block, closing-date reminders, and an Inbox "Deal" create type. A platform-admin-only flag:
+  // default OFF, missing key reads false; with it off every standard path (deal create, board, stage change, Inbox menu,
+  // nav) behaves exactly as before. Needs `pipeline`.
+  gcc_tender: boolean;
+  // The Deal Room (slice 2 of the same design): one room per tender deal for the team and, in a separate channel, the
+  // client. DECLARED NOW, USED IN SLICE 2: nothing reads this flag yet. Platform-admin-only, default OFF; needs gcc_tender.
+  deal_room: boolean;
 };
 
 // WfmConfig — tenant-level WFM (attendance) settings, stored in
@@ -1155,6 +1166,23 @@ export const DEFAULT_OPPORTUNITY_STAGES: OpportunityStageDef[] = [
   { value: "negotiate", label: "Negotiate", color: "#f59e0b", probability_hint: 75 },
   { value: "won",       label: "Won",       color: "#10b981", is_closed: true, outcome: "won" },
   { value: "lost",      label: "Lost",      color: "#ef4444", is_closed: true, outcome: "lost" },
+];
+
+// Tender stages (GCC tender deals, slice 1, docs/design/gcc-tender-deals.md section 3). Used INSTEAD of
+// config.opportunity_stages for a deal that has a row in opportunity_tenders, and only while the platform-admin flag
+// `gcc_tender` is on. Fixed in code for slice 1 (a workspace-editable list comes later through `deal_types`). A closed
+// stage carries the same `outcome` a standard closed stage does (won / lost / dropped), so win/loss reports keep working.
+// Values are deliberately distinct from the standard ones ("lost" is `bid_lost` here) so a stored stage never reads as
+// the other board's.
+export const DEFAULT_TENDER_STAGES: OpportunityStageDef[] = [
+  { value: "received",       label: "Received",       color: "#64748b", is_initial: true, probability_hint: 10 },
+  { value: "bid_no_bid",     label: "Bid/No-bid",     color: "#8b5cf6", probability_hint: 15 },
+  { value: "estimating",     label: "Estimating",     color: "#3b82f6", probability_hint: 25 },
+  { value: "submitted",      label: "Submitted",      color: "#f59e0b", probability_hint: 40 },
+  { value: "clarifications", label: "Clarifications", color: "#0ea5e9", probability_hint: 50 },
+  { value: "awarded",        label: "Awarded",        color: "#10b981", is_closed: true, outcome: "won" },
+  { value: "bid_lost",       label: "Lost",           color: "#ef4444", is_closed: true, outcome: "lost" },
+  { value: "no_bid",         label: "No-bid",         color: "#94a3b8", is_closed: true, outcome: "dropped" },
 ];
 
 // Quote outcome -- the business RESULT, fully independent of pipeline status

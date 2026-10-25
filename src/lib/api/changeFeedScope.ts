@@ -27,6 +27,8 @@ const SCOPE_FOR_TYPE: Record<string, string> = {
   rfqs: "rfqs", pricing_rfqs: "rfqs",
   estimates: "estimates", estimate: "estimates", estimate_templates: "estimates",
   opportunities: "opportunities",
+  // Tender block of a deal (0220): bid decisions and bond amounts are sensitive, so the "tenders" scope, never the wildcard.
+  opportunity_tenders: "tenders",
   wfm_projects: "projects",
   abm_programs: "abm_programs", abm_program: "abm_programs",
   abm_target_accounts: "abm_targets", abm_buying_group_members: "abm_targets", abm_target: "abm_targets",

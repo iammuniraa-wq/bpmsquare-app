@@ -85,6 +85,10 @@
     {
       "path": "/api/inbox/cron/purge",
       "schedule": "40 20 * * *"
+    },
+    {
+      "path": "/api/tenders/cron/reminders",
+      "schedule": "30 4 * * *"
     }
   ]
 }

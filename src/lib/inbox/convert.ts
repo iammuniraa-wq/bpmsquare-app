@@ -24,6 +24,8 @@ export type CreateInput = {
   type: CreateType;
   accountId: string | null;
   contactId: string | null;
+  /** The message being converted (a deal records it as its source e-mail). */
+  emailId?: string | null;
   /** Quote: not used. Project / Lead: the name. Case: the equipment, shown in the list. */
   title: string;
   caseType?: "adhoc" | "direct" | "amc";
@@ -186,7 +188,7 @@ export type ConvertResult =
   | { ok: false; error: string; status: number };
 
 const TYPE_TO_OBJECT: Record<Exclude<CreateType, "estimate">, LinkObjectType> = {
-  quote: "standard_quotes", project: "wfm_projects", case: "cases", lead: "leads",
+  quote: "standard_quotes", project: "wfm_projects", case: "cases", lead: "leads", deal: "opportunities",
 };
 
 /** Create the record (through its own route), then finish the conversion. Estimates are made in the workspace, not here. */

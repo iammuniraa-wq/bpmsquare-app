@@ -24,6 +24,10 @@ import MoreMenu from "@/components/ui/MoreMenu";
 import StatusPill from "@/components/ui/StatusPill";
 import { Input, Select, Textarea } from "@/components/ui/Input";
 import RecordFacts from "@/components/page/RecordFacts";
+import ClosingChip from "@/components/tender/ClosingChip";
+import { TENDER_DECISION_LABEL, tenderIsLive } from "@/lib/tender/rules";
+import type { TenderView } from "@/lib/tender/views";
+import TenderTab from "./TenderTab";
 
 // The deal page (§4.5): the record-page look (header with one primary step and
 // the "..." menu, facts, tabs) built client-side, because the Lines editor and
@@ -31,7 +35,10 @@ import RecordFacts from "@/components/page/RecordFacts";
 // are state, not ?tab=. Tabs: Overview · Lines · Quotes · Related · Activity.
 
 type Member = { user_id: string; name: string | null; email: string | null };
-type Tab = "overview" | "lines" | "quotes" | "related" | "activity";
+type Tab = "overview" | "tender" | "lines" | "quotes" | "related" | "activity";
+
+/** A tender deal's extras (GCC tender deals): its tender block and what the countdown needs. Absent for every other deal. */
+export type TenderTabData = { view: TenderView; accounts: { id: string; name: string }[]; nowIso: string; timezone: string };
 
 const fmtDate = (s: string | null | undefined) => (s ? new Date(s).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—");
 
@@ -45,7 +52,7 @@ function toEditorLines(rows: OpportunityLine[]): Line[] {
   }));
 }
 
-export default function OpportunityDetailClient({ opp, accountName, contacts, initialLines, quotes, stages, members, products, pricingEnabled, standardQuotesEnabled, todayKey, currentUserId, related, activity, externalLine }: {
+export default function OpportunityDetailClient({ opp, accountName, contacts, initialLines, quotes, stages, members, products, pricingEnabled, standardQuotesEnabled, todayKey, currentUserId, related, activity, externalLine, tender, sourceEmail }: {
   opp: Opportunity & { stage_since: string };
   accountName: string;
   contacts: { id: string; name: string }[];
@@ -64,13 +71,17 @@ export default function OpportunityDetailClient({ opp, accountName, contacts, in
   externalLine?: React.ReactNode;
   /** The Activity tab (Nova timeline + change history). */
   activity: React.ReactNode;
+  /** Set only for a tender deal: adds the Tender tab and the closing / decision facts. */
+  tender?: TenderTabData | null;
+  /** "From email" for a tender made from an Inbox message (renders nothing otherwise). */
+  sourceEmail?: React.ReactNode;
 }) {
   const cur = useCurrency();
   const inr = (n: number) => formatMoney(Math.round(n), cur, {});
   const router = useRouter();
   const { confirm } = useFeel();
   const [pending, startTransition] = useTransition();
-  const [tab, setTab] = useState<Tab>(initialLines.length === 0 && quotes.length === 0 ? "overview" : "lines");
+  const [tab, setTab] = useState<Tab>(tender ? "tender" : initialLines.length === 0 && quotes.length === 0 ? "overview" : "lines");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
 
@@ -185,6 +196,7 @@ export default function OpportunityDetailClient({ opp, accountName, contacts, in
 
   const tabs: { id: Tab; label: string; count?: number }[] = [
     { id: "overview", label: "Overview" },
+    ...(tender ? [{ id: "tender" as Tab, label: "Tender" }] : []),
     { id: "lines", label: linesDirty ? "Lines •" : "Lines", count: lineCount },
     { id: "quotes", label: "Quotes", count: quotes.length },
     ...(related ? [{ id: "related" as Tab, label: "Related" }] : []),
@@ -193,11 +205,26 @@ export default function OpportunityDetailClient({ opp, accountName, contacts, in
 
   const outcomeLabel = closed ? `${opp.outcome}${opp.loss_reason ? ` (${LOSS_REASON_LABEL[opp.loss_reason]})` : ""}` : null;
 
+  // Tender deal: the closing date and the bid decision take the place of probability and owner in the header strip
+  // (the owner is on the Overview tab). The countdown stops once the bid is in or the tender is closed.
+  const tenderLive = tender ? tenderIsLive(opp, tender.view) : false;
+  const tenderFacts = tender
+    ? [
+        { label: "Closing", value: <ClosingChip closingAt={tender.view.closing_at} nowIso={tender.nowIso} timezone={tender.timezone} closed={!tenderLive} /> },
+        {
+          label: "Decision",
+          value: tender.view.decision
+            ? <>{TENDER_DECISION_LABEL[tender.view.decision]}<div style={{ fontSize: 11, fontWeight: 400, color: c.hint }}>{[tender.view.decided_by_name, fmtDate(tender.view.decided_at)].filter((x) => x && x !== "—").join(" · ")}</div></>
+            : <span style={{ color: c.hint, fontWeight: 400 }}>Not decided</span>,
+        },
+      ]
+    : null;
+
   return (
     <div>
       <TabTitle title={opp.title} />
       <div style={{ marginBottom: 8 }}>
-        <Link href={ROUTES.pipeline} style={{ fontSize: 11.5, color: c.muted, textDecoration: "none" }}>← Pipeline</Link>
+        <Link href={tender ? `${ROUTES.pipeline}?tab=tenders` : ROUTES.pipeline} style={{ fontSize: 11.5, color: c.muted, textDecoration: "none" }}>← Pipeline</Link>
       </div>
       <PageHeader
         title={opp.title}
@@ -234,8 +261,10 @@ export default function OpportunityDetailClient({ opp, accountName, contacts, in
               </Select>
             ),
           },
-          { label: "Probability", value: <>{opp.probability ?? 0}%<div style={{ fontSize: 11, fontWeight: 400, color: c.hint }}>weighted {inr(weightedValue(Number(opp.amount || 0), opp.probability ?? 0))}</div></> },
-          { label: "Owner", value: <>{memberName(opp.owner_id)}<div style={{ fontSize: 11, fontWeight: 400, color: c.hint }}>{daysBetween(opp.stage_since, todayKey)}d in {stageDefNow?.label ?? opp.stage}</div></> },
+          ...(tenderFacts ?? [
+            { label: "Probability", value: <>{opp.probability ?? 0}%<div style={{ fontSize: 11, fontWeight: 400, color: c.hint }}>weighted {inr(weightedValue(Number(opp.amount || 0), opp.probability ?? 0))}</div></> },
+            { label: "Owner", value: <>{memberName(opp.owner_id)}<div style={{ fontSize: 11, fontWeight: 400, color: c.hint }}>{daysBetween(opp.stage_since, todayKey)}d in {stageDefNow?.label ?? opp.stage}</div></> },
+          ]),
         ]}
       />
 
@@ -247,6 +276,14 @@ export default function OpportunityDetailClient({ opp, accountName, contacts, in
       <div style={{ marginBottom: 14 }}>
         <Tabs tabs={tabs} value={tab} onChange={(id) => setTab(id as Tab)} />
       </div>
+
+      {tab === "tender" && tender && (
+        <TenderTab
+          opportunityId={opp.id} tender={tender.view} accounts={tender.accounts} nowIso={tender.nowIso} timezone={tender.timezone}
+          finished={!tenderLive} onError={setError} onNotice={setNotice}
+        />
+      )}
+      {tab === "tender" && tender && sourceEmail}
 
       {tab === "overview" && (
         <Card padding={18}>

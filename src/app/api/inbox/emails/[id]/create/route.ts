@@ -10,7 +10,7 @@ import { CREATE_TO_OBJECT, CREATE_TYPES, type CreateType } from "@/lib/inbox/typ
 export const maxDuration = 60;
 
 // POST /api/inbox/emails/[id]/create
-//   { type: quote | project | case | lead,
+//   { type: quote | project | case | lead | deal,   (deal: only with the tender edition, flag gcc_tender)
 //     account_id?, contact_id?, new_account?: { name, contact_name? },
 //     title?, case_type?, complaint? }
 // Makes the record through its own create route, copies the email's files onto it, stores the sender and a short
@@ -45,10 +45,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
     const type = body.type as CreateType;
     if (!CREATE_TYPES.includes(type) || type === "estimate") {
-      return NextResponse.json({ error: "type must be quote, project, case or lead." }, { status: 422 });
+      return NextResponse.json({ error: "type must be quote, project, case, lead or deal." }, { status: 422 });
     }
     const access = LINK_ACCESS[CREATE_TO_OBJECT[type]];
-    if (!ctx.features[access.feature as keyof typeof ctx.features]) return NextResponse.json({ error: "That isn't part of your workspace." }, { status: 403 });
+    if (!ctx.features[access.feature as keyof typeof ctx.features] || (access.also && !ctx.features[access.also as keyof typeof ctx.features])) return NextResponse.json({ error: "That isn't part of your workspace." }, { status: 403 });
     if (!canCreateWorkcenter(ctx.perms, access.workcenter)) return NextResponse.json({ error: "Your role cannot create these." }, { status: 403 });
 
     const found = await loadEmailForViewer(ctx, id);
@@ -78,7 +78,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
     const subject = email.subject.trim() || "Customer enquiry";
     const input: CreateInput = {
-      type, accountId, contactId,
+      type, accountId, contactId, emailId: email.id,
       title: str(body.title, 200) ?? subject.slice(0, 200),
       caseType: body.case_type === "direct" || body.case_type === "amc" ? body.case_type : "adhoc",
       complaint: str(body.complaint, 2000) ?? (summarise(email.body_text) || subject),

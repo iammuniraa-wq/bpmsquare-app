@@ -51,6 +51,7 @@ const creators = (over: Partial<Creators> = {}): Creators => ({
   case: async () => ({ ok: true, id: "case-1", label: "CS-2026-0001" }),
   lead: async () => ({ ok: true, id: "lead-1", label: "Fence enquiry" }),
   project: async () => ({ ok: true, id: "proj-1", label: "PRJ-0001" }),
+  deal: async () => ({ ok: true, id: "opp-1", label: "OPP-0001" }),
   ...over,
 });
 const input = (type: CreateInput["type"], over: Partial<CreateInput> = {}): CreateInput => ({ type, accountId: "acc-1", contactId: null, title: "Fence for 300 m", ...over });
@@ -69,7 +70,7 @@ beforeEach(() => {
   h.db.current = db;
   Object.assign(h.user, { id: U_ADMIN, role: "admin", email: "admin@gulf.test" });
   h.changes.length = 0; h.converted.length = 0; h.handled.length = 0;
-  for (const [t, id] of [["standard_quotes", "q-1"], ["service_cases", "case-1"], ["leads", "lead-1"], ["wfm_projects", "proj-1"], ["estimates", "est-1"]] as const) db.rows(t).push({ id, tenant_id: T1 });
+  for (const [t, id] of [["standard_quotes", "q-1"], ["service_cases", "case-1"], ["leads", "lead-1"], ["wfm_projects", "proj-1"], ["estimates", "est-1"], ["opportunities", "opp-1"]] as const) db.rows(t).push({ id, tenant_id: T1 });
   db.rows("accounts").push({ id: "acc-1", tenant_id: T1, name: "ACME Fences" });
   vi.spyOn(console, "error").mockImplementation(() => {});
 });
@@ -122,6 +123,7 @@ describe("Create from this email: the other records", () => {
     ["case", "cases", "case-1"],
     ["lead", "leads", "lead-1"],
     ["project", "wfm_projects", "proj-1"],
+    ["deal", "opportunities", "opp-1"],
   ] as const)("a %s gets the files as its own files, in a folder of its own", async (type, objectType, objectId) => {
     const { id, row, ch } = await incoming();
     const r = await convertEmail(as(db), { tenantId: T1, email: emailArg(row), channel: ch, input: input(type), actor: { id: U_ADMIN, email: null }, creators: creators(), now: NOW });

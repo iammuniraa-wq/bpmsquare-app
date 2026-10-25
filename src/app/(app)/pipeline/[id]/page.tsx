@@ -4,12 +4,18 @@ import { requireWorkcenterView } from "@/lib/permissions";
 import { requireTenantUser, createAdminSupabase } from "@/lib/supabase-server";
 import { tenantToday } from "@/lib/tenantClock";
 import { opportunityStages } from "@/lib/sales/opportunity";
+import { tenderStages } from "@/lib/tender/rules";
+import { tenderForDeal } from "@/lib/tender/server";
+import type { TenderView } from "@/lib/tender/views";
+import { tenantTimezone } from "@/lib/tenantClock";
+import { loadActorNames } from "@/lib/actorNames";
 import { loadOpportunity, loadOpportunityLines, loadLinkedQuotes, stageSinceMap, listMembersForPicker } from "@/lib/sales/opportunityServer";
 import { standardQuoteProducts, pricingOnStandardQuotes } from "../../standard-quotes/formData";
-import OpportunityDetailClient from "./OpportunityDetailClient";
+import OpportunityDetailClient, { type TenderTabData } from "./OpportunityDetailClient";
 import ExternalRecordSlot from "@/components/ExternalRecordSlot";
 import RecordRfqsCard from "@/components/rfq/RecordRfqsCard";
 import RecordActivity from "@/components/page/RecordActivity";
+import SourceEmailSlot from "@/components/inbox/SourceEmailSlot";
 import { rfqPrefill } from "@/components/rfq/prefill";
 import { rfqLineStatuses } from "@/lib/rfq/server";
 
@@ -35,6 +41,25 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
     admin.from("contacts").select("id, name").eq("account_id", opp.account_id).eq("tenant_id", tenantId).order("name"),
   ]);
 
+  // GCC tender deals: a deal that has a tender row (and only with the flag on; off, tenderForDeal answers null without a query).
+  const tender = await tenderForDeal(admin, tenantId, tenant?.features, id);
+  let tenderTab: TenderTabData | null = null;
+  if (tender) {
+    const [names, timezone, { data: allAccounts }] = await Promise.all([
+      loadActorNames(admin, tenantId, [tender.decided_by]),
+      tenantTimezone(tenantId),
+      admin.from("accounts").select("id, name").eq("tenant_id", tenantId).order("name"),
+    ]);
+    const view: TenderView = {
+      tender_no: tender.tender_no, issuer_name: tender.issuer_name, issuer_account_id: tender.issuer_account_id, portal: tender.portal,
+      closing_at: tender.closing_at, bid_bond_amount: tender.bid_bond_amount, bid_bond_currency: tender.bid_bond_currency,
+      bid_bond_expiry: tender.bid_bond_expiry, addenda_count: tender.addenda_count, decision: tender.decision,
+      decision_reason: tender.decision_reason, decided_by_name: tender.decided_by ? names.get(tender.decided_by) ?? null : null,
+      decided_at: tender.decided_at, source_email_id: tender.source_email_id,
+    };
+    tenderTab = { view, accounts: (allAccounts ?? []) as { id: string; name: string }[], nowIso: new Date().toISOString(), timezone };
+  }
+
   // RFQ (0128): ask suppliers about this deal's lines; only with the module.
   const rfqOn = tenant?.features?.rfq === true;
   const rfqStatus = rfqOn
@@ -48,7 +73,7 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
       contacts={(contacts ?? []) as { id: string; name: string }[]}
       initialLines={lines}
       quotes={quotes}
-      stages={opportunityStages(tenant?.config)}
+      stages={tender ? tenderStages() : opportunityStages(tenant?.config)}
       members={members}
       products={products}
       pricingEnabled={pricingOnStandardQuotes(tenant)}
@@ -65,7 +90,9 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
           compactTop
         />
       ) : undefined}
-      activity={<RecordActivity objectType="opportunities" objectId={id} isAdmin={role === "admin"} />}
+      activity={<RecordActivity objectType="opportunities" objectId={id} extraChangeLogTypes={tender ? ["opportunity_tenders"] : undefined} isAdmin={role === "admin"} />}
+      tender={tenderTab}
+      sourceEmail={tender ? <SourceEmailSlot objectType="opportunities" objectId={id} /> : undefined}
     />
   );
 }

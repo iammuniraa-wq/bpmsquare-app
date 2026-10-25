@@ -27,13 +27,15 @@ const initials = (m: Member | undefined) => {
   return s.split(/[\s@.]+/).filter(Boolean).slice(0, 2).map((x) => x[0]?.toUpperCase() ?? "").join("") || "?";
 };
 
-export default function PipelineBoard({ rows, stages, members, accounts, todayKey, currentUserId }: {
+export default function PipelineBoard({ rows, stages, members, accounts, todayKey, currentUserId, cardExtra }: {
   rows: OpportunityRow[];
   stages: OpportunityStageDef[];
   members: Member[];
   accounts: { id: string; name: string }[];
   todayKey: string;
   currentUserId: string;
+  /** Extra line on a card (the Tenders board draws the closing-date chip here). Absent on the Deals board: the card is unchanged. */
+  cardExtra?: (r: OpportunityRow) => React.ReactNode;
 }) {
   const cur = useCurrency();
   const money = (n: number) => formatMoneyCompact(n, cur, n >= 10_000_000 ? 2 : 1);
@@ -99,6 +101,7 @@ export default function PipelineBoard({ rows, stages, members, accounts, todayKe
           <span title={m?.name ?? m?.email ?? "Unassigned"} style={{ width: 20, height: 20, borderRadius: 999, background: r.owner_id === currentUserId ? c.accent : c.panel2, color: r.owner_id === currentUserId ? "#fff" : c.muted, fontSize: 9.5, fontWeight: 700, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>{initials(m)}</span>
         </div>
         {r.expected_close && <div style={{ fontSize: 10.5, color: c.hint, marginTop: 4 }}>Close by {fmtDate(r.expected_close)}</div>}
+        {cardExtra?.(r)}
       </div>
     );
   };

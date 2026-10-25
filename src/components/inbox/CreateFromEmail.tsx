@@ -24,12 +24,13 @@ const HINT: Record<CreateType, string> = {
   case: "A service case to work on",
   lead: "A lead to follow up",
   estimate: "Start an estimate from what they wrote",
+  deal: "A tender deal with its closing date and bid decision",
 };
 
 type EmailBits = { id: string; subject: string; from_name: string | null; from_address: string | null; body_text: string | null };
 
 /**
- * "Create from this email". The channel's favourite is listed first. Quote, Project, Case and Lead open a short panel
+ * "Create from this email". The channel's favourite is listed first. Quote, Project, Case, Lead and Deal (tender edition only) open a short panel
  * (the account is matched from the sender, or searched, or created from the sender) and the record is made by its own
  * create route on the server; Estimate opens the estimate workspace with the email already in its intake card. Nothing
  * here treats the email's words as instructions: they are shown, summarised and handed on as text.
@@ -147,7 +148,7 @@ export function CreatePanel({ type, email, match, suggestedAccount, onClose }: {
     return () => clearTimeout(t);
   }, [q, mode]);
 
-  const label = type === "quote" ? "Quote" : type === "project" ? "Project" : type === "case" ? "Case" : "Lead";
+  const label = CREATE_LABEL[type];
 
   async function create() {
     setError("");
@@ -181,8 +182,8 @@ export function CreatePanel({ type, email, match, suggestedAccount, onClose }: {
     >
       {error && <div role="alert" className={`${s.notice} ${s.noticeErr}`}>{error}</div>}
 
-      {(type === "project" || type === "lead") && (
-        <Field label={type === "project" ? "Project name" : "Lead title"}>
+      {(type === "project" || type === "lead" || type === "deal") && (
+        <Field label={type === "project" ? "Project name" : type === "deal" ? "Deal title" : "Lead title"}>
           <Input value={title} maxLength={200} onChange={(e) => setTitle(e.target.value)} />
         </Field>
       )}

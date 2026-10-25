@@ -49,6 +49,7 @@ export async function GET() {
       connectors: { gmail: connected.has("gmail"), mail_server: connected.has("mail_server") },
       templates: templates.data ?? [],
       estimator: !!features.estimator,
+      tender: !!features.gcc_tender,
       inbound_domain: domain,
       sending_configured: !!process.env.RESEND_API_KEY,
       ...(missing ? { pending_migration: true, message: PENDING_MESSAGE } : {}),
@@ -65,6 +66,7 @@ export async function POST(req: NextRequest) {
     if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 422 });
     const bad = await verifyChannelRefs(admin, tenantId, parsed.values, !!features.estimator);
     if (bad) return NextResponse.json({ error: bad.error }, { status: bad.status });
+    if (parsed.values.default_action === "deal" && !features.gcc_tender) return NextResponse.json({ error: "Deals from e-mail are not part of your workspace." }, { status: 422 });
 
     const existing = await loadChannels(admin, tenantId);
     if (existing.missing) return NextResponse.json({ error: PENDING_MESSAGE, pending_migration: true }, { status: 503 });

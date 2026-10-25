@@ -33,6 +33,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 422 });
     const bad = await verifyChannelRefs(admin, tenantId, parsed.values, !!features.estimator);
     if (bad) return NextResponse.json({ error: bad.error }, { status: bad.status });
+    if (parsed.values.default_action === "deal" && !features.gcc_tender) return NextResponse.json({ error: "Deals from e-mail are not part of your workspace." }, { status: 422 });
 
     const patch: Record<string, unknown> = { ...parsed.values, updated_at: new Date().toISOString() };
     if (parsed.rotate) patch.address_alias = newAliasKey(randomBytes(16));

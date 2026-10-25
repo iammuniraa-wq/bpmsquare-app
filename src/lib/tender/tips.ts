@@ -1,0 +1,20 @@
+// The explanations the tender screens keep behind an "i" (bpmsquarecore 6b). One place, so a test (tips.test.ts) holds every
+// text to the InfoTip limit: two sentences, 160 characters. The screens never print these as running text.
+
+export const TENDER_TIPS = {
+  tab: "Tenders are deals with a closing date, their own stages and a recorded bid decision. They never appear on the Deals board.",
+  closingSoon: "Open tenders that close within 14 days, soonest first. Red is under 2 days or past, amber is under 7.",
+  newTender: "Starts a deal and its tender details together. Only the account is required; fill in the rest when you have it.",
+  tenderNo: "The number the issuer gave this tender. It must be unique in your workspace.",
+  issuer: "Who issued the tender, as written on the documents. Link an account if you also do business with them.",
+  portal: "Where the tender documents and your answer travel: a portal such as Ariba, email, or an Excel sheet.",
+  closing: "When the issuer stops accepting bids. Reminders go to the owner and team 7, 3 and 1 days before and on the day.",
+  source: "How this tender reached you. Use Other for an invitation by phone or a meeting.",
+  decision: "Record whether you will bid. A no-go needs a reason, and your name and the time are saved with it.",
+  bond: "The bid bond the issuer asks for with the offer. The expiry shows when the guarantee must be valid until.",
+  addenda: "How many addenda or amendments the issuer has sent. Raise it each time one arrives.",
+  stage: "Tender stages are separate from the Deals stages. Awarded, Lost and No-bid close the tender.",
+  reminders: "Reminders go by email to the owner and team and are logged under Outbound emails. Changing the closing date restarts them.",
+} as const;
+
+export type TenderTipKey = keyof typeof TENDER_TIPS;

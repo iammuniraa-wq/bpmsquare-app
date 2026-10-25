@@ -48,6 +48,19 @@ export const defaultCreators: Creators = {
       ? { ok: true, id: r.json.id, label: input.title.slice(0, 200) }
       : fail(r, "Could not create the lead.");
   },
+  // A deal made from an e-mail is a tender (GCC tender deals): the tender route makes the deal and its tender row together,
+  // with the message recorded as the source. The portal is e-mail, because that is how it arrived.
+  async deal(input: CreateInput) {
+    if (!input.accountId) return { ok: false, error: "Choose the account this deal is for.", status: 422 };
+    const { POST } = await import("@/app/api/opportunities/tender/route");
+    const r = await call(POST as Handler, "/api/opportunities/tender", {
+      account_id: input.accountId, contact_id: input.contactId ?? undefined, title: input.title.slice(0, 200),
+      tender_source_email: input.emailId ?? undefined, tender: { portal: "email" },
+    });
+    return r.status === 201 && typeof r.json.id === "string"
+      ? { ok: true, id: r.json.id, label: (typeof r.json.ref === "string" && r.json.ref) || input.title.slice(0, 200) }
+      : fail(r, "Could not create the deal.");
+  },
   async project(input: CreateInput) {
     const { POST } = await import("@/app/api/wfm/projects/route");
     const r = await call(POST as Handler, "/api/wfm/projects", { name: input.title.slice(0, 200), account_id: input.accountId ?? null });

@@ -17,9 +17,11 @@ export type Detail = InboxDetailView;
 
 /** Which "Create" targets this person may use: the module is on in the workspace and their role may create there. */
 export function createOptionsFor(ctx: Pick<InboxCtx, "features" | "perms">, channel: Pick<InboxChannel, "default_action">): CreateOption[] {
-  return orderCreateTypes(CREATE_TYPES, channel.default_action).map((type) => {
+  // "Deal" exists only in a workspace with the tender edition: for everyone else the menu is the five it always was.
+  const offered = CREATE_TYPES.filter((type) => type !== "deal" || ctx.features.gcc_tender === true);
+  return orderCreateTypes(offered, channel.default_action).map((type) => {
     const access = LINK_ACCESS[CREATE_TO_OBJECT[type]];
-    if (!ctx.features[access.feature as keyof typeof ctx.features]) {
+    if (!ctx.features[access.feature as keyof typeof ctx.features] || (access.also && !ctx.features[access.also as keyof typeof ctx.features])) {
       return { type, available: false, reason: type === "estimate" ? "Estimates not available" : "Not part of your workspace" };
     }
     if (!canCreateWorkcenter(ctx.perms, access.workcenter)) return { type, available: false, reason: "Your role cannot create these" };

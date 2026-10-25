@@ -86,6 +86,12 @@ export const OBJECT_FEATURE: Record<string, keyof TenantFeatures | null> = {
   // other.
   leads: "leads",
   opportunities: "pipeline",
+  // GCC tender deals (0220): a tender is a deal plus one opportunity_tenders row. Platform-admin flag; the routes also need
+  // `pipeline`. The names are every spelling a surface uses: the table, the change-history type, the list source.
+  opportunity_tender: "gcc_tender",
+  opportunity_tenders: "gcc_tender",
+  deal_types: "gcc_tender",
+  tenders: "gcc_tender",
   pricing: "pricing_engine",
   products: "products",
   // BOM components (0133) are lines of a product: the Products module owns them.
