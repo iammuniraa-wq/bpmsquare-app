@@ -248,7 +248,7 @@ Three screens: Resource Master (two views) and Cost Code.
 | Bid bond | Track whether it has been released. | Add bond status and release date (slice 1b). |
 | Bid rounds | Not a fixed number. | Versions unlimited; no cap anywhere. |
 | Pricing sources | BOQ, BOM and past projects, all three. | Slice 3 prices a line from any of the three and shows which source set the price. Past projects = our awarded tenders and projects, and later ePROMIS history through the API. |
-| Supplier prices | A price older than 6 months is not used; raise at least 3 RFQs to a supplier group, then decide. | Price validity default 180 days (workspace setting). A stale price is shown but never auto-used. Awarding an RFQ needs at least 3 supplier replies unless a reason is recorded (workspace setting, default 3). The choice records who decided and why when it is not the lowest. |
+| Supplier prices | A price older than 6 months is not used; raise at least 3 RFQs to a supplier group, then decide. | Price validity default 180 days (workspace setting). A stale price is shown but never auto-used. **No minimum number of suppliers (owner, 2026-10-25): an RFQ goes to any number of suppliers.** The choice records who decided and why when it is not the lowest. |
 | Award and project | "You decide what is best." | Decision below. |
 | Reporting | Later, but it must be full. | Slice 8. Every fact reporting needs is captured from slice 1 on (see below). |
 
