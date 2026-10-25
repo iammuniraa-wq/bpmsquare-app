@@ -7,6 +7,7 @@ import { useUrlTab } from "@/components/ui/useUrlTab";
 import { useFeel } from "@/components/FeelProvider";
 import s from "./middleware.module.css";
 import { callWebhooksFor, listWebhooks } from "../webhooks/api";
+import { orgKindsFor } from "@/lib/middleware/erpOrgPure";
 import { useMw } from "./context";
 import { hasOutbound } from "./connectors";
 import { documentChoices, inboundChoices, isWebhookConnection } from "./mappingLogic";
@@ -21,9 +22,10 @@ export default function MappingTab() {
   const mw = useMw();
   const { confirm } = useFeel();
   const params = useSearchParams();
-  // A connector that only reads (SAP S/4HANA) maps what comes in: no quote, no webhook targets, and no value lists (the preset
-  // lane reads none), so the view switch is not offered there.
+  // A connector that only reads (SAP S/4HANA) maps what comes in: no quote and no webhook targets.
   const outbound = hasOutbound(mw.connector.id);
+  // SAP maps only what comes in, but it has one list of its own: the sales area of a coverage or an order type (SO4). That is the whole of its Value mapping.
+  const hasValues = outbound || orgKindsFor(mw.connector.id).length > 0;
   const [view, setView] = useUrlTab(VIEWS, "view");
   const [key, setKey] = useState<string>(() => {
     const c = params.get("connection");
@@ -70,7 +72,7 @@ export default function MappingTab() {
           <select className="bpm-input" style={{ width: "auto", maxWidth: "100%" }} aria-label="Mapping for" value={choice.key} onChange={(e) => void pick(e.target.value)}>
             {choices.map((c) => <option key={c.key} value={c.key}>{c.label}</option>)}
           </select>
-          {outbound && (
+          {hasValues && (
             <Segmented
               label="Mapping view" value={view as (typeof VIEWS)[number]} onChange={(v) => void switchView(v)}
               options={[{ id: "fields", label: "Fields" }, { id: "values", label: "Value mapping" }]}
@@ -78,7 +80,7 @@ export default function MappingTab() {
           )}
         </span>
       </div>
-      {view === "values" && outbound
+      {view === "values" && hasValues
         ? <MappingValueLists connection={choice.connection} system={choice.connection.startsWith("webhook:") ? choice.label : mw.connector.shortName} />
         : <MappingFields key={choice.key} choice={choice} onDirty={setDirty} />}
     </>

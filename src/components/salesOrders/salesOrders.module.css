@@ -100,6 +100,8 @@
 
 /* ── ERP tab ──────────────────────────────────────────────────────────────── */
 .erpId { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; min-height: 28px; }
+.erpOrg { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin-top: 8px; font-size: 13px; overflow-wrap: anywhere; }
+.erpOrgMissing { color: var(--amberink); font-weight: 600; }
 .cardHead { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px 12px; margin-bottom: 10px; }
 .cardActions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
 .checkRow { display: grid; grid-template-columns: 90px auto minmax(0, 1fr); gap: 4px 14px; align-items: start; padding: 10px 0; border-top: 1px solid var(--line); }

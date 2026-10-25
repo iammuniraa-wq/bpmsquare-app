@@ -7,6 +7,7 @@ import { useFeel } from "@/components/FeelProvider";
 import Button from "@/components/ui/Button";
 import MoreMenu from "@/components/ui/MoreMenu";
 import Tabs from "@/components/ui/Tabs";
+import ErpOrgChips from "@/components/settings/ErpOrgChips";
 import { SettingsHeaderActions } from "@/components/settings/SettingsHeaderActions";
 import { typeLabel } from "@/lib/typeScale";
 import { useTenantFeature } from "@/lib/tenant-context";
@@ -450,7 +451,7 @@ function SegmentsTab({ segments, accounts, onChanged }: { segments: Segment[]; a
             {segments.map((s) => (
               <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 0", borderTop: `1px solid ${c.line}` }}>
                 <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 13.5, fontWeight: 600, color: c.ink }}>{s.code} — {s.name}</div>
+                  <div style={{ fontSize: 13.5, fontWeight: 600, color: c.ink }}>{s.code} — {s.name} <ErpOrgChips type="segment" id={s.id} /></div>
                   <div className="bpm-t-help">
                     {s.filters.length} condition{s.filters.length === 1 ? "" : "s"} ({s.match}) {s.account_ids.length > 0 ? `· ${s.account_ids.length} pinned account${s.account_ids.length === 1 ? "" : "s"}` : ""}
                   </div>
@@ -629,7 +630,7 @@ function CoverageTab({ coverages, segments, teams, endpoints, teamLabel, segment
               <div key={cov.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 0", borderTop: `1px solid ${c.line}` }}>
                 <Pill tone={ROLE_TONE[cov.role]}>{ROLE_LABEL[cov.role]}</Pill>
                 <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 13.5, color: c.ink }}>{cov.segments ? `${cov.segments.code} — ${cov.segments.name}` : segmentLabel(cov.segment_id)} → {cov.teams?.name ?? teamLabel(cov.team_id)}</div>
+                  <div style={{ fontSize: 13.5, color: c.ink }}>{cov.segments ? `${cov.segments.code} — ${cov.segments.name}` : segmentLabel(cov.segment_id)} → {cov.teams?.name ?? teamLabel(cov.team_id)}{cov.role === "owner" && <> <ErpOrgChips type="segment" id={cov.segment_id} /></>}</div>
                   <div className="bpm-t-help">
                     priority {cov.priority} · from {cov.effective_from}{cov.effective_to ? ` to ${cov.effective_to}` : ""}
                     {library && cov.webhook_id ? ` · sends to ${hookName(cov.webhook_id)}` : null}

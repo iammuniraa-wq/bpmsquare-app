@@ -42,6 +42,8 @@ export const MIDDLEWARE_TIPS = {
   fetchFields: "Reads the target's field list from its own description, a pasted sample or a list you type. Fields that are new or gone are flagged, never dropped.",
   propose: "Matches fields by name and type and fills only the empty lines. Nothing is saved until you press Save.",
   proposeAi: "Suggests matches for lines still empty, from field names and types only; no record data is sent. You accept each suggestion yourself.",
+  orgSalesArea: "One row per coverage or order type; the order type's row wins. With no row, the order cannot be sent to SAP.",
+  orgCompany: "One row per coverage or order type; its company is recorded on the order, and the order type's row wins. With no row, nothing changes.",
   listInbound: "When a code comes back from your system, this row gives the BPMSquare value. Exactly one row per code answers.",
   listDefault: "The BPMSquare value used when an unknown code comes back. Empty keeps the code as it arrived and counts it.",
   ifEmpty: "Sent when the BPMSquare field is empty. Leave it blank to send nothing.",

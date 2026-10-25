@@ -262,6 +262,17 @@ describe("ErpTab: Check with ERP and Send to ERP", () => {
     expect(sent).not.toContain("sales_order.erp_send");
     expect(sent).toContain("sales_order.check_credit");
   });
+  it("shows the sales area as one read-only line, and a visible warning when SAP is connected and none is mapped", () => {
+    const ok = html(el(ErpTab, { detail: live({ erpOrg: [{ kind: "sales_area", label: "Sales area", ok: true, text: "Sales area 1000/10/00 (from coverage Saudi retail)" }] }), ...props }));
+    expect(ok).toContain("Sales area 1000/10/00 (from coverage Saudi retail)");
+    expect(ok).toContain("sales_order.erp_sales_area");
+    const missing = html(el(ErpTab, { detail: live({ erpOrg: [{ kind: "sales_area", label: "Sales area", ok: false, text: "No sales area is mapped for coverage 'Saudi retail' on this ERP." }] }), ...props }));
+    expect(missing).toContain("No sales area is mapped for coverage");
+    expect(missing).toContain('data-ok="no"');
+    const none = html(el(ErpTab, { detail: live(), ...props }));
+    expect(none).not.toContain("sales_order.erp_sales_area");
+    expect(none).not.toContain("sales_order.erp_erp_company");
+  });
   it("says Needs a database update on the buttons while migration 0217 is pending", () => {
     const out = html(el(ErpTab, { detail: live({ erpChecksPending: true }), ...props, onCheck: noop, onSend: noop }));
     expect(out).toContain("Needs a database update");

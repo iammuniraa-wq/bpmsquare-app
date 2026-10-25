@@ -8,6 +8,7 @@ import type { D365Config } from "@/lib/connectors/d365/types";
 import { ERP_DOCUMENT_COLUMNS, shapeErpDocument, type ErpDocumentRow, type ErpDocumentView } from "./erpDocs";
 import { failedChecks, sendReadiness, type ErpCheckView, type ErpTransferView } from "./erpChecks";
 import { loadChecks, loadTransfers } from "./erpState";
+import { loadErpOrgLines, type ErpOrgLineView } from "./erpOrgLine";
 import type { SalesOrderLine } from "./types";
 
 // The shape GET /api/sales-orders/[id] answers and every action returns, so the detail screen can redraw from
@@ -41,6 +42,8 @@ export type OrderView = OrderRow & OrderPermissions & {
   erp_transfers: ErpTransferView[];
   /** The checks/transfers tables are not there yet: the screen says "Needs a database update". */
   erp_checks_pending: boolean;
+  /** SO4a: the sales area / ERP company the Mapping tab resolves for this order, for a connector that is connected; empty otherwise. */
+  erp_org: ErpOrgLineView[];
 };
 
 const GUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -99,6 +102,7 @@ export async function buildOrderView(db: SupabaseClient, tenantId: string, order
     loadErpExtras(db, tenantId, order),
   ]);
   const [checkRes, transferRes, reach] = await Promise.all([loadChecks(db, tenantId, order, lines), loadTransfers(db, tenantId, order.id), loadErpReach(db, tenantId, order)]);
+  const erpOrg = await loadErpOrgLines(db, tenantId, order, reach.available);
   const blocker = !reach.available ? "No ERP is connected." : sendReadiness({
     origin: order.origin, status: order.status, erpLinked, hasAccount: !!order.account_id, customerLinked: reach.customerLinked,
     lineCount: lines.length, allQuantitiesPositive: lines.every((l) => Number(l.qty) > 0),
@@ -122,5 +126,6 @@ export async function buildOrderView(db: SupabaseClient, tenantId: string, order
     erp_checks: checkRes.checks,
     erp_transfers: transferRes.transfers,
     erp_checks_pending: checkRes.pending || transferRes.pending,
+    erp_org: erpOrg,
   };
 }

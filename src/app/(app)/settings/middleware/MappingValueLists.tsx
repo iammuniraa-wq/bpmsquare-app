@@ -6,23 +6,41 @@ import InfoTip from "@/components/ui/InfoTip";
 import { Input, Select } from "@/components/ui/Input";
 import { useFeel } from "@/components/FeelProvider";
 import s from "./middleware.module.css";
+import { isOrgKind } from "@/lib/middleware/erpOrgPure";
 import {
   ApiProblem, deleteValueList, getValueLists, importValueListCsv, proposeValueLists, saveValueList, valueListCsvUrl,
-  type CsvPreview, type ValueListView,
+  type CsvPreview, type OrgDirectoryView, type ValueListView,
 } from "./api";
 import {
   addMissingValue, addRow, addableKinds, cleanListRows, counterLine, csvPreviewLine, defaultChoices, draftOf, draftOfProposed, emptyDraft, isListDirty, listProblems,
-  mergeProposed, needsCode, newCustomList, removeRow, setBpm, setErp, setInbound, type ListDraft,
+  mergeProposed, needsCode, newCustomList, orgChoicesForRow, orgPlaceholder, removeRow, setBpm, setErp, setInbound, type ListDraft,
 } from "./valueListLogic";
 import { MIDDLEWARE_TIPS } from "./tips";
 import { Notice, ProblemNotice, useFlash, useLoad } from "./ui";
 
+/** The BPMSquare cell of a sales area / ERP company row: a pick of a coverage or an order type, shown by its current name. */
+function OrgPick({ draft, org, i, invalid, onChange }: { draft: ListDraft; org: OrgDirectoryView; i: number; invalid: boolean; onChange: (d: ListDraft) => void }) {
+  const { choices, own } = orgChoicesForRow(org, draft, i);
+  const row = draft.rows[i];
+  return (
+    <Select aria-label={`Coverage or order type, row ${i + 1}`} data-guide="value_list.org_pick" value={row.bpm} invalid={invalid || own?.removed === true} onChange={(e) => onChange(setBpm(draft, i, e.target.value))}>
+      <option value="">Pick…</option>
+      {own && <option value={own.key}>{own.label}</option>}
+      {(["Coverage", "Order type"] as const).map((g) => {
+        const of = choices.filter((o) => o.group === g);
+        return of.length ? <optgroup key={g} label={g}>{of.map((o) => <option key={o.key} value={o.key}>{o.label}</option>)}</optgroup> : null;
+      })}
+    </Select>
+  );
+}
+
 /** One list as a two-column table. Plain props, so a test renders it as it is. */
-export function ListTable({ draft, counts, unmapped, onChange }: {
-  draft: ListDraft; counts?: ValueListView["counts"]; unmapped?: ValueListView["unmapped"]; onChange: (d: ListDraft) => void;
+export function ListTable({ draft, counts, unmapped, org, onChange }: {
+  draft: ListDraft; counts?: ValueListView["counts"]; unmapped?: ValueListView["unmapped"]; org?: OrgDirectoryView | null; onChange: (d: ListDraft) => void;
 }) {
   const problems = listProblems(draft);
   const choices = defaultChoices(draft);
+  const orgList = isOrgKind(draft.kind) && !!org;
   const gaps = unmapped ? [...unmapped.out.map((v) => ({ side: "out" as const, v })), ...unmapped.in.map((v) => ({ side: "in" as const, v }))] : [];
   return (
     <div className={s.stack} style={{ gap: 10 }}>
@@ -37,15 +55,24 @@ export function ListTable({ draft, counts, unmapped, onChange }: {
       )}
       <div className={s.mapCard}>
         <table className={`${s.mapTbl} ${s.vlTbl}`}>
-          <thead><tr><th>BPMSquare value</th><th>ERP code</th><th>In <InfoTip label="In">{MIDDLEWARE_TIPS.listInbound}</InfoTip></th><th><span className={s.srOnly}>Remove</span></th></tr></thead>
+          <thead><tr><th>{orgList ? "Coverage or order type" : "BPMSquare value"}</th><th>ERP code</th><th>In <InfoTip label="In">{MIDDLEWARE_TIPS.listInbound}</InfoTip></th><th><span className={s.srOnly}>Remove</span></th></tr></thead>
           <tbody>
             {draft.rows.length === 0 && <tr><td colSpan={4} className={s.muted}>No rows yet.</td></tr>}
             {draft.rows.map((r, i) => {
-              const dupe = problems.find((p) => p.row === i);
+              const dupe = problems.find((p) => p.row === i && p.col !== "erp");
+              const codeProblem = problems.find((p) => p.row === i && p.col === "erp");
               return (
                 <tr key={i}>
-                  <td><Input aria-label={`BPMSquare value, row ${i + 1}`} value={r.bpm} invalid={!!dupe} onChange={(e) => onChange(setBpm(draft, i, e.target.value))} />{dupe && <div className={s.issue} role="alert">{dupe.message}</div>}</td>
-                  <td><Input aria-label={`ERP code, row ${i + 1}`} value={r.erp} invalid={needsCode(r)} placeholder={needsCode(r) ? "Needs a code" : ""} onChange={(e) => onChange(setErp(draft, i, e.target.value))} /></td>
+                  <td>
+                    {orgList && org
+                      ? <OrgPick draft={draft} org={org} i={i} invalid={!!dupe} onChange={onChange} />
+                      : <Input aria-label={`BPMSquare value, row ${i + 1}`} value={r.bpm} invalid={!!dupe} onChange={(e) => onChange(setBpm(draft, i, e.target.value))} />}
+                    {dupe && <div className={s.issue} role="alert">{dupe.message}</div>}
+                  </td>
+                  <td>
+                    <Input aria-label={`ERP code, row ${i + 1}`} value={r.erp} invalid={needsCode(r) || !!codeProblem} placeholder={needsCode(r) ? "Needs a code" : orgList ? orgPlaceholder(draft.kind) : ""} onChange={(e) => onChange(setErp(draft, i, e.target.value))} />
+                    {codeProblem && <div className={s.issue} role="alert">{codeProblem.message}</div>}
+                  </td>
                   <td className={s.inCell}>
                     <input type="radio" name={`in-${draft.kind}-${r.erp}`} aria-label={`Row ${i + 1} answers when ${r.erp || "the code"} comes back`} checked={r.inbound} disabled={!r.erp.trim()} onChange={() => onChange(setInbound(draft, i))} />
                     <span className={s.inLabel}>Answers inbound</span>
@@ -61,14 +88,20 @@ export function ListTable({ draft, counts, unmapped, onChange }: {
           {counts && <span className={`${s.small} ${s.muted}`}>{counterLine(counts)}</span>}
         </div>
       </div>
-      <div className={s.row}>
-        <label className={`${s.small} ${s.muted}`} htmlFor={`def-${draft.kind}`}>Default for unknown inbound</label>
-        <Select id={`def-${draft.kind}`} style={{ width: "auto", maxWidth: "100%" }} value={draft.default_in ?? ""} onChange={(e) => onChange({ ...draft, default_in: e.target.value || null })}>
-          <option value="">Keep the code</option>
-          {choices.map((c) => <option key={c} value={c}>{c}</option>)}
-        </Select>
-        <InfoTip label="Default for unknown inbound">{MIDDLEWARE_TIPS.listDefault}</InfoTip>
-      </div>
+      {orgList ? (
+        <div className={s.row}>
+          <InfoTip label={draft.label}>{draft.kind === "sales_area" ? MIDDLEWARE_TIPS.orgSalesArea : MIDDLEWARE_TIPS.orgCompany}</InfoTip>
+        </div>
+      ) : (
+        <div className={s.row}>
+          <label className={`${s.small} ${s.muted}`} htmlFor={`def-${draft.kind}`}>Default for unknown inbound</label>
+          <Select id={`def-${draft.kind}`} style={{ width: "auto", maxWidth: "100%" }} value={draft.default_in ?? ""} onChange={(e) => onChange({ ...draft, default_in: e.target.value || null })}>
+            <option value="">Keep the code</option>
+            {choices.map((c) => <option key={c} value={c}>{c}</option>)}
+          </Select>
+          <InfoTip label="Default for unknown inbound">{MIDDLEWARE_TIPS.listDefault}</InfoTip>
+        </div>
+      )}
     </div>
   );
 }
@@ -197,9 +230,13 @@ export default function MappingValueLists({ connection, system }: { connection: 
       )}
 
       {shown.length === 0 && (
-        <Notice tone="info" action={<Button size="sm" onClick={() => void proposeOne()} loading={busy === "prop:all"}>Propose from target</Button>}>
-          No value lists yet. Propose from target, or New list.
-        </Notice>
+        d.standardKinds.some((k) => !isOrgKind(k.kind))
+          ? (
+            <Notice tone="info" action={<Button size="sm" onClick={() => void proposeOne()} loading={busy === "prop:all"}>Propose from target</Button>}>
+              No value lists yet. Propose from target, or New list.
+            </Notice>
+          )
+          : <Notice tone="info">No value lists yet. Choose New list.</Notice>
       )}
       {shown.map((kind) => {
         const draft = drafts[kind];
@@ -217,10 +254,10 @@ export default function MappingValueLists({ connection, system }: { connection: 
             </button>
             {isOpen && (
               <div className={s.listBody}>
-                <ListTable draft={draft} counts={live?.counts} unmapped={live?.unmapped} onChange={(x) => setDrafts((c) => ({ ...c, [kind]: x }))} />
+                <ListTable draft={draft} counts={live?.counts} unmapped={live?.unmapped} org={d.org} onChange={(x) => setDrafts((c) => ({ ...c, [kind]: x }))} />
                 <div className={s.row}>
                   <Button size="sm" variant="primary" onClick={() => void saveOne(kind)} disabled={!dirty || listProblems(draft).length > 0} loading={busy === `save:${kind}`}>Save list</Button>
-                  <Button size="sm" onClick={() => void proposeOne(kind)} loading={busy === `prop:${kind}`}>Propose from target</Button>
+                  {!isOrgKind(kind) && <Button size="sm" onClick={() => void proposeOne(kind)} loading={busy === `prop:${kind}`}>Propose from target</Button>}
                   {live && <a className="bpm-btn bpm-btn-quiet bpm-btn-sm" href={valueListCsvUrl(connection, kind)} download>Export CSV</a>}
                   <Button size="sm" variant="quiet" onClick={() => { importFor.current = kind; fileRef.current?.click(); }}>Import CSV</Button>
                   <Button size="sm" variant="quiet" onClick={() => void removeOne(kind)}>Delete</Button>

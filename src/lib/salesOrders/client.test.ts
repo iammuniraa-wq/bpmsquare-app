@@ -173,7 +173,14 @@ describe("Check with ERP and Send to ERP (SO3)", () => {
     expect(d?.erpSendBlocker).toBe("Add at least one line first.");
     expect(d?.erpChecks).toEqual([{ kind: "credit", status: "failed", message: "On hold", checked_at: "2026-10-24T10:00:00Z", stale: true, detail: { a: 1 } }]);
     expect(d?.erpTransfers).toEqual([{ id: "t1", attempted_at: "2026-10-24T10:00:00Z", by: "Asha", result: "failed", erp_number: null, step: "create", message: "No" }]);
-    expect(readDetail(orderRow)).toMatchObject({ erpChecks: [], erpTransfers: [], erpSendBlocker: null, erpChecksPending: false });
+    expect(readDetail(orderRow)).toMatchObject({ erpChecks: [], erpTransfers: [], erpSendBlocker: null, erpChecksPending: false, erpOrg: [] });
+  });
+  it("reads the ERP organisation lines and drops what it does not know", () => {
+    const d = readDetail({
+      ...orderRow,
+      erp_org: [{ kind: "sales_area", label: "Sales area", ok: true, text: "Sales area 1000/10/00 (from coverage Saudi retail)" }, { kind: "plant", text: "x" }, { kind: "erp_company", ok: false }],
+    });
+    expect(d?.erpOrg).toEqual([{ kind: "sales_area", label: "Sales area", ok: true, text: "Sales area 1000/10/00 (from coverage Saudi retail)" }]);
   });
   it("posts the check and the confirmed send to their routes", async () => {
     const { checkWithErp, sendToErp } = await import("./client");

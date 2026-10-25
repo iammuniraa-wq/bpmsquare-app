@@ -7,6 +7,7 @@ import Field from "@/components/ui/Field";
 import InfoTip from "@/components/ui/InfoTip";
 import { Input, Select, Textarea } from "@/components/ui/Input";
 import SidePanel from "@/components/ui/SidePanel";
+import ErpOrgChips from "@/components/settings/ErpOrgChips";
 import SettingsList, { ListBar } from "@/components/settings/SettingsList";
 import { Toggle } from "@/components/settings/generalShared";
 import { useFeel } from "@/components/FeelProvider";
@@ -146,7 +147,7 @@ export default function OrderTypesClient({ currency, companyInfo, logoUrl }: { c
             key: t.id,
             label: t.name,
             dim: !t.active,
-            title: <>{t.name}{t.is_default && <span className={s.pill}>Default</span>}{!t.active && <span className={`${s.pill} ${s.pillDim}`}>Off</span>}</>,
+            title: <>{t.name}{t.is_default && <span className={s.pill}>Default</span>}{!t.active && <span className={`${s.pill} ${s.pillDim}`}>Off</span>}<span style={{ marginInlineStart: 8 }}><ErpOrgChips type="order_type" id={t.id} /></span></>,
             cells: [t.prefix, t.pricing_mode === "external" ? "External" : "Internal", ruleSummary(t.rules), t.order_count],
           }))}
           onOpen={openRow}

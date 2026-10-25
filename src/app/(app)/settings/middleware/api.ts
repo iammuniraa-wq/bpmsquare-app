@@ -679,11 +679,22 @@ export type ValueListView = {
   counts: { rows: number; unused: number; unmapped: number };
   unmapped: { out: string[]; in: string[] };
 };
-export type ValueListsView = { lists: ValueListView[]; standardKinds: { kind: string; label: string; created: boolean }[]; pending: { bundle: string | null } | null };
+/** The BPMSquare side of a sales area / ERP company list: the coverages and order types to pick from, and every current name (for "(removed)"). */
+export type OrgDirectoryView = {
+  names: { segment: Record<string, string>; order_type: Record<string, string> };
+  options: { key: string; label: string; group: "Coverage" | "Order type" }[];
+};
+export type ValueListsView = {
+  lists: ValueListView[]; standardKinds: { kind: string; label: string; created: boolean }[]; org: OrgDirectoryView | null; pending: { bundle: string | null } | null;
+};
 
 export async function getValueLists(connection: string): Promise<ValueListsView> {
   const r = await get<Record<string, unknown>>(`/api/middleware/value-lists?connection=${encodeURIComponent(connection)}`);
-  return { lists: arr(r.lists), standardKinds: arr(r.standardKinds), pending: pendingBundle(r) };
+  const org = r.org as Partial<OrgDirectoryView> | undefined;
+  return {
+    lists: arr(r.lists), standardKinds: arr(r.standardKinds), pending: pendingBundle(r),
+    org: org ? { names: { segment: org.names?.segment ?? {}, order_type: org.names?.order_type ?? {} }, options: arr(org.options) } : null,
+  };
 }
 export async function saveValueList(connection: string, kind: string, body: { label?: string; rows: ValueListRow[]; default_in: string | null }): Promise<ValueListView> {
   return settled(await put<ValueListView>(`/api/middleware/value-lists/${encodeURIComponent(kind)}?connection=${encodeURIComponent(connection)}`, body));

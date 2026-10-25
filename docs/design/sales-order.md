@@ -164,3 +164,11 @@ SO2 gave Dynamics orders in and invoices; SO3 gave Check with ERP and Send. SAP 
 **Dynamics:** the company/business unit value list is read at send; deliveries remain empty until F&O is connected.
 **Proof:** the SAP sandbox allows reads; writes are tested against a scripted fake (`fakeS4.ts`) and the real service names are verified from the connected system's `$metadata` at connect time (the connector refuses a send, with the reason, when a required service or field is missing). Never assume a field name that `$metadata` does not list.
 **Not in SO4:** SAP credit management (FSCM) beyond what the simulation returns, partial deliveries and returns, pricing condition editing, EWM.
+
+### SO4a built (2026-10-25): organisation by value mapping
+
+- **Lists:** `sales_area` (connection `sap_s4`) and `erp_company` (connection `dynamics365`) are standard kinds on the existing Mapping tab, Value mapping view; SAP gets the view with only its own list. No new screen.
+- **Key scheme:** the BPMSquare side of a row is picked, never typed: `segment:<uuid>` (a coverage, by its segment, which survives a coverage being end-dated and re-made) or `order_type:<uuid>`. The screen shows the current name; a deleted target reads "(removed coverage)" and the row stays until deleted. A new or changed key must exist in the workspace (422 otherwise); CSV carries names.
+- **Resolve:** `resolveErpOrg` (`src/lib/middleware/erpOrg.ts`): the order type row first, else the account owner coverage, else a plain reason. Pure rules and words in `erpOrgPure.ts` (`describeErpOrg`, `parseSalesArea`, `pickOrgCode`).
+- **Dynamics:** the mapped company is recorded on the Dataverse order description, the transfer log and the Monitor summary (`owningbusinessunit` is not writable on create). No row = unchanged, no warning. **Where shown:** ERP tab line, small read-only chips on Settings, Coverage and Order types (`GET /api/settings/erp-org`).
+- **Deferred:** the account own sales area (A_CustomerSalesArea) onto the account, valid-code pick lists from the ERP, reverse lookup of an ERP-origin order coverage (the rows already carry the In flag), and an org filter in the Dataverse credit/stock checks.

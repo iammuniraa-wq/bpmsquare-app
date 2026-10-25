@@ -3,31 +3,72 @@
 // (Dynamics company or business unit, Business Central company), keyed by COVERAGE (the owner coverage of the account) or by ORDER TYPE.
 // No list row = no code, and the caller says so (a Warning on a check, a refusal to send with the reason); nothing is defaulted silently.
 //
-// CONTRACT FILE: the types and the function signature are fixed; the SO4 value-mapping builder replaces the body, the SAP builder imports it.
+// CONTRACT FILE: the types and the function signature are fixed; the SAP builder imports it. The pure rules (key scheme, lookup order,
+// the words) are in erpOrgPure.ts so a screen can use them without the server; they are re-exported here.
 
+import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { ResolvedCoverage } from "@/lib/coverage/resolve";
+import type { Account } from "@/lib/types";
+import { loadOrgDirectory } from "./erpOrgNames";
+import { noMappingReason, orgKey, parseSalesArea, pickOrgCode, salesAreaProblem, type ErpOrgKind, type ErpOrgResult } from "./erpOrgPure";
+import { listAll } from "./mapping/valueListStore";
 
-export type ErpOrgKind = "sales_area" | "erp_company";
+export { describeErpOrg, noMappingReason, orgKey, orgKeyLabel, parseOrgKey, parseSalesArea, pickOrgCode, ORG_KIND_LABEL } from "./erpOrgPure";
+export type { ErpOrgKind, ErpOrgResult, ErpOrgLine, OrgNames } from "./erpOrgPure";
 
-export type ErpOrgResult =
-  | { ok: true; code: string; via: "coverage" | "order_type"; key: string }
-  | { ok: false; reason: string };
+type Deps = {
+  /** Replaces the live coverage engine, for a test. */
+  resolveCoverage?: (tenantId: string, account: Account) => Promise<Pick<ResolvedCoverage, "owner">>;
+};
 
-/** The ERP code for this order/account in this connector, or the reason there is none. Tenant comes from the caller's session, never a body. */
+/**
+ * The ERP code for this order/account in this connector, or the reason there is none. Tenant comes from the caller's session, never a body.
+ * Order of lookup: the order type's own row first (an order type that needs a different sales area / company), then the owner coverage
+ * of the account. The connector id is the value-list connection: "sap_s4" or "dynamics365". The account and the order type are read
+ * with the tenant filter, so an id from another workspace finds nothing and the lookup moves on to the coverage.
+ */
 export async function resolveErpOrg(
-  _admin: SupabaseClient,
-  _tenantId: string,
-  _args: { connectorId: string; kind: ErpOrgKind; accountId: string | null; orderTypeId: string | null }
+  admin: SupabaseClient,
+  tenantId: string,
+  args: { connectorId: string; kind: ErpOrgKind; accountId: string | null; orderTypeId: string | null },
+  deps: Deps = {},
 ): Promise<ErpOrgResult> {
-  return { ok: false, reason: "No ERP organisation mapping is set up yet." };
-}
+  const lists = await listAll(admin, tenantId, args.connectorId);
+  const rows = lists.pending ? [] : (lists.lists.find((l) => l.kind === args.kind)?.rows ?? []);
+  if (rows.every((r) => !r.erp.trim())) return { ok: false, reason: noMappingReason(args.kind, { listEmpty: true }) };
 
-/** A SAP sales area code "1000/10/00" or "1000/10/00/G01/O01" split into its parts; null when malformed. */
-export function parseSalesArea(code: string): { salesOrganization: string; distributionChannel: string; division: string; salesGroup?: string; salesOffice?: string } | null {
-  const p = code.split("/").map((s) => s.trim());
-  if (p.length < 3 || p.length > 5 || p.slice(0, 3).some((s) => !/^[A-Za-z0-9]{1,4}$/.test(s))) return null;
-  const out: { salesOrganization: string; distributionChannel: string; division: string; salesGroup?: string; salesOffice?: string } = { salesOrganization: p[0], distributionChannel: p[1], division: p[2] };
-  if (p[3]) out.salesGroup = p[3];
-  if (p[4]) out.salesOffice = p[4];
-  return out;
+  const { names } = await loadOrgDirectory(admin, tenantId);
+
+  let orderTypeName: string | null = null;
+  let orderTypeKey: string | null = null;
+  if (args.orderTypeId) {
+    const { data } = await admin.from("sales_order_types").select("id, name").eq("id", args.orderTypeId).eq("tenant_id", tenantId).maybeSingle();
+    const t = data as { id: string; name: string } | null;
+    if (t) { orderTypeName = t.name; orderTypeKey = orgKey("order_type", t.id); }
+  }
+
+  let coverageName: string | null = null;
+  let coverageKey: string | null = null;
+  if (args.accountId) {
+    const { data } = await admin.from("accounts").select("*").eq("id", args.accountId).eq("tenant_id", tenantId).maybeSingle();
+    if (data) {
+      try {
+        // Loaded only when a mapping exists: the coverage engine pulls in the whole segmentation stack.
+        const resolve = deps.resolveCoverage ?? (await import("@/lib/coverage/resolve")).resolveCoverageForAccount;
+        const resolved = await resolve(tenantId, data as Account);
+        const seg = resolved.owner?.segment;
+        if (seg) { coverageKey = orgKey("segment", seg.id); coverageName = names.segment[seg.id.toLowerCase()] ?? seg.name; }
+      } catch (e) {
+        console.error("[erp-org] coverage could not be resolved", (e as Error).message);
+      }
+    }
+  }
+
+  const hit = pickOrgCode(rows, { orderTypeKey, coverageKey });
+  if (!hit) return { ok: false, reason: noMappingReason(args.kind, { orderTypeName, coverageName, hadAccount: !!args.accountId }) };
+  if (args.kind === "sales_area" && !parseSalesArea(hit.code)) {
+    return { ok: false, reason: `The sales area mapped for ${hit.via === "order_type" ? `order type '${orderTypeName}'` : `coverage '${coverageName}'`} is not usable. ${salesAreaProblem(hit.code) ?? ""}`.trim() };
+  }
+  return { ok: true, code: hit.code, via: hit.via, key: hit.key, via_label: (hit.via === "order_type" ? orderTypeName : coverageName) ?? undefined };
 }

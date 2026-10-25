@@ -145,6 +145,12 @@ export default function ErpTab({ detail, currency, externalLine, middlewareHref,
           {externalLine}
           {!inErp && <span className="bpm-t-help">Not in an ERP</span>}
         </div>
+        {(detail.erpOrg ?? []).map((o) => (
+          <div key={o.kind} className={s.erpOrg} data-guide={`sales_order.erp_${o.kind}`} data-ok={o.ok ? "yes" : "no"}>
+            <span className={o.ok ? undefined : s.erpOrgMissing}>{o.text}</span>
+            <InfoTip label={o.label}>{ORDER_TIPS.erpOrg}</InfoTip>
+          </div>
+        ))}
         {inErp && (
           <div className={s.facts} style={{ marginTop: 12 }}>
             <div className={s.fact} data-guide="sales_order.erp_number">

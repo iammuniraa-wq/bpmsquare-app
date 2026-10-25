@@ -315,3 +315,48 @@ describe("the document sent", () => {
     expect(out[0]).toMatchObject({ qty: 4, rate: 100, discount_pct: 10, amount: 360 });
   });
 });
+
+describe("the ERP company from value mapping (SO4a)", () => {
+  const OT = "bbbbbbbb-0000-4000-8000-000000000001";
+  const withCompany = (rows: { bpm: string; erp: string }[]) => {
+    const s = seed();
+    s.sales_orders[0].type_id = OT;
+    s.sales_order_types = [{ id: OT, tenant_id: T1, name: "Export order", active: true, sort_order: 0 }];
+    s.integration_value_lists = [{ tenant_id: T1, connection_id: "dynamics365", kind: "erp_company", label: "ERP company", rows: rows.map((r) => ({ ...r, inbound: true })), default_in: null, unknown_in: [] }];
+    return s;
+  };
+
+  it("without a row nothing changes: no company line in the description, no mention in the log", async () => {
+    const db = fakeAdmin(seed());
+    const dv = erp();
+    expect((await sendOrderToErp(db.client, T1, "so-1", { confirm: true, http: dv })).state).toBe("sent");
+    expect(String(dv.orders[0].body.description)).not.toContain("ERP company");
+    expect(String(db.tables.sales_order_transfers[0].message)).not.toContain("ERP company");
+    expect(db.tables.integration_messages[0].summary as Record<string, unknown>).not.toHaveProperty("erp_company");
+    // a list that exists but holds another order type's row is the same as none
+    const other = fakeAdmin(withCompany([{ bpm: "order_type:bbbbbbbb-0000-4000-8000-0000000000ff", erp: "DEMO" }]));
+    const dv2 = erp();
+    expect((await sendOrderToErp(other.client, T1, "so-1", { confirm: true, http: dv2 })).state).toBe("sent");
+    expect(String(dv2.orders[0].body.description)).not.toContain("ERP company");
+  });
+
+  it("records the mapped company on the Dataverse order and in the transfer log, without writing a field Dataverse would refuse", async () => {
+    const db = fakeAdmin(withCompany([{ bpm: `order_type:${OT}`, erp: "USMF" }]));
+    const dv = erp();
+    expect((await sendOrderToErp(db.client, T1, "so-1", { confirm: true, http: dv })).state).toBe("sent");
+    const body = dv.orders[0].body;
+    expect(String(body.description)).toContain("ERP company: USMF");
+    expect(Object.keys(body).some((k) => k.toLowerCase().includes("owningbusinessunit"))).toBe(false);
+    expect(String(db.tables.sales_order_transfers[0].message)).toContain("ERP company USMF (from order type Export order)");
+    expect((db.tables.integration_messages[0].summary as Record<string, unknown>).erp_company).toBe("USMF");
+  });
+
+  it("another workspace's mapping is not used", async () => {
+    const s = withCompany([{ bpm: `order_type:${OT}`, erp: "USMF" }]);
+    s.integration_value_lists[0].tenant_id = T2;
+    const db = fakeAdmin(s);
+    const dv = erp();
+    expect((await sendOrderToErp(db.client, T1, "so-1", { confirm: true, http: dv })).state).toBe("sent");
+    expect(String(dv.orders[0].body.description)).not.toContain("ERP company");
+  });
+});

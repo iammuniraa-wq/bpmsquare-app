@@ -64,6 +64,8 @@ export type OrderDetail = {
   erpTransfers: ErpTransferView[];
   /** Migration 0217 is not applied: the ERP buttons say "Needs a database update". */
   erpChecksPending: boolean;
+  /** The sales area / ERP company the Mapping tab resolves for this order (one read-only line each); absent or empty when no connected ERP uses one. */
+  erpOrg?: { kind: "sales_area" | "erp_company"; label: string; ok: boolean; text: string }[];
   /** The server's own answers about the lock (the same rule the PATCH route applies); null when it sent none. */
   permissions: { editable: boolean; annotatable: boolean; deletable: boolean } | null;
   /** Why the order is locked, in the server's words (so the chip, the greyed controls and a 409 agree). */
@@ -358,6 +360,11 @@ export function readDetail(json: unknown): OrderDetail | null {
     erpChecks: arr(root.erp_checks).flatMap((c) => { const x = readCheck(c); return x ? [x] : []; }),
     erpTransfers: arr(root.erp_transfers).flatMap((t) => { const x = readTransfer(t); return x ? [x] : []; }),
     erpChecksPending: root.erp_checks_pending === true,
+    erpOrg: arr(root.erp_org).flatMap((o) => {
+      const r = rec(o);
+      const text = str(r?.text);
+      return r && text && (r.kind === "sales_area" || r.kind === "erp_company") ? [{ kind: r.kind, label: str(r.label) ?? "", ok: r.ok === true, text }] : [];
+    }),
     permissions: typeof root.editable === "boolean"
       ? { editable: root.editable, annotatable: root.annotatable === true, deletable: root.deletable === true }
       : null,

@@ -1,5 +1,6 @@
 import { parseDelimited } from "@/lib/import/parse";
 import { csvCell } from "@/lib/import/template";
+import { isOrgKind, validateOrgRows } from "../erpOrgPure";
 import {
   MAX_CUSTOM_LISTS, MAX_LIST_ROWS, STANDARD_LIST_KINDS, STANDARD_LIST_LABEL,
   type MapRow, type MappingDocument, type StandardListKind, type ValueList, type ValueListRow,
@@ -29,12 +30,14 @@ const isObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 
  * that answer when the flag was not sent. An empty ERP code is allowed (the row is shown red "needs a code"): it
  * blocks the send of that value, not the save of the list.
  */
-export function validateListInput(rawRows: unknown, rawDefault: unknown): Validated {
+export function validateListInput(rawRows: unknown, rawDefault: unknown, kind?: string): Validated {
   const errors: ListRowError[] = [];
+  const org = isOrgKind(kind);
   if (!Array.isArray(rawRows)) return { ok: false, errors: [{ row: null, message: "Send the rows as a list." }] };
   if (rawRows.length > MAX_LIST_ROWS) return { ok: false, errors: [{ row: null, message: `A list holds at most ${MAX_LIST_ROWS} rows.` }] };
   let def: string | null = null;
-  if (rawDefault !== undefined && rawDefault !== null && rawDefault !== "") {
+  // An organisation list has no "unknown inbound" default: a code nobody mapped stays unmapped rather than landing on a guessed coverage.
+  if (!org && rawDefault !== undefined && rawDefault !== null && rawDefault !== "") {
     if (typeof rawDefault !== "string" || rawDefault.trim().length > MAX_VALUE_LEN) errors.push({ row: null, message: "The default for an unknown inbound code is a BPMSquare value." });
     else def = rawDefault.trim();
   }
@@ -53,6 +56,11 @@ export function validateListInput(rawRows: unknown, rawDefault: unknown): Valida
     rows.push({ bpm, erp, inbound: r.inbound === true });
   });
   if (errors.length) return { ok: false, errors };
+  if (isOrgKind(kind)) {
+    for (const e of validateOrgRows(kind, rows)) errors.push(e);
+    if (errors.length) return { ok: false, errors };
+    for (const r of rows) r.bpm = r.bpm.toLowerCase();
+  }
 
   const byCode = new Map<string, number[]>();
   rows.forEach((r, i) => { if (r.erp) byCode.set(r.erp.toLowerCase(), [...(byCode.get(r.erp.toLowerCase()) ?? []), i]); });

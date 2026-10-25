@@ -8,6 +8,8 @@ import { CONNECTOR_ID } from "@/lib/connectors/d365/server";
 import { refreshOrderDocuments } from "@/lib/connectors/d365/orders";
 import type { D365Config } from "@/lib/connectors/d365/types";
 import type { ErpHttp } from "@/lib/middleware/erp";
+import { resolveErpOrg } from "@/lib/middleware/erpOrg";
+import { describeErpOrg } from "@/lib/middleware/erpOrgPure";
 import { sendDataverseSalesOrder, type DataverseOrderState } from "@/lib/middleware/erpOrder";
 import { buildExchangePayload, pickExchange, recordingHttp } from "@/lib/middleware/exchange";
 import { erpDeepLink, money } from "@/lib/middleware/links";
@@ -128,8 +130,11 @@ export function outLines(lines: Pick<SalesOrderLine, "line_no" | "description" |
 }
 
 /** The lines of text the ERP order's description carries: what the ERP cannot hold as a field, kept readable. */
-export function orderNote(o: Pick<OrderRow, "customer_po" | "requested_date" | "notes" | "terms" | "tax_total" | "shipping_amount" | "total">): string[] {
+export function orderNote(o: Pick<OrderRow, "customer_po" | "requested_date" | "notes" | "terms" | "tax_total" | "shipping_amount" | "total">, erpCompany: string | null = null): string[] {
   const out: string[] = [];
+  // Dataverse does not let an integration set the owning business unit when it creates a row, so the company the value mapping chose
+  // is recorded where the person opening the order reads it, not written to a field that would be refused.
+  if (erpCompany) out.push(`ERP company: ${erpCompany}`);
   if (o.customer_po?.trim()) out.push(`Customer PO: ${o.customer_po.trim()}`);
   if (o.requested_date) out.push(`Requested delivery: ${o.requested_date}`);
   if (o.notes?.trim()) out.push(o.notes.trim().slice(0, 500));
@@ -228,6 +233,16 @@ export async function sendOrderToErp(
   const cfg: D365Config = erp.cfg;
   const currency = (order.currency || "USD").toUpperCase();
 
+  // The company or business unit the Mapping tab chose for this order (order type first, then the customer's coverage). No row is no
+  // problem for Dynamics: a single-company Dataverse works without one, so nothing is said and nothing changes.
+  let company: { code: string; text: string } | null = null;
+  try {
+    const org = await resolveErpOrg(admin, tenantId, { connectorId: CONNECTOR_ID, kind: "erp_company", accountId: order.account_id, orderTypeId: order.type_id });
+    if (org.ok) company = { code: org.code, text: describeErpOrg(org, "erp_company").text };
+  } catch (e) {
+    console.error("[sales-orders] the ERP company could not be looked up", (e as Error).message);
+  }
+
   // Build the document. Price list and currency are decided per send, exactly as for a quote.
   let body: Record<string, unknown>;
   try {
@@ -237,7 +252,7 @@ export async function sendOrderToErp(
     const out = outboundConfig(cfg);
     const qfe: QuoteForErp = {
       ref: order.ref, doc_id: order.id, title: customerName || order.ref, customer_name: customerName || order.ref, account_external_id: customerId,
-      description: orderNote(order), lines: outLines(lines), subtotal: Number(order.subtotal), total: Number(order.total), valid_until: null, outcome: "awarded", currency,
+      description: orderNote(order, company?.code ?? null), lines: outLines(lines), subtotal: Number(order.subtotal), total: Number(order.total), valid_until: null, outcome: "awarded", currency,
     };
     const built = buildDataverseQuote(
       qfe, { price_list_id: pricing.priceListId, currency_id: pricing.currencyId },
@@ -288,7 +303,7 @@ export async function sendOrderToErp(
   const sentResult: TransferResult = result.alreadyDone ? "already_sent" : "sent";
   await recordTransfer(admin, tenantId, orderId, {
     userId, result: sentResult, erpNumber: result.orderNumber, step: null,
-    message: result.alreadyDone ? "The order was already in the ERP." : result.steps.join(" "), at,
+    message: result.alreadyDone ? "The order was already in the ERP." : [...result.steps, ...(company ? [`${company.text}.`] : [])].join(" "), at,
   });
   if (erp.middleware) {
     await recordMessage(admin, {
@@ -296,7 +311,7 @@ export async function sendOrderToErp(
       refLabel: result.orderNumber ? `Sales order ${result.orderNumber}` : label, status: "ok", durationMs: Date.now() - t0, exchange: buildExchangePayload(pickExchange(rec.calls)),
       summary: {
         headline: `${label}: ${result.alreadyDone ? "already in the ERP" : "sent"}${result.orderNumber ? ` as ${result.orderNumber}` : ""}`,
-        erp_number: result.orderNumber, link, steps: result.steps, lines: lines.length, total: result.total ?? Number(order.total), trigger: "send_now",
+        erp_number: result.orderNumber, link, steps: result.steps, lines: lines.length, ...(company ? { erp_company: company.code } : {}), total: result.total ?? Number(order.total), trigger: "send_now",
       },
     }, capture);
   }

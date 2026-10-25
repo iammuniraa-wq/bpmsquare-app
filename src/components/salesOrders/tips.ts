@@ -12,6 +12,7 @@ export const ORDER_TIPS = {
   transfer: "Every attempt to send the order to the ERP is logged here: who pressed it, and the ERP's number or the step that failed.",
   check: "Reads the customer's credit and each product's price and stock from your ERP. Nothing is saved there.",
   send: "Creates this order in your ERP with its lines, and it is read-only here after that. Checks that are not a pass are listed first.",
+  erpOrg: "Found from the order type or the customer's coverage on the Mapping tab (Value mapping) of the Integration middleware page. Change it there, not here.",
   stale: "The lines or the customer changed after this ran, so the result may no longer be true. Check again.",
   erpStock: "Stock on hand in your ERP when you last pressed Check with ERP. It replaces the master-data estimate for this order.",
   deliveries: "Deliveries and invoices are read from the ERP and cannot be edited here. They fill the document flow and the path.",
