@@ -188,7 +188,7 @@ export default function TenderTab({ opportunityId, stage, tender, approval, room
         </div>
       </SettingsSection>
 
-      {outcome && <OutcomeSection opportunityId={opportunityId} data={outcome} fmt={fmt ?? ((n) => String(n))} onError={onError} onNotice={onNotice} />}
+      {outcome && <OutcomeSection opportunityId={opportunityId} data={outcome} fmt={fmt ?? ((n) => String(n))} onError={onError} onNotice={onNotice} onChanged={() => router.refresh()} />}
     </div>
   );
 }

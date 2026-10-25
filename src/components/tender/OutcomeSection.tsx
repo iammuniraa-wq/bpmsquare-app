@@ -1,7 +1,6 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 import { c } from "@/lib/theme";
 import Button from "@/components/ui/Button";
 import Field from "@/components/ui/Field";
@@ -11,6 +10,7 @@ import SettingsSection from "@/components/settings/SettingsSection";
 import { LOSS_REASONS, LOSS_REASON_LABEL } from "@/lib/constants";
 import { OUTCOME_LIMITS, comparisonText, priceComparison, type OutcomeData } from "@/lib/tender/outcome";
 import { TENDER_TIPS } from "@/lib/tender/tips";
+import { mergeOutcome } from "./refreshAfterSave";
 
 // The Outcome section of the Tender tab, shown once the tender is Awarded, Lost or No-bid: the facts of how it ended, and our last
 // submitted total beside the awarded / winning price with the difference. A lost tender requires the reason and who won.
@@ -18,14 +18,18 @@ import { TENDER_TIPS } from "@/lib/tender/tips";
 const TITLE = { awarded: "Outcome: awarded", bid_lost: "Outcome: lost", no_bid: "Outcome: no-bid" } as const;
 const fmtDay = (s: string) => new Date(`${s}T00:00:00`).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
 
-export default function OutcomeSection({ opportunityId, data, fmt, onError, onNotice }: {
+export default function OutcomeSection({ opportunityId, data: serverData, fmt, onError, onNotice, onChanged }: {
   opportunityId: string;
   data: OutcomeData;
   fmt: (n: number) => string;
   onError: (message: string) => void;
   onNotice: (message: string) => void;
+  /** Called after the outcome is saved and shown, so the page's other facts (header, stage chip) refresh. */
+  onChanged?: () => void;
 }) {
-  const router = useRouter();
+  // What is shown follows the save at once (the PATCH answers the saved facts); the page then refreshes behind it.
+  const [data, setData] = useState(serverData);
+  useEffect(() => { setData(serverData); }, [serverData]);
   const [busy, setBusy] = useState(false);
   const [form, setForm] = useState({
     award_value: data.award_value != null ? String(data.award_value) : "", award_date: data.award_date ?? "",
@@ -51,8 +55,9 @@ export default function OutcomeSection({ opportunityId, data, fmt, onError, onNo
       const res = await fetch(`/api/opportunities/${opportunityId}/tender/outcome`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
       const j = await res.json().catch(() => ({}));
       if (!res.ok) { onError(j.error ?? "Could not save"); return; }
+      setData((cur) => mergeOutcome(cur, j, { lost, winning_bidder: form.winning_bidder, loss_reason: form.loss_reason }));
       onNotice("Outcome saved");
-      router.refresh();
+      onChanged?.();
     } finally { setBusy(false); }
   }
 

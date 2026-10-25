@@ -1,12 +1,12 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 import { c } from "@/lib/theme";
 import Button from "@/components/ui/Button";
 import SettingsSection from "@/components/settings/SettingsSection";
 import { CALL_KIND_LABEL, CALL_LIMITS, isOverdue, type CallsData, type CallView } from "@/lib/tender/calls";
 import { LogCallButton } from "./LogCall";
+import { callsUrl, mergeCalls, reloadAfterSave } from "./refreshAfterSave";
 
 // The calls, meetings and site visits logged on a tender deal, newest first, on the deal's Activity tab beside the change history.
 // Text is shown as text (never HTML). A next step shows its due date and turns red once past; "Done" ticks it off.
@@ -14,18 +14,23 @@ import { LogCallButton } from "./LogCall";
 const fmtStamp = (s: string) => new Date(s).toLocaleString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
 const fmtDay = (s: string) => new Date(`${s}T00:00:00`).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
 
-export default function CallsPanel({ opportunityId, data, todayKey, initialShowAll = false }: {
+export default function CallsPanel({ opportunityId, data: serverData, todayKey, initialShowAll = false, onChanged }: {
   opportunityId: string;
   data: CallsData;
   todayKey: string;
   initialShowAll?: boolean;
+  /** Called after a change is saved and the list reloaded, so the page's other facts (header, overdue chip) refresh. */
+  onChanged?: () => void;
 }) {
-  const router = useRouter();
+  const [data, setData] = useState(serverData);
+  useEffect(() => { setData(serverData); }, [serverData]);
   const [showAll, setShowAll] = useState(initialShowAll);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
   const [asking, setAsking] = useState<string | null>(null);
   const shown = showAll ? data.calls : data.calls.slice(0, CALL_LIMITS.shown);
+
+  const reload = () => reloadAfterSave<{ calls?: CallsData["calls"]; pending?: boolean }>(callsUrl(opportunityId), (fresh) => setData((cur) => mergeCalls(cur, fresh)), onChanged);
 
   async function call(id: string, init: RequestInit, failure: string) {
     setError(""); setBusy(id);
@@ -33,7 +38,7 @@ export default function CallsPanel({ opportunityId, data, todayKey, initialShowA
       const res = await fetch(`/api/opportunities/${opportunityId}/tender/calls/${id}`, { ...init, headers: { "Content-Type": "application/json" } });
       if (!res.ok) { const j = await res.json().catch(() => ({})); setError(j.error ?? failure); return; }
       setAsking(null);
-      router.refresh();
+      await reload();
     } finally { setBusy(null); }
   }
 
@@ -44,7 +49,7 @@ export default function CallsPanel({ opportunityId, data, todayKey, initialShowA
       <div data-guide="tender.calls" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
         {data.pending && <div role="alert" data-guide="tender.calls.pending" style={{ fontSize: 13, color: "var(--amberink)" }}>Logged calls need a database update (migration 0225). Ask your administrator to apply it.</div>}
         {error && <div role="alert" style={{ background: "var(--err-bg)", border: "1px solid var(--err-line)", borderRadius: 8, padding: "8px 12px", fontSize: 12.5, color: "var(--err-ink)" }}>{error}</div>}
-        {data.canEdit && !data.pending && <div><LogCallButton opportunityId={opportunityId} variant="primary" /></div>}
+        {data.canEdit && !data.pending && <div><LogCallButton opportunityId={opportunityId} variant="primary" onLogged={() => { void reload(); }} /></div>}
         {!data.pending && data.calls.length === 0 && <div style={{ fontSize: 13, color: c.hint }}>No calls logged yet. Log one after you speak to the client or consultant.</div>}
         {shown.map((k: CallView) => {
           const late = isOverdue(k, todayKey);

@@ -18,6 +18,7 @@ const emptyForm = { kind: "call", with_whom: "", occurred_at: "", summary: "", o
 export function LogCallButton({ opportunityId, variant = "secondary", onLogged, initialOpen = false }: {
   opportunityId: string;
   variant?: "primary" | "secondary" | "quiet";
+  /** Called after the call is saved. Without it the page is refreshed. */
   onLogged?: () => void;
   /** Lets a server render (and its test) show the open panel. The page never passes it. */
   initialOpen?: boolean;
@@ -43,8 +44,8 @@ export function LogCallButton({ opportunityId, variant = "secondary", onLogged, 
       const j = await res.json().catch(() => ({}));
       if (!res.ok) { setError(j.error ?? "Could not save"); return; }
       setForm(emptyForm); setOpen(false);
-      onLogged?.();
-      router.refresh();
+      // A parent that shows the list passes onLogged (it reloads the list and refreshes the page); a bare mount, like the Deal Room page, just refreshes.
+      if (onLogged) onLogged(); else router.refresh();
     } finally { setBusy(false); }
   }
 

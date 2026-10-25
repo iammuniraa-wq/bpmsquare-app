@@ -381,7 +381,7 @@ export default function OpportunityDetailClient({ opp, accountName, contacts, in
           <DealRoom
             opportunityId={opp.id} currentUserId={currentUserId} isAdmin={tender.room.isAdmin} todayKey={todayKey} initialFilter={roomFilter}
             onSeen={() => setRoomUnread(0)} onOpenQuestions={setRoomOpen}
-            headerExtra={tender.calls?.canEdit && !tender.calls.pending ? <LogCallButton opportunityId={opp.id} /> : undefined}
+            headerExtra={tender.calls?.canEdit && !tender.calls.pending ? <LogCallButton opportunityId={opp.id} onLogged={() => router.refresh()} /> : undefined}
           />
         )
       )}
@@ -470,7 +470,7 @@ export default function OpportunityDetailClient({ opp, accountName, contacts, in
       )}
 
       {tab === "bids" && tender?.bids && (
-        <BidsTab opportunityId={opp.id} data={{ ...tender.bids, working_total: linesTotal }} stage={opp.stage} outcome={opp.outcome} fmt={inr} onError={setError} onNotice={setNotice} />
+        <BidsTab opportunityId={opp.id} data={{ ...tender.bids, working_total: linesTotal }} stage={opp.stage} outcome={opp.outcome} fmt={inr} onError={setError} onNotice={setNotice} onChanged={() => router.refresh()} />
       )}
 
       {tab === "quotes" && (
@@ -501,7 +501,7 @@ export default function OpportunityDetailClient({ opp, accountName, contacts, in
       {tab === "related" && related}
       {tab === "activity" && (tender?.calls ? (
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-          <CallsPanel opportunityId={opp.id} data={tender.calls} todayKey={todayKey} />
+          <CallsPanel opportunityId={opp.id} data={tender.calls} todayKey={todayKey} onChanged={() => router.refresh()} />
           {activity}
         </div>
       ) : activity)}

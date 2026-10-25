@@ -1,7 +1,6 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 import { c } from "@/lib/theme";
 import Button from "@/components/ui/Button";
 import Field from "@/components/ui/Field";
@@ -10,6 +9,7 @@ import InfoTip from "@/components/ui/InfoTip";
 import SettingsSection from "@/components/settings/SettingsSection";
 import { BID_LIMITS, BID_REVISE_STAGES, BID_SUBMIT_STAGES, deltaText, type BidDiff, type BidLine, type BidsData } from "@/lib/tender/bids/rules";
 import { TENDER_TIPS } from "@/lib/tender/tips";
+import { bidsUrl, mergeBids, reloadAfterSave } from "./refreshAfterSave";
 
 // The Bids tab of a tender deal (docs/design/gcc-tender-deals.md section 15): submit the bid as a numbered, never-changing version,
 // revise it, and compare any two versions. A version holds the deal's lines and total as they were; it never holds a cost or a
@@ -19,7 +19,7 @@ const fmtStamp = (s: string) => new Date(s).toLocaleString("en-GB", { day: "2-di
 const SHOWN_VERSIONS = 5;
 const SHOWN_LINES = 8;
 
-export default function BidsTab({ opportunityId, data, stage, outcome, fmt, onError, onNotice, initialCompare = null, initialSubmitOpen = false }: {
+export default function BidsTab({ opportunityId, data: pageData, stage, outcome, fmt, onError, onNotice, onChanged, initialCompare = null, initialSubmitOpen = false }: {
   opportunityId: string;
   data: BidsData;
   stage: string;
@@ -27,11 +27,16 @@ export default function BidsTab({ opportunityId, data, stage, outcome, fmt, onEr
   fmt: (n: number) => string;
   onError: (message: string) => void;
   onNotice: (message: string) => void;
+  /** Called after a submit or a reopen is saved (and, for a submit, the versions reloaded), so the page's stage and header facts refresh. */
+  onChanged?: () => void;
   /** Lets a server render (and its test) show a finished comparison. The page never passes it. */
   initialCompare?: { from: number; to: number; diff: BidDiff } | null;
   initialSubmitOpen?: boolean;
 }) {
-  const router = useRouter();
+  // The versions follow a submit at once (reloaded from the bids endpoint); the working total is always the page's own.
+  const [loaded, setLoaded] = useState({ versions: pageData.versions, pending: pageData.pending });
+  useEffect(() => { setLoaded({ versions: pageData.versions, pending: pageData.pending }); }, [pageData.versions, pageData.pending]);
+  const data: BidsData = { ...pageData, ...loaded };
   const [busy, setBusy] = useState(false);
   const [askSubmit, setAskSubmit] = useState(initialSubmitOpen);
   const [reason, setReason] = useState("");
@@ -62,7 +67,11 @@ export default function BidsTab({ opportunityId, data, stage, outcome, fmt, onEr
       setAskSubmit(false); setReason(""); setNote("");
       if (j.stage_error) onError(`Version ${j.version_no} was saved, but the tender could not be moved to Submitted: ${j.stage_error}`);
       else onNotice(`Bid version ${j.version_no} submitted`);
-      router.refresh();
+      await reloadAfterSave<{ versions?: BidsData["versions"]; pending?: boolean }>(bidsUrl(opportunityId), (fresh) => {
+        const next = mergeBids(data, fresh);
+        setLoaded({ versions: next.versions, pending: next.pending });
+        setFrom(String(next.versions[1]?.version_no ?? "")); setTo(String(next.versions[0]?.version_no ?? "")); setCmp(null);
+      }, onChanged);
     } finally { setBusy(false); }
   }
 
@@ -74,7 +83,7 @@ export default function BidsTab({ opportunityId, data, stage, outcome, fmt, onEr
       const j = await res.json().catch(() => ({}));
       if (!res.ok) { onError(j.error ?? "Could not reopen the bid"); return; }
       onNotice("Back in Estimating. Change the lines, then submit the next version");
-      router.refresh();
+      onChanged?.();
     } finally { setBusy(false); }
   }
 
