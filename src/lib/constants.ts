@@ -133,6 +133,10 @@ export const ROUTES = {
   salesOrderPrint: (id: string) => `/sales-orders/${id}/print`,
   settingsOrderTypes: "/settings/order-types",
   settingsTenders: "/settings/tenders",
+  contractProjects: "/contract-projects",
+  contractProject: (id: string) => `/contract-projects/${id}`,
+  contractProjectNew: "/contract-projects/new",
+  settingsContractProjects: "/settings/contract-projects",
   employees: "/employees",
   configPricing: "/settings/pricing",
   settingsNumberRanges: "/settings/number-ranges",
@@ -311,6 +315,7 @@ export const NAV: NavGroup[] = [
           { label: "Standard Quotes", href: ROUTES.standardQuotes, icon: "≡", pillar: "blue", featureKey: "standard_quotes", workcenterKey: "standard_quotes" },
           { label: "Sales Orders", href: ROUTES.salesOrders, icon: "▣", pillar: "blue", featureKey: "sales_orders", workcenterKey: "sales_orders" },
           { label: "Pipeline",   href: ROUTES.pipeline,   icon: "▦", pillar: "blue", featureKey: "pipeline", workcenterKey: "pipeline" },
+          { label: "Contract Projects", href: ROUTES.contractProjects, icon: "▤", pillar: "blue", featureKey: "contract_projects", workcenterKey: "contract_projects" },
           { label: "Invoices",   href: ROUTES.invoices,   icon: "⊟", pillar: "blue", featureKey: "invoices", workcenterKey: "invoices" },
           { label: "Purchase Orders", href: ROUTES.purchaseOrders, icon: "⇱", pillar: "blue", featureKey: "purchasing", workcenterKey: "purchase_orders" },
           // RFQ (0128): supplier quotations asked for when no cost/price is
@@ -774,6 +779,11 @@ export type TenantFeatures = {
   // files, questions, decisions). Internal workspace members only (design section 10). Platform-admin-only, default OFF;
   // needs gcc_tender.
   deal_room: boolean;
+  // Contract projects, slice 5a of the same design (docs/design/gcc-tender-deals.md section 15): the project a won tender becomes, with
+  // its cost budget by resource type and cost code, numbered revisions with a reason, a manager-approved baseline and an Excel
+  // handover stand-in. Not the Workforce "Projects". Platform-admin-only, default OFF; needs gcc_tender. With it off there is no
+  // menu item, route, API answer or button on a deal, and the new tables are never queried.
+  contract_projects: boolean;
 };
 
 // WfmConfig — tenant-level WFM (attendance) settings, stored in
@@ -1222,6 +1232,9 @@ export type TenantConfig = {
   // `price_validity_days` (slice 3a, default 180): a supplier or past-project price older than this is shown as stale on a BOQ line and
   // never applied automatically. Read through priceValidityDays() in src/lib/tender/boq/price.ts.
   tender?: { approvers?: string[]; allow_self_approval?: boolean; price_validity_days?: number };
+  // Contract projects (slice 5a): `default_margin_pct` (default 15) is the margin assumed when a tender line's cost is not known, so the
+  // project's budget starts from "rate less this margin" and says "estimated". Read through contractProjectSettings(); Settings > Contract projects.
+  contract_projects?: { default_margin_pct?: number };
   // E-invoicing scheme of the workspace (Region pack switch until the pack framework exists, einvoicing_ksa flag).
   // `scheme: null` switches the feature off even with the flag on; an absent key with the flag on means ksa_zatca.
   // `default_doc_type` is what a buyer without a VAT number gets (default simplified).

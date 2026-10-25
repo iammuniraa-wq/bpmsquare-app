@@ -39,6 +39,7 @@ import DealRoom from "@/components/tender/DealRoom";
 import TenderLinesToolbar, { TenderLinesSaveBar } from "@/components/tender/TenderLinesToolbar";
 import type { ComposerLine } from "@/components/rfq/RfqComposer";
 import BoqTab from "@/components/tender/BoqTab";
+import ContractProjectBanner, { type ContractProjectInfo } from "@/components/contractProjects/ContractProjectBanner";
 import { editorUom } from "@/lib/sales/uom";
 
 // The deal page (§4.5): the record-page look (header with one primary step and
@@ -75,7 +76,7 @@ function toEditorLines(rows: OpportunityLine[]): Line[] {
   }));
 }
 
-export default function OpportunityDetailClient({ opp, accountName, contacts, initialLines, linesVersion, quotes, stages, members, products, pricingEnabled, standardQuotesEnabled, todayKey, currentUserId, related, activity, externalLine, tender, sourceEmail, tenderRfq, initialTab }: {
+export default function OpportunityDetailClient({ opp, accountName, contacts, initialLines, linesVersion, quotes, stages, members, products, pricingEnabled, standardQuotesEnabled, todayKey, currentUserId, related, activity, externalLine, tender, sourceEmail, tenderRfq, contractProject, initialTab }: {
   /** Lets a server render (and its test) open on a given tab. The page never passes it. */
   initialTab?: Tab;
   opp: Opportunity & { stage_since: string };
@@ -104,6 +105,8 @@ export default function OpportunityDetailClient({ opp, accountName, contacts, in
   sourceEmail?: React.ReactNode;
   /** Tender deal in a workspace with the RFQ module: the saved lines as RFQ starting lines, for "Request supplier prices" on the Lines tab. */
   tenderRfq?: { originLabel: string; lines: ComposerLine[] } | null;
+  /** Contract projects (slice 5a): set for a tender in a workspace with the module. */
+  contractProject?: ContractProjectInfo | null;
 }) {
   const cur = useCurrency();
   const inr = (n: number) => formatMoney(Math.round(n), cur, {});
@@ -180,6 +183,16 @@ export default function OpportunityDetailClient({ opp, accountName, contacts, in
         probability_override: form.probability_override === "" ? null : Number(form.probability_override),
         probability_override_reason: form.probability_override_reason, team: form.team,
       }, "Saved");
+    });
+  }
+
+  function createContractProject() {
+    startTransition(async () => {
+      setError(""); setNotice("");
+      const res = await fetch("/api/contract-projects", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ opportunity_id: opp.id }) });
+      const j = await res.json().catch(() => ({}));
+      if (res.ok || j.project_id) { router.push(ROUTES.contractProject(j.id ?? j.project_id)); return; }
+      setError(j.error ?? "Could not create the contract project");
     });
   }
 
@@ -310,6 +323,7 @@ export default function OpportunityDetailClient({ opp, accountName, contacts, in
                 { label: "Mark won", onSelect: markWon, hidden: closed || !canConvert },
                 { label: "Mark lost", onSelect: markLost, hidden: closed },
                 { label: "Reopen", onSelect: reopen, hidden: !closed },
+                { label: "Create contract project", onSelect: createContractProject, hidden: !contractProject || !!contractProject.existing || !contractProject.canCreate },
                 { label: "Delete", danger: true, onSelect: () => { void remove(); } },
               ]}
             />
@@ -336,6 +350,7 @@ export default function OpportunityDetailClient({ opp, accountName, contacts, in
       />
 
       {externalLine}
+      {contractProject && <ContractProjectBanner info={contractProject} busy={pending} onCreate={createContractProject} />}
 
       {error && <div role="alert" style={{ background: "var(--err-bg)", border: "1px solid var(--err-line)", borderRadius: 8, padding: "8px 12px", fontSize: 12.5, color: "var(--err-ink)", marginBottom: 10 }}>{error}</div>}
       {notice && <div role="status" style={{ background: "var(--tealbg)", borderRadius: 8, padding: "8px 12px", fontSize: 12.5, color: "var(--tealink)", marginBottom: 10 }}>{notice}</div>}

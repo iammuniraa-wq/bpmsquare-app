@@ -2359,6 +2359,13 @@ const SEARCH_SPECS: SearchSpec[] = [
     featureKeys: ["pipeline"],
   },
   {
+    // Header only: the budget (costs, margin) is internal and never part of a search result.
+    type: "contract_project", table: "contract_projects", columns: "id, ref, name, status",
+    textCols: ["name", "ref"],
+    toResult: (r) => ({ id: r.id, title: r.name, subtitle: [r.ref, r.status].filter(Boolean).join(" · ") || "Contract project", href: ROUTES.contractProject(r.id), matched: "name" }),
+    featureKeys: ["contract_projects"],
+  },
+  {
     type: "rfq", table: "rfqs", columns: "id, ref, title, status, origin_label",
     textCols: ["title", "ref", "origin_label"],
     toResult: (r) => ({ id: r.id, title: r.title, subtitle: [r.ref, r.origin_label, r.status].filter(Boolean).join(" · ") || "RFQ", href: ROUTES.rfq(r.id), matched: "title" }),

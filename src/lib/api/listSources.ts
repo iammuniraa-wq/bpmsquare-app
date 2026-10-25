@@ -154,6 +154,21 @@ const TENDER_FIELDS: QueryableField[] = [
   { path: "created_at", type: "date" },
 ];
 
+const CONTRACT_PROJECT_FIELDS: QueryableField[] = [
+  { path: "id", type: "string" },
+  { path: "ref", type: "string", searchable: true },
+  { path: "name", type: "string", searchable: true },
+  { path: "status", type: "string" },
+  { path: "account_name", type: "string", searchable: true },
+  { path: "contract_value", type: "number" },
+  { path: "currency", type: "string" },
+  { path: "budget_total", type: "number" },
+  { path: "budget_state", type: "string" },
+  { path: "margin_pct", type: "number" },
+  { path: "planned_end", type: "date" },
+  { path: "updated_at", type: "date" },
+];
+
 const RFQ_FIELDS: QueryableField[] = [
   { path: "id", type: "string" },
   { path: "ref", type: "string", searchable: true },
@@ -575,6 +590,21 @@ export const LIST_SOURCES: Record<string, ListSource> = {
           ...tender, _links: { deal: `/api/v1/opportunities/${d.id}` },
         }];
       });
+    },
+  },
+  contract_projects: {
+    label: "Contract projects (GCC tender deals)",
+    description: "Contract projects made from won tenders: status, customer, contract value, the budget total and planned margin of the approved (else draft) budget, planned end.",
+    relatedWorkcenter: "contract_projects",
+    fields: CONTRACT_PROJECT_FIELDS,
+    // Header fields and totals ONLY. The budget lines (unit costs, cost codes, reserve), the revisions' reasons and the approvals are
+    // internal cost and are deliberately not selected here; a key reaches this source only by naming "contract_projects".
+    load: async (tenantId) => {
+      const { listProjects } = await import("@/lib/contractProjects/list");
+      const out = await listProjects(createAdminSupabase(), tenantId, { pageSize: 100, page: 1 });
+      const rows: Record<string, unknown>[] = [...out.rows];
+      for (let page = 2; page <= Math.ceil(out.total / 100); page++) rows.push(...(await listProjects(createAdminSupabase(), tenantId, { pageSize: 100, page })).rows);
+      return rows;
     },
   },
   rfqs: {

@@ -24,6 +24,7 @@ const OBJECT_TYPES: { value: string; label: string }[] = [
   { value: "opportunities", label: "Deals" },
   { value: "opportunity_tenders", label: "Deals: Tender details" },
   { value: "deal_rooms", label: "Deals: Deal Room" },
+  { value: "contract_projects", label: "Contract projects" },
   { value: "quotes", label: "Quotes" },
   { value: "standard_quotes", label: "Standard Quotes" },
   { value: "sales_orders", label: "Sales Orders" },
@@ -86,7 +87,8 @@ export default function ChangeHistoryClient() {
   const hasInbox = useTenantFeature("inbox");
   const hasTender = useTenantFeature("gcc_tender");
   const hasDealRoom = useTenantFeature("deal_room");
-  const objectTypes = OBJECT_TYPES.filter((o) => (!["inbound_emails", "inbox_channels"].includes(o.value) || hasInbox) && (o.value !== "opportunity_tenders" || hasTender) && (o.value !== "deal_rooms" || (hasTender && hasDealRoom)) &&(!o.value.startsWith("whatsapp_") || hasWhatsapp) && (!["marketing_events", "event_registrations"].includes(o.value) || hasEvents) && (o.value !== "newsletters" || hasNewsletters) && (!["leads", "marketing_settings"].includes(o.value) || hasLeadScoring) && (!["signal_topics", "account_intent"].includes(o.value) || hasSignals) && (o.value !== "forms" || hasForms) && (!o.value.startsWith("abm_") || hasAbm) && (o.value !== "journeys" || hasJourneys) && (o.value !== "webhooks" || hasWebhooks) && (!["integration_mapping", "value_list"].includes(o.value) || hasMiddleware));
+  const hasContractProjects = useTenantFeature("contract_projects");
+  const objectTypes = OBJECT_TYPES.filter((o) => (o.value !== "contract_projects" || hasContractProjects) && (!["inbound_emails", "inbox_channels"].includes(o.value) || hasInbox) && (o.value !== "opportunity_tenders" || hasTender) && (o.value !== "deal_rooms" || (hasTender && hasDealRoom)) &&(!o.value.startsWith("whatsapp_") || hasWhatsapp) && (!["marketing_events", "event_registrations"].includes(o.value) || hasEvents) && (o.value !== "newsletters" || hasNewsletters) && (!["leads", "marketing_settings"].includes(o.value) || hasLeadScoring) && (!["signal_topics", "account_intent"].includes(o.value) || hasSignals) && (o.value !== "forms" || hasForms) && (!o.value.startsWith("abm_") || hasAbm) && (o.value !== "journeys" || hasJourneys) && (o.value !== "webhooks" || hasWebhooks) && (!["integration_mapping", "value_list"].includes(o.value) || hasMiddleware));
   const [objectType, setObjectType] = useState(OBJECT_TYPES[0].value);
   const [objectId, setObjectId] = useState("");
   const [rows, setRows] = useState<ChangeLogRow[] | null>(null);
