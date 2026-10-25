@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Opportunity, OpportunityLine } from "@/lib/types";
 import { DEFAULT_TENDER_STAGES, type OpportunityStageDef } from "@/lib/constants";
 import { opportunityAmount, probabilityFor } from "./opportunity";
+import { sortDealLines } from "./dealLines";
 
 // Server-side helpers for opportunities (Piece B). Every query is
 // tenant-scoped on the admin client (MULTI_TENANT_GUARDRAILS.md), and every
@@ -18,7 +19,8 @@ export async function loadOpportunity(admin: SupabaseClient, tenantId: string, i
 export async function loadOpportunityLines(admin: SupabaseClient, tenantId: string, id: string): Promise<OpportunityLine[]> {
   const { data, error } = await admin.from("opportunity_lines").select("*").eq("opportunity_id", id).eq("tenant_id", tenantId).order("sl_no");
   if (error) return [];
-  return (data ?? []) as OpportunityLine[];
+  // Item numbers sort as numbers ("1.2" before "1.10"); the database order is text.
+  return sortDealLines((data ?? []) as OpportunityLine[]);
 }
 
 export type LinkedQuote = { object: "standard_quote" | "quotation"; id: string; ref: string; status: string; subtotal: number; total: number; created_at: string };

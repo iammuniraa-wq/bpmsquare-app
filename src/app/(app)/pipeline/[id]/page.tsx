@@ -20,6 +20,8 @@ import RecordActivity from "@/components/page/RecordActivity";
 import SourceEmailSlot from "@/components/inbox/SourceEmailSlot";
 import { rfqPrefill } from "@/components/rfq/prefill";
 import { tenderRfqLines } from "@/lib/tender/rfqLines";
+import { boqOrderedLines } from "@/lib/tender/boq/lineSync";
+import { linesVersion } from "@/lib/sales/dealLines";
 import { rfqLineStatuses } from "@/lib/rfq/server";
 
 export default async function OpportunityDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -33,7 +35,7 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
   const opp = await loadOpportunity(admin, tenantId, id);
   if (!opp) notFound();
 
-  const [lines, quotes, since, members, products, todayKey, { data: account }, { data: contacts }] = await Promise.all([
+  const [savedLines, quotes, since, members, products, todayKey, { data: account }, { data: contacts }] = await Promise.all([
     loadOpportunityLines(admin, tenantId, id),
     loadLinkedQuotes(admin, tenantId, id),
     stageSinceMap(admin, tenantId, [opp]),
@@ -46,6 +48,8 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
 
   // GCC tender deals: a deal that has a tender row (and only with the flag on; off, tenderForDeal answers null without a query).
   const tender = await tenderForDeal(admin, tenantId, tenant?.features, id);
+  // A tender deal shows its lines in the order of the client's file (the BOQ row numbers); a standard deal is untouched.
+  const lines = tender ? await boqOrderedLines(admin, tenantId, id, savedLines) : savedLines;
   let tenderTab: TenderTabData | null = null;
   if (tender) {
     const roomOn = tenant?.features?.deal_room === true;
@@ -81,6 +85,7 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
       accountName={account?.name ?? "—"}
       contacts={(contacts ?? []) as { id: string; name: string }[]}
       initialLines={lines}
+      linesVersion={linesVersion(savedLines)}
       quotes={quotes}
       stages={tender ? tenderStages() : opportunityStages(tenant?.config)}
       members={members}

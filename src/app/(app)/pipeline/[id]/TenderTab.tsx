@@ -10,7 +10,7 @@ import SettingsSection from "@/components/settings/SettingsSection";
 import ClosingChip from "@/components/tender/ClosingChip";
 import InfoTip from "@/components/ui/InfoTip";
 import BondChip from "@/components/tender/BondChip";
-import { useFeel } from "@/components/FeelProvider";
+import BondRelease from "@/components/tender/BondRelease";
 import { TENDER_DECISION_LABEL, TENDER_PORTALS, TENDER_PORTAL_LABEL } from "@/lib/tender/rules";
 import type { ApprovalView } from "@/lib/tender/approval";
 import BidDecision from "./BidDecision";
@@ -60,7 +60,6 @@ export default function TenderTab({ opportunityId, stage, tender, approval, room
     bid_bond_amount: tender.bid_bond_amount != null ? String(tender.bid_bond_amount) : "", bid_bond_currency: tender.bid_bond_currency ?? "",
     bid_bond_expiry: tender.bid_bond_expiry ?? "",
   });
-  const { confirm } = useFeel();
 
   // The browser's own zone is only known after mount; reading it during render would make the server and client pages differ.
   useEffect(() => { setForm((f) => ({ ...f, closing_at: toLocalInput(tender.closing_at) })); }, [tender.closing_at]);
@@ -85,8 +84,7 @@ export default function TenderTab({ opportunityId, stage, tender, approval, room
     });
   }
 
-  async function releaseBond() {
-    if (!(await confirm({ title: "Release the bid bond?", body: "Do this once the issuer has handed the bond back. The expiry warning and the bond lines in reminders stop.", confirmLabel: "Release bond" }))) return;
+  function releaseBond() {
     startTransition(async () => {
       onError(""); onNotice("");
       const res = await fetch(`/api/opportunities/${opportunityId}/tender/bond`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "release" }) });
@@ -165,7 +163,7 @@ export default function TenderTab({ opportunityId, stage, tender, approval, room
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
           <Button variant="primary" loading={pending} data-guide="tender.bond.save" onClick={() => save(["bid_bond_amount", "bid_bond_currency", "bid_bond_expiry"], "Bid bond saved")}>Save</Button>
-          {bondHeld && <><Button variant="secondary" loading={pending} data-guide="tender.bond.release" style={{ minHeight: 44 }} onClick={releaseBond}>Release bond</Button><InfoTip label="Release bond">{TENDER_TIPS.bondRelease}</InfoTip></>}
+          {bondHeld && <BondRelease loading={pending} onConfirm={releaseBond} />}
           <BondChip amount={tender.bid_bond_amount} expiry={tender.bid_bond_expiry} status={tender.bond_status} nowIso={nowIso} timezone={timezone} />
           {tender.bond_status === "released" && tender.bond_released_at && (
             <span style={{ fontSize: 12, color: "var(--muted)" }}>{[tender.bond_released_by_name, fmtDate(tender.bond_released_at)].filter(Boolean).join(" · ")}</span>

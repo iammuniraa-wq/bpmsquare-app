@@ -162,7 +162,7 @@ export async function buildBoqState(r: BoqRequest): Promise<BoqState> {
       const stale = !!b.price_source && isStale(b.price_source, b.price_as_of, today, validity);
       return {
         id: b.id, line_id: l?.id ?? null, row_no: b.row_no, item_no: b.item_no, cost_code: b.cost_code,
-        description: l?.description ?? b.file_description, uom: l ? l.uom : b.file_uom, qty: l ? Number(l.qty) : b.file_qty,
+        description: l?.description ?? b.file_description, uom: b.file_uom ?? l?.uom ?? null, qty: l ? Number(l.qty) : b.file_qty,
         rate, amount: l ? Number(l.amount) : 0, priced: !!l && rate > 0, linked: !!l, removed: b.removed_in_revision,
         price_source: b.price_source, price_source_ref: b.price_source_ref, price_as_of: b.price_as_of,
         stale, stale_text: stale ? staleText(b.price_as_of, today) : null, stale_accepted: b.stale_accepted,
@@ -571,7 +571,7 @@ export async function exportAnswerSheet(r: BoqRequest): Promise<ExportResult> {
   const rows: AnswerRow[] = b.items.map(({ boq, line }) => {
     const priced = Number(line.rate) > 0;
     return {
-      item_no: boq.item_no, description: line.description, uom: line.uom, qty: Number(line.qty), rate: priced ? Number(line.rate) : null, amount: priced ? Number(line.amount) : null,
+      item_no: boq.item_no, description: line.description, uom: boq.file_uom ?? line.uom, qty: Number(line.qty), rate: priced ? Number(line.rate) : null, amount: priced ? Number(line.amount) : null,
       notes: priced ? boq.cost_code ?? "" : "Not priced",
     };
   });

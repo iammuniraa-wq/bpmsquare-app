@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { createElement } from "react";
 import { renderToString } from "react-dom/server";
 import { readdirSync, readFileSync, statSync } from "node:fs";
@@ -7,6 +7,10 @@ import { featureForObject } from "@/lib/objectFeatures";
 import { tipTextProblems } from "@/lib/infoTip";
 import { TENDER_TIPS } from "../tips";
 import BoqTab, { type BoqScreenState } from "@/components/tender/BoqTab";
+
+// The BOQ tab keeps its section in ?boq= (useUrlTab); a render has no router, so the query string is a variable the test sets.
+const nav = vi.hoisted(() => ({ search: "" }));
+vi.mock("next/navigation", () => ({ useSearchParams: () => new URLSearchParams(nav.search) }));
 
 // GCC tender deals, slice 3a: the shape of migration 0223, the bundle that carries it, the ledger, the isolation shape of every
 // query, the rule that cost never reaches a file, and that the BOQ screen renders (phone and PC share one flex-wrap layout).
@@ -182,53 +186,107 @@ describe("the BOQ screen", () => {
     unpriced: [{ item: "A.2 Backfill", reason: "No rate yet" }],
     ...over,
   } as BoqScreenState);
-  const html = (s: BoqScreenState, canEdit = true) => renderToString(createElement(BoqTab, { opportunityId: "o1", canEdit, onError: () => {}, onNotice: () => {}, initialData: s })).replace(/<!-- -->/g, "");
+  const html = (s: BoqScreenState, canEdit = true, section = "") => {
+    nav.search = section ? `boq=${section}` : "";
+    return renderToString(createElement(BoqTab, { opportunityId: "o1", canEdit, onError: () => {}, onNotice: () => {}, initialData: s })).replace(/<!-- -->/g, "");
+  };
+  const SECTIONS = ["upload", "prices", "download"];
 
-  it("shows the lines, the source of each price with its age in amber, and keeps the internal cost out of the explanations", () => {
+  it("is split into Upload, Prices and Download tabs; with a BOQ it opens on Prices, and the tab chosen in the address wins", () => {
     const out = html(state());
-    expect(out).toContain("ARB-4400123 BOQ.xlsx");
+    for (const label of ["Upload", "Prices", "Download"]) expect(out).toContain(`>${label}`);
+    expect(out).toContain('data-guide="tab:prices"');
+    expect(out).toMatch(/data-guide="tab:prices"[^>]*aria-selected="true"|aria-selected="true"[^>]*data-guide="tab:prices"/);
+    expect(out).toContain("Excavation in ordinary soil");
+    expect(out).not.toContain("Download priced BOQ");
+    expect(html(state(), true, "download")).toContain("Download priced BOQ");
+    expect(html(state(), true, "download")).not.toContain("Excavation in ordinary soil");
+    expect(html(state(), true, "upload")).toContain("Upload revised BOQ");
+    // A value in the address that is not a tab falls back to the default.
+    expect(html(state(), true, "nonsense")).toContain("Excavation in ordinary soil");
+  });
+
+  it("puts a count on the tab that needs attention: lines to price or stale on Prices, none on a finished BOQ", () => {
+    expect(html(state())).toMatch(/Prices<span class="bpm-tab-count">2<\/span>/);
+    const done = html(state({ totals: { lines: 2, priced: 2, unpriced: 0, stale: 0, amount: 1 }, unpriced: [] }));
+    expect(done).not.toContain("bpm-tab-count");
+  });
+
+  it("Prices shows the lines, the source of each price with its age in amber, and keeps the internal cost out of the explanations", () => {
+    const out = html(state());
     expect(out).toContain("Excavation in ordinary soil");
     expect(out).toContain("Supplier");
     expect(out).toContain("stale, 329 days old");
     expect(out).toContain("var(--amberink)");
     expect(out).toContain("Price this line");
     expect(out).toContain("Change price");
-    expect(out).toContain("Download priced BOQ");
-    expect(out).toContain("Export answer sheet");
-    expect(out).toContain("Rate and amount columns are added to the client");
+    expect(out).toContain("Price all lines");
     expect(out).toContain("priced line is no longer in the latest file and kept");
   });
 
-  it("prints none of its explanations as running text (they sit behind the i)", () => {
-    const out = html(state());
-    for (const [k, v] of Object.entries(TENDER_TIPS).filter(([k]) => k.startsWith("boq") || k === "priceValidity")) {
-      if (k === "boqCost") continue; // the cost tip is in the markup as an aria/popover payload only
-      expect(out.split(v).length - 1, k).toBeLessThanOrEqual(0);
+  it("Upload shows the file that is on the deal", () => {
+    expect(html(state(), true, "upload")).toContain("ARB-4400123 BOQ.xlsx");
+  });
+
+  it("Download opens with the warning about unpriced lines, above the buttons, and keeps the added-columns note", () => {
+    const out = html(state(), true, "download");
+    expect(out).toContain("Download priced BOQ");
+    expect(out).toContain("Export answer sheet");
+    expect(out).toContain("Rate and amount columns are added to the client");
+    expect(out).toContain("1 line has no rate and will be left blank in the file");
+    expect(out).toContain("A.2 Backfill: No rate yet");
+    expect(out.indexOf("will be left blank")).toBeLessThan(out.indexOf("Download priced BOQ"));
+    const clean = html(state({ totals: { lines: 2, priced: 2, unpriced: 0, stale: 0, amount: 1 }, unpriced: [] }), true, "download");
+    expect(clean).not.toContain("will be left blank");
+  });
+
+  it("prints none of its explanations as running text (they sit behind the i), on any tab", () => {
+    for (const section of SECTIONS) {
+      const out = html(state(), true, section);
+      for (const [k, v] of Object.entries(TENDER_TIPS).filter(([k]) => k.startsWith("boq") || k === "priceValidity")) {
+        if (k === "boqCost") continue; // the cost tip is in the markup as an aria/popover payload only
+        expect(out.split(v).length - 1, `${section}: ${k}`).toBeLessThanOrEqual(0);
+      }
     }
   });
 
   it("phone and PC share one layout: lines wrap, every control is 44 px tall, and there is no table to scroll sideways", () => {
-    const out = html(state());
-    expect(out).not.toContain("<table");
-    expect(out).toMatch(/flex-wrap:wrap/);
-    expect(out).toMatch(/overflow-wrap:anywhere/);
-    expect(out.match(/min-height:44px/g)?.length ?? 0).toBeGreaterThanOrEqual(4);
-    expect(out).not.toMatch(/min-width:\s*(?:[5-9]\d\d|\d{4,})px/);
+    for (const section of SECTIONS) {
+      const out = html(state(), true, section);
+      expect(out, section).not.toContain("<table");
+      expect(out, section).toMatch(/min-height:44px/);
+      expect(out, section).not.toMatch(/min-width:\s*(?:[5-9]\d\d|\d{4,})px/);
+    }
+    const prices = html(state());
+    expect(prices).toMatch(/flex-wrap:wrap/);
+    expect(prices).toMatch(/overflow-wrap:anywhere/);
+    expect(prices.match(/min-height:44px/g)?.length ?? 0).toBeGreaterThanOrEqual(3);
   });
 
   it("a view-only user sees the lines but no upload, price or price-all control", () => {
     const out = html(state(), false);
     expect(out).toContain("Excavation in ordinary soil");
-    expect(out).not.toContain("Upload revised BOQ");
     expect(out).not.toContain("Price all lines");
     expect(out).not.toContain("Price this line");
-    expect(out).toContain("Download priced BOQ");
+    expect(html(state(), false, "upload")).not.toContain("Upload revised BOQ");
+    expect(html(state(), false, "download")).toContain("Download priced BOQ");
   });
 
-  it("before any upload it offers the upload and nothing else, and a pending migration says so", () => {
+  it("before any upload it offers the upload and nothing else (no tab strip), and a pending migration says so", () => {
     const empty = html(state({ source: null, lines: [], totals: { lines: 0, priced: 0, unpriced: 0, stale: 0, amount: 0 }, unpriced: [] }));
     expect(empty).toContain("Upload BOQ (.xlsx)");
     expect(empty).not.toContain("Download priced BOQ");
+    expect(empty).not.toContain('role="tablist"');
+    // Even if the address names another tab, there is nothing else to show.
+    expect(html(state({ source: null, lines: [], totals: { lines: 0, priced: 0, unpriced: 0, stale: 0, amount: 0 }, unpriced: [] }), true, "download")).toContain("Upload BOQ (.xlsx)");
     expect(html(state({ pending: true }))).toContain("migration 0223");
+  });
+
+  it("tells the page when the deal's lines changed, so the Lines tab and the header are reloaded", () => {
+    const src = read("src/components/tender/BoqTab.tsx");
+    expect(src).toMatch(/onLinesChanged\?: \(\) => void/);
+    // After an upload is applied and after any price is set (one line or all): the two places the lines change.
+    expect((src.match(/onLinesChanged\?\.\(\)/g) ?? []).length).toBe(2);
+    expect(read("src/app/(app)/pipeline/[id]/OpportunityDetailClient.tsx")).toMatch(/onLinesChanged=\{\(\) => router\.refresh\(\)\}/);
   });
 });

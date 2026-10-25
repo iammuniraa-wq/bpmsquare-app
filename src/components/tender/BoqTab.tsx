@@ -6,7 +6,9 @@ import Button from "@/components/ui/Button";
 import Field from "@/components/ui/Field";
 import { Input, Select } from "@/components/ui/Input";
 import InfoTip from "@/components/ui/InfoTip";
-import SettingsSection from "@/components/settings/SettingsSection";
+import Card from "@/components/ui/Card";
+import Tabs from "@/components/ui/Tabs";
+import { useUrlTab } from "@/components/ui/useUrlTab";
 import { useFeel } from "@/components/FeelProvider";
 import { TENDER_TIPS } from "@/lib/tender/tips";
 import { BOQ_FIELDS, FIELD_LABEL, colLetter, type BoqField, type ColumnMap } from "@/lib/tender/boq/parse";
@@ -44,8 +46,14 @@ const PAGE = 25;
 
 export type BoqScreenState = State;
 
-export default function BoqTab({ opportunityId, canEdit, onError, onNotice, initialData }: {
+// Three named sections, kept in ?boq= so a reload or a shared link lands on the same one. Prices is where people work once a BOQ exists;
+// with no BOQ yet there is only Upload.
+const BOQ_TABS = ["upload", "prices", "download"] as const;
+
+export default function BoqTab({ opportunityId, canEdit, onError, onNotice, onLinesChanged, initialData }: {
   opportunityId: string; canEdit: boolean; onError: (m: string) => void; onNotice: (m: string) => void;
+  /** Called after anything that changed the deal's lines (create, re-upload, a price), so the page can reload the Lines tab and the header. */
+  onLinesChanged?: () => void;
   /** Lets a server render (and its test) show the loaded screen without a fetch. The page never passes it. */
   initialData?: State;
 }) {
@@ -63,6 +71,7 @@ export default function BoqTab({ opportunityId, canEdit, onError, onNotice, init
   const [manual, setManual] = useState("");
   const [left, setLeft] = useState<{ id: string; item: string; reason: string }[] | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
+  const [tab, setTab] = useUrlTab(BOQ_TABS, "boq", "prices");
 
   const load = useCallback(async () => {
     const res = await fetch(base);
@@ -92,7 +101,7 @@ export default function BoqTab({ opportunityId, canEdit, onError, onNotice, init
     const j = await res.json().catch(() => ({}));
     setBusy(false);
     if (!res.ok) { onError(j.error ?? "The file could not be read"); setFile(null); setPreview(null); return; }
-    setFile(f); setPreview(j as Preview);
+    setFile(f); setPreview(j as Preview); setTab("upload");
     setChoice({ sheet: j.sheet, header_row: j.header_row ? String(j.header_row) : "", map: j.map });
   }
 
@@ -121,6 +130,8 @@ export default function BoqTab({ opportunityId, canEdit, onError, onNotice, init
     setFile(null); setPreview(null); setChoice(null);
     if (fileInput.current) fileInput.current.value = "";
     await load();
+    onLinesChanged?.();
+    setTab("prices");
   }
 
   async function openPicker(l: Line) {
@@ -139,6 +150,7 @@ export default function BoqTab({ opportunityId, canEdit, onError, onNotice, init
     setBusy(false);
     if (!res.ok) { onError(j.error ?? "Could not set the price"); return null; }
     await load();
+    onLinesChanged?.();
     return j;
   }
 
@@ -174,12 +186,19 @@ export default function BoqTab({ opportunityId, canEdit, onError, onNotice, init
   const flagged = data.lines.filter((l) => l.removed);
   const shown = showAll ? active : active.slice(0, PAGE);
 
+  // With no BOQ yet there is only Upload. A count on a tab says it needs attention: a file read but not saved on Upload, lines without a
+  // rate (or with a stale one) on Prices.
+  const view: (typeof BOQ_TABS)[number] = data.source ? tab as (typeof BOQ_TABS)[number] : "upload";
+  const tabs = [
+    { id: "upload", label: "Upload", count: preview ? 1 : 0 },
+    ...(data.source ? [{ id: "prices", label: "Prices", count: data.totals.unpriced + data.totals.stale }, { id: "download", label: "Download" }] : []),
+  ];
+
   return (
     <div data-guide="boq.tab" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-      <SettingsSection
-        id="boq.source" title="Client's BOQ" defaultOpen info={TENDER_TIPS.boqTab}
-        summary={data.source ? `${data.source.file_name} · ${data.source.sheet_name} · ${data.totals.lines} lines` : "No file uploaded yet"}
-      >
+      {tabs.length > 1 && <Tabs tabs={tabs} value={view} onChange={setTab} label="BOQ sections" />}
+      {view === "upload" && (
+      <Card title="Client's BOQ" info={TENDER_TIPS.boqTab}>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
           {canEdit && (
             <>
@@ -254,10 +273,14 @@ export default function BoqTab({ opportunityId, canEdit, onError, onNotice, init
             </div>
           </div>
         )}
-      </SettingsSection>
+      </Card>
+      )}
 
-      {data.source && (
-        <SettingsSection id="boq.lines" title="Lines and prices" defaultOpen summary={`${data.totals.priced} priced · ${data.totals.unpriced} to price${data.totals.stale ? ` · ${data.totals.stale} stale` : ""} · ${money(data.totals.amount)}`}>
+      {data.source && view === "prices" && (
+        <Card title="Lines and prices">
+          <div data-guide="boq.summary" style={{ fontSize: 12.5, color: c.muted, marginBottom: 10 }}>
+            {`${data.totals.priced} priced · ${data.totals.unpriced} to price${data.totals.stale ? ` · ${data.totals.stale} stale` : ""} · ${money(data.totals.amount)}`}
+          </div>
           {canEdit && (
             <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "flex-end", marginBottom: 12 }}>
               <Field label="Markup on cost %" info={TENDER_TIPS.boqMarkup} guide="boq.markup">
@@ -333,11 +356,18 @@ export default function BoqTab({ opportunityId, canEdit, onError, onNotice, init
               {flagged.length} priced line{flagged.length === 1 ? " is" : "s are"} no longer in the latest file and kept: {flagged.slice(0, 5).map((f) => f.item_no ?? f.description.slice(0, 30)).join(", ")}
             </div>
           )}
-        </SettingsSection>
+        </Card>
       )}
 
-      {data.source && (
-        <SettingsSection id="boq.export" title="Download" defaultOpen summary={data.totals.unpriced > 0 ? `${data.totals.unpriced} lines still without a rate` : "All lines priced"}>
+      {data.source && view === "download" && (
+        <Card title="Download">
+          {data.totals.unpriced > 0 && (
+            <div role="alert" data-guide="boq.unpriced_warning" style={{ background: "var(--amberbg)", borderRadius: 8, padding: "8px 12px", marginBottom: 12, fontSize: 12.5, color: "var(--amberink)", display: "flex", flexDirection: "column", gap: 2 }}>
+              <b>{data.totals.unpriced} line{data.totals.unpriced === 1 ? " has" : "s have"} no rate and will be left blank in the file</b>
+              {data.unpriced.slice(0, 10).map((u) => <div key={u.item} style={{ overflowWrap: "anywhere" }}>{u.item}: {u.reason}</div>)}
+              {data.totals.unpriced > 10 && <div>…and {data.totals.unpriced - 10} more</div>}
+            </div>
+          )}
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
             <Button variant="primary" onClick={() => void download("priced")} style={{ minHeight: 44 }} data-guide="boq.download">Download priced BOQ</Button>
             <InfoTip label="Download">{TENDER_TIPS.boqDownload}</InfoTip>
@@ -347,7 +377,7 @@ export default function BoqTab({ opportunityId, canEdit, onError, onNotice, init
           {data.source.added_columns && (
             <div style={{ fontSize: 12, color: c.hint, marginTop: 8, display: "flex", alignItems: "center", gap: 6 }}>Rate and amount columns are added to the client&apos;s file <InfoTip label="Added columns">{TENDER_TIPS.boqAddedColumns}</InfoTip></div>
           )}
-        </SettingsSection>
+        </Card>
       )}
     </div>
   );

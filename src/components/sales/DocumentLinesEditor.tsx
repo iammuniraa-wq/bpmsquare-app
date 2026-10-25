@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import { c } from "@/lib/theme";
 import { UOM_OPTIONS } from "@/lib/constants";
+import { uomChoices } from "@/lib/sales/uom";
 import PriceTrace, { type PriceTraceStep } from "@/components/pricing/PriceTrace";
 import { useTraceDetail, useCurrency, useTenantFeature } from "@/lib/tenant-context";
 import CreateRfqButton from "@/components/rfq/CreateRfqButton";
@@ -683,7 +684,7 @@ export default function DocumentLinesEditor({
           </div>
           <div style={cell}>
             <select style={cinp} value={line.uom} onChange={(e) => updateLine(line.id, { uom: e.target.value })}>
-              {UOM_OPTIONS.map((u) => <option key={u} value={u}>{u}</option>)}
+              {uomChoices(line.uom).map((u) => <option key={u} value={u}>{u}</option>)}
             </select>
           </div>
           <div style={cell}>

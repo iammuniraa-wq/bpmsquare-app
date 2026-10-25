@@ -33,6 +33,7 @@ import DealRoom from "@/components/tender/DealRoom";
 import TenderLinesRfq from "@/components/rfq/TenderLinesRfq";
 import type { ComposerLine } from "@/components/rfq/RfqComposer";
 import BoqTab from "@/components/tender/BoqTab";
+import { editorUom } from "@/lib/sales/uom";
 
 // The deal page (§4.5): the record-page look (header with one primary step and
 // the "..." menu, facts, tabs) built client-side, because the Lines editor and
@@ -56,7 +57,7 @@ const fmtDate = (s: string | null | undefined) => (s ? new Date(s).toLocaleDateS
 
 function toEditorLines(rows: OpportunityLine[]): Line[] {
   return rows.map((l) => ({
-    id: l.id, description: l.description, uom: l.uom ?? "Nos", qty: String(l.qty), rate: String(l.rate), discount_pct: String(l.discount_pct),
+    id: l.id, description: l.description, uom: editorUom(l.uom), qty: String(l.qty), rate: String(l.rate), discount_pct: String(l.discount_pct),
     product_id: l.product_id ?? "", pricing_document_id: l.pricing_document_id ?? "", rfq_line_id: (l as { rfq_line_id?: string | null }).rfq_line_id ?? "",
     group_id: l.group_id ?? "", group_label: l.group_label ?? "", group_type: l.group_type === "alternative" ? "alternative" : "",
     break_of: l.break_of ?? "", break_qty: l.break_qty != null ? String(l.break_qty) : "",
@@ -64,11 +65,13 @@ function toEditorLines(rows: OpportunityLine[]): Line[] {
   }));
 }
 
-export default function OpportunityDetailClient({ opp, accountName, contacts, initialLines, quotes, stages, members, products, pricingEnabled, standardQuotesEnabled, todayKey, currentUserId, related, activity, externalLine, tender, sourceEmail, tenderRfq }: {
+export default function OpportunityDetailClient({ opp, accountName, contacts, initialLines, linesVersion, quotes, stages, members, products, pricingEnabled, standardQuotesEnabled, todayKey, currentUserId, related, activity, externalLine, tender, sourceEmail, tenderRfq }: {
   opp: Opportunity & { stage_since: string };
   accountName: string;
   contacts: { id: string; name: string }[];
   initialLines: OpportunityLine[];
+  /** Fingerprint of the saved lines (linesVersion): the editor sends it back so the server can tell its copy is stale. */
+  linesVersion: string;
   quotes: LinkedQuote[];
   stages: OpportunityStageDef[];
   members: Member[];
@@ -124,6 +127,22 @@ export default function OpportunityDetailClient({ opp, accountName, contacts, in
   const [savedLinesKey, setSavedLinesKey] = useState(JSON.stringify(lines));
   const linesDirty = JSON.stringify(lines) !== savedLinesKey;
   useUnsavedChangesGuard(linesDirty, { body: "The deal's lines have unsaved edits. If you leave now they will be lost." });
+  // The BOQ tab changes the saved lines behind this editor's back (create, re-upload, price). `baseVersion` is the fingerprint of the
+  // lines the editor holds; when the server's differs, the editor is reloaded (or, with unsaved edits, the person is told and chooses).
+  const [baseVersion, setBaseVersion] = useState(linesVersion);
+  const [editorKey, setEditorKey] = useState(0);
+  const [serverMoved, setServerMoved] = useState(false);
+  function adoptServerLines() {
+    const next = initialLines.length > 0 ? toEditorLines(initialLines) : [newLine()];
+    setLines(next); setSavedLinesKey(JSON.stringify(next)); setBaseVersion(linesVersion); setEditorKey((k) => k + 1); setServerMoved(false);
+  }
+  useEffect(() => {
+    if (linesVersion === baseVersion) { setServerMoved(false); return; }
+    if (linesDirty) { setServerMoved(true); return; }
+    adoptServerLines();
+    // Runs when the server sends new lines, not on every keystroke.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [linesVersion, initialLines]);
   const linesTotal = documentTotal(lines.map((l) => ({ id: l.id, amount: lineAmount(l), group_id: l.group_id || null, group_type: l.group_type || null, break_of: l.break_of || null, is_selected: l.is_selected })));
   const lineCount = lines.filter((l) => l.description.trim() && !l.break_of).length;
 
@@ -168,7 +187,7 @@ export default function OpportunityDetailClient({ opp, accountName, contacts, in
       setError(""); setNotice("");
       const res = await fetch(`/api/opportunities/${opp.id}/lines`, {
         method: "PUT", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ lines: clean.map((l) => ({
+        body: JSON.stringify({ base_version: baseVersion, lines: clean.map((l) => ({
           local_id: l.id, description: l.description, uom: l.uom, qty: l.qty, rate: l.rate, discount_pct: l.discount_pct,
           product_id: l.product_id || null, pricing_document_id: l.pricing_document_id || null, rfq_line_id: l.rfq_line_id || null,
           group_id: l.group_id || null, group_label: l.group_label || null, group_type: l.group_type || null,
@@ -177,7 +196,12 @@ export default function OpportunityDetailClient({ opp, accountName, contacts, in
         })) }),
       });
       const j = await res.json().catch(() => ({}));
-      if (!res.ok) { setError(j.error ?? "Could not save the lines"); return; }
+      if (!res.ok) {
+        setError(j.error ?? "Could not save the lines");
+        if (j.code === "lines_changed") router.refresh();
+        return;
+      }
+      if (typeof j.version === "string") setBaseVersion(j.version);
       const next = toEditorLines((j.lines ?? []) as OpportunityLine[]);
       setLines(next.length ? next : [newLine()]);
       setSavedLinesKey(JSON.stringify(next.length ? next : [newLine()]));
@@ -330,7 +354,7 @@ export default function OpportunityDetailClient({ opp, accountName, contacts, in
           />
         )
       )}
-      {tab === "boq" && tender && <BoqTab opportunityId={opp.id} canEdit={tender.boqEdit !== false} onError={setError} onNotice={setNotice} />}
+      {tab === "boq" && tender && <BoqTab opportunityId={opp.id} canEdit={tender.boqEdit !== false} onError={setError} onNotice={setNotice} onLinesChanged={() => router.refresh()} />}
       {tab === "tender" && tender && sourceEmail}
 
       {tab === "overview" && (
@@ -382,7 +406,14 @@ export default function OpportunityDetailClient({ opp, accountName, contacts, in
 
       {tab === "lines" && (
         <Card padding={16}>
+          {serverMoved && (
+            <div role="alert" data-guide="lines.stale" style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 10, background: "var(--amberbg)", borderRadius: 8, padding: "8px 12px", marginBottom: 12, fontSize: 12.5, color: "var(--amberink)" }}>
+              <span style={{ flex: "1 1 220px" }}>The BOQ changed these lines after you opened them. Your edits cannot be saved over them.</span>
+              <Button variant="secondary" onClick={adoptServerLines} style={{ minHeight: 44 }} data-guide="lines.stale_reload">Load the current lines</Button>
+            </div>
+          )}
           <DocumentLinesEditor
+            key={editorKey}
             lines={lines} onChange={setLines} products={products} pricingEnabled={pricingEnabled}
             accountId={opp.account_id} accountName={accountName} documentType="opportunity" documentId={opp.id} documentRef={opp.ref ?? undefined} onError={setError}
           />
@@ -392,7 +423,7 @@ export default function OpportunityDetailClient({ opp, accountName, contacts, in
             {linesDirty && <span style={{ fontSize: 11.5, color: "var(--amberink)" }}>Unsaved changes</span>}
             {tenderRfq && <TenderLinesRfq opportunityId={opp.id} originLabel={tenderRfq.originLabel} lines={tenderRfq.lines} dirty={linesDirty} />}
             {canConvert && <Button variant="secondary" onClick={convert} disabled={pending}>Convert to Standard Quote</Button>}
-            <Button variant="primary" onClick={saveLines} disabled={!linesDirty} loading={pending}>{pending ? "Saving…" : "Save lines"}</Button>
+            <Button variant="primary" onClick={saveLines} disabled={!linesDirty || serverMoved} loading={pending}>{pending ? "Saving…" : "Save lines"}</Button>
           </div>
         </Card>
       )}
