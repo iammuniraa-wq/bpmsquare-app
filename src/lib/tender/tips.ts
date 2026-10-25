@@ -36,6 +36,8 @@ export const TENDER_TIPS = {
   boqDownload: "Writes your unit rate and amount into the client's own file and keeps their layout. Lines without a rate are left blank.",
   boqAddedColumns: "The client's file has no rate or amount column, so they are added after its last column. Existing cells and formulas are not moved.",
   boqAnswerSheet: "A plain Excel list of the lines with your rates, for copying into a portal form such as Ariba. Nothing is sent anywhere.",
+  boqMatch: "BOQ lines are free text, so BOM and supplier prices cannot find them. Linking a line to a product keeps the client's wording and unit.",
+  boqMatchBands: "Strong: the SKU matches, or most words and sizes agree. Only strong matches are accepted in bulk; a possible match is linked only when you pick it.",
   reminders:"Reminders go by email to the owner and team and are logged under Outbound emails. Changing the closing date restarts them.",
 } as const;
 

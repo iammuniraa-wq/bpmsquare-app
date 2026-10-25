@@ -30,7 +30,7 @@ import type { TenderView } from "@/lib/tender/views";
 import type { ApprovalView } from "@/lib/tender/approval";
 import TenderTab from "./TenderTab";
 import DealRoom from "@/components/tender/DealRoom";
-import TenderLinesRfq from "@/components/rfq/TenderLinesRfq";
+import TenderLinesToolbar, { TenderLinesSaveBar } from "@/components/tender/TenderLinesToolbar";
 import type { ComposerLine } from "@/components/rfq/RfqComposer";
 import BoqTab from "@/components/tender/BoqTab";
 import { editorUom } from "@/lib/sales/uom";
@@ -65,7 +65,9 @@ function toEditorLines(rows: OpportunityLine[]): Line[] {
   }));
 }
 
-export default function OpportunityDetailClient({ opp, accountName, contacts, initialLines, linesVersion, quotes, stages, members, products, pricingEnabled, standardQuotesEnabled, todayKey, currentUserId, related, activity, externalLine, tender, sourceEmail, tenderRfq }: {
+export default function OpportunityDetailClient({ opp, accountName, contacts, initialLines, linesVersion, quotes, stages, members, products, pricingEnabled, standardQuotesEnabled, todayKey, currentUserId, related, activity, externalLine, tender, sourceEmail, tenderRfq, initialTab }: {
+  /** Lets a server render (and its test) open on a given tab. The page never passes it. */
+  initialTab?: Tab;
   opp: Opportunity & { stage_since: string };
   accountName: string;
   contacts: { id: string; name: string }[];
@@ -98,7 +100,7 @@ export default function OpportunityDetailClient({ opp, accountName, contacts, in
   const router = useRouter();
   const { confirm } = useFeel();
   const [pending, startTransition] = useTransition();
-  const [tab, setTab] = useState<Tab>(tender ? "tender" : initialLines.length === 0 && quotes.length === 0 ? "overview" : "lines");
+  const [tab, setTab] = useState<Tab>(initialTab ?? (tender ? "tender" : initialLines.length === 0 && quotes.length === 0 ? "overview" : "lines"));
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [roomFilter, setRoomFilter] = useState<"all" | "questions">("all");
@@ -412,19 +414,29 @@ export default function OpportunityDetailClient({ opp, accountName, contacts, in
               <Button variant="secondary" onClick={adoptServerLines} style={{ minHeight: 44 }} data-guide="lines.stale_reload">Load the current lines</Button>
             </div>
           )}
+          {tender && (
+            <TenderLinesToolbar
+              total={inr(linesTotal)} followsQuote={quotes.length > 0} dirty={linesDirty} serverMoved={serverMoved} pending={pending} onSave={saveLines}
+              rfq={tenderRfq ? { opportunityId: opp.id, originLabel: tenderRfq.originLabel, lines: tenderRfq.lines } : null}
+            />
+          )}
           <DocumentLinesEditor
             key={editorKey}
             lines={lines} onChange={setLines} products={products} pricingEnabled={pricingEnabled}
             accountId={opp.account_id} accountName={accountName} documentType="opportunity" documentId={opp.id} documentRef={opp.ref ?? undefined} onError={setError}
+            hideRfqRequest={!!tender && !!tenderRfq}
           />
-          <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 14, borderTop: `1px solid ${c.line}`, paddingTop: 12, flexWrap: "wrap" }}>
-            <span style={{ fontSize: 12.5, color: c.muted }}>Lines total <b style={{ color: c.ink }}>{inr(linesTotal)}</b>{quotes.length > 0 ? " · the deal amount follows its latest quote" : ""}</span>
-            <span style={{ marginLeft: "auto" }} />
-            {linesDirty && <span style={{ fontSize: 11.5, color: "var(--amberink)" }}>Unsaved changes</span>}
-            {tenderRfq && <TenderLinesRfq opportunityId={opp.id} originLabel={tenderRfq.originLabel} lines={tenderRfq.lines} dirty={linesDirty} />}
-            {canConvert && <Button variant="secondary" onClick={convert} disabled={pending}>Convert to Standard Quote</Button>}
-            <Button variant="primary" onClick={saveLines} disabled={!linesDirty || serverMoved} loading={pending}>{pending ? "Saving…" : "Save lines"}</Button>
-          </div>
+          {tender ? (
+            <TenderLinesSaveBar narrow={narrow} dirty={linesDirty} serverMoved={serverMoved} pending={pending} onSave={saveLines} />
+          ) : (
+            <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 14, borderTop: `1px solid ${c.line}`, paddingTop: 12, flexWrap: "wrap" }}>
+              <span style={{ fontSize: 12.5, color: c.muted }}>Lines total <b style={{ color: c.ink }}>{inr(linesTotal)}</b>{quotes.length > 0 ? " · the deal amount follows its latest quote" : ""}</span>
+              <span style={{ marginLeft: "auto" }} />
+              {linesDirty && <span style={{ fontSize: 11.5, color: "var(--amberink)" }}>Unsaved changes</span>}
+              {canConvert && <Button variant="secondary" onClick={convert} disabled={pending}>Convert to Standard Quote</Button>}
+              <Button variant="primary" onClick={saveLines} disabled={!linesDirty || serverMoved} loading={pending}>{pending ? "Saving…" : "Save lines"}</Button>
+            </div>
+          )}
         </Card>
       )}
 

@@ -163,8 +163,10 @@ function groupedRows(lines: Line[]): Row[] {
 
 export default function DocumentLinesEditor({
   lines, onChange, products = [], pricingEnabled = false, accountId, accountName, documentType, documentId, documentRef,
-  taxPct, onTaxPct, printOptions, onPrintOptions, onError,
+  taxPct, onTaxPct, printOptions, onPrintOptions, onError, hideRfqRequest = false,
 }: {
+  /** A tender deal asks for supplier prices from its own toolbar (one button), so the editor's "Request quotation" is not drawn there. */
+  hideRfqRequest?: boolean;
   lines: Line[];
   onChange: React.Dispatch<React.SetStateAction<Line[]>>;
   products?: StandardQuoteProduct[];
@@ -1049,7 +1051,7 @@ export default function DocumentLinesEditor({
           {priceAllSummary.failed > 0 ? ` · ${priceAllSummary.failed} failed` : ""}
         </span>
       )}
-      {rfqModule && (() => {
+      {rfqModule && !hideRfqRequest && (() => {
         // Any line not already on an RFQ can go to suppliers in ONE RFQ.
         // Lines the engine couldn't cost, or with no rate yet, start ticked;
         // when every line is priced, all start ticked (a price check).

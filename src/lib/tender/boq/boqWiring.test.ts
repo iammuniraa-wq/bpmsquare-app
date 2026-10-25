@@ -77,7 +77,7 @@ describe("the BOQ routes", () => {
   const routes = walk("src/app/api/opportunities/[id]/boq").filter((f) => f.endsWith("route.ts"));
 
   it("every route goes through the one gate and takes nothing about the workspace from the request", () => {
-    expect(routes.length).toBe(5);
+    expect(routes.length).toBe(6);
     for (const f of routes) {
       const src = read(f);
       expect(src, f).toMatch(/openBoqRequest\(/);
@@ -285,8 +285,8 @@ describe("the BOQ screen", () => {
   it("tells the page when the deal's lines changed, so the Lines tab and the header are reloaded", () => {
     const src = read("src/components/tender/BoqTab.tsx");
     expect(src).toMatch(/onLinesChanged\?: \(\) => void/);
-    // After an upload is applied and after any price is set (one line or all): the two places the lines change.
-    expect((src.match(/onLinesChanged\?\.\(\)/g) ?? []).length).toBe(2);
+    // After an upload is applied, after any price is set (one line or all), and after lines are linked to products: the three places the lines change.
+    expect((src.match(/onLinesChanged\?\.\(\)/g) ?? []).length).toBe(3);
     expect(read("src/app/(app)/pipeline/[id]/OpportunityDetailClient.tsx")).toMatch(/onLinesChanged=\{\(\) => router\.refresh\(\)\}/);
   });
 });

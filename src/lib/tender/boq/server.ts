@@ -8,6 +8,7 @@ import { logChange } from "@/lib/changeLog";
 import { tenantToday } from "@/lib/tenantClock";
 import { opportunityStages } from "@/lib/sales/opportunity";
 import { loadOpportunity, loadOpportunityLines, refreshOpportunityDerived } from "@/lib/sales/opportunityServer";
+import { linesVersion } from "@/lib/sales/dealLines";
 import { safeFileName, sniffAttachment } from "@/lib/inbox/rules";
 import type { OpportunityLine } from "@/lib/types";
 import { isMissingSchema, loadTender, type TenderRow } from "../server";
@@ -141,14 +142,17 @@ export type BoqState = {
   lines: BoqLineView[];
   validity_days: number;
   today: string;
-  totals: { lines: number; priced: number; unpriced: number; stale: number; amount: number };
+  /** `no_product`: active lines still free text (no catalog product), so the BOM and supplier sources find nothing for them. */
+  totals: { lines: number; priced: number; unpriced: number; stale: number; amount: number; no_product: number };
+  /** Fingerprint of the deal's saved lines as read here; the product match sends it back so a list that went stale is refused. */
+  lines_version: string;
 };
 
 export async function buildBoqState(r: BoqRequest): Promise<BoqState> {
   const { admin, tenantId, opp } = r;
   const [{ source, pending }, config, today] = await Promise.all([loadCurrentSource(admin, tenantId, opp.id), loadConfig(admin, tenantId), tenantToday(tenantId)]);
   const validity = priceValidityDays(config);
-  const empty: BoqState = { pending, source: null, lines: [], validity_days: validity, today, totals: { lines: 0, priced: 0, unpriced: 0, stale: 0, amount: 0 } };
+  const empty: BoqState = { pending, source: null, lines: [], validity_days: validity, today, totals: { lines: 0, priced: 0, unpriced: 0, stale: 0, amount: 0, no_product: 0 }, lines_version: "" };
   if (pending || !source) return empty;
 
   const dealLines = await loadOpportunityLines(admin, tenantId, opp.id);
@@ -177,7 +181,9 @@ export async function buildBoqState(r: BoqRequest): Promise<BoqState> {
     totals: {
       lines: active.length, priced: active.filter((l) => l.priced).length, unpriced: active.filter((l) => !l.priced).length,
       stale: active.filter((l) => l.priced && l.stale && !l.stale_accepted).length, amount: round2(active.reduce((s, l) => s + (l.priced ? l.amount : 0), 0)),
+      no_product: active.filter((l) => l.linked && !byId.get(l.line_id!)?.product_id).length,
     },
+    lines_version: linesVersion(dealLines),
   };
 }
 
@@ -414,9 +420,9 @@ export async function applyUpload(r: BoqRequest, input: UploadInput): Promise<Ap
 
 // ── Pricing ──────────────────────────────────────────────────────────────────────────────────────────────────────────
 
-type LineBundle = { boq: BoqRow; line: OpportunityLine };
+export type LineBundle = { boq: BoqRow; line: OpportunityLine };
 
-async function bundles(r: BoqRequest, only?: string): Promise<{ source: SourceRow; items: LineBundle[] } | null> {
+export async function bundles(r: BoqRequest, only?: string): Promise<{ source: SourceRow; items: LineBundle[] } | null> {
   const { source } = await loadCurrentSource(r.admin, r.tenantId, r.opp.id);
   if (!source) return null;
   const dealLines = await loadOpportunityLines(r.admin, r.tenantId, r.opp.id);

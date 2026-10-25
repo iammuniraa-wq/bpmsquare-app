@@ -13,6 +13,7 @@ import { useFeel } from "@/components/FeelProvider";
 import { TENDER_TIPS } from "@/lib/tender/tips";
 import { BOQ_FIELDS, FIELD_LABEL, colLetter, type BoqField, type ColumnMap } from "@/lib/tender/boq/parse";
 import { PRICE_SOURCE_LABEL, rateFor, type PriceSource } from "@/lib/tender/boq/price";
+import BoqMatch from "./BoqMatch";
 
 // The BOQ tab of a tender deal (slice 3a): upload the client's Excel, check how it was read, price each line from a source that
 // says how old it is, and download the client's own file back with the rates in it. Everything the person needs to decide is
@@ -29,7 +30,7 @@ type State = {
   pending: boolean;
   source: { file_name: string; sheet_name: string; version: number; uploaded_at: string; line_count: number; added_columns: boolean } | null;
   lines: Line[]; validity_days: number; today: string;
-  totals: { lines: number; priced: number; unpriced: number; stale: number; amount: number };
+  totals: { lines: number; priced: number; unpriced: number; stale: number; amount: number; no_product?: number };
   unpriced: { item: string; reason: string }[];
 };
 type Preview = {
@@ -281,6 +282,7 @@ export default function BoqTab({ opportunityId, canEdit, onError, onNotice, onLi
           <div data-guide="boq.summary" style={{ fontSize: 12.5, color: c.muted, marginBottom: 10 }}>
             {`${data.totals.priced} priced · ${data.totals.unpriced} to price${data.totals.stale ? ` · ${data.totals.stale} stale` : ""} · ${money(data.totals.amount)}`}
           </div>
+          <BoqMatch base={base} count={data.totals.no_product ?? 0} canEdit={canEdit} onError={onError} onNotice={onNotice} onChanged={() => { void load(); onLinesChanged?.(); }} />
           {canEdit && (
             <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "flex-end", marginBottom: 12 }}>
               <Field label="Markup on cost %" info={TENDER_TIPS.boqMarkup} guide="boq.markup">

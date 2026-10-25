@@ -90,7 +90,9 @@ describe("gating and wiring", () => {
     const page = lf(read("src/app/(app)/pipeline/[id]/page.tsx"));
     expect(page).toMatch(/tenderRfq=\{tender && rfqOn \?/);
     const client = lf(read("src/app/(app)/pipeline/[id]/OpportunityDetailClient.tsx"));
-    expect(client).toMatch(/\{tenderRfq && <TenderLinesRfq /);
+    // The deal page hands the tender's toolbar the RFQ lines only when it has them; the toolbar is the one place the button is drawn.
+    expect(client).toMatch(/rfq=\{tenderRfq \? \{ opportunityId: opp\.id/);
+    expect(lf(read("src/components/tender/TenderLinesToolbar.tsx"))).toMatch(/\{rfq && <TenderLinesRfq /);
   });
 
   it("the supplier-type filter is off unless a caller turns it on", () => {
