@@ -3,7 +3,7 @@ import Card from "@/components/ui/Card";
 import InfoTip from "@/components/ui/InfoTip";
 import { ROUTES } from "@/lib/constants";
 import type { Attachment, OrderDetail } from "@/lib/salesOrders/client";
-import { attention, attentionText, customerPoFact, expectedDelivery, fmtDate, partyBlocks, tagText, type PartyBlock } from "./logic";
+import { attention, attentionText, bannerText, customerPoFact, expectedDelivery, fmtDate, partyBlocks, tagText, type PartyBlock } from "./logic";
 import { fmtMoney } from "./money";
 import { ORDER_TIPS } from "./tips";
 import s from "./salesOrders.module.css";
@@ -23,15 +23,18 @@ function Party({ label, block, href }: { label: string; block: PartyBlock; href?
  * three facts. No credit or price chips, no fulfilment bars. The only other thing that can appear is one banner, and
  * only when a line is short or will arrive after the date asked.
  */
-export default function OverviewTab({ detail, attachments, currency, onSeeAvailability }: {
+export default function OverviewTab({ detail, attachments, currency, onSeeAvailability, onSeeErp }: {
   detail: OrderDetail;
   attachments: Attachment[] | null;
   currency: string;
   onSeeAvailability: () => void;
+  /** Opens the ERP tab; used by the banner when the only trouble is a failed check. */
+  onSeeErp?: () => void;
 }) {
   const { order, lines } = detail;
   const parties = partyBlocks(detail);
-  const banner = attentionText(attention(lines));
+  const banner = bannerText(lines, detail.erpChecks);
+  const lineIssue = attentionText(attention(lines)) !== null;
   const expected = expectedDelivery(order, lines);
   const po = customerPoFact(order, attachments);
 
@@ -40,7 +43,7 @@ export default function OverviewTab({ detail, attachments, currency, onSeeAvaila
       {banner && (
         <div className={s.banner} role="status" data-guide="sales_order.attention">
           <span>{banner}</span>
-          <button type="button" className={s.bannerLink} onClick={onSeeAvailability} data-guide="sales_order.attention_link">See availability</button>
+          <button type="button" className={s.bannerLink} onClick={lineIssue || !onSeeErp ? onSeeAvailability : onSeeErp} data-guide="sales_order.attention_link">{lineIssue || !onSeeErp ? "See availability" : "See the ERP checks"}</button>
         </div>
       )}
 

@@ -7,6 +7,7 @@ import {
   type OrderSourceType, type PricingMode, type SalesOrder, type SalesOrderLine, type SalesOrderType,
 } from "@/lib/salesOrders/types";
 import type { Attachment, ErpDocument, OrderDetail } from "@/lib/salesOrders/client";
+import { CHECK_STATUS_LABEL, failedChecksText, type CheckStatus, type ErpCheckView } from "@/lib/salesOrders/erpChecks";
 
 // ── formatting ────────────────────────────────────────────────────────────────
 
@@ -108,7 +109,7 @@ export function lockInfo(order: Pick<SalesOrder, "origin" | "status">, erpLinked
 }
 
 export type OrderActions = {
-  pdf: boolean; email: boolean; whatsapp: boolean; confirm: boolean; cancel: boolean; reopen: boolean; remove: boolean; checkWithErp: boolean; editLines: boolean;
+  pdf: boolean; email: boolean; whatsapp: boolean; confirm: boolean; cancel: boolean; reopen: boolean; remove: boolean; checkWithErp: boolean; sendToErp: boolean; editLines: boolean;
 };
 
 export function orderActions(order: Pick<SalesOrder, "origin" | "status">, erpLinked: boolean, opts: { erpAvailable: boolean }): OrderActions {
@@ -123,6 +124,7 @@ export function orderActions(order: Pick<SalesOrder, "origin" | "status">, erpLi
     reopen: made && order.status === "confirmed" && !erpLinked,
     remove: orderDeletable(order, erpLinked),
     checkWithErp: opts.erpAvailable && made && open && !erpLinked,
+    sendToErp: opts.erpAvailable && made && open && !erpLinked,
     editLines: orderEditable(order, erpLinked),
   };
 }
@@ -152,6 +154,12 @@ export const isLate = (l: SalesOrderLine) => l.confirmed_date !== null && l.requ
 
 export type Attention = { short: SalesOrderLine[]; late: SalesOrderLine[] };
 
+/** The one Overview banner: late or short lines, and a Check with ERP result that failed and is still current. Nothing else ever shows there. */
+export function bannerText(lines: SalesOrderLine[], checks: Pick<ErpCheckView, "kind" | "status" | "stale">[]): string | null {
+  const parts = [attentionText(attention(lines)), failedChecksText(checks)].filter((x): x is string => !!x);
+  return parts.length === 0 ? null : parts.join(" ");
+}
+
 /** The one banner on Overview: only a line that is short or will arrive after the date asked. Unchecked lines say nothing. */
 export function attention(lines: SalesOrderLine[]): Attention {
   return { short: lines.filter(isShort), late: lines.filter(isLate) };
@@ -161,6 +169,33 @@ export function attentionText(a: Attention): string | null {
   if (a.short.length > 0) parts.push(`${a.short.length} ${a.short.length === 1 ? "line is" : "lines are"} short on stock`);
   if (a.late.length > 0) parts.push(`${a.late.length} ${a.late.length === 1 ? "line arrives" : "lines arrive"} after the date asked`);
   return parts.length === 0 ? null : `${parts.join(" and ")}.`;
+}
+
+// ── Check with ERP ────────────────────────────────────────────────────────────
+
+export type CheckChip = { word: string; tone: "ok" | "warn" | "bad" | "none" };
+
+/** What a result row says: Passed / Warning / Failed / Not run, "Out of date" once the lines changed after it ran, "Not checked" before the first run. */
+export function checkChip(c: Pick<ErpCheckView, "status" | "stale"> | null): CheckChip {
+  if (!c) return { word: "Not checked", tone: "none" };
+  if (c.stale) return { word: "Out of date", tone: "none" };
+  const status: CheckStatus = c.status;
+  return { word: CHECK_STATUS_LABEL[status], tone: status === "passed" ? "ok" : status === "warning" ? "warn" : status === "failed" ? "bad" : "none" };
+}
+
+export type ErpStock = { onHand: number | null; checkedAt: string; stale: boolean };
+
+/** The ERP's stock figure per line, from the last stock check; empty until one has been run. Keyed by line id. */
+export function erpStockByLine(checks: Pick<ErpCheckView, "kind" | "detail" | "checked_at" | "stale">[]): Map<string, ErpStock> {
+  const out = new Map<string, ErpStock>();
+  const stock = checks.find((c) => c.kind === "stock");
+  const rows = stock?.detail && Array.isArray(stock.detail.lines) ? (stock.detail.lines as unknown[]) : [];
+  for (const r of rows) {
+    const x = r as { line_id?: unknown; on_hand?: unknown };
+    if (typeof x.line_id !== "string") continue;
+    out.set(x.line_id, { onHand: typeof x.on_hand === "number" ? x.on_hand : null, checkedAt: stock!.checked_at, stale: stock!.stale });
+  }
+  return out;
 }
 
 // ── availability ──────────────────────────────────────────────────────────────

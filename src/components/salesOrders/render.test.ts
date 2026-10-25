@@ -228,6 +228,89 @@ describe("ErpTab", () => {
   });
 });
 
+describe("ErpTab: Check with ERP and Send to ERP", () => {
+  const chk = (kind: "credit" | "price" | "stock", status: "passed" | "warning" | "failed" | "not_run", over: object = {}) =>
+    ({ kind, status, message: `${kind} says ${status}.`, detail: null, checked_at: "2026-10-24T09:30:00Z", stale: false, ...over });
+  const props = { currency: "AED", externalLine: null, middlewareHref: null };
+  const live = (over: object = {}) => detail({ erpAvailable: true, ...over });
+
+  it("shows three result rows with their reason and time, and both buttons, once an ERP is connected", () => {
+    const d = live({ erpChecks: [chk("credit", "passed"), chk("price", "warning"), chk("stock", "failed")] });
+    const out = html(el(ErpTab, { detail: d, ...props, onCheck: noop, onSend: noop }));
+    for (const g of ["sales_order.check_credit", "sales_order.check_price", "sales_order.check_stock", "sales_order.erp_check", "sales_order.erp_send"]) expect(out, g).toContain(g);
+    for (const w of ["Passed", "Warning", "Failed", "credit says passed.", "stock says failed."]) expect(out, w).toContain(w);
+    expect(out).toMatch(/24 Oct/);
+    expect(out).toContain(">Check with ERP<");
+    expect(out).toContain(">Send to ERP<");
+  });
+  it("says Out of date instead of the stored status once the lines changed, and Not checked before the first run", () => {
+    const d = live({ erpChecks: [chk("credit", "passed", { stale: true })] });
+    const out = html(el(ErpTab, { detail: d, ...props, onCheck: noop, onSend: noop }));
+    expect(out).toContain("Out of date");
+    expect(out).toContain("Not checked");
+    expect(out).not.toContain(">Passed<");
+  });
+  it("disables Send with the reason visible, and never offers either button without a connector or after the ERP has the order", () => {
+    const blocked = html(el(ErpTab, { detail: live({ erpSendBlocker: "This customer is not in the ERP yet. Sync customers from the ERP first." }), ...props, onCheck: noop, onSend: noop }));
+    expect(blocked).toContain("sales_order.erp_blocker");
+    expect(blocked).toContain("not in the ERP yet");
+    expect(blocked).toMatch(/<button[^>]*disabled[^>]*>[^<]*(<[^>]+>)*Send to ERP/);
+    const none = html(el(ErpTab, { detail: detail(), ...props, onCheck: noop, onSend: noop }));
+    expect(none).not.toContain("sales_order.erp_send");
+    expect(none).not.toContain("Check with ERP");
+    const sent = html(el(ErpTab, { detail: live({ erpLinked: true, erpChecks: [chk("credit", "passed")] }), ...props, onCheck: noop, onSend: noop }));
+    expect(sent).not.toContain("sales_order.erp_send");
+    expect(sent).toContain("sales_order.check_credit");
+  });
+  it("says Needs a database update on the buttons while migration 0217 is pending", () => {
+    const out = html(el(ErpTab, { detail: live({ erpChecksPending: true }), ...props, onCheck: noop, onSend: noop }));
+    expect(out).toContain("Needs a database update");
+    expect(out).toContain("sales_order.erp_pending");
+    expect(out).not.toContain(">Send to ERP<");
+  });
+  it("lists the transfer log with who, result, the ERP number or the failing step, and Retry on the newest failure only", () => {
+    const transfers = [
+      { id: "t2", attempted_at: "2026-10-24T11:00:00Z", by: "Asha", result: "failed" as const, erp_number: null, step: "create", message: "Dynamics did not accept the order." },
+      { id: "t1", attempted_at: "2026-10-24T10:00:00Z", by: null, result: "failed" as const, erp_number: null, step: "find", message: "older" },
+    ];
+    const out = html(el(ErpTab, { detail: live({ erpTransfers: transfers }), ...props, onSend: noop }));
+    expect(out).toContain("sales_order.transfer_log");
+    expect(out).toContain("Asha");
+    expect(out).toContain("Step: create. Dynamics did not accept the order.");
+    expect(out.match(/sales_order\.transfer_retry/g)).toHaveLength(2);
+    const sent = html(el(ErpTab, { detail: live({ erpLinked: true, erpTransfers: [{ id: "t3", attempted_at: "2026-10-24T12:00:00Z", by: "Asha", result: "sent" as const, erp_number: "ORD-01001", step: null, message: null }] }), ...props }));
+    expect(sent).toContain("ORD-01001");
+    expect(sent).not.toContain("sales_order.transfer_retry");
+    expect(sent).not.toContain("Nothing sent yet");
+  });
+});
+
+describe("Overview banner and Availability with ERP checks", () => {
+  const failed = (kind: "credit" | "price" | "stock", over: object = {}) => ({ kind, status: "failed" as const, message: "x", detail: null, checked_at: "2026-10-24T09:30:00Z", stale: false, ...over });
+  it("the Overview banner appears for a current failed check and names it; a pass or a stale failure stays quiet", () => {
+    const view = (checks: object[]) => html(el(OverviewTab, { detail: detail({ erpChecks: checks as never }), attachments: [], currency: "AED", onSeeAvailability: noop, onSeeErp: noop }));
+    expect(view([failed("credit")])).toContain("The ERP check for credit failed.");
+    expect(view([failed("credit")])).toContain("See the ERP checks");
+    expect(view([failed("credit", { stale: true })])).not.toContain("sales_order.attention");
+    expect(view([{ ...failed("credit"), status: "passed" }])).not.toContain("sales_order.attention");
+    expect(view([])).not.toContain("sales_order.attention");
+  });
+  it("shows no check chips on Overview", () => {
+    const out = html(el(OverviewTab, { detail: detail({ erpChecks: [{ ...failed("credit"), status: "passed" }] as never }), attachments: [], currency: "AED", onSeeAvailability: noop }));
+    expect(out).not.toContain("Passed");
+    expect(out).not.toContain("Credit");
+  });
+  it("Availability shows the ERP stock per line, labelled ERP, only after a stock check", () => {
+    const erpStock = new Map([["l1", { onHand: 12, checkedAt: "2026-10-24T09:30:00Z", stale: false }]]);
+    const withStock = html(el(AvailabilityTab, { lines: [line()], canRefresh: true, refreshing: false, onRefresh: noop, erpStock }));
+    expect(withStock).toContain("ERP stock");
+    expect(withStock).toContain("12 Nos on hand");
+    expect(withStock).toContain("sales_order.erp_stock");
+    const without = html(el(AvailabilityTab, { lines: [line()], canRefresh: true, refreshing: false, onRefresh: noop }));
+    expect(without).not.toContain("ERP stock");
+  });
+});
+
 describe("FilesAndLinks", () => {
   const view = (p: object) => html(el(FilesAndLinks, { orderId: "o1", items: [attachment(), attachment({ id: "f2", type: "link", kind: "drawing", name: "Drawing rev B", ref: "https://files.example/dwg", href: "https://files.example/dwg", size_bytes: null })], canAdd: true, onChanged: noop, ...p }));
   it("lists files and links with their kind, who and when", () => {

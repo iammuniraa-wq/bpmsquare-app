@@ -78,6 +78,10 @@ describe("which actions the state allows", () => {
     expect(a({ origin: "bpmsquare", status: "draft" }).checkWithErp).toBe(false);
     expect(a({ origin: "bpmsquare", status: "draft" }, false, true).checkWithErp).toBe(true);
     expect(a({ origin: "bpmsquare", status: "draft" }, true, true).checkWithErp).toBe(false);
+    expect(a({ origin: "bpmsquare", status: "draft" }).sendToErp).toBe(false);
+    expect(a({ origin: "bpmsquare", status: "confirmed" }, false, true).sendToErp).toBe(true);
+    expect(a({ origin: "bpmsquare", status: "draft" }, true, true).sendToErp).toBe(false);
+    expect(a({ origin: "erp", status: "confirmed" }, false, true).sendToErp).toBe(false);
   });
 });
 

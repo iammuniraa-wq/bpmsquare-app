@@ -21,11 +21,12 @@ import { ROUTES } from "@/lib/constants";
 import InfoTip from "@/components/ui/InfoTip";
 import { useUnsavedChangesGuard } from "@/lib/unsavedChanges";
 import {
-  cancelOrder, confirmOrder, deleteOrder, emailOrder, getOrder, getShare, listAttachments, listOrderTypes, refreshAvailability, refreshFromErp, reopenOrder,
+  cancelOrder, checkWithErp, confirmOrder, deleteOrder, emailOrder, getOrder, getShare, listAttachments, listOrderTypes, refreshAvailability, refreshFromErp, reopenOrder, sendToErp,
   type ApiResult, type Attachment, type OrderDetail, type ShareLinks,
 } from "@/lib/salesOrders/client";
 import { orderAnnotatable } from "@/lib/salesOrders/types";
-import { documentFlow, orderActions, pricingLine, type FlowRoutes } from "./logic";
+import { confirmNeeded } from "@/lib/salesOrders/erpChecks";
+import { documentFlow, erpStockByLine, orderActions, pricingLine, type FlowRoutes } from "./logic";
 import { ORDER_TIPS } from "./tips";
 import type { PickProduct } from "./lines";
 import OrderChips from "./OrderChips";
@@ -71,8 +72,8 @@ export default function SalesOrderDetail({ orderId, isAdmin, products, tenantCur
   const { confirm, toast } = useFeel();
   const [tab, setTab] = useUrlTab(TAB_IDS);
   const [state, setState] = useState<State>({ phase: "loading" });
-  const [busy, setBusy] = useState<"" | "email" | "confirm" | "availability" | "reopen" | "erp">("");
-  const [panel, setPanel] = useState<"" | "details" | "cancel">("");
+  const [busy, setBusy] = useState<"" | "email" | "confirm" | "availability" | "reopen" | "erp" | "check" | "send">("");
+  const [panel, setPanel] = useState<"" | "details" | "cancel" | "send">("");
   const [reason, setReason] = useState("");
   const [reasonError, setReasonError] = useState("");
   const [cancelling, setCancelling] = useState(false);
@@ -150,6 +151,32 @@ export default function SalesOrderDetail({ orderId, isAdmin, products, tenantCur
     await load();
   }
 
+  async function runCheck() {
+    setBusy("check");
+    const res = await checkWithErp(order.id);
+    setBusy("");
+    if (!res.ok) { toast({ text: res.needsDatabaseUpdate ? "Needs a database update" : res.error, tone: "error" }); return; }
+    toast({ text: "Checked with the ERP. Nothing was saved there.", tone: "success" });
+    setTab("erp");
+    await load();
+  }
+
+  async function runSend(confirmed: boolean) {
+    setBusy("send");
+    const res = await sendToErp(order.id, confirmed);
+    setBusy("");
+    if (!res.ok) {
+      if (res.needsConfirmation) { await load(); return; }
+      setPanel("");
+      toast({ text: res.needsDatabaseUpdate ? "Needs a database update" : res.error, tone: "error" });
+      await load();
+      return;
+    }
+    setPanel("");
+    toast({ text: res.data.erpNumber ? `Sent to the ERP as ${res.data.erpNumber}` : "Sent to the ERP", tone: "success" });
+    await load();
+  }
+
   async function reopen() {
     if (!(await confirm({ title: `Reopen ${order.ref}?`, body: "It becomes a draft again and its lines can be changed." }))) return;
     await run("reopen", () => reopenOrder(order.id), "Order reopened");
@@ -223,7 +250,7 @@ export default function SalesOrderDetail({ orderId, isAdmin, products, tenantCur
                 <InfoTip label="WhatsApp">{share?.whatsappNote ?? ORDER_TIPS.whatsapp}</InfoTip>
               </span>
             )}
-            {can.checkWithErp && <Button disabled title="Checking with the ERP arrives with the ERP connection" data-guide="sales_order.check_erp">Check with ERP</Button>}
+            {can.checkWithErp && !detail.erpChecksPending && <Button loading={busy === "check"} onClick={() => void runCheck()} data-guide="sales_order.check_erp">Check with ERP</Button>}
             {primary}
             <MoreMenu items={menu} />
           </div>
@@ -249,7 +276,7 @@ export default function SalesOrderDetail({ orderId, isAdmin, products, tenantCur
 
       <div style={{ display: "flex", flexDirection: "column", gap: 14, minWidth: 0 }}>
         {tab === "overview" && (
-          <OverviewTab detail={detail} attachments={attachments} currency={currency} onSeeAvailability={() => setTab("availability")} />
+          <OverviewTab detail={detail} attachments={attachments} currency={currency} onSeeAvailability={() => setTab("availability")} onSeeErp={() => setTab("erp")} />
         )}
 
         {(linesVisible || linesDirty) && (
@@ -261,13 +288,14 @@ export default function SalesOrderDetail({ orderId, isAdmin, products, tenantCur
         {tab === "availability" && (
           <AvailabilityTab
             lines={lines}
+            erpStock={erpStockByLine(detail.erpChecks)}
             canRefresh={order.status !== "cancelled" && order.origin === "bpmsquare"}
             refreshing={busy === "availability"}
             onRefresh={() => void run("availability", () => refreshAvailability(order.id), "Availability updated")}
           />
         )}
 
-        {tab === "erp" && <ErpTab detail={detail} currency={currency} externalLine={externalLine} middlewareHref={middlewareHref} onRefresh={detail.erpLinked ? () => void refreshErp() : undefined} refreshing={busy === "erp"} />}
+        {tab === "erp" && <ErpTab detail={detail} currency={currency} externalLine={externalLine} middlewareHref={middlewareHref} onRefresh={detail.erpLinked ? () => void refreshErp() : undefined} refreshing={busy === "erp"} onCheck={can.checkWithErp ? () => void runCheck() : undefined} checking={busy === "check"} onSend={can.sendToErp ? () => setPanel("send") : undefined} sending={busy === "send"} />}
 
         {tab === "documents" && (
           <>
@@ -290,6 +318,29 @@ export default function SalesOrderDetail({ orderId, isAdmin, products, tenantCur
           onSaved={() => { setPanel(""); toast({ text: "Details saved", tone: "success" }); void load(); }}
         />
       )}
+
+      {panel === "send" && (() => {
+        const need = confirmNeeded(detail.erpChecks);
+        return (
+          <SidePanel
+            title={`Send ${order.ref} to the ERP`}
+            onClose={() => setPanel("")}
+            footer={<><Button onClick={() => setPanel("")} disabled={busy === "send"}>Keep editing</Button><Button variant="primary" loading={busy === "send"} onClick={() => void runSend(need.needed)} data-guide="sales_order.send_confirm">{need.needed ? "Send anyway" : "Send to ERP"}</Button></>}
+          >
+            <div data-guide="sales_order.send_panel" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              <span className="bpm-label-row"><span className="bpm-t-section">Before it goes</span><InfoTip label="Send to ERP">{ORDER_TIPS.send}</InfoTip></span>
+              {need.needed ? (
+                <>
+                  <ul className={s.sendList} role="status">{need.items.map((i) => <li key={i}>{i}</li>)}</ul>
+                  <p className="bpm-t-help" style={{ margin: 0 }}>Sending anyway confirms you have read these.</p>
+                </>
+              ) : (
+                <p className="bpm-t-help" style={{ margin: 0 }}>Credit, price and stock all passed.</p>
+              )}
+            </div>
+          </SidePanel>
+        );
+      })()}
 
       {panel === "cancel" && (
         <SidePanel

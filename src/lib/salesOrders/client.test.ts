@@ -161,3 +161,34 @@ describe("refreshFromErp", () => {
     expect(r).toMatchObject({ ok: false, needsDatabaseUpdate: true });
   });
 });
+
+describe("Check with ERP and Send to ERP (SO3)", () => {
+  it("readDetail carries the checks, the transfer log, the send blocker and the pending marker, dropping rows it cannot read", () => {
+    const d = readDetail({
+      ...orderRow, erp_available: true, erp_send_blocker: "Add at least one line first.", erp_checks_pending: false,
+      erp_checks: [{ kind: "credit", status: "failed", message: "On hold", checked_at: "2026-10-24T10:00:00Z", stale: true, detail: { a: 1 } }, { kind: "bogus", status: "passed", checked_at: "x" }],
+      erp_transfers: [{ id: "t1", attempted_at: "2026-10-24T10:00:00Z", by: "Asha", result: "failed", step: "create", message: "No" }, { id: "t2", result: "weird" }],
+    });
+    expect(d?.erpAvailable).toBe(true);
+    expect(d?.erpSendBlocker).toBe("Add at least one line first.");
+    expect(d?.erpChecks).toEqual([{ kind: "credit", status: "failed", message: "On hold", checked_at: "2026-10-24T10:00:00Z", stale: true, detail: { a: 1 } }]);
+    expect(d?.erpTransfers).toEqual([{ id: "t1", attempted_at: "2026-10-24T10:00:00Z", by: "Asha", result: "failed", erp_number: null, step: "create", message: "No" }]);
+    expect(readDetail(orderRow)).toMatchObject({ erpChecks: [], erpTransfers: [], erpSendBlocker: null, erpChecksPending: false });
+  });
+  it("posts the check and the confirmed send to their routes", async () => {
+    const { checkWithErp, sendToErp } = await import("./client");
+    const fn = stub({ body: { ok: true, checks: [{ kind: "stock", status: "passed", message: "ok", checked_at: "2026-10-24T10:00:00Z" }] } });
+    expect(await checkWithErp("o1")).toMatchObject({ ok: true, data: { checks: [{ kind: "stock" }] } });
+    expect(fn.mock.calls[0]).toEqual(["/api/sales-orders/o1/erp-check", expect.objectContaining({ method: "POST" })]);
+    const send = stub({ body: { ok: true, erp_number: "ORD-9" } });
+    expect(await sendToErp("o1", true)).toEqual({ ok: true, data: { erpNumber: "ORD-9", link: null } });
+    expect(JSON.parse(String((send.mock.calls[0] as unknown as [string, RequestInit])[1].body))).toEqual({ confirm: true });
+  });
+  it("a send that needs confirmation or a database update is reported as such", async () => {
+    const { sendToErp } = await import("./client");
+    stub({ status: 409, body: { error: "read them", needs_confirmation: true, items: ["Credit: failed"] } });
+    expect(await sendToErp("o1", false)).toMatchObject({ ok: false, status: 409, needsConfirmation: true });
+    stub({ status: 503, body: { error: "x", needsDatabaseUpdate: true } });
+    expect(await sendToErp("o1", true)).toMatchObject({ ok: false, needsDatabaseUpdate: true });
+  });
+});

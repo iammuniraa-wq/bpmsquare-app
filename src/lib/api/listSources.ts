@@ -186,6 +186,10 @@ const SALES_ORDER_FIELDS: QueryableField[] = [
   { path: "shipping_amount", type: "number" },
   { path: "total", type: "number" },
   { path: "line_count", type: "number" },
+  // The latest Check with ERP status (passed, warning, failed, not_run): "orders that failed the credit check" is a one-object question.
+  { path: "credit_check", type: "string" },
+  { path: "price_check", type: "string" },
+  { path: "stock_check", type: "string" },
   // The ERP's invoices for the order, rolled up (erp_documents): "orders with unpaid invoices" is a one-object question.
   { path: "invoice_count", type: "number" },
   { path: "invoiced_total", type: "number" },

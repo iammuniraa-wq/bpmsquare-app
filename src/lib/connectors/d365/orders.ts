@@ -434,6 +434,8 @@ export async function refreshOrderDocuments(admin: SupabaseClient, tenantId: str
     .eq("entity", "sales_orders").eq("object_id", orderId).maybeSingle();
   if (!link) return { kind: "not_linked" };
   const lk = link as LinkRow & { external_key: string | null };
+  // A send in flight holds the link as "pending:<uuid>" until the ERP has made the order: there is nothing to read yet.
+  if (lk.external_id.startsWith("pending:")) return { kind: "not_linked" };
   const erpNumber = lk.external_key ?? order.ref;
 
   if (!opts.skipThrottle && refreshedJustNow(order.erp_docs_checked_at)) return { kind: "ok", throttled: true, header: null, documents: null, erpNumber };

@@ -1,5 +1,7 @@
 import "server-only";
 import { createAdminSupabase } from "@/lib/supabase-server";
+import { CHECK_COLUMNS, TRANSFER_COLUMNS, shapeCheck, type CheckRow, type TransferRow } from "@/lib/salesOrders/erpChecks";
+import { hashOf } from "@/lib/salesOrders/erpState";
 
 // The machine-facing view of a sales order (v1 API, /api/v1/ask, the report builder and the MCP tools): the header,
 // who it is for by id and name, and on the detail endpoint the lines, notes and terms.
@@ -42,6 +44,11 @@ export function shapeErpDocumentForApi(r: Row): Row {
   };
 }
 
+// Check with ERP results (sales_order_checks) and the transfer log (sales_order_transfers) are returned on the detail endpoint:
+// status, one-line reason, time and whether the lines changed since. The per-line ERP figures (detail) and the person who
+// pressed Send (user_id) are NOT returned; both tables read as none while 0217 is pending. Orders carry no cost fields.
+export type CheckStatuses = { credit_check: string | null; price_check: string | null; stock_check: string | null };
+
 export type InvoiceSummary = { count: number; total: number; paid: number };
 
 const one = (v: unknown): { id?: string; name?: string | null } | null =>
@@ -53,7 +60,7 @@ const party = (v: unknown): { name: string; address: string | null } | null => {
   return typeof p.name === "string" && p.name ? { name: p.name, address: typeof p.address === "string" ? p.address : null } : null;
 };
 
-export function shapeSalesOrderRow(raw: Row, lineCount?: number, invoices?: InvoiceSummary): Row {
+export function shapeSalesOrderRow(raw: Row, lineCount?: number, invoices?: InvoiceSummary, checks?: CheckStatuses): Row {
   const acc = one(raw.accounts);
   const typ = one(raw.sales_order_types);
   const id = String(raw.id);
@@ -85,6 +92,7 @@ export function shapeSalesOrderRow(raw: Row, lineCount?: number, invoices?: Invo
     confirmed_at: raw.confirmed_at ?? null,
     sent_at: raw.sent_at ?? null,
     ...(lineCount !== undefined ? { line_count: lineCount } : {}),
+    ...(checks ?? {}),
     ...(invoices ? { invoice_count: invoices.count, invoiced_total: invoices.total, paid_total: invoices.paid } : {}),
     custom_data: raw.custom_data ?? null,
     created_at: raw.created_at,
@@ -141,7 +149,20 @@ export async function loadSalesOrdersForApi(tenantId: string): Promise<Row[]> {
       invoices.set(d.order_id, cur);
     }
   }
-  return ((res.data ?? []) as unknown as Row[]).map((r) => shapeSalesOrderRow(r, counts.get(String(r.id)) ?? 0, invoices.get(String(r.id)) ?? { count: 0, total: 0, paid: 0 }));
+  // The latest Check with ERP status per order and kind (a missing table reads as none).
+  const checks = new Map<string, CheckStatuses>();
+  const chk = await admin.from("sales_order_checks").select("order_id, kind, status").eq("tenant_id", tenantId).limit(50000);
+  if (!chk.error) {
+    for (const c of (chk.data ?? []) as { order_id: string; kind: string; status: string }[]) {
+      const cur = checks.get(c.order_id) ?? { credit_check: null, price_check: null, stock_check: null };
+      if (c.kind === "credit") cur.credit_check = c.status;
+      else if (c.kind === "price") cur.price_check = c.status;
+      else if (c.kind === "stock") cur.stock_check = c.status;
+      checks.set(c.order_id, cur);
+    }
+  }
+  const none: CheckStatuses = { credit_check: null, price_check: null, stock_check: null };
+  return ((res.data ?? []) as unknown as Row[]).map((r) => shapeSalesOrderRow(r, counts.get(String(r.id)) ?? 0, invoices.get(String(r.id)) ?? { count: 0, total: 0, paid: 0 }, checks.get(String(r.id)) ?? none));
 }
 
 /** One sales order with its lines and customer-facing text, or null. */
@@ -162,5 +183,18 @@ export async function loadSalesOrderForApi(tenantId: string, id: string): Promis
   const invoices = docRows.filter((d) => d.kind === "invoice" && d.status_spine !== "cancelled");
   const sum = (rows: Row[]) => Math.round(rows.reduce((t, d) => t + Number(d.amount ?? 0), 0) * 100) / 100;
   const summary: InvoiceSummary = { count: invoices.length, total: sum(invoices), paid: sum(invoices.filter((d) => d.status_spine === "paid")) };
-  return { ...shapeSalesOrderRow(header, lineRows.length, summary), notes: header.notes ?? null, terms: header.terms ?? null, lines: lineRows, erp_documents: docRows.map(shapeErpDocumentForApi) };
+  const chk = await admin.from("sales_order_checks").select(CHECK_COLUMNS).eq("order_id", id).eq("tenant_id", tenantId);
+  const hash = hashOf(
+    { account_id: (header.account_id as string | null) ?? null, currency: (header.currency as string | null) ?? null, shipping_amount: Number(header.shipping_amount ?? 0) },
+    lineRows.map((l) => ({ line_no: Number(l.line_no), product_id: (l.product_id as string | null) ?? null, qty: Number(l.qty), unit_price: Number(l.unit_price), discount_pct: Number(l.discount_pct), tax_pct: Number(l.tax_pct) })),
+  );
+  const checkRows = chk.error ? [] : ((chk.data ?? []) as unknown as CheckRow[]).flatMap((c) => { const v = shapeCheck(c, hash); return v ? [{ kind: v.kind, status: v.status, message: v.message, checked_at: v.checked_at, stale: v.stale }] : []; });
+  const tr = await admin.from("sales_order_transfers").select(TRANSFER_COLUMNS).eq("order_id", id).eq("tenant_id", tenantId).order("attempted_at", { ascending: false }).limit(50);
+  const transferRows = tr.error ? [] : ((tr.data ?? []) as unknown as TransferRow[]).map((t) => ({ attempted_at: t.attempted_at, result: t.result, erp_number: t.erp_number, step: t.step, message: t.message }));
+  const statusOf = (kind: string) => checkRows.find((c) => c.kind === kind)?.status ?? null;
+  const checkStatuses: CheckStatuses = { credit_check: statusOf("credit"), price_check: statusOf("price"), stock_check: statusOf("stock") };
+  return {
+    ...shapeSalesOrderRow(header, lineRows.length, summary, checkStatuses), notes: header.notes ?? null, terms: header.terms ?? null, lines: lineRows,
+    erp_documents: docRows.map(shapeErpDocumentForApi), erp_checks: checkRows, erp_transfers: transferRows,
+  };
 }
