@@ -233,3 +233,57 @@ Three screens: Resource Master (two views) and Cost Code.
    screenshots yet).
 6. **Still unknown, asked of the owner:** the Project Tender Status values, a tender entry form, a project budget screen, the WBS
    Master screen, and whether Cost Code and Resource Master are exposed in their API.
+
+## 10. Owner answers from the KAMCO questions (2026-10-25) — these override earlier sections
+
+| Topic | Owner answer | Effect on the design |
+|---|---|---|
+| ePROMIS API | Exists and covers tenders, projects, budgets, Resource Master and Cost Code. The owner saw it. | Masters are pulled through the connector. Still needed: the API documentation and a sandbox login (owner to obtain). |
+| Tender statuses | Our own, not copied from ePROMIS. | Section 9 item 5 is dropped: no status mapping. Stages stay as built. |
+| When ePROMIS gets the project | After the bid is awarded. | Handover = "create project and budget in ePROMIS" at award. Nothing goes to ePROMIS before. |
+| Intake | Mostly client Excel, sometimes Ariba forms. | Slice 3 BOQ Excel in and out comes first; Ariba answer sheet second. |
+| Deal Room guests | KAMCO internal people only for now; clients later if they ask. | **Slice 2 is internal only.** No guest links, codes, guest routes or public middleware paths. Messages keep a `channel` column (only `team` used) so a Client channel can be added later without a migration. Section 4's guest design is parked, not deleted. |
+| Tender fields | As per the standard flow. | Slice 1 fields stay. No more fields added now. |
+| Bid / no-bid | Needs manager approval. Not done in any system today. | New slice 1b (below). |
+| Bid bond | Track whether it has been released. | Add bond status and release date (slice 1b). |
+| Bid rounds | Not a fixed number. | Versions unlimited; no cap anywhere. |
+| Pricing sources | BOQ, BOM and past projects, all three. | Slice 3 prices a line from any of the three and shows which source set the price. Past projects = our awarded tenders and projects, and later ePROMIS history through the API. |
+| Supplier prices | A price older than 6 months is not used; raise at least 3 RFQs to a supplier group, then decide. | Price validity default 180 days (workspace setting). A stale price is shown but never auto-used. Awarding an RFQ needs at least 3 supplier replies unless a reason is recorded (workspace setting, default 3). The choice records who decided and why when it is not the lowest. |
+| Award and project | "You decide what is best." | Decision below. |
+| Reporting | Later, but it must be full. | Slice 8. Every fact reporting needs is captured from slice 1 on (see below). |
+
+### Decision: how the award becomes a project (mine, change on request)
+1. **Awarded** (the closed won tender stage) offers "Create project". BPMSquare creates a Project from the won estimate: budget lines
+   by resource and cost code, baseline locked, each later change a revision with a reason.
+2. A **manager approves the baseline** before it leaves (same approval mechanism as bid/no-bid).
+3. On approval BPMSquare **creates the project and budget in ePROMIS through the API** and stores the ePROMIS id (the standard
+   ERP id line, shown on the record only). From then on ePROMIS runs execution: purchasing, subcontract orders, claims.
+4. BPMSquare keeps the baseline and **reads committed and actual cost back** from ePROMIS (read-only) so variance, margin
+   forecast and reporting stay in one place. If the API cannot give actuals, reporting shows baseline only and says so.
+5. **Subcontract packages (slice 6) are planning only here**: scope, budget, RFQ to at least 3 subcontractors, recorded
+   choice. The subcontract order itself is made in ePROMIS.
+
+### Slice 1b — bid/no-bid approval and bond release (build next, small)
+- A team member **proposes** go or no-go with a reason. A **manager approves or rejects** with a comment. Approvers are a list
+  chosen in Settings (default: workspace admins); the proposer cannot approve their own proposal (setting
+  `tender.allow_self_approval`, default off, so a one-admin workspace can switch it on).
+- The stage cannot leave Bid/No-bid for Estimating without an approved **go**, and cannot go to No-bid without an approved
+  **no-go**; both enforced on the server, not only in the form. Rejection returns the deal to Bid/No-bid with the comment.
+- Approver gets an email (`resolveOutbound`, email log) and an entry in the Nova inbox; the proposer is told the outcome.
+- Bond: status `held` / `released`, release date, and who released it; "bond expiring" chip uses expiry as before; a released
+  bond stops the expiry warning.
+- Every decision is stored as an event row, not only as the latest state, so reporting can see the history.
+
+### Facts captured from now on, for the full reporting later (slice 8)
+Stage changes with timestamp and person (change log already has them; tender reads must not depend on diffing text), each go/no-go
+proposal and decision with reasons, bid versions with total at each submission, RFQ sent/reply/award timestamps and the number of
+quotes compared, price source per estimate line (BOQ, BOM, past project, supplier RFQ), bond status changes, closing date changes,
+win/loss reason and winning price. Slice 8 reports: funnel and hit rate by client, consultant and tender type, bid cost and time,
+closing calendar, bond exposure, price variance bid vs award vs actual, margin forecast vs actual, supplier response and price
+history, approval turnaround.
+
+### Revised slice order
+1 Tender deal type (built). **1b** approval and bond release. **2** Deal Room, internal only. **3** BOQ Excel in and priced Excel out,
+Ariba answer sheet, price validity and 3-quote RFQ comparison, past-project price source. **4** Bid versions, log a call, outcome facts.
+**5** Pull ePROMIS masters, Project and budget, baseline approval, create in ePROMIS at award, read back actuals. **6** Subcontract
+packages (planning). **7** Ariba/other portal helpers and anything left. **8** Full reporting.
