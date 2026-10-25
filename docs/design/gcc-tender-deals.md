@@ -197,3 +197,39 @@ Sections 0 to 3 of this document are the spec, section 4 (Deal Room) is not buil
 - **Inbox**: `deal` is the sixth create type, listed only with the flag; the creator calls the tender route in-process with `tender_source_email`, portal `email`. A channel may prefer it.
 - **Reminders**: `GET /api/tenders/cron/reminders`, daily at 04:30 UTC in `vercel.json` (this repository has no `.github/workflows`; scheduled jobs are Vercel crons). Thresholds 7, 3, 1 and 0 days, claimed with a compare-and-set before sending. Reminders stop once the bid is submitted (stage after Estimating), the tender is closed, or the decision is no-go.
 - **Deliberately not in slice 1**: the `deal_types` admin route and a workspace-editable stage list; a demo seed; an API-key panel entry for the `tenders` scope (the scope exists and is explicit-only); a Data Workbench object for tenders; analytics tiles; a v1 endpoint; a dedicated search object (a tender is found as the Deal it is); the assistant create card (deferred with a reason in `src/lib/actions/registry.ts`); the "Open questions" figure of the mock-up (comes with the Deal Room).
+
+## 9. What the ePROMIS masters tell us (owner screenshots, 2026-10-25; read from screens only, not confirmed with KAMCO)
+
+Three screens: Resource Master (two views) and Cost Code.
+
+- **Two separate classifications, not one.** *Resource* says what is spent: the eight levels 11 Material, 21 Asset, 31 Man Power,
+  32 Hiring Man Power, 41 Sub Contractor, 51 Other Direct Cost, 91 Revenue, 92 On Account - Other Billed. *Cost code* says
+  where in the work it is spent. A budget line therefore carries both: a resource and a cost code.
+- **Cost Code is the CSI MasterFormat tree.** Division 00 "Procurement and Contracting" opens to 0010 Solicitation, 0020
+  Instructions for Procurement, 0040 Procurement Forms, 0041 Bid Forms, 0051 Notice of Award and so on. Each node has code, name,
+  a Division Code (links to Division Setup), Status (Active) and an "Est. Ref #". A "Related Head" button links nodes.
+- **Material resources use the same classification below level 11.** Codes such as 1105 Metals, 1106 Wood, Plastics, 1107
+  Thermal and Moisture, 1108 Openings, 1109 Finishes, 1133 Utilities, 1146 Water and Wastewater, then items beneath
+  (Slotted Channel Framing, Cold-Formed Metal, Decorative Metal ...). Level 11 is the MasterFormat division number in front of
+  the section number.
+- **Fields on a resource:** Code, Name, "Link to inventory" (the material is a stock item), "Budget Validation" (the system
+  checks spending against budget for this resource), Sales Stock Revenue Account, Sales Non-Stock Revenue Account, Purchaser Code
+  and Purchaser Name.
+
+### Consequences for the design (slices 3 to 7)
+
+1. **Budget line = resource + cost code + amount**, with quantity and unit where the resource is a material. Both lists are
+   *pulled from ePROMIS* through the connector (read-only reference lists, refreshed on demand), not typed in BPMSquare, so
+   every code on a project is valid in ePROMIS when the handover arrives. This is the "valid-code pick lists from the ERP"
+   item already queued for the ERP connectors.
+2. **Cost types shown to the user** are the resource levels (Material, Asset, Man Power, Hiring Man Power, Sub Contractor,
+   Other Direct Cost). Revenue (91) and On Account (92) are the income side of the project, not cost types.
+3. **Estimate lines map in:** an estimate BOM line gets its resource from the item type and its cost code by mapping a product
+   category to a MasterFormat node (value mapping, same mechanism as sales area). The first import of a client's BOQ Excel will
+   usually already carry a MasterFormat code; keep it as given.
+4. **Budget Validation is a project rule, not our decision:** a resource flagged for validation blocks or warns when committed
+   cost (PO, subcontract) would exceed its budget. Build the warning in slice 5 using the flag read from ePROMIS.
+5. **Tender stages map to ePROMIS "Project Tender Status"** by value mapping once KAMCO's status list is known (not in the
+   screenshots yet).
+6. **Still unknown, asked of the owner:** the Project Tender Status values, a tender entry form, a project budget screen, the WBS
+   Master screen, and whether Cost Code and Resource Master are exposed in their API.
