@@ -38,6 +38,18 @@ export const TENDER_TIPS = {
   boqAnswerSheet: "A plain Excel list of the lines with your rates, for copying into a portal form such as Ariba. Nothing is sent anywhere.",
   boqMatch: "BOQ lines are free text, so BOM and supplier prices cannot find them. Linking a line to a product keeps the client's wording and unit.",
   boqMatchBands: "Strong: the SKU matches, or most words and sizes agree. Only strong matches are accepted in bulk; a possible match is linked only when you pick it.",
+  bidsTab: "Each bid that goes in is saved as a numbered version. A saved version never changes, so you can always see what was offered.",
+  bidSubmit: "Saves the deal's lines and total as the next version and moves the tender to Submitted. Costs and markup are never saved in a version.",
+  bidReason: "From the second version, say why the bid changed: an addendum, a negotiation, a price update. The reason stays with the version.",
+  bidRevise: "Moves the tender back to Estimating so you can change the lines. The next Submit bid saves a new version.",
+  bidCompare: "Pick any two versions to see lines added, removed and changed, and how the total moved in amount and percent.",
+  bidWorking: "The total of the deal's lines now. It becomes the next version when you submit.",
+  callLog: "Record a call, meeting or site visit with the client or consultant. Add a next step with a date and it shows here until it is done.",
+  callNextStep: "What happens next and by when. A next step past its date shows as overdue on the Tender tab until you tick it done.",
+  callOverdue: "Next steps from logged calls that are past their date and not done. Open the Activity tab to tick them off.",
+  outcome: "How the tender ended: the awarded value, who won and why we lost. These facts feed win and loss reporting later.",
+  outcomeLostTo: "The company that won the tender. It is also saved as the deal's competitor.",
+  outcomeCompare: "Our last submitted total against the price the tender was awarded at. Percent is measured on the awarded price.",
   reminders:"Reminders go by email to the owner and team and are logged under Outbound emails. Changing the closing date restarts them.",
 } as const;
 

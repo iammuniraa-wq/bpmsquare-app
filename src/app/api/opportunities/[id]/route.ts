@@ -120,6 +120,9 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       const standing = await standingDecision(admin, tenantId, id);
       const problem = standing.available ? stageGuard({ from: before.stage, to: stage, effective: standing.effective }) : null;
       if (problem) return NextResponse.json({ error: problem }, { status: 409 });
+      // A lost tender names who won (slice 4): the competitor is on the body or already on the deal.
+      const who = "competitor" in patch ? patch.competitor : before.competitor;
+      if (stage === "bid_lost" && !who) return NextResponse.json({ error: "Say who won (the competitor) before closing the tender as Lost" }, { status: 422 });
     }
   }
   let outcome = before.outcome;

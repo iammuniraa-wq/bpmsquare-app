@@ -24,6 +24,11 @@ export type TenderRow = TenderFields & {
   bond_status: BondStatus;
   bond_released_at: string | null;
   bond_released_by: string | null;
+  /** 0225: the outcome facts of a closed tender. Null while that migration is pending or nothing was recorded. */
+  award_value: number | null;
+  winning_bidder: string | null;
+  award_date: string | null;
+  outcome_note: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -33,13 +38,17 @@ export type TenderRow = TenderFields & {
 export const TENDER_COLUMNS_BASE =
   "opportunity_id, tenant_id, deal_type_id, tender_no, issuer_name, issuer_account_id, portal, closing_at, bid_bond_amount, bid_bond_currency, bid_bond_expiry, addenda_count, decision, decision_reason, decided_by, decided_at, source_email_id, custom_data, reminders_sent, created_at, updated_at";
 export const BOND_COLUMNS = "bond_status, bond_released_at, bond_released_by";
-export const TENDER_COLUMNS = `${TENDER_COLUMNS_BASE}, ${BOND_COLUMNS}`;
+export const OUTCOME_COLUMNS = "award_value, winning_bidder, award_date, outcome_note";
+export const TENDER_COLUMNS_WITH_BOND = `${TENDER_COLUMNS_BASE}, ${BOND_COLUMNS}`;
+export const TENDER_COLUMNS = `${TENDER_COLUMNS_WITH_BOND}, ${OUTCOME_COLUMNS}`;
 
-/** Run a tender read with the full column list, then without the 0221 columns if they are not there yet. */
+/** Run a tender read with the full column list, then without the 0225 columns, then without the 0221 ones, if they are not there yet. */
 async function withBondFallback<T>(run: (columns: string) => PromiseLike<{ data: T | null; error: { code?: string; message?: string } | null }>): Promise<{ data: T | null; error: { code?: string; message?: string } | null }> {
   const first = await run(TENDER_COLUMNS);
-  if (first.error && isMissingSchema(first.error)) return run(TENDER_COLUMNS_BASE);
-  return first;
+  if (!(first.error && isMissingSchema(first.error))) return first;
+  const second = await run(TENDER_COLUMNS_WITH_BOND);
+  if (!(second.error && isMissingSchema(second.error))) return second;
+  return run(TENDER_COLUMNS_BASE);
 }
 
 /** The flag, read from a features object. Missing key = off. */
@@ -62,6 +71,10 @@ function normalise(r: Record<string, unknown>): TenderRow {
     bond_status: parseBondStatus(r.bond_status),
     bond_released_at: typeof r.bond_released_at === "string" ? r.bond_released_at : null,
     bond_released_by: typeof r.bond_released_by === "string" ? r.bond_released_by : null,
+    award_value: r.award_value == null ? null : Number(r.award_value),
+    winning_bidder: typeof r.winning_bidder === "string" ? r.winning_bidder : null,
+    award_date: typeof r.award_date === "string" ? r.award_date : null,
+    outcome_note: typeof r.outcome_note === "string" ? r.outcome_note : null,
   };
 }
 

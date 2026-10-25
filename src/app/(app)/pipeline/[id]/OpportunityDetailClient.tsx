@@ -29,6 +29,12 @@ import { TENDER_DECISION_LABEL, tenderIsLive } from "@/lib/tender/rules";
 import type { TenderView } from "@/lib/tender/views";
 import type { ApprovalView } from "@/lib/tender/approval";
 import TenderTab from "./TenderTab";
+import BidsTab from "@/components/tender/BidsTab";
+import CallsPanel from "@/components/tender/CallsPanel";
+import { LogCallButton } from "@/components/tender/LogCall";
+import { overdueSummary, type CallsData } from "@/lib/tender/calls";
+import type { BidsData } from "@/lib/tender/bids/rules";
+import type { OutcomeData } from "@/lib/tender/outcome";
 import DealRoom from "@/components/tender/DealRoom";
 import TenderLinesToolbar, { TenderLinesSaveBar } from "@/components/tender/TenderLinesToolbar";
 import type { ComposerLine } from "@/components/rfq/RfqComposer";
@@ -41,7 +47,7 @@ import { editorUom } from "@/lib/sales/uom";
 // are state, not ?tab=. Tabs: Overview · Lines · Quotes · Related · Activity.
 
 type Member = { user_id: string; name: string | null; email: string | null };
-type Tab = "overview" | "tender" | "room" | "boq" | "lines" | "quotes" | "related" | "activity";
+type Tab = "overview" | "tender" | "room" | "boq" | "lines" | "bids" | "quotes" | "related" | "activity";
 
 /** A tender deal's extras (GCC tender deals): its tender block and what the countdown needs. Absent for every other deal. */
 export type TenderTabData = {
@@ -50,6 +56,10 @@ export type TenderTabData = {
   room: { pending: boolean; unread: number; openQuestions: number; isAdmin: boolean } | null;
   /** The caller may change the BOQ (edit access to the Pipeline). Absent = yes; the server decides anyway. */
   boqEdit?: boolean;
+  /** Slice 4 (migration 0225): bid versions, logged calls and the outcome facts. Absent = the screens for them are not drawn. */
+  bids?: BidsData | null;
+  calls?: CallsData | null;
+  outcome?: OutcomeData | null;
   /** null while migration 0221 is pending. */ approval: ApprovalView | null; accounts: { id: string; name: string }[]; nowIso: string; timezone: string;
 };
 
@@ -122,7 +132,7 @@ export default function OpportunityDetailClient({ opp, accountName, contacts, in
     probability_override: opp.probability_override != null ? String(opp.probability_override) : "", probability_override_reason: opp.probability_override_reason ?? "",
     team: (opp.team ?? []) as { user_id: string; role: string }[],
   });
-  const [closing, setClosing] = useState<{ stage: string; outcome: "won" | "lost" | "dropped"; loss_reason: string; loss_note: string } | null>(null);
+  const [closing, setClosing] = useState<{ stage: string; outcome: "won" | "lost" | "dropped"; loss_reason: string; loss_note: string; competitor?: string } | null>(null);
 
   // Lines tab: the shared editor, saved as one PUT.
   const [lines, setLines] = useState<Line[]>(initialLines.length > 0 ? toEditorLines(initialLines) : [newLine()]);
@@ -251,6 +261,7 @@ export default function OpportunityDetailClient({ opp, accountName, contacts, in
     ...(tender?.room ? [{ id: "room" as Tab, label: "Room", count: tab === "room" ? 0 : roomUnread }] : []),
     ...(tender ? [{ id: "boq" as Tab, label: "BOQ" }] : []),
     { id: "lines", label: linesDirty ? "Lines •" : "Lines", count: lineCount },
+    ...(tender?.bids ? [{ id: "bids" as Tab, label: "Bids", count: tender.bids.versions.length }] : []),
     { id: "quotes", label: "Quotes", count: quotes.length },
     ...(related ? [{ id: "related" as Tab, label: "Related" }] : []),
     { id: "activity", label: "Activity" },
@@ -261,6 +272,7 @@ export default function OpportunityDetailClient({ opp, accountName, contacts, in
   // Tender deal: the closing date and the bid decision take the place of probability and owner in the header strip
   // (the owner is on the Overview tab). The countdown stops once the bid is in or the tender is closed.
   const tenderLive = tender ? tenderIsLive(opp, tender.view) : false;
+  const overdue = tender?.calls ? overdueSummary(tender.calls.calls, todayKey) : null;
   const tenderFacts = tender
     ? [
         { label: "Closing", value: <ClosingChip closingAt={tender.view.closing_at} nowIso={tender.nowIso} timezone={tender.timezone} closed={!tenderLive} /> },
@@ -336,6 +348,7 @@ export default function OpportunityDetailClient({ opp, accountName, contacts, in
         <TenderTab
           opportunityId={opp.id} stage={opp.stage} tender={tender.view} approval={tender.approval} accounts={tender.accounts} nowIso={tender.nowIso} timezone={tender.timezone}
           finished={!tenderLive} onError={setError} onNotice={setNotice}
+          outcome={tender.outcome ?? null} overdue={overdue} onOpenActivity={() => setTab("activity")} fmt={inr}
           room={tender.room && !tender.room.pending ? { openQuestions: roomOpen, onOpen: (f) => { setRoomFilter(f); setTab("room"); } } : null}
         />
       )}
@@ -353,6 +366,7 @@ export default function OpportunityDetailClient({ opp, accountName, contacts, in
           <DealRoom
             opportunityId={opp.id} currentUserId={currentUserId} isAdmin={tender.room.isAdmin} todayKey={todayKey} initialFilter={roomFilter}
             onSeen={() => setRoomUnread(0)} onOpenQuestions={setRoomOpen}
+            headerExtra={tender.calls?.canEdit && !tender.calls.pending ? <LogCallButton opportunityId={opp.id} /> : undefined}
           />
         )
       )}
@@ -440,6 +454,10 @@ export default function OpportunityDetailClient({ opp, accountName, contacts, in
         </Card>
       )}
 
+      {tab === "bids" && tender?.bids && (
+        <BidsTab opportunityId={opp.id} data={{ ...tender.bids, working_total: linesTotal }} stage={opp.stage} outcome={opp.outcome} fmt={inr} onError={setError} onNotice={setNotice} />
+      )}
+
       {tab === "quotes" && (
         <Card padding={16}>
           {quotes.length === 0 ? (
@@ -466,7 +484,12 @@ export default function OpportunityDetailClient({ opp, accountName, contacts, in
       )}
 
       {tab === "related" && related}
-      {tab === "activity" && activity}
+      {tab === "activity" && (tender?.calls ? (
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          <CallsPanel opportunityId={opp.id} data={tender.calls} todayKey={todayKey} />
+          {activity}
+        </div>
+      ) : activity)}
 
       {closing && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.35)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 50 }} onClick={() => setClosing(null)}>
@@ -484,12 +507,15 @@ export default function OpportunityDetailClient({ opp, accountName, contacts, in
                   <Select value={closing.loss_reason} onChange={(e) => setClosing({ ...closing, loss_reason: e.target.value })} aria-label="Loss reason" style={{ marginBottom: 8 }}>
                     {LOSS_REASONS.map((r) => <option key={r} value={r}>{LOSS_REASON_LABEL[r]}</option>)}
                   </Select>
+                  {tender && closing.outcome === "lost" && (
+                    <Input value={closing.competitor ?? opp.competitor ?? ""} onChange={(e) => setClosing({ ...closing, competitor: e.target.value })} placeholder="Who won (required)" aria-label="Who won" data-guide="tender.close.competitor" style={{ marginBottom: 8 }} />
+                  )}
                   <Input value={closing.loss_note} onChange={(e) => setClosing({ ...closing, loss_note: e.target.value })} placeholder="What happened (optional)" style={{ marginBottom: 8 }} />
                 </>
               )}
               <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
                 <Button variant="secondary" onClick={() => setClosing(null)}>Cancel</Button>
-                <Button variant="primary" loading={pending} onClick={() => { const cl = closing; setClosing(null); startTransition(async () => { await patch({ stage: cl.stage, outcome: cl.outcome, ...(cl.outcome !== "won" ? { loss_reason: cl.loss_reason, loss_note: cl.loss_note || null } : {}) }); }); }}>Confirm</Button>
+                <Button variant="primary" loading={pending} onClick={() => { const cl = closing; setClosing(null); startTransition(async () => { await patch({ stage: cl.stage, outcome: cl.outcome, ...(cl.outcome !== "won" ? { loss_reason: cl.loss_reason, loss_note: cl.loss_note || null } : {}), ...(tender && cl.outcome === "lost" ? { competitor: cl.competitor ?? opp.competitor ?? "" } : {}) }); }); }}>Confirm</Button>
               </div>
             </Card>
           </div>

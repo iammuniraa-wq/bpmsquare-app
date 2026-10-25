@@ -16,6 +16,9 @@ import type { ApprovalView } from "@/lib/tender/approval";
 import BidDecision from "./BidDecision";
 import { TENDER_TIPS } from "@/lib/tender/tips";
 import type { TenderView } from "@/lib/tender/views";
+import OutcomeSection from "@/components/tender/OutcomeSection";
+import type { OutcomeData } from "@/lib/tender/outcome";
+import type { OverdueSummary } from "@/lib/tender/calls";
 
 const fmtDate = (s: string | null | undefined) => (s ? new Date(s).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "");
 
@@ -36,7 +39,7 @@ const money = (amount: number | null, currency: string | null) =>
  * that opens and closes and remembers its state. Saves go to /api/opportunities/[id]/tender (an explicit field list) and
  * /api/opportunities/[id]/tender/approval (BidDecision) and .../tender/bond (release); who and when are the server's, not this form's.
  */
-export default function TenderTab({ opportunityId, stage, tender, approval, room, accounts, nowIso, timezone, finished, onError, onNotice }: {
+export default function TenderTab({ opportunityId, stage, tender, approval, room, accounts, nowIso, timezone, finished, onError, onNotice, outcome, overdue, onOpenActivity, fmt }: {
   opportunityId: string;
   stage: string;
   tender: TenderView;
@@ -51,6 +54,12 @@ export default function TenderTab({ opportunityId, stage, tender, approval, room
   finished: boolean;
   onError: (message: string) => void;
   onNotice: (message: string) => void;
+  /** Slice 4: the outcome facts, once the tender is Awarded, Lost or No-bid. */
+  outcome?: OutcomeData | null;
+  /** Slice 4: next steps from logged calls that are past their date; the chip opens the Activity tab. */
+  overdue?: OverdueSummary | null;
+  onOpenActivity?: () => void;
+  fmt?: (n: number) => string;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -140,6 +149,14 @@ export default function TenderTab({ opportunityId, stage, tender, approval, room
         <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
           <Button variant="primary" loading={pending} data-guide="tender.save" onClick={() => save(["tender_no", "issuer_name", "issuer_account_id", "portal", "closing_at", "addenda_count"], "Tender details saved")}>Save</Button>
           <ClosingChip closingAt={tender.closing_at} nowIso={nowIso} timezone={timezone} closed={finished} />
+          {overdue && overdue.count > 0 && (
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+              <Button size="sm" variant="secondary" data-guide="tender.overdue_steps" title={overdue.first ?? undefined} style={{ minHeight: 44, color: "var(--redink)", background: "var(--redbg)" }} onClick={onOpenActivity}>
+                {overdue.count} overdue next step{overdue.count === 1 ? "" : "s"}
+              </Button>
+              <InfoTip label="Overdue next steps">{TENDER_TIPS.callOverdue}</InfoTip>
+            </span>
+          )}
           {room && (
             <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
               <Button size="sm" variant={room.openQuestions > 0 ? "secondary" : "quiet"} data-guide="tender.open_questions" style={{ minHeight: 44 }} onClick={() => room.onOpen("questions")}>
@@ -170,6 +187,8 @@ export default function TenderTab({ opportunityId, stage, tender, approval, room
           )}
         </div>
       </SettingsSection>
+
+      {outcome && <OutcomeSection opportunityId={opportunityId} data={outcome} fmt={fmt ?? ((n) => String(n))} onError={onError} onNotice={onNotice} />}
     </div>
   );
 }

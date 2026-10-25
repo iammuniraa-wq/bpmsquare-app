@@ -13,4 +13,8 @@ rules:
 - Each BOQ line is priced from the client's own rate, a product BOM or estimate, a past awarded tender, a supplier quote or a manual rate, and shows which source set it and how old it is.
 - A supplier or past-project price older than the workspace's price validity (180 days by default, set in Settings, Tenders) is marked stale and is never applied automatically; a person may still choose it knowingly.
 - Download priced BOQ writes the unit rate and amount into the client's own file and keeps its layout; Export answer sheet gives a plain Excel list for a portal form such as Ariba. Cost and margin never appear in either file.
+- The Bids tab saves each bid that goes in as a numbered version (no limit) with the deal's lines and total as they were, never a cost or markup; from the second version a reason is required, and any two versions can be compared line by line and by total.
+- Submit bid moves the tender to Submitted and Revise bid returns it to Estimating; a saved version is never edited or deleted.
+- Log a call records a call, meeting or site visit with a next step and date on the deal's Activity tab (and from the Deal Room); an overdue next step shows as a chip on the Tender tab until it is ticked done.
+- Once a tender is Awarded, Lost or No-bid, the Tender tab records the outcome: awarded value, who won and the winning price, and why it was lost (the reason and the winner are required for Lost), with our last submitted total beside the price.
 - The flag is set by a platform admin; a workspace without it sees no new tab, menu entry or screen, and standard deals behave exactly as before.

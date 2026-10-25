@@ -34,7 +34,7 @@ const css = `
 .dr-msg{scroll-margin-top:80px}
 `;
 
-export default function DealRoom({ opportunityId, currentUserId, isAdmin, todayKey, initialFilter = "all", onSeen, onOpenQuestions }: {
+export default function DealRoom({ opportunityId, currentUserId, isAdmin, todayKey, initialFilter = "all", onSeen, onOpenQuestions, headerExtra }: {
   opportunityId: string;
   currentUserId: string;
   isAdmin: boolean;
@@ -44,6 +44,8 @@ export default function DealRoom({ opportunityId, currentUserId, isAdmin, todayK
   onSeen?: () => void;
   /** Called with the number of open questions whenever it changes (the Tender tab shows it). */
   onOpenQuestions?: (count: number) => void;
+  /** Extra controls in the room's header (the Log a call button). */
+  headerExtra?: React.ReactNode;
 }) {
   const { confirm } = useFeel();
   const base = `/api/deal-rooms/${opportunityId}`;
@@ -276,6 +278,7 @@ export default function DealRoom({ opportunityId, currentUserId, isAdmin, todayK
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, flexWrap: "wrap" }}>
             <span style={{ fontWeight: 700, fontSize: 14, color: c.ink }}>Team room</span>
             <InfoTip label="Deal Room">{TENDER_TIPS.room}</InfoTip>
+            {headerExtra}
             <div role="group" aria-label="Show" style={{ marginLeft: "auto", display: "flex", gap: 6 }}>
               <Button size="sm" variant={filter === "all" ? "primary" : "secondary"} aria-pressed={filter === "all"} data-guide="room.filter_all" onClick={() => setFilter("all")}>All</Button>
               <Button size="sm" variant={filter === "questions" ? "primary" : "secondary"} aria-pressed={filter === "questions"} data-guide="room.filter_questions" onClick={() => setFilter("questions")}>Open questions ({openQs.length})</Button>

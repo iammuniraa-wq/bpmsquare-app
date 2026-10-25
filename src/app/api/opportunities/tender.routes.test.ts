@@ -190,7 +190,9 @@ describe("a tender deal's stages (flag ON, tender row present)", () => {
     expect(won).toMatchObject({ stage: "awarded", outcome: "won", probability: 100, loss_reason: null });
     expect(won.closed_at).toBeTruthy();
 
-    await stdPatch(req("PATCH", { stage: "bid_lost", loss_reason: "price" }), ctx(OPP_TENDER));
+    // Slice 4: a lost tender names who won.
+    expect((await stdPatch(req("PATCH", { stage: "bid_lost", loss_reason: "price" }), ctx(OPP_TENDER))).status).toBe(422);
+    await stdPatch(req("PATCH", { stage: "bid_lost", loss_reason: "price", competitor: "Rival Co" }), ctx(OPP_TENDER));
     expect(opps().find((o) => o.id === OPP_TENDER)).toMatchObject({ stage: "bid_lost", outcome: "lost", loss_reason: "price", probability: 0 });
 
     // No-bid needs an approved no-go (slice 1b); the approval flow itself is proved in tender.approval.routes.test.ts.

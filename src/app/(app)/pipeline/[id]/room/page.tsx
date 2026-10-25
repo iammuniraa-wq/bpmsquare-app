@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireFeature, getTenant, getUserRole } from "@/lib/tenant";
-import { requireWorkcenterView } from "@/lib/permissions";
+import { requireWorkcenterView, resolvePermissions, canEditWorkcenter } from "@/lib/permissions";
 import { requireTenantUser, createAdminSupabase } from "@/lib/supabase-server";
 import { tenantToday } from "@/lib/tenantClock";
 import { ROUTES } from "@/lib/constants";
@@ -11,6 +11,7 @@ import { tenderForDeal } from "@/lib/tender/server";
 import PageHeader from "@/components/PageHeader";
 import TabTitle from "@/components/TabTitle";
 import DealRoom from "@/components/tender/DealRoom";
+import { LogCallButton } from "@/components/tender/LogCall";
 
 /**
  * The Deal Room as a page of its own (the way into it on a phone; also a shareable address for colleagues). Same gates as the
@@ -22,7 +23,7 @@ export default async function DealRoomPage({ params, searchParams }: { params: P
   await requireFeature("pipeline");
   const { id } = await params;
   const { filter } = await searchParams;
-  const { tenantId, userId } = await requireTenantUser();
+  const { supabase, tenantId, userId } = await requireTenantUser();
   const tenant = await getTenant();
   if (!(tenant?.features?.gcc_tender === true && tenant.features.deal_room === true)) notFound();
   const admin = createAdminSupabase();
@@ -30,6 +31,7 @@ export default async function DealRoomPage({ params, searchParams }: { params: P
   const tender = opp ? await tenderForDeal(admin, tenantId, tenant?.features, id) : null;
   if (!opp || !tender) notFound();
   const [role, todayKey] = await Promise.all([getUserRole(), tenantToday(tenantId)]);
+  const canLogCall = canEditWorkcenter(await resolvePermissions(supabase, tenantId, userId, role === "admin" ? "admin" : "member"), "pipeline");
 
   return (
     <div>
@@ -38,7 +40,7 @@ export default async function DealRoomPage({ params, searchParams }: { params: P
         <Link href={ROUTES.pipelineDetail(id)} style={{ fontSize: 11.5, color: c.muted, textDecoration: "none" }}>← {opp.title}</Link>
       </div>
       <PageHeader title="Deal Room" subtitle={[opp.ref, opp.title].filter(Boolean).join(" · ")} />
-      <DealRoom opportunityId={id} currentUserId={userId} isAdmin={role === "admin"} todayKey={todayKey} initialFilter={filter === "questions" ? "questions" : "all"} />
+      <DealRoom opportunityId={id} currentUserId={userId} isAdmin={role === "admin"} todayKey={todayKey} initialFilter={filter === "questions" ? "questions" : "all"} headerExtra={canLogCall ? <LogCallButton opportunityId={id} /> : undefined} />
     </div>
   );
 }

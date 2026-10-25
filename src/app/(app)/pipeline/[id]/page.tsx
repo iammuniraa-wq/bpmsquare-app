@@ -9,6 +9,8 @@ import { tenderForDeal } from "@/lib/tender/server";
 import { buildApprovalView } from "@/lib/tender/approvalServer";
 import { roomSummary } from "@/lib/tender/roomServer";
 import type { TenderView } from "@/lib/tender/views";
+import type { BidsData } from "@/lib/tender/bids/rules";
+import type { CallsData } from "@/lib/tender/calls";
 import { tenantTimezone } from "@/lib/tenantClock";
 import { loadActorNames } from "@/lib/actorNames";
 import { loadOpportunity, loadOpportunityLines, loadLinkedQuotes, stageSinceMap, listMembersForPicker } from "@/lib/sales/opportunityServer";
@@ -21,6 +23,9 @@ import SourceEmailSlot from "@/components/inbox/SourceEmailSlot";
 import { rfqPrefill } from "@/components/rfq/prefill";
 import { tenderRfqLines } from "@/lib/tender/rfqLines";
 import { boqOrderedLines } from "@/lib/tender/boq/lineSync";
+import { listBidVersions } from "@/lib/tender/bids/server";
+import { listCalls } from "@/lib/tender/callsServer";
+import { isOutcomeStage, type OutcomeData } from "@/lib/tender/outcome";
 import { linesVersion } from "@/lib/sales/dealLines";
 import { rfqLineStatuses } from "@/lib/rfq/server";
 
@@ -53,12 +58,14 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
   let tenderTab: TenderTabData | null = null;
   if (tender) {
     const roomOn = tenant?.features?.deal_room === true;
-    const [names, timezone, { data: allAccounts }, approval, room] = await Promise.all([
+    const [names, timezone, { data: allAccounts }, approval, room, bidList, callList] = await Promise.all([
       loadActorNames(admin, tenantId, [tender.decided_by, tender.bond_released_by]),
       tenantTimezone(tenantId),
       admin.from("accounts").select("id, name").eq("tenant_id", tenantId).order("name"),
       buildApprovalView(admin, { tenantId, userId, config: tenant?.config, deal: opp, tender, opportunityId: id }),
       roomOn ? roomSummary(admin, tenantId, userId, id) : Promise.resolve(null),
+      listBidVersions(admin, tenantId, id),
+      listCalls(admin, tenantId, id, { userId, isAdmin: role === "admin" }),
     ]);
     const view: TenderView = {
       tender_no: tender.tender_no, issuer_name: tender.issuer_name, issuer_account_id: tender.issuer_account_id, portal: tender.portal,
@@ -70,7 +77,16 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
       bond_released_by_name: tender.bond_released_by ? names.get(tender.bond_released_by) ?? null : null,
     };
     const boqEdit = canEditWorkcenter(await resolvePermissions(supabase, tenantId, userId, role === "admin" ? "admin" : "member"), "pipeline");
-    tenderTab = { view, approval, boqEdit, room: room ? { pending: room.pending, unread: room.unread, openQuestions: room.openQuestions, isAdmin: role === "admin" } : null, accounts: (allAccounts ?? []) as { id: string; name: string }[], nowIso: new Date().toISOString(), timezone };
+    // Slice 4 (migration 0225): bid versions, logged calls and, once the tender has ended, the outcome facts.
+    const latestBid = bidList.versions[0] ?? null;
+    const bids: BidsData = { versions: bidList.versions, pending: bidList.pending, working_total: 0, canEdit: boqEdit };
+    const calls: CallsData = { calls: callList.calls, pending: callList.pending, canEdit: boqEdit };
+    const outcome: OutcomeData | null = isOutcomeStage(opp.stage) ? {
+      stage: opp.stage, award_value: tender.award_value, winning_bidder: tender.winning_bidder, award_date: tender.award_date, outcome_note: tender.outcome_note,
+      competitor: opp.competitor, loss_reason: opp.loss_reason, our_total: latestBid ? latestBid.total : null, our_version: latestBid ? latestBid.version_no : null,
+      currency: opp.currency, canEdit: boqEdit, pending: bidList.pending,
+    } : null;
+    tenderTab = { view, approval, boqEdit, bids, calls, outcome, room: room ? { pending: room.pending, unread: room.unread, openQuestions: room.openQuestions, isAdmin: role === "admin" } : null, accounts: (allAccounts ?? []) as { id: string; name: string }[], nowIso: new Date().toISOString(), timezone };
   }
 
   // RFQ (0128): ask suppliers about this deal's lines; only with the module.
