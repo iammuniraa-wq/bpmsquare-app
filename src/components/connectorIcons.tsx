@@ -48,4 +48,5 @@ export const CONNECTOR_ICONS: Record<string, { Glyph: (props: { size: number }) 
   google_calendar: { Glyph: GoogleCalendarGlyph,  bg: "#E8F0FE", fg: "#4285F4" },
   dynamics365:     { Glyph: MonogramGlyph("D"),   bg: "#002050", fg: "#fff" },
   mail_server:     { Glyph: MonogramGlyph("@"),   bg: "#EEF2F7", fg: "#334155" },
+  epromis:         { Glyph: MonogramGlyph("e"),   bg: "#0F3D3E", fg: "#fff" },
 };
