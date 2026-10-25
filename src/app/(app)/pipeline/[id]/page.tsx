@@ -7,6 +7,7 @@ import { opportunityStages } from "@/lib/sales/opportunity";
 import { tenderStages } from "@/lib/tender/rules";
 import { tenderForDeal } from "@/lib/tender/server";
 import { buildApprovalView } from "@/lib/tender/approvalServer";
+import { roomSummary } from "@/lib/tender/roomServer";
 import type { TenderView } from "@/lib/tender/views";
 import { tenantTimezone } from "@/lib/tenantClock";
 import { loadActorNames } from "@/lib/actorNames";
@@ -46,11 +47,13 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
   const tender = await tenderForDeal(admin, tenantId, tenant?.features, id);
   let tenderTab: TenderTabData | null = null;
   if (tender) {
-    const [names, timezone, { data: allAccounts }, approval] = await Promise.all([
+    const roomOn = tenant?.features?.deal_room === true;
+    const [names, timezone, { data: allAccounts }, approval, room] = await Promise.all([
       loadActorNames(admin, tenantId, [tender.decided_by, tender.bond_released_by]),
       tenantTimezone(tenantId),
       admin.from("accounts").select("id, name").eq("tenant_id", tenantId).order("name"),
       buildApprovalView(admin, { tenantId, userId, config: tenant?.config, deal: opp, tender, opportunityId: id }),
+      roomOn ? roomSummary(admin, tenantId, userId, id) : Promise.resolve(null),
     ]);
     const view: TenderView = {
       tender_no: tender.tender_no, issuer_name: tender.issuer_name, issuer_account_id: tender.issuer_account_id, portal: tender.portal,
@@ -61,7 +64,7 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
       bond_status: tender.bond_status, bond_released_at: tender.bond_released_at,
       bond_released_by_name: tender.bond_released_by ? names.get(tender.bond_released_by) ?? null : null,
     };
-    tenderTab = { view, approval, accounts: (allAccounts ?? []) as { id: string; name: string }[], nowIso: new Date().toISOString(), timezone };
+    tenderTab = { view, approval, room: room ? { pending: room.pending, unread: room.unread, openQuestions: room.openQuestions, isAdmin: role === "admin" } : null, accounts: (allAccounts ?? []) as { id: string; name: string }[], nowIso: new Date().toISOString(), timezone };
   }
 
   // RFQ (0128): ask suppliers about this deal's lines; only with the module.

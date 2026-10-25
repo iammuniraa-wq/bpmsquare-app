@@ -9,6 +9,7 @@ import TabTitle from "@/components/TabTitle";
 import { opportunityStages } from "@/lib/sales/opportunity";
 import { listOpportunities, listMembersForPicker } from "@/lib/sales/opportunityServer";
 import { listTenders, tenderEnabled } from "@/lib/tender/server";
+import { unreadByDeal } from "@/lib/tender/roomServer";
 import { tenderStages } from "@/lib/tender/rules";
 import type { TenderBoardRow } from "@/lib/tender/views";
 import PipelineBoard from "./PipelineBoard";
@@ -41,11 +42,15 @@ export default async function PipelinePage() {
   const stages = opportunityStages(tenant?.config);
 
   if (tenderEnabled(tenant?.features)) {
-    const [{ rows: tenderRows, pending }, timezone] = await Promise.all([listTenders(admin, tenantId), tenantTimezone(tenantId)]);
+    const [{ rows: tenderRows, pending }, timezone, unread] = await Promise.all([
+      listTenders(admin, tenantId), tenantTimezone(tenantId),
+      // The Deal Room's unread counts, only for a workspace that has it.
+      tenant?.features?.deal_room === true ? unreadByDeal(admin, tenantId, userId) : Promise.resolve(new Map<string, number>()),
+    ]);
     const tenderById = new Map(tenderRows.map((t) => [t.opportunity_id, t]));
     const tenders: TenderBoardRow[] = rows.flatMap((r) => {
       const t = tenderById.get(r.id);
-      return t ? [{ ...r, tender: { tender_no: t.tender_no, issuer_name: t.issuer_name, portal: t.portal, closing_at: t.closing_at, decision: t.decision } }] : [];
+      return t ? [{ ...r, tender: { tender_no: t.tender_no, issuer_name: t.issuer_name, portal: t.portal, closing_at: t.closing_at, decision: t.decision, room_unread: unread.get(r.id) ?? 0 } }] : [];
     });
     return (
       <PipelineTabs

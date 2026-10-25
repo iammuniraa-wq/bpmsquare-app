@@ -93,6 +93,11 @@ export const OBJECT_FEATURE: Record<string, keyof TenantFeatures | null> = {
   deal_types: "gcc_tender",
   tenders: "gcc_tender",
   approval_requests: "gcc_tender",
+  // The Deal Room (0222): internal only, behind its own platform-admin flag.
+  deal_rooms: "deal_room",
+  deal_room_members: "deal_room",
+  deal_room_messages: "deal_room",
+  deal_room_files: "deal_room",
   pricing: "pricing_engine",
   products: "products",
   // BOM components (0133) are lines of a product: the Products module owns them.

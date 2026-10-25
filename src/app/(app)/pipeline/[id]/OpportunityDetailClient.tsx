@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { c } from "@/lib/theme";
@@ -29,6 +29,7 @@ import { TENDER_DECISION_LABEL, tenderIsLive } from "@/lib/tender/rules";
 import type { TenderView } from "@/lib/tender/views";
 import type { ApprovalView } from "@/lib/tender/approval";
 import TenderTab from "./TenderTab";
+import DealRoom from "@/components/tender/DealRoom";
 
 // The deal page (§4.5): the record-page look (header with one primary step and
 // the "..." menu, facts, tabs) built client-side, because the Lines editor and
@@ -36,10 +37,14 @@ import TenderTab from "./TenderTab";
 // are state, not ?tab=. Tabs: Overview · Lines · Quotes · Related · Activity.
 
 type Member = { user_id: string; name: string | null; email: string | null };
-type Tab = "overview" | "tender" | "lines" | "quotes" | "related" | "activity";
+type Tab = "overview" | "tender" | "room" | "lines" | "quotes" | "related" | "activity";
 
 /** A tender deal's extras (GCC tender deals): its tender block and what the countdown needs. Absent for every other deal. */
-export type TenderTabData = { view: TenderView; /** null while migration 0221 is pending. */ approval: ApprovalView | null; accounts: { id: string; name: string }[]; nowIso: string; timezone: string };
+export type TenderTabData = {
+  view: TenderView;
+  /** The Deal Room, when the workspace has the deal_room flag: its unread and open-question counts. null = no room on this workspace. */
+  room: { pending: boolean; unread: number; openQuestions: number; isAdmin: boolean } | null; /** null while migration 0221 is pending. */ approval: ApprovalView | null; accounts: { id: string; name: string }[]; nowIso: string; timezone: string;
+};
 
 const fmtDate = (s: string | null | undefined) => (s ? new Date(s).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—");
 
@@ -85,6 +90,17 @@ export default function OpportunityDetailClient({ opp, accountName, contacts, in
   const [tab, setTab] = useState<Tab>(tender ? "tender" : initialLines.length === 0 && quotes.length === 0 ? "overview" : "lines");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [roomFilter, setRoomFilter] = useState<"all" | "questions">("all");
+  const [roomOpen, setRoomOpen] = useState(tender?.room?.openQuestions ?? 0);
+  const [roomUnread, setRoomUnread] = useState(tender?.room?.unread ?? 0);
+  const [narrow, setNarrow] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 900px)");
+    const on = () => setNarrow(mq.matches);
+    on();
+    mq.addEventListener("change", on);
+    return () => mq.removeEventListener("change", on);
+  }, []);
 
   // Header fields, saved together.
   const [form, setForm] = useState({
@@ -198,6 +214,7 @@ export default function OpportunityDetailClient({ opp, accountName, contacts, in
   const tabs: { id: Tab; label: string; count?: number }[] = [
     { id: "overview", label: "Overview" },
     ...(tender ? [{ id: "tender" as Tab, label: "Tender" }] : []),
+    ...(tender?.room ? [{ id: "room" as Tab, label: "Room", count: tab === "room" ? 0 : roomUnread }] : []),
     { id: "lines", label: linesDirty ? "Lines •" : "Lines", count: lineCount },
     { id: "quotes", label: "Quotes", count: quotes.length },
     ...(related ? [{ id: "related" as Tab, label: "Related" }] : []),
@@ -284,7 +301,25 @@ export default function OpportunityDetailClient({ opp, accountName, contacts, in
         <TenderTab
           opportunityId={opp.id} stage={opp.stage} tender={tender.view} approval={tender.approval} accounts={tender.accounts} nowIso={tender.nowIso} timezone={tender.timezone}
           finished={!tenderLive} onError={setError} onNotice={setNotice}
+          room={tender.room && !tender.room.pending ? { openQuestions: roomOpen, onOpen: (f) => { setRoomFilter(f); setTab("room"); } } : null}
         />
+      )}
+      {tab === "room" && tender?.room && (
+        tender.room.pending ? (
+          <div role="alert" data-guide="room.pending_migration" style={{ fontSize: 13, color: "var(--amberink)" }}>The Deal Room needs a database update (migration 0222). Ask your administrator to apply it.</div>
+        ) : narrow ? (
+          <Card padding={18}>
+            <div data-guide="room.open_full" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              <div style={{ fontSize: 13, color: c.muted }}>{roomOpen} open question{roomOpen === 1 ? "" : "s"}{roomUnread > 0 ? ` · ${roomUnread} unread` : ""}</div>
+              <Button href={`${ROUTES.pipelineDetail(opp.id)}/room`} variant="primary" style={{ minHeight: 44 }}>Open the room</Button>
+            </div>
+          </Card>
+        ) : (
+          <DealRoom
+            opportunityId={opp.id} currentUserId={currentUserId} isAdmin={tender.room.isAdmin} todayKey={todayKey} initialFilter={roomFilter}
+            onSeen={() => setRoomUnread(0)} onOpenQuestions={setRoomOpen}
+          />
+        )
       )}
       {tab === "tender" && tender && sourceEmail}
 

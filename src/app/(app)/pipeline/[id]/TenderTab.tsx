@@ -36,12 +36,14 @@ const money = (amount: number | null, currency: string | null) =>
  * that opens and closes and remembers its state. Saves go to /api/opportunities/[id]/tender (an explicit field list) and
  * /api/opportunities/[id]/tender/approval (BidDecision) and .../tender/bond (release); who and when are the server's, not this form's.
  */
-export default function TenderTab({ opportunityId, stage, tender, approval, accounts, nowIso, timezone, finished, onError, onNotice }: {
+export default function TenderTab({ opportunityId, stage, tender, approval, room, accounts, nowIso, timezone, finished, onError, onNotice }: {
   opportunityId: string;
   stage: string;
   tender: TenderView;
   /** null while migration 0221 is pending. */
   approval: ApprovalView | null;
+  /** Set when the Deal Room is on: the open-question count and the way into the room. */
+  room?: { openQuestions: number; onOpen: (filter: "all" | "questions") => void } | null;
   accounts: { id: string; name: string }[];
   nowIso: string;
   timezone: string;
@@ -140,6 +142,14 @@ export default function TenderTab({ opportunityId, stage, tender, approval, acco
         <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
           <Button variant="primary" loading={pending} data-guide="tender.save" onClick={() => save(["tender_no", "issuer_name", "issuer_account_id", "portal", "closing_at", "addenda_count"], "Tender details saved")}>Save</Button>
           <ClosingChip closingAt={tender.closing_at} nowIso={nowIso} timezone={timezone} closed={finished} />
+          {room && (
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+              <Button size="sm" variant={room.openQuestions > 0 ? "secondary" : "quiet"} data-guide="tender.open_questions" style={{ minHeight: 44 }} onClick={() => room.onOpen("questions")}>
+                {room.openQuestions} open question{room.openQuestions === 1 ? "" : "s"}
+              </Button>
+              <InfoTip label="Open questions">{TENDER_TIPS.roomQuestionsLink}</InfoTip>
+            </span>
+          )}
         </div>
       </SettingsSection>
 

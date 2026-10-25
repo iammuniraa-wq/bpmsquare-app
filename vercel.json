@@ -89,6 +89,10 @@
     {
       "path": "/api/tenders/cron/reminders",
       "schedule": "30 4 * * *"
+    },
+    {
+      "path": "/api/tenders/cron/room-digest",
+      "schedule": "*/15 * * * *"
     }
   ]
 }

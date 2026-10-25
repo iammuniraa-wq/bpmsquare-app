@@ -82,6 +82,14 @@ describe("the Pipeline with the tender edition", () => {
     expect(list).not.toContain("ARB-3");
   });
 
+  it("shows how many Deal Room messages are unread on a tender, on the board and in 'Closing soon', and nothing when none", () => {
+    const withRoom = tenders.map((t, i) => (i === 0 ? { ...t, tender: { ...t.tender, room_unread: 3 } } : t)) as TenderBoardRow[];
+    const out = html("tenders", { tenders: withRoom });
+    expect(out).toContain('data-guide="tender.room_unread"');
+    expect(out.match(/3 new in Room/g)?.length).toBe(2);
+    expect(html("tenders")).not.toContain("new in Room");
+  });
+
   it("prints none of its explanations: they sit behind the i", () => {
     const out = html("tenders");
     for (const tip of Object.values(TENDER_TIPS)) expect(out).not.toContain(tip);
@@ -133,8 +141,8 @@ describe("the Tender tab of a deal", () => {
     decided_by_name: "A. Nasser", decided_at: "2026-10-21T08:00:00.000Z", comment: "Go ahead", ...over,
   });
   const approval = (over: Partial<ApprovalView> = {}): ApprovalView => ({ standing: null, recordedBefore: false, pending: null, canDecide: false, proposalBlocked: null, history: [], ...over });
-  const render = (v: TenderView, a: ApprovalView | null, stage = "bid_no_bid") => renderToString(createElement(TenderTab, {
-    opportunityId: "o1", stage, tender: v, approval: a, accounts: [{ id: "a1", name: "Acme" }], nowIso: NOW, timezone: TZ, finished: false, onError: () => {}, onNotice: () => {},
+  const render = (v: TenderView, a: ApprovalView | null, stage = "bid_no_bid", room: { openQuestions: number; onOpen: () => void } | null = null) => renderToString(createElement(TenderTab, {
+    opportunityId: "o1", stage, tender: v, approval: a, room, accounts: [{ id: "a1", name: "Acme" }], nowIso: NOW, timezone: TZ, finished: false, onError: () => {}, onNotice: () => {},
   }));
   const out = render(view, approval({ standing: entry(), recordedBefore: false }));
 
@@ -191,6 +199,15 @@ describe("the Tender tab of a deal", () => {
     const released = render({ ...view, bond_status: "released", bond_released_at: "2026-10-24T08:00:00.000Z", bond_released_by_name: "S. Khan" }, approval());
     expect(released).toContain("SAR 96,000 · released");
     expect(released).not.toContain("valid to 30 Jan 2027");
+  });
+
+  it("links to the open questions of the Deal Room by the closing date, only when the room is on", () => {
+    const clean = (h: string) => h.replace(/<!-- -->/g, "");
+    const withRoom = clean(render(view, approval(), "bid_no_bid", { openQuestions: 3, onOpen: () => {} }));
+    expect(withRoom).toContain('data-guide="tender.open_questions"');
+    expect(withRoom).toContain("3 open questions");
+    expect(clean(render(view, approval(), "bid_no_bid", { openQuestions: 1, onOpen: () => {} }))).toContain("1 open question<");
+    expect(render(view, approval())).not.toContain("open question");
   });
 
   it("prints none of its explanations", () => {

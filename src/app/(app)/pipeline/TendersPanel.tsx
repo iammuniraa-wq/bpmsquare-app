@@ -15,6 +15,16 @@ import PipelineBoard from "./PipelineBoard";
 
 type Member = { user_id: string; name: string | null; email: string | null };
 
+/** "3 new in Room": shown only when there is something unread. */
+function RoomBadge({ n }: { n?: number }) {
+  if (!n || n <= 0) return null;
+  return (
+    <span data-guide="tender.room_unread" style={{ fontSize: 10.5, fontWeight: 700, padding: "1px 7px", borderRadius: 999, background: "var(--tenant-accent, #378ADD)", color: "#fff", whiteSpace: "nowrap" }}>
+      {n} new in Room
+    </span>
+  );
+}
+
 /** The tender number and issuer a row adds beyond its title (a derived title already says both). */
 const extra = (title: string, parts: (string | null | undefined)[]) => parts.filter((p): p is string => !!p && !title.includes(p)).join(" · ");
 
@@ -71,6 +81,7 @@ export default function TendersPanel({ rows, stages, pending, members, accounts,
                     <span style={{ fontSize: 11.5, color: c.hint }}>{extra(r.title, [r.tender.tender_no, r.tender.issuer_name ?? r.account_name])}</span>
                   )}
                   <ClosingChip closingAt={r.tender.closing_at} nowIso={nowIso} timezone={timezone} size="sm" />
+                  <RoomBadge n={r.tender.room_unread} />
                 </div>
               ))}
             </div>
@@ -93,6 +104,7 @@ export default function TendersPanel({ rows, stages, pending, members, accounts,
             <div style={{ marginTop: 6, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
               <ClosingChip closingAt={t.closing_at} nowIso={nowIso} timezone={timezone} size="sm" closed={!live} />
               {t.tender_no && !r.title.includes(t.tender_no) && <span style={{ fontSize: 10.5, color: c.hint }}>{t.tender_no}</span>}
+              <RoomBadge n={t.room_unread} />
             </div>
           );
         }}

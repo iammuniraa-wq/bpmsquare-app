@@ -11,6 +11,8 @@ export type TenderSummary = {
   portal: TenderPortal | null;
   closing_at: string | null;
   decision: TenderDecision | null;
+  /** Unread Deal Room messages for the person looking (0 or absent: none, or the room is off). */
+  room_unread?: number;
 };
 
 export type TenderBoardRow = OpportunityRow & { tender: TenderSummary };

@@ -33,10 +33,13 @@ describe("the flags", () => {
     expect(FEATURE_GROUP.gcc_tender).toBe("sales");
   });
 
-  it("the Deal Room is declared but nothing reads it yet", () => {
-    for (const f of ["src/lib/tender/server.ts", "src/lib/tender/rules.ts", "src/app/api/opportunities/tender/route.ts", "src/app/(app)/pipeline/page.tsx"]) {
+  it("the Deal Room flag is read only by the room's own files and the two screens that offer it (slice 2)", () => {
+    // The slice-1 tender files and the standard create route still know nothing of the room.
+    for (const f of ["src/lib/tender/server.ts", "src/lib/tender/rules.ts", "src/app/api/opportunities/tender/route.ts"]) {
       expect(read(f), f).not.toMatch(/deal_room/);
     }
+    // The Tenders list reads it for the unread badge, behind the flag.
+    expect(read("src/app/(app)/pipeline/page.tsx")).toMatch(/features\?\.deal_room === true \? unreadByDeal/);
   });
 
   it("the tender edition needs the Pipeline, and the room needs the edition", () => {

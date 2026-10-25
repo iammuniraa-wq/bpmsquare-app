@@ -18,7 +18,13 @@ export const TENDER_TIPS = {
   bond: "The bid bond the issuer asks for with the offer. The expiry shows when the guarantee must be valid until.",
   addenda: "How many addenda or amendments the issuer has sent. Raise it each time one arrives.",
   stage: "Tender stages are separate from the Deals stages. Awarded, Lost and No-bid close the tender.",
-  reminders: "Reminders go by email to the owner and team and are logged under Outbound emails. Changing the closing date restarts them.",
+  room: "A private place for your team to discuss this bid. Only people in your workspace can see it.",
+  roomQuestion: "A question has an owner and a due date. It stays open until someone marks it answered.",
+  roomDecision: "Pin a one-line decision so everyone sees what was agreed, in the order it was agreed.",
+  roomMembers: "The owner and team are added automatically. Members see an unread count and get an email summary, at most every 15 minutes.",
+  roomFiles: "Attach PDF, Office, DXF, CSV, text or picture files: up to 5 per message and 15 MB each.",
+  roomQuestionsLink: "Open questions in the Deal Room for this tender. Open the room to answer them.",
+  reminders:"Reminders go by email to the owner and team and are logged under Outbound emails. Changing the closing date restarts them.",
 } as const;
 
 export type TenderTipKey = keyof typeof TENDER_TIPS;
