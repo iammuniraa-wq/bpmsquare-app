@@ -7,6 +7,7 @@ import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
 import { Select } from "@/components/ui/Input";
 import InfoTip from "@/components/ui/InfoTip";
+import StatTile, { StatStrip } from "@/components/ui/StatTile";
 import { ESTIMATE_TIPS } from "@/lib/tender/estimates/tips";
 import MissingRfqButton from "./MissingRfqButton";
 import type { EstimateListItem } from "@/lib/tender/estimates/server";
@@ -56,9 +57,21 @@ export default function EstimatesTab({ opportunityId, canEdit, onError, initialD
 
   const chosen = template || data.templates[0]?.id || "";
   const shown = showAll ? data.estimates : data.estimates.slice(0, PAGE);
+  const costTotal = data.estimates.reduce((sum, e) => sum + (e.cost_total ?? 0), 0);
+  const currencies = [...new Set(data.estimates.map((e) => e.currency).filter((x): x is string => !!x))];
+  const linkedLines = data.estimates.reduce((sum, e) => sum + e.linked_boq_lines, 0);
+  const staleLinks = data.estimates.reduce((sum, e) => sum + e.stale_links, 0);
 
   return (
     <div data-guide="tender.estimates" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      {data.estimates.length > 0 && (
+        <StatStrip guide="tender.estimates.strip">
+          <StatTile tone="context" label="Estimates linked" value={String(data.estimates.length)} sub="made for this tender" />
+          <StatTile tone="info" label="Cost total" value={money(costTotal)} sub={currencies.length === 1 ? currencies[0] : "mixed currencies"} />
+          <StatTile tone={linkedLines > 0 ? "good" : "neutral"} label="Lines priced from them" value={String(linkedLines)} sub={linkedLines === 1 ? "BOQ line" : "BOQ lines"} />
+          <StatTile tone={staleLinks > 0 ? "warn" : "neutral"} label="Needs re-price" value={String(staleLinks)} sub={staleLinks > 0 ? "an estimate changed" : "all up to date"} />
+        </StatStrip>
+      )}
       <Card title="Estimates" info={ESTIMATE_TIPS.tab}>
         {data.can_create && canEdit && (
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center", marginBottom: 12 }}>

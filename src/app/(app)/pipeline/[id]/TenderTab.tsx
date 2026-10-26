@@ -11,6 +11,7 @@ import ClosingChip from "@/components/tender/ClosingChip";
 import InfoTip from "@/components/ui/InfoTip";
 import BondChip from "@/components/tender/BondChip";
 import BondRelease from "@/components/tender/BondRelease";
+import TenderStatStrip from "@/components/tender/TenderStatStrip";
 import { TENDER_DECISION_LABEL, TENDER_PORTALS, TENDER_PORTAL_LABEL } from "@/lib/tender/rules";
 import type { ApprovalView } from "@/lib/tender/approval";
 import BidDecision from "./BidDecision";
@@ -116,6 +117,12 @@ export default function TenderTab({ opportunityId, stage, tender, approval, room
 
   return (
     <div data-guide="tender.tab" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      <TenderStatStrip
+        closingAt={tender.closing_at} nowIso={nowIso} timezone={timezone} finished={finished} decision={tender.decision}
+        approvalPending={approval?.pending?.decision ?? null}
+        bond={{ amount: tender.bid_bond_amount, expiry: tender.bid_bond_expiry, status: tender.bond_status }}
+        openQuestions={room ? room.openQuestions : null} overdueSteps={overdue?.count ?? 0}
+      />
       <SettingsSection
         id="tender.details" title="Tender details" defaultOpen
         summary={[tender.tender_no, tender.issuer_name, tender.portal ? TENDER_PORTAL_LABEL[tender.portal] : null].filter(Boolean).join(" · ") || "Nothing filled in yet"}

@@ -2,25 +2,22 @@ import Link from "next/link";
 import { c, pillar, statusInk } from "@/lib/theme";
 import Card from "@/components/ui/Card";
 import InfoTip from "@/components/ui/InfoTip";
-import StatTile, { StatStrip } from "@/components/ui/StatTile";
-import { toneForMargin } from "@/lib/ui/tone";
 import StatusPill from "@/components/ui/StatusPill";
 import { ROUTES } from "@/lib/constants";
 import type { ProjectView } from "@/lib/contractProjects/view";
 import { day, money, pct } from "@/lib/contractProjects/format";
 import { PROJECT_TIPS } from "@/lib/contractProjects/tips";
-import { REVISION_STATUS_LABEL } from "@/lib/contractProjects/types";
 import ApprovalControls from "./ApprovalControls";
 
 const SEGMENTS = [pillar.blue.base, pillar.purple.base, pillar.teal.base, pillar.amber.base, pillar.green.base, pillar.red.base];
 
 /**
- * The first thing on a project: what the contract is worth against what the work is budgeted to cost, where the margin lands, how
+ * The first thing on a project: the budget against the contract value (the four headline figures sit once in the page header), how
  * the cost splits by resource type, which revision stands and who must approve it, and what still needs a person. Detail sits on the
  * other tabs. Labels, values and bars only; the explanations are behind the "i".
  */
 export default function ProjectOverview({ view, editor }: { view: ProjectView; editor?: React.ReactNode }) {
-  const { project: p, totals, margin, revision } = view;
+  const { project: p, totals, revision } = view;
   const cur = p.currency;
   const scale = Math.max(p.contract_value, totals.total, 1);
   const resourceName = new Map(view.resources.map((r) => [r.code, r.name]));
@@ -32,13 +29,6 @@ export default function ProjectOverview({ view, editor }: { view: ProjectView; e
 
   return (
     <div data-guide="cp.overview" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-      <StatStrip guide="cp.kpis">
-        <StatTile tone="info" label="Contract value" info={PROJECT_TIPS.contractValue} value={money(p.contract_value, cur)} sub={p.source_opportunity_id ? "from the awarded tender" : "entered by hand"} />
-        <StatTile tone="info" label="Budget" value={money(totals.total, cur)} sub={revision ? `${revision.rev_no === 0 ? "Baseline" : `Revision ${revision.rev_no}`} · ${REVISION_STATUS_LABEL[revision.status]}` : "No budget yet"} />
-        <StatTile tone={toneForMargin(margin.pct)} label="Planned margin" info={PROJECT_TIPS.plannedMargin} value={pct(margin.pct)} sub={margin.pct === null ? "Needs a contract value" : money(margin.amount, cur)} />
-        <StatTile label="Lines" value={String(totals.lineCount)} sub={totals.reserve > 0 ? `${money(totals.reserve, cur)} in reserve` : "no reserve"} />
-      </StatStrip>
-
       <Card title="Budget against contract value" info={PROJECT_TIPS.budgetVsContract} padding={16}>
         <div data-guide="cp.bar" role="img" aria-label={`Budget ${money(totals.total, cur)} of contract value ${money(p.contract_value, cur)}`} style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           <Bar label="Contract value" amount={p.contract_value} scale={scale} color={pillar.blue.base} cur={cur} />

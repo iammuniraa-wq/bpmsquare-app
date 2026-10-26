@@ -20,6 +20,7 @@ import Tabs from "@/components/ui/Tabs";
 import { RecordEditProvider, useRecordEdit } from "@/components/page/RecordEditContext";
 import RfqModal from "@/components/rfq/RfqModal";
 import RfqCompare from "@/components/rfq/RfqCompare";
+import RfqStatStrip, { rfqProgress } from "@/components/rfq/RfqStatStrip";
 import type { AwardView } from "@/lib/rfq/comparison";
 import { RFQ_STATUS_TONE, SUPPLIER_STATUS_TONE, inp, lbl, btnPrimary, btnGhost, fmtDate, fmtDateTime, fmtMoney } from "@/components/rfq/rfqUi";
 
@@ -183,6 +184,8 @@ function RfqDetail({ id, canEdit, isAdmin, externalLine }: { id: string; canEdit
           : <span style={{ fontWeight: 600, color: isDocumentOrigin(rfq.origin_type) ? c.ink : c.hint }}>{quoteLabel(rfq.origin_type, rfq.origin_label)}</span>}
         {isDocumentOrigin(rfq.origin_type) && " — awarded costs feed the price there on the next Price."}
       </div>
+
+      <RfqStatStrip progress={rfqProgress(b)} />
 
       {flash && (
         <div role={flash.tone === "bad" ? "alert" : "status"} style={{ marginBottom: 12, fontSize: 13, padding: "9px 12px", borderRadius: 8, color: flash.tone === "bad" ? "var(--redink)" : "var(--greenink)", background: flash.tone === "bad" ? "var(--redbg)" : "var(--greenbg)" }}>{flash.text}</div>

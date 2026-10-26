@@ -346,7 +346,8 @@ export default function OpportunityDetailClient({ opp, accountName, contacts, in
               </Select>
             ),
           },
-          ...(tenderFacts ?? [
+          // On the Tender tab the strip right below the tabs shows the closing countdown and the decision; the header does not repeat them.
+          ...((tab === "tender" ? [] : tenderFacts) ?? [
             { label: "Probability", value: <>{opp.probability ?? 0}%<div style={{ fontSize: 11, fontWeight: 400, color: c.hint }}>weighted {inr(weightedValue(Number(opp.amount || 0), opp.probability ?? 0))}</div></> },
             { label: "Owner", value: <>{memberName(opp.owner_id)}<div style={{ fontSize: 11, fontWeight: 400, color: c.hint }}>{daysBetween(opp.stage_since, todayKey)}d in {stageDefNow?.label ?? opp.stage}</div></> },
           ]),

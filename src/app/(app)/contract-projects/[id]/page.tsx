@@ -15,7 +15,8 @@ import ProjectDetailsForm from "@/components/contractProjects/ProjectDetailsForm
 import { listMembersForPicker } from "@/lib/sales/opportunityServer";
 import { loadProject, UUID_RE, type ProjectCtx } from "@/lib/contractProjects/server";
 import { buildProjectView } from "@/lib/contractProjects/view";
-import { money, pct, projectTone } from "@/lib/contractProjects/format";
+import ProjectKpiStrip from "@/components/contractProjects/ProjectKpiStrip";
+import { projectTone } from "@/lib/contractProjects/format";
 import { PROJECT_STATUS_LABEL } from "@/lib/contractProjects/types";
 
 /** The record page of a contract project: Overview (the visual summary), Budget, Revisions, Handover, Activity. */
@@ -50,12 +51,7 @@ export default async function ContractProjectPage({ params, searchParams }: { pa
       meta={view.account_name ?? undefined}
       status={<StatusPill label={PROJECT_STATUS_LABEL[p.status]} tone={projectTone(p.status)} />}
       menu={<ProjectMenu projectId={p.id} status={p.status} canEdit={view.canEdit} deletable={deletable} />}
-      facts={[
-        { label: "Contract value", value: money(p.contract_value, p.currency) },
-        { label: "Budget", value: <>{money(view.totals.total, p.currency)}{revLabel && <div style={{ fontSize: 11, fontWeight: 400, color: "var(--hint)" }}>{revLabel}</div>}</> },
-        { label: "Planned margin", value: pct(view.margin.pct) },
-        { label: "Lines", value: String(view.totals.lineCount) },
-      ]}
+      externalLine={<ProjectKpiStrip view={view} />}
       basePath={ROUTES.contractProject(p.id)}
       activeTab={tab}
       tabs={[
