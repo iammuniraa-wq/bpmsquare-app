@@ -10,14 +10,14 @@ const createElement = create as unknown as (c: unknown, p: object | null, ...kid
 const html = (el: ReactElement) => renderToString(el);
 
 describe("StatTile", () => {
-  it("renders the label, the value and the sub line, tinted by tone with a coloured top edge", () => {
+  it("renders the label, the value and the sub line, tinted by tone, with no coloured top edge", () => {
     const out = html(createElement(StatTile, { label: "Planned margin", value: "24%", sub: "SAR 7,200", tone: "good" }));
     expect(out).toContain("Planned margin");
     expect(out).toContain("24%");
     expect(out).toContain("SAR 7,200");
     expect(out).toContain('data-tone="good"');
     expect(out).toContain(`background:${pillar.teal.bg}`);
-    expect(out).toContain(`border-top:3px solid ${pillar.teal.base}`);
+    expect(out).not.toContain("border-top:3px");
     expect(out).toContain(`color:${pillar.teal.fg}`);
   });
 
