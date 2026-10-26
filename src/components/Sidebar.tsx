@@ -516,6 +516,13 @@ export default function Sidebar({ onNavigate, hideHeader }: { onNavigate?: () =>
   const [collapsed, setCollapsed] = useState(!onNavigate);
   // A wide wordmark logo is squeezed into the 34 px square and becomes unreadable; once its real shape is known it gets the row's width.
   const [logoWide, setLogoWide] = useState(false);
+  const logoRef = useRef<HTMLImageElement | null>(null);
+  const logoSrc = tenant?.logo_url ?? null;
+  // A cached image can finish loading before React attaches onLoad, so the shape is also read from an image that is already complete.
+  useEffect(() => {
+    const im = logoRef.current;
+    if (im && im.complete && im.naturalWidth > 0) setLogoWide(im.naturalWidth / Math.max(1, im.naturalHeight) > 1.6);
+  }, [logoSrc]);
 
   // Spectacular's rail leads with Spaces, and the full tree is opt-in
   // underneath it -- Nova's own arrangement. Showing both at once meant
@@ -635,6 +642,7 @@ export default function Sidebar({ onNavigate, hideHeader }: { onNavigate?: () =>
         <div style={{ display: "flex", alignItems: logoWide && !collapsed ? "flex-start" : "center", flexDirection: logoWide && !collapsed ? "column" : "row", gap: logoWide && !collapsed ? 6 : 9, minWidth: 0 }}>
           {tenant?.logo_url ? (
             <img
+              ref={logoRef}
               src={tenant.logo_url}
               alt={tenant.name}
               onLoad={(e) => setLogoWide(e.currentTarget.naturalWidth / Math.max(1, e.currentTarget.naturalHeight) > 1.6)}
