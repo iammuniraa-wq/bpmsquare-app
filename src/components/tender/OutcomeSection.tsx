@@ -11,6 +11,7 @@ import { LOSS_REASONS, LOSS_REASON_LABEL } from "@/lib/constants";
 import { OUTCOME_LIMITS, comparisonText, priceComparison, type OutcomeData } from "@/lib/tender/outcome";
 import { TENDER_TIPS } from "@/lib/tender/tips";
 import { mergeOutcome } from "./refreshAfterSave";
+import WhoWonPicker from "./competitors/WhoWonPicker";
 
 // The Outcome section of the Tender tab, shown once the tender is Awarded, Lost or No-bid: the facts of how it ended, and our last
 // submitted total beside the awarded / winning price with the difference. A lost tender requires the reason and who won.
@@ -100,7 +101,7 @@ export default function OutcomeSection({ opportunityId, data: serverData, fmt, o
             <div className="fg2">
               {lost && (
                 <Field label="Won by" required info={TENDER_TIPS.outcomeLostTo} guide="tender.outcome.won_by">
-                  <Input value={form.winning_bidder} onChange={set("winning_bidder")} maxLength={OUTCOME_LIMITS.bidderMax} />
+                  <WhoWonPicker opportunityId={opportunityId} value={form.winning_bidder} onChange={(name) => setForm((f) => ({ ...f, winning_bidder: name }))} guide="tender.outcome.won_by_pick" />
                 </Field>
               )}
               {lost && (

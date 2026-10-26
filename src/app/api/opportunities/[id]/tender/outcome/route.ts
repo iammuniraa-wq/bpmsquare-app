@@ -4,6 +4,7 @@ import { diffForLog, logChange } from "@/lib/changeLog";
 import { isMissingSchema, loadTender } from "@/lib/tender/server";
 import { openTenderDealRequest, PENDING_BIDS } from "@/lib/tender/dealAccess";
 import { isOutcomeStage, parseOutcome } from "@/lib/tender/outcome";
+import { recordWinnerByName } from "@/lib/tender/competitors/server";
 
 // PATCH /api/opportunities/[id]/tender/outcome -- the facts of how a tender ended: the awarded value and date, who won and at what
 // price, why we lost, a note. Only once the tender is Awarded, Lost or No-bid. For Lost, the reason and who won are required.
@@ -39,6 +40,11 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     const changes = diffForLog("opportunities", opp as unknown as Record<string, unknown>, parsed.deal as Record<string, unknown>);
     if (changes.length > 0) await logChange(supabase, { tenantId, objectType: "opportunities", objectId: id, objectLabel: label, action: "update", ...actor, changes });
+  }
+
+  // The winner is also a row on the Competitors tab (found by name, or added), marked as the winner.
+  if (opp.stage === "bid_lost") {
+    await recordWinnerByName({ admin, supabase, tenantId, userId, opportunity: { id, ref: opp.ref, title: opp.title }, name: parsed.tender.winning_bidder ?? parsed.deal.competitor });
   }
 
   const fresh = await loadTender(admin, tenantId, id);

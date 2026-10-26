@@ -39,6 +39,8 @@ import DealRoom from "@/components/tender/DealRoom";
 import TenderLinesToolbar, { TenderLinesSaveBar } from "@/components/tender/TenderLinesToolbar";
 import type { ComposerLine } from "@/components/rfq/RfqComposer";
 import BoqTab from "@/components/tender/BoqTab";
+import CompetitorsTab from "@/components/tender/competitors/CompetitorsTab";
+import WhoWonPicker from "@/components/tender/competitors/WhoWonPicker";
 import EstimatesTab from "@/components/tender/EstimatesTab";
 import ContractProjectBanner, { type ContractProjectInfo } from "@/components/contractProjects/ContractProjectBanner";
 import { editorUom } from "@/lib/sales/uom";
@@ -49,7 +51,7 @@ import { editorUom } from "@/lib/sales/uom";
 // are state, not ?tab=. Tabs: Overview · Lines · Quotes · Related · Activity.
 
 type Member = { user_id: string; name: string | null; email: string | null };
-type Tab = "overview" | "tender" | "room" | "boq" | "estimates" | "lines" | "bids" | "quotes" | "related" | "activity";
+type Tab = "overview" | "tender" | "room" | "competitors" | "boq" | "estimates" | "lines" | "bids" | "quotes" | "related" | "activity";
 
 /** A tender deal's extras (GCC tender deals): its tender block and what the countdown needs. Absent for every other deal. */
 export type TenderTabData = {
@@ -275,6 +277,7 @@ export default function OpportunityDetailClient({ opp, accountName, contacts, in
     { id: "overview", label: "Overview" },
     ...(tender ? [{ id: "tender" as Tab, label: "Tender" }] : []),
     ...(tender?.room ? [{ id: "room" as Tab, label: "Room", count: tab === "room" ? 0 : roomUnread }] : []),
+    ...(tender ? [{ id: "competitors" as Tab, label: "Competitors" }] : []),
     ...(tender ? [{ id: "boq" as Tab, label: "BOQ" }] : []),
     ...(tender?.estimates ? [{ id: "estimates" as Tab, label: "Estimates" }] : []),
     { id: "lines", label: linesDirty ? "Lines •" : "Lines", count: lineCount },
@@ -390,6 +393,7 @@ export default function OpportunityDetailClient({ opp, accountName, contacts, in
           />
         )
       )}
+      {tab === "competitors" && tender && <CompetitorsTab opportunityId={opp.id} canEdit={tender.boqEdit !== false} onError={setError} onNotice={setNotice} onChanged={() => router.refresh()} />}
       {tab === "boq" && tender && <BoqTab opportunityId={opp.id} canEdit={tender.boqEdit !== false} onError={setError} onNotice={setNotice} onLinesChanged={() => router.refresh()} />}
       {tab === "estimates" && tender?.estimates && <EstimatesTab opportunityId={opp.id} canEdit={tender.estimates.canEdit} onError={setError} />}
       {tab === "tender" && tender && sourceEmail}
@@ -529,7 +533,7 @@ export default function OpportunityDetailClient({ opp, accountName, contacts, in
                     {LOSS_REASONS.map((r) => <option key={r} value={r}>{LOSS_REASON_LABEL[r]}</option>)}
                   </Select>
                   {tender && closing.outcome === "lost" && (
-                    <Input value={closing.competitor ?? opp.competitor ?? ""} onChange={(e) => setClosing({ ...closing, competitor: e.target.value })} placeholder="Who won (required)" aria-label="Who won" data-guide="tender.close.competitor" style={{ marginBottom: 8 }} />
+                    <div style={{ marginBottom: 8 }}><WhoWonPicker opportunityId={opp.id} value={closing.competitor ?? opp.competitor ?? ""} onChange={(name) => setClosing({ ...closing, competitor: name })} guide="tender.close.competitor" /></div>
                   )}
                   <Input value={closing.loss_note} onChange={(e) => setClosing({ ...closing, loss_note: e.target.value })} placeholder="What happened (optional)" style={{ marginBottom: 8 }} />
                 </>
