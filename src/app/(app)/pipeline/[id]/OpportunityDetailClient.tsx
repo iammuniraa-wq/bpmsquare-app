@@ -124,7 +124,8 @@ export default function OpportunityDetailClient({ opp, accountName, contacts, in
   const { confirm } = useFeel();
   const [pending, startTransition] = useTransition();
   // The old Tender tab is the Overview now: a link or a saved state that still says "tender" lands there.
-  const startTab: Tab | undefined = (initialTab as string | undefined) === "tender" ? "overview" : initialTab;
+  // A tender has no Lines tab any more: its lines are the Bill of quantities, so an old ?tab=lines link lands there.
+  const startTab: Tab | undefined = (initialTab as string | undefined) === "tender" ? "overview" : tender && initialTab === "lines" ? "boq" : initialTab;
   const [tab, setTab] = useState<Tab>(startTab ?? (tender ? "overview" : initialLines.length === 0 && quotes.length === 0 ? "overview" : "lines"));
   const tabsRef = useRef<HTMLDivElement>(null);
   const shownTab = useRef<Tab>(tab);
@@ -295,9 +296,9 @@ export default function OpportunityDetailClient({ opp, accountName, contacts, in
     { id: "overview", label: "Overview" },
     ...(tender?.room ? [{ id: "room" as Tab, label: "Room", count: tab === "room" ? 0 : roomUnread }] : []),
     ...(tender ? [{ id: "competitors" as Tab, label: "Competitors" }] : []),
-    ...(tender ? [{ id: "boq" as Tab, label: "BOQ" }] : []),
+    ...(tender ? [{ id: "boq" as Tab, label: "Bill of quantities" }] : []),
     ...(tender?.estimates ? [{ id: "estimates" as Tab, label: "Estimates" }] : []),
-    { id: "lines", label: linesDirty ? "Lines •" : "Lines", count: lineCount },
+    ...(tender ? [] : [{ id: "lines" as Tab, label: linesDirty ? "Lines •" : "Lines", count: lineCount }]),
     ...(tender?.bids ? [{ id: "bids" as Tab, label: "Bids", count: tender.bids.versions.length }] : []),
     { id: "quotes", label: "Quotes", count: quotes.length },
     ...(related ? [{ id: "related" as Tab, label: "Related" }] : []),
@@ -412,7 +413,7 @@ export default function OpportunityDetailClient({ opp, accountName, contacts, in
         )
       )}
       {tab === "competitors" && tender && <CompetitorsTab opportunityId={opp.id} canEdit={tender.boqEdit !== false} onError={setError} onNotice={setNotice} onChanged={() => router.refresh()} />}
-      {tab === "boq" && tender && <BoqTab opportunityId={opp.id} canEdit={tender.boqEdit !== false} onError={setError} onNotice={setNotice} onLinesChanged={() => router.refresh()} />}
+      {tab === "boq" && tender && <BoqTab opportunityId={opp.id} canEdit={tender.boqEdit !== false} onError={setError} onNotice={setNotice} onLinesChanged={() => router.refresh()} onOpenCosting={tender.estimates ? () => setTab("estimates") : undefined} />}
       {tab === "estimates" && tender?.estimates && <EstimatesTab opportunityId={opp.id} canEdit={tender.estimates.canEdit} onError={setError} />}
       {tab === "overview" && tender && (
         <TenderOverview

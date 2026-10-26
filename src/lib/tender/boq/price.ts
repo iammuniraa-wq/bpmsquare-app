@@ -15,6 +15,8 @@ export const PRICE_SOURCE_LABEL: Record<PriceSource, string> = {
 };
 
 export const DEFAULT_PRICE_VALIDITY_DAYS = 180;
+/** The markup on cost a tender deal starts with (owner decision 2026-10-27); a workspace may set another in config.tender.default_markup_pct. */
+export const DEFAULT_MARKUP_PCT = 15;
 export const MAX_PRICE_VALIDITY_DAYS = 3650;
 
 /** The workspace setting from tenants.config, read defensively: a whole number of days from 1 to 3650, else 180. */
@@ -105,4 +107,11 @@ export function refuseCandidate(c: Candidate, todayKey: string, validityDays: nu
   if (!(c.price > 0)) return "That source has no price";
   if (isStale(c.source, c.as_of, todayKey, validityDays) && !acceptStale) return `That price is ${staleText(c.as_of, todayKey)}. Choose it knowingly to use it.`;
   return null;
+}
+
+/** The markup a tender deal's "Price all" starts from: the workspace's own default when it set one (0 to 1000), else 15. */
+export function defaultMarkupPct(config: { tender?: { default_markup_pct?: unknown } } | null | undefined): number {
+  const v = config?.tender?.default_markup_pct;
+  const n = typeof v === "string" && v.trim() !== "" ? Number(v) : v;
+  return typeof n === "number" && Number.isFinite(n) && n >= 0 && n <= 1000 ? n : DEFAULT_MARKUP_PCT;
 }

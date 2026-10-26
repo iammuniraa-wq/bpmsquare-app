@@ -1231,7 +1231,8 @@ export type TenantConfig = {
   // proposal, for a one-admin workspace. Read through src/lib/tender/approval.ts, never directly.
   // `price_validity_days` (slice 3a, default 180): a supplier or past-project price older than this is shown as stale on a BOQ line and
   // never applied automatically. Read through priceValidityDays() in src/lib/tender/boq/price.ts.
-  tender?: { approvers?: string[]; allow_self_approval?: boolean; price_validity_days?: number };
+  // `default_markup_pct` (default 15) is the markup on cost a tender deal's Bill of quantities starts "Price all" with; read through defaultMarkupPct().
+  tender?: { approvers?: string[]; allow_self_approval?: boolean; price_validity_days?: number; default_markup_pct?: number };
   // Contract projects (slice 5a): `default_margin_pct` (default 15) is the margin assumed when a tender line's cost is not known, so the
   // project's budget starts from "rate less this margin" and says "estimated". Read through contractProjectSettings(); Settings > Contract projects.
   contract_projects?: { default_margin_pct?: number };
