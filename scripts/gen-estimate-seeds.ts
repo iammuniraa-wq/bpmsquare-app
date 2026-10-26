@@ -1,7 +1,7 @@
 // Generates the two estimate seed scripts from the REAL engine, so the sample estimates'
 // lines, totals and layout model are what "Calculate" would produce, not hand-typed numbers:
 //
-//   scripts/seed-estimate-templates-starter.sql   the starter templates (chain-link fence, precast villa catalogue fields)
+//   scripts/seed-estimate-templates-starter.sql   the starter templates and the illustrative catalogue items the GCC starters price from
 //   scripts/seed-estimates-demo.sql                demo tenants: estimator on, the fence template, two sample fence estimates
 //
 //   npx jiti scripts/gen-estimate-seeds.ts
@@ -14,9 +14,8 @@
 
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { CHAINLINK_FENCE_STARTER, STARTER_TEMPLATES } from "../src/lib/estimator/starterTemplates";
-import type { StarterTemplate } from "../src/lib/estimator/starterTemplates";
-import { validateTemplate } from "../src/lib/estimator/template";
+import { CHAINLINK_FENCE_STARTER } from "../src/lib/estimator/starterTemplates";
+import { GUARD_0213, dq, installBlock, sqlText, starterBody, startersSql, bundle38Sql, BUNDLE_38_FILE } from "../src/lib/estimator/starterSeedSql";
 import { computeEstimate } from "../src/lib/estimator/compute";
 import { persistLine } from "../src/lib/estimator/lines";
 import { parseMatchKey } from "../src/lib/estimator/productMatch";
@@ -24,98 +23,8 @@ import { parseMatchKey } from "../src/lib/estimator/productMatch";
 const MARGIN_PCT = 18;
 const VAT_PCT = 15;
 
-// ── helpers ──────────────────────────────────────────────────────────────────
-
-const sqlText = (v: string) => `'${v.replace(/'/g, "''")}'`;
-function dq(tag: string, value: unknown): string {
-  const json = JSON.stringify(value);
-  if (json.includes(`$${tag}$`)) throw new Error(`The JSON contains the quote tag $${tag}$`);
-  return `$${tag}$${json}$${tag}$::jsonb`;
-}
-const textArray = (xs: readonly string[]) => (xs.length > 0 ? `array[${xs.map(sqlText).join(", ")}]::text[]` : "null");
-
-function body(s: StarterTemplate) {
-  const v = validateTemplate({ geometry: s.geometry, inputs: s.inputs, rates: s.rates, rules: s.rules });
-  if (!v.ok || !v.template) throw new Error(`${s.name} does not validate: ${JSON.stringify(v.issues)}`);
-  return v.template;
-}
-
-// ── the starter templates ────────────────────────────────────────────────────
-
-/** Installs (or refreshes) one starter template for the tenant in variable `t`. */
-function installBlock(s: StarterTemplate, indent: string): string {
-  const b = body(s);
-  const name = sqlText(s.name);
-  const lines = `
-if not exists (select 1 from estimate_templates where tenant_id = t and lower(name) = lower(${name})) then
-  insert into estimate_templates (tenant_id, name, description, trade, geometry, version, is_active, quote_granularity, inputs, rates, rules, keywords, icon, locked, customer_visible)
-  values (
-    t, ${name}, ${sqlText(s.description)}, ${sqlText(s.trade)}, ${sqlText(s.geometry ?? "")}, 1, true, ${sqlText(s.quote_granularity)},
-    ${dq("inputs", b.inputs)},
-    ${dq("rates", b.rates)},
-    ${dq("rules", b.rules)},
-    ${textArray(s.keywords ?? [])}, ${s.icon ? sqlText(s.icon) : "null"}, ${s.locked ? "true" : "false"}, ${s.customer_visible ? "true" : "false"}
-  );
-else
-  -- Already there: the catalogue fields are filled only where empty. A LOCKED starter is
-  -- product-owned, so its inputs, rates and rules are refreshed to the current ones (the
-  -- version goes up when they changed); an editable template of the workspace is left alone.
-  update estimate_templates set
-    keywords = coalesce(keywords, ${textArray(s.keywords ?? [])}),
-    icon = coalesce(icon, ${s.icon ? sqlText(s.icon) : "null"})
-  where tenant_id = t and lower(name) = lower(${name});
-  ${s.locked ? `update estimate_templates set
-    inputs = ${dq("inputs", b.inputs)},
-    rates = ${dq("rates", b.rates)},
-    rules = ${dq("rules", b.rules)},
-    locked = true,
-    version = case when inputs is distinct from ${dq("inputs", b.inputs)} or rules is distinct from ${dq("rules", b.rules)} then version + 1 else version end
-  where tenant_id = t and lower(name) = lower(${name}) and locked = true;` : ""}
-end if;${s.drawing_map && s.locked ? `
--- The layer map needs migration 0215 (estimate_templates.drawing_map); without it the starter is simply left without one.
-if exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'estimate_templates' and column_name = 'drawing_map') then
-  update estimate_templates set drawing_map = ${dq("drawing_map", s.drawing_map)}
-  where tenant_id = t and lower(name) = lower(${name}) and locked = true and drawing_map is distinct from ${dq("drawing_map", s.drawing_map)};
-end if;` : ""}`;
-  return lines.split("\n").map((l) => (l ? indent + l : l)).join("\n");
-}
-
-const GUARD_0213 = `
-  if not exists (select 1 from information_schema.columns where table_name = 'estimate_templates' and column_name = 'locked') then
-    raise exception 'Run supabase/migrations/0213_estimate_template_catalogue.sql first (estimate_templates.locked is missing).';
-  end if;
-  if to_regclass('public.estimate_templates') is null then
-    raise exception 'Run supabase/migrations/0131_estimator.sql first.';
-  end if;`;
-
-const startersSql = `-- Starter estimate templates (the chain-link fence, and the catalogue fields of the others).
--- Run AFTER supabase/migrations/0131_estimator.sql and 0213_estimate_template_catalogue.sql.
--- Idempotent: a template is added if the workspace has none of that name; a workspace's own
--- editable template is never changed; the LOCKED fence starter is refreshed to the current one.
--- GENERATED by scripts/gen-estimate-seeds.ts from src/lib/estimator/starterTemplates.ts; do not
--- edit by hand, change that file and regenerate.
---
--- WHO GETS IT: every DEMO tenant (is_demo = true) that has the estimator module on.
---
--- ONE OTHER WORKSPACE (for example a client that has the estimator module): either press
--- "Add the chain-link fence starter" in that workspace's Settings > Estimate templates (no SQL),
--- or change the single line marked TARGET below to
---     select id from tenants where slug = '<the workspace slug>' and coalesce((features->>'estimator')::boolean, false)
--- and run it. A live client is never targeted by this file as shipped.
-
-do $seed$
-declare
-  t uuid;
-begin${GUARD_0213}
-
-  for t in -- TARGET
-    select id from tenants where is_demo = true and coalesce((features->>'estimator')::boolean, false)
-  loop
-${STARTER_TEMPLATES.map((s) => installBlock(s, "    ")).join("\n")}
-  end loop;
-end
-$seed$;
-`;
+// The helpers and the starters SQL live in src/lib/estimator/starterSeedSql.ts (pure, so a test can hold the committed seed to
+// the source). This script writes the files and builds the demo estimates.
 
 // ── the demo products, read from the fence materials script ──────────────────
 
@@ -163,7 +72,7 @@ const SAMPLES: Sample[] = [
 ];
 
 function buildSample(sample: Sample, products: DemoProduct[]) {
-  const tpl = body(CHAINLINK_FENCE_STARTER);
+  const tpl = starterBody(CHAINLINK_FENCE_STARTER);
   const first = computeEstimate(tpl, sample.params, { margin_pct: MARGIN_PCT, vat_pct: VAT_PCT });
   if (!first.ok) throw new Error(`${sample.name} does not compute: ${JSON.stringify(first.issues)}`);
   const unit: Record<string, number> = {};
@@ -287,9 +196,10 @@ end
 $seed$;
 `;
 
-writeFileSync(join(__dirname, "seed-estimate-templates-starter.sql"), startersSql, "utf8");
+writeFileSync(join(__dirname, "seed-estimate-templates-starter.sql"), startersSql(), "utf8");
 writeFileSync(join(__dirname, "seed-estimates-demo.sql"), demoSql, "utf8");
+writeFileSync(join(__dirname, BUNDLE_38_FILE), bundle38Sql(), "utf8");
 for (const b of built) {
   console.error(`${b.sample.name}: ${b.lines.length} lines, ${b.r.model?.pieces.length ?? 0} pieces, cost ${b.r.summary.cost_total}, total incl. VAT ${b.r.summary.price_incl_vat}`);
 }
-console.error("wrote scripts/seed-estimate-templates-starter.sql and scripts/seed-estimates-demo.sql");
+console.error(`wrote scripts/seed-estimate-templates-starter.sql, scripts/seed-estimates-demo.sql and scripts/${BUNDLE_38_FILE}`);
