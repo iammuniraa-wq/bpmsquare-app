@@ -76,11 +76,11 @@ describe("the closing-date countdown", () => {
   });
 
   it("says it in words, not only in colour", () => {
-    expect(closingState("2026-10-30T09:00:00Z", now, TZ).label).toBe("Closes in 5 days");
-    expect(closingState("2026-10-26T09:00:00Z", now, TZ).label).toBe("Closes tomorrow");
-    expect(closingState("2026-10-25T18:00:00Z", now, TZ).label).toBe("Closes today");
-    expect(closingState("2026-10-24T09:00:00Z", now, TZ).label).toBe("Closed yesterday");
-    expect(closingState("2026-10-20T09:00:00Z", now, TZ).label).toBe("Closed 5 days ago");
+    expect(closingState("2026-10-30T09:00:00Z", now, TZ).label).toBe("Bid ends in 5 days");
+    expect(closingState("2026-10-26T09:00:00Z", now, TZ).label).toBe("Bid ends tomorrow");
+    expect(closingState("2026-10-25T18:00:00Z", now, TZ).label).toBe("Bid ends today");
+    expect(closingState("2026-10-24T09:00:00Z", now, TZ).label).toBe("Bid ended yesterday");
+    expect(closingState("2026-10-20T09:00:00Z", now, TZ).label).toBe("Bid ended 5 days ago");
   });
 
   it("closingDateKey is the workspace's calendar date", () => {
@@ -135,11 +135,11 @@ describe("closing-date reminders", () => {
 
   it("the message is plain text with the real number of days", () => {
     const m = reminderMessage({ title: "Pipes <b>2026</b>", tenderNo: "ARB-1", issuer: "Aramco", closingAt: closing, days: 3, timezone: TZ, link: "https://x.test/pipeline/1" });
-    expect(m.subject).toBe("Tender closes in 3 days: ARB-1 · Aramco");
-    expect(m.text).toContain("closes in 3 days");
+    expect(m.subject).toBe("Bid ends in 3 days: ARB-1 · Aramco");
+    expect(m.text).toContain("is in 3 days");
     expect(m.text).toContain("https://x.test/pipeline/1");
-    expect(reminderMessage({ title: "T", tenderNo: null, issuer: null, closingAt: closing, days: 0, timezone: TZ, link: null }).subject).toBe("Tender closes today: T");
-    expect(reminderMessage({ title: "T", tenderNo: null, issuer: null, closingAt: closing, days: 1, timezone: TZ, link: null }).subject).toBe("Tender closes tomorrow: T");
+    expect(reminderMessage({ title: "T", tenderNo: null, issuer: null, closingAt: closing, days: 0, timezone: TZ, link: null }).subject).toBe("Bid ends today: T");
+    expect(reminderMessage({ title: "T", tenderNo: null, issuer: null, closingAt: closing, days: 1, timezone: TZ, link: null }).subject).toBe("Bid ends tomorrow: T");
   });
 });
 

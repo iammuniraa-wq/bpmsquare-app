@@ -29,8 +29,8 @@ function RoomBadge({ n }: { n?: number }) {
 const extra = (title: string, parts: (string | null | undefined)[]) => parts.filter((p): p is string => !!p && !title.includes(p)).join(" · ");
 
 /**
- * The Tenders tab: a "Closing soon" list (open tenders closing within 14 days, overdue ones first) above the same board as
- * Deals, drawn with the tender stages. Cards carry the tender number and a closing-date chip. The board, its drag-to-move and
+ * The Tenders tab: a "Bids ending soon" list (open tenders closing within 14 days, overdue ones first) above the same board as
+ * Deals, drawn with the tender stages. Cards carry the tender number and a bid end date chip. The board, its drag-to-move and
  * its close dialog are the Deals board's own; only the stage list and the card extra differ.
  */
 export default function TendersPanel({ rows, stages, pending, members, accounts, todayKey, currentUserId, nowIso, timezone }: {
@@ -64,14 +64,14 @@ export default function TendersPanel({ rows, stages, pending, members, accounts,
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
       <SettingsSection
         id="tender.closing_soon"
-        title="Closing soon"
+        title="Bids ending soon"
         info={TENDER_TIPS.closingSoon}
-        summary={soon.length === 0 ? `Nothing closes in the next ${TENDER_CLOSING_SOON_DAYS} days` : `${soon.length} tender${soon.length === 1 ? "" : "s"} within ${TENDER_CLOSING_SOON_DAYS} days`}
+        summary={soon.length === 0 ? `No bid ends in the next ${TENDER_CLOSING_SOON_DAYS} days` : `${soon.length} tender${soon.length === 1 ? "" : "s"} within ${TENDER_CLOSING_SOON_DAYS} days`}
         defaultOpen
       >
         <div data-guide="tender.closing_soon">
           {soon.length === 0 ? (
-            <div style={{ fontSize: 12.5, color: c.hint }}>Nothing closes in the next {TENDER_CLOSING_SOON_DAYS} days.</div>
+            <div style={{ fontSize: 12.5, color: c.hint }}>No bid ends in the next {TENDER_CLOSING_SOON_DAYS} days.</div>
           ) : (
             <div style={{ border: `1px solid ${c.line}`, borderRadius: 8, overflow: "hidden" }}>
               {shown.map((r, i) => (
@@ -95,7 +95,7 @@ export default function TendersPanel({ rows, stages, pending, members, accounts,
       </SettingsSection>
 
       <PipelineBoard
-        rows={rows} stages={stages} members={members} accounts={accounts} todayKey={todayKey} currentUserId={currentUserId}
+        rows={rows} stages={stages} members={members} accounts={accounts} todayKey={todayKey} currentUserId={currentUserId} closeLabel="Bid ends"
         cardExtra={(r) => {
           const t = byId.get(r.id)?.tender;
           if (!t) return null;

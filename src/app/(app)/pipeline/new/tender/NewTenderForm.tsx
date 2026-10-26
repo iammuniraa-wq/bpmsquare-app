@@ -12,7 +12,7 @@ import Field from "@/components/ui/Field";
 import { Input, Select } from "@/components/ui/Input";
 
 /**
- * New tender: the five fields a tender starts with (number, issuer, portal, closing date, source) plus the account. The deal
+ * New tender: the five fields a tender starts with (number, issuer, portal, bid end date, source) plus the account. The deal
  * and its tender details are made together by POST /api/opportunities/tender; everything else is filled in on the deal.
  */
 export default function NewTenderForm({ accounts }: { accounts: { id: string; name: string }[] }) {
@@ -29,7 +29,7 @@ export default function NewTenderForm({ accounts }: { accounts: { id: string; na
     startTransition(async () => {
       // The browser's datetime-local value has no zone: read it as the person's own time and send the instant.
       const closing = form.closing_at ? new Date(form.closing_at) : null;
-      if (closing && Number.isNaN(closing.getTime())) { setError("The closing date is not a valid date and time"); return; }
+      if (closing && Number.isNaN(closing.getTime())) { setError("The bid end date is not a valid date and time"); return; }
       const res = await fetch("/api/opportunities/tender", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -77,7 +77,7 @@ export default function NewTenderForm({ accounts }: { accounts: { id: string; na
               {TENDER_PORTALS.map((p) => <option key={p} value={p}>{TENDER_PORTAL_LABEL[p]}</option>)}
             </Select>
           </Field>
-          <Field label="Closing date" info={TENDER_TIPS.closing} guide="tender.field.closing">
+          <Field label="Bid end date" info={TENDER_TIPS.closing} guide="tender.field.closing">
             <Input type="datetime-local" value={form.closing_at} onChange={set("closing_at")} />
           </Field>
           <Field label="Source" info={TENDER_TIPS.source} guide="tender.field.source">

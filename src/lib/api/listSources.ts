@@ -560,7 +560,7 @@ export const LIST_SOURCES: Record<string, ListSource> = {
   },
   tenders: {
     label: "Tenders (GCC tender deals)",
-    description: "Tender deals: tender number, issuer, portal, closing date, bid bond, addenda, the go / no-go decision, and the deal's tender stage, outcome and amount.",
+    description: "Tender deals: tender number, issuer, portal, bid end date, bid guarantee, change requests, the go / no-go decision, and the deal's tender stage, outcome and amount.",
     relatedWorkcenter: "pipeline",
     fields: TENDER_FIELDS,
     load: async (tenantId) => {

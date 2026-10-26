@@ -24,7 +24,7 @@ const HINT: Record<CreateType, string> = {
   case: "A service case to work on",
   lead: "A lead to follow up",
   estimate: "Start an estimate from what they wrote",
-  deal: "A tender deal with its closing date and bid decision",
+  deal: "A tender deal with its bid end date and bid decision",
 };
 
 type EmailBits = { id: string; subject: string; from_name: string | null; from_address: string | null; body_text: string | null };

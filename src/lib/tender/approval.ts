@@ -120,12 +120,22 @@ export function stageGuard(args: { from: string; to: string; effective: { propos
   const { from, to, effective } = args;
   if (from === to) return null;
   if (to === NO_BID_STAGE && effective?.proposed_value !== "no_go") {
-    return "A no-go needs a manager's approval first. Propose it on the Tender tab";
+    return "A no-go needs a manager's approval first. Propose it from Bid decision at the top of the deal";
   }
   if (BID_STAGES.includes(to) && !BID_STAGES.includes(from) && effective?.proposed_value !== "go") {
-    return "Bidding needs a manager's approval first. Propose the go decision on the Tender tab";
+    return "Bidding needs a manager's approval first. Propose the go decision from Bid decision at the top of the deal";
   }
   return null;
+}
+
+/**
+ * Where an APPROVED decision takes the deal by itself (redesign step 1): a go from Received or Bid/No-bid to Estimating, a no-go to
+ * No-bid (closed, dropped). Null when the deal is not at a deciding stage or is already closed, so a decision approved later in the
+ * deal's life (a re-proposal) never drags it backwards. The move itself goes through the deal's own stage route.
+ */
+export function stageAfterApproval(args: { stage: string; outcome: string; decision: TenderDecision }): string | null {
+  if (args.outcome !== "open" || !PROPOSAL_STAGES.includes(args.stage)) return null;
+  return args.decision === "go" ? "estimating" : NO_BID_STAGE;
 }
 
 // ── What the Tender tab is given ───────────────────────────────────────────────────────────────────────────────────
@@ -174,13 +184,13 @@ export function proposalMessage(args: { title: string; proposer: string; decisio
 }
 
 /** The note the proposer receives about the outcome. */
-export function outcomeMessage(args: { title: string; decider: string; decision: TenderDecision; approved: boolean; comment: string | null; link: string | null }): { subject: string; text: string; comment: string } {
+export function outcomeMessage(args: { title: string; decider: string; decision: TenderDecision; approved: boolean; comment: string | null; link: string | null; movedTo?: string | null }): { subject: string; text: string; comment: string } {
   const verdict = args.approved ? "approved" : "rejected";
   const subject = `${args.approved ? "Approved" : "Rejected"}: ${decisionWord(args.decision)} for ${args.title}`.slice(0, 200);
   const text = [
     `${args.decider} ${verdict} your proposal of ${decisionWord(args.decision)} for the tender "${args.title}".`,
     args.comment ? `Comment: ${args.comment}` : "",
-    args.approved ? "" : "The tender is back in Bid/No-bid.",
+    args.approved ? (args.movedTo ? `The deal moved to ${args.movedTo}.` : "") : "The tender is back in Bid/No-bid.",
     args.link ? `Open the deal: ${args.link}` : "",
   ].filter(Boolean).join("\n");
   return { subject, text, comment: `${args.approved ? "Approved" : "Rejected"} ${decisionWord(args.decision)}${args.comment ? `: ${args.comment}` : ""}`.slice(0, 600) };

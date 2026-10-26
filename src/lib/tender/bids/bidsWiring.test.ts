@@ -87,7 +87,7 @@ describe("gating and wiring", () => {
   });
 
   it("every control of the new screens carries a data-guide id the assistant can point at", () => {
-    const files = ["src/components/tender/BidsTab.tsx", "src/components/tender/CallsPanel.tsx", "src/components/tender/LogCall.tsx", "src/components/tender/OutcomeSection.tsx", "src/app/(app)/pipeline/[id]/TenderTab.tsx"];
+    const files = ["src/components/tender/BidsTab.tsx", "src/components/tender/CallsPanel.tsx", "src/components/tender/LogCall.tsx", "src/components/tender/OutcomeSection.tsx", "src/app/(app)/pipeline/[id]/TenderOverview.tsx"];
     const ids = new Set(files.flatMap((f) => [...read(f).matchAll(/"(tender\.[a-z_.]+)"/g)].map((m) => m[1])));
     for (const id of [
       "tender.bids", "tender.bid.submit", "tender.bid.revise", "tender.bid.reason", "tender.bid.confirm", "tender.bid.compare", "tender.bid.compare_from", "tender.bid.compare_to",

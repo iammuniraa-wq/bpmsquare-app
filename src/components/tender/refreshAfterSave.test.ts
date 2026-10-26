@@ -84,7 +84,7 @@ describe("the wiring", () => {
   const outcome = read("src/components/tender/OutcomeSection.tsx");
   const bidsTab = read("src/components/tender/BidsTab.tsx");
   const detail = read("src/app/(app)/pipeline/[id]/OpportunityDetailClient.tsx");
-  const tenderTab = read("src/app/(app)/pipeline/[id]/TenderTab.tsx");
+  const tenderTab = read("src/app/(app)/pipeline/[id]/TenderOverview.tsx");
 
   it("Log a call calls onLogged after a successful save (the page refreshes itself only when nobody listens)", () => {
     expect(logCall).toMatch(/if \(onLogged\) onLogged\(\); else router\.refresh\(\);/);

@@ -78,12 +78,12 @@ export type ClosingState = { days: number | null; tone: ClosingTone; label: stri
 /** Countdown chip: amber under 7 days, red under 2 days or once the date has passed. */
 export function closingState(closingAt: string | null | undefined, now: Date, timezone: string): ClosingState {
   const days = daysUntilClosing(closingAt, now, timezone);
-  if (days === null) return { days, tone: "none", label: "No closing date" };
-  if (days < 0) return { days, tone: "red", label: days === -1 ? "Closed yesterday" : `Closed ${-days} days ago` };
+  if (days === null) return { days, tone: "none", label: "No bid end date" };
+  if (days < 0) return { days, tone: "red", label: days === -1 ? "Bid ended yesterday" : `Bid ended ${-days} days ago` };
   const tone: ClosingTone = days < 2 ? "red" : days < 7 ? "amber" : "ok";
-  if (days === 0) return { days, tone, label: "Closes today" };
-  if (days === 1) return { days, tone, label: "Closes tomorrow" };
-  return { days, tone, label: `Closes in ${days} days` };
+  if (days === 0) return { days, tone, label: "Bid ends today" };
+  if (days === 1) return { days, tone, label: "Bid ends tomorrow" };
+  return { days, tone, label: `Bid ends in ${days} days` };
 }
 
 /** Stages before the bid goes in: only here does the closing date still matter (after Submitted there is nothing left to hurry). */
@@ -149,9 +149,9 @@ export function reminderMessage(args: { title: string; tenderNo: string | null; 
   try {
     at = new Intl.DateTimeFormat("en-GB", { timeZone: args.timezone, weekday: "short", day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date(args.closingAt));
   } catch { /* keep the ISO text */ }
-  const subject = `Tender closes ${when}: ${what}`.slice(0, 200);
+  const subject = `Bid ends ${when}: ${what}`.slice(0, 200);
   const text = [
-    `The tender "${args.title}" closes ${when} (${at}).`,
+    `The bid end date of the tender "${args.title}" is ${when} (${at}).`,
     args.issuer ? `Issuer: ${args.issuer}` : "",
     args.tenderNo ? `Tender no.: ${args.tenderNo}` : "",
     args.bondLine ?? "",

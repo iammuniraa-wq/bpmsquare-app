@@ -198,7 +198,37 @@ describe("who may decide", () => {
     expect(approvals()[0]).toMatchObject({ status: "approved", decided_by: BOSS, decision_comment: "Go ahead" });
     expect(Date.parse(approvals()[0].decided_at as string)).toBeGreaterThanOrEqual(before);
     expect(tenders().find((t) => t.opportunity_id === OPP)).toMatchObject({ decision: "go", decision_reason: "Good fit", decided_by: BOSS });
-    // The stage did not move by itself.
+    // An approved go moves the deal on by itself, through the deal's own stage route.
+    expect((await res.json())).toMatchObject({ stage_moved: "estimating", stage_error: null });
+    expect(opps().find((o) => o.id === OPP)).toMatchObject({ stage: "estimating", probability: 25 });
+    expect(state.changes.some((ch) => ch.objectType === "opportunities" && ch.changes?.some((x) => x.field === "stage" && x.to === "estimating"))).toBe(true);
+    expect(state.stageEvents).toHaveLength(1);
+  });
+
+  it("an approved no-go closes the deal as No-bid (dropped) with the reason, by the same route", async () => {
+    approvals()[0] = approvalRow({ proposed_value: "no_go", reason: "Out of scope" });
+    as(BOSS, "admin");
+    const res = await decide(req("PATCH", { action: "approve" }), dctx(OPP, AR1));
+    expect(await res.json()).toMatchObject({ stage_moved: "no_bid" });
+    expect(opps().find((o) => o.id === OPP)).toMatchObject({ stage: "no_bid", outcome: "dropped", loss_reason: "other", loss_note: "Out of scope" });
+    expect(opps().find((o) => o.id === OPP)?.closed_at).toBeTruthy();
+  });
+
+  it("works from Received too, and leaves a deal that is already bidding or closed where it is", async () => {
+    as(BOSS, "admin");
+    opps().find((o) => o.id === OPP)!.stage = "received";
+    expect((await (await decide(req("PATCH", { action: "approve" }), dctx(OPP, AR1))).json()).stage_moved).toBe("estimating");
+    approvals().push(approvalRow({ id: rid(2), proposed_value: "no_go" }));
+    const again = await decide(req("PATCH", { action: "approve" }), dctx(OPP, rid(2)));
+    expect((await again.json()).stage_moved).toBeNull();
+    expect(opps().find((o) => o.id === OPP)?.stage).toBe("estimating");
+  });
+
+  it("a rejection moves nothing forward and says nothing moved", async () => {
+    as(BOSS, "admin");
+    opps().find((o) => o.id === OPP)!.stage = "received";
+    const res = await decide(req("PATCH", { action: "reject", comment: "Not now" }), dctx(OPP, AR1));
+    expect(await res.json()).toMatchObject({ stage_moved: null });
     expect(opps().find((o) => o.id === OPP)?.stage).toBe("bid_no_bid");
   });
 
@@ -440,7 +470,7 @@ describe("releasing the bond", () => {
     expect(state.changes).toHaveLength(0);
   });
 
-  it("needs a recorded bond and a known action", async () => {
+  it("needs a recorded guarantee and a known action", async () => {
     expect((await bondPost(req("POST", { action: "hold" }), ctx(OPP))).status).toBe(400);
     Object.assign(tenders().find((x) => x.opportunity_id === OPP)!, { bid_bond_amount: null, bid_bond_expiry: null });
     expect((await bondPost(req("POST", { action: "release" }), ctx(OPP))).status).toBe(409);

@@ -25,7 +25,7 @@ type FileRow = { id: string; file_name: string; mime_type: string | null; size_b
  * Renders nothing for a workspace without the Inbox, a record that was not made from an email, or while the tables are
  * pending. Every query is tenant-scoped; every value is drawn as text.
  */
-export default async function SourceEmailSlot({ objectType, objectId }: { objectType: LinkObjectType; objectId: string }) {
+export default async function SourceEmailSlot({ objectType, objectId, bare = false }: { objectType: LinkObjectType; objectId: string; bare?: boolean }) {
   const tenant = await getTenant();
   if (!tenant?.features?.inbox) return null;
   let tenantId: string;
@@ -55,9 +55,8 @@ export default async function SourceEmailSlot({ objectType, objectId }: { object
     canOpen = new Set(found.filter((f): f is { id: string; ok: boolean } => !!f && f.ok).map((f) => f.id));
   } catch { /* not on the Inbox: no link */ }
 
-  return (
-    <div style={{ margin: "12px 0", minWidth: 0 }} data-guide="inbox.source">
-    <Fold id={`source-${objectType}`} title="From email" defaultOpen={false}>
+  const content = (
+    <>
       {sources.map((r, i) => {
         let summary: string | null = null;
         try { summary = decrypt(r.summary); } catch { summary = null; }
@@ -83,7 +82,13 @@ export default async function SourceEmailSlot({ objectType, objectId }: { object
         </div>
       )}
       <div className="bpm-label-row"><span className={s.stubNote}>Kept on this record.</span><InfoTip label="From email">{INBOX_TIPS.linked}</InfoTip></div>
-    </Fold>
+    </>
+  );
+  // Inside another block (the tender deal's Documents) the email is drawn without its own fold.
+  if (bare) return <div style={{ minWidth: 0 }} className={s.stack} data-guide="inbox.source">{content}</div>;
+  return (
+    <div style={{ margin: "12px 0", minWidth: 0 }} data-guide="inbox.source">
+    <Fold id={`source-${objectType}`} title="From email" defaultOpen={false}>{content}</Fold>
     </div>
   );
 }

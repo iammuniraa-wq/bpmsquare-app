@@ -1,12 +1,12 @@
-import { NextResponse, type NextRequest } from "next/server";
+import { NextResponse, NextRequest } from "next/server";
 import { requireTenantUser, createAdminSupabase, getAuthUser } from "@/lib/supabase-server";
 import { getTenant, tenantHasFeature } from "@/lib/tenant";
 import { diffForLog, logChange } from "@/lib/changeLog";
 import { loadActorNames } from "@/lib/actorNames";
-import { probabilityFor } from "@/lib/sales/opportunity";
+import { probabilityFor, stageDef } from "@/lib/sales/opportunity";
 import { loadOpportunity } from "@/lib/sales/opportunityServer";
 import { emitOpportunityStageChanged } from "@/lib/events/emitters";
-import { DECISION_STAGE, canDecide, outcomeMessage, parseAction } from "@/lib/tender/approval";
+import { DECISION_STAGE, NO_BID_STAGE, canDecide, outcomeMessage, parseAction, stageAfterApproval } from "@/lib/tender/approval";
 import { loadApprovalById, loadApprovers } from "@/lib/tender/approvalServer";
 import { dealLink, inboxNote, loadNotifyTenant, memberEmails, sendTenderMail } from "@/lib/tender/notify";
 import { tenderStages } from "@/lib/tender/rules";
@@ -15,7 +15,8 @@ import { loadTender } from "@/lib/tender/server";
 // PATCH /api/opportunities/[id]/tender/approval/[requestId]  { action: "approve" | "reject" | "cancel", comment? }
 //   approve / reject : an approver chosen in Settings > Tenders (workspace admins by default). The proposer cannot decide
 //                      their own proposal unless the workspace allows self-approval. Rejection needs a comment and returns
-//                      the deal to Bid/No-bid. Approval records the decision on the tender (who approved and when).
+//                      the deal to Bid/No-bid. Approval records the decision on the tender (who approved and when) and, from Received
+//                      or Bid/No-bid, moves the deal on by itself: go to Estimating, no-go to No-bid (the response says so).
 //   cancel           : the proposer withdraws a proposal still waiting.
 // The row is claimed with a compare-and-set on status = pending, so two people deciding at once cannot both win.
 
@@ -68,6 +69,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   const word = req.proposed_value === "go" ? "Go" : "No-go";
   const base = { tenantId, objectType: "opportunity_tenders", objectId: id, objectLabel: label, actorId: user?.id, actorEmail: user?.email };
 
+  let movedTo: string | null = null;
+  let stageError: string | null = null;
   if (parsed.action === "approve") {
     const patch = { decision: req.proposed_value, decision_reason: req.reason, decided_by: userId, decided_at: now, updated_at: now };
     const { error } = await admin.from("opportunity_tenders").update(patch).eq("opportunity_id", id).eq("tenant_id", tenantId);
@@ -79,6 +82,19 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       ...base, action: "update",
       changes: [{ field: "Bid decision approved", from: null, to: `${word}${parsed.comment ? `: ${parsed.comment}` : ""}` }, ...diffForLog("opportunity_tenders", tender as unknown as Record<string, unknown>, { decision: req.proposed_value, decision_reason: req.reason })],
     });
+    // An approved decision moves the deal by itself, through the deal's own stage route (so the stage guard, the closing and outcome
+    // rules, the change log and the events all run exactly as for a person moving it). A refusal never undoes the approval.
+    const to = stageAfterApproval({ stage: opp.stage, outcome: opp.outcome, decision: req.proposed_value });
+    if (to) {
+      const { PATCH: movePatch } = await import("@/app/api/opportunities/[id]/route");
+      const moveBody = to === NO_BID_STAGE ? { stage: to, outcome: "dropped", loss_reason: "other", loss_note: req.reason } : { stage: to, outcome: "open" };
+      const moved = await movePatch(
+        new NextRequest(new URL(`/api/opportunities/${id}`, "http://internal.invalid"), { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify(moveBody) }),
+        { params: Promise.resolve({ id }) },
+      );
+      if (moved.ok) movedTo = to;
+      else stageError = ((await moved.json().catch(() => ({}))) as { error?: string }).error ?? "The deal could not be moved";
+    }
   } else if (parsed.action === "reject") {
     await logChange(supabase, { ...base, action: "update", changes: [{ field: "Bid decision rejected", from: word, to: parsed.comment }] });
     // Back to Bid/No-bid. A proposal is only possible from Received or Bid/No-bid, so this only ever moves Received forward.
@@ -104,7 +120,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       const to = await memberEmails(admin, tenantId, [req.requested_by]);
       const names = await loadActorNames(admin, tenantId, [userId]);
       if (tenant && to.length > 0) {
-        const msg = outcomeMessage({ title: opp.title, decider: names.get(userId) ?? user?.email ?? "A manager", decision: req.proposed_value, approved: parsed.action === "approve", comment: parsed.comment, link: dealLink(tenant, id) });
+        const msg = outcomeMessage({ title: opp.title, decider: names.get(userId) ?? user?.email ?? "A manager", decision: req.proposed_value, approved: parsed.action === "approve", comment: parsed.comment, link: dealLink(tenant, id), movedTo: movedTo ? (stageDef(tenderStages(), movedTo)?.label ?? movedTo) : null });
         await inboxNote(admin, { tenantId, dealId: id, authorId: userId, authorEmail: user?.email ?? null, body: msg.comment, mentionEmails: to.map((t) => t.email) });
         await sendTenderMail(admin, tenant, { to: to.map((t) => t.email), subject: msg.subject, text: msg.text, dealId: id, dealLabel: label, actorId: userId, actorEmail: user?.email ?? null });
       }
@@ -112,5 +128,5 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       console.error("[tender] approval outcome notification failed", (e as Error).message);
     }
   }
-  return NextResponse.json({ ok: true, status });
+  return NextResponse.json({ ok: true, status, stage_moved: movedTo, stage_error: stageError });
 }
