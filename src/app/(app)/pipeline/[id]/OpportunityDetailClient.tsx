@@ -39,6 +39,7 @@ import DealRoom from "@/components/tender/DealRoom";
 import TenderLinesToolbar, { TenderLinesSaveBar } from "@/components/tender/TenderLinesToolbar";
 import type { ComposerLine } from "@/components/rfq/RfqComposer";
 import BoqTab from "@/components/tender/BoqTab";
+import EstimatesTab from "@/components/tender/EstimatesTab";
 import ContractProjectBanner, { type ContractProjectInfo } from "@/components/contractProjects/ContractProjectBanner";
 import { editorUom } from "@/lib/sales/uom";
 
@@ -48,7 +49,7 @@ import { editorUom } from "@/lib/sales/uom";
 // are state, not ?tab=. Tabs: Overview · Lines · Quotes · Related · Activity.
 
 type Member = { user_id: string; name: string | null; email: string | null };
-type Tab = "overview" | "tender" | "room" | "boq" | "lines" | "bids" | "quotes" | "related" | "activity";
+type Tab = "overview" | "tender" | "room" | "boq" | "estimates" | "lines" | "bids" | "quotes" | "related" | "activity";
 
 /** A tender deal's extras (GCC tender deals): its tender block and what the countdown needs. Absent for every other deal. */
 export type TenderTabData = {
@@ -61,6 +62,8 @@ export type TenderTabData = {
   bids?: BidsData | null;
   calls?: CallsData | null;
   outcome?: OutcomeData | null;
+  /** Slice 3c-1: the Estimates tab. Set only when the workspace has the estimator and the caller may view Estimates; absent = no tab. */
+  estimates?: { canEdit: boolean } | null;
   /** null while migration 0221 is pending. */ approval: ApprovalView | null; accounts: { id: string; name: string }[]; nowIso: string; timezone: string;
 };
 
@@ -273,6 +276,7 @@ export default function OpportunityDetailClient({ opp, accountName, contacts, in
     ...(tender ? [{ id: "tender" as Tab, label: "Tender" }] : []),
     ...(tender?.room ? [{ id: "room" as Tab, label: "Room", count: tab === "room" ? 0 : roomUnread }] : []),
     ...(tender ? [{ id: "boq" as Tab, label: "BOQ" }] : []),
+    ...(tender?.estimates ? [{ id: "estimates" as Tab, label: "Estimates" }] : []),
     { id: "lines", label: linesDirty ? "Lines •" : "Lines", count: lineCount },
     ...(tender?.bids ? [{ id: "bids" as Tab, label: "Bids", count: tender.bids.versions.length }] : []),
     { id: "quotes", label: "Quotes", count: quotes.length },
@@ -386,6 +390,7 @@ export default function OpportunityDetailClient({ opp, accountName, contacts, in
         )
       )}
       {tab === "boq" && tender && <BoqTab opportunityId={opp.id} canEdit={tender.boqEdit !== false} onError={setError} onNotice={setNotice} onLinesChanged={() => router.refresh()} />}
+      {tab === "estimates" && tender?.estimates && <EstimatesTab opportunityId={opp.id} canEdit={tender.estimates.canEdit} onError={setError} />}
       {tab === "tender" && tender && sourceEmail}
 
       {tab === "overview" && (

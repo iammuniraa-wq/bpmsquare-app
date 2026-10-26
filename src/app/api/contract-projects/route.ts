@@ -48,7 +48,7 @@ export async function POST(request: NextRequest) {
     });
     if (!made.ok) return NextResponse.json({ error: made.error, ...(made.extra ?? {}) }, { status: made.status });
     return NextResponse.json(
-      { id: made.project.id, ref: made.project.ref, revision_id: made.revisionId, estimated: s.estimated, unmapped_codes: s.unmappedCodes, skipped: s.skipped },
+      { id: made.project.id, ref: made.project.ref, revision_id: made.revisionId, estimated: s.estimated, unmapped_codes: s.unmappedCodes, skipped: s.skipped, from_estimate: s.fromEstimate, estimate_warnings: s.estimateWarnings },
       { status: 201 },
     );
   }

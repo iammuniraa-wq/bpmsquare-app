@@ -14,6 +14,10 @@ import { TENDER_TIPS } from "@/lib/tender/tips";
 import { BOQ_FIELDS, FIELD_LABEL, colLetter, type BoqField, type ColumnMap } from "@/lib/tender/boq/parse";
 import { PRICE_SOURCE_LABEL, rateFor, type PriceSource } from "@/lib/tender/boq/price";
 import BoqMatch from "./BoqMatch";
+import { LineEstimates } from "./BoqEstimates";
+import { AllocatePanel, EstimateAttention } from "./BoqEstimatePanels";
+import { reloadAfterSave } from "./refreshAfterSave";
+import type { EstimatesState } from "@/lib/tender/estimates/server";
 
 // The BOQ tab of a tender deal (slice 3a): upload the client's Excel, check how it was read, price each line from a source that
 // says how old it is, and download the client's own file back with the rates in it. Everything the person needs to decide is
@@ -51,15 +55,18 @@ export type BoqScreenState = State;
 // with no BOQ yet there is only Upload.
 const BOQ_TABS = ["upload", "prices", "download"] as const;
 
-export default function BoqTab({ opportunityId, canEdit, onError, onNotice, onLinesChanged, initialData }: {
+export default function BoqTab({ opportunityId, canEdit, onError, onNotice, onLinesChanged, initialData, initialEstimates }: {
   opportunityId: string; canEdit: boolean; onError: (m: string) => void; onNotice: (m: string) => void;
   /** Called after anything that changed the deal's lines (create, re-upload, a price), so the page can reload the Lines tab and the header. */
   onLinesChanged?: () => void;
   /** Lets a server render (and its test) show the loaded screen without a fetch. The page never passes it. */
   initialData?: State;
+  initialEstimates?: EstimatesState & { rfq_enabled?: boolean };
 }) {
   const { confirm } = useFeel();
   const base = `/api/opportunities/${opportunityId}/boq`;
+  // The estimate tools have their own folder (they are gated by the estimator as well as the tender BOQ).
+  const estimatesBase = `/api/opportunities/${opportunityId}/tender/estimates`;
   const [data, setData] = useState<State | null>(initialData ?? null);
   const [busy, setBusy] = useState(false);
   const [file, setFile] = useState<File | null>(null);
@@ -74,6 +81,10 @@ export default function BoqTab({ opportunityId, canEdit, onError, onNotice, onLi
   const fileInput = useRef<HTMLInputElement>(null);
   const [tab, setTab] = useUrlTab(BOQ_TABS, "boq", "prices");
 
+  // Estimates that price the lines (slice 3c-1). A 404 (no estimator, no view of it, migration pending) means the screen simply does not
+  // offer them: the BOQ works exactly as it did.
+  const [est, setEst] = useState<(EstimatesState & { rfq_enabled?: boolean }) | null>(initialEstimates ?? null);
+
   const load = useCallback(async () => {
     const res = await fetch(base);
     const j = await res.json().catch(() => ({}));
@@ -81,6 +92,21 @@ export default function BoqTab({ opportunityId, canEdit, onError, onNotice, onLi
     setData(j as State);
   }, [base, onError]);
   useEffect(() => { void load(); }, [load]);
+
+  const loadEstimates = useCallback(async () => {
+    try {
+      const res = await fetch(`${estimatesBase}/links`, { cache: "no-store" });
+      const j = await res.json().catch(() => ({}));
+      setEst(res.ok && !j.pending ? (j as EstimatesState & { rfq_enabled?: boolean }) : null);
+    } catch { setEst(null); }
+  }, [estimatesBase]);
+  useEffect(() => { if (!initialEstimates) void loadEstimates(); }, [loadEstimates, initialEstimates]);
+
+  // After anything that changed a rate through an estimate: the BOQ, the estimate state and the page's lines reload, in that order of need.
+  const estimatesChanged = useCallback(() => {
+    void reloadAfterSave<State>(base, setData, onLinesChanged);
+    void loadEstimates();
+  }, [base, loadEstimates, onLinesChanged]);
 
   async function send(f: File, ch: NonNullable<typeof choice> | null, apply: boolean) {
     const form = new FormData();
@@ -283,6 +309,12 @@ export default function BoqTab({ opportunityId, canEdit, onError, onNotice, onLi
             {`${data.totals.priced} priced · ${data.totals.unpriced} to price${data.totals.stale ? ` · ${data.totals.stale} stale` : ""} · ${money(data.totals.amount)}`}
           </div>
           <BoqMatch base={base} count={data.totals.no_product ?? 0} canEdit={canEdit} onError={onError} onNotice={onNotice} onChanged={() => { void load(); onLinesChanged?.(); }} />
+          {est && (
+            <>
+              <EstimateAttention opportunityId={opportunityId} base={estimatesBase} state={est} canEdit={canEdit} markup={Number(markup) || 0} rfqEnabled={est.rfq_enabled === true} onChanged={estimatesChanged} onError={onError} onNotice={onNotice} />
+              {canEdit && <AllocatePanel base={estimatesBase} state={est} canEdit={canEdit} markup={Number(markup) || 0} onChanged={estimatesChanged} onError={onError} onNotice={onNotice} />}
+            </>
+          )}
           {canEdit && (
             <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "flex-end", marginBottom: 12 }}>
               <Field label="Markup on cost %" info={TENDER_TIPS.boqMarkup} guide="boq.markup">
@@ -325,6 +357,10 @@ export default function BoqTab({ opportunityId, canEdit, onError, onNotice, onLi
                   )}
                   {canEdit && l.linked && <Button size="sm" variant="secondary" onClick={() => void openPicker(l)} style={{ minHeight: 44, marginLeft: "auto" }} data-guide="boq.price_line">{openLine === l.id ? "Close" : l.priced ? "Change price" : "Price this line"}</Button>}
                 </div>
+                {est && l.linked && (
+                  <LineEstimates opportunityId={opportunityId} base={estimatesBase} line={{ id: l.id, item_no: l.item_no, description: l.description, qty: l.qty, uom: l.uom, priced: l.priced }} state={est}
+                    canEdit={canEdit} markup={Number(markup) || 0} onChanged={estimatesChanged} onError={onError} onNotice={onNotice} />
+                )}
                 {openLine === l.id && (
                   <div data-guide="boq.picker" style={{ background: "var(--panel2)", borderRadius: 8, padding: 10, display: "flex", flexDirection: "column", gap: 8 }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 6, fontWeight: 700, fontSize: 12.5, color: c.ink }}>Price sources <InfoTip label="Price sources">{TENDER_TIPS.boqPriceSource}</InfoTip></div>

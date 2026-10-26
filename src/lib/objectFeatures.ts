@@ -104,6 +104,8 @@ export const OBJECT_FEATURE: Record<string, keyof TenantFeatures | null> = {
   deal_room_members: "deal_room",
   deal_room_messages: "deal_room",
   deal_room_files: "deal_room",
+  // Estimates inside a tender (0227, slice 3c-1): which estimate output prices which BOQ line. In-app routes only: it is internal cost.
+  tender_boq_estimate_links: "gcc_tender",
   // Contract projects (0226, slice 5a): the project a won tender becomes, its budget revisions and lines, and the ERP code lists
   // (resource levels, cost codes, justifications) that budget lines use. In-app routes only: the budget is internal cost.
   contract_projects: "contract_projects",

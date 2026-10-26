@@ -7,6 +7,7 @@ import { getAuthUser } from "@/lib/supabase-server";
 import { insertWithMasterRef } from "@/lib/masterRef";
 import { loadOpportunity, loadOpportunityLines } from "@/lib/sales/opportunityServer";
 import { loadTender, accountInTenant } from "@/lib/tender/server";
+import { loadEstimateBudgetInputs } from "@/lib/tender/estimates/budgetServer";
 import { budgetTotals, round2 } from "./budget";
 import { contractValueFor, contractProjectSettings, mapTenderToBudget, projectNameFromDeal, type BoqInfo, type DealLine } from "./fromTender";
 import {
@@ -48,6 +49,9 @@ export type TenderSource = {
   estimated: number;
   unmappedCodes: string[];
   skipped: number;
+  /** BOQ lines whose budget came from the estimates that priced them, and what was worth saying about them (slice 3c-1). */
+  fromEstimate: number;
+  estimateWarnings: string[];
 };
 
 /** What an awarded tender of this workspace gives a project: its lines mapped to budget lines, its account and its contract value. */
@@ -71,7 +75,9 @@ export async function loadTenderSource(admin: SupabaseClient, tenantId: string, 
   const codes = [...new Set([...boq.values()].map((b) => b.cost_code?.trim()).filter((c): c is string => !!c))];
   const costCodes = await existingCodes(admin, tenantId, "cost_code", codes);
   const { defaultMarginPct } = contractProjectSettings(tenant?.config);
-  const mapping = mapTenderToBudget({ lines: deal as unknown as DealLine[], boq, costCodes, defaultMarginPct });
+  // Slice 3c-1: BOQ lines that estimates priced take the estimate's cost lines (by resource, real costs); the rest keep the rule above.
+  const estimates = await loadEstimateBudgetInputs(admin, tenantId, opportunityId);
+  const mapping = mapTenderToBudget({ lines: deal as unknown as DealLine[], boq, costCodes, defaultMarginPct, estimates });
 
   // The award value arrives with the outcome facts of bid versions (a later migration): read it if it is there, ignore it if not.
   const award = await admin.from("opportunity_tenders").select("award_value").eq("opportunity_id", opportunityId).eq("tenant_id", tenantId).maybeSingle();
@@ -83,6 +89,7 @@ export async function loadTenderSource(admin: SupabaseClient, tenantId: string, 
       title: opp.title, accountId: opp.account_id, currency: opp.currency ?? resolveCurrency(tenant?.config).code,
       contractValue: contractValueFor({ awardValue, dealAmount: Number(opp.amount) }),
       lines: mapping.lines, estimated: mapping.estimated, unmappedCodes: mapping.unmappedCodes, skipped: mapping.skipped,
+      fromEstimate: mapping.fromEstimate, estimateWarnings: mapping.estimateWarnings,
     },
   };
 }

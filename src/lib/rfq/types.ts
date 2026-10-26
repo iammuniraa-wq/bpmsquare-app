@@ -17,7 +17,7 @@ export const RFQ_STATUS_LABEL: Record<RfqStatus, string> = {
 };
 
 export const RFQ_ORIGIN_TYPES = [
-  "manual", "standard_quote", "quote", "opportunity", "case", "inspection_report", "work_order", "fence_project", "pricing",
+  "manual", "standard_quote", "quote", "opportunity", "case", "inspection_report", "work_order", "fence_project", "pricing", "estimate",
 ] as const;
 export type RfqOriginType = (typeof RFQ_ORIGIN_TYPES)[number];
 
@@ -31,6 +31,7 @@ export const RFQ_ORIGIN_LABEL: Record<RfqOriginType, string> = {
   work_order: "Work order",
   fence_project: "Fence project",
   pricing: "Pricing",
+  estimate: "Estimate",
 };
 
 export type RfqLineStatus = "open" | "awarded" | "no_award" | "cancelled";
