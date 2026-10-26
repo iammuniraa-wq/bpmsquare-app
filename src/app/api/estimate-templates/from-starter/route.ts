@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { logChange } from "@/lib/changeLog";
 import { STARTER_TEMPLATES } from "@/lib/estimator/starterTemplates";
+import { installStarterCatalogue } from "@/lib/estimator/starterCatalogueServer";
 import { validateTemplate } from "@/lib/estimator/template";
 import { estimatorAccess, errorResponse, pendingResponse, insertTemplate, isMissingRelation } from "@/lib/estimator/server";
 
@@ -12,7 +13,9 @@ import { estimatorAccess, errorResponse, pendingResponse, insertTemplate, isMiss
 // POST /api/estimate-templates/from-starter { name? }
 //   -> 201 { template, created: true }, or 200 { template, created: false } when the workspace
 //   already has a template of that name (idempotent: a second click does not make a copy).
-//   `name` defaults to the first starter.
+//   `name` defaults to the first starter. A starter that prices from catalogue items (pipes, precast elements, civil basics)
+//   also adds those items to the workspace's products, marked illustrative, where no product has that SKU yet:
+//   -> 201 { template, created: true, catalogue: { added, kept, skipped } }.
 
 export async function GET() {
   try {
@@ -24,6 +27,7 @@ export async function GET() {
       starters: STARTER_TEMPLATES.map((s) => ({
         name: s.name, description: s.description, trade: s.trade, geometry: s.geometry ?? null, icon: s.icon ?? null, locked: s.locked === true,
         input_count: s.inputs.length, rule_count: s.rules.length, installed: have.has(s.name.toLowerCase()),
+        catalogue_items: s.catalogue?.length ?? 0,
       })),
       ...(error ? { pending_migration: true } : {}),
     });
@@ -68,7 +72,10 @@ export async function POST(req: NextRequest) {
       tenantId, objectType: "estimate_templates", objectId: r.data.id, objectLabel: r.data.name, action: "create", actorId: userId, actorEmail: email,
       changes: [{ field: "created from starter", from: null, to: starter.name }],
     });
-    return NextResponse.json({ template: r.data, created: true }, { status: 201 });
+    const catalogue = starter.catalogue && starter.catalogue.length > 0
+      ? await installStarterCatalogue(supabase, tenantId, { id: userId, email }, starter.catalogue)
+      : undefined;
+    return NextResponse.json({ template: r.data, created: true, ...(catalogue ? { catalogue } : {}) }, { status: 201 });
   } catch (e) {
     return errorResponse(e);
   }

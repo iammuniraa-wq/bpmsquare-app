@@ -17,6 +17,10 @@
 
 import { TILES_STARTERS } from "./starterTemplatesTiles";
 import { CABIN_STARTERS } from "./starterTemplatesCabin";
+import { PIPES_STARTERS } from "./starterTemplatesPipes";
+import { PRECAST_ELEMENTS_STARTERS } from "./starterTemplatesPrecast";
+import { CIVIL_STARTERS } from "./starterTemplatesCivil";
+import type { StarterCatalogueItem } from "./starterCatalogue";
 import { groupSlug } from "./types";
 import type { EstimateTemplateBody, QuoteGranularity } from "./types";
 
@@ -41,6 +45,8 @@ export type StarterTemplate = EstimateTemplateBody & {
   /** Installed read-only: a workspace changes it by "Copy to customise". */
   locked?: boolean;
   customer_visible?: boolean;
+  /** Catalogue items (products) the template prices from. Installed with the starter, flagged illustrative until a rate sheet replaces them. */
+  catalogue?: readonly StarterCatalogueItem[];
 };
 
 /** Design attribute options for a precast surface: the number is never read by a formula; `visual` is what the 3D model shows. */
@@ -310,4 +316,8 @@ export const STARTER_TEMPLATES: readonly StarterTemplate[] = [
   // The tiles and porta cabin starters carry illustrative rates; installed locked like the fence, copied to customise.
   ...TILES_STARTERS.map((t) => ({ ...t, locked: true })),
   ...CABIN_STARTERS.map((t) => ({ ...t, locked: true })),
+  // Pipes and fittings, precast elements and civil basics (docs/design/gcc-tender-deals.md, "Slice 3c-2 as built"): locked, catalogue-priced.
+  ...PIPES_STARTERS.map((t) => ({ ...t, locked: true })),
+  ...PRECAST_ELEMENTS_STARTERS.map((t) => ({ ...t, locked: true })),
+  ...CIVIL_STARTERS.map((t) => ({ ...t, locked: true })),
 ];
