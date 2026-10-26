@@ -30,10 +30,11 @@ import { linesVersion } from "@/lib/sales/dealLines";
 import { rfqLineStatuses } from "@/lib/rfq/server";
 import { loadProjectBySource } from "@/lib/contractProjects/server";
 
-export default async function OpportunityDetailPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function OpportunityDetailPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams?: Promise<{ tab?: string }> }) {
   await requireWorkcenterView("pipeline");
   await requireFeature("pipeline");
   const { id } = await params;
+  const wantedTab = (await searchParams)?.tab;
   const { supabase, tenantId, userId } = await requireTenantUser();
   const tenant = await getTenant();
   const role = await getUserRole();
@@ -77,7 +78,10 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
       bond_status: tender.bond_status, bond_released_at: tender.bond_released_at,
       bond_released_by_name: tender.bond_released_by ? names.get(tender.bond_released_by) ?? null : null,
     };
-    const boqEdit = canEditWorkcenter(await resolvePermissions(supabase, tenantId, userId, role === "admin" ? "admin" : "member"), "pipeline");
+    const dealPerms = await resolvePermissions(supabase, tenantId, userId, role === "admin" ? "admin" : "member");
+    const boqEdit = canEditWorkcenter(dealPerms, "pipeline");
+    // Slice 3c-1: the Estimates tab, only in a workspace with the estimator and for someone who may view Estimates.
+    const estimatesTab = tenant?.features?.estimator === true && canViewWorkcenter(dealPerms, "estimates") ? { canEdit: boqEdit } : null;
     // Slice 4 (migration 0225): bid versions, logged calls and, once the tender has ended, the outcome facts.
     const latestBid = bidList.versions[0] ?? null;
     const bids: BidsData = { versions: bidList.versions, pending: bidList.pending, working_total: 0, canEdit: boqEdit };
@@ -87,7 +91,7 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
       competitor: opp.competitor, loss_reason: opp.loss_reason, our_total: latestBid ? latestBid.total : null, our_version: latestBid ? latestBid.version_no : null,
       currency: opp.currency, canEdit: boqEdit, pending: bidList.pending,
     } : null;
-    tenderTab = { view, approval, boqEdit, bids, calls, outcome, room: room ? { pending: room.pending, unread: room.unread, openQuestions: room.openQuestions, isAdmin: role === "admin" } : null, accounts: (allAccounts ?? []) as { id: string; name: string }[], nowIso: new Date().toISOString(), timezone };
+    tenderTab = { view, approval, boqEdit, bids, calls, outcome, estimates: estimatesTab, room: room ? { pending: room.pending, unread: room.unread, openQuestions: room.openQuestions, isAdmin: role === "admin" } : null, accounts: (allAccounts ?? []) as { id: string; name: string }[], nowIso: new Date().toISOString(), timezone };
   }
 
   // Contract projects (slice 5a): only for a tender, and only in a workspace with the module (otherwise no query at all).
@@ -133,6 +137,7 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
       ) : undefined}
       activity={<RecordActivity objectType="opportunities" objectId={id} extraChangeLogTypes={tender ? ["opportunity_tenders"] : undefined} isAdmin={role === "admin"} />}
       tender={tenderTab}
+      initialTab={tenderTab && (wantedTab === "boq" || (wantedTab === "estimates" && tenderTab.estimates)) ? wantedTab : undefined}
       contractProject={contractProject}
       tenderRfq={tender && rfqOn ? { originLabel: `Deal ${opp.ref ?? opp.title}${account?.name ? ` for ${account.name}` : ""}`, lines: tenderRfqLines(lines as unknown as Parameters<typeof rfqPrefill>[0], (rl) => rfqStatus[rl]?.ref ?? null) } : null}
       sourceEmail={tender ? <SourceEmailSlot objectType="opportunities" objectId={id} /> : undefined}

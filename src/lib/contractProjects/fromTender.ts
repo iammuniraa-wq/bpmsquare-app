@@ -1,5 +1,6 @@
 import { round2, round4 } from "./budget";
 import { DEFAULT_MARGIN_PCT, DEFAULT_RESOURCE_CODE, type DraftLine } from "./types";
+import { budgetPartsForBoqLine, type BudgetPartInput } from "@/lib/tender/estimates/budgetParts";
 
 // "Create contract project" from a won tender (docs/design/gcc-tender-deals.md section 15), pure. The deal's lines become the
 // baseline budget (revision 0): resource Material, the cost code from the client's BOQ when the workspace's cost-code list holds it,
@@ -55,7 +56,14 @@ export type TenderMapping = {
   unmappedCodes: string[];
   /** Lines left out: not selected, or a quantity-break row. */
   skipped: number;
+  /** BOQ lines whose budget came from the estimate that priced them (slice 3c-1). */
+  fromEstimate: number;
+  /** Things worth saying about those lines (an estimate output that is gone, a cost the estimate does not have yet). */
+  estimateWarnings: string[];
 };
+
+/** What the estimates linked to each BOQ line give the budget, keyed by the deal line id. Absent or empty = the standard rule. */
+export type EstimateBudgetInput = ReadonlyMap<string, Pick<BudgetPartInput, "links">>;
 
 export function mapTenderToBudget(args: {
   lines: readonly DealLine[];
@@ -63,15 +71,35 @@ export function mapTenderToBudget(args: {
   /** The workspace's cost-code list (active codes). */
   costCodes: ReadonlySet<string>;
   defaultMarginPct: number;
+  /** Slice 3c-1: BOQ lines priced from an estimate take the estimate's cost lines instead of one guessed line. */
+  estimates?: EstimateBudgetInput;
 }): TenderMapping {
   const byLower = new Map([...args.costCodes].map((c) => [c.trim().toLowerCase(), c]));
   const out: DraftLine[] = [];
   const unmapped = new Set<string>();
-  let estimated = 0, skipped = 0;
+  let estimated = 0, skipped = 0, fromEstimate = 0;
+  const estimateWarnings: string[] = [];
   for (const l of args.lines) {
     if (l.is_selected === false || l.break_of) { skipped++; continue; }
     const info = args.boq.get(l.id);
     const qty = Number(l.qty) || 0;
+
+    const linked = args.estimates?.get(l.id);
+    if (linked && linked.links.length > 0) {
+      const asGiven = info?.cost_code?.trim() || null;
+      const asCode = asGiven ? byLower.get(asGiven.toLowerCase()) ?? null : null;
+      if (asGiven && !asCode) unmapped.add(asGiven);
+      const parts = budgetPartsForBoqLine({
+        boqQty: qty, links: linked.links,
+        boq: { item_no: info?.item_no ?? l.sl_no, description: (l.description || "").trim(), unit: l.uom?.trim() ? l.uom.trim().slice(0, 30) : null, cost_code: asCode },
+      });
+      estimateWarnings.push(...parts.warnings);
+      if (parts.lines.length > 0) {
+        out.push(...parts.lines);
+        fromEstimate++;
+        continue;
+      }
+    }
     const recorded = info?.unit_cost != null && Number(info.unit_cost) > 0 ? Number(info.unit_cost) : null;
     const unitCost = recorded ?? estimateUnitCost(Number(l.rate) || 0, Number(l.discount_pct) || 0, args.defaultMarginPct);
     if (recorded === null) estimated++;
@@ -98,7 +126,7 @@ export function mapTenderToBudget(args: {
       reserve: false,
     });
   }
-  return { lines: out, estimated, unmappedCodes: [...unmapped].sort(), skipped };
+  return { lines: out, estimated, unmappedCodes: [...unmapped].sort(), skipped, fromEstimate, estimateWarnings };
 }
 
 /** The contract value: the awarded value when one was recorded, else what the deal says the bid came to. */

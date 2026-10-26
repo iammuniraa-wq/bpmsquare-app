@@ -9,10 +9,12 @@ import type { CardTemplate } from "@/lib/estimator/templateCard";
  * A card goes to the working page with that template chosen. The last card starts from a
  * customer's email, where the AI picks the template.
  */
-export default function TemplateCards({ templates, accountId, canPick }: { templates: CardTemplate[]; accountId?: string; canPick: boolean }) {
+export default function TemplateCards({ templates, accountId, opportunityId, canPick }: { templates: CardTemplate[]; accountId?: string; opportunityId?: string; canPick: boolean }) {
   const qs = (extra: Record<string, string>) => {
     const p = new URLSearchParams(extra);
     if (accountId) p.set("account_id", accountId);
+    // A tender deal's estimate keeps its deal while the template is chosen (slice 3c-1).
+    if (opportunityId) p.set("opportunity", opportunityId);
     return `${ROUTES.estimateNew}?${p.toString()}`;
   };
   const sorted = sortForCards(templates);

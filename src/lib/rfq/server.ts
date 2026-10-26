@@ -111,7 +111,20 @@ const ORIGIN: Partial<Record<RfqOriginType, { table: string; label: string; feat
   inspection_report: { table: "inspection_reports", label: "case_id", feature: "cases" },
   work_order: { table: "work_orders", label: "ref", feature: "work_orders" },
   fence_project: { table: "fence_projects", label: "ref", feature: "fence_projects" },
+  estimate: { table: "estimates", label: "ref", feature: "estimator" },
 };
+
+/**
+ * An RFQ for an estimate's missing costs (GCC tender deals, slice 3c-1) exists only in a workspace with the tender edition and only for
+ * an estimate that was made for a tender deal of THIS workspace. Anything else is the same 404 a standard workspace always got.
+ */
+async function assertEstimateOrigin(admin: SupabaseClient, tenantId: string, estimateId: string | null | undefined): Promise<void> {
+  const { data: t } = await admin.from("tenants").select("features").eq("id", tenantId).maybeSingle();
+  if (!(t?.features as TenantFeatures | undefined)?.gcc_tender) throw { status: 404, message: "Not found" };
+  const { data, error } = await admin.from("estimates").select("id, opportunity_id").eq("id", estimateId ?? "").eq("tenant_id", tenantId).maybeSingle();
+  if (error && isMissingRelation(error)) throw { status: 503, message: "RFQs for an estimate need the database update (migration 0227)." };
+  if (!data || !(data as { opportunity_id?: string | null }).opportunity_id) throw { status: 404, message: "The record this RFQ is for was not found" };
+}
 
 /** Verifies an origin id belongs to the tenant and returns its display
  *  label. Throws 404 on a foreign or missing id. */
@@ -215,6 +228,7 @@ export async function createRfq(ctx: Pick<RfqCtx, "admin" | "tenantId" | "userId
   // a line of that record. The label is read from the record, never the client.
   const originProblem = validateOriginInput(originType, input.origin_id);
   if (originProblem) throw { status: 422, message: originProblem };
+  if (originType === "estimate") await assertEstimateOrigin(admin, tenantId, input.origin_id);
   const originLabel = await resolveOrigin(admin, tenantId, originType, input.origin_id ?? null);
   await verifySourceLines(admin, tenantId, originType, ORIGIN[originType] ? input.origin_id ?? null : null, Array.isArray(input.lines) ? input.lines : []);
   const lines = await cleanLines(admin, tenantId, input.lines);
@@ -261,7 +275,16 @@ export async function createRfq(ctx: Pick<RfqCtx, "admin" | "tenantId" | "userId
   const pairs = input.lines
     .map((l, i) => ({ source: typeof l.source_line_id === "string" ? l.source_line_id : null, rfqLine: bySl.get(i + 1) }))
     .filter((x): x is { source: string; rfqLine: string } => !!x.source && !!x.rfqLine);
-  if (pairs.length && input.origin_id) await linkDocumentLines(admin, tenantId, originType, input.origin_id, pairs);
+  if (originType === "estimate") {
+    // verifySourceLines already proved each source line is a line of THIS estimate in THIS workspace.
+    for (const p of pairs) {
+      const { error } = await admin.from("rfq_lines").update({ estimate_line_id: p.source }).eq("id", p.rfqLine).eq("tenant_id", tenantId).eq("rfq_id", rfq.id);
+      if (error) {
+        await admin.from("rfqs").delete().eq("id", rfq.id).eq("tenant_id", tenantId);
+        throw { status: isMissingRelation(error) ? 503 : 500, message: isMissingRelation(error) ? "RFQs for an estimate need the database update (migration 0227)." : error.message };
+      }
+    }
+  } else if (pairs.length && input.origin_id) await linkDocumentLines(admin, tenantId, originType, input.origin_id, pairs);
   if (suppliers.length) {
     await admin.from("rfq_suppliers").insert(suppliers.map((s) => ({ tenant_id: tenantId, rfq_id: rfq!.id, supplier_id: s.id, email_to: s.email })));
   }

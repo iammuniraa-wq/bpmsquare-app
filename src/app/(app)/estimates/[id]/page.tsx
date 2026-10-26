@@ -1,6 +1,8 @@
 import { notFound } from "next/navigation";
 import { requireFeature, getTenant } from "@/lib/tenant";
-import { requireTenantUser } from "@/lib/supabase-server";
+import { requireTenantUser, createAdminSupabase } from "@/lib/supabase-server";
+import { estimateTenderContext } from "@/lib/tender/estimates/context";
+import TenderEstimateStrip from "@/components/tender/TenderEstimateStrip";
 import { requireWorkcenterView, resolvePermissions, canEditWorkcenter, canDeleteWorkcenter, canCreateWorkcenter, canViewWorkcenter } from "@/lib/permissions";
 import { ROUTES } from "@/lib/constants";
 import { lineProductViews } from "@/lib/estimator/catalogue";
@@ -59,6 +61,12 @@ export default async function EstimatePage({
   const [meta, tenant] = await Promise.all([loadTenantMeta(tenantId), getTenant()]);
   const { canQuote, quoteUnavailable } = quoteAbility(perms, tenant, canEdit, !!quote);
   const lineProducts = await lineProductViews(supabase, tenantId, lines.map((l) => l.product_id), { canOpenProducts: canViewWorkcenter(perms, "products") });
+  // GCC tender deals (slice 3c-1): an estimate made for a tender shows which tender it is for. A standard estimate asks nothing here.
+  const tenderCtx = tenant?.features?.gcc_tender === true && canViewWorkcenter(perms, "pipeline")
+    ? await estimateTenderContext(createAdminSupabase(), tenantId, tenant.features, tenant.config, {
+        id: estimate.id, ref: estimate.ref, standard_quote_id: estimate.standard_quote_id, opportunity_id: (estimate as { opportunity_id?: string | null }).opportunity_id ?? null,
+      })
+    : null;
 
   return (
     <ObjectRecordPage
@@ -89,6 +97,7 @@ export default async function EstimatePage({
         label: "Estimate",
         content: (
           <>
+          {tenderCtx && <TenderEstimateStrip ctx={tenderCtx} estimateId={estimate.id} canEdit={canEditWorkcenter(perms, "pipeline")} />}
           <SourceEmailSlot objectType="estimates" objectId={estimate.id} />
           <EstimateScreen
             estimate={estimate} lines={lines} template={template} templateOutdated={template_outdated}

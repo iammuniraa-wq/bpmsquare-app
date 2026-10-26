@@ -62,6 +62,8 @@ export type AwardOutcome = {
   cost_input_id: string | null;
   not_lowest: boolean;
   warning?: string;
+  /** Only for an RFQ raised for an estimate: what the award did to the estimate line and the BOQ lines priced from it. */
+  estimate?: { written: true; repriced: number; flagged: number; locked: boolean } | { written: false; reason: string };
 };
 
 type Ctx = { tenantId: string; userId: string; email: string | null };
@@ -208,7 +210,25 @@ export async function awardWithDecision(admin: SupabaseClient, ctx: Ctx, args: {
         changes: [{ field: `line ${p.line.sl_no} award reason`, from: null, to: reason }],
       });
     }
-    out.push({ line_id: p.line.id, status: "awarded", unit_cost: result.unit_cost, cost_input_id: result.cost_input_id, not_lowest: notLowest, warning });
+    // An RFQ raised for an estimate's missing costs (GCC tender deals, slice 3c-1): the awarded cost goes back into the estimate line.
+    // Best effort, like the product supplier above: the award stands whatever happens here.
+    let estimate: AwardOutcome["estimate"];
+    const cost = result.unit_cost ?? p.decision.landed;
+    if (rfq.origin_type === "estimate" && cost !== null && cost !== undefined) {
+      try {
+        const { writeAwardedCostToEstimate } = await import("@/lib/tender/estimates/writeBack");
+        const { data: sup } = await admin.from("suppliers").select("name").eq("id", rs.supplier_id).eq("tenant_id", tenantId).maybeSingle();
+        const wb = await writeAwardedCostToEstimate(admin, ctx, {
+          rfq: { id: rfq.id, ref: rfq.ref, origin_type: rfq.origin_type, origin_id: rfq.origin_id }, rfqLineId: p.line.id, unitCost: Number(cost),
+          supplierName: (sup as { name?: string } | null)?.name ?? null,
+        });
+        estimate = wb.written ? { written: true, repriced: wb.repriced, flagged: wb.flagged, locked: wb.locked } : { written: false, reason: wb.reason };
+      } catch (e) {
+        estimate = { written: false, reason: e instanceof Error ? e.message : "the estimate could not be updated" };
+        warning = `${warning ? `${warning} ` : ""}Awarded, but the cost could not be written to the estimate.`;
+      }
+    }
+    out.push({ line_id: p.line.id, status: "awarded", unit_cost: result.unit_cost, cost_input_id: result.cost_input_id, not_lowest: notLowest, warning, ...(estimate ? { estimate } : {}) });
   }
   return out;
 }

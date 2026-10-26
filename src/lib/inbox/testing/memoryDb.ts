@@ -133,6 +133,11 @@ class Query implements PromiseLike<Result> {
   lte(col: string, v: unknown) { this.preds.push((r) => r[col] != null && cmp(r[col], v) <= 0); return this; }
   gt(col: string, v: unknown) { this.preds.push((r) => r[col] != null && cmp(r[col], v) > 0); return this; }
   gte(col: string, v: unknown) { this.preds.push((r) => r[col] != null && cmp(r[col], v) >= 0); return this; }
+  like(col: string, pattern: string) {
+    const re = new RegExp(`^${pattern.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/%/g, ".*").replace(/_/g, ".")}$`);
+    this.preds.push((r) => typeof r[col] === "string" && re.test(r[col] as string));
+    return this;
+  }
   contains(col: string, v: Record<string, unknown>) { this.preds.push((r) => Object.entries(v).every(([k, x]) => (r[col] as Row | undefined)?.[k] === x)); return this; }
   or(expr: string) {
     const parts = expr.split(",").map((p) => {

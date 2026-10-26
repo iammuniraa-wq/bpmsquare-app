@@ -49,6 +49,8 @@ export function useEstimateActions(a: { draft: EstimateDraft; savedId?: string; 
         params: params(), margin_pct: margin(), notes: draft.notes.trim() || null, custom_data: draft.customData,
         // From the shared Inbox: the server links the email to the estimate once it exists (and ignores it if it may not).
         source_email_id: draft.sourceEmailId,
+        // From a tender deal's Estimates tab: the server checks the deal belongs to this workspace and attaches the estimate to it.
+        ...(draft.opportunityId ? { opportunity_id: draft.opportunityId } : {}),
       }),
     });
     const json = (await res.json().catch(() => ({}))) as Json;

@@ -7,7 +7,7 @@ import { RFQ_ORIGIN_LABEL, type RfqOriginType } from "./types";
 /** Origins that are a real record, so an RFQ from one must name it. "manual"
  *  (and the legacy "pricing") have no document and stay possible. */
 export const DOCUMENT_ORIGIN_TYPES = [
-  "standard_quote", "quote", "opportunity", "case", "inspection_report", "work_order", "fence_project",
+  "standard_quote", "quote", "opportunity", "case", "inspection_report", "work_order", "fence_project", "estimate",
 ] as const satisfies readonly RfqOriginType[];
 
 /** The sales documents whose lines an RFQ line can be stamped onto. */
@@ -15,6 +15,9 @@ export const DOC_LINE_TABLE: Partial<Record<RfqOriginType, { table: string; pare
   standard_quote: { table: "standard_quote_lines", parent: "standard_quote_id" },
   quote: { table: "quote_lines", parent: "quote_id" },
   opportunity: { table: "opportunity_lines", parent: "opportunity_id" },
+  // An RFQ for the missing costs of an estimate (0227): its lines ask about estimate lines. Unlike the three above, the estimate line is
+  // not stamped with the RFQ line; the RFQ line remembers the estimate line (rfq_lines.estimate_line_id) so an award can write the cost back.
+  estimate: { table: "estimate_lines", parent: "estimate_id" },
 };
 
 /** What the "From a quote" filter means: the three sales documents with lines. */
@@ -63,6 +66,7 @@ export function originHref(type: RfqOriginType, id: string | null, extra?: { cas
     case "inspection_report": return extra?.caseId ? `/cases/${extra.caseId}` : null;
     case "work_order": return `/work-orders/${id}`;
     case "fence_project": return `/fence-projects/${id}`;
+    case "estimate": return `/estimates/${id}`;
     default: return null;
   }
 }

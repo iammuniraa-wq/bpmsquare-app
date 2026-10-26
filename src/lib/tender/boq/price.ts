@@ -5,11 +5,13 @@
 // is shown with a "stale" label and is NEVER applied automatically; the person may still choose it knowingly, and that choice
 // is recorded (stale_accepted). "Price all lines" applies only fresh sources, in a fixed order, and says why it left a line.
 
-export const PRICE_SOURCES = ["boq_rate", "bom", "past_project", "supplier", "manual"] as const;
+// `estimate` (slice 3c-1) is a cost set from an estimate made for this tender (tender_boq_estimate_links), never offered as a candidate:
+// it is written by the estimate routes after they have worked the cost out from the estimate itself.
+export const PRICE_SOURCES = ["boq_rate", "bom", "past_project", "supplier", "manual", "estimate"] as const;
 export type PriceSource = (typeof PRICE_SOURCES)[number];
 
 export const PRICE_SOURCE_LABEL: Record<PriceSource, string> = {
-  boq_rate: "Client's rate", bom: "BOM / estimate", past_project: "Past project", supplier: "Supplier", manual: "Manual",
+  boq_rate: "Client's rate", bom: "BOM / estimate", past_project: "Past project", supplier: "Supplier", manual: "Manual", estimate: "Tender estimate",
 };
 
 export const DEFAULT_PRICE_VALIDITY_DAYS = 180;
@@ -27,7 +29,7 @@ export const priceValidityDays = (config: { tender?: { price_validity_days?: unk
 
 /** A price some source offers for a line. `cost` prices need a markup to become a selling rate; `sell` prices are used as they are. */
 export type Candidate = {
-  source: Exclude<PriceSource, "manual">;
+  source: Exclude<PriceSource, "manual" | "estimate">;
   /** Short and human: "RFQ-0012 · Gulf Pipes", "OPP-0044 ARB-3". Stored on the line as price_source_ref. */
   ref: string;
   /** One line for the picker. */

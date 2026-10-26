@@ -18,6 +18,8 @@ export type DraftInit = {
   /** From the shared Inbox: the customer's email, put in the email-intake card, and the message that becomes this estimate. */
   brief?: string;
   sourceEmailId?: string;
+  /** GCC tender deals (slice 3c-1): the tender deal this estimate is for; sent with the first save, which attaches the estimate to it. */
+  opportunityId?: string;
 };
 
 /** Everything the person is editing on the working page, held in one place. */
@@ -78,7 +80,7 @@ export function useEstimateDraft(templates: readonly WorkspaceTemplate[], init: 
   return {
     template, templateId, pickTemplate, values, setValue, flags, started, sender, setSender, applyProposal, reset,
     margin, setMargin, customer, setCustomer, accountId, setAccountId, contactId, setContactId, notes, setNotes, customData, setCustomData,
-    brief: init.brief, sourceEmailId: init.sourceEmailId,
+    brief: init.brief, sourceEmailId: init.sourceEmailId, opportunityId: init.opportunityId,
   };
 }
 
