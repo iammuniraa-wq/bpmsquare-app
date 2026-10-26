@@ -42,7 +42,7 @@ export default function DealRoom({ opportunityId, currentUserId, isAdmin, todayK
   initialFilter?: "all" | "questions";
   /** Called when the room has been read (the unread badge can clear). */
   onSeen?: () => void;
-  /** Called with the number of open questions whenever it changes (the Tender tab shows it). */
+  /** Called with the number of open questions whenever it changes (the Overview shows it). */
   onOpenQuestions?: (count: number) => void;
   /** Extra controls in the room's header (the Log a call button). */
   headerExtra?: React.ReactNode;

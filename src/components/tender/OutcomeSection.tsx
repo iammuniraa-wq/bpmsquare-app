@@ -13,7 +13,7 @@ import { TENDER_TIPS } from "@/lib/tender/tips";
 import { mergeOutcome } from "./refreshAfterSave";
 import WhoWonPicker from "./competitors/WhoWonPicker";
 
-// The Outcome section of the Tender tab, shown once the tender is Awarded, Lost or No-bid: the facts of how it ended, and our last
+// The Outcome section of the Overview, shown once the tender is Awarded, Lost or No-bid: the facts of how it ended, and our last
 // submitted total beside the awarded / winning price with the difference. A lost tender requires the reason and who won.
 
 const TITLE = { awarded: "Outcome: awarded", bid_lost: "Outcome: lost", no_bid: "Outcome: no-bid" } as const;

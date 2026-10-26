@@ -297,7 +297,7 @@ export async function openQuestionCounts(admin: SupabaseClient, tenantId: string
 
 export type RoomSummary = { pending: boolean; exists: boolean; unread: number; openQuestions: number };
 
-/** What the deal page needs for the Room tab's badge and the Tender tab's open-questions link. */
+/** What the deal page needs for the Room tab's badge and the Overview's open-questions link. */
 export async function roomSummary(admin: SupabaseClient, tenantId: string, userId: string, opportunityId: string): Promise<RoomSummary> {
   const { room, pending } = await loadRoom(admin, tenantId, opportunityId);
   if (pending) return { pending: true, exists: false, unread: 0, openQuestions: 0 };

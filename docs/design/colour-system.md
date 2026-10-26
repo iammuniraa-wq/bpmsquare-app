@@ -42,7 +42,7 @@ Screens coloured in the tender-edition pass (2026-10-26), all from data the scre
 
 | Screen | Strip | Tones |
 |---|---|---|
-| Tender deal, Tender tab (`TenderStatStrip`) | Closing, Bid decision, Bid bond, Open work | closing by `toneForDaysLeft` (amber under 7 days, red past); go good, no-go bad, waiting for approval warn; bond good / warn / bad; open questions and overdue steps warn. The deal header does not repeat Closing and Decision on this tab. |
+| Tender deal, Overview tab (`TenderStatStrip`, redesign step 1) | Bid end date, Bid decision, Bid guarantee, Open work | bid end date by `toneForDaysLeft` (amber under 7 days, red past); go good, no-go bad, waiting for approval warn; guarantee good / warn / bad (Requested is warn); open questions and overdue steps warn. The strip is on the Overview only. The deal header (every tab) carries the same three facts as a decision marker and two chips (`BidDecisionMarker` uses the same tones: Pending neutral, Awaiting approval warn, Go good, No-go bad). |
 | BOQ tab, Prices | Priced, Total, Stale prices, Without a product | priced warn while any line is unpriced, else good; total info; stale and no-product warn when above zero |
 | Estimates tab | Estimates linked, Cost total, Lines priced from them, Needs re-price | context, info, good, warn |
 | Estimate page for a tender (`TenderEstimateStrip`) | BOQ lines linked, Lines priced, Needs re-price, Costs missing | context, good, warn, warn. The amber quantity-mismatch warning is unchanged. |

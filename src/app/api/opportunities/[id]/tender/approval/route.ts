@@ -9,7 +9,7 @@ import { buildApprovalView, loadApprovals, loadApprovers } from "@/lib/tender/ap
 import { dealLink, inboxNote, loadNotifyTenant, memberEmails, sendTenderMail } from "@/lib/tender/notify";
 import { loadTender } from "@/lib/tender/server";
 
-// GET  /api/opportunities/[id]/tender/approval  -> what the Tender tab shows for the bid decision (pending proposal, the
+// GET  /api/opportunities/[id]/tender/approval  -> what the Overview shows for the bid decision (pending proposal, the
 //                                                   decision that stands, history, and whether this person may decide).
 // POST /api/opportunities/[id]/tender/approval  { decision: "go" | "no_go", reason }  -> a team member PROPOSES the decision.
 // A manager decides it on ./[requestId]. Who proposed and when come from the session and the server clock, never the body.

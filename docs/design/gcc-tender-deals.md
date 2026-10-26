@@ -601,3 +601,41 @@ Owner redesign: a competitor was one free-text box (`opportunities.competitor`) 
 **Not verified here.** No browser was available: the screens are covered by server-render tests at the markup level (44 px targets, no fixed widths, one grid that falls to a column), not by looking at them at 375 px.
 
 **Tests.** `competitors.test.ts` (the rules, the explanations, the migration and the bundle, the wiring), `tender.competitors.routes.test.ts` (gate, allow-list, duplicates, one winner and where it is written, who won by name, pending, insights), `Competitors.render.test.ts` (cards, strip, panel, picker, insights, tabs).
+
+## 21. Redesign step 1 as built (2026-10-27): the tender deal opens on one Overview
+
+Owner-approved "Deal to Project" redesign, step 1 of the tender deal page. Only the tender deal changes (flag `gcc_tender`); a standard deal keeps its Overview and gets no Tender tab, no marker and no new wording. BoqTab, EstimatesTab, RFQ, the Lines editor and contract projects were not touched, and nothing was built for the Competitors tab (another builder).
+
+**What is already there (checked):** the old Tender tab (`TenderTab`) with Tender details, Bid decision and Bid bond sections, the `TenderStatStrip`, the "From email" fold (`SourceEmailSlot`), `BidDecision` (propose, approve, reject, withdraw, history), `SidePanel` (drawer, bottom sheet under 780 px), `SettingsSection` (collapsible, remembers its state), `StatTile`/`tone.ts`. All reused; `TenderTab.tsx` is replaced by `TenderOverview.tsx`.
+
+### Tabs and header
+- Tab order: Overview, Room, BOQ, Estimates, Lines, Bids, Quotes, Related, Activity. There is no Tender tab; `?tab=tender` (or a saved state saying "tender") opens Overview. Tabs stay state, not `?tab=` (the Lines editor keeps unsaved edits across tab switches).
+- Header on every tab, in this order: title, ref, account, Stage select, **Bid decision marker**, **Bid end date** countdown chip (with the date under it), **Bid guarantee** state chip ("None recorded" when there is none). The subtitle says "bid ends", not "close by".
+- The marker (`BidDecisionMarker`, rules in `lib/tender/decisionMarker.ts`): Pending (neutral, no proposal), Awaiting approval (warn, a proposal exists), Go / No-go (good / bad, the approved decision). Tapping it opens `BidDecision` in the shared `SidePanel` (a right drawer on a desktop, a bottom sheet on a phone) and closes it after a save. A decision saved before approval existed still reads Go / No-go and the panel says it was recorded before approval.
+
+### The Overview (top to bottom; two columns from about 900 px, one below)
+1. The stat strip (`TenderStatStrip`: Bid end date, Bid decision, Bid guarantee, Open work), kept on the Overview only, with the new words. The coloured top edge of a tile is the shared `StatTile`'s own and is being removed there; this redesign adds none.
+2. **What the client asked for** (left column): title, tender number, issuer, issuer account (with a link "Open <account>"), portal, Bid end date, contact, owner, source, description, team, one Save (tender fields to `/tender`, deal fields to the deal route). Dropped from the old forms for a tender: Expected close (it follows the Bid end date on the server), Probability override and its reason (the stage sets it), and the free-text Competitor (column and the "Who won" step are unchanged; a Competitors tab is being built elsewhere).
+3. **Documents** (right column): the source email first (`SourceEmailSlot bare`: from, subject, date, what they asked, open email), the files copied from it, then **Change requests** (the old addenda counter, column `addenda_count`; it has its own Save when changed).
+4. **Open work**: open Deal Room questions (opens the Room), overdue next steps (opens Activity), and lines without a price (counted from the saved lines already on the page, no new query).
+5. **Bid guarantee**: State (Requested, Issued, Submitted; a select for people who can edit the deal), amount, currency, valid until, Release guarantee (the same deliberate inline confirm), the chip, and who released it and when.
+6. The Outcome block, in closed stages only, full width underneath.
+
+Phones: the blocks are `SettingsSection`s that remember how they were left. "What the client asked for" and "Open work" start open, Documents and Bid guarantee start closed (the new `defaultOpenNarrow`, applied after mount only when nothing was remembered). Tap targets are 44 px, the grid is `repeat(auto-fit, minmax(min(100%, 440px), 1fr))` so nothing scrolls sideways, and when a tab is selected the strip scrolls it into view and, on a phone, brings the strip to the top so the new content is what is seen.
+
+### Renames (labels only; every column is unchanged)
+Addenda -> Change requests. Bid bond -> Bid guarantee (chip "Guarantee: Issued", button "Release guarantee", reminder line "Bid guarantee: ..."). Closing date / Closing / Close by / Closes in -> Bid end date / Bid ends in ("Bid ends tomorrow", "Bid ended 3 days ago") on the deal, the create form, the board ("Bid ends"), "Bids ending soon", the reminder email ("Bid ends in 3 days: ...") and the tips. Standard deals keep "Close by" and "Expected close".
+
+### Bid guarantee states (migration `0228_bid_guarantee_states.sql`, bundle 39, PENDING)
+Check on `bond_status` widened to requested, issued, submitted, held, released; `held` stays as the legacy value and reads "Issued"; new rows default to `requested`. Changed with `POST .../tender/bond { action: "set_status", status }` (edit access to the Pipeline; Released only through the confirmed release; a released guarantee stays released; logged as "Requested -> Issued"). Before the migration runs every row is `held`, so Issued is a quiet success and Requested / Submitted answer "needs a database update (migration 0228)"; Release keeps working.
+
+### Rules
+1. An approved go from Received or Bid/No-bid moves the deal to Estimating, an approved no-go to No-bid (closed, dropped, loss reason "other", the no-go reason as the note), by calling the deal's own stage route (`PATCH /api/opportunities/[id]`, same as Submit bid does), so the stage guard, closing and outcome rules, the change log and the events all run. A refusal never undoes the approval; the response carries `stage_moved` / `stage_error` and the proposer's e-mail says where the deal went. A rejection behaves as before. The manual "Move to Estimating / No-bid" buttons are gone.
+2. Submit bid and Revise bid **warn, never block**: a confirm dialog lists, only if they apply, lines without a price, prices older than the workspace's validity (`config.tender.price_validity_days`), no approved go, and a bid guarantee not yet marked Submitted (when one is recorded). The BOQ's own totals are asked for when the deal has a BOQ; otherwise the saved lines tell the unpriced count. "Go on" always continues. No server change.
+3. One date: `closing_at` stays the column; every tender surface calls it Bid end date.
+
+### Not verified here
+No browser was available to this builder. Checked by server render tests at both widths' markup (44 px targets, the auto-fit grid, narrow defaults, no literal colours) and by reading the code; the real 375 px and PC look, the drawer and the scroll-into-view are for the owner's eyes.
+
+### Tests
+`src/app/(app)/pipeline/[id]/tenderOverview.render.test.ts` (tabs, header, blocks, phone checks, warnings wiring, new words), `tenders.render.test.ts` (the marker and its panel), `src/lib/tender/approval.test.ts` (states, marker, auto stage, warnings), `src/app/api/opportunities/tender.approval.routes.test.ts` (the auto move), `tender.guarantee.routes.test.ts` (set_status, before and after 0228), `src/lib/tender/guaranteeStates.test.ts` (the SQL, the bundle, the ledger).

@@ -4,8 +4,8 @@ import { closingState, TENDER_DECISION_LABEL, type TenderDecision } from "@/lib/
 import { bondState, type BondStatus, type BondTone } from "@/lib/tender/bond";
 import { TENDER_TIPS } from "@/lib/tender/tips";
 
-// The strip at the top of the Tender tab (colour system, docs/design/colour-system.md): the closing countdown, the bid decision, the
-// bond and the open work, from what the tab already holds. The words carry the meaning; the tint only agrees with them.
+// The strip at the top of the tender Overview tab (colour system, docs/design/colour-system.md): the bid end date countdown, the bid decision, the
+// guarantee and the open work, from what the tab already holds. The words carry the meaning; the tint only agrees with them.
 
 const BOND_TONE: Record<BondTone, Tone> = { none: "neutral", ok: "good", amber: "warn", red: "bad" };
 
@@ -40,9 +40,9 @@ export default function TenderStatStrip({ closingAt, nowIso, timezone, finished,
 
   return (
     <StatStrip guide="tender.strip">
-      <StatTile tone={closingTone} label="Closing" info={TENDER_TIPS.closing} value={finished ? (date ?? "No closing date") : closing.label} sub={finished ? "no longer a deadline" : (date ?? "set a closing date")} />
+      <StatTile tone={closingTone} label="Bid end date" info={TENDER_TIPS.closing} value={finished ? (date ?? "No bid end date") : closing.label} sub={finished ? "no longer a deadline" : (date ?? "set a bid end date")} />
       <StatTile tone={decisionTone} label="Bid decision" info={TENDER_TIPS.decision} value={decisionValue} sub={decisionSub} />
-      <StatTile tone={BOND_TONE[b.tone]} label="Bid bond" info={TENDER_TIPS.bond} value={b.tone === "none" ? "None" : b.label} sub={b.tone === "none" ? "no bond recorded" : bond.expiry ? `valid to ${bond.expiry}` : "no expiry set"} />
+      <StatTile tone={BOND_TONE[b.tone]} label="Bid guarantee" info={TENDER_TIPS.bond} value={b.tone === "none" ? "None" : b.label} sub={b.tone === "none" ? "no guarantee recorded" : bond.expiry ? `valid to ${bond.expiry}` : "no expiry set"} />
       <StatTile tone={open > 0 ? "warn" : "neutral"} label="Open work" value={String(open)} sub={openParts} />
     </StatStrip>
   );

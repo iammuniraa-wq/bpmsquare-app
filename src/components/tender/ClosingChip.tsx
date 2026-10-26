@@ -1,7 +1,7 @@
 import { closingState, type ClosingTone } from "@/lib/tender/rules";
 
-// The closing-date countdown of a tender: amber under 7 days, red under 2 days or once the date has passed, calm otherwise.
-// The text carries the meaning as well as the colour ("Closes tomorrow"), so it reads without seeing the colour. The server
+// The bid-end-date countdown of a tender: amber under 7 days, red under 2 days or once the date has passed, calm otherwise.
+// The text carries the meaning as well as the colour ("Bid ends tomorrow"), so it reads without seeing the colour. The server
 // hands over `nowIso` so the first paint and the hydrated page agree.
 
 const TONE: Record<ClosingTone, { bg: string; fg: string; line: string }> = {
@@ -22,7 +22,7 @@ export default function ClosingChip({ closingAt, nowIso, timezone, closed = fals
   const state = closingState(closingAt, new Date(nowIso), timezone);
   const tone: ClosingTone = closed ? "none" : state.tone;
   const t = TONE[tone];
-  const label = closed ? (closingAt ? new Date(closingAt).toLocaleDateString("en-GB", { day: "2-digit", month: "short", timeZone: timezone }) : "No closing date") : state.label;
+  const label = closed ? (closingAt ? new Date(closingAt).toLocaleDateString("en-GB", { day: "2-digit", month: "short", timeZone: timezone }) : "No bid end date") : state.label;
   return (
     <span
       data-tone={tone}

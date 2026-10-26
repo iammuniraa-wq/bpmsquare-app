@@ -1,7 +1,7 @@
 import { bondState, type BondStatus, type BondTone } from "@/lib/tender/bond";
 
-// The bid bond's state as a chip: amber 30 days before it expires, red once it has, quiet once it has been released.
-// The text says it ("Expires in 12 days"), so it reads without the colour. Same look as the closing-date chip.
+// The bid guarantee's state as a chip: Requested, Issued, Submitted or Released; amber 30 days before it expires, red once it has.
+// The text says it ("Issued, expires in 12 days"), so it reads without the colour. Same look as the bid-end-date chip.
 
 const TONE: Record<BondTone, { bg: string; fg: string; line: string }> = {
   none: { bg: "var(--panel2)", fg: "var(--muted)", line: "var(--line)" },
@@ -22,7 +22,7 @@ export default function BondChip({ amount, expiry, status, nowIso, timezone }: {
   const t = TONE[state.tone];
   return (
     <span data-tone={state.tone} style={{ display: "inline-flex", alignItems: "center", whiteSpace: "nowrap", fontWeight: 600, fontSize: 12, padding: "3px 10px", borderRadius: 999, background: t.bg, color: t.fg, border: `1px solid ${t.line}` }}>
-      Bond: {state.label}
+      Guarantee: {state.label}
     </span>
   );
 }

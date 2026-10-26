@@ -112,7 +112,7 @@ export const DEFERRED: Record<string, string> = {
   "work-orders": "created from a case with its authorisation (quote or contract); the Create work order action on the case stays the way in",
   invoices: "an outward financial document; a verb for a later step, not a plain create",
   leads: "carries consent and a source; next in line",
-  opportunities: "needs an account and a stage; next in line. A tender deal also needs its tender number, issuer, portal and closing date, so New tender on the Pipeline's Tenders tab (and Create deal from an Inbox email) stay the way in",
+  opportunities: "needs an account and a stage; next in line. A tender deal also needs its tender number, issuer, portal and bid end date, so New tender on the Pipeline's Tenders tab (and Create deal from an Inbox email) stay the way in",
   products: "next in line; same shape as accounts",
   "purchase-orders": "has lines and a supplier and goes outward; a verb for a later step",
   quotes: "needs line items and pricing; the quote screens and the pricing engine stay the way in",
