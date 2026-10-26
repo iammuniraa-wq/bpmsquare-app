@@ -1,6 +1,7 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { plannedMargin } from "./budget";
+import { summariseProjects, type ProjectsSummary } from "./summary";
 import { isMissingSchema, normaliseProject, normaliseRevision } from "./server";
 import { PROJECT_STATUSES, type ProjectRow, type ProjectStatus, type RevisionRow } from "./types";
 
@@ -29,11 +30,11 @@ export type SortKey = (typeof SORTS)[number];
 
 export type ListParams = { status?: string | null; q?: string | null; sort?: string | null; dir?: string | null; page?: number; pageSize?: number };
 
-export async function listProjects(admin: SupabaseClient, tenantId: string, params: ListParams = {}): Promise<{ rows: ProjectListRow[]; total: number; counts: Record<string, number>; page: number; pageSize: number; pending: boolean }> {
+export async function listProjects(admin: SupabaseClient, tenantId: string, params: ListParams = {}): Promise<{ rows: ProjectListRow[]; total: number; counts: Record<string, number>; summary: ProjectsSummary; page: number; pageSize: number; pending: boolean }> {
   const pageSize = Math.max(1, Math.min(100, params.pageSize ?? 25));
   const page = Math.max(1, params.page ?? 1);
   const { data, error } = await admin.from("contract_projects").select("*").eq("tenant_id", tenantId).order("updated_at", { ascending: false }).limit(2000);
-  if (error) return { rows: [], total: 0, counts: {}, page, pageSize, pending: isMissingSchema(error) };
+  if (error) return { rows: [], total: 0, counts: {}, summary: summariseProjects([]), page, pageSize, pending: isMissingSchema(error) };
   const projects: ProjectRow[] = ((data ?? []) as Record<string, unknown>[]).map(normaliseProject);
 
   const revisions = new Map<string, RevisionRow[]>();
@@ -75,5 +76,5 @@ export async function listProjects(admin: SupabaseClient, tenantId: string, para
     if (y === null || y === undefined) return -1;
     return (typeof x === "number" && typeof y === "number" ? x - y : String(x).localeCompare(String(y), undefined, { numeric: true })) * dir;
   });
-  return { rows: rows.slice((page - 1) * pageSize, page * pageSize), total: rows.length, counts, page, pageSize, pending: false };
+  return { rows: rows.slice((page - 1) * pageSize, page * pageSize), total: rows.length, counts, summary: summariseProjects(all), page, pageSize, pending: false };
 }

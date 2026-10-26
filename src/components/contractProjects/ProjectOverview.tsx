@@ -2,6 +2,8 @@ import Link from "next/link";
 import { c, pillar, statusInk } from "@/lib/theme";
 import Card from "@/components/ui/Card";
 import InfoTip from "@/components/ui/InfoTip";
+import StatTile, { StatStrip } from "@/components/ui/StatTile";
+import { toneForMargin } from "@/lib/ui/tone";
 import StatusPill from "@/components/ui/StatusPill";
 import { ROUTES } from "@/lib/constants";
 import type { ProjectView } from "@/lib/contractProjects/view";
@@ -22,7 +24,6 @@ export default function ProjectOverview({ view, editor }: { view: ProjectView; e
   const cur = p.currency;
   const scale = Math.max(p.contract_value, totals.total, 1);
   const resourceName = new Map(view.resources.map((r) => [r.code, r.name]));
-  const marginTone = margin.pct === null ? c.hint : margin.pct < 0 ? statusInk.bad : margin.pct < 10 ? statusInk.warn : statusInk.good;
   const attention: { key: string; text: string; href: string }[] = [];
   if (totals.noResourceCount > 0) attention.push({ key: "res", text: `${totals.noResourceCount} line${totals.noResourceCount === 1 ? "" : "s"} without a resource type`, href: "budget" });
   if (totals.estimatedCount > 0) attention.push({ key: "est", text: `${totals.estimatedCount} line${totals.estimatedCount === 1 ? "" : "s"} with an estimated cost (${money(totals.estimatedAmount, cur)})`, href: "budget" });
@@ -31,12 +32,12 @@ export default function ProjectOverview({ view, editor }: { view: ProjectView; e
 
   return (
     <div data-guide="cp.overview" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-      <div data-guide="cp.kpis" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: 12 }}>
-        <Kpi label="Contract value" info={PROJECT_TIPS.contractValue} value={money(p.contract_value, cur)} sub={p.source_opportunity_id ? "from the awarded tender" : "entered by hand"} />
-        <Kpi label="Budget" value={money(totals.total, cur)} sub={revision ? `${revision.rev_no === 0 ? "Baseline" : `Revision ${revision.rev_no}`} · ${REVISION_STATUS_LABEL[revision.status]}` : "No budget yet"} />
-        <Kpi label="Planned margin" info={PROJECT_TIPS.plannedMargin} value={<span style={{ color: marginTone }}>{pct(margin.pct)}</span>} sub={margin.pct === null ? "Needs a contract value" : money(margin.amount, cur)} />
-        <Kpi label="Lines" value={String(totals.lineCount)} sub={totals.reserve > 0 ? `${money(totals.reserve, cur)} in reserve` : "no reserve"} />
-      </div>
+      <StatStrip guide="cp.kpis">
+        <StatTile tone="info" label="Contract value" info={PROJECT_TIPS.contractValue} value={money(p.contract_value, cur)} sub={p.source_opportunity_id ? "from the awarded tender" : "entered by hand"} />
+        <StatTile tone="info" label="Budget" value={money(totals.total, cur)} sub={revision ? `${revision.rev_no === 0 ? "Baseline" : `Revision ${revision.rev_no}`} · ${REVISION_STATUS_LABEL[revision.status]}` : "No budget yet"} />
+        <StatTile tone={toneForMargin(margin.pct)} label="Planned margin" info={PROJECT_TIPS.plannedMargin} value={pct(margin.pct)} sub={margin.pct === null ? "Needs a contract value" : money(margin.amount, cur)} />
+        <StatTile label="Lines" value={String(totals.lineCount)} sub={totals.reserve > 0 ? `${money(totals.reserve, cur)} in reserve` : "no reserve"} />
+      </StatStrip>
 
       <Card title="Budget against contract value" info={PROJECT_TIPS.budgetVsContract} padding={16}>
         <div data-guide="cp.bar" role="img" aria-label={`Budget ${money(totals.total, cur)} of contract value ${money(p.contract_value, cur)}`} style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -102,18 +103,6 @@ export default function ProjectOverview({ view, editor }: { view: ProjectView; e
         </dl>
       </Card>
       {editor}
-    </div>
-  );
-}
-
-function Kpi({ label, value, sub, info }: { label: string; value: React.ReactNode; sub?: string; info?: string }) {
-  return (
-    <div style={{ background: "var(--card-bg)", border: "1px solid var(--line)", borderRadius: "var(--card-radius)", padding: "12px 14px", minWidth: 0 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11.5, color: c.hint, textTransform: "uppercase", letterSpacing: 0.4 }}>
-        {label}{info && <InfoTip label={label}>{info}</InfoTip>}
-      </div>
-      <div style={{ fontSize: 20, fontWeight: 700, color: c.ink, fontVariantNumeric: "tabular-nums", marginTop: 4, overflowWrap: "anywhere" }}>{value}</div>
-      {sub && <div style={{ fontSize: 12, color: c.hint, marginTop: 2 }}>{sub}</div>}
     </div>
   );
 }

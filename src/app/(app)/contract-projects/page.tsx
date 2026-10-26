@@ -5,6 +5,7 @@ import { requireWorkcenterView } from "@/lib/permissions";
 import { c } from "@/lib/theme";
 import { ROUTES } from "@/lib/constants";
 import StatusPill from "@/components/ui/StatusPill";
+import StatTile, { StatStrip } from "@/components/ui/StatTile";
 import ObjectListPage, { type ListColumn } from "@/components/page/ObjectListPage";
 import { DEFAULT_PAGE_SIZE } from "@/lib/paginate";
 import { listProjects, type ProjectListRow } from "@/lib/contractProjects/list";
@@ -44,7 +45,8 @@ export default async function ContractProjectsPage({ searchParams }: { searchPar
   const page = Math.max(1, Number(params.page) || 1);
   const out = await listProjects(createAdminSupabase(), tenantId, { status, q: params.q, sort: params.sort, dir, page, pageSize: DEFAULT_PAGE_SIZE });
 
-  const href = (s: string) => `${ROUTES.contractProjects}?status=${s}${params.q ? `&q=${encodeURIComponent(params.q)}` : ""}`;
+  const s = out.summary;
+  const href = (st: string) => `${ROUTES.contractProjects}?status=${st}${params.q ? `&q=${encodeURIComponent(params.q)}` : ""}`;
   const chips = [{ id: "all", label: `All (${out.counts.all ?? 0})` }, ...PROJECT_STATUSES.map((s) => ({ id: s, label: `${PROJECT_STATUS_LABEL[s]} (${out.counts[s] ?? 0})` }))]
     .map((ch) => ({ ...ch, href: href(ch.id), active: status === ch.id }));
 
@@ -71,6 +73,15 @@ export default async function ContractProjectsPage({ searchParams }: { searchPar
       beforeTable={out.pending ? (
         <div role="alert" data-guide="cp.pending_migration" style={{ fontSize: 13, color: "var(--amberink)", marginBottom: 10 }}>
           Contract projects need a database update (migration 0226). Ask your administrator to apply it.
+        </div>
+      ) : (out.counts.all ?? 0) > 0 ? (
+        <div style={{ marginBottom: 14 }}>
+          <StatStrip guide="cp.list_summary">
+            <StatTile tone="good" label="Active projects" value={String(s.active)} sub={`${out.counts.all ?? 0} in total`} />
+            <StatTile tone="info" label="Contract value" value={s.currency === "" ? "—" : money(s.contractValue, s.currency)} sub={s.currency === "" ? "Mixed currencies" : "active projects"} />
+            <StatTile tone="info" label="Budget" value={s.currency === "" ? "—" : money(s.budget, s.currency)} sub={s.currency === "" ? "Mixed currencies" : "active projects"} />
+            <StatTile tone={s.negativeMargin > 0 ? "bad" : s.lowMargin > 0 ? "warn" : "good"} label="Margin below 10%" value={String(s.lowMargin)} sub={s.negativeMargin > 0 ? `${s.negativeMargin} below zero` : s.lowMargin > 0 ? "active projects" : "none"} />
+          </StatStrip>
         </div>
       ) : undefined}
       empty={{

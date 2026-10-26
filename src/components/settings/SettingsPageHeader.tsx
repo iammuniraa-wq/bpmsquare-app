@@ -11,12 +11,13 @@ export const SETTINGS_ACTIONS_ID = "settings-header-actions";
  * empty actions slot on the right (decision 1 of ui-restructure-spec section
  * 11: Save is always top right). Server-safe; the slot is filled client-side.
  */
-export default function SettingsPageHeader({ title, subtitle, info }: { title: string; subtitle?: string; info?: React.ReactNode }) {
+export default function SettingsPageHeader({ title, subtitle, info, icon }: { title: string; subtitle?: string; info?: React.ReactNode; icon?: React.ReactNode }) {
   return (
     <PageHeader
       title={title}
       subtitle={subtitle}
       info={info}
+      icon={icon}
       action={<div id={SETTINGS_ACTIONS_ID} className="bpm-settings-actions" />}
     />
   );

@@ -6,6 +6,8 @@ import Button from "@/components/ui/Button";
 import Field from "@/components/ui/Field";
 import { Input, Select, Textarea } from "@/components/ui/Input";
 import InfoTip from "@/components/ui/InfoTip";
+import StatTile, { StatStrip } from "@/components/ui/StatTile";
+import { toneForDelta } from "@/lib/ui/tone";
 import SettingsSection from "@/components/settings/SettingsSection";
 import { BID_LIMITS, BID_REVISE_STAGES, BID_SUBMIT_STAGES, deltaText, type BidDiff, type BidLine, type BidsData } from "@/lib/tender/bids/rules";
 import { TENDER_TIPS } from "@/lib/tender/tips";
@@ -101,16 +103,19 @@ export default function BidsTab({ opportunityId, data: pageData, stage, outcome,
 
   const summary = data.pending ? "Needs a database update" : latest ? `Version ${latest.version_no} · ${fmt(latest.total)} · ${fmtStamp(latest.submitted_at)}` : "No bid submitted yet";
   const workingVsLast = latest ? data.working_total - latest.total : null;
+  const vsPrevious = versions.length >= 2 ? versions[0].total - versions[1].total : null;
   const shown = showAll ? versions : versions.slice(0, SHOWN_VERSIONS);
 
   return (
     <div data-guide="tender.bids" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
       <SettingsSection id="tender.bids.current" title="Bid" info={TENDER_TIPS.bidsTab} summary={summary} defaultOpen>
         {data.pending && <div role="alert" data-guide="tender.bids.pending" style={{ fontSize: 13, color: "var(--amberink)" }}>Bid versions need a database update (migration 0225). Ask your administrator to apply it.</div>}
-        <div style={{ display: "grid", gap: 10, gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))" }}>
-          <Tile label="Lines total now" info={TENDER_TIPS.bidWorking} value={fmt(data.working_total)} sub={workingVsLast === null ? null : workingVsLast === 0 ? "same as the last version" : `${workingVsLast > 0 ? "+" : "-"}${fmt(Math.abs(workingVsLast))} since version ${latest?.version_no}`} />
-          <Tile label="Last submitted" value={latest ? fmt(latest.total) : "—"} sub={latest ? `Version ${latest.version_no} · ${latest.line_count} line${latest.line_count === 1 ? "" : "s"}` : "Nothing submitted"} />
-        </div>
+        <StatStrip guide="tender.bids.summary">
+          <StatTile tone="info" label="Lines total now" info={TENDER_TIPS.bidWorking} value={fmt(data.working_total)} sub={workingVsLast === null ? null : workingVsLast === 0 ? "same as the last version" : `${workingVsLast > 0 ? "+" : "-"}${fmt(Math.abs(workingVsLast))} since version ${latest?.version_no}`} />
+          <StatTile tone="info" label="Last submitted" value={latest ? fmt(latest.total) : "—"} sub={latest ? `Version ${latest.version_no} · ${latest.line_count} line${latest.line_count === 1 ? "" : "s"}` : "Nothing submitted"} />
+          <StatTile tone="context" label="Bids submitted" value={String(versions.length)} sub={latest ? `latest is version ${latest.version_no}` : "none yet"} />
+          {versions.length >= 2 && <StatTile tone={toneForDelta(vsPrevious, "warn")} label="Vs previous bid" value={deltaText(vsPrevious ?? 0, null, fmt)} sub={vsPrevious === 0 ? "unchanged" : (vsPrevious ?? 0) > 0 ? "higher than version " + versions[1].version_no : "lower than version " + versions[1].version_no} />}
+        </StatStrip>
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
           {canSubmit && !askSubmit && (
             <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
@@ -191,32 +196,16 @@ export default function BidsTab({ opportunityId, data: pageData, stage, outcome,
   );
 }
 
-function Tile({ label, value, sub, info }: { label: string; value: string; sub: string | null; info?: string }) {
-  return (
-    <div style={{ border: `1px solid ${c.line}`, borderRadius: 10, padding: "10px 12px" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11.5, fontWeight: 600, color: c.muted, textTransform: "uppercase", letterSpacing: 0.4 }}>
-        {label}{info && <InfoTip label={label}>{info}</InfoTip>}
-      </div>
-      <div style={{ fontSize: 20, fontWeight: 700, color: c.ink, fontVariantNumeric: "tabular-nums", marginTop: 2 }}>{value}</div>
-      {sub && <div style={{ fontSize: 12, color: c.hint, marginTop: 2 }}>{sub}</div>}
-    </div>
-  );
-}
-
 function DiffView({ diff, fmt, more, onMore }: { diff: BidDiff; fmt: (n: number) => string; more: Record<string, boolean>; onMore: (k: string) => void }) {
-  const tone = diff.delta > 0 ? "var(--amberink)" : diff.delta < 0 ? "var(--greenink)" : c.ink;
   return (
     <div data-guide="tender.bid.diff" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-      <div style={{ display: "grid", gap: 10, gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))" }}>
-        <Tile label="Total" value={fmt(diff.total_to)} sub={`was ${fmt(diff.total_from)}`} />
-        <div style={{ border: `1px solid ${c.line}`, borderRadius: 10, padding: "10px 12px" }}>
-          <div style={{ fontSize: 11.5, fontWeight: 600, color: c.muted, textTransform: "uppercase", letterSpacing: 0.4 }}>Change</div>
-          <div data-guide="tender.bid.delta" style={{ fontSize: 17, fontWeight: 700, color: tone, fontVariantNumeric: "tabular-nums", marginTop: 2 }}>{deltaText(diff.delta, diff.delta_pct, fmt)}</div>
-        </div>
-        <Tile label="Added" value={String(diff.added.length)} sub={null} />
-        <Tile label="Removed" value={String(diff.removed.length)} sub={null} />
-        <Tile label="Changed" value={String(diff.changed.length)} sub={`${diff.unchanged} unchanged`} />
-      </div>
+      <StatStrip>
+        <StatTile tone="info" label="Total" value={fmt(diff.total_to)} sub={`was ${fmt(diff.total_from)}`} />
+        <StatTile tone={toneForDelta(diff.delta, "warn")} label="Change" value={<span data-guide="tender.bid.delta" style={{ fontSize: 17 }}>{deltaText(diff.delta, diff.delta_pct, fmt)}</span>} />
+        <StatTile label="Added" value={String(diff.added.length)} />
+        <StatTile label="Removed" value={String(diff.removed.length)} />
+        <StatTile label="Changed" value={String(diff.changed.length)} sub={`${diff.unchanged} unchanged`} />
+      </StatStrip>
       <LineList id="added" title="Lines added" lines={diff.added} fmt={fmt} more={more} onMore={onMore} />
       <LineList id="removed" title="Lines removed" lines={diff.removed} fmt={fmt} more={more} onMore={onMore} />
       {diff.changed.length > 0 && (

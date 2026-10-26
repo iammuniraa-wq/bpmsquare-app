@@ -15,6 +15,7 @@ export default function PageHeader({
   action,
   badge,
   info,
+  icon,
 }: {
   title: string;
   subtitle?: string;
@@ -23,6 +24,8 @@ export default function PageHeader({
   badge?: React.ReactNode;
   /** An explanation of the page, behind an "i" after the title (docs/design/ux-simplification.md §2a). */
   info?: React.ReactNode;
+  /** An IconChip before the title (docs/design/colour-system.md). Absent, the markup is exactly as before. */
+  icon?: React.ReactNode;
 }) {
   return (
     <div
@@ -42,8 +45,9 @@ export default function PageHeader({
       }}
     >
       <div>
-        {badge || info ? (
+        {badge || info || icon ? (
           <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+            {icon}
             <h1 className="bpm-page-header-title" style={{ margin: 0 }}>
               {title}
             </h1>

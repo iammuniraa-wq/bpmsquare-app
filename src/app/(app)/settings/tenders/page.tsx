@@ -2,6 +2,8 @@ import { redirect } from "next/navigation";
 import { requireTenantUser, createAdminSupabase } from "@/lib/supabase-server";
 import { ROUTES } from "@/lib/constants";
 import SettingsPageHeader from "@/components/settings/SettingsPageHeader";
+import IconChip from "@/components/ui/IconChip";
+import { FileText } from "@/components/Icons";
 import TendersSettingsClient from "./TendersSettingsClient";
 
 export default async function TendersSettingsPage() {
@@ -16,7 +18,7 @@ export default async function TendersSettingsPage() {
   if (!data?.features?.gcc_tender) redirect(ROUTES.settings);
   return (
     <>
-      <SettingsPageHeader title="Tenders" subtitle="Who approves a bid or no-bid proposal." />
+      <SettingsPageHeader title="Tenders" subtitle="Who approves a bid or no-bid proposal." icon={<IconChip tone="context"><FileText size={18} /></IconChip>} />
       <TendersSettingsClient />
     </>
   );
