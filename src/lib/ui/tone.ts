@@ -20,7 +20,7 @@ export type ToneTokens = {
   bg: string;
   /** Text colour on that surface (label, value, sub). */
   ink: string;
-  /** The solid edge: the 3px top of a tile, the left of a card. */
+  /** The solid edge: the left of a tinted card. A stat tile has no coloured edge (owner, 2026-10-26). */
   edge: string;
   /** Quiet text on the surface (the sub line). */
   quiet: string;

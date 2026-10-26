@@ -56,7 +56,7 @@ describe("the strip at the top of the Tender tab", () => {
     expect(tileOf(out, "Bid decision")).toContain('data-tone="good"');
     expect(tileOf(out, "Bid bond")).toContain('data-tone="good"');
     expect(tileOf(out, "Open work")).toContain('data-tone="neutral"');
-    expect(out).toContain(`border-top:3px solid ${pillar.amber.base}`);
+    expect(out).not.toContain("border-top:3px");
   });
 
   it("past is red, far away is plain, a no-go is red, a waiting proposal is amber, an expiring bond is amber, open work is amber", () => {

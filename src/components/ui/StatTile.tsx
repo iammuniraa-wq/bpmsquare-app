@@ -11,7 +11,6 @@ export function statTileStyle(tone: Tone = "neutral"): React.CSSProperties {
   return {
     background: t.bg,
     border: "1px solid var(--line)",
-    borderTop: `3px solid ${t.edge}`,
     borderRadius: "var(--card-radius)",
     padding: "10px 14px 12px",
     minWidth: 0,
