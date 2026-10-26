@@ -5,8 +5,8 @@ import { readFileSync } from "node:fs";
 import type { Opportunity, OpportunityLine } from "@/lib/types";
 import type { OpportunityStageDef } from "@/lib/constants";
 
-// GCC tender deals: the Lines tab's actions sit ABOVE the table for a tender deal, with one supplier-price button; a standard deal
-// keeps its action row below the table and its own "Request quotation". Rendered with the real page component on the server.
+// GCC tender deals: a tender has no Lines tab (its lines are the Bill of quantities); a standard deal keeps its Lines tab with the action
+// row below the table and its own "Request quotation". Rendered with the real page component on the server.
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: () => {}, refresh: () => {}, replace: () => {} }),
@@ -40,52 +40,21 @@ function page({ tender, rfq = true, quotes = 0 }: { tender: boolean; rfq?: boole
 
 const count = (html: string, s: string) => html.split(s).length - 1;
 
-describe("a tender deal's Lines tab", () => {
+describe("a tender deal has no Lines tab any more", () => {
   const html = page({ tender: true });
 
-  it("has one toolbar above the lines table: Lines total, Request supplier prices, Save lines", () => {
-    expect(html).toContain('data-guide="tender.lines.toolbar"');
-    const bar = html.indexOf('data-guide="tender.lines.toolbar"');
-    const table = html.indexOf("Line items");
-    expect(bar).toBeGreaterThan(-1);
-    expect(bar).toBeLessThan(table);
-    expect(html.indexOf("Lines total")).toBeLessThan(table);
-    expect(html.indexOf("Request supplier prices")).toBeLessThan(table);
-    expect(html.indexOf("Save lines")).toBeLessThan(table);
+  it("its lines are the Bill of quantities: an old ?tab=lines link lands there, and no Lines tab is offered", () => {
+    expect(html).toContain('data-guide="tab:boq"');
+    expect(html).toMatch(/data-guide="tab:boq"[^>]*aria-selected="true"/);
+    expect(html).not.toContain('data-guide="tab:lines"');
+    expect(html).not.toContain('data-guide="tender.lines.toolbar"');
+    expect(html).not.toContain("Line items");
   });
 
-  it("has exactly one request-for-prices button, with the count of lines that have no price, and not the editor's Request quotation", () => {
-    expect(count(html, "Request supplier prices")).toBeGreaterThanOrEqual(1);
-    expect(html).toMatch(/Request supplier prices \(2\)/);
-    // The editor's header button is gone; the per-line "Request quotation" chips in the table's RFQ column are the table's own and stay.
-    expect(html).not.toMatch(/Request quotation \(\d+\)/);
-    const header = html.slice(html.indexOf("Line items"), html.indexOf("min-width:860px"));
-    expect(header).not.toContain("Request quotation");
-    expect(count(html, 'data-guide="tender.lines.rfq"')).toBe(1);
-  });
-
-  it("has no action row below the table: Lines total and Save lines appear once, Convert to Standard Quote only in the header", () => {
-    expect(count(html, "Lines total")).toBe(1);
-    expect(count(html, "Save lines")).toBe(1);
+  it("the editor's Save lines and Lines total are not on a tender page; Convert to Standard Quote stays in the header only", () => {
+    expect(count(html, "Save lines")).toBe(0);
+    expect(count(html, "Lines total")).toBe(0);
     expect(count(html, "Convert to Standard Quote")).toBe(1);
-    expect(html.lastIndexOf("Convert to Standard Quote")).toBeLessThan(html.indexOf("Line items"));
-  });
-
-  it("keeps every control of the toolbar 44 px tall, and Save lines disabled until there is something to save", () => {
-    const bar = html.slice(html.indexOf('data-guide="tender.lines.toolbar"'), html.indexOf("Line items"));
-    expect(bar).toMatch(/min-height:44px/);
-    expect(bar).toMatch(/<button[^>]*disabled=""[^>]*data-guide="tender.lines.save"|<button[^>]*data-guide="tender.lines.save"[^>]*disabled=""|disabled=""[^>]*>Save lines/);
-  });
-
-  it("says the amount follows a quote behind the i, not as running text", () => {
-    const withQuote = page({ tender: true, quotes: 1 });
-    expect(withQuote).not.toContain("the deal amount follows its latest quote");
-    expect(withQuote).toContain("Lines total");
-  });
-
-  it("a tender workspace without the RFQ module has no request button at all", () => {
-    const noRfq = page({ tender: true, rfq: false });
-    expect(noRfq).not.toContain("Request supplier prices");
   });
 });
 

@@ -14,7 +14,8 @@ import type { OpportunityLine } from "@/lib/types";
 import { isMissingSchema, loadTender, type TenderRow } from "../server";
 import { BOQ_LIMITS, detectColumns, detectLayout, extractLines, planColumns, sameLayout, type BoqLine, type ColumnMap, type ColumnPlan, type ParsedBoq, type SkippedRow } from "./parse";
 import { diffBoq, relinkPlan, type BoqDiff, type ExistingLine } from "./diff";
-import { isStale, pickAuto, priceValidityDays, rateFor, refuseCandidate, staleText, type Candidate, type PriceSource } from "./price";
+import { defaultMarkupPct, isStale, pickAuto, priceValidityDays, rateFor, refuseCandidate, staleText, type Candidate, type PriceSource } from "./price";
+import { manualSourceRef } from "./table";
 import { candidatesFor, loadPriceContext, type SourceLine } from "./sources";
 import { loadWorkbook, sheetNames, sheetToGrid } from "./workbook";
 import { buildAnswerSheet, writePricedWorkbook, type AnswerRow, type PricedRow } from "./write";
@@ -142,6 +143,8 @@ export type BoqState = {
   lines: BoqLineView[];
   validity_days: number;
   today: string;
+  /** The markup on cost "Price all" starts from: the workspace's own default, else 15. */
+  default_markup_pct: number;
   /** `no_product`: active lines still free text (no catalog product), so the BOM and supplier sources find nothing for them. */
   totals: { lines: number; priced: number; unpriced: number; stale: number; amount: number; no_product: number };
   /** Fingerprint of the deal's saved lines as read here; the product match sends it back so a list that went stale is refused. */
@@ -152,7 +155,8 @@ export async function buildBoqState(r: BoqRequest): Promise<BoqState> {
   const { admin, tenantId, opp } = r;
   const [{ source, pending }, config, today] = await Promise.all([loadCurrentSource(admin, tenantId, opp.id), loadConfig(admin, tenantId), tenantToday(tenantId)]);
   const validity = priceValidityDays(config);
-  const empty: BoqState = { pending, source: null, lines: [], validity_days: validity, today, totals: { lines: 0, priced: 0, unpriced: 0, stale: 0, amount: 0, no_product: 0 }, lines_version: "" };
+  const markupDefault = defaultMarkupPct(config);
+  const empty: BoqState = { pending, source: null, lines: [], validity_days: validity, today, default_markup_pct: markupDefault, totals: { lines: 0, priced: 0, unpriced: 0, stale: 0, amount: 0, no_product: 0 }, lines_version: "" };
   if (pending || !source) return empty;
 
   const dealLines = await loadOpportunityLines(admin, tenantId, opp.id);
@@ -177,7 +181,7 @@ export async function buildBoqState(r: BoqRequest): Promise<BoqState> {
   return {
     pending: false,
     source: { id: source.id, file_name: source.file_name, sheet_name: source.sheet_name, header_row: source.header_row, version: source.version, uploaded_at: source.uploaded_at, line_count: source.line_count, added_columns: source.added_columns, total_row: source.total_row },
-    lines, validity_days: validity, today,
+    lines, validity_days: validity, today, default_markup_pct: markupDefault,
     totals: {
       lines: active.length, priced: active.filter((l) => l.priced).length, unpriced: active.filter((l) => !l.priced).length,
       stale: active.filter((l) => l.priced && l.stale && !l.stale_accepted).length, amount: round2(active.reduce((s, l) => s + (l.priced ? l.amount : 0), 0)),
@@ -471,7 +475,8 @@ export async function priceOneLine(r: BoqRequest, boqLineId: string, body: Price
     const v = typeof body.rate === "number" ? body.rate : Number.NaN;
     if (!Number.isFinite(v) || v < 0 || v > MAX_NUMERIC_12_2) return { ok: false, status: 422, error: "Enter a rate of 0 or more" };
     rate = round2(v);
-    fields = { price_source: "manual", price_source_ref: null, price_as_of: today, stale_accepted: false, unit_cost: null, markup_pct: null };
+    // A hand-typed rate is its own source, but the one it replaced is not lost: it is kept in the reference ("was Supplier · RFQ-0012").
+    fields = { price_source: "manual", price_source_ref: manualSourceRef(boq), price_as_of: today, stale_accepted: false, unit_cost: null, markup_pct: null };
   } else {
     const ctx = await loadPriceContext(admin, tenantId, opp.id, [sourceLine({ boq, line })], { name: b.source.file_name, date: b.source.uploaded_at.slice(0, 10) });
     // The price comes from the SOURCE as the server finds it now, never from the request: a caller cannot label a number it typed as a supplier's.
@@ -498,6 +503,53 @@ export async function priceOneLine(r: BoqRequest, boqLineId: string, body: Price
     changes: [{ field: `BOQ rate ${boq.item_no ?? `row ${boq.row_no}`}`, from: Number(line.rate), to: rate }, { field: "BOQ rate source", from: boq.price_source, to: fields.price_source }],
   });
   return { ok: true, rate, amount };
+}
+
+export type EditBody = { qty?: unknown; description?: unknown };
+const MAX_QTY = 9_999_999_999.99;
+
+/**
+ * Quantity and description of one BOQ row, from the row panel. The rate is changed through priceOneLine (a manual rate), so the source
+ * rules live in one place. What the client's FILE said (file_qty, file_description) is never touched: a revised file is still compared
+ * with the file, not with our edits. An estimate that priced the row shows "changed" by itself, because its cost per unit now differs.
+ */
+export async function editBoqLine(r: BoqRequest, boqLineId: string, body: EditBody): Promise<{ ok: true; qty: number; description: string; amount: number } | ({ ok: false } & Failure)> {
+  const { admin, tenantId, opp } = r;
+  const b = await bundles(r, boqLineId);
+  if (!b || b.items.length === 0) return { ok: false, status: 404, error: "Line not found" };
+  const { boq, line } = b.items[0];
+
+  const patch: Record<string, unknown> = {};
+  const changes: { field: string; from: unknown; to: unknown }[] = [];
+  const label = boq.item_no ?? `row ${boq.row_no}`;
+  let qty = Number(line.qty);
+  let description = line.description;
+  if (body.qty !== undefined) {
+    const q = typeof body.qty === "number" ? body.qty : typeof body.qty === "string" && body.qty.trim() !== "" ? Number(body.qty) : Number.NaN;
+    if (!Number.isFinite(q) || q < 0 || q > MAX_QTY) return { ok: false, status: 422, error: "Enter a quantity of 0 or more" };
+    qty = round2(q);
+    if (qty !== Number(line.qty)) { patch.qty = qty; changes.push({ field: `BOQ quantity ${label}`, from: Number(line.qty), to: qty }); }
+  }
+  if (body.description !== undefined) {
+    const d = typeof body.description === "string" ? body.description.trim() : "";
+    if (!d) return { ok: false, status: 422, error: "A line needs a description" };
+    if (d.length > 1000) return { ok: false, status: 422, error: "The description is longer than 1,000 characters" };
+    description = d;
+    if (d !== line.description) { patch.description = d; changes.push({ field: `BOQ description ${label}`, from: line.description, to: d }); }
+  }
+  const amount = round2(qty * Number(line.rate) * (1 - Number(line.discount_pct ?? 0) / 100));
+  if (Object.keys(patch).length === 0) return { ok: true, qty, description, amount: Number(line.amount) };
+  if (patch.qty !== undefined) patch.amount = amount;
+
+  const { error } = await admin.from("opportunity_lines").update(patch).eq("id", line.id).eq("tenant_id", tenantId).eq("opportunity_id", opp.id);
+  if (error) return { ok: false, status: 500, error: error.message };
+  const config = await loadConfig(admin, tenantId);
+  await refreshOpportunityDerived(admin, tenantId, opp.id, opportunityStages(config as Parameters<typeof opportunityStages>[0]));
+  const user = await getAuthUser();
+  await logChange(r.supabase, {
+    tenantId, objectType: "opportunity_tenders", objectId: opp.id, objectLabel: `${opp.ref ?? ""} ${opp.title}`.trim(), action: "update", actorId: user?.id, actorEmail: user?.email, changes,
+  });
+  return { ok: true, qty, description, amount };
 }
 
 export type PriceAllResult = { ok: true; priced: number; left: { id: string; item: string; reason: string }[]; left_count: number };
@@ -587,5 +639,5 @@ export async function exportAnswerSheet(r: BoqRequest): Promise<ExportResult> {
 
 /** For the warning before a download: the lines that would be left blank. */
 export function unpricedList(state: BoqState): { item: string; reason: string }[] {
-  return state.lines.filter((l) => !l.removed && !l.priced).slice(0, 50).map((l) => ({ item: itemLabel(l), reason: l.linked ? "No rate yet" : "Line was changed in the Lines tab" }));
+  return state.lines.filter((l) => !l.removed && !l.priced).slice(0, 50).map((l) => ({ item: itemLabel(l), reason: l.linked ? "No rate yet" : "The deal line behind this row was replaced" }));
 }

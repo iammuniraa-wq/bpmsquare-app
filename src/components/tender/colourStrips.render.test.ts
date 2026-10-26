@@ -88,33 +88,36 @@ describe("the strip at the top of the tender Overview", () => {
   });
 });
 
-describe("the Prices strip on the BOQ tab", () => {
+describe("the strip on the Bill of quantities", () => {
   const state = (totals: Partial<BoqScreenState["totals"]>): BoqScreenState => ({
     pending: false,
     source: { file_name: "x.xlsx", sheet_name: "BOQ", version: 1, uploaded_at: "2026-10-26T08:00:00Z", line_count: 3, added_columns: false },
-    lines: [], validity_days: 180, today: "2026-10-26", totals: { lines: 3, priced: 3, unpriced: 0, stale: 0, amount: 1250.5, ...totals }, unpriced: [],
+    lines: [], validity_days: 180, today: "2026-10-26", default_markup_pct: 15, totals: { lines: 3, priced: 3, unpriced: 0, stale: 0, amount: 1250.5, ...totals }, unpriced: [],
   } as BoqScreenState);
   const html = (s: BoqScreenState) => clean(renderToString(createElement(BoqTab, { opportunityId: OPP, canEdit: true, onError: noop, onNotice: noop, initialData: s })));
 
-  it("everything priced is teal, the total is blue, the rest is plain", () => {
+  it("everything priced is teal, the lines are purple, the total is blue", () => {
     const out = html(state({}));
     expect(out).toContain('data-guide="boq.summary"');
+    expect(tileOf(out, "Lines")).toContain('data-tone="context"');
     expect(tileOf(out, "Priced")).toContain('data-tone="good"');
-    expect(out).toContain("3 of 3");
+    expect(out).toContain("100%");
     expect(tileOf(out, "Total")).toContain('data-tone="info"');
     expect(out).toContain("1,250.50");
-    expect(tileOf(out, "Stale prices")).toContain('data-tone="neutral"');
-    expect(tileOf(out, "Without a product")).toContain('data-tone="neutral"');
+    expect(out).toContain("at cost + markup");
   });
 
-  it("lines still to price, stale prices and lines without a product are amber, and say how many", () => {
-    const out = html(state({ priced: 1, unpriced: 2, stale: 1, no_product: 3 }));
+  it("lines still to price are amber, and the words say how many", () => {
+    const out = html(state({ priced: 1, unpriced: 2 }));
     expect(tileOf(out, "Priced")).toContain('data-tone="warn"');
-    expect(out).toContain("1 of 3");
-    expect(out).toContain("2 to price");
-    expect(tileOf(out, "Stale prices")).toContain('data-tone="warn"');
-    expect(out).toContain("older than 180 days");
-    expect(tileOf(out, "Without a product")).toContain('data-tone="warn"');
+    expect(out).toContain("33%");
+    expect(out).toContain("1 of 3, 2 to price");
+  });
+
+  it("carries no colour literal of its own and no coloured edge", () => {
+    const out = html(state({}));
+    expect(Object.values(pillar).reduce((h, p) => h.split(p.base).join(""), out)).not.toMatch(/#[0-9a-fA-F]{3,8}/);
+    expect(out).not.toContain("border-top:3px");
   });
 });
 
