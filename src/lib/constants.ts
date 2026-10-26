@@ -309,24 +309,24 @@ export const NAV: NavGroup[] = [
     group: "SALES & PROCUREMENT",
     items: [
       {
-        label: "Sales", href: ROUTES.quotations, icon: "₹", pillar: "blue",
+        label: "Sales", href: ROUTES.pipeline, icon: "₹", pillar: "blue",
         children: [
-          { label: "Quotations", href: ROUTES.quotations, icon: "₹", pillar: "blue", featureKey: "quotations", workcenterKey: "quotations" },
-          { label: "Standard Quotes", href: ROUTES.standardQuotes, icon: "≡", pillar: "blue", featureKey: "standard_quotes", workcenterKey: "standard_quotes" },
-          { label: "Sales Orders", href: ROUTES.salesOrders, icon: "▣", pillar: "blue", featureKey: "sales_orders", workcenterKey: "sales_orders" },
           { label: "Pipeline",   href: ROUTES.pipeline,   icon: "▦", pillar: "blue", featureKey: "pipeline", workcenterKey: "pipeline" },
-          { label: "Contract Projects", href: ROUTES.contractProjects, icon: "▤", pillar: "blue", featureKey: "contract_projects", workcenterKey: "contract_projects" },
-          { label: "Invoices",   href: ROUTES.invoices,   icon: "⊟", pillar: "blue", featureKey: "invoices", workcenterKey: "invoices" },
-          { label: "Purchase Orders", href: ROUTES.purchaseOrders, icon: "⇱", pillar: "blue", featureKey: "purchasing", workcenterKey: "purchase_orders" },
-          // RFQ (0128): supplier quotations asked for when no cost/price is
-          // found. Procurement, so it sits beside Purchase Orders.
-          { label: "RFQs", href: ROUTES.rfqs, icon: "⇄", pillar: "blue", featureKey: "rfq", workcenterKey: "rfqs" },
-          // Fence Configurator (0122): a Standard Quotes source, not its own
-          // pillar -- lives beside the object it feeds, docs/fence-configurator-architecture.md.
-          { label: "Fence Projects", href: ROUTES.fenceProjects, icon: "⌗", pillar: "blue", featureKey: "fence_projects", workcenterKey: "fence_projects" },
           // Project Estimator (0131, docs/estimator-architecture.md): template-driven
           // estimate -> BOM, WBS and cost build-up -> Standard Quote.
           { label: "Estimates", href: ROUTES.estimates, icon: "∑", pillar: "blue", featureKey: "estimator", workcenterKey: "estimates" },
+          // Fence Configurator (0122): a Standard Quotes source, not its own
+          // pillar -- lives beside the object it feeds, docs/fence-configurator-architecture.md.
+          { label: "Fence Projects", href: ROUTES.fenceProjects, icon: "⌗", pillar: "blue", featureKey: "fence_projects", workcenterKey: "fence_projects" },
+          // RFQ (0128): supplier quotations asked for when no cost/price is
+          // found. Procurement, so it sits beside Purchase Orders.
+          { label: "RFQs", href: ROUTES.rfqs, icon: "⇄", pillar: "blue", featureKey: "rfq", workcenterKey: "rfqs" },
+          { label: "Quotations", href: ROUTES.quotations, icon: "₹", pillar: "blue", featureKey: "quotations", workcenterKey: "quotations" },
+          { label: "Standard Quotes", href: ROUTES.standardQuotes, icon: "≡", pillar: "blue", featureKey: "standard_quotes", workcenterKey: "standard_quotes" },
+          { label: "Sales Orders", href: ROUTES.salesOrders, icon: "▣", pillar: "blue", featureKey: "sales_orders", workcenterKey: "sales_orders" },
+          { label: "Purchase Orders", href: ROUTES.purchaseOrders, icon: "⇱", pillar: "blue", featureKey: "purchasing", workcenterKey: "purchase_orders" },
+          { label: "Contract Projects", href: ROUTES.contractProjects, icon: "▤", pillar: "blue", featureKey: "contract_projects", workcenterKey: "contract_projects" },
+          { label: "Invoices",   href: ROUTES.invoices,   icon: "⊟", pillar: "blue", featureKey: "invoices", workcenterKey: "invoices" },
         ],
       },
     ],
@@ -350,20 +350,20 @@ export const NAV: NavGroup[] = [
     group: "MARKETING",
     items: [
       {
-        label: "Marketing", href: ROUTES.marketing, icon: "📣", pillar: "purple",
+        label: "Marketing", href: ROUTES.marketingSegments, icon: "📣", pillar: "purple",
         children: [
+          { label: "Segmentation", href: ROUTES.marketingSegments, icon: "⌗", pillar: "purple", featureKey: "marketing", workcenterKey: "marketing_segments" },
+          { label: "ABM programs", href: ROUTES.marketingAbm, icon: "◆", pillar: "purple", featureKey: "abm", workcenterKey: "abm" },
           { label: "Campaigns", href: ROUTES.marketing, icon: "✉", pillar: "purple", featureKey: "marketing", workcenterKey: "marketing" },
           { label: "Newsletters", href: ROUTES.marketingNewsletters, icon: "✎", pillar: "purple", featureKey: "newsletter_studio", workcenterKey: "marketing_newsletters" },
-          { label: "Buying signals", href: ROUTES.marketingSignals, icon: "◎", pillar: "purple", featureKey: "buying_signals", workcenterKey: "signals" },
-          { label: "Forms", href: ROUTES.marketingForms, icon: "☰", pillar: "purple", featureKey: "marketing_forms", workcenterKey: "marketing_forms" },
-          { label: "ABM programs", href: ROUTES.marketingAbm, icon: "◆", pillar: "purple", featureKey: "abm", workcenterKey: "abm" },
-          { label: "Journeys", href: ROUTES.marketingJourneys, icon: "↠", pillar: "purple", featureKey: "journeys", workcenterKey: "marketing_journeys" },
           { label: "WhatsApp", href: ROUTES.marketingWhatsapp, icon: "☏", pillar: "purple", featureKey: "whatsapp_marketing", workcenterKey: "marketing_whatsapp" },
           { label: "Events", href: ROUTES.marketingEvents, icon: "◷", pillar: "purple", featureKey: "marketing_events", workcenterKey: "marketing_events" },
-          { label: "Revenue by source", href: ROUTES.marketingAttribution, icon: "⌁", pillar: "purple", featureKey: "marketing_attribution", workcenterKey: "marketing_attribution" },
-          { label: "Segmentation", href: ROUTES.marketingSegments, icon: "⌗", pillar: "purple", featureKey: "marketing", workcenterKey: "marketing_segments" },
+          { label: "Forms", href: ROUTES.marketingForms, icon: "☰", pillar: "purple", featureKey: "marketing_forms", workcenterKey: "marketing_forms" },
+          { label: "Journeys", href: ROUTES.marketingJourneys, icon: "↠", pillar: "purple", featureKey: "journeys", workcenterKey: "marketing_journeys" },
+          { label: "Buying signals", href: ROUTES.marketingSignals, icon: "◎", pillar: "purple", featureKey: "buying_signals", workcenterKey: "signals" },
           { label: "Leads", href: ROUTES.leads, icon: "✦", pillar: "purple", featureKey: "leads", workcenterKey: "leads" },
           { label: "Scored leads", href: ROUTES.marketingLeads, icon: "⚡", pillar: "purple", featureKey: "marketing_scoring", workcenterKey: "leads" },
+          { label: "Revenue by source", href: ROUTES.marketingAttribution, icon: "⌁", pillar: "purple", featureKey: "marketing_attribution", workcenterKey: "marketing_attribution" },
         ],
       },
     ],
@@ -372,21 +372,21 @@ export const NAV: NavGroup[] = [
     group: "MASTER DATA",
     items: [
       {
-        label: "Master data", href: ROUTES.assets, icon: "▧", pillar: "green",
+        label: "Master data", href: ROUTES.accounts, icon: "▧", pillar: "green",
         children: [
-          { label: "Assets",          href: ROUTES.assets,         icon: "▧", pillar: "green", featureKey: "assets", workcenterKey: "assets" },
+          { label: "Accounts",        href: ROUTES.accounts,       icon: "▣", pillar: "green", featureKey: "accounts", workcenterKey: "accounts" },
+          { label: "Contacts",        href: ROUTES.contacts,       icon: "◉", pillar: "green", featureKey: "contacts", workcenterKey: "contacts" },
+          // Client reorg 2026-08-22: Partners (from Marketing) and
+          // Accounts/Contacts (from Workspace) live with the master data.
+          { label: "Partners",        href: ROUTES.partners,       icon: "⌂", pillar: "green", featureKey: "partners", workcenterKey: "partners" },
           { label: "Suppliers",       href: ROUTES.suppliers,      icon: "◫", pillar: "green", featureKey: "suppliers", workcenterKey: "suppliers" },
-          { label: "Inventory",       href: ROUTES.inventory,      icon: "▨", pillar: "green", featureKey: "purchasing", workcenterKey: "inventory" },
           { label: "Products",        href: ROUTES.products,       icon: "▩", pillar: "green", featureKey: "products", workcenterKey: "products" },
+          { label: "Inventory",       href: ROUTES.inventory,      icon: "▨", pillar: "green", featureKey: "purchasing", workcenterKey: "inventory" },
+          { label: "Assets",          href: ROUTES.assets,         icon: "▧", pillar: "green", featureKey: "assets", workcenterKey: "assets" },
           // Employees ships as part of the Business Roles/Business Users
           // bundle, so it shares that bundle's rollout flag rather than
           // getting its own.
           { label: "Employees",       href: ROUTES.employees,      icon: "⚇", pillar: "green", featureKey: "business_roles", workcenterKey: "employees" },
-          // Client reorg 2026-08-22: Partners (from Marketing) and
-          // Accounts/Contacts (from Workspace) live with the master data.
-          { label: "Partners",        href: ROUTES.partners,       icon: "⌂", pillar: "green", featureKey: "partners", workcenterKey: "partners" },
-          { label: "Accounts",        href: ROUTES.accounts,       icon: "▣", pillar: "green", featureKey: "accounts", workcenterKey: "accounts" },
-          { label: "Contacts",        href: ROUTES.contacts,       icon: "◉", pillar: "green", featureKey: "contacts", workcenterKey: "contacts" },
         ],
       },
     ],
