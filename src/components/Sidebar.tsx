@@ -639,7 +639,7 @@ export default function Sidebar({ onNavigate, hideHeader }: { onNavigate?: () =>
         borderBottom: "1px solid var(--sb-line)",
         marginBottom: 12,
       }}>
-        <div style={{ display: "flex", alignItems: logoWide && !collapsed ? "flex-start" : "center", flexDirection: logoWide && !collapsed ? "column" : "row", gap: logoWide && !collapsed ? 6 : 9, minWidth: 0 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 9, minWidth: 0, flex: logoWide && !collapsed ? 1 : undefined }}>
           {tenant?.logo_url ? (
             <img
               ref={logoRef}
@@ -647,13 +647,13 @@ export default function Sidebar({ onNavigate, hideHeader }: { onNavigate?: () =>
               alt={tenant.name}
               onLoad={(e) => setLogoWide(e.currentTarget.naturalWidth / Math.max(1, e.currentTarget.naturalHeight) > 1.6)}
               style={logoWide && !collapsed
-                ? { height: 38, width: "auto", maxWidth: 150, borderRadius: 4, objectFit: "contain", flexShrink: 0, background: "#fff", padding: "3px 6px" }
+                ? { height: 44, width: "auto", maxWidth: "100%", boxSizing: "border-box", borderRadius: 6, objectFit: "contain", minWidth: 0, background: "#fff", padding: "5px 8px" }
                 : { width: 34, height: 34, borderRadius: 8, objectFit: "contain", flexShrink: 0 }}
             />
           ) : (
             <Logo size={34} />
           )}
-          {!collapsed && (
+          {!collapsed && !(logoWide && tenant?.logo_url) && (
             <div style={{ minWidth: 0 }}>
               <div
                 title={tenant?.name}
