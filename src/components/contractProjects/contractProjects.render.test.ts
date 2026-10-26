@@ -12,6 +12,8 @@ vi.mock("next/navigation", () => ({
 vi.mock("next/link", () => ({ default: (p: { href: string; children: unknown }) => createElement("a", { href: p.href }, p.children as never) }));
 
 import ProjectOverview from "./ProjectOverview";
+import ProjectKpiStrip from "./ProjectKpiStrip";
+import { pillar } from "@/lib/theme";
 import BudgetGrid from "./BudgetGrid";
 import RevisionsPanel from "./RevisionsPanel";
 import HandoverPanel from "./HandoverPanel";
@@ -52,13 +54,11 @@ const view = (over: Partial<ProjectView> = {}): ProjectView => ({
 describe("Overview", () => {
   const out = strip(renderToString(createElement(ProjectOverview, { view: view() })));
 
-  it("opens with the contract value, the budget, the planned margin and the line count", () => {
-    expect(out).toContain('data-guide="cp.kpis"');
-    expect(out).toContain("SAR 30,000");
-    expect(out).toContain("SAR 22,800");
-    expect(out).toContain("24%"); // (30000 - 22800) / 30000
-    expect(out).toContain("Baseline · Draft");
-    expect(out).toContain("from the awarded tender");
+  it("does not repeat the four header figures: they appear once, in the page header strip", () => {
+    expect(out).not.toContain('data-guide="cp.kpis"');
+    expect(out).not.toContain("Planned margin");
+    expect(out).not.toContain("from the awarded tender");
+    expect(out).not.toContain("Baseline · Draft");
   });
 
   it("shows the budget against the contract value and the split by cost type, with names", () => {
@@ -83,17 +83,44 @@ describe("Overview", () => {
     expect(out).toContain("About Budget against contract value");
   });
 
-  it("an over-budget project shows a negative margin, and a project with no contract value says what it needs", () => {
-    const over = strip(renderToString(createElement(ProjectOverview, { view: view({ margin: plannedMargin(10000, totals.total), project: { ...view().project, contract_value: 10000 } }) })));
-    expect(over).toContain("-128%");
-    const none = strip(renderToString(createElement(ProjectOverview, { view: view({ margin: plannedMargin(0, totals.total), project: { ...view().project, contract_value: 0 } }) })));
-    expect(none).toContain("Needs a contract value");
-  });
-
   it("a project with no lines says where to add them", () => {
     const empty = strip(renderToString(createElement(ProjectOverview, { view: view({ lines: [], totals: budgetTotals([]), margin: plannedMargin(30000, 0) }) })));
     expect(empty).toContain("Add budget lines on the Budget tab");
     expect(empty).toContain("Nothing to fix");
+  });
+});
+
+describe("Header figures (shown once, on every tab)", () => {
+  const out = strip(renderToString(createElement(ProjectKpiStrip, { view: view() })));
+
+  it("opens with the contract value, the budget, the planned margin and the line count, as tinted tiles", () => {
+    expect(out).toContain('data-guide="cp.kpis"');
+    expect(out).toContain("SAR 30,000");
+    expect(out).toContain("SAR 22,800");
+    expect(out).toContain("24%"); // (30000 - 22800) / 30000
+    expect(out).toContain("Baseline · Draft");
+    expect(out).toContain("from the awarded tender");
+    expect(out).toContain('data-tone="info"');
+    expect(out).toContain('data-tone="good"'); // margin 24%
+    expect(out).toContain(`background:${pillar.blue.bg}`);
+    expect(out).toContain("repeat(auto-fit, minmax(170px, 1fr))"); // wraps on a phone
+    // The only hex in the markup is a theme.ts pillar edge token.
+    expect(Object.values(pillar).reduce((h, p) => h.split(p.base).join(""), out)).not.toMatch(/#[0-9a-fA-F]{3,8}\b/);
+  });
+
+  it("an over-budget project shows a negative margin in red, and a project with no contract value says what it needs", () => {
+    const over = strip(renderToString(createElement(ProjectKpiStrip, { view: view({ margin: plannedMargin(10000, totals.total), project: { ...view().project, contract_value: 10000 } }) })));
+    expect(over).toContain("-128%");
+    expect(over).toContain('data-tone="bad"');
+    const none = strip(renderToString(createElement(ProjectKpiStrip, { view: view({ margin: plannedMargin(0, totals.total), project: { ...view().project, contract_value: 0 } }) })));
+    expect(none).toContain("Needs a contract value");
+    expect(none).not.toContain('data-tone="good"');
+  });
+
+  it("is drawn by the page header, not by the Overview tab", () => {
+    const page = readFileSync(path.join(ROOT, "src/app/(app)/contract-projects/[id]/page.tsx"), "utf8");
+    expect(page).toContain("<ProjectKpiStrip");
+    expect(page).not.toContain("facts={[");
   });
 });
 

@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { c } from "@/lib/theme";
 import Button from "@/components/ui/Button";
 import InfoTip from "@/components/ui/InfoTip";
+import StatTile, { StatStrip } from "@/components/ui/StatTile";
 import { useFeel } from "@/components/FeelProvider";
 import { ESTIMATE_TIPS } from "@/lib/tender/estimates/tips";
 import type { EstimateTenderContext } from "@/lib/tender/estimates/context";
@@ -56,6 +57,15 @@ export default function TenderEstimateStrip({ ctx, estimateId, canEdit }: { ctx:
         <Link href={`${dealHref}?tab=estimates`} data-guide="tender.estimate.back" style={{ fontSize: 12.5, color: c.ink, minHeight: 44, display: "inline-flex", alignItems: "center" }}>← Back to the tender</Link>
         {ctx.links.length > 0 && <Link href={`${dealHref}?tab=boq`} data-guide="tender.estimate.to_boq" style={{ fontSize: 12.5, color: c.ink, minHeight: 44, display: "inline-flex", alignItems: "center" }}>BOQ</Link>}
       </div>
+
+      {(ctx.links.length > 0 || ctx.missing.length > 0) && (
+        <StatStrip guide="tender.estimate.tiles">
+          <StatTile tone="context" label="BOQ lines linked" value={String(ctx.links.length)} sub="priced by this estimate" />
+          <StatTile tone={ctx.links.length - waiting.length > 0 ? "good" : "neutral"} label="Lines priced" value={String(ctx.links.length - waiting.length)} sub={waiting.length > 0 ? `${waiting.length} waiting to price` : "none waiting"} />
+          <StatTile tone={stale.length > 0 ? "warn" : "neutral"} label="Needs re-price" value={String(stale.length)} sub={stale.length > 0 ? "the estimate changed" : "all up to date"} />
+          <StatTile tone={ctx.missing.length > 0 ? "warn" : "neutral"} label="Costs missing" value={String(ctx.missing.length)} sub={ctx.missing.length > 0 ? `or older than ${ctx.valid_days} days` : "none"} />
+        </StatStrip>
+      )}
 
       {waiting.map((l) => (
         <div key={l.link_id} style={{ display: "flex", flexDirection: "column", gap: 4 }}>

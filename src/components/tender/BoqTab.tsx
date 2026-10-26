@@ -8,6 +8,7 @@ import { Input, Select } from "@/components/ui/Input";
 import InfoTip from "@/components/ui/InfoTip";
 import Card from "@/components/ui/Card";
 import Tabs from "@/components/ui/Tabs";
+import StatTile, { StatStrip } from "@/components/ui/StatTile";
 import { useUrlTab } from "@/components/ui/useUrlTab";
 import { useFeel } from "@/components/FeelProvider";
 import { TENDER_TIPS } from "@/lib/tender/tips";
@@ -305,8 +306,13 @@ export default function BoqTab({ opportunityId, canEdit, onError, onNotice, onLi
 
       {data.source && view === "prices" && (
         <Card title="Lines and prices">
-          <div data-guide="boq.summary" style={{ fontSize: 12.5, color: c.muted, marginBottom: 10 }}>
-            {`${data.totals.priced} priced · ${data.totals.unpriced} to price${data.totals.stale ? ` · ${data.totals.stale} stale` : ""} · ${money(data.totals.amount)}`}
+          <div style={{ marginBottom: 12 }}>
+            <StatStrip guide="boq.summary">
+              <StatTile tone={data.totals.unpriced > 0 ? "warn" : "good"} label="Priced" value={`${data.totals.priced} of ${data.totals.priced + data.totals.unpriced}`} sub={data.totals.unpriced > 0 ? `${data.totals.unpriced} to price` : "all lines priced"} />
+              <StatTile tone="info" label="Total" value={money(data.totals.amount)} sub="priced lines" />
+              <StatTile tone={data.totals.stale > 0 ? "warn" : "neutral"} label="Stale prices" value={String(data.totals.stale)} sub={data.totals.stale > 0 ? `older than ${data.validity_days} days` : "none out of date"} />
+              <StatTile tone={(data.totals.no_product ?? 0) > 0 ? "warn" : "neutral"} label="Without a product" value={String(data.totals.no_product ?? 0)} sub={(data.totals.no_product ?? 0) > 0 ? "match them below" : "all matched"} />
+            </StatStrip>
           </div>
           <BoqMatch base={base} count={data.totals.no_product ?? 0} canEdit={canEdit} onError={onError} onNotice={onNotice} onChanged={() => { void load(); onLinesChanged?.(); }} />
           {est && (

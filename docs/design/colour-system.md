@@ -36,4 +36,18 @@
 ## Where it is applied (2026-10-26)
 
 Contract project overview tiles, contract projects list strip (active, value, budget, margin under 10%), tender Bids tab strip
-and compare tiles, and an icon chip beside the Settings Tenders and Contract projects titles. Everything else is unchanged.
+and compare tiles, and an icon chip beside the Settings Tenders and Contract projects titles.
+
+Screens coloured in the tender-edition pass (2026-10-26), all from data the screen already held:
+
+| Screen | Strip | Tones |
+|---|---|---|
+| Tender deal, Tender tab (`TenderStatStrip`) | Closing, Bid decision, Bid bond, Open work | closing by `toneForDaysLeft` (amber under 7 days, red past); go good, no-go bad, waiting for approval warn; bond good / warn / bad; open questions and overdue steps warn. The deal header does not repeat Closing and Decision on this tab. |
+| BOQ tab, Prices | Priced, Total, Stale prices, Without a product | priced warn while any line is unpriced, else good; total info; stale and no-product warn when above zero |
+| Estimates tab | Estimates linked, Cost total, Lines priced from them, Needs re-price | context, info, good, warn |
+| Estimate page for a tender (`TenderEstimateStrip`) | BOQ lines linked, Lines priced, Needs re-price, Costs missing | context, good, warn, warn. The amber quantity-mismatch warning is unchanged. |
+| Contract project page header (`ProjectKpiStrip`) | Contract value, Budget, Planned margin, Lines | info, info, `toneForMargin`, neutral. Shown once, on every tab; the Overview tab no longer repeats them. |
+| RFQ page (`RfqStatStrip`) | Suppliers invited, Replies in, Awarded lines, Still open | neutral, warn while replies are awaited then good, good, warn |
+
+Skipped: the Tender tab has no RFQ or BOQ progress (its data lives on the BOQ and RFQ screens, and adding it would need a new query); the RFQ
+list has no strip (its chips already count by state); Settings Tenders and Contract projects keep their icon chips only.
