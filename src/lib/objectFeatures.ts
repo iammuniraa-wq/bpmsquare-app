@@ -99,6 +99,8 @@ export const OBJECT_FEATURE: Record<string, keyof TenantFeatures | null> = {
   // Bid versions and logged calls of a tender deal (0225).
   tender_bid_versions: "gcc_tender",
   deal_activities: "gcc_tender",
+  // Competitors of a tender deal (0229): a child record of the deal, gated like the tender block.
+  opportunity_competitors: "gcc_tender",
   // The Deal Room (0222): internal only, behind its own platform-admin flag.
   deal_rooms: "deal_room",
   deal_room_members: "deal_room",

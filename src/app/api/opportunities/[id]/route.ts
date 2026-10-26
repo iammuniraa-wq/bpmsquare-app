@@ -11,6 +11,7 @@ import { stagesForDeal } from "@/lib/tender/rules";
 import { tenderForDeal } from "@/lib/tender/server";
 import { stageGuard } from "@/lib/tender/approval";
 import { standingDecision } from "@/lib/tender/approvalServer";
+import { recordWinnerByName, standingWinnerName } from "@/lib/tender/competitors/server";
 
 async function guard() {
   const ctx = await requireTenantUser();
@@ -41,8 +42,8 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 }
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  let supabase, tenantId;
-  try { ({ supabase, tenantId } = await guard()); } catch (e: unknown) {
+  let supabase, tenantId, userId;
+  try { ({ supabase, tenantId, userId } = await guard()); } catch (e: unknown) {
     const err = e as { status?: number; message: string };
     return NextResponse.json({ error: err.message }, { status: err.status ?? 401 });
   }
@@ -122,7 +123,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       if (problem) return NextResponse.json({ error: problem }, { status: 409 });
       // A lost tender names who won (slice 4): the competitor is on the body or already on the deal.
       const who = "competitor" in patch ? patch.competitor : before.competitor;
-      if (stage === "bid_lost" && !who) return NextResponse.json({ error: "Say who won (the competitor) before closing the tender as Lost" }, { status: 422 });
+      // A competitor marked as the winner on the Competitors tab counts as much as a typed name.
+      if (stage === "bid_lost" && !who && !(await standingWinnerName(admin, tenantId, id))) return NextResponse.json({ error: "Say who won (the competitor) before closing the tender as Lost" }, { status: 422 });
     }
   }
   let outcome = before.outcome;
@@ -163,6 +165,10 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       tenantId, objectType: "opportunities", objectId: id, objectLabel: `${before.ref ?? ""} ${(patch.title as string) ?? before.title}`.trim(),
       action: "update", actorId: user?.id, actorEmail: user?.email, changes,
     });
+  }
+  // A lost tender's winner is also a row on the Competitors tab (found by name, or added), marked as the winner.
+  if (tender !== null && stage === "bid_lost" && typeof patch.competitor === "string" && (stage !== before.stage || patch.competitor !== before.competitor)) {
+    await recordWinnerByName({ admin, supabase, tenantId, userId, opportunity: { id, ref: before.ref, title: before.title }, name: patch.competitor });
   }
   const after = await loadOpportunity(admin, tenantId, id);
   if (changes.length > 0) {

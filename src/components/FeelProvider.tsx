@@ -261,7 +261,7 @@ const CSS = `
   box-shadow: 0 24px 70px rgba(0,0,0,.35); animation: feel-pop .26s var(--feel-ease);
 }
 .feel__dialogTitle { margin: 0; font-size: 16px; font-weight: 750; color: var(--feel-ink); line-height: 1.35; }
-.feel__dialogBody { margin: 8px 0 0; font-size: 13px; line-height: 1.6; color: var(--feel-dim); }
+.feel__dialogBody { margin: 8px 0 0; white-space: pre-line; font-size: 13px; line-height: 1.6; color: var(--feel-dim); }
 .feel__dialogActions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px; }
 .feel__btn {
   padding: 9px 15px; border-radius: 9px; cursor: pointer; font: inherit; font-size: 13px; font-weight: 650;

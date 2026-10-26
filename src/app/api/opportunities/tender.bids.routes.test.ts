@@ -425,7 +425,7 @@ describe("the outcome facts", () => {
     expect(tenderRow()).toMatchObject({ winning_bidder: "Rival Co", award_value: 950000, award_date: "2026-11-12", outcome_note: "Debrief next week" });
     expect(deal()).toMatchObject({ competitor: "Rival Co", loss_reason: "price" });
     expect(tenderRow(OPP_T2).winning_bidder).toBeNull();
-    expect(state.changes.map((c) => c.objectType).sort()).toEqual(["opportunities", "opportunity_tenders"]);
+    expect(state.changes.map((c) => c.objectType).sort()).toEqual(["opportunities", "opportunity_competitors", "opportunity_tenders"]);
   });
 
   it("Awarded saves the value and date and leaves the deal's loss columns alone", async () => {

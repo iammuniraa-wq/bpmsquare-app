@@ -36,55 +36,55 @@ const tileOf = (html: string, label: string) => {
   return html.slice(html.lastIndexOf("<div data-tone", i), i);
 };
 
-describe("the strip at the top of the Tender tab", () => {
+describe("the strip at the top of the tender Overview", () => {
   type Props = Parameters<typeof TenderStatStrip>[0];
   const base: Props = { closingAt: "2026-10-30T09:00:00.000Z", nowIso: NOW, timezone: TZ, finished: false, decision: "go", approvalPending: null, bond: { amount: 96000, expiry: "2027-06-30", status: "held" }, openQuestions: 0, overdueSteps: 0 };
   const html = (over: Partial<Props> = {}) => clean(renderToString(createElement(TenderStatStrip, { ...base, ...over })));
 
-  it("names the closing countdown, the decision, the bond and the open work, each in words", () => {
+  it("names the bid end date countdown, the decision, the guarantee and the open work, each in words", () => {
     const out = html();
     expect(out).toContain('data-guide="tender.strip"');
-    for (const w of ["Closing", "Bid decision", "Bid bond", "Open work", "Closes in 4 days", "Go", "Held"]) expect(out, w).toContain(w);
+    for (const w of ["Bid end date", "Bid decision", "Bid guarantee", "Open work", "Bid ends in 4 days", "Go", "Issued"]) expect(out, w).toContain(w);
     expect(out).toContain("repeat(auto-fit, minmax(170px, 1fr))");
     // The only hex in the markup is a theme.ts pillar edge token.
     expect(Object.values(pillar).reduce((h, p) => h.split(p.base).join(""), out)).not.toMatch(/#[0-9a-fA-F]{3,8}\b/);
   });
 
-  it("tones follow the meaning: soon is amber, a go is teal, a held bond is teal, nothing open is plain", () => {
+  it("tones follow the meaning: soon is amber, a go is teal, an issued guarantee is teal, nothing open is plain", () => {
     const out = html();
-    expect(tileOf(out, "Closing")).toContain('data-tone="warn"');
+    expect(tileOf(out, "Bid end date")).toContain('data-tone="warn"');
     expect(tileOf(out, "Bid decision")).toContain('data-tone="good"');
-    expect(tileOf(out, "Bid bond")).toContain('data-tone="good"');
+    expect(tileOf(out, "Bid guarantee")).toContain('data-tone="good"');
     expect(tileOf(out, "Open work")).toContain('data-tone="neutral"');
     expect(out).not.toContain("border-top:3px");
   });
 
   it("past is red, far away is plain, a no-go is red, a waiting proposal is amber, an expiring bond is amber, open work is amber", () => {
-    expect(tileOf(html({ closingAt: "2026-10-20T09:00:00.000Z" }), "Closing")).toContain('data-tone="bad"');
-    expect(tileOf(html({ closingAt: "2026-12-20T09:00:00.000Z" }), "Closing")).toContain('data-tone="neutral"');
+    expect(tileOf(html({ closingAt: "2026-10-20T09:00:00.000Z" }), "Bid end date")).toContain('data-tone="bad"');
+    expect(tileOf(html({ closingAt: "2026-12-20T09:00:00.000Z" }), "Bid end date")).toContain('data-tone="neutral"');
     expect(tileOf(html({ decision: "no_go" }), "Bid decision")).toContain('data-tone="bad"');
     const waiting = html({ decision: null, approvalPending: "go" });
     expect(tileOf(waiting, "Bid decision")).toContain('data-tone="warn"');
     expect(waiting).toContain("Awaiting approval");
-    expect(tileOf(html({ bond: { amount: 1, expiry: "2026-11-05", status: "held" } }), "Bid bond")).toContain('data-tone="warn"');
-    expect(tileOf(html({ bond: { amount: 1, expiry: "2026-10-01", status: "held" } }), "Bid bond")).toContain('data-tone="bad"');
+    expect(tileOf(html({ bond: { amount: 1, expiry: "2026-11-05", status: "held" } }), "Bid guarantee")).toContain('data-tone="warn"');
+    expect(tileOf(html({ bond: { amount: 1, expiry: "2026-10-01", status: "held" } }), "Bid guarantee")).toContain('data-tone="bad"');
     const busy = html({ openQuestions: 2, overdueSteps: 1 });
     expect(tileOf(busy, "Open work")).toContain('data-tone="warn"');
     expect(busy).toContain("2 open questions");
     expect(busy).toContain("1 overdue step");
   });
 
-  it("a finished tender shows its date, not a countdown, and a tender with no bond says so", () => {
+  it("a finished tender shows its date, not a countdown, and a tender with no guarantee says so", () => {
     const out = html({ finished: true, bond: { amount: null, expiry: null, status: "held" } });
-    expect(tileOf(out, "Closing")).toContain('data-tone="neutral"');
+    expect(tileOf(out, "Bid end date")).toContain('data-tone="neutral"');
     expect(out).toContain("no longer a deadline");
-    expect(out).not.toContain("Closes in");
-    expect(out).toContain("no bond recorded");
+    expect(out).not.toContain("Bid ends in");
+    expect(out).toContain("no guarantee recorded");
   });
 
-  it("is drawn on the Tender tab, whose header then does not repeat the closing date and the decision", () => {
-    expect(readFileSync(path.join(ROOT, "src/app/(app)/pipeline/[id]/TenderTab.tsx"), "utf8")).toContain("<TenderStatStrip");
-    expect(readFileSync(path.join(ROOT, "src/app/(app)/pipeline/[id]/OpportunityDetailClient.tsx"), "utf8")).toContain('tab === "tender" ? [] : tenderFacts');
+  it("is drawn on the tender Overview only, and the guarantee is named in the new words", () => {
+    expect(readFileSync(path.join(ROOT, "src/app/(app)/pipeline/[id]/TenderOverview.tsx"), "utf8")).toContain("<TenderStatStrip");
+    expect(readFileSync(path.join(ROOT, "src/app/(app)/pipeline/[id]/OpportunityDetailClient.tsx"), "utf8")).not.toContain("TenderStatStrip");
   });
 });
 

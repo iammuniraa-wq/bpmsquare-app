@@ -17,7 +17,7 @@ export type TenderSummary = {
 
 export type TenderBoardRow = OpportunityRow & { tender: TenderSummary };
 
-/** The whole tender block of one deal, for its Tender tab. */
+/** The whole tender block of one deal, for its Overview. */
 export type TenderView = {
   tender_no: string | null;
   issuer_name: string | null;

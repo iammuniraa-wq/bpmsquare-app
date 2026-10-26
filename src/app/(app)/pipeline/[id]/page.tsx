@@ -24,6 +24,7 @@ import { rfqPrefill } from "@/components/rfq/prefill";
 import { tenderRfqLines } from "@/lib/tender/rfqLines";
 import { boqOrderedLines } from "@/lib/tender/boq/lineSync";
 import { listBidVersions } from "@/lib/tender/bids/server";
+import { priceValidityDays } from "@/lib/tender/boq/price";
 import { listCalls } from "@/lib/tender/callsServer";
 import { isOutcomeStage, type OutcomeData } from "@/lib/tender/outcome";
 import { linesVersion } from "@/lib/sales/dealLines";
@@ -135,12 +136,13 @@ export default async function OpportunityDetailPage({ params, searchParams }: { 
           compactTop
         />
       ) : undefined}
-      activity={<RecordActivity objectType="opportunities" objectId={id} extraChangeLogTypes={tender ? ["opportunity_tenders"] : undefined} isAdmin={role === "admin"} />}
+      activity={<RecordActivity objectType="opportunities" objectId={id} extraChangeLogTypes={tender ? ["opportunity_tenders", "opportunity_competitors"] : undefined} isAdmin={role === "admin"} />}
       tender={tenderTab}
       initialTab={tenderTab && (wantedTab === "boq" || (wantedTab === "estimates" && tenderTab.estimates)) ? wantedTab : undefined}
       contractProject={contractProject}
       tenderRfq={tender && rfqOn ? { originLabel: `Deal ${opp.ref ?? opp.title}${account?.name ? ` for ${account.name}` : ""}`, lines: tenderRfqLines(lines as unknown as Parameters<typeof rfqPrefill>[0], (rl) => rfqStatus[rl]?.ref ?? null) } : null}
-      sourceEmail={tender ? <SourceEmailSlot objectType="opportunities" objectId={id} /> : undefined}
+      sourceEmail={tender ? <SourceEmailSlot objectType="opportunities" objectId={id} bare /> : undefined}
+      priceValidityDays={priceValidityDays(tenant?.config ?? null)}
     />
   );
 }

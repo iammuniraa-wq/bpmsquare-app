@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { c } from "@/lib/theme";
@@ -25,10 +25,13 @@ import StatusPill from "@/components/ui/StatusPill";
 import { Input, Select, Textarea } from "@/components/ui/Input";
 import RecordFacts from "@/components/page/RecordFacts";
 import ClosingChip from "@/components/tender/ClosingChip";
-import { TENDER_DECISION_LABEL, tenderIsLive } from "@/lib/tender/rules";
+import { tenderIsLive } from "@/lib/tender/rules";
 import type { TenderView } from "@/lib/tender/views";
 import type { ApprovalView } from "@/lib/tender/approval";
-import TenderTab from "./TenderTab";
+import TenderOverview from "./TenderOverview";
+import BidDecisionMarker from "./BidDecisionMarker";
+import BondChip from "@/components/tender/BondChip";
+import { guaranteeRecorded } from "@/lib/tender/bond";
 import BidsTab from "@/components/tender/BidsTab";
 import CallsPanel from "@/components/tender/CallsPanel";
 import { LogCallButton } from "@/components/tender/LogCall";
@@ -39,6 +42,8 @@ import DealRoom from "@/components/tender/DealRoom";
 import TenderLinesToolbar, { TenderLinesSaveBar } from "@/components/tender/TenderLinesToolbar";
 import type { ComposerLine } from "@/components/rfq/RfqComposer";
 import BoqTab from "@/components/tender/BoqTab";
+import CompetitorsTab from "@/components/tender/competitors/CompetitorsTab";
+import WhoWonPicker from "@/components/tender/competitors/WhoWonPicker";
 import EstimatesTab from "@/components/tender/EstimatesTab";
 import ContractProjectBanner, { type ContractProjectInfo } from "@/components/contractProjects/ContractProjectBanner";
 import { editorUom } from "@/lib/sales/uom";
@@ -49,7 +54,7 @@ import { editorUom } from "@/lib/sales/uom";
 // are state, not ?tab=. Tabs: Overview · Lines · Quotes · Related · Activity.
 
 type Member = { user_id: string; name: string | null; email: string | null };
-type Tab = "overview" | "tender" | "room" | "boq" | "estimates" | "lines" | "bids" | "quotes" | "related" | "activity";
+type Tab = "overview" | "room" | "competitors" | "boq" | "estimates" | "lines" | "bids" | "quotes" | "related" | "activity";
 
 /** A tender deal's extras (GCC tender deals): its tender block and what the countdown needs. Absent for every other deal. */
 export type TenderTabData = {
@@ -79,7 +84,7 @@ function toEditorLines(rows: OpportunityLine[]): Line[] {
   }));
 }
 
-export default function OpportunityDetailClient({ opp, accountName, contacts, initialLines, linesVersion, quotes, stages, members, products, pricingEnabled, standardQuotesEnabled, todayKey, currentUserId, related, activity, externalLine, tender, sourceEmail, tenderRfq, contractProject, initialTab }: {
+export default function OpportunityDetailClient({ opp, accountName, contacts, initialLines, linesVersion, quotes, stages, members, products, pricingEnabled, standardQuotesEnabled, todayKey, currentUserId, related, activity, externalLine, tender, sourceEmail, priceValidityDays, tenderRfq, contractProject, initialTab }: {
   /** Lets a server render (and its test) open on a given tab. The page never passes it. */
   initialTab?: Tab;
   opp: Opportunity & { stage_since: string };
@@ -102,10 +107,12 @@ export default function OpportunityDetailClient({ opp, accountName, contacts, in
   externalLine?: React.ReactNode;
   /** The Activity tab (Nova timeline + change history). */
   activity: React.ReactNode;
-  /** Set only for a tender deal: adds the Tender tab and the closing / decision facts. */
+  /** Set only for a tender deal: the tender Overview and the bid decision / bid end date / guarantee facts in the header. */
   tender?: TenderTabData | null;
   /** "From email" for a tender made from an Inbox message (renders nothing otherwise). */
   sourceEmail?: React.ReactNode;
+  /** Settings > Tenders "Price validity" in days, for the warnings before a bid is submitted. */
+  priceValidityDays?: number;
   /** Tender deal in a workspace with the RFQ module: the saved lines as RFQ starting lines, for "Request supplier prices" on the Lines tab. */
   tenderRfq?: { originLabel: string; lines: ComposerLine[] } | null;
   /** Contract projects (slice 5a): set for a tender in a workspace with the module. */
@@ -116,7 +123,11 @@ export default function OpportunityDetailClient({ opp, accountName, contacts, in
   const router = useRouter();
   const { confirm } = useFeel();
   const [pending, startTransition] = useTransition();
-  const [tab, setTab] = useState<Tab>(initialTab ?? (tender ? "tender" : initialLines.length === 0 && quotes.length === 0 ? "overview" : "lines"));
+  // The old Tender tab is the Overview now: a link or a saved state that still says "tender" lands there.
+  const startTab: Tab | undefined = (initialTab as string | undefined) === "tender" ? "overview" : initialTab;
+  const [tab, setTab] = useState<Tab>(startTab ?? (tender ? "overview" : initialLines.length === 0 && quotes.length === 0 ? "overview" : "lines"));
+  const tabsRef = useRef<HTMLDivElement>(null);
+  const shownTab = useRef<Tab>(tab);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [roomFilter, setRoomFilter] = useState<"all" | "questions">("all");
@@ -130,6 +141,15 @@ export default function OpportunityDetailClient({ opp, accountName, contacts, in
     mq.addEventListener("change", on);
     return () => mq.removeEventListener("change", on);
   }, []);
+  // The selected tab is always in view in the strip; on a phone, switching also brings the strip to the top so the new content is
+  // what the person sees, not the header they scrolled past.
+  useEffect(() => {
+    const strip = tabsRef.current;
+    if (!strip) return;
+    strip.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]')?.scrollIntoView({ inline: "center", block: "nearest" });
+    if (shownTab.current !== tab && narrow) strip.scrollIntoView({ block: "start" });
+    shownTab.current = tab;
+  }, [tab, narrow]);
 
   // Header fields, saved together.
   const [form, setForm] = useState({
@@ -273,8 +293,8 @@ export default function OpportunityDetailClient({ opp, accountName, contacts, in
 
   const tabs: { id: Tab; label: string; count?: number }[] = [
     { id: "overview", label: "Overview" },
-    ...(tender ? [{ id: "tender" as Tab, label: "Tender" }] : []),
     ...(tender?.room ? [{ id: "room" as Tab, label: "Room", count: tab === "room" ? 0 : roomUnread }] : []),
+    ...(tender ? [{ id: "competitors" as Tab, label: "Competitors" }] : []),
     ...(tender ? [{ id: "boq" as Tab, label: "BOQ" }] : []),
     ...(tender?.estimates ? [{ id: "estimates" as Tab, label: "Estimates" }] : []),
     { id: "lines", label: linesDirty ? "Lines •" : "Lines", count: lineCount },
@@ -286,20 +306,31 @@ export default function OpportunityDetailClient({ opp, accountName, contacts, in
 
   const outcomeLabel = closed ? `${opp.outcome}${opp.loss_reason ? ` (${LOSS_REASON_LABEL[opp.loss_reason]})` : ""}` : null;
 
-  // Tender deal: the closing date and the bid decision take the place of probability and owner in the header strip
-  // (the owner is on the Overview tab). The countdown stops once the bid is in or the tender is closed.
+  // Tender deal: the bid decision marker, the bid end date and the guarantee state take the place of probability and owner in the
+  // header, on every tab (the owner is on the Overview). The countdown stops once the bid is in or the tender is closed.
   const tenderLive = tender ? tenderIsLive(opp, tender.view) : false;
   const overdue = tender?.calls ? overdueSummary(tender.calls.calls, todayKey) : null;
+  const unpricedLines = initialLines.filter((l) => l.is_selected !== false && !l.break_of && !(Number(l.rate) > 0)).length;
   const tenderFacts = tender
     ? [
-        { label: "Closing", value: <ClosingChip closingAt={tender.view.closing_at} nowIso={tender.nowIso} timezone={tender.timezone} closed={!tenderLive} /> },
         {
-          label: "Decision",
-          value: tender.view.decision
-            ? <>{TENDER_DECISION_LABEL[tender.view.decision]}<div style={{ fontSize: 11, fontWeight: 400, color: c.hint }}>{[tender.view.decided_by_name, fmtDate(tender.view.decided_at)].filter((x) => x && x !== "—").join(" · ")}</div></>
-            : tender.approval?.pending
-              ? <>Awaiting approval<div style={{ fontSize: 11, fontWeight: 400, color: c.hint }}>{TENDER_DECISION_LABEL[tender.approval.pending.decision]} proposed</div></>
-              : <span style={{ color: c.hint, fontWeight: 400 }}>Not decided</span>,
+          label: "Bid decision",
+          value: <BidDecisionMarker opportunityId={opp.id} tender={tender.view} approval={tender.approval} onError={setError} onNotice={setNotice} />,
+        },
+        {
+          label: "Bid end date",
+          value: (
+            <>
+              <ClosingChip closingAt={tender.view.closing_at} nowIso={tender.nowIso} timezone={tender.timezone} closed={!tenderLive} />
+              {tender.view.closing_at && <div style={{ fontSize: 11, fontWeight: 400, color: c.hint, marginTop: 3 }}>{fmtDate(tender.view.closing_at)}</div>}
+            </>
+          ),
+        },
+        {
+          label: "Bid guarantee",
+          value: guaranteeRecorded({ bid_bond_amount: tender.view.bid_bond_amount ?? null, bid_bond_expiry: tender.view.bid_bond_expiry ?? null, bond_status: tender.view.bond_status ?? "held" })
+            ? <BondChip amount={tender.view.bid_bond_amount ?? null} expiry={tender.view.bid_bond_expiry ?? null} status={tender.view.bond_status ?? "held"} nowIso={tender.nowIso} timezone={tender.timezone} />
+            : <span style={{ color: c.hint, fontWeight: 400 }}>None recorded</span>,
         },
       ]
     : null;
@@ -312,7 +343,7 @@ export default function OpportunityDetailClient({ opp, accountName, contacts, in
       </div>
       <PageHeader
         title={opp.title}
-        subtitle={[opp.ref, accountName, opp.expected_close ? `close by ${fmtDate(opp.expected_close)}` : null].filter(Boolean).join(" · ")}
+        subtitle={[opp.ref, accountName, opp.expected_close ? `${tender ? "bid ends" : "close by"} ${fmtDate(opp.expected_close)}` : null].filter(Boolean).join(" · ")}
         badge={
           <>
             <StatusPill label={stageDefNow?.label ?? opp.stage} tone="blue" />
@@ -346,8 +377,7 @@ export default function OpportunityDetailClient({ opp, accountName, contacts, in
               </Select>
             ),
           },
-          // On the Tender tab the strip right below the tabs shows the closing countdown and the decision; the header does not repeat them.
-          ...((tab === "tender" ? [] : tenderFacts) ?? [
+          ...(tenderFacts ?? [
             { label: "Probability", value: <>{opp.probability ?? 0}%<div style={{ fontSize: 11, fontWeight: 400, color: c.hint }}>weighted {inr(weightedValue(Number(opp.amount || 0), opp.probability ?? 0))}</div></> },
             { label: "Owner", value: <>{memberName(opp.owner_id)}<div style={{ fontSize: 11, fontWeight: 400, color: c.hint }}>{daysBetween(opp.stage_since, todayKey)}d in {stageDefNow?.label ?? opp.stage}</div></> },
           ]),
@@ -360,18 +390,9 @@ export default function OpportunityDetailClient({ opp, accountName, contacts, in
       {error && <div role="alert" style={{ background: "var(--err-bg)", border: "1px solid var(--err-line)", borderRadius: 8, padding: "8px 12px", fontSize: 12.5, color: "var(--err-ink)", marginBottom: 10 }}>{error}</div>}
       {notice && <div role="status" style={{ background: "var(--tealbg)", borderRadius: 8, padding: "8px 12px", fontSize: 12.5, color: "var(--tealink)", marginBottom: 10 }}>{notice}</div>}
 
-      <div style={{ marginBottom: 14 }}>
+      <div ref={tabsRef} style={{ marginBottom: 14 }}>
         <Tabs tabs={tabs} value={tab} onChange={(id) => setTab(id as Tab)} />
       </div>
-
-      {tab === "tender" && tender && (
-        <TenderTab
-          opportunityId={opp.id} stage={opp.stage} tender={tender.view} approval={tender.approval} accounts={tender.accounts} nowIso={tender.nowIso} timezone={tender.timezone}
-          finished={!tenderLive} onError={setError} onNotice={setNotice}
-          outcome={tender.outcome ?? null} overdue={overdue} onOpenActivity={() => setTab("activity")} fmt={inr}
-          room={tender.room && !tender.room.pending ? { openQuestions: roomOpen, onOpen: (f) => { setRoomFilter(f); setTab("room"); } } : null}
-        />
-      )}
       {tab === "room" && tender?.room && (
         tender.room.pending ? (
           <div role="alert" data-guide="room.pending_migration" style={{ fontSize: 13, color: "var(--amberink)" }}>The Deal Room needs a database update (migration 0222). Ask your administrator to apply it.</div>
@@ -390,11 +411,21 @@ export default function OpportunityDetailClient({ opp, accountName, contacts, in
           />
         )
       )}
+      {tab === "competitors" && tender && <CompetitorsTab opportunityId={opp.id} canEdit={tender.boqEdit !== false} onError={setError} onNotice={setNotice} onChanged={() => router.refresh()} />}
       {tab === "boq" && tender && <BoqTab opportunityId={opp.id} canEdit={tender.boqEdit !== false} onError={setError} onNotice={setNotice} onLinesChanged={() => router.refresh()} />}
       {tab === "estimates" && tender?.estimates && <EstimatesTab opportunityId={opp.id} canEdit={tender.estimates.canEdit} onError={setError} />}
-      {tab === "tender" && tender && sourceEmail}
+      {tab === "overview" && tender && (
+        <TenderOverview
+          opportunityId={opp.id} tender={tender.view} approval={tender.approval} accounts={tender.accounts} members={members} contacts={contacts}
+          currentUserId={currentUserId} nowIso={tender.nowIso} timezone={tender.timezone} finished={!tenderLive} sourceEmail={sourceEmail}
+          deal={{ title: opp.title, description: opp.description ?? "", contact_id: opp.contact_id ?? "", owner_id: opp.owner_id ?? "", source: opp.source ?? "direct", team: (opp.team ?? []) as { user_id: string; role: string }[], created_at: opp.created_at, closed_at: opp.closed_at ?? null }}
+          outcome={tender.outcome ?? null} overdue={overdue} onOpenActivity={() => setTab("activity")} fmt={inr} unpricedLines={unpricedLines} canEdit={tender.boqEdit !== false}
+          room={tender.room && !tender.room.pending ? { openQuestions: roomOpen, onOpen: (f) => { setRoomFilter(f); setTab("room"); } } : null}
+          onError={setError} onNotice={setNotice}
+        />
+      )}
 
-      {tab === "overview" && (
+      {tab === "overview" && !tender && (
         <Card padding={18}>
           <div className="fg2">
             <Field label="Title" style={{ gridColumn: "1 / -1" }}><Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} /></Field>
@@ -476,7 +507,12 @@ export default function OpportunityDetailClient({ opp, accountName, contacts, in
       )}
 
       {tab === "bids" && tender?.bids && (
-        <BidsTab opportunityId={opp.id} data={{ ...tender.bids, working_total: linesTotal }} stage={opp.stage} outcome={opp.outcome} fmt={inr} onError={setError} onNotice={setNotice} onChanged={() => router.refresh()} />
+        <BidsTab opportunityId={opp.id} data={{ ...tender.bids, working_total: linesTotal }} stage={opp.stage} outcome={opp.outcome} fmt={inr} onError={setError} onNotice={setNotice} onChanged={() => router.refresh()}
+          checks={{
+            priceValidityDays: priceValidityDays ?? 180, unpricedFromLines: unpricedLines,
+            approvedGo: tender.approval ? tender.approval.standing?.decision === "go" : null,
+            guarantee: { amount: tender.view.bid_bond_amount ?? null, expiry: tender.view.bid_bond_expiry ?? null, status: tender.view.bond_status ?? "held" },
+          }} />
       )}
 
       {tab === "quotes" && (
@@ -529,7 +565,7 @@ export default function OpportunityDetailClient({ opp, accountName, contacts, in
                     {LOSS_REASONS.map((r) => <option key={r} value={r}>{LOSS_REASON_LABEL[r]}</option>)}
                   </Select>
                   {tender && closing.outcome === "lost" && (
-                    <Input value={closing.competitor ?? opp.competitor ?? ""} onChange={(e) => setClosing({ ...closing, competitor: e.target.value })} placeholder="Who won (required)" aria-label="Who won" data-guide="tender.close.competitor" style={{ marginBottom: 8 }} />
+                    <div style={{ marginBottom: 8 }}><WhoWonPicker opportunityId={opp.id} value={closing.competitor ?? opp.competitor ?? ""} onChange={(name) => setClosing({ ...closing, competitor: name })} guide="tender.close.competitor" /></div>
                   )}
                   <Input value={closing.loss_note} onChange={(e) => setClosing({ ...closing, loss_note: e.target.value })} placeholder="What happened (optional)" style={{ marginBottom: 8 }} />
                 </>

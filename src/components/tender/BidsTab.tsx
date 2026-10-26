@@ -6,6 +6,8 @@ import Button from "@/components/ui/Button";
 import Field from "@/components/ui/Field";
 import { Input, Select, Textarea } from "@/components/ui/Input";
 import InfoTip from "@/components/ui/InfoTip";
+import { useFeel } from "@/components/FeelProvider";
+import { submitWarnings, type SubmitFacts } from "@/lib/tender/submitChecks";
 import StatTile, { StatStrip } from "@/components/ui/StatTile";
 import { toneForDelta } from "@/lib/ui/tone";
 import SettingsSection from "@/components/settings/SettingsSection";
@@ -21,7 +23,7 @@ const fmtStamp = (s: string) => new Date(s).toLocaleString("en-GB", { day: "2-di
 const SHOWN_VERSIONS = 5;
 const SHOWN_LINES = 8;
 
-export default function BidsTab({ opportunityId, data: pageData, stage, outcome, fmt, onError, onNotice, onChanged, initialCompare = null, initialSubmitOpen = false }: {
+export default function BidsTab({ opportunityId, data: pageData, stage, outcome, fmt, onError, onNotice, onChanged, checks, initialCompare = null, initialSubmitOpen = false }: {
   opportunityId: string;
   data: BidsData;
   stage: string;
@@ -31,6 +33,11 @@ export default function BidsTab({ opportunityId, data: pageData, stage, outcome,
   onNotice: (message: string) => void;
   /** Called after a submit or a reopen is saved (and, for a submit, the versions reloaded), so the page's stage and header facts refresh. */
   onChanged?: () => void;
+  /**
+   * What the deal already knows, for the warnings shown before a bid is submitted or revised. Absent: no dialog. The warnings never
+   * block; the person can always go on.
+   */
+  checks?: Pick<SubmitFacts, "priceValidityDays" | "approvedGo" | "guarantee"> & { unpricedFromLines: number };
   /** Lets a server render (and its test) show a finished comparison. The page never passes it. */
   initialCompare?: { from: number; to: number; diff: BidDiff } | null;
   initialSubmitOpen?: boolean;
@@ -57,6 +64,30 @@ export default function BidsTab({ opportunityId, data: pageData, stage, outcome,
   const [cmp, setCmp] = useState(initialCompare);
   const [cmpBusy, setCmpBusy] = useState(false);
   const [more, setMore] = useState<Record<string, boolean>>({});
+
+  const { confirm } = useFeel();
+  // Warn, never block: list what looks unfinished and let the person go on. The BOQ's own totals are asked for when the deal has a
+  // BOQ (it knows stale prices); otherwise the saved lines tell how many have no price. A failed read just means fewer warnings.
+  async function warnThen(proceed: () => void) {
+    if (!checks) { proceed(); return; }
+    setBusy(true);
+    let unpriced: number | null = checks.unpricedFromLines;
+    let stale: number | null = null;
+    let days = checks.priceValidityDays;
+    try {
+      const res = await fetch(`/api/opportunities/${opportunityId}/boq`);
+      const j = res.ok ? await res.json().catch(() => null) : null;
+      if (j?.source && j.totals) {
+        unpriced = Number(j.totals.unpriced ?? 0);
+        stale = Number(j.totals.stale ?? 0);
+        if (Number(j.validity_days) > 0) days = Number(j.validity_days);
+      }
+    } catch { /* the saved lines answer for the unpriced count */ }
+    setBusy(false);
+    const warnings = submitWarnings({ unpriced, stale, priceValidityDays: days, approvedGo: checks.approvedGo, guarantee: checks.guarantee });
+    if (warnings.length > 0 && !(await confirm({ title: "Go on with this bid?", body: warnings.join("\n"), confirmLabel: "Go on" }))) return;
+    proceed();
+  }
 
   async function submit() {
     onError(""); onNotice("");
@@ -119,13 +150,13 @@ export default function BidsTab({ opportunityId, data: pageData, stage, outcome,
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
           {canSubmit && !askSubmit && (
             <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
-              <Button variant="primary" loading={busy} data-guide="tender.bid.submit" style={{ minHeight: 44 }} onClick={() => setAskSubmit(true)}>Submit bid</Button>
+              <Button variant="primary" loading={busy} data-guide="tender.bid.submit" style={{ minHeight: 44 }} onClick={() => void warnThen(() => setAskSubmit(true))}>Submit bid</Button>
               <InfoTip label="Submit bid">{TENDER_TIPS.bidSubmit}</InfoTip>
             </span>
           )}
           {canRevise && (
             <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
-              <Button variant="secondary" loading={busy} data-guide="tender.bid.revise" style={{ minHeight: 44 }} onClick={revise}>Revise bid</Button>
+              <Button variant="secondary" loading={busy} data-guide="tender.bid.revise" style={{ minHeight: 44 }} onClick={() => void warnThen(revise)}>Revise bid</Button>
               <InfoTip label="Revise bid">{TENDER_TIPS.bidRevise}</InfoTip>
             </span>
           )}

@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
   approverIds, canDecide, decidersFor, effectiveDecision, outcomeMessage, parseAction, parseProposal, proposalMessage, proposalProblem,
-  stageGuard, tenderSettings,
+  stageAfterApproval, stageGuard, tenderSettings, type ApprovalView,
 } from "./approval";
-import { BOND_WARN_DAYS, bondReminderLine, bondState, parseBondStatus } from "./bond";
+import { BOND_STATUS_LABEL, BOND_STEPS, BOND_WARN_DAYS, bondReminderLine, bondState, guaranteeRecorded, parseBondStatus } from "./bond";
+import { decisionMarker } from "./decisionMarker";
+import { submitWarnings, type SubmitFacts } from "./submitChecks";
 import { reminderMessage } from "./rules";
 
 const A = "a", B = "b", C = "c", GONE = "gone";
@@ -121,7 +123,7 @@ describe("the notes", () => {
   });
 });
 
-describe("the bid bond", () => {
+describe("the bid guarantee", () => {
   const TZ = "Asia/Riyadh";
   const now = new Date("2026-10-25T09:00:00Z");
   const held = (expiry: string | null, amount: number | null = 96000) => bondState({ bid_bond_amount: amount, bid_bond_expiry: expiry, bond_status: "held" }, now, TZ);
@@ -132,11 +134,11 @@ describe("the bid bond", () => {
 
   it("warns amber inside 30 days and red once expired", () => {
     expect(held("2027-03-01").tone).toBe("ok");
-    expect(held("2026-11-24")).toMatchObject({ tone: "amber", days: BOND_WARN_DAYS, label: "Expires in 30 days" });
-    expect(held("2026-10-26")).toMatchObject({ tone: "amber", label: "Expires tomorrow" });
-    expect(held("2026-10-25")).toMatchObject({ tone: "red", label: "Expires today" });
-    expect(held("2026-10-20")).toMatchObject({ tone: "red", label: "Expired 5 days ago" });
-    expect(held(null)).toMatchObject({ tone: "ok", label: "Held" });
+    expect(held("2026-11-24")).toMatchObject({ tone: "amber", days: BOND_WARN_DAYS, label: "Issued, expires in 30 days" });
+    expect(held("2026-10-26")).toMatchObject({ tone: "amber", label: "Issued, expires tomorrow" });
+    expect(held("2026-10-25")).toMatchObject({ tone: "red", label: "Issued, expires today" });
+    expect(held("2026-10-20")).toMatchObject({ tone: "red", label: "Issued, expired 5 days ago" });
+    expect(held(null)).toMatchObject({ tone: "ok", label: "Issued" });
   });
 
   it("a released bond stops the warning, even one long past its expiry", () => {
@@ -146,17 +148,102 @@ describe("the bid bond", () => {
 
   it("the reminder carries a bond line only while the bond is held", () => {
     const facts = { bid_bond_amount: 96000, bid_bond_currency: "SAR", bid_bond_expiry: "2027-01-30" };
-    expect(bondReminderLine({ ...facts, bond_status: "held" })).toBe("Bid bond: SAR 96,000, valid to 2027-01-30");
+    expect(bondReminderLine({ ...facts, bond_status: "held" })).toBe("Bid guarantee: SAR 96,000, valid to 2027-01-30");
     expect(bondReminderLine({ ...facts, bond_status: "released" })).toBeNull();
     expect(bondReminderLine({ ...facts, bid_bond_amount: null, bond_status: "held" })).toBeNull();
-    const m = reminderMessage({ title: "T", tenderNo: null, issuer: null, closingAt: "2026-10-30T09:00:00Z", days: 3, timezone: TZ, link: null, bondLine: "Bid bond: SAR 96,000" });
-    expect(m.text).toContain("Bid bond: SAR 96,000");
-    expect(reminderMessage({ title: "T", tenderNo: null, issuer: null, closingAt: "2026-10-30T09:00:00Z", days: 3, timezone: TZ, link: null, bondLine: null }).text).not.toContain("Bid bond");
+    const m = reminderMessage({ title: "T", tenderNo: null, issuer: null, closingAt: "2026-10-30T09:00:00Z", days: 3, timezone: TZ, link: null, bondLine: "Bid guarantee: SAR 96,000" });
+    expect(m.text).toContain("Bid guarantee: SAR 96,000");
+    expect(reminderMessage({ title: "T", tenderNo: null, issuer: null, closingAt: "2026-10-30T09:00:00Z", days: 3, timezone: TZ, link: null, bondLine: null }).text).not.toContain("Bid guarantee");
   });
 
   it("reads an unknown or missing status as held", () => {
     expect(parseBondStatus(undefined)).toBe("held");
     expect(parseBondStatus("released")).toBe("released");
     expect(parseBondStatus("weird")).toBe("held");
+    for (const s of ["requested", "issued", "submitted"]) expect(parseBondStatus(s)).toBe(s);
+  });
+
+  it("has four visible states, and the legacy held reads as Issued", () => {
+    expect(BOND_STATUS_LABEL).toMatchObject({ requested: "Requested", issued: "Issued", submitted: "Submitted", released: "Released", held: "Issued" });
+    expect(BOND_STEPS).toEqual(["requested", "issued", "submitted"]);
+  });
+
+  it("each state is named in the chip; Requested is amber on its own, the others are teal until the expiry draws near", () => {
+    const at = (status: "requested" | "issued" | "submitted", expiry: string | null = "2027-06-01") => bondState({ bid_bond_amount: 96000, bid_bond_expiry: expiry, bond_status: status }, now, TZ);
+    expect(at("requested")).toMatchObject({ tone: "amber", label: "Requested" });
+    expect(at("issued")).toMatchObject({ tone: "ok", label: "Issued" });
+    expect(at("submitted")).toMatchObject({ tone: "ok", label: "Submitted" });
+    expect(at("submitted", "2026-11-01")).toMatchObject({ tone: "amber", label: "Submitted, expires in 7 days" });
+  });
+
+  it("the default 'Requested' with nothing recorded is not a guarantee; moving it on is", () => {
+    const g = (status: Parameters<typeof guaranteeRecorded>[0]["bond_status"]) => guaranteeRecorded({ bid_bond_amount: null, bid_bond_expiry: null, bond_status: status });
+    expect(g("requested")).toBe(false);
+    expect(g("held")).toBe(false);
+    expect(g("issued")).toBe(true);
+    expect(g("submitted")).toBe(true);
+    expect(bondState({ bid_bond_amount: null, bid_bond_expiry: null, bond_status: "requested" }, now, TZ).tone).toBe("none");
+  });
+});
+
+describe("what an approved decision does to the deal", () => {
+  it("a go from Received or Bid/No-bid goes to Estimating, a no-go to No-bid", () => {
+    for (const stage of ["received", "bid_no_bid"]) {
+      expect(stageAfterApproval({ stage, outcome: "open", decision: "go" })).toBe("estimating");
+      expect(stageAfterApproval({ stage, outcome: "open", decision: "no_go" })).toBe("no_bid");
+    }
+  });
+
+  it("never moves a deal that is already bidding or closed", () => {
+    expect(stageAfterApproval({ stage: "estimating", outcome: "open", decision: "go" })).toBeNull();
+    expect(stageAfterApproval({ stage: "submitted", outcome: "open", decision: "no_go" })).toBeNull();
+    expect(stageAfterApproval({ stage: "bid_no_bid", outcome: "dropped", decision: "go" })).toBeNull();
+  });
+
+  it("the stage message points at the header, not at a tab", () => {
+    expect(stageGuard({ from: "bid_no_bid", to: "estimating", effective: null })).toContain("Bid decision at the top of the deal");
+  });
+});
+
+describe("the bid decision marker", () => {
+  const entry = (decision: "go" | "no_go") => ({ id: "a", decision, reason: "r", status: "pending" as const, requested_by_name: "S. Khan", requested_at: "2026-10-20T00:00:00Z", decided_by_name: null, decided_at: null, comment: null });
+  const view = (over: Partial<ApprovalView> = {}): ApprovalView => ({ standing: null, recordedBefore: false, pending: null, canDecide: false, proposalBlocked: null, history: [], ...over });
+
+  it("no proposal is Pending (plain)", () => {
+    expect(decisionMarker(view(), null)).toMatchObject({ key: "pending", label: "Pending", tone: "neutral" });
+  });
+
+  it("a waiting proposal is Awaiting approval (amber) and says which decision and who", () => {
+    expect(decisionMarker(view({ pending: { ...entry("go"), mine: false } }), null)).toMatchObject({ key: "awaiting", label: "Awaiting approval", tone: "warn", sub: "Go proposed by S. Khan" });
+  });
+
+  it("the approved decision stands: Go is teal, No-go is red", () => {
+    expect(decisionMarker(view({ standing: { ...entry("go"), status: "approved", decided_by_name: "A. Nasser" } }), "go")).toMatchObject({ key: "go", label: "Go", tone: "good", sub: "approved by A. Nasser" });
+    expect(decisionMarker(view({ standing: { ...entry("no_go"), status: "approved" } }), "no_go")).toMatchObject({ key: "no_go", label: "No-go", tone: "bad" });
+  });
+
+  it("a decision saved before approval existed, or while migration 0221 is pending, still shows", () => {
+    expect(decisionMarker(null, "go")).toMatchObject({ key: "go", sub: "recorded" });
+    expect(decisionMarker(view({ recordedBefore: true }), "no_go")).toMatchObject({ key: "no_go", sub: "recorded" });
+    expect(decisionMarker(null, null).key).toBe("pending");
+  });
+});
+
+describe("the warnings before a bid goes in", () => {
+  const base: SubmitFacts = { unpriced: 0, stale: 0, priceValidityDays: 180, approvedGo: true, guarantee: { amount: 96000, expiry: "2027-01-30", status: "submitted" } };
+
+  it("nothing to say when the bid looks finished", () => {
+    expect(submitWarnings(base)).toEqual([]);
+  });
+
+  it("lists each thing that applies, in plain words", () => {
+    const w = submitWarnings({ unpriced: 3, stale: 1, priceValidityDays: 90, approvedGo: false, guarantee: { amount: 96000, expiry: null, status: "issued" } });
+    expect(w).toEqual(["3 lines have no price.", "1 price is older than 90 days.", "No approved go decision.", "The bid guarantee is not yet marked Submitted."]);
+  });
+
+  it("raises only what it knows: unknown counts and a pending approval table are silent, and no guarantee is not a warning", () => {
+    expect(submitWarnings({ ...base, unpriced: null, stale: null, approvedGo: null })).toEqual([]);
+    expect(submitWarnings({ ...base, guarantee: { amount: null, expiry: null, status: "requested" } })).toEqual([]);
+    expect(submitWarnings({ ...base, guarantee: { amount: 1, expiry: null, status: "released" } })).toEqual([]);
   });
 });

@@ -8,7 +8,7 @@ import Field from "@/components/ui/Field";
 import StatusPill from "@/components/ui/StatusPill";
 import { Textarea } from "@/components/ui/Input";
 import InfoTip from "@/components/ui/InfoTip";
-import { APPROVAL_STATUS_LABEL, PROPOSAL_STAGES, type ApprovalEntry, type ApprovalView } from "@/lib/tender/approval";
+import { APPROVAL_STATUS_LABEL, type ApprovalEntry, type ApprovalView } from "@/lib/tender/approval";
 import { TENDER_DECISION_LABEL, type TenderDecision } from "@/lib/tender/rules";
 import { TENDER_TIPS } from "@/lib/tender/tips";
 import type { TenderView } from "@/lib/tender/views";
@@ -35,13 +35,14 @@ function Entry({ e }: { e: ApprovalEntry }) {
  * approves or rejects with a comment. The server enforces the rest (who may decide, and that the stage cannot move on
  * without the approval); this component only mirrors it. Decisions saved before approval existed stay readable.
  */
-export default function BidDecision({ opportunityId, stage, tender, approval, onError, onNotice }: {
+export default function BidDecision({ opportunityId, tender, approval, onError, onNotice, onDone }: {
   opportunityId: string;
-  stage: string;
   tender: TenderView;
   approval: ApprovalView | null;
   onError: (message: string) => void;
   onNotice: (message: string) => void;
+  /** Called after a proposal, approval, rejection or withdrawal was saved (the marker closes its panel). */
+  onDone?: () => void;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -55,8 +56,12 @@ export default function BidDecision({ opportunityId, stage, tender, approval, on
       const res = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
       const j = await res.json().catch(() => ({}));
       if (!res.ok) { onError(j.error ?? "Could not save"); return; }
-      onNotice(ok);
+      // An approved decision moves the deal by itself; say where it went (or why it did not).
+      if (j.stage_moved) onNotice(`${ok}. The deal moved to ${j.stage_moved === "no_bid" ? "No-bid" : "Estimating"}`);
+      else if (j.stage_error) { onNotice(ok); onError(`The deal was not moved: ${j.stage_error}`); }
+      else onNotice(ok);
       after?.();
+      onDone?.();
       router.refresh();
     });
   }
@@ -66,11 +71,7 @@ export default function BidDecision({ opportunityId, stage, tender, approval, on
   }
 
   const base = `/api/opportunities/${opportunityId}/tender/approval`;
-  const inDecisionStage = PROPOSAL_STAGES.includes(stage);
   const standing = approval.standing;
-  const next = standing && inDecisionStage
-    ? standing.decision === "go" ? { stage: "estimating", label: "Move to Estimating" } : { stage: "no_bid", label: "Move to No-bid" }
-    : null;
 
   return (
     <div data-guide="tender.decision" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
@@ -78,14 +79,6 @@ export default function BidDecision({ opportunityId, stage, tender, approval, on
         <div data-guide="tender.decision.standing" style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           <div style={{ fontSize: 11.5, fontWeight: 700, color: c.hint, textTransform: "uppercase", letterSpacing: 0.4 }}>Approved</div>
           <Entry e={standing} />
-          {next && (
-            <div>
-              <Button variant="primary" loading={pending} data-guide="tender.decision.advance"
-                onClick={() => call(`/api/opportunities/${opportunityId}`, "PATCH", { stage: next.stage }, `Moved: ${next.label.replace("Move to ", "")}`)}>
-                {next.label}
-              </Button>
-            </div>
-          )}
         </div>
       )}
 

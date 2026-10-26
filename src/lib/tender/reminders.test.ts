@@ -57,7 +57,7 @@ describe("closing-date reminders", () => {
     expect(r).toMatchObject({ tenants: 2, considered: 1, sent: 1, failed: 0 });
     expect(sent).toHaveLength(1);
     expect(sent[0].to.sort()).toEqual(["owner@kamco.test", "team@kamco.test"]);
-    expect(sent[0].subject).toBe("Tender closes in 7 days: ARB-1 · Aramco");
+    expect(sent[0].subject).toBe("Bid ends in 7 days: ARB-1 · Aramco");
     expect(sent[0].text).toContain("https://kamco.example.com/pipeline/");
     expect(sent[0].from).toContain("kamco@");
     expect(marked()).toEqual([7]);
@@ -72,7 +72,7 @@ describe("closing-date reminders", () => {
 
   it("then 3 days, 1 day and the day itself, each once", async () => {
     for (const iso of ["2026-10-23T05:00:00Z", "2026-10-27T05:00:00Z", "2026-10-29T05:00:00Z", "2026-10-30T02:00:00Z", "2026-10-30T06:00:00Z", "2026-10-31T05:00:00Z"]) await run(iso);
-    expect(sent.map((s) => s.subject.replace(/: .*/, ""))).toEqual(["Tender closes in 7 days", "Tender closes in 3 days", "Tender closes tomorrow", "Tender closes today"]);
+    expect(sent.map((s) => s.subject.replace(/: .*/, ""))).toEqual(["Bid ends in 7 days", "Bid ends in 3 days", "Bid ends tomorrow", "Bid ends today"]);
     expect(marked()).toEqual([7, 3, 1, 0]);
   });
 
@@ -152,14 +152,14 @@ describe("closing-date reminders", () => {
     it("a held bond is mentioned in the reminder", async () => {
       Object.assign(db.rows("opportunity_tenders")[0], bond, { bond_status: "held" });
       await run("2026-10-23T05:00:00Z");
-      expect(sent[0].text).toContain("Bid bond: SAR 96,000, valid to 2027-01-30");
+      expect(sent[0].text).toContain("Bid guarantee: SAR 96,000, valid to 2027-01-30");
     });
 
     it("a released bond is not mentioned", async () => {
       Object.assign(db.rows("opportunity_tenders")[0], bond, { bond_status: "released" });
       await run("2026-10-23T05:00:00Z");
       expect(sent).toHaveLength(1);
-      expect(sent[0].text).not.toContain("Bid bond");
+      expect(sent[0].text).not.toContain("Bid guarantee");
     });
 
     it("while the bond columns are pending the reminder still goes, without a bond line", async () => {
@@ -167,7 +167,7 @@ describe("closing-date reminders", () => {
       db.missingColumns.opportunity_tenders = new Set(["bond_status", "bid_bond_amount", "bid_bond_currency", "bid_bond_expiry"]);
       const r = await run("2026-10-23T05:00:00Z");
       expect(r).toMatchObject({ sent: 1, failed: 0, errors: [] });
-      expect(sent[0].text).not.toContain("Bid bond");
+      expect(sent[0].text).not.toContain("Bid guarantee");
     });
   });
 });

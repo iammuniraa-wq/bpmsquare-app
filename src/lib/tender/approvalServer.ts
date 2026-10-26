@@ -57,7 +57,7 @@ const entry = (r: ApprovalRow, names: Map<string, string>): ApprovalEntry => ({
   decided_by_name: r.decided_by ? names.get(r.decided_by) ?? null : null, decided_at: r.decided_at, comment: r.decision_comment,
 });
 
-/** What the Tender tab is given, for one person looking at one deal. `null` when the approval table is not there yet. */
+/** What the Overview is given, for one person looking at one deal. `null` when the approval table is not there yet. */
 export async function buildApprovalView(
   admin: SupabaseClient,
   args: { tenantId: string; userId: string; config: Pick<TenantConfig, "tender"> | null | undefined; deal: { stage: string; outcome: string }; tender: Pick<TenderRow, "decision" | "decision_reason" | "decided_by" | "decided_at">; opportunityId: string },
