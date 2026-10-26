@@ -496,10 +496,19 @@ export default function NovaSidebar({ onNavigate }: { onNavigate?: () => void })
 // which workspace the tenant is looking at.
 function NovaHeader({ loaded, needCount }: { loaded: boolean; needCount: number }) {
   const tenant = useTenant();
+  // A wide wordmark logo is unreadable in a 28 px square; once its real shape is known it keeps its shape on a light plate.
+  const [logoWide, setLogoWide] = useState(false);
   return (
     <div style={{ padding: "16px 16px 12px", display: "flex", alignItems: "center", gap: 10, borderBottom: "1px solid var(--nova-line-soft)" }}>
       {tenant?.logo_url ? (
-        <img src={tenant.logo_url} alt={tenant.name} style={{ width: 28, height: 28, borderRadius: 7, objectFit: "contain", flexShrink: 0 }} />
+        <img
+          src={tenant.logo_url}
+          alt={tenant.name}
+          onLoad={(e) => setLogoWide(e.currentTarget.naturalWidth / Math.max(1, e.currentTarget.naturalHeight) > 1.6)}
+          style={logoWide
+            ? { height: 34, width: "auto", maxWidth: 120, borderRadius: 4, objectFit: "contain", flexShrink: 0, background: "#fff", padding: "3px 6px" }
+            : { width: 28, height: 28, borderRadius: 7, objectFit: "contain", flexShrink: 0 }}
+        />
       ) : (
         <Logo size={28} />
       )}
