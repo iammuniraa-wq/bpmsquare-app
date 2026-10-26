@@ -10,7 +10,13 @@ import { missingRfqLines, missingReasonText } from "./rfqLines";
 import {
   allocationSummary, bidIsLocked, buildUpName, cleanShare, costMetaOf, costPerUnit, isLinkStale, listOutputs, lineCostAsOf, missingCosts, outputCost,
   overAllocated, parseOutput, prefillParams, rateFromCost, resourceForComponent, RESOURCE_FOR_COMPONENT, splitShares, sumPerUnit, type EstLine,
+  canonUnit, isRateBuildUp, measuredQuantity, needsQuantityConfirm, quantityCheck, quantityConfirmCopy, quantityNote, quantityView,
 } from "./rules";
+import { TILES_FLOOR_STARTER } from "@/lib/estimator/starterTemplatesTiles";
+import { STARTER_TEMPLATES } from "@/lib/estimator/starterTemplates";
+import { CIVIL_STARTERS } from "@/lib/estimator/starterTemplatesCivil";
+import { PIPES_STARTERS } from "@/lib/estimator/starterTemplatesPipes";
+import { PRECAST_ELEMENTS_STARTERS } from "@/lib/estimator/starterTemplatesPrecast";
 
 // Estimates inside the tender flow (GCC tender deals, slice 3c-1): the rules, in plain numbers.
 
@@ -418,6 +424,133 @@ describe("a bid version of lines priced from an estimate", () => {
     const s = buildSnapshot([dealLine], { priceSource: new Map([["d1", PRICE_SOURCE_LABEL.estimate]]) });
     expect(s.lines[0]).toEqual({ key: "no:1.3", item_no: "1.3", description: "HDPE pipe 110mm", unit: "m", qty: 120, rate: 45.89, amount: 5506.8, product_ref: null, price_source: "Tender estimate" });
     expect(JSON.stringify(s)).not.toMatch(/41\.7167|EST-0007|5006|applied_cost|unit_cost|markup/);
+  });
+});
+
+describe("the quantity an estimate is made for (live test 2026-10-26: floor tiles, 120 m2, estimate left at its 17.5 m2 default)", () => {
+  const floor = TILES_FLOOR_STARTER.inputs;
+
+  it("spells one unit one way", () => {
+    for (const u of ["m2", "M²", "sq m", "sqm", "Sq.M", "square metres"]) expect(canonUnit(u), u).toBe("m2");
+    for (const u of ["m3", "m³", "cum"]) expect(canonUnit(u), u).toBe("m3");
+    for (const u of ["m", "mtr", "Metres", "lm"]) expect(canonUnit(u), u).toBe("m");
+    expect(canonUnit("Nos")).toBe("no");
+    expect(canonUnit(null)).toBe("");
+  });
+
+  it("the Floor tiles template has no input in m2, so a floor area becomes a rectangle of exactly that area inside the ranges", () => {
+    const p = prefillParams(floor, "m2", 120);
+    expect(p).toEqual({ room_length_m: 12, room_width_m: 10 });
+    expect(p.room_length_m * p.room_width_m).toBe(120);
+    // The same through the other spellings of the unit, and with a decimal quantity.
+    expect(prefillParams(floor, "m²", 120)).toEqual(p);
+    const odd = prefillParams(floor, "sqm", 77.77);
+    expect(Math.abs(odd.room_length_m * odd.room_width_m - 77.77) / 77.77).toBeLessThan(0.0001);
+  });
+
+  it("never invents a value outside an input's range: a small floor tries a narrower room, an impossible one fills nothing", () => {
+    expect(prefillParams(floor, "m2", 2)).toEqual({ room_length_m: 0.5, room_width_m: 4 });
+    expect(prefillParams(floor, "m2", 0.1)).toEqual({});
+    expect(prefillParams(floor, "m2", 20000)).toEqual({});
+    for (const q of [0.3, 0.5, 1, 7, 33, 120, 999, 9999, 10000, 10001]) {
+      const p = prefillParams(floor, "m2", q);
+      if (Object.keys(p).length === 0) continue;
+      expect(p.room_length_m).toBeGreaterThanOrEqual(0.5); expect(p.room_length_m).toBeLessThanOrEqual(100);
+      expect(p.room_width_m).toBeGreaterThanOrEqual(0.5); expect(p.room_width_m).toBeLessThanOrEqual(100);
+    }
+  });
+
+  it("does it only for an area, only with exactly one room length and one room width in metres, and not for a room that starts L-shaped", () => {
+    expect(prefillParams(floor, "m", 120)).toEqual({});
+    expect(prefillParams(floor, "m3", 120)).toEqual({});
+    expect(prefillParams(floor.filter((i) => i.key !== "room_width_m"), "m2", 120)).toEqual({});
+    expect(prefillParams(floor.map((i) => (i.key === "cutout_length_m" ? { ...i, default: 2 } : i)), "m2", 120)).toEqual({});
+    // A tile size, a skirting height or a door are never the plan of the room.
+    expect(prefillParams([{ key: "tile_length_mm", label: "Tile length", type: "number", unit: "mm" }, { key: "door_width_m", label: "Door", type: "number", unit: "m" }], "m2", 120)).toEqual({});
+  });
+
+  it("an input named like a quantity is not filled with an area when it is a length", () => {
+    expect(prefillParams([{ key: "length", label: "Length", type: "number", unit: "m" }], "m2", 120)).toEqual({});
+    expect(prefillParams([{ key: "quantity", label: "Quantity", type: "number" }], "m2", 120)).toEqual({ quantity: 120 });
+  });
+
+  it("reads what an estimate is made for from its own inputs: the unit input, a quantity input, or the plan area less a cut-out", () => {
+    expect(measuredQuantity(floor, {}, "m2")).toBe(17.5);
+    expect(measuredQuantity(floor, { room_length_m: 12, room_width_m: 10 }, "m2")).toBe(120);
+    expect(measuredQuantity(floor, { room_length_m: 12, room_width_m: 10, cutout_length_m: 2, cutout_width_m: 3 }, "m²")).toBe(114);
+    expect(measuredQuantity([{ key: "wall_length", type: "number", unit: "m", default: 40 }], { wall_length: 120 }, "m")).toBe(120);
+    expect(measuredQuantity([{ key: "wall_length", type: "number", unit: "m", default: 40 }], {}, "m")).toBe(40);
+    expect(measuredQuantity([{ key: "quantity", type: "number", default: 3 }], { quantity: "7" }, "lot")).toBe(7);
+  });
+
+  it("says unknown, never a guess, when it cannot tell", () => {
+    expect(measuredQuantity([{ key: "finish", type: "select" }], {}, "m2")).toBeNull();
+    expect(measuredQuantity(floor, {}, "no")).toBeNull();
+    expect(measuredQuantity(floor, {}, null)).toBeNull();
+    expect(measuredQuantity([{ key: "a", type: "number", unit: "m" }, { key: "b", type: "number", unit: "m" }], {}, "m")).toBeNull();
+    expect(measuredQuantity(floor, { room_length_m: 0 }, "m2")).toBeNull();
+    expect(quantityCheck({ inputs: null, params: {}, boqUnit: "m2", boqQty: 120 })).toMatchObject({ status: "unknown", measured: null });
+    expect(quantityCheck({ inputs: floor, params: {}, boqUnit: "m2", boqQty: 0 }).status).toBe("unknown");
+  });
+
+  it("matches within 1 percent and is a mismatch beyond it", () => {
+    const at = (m: number) => quantityCheck({ inputs: [{ key: "qty", type: "number", unit: "m2" }], params: { qty: m }, boqUnit: "m2", boqQty: 120 }).status;
+    expect(at(120)).toBe("matches");
+    expect(at(121.2)).toBe("matches");
+    expect(at(118.8)).toBe("matches");
+    expect(at(121.3)).toBe("mismatch");
+    expect(at(17.5)).toBe("mismatch");
+    expect(quantityCheck({ inputs: floor, params: {}, boqUnit: "m2", boqQty: 120 })).toEqual({ status: "mismatch", measured: 17.5, boq_qty: 120, uom: "m2" });
+  });
+
+  it("only a whole estimate, all of it, drawn on by one line is a rate build-up", () => {
+    const l = { output: "total", basis: "total", share_pct: 100 };
+    expect(isRateBuildUp(l, 1)).toBe(true);
+    expect(isRateBuildUp(l, 2)).toBe(false);
+    expect(isRateBuildUp({ ...l, share_pct: 50 }, 1)).toBe(false);
+    expect(isRateBuildUp({ ...l, basis: "per_unit" }, 1)).toBe(false);
+    expect(isRateBuildUp({ ...l, output: "wbs:2" }, 1)).toBe(false);
+  });
+
+  it("asks a person to confirm a build-up not yet used unless its quantity is known to match; a rate already in use is not asked again", () => {
+    const c = (status: "matches" | "mismatch" | "unknown") => ({ status, measured: status === "unknown" ? null : 17.5, boq_qty: 120, uom: "m2" });
+    expect(needsQuantityConfirm(c("matches"), false)).toBe(false);
+    expect(needsQuantityConfirm(c("unknown"), false)).toBe(true);
+    expect(needsQuantityConfirm(c("mismatch"), false)).toBe(true);
+    expect(needsQuantityConfirm(c("unknown"), true)).toBe(false);
+    expect(needsQuantityConfirm(c("mismatch"), true)).toBe(false);
+  });
+
+  it("the words: the plain sentence for a quantity that was not filled in, both numbers for a mismatch", () => {
+    const unknown = { status: "unknown" as const, measured: null, boq_qty: 120, uom: "m2" };
+    const mismatch = { status: "mismatch" as const, measured: 17.5, boq_qty: 120, uom: "m2" };
+    expect(quantityNote(unknown, false)).toBe("The quantity was not filled in automatically. Make this estimate for 120 m2, then confirm.");
+    expect(quantityNote(unknown, true)).toBeNull();
+    expect(quantityNote(mismatch, false)).toBe("This estimate is for 17.5 m2, the BOQ line is 120 m2. Make this estimate for 120 m2, then confirm.");
+    expect(quantityNote(mismatch, true)).toBe("This estimate is for 17.5 m2, the BOQ line is 120 m2.");
+    expect(quantityNote({ ...mismatch, status: "matches", measured: 120 }, false)).toBeNull();
+    expect(quantityNote({ ...unknown, uom: null, boq_qty: 1200.5 }, false)).toBe("The quantity was not filled in automatically. Make this estimate for 1,200.5, then confirm.");
+    const v = quantityView(unknown, false, "1.1 Supply and lay tiles");
+    expect(v).toMatchObject({ needs_confirm: true, item: "1.1 Supply and lay tiles" });
+    expect(quantityConfirmCopy([v])).toEqual({ title: "Is this estimate for 120 m2?", body: v.note, confirmLabel: "Yes, it is for 120 m2" });
+    expect(quantityConfirmCopy([v, v]).title).toContain("2 estimates");
+  });
+
+  it("no starter template is ever filled outside its input ranges, whatever the unit and quantity", () => {
+    const all = [...STARTER_TEMPLATES, TILES_FLOOR_STARTER, ...CIVIL_STARTERS, ...PIPES_STARTERS, ...PRECAST_ELEMENTS_STARTERS];
+    for (const t of all) {
+      for (const unit of ["m", "m2", "m3", "no", "lot", "kg", "ton"]) {
+        for (const q of [0.5, 3, 120, 4000, 90000]) {
+          const p = prefillParams(t.inputs, unit, q);
+          for (const [key, value] of Object.entries(p)) {
+            const def = t.inputs.find((i) => i.key === key)!;
+            expect(def.type, `${t.name} ${key}`).toBe("number");
+            if (def.min != null) expect(value, `${t.name} ${key}`).toBeGreaterThanOrEqual(def.min);
+            if (def.max != null) expect(value, `${t.name} ${key}`).toBeLessThanOrEqual(def.max);
+          }
+        }
+      }
+    }
   });
 });
 

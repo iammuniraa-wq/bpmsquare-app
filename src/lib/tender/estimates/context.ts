@@ -6,8 +6,8 @@ import { loadOpportunity } from "@/lib/sales/opportunityServer";
 import { tenderForDeal } from "@/lib/tender/server";
 import type { ComposerLine } from "@/components/rfq/RfqComposer";
 import { estimateOriginLabel, missingRfqLines } from "./rfqLines";
-import { bidIsLocked, isLinkStale, isUuid, missingCosts } from "./rules";
-import { loadDealEstimate, loadLinesFor, loadLinks } from "./server";
+import { bidIsLocked, isLinkStale, isUuid, missingCosts, type QuantityView } from "./rules";
+import { loadDealEstimate, loadLinesFor, loadLinks, quantityChecks } from "./server";
 import { rfqConfig } from "@/lib/rfq/types";
 
 // What the estimate screens need to know about the tender deal an estimate belongs to (GCC tender deals, slice 3c-1). Both functions
@@ -28,6 +28,8 @@ export async function tenderDealContext(admin: SupabaseClient, tenantId: string,
 export type EstimateBoqLink = {
   link_id: string; boq_id: string; item: string; qty: number; uom: string | null;
   waiting: boolean; stale: boolean; needs_review: boolean; review_note: string | null; output_label: string;
+  /** Only for a rate build-up: is this estimate made for the quantity of the BOQ line? Absent = nothing to say. */
+  quantity?: QuantityView | null;
 };
 
 export type EstimateTenderContext = {
@@ -65,6 +67,7 @@ export async function estimateTenderContext(
   const estLines = lines.get(estimate.id) ?? [];
   const miss = estimate.standard_quote_id ? [] : missingCosts(estLines, today, validDays);
   const byId = new Map(estLines.map((l) => [l.id, l]));
+  const quantities = await quantityChecks(admin, tenantId, deal.id, linksRes.rows);
   return {
     deal, bid_locked: bidIsLocked(deal.stage), valid_days: validDays, rfq_enabled: features?.rfq === true, locked: !!estimate.standard_quote_id,
     origin_label: estimateOriginLabel(estimate.ref, deal.ref),
@@ -73,6 +76,7 @@ export async function estimateTenderContext(
       return {
         link_id: l.id, boq_id: l.boq_line_id, item: b ? `${b.item_no ?? `row ${b.row_no}`} ${b.file_description}`.trim().slice(0, 80) : "A BOQ line",
         qty: b?.file_qty ?? 0, uom: b?.file_uom ?? null, waiting: !l.applied_at, stale: isLinkStale(l, head.updated_at), needs_review: l.needs_review, review_note: l.review_note,
+        quantity: quantities.get(l.id) ?? null,
         output_label: l.output === "total" ? "Whole estimate" : l.output.startsWith("line:") ? byId.get(l.output.slice(5))?.description ?? "A line" : `WBS ${l.output.slice(4)}`,
       };
     }),

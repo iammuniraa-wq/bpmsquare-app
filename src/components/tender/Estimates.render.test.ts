@@ -177,6 +177,18 @@ describe("price from estimate and build up this rate, on a BOQ line", () => {
     expect(out).not.toMatch(/(?<![-\w])width:\s*\d{3,}px/);
   });
 
+  it("a build-up waiting on an unconfirmed quantity says so on the BOQ line, with both numbers when they differ, and is silent when they match", () => {
+    const q = { status: "mismatch" as const, measured: 17.5, boq_qty: 120, uom: "m", item: "1.3", needs_confirm: true, note: "This estimate is for 17.5 m, the BOQ line is 120 m. Make this estimate for 120 m, then confirm." };
+    const out = html({ state: state({ links: [link({ waiting: true, applied_cost: null, quantity: q })] }) });
+    expect(out).toContain('data-guide="boq.estimate.quantity"');
+    expect(out).toContain("This estimate is for 17.5 m, the BOQ line is 120 m. Make this estimate for 120 m, then confirm.");
+    expect(out).toContain(">Use its total<");
+    for (const b of guideButtons(out, "boq.estimate").filter((x) => x.startsWith("<button"))) expect(b, b).toMatch(/min-height:44px/);
+    expect(out).not.toMatch(/(?<![-\w])width:\s*\d{3,}px/);
+    const ok = html({ state: state({ links: [link({ waiting: true, applied_cost: null, quantity: { ...q, status: "matches", measured: 120, needs_confirm: false, note: null } })] }) });
+    expect(ok).not.toContain('data-guide="boq.estimate.quantity"');
+  });
+
   it("the builder says what the line's quantity is and asks for a template", () => {
     const out = html({ initialOpen: "build" });
     expect(out).toContain('data-guide="boq.estimate.builder"');
@@ -287,6 +299,42 @@ describe("the strip on an estimate made for a tender", () => {
     expect(html(ctx({ missing }), false)).not.toContain('data-guide="tender.estimate.rfq"');
   });
 
+  const waitingLink = (quantity: EstimateTenderContext["links"][number]["quantity"]): EstimateTenderContext["links"][number] =>
+    ({ link_id: "l1", boq_id: "b1", item: "1.1 Supply and lay 600x600 white porcelain floor tiles", qty: 120, uom: "m2", waiting: true, stale: false, needs_review: false, review_note: null, output_label: "Whole estimate", quantity });
+  const notFilled = { status: "unknown" as const, measured: null, boq_qty: 120, uom: "m2", item: "1.1 Supply and lay tiles", needs_confirm: true, note: "The quantity was not filled in automatically. Make this estimate for 120 m2, then confirm." };
+  const mismatch = { status: "mismatch" as const, measured: 17.5, boq_qty: 120, uom: "m2", item: "1.1 Supply and lay tiles", needs_confirm: true, note: "This estimate is for 17.5 m2, the BOQ line is 120 m2. Make this estimate for 120 m2, then confirm." };
+
+  it("warns in plain sight, not behind an i, when the quantity was not filled in automatically (live test: 17.5 m2 default for a 120 m2 line)", () => {
+    const out = html(ctx({ links: [waitingLink(notFilled)] }));
+    expect(out).toContain("The quantity was not filled in automatically. Make this estimate for 120 m2, then confirm.");
+    expect(out).toMatch(/<div role="alert" data-guide="tender.estimate.quantity"/);
+    // The sentence is printed on the screen, not held in a tooltip, and the action is still the one standard button.
+    expect(out).not.toContain(ESTIMATE_TIPS.tenderStrip + "The quantity");
+    expect(out).toContain("Price the line from this estimate");
+  });
+
+  it("shows both numbers when the estimate's own quantity is known and differs, on a waiting build-up and on a rate already in use", () => {
+    expect(html(ctx({ links: [waitingLink(mismatch)] }))).toContain("This estimate is for 17.5 m2, the BOQ line is 120 m2. Make this estimate for 120 m2, then confirm.");
+    const used = html(ctx({ links: [{ ...waitingLink({ ...mismatch, needs_confirm: false, note: "This estimate is for 17.5 m2, the BOQ line is 120 m2." }), waiting: false }] }));
+    expect(used).toContain('data-guide="tender.estimate.quantity_mismatch"');
+    expect(used).toContain("This estimate is for 17.5 m2, the BOQ line is 120 m2.");
+  });
+
+  it("says nothing when the quantity is known to match, or when nothing is known about a link", () => {
+    for (const q of [{ ...notFilled, status: "matches" as const, measured: 120, needs_confirm: false, note: null }, null, undefined]) {
+      const out = html(ctx({ links: [waitingLink(q)] }));
+      expect(out).not.toContain("tender.estimate.quantity");
+      expect(out).not.toContain("not filled in automatically");
+    }
+  });
+
+  it("the warning is the same markup at 375 px and on a PC: it wraps, has no fixed width, and the buttons stay 44 px targets", () => {
+    const out = html(ctx({ links: [waitingLink(notFilled)] }));
+    expect(out).toMatch(/overflow-wrap:anywhere/);
+    expect(out).not.toMatch(/(?<![-\w])width:\s*\d{3,}px/);
+    for (const b of guideButtons(out, "tender.estimate")) expect(b, b).toMatch(/min-height:44px/);
+  });
+
   it("every link and button is a 44 px target", () => {
     const out = html(ctx({ links: [{ link_id: "l1", boq_id: "b1", item: "1.3", qty: 1, uom: "m", waiting: true, stale: false, needs_review: false, review_note: null, output_label: "x" }] }));
     for (const b of guideButtons(out, "tender.estimate")) expect(b, b).toMatch(/min-height:44px/);
@@ -333,6 +381,7 @@ describe("what a screen never shows and where its words live", () => {
     const files = ["src/components/tender/EstimatesTab.tsx", "src/components/tender/BoqEstimates.tsx", "src/components/tender/BoqEstimatePanels.tsx", "src/components/tender/TenderEstimateStrip.tsx", "src/components/tender/MissingRfqButton.tsx"];
     const ids = new Set(files.flatMap((f) => [...read(f).matchAll(/"((?:tender|boq)\.[a-z_.]+)"/g)].map((m) => m[1])));
     for (const id of [
+      "tender.estimate.quantity", "tender.estimate.quantity_mismatch", "boq.estimate.quantity",
       "tender.estimates", "tender.estimate.new", "tender.estimate.template", "tender.estimate.open", "tender.estimate.rfq", "tender.estimate.strip", "tender.estimate.back", "tender.estimate.use_total", "tender.estimate.reprice",
       "boq.estimate", "boq.estimate.price", "boq.estimate.build", "boq.estimate.picker", "boq.estimate.output", "boq.estimate.reprice", "boq.estimate.unlink", "boq.estimate.reviewed", "boq.estimate.reprice_all", "boq.estimate.missing_chip",
       "boq.allocate", "boq.allocate.chip", "boq.allocate.panel", "boq.allocate.apply", "boq.allocate.tick", "boq.allocate.share", "boq.allocate.mode", "boq.allocate.estimate",

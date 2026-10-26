@@ -305,23 +305,164 @@ export const componentLabel = (component: string | null | undefined): string =>
 const norm = (s: string | null | undefined) => (s ?? "").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
 const QTY_KEYS = new Set(["qty", "quantity", "length", "length_m", "area", "area_m2", "count", "number", "units"]);
 
+const AREA_UNITS = new Set(["m2", "m²", "sqm", "sqmt", "sqmtr", "sqmeter", "sqmeters", "sqmetre", "sqmetres", "squaremeter", "squaremeters", "squaremetre", "squaremetres"]);
+const VOLUME_UNITS = new Set(["m3", "m³", "cum", "cbm", "cubicmeter", "cubicmeters", "cubicmetre", "cubicmetres"]);
+const LENGTH_UNITS = new Set(["m", "mtr", "mtrs", "meter", "meters", "metre", "metres", "lm", "rm"]);
+
+/** A unit in one spelling, so "m2", "m²" and "sq m" are the same unit. Anything unknown is lowercased, de-punctuated and singular. */
+export function canonUnit(u: string | null | undefined): string {
+  const flat = (u ?? "").toLowerCase().replace(/[\s._-]+/g, "");
+  if (AREA_UNITS.has(flat)) return "m2";
+  if (VOLUME_UNITS.has(flat)) return "m3";
+  if (LENGTH_UNITS.has(flat)) return "m";
+  return norm(u).replace(/s$/, "");
+}
+
+type Dimension = "length" | "area" | "volume";
+const dimensionOf = (canon: string): Dimension | null => (canon === "m2" ? "area" : canon === "m3" ? "volume" : canon === "m" || canon === "mm" || canon === "cm" || canon === "km" ? "length" : null);
+/** Two units of known, different kinds (a length and an area) never describe the same quantity. */
+const clashes = (a: string, b: string): boolean => { const x = dimensionOf(a); const y = dimensionOf(b); return !!x && !!y && x !== y; };
+
+/** The part of a template input the quantity rules read. */
+export type QtyInputDef = { key: string; label?: string; type: string; unit?: string; min?: number; max?: number; default?: unknown };
+
+// Inputs that describe a room, a slab or a panel in plan: a length and a width in metres. Anything about a corner cut-out, a door, a
+// border, a tile or a thickness is another measure and is never the plan size.
+const NOT_THE_PLAN = /cutout|corner|opening|door|skirt|border|thick|height|depth|tile|joint|grout|bed/;
+const word = (key: string, w: string) => new RegExp(`(^|_)${w}(_|$)`).test(key);
+
+function planInputs(numbers: readonly QtyInputDef[]): { len: QtyInputDef; wid: QtyInputDef; cutLen: QtyInputDef | null; cutWid: QtyInputDef | null } | null {
+  const metres = numbers.filter((i) => canonUnit(i.unit) === "m");
+  const plan = metres.filter((i) => !NOT_THE_PLAN.test(i.key));
+  const len = plan.filter((i) => word(i.key, "length"));
+  const wid = plan.filter((i) => word(i.key, "width"));
+  if (len.length !== 1 || wid.length !== 1) return null;
+  const cuts = metres.filter((i) => /cutout|corner/.test(i.key));
+  const cutLen = cuts.filter((i) => word(i.key, "length"));
+  const cutWid = cuts.filter((i) => word(i.key, "width"));
+  return { len: len[0], wid: wid[0], cutLen: cutLen.length === 1 ? cutLen[0] : null, cutWid: cutWid.length === 1 ? cutWid[0] : null };
+}
+
+const valueOf = (i: QtyInputDef, params: Record<string, unknown>): number | null => {
+  const raw = params[i.key] ?? i.default;
+  const n = typeof raw === "number" ? raw : typeof raw === "string" && raw.trim() !== "" ? Number(raw) : Number.NaN;
+  return Number.isFinite(n) ? n : null;
+};
+
+// Widths tried, in order, when a floor area is turned into a rectangle: the first whose length also lies inside its range wins.
+const PREFERRED_WIDTHS = [10, 8, 6, 5, 4, 3, 2, 1];
+
 /**
  * Prefill the quantity input of a template from a BOQ line: a number input whose unit is the line's unit, else the one input named
- * like a quantity. Never invents a value for an input outside its range. Returns only the inputs it is sure about.
+ * like a quantity, else (an area in m2 and a template with a room length and a room width in metres) a rectangle of exactly that
+ * area. Never invents a value for an input outside its range. Returns only the inputs it is sure about.
  */
-export function prefillParams(
-  inputs: readonly { key: string; label?: string; type: string; unit?: string; min?: number; max?: number }[],
-  boqUnit: string | null | undefined, qty: number,
-): Record<string, number> {
+export function prefillParams(inputs: readonly QtyInputDef[], boqUnit: string | null | undefined, qty: number): Record<string, number> {
   if (!(qty > 0)) return {};
   const numbers = inputs.filter((i) => i.type === "number");
-  const inRange = (i: { min?: number; max?: number }) => (i.min == null || qty >= i.min) && (i.max == null || qty <= i.max);
-  const unit = norm(boqUnit).replace(/s$/, "");
-  const byUnit = unit ? numbers.filter((i) => norm(i.unit).replace(/s$/, "") === unit && inRange(i)) : [];
+  const inRange = (i: { min?: number; max?: number }, v: number = qty) => (i.min == null || v >= i.min) && (i.max == null || v <= i.max);
+  const unit = canonUnit(boqUnit);
+  const byUnit = unit ? numbers.filter((i) => canonUnit(i.unit) === unit && inRange(i)) : [];
   if (byUnit.length === 1) return { [byUnit[0].key]: qty };
-  const byName = numbers.filter((i) => QTY_KEYS.has(i.key) && inRange(i));
+  const byName = numbers.filter((i) => QTY_KEYS.has(i.key) && inRange(i) && !(unit && i.unit && clashes(canonUnit(i.unit), unit)));
   if (byUnit.length === 0 && byName.length === 1) return { [byName[0].key]: qty };
+  if (byUnit.length > 0 || byName.length > 0 || unit !== "m2") return {};
+
+  const plan = planInputs(numbers);
+  if (!plan) return {};
+  // An L-shaped default would make length x width the wrong area, so a template that starts with a cut-out is left alone.
+  for (const cut of [plan.cutLen, plan.cutWid]) if (cut && (valueOf(cut, {}) ?? 0) !== 0) return {};
+  for (const w of PREFERRED_WIDTHS) {
+    const width = Math.min(Math.max(w, plan.wid.min ?? w), plan.wid.max ?? w);
+    if (!(width > 0) || !inRange(plan.wid, width)) continue;
+    const length = round4(qty / width);
+    if (length > 0 && inRange(plan.len, length)) return { [plan.len.key]: length, [plan.wid.key]: width };
+  }
   return {};
+}
+
+// ── Does the estimate cover the quantity the BOQ line is priced for? ───────────────────────────────────────────────────
+
+/**
+ * The quantity an estimate is measured for, read from its own inputs the same way prefillParams writes them: the one input in the BOQ
+ * unit, else the one named like a quantity, else the plan area (length x width, less a corner cut-out) when the BOQ unit is m2.
+ * Null when it cannot be told, which is not the same as zero.
+ */
+export function measuredQuantity(inputs: readonly QtyInputDef[], params: Record<string, unknown>, boqUnit: string | null | undefined): number | null {
+  const numbers = inputs.filter((i) => i.type === "number");
+  const unit = canonUnit(boqUnit);
+  const good = (n: number | null): number | null => (n != null && n > 0 ? n : null);
+  const byUnit = unit ? numbers.filter((i) => canonUnit(i.unit) === unit) : [];
+  if (byUnit.length === 1) return good(valueOf(byUnit[0], params));
+  if (byUnit.length > 1) return null;
+  const byName = numbers.filter((i) => QTY_KEYS.has(i.key) && !(unit && i.unit && clashes(canonUnit(i.unit), unit)));
+  if (byName.length === 1) return good(valueOf(byName[0], params));
+  if (byName.length > 1 || unit !== "m2") return null;
+  const plan = planInputs(numbers);
+  if (!plan) return null;
+  const l = valueOf(plan.len, params);
+  const w = valueOf(plan.wid, params);
+  if (l == null || w == null) return null;
+  const cl = plan.cutLen ? valueOf(plan.cutLen, params) : 0;
+  const cw = plan.cutWid ? valueOf(plan.cutWid, params) : 0;
+  if (cl == null || cw == null) return null;
+  return good(round4(l * w - cl * cw));
+}
+
+export type QuantityStatus = "matches" | "mismatch" | "unknown";
+export type QuantityCheck = { status: QuantityStatus; measured: number | null; boq_qty: number; uom: string | null };
+/** What the screens show about one build-up link. `needs_confirm` is the rule the server enforces; `note` is the words. */
+export type QuantityView = QuantityCheck & { item: string; needs_confirm: boolean; note: string | null };
+
+/** The estimate's own quantity may differ from the BOQ line's by this much (1 percent) before it counts as another quantity. */
+export const QUANTITY_TOLERANCE = 0.01;
+
+export function quantityCheck(args: { inputs: readonly QtyInputDef[] | null | undefined; params: Record<string, unknown> | null | undefined; boqUnit: string | null | undefined; boqQty: number }): QuantityCheck {
+  const base = { boq_qty: args.boqQty, uom: args.boqUnit ?? null };
+  const measured = Array.isArray(args.inputs) && args.boqQty > 0 ? measuredQuantity(args.inputs, args.params ?? {}, args.boqUnit) : null;
+  if (measured == null) return { ...base, status: "unknown", measured: null };
+  return { ...base, measured, status: Math.round((Math.abs(measured - args.boqQty) / args.boqQty) * 1e6) / 1e6 > QUANTITY_TOLERANCE ? "mismatch" : "matches" };
+}
+
+/**
+ * A link that divides a whole estimate by one BOQ line's quantity: the whole estimate, all of it, and no other BOQ line draws on this
+ * estimate. Only then is the cost per unit wrong when the estimate was made for another quantity. A part of an estimate, a share of
+ * it, or an estimate spread over several lines does not depend on one line's quantity this way.
+ */
+export const isRateBuildUp = (link: { output: string; basis: string; share_pct: number }, linksOnEstimate: number): boolean =>
+  link.output === "total" && link.basis === "total" && link.share_pct === 100 && linksOnEstimate === 1;
+
+/** Pricing a build-up that has never been used needs a person to confirm unless its own quantity is known to match. */
+export const needsQuantityConfirm = (check: QuantityCheck, applied: boolean): boolean => !applied && check.status !== "matches";
+
+const qtyText = (n: number) => n.toLocaleString("en-US", { maximumFractionDigits: 2 });
+const withUnit = (n: number, uom: string | null) => `${qtyText(n)}${uom ? ` ${uom}` : ""}`;
+
+/** What the banner and the BOQ line say. Null when there is nothing to say (the quantities match, or a rate already in use cannot be judged). */
+export function quantityNote(check: QuantityCheck, applied: boolean): string | null {
+  const boq = withUnit(check.boq_qty, check.uom);
+  if (check.status === "matches") return null;
+  if (check.status === "unknown") return applied ? null : `The quantity was not filled in automatically. Make this estimate for ${boq}, then confirm.`;
+  const own = withUnit(check.measured ?? 0, check.uom);
+  return applied ? `This estimate is for ${own}, the BOQ line is ${boq}.` : `This estimate is for ${own}, the BOQ line is ${boq}. Make this estimate for ${boq}, then confirm.`;
+}
+
+export function quantityView(check: QuantityCheck, applied: boolean, item: string): QuantityView {
+  return { ...check, item, needs_confirm: needsQuantityConfirm(check, applied), note: quantityNote(check, applied) };
+}
+
+/** The words of the confirmation a person gives before a build-up is priced (one line, or several). */
+export function quantityConfirmCopy(views: readonly QuantityView[]): { title: string; body: string; confirmLabel: string } {
+  if (views.length === 1) {
+    const v = views[0];
+    const boq = withUnit(v.boq_qty, v.uom);
+    return { title: `Is this estimate for ${boq}?`, body: v.note ?? `The estimate's cost is divided by ${boq}.`, confirmLabel: `Yes, it is for ${boq}` };
+  }
+  return {
+    title: `Are these ${views.length} estimates made for the BOQ quantities?`,
+    body: views.slice(0, 3).map((v) => `${v.item}: ${withUnit(v.boq_qty, v.uom)}`).join("; ") + (views.length > 3 ? `; and ${views.length - 3} more` : "") + ". Each estimate's cost is divided by its line's quantity.",
+    confirmLabel: "Yes, they are",
+  };
 }
 
 /** The name an estimate built for a BOQ line gets. */

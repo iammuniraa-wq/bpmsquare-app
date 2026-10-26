@@ -66,7 +66,7 @@ vi.mock("@/app/api/estimates/route", () => ({
     state.created.push(b);
     if (state.buildError) return Response.json({ error: state.buildError.error }, { status: state.buildError.status });
     const id = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeee99";
-    state.db.rows("estimates").push({ id, tenant_id: state.tenantId, opportunity_id: b.opportunity_id ?? null, ref: "EST-0099", name: b.name, status: "draft", template_id: b.template_id, margin_pct: 0, totals: { cost_total: 0, price: 0 }, standard_quote_id: null, created_at: "2026-10-26T08:00:00.000Z", updated_at: "2026-10-26T08:00:00.000Z" });
+    state.db.rows("estimates").push({ id, tenant_id: state.tenantId, opportunity_id: b.opportunity_id ?? null, ref: "EST-0099", name: b.name, status: "draft", template_id: b.template_id, params: b.params ?? {}, margin_pct: 0, totals: { cost_total: 0, price: 0 }, standard_quote_id: null, created_at: "2026-10-26T08:00:00.000Z", updated_at: "2026-10-26T08:00:00.000Z" });
     return Response.json({ id, ref: "EST-0099" }, { status: 201 });
   },
 }));
@@ -96,6 +96,13 @@ const links = () => state.db.rows("tender_boq_estimate_links");
 const boqRow = (item: string) => state.db.rows("tender_boq_lines").find((b) => b.opportunity_id === OPP && b.item_no === item)!;
 const dealLine = (item: string) => state.db.rows("opportunity_lines").find((l) => l.id === boqRow(item).line_id)!;
 const estRow = (id = EST) => state.db.rows("estimates").find((e) => e.id === id)!;
+let totalsSeq = 0;
+/** The person finished a build-up: it now holds one cost line of this size, saved after the link was made. */
+const estimateTotals = (estimateId: string, cost: number) => {
+  totalsSeq += 1;
+  state.db.rows("estimate_lines").push({ id: `55555555-5555-4555-8555-${String(totalsSeq).padStart(12, "0")}`, tenant_id: T1, estimate_id: estimateId, sort_order: 1, code: "x", description: "Everything", uom: "m", qty: 1, waste_pct: 0, unit_cost: cost, cost_total: cost, component: "materials", product_id: null, source: "rule", wbs_code: "1.1", custom_data: null, updated_at: "2026-10-26T09:00:00.000Z" });
+  estRow(estimateId).updated_at = "2026-10-26T09:00:00.000Z";
+};
 const snapshot = () => JSON.stringify([state.db.rows("opportunity_lines"), state.db.rows("tender_boq_lines"), links(), state.db.rows("estimates"), state.db.rows("estimate_lines")]);
 const link = (item: string, over: Record<string, unknown> = {}) => ({ boq_id: boqRow(item).id as string, estimate_id: EST, output: "total", basis: "total", share_pct: 100, ...over });
 async function price(items: unknown[], extra: Record<string, unknown> = {}, id = OPP) {
@@ -549,6 +556,136 @@ describe("build up this rate", () => {
     expect(dealLine("1.3").rate).toBe(50);
   });
 
+  it("a build-up whose quantity was filled in automatically is priced without a confirmation, and says nothing", async () => {
+    const j = await (await buildPost(json("POST", { boq_id: boqRow("1.3").id, template_id: TPL }), ctx())).json();
+    estimateTotals(j.estimate_id, 6000);
+    const s = await (await estGet(get(), ctx())).json();
+    expect(s.links.find((l: { estimate_id: string }) => l.estimate_id === j.estimate_id).quantity).toMatchObject({ status: "matches", measured: 120, needs_confirm: false, note: null });
+    expect((await repricePost(json("POST", { link_ids: [links()[0].id] }), ctx())).status).toBe(200);
+  });
+});
+
+describe("a build-up whose quantity could not be filled in (live test 2026-10-26: floor tiles, 120 m2)", () => {
+  const TPL_FLOOR = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbb11";
+  const TPL_TIGHT = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbb12";
+  const TPL_NONE = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbb13";
+  const room = (maxWidth: number) => [
+    { key: "room_length_m", label: "Room length", type: "number", unit: "m", min: 0.5, max: 100, default: 5 },
+    { key: "room_width_m", label: "Room width", type: "number", unit: "m", min: 0.5, max: maxWidth, default: Math.min(3.5, maxWidth) },
+    { key: "cutout_length_m", label: "L-shape: corner length", type: "number", unit: "m", min: 0, max: 99, default: 0 },
+    { key: "cutout_width_m", label: "L-shape: corner width", type: "number", unit: "m", min: 0, max: 99, default: 0 },
+    { key: "tile_length_mm", label: "Tile length", type: "number", unit: "mm", min: 100, max: 1200, default: 600 },
+  ];
+  const tpl = (id: string, inputs: unknown[]) => state.db.rows("estimate_templates").push({ id, tenant_id: T1, name: "Floor tiles (illustrative)", description: null, is_active: true, inputs });
+  let boq: string;
+  const buildFloor = async (template: string) => {
+    const j = await (await buildPost(json("POST", { boq_id: boq, template_id: template }), ctx())).json();
+    estimateTotals(j.estimate_id, 1905.6);
+    return j as { estimate_id: string };
+  };
+  beforeEach(() => {
+    tpl(TPL_FLOOR, room(100)); tpl(TPL_TIGHT, room(0.8)); tpl(TPL_NONE, [{ key: "finish", label: "Finish", type: "select", default: "a" }]);
+    boq = boqRow("1.4").id as string;
+    boqRow("1.4").file_uom = "m2";
+    dealLine("1.4").qty = 120;
+    dealLine("1.4").uom = "m2";
+  });
+
+  it("a floor in m2 and a template with a room length and width gets a rectangle of exactly that area, inside the ranges", async () => {
+    const j = await buildFloor(TPL_FLOOR);
+    expect(state.created[0].params).toEqual({ room_length_m: 12, room_width_m: 10 });
+    const s = await (await estGet(get(), ctx())).json();
+    expect(s.links.find((l: { estimate_id: string }) => l.estimate_id === j.estimate_id).quantity).toMatchObject({ status: "matches", measured: 120, needs_confirm: false });
+    expect((await repricePost(json("POST", { link_ids: [links()[0].id] }), ctx())).status).toBe(200);
+    // 1,905.60 over 120 m2: the rate follows the quantity the estimate was made for.
+    expect(boqRow("1.4").unit_cost).toBe(15.88);
+  });
+
+  it("when no rectangle fits the ranges nothing is invented, the estimate keeps its default size and the screen says so with both numbers", async () => {
+    const j = await buildFloor(TPL_TIGHT);
+    expect(state.created[0].params).toEqual({});
+    const s = await (await estGet(get(), ctx())).json();
+    const q = s.links.find((l: { estimate_id: string }) => l.estimate_id === j.estimate_id).quantity;
+    expect(q).toMatchObject({ status: "mismatch", measured: 4, boq_qty: 120, uom: "m2", needs_confirm: true });
+    expect(q.note).toBe("This estimate is for 4 m2, the BOQ line is 120 m2. Make this estimate for 120 m2, then confirm.");
+  });
+
+  it("Price the line from this estimate is refused with a 409 until the quantity is confirmed, and nothing is changed", async () => {
+    await buildFloor(TPL_TIGHT);
+    const before = snapshot();
+    const res = await repricePost(json("POST", { link_ids: [links()[0].id] }), ctx());
+    expect(res.status).toBe(409);
+    const j = await res.json();
+    expect(j.code).toBe("quantity_unconfirmed");
+    expect(j.error).toContain("Make this estimate for 120 m2, then confirm");
+    expect(j.lines).toHaveLength(1);
+    expect(snapshot()).toBe(before);
+    expect(dealLine("1.4").rate).toBe(0);
+  });
+
+  it("a confirmation that is not a plain true does not count; true prices the line and the change history records who said so", async () => {
+    await buildFloor(TPL_TIGHT);
+    for (const bad of ["true", 1, "yes", null]) expect((await repricePost(json("POST", { link_ids: [links()[0].id], confirm_quantity: bad }), ctx())).status, String(bad)).toBe(409);
+    const res = await repricePost(json("POST", { link_ids: [links()[0].id], confirm_quantity: true }), ctx());
+    expect(res.status).toBe(200);
+    expect((await res.json()).repriced).toHaveLength(1);
+    expect(boqRow("1.4")).toMatchObject({ price_source: "estimate", unit_cost: 15.88 });
+    const logged = state.changes.flatMap((c) => c.changes ?? []).find((c) => c.field.startsWith("Estimate quantity confirmed for"));
+    expect(logged).toMatchObject({ from: 4, to: "120 m2" });
+  });
+
+  it("a template with nothing to read a quantity from is 'not filled in automatically' and asks too", async () => {
+    await buildFloor(TPL_NONE);
+    expect(state.created[0].params).toEqual({});
+    const s = await (await estGet(get(), ctx())).json();
+    expect(s.links[0].quantity).toMatchObject({ status: "unknown", measured: null, needs_confirm: true, note: "The quantity was not filled in automatically. Make this estimate for 120 m2, then confirm." });
+    const res = await repricePost(json("POST", { link_ids: [links()[0].id] }), ctx());
+    expect(res.status).toBe(409);
+    expect((await res.json()).error).toBe("The quantity was not filled in automatically. Make this estimate for 120 m2, then confirm.");
+  });
+
+  it("the bulk re-price meets the same rule for a waiting build-up, and a confirmed call prices it", async () => {
+    await buildFloor(TPL_NONE);
+    expect((await repricePost(json("POST", { all_stale: true }), ctx())).status).toBe(409);
+    expect(links()[0].applied_at ?? null).toBeNull();
+    expect((await repricePost(json("POST", { all_stale: true, confirm_quantity: true }), ctx())).status).toBe(200);
+    expect(links()[0].applied_at).toBeTruthy();
+  });
+
+  it("an estimate the person then makes for the right quantity is accepted without being asked again", async () => {
+    const j = await buildFloor(TPL_TIGHT);
+    estRow(j.estimate_id).params = { room_length_m: 12, room_width_m: 0.8 };
+    expect((await repricePost(json("POST", { link_ids: [links()[0].id] }), ctx())).status).toBe(409);
+    // 12 x 10 = 120, and 12.1 x 10 = 121 is inside the 1 percent the rule allows; 12.5 x 10 = 125 is not.
+    estRow(j.estimate_id).params = { room_length_m: 12.5, room_width_m: 10 };
+    expect((await repricePost(json("POST", { link_ids: [links()[0].id] }), ctx())).status).toBe(409);
+    estRow(j.estimate_id).params = { room_length_m: 12.1, room_width_m: 10 };
+    expect((await repricePost(json("POST", { link_ids: [links()[0].id] }), ctx())).status).toBe(200);
+  });
+
+  it("an award never prices a build-up that has not been confirmed; it is reported, the rate stays", async () => {
+    const j = await buildFloor(TPL_NONE);
+    const { repriceBoqLines } = await import("@/lib/tender/estimates/server");
+    const opp = state.db.rows("opportunities").find((o) => o.id === OPP)!;
+    const res = await repriceBoqLines({ admin: { from: (t: string) => state.db.from(t) } as never, tenantId: T1, userId: "u1", opp: opp as never }, [boq], { markReview: true, reviewNote: "RFQ-1 was awarded" });
+    expect(res.repriced).toEqual([]);
+    expect(res.failed).toHaveLength(1);
+    expect(res.failed[0].reason).toContain("not filled in automatically");
+    expect(dealLine("1.4").rate).toBe(0);
+    expect(j.estimate_id).toBeTruthy();
+  });
+
+  it("a view-only person, another deal and an id that is not a line meet the same gate as before", async () => {
+    await buildFloor(TPL_TIGHT);
+    state.canEdit = false;
+    expect((await repricePost(json("POST", { link_ids: [links()[0].id], confirm_quantity: true }), ctx())).status).toBe(403);
+    state.canEdit = true;
+    expect((await repricePost(json("POST", { link_ids: [links()[0].id], confirm_quantity: true }), ctx(OPP_TWO))).status).toBe(422);
+    expect(links()[0].applied_at ?? null).toBeNull();
+  });
+});
+
+describe("build up this rate, refusals", () => {
   it("refuses a template that is not this workspace's, an inactive one's missing line and a line with no quantity; nothing is made", async () => {
     const b = boqRow("1.3").id;
     expect((await buildPost(json("POST", { boq_id: b, template_id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbb99" }), ctx())).status).toBe(404);

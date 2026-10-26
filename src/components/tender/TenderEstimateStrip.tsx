@@ -10,6 +10,7 @@ import { useFeel } from "@/components/FeelProvider";
 import { ESTIMATE_TIPS } from "@/lib/tender/estimates/tips";
 import type { EstimateTenderContext } from "@/lib/tender/estimates/context";
 import MissingRfqButton from "./MissingRfqButton";
+import { postReprice, unconfirmed } from "./quantityGuard";
 
 // The strip at the top of an estimate that was made for a tender deal (GCC tender deals, slice 3c-1): "Tender: OPP-0011" with the way
 // back, the BOQ lines this estimate prices (a build-up waiting to be used, an estimate that changed since, a line an award re-priced),
@@ -28,12 +29,15 @@ export default function TenderEstimateStrip({ ctx, estimateId, canEdit }: { ctx:
     if (ctx.bid_locked && !(await confirm({ title: "The bid is already in", body: "Re-pricing changes the rate on the deal's lines. The submitted bid version is kept as it was.", confirmLabel: "Re-price" }))) return;
     setBusy(label); setError("");
     try {
-      const res = await fetch(base + "/reprice", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ link_ids: linkIds }) });
-      const j = await res.json().catch(() => ({}));
-      if (!res.ok) { setError(j.error ?? "Could not price the line"); return; }
-      const failed = (j.failed ?? []) as { item: string; reason: string }[];
+      const known = unconfirmed(ctx.links.filter((l) => linkIds.includes(l.link_id)).map((l) => l.quantity));
+      const out = await postReprice(base + "/reprice", { link_ids: linkIds }, known, confirm);
+      if (!out) return;
+      const j = out.json;
+      if (!out.ok) { setError(j.error ?? "Could not price the line"); return; }
+      const failed = j.failed ?? [];
       if (failed.length > 0) { setError(`${failed[0].item}: ${failed[0].reason}`); return; }
-      toast({ text: `${j.repriced?.length ?? linkIds.length} BOQ line${(j.repriced?.length ?? linkIds.length) === 1 ? "" : "s"} priced from this estimate`, tone: "success" });
+      const n = j.repriced?.length ?? linkIds.length;
+      toast({ text: `${n} BOQ line${n === 1 ? "" : "s"} priced from this estimate`, tone: "success" });
       router.refresh();
     } catch { setError("Network error. Try again."); } finally { setBusy(null); }
   }
@@ -54,10 +58,16 @@ export default function TenderEstimateStrip({ ctx, estimateId, canEdit }: { ctx:
       </div>
 
       {waiting.map((l) => (
-        <div key={l.link_id} data-guide="tender.estimate.waiting" style={{ display: "flex", flexWrap: "wrap", gap: "4px 10px", alignItems: "center", fontSize: 12.5, color: c.ink }}>
-          <span style={{ flex: "1 1 240px", overflowWrap: "anywhere" }}>Built for BOQ item {l.item} · {l.qty} {l.uom ?? ""}</span>
-          {canEdit && <Button size="sm" variant="primary" loading={busy === l.link_id} onClick={() => void price([l.link_id], l.link_id)} style={{ minHeight: 44 }} data-guide="tender.estimate.use_total">Price the line from this estimate</Button>}
+        <div key={l.link_id} style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          <div data-guide="tender.estimate.waiting" style={{ display: "flex", flexWrap: "wrap", gap: "4px 10px", alignItems: "center", fontSize: 12.5, color: c.ink }}>
+            <span style={{ flex: "1 1 240px", overflowWrap: "anywhere" }}>Built for BOQ item {l.item} · {l.qty} {l.uom ?? ""}</span>
+            {canEdit && <Button size="sm" variant="primary" loading={busy === l.link_id} onClick={() => void price([l.link_id], l.link_id)} style={{ minHeight: 44 }} data-guide="tender.estimate.use_total">Price the line from this estimate</Button>}
+          </div>
+          {l.quantity?.note && <div role="alert" data-guide="tender.estimate.quantity" style={{ fontSize: 12.5, fontWeight: 600, color: "var(--amberink)", background: "var(--amberbg)", borderRadius: 6, padding: "6px 8px", overflowWrap: "anywhere" }}>{l.quantity.note}</div>}
         </div>
+      ))}
+      {ctx.links.filter((l) => !l.waiting && l.quantity?.status === "mismatch" && l.quantity.note).map((l) => (
+        <div key={l.link_id} data-guide="tender.estimate.quantity_mismatch" style={{ fontSize: 12.5, color: "var(--amberink)", overflowWrap: "anywhere" }}>{l.item}: {l.quantity?.note}</div>
       ))}
       {stale.length > 0 && (
         <div data-guide="tender.estimate.stale" style={{ display: "flex", flexWrap: "wrap", gap: "4px 10px", alignItems: "center", fontSize: 12.5, color: "var(--amberink)" }}>

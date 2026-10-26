@@ -15,8 +15,8 @@ import { bundles, type BoqRequest } from "@/lib/tender/boq/server";
 import { proposeByMatch, proposeSpread, type BoqInput, type Proposal, type ProposalBy } from "./allocate";
 import {
   bidIsLocked, cleanShare, costPerUnit, isBasis, isLinkStale, isUuid, listOutputs, missingCosts, outputCost, overAllocated, parseOutput,
-  prefillParams, rateFromCost, round2, sumPerUnit, buildUpName, buildUpNote,
-  type AllocationLink, type Basis, type EstLine, type MissingCost, type OutputCost,
+  prefillParams, rateFromCost, round2, sumPerUnit, buildUpName, buildUpNote, isRateBuildUp, quantityCheck, quantityView,
+  type AllocationLink, type Basis, type EstLine, type MissingCost, type OutputCost, type QtyInputDef, type QuantityView,
 } from "./rules";
 
 // Server side of "estimates inside the tender flow" (migration 0227, slice 3c-1). Every query is tenant-scoped on the service-role
@@ -158,12 +158,66 @@ export async function loadLinks(admin: SupabaseClient, tenantId: string, oppId: 
   return { rows: ((data ?? []) as Record<string, unknown>[]).map(toLink), pending: false };
 }
 
+// ── Is the estimate made for the quantity the line is priced for? ────────────────────────────────────────────────────────
+
+/**
+ * For every link that divides a whole estimate by one BOQ line's quantity (a rate build-up), what the estimate's own inputs say it is
+ * measured for, set against the BOQ line's quantity. Nothing is derived from the request and nothing is stored: it is read from the
+ * estimate and its template as they are now, so a quantity the person changed afterwards is seen. `links` must be ALL the deal's
+ * links (the rule needs to know no other BOQ line draws on the estimate). Anything that cannot be read answers "unknown", which asks
+ * for a confirmation: a cost is never allowed to be silently wrong.
+ */
+export async function quantityChecks(admin: SupabaseClient, tenantId: string, oppId: string, links: readonly LinkRow[]): Promise<Map<string, QuantityView>> {
+  const out = new Map<string, QuantityView>();
+  const per = new Map<string, number>();
+  for (const l of links) per.set(l.estimate_id, (per.get(l.estimate_id) ?? 0) + 1);
+  const mine = links.filter((l) => isRateBuildUp(l, per.get(l.estimate_id) ?? 0));
+  if (mine.length === 0) return out;
+
+  const estimates = new Map<string, { template_id: string | null; params: Record<string, unknown> }>();
+  for (const part of chunks([...new Set(mine.map((l) => l.estimate_id))], 100)) {
+    const { data } = await admin.from("estimates").select("id, template_id, params").eq("tenant_id", tenantId).eq("opportunity_id", oppId).in("id", part);
+    for (const r of (data ?? []) as { id: string; template_id: string | null; params: unknown }[]) {
+      estimates.set(r.id, { template_id: r.template_id ?? null, params: r.params && typeof r.params === "object" ? (r.params as Record<string, unknown>) : {} });
+    }
+  }
+  const templates = new Map<string, QtyInputDef[]>();
+  for (const part of chunks([...new Set([...estimates.values()].map((e) => e.template_id).filter((x): x is string => !!x))], 100)) {
+    const { data } = await admin.from("estimate_templates").select("id, inputs").eq("tenant_id", tenantId).in("id", part);
+    for (const r of (data ?? []) as { id: string; inputs: unknown }[]) if (Array.isArray(r.inputs)) templates.set(r.id, r.inputs as QtyInputDef[]);
+  }
+  const boq = new Map<string, { line_id: string | null; uom: string | null; label: string }>();
+  for (const part of chunks([...new Set(mine.map((l) => l.boq_line_id))], 100)) {
+    const { data } = await admin.from("tender_boq_lines").select("id, line_id, item_no, row_no, file_description, file_uom").eq("tenant_id", tenantId).eq("opportunity_id", oppId).in("id", part);
+    for (const r of (data ?? []) as { id: string; line_id: string | null; item_no: string | null; row_no: number; file_description: string; file_uom: string | null }[]) {
+      boq.set(r.id, { line_id: r.line_id, uom: r.file_uom ?? null, label: itemLabel(r, r.file_description ?? "") });
+    }
+  }
+  const deal = new Map<string, { qty: number; uom: string | null }>();
+  for (const part of chunks([...new Set([...boq.values()].map((b) => b.line_id).filter((x): x is string => !!x))], 100)) {
+    const { data } = await admin.from("opportunity_lines").select("id, qty, uom").eq("tenant_id", tenantId).eq("opportunity_id", oppId).in("id", part);
+    for (const r of (data ?? []) as { id: string; qty: number | string; uom: string | null }[]) deal.set(r.id, { qty: Number(r.qty), uom: r.uom ?? null });
+  }
+
+  for (const l of mine) {
+    const b = boq.get(l.boq_line_id);
+    const line = b?.line_id ? deal.get(b.line_id) : undefined;
+    if (!b || !line || !(line.qty > 0)) continue;
+    const est = estimates.get(l.estimate_id);
+    const check = quantityCheck({ inputs: est?.template_id ? templates.get(est.template_id) : null, params: est?.params, boqUnit: b.uom ?? line.uom, boqQty: line.qty });
+    out.set(l.id, quantityView(check, !!l.applied_at, b.label));
+  }
+  return out;
+}
+
 // ── The screens' state ───────────────────────────────────────────────────────────────────────────────────────────────
 
 export type EstimateListItem = EstimateHead & { line_count: number; missing_count: number; stale_links: number; linked_boq_lines: number };
 export type LinkView = {
   id: string; boq_id: string; estimate_id: string; estimate_ref: string | null; estimate_name: string; output: string; output_label: string; basis: Basis; share_pct: number;
   applied_cost: number | null; waiting: boolean; stale: boolean; broken: boolean; needs_review: boolean; review_note: string | null;
+  /** Only for a rate build-up: is the estimate made for the quantity of the line? Absent = nothing to say. */
+  quantity?: QuantityView | null;
 };
 export type EstimatesState = {
   pending: boolean;
@@ -187,6 +241,7 @@ export async function buildEstimatesState(r: Pick<EstimatesRequest, "admin" | "t
   const dates = await productCostDates(admin, tenantId, [...lines.values()].flat());
   const byId = new Map(heads.rows.map((e) => [e.id, e]));
   const qtyOf = await boqQuantities(admin, tenantId, opp.id, [...new Set(links.rows.map((l) => l.boq_line_id))]);
+  const quantities = await quantityChecks(admin, tenantId, opp.id, links.rows);
 
   const linkViews: LinkView[] = links.rows.map((l) => {
     const e = byId.get(l.estimate_id);
@@ -201,6 +256,7 @@ export async function buildEstimatesState(r: Pick<EstimatesRequest, "admin" | "t
       id: l.id, boq_id: l.boq_line_id, estimate_id: l.estimate_id, estimate_ref: e?.ref ?? null, estimate_name: e?.name ?? "Estimate removed",
       output: l.output, output_label: out?.label ?? (parsed ? l.output : "Unknown output"), basis: l.basis, share_pct: l.share_pct, applied_cost: l.applied_cost,
       waiting: !l.applied_at, stale: (!!e && isLinkStale(l, e.updated_at)) || moved, broken: !e || !out, needs_review: l.needs_review, review_note: l.review_note,
+      quantity: quantities.get(l.id) ?? null,
     };
   });
   const estimates: EstimateListItem[] = heads.rows.map((e) => {
@@ -252,7 +308,15 @@ export async function previewOutputs(r: Pick<EstimatesRequest, "admin" | "tenant
 /** What the pricing needs of a request: the same for a person at the BOQ tab and for the award hook acting for the buyer. */
 export type PricingCtx = Pick<EstimatesRequest, "admin" | "tenantId" | "userId" | "opp"> & { email?: string | null };
 
-export type RepriceOpts = { markup?: number | null; markReview?: boolean; reviewNote?: string | null };
+export type RepriceOpts = {
+  markup?: number | null; markReview?: boolean; reviewNote?: string | null;
+  /**
+   * The caller has dealt with the quantity check itself: a person confirmed it (repriceRequest), or chose the part and saw the cost per
+   * unit before saving (applyLinks). Without it, a rate build-up that has not been used yet and is not known to be made for the line's
+   * quantity is not priced (an award must never price one silently).
+   */
+  skipQuantityGuard?: boolean;
+};
 export type RepriceResult = {
   repriced: { boq_id: string; item: string; from_rate: number; to_rate: number; cost: number }[];
   failed: { boq_id: string; item: string; reason: string }[];
@@ -272,12 +336,14 @@ export async function repriceBoqLines(r: PricingCtx, boqIds: readonly string[], 
   const result: RepriceResult = { repriced: [], failed: [] };
   if (boqIds.length === 0) return result;
   const wanted = new Set(boqIds);
-  const [{ rows: allLinks }, b, config, today] = await Promise.all([
-    loadLinks(admin, tenantId, opp.id, [...wanted]),
+  const [{ rows: dealLinks }, b, config, today] = await Promise.all([
+    loadLinks(admin, tenantId, opp.id),
     bundles({ ...r, supabase: admin, role: "member" } as unknown as BoqRequest),
     loadConfig(admin, tenantId), tenantToday(tenantId),
   ]);
   if (!b) return result;
+  const allLinks = dealLinks.filter((l) => wanted.has(l.boq_line_id));
+  const quantities = opts.skipQuantityGuard ? new Map<string, QuantityView>() : await quantityChecks(admin, tenantId, opp.id, dealLinks);
   const items = b.items.filter((x) => wanted.has(x.boq.id));
   const estimateIds = [...new Set(allLinks.map((l) => l.estimate_id))];
   const heads = new Map<string, EstimateHead>();
@@ -294,6 +360,8 @@ export async function repriceBoqLines(r: PricingCtx, boqIds: readonly string[], 
     const mine = allLinks.filter((l) => l.boq_line_id === boq.id);
     const label = itemLabel(boq, line.description);
     if (mine.length === 0) continue;
+    const unconfirmed = mine.map((l) => quantities.get(l.id)).find((q) => q?.needs_confirm);
+    if (unconfirmed) { result.failed.push({ boq_id: boq.id, item: label, reason: unconfirmed.note ?? "The quantity of the estimate has not been confirmed" }); continue; }
     const qty = Number(line.qty);
     const parts: { link: LinkRow; perUnit: number; est: EstimateHead }[] = [];
     let problem: string | null = null;
@@ -421,7 +489,7 @@ export async function applyLinks(r: EstimatesRequest, items: readonly unknown[],
       return { ok: false, status: isMissingSchema(error) ? 503 : 500, error: isMissingSchema(error) ? PENDING_ESTIMATES : error.message };
     }
   }
-  const priced = await repriceBoqLines(r, [...boqIds], { markup: cleanMarkup(opts.markup) });
+  const priced = await repriceBoqLines(r, [...boqIds], { markup: cleanMarkup(opts.markup), skipQuantityGuard: true });
   return { ok: true, linked: clean.length, ...priced };
 }
 
@@ -452,7 +520,9 @@ export async function markReviewed(r: EstimatesRequest, linkIds: readonly string
 }
 
 /** Re-price what was asked for: given links, given BOQ lines, or every stale or waiting link of the deal. */
-export async function repriceRequest(r: EstimatesRequest, body: { link_ids?: unknown; boq_ids?: unknown; all_stale?: unknown; markup_pct?: unknown }): Promise<({ ok: true } & RepriceResult) | ({ ok: false } & Failure)> {
+export async function repriceRequest(
+  r: EstimatesRequest, body: { link_ids?: unknown; boq_ids?: unknown; all_stale?: unknown; markup_pct?: unknown; confirm_quantity?: unknown },
+): Promise<({ ok: true } & RepriceResult) | ({ ok: false } & Failure)> {
   const links = await loadLinks(r.admin, r.tenantId, r.opp.id);
   if (links.pending) return { ok: false, status: 503, error: PENDING_ESTIMATES };
   const boq = new Set<string>();
@@ -466,7 +536,26 @@ export async function repriceRequest(r: EstimatesRequest, body: { link_ids?: unk
     for (const l of state.links) if (l.stale || l.waiting) boq.add(l.boq_id);
   }
   if (boq.size === 0) return { ok: false, status: 422, error: "Nothing to re-price" };
-  return { ok: true, ...(await repriceBoqLines(r, [...boq], { markup: cleanMarkup(body.markup_pct) })) };
+
+  // A build-up not yet used is divided by the line's quantity, so a person must say the estimate is made for that quantity unless its
+  // own inputs already show it. The screen asks first; this is the rule, so a call that skips the screen meets it too.
+  const quantities = await quantityChecks(r.admin, r.tenantId, r.opp.id, links.rows);
+  const needs = links.rows.filter((l) => boq.has(l.boq_line_id)).flatMap((l) => { const q = quantities.get(l.id); return q?.needs_confirm ? [{ boq_id: l.boq_line_id, q }] : []; });
+  if (needs.length > 0 && body.confirm_quantity !== true) {
+    return { ok: false, status: 409, error: needs[0].q.note ?? "Confirm the quantity this estimate is made for", extra: { code: "quantity_unconfirmed", lines: needs.map((n) => n.q) } };
+  }
+  const out = await repriceBoqLines(r, [...boq], { markup: cleanMarkup(body.markup_pct), skipQuantityGuard: true });
+  const done = new Set(out.repriced.map((x) => x.boq_id));
+  const confirmed = needs.filter((n) => done.has(n.boq_id));
+  if (confirmed.length > 0) {
+    const user = await getAuthUser();
+    await logChange(r.admin, {
+      tenantId: r.tenantId, objectType: "opportunity_tenders", objectId: r.opp.id, objectLabel: `${r.opp.ref ?? ""} ${r.opp.title}`.trim(), action: "update",
+      actorId: user?.id ?? r.userId, actorEmail: user?.email ?? null,
+      changes: confirmed.slice(0, 40).map(({ q }) => ({ field: `Estimate quantity confirmed for ${q.item}`, from: q.measured ?? "not known", to: `${q.boq_qty}${q.uom ? ` ${q.uom}` : ""}` })),
+    });
+  }
+  return { ok: true, ...out };
 }
 
 // ── Build up this rate ───────────────────────────────────────────────────────────────────────────────────────────────

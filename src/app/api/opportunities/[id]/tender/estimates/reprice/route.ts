@@ -3,6 +3,8 @@ import { openEstimatesRequest, repriceRequest } from "@/lib/tender/estimates/ser
 
 // "Estimate changed, re-price" (migration 0227): POST { link_ids?, boq_ids?, all_stale?, markup_pct? } prices the named lines again from
 // their estimates as they are now. It is a person's act: only an RFQ award re-prices by itself, and never once the bid is in.
+// A rate build-up that has not been used yet is divided by the line's quantity, so unless its own inputs show it is made for that
+// quantity the answer is 409 { code: "quantity_unconfirmed", lines } until the body carries confirm_quantity: true.
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -10,6 +12,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (!gate.ok) return NextResponse.json({ error: gate.error }, { status: gate.status });
   const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
   const out = await repriceRequest(gate.req, body);
-  if (!out.ok) return NextResponse.json({ error: out.error }, { status: out.status });
+  if (!out.ok) return NextResponse.json({ error: out.error, ...(out.extra ?? {}) }, { status: out.status });
   return NextResponse.json({ ok: true, repriced: out.repriced, failed: out.failed });
 }

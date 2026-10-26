@@ -12,6 +12,7 @@ import { reshare, type Proposal, type ProposalBy } from "@/lib/tender/estimates/
 import { allocationSummary, round2, type AllocationLink } from "@/lib/tender/estimates/rules";
 import type { EstimatesState } from "@/lib/tender/estimates/server";
 import MissingRfqButton from "./MissingRfqButton";
+import { postReprice, unconfirmed } from "./quantityGuard";
 
 // The estimate tools of the BOQ Prices tab that are about many lines at once (GCC tender deals, slice 3c-1): the chips ("Allocate to
 // BOQ", costs missing, estimate changed), the allocation panel and the missing-costs list. The line-by-line tools are in
@@ -214,10 +215,12 @@ export function EstimateAttention({ opportunityId, base, state, canEdit, markup,
     if (state.bid_locked && !(await confirm({ title: "The bid is already in", body: "Re-pricing changes the rate on the deal's lines. The submitted bid version is kept as it was.", confirmLabel: "Re-price" }))) return;
     setBusy(true); onError("");
     try {
-      const res = await fetch(`${base}/reprice`, { method: "POST", headers: J, body: JSON.stringify({ all_stale: true, markup_pct: markup > 0 ? markup : undefined }) });
-      const j = await res.json().catch(() => ({}));
-      if (!res.ok) { onError(j.error ?? "Could not re-price"); return; }
-      const failed = (j.failed ?? []) as { item: string; reason: string }[];
+      const known = unconfirmed(state.links.filter((l) => l.waiting).map((l) => l.quantity));
+      const out = await postReprice(`${base}/reprice`, { all_stale: true, markup_pct: markup > 0 ? markup : undefined }, known, confirm);
+      if (!out) return;
+      const j = out.json;
+      if (!out.ok) { onError(j.error ?? "Could not re-price"); return; }
+      const failed = j.failed ?? [];
       onNotice(`${j.repriced?.length ?? 0} line${(j.repriced?.length ?? 0) === 1 ? "" : "s"} re-priced${failed.length ? `, ${failed.length} could not be` : ""}`);
       if (failed.length) onError(`${failed[0].item}: ${failed[0].reason}`);
       onChanged();

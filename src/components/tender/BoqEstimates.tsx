@@ -10,6 +10,7 @@ import { Input, Select } from "@/components/ui/Input";
 import InfoTip from "@/components/ui/InfoTip";
 import { useFeel } from "@/components/FeelProvider";
 import { ESTIMATE_TIPS } from "@/lib/tender/estimates/tips";
+import { postReprice, unconfirmed } from "./quantityGuard";
 import type { EstimatesState, LinkView, OutputPreview } from "@/lib/tender/estimates/server";
 import type { Basis } from "@/lib/tender/estimates/rules";
 
@@ -37,6 +38,7 @@ function LinkChip({ l, canEdit, bidLocked, busy, onReprice, onReviewed, onUnlink
       </span>
       {l.broken && <b data-guide="boq.estimate.broken" style={{ color: "var(--redink)" }}>That part of the estimate is gone</b>}
       {l.waiting && !l.broken && <b data-guide="boq.estimate.waiting" style={{ color: "var(--amberink)", display: "inline-flex", alignItems: "center", gap: 4 }}>Build-up in progress <InfoTip label="Build-up">{ESTIMATE_TIPS.buildUpWaiting}</InfoTip></b>}
+      {l.quantity?.note && !l.broken && <b role="alert" data-guide="boq.estimate.quantity" style={{ flexBasis: "100%", color: "var(--amberink)", background: "var(--amberbg)", borderRadius: 6, padding: "6px 8px", overflowWrap: "anywhere" }}>{l.quantity.note}</b>}
       {l.stale && !l.waiting && <b data-guide="boq.estimate.stale" style={{ color: "var(--amberink)", display: "inline-flex", alignItems: "center", gap: 4 }}>Estimate changed, re-price <InfoTip label="Estimate changed">{ESTIMATE_TIPS.stale}</InfoTip></b>}
       {l.needs_review && (
         <span data-guide="boq.estimate.review" style={{ color: "var(--amberink)", display: "inline-flex", alignItems: "center", gap: 4 }}>
@@ -117,7 +119,16 @@ export function LineEstimates({ opportunityId, base, line, state, canEdit, marku
 
   async function reprice(l: LinkView) {
     if (state.bid_locked && !(await confirm({ title: "The bid is already in", body: "Re-pricing changes the rate on the deal's lines. The submitted bid version is kept as it was.", confirmLabel: "Re-price" }))) return;
-    await send(`${base}/reprice`, { method: "POST", headers: J, body: JSON.stringify({ link_ids: [l.id], markup_pct: markup > 0 ? markup : undefined }) }, "Re-priced from the estimate");
+    setBusy(true); onError("");
+    try {
+      const out = await postReprice(`${base}/reprice`, { link_ids: [l.id], markup_pct: markup > 0 ? markup : undefined }, unconfirmed([l.quantity]), confirm);
+      if (!out) return;
+      if (!out.ok) { onError(out.json.error ?? "That did not work"); return; }
+      const failed = out.json.failed ?? [];
+      if (failed.length > 0) onError(`${failed[0].item}: ${failed[0].reason}`);
+      else onNotice("Re-priced from the estimate");
+      onChanged();
+    } catch { onError("Network error. Try again."); } finally { setBusy(false); }
   }
 
   async function unlink(l: LinkView) {
