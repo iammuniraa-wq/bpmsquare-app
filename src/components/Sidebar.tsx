@@ -514,6 +514,8 @@ export default function Sidebar({ onNavigate, hideHeader }: { onNavigate?: () =>
   // when explicitly opened, and an icon rail inside a drawer would be
   // useless -- it always opens with full labels.
   const [collapsed, setCollapsed] = useState(!onNavigate);
+  // A wide wordmark logo is squeezed into the 34 px square and becomes unreadable; once its real shape is known it gets the row's width.
+  const [logoWide, setLogoWide] = useState(false);
 
   // Spectacular's rail leads with Spaces, and the full tree is opt-in
   // underneath it -- Nova's own arrangement. Showing both at once meant
@@ -630,12 +632,15 @@ export default function Sidebar({ onNavigate, hideHeader }: { onNavigate?: () =>
         borderBottom: "1px solid var(--sb-line)",
         marginBottom: 12,
       }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 9, minWidth: 0 }}>
+        <div style={{ display: "flex", alignItems: logoWide && !collapsed ? "flex-start" : "center", flexDirection: logoWide && !collapsed ? "column" : "row", gap: logoWide && !collapsed ? 6 : 9, minWidth: 0 }}>
           {tenant?.logo_url ? (
             <img
               src={tenant.logo_url}
               alt={tenant.name}
-              style={{ width: 34, height: 34, borderRadius: 8, objectFit: "contain", flexShrink: 0 }}
+              onLoad={(e) => setLogoWide(e.currentTarget.naturalWidth / Math.max(1, e.currentTarget.naturalHeight) > 1.6)}
+              style={logoWide && !collapsed
+                ? { height: 38, width: "auto", maxWidth: 150, borderRadius: 4, objectFit: "contain", flexShrink: 0, background: "#fff", padding: "3px 6px" }
+                : { width: 34, height: 34, borderRadius: 8, objectFit: "contain", flexShrink: 0 }}
             />
           ) : (
             <Logo size={34} />

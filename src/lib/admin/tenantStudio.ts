@@ -132,6 +132,19 @@ function navHrefs(): Set<string> {
 
 export type NormalisedPlan = { plan: TenantStudioPlan; warnings: string[] };
 
+// The only values `tenants_plan_check` (0048) accepts. The model writes free words ("professional", "starter", "custom"), and an
+// unlisted one made Create fail with a constraint error after the whole plan had been reviewed.
+const TENANT_PLANS = ["personal", "small_business", "enterprise"] as const;
+
+export function tenantPlan(raw: unknown, warnings: string[]): (typeof TENANT_PLANS)[number] {
+  const v = String(raw ?? "").trim().toLowerCase().replace(/[\s-]+/g, "_");
+  if ((TENANT_PLANS as readonly string[]).includes(v)) return v as (typeof TENANT_PLANS)[number];
+  const alias: Record<string, (typeof TENANT_PLANS)[number]> = { free: "personal", starter: "personal", basic: "personal", pro: "small_business", professional: "small_business", business: "small_business", custom: "enterprise", dedicated: "enterprise" };
+  const mapped = alias[v] ?? "small_business";
+  warnings.push(`Plan "${String(raw ?? "").trim() || "(none)"}" is not one of personal, small_business or enterprise, so ${mapped} was used. Say "Plan enterprise" (or another of the three) to change it.`);
+  return mapped;
+}
+
 /**
  * Turn whatever the model produced into a plan this codebase will accept, or
  * say precisely what it threw away. Never throws: a half-usable plan with
@@ -300,7 +313,7 @@ export function normalisePlan(raw: unknown): NormalisedPlan {
 
   return {
     plan: {
-      tenant: { name, slug, custom_domain: domain, currency, plan: String(t.plan ?? "starter").trim().slice(0, 40) || "starter", accent_color },
+      tenant: { name, slug, custom_domain: domain, currency, plan: tenantPlan(t.plan, warnings), accent_color },
       package: pkg,
       features,
       nav_hidden_hrefs,
