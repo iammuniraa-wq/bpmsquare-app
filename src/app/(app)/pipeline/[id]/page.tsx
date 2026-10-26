@@ -135,7 +135,7 @@ export default async function OpportunityDetailPage({ params, searchParams }: { 
           compactTop
         />
       ) : undefined}
-      activity={<RecordActivity objectType="opportunities" objectId={id} extraChangeLogTypes={tender ? ["opportunity_tenders"] : undefined} isAdmin={role === "admin"} />}
+      activity={<RecordActivity objectType="opportunities" objectId={id} extraChangeLogTypes={tender ? ["opportunity_tenders", "opportunity_competitors"] : undefined} isAdmin={role === "admin"} />}
       tender={tenderTab}
       initialTab={tenderTab && (wantedTab === "boq" || (wantedTab === "estimates" && tenderTab.estimates)) ? wantedTab : undefined}
       contractProject={contractProject}

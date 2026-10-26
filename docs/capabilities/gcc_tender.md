@@ -23,4 +23,7 @@ rules:
 - A BOQ line priced from an estimate shows Estimate changed, re-price once the estimate is saved again; a bid that is already in is never re-priced by itself.
 - Raise RFQ for missing costs asks suppliers (any number, no minimum) about the estimate lines with no cost or a cost older than the RFQ price validity; awarding a line writes the supplier's cost and date into the estimate line and re-prices the BOQ lines priced from it for review.
 - A contract project made from the won tender takes the cost lines of the estimates that priced the BOQ, by resource type, with the BOQ cost codes and the estimate's real costs; lines without an estimate keep the margin rule.
+- The Competitors tab lists the companies the team expects to bid against, each with a website, country, whether they are expected to price below, similar to or above us, strengths and a note; one can be marked as the winner.
+- Company insights on a competitor runs the company analysis for it only when pressed, using part of the AI allowance, and shows a saved card again without cost; Analyse all asks first and says how many analyses it will run.
+- Who won, in the close dialog and the Outcome section, is picked from the tender's competitors or added as someone else, and the winner is saved on the deal as before.
 - The flag is set by a platform admin; a workspace without it sees no new tab, menu entry or screen, and standard deals behave exactly as before.
