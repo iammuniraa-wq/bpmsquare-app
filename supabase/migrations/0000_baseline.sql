@@ -57,25 +57,25 @@ create table tenants (
   updated_at   timestamptz not null default now()
 );
 
--- Seed first tenant (Vikas Pioneers — your design partner)
-insert into tenants (slug, name, accent_color, status, plan, features)
-values (
-  'vikas',
-  'Vikas Pioneers',
-  '#FF6B00',
-  'active',
-  'pro',
-  '{
-    "leads":        true,
-    "pipeline":     false,
-    "amc":          true,
-    "dispatch":     false,
-    "invoices":     true,
-    "partners":     false,
-    "ai_assistant": false,
-    "db_export":    false
-  }'::jsonb
-);
+-- [kamco instance: not seeded] -- Seed first tenant (Vikas Pioneers — your design partner)
+-- [kamco instance: not seeded] insert into tenants (slug, name, accent_color, status, plan, features)
+-- [kamco instance: not seeded] values (
+-- [kamco instance: not seeded]   'vikas',
+-- [kamco instance: not seeded]   'Vikas Pioneers',
+-- [kamco instance: not seeded]   '#FF6B00',
+-- [kamco instance: not seeded]   'active',
+-- [kamco instance: not seeded]   'pro',
+-- [kamco instance: not seeded]   '{
+-- [kamco instance: not seeded]     "leads":        true,
+-- [kamco instance: not seeded]     "pipeline":     false,
+-- [kamco instance: not seeded]     "amc":          true,
+-- [kamco instance: not seeded]     "dispatch":     false,
+-- [kamco instance: not seeded]     "invoices":     true,
+-- [kamco instance: not seeded]     "partners":     false,
+-- [kamco instance: not seeded]     "ai_assistant": false,
+-- [kamco instance: not seeded]     "db_export":    false
+-- [kamco instance: not seeded]   }'::jsonb
+-- [kamco instance: not seeded] );
 
 -- Tenant users — maps auth.users to a tenant with a role
 create table tenant_users (
@@ -1166,3 +1166,6 @@ alter table quotes add column if not exists gst_rate numeric;
 
 -- ---- ad-hoc gap: tenants.company_info (no tracked migration ever added it) ----
 alter table tenants add column if not exists company_info jsonb not null default '{}'::jsonb;
+
+-- [kamco instance] bucket the code uses but no migration creates (scripts/dedicated/bootstrap.sql)
+insert into storage.buckets (id, name, public) values ('case-photos', 'case-photos', true) on conflict (id) do nothing;
