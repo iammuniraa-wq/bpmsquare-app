@@ -19,6 +19,7 @@ import RfqLineChip from "@/components/rfq/RfqLineChip";
 import { rfqPrefill } from "@/components/rfq/prefill";
 import { rfqLineStatuses } from "@/lib/rfq/server";
 import { selectedLines } from "@/lib/sales/lineTotals";
+import { hasClientItemNumbers } from "@/lib/sales/lineItemNumbers";
 import { findInvoiceForStandardQuote } from "@/lib/sales/standardQuoteInvoice";
 import { pricingOnStandardQuotes } from "../formData";
 import ObjectRecordPage from "@/components/page/ObjectRecordPage";
@@ -93,6 +94,8 @@ export default async function StandardQuoteDetailPage({
   const rfqStatus = rfqOn
     ? await rfqLineStatuses(createAdminSupabase(), quote.tenant_id, lines.map((l) => (l as { rfq_line_id?: string | null }).rfq_line_id ?? "").filter(Boolean))
     : {};
+  // A quote made from a tender bid keeps the client's item numbers; an ordinary quote has none to show (1..n adds nothing).
+  const clientNumbers = hasClientItemNumbers(lines);
   const chosenGroupIds = new Set(selectedLines(lines).filter((l) => l.group_type === "alternative" && l.group_id).map((l) => l.group_id as string));
 
   const isDraft = quote.status === "draft";
@@ -193,6 +196,7 @@ export default async function StandardQuoteDetailPage({
               rows={lines}
               rowKey={(l) => l.id}
               columns={[
+                ...(clientNumbers ? [{ label: "Item", cellStyle: { color: c.muted, fontSize: 12.5, whiteSpace: "nowrap" as const }, render: (l: (typeof lines)[number]) => l.sl_no ?? "" }] : []),
                 {
                   label: "Description",
                   render: (l) => {
