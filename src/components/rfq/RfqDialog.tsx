@@ -14,7 +14,7 @@ import RfqSingleForm from "./RfqSingleForm";
 export type RfqCreated = { id: string; ref: string; line_ids: string[]; line_keys: (string | null)[] };
 
 export default function RfqDialog({
-  onClose, origin, originLabel, lines, title, single, onCreated, supplierTypeFilter,
+  onClose, origin, originLabel, lines, title, single, onCreated, supplierTypeFilter, supplierSource,
 }: {
   onClose: () => void;
   origin: { type: RfqOriginType; id: string | null };
@@ -25,6 +25,8 @@ export default function RfqDialog({
   single?: boolean;
   onCreated?: (r: RfqCreated) => void;
   supplierTypeFilter?: boolean;
+  /** A tender deal's supplier list: the client's approved group when it has one. */
+  supplierSource?: string;
 }) {
   const router = useRouter();
 
@@ -58,6 +60,7 @@ export default function RfqDialog({
             <RfqComposer
               compact
               supplierTypeFilter={supplierTypeFilter}
+              supplierSource={supplierSource}
               origin={origin}
               originLabel={originLabel}
               initialLines={lines}

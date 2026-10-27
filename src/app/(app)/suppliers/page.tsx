@@ -1,4 +1,4 @@
-import { requireFeature } from "@/lib/tenant";
+import { getTenant, requireFeature } from "@/lib/tenant";
 import Link from "next/link";
 import { requireTenantUser } from "@/lib/supabase-server";
 import type { Supplier } from "@/lib/types";
@@ -115,6 +115,10 @@ export default async function SuppliersPage({
   if (inactive > 0) {
     chips.push({ id: "inactive", label: `Inactive (${inactive})`, href: filterHref("inactive"), active: typeFilter === "inactive" });
   }
+
+  // The Groups view (a client's approved suppliers) exists where the tender edition is on.
+  const tenant = await getTenant();
+  if (tenant?.features?.gcc_tender === true) chips.push({ id: "groups", label: "Groups", href: ROUTES.supplierGroups, active: false });
 
   const hasFilter = !!(q || af || (typeFilter && typeFilter !== "all") || Object.keys(cfParams).length > 0);
 
