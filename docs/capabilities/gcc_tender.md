@@ -29,4 +29,6 @@ rules:
 
 - The Overview of a tender deal is one tab: what the client asked for, Documents (the source email, its files and the Change requests count), Open work and the Bid guarantee; the header of every tab carries the bid decision marker, the Bid end date countdown and the guarantee state.
 - Submit bid and Revise bid warn, and never block, about lines without a price, stale prices, no approved go and a guarantee not yet marked Submitted.
+- When a bid is submitted, the internal cost of each line and its markup are kept privately with that bid version; they never appear in a bid version's lines, a priced Excel, an answer sheet, a Standard Quote or the API.
+- The contract project made from the won tender starts its budget from the winning bid version's recorded cost, not from the BOQ as it stands later; a bid submitted before costs were kept falls back to the current BOQ and the budget note says so.
 - The flag is set by a platform admin; a workspace without it sees no new tab, menu entry or screen, and standard deals behave exactly as before.

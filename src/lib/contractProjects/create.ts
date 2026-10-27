@@ -8,6 +8,8 @@ import { insertWithMasterRef } from "@/lib/masterRef";
 import { loadOpportunity, loadOpportunityLines } from "@/lib/sales/opportunityServer";
 import { loadTender, accountInTenant } from "@/lib/tender/server";
 import { loadEstimateBudgetInputs } from "@/lib/tender/estimates/budgetServer";
+import { loadWinningBid } from "@/lib/tender/bids/costServer";
+import { budgetNote, snapshotCostCodes, snapshotToBudget, type CostSource } from "@/lib/tender/bids/costSnapshot";
 import { budgetTotals, round2 } from "./budget";
 import { contractValueFor, contractProjectSettings, mapTenderToBudget, projectNameFromDeal, type BoqInfo, type DealLine } from "./fromTender";
 import {
@@ -29,6 +31,8 @@ export type CreateInput = {
   planned_end: string | null;
   manager_id: string | null;
   lines: DraftLine[];
+  /** Where the baseline budget started from, in words (kept on the baseline revision as its note). */
+  budget_note?: string | null;
 };
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -52,6 +56,9 @@ export type TenderSource = {
   /** BOQ lines whose budget came from the estimates that priced them, and what was worth saying about them (slice 3c-1). */
   fromEstimate: number;
   estimateWarnings: string[];
+  /** Which source the budget lines came from: the winning bid version's recorded cost, or the current BOQ (and why). */
+  costSource: CostSource;
+  budgetNote: string;
 };
 
 /** What an awarded tender of this workspace gives a project: its lines mapped to budget lines, its account and its contract value. */
@@ -62,22 +69,35 @@ export async function loadTenderSource(admin: SupabaseClient, tenantId: string, 
   if (!opp || !tender) return { ok: false, status: 404, error: "Tender not found" };
   if (opp.stage !== "awarded" || opp.outcome !== "won") return { ok: false, status: 409, error: "Only an awarded tender becomes a contract project" };
 
-  const [deal, boqRes, tenant] = await Promise.all([
-    loadOpportunityLines(admin, tenantId, opportunityId),
-    admin.from("tender_boq_lines").select("line_id, item_no, cost_code, unit_cost, price_source, price_source_ref").eq("tenant_id", tenantId).eq("opportunity_id", opportunityId).limit(5000),
-    getTenant(),
-  ]);
-  const boq = new Map<string, BoqInfo>();
-  for (const r of ((boqRes.error ? [] : boqRes.data ?? []) as (BoqInfo & { line_id: string | null; unit_cost: number | string | null })[])) {
-    if (r.line_id) boq.set(r.line_id, { item_no: r.item_no, cost_code: r.cost_code, unit_cost: r.unit_cost == null ? null : Number(r.unit_cost), price_source: r.price_source, price_source_ref: r.price_source_ref });
-  }
+  const tenant = await getTenant();
   await ensureMasterSeeds(admin, tenantId);
-  const codes = [...new Set([...boq.values()].map((b) => b.cost_code?.trim()).filter((c): c is string => !!c))];
-  const costCodes = await existingCodes(admin, tenantId, "cost_code", codes);
-  const { defaultMarginPct } = contractProjectSettings(tenant?.config);
-  // Slice 3c-1: BOQ lines that estimates priced take the estimate's cost lines (by resource, real costs); the rest keep the rule above.
-  const estimates = await loadEstimateBudgetInputs(admin, tenantId, opportunityId);
-  const mapping = mapTenderToBudget({ lines: deal as unknown as DealLine[], boq, costCodes, defaultMarginPct, estimates });
+
+  // The budget starts from the cost recorded with the WINNING bid version (the last one submitted), so it is the bid that won and not the
+  // BOQ as it was edited afterwards. A version submitted before costs were stored (or while 0230 is pending) falls back to the BOQ.
+  const winning = await loadWinningBid(admin, tenantId, opportunityId);
+  let costSource: CostSource;
+  let mapping: { lines: DraftLine[]; estimated: number; unmappedCodes: string[]; skipped: number; fromEstimate: number; estimateWarnings: string[] };
+  if (winning?.cost) {
+    costSource = { kind: "bid_version", version_no: winning.version_no, submitted_at: winning.submitted_at };
+    const costCodes = await existingCodes(admin, tenantId, "cost_code", snapshotCostCodes(winning.cost));
+    mapping = { ...snapshotToBudget(winning.cost, costCodes), skipped: 0 };
+  } else {
+    costSource = { kind: "boq", reason: winning ? "no_snapshot" : "no_version", version_no: winning?.version_no ?? null };
+    const [deal, boqRes] = await Promise.all([
+      loadOpportunityLines(admin, tenantId, opportunityId),
+      admin.from("tender_boq_lines").select("line_id, item_no, cost_code, unit_cost, price_source, price_source_ref").eq("tenant_id", tenantId).eq("opportunity_id", opportunityId).limit(5000),
+    ]);
+    const boq = new Map<string, BoqInfo>();
+    for (const r of ((boqRes.error ? [] : boqRes.data ?? []) as (BoqInfo & { line_id: string | null; unit_cost: number | string | null })[])) {
+      if (r.line_id) boq.set(r.line_id, { item_no: r.item_no, cost_code: r.cost_code, unit_cost: r.unit_cost == null ? null : Number(r.unit_cost), price_source: r.price_source, price_source_ref: r.price_source_ref });
+    }
+    const codes = [...new Set([...boq.values()].map((b) => b.cost_code?.trim()).filter((c): c is string => !!c))];
+    const costCodes = await existingCodes(admin, tenantId, "cost_code", codes);
+    const { defaultMarginPct } = contractProjectSettings(tenant?.config);
+    // Slice 3c-1: BOQ lines that estimates priced take the estimate's cost lines (by resource, real costs); the rest keep the rule above.
+    const estimates = await loadEstimateBudgetInputs(admin, tenantId, opportunityId);
+    mapping = mapTenderToBudget({ lines: deal as unknown as DealLine[], boq, costCodes, defaultMarginPct, estimates });
+  }
 
   // The award value arrives with the outcome facts of bid versions (a later migration): read it if it is there, ignore it if not.
   const award = await admin.from("opportunity_tenders").select("award_value").eq("opportunity_id", opportunityId).eq("tenant_id", tenantId).maybeSingle();
@@ -89,7 +109,7 @@ export async function loadTenderSource(admin: SupabaseClient, tenantId: string, 
       title: opp.title, accountId: opp.account_id, currency: opp.currency ?? resolveCurrency(tenant?.config).code,
       contractValue: contractValueFor({ awardValue, dealAmount: Number(opp.amount) }),
       lines: mapping.lines, estimated: mapping.estimated, unmappedCodes: mapping.unmappedCodes, skipped: mapping.skipped,
-      fromEstimate: mapping.fromEstimate, estimateWarnings: mapping.estimateWarnings,
+      fromEstimate: mapping.fromEstimate, estimateWarnings: mapping.estimateWarnings, costSource, budgetNote: budgetNote(costSource),
     },
   };
 }
@@ -119,7 +139,7 @@ export async function createProject(req: ProjectCtx, input: CreateInput): Promis
   const undo = () => admin.from("contract_projects").delete().eq("id", projectId).eq("tenant_id", tenantId);
 
   const total = budgetTotals(input.lines.map((l) => ({ ...l, amount: round2(l.qty * l.unit_cost) }))).total;
-  const rev = await admin.from("project_budget_revisions").insert({ tenant_id: tenantId, project_id: projectId, rev_no: 0, status: "draft", created_by: userId, total }).select("id").single();
+  const rev = await admin.from("project_budget_revisions").insert({ tenant_id: tenantId, project_id: projectId, rev_no: 0, status: "draft", created_by: userId, total, justification_text: input.budget_note ? input.budget_note.slice(0, 1000) : null }).select("id").single();
   if (rev.error || !rev.data) { await undo(); return { ok: false, status: 500, error: rev.error?.message ?? "Could not create the budget" }; }
   const revisionId = (rev.data as { id: string }).id;
   if (input.lines.length > 0) {
