@@ -246,7 +246,8 @@ describe("the seed script: what it writes", () => {
       for (const c of i.cols) expect(c, `${i.table}.${c}`).not.toMatch(/email|phone|gstin|vat_number|crn|password|address/);
     }
     expect(seed).not.toMatch(/auth\.users|\bpassword\b|crypt\(|tenant_users/i);
-    expect(seed).not.toMatch(/@[a-z0-9-]+\.(com|org|net|sa|ae|qa)/i);
+    // The one employee the owner asked for (2026-10-27) is the only e-mail the seed may carry.
+    expect(seed.replace(/abdulkhader@saytara\.info/g, "")).not.toMatch(/@[a-z0-9-]+\.(com|org|net|sa|ae|qa|info)/i);
   });
 
   it("uses only values the check constraints allow (stage, outcome, portal, price source, price position, account type)", () => {
@@ -335,7 +336,7 @@ describe("the cleanup script", () => {
     expect(deletes.length).toBeGreaterThanOrEqual(8);
     for (const d of deletes) {
       expect(d.stmt, d.stmt).toMatch(/where\s+tenant_id\s*=\s*t\b/);
-      expect(d.stmt, d.stmt).toMatch(/(?:name|title)\s+like\s+'TEST %'|(?:object_id|id)\s*=\s*any\(v_opps\)/);
+      expect(d.stmt, d.stmt).toMatch(/(?:name|title|first_name)\s+like\s+'TEST %'|(?:object_id|id)\s*=\s*any\(v_opps\)/);
     }
     expect(cleanup).toMatch(/v_opps[^;]*from opportunities where tenant_id = t and title like 'TEST %'/);
     expect(cleanup).not.toMatch(/truncate|drop\s+(table|schema|column)|delete\s+from\s+\w+\s*;/i);
