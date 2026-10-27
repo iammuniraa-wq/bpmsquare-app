@@ -8,8 +8,9 @@
 -- that hang off them:
 --   * RFQs titled 'TEST ...'   (their lines, suppliers, replies, messages and awards go with them)
 --   * estimates named 'TEST ...' (their lines and BOQ links go with them)
+--   * contract projects named 'TEST ...' (their budget, buy-out packages and package lines go with them)
 --   * deals titled 'TEST ...'  (their tender row, deal lines, BOQ source and lines, bid versions, competitors, logged calls go with
---     them) and any approval requests that point at those deals
+--     them) and any approval requests that point at those deals (the Tender desk's waiting bid decision among them)
 --   * products, inventory items, contacts, accounts and suppliers named 'TEST ...'
 --   * employees whose first name starts with 'TEST '
 -- Everything is filtered by tenant_id of the 'kamco' workspace, so another workspace is never touched. If somebody created their own
@@ -66,6 +67,16 @@ begin
     raise notice 'approval_requests: %', v_n;
     if v_confirm then
       delete from approval_requests where tenant_id = t and object_id = any(v_opps);
+    end if;
+  end if;
+
+  -- 3b. Contract projects named 'TEST ...' (their budget revisions and lines, buy-out packages and package lines follow by cascade).
+  --     The RFQs of the packages were already removed in step 1.
+  if to_regclass('public.contract_projects') is not null then
+    select count(*) into v_n from contract_projects where tenant_id = t and name like 'TEST %';
+    raise notice 'contract_projects: %', v_n;
+    if v_confirm then
+      delete from contract_projects where tenant_id = t and name like 'TEST %';
     end if;
   end if;
 

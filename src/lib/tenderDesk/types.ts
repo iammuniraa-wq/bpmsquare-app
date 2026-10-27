@@ -5,7 +5,7 @@
 // Money is in the workspace currency as plain numbers (not millions); the screens format it. Dates are ISO strings. Every list is already
 // ordered and cut to the size the screens draw, so the client never sorts or slices.
 
-export type TenderDeskStyle = "bold" | "control" | "classic";
+export type TenderDeskStyle = "bold" | "control";
 
 export type TenderDeskKpis = {
   /** Sum of the amount of every open tender. */
