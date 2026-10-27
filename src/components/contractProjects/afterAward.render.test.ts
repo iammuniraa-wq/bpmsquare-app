@@ -247,6 +247,35 @@ describe("the Invoicing tab", () => {
     expect(locked).toMatch(/<select[^>]*disabled/);
   });
 
+  it("under 780 px the schedule is one card per milestone (the table is hidden by CSS), with the same facts and 44 px actions, and no sideways scroll", () => {
+    expect(out).toContain('class="bpm-rows-table"');
+    expect(out).toContain('class="bpm-rows-cards"');
+    expect(out.match(/data-guide="cp\.milestone\.card"/g)).toHaveLength(rows.length);
+    const cards = out.slice(out.indexOf('data-guide="cp.invoicing.cards"'));
+    for (const w of ["Advance", "Mobilisation", "Amount before tax", "SAR 31,500 (30%)", "SAR 10,000", "with VAT", "Due", "15 Nov 2026", "INV-0002", "/invoices/i2"]) expect(cards, w).toContain(w);
+    expect(cards).toContain('data-guide="cp.milestone.card.create_invoice"');
+    expect(cards).toContain('data-guide="cp.milestone.card.open"');
+    // (the test's Link stub keeps only the href, so the link's own target size is read from the source below)
+    expect(cards).toContain('<a href="/invoices/i2">INV-0002</a>');
+    expect(src("InvoicingTab.tsx")).toMatch(/data-guide="cp\.milestone\.card\.invoice_link" style=\{\{[^}]*minHeight: 44/);
+    // Every button on a card is a 44 px target; the card itself never forces a width.
+    for (const tag of cards.match(/<button\b[^>]*>/g) ?? []) expect(tag, tag).toMatch(/min-height:44px/);
+    expect(cards).not.toMatch(/min-width:\s*\d{3}/);
+    // The rules only exist once, in the shared stylesheet the Buy-out cards use.
+    const css = readFileSync(path.join(ROOT, "src/app/globals.css"), "utf8");
+    expect(css).toMatch(/@media \(max-width: 780px\) \{\s*\.bpm-rows-table \{ display: none !important; \}/);
+    // Gated actions stay gated on the card, and no explanation is printed on it.
+    const readOnly = itab(mdata(rows, { canEdit: false }));
+    expect(readOnly.slice(readOnly.indexOf('data-guide="cp.invoicing.cards"'))).not.toContain("card.create_invoice");
+    for (const tip of [PROJECT_TIPS.milestones, PROJECT_TIPS.stillToInvoice]) expect(cards).not.toContain(tip);
+  });
+
+  it("the milestone panel is the shared SidePanel, which is a bottom sheet under 780 px", () => {
+    expect(src("MilestonePanel.tsx")).toContain('import SidePanel from "@/components/ui/SidePanel"');
+    const css = readFileSync(path.join(ROOT, "src/components/ui/SidePanel.module.css"), "utf8");
+    expect(css).toMatch(/@media \(max-width: 780px\)[\s\S]*bottom: 0[\s\S]*border-radius: 16px 16px 0 0/);
+  });
+
   it("the status a person may choose follows where the milestone stands", () => {
     expect(statusChoices("planned")).toEqual(["planned", "ready"]);
     expect(statusChoices("ready")).toEqual(["planned", "ready"]);
