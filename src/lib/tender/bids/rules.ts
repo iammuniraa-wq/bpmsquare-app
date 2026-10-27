@@ -214,3 +214,9 @@ export type BidsData = {
   working_total: number;
   canEdit: boolean;
 };
+
+/** The version a Standard Quote is made from unless the person picks another: the latest, whatever order the list arrives in. Empty when there is none. */
+export function defaultQuoteVersion(versions: readonly { version_no: number }[], picked?: string | null): string {
+  if (picked && versions.some((v) => String(v.version_no) === picked)) return picked;
+  return versions.length === 0 ? "" : String(Math.max(...versions.map((v) => v.version_no)));
+}

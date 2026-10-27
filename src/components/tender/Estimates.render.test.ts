@@ -320,6 +320,18 @@ describe("the strip on an estimate made for a tender", () => {
     expect(used).toContain("This estimate is for 17.5 m2, the BOQ line is 120 m2.");
   });
 
+  it("states the cost the BOQ uses: the saved total, per BOQ unit, no VAT (live bug: the Price panel said 411,482, the BOQ took 741,650.55)", () => {
+    const link = { ...waitingLink(null), item: "2.1 Supply and lay HDPE pipe 600 mm dia", qty: 420, uom: "m", waiting: false, unit_cost: 1765.8346 };
+    const out = html(ctx({ cost: 741650.55, links: [link] }));
+    expect(out).toContain("Cost used for the BOQ");
+    expect(out).toContain('data-guide="tender.estimate.cost_value"');
+    expect(out).toMatch(/7,41,650\.55|741,650\.55/);
+    expect(out).toContain("1,765.83");
+    expect(out).toContain("per m (420 m)");
+    expect(out).not.toContain("411,482");
+    expect(html(ctx({ links: [] }))).not.toContain("Cost used for the BOQ");
+  });
+
   it("says nothing when the quantity is known to match, or when nothing is known about a link", () => {
     for (const q of [{ ...notFilled, status: "matches" as const, measured: 120, needs_confirm: false, note: null }, null, undefined]) {
       const out = html(ctx({ links: [waitingLink(q)] }));

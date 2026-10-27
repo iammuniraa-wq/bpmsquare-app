@@ -55,6 +55,18 @@ describe("the primary header button of a tender follows the stage", () => {
     expect(buttonFor(out, "tender.primary.propose")).toContain("Propose bid decision");
   });
 
+  it("Received with a proposal waiting: the marker says Awaiting approval and the button says Review bid decision, not Propose (live bug 2026-10-27)", () => {
+    const entry = { id: "a1", decision: "go", status: "pending", reason: "Good fit", comment: null, requested_by_name: "S. Khan", decided_by_name: null, requested_at: "2026-10-26T09:00:00Z", decided_at: null, mine: true };
+    const approval = { standing: null, recordedBefore: false, pending: entry, canDecide: false, proposalBlocked: null, history: [] };
+    const out = page({ stage: "received", tender: { approval } });
+    expect(primaryGuides(out)).toEqual(["tender.primary.review"]);
+    expect(buttonFor(out, "tender.primary.review")).toContain("Review bid decision");
+    expect(buttonFor(out, "tender.primary.review")).toContain("min-height:44px");
+    expect(out).not.toContain("Propose bid decision");
+    expect(out).toContain("Awaiting approval");
+    expect(out).not.toContain("no proposal yet");
+  });
+
   it("Estimating: Submit bid, and Revise bid once a version is in", () => {
     expect(buttonFor(page({ stage: "estimating" }), "tender.primary.submit")).toContain("Submit bid");
     const revised = page({ stage: "estimating", tender: { bids: { versions: [ver(1, 200)], pending: false, working_total: 0, canEdit: true } } });
@@ -102,9 +114,31 @@ describe("the primary header button of a tender follows the stage", () => {
     expect(primaryGuides(out)).toEqual([]);
   });
 
+  it("the Close this deal dialog has one footer: Cancel, Confirm and (Won on a tender only) Create contract project now, same size, 44 px, one column at 375 px", () => {
+    const src = read("src/app/(app)/pipeline/[id]/OpportunityDetailClient.tsx");
+    const dialog = src.slice(src.indexOf("Close this deal as"));
+    const footer = dialog.slice(dialog.indexOf('data-guide="deal.close.footer"'));
+    // Every footer button shares one flex basis that cannot fit twice into a 375 px phone, so they stack; none is a separate large button.
+    const buttons = [...footer.matchAll(/<Button\b[^>]*style=\{\{([^}]*)\}\}/g)].map((m) => m[1]);
+    expect(buttons).toHaveLength(3);
+    for (const b of buttons) { expect(b).toContain('flex: "1 1 160px"'); expect(b).toContain("minHeight: 44"); }
+    expect(footer).toContain("{offerProject && (");
+    expect(footer.indexOf("Cancel")).toBeLessThan(footer.indexOf("Confirm"));
+    expect(footer.indexOf("Confirm")).toBeLessThan(footer.indexOf("Create contract project now"));
+    // The outcome row is 44 px too, and the dialog is wide enough for a row of three on a PC.
+    expect(dialog.slice(0, dialog.indexOf('data-guide="deal.close.footer"'))).toContain("minHeight: 44");
+    expect(src).toContain('width: 560, maxWidth: "calc(100vw - 32px)"');
+    // The offered project button is the primary one; Confirm alone is primary when no project is offered.
+    expect(footer).toContain('variant={offerProject ? "secondary" : "primary"}');
+  });
+
   it("the buttons are wired: propose opens the decision panel, submit and revise open the Bid tab and start its flow, the outcome opens the close dialog, create makes the project", () => {
     const src = read("src/app/(app)/pipeline/[id]/OpportunityDetailClient.tsx");
-    expect(src).toMatch(/key === "propose_decision"\) setDecisionOpen\(true\)/);
+    expect(src).toMatch(/key === "propose_decision" \|\| key === "review_decision"\) setDecisionOpen\(true\)/);
+    // A proposal re-reads the decision at once, so the marker and the header button do not wait for a reload.
+    expect(src).toContain("proposalPending: !!approvalNow?.pending");
+    expect(src).toMatch(/onSaved=\{\(\) => void reloadApproval\(\)\}/);
+    expect(src).toContain("/tender/approval");
     expect(src).toMatch(/key === "submit_bid" \|\| key === "revise_bid"\) \{ openTab\("bid"\); setBidStart\(\(n\) => n \+ 1\); \}/);
     expect(src).toMatch(/key === "record_outcome"\) markWon\(\)/);
     expect(src).toMatch(/key === "create_project"\) createContractProject\(\)/);

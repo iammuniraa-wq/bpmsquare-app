@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { rfqAccess, errorResponse, createRfq, isMissingRelation, loadRfqBundle, sendToSupplier, renderRfqPdf, type NewRfq } from "@/lib/rfq/server";
 import { getTenant } from "@/lib/tenant";
+import { splitReachable, unreachableMessage } from "@/lib/rfq/reach";
 import { rfqConfig, RFQ_ORIGIN_TYPES, RFQ_STATUSES, type RfqOriginType } from "@/lib/rfq/types";
 
 // RFQs (0128). GET lists; POST creates -- by hand, or from any record whose
@@ -51,6 +52,14 @@ export async function POST(req: NextRequest) {
     const tenant = await getTenant();
     if (!tenant || tenant.id !== ctx.tenantId) return NextResponse.json({ error: "Workspace not resolved" }, { status: 400 });
     const cfg = rfqConfig(tenant.config?.rfq);
+    // "Send to N suppliers" when none of them has an e-mail: say who and what to do, and create nothing (the draft can still be saved).
+    if (body.send && Array.isArray(body.supplier_ids) && body.supplier_ids.length > 0) {
+      const { data } = await ctx.admin.from("suppliers").select("id, name, email, phone").eq("tenant_id", ctx.tenantId).in("id", body.supplier_ids);
+      const { reachable, unreachable } = splitReachable(((data ?? []) as { id: string; name: string; email: string | null; phone: string | null }[]));
+      if (unreachable.length > 0 && reachable.length === 0) {
+        return NextResponse.json({ error: unreachableMessage(unreachable, true), unreachable: unreachable.map((u) => ({ supplier_id: u.id, supplier: u.name, has_phone: !!u.phone?.trim() })) }, { status: 422 });
+      }
+    }
     const rfq = await createRfq(ctx, { ...body, origin_type: (body.origin_type ?? "manual") as RfqOriginType }, cfg);
 
     const bundle = await loadRfqBundle(ctx.admin, ctx.tenantId, rfq.id, { messages: false });

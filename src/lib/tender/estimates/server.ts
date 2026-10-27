@@ -15,7 +15,7 @@ import { bundles, type BoqRequest } from "@/lib/tender/boq/server";
 import { proposeByMatch, proposeSpread, type BoqInput, type Proposal, type ProposalBy } from "./allocate";
 import {
   bidIsLocked, cleanShare, costPerUnit, isBasis, isLinkStale, isUuid, listOutputs, missingCosts, outputCost, overAllocated, parseOutput,
-  prefillParams, rateFromCost, round2, sumPerUnit, buildUpName, buildUpNote, isRateBuildUp, quantityCheck, quantityView,
+  prefillParams, quantityFieldLabel, rateFromCost, round2, sumPerUnit, buildUpName, buildUpNote, isRateBuildUp, quantityCheck, quantityView,
   type AllocationLink, type Basis, type EstLine, type MissingCost, type OutputCost, type QtyInputDef, type QuantityView,
 } from "./rules";
 
@@ -205,7 +205,7 @@ export async function quantityChecks(admin: SupabaseClient, tenantId: string, op
     if (!b || !line || !(line.qty > 0)) continue;
     const est = estimates.get(l.estimate_id);
     const check = quantityCheck({ inputs: est?.template_id ? templates.get(est.template_id) : null, params: est?.params, boqUnit: b.uom ?? line.uom, boqQty: line.qty });
-    out.set(l.id, quantityView(check, !!l.applied_at, b.label));
+    out.set(l.id, quantityView(check, !!l.applied_at, b.label, quantityFieldLabel(est?.template_id ? templates.get(est.template_id) : null, b.uom ?? line.uom)));
   }
   return out;
 }

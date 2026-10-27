@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { rfqAccess, errorResponse, loadRfqBundle, sendToSupplier, renderRfqPdf } from "@/lib/rfq/server";
 import { rfqConfig } from "@/lib/rfq/types";
+import { splitReachable, unreachableMessage } from "@/lib/rfq/reach";
 import { getTenant } from "@/lib/tenant";
 import { logChange } from "@/lib/changeLog";
 
@@ -34,8 +35,19 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     if (!targets.length) return NextResponse.json({ error: kind === "request" ? "Everyone on this RFQ has already been sent it — add a supplier, or send a reminder." : "Nobody is waiting on a reply." }, { status: 422 });
 
     const results: { rfq_supplier_id: string; supplier: string; ok: boolean; reason?: string; redirected?: boolean }[] = [];
+    // Sort the recipients first: a supplier with no e-mail is named, with what to do, instead of the whole send failing as a bare 502.
+    const recipient = (rs: (typeof targets)[number]) => ({ rs, id: rs.id, name: rs.suppliers?.name ?? "", email: (rs.email_to || rs.suppliers?.email || "").trim() || null, phone: rs.suppliers?.phone ?? null });
+    const { reachable, unreachable } = splitReachable(targets.map(recipient));
+    if (unreachable.length > 0 && reachable.length === 0) {
+      return NextResponse.json({
+        error: unreachableMessage(unreachable, true),
+        unreachable: unreachable.map((u) => ({ rfq_supplier_id: u.id, supplier: u.name, has_phone: !!u.phone?.trim() })),
+        results: unreachable.map((u) => ({ rfq_supplier_id: u.id, supplier: u.name, ok: false, reason: "No email address" })),
+      }, { status: 422 });
+    }
+    for (const u of unreachable) results.push({ rfq_supplier_id: u.id, supplier: u.name, ok: false, reason: unreachableMessage([u], false) });
     const pdf = kind === "request" && rfqConfig(tenant.config?.rfq).attach_pdf ? await renderRfqPdf(ctx.admin, tenant, bundle) : null;
-    for (const rs of targets) {
+    for (const { rs } of reachable) {
       const r = await sendToSupplier(ctx.admin, { tenant, bundle, rs, kind, pdf, message: typeof body.message === "string" ? body.message.slice(0, 4000) : null, actor: { id: ctx.userId, email: ctx.email } });
       results.push({ rfq_supplier_id: rs.id, supplier: rs.suppliers?.name ?? "", ok: r.ok, ...(r.ok ? { redirected: r.redirected } : { reason: r.reason }) });
     }
@@ -46,7 +58,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         changes: [{ field: kind === "reminder" ? "reminder sent" : "sent", from: null, to: results.filter((r) => r.ok).map((r) => r.supplier).join(", ") }],
       });
     }
-    return NextResponse.json({ ok: okCount > 0, results }, { status: okCount ? 200 : 502 });
+    // Nothing went out for another reason (the mail service, a disconnected mailbox): say why, never a bare status.
+    const why = [...new Set(results.filter((r) => !r.ok && r.reason).map((r) => r.reason as string))].join(" ");
+    return NextResponse.json({ ok: okCount > 0, results, ...(okCount ? {} : { error: why || "The email could not be sent. Try again in a moment." }) }, { status: okCount ? 200 : 502 });
   } catch (e) {
     return errorResponse(e);
   }

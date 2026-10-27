@@ -349,6 +349,28 @@ const valueOf = (i: QtyInputDef, params: Record<string, unknown>): number | null
   return Number.isFinite(n) ? n : null;
 };
 
+/**
+ * The one input that carries the quantity among several in the BOQ unit: the only one, else the only one named like a quantity
+ * (`length_m` beside `depth_m`). Null when it is still not clear, and then nothing is guessed.
+ */
+function quantityInput(sameUnit: readonly QtyInputDef[]): QtyInputDef | null {
+  if (sameUnit.length === 1) return sameUnit[0];
+  const named = sameUnit.filter((i) => QTY_KEYS.has(i.key));
+  return named.length === 1 ? named[0] : null;
+}
+
+/** The label of the input that carries the quantity, e.g. "Pipeline length (m)"; null when the rules cannot tell which it is. */
+export function quantityFieldLabel(inputs: readonly QtyInputDef[] | null | undefined, boqUnit: string | null | undefined): string | null {
+  if (!Array.isArray(inputs)) return null;
+  const numbers = inputs.filter((i) => i.type === "number");
+  const unit = canonUnit(boqUnit);
+  const byUnit = unit ? numbers.filter((i) => canonUnit(i.unit) === unit) : [];
+  const one = quantityInput(byUnit) ?? (byUnit.length === 0 ? quantityInput(numbers.filter((i) => QTY_KEYS.has(i.key) && !(unit && i.unit && clashes(canonUnit(i.unit), unit)))) : null);
+  if (!one) return null;
+  const name = (one.label ?? one.key).trim();
+  return one.unit && !name.includes(`(${one.unit})`) ? `${name} (${one.unit})` : name;
+}
+
 // Widths tried, in order, when a floor area is turned into a rectangle: the first whose length also lies inside its range wins.
 const PREFERRED_WIDTHS = [10, 8, 6, 5, 4, 3, 2, 1];
 
@@ -363,7 +385,8 @@ export function prefillParams(inputs: readonly QtyInputDef[], boqUnit: string | 
   const inRange = (i: { min?: number; max?: number }, v: number = qty) => (i.min == null || v >= i.min) && (i.max == null || v <= i.max);
   const unit = canonUnit(boqUnit);
   const byUnit = unit ? numbers.filter((i) => canonUnit(i.unit) === unit && inRange(i)) : [];
-  if (byUnit.length === 1) return { [byUnit[0].key]: qty };
+  const sole = quantityInput(byUnit);
+  if (sole) return { [sole.key]: qty };
   const byName = numbers.filter((i) => QTY_KEYS.has(i.key) && inRange(i) && !(unit && i.unit && clashes(canonUnit(i.unit), unit)));
   if (byUnit.length === 0 && byName.length === 1) return { [byName[0].key]: qty };
   if (byUnit.length > 0 || byName.length > 0 || unit !== "m2") return {};
@@ -393,8 +416,7 @@ export function measuredQuantity(inputs: readonly QtyInputDef[], params: Record<
   const unit = canonUnit(boqUnit);
   const good = (n: number | null): number | null => (n != null && n > 0 ? n : null);
   const byUnit = unit ? numbers.filter((i) => canonUnit(i.unit) === unit) : [];
-  if (byUnit.length === 1) return good(valueOf(byUnit[0], params));
-  if (byUnit.length > 1) return null;
+  if (byUnit.length > 0) { const sole = quantityInput(byUnit); return sole ? good(valueOf(sole, params)) : null; }
   const byName = numbers.filter((i) => QTY_KEYS.has(i.key) && !(unit && i.unit && clashes(canonUnit(i.unit), unit)));
   if (byName.length === 1) return good(valueOf(byName[0], params));
   if (byName.length > 1 || unit !== "m2") return null;
@@ -412,7 +434,7 @@ export function measuredQuantity(inputs: readonly QtyInputDef[], params: Record<
 export type QuantityStatus = "matches" | "mismatch" | "unknown";
 export type QuantityCheck = { status: QuantityStatus; measured: number | null; boq_qty: number; uom: string | null };
 /** What the screens show about one build-up link. `needs_confirm` is the rule the server enforces; `note` is the words. */
-export type QuantityView = QuantityCheck & { item: string; needs_confirm: boolean; note: string | null };
+export type QuantityView = QuantityCheck & { item: string; needs_confirm: boolean; note: string | null; /** The estimate input that carries the quantity ("Pipeline length (m)"), when the rules can tell. */ field?: string | null };
 
 /** The estimate's own quantity may differ from the BOQ line's by this much (1 percent) before it counts as another quantity. */
 export const QUANTITY_TOLERANCE = 0.01;
@@ -439,16 +461,17 @@ const qtyText = (n: number) => n.toLocaleString("en-US", { maximumFractionDigits
 const withUnit = (n: number, uom: string | null) => `${qtyText(n)}${uom ? ` ${uom}` : ""}`;
 
 /** What the banner and the BOQ line say. Null when there is nothing to say (the quantities match, or a rate already in use cannot be judged). */
-export function quantityNote(check: QuantityCheck, applied: boolean): string | null {
+export function quantityNote(check: QuantityCheck, applied: boolean, field?: string | null): string | null {
   const boq = withUnit(check.boq_qty, check.uom);
   if (check.status === "matches") return null;
-  if (check.status === "unknown") return applied ? null : `The quantity was not filled in automatically. Make this estimate for ${boq}, then confirm.`;
+  const todo = field ? `Set ${field} to ${qtyText(check.boq_qty)}, then confirm.` : `Make this estimate for ${boq}, then confirm.`;
+  if (check.status === "unknown") return applied ? null : `The quantity was not filled in automatically. ${todo}`;
   const own = withUnit(check.measured ?? 0, check.uom);
-  return applied ? `This estimate is for ${own}, the BOQ line is ${boq}.` : `This estimate is for ${own}, the BOQ line is ${boq}. Make this estimate for ${boq}, then confirm.`;
+  return applied ? `This estimate is for ${own}, the BOQ line is ${boq}.` : `This estimate is for ${own}, the BOQ line is ${boq}. ${todo}`;
 }
 
-export function quantityView(check: QuantityCheck, applied: boolean, item: string): QuantityView {
-  return { ...check, item, needs_confirm: needsQuantityConfirm(check, applied), note: quantityNote(check, applied) };
+export function quantityView(check: QuantityCheck, applied: boolean, item: string, field?: string | null): QuantityView {
+  return { ...check, item, needs_confirm: needsQuantityConfirm(check, applied), note: quantityNote(check, applied, field), field: field ?? null };
 }
 
 /** The words of the confirmation a person gives before a build-up is priced (one line, or several). */

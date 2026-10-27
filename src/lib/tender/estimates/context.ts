@@ -6,7 +6,7 @@ import { loadOpportunity } from "@/lib/sales/opportunityServer";
 import { tenderForDeal } from "@/lib/tender/server";
 import type { ComposerLine } from "@/components/rfq/RfqComposer";
 import { estimateOriginLabel, missingRfqLines } from "./rfqLines";
-import { bidIsLocked, isLinkStale, isUuid, missingCosts, type QuantityView } from "./rules";
+import { bidIsLocked, costPerUnit, isLinkStale, isUuid, missingCosts, outputCost, parseOutput, type QuantityView } from "./rules";
 import { loadDealEstimate, loadLinesFor, loadLinks, quantityChecks } from "./server";
 import { rfqConfig } from "@/lib/rfq/types";
 
@@ -30,6 +30,8 @@ export type EstimateBoqLink = {
   waiting: boolean; stale: boolean; needs_review: boolean; review_note: string | null; output_label: string;
   /** Only for a rate build-up: is this estimate made for the quantity of the BOQ line? Absent = nothing to say. */
   quantity?: QuantityView | null;
+  /** The cost per BOQ unit this link works out to from the estimate as it is saved now (the rule that prices the line). Null when it cannot be worked out. */
+  unit_cost?: number | null;
 };
 
 export type EstimateTenderContext = {
@@ -40,9 +42,22 @@ export type EstimateTenderContext = {
   origin_label: string;
   valid_days: number;
   rfq_enabled: boolean;
+  /**
+   * "Cost used for the BOQ": the saved estimate's cost, the sum of all its cost lines (overhead included), before margin and VAT. A BOQ
+   * line takes its share of this divided by its quantity; the row markup is added on top, never VAT. Unsaved edits are not in it.
+   */
+  cost?: number;
   /** The estimate has a quote, so its costs can no longer change and an RFQ for them would have nowhere to go. */
   locked: boolean;
 };
+
+function unitCostOf(link: { output: string; basis: string; share_pct: number }, boqQty: number, lines: Parameters<typeof outputCost>[1], fallback: number | null): number | null {
+  const ref = parseOutput(link.output);
+  const out = ref ? outputCost(ref, lines, fallback) : null;
+  if (!out || (link.basis !== "total" && link.basis !== "per_unit")) return null;
+  const r = costPerUnit({ basis: link.basis, out, boqQty, sharePct: link.share_pct });
+  return r.ok ? r.perUnit : null;
+}
 
 export async function estimateTenderContext(
   admin: SupabaseClient, tenantId: string, features: Partial<TenantFeatures> | null | undefined, config: unknown,
@@ -68,7 +83,9 @@ export async function estimateTenderContext(
   const miss = estimate.standard_quote_id ? [] : missingCosts(estLines, today, validDays);
   const byId = new Map(estLines.map((l) => [l.id, l]));
   const quantities = await quantityChecks(admin, tenantId, deal.id, linksRes.rows);
+  const total = outputCost({ kind: "total" }, estLines, head.cost_total);
   return {
+    cost: total?.cost ?? 0,
     deal, bid_locked: bidIsLocked(deal.stage), valid_days: validDays, rfq_enabled: features?.rfq === true, locked: !!estimate.standard_quote_id,
     origin_label: estimateOriginLabel(estimate.ref, deal.ref),
     links: mine.map((l) => {
@@ -77,6 +94,7 @@ export async function estimateTenderContext(
         link_id: l.id, boq_id: l.boq_line_id, item: b ? `${b.item_no ?? `row ${b.row_no}`} ${b.file_description}`.trim().slice(0, 80) : "A BOQ line",
         qty: b?.file_qty ?? 0, uom: b?.file_uom ?? null, waiting: !l.applied_at, stale: isLinkStale(l, head.updated_at), needs_review: l.needs_review, review_note: l.review_note,
         quantity: quantities.get(l.id) ?? null,
+        unit_cost: unitCostOf(l, b?.file_qty ?? 0, estLines, head.cost_total),
         output_label: l.output === "total" ? "Whole estimate" : l.output.startsWith("line:") ? byId.get(l.output.slice(5))?.description ?? "A line" : `WBS ${l.output.slice(4)}`,
       };
     }),
