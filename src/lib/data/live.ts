@@ -2366,6 +2366,13 @@ const SEARCH_SPECS: SearchSpec[] = [
     featureKeys: ["contract_projects"],
   },
   {
+    // Name, ref and status only: the budget, the quotes and the committed cost are internal and never part of a search result. Opens the project's Buy-out tab.
+    type: "buyout_package", table: "project_buyout_packages", columns: "id, ref, name, status, project_id",
+    textCols: ["name", "ref"],
+    toResult: (r) => ({ id: r.id, title: r.name, subtitle: [r.ref, r.status].filter(Boolean).join(" · ") || "Buy-out package", href: `${ROUTES.contractProject(r.project_id)}?tab=buyout`, matched: "name" }),
+    featureKeys: ["contract_projects"],
+  },
+  {
     type: "rfq", table: "rfqs", columns: "id, ref, title, status, origin_label",
     textCols: ["title", "ref", "origin_label"],
     toResult: (r) => ({ id: r.id, title: r.title, subtitle: [r.ref, r.origin_label, r.status].filter(Boolean).join(" · ") || "RFQ", href: ROUTES.rfq(r.id), matched: "title" }),

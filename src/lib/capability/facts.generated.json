@@ -534,7 +534,11 @@
         "The Invoicing tab holds the billing schedule: milestones as a percent of the contract value or a fixed amount, with a warning when the percents pass 100; Create invoice makes a draft invoice from a milestone and links it both ways.",
         "The budget, margin and costs are internal: they never appear on a customer document, a public link or the standard API, and the Talk to data source shows only header fields and totals.",
         "The Handover tab downloads an Excel file; sending to the ERP and reading back committed and actual cost are not available yet.",
-        "The flag is set by a platform admin and needs GCC tender deals; a workspace without it sees no menu entry, screen or button."
+        "The flag is set by a platform admin and needs GCC tender deals; a workspace without it sees no menu entry, screen or button.",
+        "The Buy-out tab of a project made from a tender groups budget lines into packages (a package is a supplier purchase or a subcontract); a budget line is in at most one package, reserve lines are left out, and packages are made from the approved budget.",
+        "A package is priced in rounds: each round is its own RFQ holding every line, sent to the suppliers you choose, and every round is kept with its replies; a supplier's total counts only when it quoted every line.",
+        "A package is awarded to one supplier from one round, and the award is written to every line through the RFQ award; a reason is required when the chosen total is not the lowest valid total of the current round. Committed over budget warns and never blocks.",
+        "An award can be taken back with a reason until the handover is marked as sent. The handover file is an Excel list of the supplier, lines, quantities and awarded rates (no budget or bid cost); this product raises no purchase orders, the ERP does."
       ]
     },
     "coverage_model": {
@@ -647,7 +651,8 @@
         "Submit bid and Revise bid warn, and never block, about lines without a price, stale prices, no approved go and a guarantee not yet marked Submitted.",
         "When a bid is submitted, the internal cost of each line and its markup are kept privately with that bid version; they never appear in a bid version's lines, a priced Excel, an answer sheet, a Standard Quote or the API.",
         "The contract project made from the won tender starts its budget from the winning bid version's recorded cost, not from the BOQ as it stands later; a bid submitted before costs were kept falls back to the current BOQ and the budget note says so.",
-        "The flag is set by a platform admin; a workspace without it sees no new tab, menu entry or screen, and standard deals behave exactly as before."
+        "The flag is set by a platform admin; a workspace without it sees no new tab, menu entry or screen, and standard deals behave exactly as before.",
+        "A client can have an approved supplier list (a supplier group linked to its account): a tender deal, its estimates' RFQs and the project's buy-out rounds then offer only those suppliers, and the server refuses anyone else naming them; a client without a list leaves every supplier open, and standard RFQs are never limited."
       ]
     },
     "gmail_reply_threading": {
@@ -888,7 +893,9 @@
     "suppliers": {
       "status": "live",
       "plain": "Your vendors, with contacts and the products they supply.",
-      "rules": []
+      "rules": [
+        "In a workspace with the tender edition, Groups holds a client's approved supplier list: a name, the client account it belongs to (one list per client) and its suppliers; an inactive or empty list limits nothing."
+      ]
     },
     "technicians": {
       "status": "live",
