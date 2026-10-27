@@ -88,7 +88,7 @@ export default function BuyoutTab({ projectId, data: fromServer, currency, canEd
 
       <Card
         title="Packages" info={BUYOUT_TIPS.tab} padding={0}
-        action={canEdit ? <Button variant="primary" size="sm" data-guide="buyout.package.new" style={{ minHeight: 44 }} onClick={() => setPanel("new")}>+ New package</Button> : undefined}
+        action={canEdit && !(empty && data.unassigned_lines.length > 0) ? <Button variant="primary" size="sm" data-guide="buyout.package.new" style={{ minHeight: 44 }} onClick={() => setPanel("new")}>+ New package</Button> : undefined}
       >
         {empty ? (
           <EmptyState
