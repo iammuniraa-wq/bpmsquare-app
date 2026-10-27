@@ -85,7 +85,7 @@ describe("gating and wiring", () => {
 
   it("the capability text for the edition mentions the estimates, the pricing, the RFQ loop and the budget", () => {
     const doc = read("docs/capabilities/gcc_tender.md");
-    expect(doc).toMatch(/Estimates tab/);
+    expect(doc).toMatch(/Costing tab/);
     expect(doc).toMatch(/Build up this rate/);
     expect(doc).toMatch(/Allocate to BOQ/);
     expect(doc).toMatch(/Raise RFQ for missing costs/);

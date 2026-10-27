@@ -36,6 +36,8 @@ export type CompareBundle<S extends CompareSupplierRow = CompareSupplierRow> = {
   today?: string;
   stale_days?: number;
   max_reminders?: number;
+  /** A tender RFQ is awarded only on the deal's Costing tab (it also prices the BOQ row): where that is. Absent = award here as usual. */
+  costing_href?: string | null;
 };
 
 type Call = (url: string, init?: RequestInit) => Promise<Record<string, unknown>>;
@@ -77,7 +79,7 @@ export default function RfqCompare<S extends CompareSupplierRow>({ b, canEdit, i
   const awardOf = useMemo(() => new Map((b.awards ?? []).map((a) => [a.rfq_line_id, a])), [b.awards]);
   const [dialog, setDialog] = useState<null | { line: RfqLine; resp: RfqResponse; supplier: S } | { all: S }>(null);
   const productOf = (pid: string | null) => b.products.find((p) => p.id === pid);
-  const canAward = canEdit && b.rfq.status !== "draft" && !b.awards_pending;
+  const canAward = canEdit && b.rfq.status !== "draft" && !b.awards_pending && !b.costing_href;
 
   if (!sups.length) {
     return (
@@ -93,6 +95,11 @@ export default function RfqCompare<S extends CompareSupplierRow>({ b, canEdit, i
   return (
     <div className="rfq-cmp" data-guide="rfq.compare" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
       <style>{CSS}</style>
+      {b.costing_href && canEdit && (
+        <div data-guide="rfq.award.in_costing" style={{ ...cardStyle, fontSize: 13, color: c.ink }}>
+          This RFQ belongs to a tender. Award it on the tender&apos;s <Link href={b.costing_href} style={{ color: c.accent }}>Costing tab</Link>, where the price also goes onto the BOQ row.
+        </div>
+      )}
       {b.awards_pending && canEdit && (
         <div role="alert" data-guide="rfq.award.pending" style={{ ...cardStyle, ...amber, background: "var(--amberbg)", fontSize: 13 }}>
           Awarding needs a database update (migration 0224). The comparison below works; ask your administrator to apply it.
@@ -360,7 +367,7 @@ function AwardDialog({ b, id, call, today, stale, picks, supplier, all, awards, 
 function DealPrices({ b, canEdit, id, call, run }: { b: CompareBundle<CompareSupplierRow>; canEdit: boolean; id: string; call: Call; run: Run }) {
   const [open, setOpen] = useState(false);
   const awards = b.awards ?? [];
-  if (b.rfq.origin_type !== "opportunity" || !awards.length || b.awards_pending) return null;
+  if (b.rfq.origin_type !== "opportunity" || !awards.length || b.awards_pending || b.costing_href) return null;
   const pendingOnes = awards.filter((a) => !a.applied_to_deal_at);
   return (
     <div style={{ ...cardStyle, display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", justifyContent: "space-between" }}>
