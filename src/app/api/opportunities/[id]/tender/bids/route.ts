@@ -7,13 +7,16 @@ import { isMissingSchema } from "@/lib/tender/server";
 import { openTenderDealRequest, PENDING_BIDS } from "@/lib/tender/dealAccess";
 import { parseSubmit, submitProblem } from "@/lib/tender/bids/rules";
 import { currentSnapshot, latestVersionNo, listBidVersions } from "@/lib/tender/bids/server";
+import { buildCurrentCost, saveCostSnapshot, type SaveCostResult } from "@/lib/tender/bids/costServer";
 
 // GET  /api/opportunities/[id]/tender/bids  -- the versions of a tender deal's bid, newest first, without their lines.
 // POST /api/opportunities/[id]/tender/bids  { revision_reason?, note? } -- "Submit bid": snapshot the deal's lines as the next
 //   version (no cap; a reason is required from version 2) and move the deal to Submitted through the deal's own stage rules.
 //
 // A version is never edited or deleted: this file inserts and reads, nothing else, and the table has no write policy and an
-// update trigger. The snapshot never carries a cost or a markup (bids/rules.ts builds it from a whitelist).
+// update trigger. The snapshot never carries a cost or a markup (bids/rules.ts builds it from a whitelist). The internal cost of the
+// bid is kept apart, in a table nobody but the server reads (bids/costServer.ts, migration 0230), so a project made from the winning
+// bid can start from what the bid cost; if that table is not there yet the bid still goes in and the answer says so.
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -47,6 +50,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const stageProblem = standing.available ? stageGuard({ from: opp.stage, to: "submitted", effective: standing.effective }) : null;
   if (stageProblem) return NextResponse.json({ error: stageProblem }, { status: 409 });
 
+  const cost = await buildCurrentCost(admin, tenantId, id, snap);
   const { data, error } = await admin.from("tender_bid_versions").insert({
     tenant_id: tenantId, opportunity_id: id, version_no: versionNo, submitted_by: userId, currency: opp.currency ?? null,
     total: snap.total, line_count: snap.line_count, lines: snap.lines, note: parsed.value.note, revision_reason: parsed.value.revision_reason,
@@ -56,6 +60,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     if (error.code === "23505") return NextResponse.json({ error: "Another bid version was just submitted. Reload and review it before submitting again", code: "version_taken" }, { status: 409 });
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
+
+  const costSnapshot: SaveCostResult = await saveCostSnapshot(admin, tenantId, id, versionNo, cost);
 
   let stageMoved = false;
   let stageError: string | null = null;
@@ -77,5 +83,5 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     ],
   });
 
-  return NextResponse.json({ ok: true, id: data?.id ?? null, version_no: versionNo, total: snap.total, line_count: snap.line_count, stage_moved: stageMoved, stage_error: stageError }, { status: 201 });
+  return NextResponse.json({ ok: true, id: data?.id ?? null, version_no: versionNo, total: snap.total, line_count: snap.line_count, stage_moved: stageMoved, stage_error: stageError, cost_snapshot: costSnapshot }, { status: 201 });
 }

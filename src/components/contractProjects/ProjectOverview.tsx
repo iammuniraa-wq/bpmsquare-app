@@ -8,6 +8,7 @@ import type { ProjectView } from "@/lib/contractProjects/view";
 import { day, money, pct } from "@/lib/contractProjects/format";
 import { PROJECT_TIPS } from "@/lib/contractProjects/tips";
 import ApprovalControls from "./ApprovalControls";
+import { BidAgainstBudgetCard, ProjectOriginCard } from "./ProjectOriginCards";
 
 const SEGMENTS = [pillar.blue.base, pillar.purple.base, pillar.teal.base, pillar.amber.base, pillar.green.base, pillar.red.base];
 
@@ -81,13 +82,20 @@ export default function ProjectOverview({ view, editor }: { view: ProjectView; e
         </Card>
       </div>
 
+      {(view.bidAgainstBudget || view.origin) && (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 14 }}>
+          {view.bidAgainstBudget && <BidAgainstBudgetCard bid={view.bidAgainstBudget} currency={cur} />}
+          {view.origin && <ProjectOriginCard origin={view.origin} />}
+        </div>
+      )}
+
       <Card title="Details" padding={16}>
         <dl style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "10px 18px", margin: 0 }}>
           <Detail label="Customer" value={view.account_name} />
           <Detail label="Manager" value={view.manager_name} />
           <Detail label="Planned start" value={p.planned_start ? day(p.planned_start) : null} />
           <Detail label="Planned end" value={p.planned_end ? day(p.planned_end) : null} />
-          <Detail label="Tender" value={view.source ? <Link href={ROUTES.pipelineDetail(view.source.id)} style={{ color: c.accent }}>{view.source.ref ?? view.source.title}</Link> : null} />
+          {!view.origin && <Detail label="Tender" value={view.source ? <Link href={ROUTES.pipelineDetail(view.source.id)} style={{ color: c.accent }}>{view.source.ref ?? view.source.title}</Link> : null} />}
           <Detail label="ERP id" info={PROJECT_TIPS.erpId} value={p.erp_id ? `${p.erp_system ?? "ERP"} · ${p.erp_id}` : null} />
           <Detail label="Status" value={<StatusPill label={p.status === "baseline_pending" ? "Baseline waiting" : p.status === "active" ? "Active" : p.status === "closed" ? "Closed" : "Draft"} tone={p.status === "active" ? "green" : p.status === "baseline_pending" ? "amber" : "blue"} />} />
         </dl>

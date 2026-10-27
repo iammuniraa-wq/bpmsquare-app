@@ -4,6 +4,7 @@ import { loadActorNames } from "@/lib/actorNames";
 import { budgetTotals, diffRevisions, plannedMargin, type BudgetTotals, type RevisionDiff } from "./budget";
 import { buildProjectApprovalView, type ProjectApprovalView } from "./approvalServer";
 import { currentRevision, ensureMasterSeeds, loadLines, loadMasters, loadRevisions, type ProjectCtx } from "./server";
+import { loadAfterAwardView, type BidAgainstBudget, type ProjectOrigin } from "./originServer";
 import type { BudgetLine, ProjectRow, RevisionRow } from "./types";
 
 // Everything the project screen (and GET /api/contract-projects/[id]) is given, assembled once: the header with the names behind its
@@ -29,6 +30,9 @@ export type ProjectView = {
   approval: ProjectApprovalView | null;
   canEdit: boolean;
   needsApprovalUpdate: boolean;
+  /** Where the project came from (the deal, the winning bid version, the BOQ file, the estimates) and how its budget stands against that bid's cost. */
+  origin?: ProjectOrigin | null;
+  bidAgainstBudget?: BidAgainstBudget | null;
 };
 
 export async function buildProjectView(req: ProjectCtx, project: ProjectRow, opts: { revisionId?: string | null } = {}): Promise<ProjectView> {
@@ -63,6 +67,11 @@ export async function buildProjectView(req: ProjectCtx, project: ProjectRow, opt
     }),
   ]);
 
+  const after = await loadAfterAwardView(admin, tenantId, project, {
+    budgetTotal: revs.find((r) => r.status === "approved")?.total ?? totals.total,
+    source: (sourceRow.data as { id: string; ref: string | null; title: string } | null) ?? null,
+  });
+
   return {
     project,
     account_name: (accountRow.data as { name?: string } | null)?.name ?? null,
@@ -74,5 +83,6 @@ export async function buildProjectView(req: ProjectCtx, project: ProjectRow, opt
     resources: resourceRows.filter((r) => r.active || lines.some((l) => l.resource_code === r.code)).map((r) => ({ code: r.code, name: r.name, revenue_side: r.flags?.revenue_side === true })),
     justifications: justificationRows.map((r) => ({ code: r.code, name: r.name })),
     approval, canEdit: req.canEdit, needsApprovalUpdate: approval === null,
+    origin: after.origin, bidAgainstBudget: after.bidAgainstBudget,
   };
 }

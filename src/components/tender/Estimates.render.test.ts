@@ -341,7 +341,7 @@ describe("the strip on an estimate made for a tender", () => {
   });
 });
 
-describe("the BOQ tab and the deal page", () => {
+describe("the Bill of quantities and the deal page", () => {
   const boqState: BoqScreenState = {
     pending: false,
     source: { file_name: "x.xlsx", sheet_name: "BOQ", version: 1, uploaded_at: "2026-10-26T08:00:00Z", line_count: 1, added_columns: false },
@@ -350,21 +350,21 @@ describe("the BOQ tab and the deal page", () => {
   } as BoqScreenState;
   const render = (initialEstimates?: EstimatesState) => { nav.search = ""; return clean(renderToString(createElement(BoqTab, { opportunityId: OPP, canEdit: true, onError: noop, onNotice: noop, initialData: boqState, initialEstimates }))); };
 
-  it("shows where an estimate priced the line, with the source name and the tools, and nothing extra for a workspace without estimates", () => {
+  it("names the estimate that priced the row as a chip, and a workspace without estimates still names it from the rate's source (the estimate tools live in Costing)", () => {
     const withEst = render(state({ links: [link({ boq_id: "b1" })] }));
-    expect(withEst).toContain("Tender estimate · EST-0001");
-    expect(withEst).toContain('data-guide="boq.estimate"');
-    expect(withEst).toContain("Allocate to BOQ");
+    expect(withEst).toContain('data-chip="estimate"');
+    expect(withEst).toContain("EST-0001");
+    expect(withEst).not.toContain('data-guide="boq.estimate"');
+    expect(withEst).not.toContain("Allocate to BOQ");
     const without = render();
-    expect(without).toContain("Tender estimate · EST-0001");
-    expect(without).not.toContain('data-guide="boq.estimate"');
-    expect(without).not.toContain("Allocate to BOQ");
+    expect(without).toContain('data-chip="estimate"');
+    expect(without).toContain("EST-0001");
   });
 
-  it("the deal client draws an Estimates tab only when the server says the person may see Estimates", () => {
+  it("the deal client draws the Costing tab (which replaced the Estimates tab) only when the server says the person may see Estimates or RFQs", () => {
     const client = read("src/app/(app)/pipeline/[id]/OpportunityDetailClient.tsx");
-    expect(client).toMatch(/tender\?\.estimates \? \[\{ id: "estimates" as Tab, label: "Estimates" \}\]/);
-    expect(client).toMatch(/tab === "estimates" && tender\?\.estimates && <EstimatesTab/);
+    expect(client).toMatch(/tender\.costing \? \[\{ id: "costing" as Tab, label: "Costing" \}\]/);
+    expect(client).toMatch(/tab === "costing" && tender\?\.costing && <CostingTab/);
     const page = read("src/app/(app)/pipeline/[id]/page.tsx");
     expect(page).toMatch(/tenant\?\.features\?\.estimator === true && canViewWorkcenter\(dealPerms, "estimates"\)/);
   });

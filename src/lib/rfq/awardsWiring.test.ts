@@ -86,13 +86,12 @@ describe("gating and wiring", () => {
     }
   });
 
-  it("the request button on the deal's Lines tab is mounted only for a tender deal in a workspace with the RFQ module", () => {
+  it("a tender's request for supplier prices is the Costing tab's New RFQ, not a button on a Lines tab (the tender Lines toolbar is gone)", () => {
     const page = lf(read("src/app/(app)/pipeline/[id]/page.tsx"));
-    expect(page).toMatch(/tenderRfq=\{tender && rfqOn \?/);
+    expect(page).not.toContain("tenderRfq");
     const client = lf(read("src/app/(app)/pipeline/[id]/OpportunityDetailClient.tsx"));
-    // The deal page hands the tender's toolbar the RFQ lines only when it has them; the toolbar is the one place the button is drawn.
-    expect(client).toMatch(/rfq=\{tenderRfq \? \{ opportunityId: opp\.id/);
-    expect(lf(read("src/components/tender/TenderLinesToolbar.tsx"))).toMatch(/\{rfq && <TenderLinesRfq /);
+    expect(client).not.toContain("TenderLinesToolbar");
+    expect(read("src/components/tender/CostingTab.tsx")).toContain("CreateRfqButton");
   });
 
   it("the supplier-type filter is off unless a caller turns it on", () => {

@@ -56,7 +56,8 @@ export function lineKeys(lines: readonly { item_no: string | null; description: 
   });
 }
 
-export type Snapshot = { lines: BidLine[]; total: number; line_count: number };
+/** `source_ids` runs parallel to `lines`: the deal line each bid line was made from. Used to attach the internal cost; never stored with the lines. */
+export type Snapshot = { lines: BidLine[]; total: number; line_count: number; source_ids: string[] };
 
 /**
  * The deal lines as they stand, kept in the order given (the caller passes the client's file order), only the lines that count
@@ -67,7 +68,8 @@ export function buildSnapshot(
   ctx: { productRef?: ReadonlyMap<string, string>; priceSource?: ReadonlyMap<string, string> } = {},
 ): Snapshot {
   const counted = selectedLines(lines.map((l) => ({ ...l }))) as SnapshotSource[];
-  const part = counted.filter((l) => clean(l.description)).map((l) => {
+  const kept = counted.filter((l) => clean(l.description));
+  const part = kept.map((l) => {
     const qty = num(l.qty);
     const rate = num(l.rate);
     const disc = Math.max(0, Math.min(100, num(l.discount_pct)));
@@ -84,7 +86,7 @@ export function buildSnapshot(
   });
   const keys = lineKeys(part);
   const out: BidLine[] = part.map((p, i) => snapshotLine({ key: keys[i], ...p }));
-  return { lines: out, total: round2(out.reduce((s, l) => s + l.amount, 0)), line_count: out.length };
+  return { lines: out, total: round2(out.reduce((s, l) => s + l.amount, 0)), line_count: out.length, source_ids: kept.map((l) => l.id) };
 }
 
 /** Rebuilds a line from the whitelist only. */

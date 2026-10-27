@@ -10,6 +10,8 @@ import { PricingConfigError } from "@/lib/pricing/server";
 import { opportunityStages, stageDef, initialStage } from "@/lib/sales/opportunity";
 import { loadOpportunity, loadOpportunityLines, refreshOpportunityDerived } from "@/lib/sales/opportunityServer";
 import { emitQuoteCreated } from "@/lib/events/emitters";
+import { tenderForDeal } from "@/lib/tender/server";
+import { loadBidVersion } from "@/lib/tender/bids/server";
 import type { PricingConfig } from "@/lib/constants";
 
 // Convert a deal into a quote (§4.3): a Standard Quote linked to the deal,
@@ -20,6 +22,10 @@ import type { PricingConfig } from "@/lib/constants";
 //
 // Quotations (the design partner's object) are not a conversion target
 // yet: decision 2 keeps that object's flow untouched until asked.
+//
+// A TENDER deal (flag gcc_tender) makes its quote from a chosen bid version: { bid_version: n } copies what was offered in that
+// version (its rates as submitted, not re-priced) and every line keeps the CLIENT's item number as its sl_no. Without a version a
+// tender copies its saved lines, still under their item numbers. A standard deal is untouched: its lines are numbered 1..n as before.
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   let supabase, tenantId, userId;
@@ -40,8 +46,22 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const admin = createAdminSupabase();
   const opp = await loadOpportunity(admin, tenantId, id);
   if (!opp) return NextResponse.json({ error: "Not found" }, { status: 404 });
-  const lines = await loadOpportunityLines(admin, tenantId, id);
+  let lines = await loadOpportunityLines(admin, tenantId, id);
   const tenant = await getTenant();
+  const tender = await tenderForDeal(admin, tenantId, tenant?.features, id);
+  let fromVersion: number | null = null;
+  if (tender && body?.bid_version !== undefined && body?.bid_version !== null) {
+    const wanted = Number(body.bid_version);
+    if (!Number.isInteger(wanted) || wanted < 1) return NextResponse.json({ error: "Pick a bid version" }, { status: 422 });
+    const version = await loadBidVersion(admin, tenantId, id, wanted);
+    if (!version) return NextResponse.json({ error: "That bid version was not found" }, { status: 404 });
+    fromVersion = version.version_no;
+    lines = version.lines.map((l, i) => ({
+      id: `v${i}`, tenant_id: tenantId, opportunity_id: id, sl_no: l.item_no, description: l.description, uom: l.unit, qty: l.qty, rate: l.rate, discount_pct: 0,
+      amount: l.amount, product_id: null, pricing_document_id: null, group_id: null, group_label: null, group_type: null, break_of: null, break_qty: null,
+      is_selected: true, show_on_pdf: true,
+    })) as unknown as typeof lines;
+  }
   const pricingOn = Boolean(tenant?.features?.pricing_engine && tenant?.features?.pricing_engine_quotes);
   const pricingConfig = (tenant?.config?.pricing as PricingConfig | undefined) ?? null;
 
@@ -73,7 +93,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   }));
 
   const rows = priced.map((p, i) => ({
-    local_id: p.line.id, tenant_id: tenantId, sl_no: String(i + 1), description: p.line.description, uom: p.line.uom,
+    local_id: p.line.id, tenant_id: tenantId, sl_no: tender ? (p.line.sl_no?.trim() || String(i + 1)) : String(i + 1), description: p.line.description, uom: p.line.uom,
     qty: p.line.qty, rate: p.rate, discount_pct: p.line.discount_pct, amount: p.line.qty * p.rate * (1 - p.line.discount_pct / 100),
     product_id: p.line.product_id ?? null, pricing_document_id: p.pricing_document_id,
     group_id: p.line.group_id ?? null, group_label: p.line.group_label ?? null, group_type: p.line.group_type ?? null,
@@ -119,12 +139,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   await logChange(supabase, {
     tenantId, objectType: "opportunities", objectId: id, objectLabel: `${opp.ref ?? ""} ${opp.title}`.trim(),
     action: "update", actorId: user?.id, actorEmail: user?.email,
-    changes: [{ field: "Converted to quote", from: null, to: `${quote.ref} (${cleanLines.length} lines, ${repriced} re-priced)` }, ...(oppPatch.stage ? diffForLog("opportunities", { stage: opp.stage }, { stage: oppPatch.stage }) : [])],
+    changes: [{ field: "Converted to quote", from: null, to: `${quote.ref} (${cleanLines.length} lines${fromVersion ? `, from bid version ${fromVersion}` : `, ${repriced} re-priced`})` }, ...(oppPatch.stage ? diffForLog("opportunities", { stage: opp.stage }, { stage: oppPatch.stage }) : [])],
   });
   await logChange(supabase, {
     tenantId, objectType: "standard_quotes", objectId: quote.id, objectLabel: quote.ref,
     action: "create", actorId: user?.id, actorEmail: user?.email,
-    changes: [{ field: "Created from deal", from: null, to: `${opp.ref ?? ""} ${opp.title}`.trim() }],
+    changes: [{ field: "Created from deal", from: null, to: `${opp.ref ?? ""} ${opp.title}`.trim() + (fromVersion ? `, bid version ${fromVersion}` : "") }],
   });
   await emitQuoteCreated(tenantId, { quoteId: quote.id, objectType: "standard_quote", ref: quote.ref, total: totals.total, accountId: opp.account_id, from: opp.ref, actorId: user?.id });
   return NextResponse.json({ id: quote.id, ref: quote.ref, lines: cleanLines.length, repriced }, { status: 201 });

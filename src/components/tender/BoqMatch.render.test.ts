@@ -8,7 +8,7 @@ import type { MatchState } from "@/lib/tender/boq/matchServer";
 import BoqMatch from "./BoqMatch";
 import BoqTab, { type BoqScreenState } from "./BoqTab";
 
-// "Match to products" on the BOQ Prices tab: the chip, the open panel with its suggestions, and what it must never show.
+// "Match to products" on the Bill of quantities: the chip, the open panel with its suggestions, and what it must never show.
 
 const nav = vi.hoisted(() => ({ search: "" }));
 vi.mock("next/navigation", () => ({ useSearchParams: () => new URLSearchParams(nav.search) }));
@@ -107,7 +107,7 @@ describe("the Match to products chip and panel", () => {
   });
 });
 
-describe("on the BOQ Prices tab", () => {
+describe("on the Bill of quantities", () => {
   const base: BoqScreenState = {
     pending: false,
     source: { file_name: "x.xlsx", sheet_name: "BOQ", version: 1, uploaded_at: "2026-10-26T08:00:00Z", line_count: 1, added_columns: false },
@@ -122,7 +122,8 @@ describe("on the BOQ Prices tab", () => {
     expect(render(base.totals)).not.toContain("without a product");
   });
 
-  it("the tab's own count is unchanged by the chip", () => {
-    expect(render({ ...base.totals, no_product: 3 })).toMatch(/Prices<span class="bpm-tab-count">1<\/span>/);
+  it("the chip does not change the Priced figure", () => {
+    expect(render({ ...base.totals, no_product: 3 })).toContain("0%");
+    expect(render({ ...base.totals, no_product: 3 })).toContain("0 of 1, 1 to price");
   });
 });

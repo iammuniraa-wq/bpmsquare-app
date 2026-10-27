@@ -158,7 +158,7 @@ export default function CompetitorsTab({ opportunityId, canEdit, onError, onNoti
                 <InfoTip label="Analyse all">{COMPETITOR_TIPS.insightsAll}</InfoTip>
               </span>
             )}
-            {canEdit && <Button variant="primary" size="sm" data-guide="competitor.add" style={{ minHeight: 44 }} onClick={() => setPanel({})}>+ Add competitor</Button>}
+            {canEdit && !(data !== null && list.length === 0) && <Button variant="primary" size="sm" data-guide="competitor.add" style={{ minHeight: 44 }} onClick={() => setPanel({})}>+ Add competitor</Button>}
           </span>
         )}
       </div>

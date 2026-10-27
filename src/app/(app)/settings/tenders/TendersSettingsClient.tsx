@@ -7,9 +7,10 @@ import InfoTip from "@/components/ui/InfoTip";
 import { SettingsSave } from "@/components/settings/SettingsHeaderActions";
 import { useSettingsDirty } from "@/components/settings/useSettingsDirty";
 import { TENDER_TIPS } from "@/lib/tender/tips";
+import { COSTING_TIPS } from "@/lib/tender/costing/tips";
 
 type Member = { user_id: string; name: string | null; email: string | null; is_admin: boolean };
-type Cfg = { approvers: string[]; allow_self_approval: boolean; price_validity_days: number };
+type Cfg = { approvers: string[]; allow_self_approval: boolean; price_validity_days: number; default_markup_pct: number };
 
 /**
  * Settings > Tenders: the one place that says who approves a bid / no-bid proposal. An empty list means every workspace
@@ -25,7 +26,7 @@ export default function TendersSettingsClient() {
   useEffect(() => {
     fetch("/api/settings/tender").then((r) => r.json()).then((j) => {
       if (j.error) { setMsg({ ok: false, text: j.error }); return; }
-      const next = { approvers: j.approvers as string[], allow_self_approval: !!j.allow_self_approval, price_validity_days: Number(j.price_validity_days) || 180 };
+      const next = { approvers: j.approvers as string[], allow_self_approval: !!j.allow_self_approval, price_validity_days: Number(j.price_validity_days) || 180, default_markup_pct: Number.isFinite(Number(j.default_markup_pct)) ? Number(j.default_markup_pct) : 15 };
       setCfg(next); markSaved(next); setMembers(j.members as Member[]);
     }).catch(() => setMsg({ ok: false, text: "Couldn't load the settings." }));
   }, []);
@@ -78,6 +79,19 @@ export default function TendersSettingsClient() {
             className="bpm-input" style={{ width: 96, marginLeft: "auto" }}
           />
           <span style={{ color: c.hint }}>days</span>
+        </label>
+      </section>
+
+      <section style={{ ...cardStyle }}>
+        <label data-guide="tender.settings.default_markup" style={{ display: "flex", alignItems: "center", gap: 10, minHeight: 44, fontSize: 13, color: c.ink, flexWrap: "wrap" }}>
+          <span>Default markup</span>
+          <InfoTip label="Default markup">{COSTING_TIPS.defaultMarkup}</InfoTip>
+          <input
+            type="number" min={0} max={1000} step="0.01" inputMode="decimal" value={cfg.default_markup_pct} aria-label="Default markup in percent"
+            onChange={(e) => setCfg({ ...cfg, default_markup_pct: e.target.value === "" ? 0 : Number(e.target.value) })}
+            className="bpm-input" style={{ width: 96, marginLeft: "auto" }}
+          />
+          <span style={{ color: c.hint }}>%</span>
         </label>
       </section>
 

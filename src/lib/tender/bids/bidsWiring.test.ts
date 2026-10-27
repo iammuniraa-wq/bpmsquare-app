@@ -98,7 +98,7 @@ describe("gating and wiring", () => {
 
   it("the capability text for the edition mentions the bids, the calls and the outcome", () => {
     const doc = read("docs/capabilities/gcc_tender.md");
-    expect(doc).toMatch(/Bids tab/);
+    expect(doc).toMatch(/Bid tab/);
     expect(doc).toMatch(/Log a call/);
     expect(doc).toMatch(/outcome/i);
   });

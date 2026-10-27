@@ -57,7 +57,7 @@ export default function RevisionsPanel({ view }: { view: ProjectView }) {
                 <tr key={r.id} style={{ borderTop: `1px solid ${c.line}`, background: revision?.id === r.id ? c.accentbg : undefined }}>
                   <td style={{ padding: "10px 12px", fontSize: 13.5, fontWeight: 600, color: c.ink }}>{r.rev_no === 0 ? "Baseline" : `Revision ${r.rev_no}`}</td>
                   <td style={{ padding: "10px 12px" }}><StatusPill label={REVISION_STATUS_LABEL[r.status]} tone={tone(r.status)} /></td>
-                  <td style={{ padding: "10px 12px", fontSize: 13, color: c.muted, maxWidth: 260 }}>{r.rev_no === 0 ? "—" : [justName.get(r.justification_code ?? "") ?? r.justification_code, r.justification_text].filter(Boolean).join(": ") || "—"}</td>
+                  <td style={{ padding: "10px 12px", fontSize: 13, color: c.muted, maxWidth: 260 }}>{r.rev_no === 0 ? (r.justification_text || "—") : [justName.get(r.justification_code ?? "") ?? r.justification_code, r.justification_text].filter(Boolean).join(": ") || "—"}</td>
                   <td style={{ padding: "10px 12px", textAlign: "right", fontVariantNumeric: "tabular-nums", fontSize: 13 }}>{money(r.total, cur)}</td>
                   <td style={{ padding: "10px 12px", fontSize: 12.5, color: c.muted }}>{[r.created_by_name, day(r.created_at)].filter((x) => x && x !== "—").join(" · ")}</td>
                   <td style={{ padding: "10px 12px", fontSize: 12.5, color: c.muted }}>{r.approved_at ? [r.approved_by_name, day(r.approved_at)].filter(Boolean).join(" · ") : "—"}</td>

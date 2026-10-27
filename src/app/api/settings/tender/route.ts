@@ -6,6 +6,7 @@ import { listMembersForPicker } from "@/lib/sales/opportunityServer";
 import { tenderSettings } from "@/lib/tender/approval";
 import { loadMembership } from "@/lib/tender/approvalServer";
 import { MAX_PRICE_VALIDITY_DAYS, priceValidityDays } from "@/lib/tender/boq/price";
+import { MAX_AWARD_MARKUP_PCT, parseMarkup, tenderMarkupDefault } from "@/lib/tender/costing/rules";
 
 // GET / PUT /api/settings/tender -- who may approve a bid / no-bid proposal, and whether a proposer may approve their own
 // (docs/design/gcc-tender-deals.md section 10). Stored in tenants.config.tender. Admin-only in both directions. An approver
@@ -35,6 +36,7 @@ export async function GET() {
     approvers: settings.approvers,
     allow_self_approval: settings.allowSelfApproval,
     price_validity_days: priceValidityDays((data?.config as Parameters<typeof priceValidityDays>[0]) ?? null),
+    default_markup_pct: tenderMarkupDefault((data?.config as Parameters<typeof tenderMarkupDefault>[0]) ?? null),
     members: people.map((m) => ({ ...m, is_admin: adminIds.includes(m.user_id) })),
   });
 }
@@ -55,6 +57,11 @@ export async function PUT(request: NextRequest) {
     return NextResponse.json({ error: `Price validity must be a whole number of days from 1 to ${MAX_PRICE_VALIDITY_DAYS}` }, { status: 422 });
   }
 
+  // The default markup of "Award and price" (Costing) is optional in the body too.
+  const sentMarkup = body.default_markup_pct !== undefined;
+  const markup = sentMarkup ? parseMarkup(body.default_markup_pct) : null;
+  if (sentMarkup && markup === null) return NextResponse.json({ error: `Default markup must be a number from 0 to ${MAX_AWARD_MARKUP_PCT}` }, { status: 422 });
+
   const admin = createAdminSupabase();
   const { memberIds } = await loadMembership(admin, tenantId);
   const members = new Set(memberIds);
@@ -65,8 +72,9 @@ export async function PUT(request: NextRequest) {
   const config = (current?.config ?? {}) as Record<string, unknown>;
   const before = tenderSettings(config as Parameters<typeof tenderSettings>[0]);
   const beforeDays = priceValidityDays(config as Parameters<typeof priceValidityDays>[0]);
+  const beforeMarkup = tenderMarkupDefault(config as Parameters<typeof tenderMarkupDefault>[0]);
   const kept = (config.tender && typeof config.tender === "object" ? config.tender : {}) as Record<string, unknown>;
-  const merged = { ...config, tender: { ...kept, approvers: requested, allow_self_approval: allowSelf, ...(sentValidity ? { price_validity_days: validity } : {}) } };
+  const merged = { ...config, tender: { ...kept, approvers: requested, allow_self_approval: allowSelf, ...(sentValidity ? { price_validity_days: validity } : {}), ...(sentMarkup ? { default_markup_pct: markup } : {}) } };
   const { error } = await admin.from("tenants").update({ config: merged }).eq("id", tenantId);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
@@ -77,6 +85,7 @@ export async function PUT(request: NextRequest) {
       { field: "Bid approvers", from: before.approvers.length ? `${before.approvers.length} chosen` : "Workspace admins", to: requested.length ? `${requested.length} chosen` : "Workspace admins" },
       { field: "Allow self-approval", from: before.allowSelfApproval, to: allowSelf },
       ...(sentValidity ? [{ field: "Price validity (days)", from: beforeDays, to: validity }] : []),
+      ...(sentMarkup ? [{ field: "Default markup (%)", from: beforeMarkup, to: markup }] : []),
     ].filter((c) => c.from !== c.to),
   });
   return NextResponse.json({ ok: true });

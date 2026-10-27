@@ -6,6 +6,7 @@ import path from "node:path";
 import { featureForObject } from "@/lib/objectFeatures";
 import { tipTextProblems } from "@/lib/infoTip";
 import { TENDER_TIPS } from "../tips";
+import { BOQ_TABLE_TIPS } from "./tips";
 import BoqTab, { type BoqScreenState } from "@/components/tender/BoqTab";
 
 // The BOQ tab keeps its section in ?boq= (useUrlTab); a render has no router, so the query string is a variable the test sets.
@@ -77,7 +78,7 @@ describe("the BOQ routes", () => {
   const routes = walk("src/app/api/opportunities/[id]/boq").filter((f) => f.endsWith("route.ts"));
 
   it("every route goes through the one gate and takes nothing about the workspace from the request", () => {
-    expect(routes.length).toBe(6);
+    expect(routes.length).toBe(7);
     for (const f of routes) {
       const src = read(f);
       expect(src, f).toMatch(/openBoqRequest\(/);
@@ -93,6 +94,13 @@ describe("the BOQ routes", () => {
     for (const f of routes.filter((r) => /preview|price|boq\/route/.test(r) && !/candidates|export/.test(r))) expect(read(f), f).toMatch(/openBoqRequest\(id, (true|false)\)/);
     expect(read("src/app/api/opportunities/[id]/boq/export/route.ts")).toMatch(/openBoqRequest\(id, false\)/);
     expect(read("src/app/api/opportunities/[id]/boq/price/route.ts")).toMatch(/openBoqRequest\(id, true\)/);
+    // The row panel's quantity / description route is a write, takes the row id from the path only, and never touches what the file said.
+    const lineRoute = read("src/app/api/opportunities/[id]/boq/lines/[boqId]/route.ts");
+    expect(lineRoute).toMatch(/openBoqRequest\(id, true\)/);
+    expect(lineRoute).toMatch(/editBoqLine\(gate\.req, boqId, \{ qty: body\.qty, description: body\.description \}\)/);
+    const edit = read("src/lib/tender/boq/server.ts");
+    const editPart = edit.slice(edit.indexOf("export async function editBoqLine"), edit.indexOf("export type PriceAllResult"));
+    expect(editPart).not.toMatch(/file_qty|file_description|file_uom|file_rate/);
   });
 
   it("every query on a BOQ table, or on the sources it reads, carries the workspace filter", () => {
@@ -148,7 +156,7 @@ describe("the wiring that applies (3b)", () => {
 
   it("the capability document describes the BOQ and the stale-price rule", () => {
     const doc = read("docs/capabilities/gcc_tender.md");
-    expect(doc).toMatch(/BOQ tab reads the client's Excel/);
+    expect(doc).toMatch(/Bill of quantities reads the client's Excel/);
     expect(doc).toMatch(/never applied automatically/);
     expect(doc).toMatch(/Cost and margin never appear/);
   });
@@ -165,128 +173,44 @@ describe("the wiring that applies (3b)", () => {
 
   it("every BOQ explanation fits behind an i, and the screen carries data-guide ids", () => {
     for (const [k, v] of Object.entries(TENDER_TIPS).filter(([k]) => k.startsWith("boq") || k === "priceValidity")) expect(tipTextProblems(v), k).toEqual([]);
-    const ids = new Set([...read("src/components/tender/BoqTab.tsx").matchAll(/"(boq\.[a-z_.]+)"/g)].map((m) => m[1]));
-    for (const id of ["boq.tab", "boq.upload", "boq.file", "boq.preview", "boq.sheet", "boq.header_row", "boq.apply", "boq.cancel", "boq.diff", "boq.markup", "boq.price_all", "boq.line", "boq.price_line", "boq.picker", "boq.candidate", "boq.manual", "boq.download", "boq.answer_sheet", "boq.show_all"]) {
+    const files = ["BoqTab", "BoqUpload", "BoqRows", "BoqRowPanel", "BoqDownloads"].map((f) => `src/components/tender/${f}.tsx`);
+    const ids = new Set(files.flatMap((f) => [...read(f).matchAll(/"(boq\.[a-z_.]+)"/g)].map((m) => m[1])));
+    for (const id of ["boq.tab", "boq.toolbar", "boq.upload", "boq.file", "boq.preview", "boq.sheet", "boq.header_row", "boq.apply", "boq.cancel", "boq.diff", "boq.markup", "boq.price_all", "boq.summary", "boq.filters", "boq.table", "boq.cards", "boq.line", "boq.open_row", "boq.chips", "boq.source", "boq.show_more", "boq.row", "boq.row.save", "boq.row.qty", "boq.row.rate", "boq.row.description", "boq.row.cost", "boq.row.costing", "boq.price_line", "boq.picker", "boq.candidate", "boq.download", "boq.answer_sheet"]) {
       expect(ids, id).toContain(id);
     }
+    for (const [k, v] of Object.entries(BOQ_TABLE_TIPS)) expect(tipTextProblems(v), k).toEqual([]);
   });
 });
 
-describe("the BOQ screen", () => {
-  const state = (over: Partial<BoqScreenState> = {}): BoqScreenState => ({
-    pending: false,
-    source: { file_name: "ARB-4400123 BOQ.xlsx", sheet_name: "BOQ Bill 1", version: 2, uploaded_at: "2026-10-26T08:00:00Z", line_count: 3, added_columns: true },
-    lines: [
-      { id: "b1", line_id: "l1", row_no: 8, item_no: "A.1", cost_code: "31 23 16", description: "Excavation in ordinary soil", uom: "m3", qty: 1200, rate: 20, amount: 24000, priced: true, linked: true, removed: false, price_source: "supplier", price_source_ref: "RFQ-0012 · Gulf Pipes", price_as_of: "2025-12-01", stale: true, stale_text: "stale, 329 days old", stale_accepted: false, unit_cost: 16, markup_pct: 25 },
-      { id: "b2", line_id: "l2", row_no: 9, item_no: "A.2", cost_code: null, description: "Backfill", uom: "m3", qty: 850.5, rate: 0, amount: 0, priced: false, linked: true, removed: false, price_source: null, price_source_ref: null, price_as_of: null, stale: false, stale_text: null, stale_accepted: false, unit_cost: null, markup_pct: null },
-      { id: "b3", line_id: "l3", row_no: 10, item_no: "A.3", cost_code: null, description: "Dropped in revision", uom: "m", qty: 1, rate: 5, amount: 5, priced: true, linked: true, removed: true, price_source: "manual", price_source_ref: null, price_as_of: "2026-10-01", stale: false, stale_text: null, stale_accepted: false, unit_cost: null, markup_pct: null },
-    ].map((l) => ({ file_rate: null, ...l })) as BoqScreenState["lines"],
-    validity_days: 180, today: "2026-10-26",
-    totals: { lines: 2, priced: 1, unpriced: 1, stale: 1, amount: 24000 },
-    unpriced: [{ item: "A.2 Backfill", reason: "No rate yet" }],
-    ...over,
-  } as BoqScreenState);
-  const html = (s: BoqScreenState, canEdit = true, section = "") => {
-    nav.search = section ? `boq=${section}` : "";
-    return renderToString(createElement(BoqTab, { opportunityId: "o1", canEdit, onError: () => {}, onNotice: () => {}, initialData: s })).replace(/<!-- -->/g, "");
+describe("the Bill of quantities screen (the rows, chips and panel are tested in BillOfQuantities.render.test.ts)", () => {
+  const html = (s: BoqScreenState) => {
+    nav.search = "";
+    return renderToString(createElement(BoqTab, { opportunityId: "o1", canEdit: true, onError: () => {}, onNotice: () => {}, initialData: s })).replace(/<!-- -->/g, "");
   };
-  const SECTIONS = ["upload", "prices", "download"];
+  const empty = (over: Partial<BoqScreenState> = {}): BoqScreenState => ({
+    pending: false, source: null, lines: [], validity_days: 180, today: "2026-10-26", default_markup_pct: 15,
+    totals: { lines: 0, priced: 0, unpriced: 0, stale: 0, amount: 0 }, unpriced: [], ...over,
+  } as BoqScreenState);
 
-  it("is split into Upload, Prices and Download tabs; with a BOQ it opens on Prices, and the tab chosen in the address wins", () => {
-    const out = html(state());
-    for (const label of ["Upload", "Prices", "Download"]) expect(out).toContain(`>${label}`);
-    expect(out).toContain('data-guide="tab:prices"');
-    expect(out).toMatch(/data-guide="tab:prices"[^>]*aria-selected="true"|aria-selected="true"[^>]*data-guide="tab:prices"/);
-    expect(out).toContain("Excavation in ordinary soil");
-    expect(out).not.toContain("Download priced BOQ");
-    expect(html(state(), true, "download")).toContain("Download priced BOQ");
-    expect(html(state(), true, "download")).not.toContain("Excavation in ordinary soil");
-    expect(html(state(), true, "upload")).toContain("Upload revised BOQ");
-    // A value in the address that is not a tab falls back to the default.
-    expect(html(state(), true, "nonsense")).toContain("Excavation in ordinary soil");
-  });
-
-  it("puts a count on the tab that needs attention: lines to price or stale on Prices, none on a finished BOQ", () => {
-    expect(html(state())).toMatch(/Prices<span class="bpm-tab-count">2<\/span>/);
-    const done = html(state({ totals: { lines: 2, priced: 2, unpriced: 0, stale: 0, amount: 1 }, unpriced: [] }));
-    expect(done).not.toContain("bpm-tab-count");
-  });
-
-  it("Prices shows the lines, the source of each price with its age in amber, and keeps the internal cost out of the explanations", () => {
-    const out = html(state());
-    expect(out).toContain("Excavation in ordinary soil");
-    expect(out).toContain("Supplier");
-    expect(out).toContain("stale, 329 days old");
-    expect(out).toContain("var(--amberink)");
-    expect(out).toContain("Price this line");
-    expect(out).toContain("Change price");
-    expect(out).toContain("Price all lines");
-    expect(out).toContain("priced line is no longer in the latest file and kept");
-  });
-
-  it("Upload shows the file that is on the deal", () => {
-    expect(html(state(), true, "upload")).toContain("ARB-4400123 BOQ.xlsx");
-  });
-
-  it("Download opens with the warning about unpriced lines, above the buttons, and keeps the added-columns note", () => {
-    const out = html(state(), true, "download");
-    expect(out).toContain("Download priced BOQ");
-    expect(out).toContain("Export answer sheet");
-    expect(out).toContain("Rate and amount columns are added to the client");
-    expect(out).toContain("1 line has no rate and will be left blank in the file");
-    expect(out).toContain("A.2 Backfill: No rate yet");
-    expect(out.indexOf("will be left blank")).toBeLessThan(out.indexOf("Download priced BOQ"));
-    const clean = html(state({ totals: { lines: 2, priced: 2, unpriced: 0, stale: 0, amount: 1 }, unpriced: [] }), true, "download");
-    expect(clean).not.toContain("will be left blank");
-  });
-
-  it("prints none of its explanations as running text (they sit behind the i), on any tab", () => {
-    for (const section of SECTIONS) {
-      const out = html(state(), true, section);
-      for (const [k, v] of Object.entries(TENDER_TIPS).filter(([k]) => k.startsWith("boq") || k === "priceValidity")) {
-        if (k === "boqCost") continue; // the cost tip is in the markup as an aria/popover payload only
-        expect(out.split(v).length - 1, `${section}: ${k}`).toBeLessThanOrEqual(0);
-      }
-    }
-  });
-
-  it("phone and PC share one layout: lines wrap, every control is 44 px tall, and there is no table to scroll sideways", () => {
-    for (const section of SECTIONS) {
-      const out = html(state(), true, section);
-      expect(out, section).not.toContain("<table");
-      expect(out, section).toMatch(/min-height:44px/);
-      expect(out, section).not.toMatch(/min-width:\s*(?:[5-9]\d\d|\d{4,})px/);
-    }
-    const prices = html(state());
-    expect(prices).toMatch(/flex-wrap:wrap/);
-    expect(prices).toMatch(/overflow-wrap:anywhere/);
-    expect(prices.match(/min-height:44px/g)?.length ?? 0).toBeGreaterThanOrEqual(3);
-  });
-
-  it("a view-only user sees the lines but no upload, price or price-all control", () => {
-    const out = html(state(), false);
-    expect(out).toContain("Excavation in ordinary soil");
+  it("before any upload it offers the upload and nothing else, and a pending migration says so", () => {
+    const out = html(empty());
+    expect(out).toContain("Upload BOQ (.xlsx)");
+    expect(out).toContain("No Bill of quantities yet");
     expect(out).not.toContain("Price all lines");
-    expect(out).not.toContain("Price this line");
-    expect(html(state(), false, "upload")).not.toContain("Upload revised BOQ");
-    expect(html(state(), false, "download")).toContain("Download priced BOQ");
+    expect(out).not.toContain("<table");
+    expect(html(empty({ pending: true }))).toContain("migration 0223");
   });
 
-  it("before any upload it offers the upload and nothing else (no tab strip), and a pending migration says so", () => {
-    const empty = html(state({ source: null, lines: [], totals: { lines: 0, priced: 0, unpriced: 0, stale: 0, amount: 0 }, unpriced: [] }));
-    expect(empty).toContain("Upload BOQ (.xlsx)");
-    expect(empty).not.toContain("Download priced BOQ");
-    expect(empty).not.toContain('role="tablist"');
-    // Even if the address names another tab, there is nothing else to show.
-    expect(html(state({ source: null, lines: [], totals: { lines: 0, priced: 0, unpriced: 0, stale: 0, amount: 0 }, unpriced: [] }), true, "download")).toContain("Upload BOQ (.xlsx)");
-    expect(html(state({ pending: true }))).toContain("migration 0223");
-  });
-
-  it("tells the page when the deal's lines changed, so the Lines tab and the header are reloaded", () => {
+  it("tells the page when the deal's lines changed, so the header and totals are reloaded", () => {
     const src = read("src/components/tender/BoqTab.tsx");
     expect(src).toMatch(/onLinesChanged\?: \(\) => void/);
-    // After an upload is applied, after any price is set (one line or all), and after lines are linked to products: the three places the lines change.
-    expect((src.match(/onLinesChanged\?\.\(\)/g) ?? []).length).toBe(3);
+    // One reload path: the table, the estimates and the page. Every place the lines change (upload, price all, match, the row panel) goes through it.
+    expect(src).toMatch(/reloadAfterSave<State>\(base, setData, onLinesChanged\)/);
+    expect(src.match(/onChanged=\{changed\}/g)?.length ?? 0).toBe(2);
+    // Lines typed by hand (no client file) save through the same reload path.
+    expect(src).toMatch(/<DealLinesBoq[\s\S]*onChanged=\{\(\) => onLinesChanged\?\.\(\)\}/);
+    expect(src).toMatch(/onApplied: \(\) => \{ setShown\(0\); changed\(\); \}/);
+    expect(src).toMatch(/changed\(\);\r?\n\s*\}\r?\n\r?\n\s*if \(!data\)/);
     expect(read("src/app/(app)/pipeline/[id]/OpportunityDetailClient.tsx")).toMatch(/onLinesChanged=\{\(\) => router\.refresh\(\)\}/);
   });
 });

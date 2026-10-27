@@ -30,6 +30,17 @@ export const PROJECT_TIPS = {
   mastersFile: "A CSV or Excel file with a header row: Code, Name and optionally Parent. Format the code column as text so leading zeros stay.",
   mastersParents: "A parent code that is not in the file or your list is dropped with a note, and the row is still stored.",
   erpId: "The project's number in the ERP. It is filled by the connection and cannot be edited here.",
+  variations: "A client change after the award, priced and approved. Approving one changes the contract value and opens a budget revision for the cost.",
+  variationAmount: "The change in what the client pays. Use a minus sign for something taken out of the scope.",
+  variationCost: "What the change costs you, kept internal. A cost increase adds a line to the new budget revision.",
+  changeRequest: "The change request this answers: the number on the tender deal, or the client's own reference.",
+  variationApproval: "The people who approve project budgets decide it. You cannot approve your own unless the workspace allows it.",
+  milestones: "The billing schedule. A milestone bills a percent of the contract value as it stands now, or a fixed amount.",
+  milestonePercent: "Percent milestones should total at most 100%. If they do not, you are warned, not stopped.",
+  milestoneInvoice: "Makes a draft invoice for the milestone amount and links it here. The invoice appears in Invoices.",
+  stillToInvoice: "The contract value less what has been invoiced so far, including milestones not yet in the schedule.",
+  bidAgainstBudget: "Compares the cost recorded when the winning bid went in with the project's current budget. A larger budget means costs grew after the bid.",
+  origin: "Where the project came from: the tender, the bid version that won, the BOQ file and the estimates that priced it.",
 } as const;
 
 export type ProjectTipKey = keyof typeof PROJECT_TIPS;
