@@ -5,6 +5,7 @@ import { CURRENCIES, moneyFormatter, moneyLabel, type CurrencyCode } from "@/lib
 import { defaultStandardQuoteBlocks } from "@/lib/standardQuoteTemplateBlocks";
 import { computeStandardQuoteTotals } from "@/lib/standardQuoteTotals";
 import { documentTotal, selectedLines } from "@/lib/sales/lineTotals";
+import { hasClientItemNumbers, itemNumber } from "@/lib/sales/lineItemNumbers";
 import { linesForPdf, parsePrintOptions } from "@/lib/sales/printOptions";
 
 export type StandardQuotePrintDocumentProps = {
@@ -96,6 +97,7 @@ export default function StandardQuotePrintDocument({
   // What prints (0118): the rep decides whether unchosen options and
   // quantities appear, and can hide any single line -- presentation only,
   // the totals above never change.
+  const clientNumbers = hasClientItemNumbers(lines);
   const printLines = linesForPdf(lines, parsePrintOptions(quote.print_options));
   const chosenGroupIds = new Set(selectedLines(lines).filter((l) => l.group_type === "alternative" && l.group_id).map((l) => l.group_id as string));
   const hasBreakdown = quote.header_discount_pct > 0 || quote.tax_pct > 0 || quote.shipping_amount > 0;
@@ -205,7 +207,7 @@ export default function StandardQuotePrintDocument({
           <table key={block.id}>
             <thead>
               <tr style={{ background: "#e6f1fb" }}>
-                <th style={{ padding: "7px 28px 7px 28px", textAlign: "left", fontSize: 11, color: "#0c447c", fontWeight: 600, width: 32 }}>#</th>
+                <th style={{ padding: "7px 28px 7px 28px", textAlign: "left", fontSize: 11, color: "#0c447c", fontWeight: 600, width: 32, whiteSpace: "nowrap" }}>{clientNumbers ? "Item" : "#"}</th>
                 <th style={{ padding: "7px 12px", textAlign: "left", fontSize: 11, color: "#0c447c", fontWeight: 600 }}>Description</th>
                 <th style={{ padding: "7px 12px", textAlign: "center", fontSize: 11, color: "#0c447c", fontWeight: 600, whiteSpace: "nowrap" }}>UOM</th>
                 <th style={{ padding: "7px 12px", textAlign: "right", fontSize: 11, color: "#0c447c", fontWeight: 600, whiteSpace: "nowrap" }}>Qty</th>
@@ -231,7 +233,7 @@ export default function StandardQuotePrintDocument({
                 // in full, its amount being what that quantity would cost.
                 return (
                 <tr key={l.id} style={{ background: i % 2 === 1 ? "#fafbfc" : "#fff", breakInside: "avoid", opacity: groupNotChosen ? 0.5 : 1 }}>
-                  <td style={{ padding: "7px 12px 7px 28px", color: "#8a96a5", fontSize: 11, fontFamily: "monospace" }}>{i + 1}</td>
+                  <td style={{ padding: "7px 12px 7px 28px", color: "#8a96a5", fontSize: 11, fontFamily: "monospace", whiteSpace: "nowrap" }}>{itemNumber(l, i + 1, clientNumbers)}</td>
                   <td style={{ padding: "7px 12px", fontSize: 12.5 }}>
                     {l.group_type === "alternative" && (
                       <span style={{ display: "block", fontSize: 9.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, color: groupNotChosen ? "#8a96a5" : accent }}>

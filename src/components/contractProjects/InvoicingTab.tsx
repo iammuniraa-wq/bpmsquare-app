@@ -80,7 +80,8 @@ export default function InvoicingTab({ projectId, data: fromServer, projectClose
         {data.milestones.length === 0 ? (
           <EmptyState title="No milestones yet" text={data.canEdit ? "Add the amounts you will bill and when, as a percent of the contract value or a fixed amount." : undefined} />
         ) : (
-          <div style={{ overflowX: "auto" }}>
+          <>
+          <div className="bpm-rows-table" style={{ overflowX: "auto" }}>
             <table data-guide="cp.invoicing.table" style={{ width: "100%", minWidth: 600, borderCollapse: "collapse" }}>
               <thead>
                 <tr>
@@ -117,6 +118,31 @@ export default function InvoicingTab({ projectId, data: fromServer, projectClose
               </tbody>
             </table>
           </div>
+          <div className="bpm-rows-cards" data-guide="cp.invoicing.cards" style={{ gap: 10, padding: 12 }}>
+            {list.map((m) => {
+              const taxText = data.tax.kind === "added" ? `${money(taxOn(m.amount, data.tax).gross, cur)} with ${data.tax.label}` : taxBasisText(data.tax);
+              return (
+                <div key={m.id} data-guide="cp.milestone.card" style={{ boxSizing: "border-box", width: "100%", padding: 12, border: `1px solid ${c.line}`, borderRadius: 12, background: "var(--card-bg)" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "flex-start" }}>
+                    <span style={{ minWidth: 0, fontSize: 14, fontWeight: 600, color: c.ink, overflowWrap: "anywhere" }}>{m.title}</span>
+                    <StatusPill label={MILESTONE_STATUS_LABEL[m.display_status]} tone={MILESTONE_TONE[m.display_status]} />
+                  </div>
+                  <MilestoneCardRow label="Amount before tax" value={m.basis === "percent" ? `${money(m.amount, cur)} (${m.percent}%)` : money(m.amount, cur)} />
+                  <MilestoneCardRow label="Tax"value={taxText} ink={data.tax.kind === "none" ? "var(--amberink)" : undefined} />
+                  <MilestoneCardRow label="Due" value={m.due_date ? day(m.due_date) : "No due date"} />
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginTop: 8 }}>
+                    {m.invoice_id && (m.display_status === "invoiced" || m.display_status === "paid") ? (
+                      <Link href={ROUTES.invoice(m.invoice_id)} data-guide="cp.milestone.card.invoice_link" style={{ display: "inline-flex", alignItems: "center", minHeight: 44, color: c.accent, fontSize: 13 }}>{m.invoice_ref ?? "Invoice"}</Link>
+                    ) : canInvoice && m.amount > 0 ? (
+                      <Button variant="secondary" size="sm" loading={busyId === m.id} disabled={!!busyId} data-guide="cp.milestone.card.create_invoice" style={{ minHeight: 44 }} onClick={() => createInvoice(m)}>Create invoice</Button>
+                    ) : null}
+                    <Button variant="quiet" size="sm" data-guide="cp.milestone.card.open" aria-label={`Open ${m.title}`} style={{ minHeight: 44 }} onClick={() => { setError(""); setPanel({ id: m.id }); }}>Open</Button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          </>
         )}
         {data.milestones.length > PAGE && (
           <div style={{ padding: "8px 12px", borderTop: `1px solid ${c.line}` }}>
@@ -128,6 +154,15 @@ export default function InvoicingTab({ projectId, data: fromServer, projectClose
       {panel && (
         <MilestonePanel key={panel.id ?? "new"} projectId={projectId} milestone={open} contractValue={t.contracted} currency={cur} tax={data.tax} canEdit={data.canEdit && !projectClosed} onClose={() => setPanel(null)} onChanged={changed} />
       )}
+    </div>
+  );
+}
+
+function MilestoneCardRow({ label, value, ink }: { label: string; value: string; ink?: string }) {
+  return (
+    <div style={{ display: "flex", justifyContent: "space-between", gap: 10, marginTop: 6, fontSize: 13 }}>
+      <span style={{ color: c.muted }}>{label}</span>
+      <b style={{ color: ink ?? c.ink, fontVariantNumeric: "tabular-nums", fontWeight: 600, textAlign: "right", overflowWrap: "anywhere" }}>{value}</b>
     </div>
   );
 }

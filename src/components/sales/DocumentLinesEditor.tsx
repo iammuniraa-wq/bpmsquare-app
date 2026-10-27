@@ -44,6 +44,8 @@ export type Line = {
   /** The RFQ line this line asked suppliers about (0128 line contract) --
    *  carried across saves like product_id, verified server-side. */
   rfq_line_id?: string;
+  /** The client's item number, carried across a save only on a quote that has them (a tender bid's quote); absent = the server numbers 1..n. */
+  sl_no?: string;
 };
 
 /** Where an RFQ line stands (GET /api/rfqs/lookup) -- status and counts only. */
@@ -95,9 +97,10 @@ const inp: React.CSSProperties = {
 // Compact line editor: one grid row per line, the same column template for
 // the header, ordinary lines and quantity-break sub-rows so columns line up.
 // A tenant with the RFQ module gets one more column, the line's own RFQ.
-const GRID_COLUMNS = "26px minmax(0,1fr) 68px 66px 100px 58px 104px 96px 46px";
-const GRID_COLUMNS_RFQ = "26px minmax(0,1fr) 68px 66px 100px 58px 104px 96px 140px 46px";
-const gridRowFor = (rfq: boolean): React.CSSProperties => ({ display: "grid", gridTemplateColumns: rfq ? GRID_COLUMNS_RFQ : GRID_COLUMNS, alignItems: "center", borderBottom: `1px solid ${c.line}` });
+const GRID_COLUMNS = "minmax(0,1fr) 68px 66px 100px 58px 104px 96px 46px";
+const GRID_COLUMNS_RFQ = "minmax(0,1fr) 68px 66px 100px 58px 104px 96px 140px 46px";
+// The "#" column is 26px for a running number, wider when the lines carry the client's item numbers ("1.1.2").
+const gridRowFor = (rfq: boolean, numWidth = "26px"): React.CSSProperties => ({ display: "grid", gridTemplateColumns: `${numWidth} ${rfq ? GRID_COLUMNS_RFQ : GRID_COLUMNS}`, alignItems: "center", borderBottom: `1px solid ${c.line}` });
 const cell: React.CSSProperties = { padding: "4px 4px", display: "flex", alignItems: "center", minWidth: 0 };
 const headCell: React.CSSProperties = { padding: "6px 6px", fontSize: 10.5, fontWeight: 600, color: c.hint, textTransform: "uppercase", letterSpacing: 0.4, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" };
 const cinp: React.CSSProperties = { ...inp, padding: "6px 8px", fontSize: 12.5, borderRadius: 6 };
@@ -228,7 +231,8 @@ export default function DocumentLinesEditor({
   const [rfqTrack, setRfqTrack] = useState<Record<string, RfqTrack>>({});
   // The line whose own "Request quotation" form is open (one item, one RFQ).
   const [rfqLineOpen, setRfqLineOpen] = useState<string | null>(null);
-  const gridRow = gridRowFor(!!rfqModule);
+  const hasItemNos = lines.some((l) => !!l.sl_no);
+  const gridRow = gridRowFor(!!rfqModule, hasItemNos ? "56px" : "26px");
   const docLabel = `${documentType === "opportunity" ? "Deal" : "Standard Quote"}${documentRef ? ` ${documentRef}` : ""}${accountName ? ` for ${accountName}` : ""}`;
   const trackedKey = lines.map((l) => l.rfq_line_id ?? "").filter(Boolean).sort().join(",");
   useEffect(() => {
@@ -664,7 +668,7 @@ export default function DocumentLinesEditor({
     return (
       <div key={line.id}>
         <div style={{ ...gridRow, opacity: opts.dim ? 0.55 : 1 }}>
-          <div style={{ ...cell, justifyContent: "center", fontSize: 11.5, color: c.hint, textDecoration: line.show_on_pdf ? "none" : "line-through" }} title={line.show_on_pdf ? undefined : "Hidden from the PDF"}>{no}</div>
+          <div style={{ ...cell, justifyContent: "center", fontSize: 11.5, color: c.hint, textDecoration: line.show_on_pdf ? "none" : "line-through" }} title={line.show_on_pdf ? undefined : "Hidden from the PDF"}>{line.sl_no || no}</div>
           <div style={{ ...cell, gap: 4 }}>
             {products.length > 0 && (
               <select
@@ -1131,7 +1135,7 @@ export default function DocumentLinesEditor({
     <div style={{ overflowX: "auto" }}>
       <div style={{ minWidth: rfqModule ? 860 : 720, border: `1px solid ${c.line}`, borderRadius: 8, overflow: "hidden" }}>
         <div style={{ ...gridRow, background: c.panel2 }}>
-          <div style={{ ...headCell, textAlign: "center" }}>#</div>
+          <div style={{ ...headCell, textAlign: "center" }}>{hasItemNos ? "Item" : "#"}</div>
           <div style={headCell}>{products.length > 0 ? "Product · description" : "Description"}</div>
           <div style={headCell}>UOM</div>
           <div style={{ ...headCell, textAlign: "right" }}>Qty</div>
