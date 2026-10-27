@@ -154,7 +154,9 @@ describe("a workspace without the module", () => {
   it("every contract-projects route starts with the gate that answers 404", () => {
     const routes = walk(path.join(ROOT, "src/app/api/contract-projects")).filter((f) => /route\.ts$/.test(f));
     expect(routes.length).toBeGreaterThanOrEqual(10);
-    for (const f of routes) expect(readFileSync(f, "utf8"), f).toContain("openProjectRequest(");
+    // The buy-out routes open through their own door, which is the same gate plus the tender-project check.
+    for (const f of routes) expect(readFileSync(f, "utf8"), f).toMatch(/openProjectRequest\(|openBuyoutRequest\(|openPackageRequest\(/);
+    expect(read("src/lib/contractProjects/buyout/server.ts")).toMatch(/const gate = await openProjectRequest\(\{ write: opts\.write \}\);/);
     const gate = read("src/lib/contractProjects/server.ts");
     expect(gate).toMatch(/for \(const key of \["contract_projects", "gcc_tender"\] as const\)/);
     expect(gate).toContain('error: "Not found"');

@@ -45,3 +45,4 @@ rules:
 - When a bid is submitted, the internal cost of each line and its markup are kept privately with that bid version; they never appear in a bid version's lines, a priced Excel, an answer sheet, a Standard Quote or the API.
 - The contract project made from the won tender starts its budget from the winning bid version's recorded cost, not from the BOQ as it stands later; a bid submitted before costs were kept falls back to the current BOQ and the budget note says so.
 - The flag is set by a platform admin; a workspace without it sees no new tab, menu entry or screen, and standard deals behave exactly as before.
+- A client can have an approved supplier list (a supplier group linked to its account): a tender deal, its estimates' RFQs and the project's buy-out rounds then offer only those suppliers, and the server refuses anyone else naming them; a client without a list leaves every supplier open, and standard RFQs are never limited.

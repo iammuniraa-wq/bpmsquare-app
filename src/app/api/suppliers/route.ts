@@ -3,7 +3,9 @@ import { requireTenantUser, getAuthUser } from "@/lib/supabase-server";
 import { insertWithMasterRef } from "@/lib/masterRef";
 import { diffForLog, logChange } from "@/lib/changeLog";
 
-export async function GET() {
+// GET /api/suppliers[?group=<supplier group id>] -- every supplier of the workspace; with `group`, only the members of that supplier group
+// (a client's approved vendor list). A group of another workspace, or one that does not exist, has no members: an empty list.
+export async function GET(request: NextRequest) {
   let supabase, tenantId;
   try {
     ({ supabase, tenantId } = await requireTenantUser());
@@ -12,11 +14,23 @@ export async function GET() {
     return NextResponse.json({ error: err.message }, { status: err.status });
   }
 
-  const { data, error } = await supabase
+  const group = request.nextUrl.searchParams.get("group");
+  let memberIds: string[] | null = null;
+  if (group) {
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(group)) return NextResponse.json([]);
+    const { data: g } = await supabase.from("supplier_groups").select("id").eq("id", group).eq("tenant_id", tenantId).maybeSingle();
+    if (!g) return NextResponse.json([]);
+    const { data: m } = await supabase.from("supplier_group_members").select("supplier_id").eq("tenant_id", tenantId).eq("group_id", group).limit(5000);
+    memberIds = ((m ?? []) as { supplier_id: string }[]).map((x) => x.supplier_id);
+    if (memberIds.length === 0) return NextResponse.json([]);
+  }
+
+  let query = supabase
     .from("suppliers")
     .select("*")
-    .eq("tenant_id", tenantId)
-    .order("name");
+    .eq("tenant_id", tenantId);
+  if (memberIds) query = query.in("id", memberIds);
+  const { data, error } = await query.order("name");
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json(data ?? []);

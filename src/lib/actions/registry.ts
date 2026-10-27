@@ -122,6 +122,7 @@ export const DEFERRED: Record<string, string> = {
   "sales-order-types": "settings for Sales Orders",
   "contract-projects": "made from an awarded tender with its lines and costs copied, and its budget is approved by a manager; Create contract project on the awarded deal stays the way in, and the assistant reads projects (header and totals only) through Talk to data",
   suppliers: "next in line; same shape as accounts",
+  "supplier-groups": "a client's approved vendor list in a workspace with the tender edition; set up from the Groups tab in Suppliers, which also holds the members",
   technicians: "linked to a login and skills; set up from the Technicians screen",
   // Marketing and studios: configuration-heavy, not a typed record.
   journeys: "a flow of steps, built in the Journeys studio",
