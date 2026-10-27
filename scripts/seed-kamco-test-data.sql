@@ -12,11 +12,11 @@
 -- flagged as a demo workspace, the script stops before writing anything.
 --
 -- Idempotent: a record whose TEST name already exists for the workspace is not created again, so running twice adds nothing.
--- Does NOT create users, passwords or auth rows. Accounts and contacts carry no e-mail or phone (those columns are encrypted by the
+-- Does NOT create users, passwords or auth rows (it does add one employee record, see below). Accounts and contacts carry no e-mail or phone (those columns are encrypted by the
 -- app and stay empty). Deal owners are left empty on purpose, so the closing-date reminders do not e-mail anybody.
 --
 -- What it makes (counts):
---   4 accounts, 3 contacts, 5 suppliers, 10 products (with cost price and list price), 5 stocked inventory items,
+--   1 employee (TEST Abdul Khader, abdulkhader@saytara.info), 4 accounts, 3 contacts, 5 suppliers, 10 products (with cost price and list price), 5 stocked inventory items,
 --   3 tender deals (6 + 12 + 6 deal lines), 1 uploaded BOQ with 12 BOQ lines, 1 estimate (3 lines) attached to deal 2,
 --   1 RFQ (4 lines, 2 suppliers, both replied at different prices, nothing awarded yet), 1 saved bid version,
 --   2 competitors, 1 bid guarantee (issued) and 2 logged calls on deal 3.
@@ -102,6 +102,8 @@ declare
   con_mra uuid;
   sup_gp uuid;
   sup_pa uuid;
+  emp_id uuid;
+  emp_seq int;
 
   opp1 uuid;
   opp2 uuid;
@@ -510,10 +512,22 @@ begin
     end loop;
   end if;
 
+  -- ---- Employee (master data, no password) -------------------------------------------------------------------------------------
+  -- One employee record with the e-mail abdulkhader@saytara.info. The code is the next free EMP-####, as the app makes it. No login is
+  -- created and none is tied to it; link the login to this employee in Settings > Business users.
+  select id into emp_id from employees where tenant_id = t and lower(email) = 'abdulkhader@saytara.info';
+  if emp_id is null then
+    select coalesce(max(substring(employee_code from '^EMP-([0-9]+)$')::int), 0) + 1 into emp_seq
+    from employees where tenant_id = t and employee_code ~* '^EMP-[0-9]+$';
+    insert into employees (tenant_id, first_name, last_name, employee_code, email, department, designation, status)
+    values (t, 'TEST Abdul', 'Khader', 'EMP-' || lpad(emp_seq::text, 4, '0'), 'abdulkhader@saytara.info', 'Tenders', 'Tender engineer', 'active')
+    returning id into emp_id;
+  end if;
+
   -- ---- Deal amounts follow their lines, like the app does ---------------------------------------------------------------------------
   update opportunities o
   set amount = (select coalesce(sum(l.amount), 0) from opportunity_lines l where l.tenant_id = t and l.opportunity_id = o.id)
   where o.tenant_id = t and o.id in (opp1, opp2, opp3);
 
-  raise notice 'KAMCO test data is in place: 3 TEST tender deals (%, %, %).', c_opp1, c_opp2, c_opp3;
+  raise notice 'KAMCO test data is in place: 3 TEST tender deals (%, %, %) and the employee abdulkhader@saytara.info.', c_opp1, c_opp2, c_opp3;
 end $seed$;

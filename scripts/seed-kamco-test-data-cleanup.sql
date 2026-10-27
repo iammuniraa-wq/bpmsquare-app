@@ -11,6 +11,7 @@
 --   * deals titled 'TEST ...'  (their tender row, deal lines, BOQ source and lines, bid versions, competitors, logged calls go with
 --     them) and any approval requests that point at those deals
 --   * products, inventory items, contacts, accounts and suppliers named 'TEST ...'
+--   * employees whose first name starts with 'TEST '
 -- Everything is filtered by tenant_id of the 'kamco' workspace, so another workspace is never touched. If somebody created their own
 -- records under a TEST account or TEST deal in the meantime (a quote, an invoice), the database either removes them with it (cascade)
 -- or refuses with a foreign-key error: read the dry-run counts first.
@@ -91,6 +92,12 @@ begin
   end if;
 
   -- 6. People and companies
+  select count(*) into v_n from employees where tenant_id = t and first_name like 'TEST %';
+  raise notice 'employees: %', v_n;
+  if v_confirm then
+    delete from employees where tenant_id = t and first_name like 'TEST %';
+  end if;
+
   select count(*) into v_n from contacts where tenant_id = t and name like 'TEST %';
   raise notice 'contacts: %', v_n;
   if v_confirm then
