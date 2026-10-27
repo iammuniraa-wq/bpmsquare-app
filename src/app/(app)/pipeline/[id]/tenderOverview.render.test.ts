@@ -55,12 +55,12 @@ const page = (extra: Record<string, unknown> = {}, tender: Record<string, unknow
 const tabLabels = (html: string) => [...html.matchAll(/role="tab"[^>]*>([^<]*)/g)].map((m) => m[1]);
 
 describe("the tabs of a tender deal", () => {
-  it("Overview comes first, there is no Tender tab, and the order is Overview, Room, Competitors, BOQ, Estimates, Lines, Bids, Quotes, Related, Activity", () => {
+  it("Overview comes first, there is no Tender tab, and the order is Overview, Room, Competitors, BOQ, Costing, Lines, Bids, Quotes, Related, Activity", () => {
     const out = page({ related: createElement("div", null, "RFQ") }, {
-      room: { pending: false, unread: 0, openQuestions: 0, isAdmin: false }, estimates: { canEdit: true },
+      room: { pending: false, unread: 0, openQuestions: 0, isAdmin: false }, costing: { canEdit: true },
       bids: { versions: [], pending: false, working_total: 0, canEdit: true },
     });
-    expect(tabLabels(out).map((l) => l.replace(/\d+$/, ""))).toEqual(["Overview", "Room", "Competitors", "BOQ", "Estimates", "Lines", "Bids", "Quotes", "Related", "Activity"]);
+    expect(tabLabels(out).map((l) => l.replace(/\d+$/, ""))).toEqual(["Overview", "Room", "Competitors", "BOQ", "Costing", "Lines", "Bids", "Quotes", "Related", "Activity"]);
     expect(out).not.toContain('data-guide="tab:tender"');
   });
 
