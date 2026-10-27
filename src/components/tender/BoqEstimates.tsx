@@ -55,13 +55,15 @@ function LinkChip({ l, canEdit, bidLocked, busy, onReprice, onReviewed, onUnlink
 }
 
 /** Under each BOQ line of the Prices tab: its estimate links and the two ways to price it from an estimate. */
-export function LineEstimates({ opportunityId, base, line, state, canEdit, markup, onChanged, onError, onNotice, initialOpen, initialOutputs }: {
+export function LineEstimates({ opportunityId, base, line, state, canEdit, markup, onChanged, onError, onNotice, initialOpen, initialOutputs, actionsOnly = false }: {
   opportunityId: string;
   /** /api/opportunities/[id]/tender/estimates */
   base: string; line: EstimateBoqLine; state: EstimatesState; canEdit: boolean; markup: number;
   /** Called after a change, so the BOQ state, the estimate state and the page reload. */
   onChanged: () => void; onError: (m: string) => void; onNotice: (m: string) => void;
   initialOpen?: "price" | "build" | null; initialOutputs?: Outputs;
+  /** Only the two buttons ("Price from estimate", "Build up this rate") and what they open: the BOQ row panel already shows the row's estimate links. */
+  actionsOnly?: boolean;
 }) {
   const router = useRouter();
   const { confirm } = useFeel();
@@ -147,10 +149,10 @@ export function LineEstimates({ opportunityId, base, line, state, canEdit, marku
     } catch { onError("Network error. Try again."); } finally { setBusy(false); }
   }
 
-  if (!canEdit && mine.length === 0) return null;
+  if (!canEdit && (actionsOnly || mine.length === 0)) return null;
   return (
     <div data-guide="boq.estimate" style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-      {mine.map((l) => (
+      {!actionsOnly && mine.map((l) => (
         <LinkChip key={l.id} l={l} canEdit={canEdit} bidLocked={state.bid_locked} busy={busy}
           onReprice={() => void reprice(l)} onReviewed={() => void send(`${base}/links/${l.id}`, { method: "PATCH", headers: J, body: JSON.stringify({ reviewed: true }) }, "Marked reviewed")} onUnlink={() => void unlink(l)} />
       ))}

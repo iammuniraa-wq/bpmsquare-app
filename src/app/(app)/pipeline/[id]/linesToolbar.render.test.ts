@@ -25,7 +25,6 @@ const stages: OpportunityStageDef[] = [{ value: "estimating", label: "Estimating
 const lines = [line("1", "Gate valve 100mm", 0), line("2", "Pipe 110mm", 0), line("3", "Paint", 12)];
 
 const tenderTab = { view: { closing_at: null, decision: null, decided_by_name: null, decided_at: null }, room: null, approval: null, accounts: [], nowIso: "2026-10-26T00:00:00Z", timezone: "Asia/Riyadh" } as never;
-const composerLines = (priced: boolean) => lines.map((l) => ({ source_line_id: l.id, product_id: null, description: l.description, uom: "Nos", qty: 2, include: priced ? !(Number(l.rate) > 0) : true, linked_ref: null, hint: Number(l.rate) > 0 ? null : "no price yet" }));
 
 function page({ tender, rfq = true, quotes = 0 }: { tender: boolean; rfq?: boolean; quotes?: number }) {
   return renderToString(createElement(OpportunityDetailClient, {
@@ -34,7 +33,6 @@ function page({ tender, rfq = true, quotes = 0 }: { tender: boolean; rfq?: boole
     stages, members: [], products: [], pricingEnabled: false, standardQuotesEnabled: true, todayKey: "2026-10-26", currentUserId: "u1",
     activity: null, initialTab: "lines",
     tender: tender ? tenderTab : null,
-    tenderRfq: tender && rfq ? { originLabel: "Deal OPP-2", lines: composerLines(true) } : null,
   } as never)).replace(/<!-- -->/g, "");
 }
 
@@ -51,10 +49,10 @@ describe("a tender deal has no Lines tab any more", () => {
     expect(html).not.toContain("Line items");
   });
 
-  it("the editor's Save lines and Lines total are not on a tender page; Convert to Standard Quote stays in the header only", () => {
+  it("the editor's Save lines and Lines total are not on a tender page, and its header has no Convert to Standard Quote (a quote is made from a bid version on the Bid tab)", () => {
     expect(count(html, "Save lines")).toBe(0);
     expect(count(html, "Lines total")).toBe(0);
-    expect(count(html, "Convert to Standard Quote")).toBe(1);
+    expect(count(html, "Convert to Standard Quote")).toBe(0);
   });
 });
 
@@ -87,23 +85,17 @@ describe("a standard deal's Lines tab is unchanged", () => {
 
 describe("how the pieces are wired", () => {
   const src = readFileSync("src/app/(app)/pipeline/[id]/OpportunityDetailClient.tsx", "utf8");
-  const editor = readFileSync("src/components/sales/DocumentLinesEditor.tsx", "utf8");
 
-  it("the shared editor's Request quotation is hidden only when the page says so, and the page says so only for a tender with the RFQ module", () => {
-    expect(editor).toMatch(/hideRfqRequest = false/);
-    expect(editor).toMatch(/\{rfqModule && !hideRfqRequest && \(\(\) => \{/);
-    expect(src).toMatch(/hideRfqRequest=\{!!tender && !!tenderRfq\}/);
+  it("the tender-only Lines toolbar, its save bar and the RFQ hiding are gone: a tender has no Lines tab to draw them on", () => {
+    expect(src).not.toContain("TenderLinesToolbar");
+    expect(src).not.toContain("TenderLinesSaveBar");
+    expect(src).not.toContain("tenderRfq");
+    expect(src).not.toContain("hideRfqRequest");
+    expect(readFileSync("src/components/sales/DocumentLinesEditor.tsx", "utf8")).not.toContain("hideRfqRequest");
   });
 
-  it("the toolbar is mounted only for a tender deal; the old bottom row is the else branch", () => {
-    expect(src).toMatch(/\{tender && \(\s*<TenderLinesToolbar/);
-    expect(src).toMatch(/\{tender \? \(\s*<TenderLinesSaveBar/);
-  });
-
-  it("on a phone a Save bar follows the page once the toolbar has scrolled away, using the shared sticky class", () => {
-    const bar = readFileSync("src/components/tender/TenderLinesToolbar.tsx", "utf8");
-    expect(bar).toMatch(/IntersectionObserver/);
-    expect(bar).toMatch(/className="sticky-actions"/);
-    expect(bar).toMatch(/if \(!narrow \|\| !offscreen \|\| !dirty\) return null;/);
+  it("the Lines and Quotes tab blocks are the standard deal's alone", () => {
+    expect(src).toMatch(/\{tab === "lines" && !tender && \(/);
+    expect(src).toMatch(/\{tab === "quotes" && !tender && \(/);
   });
 });

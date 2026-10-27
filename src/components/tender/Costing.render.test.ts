@@ -365,7 +365,7 @@ describe("the Costing tab on the deal page", () => {
     const labels = tabLabels(page({ costing: { canEdit: true } }));
     expect(labels).toContain("Costing");
     expect(labels).not.toContain("Estimates");
-    expect(labels.indexOf("Costing")).toBe(labels.indexOf("BOQ") + 1);
+    expect(labels.indexOf("Costing")).toBe(labels.indexOf("Bill of quantities") + 1);
   });
 
   it("is absent when the person may see neither Estimates nor RFQs, and a standard deal never has it", () => {
@@ -380,13 +380,17 @@ describe("the Costing tab on the deal page", () => {
 
   it("the deal client wires the tab by the tender's own flag and hands it the callbacks; the page maps ?tab=estimates to it", () => {
     const client = read("src/app/(app)/pipeline/[id]/OpportunityDetailClient.tsx");
-    expect(client).toMatch(/tender\?\.costing \? \[\{ id: "costing" as Tab, label: "Costing" \}\]/);
+    expect(client).toMatch(/tender\.costing \? \[\{ id: "costing" as Tab, label: "Costing" \}\]/);
     expect(client).toMatch(/tab === "costing" && tender\?\.costing && <CostingTab/);
-    expect(client).toContain('onOpenBoq={() => setTab("boq")}');
+    // "N rows still need a cost" opens the Bill of quantities already filtered (the BOQ keeps the filter in ?boqfilter=).
+    expect(client).toMatch(/onOpenBoq=\{\(filter\) => \{[^}]*setBoqRequest\(filter \? \{ filter, n: boqAsks\.current \} : undefined\); setTab\("boq"\)/);
+    expect(client).toContain("filterRequest={boqRequest}");
     expect(client).not.toContain("EstimatesTab");
     const pageSrc = read("src/app/(app)/pipeline/[id]/page.tsx");
     expect(pageSrc).toMatch(/costing: costingTab/);
-    expect(pageSrc).toMatch(/wantedTab === "costing" \|\| wantedTab === "estimates"/);
+    // The page hands a tender the raw ?tab= (an old "estimates" lands on Costing in lib/tender/tabs.ts); ?boqfilter= alone opens the Bill of quantities.
+    expect(pageSrc).toContain("initialTab={tenderTab ? wantedTab : undefined}");
+    expect(pageSrc).toContain('sp?.boqfilter ? "boq"');
     expect(pageSrc).toMatch(/related=\{rfqOn && !tender \?/);
   });
 

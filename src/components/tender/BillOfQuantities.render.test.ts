@@ -12,7 +12,7 @@ import type { LinkView } from "@/lib/tender/estimates/server";
 // the toolbar must NOT carry (the downloads), and what the panel must never do (award a supplier).
 
 const nav = vi.hoisted(() => ({ search: "" }));
-vi.mock("next/navigation", () => ({ useSearchParams: () => new URLSearchParams(nav.search) }));
+vi.mock("next/navigation", () => ({ useSearchParams: () => new URLSearchParams(nav.search), useRouter: () => ({ push: () => {}, refresh: () => {}, replace: () => {} }) }));
 
 import BoqTab, { type BoqScreenState } from "./BoqTab";
 import BoqDownloads, { AnswerSheetButton, PricedBoqButton } from "./BoqDownloads";

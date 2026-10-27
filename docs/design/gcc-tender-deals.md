@@ -714,3 +714,56 @@ No browser was available to this builder: the screens are checked by server rend
 
 ### Tests
 `src/lib/tender/costing/costing.test.ts` (the pricing rule: cost, markup, rate, source text, staleness date, rounding; states; explanations; no commission; cost and markup not exported or logged; tenant-scoped queries), `src/app/api/opportunities/tender.costing.routes.test.ts` (gate, list, compare, Award and price, isolation of another deal and workspace, pending migrations, awards that already stand), `src/components/tender/Costing.render.test.ts` (tab, list, compare, award panel, price-rows panel, the tab on the deal page, the RFQ page pointer), `tenderOverview.render.test.ts` and `Estimates.render.test.ts` (tab expectations).
+
+## 26. Bid tab, header by stage, History (built 2026-10-27)
+
+Owner-approved "Deal to Project" redesign, the last page-level piece (prototype `tender-deal-prototype.html`: Bid screen, header, History, phone). It finishes the tender deal page: the tab set is final, the header's primary button follows the stage, and the old Quotes, Related, Activity, Estimates and Lines tabs are gone. Only the tender deal changes (flag `gcc_tender`); a standard deal keeps every tab, button and flow exactly as before (a test renders it).
+
+**What is already there (checked first, rule 6c).** `BidsTab` (submit, revise, versions, compare, the warnings), `submitWarnings` (`submitChecks.ts`), `BoqDownloads` (the priced BOQ and the answer sheet), the convert route and its Standard Quote link (`standard_quotes.opportunity_id`), `loadLinkedQuotes`, `loadBidVersion`, the contract-project create route and `ContractProjectBanner`, `SidePanel`, `SettingsSection`, `RecordActivity`, `CallsPanel`. Reused; no migration.
+
+### Header, by stage (bug fix)
+A tender's primary button was the standard deal's "Convert to Standard Quote", so a tender set to Won produced a quote, not a project. Now (`src/lib/tender/headerAction.ts`, pure and tested):
+
+| Stage | Primary button | What it does |
+|---|---|---|
+| Received | Propose bid decision | opens the Bid decision panel |
+| Bid/No-bid | Propose bid decision, or Submit bid once a go is approved | same |
+| Estimating | Submit bid (Revise bid when a version already exists) | opens the Bid tab and starts the submit flow with its warnings |
+| Submitted, Clarifications | Record the outcome | opens the close dialog (Won / Lost / Dropped) |
+| Awarded and won | Create contract project, or Open contract project once it exists | the existing create route (`POST /api/contract-projects`) |
+| Lost, No-bid | none | |
+
+The close dialog, on Won, offers **Create contract project now** next to Confirm when the workspace has the module and the caller may create one (`canStartContractProject`, from the page); it saves the deal as Won first and then creates the project. It never creates a Standard Quote. The menu's own "Create contract project" and the project banner are gone from the tender page (the primary button is the one place). The menu keeps Mark won, Mark lost, Reopen, Delete, and gains **History**.
+
+### Tabs
+Overview | Bill of quantities | Costing | Bid | Room | Competitors, nothing else (`src/lib/tender/tabs.ts`, pure). Costing needs the estimator or RFQ module and the person's view of it; Room needs the Deal Room flag. An old `?tab=` value lands on the nearest tab and never breaks: `lines` to the Bill of quantities, `estimates` and `related` to Costing, `bids` and `quotes` to Bid, `tender` to Overview, `activity` to Overview with the History panel open. `?boqfilter=` alone opens the Bill of quantities. The page hands a tender the raw `?tab=`; the client resolves it.
+
+### Bid tab (`BidsTab.tsx`, new `BidDocuments.tsx`)
+1. **Readiness line**: "Before you submit" with what is open (unpriced lines, stale prices, no approved go, guarantee not yet Submitted) in the warning tone, or "Ready to submit". It warns and never blocks; Submit bid / Revise bid stay live and still ask once more ("Go on"). The same `submitWarnings` feed the line and the dialog; the BOQ's own totals replace the saved-lines count as soon as they are read.
+2. **Versions** and **Compare versions** are the existing blocks (a saved version is never edited).
+3. **Documents we send**: the priced BOQ and the answer sheet (`BoqDownloads`, never a cost or a markup), and **Make a Standard Quote from this version**. The quote is made by the existing convert route with `{ bid_version: n }`: it copies what was offered in that version (rates as submitted, not re-priced), keeps the **client's item number** as each line's `sl_no` (a line the client gave no number falls back to its place; a standard deal is still numbered 1..n), links to the deal through `standard_quotes.opportunity_id`, and the change history of both records names the version. The version is read under this workspace and this deal, so another workspace's version number gives a 404. The quotes already made from the deal are listed below the button (newest first, five then "Show all").
+4. The header's Submit bid / Revise bid opens this tab and counts `startSignal` up; the tab starts the same flow as its own button.
+
+### History
+In the header menu (tender only): the shared `SidePanel` (a right drawer, a bottom sheet under 780 px) with the logged calls and visits above the change history and the Nova timeline. "N overdue next steps" in the Overview's Open work opens it. It replaces the Activity tab.
+
+### Loose ends from the earlier builders
+- **Hand-typed lines.** A tender with no uploaded BOQ now shows the deal's own lines as rows of the Bill of quantities (`DealLinesBoq.tsx`, the same table and cards) with a row panel to edit and **Add line**. It saves through the existing `PUT /api/opportunities/[id]/lines` (a full rewrite, sent with the version the screen loaded, so a stale copy is refused; every other line, group and product link is carried through). Past 200 lines it is read-only and says to upload the client's file. Once a client file is uploaded the table takes over.
+- **Row-level estimate actions.** "Build up this rate" and "Price from estimate" were not reachable from a BOQ row; they are back in the row panel (`LineEstimates` with `actionsOnly`), shown when the estimator is on and the person can edit. The panel still shows the row's estimate read-only, and Costing keeps "Price the BOQ rows" (allocation and re-price) and the award.
+- **"N rows still need a cost"** in Costing now opens the Bill of quantities with the Unpriced (or Stale) filter applied (`onOpenBoq(filter)` to `BoqTab`'s one-shot `filterRequest`; the filter lives in `?boqfilter=`, so a page load with it works too).
+- **Open in Costing** from the row panel is wired to the Costing tab (checked).
+
+### Removed
+`TenderLinesToolbar.tsx`, the tender branches of the Lines block, the `tenderRfq` prop and its page query, and the editor's `hideRfqRequest`. `TenderLinesRfq.tsx` is now unused (left for a later clean-up). The estimate page's `TenderEstimateStrip` and the legacy `EstimatesTab`, `AllocatePanel`, `EstimateAttention` are untouched (their tests still cover them).
+
+### Phone (under 780 px)
+The header is the title, the stage chip, the primary button and the menu; the other facts (amount, stage select, bid decision, bid end date, guarantee) fold into one collapsible "Deal facts" section. The decision panel is mounted by the page, so "Propose bid decision" works while the facts are folded. The tab strip scrolls sideways, a selected tab opens with its content in view, sections collapse, and panels are bottom sheets. Every new control is at least 44 px.
+
+### 3b list (what was and was not wired)
+Done: InfoTips (`bidDocuments`, `bidQuote`, `history` in `tips.ts`, held to the limit by test), `data-guide` ids (`tender.primary.*`, `tender.bid.readiness`, `tender.bid.documents`, `tender.bid.quote*`, `tender.bid.make_quote`, `tender.close.create_project`, `boq.hand.*`, `boq.row.estimate_actions`, `tender.history`), capability text and regenerated facts, change history (the convert route logs the version). Deliberately not done: a column that records the bid version on the quote (the link is `opportunity_id` and the change log), Data Workbench / API / MCP (no new object), the Drive guides (wait for the owner's validation).
+
+### Not verified here
+No browser was available to this builder. Checked by server render tests (the header per stage, History open, the Bid tab, the hand-typed lines, 44 px targets, no colour literals), route tests (convert from a version, against an in-memory database) and by reading the code. The real 375 px and PC look, the drawers and sheets, the "Deal facts" fold (set after mount from `matchMedia`) and the scroll-into-view need an eye on develop.
+
+### Tests
+`src/lib/tender/headerAction.test.ts` (primary button per stage, tabs and old-link landing), `src/app/(app)/pipeline/[id]/tenderHeader.render.test.ts` (header per stage, close dialog, History, Bid documents, phone), `src/components/tender/BidTab.render.test.ts` (readiness line, documents, hand-typed lines, row-panel estimate actions, the filter request), `src/app/api/opportunities/tender.convert.routes.test.ts` (a quote from a bid version); `tenderOverview.render.test.ts`, `Bids.render.test.ts`, `Competitors.render.test.ts`, `Costing.render.test.ts`, `Estimates.render.test.ts`, `linesToolbar.render.test.ts`, `awardsWiring.test.ts`, `boqWiring.test.ts` and `BillOfQuantities.render.test.ts` updated for the six-tab set and the new wiring.

@@ -48,7 +48,7 @@ const money = (amount: number | null, currency: string | null) =>
  */
 export default function TenderOverview({
   opportunityId, deal, tender, approval, room, accounts, members, contacts, currentUserId, nowIso, timezone, finished, sourceEmail,
-  outcome, overdue, unpricedLines, canEdit, fmt, onError, onNotice, onOpenActivity,
+  outcome, overdue, unpricedLines, canEdit, fmt, onError, onNotice, onOpenHistory,
 }: {
   opportunityId: string;
   deal: { title: string; description: string; contact_id: string; owner_id: string; source: string; team: { user_id: string; role: string }[]; created_at: string; closed_at: string | null };
@@ -69,7 +69,7 @@ export default function TenderOverview({
   sourceEmail?: React.ReactNode;
   outcome?: OutcomeData | null;
   overdue?: OverdueSummary | null;
-  onOpenActivity?: () => void;
+  onOpenHistory?: () => void;
   /** Saved lines still without a price (the lines are already on the page, so this costs no query). */
   unpricedLines: number;
   /** The caller may change the deal (edit access to the Pipeline); the server decides anyway. */
@@ -279,7 +279,7 @@ export default function TenderOverview({
               )}
               {overdue && overdueSteps > 0 && (
                 <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
-                  <Button size="sm" variant="secondary" data-guide="tender.overdue_steps" title={overdue.first ?? undefined} style={needs(overdueSteps, "bad")} onClick={onOpenActivity}>
+                  <Button size="sm" variant="secondary" data-guide="tender.overdue_steps" title={overdue.first ?? undefined} style={needs(overdueSteps, "bad")} onClick={onOpenHistory}>
                     {overdueSteps} overdue next step{overdueSteps === 1 ? "" : "s"}
                   </Button>
                   <InfoTip label="Overdue next steps">{TENDER_TIPS.callOverdue}</InfoTip>

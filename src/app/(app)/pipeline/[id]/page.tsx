@@ -21,7 +21,6 @@ import RecordRfqsCard from "@/components/rfq/RecordRfqsCard";
 import RecordActivity from "@/components/page/RecordActivity";
 import SourceEmailSlot from "@/components/inbox/SourceEmailSlot";
 import { rfqPrefill } from "@/components/rfq/prefill";
-import { tenderRfqLines } from "@/lib/tender/rfqLines";
 import { boqOrderedLines } from "@/lib/tender/boq/lineSync";
 import { listBidVersions } from "@/lib/tender/bids/server";
 import { priceValidityDays } from "@/lib/tender/boq/price";
@@ -31,11 +30,12 @@ import { linesVersion } from "@/lib/sales/dealLines";
 import { rfqLineStatuses } from "@/lib/rfq/server";
 import { loadProjectBySource } from "@/lib/contractProjects/server";
 
-export default async function OpportunityDetailPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams?: Promise<{ tab?: string }> }) {
+export default async function OpportunityDetailPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams?: Promise<{ tab?: string; boqfilter?: string }> }) {
   await requireWorkcenterView("pipeline");
   await requireFeature("pipeline");
   const { id } = await params;
-  const wantedTab = (await searchParams)?.tab;
+  const sp = await searchParams;
+  const wantedTab = sp?.tab ?? (sp?.boqfilter ? "boq" : undefined);
   const { supabase, tenantId, userId } = await requireTenantUser();
   const tenant = await getTenant();
   const role = await getUserRole();
@@ -97,17 +97,19 @@ export default async function OpportunityDetailPage({ params, searchParams }: { 
 
   // Contract projects (slice 5a): only for a tender, and only in a workspace with the module (otherwise no query at all).
   let contractProject: { existing: { id: string; ref: string | null } | null; canCreate: boolean } | null = null;
+  let canStartProject = false;
   if (tender && tenant?.features?.contract_projects === true) {
     const perms = await resolvePermissions(supabase, tenantId, userId, role === "admin" ? "admin" : "member");
+    canStartProject = canViewWorkcenter(perms, "contract_projects") && canEditWorkcenter(perms, "contract_projects");
     contractProject = {
       existing: await loadProjectBySource(admin, tenantId, id),
-      canCreate: opp.stage === "awarded" && opp.outcome === "won" && canViewWorkcenter(perms, "contract_projects") && canEditWorkcenter(perms, "contract_projects"),
+      canCreate: opp.stage === "awarded" && opp.outcome === "won" && canStartProject,
     };
   }
 
   // RFQ (0128): ask suppliers about this deal's lines; only with the module.
   const rfqOn = tenant?.features?.rfq === true;
-  const rfqStatus = rfqOn
+  const rfqStatus = rfqOn && !tender
     ? await rfqLineStatuses(admin, tenantId, lines.map((l) => (l as { rfq_line_id?: string | null }).rfq_line_id ?? "").filter(Boolean))
     : {};
 
@@ -138,9 +140,9 @@ export default async function OpportunityDetailPage({ params, searchParams }: { 
       ) : undefined}
       activity={<RecordActivity objectType="opportunities" objectId={id} extraChangeLogTypes={tender ? ["opportunity_tenders", "opportunity_competitors"] : undefined} isAdmin={role === "admin"} />}
       tender={tenderTab}
-      initialTab={tenderTab ? (wantedTab === "boq" ? "boq" : (wantedTab === "costing" || wantedTab === "estimates") && tenderTab.costing ? "costing" : undefined) : undefined}
+      initialTab={tenderTab ? wantedTab : undefined}
       contractProject={contractProject}
-      tenderRfq={tender && rfqOn ? { originLabel: `Deal ${opp.ref ?? opp.title}${account?.name ? ` for ${account.name}` : ""}`, lines: tenderRfqLines(lines as unknown as Parameters<typeof rfqPrefill>[0], (rl) => rfqStatus[rl]?.ref ?? null) } : null}
+      canStartContractProject={canStartProject}
       sourceEmail={tender ? <SourceEmailSlot objectType="opportunities" objectId={id} bare /> : undefined}
       priceValidityDays={priceValidityDays(tenant?.config ?? null)}
     />

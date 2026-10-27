@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { c } from "@/lib/theme";
 import Button from "@/components/ui/Button";
 import Field from "@/components/ui/Field";
@@ -13,17 +13,21 @@ import { toneForDelta } from "@/lib/ui/tone";
 import SettingsSection from "@/components/settings/SettingsSection";
 import { BID_LIMITS, BID_REVISE_STAGES, BID_SUBMIT_STAGES, deltaText, type BidDiff, type BidLine, type BidsData } from "@/lib/tender/bids/rules";
 import { TENDER_TIPS } from "@/lib/tender/tips";
+import type { LinkedQuote } from "@/lib/sales/opportunityServer";
+import { toneTokens } from "@/lib/ui/tone";
 import { bidsUrl, mergeBids, reloadAfterSave } from "./refreshAfterSave";
+import BidDocuments from "./BidDocuments";
 
-// The Bids tab of a tender deal (docs/design/gcc-tender-deals.md section 15): submit the bid as a numbered, never-changing version,
-// revise it, and compare any two versions. A version holds the deal's lines and total as they were; it never holds a cost or a
-// markup. The rules (which stage may submit, whether a reason is needed) are the server's; this component only draws them.
+// The Bid tab of a tender deal (docs/design/gcc-tender-deals.md sections 15 and 26): a readiness line that warns and never blocks,
+// Submit bid / Revise bid, the numbered versions that never change, a comparison of any two, and "Documents we send" (the priced BOQ,
+// the answer sheet and the Standard Quotes made from a version). A version holds the deal's lines and total as they were; it never
+// holds a cost or a markup. The rules (which stage may submit, whether a reason is needed) are the server's; this only draws them.
 
 const fmtStamp = (s: string) => new Date(s).toLocaleString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
 const SHOWN_VERSIONS = 5;
 const SHOWN_LINES = 8;
 
-export default function BidsTab({ opportunityId, data: pageData, stage, outcome, fmt, onError, onNotice, onChanged, checks, initialCompare = null, initialSubmitOpen = false }: {
+export default function BidsTab({ opportunityId, data: pageData, stage, outcome, fmt, onError, onNotice, onChanged, checks, quotes = [], canMakeQuote = false, startSignal = 0, initialCompare = null, initialSubmitOpen = false }: {
   opportunityId: string;
   data: BidsData;
   stage: string;
@@ -38,6 +42,12 @@ export default function BidsTab({ opportunityId, data: pageData, stage, outcome,
    * block; the person can always go on.
    */
   checks?: Pick<SubmitFacts, "priceValidityDays" | "approvedGo" | "guarantee"> & { unpricedFromLines: number };
+  /** The Standard Quotes already made from this deal, newest first (listed under "Documents we send"). */
+  quotes?: LinkedQuote[];
+  /** Standard Quotes are on in this workspace and the caller may change the deal: "Make a Standard Quote from this version" is offered. */
+  canMakeQuote?: boolean;
+  /** The header's Submit bid / Revise bid button counts this up; each increase starts the same flow as the button on this tab. */
+  startSignal?: number;
   /** Lets a server render (and its test) show a finished comparison. The page never passes it. */
   initialCompare?: { from: number; to: number; diff: BidDiff } | null;
   initialSubmitOpen?: boolean;
@@ -68,23 +78,34 @@ export default function BidsTab({ opportunityId, data: pageData, stage, outcome,
   const { confirm } = useFeel();
   // Warn, never block: list what looks unfinished and let the person go on. The BOQ's own totals are asked for when the deal has a
   // BOQ (it knows stale prices); otherwise the saved lines tell how many have no price. A failed read just means fewer warnings.
-  async function warnThen(proceed: () => void) {
-    if (!checks) { proceed(); return; }
-    setBusy(true);
-    let unpriced: number | null = checks.unpricedFromLines;
-    let stale: number | null = null;
-    let days = checks.priceValidityDays;
+  // The readiness line shows the same facts the dialog lists: the saved lines answer at first, the BOQ's own totals (which know stale
+  // prices) replace them as soon as they are read. The line only warns.
+  const [facts, setFacts] = useState<{ unpriced: number | null; stale: number | null; days: number } | null>(checks ? { unpriced: checks.unpricedFromLines, stale: null, days: checks.priceValidityDays } : null);
+  const fromLines = checks?.unpricedFromLines;
+  const checkDays = checks?.priceValidityDays;
+  const readFacts = useCallback(async () => {
+    if (fromLines === undefined || checkDays === undefined) return null;
+    let next = { unpriced: fromLines as number | null, stale: null as number | null, days: checkDays };
     try {
       const res = await fetch(`/api/opportunities/${opportunityId}/boq`);
       const j = res.ok ? await res.json().catch(() => null) : null;
       if (j?.source && j.totals) {
-        unpriced = Number(j.totals.unpriced ?? 0);
-        stale = Number(j.totals.stale ?? 0);
-        if (Number(j.validity_days) > 0) days = Number(j.validity_days);
+        next = { unpriced: Number(j.totals.unpriced ?? 0), stale: Number(j.totals.stale ?? 0), days: Number(j.validity_days) > 0 ? Number(j.validity_days) : checkDays };
       }
     } catch { /* the saved lines answer for the unpriced count */ }
+    setFacts(next);
+    return next;
+  }, [opportunityId, fromLines, checkDays]);
+  useEffect(() => { void readFacts(); }, [readFacts]);
+
+  const readiness = checks && facts ? submitWarnings({ unpriced: facts.unpriced, stale: facts.stale, priceValidityDays: facts.days, approvedGo: checks.approvedGo, guarantee: checks.guarantee }) : [];
+
+  async function warnThen(proceed: () => void) {
+    if (!checks) { proceed(); return; }
+    setBusy(true);
+    const read = await readFacts();
     setBusy(false);
-    const warnings = submitWarnings({ unpriced, stale, priceValidityDays: days, approvedGo: checks.approvedGo, guarantee: checks.guarantee });
+    const warnings = read ? submitWarnings({ unpriced: read.unpriced, stale: read.stale, priceValidityDays: read.days, approvedGo: checks.approvedGo, guarantee: checks.guarantee }) : [];
     if (warnings.length > 0 && !(await confirm({ title: "Go on with this bid?", body: warnings.join("\n"), confirmLabel: "Go on" }))) return;
     proceed();
   }
@@ -120,6 +141,18 @@ export default function BidsTab({ opportunityId, data: pageData, stage, outcome,
     } finally { setBusy(false); }
   }
 
+  // The header's Submit bid / Revise bid opens this tab and counts startSignal up; this starts the same flow as the buttons below.
+  const handledSignal = useRef(0);
+  useEffect(() => {
+    if (startSignal <= handledSignal.current) return;
+    handledSignal.current = startSignal;
+    if (canSubmit) void warnThen(() => setAskSubmit(true));
+    else if (canRevise) void warnThen(revise);
+    else if (data.canEdit && !data.pending && open) onError("A bid is submitted from Estimating or Clarifications");
+    // Runs when the header asks, not on every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [startSignal]);
+
   async function compare() {
     onError("");
     if (!from || !to || from === to) { onError("Pick two different versions"); return; }
@@ -141,6 +174,7 @@ export default function BidsTab({ opportunityId, data: pageData, stage, outcome,
     <div data-guide="tender.bids" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
       <SettingsSection id="tender.bids.current" title="Bid" info={TENDER_TIPS.bidsTab} summary={summary} defaultOpen>
         {data.pending && <div role="alert" data-guide="tender.bids.pending" style={{ fontSize: 13, color: "var(--amberink)" }}>Bid versions need a database update (migration 0225). Ask your administrator to apply it.</div>}
+        {checks && open && !data.pending && <ReadinessLine warnings={readiness} />}
         <StatStrip guide="tender.bids.summary">
           <StatTile tone="info" label="Lines total now" info={TENDER_TIPS.bidWorking} value={fmt(data.working_total)} sub={workingVsLast === null ? null : workingVsLast === 0 ? "same as the last version" : `${workingVsLast > 0 ? "+" : "-"}${fmt(Math.abs(workingVsLast))} since version ${latest?.version_no}`} />
           <StatTile tone="info" label="Last submitted" value={latest ? fmt(latest.total) : "—"} sub={latest ? `Version ${latest.version_no} · ${latest.line_count} line${latest.line_count === 1 ? "" : "s"}` : "Nothing submitted"} />
@@ -223,6 +257,21 @@ export default function BidsTab({ opportunityId, data: pageData, stage, outcome,
           {cmp && <DiffView diff={cmp.diff} fmt={fmt} more={more} onMore={(k) => setMore((m) => ({ ...m, [k]: true }))} />}
         </SettingsSection>
       )}
+
+      <BidDocuments opportunityId={opportunityId} versions={versions} quotes={quotes} canMakeQuote={canMakeQuote} fmt={fmt} onError={onError} onNotice={onNotice} onChanged={onChanged} />
+    </div>
+  );
+}
+
+/** "Before you submit" with what is still open, or a quiet "Nothing open". Warns, never blocks (the buttons stay live). */
+function ReadinessLine({ warnings }: { warnings: string[] }) {
+  const open = warnings.length > 0;
+  const t = toneTokens(open ? "warn" : "good");
+  return (
+    <div role="status" data-guide="tender.bid.readiness" data-state={open ? "open" : "ready"} style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", background: t.bg, color: t.ink, border: `1px solid ${t.edge}`, borderRadius: 10, padding: "8px 12px", fontSize: 13 }}>
+      <b>{open ? "Before you submit" : "Ready to submit"}</b>
+      {open && <span>{warnings.join(" ")}</span>}
+      {open && <InfoTip label="Before you submit">{TENDER_TIPS.submitWarnings}</InfoTip>}
     </div>
   );
 }
