@@ -131,7 +131,8 @@ export default function NovaPalette() {
     for (const group of NAV) {
       for (const item of group.items) {
         if (!canSee(item)) continue;
-        nav.push({ kind: "nav", label: item.label, sub: group.group, href: item.href });
+        // The Inbox is named by what a person says to open it.
+        nav.push({ kind: "nav", label: item.href === ROUTES.inbox ? "Open inbox" : item.label, sub: group.group, href: item.href });
         for (const child of item.children ?? []) {
           if (!canSee(child)) continue;
           nav.push({ kind: "nav", label: child.label, sub: item.label, href: child.href });

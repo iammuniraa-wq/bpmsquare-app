@@ -3,9 +3,15 @@ import { requireTenantUser, createAdminSupabase, getAuthUser } from "@/lib/supab
 import { getTenant, tenantHasFeature } from "@/lib/tenant";
 import { diffForLog, logChange } from "@/lib/changeLog";
 import { LOSS_REASONS, QUOTE_OUTCOMES } from "@/lib/constants";
-import { opportunityStages, stageDef, outcomeForStage, probabilityFor, parseTeam, OPPORTUNITY_SOURCES } from "@/lib/sales/opportunity";
+import { stageDef, outcomeForStage, probabilityFor, parseTeam, OPPORTUNITY_SOURCES } from "@/lib/sales/opportunity";
 import { loadOpportunity, loadOpportunityLines, loadLinkedQuotes, refreshOpportunityDerived, stageSinceMap } from "@/lib/sales/opportunityServer";
-import { emitOpportunityStageChanged, emitOpportunityClosed } from "@/lib/events/emitters";
+import { ownerTeamProblem } from "@/lib/sales/opportunityMembers";
+import { emitOpportunityStageChanged, emitOpportunityClosed, emitOpportunityUpdated } from "@/lib/events/emitters";
+import { stagesForDeal } from "@/lib/tender/rules";
+import { tenderForDeal } from "@/lib/tender/server";
+import { stageGuard } from "@/lib/tender/approval";
+import { standingDecision } from "@/lib/tender/approvalServer";
+import { recordWinnerByName, standingWinnerName } from "@/lib/tender/competitors/server";
 
 async function guard() {
   const ctx = await requireTenantUser();
@@ -36,8 +42,8 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 }
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  let supabase, tenantId;
-  try { ({ supabase, tenantId } = await guard()); } catch (e: unknown) {
+  let supabase, tenantId, userId;
+  try { ({ supabase, tenantId, userId } = await guard()); } catch (e: unknown) {
     const err = e as { status?: number; message: string };
     return NextResponse.json({ error: err.message }, { status: err.status ?? 401 });
   }
@@ -48,7 +54,10 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   if (!before) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   const tenant = await getTenant();
-  const stages = opportunityStages(tenant?.config);
+  // A tender deal (flag gcc_tender on AND a row in opportunity_tenders) is governed by the tender stages; every other deal by
+  // the workspace's own list, exactly as before. With the flag off tenderForDeal answers null without asking the database.
+  const tender = await tenderForDeal(admin, tenantId, tenant?.features, id);
+  const stages = stagesForDeal(tenant?.config, tender !== null);
   const patch: Record<string, unknown> = {};
 
   for (const key of ["title", "description", "loss_note", "currency", "probability_override_reason", "competitor"] as const) {
@@ -75,6 +84,15 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   }
   if ("team" in body) patch.team = parseTeam(body.team);
   if ("owner_id" in body) patch.owner_id = typeof body.owner_id === "string" && body.owner_id ? body.owner_id : null;
+  if ("team" in body || "owner_id" in body) {
+    // Owner and team must be members of THIS workspace (audit 2026-10-21, L2). Ids already on the deal are not re-checked.
+    const problem = await ownerTeamProblem(
+      admin, tenantId,
+      { owner: "owner_id" in patch ? (patch.owner_id as string | null) : null, team: "team" in patch ? (patch.team as { user_id: string }[]) : [] },
+      [before.owner_id, ...(before.team ?? []).map((t) => t.user_id)].filter((x): x is string => !!x),
+    );
+    if (problem) return NextResponse.json({ error: problem }, { status: 422 });
+  }
   if ("contact_id" in body) {
     if (body.contact_id) {
       const { data: contact } = await admin.from("contacts").select("id").eq("id", body.contact_id).eq("tenant_id", tenantId).maybeSingle();
@@ -97,6 +115,17 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if (!def) return NextResponse.json({ error: `Unknown stage "${body.stage}"` }, { status: 400 });
     stage = def.value;
     patch.stage = stage;
+    // A tender deal cannot leave Bid/No-bid for the bid stages without an approved go, nor go to No-bid without an approved
+    // no-go (migration 0221). Only a deal with a tender row is asked; until 0221 is applied the guard stays off.
+    if (tender !== null && stage !== before.stage) {
+      const standing = await standingDecision(admin, tenantId, id);
+      const problem = standing.available ? stageGuard({ from: before.stage, to: stage, effective: standing.effective }) : null;
+      if (problem) return NextResponse.json({ error: problem }, { status: 409 });
+      // A lost tender names who won (slice 4): the competitor is on the body or already on the deal.
+      const who = "competitor" in patch ? patch.competitor : before.competitor;
+      // A competitor marked as the winner on the Competitors tab counts as much as a typed name.
+      if (stage === "bid_lost" && !who && !(await standingWinnerName(admin, tenantId, id))) return NextResponse.json({ error: "Say who won (the competitor) before closing the tender as Lost" }, { status: 422 });
+    }
   }
   let outcome = before.outcome;
   if ("outcome" in body) {
@@ -137,7 +166,17 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       action: "update", actorId: user?.id, actorEmail: user?.email, changes,
     });
   }
+  // A lost tender's winner is also a row on the Competitors tab (found by name, or added), marked as the winner.
+  if (tender !== null && stage === "bid_lost" && typeof patch.competitor === "string" && (stage !== before.stage || patch.competitor !== before.competitor)) {
+    await recordWinnerByName({ admin, supabase, tenantId, userId, opportunity: { id, ref: before.ref, title: before.title }, name: patch.competitor });
+  }
   const after = await loadOpportunity(admin, tenantId, id);
+  if (changes.length > 0) {
+    await emitOpportunityUpdated(tenantId, {
+      opportunityId: id, ref: before.ref, fields: changes.map((ch) => ch.field), accountId: before.account_id,
+      contactId: after?.contact_id ?? before.contact_id, stamp: String(patch.updated_at), actorId: user?.id,
+    });
+  }
   if (stage !== before.stage) {
     await emitOpportunityStageChanged(tenantId, {
       opportunityId: id, ref: before.ref, from: before.stage, to: stage, outcome, amount: after?.amount ?? before.amount,

@@ -77,6 +77,17 @@ export async function sendDataverseSalesOrder(
     await a.onCreated(made);
     return { orderId: made.orderId, orderNumber: made.orderNumber, total: made.total, created: true, steps: ["Created the order with its lines."], alreadyDone: false };
   } catch (e) {
+    // A create that timed out (status 0) may still have been made: Dynamics can take longer than we wait. Look for the order by its
+    // marker before calling it a failure, so a slow answer never leaves a sent order showing as failed.
+    if (a.docId && (e as { status?: number }).status === 0) {
+      try {
+        const late = await findOrderByMarker(http, a.ref, a.docId);
+        if (late) {
+          await a.onCreated(late);
+          return { orderId: late.orderId, orderNumber: late.orderNumber, total: late.total, created: true, steps: ["Created the order with its lines (Dynamics answered slowly)."], alreadyDone: false };
+        }
+      } catch { /* fall through to the original failure */ }
+    }
     throw asStepError("create", e);
   }
 }

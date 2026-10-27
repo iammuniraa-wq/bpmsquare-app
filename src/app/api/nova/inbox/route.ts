@@ -1,6 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { requireTenantUser, createAdminSupabase, getAuthUser } from "@/lib/supabase-server";
 import { tenantHasNovaSurfaces } from "@/lib/tenant";
+import { allowedNovaTypes } from "@/lib/novaAccess";
+import { hiddenEmailIds } from "@/lib/inbox/server";
 
 /**
  * Nova pillar 4 — the inbox. A notification IS a comment that mentions
@@ -14,17 +16,19 @@ import { tenantHasNovaSurfaces } from "@/lib/tenant";
 
 const LABEL: Record<string, string> = {
   accounts: "Account", contacts: "Contact", quotes: "Quotation",
-  standard_quotes: "Quote", cases: "Case", work_orders: "Work Order",
+  standard_quotes: "Quote", sales_orders: "Sales Order", cases: "Case", work_orders: "Work Order",
   invoices: "Invoice", assets: "Asset", suppliers: "Supplier",
   inventory: "Inventory item", purchase_orders: "Purchase Order", employees: "Employee",
   products: "Product", wfm_projects: "Project", opportunities: "Deal", rfqs: "RFQ", estimates: "Estimate", leads: "Lead",
-  abm_programs: "ABM program", abm_targets: "ABM target account",
+  contract_projects: "Contract project",
+  abm_programs: "ABM program", abm_targets: "ABM target account", inbound_emails: "Email",
 };
 const TABLE: Record<string, { table: string; nameCol: string; refCol?: string }> = {
   accounts:        { table: "accounts",         nameCol: "name", refCol: "ref" },
   contacts:        { table: "contacts",         nameCol: "name", refCol: "ref" },
   quotes:          { table: "quotes",           nameCol: "ref" },
   standard_quotes: { table: "standard_quotes",  nameCol: "ref" },
+  sales_orders:    { table: "sales_orders",     nameCol: "ref" },
   cases:           { table: "service_cases",    nameCol: "ref" },
   work_orders:     { table: "work_orders",      nameCol: "ref" },
   invoices:        { table: "invoices",         nameCol: "ref" },
@@ -39,15 +43,18 @@ const TABLE: Record<string, { table: string; nameCol: string; refCol?: string }>
   rfqs: { table: "rfqs", nameCol: "title", refCol: "ref" },
   estimates: { table: "estimates", nameCol: "name", refCol: "ref" },
   leads: { table: "leads", nameCol: "title" },
+  contract_projects: { table: "contract_projects", nameCol: "name", refCol: "ref" },
   abm_programs: { table: "abm_programs", nameCol: "name", refCol: "ref" },
   // A target has no name or ref of its own: the inbox shows its id; the record page names the company.
   abm_targets: { table: "abm_target_accounts", nameCol: "id" },
+  // The mention shows an email by its subject, to a person a colleague on that channel chose to mention.
+  inbound_emails: { table: "inbound_emails", nameCol: "subject" },
 };
 
 export async function GET() {
-  let supabase, tenantId;
+  let supabase, tenantId, userId, role;
   try {
-    ({ supabase, tenantId } = await requireTenantUser());
+    ({ supabase, tenantId, userId, role } = await requireTenantUser());
   } catch (e: unknown) {
     const err = e as { status: number; message: string };
     return NextResponse.json({ error: err.message }, { status: err.status });
@@ -72,7 +79,16 @@ export async function GET() {
   // degradation, never a broken bell.
   if (error) return NextResponse.json({ items: [], unread: 0 });
 
-  const rows = mentions ?? [];
+  // A mention on a record the caller may no longer see (module off, or no
+  // view grant on its workcenter) must not surface its text or name.
+  const visible = await allowedNovaTypes({
+    supabase, tenantId, userId, role, types: (mentions ?? []).map((m) => m.object_type as string),
+  });
+  const granted = (mentions ?? []).filter((m) => visible.has(m.object_type as string));
+  // An email is further limited to the channels the caller is on the team of.
+  const mailIds = [...new Set(granted.filter((m) => m.object_type === "inbound_emails").map((m) => m.object_id as string))];
+  const hiddenMail = mailIds.length ? await hiddenEmailIds(admin, tenantId, userId, role === "admin", mailIds) : new Set<string>();
+  const rows = granted.filter((m) => !(m.object_type === "inbound_emails" && hiddenMail.has(m.object_id as string)));
   if (rows.length === 0) return NextResponse.json({ items: [], unread: 0 });
 
   const { data: reads } = await admin

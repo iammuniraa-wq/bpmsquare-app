@@ -71,6 +71,7 @@ export const ROUTES = {
   login: "/login",
   pipeline: "/pipeline",
   pipelineNew: "/pipeline/new",
+  pipelineNewTender: "/pipeline/new/tender",
   pipelineDetail: (id: string) => `/pipeline/${id}`,
   dashboard: "/",
   leads: "/leads",
@@ -111,6 +112,9 @@ export const ROUTES = {
   marketingSegment: (id: string) => `/marketing/segments/${id}`,
   marketingLeads: "/marketing/leads",
   marketingLead: (id: string) => `/marketing/leads/${id}`,
+  inbox: "/inbox",
+  inboxMessage: (id: string) => `/inbox/${id}`,
+  settingsInbox: "/settings/inbox",
   quotations: "/quotations",
   quotation: (id: string) => `/quotations/${id}`,
   quotationEdit: (id: string) => `/quotations/${id}/edit`,
@@ -123,6 +127,16 @@ export const ROUTES = {
   standardQuotePrint: (id: string) => `/standard-quotes/${id}/print`,
   standardQuoteTemplates: "/standard-quotes/templates",
   standardQuoteTemplate: (id: string) => `/standard-quotes/templates/${id}`,
+  salesOrders: "/sales-orders",
+  salesOrder: (id: string) => `/sales-orders/${id}`,
+  salesOrderNew: "/sales-orders/new",
+  salesOrderPrint: (id: string) => `/sales-orders/${id}/print`,
+  settingsOrderTypes: "/settings/order-types",
+  settingsTenders: "/settings/tenders",
+  contractProjects: "/contract-projects",
+  contractProject: (id: string) => `/contract-projects/${id}`,
+  contractProjectNew: "/contract-projects/new",
+  settingsContractProjects: "/settings/contract-projects",
   employees: "/employees",
   configPricing: "/settings/pricing",
   settingsNumberRanges: "/settings/number-ranges",
@@ -193,6 +207,7 @@ export const ROUTES = {
   adminTenant: (id: string) => `/admin/tenants/${id}`,
   suppliers: "/suppliers",
   supplierNew: "/suppliers/new",
+  supplierGroups: "/suppliers/groups",
   supplier: (id: string) => `/suppliers/${id}`,
   products: "/products",
   productNew: "/products/new",
@@ -283,6 +298,9 @@ export const NAV: NavGroup[] = [
     group: "WORKSPACE",
     items: [
       { label: "Dashboard", href: ROUTES.dashboard, icon: "◴", pillar: "blue", workcenterKey: "dashboard" },
+      // Shared Inbox (0214, docs/design/estimator-unification-and-inbox.md): customer mail, read by a team and turned
+      // into a Quote, Project, Case, Lead or Estimate. About the whole business, so it sits under Dashboard.
+      { label: "Inbox", href: ROUTES.inbox, icon: "✉", pillar: "blue", featureKey: "inbox", workcenterKey: "inbox" },
       // Process Design Studio (0152, docs/process-design-studio-architecture.md): about
       // the whole business, not one pillar, so it sits under Dashboard.
       { label: "Process Design Studio", href: ROUTES.processStudio, icon: "◇", pillar: "blue", featureKey: "process_studio", workcenterKey: "process_studio" },
@@ -292,22 +310,24 @@ export const NAV: NavGroup[] = [
     group: "SALES & PROCUREMENT",
     items: [
       {
-        label: "Sales", href: ROUTES.quotations, icon: "₹", pillar: "blue",
+        label: "Sales", href: ROUTES.pipeline, icon: "₹", pillar: "blue",
         children: [
-          { label: "Quotations", href: ROUTES.quotations, icon: "₹", pillar: "blue", featureKey: "quotations", workcenterKey: "quotations" },
-          { label: "Standard Quotes", href: ROUTES.standardQuotes, icon: "≡", pillar: "blue", featureKey: "standard_quotes", workcenterKey: "standard_quotes" },
           { label: "Pipeline",   href: ROUTES.pipeline,   icon: "▦", pillar: "blue", featureKey: "pipeline", workcenterKey: "pipeline" },
-          { label: "Invoices",   href: ROUTES.invoices,   icon: "⊟", pillar: "blue", featureKey: "invoices", workcenterKey: "invoices" },
-          { label: "Purchase Orders", href: ROUTES.purchaseOrders, icon: "⇱", pillar: "blue", featureKey: "purchasing", workcenterKey: "purchase_orders" },
-          // RFQ (0128): supplier quotations asked for when no cost/price is
-          // found. Procurement, so it sits beside Purchase Orders.
-          { label: "RFQs", href: ROUTES.rfqs, icon: "⇄", pillar: "blue", featureKey: "rfq", workcenterKey: "rfqs" },
-          // Fence Configurator (0122): a Standard Quotes source, not its own
-          // pillar -- lives beside the object it feeds, docs/fence-configurator-architecture.md.
-          { label: "Fence Projects", href: ROUTES.fenceProjects, icon: "⌗", pillar: "blue", featureKey: "fence_projects", workcenterKey: "fence_projects" },
           // Project Estimator (0131, docs/estimator-architecture.md): template-driven
           // estimate -> BOM, WBS and cost build-up -> Standard Quote.
           { label: "Estimates", href: ROUTES.estimates, icon: "∑", pillar: "blue", featureKey: "estimator", workcenterKey: "estimates" },
+          // Fence Configurator (0122): a Standard Quotes source, not its own
+          // pillar -- lives beside the object it feeds, docs/fence-configurator-architecture.md.
+          { label: "Fence Projects", href: ROUTES.fenceProjects, icon: "⌗", pillar: "blue", featureKey: "fence_projects", workcenterKey: "fence_projects" },
+          // RFQ (0128): supplier quotations asked for when no cost/price is
+          // found. Procurement, so it sits beside Purchase Orders.
+          { label: "RFQs", href: ROUTES.rfqs, icon: "⇄", pillar: "blue", featureKey: "rfq", workcenterKey: "rfqs" },
+          { label: "Quotations", href: ROUTES.quotations, icon: "₹", pillar: "blue", featureKey: "quotations", workcenterKey: "quotations" },
+          { label: "Standard Quotes", href: ROUTES.standardQuotes, icon: "≡", pillar: "blue", featureKey: "standard_quotes", workcenterKey: "standard_quotes" },
+          { label: "Sales Orders", href: ROUTES.salesOrders, icon: "▣", pillar: "blue", featureKey: "sales_orders", workcenterKey: "sales_orders" },
+          { label: "Purchase Orders", href: ROUTES.purchaseOrders, icon: "⇱", pillar: "blue", featureKey: "purchasing", workcenterKey: "purchase_orders" },
+          { label: "Contract Projects", href: ROUTES.contractProjects, icon: "▤", pillar: "blue", featureKey: "contract_projects", workcenterKey: "contract_projects" },
+          { label: "Invoices",   href: ROUTES.invoices,   icon: "⊟", pillar: "blue", featureKey: "invoices", workcenterKey: "invoices" },
         ],
       },
     ],
@@ -331,20 +351,20 @@ export const NAV: NavGroup[] = [
     group: "MARKETING",
     items: [
       {
-        label: "Marketing", href: ROUTES.marketing, icon: "📣", pillar: "purple",
+        label: "Marketing", href: ROUTES.marketingSegments, icon: "📣", pillar: "purple",
         children: [
+          { label: "Segmentation", href: ROUTES.marketingSegments, icon: "⌗", pillar: "purple", featureKey: "marketing", workcenterKey: "marketing_segments" },
+          { label: "ABM programs", href: ROUTES.marketingAbm, icon: "◆", pillar: "purple", featureKey: "abm", workcenterKey: "abm" },
           { label: "Campaigns", href: ROUTES.marketing, icon: "✉", pillar: "purple", featureKey: "marketing", workcenterKey: "marketing" },
           { label: "Newsletters", href: ROUTES.marketingNewsletters, icon: "✎", pillar: "purple", featureKey: "newsletter_studio", workcenterKey: "marketing_newsletters" },
-          { label: "Buying signals", href: ROUTES.marketingSignals, icon: "◎", pillar: "purple", featureKey: "buying_signals", workcenterKey: "signals" },
-          { label: "Forms", href: ROUTES.marketingForms, icon: "☰", pillar: "purple", featureKey: "marketing_forms", workcenterKey: "marketing_forms" },
-          { label: "ABM programs", href: ROUTES.marketingAbm, icon: "◆", pillar: "purple", featureKey: "abm", workcenterKey: "abm" },
-          { label: "Journeys", href: ROUTES.marketingJourneys, icon: "↠", pillar: "purple", featureKey: "journeys", workcenterKey: "marketing_journeys" },
           { label: "WhatsApp", href: ROUTES.marketingWhatsapp, icon: "☏", pillar: "purple", featureKey: "whatsapp_marketing", workcenterKey: "marketing_whatsapp" },
           { label: "Events", href: ROUTES.marketingEvents, icon: "◷", pillar: "purple", featureKey: "marketing_events", workcenterKey: "marketing_events" },
-          { label: "Revenue by source", href: ROUTES.marketingAttribution, icon: "⌁", pillar: "purple", featureKey: "marketing_attribution", workcenterKey: "marketing_attribution" },
-          { label: "Segmentation", href: ROUTES.marketingSegments, icon: "⌗", pillar: "purple", featureKey: "marketing", workcenterKey: "marketing_segments" },
+          { label: "Forms", href: ROUTES.marketingForms, icon: "☰", pillar: "purple", featureKey: "marketing_forms", workcenterKey: "marketing_forms" },
+          { label: "Journeys", href: ROUTES.marketingJourneys, icon: "↠", pillar: "purple", featureKey: "journeys", workcenterKey: "marketing_journeys" },
+          { label: "Buying signals", href: ROUTES.marketingSignals, icon: "◎", pillar: "purple", featureKey: "buying_signals", workcenterKey: "signals" },
           { label: "Leads", href: ROUTES.leads, icon: "✦", pillar: "purple", featureKey: "leads", workcenterKey: "leads" },
           { label: "Scored leads", href: ROUTES.marketingLeads, icon: "⚡", pillar: "purple", featureKey: "marketing_scoring", workcenterKey: "leads" },
+          { label: "Revenue by source", href: ROUTES.marketingAttribution, icon: "⌁", pillar: "purple", featureKey: "marketing_attribution", workcenterKey: "marketing_attribution" },
         ],
       },
     ],
@@ -353,21 +373,21 @@ export const NAV: NavGroup[] = [
     group: "MASTER DATA",
     items: [
       {
-        label: "Master data", href: ROUTES.assets, icon: "▧", pillar: "green",
+        label: "Master data", href: ROUTES.accounts, icon: "▧", pillar: "green",
         children: [
-          { label: "Assets",          href: ROUTES.assets,         icon: "▧", pillar: "green", featureKey: "assets", workcenterKey: "assets" },
+          { label: "Accounts",        href: ROUTES.accounts,       icon: "▣", pillar: "green", featureKey: "accounts", workcenterKey: "accounts" },
+          { label: "Contacts",        href: ROUTES.contacts,       icon: "◉", pillar: "green", featureKey: "contacts", workcenterKey: "contacts" },
+          // Client reorg 2026-08-22: Partners (from Marketing) and
+          // Accounts/Contacts (from Workspace) live with the master data.
+          { label: "Partners",        href: ROUTES.partners,       icon: "⌂", pillar: "green", featureKey: "partners", workcenterKey: "partners" },
           { label: "Suppliers",       href: ROUTES.suppliers,      icon: "◫", pillar: "green", featureKey: "suppliers", workcenterKey: "suppliers" },
-          { label: "Inventory",       href: ROUTES.inventory,      icon: "▨", pillar: "green", featureKey: "purchasing", workcenterKey: "inventory" },
           { label: "Products",        href: ROUTES.products,       icon: "▩", pillar: "green", featureKey: "products", workcenterKey: "products" },
+          { label: "Inventory",       href: ROUTES.inventory,      icon: "▨", pillar: "green", featureKey: "purchasing", workcenterKey: "inventory" },
+          { label: "Assets",          href: ROUTES.assets,         icon: "▧", pillar: "green", featureKey: "assets", workcenterKey: "assets" },
           // Employees ships as part of the Business Roles/Business Users
           // bundle, so it shares that bundle's rollout flag rather than
           // getting its own.
           { label: "Employees",       href: ROUTES.employees,      icon: "⚇", pillar: "green", featureKey: "business_roles", workcenterKey: "employees" },
-          // Client reorg 2026-08-22: Partners (from Marketing) and
-          // Accounts/Contacts (from Workspace) live with the master data.
-          { label: "Partners",        href: ROUTES.partners,       icon: "⌂", pillar: "green", featureKey: "partners", workcenterKey: "partners" },
-          { label: "Accounts",        href: ROUTES.accounts,       icon: "▣", pillar: "green", featureKey: "accounts", workcenterKey: "accounts" },
-          { label: "Contacts",        href: ROUTES.contacts,       icon: "◉", pillar: "green", featureKey: "contacts", workcenterKey: "contacts" },
         ],
       },
     ],
@@ -485,6 +505,19 @@ export type TenantEntity = {
   email?: string;
   gstin?: string;
   is_default: boolean;
+  // Saudi e-invoicing seller unit (einvoicing_ksa, E1). An entity IS the seller unit: these are the fields ZATCA
+  // needs on top of the generic ones above. `vat_number` is the 15-digit VAT registration number; when it is empty
+  // the generic `gstin` ("Tax ID") is read instead, so a workspace that already typed its VAT number there does not
+  // re-enter it. All optional and ignored unless the workspace has the flag.
+  vat_number?: string;
+  crn?: string;
+  name_ar?: string;
+  building_number?: string;
+  street?: string;
+  district?: string;
+  city?: string;
+  postal_code?: string;
+  country?: string;
 };
 
 // TenantTaxConfig — shape stored in tenants.config.tax.
@@ -717,6 +750,41 @@ export type TenantFeatures = {
   // web for this?" and, on a yes, run one isolated search on our key and answer with sources. A platform-admin-only
   // flag: default OFF, missing key reads false; needs ai_assistant. With it off the search tool is not offered.
   ai_assistant_web: boolean;
+  // Shared Inbox (0214, docs/design/estimator-unification-and-inbox.md): customer mail arrives on a forwarding address (or
+  // is read from the company's own mailbox), is read and answered by a team, and is turned into a Quote, Project, Case,
+  // Lead or Estimate with its drawings copied across. A platform-admin-only flag (set in /admin/tenants, never by a
+  // workspace admin): default OFF, missing key reads false; with it off there is no menu item, no route, no webhook
+  // routing and no polling for the workspace. Mail content is private: there is no v1 API endpoint for it.
+  inbox: boolean;
+  // Sales Orders (docs/design/sales-order.md, build spec SO1): an order made here from an accepted quote or won
+  // deal, with order types, availability from master data, PDF/email/WhatsApp and files. A platform-admin-only
+  // flag: default OFF, missing key reads false; with it off there is no menu item, no route, no API answer and no
+  // button on a quote. ERP replication, ERP checks and sending to an ERP are later phases (SO2/SO3).
+  sales_orders: boolean;
+  // Saudi e-invoicing, phase E1 "Data readiness" (docs/design/saudi-einvoicing-plan.md): the seller and buyer tax
+  // identity, per-line VAT category and rate, document types (standard, simplified, credit and debit note), a gap-free
+  // per-seller counter, a bilingual Arabic/English invoice and a Ready / Not ready check that lists what is missing.
+  // No submission to ZATCA yet (E2+). A platform-admin-only flag: default OFF, missing key reads false; with it off
+  // nothing new appears on a screen, an export, the API or a printed invoice. Until the Region pack framework exists
+  // this flag together with `config.einvoicing.scheme` IS the Region pack switch (see src/lib/einvoicing/gate.ts).
+  // Needs `invoices`.
+  einvoicing_ksa: boolean;
+  // GCC tender deals, slice 1 (docs/design/gcc-tender-deals.md): the Pipeline gains a Tenders tab. A tender is an ordinary
+  // deal plus one row in `opportunity_tenders` (no column is added to `opportunities`); it has its own stages (received,
+  // bid/no-bid, estimating, submitted, clarifications, awarded, lost, no-bid), a closing-date countdown, a recorded bid
+  // decision, a bid-bond block, closing-date reminders, and an Inbox "Deal" create type. A platform-admin-only flag:
+  // default OFF, missing key reads false; with it off every standard path (deal create, board, stage change, Inbox menu,
+  // nav) behaves exactly as before. Needs `pipeline`.
+  gcc_tender: boolean;
+  // The Deal Room (slice 2 of the same design): one internal room per tender deal where colleagues discuss the bid (messages,
+  // files, questions, decisions). Internal workspace members only (design section 10). Platform-admin-only, default OFF;
+  // needs gcc_tender.
+  deal_room: boolean;
+  // Contract projects, slice 5a of the same design (docs/design/gcc-tender-deals.md section 15): the project a won tender becomes, with
+  // its cost budget by resource type and cost code, numbered revisions with a reason, a manager-approved baseline and an Excel
+  // handover stand-in. Not the Workforce "Projects". Platform-admin-only, default OFF; needs gcc_tender. With it off there is no
+  // menu item, route, API answer or button on a deal, and the new tables are never queried.
+  contract_projects: boolean;
 };
 
 // WfmConfig — tenant-level WFM (attendance) settings, stored in
@@ -1015,6 +1083,8 @@ export type AnalyticsMetricId =
   | "pipeline_open_value"
   | "rfq_open"
   | "estimates_open"
+  | "inbox_open"
+  | "sales_orders_open"
   | "abm_targets_engaged"
   | "wfm_attendance_today" | "wfm_night_shift_cost"
   | "wfm_corrections_queue" | "wfm_leave_requests_queue" | "wfm_recheck_queue"
@@ -1111,6 +1181,23 @@ export const DEFAULT_OPPORTUNITY_STAGES: OpportunityStageDef[] = [
   { value: "lost",      label: "Lost",      color: "#ef4444", is_closed: true, outcome: "lost" },
 ];
 
+// Tender stages (GCC tender deals, slice 1, docs/design/gcc-tender-deals.md section 3). Used INSTEAD of
+// config.opportunity_stages for a deal that has a row in opportunity_tenders, and only while the platform-admin flag
+// `gcc_tender` is on. Fixed in code for slice 1 (a workspace-editable list comes later through `deal_types`). A closed
+// stage carries the same `outcome` a standard closed stage does (won / lost / dropped), so win/loss reports keep working.
+// Values are deliberately distinct from the standard ones ("lost" is `bid_lost` here) so a stored stage never reads as
+// the other board's.
+export const DEFAULT_TENDER_STAGES: OpportunityStageDef[] = [
+  { value: "received",       label: "Received",       color: "#64748b", is_initial: true, probability_hint: 10 },
+  { value: "bid_no_bid",     label: "Bid/No-bid",     color: "#8b5cf6", probability_hint: 15 },
+  { value: "estimating",     label: "Estimating",     color: "#3b82f6", probability_hint: 25 },
+  { value: "submitted",      label: "Submitted",      color: "#f59e0b", probability_hint: 40 },
+  { value: "clarifications", label: "Clarifications", color: "#0ea5e9", probability_hint: 50 },
+  { value: "awarded",        label: "Awarded",        color: "#10b981", is_closed: true, outcome: "won" },
+  { value: "bid_lost",       label: "Lost",           color: "#ef4444", is_closed: true, outcome: "lost" },
+  { value: "no_bid",         label: "No-bid",         color: "#94a3b8", is_closed: true, outcome: "dropped" },
+];
+
 // Quote outcome -- the business RESULT, fully independent of pipeline status
 // (a status just tracks where the quote sits; a quote can be marked lost
 // while still "Sent", ahead of the paperwork catching up). "lost" (actively
@@ -1140,6 +1227,22 @@ export const LOSS_REASON_LABEL: Record<LossReason, string> = {
 export type TenantConfig = {
   entities: TenantEntity[];
   tax: TenantTaxConfig;
+  // GCC tender deals (slice 1b): who may approve a bid / no-bid proposal. `approvers` are user ids chosen in Settings ->
+  // Tenders; absent or empty = every workspace admin. `allow_self_approval` (default off) lets a proposer approve their own
+  // proposal, for a one-admin workspace. Read through src/lib/tender/approval.ts, never directly.
+  // `price_validity_days` (slice 3a, default 180): a supplier or past-project price older than this is shown as stale on a BOQ line and
+  // never applied automatically. Read through priceValidityDays() in src/lib/tender/boq/price.ts.
+  // `default_markup_pct` (default 15) is the markup on cost a tender deal's Bill of quantities starts "Price all" with; read through defaultMarkupPct().
+  // `default_markup_pct` (Costing, default 15): the markup "Award and price" adds to a supplier's cost when the person does not type another.
+  // Read through tenderMarkupDefault() in src/lib/tender/costing/rules.ts.
+  tender?: { approvers?: string[]; allow_self_approval?: boolean; price_validity_days?: number; default_markup_pct?: number };
+  // Contract projects (slice 5a): `default_margin_pct` (default 15) is the margin assumed when a tender line's cost is not known, so the
+  // project's budget starts from "rate less this margin" and says "estimated". Read through contractProjectSettings(); Settings > Contract projects.
+  contract_projects?: { default_margin_pct?: number };
+  // E-invoicing scheme of the workspace (Region pack switch until the pack framework exists, einvoicing_ksa flag).
+  // `scheme: null` switches the feature off even with the flag on; an absent key with the flag on means ksa_zatca.
+  // `default_doc_type` is what a buyer without a VAT number gets (default simplified).
+  einvoicing?: { scheme: "ksa_zatca" | null; default_doc_type?: "standard" | "simplified" };
   // Which quote types are shown in the New Quotation picker. Omitted key = visible.
   quote_type_visibility?: Partial<Record<QuoteTypeId, boolean>>;
   // Analytics metrics the tenant has explicitly hidden on the Analytics page.
@@ -1475,6 +1578,9 @@ export type RfqConfig = {
   terms?: string;
   /** Attach the printable RFQ (PDF) to each request email. Default on. */
   attach_pdf?: boolean;
+  /** Days after which a supplier answer with no validity date of its own is stale on the comparison (amber, never the lowest valid
+   *  price). Default 180, clamped 30..730. */
+  price_valid_days?: number;
 };
 
 export type PricingConfig = {

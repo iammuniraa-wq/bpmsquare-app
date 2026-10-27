@@ -117,6 +117,9 @@ export type AnalyticsData = {
     quotedEstimates: number;
     abmTargets: number;
     abmEngaged: number;
+    draftOrders: number;
+    openOrders: number;
+    openOrderValue: number;
   };
   accountsByType: Array<{ type: string; label: string; count: number }>;
   leadFunnel: Array<{ stage: string; count: number }>;
@@ -155,6 +158,8 @@ export type AnalyticsData = {
   wfmProjectHours: Array<{ id: string | null; name: string; ref: string | null; minutes: number }>;
   wfmProjectBudget: Array<{ id: string; name: string; ref: string | null; workedMinutes: number; budgetHours: number; pct: number }>;
   wfmProjectBilling: { invoicedAmount: number; invoicedCount: number; unbilledMinutes: number; unbilledProjects: number };
+  // Shared Inbox (0214; only populated when the tenant has features.inbox on): counts only, never mail.
+  inbox: { newThisWeek: number; unhandled: number; medianFirstReplyMinutes: number | null };
 };
 
 // ── Display label maps ────────────────────────────────────────────────────────

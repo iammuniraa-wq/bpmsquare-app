@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { c } from "@/lib/theme";
@@ -21,23 +21,69 @@ import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import Field from "@/components/ui/Field";
 import MoreMenu from "@/components/ui/MoreMenu";
+import SidePanel from "@/components/ui/SidePanel";
+import InfoTip from "@/components/ui/InfoTip";
+import SettingsSection from "@/components/settings/SettingsSection";
 import StatusPill from "@/components/ui/StatusPill";
 import { Input, Select, Textarea } from "@/components/ui/Input";
 import RecordFacts from "@/components/page/RecordFacts";
+import ClosingChip from "@/components/tender/ClosingChip";
+import { tenderIsLive } from "@/lib/tender/rules";
+import { tenderPrimary, type TenderPrimaryKey } from "@/lib/tender/headerAction";
+import { resolveTenderTab, type TenderTabId } from "@/lib/tender/tabs";
+import { TENDER_TIPS } from "@/lib/tender/tips";
+import type { BoqFilter } from "@/lib/tender/boq/table";
+import type { TenderView } from "@/lib/tender/views";
+import type { ApprovalView } from "@/lib/tender/approval";
+import TenderOverview from "./TenderOverview";
+import BidDecisionMarker, { BidDecisionPanel } from "./BidDecisionMarker";
+import BondChip from "@/components/tender/BondChip";
+import { guaranteeRecorded } from "@/lib/tender/bond";
+import BidsTab from "@/components/tender/BidsTab";
+import CallsPanel from "@/components/tender/CallsPanel";
+import { LogCallButton } from "@/components/tender/LogCall";
+import { overdueSummary, type CallsData } from "@/lib/tender/calls";
+import type { BidsData } from "@/lib/tender/bids/rules";
+import type { OutcomeData } from "@/lib/tender/outcome";
+import DealRoom from "@/components/tender/DealRoom";
+import BoqTab from "@/components/tender/BoqTab";
+import CompetitorsTab from "@/components/tender/competitors/CompetitorsTab";
+import WhoWonPicker from "@/components/tender/competitors/WhoWonPicker";
+import CostingTab from "@/components/tender/CostingTab";
+import type { ContractProjectInfo } from "@/components/contractProjects/ContractProjectBanner";
+import { editorUom } from "@/lib/sales/uom";
 
 // The deal page (§4.5): the record-page look (header with one primary step and
 // the "..." menu, facts, tabs) built client-side, because the Lines editor and
 // the header form keep unsaved state across tab switches -- so the tabs here
-// are state, not ?tab=. Tabs: Overview · Lines · Quotes · Related · Activity.
+// are state, not ?tab=. A standard deal: Overview · Lines · Quotes · Related · Activity.
+// A TENDER deal (docs/design/gcc-tender-deals.md section 26): Overview · Bill of quantities · Costing · Bid · Room · Competitors, a
+// primary header button that follows the stage, and History in the "..." menu (a side panel, a bottom sheet on a phone).
 
 type Member = { user_id: string; name: string | null; email: string | null };
-type Tab = "overview" | "lines" | "quotes" | "related" | "activity";
+type Tab = "overview" | "room" | "competitors" | "boq" | "costing" | "lines" | "bid" | "quotes" | "related" | "activity";
+
+/** A tender deal's extras (GCC tender deals): its tender block and what the countdown needs. Absent for every other deal. */
+export type TenderTabData = {
+  view: TenderView;
+  /** The Deal Room, when the workspace has the deal_room flag: its unread and open-question counts. null = no room on this workspace. */
+  room: { pending: boolean; unread: number; openQuestions: number; isAdmin: boolean } | null;
+  /** The caller may change the BOQ (edit access to the Pipeline). Absent = yes; the server decides anyway. */
+  boqEdit?: boolean;
+  /** Slice 4 (migration 0225): bid versions, logged calls and the outcome facts. Absent = the screens for them are not drawn. */
+  bids?: BidsData | null;
+  calls?: CallsData | null;
+  outcome?: OutcomeData | null;
+  /** The Costing tab (estimates and RFQs). Set only when the caller may view Estimates or RFQs in a workspace that has either module; absent = no tab. */
+  costing?: { canEdit: boolean } | null;
+  /** null while migration 0221 is pending. */ approval: ApprovalView | null; accounts: { id: string; name: string }[]; nowIso: string; timezone: string;
+};
 
 const fmtDate = (s: string | null | undefined) => (s ? new Date(s).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—");
 
 function toEditorLines(rows: OpportunityLine[]): Line[] {
   return rows.map((l) => ({
-    id: l.id, description: l.description, uom: l.uom ?? "Nos", qty: String(l.qty), rate: String(l.rate), discount_pct: String(l.discount_pct),
+    id: l.id, description: l.description, uom: editorUom(l.uom), qty: String(l.qty), rate: String(l.rate), discount_pct: String(l.discount_pct),
     product_id: l.product_id ?? "", pricing_document_id: l.pricing_document_id ?? "", rfq_line_id: (l as { rfq_line_id?: string | null }).rfq_line_id ?? "",
     group_id: l.group_id ?? "", group_label: l.group_label ?? "", group_type: l.group_type === "alternative" ? "alternative" : "",
     break_of: l.break_of ?? "", break_qty: l.break_qty != null ? String(l.break_qty) : "",
@@ -45,11 +91,18 @@ function toEditorLines(rows: OpportunityLine[]): Line[] {
   }));
 }
 
-export default function OpportunityDetailClient({ opp, accountName, contacts, initialLines, quotes, stages, members, products, pricingEnabled, standardQuotesEnabled, todayKey, currentUserId, related, activity, externalLine }: {
+export default function OpportunityDetailClient({ opp, accountName, contacts, initialLines, linesVersion, quotes, stages, members, products, pricingEnabled, standardQuotesEnabled, todayKey, currentUserId, related, activity, externalLine, tender, sourceEmail, priceValidityDays, contractProject, canStartContractProject = false, initialTab }: {
+  /**
+   * The tab to open on: a server render (and its test) passes a Tab, the page passes the raw ?tab= of a tender deal. A tender resolves it
+   * to one of its six tabs (an old name lands on the nearest one; "activity" opens History); a standard deal only takes its own tabs.
+   */
+  initialTab?: Tab | string;
   opp: Opportunity & { stage_since: string };
   accountName: string;
   contacts: { id: string; name: string }[];
   initialLines: OpportunityLine[];
+  /** Fingerprint of the saved lines (linesVersion): the editor sends it back so the server can tell its copy is stale. */
+  linesVersion: string;
   quotes: LinkedQuote[];
   stages: OpportunityStageDef[];
   members: Member[];
@@ -64,15 +117,77 @@ export default function OpportunityDetailClient({ opp, accountName, contacts, in
   externalLine?: React.ReactNode;
   /** The Activity tab (Nova timeline + change history). */
   activity: React.ReactNode;
+  /** Set only for a tender deal: the tender Overview and the bid decision / bid end date / guarantee facts in the header. */
+  tender?: TenderTabData | null;
+  /** "From email" for a tender made from an Inbox message (renders nothing otherwise). */
+  sourceEmail?: React.ReactNode;
+  /** Settings > Tenders "Price validity" in days, for the warnings before a bid is submitted. */
+  priceValidityDays?: number;
+  /** Contract projects (slice 5a): set for a tender in a workspace with the module. */
+  contractProject?: ContractProjectInfo | null;
+  /** The caller may create a contract project (module on, view and edit of it): the close dialog offers "Create contract project now". */
+  canStartContractProject?: boolean;
 }) {
   const cur = useCurrency();
   const inr = (n: number) => formatMoney(Math.round(n), cur, {});
   const router = useRouter();
   const { confirm } = useFeel();
   const [pending, startTransition] = useTransition();
-  const [tab, setTab] = useState<Tab>(initialLines.length === 0 && quotes.length === 0 ? "overview" : "lines");
+  // A tender has six tabs and no others (lib/tender/tabs.ts): an old ?tab= value or a remembered state that names a tab that is gone
+  // (lines, estimates, related, bids, quotes, activity, tender) lands on the nearest one, and "activity" opens History.
+  const tenderTabs: TenderTabId[] = tender
+    ? ["overview", "boq", ...(tender.costing ? ["costing" as const] : []), ...(tender.bids ? ["bid" as const] : []), ...(tender.room ? ["room" as const] : []), "competitors"]
+    : [];
+  const resolved = tender ? resolveTenderTab(initialTab, tenderTabs) : null;
+  const startTab: Tab | undefined = tender ? resolved!.tab : (initialTab as string | undefined) === "tender" ? "overview" : (initialTab as Tab | undefined);
+  const [tab, setTab] = useState<Tab>(startTab ?? (tender ? "overview" : initialLines.length === 0 && quotes.length === 0 ? "overview" : "lines"));
+  const [historyOpen, setHistoryOpen] = useState(!!resolved?.history);
+  const [decisionOpen, setDecisionOpen] = useState(false);
+  // The bid decision as the page last knew it. A proposal, an approval or a withdrawal re-reads it at once (the marker and the primary button
+  // must not wait for a full reload) and the server render then replaces it.
+  const [approvalNow, setApprovalNow] = useState<ApprovalView | null>(tender?.approval ?? null);
+  useEffect(() => { setApprovalNow(tender?.approval ?? null); }, [tender?.approval]);
+  async function reloadApproval() {
+    try {
+      const res = await fetch(`/api/opportunities/${opp.id}/tender/approval`, { cache: "no-store" });
+      if (res.ok) setApprovalNow((await res.json()) as ApprovalView);
+    } catch { /* the refresh below brings the same facts */ }
+    router.refresh();
+  }
+  const [bidStart, setBidStart] = useState(0);
+  const [boqRequest, setBoqRequest] = useState<{ filter: BoqFilter; n: number } | undefined>(undefined);
+  const boqAsks = useRef(0);
+  function openTab(next: Tab) {
+    setTab(next);
+    if (next !== "boq") setBoqRequest(undefined);
+  }
+  const tabsRef = useRef<HTMLDivElement>(null);
+  const shownTab = useRef<Tab>(tab);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [roomFilter, setRoomFilter] = useState<"all" | "questions">("all");
+  const [roomOpen, setRoomOpen] = useState(tender?.room?.openQuestions ?? 0);
+  const [roomUnread, setRoomUnread] = useState(tender?.room?.unread ?? 0);
+  const [narrow, setNarrow] = useState(false);
+  const [phone, setPhone] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 900px)");
+    const small = window.matchMedia("(max-width: 780px)");
+    const on = () => { setNarrow(mq.matches); setPhone(small.matches); };
+    on();
+    mq.addEventListener("change", on);
+    small.addEventListener("change", on);
+    return () => { mq.removeEventListener("change", on); small.removeEventListener("change", on); };
+  }, []);
+  // The selected tab is always in view in the strip; on a phone, switching also brings the strip to the top so the new content is
+  // what the person sees, not the header they scrolled past.
+  useEffect(() => {
+    const strip = tabsRef.current;
+    if (!strip) return;
+    strip.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]')?.scrollIntoView({ inline: "center", block: "nearest" });
+    if (shownTab.current !== tab && narrow) strip.scrollIntoView({ block: "start" });
+    shownTab.current = tab;
+  }, [tab, narrow]);
 
   // Header fields, saved together.
   const [form, setForm] = useState({
@@ -81,13 +196,29 @@ export default function OpportunityDetailClient({ opp, accountName, contacts, in
     probability_override: opp.probability_override != null ? String(opp.probability_override) : "", probability_override_reason: opp.probability_override_reason ?? "",
     team: (opp.team ?? []) as { user_id: string; role: string }[],
   });
-  const [closing, setClosing] = useState<{ stage: string; outcome: "won" | "lost" | "dropped"; loss_reason: string; loss_note: string } | null>(null);
+  const [closing, setClosing] = useState<{ stage: string; outcome: "won" | "lost" | "dropped"; loss_reason: string; loss_note: string; competitor?: string } | null>(null);
 
   // Lines tab: the shared editor, saved as one PUT.
   const [lines, setLines] = useState<Line[]>(initialLines.length > 0 ? toEditorLines(initialLines) : [newLine()]);
   const [savedLinesKey, setSavedLinesKey] = useState(JSON.stringify(lines));
   const linesDirty = JSON.stringify(lines) !== savedLinesKey;
   useUnsavedChangesGuard(linesDirty, { body: "The deal's lines have unsaved edits. If you leave now they will be lost." });
+  // The BOQ tab changes the saved lines behind this editor's back (create, re-upload, price). `baseVersion` is the fingerprint of the
+  // lines the editor holds; when the server's differs, the editor is reloaded (or, with unsaved edits, the person is told and chooses).
+  const [baseVersion, setBaseVersion] = useState(linesVersion);
+  const [editorKey, setEditorKey] = useState(0);
+  const [serverMoved, setServerMoved] = useState(false);
+  function adoptServerLines() {
+    const next = initialLines.length > 0 ? toEditorLines(initialLines) : [newLine()];
+    setLines(next); setSavedLinesKey(JSON.stringify(next)); setBaseVersion(linesVersion); setEditorKey((k) => k + 1); setServerMoved(false);
+  }
+  useEffect(() => {
+    if (linesVersion === baseVersion) { setServerMoved(false); return; }
+    if (linesDirty) { setServerMoved(true); return; }
+    adoptServerLines();
+    // Runs when the server sends new lines, not on every keystroke.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [linesVersion, initialLines]);
   const linesTotal = documentTotal(lines.map((l) => ({ id: l.id, amount: lineAmount(l), group_id: l.group_id || null, group_type: l.group_type || null, break_of: l.break_of || null, is_selected: l.is_selected })));
   const lineCount = lines.filter((l) => l.description.trim() && !l.break_of).length;
 
@@ -116,6 +247,28 @@ export default function OpportunityDetailClient({ opp, accountName, contacts, in
     });
   }
 
+  async function postContractProject() {
+    setError(""); setNotice("");
+    const res = await fetch("/api/contract-projects", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ opportunity_id: opp.id }) });
+    const j = await res.json().catch(() => ({}));
+    if (res.ok || j.project_id) { router.push(ROUTES.contractProject(j.id ?? j.project_id)); return; }
+    setError(j.error ?? "Could not create the contract project");
+  }
+  function createContractProject() {
+    startTransition(postContractProject);
+  }
+
+  /** Confirms the close dialog. A tender won can go straight on to its contract project; nothing else is created for it. */
+  function confirmClose(thenProject = false) {
+    const cl = closing;
+    if (!cl) return;
+    setClosing(null);
+    startTransition(async () => {
+      const ok = await patch({ stage: cl.stage, outcome: cl.outcome, ...(cl.outcome !== "won" ? { loss_reason: cl.loss_reason, loss_note: cl.loss_note || null } : {}), ...(tender && cl.outcome === "lost" ? { competitor: cl.competitor ?? opp.competitor ?? "" } : {}) });
+      if (ok && thenProject) await postContractProject();
+    });
+  }
+
   function changeStage(stage: string) {
     if (stage === opp.stage) return;
     if (isClosedStage(stages, stage)) {
@@ -132,7 +285,7 @@ export default function OpportunityDetailClient({ opp, accountName, contacts, in
       setError(""); setNotice("");
       const res = await fetch(`/api/opportunities/${opp.id}/lines`, {
         method: "PUT", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ lines: clean.map((l) => ({
+        body: JSON.stringify({ base_version: baseVersion, lines: clean.map((l) => ({
           local_id: l.id, description: l.description, uom: l.uom, qty: l.qty, rate: l.rate, discount_pct: l.discount_pct,
           product_id: l.product_id || null, pricing_document_id: l.pricing_document_id || null, rfq_line_id: l.rfq_line_id || null,
           group_id: l.group_id || null, group_label: l.group_label || null, group_type: l.group_type || null,
@@ -141,7 +294,12 @@ export default function OpportunityDetailClient({ opp, accountName, contacts, in
         })) }),
       });
       const j = await res.json().catch(() => ({}));
-      if (!res.ok) { setError(j.error ?? "Could not save the lines"); return; }
+      if (!res.ok) {
+        setError(j.error ?? "Could not save the lines");
+        if (j.code === "lines_changed") router.refresh();
+        return;
+      }
+      if (typeof j.version === "string") setBaseVersion(j.version);
       const next = toEditorLines((j.lines ?? []) as OpportunityLine[]);
       setLines(next.length ? next : [newLine()]);
       setSavedLinesKey(JSON.stringify(next.length ? next : [newLine()]));
@@ -175,33 +333,115 @@ export default function OpportunityDetailClient({ opp, accountName, contacts, in
   const reopen = () => startTransition(async () => { await patch({ stage: stages.find((s) => !s.is_closed)?.value ?? opp.stage, outcome: "open" }, "Reopened"); });
 
   const canConvert = !closed && standardQuotesEnabled;
-  // One primary step: convert to a quote when that module is on, else close
-  // the deal as won; a closed deal has none (Reopen is in the menu).
-  const primary = canConvert
-    ? <Button variant="primary" onClick={convert} loading={pending}>Convert to Standard Quote</Button>
-    : !closed
-      ? <Button variant="primary" onClick={markWon}>Mark won</Button>
-      : null;
+  // Won on a tender: the dialog offers the contract project, never a Standard Quote (a quote is made from a bid version on the Bid tab).
+  const offerProject = !!tender && !!contractProject && !contractProject.existing && canStartContractProject && closing?.outcome === "won";
 
-  const tabs: { id: Tab; label: string; count?: number }[] = [
-    { id: "overview", label: "Overview" },
-    { id: "lines", label: linesDirty ? "Lines •" : "Lines", count: lineCount },
-    { id: "quotes", label: "Quotes", count: quotes.length },
-    ...(related ? [{ id: "related" as Tab, label: "Related" }] : []),
-    { id: "activity", label: "Activity" },
-  ];
+  // A tender's one primary step follows its stage (lib/tender/headerAction.ts); "Convert to Standard Quote" is not in its header: it is
+  // "Make a Standard Quote from this version" on the Bid tab. A standard deal: convert to a quote when that module is on, else close the
+  // deal as won; a closed deal has none (Reopen is in the menu).
+  const tenderButton = tender
+    ? tenderPrimary({
+        stage: opp.stage, outcome: opp.outcome, bids: tender.bids?.versions.length ?? 0, canEdit: tender.boqEdit !== false,
+        approvedGo: approvalNow ? approvalNow.standing?.decision === "go" : null,
+        proposalPending: !!approvalNow?.pending, canDecide: approvalNow?.canDecide === true,
+        project: contractProject ? { existing: !!contractProject.existing, canCreate: contractProject.canCreate } : null,
+      })
+    : null;
+  function runPrimary(key: TenderPrimaryKey) {
+    if (key === "propose_decision" || key === "review_decision") setDecisionOpen(true);
+    else if (key === "submit_bid" || key === "revise_bid") { openTab("bid"); setBidStart((n) => n + 1); }
+    else if (key === "record_outcome") markWon();
+    else if (key === "create_project") createContractProject();
+  }
+  const primary = tender
+    ? tenderButton
+      ? tenderButton.key === "open_project" && contractProject?.existing
+        ? <Button variant="primary" href={ROUTES.contractProject(contractProject.existing.id)} data-guide={tenderButton.guide} style={{ minHeight: 44 }}>{tenderButton.label}</Button>
+        : <Button variant="primary" onClick={() => runPrimary(tenderButton.key)} loading={tenderButton.key === "create_project" && pending} data-guide={tenderButton.guide} style={{ minHeight: 44 }}>{tenderButton.label}</Button>
+      : null
+    : canConvert
+      ? <Button variant="primary" onClick={convert} loading={pending}>Convert to Standard Quote</Button>
+      : !closed
+        ? <Button variant="primary" onClick={markWon}>Mark won</Button>
+        : null;
+
+  const tabs: { id: Tab; label: string; count?: number }[] = tender
+    ? [
+        { id: "overview", label: "Overview" },
+        { id: "boq", label: "Bill of quantities" },
+        ...(tender.costing ? [{ id: "costing" as Tab, label: "Costing" }] : []),
+        ...(tender.bids ? [{ id: "bid" as Tab, label: "Bid", count: tender.bids.versions.length }] : []),
+        ...(tender.room ? [{ id: "room" as Tab, label: "Room", count: tab === "room" ? 0 : roomUnread }] : []),
+        { id: "competitors", label: "Competitors" },
+      ]
+    : [
+        { id: "overview", label: "Overview" },
+        { id: "lines", label: linesDirty ? "Lines •" : "Lines", count: lineCount },
+        { id: "quotes", label: "Quotes", count: quotes.length },
+        ...(related ? [{ id: "related" as Tab, label: "Related" }] : []),
+        { id: "activity", label: "Activity" },
+      ];
 
   const outcomeLabel = closed ? `${opp.outcome}${opp.loss_reason ? ` (${LOSS_REASON_LABEL[opp.loss_reason]})` : ""}` : null;
+
+  // Tender deal: the bid decision marker, the bid end date and the guarantee state take the place of probability and owner in the
+  // header, on every tab (the owner is on the Overview). The countdown stops once the bid is in or the tender is closed.
+  const tenderLive = tender ? tenderIsLive(opp, tender.view) : false;
+  const overdue = tender?.calls ? overdueSummary(tender.calls.calls, todayKey) : null;
+  const unpricedLines = initialLines.filter((l) => l.is_selected !== false && !l.break_of && !(Number(l.rate) > 0)).length;
+  const tenderFacts = tender
+    ? [
+        {
+          label: "Bid decision",
+          value: <BidDecisionMarker opportunityId={opp.id} tender={tender.view} approval={approvalNow} onError={setError} onNotice={setNotice} onSaved={() => void reloadApproval()} controlled={{ open: decisionOpen, setOpen: setDecisionOpen }} />,
+        },
+        {
+          label: "Bid end date",
+          value: (
+            <>
+              <ClosingChip closingAt={tender.view.closing_at} nowIso={tender.nowIso} timezone={tender.timezone} closed={!tenderLive} />
+              {tender.view.closing_at && <div style={{ fontSize: 11, fontWeight: 400, color: c.hint, marginTop: 3 }}>{fmtDate(tender.view.closing_at)}</div>}
+            </>
+          ),
+        },
+        {
+          label: "Bid guarantee",
+          value: guaranteeRecorded({ bid_bond_amount: tender.view.bid_bond_amount ?? null, bid_bond_expiry: tender.view.bid_bond_expiry ?? null, bond_status: tender.view.bond_status ?? "held" })
+            ? <BondChip amount={tender.view.bid_bond_amount ?? null} expiry={tender.view.bid_bond_expiry ?? null} status={tender.view.bond_status ?? "held"} nowIso={tender.nowIso} timezone={tender.timezone} />
+            : <span style={{ color: c.hint, fontWeight: 400 }}>None recorded</span>,
+        },
+      ]
+    : null;
+
+  const factsRow = (
+    <RecordFacts
+      facts={[
+        { label: "Amount", value: <>{inr(Number(opp.amount || 0))}<div style={{ fontSize: 11, fontWeight: 400, color: c.hint }}>{quotes.length > 0 ? "latest quote" : "lines total"}</div></> },
+        {
+          label: "Stage",
+          value: (
+            <Select value={opp.stage} onChange={(e) => changeStage(e.target.value)} disabled={pending} aria-label="Stage" style={{ borderColor: stageDefNow?.color ?? undefined }}>
+              {stages.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+            </Select>
+          ),
+        },
+        ...(tenderFacts ?? [
+          { label: "Probability", value: <>{opp.probability ?? 0}%<div style={{ fontSize: 11, fontWeight: 400, color: c.hint }}>weighted {inr(weightedValue(Number(opp.amount || 0), opp.probability ?? 0))}</div></> },
+          { label: "Owner", value: <>{memberName(opp.owner_id)}<div style={{ fontSize: 11, fontWeight: 400, color: c.hint }}>{daysBetween(opp.stage_since, todayKey)}d in {stageDefNow?.label ?? opp.stage}</div></> },
+        ]),
+      ]}
+    />
+  );
 
   return (
     <div>
       <TabTitle title={opp.title} />
       <div style={{ marginBottom: 8 }}>
-        <Link href={ROUTES.pipeline} style={{ fontSize: 11.5, color: c.muted, textDecoration: "none" }}>← Pipeline</Link>
+        <Link href={tender ? `${ROUTES.pipeline}?tab=tenders` : ROUTES.pipeline} style={{ fontSize: 11.5, color: c.muted, textDecoration: "none" }}>← Pipeline</Link>
       </div>
       <PageHeader
         title={opp.title}
-        subtitle={[opp.ref, accountName, opp.expected_close ? `close by ${fmtDate(opp.expected_close)}` : null].filter(Boolean).join(" · ")}
+        subtitle={[opp.ref, accountName, opp.expected_close ? `${tender ? "bid ends" : "close by"} ${fmtDate(opp.expected_close)}` : null].filter(Boolean).join(" · ")}
         badge={
           <>
             <StatusPill label={stageDefNow?.label ?? opp.stage} tone="blue" />
@@ -213,7 +453,8 @@ export default function OpportunityDetailClient({ opp, accountName, contacts, in
             {primary}
             <MoreMenu
               items={[
-                { label: "Mark won", onSelect: markWon, hidden: closed || !canConvert },
+                { label: "History", onSelect: () => setHistoryOpen(true), hidden: !tender },
+                { label: "Mark won", onSelect: markWon, hidden: tender ? closed : closed || !canConvert },
                 { label: "Mark lost", onSelect: markLost, hidden: closed },
                 { label: "Reopen", onSelect: reopen, hidden: !closed },
                 { label: "Delete", danger: true, onSelect: () => { void remove(); } },
@@ -223,32 +464,51 @@ export default function OpportunityDetailClient({ opp, accountName, contacts, in
         }
       />
 
-      <RecordFacts
-        facts={[
-          { label: "Amount", value: <>{inr(Number(opp.amount || 0))}<div style={{ fontSize: 11, fontWeight: 400, color: c.hint }}>{quotes.length > 0 ? "latest quote" : "lines total"}</div></> },
-          {
-            label: "Stage",
-            value: (
-              <Select value={opp.stage} onChange={(e) => changeStage(e.target.value)} disabled={pending} aria-label="Stage" style={{ borderColor: stageDefNow?.color ?? undefined }}>
-                {stages.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
-              </Select>
-            ),
-          },
-          { label: "Probability", value: <>{opp.probability ?? 0}%<div style={{ fontSize: 11, fontWeight: 400, color: c.hint }}>weighted {inr(weightedValue(Number(opp.amount || 0), opp.probability ?? 0))}</div></> },
-          { label: "Owner", value: <>{memberName(opp.owner_id)}<div style={{ fontSize: 11, fontWeight: 400, color: c.hint }}>{daysBetween(opp.stage_since, todayKey)}d in {stageDefNow?.label ?? opp.stage}</div></> },
-        ]}
-      />
+      {tender && phone ? (
+        <SettingsSection id="tender.header_facts" title="Deal facts" summary={`${stageDefNow?.label ?? opp.stage} · ${inr(Number(opp.amount || 0))}`} defaultOpen={false}>{factsRow}</SettingsSection>
+      ) : factsRow}
 
       {externalLine}
 
       {error && <div role="alert" style={{ background: "var(--err-bg)", border: "1px solid var(--err-line)", borderRadius: 8, padding: "8px 12px", fontSize: 12.5, color: "var(--err-ink)", marginBottom: 10 }}>{error}</div>}
       {notice && <div role="status" style={{ background: "var(--tealbg)", borderRadius: 8, padding: "8px 12px", fontSize: 12.5, color: "var(--tealink)", marginBottom: 10 }}>{notice}</div>}
 
-      <div style={{ marginBottom: 14 }}>
-        <Tabs tabs={tabs} value={tab} onChange={(id) => setTab(id as Tab)} />
+      <div ref={tabsRef} style={{ marginBottom: 14 }}>
+        <Tabs tabs={tabs} value={tab} onChange={(id) => openTab(id as Tab)} />
       </div>
+      {tab === "room" && tender?.room && (
+        tender.room.pending ? (
+          <div role="alert" data-guide="room.pending_migration" style={{ fontSize: 13, color: "var(--amberink)" }}>The Deal Room needs a database update (migration 0222). Ask your administrator to apply it.</div>
+        ) : narrow ? (
+          <Card padding={18}>
+            <div data-guide="room.open_full" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              <div style={{ fontSize: 13, color: c.muted }}>{roomOpen} open question{roomOpen === 1 ? "" : "s"}{roomUnread > 0 ? ` · ${roomUnread} unread` : ""}</div>
+              <Button href={`${ROUTES.pipelineDetail(opp.id)}/room`} variant="primary" style={{ minHeight: 44 }}>Open the room</Button>
+            </div>
+          </Card>
+        ) : (
+          <DealRoom
+            opportunityId={opp.id} currentUserId={currentUserId} isAdmin={tender.room.isAdmin} todayKey={todayKey} initialFilter={roomFilter}
+            onSeen={() => setRoomUnread(0)} onOpenQuestions={setRoomOpen}
+            headerExtra={tender.calls?.canEdit && !tender.calls.pending ? <LogCallButton opportunityId={opp.id} onLogged={() => router.refresh()} /> : undefined}
+          />
+        )
+      )}
+      {tab === "competitors" && tender && <CompetitorsTab opportunityId={opp.id} canEdit={tender.boqEdit !== false} onError={setError} onNotice={setNotice} onChanged={() => router.refresh()} />}
+      {tab === "boq" && tender && <BoqTab opportunityId={opp.id} canEdit={tender.boqEdit !== false} onError={setError} onNotice={setNotice} onLinesChanged={() => router.refresh()} onOpenCosting={tender.costing ? () => openTab("costing") : undefined} dealLines={initialLines} dealLinesVersion={linesVersion} filterRequest={boqRequest} />}
+      {tab === "costing" && tender?.costing && <CostingTab opportunityId={opp.id} canEdit={tender.costing.canEdit} onError={setError} onNotice={setNotice} onChanged={() => router.refresh()} onOpenBoq={(filter) => { boqAsks.current += 1; setBoqRequest(filter ? { filter, n: boqAsks.current } : undefined); setTab("boq"); }} />}
+      {tab === "overview" && tender && (
+        <TenderOverview
+          opportunityId={opp.id} tender={tender.view} approval={approvalNow} accounts={tender.accounts} members={members} contacts={contacts}
+          currentUserId={currentUserId} nowIso={tender.nowIso} timezone={tender.timezone} finished={!tenderLive} sourceEmail={sourceEmail}
+          deal={{ title: opp.title, description: opp.description ?? "", contact_id: opp.contact_id ?? "", owner_id: opp.owner_id ?? "", source: opp.source ?? "direct", team: (opp.team ?? []) as { user_id: string; role: string }[], created_at: opp.created_at, closed_at: opp.closed_at ?? null }}
+          outcome={tender.outcome ?? null} overdue={overdue} onOpenHistory={() => setHistoryOpen(true)} fmt={inr} unpricedLines={unpricedLines} canEdit={tender.boqEdit !== false}
+          room={tender.room && !tender.room.pending ? { openQuestions: roomOpen, onOpen: (f) => { setRoomFilter(f); openTab("room"); } } : null}
+          onError={setError} onNotice={setNotice}
+        />
+      )}
 
-      {tab === "overview" && (
+      {tab === "overview" && !tender && (
         <Card padding={18}>
           <div className="fg2">
             <Field label="Title" style={{ gridColumn: "1 / -1" }}><Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} /></Field>
@@ -295,9 +555,16 @@ export default function OpportunityDetailClient({ opp, accountName, contacts, in
         </Card>
       )}
 
-      {tab === "lines" && (
+      {tab === "lines" && !tender && (
         <Card padding={16}>
+          {serverMoved && (
+            <div role="alert" data-guide="lines.stale" style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 10, background: "var(--amberbg)", borderRadius: 8, padding: "8px 12px", marginBottom: 12, fontSize: 12.5, color: "var(--amberink)" }}>
+              <span style={{ flex: "1 1 220px" }}>The BOQ changed these lines after you opened them. Your edits cannot be saved over them.</span>
+              <Button variant="secondary" onClick={adoptServerLines} style={{ minHeight: 44 }} data-guide="lines.stale_reload">Load the current lines</Button>
+            </div>
+          )}
           <DocumentLinesEditor
+            key={editorKey}
             lines={lines} onChange={setLines} products={products} pricingEnabled={pricingEnabled}
             accountId={opp.account_id} accountName={accountName} documentType="opportunity" documentId={opp.id} documentRef={opp.ref ?? undefined} onError={setError}
           />
@@ -306,12 +573,22 @@ export default function OpportunityDetailClient({ opp, accountName, contacts, in
             <span style={{ marginLeft: "auto" }} />
             {linesDirty && <span style={{ fontSize: 11.5, color: "var(--amberink)" }}>Unsaved changes</span>}
             {canConvert && <Button variant="secondary" onClick={convert} disabled={pending}>Convert to Standard Quote</Button>}
-            <Button variant="primary" onClick={saveLines} disabled={!linesDirty} loading={pending}>{pending ? "Saving…" : "Save lines"}</Button>
+            <Button variant="primary" onClick={saveLines} disabled={!linesDirty || serverMoved} loading={pending}>{pending ? "Saving…" : "Save lines"}</Button>
           </div>
         </Card>
       )}
 
-      {tab === "quotes" && (
+      {tab === "bid" && tender?.bids && (
+        <BidsTab opportunityId={opp.id} data={{ ...tender.bids, working_total: linesTotal }} stage={opp.stage} outcome={opp.outcome} fmt={inr} onError={setError} onNotice={setNotice} onChanged={() => router.refresh()}
+          quotes={quotes} canMakeQuote={standardQuotesEnabled && tender.boqEdit !== false} startSignal={bidStart}
+          checks={{
+            priceValidityDays: priceValidityDays ?? 180, unpricedFromLines: unpricedLines,
+            approvedGo: approvalNow ? approvalNow.standing?.decision === "go" : null,
+            guarantee: { amount: tender.view.bid_bond_amount ?? null, expiry: tender.view.bid_bond_expiry ?? null, status: tender.view.bond_status ?? "held" },
+          }} />
+      )}
+
+      {tab === "quotes" && !tender && (
         <Card padding={16}>
           {quotes.length === 0 ? (
             <div style={{ fontSize: 12.5, color: c.hint, padding: "8px 0" }}>No quote yet. Convert the deal to a Standard Quote, or link one from the quote&apos;s own page.</div>
@@ -336,17 +613,29 @@ export default function OpportunityDetailClient({ opp, accountName, contacts, in
         </Card>
       )}
 
-      {tab === "related" && related}
-      {tab === "activity" && activity}
+      {tab === "related" && !tender && related}
+      {tab === "activity" && !tender && activity}
+
+      {tender && historyOpen && (
+        <SidePanel title="History" label="History" subtitle={<InfoTip label="History">{TENDER_TIPS.history}</InfoTip>} onClose={() => setHistoryOpen(false)}>
+          <div data-guide="tender.history" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            {tender.calls && <CallsPanel opportunityId={opp.id} data={tender.calls} todayKey={todayKey} onChanged={() => router.refresh()} />}
+            {activity}
+          </div>
+        </SidePanel>
+      )}
+      {tender && decisionOpen && (
+        <BidDecisionPanel opportunityId={opp.id} tender={tender.view} approval={approvalNow} onError={setError} onNotice={setNotice} onSaved={() => void reloadApproval()} onClose={() => setDecisionOpen(false)} />
+      )}
 
       {closing && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.35)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 50 }} onClick={() => setClosing(null)}>
-          <div style={{ width: 380, maxWidth: "calc(100vw - 32px)" }} onClick={(e) => e.stopPropagation()}>
+          <div style={{ width: 560, maxWidth: "calc(100vw - 32px)" }} onClick={(e) => e.stopPropagation()}>
             <Card padding={18}>
               <div style={{ fontSize: 14, fontWeight: 700, color: c.ink, marginBottom: 10 }}>Close this deal as…</div>
-              <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+              <div role="group" aria-label="Outcome" data-guide="deal.close.outcome" style={{ display: "flex", gap: 8, marginBottom: 12 }}>
                 {(["won", "lost", "dropped"] as const).map((o) => (
-                  <Button key={o} variant={closing.outcome === o ? "primary" : "secondary"} size="sm" style={{ flex: 1, textTransform: "capitalize" }}
+                  <Button key={o} variant={closing.outcome === o ? "primary" : "secondary"} size="sm" aria-pressed={closing.outcome === o} style={{ flex: "1 1 0", minHeight: 44, textTransform: "capitalize" }}
                     onClick={() => setClosing({ ...closing, outcome: o, stage: stages.find((s) => s.is_closed && (s.outcome ?? "won") === (o === "dropped" ? "lost" : o))?.value ?? closing.stage })}>{o}</Button>
                 ))}
               </div>
@@ -355,12 +644,19 @@ export default function OpportunityDetailClient({ opp, accountName, contacts, in
                   <Select value={closing.loss_reason} onChange={(e) => setClosing({ ...closing, loss_reason: e.target.value })} aria-label="Loss reason" style={{ marginBottom: 8 }}>
                     {LOSS_REASONS.map((r) => <option key={r} value={r}>{LOSS_REASON_LABEL[r]}</option>)}
                   </Select>
+                  {tender && closing.outcome === "lost" && (
+                    <div style={{ marginBottom: 8 }}><WhoWonPicker opportunityId={opp.id} value={closing.competitor ?? opp.competitor ?? ""} onChange={(name) => setClosing({ ...closing, competitor: name })} guide="tender.close.competitor" /></div>
+                  )}
                   <Input value={closing.loss_note} onChange={(e) => setClosing({ ...closing, loss_note: e.target.value })} placeholder="What happened (optional)" style={{ marginBottom: 8 }} />
                 </>
               )}
-              <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-                <Button variant="secondary" onClick={() => setClosing(null)}>Cancel</Button>
-                <Button variant="primary" loading={pending} onClick={() => { const cl = closing; setClosing(null); startTransition(async () => { await patch({ stage: cl.stage, outcome: cl.outcome, ...(cl.outcome !== "won" ? { loss_reason: cl.loss_reason, loss_note: cl.loss_note || null } : {}) }); }); }}>Confirm</Button>
+              {/* One footer: every button the same width and height (a row on a PC, a single column at 375 px, where 160 px twice no longer fits). */}
+              <div data-guide="deal.close.footer" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                <Button variant="secondary" data-guide="deal.close.cancel" style={{ flex: "1 1 160px", minHeight: 44 }} onClick={() => setClosing(null)}>Cancel</Button>
+                <Button variant={offerProject ? "secondary" : "primary"} loading={pending} data-guide="tender.close.confirm" style={{ flex: "1 1 160px", minHeight: 44 }} onClick={() => confirmClose(false)}>Confirm</Button>
+                {offerProject && (
+                  <Button variant="primary" loading={pending} data-guide="tender.close.create_project" style={{ flex: "1 1 160px", minHeight: 44 }} onClick={() => confirmClose(true)}>Create contract project now</Button>
+                )}
               </div>
             </Card>
           </div>

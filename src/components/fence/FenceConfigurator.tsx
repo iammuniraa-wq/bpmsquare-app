@@ -11,6 +11,7 @@ import { computeBom, type FenceAccessories, type BomLine } from "@/lib/fence/bom
 import { buildMaterialRequests, matchMaterials, distinctValues, meshGapPx, type FenceCatalogRow } from "@/lib/fence/materialMatch";
 import type { FenceSecurityProfileRow } from "@/lib/fence/data";
 import Fence3DView from "./Fence3DView";
+import EstimatesNote from "./EstimatesNote";
 
 const POST_KINDS = new Set(["line_post", "straining_post", "corner_post", "terminal_post", "gate_post"]);
 
@@ -104,6 +105,7 @@ export default function FenceConfigurator({
   contacts,
   project,
   draft,
+  estimatesNote = false,
 }: {
   profiles: FenceSecurityProfileRow[];
   catalog: FenceCatalogRow[];
@@ -113,6 +115,8 @@ export default function FenceConfigurator({
   project?: FenceProjectSnapshot;
   /** Create mode only -- seeds initial values from AI-drafted intake. */
   draft?: FenceDraftValues;
+  /** The workspace also has Estimates: show the one-line "fence estimates now live there" note. */
+  estimatesNote?: boolean;
 }) {
   const router = useRouter();
   const isEdit = !!project;
@@ -363,6 +367,7 @@ export default function FenceConfigurator({
           .fence-quantities-panel { width: calc(100vw - 24px) !important; max-width: 320px !important; }
         }
       `}</style>
+      {estimatesNote && <EstimatesNote compact />}
       <div className="fence-header" style={{ flex: "none", height: 48, display: "flex", alignItems: "center", gap: 14, padding: "0 16px", background: c.panel, borderBottom: `1px solid ${c.line}` }}>
         <Link href={ROUTES.fenceProjects} style={{ fontSize: 12, color: c.muted, textDecoration: "none" }}>
           ← Fence Projects

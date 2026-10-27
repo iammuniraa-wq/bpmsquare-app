@@ -141,6 +141,9 @@ describe("price list and currency are decided per send", () => {
 });
 
 describe("request and response payloads", () => {
+  // The seeded rows are dated 2026-10-21 and payloads are kept 48 h, so the clock is pinned or this test ages out.
+  beforeEach(() => { vi.useFakeTimers({ toFake: ["Date"] }); vi.setSystemTime(new Date("2026-10-21T12:00:00.000Z")); });
+  afterEach(() => { vi.useRealTimers(); });
   it("every outbound document send stores the create call, redacted, with url = path only and has_payload on the list", async () => {
     const db = fakeAdmin(seedMiddleware({ mwConfig: orderDoc }));
     const dv = new FakeDataverse();

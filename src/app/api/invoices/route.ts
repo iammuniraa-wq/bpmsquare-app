@@ -2,6 +2,10 @@ import { NextResponse, type NextRequest } from "next/server";
 import { requireTenantUser, getAuthUser } from "@/lib/supabase-server";
 import { generateNextInvoiceRef } from "@/lib/invoiceRef";
 import { diffForLog, logChange } from "@/lib/changeLog";
+import { randomUUID } from "node:crypto";
+import { defaultLineVat, einvoicingEnabled } from "@/lib/einvoicing/server";
+import { cleanLineVat, shapeInvoiceForApi } from "@/lib/einvoicing/invoiceFields";
+import { isSchemaPending } from "@/lib/marketing/pending";
 
 export async function GET(request: NextRequest) {
   let supabase, tenantId;
@@ -22,7 +26,9 @@ export async function GET(request: NextRequest) {
 
   const { data, error } = await query;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json(data ?? []);
+  // Once migration 0219 is applied the rows carry the e-invoice columns for everyone; only an e-invoicing workspace sees them.
+  const einv = await einvoicingEnabled(supabase, tenantId);
+  return NextResponse.json(einv ? (data ?? []) : (data ?? []).map((r) => shapeInvoiceForApi(r as Record<string, unknown>, false)));
 }
 
 export async function POST(request: NextRequest) {
@@ -75,6 +81,10 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  // Saudi e-invoicing (0219): a line that arrives without a VAT category gets the standard one; the invoice gets its UUID now.
+  // Both are skipped for every other workspace, so their inserts are exactly what they were.
+  let einv = await einvoicingEnabled(supabase, tenantId);
+
   const cleanLines = Array.isArray(lines)
     ? lines
         .filter((l) => l?.description?.trim())
@@ -90,6 +100,7 @@ export async function POST(request: NextRequest) {
             qty,
             rate,
             amount: qty * rate,
+            ...(einv ? (() => { const v = cleanLineVat(l); return v.vat_category ? v : defaultLineVat(); })() : {}),
           };
         })
     : [];
@@ -120,9 +131,16 @@ export async function POST(request: NextRequest) {
   let invErr: { message: string; code?: string } | null = null;
   for (let attempt = 0; attempt < 3 && !invoice; attempt++) {
     const ref = await generateNextInvoiceRef(supabase, tenantId);
-    const result = await supabase.from("invoices").insert({ ...baseInsert, ref }).select("id, ref").single();
+    const row = einv ? { ...baseInsert, einvoice_uuid: randomUUID(), ref } : { ...baseInsert, ref };
+    const result = await supabase.from("invoices").insert(row).select("id, ref").single();
     if (!result.error) {
       invoice = result.data;
+    } else if (einv && isSchemaPending(result.error)) {
+      // Migration 0219 is not applied yet: make the invoice the way every workspace does, without the e-invoice columns.
+      einv = false;
+      for (const l of cleanLines) { delete (l as Record<string, unknown>).vat_category; delete (l as Record<string, unknown>).vat_rate; delete (l as Record<string, unknown>).vat_exemption_reason; }
+      attempt -= 1;
+      continue;
     } else if (result.error.code === "23505") {
       invErr = result.error;
       continue;

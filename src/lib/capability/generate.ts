@@ -73,7 +73,7 @@ export const MODULE_LABEL: Record<Key, string> = {
   pricing_engine_quotes: "Live prices on quote lines", next_experience: "Nova", enterprise_theme: "Enterprise theme",
   spectacular_theme: "Spectacular theme", coverage_model: "Coverage", ai_reports: "AI report builder",
   fence_projects: "Fence projects", rfq: "RFQs", estimator: "Estimates", process_studio: "Process Design Studio",
-  marketing_scoring: "Consent, lead scoring and hand-over", newsletter_studio: "Newsletter Studio", buying_signals: "Buying signals", marketing_forms: "Forms and preference centre", abm: "ABM programs", journeys: "Journeys", whatsapp_marketing: "WhatsApp marketing", marketing_attribution: "Revenue by source", marketing_events: "Marketing events", integration_middleware: "Integration middleware", webhooks_library: "Webhooks library", ai_assistant_actions: "Assistant actions",
+  marketing_scoring: "Consent, lead scoring and hand-over", newsletter_studio: "Newsletter Studio", buying_signals: "Buying signals", marketing_forms: "Forms and preference centre", abm: "ABM programs", journeys: "Journeys", whatsapp_marketing: "WhatsApp marketing", marketing_attribution: "Revenue by source", marketing_events: "Marketing events", integration_middleware: "Integration middleware", webhooks_library: "Webhooks library", ai_assistant_actions: "Assistant actions", inbox: "Shared Inbox", sales_orders: "Sales Orders", einvoicing_ksa: "Saudi e-invoicing", gcc_tender: "GCC tender deals", deal_room: "Deal Room", contract_projects: "Contract projects",
 };
 
 /** Which module owns each field-registry object type. Record<PilotObjectType,...> keeps it complete. */
@@ -81,7 +81,7 @@ export const OBJECT_MODULE: Record<PilotObjectType, Key> = {
   account: "accounts", contact: "contacts", asset: "assets", supplier: "suppliers",
   case: "cases", work_order: "work_orders", quote: "quotations", invoice: "invoices",
   purchase_order: "purchasing", inventory: "purchasing", employee: "business_roles", product: "products",
-  project: "wfm_projects", opportunity: "pipeline", rfq: "rfq", estimate: "estimator", process_study: "process_studio", newsletter: "newsletter_studio", abm_program: "abm", abm_target: "abm", abm_member: "abm",
+  project: "wfm_projects", opportunity: "pipeline", rfq: "rfq", estimate: "estimator", process_study: "process_studio", newsletter: "newsletter_studio", abm_program: "abm", abm_target: "abm", abm_member: "abm", standard_quote: "standard_quotes", sales_order: "sales_orders",
 };
 
 /** Limitations that must travel with a connector. The D365 one is the owner's: it stays visible as it is. */

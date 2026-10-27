@@ -3,7 +3,7 @@
 // read an adapter's description. Dynamics 365 is wired to the page directly and is not rewritten onto this yet;
 // SAP S/4HANA is the first adapter written against it.
 
-export type ErpAuthMode = "basic" | "api_key" | "oauth_client_credentials" | "client_secret" | "certificate" | "authorization_code";
+export type ErpAuthMode = "basic" | "api_key" | "bearer" | "oauth_client_credentials" | "client_secret" | "certificate" | "authorization_code";
 
 export type ErpCapabilities = {
   /** Entities BPMSquare can read from the system, by the keys the Links and Resync tabs use. */
@@ -11,6 +11,8 @@ export type ErpCapabilities = {
   /** An awarded quote can be created in the system (a quote, a sales order or a project). */
   pushQuote: boolean;
   pushProject: boolean;
+  /** A Sales Order can be checked in the system and sent to it (Check with ERP, Send to ERP): the OrderConnector seam, src/lib/salesOrders/orderConnector.ts. */
+  pushOrder: boolean;
   /** The system describes its own fields, so the Mapping tab can list them. */
   metadata: boolean;
   /** The sign-in needs a price list / currency style pick-list before a quote can go out. */

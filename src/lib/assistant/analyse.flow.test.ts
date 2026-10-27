@@ -252,14 +252,14 @@ describe("the yes", () => {
   it("runs the analysis with NO model call: the card comes from fields, the sentence is the app's own", async () => {
     const { s, reply } = await firstYes();
     expect(s.create).not.toHaveBeenCalled();
-    expect(reply.answer).toBe("Here is the analysis of Najd Precast.");
+    expect(reply.answer).toBe("Here is the analysis of Najd Precast Co.");
     expect(s.research).toHaveBeenCalledTimes(1);
     expect(s.claims).toHaveLength(1);
     expect(reply.analysis).toMatchObject({ cached: false, saved: true, webDerived: true });
     const a = reply.analysis!;
     expect(a.card.doing).toHaveLength(1);
     expect(a.card.doing[0]).toMatchObject({ kind: "award", when: "this week" });
-    expect(a.card.inSystem.inCrm).toBe(false);
+    expect(a.card.inSystem.inCrm).toBe(true);
     expect(a.card.verdict.followUp).toMatch(/yes|not_now|unclear/);
     expect(a.digest).toContain("Won a SAR 120 m precast concrete housing package");
     expect(s.audits).toMatchObject([{ status: "done", result: { cached: false, highlights: 1 } }]);

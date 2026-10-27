@@ -11,14 +11,17 @@ import {
   RFQ_STATUS_LABEL, RFQ_SUPPLIER_STATUS_LABEL,
   type Rfq, type RfqLine, type RfqResponse, type RfqMessage, type RfqSupplier,
 } from "@/lib/rfq/types";
-import { bestByLine, landedUnit } from "@/lib/rfq/rules";
-import { quoteLabel, isDocumentOrigin, QUOTE_ORIGIN_TYPES } from "@/lib/rfq/linking";
+import { quoteLabel, isDocumentOrigin } from "@/lib/rfq/linking";
 import ObjectSections from "@/components/fields/ObjectSections";
 import Button from "@/components/ui/Button";
 import MoreMenu from "@/components/ui/MoreMenu";
 import StatusPill from "@/components/ui/StatusPill";
 import Tabs from "@/components/ui/Tabs";
 import { RecordEditProvider, useRecordEdit } from "@/components/page/RecordEditContext";
+import RfqModal from "@/components/rfq/RfqModal";
+import RfqCompare from "@/components/rfq/RfqCompare";
+import RfqStatStrip, { rfqProgress } from "@/components/rfq/RfqStatStrip";
+import type { AwardView } from "@/lib/rfq/comparison";
 import { RFQ_STATUS_TONE, SUPPLIER_STATUS_TONE, inp, lbl, btnPrimary, btnGhost, fmtDate, fmtDateTime, fmtMoney } from "@/components/rfq/rfqUi";
 
 type SupplierRow = RfqSupplier & {
@@ -39,6 +42,12 @@ type Bundle = {
   tenant_currency: string;
   /** rfq line id -> the source document line it asks about. */
   used_on?: Record<string, { sl_no: string | null; description: string }>;
+  /** The standing award on each line (0224); awards_pending = that migration has not run. */
+  awards?: AwardView[];
+  awards_pending?: boolean;
+  today?: string;
+  stale_days?: number;
+  max_reminders?: number;
 };
 
 type Tab = "compare" | "suppliers" | "conversation" | "details";
@@ -57,20 +66,6 @@ async function call(url: string, init?: RequestInit) {
 }
 
 const json = (method: string, body: unknown): RequestInit => ({ method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-
-function Modal({ title, onClose, children, width = 640 }: { title: string; onClose: () => void; children: React.ReactNode; width?: number }) {
-  return (
-    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.35)", zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
-      <div role="dialog" aria-label={title} onClick={(e) => e.stopPropagation()} style={{ background: c.panel, borderRadius: 12, width, maxWidth: "100%", maxHeight: "90vh", overflowY: "auto", boxShadow: "0 20px 60px rgba(0,0,0,.35)" }}>
-        <div style={{ padding: "14px 18px", borderBottom: `1px solid ${c.line}`, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <div style={{ fontSize: 14.5, fontWeight: 700, color: c.ink }}>{title}</div>
-          <button type="button" aria-label="Close" onClick={onClose} style={{ background: "none", border: "none", fontSize: 18, color: c.hint, cursor: "pointer" }}>✕</button>
-        </div>
-        <div style={{ padding: 18 }}>{children}</div>
-      </div>
-    </div>
-  );
-}
 
 export default function RfqDetailClient(props: { id: string; canEdit: boolean; isAdmin: boolean; externalLine?: React.ReactNode }) {
   return (
@@ -92,7 +87,6 @@ function RfqDetail({ id, canEdit, isAdmin, externalLine }: { id: string; canEdit
   // An AI reading of a supplier's reply, opened in the same form for the
   // buyer to check -- nothing is saved until they press Save reply.
   const [prefill, setPrefill] = useState<Prefill | null>(null);
-  const [award, setAward] = useState<{ line: RfqLine; resp: RfqResponse; supplier: SupplierRow } | null>(null);
   const [addSup, setAddSup] = useState(false);
 
   const load = useCallback(async () => {
@@ -191,6 +185,8 @@ function RfqDetail({ id, canEdit, isAdmin, externalLine }: { id: string; canEdit
         {isDocumentOrigin(rfq.origin_type) && " — awarded costs feed the price there on the next Price."}
       </div>
 
+      <RfqStatStrip progress={rfqProgress(b)} />
+
       {flash && (
         <div role={flash.tone === "bad" ? "alert" : "status"} style={{ marginBottom: 12, fontSize: 13, padding: "9px 12px", borderRadius: 8, color: flash.tone === "bad" ? "var(--redink)" : "var(--greenink)", background: flash.tone === "bad" ? "var(--redbg)" : "var(--greenbg)" }}>{flash.text}</div>
       )}
@@ -199,190 +195,20 @@ function RfqDetail({ id, canEdit, isAdmin, externalLine }: { id: string; canEdit
         <Tabs tabs={tabs} value={tab} onChange={(t) => setTab(t as Tab)} label="RFQ sections" />
       </div>
 
-      {tab === "compare" && <CompareTab b={b} canEdit={canEdit && !closed} onKeyIn={setKeyIn} onAward={setAward} run={run} id={id} onAddSupplier={() => setAddSup(true)} />}
+      {tab === "compare" && (
+        <RfqCompare
+          b={b} canEdit={canEdit && !closed} id={id} call={call} run={run} onKeyIn={setKeyIn} onAddSupplier={() => setAddSup(true)}
+          onDone={async (m, warn) => { setFlash({ tone: warn ? "bad" : "good", text: warn ?? m }); await load(); }}
+        />
+      )}
       {tab === "compare" && <PurchaseOrdersPanel id={id} canEdit={canEdit} version={b.responses.filter((r) => r.is_awarded).length} run={run} />}
       {tab === "suppliers" && <SuppliersTab b={b} canEdit={canEdit && !closed} onKeyIn={setKeyIn} run={run} id={id} onAddSupplier={() => setAddSup(true)} />}
       {tab === "conversation" && <ConversationTab b={b} canEdit={canEdit} id={id} run={run} onProposal={(rs, p) => { setPrefill(p); setKeyIn(rs); }} />}
       {tab === "details" && <DetailsTab b={b} canEdit={canEdit && !closed} id={id} run={run} isAdmin={isAdmin} onReload={load} />}
 
       {keyIn && <KeyInModal b={b} rs={keyIn} id={id} prefill={prefill} onClose={() => { setKeyIn(null); setPrefill(null); }} onSaved={async (m) => { setKeyIn(null); setPrefill(null); setFlash({ tone: "good", text: m }); await load(); }} />}
-      {award && <AwardModal b={b} {...award} id={id} onClose={() => setAward(null)} onDone={async (m, warn) => { setAward(null); setFlash({ tone: warn ? "bad" : "good", text: warn ?? m }); await load(); }} />}
       {addSup && <AddSupplierModal b={b} id={id} onClose={() => setAddSup(false)} onDone={async (m) => { setAddSup(false); setFlash({ tone: "good", text: m }); await load(); }} />}
     </>
-  );
-}
-
-// ── Compare & award ─────────────────────────────────────────────────────────
-
-function CompareTab({ b, canEdit, onKeyIn, onAward, run, id, onAddSupplier }: {
-  b: Bundle; canEdit: boolean; id: string;
-  onKeyIn: (s: SupplierRow) => void;
-  onAward: (x: { line: RfqLine; resp: RfqResponse; supplier: SupplierRow }) => void;
-  run: (fn: () => Promise<string | void>) => void;
-  onAddSupplier: () => void;
-}) {
-  const sups = b.suppliers.filter((s) => s.status !== "cancelled");
-  const lines = b.lines;
-  const best = useMemo(() => bestByLine(b.responses), [b.responses]);
-  const respOf = (lineId: string, rsId: string) => b.responses.find((r) => r.rfq_line_id === lineId && r.rfq_supplier_id === rsId);
-  const productName = (pid: string | null) => b.products.find((p) => p.id === pid);
-
-  if (!sups.length) {
-    return (
-      <div style={{ ...cardStyle, textAlign: "center", padding: 36, color: c.hint }}>
-        No suppliers on this RFQ yet.
-        {canEdit && <div style={{ marginTop: 12 }}><button type="button" style={btnPrimary} onClick={onAddSupplier}>Add suppliers</button></div>}
-      </div>
-    );
-  }
-
-  const cellTh: React.CSSProperties = { textAlign: "left", padding: "10px 12px", fontSize: 11.5, color: c.hint, fontWeight: 700, background: c.panel2, borderBottom: `1px solid ${c.line}`, verticalAlign: "bottom", minWidth: 170 };
-  return (
-    <div style={{ ...cardStyle, padding: 0, overflow: "hidden" }}>
-      <div style={{ overflowX: "auto" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
-          <thead>
-            <tr>
-              <th style={{ ...cellTh, minWidth: 240, position: "sticky", left: 0, zIndex: 1 }}>Item</th>
-              {sups.map((s) => (
-                <th key={s.id} style={cellTh}>
-                  <div style={{ color: c.ink, fontSize: 13, textTransform: "none" }}>{s.suppliers?.name}</div>
-                  <div style={{ display: "flex", gap: 6, alignItems: "center", marginTop: 4, flexWrap: "wrap", fontWeight: 500 }}>
-                    <Pill label={RFQ_SUPPLIER_STATUS_LABEL[s.status]} tone={SUPPLIER_STATUS_TONE[s.status]} />
-                    {s.currency && <span style={{ color: c.hint }}>{s.currency}</span>}
-                    {s.incoterm && <span style={{ color: c.hint }}>{s.incoterm}</span>}
-                  </div>
-                  {canEdit && (
-                    <div style={{ display: "flex", gap: 6, marginTop: 6, flexWrap: "wrap" }}>
-                      <button type="button" style={{ ...btnGhost, padding: "3px 8px", fontSize: 11.5 }} onClick={() => onKeyIn(s)}>Enter reply</button>
-                      {b.responses.some((r) => r.rfq_supplier_id === s.id && r.status !== "no_quote") && b.rfq.status !== "draft" && (
-                        <button type="button" style={{ ...btnGhost, padding: "3px 8px", fontSize: 11.5 }} onClick={() => run(async () => {
-                          const foreign = b.responses.find((r) => r.rfq_supplier_id === s.id && r.currency && r.currency !== b.tenant_currency);
-                          let fx: string | null = null;
-                          if (foreign) {
-                            fx = prompt(`${s.suppliers?.name} quoted in ${foreign.currency}. Exchange rate to ${b.tenant_currency} (1 ${foreign.currency} = ? ${b.tenant_currency}):`, "1");
-                            if (fx === null) return;
-                          }
-                          const j = await call(`/api/rfqs/${id}/award`, json("POST", { rfq_supplier_id: s.id, all: true, fx_rate: fx }));
-                          return `Awarded ${j.results.length} line(s) to ${s.suppliers?.name}. Re-price the source document to use the new cost.`;
-                        })}>Award all</button>
-                      )}
-                    </div>
-                  )}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {lines.map((l) => {
-              const prod = productName(l.product_id);
-              return (
-                <tr key={l.id} style={{ borderBottom: `1px solid ${c.line}`, opacity: l.status === "cancelled" ? 0.45 : 1 }}>
-                  <td style={{ padding: "10px 12px", verticalAlign: "top", background: c.panel, position: "sticky", left: 0 }}>
-                    <div style={{ fontWeight: 600, color: c.ink }}>{l.sl_no}. {l.description}</div>
-                    <div style={{ fontSize: 12, color: c.hint, marginTop: 2 }}>
-                      {l.qty ?? ""} {l.uom ?? ""}
-                      {prod
-                        ? <> · <Link href={`/products/${prod.id}`} style={{ color: c.accent, textDecoration: "none" }}>{prod.name}{prod.ref ? ` (${prod.ref})` : ""}</Link></>
-                        : " · free text"}
-                    </div>
-                    {b.used_on?.[l.id] && b.origin_href ? (
-                      <div style={{ fontSize: 11.5, marginTop: 2 }}>
-                        <Link href={b.origin_href} style={{ color: c.accent, textDecoration: "none" }}>{quoteLabel(b.rfq.origin_type, b.rfq.origin_label)} · line {b.used_on[l.id].sl_no ?? "—"}</Link>
-                      </div>
-                    ) : QUOTE_ORIGIN_TYPES.includes(b.rfq.origin_type) ? (
-                      <div style={{ fontSize: 11.5, marginTop: 2, color: c.hint }}>Not linked to a line on the quote</div>
-                    ) : null}
-                    {l.status === "awarded" && <div style={{ marginTop: 4 }}><Pill label={`Awarded · ${fmtMoney(l.awarded_unit_cost, b.tenant_currency)}`} tone="green" /></div>}
-                    {l.status === "no_award" && <div style={{ marginTop: 4 }}><Pill label="No award" tone="amber" /></div>}
-                    {canEdit && l.status !== "cancelled" && b.rfq.status !== "draft" && (
-                      <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
-                        {l.status !== "no_award" && <button type="button" style={{ ...btnGhost, padding: "2px 8px", fontSize: 11 }} onClick={() => run(async () => { await call(`/api/rfqs/${id}/award`, json("POST", { line_id: l.id, response_id: null })); return `Line ${l.sl_no} marked no award.`; })}>No award</button>}
-                      </div>
-                    )}
-                  </td>
-                  {sups.map((s) => {
-                    const r = respOf(l.id, s.id);
-                    if (!r) return <td key={s.id} style={{ padding: "10px 12px", color: c.hint, verticalAlign: "top" }}>—</td>;
-                    const isBest = best.get(l.id) === r.id;
-                    const landed = landedUnit(r);
-                    const foreign = r.currency && r.currency !== b.tenant_currency;
-                    return (
-                      <td key={s.id} style={{ padding: "10px 12px", verticalAlign: "top", background: r.is_awarded ? "var(--greenbg)" : isBest ? "var(--bluebg)" : undefined }}>
-                        {r.status === "no_quote" ? (
-                          <span style={{ color: c.hint }}>Can&apos;t quote</span>
-                        ) : (
-                          <>
-                            <div style={{ fontWeight: 700, color: c.ink, fontVariantNumeric: "tabular-nums" }}>{fmtMoney(r.unit_price, r.currency)}</div>
-                            {foreign && r.fx_rate && r.fx_rate !== 1 && <div style={{ fontSize: 11.5, color: c.muted }}>≈ {fmtMoney(landed, b.tenant_currency)}</div>}
-                            <div style={{ fontSize: 11.5, color: c.hint, marginTop: 2 }}>
-                              {[r.lead_time_days != null ? `${r.lead_time_days} d` : null, r.moq != null ? `MOQ ${r.moq}` : null, r.valid_until ? `valid ${fmtDate(r.valid_until)}` : null].filter(Boolean).join(" · ")}
-                            </div>
-                            {r.status === "alternative" && <div style={{ fontSize: 11.5, color: "var(--amberink)", marginTop: 2 }}>Alternative: {r.offered_description}</div>}
-                            {r.note && <div style={{ fontSize: 11.5, color: c.muted, marginTop: 2 }}>{r.note}</div>}
-                            <div style={{ display: "flex", gap: 6, alignItems: "center", marginTop: 6, flexWrap: "wrap" }}>
-                              {isBest && !r.is_awarded && <Pill label="Lowest" tone="blue" />}
-                              {r.is_awarded && <Pill label="Awarded" tone="green" />}
-                              {canEdit && !r.is_awarded && l.status !== "cancelled" && b.rfq.status !== "draft" && (
-                                <button type="button" style={{ ...btnGhost, padding: "2px 8px", fontSize: 11 }} onClick={() => onAward({ line: l, resp: r, supplier: s })}>Award</button>
-                              )}
-                            </div>
-                          </>
-                        )}
-                      </td>
-                    );
-                  })}
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-      <div style={{ padding: "10px 14px", fontSize: 12, color: c.hint, borderTop: `1px solid ${c.line}` }}>
-        Blue marks the lowest price per line (after exchange rate). An award is a <strong>cost</strong>: for a catalog product it becomes the confirmed supplier cost the pricing engine uses on the next Price — margin is added there, never here.
-      </div>
-    </div>
-  );
-}
-
-function AwardModal({ b, line, resp, supplier, id, onClose, onDone }: {
-  b: Bundle; line: RfqLine; resp: RfqResponse; supplier: SupplierRow; id: string;
-  onClose: () => void; onDone: (m: string, warn?: string) => void;
-}) {
-  const foreign = !!resp.currency && resp.currency !== b.tenant_currency;
-  const [fx, setFx] = useState(resp.fx_rate && resp.fx_rate !== 1 ? String(resp.fx_rate) : foreign ? "" : "1");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const cost = resp.unit_price !== null && Number(fx) > 0 ? Number(resp.unit_price) * Number(fx) : null;
-  const submit = async () => {
-    setBusy(true);
-    setError(null);
-    try {
-      const j = await call(`/api/rfqs/${id}/award`, json("POST", { line_id: line.id, response_id: resp.id, fx_rate: fx || null }));
-      onDone(`Line ${line.sl_no} awarded to ${supplier.suppliers?.name} at ${fmtMoney(j.unit_cost, b.tenant_currency)}.${line.product_id ? " Re-price the source document to use it." : ""}`, j.warning);
-    } catch (e) {
-      setError((e as Error).message);
-      setBusy(false);
-    }
-  };
-  return (
-    <Modal title={`Award line ${line.sl_no}`} onClose={onClose} width={480}>
-      <div style={{ display: "flex", flexDirection: "column", gap: 12, fontSize: 13, color: c.ink }}>
-        <div><strong>{line.description}</strong> to <strong>{supplier.suppliers?.name}</strong> at {fmtMoney(resp.unit_price, resp.currency)} per {line.uom ?? "unit"}.</div>
-        {foreign && (
-          <div>
-            <label style={lbl} htmlFor="fx">Exchange rate: 1 {resp.currency} = ? {b.tenant_currency}</label>
-            <input id="fx" style={inp} inputMode="decimal" value={fx} onChange={(e) => setFx(e.target.value)} placeholder="e.g. 3.64" />
-          </div>
-        )}
-        <div style={{ color: c.muted }}>Cost recorded: <strong style={{ color: c.ink }}>{cost !== null ? fmtMoney(Math.round(cost * 10000) / 10000, b.tenant_currency) : "—"}</strong>{line.product_id ? " as the confirmed supplier cost for this product." : " on this RFQ line (free-text item — type the rate on the quote)."}</div>
-        {error && <div role="alert" style={{ color: "var(--redink)" }}>{error}</div>}
-        <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
-          <button type="button" style={btnGhost} onClick={onClose}>Cancel</button>
-          <button type="button" style={btnPrimary} disabled={busy || (foreign && !(Number(fx) > 0))} onClick={submit}>{busy ? "Awarding…" : "Award"}</button>
-        </div>
-      </div>
-    </Modal>
   );
 }
 
@@ -497,7 +323,7 @@ function AddSupplierModal({ b, id, onClose, onDone }: { b: Bundle; id: string; o
   useEffect(() => { fetch("/api/suppliers").then((r) => r.json()).then((d) => setAll(Array.isArray(d) ? d : [])).catch(() => {}); }, []);
   const shown = all.filter((s) => !have.has(s.id) && s.status !== "inactive" && (!filter || `${s.name} ${s.city ?? ""}`.toLowerCase().includes(filter.toLowerCase())));
   return (
-    <Modal title="Add suppliers" onClose={onClose} width={520}>
+    <RfqModal title="Add suppliers" onClose={onClose} width={520}>
       <input style={{ ...inp, marginBottom: 8 }} placeholder="Search suppliers…" value={filter} onChange={(e) => setFilter(e.target.value)} />
       <div style={{ maxHeight: 320, overflowY: "auto", border: `1px solid ${c.line}`, borderRadius: 8 }}>
         {shown.map((s) => (
@@ -518,7 +344,7 @@ function AddSupplierModal({ b, id, onClose, onDone }: { b: Bundle; id: string; o
           } catch (e) { setError((e as Error).message); }
         }}>Add {chosen.length || ""}</button>
       </div>
-    </Modal>
+    </RfqModal>
   );
 }
 
@@ -552,7 +378,7 @@ function KeyInModal({ b, rs, id, prefill, onClose, onSaved }: { b: Bundle; rs: S
     }
   };
   return (
-    <Modal title={`Reply from ${rs.suppliers?.name ?? "supplier"}`} onClose={onClose} width={760}>
+    <RfqModal title={`Reply from ${rs.suppliers?.name ?? "supplier"}`} onClose={onClose} width={760}>
       {prefill && (
         <div style={{ marginBottom: 14, fontSize: 12.5, padding: "10px 12px", borderRadius: 8, background: "var(--purplebg)", color: "var(--purpleink)" }}>
           <strong>Read by AI from the supplier&apos;s reply — check every figure before saving.</strong> {prefill.rows.length} of {lines.length} line{lines.length === 1 ? "" : "s"} matched.
@@ -594,7 +420,7 @@ function KeyInModal({ b, rs, id, prefill, onClose, onSaved }: { b: Bundle; rs: S
           <button type="button" style={btnPrimary} disabled={busy} onClick={() => save(false)}>{busy ? "Saving…" : "Save reply"}</button>
         </div>
       </div>
-    </Modal>
+    </RfqModal>
   );
 }
 

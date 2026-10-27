@@ -19,13 +19,22 @@ import RfqLineChip from "@/components/rfq/RfqLineChip";
 import { rfqPrefill } from "@/components/rfq/prefill";
 import { rfqLineStatuses } from "@/lib/rfq/server";
 import { selectedLines } from "@/lib/sales/lineTotals";
+import { findInvoiceForStandardQuote } from "@/lib/sales/standardQuoteInvoice";
 import { pricingOnStandardQuotes } from "../formData";
 import ObjectRecordPage from "@/components/page/ObjectRecordPage";
 import ExternalRecordSlot from "@/components/ExternalRecordSlot";
+import CreateSalesOrderButton from "@/components/salesOrders/CreateSalesOrderButton";
+import { findOrderForSource } from "@/components/salesOrders/serverData";
 import RecordMoreMenu from "@/components/page/RecordMoreMenu";
 import RecordActivity from "@/components/page/RecordActivity";
 import RelatedList from "@/components/page/RelatedList";
 import RecordActionButton, { type RecordAction } from "@/components/page/recordActions";
+import ObjectSections from "@/components/fields/ObjectSections";
+import SourceEmailSlot from "@/components/inbox/SourceEmailSlot";
+import { FIELD_REGISTRY } from "@/lib/fieldRegistry";
+
+// The page hand-renders every standard field; only the tenant's own (cf_) fields come from ObjectSections.
+const STANDARD_FIELD_KEYS = FIELD_REGISTRY.standard_quote.fields.map((f) => f.key);
 
 const STATUS_TONE: Record<StandardQuoteStatus, PillarKey> = {
   draft: "blue", sent: "amber", accepted: "green", rejected: "red", expired: "red",
@@ -88,6 +97,18 @@ export default async function StandardQuoteDetailPage({
 
   const isDraft = quote.status === "draft";
   const isSent = quote.status === "sent";
+  // An accepted quote can be billed once (Invoices on): the invoice it already has, or the button to raise it.
+  const invoicesOn = tenant?.features?.invoices === true;
+  const isAccepted = quote.status === "accepted";
+  const invoice = invoicesOn && isAccepted ? await findInvoiceForStandardQuote(createAdminSupabase(), quote.tenant_id, quote.id) : null;
+  // Sales Orders (flag-gated): the order made from this quote, or the button to make it once the quote is accepted.
+  const salesOrdersOn = tenant?.features?.sales_orders === true;
+  const salesOrder = salesOrdersOn ? await findOrderForSource(createAdminSupabase(), quote.tenant_id, "standard_quote", quote.id) : null;
+  const createSalesOrder = salesOrdersOn && isAccepted && !salesOrder ? <CreateSalesOrderButton sourceType="standard_quote" sourceId={quote.id} /> : null;
+  const createInvoice: RecordAction = {
+    label: "Create invoice", endpoint: `/api/standard-quotes/${quote.id}/convert-to-invoice`, method: "POST",
+    redirectTo: ROUTES.invoice("{id}"), errorText: "Failed to create the invoice",
+  };
   const base = `/api/standard-quotes/${quote.id}`;
   const emailAction: RecordAction = { label: isDraft ? "Email to customer" : "Resend email", endpoint: `${base}/email`, method: "POST", successText: "Sent to {sentTo}", errorText: "Failed to send email" };
   const accept: RecordAction = { label: "Mark accepted", endpoint: base, body: { status: "accepted" }, errorText: "Failed to update status" };
@@ -104,7 +125,10 @@ export default async function StandardQuoteDetailPage({
       title={quote.ref}
       meta={`Standard Quote${account?.name ? ` · ${account.name}` : ""}`}
       status={<StatusPill label={STATUS_LABEL[quote.status]} tone={STATUS_TONE[quote.status]} />}
-      primaryAction={isDraft ? <RecordActionButton action={emailAction} /> : isSent ? <RecordActionButton action={accept} /> : undefined}
+      primaryAction={(() => {
+        const main = isDraft ? <RecordActionButton action={emailAction} /> : isSent ? <RecordActionButton action={accept} /> : invoicesOn && isAccepted && !invoice ? <RecordActionButton action={createInvoice} /> : undefined;
+        return main && createSalesOrder ? <>{main}{createSalesOrder}</> : main ?? createSalesOrder ?? undefined;
+      })()}
       menu={
         <RecordMoreMenu
           editHref={isDraft ? ROUTES.standardQuoteEdit(quote.id) : undefined}
@@ -117,7 +141,9 @@ export default async function StandardQuoteDetailPage({
         { label: "Account", value: account ? <Link href={ROUTES.account(account.id)} style={{ color: c.accent, textDecoration: "none" }}>{account.name}</Link> : "—" },
         { label: "Total", value: inr(quote.total) },
         { label: "Valid until", value: fmtDate(quote.valid_until) },
+        ...(salesOrder ? [{ label: "Sales order", value: <Link href={ROUTES.salesOrder(salesOrder.id)} style={{ color: c.accent, textDecoration: "none" }}>{salesOrder.ref}</Link> }] : []),
         ...(contact ? [{ label: "Contact", value: contact.name }] : []),
+        ...(invoice ? [{ label: "Invoice", value: <Link href={ROUTES.invoice(invoice.id)} style={{ color: c.accent, textDecoration: "none" }}>{invoice.ref}</Link> }] : []),
       ]}
       externalLine={<ExternalRecordSlot objectType="standard_quotes" objectId={quote.id} />}
       basePath={basePath}
@@ -127,6 +153,7 @@ export default async function StandardQuoteDetailPage({
           id: "overview",
           label: "Overview",
           content: (
+            <>
             <Card title="Quote details">
               <CtxRow label="Account" value={account ? <Link href={ROUTES.account(account.id)} style={{ color: c.accent, textDecoration: "none" }}>{account.name}</Link> : "—"} />
               <CtxRow label="Contact" value={contact?.name ?? "—"} />
@@ -145,6 +172,8 @@ export default async function StandardQuoteDetailPage({
                 </>
               )}
             </Card>
+            <ObjectSections objectType="standard_quote" record={quote as unknown as Record<string, unknown>} patchUrl={`/api/standard-quotes/${quote.id}`} exclude={STANDARD_FIELD_KEYS} />
+            </>
           ),
         },
         {
@@ -249,6 +278,7 @@ export default async function StandardQuoteDetailPage({
         <>
           <StandardQuoteDatesCard quote={quote} />
           {pipelineOn && <StandardQuoteDealCard quoteId={quote.id} accountId={quote.account_id} deal={deal} />}
+          <SourceEmailSlot objectType="standard_quotes" objectId={quote.id} />
         </>
       }
     />

@@ -22,7 +22,7 @@ type Comment = { id: string; author_email: string | null; body: string; mentions
 type ChangeRow = {
   id: string; action: "create" | "update" | "delete" | "reopen";
   changes: { field: string; from: unknown; to: unknown; redacted?: boolean }[];
-  actor_email: string | null; created_at: string;
+  actor_email: string | null; actor_name?: string | null; created_at: string;
 };
 type Entry =
   | { kind: "comment"; at: string; c: Comment }
@@ -245,7 +245,7 @@ export default function NovaTimeline({ objectType, objectId }: { objectType: str
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 11, color: c.muted }}>
                   <b style={{ color: c.ink, fontWeight: 600 }}>
-                    {who(en.kind === "comment" ? en.c.author_email : en.ch.actor_email)}
+                    {en.kind === "comment" ? who(en.c.author_email) : (en.ch.actor_name || who(en.ch.actor_email))}
                   </b>
                   {en.kind === "change" && <> {summarizeChange(en.ch)}</>}
                   <span style={{ color: c.hint }}> · {fmtWhen(en.at)}</span>

@@ -1,5 +1,7 @@
 "use client";
 
+import { isEmployeeActiveOn, localToday } from "@/lib/wfm/obsolete";
+
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { c, statusInk } from "@/lib/theme";
@@ -17,7 +19,7 @@ type LeaveRecord = {
   employees: { first_name: string; last_name: string; employee_code: string | null } | null;
   wfm_leave_types: { name: string; category: string } | null;
 };
-type EmployeeOpt = { id: string; first_name: string; last_name: string; employee_code: string | null };
+type EmployeeOpt = { id: string; first_name: string; last_name: string; employee_code: string | null; status?: string; valid_to?: string | null };
 type LeaveRequestRow = WfmLeaveRequest & {
   employees: { first_name: string; last_name: string; employee_code: string | null } | null;
   wfm_leave_types: { name: string; category: string } | null;
@@ -265,7 +267,7 @@ export default function LeaveClient({ initial = null }: {
               <label style={lbl}>Employee</label>
               <select style={inp} value={recordForm.employee_id} onChange={(e) => setRecordForm({ ...recordForm, employee_id: e.target.value })}>
                 <option value="">— select —</option>
-                {employees.map((e) => <option key={e.id} value={e.id}>{[e.first_name, e.last_name].filter(Boolean).join(" ")} {e.employee_code ? `(${e.employee_code})` : ""}</option>)}
+                {employees.filter((e) => isEmployeeActiveOn(e, localToday())).map((e) => <option key={e.id} value={e.id}>{[e.first_name, e.last_name].filter(Boolean).join(" ")} {e.employee_code ? `(${e.employee_code})` : ""}</option>)}
               </select>
             </div>
             <div>

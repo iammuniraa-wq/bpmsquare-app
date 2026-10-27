@@ -12,6 +12,7 @@ type Row = {
   action: "create" | "update" | "delete" | "reopen";
   changes: { field: string; from: unknown; to: unknown }[];
   actor_email: string | null;
+  actor_name?: string | null;
   created_at: string;
 };
 
@@ -32,13 +33,15 @@ function summary(r: Row): string {
  * has anything to show the tab says so instead of being blank.
  */
 export default function RecordActivity({
-  objectType, objectId, changeLogType, isAdmin,
+  objectType, objectId, changeLogType, extraChangeLogTypes, isAdmin,
 }: {
   /** The Nova timeline object type (see OBJECTS in api/nova/comments). */
   objectType: string;
   objectId: string;
   /** change_log.object_type when it differs from objectType. */
   changeLogType?: string;
+  /** More change_log.object_type values whose entries for the same id belong in this history (a deal's tender details). */
+  extraChangeLogTypes?: string[];
   isAdmin: boolean;
 }) {
   const nova = useNovaSurfaces();
@@ -48,14 +51,22 @@ export default function RecordActivity({
   useEffect(() => {
     if (!isAdmin) return;
     let live = true;
-    const qs = new URLSearchParams({ object_type: changeLogType ?? objectType, object_id: objectId, limit: "50" });
-    fetch(`/api/change-log?${qs}`)
-      .then((r) => (r.ok ? r.json() : null))
-      .then((j) => { if (live) setRows(j?.rows ?? null); })
-      .catch(() => {})
+    const types = [changeLogType ?? objectType, ...(extraChangeLogTypes ?? [])];
+    Promise.all(types.map((t) => {
+      const qs = new URLSearchParams({ object_type: t, object_id: objectId, limit: "50" });
+      return fetch(`/api/change-log?${qs}`).then((r) => (r.ok ? r.json() : null)).catch(() => null);
+    }))
+      .then((all) => {
+        if (!live) return;
+        // A refusal on every type means "not shown" (as before); otherwise the entries of all types, newest first.
+        if (all.length === 1) { setRows(all[0]?.rows ?? null); return; }
+        const merged = all.flatMap((j) => (j?.rows ?? []) as Row[]);
+        setRows(all.every((j) => j === null) ? null : merged.sort((a, b) => b.created_at.localeCompare(a.created_at)).slice(0, 50));
+      })
       .finally(() => { if (live) setDone(true); });
     return () => { live = false; };
-  }, [isAdmin, objectType, objectId, changeLogType]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAdmin, objectType, objectId, changeLogType, (extraChangeLogTypes ?? []).join("|")]);
 
   const history = rows && rows.length > 0 ? rows : null;
   if (!nova && done && !history) {
@@ -76,7 +87,7 @@ export default function RecordActivity({
               <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap", color: c.hint }}>
                 <span style={{ textTransform: "capitalize", fontWeight: 600, color: c.muted }}>{r.action}</span>
                 <span>
-                  {r.actor_email ? `${r.actor_email} · ` : ""}
+                  {r.actor_name || r.actor_email ? `${r.actor_name || r.actor_email?.split("@")[0]} · ` : ""}
                   {new Date(r.created_at).toLocaleString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}
                 </span>
               </div>

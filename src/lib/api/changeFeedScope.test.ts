@@ -23,7 +23,7 @@ describe("change feed scope", () => {
 
   it("the wildcard still reaches ordinary objects but not the explicit-only ones", () => {
     const s = key(["*"]);
-    for (const t of ["accounts", "quotes", "cases", "invoices", "suppliers", "assets", "work_orders", "standard_quotes", "settings"]) {
+    for (const t of ["accounts", "quotes", "cases", "invoices", "suppliers", "assets", "work_orders", "standard_quotes", "sales_orders", "settings"]) {
       expect(canReadChangeType(s, t), t).toBe(true);
     }
     for (const t of ["employees", "contacts", "rfqs", "pricing_rfqs", "estimates", "estimate_templates", "abm_target_accounts", "abm_buying_group_members"]) {
@@ -46,6 +46,15 @@ describe("change feed scope", () => {
     expect(canReadChangeType(key(["accounts"]), "suppliers")).toBe(false);
     expect(canReadChangeType(key(["accounts"]), "accounts")).toBe(true);
     expect(canReadChangeType(key(["*"], false), "accounts")).toBe(false);
+  });
+
+  it("standard quote changes follow the standard_quotes scope, not the quotations one", () => {
+    expect(scopeForChangeType("standard_quotes")).toBe("standard_quotes");
+    expect(scopeForChangeType("standard_quote")).toBe("standard_quotes");
+    expect(canReadChangeType(key(["standard_quotes"]), "standard_quotes")).toBe(true);
+    expect(canReadChangeType(key(["quotations"]), "standard_quotes")).toBe(false);
+    expect(canReadChangeType(key(["standard_quotes"]), "quotes")).toBe(false);
+    expect(changeTypeFilter(key(["standard_quotes"])).types).toEqual(expect.arrayContaining(["standard_quotes", "standard_quote"]));
   });
 
   it("an unmapped type has no scope of its own", () => {

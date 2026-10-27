@@ -42,7 +42,7 @@ export const isRunnableEntity = (v: unknown): v is (typeof D365_ENTITY_KEYS)[num
 export const connectorWord = (id: string | null): string | null => (id === "dynamics365" ? "Dynamics 365" : id === "sap_s4" ? "SAP S/4HANA" : id);
 
 const ENTITY_WORD: Record<string, string> = {
-  customers: "Customers", contacts: "Contacts", vendors: "Suppliers", products: "Products", projects: "Projects", fence_projects: "Fence projects",
+  customers: "Customers", contacts: "Contacts", vendors: "Suppliers", products: "Products", projects: "Projects", fence_projects: "Fence projects", sales_orders: "Sales orders",
 };
 
 /** Payloads are kept 48 hours (the prune job nulls the column then); the line itself stays 30 days. */
@@ -109,6 +109,7 @@ const integration: SourceSpec = {
     const entity = s(r.entity);
     const what = sum.kind === "connector_run" ? (ENTITY_WORD[entity ?? ""] ?? entity ?? "Sync")
       : sum.kind === "webhook_call" ? "Webhook"
+      : objectType === "sales_orders" ? (s(r.ref_label) ?? "Sales order")
       : objectType === "standard_quotes" || sum.outcome ? documentWord(entity, sum)
       : channel === "api" ? `API ${entity ?? ""}`.trim() : (entity ?? "Message");
     return {

@@ -27,13 +27,17 @@ const initials = (m: Member | undefined) => {
   return s.split(/[\s@.]+/).filter(Boolean).slice(0, 2).map((x) => x[0]?.toUpperCase() ?? "").join("") || "?";
 };
 
-export default function PipelineBoard({ rows, stages, members, accounts, todayKey, currentUserId }: {
+export default function PipelineBoard({ rows, stages, members, accounts, todayKey, currentUserId, cardExtra, closeLabel = "Close by" }: {
   rows: OpportunityRow[];
   stages: OpportunityStageDef[];
   members: Member[];
   accounts: { id: string; name: string }[];
   todayKey: string;
   currentUserId: string;
+  /** Extra line on a card (the Tenders board draws the closing-date chip here). Absent on the Deals board: the card is unchanged. */
+  cardExtra?: (r: OpportunityRow) => React.ReactNode;
+  /** The word for the deal's expected close: tenders say "Bid ends". */
+  closeLabel?: string;
 }) {
   const cur = useCurrency();
   const money = (n: number) => formatMoneyCompact(n, cur, n >= 10_000_000 ? 2 : 1);
@@ -98,7 +102,8 @@ export default function PipelineBoard({ rows, stages, members, accounts, todayKe
           <span style={{ marginLeft: "auto", fontSize: 10.5, color: days > 30 ? "var(--amberink)" : c.hint }} title={`${days} day${days === 1 ? "" : "s"} in this stage`}>{days}d</span>
           <span title={m?.name ?? m?.email ?? "Unassigned"} style={{ width: 20, height: 20, borderRadius: 999, background: r.owner_id === currentUserId ? c.accent : c.panel2, color: r.owner_id === currentUserId ? "#fff" : c.muted, fontSize: 9.5, fontWeight: 700, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>{initials(m)}</span>
         </div>
-        {r.expected_close && <div style={{ fontSize: 10.5, color: c.hint, marginTop: 4 }}>Close by {fmtDate(r.expected_close)}</div>}
+        {r.expected_close && <div style={{ fontSize: 10.5, color: c.hint, marginTop: 4 }}>{closeLabel} {fmtDate(r.expected_close)}</div>}
+        {cardExtra?.(r)}
       </div>
     );
   };
@@ -160,7 +165,7 @@ export default function PipelineBoard({ rows, stages, members, accounts, todayKe
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
               <tr style={{ background: c.panel2 }}>
-                {["Deal", "Account", "Stage", "Amount", "Prob.", "Weighted", "Owner", "Days", "Close by"].map((h, i) => (
+                {["Deal", "Account", "Stage", "Amount", "Prob.", "Weighted", "Owner", "Days", closeLabel].map((h, i) => (
                   <th key={h} style={{ textAlign: i >= 3 && i <= 5 || i === 7 ? "right" : "left", padding: "8px 12px", fontSize: 11, color: c.hint, fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.4 }}>{h}</th>
                 ))}
               </tr>

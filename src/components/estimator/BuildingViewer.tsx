@@ -32,13 +32,15 @@ function useReducedMotion(): boolean {
  * client's own BIM model. `highlightMarks` lights up the pieces of a BOM line.
  */
 export default function BuildingViewer({
-  model, lines, densityTm3, money, highlightMarks,
+  model, lines, densityTm3, money, highlightMarks, visuals,
 }: {
   model: GeometryModel | null;
   lines: readonly AllocLine[];
   densityTm3: number;
   money: (n: number) => string;
   highlightMarks?: readonly string[];
+  /** Design slot -> material key or "#rrggbb" (resolveVisuals); absent = the module defaults. */
+  visuals?: Readonly<Record<string, string>>;
 }) {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const sceneRef = useRef<ViewerScene | null>(null);
@@ -46,11 +48,16 @@ export default function BuildingViewer({
   const reduced = useReducedMotion();
   const reducedRef = useRef(reduced);
   reducedRef.current = reduced;
+  const visualsRef = useRef(visuals);
+  visualsRef.current = visuals;
 
   const [webgl, setWebgl] = useState(true);
   const steps = model ? Math.max(1, model.step_names.length) : 1;
   const [step, setStepState] = useState(steps - 1);
   const [explode, setExplode] = useState(0);
+  const [inside, setInside] = useState(false);
+  const [closeUp, setCloseUp] = useState(false);
+  const [canFrame, setCanFrame] = useState(false);
   const [mode, setMode] = useState<ColourMode>("family");
   const [playing, setPlaying] = useState(false);
   const [selected, setSelected] = useState<string | null>(null);
@@ -87,8 +94,10 @@ export default function BuildingViewer({
   useEffect(() => {
     const scene = sceneRef.current;
     if (!scene || !model) return;
+    scene.setVisuals(visualsRef.current);
     scene.setModel(model, !firstModel.current);
     firstModel.current = false;
+    setCanFrame(scene.closeUpAvailable);
     setStepState(Math.max(1, model.step_names.length) - 1);
     setSelected(null);
     scene.setExplode(explode);
@@ -97,7 +106,14 @@ export default function BuildingViewer({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [model, hasModel]);
 
+  // A design choice repaints the pieces in place: no rebuild, the camera stays where it is.
+  const visualsKey = visuals ? JSON.stringify(visuals) : "";
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { sceneRef.current?.setVisuals(visualsRef.current); }, [visualsKey, hasModel]);
   useEffect(() => { sceneRef.current?.setExplode(explode); }, [explode]);
+  useEffect(() => { sceneRef.current?.setCutaway(inside); }, [inside, hasModel]);
+  const frameFirst = useRef(true);
+  useEffect(() => { if (frameFirst.current) { frameFirst.current = false; return; } sceneRef.current?.setFraming(closeUp); }, [closeUp]);
   useEffect(() => { sceneRef.current?.setColourMode(mode); }, [mode]);
   useEffect(() => { sceneRef.current?.setSelected(selected); }, [selected]);
   useEffect(() => { sceneRef.current?.setHighlight(highlight); }, [highlight]);
@@ -159,6 +175,8 @@ export default function BuildingViewer({
           step={step} steps={steps} stepName={model.step_names[step] ?? ""} playing={playing} reducedMotion={reduced}
           explode={explode} mode={mode} onStep={(n) => { setPlaying(false); goStep(n); }} onPlay={onPlay}
           onExplode={setExplode} onMode={setMode}
+          inside={model.geometry === "porta_cabin" ? inside : undefined} onInside={setInside}
+          closeUp={canFrame ? closeUp : undefined} onCloseUp={setCloseUp}
         />
       )}
       <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "end", margin: "12px 0 4px" }}>

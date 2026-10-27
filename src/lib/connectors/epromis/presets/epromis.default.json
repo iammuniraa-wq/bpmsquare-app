@@ -1,0 +1,22 @@
+{
+  "verified": false,
+  "source": "guess",
+  "note": "This is NOT ePROMIS's API. ePROMIS publishes no documentation, so every address and field below is empty. It only shows the shape of an endpoint map. Replace it with a verified preset once KAMCO provides the ePROMIS API documentation, and set verified to true only after a call against a real ePROMIS system has succeeded.",
+  "placeholders": {
+    "get_project": ["code"],
+    "create_project": ["code", "name", "description", "client_code", "client_name", "contract_value", "currency", "start_date", "end_date", "manager_name", "source_ref"],
+    "create_budget and replace_budget": ["project_code", "project_id", "revision_no", "justification_code", "justification_text", "currency", "total"],
+    "budget line": ["line_no", "resource_code", "cost_code", "description", "qty", "unit", "unit_cost", "amount", "reserve"]
+  },
+  "endpoints": {
+    "ping": { "path": "", "method": "GET" },
+    "list_tenders": { "path": "", "method": "GET", "rows_path": "", "next_path": "", "fields": { "code": "", "name": "", "parent_code": "" }, "flags": {} },
+    "get_project": { "path": "", "method": "GET", "rows_path": "", "fields": { "code": "", "name": "", "id": "" }, "flags": {} },
+    "create_project": { "path": "", "method": "POST", "body": {}, "id_path": "" },
+    "create_budget": { "path": "", "method": "POST", "body": {}, "lines_path": "", "line": {}, "id_path": "" },
+    "replace_budget": { "path": "", "method": "PUT", "body": {}, "lines_path": "", "line": {}, "id_path": "" },
+    "list_resources": { "path": "", "method": "GET", "rows_path": "", "next_path": "", "fields": { "code": "", "name": "", "parent_code": "" }, "flags": {} },
+    "list_cost_codes": { "path": "", "method": "GET", "rows_path": "", "next_path": "", "fields": { "code": "", "name": "", "parent_code": "" }, "flags": {} },
+    "list_justifications": { "path": "", "method": "GET", "rows_path": "", "next_path": "", "fields": { "code": "", "name": "", "parent_code": "" }, "flags": {} }
+  }
+}

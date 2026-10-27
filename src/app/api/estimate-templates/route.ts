@@ -30,14 +30,14 @@ export async function POST(req: NextRequest) {
     if (!header.ok) return NextResponse.json({ error: header.error }, { status: 422 });
     const b = body as Record<string, unknown>;
 
-    const v = validateTemplate({ geometry: header.header.geometry ?? undefined, inputs: b.inputs, rates: b.rates, rules: b.rules });
+    const v = validateTemplate({ geometry: header.header.geometry ?? undefined, inputs: b.inputs, rates: b.rates, rules: b.rules, drawing_map: b.drawing_map });
     if (!v.ok || !v.template) {
       return NextResponse.json({ error: `The template has ${v.issues.length} problem${v.issues.length === 1 ? "" : "s"}.`, issues: v.issues, warnings: v.warnings }, { status: 422 });
     }
 
     const r = await insertTemplate(supabase, tenantId, userId, {
       name: header.header.name as string, description: header.header.description, trade: header.header.trade,
-      quote_granularity: header.header.quote_granularity,
+      quote_granularity: header.header.quote_granularity, keywords: header.header.keywords, icon: header.header.icon,
     }, v.template);
     if (!r.data) {
       if (r.status === 503) return pendingResponse();

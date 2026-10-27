@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { requireTenantUser } from "@/lib/supabase-server";
 
-const VALID_OBJECTS = ["account", "contact", "case", "quote", "work_order", "asset", "supplier", "inventory", "purchase_order", "invoice", "employee", "product", "project", "opportunity", "rfq", "estimate", "process_study", "abm_program", "abm_target", "abm_member"] as const;
+const VALID_OBJECTS = ["account", "contact", "case", "quote", "work_order", "asset", "supplier", "inventory", "purchase_order", "invoice", "employee", "product", "project", "opportunity", "rfq", "estimate", "process_study", "abm_program", "abm_target", "abm_member", "standard_quote", "sales_order"] as const;
 const VALID_TYPES = ["text", "number", "date", "select", "checkbox", "textarea"] as const;
 
 export async function GET(request: NextRequest) {

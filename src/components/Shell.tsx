@@ -1,5 +1,6 @@
 "use client";
 
+import { clearDockChats } from "@/lib/assistant/dockChat";
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { MOBILE_BREAKPOINT } from "@/lib/constants";
@@ -220,6 +221,7 @@ function IdentityMenu() {
 
   async function signOut() {
     const { createBrowserSupabase } = await import("@/lib/supabase-browser");
+    clearDockChats();
     await createBrowserSupabase().auth.signOut();
     router.push("/login");
   }

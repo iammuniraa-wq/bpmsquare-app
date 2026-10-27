@@ -99,10 +99,20 @@ export const RULES: Record<CandidateKind, Rule> = {
     reason: (c) => `draft for ${plural(c.days, "day")}`,
     group: (n) => `${plural(n, "draft quote")} to finish`, list: ROUTES.quotations, order: 14,
   },
+  order_confirm: {
+    urgency: (c) => 52 + clamp(c.days, 0, 10),
+    reason: (c) => (c.days <= 0 ? "draft order made today, not confirmed" : `draft order not confirmed for ${plural(c.days, "day")}`),
+    group: (n) => `${plural(n, "order")} to confirm`, list: ROUTES.salesOrders, order: 5.5,
+  },
   sync_failed: {
     urgency: (c) => 55 + extra(c, 2, 5),
     reason: (c) => `${c.count ?? 1} failed in the last 24 hours`,
     group: (n) => `${plural(n, "failed sync")}`, list: ROUTES.settingsMiddleware, order: 15,
+  },
+  inbox_new: {
+    urgency: (c) => 55 + clamp(c.days, 0, 10) * 2 + extra(c, 1, 10),
+    reason: (c) => (c.days <= 0 ? "oldest arrived today" : `oldest ${plural(c.days, "day")} ago`),
+    group: (n) => `${plural(n, "new email")} to read`, list: ROUTES.inbox, order: 16,
   },
 };
 

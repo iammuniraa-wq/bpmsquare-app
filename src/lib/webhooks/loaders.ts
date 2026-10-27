@@ -39,7 +39,7 @@ function customFields(raw: unknown): Record<string, unknown> {
   return out;
 }
 
-const ACCOUNT_PII = ["email", "email2", "phone", "phone2", "gstin"] as const;
+const ACCOUNT_PII = ["email", "email2", "phone", "phone2", "gstin", "buyer_id_number"] as const;
 
 function accountParts(row: Record<string, unknown>, allowPii: boolean): Record<string, unknown> {
   const a = allowPii ? (decryptAccount(row as unknown as Account) as unknown as Record<string, unknown>) : { ...row };

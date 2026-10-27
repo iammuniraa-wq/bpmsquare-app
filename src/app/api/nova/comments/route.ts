@@ -1,6 +1,9 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { requireTenantUser, createAdminSupabase, getAuthUser } from "@/lib/supabase-server";
 import { tenantHasNovaSurfaces } from "@/lib/tenant";
+import { NOVA_OBJECTS, allowedNovaTypes } from "@/lib/novaAccess";
+import { userCanSeeEmail } from "@/lib/inbox/server";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 /**
  * Nova pillar 3 — record comments. GET returns a record's comments plus the
@@ -13,44 +16,32 @@ import { tenantHasNovaSurfaces } from "@/lib/tenant";
  * every client-supplied foreign id as unproven until checked.
  */
 
-// object_type → its table. The keys are changeLog's vocabulary (so the
-// timeline can merge both streams on one address) and cover every object
-// family that has a detail screen.
-const OBJECTS: Record<string, string> = {
-  accounts: "accounts",
-  contacts: "contacts",
-  quotes: "quotes",
-  standard_quotes: "standard_quotes",
-  cases: "service_cases",
-  work_orders: "work_orders",
-  invoices: "invoices",
-  assets: "assets",
-  suppliers: "suppliers",
-  products: "products",
-  opportunities: "opportunities",
-  inventory: "inventory_items",
-  purchase_orders: "purchase_orders",
-  employees: "employees",
-  wfm_projects: "wfm_projects",
-  rfqs: "rfqs",
-  estimates: "estimates",
-  leads: "leads",
-  abm_programs: "abm_programs",
-  abm_targets: "abm_target_accounts",
-};
-
 async function verifyRecord(tenantId: string, objectType: string, objectId: string): Promise<boolean> {
-  const table = OBJECTS[objectType];
-  if (!table) return false;
+  const def = NOVA_OBJECTS[objectType];
+  if (!def) return false;
   const { data } = await createAdminSupabase()
-    .from(table).select("id").eq("id", objectId).eq("tenant_id", tenantId).maybeSingle();
+    .from(def.table).select("id").eq("id", objectId).eq("tenant_id", tenantId).maybeSingle();
   return !!data;
 }
 
+/** A thread of customer mail is private to the team of its channel (0214); every other object type has no such rule. */
+async function canSeeChannelOfRecord(tenantId: string, userId: string, role: "admin" | "member", objectType: string, objectId: string): Promise<boolean> {
+  if (objectType !== "inbound_emails") return true;
+  return userCanSeeEmail(createAdminSupabase(), tenantId, userId, role === "admin", objectId);
+}
+
+/** 404 (not 403) so a member without the module or workcenter grant cannot tell a record exists. */
+async function canReachObject(
+  ctx: { supabase: SupabaseClient; tenantId: string; userId: string; role: "admin" | "member" },
+  objectType: string
+): Promise<boolean> {
+  return (await allowedNovaTypes({ ...ctx, types: [objectType] })).has(objectType);
+}
+
 export async function GET(request: NextRequest) {
-  let supabase, tenantId;
+  let supabase, tenantId, userId, role;
   try {
-    ({ supabase, tenantId } = await requireTenantUser());
+    ({ supabase, tenantId, userId, role } = await requireTenantUser());
   } catch (e: unknown) {
     const err = e as { status: number; message: string };
     return NextResponse.json({ error: err.message }, { status: err.status });
@@ -62,10 +53,12 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const objectType = searchParams.get("object_type") ?? "";
   const objectId = searchParams.get("object_id") ?? "";
-  if (!OBJECTS[objectType] || !objectId) {
+  if (!NOVA_OBJECTS[objectType] || !objectId) {
     return NextResponse.json({ error: "object_type and object_id are required" }, { status: 400 });
   }
-  if (!(await verifyRecord(tenantId, objectType, objectId))) {
+  if (!(await canReachObject({ supabase, tenantId, userId, role }, objectType)) ||
+      !(await verifyRecord(tenantId, objectType, objectId)) ||
+      !(await canSeeChannelOfRecord(tenantId, userId, role, objectType, objectId))) {
     return NextResponse.json({ error: "Record not found" }, { status: 404 });
   }
 
@@ -99,9 +92,9 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  let supabase, tenantId;
+  let supabase, tenantId, userId, role;
   try {
-    ({ supabase, tenantId } = await requireTenantUser());
+    ({ supabase, tenantId, userId, role } = await requireTenantUser());
   } catch (e: unknown) {
     const err = e as { status: number; message: string };
     return NextResponse.json({ error: err.message }, { status: err.status });
@@ -114,11 +107,13 @@ export async function POST(request: NextRequest) {
   const objectType = typeof body?.object_type === "string" ? body.object_type : "";
   const objectId = typeof body?.object_id === "string" ? body.object_id : "";
   const text = typeof body?.body === "string" ? body.body.trim().slice(0, 2000) : "";
-  if (!OBJECTS[objectType] || !objectId) {
+  if (!NOVA_OBJECTS[objectType] || !objectId) {
     return NextResponse.json({ error: "object_type and object_id are required" }, { status: 400 });
   }
   if (!text) return NextResponse.json({ error: "Write something first" }, { status: 400 });
-  if (!(await verifyRecord(tenantId, objectType, objectId))) {
+  if (!(await canReachObject({ supabase, tenantId, userId, role }, objectType)) ||
+      !(await verifyRecord(tenantId, objectType, objectId)) ||
+      !(await canSeeChannelOfRecord(tenantId, userId, role, objectType, objectId))) {
     return NextResponse.json({ error: "Record not found" }, { status: 404 });
   }
 
@@ -139,12 +134,16 @@ export async function POST(request: NextRequest) {
     mentions = [...requested].filter((r) => memberEmails.has(r));
   }
 
+  // Author comes from the session only; nothing in the body can set it. The
+  // write goes through the service role (tenant_id explicit, already verified
+  // above) so the member insert policy on record_comments can be withdrawn
+  // (0211) -- RLS cannot constrain author_email or mentions.
   const user = await getAuthUser();
-  const { data, error } = await supabase.from("record_comments").insert({
+  const { data, error } = await createAdminSupabase().from("record_comments").insert({
     tenant_id: tenantId,
     object_type: objectType,
     object_id: objectId,
-    author_id: user?.id ?? null,
+    author_id: userId,
     author_email: user?.email ?? null,
     body: text,
     mentions,

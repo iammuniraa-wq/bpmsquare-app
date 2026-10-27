@@ -11,6 +11,7 @@ import type {
   QuoteGranularity as EstimatorQuoteGranularity,
   EstimateComponent as EstimatorComponent,
   EstimateLineSource as EstimatorLineSource,
+  DrawingMapRule as EstimatorDrawingMapRule,
 } from "@/lib/estimator/types";
 
 export type AccountType = "prospect" | "oem" | "direct" | "end_customer";
@@ -51,6 +52,16 @@ export type Account = {
    * coverage, never hand-picked from a dropdown. Null when no OWNER
    * coverage matches. Recomputed after every create/update. */
   owner_user_id: string | null;
+  // Saudi e-invoicing buyer data (0219, einvoicing_ksa): present only once that migration is applied.
+  vat_number?: string | null;
+  crn?: string | null;
+  name_ar?: string | null;
+  buyer_type?: import("@/lib/einvoicing/rules").BuyerType | null;
+  address_building?: string | null;
+  address_district?: string | null;
+  /** Encrypted at rest (an individual's ID), like the other PII on an account. */
+  buyer_id_number?: string | null;
+  buyer_id_scheme?: string | null;
 };
 
 export type MarketingCampaignStatus = "draft" | "sending" | "sent" | "failed";
@@ -366,6 +377,15 @@ export type Invoice = {
   created_by: string | null;
   created_at: string;
   issued_at: string | null;
+  // Saudi e-invoicing (0219, einvoicing_ksa). Present only once that migration is applied and only meaningful in a
+  // workspace with the flag; absent everywhere else.
+  einvoice_doc_type?: import("@/lib/einvoicing/rules").EinvoiceDocType | null;
+  einvoice_uuid?: string | null;
+  einvoice_seq?: number | null;
+  einvoice_unit?: string | null;
+  original_invoice_id?: string | null;
+  credit_reason?: string | null;
+  supply_date?: string | null;
 };
 
 export type InvoiceLine = {
@@ -378,6 +398,10 @@ export type InvoiceLine = {
   qty: number;
   rate: number;
   amount: number;
+  // Saudi e-invoicing (0219, einvoicing_ksa).
+  vat_category?: import("@/lib/einvoicing/rules").VatCategory | null;
+  vat_rate?: number | null;
+  vat_exemption_reason?: string | null;
 };
 
 // Employee -- pure master data (0057). A person on the org's books; may or
@@ -446,6 +470,8 @@ export type StandardQuote = {
   print_options?: { alternatives?: "all" | "chosen"; breaks?: "all" | "chosen" } | null;
   /** The deal this quote belongs to (0120). Optional, never required. */
   opportunity_id?: string | null;
+  /** Tenant-defined fields (0209), cf_-prefixed keys only. Absent while 0209 is pending. */
+  custom_data?: Record<string, unknown> | null;
 };
 
 export type StandardQuoteLine = {
@@ -867,6 +893,14 @@ export type EstimateTemplate = {
   rates: EstimatorTemplateRate[];
   rules: EstimatorTemplateRule[];
   quote_granularity: EstimatorQuoteGranularity;
+  /** 0213 (absent while it is pending): the catalogue card and the AI template pick. */
+  keywords?: string[] | null;
+  icon?: string | null;
+  /** A starter template: read-only, changed by "Copy to customise". */
+  locked?: boolean;
+  customer_visible?: boolean;
+  /** 0215 (absent while it is pending): which DXF layers feed which number input (drawing intake). */
+  drawing_map?: EstimatorDrawingMapRule[] | null;
   custom_data: Record<string, unknown> | null;
   created_by: string | null;
   created_at: string;
@@ -979,6 +1013,8 @@ export type Product = {
    *  Offered by the Standard Quote add-line panel. */
   qty_breaks?: { from: number; rate: number | null }[] | null;
   tax_percent: number | null;
+  /** Days from order to delivery when nothing is in stock (0212). Master-data availability on a sales order adds it to today. Absent while 0212 is pending. */
+  lead_time_days?: number | null;
   status: ProductStatus;
   custom_data: Record<string, unknown> | null;
   created_at: string;
@@ -1122,6 +1158,8 @@ export type PurchaseOrderLine = {
   tenant_id: string;
   po_id: string;
   inventory_item_id: string | null;
+  /** Set on lines raised from an RFQ award (0130); absent on hand-made lines. */
+  product_id?: string | null;
   sl_no: number | null;
   description: string;
   uom: string | null;

@@ -11,6 +11,7 @@ import StatusPill from "@/components/ui/StatusPill";
 import ObjectListPage, { type ListColumn } from "@/components/page/ObjectListPage";
 import type { MenuItem } from "@/components/ui/menuItems";
 import { paginate } from "@/lib/paginate";
+import { applyAdvancedFilter } from "@/lib/advancedFilter";
 import { sortRows, readSortParams, applyColFilters, parseColFilterParams, colFilterQueryParams, type SortExtractor } from "@/lib/listSort";
 import { ROUTES } from "@/lib/constants";
 import type { StandardQuoteStatus } from "@/lib/types";
@@ -40,13 +41,13 @@ const SORT_EXTRACTORS: Record<string, SortExtractor<StandardQuoteRow>> = {
 export default async function StandardQuotesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; q?: string; sort?: string; dir?: string; page?: string } & Record<string, string | undefined>>;
+  searchParams: Promise<{ status?: string; q?: string; af?: string; sort?: string; dir?: string; page?: string } & Record<string, string | undefined>>;
 }) {
   await requireWorkcenterView("standard_quotes");
   await requireFeature("standard_quotes");
   const inr = moneyFormatter(await getTenantCurrency(), { maximumFractionDigits: 0 });
   const params = await searchParams;
-  const { status: statusFilter, q } = params;
+  const { status: statusFilter, q, af } = params;
   const colFilters = parseColFilterParams(params);
   const cfParams = colFilterQueryParams(colFilters);
   const { sort, dir } = readSortParams(params);
@@ -68,7 +69,9 @@ export default async function StandardQuotesPage({
       (quote.account_name ?? "").toLowerCase().includes(needle)
     );
   });
-  const colFiltered = applyColFilters(searched, colFilters, SORT_EXTRACTORS);
+  // Advanced filter (the saved-query panel): standard columns and the tenant's own custom fields.
+  const advFiltered = applyAdvancedFilter(searched, af, (qt) => qt as unknown as Record<string, unknown>);
+  const colFiltered = applyColFilters(advFiltered, colFilters, SORT_EXTRACTORS);
   const filtered = sortRows(colFiltered, sort, dir, SORT_EXTRACTORS);
   const pageRows = paginate(filtered, page);
 
@@ -117,8 +120,9 @@ export default async function StandardQuotesPage({
       search={{
         value: q,
         placeholder: "Search quote ref or account…",
-        hiddenParams: { status: statusFilter, ...cfParams },
+        hiddenParams: { status: statusFilter, af, ...cfParams },
       }}
+      advancedFilterObject="standard_quote"
       beforeTable={summaryTiles}
       columns={columns}
       rows={pageRows}
@@ -129,8 +133,8 @@ export default async function StandardQuotesPage({
       baseHref={ROUTES.standardQuotes}
       sort={sort}
       dir={dir}
-      linkParams={{ status: statusFilter, q, ...cfParams }}
-      filtered={!!(q || statusFilter || Object.keys(cfParams).length > 0)}
+      linkParams={{ status: statusFilter, q, af, ...cfParams }}
+      filtered={!!(q || af || statusFilter || Object.keys(cfParams).length > 0)}
       empty={{
         title: "No standard quotes yet",
         text: "A plain quote for an account: line items, discount, tax and shipping.",

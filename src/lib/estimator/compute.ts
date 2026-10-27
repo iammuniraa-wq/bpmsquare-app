@@ -33,6 +33,7 @@ import type { EstimateParams, TemplateIssue } from "./template";
 import { getGeometry, pieceScope, markRange, densityFromRates } from "./geometry";
 import type { GeometryModel } from "./geometry";
 import { ESTIMATE_COMPONENTS, groupSlug } from "./types";
+import { matchKeyOf, resolveMatchAttrs } from "./productMatch";
 import type { EstimateComponent, EstimateLineSource, EstimateTemplateBody } from "./types";
 
 export const QTY_DP = 3;
@@ -318,6 +319,11 @@ export function computeEstimate(
     if (waste < 0 || waste > 100) return fail(`rules.${rule.code}.waste_pct`, `Rule "${rule.code}" waste works out to ${roundHalfAway(waste, 2)}%; it must be between 0 and 100.`);
     waste = roundHalfAway(waste, 2);
 
+    // The item key the pricing step resolves: a SKU, a product reference, or (a rule that names
+    // its product by attributes) a match key built from the chosen options.
+    const itemKey = rule.cost.kind !== "product" ? null
+      : rule.cost.sku ?? rule.cost.ref ?? (rule.cost.match ? matchKeyOf(resolveMatchAttrs(rule.cost.match, tpl.inputs, resolved.params)) : null);
+
     let unitCost: number | null;
     if (rule.cost.kind === "rate") {
       unitCost = roundHalfAway(rateByKey.get(rule.cost.rate) ?? 0, UNIT_COST_DP);
@@ -350,7 +356,7 @@ export function computeEstimate(
         source: e.source,
         element_ref: e.element_ref,
         cost_kind: rule.cost.kind,
-        sku: rule.cost.kind === "product" ? (rule.cost.sku ?? rule.cost.ref ?? null) : null,
+        sku: itemKey,
         rate_key: rule.cost.kind === "rate" ? rule.cost.rate : null,
         needs_price: needsPrice,
         unit_cost: unitCost,

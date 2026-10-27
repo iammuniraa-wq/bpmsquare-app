@@ -12,7 +12,7 @@ export type Vec3 = [number, number, number];
 /** A window or door cut into a panel. Metres, sill measured from the floor. */
 export type PieceOpening = { w: number; h: number; sill: number; door: boolean };
 
-export type PieceKind = "col" | "box" | "panel" | "plank" | "stair";
+export type PieceKind = "col" | "box" | "panel" | "plank" | "stair" | "equip";
 
 export type Piece = {
   /** The mark: the code plus a running number, e.g. EW-07. Unique per model. */
@@ -35,6 +35,20 @@ export type Piece = {
   vol: number;
   /** Net face area, m2, on pieces where it matters (external panels). */
   area?: number;
+  /** Design slot this piece is painted by (see GeometryModule.slots); absent = the module's default for its code. */
+  slot?: string;
+  /** kind "equip" only: the catalogue item drawn (e.g. "ac_split", "wc", "desk"); see viewer/equipmentMeshes.ts. */
+  item?: string;
+  /** kind "equip" only: the room it stands in, e.g. "office-1" (a label for the inspector and the schedule). */
+  room?: string;
+};
+
+/** A part of the model a design attribute can repaint (colour, finish, texture). */
+export type DesignSlot = {
+  key: string;
+  label: string;
+  /** Material key (materialCatalog.ts) or "#rrggbb" used when no attribute sets it. */
+  default: string;
 };
 
 export type GeometryModel = {
@@ -48,6 +62,13 @@ export type GeometryModel = {
   step_names: string[];
   /** Things the module adjusted or assumed (clamped inputs, fallback footprint). */
   warnings: string[];
+  /** Named numbers beyond the piece totals (tile counts, joint length, ...): they join the
+   *  formula scope under exactly these names, which the module lists in `extra_identifiers`. */
+  extras?: Record<string, number>;
+  /** The module inputs this model was laid from (normalised), so a 2D drawing can re-lay itself. */
+  inputs?: Record<string, number>;
+  /** Closest the 3D camera starts, metres (the viewer's default suits a villa; a small model asks for less). */
+  view_min_dist?: number;
 };
 
 export type GeometryResult = { ok: true; model: GeometryModel } | { ok: false; error: string };
@@ -58,6 +79,8 @@ export type GeometryInputSpec = {
   required: boolean;
   /** Value used when the template does not define an optional input. */
   default?: number;
+  /** A select input (its chosen option's number) may feed this input; the default is numbers and yes/no only. */
+  allow_select?: boolean;
 };
 
 export type PieceCodeInfo = { code: string; label: string };
@@ -68,6 +91,12 @@ export type GeometryModule = {
   /** Piece families the module can emit; each one exposes vol_/n_/area_ identifiers. */
   piece_codes: readonly PieceCodeInfo[];
   inputs: readonly GeometryInputSpec[];
+  /** Names the module's `extras` put in the formula scope (none for a module that only emits pieces). */
+  extra_identifiers?: readonly string[];
+  /** Parts a template's design attributes may repaint (colour, cladding, tile finish, mesh coating). */
+  slots?: readonly DesignSlot[];
+  /** How the workspace draws the model: the 3D piece viewer (default) or the 2D floor plan. */
+  view?: "building" | "floor_plan";
   /** Pure: same inputs, same pieces. Never throws; failure is a returned error. */
   layout(inputs: Readonly<Record<string, number>>): GeometryResult;
 };

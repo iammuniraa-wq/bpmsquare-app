@@ -18,11 +18,13 @@
 
 import { ESTIMATE_COMPONENTS, groupSlug } from "./types";
 import type {
-  EstimateTemplateBody, TemplateInput, TemplateInputOption, TemplateRate, TemplateRule, TemplateRuleCost,
+  DrawingMapRule, EstimateTemplateBody, ProductMatch, TemplateInput, TemplateInputOption, TemplateRate, TemplateRule, TemplateRuleCost,
 } from "./types";
+import { ATTR_KEY_RE, MAX_ATTRS, MAX_ATTR_VALUE } from "./productMatch";
 import { FORMULA_FUNCTIONS, formulaIdentifiers, parseFormula } from "./formula";
 import { getGeometry, geometryIdentifiers, TOTAL_IDENTIFIERS, GEOMETRY_KEYS } from "./geometry";
 import { SIM_CAPACITY_RATES, SIM_RATE_KEYS } from "./simRates";
+import { isVisualValue } from "./materialCatalog";
 
 const SIM_CAPACITY_BY_KEY = new Map<string, (typeof SIM_CAPACITY_RATES)[number]>(SIM_CAPACITY_RATES.map((r) => [r.key, r]));
 
@@ -30,6 +32,9 @@ export const MAX_INPUTS = 100;
 export const MAX_RATES = 200;
 export const MAX_RULES = 300;
 export const MAX_OPTIONS = 50;
+export const MAX_DRAWING_RULES = 50;
+export const MAX_DRAWING_NAMES = 40;
+export const MAX_DRAWING_NAME_LENGTH = 80;
 
 const KEY_RE = /^[a-z][a-z0-9_]{0,63}$/;
 const OPTION_KEY_RE = /^[a-z0-9][a-z0-9_]{0,63}$/;
@@ -101,6 +106,10 @@ function validateInputs(raw: unknown, issues: TemplateIssue[]): TemplateInput[] 
     }
     const base = { unit: optText(r.unit, 30), help: optText(r.help, 300), section: optText(r.section, 60) };
     if (!key || !label) return;
+    if (type !== "select" && r.paints !== undefined && r.paints !== null && r.paints !== "") {
+      issues.push({ path: `${path}.paints`, message: "Only a choice input can repaint the 3D model; change the type to Choice or clear \"Paints\"." });
+      return;
+    }
 
     if (type === "number") {
       if (!isNum(r.default)) { issues.push({ path: `${path}.default`, message: "A number input needs a numeric default." }); return; }
@@ -122,7 +131,9 @@ function validateInputs(raw: unknown, issues: TemplateIssue[]): TemplateInput[] 
         issues.push({ path: `${path}.default`, message: "A select input's default must be the key of one of its options." });
         return;
       }
-      out.push({ key, label, type, default: r.default, options: opts, ...(r.quote_alternatives === true ? { quote_alternatives: true } : {}), ...stripUndef(base) });
+      const paints = validatePaints(r.paints, `${path}.paints`, issues);
+      if (paints === null) return;
+      out.push({ key, label, type, default: r.default, options: opts, ...(r.quote_alternatives === true ? { quote_alternatives: true } : {}), ...(paints ? { paints } : {}), ...stripUndef(base) });
     }
   });
   return out;
@@ -143,9 +154,93 @@ function validateOptions(raw: unknown, path: string, issues: TemplateIssue[]): T
     else if (seen.has(key)) { issues.push({ path: `${p}.key`, message: `Duplicate option key "${key}".` }); bad = true; }
     if (!label) { issues.push({ path: `${p}.label`, message: "Every option needs a label." }); bad = true; }
     if (!isNum(o.value)) { issues.push({ path: `${p}.value`, message: "Every option needs a numeric value; formulas see this number." }); bad = true; }
-    if (key && label && isNum(o.value)) { seen.add(key); out.push({ key, label, value: o.value }); }
+    const attrs = validateAttrs(o.attrs, `${p}.attrs`, issues);
+    if (attrs === null) bad = true;
+    let visual: string | undefined;
+    if (o.visual !== undefined && o.visual !== null && o.visual !== "") {
+      if (isVisualValue(o.visual)) visual = o.visual;
+      else { issues.push({ path: `${p}.visual`, message: `"${String(o.visual).slice(0, 40)}" is not a material in the catalogue or a colour like #b9bcbf.` }); bad = true; }
+    }
+    if (key && label && isNum(o.value) && attrs !== null) { seen.add(key); out.push({ key, label, value: o.value, ...(attrs ? { attrs } : {}), ...(visual ? { visual } : {}) }); }
   });
   return bad ? null : out;
+}
+
+const SLOT_KEY_RE = /^[a-z][a-z0-9_]{0,31}$/;
+
+/** The design slot a choice input repaints. undefined = none, null = invalid. */
+function validatePaints(raw: unknown, path: string, issues: TemplateIssue[]): string | undefined | null {
+  if (raw === undefined || raw === null || raw === "") return undefined;
+  if (!isStr(raw) || !SLOT_KEY_RE.test(raw)) { issues.push({ path, message: "Paints must name a part of the model, in lowercase letters, digits and underscores (e.g. mesh)." }); return null; }
+  return raw;
+}
+
+/** Catalogue attributes: lowercase names, short text values. undefined = none given, null = invalid. */
+function validateAttrs(raw: unknown, path: string, issues: TemplateIssue[]): Record<string, string> | undefined | null {
+  if (raw === undefined || raw === null) return undefined;
+  if (!isRecord(raw)) { issues.push({ path, message: "Attributes must be name and text pairs." }); return null; }
+  const entries = Object.entries(raw);
+  if (entries.length > MAX_ATTRS) { issues.push({ path, message: `At most ${MAX_ATTRS} attributes.` }); return null; }
+  const out: Record<string, string> = {};
+  for (const [k, v] of entries) {
+    if (!ATTR_KEY_RE.test(k)) { issues.push({ path, message: `Attribute name "${k.slice(0, 40)}" must be lowercase letters, digits and underscores.` }); return null; }
+    if (!isStr(v) || v.trim() === "" || v.trim().length > MAX_ATTR_VALUE) { issues.push({ path: `${path}.${k}`, message: `Attribute "${k}" needs a text value of up to ${MAX_ATTR_VALUE} characters.` }); return null; }
+    out[k] = v.trim();
+  }
+  return Object.keys(out).length > 0 ? out : undefined;
+}
+
+const DRAWING_MEASURES = ["length_m", "area_m2", "count"] as const;
+
+function drawingNames(raw: unknown, path: string, what: string, issues: TemplateIssue[]): string[] | null {
+  if (raw === undefined || raw === null) return [];
+  if (!Array.isArray(raw)) { issues.push({ path, message: `${what} must be a list of names.` }); return null; }
+  if (raw.length > MAX_DRAWING_NAMES) { issues.push({ path, message: `At most ${MAX_DRAWING_NAMES} ${what.toLowerCase()} per row.` }); return null; }
+  const out: string[] = [];
+  for (const n of raw) {
+    const t = isStr(n) ? n.trim() : "";
+    if (!t || t.length > MAX_DRAWING_NAME_LENGTH) { issues.push({ path, message: `Each ${what.toLowerCase().replace(/s$/, "")} name needs 1 to ${MAX_DRAWING_NAME_LENGTH} characters.` }); return null; }
+    if (!out.some((x) => x.toLowerCase() === t.toLowerCase())) out.push(t);
+  }
+  return out;
+}
+
+/** The drawing layer map: which DXF layers or blocks feed which number input. undefined = none. */
+function validateDrawingMap(raw: unknown, inputs: readonly TemplateInput[], issues: TemplateIssue[]): DrawingMapRule[] | undefined {
+  if (raw === undefined || raw === null) return undefined;
+  if (!Array.isArray(raw)) { issues.push({ path: "drawing_map", message: "The drawing layer map must be a list." }); return undefined; }
+  if (raw.length > MAX_DRAWING_RULES) issues.push({ path: "drawing_map", message: `A template can map at most ${MAX_DRAWING_RULES} drawing rows.` });
+  const byKey = new Map(inputs.map((i) => [i.key, i]));
+  const seen = new Set<string>();
+  const out: DrawingMapRule[] = [];
+  raw.slice(0, MAX_DRAWING_RULES).forEach((r, i) => {
+    const path = `drawing_map[${i}]`;
+    if (!isRecord(r)) { issues.push({ path, message: "Each drawing row must be an object." }); return; }
+    let ok = true;
+    const fail = (p: string, message: string) => { issues.push({ path: `${path}.${p}`, message }); ok = false; };
+    const input = isStr(r.input) ? byKey.get(r.input) : undefined;
+    if (!input) fail("input", `Choose an input of this template${isStr(r.input) && r.input ? ` ("${r.input.slice(0, 40)}" is not one)` : ""}.`);
+    else if (input.type !== "number") fail("input", `"${input.key}" is not a number input; a drawing can only fill numbers.`);
+    else if (seen.has(input.key)) fail("input", `"${input.key}" is already filled by another row.`);
+    const measure = DRAWING_MEASURES.find((m) => m === r.measure);
+    if (!measure) fail("measure", 'Measures must be "length_m", "area_m2" or "count".');
+    const layers = drawingNames(r.layers, `${path}.layers`, "Layers", issues);
+    const blocks = drawingNames(r.blocks, `${path}.blocks`, "Blocks", issues);
+    if (layers === null || blocks === null) ok = false;
+    if (measure && measure !== "count" && layers && layers.length === 0) fail("layers", "Name at least one layer to measure.");
+    if (measure === "count" && layers && blocks && layers.length === 0 && blocks.length === 0) fail("layers", "Name the layers or the blocks to count.");
+    if (measure && measure !== "count" && blocks && blocks.length > 0) fail("blocks", "Blocks are only used when counting.");
+    let scale: number | undefined;
+    if (r.scale !== undefined && r.scale !== null && r.scale !== "") {
+      if (!isNum(r.scale) || r.scale <= 0) fail("scale", "Scale must be a number above zero.");
+      else scale = r.scale;
+    }
+    if (ok && input && measure) {
+      seen.add(input.key);
+      out.push({ input: input.key, measure, ...(layers && layers.length ? { layers } : {}), ...(blocks && blocks.length ? { blocks } : {}), ...(scale !== undefined ? { scale } : {}) });
+    }
+  });
+  return out.length > 0 ? out : undefined;
 }
 
 function validateRates(raw: unknown, issues: TemplateIssue[]): TemplateRate[] {
@@ -197,7 +292,7 @@ type RawRule = {
   waste_pct: number | string | undefined; component: TemplateRule["component"]; cost: TemplateRuleCost; element_type: string | undefined;
 };
 
-function validateRuleShapes(raw: unknown, rateKeys: Set<string>, issues: TemplateIssue[]): RawRule[] {
+function validateRuleShapes(raw: unknown, rateKeys: Set<string>, inputs: readonly TemplateInput[], issues: TemplateIssue[]): RawRule[] {
   const out: RawRule[] = [];
   if (!Array.isArray(raw)) { issues.push({ path: "rules", message: "rules must be a list." }); return out; }
   if (raw.length === 0) issues.push({ path: "rules", message: "A template needs at least one rule line." });
@@ -242,8 +337,31 @@ function validateRuleShapes(raw: unknown, rateKeys: Set<string>, issues: Templat
     else if (r.cost.kind === "product") {
       const sku = text(r.cost.sku, 80);
       const ref = text(r.cost.ref, 80);
-      if (!sku && !ref) fail("cost.sku", "A product cost needs the product's SKU or its product reference.");
-      else cost = { kind: "product", ...(sku ? { sku } : {}), ...(ref ? { ref } : {}) };
+      let match: ProductMatch | undefined;
+      if (r.cost.match !== undefined && r.cost.match !== null) {
+        const m = r.cost.match;
+        if (!isRecord(m)) fail("cost.match", "A product match must have attributes.");
+        else {
+          const before = issues.length;
+          const attrs = validateAttrs(m.attrs, `${path}.cost.match.attrs`, issues);
+          let from: string[] | undefined;
+          if (m.from !== undefined && m.from !== null) {
+            if (!Array.isArray(m.from) || m.from.some((x) => !isStr(x))) fail("cost.match.from", "\"from\" must be a list of select input keys.");
+            else {
+              from = [...new Set(m.from as string[])];
+              for (const k of from) {
+                const input = inputs.find((x) => x.key === k);
+                if (!input || input.type !== "select") fail("cost.match.from", `Match input "${k}" must be one of the template's select inputs.`);
+              }
+            }
+          }
+          if (issues.length > before) ok = false;
+          else if (!attrs && !(from && from.length > 0)) fail("cost.match", "A product match needs at least one attribute or one select input.");
+          else match = { attrs: attrs ?? {}, ...(from && from.length > 0 ? { from } : {}) };
+        }
+      }
+      if (!sku && !ref && !match) { if (ok) fail("cost.sku", "A product cost needs the product's SKU or its product reference, or a catalogue match."); }
+      else if (ok) cost = { kind: "product", ...(sku ? { sku } : {}), ...(ref ? { ref } : {}), ...(match ? { match } : {}) };
     } else if (r.cost.kind === "rate") {
       if (!isStr(r.cost.rate) || !rateKeys.has(r.cost.rate)) fail("cost.rate", `Cost rate "${String(r.cost.rate)}" is not one of the template's rates.`);
       else cost = { kind: "rate", rate: r.cost.rate };
@@ -288,7 +406,8 @@ export function validateTemplate(raw: unknown): TemplateValidation {
     else names.set(x.key, "another rate or input");
   });
 
-  const rules = validateRuleShapes(raw.rules, new Set(rates.map((r) => r.key)), issues);
+  const rules = validateRuleShapes(raw.rules, new Set(rates.map((r) => r.key)), inputs, issues);
+  const drawingMap = validateDrawingMap(raw.drawing_map, inputs, issues);
 
   // Geometry module: optional, must exist, and the template must supply the
   // inputs the module reads. Its pieces then add vol_/n_/area_ names.
@@ -308,9 +427,19 @@ export function validateTemplate(raw: unknown): TemplateValidation {
           issues.push({ path: "inputs", message: `The "${mod.key}" geometry needs an input with the key "${spec.key}".` });
         } else if (input) {
           used.add(spec.key);
-          if (input.type === "select") issues.push({ path: "inputs", message: `Input "${spec.key}" is read by the "${mod.key}" geometry and must be a number or yes/no input.` });
+          if (input.type === "select" && !spec.allow_select) issues.push({ path: "inputs", message: `Input "${spec.key}" is read by the "${mod.key}" geometry and must be a number or yes/no input.` });
         }
       }
+      // A design attribute must name a part this layout can repaint. A layout that declares no
+      // parts yet ignores paints (the choice still works as an ordinary input).
+      const slots = mod.slots ?? [];
+      inputs.forEach((x, i) => {
+        if (!x.paints) return;
+        used.add(x.key);
+        if (slots.length > 0 && !slots.some((sl) => sl.key === x.paints)) {
+          issues.push({ path: `inputs[${i}].paints`, message: `The "${mod.key}" model has no part called "${x.paints}". Parts you can repaint: ${slots.map((sl) => sl.key).join(", ")}.` });
+        }
+      });
       // The density rate feeds weight_total.
       for (const r of rates) if (/density_t_m3$/.test(r.key)) used.add(r.key);
     }
@@ -367,8 +496,10 @@ export function validateTemplate(raw: unknown): TemplateValidation {
     checkFormula(rule.qty, i, "qty");
     if (isStr(rule.waste_pct)) checkFormula(rule.waste_pct, i, "waste_pct");
     if (rule.cost.kind === "rate") used.add(rule.cost.rate);
+    if (rule.cost.kind === "product") for (const k of rule.cost.match?.from ?? []) used.add(k);
   });
 
+  if (!geometry) inputs.forEach((x, i) => { if (x.paints) { used.add(x.key); warnings.push({ path: `inputs[${i}].paints`, message: `"${x.key}" paints a part of the model, but this template has no 3D layout, so it changes nothing.` }); } });
   inputs.forEach((x, i) => { if (!used.has(x.key)) warnings.push({ path: `inputs[${i}]`, message: `Input "${x.key}" is not used by any rule.` }); });
   rates.forEach((x, i) => { if (!used.has(x.key) && !SIM_RATE_KEYS.has(x.key)) warnings.push({ path: `rates[${i}]`, message: `Rate "${x.key}" is not used by any rule.` }); });
 
@@ -384,6 +515,7 @@ export function validateTemplate(raw: unknown): TemplateValidation {
       component: r.component, cost: r.cost,
       ...(r.element_type ? { element_type: r.element_type } : {}),
     })),
+    ...(drawingMap ? { drawing_map: drawingMap } : {}),
   };
   return { ok: true, issues, warnings, template };
 }

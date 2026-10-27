@@ -116,14 +116,14 @@ export function LinksTable({ rows, connected, busy, onOpen, onToggle, onTest }: 
           <tr key={r.id} className={s.docRow}>
             <td data-label="BPMSquare">
               {r.kind === "out"
-                ? <button type="button" className={s.docOpen} onClick={() => onOpen(r)} aria-label={`${r.bpm}: change what it becomes in the ERP`}><span className={s.fieldName}>{r.bpm}</span></button>
+                ? <button type="button" className={s.docOpen} data-guide="middleware.link_row" onClick={() => onOpen(r)} aria-label={`${r.bpm}: change what it becomes in the ERP`}><span className={s.fieldName}>{r.bpm}</span></button>
                 : <span className={s.fieldName}>{r.bpm}</span>}
             </td>
             <td className={s.arrowCell} data-label="Direction"><span aria-label={r.kind === "out" ? "goes to" : "comes from"} role="img">{r.kind === "out" ? "→" : "←"}</span></td>
             <td data-label="ERP">{r.erp}</td>
             <td data-label="Runs">{r.runs}</td>
             <td data-label="On">
-              <Switch checked={r.enabled} label={`${r.bpm} ${r.kind === "out" ? "to" : "from"} ${r.erp}: ${r.enabled ? "on" : "off"}`} disabled={busy === r.id || !connected} onChange={(v) => onToggle(r, v)} />
+              <Switch checked={r.enabled} label={`${r.bpm} ${r.kind === "out" ? "to" : "from"} ${r.erp}: ${r.enabled ? "on" : "off"}`} disabled={busy === r.id || !connected || (r.blocked === true && !r.enabled)} onChange={(v) => onToggle(r, v)} />
             </td>
             <td className={s.docMenu}>
               {r.kind === "out" ? <MoreMenu label={`More for ${r.bpm}`} items={[{ label: "Send a test quote", onSelect: onTest, hidden: !connected }]} /> : null}

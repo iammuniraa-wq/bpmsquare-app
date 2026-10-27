@@ -57,7 +57,7 @@ export const FEATURE_KEYS = [
  *  tenant without the owner's explicit go. They are set in /admin/tenants/[id]
  *  afterwards, deliberately by hand. */
 export const EXPERIMENTAL_FEATURE_KEYS: readonly string[] = [
-  "next_experience", "enterprise_theme", "spectacular_theme", "marketing_scoring", "ai_assistant_web", "ai_assistant_actions",
+  "next_experience", "enterprise_theme", "spectacular_theme", "marketing_scoring", "ai_assistant_web", "ai_assistant_actions", "sales_orders", "einvoicing_ksa", "gcc_tender", "deal_room", "contract_projects",
 ];
 
 /** The runbook's package table (TENANT_PROVISIONING.md §0), as data. */
@@ -131,6 +131,19 @@ function navHrefs(): Set<string> {
 }
 
 export type NormalisedPlan = { plan: TenantStudioPlan; warnings: string[] };
+
+// The only values `tenants_plan_check` (0048) accepts. The model writes free words ("professional", "starter", "custom"), and an
+// unlisted one made Create fail with a constraint error after the whole plan had been reviewed.
+const TENANT_PLANS = ["personal", "small_business", "enterprise"] as const;
+
+export function tenantPlan(raw: unknown, warnings: string[]): (typeof TENANT_PLANS)[number] {
+  const v = String(raw ?? "").trim().toLowerCase().replace(/[\s-]+/g, "_");
+  if ((TENANT_PLANS as readonly string[]).includes(v)) return v as (typeof TENANT_PLANS)[number];
+  const alias: Record<string, (typeof TENANT_PLANS)[number]> = { free: "personal", starter: "personal", basic: "personal", pro: "small_business", professional: "small_business", business: "small_business", custom: "enterprise", dedicated: "enterprise" };
+  const mapped = alias[v] ?? "small_business";
+  warnings.push(`Plan "${String(raw ?? "").trim() || "(none)"}" is not one of personal, small_business or enterprise, so ${mapped} was used. Say "Plan enterprise" (or another of the three) to change it.`);
+  return mapped;
+}
 
 /**
  * Turn whatever the model produced into a plan this codebase will accept, or
@@ -300,7 +313,7 @@ export function normalisePlan(raw: unknown): NormalisedPlan {
 
   return {
     plan: {
-      tenant: { name, slug, custom_domain: domain, currency, plan: String(t.plan ?? "starter").trim().slice(0, 40) || "starter", accent_color },
+      tenant: { name, slug, custom_domain: domain, currency, plan: tenantPlan(t.plan, warnings), accent_color },
       package: pkg,
       features,
       nav_hidden_hrefs,

@@ -32,3 +32,6 @@ next-env.d.ts
 
 # Word lock files
 ~$*
+
+# dedicated-instance kit output (scripts/dedicated/build-fresh-schema.mjs)
+/dist/

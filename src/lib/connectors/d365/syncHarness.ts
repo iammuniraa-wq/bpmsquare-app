@@ -23,7 +23,7 @@ export function fakeDb(seed: Record<string, Row[]> = {}, opts: { failInsert?: (t
     private rng: [number, number] | null = null;
     constructor(private table: string) {}
     select() { this.wantRows = true; return this; }
-    insert(r: Row) { this.op = "insert"; this.payload = r; return this; }
+    insert(r: Row | Row[]) { this.op = "insert"; this.payload = r as Row; return this; }
     update(r: Row) { this.op = "update"; this.payload = r; return this; }
     delete() { this.op = "delete"; return this; }
     eq(c: string, v: unknown) { this.filters.push((r) => r[c] === v); return this; }
@@ -41,6 +41,17 @@ export function fakeDb(seed: Record<string, Row[]> = {}, opts: { failInsert?: (t
     private run(): { data: unknown; error: DbError } {
       const t = rows(this.table);
       const match = (r: Row) => this.filters.every((f) => f(r));
+      if (this.op === "insert" && Array.isArray(this.payload)) {
+        const made: Row[] = [];
+        for (const p of this.payload as unknown as Row[]) {
+          const bad = opts.failInsert?.(this.table, p);
+          if (bad) return { data: null, error: bad };
+          const row: Row = { id: `id-${++n}`, ...p };
+          t.push(row);
+          made.push(row);
+        }
+        return { data: this.wantRows ? made : null, error: null };
+      }
       if (this.op === "insert") {
         const bad = opts.failInsert?.(this.table, this.payload);
         if (bad) return { data: null, error: bad };

@@ -18,11 +18,12 @@ import { screenAccessFor } from "@/lib/assistant/screenAccess";
 import { ANALYSIS_CONSENT_PREFIX, decodeAnalysisQuery, parseToolInput } from "@/lib/assistant/analysisTool";
 import type { AnalysisSetup } from "@/lib/assistant/analysisRun";
 import { analysisAccess } from "@/lib/analysis/service";
+import { CREATE_CONSENT_PREFIX, decodeCreateConsent, parseCreateFlow } from "@/lib/assistant/createResearch";
 
 // The chart tool makes a nested model call inside a turn (compileAndRun),
 // so a turn that uses it costs two sequential calls, not one -- same
 // reasoning as reports/ask's bump to 75.
-export const maxDuration = 75;
+export const maxDuration = 120;
 
 type Access = {
   supabase: Awaited<ReturnType<typeof requireTenantUser>>["supabase"];
@@ -149,7 +150,16 @@ export async function POST(request: NextRequest) {
         ...(directInput ? { direct: { input: directInput, consentId: yesToAnalysis ? consent.consentId : null } } : {}),
       }
     : undefined;
-  const webAllow = yesToAnalysis ? { allow: null, consentQuery: null, consentId: null } : consent;
+  // Create with web research: the two chips under the "how do you want to fill in the details?" question send `create_flow`;
+  // a Yes on the lookup chip carries that chip's signed company. No model runs for either, and a token that does not verify
+  // leaves `consentId` empty, so the person is asked again. Like the analysis, it never reads the web-search permission.
+  const yesToCreate = allowWeb !== null && !!claimedQuery?.startsWith(CREATE_CONSENT_PREFIX);
+  const createBody = body?.create_flow !== undefined && body?.create_flow !== null;
+  const createInput = yesToCreate ? decodeCreateConsent(claimedQuery) : createBody ? parseCreateFlow(body.create_flow) : null;
+  if ((yesToCreate || createBody) && !createInput) return NextResponse.json({ error: "That request is not valid." }, { status: 400 });
+  if (createInput?.mode === "web" && !webEnabled) return NextResponse.json({ error: "Web research is not enabled for this workspace." }, { status: 404 });
+  const createFlow = createInput ? { input: createInput, consentId: yesToCreate ? consent.consentId : null } : undefined;
+  const webAllow = yesToAnalysis || yesToCreate ? { allow: null, consentQuery: null, consentId: null } : consent;
 
   const currency = await getTenantCurrency();
   const meter = new AssistantMeter({ tenantId, userId, budget });
@@ -158,7 +168,7 @@ export async function POST(request: NextRequest) {
     const reply = await askAssistant(history, {
       supabase, tenantId, userId, perms, currency, features, isAdmin: perms.unrestricted, isWorkspaceAdmin: isAdmin, route, meter, guideTask,
       web: webEnabled ? { enabled: true, userId, allow: webAllow.allow, consentQuery: webAllow.consentQuery, consentId: webAllow.consentId } : undefined,
-      analysis,
+      analysis, createFlow,
     });
     return NextResponse.json({
       ...reply,

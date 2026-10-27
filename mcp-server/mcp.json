@@ -1,6 +1,6 @@
 {
   "name": "bpmsquare",
-  "version": "1.12.0",
+  "version": "1.17.0",
   "description": "BPMSquare MCP server — field service CRM for electromechanical repair businesses. Generic across every tenant; nothing here is Vikas/Hosapete-specific.",
   "api_base": "https://<your-tenant-domain>/api/v1",
   "auth": {
@@ -407,6 +407,52 @@
       }
     },
     {
+      "name": "list_standard_quotes",
+      "description": "List the tenant's standard quotes (the Standard Quotes module, separate from Quotations): ref, status (draft, sent, accepted, rejected, expired), customer account, validity, header discount, tax and shipping, subtotal and total, and how many lines each has, and the ERP invoices rolled up (invoice_count, invoiced_total, paid_total). Contacts are returned as an id only. Needs an API key scoped to \"standard_quotes\" (or to all objects).",
+      "method": "GET",
+      "path": "/api/v1/standard-quotes",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "description": "draft, sent, accepted, rejected or expired"
+          },
+          "account_id": {
+            "type": "string",
+            "description": "Only quotes for this account"
+          },
+          "opportunity_id": {
+            "type": "string",
+            "description": "Only quotes linked to this deal"
+          }
+        }
+      }
+    },
+    {
+      "name": "list_sales_orders",
+      "description": "List the tenant's sales orders (the Sales Orders module): ref, order type, status (draft, confirmed, cancelled), customer account, customer PO, pricing mode, subtotal, discount, tax, shipping and total, requested and expected delivery dates, what it was made from, and how many lines each has. Contacts are returned as an id only and a bill-to / ship-to as name and address only. Needs an API key scoped to \"sales_orders\" (or to all objects).",
+      "method": "GET",
+      "path": "/api/v1/sales-orders",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "description": "draft, confirmed or cancelled"
+          },
+          "account_id": {
+            "type": "string",
+            "description": "Only orders for this account"
+          },
+          "source_id": {
+            "type": "string",
+            "description": "Only orders made from this quote or deal"
+          }
+        }
+      }
+    },
+    {
       "name": "list_abm_programs",
       "description": "List the tenant's ABM (account-based marketing) programs: goal, time window, status and how many companies are targeted.",
       "method": "GET",
@@ -503,6 +549,42 @@
       }
     },
     {
+      "name": "get_standard_quote",
+      "description": "Fetch one standard quote by id with its lines (description, quantity, rate, discount, amount, option group and whether it counts toward the total), introduction, notes and terms. Line margin checks, supplier-request links and contact details are never returned. Needs an API key scoped to \"standard_quotes\" (or to all objects).",
+      "method": "GET",
+      "path": "/api/v1/standard-quotes/{id}",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Standard quote UUID"
+          }
+        },
+        "required": [
+          "id"
+        ]
+      }
+    },
+    {
+      "name": "get_sales_order",
+      "description": "Fetch one sales order by id with its lines (description, printed text, quantity, unit price, discount, tax, line total, requested date, and the confirmed quantity and date with where that answer came from: the ERP or master data), notes and terms, and erp_documents: the invoices and deliveries the ERP reported for the order (number, date, due date, amount, currency, status), erp_checks: the latest Check with ERP result for credit, price and stock (status passed, warning, failed or not_run, a one-line reason, the time, and whether the lines changed since), and erp_transfers: each attempt to send the order to the ERP (time, result, ERP number, the step that failed). The creator, cancellation note, contact details and attachments are never returned. Needs an API key scoped to \"sales_orders\" (or to all objects).",
+      "method": "GET",
+      "path": "/api/v1/sales-orders/{id}",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Sales order UUID"
+          }
+        },
+        "required": [
+          "id"
+        ]
+      }
+    },
+    {
       "name": "list_estimates",
       "description": "List the tenant's project estimates: ref, name, status, customer, the template used and the price quoted to the customer before and after tax. Costs, margin and the bill of materials are internal and never returned. Needs an API key explicitly scoped to \"estimates\".",
       "method": "GET",
@@ -585,7 +667,7 @@
     },
     {
       "name": "list_invoices",
-      "description": "List customer invoices with totals, paid amount and status. Optionally filter by status or account.",
+      "description": "List customer invoices with totals, paid amount and status. Optionally filter by status or account. For a Saudi e-invoicing workspace each row also carries einvoice_doc_type (standard, simplified, credit_note, debit_note) and einvoice_ready.",
       "method": "GET",
       "path": "/api/v1/invoices",
       "inputSchema": {
@@ -612,7 +694,7 @@
     },
     {
       "name": "get_invoice",
-      "description": "Get full invoice detail including line items, balance due and payment history.",
+      "description": "Get full invoice detail including line items, balance due and payment history. For a Saudi e-invoicing workspace it also returns the document type, UUID, counter number, whether it is ready for e-invoicing, the original invoice and reason of a credit note, the supply date and each line's VAT category, rate and exemption reason.",
       "method": "GET",
       "path": "/api/v1/invoices/{id}",
       "inputSchema": {

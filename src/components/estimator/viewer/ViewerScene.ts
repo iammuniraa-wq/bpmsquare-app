@@ -1,17 +1,35 @@
-// The imperative three.js scene behind BuildingViewer. It draws exactly the
-// pieces of a stored GeometryModel and owns everything it creates: dispose()
-// frees geometries, materials, the renderer, the observers and the animation
-// frame. React only calls the setters.
+// The imperative three.js scene behind BuildingViewer. It draws exactly the pieces of a stored
+// GeometryModel, physically based: PBR materials from the catalogue (lazy CC0 textures), a generated sky
+// for the background and for image-based lighting, a sun with soft shadows, ACES tone mapping, a textured
+// ground that fades into fog. It owns everything it creates: dispose() frees geometries, materials,
+// textures, the environment map, the renderer, the observers and the animation frame. React only calls
+// the setters.
 //
-// Rendering is on demand (a frame is drawn only when something changed or an
-// animation is running). With reduced motion there is no drop animation.
+// Rendering is on demand (a frame is drawn only when something changed or an animation is running), and
+// the shadow map is re-rendered only when the content moved, not while the camera orbits. With reduced
+// motion there is no drop animation.
+//
+// Materials: each part of a piece names a design slot (userData.slot); the slot's material comes from
+// `visuals` (a repaint never rebuilds geometry or moves the camera), else the module's default for the
+// slot. Pieces are tinted (family or build-step colouring) and emphasised (selected, highlighted) through
+// cached material variants that share the base material's textures.
 
 import * as THREE from "three";
 import type { GeometryModel, Piece } from "@/lib/estimator/geometry";
+import { getGeometry } from "@/lib/estimator/geometry";
+import type { DesignSlot } from "@/lib/estimator/geometry/types";
+import { CHAINLINK_FENCE_KEY } from "@/lib/estimator/geometry/chainlinkFence";
+import { slotValue } from "@/lib/estimator/geometry/pieceSlots";
 import { attachOrbit, cameraPosition } from "./orbit";
 import type { OrbitState } from "./orbit";
-import { buildPieceGroup, disposeGeometries } from "./pieceMeshes";
-import type { SharedMaterials } from "./pieceMeshes";
+import { createMaterialLibrary } from "./materialLibrary";
+import type { MaterialLibrary } from "./materialLibrary";
+import { buildPieceGroup, createBuildCtx, disposeBuildCtx, disposeGeometries } from "./pieceMeshes";
+import type { BuildCtx } from "./pieceMeshes";
+import type { PartDecor } from "./meshKit";
+import { metricBoxGeometry, metricGroundGeometry } from "./metricGeometry";
+import { createEnvironmentScene, createSkyDome, disposeSky, isDarkTheme, skyPalette, SUN_DIRECTION } from "./skyEnvironment";
+import type { SkyPalette } from "./skyEnvironment";
 
 export type SceneColors = { concrete: string; line: string; glass: string; ground: string; accent: string };
 export type ColourMode = "family" | "step";
@@ -35,13 +53,26 @@ function color(value: string, fallback: string): THREE.Color {
   return c;
 }
 
-type Entry = { piece: Piece; group: THREE.Group; mat: THREE.MeshLambertMaterial; tint: number; y0: number };
+/** One paintable mesh of a piece. `own` is a material a builder set itself (equipment): used as the base as it is. */
+type Part = { mesh: THREE.Mesh; slot: string | null; def: string | null; noTint: boolean; decor: PartDecor | null; own: THREE.MeshStandardMaterial | null };
+type Entry = { piece: Piece; group: THREE.Group; parts: Part[]; tint: number; y0: number };
+type Variant = { mat: THREE.MeshStandardMaterial; base: THREE.MeshStandardMaterial; tint: THREE.Color; used: boolean };
 
 export type SceneOptions = { reducedMotion: boolean; onPick: (mark: string | null) => void };
 
 const DROP_MS = 700;
 const DROP_HEIGHT_M = 6;
 const EXPLODE_M_PER_FLOOR = 5;
+const WHITE = new THREE.Color(1, 1, 1);
+const BLACK = new THREE.Color(0, 0, 0);
+const SUN_FLOOR_M = 40;
+const SHADOW_RADIUS_MAX_M = 150;
+
+/** A fence whose whole-run view is farther out than this opens close up at a gate instead. */
+const CLOSE_UP_ABOVE_M = 55;
+const CLOSE_UP_DIST_M = 34;
+/** Camera distance per metre of (length + depth) for a fence, so the whole run fits the frame. */
+const FENCE_FIT_FACTOR = 1;
 
 export class ViewerScene {
   private renderer: THREE.WebGLRenderer;
@@ -50,10 +81,18 @@ export class ViewerScene {
   private root = new THREE.Group();
   private ray = new THREE.Raycaster();
   private entries = new Map<string, Entry>();
-  private fixed: THREE.Mesh[] = [];
-  private shared: SharedMaterials;
-  private ownMaterials: THREE.Material[] = [];
-  private lights: THREE.Light[] = [];
+  private lib: MaterialLibrary;
+  private ctx: BuildCtx | null = null;
+  private fixed: Part[] = [];
+  private variants = new Map<string, Variant>();
+  private sun: THREE.DirectionalLight;
+  private sky: THREE.Mesh | null = null;
+  private envRT: THREE.WebGLRenderTarget | null = null;
+  private palette: SkyPalette | null = null;
+  /** The Middle East look (sand ground, hazy desert sky) for a fence. */
+  private desert = false;
+  private fog = new THREE.Fog("#dbe8f3", 50, 400);
+  private skyRadius = 400;
   private orbit: OrbitState = { yaw: 0.7, pitch: 0.45, dist: 46, minDist: 8, maxDist: 160 };
   private target: [number, number, number] = [0, 1, 0];
   private colors: SceneColors;
@@ -61,42 +100,56 @@ export class ViewerScene {
   private stepCount = 1;
   private step = 0;
   private explode = 0;
+  private cutaway = false;
+  /** A long fence opens on the whole run with a button for a close-up at a gate; set by setModel. */
+  closeUpAvailable = false;
+  private closeView: { target: [number, number, number]; dist: number } | null = null;
+  private wholeView: { target: [number, number, number]; dist: number } = { target: [0, 1, 0], dist: 30 };
+  private cutInfo: { cabin: boolean; d: number } = { cabin: false, d: 0 };
   private selected: string | null = null;
   private highlight: ReadonlySet<string> = new Set();
+  private visuals: Readonly<Record<string, string>> = {};
+  private slots: readonly DesignSlot[] | undefined;
+  private stepColours: THREE.Color[] = [];
   private dropStart = 0;
   private dirty = true;
+  private shadowDirty = true;
   private raf = 0;
   private disposed = false;
   private resizeObs: ResizeObserver | null = null;
   private detach: () => void;
   private reduced: boolean;
+  private tmpA = new THREE.Color();
+  private tmpB = new THREE.Color();
+  private glowTmp = new THREE.Color();
 
   private constructor(private host: HTMLElement, renderer: THREE.WebGLRenderer, private opts: SceneOptions) {
     this.renderer = renderer;
     this.reduced = opts.reducedMotion;
     this.colors = readSceneColors(host);
-    const edge = new THREE.LineBasicMaterial({ color: color(this.colors.line, "#8d99a6") });
-    const glass = new THREE.MeshLambertMaterial({ color: color(this.colors.glass, "#b9dbe6"), transparent: true, opacity: 0.65 });
-    const door = new THREE.MeshLambertMaterial({ color: 0x7a5c3e });
-    this.shared = { edge, glass, door };
-    this.ownMaterials.push(edge, glass, door);
 
-    renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
+    const small = host.clientWidth > 0 && host.clientWidth < 520;
+    renderer.setPixelRatio(Math.min(small ? 1.5 : 2, window.devicePixelRatio || 1));
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.shadowMap.autoUpdate = false;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.domElement.style.cssText = "display:block;width:100%;height:100%";
     host.appendChild(renderer.domElement);
 
-    const hemi = new THREE.HemisphereLight(0xdfeaf5, 0x8a8372, 0.85);
-    const sun = new THREE.DirectionalLight(0xffffff, 0.75);
-    sun.position.set(34, 55, 26);
-    sun.castShadow = true;
-    const small = host.clientWidth > 0 && host.clientWidth < 520;
-    sun.shadow.mapSize.set(small ? 1024 : 2048, small ? 1024 : 2048);
-    Object.assign(sun.shadow.camera, { left: -45, right: 45, top: 45, bottom: -45, far: 200 });
-    sun.shadow.radius = 3;
-    this.lights.push(hemi, sun);
-    this.scene.add(hemi, sun, this.root);
+    this.lib = createMaterialLibrary(Math.min(8, renderer.capabilities.getMaxAnisotropy()), () => this.onTexture());
+
+    this.sun = new THREE.DirectionalLight(0xffffff, 2.6);
+    this.sun.castShadow = true;
+    const size = small ? 1024 : 2048;
+    this.sun.shadow.mapSize.set(size, size);
+    this.sun.shadow.radius = 3;
+    this.sun.shadow.bias = -0.0003;
+    this.sun.shadow.normalBias = 0.04;
+    this.scene.add(this.sun, this.sun.target, this.root);
+    this.scene.fog = this.fog;
+    this.applyTheme();
 
     this.detach = attachOrbit(host, {
       get: () => this.orbit,
@@ -116,7 +169,7 @@ export class ViewerScene {
   static create(host: HTMLElement, opts: SceneOptions): ViewerScene | null {
     try {
       if (typeof WebGLRenderingContext === "undefined") return null;
-      const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+      const renderer = new THREE.WebGLRenderer({ antialias: true });
       if (!renderer.getContext()) { renderer.dispose(); return null; }
       return new ViewerScene(host, renderer, opts);
     } catch {
@@ -127,42 +180,73 @@ export class ViewerScene {
   /** `keepView`: a recomputed model of the same building, so the camera stays where the person put it. */
   setModel(model: GeometryModel, keepView = false): void {
     this.clearModel();
-    const c = this.colors;
-    const ground = new THREE.MeshLambertMaterial({ color: color(c.ground, "#d6cdbf") });
-    const slab = new THREE.MeshLambertMaterial({ color: color(c.ground, "#d6cdbf").offsetHSL(0, 0, -0.08) });
-    this.ownMaterials.push(ground, slab);
-    const plane = new THREE.Mesh(new THREE.PlaneGeometry(260, 260), ground);
-    plane.rotation.x = -Math.PI / 2;
-    plane.position.y = -0.41;
-    plane.receiveShadow = true;
-    const found = new THREE.Mesh(new THREE.BoxGeometry(model.w + 2, 0.4, model.d + 2), slab);
-    found.position.y = -0.2;
-    found.receiveShadow = true;
-    this.fixed = [plane, found];
-    this.root.add(plane, found);
+    this.slots = getGeometry(model.geometry)?.slots;
+    this.ctx = createBuildCtx(this.lib, model);
 
-    const codes = [...new Set(model.pieces.map((p) => p.code))].sort();
     let maxY = 3;
+    let radius = 6;
     model.pieces.forEach((piece) => {
-      const mat = new THREE.MeshLambertMaterial();
-      this.ownMaterials.push(mat);
-      const group = buildPieceGroup(piece, mat, this.shared);
-      this.root.add(group);
-      const tint = ((codes.indexOf(piece.code) % 7) - 3) * 0.02;
-      this.entries.set(piece.id, { piece, group, mat, tint, y0: piece.pos[1] });
       maxY = Math.max(maxY, piece.pos[1] + piece.dims.h / 2);
+      radius = Math.max(radius, Math.hypot(piece.pos[0], piece.pos[2]) + Math.max(piece.dims.w, piece.dims.t) / 2);
     });
+    this.cutInfo = { cabin: model.geometry === "porta_cabin", d: model.d };
+    const desert = model.geometry === CHAINLINK_FENCE_KEY;
+    if (desert !== this.desert) { this.desert = desert; this.palette = null; this.applyTheme(); }
     this.stepCount = Math.max(1, model.step_names.length);
     this.step = this.stepCount - 1;
     this.target = [0, maxY / 2, 0];
-    const dist = Math.max(30, (model.w + model.d) * 1.25 + maxY * 0.5);
+    // A fence is a long thin shape: frame it tight so the whole run just fits the view.
+    const dist = Math.max(model.view_min_dist ?? 30, desert ? (model.w + model.d) * FENCE_FIT_FACTOR + maxY : (model.w + model.d) * 1.25 + maxY * 0.5);
+    const maxDist = dist * 3.5;
+    this.wholeView = { target: [0, maxY / 2, 0], dist };
+    this.closeView = null;
+    if (model.geometry === CHAINLINK_FENCE_KEY && dist > CLOSE_UP_ABOVE_M) {
+      const at = model.pieces.find((p) => p.code === "GT") ?? model.pieces.find((p) => p.code === "CP") ?? model.pieces[0];
+      if (at) this.closeView = { target: [at.pos[0], 1.1, at.pos[2]], dist: CLOSE_UP_DIST_M };
+    }
+    this.closeUpAvailable = this.closeView !== null;
     this.orbit = keepView
-      ? { ...this.orbit, maxDist: Math.max(this.orbit.maxDist, dist * 3.5) }
-      : { ...this.orbit, dist, minDist: 8, maxDist: dist * 3.5 };
+      ? { ...this.orbit, maxDist: Math.max(this.orbit.maxDist, maxDist) }
+      : { ...this.orbit, dist, minDist: 8, maxDist };
+    const reach = Math.max(this.orbit.maxDist, maxDist);
+    this.fitAtmosphere(dist, reach, radius, maxY);
+
+    const withPlinth = model.geometry !== CHAINLINK_FENCE_KEY;
+    const groundKey = this.desert ? "ground_sand" : "ground_grass";
+    const ground = new THREE.Mesh(metricGroundGeometry(this.fogFar * 1.05), this.lib.get(groundKey));
+    ground.position.y = withPlinth ? -0.41 : 0;
+    ground.receiveShadow = true;
+    this.fixed = [this.fixedPart(ground, "ground", groundKey)];
+    this.root.add(ground);
+    if (withPlinth) {
+      const plinth = new THREE.Mesh(metricBoxGeometry(model.w + 2, 0.4, model.d + 2), this.lib.get("concrete_smooth"));
+      plinth.position.y = -0.2;
+      plinth.receiveShadow = true;
+      this.fixed.push(this.fixedPart(plinth, "plinth", "concrete_smooth"));
+      this.root.add(plinth);
+    }
+
+    const codes = [...new Set(model.pieces.map((p) => p.code))].sort();
+    model.pieces.forEach((piece) => {
+      const group = buildPieceGroup(piece, this.ctx!);
+      this.root.add(group);
+      const parts: Part[] = [];
+      group.traverse((o) => {
+        const mesh = o as THREE.Mesh;
+        if (!mesh.isMesh) return;
+        const u = mesh.userData as { slot?: string | null; def?: string; noTint?: boolean; decor?: PartDecor | null };
+        const own = u.def === undefined && (mesh.material as THREE.MeshStandardMaterial).isMeshStandardMaterial ? (mesh.material as THREE.MeshStandardMaterial) : null;
+        parts.push({ mesh, slot: u.slot ?? null, def: u.def ?? null, noTint: !!u.noTint, decor: u.decor ?? null, own });
+      });
+      const tint = ((codes.indexOf(piece.code) % 7) - 3) * 0.02;
+      this.entries.set(piece.id, { piece, group, parts, tint, y0: piece.pos[1] });
+    });
+    this.stepColours = Array.from({ length: this.stepCount + 1 }, (_, i) => new THREE.Color().setHSL((i / this.stepCount) * 0.75, 0.42, 0.55));
     this.paint();
     this.applyVisibility();
     this.applyPositions(1);
     this.dirty = true;
+    this.shadowDirty = true;
   }
 
   setStep(step: number, animate: boolean): void {
@@ -175,19 +259,19 @@ export class ViewerScene {
 
   setExplode(v: number): void { this.explode = Math.max(0, Math.min(1, v)); this.applyPositions(this.dropStart ? 0 : 1); this.dirty = true; }
   setReducedMotion(r: boolean): void { this.reduced = r; if (r) { this.dropStart = 0; this.applyPositions(1); this.dirty = true; } }
-  setSelected(mark: string | null): void { this.selected = mark; this.paintEmphasis(); }
-  setHighlight(marks: ReadonlySet<string>): void { this.highlight = marks; this.paintEmphasis(); }
+  setSelected(mark: string | null): void { this.selected = mark; this.paint(); }
+  setHighlight(marks: ReadonlySet<string>): void { this.highlight = marks; this.paint(); }
   setColourMode(m: ColourMode): void { this.mode = m; this.paint(); }
+
+  /** Repaint the model: slot -> material key or "#rrggbb". No geometry is rebuilt and the camera does not move. */
+  setVisuals(visuals: Readonly<Record<string, string>> | undefined): void {
+    this.visuals = visuals ?? {};
+    this.paint();
+  }
 
   /** Re-read the theme variables (light / dark switched). */
   refreshTheme(): void {
-    this.colors = readSceneColors(this.host);
-    const c = this.colors;
-    this.shared.edge.color = color(c.line, "#8d99a6");
-    this.shared.glass.color = color(c.glass, "#b9dbe6");
-    const [plane, found] = this.fixed;
-    if (plane) (plane.material as THREE.MeshLambertMaterial).color = color(c.ground, "#d6cdbf");
-    if (found) (found.material as THREE.MeshLambertMaterial).color = color(c.ground, "#d6cdbf").offsetHSL(0, 0, -0.08);
+    this.applyTheme();
     this.paint();
   }
 
@@ -208,9 +292,11 @@ export class ViewerScene {
     this.detach();
     this.resizeObs?.disconnect();
     this.clearModel();
-    this.ownMaterials.forEach((m) => m.dispose());
-    this.ownMaterials = [];
-    this.lights.forEach((l) => { l.dispose?.(); });
+    this.lib.dispose();
+    if (this.sky) { this.scene.remove(this.sky); disposeSky(this.sky); this.sky = null; }
+    this.envRT?.dispose();
+    this.envRT = null;
+    this.sun.dispose();
     this.scene.clear();
     this.renderer.dispose();
     this.renderer.forceContextLoss();
@@ -219,54 +305,178 @@ export class ViewerScene {
 
   // ── internals ──────────────────────────────────────────────────────────────
 
-  private clearModel(): void {
-    for (const e of this.entries.values()) {
-      this.root.remove(e.group);
-      disposeGeometries(e.group);
-      e.mat.dispose();
-      this.ownMaterials = this.ownMaterials.filter((m) => m !== e.mat);
-    }
-    this.entries.clear();
-    for (const f of this.fixed) {
-      this.root.remove(f);
-      f.geometry.dispose();
-      const m = f.material as THREE.Material;
-      m.dispose();
-      this.ownMaterials = this.ownMaterials.filter((x) => x !== m);
-    }
-    this.fixed = [];
+  private fogFar = 400;
+
+  private fixedPart(mesh: THREE.Mesh, slot: string, def: string): Part {
+    return { mesh, slot, def, noTint: false, decor: null, own: null };
   }
 
-  private paint(): void {
-    const base = color(this.colors.concrete, "#c9d1d9");
-    const hsl = { h: 0, s: 0, l: 0 };
-    base.getHSL(hsl);
-    let k = 0;
-    for (const e of this.entries.values()) {
-      const c = base.clone();
-      if (this.mode === "step") {
-        c.setHSL((e.piece.step / this.stepCount) * 0.75, 0.42, Math.min(0.72, Math.max(0.42, hsl.l)));
-      } else {
-        c.offsetHSL(0, 0, e.tint + (((k * 37) % 7) - 3) * 0.006);
-      }
-      e.mat.color.copy(c);
-      k++;
-    }
-    this.paintEmphasis();
+  /** Camera range, fog, sky size and the sun's shadow box, all from the size of the model and how far the person can zoom. */
+  private fitAtmosphere(dist: number, reach: number, radius: number, maxY: number): void {
+    this.fogFar = reach * 2.4;
+    this.fog.near = dist * 1.4;
+    this.fog.far = this.fogFar;
+    const far = Math.max(600, this.fogFar * 1.25);
+    this.camera.far = far;
+    this.camera.near = Math.max(0.1, far / 8000);
+    this.camera.updateProjectionMatrix();
+    this.skyRadius = far * 0.92;
+
+    const r = Math.min(SHADOW_RADIUS_MAX_M, radius + 8);
+    const lightDist = r * 2 + SUN_FLOOR_M + maxY;
+    this.sun.target.position.set(0, maxY * 0.35, 0);
+    this.sun.position.copy(SUN_DIRECTION).multiplyScalar(lightDist).add(this.sun.target.position);
+    Object.assign(this.sun.shadow.camera, { left: -r, right: r, top: r, bottom: -r, near: 1, far: lightDist + r * 2 + maxY });
+    this.sun.shadow.camera.updateProjectionMatrix();
+    this.sun.target.updateMatrixWorld();
+    this.shadowDirty = true;
   }
 
-  private paintEmphasis(): void {
-    const accent = color(this.colors.accent, "#378add");
-    for (const e of this.entries.values()) {
-      const id = e.piece.id;
-      const strength = id === this.selected ? 0.6 : this.highlight.has(id) ? 0.32 : 0;
-      e.mat.emissive.copy(accent).multiplyScalar(strength);
+  private applyTheme(): void {
+    this.colors = readSceneColors(this.host);
+    const pal = skyPalette(isDarkTheme(this.colors.ground), this.desert);
+    if (pal !== this.palette) {
+      this.palette = pal;
+      this.renderer.toneMappingExposure = pal.exposure;
+      this.sun.color.set(pal.sun);
+      this.sun.intensity = pal.sunLight;
+      this.fog.color.set(pal.horizon);
+      if (this.sky) { this.scene.remove(this.sky); disposeSky(this.sky); }
+      this.sky = createSkyDome(pal);
+      this.scene.add(this.sky);
+      const pm = new THREE.PMREMGenerator(this.renderer);
+      const env = createEnvironmentScene(pal);
+      this.envRT?.dispose();
+      this.envRT = pm.fromScene(env, 0.02, 1, 100);
+      pm.dispose();
+      disposeSky(env);
+      this.scene.environment = this.envRT.texture;
+      this.scene.environmentIntensity = pal.env;
     }
     this.dirty = true;
   }
 
+  private onTexture(): void {
+    if (this.disposed) return;
+    for (const v of this.variants.values()) this.syncVariant(v);
+    this.dirty = true;
+  }
+
+  private clearModel(): void {
+    for (const e of this.entries.values()) { this.root.remove(e.group); disposeGeometries(e.group); }
+    this.entries.clear();
+    for (const f of this.fixed) {
+      this.root.remove(f.mesh);
+      f.mesh.geometry.dispose();
+    }
+    this.fixed = [];
+    if (this.ctx) { disposeBuildCtx(this.ctx); this.ctx = null; }
+    for (const v of this.variants.values()) v.mat.dispose();
+    this.variants.clear();
+  }
+
+  /** The unemphasised material of a part: its own, else the slot's visual, else the part's default. */
+  private baseOf(p: Part): THREE.MeshStandardMaterial {
+    if (p.own) return p.own;
+    const value = (p.slot ? slotValue(this.slots, this.visuals, p.slot) : null) ?? p.def ?? "concrete_smooth";
+    return this.lib.get(value);
+  }
+
+  private syncVariant(v: Variant): void {
+    const m = v.mat;
+    const b = v.base;
+    if (m.map !== b.map || m.normalMap !== b.normalMap || m.roughnessMap !== b.roughnessMap) {
+      m.map = b.map;
+      m.normalMap = b.normalMap;
+      m.roughnessMap = b.roughnessMap;
+      m.needsUpdate = true;
+    }
+    m.roughness = b.roughness;
+    m.metalness = b.metalness;
+    m.color.copy(b.color).multiply(v.tint);
+  }
+
+  /** The base material itself when nothing changes it, else a cached copy with the tint, glow and mesh treatment applied. */
+  private variantFor(base: THREE.MeshStandardMaterial, tint: THREE.Color, glow: THREE.Color, decor: PartDecor | null): THREE.MeshStandardMaterial {
+    const plain = !decor && glow.r === 0 && glow.g === 0 && glow.b === 0 && tint.r === 1 && tint.g === 1 && tint.b === 1;
+    if (plain) return base;
+    const key = `${base.uuid}|${tint.r.toFixed(3)},${tint.g.toFixed(3)},${tint.b.toFixed(3)}|${glow.r.toFixed(3)},${glow.g.toFixed(3)},${glow.b.toFixed(3)}|${decor?.id ?? ""}`;
+    let v = this.variants.get(key);
+    if (!v) {
+      const mat = base.clone();
+      if (decor) {
+        mat.alphaMap = decor.alphaMap;
+        // The lattice is a fine wire: blended (not cut out) so it still reads as a faint screen when the wires are
+        // thinner than a pixel; a low alpha test drops the fully empty texels.
+        mat.alphaTest = decor.alphaTest;
+        mat.side = THREE.DoubleSide;
+        mat.transparent = true;
+        mat.depthWrite = false;
+      }
+      v = { mat, base, tint: tint.clone(), used: true };
+      this.variants.set(key, v);
+      this.syncVariant(v);
+    }
+    v.mat.emissive.copy(glow);
+    v.used = true;
+    return v.mat;
+  }
+
+  private paint(): void {
+    if (!this.palette) return;
+    for (const v of this.variants.values()) v.used = false;
+    const accent = color(this.colors.accent, "#378add");
+    const tint = this.tmpA;
+    const glow = this.tmpB;
+    let k = 0;
+    for (const e of this.entries.values()) {
+      const strength = e.piece.id === this.selected ? 0.6 : this.highlight.has(e.piece.id) ? 0.32 : 0;
+      for (const p of e.parts) {
+        const base = this.baseOf(p);
+        glow.copy(BLACK);
+        if (p.noTint) tint.copy(WHITE);
+        else if (this.mode === "step") {
+          const sc = this.stepColours[Math.min(e.piece.step, this.stepColours.length - 1)] ?? WHITE;
+          tint.copy(WHITE).lerp(sc, 0.55);
+          glow.copy(sc).multiplyScalar(0.12);
+        } else {
+          const f = Math.round((1 + e.tint + (((k * 37) % 7) - 3) * 0.006) * 50) / 50;
+          tint.setRGB(f, f, f);
+        }
+        if (strength > 0) glow.add(this.glowTmp.copy(accent).multiplyScalar(strength));
+        p.mesh.material = this.variantFor(base, tint, glow, p.decor);
+      }
+      k++;
+    }
+    const groundTint = color(this.palette.groundTint, "#ffffff");
+    for (const f of this.fixed) f.mesh.material = this.variantFor(this.baseOf(f), f.slot === "ground" ? groundTint : WHITE, BLACK, null);
+    for (const [key, v] of this.variants) {
+      if (v.used) continue;
+      v.mat.dispose();
+      this.variants.delete(key);
+    }
+    this.dirty = true;
+  }
+
+  /** A long fence: look at one gate from close by, or at the whole run. */
+  setFraming(closeUp: boolean): void {
+    const v = closeUp && this.closeView ? this.closeView : this.wholeView;
+    this.target = [...v.target] as [number, number, number];
+    this.orbit = { ...this.orbit, dist: v.dist };
+    this.dirty = true;
+  }
+
+  /** See inside a cabin: the roof and the front long wall are hidden (the rooms and their equipment show). */
+  setCutaway(on: boolean): void { this.cutaway = on; this.applyVisibility(); this.dirty = true; }
+
+  private cutAway(p: Piece): boolean {
+    if (!this.cutaway || !this.cutInfo.cabin) return false;
+    return p.code === "RF" || (p.code === "WL" && Math.abs(Math.sin(p.rot ?? 0)) < 0.5 && p.pos[2] > this.cutInfo.d / 2 - 0.3);
+  }
+
   private applyVisibility(): void {
-    for (const e of this.entries.values()) e.group.visible = e.piece.step <= this.step;
+    for (const e of this.entries.values()) e.group.visible = e.piece.step <= this.step && !this.cutAway(e.piece);
+    this.shadowDirty = true;
   }
 
   private applyPositions(dropK: number): void {
@@ -275,6 +485,7 @@ export class ViewerScene {
       const falling = e.piece.step === this.step ? drop : 0;
       e.group.position.y = e.y0 + falling + this.explode * e.piece.floor * EXPLODE_M_PER_FLOOR;
     }
+    this.shadowDirty = true;
   }
 
   private pickAt(clientX: number, clientY: number): void {
@@ -300,6 +511,8 @@ export class ViewerScene {
     const p = cameraPosition(this.target, this.orbit);
     this.camera.position.set(p[0], p[1], p[2]);
     this.camera.lookAt(this.target[0], this.target[1], this.target[2]);
+    if (this.sky) { this.sky.position.copy(this.camera.position); this.sky.scale.setScalar(this.skyRadius); }
+    if (this.shadowDirty) { this.renderer.shadowMap.needsUpdate = true; this.shadowDirty = false; }
     this.renderer.render(this.scene, this.camera);
   };
 }

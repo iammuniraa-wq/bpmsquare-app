@@ -1,3 +1,4 @@
+import { isOrgKind } from "@/lib/middleware/erpOrgPure";
 import { applyConverter, validateConverter } from "@/lib/middleware/mapping/convert";
 import { kindLabel } from "@/lib/middleware/mapping/valueLists";
 import {
@@ -143,7 +144,8 @@ export function startConverter(kind: Converter["kind"], listKind: string): Conve
 
 /** The lists a "Value list" converter can point at: the connection's, the proposed ones, and the standard kinds. */
 export function listChoices(existing: readonly string[], proposed: readonly string[]): { kind: string; label: string }[] {
-  const kinds = [...new Set([...STANDARD_LIST_KINDS, ...existing, ...proposed])];
+  // The sales area and ERP company lists are read by the order, not by a mapping field, so a field cannot point at them.
+  const kinds = [...new Set([...STANDARD_LIST_KINDS, ...existing, ...proposed])].filter((k) => !isOrgKind(k));
   return kinds.map((k) => ({ kind: k, label: kindLabel(k) }));
 }
 

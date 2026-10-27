@@ -1,0 +1,65 @@
+0:00  SCENE 1: Title slide, BPMSquare AI CRM (21 s)
+A CRM is where a company keeps everything about its customers in one place: who they are, what they asked for, what was quoted, and what happened next. BPMSquare is an AI CRM built for companies that sell projects. This is a short walkthrough.
+
+0:21  SCENE 2: Overview (66 s)
+BPMSquare is one platform for the whole customer journey. Your accounts and contacts; quotes and pricing; products with their bills of materials; supplier requests for quotation; marketing and follow-up. It is built for companies that sell projects, in English and Arabic, and it integrates with your ERP. Everything starts from one customer record, so sales, pricing and marketing never work from different lists.
+
+1:27  SCENE 3: Menu from Spaces (6 s)
+Everything is grouped into spaces: Sales, Service, Marketing, Master data, Workforce and Insights.
+
+1:33  SCENE 4: Your CRM assistant (21 s)
+On every screen, a slider at the bottom right brings up your assistant. Ask it a question in plain words, for example the total value of open quotations. It answers from your live data, and follow-up questions keep their context. It can read, but it can never change or delete anything.
+
+1:54  SCENE 5: Talk to your data (24 s)
+On the Analytics page, the Talk to data tab goes further. Describe a report in your own words, and BPMSquare builds it. You can change it, save it, and put it on your dashboard.
+
+2:18  SCENE 6: AI from an email (34 s)
+Email is where work starts. Press Control and K, choose New quote from paste, and paste a customer's message. BPMSquare drafts the account, the contact and the quote for you. A person always checks before anything is saved.
+
+2:52  SCENE 7: Newsletter in English and Arabic (43 s)
+In the Newsletter Studio, the assistant drafts the email, and each language sits in its own tab. In the Arabic tab, every translated line waits for a person to check it. Compare languages shows Arabic and English side by side, and the phone preview shows how it looks in your customer's hand. The newsletter only goes to people who agreed to receive it.
+
+3:35  SCENE 8: Journey (7 s)
+A journey is a follow-up you set once: three days after a quote, a newsletter goes out and the owner gets a task to call.
+
+3:42  SCENE 9: Account-based programs (12 s)
+For the companies that matter most, an account-based program tracks each target account through its buying stage, and shows who in the buying group still needs to be reached.
+
+3:54  SCENE 10: Slide, AI wherever you work (15 s)
+AI is built into the screens your team already uses. Your data stays in your workspace, and a person checks every result before anything is saved or sent.
+
+4:09  SCENE 11: Start with the customer, paste the email (44 s)
+A new estimate starts blank, with the customer first. Your sales team gets an email from a customer and pastes it here. BPMSquare reads it and fills in the details: two floors, around 220 square metres per floor, premium finish, stairs, a boundary wall. It also picks up who sent it. The sender is not in the system yet, so one click creates the account and the contact. Nothing is created until you press the button.
+
+4:53  SCENE 12: The villa and the price (19 s)
+Here is the building, made from the numbers, with the actual precast pieces: walls, slabs, columns, stairs. Change the finish and the price updates straight away. The bill of materials is added up from these pieces.
+
+5:12  SCENE 13: How the price is built (27 s)
+Your team can open how the price is built: materials, production, transport, erection and overhead, then margin and VAT. The schedule shows how long casting takes with your plant capacity, and a risk range for the cost. These rates are examples. In the project we set them with your numbers.
+
+5:39  SCENE 14: Create the quote (59 s)
+One click turns the estimate into a customer quote, grouped in sections. The customer sees prices, not your internal costs. The quote carries the sender's details, the sections and the totals, and it can be sent, revised, or copied for a second option.
+
+6:38  SCENE 15: Quote lines (13 s)
+Every line links back to a product in your catalogue, so the quote and the estimate always agree.
+
+6:51  SCENE 16: Bill of materials and kit components (32 s)
+The lines come from your product catalogue. A frame mix kit is made of precast columns and beams, and its cost is rolled up from those parts. Change a material cost once, and every estimate follows.
+
+7:23  SCENE 17: Fence projects (25 s)
+The same system handles any kind of project. In the Fence Design Studio, set the length, posts, mesh and gates, and see the fence in plan and in three dimensions. The quantities list builds itself, and one click continues to a quote.
+
+7:48  SCENE 18: Cost-based rates and price books (19 s)
+Prices start from what things cost you. Freight, handling and margin are set in one place, and the margin can differ by region or customer segment. A price book can be a catalogue, a formula, or cost plus a mark-up.
+
+8:07  SCENE 19: Quantity scales on a line (44 s)
+A price list can carry quantity scales. Forty metres of wire rope is priced at list. Change it to one hundred and fifty metres, and the price steps down to a better band, on its own. Open the line, and it shows which rule applied and how the number was built, step by step.
+
+8:51  SCENE 20: Coverage, instead of a fixed sales area (39 s)
+In a traditional ERP, a sales area is a fixed combination of organisation, channel and division. Here, coverage is rule-based. A segment says which accounts, for example the south region or hospitals. A team says who looks after them. Coverage connects the two as owner, overlay or service, with a start date and a priority. It decides who owns an account, and which ERP endpoint a record is sent to, and it is recalculated live when the rules change.
+
+9:30  SCENE 21: Slide, integrated with your ERP (62 s)
+BPMSquare integrates with your ERP, any ERP, including ePROMIS. From the ERP, your materials, suppliers, accounts, and price lists with their quantity scales are replicated, so there is one source of truth. From BPMSquare, once a quote is won, the project or the order is created in your ERP. Your team keeps working in the system it already knows. Data moves through open tools: import and export, a standard REST interface, and notifications when something changes. The same approach works with ePROMIS, Dynamics 365, SAP, or any system your company uses.
+
+10:32  SCENE 22: Closing slide (12 s)
+Everything shown can be shaped with your real products, rates and rules. We would be glad to do that with you. Thank you.

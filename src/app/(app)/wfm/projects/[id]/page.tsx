@@ -17,6 +17,7 @@ import { depthOf } from "@/lib/wfm/projectTree";
 import DeleteProject from "./DeleteProject";
 import ObjectSections from "@/components/fields/ObjectSections";
 import Tabs from "@/components/ui/Tabs";
+import SourceEmailSlot from "@/components/inbox/SourceEmailSlot";
 import { ROUTES } from "@/lib/constants";
 
 export default async function WfmProjectPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ tab?: string }> }) {
@@ -91,6 +92,7 @@ export default async function WfmProjectPage({ params, searchParams }: { params:
         <>
           <ProjectHoursPanel projectId={id} budgetHours={project.budget_hours} />
           <SubItems projectId={id} />
+          <SourceEmailSlot objectType="wfm_projects" objectId={id} />
         </>
       )}
 

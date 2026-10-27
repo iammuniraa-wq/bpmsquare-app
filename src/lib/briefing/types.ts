@@ -32,8 +32,8 @@ export type Briefing = {
   yesterday: BriefingLine[];
   today: BriefingLine[];
   focus: FocusLine[];
-  /** AI wording of the headings (WP8). Absent here: the rule's own wording is the text. */
-  wording?: { yesterday: string; today: string; focus: string[] } | null;
+  /** The optional AI paragraph (WP8), made only from the facts above and checked against them. Absent: the list stands alone. */
+  wording?: { paragraph: string; lang: string; facts: string } | null;
   computedAt: string;
   /** Nothing yesterday and nothing open: the new-user state. */
   empty: boolean;
@@ -48,11 +48,13 @@ export type Briefing = {
 /** What the briefing rules look at: one thing that wants the person's attention today. */
 export type CandidateKind =
   | "quote_expired" | "quote_expiring" | "quote_draft"
+  | "order_confirm"
   | "lead_ready" | "lead_new"
   | "deal_late" | "deal_closing"
   | "abm_step" | "task_due" | "invoice_overdue" | "mention"
   | "wfm_leave" | "wfm_correction" | "wfm_overtime"
-  | "sync_failed";
+  | "sync_failed"
+  | "inbox_new";
 
 export type Candidate = {
   /** Unique across kinds, e.g. "quote:<uuid>". Used for the final tie-break so ranking is deterministic. */

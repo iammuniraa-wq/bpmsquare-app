@@ -6,6 +6,8 @@ import { CONNECTOR_ID, loadD365, previewEntity, publicState, runPull, runPushFen
 import { entityConfig, outboundConfig } from "@/lib/connectors/d365/catalog";
 import { selectionSupport, type RunSelection } from "@/lib/connectors/d365/selection";
 import { hasScope, scopeSummary } from "@/lib/connectors/d365/scope";
+import { ordersSchemaReady } from "@/lib/connectors/d365/orders";
+import { ERP_DOCUMENTS_BUNDLE } from "@/lib/salesOrders/erpDocs";
 import { D365_ENTITY_KEYS, D365_ENTITY_LABEL, D365_ENTITY_TARGET, type D365Config, type D365EntityKey, type D365PublicState } from "@/lib/connectors/d365/types";
 import { pushAccountToErp } from "@/lib/accountPush";
 import { middlewareClient } from "./client";
@@ -267,7 +269,7 @@ export async function connectionCheck(admin: SupabaseClient, tenantId: string, o
 
 // ── Sync (Resync tab and Mapping tab) ───────────────────────────────────────
 
-const SCOPE_PLURAL: Record<D365EntityKey, string> = { customers: "customers", contacts: "contacts", vendors: "vendors", products: "products", projects: "projects", fence_projects: "fence projects" };
+const SCOPE_PLURAL: Record<D365EntityKey, string> = { customers: "customers", contacts: "contacts", vendors: "vendors", products: "products", projects: "projects", fence_projects: "fence projects", sales_orders: "sales orders" };
 
 export const SYNC_SCHEDULES = ["off", "hourly", "daily"] as const;
 export type SyncSchedule = (typeof SYNC_SCHEDULES)[number];
@@ -285,7 +287,10 @@ export async function syncOverview(admin: SupabaseClient, tenantId: string) {
     if (!latest.has(e)) latest.set(e, r);
     if (r.status === "running") running.add(e);
   }
-  const entities = await Promise.all(D365_ENTITY_KEYS.map(async (key) => {
+  // Sales orders are read from Dataverse only; for the other products the entity does not exist and is not listed.
+  const listed = D365_ENTITY_KEYS.filter((key) => key !== "sales_orders" || !!entityConfig(cfg, key));
+  const ordersReady = listed.includes("sales_orders") ? await ordersSchemaReady(admin, tenantId) : true;
+  const entities = await Promise.all(listed.map(async (key) => {
     const ec = entityConfig(cfg, key);
     const { count } = await admin.from("connector_links").select("id", { count: "exact", head: true }).eq("tenant_id", tenantId).eq("connector_id", CONNECTOR_ID).eq("entity", key);
     const run = latest.get(key) ?? null;
@@ -293,7 +298,8 @@ export async function syncOverview(admin: SupabaseClient, tenantId: string) {
       key, label: D365_ENTITY_LABEL[key], direction: D365_ENTITY_TARGET[key].direction, enabled: ec?.enabled === true, entity_set: ec?.entity_set ?? null,
       schedule: (ec?.schedule ?? cfg.schedule) as SyncSchedule, schedule_source: ec?.schedule ? ("entity" as const) : ("connector" as const),
       running: running.has(key), linked: count ?? 0, filters: selectionSupport(cfg.product, ec),
-      scope: key === "fence_projects" ? null : { summary: scopeSummary(ec?.scope, SCOPE_PLURAL[key]), narrowed: hasScope(ec?.scope), needs_full: hasScope(ec?.scope) && ec?.scope?.needs_full === true },
+      blocked: key === "sales_orders" && !ordersReady ? `A database update is needed first (${ERP_DOCUMENTS_BUNDLE}).` : null,
+      scope: key === "fence_projects" || key === "sales_orders" ? null : { summary: scopeSummary(ec?.scope, SCOPE_PLURAL[key]), narrowed: hasScope(ec?.scope), needs_full: hasScope(ec?.scope) && ec?.scope?.needs_full === true },
       last_run: run ? { status: run.status, trigger: run.trigger, started_at: run.started_at, finished_at: run.finished_at, counts: run.counts, error: run.error } : null,
     };
   }));

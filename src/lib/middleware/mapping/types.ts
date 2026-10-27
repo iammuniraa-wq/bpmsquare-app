@@ -79,10 +79,13 @@ export type MappingDocument = {
 
 export type ValueListRow = { bpm: string; erp: string; inbound: boolean };
 
-export const STANDARD_LIST_KINDS = ["unit", "currency", "country", "payment_terms", "incoterms", "status"] as const;
+/** The organisation lists (SO4): their BPMSquare side is a coverage or an order type, not free text (src/lib/middleware/erpOrgPure.ts). */
+export const ORG_LIST_KINDS = ["sales_area", "erp_company"] as const;
+export const STANDARD_LIST_KINDS = ["unit", "currency", "country", "payment_terms", "incoterms", "status", ...ORG_LIST_KINDS] as const;
 export type StandardListKind = (typeof STANDARD_LIST_KINDS)[number];
 export const STANDARD_LIST_LABEL: Record<StandardListKind, string> = {
   unit: "Unit", currency: "Currency", country: "Country", payment_terms: "Payment terms", incoterms: "Incoterms", status: "Status",
+  sales_area: "Sales area", erp_company: "ERP company",
 };
 export const MAX_CUSTOM_LISTS = 20;
 export const MAX_LIST_ROWS = 2000;

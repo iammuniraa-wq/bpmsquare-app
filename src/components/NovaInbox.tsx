@@ -20,12 +20,13 @@ type Item = {
 };
 
 const ROUTE_FOR: Record<string, (id: string) => string> = {
-  quotes: ROUTES.quotation, accounts: ROUTES.account, contacts: ROUTES.contact,
-  products: ROUTES.product, suppliers: ROUTES.supplier,
+  quotes: ROUTES.quotation, standard_quotes: ROUTES.standardQuote, sales_orders: ROUTES.salesOrder, accounts: ROUTES.account, contacts: ROUTES.contact,
+  products: ROUTES.product, suppliers: ROUTES.supplier, contract_projects: ROUTES.contractProject,
   wfm_projects: ROUTES.wfmProject, opportunities: ROUTES.pipelineDetail,
   rfqs: ROUTES.rfq,
   estimates: ROUTES.estimate,
   leads: ROUTES.marketingLead,
+  inbound_emails: ROUTES.inboxMessage,
   abm_programs: ROUTES.marketingAbmProgram,
   abm_targets: ROUTES.marketingAbmTargetShort,
 };

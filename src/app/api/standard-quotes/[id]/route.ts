@@ -9,10 +9,12 @@ import { computeStandardQuoteTotals, clampPct, clampAmount } from "@/lib/standar
 import { parseDateOverride, parseTimestampOverride } from "@/lib/dateProfile";
 import { derivePricingFlags, withPricingColumns, insertLinesTolerant, verifiedProductIds, verifiedRfqLineIds, resolveLineIdsAndSelection, writeHeaderTolerant } from "@/lib/pricing/quoteLineFlags";
 import { parsePrintOptions, isDefaultPrintOptions } from "@/lib/sales/printOptions";
-import { emitQuoteSent, emitQuoteStatusChanged, emitQuoteOutcome } from "@/lib/events/emitters";
+import { emitQuoteSent, emitQuoteStatusChanged, emitQuoteOutcome, emitQuoteAccepted } from "@/lib/events/emitters";
+import { closeOpportunityAsWon } from "@/lib/sales/closeDeal";
 import { outcomeForStatus } from "@/lib/middleware/types";
 import { scheduleQuoteDispatch } from "@/lib/middleware/schedule";
 import type { TenantFeatures } from "@/lib/constants";
+import { cfOnly } from "@/lib/customData";
 
 const VALID_STATUSES = ["draft", "sent", "accepted", "rejected", "expired"];
 
@@ -98,6 +100,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     } else patch.opportunity_id = null;
   }
   if ("status" in body) patch.status = body.status;
+  // Tenant fields (0209): cf_ keys only; writeHeaderTolerant drops the column while 0209 is pending.
+  if (cfOnly(body.custom_data)) patch.custom_data = cfOnly(body.custom_data);
 
   // Date profile (0059). Manual overrides first -- null clears, a valid
   // YYYY-MM-DD sets, anything malformed is a 400 -- then auto-stamps, which
@@ -242,6 +246,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     };
     await emitQuoteStatusChanged(tenantId, { ...ctx, from: before.status as string, to: String(body.status) });
     if (body.status === "sent") await emitQuoteSent(tenantId, ctx);
+    if (body.status === "accepted") await emitQuoteAccepted(tenantId, { ...ctx, total: (updated as { total?: number } | null)?.total ?? null });
     const outcome = outcomeForStatus(String(body.status));
     // Only a workspace with the integration middleware flag gets the awarded/rejected
     // event and the ERP dispatch, so every other workspace behaves exactly as before.
@@ -259,6 +264,17 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     const stages = opportunityStages((await getTenant())?.config);
     const admin = createAdminSupabase();
     await Promise.all(dealIds.map((oid) => refreshOpportunityDerived(admin, tenantId, oid, stages)));
+
+    // An accepted quote wins its deal (only if the deal is still open; a won, lost or dropped
+    // deal is never reopened or touched). Rejected changes nothing on the deal.
+    const dealId = (updated as { opportunity_id?: string | null } | null)?.opportunity_id;
+    if (features.pipeline && dealId && "status" in body && body.status === "accepted" && before.status !== "accepted") {
+      const u = await getAuthUser();
+      await closeOpportunityAsWon(admin, {
+        tenantId, opportunityId: dealId, stages, actor: { id: u?.id, email: u?.email },
+        reason: `Quote ${(updated as { ref?: string } | null)?.ref ?? ""} accepted`.trim(),
+      });
+    }
   }
 
   return NextResponse.json(updated);

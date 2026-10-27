@@ -1,5 +1,6 @@
 "use client";
 
+import { clearDockChats } from "@/lib/assistant/dockChat";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
@@ -420,6 +421,7 @@ function UserFooter({ accent, collapsed }: { accent: string; collapsed?: boolean
 
   async function signOut() {
     const { createBrowserSupabase } = await import("@/lib/supabase-browser");
+    clearDockChats();
     await createBrowserSupabase().auth.signOut();
     router.push("/login");
   }
@@ -512,6 +514,15 @@ export default function Sidebar({ onNavigate, hideHeader }: { onNavigate?: () =>
   // when explicitly opened, and an icon rail inside a drawer would be
   // useless -- it always opens with full labels.
   const [collapsed, setCollapsed] = useState(!onNavigate);
+  // A wide wordmark logo is squeezed into the 34 px square and becomes unreadable; once its real shape is known it gets the row's width.
+  const [logoWide, setLogoWide] = useState(false);
+  const logoRef = useRef<HTMLImageElement | null>(null);
+  const logoSrc = tenant?.logo_url ?? null;
+  // A cached image can finish loading before React attaches onLoad, so the shape is also read from an image that is already complete.
+  useEffect(() => {
+    const im = logoRef.current;
+    if (im && im.complete && im.naturalWidth > 0) setLogoWide(im.naturalWidth / Math.max(1, im.naturalHeight) > 1.6);
+  }, [logoSrc]);
 
   // Spectacular's rail leads with Spaces, and the full tree is opt-in
   // underneath it -- Nova's own arrangement. Showing both at once meant
@@ -628,17 +639,21 @@ export default function Sidebar({ onNavigate, hideHeader }: { onNavigate?: () =>
         borderBottom: "1px solid var(--sb-line)",
         marginBottom: 12,
       }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 9, minWidth: 0 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 9, minWidth: 0, flex: logoWide && !collapsed ? 1 : undefined }}>
           {tenant?.logo_url ? (
             <img
+              ref={logoRef}
               src={tenant.logo_url}
               alt={tenant.name}
-              style={{ width: 34, height: 34, borderRadius: 8, objectFit: "contain", flexShrink: 0 }}
+              onLoad={(e) => setLogoWide(e.currentTarget.naturalWidth / Math.max(1, e.currentTarget.naturalHeight) > 1.6)}
+              style={logoWide && !collapsed
+                ? { height: 44, width: "auto", maxWidth: "100%", boxSizing: "border-box", borderRadius: 6, objectFit: "contain", minWidth: 0, background: "#fff", padding: "5px 8px" }
+                : { width: 34, height: 34, borderRadius: 8, objectFit: "contain", flexShrink: 0 }}
             />
           ) : (
             <Logo size={34} />
           )}
-          {!collapsed && (
+          {!collapsed && !(logoWide && tenant?.logo_url) && (
             <div style={{ minWidth: 0 }}>
               <div
                 title={tenant?.name}

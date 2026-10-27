@@ -25,6 +25,11 @@ export const EVENTS = {
   // Core status values are not renamed; these sit next to quote.status_changed.
   QUOTE_AWARDED: "quote.awarded",
   QUOTE_REJECTED: "quote.rejected",
+  // Sales orders (docs/design/sales-order.md). Payloads carry ids and numbers, never names.
+  ORDER_CREATED: "order.created",
+  ORDER_CONFIRMED: "order.confirmed",
+  ORDER_CANCELLED: "order.cancelled",
+  ORDER_SENT: "order.sent",
   // Pricing / RFQ
   PRICING_VERSION_PUBLISHED: "pricing.version_published",
   PRICING_RFQ_REPLIED: "pricing.rfq_replied",
@@ -100,6 +105,10 @@ export const EVENTS = {
   ABM_MEMBER_ADDED: "abm.buying_group.member_added",
   ABM_MEMBER_REMOVED: "abm.buying_group.member_removed",
   ABM_MEMBER_ROLE_CHANGED: "abm.buying_group.role_changed",
+  // Shared Inbox (0214). Payloads carry ids and counts, never an address, a subject or any of the mail.
+  EMAIL_RECEIVED: "email.received",
+  EMAIL_HANDLED: "email.handled",
+  EMAIL_CONVERTED: "email.converted",
   // WFM (planned; no marketing use)
   WFM_LEAVE_REQUESTED: "wfm.leave_requested",
   WFM_OT_REQUESTED: "wfm.ot_requested",

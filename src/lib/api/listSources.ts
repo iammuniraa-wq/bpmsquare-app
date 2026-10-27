@@ -5,6 +5,9 @@ import type { QueryableField } from "./query";
 import type { WorkcenterKey } from "@/lib/workcenters";
 import { PROJECT_HOURS_FIELDS, loadProjectHoursRows } from "@/lib/wfm/projectHoursRows";
 import { loadEstimatesForApi } from "@/lib/estimator/apiRows";
+import { loadStandardQuotesForApi } from "@/lib/api/standardQuoteRows";
+import { loadSalesOrdersForApi } from "@/lib/api/salesOrderRows";
+import { loadEinvoiceSummaries } from "@/lib/einvoicing/listRows";
 
 // One place that defines, per list object, both its queryable-field
 // whitelist and how to load its tenant-scoped, PII-decrypted rows. The v1
@@ -127,6 +130,45 @@ const OPPORTUNITY_FIELDS: QueryableField[] = [
   { path: "closed_at", type: "date" },
 ];
 
+// GCC tender deals (0220): one row per tender deal -- the deal's own columns plus the tender block. The bid decision's REASON,
+// who decided, the source e-mail, custom data and the reminders already sent are internal and are not here (see the loader).
+const TENDER_FIELDS: QueryableField[] = [
+  { path: "id", type: "string" },
+  { path: "ref", type: "string", searchable: true },
+  { path: "title", type: "string", searchable: true },
+  { path: "account_name", type: "string", searchable: true },
+  { path: "stage", type: "string" },
+  { path: "outcome", type: "string" },
+  { path: "amount", type: "number" },
+  { path: "expected_close", type: "date" },
+  { path: "tender_no", type: "string", searchable: true },
+  { path: "issuer_name", type: "string", searchable: true },
+  { path: "portal", type: "string" },
+  { path: "closing_at", type: "date" },
+  { path: "bid_bond_amount", type: "number" },
+  { path: "bid_bond_currency", type: "string" },
+  { path: "bid_bond_expiry", type: "date" },
+  { path: "addenda_count", type: "number" },
+  { path: "decision", type: "string" },
+  { path: "decided_at", type: "date" },
+  { path: "created_at", type: "date" },
+];
+
+const CONTRACT_PROJECT_FIELDS: QueryableField[] = [
+  { path: "id", type: "string" },
+  { path: "ref", type: "string", searchable: true },
+  { path: "name", type: "string", searchable: true },
+  { path: "status", type: "string" },
+  { path: "account_name", type: "string", searchable: true },
+  { path: "contract_value", type: "number" },
+  { path: "currency", type: "string" },
+  { path: "budget_total", type: "number" },
+  { path: "budget_state", type: "string" },
+  { path: "margin_pct", type: "number" },
+  { path: "planned_end", type: "date" },
+  { path: "updated_at", type: "date" },
+];
+
 const RFQ_FIELDS: QueryableField[] = [
   { path: "id", type: "string" },
   { path: "ref", type: "string", searchable: true },
@@ -137,6 +179,68 @@ const RFQ_FIELDS: QueryableField[] = [
   { path: "origin_label", type: "string", searchable: true },
   { path: "respond_by", type: "date" },
   { path: "required_by", type: "date" },
+  { path: "created_at", type: "date" },
+  { path: "updated_at", type: "date" },
+];
+
+const STANDARD_QUOTE_FIELDS: QueryableField[] = [
+  { path: "id", type: "string" },
+  { path: "ref", type: "string", searchable: true },
+  { path: "status", type: "string" },
+  { path: "inquiry_date", type: "date" },
+  { path: "valid_until", type: "date" },
+  { path: "sent_at", type: "date" },
+  { path: "closed_at", type: "date" },
+  { path: "subtotal", type: "number" },
+  { path: "header_discount_pct", type: "number" },
+  { path: "tax_pct", type: "number" },
+  { path: "shipping_amount", type: "number" },
+  { path: "total", type: "number" },
+  { path: "line_count", type: "number" },
+  { path: "account.id", type: "string" },
+  { path: "account.name", type: "string", searchable: true },
+  { path: "contact_id", type: "string" },
+  { path: "opportunity_id", type: "string" },
+  { path: "created_at", type: "date" },
+  { path: "updated_at", type: "date" },
+];
+
+const SALES_ORDER_FIELDS: QueryableField[] = [
+  { path: "id", type: "string" },
+  { path: "ref", type: "string", searchable: true },
+  { path: "status", type: "string" },
+  { path: "status_label", type: "string" },
+  { path: "spine", type: "string" },
+  { path: "origin", type: "string" },
+  { path: "type.id", type: "string" },
+  { path: "type.name", type: "string" },
+  { path: "pricing_mode", type: "string" },
+  { path: "currency", type: "string" },
+  { path: "customer_po", type: "string", searchable: true },
+  { path: "source_type", type: "string" },
+  { path: "source_id", type: "string" },
+  { path: "opportunity_id", type: "string" },
+  { path: "subtotal", type: "number" },
+  { path: "discount_total", type: "number" },
+  { path: "tax_total", type: "number" },
+  { path: "shipping_amount", type: "number" },
+  { path: "total", type: "number" },
+  { path: "line_count", type: "number" },
+  // The latest Check with ERP status (passed, warning, failed, not_run): "orders that failed the credit check" is a one-object question.
+  { path: "credit_check", type: "string" },
+  { path: "price_check", type: "string" },
+  { path: "stock_check", type: "string" },
+  // The ERP's invoices for the order, rolled up (erp_documents): "orders with unpaid invoices" is a one-object question.
+  { path: "invoice_count", type: "number" },
+  { path: "invoiced_total", type: "number" },
+  { path: "paid_total", type: "number" },
+  { path: "requested_date", type: "date" },
+  { path: "expected_date", type: "date" },
+  { path: "confirmed_at", type: "date" },
+  { path: "sent_at", type: "date" },
+  { path: "account.id", type: "string" },
+  { path: "account.name", type: "string", searchable: true },
+  { path: "contact_id", type: "string" },
   { path: "created_at", type: "date" },
   { path: "updated_at", type: "date" },
 ];
@@ -238,6 +342,9 @@ const INVOICE_FIELDS: QueryableField[] = [
   { path: "total", type: "number" },
   { path: "paid_amount", type: "number" },
   { path: "issued_at", type: "date" },
+  // Saudi e-invoicing (0219): present on the rows only for a workspace with einvoicing_ksa on; null/absent for everyone else.
+  { path: "einvoice_doc_type", type: "string" },
+  { path: "einvoice_ready", type: "boolean" },
 ];
 
 const PO_FIELDS: QueryableField[] = [
@@ -451,6 +558,55 @@ export const LIST_SOURCES: Record<string, ListSource> = {
       });
     },
   },
+  tenders: {
+    label: "Tenders (GCC tender deals)",
+    description: "Tender deals: tender number, issuer, portal, bid end date, bid guarantee, change requests, the go / no-go decision, and the deal's tender stage, outcome and amount.",
+    relatedWorkcenter: "pipeline",
+    fields: TENDER_FIELDS,
+    load: async (tenantId) => {
+      // Tender block + its deal, tenant-scoped on both sides. Deliberately not selected: decision_reason (the internal
+      // reasoning behind a no-go), decided_by, source_email_id (a private e-mail), custom_data and reminders_sent.
+      const admin = createAdminSupabase();
+      const { data: tenders } = await admin
+        .from("opportunity_tenders")
+        .select("opportunity_id, tender_no, issuer_name, portal, closing_at, bid_bond_amount, bid_bond_currency, bid_bond_expiry, addenda_count, decision, decided_at")
+        .eq("tenant_id", tenantId);
+      const rows = tenders ?? [];
+      if (rows.length === 0) return [];
+      const { data: deals } = await admin
+        .from("opportunities")
+        .select("id, ref, title, stage, outcome, amount, expected_close, created_at, accounts(name)")
+        .eq("tenant_id", tenantId)
+        .in("id", rows.map((r) => r.opportunity_id as string));
+      const byId = new Map((deals ?? []).map((d) => [d.id as string, d]));
+      return rows.flatMap((r) => {
+        const d = byId.get(r.opportunity_id as string);
+        if (!d) return [];
+        const acc = Array.isArray(d.accounts) ? d.accounts[0] : d.accounts;
+        const { opportunity_id: _o, ...tender } = r;
+        return [{
+          id: d.id, ref: d.ref, title: d.title, account_name: (acc as { name?: string } | null)?.name ?? null,
+          stage: d.stage, outcome: d.outcome, amount: d.amount, expected_close: d.expected_close, created_at: d.created_at,
+          ...tender, _links: { deal: `/api/v1/opportunities/${d.id}` },
+        }];
+      });
+    },
+  },
+  contract_projects: {
+    label: "Contract projects (GCC tender deals)",
+    description: "Contract projects made from won tenders: status, customer, contract value, the budget total and planned margin of the approved (else draft) budget, planned end.",
+    relatedWorkcenter: "contract_projects",
+    fields: CONTRACT_PROJECT_FIELDS,
+    // Header fields and totals ONLY. The budget lines (unit costs, cost codes, reserve), the revisions' reasons and the approvals are
+    // internal cost and are deliberately not selected here; a key reaches this source only by naming "contract_projects".
+    load: async (tenantId) => {
+      const { listProjects } = await import("@/lib/contractProjects/list");
+      const out = await listProjects(createAdminSupabase(), tenantId, { pageSize: 100, page: 1 });
+      const rows: Record<string, unknown>[] = [...out.rows];
+      for (let page = 2; page <= Math.ceil(out.total / 100); page++) rows.push(...(await listProjects(createAdminSupabase(), tenantId, { pageSize: 100, page })).rows);
+      return rows;
+    },
+  },
   rfqs: {
     label: "RFQs (supplier requests for quotation)",
     description: "Requests for quotation sent to suppliers when no cost or price could be found -- status, what they were raised from, reply deadline. Supplier prices are on /api/v1/rfqs/:id only.",
@@ -466,6 +622,24 @@ export const LIST_SOURCES: Record<string, ListSource> = {
         .order("created_at", { ascending: false });
       return (data ?? []).map((r) => ({ ...r, _links: { self: `/api/v1/rfqs/${r.id}` } }));
     },
+  },
+  standard_quotes: {
+    label: "Standard quotes",
+    description: "Standard Quotes (separate from Quotations): status, value, validity, header discount/tax/shipping and the customer. Lines are on /api/v1/standard-quotes/:id.",
+    relatedWorkcenter: "standard_quotes",
+    fields: STANDARD_QUOTE_FIELDS,
+    // Header only. The guardrail margin on lines (pricing_flags), the supplier-request link, notes,
+    // the template and the contact's details are deliberately not selected: see standardQuoteRows.ts.
+    load: loadStandardQuotesForApi,
+  },
+  sales_orders: {
+    label: "Sales orders",
+    description: "Sales orders made from accepted quotes and won deals: status, customer, type, pricing mode, totals, requested and expected delivery. Lines are on /api/v1/sales-orders/:id.",
+    relatedWorkcenter: "sales_orders",
+    fields: SALES_ORDER_FIELDS,
+    // Header only. The creator and owner, the cancellation note, a party's contact details and the order type's template
+    // are deliberately not selected: see salesOrderRows.ts.
+    load: loadSalesOrdersForApi,
   },
   abm_programs: {
     label: "ABM programs (account-based marketing)",
@@ -606,11 +780,13 @@ export const LIST_SOURCES: Record<string, ListSource> = {
         ? await supabase.from("accounts").select("id, name").in("id", accountIds)
         : { data: [] };
       const nameById = new Map((accounts ?? []).map((a) => [a.id, a.name]));
+      const einvoice = await loadEinvoiceSummaries(supabase, tenantId, data ?? []);
       return (data ?? []).map((inv) => ({
         id: inv.id, ref: inv.ref, status: inv.status,
         account: { id: inv.account_id, name: nameById.get(inv.account_id) ?? null },
         quote_id: inv.quote_id, work_order_id: inv.work_order_id, due_date: inv.due_date,
         total: inv.total, paid_amount: inv.paid_amount, issued_at: inv.issued_at,
+        ...(einvoice ? einvoice.get(inv.id) ?? {} : {}),
         _links: { self: `/api/v1/invoices/${inv.id}` },
       }));
     },

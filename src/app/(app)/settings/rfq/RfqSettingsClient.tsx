@@ -6,10 +6,12 @@ import { c } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
 import { ROUTES } from "@/lib/constants";
 import { inp, lbl, fmtDateTime } from "@/components/rfq/rfqUi";
+import InfoTip from "@/components/ui/InfoTip";
+import { RFQ_TIPS } from "@/lib/rfq/tips";
 import { SettingsSave } from "@/components/settings/SettingsHeaderActions";
 import { useSettingsDirty } from "@/components/settings/useSettingsDirty";
 
-type Cfg = { mail_mode: "platform" | "mailbox"; mailbox_connector: "gmail" | "mail_server"; default_response_days: number; max_reminders: number; link_grace_days: number; terms: string; attach_pdf: boolean };
+type Cfg = { mail_mode: "platform" | "mailbox"; mailbox_connector: "gmail" | "mail_server"; default_response_days: number; max_reminders: number; link_grace_days: number; terms: string; attach_pdf: boolean; price_valid_days: number };
 type Ready = {
   reply_link: boolean; platform_send: boolean; platform_receive: boolean; inbound_domain: string | null;
   mailboxes_connected: string[]; mailbox_last_polled_at: string | null; mailbox_last_error: string | null;
@@ -106,6 +108,10 @@ export default function RfqSettingsClient() {
         <div>
           <label style={lbl} htmlFor="grace">Link works for (days after deadline)</label>
           <input id="grace" type="number" min={0} max={90} style={inp} value={cfg.link_grace_days} onChange={(e) => setCfg({ ...cfg, link_grace_days: Number(e.target.value) })} />
+        </div>
+        <div>
+          <label style={{ ...lbl, display: "flex", alignItems: "center", gap: 6 }} htmlFor="stale">Price goes stale after (days) <InfoTip label="price staleness">{RFQ_TIPS.stale}</InfoTip></label>
+          <input id="stale" data-guide="rfq.settings.stale_days" type="number" min={30} max={730} style={inp} value={cfg.price_valid_days} onChange={(e) => setCfg({ ...cfg, price_valid_days: Number(e.target.value) })} />
         </div>
         <label style={{ gridColumn: "1 / -1", display: "flex", gap: 8, alignItems: "center", fontSize: 13, color: c.ink, cursor: "pointer" }}>
           <input type="checkbox" checked={cfg.attach_pdf} onChange={(e) => setCfg({ ...cfg, attach_pdf: e.target.checked })} />

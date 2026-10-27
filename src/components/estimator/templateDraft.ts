@@ -3,11 +3,12 @@
 // the API validates only when a check or a save is made. Pure, no I/O.
 
 import type {
-  EstimateComponent, EstimateTemplateBody, QuoteGranularity, TemplateInput, TemplateInputType, TemplateRate, TemplateRule,
+  DrawingMapRule, DrawingMeasure, EstimateComponent, EstimateTemplateBody, ProductMatch, QuoteGranularity, TemplateInput, TemplateInputType, TemplateRate, TemplateRule,
 } from "@/lib/estimator/types";
 import { groupSlug } from "@/lib/estimator/types";
 
-export type OptionDraft = { key: string; label: string; value: string };
+/** `attrs` are the catalogue attributes a choice stands for; kept as read, not edited here. */
+export type OptionDraft = { key: string; label: string; value: string; attrs?: Record<string, string>; /** Design attribute: a material key or "#rrggbb"; empty = not set. */ visual?: string };
 
 export type InputDraft = {
   key: string; label: string; type: TemplateInputType;
@@ -15,6 +16,8 @@ export type InputDraft = {
   default: string;
   min: string; max: string; unit: string; help: string; section: string;
   quote_alternatives: boolean;
+  /** select only: the model part this input repaints ("" = nothing). */
+  paints: string;
   options: OptionDraft[];
 };
 
@@ -31,33 +34,41 @@ export type RuleDraft = {
   sku: string; rate: string;
   /** The product is named by its reference (PRD-0012), not a SKU; kept so a save writes back the key it read. */
   skuIsRef?: boolean;
+  /** A product named by catalogue attributes; kept as read (a save writes it back). */
+  match?: ProductMatch;
   element_type: string;
 };
+
+/** One row of the drawing layer map; `layers` and `blocks` are the comma-separated text the person types. */
+export type DrawingRowDraft = { input: string; measure: DrawingMeasure; layers: string; blocks: string; scale: string };
 
 export type TemplateDraft = {
   name: string; description: string; trade: string; quote_granularity: QuoteGranularity;
   geometry: string;
   inputs: InputDraft[]; rates: RateDraft[]; rules: RuleDraft[];
+  drawing_map: DrawingRowDraft[];
 };
 
 const str = (v: unknown): string => (v === undefined || v === null ? "" : String(v));
 
 export function toDraft(t: {
   name: string; description: string | null; trade: string | null; quote_granularity: QuoteGranularity; geometry: string | null;
-  inputs: TemplateInput[]; rates: TemplateRate[]; rules: TemplateRule[];
+  inputs: TemplateInput[]; rates: TemplateRate[]; rules: TemplateRule[]; drawing_map?: DrawingMapRule[] | null;
 }): TemplateDraft {
   return {
+    drawing_map: (t.drawing_map ?? []).map((r) => ({ input: r.input, measure: r.measure, layers: (r.layers ?? []).join(", "), blocks: (r.blocks ?? []).join(", "), scale: str(r.scale) })),
     name: t.name, description: t.description ?? "", trade: t.trade ?? "", quote_granularity: t.quote_granularity, geometry: t.geometry ?? "",
     inputs: (t.inputs ?? []).map((i) => ({
       key: i.key, label: i.label, type: i.type, default: str(i.default),
       min: str(i.min), max: str(i.max), unit: str(i.unit), help: str(i.help), section: str(i.section),
       quote_alternatives: i.quote_alternatives === true,
-      options: (i.options ?? []).map((o) => ({ key: o.key, label: o.label, value: str(o.value) })),
+      paints: str(i.paints),
+      options: (i.options ?? []).map((o) => ({ key: o.key, label: o.label, value: str(o.value), ...(o.attrs ? { attrs: o.attrs } : {}), ...(o.visual ? { visual: o.visual } : {}) })),
     })),
     rates: (t.rates ?? []).map((r) => ({ key: r.key, label: r.label, unit: r.unit, value: str(r.value), low: r.low === undefined ? "" : str(r.low), high: r.high === undefined ? "" : str(r.high) })),
     rules: (t.rules ?? []).map((r) => ({
       code: r.code, group: r.group, description: r.description, uom: r.uom, qty: r.qty, waste_pct: str(r.waste_pct),
-      component: r.component, costKind: r.cost.kind, sku: r.cost.kind === "product" ? (r.cost.sku ?? r.cost.ref ?? "") : "", skuIsRef: r.cost.kind === "product" && !r.cost.sku && !!r.cost.ref, rate: r.cost.kind === "rate" ? r.cost.rate : "",
+      component: r.component, costKind: r.cost.kind, sku: r.cost.kind === "product" ? (r.cost.sku ?? r.cost.ref ?? "") : "", skuIsRef: r.cost.kind === "product" && !r.cost.sku && !!r.cost.ref, ...(r.cost.kind === "product" && r.cost.match ? { match: r.cost.match } : {}), rate: r.cost.kind === "rate" ? r.cost.rate : "",
       element_type: str(r.element_type),
     })),
   };
@@ -81,8 +92,9 @@ export function toBody(d: TemplateDraft): EstimateTemplateBody & { geometry?: st
       if (max !== undefined) base.max = max;
     }
     if (i.type === "select") {
-      base.options = i.options.map((o) => ({ key: o.key.trim(), label: o.label.trim(), value: Number(o.value) }));
+      base.options = i.options.map((o) => ({ key: o.key.trim(), label: o.label.trim(), value: Number(o.value), ...(o.attrs ? { attrs: o.attrs } : {}), ...(o.visual ? { visual: o.visual } : {}) }));
       if (i.quote_alternatives) base.quote_alternatives = true;
+      if (i.paints) base.paints = i.paints;
     }
     return base;
   });
@@ -97,15 +109,28 @@ export function toBody(d: TemplateDraft): EstimateTemplateBody & { geometry?: st
     const rule: TemplateRule = {
       code: r.code.trim(), group: r.group.trim(), description: r.description.trim(), uom: r.uom.trim(), qty: r.qty.trim(),
       component: r.component,
-      cost: r.costKind === "product" ? (r.skuIsRef ? { kind: "product", ref: r.sku.trim() } : { kind: "product", sku: r.sku.trim() }) : { kind: "rate", rate: r.rate.trim() },
+      cost: r.costKind === "product"
+        ? (r.match && !r.sku.trim() ? { kind: "product", match: r.match } : r.skuIsRef ? { kind: "product", ref: r.sku.trim(), ...(r.match ? { match: r.match } : {}) } : { kind: "product", sku: r.sku.trim(), ...(r.match ? { match: r.match } : {}) })
+        : { kind: "rate", rate: r.rate.trim() },
     };
     const w = r.waste_pct.trim();
     if (w !== "") rule.waste_pct = Number.isFinite(Number(w)) ? Number(w) : w;
     if (r.element_type.trim()) rule.element_type = r.element_type.trim();
     return rule;
   });
-  return { ...(d.geometry ? { geometry: d.geometry } : {}), inputs, rates, rules };
+  return { ...(d.geometry ? { geometry: d.geometry } : {}), inputs, rates, rules, ...(d.drawing_map.length > 0 ? { drawing_map: d.drawing_map.map(toDrawingRule) } : {}) };
 }
+
+/** Comma- or semicolon-separated names to a list; empty pieces are dropped. */
+export const splitNames = (s: string): string[] => s.split(/[,;\n]/).map((x) => x.trim()).filter(Boolean);
+
+function toDrawingRule(r: DrawingRowDraft): DrawingMapRule {
+  const layers = splitNames(r.layers), blocks = splitNames(r.blocks);
+  const scale = optNum(r.scale);
+  return { input: r.input.trim(), measure: r.measure, ...(layers.length ? { layers } : {}), ...(blocks.length ? { blocks } : {}), ...(scale !== undefined ? { scale } : {}) };
+}
+
+export const blankDrawingRow = (): DrawingRowDraft => ({ input: "", measure: "length_m", layers: "", blocks: "", scale: "" });
 
 /** Names a formula in this template may use, for the reference panel. */
 export function templateIdentifiers(d: TemplateDraft): { inputs: string[]; rates: string[]; lines: string[]; groups: string[] } {
@@ -118,7 +143,7 @@ export function templateIdentifiers(d: TemplateDraft): { inputs: string[]; rates
 }
 
 export const blankInput = (): InputDraft => ({
-  key: "", label: "", type: "number", default: "0", min: "", max: "", unit: "", help: "", section: "", quote_alternatives: false, options: [],
+  key: "", label: "", type: "number", default: "0", min: "", max: "", unit: "", help: "", section: "", quote_alternatives: false, paints: "", options: [],
 });
 export const blankRate = (): RateDraft => ({ key: "", label: "", unit: "", value: "0", low: "", high: "" });
 export const blankRule = (): RuleDraft => ({

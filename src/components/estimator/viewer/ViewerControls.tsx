@@ -8,7 +8,7 @@ const lbl: React.CSSProperties = { display: "flex", flexDirection: "column", gap
 /** Erection play / step controls, explode slider and colour mode. Every control has a text label. */
 export default function ViewerControls({
   step, steps, stepName, playing, reducedMotion, explode, mode,
-  onStep, onPlay, onExplode, onMode,
+  onStep, onPlay, onExplode, onMode, inside, onInside, closeUp, onCloseUp,
 }: {
   step: number;
   steps: number;
@@ -21,12 +21,24 @@ export default function ViewerControls({
   onPlay: () => void;
   onExplode: (v: number) => void;
   onMode: (m: ColourMode) => void;
+  /** A cabin: whether the roof and front wall are cut away to show the rooms. Absent = no such control. */
+  inside?: boolean;
+  onInside?: (on: boolean) => void;
+  /** A long fence: true = looking at a gate from close by, false = the whole run. Absent = no such control. */
+  closeUp?: boolean;
+  onCloseUp?: (on: boolean) => void;
 }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 10 }}>
       <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
         {!reducedMotion && (
           <Button size="sm" variant="secondary" onClick={onPlay} aria-pressed={playing}>{playing ? "Pause" : "Watch it being built"}</Button>
+        )}
+        {inside !== undefined && onInside && (
+          <Button size="sm" variant="secondary" onClick={() => onInside(!inside)} aria-pressed={inside}>{inside ? "Close the cabin" : "See inside"}</Button>
+        )}
+        {closeUp !== undefined && onCloseUp && (
+          <Button size="sm" variant="secondary" onClick={() => onCloseUp(!closeUp)} aria-pressed={!closeUp}>{closeUp ? "See the whole fence" : "Close up at a gate"}</Button>
         )}
         <Button size="sm" variant="secondary" onClick={() => onStep(step - 1)} disabled={step <= 0}>Previous step</Button>
         <Button size="sm" variant="secondary" onClick={() => onStep(step + 1)} disabled={step >= steps - 1}>Next step</Button>

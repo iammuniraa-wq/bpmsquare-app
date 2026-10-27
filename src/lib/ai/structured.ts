@@ -85,7 +85,14 @@ export type StructuredCall = {
   schema: Record<string, unknown>;
   effort?: "low" | "medium";
   maxTokens?: number;
+  /** Extra user content (documents, images, text) sent before the prompt. Absent or empty = the text-only call as before. */
+  extra?: Anthropic.ContentBlockParam[];
 };
+
+/** The user message: the plain prompt string when there is nothing extra, otherwise the extra blocks then the prompt. */
+export function userContent(call: Pick<StructuredCall, "prompt" | "extra">): string | Anthropic.ContentBlockParam[] {
+  return call.extra && call.extra.length > 0 ? [...call.extra, { type: "text", text: call.prompt }] : call.prompt;
+}
 
 export async function askStructuredMetered(call: StructuredCall): Promise<unknown> {
   if (!aiConfigured()) throw new AiError("AI is not set up for this workspace.", 503, "not_configured");
@@ -100,12 +107,16 @@ export async function askStructuredMetered(call: StructuredCall): Promise<unknow
       max_tokens: call.maxTokens ?? 6000,
       system: call.system,
       output_config: { effort: call.effort ?? "medium", format: { type: "json_schema", schema: call.schema } },
-      messages: [{ role: "user", content: call.prompt }],
+      messages: [{ role: "user", content: userContent(call) }],
     });
   } catch (e) {
     if (e instanceof Anthropic.AuthenticationError) throw new AiError("The AI service rejected the API key.", 502);
     if (e instanceof Anthropic.RateLimitError) throw new AiError("The AI service is busy. Try again in a moment.", 429);
-    if (e instanceof Anthropic.BadRequestError) throw new AiError("The AI service could not read this request.", 422);
+    if (e instanceof Anthropic.BadRequestError) {
+      const why = String((e.error as { error?: { message?: unknown } } | undefined)?.error?.message ?? "").slice(0, 160);
+      console.error(`[ai] request refused: ${why}`);
+      throw new AiError(`The AI service could not read this request.${why ? ` (${why})` : ""}`, 422);
+    }
     if (e instanceof Anthropic.APIConnectionError) throw new AiError("Could not reach the AI service. Try again.", 502);
     if (e instanceof Anthropic.APIError) throw new AiError(`AI service error (${e.status}).`, 502);
     throw new AiError("The AI request failed.", 502);

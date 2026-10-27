@@ -70,7 +70,8 @@ export function unsealSecret(value: string | null | undefined): string | undefin
   }
 }
 
-const ACCOUNT_PII: (keyof Account)[] = ["phone", "phone2", "email", "email2", "gstin"];
+// buyer_id_number is an individual buyer's ID (Saudi e-invoicing, 0219): personal data, so it is sealed like the rest.
+const ACCOUNT_PII: (keyof Account)[] = ["phone", "phone2", "email", "email2", "gstin", "buyer_id_number"];
 const CONTACT_PII: (keyof Contact)[] = ["phone", "phone2", "phone3", "email", "email2"];
 
 export function encryptAccountFields<T extends Partial<Record<string, unknown>>>(obj: T): T {

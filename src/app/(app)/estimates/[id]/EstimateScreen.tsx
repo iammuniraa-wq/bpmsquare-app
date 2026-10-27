@@ -6,6 +6,7 @@ import ObjectSections from "@/components/fields/ObjectSections";
 import EstimateWorkspace from "@/components/estimator/workspace/EstimateWorkspace";
 import Collapsible from "@/components/estimator/workspace/Collapsible";
 import { PriceBuiltFold, ScheduleRiskFold } from "@/components/estimator/workspace/InternalFolds";
+import { hasBuildSchedule } from "@/components/estimator/workspace/layoutKind";
 import { buildSavedEstimate, toWorkspaceTemplate } from "@/components/estimator/workspace/savedEstimate";
 import { SECTION_IDS, scrollTargetFor, tabTarget } from "@/components/estimator/workspace/tabTargets";
 import type { SectionId } from "@/components/estimator/workspace/tabTargets";
@@ -81,7 +82,7 @@ export default function EstimateScreen(p: EstimateScreenProps) {
       renderInternal={(shown) => (
         <>
           <PriceBuiltFold shown={shown} fold={fold("price")} estimateId={e.id} canReview={p.canEdit} />
-          <ScheduleRiskFold shown={shown} rules={template?.rules ?? []} rates={template?.rates ?? []} fold={fold("schedule")} />
+          {hasBuildSchedule(template?.geometry) && <ScheduleRiskFold shown={shown} rules={template?.rules ?? []} rates={template?.rates ?? []} fold={fold("schedule")} />}
           <Collapsible id="bom" title="Bill of materials" hint="for your team and the factory" {...fold("bom")}>
             {shown.live && <div className="est-warn">You have unsaved changes. Save them to bring the bill of materials up to date.</div>}
             <BomTab

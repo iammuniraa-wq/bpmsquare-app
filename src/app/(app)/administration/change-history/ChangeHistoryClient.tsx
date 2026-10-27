@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { Fragment, useState, useEffect } from "react";
 import { c } from "@/lib/theme";
-import { csvCell, downloadCsv } from "@/lib/import/template";
+import { downloadCsv } from "@/lib/import/template";
+import { buildCsv, byLabel, formatValue, viaLabel, type ChangeLogRow } from "./changeHistoryRows";
 import Pager from "@/components/Pager";
 import { paginate, clampPage, DEFAULT_PAGE_SIZE } from "@/lib/paginate";
 import { useTenantFeature } from "@/lib/tenant-context";
@@ -19,10 +20,17 @@ const OBJECT_TYPES: { value: string; label: string }[] = [
   { value: "contacts", label: "Contacts" },
   { value: "assets", label: "Assets" },
   { value: "suppliers", label: "Suppliers" },
+  { value: "supplier_groups", label: "Supplier groups" },
   { value: "products", label: "Products" },
   { value: "opportunities", label: "Deals" },
+  { value: "opportunity_tenders", label: "Deals: Tender details" },
+  { value: "opportunity_competitors", label: "Deals: Competitors" },
+  { value: "deal_rooms", label: "Deals: Deal Room" },
+  { value: "contract_projects", label: "Contract projects" },
   { value: "quotes", label: "Quotes" },
   { value: "standard_quotes", label: "Standard Quotes" },
+  { value: "sales_orders", label: "Sales Orders" },
+  { value: "sales_order_types", label: "Sales order types" },
   { value: "cases", label: "Cases" },
   { value: "work_orders", label: "Work Orders" },
   { value: "invoices", label: "Invoices" },
@@ -32,6 +40,8 @@ const OBJECT_TYPES: { value: string; label: string }[] = [
   { value: "process_studies", label: "Process studies" },
   { value: "newsletters", label: "Newsletters" },
   { value: "leads", label: "Leads" },
+  { value: "inbound_emails", label: "Inbox: Emails" },
+  { value: "inbox_channels", label: "Inbox: Channels" },
   { value: "signal_topics", label: "Signal topics" },
   { value: "account_intent", label: "Buying signals" },
   { value: "forms", label: "Forms" },
@@ -56,31 +66,6 @@ const OBJECT_TYPES: { value: string; label: string }[] = [
   { value: "marketing_settings", label: "Marketing settings" },
 ];
 
-type ChangeEntry = { field: string; from: unknown; to: unknown; redacted?: boolean };
-type ChangeLogRow = {
-  id: string;
-  object_type: string;
-  object_id: string;
-  object_label: string | null;
-  action: "create" | "update" | "delete" | "reopen";
-  changes: ChangeEntry[];
-  actor_id: string | null;
-  actor_email: string | null;
-  created_at: string;
-};
-
-function formatValue(v: unknown): string {
-  if (v === null || v === undefined || v === "") return "—";
-  return String(v);
-}
-
-function summarizeChanges(row: ChangeLogRow): string {
-  if (row.action === "create") return "Record created";
-  if (row.action === "delete") return "Record deleted";
-  if (row.changes.length === 0) return "—";
-  return row.changes.map((ch) => `${ch.field}: ${formatValue(ch.from)} → ${formatValue(ch.to)}`).join("; ");
-}
-
 const ACTION_TONE: Record<ChangeLogRow["action"], { bg: string; fg: string }> = {
   create: { bg: "#e5f6ee", fg: "#1c8a5a" },
   update: { bg: "#eaf2fd", fg: "#2563eb" },
@@ -101,13 +86,18 @@ export default function ChangeHistoryClient() {
   const hasMiddleware = useTenantFeature("integration_middleware");
   const hasWhatsapp = useTenantFeature("whatsapp_marketing");
   const hasEvents = useTenantFeature("marketing_events");
-  const objectTypes = OBJECT_TYPES.filter((o) => (!o.value.startsWith("whatsapp_") || hasWhatsapp) && (!["marketing_events", "event_registrations"].includes(o.value) || hasEvents) && (o.value !== "newsletters" || hasNewsletters) && (!["leads", "marketing_settings"].includes(o.value) || hasLeadScoring) && (!["signal_topics", "account_intent"].includes(o.value) || hasSignals) && (o.value !== "forms" || hasForms) && (!o.value.startsWith("abm_") || hasAbm) && (o.value !== "journeys" || hasJourneys) && (o.value !== "webhooks" || hasWebhooks) && (!["integration_mapping", "value_list"].includes(o.value) || hasMiddleware));
+  const hasInbox = useTenantFeature("inbox");
+  const hasTender = useTenantFeature("gcc_tender");
+  const hasDealRoom = useTenantFeature("deal_room");
+  const hasContractProjects = useTenantFeature("contract_projects");
+  const objectTypes = OBJECT_TYPES.filter((o) => (o.value !== "contract_projects" || hasContractProjects) && (!["inbound_emails", "inbox_channels"].includes(o.value) || hasInbox) && (!["opportunity_tenders", "opportunity_competitors"].includes(o.value) || hasTender) && (o.value !== "deal_rooms" || (hasTender && hasDealRoom)) &&(!o.value.startsWith("whatsapp_") || hasWhatsapp) && (!["marketing_events", "event_registrations"].includes(o.value) || hasEvents) && (o.value !== "newsletters" || hasNewsletters) && (!["leads", "marketing_settings"].includes(o.value) || hasLeadScoring) && (!["signal_topics", "account_intent"].includes(o.value) || hasSignals) && (o.value !== "forms" || hasForms) && (!o.value.startsWith("abm_") || hasAbm) && (o.value !== "journeys" || hasJourneys) && (o.value !== "webhooks" || hasWebhooks) && (!["integration_mapping", "value_list"].includes(o.value) || hasMiddleware));
   const [objectType, setObjectType] = useState(OBJECT_TYPES[0].value);
   const [objectId, setObjectId] = useState("");
   const [rows, setRows] = useState<ChangeLogRow[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [page, setPage] = useState(1);
+  const [open, setOpen] = useState<string | null>(null);
 
   async function search() {
     setLoading(true);
@@ -133,13 +123,7 @@ export default function ChangeHistoryClient() {
 
   function download() {
     if (!rows || rows.length === 0) return;
-    const header = ["Date", "Action", "Object Type", "Object ID", "Record", "Changed by", "Changes"];
-    const body = rows.map((r) =>
-      [r.created_at, r.action, r.object_type, r.object_id, r.object_label ?? "", r.actor_email ?? "", summarizeChanges(r)]
-        .map((v) => csvCell(String(v)))
-        .join(",")
-    );
-    const csv = "﻿" + [header.join(","), ...body].join("\r\n") + "\r\n";
+    const csv = buildCsv(rows);
     const label = OBJECT_TYPES.find((o) => o.value === objectType)?.label ?? objectType;
     downloadCsv(`change_history_${label.toLowerCase().replace(/\s+/g, "_")}${objectId ? `_${objectId}` : ""}.csv`, csv);
   }
@@ -204,7 +188,7 @@ export default function ChangeHistoryClient() {
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5 }}>
             <thead>
               <tr>
-                {["When", "Action", "Record", "Changes", "By"].map((h) => (
+                {["When", "Action", "Record", "By"].map((h) => (
                   <th key={h} style={{ padding: "9px 11px", textAlign: "left", color: c.hint, fontWeight: 600, fontSize: 11, textTransform: "uppercase", letterSpacing: 0.4, borderBottom: `1px solid ${c.line}`, background: c.panel2, whiteSpace: "nowrap" }}>
                     {h}
                   </th>
@@ -214,31 +198,56 @@ export default function ChangeHistoryClient() {
             <tbody>
               {visible.map((row) => {
                 const tone = ACTION_TONE[row.action];
+                const detail = row.action === "update" && row.changes.length > 0;
+                const isOpen = open === row.id;
+                const cell = { padding: "8px 11px", borderBottom: isOpen ? "none" : `1px solid ${c.line}` } as const;
                 return (
-                  <tr key={row.id}>
-                    <td style={{ padding: "8px 11px", borderBottom: `1px solid ${c.line}`, color: c.hint, whiteSpace: "nowrap", fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace" }}>
-                      {new Date(row.created_at).toLocaleString()}
-                    </td>
-                    <td style={{ padding: "8px 11px", borderBottom: `1px solid ${c.line}` }}>
-                      <span style={{ fontSize: 11, fontWeight: 700, color: tone.fg, background: tone.bg, borderRadius: 6, padding: "3px 9px", whiteSpace: "nowrap" }}>
-                        {row.action}
-                      </span>
-                    </td>
-                    <td style={{ padding: "8px 11px", borderBottom: `1px solid ${c.line}`, color: c.ink }}>
-                      {row.object_label ?? row.object_id}
-                    </td>
-                    <td style={{ padding: "8px 11px", borderBottom: `1px solid ${c.line}`, color: c.ink, maxWidth: 420 }}>
-                      {summarizeChanges(row)}
-                    </td>
-                    <td style={{ padding: "8px 11px", borderBottom: `1px solid ${c.line}`, color: c.muted, whiteSpace: "nowrap" }}>
-                      {row.actor_email ?? "—"}
-                    </td>
-                  </tr>
+                  <Fragment key={row.id}>
+                    <tr
+                      onClick={detail ? () => setOpen(isOpen ? null : row.id) : undefined}
+                      onKeyDown={detail ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setOpen(isOpen ? null : row.id); } } : undefined}
+                      tabIndex={detail ? 0 : undefined}
+                      aria-expanded={detail ? isOpen : undefined}
+                      style={{ cursor: detail ? "pointer" : "default" }}
+                    >
+                      <td style={{ ...cell, color: c.hint, whiteSpace: "nowrap", fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace" }}>
+                        {new Date(row.created_at).toLocaleString()}
+                      </td>
+                      <td style={cell}>
+                        <span style={{ fontSize: 11, fontWeight: 700, color: tone.fg, background: tone.bg, borderRadius: 6, padding: "3px 9px", whiteSpace: "nowrap" }}>
+                          {row.action}
+                        </span>
+                      </td>
+                      <td style={{ ...cell, color: c.ink }}>
+                        {row.object_label ?? row.object_id}
+                        {detail && <span aria-hidden style={{ marginLeft: 8, color: c.hint, fontSize: 11 }}>{isOpen ? "▾" : "▸"}</span>}
+                      </td>
+                      <td style={{ ...cell, color: c.muted, whiteSpace: "nowrap" }}>
+                        {byLabel(row)}
+                        {viaLabel(row.via) && (
+                          <span style={{ marginLeft: 6, fontSize: 10.5, fontWeight: 600, color: c.hint, border: `1px solid ${c.line}`, borderRadius: 6, padding: "1px 6px" }}>
+                            {viaLabel(row.via)}
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                    {isOpen && (
+                      <tr>
+                        <td colSpan={4} style={{ padding: "2px 11px 10px", borderBottom: `1px solid ${c.line}`, background: c.panel2 }}>
+                          {row.changes.map((ch, k) => (
+                            <div key={k} style={{ fontSize: 12.5, color: c.ink, padding: "3px 0", wordBreak: "break-word" }}>
+                              <span style={{ color: c.hint }}>{ch.field}</span>: {formatValue(ch.from)} → {formatValue(ch.to)}
+                            </div>
+                          ))}
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
                 );
               })}
               {visible.length === 0 && (
                 <tr>
-                  <td colSpan={5} style={{ padding: "20px 11px", textAlign: "center", color: c.hint }}>
+                  <td colSpan={4} style={{ padding: "20px 11px", textAlign: "center", color: c.hint }}>
                     No changes recorded yet for this {objectId ? "record" : "object"}.
                   </td>
                 </tr>

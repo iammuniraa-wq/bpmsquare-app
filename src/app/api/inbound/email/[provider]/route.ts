@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createAdminSupabase } from "@/lib/supabase-server";
 import { verifySvix, verifyGeneric } from "@/lib/mail/webhookSignature";
 import { ingestInbound, type InboundEmail } from "@/lib/rfq/inbound";
+import { ingestPlatformMail } from "@/lib/inbox/platform";
 import { assertSafeHttpsUrl } from "@/lib/net/safeHost";
 import { RFQ_LIMITS } from "@/lib/rfq/types";
 
@@ -20,8 +21,13 @@ import { RFQ_LIMITS } from "@/lib/rfq/types";
 //     { from, to: [], subject, text?, html?, message_id?, in_reply_to?,
 //       attachments?: [{ filename, content_type, content_base64 }] }
 //
-// Always 200 for a verified message we choose not to keep (not an RFQ
-// reply), so the provider doesn't retry it forever.
+// The RFQ router goes first. A message that is not an RFQ reply is offered to
+// the shared Inbox: it is kept only if it was sent to a channel's own
+// forwarding address (lib/inbox/platform.ts), and that channel -- not the
+// payload -- names the workspace.
+//
+// Always 200 for a verified message we choose not to keep (not an RFQ reply,
+// not an Inbox address, an auto-reply), so the provider doesn't retry it forever.
 
 export const maxDuration = 60;
 
@@ -72,6 +78,8 @@ async function fromResend(emailId: string): Promise<InboundEmail> {
     html: e.html ?? null,
     messageId: e.message_id ?? headers["message-id"] ?? null,
     inReplyTo: headers["in-reply-to"] ?? null,
+    references: headers["references"] ?? null,
+    headers,
     attachments: files,
   };
 }
@@ -99,7 +107,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ pro
   } else if (provider === "generic") {
     const secret = process.env.INBOUND_EMAIL_SECRET ?? "";
     if (!verifyGeneric(secret, req.headers.get("x-bpmsquare-signature"), raw)) return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
-    let p: { from?: string; to?: string[]; subject?: string; text?: string; html?: string; message_id?: string; in_reply_to?: string; attachments?: { filename?: string; content_type?: string; content_base64?: string }[] };
+    let p: { from?: string; to?: string[]; subject?: string; text?: string; html?: string; message_id?: string; in_reply_to?: string; references?: string; headers?: Record<string, unknown>; attachments?: { filename?: string; content_type?: string; content_base64?: string }[] };
     try { p = JSON.parse(raw); } catch { return NextResponse.json({ error: "Bad JSON" }, { status: 400 }); }
     const files: InboundEmail["attachments"] = [];
     for (const a of (p.attachments ?? []).slice(0, RFQ_LIMITS.maxAttachmentsPerMessage)) {
@@ -109,13 +117,22 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ pro
     }
     mail = {
       provider: "generic", providerMessageId: p.message_id ?? null, from: p.from ?? null, to: Array.isArray(p.to) ? p.to.map(String) : [],
-      subject: p.subject ?? "", text: p.text ?? "", html: p.html ?? null, messageId: p.message_id ?? null, inReplyTo: p.in_reply_to ?? null, attachments: files,
+      subject: p.subject ?? "", text: p.text ?? "", html: p.html ?? null, messageId: p.message_id ?? null, inReplyTo: p.in_reply_to ?? null,
+      references: typeof p.references === "string" ? p.references : null,
+      headers: Object.fromEntries(Object.entries(p.headers ?? {}).filter(([, v]) => typeof v === "string").map(([k, v]) => [k.toLowerCase(), v as string])),
+      attachments: files,
     };
   } else {
     return NextResponse.json({ error: "Unknown provider" }, { status: 404 });
   }
 
-  const result = await ingestInbound(createAdminSupabase(), mail);
-  if (!result.ok) return NextResponse.json({ ok: true, routed: false, reason: result.reason });
-  return NextResponse.json({ ok: true, routed: true, duplicate: result.duplicate, prices_saved: result.pricesSaved });
+  const admin = createAdminSupabase();
+  const result = await ingestInbound(admin, mail);
+  if (result.ok) return NextResponse.json({ ok: true, routed: true, duplicate: result.duplicate, prices_saved: result.pricesSaved });
+
+  // Not an RFQ reply (the RFQ router always goes first). An address of a shared-Inbox channel? The channel the signed
+  // alias names decides the workspace; any other address is dropped with a 200 so the provider does not retry it.
+  const inbox = await ingestPlatformMail(admin, mail);
+  if (inbox.ok) return NextResponse.json({ ok: true, routed: true, inbox: true, duplicate: inbox.duplicate, attachments: inbox.attachments });
+  return NextResponse.json({ ok: true, routed: false, reason: inbox.reason === "not an inbox address" ? result.reason : inbox.reason });
 }

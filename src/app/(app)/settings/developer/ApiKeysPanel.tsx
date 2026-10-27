@@ -25,6 +25,8 @@ const SCOPABLE_OBJECTS = [
   // The price quoted to a customer, before it is quoted: explicit scope only.
   { key: "estimates", label: "Estimates (quoted prices, no costs)" },
   { key: "abm_programs", label: "ABM programs" },
+  { key: "standard_quotes", label: "Standard Quotes" },
+  { key: "sales_orders", label: "Sales Orders" },
   // Buying groups name people and their role: explicit scope only.
   { key: "abm_targets", label: "ABM target accounts (buying-group roles)" },
   // Staff personal data: a key reaches it ONLY by naming it here, never via

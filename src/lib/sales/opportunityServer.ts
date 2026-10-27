@@ -1,8 +1,9 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Opportunity, OpportunityLine } from "@/lib/types";
-import type { OpportunityStageDef } from "@/lib/constants";
+import { DEFAULT_TENDER_STAGES, type OpportunityStageDef } from "@/lib/constants";
 import { opportunityAmount, probabilityFor } from "./opportunity";
+import { sortDealLines } from "./dealLines";
 
 // Server-side helpers for opportunities (Piece B). Every query is
 // tenant-scoped on the admin client (MULTI_TENANT_GUARDRAILS.md), and every
@@ -18,7 +19,8 @@ export async function loadOpportunity(admin: SupabaseClient, tenantId: string, i
 export async function loadOpportunityLines(admin: SupabaseClient, tenantId: string, id: string): Promise<OpportunityLine[]> {
   const { data, error } = await admin.from("opportunity_lines").select("*").eq("opportunity_id", id).eq("tenant_id", tenantId).order("sl_no");
   if (error) return [];
-  return (data ?? []) as OpportunityLine[];
+  // Item numbers sort as numbers ("1.2" before "1.10"); the database order is text.
+  return sortDealLines((data ?? []) as OpportunityLine[]);
 }
 
 export type LinkedQuote = { object: "standard_quote" | "quotation"; id: string; ref: string; status: string; subtotal: number; total: number; created_at: string };
@@ -52,7 +54,14 @@ export async function refreshOpportunityDerived(
   // A rejected/expired quote is not what the deal is worth any more.
   const live = linked.filter((q) => !["rejected", "expired"].includes(q.status));
   const amount = opportunityAmount(live.map((q) => ({ created_at: q.created_at, subtotal: q.subtotal })), lines);
-  const probability = probabilityFor(stages, opp.stage, opp.probability_override);
+  // A tender deal's stage is on the tender list, not the workspace's. Only asked when the stored stage is not in the list
+  // we were given, which a standard deal's never is, so a standard workspace takes the line above unchanged.
+  let effective = stages;
+  if (!stages.some((s) => s.value === opp.stage)) {
+    const { data: t } = await admin.from("opportunity_tenders").select("opportunity_id").eq("opportunity_id", id).eq("tenant_id", tenantId).maybeSingle();
+    if (t) effective = DEFAULT_TENDER_STAGES;
+  }
+  const probability = probabilityFor(effective, opp.stage, opp.probability_override);
   if (amount !== Number(opp.amount) || probability !== opp.probability) {
     await admin.from("opportunities").update({ amount, probability, updated_at: new Date().toISOString() }).eq("id", id).eq("tenant_id", tenantId);
   }

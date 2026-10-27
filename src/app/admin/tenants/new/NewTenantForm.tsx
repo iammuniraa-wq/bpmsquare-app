@@ -21,6 +21,11 @@ const FEATURE_LABELS: { key: keyof TenantFeatures; label: string; premium?: bool
   { key: "outbound_email",         label: "Outbound Emails" },
   { key: "business_roles",         label: "Business Roles" },
   { key: "standard_quotes",        label: "Standard Quotes" },
+  { key: "sales_orders",           label: "Sales Orders" },
+  { key: "einvoicing_ksa",         label: "Saudi e-invoicing (data readiness)" },
+  { key: "gcc_tender",             label: "GCC tender deals" },
+  { key: "deal_room",              label: "Deal Room (reserved, no effect yet)" },
+  { key: "contract_projects",      label: "Contract projects" },
   { key: "gmail_reply_threading",  label: "Gmail reply-threading" },
   { key: "quote_lines_dw",         label: "Quote Lines (Data Workbench)" },
   { key: "wfm",                    label: "Workforce (Attendance & Leave)" },
@@ -45,7 +50,7 @@ const DEFAULT_FEATURES: TenantFeatures = {
   change_history: false, outbound_email: false, business_roles: false,
   standard_quotes: false, gmail_reply_threading: false, quote_lines_dw: false,
   wfm: false, wfm_projects: false, pricing_engine: false, pricing_engine_quotes: false, next_experience: false, enterprise_theme: false, spectacular_theme: false,
-  coverage_model: false, ai_reports: false, fence_projects: false, rfq: false, estimator: false, marketing_scoring: false, process_studio: false, newsletter_studio: false, buying_signals: false, marketing_forms: false, abm: false, journeys: false, whatsapp_marketing: false, marketing_attribution: false, marketing_events: false, integration_middleware: false, webhooks_library: false, ai_assistant_actions: false,
+  coverage_model: false, ai_reports: false, fence_projects: false, rfq: false, estimator: false, marketing_scoring: false, process_studio: false, newsletter_studio: false, buying_signals: false, marketing_forms: false, abm: false, journeys: false, whatsapp_marketing: false, marketing_attribution: false, marketing_events: false, integration_middleware: false, webhooks_library: false, ai_assistant_actions: false, inbox: false, sales_orders: false, einvoicing_ksa: false, gcc_tender: false, deal_room: false, contract_projects: false,
   // Core modules default ON: a brand-new tenant with these off would open to
   // a workspace containing nothing but a Dashboard. Untick what the client
   // didn't buy -- e.g. a Workforce-only client gets all of these off.

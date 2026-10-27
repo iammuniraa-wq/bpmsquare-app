@@ -24,6 +24,7 @@ export default function SettingsSection({
   summary,
   info,
   defaultOpen = false,
+  defaultOpenNarrow,
   children,
 }: {
   /** Stable key for remembering this section's open state. */
@@ -34,6 +35,8 @@ export default function SettingsSection({
   /** What the section is for, behind an "i" after the title (docs/design/ux-simplification.md §2a). */
   info?: React.ReactNode;
   defaultOpen?: boolean;
+  /** The default on a phone (under 900 px) when it differs from the desktop one; a remembered choice still wins. */
+  defaultOpenNarrow?: boolean;
   children: React.ReactNode;
 }) {
   const key = `bpm.settings.${id}`;
@@ -45,11 +48,12 @@ export default function SettingsSection({
   useEffect(() => {
     try {
       const stored = localStorage.getItem(key);
-      if (stored !== null) setOpen(stored === "1");
+      if (stored !== null) { setOpen(stored === "1"); return; }
     } catch {
       /* private mode / site data blocked -- the default stands */
     }
-  }, [key]);
+    if (defaultOpenNarrow !== undefined && window.matchMedia("(max-width: 900px)").matches) setOpen(defaultOpenNarrow);
+  }, [key, defaultOpenNarrow]);
 
   const toggle = () =>
     setOpen((v) => {

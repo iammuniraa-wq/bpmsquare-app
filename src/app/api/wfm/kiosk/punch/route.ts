@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { randomUUID } from "crypto";
 import { createAdminSupabase } from "@/lib/supabase-server";
-import { authenticateKiosk, verifyMatchTicket } from "@/lib/wfm/kiosk";
+import { authenticateKiosk, readMatchTicket } from "@/lib/wfm/kiosk";
 import { getWfmConfig } from "@/lib/wfm/server";
 import { punchStateAt, shiftDayKey } from "@/lib/wfm/hours";
 import { resolveProjectForPunch } from "@/lib/wfm/projectServer";
@@ -19,6 +19,9 @@ export const maxDuration = 60;
 
 const KIOSK_KINDS: PresenceKind[] = ["check_in", "check_out", "break_start", "break_end"];
 const MAX_BYTES = 2 * 1024 * 1024;
+// A second tap of the same button inside this window is the same punch (double
+// submit, a retry after a dropped response), not a new one.
+const DUPLICATE_WINDOW_MS = 20_000;
 const KIOSK_SELFIE_EXT: Record<string, string> = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" };
 
 // POST /api/wfm/kiosk/punch — record the punch the matched person chose.
@@ -55,10 +58,11 @@ export async function POST(request: NextRequest) {
   if (typeof ticket !== "string") {
     return NextResponse.json({ error: "ticket is required" }, { status: 400 });
   }
-  const employeeId = verifyMatchTicket(ticket, device.id);
-  if (!employeeId) {
+  const verified = readMatchTicket(ticket, device.id);
+  if (!verified) {
     return NextResponse.json({ error: "Face match expired — scan again" }, { status: 401 });
   }
+  const { employeeId, confidence } = verified;
 
   const { data: employee } = await admin
     .from("employees")
@@ -97,6 +101,17 @@ export async function POST(request: NextRequest) {
     config.timezone,
     shift
   );
+  const name = [employee.first_name, employee.last_name].filter(Boolean).join(" ");
+
+  // Idempotent success BEFORE the state machine: a double submit would
+  // otherwise land on "Cannot check in while present" (409) even though the
+  // first one worked, and the tablet would show an error for a punch that was
+  // recorded. Tenant-scoped; superseded events do not count.
+  const duplicate = await findRecentDuplicate(admin, device.tenant_id, employee.id, kind as PresenceKind, now);
+  if (duplicate) {
+    return NextResponse.json({ ok: true, kind, ts: duplicate.ts, name, state, duplicate: true });
+  }
+
   const next = applyPunch(state, kind as PresenceKind);
   if (!next) {
     return NextResponse.json(
@@ -144,6 +159,13 @@ export async function POST(request: NextRequest) {
     employee.shift_id ?? null
   );
 
+  // Re-check right before the write: the selfie upload and project lookup above
+  // are the window a concurrent twin request slips through.
+  const twin = await findRecentDuplicate(admin, device.tenant_id, employee.id, kind as PresenceKind, now);
+  if (twin) {
+    return NextResponse.json({ ok: true, kind, ts: twin.ts, name, state, duplicate: true });
+  }
+
   const { error } = await admin.from("wfm_presence_events").insert({
     id: eventId,
     tenant_id: device.tenant_id,
@@ -155,7 +177,9 @@ export async function POST(request: NextRequest) {
     project_id: projectId,
     within_geofence: true,
     selfie_path: selfiePath,
-    flags: { kiosk_device_id: device.id },
+    // match_confidence: the face provider's similarity (0-100), carried in the
+    // signed ticket from identify -- audit evidence for how sure the match was.
+    flags: { kiosk_device_id: device.id, ...(confidence !== null ? { match_confidence: confidence } : {}) },
     created_by: null,
   });
   if (error) {
@@ -167,7 +191,32 @@ export async function POST(request: NextRequest) {
     ok: true,
     kind,
     ts: now.toISOString(),
-    name: [employee.first_name, employee.last_name].filter(Boolean).join(" "),
+    name,
     state: next,
   });
+}
+
+// The duplicate is the person's LATEST event being the same kind, inside the
+// window -- so check_in, break_start, break_end, break_start in quick
+// succession (a real sequence) is never mistaken for a repeat.
+async function findRecentDuplicate(
+  admin: ReturnType<typeof createAdminSupabase>,
+  tenantId: string,
+  employeeId: string,
+  kind: PresenceKind,
+  now: Date
+): Promise<{ id: string; ts: string } | null> {
+  const { data } = await admin
+    .from("wfm_presence_events")
+    .select("id, kind, ts")
+    .eq("tenant_id", tenantId)
+    .eq("employee_id", employeeId)
+    .is("superseded_by", null)
+    .order("ts", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (!data || data.kind !== kind) return null;
+  const at = new Date(data.ts as string).getTime();
+  if (!Number.isFinite(at) || now.getTime() - at > DUPLICATE_WINDOW_MS) return null;
+  return { id: data.id as string, ts: data.ts as string };
 }

@@ -30,6 +30,8 @@ import { loadAccountSignals } from "@/lib/coverage/signals";
 import type { SearchObjectType, SearchResult } from "@/lib/globalSearch";
 import { formatMoney, resolveCurrency, type CurrencyDef } from "@/lib/currency";
 import { tenantOwnsObject } from "@/lib/objectFeatures";
+import { searchInboxMail } from "@/lib/inbox/search";
+import { getInboxAnalytics, NO_INBOX_ANALYTICS, type InboxAnalytics } from "@/lib/inbox/analytics";
 
 /**
  * Every read helper below scopes to this tenant explicitly (service-role client
@@ -1012,11 +1014,13 @@ export async function getCaseLive(id: string) {
     { data: photos },
     { data: inspectionReport },
     { data: subCases },
+    { data: caseWorkOrders },
   ] = await Promise.all([
     supabase.from("service_cases").select("*, accounts(*), technicians(*), asset:asset_id(*), contracts(*), quotes(*)").eq("id", id).eq("tenant_id", tenantId).maybeSingle(),
     supabase.from("case_photos").select("*").eq("case_id", id).order("taken_at"),
     supabase.from("inspection_reports").select("*").eq("case_id", id).maybeSingle(),
     supabase.from("service_cases").select("*").eq("parent_case_id", id),
+    supabase.from("work_orders").select("id, ref, status, scheduled_for, technicians(name)").eq("case_id", id).eq("tenant_id", tenantId).order("created_at", { ascending: false }),
   ]);
 
   // Bail before returning anything derived from the sibling queries above --
@@ -1060,6 +1064,13 @@ export async function getCaseLive(id: string) {
     inspectionReport: (inspectionReport ?? null) as InspectionReport | null,
     loanerAsset,
     subCases: (subCases ?? []) as ServiceCase[],
+    workOrders: ((caseWorkOrders ?? []) as unknown as {
+      id: string; ref: string; status: WorkOrder["status"]; scheduled_for: string | null;
+      technicians: { name: string } | { name: string }[] | null;
+    }[]).map((w) => ({
+      id: w.id, ref: w.ref, status: w.status, scheduled_for: w.scheduled_for,
+      technician_name: (Array.isArray(w.technicians) ? w.technicians[0]?.name : w.technicians?.name) ?? null,
+    })),
   };
 }
 
@@ -1522,6 +1533,10 @@ export type AnalyticsData = {
     /** Targets in active ABM programs, and how many of them are engaged or further (0180). */
     abmTargets: number;
     abmEngaged: number;
+    /** Sales orders still to confirm (drafts), confirmed ones, and the value of the confirmed (0212). */
+    draftOrders: number;
+    openOrders: number;
+    openOrderValue: number;
   };
   accountsByType: Array<{ type: string; label: string; count: number }>;
   leadFunnel: Array<{ stage: string; count: number }>;
@@ -1558,6 +1573,8 @@ export type AnalyticsData = {
   wfmProjectHours: Array<{ id: string | null; name: string; ref: string | null; minutes: number }>;
   wfmProjectBudget: Array<{ id: string; name: string; ref: string | null; workedMinutes: number; budgetHours: number; pct: number }>;
   wfmProjectBilling: { invoicedAmount: number; invoicedCount: number; unbilledMinutes: number; unbilledProjects: number };
+  /** Shared Inbox (0214), only populated with features.inbox: counts, never mail. */
+  inbox: InboxAnalytics;
 };
 
 const CASE_STATUS_LABEL_MAP: Record<string, string> = {
@@ -1570,7 +1587,7 @@ export async function getAnalyticsDataLive(): Promise<AnalyticsData> {
   const tenantId = await currentTenantId();
   if (!tenantId) {
     return {
-      totals: { accounts: 0, contacts: 0, customerAssets: 0, openCases: 0, workOrders: 0, activeContracts: 0, leads: 0, technicians: 0, products: 0, openDeals: 0, openDealValue: 0, weightedDealValue: 0, openRfqs: 0, rfqsToAward: 0, draftEstimates: 0, quotedEstimates: 0, abmTargets: 0, abmEngaged: 0 },
+      totals: { accounts: 0, contacts: 0, customerAssets: 0, openCases: 0, workOrders: 0, activeContracts: 0, leads: 0, technicians: 0, products: 0, openDeals: 0, openDealValue: 0, weightedDealValue: 0, openRfqs: 0, rfqsToAward: 0, draftEstimates: 0, quotedEstimates: 0, abmTargets: 0, abmEngaged: 0, draftOrders: 0, openOrders: 0, openOrderValue: 0 },
       accountsByType: [], leadFunnel: [], assetsByKind: [],
       loanerStock: { available: 0, onLoan: 0, total: 0 },
       quotesByStatus: [], quoteTrend: [], casesByStatus: [], workOrdersByStatus: [],
@@ -1596,6 +1613,7 @@ export async function getAnalyticsDataLive(): Promise<AnalyticsData> {
       wfmProjectHours: [],
       wfmProjectBudget: [],
       wfmProjectBilling: { invoicedAmount: 0, invoicedCount: 0, unbilledMinutes: 0, unbilledProjects: 0 },
+      inbox: NO_INBOX_ANALYTICS,
     };
   }
   const supabase = createAdminSupabase();
@@ -1605,7 +1623,7 @@ export async function getAnalyticsDataLive(): Promise<AnalyticsData> {
     { data: accounts }, { data: contacts }, { data: assets },
     { data: cases }, { data: workOrders }, { data: contracts },
     { data: leads }, { data: technicians }, { data: quotes },
-    { data: invoices }, { data: activities }, { count: productCount }, { data: openDealsRaw }, { data: rfqRaw }, { data: estimateRaw }, { data: abmRaw },
+    { data: invoices }, { data: activities }, { count: productCount }, { data: openDealsRaw }, { data: rfqRaw }, { data: estimateRaw }, { data: abmRaw }, { data: orderRaw },
   ] = await Promise.all([
     getTenant(),
     supabase.from("accounts").select("id, type").eq("tenant_id", tenantId),
@@ -1628,7 +1646,10 @@ export async function getAnalyticsDataLive(): Promise<AnalyticsData> {
     supabase.from("estimates").select("status").eq("tenant_id", tenantId).in("status", ["draft", "quoted"]),
     // 0180-0181 may be pending: an error reads as no ABM targets.
     supabase.from("abm_target_accounts").select("progress, abm_programs!inner(status)").eq("tenant_id", tenantId).eq("abm_programs.status", "active").limit(20000),
+    // 0212 may be pending: an error reads as no orders.
+    supabase.from("sales_orders").select("status, total").eq("tenant_id", tenantId).in("status", ["draft", "confirmed"]).limit(20000),
   ]);
+  const orderRows = (orderRaw ?? []) as Array<{ status: string; total: number | null }>;
   const abmRows = (abmRaw ?? []) as unknown as Array<{ progress: string }>;
   const estimateRows = (estimateRaw ?? []) as Array<{ status: string }>;
   const openRfqRows = (rfqRaw ?? []) as Array<{ status: string }>;
@@ -1667,6 +1688,9 @@ export async function getAnalyticsDataLive(): Promise<AnalyticsData> {
     quotedEstimates: estimateRows.filter((e) => e.status === "quoted").length,
     abmTargets:      abmRows.filter((t) => t.progress !== "dropped").length,
     abmEngaged:      abmRows.filter((t) => ["engaged", "in_talks", "deal_open", "won"].includes(t.progress)).length,
+    draftOrders:     orderRows.filter((o) => o.status === "draft").length,
+    openOrders:      orderRows.filter((o) => o.status === "confirmed").length,
+    openOrderValue:  orderRows.filter((o) => o.status === "confirmed").reduce((s, o) => s + Number(o.total ?? 0), 0),
   };
 
   const accountTypeCounts = new Map<string, number>();
@@ -2033,6 +2057,9 @@ export async function getAnalyticsDataLive(): Promise<AnalyticsData> {
     }
   }
 
+  // Shared Inbox: counts only, and only for a workspace that owns it (a missing table reads as zero).
+  const inbox = tenant?.features?.inbox ? await getInboxAnalytics(supabase, tenantId) : NO_INBOX_ANALYTICS;
+
   return {
     totals, accountsByType, leadFunnel, assetsByKind, loanerStock,
     quotesByStatus, quoteTrend, quoteOutcomeTotals, quoteOutcomeCounts, quoteOverdueCount, quoteSource,
@@ -2043,6 +2070,7 @@ export async function getAnalyticsDataLive(): Promise<AnalyticsData> {
     wfmCorrectionsByStatus, wfmLeaveRequestsByStatus, wfmRecheckByStatus,
     wfmHeadcountBySite, wfmWorkforceComposition, wfmLeaveTakenByType,
     wfmProjectHours, wfmProjectBudget, wfmProjectBilling,
+    inbox,
   };
 }
 
@@ -2274,6 +2302,18 @@ const SEARCH_SPECS: SearchSpec[] = [
     toResult: (r, cur) => ({ id: r.id, title: r.ref, subtitle: r.name || (r.po_number ? `PO ${r.po_number}` : formatMoney(Number(r.total ?? 0), cur)), href: ROUTES.quotation(r.id), matched: "ref" }),
   },
   {
+    type: "standard_quote", table: "standard_quotes", columns: "id, ref, status, total",
+    textCols: ["ref"],
+    toResult: (r, cur) => ({ id: r.id, title: r.ref, subtitle: `${formatMoney(Number(r.total ?? 0), cur)} · ${r.status}`, href: ROUTES.standardQuote(r.id), matched: "ref" }),
+    featureKeys: ["standard_quotes"],
+  },
+  {
+    type: "sales_order", table: "sales_orders", columns: "id, ref, status, total, customer_po",
+    textCols: ["ref", "customer_po"],
+    toResult: (r, cur) => ({ id: r.id, title: r.ref, subtitle: `${formatMoney(Number(r.total ?? 0), cur)} · ${r.status}${r.customer_po ? ` · PO ${r.customer_po}` : ""}`, href: ROUTES.salesOrder(r.id), matched: "ref" }),
+    featureKeys: ["sales_orders"],
+  },
+  {
     type: "work_order", table: "work_orders", columns: "id, ref, description, status",
     textCols: ["ref", "description"],
     toResult: (r) => ({ id: r.id, title: r.ref, subtitle: r.description || r.status, href: ROUTES.workOrder(r.id), matched: "ref" }),
@@ -2319,6 +2359,20 @@ const SEARCH_SPECS: SearchSpec[] = [
     featureKeys: ["pipeline"],
   },
   {
+    // Header only: the budget (costs, margin) is internal and never part of a search result.
+    type: "contract_project", table: "contract_projects", columns: "id, ref, name, status",
+    textCols: ["name", "ref"],
+    toResult: (r) => ({ id: r.id, title: r.name, subtitle: [r.ref, r.status].filter(Boolean).join(" · ") || "Contract project", href: ROUTES.contractProject(r.id), matched: "name" }),
+    featureKeys: ["contract_projects"],
+  },
+  {
+    // Name, ref and status only: the budget, the quotes and the committed cost are internal and never part of a search result. Opens the project's Buy-out tab.
+    type: "buyout_package", table: "project_buyout_packages", columns: "id, ref, name, status, project_id",
+    textCols: ["name", "ref"],
+    toResult: (r) => ({ id: r.id, title: r.name, subtitle: [r.ref, r.status].filter(Boolean).join(" · ") || "Buy-out package", href: `${ROUTES.contractProject(r.project_id)}?tab=buyout`, matched: "name" }),
+    featureKeys: ["contract_projects"],
+  },
+  {
     type: "rfq", table: "rfqs", columns: "id, ref, title, status, origin_label",
     textCols: ["title", "ref", "origin_label"],
     toResult: (r) => ({ id: r.id, title: r.title, subtitle: [r.ref, r.origin_label, r.status].filter(Boolean).join(" · ") || "RFQ", href: ROUTES.rfq(r.id), matched: "title" }),
@@ -2362,7 +2416,7 @@ const SEARCH_SPECS: SearchSpec[] = [
       title: [r.first_name, r.last_name].filter(Boolean).join(" ") || r.employee_code || "Employee",
       // Leads with the employee code so two same-named people (or an
       // accidental duplicate record) are tellable apart in search results.
-      subtitle: [r.employee_code, r.designation, r.department, r.status === "inactive" ? "Inactive" : null].filter(Boolean).join(" · ") || "Employee",
+      subtitle: [r.employee_code, r.designation, r.department, r.status === "inactive" ? "Obsolete" : null].filter(Boolean).join(" · ") || "Employee",
       href: ROUTES.wfmEmployee(r.id),
       matched: "name",
     }),
@@ -2407,6 +2461,8 @@ export async function globalSearchLive(
     /** True when the caller can open the supervisor Employee Hub -- false
      * rewrites employee results to the master-data Employees list. */
     employeeHub: boolean;
+    /** Inbox channels the caller is on the team of. Mail is searched only in these; absent means the Inbox is not searched. */
+    inboxChannels?: () => Promise<string[]>;
   }
 ): Promise<SearchResult[]> {
   const term = sanitizeSearchTerm(query);
@@ -2500,6 +2556,13 @@ export async function globalSearchLive(
         });
       }
     }
+  }
+
+  // Customer mail: sender and subject, in the channels the caller may open (a spec with only a tenant filter would
+  // show a team channel's subjects to everyone). Never the body, which is encrypted.
+  if ((!objectType || objectType === "inbox_email") && typeAllowed("inbox_email") && features.inbox === true && access?.inboxChannels) {
+    const channelIds = await access.inboxChannels();
+    results.push(...(await searchInboxMail(supabase, tenantId, channelIds, term, perTypeLimit)));
   }
 
   // Non-supervisors can't open the Employee Hub (requireWfmSupervisorPage

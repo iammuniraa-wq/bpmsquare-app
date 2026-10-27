@@ -30,8 +30,8 @@ objects, v1 additions, WFM, settings routes) plus two full-repo passes: (a) ever
 | M4 | Medium | `src/app/(app)/reports/ReportsClient.tsx:512`, `src/app/api/admin/tenants/[id]/export/route.ts:36` | CSV formula injection | Fixed |
 | M5 | Medium | `src/app/api/{import,export,update}/*` (all but employees, product_bom_lines, a few) and the core CRUD routes | Business Role grants are page-level only | Open (systemic) |
 | M6 | Medium | `src/lib/marketing/forms/submit.ts:199-258` | Consent recorded for an existing contact from an anonymous form (single opt-in) | Open (by design, see below) |
-| L1 | Low | `src/app/api/nova/comments/route.ts:42,89` ; `0089_record_comments.sql:34` | No workcenter check on comments; insert policy lets a member forge `author_email`/`mentions` | Open |
-| L2 | Low | `src/app/api/opportunities/route.ts:79`, `opportunities/[id]/route.ts:76-77` | Body `owner_id` and `team[].user_id` not verified as workspace members | Open |
+| L1 | Low | `src/app/api/nova/comments/route.ts:42,89` ; `0089_record_comments.sql:34` | No workcenter check on comments; insert policy lets a member forge `author_email`/`mentions` | Fixed 2026-10-23 (code: module + workcenter gate, 404; service-role insert; inbox filtered. Policy: 0211 PENDING) |
+| L2 | Low | `src/app/api/opportunities/route.ts:79`, `opportunities/[id]/route.ts:76-77` | Body `owner_id` and `team[].user_id` not verified as workspace members | Fixed 2026-10-23 (422 on a user id outside `tenant_users`) |
 | L3 | Low | every `.../cron/*` route, `src/app/api/webhooks/cron/route.ts:19` | CRON_SECRET compared with `!==` (not constant time) | Open |
 | L4 | Low | `src/app/api/auth/face-login/route.ts` | No liveness; a photo signs in as the matched employee (opt-in flag, documented in the route) | Accepted risk |
 | L5 | Low | `src/app/api/auth/dev-signin/route.ts` | Mints a magic link for a hard-coded address; gated on `NODE_ENV !== "production"` (Vercel previews are production) | Open, delete the route |

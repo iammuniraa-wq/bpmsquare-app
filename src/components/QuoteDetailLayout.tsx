@@ -418,6 +418,8 @@ export default function QuoteDetailLayout({ quote, account, contact, lines, work
   const moreRef                       = useRef<HTMLDivElement>(null);
   const tenant = useTenant();
   const invoicesFeatureEnabled = useTenantFeature("invoices");
+  const standardQuotesFeatureEnabled = useTenantFeature("standard_quotes");
+  const [toStandard, setToStandard] = useState(false);
   const [activeTab, setActiveTab] = useState<"overview" | "versions">("overview");
 
   const emailRecipient = contact?.email || contact?.email2 || account?.email || account?.email2 || null;
@@ -1085,6 +1087,24 @@ export default function QuoteDetailLayout({ quote, account, contact, lines, work
                   >
                     <span style={{ fontSize: 15 }}>⎘</span> {copying ? "Copying…" : "Copy quote"}
                   </button>
+                  {standardQuotesFeatureEnabled && (
+                    <button
+                      data-guide="quote.menu_standard_quote"
+                      disabled={toStandard}
+                      onClick={async () => {
+                        setMoreOpen(false);
+                        setToStandard(true);
+                        const res = await fetch(`/api/quotes/${quote.id}/convert-to-standard-quote`, { method: "POST" });
+                        setToStandard(false);
+                        const j = (await res.json().catch(() => ({}))) as { id?: string };
+                        // 409 carries the standard quote this one was already converted into.
+                        if ((res.ok || res.status === 409) && j.id) router.push(ROUTES.standardQuote(j.id));
+                      }}
+                      style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", padding: "11px 16px", fontSize: 13, color: c.ink, background: "none", border: "none", borderBottom: `1px solid ${c.line}`, cursor: toStandard ? "wait" : "pointer", textAlign: "left" }}
+                    >
+                      <span style={{ fontSize: 15 }}>⇢</span> {toStandard ? "Creating…" : "Create standard quote"}
+                    </button>
+                  )}
                   <button
                     data-guide="quote.menu_email"
                     onClick={() => { setMoreOpen(false); setComposeOpen(true); }}

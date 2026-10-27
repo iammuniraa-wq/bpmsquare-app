@@ -5,6 +5,10 @@ import { RFQ_LIMITS, rfqConfig } from "@/lib/rfq/types";
 import { linkExpiry } from "@/lib/rfq/rules";
 import { getTenant } from "@/lib/tenant";
 import { whatsappText } from "@/lib/rfq/compose";
+import { loadCurrentAwards } from "@/lib/rfq/awards";
+import { loadActorNames } from "@/lib/actorNames";
+import { tenantToday } from "@/lib/tenantClock";
+import { tenderForDeal } from "@/lib/tender/server";
 
 // One RFQ. GET is the whole bundle the detail screen needs; PATCH edits the
 // header (explicit allowlist) or runs an action; DELETE removes a draft.
@@ -47,9 +51,29 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
         whatsapp_text: link && tenant ? whatsappText({ ref: b.rfq.ref ?? "RFQ", title: b.rfq.title, tenantName: tenant.name, respondBy: b.rfq.respond_by }, link) : null,
       };
     });
+    // Recorded award decisions (0224): empty and flagged while the migration is pending, so the screen can still compare.
+    const awardState = await loadCurrentAwards(admin, tenantId, id).catch(() => ({ rows: [], pending: true }));
+    const names = await loadActorNames(admin, tenantId, awardState.rows.map((a) => a.chosen_by));
+    // A tender's RFQ is awarded on the deal's Costing tab (it also prices the BOQ row), so this screen points there. Tender workspaces only.
+    let costingHref: string | null = null;
+    if (tenant?.features?.gcc_tender === true && b.rfq.origin_id && (b.rfq.origin_type === "opportunity" || b.rfq.origin_type === "estimate")) {
+      let dealId: string | null = null;
+      if (b.rfq.origin_type === "opportunity") dealId = b.rfq.origin_id;
+      else {
+        const { data: est } = await admin.from("estimates").select("opportunity_id").eq("id", b.rfq.origin_id).eq("tenant_id", tenantId).maybeSingle();
+        dealId = (est as { opportunity_id?: string | null } | null)?.opportunity_id ?? null;
+      }
+      if (dealId && (await tenderForDeal(admin, tenantId, tenant.features, dealId))) costingHref = `/pipeline/${dealId}?tab=costing`;
+    }
     return NextResponse.json({
       ...b,
       suppliers,
+      awards: awardState.rows.map((a) => ({ ...a, chosen_by_name: a.chosen_by ? names.get(a.chosen_by) ?? null : null })),
+      awards_pending: awardState.pending,
+      costing_href: costingHref,
+      today: await tenantToday(tenantId),
+      stale_days: cfg.price_valid_days,
+      max_reminders: cfg.max_reminders,
       unread_marked: unread.length,
       products: products ?? [],
       origin_href: originHref(b.rfq.origin_type, b.rfq.origin_id, { caseId }),

@@ -1,6 +1,7 @@
 import { canAddCustom, customKindFromLabel, kindLabel } from "@/lib/middleware/mapping/valueLists";
 import type { ValueListRow } from "@/lib/middleware/mapping/types";
-import type { ProposedList, ValueListView } from "./api";
+import { isOrgKind, orgKeyLabel, parseOrgKey, salesAreaProblem, type OrgNames } from "@/lib/middleware/erpOrgPure";
+import type { OrgDirectoryView, ProposedList, ValueListView } from "./api";
 
 // The Value mapping view's pure parts. A list is a two-column table, BPMSquare value | ERP code, used outbound and, reversed,
 // inbound. Exactly one row per ERP code is the answer when that code comes back: the row marked "In".
@@ -48,11 +49,21 @@ export function setInbound(d: ListDraft, i: number): ListDraft {
 /** A row with a BPMSquare value and no ERP code: shown red, blocks the send of that value (not the save). */
 export const needsCode = (r: ValueListRow): boolean => r.bpm.trim() !== "" && r.erp.trim() === "";
 
-export type RowProblem = { row: number; message: string };
+/** `col` says which cell the message belongs under; the BPMSquare cell is the default. */
+export type RowProblem = { row: number; message: string; col?: "erp" };
 export function listProblems(d: ListDraft): RowProblem[] {
   const seen = new Map<string, number>();
   const out: RowProblem[] = [];
+  const org = isOrgKind(d.kind);
   d.rows.forEach((r, i) => {
+    if (org) {
+      // A sales area / company row has a picked coverage or order type, never typed text; a typed code in a row with no pick cannot save.
+      if (!r.bpm.trim() && r.erp.trim()) out.push({ row: i, message: "Pick a coverage or an order type for this row." });
+      if (d.kind === "sales_area") {
+        const p = salesAreaProblem(r.erp);
+        if (p) out.push({ row: i, message: p, col: "erp" });
+      }
+    }
     const b = norm(r.bpm);
     if (!b) return;
     const first = seen.get(b);
@@ -94,6 +105,27 @@ export function newCustomList(label: string, existing: readonly string[]): { kin
 }
 
 export const emptyDraft = (kind: string, label?: string): ListDraft => ({ kind, label: label ?? kindLabel(kind), rows: [], default_in: null, isNew: true });
+
+// ── Sales area / ERP company lists: the BPMSquare side is picked, and shown by name ──────────
+
+export type OrgChoice = { key: string; label: string; group: "Coverage" | "Order type" };
+
+/** The pick list for one row: every coverage and order type not used by another row, plus this row's own (even when it was removed). */
+export function orgChoicesForRow(org: OrgDirectoryView, d: ListDraft, i: number): { choices: OrgChoice[]; own: (OrgChoice & { removed: boolean }) | null } {
+  const mine = d.rows[i]?.bpm.trim().toLowerCase() ?? "";
+  const used = new Set(d.rows.filter((_, j) => j !== i).map((r) => r.bpm.trim().toLowerCase()).filter(Boolean));
+  const choices = org.options.filter((o) => !used.has(o.key.toLowerCase()));
+  const own = mine && !choices.some((o) => o.key.toLowerCase() === mine)
+    ? { key: d.rows[i].bpm, ...orgKeyLabel(d.rows[i].bpm, org.names as OrgNames) }
+    : null;
+  return { choices, own };
+}
+
+/** Rows whose coverage or order type no longer exists: the list says so, and the person deletes them. */
+export const removedOrgRows = (d: ListDraft, names: OrgNames): number =>
+  d.rows.filter((r) => parseOrgKey(r.bpm) && orgKeyLabel(r.bpm, names).removed).length;
+
+export const orgPlaceholder = (kind: string): string => (kind === "sales_area" ? "1000/10/00" : "Company or business unit");
 
 export function csvPreviewLine(p: { added: number; changed: number; removed: number }): string {
   const parts = [`${p.added} added`, `${p.changed} changed`, `${p.removed} removed`];

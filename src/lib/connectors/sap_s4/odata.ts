@@ -3,7 +3,10 @@
 // caller passes a fetch that only reaches public hosts (fetchPublic).
 //
 //  - Every request asks for JSON (`$format=json`); a V2 answer is { d: { results, __next } } or { d: { ... } }.
-//  - 429 / 503 / 504 are retried on a GET, honouring Retry-After (capped). A write is never retried (there is none yet).
+//  - 429 / 503 / 504 are retried on a GET, honouring Retry-After (capped). A write is never retried: a create that
+//    timed out may have been made, and the caller looks for it by its marker instead of asking again.
+//  - A write needs SAP's CSRF token: one GET of the service root with `x-csrf-token: Fetch` returns the token and the
+//    session cookies, both sent back with the write (create()). The token is fetched again once if SAP says it expired.
 //  - A server-supplied next link is NEVER followed to another address: only its query (the skip token) is applied
 //    to our own base, so the login can not be sent anywhere else.
 //  - Paging stops at a row cap; the caller resumes next run from its position.
@@ -24,7 +27,7 @@ export class SapError extends Error {
 
 export type SapScenario = (typeof SAP_SCENARIO)[keyof typeof SAP_SCENARIO] | null;
 
-const scenarioWords = (s: SapScenario): string => (s ? `scenario ${s.id} (${s.name})` : "the scenario this API belongs to");
+const scenarioWords = (s: SapScenario): string => (s ? (s.id ? `scenario ${s.id} (${s.name})` : `the service ${s.name}`) : "the scenario this API belongs to");
 
 /** What a status means to the person at the SAP screen, in the words of the Communication Management apps. */
 export function explainSapStatus(status: number, scenario: SapScenario, sandbox: boolean, sapMessage?: string | null): string {
@@ -84,10 +87,11 @@ export class SapClient {
   }
 
   /** The raw answer: parsed JSON where the body is JSON, and the text either way (`$metadata` is XML). */
-  async requestRaw(path: string, init: { query?: Record<string, string | undefined>; accept?: string } = {}): Promise<{ json: unknown; text: string; headers: Headers; status: number }> {
+  async requestRaw(path: string, init: { query?: Record<string, string | undefined>; accept?: string; method?: "GET" | "POST"; body?: unknown; headers?: Record<string, string> } = {}): Promise<{ json: unknown; text: string; headers: Headers; status: number }> {
     const fetcher = this.opts.fetch ?? (fetch as unknown as FetchLike);
     const sleep = this.opts.sleep ?? ((ms: number) => new Promise((r) => setTimeout(r, ms)));
-    const maxRetries = this.opts.maxRetries ?? 3;
+    const method = init.method ?? "GET";
+    const maxRetries = method === "GET" ? this.opts.maxRetries ?? 3 : 0;
     const url = this.url(path, init.query);
     if (new URL(url).origin !== this.origin) throw new SapError("Refused to call another address.", 400);
     for (let attempt = 0; ; attempt++) {
@@ -96,7 +100,11 @@ export class SapClient {
       let res: Response;
       let text: string;
       try {
-        res = await fetcher(url, { method: "GET", redirect: "error", signal: ctrl.signal, headers: { Accept: init.accept ?? "application/json", ...(await this.auth()) } });
+        res = await fetcher(url, {
+          method, redirect: "error", signal: ctrl.signal,
+          headers: { Accept: init.accept ?? "application/json", ...(init.body !== undefined ? { "Content-Type": "application/json" } : {}), ...(init.headers ?? {}), ...(await this.auth()) },
+          ...(init.body !== undefined ? { body: JSON.stringify(init.body) } : {}),
+        });
         text = await readBounded(res, this.opts.maxBodyBytes ?? MAX_SAP_BODY_BYTES);
       } catch (e) {
         clearTimeout(timer);
@@ -121,6 +129,10 @@ export class SapClient {
       if (!res.ok) {
         let body = json;
         if (body === null && text.trim().startsWith("<")) body = null;
+        const sapMsg = sapErrorMessage(body);
+        if (res.status === 403 && (res.headers.get("x-csrf-token")?.toLowerCase() === "required" || /csrf/i.test(sapMsg ?? ""))) {
+          throw new SapError(`SAP refused the security token (csrf). ${sapMsg ?? ""}`.trim(), 403);
+        }
         throw new SapError(explainSapStatus(res.status, this.opts.scenario ?? null, this.opts.sandbox === true, sapErrorMessage(body)), res.status);
       }
       return { json, text, headers: res.headers, status: res.status };
@@ -131,6 +143,40 @@ export class SapClient {
   async get(path: string, query?: Record<string, string | undefined>): Promise<{ results: Record<string, unknown>[]; next: string | null }> {
     const { json } = await this.requestRaw(path, { query: { $format: "json", ...(query ?? {}) } });
     return unwrapV2(json);
+  }
+
+  private csrf: { token: string; cookie: string } | null = null;
+
+  /** One GET of the service root: SAP answers the token for `x-csrf-token: Fetch` and the cookies that belong to it. */
+  private async fetchCsrf(): Promise<{ token: string; cookie: string }> {
+    const r = await this.requestRaw("", { headers: { "x-csrf-token": "Fetch" } });
+    const token = r.headers.get("x-csrf-token");
+    if (!token || token.toLowerCase() === "required") throw new SapError("SAP did not hand out a security token for writing (x-csrf-token). Check that the user may create documents.", 403);
+    const raw = (r.headers as unknown as { getSetCookie?: () => string[] }).getSetCookie?.() ?? [];
+    const cookie = raw.map((c) => c.split(";")[0].trim()).filter(Boolean).join("; ");
+    return { token, cookie };
+  }
+
+  /**
+   * POST one entity (a deep insert when `body` carries its items). Returns the created entity SAP echoes back. The token is
+   * fetched on first use and again once when SAP refuses it as expired; the write itself is never repeated.
+   */
+  async create(entitySet: string, body: Record<string, unknown>): Promise<Record<string, unknown>> {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      this.csrf ??= await this.fetchCsrf();
+      try {
+        const r = await this.requestRaw(entitySet, {
+          method: "POST", body, query: { $format: "json" },
+          headers: { "x-csrf-token": this.csrf.token, ...(this.csrf.cookie ? { Cookie: this.csrf.cookie } : {}) },
+        });
+        return unwrapV2(r.json).results[0] ?? {};
+      } catch (e) {
+        // An expired token is answered 403 with `x-csrf-token: Required`; nothing was written, so asking again is safe.
+        if (e instanceof SapError && e.status === 403 && attempt === 0 && /token|csrf/i.test(e.message)) { this.csrf = null; continue; }
+        throw e;
+      }
+    }
+    throw new SapError("SAP refused the security token twice.", 403);
   }
 
   /** `$metadata` as text. */

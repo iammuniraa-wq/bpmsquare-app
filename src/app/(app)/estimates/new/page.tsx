@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { requireFeature, getTenant } from "@/lib/tenant";
-import { requireTenantUser } from "@/lib/supabase-server";
+import { requireTenantUser, createAdminSupabase } from "@/lib/supabase-server";
+import { tenderDealContext } from "@/lib/tender/estimates/context";
 import { requireWorkcenterView, resolvePermissions, canCreateWorkcenter, canEditWorkcenter } from "@/lib/permissions";
 import { ROUTES } from "@/lib/constants";
 import PageHeader from "@/components/PageHeader";
@@ -12,20 +13,29 @@ import { PENDING_MESSAGE, isMissingRelation, loadTenantMeta } from "@/lib/estima
 import type { EstimateTemplate } from "@/lib/types";
 import type { WorkspaceTemplate } from "@/components/estimator/workspace/types";
 import type { DraftInit } from "@/components/estimator/workspace/useEstimateDraft";
+import { loadEstimatePrefill } from "@/lib/inbox/estimateLink";
 import { quoteAbility } from "../quoteAbility";
 import NewEstimateScreen from "./NewEstimateScreen";
 import StarterButton from "./StarterButton";
+import TemplateCards from "./TemplateCards";
+import { aiConfigured } from "@/lib/estimator/aiServer";
 
-type TemplateRow = Pick<EstimateTemplate, "id" | "name" | "description" | "geometry" | "inputs" | "rates" | "rules" | "quote_granularity">;
+type TemplateRow = Pick<EstimateTemplate, "id" | "name" | "description" | "geometry" | "inputs" | "rates" | "rules" | "quote_granularity" | "icon" | "keywords" | "locked">;
 
-export default async function NewEstimatePage({ searchParams }: { searchParams: Promise<{ account_id?: string; from?: string }> }) {
+export default async function NewEstimatePage({ searchParams }: { searchParams: Promise<{ account_id?: string; from?: string; template?: string; email?: string; from_email?: string; opportunity?: string }> }) {
   await requireWorkcenterView("estimates");
   await requireFeature("estimator");
   const { supabase, tenantId, userId, role } = await requireTenantUser();
-  const { account_id, from } = await searchParams;
+  const { account_id, from, template: templateParam, email: emailParam, from_email: fromEmail, opportunity: opportunityParam } = await searchParams;
+
+  // GCC tender deals (slice 3c-1): "?opportunity=<deal>" makes the estimate for that tender. Only a tender deal of THIS workspace counts
+  // (and only with the edition on); anything else is ignored and the page is the ordinary new-estimate page.
+  const tenantNow = opportunityParam ? await getTenant() : null;
+  const dealCtx = opportunityParam && tenantNow ? await tenderDealContext(createAdminSupabase(), tenantId, tenantNow.features, opportunityParam) : null;
 
   const [tpl, accounts, contacts] = await Promise.all([
-    supabase.from("estimate_templates").select("id, name, description, geometry, inputs, rates, rules, quote_granularity").eq("tenant_id", tenantId).eq("is_active", true).order("name"),
+    // "*": the catalogue columns (icon, keywords, locked) exist only once 0213 is applied.
+    supabase.from("estimate_templates").select("*").eq("tenant_id", tenantId).eq("is_active", true).order("name"),
     supabase.from("accounts").select("id, name").eq("tenant_id", tenantId).order("name"),
     supabase.from("contacts").select("id, name, account_id").eq("tenant_id", tenantId).order("name"),
   ]);
@@ -46,7 +56,8 @@ export default async function NewEstimatePage({ searchParams }: { searchParams: 
     );
   }
 
-  const templates = ((tpl.data ?? []) as TemplateRow[]).map((t): WorkspaceTemplate => ({
+  const rows = (tpl.data ?? []) as TemplateRow[];
+  const templates = rows.map((t): WorkspaceTemplate => ({
     id: t.id, name: t.name, description: t.description, geometry: t.geometry ?? null,
     inputs: t.inputs ?? [], rates: t.rates ?? [], rules: t.rules ?? [], quote_granularity: t.quote_granularity ?? "group",
   }));
@@ -63,6 +74,7 @@ export default async function NewEstimatePage({ searchParams }: { searchParams: 
             action={
               <div style={{ display: "flex", gap: 10, flexWrap: "wrap", justifyContent: "center" }}>
                 <StarterButton />
+                <StarterButton starter="Chain-link fence" label="Start from the chain-link fence starter" variant="secondary" />
                 {role === "admin" && <Button href={ROUTES.settingsEstimateTemplates} variant="secondary">Open template settings</Button>}
               </div>
             }
@@ -84,10 +96,31 @@ export default async function NewEstimatePage({ searchParams }: { searchParams: 
     );
   }
 
+  // With more than one template the page opens on "What are you estimating?"; a card (or an
+  // old link with ?from=) goes on to the working page with that template chosen.
+  const chosen = templateParam && templates.some((t) => t.id === templateParam) ? templateParam : null;
+  const viaInbox = !!fromEmail && /^[0-9a-f-]{36}$/i.test(fromEmail);
+  if (templates.length > 1 && !chosen && !viaInbox && !(from && /^[0-9a-f-]{36}$/i.test(from))) {
+    return (
+      <>
+        <TabTitle title="New estimate" />
+        {back}
+        <PageHeader title="What are you estimating?" subtitle="Choose a template. You can paste the customer's email on the next page." />
+        <TemplateCards
+          templates={rows.map((t) => ({ id: t.id, name: t.name, description: t.description, geometry: t.geometry ?? null, icon: t.icon ?? null, keywords: t.keywords ?? null, locked: t.locked === true }))}
+          accountId={account_id && (accounts.data ?? []).some((a) => a.id === account_id) ? account_id : undefined}
+          opportunityId={dealCtx?.id}
+          canPick={aiConfigured()}
+        />
+      </>
+    );
+  }
+
   // Duplicate: start from another estimate's template, inputs, margin and account.
   let init: DraftInit = {
-    templateId: templates[0].id,
+    templateId: chosen ?? templates[0].id,
     accountId: account_id && (accounts.data ?? []).some((a) => a.id === account_id) ? account_id : undefined,
+    ...(dealCtx ? { opportunityId: dealCtx.id } : {}),
   };
   if (from && /^[0-9a-f-]{36}$/i.test(from)) {
     const { data: src } = await supabase
@@ -103,6 +136,22 @@ export default async function NewEstimatePage({ searchParams }: { searchParams: 
     }
   }
 
+  // Started from the shared Inbox: the customer's email goes in the intake card, the template suggested for it is
+  // chosen (when it is one of this workspace's active ones), and the sender's account is picked if they are known.
+  if (fromEmail && /^[0-9a-f-]{36}$/i.test(fromEmail)) {
+    const prefill = await loadEstimatePrefill(fromEmail);
+    if (prefill) {
+      const known = (id: string | null) => !!id && (accounts.data ?? []).some((a) => a.id === id);
+      init = {
+        ...init,
+        brief: prefill.brief, sourceEmailId: fromEmail,
+        accountId: init.accountId ?? (known(prefill.accountId) ? prefill.accountId! : undefined),
+        contactId: known(prefill.accountId) ? prefill.contactId ?? undefined : undefined,
+        customer: init.customer ?? prefill.customer ?? undefined,
+      };
+    }
+  }
+
   const [meta, tenant] = await Promise.all([loadTenantMeta(tenantId), getTenant()]);
   const { canQuote, quoteUnavailable } = quoteAbility(perms, tenant, canEditWorkcenter(perms, "estimates"), false);
 
@@ -110,7 +159,12 @@ export default async function NewEstimatePage({ searchParams }: { searchParams: 
     <>
       <TabTitle title="New estimate" />
       {back}
-      <PageHeader title="New estimate" subtitle="Start from the customer's email or fill in the details. Nothing is saved until you create the quote or save a draft." />
+      {dealCtx && (
+        <div data-guide="tender.estimate.for" style={{ marginBottom: 10, fontSize: 13 }}>
+          For tender <b>{dealCtx.ref ?? dealCtx.title}</b> · <Link href={`/pipeline/${dealCtx.id}?tab=estimates`} className="bpm-backlink">Back to the tender</Link>
+        </div>
+      )}
+      <PageHeader title={templates.length > 1 ? `New estimate: ${templates.find((t) => t.id === init.templateId)?.name ?? ""}` : "New estimate"} subtitle="Start from the customer's email or fill in the details. Nothing is saved until you create the quote or save a draft." action={templates.length > 1 ? <Button href={dealCtx ? `${ROUTES.estimateNew}?opportunity=${dealCtx.id}` : ROUTES.estimateNew} variant="secondary" size="sm">Change template</Button> : undefined} />
       <NewEstimateScreen
         templates={templates}
         init={init}
@@ -120,6 +174,7 @@ export default async function NewEstimatePage({ searchParams }: { searchParams: 
         canEdit
         canQuote={canQuote}
         quoteUnavailable={quoteUnavailable}
+        emailFirst={emailParam === "1" || (viaInbox && !chosen)}
       />
     </>
   );

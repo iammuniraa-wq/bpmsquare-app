@@ -49,6 +49,12 @@ export type CreateActionDef = {
   labelOf: (values: Record<string, string>) => string;
   hrefFor: (id: string) => string;
   next: (record: { id: string; label: string }) => NextStep[];
+  /**
+   * Present only on an organisation object (a company, never a person). The keys of the standard fields the assistant
+   * may propose from the web for it, each with the plain description the research call is given instead of the
+   * workspace's own label. A key the field config does not offer is simply not asked for.
+   */
+  research?: Record<string, string>;
 };
 
 export const ACTIONS: CreateActionDef[] = [
@@ -57,6 +63,18 @@ export const ACTIONS: CreateActionDef[] = [
     route: "/api/accounts", load: () => import("@/app/api/accounts/route"),
     featureKey: "accounts", workcenter: "accounts",
     requiredKeys: ["name", "type"], refs: [],
+    research: {
+      website: "the company's official website address",
+      industry: "its industry or sector in a few words",
+      address_line1: "the street address of its head office",
+      city: "the city of its head office",
+      state: "the state or region of its head office",
+      postal_code: "the postal code of its head office",
+      country: "the country of its head office",
+      phone: "the main telephone number the company itself publishes for general enquiries",
+      email: "a general enquiries email address the company itself publishes (info@, contact@), never a named person's",
+      employee_count: "its number of employees, or a range, if the company states it",
+    },
     labelOf: (v) => v.name ?? "",
     hrefFor: ROUTES.account,
     next: (r) => [
@@ -91,15 +109,20 @@ export const DEFERRED: Record<string, string> = {
   estimates: "born from a template; the Estimator stays the way in",
   "fence-projects": "has a site, lines and pricing; the project screens stay the way in",
   inventory: "unique SKU and stock rules; next in line",
+  "work-orders": "created from a case with its authorisation (quote or contract); the Create work order action on the case stays the way in",
   invoices: "an outward financial document; a verb for a later step, not a plain create",
   leads: "carries consent and a source; next in line",
-  opportunities: "needs an account and a stage; next in line",
+  opportunities: "needs an account and a stage; next in line. A tender deal also needs its tender number, issuer, portal and bid end date, so New tender on the Pipeline's Tenders tab (and Create deal from an Inbox email) stay the way in",
   products: "next in line; same shape as accounts",
   "purchase-orders": "has lines and a supplier and goes outward; a verb for a later step",
   quotes: "needs line items and pricing; the quote screens and the pricing engine stay the way in",
   rfqs: "has lines and suppliers; the RFQ screen stays the way in",
   "standard-quotes": "needs line items and pricing; the quote screens stay the way in",
+  "sales-orders": "made from an accepted quote or a won deal with its lines and prices copied; Create sales order on the quote stays the way in, and the assistant reads orders through Talk to data",
+  "sales-order-types": "settings for Sales Orders",
+  "contract-projects": "made from an awarded tender with its lines and costs copied, and its budget is approved by a manager; Create contract project on the awarded deal stays the way in, and the assistant reads projects (header and totals only) through Talk to data",
   suppliers: "next in line; same shape as accounts",
+  "supplier-groups": "a client's approved vendor list in a workspace with the tender edition; set up from the Groups tab in Suppliers, which also holds the members",
   technicians: "linked to a login and skills; set up from the Technicians screen",
   // Marketing and studios: configuration-heavy, not a typed record.
   journeys: "a flow of steps, built in the Journeys studio",
@@ -117,6 +140,19 @@ export const DEFERRED: Record<string, string> = {
   reports: "saves a report definition, not a business record",
   "saved-queries": "saves a filter, not a business record",
   upload: "a file upload, not a record",
+};
+
+/**
+ * Verbs on an existing record that the assistant cannot do yet, each with the route that does it and the reason. The
+ * registry holds creates only (kind "create"), and registry.test.ts checks every route named here still exists with a POST so
+ * the list cannot rot. "Check this order with the ERP" is read-only but is a call to an outside system the person watches the
+ * result of; "Send order to the ERP" creates a document in the customer's ERP. Both need a verb card (a confirm card for a
+ * named record, not a field form) that the assistant does not have: until then the assistant reads the results through Talk to
+ * data (credit_check, price_check, stock_check on sales orders) and the buttons on the ERP tab stay the way in.
+ */
+export const DEFERRED_VERBS: Record<string, { route: string; why: string }> = {
+  check_order_with_erp: { route: "sales-orders/[id]/erp-check", why: "a read-only check of one named order against the ERP; needs a verb confirm card, not a create form" },
+  send_order_to_erp: { route: "sales-orders/[id]/erp-send", why: "creates a document in the customer's ERP and locks the order; needs a verb confirm card that lists the checks that are not a pass" },
 };
 
 export type ActionGate = { features: Record<string, boolean | undefined>; perms: PermissionSet };

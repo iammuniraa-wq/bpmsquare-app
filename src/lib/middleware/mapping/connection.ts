@@ -5,7 +5,7 @@ import { isSchemaPending } from "@/lib/marketing/pending";
 // The connection a mapping belongs to: an ERP adapter by its fixed name, or a Call webhook as `webhook:<uuid>`. The id comes
 // from a request, so a webhook is resolved with the tenant before anything is read or written under it.
 
-export const ADAPTER_CONNECTIONS = ["dynamics365", "sap", "epromis"] as const;
+export const ADAPTER_CONNECTIONS = ["dynamics365", "sap", "sap_s4", "epromis"] as const;
 export type AdapterId = (typeof ADAPTER_CONNECTIONS)[number];
 
 export type Connection =
@@ -14,7 +14,7 @@ export type Connection =
 
 export type Resolved = { ok: true; conn: Connection } | { ok: false; status: number; error: string };
 
-const ADAPTER_LABEL: Record<AdapterId, string> = { dynamics365: "Dynamics 365", sap: "SAP", epromis: "ePROMIS" };
+const ADAPTER_LABEL: Record<AdapterId, string> = { dynamics365: "Dynamics 365", sap: "SAP", sap_s4: "SAP S/4HANA", epromis: "ePROMIS" };
 const WEBHOOK_ID = /^webhook:([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i;
 
 export async function resolveConnection(admin: SupabaseClient, tenantId: string, raw: unknown): Promise<Resolved> {

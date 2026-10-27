@@ -1,3 +1,4 @@
+import { normaliseName, normaliseDomain } from "./companyKey";
 import "server-only";
 import Anthropic from "@anthropic-ai/sdk";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -12,7 +13,7 @@ import { readAnalysis, saveAnalysis, type CacheRow } from "./cache";
 import { dayStartIso, expiresAtFor, isFresh, refreshBlockedUntil, resolveDailyLimit } from "./budget";
 import { cardId, composeCard, toStored, type StoredResearch } from "./compose";
 import { loadLive, ACCOUNT_COLUMNS, type AccountRow, type LiveCtx } from "./loadLive";
-import { runCompanyResearch, type ResearchRun } from "./research";
+import { AnalysisResearchError, NO_KEY, runCompanyResearch, type ResearchRun } from "./research";
 import { keyOfSubject, toSubject, type Subject, type SubjectInput } from "./subject";
 import { checkWebsite, type SiteCheck } from "./website";
 import { ANALYSIS_EMPTY } from "./tips";
@@ -79,7 +80,10 @@ const SENTENCE_SCHEMA = {
 export function defaultDeps(): AnalyseDeps {
   return {
     now: () => new Date(),
-    research: (subject, topics) => runCompanyResearch(new Anthropic(), subject, topics),
+    research: (subject, topics) => {
+      if (!process.env.ANTHROPIC_API_KEY) throw new AnalysisResearchError(NO_KEY);
+      return runCompanyResearch(new Anthropic(), subject, topics);
+    },
     website: (d) => checkWebsite(d),
     allowance: allowanceFor,
     live: loadLive,
@@ -112,6 +116,22 @@ export { analysisAccess };
 async function resolveAccount(a: AnalysisAccess, id: string): Promise<AccountRow | null> {
   const { data } = await a.supabase.from("accounts").select(ACCOUNT_COLUMNS).eq("id", id).eq("tenant_id", a.tenantId).maybeSingle();
   return (data as AccountRow | null) ?? null;
+}
+
+/**
+ * A company typed by name that is already an account here IS that account ("abb india" is "ABB India Limited"): same
+ * normalised name, or the same website. Only a single match counts; two accounts of one name are left for the person to
+ * pick. Read through the person's own session, so an account they may not see is not matched.
+ */
+export async function matchAccountId(a: AnalysisAccess, input: AnalyseInput): Promise<string | null> {
+  const name = normaliseName(typeof input.name === "string" ? input.name : null);
+  const domain = normaliseDomain(typeof input.domain === "string" ? input.domain : null);
+  if (!name && !domain) return null;
+  const { data, error } = await a.supabase.from("accounts").select("id, name, website").eq("tenant_id", a.tenantId).limit(2000);
+  if (error || !data) return null;
+  const hits = (data as { id: string; name: string | null; website: string | null }[]).filter((r) =>
+    (!!name && normaliseName(r.name) === name) || (!!domain && normaliseDomain(r.website) === domain));
+  return hits.length === 1 ? hits[0].id : null;
 }
 
 type Slot = { ok: true; id: string } | { ok: false };
@@ -189,9 +209,10 @@ export async function analyseCompany(a: AnalysisAccess, input: AnalyseInput, dep
   if (!gate.ok) return fail(gate.status, gate.code, gate.error);
 
   let account: AccountRow | null = null;
-  if (input.accountId) {
+  const accountId = input.accountId ?? (await matchAccountId(a, input));
+  if (accountId) {
     // Verified against the workspace before its name can reach a search (MULTI_TENANT_GUARDRAILS).
-    account = await resolveAccount(a, input.accountId);
+    account = await resolveAccount(a, accountId);
     if (!account) return fail(404, "not_found", "Account not found");
   }
   const s = subjectFrom(account, input);
@@ -250,8 +271,10 @@ export async function analyseCompany(a: AnalysisAccess, input: AnalyseInput, dep
 
   const computedAt = now.toISOString();
   const expiresAt = expiresAtFor(now);
+  // Items the search returned that could not be tied to this company (no checkable source, or another company): counted so the card can say so.
+  const unverified = v.checkThese.length + v.dropped.filter((d) => d.reason === "uncited" || d.reason === "no_source" || d.reason === "not_https" || d.reason === "other_company").length;
   const stored: StoredResearch = {
-    v: 1, claims: [...v.doing, ...v.happening], checkThese: v.checkThese, size: v.size, people: v.people, sources: v.sources,
+    v: 1, claims: [...v.doing, ...v.happening], checkThese: v.checkThese, size: v.size, people: v.people, sources: v.sources, ...(unverified > 0 ? { unverified } : {}),
     sentence: null, snapshot: { claims: [], fit: "unknown", stage: "quiet", verdict: "not_enough" },
   };
   const base = {
@@ -265,7 +288,7 @@ export async function analyseCompany(a: AnalysisAccess, input: AnalyseInput, dep
   const sentence = await deps.phrase(a, phraseInput(card.verdict));
   if (sentence) card.verdict = { ...card.verdict, sentence: { text: sentence, byAi: true } };
 
-  const toKeep = toStored({ claims: card.internal.claims, checkThese: v.checkThese, size: v.size, people: v.people, sources: v.sources, card });
+  const toKeep = toStored({ claims: card.internal.claims, checkThese: v.checkThese, size: v.size, people: v.people, sources: v.sources, unverified, card });
   const save = await saveAnalysis(a.admin, {
     tenantId: a.tenantId, companyKey: key, accountId: account?.id ?? null, name: subject.name, domain: subject.domain,
     data: toKeep, previous: row?.data ?? null, changes: card.changes ?? [], version: (row?.version ?? 0) + 1,
@@ -284,8 +307,9 @@ export async function readCachedAnalysis(a: AnalysisAccess, input: AnalyseInput,
   const gate = analysisAccess(a);
   if (!gate.ok) return fail(gate.status, gate.code, gate.error) as Extract<AnalyseResult, { ok: false }>;
   let account: AccountRow | null = null;
-  if (input.accountId) {
-    account = await resolveAccount(a, input.accountId);
+  const accountId = input.accountId ?? (await matchAccountId(a, input));
+  if (accountId) {
+    account = await resolveAccount(a, accountId);
     if (!account) return fail(404, "not_found", "Account not found") as Extract<AnalyseResult, { ok: false }>;
   }
   const s = subjectFrom(account, input);

@@ -118,6 +118,22 @@ describe("credential tables are not member-writable (audit 2026-10-21)", () => {
     expect(bundle.replace(/\r\n/g, "\n")).toContain(file.replace(/\r\n/g, "\n").trim());
   }, 30_000);
 
+  it("record_comments (audit 2026-10-21 L1): members may only read; the only writer is the comments route, with the service role", () => {
+    const list = [...(policies.get("record_comments")?.values() ?? [])];
+    expect(list.filter(writes).map((p) => p.name)).toEqual([]);
+    expect(list.some((p) => p.cmd === "select")).toBe(true);
+
+    const root = path.resolve(__dirname, "../..");
+    const route = readFileSync(path.join(root, "src/app/api/nova/comments/route.ts"), "utf8");
+    expect(route).toMatch(/createAdminSupabase\(\)\.from\("record_comments"\)\.insert\(/);
+    expect(route).not.toMatch(/\bsupabase\s*\.from\("record_comments"\)\s*\.insert\(/);
+
+    const file = readFileSync(path.join(DIR, "0211_record_comments_member_insert.sql"), "utf8");
+    expect(file).toMatch(/to_regclass\('public\.record_comments'\)/);
+    const bundle = readFileSync(path.join(root, "scripts/run-bundle-20-record-comments-2026-10-23.sql"), "utf8");
+    expect(bundle.replace(/\r\n/g, "\n")).toContain(file.replace(/\r\n/g, "\n").trim());
+  });
+
   it("0202 (webhooks library) adds no policy to webhooks, and its bundle carries the migration verbatim", () => {
     // The library puts header values and a signing secret on `webhooks`: a member must still not be able to write them.
     const file = readFileSync(path.join(DIR, "0202_webhooks_library.sql"), "utf8");
@@ -138,6 +154,104 @@ describe("credential tables are not member-writable (audit 2026-10-21)", () => {
     const bundle = readFileSync(path.resolve(__dirname, "../../scripts/run-bundle-12-mapping-2026-10-21.sql"), "utf8");
     expect(bundle.replace(/\r\n/g, "\n")).toContain(file.replace(/\r\n/g, "\n").trim());
   });
+
+  it("0212 (sales orders): every table has RLS and a tenant policy in the same file; order types are admin-write, members read", () => {
+    const file = readFileSync(path.join(DIR, "0212_sales_orders.sql"), "utf8");
+    const sql = file.replace(/--[^\n]*/g, "");
+    for (const table of ["sales_order_types", "sales_orders", "sales_order_lines", "sales_order_attachments"]) {
+      expect(sql, table).toMatch(new RegExp(`alter table ${table} enable row level security`));
+      expect(new RegExp(`create table if not exists ${table} \\([^;]*tenant_id\\s+uuid not null references tenants\\(id\\)`).test(sql), `${table} has tenant_id`).toBe(true);
+      expect([...(policies.get(table)?.values() ?? [])].length, `${table} has a policy`).toBeGreaterThan(0);
+    }
+    // Documents edited by their users carry the standard tenant-isolation policy.
+    for (const table of ["sales_orders", "sales_order_lines", "sales_order_attachments"]) {
+      const list = [...(policies.get(table)?.values() ?? [])];
+      expect(list.map((p) => p.cmd), table).toEqual(["all"]);
+      expect(list[0].text, table).toMatch(/tenant_id in \(select tenant_id from tenant_users where user_id = auth\.uid\(\)\)/);
+    }
+    // The type steers how every order prints and prices: a member may read it, only a workspace admin may write it.
+    const types = [...(policies.get("sales_order_types")?.values() ?? [])];
+    for (const p of types.filter(writes)) expect(adminOnly(p), `${p.name} must require role = 'admin'`).toBe(true);
+    expect(types.some((p) => p.cmd === "all")).toBe(false);
+    expect(types.some((p) => p.cmd === "select")).toBe(true);
+    expect(types.map((p) => p.cmd).sort()).toEqual(["delete", "insert", "select", "update"]);
+    expect(file).toMatch(/to_regclass\('public\.email_log'\)/);
+    const bundle = readFileSync(path.resolve(__dirname, "../../scripts/run-bundle-21-sales-orders-2026-10-23.sql"), "utf8");
+    expect(bundle.replace(/\r\n/g, "\n")).toContain(file.replace(/\r\n/g, "\n").trim());
+  });
+
+  it("0216 (ERP documents): erp_documents has RLS and a member SELECT policy and nothing that writes; the bundle carries the file verbatim", () => {
+    const file = readFileSync(path.join(DIR, "0216_erp_documents.sql"), "utf8");
+    const sql = file.replace(/--[^\n]*/g, "");
+    expect(sql).toMatch(/alter table erp_documents enable row level security/);
+    expect(new RegExp("create table if not exists erp_documents \\([^;]*tenant_id\\s+uuid not null references tenants\\(id\\)").test(sql)).toBe(true);
+    // The ERP is the source of truth: a member must not be able to forge a document that lights Invoiced or Paid on the order path.
+    const list = [...(policies.get("erp_documents")?.values() ?? [])];
+    expect(list.map((p) => p.cmd)).toEqual(["select"]);
+    expect(list[0].text).toMatch(/tenant_id in \(select tenant_id from tenant_users where user_id = auth\.uid\(\)\)/);
+    const bundle = readFileSync(path.resolve(__dirname, "../../scripts/run-bundle-27-erp-documents-2026-10-24.sql"), "utf8");
+    expect(bundle.replace(/\r\n/g, "\n")).toContain(file.replace(/\r\n/g, "\n").trim());
+  });
+
+  it("0217 (order checks and transfers): both tables have RLS and a member SELECT policy and nothing that writes; the bundle carries the file verbatim", () => {
+    const file = readFileSync(path.join(DIR, "0217_sales_order_checks.sql"), "utf8");
+    const sql = file.replace(/--[^\n]*/g, "");
+    for (const table of ["sales_order_checks", "sales_order_transfers"]) {
+      expect(sql, table).toMatch(new RegExp(`alter table ${table} enable row level security`));
+      expect(new RegExp(`create table if not exists ${table} \\([^;]*tenant_id\\s+uuid not null references tenants\\(id\\)`).test(sql), table).toBe(true);
+      // A check result or a transfer row is evidence of what the ERP said and did: a member must not be able to forge one.
+      const list = [...(policies.get(table)?.values() ?? [])];
+      expect(list.map((p) => p.cmd), table).toEqual(["select"]);
+      expect(list[0].text).toMatch(/tenant_id in \(select tenant_id from tenant_users where user_id = auth\.uid\(\)\)/);
+    }
+    const bundle = readFileSync(path.resolve(__dirname, "../../scripts/run-bundle-28-sales-order-checks-2026-10-24.sql"), "utf8");
+    expect(bundle.replace(/\r\n/g, "\n")).toContain(file.replace(/\r\n/g, "\n").trim());
+  });
+
+  it("no route writes sales_order_checks or sales_order_transfers with the member's session client", () => {
+    const offenders: string[] = [];
+    const root = path.resolve(__dirname, "../..");
+    const walk = (dir: string) => {
+      for (const e of readdirSync(dir, { withFileTypes: true })) {
+        const p = path.join(dir, e.name);
+        if (e.isDirectory()) { walk(p); continue; }
+        if (!/\.(ts|tsx)$/.test(e.name) || /\.test\./.test(e.name)) continue;
+        if (/\bsupabase\s*\.from\(\s*"(sales_order_checks|sales_order_transfers)"\s*\)\s*\.(insert|update|delete|upsert)\(/.test(readFileSync(p, "utf8"))) offenders.push(path.relative(root, p));
+      }
+    };
+    walk(path.resolve(__dirname, ".."));
+    expect(offenders).toEqual([]);
+  }, 30_000);
+
+  it("no route writes erp_documents with the member's session client: only the connector code, on the service role", () => {
+    const offenders: string[] = [];
+    const root = path.resolve(__dirname, "../..");
+    const walk = (dir: string) => {
+      for (const e of readdirSync(dir, { withFileTypes: true })) {
+        const p = path.join(dir, e.name);
+        if (e.isDirectory()) { walk(p); continue; }
+        if (!/\.(ts|tsx)$/.test(e.name) || /\.test\./.test(e.name)) continue;
+        if (/\bsupabase\s*\.from\(\s*"erp_documents"\s*\)\s*\.(insert|update|delete|upsert)\(/.test(readFileSync(p, "utf8"))) offenders.push(path.relative(root, p));
+      }
+    };
+    walk(path.resolve(__dirname, ".."));
+    expect(offenders).toEqual([]);
+  }, 30_000);
+
+  it("no route writes sales_order_types with the member's session client: only the service role, after the admin check", () => {
+    const offenders: string[] = [];
+    const root = path.resolve(__dirname, "../..");
+    const walk = (dir: string) => {
+      for (const e of readdirSync(dir, { withFileTypes: true })) {
+        const p = path.join(dir, e.name);
+        if (e.isDirectory()) { walk(p); continue; }
+        if (!/\.(ts|tsx)$/.test(e.name) || /\.test\./.test(e.name)) continue;
+        if (/\bsupabase\s*\.from\(\s*"sales_order_types"\s*\)\s*\.(insert|update|delete|upsert)\(/.test(readFileSync(p, "utf8"))) offenders.push(path.relative(root, p));
+      }
+    };
+    walk(path.resolve(__dirname, ".."));
+    expect(offenders).toEqual([]);
+  }, 30_000);
 
   it("the policy replay understands the migrations it is judging", () => {
     // 0081 created the open policy and 0199 dropped it: the replay must see both.

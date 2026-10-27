@@ -17,6 +17,7 @@ import { describeDue } from "@/lib/marketing/leads/timing";
 import { LEAD_SCORE_TIPS, whyScoreTip } from "@/lib/marketing/leads/tips";
 import { AcceptButton, OwnerControl, RescoreButton, StageControl } from "../LeadControls";
 import { AssignmentChip, DueChip, ScoreMeter, StagePill } from "../ScoreBits";
+import SourceEmailSlot from "@/components/inbox/SourceEmailSlot";
 
 const KIND_WORDS: Record<string, string> = { behaviour: "What they did", profile: "Who they are", market: "The market" };
 
@@ -165,6 +166,7 @@ export default async function ScoredLeadPage({ params, searchParams }: { params:
       ]}
       rail={
         <>
+          <SourceEmailSlot objectType="leads" objectId={lead.id} />
           <Card title="Lead stage and owner" padding={14}>
             <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
               <StageControl leadId={lead.id} stage={lead.stage} />

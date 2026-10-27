@@ -10,7 +10,7 @@ import type { ChangeEntry } from "@/lib/changeLog";
 // it belongs to.
 //
 // change_log.object_type -> the v1 scope name that governs reading that object.
-// A type with no entry (assets, suppliers, work orders, standard quotes, leads,
+// A type with no entry (assets, suppliers, work orders, leads,
 // journeys ...) has no v1 endpoint of its own, so it is reachable through the
 // wildcard only, exactly like the list endpoints that do not exist for it.
 const SCOPE_FOR_TYPE: Record<string, string> = {
@@ -27,9 +27,19 @@ const SCOPE_FOR_TYPE: Record<string, string> = {
   rfqs: "rfqs", pricing_rfqs: "rfqs",
   estimates: "estimates", estimate: "estimates", estimate_templates: "estimates",
   opportunities: "opportunities",
+  // Tender block of a deal (0220): bid decisions and bond amounts are sensitive, so the "tenders" scope, never the wildcard.
+  opportunity_tenders: "tenders", opportunity_competitors: "tenders",
+  // Contract projects (0226): budget totals and margin are internal cost, so the explicit "contract_projects" scope, never the wildcard.
+  contract_projects: "contract_projects",
   wfm_projects: "projects",
   abm_programs: "abm_programs", abm_program: "abm_programs",
   abm_target_accounts: "abm_targets", abm_buying_group_members: "abm_targets", abm_target: "abm_targets",
+  // Standard quotes (0053): the same class of data as quotations (a customer-facing price, no personal
+  // data), so like quotations the wildcard reaches them and a named key must name "standard_quotes".
+  standard_quotes: "standard_quotes", standard_quote: "standard_quotes",
+  // Sales orders (0212): a customer-facing document with no personal data in the v1 shape, so like quotations the wildcard
+  // reaches them and a named key must name "sales_orders". Order types are settings, not an API object: wildcard-only.
+  sales_orders: "sales_orders", sales_order: "sales_orders",
 };
 
 /** Columns that are internal by design and are kept out of every API select; the feed must not

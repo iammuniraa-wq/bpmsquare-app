@@ -3,12 +3,12 @@
 import { useEffect, useRef, useState } from "react";
 import { AI_DOCK_ASK_EVENT, type DockAskDetail } from "@/lib/analysis/dockAsk";
 import { consentReplyOf } from "@/lib/assistant/consentReply";
+import { DOCK_CHAT_KEY } from "@/lib/assistant/dockChat";
 import { usePathname, useRouter } from "next/navigation";
 import { c } from "@/lib/theme";
-import { useIsNextgen3Layer, useTenantFeature } from "@/lib/tenant-context";
+import { useIsNextgen3Layer, useTenant, useTenantFeature } from "@/lib/tenant-context";
 import ChartRenderer from "@/components/charts/ChartRenderer";
 import InfoTip from "@/components/ui/InfoTip";
-import { BriefingCard } from "@/components/BriefingTile";
 import { normalizeReport, type ReportPayload } from "@/lib/reportView";
 import { parsePageContext } from "@/lib/assistant/objects";
 import { isInternalPath } from "@/lib/assistant/navTargets";
@@ -16,10 +16,10 @@ import { ASSISTANT_TIPS, usageTip } from "@/lib/assistant/tips";
 import type { Suggestion } from "@/lib/assistant/suggestions";
 import type { ConfirmCard } from "@/lib/assistant/cards";
 import ConfirmCardView from "@/components/assistant/ConfirmCardView";
-import { AnalysisConsentRow, WebConsentRow, WebSources } from "@/components/assistant/WebResearch";
+import { AnalysisConsentRow, CreateDetailsRow, WebConsentRow, WebSources, type CreateDetailsMode, type CreateDetailsState } from "@/components/assistant/WebResearch";
 import AnalysisCardView from "@/components/analysis/AnalysisCardView";
 import type { DockAnalysis } from "@/lib/assistant/analysisTool";
-import { applyChoice, settleOnNewAsk, type ConsentState, type WebAllow, type WebChoice } from "@/lib/assistant/webConsent";
+import { WEB_TAINT_WINDOW, applyChoice, settleOnNewAsk, type ConsentState, type WebAllow, type WebChoice } from "@/lib/assistant/webConsent";
 import { Markdown, InlineMarkdown } from "@/components/assistant/Markdown";
 import { plainText } from "@/lib/assistant/markdown";
 import { DOCK_PANEL_CSS } from "@/components/assistant/dockLayout";
@@ -33,8 +33,16 @@ type Msg = {
   /** A create the assistant proposes: the confirm card. */
   confirm?: ConfirmCard;
   /** The assistant asked to search the web, or to analyse a company with web research; answered with the chips. */
-  consent?: { kind: "web_search" | "analyse_company"; query: string; subject?: string; state: ConsentState; token: string };
+  consent?: {
+    kind: "web_search" | "analyse_company" | "create_research"; query: string; subject?: string; state: ConsentState; token: string;
+    /** create_research: what the chip shows (the search words); `query` is the signed string sent back with the Yes. */
+    shown?: string; object?: string;
+  };
   web?: WebSource[];
+  /** The person gave only a company name: how to fill the details (two chips). */
+  clarify?: { object: string; name: string; state: CreateDetailsState };
+  /** The card on this message holds values from the web lookup: it counts as web-derived for the assistant's action tools. */
+  fromWeb?: boolean;
   /** A company analysis, drawn as a card from its fields. */
   analysis?: DockAnalysis;
 };
@@ -48,6 +56,8 @@ type Usage = { percent: number; off: boolean };
 // on). A tenant can offer the assistant while an individual user still
 // hides the launcher for themselves, same pattern as bms_nextgen_dark etc.
 const ENABLED_KEY = "bms_ai_dock_enabled";
+const DOCK_CHAT_MAX = 60;
+const DOCK_CHAT_BYTES = 400_000;
 
 // Create-from-paste, on Nova tenants only. This is deliberately NOT the
 // chat/ask() path answering with a mutation -- it opens NovaDraft, the
@@ -81,6 +91,11 @@ export default function AIDock({ liftForTabBar = false }: {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<Msg[]>([]);
+  // The conversation survives closing the panel, moving between screens and reloads, until the person starts a new chat
+  // or signs out. Kept per workspace in this browser only.
+  const tenantId = useTenant()?.id ?? "x";
+  const chatKey = `${DOCK_CHAT_KEY}${tenantId}`;
+  const [hydrated, setHydrated] = useState(false);
   const [capabilities, setCapabilities] = useState<string[] | null>(null);
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [context, setContext] = useState<string | null>(null);
@@ -115,6 +130,33 @@ export default function AIDock({ liftForTabBar = false }: {
       setEnabled(localStorage.getItem(ENABLED_KEY) !== "0");
     } catch { /* ignore */ }
   }, []);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(chatKey);
+      const saved = raw ? JSON.parse(raw) : null;
+      if (Array.isArray(saved)) setMessages(saved.filter((m) => m && (m.from === "me" || m.from === "bot") && typeof m.text === "string").slice(-DOCK_CHAT_MAX));
+    } catch { /* ignore: a blank chat is the fallback */ }
+    setHydrated(true);
+  }, [chatKey]);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    try {
+      if (messages.length === 0) { localStorage.removeItem(chatKey); return; }
+      let keep = messages.slice(-DOCK_CHAT_MAX);
+      let json = JSON.stringify(keep);
+      while (json.length > DOCK_CHAT_BYTES && keep.length > 2) { keep = keep.slice(2); json = JSON.stringify(keep); }
+      localStorage.setItem(chatKey, json);
+    } catch { /* storage full or blocked: the chat still works for this visit */ }
+  }, [messages, hydrated, chatKey]);
+
+  function newChat() {
+    setMessages([]);
+    setDraft("");
+    setGuide(null);
+    try { localStorage.removeItem(chatKey); } catch { /* ignore */ }
+  }
 
   useEffect(() => {
     const mq = window.matchMedia("(max-width: 899px)");
@@ -207,11 +249,32 @@ export default function AIDock({ liftForTabBar = false }: {
     const out = applyChoice(choice);
     setMessages((prev) => prev.map((x, k) => (k === index && x.consent ? { ...x, consent: { ...x.consent, state: out.state } } : x)));
     const base = messages.slice(0, index);
-    const asked = base[base.length - 1];
-    if (out.allow && asked?.from === "me") void ask(asked.text, undefined, { base, allow: out.allow, query: m.consent.query, token: m.consent.token });
+    // The question this answers is the person's last message before the chip; for a lookup it sits behind the two-chip question.
+    const asked = [...base].reverse().find((x) => x.from === "me");
+    if (!asked) return;
+    if (out.allow) void ask(asked.text, undefined, { base, allow: out.allow, query: m.consent.query, token: m.consent.token });
+    // No to the lookup is not a dead end: the card opens with just the name.
+    else if (m.consent.kind === "create_research" && m.consent.object && m.consent.subject) {
+      void ask(asked.text, undefined, { base, createFlow: { object: m.consent.object, name: m.consent.subject, mode: "manual" } });
+    }
   }
 
-  async function ask(question: string, guideTask?: string, resume?: { base: Msg[]; allow: WebAllow; query: string; token: string }, analyse?: AnalyseRequest) {
+  // The two chips under "how do you want to fill in the details?". Neither is read by a model: each is a request of its own.
+  function answerClarify(index: number, mode: CreateDetailsMode) {
+    const m = messages[index];
+    if (!m?.clarify || m.clarify.state !== "pending" || busy) return;
+    const base = messages.slice(0, index);
+    const asked = [...base].reverse().find((x) => x.from === "me");
+    if (!asked) return;
+    setMessages((prev) => prev.map((x, k) => (k === index && x.clarify ? { ...x, clarify: { ...x.clarify, state: mode } } : x)));
+    void ask(asked.text, undefined, { base, createFlow: { object: m.clarify.object, name: m.clarify.name, mode } });
+  }
+
+  async function ask(
+    question: string, guideTask?: string,
+    resume?: { base: Msg[]; allow?: WebAllow; query?: string; token?: string; createFlow?: { object: string; name: string; mode: CreateDetailsMode } },
+    analyse?: AnalyseRequest,
+  ) {
     const text = question.trim();
     if (!text || busy) return;
     // "ok" / "no" typed under a pending Yes / No question presses that chip.
@@ -232,12 +295,21 @@ export default function AIDock({ liftForTabBar = false }: {
       .map((m) => ({
         role: m.from === "me" ? "user" : "assistant",
         text: m.analysis ? `${m.text}\n${m.analysis.digest}` : m.text,
-        ...(m.from === "bot" && (m.web || m.analysis?.webDerived) ? { web: true } : {}),
+        ...(m.from === "bot" && (m.web || m.analysis?.webDerived || m.fromWeb) ? { web: true } : {}),
       }));
-    if (!resume) setMessages((prev) => [...prev.map((m) => (m.consent ? { ...m, consent: { ...m.consent, state: settleOnNewAsk(m.consent.state) } } : m)), { from: "me", text }]);
+    if (!resume) {
+      setMessages((prev) => [
+        ...prev.map((m) => ({
+          ...m,
+          ...(m.consent ? { consent: { ...m.consent, state: settleOnNewAsk(m.consent.state) } } : {}),
+          ...(m.clarify?.state === "pending" ? { clarify: { ...m.clarify, state: "skipped" as const } } : {}),
+        })),
+        { from: "me", text },
+      ]);
+    }
     setDraft("");
     setBusy(true);
-    setSearching(!!resume);
+    setSearching(!!resume?.allow);
     try {
       // The page goes as ids only: the route, and the object type and record id read from it. Never record content.
       const page = parsePageContext(pathname);
@@ -250,6 +322,7 @@ export default function AIDock({ liftForTabBar = false }: {
           allow_web: resume?.allow,
           consent_query: resume?.query,
           consent_token: resume?.token,
+          create_flow: resume?.createFlow,
           guideTask: guideTask ?? undefined,
           analyse,
         }),
@@ -258,13 +331,21 @@ export default function AIDock({ liftForTabBar = false }: {
       if (res.ok) {
         if (json.usage) setUsage(json.usage);
         const cards: Card[] | undefined = Array.isArray(json.cards) ? json.cards : undefined;
-        const kind = json.consent?.kind === "web_search" || json.consent?.kind === "analyse_company" ? (json.consent.kind as "web_search" | "analyse_company") : null;
+        const kind = json.consent?.kind === "web_search" || json.consent?.kind === "analyse_company" || json.consent?.kind === "create_research"
+          ? (json.consent.kind as "web_search" | "analyse_company" | "create_research") : null;
         const consent = kind && typeof json.consent.query === "string" && typeof json.consent.token === "string"
-          ? { kind, query: json.consent.query as string, subject: typeof json.consent.subject === "string" ? (json.consent.subject as string) : undefined, state: "pending" as const, token: json.consent.token as string } : undefined;
+          ? {
+              kind, query: json.consent.query as string, subject: typeof json.consent.subject === "string" ? (json.consent.subject as string) : undefined,
+              state: "pending" as const, token: json.consent.token as string,
+              shown: typeof json.consent.shown === "string" ? (json.consent.shown as string) : undefined,
+              object: typeof json.consent.object === "string" ? (json.consent.object as string) : undefined,
+            } : undefined;
+        const clarify = json.clarify?.kind === "create_details" && typeof json.clarify.object === "string" && typeof json.clarify.name === "string"
+          ? { object: json.clarify.object as string, name: json.clarify.name as string, state: "pending" as const } : undefined;
         const analysis: DockAnalysis | undefined = json.analysis?.card && typeof json.analysis.digest === "string" ? json.analysis : undefined;
         const web: WebSource[] | undefined = Array.isArray(json.web?.sources) && json.web.sources.length ? json.web.sources : undefined;
         const reply: GuideReply | undefined = json.guide && Array.isArray(json.guide.steps) ? json.guide : undefined;
-        setMessages((prev) => [...prev, { from: "bot", text: json.answer, report: json.report as ReportPayload | undefined, cards, guide: reply, consent, web, analysis, confirm: json.card as ConfirmCard | undefined }]);
+        setMessages((prev) => [...prev, { from: "bot", text: json.answer, report: json.report as ReportPayload | undefined, cards, guide: reply, consent, web, analysis, clarify, fromWeb: json.fromWeb === true, confirm: json.card as ConfirmCard | undefined }]);
         if (reply) startGuide(reply);
         if (json.autoFollow && cards?.length === 1) go(cards[0].href);
       } else {
@@ -402,6 +483,16 @@ export default function AIDock({ liftForTabBar = false }: {
             <InfoTip label="the assistant">{ASSISTANT_TIPS.header}</InfoTip>
             <span style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 6 }}>
               {pill}
+              {messages.length > 0 && (
+                <button
+                  onClick={newChat}
+                  disabled={busy}
+                  aria-label="Start a new chat"
+                  style={{ background: "transparent", border: `1px solid ${c.line}`, color: c.muted, cursor: "pointer", fontSize: 11, borderRadius: 999, padding: "3px 9px", fontFamily: "inherit" }}
+                >
+                  New chat
+                </button>
+              )}
               <button
                 className="bms-dock-close"
                 onClick={closePanel}
@@ -413,123 +504,9 @@ export default function AIDock({ liftForTabBar = false }: {
             </span>
           </div>
 
-          {context && (
-            <div style={{ padding: "8px 16px", borderBottom: `1px solid ${c.line}`, fontSize: 12, color: c.ink, display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
-              <span style={{ fontWeight: 650, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>On {plainText(context)}</span>
-            </div>
-          )}
-
-          {(suggestions.length > 0 || analyseHere) && (
-            <div className="bms-dock-suggest" style={{ padding: "8px 16px", borderBottom: `1px solid ${c.line}`, display: "flex", flexWrap: "wrap", gap: 6, flexShrink: 0 }}>
-              {analyseHere && (
-                <span className="bms-dock-chip-wrap" style={{ display: "inline-flex", alignItems: "center", flexShrink: 0 }}>
-                  <button
-                    className="bms-dock-chip"
-                    onClick={() => ask(`Analyse ${plainText(analyseHere.name)}`, undefined, undefined, { account_id: analyseHere.id })}
-                    disabled={busy}
-                    style={{
-                      background: "var(--accentbg)", border: "1px solid var(--line)", borderRadius: 999,
-                      padding: "6px 12px", fontSize: 11.5, fontWeight: 650, color: c.accent, cursor: "pointer", fontFamily: "inherit",
-                    }}
-                  >
-                    Analyse company
-                  </button>
-                </span>
-              )}
-              {suggestions.map((s) => (
-                <span key={s.id} className="bms-dock-chip-wrap" style={{ display: "inline-flex", alignItems: "center", flexShrink: 0 }}>
-                  <button
-                    className="bms-dock-chip"
-                    onClick={() => runSuggestion(s)}
-                    disabled={busy && s.kind === "ask"}
-                    style={{
-                      background: "var(--accentbg)", border: "1px solid var(--line)", borderRadius: 999,
-                      padding: "6px 12px", fontSize: 11.5, fontWeight: 650, color: c.accent, cursor: "pointer", fontFamily: "inherit",
-                    }}
-                  >
-                    {s.label}{s.kind === "navigate" ? " →" : ""}
-                  </button>
-                </span>
-              ))}
-            </div>
-          )}
-
           <div ref={scrollRef} style={{ padding: "14px 16px", display: "flex", flexDirection: "column", gap: 10, fontSize: 12.5, flex: 1, overflowY: "auto", minHeight: 0 }}>
             {messages.length === 0 && (
-              <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
-                <BriefingCard />
-                {createChips.length > 0 && (
-                  <>
-                    <div style={{ fontSize: 10.5, fontWeight: 700, color: c.hint, textTransform: "uppercase", letterSpacing: 0.4, display: "flex", alignItems: "center", gap: 4 }}>
-                      Draft from a paste
-                    </div>
-                    <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                      {createChips.map((item) => (
-                        <button
-                          key={item.mode}
-                          className="bms-dock-chip"
-                          onClick={() => openDraft(item.mode)}
-                          style={{
-                            background: "var(--accentbg)", border: `1px solid var(--line)`,
-                            borderRadius: 999, padding: "6px 12px", fontSize: 11.5, fontWeight: 650,
-                            color: c.accent, cursor: "pointer", fontFamily: "inherit",
-                          }}
-                        >
-                          ✦ {item.label}
-                        </button>
-                      ))}
-                    </div>
-                  </>
-                )}
-                {guides.length > 0 && (
-                  <>
-                    <div style={{ fontSize: 10.5, fontWeight: 700, color: c.hint, textTransform: "uppercase", letterSpacing: 0.4, display: "flex", alignItems: "center", gap: 4 }}>
-                      Show me how
-                    </div>
-                    <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                      {guides.map((g) => (
-                        <button
-                          key={g.id}
-                          className="bms-dock-chip"
-                          onClick={() => ask(`Show me how: ${g.label}`, g.id)}
-                          disabled={busy}
-                          style={{
-                            background: "var(--accentbg)", border: "1px solid var(--line)", borderRadius: 999,
-                            padding: "6px 12px", fontSize: 11.5, fontWeight: 650, color: c.accent, cursor: "pointer", fontFamily: "inherit",
-                          }}
-                        >
-                          {g.label}
-                        </button>
-                      ))}
-                    </div>
-                  </>
-                )}
-                {capabilities === null && <div style={{ color: c.hint }}>Loading…</div>}
-                {capabilities?.length === 0 && (
-                  <div style={{ color: c.hint }}>There&apos;s no data I can report on for your account yet.</div>
-                )}
-                {capabilities && capabilities.length > 0 && (
-                  <>
-                    <div style={{ fontSize: 10.5, fontWeight: 700, color: c.hint, textTransform: "uppercase", letterSpacing: 0.4, marginTop: 2 }}>
-                      Try asking
-                    </div>
-                    {capabilities.map((cap) => (
-                      <button
-                        key={cap}
-                        className="bms-dock-row"
-                        onClick={() => ask(cap)}
-                        style={{
-                          textAlign: "left", background: "var(--panel2)", border: "1px solid var(--line)",
-                          borderRadius: "var(--card-radius, 10px)", padding: "8px 11px", fontSize: 12,
-                          color: c.ink, cursor: "pointer", fontFamily: "inherit", lineHeight: 1.4,
-                        }}
-                      >
-                        {cap}
-                      </button>
-                    ))}
-                  </>
-                )}
-              </div>
+              <div style={{ color: c.hint, fontSize: 13.5, padding: "6px 2px" }}>How can I help you today?</div>
             )}
             {messages.map((m, i) => (
               <div key={i} style={{ display: "flex", flexDirection: "column", gap: 8, alignSelf: m.from === "me" ? "flex-end" : "stretch", maxWidth: m.from === "me" ? "88%" : undefined }}>
@@ -546,7 +523,7 @@ export default function AIDock({ liftForTabBar = false }: {
                   }}
                 >
                   {/* The assistant's text is markdown (lists, bold); what the person typed is shown as typed. */}
-                  {m.from === "bot" ? <Markdown text={m.text} links={!m.web} /> : <span style={{ whiteSpace: "pre-wrap" }}>{m.text}</span>}
+                  {m.from === "bot" ? <Markdown text={m.text} links={!m.web && !m.fromWeb} /> : <span style={{ whiteSpace: "pre-wrap" }}>{m.text}</span>}
                 </div>
                 {m.cards?.map((card) => (
                   <button
@@ -562,14 +539,17 @@ export default function AIDock({ liftForTabBar = false }: {
                     {card.label} →
                   </button>
                 ))}
-                {m.confirm && <ConfirmCardView card={m.confirm} onOpen={go} onAsk={ask} />}
+                {m.clarify && <CreateDetailsRow state={m.clarify.state} disabled={busy} onChoice={(mode) => answerClarify(i, mode)} />}
+                {m.confirm && <ConfirmCardView card={m.confirm} onOpen={go} onAsk={ask} modelLocked={!!m.fromWeb && messages.length - 1 - i < WEB_TAINT_WINDOW} />}
                 {m.analysis && (
                   <AnalysisCardView data={m.analysis} busy={busy} onOpen={go} onRefresh={() => refreshAnalysis(m.analysis!)} onAsk={(q) => ask(q)} />
                 )}
                 {m.consent?.kind === "analyse_company" && (
                   <AnalysisConsentRow subject={m.consent.subject ?? "this company"} state={m.consent.state} disabled={busy} onChoice={(choice) => answerConsent(i, choice)} />
                 )}
-                {m.consent?.kind === "web_search" && <WebConsentRow query={m.consent.query} state={m.consent.state} disabled={busy} onChoice={(choice) => answerConsent(i, choice)} />}
+                {(m.consent?.kind === "web_search" || m.consent?.kind === "create_research") && (
+                  <WebConsentRow query={m.consent.shown ?? m.consent.query} state={m.consent.state} disabled={busy} onChoice={(choice) => answerConsent(i, choice)} />
+                )}
                 {m.web && <WebSources sources={m.web} />}
                 {m.guide && (
                   <GuideCard

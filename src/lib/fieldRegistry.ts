@@ -97,7 +97,8 @@ export type EffectiveField = {
 export type PilotObjectType =
   | "account" | "contact" | "asset" | "supplier"
   | "case" | "work_order" | "quote" | "invoice" | "purchase_order" | "inventory"
-  | "employee" | "product" | "project" | "opportunity" | "rfq" | "estimate" | "process_study" | "newsletter" | "abm_program" | "abm_target" | "abm_member";
+  | "employee" | "product" | "project" | "opportunity" | "rfq" | "estimate" | "process_study" | "newsletter" | "abm_program" | "abm_target" | "abm_member"
+  | "standard_quote" | "sales_order";
 
 // ISO 639-1 codes the Newsletter Studio can write in (src/lib/newsletter/types.ts LANGUAGES); duplicated as data
 // here because this registry is imported by client code and must not pull the studio in.
@@ -120,6 +121,25 @@ const SUPPLIER_STATUS_OPTIONS: { value: Supplier["status"]; label: string }[] =
 const PRODUCT_STATUS_OPTIONS: { value: "active" | "inactive"; label: string }[] = [
   { value: "active", label: "Active" },
   { value: "inactive", label: "Inactive" },
+];
+
+// Saudi e-invoicing option lists (plain English; the printed wording lives in src/lib/einvoicing/labels.ts).
+const BUYER_TYPE_OPTIONS: { value: string; label: string }[] = [
+  { value: "business", label: "Business" },
+  { value: "individual", label: "Individual" },
+];
+const BUYER_ID_SCHEME_OPTIONS: { value: string; label: string }[] = [
+  { value: "NAT", label: "National ID" },
+  { value: "IQA", label: "Iqama" },
+  { value: "PAS", label: "Passport" },
+  { value: "GCC", label: "GCC ID" },
+  { value: "OTH", label: "Other" },
+];
+const EINVOICE_DOC_TYPE_OPTIONS: { value: string; label: string }[] = [
+  { value: "standard", label: "Standard" },
+  { value: "simplified", label: "Simplified" },
+  { value: "credit_note", label: "Credit note" },
+  { value: "debit_note", label: "Debit note" },
 ];
 
 const DISCOUNT_TYPE_OPTIONS: { value: "pct" | "fixed"; label: string }[] = [
@@ -158,7 +178,7 @@ const UOM_ENUM_OPTIONS: { value: string; label: string }[] = UOM_OPTIONS.map((u)
 
 export const FIELD_REGISTRY: Record<PilotObjectType, ObjectFieldRegistry> = {
   account: {
-    sections: ["Identity", "Address", "Communication", "Sales", "Business", "Notes"],
+    sections: ["Identity", "Address", "Communication", "Sales", "Business", "Saudi e-invoicing", "Notes"],
     fields: [
       { key: "ref", defaultLabel: "Account ID", widget: "text", defaultSection: "Identity", locked: true, editable: false, exportOnly: true },
       { key: "name", defaultLabel: "Name", widget: "text", defaultSection: "Identity", locked: true },
@@ -182,6 +202,18 @@ export const FIELD_REGISTRY: Record<PilotObjectType, ObjectFieldRegistry> = {
       { key: "employee_count", defaultLabel: "Employees", widget: "text", defaultSection: "Business" },
       { key: "annual_revenue", defaultLabel: "Annual revenue", widget: "text", defaultSection: "Business" },
       { key: "gstin", defaultLabel: "GSTIN", widget: "text", defaultSection: "Business" },
+
+      // Saudi e-invoicing buyer data (0219). Exists only for a workspace with the einvoicing_ksa flag and a database that has
+      // the columns (requiresFeature). exportOnly: they export from Data Workbench but are not import/update columns in E1
+      // (bulk writes would skip the 15-digit and address checks, and buyer_id_number must go through encrypt()).
+      { key: "buyer_type", defaultLabel: "Buyer type", widget: "enum", defaultSection: "Saudi e-invoicing", enumOptions: BUYER_TYPE_OPTIONS, exportOnly: true, requiresFeature: "einvoicing_ksa" },
+      { key: "vat_number", defaultLabel: "VAT number", widget: "text", defaultSection: "Saudi e-invoicing", placeholder: "15 digits, 3...3", exportOnly: true, requiresFeature: "einvoicing_ksa" },
+      { key: "crn", defaultLabel: "Commercial registration (CRN)", widget: "text", defaultSection: "Saudi e-invoicing", exportOnly: true, requiresFeature: "einvoicing_ksa" },
+      { key: "name_ar", defaultLabel: "Name in Arabic", widget: "text", defaultSection: "Saudi e-invoicing", exportOnly: true, requiresFeature: "einvoicing_ksa" },
+      { key: "address_building", defaultLabel: "Building number", widget: "text", defaultSection: "Saudi e-invoicing", placeholder: "4 digits", exportOnly: true, requiresFeature: "einvoicing_ksa" },
+      { key: "address_district", defaultLabel: "District", widget: "text", defaultSection: "Saudi e-invoicing", exportOnly: true, requiresFeature: "einvoicing_ksa" },
+      { key: "buyer_id_scheme", defaultLabel: "Buyer ID type (individuals)", widget: "enum", defaultSection: "Saudi e-invoicing", enumOptions: BUYER_ID_SCHEME_OPTIONS, exportOnly: true, requiresFeature: "einvoicing_ksa" },
+      { key: "buyer_id_number", defaultLabel: "Buyer ID number (individuals)", widget: "text", defaultSection: "Saudi e-invoicing", exportOnly: true, requiresFeature: "einvoicing_ksa" },
 
       { key: "notes", defaultLabel: "Notes", widget: "textarea", defaultSection: "Notes" },
 
@@ -306,6 +338,8 @@ export const FIELD_REGISTRY: Record<PilotObjectType, ObjectFieldRegistry> = {
       },
 
       { key: "uom",        defaultLabel: "Unit of measure", widget: "text",     defaultSection: "Details" },
+      // Days to deliver when nothing is in stock (0212): the sales order's master-data availability adds it to today.
+      { key: "lead_time_days", defaultLabel: "Lead time (days)", widget: "number", defaultSection: "Details" },
       { key: "description", defaultLabel: "Description",     widget: "textarea", defaultSection: "Details" },
 
       // Preferred supplier (0132). There is no "reference/lookup" widget yet
@@ -586,8 +620,72 @@ export const FIELD_REGISTRY: Record<PilotObjectType, ObjectFieldRegistry> = {
     ],
   },
 
+  // Standard Quote (0053/0055/0059): its own object, apart from Quotation. Header only --
+  // the lines are the standard_quote_lines family (their own static Data Workbench spec,
+  // standardQuoteLinesSchema.ts). Account and contact are resolved by name on import.
+  // Everything that feeds the stored total (discount, tax, shipping) is settable, but
+  // the total itself and the status (own action UI, emits events) are export-only.
+  standard_quote: {
+    sections: ["Quote", "Commercial", "Notes"],
+    fields: [
+      { key: "ref",    defaultLabel: "Quote ID", widget: "text", defaultSection: "Quote", locked: true, editable: false, exportOnly: true },
+      { key: "status", defaultLabel: "Status",   widget: "enum", defaultSection: "Quote", locked: true, editable: false, exportOnly: true, enumOptions: [
+        { value: "draft", label: "Draft" }, { value: "sent", label: "Sent" }, { value: "accepted", label: "Accepted" },
+        { value: "rejected", label: "Rejected" }, { value: "expired", label: "Expired" },
+      ] },
+      { key: "inquiry_date", defaultLabel: "Inquiry date", widget: "date", defaultSection: "Quote" },
+      { key: "valid_until",  defaultLabel: "Valid until",  widget: "date", defaultSection: "Quote" },
+      { key: "sent_at",   defaultLabel: "Sent",   widget: "date", defaultSection: "Quote", locked: true, editable: false, exportOnly: true },
+      { key: "closed_at", defaultLabel: "Closed", widget: "date", defaultSection: "Quote", locked: true, editable: false, exportOnly: true },
+
+      { key: "header_discount_pct", defaultLabel: "Discount %",  widget: "number", defaultSection: "Commercial" },
+      { key: "tax_pct",             defaultLabel: "Tax %",       widget: "number", defaultSection: "Commercial" },
+      { key: "shipping_amount",     defaultLabel: "Shipping",    widget: "number", defaultSection: "Commercial" },
+      { key: "subtotal", defaultLabel: "Subtotal", widget: "number", defaultSection: "Commercial", locked: true, editable: false, exportOnly: true },
+      { key: "total",    defaultLabel: "Total",    widget: "number", defaultSection: "Commercial", locked: true, editable: false, exportOnly: true },
+
+      { key: "intro_text", defaultLabel: "Introduction", widget: "textarea", defaultSection: "Notes" },
+      { key: "notes",      defaultLabel: "Notes",        widget: "textarea", defaultSection: "Notes" },
+      { key: "terms",      defaultLabel: "Terms",        widget: "textarea", defaultSection: "Notes" },
+      // account_id/contact_id/template_id/opportunity_id/created_by (pointers), print_options
+      // (presentation) and the pricing flags on lines (guardrail state) are excluded.
+    ],
+  },
+
+  // Sales Order (0212): header only -- the lines are the sales_order_lines family (their own static Data Workbench spec,
+  // salesOrderLinesSchema.ts). Account, contact and order type are resolved by name on import. Everything that feeds the
+  // stored total (shipping) is settable on a draft; the totals, the status (its own actions emit events), the pricing
+  // mode (from the order type or the source quote) and every date the system stamps are export-only.
+  sales_order: {
+    sections: ["Order", "Commercial", "Notes"],
+    fields: [
+      { key: "ref",    defaultLabel: "Order ID", widget: "text", defaultSection: "Order", locked: true, editable: false, exportOnly: true },
+      { key: "status", defaultLabel: "Status",   widget: "enum", defaultSection: "Order", locked: true, editable: false, exportOnly: true, enumOptions: [
+        { value: "draft", label: "Draft" }, { value: "confirmed", label: "Confirmed" }, { value: "cancelled", label: "Cancelled" },
+      ] },
+      { key: "customer_po",    defaultLabel: "Customer PO",    widget: "text", defaultSection: "Order" },
+      { key: "requested_date", defaultLabel: "Requested date", widget: "date", defaultSection: "Order" },
+      { key: "expected_date",  defaultLabel: "Expected delivery", widget: "date", defaultSection: "Order", locked: true, editable: false, exportOnly: true },
+      { key: "confirmed_at",   defaultLabel: "Confirmed",      widget: "date", defaultSection: "Order", locked: true, editable: false, exportOnly: true },
+      { key: "source_type",    defaultLabel: "Made from",      widget: "text", defaultSection: "Order", locked: true, editable: false, exportOnly: true },
+
+      { key: "currency",        defaultLabel: "Currency",     widget: "text",   defaultSection: "Commercial" },
+      { key: "pricing_mode",    defaultLabel: "Pricing",      widget: "text",   defaultSection: "Commercial", locked: true, editable: false, exportOnly: true },
+      { key: "shipping_amount", defaultLabel: "Shipping",     widget: "number", defaultSection: "Commercial" },
+      { key: "subtotal",        defaultLabel: "Subtotal",     widget: "number", defaultSection: "Commercial", locked: true, editable: false, exportOnly: true },
+      { key: "discount_total",  defaultLabel: "Discount",     widget: "number", defaultSection: "Commercial", locked: true, editable: false, exportOnly: true },
+      { key: "tax_total",       defaultLabel: "Tax",          widget: "number", defaultSection: "Commercial", locked: true, editable: false, exportOnly: true },
+      { key: "total",           defaultLabel: "Total",        widget: "number", defaultSection: "Commercial", locked: true, editable: false, exportOnly: true },
+
+      { key: "notes", defaultLabel: "Notes", widget: "textarea", defaultSection: "Notes" },
+      { key: "terms", defaultLabel: "Terms", widget: "textarea", defaultSection: "Notes" },
+      // account_id/contact_id/type_id/opportunity_id/source_id/bill_to/ship_to/created_by (pointers and structured
+      // parties) and status_label/spine/origin (the ERP's own wording, SO2) are excluded.
+    ],
+  },
+
   invoice: {
-    sections: ["Identity", "Commercial", "Notes"],
+    sections: ["Identity", "Commercial", "Saudi e-invoice", "Notes"],
     fields: [
       { key: "ref",       defaultLabel: "Invoice ID", widget: "text", defaultSection: "Identity", locked: true, editable: false },
       { key: "due_date",  defaultLabel: "Due date",    widget: "date", defaultSection: "Identity" },
@@ -599,6 +697,14 @@ export const FIELD_REGISTRY: Record<PilotObjectType, ObjectFieldRegistry> = {
       { key: "discount_type",  defaultLabel: "Discount type",   widget: "enum",   defaultSection: "Commercial", enumOptions: DISCOUNT_TYPE_OPTIONS, editable: false },
       { key: "discount_pct",   defaultLabel: "Discount %",      widget: "number", defaultSection: "Commercial", editable: false },
       { key: "discount_fixed", defaultLabel: "Discount amount", widget: "number", defaultSection: "Commercial", editable: false },
+
+      // Saudi e-invoice (0219, einvoicing_ksa). The type, counter and UUID are read-only here -- the type is chosen and the
+      // number taken on the invoice's own "Saudi e-invoice" panel; they exist in the registry so Data Workbench can export them.
+      { key: "einvoice_doc_type", defaultLabel: "E-invoice type", widget: "enum", defaultSection: "Saudi e-invoice", enumOptions: EINVOICE_DOC_TYPE_OPTIONS, editable: false, exportOnly: true, requiresFeature: "einvoicing_ksa" },
+      { key: "einvoice_seq", defaultLabel: "E-invoice counter", widget: "number", defaultSection: "Saudi e-invoice", editable: false, exportOnly: true, requiresFeature: "einvoicing_ksa" },
+      { key: "einvoice_uuid", defaultLabel: "E-invoice UUID", widget: "text", defaultSection: "Saudi e-invoice", editable: false, exportOnly: true, requiresFeature: "einvoicing_ksa" },
+      { key: "supply_date", defaultLabel: "Supply date", widget: "date", defaultSection: "Saudi e-invoice", exportOnly: true, requiresFeature: "einvoicing_ksa" },
+      { key: "credit_reason", defaultLabel: "Credit / debit note reason", widget: "text", defaultSection: "Saudi e-invoice", exportOnly: true, requiresFeature: "einvoicing_ksa" },
 
       { key: "notes", defaultLabel: "Notes", widget: "textarea", defaultSection: "Notes" },
       { key: "terms", defaultLabel: "Terms", widget: "textarea", defaultSection: "Notes" },
@@ -676,7 +782,7 @@ export const FIELD_REGISTRY: Record<PilotObjectType, ObjectFieldRegistry> = {
         key: "status", defaultLabel: "Status", widget: "enum", defaultSection: "Employment",
         enumOptions: [
           { value: "active", label: "Active" },
-          { value: "inactive", label: "Inactive" },
+          { value: "inactive", label: "Obsolete" },
         ],
       },
     ],
@@ -712,6 +818,7 @@ const PILOT_OBJECT_TYPES: readonly PilotObjectType[] = [
   "account", "contact", "asset", "supplier",
   "case", "work_order", "quote", "invoice", "purchase_order", "inventory",
   "employee", "product", "project", "opportunity", "rfq", "estimate", "process_study", "newsletter", "abm_program", "abm_target", "abm_member",
+  "standard_quote", "sales_order",
 ];
 
 export function isPilotObjectType(objectType: string): objectType is PilotObjectType {

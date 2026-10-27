@@ -38,6 +38,19 @@ export function buildQuoteWhatsAppMessage(vars: {
     : `${base} We've emailed the PDF too — happy to answer any questions!`;
 }
 
+/** The WhatsApp text for a sales order. The WhatsApp provider is sandbox-only for now, so the button opens wa.me with this text. */
+export function buildOrderWhatsAppMessage(vars: {
+  customer_name: string;
+  company_name: string;
+  order_ref: string;
+  order_total: string;
+  /** Signed, no-login link to the order PDF (lib/salesOrderPublicLink.ts); absent when QUOTE_PUBLIC_LINK_SECRET is not set. */
+  pdfLink?: string | null;
+}): string {
+  const base = `Hi ${vars.customer_name}, this is ${vars.company_name}. Your order ${vars.order_ref} for ${vars.order_total} is ready.`;
+  return vars.pdfLink ? `${base} View/download it here: ${vars.pdfLink}` : `${base} We've emailed the PDF too — happy to answer any questions!`;
+}
+
 export function buildCaseWhatsAppMessage(vars: {
   customer_name: string;
   company_name: string;

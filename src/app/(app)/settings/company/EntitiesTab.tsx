@@ -9,11 +9,12 @@ import InfoTip from "@/components/ui/InfoTip";
 import SettingsList, { ListBar } from "@/components/settings/SettingsList";
 import type { TenantEntity } from "@/lib/constants";
 import { blankEntity } from "./companyLogic";
+import EinvoiceSellerFields from "./EinvoiceSellerFields";
 import { COMPANY_TIPS } from "./tips";
 import s from "./company.module.css";
 
 /** Legal entities: one row each, the name opens the panel. The default is picked on new quotations. */
-export default function EntitiesTab({ entities, onChange }: { entities: TenantEntity[]; onChange: (next: TenantEntity[]) => void }) {
+export default function EntitiesTab({ entities, onChange, einvoicing = false }: { entities: TenantEntity[]; onChange: (next: TenantEntity[]) => void; einvoicing?: boolean }) {
   const [openId, setOpenId] = useState<string | null>(null);
   const open = entities.find((e) => e.id === openId) ?? null;
 
@@ -70,6 +71,7 @@ export default function EntitiesTab({ entities, onChange }: { entities: TenantEn
           <Field label="Phone"><Input value={open.phone ?? ""} onChange={(e) => patch(open.id, { phone: e.target.value })} /></Field>
           <Field label="Email"><Input type="email" value={open.email ?? ""} onChange={(e) => patch(open.id, { email: e.target.value })} /></Field>
           <Field label="Tax ID" info={COMPANY_TIPS.taxId}><Input className={s.mono} value={open.gstin ?? ""} onChange={(e) => patch(open.id, { gstin: e.target.value })} /></Field>
+          {einvoicing && <EinvoiceSellerFields entity={open} onPatch={(p) => patch(open.id, p)} />}
           <details className={s.more}>
             <summary>More</summary>
             <div className={s.moreBody}>

@@ -38,7 +38,7 @@ export type ComposerLine = {
 type Product = { id: string; name: string; ref: string | null; uom: string | null };
 
 export default function RfqComposer({
-  origin, originLabel, initialLines, initialTitle, onCreated, onCancel, compact,
+  origin, originLabel, initialLines, initialTitle, onCreated, onCancel, compact, supplierTypeFilter, supplierSource,
 }: {
   origin?: { type: RfqOriginType; id: string | null };
   originLabel?: string | null;
@@ -47,6 +47,10 @@ export default function RfqComposer({
   onCreated: (r: { id: string; ref: string; line_ids: string[]; line_keys: (string | null)[]; sent?: { supplier: string; ok: boolean; reason?: string }[] }) => void;
   onCancel?: () => void;
   compact?: boolean;
+  /** Offer the vendors / subcontractors filter in the supplier list (tender deals). */
+  supplierTypeFilter?: boolean;
+  /** A tender deal's supplier list (tenderSupplierSource): the client's approved group when it has one. Absent = every active supplier, as before. */
+  supplierSource?: string;
 }) {
   const [title, setTitle] = useState(initialTitle ?? "");
   const [lines, setLines] = useState<ComposerLine[]>(initialLines?.length ? initialLines : [{ description: "", qty: 1, uom: "Nos" }]);
@@ -67,7 +71,7 @@ export default function RfqComposer({
   // Suppliers this tenant has asked, heard from or awarded for these products
   // before -- pre-ticks the ones that actually won, once, as a starting point.
   const productKey = [...new Set(lines.map((l) => l.product_id).filter((x): x is string => !!x))].sort();
-  const { suppliers, suggested, current } = useRfqSuppliers(productKey);
+  const { suppliers, suggested, current, scope } = useRfqSuppliers(productKey, supplierSource);
   useEffect(() => {
     if (!suggested) return;
     setChosen((cs) => (cs.length ? cs : suggested.filter((s) => s.awarded > 0).slice(0, 3).map((s) => s.supplier_id)));
@@ -174,7 +178,7 @@ export default function RfqComposer({
       <div>
         <span style={lbl}>Suppliers to ask {chosen.length ? `(${chosen.length})` : ""}</span>
         <div style={{ marginTop: 6 }}>
-          <SupplierPicker suppliers={suppliers ?? []} chosen={chosen} onToggle={toggle} suggested={suggested ?? []} current={current ?? []} />
+          <SupplierPicker suppliers={suppliers ?? []} chosen={chosen} onToggle={toggle} suggested={suggested ?? []} current={current ?? []} typeFilter={supplierTypeFilter} scope={supplierSource ? scope : null} />
         </div>
       </div>
 

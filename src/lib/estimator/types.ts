@@ -24,7 +24,16 @@ export type TemplateInputType = "number" | "select" | "boolean";
 
 /** A select option carries the number a formula sees when it is chosen, so
  *  the formula language can stay numbers-only: `finish_level == 2`. */
-export type TemplateInputOption = { key: string; label: string; value: number };
+export type TemplateInputOption = {
+  key: string;
+  label: string;
+  value: number;
+  /** Catalogue attributes this choice stands for (e.g. { pipe_class: "SS20" }). A product rule
+   *  that lists the input in its `match.from` looks for a product with these attributes. */
+  attrs?: Record<string, string>;
+  /** Design attribute: a material key (materialCatalog.ts) or "#rrggbb" this choice paints on the input's `paints` slot. */
+  visual?: string;
+};
 
 export type TemplateInput = {
   /** Formula identifier: lower snake_case. */
@@ -44,6 +53,8 @@ export type TemplateInput = {
   /** select only: quote every option as an alternative (e.g. finish levels)
    *  instead of only the chosen one. Read by the quote assembler. */
   quote_alternatives?: boolean;
+  /** select only: the geometry design slot (GeometryModule.slots) this input repaints; its options carry `visual`. */
+  paints?: string;
 };
 
 /** A named constant: usable as an identifier in any formula AND as the unit
@@ -60,12 +71,21 @@ export type TemplateRate = {
   high?: number;
 };
 
+/** A product named by attributes of `products.custom_data` instead of a SKU (productMatch.ts). */
+export type ProductMatch = {
+  /** Attributes that must equal these text values, e.g. { fence_kind: "line_post" }. */
+  attrs: Record<string, string>;
+  /** Select inputs whose chosen option's `attrs` are added to the attributes. */
+  from?: string[];
+};
+
 export type TemplateRuleCost =
   /** A catalogue product named by its SKU or by its product reference (PRD-0012),
-   *  at least one of the two. Resolved to a product per tenant when the estimate is
-   *  calculated; a BOM / kit product is costed from its rolled-up components.
-   *  A rule that names both looks the SKU up first. */
-  | { kind: "product"; sku?: string; ref?: string }
+   *  or by attributes (`match`): at least one of the three. Resolved to a product per
+   *  tenant when the estimate is calculated; a BOM / kit product is costed from its
+   *  rolled-up components. A rule that names several looks the SKU up first, then the
+   *  reference, then the attributes. */
+  | { kind: "product"; sku?: string; ref?: string; match?: ProductMatch }
   /** A template rate (rate key) times the quantity. */
   | { kind: "rate"; rate: string };
 
@@ -89,6 +109,20 @@ export type TemplateRule = {
 
 export type QuoteGranularity = "group" | "line";
 
+/** What a DXF drawing measures into one input of a template (drawing intake): lengths and areas by layer, counts by block. */
+export type DrawingMeasure = "length_m" | "area_m2" | "count";
+export type DrawingMapRule = {
+  /** The template input that receives the measured number. */
+  input: string;
+  measure: DrawingMeasure;
+  /** Layers whose lines / closed shapes are summed (length_m, area_m2) or whose block inserts are counted (count). Case-insensitive. */
+  layers?: string[];
+  /** count only: block names counted (case-insensitive); empty = every insert on the layers. */
+  blocks?: string[];
+  /** Multiplier from drawing units to the input's unit when the drawing's own units are missing or wrong. */
+  scale?: number;
+};
+
 export type EstimateTemplateBody = {
   /** Geometry module key (e.g. "precast_villa"): the template's pieces, 3D
    *  model and vol_/n_/area_ identifiers come from it. Absent = formula-only. */
@@ -96,6 +130,8 @@ export type EstimateTemplateBody = {
   inputs: TemplateInput[];
   rates: TemplateRate[];
   rules: TemplateRule[];
+  /** Drawing intake (0215): which DXF layers feed which number input. Absent = none. */
+  drawing_map?: DrawingMapRule[];
 };
 
 export type EstimateLineSource = "rule" | "schedule" | "manual";

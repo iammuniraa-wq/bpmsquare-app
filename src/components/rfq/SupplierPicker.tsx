@@ -4,6 +4,8 @@ import { useMemo, useState } from "react";
 import { c } from "@/lib/theme";
 import StatusPill from "@/components/ui/StatusPill";
 import { Input } from "@/components/ui/Input";
+import InfoTip from "@/components/ui/InfoTip";
+import { RFQ_TIPS } from "@/lib/rfq/tips";
 import { currentDescription } from "@/lib/rfq/currentSupplierRank";
 import type { CurrentForProduct, PickerSupplier, SuggestedSupplier } from "./useRfqSuppliers";
 import { fmtDate } from "./rfqUi";
@@ -14,7 +16,7 @@ import { fmtDate } from "./rfqUi";
 // Prices shown here are the tenant's own cost history -- internal, never sent.
 
 export default function SupplierPicker({
-  suppliers, chosen, onToggle, suggested, current, loading, highlightCurrent,
+  suppliers, chosen, onToggle, suggested, current, loading, highlightCurrent, typeFilter, scope,
 }: {
   suppliers: PickerSupplier[];
   chosen: string[];
@@ -24,22 +26,36 @@ export default function SupplierPicker({
   loading?: boolean;
   /** One item asked about: lead with its current supplier, or say there is none. */
   highlightCurrent?: boolean;
+  /** Offer a vendors / subcontractors filter (the tender edition, where one RFQ may go to a supplier group). Off everywhere else. */
+  typeFilter?: boolean;
+  /** A tender deal's list: restricted to the client's approved group (named when known) or not. Absent everywhere else, and then nothing is shown. */
+  scope?: { restricted: boolean; group: string | null } | null;
 }) {
   const [filter, setFilter] = useState("");
+  const [kind, setKind] = useState<"all" | "vendor" | "subcontractor">("all");
   const currentIds = useMemo(() => new Set(current.map((x) => x.supplier_id)), [current]);
 
   const shown = useMemo(() => {
     const t = filter.trim().toLowerCase();
     return suppliers
       .filter((s) => !t || `${s.name} ${s.city ?? ""} ${s.email ?? ""}`.toLowerCase().includes(t))
+      .filter((s) => !typeFilter || kind === "all" || s.type === kind || s.type === "both")
       .sort((a, b) => Number(currentIds.has(b.id)) - Number(currentIds.has(a.id)))
       .slice(0, 60);
-  }, [suppliers, filter, currentIds]);
+  }, [suppliers, filter, currentIds, typeFilter, kind]);
 
   const noEmail = chosen.filter((id) => !suppliers.find((s) => s.id === id)?.email);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      {scope && (
+        <div data-guide="rfq.suppliers.scope" role="status" style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", fontSize: 12.5, color: c.muted }}>
+          {scope.restricted
+            ? <><span>Suppliers from:</span><StatusPill label={scope.group ?? "the client's approved list"} tone="blue" /></>
+            : <span>No approved list for this client</span>}
+          <InfoTip label="Approved suppliers">{RFQ_TIPS.approvedList}</InfoTip>
+        </div>
+      )}
       {highlightCurrent && !loading && (
         current.length > 0 ? current.map((cur) => (
           <label key={cur.product_id} style={{ display: "flex", gap: 10, alignItems: "flex-start", padding: "10px 12px", border: `1px solid ${chosen.includes(cur.supplier_id) ? c.accent : c.line}`, background: chosen.includes(cur.supplier_id) ? c.accentbg : c.panel, borderRadius: 8, cursor: "pointer" }}>
@@ -81,6 +97,15 @@ export default function SupplierPicker({
         </div>
       )}
 
+      {typeFilter && (
+        <div data-guide="rfq.suppliers.type" style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+          {([["all", "All"], ["vendor", "Vendors"], ["subcontractor", "Subcontractors"]] as const).map(([k, label]) => (
+            <button key={k} type="button" aria-pressed={kind === k} onClick={() => setKind(k)}
+              style={{ fontSize: 12, padding: "4px 10px", borderRadius: 999, cursor: "pointer", border: `1px solid ${kind === k ? c.accent : c.line}`, background: kind === k ? c.accentbg : c.panel, color: kind === k ? c.accent : c.ink }}>{label}</button>
+          ))}
+          <InfoTip label="the supplier type">{RFQ_TIPS.type}</InfoTip>
+        </div>
+      )}
       <Input aria-label="Search suppliers" value={filter} onChange={(e) => setFilter(e.target.value)} placeholder={suppliers.length ? "Search all suppliers…" : "No suppliers yet — add them under Master data → Suppliers"} />
       <div style={{ maxHeight: 200, overflowY: "auto", border: `1px solid ${c.line}`, borderRadius: 8 }}>
         {shown.map((s) => (

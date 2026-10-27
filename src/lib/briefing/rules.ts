@@ -37,6 +37,20 @@ export function quoteCandidates(rows: readonly Row[], today: string, tz: string)
   return out;
 }
 
+/** Draft sales orders the person created and has not confirmed: "N orders to confirm". One candidate per order. */
+export function orderCandidates(rows: readonly Row[], today: string, tz: string): Candidate[] {
+  const out: Candidate[] = [];
+  for (const o of rows) {
+    const id = str(o.id);
+    if (!id || o.status !== "draft") continue;
+    out.push({
+      id: `order:${id}`, kind: "order_confirm", objectType: "sales_order", label: str(o.ref) || "Sales order",
+      href: ROUTES.salesOrder(id), days: over(daysFromToday(today, o.created_at, tz)) ?? 0, value: num(o.total) || undefined, ownership: "own",
+    });
+  }
+  return out;
+}
+
 export type LeadRow = {
   id: string; title: string | null; account_name: string; status: string | null; stage: string;
   owner_user_id: string | null; ready_at: string | null; created_at: string;
@@ -158,6 +172,25 @@ export function wfmCandidates(q: { leave?: QueueSummary; correction?: QueueSumma
   add("wfm_leave", q.leave, ROUTES.wfmLeave);
   add("wfm_correction", q.correction, ROUTES.wfmCorrections);
   add("wfm_overtime", q.overtime, ROUTES.wfmCorrections);
+  return out;
+}
+
+/**
+ * New customer email waiting in the Inbox channels the person is on the team of, unassigned or assigned to them: one
+ * candidate per channel. The channel's name and counts only; never a sender, a subject or a word of the mail.
+ */
+export function inboxCandidates(rows: readonly { channelId: string; channelName: string; count: number; oldestAt: string }[], today: string, tz: string): Candidate[] {
+  const out: Candidate[] = [];
+  for (const r of rows) {
+    if (r.count <= 0) continue;
+    const n = r.count;
+    out.push({
+      id: `inbox:${r.channelId}`, kind: "inbox_new", objectType: "inbound_emails",
+      label: `${n} new ${n === 1 ? "email" : "emails"} in ${r.channelName}`,
+      href: `${ROUTES.inbox}?channel=${r.channelId}&status=new`,
+      days: over(daysFromToday(today, r.oldestAt, tz)) ?? 0, count: n, ownership: "own",
+    });
+  }
   return out;
 }
 

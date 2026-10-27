@@ -15,6 +15,9 @@ export const MAX_RESEARCH_PER_DAY = 20;
 /** Added to the allowance for each search the provider ran, on top of the real tokens (design section 2). */
 export const SEARCH_SURCHARGE_TOKENS = 5000;
 
+/** How many of the latest turns count as "recent" for a web-derived answer: three exchanges. The dock reads it too. */
+export const WEB_TAINT_WINDOW = 6;
+
 export function parseAllowWeb(v: unknown): WebAllow | null {
   return v === "once" ? v : null;
 }

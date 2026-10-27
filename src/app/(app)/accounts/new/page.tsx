@@ -77,10 +77,10 @@ export default function NewAccountPage() {
       error={error}
     >
       <Card title="Identity" padding={18}>
-        <Field label="Company name" required>
+        <Field guide="account.field.name" label="Company name" required>
           <Input value={form.name} onChange={set("name")} required placeholder="e.g. Tata Steel Ltd" />
         </Field>
-        <Field label="Account type" required>
+        <Field guide="account.field.type" label="Account type" required>
           <Select value={form.type} onChange={set("type")}>
             {ACCOUNT_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
           </Select>
@@ -89,23 +89,23 @@ export default function NewAccountPage() {
       </Card>
 
       <Card title="Address" padding={18}>
-        <Field label="Address line 1">
+        <Field guide="account.field.address_line1" label="Address line 1">
           <Input value={form.address_line1} onChange={set("address_line1")} placeholder="Street / building / plot" />
         </Field>
-        <Field label="Address line 2">
+        <Field guide="account.field.address_line2" label="Address line 2">
           <Input value={form.address_line2} onChange={set("address_line2")} placeholder="Area / landmark" />
         </Field>
         <div className="fg2">
-          <Field label="City">
+          <Field guide="account.field.city" label="City">
             <Input value={form.city} onChange={set("city")} placeholder="e.g. Bengaluru" />
           </Field>
-          <Field label="State">
+          <Field guide="account.field.state" label="State">
             <Input value={form.state} onChange={set("state")} placeholder="e.g. Karnataka" />
           </Field>
-          <Field label="Postal code">
+          <Field guide="account.field.postal_code" label="Postal code">
             <Input value={form.postal_code} onChange={set("postal_code")} placeholder="560001" />
           </Field>
-          <Field label="Country">
+          <Field guide="account.field.country" label="Country">
             <Input value={form.country} onChange={set("country")} placeholder="India" />
           </Field>
         </div>
@@ -114,45 +114,45 @@ export default function NewAccountPage() {
 
       <Card title="Communication" padding={18}>
         <div className="fg2">
-          <Field label="Primary phone">
+          <Field guide="account.field.phone" label="Primary phone">
             <Input value={form.phone} onChange={set("phone")} placeholder="+91 98765 43210" />
           </Field>
-          <Field label="Secondary phone">
+          <Field guide="account.field.phone2" label="Secondary phone">
             <Input value={form.phone2} onChange={set("phone2")} placeholder="+91 98765 43211" />
           </Field>
-          <Field label="Primary email">
+          <Field guide="account.field.email" label="Primary email">
             <Input type="email" value={form.email} onChange={set("email")} placeholder="accounts@company.com" />
           </Field>
-          <Field label="Secondary email">
+          <Field guide="account.field.email2" label="Secondary email">
             <Input type="email" value={form.email2} onChange={set("email2")} placeholder="info@company.com" />
           </Field>
         </div>
-        <Field label="Website">
+        <Field guide="account.field.website" label="Website">
           <Input value={form.website} onChange={set("website")} placeholder="https://company.com" />
         </Field>
         {cfInputs("Communication")}
       </Card>
 
       <Card title="Business" padding={18}>
-        <Field label="Industry">
+        <Field guide="account.field.industry" label="Industry">
           <Input value={form.industry} onChange={set("industry")} placeholder="e.g. Textile Manufacturing" />
         </Field>
         <div className="fg2">
-          <Field label="Employees">
+          <Field guide="account.field.employee_count" label="Employees">
             <Input value={form.employee_count} onChange={set("employee_count")} placeholder="e.g. 250" />
           </Field>
-          <Field label="Annual revenue">
+          <Field guide="account.field.annual_revenue" label="Annual revenue">
             <Input value={form.annual_revenue} onChange={set("annual_revenue")} placeholder={`e.g. ${formatMoneyCompact(50_000_000, cur, 0)}`} />
           </Field>
         </div>
-        <Field label="GSTIN">
+        <Field guide="account.field.gstin" label="GSTIN">
           <Input value={form.gstin} onChange={set("gstin")} placeholder="27AABCV1234F1Z5" />
         </Field>
         {cfInputs("Business")}
       </Card>
 
       <Card title="Notes & Referral" padding={18}>
-        <Field label="Notes">
+        <Field guide="account.field.notes" label="Notes">
           <Textarea value={form.notes} onChange={set("notes")} placeholder="Any notes about this account…" />
         </Field>
         <Field label="Referred by account ID" hint="Set when type is End Customer and an OEM referred them">

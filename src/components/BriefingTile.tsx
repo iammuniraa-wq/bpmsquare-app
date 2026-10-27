@@ -80,6 +80,9 @@ export function BriefingView({ briefing, status, refreshing, onRefresh, showAll,
 
       {status === "ready" && briefing && !briefing.empty && (
         <>
+          {briefing.wording?.paragraph && (
+            <p className="bms-brief-summary" lang={briefing.wording.lang} dir="auto">{briefing.wording.paragraph}</p>
+          )}
           <Row label="Yesterday">
             {briefing.yesterday.length > 0 ? <Segments lines={briefing.yesterday} /> : <span className="bms-brief-none">Nothing recorded</span>}
           </Row>
@@ -112,6 +115,7 @@ export function BriefingView({ briefing, status, refreshing, onRefresh, showAll,
         .bms-brief-title { font-weight: 650; font-size: 13px; }
         .bms-brief-refresh { margin-left: auto; background: transparent; border: 1px solid var(--line); border-radius: 999px; padding: 4px 12px; font-size: 11.5px; font-weight: 650; color: ${c.accent}; cursor: pointer; font-family: inherit; min-height: 28px; }
         .bms-brief-refresh:disabled { color: ${c.hint}; cursor: default; }
+        .bms-brief-summary { margin: 0; line-height: 1.5; overflow-wrap: anywhere; }
         .bms-brief-row { display: grid; grid-template-columns: 84px minmax(0, 1fr); gap: 8px; align-items: start; }
         .bms-brief-label { display: flex; align-items: center; gap: 4px; font-size: 10.5px; font-weight: 700; letter-spacing: .4px; text-transform: uppercase; color: ${c.hint}; padding-top: 2px; }
         .bms-brief-body { min-width: 0; line-height: 1.5; }

@@ -1,0 +1,204 @@
+/* Sales Order screens. Theme variables only (light and dark follow globals.css); one column under 900px; 44px targets on phones. */
+.screen { --so-accent: var(--modern-accent, var(--tenant-accent, var(--accent))); display: flex; flex-direction: column; min-width: 0; }
+
+/* ── the path across the very top ─────────────────────────────────────────── */
+.pathBlock { margin-bottom: 10px; min-width: 0; }
+.pathRow { display: flex; align-items: center; gap: 4px; min-width: 0; }
+.path { flex: 1; min-width: 0; display: flex; gap: 6px; list-style: none; margin: 0; padding: 0; }
+.step { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; gap: 6px; align-items: stretch; }
+.seg { height: 8px; border-radius: 999px; background: var(--line); }
+.step[data-state="done"] .seg { background: color-mix(in srgb, var(--so-accent) 55%, var(--panel)); }
+.step[data-state="current"] .seg { background: var(--so-accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--so-accent) 22%, transparent); }
+.stepLabel { font-size: 12px; font-weight: 600; color: var(--hint); text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.step[data-state="done"] .stepLabel { color: var(--muted); }
+.step[data-state="current"] .stepLabel { color: var(--ink); font-weight: 700; }
+.pathCancelled .seg { background: var(--line); }
+.cancelledChip { flex: none; }
+.subStatus { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 4px 14px; margin-top: 6px; font-size: 12px; color: var(--muted); min-height: 0; }
+
+/* ── header ───────────────────────────────────────────────────────────────── */
+.chips { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
+.chip {
+  display: inline-flex; align-items: center; font-size: 11.5px; font-weight: 700; padding: 3px 10px; border-radius: 999px;
+  background: var(--panel2); color: var(--muted); border: 1px solid var(--line); white-space: nowrap;
+}
+.chipLock { background: var(--amberbg); color: var(--amberink); border-color: transparent; }
+.chipMono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.quiet { margin: -6px 0 12px; font-size: 12.5px; color: var(--hint); }
+.actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.primarySlot { display: inline-flex; }
+.back { display: inline-flex; align-items: center; min-height: 28px; }
+
+/* ── banner (blockers stay visible, passes stay quiet) ────────────────────── */
+.banner {
+  display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px 14px; padding: 10px 14px; border-radius: 10px;
+  background: var(--amberbg); color: var(--amberink); border: 1px solid color-mix(in srgb, var(--amberink) 25%, transparent); font-size: 13px; font-weight: 600;
+}
+.bannerError { background: var(--err-bg); color: var(--err-ink); border-color: var(--err-line); }
+.bannerLink { font: inherit; font-weight: 700; text-decoration: underline; background: none; border: none; color: inherit; cursor: pointer; padding: 0; min-height: 28px; }
+
+/* ── overview ─────────────────────────────────────────────────────────────── */
+.overview { display: flex; flex-direction: column; gap: 14px; }
+.parties { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; }
+.partyLabel { font-size: 10.5px; font-weight: 700; color: var(--hint); text-transform: uppercase; letter-spacing: 0.5px; }
+.partyName { margin-top: 4px; font-size: 14.5px; font-weight: 600; color: var(--ink); overflow-wrap: anywhere; }
+.partyLine { margin-top: 2px; font-size: 12.5px; color: var(--muted); overflow-wrap: anywhere; }
+.facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.fact { min-width: 0; }
+.factLabel { display: flex; align-items: center; font-size: 10.5px; font-weight: 700; color: var(--hint); text-transform: uppercase; letter-spacing: 0.5px; }
+.factValue { margin-top: 4px; font-size: 18px; font-weight: 700; color: var(--ink); overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.factSub { margin-top: 3px; font-size: 12px; color: var(--muted); }
+
+/* ── source tags ──────────────────────────────────────────────────────────── */
+.tag { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 700; padding: 1px 8px; border-radius: 999px; white-space: nowrap; }
+.tagErp { background: var(--bluebg); color: var(--blueink); }
+.tagMaster { background: var(--amberbg); color: var(--amberink); }
+.tagNone { background: var(--panel2); color: var(--hint); }
+.tagOk { background: var(--greenbg); color: var(--greenink); }
+.tagBad { background: var(--redbg); color: var(--redink); }
+
+/* ── tables that become cards on a phone ──────────────────────────────────── */
+.tableWrap { overflow-x: auto; }
+.table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.table th { text-align: left; padding: 9px 12px; font-size: 10.5px; font-weight: 700; letter-spacing: 0.4px; text-transform: uppercase; color: var(--hint); background: var(--panel2); white-space: nowrap; }
+.table td { padding: 10px 12px; border-top: 1px solid var(--line); vertical-align: top; color: var(--ink); }
+.num { text-align: right !important; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.muted { color: var(--muted); }
+.cards { display: none; flex-direction: column; gap: 10px; }
+.card { padding: 12px 14px; border: 1px solid var(--line); border-radius: var(--card-radius); background: var(--card-bg); }
+.cardTitle { font-size: 14px; font-weight: 600; overflow-wrap: anywhere; }
+.cardGrid { margin: 8px 0 0; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 14px; font-size: 12.5px; }
+.cardGrid dt { color: var(--hint); }
+.cardGrid dd { margin: 0; color: var(--ink); min-width: 0; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.printed > summary { cursor: pointer; display: inline-flex; align-items: center; min-height: 32px; font-size: 12px; font-weight: 600; color: var(--muted); list-style: none; }
+.printed > summary::-webkit-details-marker { display: none; }
+.printed > summary::before { content: "+"; display: inline-block; width: 14px; }
+.printed[open] > summary::before { content: "\2212"; }
+.printedText { font-size: 12.5px; color: var(--muted); white-space: pre-wrap; overflow-wrap: anywhere; padding: 2px 0 6px 14px; }
+.linkBtn { font: inherit; font-size: 12px; font-weight: 600; color: var(--muted); background: none; border: none; cursor: pointer; padding: 0 2px; min-height: 36px; }
+.linkBtn:hover, .linkBtn:focus-visible { color: var(--ink); }
+.stateShort { color: var(--redink); font-weight: 700; }
+.stateLate { color: var(--amberink); font-weight: 700; }
+.stateOk { color: var(--greenink); font-weight: 600; }
+.totals { display: flex; flex-direction: column; align-items: flex-end; gap: 3px; margin-top: 12px; font-size: 12.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.totalsBig { font-size: 15px; font-weight: 700; color: var(--ink); margin-top: 4px; }
+
+/* ── line editor ──────────────────────────────────────────────────────────── */
+.editRow { border-top: 1px solid var(--line); padding: 12px 0; display: grid; gap: 8px; }
+.editMain { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: start; }
+.editNums { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; }
+.editNums label, .editMain label { display: block; font-size: 10.5px; font-weight: 700; color: var(--hint); text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 4px; }
+.pickResults { border: 1px solid var(--line); border-radius: 8px; background: var(--panel); max-height: 220px; overflow-y: auto; margin-top: 4px; }
+.pickItem { display: flex; justify-content: space-between; gap: 10px; width: 100%; padding: 8px 12px; min-height: 44px; align-items: center; text-align: left; background: none; border: none; border-bottom: 1px solid var(--line); color: var(--ink); font: inherit; font-size: 13px; cursor: pointer; }
+.pickItem:hover, .pickItem:focus-visible { background: var(--panel2); }
+.pickItem:last-child { border-bottom: none; }
+
+/* ── availability ─────────────────────────────────────────────────────────── */
+.availHead { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; margin-bottom: 12px; }
+.pair { display: flex; flex-direction: column; gap: 2px; font-variant-numeric: tabular-nums; }
+.pairSub { font-size: 12px; color: var(--muted); }
+
+/* ── ERP tab ──────────────────────────────────────────────────────────────── */
+.erpId { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; min-height: 28px; }
+.erpOrg { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin-top: 8px; font-size: 13px; overflow-wrap: anywhere; }
+.erpOrgMissing { color: var(--amberink); font-weight: 600; }
+.cardHead { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px 12px; margin-bottom: 10px; }
+.cardActions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.checkRow { display: grid; grid-template-columns: 90px auto minmax(0, 1fr); gap: 4px 14px; align-items: start; padding: 10px 0; border-top: 1px solid var(--line); }
+.checkRow:first-of-type { border-top: none; }
+.checkName { font-size: 13px; font-weight: 700; color: var(--ink); }
+.checkText { font-size: 13px; color: var(--ink); overflow-wrap: anywhere; }
+.checkTime { font-size: 12px; color: var(--muted); margin-top: 2px; }
+.sendList { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 6px; font-size: 13px; overflow-wrap: anywhere; }
+
+/* ── document flow (SVG swimlane) ─────────────────────────────────────────── */
+.flowWrap { overflow-x: auto; padding-bottom: 4px; }
+.flowAcross { display: block; }
+.flowDown { display: none; }
+.flowSvg { display: block; max-width: none; }
+.link path, .linkPath { fill: none; stroke: var(--hint); stroke-width: 1.5; }
+.linkPlanned { stroke-dasharray: 5 4; opacity: 0.8; }
+.node { cursor: default; outline: none; }
+.node a { text-decoration: none; }
+.nodeBox { fill: var(--panel); stroke: var(--line); stroke-width: 1.2; }
+.nodePlanned .nodeBox { stroke-dasharray: 5 4; fill: var(--panel2); }
+.nodeCurrent .nodeBox { stroke: var(--so-accent); stroke-width: 2; }
+.nodeLink:hover .nodeBox, .nodeLink:focus-visible .nodeBox { fill: var(--panel2); stroke: var(--so-accent); }
+.nodeLink:focus-visible { outline: 2px solid var(--so-accent); outline-offset: 2px; }
+.nodeTitle { font-size: 10.5px; font-weight: 700; letter-spacing: 0.4px; text-transform: uppercase; fill: var(--hint); }
+.nodeRef { font-size: 12.5px; font-weight: 700; fill: var(--ink); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.nodeSub { font-size: 11px; fill: var(--muted); }
+.dotDone { fill: var(--green); }
+.dotActive { fill: var(--amber); }
+.dotBad { fill: var(--red); }
+.dotPlanned, .dotNeutral { fill: var(--hint); }
+
+/* ── files and links ──────────────────────────────────────────────────────── */
+.fileList { border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+.fileRow { display: flex; align-items: center; gap: 10px; padding: 8px 12px; min-height: 52px; border-top: 1px solid var(--line); font-size: 13px; }
+.fileRow:first-child { border-top: none; }
+.fileMain { min-width: 0; flex: 1; }
+.fileName { display: block; font-weight: 600; color: var(--so-accent); text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fileMeta { font-size: 11.5px; color: var(--hint); }
+.fileBar { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+
+/* ── create form ──────────────────────────────────────────────────────────── */
+.formShell { display: flex; flex-direction: column; gap: 14px; max-width: 980px; min-width: 0; }
+.formGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.results { border: 1px solid var(--line); border-radius: 8px; background: var(--panel); max-height: 240px; overflow-y: auto; margin-top: 4px; }
+.more { border-top: 1px solid var(--line); margin-top: 2px; }
+.more > summary { cursor: pointer; display: flex; align-items: center; min-height: 44px; font-size: 13px; font-weight: 600; color: var(--muted); list-style: none; }
+.more > summary::-webkit-details-marker { display: none; }
+.more > summary::before { content: "+"; display: inline-block; width: 16px; }
+.more[open] > summary::before { content: "\2212"; }
+
+/* ── settings: order types ────────────────────────────────────────────────── */
+.shell { display: flex; flex-direction: column; gap: 14px; max-width: 860px; min-width: 0; }
+.pill { margin-inline-start: 8px; font-size: 11px; font-weight: 700; padding: 1px 8px; border-radius: 999px; background: var(--amberbg); color: var(--amberink); }
+.pillDim { background: var(--panel2); color: var(--hint); }
+.blockRow { display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 4px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); margin-bottom: 6px; font-size: 13px; }
+.blockName { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.ruleRow { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; gap: 8px; align-items: center; margin-bottom: 8px; }
+.switchRow { display: flex; align-items: center; justify-content: space-between; gap: 14px; min-height: 44px; }
+.preview { position: fixed; inset: 0; z-index: 620; display: flex; flex-direction: column; background: rgba(0, 0, 0, 0.55); }
+.previewBar { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 16px; background: var(--panel); border-bottom: 1px solid var(--line); }
+.previewBody { flex: 1; min-height: 0; overflow: auto; padding: 16px; }
+.previewPaper { background: white; color: black; max-width: 800px; margin: 0 auto; }
+
+.previewPaper table { border-collapse: collapse; width: 100%; }
+.previewPaper td, .previewPaper th { vertical-align: top; }
+
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+@media (max-width: 900px) {
+  .checkRow { grid-template-columns: 1fr; }
+  .facts { grid-template-columns: 1fr; }
+  .formGrid { grid-template-columns: 1fr; }
+  .editNums { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .flowAcross { display: none; }
+  .flowDown { display: block; }
+}
+
+@media (max-width: 780px) {
+  .tableOnly { display: none !important; }
+  .cards { display: flex; }
+  .stepLabel { font-size: 11px; }
+  .linkBtn { min-height: 44px; }
+  .actions :global(.bpm-btn), .fileRow :global(.bpm-btn), .banner .bannerLink { min-height: 44px; }
+  .pickItem { min-height: 48px; }
+  .screen :global(.bpm-input), .formShell :global(.bpm-input) { min-height: 44px; }
+  .ruleRow { grid-template-columns: 1fr; }
+  .shell :global(.bpm-btn), .blockRow :global(.bpm-btn), .ruleRow :global(.bpm-btn) { min-height: 44px; }
+  /* the primary action sits in the one standard place on a phone: a bar at the bottom edge */
+  .primarySlot {
+    position: fixed; left: 0; right: 0; bottom: env(safe-area-inset-bottom, 0px); z-index: 30; padding: 10px 14px; justify-content: stretch;
+    background: var(--card-bg); border-top: 1px solid var(--line); box-shadow: 0 -4px 14px rgba(0, 0, 0, 0.12);
+  }
+  .primarySlot > :global(.bpm-btn) { flex: 1; min-height: 44px; }
+  :global([data-nova="true"]) .primarySlot { bottom: calc(58px + env(safe-area-inset-bottom, 0px)); }
+  .screen.hasPrimary { padding-bottom: 76px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .screen *, .shell * { transition: none !important; animation: none !important; }
+}

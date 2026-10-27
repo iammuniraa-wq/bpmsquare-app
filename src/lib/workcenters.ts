@@ -3,19 +3,22 @@
 // no "server-only" restriction unlike permissions.ts itself.
 
 export type WorkcenterKey =
-  | "dashboard" | "accounts" | "contacts" | "quotations" | "standard_quotes" | "pipeline" | "invoices"
+  | "dashboard" | "accounts" | "contacts" | "quotations" | "standard_quotes" | "sales_orders" | "pipeline" | "contract_projects" | "invoices"
   | "cases" | "amc" | "work_orders" | "dispatch" | "technicians"
   | "marketing" | "marketing_segments" | "leads" | "partners"
   | "assets" | "suppliers" | "inventory" | "purchase_orders" | "employees"
-  | "reports" | "data_workbench" | "administration" | "wfm" | "products" | "pricing" | "fence_projects" | "rfqs" | "estimates" | "process_studio" | "marketing_newsletters" | "signals" | "marketing_forms" | "abm" | "marketing_journeys" | "marketing_whatsapp" | "marketing_attribution" | "marketing_events";
+  | "reports" | "data_workbench" | "administration" | "wfm" | "products" | "pricing" | "fence_projects" | "rfqs" | "estimates" | "process_studio" | "marketing_newsletters" | "signals" | "marketing_forms" | "abm" | "marketing_journeys" | "marketing_whatsapp" | "marketing_attribution" | "marketing_events" | "inbox";
 
 export const WORKCENTERS: { key: WorkcenterKey; label: string }[] = [
   { key: "dashboard", label: "Dashboard" },
+  { key: "inbox", label: "Inbox" },
   { key: "accounts", label: "Accounts" },
   { key: "contacts", label: "Contacts" },
   { key: "quotations", label: "Quotations" },
   { key: "standard_quotes", label: "Standard Quotes" },
+  { key: "sales_orders", label: "Sales Orders" },
   { key: "pipeline", label: "Pipeline" },
+  { key: "contract_projects", label: "Contract Projects" },
   { key: "invoices", label: "Invoices" },
   { key: "cases", label: "Cases" },
   { key: "amc", label: "AMC Contracts" },

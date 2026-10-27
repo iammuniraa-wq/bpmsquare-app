@@ -89,6 +89,20 @@ export type IntakeProposal = {
   assumptions: string[];
   /** Input keys that were clamped or dropped, for the form to mark. */
   adjusted: string[];
+  /** Per input: found, likely or missing, with the email's own words (aiIntake.ts). Absent on the older reader. */
+  fields?: Record<string, IntakeField>;
+};
+
+/** How sure the reading is: found = the email says it, likely = inferred from it, missing = not there (never guessed). */
+export type IntakeStatus = "found" | "likely" | "missing";
+export type IntakeField = {
+  status: IntakeStatus;
+  /** The words in the email that this came from (found and likely only). */
+  source: string | null;
+  /** When the value was read from an attachment rather than the email text: the file name, the page (PDF) and, for a DXF drawing, the layer. */
+  file?: string | null;
+  page?: number | null;
+  layer?: string | null;
 };
 
 const str = (v: unknown, max: number): string | null => (typeof v === "string" && v.trim() ? v.trim().slice(0, max) : null);

@@ -14,6 +14,8 @@ export type LinkRow = {
   doc?: DocumentView;
   /** Inbound only: the entity whose On switch this row holds. */
   entity?: SyncEntity;
+  /** The row cannot be switched on yet (a database update is pending); `runs` says so. */
+  blocked?: boolean;
 };
 
 /** The inbound links offered, in order: ERP entity key -> the BPMSquare object it fills and the ERP's own word. */
@@ -22,6 +24,8 @@ export const INBOUND_LINKS: { key: string; bpm: string; erp: string }[] = [
   { key: "contacts", bpm: "Contacts", erp: "Contacts" },
   { key: "products", bpm: "Products", erp: "Products" },
   { key: "projects", bpm: "Projects", erp: "Projects" },
+  // Dynamics 365 Sales only: the entity is not listed for other products, so the row does not appear for them.
+  { key: "sales_orders", bpm: "Sales orders", erp: "Sales orders" },
 ];
 
 export const SCHEDULE_WORD: Record<EntitySchedule, string> = { off: "Off", hourly: "Hourly", daily: "Daily" };
@@ -34,6 +38,7 @@ export const SAP_INBOUND_LINKS: { key: string; bpm: string; erp: string }[] = [
   { key: "customers", bpm: "Accounts", erp: "Customers" },
   { key: "vendors", bpm: "Suppliers", erp: "Suppliers" },
   { key: "products", bpm: "Products", erp: "Products" },
+  { key: "sales_orders", bpm: "Sales orders", erp: "Sales orders" },
 ];
 
 export function buildLinks(documents: readonly DocumentView[], entities: readonly SyncEntity[], inbound: readonly { key: string; bpm: string; erp: string }[] = INBOUND_LINKS): LinkRow[] {
@@ -42,7 +47,7 @@ export function buildLinks(documents: readonly DocumentView[], entities: readonl
   }));
   const inn: LinkRow[] = inbound.flatMap((l) => {
     const e = entities.find((x) => x.key === l.key);
-    return e ? [{ id: `in:${l.key}`, kind: "in" as const, bpm: l.bpm, erp: l.erp, runs: SCHEDULE_WORD[e.schedule] ?? "Off", enabled: e.enabled, entity: e }] : [];
+    return e ? [{ id: `in:${l.key}`, kind: "in" as const, bpm: l.bpm, erp: l.erp, runs: e.blocked ? "Database update needed" : SCHEDULE_WORD[e.schedule] ?? "Off", enabled: e.enabled, entity: e, blocked: !!e.blocked }] : [];
   });
   return [...out, ...inn];
 }

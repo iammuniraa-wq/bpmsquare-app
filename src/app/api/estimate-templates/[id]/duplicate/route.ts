@@ -22,15 +22,21 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
     // Copy what is stored, in the validator's canonical form; a template that no
     // longer validates (it predates a rule) is copied as it is rather than refused.
-    const v = validateTemplate(templateBody(t.data));
-    const content = v.ok && v.template ? v.template : templateBody(t.data);
+    const stored = { ...templateBody(t.data), ...(t.data.drawing_map && t.data.drawing_map.length > 0 ? { drawing_map: t.data.drawing_map } : {}) };
+    const v = validateTemplate(stored);
+    const content = v.ok && v.template ? v.template : stored;
 
-    const base = (given || `${t.data.name} (copy)`).slice(0, MAX_TEMPLATE_NAME);
-    let r = await insertTemplate(supabase, tenantId, userId, { name: base, description: t.data.description, trade: t.data.trade, quote_granularity: t.data.quote_granularity }, content);
+    const base = (given || `${t.data.name} (${t.data.locked ? "custom" : "copy"})`).slice(0, MAX_TEMPLATE_NAME);
+    // The copy is the editable one: never locked, and not customer-visible until someone says so.
+    const header = {
+      description: t.data.description, trade: t.data.trade, quote_granularity: t.data.quote_granularity,
+      keywords: t.data.keywords ?? null, icon: t.data.icon ?? null,
+    };
+    let r = await insertTemplate(supabase, tenantId, userId, { name: base, ...header }, content);
     // A name collision on the generated name tries "(copy 2)", "(copy 3)", ...
     for (let n = 2; !given && r.status === 409 && n <= 20; n++) {
       const name = `${t.data.name} (copy ${n})`.slice(0, MAX_TEMPLATE_NAME);
-      r = await insertTemplate(supabase, tenantId, userId, { name, description: t.data.description, trade: t.data.trade, quote_granularity: t.data.quote_granularity }, content);
+      r = await insertTemplate(supabase, tenantId, userId, { name, ...header }, content);
     }
     if (!r.data) {
       if (r.status === 503) return pendingResponse();

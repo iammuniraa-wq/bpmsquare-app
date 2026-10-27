@@ -1,7 +1,7 @@
 import type { ScopeKind } from "@/lib/connectors/d365/types";
 import {
   SAP_ENTITY_KEYS, SAP_SANDBOX_HOST, SAP_SANDBOX_PREFIX, SAP_SCENARIO,
-  type SapConfig, type SapEntityConfig, type SapEntityKey, type SapSchedule,
+  type SapBpKey, type SapOrderService, type SapConfig, type SapEntityConfig, type SapEntityKey, type SapSchedule,
 } from "./types";
 
 // What ships with the connector, so a pull works with zero configuration. Everything here is the standard SAP
@@ -33,7 +33,7 @@ export type SapPreset = {
 
 const BP_EXPAND = ["to_BusinessPartnerAddress/to_EmailAddress", "to_BusinessPartnerAddress/to_PhoneNumber"] as const;
 
-export const SAP_PRESETS: Record<SapEntityKey, SapPreset> = {
+export const SAP_PRESETS: Record<SapBpKey, SapPreset> = {
   customers: {
     service: "API_BUSINESS_PARTNER", entity_set: "A_BusinessPartner", id_field: "BusinessPartner", key_field: "BusinessPartner", modified_field: "LastChangeDate",
     filter: "Customer ne ''", expand: BP_EXPAND, prefix: "address", scenario: "businessPartner", enabled: true,
@@ -77,14 +77,28 @@ export function sapOrigin(cfg: Pick<SapConfig, "api_host" | "auth_mode">): strin
   return `https://${cfg.auth_mode === "api_key" ? SAP_SANDBOX_HOST : cfg.api_host}`;
 }
 
-export function sapServiceBase(cfg: Pick<SapConfig, "api_host" | "auth_mode">, service: SapPreset["service"]): string {
+export function sapServiceBase(cfg: Pick<SapConfig, "api_host" | "auth_mode">, service: SapPreset["service"] | SapOrderService): string {
   return `${sapOrigin(cfg)}${cfg.auth_mode === "api_key" ? SAP_SANDBOX_PREFIX : ""}/sap/opu/odata/sap/${service}`;
 }
 
 export const isSandbox = (cfg: Pick<SapConfig, "auth_mode">): boolean => cfg.auth_mode === "api_key";
 
+/**
+ * Sales orders are read whole (orders.ts): header, items, then the deliveries and billing documents of each order. There is no
+ * field map and no scope. Off until the workspace switches it on under Integration middleware > Links, like the Dynamics one.
+ * `modified_field` is the header's change timestamp, an Edm.DateTimeOffset in the published service (read from a real response).
+ */
+export const SAP_ORDER_PRESET = {
+  service: "API_SALES_ORDER_SRV", entity_set: "A_SalesOrder", id_field: "SalesOrder", key_field: "SalesOrder",
+  modified_field: "LastChangeDateTime", expand: ["to_Item"], enabled: false,
+} as const;
+
 /** The entity config in force: the tenant's switch, schedule, map and scope over the preset. A map is replaced whole. */
 export function entityConfig(cfg: Pick<SapConfig, "entities">, key: SapEntityKey): SapEntityConfig & { entity_set: string } {
+  if (key === "sales_orders") {
+    const own = cfg.entities?.sales_orders;
+    return { enabled: own?.enabled ?? SAP_ORDER_PRESET.enabled, field_map: {}, ...(own?.schedule ? { schedule: own.schedule } : {}), entity_set: SAP_ORDER_PRESET.entity_set };
+  }
   const p = SAP_PRESETS[key];
   const own = cfg.entities?.[key];
   return {
@@ -116,7 +130,7 @@ const BP_COMMON: SapScopeCommon[] = [
   { name: "BusinessPartnerType", label: "Type", kind: "text" },
 ];
 
-export const SAP_SCOPE_COMMON: Record<SapEntityKey, SapScopeCommon[]> = {
+export const SAP_SCOPE_COMMON: Record<SapBpKey, SapScopeCommon[]> = {
   customers: BP_COMMON,
   vendors: BP_COMMON,
   products: [

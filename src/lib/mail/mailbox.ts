@@ -68,6 +68,8 @@ export type OutgoingMail = {
   messageId?: string;
   inReplyTo?: string;
   references?: string;
+  /** Extra headers (the Inbox stamps its loop-guard header here). */
+  headers?: Record<string, string>;
   attachments?: { filename: string; content: Buffer; contentType?: string }[];
 };
 
@@ -97,6 +99,7 @@ export async function sendViaMailbox(mb: Mailbox, mail: OutgoingMail): Promise<{
       messageId: mail.messageId,
       inReplyTo: mail.inReplyTo,
       references: mail.references,
+      headers: mail.headers,
       attachments: mail.attachments,
     });
     return { ok: true, messageId: (info.messageId as string | undefined) ?? mail.messageId ?? null };
@@ -110,6 +113,10 @@ export type FetchedMail = {
   uid: number;
   messageId: string | null;
   inReplyTo: string | null;
+  /** The References header, as sent. */
+  references: string | null;
+  /** The few headers that decide whether a message is an auto-reply or our own (lower-cased names). */
+  headers: Record<string, string>;
   from: string | null;
   to: string[];
   subject: string;
@@ -145,6 +152,23 @@ function walk(node: BodyNode, out: { text?: string; html?: string; files: { part
   } else if (type === "text/html" && !out.html) {
     out.html = part;
   }
+}
+
+/** The headers asked of the server for every message: threading, and the signs of an auto-reply or of our own mail. */
+export const FETCHED_HEADERS = [
+  "in-reply-to", "references", "auto-submitted", "precedence", "x-auto-response-suppress", "x-autoreply", "x-autorespond",
+  "x-bpmsquare-inbox", "return-path", "list-id",
+];
+
+/** "Name: value" lines (folded continuations joined) to a map with lower-cased names. First occurrence wins. */
+export function parseHeaderBlock(text: string): Record<string, string> {
+  const out: Record<string, string> = {};
+  const unfolded = text.replace(/\r?\n[ \t]+/g, " ");
+  for (const line of unfolded.split(/\r?\n/)) {
+    const m = /^([A-Za-z0-9-]+):\s*(.*)$/.exec(line);
+    if (m && !(m[1].toLowerCase() in out)) out[m[1].toLowerCase()] = m[2].trim();
+  }
+  return out;
 }
 
 async function streamToBuffer(stream: NodeJS.ReadableStream, limit: number): Promise<Buffer | null> {
@@ -200,11 +224,12 @@ export async function fetchNewMail(mb: Mailbox, state: { uidValidity: bigint | n
       // Oldest first, bounded: anything past the cap is picked up next run.
       for (const uid of uids.slice(0, opts.maxMessages * 4)) {
         lastUid = Math.max(lastUid, uid);
-        const msg = await client.fetchOne(String(uid), { envelope: true, bodyStructure: true, headers: ["in-reply-to"] }, { uid: true });
+        const msg = await client.fetchOne(String(uid), { envelope: true, bodyStructure: true, headers: FETCHED_HEADERS }, { uid: true });
         if (!msg || !msg.envelope) continue;
         const subject = msg.envelope.subject ?? "";
         const headerText = msg.headers ? Buffer.from(msg.headers).toString("utf8") : "";
-        const inReplyTo = /in-reply-to:\s*(<[^>]+>)/i.exec(headerText)?.[1] ?? null;
+        const headers = parseHeaderBlock(headerText);
+        const inReplyTo = /<[^>]+>/.exec(headers["in-reply-to"] ?? "")?.[0] ?? null;
         if (!opts.wanted(subject, inReplyTo)) continue;
         if (messages.length >= opts.maxMessages) { lastUid = uid - 1; break; }
 
@@ -227,6 +252,8 @@ export async function fetchNewMail(mb: Mailbox, state: { uidValidity: bigint | n
           uid,
           messageId: msg.envelope.messageId ?? null,
           inReplyTo: inReplyTo ?? msg.envelope.inReplyTo ?? null,
+          references: headers["references"] ?? null,
+          headers,
           from,
           to: (msg.envelope.to ?? []).map((a) => a.address ?? "").filter(Boolean),
           subject,

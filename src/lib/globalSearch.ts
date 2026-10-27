@@ -8,7 +8,7 @@ import type { WorkcenterKey, ViewableWorkcenters } from "./workcenters";
 export type SearchObjectType =
   | "account" | "contact" | "asset" | "case" | "quote"
   | "work_order" | "purchase_order" | "invoice" | "inventory_item"
-  | "supplier" | "lead" | "employee" | "product" | "project" | "opportunity" | "rfq" | "estimate" | "abm_program";
+  | "supplier" | "lead" | "employee" | "product" | "project" | "opportunity" | "rfq" | "estimate" | "abm_program" | "standard_quote" | "sales_order" | "inbox_email" | "contract_project" | "buyout_package";
 
 export type SearchObjectDef = {
   type: SearchObjectType;
@@ -37,6 +37,8 @@ export const SEARCH_OBJECTS: SearchObjectDef[] = [
   { type: "contact", label: "Contacts", icon: "◉", featureKeys: ["contacts"], workcenters: ["contacts"] },
   { type: "case", label: "Cases", icon: "☎", featureKeys: ["cases"], workcenters: ["cases"] },
   { type: "quote", label: "Quotations", icon: "₹", featureKeys: ["quotations"], workcenters: ["quotations"] },
+  { type: "standard_quote", label: "Standard Quotes", icon: "≡", featureKeys: ["standard_quotes"], workcenters: ["standard_quotes"] },
+  { type: "sales_order", label: "Sales Orders", icon: "▣", featureKeys: ["sales_orders"], workcenters: ["sales_orders"] },
   { type: "work_order", label: "Work Orders", icon: "▦", featureKeys: ["work_orders"], workcenters: ["work_orders"] },
   { type: "invoice", label: "Invoices", icon: "▥", featureKeys: ["invoices"], workcenters: ["invoices"] },
   { type: "purchase_order", label: "Purchase Orders", icon: "▤", featureKeys: ["purchasing"], workcenters: ["purchase_orders"] },
@@ -45,9 +47,14 @@ export const SEARCH_OBJECTS: SearchObjectDef[] = [
   { type: "supplier", label: "Suppliers", icon: "⌂", featureKeys: ["suppliers"], workcenters: ["suppliers"] },
   { type: "product", label: "Products", icon: "▩", featureKeys: ["products"], workcenters: ["products"] },
   { type: "opportunity", label: "Deals", icon: "◈", featureKeys: ["pipeline"], workcenters: ["pipeline"] },
+  { type: "contract_project", label: "Contract projects", icon: "▤", featureKeys: ["contract_projects"], workcenters: ["contract_projects"] },
+  { type: "buyout_package", label: "Buy-out packages", icon: "▥", featureKeys: ["contract_projects"], workcenters: ["contract_projects"] },
   { type: "rfq", label: "RFQs", icon: "⇄", featureKeys: ["rfq"], workcenters: ["rfqs"] },
   { type: "estimate", label: "Estimates", icon: "∑", featureKeys: ["estimator"], workcenters: ["estimates"] },
   { type: "abm_program", label: "ABM programs", icon: "◎", featureKeys: ["abm"], workcenters: ["abm"] },
+  // Mail is found by sender and subject only (the body is encrypted), and only in the channels the caller is on the team of:
+  // that last rule is applied in globalSearchLive, not by a plain tenant-scoped spec.
+  { type: "inbox_email", label: "Inbox", icon: "✉", featureKeys: ["inbox"], workcenters: ["inbox"] },
   { type: "project", label: "Projects", icon: "▦", featureKeys: ["wfm_projects"], workcenters: ["wfm"] },
   { type: "lead", label: "Leads", icon: "✦", featureKeys: ["leads"], workcenters: ["leads"] },
   // Workforce: visible via the Employees master-data grant, or to WFM

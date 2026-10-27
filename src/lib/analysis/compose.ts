@@ -21,6 +21,8 @@ export type StoredResearch = {
   sources: SourceRef[];
   sentence: { text: string; byAi: boolean; forLabel: string } | null;
   snapshot: AnalysisSnapshot;
+  /** How many items the search returned that could not be tied to this company with a checkable source (dropped or parked). Absent in older rows. */
+  unverified?: number;
 };
 
 export type LiveInputs = {
@@ -77,7 +79,12 @@ export function composeCard(i: ComposeIn): AnalysisCard {
   const doing = toHighlights(claims, i.now);
   const notes = [...(i.notes ?? [])];
   if (!i.research) notes.push(ANALYSIS_EMPTY.needsWeb);
-  else if (doing.length === 0) notes.push(ANALYSIS_EMPTY.littleInfo);
+  else if (doing.length === 0) {
+    notes.push(ANALYSIS_EMPTY.littleInfo);
+    // "Nothing found" and "found things we could not confirm" are different answers: say which, so a thin card is not read as a quiet company.
+    const unverified = i.research.unverified ?? 0;
+    if (unverified > 0) notes.push(ANALYSIS_EMPTY.unverified(unverified, i.subject.name));
+  }
 
   const identity = [
     [i.subject.city, i.subject.country].filter(Boolean).join(", "),
@@ -100,10 +107,10 @@ export function composeCard(i: ComposeIn): AnalysisCard {
 export const cardId = (companyKey: string, computedAt: string): string => `an_${sourceId(`${companyKey}@${computedAt}`)}`;
 
 /** What to store for the next render and the next diff. */
-export function toStored(i: { claims: Claim[]; checkThese: Claim[]; size: SourcedValue | null; people: PublicPerson[]; sources: SourceRef[]; card: AnalysisCard }): StoredResearch {
+export function toStored(i: { claims: Claim[]; checkThese: Claim[]; size: SourcedValue | null; people: PublicPerson[]; sources: SourceRef[]; unverified?: number; card: AnalysisCard }): StoredResearch {
   const sentence = i.card.verdict.sentence;
   return {
-    v: 1, claims: i.claims, checkThese: i.checkThese, size: i.size, people: i.people, sources: i.sources,
+    v: 1, claims: i.claims, checkThese: i.checkThese, size: i.size, people: i.people, sources: i.sources, ...(i.unverified ? { unverified: i.unverified } : {}),
     sentence: sentence.byAi ? { text: sentence.text, byAi: true, forLabel: i.card.verdict.label } : null,
     snapshot: { claims: i.card.internal.claims, fit: i.card.verdict.fit, stage: i.card.verdict.timing.stage, verdict: i.card.verdict.label },
   };

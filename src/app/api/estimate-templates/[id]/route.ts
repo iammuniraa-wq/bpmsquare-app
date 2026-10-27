@@ -47,8 +47,20 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       return NextResponse.json({ error: "This template was changed by someone else. Reload it and apply your edit again.", version: before.version }, { status: 409 });
     }
 
+    // A starter template is read-only: the only thing a workspace may do to it is switch it
+    // on or off. Everything else goes through "Copy to customise" (the duplicate route).
+    if (before.locked === true) {
+      const touched = Object.keys(b).filter((k) => k !== "is_active" && k !== "expected_version");
+      if (touched.length > 0) {
+        return NextResponse.json({ error: "This is a starter template, so it can't be changed. Use Copy to customise to make your own version.", locked: true }, { status: 409 });
+      }
+    }
+
     const patch: Record<string, unknown> = {};
     const h = header.header;
+    if (h.keywords !== undefined) patch.keywords = h.keywords;
+    if (h.icon !== undefined) patch.icon = h.icon;
+    if (h.customer_visible !== undefined) patch.customer_visible = h.customer_visible;
     if (h.name !== undefined) patch.name = h.name;
     if (h.description !== undefined) patch.description = h.description;
     if (h.trade !== undefined) patch.trade = h.trade;
@@ -56,9 +68,11 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
     let content = false;
     const contentKeys = ["inputs", "rates", "rules"] as const;
-    const touchesBody = contentKeys.some((k) => k in b) || "geometry" in b;
+    const touchesBody = contentKeys.some((k) => k in b) || "geometry" in b || "drawing_map" in b;
+    let drawingMapPending = false;
     if (touchesBody) {
       const merged = {
+        drawing_map: "drawing_map" in b ? b.drawing_map : before.drawing_map,
         geometry: "geometry" in b ? (h.geometry ?? undefined) : (before.geometry ?? undefined),
         inputs: "inputs" in b ? b.inputs : before.inputs,
         rates: "rates" in b ? b.rates : before.rates,
@@ -73,9 +87,16 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       patch.rates = next.rates;
       patch.rules = next.rules;
       patch.geometry = next.geometry ?? null;
+      // The drawing layer map (0215) only steers how a DXF drawing is read; it never changes a calculation, so it is not part of
+      // the version. While the column is missing the map is dropped from the write and the response says so.
+      const { drawing_map: nextMap, ...nextCore } = next;
+      if ("drawing_map" in b) {
+        if ("drawing_map" in before) patch.drawing_map = nextMap ?? null;
+        else if (nextMap) drawingMapPending = true;
+      }
       // jsonb does not keep key order, so compare both sides in the validator's canonical form.
       const was = validateTemplate(templateBody({ ...before, geometry: before.geometry ?? null }));
-      if (!was.ok || JSON.stringify(was.template) !== JSON.stringify(next)) content = true;
+      if (!was.ok || JSON.stringify(was.template) !== JSON.stringify(nextCore)) content = true;
     }
     if (h.quote_granularity !== undefined) {
       patch.quote_granularity = h.quote_granularity;
@@ -100,7 +121,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     if (changes.length > 0) {
       await logChange(supabase, { tenantId, objectType: "estimate_templates", objectId: id, objectLabel: before.name, action: "update", actorId: userId, actorEmail: email, changes });
     }
-    return NextResponse.json({ template: data });
+    return NextResponse.json({ template: data, ...(drawingMapPending ? { drawing_map_pending: true } : {}) });
   } catch (e) {
     return errorResponse(e);
   }

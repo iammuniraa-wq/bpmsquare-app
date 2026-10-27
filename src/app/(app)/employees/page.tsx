@@ -8,6 +8,7 @@ import type { Employee } from "@/lib/types";
 import { paginate } from "@/lib/paginate";
 import { sortRows, readSortParams, applyColFilters, parseColFilterParams, colFilterQueryParams, type SortExtractor } from "@/lib/listSort";
 import { ROUTES } from "@/lib/constants";
+import { statusLabel } from "@/lib/wfm/obsolete";
 import { NewEmployeeButton, EmployeeRowActions } from "./EmployeeEditor";
 
 const fmtDate = (s: string | null) =>
@@ -19,7 +20,7 @@ const SORT_EXTRACTORS: Record<string, SortExtractor<Employee>> = {
   email: (e) => e.email,
   department: (e) => e.department,
   validity: (e) => e.valid_from,
-  status: (e) => e.status,
+  status: (e) => statusLabel(e),
 };
 
 export default async function EmployeesPage({
@@ -64,13 +65,13 @@ export default async function EmployeesPage({
       id: "department", label: "Department · Designation", sortKey: "department", cellStyle: { color: c.muted },
       render: (e) => [e.department, e.designation].filter(Boolean).join(" · ") || "—",
     },
+    { id: "status", label: "Status", sortKey: "status", render: (e) => <StatusPill label={statusLabel(e)} tone={e.status === "active" ? "green" : "red"} /> },
     {
-      id: "validity", label: "Validity", sortKey: "validity", cellStyle: { color: c.muted, whiteSpace: "nowrap" },
-      render: (e) => (e.valid_from || e.valid_to ? `${fmtDate(e.valid_from)} → ${fmtDate(e.valid_to)}` : "—"),
+      id: "validity", label: "Valid from – to", sortKey: "validity", cellStyle: { color: c.muted, whiteSpace: "nowrap" },
+      render: (e) => (e.valid_from || e.valid_to ? `${fmtDate(e.valid_from)} – ${fmtDate(e.valid_to)}` : "—"),
     },
-    { id: "status", label: "Status", sortKey: "status", render: (e) => <StatusPill label={e.status === "active" ? "Active" : "Inactive"} tone={e.status === "active" ? "green" : "red"} /> },
     ...(canEdit ? [{
-      id: "actions", label: "", width: 130, cellStyle: { textAlign: "right" as const },
+      id: "actions", label: "", width: 210, cellStyle: { textAlign: "right" as const },
       render: (e: Employee) => <EmployeeRowActions employee={e} />,
     }] : []),
   ];

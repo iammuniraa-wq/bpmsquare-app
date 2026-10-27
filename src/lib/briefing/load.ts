@@ -7,9 +7,10 @@ import { canUseObject, type AssistantCtx } from "@/lib/assistant/sources";
 import { objectDef } from "@/lib/assistant/objects";
 import { daysFromToday, type DayWindow } from "./day";
 import {
-  abmCandidates, dealCandidates, invoiceCandidates, leadCandidates, mentionCandidates, quoteCandidates,
+  abmCandidates, dealCandidates, inboxCandidates, invoiceCandidates, leadCandidates, mentionCandidates, orderCandidates, quoteCandidates,
   syncCandidates, taskCandidates, wfmCandidates, type QueueSummary,
 } from "./rules";
+import { inboxBriefingRows } from "@/lib/inbox/analytics";
 import type { ChangeRow, CommentRow } from "./yesterday";
 import type { Candidate } from "./types";
 
@@ -95,6 +96,17 @@ export async function loadOpen(admin: SupabaseClient, ctx: BriefingCtx, win: Day
     }, []));
   }
 
+  if (canUseObject(ctx, objectDef("sales_order"))) {
+    jobs.push(safe(async () => {
+      // 0212 may be pending: an error reads as no orders.
+      const { data, error } = await admin.from("sales_orders")
+        .select("id, ref, status, total, created_at")
+        .eq("tenant_id", ctx.tenantId).eq("created_by", ctx.userId).eq("status", "draft")
+        .order("created_at", { ascending: false }).limit(100);
+      return error ? [] : orderCandidates((data ?? []) as Record<string, unknown>[], today, tz);
+    }, []));
+  }
+
   if (canUseObject(ctx, objectDef("lead"))) {
     jobs.push(safe(async () => {
       const { leads, pending } = await listScoredLeads(admin, ctx.tenantId);
@@ -171,6 +183,13 @@ export async function loadOpen(admin: SupabaseClient, ctx: BriefingCtx, win: Day
       ]);
       return wfmCandidates({ leave, correction, overtime });
     }, []));
+  }
+
+  // Customer mail waiting in the person's own channels (counts and the channel's name only).
+  if (can(ctx, "inbox", "inbox")) {
+    jobs.push(safe(async () => inboxCandidates(
+      await inboxBriefingRows(admin, { tenantId: ctx.tenantId, userId: ctx.userId, isAdmin: ctx.isAdmin }), today, tz,
+    ), []));
   }
 
   if (ctx.isAdmin && ctx.features.integration_middleware === true) {

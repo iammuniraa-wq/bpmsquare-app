@@ -35,6 +35,12 @@ export const OBJECT_FEATURE: Record<string, keyof TenantFeatures | null> = {
   // Project Estimator (0131). Header records only on the bulk surfaces; the
   // v1 API exposes no cost fields (docs/estimator-architecture.md section 7).
   estimates: "estimator",
+  // Shared Inbox (0214). In-app routes only, on purpose: mail is private correspondence, so there is no Data Workbench
+  // route, no v1 endpoint and no LIST_SOURCES entry. These keys exist for the surfaces that name the object (Nova
+  // comments, the change history) and so the map already says who owns it.
+  inbox: "inbox",
+  inbound_emails: "inbox",
+  inbox_channels: "inbox",
   // Process Design Studio (0152). In-app routes only in phase 1: no Data
   // Workbench route and no v1 endpoint yet (doc section 9.5, phase 3).
   process_studies: "process_studio",
@@ -80,6 +86,47 @@ export const OBJECT_FEATURE: Record<string, keyof TenantFeatures | null> = {
   // other.
   leads: "leads",
   opportunities: "pipeline",
+  // GCC tender deals (0220): a tender is a deal plus one opportunity_tenders row. Platform-admin flag; the routes also need
+  // `pipeline`. The names are every spelling a surface uses: the table, the change-history type, the list source.
+  opportunity_tender: "gcc_tender",
+  opportunity_tenders: "gcc_tender",
+  deal_types: "gcc_tender",
+  tenders: "gcc_tender",
+  approval_requests: "gcc_tender",
+  // The tender BOQ (0223): the client's workbook and the per-line price source of a tender deal.
+  tender_boq_sources: "gcc_tender",
+  tender_boq_lines: "gcc_tender",
+  // Bid versions and logged calls of a tender deal (0225).
+  tender_bid_versions: "gcc_tender",
+  // The internal cost of each bid version (0230): service role only, no policy, never read by an export, a link or the API.
+  tender_bid_version_costs: "gcc_tender",
+  deal_activities: "gcc_tender",
+  // Competitors of a tender deal (0229): a child record of the deal, gated like the tender block.
+  opportunity_competitors: "gcc_tender",
+  // The Deal Room (0222): internal only, behind its own platform-admin flag.
+  deal_rooms: "deal_room",
+  deal_room_members: "deal_room",
+  deal_room_messages: "deal_room",
+  deal_room_files: "deal_room",
+  // Estimates inside a tender (0227, slice 3c-1): which estimate output prices which BOQ line. In-app routes only: it is internal cost.
+  tender_boq_estimate_links: "gcc_tender",
+  // Contract projects (0226, slice 5a): the project a won tender becomes, its budget revisions and lines, and the ERP code lists
+  // (resource levels, cost codes, justifications) that budget lines use. In-app routes only: the budget is internal cost.
+  contract_projects: "contract_projects",
+  "contract-projects": "contract_projects",
+  project_budget_revisions: "contract_projects",
+  project_budget_lines: "contract_projects",
+  erp_masters: "contract_projects",
+  // After award: variations (0231) and invoicing milestones (0232) of a contract project. In-app routes only: they carry internal cost.
+  contract_project_variations: "contract_projects",
+  contract_project_milestones: "contract_projects",
+  // Contract buy-out (0234): the packages a won project sources after the award, and their lines. In-app routes only: they carry internal cost,
+  // so there is no Data Workbench route, no v1 endpoint, no MCP tool and no LIST_SOURCES entry.
+  project_buyout_packages: "contract_projects",
+  project_buyout_package_lines: "contract_projects",
+  // Supplier groups (0233): a client's approved vendor list. In-app routes only; the Suppliers module owns them (the routes also need gcc_tender).
+  supplier_groups: "suppliers",
+  supplier_group_members: "suppliers",
   pricing: "pricing_engine",
   products: "products",
   // BOM components (0133) are lines of a product: the Products module owns them.
@@ -94,6 +141,21 @@ export const OBJECT_FEATURE: Record<string, keyof TenantFeatures | null> = {
   // own Quotations without being allowed to bulk-edit lines).
   quote_lines: "quote_lines_dw",
   rfqs: "rfq",
+  // Recorded RFQ award decisions (0224): in-app routes only (no Data Workbench, v1 or list source), owned by the RFQ module.
+  rfq_line_awards: "rfq",
+  // What a supplier last quoted for a catalog product (0224); written by RFQ awards, read nowhere over an API yet.
+  product_suppliers: "products",
+  // Standard Quotes (0053): a module of its own, apart from Quotations. The header and its
+  // lines are two Data Workbench families, the v1 endpoint says standard-quotes and the
+  // scope / list source say standard_quotes -- every spelling a surface uses.
+  standard_quotes: "standard_quotes",
+  standard_quote_lines: "standard_quotes",
+  "standard-quotes": "standard_quotes",
+  // Sales Orders (0212): a module of its own (platform-admin flag). The header and its lines are two Data
+  // Workbench families; the v1 endpoint is spelled with a dash, the scope and list source with an underscore.
+  sales_orders: "sales_orders",
+  sales_order_lines: "sales_orders",
+  "sales-orders": "sales_orders",
   suppliers: "suppliers",
   work_orders: "work_orders",
   "work-orders": "work_orders",

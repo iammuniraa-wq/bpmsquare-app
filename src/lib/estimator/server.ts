@@ -18,7 +18,8 @@ import {
   normaliseLine, persistLine, toSummarisable, toQuoteSource, templateGroupNames, unpricedCodes,
   skuOf, reusableCosts, scheduleFromLines, snapshotOf, type PersistLine, type ProductSnapshot,
 } from "./lines";
-import { indexByKey, isKitType, kitDecision, type CatalogueProduct, type KitCost } from "./productItems";
+import { betterProduct, indexByKey, isKitType, kitDecision, type CatalogueProduct, type KitCost } from "./productItems";
+import { isMatchKey, parseMatchKey } from "./productMatch";
 import { loadBomGraph, rollUpFor } from "@/lib/products/bomServer";
 import {
   buildQuoteLines, alternativesInput, tagAlternatives, plainRows, quoteBlockers,
@@ -275,7 +276,9 @@ export type ResolvedProducts = { byKey: Map<string, CatalogueProduct>; byId: Map
  * one wins, then the oldest, so the answer does not change between runs.
  */
 export async function resolveProducts(supabase: SupabaseClient, tenantId: string, keys: string[], ids: string[] = []): Promise<ResolvedProducts> {
-  const uniqueKeys = [...new Set(keys.map((k) => k.trim()).filter(Boolean))];
+  const allKeys = [...new Set(keys.map((k) => k.trim()).filter(Boolean))];
+  const uniqueKeys = allKeys.filter((k) => !isMatchKey(k));
+  const matchKeys = allKeys.filter(isMatchKey);
   const uniqueIds = [...new Set(ids.filter(Boolean))];
   const found: CatalogueProduct[] = [];
   for (let i = 0; i < uniqueKeys.length; i += 100) {
@@ -288,9 +291,35 @@ export async function resolveProducts(supabase: SupabaseClient, tenantId: string
     const chunk = uniqueIds.slice(i, i + 100);
     found.push(...await readProducts(supabase, tenantId, (q) => q.in("id", chunk)));
   }
+  // Rules that name their product by catalogue attributes: one tenant-scoped read per distinct match.
+  const byMatch = new Map<string, CatalogueProduct>();
+  for (let i = 0; i < matchKeys.length; i += 6) {
+    await Promise.all(matchKeys.slice(i, i + 6).map(async (key) => {
+      const attrs = parseMatchKey(key);
+      if (!attrs) return;
+      const hits = await readProductsByAttrs(supabase, tenantId, attrs);
+      let best: CatalogueProduct | undefined;
+      for (const p of hits) best = betterProduct(best, p);
+      if (best) { byMatch.set(key, best); found.push(best); }
+    }));
+  }
   const byId = new Map<string, CatalogueProduct>();
   for (const p of found) byId.set(p.id, p);
-  return { byKey: indexByKey([...byId.values()], uniqueKeys), byId };
+  const byKey = indexByKey([...byId.values()], uniqueKeys);
+  for (const [k, p] of byMatch) byKey.set(k, p);
+  return { byKey, byId };
+}
+
+/** The tenant's products whose `custom_data` carries every attribute (text equality). */
+export async function readProductsByAttrs(supabase: SupabaseClient, tenantId: string, attrs: Record<string, string>): Promise<CatalogueProduct[]> {
+  for (const cols of [PRODUCT_COLS, PRODUCT_COLS_NO_TYPE]) {
+    let q = supabase.from("products").select(cols).eq("tenant_id", tenantId);
+    for (const [k, v] of Object.entries(attrs)) q = q.eq(`custom_data->>${k}`, v);
+    const { data, error } = await q.limit(50);
+    if (!error) return toCatalogueProducts(data);
+    if (!isMissingRelation(error)) return [];
+  }
+  return [];
 }
 
 /**
@@ -826,6 +855,7 @@ export type TemplateSummary = {
   id: string; name: string; description: string | null; trade: string | null; geometry: string | null;
   version: number; is_active: boolean; quote_granularity: string;
   input_count: number; rule_count: number; estimate_count: number; updated_at: string;
+  keywords: string[]; icon: string | null; locked: boolean; customer_visible: boolean;
 };
 
 /** How many estimates were made from each template (0 when the table is missing). */
@@ -858,6 +888,7 @@ export async function listTemplates(supabase: SupabaseClient, tenantId: string, 
       version: t.version, is_active: t.is_active, quote_granularity: t.quote_granularity,
       input_count: (t.inputs ?? []).length, rule_count: (t.rules ?? []).length,
       estimate_count: usage.get(t.id) ?? 0, updated_at: t.updated_at,
+      keywords: t.keywords ?? [], icon: t.icon ?? null, locked: t.locked === true, customer_visible: t.customer_visible === true,
     })),
   };
 }
@@ -865,15 +896,38 @@ export async function listTemplates(supabase: SupabaseClient, tenantId: string, 
 /** Insert a template; a name already used in this workspace is a 409. */
 export async function insertTemplate(
   supabase: SupabaseClient, tenantId: string, userId: string,
-  header: { name: string; description?: string | null; trade?: string | null; quote_granularity?: "group" | "line" },
+  header: {
+    name: string; description?: string | null; trade?: string | null; quote_granularity?: "group" | "line";
+    /** Catalogue fields (0213). Left out of the insert while the migration is pending. */
+    keywords?: string[] | null; icon?: string | null; locked?: boolean; customer_visible?: boolean;
+  },
   body: EstimateTemplateBody
 ): Promise<{ data: EstimateTemplate | null; status: number; error: string | null }> {
-  const { data, error } = await supabase.from("estimate_templates").insert({
+  const base = {
     tenant_id: tenantId, name: header.name, description: header.description ?? null, trade: header.trade ?? null,
     geometry: body.geometry ?? null, version: 1, is_active: true,
     inputs: body.inputs, rates: body.rates, rules: body.rules,
     quote_granularity: header.quote_granularity ?? "group", created_by: userId,
-  }).select("*").single();
+  };
+  const catalogue = {
+    ...(header.keywords && header.keywords.length > 0 ? { keywords: header.keywords } : {}),
+    ...(header.icon ? { icon: header.icon } : {}),
+    ...(header.locked ? { locked: true } : {}),
+    ...(header.customer_visible ? { customer_visible: true } : {}),
+  };
+  const drawing = body.drawing_map && body.drawing_map.length > 0 ? { drawing_map: body.drawing_map } : {};
+  // Each extra column family arrives with its own migration (0213 catalogue, 0215 drawing map). Try with everything, then
+  // without the drawing map, then with neither: the template is still created, as an ordinary editable one.
+  const attempts = [{ ...catalogue, ...drawing }, ...(Object.keys(drawing).length > 0 && Object.keys(catalogue).length > 0 ? [catalogue] : [])];
+  let data: unknown = null;
+  let error: { code?: string; message: string } | null = null;
+  for (const extras of attempts) {
+    ({ data, error } = await supabase.from("estimate_templates").insert({ ...base, ...extras }).select("*").single());
+    if (!error || error.code === "23505" || !isMissingRelation(error)) break;
+  }
+  if (error && isMissingRelation(error) && attempts.some((a) => Object.keys(a).length > 0)) {
+    ({ data, error } = await supabase.from("estimate_templates").insert(base).select("*").single());
+  }
   if (error) {
     if (isMissingRelation(error)) return { data: null, status: 503, error: PENDING_MESSAGE };
     if (error.code === "23505") return { data: null, status: 409, error: `A template named "${header.name}" already exists.` };

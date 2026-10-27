@@ -68,6 +68,8 @@ export type ConnectorDef = {
   /** With `middleware`: there is no screen of its own at all, so a workspace without the `integration_middleware`
    *  flag does not see the connector. */
   middlewareOnly?: boolean;
+  /** The connector belongs to a sold module: a workspace without this tenant feature does not see its tile at all. */
+  featureKey?: string;
 };
 
 export type TenantConnectorRow = {
