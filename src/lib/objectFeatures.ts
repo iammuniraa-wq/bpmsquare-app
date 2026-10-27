@@ -98,6 +98,8 @@ export const OBJECT_FEATURE: Record<string, keyof TenantFeatures | null> = {
   tender_boq_lines: "gcc_tender",
   // Bid versions and logged calls of a tender deal (0225).
   tender_bid_versions: "gcc_tender",
+  // The internal cost of each bid version (0230): service role only, no policy, never read by an export, a link or the API.
+  tender_bid_version_costs: "gcc_tender",
   deal_activities: "gcc_tender",
   // Competitors of a tender deal (0229): a child record of the deal, gated like the tender block.
   opportunity_competitors: "gcc_tender",
@@ -115,6 +117,9 @@ export const OBJECT_FEATURE: Record<string, keyof TenantFeatures | null> = {
   project_budget_revisions: "contract_projects",
   project_budget_lines: "contract_projects",
   erp_masters: "contract_projects",
+  // After award: variations (0231) and invoicing milestones (0232) of a contract project. In-app routes only: they carry internal cost.
+  contract_project_variations: "contract_projects",
+  contract_project_milestones: "contract_projects",
   pricing: "pricing_engine",
   products: "products",
   // BOM components (0133) are lines of a product: the Products module owns them.

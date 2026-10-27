@@ -11,6 +11,7 @@ import BudgetGrid from "@/components/contractProjects/BudgetGrid";
 import RevisionsPanel from "@/components/contractProjects/RevisionsPanel";
 import HandoverPanel from "@/components/contractProjects/HandoverPanel";
 import ProjectMenu from "@/components/contractProjects/ProjectMenu";
+import { InvoicingSection, VariationsSection } from "@/components/contractProjects/AfterAwardSections";
 import ProjectDetailsForm from "@/components/contractProjects/ProjectDetailsForm";
 import { listMembersForPicker } from "@/lib/sales/opportunityServer";
 import { loadProject, UUID_RE, type ProjectCtx } from "@/lib/contractProjects/server";
@@ -19,7 +20,7 @@ import ProjectKpiStrip from "@/components/contractProjects/ProjectKpiStrip";
 import { projectTone } from "@/lib/contractProjects/format";
 import { PROJECT_STATUS_LABEL } from "@/lib/contractProjects/types";
 
-/** The record page of a contract project: Overview (the visual summary), Budget, Revisions, Handover, Activity. */
+/** The record page of a contract project: Overview (the visual summary), Budget, Variations, Invoicing, Revisions, Handover, Activity. */
 export default async function ContractProjectPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ tab?: string; revision?: string }> }) {
   await requireWorkcenterView("contract_projects");
   await requireFeature("contract_projects");
@@ -68,6 +69,8 @@ export default async function ContractProjectPage({ params, searchParams }: { pa
             />
           ) : <div style={{ fontSize: 13, color: "var(--hint)" }}>There is no budget yet.</div>,
         },
+        { id: "variations", label: "Variations", content: <VariationsSection req={req} project={p} /> },
+        { id: "invoicing", label: "Invoicing", content: <InvoicingSection req={req} project={p} /> },
         { id: "revisions", label: "Revisions", count: view.revisions.length, content: <RevisionsPanel view={view} /> },
         { id: "handover", label: "Handover", content: <HandoverPanel projectId={p.id} revisionId={rev?.id ?? null} revLabel={revLabel} hasBudget={!!rev && view.lines.length > 0} /> },
         { id: "activity", label: "Activity", content: <RecordActivity objectType="contract_projects" objectId={p.id} isAdmin={role === "admin"} /> },

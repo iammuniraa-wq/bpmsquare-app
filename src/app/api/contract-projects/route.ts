@@ -44,11 +44,11 @@ export async function POST(request: NextRequest) {
     const s = src.source;
     const made = await createProject(req, {
       name: cleanName(body.name) ?? projectNameFromDeal(s.title), account_id: s.accountId, source_opportunity_id: body.opportunity_id,
-      contract_value: s.contractValue, currency: s.currency, planned_start: null, planned_end: null, manager_id: null, lines: s.lines,
+      contract_value: s.contractValue, currency: s.currency, planned_start: null, planned_end: null, manager_id: null, lines: s.lines, budget_note: s.budgetNote,
     });
     if (!made.ok) return NextResponse.json({ error: made.error, ...(made.extra ?? {}) }, { status: made.status });
     return NextResponse.json(
-      { id: made.project.id, ref: made.project.ref, revision_id: made.revisionId, estimated: s.estimated, unmapped_codes: s.unmappedCodes, skipped: s.skipped, from_estimate: s.fromEstimate, estimate_warnings: s.estimateWarnings },
+      { id: made.project.id, ref: made.project.ref, revision_id: made.revisionId, estimated: s.estimated, unmapped_codes: s.unmappedCodes, skipped: s.skipped, from_estimate: s.fromEstimate, estimate_warnings: s.estimateWarnings, cost_source: s.costSource.kind === "bid_version" ? `bid_version_${s.costSource.version_no}` : "boq", budget_note: s.budgetNote },
       { status: 201 },
     );
   }
