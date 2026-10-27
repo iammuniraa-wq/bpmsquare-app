@@ -19,8 +19,10 @@ import { buildProjectView } from "@/lib/contractProjects/view";
 import ProjectKpiStrip from "@/components/contractProjects/ProjectKpiStrip";
 import { projectTone } from "@/lib/contractProjects/format";
 import { PROJECT_STATUS_LABEL } from "@/lib/contractProjects/types";
+import BuyoutSection from "@/components/contractProjects/buyout/BuyoutSection";
+import { buyoutVisible } from "@/components/contractProjects/buyout/rules";
 
-/** The record page of a contract project: Overview (the visual summary), Budget, Variations, Invoicing, Revisions, Handover, Activity. */
+/** The record page of a contract project: Overview (the visual summary), Budget, Buy-out (tender-made projects), Variations, Invoicing, Revisions, Handover, Activity. */
 export default async function ContractProjectPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ tab?: string; revision?: string }> }) {
   await requireWorkcenterView("contract_projects");
   await requireFeature("contract_projects");
@@ -41,6 +43,7 @@ export default async function ContractProjectPage({ params, searchParams }: { pa
   const rev = view.revision;
   const revLabel = rev ? (rev.rev_no === 0 ? "Baseline" : `Revision ${rev.rev_no}`) : null;
   const members = view.canEdit && p.status !== "closed" ? await listMembersForPicker(req.admin, tenantId) : [];
+  const buyoutOn = buyoutVisible(p, tenant?.features);
   const deletable =p.status === "draft" && view.revisions.every((r) => r.status === "draft");
 
   return (
@@ -58,17 +61,18 @@ export default async function ContractProjectPage({ params, searchParams }: { pa
       tabs={[
         {
           id: "overview", label: "Overview",
-          content: <ProjectOverview view={view} editor={view.canEdit && p.status !== "closed" ? <ProjectDetailsForm projectId={p.id} initial={{ name: p.name, contract_value: p.contract_value, planned_start: p.planned_start, planned_end: p.planned_end, manager_id: p.manager_id }} members={members} /> : undefined} />,
+          content: <ProjectOverview view={view} buyoutOn={buyoutOn} editor={view.canEdit && p.status !== "closed" ? <ProjectDetailsForm projectId={p.id} initial={{ name: p.name, contract_value: p.contract_value, planned_start: p.planned_start, planned_end: p.planned_end, manager_id: p.manager_id }} members={members} /> : undefined} />,
         },
         {
           id: "budget", label: "Budget", count: view.totals.lineCount,
           content: rev ? (
             <BudgetGrid
               key={rev.id} projectId={p.id} revision={rev} revisions={view.revisions} lines={view.lines} resources={view.resources}
-              canEdit={view.canEdit} projectClosed={p.status === "closed"} currency={p.currency}
+              canEdit={view.canEdit} projectClosed={p.status === "closed"} currency={p.currency} buyoutOn={buyoutOn}
             />
           ) : <div style={{ fontSize: 13, color: "var(--hint)" }}>There is no budget yet.</div>,
         },
+        ...(buyoutOn ? [{ id: "buyout", label: "Buy-out", content: <BuyoutSection projectId={p.id} currency={p.currency} canEdit={view.canEdit && p.status !== "closed"} /> }] : []),
         { id: "variations", label: "Variations", content: <VariationsSection req={req} project={p} /> },
         { id: "invoicing", label: "Invoicing", content: <InvoicingSection req={req} project={p} /> },
         { id: "revisions", label: "Revisions", count: view.revisions.length, content: <RevisionsPanel view={view} /> },

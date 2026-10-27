@@ -16,7 +16,7 @@ import { fmtDate } from "./rfqUi";
 // Prices shown here are the tenant's own cost history -- internal, never sent.
 
 export default function SupplierPicker({
-  suppliers, chosen, onToggle, suggested, current, loading, highlightCurrent, typeFilter,
+  suppliers, chosen, onToggle, suggested, current, loading, highlightCurrent, typeFilter, scope,
 }: {
   suppliers: PickerSupplier[];
   chosen: string[];
@@ -28,6 +28,8 @@ export default function SupplierPicker({
   highlightCurrent?: boolean;
   /** Offer a vendors / subcontractors filter (the tender edition, where one RFQ may go to a supplier group). Off everywhere else. */
   typeFilter?: boolean;
+  /** A tender deal's list: restricted to the client's approved group (named when known) or not. Absent everywhere else, and then nothing is shown. */
+  scope?: { restricted: boolean; group: string | null } | null;
 }) {
   const [filter, setFilter] = useState("");
   const [kind, setKind] = useState<"all" | "vendor" | "subcontractor">("all");
@@ -46,6 +48,14 @@ export default function SupplierPicker({
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      {scope && (
+        <div data-guide="rfq.suppliers.scope" role="status" style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", fontSize: 12.5, color: c.muted }}>
+          {scope.restricted
+            ? <><span>Suppliers from:</span><StatusPill label={scope.group ?? "the client's approved list"} tone="blue" /></>
+            : <span>No approved list for this client</span>}
+          <InfoTip label="Approved suppliers">{RFQ_TIPS.approvedList}</InfoTip>
+        </div>
+      )}
       {highlightCurrent && !loading && (
         current.length > 0 ? current.map((cur) => (
           <label key={cur.product_id} style={{ display: "flex", gap: 10, alignItems: "flex-start", padding: "10px 12px", border: `1px solid ${chosen.includes(cur.supplier_id) ? c.accent : c.line}`, background: chosen.includes(cur.supplier_id) ? c.accentbg : c.panel, borderRadius: 8, cursor: "pointer" }}>

@@ -12,6 +12,7 @@ import SidePanel from "@/components/ui/SidePanel";
 import StatTile, { StatStrip } from "@/components/ui/StatTile";
 import { useFeel } from "@/components/FeelProvider";
 import CreateRfqButton from "@/components/rfq/CreateRfqButton";
+import { tenderSupplierSource } from "@/components/rfq/useRfqSuppliers";
 import { type CostingData } from "@/lib/tender/costing/rules";
 import { COSTING_TIPS } from "@/lib/tender/costing/tips";
 import { ESTIMATE_TIPS } from "@/lib/tender/estimates/tips";
@@ -84,7 +85,7 @@ export default function CostingTab({ opportunityId, canEdit, onError, onNotice, 
     <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
       <CreateRfqButton
         origin={{ type: "opportunity", id: opportunityId }} originLabel={data.rfq_origin_label} lines={data.rfq_lines} title="Supplier prices for the tender"
-        label={label} supplierTypeFilter disabled={data.rfq_lines.length === 0} guideId={guide}
+        label={label} supplierTypeFilter supplierSource={tenderSupplierSource(opportunityId)} disabled={data.rfq_lines.length === 0} guideId={guide}
         buttonStyle={{ minHeight: 44, color: c.ink }}
         onCreated={() => { onNotice?.("RFQ created"); afterChange(); }}
       />

@@ -12,7 +12,7 @@ import { btnGhost } from "./rfqUi";
 // its lines became).
 
 export default function CreateRfqButton({
-  origin, originLabel, lines, title, label = "Request quotation", onCreated, buttonStyle, supplierTypeFilter, disabled, guideId,
+  origin, originLabel, lines, title, label = "Request quotation", onCreated, buttonStyle, supplierTypeFilter, supplierSource, disabled, guideId,
 }: {
   origin: { type: RfqOriginType; id: string | null };
   originLabel?: string | null;
@@ -22,6 +22,8 @@ export default function CreateRfqButton({
   onCreated?: (r: RfqCreated) => void;
   buttonStyle?: React.CSSProperties;
   supplierTypeFilter?: boolean;
+  /** A tender deal's supplier list (tenderSupplierSource): the client's approved group when it has one. */
+  supplierSource?: string;
   disabled?: boolean;
   guideId?: string;
 }) {
@@ -38,6 +40,7 @@ export default function CreateRfqButton({
           title={title}
           onCreated={onCreated}
           supplierTypeFilter={supplierTypeFilter}
+          supplierSource={supplierSource}
         />
       )}
     </>

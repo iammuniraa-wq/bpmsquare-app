@@ -14,3 +14,7 @@ rules:
 - The budget, margin and costs are internal: they never appear on a customer document, a public link or the standard API, and the Talk to data source shows only header fields and totals.
 - The Handover tab downloads an Excel file; sending to the ERP and reading back committed and actual cost are not available yet.
 - The flag is set by a platform admin and needs GCC tender deals; a workspace without it sees no menu entry, screen or button.
+- The Buy-out tab of a project made from a tender groups budget lines into packages (a package is a supplier purchase or a subcontract); a budget line is in at most one package, reserve lines are left out, and packages are made from the approved budget.
+- A package is priced in rounds: each round is its own RFQ holding every line, sent to the suppliers you choose, and every round is kept with its replies; a supplier's total counts only when it quoted every line.
+- A package is awarded to one supplier from one round, and the award is written to every line through the RFQ award; a reason is required when the chosen total is not the lowest valid total of the current round. Committed over budget warns and never blocks.
+- An award can be taken back with a reason until the handover is marked as sent. The handover file is an Excel list of the supplier, lines, quantities and awarded rates (no budget or bid cost); this product raises no purchase orders, the ERP does.

@@ -120,6 +120,13 @@ export const OBJECT_FEATURE: Record<string, keyof TenantFeatures | null> = {
   // After award: variations (0231) and invoicing milestones (0232) of a contract project. In-app routes only: they carry internal cost.
   contract_project_variations: "contract_projects",
   contract_project_milestones: "contract_projects",
+  // Contract buy-out (0234): the packages a won project sources after the award, and their lines. In-app routes only: they carry internal cost,
+  // so there is no Data Workbench route, no v1 endpoint, no MCP tool and no LIST_SOURCES entry.
+  project_buyout_packages: "contract_projects",
+  project_buyout_package_lines: "contract_projects",
+  // Supplier groups (0233): a client's approved vendor list. In-app routes only; the Suppliers module owns them (the routes also need gcc_tender).
+  supplier_groups: "suppliers",
+  supplier_group_members: "suppliers",
   pricing: "pricing_engine",
   products: "products",
   // BOM components (0133) are lines of a product: the Products module owns them.

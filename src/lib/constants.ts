@@ -207,6 +207,7 @@ export const ROUTES = {
   adminTenant: (id: string) => `/admin/tenants/${id}`,
   suppliers: "/suppliers",
   supplierNew: "/suppliers/new",
+  supplierGroups: "/suppliers/groups",
   supplier: (id: string) => `/suppliers/${id}`,
   products: "/products",
   productNew: "/products/new",
