@@ -8,6 +8,7 @@ import type { ProjectView } from "@/lib/contractProjects/view";
 import { day, money, pct } from "@/lib/contractProjects/format";
 import { PROJECT_TIPS } from "@/lib/contractProjects/tips";
 import ApprovalControls from "./ApprovalControls";
+import BuyoutProgressCard from "./buyout/BuyoutProgressCard";
 import { BidAgainstBudgetCard, ProjectOriginCard } from "./ProjectOriginCards";
 
 const SEGMENTS = [pillar.blue.base, pillar.purple.base, pillar.teal.base, pillar.amber.base, pillar.green.base, pillar.red.base];
@@ -17,7 +18,7 @@ const SEGMENTS = [pillar.blue.base, pillar.purple.base, pillar.teal.base, pillar
  * the cost splits by resource type, which revision stands and who must approve it, and what still needs a person. Detail sits on the
  * other tabs. Labels, values and bars only; the explanations are behind the "i".
  */
-export default function ProjectOverview({ view, editor }: { view: ProjectView; editor?: React.ReactNode }) {
+export default function ProjectOverview({ view, editor, buyoutOn = false }: { view: ProjectView; editor?: React.ReactNode; buyoutOn?: boolean }) {
   const { project: p, totals, revision } = view;
   const cur = p.currency;
   const scale = Math.max(p.contract_value, totals.total, 1);
@@ -59,6 +60,8 @@ export default function ProjectOverview({ view, editor }: { view: ProjectView; e
           </div>
         )}
       </Card>
+
+      {buyoutOn && <BuyoutProgressCard projectId={p.id} currency={cur} />}
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 14 }}>
         <Card padding={16} style={{ minWidth: 0 }}>

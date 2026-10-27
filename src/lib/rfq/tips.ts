@@ -15,6 +15,7 @@ export const RFQ_TIPS = {
   fx: "The supplier quoted in another currency. Enter today's rate so the price can be compared with the others.",
   saveFirst: "The request is made from the saved lines. Save the lines, then ask suppliers for their prices.",
   tenderRfq: "Pick the lines and the suppliers to ask; one supplier is enough. Replies come back into the RFQ for comparison.",
+  approvedList: "Only the suppliers on this client's approved list can be asked. A client with no list can be asked any supplier.",
   type: "Pick vendors or subcontractors to narrow the list. Suppliers without a type show under All.",
 } as const;
 

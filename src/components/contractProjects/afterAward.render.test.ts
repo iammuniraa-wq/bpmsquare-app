@@ -329,7 +329,8 @@ describe("the record page", () => {
   const page = readFileSync(path.join(ROOT, "src/app/(app)/contract-projects/[id]/page.tsx"), "utf8");
   it("has Variations and Invoicing between Budget and Revisions, each loading its own data only when its tab is open", () => {
     const ids = [...page.matchAll(/id: "(\w+)", label/g)].map((m) => m[1]);
-    expect(ids).toEqual(["overview", "budget", "variations", "invoicing", "revisions", "handover", "activity"]);
+    // "buyout" is spread in only for a project made from a tender (buyoutVisible), so most projects have the list without it.
+    expect(ids).toEqual(["overview", "budget", "buyout", "variations", "invoicing", "revisions", "handover", "activity"]);
     expect(page).toContain("<VariationsSection");
     expect(page).toContain("<InvoicingSection");
     const sections = src("AfterAwardSections.tsx");

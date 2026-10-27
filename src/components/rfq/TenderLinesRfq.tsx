@@ -5,6 +5,7 @@ import InfoTip from "@/components/ui/InfoTip";
 import { RFQ_TIPS } from "@/lib/rfq/tips";
 import CreateRfqButton from "./CreateRfqButton";
 import type { ComposerLine } from "./RfqComposer";
+import { tenderSupplierSource } from "./useRfqSuppliers";
 
 // "Request supplier prices" on a tender deal's Lines tab (GCC tender deals, slice 3b). The deal page mounts it only when the
 // workspace has both the gcc_tender and rfq flags and the deal is a tender; it opens the ordinary RFQ form with the deal's
@@ -30,6 +31,7 @@ export default function TenderLinesRfq({ opportunityId, originLabel, lines, dirt
         title="Supplier prices for the tender"
         label={n > 0 ? `Request supplier prices (${n})` : "Request supplier prices"}
         supplierTypeFilter
+        supplierSource={tenderSupplierSource(opportunityId)}
         disabled={dirty || lines.length === 0}
         guideId="tender.lines.rfq"
         buttonStyle={{ minHeight: 44, color: c.ink }}

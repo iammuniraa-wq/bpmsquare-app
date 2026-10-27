@@ -14,6 +14,9 @@ import { money } from "@/lib/contractProjects/format";
 import { PROJECT_TIPS } from "@/lib/contractProjects/tips";
 import { REVISION_STATUS_LABEL, type BudgetLine, type RevisionRow } from "@/lib/contractProjects/types";
 import MasterPicker from "./MasterPicker";
+import { committedFor } from "./buyout/rules";
+import type { BuyoutData } from "./buyout/types";
+import { useBuyoutSummary } from "./buyout/useBuyoutSummary";
 
 type Row = {
   key: string;
@@ -48,7 +51,7 @@ const head: React.CSSProperties = { textAlign: "left", fontSize: 11, color: c.hi
  * The grid scrolls inside its own container (one column of everything else on a phone). Saving replaces the revision's lines
  * through PUT /api/contract-projects/[id]/budget; the amounts and the total are the server's.
  */
-export default function BudgetGrid({ projectId, revision, revisions, lines, resources, canEdit, projectClosed, currency }: {
+export default function BudgetGrid({ projectId, revision, revisions, lines, resources, canEdit, projectClosed, currency, buyoutOn = false, initialBuyout }: {
   projectId: string;
   revision: Pick<RevisionRow, "id" | "rev_no" | "status">;
   revisions: Pick<RevisionRow, "id" | "rev_no" | "status">[];
@@ -57,6 +60,10 @@ export default function BudgetGrid({ projectId, revision, revisions, lines, reso
   canEdit: boolean;
   projectClosed: boolean;
   currency: string | null;
+  /** The project came from a tender: a Committed column shows the awarded price of the Buy-out package each line is in. */
+  buyoutOn?: boolean;
+  /** Lets a server render (and its test) show the column. The page never passes it. */
+  initialBuyout?: BuyoutData | null;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -78,6 +85,12 @@ export default function BudgetGrid({ projectId, revision, revisions, lines, reso
   }, [rows]);
   const total = round2(rows.reduce((s, r) => s + rowAmount(r), 0));
   const showErp = rows.some((r) => r.committed !== null || r.actual !== null);
+  // The awarded price of the Buy-out package a line is in, read from the buy-out summary; the column is left out while there is none.
+  const buyout = useBuyoutSummary(projectId, buyoutOn, initialBuyout);
+  const bought = buyout?.committed_by_line ?? null;
+  const idOfKey = useMemo(() => new Map(lines.map((l) => [l.line_key, l.id])), [lines]);
+  const boughtFor = (r: Row) => committedFor(bought, { id: r.line_key ? idOfKey.get(r.line_key) : null, line_key: r.line_key });
+  const showCommitted = showErp || (!!bought && Object.keys(bought).length > 0);
 
   const patch = (key: string, p: Partial<Row>) => setRows((rs) => rs.map((r) => (r.key === key ? { ...r, ...p } : r)));
 
@@ -143,7 +156,7 @@ export default function BudgetGrid({ projectId, revision, revisions, lines, reso
                   <th style={head}><span style={{ display: "inline-flex", alignItems: "center", gap: 3 }}>Unit cost <InfoTip label="Unit cost">{PROJECT_TIPS.estimated}</InfoTip></span></th>
                   <th style={{ ...head, textAlign: "right" }}>Amount</th>
                   <th style={head}><span style={{ display: "inline-flex", alignItems: "center", gap: 3 }}>Reserve <InfoTip label="Reserve">{PROJECT_TIPS.reserve}</InfoTip></span></th>
-                  {showErp && <th style={{ ...head, textAlign: "right" }}><span style={{ display: "inline-flex", alignItems: "center", gap: 3 }}>Committed <InfoTip label="Committed">{PROJECT_TIPS.committed}</InfoTip></span></th>}
+                  {showCommitted && <th data-guide="cp.budget.committed" style={{ ...head, textAlign: "right" }}><span style={{ display: "inline-flex", alignItems: "center", gap: 3 }}>Committed <InfoTip label="Committed">{PROJECT_TIPS.committed}</InfoTip></span></th>}
                   {showErp && <th style={{ ...head, textAlign: "right" }}><span style={{ display: "inline-flex", alignItems: "center", gap: 3 }}>Actual <InfoTip label="Actual">{PROJECT_TIPS.actual}</InfoTip></span></th>}
                   <th style={head}><span style={{ position: "absolute", left: -9999 }}>Remove</span></th>
                 </tr>
@@ -172,7 +185,7 @@ export default function BudgetGrid({ projectId, revision, revisions, lines, reso
                       </td>
                       <td style={{ ...cell, textAlign: "right", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap", color: c.ink }}>{money(rowAmount(r), null, 2)}</td>
                       <td style={{ ...cell, width: 60, textAlign: "center" }}><input type="checkbox" aria-label="Reserve line" checked={r.reserve} disabled={!editable} style={{ width: 20, height: 20 }} onChange={(e) => patch(r.key, { reserve: e.target.checked })} /></td>
-                      {showErp && <td style={{ ...cell, textAlign: "right", color: c.muted }}>{r.committed === null ? "—" : money(r.committed, null, 2)}</td>}
+                      {showCommitted && <td style={{ ...cell, textAlign: "right", color: c.muted }}>{(r.committed ?? boughtFor(r)) === null ? "—" : money((r.committed ?? boughtFor(r)) as number, null, 2)}</td>}
                       {showErp && <td style={{ ...cell, textAlign: "right", color: c.muted }}>{r.actual === null ? "—" : money(r.actual, null, 2)}</td>}
                       <td style={{ ...cell, width: 50 }}>
                         {editable && <Button variant="quiet" iconOnly aria-label="Remove line" data-guide="cp.budget.remove" style={{ minWidth: 44, minHeight: 44 }} onClick={() => setRows((rs) => rs.filter((x) => x.key !== r.key))}>×</Button>}

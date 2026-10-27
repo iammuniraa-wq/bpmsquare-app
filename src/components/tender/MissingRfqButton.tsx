@@ -5,6 +5,7 @@ import { c } from "@/lib/theme";
 import InfoTip from "@/components/ui/InfoTip";
 import CreateRfqButton from "@/components/rfq/CreateRfqButton";
 import type { ComposerLine } from "@/components/rfq/RfqComposer";
+import { tenderSupplierSource } from "@/components/rfq/useRfqSuppliers";
 import { ESTIMATE_TIPS } from "@/lib/tender/estimates/tips";
 
 // "Raise RFQ for missing costs" (GCC tender deals, slice 3c-1): opens the ordinary RFQ form with the estimate's cost lines that have no
@@ -44,6 +45,7 @@ export default function MissingRfqButton({ opportunityId, estimateId, lines, ori
         title={`Costs missing in ${labelText}`}
         label={rows.length > 0 ? `${label} (${rows.length})` : label}
         supplierTypeFilter
+        supplierSource={tenderSupplierSource(opportunityId)}
         disabled={rows.length === 0}
         guideId={guideId}
         onCreated={onCreated ? () => onCreated() : undefined}
