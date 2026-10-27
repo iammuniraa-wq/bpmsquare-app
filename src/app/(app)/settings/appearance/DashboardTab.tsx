@@ -5,6 +5,8 @@ import { Input } from "@/components/ui/Input";
 import { Toggle } from "@/components/settings/generalShared";
 import { DEFAULT_NEWS_TOPICS_LABEL } from "@/lib/constants";
 import { SETTINGS_TIPS } from "@/lib/settingsTips";
+import type { TenantFeatures } from "@/lib/constants";
+import { TENDER_DESK_STYLES, TENDER_DESK_STYLE_LABEL } from "@/lib/tenderDesk/style";
 import type { AppearanceDraft, DashboardMode } from "./appearanceLogic";
 import s from "./appearance.module.css";
 
@@ -14,9 +16,10 @@ const MODES: { value: DashboardMode; label: string }[] = [
 ];
 
 /** Which dashboard opens, and the two content blocks that give a workspace with no data something to show. */
-export default function DashboardTab({ draft, accent, onChange }: {
+export default function DashboardTab({ draft, accent, features, onChange }: {
   draft: AppearanceDraft;
   accent: string;
+  features?: Partial<TenantFeatures>;
   onChange: (patch: Partial<AppearanceDraft>) => void;
 }) {
   return (
@@ -29,6 +32,16 @@ export default function DashboardTab({ draft, accent, onChange }: {
           ))}
         </div>
       </div>
+      {features?.gcc_tender === true && (
+        <div>
+          <div className={s.label}><span className="bpm-t-label">Home style for tender workspaces</span><InfoTip label="Home style for tender workspaces">{SETTINGS_TIPS.tenderDeskStyle}</InfoTip></div>
+          <div className={s.chips}>
+            {TENDER_DESK_STYLES.map((v) => (
+              <button key={v} type="button" className={s.chip} aria-pressed={draft.tenderDeskStyle === v} onClick={() => onChange({ tenderDeskStyle: v })}>{TENDER_DESK_STYLE_LABEL[v]}</button>
+            ))}
+          </div>
+        </div>
+      )}
       <div className={s.switchRow}>
         <span className={s.name}>Business news<InfoTip label="Business news">{SETTINGS_TIPS.businessNews}</InfoTip></span>
         <Toggle on={draft.news} onChange={(v) => onChange({ news: v })} accent={accent} label="Business news" />

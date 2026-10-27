@@ -76,7 +76,7 @@ export default function AppearanceClient() {
             onReset={() => { edit({ navHidden: [], compact: false }); setDidReset(true); }}
           />
         )}
-        {tab === "dashboard" && <DashboardTab draft={draft} accent={accent} onChange={edit} />}
+        {tab === "dashboard" && <DashboardTab draft={draft} accent={accent} features={tenant?.features} onChange={edit} />}
       </div>
     </div>
   );

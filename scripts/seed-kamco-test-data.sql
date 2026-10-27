@@ -16,10 +16,15 @@
 -- app and stay empty). Deal owners are left empty on purpose, so the closing-date reminders do not e-mail anybody.
 --
 -- What it makes (counts):
---   1 employee (TEST Abdul Khader, abdulkhader@saytara.info), 4 accounts, 3 contacts, 5 suppliers, 10 products (with cost price and list price), 5 stocked inventory items,
+--   1 employee (TEST Abdul Khader, abdulkhader@saytara.info), 5 accounts, 3 contacts, 5 suppliers, 10 products (with cost price and list price), 5 stocked inventory items,
 --   3 tender deals (6 + 12 + 6 deal lines), 1 uploaded BOQ with 12 BOQ lines, 1 estimate (3 lines) attached to deal 2,
 --   1 RFQ (4 lines, 2 suppliers, both replied at different prices, nothing awarded yet), 1 saved bid version,
 --   2 competitors, 1 bid guarantee (issued) and 2 logged calls on deal 3.
+--   For the Tender desk home screen (docs/design/tender-desk.md): 13 more open tenders (16 open in all, SAR 3 to 19 million, five clients,
+--   across Received, Bid/No-bid, Estimating, Submitted and Clarifications, bid end dates 2 to 26 days out and a few already past) and
+--   8 decided ones over the last 12 months (4 won, 3 lost, 1 dropped), one bid / no-bid proposal waiting for approval, one bid guarantee
+--   expiring in 9 days, one RFQ whose reply date has passed with two suppliers silent, and one contract project from a won tender with
+--   4 buy-out packages (2 awarded, 1 with two quotes in, 1 waiting). Deal owners stay empty.
 --
 -- Not made (cannot be made from SQL): the Excel file itself. The BOQ source row exists with its sheet, header row and column map, but
 -- nothing is stored in the private bucket tender-boq-files, so "download the client's file" and "write the priced Excel" will say the
@@ -114,6 +119,13 @@ declare
   rfq_id_v uuid;
   rfq_line_v uuid;
   rs_v uuid;
+  v_src uuid;
+  v_proj uuid;
+  v_proj_name text := 'TEST Project - Coastal road drainage, awarded';
+  v_rev uuid;
+  v_pkg uuid;
+  v_rfq_late uuid;
+  v_rfq_pkg uuid;
 
   c_opp1 constant text := 'TEST Tender 2026/014 - Storm water network, Phase 1';
   c_opp2 constant text := 'TEST Tender 2026/021 - Pipeline and culverts, Package B';
@@ -143,7 +155,8 @@ begin
     ('TEST Ministry of Public Works', 'direct'),
     ('TEST Municipality Roads Authority', 'direct'),
     ('TEST National Water Company', 'prospect'),
-    ('TEST Coastal Developments LLC', 'end_customer')
+    ('TEST Coastal Developments LLC', 'end_customer'),
+    ('TEST Eastern Utilities Authority', 'direct')
   ) as v(nm, ty) loop
     if not exists (select 1 from accounts a where a.tenant_id = t and a.name = r.nm) then
       insert into accounts (tenant_id, ref, name, type)
@@ -512,6 +525,210 @@ begin
     end loop;
   end if;
 
+  -- =================================================================================================================================
+  -- TENDER DESK -- more deals so the home screen has numbers to show (docs/design/tender-desk.md, "Seed"). 13 more open tenders (16 in all)
+  -- and 8 decided ones. Open ones carry a bid end date `close_days` days from today (negative = already past, waiting for the result);
+  -- decided ones carry `closed_ago` days since they were decided. No lines are made for these deals: their amount is typed, like a tender
+  -- whose estimate has not started. Owners stay empty, so no reminder e-mail goes out.
+  -- =================================================================================================================================
+  drop table if exists pg_temp.kamco_desk_deals;
+  create temp table kamco_desk_deals (
+    title text, tender_no text, client text, stage text, outcome text, amount numeric, prob int,
+    close_days int, created_ago int, closed_ago int, portal text, bond_amount numeric, bond_days int
+  );
+  insert into kamco_desk_deals values
+    ('TEST Tender 2026/031 - Coastal highway drainage',           'TEST-KAM-2026-101', 'TEST Coastal Developments LLC',       'received',       'open',    7500000, 10, 26,  3, null, 'email', null, null),
+    ('TEST Tender 2026/033 - Pumping station refurbishment',      'TEST-KAM-2026-102', 'TEST Eastern Utilities Authority',    'received',       'open',   12800000, 10, 18,  5, null, 'ariba', null, null),
+    ('TEST Tender 2026/036 - Culvert replacement programme',      'TEST-KAM-2026-103', 'TEST Municipality Roads Authority',   'received',       'open',    4200000, 10, 24,  2, null, 'excel', null, null),
+    ('TEST Tender 2026/027 - Sewer rehabilitation, North zone',   'TEST-KAM-2026-104', 'TEST National Water Company',         'bid_no_bid',     'open',    9600000, 15,  9,  8, null, 'ariba', null, null),
+    ('TEST Tender 2026/029 - Road widening utilities relocation', 'TEST-KAM-2026-105', 'TEST Municipality Roads Authority',   'bid_no_bid',     'open',    6300000, 15, 15,  9, null, 'email', null, null),
+    ('TEST Tender 2026/030 - Reservoir inlet works',              'TEST-KAM-2026-106', 'TEST National Water Company',         'bid_no_bid',     'open',   14500000, 15, 21,  6, null, 'excel', null, null),
+    ('TEST Tender 2026/019 - Trunk main extension, Phase 2',      'TEST-KAM-2026-107', 'TEST Eastern Utilities Authority',    'estimating',     'open',   18900000, 25,  6, 30, null, 'ariba', null, null),
+    ('TEST Tender 2026/022 - Stormwater outfall and headwalls',   'TEST-KAM-2026-108', 'TEST Ministry of Public Works',       'estimating',     'open',   11400000, 25,  3, 25, null, 'email', null, null),
+    ('TEST Tender 2026/023 - Precast drainage channels',          'TEST-KAM-2026-109', 'TEST Coastal Developments LLC',       'estimating',     'open',    8200000, 25, 14, 20, null, 'other', 164000, 9),
+    ('TEST Tender 2026/025 - Pipe bedding and backfill, Zone 2',  'TEST-KAM-2026-110', 'TEST Municipality Roads Authority',   'estimating',     'open',    3400000, 25,  2, 15, null, 'email', null, null),
+    ('TEST Tender 2026/015 - Water network upgrade, Package A',   'TEST-KAM-2026-111', 'TEST National Water Company',         'submitted',      'open',   16700000, 40, -2, 40, null, 'ariba', null, null),
+    ('TEST Tender 2026/016 - Municipal depot civil works',        'TEST-KAM-2026-112', 'TEST Ministry of Public Works',       'submitted',      'open',    5900000, 40, -6, 45, null, 'excel', null, null),
+    ('TEST Tender 2026/012 - Desalination outfall pipeline',      'TEST-KAM-2026-113', 'TEST Eastern Utilities Authority',    'clarifications', 'open',   19000000, 50, -12, 70, null, 'ariba', null, null),
+    ('TEST Tender 2025/118 - Coastal road drainage',              'TEST-KAM-2025-201', 'TEST Coastal Developments LLC',       'awarded',        'won',     5800000, 100, 0,  80,  20, 'ariba', null, null),
+    ('TEST Tender 2026/004 - Pump station civil works',           'TEST-KAM-2026-202', 'TEST Ministry of Public Works',       'awarded',        'won',     8400000, 100, 0, 130,  70, 'email', null, null),
+    ('TEST Tender 2025/142 - Culvert supply and install',         'TEST-KAM-2025-203', 'TEST Municipality Roads Authority',   'awarded',        'won',     6100000, 100, 0, 210, 150, 'excel', null, null),
+    ('TEST Tender 2025/131 - Water main renewal, Zone 2',         'TEST-KAM-2025-204', 'TEST National Water Company',         'awarded',        'won',    12300000, 100, 0, 310, 250, 'ariba', null, null),
+    ('TEST Tender 2026/008 - Highway cross drains',               'TEST-KAM-2026-205', 'TEST Municipality Roads Authority',   'bid_lost',       'lost',    9700000, 0, 0, 100,  45, 'ariba', null, null),
+    ('TEST Tender 2025/150 - Reservoir rehabilitation',           'TEST-KAM-2025-206', 'TEST National Water Company',         'bid_lost',       'lost',   14200000, 0, 0, 170, 110, 'email', null, null),
+    ('TEST Tender 2025/138 - Coastal promenade drainage',         'TEST-KAM-2025-207', 'TEST Coastal Developments LLC',       'bid_lost',       'lost',    7300000, 0, 0, 260, 200, 'excel', null, null),
+    ('TEST Tender 2026/001 - Marine outfall, Eastern',            'TEST-KAM-2026-208', 'TEST Eastern Utilities Authority',    'no_bid',         'dropped',15000000, 0, 0, 120,  95, 'other', null, null);
+
+  for r in select * from kamco_desk_deals order by tender_no loop
+    if not exists (select 1 from opportunities o where o.tenant_id = t and o.title = r.title) then
+      insert into opportunities (tenant_id, ref, account_id, source, title, description, stage, outcome, expected_close, amount, currency, probability, team, created_at, updated_at, closed_at)
+      values (t, pg_temp.kamco_ref('opportunities', t, 'OPP'),
+              (select a.id from accounts a where a.tenant_id = t and a.name = r.client), 'direct', r.title,
+              'Test tender for the Tender desk home screen.',
+              r.stage, r.outcome, (now() + (coalesce(r.close_days, 0) || ' days')::interval)::date, r.amount, v_cur, r.prob, '[]'::jsonb,
+              now() - (r.created_ago || ' days')::interval,
+              case when r.closed_ago is null then now() - (r.created_ago || ' days')::interval else now() - (r.closed_ago || ' days')::interval end,
+              case when r.closed_ago is null then null else now() - (r.closed_ago || ' days')::interval end)
+      returning id into v_id;
+
+      insert into opportunity_tenders (opportunity_id, tenant_id, deal_type_id, tender_no, issuer_name, issuer_account_id, portal, closing_at,
+                                       bid_bond_amount, bid_bond_currency, bid_bond_expiry, decision, decision_reason, decided_at)
+      values (v_id, t, v_dt, r.tender_no, r.client, (select a.id from accounts a where a.tenant_id = t and a.name = r.client), r.portal,
+              case when r.closed_ago is null then date_trunc('day', now()) + (r.close_days || ' days')::interval + interval '11 hours'
+                   else now() - ((r.closed_ago + 10) || ' days')::interval end,
+              r.bond_amount, case when r.bond_amount is null then null else v_cur end,
+              case when r.bond_days is null then null else current_date + r.bond_days end,
+              case when r.stage in ('received', 'bid_no_bid') then null when r.outcome = 'dropped' then 'no_go' else 'go' end,
+              case when r.stage in ('received', 'bid_no_bid') then null when r.outcome = 'dropped' then 'TEST Outside our scope this year.' else 'TEST Core work, capacity is free.' end,
+              case when r.stage in ('received', 'bid_no_bid') then null else now() - ((r.created_ago - 5) || ' days')::interval end);
+    end if;
+  end loop;
+
+  -- The guarantees of the new deals are "issued" (the word needs migration 0228; before it the legacy 'held' reads as Issued).
+  begin
+    update opportunity_tenders set bond_status = 'issued' where tenant_id = t and tender_no like 'TEST-KAM-%' and bid_bond_amount is not null and bond_status = 'held';
+  exception when check_violation or undefined_column then
+    raise notice 'Migration 0221/0228 is missing: the new bid guarantee has no status yet.';
+  end;
+
+  -- One bid / no-bid proposal waiting for a manager (migration 0221). The proposer is an unknown user id, so any admin may decide it.
+  if to_regclass('public.approval_requests') is null then
+    raise notice 'Migration 0221 (approvals) is missing: the waiting bid decision was skipped.';
+  else
+    select o.opportunity_id into v_id from opportunity_tenders o where o.tenant_id = t and o.tender_no = 'TEST-KAM-2026-105';
+    if v_id is not null and not exists (select 1 from approval_requests a where a.tenant_id = t and a.object_id = v_id and a.kind = 'tender_bid_decision' and a.status = 'pending') then
+      insert into approval_requests (tenant_id, object_type, object_id, kind, proposed_value, reason, requested_by, status, created_at)
+      values (t, 'opportunity_tenders', v_id, 'tender_bid_decision', 'go', 'TEST Utilities relocation is routine work for our crews.', gen_random_uuid(), 'pending', now() - interval '2 days');
+    end if;
+  end if;
+
+  -- One RFQ whose reply date has passed while both suppliers are still silent (migration 0128).
+  if to_regclass('public.rfqs') is null or to_regclass('public.rfq_lines') is null or to_regclass('public.rfq_suppliers') is null then
+    raise notice 'Migration 0128 (RFQ) is missing: the late RFQ was skipped.';
+  else
+    select id into v_rfq_late from rfqs where tenant_id = t and title = 'TEST RFQ - Late supplier replies';
+    if v_rfq_late is null then
+      v_n := pg_temp.kamco_next('rfqs', t, 'RFQ');
+      if to_regclass('public.pricing_rfqs') is not null then
+        v_n := greatest(v_n, pg_temp.kamco_next('pricing_rfqs', t, 'RFQ'));
+      end if;
+      select o.opportunity_id into v_id from opportunity_tenders o where o.tenant_id = t and o.tender_no = 'TEST-KAM-2026-107';
+      insert into rfqs (tenant_id, ref, title, status, origin_type, origin_id, origin_label, respond_by, currency, notes_to_supplier)
+      values (t, 'RFQ-' || lpad(v_n::text, 4, '0'), 'TEST RFQ - Late supplier replies', 'sent', 'opportunity', v_id,
+              (select op.ref from opportunities op where op.id = v_id and op.tenant_id = t), current_date - 3, v_cur,
+              'Test request: please quote the two items below.')
+      returning id into v_rfq_late;
+
+      insert into rfq_lines (tenant_id, rfq_id, sl_no, description, uom, qty)
+      values (t, v_rfq_late, 1, 'TEST Ductile iron pipe DN600', 'm', 800), (t, v_rfq_late, 2, 'TEST Butterfly valve DN600', 'nos', 6);
+
+      insert into rfq_suppliers (tenant_id, rfq_id, supplier_id, status, sent_at)
+      select t, v_rfq_late, s.id, 'sent', now() - interval '8 days'
+      from suppliers s where s.tenant_id = t and s.name in ('TEST Gulf Pipes LLC', 'TEST Pump and Valve Trading');
+    end if;
+  end if;
+
+  -- ---- One contract project from a won tender, with a baseline budget and four buy-out packages (migrations 0226 and 0234) ----------
+  if to_regclass('public.contract_projects') is null or to_regclass('public.project_budget_revisions') is null or to_regclass('public.project_budget_lines') is null then
+    raise notice 'Migration 0226 (contract projects) is missing: the project and its buy-out packages were skipped.';
+  else
+    select o.id into v_src from opportunities o where o.tenant_id = t and o.title = 'TEST Tender 2025/118 - Coastal road drainage';
+    select id into v_proj from contract_projects where tenant_id = t and name = v_proj_name;
+
+    drop table if exists pg_temp.kamco_budget_rows;
+    create temp table kamco_budget_rows (descr text, wbs text, unit text, qty numeric, unit_cost numeric, pgroup text);
+    insert into kamco_budget_rows values
+      ('TEST Drainage pipe 600mm, supply',        '1.1', 'm',    900,   1100, 'Pipes'),
+      ('TEST Drainage pipe 900mm, supply',        '1.2', 'm',    600,    650, 'Pipes'),
+      ('TEST Precast box culverts 2.0 x 2.0 m',   '2.1', 'nos',   48,  21000, 'Precast'),
+      ('TEST Reinforcement steel B500',           '3.1', 'tons', 260,   2650, 'Steel'),
+      ('TEST Gate valves and chambers',           '4.1', 'nos',   14,  28500, 'Valves'),
+      ('TEST Site labour and supervision',        '5.1', 'lot',    1, 850000, null);
+
+    if v_proj is null and v_src is not null then
+      insert into contract_projects (tenant_id, ref, name, account_id, source_opportunity_id, status, contract_value, currency, planned_start, planned_end)
+      values (t, pg_temp.kamco_ref('contract_projects', t, 'CPR'), v_proj_name,
+              (select o.account_id from opportunities o where o.id = v_src and o.tenant_id = t), v_src, 'active', 5800000, v_cur, current_date - 15, current_date + 330)
+      returning id into v_proj;
+
+      insert into project_budget_revisions (tenant_id, project_id, rev_no, status, approved_at, locked_at)
+      values (t, v_proj, 0, 'approved', now() - interval '14 days', now() - interval '14 days')
+      returning id into v_rev;
+
+      insert into project_budget_lines (tenant_id, revision_id, project_id, line_no, wbs, description, qty, unit, unit_cost, amount, cost_known)
+      select t, v_rev, v_proj, row_number() over (order by b.wbs), b.wbs, b.descr, b.qty, b.unit, b.unit_cost, round(b.qty * b.unit_cost, 2), true
+      from kamco_budget_rows b;
+
+      update project_budget_revisions
+      set total = (select coalesce(sum(l.amount), 0) from project_budget_lines l where l.tenant_id = t and l.revision_id = v_rev)
+      where id = v_rev and tenant_id = t;
+    end if;
+
+    if v_proj is not null then
+      select r.id into v_rev from project_budget_revisions r where r.tenant_id = t and r.project_id = v_proj and r.rev_no = 0;
+    end if;
+
+    if to_regclass('public.project_buyout_packages') is null or to_regclass('public.project_buyout_package_lines') is null then
+      raise notice 'Migration 0234 (buy-out) is missing: the buy-out packages were skipped.';
+    elsif v_proj is not null and v_rev is not null then
+      for r in select * from (values
+        ('TEST Drainage pipes package',    'Pipes',   'awarded', 'TEST Gulf Pipes LLC',   1295000),
+        ('TEST Precast culverts package',  'Precast', 'awarded', 'TEST Precast Arabia',    975000),
+        ('TEST Reinforcement steel package', 'Steel', 'quotes',  null,                        null),
+        ('TEST Valves and chambers package', 'Valves', 'waiting', null,                       null)
+      ) as v(pname, pgroup, state, sup, committed) loop
+        if not exists (select 1 from project_buyout_packages p where p.tenant_id = t and p.project_id = v_proj and p.name = r.pname) then
+          insert into project_buyout_packages (tenant_id, project_id, ref, name, kind, status, awarded_supplier_id, committed_amount, currency, award_reason, awarded_at)
+          values (t, v_proj, pg_temp.kamco_ref('project_buyout_packages', t, 'PKG'), r.pname, 'supplier',
+                  case r.state when 'awarded' then 'awarded' when 'quotes' then 'out' else 'draft' end,
+                  (select s.id from suppliers s where s.tenant_id = t and s.name = r.sup), r.committed, v_cur,
+                  case when r.state = 'awarded' then 'TEST Lowest valid price.' else null end,
+                  case when r.state = 'awarded' then now() - interval '5 days' else null end)
+          returning id into v_pkg;
+
+          insert into project_buyout_package_lines (tenant_id, project_id, package_id, budget_line_id, line_key, sort_order)
+          select t, v_proj, v_pkg, l.id, l.line_key, row_number() over (order by l.line_no)
+          from kamco_budget_rows b
+          join project_budget_lines l on l.tenant_id = t and l.revision_id = v_rev and l.wbs = b.wbs
+          where b.pgroup = r.pgroup;
+        end if;
+      end loop;
+
+      -- The steel package has gone out to two suppliers and both quoted (migration 0128 for the RFQ tables).
+      select p.id into v_pkg from project_buyout_packages p where p.tenant_id = t and p.project_id = v_proj and p.name = 'TEST Reinforcement steel package';
+      if to_regclass('public.rfqs') is null or to_regclass('public.rfq_lines') is null or to_regclass('public.rfq_suppliers') is null or to_regclass('public.rfq_responses') is null then
+        raise notice 'Migration 0128 (RFQ) is missing: the steel package has no quotes.';
+      elsif v_pkg is not null and not exists (select 1 from rfqs where tenant_id = t and title = 'TEST RFQ - Buy-out steel package') then
+        v_n := pg_temp.kamco_next('rfqs', t, 'RFQ');
+        if to_regclass('public.pricing_rfqs') is not null then
+          v_n := greatest(v_n, pg_temp.kamco_next('pricing_rfqs', t, 'RFQ'));
+        end if;
+        insert into rfqs (tenant_id, ref, title, status, origin_type, respond_by, currency, package_id)
+        values (t, 'RFQ-' || lpad(v_n::text, 4, '0'), 'TEST RFQ - Buy-out steel package', 'replied', 'manual', current_date + 5, v_cur, v_pkg)
+        returning id into v_rfq_pkg;
+
+        insert into rfq_lines (tenant_id, rfq_id, sl_no, description, uom, qty, package_line_id)
+        select t, v_rfq_pkg, row_number() over (order by pl.sort_order), l.description, l.unit, l.qty, pl.id
+        from project_buyout_package_lines pl
+        join project_budget_lines l on l.id = pl.budget_line_id and l.tenant_id = t
+        where pl.tenant_id = t and pl.package_id = v_pkg;
+
+        insert into rfq_suppliers (tenant_id, rfq_id, supplier_id, status, sent_at, replied_at, currency, valid_until, reply_source)
+        select t, v_rfq_pkg, s.id, 'replied', now() - interval '5 days', now() - interval '2 days', v_cur, current_date + 30, 'buyer'
+        from suppliers s where s.tenant_id = t and s.name in ('TEST Al Noor Steel', 'TEST Desert Aggregates');
+
+        insert into rfq_responses (tenant_id, rfq_supplier_id, rfq_line_id, status, unit_price, currency, fx_rate, lead_time_days, valid_until, source, submitted_at)
+        select t, rs.id, rl.id, 'quoted', case s.name when 'TEST Al Noor Steel' then 2590 else 2640 end, v_cur, 1, 21, current_date + 30, 'buyer', now() - interval '2 days'
+        from rfq_suppliers rs
+        join suppliers s on s.id = rs.supplier_id and s.tenant_id = t
+        join rfq_lines rl on rl.rfq_id = rs.rfq_id and rl.tenant_id = t
+        where rs.tenant_id = t and rs.rfq_id = v_rfq_pkg;
+
+        update project_buyout_packages set current_rfq_id = v_rfq_pkg where id = v_pkg and tenant_id = t;
+      end if;
+    end if;
+  end if;
+
   -- ---- Employee (master data, no password) -------------------------------------------------------------------------------------
   -- One employee record with the e-mail abdulkhader@saytara.info. The code is the next free EMP-####, as the app makes it. No login is
   -- created and none is tied to it; link the login to this employee in Settings > Business users.
@@ -529,5 +746,5 @@ begin
   set amount = (select coalesce(sum(l.amount), 0) from opportunity_lines l where l.tenant_id = t and l.opportunity_id = o.id)
   where o.tenant_id = t and o.id in (opp1, opp2, opp3);
 
-  raise notice 'KAMCO test data is in place: 3 TEST tender deals (%, %, %) and the employee abdulkhader@saytara.info.', c_opp1, c_opp2, c_opp3;
+  raise notice 'KAMCO test data is in place: 3 TEST tender deals (%, %, %), the 21 Tender desk deals and the employee abdulkhader@saytara.info.', c_opp1, c_opp2, c_opp3;
 end $seed$;

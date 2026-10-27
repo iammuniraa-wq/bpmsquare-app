@@ -23,10 +23,10 @@
 
 A **Tender desk** home for workspaces with `features.gcc_tender` (platform-admin flag). No other workspace sees or renders anything of it.
 
-- Three views of the home, one switch in the desk's header: **Bold tiles** | **Control room** | **Classic home** (what the workspace had before:
-  classic dashboard or Nova stream, unchanged).
-- The choice is remembered per person in the cookie `bpm_tender_desk` (`bold` | `control` | `classic`), read on the server so the first
-  paint is already right. The workspace default is one setting: Settings > Appearance > "Home for tender workspaces" (one select, three
+- Two views of the home, one switch in the desk's header: **Bold tiles** (the default, white background) | **Control room**. The Tender desk is
+  always the home of a tender workspace (owner decision 2026-10-27): the old classic / Nova home is not offered from it.
+- The choice is remembered per person in the cookie `bpm_tender_desk` (`bold` | `control`), read on the server so the first
+  paint is already right. The workspace default is one setting: Settings > Appearance > "Home style for tender workspaces" (one select, two
   values), stored in `tenants.config.appearance.tender_desk_style` (add to `TenantConfig` in `constants.ts`), default `bold`.
   A cookie wins over the workspace default; the setting is the only place a default is set.
 - No new table, no migration. Everything is read from existing tables with the session/admin client scoped by `tenant_id`.
@@ -73,7 +73,7 @@ Derivation lives in pure, tested functions in `src/lib/tenderDesk/rules.ts` (inp
 
 ## Wiring
 
-`src/app/(app)/page.tsx`: when `features.gcc_tender` and the effective style is not `classic`, render `TenderDesk` (client component with
+`src/app/(app)/page.tsx`: when `features.gcc_tender` (`resolveTenderDeskStyle` returns a style, null when the flag is off), render `TenderDesk` (client component with
 the switch; the data is passed in); otherwise the existing flow, untouched. Setting the cookie: a small route `POST /api/tender-desk/style`
 (`requireTenantUser()`, value allow-listed) or a server action; the switch updates the cookie and refreshes.
 Settings > Appearance gets the one select (tenant admin only, same guard as the other appearance settings).
