@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { c } from "@/lib/theme";
 import Button from "@/components/ui/Button";
 import Field from "@/components/ui/Field";
@@ -21,6 +21,8 @@ import { BoqCards, BoqTable, type BoqRow } from "./BoqRows";
 import BoqRowPanel from "./BoqRowPanel";
 import { reloadAfterSave } from "./refreshAfterSave";
 import type { EstimatesState } from "@/lib/tender/estimates/server";
+import type { OpportunityLine } from "@/lib/types";
+import DealLinesBoq from "./DealLinesBoq";
 
 // The Bill of quantities of a tender deal (GCC tender deals, redesign 2026-10-27): ONE table, one row per line of the client's BOQ, that
 // replaces the old BOQ tab and the Lines tab. The client's item number is always shown. A row opens a side panel; awarding a supplier is
@@ -59,8 +61,12 @@ function useCards(fixed?: "table" | "cards"): boolean {
   return fixed ? fixed === "cards" : narrow;
 }
 
-export default function BoqTab({ opportunityId, canEdit, onError, onNotice, onLinesChanged, onOpenCosting, initialData, initialEstimates, layout, initialOpenRow }: {
+export default function BoqTab({ opportunityId, canEdit, onError, onNotice, onLinesChanged, onOpenCosting, initialData, initialEstimates, layout, initialOpenRow, dealLines, dealLinesVersion, filterRequest }: {
   opportunityId: string; canEdit: boolean; onError: (m: string) => void; onNotice: (m: string) => void;
+  /** The deal's own lines and their version. Shown (and editable) as rows only while no client file has been uploaded. */
+  dealLines?: OpportunityLine[]; dealLinesVersion?: string;
+  /** "N rows still need a cost" in Costing asks for a filter; each new `n` applies it, whatever the filter was before. */
+  filterRequest?: { filter: BoqFilter; n: number };
   /** Called after anything that changed the deal's lines (create, re-upload, a price, a quantity), so the page can reload its header and totals. */
   onLinesChanged?: () => void;
   /** Opens the Costing tab for a row (the panel's "Open in Costing"). Absent = the button is not drawn. */
@@ -85,6 +91,12 @@ export default function BoqTab({ opportunityId, canEdit, onError, onNotice, onLi
   const [markupSet, setMarkupSet] = useState(false);
   const [left, setLeft] = useState<{ id: string; item: string; reason: string }[] | null>(null);
   const cards = useCards(layout);
+  const askedFilter = useRef(0);
+  useEffect(() => {
+    if (!filterRequest || filterRequest.n <= askedFilter.current) return;
+    askedFilter.current = filterRequest.n;
+    setFilter(filterRequest.filter); setShown(0);
+  }, [filterRequest, setFilter]);
 
   // Estimates that price the lines. A 404 (no estimator, no view of it, migration pending) means the rows simply show no estimate chip.
   const [est, setEst] = useState<EstimatesWithRfq | null>(initialEstimates ?? null);
@@ -169,12 +181,19 @@ export default function BoqTab({ opportunityId, canEdit, onError, onNotice, onLi
       </div>
       {upload.panel}
 
-      {!hasBoq && !upload.open && (
+      {!hasBoq && !upload.open && (dealLines?.length ?? 0) === 0 && (
         <Card>
           <div data-guide="boq.empty" style={{ fontSize: 13, color: c.ink }}>
-            {canEdit ? "No Bill of quantities yet. Upload the client's Excel to create the deal's lines." : "No Bill of quantities has been uploaded for this tender yet."}
+            {canEdit ? "No Bill of quantities yet. Upload the client's Excel to create the deal's lines, or add them by hand below." : "No Bill of quantities has been uploaded for this tender yet."}
           </div>
         </Card>
+      )}
+
+      {!hasBoq && !upload.open && dealLines && (
+        <DealLinesBoq
+          opportunityId={opportunityId} lines={dealLines} version={dealLinesVersion ?? ""} canEdit={canEdit} cards={cards}
+          onError={onError} onNotice={onNotice} onChanged={() => onLinesChanged?.()}
+        />
       )}
 
       {hasBoq && (
@@ -231,7 +250,7 @@ export default function BoqTab({ opportunityId, canEdit, onError, onNotice, onLi
 
       {openRow && (
         <BoqRowPanel
-          key={openRow.id} base={base} row={openRow} links={links} canEdit={canEdit} markup={markupPct} validityDays={data.validity_days}
+          key={openRow.id} base={base} row={openRow} links={links} opportunityId={opportunityId} estimates={est} canEdit={canEdit} markup={markupPct} validityDays={data.validity_days}
           onClose={() => setOpenId(null)} onChanged={changed} onError={onError} onNotice={onNotice} onOpenCosting={onOpenCosting}
         />
       )}

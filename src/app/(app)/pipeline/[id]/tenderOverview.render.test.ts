@@ -55,19 +55,28 @@ const page = (extra: Record<string, unknown> = {}, tender: Record<string, unknow
 const tabLabels = (html: string) => [...html.matchAll(/role="tab"[^>]*>([^<]*)/g)].map((m) => m[1]);
 
 describe("the tabs of a tender deal", () => {
-  it("Overview comes first, there is no Tender tab, and the order is Overview, Room, Competitors, Bill of quantities, Costing, Bids, Quotes, Related, Activity (no Lines)", () => {
+  it("a tender has exactly Overview, Bill of quantities, Costing, Bid, Room, Competitors, in that order: no Tender, Lines, Estimates, Quotes, Related or Activity tab", () => {
     const out = page({ related: createElement("div", null, "RFQ") }, {
       room: { pending: false, unread: 0, openQuestions: 0, isAdmin: false }, costing: { canEdit: true },
       bids: { versions: [], pending: false, working_total: 0, canEdit: true },
     });
-    expect(tabLabels(out).map((l) => l.replace(/\d+$/, ""))).toEqual(["Overview", "Room", "Competitors", "Bill of quantities", "Costing", "Bids", "Quotes", "Related", "Activity"]);
+    expect(tabLabels(out).map((l) => l.replace(/\d+$/, ""))).toEqual(["Overview", "Bill of quantities", "Costing", "Bid", "Room", "Competitors"]);
     expect(out).not.toContain('data-guide="tab:tender"');
   });
 
-  it("opens on Overview, and an old ?tab=tender link or saved state lands there too", () => {
+  it("History is not a tab: it is in the header menu, opened from there, and a standard deal has no such item", () => {
+    const client = read("src/app/(app)/pipeline/[id]/OpportunityDetailClient.tsx");
+    expect(client).toMatch(/\{ label: "History", onSelect: \(\) => setHistoryOpen\(true\), hidden: !tender \}/);
+    expect(tabLabels(page())).not.toContain("History");
+    expect(tabLabels(page())).not.toContain("Activity");
+  });
+
+  it("opens on Overview, and an old ?tab= link or saved state lands on the nearest tab: tender and unknown on Overview, lines on the Bill of quantities", () => {
     expect(page()).toContain('data-guide="tender.tab"');
     expect(page({ initialTab: "tender" })).toContain('data-guide="tender.tab"');
     expect(page({ initialTab: "lines" })).not.toContain('data-guide="tender.tab"');
+    expect(page({ initialTab: "lines" })).toMatch(/data-guide="tab:boq"[^>]*aria-selected="true"/);
+    expect(page({ initialTab: "nonsense" })).toContain('data-guide="tender.tab"');
   });
 
   it("a standard deal keeps its own Overview and no tender facts, tab or marker", () => {

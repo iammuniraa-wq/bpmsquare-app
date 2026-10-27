@@ -237,14 +237,15 @@ describe("the tabs of a tender deal", () => {
     ...extra,
   } as never)));
 
-  it("a tender deal gets a Bids tab with its count; a standard deal and a tender without the migration's data do not", () => {
-    expect(page({ initialTab: "overview" }, { bids: bids() })).toMatch(/Bids/);
-    expect(page({ initialTab: "overview" }, null)).not.toMatch(/>Bids</);
-    expect(page({ initialTab: "overview" }, {})).not.toMatch(/>Bids</);
+  it("a tender deal gets a Bid tab with its count; a standard deal and a tender without the migration's data do not", () => {
+    expect(page({ initialTab: "overview" }, { bids: bids() })).toMatch(/data-guide="tab:bid"[^>]*>Bid<span[^>]*>2</);
+    expect(page({ initialTab: "overview" }, null)).not.toContain('data-guide="tab:bid"');
+    expect(page({ initialTab: "overview" }, {})).not.toContain('data-guide="tab:bid"');
   });
 
-  it("the Bids tab renders inside the deal with the lines total from the saved lines", () => {
+  it("the Bid tab renders inside the deal with the lines total from the saved lines, and an old ?tab=bids link lands on it", () => {
     const out = page({ initialTab: "bids" }, { bids: bids({ working_total: 0 }) });
+    expect(out).toMatch(/data-guide="tab:bid"[^>]*aria-selected="true"/);
     expect(out).toContain('data-guide="tender.bids"');
     expect(out).toContain("Lines total now");
   });

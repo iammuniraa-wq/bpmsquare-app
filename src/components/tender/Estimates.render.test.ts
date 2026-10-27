@@ -363,7 +363,7 @@ describe("the Bill of quantities and the deal page", () => {
 
   it("the deal client draws the Costing tab (which replaced the Estimates tab) only when the server says the person may see Estimates or RFQs", () => {
     const client = read("src/app/(app)/pipeline/[id]/OpportunityDetailClient.tsx");
-    expect(client).toMatch(/tender\?\.costing \? \[\{ id: "costing" as Tab, label: "Costing" \}\]/);
+    expect(client).toMatch(/tender\.costing \? \[\{ id: "costing" as Tab, label: "Costing" \}\]/);
     expect(client).toMatch(/tab === "costing" && tender\?\.costing && <CostingTab/);
     const page = read("src/app/(app)/pipeline/[id]/page.tsx");
     expect(page).toMatch(/tenant\?\.features\?\.estimator === true && canViewWorkcenter\(dealPerms, "estimates"\)/);

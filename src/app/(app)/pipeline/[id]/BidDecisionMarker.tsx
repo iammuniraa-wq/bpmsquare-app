@@ -15,17 +15,34 @@ import BidDecision from "./BidDecision";
  * the approval actions (propose with a reason, approve, reject with a comment, withdraw, history) in the shared side panel, which is a
  * bottom sheet on a phone. The words carry the meaning; the tone only agrees with them.
  */
-export default function BidDecisionMarker({ opportunityId, tender, approval, onError, onNotice, initialOpen = false }: {
+type PanelProps = {
   opportunityId: string;
   tender: TenderView;
   /** null while migration 0221 is pending. */
   approval: ApprovalView | null;
   onError: (message: string) => void;
   onNotice: (message: string) => void;
+};
+
+/** The approval actions in the shared side panel. The deal header mounts this itself when the primary button "Propose bid decision" opens it. */
+export function BidDecisionPanel({ opportunityId, tender, approval, onError, onNotice, onClose }: PanelProps & { onClose: () => void }) {
+  const m = decisionMarker(approval, tender.decision);
+  return (
+    <SidePanel title="Bid decision" subtitle={`${m.label} · ${m.sub}`} label="Bid decision" onClose={onClose}>
+      <BidDecision opportunityId={opportunityId} tender={tender} approval={approval} onError={onError} onNotice={onNotice} onDone={onClose} />
+    </SidePanel>
+  );
+}
+
+export default function BidDecisionMarker({ opportunityId, tender, approval, onError, onNotice, initialOpen = false, controlled }: PanelProps & {
   /** Lets a server render (and its test) show the panel without a click. The page never passes it. */
   initialOpen?: boolean;
+  /** The page keeps the open state and draws the panel itself (so the header button can open it while this chip is folded away on a phone). */
+  controlled?: { open: boolean; setOpen: (open: boolean) => void };
 }) {
-  const [open, setOpen] = useState(initialOpen);
+  const [ownOpen, setOwnOpen] = useState(initialOpen);
+  const open = controlled ? controlled.open : ownOpen;
+  const setOpen = controlled ? controlled.setOpen : setOwnOpen;
   const m = decisionMarker(approval, tender.decision);
   const t = toneTokens(m.tone);
   return (
@@ -44,11 +61,7 @@ export default function BidDecisionMarker({ opportunityId, tender, approval, onE
         </button>
         <InfoTip label="Bid decision">{TENDER_TIPS.decisionMarker}</InfoTip>
       </span>
-      {open && (
-        <SidePanel title="Bid decision" subtitle={`${m.label} · ${m.sub}`} label="Bid decision" onClose={() => setOpen(false)}>
-          <BidDecision opportunityId={opportunityId} tender={tender} approval={approval} onError={onError} onNotice={onNotice} onDone={() => setOpen(false)} />
-        </SidePanel>
-      )}
+      {open && !controlled && <BidDecisionPanel opportunityId={opportunityId} tender={tender} approval={approval} onError={onError} onNotice={onNotice} onClose={() => setOpen(false)} />}
     </>
   );
 }

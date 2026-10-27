@@ -11,8 +11,9 @@ import { useFeel } from "@/components/FeelProvider";
 import { BOQ_TABLE_TIPS } from "@/lib/tender/boq/tips";
 import { PRICE_SOURCE_LABEL, rateFor, type PriceSource } from "@/lib/tender/boq/price";
 import { costBreakdown, itemLabel, rfqRefOf, sourceView } from "@/lib/tender/boq/table";
-import type { LinkView } from "@/lib/tender/estimates/server";
+import type { EstimatesState, LinkView } from "@/lib/tender/estimates/server";
 import { RowChips, money, type BoqRow } from "./BoqRows";
+import { LineEstimates } from "./BoqEstimates";
 
 // One row of the Bill of quantities, opened (GCC tender deals): a side panel on a desktop, a bottom sheet on a phone. Quantity, rate and
 // description are edited here. Where the cost came from (the estimate line, the RFQ it was awarded under) is shown and cannot be changed
@@ -23,9 +24,13 @@ type Cand = { source: Exclude<PriceSource, "manual" | "estimate">; ref: string; 
 const fmtDate = (s: string | null) => (s ? new Date(s).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "no date");
 const numText = (n: number) => (Number.isFinite(n) ? String(n) : "");
 
-export default function BoqRowPanel({ base, row, links, canEdit, markup, validityDays, onClose, onChanged, onError, onNotice, onOpenCosting, initialCandidates }: {
+export default function BoqRowPanel({ base, row, links, canEdit, markup, validityDays, onClose, onChanged, onError, onNotice, onOpenCosting, initialCandidates, opportunityId, estimates }: {
   /** /api/opportunities/[id]/boq */
   base: string;
+  /** With `estimates`: the two row-level estimate actions ("Price from estimate", "Build up this rate") are offered under the cost block. */
+  opportunityId?: string;
+  /** The deal's estimate state (the estimator module is on and the caller may use it). Absent = those two actions are not drawn. */
+  estimates?: EstimatesState | null;
   row: BoqRow;
   /** The deal's estimate links for this row. */
   links: readonly LinkView[];
@@ -159,6 +164,16 @@ export default function BoqRowPanel({ base, row, links, canEdit, markup, validit
             </div>
           )}
         </div>
+
+        {canEdit && estimates && opportunityId && row.linked && (
+          <div data-guide="boq.row.estimate_actions">
+            <LineEstimates
+              actionsOnly opportunityId={opportunityId} base={`/api/opportunities/${opportunityId}/tender/estimates`}
+              line={{ id: row.id, item_no: row.item_no, description: row.description, qty: row.qty, uom: row.uom, priced: row.priced }}
+              state={estimates} canEdit markup={markup} onChanged={onChanged} onError={onError} onNotice={onNotice}
+            />
+          </div>
+        )}
 
         {canEdit && row.linked && (
           <div data-guide="boq.row.sources" style={{ display: "flex", flexDirection: "column", gap: 8 }}>

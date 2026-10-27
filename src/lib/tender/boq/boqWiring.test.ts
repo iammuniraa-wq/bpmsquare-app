@@ -207,6 +207,8 @@ describe("the Bill of quantities screen (the rows, chips and panel are tested in
     // One reload path: the table, the estimates and the page. Every place the lines change (upload, price all, match, the row panel) goes through it.
     expect(src).toMatch(/reloadAfterSave<State>\(base, setData, onLinesChanged\)/);
     expect(src.match(/onChanged=\{changed\}/g)?.length ?? 0).toBe(2);
+    // Lines typed by hand (no client file) save through the same reload path.
+    expect(src).toMatch(/<DealLinesBoq[\s\S]*onChanged=\{\(\) => onLinesChanged\?\.\(\)\}/);
     expect(src).toMatch(/onApplied: \(\) => \{ setShown\(0\); changed\(\); \}/);
     expect(src).toMatch(/changed\(\);\n\s*\}\n\n\s*if \(!data\)/);
     expect(read("src/app/(app)/pipeline/[id]/OpportunityDetailClient.tsx")).toMatch(/onLinesChanged=\{\(\) => router\.refresh\(\)\}/);
