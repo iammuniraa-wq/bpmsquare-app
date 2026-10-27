@@ -1,5 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { isDirty, shownFromPreview } from "./shown";
+import { readFileSync } from "node:fs";
+import path from "node:path";
+import { isDirty, shownBlank, shownFromPreview } from "./shown";
 import { previewEstimate } from "@/lib/estimator/preview";
 import { PRECAST_VILLA_STARTER } from "@/lib/estimator/starterTemplates";
 
@@ -16,6 +18,23 @@ describe("isDirty", () => {
   });
   it("an emptied number box (left out of the params) is not a change by itself", () => {
     expect(isDirty(stored, { finish_level: "standard", include_stairs: true }, 18, "18")).toBe(false);
+  });
+});
+
+describe("shownBlank (a new precast villa shows its 3D model before anything is saved)", () => {
+  it("keeps the model of the starting sizes and nothing that prices it", () => {
+    expect(shownBlank(null)).toEqual({ lines: [], model: null, totals: null, live: true });
+    const p = previewEstimate({ template: PRECAST_VILLA_STARTER, params: {}, margin_pct: 0, vat_pct: 15 });
+    if (!p.ok) throw new Error("preview failed");
+    const s = shownBlank(p);
+    expect(s.model?.pieces).toHaveLength(137);
+    expect(s.lines).toEqual([]);
+    expect(s.totals).toBeNull();
+  });
+  it("the working page draws the model of a blank estimate and says nothing is saved", () => {
+    const src = readFileSync(path.join(__dirname, "EstimateWorkspace.tsx"), "utf8");
+    expect(src).toContain("blank ? shownBlank(preview)");
+    expect(src).toContain("nothing is saved yet");
   });
 });
 

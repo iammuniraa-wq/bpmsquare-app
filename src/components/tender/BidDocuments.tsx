@@ -11,7 +11,7 @@ import { Select } from "@/components/ui/Input";
 import InfoTip from "@/components/ui/InfoTip";
 import SettingsSection from "@/components/settings/SettingsSection";
 import { TENDER_TIPS } from "@/lib/tender/tips";
-import type { BidVersionSummary } from "@/lib/tender/bids/rules";
+import { defaultQuoteVersion, type BidVersionSummary } from "@/lib/tender/bids/rules";
 import type { LinkedQuote } from "@/lib/sales/opportunityServer";
 import BoqDownloads from "./BoqDownloads";
 
@@ -35,7 +35,9 @@ export default function BidDocuments({ opportunityId, versions, quotes, canMakeQ
   onChanged?: () => void;
 }) {
   const router = useRouter();
-  const [version, setVersion] = useState(String(versions[0]?.version_no ?? ""));
+  // The latest version unless the person picked one: a state set once at mount stayed on the old latest after a new version was submitted.
+  const [picked, setVersion] = useState<string | null>(null);
+  const version = defaultQuoteVersion(versions, picked);
   const [busy, setBusy] = useState(false);
   const [showAll, setShowAll] = useState(false);
   const shown = showAll ? quotes : quotes.slice(0, SHOWN_QUOTES);

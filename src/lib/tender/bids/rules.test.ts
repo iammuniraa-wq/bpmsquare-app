@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { BID_LINE_FIELDS, buildSnapshot, deltaText, diffBids, lineKeys, parseStoredLines, parseSubmit, snapshotLine, submitProblem, type BidLine, type SnapshotSource } from "./rules";
+import { defaultQuoteVersion, BID_LINE_FIELDS, buildSnapshot, deltaText, diffBids, lineKeys, parseStoredLines, parseSubmit, snapshotLine, submitProblem, type BidLine, type SnapshotSource } from "./rules";
 
 // Bid versions (slice 4): what a snapshot keeps, how two versions are compared, and the rules for submitting.
 
@@ -132,5 +132,16 @@ describe("submitting", () => {
     expect(submitProblem({ stage: "received", outcome: "open", lineCount: 3 })).toMatch(/Estimating or Clarifications/);
     expect(submitProblem({ stage: "estimating", outcome: "lost", lineCount: 3 })).toMatch(/closed/);
     expect(submitProblem({ stage: "estimating", outcome: "open", lineCount: 0 })).toMatch(/lines/);
+  });
+});
+
+describe("the version a Standard Quote is made from", () => {
+  const v = (n: number) => ({ version_no: n });
+  it("is the latest unless the person picked one that exists", () => {
+    expect(defaultQuoteVersion([v(3), v(2), v(1)])).toBe("3");
+    expect(defaultQuoteVersion([v(2), v(3), v(1)])).toBe("3");
+    expect(defaultQuoteVersion([v(3), v(2), v(1)], "2")).toBe("2");
+    expect(defaultQuoteVersion([v(3), v(2)], "7")).toBe("3");
+    expect(defaultQuoteVersion([])).toBe("");
   });
 });

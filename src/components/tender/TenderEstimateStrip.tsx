@@ -4,6 +4,8 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { c } from "@/lib/theme";
+import { useCurrency } from "@/lib/tenant-context";
+import { formatMoney } from "@/lib/currency";
 import Button from "@/components/ui/Button";
 import InfoTip from "@/components/ui/InfoTip";
 import StatTile, { StatStrip } from "@/components/ui/StatTile";
@@ -20,6 +22,8 @@ import { postReprice, unconfirmed } from "./quantityGuard";
 
 export default function TenderEstimateStrip({ ctx, estimateId, canEdit }: { ctx: EstimateTenderContext; estimateId: string; canEdit: boolean }) {
   const router = useRouter();
+  const cur = useCurrency();
+  const money = (n: number) => formatMoney(n, cur, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const { toast, confirm } = useFeel();
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState("");
@@ -57,6 +61,16 @@ export default function TenderEstimateStrip({ ctx, estimateId, canEdit }: { ctx:
         <Link href={`${dealHref}?tab=estimates`} data-guide="tender.estimate.back" style={{ fontSize: 12.5, color: c.ink, minHeight: 44, display: "inline-flex", alignItems: "center" }}>← Back to the tender</Link>
         {ctx.links.length > 0 && <Link href={`${dealHref}?tab=boq`} data-guide="tender.estimate.to_boq" style={{ fontSize: 12.5, color: c.ink, minHeight: 44, display: "inline-flex", alignItems: "center" }}>BOQ</Link>}
       </div>
+
+      {typeof ctx.cost === "number" && (
+        <div data-guide="tender.estimate.cost_for_boq" style={{ display: "flex", flexWrap: "wrap", gap: "2px 10px", alignItems: "baseline", fontSize: 13, color: c.ink }}>
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>Cost used for the BOQ <InfoTip label="Cost used for the BOQ">{ESTIMATE_TIPS.costForBoq}</InfoTip></span>
+          <b data-guide="tender.estimate.cost_value">{money(ctx.cost)}</b>
+          {ctx.links.filter((l) => typeof l.unit_cost === "number").map((l) => (
+            <span key={l.link_id} style={{ fontSize: 12.5, color: c.muted, overflowWrap: "anywhere" }}>{l.item.split(" ")[0]}: {money(l.unit_cost as number)} per {l.uom ?? "unit"} ({l.qty} {l.uom ?? ""})</span>
+          ))}
+        </div>
+      )}
 
       {(ctx.links.length > 0 || ctx.missing.length > 0) && (
         <StatStrip guide="tender.estimate.tiles">

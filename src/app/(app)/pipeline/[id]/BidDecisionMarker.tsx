@@ -22,19 +22,21 @@ type PanelProps = {
   approval: ApprovalView | null;
   onError: (message: string) => void;
   onNotice: (message: string) => void;
+  /** After a proposal, approval, rejection or withdrawal was saved: the page re-reads the decision so the marker and the header button change at once. */
+  onSaved?: () => void;
 };
 
 /** The approval actions in the shared side panel. The deal header mounts this itself when the primary button "Propose bid decision" opens it. */
-export function BidDecisionPanel({ opportunityId, tender, approval, onError, onNotice, onClose }: PanelProps & { onClose: () => void }) {
+export function BidDecisionPanel({ opportunityId, tender, approval, onError, onNotice, onSaved, onClose }: PanelProps & { onClose: () => void }) {
   const m = decisionMarker(approval, tender.decision);
   return (
     <SidePanel title="Bid decision" subtitle={`${m.label} · ${m.sub}`} label="Bid decision" onClose={onClose}>
-      <BidDecision opportunityId={opportunityId} tender={tender} approval={approval} onError={onError} onNotice={onNotice} onDone={onClose} />
+      <BidDecision opportunityId={opportunityId} tender={tender} approval={approval} onError={onError} onNotice={onNotice} onDone={onClose} onSaved={onSaved} />
     </SidePanel>
   );
 }
 
-export default function BidDecisionMarker({ opportunityId, tender, approval, onError, onNotice, initialOpen = false, controlled }: PanelProps & {
+export default function BidDecisionMarker({ opportunityId, tender, approval, onError, onNotice, onSaved, initialOpen = false, controlled }: PanelProps & {
   /** Lets a server render (and its test) show the panel without a click. The page never passes it. */
   initialOpen?: boolean;
   /** The page keeps the open state and draws the panel itself (so the header button can open it while this chip is folded away on a phone). */
@@ -61,7 +63,7 @@ export default function BidDecisionMarker({ opportunityId, tender, approval, onE
         </button>
         <InfoTip label="Bid decision">{TENDER_TIPS.decisionMarker}</InfoTip>
       </span>
-      {open && !controlled && <BidDecisionPanel opportunityId={opportunityId} tender={tender} approval={approval} onError={onError} onNotice={onNotice} onClose={() => setOpen(false)} />}
+      {open && !controlled && <BidDecisionPanel opportunityId={opportunityId} tender={tender} approval={approval} onError={onError} onNotice={onNotice} onSaved={onSaved} onClose={() => setOpen(false)} />}
     </>
   );
 }

@@ -20,6 +20,26 @@ describe("the primary header button of a tender, by stage", () => {
     expect(label({ stage: "bid_no_bid", approvedGo: true })).toBe("Submit bid");
   });
 
+  it("a waiting proposal turns the button into Review bid decision, in Received and in Bid/No-bid (live bug 2026-10-27)", () => {
+    expect(label({ stage: "received", approvedGo: false, proposalPending: true })).toBe("Review bid decision");
+    expect(label({ stage: "bid_no_bid", approvedGo: false, proposalPending: true })).toBe("Review bid decision");
+    expect(tenderPrimary(facts({ stage: "received", proposalPending: true }))?.key).toBe("review_decision");
+    expect(tenderPrimary(facts({ stage: "received", proposalPending: true }))?.guide).toBe("tender.primary.review");
+    expect(label({ stage: "received", approvedGo: false, proposalPending: false })).toBe("Propose bid decision");
+  });
+
+  it("an approver without edit access still gets Review bid decision; a viewer who cannot decide gets nothing", () => {
+    expect(label({ stage: "received", canEdit: false, proposalPending: true, canDecide: true })).toBe("Review bid decision");
+    expect(label({ stage: "received", canEdit: false, proposalPending: true, canDecide: false })).toBeNull();
+    expect(label({ stage: "received", canEdit: false, proposalPending: true })).toBeNull();
+  });
+
+  it("a waiting proposal changes nothing once the bid is being worked or the deal is closed", () => {
+    expect(label({ stage: "estimating", proposalPending: true })).toBe("Submit bid");
+    expect(label({ stage: "submitted", bids: 1, proposalPending: true })).toBe("Record the outcome");
+    expect(label({ stage: "no_bid", outcome: "dropped", proposalPending: true })).toBeNull();
+  });
+
   it("Estimating is Submit bid, and Revise bid once a version has been submitted (the bid was reopened)", () => {
     expect(label({ stage: "estimating" })).toBe("Submit bid");
     expect(label({ stage: "estimating", bids: 2 })).toBe("Revise bid");

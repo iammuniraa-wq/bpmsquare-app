@@ -143,6 +143,17 @@ export default function OpportunityDetailClient({ opp, accountName, contacts, in
   const [tab, setTab] = useState<Tab>(startTab ?? (tender ? "overview" : initialLines.length === 0 && quotes.length === 0 ? "overview" : "lines"));
   const [historyOpen, setHistoryOpen] = useState(!!resolved?.history);
   const [decisionOpen, setDecisionOpen] = useState(false);
+  // The bid decision as the page last knew it. A proposal, an approval or a withdrawal re-reads it at once (the marker and the primary button
+  // must not wait for a full reload) and the server render then replaces it.
+  const [approvalNow, setApprovalNow] = useState<ApprovalView | null>(tender?.approval ?? null);
+  useEffect(() => { setApprovalNow(tender?.approval ?? null); }, [tender?.approval]);
+  async function reloadApproval() {
+    try {
+      const res = await fetch(`/api/opportunities/${opp.id}/tender/approval`, { cache: "no-store" });
+      if (res.ok) setApprovalNow((await res.json()) as ApprovalView);
+    } catch { /* the refresh below brings the same facts */ }
+    router.refresh();
+  }
   const [bidStart, setBidStart] = useState(0);
   const [boqRequest, setBoqRequest] = useState<{ filter: BoqFilter; n: number } | undefined>(undefined);
   const boqAsks = useRef(0);
@@ -331,12 +342,13 @@ export default function OpportunityDetailClient({ opp, accountName, contacts, in
   const tenderButton = tender
     ? tenderPrimary({
         stage: opp.stage, outcome: opp.outcome, bids: tender.bids?.versions.length ?? 0, canEdit: tender.boqEdit !== false,
-        approvedGo: tender.approval ? tender.approval.standing?.decision === "go" : null,
+        approvedGo: approvalNow ? approvalNow.standing?.decision === "go" : null,
+        proposalPending: !!approvalNow?.pending, canDecide: approvalNow?.canDecide === true,
         project: contractProject ? { existing: !!contractProject.existing, canCreate: contractProject.canCreate } : null,
       })
     : null;
   function runPrimary(key: TenderPrimaryKey) {
-    if (key === "propose_decision") setDecisionOpen(true);
+    if (key === "propose_decision" || key === "review_decision") setDecisionOpen(true);
     else if (key === "submit_bid" || key === "revise_bid") { openTab("bid"); setBidStart((n) => n + 1); }
     else if (key === "record_outcome") markWon();
     else if (key === "create_project") createContractProject();
@@ -381,7 +393,7 @@ export default function OpportunityDetailClient({ opp, accountName, contacts, in
     ? [
         {
           label: "Bid decision",
-          value: <BidDecisionMarker opportunityId={opp.id} tender={tender.view} approval={tender.approval} onError={setError} onNotice={setNotice} controlled={{ open: decisionOpen, setOpen: setDecisionOpen }} />,
+          value: <BidDecisionMarker opportunityId={opp.id} tender={tender.view} approval={approvalNow} onError={setError} onNotice={setNotice} onSaved={() => void reloadApproval()} controlled={{ open: decisionOpen, setOpen: setDecisionOpen }} />,
         },
         {
           label: "Bid end date",
@@ -487,7 +499,7 @@ export default function OpportunityDetailClient({ opp, accountName, contacts, in
       {tab === "costing" && tender?.costing && <CostingTab opportunityId={opp.id} canEdit={tender.costing.canEdit} onError={setError} onNotice={setNotice} onChanged={() => router.refresh()} onOpenBoq={(filter) => { boqAsks.current += 1; setBoqRequest(filter ? { filter, n: boqAsks.current } : undefined); setTab("boq"); }} />}
       {tab === "overview" && tender && (
         <TenderOverview
-          opportunityId={opp.id} tender={tender.view} approval={tender.approval} accounts={tender.accounts} members={members} contacts={contacts}
+          opportunityId={opp.id} tender={tender.view} approval={approvalNow} accounts={tender.accounts} members={members} contacts={contacts}
           currentUserId={currentUserId} nowIso={tender.nowIso} timezone={tender.timezone} finished={!tenderLive} sourceEmail={sourceEmail}
           deal={{ title: opp.title, description: opp.description ?? "", contact_id: opp.contact_id ?? "", owner_id: opp.owner_id ?? "", source: opp.source ?? "direct", team: (opp.team ?? []) as { user_id: string; role: string }[], created_at: opp.created_at, closed_at: opp.closed_at ?? null }}
           outcome={tender.outcome ?? null} overdue={overdue} onOpenHistory={() => setHistoryOpen(true)} fmt={inr} unpricedLines={unpricedLines} canEdit={tender.boqEdit !== false}
@@ -571,7 +583,7 @@ export default function OpportunityDetailClient({ opp, accountName, contacts, in
           quotes={quotes} canMakeQuote={standardQuotesEnabled && tender.boqEdit !== false} startSignal={bidStart}
           checks={{
             priceValidityDays: priceValidityDays ?? 180, unpricedFromLines: unpricedLines,
-            approvedGo: tender.approval ? tender.approval.standing?.decision === "go" : null,
+            approvedGo: approvalNow ? approvalNow.standing?.decision === "go" : null,
             guarantee: { amount: tender.view.bid_bond_amount ?? null, expiry: tender.view.bid_bond_expiry ?? null, status: tender.view.bond_status ?? "held" },
           }} />
       )}
@@ -613,17 +625,17 @@ export default function OpportunityDetailClient({ opp, accountName, contacts, in
         </SidePanel>
       )}
       {tender && decisionOpen && (
-        <BidDecisionPanel opportunityId={opp.id} tender={tender.view} approval={tender.approval} onError={setError} onNotice={setNotice} onClose={() => setDecisionOpen(false)} />
+        <BidDecisionPanel opportunityId={opp.id} tender={tender.view} approval={approvalNow} onError={setError} onNotice={setNotice} onSaved={() => void reloadApproval()} onClose={() => setDecisionOpen(false)} />
       )}
 
       {closing && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.35)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 50 }} onClick={() => setClosing(null)}>
-          <div style={{ width: 380, maxWidth: "calc(100vw - 32px)" }} onClick={(e) => e.stopPropagation()}>
+          <div style={{ width: 560, maxWidth: "calc(100vw - 32px)" }} onClick={(e) => e.stopPropagation()}>
             <Card padding={18}>
               <div style={{ fontSize: 14, fontWeight: 700, color: c.ink, marginBottom: 10 }}>Close this deal as…</div>
-              <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+              <div role="group" aria-label="Outcome" data-guide="deal.close.outcome" style={{ display: "flex", gap: 8, marginBottom: 12 }}>
                 {(["won", "lost", "dropped"] as const).map((o) => (
-                  <Button key={o} variant={closing.outcome === o ? "primary" : "secondary"} size="sm" style={{ flex: 1, textTransform: "capitalize" }}
+                  <Button key={o} variant={closing.outcome === o ? "primary" : "secondary"} size="sm" aria-pressed={closing.outcome === o} style={{ flex: "1 1 0", minHeight: 44, textTransform: "capitalize" }}
                     onClick={() => setClosing({ ...closing, outcome: o, stage: stages.find((s) => s.is_closed && (s.outcome ?? "won") === (o === "dropped" ? "lost" : o))?.value ?? closing.stage })}>{o}</Button>
                 ))}
               </div>
@@ -638,15 +650,12 @@ export default function OpportunityDetailClient({ opp, accountName, contacts, in
                   <Input value={closing.loss_note} onChange={(e) => setClosing({ ...closing, loss_note: e.target.value })} placeholder="What happened (optional)" style={{ marginBottom: 8 }} />
                 </>
               )}
-              <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", flexWrap: "wrap" }}>
-                <Button variant="secondary" onClick={() => setClosing(null)}>Cancel</Button>
-                {offerProject ? (
-                  <>
-                    <Button variant="secondary" loading={pending} data-guide="tender.close.confirm" style={{ minHeight: 44 }} onClick={() => confirmClose(false)}>Confirm</Button>
-                    <Button variant="primary" loading={pending} data-guide="tender.close.create_project" style={{ minHeight: 44 }} onClick={() => confirmClose(true)}>Create contract project now</Button>
-                  </>
-                ) : (
-                  <Button variant="primary" loading={pending} onClick={() => confirmClose(false)}>Confirm</Button>
+              {/* One footer: every button the same width and height (a row on a PC, a single column at 375 px, where 160 px twice no longer fits). */}
+              <div data-guide="deal.close.footer" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                <Button variant="secondary" data-guide="deal.close.cancel" style={{ flex: "1 1 160px", minHeight: 44 }} onClick={() => setClosing(null)}>Cancel</Button>
+                <Button variant={offerProject ? "secondary" : "primary"} loading={pending} data-guide="tender.close.confirm" style={{ flex: "1 1 160px", minHeight: 44 }} onClick={() => confirmClose(false)}>Confirm</Button>
+                {offerProject && (
+                  <Button variant="primary" loading={pending} data-guide="tender.close.create_project" style={{ flex: "1 1 160px", minHeight: 44 }} onClick={() => confirmClose(true)}>Create contract project now</Button>
                 )}
               </div>
             </Card>

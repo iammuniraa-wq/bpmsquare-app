@@ -35,7 +35,7 @@ function Entry({ e }: { e: ApprovalEntry }) {
  * approves or rejects with a comment. The server enforces the rest (who may decide, and that the stage cannot move on
  * without the approval); this component only mirrors it. Decisions saved before approval existed stay readable.
  */
-export default function BidDecision({ opportunityId, tender, approval, onError, onNotice, onDone }: {
+export default function BidDecision({ opportunityId, tender, approval, onError, onNotice, onDone, onSaved }: {
   opportunityId: string;
   tender: TenderView;
   approval: ApprovalView | null;
@@ -43,6 +43,8 @@ export default function BidDecision({ opportunityId, tender, approval, onError, 
   onNotice: (message: string) => void;
   /** Called after a proposal, approval, rejection or withdrawal was saved (the marker closes its panel). */
   onDone?: () => void;
+  /** Called after the same save: the page re-reads the decision (marker, primary button) and refreshes. Without it this component refreshes the route itself. */
+  onSaved?: () => void;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -62,7 +64,7 @@ export default function BidDecision({ opportunityId, tender, approval, onError, 
       else onNotice(ok);
       after?.();
       onDone?.();
-      router.refresh();
+      if (onSaved) onSaved(); else router.refresh();
     });
   }
 

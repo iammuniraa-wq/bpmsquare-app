@@ -20,6 +20,7 @@ export const ESTIMATE_TIPS = {
   reviewLocked: "A supplier price was awarded after the bid went in, so the rate was left alone. Re-price on purpose if you revise the bid.",
   missing: "Estimate lines with no cost, or a cost older than your RFQ price validity. Ask suppliers about them in one RFQ, to as many suppliers as you like.",
   missingRfq: "Opens the RFQ form with these lines. When you award a line, the supplier's price goes into the estimate and the BOQ lines priced from it.",
+  costForBoq: "The saved estimate's cost lines, overhead included, before margin and VAT. A BOQ line takes its share divided by its quantity, plus its own markup.",
   cost: "The estimate cost behind this rate. It is internal and never in the priced Excel, the answer sheet or a bid version.",
   unlink: "Removes the link. The line keeps its rate and counts as a manual rate until you price it again.",
   tenderStrip: "This estimate belongs to a tender. Its totals can price the tender's BOQ lines.",

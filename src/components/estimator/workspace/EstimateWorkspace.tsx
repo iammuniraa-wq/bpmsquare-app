@@ -26,7 +26,7 @@ import FenceCard from "./FenceCard";
 import { fenceViewOf } from "@/lib/estimator/fenceView";
 import { previewKindFor, wordsFor, opensWithDefaults } from "./layoutKind";
 import { EstimateFocusContext } from "./focus";
-import { isDirty, shownFromPreview } from "./shown";
+import { carriedUnitCosts, isDirty, shownBlank, shownFromPreview } from "./shown";
 import { useEstimateActions } from "./useEstimateActions";
 import { useEstimateDraft } from "./useEstimateDraft";
 import type { DraftInit } from "./useEstimateDraft";
@@ -95,7 +95,7 @@ export default function EstimateWorkspace(p: WorkspaceProps) {
   const dirty = saved ? isDirty(saved.storedParams, params, saved.storedMargin, draft.margin) : true;
   const live = useLivePreview({
     template: t, values: draft.values, margin: draft.margin, vatPct: p.vatPct,
-    fixedUnitCosts: saved?.unitCosts, schedule: saved?.schedule,
+    fixedUnitCosts: carriedUnitCosts(saved, params), schedule: saved?.schedule,
   });
   const act = useEstimateActions({ draft, savedId: saved?.id, savedAccountId: saved?.accountId, savedContactId: saved?.contactId, dirty });
 
@@ -104,7 +104,8 @@ export default function EstimateWorkspace(p: WorkspaceProps) {
   // A new estimate opens blank: no villa and no price until the person starts.
   const blank = !saved && !draft.started && !opensWithDefaults(t?.geometry);
   const view = showStored ? saved.view : blank ? null : preview?.view ?? null;
-  const shown = useMemo(() => (showStored ? saved.shown : shownFromPreview(blank ? null : preview)), [showStored, saved, preview, blank]);
+  // A blank new estimate still draws the model its starting sizes give (no save needed), but shows no price and no cost lines until the person starts.
+  const shown = useMemo(() => (showStored ? saved.shown : blank ? shownBlank(preview) : shownFromPreview(preview)), [showStored, saved, preview, blank]);
   const options = showStored && preview ? shiftOptions(preview.options, saved.view.total - preview.view.total) : blank ? null : preview?.options ?? null;
   const altKey = t ? alternativesInput(t.inputs)?.key : undefined;
   const fenceView = useMemo(() => (t && previewKindFor(t.geometry) === "fence" ? fenceViewOf(shown.model, t.inputs, params) : null), [t, shown.model, params]);
@@ -170,7 +171,11 @@ export default function EstimateWorkspace(p: WorkspaceProps) {
         {!t && <Card padding={16}><div className="bpm-t-help">This estimate&apos;s template was deleted, so its inputs can&apos;t be shown or recalculated. Its lines and totals are kept as they were.</div></Card>}
 
         {blank && editable && (
-          <div className="est-note" role="status">Paste the customer&apos;s email above, or fill in any detail, and the {wordsFor(t?.geometry).subject} and the price appear here.</div>
+          <div className="est-note" role="status">
+            {shown.model
+              ? `The 3D ${wordsFor(t?.geometry).subject} below uses starting sizes and nothing is saved yet. Paste the customer's email above, or change any detail, and it follows, with the price.`
+              : `Paste the customer's email above, or fill in any detail, and the ${wordsFor(t?.geometry).subject} and the price appear here.`}
+          </div>
         )}
 
         <div className="est-grid">

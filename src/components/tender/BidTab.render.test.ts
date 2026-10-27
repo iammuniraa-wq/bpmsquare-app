@@ -91,6 +91,19 @@ describe("Documents we send", () => {
     expect(src).toContain("/convert`");
   });
 
+  it("the Version select defaults to the LATEST version, even after a newer one arrives or the list is in another order (live bug OPP-0015)", () => {
+    const selected = (versions: unknown[]) => {
+      const out = bid({ canMakeQuote: true, data: bids({ versions: versions as never }) });
+      return out.slice(out.indexOf('data-guide="tender.bid.quote_version"')).match(/<option value="(\d+)"[^>]*selected/)?.[1];
+    };
+    expect(selected([ver(3, 7000), ver(2, 6500), ver(1, 6600)])).toBe("3");
+    expect(selected([ver(2, 6500), ver(3, 7000), ver(1, 6600)])).toBe("3");
+    expect(selected([ver(1, 6600)])).toBe("1");
+    const src = read("src/components/tender/BidDocuments.tsx");
+    expect(src).toContain("defaultQuoteVersion(versions, picked)");
+    expect(src).not.toMatch(/useState\(String\(versions\[0\]/);
+  });
+
   it("with no version yet it says to submit a bid first, and offers no button", () => {
     const out = bid({ canMakeQuote: true, data: bids({ versions: [] }) });
     expect(out).toContain("Submit a bid first");
