@@ -16,6 +16,7 @@ import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import Field from "@/components/ui/Field";
 import { Input, Select, Textarea } from "@/components/ui/Input";
+import { hasClientItemNumbers } from "@/lib/sales/lineItemNumbers";
 import DocumentLinesEditor, { newLine, lineAmount, type Line, type PrintOptions, type StandardQuoteProduct } from "@/components/sales/DocumentLinesEditor";
 
 export type { StandardQuoteProduct };
@@ -85,6 +86,7 @@ export default function StandardQuoteForm({
           // and edits the loaded lines. See resolveLineIdsAndSelection for
           // why a fresh save can never rely on ids surviving beyond it.
           id: l.id,
+          sl_no: hasClientItemNumbers(editQuote.lines) ? l.sl_no ?? undefined : undefined,
           description: l.description, uom: l.uom ?? "Nos",
           qty: String(l.qty), rate: String(l.rate), discount_pct: String(l.discount_pct),
           product_id: l.product_id ?? "", pricing_document_id: l.pricing_document_id ?? "", rfq_line_id: l.rfq_line_id ?? "",
@@ -186,6 +188,7 @@ export default function StandardQuoteForm({
     // real row id.
     const linePayload = cleanLines.map((l) => ({
       local_id: l.id,
+      sl_no: l.sl_no || undefined,
       description: l.description, uom: l.uom, qty: l.qty, rate: l.rate, discount_pct: l.discount_pct,
       product_id: l.product_id || null, pricing_document_id: l.pricing_document_id || null, rfq_line_id: l.rfq_line_id || null,
       group_id: l.group_id || null, group_label: l.group_label || null, group_type: l.group_type || null,

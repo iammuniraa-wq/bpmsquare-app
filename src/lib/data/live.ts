@@ -161,7 +161,8 @@ export async function getStandardQuoteLive(id: string) {
 
   return {
     quote: quote as StandardQuote,
-    lines: (lines ?? []) as StandardQuoteLine[],
+    // sl_no is text, so the database sorts "10" before "2"; a client's own numbers (1.10, 2.3) need the natural order.
+    lines: [...((lines ?? []) as StandardQuoteLine[])].sort((a, b) => (a.sl_no ?? "").localeCompare(b.sl_no ?? "", undefined, { numeric: true })),
     account: decryptedAccount,
     contact: decryptedContact,
     template: (template as StandardQuoteTemplate | null) ?? null,
