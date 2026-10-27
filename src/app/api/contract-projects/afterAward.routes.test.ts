@@ -636,6 +636,47 @@ describe("invoicing milestones", () => {
     expect((await milestoneDelete(json("DELETE"), mctx(p.id, id))).status).toBe(409);
   });
 
+  it("tax: the line is the amount before tax; a Saudi e-invoicing workspace is told VAT 15% comes on top, with the figures", async () => {
+    state.features = { ...state.features, einvoicing_ksa: true };
+    const p = await fromTender();
+    await add(p, { title: "Advance", basis: "percent", percent: 20 });
+    const data = await (await milestonesGet(get(), ctx(p.id))).json();
+    expect(data.tax).toEqual({ kind: "added", label: "VAT", rate: 15, source: "einvoice" });
+    expect((await milestoneInvoice(json("POST"), mctx(p.id, String(ms()[0].id)))).status).toBe(201);
+    const sent = state.invoicePosts[0] as { lines: { rate: number }[]; notes: string };
+    expect(sent.lines).toHaveLength(1);
+    expect(sent.lines[0].rate).toBe(20000);
+    expect(sent.notes).toContain("Amount before VAT: ");
+    expect(sent.notes).toContain("20,000.00");
+    expect(sent.notes).toContain("VAT 15%: ");
+    expect(sent.notes).toContain("3,000.00");
+    expect(sent.notes).toContain("Total with VAT: ");
+    expect(sent.notes).toContain("23,000.00");
+  });
+
+  it("tax: another workspace sees its own tax setting added on top, and one with amounts including tax adds nothing", async () => {
+    state.config = { tax: { label: "GST", rate: 18, inclusive: false } };
+    const p = await fromTender();
+    await add(p, { title: "Advance", basis: "percent", percent: 10 });
+    expect((await (await milestonesGet(get(), ctx(p.id))).json()).tax).toEqual({ kind: "added", label: "GST", rate: 18, source: "workspace" });
+    await milestoneInvoice(json("POST"), mctx(p.id, String(ms()[0].id)));
+    expect(String(state.invoicePosts[0].notes)).toContain("GST 18%: ");
+    expect(String(state.invoicePosts[0].notes)).toContain("11,800.00");
+    state.config = { tax: { label: "VAT", rate: 5, inclusive: true } };
+    expect((await (await milestonesGet(get(), ctx(p.id))).json()).tax).toEqual({ kind: "included", label: "VAT", rate: 5 });
+  });
+
+  it("tax: a workspace with no tax set says so on the schedule and in the invoice's notes, and the amount is still the milestone amount", async () => {
+    const p = await fromTender();
+    await add(p, { title: "Advance", basis: "percent", percent: 30 });
+    expect((await (await milestonesGet(get(), ctx(p.id))).json()).tax).toEqual({ kind: "none" });
+    await milestoneInvoice(json("POST"), mctx(p.id, String(ms()[0].id)));
+    const sent = state.invoicePosts[0] as { lines: { rate: number }[]; notes: string };
+    expect(sent.lines[0].rate).toBe(30000);
+    expect(sent.notes).toContain("No tax configured");
+    expect(sent.notes).not.toContain("Total with");
+  });
+
   it("a second click, or two people at once, cannot make a second invoice", async () => {
     const p = await fromTender();
     await add(p, { title: "Advance", basis: "percent", percent: 30 });

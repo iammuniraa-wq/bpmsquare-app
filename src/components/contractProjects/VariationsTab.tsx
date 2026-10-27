@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { c } from "@/lib/theme";
 import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
@@ -13,6 +12,7 @@ import { PROJECT_TIPS } from "@/lib/contractProjects/tips";
 import { VARIATION_STATUS_LABEL, VARIATION_TONE } from "@/lib/contractProjects/variations";
 import type { VariationsData, VariationView } from "@/lib/contractProjects/variationsServer";
 import VariationPanel, { type VariationOutcome } from "./VariationPanel";
+import { useReloaded } from "./useReloaded";
 
 // The Variations tab of a contract project (migration 0231): the client's changes after the award. Three tiles, one table, and the side
 // panel to add or look at one. Approving a variation moves the contract value, so the page is refreshed after every change.
@@ -34,13 +34,14 @@ export function outcomeSentence(o: VariationOutcome, currency: string | null): s
   }
 }
 
-export default function VariationsTab({ projectId, data, initialPanel }: {
+export default function VariationsTab({ projectId, data: fromServer, initialPanel }: {
   projectId: string;
   data: VariationsData;
   /** Lets a server render (and its test) show the tab with a panel open. The page never passes it. */
   initialPanel?: { id?: string };
 }) {
-  const router = useRouter();
+  // Every change reloads the list and the tiles here, then refreshes the page (the contract value, budget and Revisions count are the page's).
+  const { data, reload } = useReloaded<VariationsData>(`/api/contract-projects/${projectId}/variations`, fromServer);
   const [panel, setPanel] = useState<{ id?: string } | null>(initialPanel ?? null);
   const [showAll, setShowAll] = useState(false);
   const [notice, setNotice] = useState("");
@@ -53,7 +54,7 @@ export default function VariationsTab({ projectId, data, initialPanel }: {
   const list = showAll ? data.variations : data.variations.slice(0, PAGE);
   const open = panel?.id ? data.variations.find((v) => v.id === panel.id) : undefined;
   const closePanel = () => setPanel(null);
-  const changed = () => { setPanel(null); router.refresh(); };
+  const changed = (opts?: { keepOpen?: boolean }) => { if (!opts?.keepOpen) setPanel(null); void reload(); };
 
   return (
     <div data-guide="cp.variations" style={{ display: "flex", flexDirection: "column", gap: 14 }}>

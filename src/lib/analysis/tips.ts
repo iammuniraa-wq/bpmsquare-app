@@ -17,4 +17,6 @@ export const ANALYSIS_EMPTY = {
   needsWeb: "Needs web research",
   notInSystem: "Not in your system yet",
   pending: "Not saved: database update pending",
+  /** The search returned items, but none could be confirmed as this company's, so none are shown. */
+  unverified: (n: number, name: string) => `The search returned ${n} ${n === 1 ? "item" : "items"} that could not be confirmed as ${name}, so none ${n === 1 ? "is" : "are"} shown.`,
 } as const;

@@ -11,6 +11,7 @@ import { money } from "@/lib/contractProjects/format";
 import { MILESTONE_LIMITS, MILESTONE_STATUS_LABEL, MILESTONE_TONE, amountEditable, type MilestoneStatus } from "@/lib/contractProjects/milestones";
 import type { MilestoneView } from "@/lib/contractProjects/milestonesServer";
 import { PROJECT_TIPS } from "@/lib/contractProjects/tips";
+import { taxBasisText, taxOn, type MilestoneTax } from "@/lib/contractProjects/milestoneTax";
 
 // Add or edit one invoicing milestone: a side panel on a desktop, a bottom sheet on a phone (the shared SidePanel). The amount is a percent
 // of the contract value as it stands, or a fixed amount, and can change until an invoice exists. The status a person may set by hand is
@@ -30,12 +31,14 @@ export function statusChoices(from: MilestoneStatus): MilestoneStatus[] {
   return ["paid"];
 }
 
-export default function MilestonePanel({ projectId, milestone, contractValue, currency, canEdit, onClose, onChanged }: {
+export default function MilestonePanel({ projectId, milestone, contractValue, currency, tax, canEdit, onClose, onChanged }: {
   projectId: string;
   /** Absent = a new milestone. */
   milestone?: MilestoneView;
   contractValue: number;
   currency: string | null;
+  /** Which tax comes on top of the amount (the amount here is before it). */
+  tax: MilestoneTax;
   canEdit: boolean;
   onClose: () => void;
   onChanged: () => void;
@@ -112,6 +115,9 @@ export default function MilestonePanel({ projectId, milestone, contractValue, cu
           </Field>
         )}
         <div style={{ fontSize: 13, color: c.muted }}>Bills <strong style={{ color: c.ink }}>{money(shown, currency)}</strong>{form.basis === "percent" ? ` of ${money(contractValue, currency)}` : ""}</div>
+        <div data-guide="cp.milestone.tax" style={{ fontSize: 12.5, color: tax.kind === "none" ? "var(--amberink)" : c.hint }}>
+          {taxBasisText(tax)}{tax.kind === "added" ? `. With ${tax.label}: ${money(taxOn(shown, tax).gross, currency, 2)}` : ""}
+        </div>
         {milestone && (
           <Field label="Status" guide="cp.milestone.field.status">
             <Select value={form.status} onChange={set("status")} disabled={!canEdit}>

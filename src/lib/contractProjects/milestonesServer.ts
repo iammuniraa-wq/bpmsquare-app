@@ -3,10 +3,13 @@ import { NextRequest } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { logChange } from "@/lib/changeLog";
 import { getAuthUser } from "@/lib/supabase-server";
-import { tenantHasFeature } from "@/lib/tenant";
+import { getTenant, tenantHasFeature } from "@/lib/tenant";
+import { einvoicingOn } from "@/lib/einvoicing/gate";
 import { accountInTenant } from "@/lib/tender/server";
 import { isMissingSchema, UUID_RE, type Failure, type ProjectCtx } from "./server";
 import type { ProjectRow } from "./types";
+import { money } from "./format";
+import { resolveMilestoneTax, taxNote, type MilestoneTax } from "./milestoneTax";
 import {
   INVOICE_MILESTONE_KEY, INVOICE_PROJECT_KEY, MILESTONE_LIMITS, amountEditable, effectiveStatus, invoiceBody, invoiceProblem, isRemovable, milestoneAmount, milestoneTotals,
   statusChangeProblem, type MilestoneInput, type MilestoneRow, type MilestoneStatus, type MilestoneTotals,
@@ -46,6 +49,8 @@ export type MilestonesData = {
   /** The invoices module is on for this workspace (otherwise "Create invoice" is not offered). */
   invoicesOn: boolean;
   hasCustomer: boolean;
+  /** Which tax comes on top of a milestone amount (the amounts shown are before it). */
+  tax: MilestoneTax;
 };
 
 export async function loadMilestones(admin: SupabaseClient, tenantId: string, projectId: string): Promise<{ rows: MilestoneRow[]; pending: boolean }> {
@@ -71,11 +76,17 @@ async function invoicesOf(admin: SupabaseClient, tenantId: string, ids: readonly
   return out;
 }
 
+/** The tax that comes on top of an invoice amount in this workspace: the same sources the invoices object uses (e-invoice VAT, else the workspace tax setting). */
+export async function workspaceMilestoneTax(): Promise<MilestoneTax> {
+  const tenant = await getTenant();
+  return resolveMilestoneTax({ einvoicing: einvoicingOn(tenant?.features, tenant?.config), tax: tenant?.config?.tax });
+}
+
 export async function buildMilestonesData(req: ProjectCtx, project: ProjectRow): Promise<MilestonesData> {
   const { admin, supabase, tenantId } = req;
   const invoicesOn = await tenantHasFeature(supabase, tenantId, "invoices");
   const { rows, pending } = await loadMilestones(admin, tenantId, project.id);
-  const base = { currency: project.currency, canEdit: req.canEdit, invoicesOn, hasCustomer: !!project.account_id };
+  const base = { currency: project.currency, canEdit: req.canEdit, invoicesOn, hasCustomer: !!project.account_id, tax: await workspaceMilestoneTax() };
   if (pending) return { milestones: [], totals: milestoneTotals([], project.contract_value), pending: true, ...base };
   const inv = await invoicesOf(admin, tenantId, rows.map((r) => r.invoice_id));
   const withInvoice = rows.map((r) => ({ ...r, invoice_status: r.invoice_id ? inv.get(r.invoice_id)?.status ?? null : null }));
@@ -184,7 +195,10 @@ export async function createMilestoneInvoice(req: ProjectCtx, project: ProjectRo
     const { POST } = await import("@/app/api/invoices/route");
     const res = await POST(new NextRequest(new URL("/api/invoices", "http://internal.invalid"), {
       method: "POST", headers: { "content-type": "application/json" },
-      body: JSON.stringify(invoiceBody({ accountId: project.account_id, projectRef: project.ref, projectName: project.name, milestone: current, amount })),
+      body: JSON.stringify(invoiceBody({
+        accountId: project.account_id, projectRef: project.ref, projectName: project.name, milestone: current, amount,
+        taxNote: taxNote(await workspaceMilestoneTax(), amount, (n) => money(n, project.currency, 2)),
+      })),
     }));
     const j = (await res.json().catch(() => ({}))) as { id?: string; ref?: string; error?: string };
     if (res.ok && j.id) invoice = { id: j.id, ref: j.ref ?? null };

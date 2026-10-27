@@ -167,6 +167,7 @@ export default function CostingTab({ opportunityId, canEdit, onError, onNotice, 
                 canEdit={canEdit && data.can_edit} canAward={canEdit && data.can_award} rfqsOn={data.rfqs_on && !data.pending_rfqs}
                 onOpenBoq={onOpenBoq ? () => onOpenBoq() : undefined}
                 onCompare={setCompareId} onPriceAwarded={setCompareId} onPriceRows={setPriceRowsFor} onReprice={(id) => void reprice(id)}
+                onRfqCreated={() => { onNotice?.("RFQ created"); afterChange(); }}
                 busy={busy} comparing={compareId === item.id}
               />
             ))}

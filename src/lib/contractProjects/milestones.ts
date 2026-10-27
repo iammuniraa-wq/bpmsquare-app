@@ -173,12 +173,13 @@ export function invoiceProblem(args: { milestone: Pick<MilestoneRow, "status" | 
 }
 
 /** The body of the invoice (the shape POST /api/invoices takes): one line for the milestone, due on its due date, noting where it came from. */
-export function invoiceBody(args: { accountId: string; projectRef: string | null; projectName: string; milestone: Pick<MilestoneRow, "title" | "due_date">; amount: number }) {
+export function invoiceBody(args: { accountId: string; projectRef: string | null; projectName: string; milestone: Pick<MilestoneRow, "title" | "due_date">; amount: number; taxNote?: string }) {
   const where = [args.projectRef, args.projectName].filter(Boolean).join(" ");
   return {
     account_id: args.accountId,
     due_date: args.milestone.due_date ?? null,
-    notes: `Contract project ${where} · milestone: ${args.milestone.title}`.slice(0, 1000),
+    // The line is the NET amount (the invoices object stores net lines everywhere); the note says which tax comes on top, or that none is set.
+    notes: [`Contract project ${where} · milestone: ${args.milestone.title}`, args.taxNote].filter(Boolean).join(". ").slice(0, 1000),
     lines: [{ sl_no: "1", description: `${args.milestone.title} (${where})`.slice(0, 500), uom: "lot", qty: 1, rate: args.amount }],
   };
 }

@@ -33,7 +33,8 @@ export default function VariationPanel({ projectId, variation, currency, canEdit
   currency: string | null;
   canEdit: boolean;
   onClose: () => void;
-  onChanged: () => void;
+  /** Something was saved on the server: reload the list and the page. `keepOpen` when the panel stays up (a save went through, a later step failed). */
+  onChanged: (opts?: { keepOpen?: boolean }) => void;
   onOutcome?: (o: VariationOutcome) => void;
 }) {
   const [form, setForm] = useState<Form>(variation ? fromVariation(variation) : blank);
@@ -76,7 +77,9 @@ export default function VariationPanel({ projectId, variation, currency, canEdit
   const onSend = () => run("send", async () => {
     const id = await save();
     if (!id) return false;
-    return (await call(`${base}/${id}`, "PATCH", { action: "submit" })).ok;
+    const sent = (await call(`${base}/${id}`, "PATCH", { action: "submit" })).ok;
+    if (!sent) onChanged({ keepOpen: true });
+    return sent;
   });
   const onRemove = () => run("remove", async () => (await call(`${base}/${variation!.id}`, "DELETE")).ok);
   const onWithdraw = () => run("withdraw", async () => (await call(`${base}/${variation!.id}`, "PATCH", { action: "withdraw" })).ok);

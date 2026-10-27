@@ -13,7 +13,7 @@ import { readAnalysis, saveAnalysis, type CacheRow } from "./cache";
 import { dayStartIso, expiresAtFor, isFresh, refreshBlockedUntil, resolveDailyLimit } from "./budget";
 import { cardId, composeCard, toStored, type StoredResearch } from "./compose";
 import { loadLive, ACCOUNT_COLUMNS, type AccountRow, type LiveCtx } from "./loadLive";
-import { runCompanyResearch, type ResearchRun } from "./research";
+import { AnalysisResearchError, NO_KEY, runCompanyResearch, type ResearchRun } from "./research";
 import { keyOfSubject, toSubject, type Subject, type SubjectInput } from "./subject";
 import { checkWebsite, type SiteCheck } from "./website";
 import { ANALYSIS_EMPTY } from "./tips";
@@ -80,7 +80,10 @@ const SENTENCE_SCHEMA = {
 export function defaultDeps(): AnalyseDeps {
   return {
     now: () => new Date(),
-    research: (subject, topics) => runCompanyResearch(new Anthropic(), subject, topics),
+    research: (subject, topics) => {
+      if (!process.env.ANTHROPIC_API_KEY) throw new AnalysisResearchError(NO_KEY);
+      return runCompanyResearch(new Anthropic(), subject, topics);
+    },
     website: (d) => checkWebsite(d),
     allowance: allowanceFor,
     live: loadLive,
@@ -268,8 +271,10 @@ export async function analyseCompany(a: AnalysisAccess, input: AnalyseInput, dep
 
   const computedAt = now.toISOString();
   const expiresAt = expiresAtFor(now);
+  // Items the search returned that could not be tied to this company (no checkable source, or another company): counted so the card can say so.
+  const unverified = v.checkThese.length + v.dropped.filter((d) => d.reason === "uncited" || d.reason === "no_source" || d.reason === "not_https" || d.reason === "other_company").length;
   const stored: StoredResearch = {
-    v: 1, claims: [...v.doing, ...v.happening], checkThese: v.checkThese, size: v.size, people: v.people, sources: v.sources,
+    v: 1, claims: [...v.doing, ...v.happening], checkThese: v.checkThese, size: v.size, people: v.people, sources: v.sources, ...(unverified > 0 ? { unverified } : {}),
     sentence: null, snapshot: { claims: [], fit: "unknown", stage: "quiet", verdict: "not_enough" },
   };
   const base = {
@@ -283,7 +288,7 @@ export async function analyseCompany(a: AnalysisAccess, input: AnalyseInput, dep
   const sentence = await deps.phrase(a, phraseInput(card.verdict));
   if (sentence) card.verdict = { ...card.verdict, sentence: { text: sentence, byAi: true } };
 
-  const toKeep = toStored({ claims: card.internal.claims, checkThese: v.checkThese, size: v.size, people: v.people, sources: v.sources, card });
+  const toKeep = toStored({ claims: card.internal.claims, checkThese: v.checkThese, size: v.size, people: v.people, sources: v.sources, unverified, card });
   const save = await saveAnalysis(a.admin, {
     tenantId: a.tenantId, companyKey: key, accountId: account?.id ?? null, name: subject.name, domain: subject.domain,
     data: toKeep, previous: row?.data ?? null, changes: card.changes ?? [], version: (row?.version ?? 0) + 1,

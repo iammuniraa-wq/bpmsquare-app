@@ -16,6 +16,10 @@ export class AnalysisResearchError extends Error {}
 
 export const MAX_SEARCHES = 3;
 
+export const NO_ANSWER = "The web research did not give a readable answer, so nothing was saved. Try again in a moment.";
+export const NO_SEARCH = "The web search did not run or read any page, so nothing was saved. Try again; if it keeps happening, ask your administrator to check that web search is enabled for the AI service.";
+export const NO_KEY = "Web research is not set up on this server: no AI service key is configured. Ask your administrator.";
+
 // A research turn that runs past the route's limit is killed by the platform and the person sees a bare failure; this
 // ends it first, with a message. The faster model keeps a three-search turn well inside it.
 export const RESEARCH_TIMEOUT_MS = 80_000;
@@ -151,9 +155,16 @@ export async function runCompanyResearch(client: MessagesClient, subject: Subjec
   }
   const searches = countSearches(usage, content);
   const raw = parseResearchJson(content);
-  if (raw === null) console.error("Company analysis research returned no JSON; stop_reason:", response?.stop_reason, "blocks:", content.map((b) => b.type).join(","));
+  const citations = collectCitations(content);
+  // Neither of these is "a quiet company". An answer that could not be read, or a run that read no page at all, used to become a thin card that
+  // was then saved and reused for seven days. Now the person is told, nothing is saved, and the daily slot is given back.
+  if (raw === null) {
+    console.error("Company analysis research returned no JSON; stop_reason:", response?.stop_reason, "blocks:", content.map((b) => b.type).join(","));
+    throw new AnalysisResearchError(NO_ANSWER);
+  }
+  if (searches === 0 && citations.length === 0) throw new AnalysisResearchError(NO_SEARCH);
   return {
-    raw, citations: collectCitations(content), searches, usage: usage as unknown as ApiUsage,
+    raw, citations, searches, usage: usage as unknown as ApiUsage,
     model: response?.model ?? smallModel(), tokens: researchTokens(usage as unknown as ApiUsage, searches),
   };
 }
