@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { c } from "@/lib/theme";
 import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
@@ -14,7 +13,9 @@ import { day, money } from "@/lib/contractProjects/format";
 import { MILESTONE_STATUS_LABEL, MILESTONE_TONE } from "@/lib/contractProjects/milestones";
 import type { MilestonesData, MilestoneView } from "@/lib/contractProjects/milestonesServer";
 import { PROJECT_TIPS } from "@/lib/contractProjects/tips";
+import { taxBasisText, taxOn } from "@/lib/contractProjects/milestoneTax";
 import MilestonePanel from "./MilestonePanel";
+import { useReloaded } from "./useReloaded";
 
 // The Invoicing tab of a contract project (migration 0232): the billing schedule. Three tiles, a warning that stays visible when the
 // schedule is out of step with the contract, one table, and the side panel to add or edit a milestone. "Create invoice" on a row makes
@@ -23,14 +24,15 @@ import MilestonePanel from "./MilestonePanel";
 const PAGE = 10;
 const th: React.CSSProperties = { textAlign: "left", fontSize: 11, color: c.hint, textTransform: "uppercase", letterSpacing: 0.4, padding: "9px 12px", background: c.panel2, fontWeight: 600 };
 
-export default function InvoicingTab({ projectId, data, projectClosed = false, initialPanel }: {
+export default function InvoicingTab({ projectId, data: fromServer, projectClosed = false, initialPanel }: {
   projectId: string;
   data: MilestonesData;
   projectClosed?: boolean;
   /** Lets a server render (and its test) show the tab with a panel open. The page never passes it. */
   initialPanel?: { id?: string };
 }) {
-  const router = useRouter();
+  // Every change reloads the schedule and the tiles here, then refreshes the page.
+  const { data, reload } = useReloaded<MilestonesData>(`/api/contract-projects/${projectId}/milestones`, fromServer);
   const [panel, setPanel] = useState<{ id?: string } | null>(initialPanel ?? null);
   const [showAll, setShowAll] = useState(false);
   const [busyId, setBusyId] = useState("");
@@ -45,16 +47,16 @@ export default function InvoicingTab({ projectId, data, projectClosed = false, i
   const list = showAll ? data.milestones : data.milestones.slice(0, PAGE);
   const open = panel?.id ? data.milestones.find((m) => m.id === panel.id) : undefined;
   const canInvoice = data.canEdit && data.invoicesOn && data.hasCustomer && !projectClosed;
-  const changed = () => { setPanel(null); router.refresh(); };
+  const changed = () => { setPanel(null); void reload(); };
 
   async function createInvoice(m: MilestoneView) {
     setError(""); setNotice(""); setBusyId(m.id);
     try {
       const res = await fetch(`/api/contract-projects/${projectId}/milestones/${m.id}/invoice`, { method: "POST" });
       const j = await res.json().catch(() => ({}));
-      if (!res.ok) { setError(j.error ?? "Could not create the invoice"); return; }
+      if (!res.ok) { setError(j.error ?? "Could not create the invoice"); await reload(); return; }
       setNotice(`Draft invoice ${j.invoice_ref ?? ""} created for ${m.title}.`.replace("  ", " "));
-      router.refresh();
+      await reload();
     } finally { setBusyId(""); }
   }
 
@@ -82,7 +84,7 @@ export default function InvoicingTab({ projectId, data, projectClosed = false, i
             <table data-guide="cp.invoicing.table" style={{ width: "100%", minWidth: 600, borderCollapse: "collapse" }}>
               <thead>
                 <tr>
-                  <th style={th}>Milestone</th><th style={{ ...th, textAlign: "right" }}>Amount</th><th style={th}>Status</th><th style={th}>Invoice</th>
+                  <th style={th}>Milestone</th><th style={{ ...th, textAlign: "right" }}>Amount before tax</th><th style={th}>Status</th><th style={th}>Invoice</th>
                 </tr>
               </thead>
               <tbody>
@@ -98,6 +100,9 @@ export default function InvoicingTab({ projectId, data, projectClosed = false, i
                     <td style={{ padding: "8px 12px", textAlign: "right", fontVariantNumeric: "tabular-nums", fontSize: 13 }}>
                       {money(m.amount, cur)}
                       {m.basis === "percent" && <span style={{ display: "block", fontSize: 12, color: c.hint }}>{m.percent}%</span>}
+                      <span data-guide="cp.milestone.tax" style={{ display: "block", fontSize: 12, color: data.tax.kind === "none" ? "var(--amberink)" : c.hint }}>
+                        {data.tax.kind === "added" ? `${taxBasisText(data.tax)}: ${money(taxOn(m.amount, data.tax).gross, cur)} with ${data.tax.label}` : taxBasisText(data.tax)}
+                      </span>
                     </td>
                     <td style={{ padding: "8px 12px" }}><StatusPill label={MILESTONE_STATUS_LABEL[m.display_status]} tone={MILESTONE_TONE[m.display_status]} /></td>
                     <td style={{ padding: "4px 12px", whiteSpace: "nowrap" }}>
@@ -121,7 +126,7 @@ export default function InvoicingTab({ projectId, data, projectClosed = false, i
       </Card>
 
       {panel && (
-        <MilestonePanel key={panel.id ?? "new"} projectId={projectId} milestone={open} contractValue={t.contracted} currency={cur} canEdit={data.canEdit && !projectClosed} onClose={() => setPanel(null)} onChanged={changed} />
+        <MilestonePanel key={panel.id ?? "new"} projectId={projectId} milestone={open} contractValue={t.contracted} currency={cur} tax={data.tax} canEdit={data.canEdit && !projectClosed} onClose={() => setPanel(null)} onChanged={changed} />
       )}
     </div>
   );

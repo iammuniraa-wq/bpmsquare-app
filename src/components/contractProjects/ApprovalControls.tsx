@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { c } from "@/lib/theme";
 import Button from "@/components/ui/Button";
@@ -8,13 +8,14 @@ import InfoTip from "@/components/ui/InfoTip";
 import { Textarea } from "@/components/ui/Input";
 import type { ProjectApprovalView } from "@/lib/contractProjects/approvalServer";
 import { PROJECT_TIPS } from "@/lib/contractProjects/tips";
+import { reloadAfterSave } from "@/components/tender/refreshAfterSave";
 import { day } from "@/lib/contractProjects/format";
 
 /**
  * The approval of the revision being looked at: ask (a draft with lines), decide (an approver), withdraw (the person who asked).
  * A blocker that stops a mistake is printed, not hidden behind an "i". Every action goes to /api/contract-projects/[id]/approval.
  */
-export default function ApprovalControls({ projectId, revisionId, revisionStatus, canEdit, approval, closed }: {
+export default function ApprovalControls({ projectId, revisionId, revisionStatus: statusFromServer, canEdit, approval: approvalFromServer, closed }: {
   projectId: string;
   revisionId: string | null;
   revisionStatus: string | null;
@@ -28,16 +29,29 @@ export default function ApprovalControls({ projectId, revisionId, revisionStatus
   const [error, setError] = useState("");
   const [rejecting, setRejecting] = useState(false);
   const [comment, setComment] = useState("");
+  // What is shown is the approval as last read: the server render gives it, and every action re-reads it at once (the button must not stay
+  // "Ask for approval" until a reload) while the page refreshes for its header tiles and status chip.
+  const [approval, setApproval] = useState(approvalFromServer);
+  const [revisionStatus, setRevisionStatus] = useState(statusFromServer);
+  useEffect(() => { setApproval(approvalFromServer); }, [approvalFromServer]);
+  useEffect(() => { setRevisionStatus(statusFromServer); }, [statusFromServer]);
 
-  function call(url: string, method: string, body: unknown, ok?: () => void) {
+  async function reload() {
+    await reloadAfterSave<{ approval?: ProjectApprovalView | null; revision?: { status: string } | null }>(
+      `/api/contract-projects/${projectId}${revisionId ? `?revision=${revisionId}` : ""}`,
+      (v) => { if (v.approval !== undefined) setApproval(v.approval); if (v.revision !== undefined) setRevisionStatus(v.revision?.status ?? null); },
+      () => router.refresh(),
+    );
+  }
+
+  function call(url: string, method: string, body: unknown) {
     setError("");
     startTransition(async () => {
       const res = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
       const j = await res.json().catch(() => ({}));
-      if (!res.ok) { setError(j.error ?? "That did not work"); return; }
-      ok?.();
+      if (!res.ok) { setError(j.error ?? "That did not work"); await reload(); return; }
       setRejecting(false); setComment("");
-      router.refresh();
+      await reload();
     });
   }
 

@@ -48,7 +48,7 @@ const milestone = (over: Partial<MilestoneView> = {}): MilestoneView => ({
   created_by: "u1", created_at: "", updated_at: "", amount: 31500, display_status: "planned", invoice_ref: null, invoice_status: null, ...over,
 });
 const mdata = (rows: MilestoneView[], over: Partial<MilestonesData> = {}): MilestonesData => ({
-  milestones: rows, totals: milestoneTotals(rows.map((r) => ({ ...r, invoice_status: r.invoice_status })), 105000), currency: "SAR", pending: false, canEdit: true, invoicesOn: true, hasCustomer: true, ...over,
+  milestones: rows, totals: milestoneTotals(rows.map((r) => ({ ...r, invoice_status: r.invoice_status })), 105000), currency: "SAR", pending: false, canEdit: true, invoicesOn: true, hasCustomer: true, tax: { kind: "added", label: "VAT", rate: 15, source: "einvoice" }, ...over,
 });
 const itab = (d: MilestonesData, panel?: { id?: string }, closed = false) => clean(renderToString(createElement(InvoicingTab, { projectId: "p1", data: d, initialPanel: panel, projectClosed: closed })));
 
@@ -202,6 +202,20 @@ describe("the Invoicing tab", () => {
     expect(noCustomer).not.toContain("cp.milestone.create_invoice");
     expect(noCustomer).toContain("no customer yet");
     expect(itab(mdata(rows), undefined, true)).not.toContain("cp.milestone.create_invoice");
+  });
+
+  it("each row says the amount is before tax: with Saudi VAT the figure with VAT, with no tax set 'No tax configured', and the panel says the same", () => {
+    const withVat = itab(mdata(rows));
+    expect(withVat).toContain("Amount before tax");
+    expect(withVat).toContain('data-guide="cp.milestone.tax"');
+    expect(withVat).toContain("Before VAT 15%");
+    expect(withVat).toContain("with VAT");
+    const none = itab(mdata(rows, { tax: { kind: "none" } }));
+    expect(none).toContain("No tax configured");
+    expect(none).not.toContain("with VAT");
+    const panel = itab(mdata(rows), { id: rows[0].id });
+    expect(panel).toContain("Before VAT 15%. With VAT: ");
+    expect(itab(mdata(rows, { tax: { kind: "none" } }), { id: rows[0].id })).toContain("No tax configured");
   });
 
   it("a schedule that passes 100 percent is warned about in plain sight (not behind an i), and nothing is blocked", () => {

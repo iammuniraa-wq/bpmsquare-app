@@ -15,7 +15,7 @@ import MissingRfqButton from "../MissingRfqButton";
 
 const money = (n: number | null | undefined) => (n == null ? "—" : n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
 
-export default function CostingRow({ item, opportunityId, today, canEdit, canAward, rfqsOn, onOpenBoq, onCompare, onPriceRows, onReprice, onPriceAwarded, busy, comparing }: {
+export default function CostingRow({ item, opportunityId, today, canEdit, canAward, rfqsOn, onOpenBoq, onCompare, onPriceRows, onReprice, onPriceAwarded, onRfqCreated, busy, comparing }: {
   item: CostingItem;
   opportunityId: string;
   today: string;
@@ -27,6 +27,8 @@ export default function CostingRow({ item, opportunityId, today, canEdit, canAwa
   onPriceRows: (estimateId: string) => void;
   onReprice: (estimateId: string) => void;
   onPriceAwarded: (rfqId: string) => void;
+  /** An RFQ was raised for this estimate's missing costs: the list reloads and the person stays on Costing. */
+  onRfqCreated?: () => void;
   busy?: boolean;
   comparing?: boolean;
 }) {
@@ -84,7 +86,7 @@ export default function CostingRow({ item, opportunityId, today, canEdit, canAwa
               </Button>
             )}
             {rfqsOn && canEdit && item.missing_count > 0 && !item.locked && (
-              <MissingRfqButton opportunityId={opportunityId} estimateId={item.id} showTip={false} guideId="costing.estimate.rfq" />
+              <MissingRfqButton opportunityId={opportunityId} estimateId={item.id} showTip={false} guideId="costing.estimate.rfq" onCreated={onRfqCreated} />
             )}
           </>
         ) : (

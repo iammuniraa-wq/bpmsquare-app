@@ -45,7 +45,7 @@ export default function CompetitorsTab({ opportunityId, canEdit, onError, onNoti
 
   const load = useCallback(async () => {
     try {
-      const res = await fetch(`/api/opportunities/${opportunityId}/competitors`);
+      const res = await fetch(`/api/opportunities/${opportunityId}/competitors`, { cache: "no-store" });
       const j = await res.json().catch(() => ({}));
       if (!res.ok) { setLoadError(j.error ?? "Could not load the competitors"); return; }
       setLoadError("");

@@ -14,11 +14,13 @@ import { ESTIMATE_TIPS } from "@/lib/tender/estimates/tips";
 
 export type MissingEstimate = { id: string; ref: string | null; name: string; count: number; origin_label: string; lines: ComposerLine[] };
 
-export default function MissingRfqButton({ opportunityId, estimateId, lines, originLabel, label = "Raise RFQ for missing costs", showTip = true, guideId = "tender.estimate.rfq" }: {
+export default function MissingRfqButton({ opportunityId, estimateId, lines, originLabel, label = "Raise RFQ for missing costs", showTip = true, guideId = "tender.estimate.rfq", onCreated }: {
   opportunityId: string; estimateId: string;
   /** Given by a page that already has them; otherwise fetched. */
   lines?: ComposerLine[]; originLabel?: string;
   label?: string; showTip?: boolean; guideId?: string;
+  /** When given, the person stays on this screen after the RFQ is made (the caller reloads); otherwise the new RFQ opens. */
+  onCreated?: () => void;
 }) {
   const [found, setFound] = useState<MissingEstimate | null>(null);
   useEffect(() => {
@@ -44,6 +46,7 @@ export default function MissingRfqButton({ opportunityId, estimateId, lines, ori
         supplierTypeFilter
         disabled={rows.length === 0}
         guideId={guideId}
+        onCreated={onCreated ? () => onCreated() : undefined}
         buttonStyle={{ minHeight: 44, color: c.ink }}
       />
       {showTip && <InfoTip label="raising an RFQ for missing costs">{ESTIMATE_TIPS.missingRfq}</InfoTip>}
