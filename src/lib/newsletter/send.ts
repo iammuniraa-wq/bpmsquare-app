@@ -2,7 +2,7 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { decrypt } from "@/lib/encryption";
 import { canContact, type ContactDecision } from "@/lib/marketing/consent";
-import { contactsForEmails, eventIdentity } from "@/lib/marketing/recipientLookup";
+import { contactsForEmails, eventIdentity, type FoundContact } from "@/lib/marketing/recipientLookup";
 import { isSchemaPending } from "@/lib/marketing/pending";
 import { emitEvent } from "@/lib/events/emit";
 import { EVENTS, type EventSource } from "@/lib/events/catalog";
@@ -156,10 +156,16 @@ type Ctx = Awaited<ReturnType<typeof audienceContext>>;
  * gate, the language. The real send and the before-send audience check both call this, so what the panel
  * promises is what the send does.
  */
-async function decide(d: AudienceInput, ctx: Ctx, candidate: MarketingRecipientCandidate): Promise<Decision> {
-  const skip = (status: string, reason: string, contact: ContactRow | null = null, lang: string | null = null): Decision => ({ kind: "skip", status, reason, contact, lang });
-  if (candidate.marketing_opt_out) return skip("skipped_opt_out", "account_opted_out");
-  if (!candidate.email) return skip("skipped_no_email", "no_email");
+type Gate = (tenantId: string, contactId: string, topic: string | null) => Promise<ContactDecision>;
+type ConsentVerdict = { ok: true; contact: ContactRow } | { ok: false; status: string; reason: string; contact: ContactRow | null };
+
+/** Opt-out, address, the PERSON, then the consent gate: the steps every campaign email passes before anything else is decided. */
+async function consentVerdict(
+  tenantId: string, topic: string | null, ctx: { gate: Gate; byAccount: Map<string, ContactRow[]>; contactByEmail: Map<string, FoundContact> }, candidate: MarketingRecipientCandidate,
+): Promise<ConsentVerdict> {
+  const no = (status: string, reason: string, contact: ContactRow | null = null): ConsentVerdict => ({ ok: false, status, reason, contact });
+  if (candidate.marketing_opt_out) return no("skipped_opt_out", "account_opted_out");
+  if (!candidate.email) return no("skipped_no_email", "no_email");
 
   const email = norm(candidate.email);
   let contact: ContactRow | null = null;
@@ -170,12 +176,38 @@ async function decide(d: AudienceInput, ctx: Ctx, candidate: MarketingRecipientC
     const found = ctx.contactByEmail.get(email);
     contact = found ? { ...found, email: found.email } : null;
   }
-  if (!contact) return skip("skipped_no_contact", "no_contact");
+  if (!contact) return no("skipped_no_contact", "no_contact");
   // Present only once the address-health column exists; a bounced or complained address is never mailed again.
-  if (contact.email_status === "bounced" || contact.email_status === "complained") return skip("skipped_no_consent", contact.email_status, contact);
+  if (contact.email_status === "bounced" || contact.email_status === "complained") return no("skipped_no_consent", contact.email_status, contact);
 
-  const decision = await ctx.gate(d.tenantId, contact.id, d.campaign.topic);
-  if (!decision.ok) return skip("skipped_no_consent", decision.reason, contact);
+  const decision = await ctx.gate(tenantId, contact.id, topic);
+  if (!decision.ok) return no("skipped_no_consent", decision.reason, contact);
+  return { ok: true, contact };
+}
+
+/**
+ * The same per-person consent decision for a campaign that is NOT a newsletter (the plain campaign send).
+ * Returns a function to call once per recipient, in order; the contact lookups are done once up front.
+ */
+export async function plainCampaignConsent(d: {
+  admin: SupabaseClient; tenantId: string; topic: string | null; candidates: MarketingRecipientCandidate[]; gate?: Gate;
+}): Promise<(candidate: MarketingRecipientCandidate) => Promise<ConsentVerdict>> {
+  const gate: Gate = d.gate ?? ((t, c, topic) => canContact(t, c, "email", topic, d.admin));
+  const accountIds = [...new Set(d.candidates.map((c) => c.account_id).filter((x): x is string => !!x))];
+  const withStatus = await hasEmailStatus(d.admin, d.tenantId);
+  const accountContacts = await contactsOfAccounts(d.admin, d.tenantId, accountIds, withStatus);
+  const byAccount = new Map<string, ContactRow[]>();
+  for (const c of accountContacts) byAccount.set(c.account_id, [...(byAccount.get(c.account_id) ?? []), c]);
+  for (const list of byAccount.values()) list.sort((a, b) => (a.created_at ?? "").localeCompare(b.created_at ?? ""));
+  const { contactByEmail } = await contactsForEmails(d.admin, d.tenantId, d.candidates.flatMap((c) => (c.manual_email ? [c.manual_email] : [])));
+  return (candidate) => consentVerdict(d.tenantId, d.topic, { gate, byAccount, contactByEmail }, candidate);
+}
+
+async function decide(d: AudienceInput, ctx: Ctx, candidate: MarketingRecipientCandidate): Promise<Decision> {
+  const skip = (status: string, reason: string, contact: ContactRow | null = null, lang: string | null = null): Decision => ({ kind: "skip", status, reason, contact, lang });
+  const verdict = await consentVerdict(d.tenantId, d.campaign.topic, ctx, candidate);
+  if (!verdict.ok) return skip(verdict.status, verdict.reason, verdict.contact);
+  const { contact } = verdict;
 
   const choice = resolveRecipientLanguage({
     contactLanguage: contact.preferred_language, accountLanguage: ctx.accountLangs.get(contact.account_id) ?? null, included: ctx.included, fallback: d.campaign.fallback_language,

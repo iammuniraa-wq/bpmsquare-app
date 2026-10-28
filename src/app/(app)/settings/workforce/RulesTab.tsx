@@ -83,7 +83,7 @@ export default function RulesTab({ cfg, savedCodes, shifts, onChange }: {
 
         <Field label="Selfie with a punch" info={T.selfie}>
           <Select value={cfg.selfie_mode} onChange={(e) => onChange({ selfie_mode: e.target.value as WfmConfig["selfie_mode"] })}>
-            <option value="shift">Check in, check out, trips</option>
+            <option value="shift">Check in, check out, breaks, trips</option>
             <option value="all">Every punch</option>
             <option value="off">Never</option>
           </Select>

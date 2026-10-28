@@ -194,7 +194,7 @@
     },
     {
       "key": "marketing_attribution",
-      "comment": "Attribution (0190-0192, docs/shells/attribution-shell.md): \"Revenue by campaign\", the deals and revenue each campaign, newsletter, form, journey, WhatsApp template and event started or touched, by first touch, last touch"
+      "comment": "Attribution (0190-0192, docs/shells/attribution-shell.md): \"Revenue by source\", the deals and revenue each campaign, newsletter, form, journey, WhatsApp template and event touched, by first touch, last touch or linear."
     },
     {
       "key": "marketing_events",

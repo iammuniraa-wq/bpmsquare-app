@@ -157,7 +157,7 @@ export default function PeopleClient() {
         ) : shown.length === 0 ? (
           <EmptyState title={query ? "No one matches" : "No one here yet"} text={query ? undefined : "Invite a colleague to give them access."} />
         ) : (
-          <PeopleRows items={shown} roles={roles} onOpen={(p) => setSel({ kind: "person", id: p.userId })} />
+          <PeopleRows items={shown} roles={roles} employees={businessRoles ? data.employees : undefined} onOpen={(p) => setSel({ kind: "person", id: p.userId })} />
         )}
       </div>
 

@@ -14,6 +14,7 @@ import { AdminOnlyNotice, Section, useSavedFlash } from "@/components/settings/g
 import WebhooksPanel from "./WebhooksPanel";
 import { useWebhooksLibrary } from "../webhooks/flag";
 import { WEBHOOKS_ROUTE } from "../webhooks/logic";
+import { Notice } from "../middleware/ui";
 
 export default function WebhooksAndPushPage() {
   const tenant = useTenant();
@@ -27,7 +28,10 @@ export default function WebhooksAndPushPage() {
   const pushConfig = (tenant?.config as TenantConfig | undefined)?.integration_push;
   const [pushUrl, setPushUrl] = useState(pushConfig?.webhook_url ?? "");
   const [storedUrl, setStoredUrl] = useState((pushConfig?.webhook_url ?? "").trim());
-  const [pushSecret, setPushSecret] = useState(pushConfig?.webhook_secret ?? "");
+  // The stored secret never reaches this screen: it is told only that one is set, and sees the value once, when it is generated.
+  const [hasSecret, setHasSecret] = useState(Boolean(pushConfig?.webhook_secret));
+  const [revealedSecret, setRevealedSecret] = useState("");
+  const [copied, setCopied] = useState(false);
   const [pushSaving, startPushSave] = useTransition();
   const [pushSecretSaving, startPushSecretSave] = useTransition();
   const [pushSaved, flashPushSaved] = useSavedFlash();
@@ -49,8 +53,9 @@ export default function WebhooksAndPushPage() {
 
   const { confirm } = useFeel();
   const regeneratePushSecret = async () => {
-    if (pushSecret && !(await confirm({ title: "Generate a new signing secret?", body: "The old secret stops verifying the moment this is done — update it on the receiving end too.", confirmLabel: "Generate", tone: "danger" }))) return;
+    if (hasSecret && !(await confirm({ title: "Generate a new signing secret?", body: "The old secret stops verifying the moment this is done — update it on the receiving end too.", confirmLabel: "Generate", tone: "danger" }))) return;
     setPushError("");
+    setCopied(false);
     startPushSecretSave(async () => {
       const res = await fetch("/api/settings/integration-push", {
         method: "PATCH",
@@ -58,9 +63,14 @@ export default function WebhooksAndPushPage() {
         body: JSON.stringify({ regenerate_secret: true }),
       });
       const json = await res.json();
-      if (res.ok) setPushSecret(json.webhook_secret ?? "");
+      if (res.ok && json.webhook_secret) { setHasSecret(true); setRevealedSecret(json.webhook_secret); }
       else setPushError(json.error ?? "Failed to generate secret");
     });
+  };
+
+  const copySecret = async () => {
+    try { await navigator.clipboard.writeText(revealedSecret); setCopied(true); }
+    catch { setPushError("Could not copy. Select the secret and copy it by hand."); }
   };
 
   if (library) return null;
@@ -102,14 +112,19 @@ export default function WebhooksAndPushPage() {
             <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", background: c.panel2, borderRadius: 8, border: `1px solid ${c.line}` }}>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div className="bpm-t-help" style={{ marginBottom: 2 }}>Signing secret</div>
-                {pushSecret ? (
-                  <code style={{ fontSize: 12.5, color: c.ink, fontFamily: "monospace", wordBreak: "break-all" }}>{pushSecret}</code>
+                {revealedSecret ? (
+                  <Notice tone="warn" live action={<Button size="sm" onClick={() => void copySecret()}>{copied ? "Copied" : "Copy"}</Button>}>
+                    <code style={{ fontSize: 12.5, fontFamily: "monospace", overflowWrap: "anywhere" }}>{revealedSecret}</code>
+                    <div>Copy it now. It is not shown again.</div>
+                  </Notice>
+                ) : hasSecret ? (
+                  <div style={{ fontSize: 12.5, color: c.ink }}>Set</div>
                 ) : (
                   <div style={{ fontSize: 12.5, color: c.hint, fontStyle: "italic" }}>Not generated -- pushes will be unsigned</div>
                 )}
                 <div className="bpm-t-help" style={{ marginTop: 3 }}>Sent as the X-BPMSquare-Signature header (HMAC-SHA256 of the request body) so your endpoint can verify it's really from BPMSquare.</div>
               </div>
-              <Button onClick={regeneratePushSecret} loading={pushSecretSaving}>{pushSecret ? "Regenerate" : "Generate"}</Button>
+              <Button onClick={regeneratePushSecret} loading={pushSecretSaving}>{hasSecret ? "Regenerate" : "Generate"}</Button>
             </div>
 
             <div className="bpm-t-help" style={{ marginTop: 10 }}>Live today on Accounts (the "Push to ERP" action on an account's page) -- extends to other objects the same way.</div>

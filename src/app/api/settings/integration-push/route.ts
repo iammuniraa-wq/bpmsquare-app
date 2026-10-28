@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { randomBytes } from "crypto";
 import { requireTenantUser, createAdminSupabase } from "@/lib/supabase-server";
 import type { TenantConfig } from "@/lib/constants";
-import { sealIntegrationPush, unsealIntegrationPush } from "@/lib/webhookPush";
+import { sealIntegrationPush, maskIntegrationPush } from "@/lib/webhookPush";
 import { assertPublicHttpUrl } from "@/lib/net/safeHost";
 
 export async function GET() {
@@ -22,8 +22,8 @@ export async function GET() {
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  // Stored sealed (tenants.config is readable by every member); the admin who manages it sees the real value.
-  return NextResponse.json(unsealIntegrationPush((data?.config as TenantConfig | null)?.integration_push ?? {}));
+  // Signing secrets are write-only: a masked marker says one is set, the value is shown once, when it is generated (PATCH).
+  return NextResponse.json(maskIntegrationPush((data?.config as TenantConfig | null)?.integration_push ?? {}));
 }
 
 export async function PATCH(request: NextRequest) {
@@ -83,10 +83,11 @@ export async function PATCH(request: NextRequest) {
       });
   }
 
+  const newSecret = body.regenerate_secret ? randomBytes(24).toString("hex") : null;
   const merged = {
     ...currentPush,
     ...(body.webhook_url !== undefined ? { webhook_url: body.webhook_url || undefined } : {}),
-    ...(body.regenerate_secret ? { webhook_secret: randomBytes(24).toString("hex") } : {}),
+    ...(newSecret ? { webhook_secret: newSecret } : {}),
     endpoints,
   };
 
@@ -96,5 +97,6 @@ export async function PATCH(request: NextRequest) {
     .eq("id", tenantId);
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json(unsealIntegrationPush(merged));
+  // The new tenant-level secret is the one value ever returned in the clear, and only in this response.
+  return NextResponse.json({ ...maskIntegrationPush(merged), ...(newSecret ? { webhook_secret: newSecret } : {}) });
 }

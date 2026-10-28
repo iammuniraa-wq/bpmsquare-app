@@ -60,6 +60,28 @@ describe("the people table", () => {
   });
 });
 
+describe("the Employee column", () => {
+  const emps = [{ id: "e1", first_name: "Asha", last_name: "Rao", email: null }];
+  const linked = mergePeople([member(), member({ user_id: "u2", name: "Ben", email: "ben@acme.com", business_role_ids: [] })], [login({ employee_id: "e1" }), login({ user_id: "u2" })]);
+  it("names the linked employee, a dash when there is none, and is left out without the employee list", () => {
+    const withCol = html(el(PeopleRows, { items: linked, roles, employees: emps, onOpen: noop }));
+    expect(withCol).toContain("Employee</span>");
+    expect(withCol).toMatch(/employeeCell[^>]*>Asha Rao</);
+    expect(withCol).toMatch(/employeeCell[^>]*>—</);
+    expect(html(el(PeopleRows, { items: linked, roles, onOpen: noop }))).not.toContain("Employee</span>");
+  });
+});
+
+describe("your own row in the person panel", () => {
+  it("does not offer Member to the signed-in admin, because the server refuses a self-demotion", () => {
+    const self = mergePeople([member({ user_id: "u9", role: "admin", is_self: true, business_role_ids: [] })], [login({ user_id: "u9" })]);
+    const props = { roles: [], businessRoles: false, employees: [], onClose: noop, onSaved: noop, onRemove: noop };
+    expect(html(el(PersonPanel, { ...props, person: self[0] }))).toMatch(/<button[^>]*disabled[^>]*>Member</);
+    const other = mergePeople([member({ role: "admin", business_role_ids: [] })], [login()]);
+    expect(html(el(PersonPanel, { ...props, person: other[0] }))).not.toMatch(/<button[^>]*disabled[^>]*>Member</);
+  });
+});
+
 describe("the roles table", () => {
   const out = html(el(RoleRows, { items: [roleFull(), roleFull({ id: "r9", name: "Admin: Sales", is_standard: true, description: null })], people, onOpen: noop }));
   it("shows access, the people count and a Standard chip", () => {

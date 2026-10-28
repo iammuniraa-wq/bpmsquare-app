@@ -7,7 +7,7 @@ import { diffForLog } from "@/lib/changeLog";
 // GET /api/settings/team — list members with email + name
 export async function GET() {
   try {
-    const { tenantId, role } = await requireTenantUser();
+    const { tenantId, userId, role } = await requireTenantUser();
     if (role !== "admin") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
     const admin = createAdminSupabase();
@@ -45,7 +45,7 @@ export async function GET() {
     }
 
     return NextResponse.json({
-      members: members.map((m) => ({ ...m, business_role_ids: roleIdsByUser.get(m.user_id) ?? [] })),
+      members: members.map((m) => ({ ...m, is_self: m.user_id === userId, business_role_ids: roleIdsByUser.get(m.user_id) ?? [] })),
     });
   } catch (e: unknown) {
     const err = e as { status?: number; message?: string };

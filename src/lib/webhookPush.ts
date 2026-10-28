@@ -28,6 +28,18 @@ export function unsealIntegrationPush(push: IntegrationPush): IntegrationPush {
   };
 }
 
+/** What a screen is shown in place of a signing secret that is set. The real value is never read back. */
+export const SECRET_MASK = "••••••••";
+
+/** The push settings for a browser: URLs readable, every signing secret replaced by the mask (or absent when not set). */
+export function maskIntegrationPush(push: IntegrationPush): IntegrationPush {
+  return {
+    ...push,
+    ...(push.webhook_secret ? { webhook_secret: SECRET_MASK } : {}),
+    ...(push.endpoints ? { endpoints: push.endpoints.map((e) => ({ ...e, webhook_secret: e.webhook_secret ? SECRET_MASK : "" })) } : {}),
+  };
+}
+
 /**
  * On-demand push of a single record to the tenant's configured external
  * endpoint (their ERP's webhook receiver) -- triggered by a rep clicking

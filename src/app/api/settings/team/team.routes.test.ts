@@ -106,6 +106,14 @@ describe("PATCH and DELETE /api/settings/team/[id]", () => {
     expect(logged).toEqual([expect.objectContaining({ objectId: "u-target", objectLabel: "asha@acme.com", action: "delete", actorId: "u-admin", changes: [{ field: "role", from: "member", to: null }] })]);
   });
 
+  it("you cannot demote yourself", async () => {
+    tu().push({ id: "m0", tenant_id: "t1", user_id: "u-admin", role: "admin" });
+    const res = await member.PATCH(json({ role: "member" }, "PATCH"), params("u-admin"));
+    expect(res.status).toBe(400);
+    expect(tu().find((r) => r.id === "m0")?.role).toBe("admin");
+    expect(logged).toHaveLength(0);
+  });
+
   it("you cannot remove yourself", async () => {
     expect((await member.DELETE(json({}, "DELETE"), params("u-admin"))).status).toBe(400);
     expect(logged).toHaveLength(0);

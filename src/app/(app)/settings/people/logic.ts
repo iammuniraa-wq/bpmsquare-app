@@ -13,6 +13,8 @@ export type Member = {
   name: string | null;
   created_at: string;
   business_role_ids: string[];
+  /** True for the signed-in admin's own row; the server refuses a self-demotion, so the panel does not offer it. */
+  is_self?: boolean;
 };
 
 export type Login = {
@@ -43,6 +45,7 @@ export type Person = {
   roleIds: string[];
   login: Login | null;
   status: StatusKey;
+  isSelf?: boolean;
 };
 
 export const STATUS_WORD: Record<StatusKey, string> = { active: "Active", locked: "Locked", expired: "Outside validity" };
@@ -61,7 +64,7 @@ export function mergePeople(members: readonly Member[], logins: readonly Login[]
   const byUser = new Map(logins.map((l) => [l.user_id, l]));
   return members.map((m) => {
     const login = byUser.get(m.user_id) ?? null;
-    return { userId: m.user_id, name: nameOf(m, login), email: m.email, role: m.role, roleIds: m.business_role_ids, login, status: statusOf(login) };
+    return { userId: m.user_id, name: nameOf(m, login), email: m.email, role: m.role, roleIds: m.business_role_ids, login, status: statusOf(login), isSelf: m.is_self === true };
   });
 }
 
@@ -89,6 +92,12 @@ export function freeEmployees(employees: readonly EmployeeLite[], logins: readon
 }
 
 export const employeeName = (e: EmployeeLite) => `${e.first_name} ${e.last_name}`.trim();
+/** The employee this login belongs to, by name, or a dash when it is not tied to one. */
+export function linkedEmployeeName(p: Person, employees: readonly EmployeeLite[]): string {
+  const id = p.login?.employee_id;
+  const e = id ? employees.find((x) => x.id === id) : undefined;
+  return e ? employeeName(e) : "—";
+}
 export const employeeLabel = (e: EmployeeLite) => (e.employee_code ? `${employeeName(e)} (${e.employee_code})` : employeeName(e));
 
 // ── The person panel ────────────────────────────────────────────────────────

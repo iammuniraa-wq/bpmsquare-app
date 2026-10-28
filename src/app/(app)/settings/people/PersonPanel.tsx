@@ -119,7 +119,7 @@ export default function PersonPanel({ person, roles, businessRoles, employees, o
         {tab === "access" && (
           <>
             <Opt label="Role" info={PEOPLE_TIPS.role}>
-              <Segmented label="Role" value={draft.role} options={[{ id: "member", label: "Member" }, { id: "admin", label: "Admin" }]} onChange={(role) => set({ role })} />
+              <Segmented label="Role" value={draft.role} options={[{ id: "member", label: "Member" }, { id: "admin", label: "Admin" }]} disabledIds={person.isSelf ? ["member"] : undefined} onChange={(role) => set({ role })} />
             </Opt>
             {businessRoles && draft.role === "member" && (
               <Opt label="Business roles" info={PEOPLE_TIPS.businessRoles}>

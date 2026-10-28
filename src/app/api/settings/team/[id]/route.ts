@@ -8,12 +8,17 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { supabase, tenantId, role } = await requireTenantUser();
+    const { supabase, tenantId, userId, role } = await requireTenantUser();
     if (role !== "admin") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
     const { id: targetUserId } = await params;
     const body = await req.json();
     const newRole: "admin" | "member" = body.role === "admin" ? "admin" : "member";
+
+    // Same reasoning as the self-removal block below: an admin who demotes themselves can lock the workspace out of its own settings.
+    if (targetUserId === userId && newRole !== "admin") {
+      return NextResponse.json({ error: "You can't change your own role" }, { status: 400 });
+    }
 
     const admin = createAdminSupabase();
     const { data: before } = await admin

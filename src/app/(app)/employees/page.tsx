@@ -12,6 +12,7 @@ import { ROUTES } from "@/lib/constants";
 import { statusLabel } from "@/lib/wfm/obsolete";
 import { NewEmployeeButton, EmployeeRowActions } from "./EmployeeEditor";
 import type { EmployeeLoginInfo } from "./EmployeeLogin";
+import { EMPLOYEE_TIPS } from "./tips";
 
 const fmtDate = (s: string | null) =>
   s ? new Date(s).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—";
@@ -94,7 +95,7 @@ export default async function EmployeesPage({
   return (
     <ObjectListPage
       title="Employees"
-      subtitle="Your people as master data."
+      info={EMPLOYEE_TIPS.page}
       newAction={canEdit ? <NewEmployeeButton /> : undefined}
       search={{ value: q, placeholder: "Search name, code, email, department…", hiddenParams: cfParams }}
       columns={columns}

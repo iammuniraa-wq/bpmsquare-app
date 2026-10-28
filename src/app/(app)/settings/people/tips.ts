@@ -2,7 +2,7 @@
 // to the InfoTip limit (two sentences, 160 characters). The screen never prints these as running text.
 
 export const PEOPLE_TIPS = {
-  page: "Everyone who can sign in to this workspace, and what each person may reach. Roles decide which screens a member sees.",
+  page: "People who can sign in. Add someone from their employee record, or here directly.",
   role: "An Admin can change settings and reach everything. A Member reaches only what their business roles allow.",
   businessRoles: "Pick the roles that decide which screens this member sees. With none picked, the member keeps full access.",
   validity: "The dates this login works between. Leave both empty for no limit.",
