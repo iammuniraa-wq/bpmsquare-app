@@ -665,7 +665,7 @@ begin
     end if;
 
     if v_proj is not null then
-      select r.id into v_rev from project_budget_revisions r where r.tenant_id = t and r.project_id = v_proj and r.rev_no = 0;
+      select pbr.id into v_rev from project_budget_revisions pbr where pbr.tenant_id = t and pbr.project_id = v_proj and pbr.rev_no = 0;
     end if;
 
     if to_regclass('public.project_buyout_packages') is null or to_regclass('public.project_buyout_package_lines') is null then
