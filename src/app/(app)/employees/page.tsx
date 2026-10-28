@@ -86,7 +86,7 @@ export default async function EmployeesPage({
       render: (e) => (e.valid_from || e.valid_to ? `${fmtDate(e.valid_from)} – ${fmtDate(e.valid_to)}` : "—"),
     },
     ...(canEdit ? [{
-      id: "actions", label: "", width: 210, cellStyle: { textAlign: "right" as const },
+      id: "actions", label: "", width: 330, cellStyle: { textAlign: "right" as const },
       render: (e: Employee) => <EmployeeRowActions employee={e} login={loginByEmployee.get(e.id) ?? null} />,
     }] : []),
   ];
@@ -94,7 +94,7 @@ export default async function EmployeesPage({
   return (
     <ObjectListPage
       title="Employees"
-      subtitle="Your people as master data — create them here or bulk-load from an HR export via Data Workbench, then give one a login in Settings → People."
+      subtitle="Your people as master data."
       newAction={canEdit ? <NewEmployeeButton /> : undefined}
       search={{ value: q, placeholder: "Search name, code, email, department…", hiddenParams: cfParams }}
       columns={columns}

@@ -131,6 +131,7 @@ export function EmployeeRowActions({ employee, login }: { employee: Employee; lo
   return (
     <>
       <span style={{ display: "inline-flex", gap: 4, whiteSpace: "nowrap" }}>
+        {!obsolete && <EmployeeLogin employee={employee} login={login} compact />}
         <Button variant="quiet" size="sm" onClick={() => setEditing(true)}>Edit</Button>
         {obsolete && <Button variant="quiet" size="sm" onClick={() => { void reactivate(); }}>Make active</Button>}
         <Button variant="quiet" size="sm" onClick={() => setRemoving(true)} style={{ color: "var(--err-ink)" }}>Delete</Button>

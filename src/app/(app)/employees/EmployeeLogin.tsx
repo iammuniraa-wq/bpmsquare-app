@@ -21,25 +21,31 @@ const DOT = { active: `${s.dot} ${s.dotOn}`, locked: `${s.dot} ${s.dotOff}`, exp
  * the same Add panel as Settings > People, with this employee and its e-mail already chosen), and, once one is, a chip
  * with its state that opens that person in Settings > People.
  */
-export default function EmployeeLogin({ employee, login }: { employee: Employee; login: EmployeeLoginInfo | null }) {
+export default function EmployeeLogin({ employee, login, compact = false }: { employee: Employee; login: EmployeeLoginInfo | null; compact?: boolean }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [notice, setNotice] = useState<{ text: string; credentials: { email: string; password: string } | null } | null>(null);
 
+  const action = login ? (
+    <Link href={personHref(login.userId)} className={s.loginChip} aria-label={`Login: ${STATUS_WORD[login.status]}. Open in People`}>
+      <span className={DOT[login.status]} aria-hidden="true" />
+      {STATUS_WORD[login.status]}
+    </Link>
+  ) : (
+    <Button size="sm" variant="primary" onClick={() => setOpen(true)}>{compact ? "Create login" : "Create business user"}</Button>
+  );
+  // In a table row the notice cannot sit beside the button, so it floats at the top of the screen until dismissed.
+  const noticeEl = notice && <CredentialsNotice text={notice.text} credentials={notice.credentials} onDismiss={() => setNotice(null)} />;
+
   return (
     <div className={s.stack}>
-      <div className={s.bar}>
-        <span className="bpm-opt-label">Login</span>
-        {login ? (
-          <Link href={personHref(login.userId)} className={s.loginChip} aria-label={`Login: ${STATUS_WORD[login.status]}. Open in People`}>
-            <span className={DOT[login.status]} aria-hidden="true" />
-            {STATUS_WORD[login.status]}
-          </Link>
-        ) : (
-          <Button size="sm" variant="primary" onClick={() => setOpen(true)}>Create business user</Button>
-        )}
-      </div>
-      {notice && <CredentialsNotice text={notice.text} credentials={notice.credentials} onDismiss={() => setNotice(null)} />}
+      {compact ? action : (
+        <div className={s.bar}>
+          <span className="bpm-opt-label">Login</span>
+          {action}
+        </div>
+      )}
+      {compact ? (noticeEl && createPortal(<div style={{ position: "fixed", top: 16, left: 16, right: 16, zIndex: 1000, maxWidth: 720, margin: "0 auto" }}>{noticeEl}</div>, document.body)) : noticeEl}
       {open && createPortal(
         <InvitePanel
           employees={[{ id: employee.id, first_name: employee.first_name, last_name: employee.last_name, email: employee.email, employee_code: employee.employee_code, valid_from: employee.valid_from, valid_to: employee.valid_to }]}

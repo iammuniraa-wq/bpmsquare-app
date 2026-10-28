@@ -33,4 +33,12 @@ describe("the employee record's login action", () => {
     expect(html({ userId: "u-1", status: "locked" })).toContain("Locked");
     expect(html({ userId: "u-1", status: "expired" })).toContain("Outside validity");
   });
+
+  it("in a list row it says Create login, with no label, and shows the chip once a login exists", () => {
+    const row = (login: { userId: string; status: "active" | "locked" | "expired" } | null) => renderToString(el(EmployeeLogin, { employee, login, compact: true }));
+    expect(row(null)).toContain("Create login");
+    expect(row(null)).not.toContain("Create business user");
+    expect(row({ userId: "u-1", status: "active" })).toContain('href="/settings/people?person=u-1"');
+    expect(row({ userId: "u-1", status: "active" })).not.toContain("Create login");
+  });
 });
