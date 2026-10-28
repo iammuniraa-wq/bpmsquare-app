@@ -256,6 +256,11 @@ describe("bid deadlines", () => {
     }
   });
 
+  it("takes the count of later bids from the uncapped field, not from the eight listed", () => {
+    expect(block("tender_deadlines", { ...FULL, closingAfter28: 9 })).toContain("9 more bids end after 28 days.");
+    expect(block("tender_deadlines", { ...FULL, closingAfter28: 0 })).not.toContain("after 28 days");
+  });
+
   it("copes with none", () => {
     expect(block("tender_deadlines", EMPTY_LISTS)).toContain("No bid ends in the next 28 days.");
   });

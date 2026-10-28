@@ -108,6 +108,8 @@ export type TenderDeskData = {
   stages: TenderDeskStage[];
   /** Open tenders that have not reached their bid end date, soonest first, at most 8. */
   closing: TenderDeskClosing[];
+  /** Open tenders whose bid ends more than 28 days from today: counted over every tender, not over the capped `closing` list. */
+  closingAfter28: number;
   /** The last 12 calendar months ending with the current one, oldest first. */
   months: TenderDeskMonth[];
   /** Open value by client: the top 5, then one "Others" row when there are more. */
@@ -124,5 +126,5 @@ export const EMPTY_TENDER_DESK: TenderDeskData = {
   asOf: new Date(0).toISOString(),
   pending: false,
   kpis: { openValue: 0, openCount: 0, weightedValue: 0, closingSoonCount: 0, closingSoonValue: 0, winRate: null, won12: 0, lost12: 0, buyoutCommitted: 0, buyoutBudget: null },
-  stages: [], closing: [], months: [], clients: [], trend: [], buyout: null, attention: [],
+  stages: [], closing: [], closingAfter28: 0, months: [], clients: [], trend: [], buyout: null, attention: [],
 };

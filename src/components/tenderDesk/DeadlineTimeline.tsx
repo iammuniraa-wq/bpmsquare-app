@@ -15,7 +15,8 @@ const LANE_OFFSET = [-75, 19, -125, 69];
  */
 export default function DeadlineTimeline({ data, look }: { data: TenderDeskData; look: TenderDeskStyle }) {
   const within = data.closing.filter((x) => x.daysLeft <= 28);
-  const later = data.closing.length - within.length;
+  // Bids past the 28 days that the (capped) list did not draw are counted from the whole workspace, not from the list.
+  const later = data.closingAfter28;
   const positions = within.map((d) => timelinePosition(d.daysLeft));
   const lanes = assignLanes(positions);
   const second = lanes.some((l) => l >= 2);

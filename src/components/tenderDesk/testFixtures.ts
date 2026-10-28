@@ -28,6 +28,7 @@ export const FULL: TenderDeskData = {
     closing("a5", "TND-0014", "Storm water Phase 1", "National Water Company", 20, 6_400_000),
     closing("a6", "TND-0040", "Far off lining works", "Eastern Industrial Authority", 40, 3_000_000),
   ],
+  closingAfter28: 1,
   months: ["Nov", "Dec", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct"].map((label, i) => ({
     key: `${i < 2 ? 2025 : 2026}-${String(((i + 10) % 12) + 1).padStart(2, "0")}`, label,
     won: [1, 1, 1, 2, 1, 2, 2, 1, 2, 1, 2, 2][i], lost: [1, 0, 2, 1, 2, 1, 2, 1, 1, 2, 1, 1][i],

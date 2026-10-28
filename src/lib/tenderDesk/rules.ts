@@ -158,6 +158,17 @@ export function buildClosing(tenders: readonly DeskTender[], now: Date, timezone
   return rows.slice(0, limit).map(({ at: _at, ...r }) => r);
 }
 
+/** Open tenders whose bid ends more than `days` days from today (the local day): the count behind "N more bids end after 28 days". */
+export function countClosingAfter(tenders: readonly DeskTender[], now: Date, timezone: string, days = 28): number {
+  let n = 0;
+  for (const t of tenders) {
+    if (!isOpen(t) || !t.closingAt) continue;
+    const d = daysLeftOf(t, now, timezone);
+    if (d !== null && d > days) n++;
+  }
+  return n;
+}
+
 /** Tenders decided (won or lost) per calendar month of `closed_at`; a dropped tender is neither. */
 export function buildMonths(tenders: readonly DeskTender[], now: Date, timezone: string): TenderDeskMonth[] {
   const months = lastMonths(now, timezone).map((m) => ({ key: m.key, label: m.label, won: 0, lost: 0 }));
@@ -399,7 +410,7 @@ export function emptyTenderDesk(args: { now: Date; currency: string; pending: bo
   return {
     currency: args.currency, asOf: args.now.toISOString(), pending: args.pending,
     kpis: { openValue: 0, openCount: 0, weightedValue: 0, closingSoonCount: 0, closingSoonValue: 0, winRate: null, won12: 0, lost12: 0, buyoutCommitted: 0, buyoutBudget: null },
-    stages: [], closing: [], months: [], clients: [], trend: [], buyout: null, attention: [],
+    stages: [], closing: [], closingAfter28: 0, months: [], clients: [], trend: [], buyout: null, attention: [],
   };
 }
 
@@ -416,6 +427,7 @@ export function composeTenderDesk(input: DeskInput): TenderDeskData {
     kpis: buildKpis(input.tenders, now, timezone, totals),
     stages: buildStages(input.tenders, input.stageDefs),
     closing: buildClosing(input.tenders, now, timezone),
+    closingAfter28: countClosingAfter(input.tenders, now, timezone),
     months: buildMonths(input.tenders, now, timezone),
     clients: buildClients(input.tenders),
     trend: buildTrend(input.tenders, now, timezone),

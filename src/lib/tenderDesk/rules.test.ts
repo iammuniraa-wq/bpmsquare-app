@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { DEFAULT_TENDER_STAGES } from "@/lib/constants";
 import {
   addDays, bondItems, buildBuyout, buildClients, buildClosing, buildKpis, buildMonths, buildStages, buildTrend, buyoutPackageStatus, buyoutTotals,
-  composeTenderDesk, dealsClosingWithin, dealsWithOpenGuarantee, decisionItems, emptyTenderDesk, lastMonths, monthKeyOf, pickFeaturedProject,
+  composeTenderDesk, countClosingAfter, dealsClosingWithin, dealsWithOpenGuarantee, decisionItems, emptyTenderDesk, lastMonths, monthKeyOf, pickFeaturedProject,
   pricedDealIds, rankAttention, staleItems, staleLineCounts, supplierReplyItems, unpricedItems,
   type BoqPriceLine, type DeskInput, type DeskProject, type DeskTender,
 } from "./rules";
@@ -193,6 +193,18 @@ describe("closing soonest", () => {
     expect(buildClosing(rows, late, "Asia/Riyadh").map((x) => [x.id, x.daysLeft])).toEqual([["ends-01h-local", 0]]);
     // In UTC the same instant is still the 27th, so both end today.
     expect(buildClosing(rows, late, "UTC").map((x) => x.id)).toEqual(["ended-23h-local", "ends-01h-local"]);
+  });
+
+  it("counts the open bids ending after 28 days over every tender, not just the eight listed", () => {
+    const rows = [
+      ...Array.from({ length: 12 }, (_, i) => tender({ id: `far${i}`, closingAt: inDays(29 + i) })),
+      tender({ id: "edge", closingAt: inDays(28) }), tender({ id: "soon", closingAt: inDays(3) }),
+      tender({ id: "won", outcome: "won", closingAt: inDays(40) }), tender({ id: "none", closingAt: null }), tender({ id: "past", closingAt: inDays(-3) }),
+    ];
+    expect(countClosingAfter(rows, NOW, TZ)).toBe(12);
+    expect(countClosingAfter(rows, NOW, TZ, 10)).toBe(13);
+    expect(buildClosing(rows, NOW, TZ)).toHaveLength(8);
+    expect(countClosingAfter([], NOW, TZ)).toBe(0);
   });
 
   it("cuts the list to eight", () => {
@@ -504,6 +516,13 @@ describe("composeTenderDesk", () => {
     now: NOW, timezone: TZ, currency: "SAR", pending: false, stageDefs: DEFAULT_TENDER_STAGES, tenders: [], projects: [],
     decisions: [], rfqWaits: [], bonds: [], stale: [], unpriced: [], validityDays: 180,
   };
+
+  it("carries the count of bids ending after 28 days, from every tender and not from the capped list", () => {
+    const rows = Array.from({ length: 12 }, (_, i) => tender({ id: `far${i}`, closingAt: inDays(30 + i) }));
+    const d = composeTenderDesk({ ...base, tenders: rows });
+    expect(d.closing).toHaveLength(8);
+    expect(d.closingAfter28).toBe(12);
+  });
 
   it("answers a pending database with the calm empty data and the flag set", () => {
     const d = composeTenderDesk({ ...base, pending: true, tenders: [tender()] });

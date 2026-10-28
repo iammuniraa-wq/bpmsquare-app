@@ -51,7 +51,7 @@ describe("AnalyticsData.tender", () => {
   });
 
   it("is null and never read for a workspace without the flag", async () => {
-    for (const features of [{}, { gcc_tender: false }, { pipeline: true }]) {
+    for (const features of [{}, { gcc_tender: false }, { pipeline: true }] as Record<string, boolean>[]) {
       state.tenant = { features, config: {} };
       state.tenderCalls = [];
       const a = await getAnalyticsDataLive();
