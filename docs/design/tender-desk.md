@@ -27,6 +27,13 @@
 - **Links** (`lib/tenderDesk/links.ts`; the Tenders tab reads the filters in `lib/tender/filters.ts`): tiles to the Tenders tab (closing
   `&closing=14`, win rate `&outcome=won`, buy-out the project's Buy-out tab); stage bars `&stage=`; won / lost columns `&outcome=&month=`; client
   slices `&client=`; closing rows, deadline markers and attention items to their record; buy-out rows to the Buy-out tab.
+- **Scoping** (owner 2026-10-28: "based on scoping the dashboard also should reflect, else it will be there for all"). A block needs its own
+  flag AND the modules it reads: every tender block needs `pipeline` (tenders live there), the two buy-out blocks need `contract_projects`, and
+  the "supplier reply overdue" attention item needs `rfq`. `ANALYTICS_REQUIRES` + `analyticsFeatureOn()` in `lib/analyticsMeta.ts` are the one
+  place this is said; `blockAllowed`, the Adapt picker, the Nova picker, the default and curated layouts and the "Tenders" lead all go through it.
+  The data layer gets `getTenderDeskData(tenantId, { modules: { rfq, contract_projects } })` and does not even read a table of a module the
+  workspace does not own; `getAnalyticsDataLive` does not read tender data at all without `pipeline`. Business Roles stay what the owner decided
+  (menu visibility, not a data boundary): a role dashboard includes or leaves out these blocks like any other.
 - **Nova.** A Nova workspace (`ui_theme nextgen2` + `next_experience`) renders `NovaStream`, not this dashboard; a gcc_tender workspace without
   Nova takes the classic path. A Nova + gcc_tender workspace can add the blocks from its Adapt picker (they render in the Bold look); nothing
   else changes for it.
