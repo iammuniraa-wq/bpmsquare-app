@@ -1,4 +1,6 @@
-@import "tailwindcss";
+/* Tailwind reads class names from src only. Its default is to scan the whole repo, which now includes dozens of agent worktrees under .claude/ (git-excluded, not gitignored); the PostCSS step then took 60 to 90 s and the production build timed out. */
+@import "tailwindcss" source(none);
+@source "../../src";
 
 :root {
   --bg2: #152233;
@@ -1867,7 +1869,10 @@ textarea.bpm-input { min-height: 72px; resize: vertical; }
 .bpm-tabs, .bpm-tab { --tab-accent: var(--modern-accent, var(--tenant-accent, var(--accent))); }
 .bpm-tabs {
   display: flex; gap: 4px; border-bottom: 1px solid var(--line); overflow-x: auto; -webkit-overflow-scrolling: touch;
+  /* overflow-x:auto turns the y axis to auto too, and the active tab's -1px margin overflows it by a pixel, so Windows painted a tiny vertical scrollbar. Tabs still scroll by touch, wheel and arrow keys. */
+  scrollbar-width: none;
 }
+.bpm-tabs::-webkit-scrollbar { display: none; }
 .bpm-tab {
   display: inline-flex; align-items: center; gap: 6px; padding: 9px 14px 8px; font-size: 13px; font-family: inherit;
   white-space: nowrap; cursor: pointer; text-decoration: none; background: none; border: none;

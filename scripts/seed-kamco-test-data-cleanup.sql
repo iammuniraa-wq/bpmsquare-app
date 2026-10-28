@@ -8,9 +8,11 @@
 -- that hang off them:
 --   * RFQs titled 'TEST ...'   (their lines, suppliers, replies, messages and awards go with them)
 --   * estimates named 'TEST ...' (their lines and BOQ links go with them)
+--   * contract projects named 'TEST ...' (their budget, buy-out packages and package lines go with them)
 --   * deals titled 'TEST ...'  (their tender row, deal lines, BOQ source and lines, bid versions, competitors, logged calls go with
---     them) and any approval requests that point at those deals
+--     them) and any approval requests that point at those deals (the Tender desk's waiting bid decision among them)
 --   * products, inventory items, contacts, accounts and suppliers named 'TEST ...'
+--   * employees whose first name starts with 'TEST '
 -- Everything is filtered by tenant_id of the 'kamco' workspace, so another workspace is never touched. If somebody created their own
 -- records under a TEST account or TEST deal in the meantime (a quote, an invoice), the database either removes them with it (cascade)
 -- or refuses with a foreign-key error: read the dry-run counts first.
@@ -68,6 +70,16 @@ begin
     end if;
   end if;
 
+  -- 3b. Contract projects named 'TEST ...' (their budget revisions and lines, buy-out packages and package lines follow by cascade).
+  --     The RFQs of the packages were already removed in step 1.
+  if to_regclass('public.contract_projects') is not null then
+    select count(*) into v_n from contract_projects where tenant_id = t and name like 'TEST %';
+    raise notice 'contract_projects: %', v_n;
+    if v_confirm then
+      delete from contract_projects where tenant_id = t and name like 'TEST %';
+    end if;
+  end if;
+
   -- 4. Deals (the tender row, lines, BOQ, bid versions, competitors and calls follow by cascade)
   select count(*) into v_n from opportunities where tenant_id = t and title like 'TEST %';
   raise notice 'opportunities (tender deals): %', v_n;
@@ -91,6 +103,12 @@ begin
   end if;
 
   -- 6. People and companies
+  select count(*) into v_n from employees where tenant_id = t and first_name like 'TEST %';
+  raise notice 'employees: %', v_n;
+  if v_confirm then
+    delete from employees where tenant_id = t and first_name like 'TEST %';
+  end if;
+
   select count(*) into v_n from contacts where tenant_id = t and name like 'TEST %';
   raise notice 'contacts: %', v_n;
   if v_confirm then

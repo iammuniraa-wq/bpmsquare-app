@@ -1365,6 +1365,9 @@ export type TenantConfig = {
      *  on Spectacular (the theme the board was drawn for) and "adaptive"
      *  everywhere else, so no existing workspace's dashboard changes. */
     dashboard_mode?: "curated" | "adaptive";
+    /** Workspace default for the Tender desk home of a workspace with `features.gcc_tender` (docs/design/tender-desk.md). A person's own choice
+     *  (cookie bpm_tender_desk) wins over it; unset reads as "bold". */
+    tender_desk_style?: "bold" | "control";
     spectacular_colors?: {
       shell_from?: string;
       shell_to?: string;

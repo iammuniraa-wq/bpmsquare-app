@@ -857,3 +857,6 @@ No browser was available. Checked by server render tests of the tab, the panel i
 
 ### Tests
 `src/components/contractProjects/buyout/buyout.test.ts` (rules, tips, route paths, readers, wiring, no literal colour), `buyout.render.test.ts` (tab, panels, handover, request form, Overview card, Budget column, page order), `src/components/suppliers/groups.render.test.ts` (groups view, panel, page, composer note).
+
+## 30. Tender desk home (2026-10-28)
+A colourful home for workspaces with `gcc_tender`: Bold tiles (default) or Control room, chosen per person (cookie `bpm_tender_desk`) with a workspace default in Settings > Appearance > Dashboard. Design, data rules, seed and wiring: `docs/design/tender-desk.md`. Data layer: `src/lib/tenderDesk/rules.ts` (pure, tested), `server.ts` (`getTenderDeskData`, tenant-scoped, reads the Buy-out tab summary), `style.ts`; style route `POST /api/tender-desk/style`. The KAMCO seed grew to fill it (16 open and 8 decided tenders, a waiting bid decision, a guarantee expiring in 9 days, a late RFQ, a project with 4 buy-out packages); see the ledger in `PROJECT.md`. No migration.

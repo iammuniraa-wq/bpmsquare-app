@@ -37,6 +37,8 @@
 
 Contract project overview tiles, contract projects list strip (active, value, budget, margin under 10%), tender Bids tab strip
 and compare tiles, and an icon chip beside the Settings Tenders and Contract projects titles.
+Tender desk home (2026-10-27, `src/components/tenderDesk/`, spec `tender-desk.md`): bolder than the tone system on purpose, five saturated gradient tiles (Bold tiles) and an always-dark surface (Control room); the palette is the `tenderDesk` group in `theme.ts`, stage colours come from the tenant's stage definitions.
+Contrast was measured: white on every tile stop 5.2:1 or better, on the day chips and status pills 5.0:1 or better, Control room text 6.0:1 or better on its panel; day chips say "3 days" and statuses keep their word, so colour is never the only signal.
 
 Screens coloured in the tender-edition pass (2026-10-26), all from data the screen already held:
 

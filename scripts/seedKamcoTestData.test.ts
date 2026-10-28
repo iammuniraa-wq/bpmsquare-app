@@ -196,8 +196,9 @@ describe("the seed script: every record is tagged TEST", () => {
   });
 
   it("business numbers and SKUs typed in the script carry a TEST- prefix", () => {
-    const tenderNos = [...seed.matchAll(/'(TEST-[A-Z]+-\d{4}-\d{3})'/g)].map((m) => m[1]);
-    expect(tenderNos).toHaveLength(3);
+    const tenderNos = [...new Set([...seed.matchAll(/'(TEST-[A-Z]+-\d{4}-\d{3})'/g)].map((m) => m[1]))];
+    // The three walk-through deals and the 21 Tender desk deals, every number different.
+    expect(tenderNos).toHaveLength(3 + 21);
     const skus = [...seed.matchAll(/^\s*\('TEST [^']*',\s*'([^']*)',\s*'(?:Pipes|Precast|Civil|Steel|Concrete|Valves)'/gm)].map((m) => m[1]);
     expect(skus.length).toBeGreaterThanOrEqual(15);
     for (const s of skus) expect(s.startsWith("TEST-"), s).toBe(true);
@@ -246,7 +247,8 @@ describe("the seed script: what it writes", () => {
       for (const c of i.cols) expect(c, `${i.table}.${c}`).not.toMatch(/email|phone|gstin|vat_number|crn|password|address/);
     }
     expect(seed).not.toMatch(/auth\.users|\bpassword\b|crypt\(|tenant_users/i);
-    expect(seed).not.toMatch(/@[a-z0-9-]+\.(com|org|net|sa|ae|qa)/i);
+    // The one employee the owner asked for (2026-10-27) is the only e-mail the seed may carry.
+    expect(seed.replace(/abdulkhader@saytara\.info/g, "")).not.toMatch(/@[a-z0-9-]+\.(com|org|net|sa|ae|qa|info)/i);
   });
 
   it("uses only values the check constraints allow (stage, outcome, portal, price source, price position, account type)", () => {
@@ -254,7 +256,7 @@ describe("the seed script: what it writes", () => {
     const stageBlock = constants.slice(constants.indexOf("export const DEFAULT_TENDER_STAGES"), constants.indexOf("];", constants.indexOf("export const DEFAULT_TENDER_STAGES")));
     const stages = new Set([...stageBlock.matchAll(/value:\s*"([a-z_]+)"/g)].map((m) => m[1]));
     const used = new Set([...seed.matchAll(/'([a-z_]+)',\s*'open'/g)].map((m) => m[1]));
-    expect([...used].sort()).toEqual(["estimating", "received", "submitted"]);
+    expect([...used].sort()).toEqual(["bid_no_bid", "clarifications", "estimating", "received", "submitted"]);
     for (const s of used) expect(stages.has(s), s).toBe(true);
 
     const oneOf = (table: string, col: string) => {
@@ -278,6 +280,7 @@ describe("the seed script: what it writes", () => {
     for (const t of [
       "inventory_items", "tender_boq_sources", "tender_boq_lines", "estimates", "estimate_lines", "rfqs", "rfq_lines", "rfq_suppliers",
       "rfq_responses", "tender_bid_versions", "opportunity_competitors", "deal_activities",
+      "approval_requests", "contract_projects", "project_budget_revisions", "project_budget_lines", "project_buyout_packages", "project_buyout_package_lines",
     ]) {
       expect(seed, t).toContain(`to_regclass('public.${t}')`);
     }
@@ -309,6 +312,100 @@ describe("the seed script: what it writes", () => {
   });
 });
 
+describe("the seed script: the Tender desk part (docs/design/tender-desk.md, Seed)", () => {
+  const rows = [...seed.matchAll(/^\s*\('(TEST Tender [^']*)',\s*'(TEST-KAM-\d{4}-\d{3})',\s*'([^']*)',\s*'([a-z_]+)',\s*'(open|won|lost|dropped)',\s*(\d+),\s*(\d+),\s*(-?\d+),\s*(\d+),\s*(null|\d+),\s*'([a-z]+)',\s*(null|\d+),\s*(null|-?\d+)\)/gm)]
+    .map((m) => ({ title: m[1], no: m[2], client: m[3], stage: m[4], outcome: m[5], amount: Number(m[6]), prob: Number(m[7]), closeDays: Number(m[8]), createdAgo: Number(m[9]), closedAgo: m[10] === "null" ? null : Number(m[10]), bondDays: m[13] === "null" ? null : Number(m[13]) }));
+  const open = rows.filter((r) => r.outcome === "open");
+  const decided = rows.filter((r) => r.outcome !== "open");
+
+  it("makes 13 more open tenders (16 with the three above) and 8 decided ones, every title and number different", () => {
+    expect(rows).toHaveLength(21);
+    expect(open).toHaveLength(13);
+    expect(decided).toHaveLength(8);
+    expect(new Set(rows.map((r) => r.title)).size).toBe(21);
+    expect(new Set(rows.map((r) => r.no)).size).toBe(21);
+  });
+
+  it("spreads the open ones over the five open stages and five clients, SAR 3 to 19 million, bid end dates 2 to 26 days out and a few past", () => {
+    const stages = new Set(open.map((r) => r.stage));
+    expect([...stages].sort()).toEqual(["bid_no_bid", "clarifications", "estimating", "received", "submitted"]);
+    expect(new Set([...open, ...decided].map((r) => r.client)).size).toBe(5);
+    for (const r of [...open, ...decided]) {
+      expect(r.amount, r.title).toBeGreaterThanOrEqual(3_000_000);
+      expect(r.amount, r.title).toBeLessThanOrEqual(19_000_000);
+    }
+    const future = open.filter((r) => r.closeDays >= 0).map((r) => r.closeDays);
+    expect(Math.min(...future)).toBe(2);
+    expect(Math.max(...future)).toBeLessThanOrEqual(28);
+    const past = open.filter((r) => r.closeDays < 0);
+    expect(past.length).toBeGreaterThanOrEqual(2);
+    for (const r of past) expect(["submitted", "clarifications"]).toContain(r.stage);
+    for (const r of open) expect(r.prob, r.title).toBeGreaterThan(0);
+  });
+
+  it("decides 8 tenders (4 won, 3 lost, 1 dropped) with closed dates spread over the last 12 months", () => {
+    expect(decided.map((r) => r.outcome).sort()).toEqual(["dropped", "lost", "lost", "lost", "won", "won", "won", "won"]);
+    const map: Record<string, string> = { won: "awarded", lost: "bid_lost", dropped: "no_bid" };
+    for (const r of decided) {
+      expect(r.stage, r.title).toBe(map[r.outcome]);
+      expect(r.closedAgo, r.title).not.toBeNull();
+      expect(r.closedAgo!, r.title).toBeLessThan(365);
+      expect(r.createdAgo, r.title).toBeGreaterThan(r.closedAgo!);
+    }
+    const months = new Set(decided.map((r) => Math.floor(r.closedAgo! / 30)));
+    expect(months.size).toBeGreaterThanOrEqual(6);
+  });
+
+  it("puts one guarantee expiring in 9 days on an open tender, and waits one bid decision for approval", () => {
+    const bonds = open.filter((r) => r.bondDays !== null);
+    expect(bonds.map((r) => r.bondDays)).toEqual([9]);
+    expect(seed).toMatch(/insert into approval_requests \(tenant_id, object_type, object_id, kind, proposed_value, reason, requested_by, status, created_at\)\s+values \(t, 'opportunity_tenders', v_id, 'tender_bid_decision', 'go'/);
+    // The pending bid decision is on a deal in Bid/No-bid, and there is at most one per deal.
+    const waiting = open.find((r) => r.no === "TEST-KAM-2026-105");
+    expect(waiting?.stage).toBe("bid_no_bid");
+    expect(seed).toMatch(/not exists \(select 1 from approval_requests a where a\.tenant_id = t and a\.object_id = v_id and a\.kind = 'tender_bid_decision' and a\.status = 'pending'\)/);
+  });
+
+  it("leaves the owners empty and writes no lines for the desk deals (their amount is typed)", () => {
+    const block = seed.slice(seed.indexOf("create temp table kamco_desk_deals"), seed.indexOf("update opportunity_tenders set bond_status = 'issued' where tenant_id = t and tender_no like"));
+    expect(block).not.toMatch(/owner_id|opportunity_lines/);
+  });
+
+  it("makes one contract project from a won tender with 4 buy-out packages: 2 awarded, 1 with quotes, 1 waiting, behind the 0226 and 0234 guards", () => {
+    expect(seed).toMatch(/v_proj_name text := 'TEST Project - /);
+    expect(seed).toMatch(/where o\.tenant_id = t and o\.title = 'TEST Tender 2025\/118 - Coastal road drainage'/);
+    expect(decided.find((r) => r.title === "TEST Tender 2025/118 - Coastal road drainage")?.outcome).toBe("won");
+    const pk = [...seed.matchAll(/\('TEST [^']*package',\s*'([A-Za-z]+)',\s*'(awarded|quotes|waiting)'/g)].map((m) => m[2]);
+    expect(pk.sort()).toEqual(["awarded", "awarded", "quotes", "waiting"]);
+    expect(seed).toContain("to_regclass('public.project_buyout_packages')");
+    expect(seed).toContain("to_regclass('public.contract_projects')");
+    // Each package gets its lines from the budget rows of its own group, and the round of the steel package points back at the package.
+    expect(seed).toMatch(/where b\.pgroup = r\.pgroup/);
+    expect(seed).toMatch(/insert into rfqs \(tenant_id, ref, title, status, origin_type, respond_by, currency, package_id\)/);
+  });
+
+  it("makes one RFQ whose reply date has passed with two suppliers still silent", () => {
+    expect(seed).toMatch(/'TEST RFQ - Late supplier replies', 'sent', 'opportunity'[\s\S]*current_date - 3/);
+    expect(seed).toMatch(/select t, v_rfq_late, s\.id, 'sent', now\(\) - interval '8 days'/);
+  });
+
+  it("is idempotent: each desk deal, the project, each package and each RFQ is looked up before it is made", () => {
+    expect(seed).toMatch(/not exists \(select 1 from opportunities o where o\.tenant_id = t and o\.title = r\.title\)/);
+    expect(seed).toMatch(/select id into v_proj from contract_projects where tenant_id = t and name = v_proj_name;/);
+    expect(seed).toMatch(/not exists \(select 1 from project_buyout_packages p where p\.tenant_id = t and p\.project_id = v_proj and p\.name = r\.pname\)/);
+    expect(seed).toMatch(/select id into v_rfq_late from rfqs where tenant_id = t and title = 'TEST RFQ - Late supplier replies';\s+if v_rfq_late is null then/);
+    expect(seed).toMatch(/not exists \(select 1 from rfqs where tenant_id = t and title = 'TEST RFQ - Buy-out steel package'\)/);
+  });
+
+  it("reads the stages, outcomes and statuses it writes from the lists the app and the check constraints allow", () => {
+    const okStages = new Set(["received", "bid_no_bid", "estimating", "submitted", "clarifications", "awarded", "bid_lost", "no_bid"]);
+    for (const r of rows) expect(okStages.has(r.stage), r.stage).toBe(true);
+    const status = /create table[^;]*project_buyout_packages[\s\S]*?status\s+text[^,]*?check \(status in \(([^)]*)\)/i.exec(migrationText);
+    const allowed = new Set([...(status?.[1] ?? "").matchAll(/'([a-z_]+)'/g)].map((m) => m[1]));
+    for (const s of ["awarded", "out", "draft"]) expect(allowed.has(s), s).toBe(true);
+  });
+});
+
 describe("the cleanup script", () => {
   const deletes = [...cleanup.matchAll(/delete\s+from\s+([a-z_0-9]+)\b[^;]*/gi)].map((m) => ({ table: m[1], stmt: m[0] }));
 
@@ -335,7 +432,7 @@ describe("the cleanup script", () => {
     expect(deletes.length).toBeGreaterThanOrEqual(8);
     for (const d of deletes) {
       expect(d.stmt, d.stmt).toMatch(/where\s+tenant_id\s*=\s*t\b/);
-      expect(d.stmt, d.stmt).toMatch(/(?:name|title)\s+like\s+'TEST %'|(?:object_id|id)\s*=\s*any\(v_opps\)/);
+      expect(d.stmt, d.stmt).toMatch(/(?:name|title|first_name)\s+like\s+'TEST %'|(?:object_id|id)\s*=\s*any\(v_opps\)/);
     }
     expect(cleanup).toMatch(/v_opps[^;]*from opportunities where tenant_id = t and title like 'TEST %'/);
     expect(cleanup).not.toMatch(/truncate|drop\s+(table|schema|column)|delete\s+from\s+\w+\s*;/i);
@@ -351,6 +448,8 @@ describe("the cleanup script", () => {
       tender_boq_lines: ["opportunities"], tender_bid_versions: ["opportunities"], opportunity_competitors: ["opportunities"],
       deal_activities: ["opportunities"], estimate_lines: ["estimates"], rfq_lines: ["rfqs"], rfq_suppliers: ["rfqs"],
       rfq_responses: ["rfq_suppliers", "rfq_lines"],
+      project_budget_revisions: ["contract_projects"], project_budget_lines: ["contract_projects"],
+      project_buyout_packages: ["contract_projects"], project_buyout_package_lines: ["contract_projects"],
     };
     const tablesFilled = new Set(inserts(seed).filter((i) => !isTemp(i.table)).map((i) => i.table));
     for (const t of tablesFilled) {
@@ -365,8 +464,9 @@ describe("the cleanup script", () => {
 });
 
 describe("the ledger", () => {
-  it("PROJECT.md lists both scripts as KAMCO-only test data, with the cleanup for later", () => {
+  it("PROJECT.md lists both scripts as KAMCO-only test data, with the cleanup for later, and names the Tender desk additions", () => {
     const project = read("PROJECT.md");
+    expect(project).toMatch(/Tender desk/);
     expect(project).toMatch(/KAMCO test data, run on KAMCO only, cleanup later/);
     expect(project).toContain("scripts/seed-kamco-test-data.sql");
     expect(project).toContain("scripts/seed-kamco-test-data-cleanup.sql");

@@ -57,3 +57,55 @@ export const sh = {
   card: "0 1px 2px rgba(16,24,40,.04)",
   modal: "0 20px 60px rgba(0,0,0,.35)",
 } as const;
+
+// Tender desk (docs/design/tender-desk.md). The two home styles are bolder than the tone system on purpose: saturated tiles and a
+// dark, self-contained surface. Every value is here so no component holds a colour; stage colours are not here, they come from the
+// tenant's stage definitions. Contrast (WCAG 2.x, measured 2026-10-27): white on every tile stop 5.2:1 or better (4.3:1 where the
+// decorative glow lightens it); white on the day chips and status pills 5.0:1 or better; Control room ink 14.4:1, muted 7.0:1,
+// dimmest text 6.0:1 and every accent 6.3:1 or better on its panel; chart fills 3.7:1 or better against a white and a dark card.
+const tile = (from: string, to: string) => `linear-gradient(135deg, ${from}, ${to})`;
+const controlBg = "#0a0f1e";
+
+export const tenderDesk = {
+  tile: {
+    ink: "#ffffff",
+    inkSoft: "rgba(255,255,255,.78)",
+    glow: "rgba(255,255,255,.10)",
+    pipeline: tile("#4338ca", "#6d28d9"),
+    weighted: tile("#0f766e", "#0b7a71"),
+    closing: tile("#b91c1c", "#bf360c"),
+    win: tile("#047857", "#067a52"),
+    buyout: tile("#075985", "#0369a1"),
+  },
+  chip: { red: "#b91c1c", amber: "#b45309", green: "#047857", slate: "#475569", ink: "#ffffff" },
+  won: "#059669",
+  lost: "#e11d48",
+  bold: {
+    clients: ["#6366f1", "#0d9488", "#d97706", "#e11d48", "#0284c7"],
+    others: "#64748b",
+    buyoutFill: tile("#0369a1", "#0ea5e9"),
+    under: "#059669",
+    over: "#e11d48",
+  },
+  control: {
+    bg: `radial-gradient(900px 500px at 85% -10%, rgba(124,58,237,.22), transparent 60%), radial-gradient(800px 500px at -5% 105%, rgba(20,184,166,.16), transparent 60%), ${controlBg}`,
+    base: controlBg,
+    panel: "rgba(255,255,255,.045)",
+    row: "rgba(255,255,255,.04)",
+    border: "rgba(255,255,255,.08)",
+    ink: "#e6eaf7",
+    strong: "#ffffff",
+    muted: "#9aa4c7",
+    dim: "#8d97bb",
+    track: "rgba(255,255,255,.09)",
+    axis: "rgba(255,255,255,.14)",
+    violet: "#a78bfa",
+    violetSoft: "#c4b5fd",
+    teal: "#2dd4bf",
+    amber: "#fbbf24",
+    rose: "#fb7185",
+    blue: "#60a5fa",
+    others: "#94a3b8",
+    buttonInk: controlBg,
+  },
+} as const;

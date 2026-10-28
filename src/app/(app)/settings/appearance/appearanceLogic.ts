@@ -1,5 +1,7 @@
 import { NAV, type NavItem, type TenantConfig, type TenantFeatures } from "@/lib/constants";
 import { ACCENT_PRESETS } from "@/lib/settings";
+import { resolveTenderDeskStyle } from "@/lib/tenderDesk/style";
+import type { TenderDeskStyle } from "@/lib/tenderDesk/types";
 
 // Pure rules behind the Appearance screen. Three tabs (Theme, Menu, Dashboard) edit one draft with one Save; this
 // file turns the draft into the writes the existing routes expect.
@@ -18,6 +20,8 @@ export type AppearanceDraft = {
   /** Spectacular Purple's shell and accent; null is the shipped violet. */
   spec: SpecColors | null;
   dashboardMode: DashboardMode;
+  /** The workspace default for the Tender desk home (only offered, and only written, for a workspace with the tender edition). */
+  tenderDeskStyle: TenderDeskStyle;
   compact: boolean;
   chrome: Chrome;
   navHidden: string[];
@@ -48,6 +52,7 @@ export function draftFromTenant(t: TenantLike): AppearanceDraft {
     spec: ap?.spectacular_colors ?? null,
     // Unset resolves the way the dashboard itself resolves it: curated on Spectacular, adaptive elsewhere.
     dashboardMode: ap?.dashboard_mode ?? (ap?.ui_theme === "spectacular_purple" || ap?.ui_theme === "spectacular" ? "curated" : "adaptive"),
+    tenderDeskStyle: resolveTenderDeskStyle({ tenantDefault: ap?.tender_desk_style, flagOn: true }) ?? "bold",
     compact: ap?.compact_sidebar ?? false,
     chrome: {
       top_bar_identity: ap?.top_bar_identity !== false,
@@ -95,6 +100,7 @@ export function planAppearanceSave(initial: AppearanceDraft, draft: AppearanceDr
   if (draft.novaAccent !== initial.novaAccent) set("nova_accent_color", draft.novaAccent || undefined);
   if (!same(draft.spec, initial.spec)) set("spectacular_colors", draft.spec ?? undefined);
   if (draft.dashboardMode !== initial.dashboardMode) set("dashboard_mode", draft.dashboardMode);
+  if (draft.tenderDeskStyle !== initial.tenderDeskStyle) set("tender_desk_style", draft.tenderDeskStyle);
   if (draft.compact !== initial.compact) set("compact_sidebar", draft.compact);
   for (const k of Object.keys(draft.chrome) as (keyof Chrome)[]) {
     if (draft.chrome[k] !== initial.chrome[k]) { set(k, draft.chrome[k]); out.reload = true; }
