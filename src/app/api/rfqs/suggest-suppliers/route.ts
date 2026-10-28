@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { rfqAccess, errorResponse, isMissingRelation } from "@/lib/rfq/server";
 import { currentSuppliersForProducts, sanitizeIds } from "@/lib/rfq/currentSupplier";
 
+import { readAllPages } from "@/lib/pagedRead";
 // GET ?product_ids=a,b -- which suppliers to ask, from this tenant's own RFQ
 // history for these products: who won them, who quoted them, who was asked.
 // The RFQ form pre-ticks the best few. History is the tenant's own data; no
@@ -22,7 +23,7 @@ export async function GET(req: NextRequest) {
     if (!ids.length) return NextResponse.json({ suppliers: [], current: {} });
     const current = await currentSuppliersForProducts(admin, tenantId, ids).catch(() => ({}));
 
-    const { data: lines, error } = await admin.from("rfq_lines").select("id, rfq_id").eq("tenant_id", tenantId).in("product_id", ids).limit(2000);
+    const { data: lines, error } = await readAllPages((lo, hi) => admin.from("rfq_lines").select("id, rfq_id").eq("tenant_id", tenantId).in("product_id", ids).order("id", { ascending: true }).range(lo, hi));
     if (error) return NextResponse.json({ suppliers: [], current, pending_migration: isMissingRelation(error) });
     const lineIds = (lines ?? []).map((l) => l.id as string);
     const rfqIds = [...new Set((lines ?? []).map((l) => l.rfq_id as string))];

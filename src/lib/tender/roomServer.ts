@@ -14,6 +14,7 @@ import {
   type ParsedMessage, type RoomFileView, type RoomMessageRow, type RoomMessageView, type RoomPayload, type RoomPerson,
 } from "./room";
 
+import { readAllPages } from "@/lib/pagedRead";
 // Server side of the Deal Room (migration 0222). INTERNAL ONLY. Every query is tenant-scoped on the admin client and every
 // one tolerates the migration being pending: a missing table answers `pending`, never a crash. A room is reached ONLY through
 // openRoomRequest(): the three flags (gcc_tender, deal_room, pipeline), the caller's view of the Pipeline workcenter, and a
@@ -266,14 +267,14 @@ export async function notifyMentions(r: RoomRequest, post: { kind: string; text:
 /** Unread count per DEAL for one member, across the rooms they follow. Empty while the migration is pending. */
 export async function unreadByDeal(admin: SupabaseClient, tenantId: string, userId: string): Promise<Map<string, number>> {
   const out = new Map<string, number>();
-  const { data: mine, error } = await admin.from("deal_room_members").select("room_id, added_at, last_read_at").eq("tenant_id", tenantId).eq("user_id", userId).limit(1000);
+  const { data: mine, error } = await readAllPages((lo, hi) => admin.from("deal_room_members").select("room_id, added_at, last_read_at").eq("tenant_id", tenantId).eq("user_id", userId).order("id", { ascending: true }).range(lo, hi));
   if (error || !mine || mine.length === 0) return out;
   const members = mine as { room_id: string; added_at: string; last_read_at: string | null }[];
   const roomIds = members.map((m) => m.room_id);
   const [{ data: rooms }, { data: msgs }] = await Promise.all([
     admin.from("deal_rooms").select("id, opportunity_id").eq("tenant_id", tenantId).in("id", roomIds),
-    admin.from("deal_room_messages").select("room_id, author_id, created_at, deleted_at").eq("tenant_id", tenantId).in("room_id", roomIds)
-      .gt("created_at", new Date(Math.min(...members.map((m) => Date.parse(unreadFloor(m))))).toISOString()).limit(5000),
+    readAllPages((lo, hi) => admin.from("deal_room_messages").select("room_id, author_id, created_at, deleted_at").eq("tenant_id", tenantId).in("room_id", roomIds)
+      .gt("created_at", new Date(Math.min(...members.map((m) => Date.parse(unreadFloor(m))))).toISOString()).order("id", { ascending: true }).range(lo, hi)),
   ]);
   const dealOf = new Map(((rooms ?? []) as { id: string; opportunity_id: string }[]).map((x) => [x.id, x.opportunity_id]));
   const byRoom = new Map<string, { author_id: string; created_at: string; deleted_at: string | null }[]>();
@@ -290,7 +291,7 @@ export async function unreadByDeal(admin: SupabaseClient, tenantId: string, user
 export async function openQuestionCounts(admin: SupabaseClient, tenantId: string, roomIds: readonly string[]): Promise<Map<string, number>> {
   const out = new Map<string, number>();
   if (roomIds.length === 0) return out;
-  const { data } = await admin.from("deal_room_messages").select("id, room_id").eq("tenant_id", tenantId).in("room_id", roomIds).eq("kind", "question").eq("question_status", "open").is("deleted_at", null).limit(5000);
+  const { data } = await readAllPages((lo, hi) => admin.from("deal_room_messages").select("id, room_id").eq("tenant_id", tenantId).in("room_id", roomIds).eq("kind", "question").eq("question_status", "open").is("deleted_at", null).order("id", { ascending: true }).range(lo, hi));
   for (const r of (data ?? []) as { room_id: string }[]) out.set(r.room_id, (out.get(r.room_id) ?? 0) + 1);
   return out;
 }

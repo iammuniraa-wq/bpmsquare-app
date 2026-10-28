@@ -18,6 +18,7 @@ import {
 } from "./server";
 import type { DraftLine, ProjectRow } from "./types";
 
+import { readAllPages } from "@/lib/pagedRead";
 // Making a contract project (slice 5a): from an awarded tender in one step, or by hand. Both paths end the same way: a project, its
 // revision 0 (draft, the baseline to be approved) and its lines, with every foreign id checked against THIS workspace first.
 
@@ -85,7 +86,7 @@ export async function loadTenderSource(admin: SupabaseClient, tenantId: string, 
     costSource = { kind: "boq", reason: winning ? "no_snapshot" : "no_version", version_no: winning?.version_no ?? null };
     const [deal, boqRes] = await Promise.all([
       loadOpportunityLines(admin, tenantId, opportunityId),
-      admin.from("tender_boq_lines").select("line_id, item_no, cost_code, unit_cost, price_source, price_source_ref").eq("tenant_id", tenantId).eq("opportunity_id", opportunityId).limit(5000),
+      readAllPages((lo, hi) => admin.from("tender_boq_lines").select("line_id, item_no, cost_code, unit_cost, price_source, price_source_ref").eq("tenant_id", tenantId).eq("opportunity_id", opportunityId).order("id", { ascending: true }).range(lo, hi)),
     ]);
     const boq = new Map<string, BoqInfo>();
     for (const r of ((boqRes.error ? [] : boqRes.data ?? []) as (BoqInfo & { line_id: string | null; unit_cost: number | string | null })[])) {

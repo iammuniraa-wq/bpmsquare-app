@@ -3,6 +3,7 @@ import { selectedLines } from "@/lib/sales/lineTotals";
 import { clampPercent, cleanOrderLines, foldHeaderDiscount, r2, type CleanOrderLine } from "./totals";
 import type { OrderSourceType, PricingMode } from "./types";
 
+import { readAllPages } from "@/lib/pagedRead";
 // A sales order made from something that was already agreed: an accepted Standard Quote, a won Quotation or
 // Deal, or another order. The server copies the lines, prices, discount, tax, account, contact, customer PO
 // and notes; the person never retypes them. Every row is read tenant-scoped, and every id the source row
@@ -87,7 +88,7 @@ export async function loadSourceDraft(db: SupabaseClient, tenantId: string, sour
     if (!q) return { ok: false, status: 404, error: "Standard quote not found" };
     const quote = q as Row;
     if (quote.status !== "accepted") return { ok: false, status: 422, error: "Only an accepted standard quote can become a sales order" };
-    const { data: lines } = await db.from("standard_quote_lines").select("*").eq("standard_quote_id", id).eq("tenant_id", tenantId).order("sl_no");
+    const { data: lines } = await readAllPages((lo, hi) => db.from("standard_quote_lines").select("*").eq("standard_quote_id", id).eq("tenant_id", tenantId).order("sl_no").order("id", { ascending: true }).range(lo, hi));
     return {
       ok: true,
       draft: {
@@ -107,7 +108,7 @@ export async function loadSourceDraft(db: SupabaseClient, tenantId: string, sour
     const quote = q as Row;
     if (quote.superseded_by) return { ok: false, status: 409, error: "This quotation version has been superseded; use the latest version" };
     if (!(quote.outcome === "won" || quote.status === "approved")) return { ok: false, status: 422, error: "Only a won (approved) quotation can become a sales order" };
-    const { data: lines } = await db.from("quote_lines").select("*").eq("quote_id", id).eq("tenant_id", tenantId).order("sl_no");
+    const { data: lines } = await readAllPages((lo, hi) => db.from("quote_lines").select("*").eq("quote_id", id).eq("tenant_id", tenantId).order("sl_no").order("id", { ascending: true }).range(lo, hi));
     const rows = (lines ?? []) as Row[];
     const mapped = mapQuoteLines(rows, { headerDiscountPct: 0, taxPct: clampPercent(quote.gst_rate), selectedOptionId: (quote.selected_option_id as string | null) ?? null });
     // A fixed discount has no percentage of its own: carry it as the equivalent share of the charged subtotal.
@@ -135,7 +136,7 @@ export async function loadSourceDraft(db: SupabaseClient, tenantId: string, sour
     if (error || !o) return { ok: false, status: 404, error: "Deal not found" };
     const opp = o as Row;
     if (opp.outcome !== "won") return { ok: false, status: 422, error: "Only a won deal can become a sales order" };
-    const { data: lines } = await db.from("opportunity_lines").select("*").eq("opportunity_id", id).eq("tenant_id", tenantId).order("sl_no");
+    const { data: lines } = await readAllPages((lo, hi) => db.from("opportunity_lines").select("*").eq("opportunity_id", id).eq("tenant_id", tenantId).order("sl_no").order("id", { ascending: true }).range(lo, hi));
     return {
       ok: true,
       draft: {
@@ -151,7 +152,7 @@ export async function loadSourceDraft(db: SupabaseClient, tenantId: string, sour
   const { data: src } = await db.from("sales_orders").select("*").eq("id", id).eq("tenant_id", tenantId).maybeSingle();
   if (!src) return { ok: false, status: 404, error: "Order not found" };
   const order = src as Row;
-  const { data: lines } = await db.from("sales_order_lines").select("*").eq("order_id", id).eq("tenant_id", tenantId).order("line_no");
+  const { data: lines } = await readAllPages((lo, hi) => db.from("sales_order_lines").select("*").eq("order_id", id).eq("tenant_id", tenantId).order("line_no").order("id", { ascending: true }).range(lo, hi));
   return {
     ok: true,
     draft: {

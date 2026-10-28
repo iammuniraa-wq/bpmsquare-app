@@ -8,6 +8,7 @@ import { sendToEmployee, pushConfigured } from "@/lib/wfm/push";
 import type { PresenceKind } from "@/lib/wfm/types";
 
 
+import { readAllPages } from "@/lib/pagedRead";
 // Capped per route, not via vercel.json. That config carried
 // "src/app/api/wfm/**": { maxDuration: 60 } from 2026-10-03 and it never
 // took effect -- on 2026-10-07 these routes still ran the full 300s during a
@@ -86,19 +87,19 @@ export async function GET(request: NextRequest) {
     const thresholdMinutes = (longDay?.after_hours ?? 0) * 60;
 
     const [{ data: employees }, { data: shifts }, { data: events }] = await Promise.all([
-      admin
+      readAllPages((lo, hi) => admin
         .from("employees")
         .select("id, first_name, last_name, shift_id")
         .eq("tenant_id", tenant.id)
-        .eq("status", "active"),
+        .eq("status", "active").order("id", { ascending: true }).range(lo, hi)),
       admin.from("wfm_shifts").select("id, start_time, crosses_midnight").eq("tenant_id", tenant.id),
-      admin
+      readAllPages((lo, hi) => admin
         .from("wfm_presence_events")
         .select("employee_id, kind, ts")
         .eq("tenant_id", tenant.id)
         .is("superseded_by", null)
         .gte("ts", new Date(now.getTime() - LOOKBACK_HOURS * 3600_000).toISOString())
-        .order("ts", { ascending: true }),
+        .order("ts", { ascending: true }).order("id", { ascending: true }).range(lo, hi)),
     ]);
 
     const shiftById = new Map((shifts ?? []).map((s) => [s.id as string, s]));

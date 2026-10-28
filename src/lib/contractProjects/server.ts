@@ -11,6 +11,7 @@ import {
   type BudgetLine, type DraftLine, type MasterKind, type MasterRow, type ProjectRow, type RevisionRow,
 } from "./types";
 
+import { readAllPages } from "@/lib/pagedRead";
 // Shared plumbing of the /api/contract-projects* routes and the pages (migration 0226). Every query is tenant-scoped on the admin
 // client (MULTI_TENANT_GUARDRAILS.md) and every one tolerates the migration being pending: a missing table or column reads as
 // "database update needed", never as a crash. Nothing here runs for a workspace without the platform-admin flag
@@ -107,7 +108,7 @@ export function currentRevision(revisions: readonly RevisionRow[]): RevisionRow 
 }
 
 export async function loadLines(admin: SupabaseClient, tenantId: string, revisionId: string): Promise<BudgetLine[]> {
-  const { data, error } = await admin.from("project_budget_lines").select(LINE_COLS).eq("tenant_id", tenantId).eq("revision_id", revisionId).order("line_no", { ascending: true }).limit(5000);
+  const { data, error } = await readAllPages((lo, hi) => admin.from("project_budget_lines").select(LINE_COLS).eq("tenant_id", tenantId).eq("revision_id", revisionId).order("line_no", { ascending: true }).order("id", { ascending: true }).range(lo, hi));
   if (error) return [];
   return ((data ?? []) as Record<string, unknown>[]).map(normaliseLine);
 }
@@ -234,7 +235,7 @@ export async function refreshRevisionTotal(admin: SupabaseClient, tenantId: stri
  * failed insert leaves the old budget exactly as it was; a failed removal takes the new rows out again.
  */
 export async function replaceLines(admin: SupabaseClient, tenantId: string, projectId: string, revisionId: string, lines: readonly DraftLine[]): Promise<{ ok: true; total: number } | { ok: false; error: string }> {
-  const { data: oldRows, error: readErr } = await admin.from("project_budget_lines").select("id").eq("tenant_id", tenantId).eq("revision_id", revisionId).limit(6000);
+  const { data: oldRows, error: readErr } = await readAllPages((lo, hi) => admin.from("project_budget_lines").select("id").eq("tenant_id", tenantId).eq("revision_id", revisionId).order("id", { ascending: true }).range(lo, hi));
   if (readErr) return { ok: false, error: readErr.message };
   const oldIds = ((oldRows ?? []) as { id: string }[]).map((r) => r.id);
   const rows: (Record<string, unknown> & { id: string })[] = lineRows(tenantId, projectId, revisionId, lines).map((r) => ({ ...r, id: randomUUID() }));

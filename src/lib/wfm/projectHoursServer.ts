@@ -5,6 +5,7 @@ import { getWfmConfig, dateKeyInTz } from "@/lib/wfm/server";
 import { workSessions } from "@/lib/wfm/hours";
 import { rollUpProjectHours, projectHeadcount, UNASSIGNED, type SessionsForEmployee } from "@/lib/wfm/projectHours";
 import { rollUp, depthOf, descendantsOf } from "@/lib/wfm/projectTree";
+import { readAllPages } from "@/lib/pagedRead";
 
 type Admin = ReturnType<typeof createAdminSupabase>;
 
@@ -57,22 +58,23 @@ export async function loadProjectSessions(
 ): Promise<{ sessions: SessionsForEmployee[] } | { pending_migration: true }> {
   const config = await getWfmConfig(admin, tenantId);
 
-  let eventsQuery = admin
-    .from("wfm_presence_events")
-    .select("employee_id, kind, ts, project_id")
-    .eq("tenant_id", tenantId)
-    .is("superseded_by", null)
-    // Padded a day either side so a night shift's punches around midnight
-    // are all present for the session split. The padding is for the SPLIT
-    // only: a session belongs to the period by the local day it started
-    // (below), so the day after `to` is never counted in -- it was, until
-    // 2026-09-06, which put 1 September's hours on an August invoice.
-    .gte("ts", new Date(Date.parse(`${from}T00:00:00Z`) - 86_400_000).toISOString())
-    .lt("ts", new Date(Date.parse(`${to}T00:00:00Z`) + 2 * 86_400_000).toISOString())
-    .order("ts", { ascending: true });
-  if (employeeIds) eventsQuery = eventsQuery.in("employee_id", employeeIds);
-
-  const { data: events, error } = await eventsQuery;
+  // Paged: a project invoice is priced from these events, and a month of punches is far past PostgREST's 1000-row response cap.
+  const { data: events, error } = await readAllPages((lo, hi) => {
+    let q = admin
+      .from("wfm_presence_events")
+      .select("employee_id, kind, ts, project_id")
+      .eq("tenant_id", tenantId)
+      .is("superseded_by", null)
+      // Padded a day either side so a night shift's punches around midnight
+      // are all present for the session split. The padding is for the SPLIT
+      // only: a session belongs to the period by the local day it started
+      // (below), so the day after `to` is never counted in -- it was, until
+      // 2026-09-06, which put 1 September's hours on an August invoice.
+      .gte("ts", new Date(Date.parse(`${from}T00:00:00Z`) - 86_400_000).toISOString())
+      .lt("ts", new Date(Date.parse(`${to}T00:00:00Z`) + 2 * 86_400_000).toISOString());
+    if (employeeIds) q = q.in("employee_id", employeeIds);
+    return q.order("ts", { ascending: true }).order("id", { ascending: true }).range(lo, hi);
+  });
   if (error) {
     if (error.code === "42P01" || error.code === "42703") return { pending_migration: true };
     throw new Error(error.message);

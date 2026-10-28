@@ -6,6 +6,7 @@ import { groupSummary, roleGaps, type RoleGap } from "./roles";
 import { computeResults, type ProgramResults, type ResultDeal } from "./results";
 import type { AbmBuyingGroupMember, AbmProgram, AbmRole, AbmTargetAccount, AbmProgress } from "./types";
 
+import { readAllPages } from "@/lib/pagedRead";
 // Read models for the ABM screens and the routes that mirror them. Every
 // query chains .eq("tenant_id", tenantId); a pending migration reads as
 // `missing: true`, never an exception.
@@ -32,7 +33,7 @@ export async function listPrograms(ctx: Reader): Promise<{ rows: ProgramListRow[
   const programs = (data ?? []) as unknown as AbmProgram[];
   const counts = new Map<string, Record<AbmProgress, number>>();
   if (programs.length > 0) {
-    const { data: t } = await ctx.supabase.from("abm_target_accounts").select("program_id, progress").eq("tenant_id", ctx.tenantId).limit(20000);
+    const { data: t } = await readAllPages((lo, hi) => ctx.supabase.from("abm_target_accounts").select("program_id, progress").eq("tenant_id", ctx.tenantId).order("id", { ascending: true }).range(lo, hi));
     for (const r of (t ?? []) as { program_id: string; progress: AbmProgress }[]) {
       const c = counts.get(r.program_id) ?? { planned: 0, reached: 0, engaged: 0, in_talks: 0, deal_open: 0, won: 0, lost: 0, dropped: 0 };
       c[r.progress]++;
@@ -104,7 +105,7 @@ export async function loadProgramTargets(ctx: Reader, program: AbmProgram, names
 }
 
 export async function loadProgramResults(ctx: Reader, program: AbmProgram): Promise<{ results: ProgramResults; missing: boolean }> {
-  const { data, error } = await ctx.supabase.from("abm_target_accounts").select("id, account_id, tier, progress, opportunity_id").eq("tenant_id", ctx.tenantId).eq("program_id", program.id).limit(5000);
+  const { data, error } = await readAllPages((lo, hi) => ctx.supabase.from("abm_target_accounts").select("id, account_id, tier, progress, opportunity_id").eq("tenant_id", ctx.tenantId).eq("program_id", program.id).order("id", { ascending: true }).range(lo, hi));
   if (error) return { results: computeResults([], [], { metric: program.goal_metric, target: program.goal_target }), missing: isMissingRelation(error) };
   const targets = (data ?? []) as { id: string; account_id: string; tier: AbmTargetAccount["tier"]; progress: AbmProgress; opportunity_id: string | null }[];
   const dealIds = [...new Set(targets.map((t) => t.opportunity_id).filter((x): x is string => !!x))];

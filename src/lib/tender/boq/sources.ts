@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { isMissingSchema } from "../server";
 import type { Candidate } from "./price";
 
+import { readAllPages } from "@/lib/pagedRead";
 // Where a BOQ line's price can come from (slice 3a). The sources are read ONCE for a whole set of lines (loadPriceContext, in
 // batches of 100 ids) and the matching per line is plain code (candidatesFor), so "Price all" on 600 lines costs a handful of
 // queries, not 600. Every query is tenant-scoped on the admin client (MULTI_TENANT_GUARDRAILS.md) and every one tolerates a
@@ -86,7 +87,7 @@ export async function loadPriceContext(admin: Db, tenantId: string, opportunityI
     // 2. BOM roll-ups: the consumed components of each product and their cost prices.
     for (const part of chunk(productIds, 100)) {
       for (const b of await rows<{ parent_product_id: string; component_product_id: string; qty: number; scrap_pct: number }>(
-        admin.from("product_bom_lines").select("parent_product_id, component_product_id, qty, scrap_pct").eq("tenant_id", tenantId).eq("line_kind", "consumed").in("parent_product_id", part))) {
+        readAllPages((lo, hi) => admin.from("product_bom_lines").select("parent_product_id, component_product_id, qty, scrap_pct").eq("tenant_id", tenantId).eq("line_kind", "consumed").in("parent_product_id", part).order("id", { ascending: true }).range(lo, hi)))) {
         const list = ctx.bom.get(b.parent_product_id) ?? [];
         list.push({ component_product_id: b.component_product_id, qty: Number(b.qty), scrap_pct: Number(b.scrap_pct ?? 0) });
         ctx.bom.set(b.parent_product_id, list);
@@ -99,7 +100,7 @@ export async function loadPriceContext(admin: Db, tenantId: string, opportunityI
     const estLines: { estimate_id: string; product_id: string; unit_cost: number; updated_at: string | null }[] = [];
     for (const part of chunk(productIds, 100)) {
       estLines.push(...await rows<{ estimate_id: string; product_id: string; unit_cost: number; updated_at: string | null }>(
-        admin.from("estimate_lines").select("estimate_id, product_id, unit_cost, updated_at").eq("tenant_id", tenantId).in("product_id", part).not("unit_cost", "is", null).limit(1000)));
+        readAllPages((lo, hi) => admin.from("estimate_lines").select("estimate_id, product_id, unit_cost, updated_at").eq("tenant_id", tenantId).in("product_id", part).not("unit_cost", "is", null).order("id", { ascending: true }).range(lo, hi))));
     }
     if (estLines.length > 0) {
       const live = new Map<string, { ref: string | null; name: string; status: string; updated_at: string | null }>();
@@ -118,13 +119,13 @@ export async function loadPriceContext(admin: Db, tenantId: string, opportunityI
     // 4. Answered RFQ lines for the product: rfq_lines -> rfq_responses (quoted) -> rfq_suppliers -> rfqs / suppliers.
     const rfqLines: { id: string; rfq_id: string; product_id: string }[] = [];
     for (const part of chunk(productIds, 100)) {
-      rfqLines.push(...await rows<{ id: string; rfq_id: string; product_id: string }>(admin.from("rfq_lines").select("id, rfq_id, product_id").eq("tenant_id", tenantId).in("product_id", part).limit(2000)));
+      rfqLines.push(...await rows<{ id: string; rfq_id: string; product_id: string }>(readAllPages((lo, hi) => admin.from("rfq_lines").select("id, rfq_id, product_id").eq("tenant_id", tenantId).in("product_id", part).order("id", { ascending: true }).range(lo, hi))));
     }
     if (rfqLines.length > 0) {
       const lineProduct = new Map(rfqLines.map((l) => [l.id, l.product_id]));
       const responses: { rfq_supplier_id: string; rfq_line_id: string; unit_price: number; fx_rate: number | null; submitted_at: string | null }[] = [];
       for (const part of chunk(rfqLines.map((l) => l.id), 100)) {
-        responses.push(...await rows<(typeof responses)[number]>(admin.from("rfq_responses").select("rfq_supplier_id, rfq_line_id, unit_price, fx_rate, submitted_at").eq("tenant_id", tenantId).eq("status", "quoted").in("rfq_line_id", part).not("unit_price", "is", null)));
+        responses.push(...await rows<(typeof responses)[number]>(readAllPages((lo, hi) => admin.from("rfq_responses").select("rfq_supplier_id, rfq_line_id, unit_price, fx_rate, submitted_at").eq("tenant_id", tenantId).eq("status", "quoted").in("rfq_line_id", part).not("unit_price", "is", null).order("id", { ascending: true }).range(lo, hi))));
       }
       const rs = new Map<string, { rfq_id: string; supplier_id: string; status: string }>();
       for (const part of chunk([...new Set(responses.map((r) => r.rfq_supplier_id))], 100)) {
@@ -156,11 +157,11 @@ export async function loadPriceContext(admin: Db, tenantId: string, opportunityI
   }
 
   // 5. Past projects: the lines of tender deals this workspace WON (not this deal), with their cost codes.
-  const tenderIds = new Set((await rows<{ opportunity_id: string }>(admin.from("opportunity_tenders").select("opportunity_id").eq("tenant_id", tenantId).limit(2000))).map((t) => t.opportunity_id));
+  const tenderIds = new Set((await rows<{ opportunity_id: string }>(readAllPages((lo, hi) => admin.from("opportunity_tenders").select("opportunity_id").eq("tenant_id", tenantId).order("opportunity_id", { ascending: true }).range(lo, hi)))).map((t) => t.opportunity_id));
   tenderIds.delete(opportunityId);
   if (tenderIds.size > 0) {
     const wonOpps = (await rows<{ id: string; ref: string | null; title: string; closed_at: string | null; updated_at: string | null }>(
-      admin.from("opportunities").select("id, ref, title, closed_at, updated_at").eq("tenant_id", tenantId).eq("outcome", "won").limit(2000))).filter((o) => tenderIds.has(o.id));
+      readAllPages((lo, hi) => admin.from("opportunities").select("id, ref, title, closed_at, updated_at").eq("tenant_id", tenantId).eq("outcome", "won").order("id", { ascending: true }).range(lo, hi)))).filter((o) => tenderIds.has(o.id));
     const byOpp = new Map<string, WonDeal>();
     const tenderNo = new Map<string, string | null>();
     for (const part of chunk(wonOpps.map((o) => o.id), 100)) {
@@ -169,10 +170,10 @@ export async function loadPriceContext(admin: Db, tenantId: string, opportunityI
     for (const o of wonOpps) byOpp.set(o.id, { ref: o.ref ?? o.title, tender_no: tenderNo.get(o.id) ?? null, as_of: day(o.closed_at ?? o.updated_at) ?? "", lines: [] });
     const lineCode = new Map<string, string | null>();
     for (const part of chunk(wonOpps.map((o) => o.id), 100)) {
-      for (const b of await rows<{ line_id: string | null; cost_code: string | null }>(admin.from("tender_boq_lines").select("line_id, cost_code").eq("tenant_id", tenantId).in("opportunity_id", part).limit(5000))) {
+      for (const b of await rows<{ line_id: string | null; cost_code: string | null }>(readAllPages((lo, hi) => admin.from("tender_boq_lines").select("line_id, cost_code").eq("tenant_id", tenantId).in("opportunity_id", part).order("id", { ascending: true }).range(lo, hi)))) {
         if (b.line_id) lineCode.set(b.line_id, b.cost_code);
       }
-      for (const l of await rows<{ id: string; opportunity_id: string; description: string; rate: number; product_id: string | null }>(admin.from("opportunity_lines").select("id, opportunity_id, description, rate, product_id").eq("tenant_id", tenantId).in("opportunity_id", part).limit(5000))) {
+      for (const l of await rows<{ id: string; opportunity_id: string; description: string; rate: number; product_id: string | null }>(readAllPages((lo, hi) => admin.from("opportunity_lines").select("id, opportunity_id, description, rate, product_id").eq("tenant_id", tenantId).in("opportunity_id", part).order("id", { ascending: true }).range(lo, hi)))) {
         if (!(Number(l.rate) > 0)) continue;
         byOpp.get(l.opportunity_id)?.lines.push({ desc: norm(l.description), product_id: l.product_id, cost_code: lineCode.get(l.id) ?? null, rate: Number(l.rate) });
       }

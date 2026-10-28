@@ -5,6 +5,7 @@ import { DEFAULT_TENDER_STAGES, type OpportunityStageDef } from "@/lib/constants
 import { opportunityAmount, probabilityFor } from "./opportunity";
 import { sortDealLines } from "./dealLines";
 
+import { readAllPages } from "@/lib/pagedRead";
 // Server-side helpers for opportunities (Piece B). Every query is
 // tenant-scoped on the admin client (MULTI_TENANT_GUARDRAILS.md), and every
 // one tolerates migration 0120 being pending: a missing table reads as
@@ -17,7 +18,7 @@ export async function loadOpportunity(admin: SupabaseClient, tenantId: string, i
 }
 
 export async function loadOpportunityLines(admin: SupabaseClient, tenantId: string, id: string): Promise<OpportunityLine[]> {
-  const { data, error } = await admin.from("opportunity_lines").select("*").eq("opportunity_id", id).eq("tenant_id", tenantId).order("sl_no");
+  const { data, error } = await readAllPages((lo, hi) => admin.from("opportunity_lines").select("*").eq("opportunity_id", id).eq("tenant_id", tenantId).order("sl_no").order("id", { ascending: true }).range(lo, hi));
   if (error) return [];
   // Item numbers sort as numbers ("1.2" before "1.10"); the database order is text.
   return sortDealLines((data ?? []) as OpportunityLine[]);

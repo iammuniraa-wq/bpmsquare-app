@@ -5,6 +5,7 @@ import { ensureMasterSeeds, isMissingSchema, MASTER_COLS, needsUpdate, openProje
 import { MASTER_KINDS, MASTER_KIND_LABEL, isMasterKind, type MasterFlags, type MasterRow } from "@/lib/contractProjects/types";
 import { MASTER_IMPORT_LIMITS } from "@/lib/contractProjects/masters";
 
+import { readAllPages } from "@/lib/pagedRead";
 // The ERP code lists a budget line points at (migration 0226, erp_masters): resource levels, cost codes, justification reasons, reserve
 // types, divisions, job locations. One table for all of them.
 //
@@ -29,7 +30,7 @@ export async function GET(request: NextRequest) {
   if (sp.get("summary") === "1") {
     const kinds = [];
     for (const kind of MASTER_KINDS) {
-      const { data, error } = await admin.from("erp_masters").select("active, source").eq("tenant_id", tenantId).eq("kind", kind).limit(50_000);
+      const { data, error } = await readAllPages((lo, hi) => admin.from("erp_masters").select("active, source").eq("tenant_id", tenantId).eq("kind", kind).order("id", { ascending: true }).range(lo, hi));
       if (error) return isMissingSchema(error) ? NextResponse.json({ ...needsUpdate().extra, error: needsUpdate().error }, { status: 503 }) : NextResponse.json({ error: error.message }, { status: 500 });
       const rows = (data ?? []) as { active: boolean; source: string }[];
       kinds.push({ kind, label: MASTER_KIND_LABEL[kind], total: rows.length, active: rows.filter((r) => r.active).length, files: rows.filter((r) => r.source === "file").length, defaults: rows.filter((r) => r.source === "default").length, manual: rows.filter((r) => r.source === "manual").length });

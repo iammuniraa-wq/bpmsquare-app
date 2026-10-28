@@ -7,6 +7,7 @@ import { PRICE_SOURCE_LABEL, type PriceSource } from "../boq/price";
 import { isMissingSchema } from "../server";
 import { buildSnapshot, parseStoredLines, type BidLine, type BidVersionSummary, type Snapshot, type SnapshotSource } from "./rules";
 
+import { readAllPages } from "@/lib/pagedRead";
 // Server side of the bid versions (migration 0225, slice 4). Every query is tenant-scoped on the admin client and every one
 // tolerates the migration being pending (a missing table answers `pending`, never a crash).
 
@@ -59,7 +60,7 @@ export async function currentSnapshot(admin: SupabaseClient, tenantId: string, o
 
   // Only the LABEL of the price source is read; the cost and markup columns of the BOQ row are never selected.
   const priceSource = new Map<string, string>();
-  const { data: boq, error: boqErr } = await admin.from("tender_boq_lines").select("line_id, price_source").eq("tenant_id", tenantId).eq("opportunity_id", opportunityId).limit(5000);
+  const { data: boq, error: boqErr } = await readAllPages((lo, hi) => admin.from("tender_boq_lines").select("line_id, price_source").eq("tenant_id", tenantId).eq("opportunity_id", opportunityId).order("id", { ascending: true }).range(lo, hi));
   if (!boqErr) {
     for (const r of (boq ?? []) as { line_id: string | null; price_source: PriceSource | null }[]) {
       if (r.line_id && r.price_source && PRICE_SOURCE_LABEL[r.price_source]) priceSource.set(r.line_id, PRICE_SOURCE_LABEL[r.price_source]);

@@ -8,6 +8,7 @@ import { isMissingSchema } from "../server";
 import { buildCostSnapshot, parseCostSnapshot, snapshotCostTotal, type CostBoqInfo, type CostSnapshot } from "./costSnapshot";
 import type { Snapshot } from "./rules";
 
+import { readAllPages } from "@/lib/pagedRead";
 // Server side of the bid versions' INTERNAL cost (migration 0230, table tender_bid_version_costs). The table has RLS on and no policy, so
 // only these functions, on the service-role client, ever touch it. Every query is tenant-scoped and tolerates the migration being
 // pending. This is the only place that writes or reads the table; the bid routes, the exports and the answer sheet never import it.
@@ -16,7 +17,7 @@ import type { Snapshot } from "./rules";
 export async function buildCurrentCost(admin: SupabaseClient, tenantId: string, opportunityId: string, snap: Pick<Snapshot, "lines" | "source_ids">): Promise<CostSnapshot> {
   const [deal, boqRes, tenant, estimates] = await Promise.all([
     loadOpportunityLines(admin, tenantId, opportunityId),
-    admin.from("tender_boq_lines").select("line_id, item_no, cost_code, unit_cost, markup_pct, price_source, price_source_ref").eq("tenant_id", tenantId).eq("opportunity_id", opportunityId).limit(5000),
+    readAllPages((lo, hi) => admin.from("tender_boq_lines").select("line_id, item_no, cost_code, unit_cost, markup_pct, price_source, price_source_ref").eq("tenant_id", tenantId).eq("opportunity_id", opportunityId).order("id", { ascending: true }).range(lo, hi)),
     getTenant(),
     loadEstimateBudgetInputs(admin, tenantId, opportunityId),
   ]);

@@ -5,6 +5,7 @@ import { summariseProjects, type ProjectsSummary } from "./summary";
 import { isMissingSchema, normaliseProject, normaliseRevision } from "./server";
 import { PROJECT_STATUSES, type ProjectRow, type ProjectStatus, type RevisionRow } from "./types";
 
+import { readAllPages } from "@/lib/pagedRead";
 // The list of contract projects, shared by the list page and GET /api/contract-projects. Header fields and totals only: a project's
 // budget lines (unit costs) never leave the project's own screen and its export.
 
@@ -33,13 +34,13 @@ export type ListParams = { status?: string | null; q?: string | null; sort?: str
 export async function listProjects(admin: SupabaseClient, tenantId: string, params: ListParams = {}): Promise<{ rows: ProjectListRow[]; total: number; counts: Record<string, number>; summary: ProjectsSummary; page: number; pageSize: number; pending: boolean }> {
   const pageSize = Math.max(1, Math.min(100, params.pageSize ?? 25));
   const page = Math.max(1, params.page ?? 1);
-  const { data, error } = await admin.from("contract_projects").select("*").eq("tenant_id", tenantId).order("updated_at", { ascending: false }).limit(2000);
+  const { data, error } = await readAllPages((lo, hi) => admin.from("contract_projects").select("*").eq("tenant_id", tenantId).order("updated_at", { ascending: false }).order("id", { ascending: true }).range(lo, hi));
   if (error) return { rows: [], total: 0, counts: {}, summary: summariseProjects([]), page, pageSize, pending: isMissingSchema(error) };
   const projects: ProjectRow[] = ((data ?? []) as Record<string, unknown>[]).map(normaliseProject);
 
   const revisions = new Map<string, RevisionRow[]>();
   if (projects.length > 0) {
-    const { data: revs } = await admin.from("project_budget_revisions").select("id, project_id, rev_no, status, total").eq("tenant_id", tenantId).limit(10000);
+    const { data: revs } = await readAllPages((lo, hi) => admin.from("project_budget_revisions").select("id, project_id, rev_no, status, total").eq("tenant_id", tenantId).order("id", { ascending: true }).range(lo, hi));
     for (const r of ((revs ?? []) as Record<string, unknown>[]).map(normaliseRevision)) revisions.set(r.project_id, [...(revisions.get(r.project_id) ?? []), r]);
   }
   const accountIds = [...new Set(projects.map((p) => p.account_id).filter((x): x is string => !!x))];

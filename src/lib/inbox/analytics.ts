@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { canSeeChannel, medianFirstReplyMinutes } from "./rules";
 import { isMissingRelation, loadChannels, viewerRoleIds } from "./server";
 
+import { readAllPages } from "@/lib/pagedRead";
 // Numbers only, no mail: what the dashboard tile, the Reports metric and the daily briefing say about the Inbox.
 
 export type InboxAnalytics = {
@@ -24,7 +25,7 @@ export async function getInboxAnalytics(admin: SupabaseClient, tenantId: string,
     const [recent, open, threads] = await Promise.all([
       admin.from("inbound_emails").select("id", { count: "exact", head: true }).eq("tenant_id", tenantId).eq("direction", "in").gte("received_at", week),
       admin.from("inbound_emails").select("id", { count: "exact", head: true }).eq("tenant_id", tenantId).eq("direction", "in").eq("status", "new"),
-      admin.from("inbound_emails").select("thread_key, direction, received_at").eq("tenant_id", tenantId).gte("received_at", month).not("thread_key", "is", null).limit(5000),
+      readAllPages((lo, hi) => admin.from("inbound_emails").select("thread_key, direction, received_at").eq("tenant_id", tenantId).gte("received_at", month).not("thread_key", "is", null).order("id", { ascending: true }).range(lo, hi)),
     ]);
     if (recent.error || open.error) return NO_INBOX_ANALYTICS;
     return {

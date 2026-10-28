@@ -5,6 +5,7 @@ import { defaultMailer, dealLink, memberEmails, sendTenderMail, type NotifyTenan
 import { isMissingSchema } from "./server";
 import { nameMapOf, peopleByIds, type MemberRow } from "./roomServer";
 
+import { readAllPages } from "@/lib/pagedRead";
 // The Deal Room e-mail digest (docs/design/gcc-tender-deals.md section 4, internal only). Run every 15 minutes by
 // /api/tenders/cron/room-digest. For every workspace with gcc_tender + deal_room + pipeline, each member who has unread
 // messages from OTHER people in the rooms they follow gets ONE e-mail that lists them (a few lines per room, a link to the
@@ -30,8 +31,8 @@ export async function sendRoomDigests(admin: SupabaseClient, deps: { now?: Date;
   for (const t of (tenants ?? []) as NotifyTenant[]) {
     out.tenants++;
     try {
-      const { data: memberRows, error: mErr } = await admin.from("deal_room_members")
-        .select("id, room_id, user_id, added_by, added_at, last_seen_at, last_read_at, last_digest_at").eq("tenant_id", t.id).limit(5000);
+      const { data: memberRows, error: mErr } = await readAllPages((lo, hi) => admin.from("deal_room_members")
+        .select("id, room_id, user_id, added_by, added_at, last_seen_at, last_read_at, last_digest_at").eq("tenant_id", t.id).order("id", { ascending: true }).range(lo, hi));
       if (mErr) {
         if (isMissingSchema(mErr)) out.pending_migration = true; else out.errors.push(`${t.slug}: ${mErr.message}`);
         continue;
@@ -43,8 +44,8 @@ export async function sendRoomDigests(admin: SupabaseClient, deps: { now?: Date;
       const weekAgo = new Date(now.getTime() - 7 * 86_400_000).toISOString();
       const [{ data: rooms }, { data: msgs }] = await Promise.all([
         admin.from("deal_rooms").select("id, opportunity_id").eq("tenant_id", t.id).in("id", roomIds),
-        admin.from("deal_room_messages").select("id, room_id, author_id, body, mentions, created_at").eq("tenant_id", t.id).in("room_id", roomIds)
-          .is("deleted_at", null).neq("kind", "decision").gt("created_at", weekAgo).order("created_at", { ascending: true }).limit(5000),
+        readAllPages((lo, hi) => admin.from("deal_room_messages").select("id, room_id, author_id, body, mentions, created_at").eq("tenant_id", t.id).in("room_id", roomIds)
+          .is("deleted_at", null).neq("kind", "decision").gt("created_at", weekAgo).order("created_at", { ascending: true }).order("id", { ascending: true }).range(lo, hi)),
       ]);
       const dealOfRoom = new Map(((rooms ?? []) as { id: string; opportunity_id: string }[]).map((x) => [x.id, x.opportunity_id]));
       const byRoom = new Map<string, MsgRow[]>();

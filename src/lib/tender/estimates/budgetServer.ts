@@ -4,6 +4,7 @@ import type { EstimateBudgetInput } from "@/lib/contractProjects/fromTender";
 import type { BudgetEstimate, BudgetLink } from "./budgetParts";
 import { isLinkStale, isUuid, type Basis, type EstLine } from "./rules";
 
+import { readAllPages } from "@/lib/pagedRead";
 // What the contract project budget reads from the estimates that priced a tender's BOQ (slice 3c-1, "Budget after award"). Standalone
 // on purpose: the project creation path imports only this and the pure rules. Every query is tenant-scoped, an estimate must belong to
 // THIS deal, and a missing table (0227 pending) reads as "no links" so a workspace that never used estimates in a tender gets exactly
@@ -14,12 +15,12 @@ const num = (v: unknown): number | null => (v == null || v === "" ? null : Numbe
 export async function loadEstimateBudgetInputs(admin: SupabaseClient, tenantId: string, opportunityId: string): Promise<EstimateBudgetInput> {
   const out = new Map<string, { links: { link: BudgetLink; estimate: BudgetEstimate | null }[] }>();
   if (!isUuid(opportunityId)) return out;
-  const lk = await admin.from("tender_boq_estimate_links")
-    .select("boq_line_id, estimate_id, output, basis, share_pct, applied_at, estimate_updated_at").eq("tenant_id", tenantId).eq("opportunity_id", opportunityId).limit(10000);
+  const lk = await readAllPages((lo, hi) => admin.from("tender_boq_estimate_links")
+    .select("boq_line_id, estimate_id, output, basis, share_pct, applied_at, estimate_updated_at").eq("tenant_id", tenantId).eq("opportunity_id", opportunityId).order("id", { ascending: true }).range(lo, hi));
   if (lk.error || !lk.data || lk.data.length === 0) return out;
   const links = lk.data as { boq_line_id: string; estimate_id: string; output: string; basis: string; share_pct: number | string; applied_at: string | null; estimate_updated_at: string | null }[];
 
-  const boq = await admin.from("tender_boq_lines").select("id, line_id").eq("tenant_id", tenantId).eq("opportunity_id", opportunityId).limit(5000);
+  const boq = await readAllPages((lo, hi) => admin.from("tender_boq_lines").select("id, line_id").eq("tenant_id", tenantId).eq("opportunity_id", opportunityId).order("id", { ascending: true }).range(lo, hi));
   const dealLineOfBoq = new Map(((boq.error ? [] : boq.data ?? []) as { id: string; line_id: string | null }[]).filter((b) => b.line_id).map((b) => [b.id, b.line_id!]));
 
   const estimateIds = [...new Set(links.map((l) => l.estimate_id))];

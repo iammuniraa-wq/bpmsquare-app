@@ -13,6 +13,7 @@ import { makeShiftResolver, type RosterLike, type ShiftLike } from "./effectiveS
 import { inRangeOrFilter, obsoleteLabel } from "./obsolete";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import { readAllPages } from "@/lib/pagedRead";
 export type WfmContext = {
   supabase: SupabaseClient;
   tenantId: string;
@@ -284,14 +285,14 @@ export async function getTechnicianLiveStates(
   if (empIdByTechId.size === 0) return new Map();
 
   const since = new Date(Date.now() - 36 * 60 * 60 * 1000).toISOString();
-  const { data: events } = await admin
+  const { data: events } = await readAllPages((lo, hi) => admin
     .from("wfm_presence_events")
     .select("employee_id, kind, ts")
     .eq("tenant_id", tenantId)
     .in("employee_id", [...empIdByTechId.values()])
     .is("superseded_by", null)
     .gte("ts", since)
-    .order("ts", { ascending: true });
+    .order("ts", { ascending: true }).order("id", { ascending: true }).range(lo, hi));
 
   const eventsByEmployee = new Map<string, { kind: PresenceKind }[]>();
   for (const e of events ?? []) {
@@ -344,7 +345,7 @@ export async function getTechnicianAttendanceForDate(
   const windowStart = new Date(dayStart.getTime() - 12 * 60 * 60 * 1000);
   const windowEnd = new Date(dayStart.getTime() + 36 * 60 * 60 * 1000);
 
-  const { data: events } = await admin
+  const { data: events } = await readAllPages((lo, hi) => admin
     .from("wfm_presence_events")
     .select("kind, ts, within_geofence")
     .eq("tenant_id", tenantId)
@@ -352,7 +353,7 @@ export async function getTechnicianAttendanceForDate(
     .is("superseded_by", null)
     .gte("ts", windowStart.toISOString())
     .lte("ts", windowEnd.toISOString())
-    .order("ts", { ascending: true });
+    .order("ts", { ascending: true }).order("id", { ascending: true }).range(lo, hi));
 
   const dayEvents = (events ?? []).filter(
     (e) => shiftDayKey(new Date(e.ts as string), config.timezone, shift) === dateKey
@@ -417,7 +418,7 @@ export async function getWfmLiveBoardSnapshot(
 
   const [{ data: employees }, { data: shifts }, { data: rosterToday }, { data: sites }, { data: events }, { data: holidays }, { data: leaves }] =
     await Promise.all([
-      (() => {
+      readAllPages((lo, hi) => {
         let q = admin
           .from("employees")
           .select("id, employee_code, first_name, last_name, employment_type, wfm_role, shift_id, site_id, status, valid_to")
@@ -425,28 +426,28 @@ export async function getWfmLiveBoardSnapshot(
           // Active, plus an obsolete employee through their last day (valid_to).
           .or(inRangeOrFilter(todayKey));
         if (employeeIds) q = q.in("id", employeeIds);
-        return q.order("first_name");
-      })(),
+        return q.order("first_name").order("id", { ascending: true }).range(lo, hi);
+      }),
       admin.from("wfm_shifts").select("*").eq("tenant_id", tenantId),
-      admin.from("wfm_roster_assignments")
+      readAllPages((lo, hi) => admin.from("wfm_roster_assignments")
         .select("employee_id, date, shift_id, is_day_off")
         .eq("tenant_id", tenantId)
-        .eq("date", todayKey),
+        .eq("date", todayKey).order("id", { ascending: true }).range(lo, hi)),
       admin.from("wfm_sites").select("id, name, active").eq("tenant_id", tenantId),
-      admin
+      readAllPages((lo, hi) => admin
         .from("wfm_presence_events")
         .select("id, employee_id, kind, ts, site_id, within_geofence, selfie_path, flags")
         .eq("tenant_id", tenantId)
         .is("superseded_by", null)
         .gte("ts", new Date(now.getTime() - 36 * 60 * 60 * 1000).toISOString())
-        .order("ts", { ascending: true }),
+        .order("ts", { ascending: true }).order("id", { ascending: true }).range(lo, hi)),
       admin.from("wfm_holidays").select("date, applies_to").eq("tenant_id", tenantId).eq("date", todayKey),
-      admin
+      readAllPages((lo, hi) => admin
         .from("wfm_leave_records")
         .select("employee_id, half_day")
         .eq("tenant_id", tenantId)
         .lte("date_from", todayKey)
-        .gte("date_to", todayKey),
+        .gte("date_to", todayKey).order("id", { ascending: true }).range(lo, hi)),
     ]);
 
   const shiftById = new Map((shifts ?? []).map((s) => [s.id, s]));

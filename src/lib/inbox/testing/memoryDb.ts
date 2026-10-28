@@ -38,6 +38,8 @@ export class MemoryDb {
   missing = new Set<string>();
   /** Columns that do not exist yet (a migration that adds a column is pending): a select naming one, or a write carrying one, answers 42703. */
   missingColumns: Record<string, Set<string>> = {};
+  /** PostgREST's max-rows: no response carries more rows than this, whatever `.limit()` or `.range()` asked for. Null = unclamped. */
+  maxRows: number | null = null;
 
   constructor(seed: Record<string, Row[]> = {}) {
     for (const [t, rows] of Object.entries(seed)) this.tables[t] = rows.map((r) => ({ ...r }));
@@ -208,6 +210,7 @@ class Query implements PromiseLike<Result> {
     const total = out.length;
     if (this.from_ !== null && this.to_ !== null) out = out.slice(this.from_, this.to_ + 1);
     if (this.lim !== null) out = out.slice(0, this.lim);
+    if (this.db.maxRows !== null && !this.single_) out = out.slice(0, this.db.maxRows);
     const count = this.wantCount ? total : null;
     if (this.head) return { data: null, error: null, count };
     const clone = out.map((r) => ({ ...r }));
