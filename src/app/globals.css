@@ -1,4 +1,6 @@
-@import "tailwindcss";
+/* Tailwind reads class names from src only. Its default is to scan the whole repo, which now includes dozens of agent worktrees under .claude/ (git-excluded, not gitignored); the PostCSS step then took 60 to 90 s and the production build timed out. */
+@import "tailwindcss" source(none);
+@source "../../src";
 
 :root {
   --bg2: #152233;
