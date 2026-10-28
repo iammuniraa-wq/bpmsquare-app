@@ -82,6 +82,14 @@ quiet); PROJECT.md's ledger carries the same list.
    forms languages and actions; the "every surface" pass per object.
 4. Drive guides (Sales, Admin, API, Marketing, Products) after validation.
 5. Estimator improvements (owner: "works but needs a lot of improvement").
+6. **Assistant actions** (owner 2026-10-28: "add more AI capabilities, not for
+   KAMCO today, to have it in the pipeline"): `docs/design/assistant-actions.md`,
+   steps 0 to 6 in order (wording when off, decouple from Nova, more create
+   cards, change cards, transition verbs, delete cards, bulk). Each step
+   validated on the demo before any client flag is widened.
+7. **Access restrictions with access contexts** (C4C-style read/write per
+   object; owner 2026-10-28 "can be done later"): design doc first, reverses
+   decision 2026-10-23 on Business Roles; see `docs/design/people-access.md` 6.
 
 ## Open items waiting on the owner
 
