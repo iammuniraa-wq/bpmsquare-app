@@ -142,6 +142,23 @@ export function timelinePosition(daysLeft: number, horizon = 28): { pct: number;
   return { pct, align: pct <= 8 ? "start" : pct >= 92 ? "end" : "center" };
 }
 
+/**
+ * Which row each deadline label sits on, so two labels never overlap. Lanes: 0 above the axis (nearest), 1 below (nearest), 2 above (second row),
+ * 3 below (second row). A label is about 27% of the axis wide at the narrowest width the timeline is drawn (150 px of 560); a label near the
+ * left edge starts at its marker and one near the right edge ends at it, as timelinePosition says. Greedy, in marker order.
+ */
+export function assignLanes(positions: readonly { pct: number; align: TimelineAlign }[], labelPct = 27): number[] {
+  const lastEnd: number[] = [-Infinity, -Infinity, -Infinity, -Infinity];
+  return positions.map(({ pct, align }) => {
+    const left = align === "start" ? pct : align === "end" ? pct - labelPct : pct - labelPct / 2;
+    const right = left + labelPct;
+    let lane = lastEnd.findIndex((end) => end <= left);
+    if (lane < 0) lane = lastEnd.indexOf(Math.min(...lastEnd));
+    lastEnd[lane] = right;
+    return lane;
+  });
+}
+
 export type BuyoutRow = {
   trackPct: number;
   committedPct: number;

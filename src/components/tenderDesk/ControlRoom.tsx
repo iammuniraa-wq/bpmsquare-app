@@ -5,7 +5,7 @@ import { tenderDesk as td } from "@/lib/theme";
 import type { TenderDeskAttention, TenderDeskData } from "@/lib/tenderDesk/types";
 import { NoOpenTenders, PendingState } from "./deskParts";
 import {
-  barPercent, clientsAria, compact, daysText, dayTone, millions, percentOf, plural, ringDash, stagesAria, tileMoney, timelinePosition, trendAria,
+  assignLanes, barPercent, clientsAria, compact, daysText, dayTone, millions, percentOf, plural, ringDash, stagesAria, tileMoney, timelinePosition, trendAria,
   trendDeltaText, trendGeometry, winRateLabel,
 } from "./format";
 import s from "./TenderDesk.module.css";
@@ -103,6 +103,13 @@ export default function ControlRoom({ data, dateLabel }: { data: TenderDeskData;
   const maxClient = data.clients.reduce((m, cl) => Math.max(m, cl.value), 0);
   const within = data.closing.filter((x) => x.daysLeft <= 28);
   const later = data.closing.length - within.length;
+  const positions = within.map((d) => timelinePosition(d.daysLeft));
+  const lanes = assignLanes(positions);
+  const second = lanes.some((l) => l >= 2);
+  const axisY = second ? 129 : 79;
+  const timelineHeight = (lanes.includes(3) ? axisY + 19 + 50 + 49 : axisY + 79);
+  // Row tops relative to the axis: nearest above, nearest below, second above, second below.
+  const LANE_OFFSET = [-75, 19, -125, 69];
 
   return (
     <div className={`${s.desk} ${s.ctl}`} style={controlVars} data-guide="tender.desk.control">
@@ -185,14 +192,14 @@ export default function ControlRoom({ data, dateLabel }: { data: TenderDeskData;
                   <>
                     <div className={s.tlWrap} data-guide="tender.desk.deadlines">
                       <div className={s.tlAxis} aria-hidden="true" />
-                      <ol className={s.tl}>
+                      <ol className={s.tl} style={{ "--a": `${axisY}px`, "--h": `${timelineHeight}px` } as CSSProperties}>
                         {within.map((d, i) => {
-                          const pos = timelinePosition(d.daysLeft);
+                          const pos = positions[i];
                           const align = pos.align === "start" ? s.alignStart : pos.align === "end" ? s.alignEnd : "";
                           return (
                             <li key={d.id} className={s.mk} style={{ "--x": `${pos.pct}%` } as CSSProperties}>
                               <span className={`${s.mkDot} ${DOT[dayTone(d.daysLeft)]}`} aria-hidden="true" />
-                              <Link href={d.href} className={`${s.mkLabel} ${i % 2 === 0 ? s.up : s.down} ${align}`} data-guide="tender.desk.closing" title={d.title}>
+                              <Link href={d.href} className={`${s.mkLabel} ${align}`} style={{ top: `calc(var(--a) + ${LANE_OFFSET[lanes[i]]}px)` }} data-guide="tender.desk.closing" title={d.title}>
                                 <b className={s.mono}>{[d.ref, daysText(d.daysLeft)].filter(Boolean).join(" · ")}</b>
                                 <span>{d.title} · {compact(d.value)}</span>
                               </Link>
