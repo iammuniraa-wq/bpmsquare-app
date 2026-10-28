@@ -472,3 +472,10 @@ describe("the ledger", () => {
     expect(project).toContain("scripts/seed-kamco-test-data-cleanup.sql");
   });
 });
+
+describe("plpgsql name clashes", () => {
+  it("never uses the loop variable name r as a table alias (r.id then reads the record, error 42703)", () => {
+    expect(seed).not.toMatch(/\b(?:from|join)\s+[a-z_]+\s+r\b/i);
+    expect(cleanup).not.toMatch(/\b(?:from|join)\s+[a-z_]+\s+r\b/i);
+  });
+});
