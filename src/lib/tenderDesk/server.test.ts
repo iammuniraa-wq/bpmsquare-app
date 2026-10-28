@@ -3,10 +3,13 @@ import { MemoryDb, type Row } from "@/lib/inbox/testing/memoryDb";
 
 const state = vi.hoisted(() => ({ db: null as unknown as MemoryDb, reads: [] as { table: string; tenantScoped: boolean; foreignTenant: boolean }[] }));
 
+/** PostgREST never answers more than this many rows in one response, whatever `.limit()` or `.range()` asked for (Supabase's max-rows). */
+const POSTGREST_MAX_ROWS = 1000;
+
 vi.mock("@/lib/supabase-server", () => ({
   createAdminSupabase: () => ({
     from: (table: string) => {
-      const q = state.db.from(table) as unknown as { eq: (c: string, v: unknown) => unknown };
+      const q = state.db.from(table) as unknown as { eq: (c: string, v: unknown) => unknown; limit: (n: number) => unknown; range: (a: number, b: number) => unknown };
       const rec = { table, tenantScoped: false, foreignTenant: false };
       state.reads.push(rec);
       const eq = q.eq.bind(q);
@@ -15,6 +18,10 @@ vi.mock("@/lib/supabase-server", () => ({
         if (c === "tenant_id" || (table === "tenants" && c === "id")) { if (v === T1) rec.tenantScoped = true; else rec.foreignTenant = true; }
         return eq(c, v);
       };
+      const limit = q.limit.bind(q);
+      const range = q.range.bind(q);
+      q.limit = (n: number) => limit(Math.min(n, POSTGREST_MAX_ROWS));
+      q.range = (a: number, b: number) => range(a, Math.min(b, a + POSTGREST_MAX_ROWS - 1));
       return q;
     },
     auth: state.db.auth,
@@ -150,6 +157,26 @@ describe("getTenderDeskData", () => {
     const d = await getTenderDeskData(T1, { now: NOW });
     expect(d.attention.map((a) => a.title)).toContain("Not priced yet: Deal o1");
     state.db.rows("opportunity_lines").push({ id: "l2", tenant_id: T1, opportunity_id: "o1", rate: 120 });
+    expect((await getTenderDeskData(T1, { now: NOW })).attention.map((a) => a.title)).not.toContain("Not priced yet: Deal o1");
+  });
+
+  it("reads every BOQ line past PostgREST's 1000-row page, so a big fortnight is neither 'not priced' nor fresh by accident", async () => {
+    // o1 closes in 2 days. 1,200 BOQ rows: the first 1,100 are unpriced; then 50 stale supplier prices, then 50 manual prices. Only the
+    // rows past the first page say the deal is priced at all, and only they carry the stale prices.
+    const lines = state.db.rows("tender_boq_lines");
+    lines.length = 0;
+    for (let i = 0; i < 1200; i++) {
+      const source = i < 1100 ? null : i < 1150 ? "supplier" : "manual";
+      lines.push({ id: `b${String(i).padStart(4, "0")}`, tenant_id: T1, opportunity_id: "o1", price_source: source, price_as_of: source === "supplier" ? "2026-01-01" : source ? "2026-10-20" : null, stale_accepted: false, removed_in_revision: false });
+    }
+    const d = await getTenderDeskData(T1, { now: NOW });
+    expect(d.attention.map((a) => a.title)).not.toContain("Not priced yet: Deal o1");
+    expect(d.attention.find((a) => a.kind === "stale_price")).toMatchObject({ title: "Old prices: Deal o1", sub: "50 lines priced from a source older than 180 days, bid ends in 2 days" });
+    // The same cap on the deal lines: the only line with a rate is the 1,001st.
+    lines.length = 0;
+    const deal = state.db.rows("opportunity_lines");
+    deal.length = 0;
+    for (let i = 0; i < 1001; i++) deal.push({ id: `l${String(i).padStart(4, "0")}`, tenant_id: T1, opportunity_id: "o1", rate: i === 1000 ? 120 : 0 });
     expect((await getTenderDeskData(T1, { now: NOW })).attention.map((a) => a.title)).not.toContain("Not priced yet: Deal o1");
   });
 

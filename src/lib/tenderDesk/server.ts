@@ -24,6 +24,10 @@ import type { TenderDeskData } from "./types";
 export const DESK_DEFAULT_TIMEZONE = "Asia/Riyadh";
 /** The buy-out card sums at most this many contract projects, newest first. */
 const PROJECTS_SHOWN = 10;
+/** PostgREST answers at most this many rows per request (the same cap `fetchAllRows` in src/lib/import/server.ts pages around). */
+const PAGE_SIZE = 1000;
+/** Pages read per id slice before giving up: 50 x 1000 rows is far beyond any BOQ or line set one slice of 100 deals can carry. */
+const MAX_PAGES = 50;
 
 type Row = Record<string, unknown>;
 type Err = { code?: string; message?: string } | null;
@@ -37,15 +41,24 @@ function validZone(zone: unknown): string {
   try { new Intl.DateTimeFormat("en-CA", { timeZone: zone }); return zone; } catch { return DESK_DEFAULT_TIMEZONE; }
 }
 
-/** Rows of `table` whose `column` is in `ids`, tenant-scoped, read in slices. `ok` is false when the table or a column is not there (or the read failed). */
+/**
+ * Rows of `table` whose `column` is in `ids`, tenant-scoped, read in slices of 100 ids and, within a slice, in pages of 1000 rows: a
+ * `.limit()` above the cap is silently cut to 1000 by PostgREST, which would drop the BOQ lines of a busy fortnight unnoticed. The pages
+ * are ordered by id so no row is skipped or repeated between them. `ok` is false when the table or a column is not there (or the read failed).
+ */
 async function readIn(admin: SupabaseClient, tenantId: string, table: string, cols: string, column: string, ids: readonly string[], extra?: (q: any) => any): Promise<{ rows: Row[]; ok: boolean; missing: boolean }> { // eslint-disable-line @typescript-eslint/no-explicit-any
   const rows: Row[] = [];
   for (const part of chunks([...new Set(ids)], 100)) {
-    let q = admin.from(table).select(cols).eq("tenant_id", tenantId).in(column, part);
-    if (extra) q = extra(q);
-    const { data, error } = await q.limit(5000);
-    if (error) return failed(table, error);
-    rows.push(...((data ?? []) as unknown as Row[]));
+    for (let page = 0; page < MAX_PAGES; page++) {
+      let q = admin.from(table).select(cols).eq("tenant_id", tenantId).in(column, part);
+      if (extra) q = extra(q);
+      const from = page * PAGE_SIZE;
+      const { data, error } = await q.order("id", { ascending: true }).range(from, from + PAGE_SIZE - 1);
+      if (error) return failed(table, error);
+      const got = (data ?? []) as unknown as Row[];
+      rows.push(...got);
+      if (got.length < PAGE_SIZE) break;
+    }
   }
   return { rows, ok: true, missing: false };
 }

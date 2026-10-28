@@ -584,9 +584,11 @@ begin
     end if;
   end loop;
 
-  -- The guarantees of the new deals are "issued" (the word needs migration 0228; before it the legacy 'held' reads as Issued).
+  -- The guarantees of the new deals are "issued" (the word needs migration 0228; before it the legacy 'held' reads as Issued). A row made
+  -- after 0228 starts as 'requested' (that migration's new default), a row made before it as 'held': both are the untouched starting
+  -- value, so both are moved; a state a person set by hand in the app is left alone.
   begin
-    update opportunity_tenders set bond_status = 'issued' where tenant_id = t and tender_no like 'TEST-KAM-%' and bid_bond_amount is not null and bond_status = 'held';
+    update opportunity_tenders set bond_status = 'issued' where tenant_id = t and tender_no like 'TEST-KAM-%' and bid_bond_amount is not null and bond_status in ('held', 'requested');
   exception when check_violation or undefined_column then
     raise notice 'Migration 0221/0228 is missing: the new bid guarantee has no status yet.';
   end;
