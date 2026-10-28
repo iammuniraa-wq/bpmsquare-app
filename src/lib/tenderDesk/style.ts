@@ -7,7 +7,7 @@ export const TENDER_DESK_COOKIE = "bpm_tender_desk";
 export const TENDER_DESK_STYLES = ["bold", "control"] as const satisfies readonly TenderDeskStyle[];
 export const TENDER_DESK_DEFAULT_STYLE: TenderDeskStyle = "bold";
 
-export const TENDER_DESK_STYLE_LABEL: Record<TenderDeskStyle, string> = { bold: "Bold tiles", control: "Control room" };
+export const TENDER_DESK_STYLE_LABEL: Record<TenderDeskStyle, string> = { bold: "Bold", control: "Control room" };
 
 export const isTenderDeskStyle = (v: unknown): v is TenderDeskStyle => typeof v === "string" && (TENDER_DESK_STYLES as readonly string[]).includes(v);
 

@@ -34,7 +34,7 @@ export default function DashboardTab({ draft, accent, features, onChange }: {
       </div>
       {features?.gcc_tender === true && (
         <div>
-          <div className={s.label}><span className="bpm-t-label">Home style for tender workspaces</span><InfoTip label="Home style for tender workspaces">{SETTINGS_TIPS.tenderDeskStyle}</InfoTip></div>
+          <div className={s.label}><span className="bpm-t-label">Dashboard look</span><InfoTip label="Dashboard look">{SETTINGS_TIPS.tenderDeskStyle}</InfoTip></div>
           <div className={s.chips}>
             {TENDER_DESK_STYLES.map((v) => (
               <button key={v} type="button" className={s.chip} aria-pressed={draft.tenderDeskStyle === v} onClick={() => onChange({ tenderDeskStyle: v })}>{TENDER_DESK_STYLE_LABEL[v]}</button>

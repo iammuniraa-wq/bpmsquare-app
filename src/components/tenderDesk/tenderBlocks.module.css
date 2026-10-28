@@ -1,0 +1,182 @@
+/* The tender edition's dashboard blocks and the "Bold | Control room" switch. No colour literal lives here: every colour is a custom property
+   set from src/lib/theme.ts on the block's root (look.ts), or one of the app's own theme variables (--ink, --muted, --line, --card-bg ...),
+   which the dark dashboard look re-points (dashLook.ts). Everything that can be clicked is a link or a button with a visible focus ring and a
+   44 px target; chart marks are links too, with a wider hit area than their drawing. */
+
+.blk { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.blk *, .blk *::before, .blk *::after { box-sizing: border-box; }
+.quiet { margin: 0; font-size: 13px; color: var(--muted); }
+.srOnly { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+.fill { transition: width 0.5s ease; }
+.mono { font-variant-numeric: tabular-nums; }
+
+/* A link that is a row: the whole row is the target. */
+.rowLink {
+  display: grid; align-items: center; gap: 12px; min-height: 44px; padding: 4px 8px; margin: 0 -8px; border-radius: 10px;
+  color: inherit; text-decoration: none; transition: background 0.12s ease;
+}
+.rowLink:hover { background: var(--panel2); }
+.rowLink:focus-visible, .markLink:focus-visible, .actionLink:focus-visible, .segBtn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.list { display: flex; flex-direction: column; gap: 4px; list-style: none; margin: 0; padding: 0; }
+
+.nextLink {
+  display: inline-flex; align-items: center; min-height: 44px; padding: 0 4px; font-size: 13px; font-weight: 600; align-self: flex-start;
+  color: var(--tip-accent, var(--accent)); text-decoration: none; border-radius: 6px;
+}
+.nextLink:hover { text-decoration: underline; }
+.nextLink:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* ---- KPI tiles ---- */
+.tile {
+  position: relative; overflow: hidden; border-radius: 18px; padding: 16px; min-height: 132px; min-width: 0; height: 100%;
+  color: var(--td-tile-ink); display: flex; flex-direction: column; gap: 6px;
+  transition: transform 0.16s ease, box-shadow 0.16s ease;
+}
+.tile::after {
+  content: ""; position: absolute; right: -34px; top: -34px; width: 130px; height: 130px; border-radius: 50%;
+  background: var(--td-tile-glow); pointer-events: none;
+}
+.tile:hover, .tile:has(.cover:focus-visible) { transform: translateY(-3px); box-shadow: 0 12px 26px var(--td-tile-shadow); }
+.tile:has(.cover:focus-visible) { outline: 3px solid var(--ink); outline-offset: 3px; }
+.cover { position: absolute; inset: 0; z-index: 2; border-radius: inherit; }
+.cover:focus-visible { outline: 3px solid var(--td-tile-ink); outline-offset: -6px; }
+.tileLabel { position: relative; z-index: 3; display: flex; align-items: center; font-size: 12px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; pointer-events: none; }
+.tileLabel :global(.bpm-tip) { pointer-events: auto; color: var(--td-tile-ink); border-color: var(--td-tile-ink-soft); }
+.tileLabel :global(.bpm-tip):hover, .tileLabel :global(.bpm-tip):focus-visible { color: var(--td-tile-ink); border-color: var(--td-tile-ink); }
+.tileLabel :global(.bpm-tip):focus-visible { outline-color: var(--td-tile-ink); }
+.tileValue { position: relative; font-size: clamp(26px, 3vw, 34px); font-weight: 800; letter-spacing: -0.02em; line-height: 1.05; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.tileValue small { font-size: 15px; font-weight: 700; margin-left: 4px; color: var(--td-tile-ink-soft); }
+.tileNote { position: relative; margin-top: auto; font-size: 12.5px; font-weight: 500; overflow-wrap: anywhere; }
+.g1 { background: var(--td-g1); } .g2 { background: var(--td-g2); } .g3 { background: var(--td-g3); } .g4 { background: var(--td-g4); } .g5 { background: var(--td-g5); }
+
+/* ---- Pipeline by stage ---- */
+.stage { grid-template-columns: minmax(0, 112px) 1fr auto; font-size: 13px; }
+.stageName { overflow-wrap: anywhere; color: var(--ink); }
+.track { height: 16px; border-radius: 8px; background: var(--panel2); border: 1px solid var(--line); overflow: hidden; }
+.trackFill { height: 100%; border-radius: 8px; transition: filter 0.12s ease; }
+.rowLink:hover .trackFill { filter: brightness(1.12); }
+.stageNum { text-align: right; font-variant-numeric: tabular-nums; color: var(--muted); white-space: nowrap; }
+.stageNum b { color: var(--ink); }
+
+/* ---- Bids closing soonest ---- */
+.close { grid-template-columns: 62px 1fr auto; min-height: 56px; padding: 6px 10px; background: var(--panel2); border: 1px solid transparent; }
+.close:hover { border-color: var(--line); background: var(--panel2); filter: brightness(1.06); }
+.chip { border-radius: 12px; color: var(--td-chip-ink); text-align: center; padding: 7px 4px; font-weight: 800; font-size: 18px; line-height: 1; }
+.chip small { display: block; font-size: 10.5px; font-weight: 600; margin-top: 3px; }
+.chipRed { background: var(--td-chip-red); } .chipAmber { background: var(--td-chip-amber); } .chipGreen { background: var(--td-chip-green); }
+.closeTitle { display: block; font-size: 14px; font-weight: 700; color: var(--ink); overflow-wrap: anywhere; }
+.closeSub { display: block; font-size: 12px; color: var(--muted); margin-top: 2px; overflow-wrap: anywhere; }
+.closeVal { font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--ink); white-space: nowrap; }
+
+/* ---- Won and lost by month ---- */
+.legend { display: flex; flex-wrap: wrap; gap: 0 8px; }
+.legendLink { display: inline-flex; align-items: center; gap: 7px; min-height: 44px; padding: 0 8px; border-radius: 8px; font-size: 12.5px; color: var(--muted); text-decoration: none; }
+.legendLink:hover { background: var(--panel2); }
+.legendLink:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.legendLink b { color: var(--ink); }
+.legendLink i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; }
+.chartBox { width: 100%; height: auto; display: block; }
+.markLink { cursor: pointer; }
+.markLink rect[data-bar] { transition: filter 0.12s ease; }
+.markLink:hover rect[data-bar], .markLink:focus-visible rect[data-bar] { filter: brightness(1.18); }
+.markLink:focus-visible { outline: none; }
+.markLink:focus-visible rect[data-hit] { stroke: var(--ink); stroke-width: 1.5; }
+
+/* ---- Attention ---- */
+.at { grid-template-columns: 6px 1fr auto; gap: 14px; min-height: 64px; padding: 10px 12px; background: var(--panel2); }
+.at:hover { filter: brightness(1.08); }
+.atBar { width: 6px; height: 36px; border-radius: 3px; }
+.sevHigh { background: var(--td-sev-high); } .sevMedium { background: var(--td-sev-medium); } .sevLow { background: var(--td-sev-low); }
+.atTitle { display: block; font-size: 14px; font-weight: 600; color: var(--ink); overflow-wrap: anywhere; }
+.atSub { display: block; font-size: 12px; color: var(--muted); margin-top: 2px; overflow-wrap: anywhere; }
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; min-height: 36px; min-width: 44px; padding: 0 14px; border-radius: 12px;
+  font-size: 13px; font-weight: 600; color: var(--td-btn-ink); background: var(--td-btn);
+}
+
+/* ---- Open pipeline trend ---- */
+.trendLink { display: flex; flex-direction: column; gap: 12px; color: inherit; text-decoration: none; border-radius: 12px; min-height: 44px; }
+.trendLink:hover .trendArea { filter: brightness(1.12); }
+.trendLink:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
+.heroTop { display: flex; align-items: baseline; gap: 6px 16px; flex-wrap: wrap; }
+.big { font-size: clamp(36px, 5vw, 48px); font-weight: 600; letter-spacing: -0.03em; line-height: 1; color: var(--ink); font-variant-numeric: tabular-nums; }
+.big small { font-size: 20px; color: var(--td-trend); margin-left: 6px; }
+.delta { font-size: 13px; color: var(--greenink); font-variant-numeric: tabular-nums; }
+.deltaDown { color: var(--amberink); }
+.trend { position: relative; height: 130px; }
+.trend svg { width: 100%; height: 100%; display: block; }
+.trendArea { transition: filter 0.12s ease; }
+.trendDot { position: absolute; width: 12px; height: 12px; border-radius: 50%; background: var(--ink); border: 3px solid var(--td-trend); transform: translate(-50%, -50%); }
+
+/* ---- Bid deadlines ---- */
+.tlWrap { position: relative; margin: 6px 6px 0; }
+.tl { list-style: none; margin: 0; padding: 0; position: relative; height: var(--h, 158px); }
+.tlAxis { position: absolute; left: 0; right: 0; top: var(--a, 79px); height: 2px; background: var(--line); }
+.mk { position: absolute; top: 0; left: var(--x); width: 0; height: 100%; }
+.mkDot { position: absolute; left: 0; top: calc(var(--a, 79px) - 8px); width: 16px; height: 16px; margin-left: -8px; border-radius: 50%; border: 3px solid var(--td-dot-ring); pointer-events: none; }
+.dotRed { background: var(--td-dot-red); box-shadow: 0 0 12px var(--td-dot-red); }
+.dotAmber { background: var(--td-dot-amber); box-shadow: 0 0 12px var(--td-dot-amber); }
+.dotGreen { background: var(--td-dot-green); box-shadow: 0 0 12px var(--td-dot-green); }
+.mkLabel {
+  position: absolute; width: 150px; display: block; min-height: 44px; padding: 6px 4px; font-size: 11px; line-height: 1.35; color: var(--ink);
+  text-decoration: none; border-radius: 8px; text-align: center; transform: translateX(-50%); overflow: hidden;
+}
+.mkLabel:hover { background: var(--panel2); }
+.mkLabel b { display: block; font-size: 12px; font-weight: 600; color: var(--ink); }
+.mkLabel span { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--muted); }
+.alignStart { transform: none; text-align: left; } .alignEnd { transform: translateX(-100%); text-align: right; }
+.tlTicks { display: flex; justify-content: space-between; margin: 0 6px; font-size: 11px; color: var(--hint); }
+.later { margin: 0; font-size: 12px; color: var(--hint); }
+
+/* ---- Buy-out against budget ---- */
+.buyTitle { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.buyName { font-size: 14px; font-weight: 700; color: var(--ink); overflow-wrap: anywhere; }
+.pkg { grid-template-columns: minmax(0, 170px) 1fr auto; gap: 14px; font-size: 13px; }
+.pkgName { font-weight: 700; color: var(--ink); overflow-wrap: anywhere; }
+.pkgTrack { position: relative; height: 16px; border-radius: 8px; background: var(--panel2); border: 1px solid var(--line); }
+.pkgFill { position: absolute; left: 0; top: -1px; height: 16px; border-radius: 8px; background: var(--td-buyout-fill); }
+.pkgMarker { position: absolute; top: -6px; width: 4px; height: 26px; border-radius: 2px; margin-left: -2px; }
+.markerUnder { background: var(--td-under); } .markerOver { background: var(--td-over); }
+.pkgEnd { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.pill { display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: 11.5px; font-weight: 700; color: var(--td-chip-ink); white-space: nowrap; }
+.pillAwarded { background: var(--td-chip-green); } .pillQuotes { background: var(--td-chip-amber); } .pillWaiting { background: var(--td-chip-slate); }
+.diffUnder { color: var(--greenink); font-weight: 700; } .diffOver { color: var(--redink); font-weight: 700; } .diffNone { color: var(--muted); }
+
+/* ---- Dashboard look switch: Bold | Control room ---- */
+.seg { display: inline-flex; gap: 2px; padding: 2px; border-radius: 9px; border: 1px solid var(--line); background: var(--panel2); max-width: 100%; }
+.segBtn {
+  min-height: 30px; padding: 0 12px; border: 0; border-radius: 7px; background: transparent; color: var(--hint);
+  font: inherit; font-size: 11.5px; font-weight: 650; cursor: pointer; white-space: nowrap;
+}
+.segBtn:hover { color: var(--ink); }
+.segBtn[aria-checked="true"] { background: var(--card-bg); color: var(--ink); box-shadow: 0 0 0 1px var(--line); }
+.seg[aria-busy="true"] .segBtn { cursor: progress; }
+
+@media (max-width: 900px) {
+  .segBtn { min-height: 44px; padding: 0 14px; }
+}
+
+@media (max-width: 640px) {
+  .tl { height: auto; display: flex; flex-direction: column; gap: 8px; }
+  .tlAxis, .tlTicks { display: none; }
+  .tlWrap { margin: 0; }
+  .mk { position: static; width: auto; height: auto; display: grid; grid-template-columns: 16px 1fr; align-items: center; gap: 10px; }
+  .mkDot { position: static; margin-left: 0; }
+  .mkLabel, .alignStart, .alignEnd { position: static; width: auto; transform: none; text-align: left; }
+  .pkg { grid-template-columns: 1fr; gap: 8px; }
+}
+
+@media (max-width: 520px) {
+  .tile { padding: 14px; min-height: 124px; }
+  .stage { grid-template-columns: minmax(0, 90px) 1fr auto; gap: 8px; }
+  .close { grid-template-columns: 56px 1fr; }
+  .closeVal { grid-column: 2; }
+  .at { grid-template-columns: 6px 1fr; }
+  .at .btn { grid-column: 2; justify-self: start; }
+  .big small { font-size: 16px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fill, .tile, .trackFill, .trendArea, .markLink rect[data-bar] { transition: none; }
+  .tile:hover, .tile:has(.cover:focus-visible) { transform: none; }
+}

@@ -14,7 +14,7 @@ export default async function ReportsPage() {
   const { supabase, tenantId, userId, role } = await requireTenantUser();
   const [rows, analytics, tenant, perms] = await Promise.all([
     listQuotes(),
-    getAnalyticsData(),
+    getAnalyticsData({ tender: false }),
     getTenant(),
     resolvePermissions(supabase, tenantId, userId, role),
   ]);

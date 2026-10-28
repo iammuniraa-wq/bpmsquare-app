@@ -13,8 +13,6 @@ import { isAnalyticsId } from "@/lib/analyticsMeta";
 import type { TenantFeatures } from "@/lib/constants";
 import { resolveCurrency } from "@/lib/currency";
 import { cookies } from "next/headers";
-import TenderDesk from "@/components/tenderDesk/TenderDesk";
-import { getTenderDeskData } from "@/lib/tenderDesk/server";
 import { resolveTenderDeskStyle, TENDER_DESK_COOKIE } from "@/lib/tenderDesk/style";
 
 function greetingForHour(hour: number): string {
@@ -48,38 +46,14 @@ export default async function DashboardPage() {
     .from("tenant_users").select("dashboard_layout_override, display_name, employee_id")
     .eq("tenant_id", tenantId).eq("user_id", userId).maybeSingle();
 
-  // Workspaces with the tender edition (platform-admin flag gcc_tender) open on the Tender desk: Bold tiles or Control room, the person's
-  // cookie first, then the workspace default in Settings > Appearance. Any other workspace never reaches this branch, and a failure here
-  // falls through to the home the workspace always had.
-  const tenderStyle = resolveTenderDeskStyle({
-    cookie: (await cookies()).get(TENDER_DESK_COOKIE)?.value,
+  // The look of the dashboard in a workspace with the tender edition (platform-admin flag gcc_tender): the person's cookie first, then the
+  // workspace default in Settings > Appearance, then Bold. Null for every other workspace, whose dashboard is exactly what it always was.
+  // The tender blocks themselves are ordinary dashboard blocks fed by getAnalyticsData (AnalyticsData.tender); nothing is loaded here.
+  const tenderLook = resolveTenderDeskStyle({
+    cookie: tenant?.features?.gcc_tender === true ? (await cookies()).get(TENDER_DESK_COOKIE)?.value : undefined,
     tenantDefault: tenant?.config?.appearance?.tender_desk_style,
     flagOn: tenant?.features?.gcc_tender === true,
   });
-  if (tenderStyle) {
-    try {
-      const zone = tenant?.config?.wfm?.timezone || "Asia/Riyadh";
-      const now = new Date();
-      let hour = now.getHours();
-      let dateLabel = now.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
-      try {
-        hour = Number(new Intl.DateTimeFormat("en-GB", { hour: "numeric", hourCycle: "h23", timeZone: zone }).format(now));
-        dateLabel = new Intl.DateTimeFormat("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: zone }).format(now);
-      } catch { /* an unknown zone name: the server's own clock stands */ }
-      let firstName = firstNameFrom(membership?.display_name);
-      if (!firstName && membership?.employee_id) {
-        const { data: emp } = await supabase
-          .from("employees").select("first_name").eq("id", membership.employee_id).eq("tenant_id", tenantId).maybeSingle();
-        firstName = emp?.first_name?.trim() || null;
-      }
-      const data = await getTenderDeskData(tenantId);
-      return (
-        <TenderDesk data={data} style={tenderStyle} userName={firstName} greeting={`Good ${greetingForHour(hour).toLowerCase()}`} dateLabel={dateLabel} />
-      );
-    } catch (e) {
-      console.error("[TenderDesk] failed to render, falling back to the usual home", e);
-    }
-  }
 
   // Nova tenants get the Stream home screen instead of the classic KPI
   // dashboard -- still needs the same summary aggregate (kpis, overdue
@@ -212,6 +186,7 @@ export default async function DashboardPage() {
       isAdmin={role === "admin"}
       hasPersonalOverride={Array.isArray(personalOverride) && personalOverride.length > 0}
       userName={firstName}
+      tenderLook={tenderLook}
     />
   );
 }

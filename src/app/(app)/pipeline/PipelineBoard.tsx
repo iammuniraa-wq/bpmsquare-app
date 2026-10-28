@@ -27,7 +27,7 @@ const initials = (m: Member | undefined) => {
   return s.split(/[\s@.]+/).filter(Boolean).slice(0, 2).map((x) => x[0]?.toUpperCase() ?? "").join("") || "?";
 };
 
-export default function PipelineBoard({ rows, stages, members, accounts, todayKey, currentUserId, cardExtra, closeLabel = "Close by" }: {
+export default function PipelineBoard({ rows, stages, members, accounts, todayKey, currentUserId, cardExtra, closeLabel = "Close by", showClosedInitially = false }: {
   rows: OpportunityRow[];
   stages: OpportunityStageDef[];
   members: Member[];
@@ -38,6 +38,8 @@ export default function PipelineBoard({ rows, stages, members, accounts, todayKe
   cardExtra?: (r: OpportunityRow) => React.ReactNode;
   /** The word for the deal's expected close: tenders say "Bid ends". */
   closeLabel?: string;
+  /** Open with the closed stages shown (a link from the dashboard to "the tenders we won" needs them). */
+  showClosedInitially?: boolean;
 }) {
   const cur = useCurrency();
   const money = (n: number) => formatMoneyCompact(n, cur, n >= 10_000_000 ? 2 : 1);
@@ -45,7 +47,7 @@ export default function PipelineBoard({ rows, stages, members, accounts, todayKe
   const [view, setView] = useState<"board" | "list">("board");
   const [owner, setOwner] = useState("");
   const [account, setAccount] = useState("");
-  const [showClosed, setShowClosed] = useState(false);
+  const [showClosed, setShowClosed] = useState(showClosedInitially);
   const [dragId, setDragId] = useState<string | null>(null);
   const [overStage, setOverStage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);

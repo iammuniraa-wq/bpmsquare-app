@@ -63,6 +63,20 @@ export const ANALYTICS_META: Record<AnalyticsMetricId, { label: string; feature?
   wfm_project_hours:        { label: "Hours by project (this month)", feature: "wfm_projects" },
   wfm_project_budget:       { label: "Project budget burn",           feature: "wfm_projects" },
   wfm_project_billing:      { label: "Project billing (this month)",  feature: "wfm_projects" },
+  // The tender edition (gcc_tender): five tiles and eight blocks, all read from AnalyticsData.tender.
+  tender_open_pipeline:     { label: "Tenders: open pipeline",       feature: "gcc_tender" },
+  tender_weighted:          { label: "Tenders: weighted by chance",  feature: "gcc_tender" },
+  tender_closing_soon:      { label: "Tenders: closing in 14 days",  feature: "gcc_tender" },
+  tender_win_rate:          { label: "Tenders: win rate",            feature: "gcc_tender" },
+  tender_buyout_committed:  { label: "Tenders: buy-out committed",   feature: "gcc_tender" },
+  tender_by_stage:          { label: "Tenders: pipeline by stage",   feature: "gcc_tender" },
+  tender_closing_list:      { label: "Tenders: bids closing soonest", feature: "gcc_tender" },
+  tender_won_lost:          { label: "Tenders: won and lost by month", feature: "gcc_tender" },
+  tender_by_client:         { label: "Tenders: open value by client", feature: "gcc_tender" },
+  tender_attention:         { label: "Tenders: needs you today",     feature: "gcc_tender" },
+  tender_trend:             { label: "Tenders: open pipeline trend", feature: "gcc_tender" },
+  tender_deadlines:         { label: "Tenders: bid deadlines",       feature: "gcc_tender" },
+  tender_buyout:            { label: "Tenders: buy-out against budget", feature: "gcc_tender" },
   // In no default layout: a platform admin adds it to the demo workspace first (rule 10).
   my_briefing:              { label: "My day (daily briefing)",       feature: "ai_assistant" },
 };

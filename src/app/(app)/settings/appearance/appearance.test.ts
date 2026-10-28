@@ -26,7 +26,7 @@ describe("the draft", () => {
     expect(draftFromTenant(tenant({})).dashboardMode).toBe("adaptive");
     expect(draftFromTenant(tenant({ appearance: { dashboard_mode: "curated" } })).dashboardMode).toBe("curated");
   });
-  it("reads the Tender desk default as Bold tiles unless the workspace chose Control room (anything else reads as Bold)", () => {
+  it("reads the dashboard look default as Bold unless the workspace chose Control room (anything else reads as Bold)", () => {
     expect(draftFromTenant(tenant({})).tenderDeskStyle).toBe("bold");
     expect(draftFromTenant(tenant({ appearance: { tender_desk_style: "control" } })).tenderDeskStyle).toBe("control");
     expect(draftFromTenant(tenant({ appearance: { tender_desk_style: "classic" } })).tenderDeskStyle).toBe("bold");
@@ -63,7 +63,7 @@ describe("one Save over three tabs", () => {
     expect(plan.config?.appearance).toEqual({ ui_theme: "nextgen2" });
   });
 
-  it("stores the Tender desk default next to the other appearance keys, without a reload, and only when it changed", () => {
+  it("stores the dashboard look default next to the other appearance keys, without a reload, and only when it changed", () => {
     const stored = { ui_theme: "classic" as const, compact_sidebar: true };
     const plan = planAppearanceSave(initial, { ...initial, tenderDeskStyle: "control" }, stored);
     expect(plan.config?.appearance).toEqual({ ...stored, tender_desk_style: "control" });
@@ -146,15 +146,15 @@ describe("Dashboard tab", () => {
   const draft = draftFromTenant(tenant({}));
   const render = (d = draft) => html(createElement(DashboardTab, { draft: d, accent: "#378ADD", onChange: () => {} }));
 
-  it("offers the Tender desk style only to a workspace with the tender edition, as two choices behind one tip", () => {
+  it("offers the dashboard look only to a workspace with the tender edition, as two choices behind one tip", () => {
     const without = render();
-    expect(without).not.toContain("Home style for tender workspaces");
+    expect(without).not.toContain("Dashboard look");
     const withFlag = html(createElement(DashboardTab, { draft, accent: "#378ADD", features: { gcc_tender: true }, onChange: () => {} }));
-    expect(withFlag).toContain("Home style for tender workspaces");
-    expect(withFlag).toContain("Bold tiles");
+    expect(withFlag).toContain("Dashboard look");
+    expect(withFlag).toContain("Bold");
     expect(withFlag).toContain("Control room");
     expect(withFlag).not.toContain("Classic home");
-    expect(withFlag).toMatch(/aria-pressed="true"[^>]*>Bold tiles/);
+    expect(withFlag).toMatch(/aria-pressed="true"[^>]*>Bold/);
     expect(withFlag.match(/role="switch"/g)).toHaveLength(2);
   });
 

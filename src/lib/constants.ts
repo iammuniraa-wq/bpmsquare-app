@@ -1090,6 +1090,11 @@ export type AnalyticsMetricId =
   | "wfm_corrections_queue" | "wfm_leave_requests_queue" | "wfm_recheck_queue"
   | "wfm_site_headcount" | "wfm_workforce_composition" | "wfm_leave_taken_by_type"
   | "wfm_project_hours" | "wfm_project_budget" | "wfm_project_billing"
+  // The tender edition's dashboard blocks (feature gcc_tender): five KPI tiles, then the stage, closing, won/lost, client, attention, trend,
+  // deadline and buy-out blocks. They read AnalyticsData.tender and are not report metrics.
+  | "tender_open_pipeline" | "tender_weighted" | "tender_closing_soon" | "tender_win_rate" | "tender_buyout_committed"
+  | "tender_by_stage" | "tender_closing_list" | "tender_won_lost" | "tender_by_client" | "tender_attention" | "tender_trend"
+  | "tender_deadlines" | "tender_buyout"
   // The signed-in person's own daily briefing (assistant). Not a report metric: it is per person, not per workspace.
   | "my_briefing";
 
@@ -1365,7 +1370,7 @@ export type TenantConfig = {
      *  on Spectacular (the theme the board was drawn for) and "adaptive"
      *  everywhere else, so no existing workspace's dashboard changes. */
     dashboard_mode?: "curated" | "adaptive";
-    /** Workspace default for the Tender desk home of a workspace with `features.gcc_tender` (docs/design/tender-desk.md). A person's own choice
+    /** Workspace default for the dashboard look of a workspace with `features.gcc_tender` (docs/design/tender-desk.md). A person's own choice
      *  (cookie bpm_tender_desk) wins over it; unset reads as "bold". */
     tender_desk_style?: "bold" | "control";
     spectacular_colors?: {

@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { c } from "@/lib/theme";
 import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
@@ -10,6 +11,8 @@ import ClosingChip from "@/components/tender/ClosingChip";
 import { ROUTES, type OpportunityStageDef } from "@/lib/constants";
 import { TENDER_CLOSING_SOON_DAYS, TENDER_CLOSING_SOON_SHOWN, closingSoon, tenderIsLive } from "@/lib/tender/rules";
 import { TENDER_TIPS } from "@/lib/tender/tips";
+import { applyTenderFilter, parseTenderFilter, tenderFilterActive, type TenderFilter } from "@/lib/tender/filters";
+import { TENDERS_TAB } from "@/lib/tenderDesk/links";
 import type { TenderBoardRow } from "@/lib/tender/views";
 import PipelineBoard from "./PipelineBoard";
 
@@ -27,6 +30,17 @@ function RoomBadge({ n }: { n?: number }) {
 
 /** The tender number and issuer a row adds beyond its title (a derived title already says both). */
 const extra = (title: string, parts: (string | null | undefined)[]) => parts.filter((p): p is string => !!p && !title.includes(p)).join(" · ");
+
+/** The words of the filter chips ("Estimating", "Closing in 14 days", ...). */
+export function filterChips(f: TenderFilter, stages: OpportunityStageDef[], accounts: { id: string; name: string }[]): string[] {
+  const chips: string[] = [];
+  if (f.stage) chips.push(stages.find((s) => s.value === f.stage)?.label ?? f.stage);
+  if (f.closing) chips.push(`Closing in ${f.closing} days`);
+  if (f.client) chips.push(accounts.find((a) => a.id === f.client)?.name ?? "One client");
+  if (f.outcome) chips.push(f.outcome === "won" ? "Won" : "Lost");
+  if (f.month) chips.push(f.month);
+  return chips;
+}
 
 /**
  * The Tenders tab: a "Bids ending soon" list (open tenders closing within 14 days, overdue ones first) above the same board as
@@ -46,9 +60,20 @@ export default function TendersPanel({ rows, stages, pending, members, accounts,
   timezone: string;
 }) {
   const [all, setAll] = useState(false);
+  const params = useSearchParams();
   const byId = useMemo(() => new Map(rows.map((r) => [r.id, r])), [rows]);
   const soon = useMemo(() => closingSoon(rows, new Date(nowIso), timezone), [rows, nowIso, timezone]);
   const shown = all ? soon : soon.slice(0, TENDER_CLOSING_SOON_SHOWN);
+  // Filters written by the dashboard's tender blocks (?stage= ?closing= ?client= ?outcome= ?month=); none in the address, nothing changes.
+  const stageValues = useMemo(() => stages.map((s) => s.value), [stages]);
+  const filter = useMemo(() => parseTenderFilter((k) => params?.get(k) ?? null, stageValues), [params, stageValues]);
+  const filtered = useMemo(() => (tenderFilterActive(filter) ? applyTenderFilter(rows, filter, new Date(nowIso), timezone) : rows), [rows, filter, nowIso, timezone]);
+  const boardStages = useMemo(() => {
+    if (filter.outcome) return stages.filter((s) => s.is_closed && s.outcome === filter.outcome);
+    if (filter.stage) return stages.filter((s) => s.value === filter.stage);
+    return stages;
+  }, [stages, filter]);
+  const chips = filterChips(filter, stages, accounts);
 
   if (pending) {
     return (
@@ -94,8 +119,20 @@ export default function TendersPanel({ rows, stages, pending, members, accounts,
         </div>
       </SettingsSection>
 
+      {chips.length > 0 && (
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }} data-guide="tender.filter">
+          <span style={{ fontSize: 12, color: c.hint }}>Showing</span>
+          {chips.map((label) => (
+            <span key={label} style={{ fontSize: 12, fontWeight: 700, padding: "3px 10px", borderRadius: 999, background: c.accentbg, color: c.ink }}>{label}</span>
+          ))}
+          <span style={{ fontSize: 12, color: c.hint }}>{filtered.length} {filtered.length === 1 ? "tender" : "tenders"}</span>
+          <Link href={TENDERS_TAB} style={{ fontSize: 12.5, fontWeight: 600, color: "var(--tip-accent, var(--accent))", textDecoration: "none", minHeight: 44, display: "inline-flex", alignItems: "center" }}>Show all tenders</Link>
+        </div>
+      )}
+
       <PipelineBoard
-        rows={rows} stages={stages} members={members} accounts={accounts} todayKey={todayKey} currentUserId={currentUserId} closeLabel="Bid ends"
+        key={chips.join("|")}
+        rows={filtered} stages={boardStages} members={members} accounts={accounts} todayKey={todayKey} currentUserId={currentUserId} closeLabel="Bid ends" showClosedInitially={!!filter.outcome}
         cardExtra={(r) => {
           const t = byId.get(r.id)?.tender;
           if (!t) return null;

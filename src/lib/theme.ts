@@ -71,6 +71,7 @@ export const tenderDesk = {
     ink: "#ffffff",
     inkSoft: "rgba(255,255,255,.78)",
     glow: "rgba(255,255,255,.10)",
+    shadow: "rgba(15,23,42,.32)",
     pipeline: tile("#4338ca", "#6d28d9"),
     weighted: tile("#0f766e", "#0b7a71"),
     closing: tile("#b91c1c", "#bf360c"),
@@ -107,5 +108,45 @@ export const tenderDesk = {
     blue: "#60a5fa",
     others: "#94a3b8",
     buttonInk: controlBg,
+  },
+} as const;
+
+// Dashboard look "Control room" (docs/design/tender-desk.md, "Integrated dashboard"). When a person picks it, the whole dashboard page goes
+// dark: the shell behind the content panel, the panel itself, and every neutral token inside it, so cards, native blocks and the tender
+// blocks all read on the dark ground without a branch of their own. Built into a stylesheet by src/components/tenderDesk/dashLookCss.ts and
+// scoped to the page that asks for it (it is not in globals.css, so no other page can pick it up). `--ledger-*` are the dashboard's own
+// accent family (DashboardLayout `ledger`), whose light-mode green would fall below 3:1 on this ground.
+const controlCard = "#121a30";
+export const dashLook = {
+  shell: tenderDesk.control.bg,
+  sheet: controlBg,
+  vars: {
+    "--ink": tenderDesk.control.ink,
+    "--muted": tenderDesk.control.muted,
+    "--hint": tenderDesk.control.dim,
+    "--line": tenderDesk.control.border,
+    "--panel": controlCard,
+    "--panel2": tenderDesk.control.track,
+    "--card-bg": controlCard,
+    "--card-shadow": "none",
+    "--card-shadow-hover": "0 10px 28px rgba(0,0,0,.55)",
+    "--accentbg": "#1c2740",
+    "--blue": "#6aa7e8", "--bluebg": "#14243a", "--blueink": "#a8c9ef", "--blueline": "#24406a",
+    "--purple": "#a89bff", "--purplebg": "#241f3d", "--purpleink": "#c7bfff",
+    "--teal": "#3ecf8e", "--tealbg": "#12291f", "--tealink": "#8fe2bd",
+    "--amberc": "#e4b34c", "--amberbg": "#2e2410", "--amberink": "#ecc87e", "--amberline": "#52401c",
+    "--red": "#f0705b", "--redbg": "#331a15", "--redink": "#f5a294",
+    "--green": "#9ccf58", "--greenbg": "#1d2913", "--greenink": "#c0e18e",
+    "--err-bg": "#331a15", "--err-line": "#5a2d22", "--err-ink": "#f0705b",
+    "--page-head-cta": tenderDesk.control.violetSoft,
+    "--modern-accent": tenderDesk.control.violetSoft,
+    "--modern-accent-bg": "#241f3d",
+    "--modern-gold": tenderDesk.control.violetSoft,
+    "--modern-gold-bg": "#241f3d",
+    "--ledger-accent": tenderDesk.control.teal,
+    "--ledger-accent-soft": "#12291f",
+    "--ledger-line": tenderDesk.control.border,
+    "--ledger-warn": tenderDesk.control.rose,
+    "--ledger-warn-soft": "#331a15",
   },
 } as const;

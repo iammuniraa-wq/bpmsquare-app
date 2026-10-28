@@ -50,7 +50,7 @@ export default async function PipelinePage() {
     const tenderById = new Map(tenderRows.map((t) => [t.opportunity_id, t]));
     const tenders: TenderBoardRow[] = rows.flatMap((r) => {
       const t = tenderById.get(r.id);
-      return t ? [{ ...r, tender: { tender_no: t.tender_no, issuer_name: t.issuer_name, portal: t.portal, closing_at: t.closing_at, decision: t.decision, room_unread: unread.get(r.id) ?? 0 } }] : [];
+      return t ? [{ ...r, tender: { tender_no: t.tender_no, issuer_name: t.issuer_name, issuer_account_id: t.issuer_account_id, portal: t.portal, closing_at: t.closing_at, decision: t.decision, room_unread: unread.get(r.id) ?? 0 } }] : [];
     });
     return (
       <PipelineTabs

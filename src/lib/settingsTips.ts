@@ -6,7 +6,7 @@ export const SETTINGS_TIPS = {
   navigation: "Show or hide sidebar items for the whole workspace, on every device. Hidden items can still be opened by their address.",
   appearance: "Applies to your whole workspace, every user and every device.",
   accent: "The workspace accent for links, tabs and focus rings. The theme colour above is separate.",
-  tenderDeskStyle: "The look of the Tender desk everyone lands on. Each person can still switch it from the desk itself.",
+  tenderDeskStyle: "The look the dashboard opens in: Bold is light, Control room is dark. Each person can still switch it on the dashboard itself.",
   dashboard: "Which dashboard the workspace opens on. Everyone can still switch from the dashboard itself, and their saved layouts are untouched.",
   spectacular: "The shell blends two colours, so pick a mix or set each end yourself. The accent colours links and buttons, so it stays darker than the shell.",
   layout: "These come with Next-gen and are on already. Changing one reloads the page.",

@@ -1,6 +1,42 @@
-# Tender desk — a colourful home for the tender edition
+# Tender dashboard blocks — the tender edition inside the ordinary dashboard
 
-> Owner brief 2026-10-27: the KAMCO dashboard is pale. Build mock-up options 1 (Bold tiles) and 2 (Control room, dark) and let the
+> **Owner decision 2026-10-28 (supersedes the first build described further down):** the tender home is NOT a separate layer. It is the normal
+> dashboard (`DashboardLayout`: greeting header, Curated | My layout, Adapt dashboard, add / move / resize / hide) with thirteen new
+> **blocks** for a workspace with the platform-admin flag `gcc_tender`, a **look switch** (Bold | Control room) in the toolbar, and links
+> everywhere. No "Tender desk" or "Tender control room" heading exists any more. The first build (`TenderDesk.tsx`, `BoldTiles.tsx`,
+> `ControlRoom.tsx`, the branch in `app/(app)/page.tsx`) is deleted.
+
+## How it is built (current)
+
+- **Data.** `AnalyticsData.tender: TenderDeskData | null` (both copies of the type: `lib/data/labels.ts`, `lib/data/live.ts`). `getAnalyticsDataLive`
+  reads `getTenderDeskData(tenantId)` only when `features.gcc_tender` is on (try / catch: a failure is `null`, the dashboard stands and each
+  block says so); the Reports page asks for `{ tender: false }`. Read once per request; nothing is cached across requests.
+- **Blocks** (`AnalyticsMetricId`, `ANALYTICS_META`, feature `gcc_tender`; components in `components/tenderDesk/`): five small tiles
+  `tender_open_pipeline`, `tender_weighted`, `tender_closing_soon`, `tender_win_rate`, `tender_buyout_committed`; half-width `tender_by_stage`,
+  `tender_closing_list`, `tender_won_lost`, `tender_by_client` (the app's hover `Donut`), `tender_attention`, `tender_trend`; full-width
+  `tender_deadlines`, `tender_buyout`. `TenderBlocks.tsx` maps an id to a tile or a titled `AnalyticsCard`.
+- **Layout.** `lib/dashboardBlocks.ts` (the block catalogue and layout rules, moved out of `DashboardLayout.tsx` and tested): a "Tenders" bundle
+  in Quick add; for a gcc_tender workspace the default layout and the curated composition lead with the thirteen blocks (then the usual blocks,
+  without the Quick create rail, which would squeeze the tiles); a saved layout that mentions no tender block gets them in front once, one that
+  mentions any is left alone. Every other workspace is unchanged.
+- **Look.** Bold (default, the app's light surface) or Control room (the WHOLE dashboard page dark: the shell behind the panel, the panel, every
+  neutral token, so cards and native blocks read too). Chosen per person with the toolbar switch (cookie `bpm_tender_desk`,
+  `POST /api/tender-desk/style`, read on the server so the first paint is right); the workspace default is Settings > Appearance > Dashboard
+  tab > "Dashboard look". The dark look is a style element plus a marker element rendered by `DashLookScope` inside the dashboard (server-side,
+  keyed with `:has()`, with a client effect as fallback), so it leaves the page with the dashboard and cannot leak to another screen.
+- **Links** (`lib/tenderDesk/links.ts`; the Tenders tab reads the filters in `lib/tender/filters.ts`): tiles to the Tenders tab (closing
+  `&closing=14`, win rate `&outcome=won`, buy-out the project's Buy-out tab); stage bars `&stage=`; won / lost columns `&outcome=&month=`; client
+  slices `&client=`; closing rows, deadline markers and attention items to their record; buy-out rows to the Buy-out tab.
+- **Nova.** A Nova workspace (`ui_theme nextgen2` + `next_experience`) renders `NovaStream`, not this dashboard; a gcc_tender workspace without
+  Nova takes the classic path. A Nova + gcc_tender workspace can add the blocks from its Adapt picker (they render in the Bold look); nothing
+  else changes for it.
+
+The sections below are the original design of what each block shows (data rules, states, seed). They are still accurate for the data; where they
+say "Tender desk" or "home screen", read "the tender blocks of the dashboard".
+
+---
+
+> Original owner brief 2026-10-27: the KAMCO dashboard is pale. Build mock-up options 1 (Bold tiles) and 2 (Control room, dark) and let the
 > person choose. Mock-ups (open them to see the target look, copy structure and numbers' layout, not their invented data):
 > `C:\Users\ABDULN~1\AppData\Local\Temp\claude\C--Users-Abdul-Nandalpad-Documents-bpmsquare-app\69fb8a0d-43ed-43a5-b6e2-299ebe93d77d\scratchpad\kopt\project\Main.dc.html` (Bold tiles) and `Control.dc.html` (Control room).
 > Live: https://claude.ai/artifact/4jHsmmM2k1sbGYyioRoRLS

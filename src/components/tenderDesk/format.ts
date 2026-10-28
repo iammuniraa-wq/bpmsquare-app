@@ -1,7 +1,7 @@
 import type { TenderDeskBuyoutPackage, TenderDeskClient, TenderDeskData, TenderDeskMonth, TenderDeskTrendPoint } from "@/lib/tenderDesk/types";
 import { money } from "@/lib/contractProjects/format";
 
-// Pure display helpers for both Tender desk styles. No colours here (theme.ts holds them), no React.
+// Pure display helpers for both dashboard looks. No colours here (theme.ts holds them), no React.
 
 const MILLION = 1_000_000;
 const finite = (n: number | null | undefined): n is number => typeof n === "number" && Number.isFinite(n);

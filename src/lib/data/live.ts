@@ -32,6 +32,8 @@ import { formatMoney, resolveCurrency, type CurrencyDef } from "@/lib/currency";
 import { tenantOwnsObject } from "@/lib/objectFeatures";
 import { searchInboxMail } from "@/lib/inbox/search";
 import { getInboxAnalytics, NO_INBOX_ANALYTICS, type InboxAnalytics } from "@/lib/inbox/analytics";
+import { getTenderDeskData } from "@/lib/tenderDesk/server";
+import type { TenderDeskData } from "@/lib/tenderDesk/types";
 
 /**
  * Every read helper below scopes to this tenant explicitly (service-role client
@@ -1576,6 +1578,8 @@ export type AnalyticsData = {
   wfmProjectBilling: { invoicedAmount: number; invoicedCount: number; unbilledMinutes: number; unbilledProjects: number };
   /** Shared Inbox (0214), only populated with features.inbox: counts, never mail. */
   inbox: InboxAnalytics;
+  /** The tender edition's dashboard blocks: only with features.gcc_tender, and null when the read failed (the blocks then say so). */
+  tender: TenderDeskData | null;
 };
 
 const CASE_STATUS_LABEL_MAP: Record<string, string> = {
@@ -1584,7 +1588,11 @@ const CASE_STATUS_LABEL_MAP: Record<string, string> = {
   in_repair: "In repair", qa: "QA", ready: "Ready", closed: "Closed", buyback: "Buyback", scrapped: "Scrapped",
 };
 
-export async function getAnalyticsDataLive(): Promise<AnalyticsData> {
+/**
+ * `opts.tender: false` leaves the tender edition's dashboard data out (the Reports page does not draw it). Without the option a workspace
+ * that has gcc_tender gets it, read once per call.
+ */
+export async function getAnalyticsDataLive(opts: { tender?: boolean } = {}): Promise<AnalyticsData> {
   const tenantId = await currentTenantId();
   if (!tenantId) {
     return {
@@ -1615,6 +1623,7 @@ export async function getAnalyticsDataLive(): Promise<AnalyticsData> {
       wfmProjectBudget: [],
       wfmProjectBilling: { invoicedAmount: 0, invoicedCount: 0, unbilledMinutes: 0, unbilledProjects: 0 },
       inbox: NO_INBOX_ANALYTICS,
+      tender: null,
     };
   }
   const supabase = createAdminSupabase();
@@ -2061,6 +2070,13 @@ export async function getAnalyticsDataLive(): Promise<AnalyticsData> {
   // Shared Inbox: counts only, and only for a workspace that owns it (a missing table reads as zero).
   const inbox = tenant?.features?.inbox ? await getInboxAnalytics(supabase, tenantId) : NO_INBOX_ANALYTICS;
 
+  // The tender edition's dashboard blocks. Tenant-scoped inside getTenderDeskData (the id is the caller's own); a failure leaves the dashboard
+  // standing and the tender blocks saying the data is not available.
+  let tender: TenderDeskData | null = null;
+  if (opts.tender !== false && tenant?.features?.gcc_tender === true) {
+    try { tender = await getTenderDeskData(tenantId); } catch (e) { console.error("[analytics] tender data could not be read", e); }
+  }
+
   return {
     totals, accountsByType, leadFunnel, assetsByKind, loanerStock,
     quotesByStatus, quoteTrend, quoteOutcomeTotals, quoteOutcomeCounts, quoteOverdueCount, quoteSource,
@@ -2071,7 +2087,7 @@ export async function getAnalyticsDataLive(): Promise<AnalyticsData> {
     wfmCorrectionsByStatus, wfmLeaveRequestsByStatus, wfmRecheckByStatus,
     wfmHeadcountBySite, wfmWorkforceComposition, wfmLeaveTakenByType,
     wfmProjectHours, wfmProjectBudget, wfmProjectBilling,
-    inbox,
+    inbox, tender,
   };
 }
 

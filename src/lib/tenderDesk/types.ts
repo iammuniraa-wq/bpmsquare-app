@@ -1,5 +1,5 @@
-// What the Tender desk home screen is given. Built on the server by `getTenderDeskData` (src/lib/tenderDesk/server.ts), serialised to the
-// client, drawn by both styles (Bold tiles, Control room). Client-safe: types only. Contract written 2026-10-27 so the data layer and the
+// What the dashboard's tender blocks are given. Built on the server by `getTenderDeskData` (src/lib/tenderDesk/server.ts), serialised to the
+// client, drawn by both looks (Bold, Control room). Client-safe: types only. Contract written 2026-10-27 so the data layer and the
 // two screens can be built apart; change it in docs/design/tender-desk.md first.
 //
 // Money is in the workspace currency as plain numbers (not millions); the screens format it. Dates are ISO strings. Every list is already

@@ -6,6 +6,7 @@ import type {
   WorkOrder, TechnicianLeave, Activity, Contact, Asset, QuoteLine, Invoice, Lead, Contract, Supplier,
   PurchaseOrder, InventoryItem,
 } from "@/lib/types";
+import type { TenderDeskData } from "@/lib/tenderDesk/types";
 
 // ── Re-exported base types (no server import chain) ───────────────────────────
 
@@ -160,6 +161,8 @@ export type AnalyticsData = {
   wfmProjectBilling: { invoicedAmount: number; invoicedCount: number; unbilledMinutes: number; unbilledProjects: number };
   // Shared Inbox (0214; only populated when the tenant has features.inbox on): counts only, never mail.
   inbox: { newThisWeek: number; unhandled: number; medianFirstReplyMinutes: number | null };
+  // The tender edition's dashboard blocks (only populated when the tenant has features.gcc_tender on; null otherwise or when the read failed).
+  tender: TenderDeskData | null;
 };
 
 // ── Display label maps ────────────────────────────────────────────────────────

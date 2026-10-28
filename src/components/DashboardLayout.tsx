@@ -18,7 +18,17 @@ import type { AnalyticsMetricId, TenantFeatures, DashLayoutItem } from "@/lib/co
 import { AlertTriangle, Activity, CheckIcon, Package, Phone, Gear, Globe, Wrench, CalendarCheck, Zap, Clipboard, Battery, FileText, Clock } from "@/components/Icons";
 import type { AnalyticsData } from "@/lib/data/labels";
 import { ANALYTICS_META, isAnalyticsId } from "@/lib/analyticsMeta";
+import {
+  BUNDLES, NATIVE_META, SIDEBAR_IDS, addBundleBlocks, blockAllowed, blockFlex, blockLabel, blockSize, curatedLayoutFor, moveBlock, resolveLayout,
+  setSizeAt, toggleAnalyticsPin, toggleHiddenAt,
+  type BundleBlock,
+} from "@/lib/dashboardBlocks";
 import { minutesWord } from "@/lib/inbox/rules";
+import InfoTip from "@/components/ui/InfoTip";
+import type { TenderDeskStyle } from "@/lib/tenderDesk/types";
+import { isTenderBlockId } from "@/lib/dashboardBlocks";
+import { tenderBlockSpec } from "@/components/tenderDesk/TenderBlocks";
+import { DashLookScope, LookSwitch } from "@/components/tenderDesk/DashLook";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -48,234 +58,16 @@ interface Props {
   hasPersonalOverride: boolean;
   /** First name for the greeting ("Good afternoon, Vani"); null = greeting only. */
   userName?: string | null;
+  /** The dashboard look of a workspace with the tender edition ("bold" light, "control" dark); null or absent for every other workspace, which
+   * then renders exactly what it always did (no switch, no style, no marker). */
+  tenderLook?: TenderDeskStyle | null;
 }
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-const SIDEBAR_IDS = new Set(["quick_create"]);
-
 // Per-browser, like bpm_nextgen_dark (Shell) and the nav tree (Sidebar).
 const DASH_MODE_KEY = "bpm_dash_mode";
 
-// `features` = show when ANY of these module flags is on (0067). Native
-// blocks predate the core-module flags and were rendered unconditionally --
-// a WFM-only tenant saw pipeline/case/work-order tiles for modules it
-// never bought.
-const NATIVE_META: Record<string, { label: string; sidebar?: boolean; features?: (keyof TenantFeatures)[] }> = {
-  overview_strip:  { label: "Overview", features: ["quotations", "cases", "work_orders", "assets"] },
-  revenue_card:    { label: "Revenue", features: ["quotations"] },
-  invoice_budget:  { label: "Invoiced vs paid", features: ["invoices"] },
-  overdue_tasks:   { label: "Overdue tasks", features: ["accounts", "cases", "quotations", "work_orders"] },
-  tech_workload:   { label: "Work orders by technician", features: ["technicians", "work_orders"] },
-  top_accounts:    { label: "Top accounts by revenue", features: ["accounts"] },
-  quick_create:    { label: "Quick create", sidebar: true, features: ["accounts", "cases", "contacts", "quotations", "assets"] },
-  // Not an analytics widget: it fetches /api/wfm/summary itself rather than
-  // reading the precomputed analytics payload, which is why it lives here
-  // and renders through the native switch below.
-  wfm_summary:     { label: "Attendance summary (day + month)", features: ["wfm"] },
-  // Carries its own content rather than the tenant's data, so no `features`
-  // gate -- whether it appears at all is config.dashboard_extras.product_tips,
-  // handled in resolveLayout. Individual tips are still module-filtered, in
-  // tipsFor().
-  product_tips:    { label: "Tips & shortcuts" },
-};
-
-/** Blocks whose presence is an ADMIN SETTING rather than a module flag or a
- * user's own layout choice (owner decision 2026-09-20). Both are off by
- * default; when on they are forced VISIBLE even if a saved layout hid them,
- * which is what "always on, admin-controlled" means. Order and size stay the
- * user's business. */
-const EXTRA_BLOCK_IDS = { business_news: "business_news", product_tips: "product_tips" } as const;
-type DashboardExtras = { business_news?: boolean; product_tips?: boolean } | undefined;
-
-function applyExtras(layout: DashLayoutItem[], extras: DashboardExtras): DashLayoutItem[] {
-  const out = layout.filter((b) => {
-    if (b.id === EXTRA_BLOCK_IDS.business_news) return extras?.business_news === true;
-    if (b.id === EXTRA_BLOCK_IDS.product_tips) return extras?.product_tips === true;
-    return true;
-  });
-  const present = new Set(out.map((b) => b.id));
-  for (const id of [EXTRA_BLOCK_IDS.business_news, EXTRA_BLOCK_IDS.product_tips]) {
-    if (extras?.[id] !== true) continue;
-    const at = out.findIndex((b) => b.id === id);
-    // Forced visible: an admin turning it on outranks a stale saved `hidden`.
-    if (at >= 0) out[at] = { ...out[at], hidden: false };
-    else if (!present.has(id)) out.push({ id });
-  }
-  return out;
-}
-
-const DEFAULT_LAYOUT: DashLayoutItem[] = [
-  { id: "overview_strip" },
-  { id: "revenue_card" },
-  { id: "invoice_budget" },
-  { id: "overdue_tasks" },
-  { id: "tech_workload" },
-  { id: "top_accounts" },
-  { id: "quick_create" },
-];
-
-/** THE CURATED DASHBOARD (owner request 2026-09-21).
- *
- * A fixed, ordered composition -- the design board's page -- rather than a
- * layout. It exists because a layout can be wrong: this workspace had three
- * analytics tiles saved from months ago, so the board's own panels ("the
- * tiles which I wanted") simply were not on it, and no amount of theme work
- * was going to put them there.
- *
- * These are all EXISTING blocks, which is the whole trick: curated mode is a
- * different choice of blocks, not a second rendering engine, so every panel
- * here is one the Adapt drawer already offers and one renderWidget already
- * knows how to draw. Order is the composition -- the two board panels
- * (Overdue tasks is its task list, Top accounts its rows-with-values) sit
- * directly under the KPI row, where the board puts them.
- *
- * Still filtered by blockAllowed(), so a Workforce-only workspace gets its
- * own subset rather than six empty CRM cards. business_news is added
- * separately: it is an admin setting (config.dashboard_extras), and curated
- * mode bypasses applyExtras, so including it unconditionally would start
- * fetching news for a tenant that never asked for it. */
-const CURATED_LAYOUT: DashLayoutItem[] = [
-  { id: "overview_strip" },
-  { id: "overdue_tasks", size: "half" },
-  { id: "top_accounts", size: "half" },
-  { id: "revenue_card", size: "half" },
-  { id: "invoice_budget", size: "half" },
-  { id: "tech_workload", size: "half" },
-  { id: "wfm_summary" },
-  { id: "quick_create" },
-];
-
-// Standard per-object starter bundles -- one click adds a sensible combo of
-// already-existing blocks (native or analytics) instead of hand-picking each
-// one. Sizes are only specified where the block's own default isn't already
-// right for the bundle; everything else falls back to blockSize()'s default.
-type BundleBlock = { id: string; size?: "compact" | "half" | "full" };
-const BUNDLES: { id: string; label: string; feature?: keyof TenantFeatures; blocks: BundleBlock[] }[] = [
-  { id: "accounts",     label: "Accounts",      feature: "accounts", blocks: [
-    { id: "accounts" }, { id: "accounts_by_type" }, { id: "top_accounts" }, { id: "account_news" },
-  ] },
-  { id: "contacts",     label: "Contacts",      feature: "contacts", blocks: [{ id: "contacts" }] },
-  { id: "quotations",   label: "Quotations",    feature: "quotations", blocks: [
-    { id: "quote_trend" }, { id: "revenue_card" }, { id: "quote_outcomes" },
-    { id: "quote_overdue", size: "compact" }, { id: "quote_source", size: "half" },
-  ] },
-  { id: "cases",        label: "Cases",         feature: "cases", blocks: [{ id: "open_cases" }, { id: "case_status" }] },
-  { id: "work_orders",  label: "Work orders",   feature: "work_orders", blocks: [
-    { id: "work_orders" }, { id: "work_order_status" }, { id: "tech_workload" },
-  ] },
-  { id: "assets",       label: "Assets",        feature: "assets", blocks: [
-    { id: "assets" }, { id: "assets_by_kind" }, { id: "loaner_availability", size: "half" },
-  ] },
-  { id: "contracts",    label: "AMC / Contracts", feature: "amc", blocks: [{ id: "contracts", size: "half" }] },
-  { id: "leads",        label: "Leads",         feature: "leads", blocks: [{ id: "leads" }, { id: "lead_funnel" }] },
-  { id: "technicians",  label: "Technicians",   feature: "technicians", blocks: [
-    { id: "technicians" }, { id: "technician_availability" }, { id: "tech_workload" },
-  ] },
-  { id: "invoices",     label: "Invoices",      feature: "invoices", blocks: [
-    { id: "invoice_budget" }, { id: "invoices_by_status" }, { id: "revenue_overview" },
-  ] },
-  { id: "wfm",          label: "Workforce",     feature: "wfm", blocks: [
-    { id: "wfm_summary", size: "full" },
-    { id: "wfm_attendance_today" }, { id: "wfm_corrections_queue" }, { id: "wfm_leave_requests_queue" },
-    { id: "wfm_site_headcount" }, { id: "wfm_workforce_composition", size: "half" }, { id: "wfm_night_shift_cost", size: "compact" },
-  ] },
-  { id: "wfm_projects",  label: "Project costing", feature: "wfm_projects", blocks: [
-    { id: "wfm_project_hours" }, { id: "wfm_project_budget" }, { id: "wfm_project_billing", size: "compact" },
-  ] },
-];
-
-/** Central feature gate for a dashboard block: native blocks show when ANY
- * of their module flags is on, analytics widgets follow their own flag.
- * Applied at RENDER time (not just in the customize picker) so a saved or
- * default layout can never surface a module the tenant doesn't have. */
-function blockAllowed(id: string, features: TenantFeatures): boolean {
-  const native = NATIVE_META[id];
-  if (native) return !native.features || native.features.some((f) => features[f] === true);
-  if (isAnalyticsId(id)) {
-    const feat = ANALYTICS_META[id].feature;
-    return !feat || features[feat] === true;
-  }
-  return true;
-}
-
-function resolveLayout(saved: DashLayoutItem[], features: TenantFeatures, extras: DashboardExtras): DashLayoutItem[] {
-  if (!saved || saved.length === 0) return applyExtras(defaultLayoutFor(features), extras);
-  // Ensure native blocks that aren't in saved layout appear (as hidden) so user can un-hide them
-  const savedIds = new Set(saved.map((b) => b.id));
-  const missing = Object.keys(NATIVE_META).filter((id) => !savedIds.has(id));
-  const merged = [...saved, ...missing.map((id) => ({ id, hidden: true }))];
-
-  // A saved layout was never reconciled against the tenant's MODULES. A
-  // workspace whose saved blocks all belong to modules it doesn't have --
-  // a layout stamped at provisioning, or one left behind when modules
-  // changed -- filtered down to nothing and opened on a blank screen, with
-  // the module's own widgets sitting unused because defaultLayoutFor is
-  // only consulted when nothing is saved at all.
-  //
-  // Deliberately keyed on feature-allowed, NOT on hidden: a user who hid
-  // every block chose that, and is left alone (the empty state below
-  // explains how to bring them back). This only rescues a layout that
-  // cannot show anything no matter what the user un-hides.
-  //
-  // Checked against SAVED, not merged: the merge above injects every
-  // native block as hidden, and on a scoped tenant those injected blocks
-  // are feature-allowed -- which made this check always pass and the
-  // rescue never fire, landing e.g. a WFM-only workspace with a stale
-  // CRM-only saved layout on a blank dashboard instead of its defaults.
-  if (!saved.some((b) => blockAllowed(b.id, features))) return applyExtras(defaultLayoutFor(features), extras);
-  return applyExtras(merged, extras);
-}
-
-/** The default layout was written when every tenant had every module: all
- * six native CRM blocks. For a scoped tenant (e.g. WFM-only) those are all
- * feature-blocked, which used to resolve to an EMPTY dashboard. When that
- * happens, fall back to composing the default from the enabled modules'
- * starter bundles instead -- a Workforce-only tenant opens to the WFM
- * widgets with zero setup. Tenants with a saved layout are untouched. */
-function defaultLayoutFor(features: TenantFeatures): DashLayoutItem[] {
-  const nativeVisible = DEFAULT_LAYOUT.filter((b) => blockAllowed(b.id, features));
-  if (nativeVisible.some((b) => !NATIVE_META[b.id]?.sidebar)) return DEFAULT_LAYOUT;
-  const seen = new Set<string>();
-  const fromBundles: DashLayoutItem[] = [];
-  for (const bundle of BUNDLES) {
-    if (bundle.feature && features[bundle.feature] !== true) continue;
-    for (const b of bundle.blocks) {
-      if (seen.has(b.id) || !blockAllowed(b.id, features)) continue;
-      seen.add(b.id);
-      fromBundles.push(b.size ? { id: b.id, size: b.size } : { id: b.id });
-    }
-  }
-  return [...fromBundles, ...nativeVisible];
-}
-
-// Single/dual stat-tile widgets are narrow by nature -- default them to compact
-// so they sit side by side in a wrapping row instead of each claiming a
-// full-width row of mostly empty space. Users can still override via block.size.
-const COMPACT_ANALYTICS_IDS = new Set<AnalyticsMetricId>([
-  "accounts", "contacts", "assets", "open_cases", "work_orders", "leads", "technicians", "quote_overdue",
-]);
-
-function blockSize(block: DashLayoutItem): "compact" | "half" | "full" {
-  if (block.size) return block.size;
-  return isAnalyticsId(block.id) && COMPACT_ANALYTICS_IDS.has(block.id) ? "compact" : "full";
-}
-
-const SIZE_FLEX: Record<"compact" | "half" | "full", React.CSSProperties> = {
-  // Compact tiles GROW to share the row evenly rather than leaving a ragged
-  // gap on the right -- but maxWidth caps a lone tile so it can't stretch
-  // absurdly wide when it's the only one on its row. (grow:0 previously left
-  // a large dead zone whenever the tiles didn't happen to fill the width.)
-  compact: { flex: "1 1 240px", minWidth: 200, maxWidth: 520 },
-  half:    { flex: "1 1 calc(50% - 7px)", minWidth: 260 },
-  full:    { flex: "1 1 100%", minWidth: 0 },
-};
-
-function blockLabel(id: string): string {
-  if (id in NATIVE_META) return NATIVE_META[id].label;
-  if (id in ANALYTICS_META) return ANALYTICS_META[id as AnalyticsMetricId].label;
-  return id;
-}
 
 // ── Formatters ────────────────────────────────────────────────────────────────
 
@@ -330,10 +122,15 @@ function kpiNumFontSize(text: string): number {
 // dashboard a financial-statement feel. Scoped to this file (not theme.ts) so
 // it doesn't change accent colours anywhere else in the app -- other pages keep
 // c.accent/pillar as before.
+//
+// Each value reads a custom property first, so the "Control room" dashboard look (src/lib/theme.ts `dashLook`) can re-point the whole
+// family for the page that asks for it; where nothing sets the property, the fallback is the exact colour it always was.
 const ledger = {
-  accent: "#0f6b5c",
-  accentSoft: "#e4efec",
-  line: "#d8dee6",
+  accent: "var(--ledger-accent, #0f6b5c)",
+  accentSoft: "var(--ledger-accent-soft, #e4efec)",
+  line: "var(--ledger-line, #d8dee6)",
+  warn: "var(--ledger-warn, #b5451f)",
+  warnSoft: "var(--ledger-warn-soft, #fbeee7)",
 };
 const serifNum: React.CSSProperties = {
   fontFamily: 'Georgia, "Iowan Old Style", "Times New Roman", serif',
@@ -557,7 +354,7 @@ function BigDonutLegend({ items }: { items: { label: string; value: number; colo
 // Funnel stages are one ordered process narrowing down, not unrelated
 // categories -- a single-hue sequential ramp (light -> full accent) tells that
 // story correctly, and ties the widget to the Ledger identity.
-const FUNNEL_RAMP = ["#bfdfd7", "#7ebeae", "#3d9484", ledger.accent];
+const FUNNEL_RAMP = ["#bfdfd7", "#7ebeae", "#3d9484", "#0f6b5c"];
 
 function BigFunnel({ stages }: { stages: { stage: string; count: number; href?: string }[] }) {
   const max = stages[0]?.count || 1;
@@ -650,7 +447,7 @@ function StatTile({ value, label, icon, href, tone }: { value: number | string; 
   );
 }
 
-function AnalyticsCard({ title, href, children, fill }: { title: string; href?: string; children: React.ReactNode; fill?: PillarKey }) {
+function AnalyticsCard({ title, href, children, fill, info }: { title: string; href?: string; children: React.ReactNode; fill?: PillarKey; info?: React.ReactNode }) {
   const modern = useUiTheme() !== "classic";
   // Spectacular marks a STAT card with a thick accent edge in its pillar
   // colour; chart and list cards carry none. `fill` is only passed by the
@@ -679,7 +476,11 @@ function AnalyticsCard({ title, href, children, fill }: { title: string; href?: 
       }}
     >
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: modern ? "12px 16px 10px" : "11px 14px 9px", borderBottom: `1px solid ${modern ? "var(--line)" : ledger.line}` }}>
-        <span style={{ fontSize: 10.5, fontWeight: 700, color: accent ?? (modern ? "var(--modern-accent)" : c.hint), textTransform: "uppercase", letterSpacing: 0.6 }}>{title}</span>
+        {(() => {
+          const titleEl = <span style={{ fontSize: 10.5, fontWeight: 700, color: accent ?? (modern ? "var(--modern-accent)" : c.hint), textTransform: "uppercase", letterSpacing: 0.6 }}>{title}</span>;
+          // The explanation sits behind an "i" after the title (6b); a card without one is drawn exactly as before.
+          return info ? <span style={{ display: "inline-flex", alignItems: "center", gap: 2 }}>{titleEl}<InfoTip label={title}>{info}</InfoTip></span> : titleEl;
+        })()}
         {/* Optional: a content block (business news, tips) has nowhere of its
             own to go, and a "Full view" that lands back on the dashboard is
             worse than no link. */}
@@ -821,7 +622,13 @@ const STAT_FILL: Partial<Record<string, PillarKey>> = {
 };
 
 const hm = (min: number) => `${Math.floor(min / 60)}h ${String(Math.round(min % 60)).padStart(2, "0")}m`;
-export function renderWidget(id: AnalyticsMetricId, a: AnalyticsData, size: "compact" | "half" | "full", cur: CurrencyDef): React.ReactNode {
+export function renderWidget(id: AnalyticsMetricId, a: AnalyticsData, size: "compact" | "half" | "full", cur: CurrencyDef, tenderLook: TenderDeskStyle = "bold"): React.ReactNode {
+  // The tender edition's blocks read a.tender (null: the data could not be read). Only a workspace with gcc_tender can have them in a layout.
+  if (isTenderBlockId(id)) {
+    const spec = tenderBlockSpec(id, a.tender ?? null, tenderLook);
+    if (!spec) return null;
+    return spec.kind === "tile" ? spec.node : <AnalyticsCard title={spec.title} href={spec.href} info={spec.info}>{spec.body}</AnalyticsCard>;
+  }
   const inr = moneyFormatter(cur, { maximumFractionDigits: 0 });
   const COLORS = [pillar.blue.base, pillar.teal.base, pillar.amber.base, pillar.purple.base, pillar.green.base];
   const tone = WIDGET_TONE[id];
@@ -1097,34 +904,19 @@ export function AdaptDrawer({
   const availableBundles = BUNDLES.filter((b) => !b.feature || features[b.feature]);
 
   function addBundle(blocks: BundleBlock[]) {
-    const next = [...layout];
-    for (const b of blocks) {
-      const idx = next.findIndex((x) => x.id === b.id);
-      if (idx >= 0) {
-        next[idx] = { ...next[idx], hidden: false, ...(b.size ? { size: b.size } : {}) };
-      } else {
-        next.push({ id: b.id, ...(b.size ? { size: b.size } : {}) });
-      }
-    }
-    onLayoutChange(next);
+    onLayoutChange(addBundleBlocks(layout, blocks));
   }
 
   function toggleHidden(idx: number) {
-    const next = layout.map((b, i) => i === idx ? { ...b, hidden: !b.hidden } : b);
-    onLayoutChange(next);
+    onLayoutChange(toggleHiddenAt(layout, idx));
   }
 
   function setSize(idx: number, size: "compact" | "half" | "full") {
-    const next = layout.map((b, i) => i === idx ? { ...b, size } : b);
-    onLayoutChange(next);
+    onLayoutChange(setSizeAt(layout, idx, size));
   }
 
-  function toggleAnalyticsPin(id: AnalyticsMetricId) {
-    if (pinnedAnalyticsIds.has(id)) {
-      onLayoutChange(layout.filter((b) => b.id !== id));
-    } else {
-      onLayoutChange([...layout, { id }]);
-    }
+  function togglePin(id: AnalyticsMetricId) {
+    onLayoutChange(toggleAnalyticsPin(layout, id));
   }
 
   function onDragStart(i: number) { dragIdx.current = i; }
@@ -1133,12 +925,9 @@ export function AdaptDrawer({
   function onDrop(i: number) {
     const from = dragIdx.current;
     if (from === null || from === i) { setOverIdx(null); return; }
-    const next = [...layout];
-    const [moved] = next.splice(from, 1);
-    next.splice(i, 0, moved);
     dragIdx.current = null;
     setOverIdx(null);
-    onLayoutChange(next);
+    onLayoutChange(moveBlock(layout, from, i));
   }
 
   return (
@@ -1289,7 +1078,7 @@ export function AdaptDrawer({
                     <input
                       type="checkbox"
                       checked={pinned}
-                      onChange={() => toggleAnalyticsPin(id)}
+                      onChange={() => togglePin(id)}
                       style={{ accentColor: c.accent, width: 12, height: 12, flexShrink: 0 }}
                     />
                     <span style={{ fontSize: 11.5, color: pinned ? "var(--drawer-text)" : "var(--drawer-text-dim)", fontWeight: pinned ? 600 : 400 }}>
@@ -1327,7 +1116,7 @@ export function AdaptDrawer({
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export default function DashboardLayout({ kpis, attention, workOrderRows, overdueInvoices, analytics, features, dashLayout, isAdmin, hasPersonalOverride, userName }: Props) {
+export default function DashboardLayout({ kpis, attention, workOrderRows, overdueInvoices, analytics, features, dashLayout, isAdmin, hasPersonalOverride, userName, tenderLook }: Props) {
   const router = useRouter();
   const cur = useCurrency();
   const inr = moneyFormatter(cur, { maximumFractionDigits: 0 });
@@ -1367,6 +1156,28 @@ export default function DashboardLayout({ kpis, attention, workOrderRows, overdu
     setDashMode(m);
     try { window.localStorage.setItem(DASH_MODE_KEY, m); } catch { /* nothing to do */ }
   };
+
+  // The look of a tender workspace's dashboard. The server resolved it from the person's cookie, then the workspace default, so the first paint is
+  // right; a click flips it here at once and saves it for next time (POST /api/tender-desk/style). null = not a tender workspace.
+  const [look, setLook] = useState<TenderDeskStyle | null>(tenderLook ?? null);
+  useEffect(() => { setLook(tenderLook ?? null); }, [tenderLook]);
+  const [lookBusy, setLookBusy] = useState(false);
+  async function chooseLook(next: TenderDeskStyle) {
+    if (next === look || lookBusy || look === null) return;
+    const previous = look;
+    setLook(next);
+    setLookBusy(true);
+    setSaveError(null);
+    try {
+      const res = await fetch("/api/tender-desk/style", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ style: next }) });
+      if (!res.ok) throw new Error(String(res.status));
+    } catch {
+      setLook(previous);
+      setSaveError("The dashboard look could not be changed. Try again.");
+    } finally {
+      setLookBusy(false);
+    }
+  }
 
   const [adaptOpen, setAdaptOpen] = useState(false);
   const [personalizeOpen, setPersonalizeOpen] = useState(false);
@@ -1439,7 +1250,7 @@ export default function DashboardLayout({ kpis, attention, workOrderRows, overdu
   // `layout` and both drawers stay exactly as they are, so switching back to
   // My layout restores the arrangement untouched.
   const effectiveBlocks: DashLayoutItem[] = dashMode === "curated"
-    ? CURATED_LAYOUT.filter((b) => b.id !== "business_news" || extras?.business_news === true)
+    ? curatedLayoutFor(features).filter((b) => b.id !== "business_news" || extras?.business_news === true)
     : layout;
   const visibleBlocks = effectiveBlocks.filter((b) => !b.hidden && blockAllowed(b.id, features));
   const mainBlocks = visibleBlocks.filter((b) => !SIDEBAR_IDS.has(b.id));
@@ -1735,7 +1546,7 @@ export default function DashboardLayout({ kpis, attention, workOrderRows, overdu
         tint: overduePillar,
         content: (
           <>
-            <div style={{ ...(modern ? {} : serifNum), fontSize: 25, fontWeight: 700, color: nextgen ? (overdueItems.length > 0 ? "var(--nextgen-bad, #c2402f)" : c.ink) : modern ? overduePillar.fg : overdueItems.length > 0 ? "#b5451f" : ledger.accent, lineHeight: 1 }}>{overdueItems.length}</div>
+            <div style={{ ...(modern ? {} : serifNum), fontSize: 25, fontWeight: 700, color: nextgen ? (overdueItems.length > 0 ? "var(--nextgen-bad, #c2402f)" : c.ink) : modern ? overduePillar.fg : overdueItems.length > 0 ? ledger.warn : ledger.accent, lineHeight: 1 }}>{overdueItems.length}</div>
             <div style={{ fontSize: 11, color: modern ? c.muted : c.hint, marginTop: 6 }}>{overdueItems.length > 0 ? "need attention" : "all caught up"}</div>
           </>
         ),
@@ -1843,7 +1654,7 @@ export default function DashboardLayout({ kpis, attention, workOrderRows, overdu
         <VBarTriplet bars={[
           { label: "Invoiced", value: invoiced, color: ledger.line },
           { label: "Paid", value: paid, color: ledger.accent },
-          { label: "Outstanding", value: outstanding, color: outstanding > 0 ? "#b5451f" : ledger.line },
+          { label: "Outstanding", value: outstanding, color: outstanding > 0 ? ledger.warn : ledger.line },
         ]} />
       </section>
     );
@@ -1854,8 +1665,8 @@ export default function DashboardLayout({ kpis, attention, workOrderRows, overdu
       <section style={{ ...cardStyle, padding: 0, overflow: "hidden" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px 10px", borderBottom: `1px solid ${ledger.line}` }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <div style={{ width: 24, height: 24, borderRadius: 6, background: overdueItems.length > 0 ? "#fbeee7" : ledger.accentSoft, display: "flex", alignItems: "center", justifyContent: "center" }}>
-              {overdueItems.length > 0 ? <AlertTriangle size={12} color="#b5451f" /> : <CheckIcon size={12} color={ledger.accent} />}
+            <div style={{ width: 24, height: 24, borderRadius: 6, background: overdueItems.length > 0 ? ledger.warnSoft : ledger.accentSoft, display: "flex", alignItems: "center", justifyContent: "center" }}>
+              {overdueItems.length > 0 ? <AlertTriangle size={12} color={ledger.warn} /> : <CheckIcon size={12} color={ledger.accent} />}
             </div>
             <span style={{ fontSize: 12.5, fontWeight: 700, color: c.ink }}>Overdue tasks</span>
           </div>
@@ -1876,7 +1687,7 @@ export default function DashboardLayout({ kpis, attention, workOrderRows, overdu
               {overdueItems.map((item) => (
                 <tr key={item.id} className="dash-row" style={{ borderTop: `1px solid ${ledger.line}` }}>
                   <td style={{ padding: "9px 16px" }}>
-                    <span style={{ ...serifNum, fontSize: 11.5, fontWeight: 700, color: "#b5451f" }}>{item.days} day{item.days !== 1 ? "s" : ""}</span>
+                    <span style={{ ...serifNum, fontSize: 11.5, fontWeight: 700, color: ledger.warn }}>{item.days} day{item.days !== 1 ? "s" : ""}</span>
                   </td>
                   <td style={{ padding: "9px 12px" }}>
                     <Link href={item.href} style={{ fontSize: 12.5, color: c.ink, textDecoration: "none", fontWeight: 500 }}>{item.task}</Link>
@@ -1935,7 +1746,7 @@ export default function DashboardLayout({ kpis, attention, workOrderRows, overdu
 
   function renderMainBlock(block: DashLayoutItem) {
     if (isAnalyticsId(block.id)) {
-      return <div key={block.id}>{renderWidget(block.id, analytics, blockSize(block), cur)}</div>;
+      return <div key={block.id}>{renderWidget(block.id, analytics, blockSize(block), cur, look ?? "bold")}</div>;
     }
     switch (block.id) {
       case "overview_strip": return <div key={block.id}>{renderOverviewStrip()}</div>;
@@ -1959,19 +1770,21 @@ export default function DashboardLayout({ kpis, attention, workOrderRows, overdu
 
   return (
     <div>
+      <DashLookScope look={look} />
       {/* Header. Carries .bpm-page-header like PageHeader does even though it
           builds its own greeting layout -- that class is what Spectacular's
           navy band keys off (globals.css), and the ink inside re-points
           through --ink/--hint there, so no theme branch is needed here. */}
-      <div className="bpm-page-header" style={{ marginBottom: 22, display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
+      <div className="bpm-page-header" style={{ marginBottom: 22, display: "flex", alignItems: "flex-start", justifyContent: "space-between", ...(look !== null ? { flexWrap: "wrap", gap: 10 } : null) }}>
         <div>
           <div style={{ fontSize: 11, color: c.hint, fontWeight: 500, marginBottom: 3 }}>{todayStr()}</div>
           <h1 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: c.ink, lineHeight: 1.2 }}>{greet()}{userName ? `, ${userName}` : ""}</h1>
         </div>
+        {/* A tender workspace has one more control here (the look switch), so on a phone the toolbar wraps under the greeting instead of running off the screen. */}
         {/* Not desk-only: on a phone the only way into the layout drawers used
             to be the empty-state button -- so a mobile user could ADD their
             first card but never manage the layout again after that. */}
-        <div style={{ display: "flex", gap: 8, flexShrink: 0, marginTop: 4, flexWrap: "wrap", justifyContent: "flex-end" }}>
+        <div style={{ display: "flex", gap: 8, flexShrink: 0, marginTop: 4, flexWrap: "wrap", justifyContent: "flex-end", ...(look !== null ? { maxWidth: "100%" } : null) }}>
           {/* Two dashboards, one switch. Curated is a fixed composition;
               My layout is the arrangement you built. Nothing is saved or lost
               by moving between them, which is why this is a view toggle and
@@ -1997,6 +1810,7 @@ export default function DashboardLayout({ kpis, attention, workOrderRows, overdu
               </button>
             ))}
           </div>
+          {look !== null && <LookSwitch look={look} busy={lookBusy} onChange={(next) => { void chooseLook(next); }} />}
           {isAdmin && dashMode === "adaptive" && (
             <button
               onClick={() => setAdaptOpen(true)}
@@ -2076,7 +1890,7 @@ export default function DashboardLayout({ kpis, attention, workOrderRows, overdu
       <div className="dash-outer" style={{ display: "grid", gridTemplateColumns: sidebarBlocks.length > 0 ? "1fr 280px" : "1fr", gap: 14, alignItems: "start" }}>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 14 }}>
           {mainBlocks.map((b) => (
-            <div key={b.id} style={SIZE_FLEX[blockSize(b)]}>
+            <div key={b.id} style={blockFlex(b)}>
               {renderMainBlock(b)}
             </div>
           ))}

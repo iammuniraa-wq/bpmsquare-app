@@ -8,6 +8,8 @@ import type { BondStatus } from "./bond";
 export type TenderSummary = {
   tender_no: string | null;
   issuer_name: string | null;
+  /** The issuer's account, when it is one: the dashboard's "open value by client" links to the tenders of this client. */
+  issuer_account_id?: string | null;
   portal: TenderPortal | null;
   closing_at: string | null;
   decision: TenderDecision | null;

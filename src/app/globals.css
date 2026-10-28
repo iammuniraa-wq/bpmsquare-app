@@ -1454,6 +1454,10 @@ body:has([data-spectacular-variant="purple"]:not([data-mode="dark"])) {
 .donut-legend-row.is-interactive:hover {
   background: var(--sb-hover);
 }
+/* A linked donut (the tender dashboard's clients): keyboard focus rings the wedge and the legend row, as hover lifts them. */
+.donut-hit:focus-visible { outline: none; }
+.donut-hit:focus-visible path { stroke: var(--ink); stroke-width: 2; stroke-linejoin: round; }
+a.donut-legend-row:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 * { box-sizing: border-box; }
 

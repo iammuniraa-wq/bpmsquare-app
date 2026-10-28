@@ -20,7 +20,7 @@ export type AppearanceDraft = {
   /** Spectacular Purple's shell and accent; null is the shipped violet. */
   spec: SpecColors | null;
   dashboardMode: DashboardMode;
-  /** The workspace default for the Tender desk home (only offered, and only written, for a workspace with the tender edition). */
+  /** The workspace default for the dashboard look (only offered, and only written, for a workspace with the tender edition). */
   tenderDeskStyle: TenderDeskStyle;
   compact: boolean;
   chrome: Chrome;

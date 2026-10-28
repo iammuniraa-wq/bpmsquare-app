@@ -3,7 +3,7 @@ import { requireTenantUser } from "@/lib/supabase-server";
 import { tenantHasFeature } from "@/lib/tenant";
 import { isTenderDeskStyle, TENDER_DESK_COOKIE } from "@/lib/tenderDesk/style";
 
-// POST { style: "bold" | "control" }: remembers the person's own choice of Tender desk look in the cookie `bpm_tender_desk`, so the
+// POST { style: "bold" | "control" }: remembers the person's own choice of dashboard look in the cookie `bpm_tender_desk`, so the
 // server renders the right one on the first paint (docs/design/tender-desk.md). Nothing is stored in the database: this is a per-browser
 // preference, and the workspace default lives in Settings > Appearance. The cookie is httpOnly because only the server reads it.
 export async function POST(request: NextRequest) {

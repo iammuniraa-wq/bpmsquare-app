@@ -379,6 +379,21 @@ function QueueSummary({ pending, noun, chips, href }: {
 const METRIC_META: Record<AnalyticsMetricId, { label: string; feature?: keyof TenantFeatures; workcenter?: WorkcenterKey }> = {
   // Per person, not per workspace: present only to keep this map exhaustive, and left out of the show/hide list below.
   my_briefing:            { label: "My day (daily briefing)", feature: "ai_assistant" },
+  // Present because METRIC_META is exhaustive over AnalyticsMetricId, not because they belong on Reports: they are dashboard blocks that read
+  // the tender desk data (docs/design/tender-desk.md), left out of the show / hide list below.
+  tender_open_pipeline:     { label: "Tenders: open pipeline",         feature: "gcc_tender", workcenter: "pipeline" },
+  tender_weighted:          { label: "Tenders: weighted by chance",    feature: "gcc_tender", workcenter: "pipeline" },
+  tender_closing_soon:      { label: "Tenders: closing in 14 days",    feature: "gcc_tender", workcenter: "pipeline" },
+  tender_win_rate:          { label: "Tenders: win rate",              feature: "gcc_tender", workcenter: "pipeline" },
+  tender_buyout_committed:  { label: "Tenders: buy-out committed",     feature: "gcc_tender", workcenter: "pipeline" },
+  tender_by_stage:          { label: "Tenders: pipeline by stage",     feature: "gcc_tender", workcenter: "pipeline" },
+  tender_closing_list:      { label: "Tenders: bids closing soonest",  feature: "gcc_tender", workcenter: "pipeline" },
+  tender_won_lost:          { label: "Tenders: won and lost by month", feature: "gcc_tender", workcenter: "pipeline" },
+  tender_by_client:         { label: "Tenders: open value by client",  feature: "gcc_tender", workcenter: "pipeline" },
+  tender_attention:         { label: "Tenders: needs you today",       feature: "gcc_tender", workcenter: "pipeline" },
+  tender_trend:             { label: "Tenders: open pipeline trend",   feature: "gcc_tender", workcenter: "pipeline" },
+  tender_deadlines:         { label: "Tenders: bid deadlines",         feature: "gcc_tender", workcenter: "pipeline" },
+  tender_buyout:            { label: "Tenders: buy-out against budget", feature: "gcc_tender", workcenter: "pipeline" },
   // Core-module metrics also carry their 0067 feature flag: workcenter
   // visibility alone doesn't stop a tenant ADMIN (who sees every
   // workcenter) from getting CRM widgets in a module the tenant never
@@ -584,7 +599,7 @@ export default function ReportsClient({
           <div style={{ gridColumn: "1 / -1", fontSize: 12, fontWeight: 600, color: c.muted, textTransform: "uppercase", letterSpacing: ".04em", marginBottom: 4 }}>
             Show / hide metrics
           </div>
-          {(Object.entries(METRIC_META) as [AnalyticsMetricId, typeof METRIC_META[AnalyticsMetricId]][]).filter(([id]) => id !== "my_briefing").map(([id, meta]) => {
+          {(Object.entries(METRIC_META) as [AnalyticsMetricId, typeof METRIC_META[AnalyticsMetricId]][]).filter(([id]) => id !== "my_briefing" && !id.startsWith("tender_")).map(([id, meta]) => {
             const featureOff = meta.feature && !features[meta.feature];
             const isHidden   = hidden.has(id);
             return (

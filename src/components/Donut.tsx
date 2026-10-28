@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { c } from "@/lib/theme";
 
 export type DonutSlice = {
@@ -9,6 +10,10 @@ export type DonutSlice = {
   /** Any CSS colour. Callers should pass a theme token (pillar.*.base) or a
    * CSS variable rather than inventing a hex. */
   color: string;
+  /** Makes the wedge and its legend row a link. Hover, dimming and the centre readout work exactly as without it. */
+  href?: string;
+  /** What a screen reader hears for the wedge and the legend row, when the plain "label: value" would lose something (the share, the count). */
+  ariaLabel?: string;
 };
 
 const TAU = Math.PI * 2;
@@ -55,6 +60,7 @@ export default function Donut({
   selected,
   onSelect,
   formatValue = String,
+  centerValue,
 }: {
   slices: DonutSlice[];
   title?: string;
@@ -68,6 +74,8 @@ export default function Donut({
    *  Counts need nothing; minutes want h:mm. Shares are always computed
    *  from the raw value. */
   formatValue?: (value: number) => string;
+  /** The figure in the centre while nothing is hovered, when the slices' plain sum is not it (a total in millions, say). */
+  centerValue?: string;
 }) {
   const [hovered, setHovered] = useState<string | null>(null);
 
@@ -147,19 +155,33 @@ export default function Donut({
               />
             );
           })}
-          {arcs.map((a) => (
-            <path
-              key={`hit-${a.label}`}
-              d={a.hit}
-              fill="transparent"
-              style={{ pointerEvents: "all", cursor: clickable ? "pointer" : "default" }}
-              onMouseEnter={() => setHovered(a.label)}
-              onMouseLeave={() => setHovered(null)}
-              onClick={clickable ? () => toggle(a.label) : undefined}
-            >
-              <title>{`${a.label}: ${formatValue(a.value)}`}</title>
-            </path>
-          ))}
+          {arcs.map((a) => {
+            const hit = (
+              <path
+                d={a.hit}
+                fill="transparent"
+                style={{ pointerEvents: "all", cursor: clickable || a.href ? "pointer" : "default" }}
+                onMouseEnter={() => setHovered(a.label)}
+                onMouseLeave={() => setHovered(null)}
+                onClick={clickable ? () => toggle(a.label) : undefined}
+              >
+                <title>{`${a.label}: ${formatValue(a.value)}`}</title>
+              </path>
+            );
+            // A linked wedge is a real anchor: keyboard focus lifts it exactly as hover does, and Enter follows it.
+            return a.href ? (
+              <Link
+                key={`hit-${a.label}`}
+                href={a.href}
+                className="donut-hit"
+                aria-label={a.ariaLabel ?? `${a.label}: ${formatValue(a.value)}`}
+                onFocus={() => setHovered(a.label)}
+                onBlur={() => setHovered(null)}
+              >
+                {hit}
+              </Link>
+            ) : <g key={`hit-${a.label}`}>{hit}</g>;
+          })}
         </svg>
 
         <div style={{
@@ -167,7 +189,7 @@ export default function Donut({
           alignItems: "center", justifyContent: "center", pointerEvents: "none", padding: "0 18px",
         }}>
           <div style={{ fontSize: focus ? 20 : 22, fontWeight: 800, color: focus ? focus.color : c.ink, lineHeight: 1 }}>
-            {formatValue(focus ? focus.value : total)}
+            {focus ? formatValue(focus.value) : (centerValue ?? formatValue(total))}
           </div>
           <div style={{
             fontSize: 10, color: c.hint, marginTop: 3, textAlign: "center",
@@ -184,28 +206,50 @@ export default function Donut({
         {shown.map((s) => {
           const active = selected === s.label;
           const isHovered = hovered === s.label;
-          return (
+          const rowStyle: React.CSSProperties = {
+            display: "flex", alignItems: "center", gap: 7, fontSize: 12,
+            cursor: clickable || s.href ? "pointer" : "default",
+            opacity: hovered && !isHovered ? 0.55 : selected && !active ? 0.55 : 1,
+            fontWeight: active || isHovered ? 700 : 400,
+            // A linked row is a 44 px target; an unlinked one keeps its compact height.
+            ...(s.href ? { minHeight: 44, textDecoration: "none", color: "inherit" } : null),
+          };
+          const rowInner = (
+            <>
+              <span style={{
+                width: 9, height: 9, borderRadius: "50%", background: s.color, flexShrink: 0,
+                transform: isHovered || active ? "scale(1.35)" : undefined,
+                transition: "transform 0.15s cubic-bezier(0.2, 0.8, 0.2, 1)",
+              }} />
+              <span style={{ color: c.muted, whiteSpace: s.href ? "normal" : "nowrap", overflowWrap: "anywhere", minWidth: 0 }}>{s.label}</span>
+              <span style={{ color: c.ink, fontWeight: 700 }}>{formatValue(s.value)}</span>
+              <span style={{ color: c.hint, fontSize: 11 }}>{Math.round((s.value / total) * 100)}%</span>
+            </>
+          );
+          return s.href ? (
+            <Link
+              key={s.label}
+              href={s.href}
+              className="donut-legend-row is-interactive"
+              aria-label={s.ariaLabel ?? `${s.label}: ${formatValue(s.value)}, ${Math.round((s.value / total) * 100)}%`}
+              onMouseEnter={() => setHovered(s.label)}
+              onMouseLeave={() => setHovered(null)}
+              onFocus={() => setHovered(s.label)}
+              onBlur={() => setHovered(null)}
+              style={rowStyle}
+            >
+              {rowInner}
+            </Link>
+          ) : (
             <div
               key={s.label}
               className={`donut-legend-row${clickable ? " is-interactive" : ""}`}
               onMouseEnter={() => setHovered(s.label)}
               onMouseLeave={() => setHovered(null)}
               onClick={clickable ? () => toggle(s.label) : undefined}
-              style={{
-                display: "flex", alignItems: "center", gap: 7, fontSize: 12,
-                cursor: clickable ? "pointer" : "default",
-                opacity: hovered && !isHovered ? 0.55 : selected && !active ? 0.55 : 1,
-                fontWeight: active || isHovered ? 700 : 400,
-              }}
+              style={rowStyle}
             >
-              <span style={{
-                width: 9, height: 9, borderRadius: "50%", background: s.color, flexShrink: 0,
-                transform: isHovered || active ? "scale(1.35)" : undefined,
-                transition: "transform 0.15s cubic-bezier(0.2, 0.8, 0.2, 1)",
-              }} />
-              <span style={{ color: c.muted, whiteSpace: "nowrap" }}>{s.label}</span>
-              <span style={{ color: c.ink, fontWeight: 700 }}>{formatValue(s.value)}</span>
-              <span style={{ color: c.hint, fontSize: 11 }}>{Math.round((s.value / total) * 100)}%</span>
+              {rowInner}
             </div>
           );
         })}
