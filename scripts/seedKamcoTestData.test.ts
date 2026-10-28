@@ -359,6 +359,12 @@ describe("the seed script: the Tender desk part (docs/design/tender-desk.md, See
   it("puts one guarantee expiring in 9 days on an open tender, and waits one bid decision for approval", () => {
     const bonds = open.filter((r) => r.bondDays !== null);
     expect(bonds.map((r) => r.bondDays)).toEqual([9]);
+    // The guarantee is moved to Issued from either untouched starting value: 'held' (before 0228) or 'requested' (0228's new default).
+    // Filtering on 'held' alone left a row made after 0228 at Requested.
+    const issued = /update opportunity_tenders set bond_status = 'issued' where tenant_id = t and tender_no like 'TEST-KAM-%'[^;]*/.exec(seed);
+    expect(issued).not.toBeNull();
+    expect(issued![0]).toMatch(/bond_status in \('held', 'requested'\)/);
+    expect(issued![0]).toMatch(/bid_bond_amount is not null/);
     expect(seed).toMatch(/insert into approval_requests \(tenant_id, object_type, object_id, kind, proposed_value, reason, requested_by, status, created_at\)\s+values \(t, 'opportunity_tenders', v_id, 'tender_bid_decision', 'go'/);
     // The pending bid decision is on a deal in Bid/No-bid, and there is at most one per deal.
     const waiting = open.find((r) => r.no === "TEST-KAM-2026-105");
