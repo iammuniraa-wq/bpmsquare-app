@@ -53,15 +53,18 @@ describe("integration push secrets", () => {
     expect(unsealIntegrationPush(sealed)).toEqual(plain);
   });
 
-  it("an admin's tenant object carries the real secret, a member's carries none and no api_key", async () => {
+  it("an admin's tenant object carries only a mask for the secret, a member's carries none and no api_key", async () => {
     const { sealIntegrationPush } = await import("./webhookPush");
     const { redactTenantForRole } = await import("./tenant");
     const tenant = {
       id: "t1", api_key: "legacy-full-access-key",
       config: { integration_push: sealIntegrationPush(plain), account_360: { sources: [{ id: "s", title: "S", url: "https://x.example.com", auth_value: "sealed-or-not" }] } },
     } as never;
-    const admin = redactTenantForRole(tenant, "admin") as { config: { integration_push: { webhook_secret: string } } };
-    expect(admin.config.integration_push.webhook_secret).toBe("default-secret");
+    const admin = redactTenantForRole(tenant, "admin") as { config: { integration_push: { webhook_secret: string; endpoints: { webhook_secret: string }[] } } };
+    expect(admin.config.integration_push.webhook_secret).toBe("••••••••");
+    expect(admin.config.integration_push.endpoints[0].webhook_secret).toBe("••••••••");
+    expect(JSON.stringify(admin)).not.toContain("default-secret");
+    expect(JSON.stringify(admin)).not.toContain("endpoint-secret");
     const member = redactTenantForRole(tenant, "member") as { api_key: unknown; config: { integration_push: Record<string, unknown>; account_360: { sources: Record<string, unknown>[] } } };
     expect(member.api_key).toBeNull();
     expect(member.config.integration_push).toEqual({ webhook_url: plain.webhook_url });

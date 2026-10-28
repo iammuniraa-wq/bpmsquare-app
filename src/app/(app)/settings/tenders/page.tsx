@@ -18,7 +18,7 @@ export default async function TendersSettingsPage() {
   if (!data?.features?.gcc_tender) redirect(ROUTES.settings);
   return (
     <>
-      <SettingsPageHeader title="Tenders" subtitle="Who approves a bid or no-bid proposal." icon={<IconChip tone="context"><FileText size={18} /></IconChip>} />
+      <SettingsPageHeader title="Tenders" subtitle="Who approves a bid, how old a price may be, and the default markup." icon={<IconChip tone="context"><FileText size={18} /></IconChip>} />
       <TendersSettingsClient />
     </>
   );

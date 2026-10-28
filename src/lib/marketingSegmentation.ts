@@ -99,7 +99,7 @@ export const SEGMENT_FIELDS: SegmentFieldDef[] = [
   {
     key: "buying_stage", label: "Buying stage", category: "Buying signals", type: "select",
     options: [
-      { value: "quiet", label: "Quiet" }, { value: "looking", label: "Looking" },
+      { value: "quiet", label: "Silent" }, { value: "looking", label: "Looking" },
       { value: "comparing", label: "Comparing" }, { value: "deciding", label: "Deciding" },
     ],
     operators: ["equals", "not_equals"], audience: { feature: "buying_signals" },
@@ -113,7 +113,7 @@ export const SEGMENT_FIELDS: SegmentFieldDef[] = [
   {
     key: "abm_progress", label: "ABM progress (furthest, active programs)", category: "ABM", type: "select",
     options: [
-      { value: "planned", label: "Planned" }, { value: "reached", label: "Reached" }, { value: "engaged", label: "Engaged" },
+      { value: "planned", label: "Planned" }, { value: "reached", label: "Reached" }, { value: "engaged", label: "Responding" },
       { value: "in_talks", label: "In talks" }, { value: "deal_open", label: "Deal open" }, { value: "won", label: "Won" }, { value: "lost", label: "Lost" },
     ],
     operators: ["equals", "not_equals"],

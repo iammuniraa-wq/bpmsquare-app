@@ -18,7 +18,7 @@ export default async function ContractProjectsSettingsPage() {
   if (!data?.features?.contract_projects || !data?.features?.gcc_tender) redirect(ROUTES.settings);
   return (
     <>
-      <SettingsPageHeader title="Contract projects" subtitle="The lists a project budget uses, and the default margin." icon={<IconChip tone="info"><Clipboard size={18} /></IconChip>} />
+      <SettingsPageHeader title="Contract projects" subtitle="The six lists a project budget uses, and the default margin." icon={<IconChip tone="info"><Clipboard size={18} /></IconChip>} />
       <ContractProjectsSettingsClient />
     </>
   );

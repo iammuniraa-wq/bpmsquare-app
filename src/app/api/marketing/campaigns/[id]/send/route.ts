@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { Resend } from "resend";
-import { getAuthUser } from "@/lib/supabase-server";
+import { getAuthUser, createAdminSupabase } from "@/lib/supabase-server";
+import { plainCampaignConsent } from "@/lib/newsletter/send";
 import { requireMarketingAccess } from "@/lib/marketingAccess";
 import { resolveMarketingRecipients } from "@/lib/data";
 import { renderTemplate, escapeHtml } from "@/lib/emailTemplates";
@@ -67,25 +68,22 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const user = await getAuthUser();
   let sent = 0, failed = 0, skipped = 0;
 
+  // The same per-person consent gate the newsletter, journeys and WhatsApp use, for the campaign's topic.
+  const consentFor = await plainCampaignConsent({ admin: createAdminSupabase(), tenantId, topic: (campaign.topic as string | null | undefined) ?? null, candidates });
+
   for (const candidate of candidates) {
     const target = { account_id: candidate.account_id, manual_email: candidate.manual_email };
 
-    if (candidate.marketing_opt_out) {
-      await supabase.from("marketing_campaign_recipients").insert({
-        tenant_id: tenantId, campaign_id: id, ...target,
-        email: null, status: "skipped_opt_out",
-      });
+    const verdict = await consentFor(candidate);
+    if (!verdict.ok) {
+      const plain = verdict.status === "skipped_opt_out" || verdict.status === "skipped_no_email";
+      await supabase.from("marketing_campaign_recipients").insert(plain
+        ? { tenant_id: tenantId, campaign_id: id, ...target, email: null, status: verdict.status }
+        : { tenant_id: tenantId, campaign_id: id, ...target, email: candidate.email, status: verdict.status, error: verdict.reason, contact_id: verdict.contact?.id ?? null });
       skipped++;
       continue;
     }
-    if (!candidate.email) {
-      await supabase.from("marketing_campaign_recipients").insert({
-        tenant_id: tenantId, campaign_id: id, ...target,
-        email: null, status: "skipped_no_email",
-      });
-      skipped++;
-      continue;
-    }
+    if (!candidate.email) continue; // unreachable: the gate above already skipped a missing address
 
     const vars = { account_name: candidate.account_name, company_name: companyName };
     const subject = renderTemplate(campaign.subject, vars);

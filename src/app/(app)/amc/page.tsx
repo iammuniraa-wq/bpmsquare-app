@@ -102,7 +102,7 @@ export default async function AmcPage({
 
   return (
     <ObjectListPage
-      title="AMC Contracts"
+      title="AMC contracts"
       subtitle={`${contracts.length} total · Annual Maintenance Contracts`}
       search={{
         value: q,

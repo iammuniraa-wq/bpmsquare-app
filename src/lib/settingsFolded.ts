@@ -44,5 +44,5 @@ export const OLD_SETTINGS_ROUTES = {
   workforceKiosks: tabHref(ROUTES.settingsWorkforce, "places", "rules"),
   workforceLeaveTypes: tabHref(ROUTES.settingsWorkforce, "leave", "rules"),
   workforceReminders: tabHref(ROUTES.settingsWorkforce, "alerts", "rules"),
-  workforceEmployment: tabHref(ROUTES.settingsWorkforce, "billing", "rules"),
+  workforceEmployment: tabHref(ROUTES.settingsWorkforce, "rules", "rules"), // employment types sit under Rules > More
 } as const;

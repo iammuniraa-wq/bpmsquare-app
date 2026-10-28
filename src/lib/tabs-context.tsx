@@ -71,8 +71,8 @@ function tabMeta(href: string): { title: string; icon: string; section: string }
   if (p.startsWith("/quotations/"))     return { title: shortId(p),            icon: "₹", section: "Quotation" };
   if (p === ROUTES.cases)               return { title: "Cases",               icon: "◉", section: "Service" };
   if (p.startsWith("/cases/"))          return { title: shortId(p),            icon: "◉", section: "Case" };
-  if (p === ROUTES.amc)                 return { title: "AMC Contracts",       icon: "◫", section: "Service" };
-  if (p === ROUTES.workOrders)          return { title: "Work Orders",         icon: "▤", section: "Field" };
+  if (p === ROUTES.amc)                 return { title: "AMC contracts",       icon: "◫", section: "Service" };
+  if (p === ROUTES.workOrders)          return { title: "Work orders",         icon: "▤", section: "Field" };
   if (p.startsWith("/work-orders/"))    return { title: shortId(p),            icon: "▤", section: "Work Order" };
   if (p === ROUTES.dispatch)            return { title: "Dispatch",            icon: "◐", section: "Field" };
   if (p === ROUTES.invoices)            return { title: "Invoices",            icon: "⊟", section: "Records" };
@@ -96,7 +96,7 @@ function tabMeta(href: string): { title: string; icon: string; section: string }
   if (p.startsWith("/marketing/"))                 return { title: shortId(p),        icon: "◎", section: "Campaign" };
   if (p === ROUTES.wfmMe)               return { title: "My Workforce",        icon: "◔", section: "Workforce" };
   if (p === ROUTES.wfmLiveBoard)        return { title: "Live Board",          icon: "◔", section: "Workforce" };
-  if (p === ROUTES.wfmEmployees)        return { title: "Employees",           icon: "◔", section: "Workforce" };
+  if (p === ROUTES.wfmEmployees)        return { title: "Workforce employees",         icon: "◔", section: "Workforce" };
   if (p.startsWith("/wfm/employees/"))  return { title: "Employee",            icon: "◔", section: "Employee" };
   if (p === ROUTES.wfmCorrections)      return { title: "Corrections",         icon: "◔", section: "Workforce" };
   if (p === ROUTES.wfmRoster)           return { title: "Roster",              icon: "◔", section: "Workforce" };

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { c, pillar, type PillarKey } from "@/lib/theme";
 import { ROUTES } from "@/lib/constants";
+import { saveTechnicianProfile } from "@/lib/technicianProfile";
 import type { Technician, TechnicianLeave, LeaveReason } from "@/lib/types";
 import { useFeel } from "@/components/FeelProvider";
 import ObjectFormPage from "@/components/page/ObjectFormPage";
@@ -103,14 +104,23 @@ export default function TechnicianConfigForm({
   // ── Save ───────────────────────────────────────────────────────────────────
   const [saving, setSaving] = useState(false);
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!name.trim()) { toast({ text: "Name is required", tone: "error" }); return; }
     setSaving(true);
-    // When Supabase is wired, call the update API here.
-    setTimeout(() => {
+    try {
+      const saved = await saveTechnicianProfile(initial.id, {
+        name, phone, email, base_location: baseLocation, max_visits_per_day: maxVisits, status,
+        skills: skillsRaw, certs, leaves,
+      });
+      setLeaves(saved.leaves.map((l) => ({
+        id: l.id, from_date: l.from_date, to_date: l.to_date, reason: l.reason as LeaveReason, notes: l.notes ?? "",
+      })));
+      toast({ text: "Profile saved", tone: "success" });
+    } catch (e) {
+      toast({ text: e instanceof Error ? e.message : "Could not save the profile", tone: "error" });
+    } finally {
       setSaving(false);
-      toast({ text: "Profile saved ✓", tone: "success" });
-    }, 600);
+    }
   };
 
   // ── Cert expiry warning colours ────────────────────────────────────────────

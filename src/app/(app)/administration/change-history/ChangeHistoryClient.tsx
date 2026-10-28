@@ -20,6 +20,7 @@ export const OBJECT_TYPES: { value: string; label: string }[] = [
   { value: "contacts", label: "Contacts" },
   { value: "assets", label: "Assets" },
   { value: "suppliers", label: "Suppliers" },
+  { value: "technicians", label: "Technicians" },
   { value: "supplier_groups", label: "Supplier groups" },
   { value: "products", label: "Products" },
   { value: "opportunities", label: "Deals" },

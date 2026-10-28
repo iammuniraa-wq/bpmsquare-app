@@ -35,7 +35,7 @@ export default async function WfmEmployeesPage() {
     <>
       <TabTitle title="Workforce — Employees" />
       <PageHeader
-        title="Employees"
+        title="Workforce employees"
         subtitle="Shift and site assignment, punch access and roles. Shares the Employees master data — HR fields live in Master data → Employees."
       />
       <WfmEmployeesClient initial={initial} employmentTypes={config.employment_types} loginMode={config.login_mode}

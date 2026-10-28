@@ -716,8 +716,8 @@ export type TenantFeatures = {
   // `marketing`.
   whatsapp_marketing: boolean;
   // Attribution (0190-0192, docs/shells/attribution-shell.md): "Revenue by
-  // campaign", the deals and revenue each campaign, newsletter, form, journey,
-  // WhatsApp template and event started or touched, by first touch, last touch
+  // source", the deals and revenue each campaign, newsletter, form, journey,
+  // WhatsApp template and event touched, by first touch, last touch
   // or linear. Read-only on the data it reads. A platform-admin-only flag:
   // default OFF, missing key reads false; with it off there is no menu item,
   // no route and no cron work for the workspace. Needs `marketing`.

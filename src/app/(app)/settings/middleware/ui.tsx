@@ -92,13 +92,13 @@ export function Switch({ checked, onChange, label, disabled }: { checked: boolea
   );
 }
 
-export function Segmented<T extends string>({ value, options, onChange, label, disabled }: {
-  value: T; options: { id: T; label: string }[]; onChange: (v: T) => void; label: string; disabled?: boolean;
+export function Segmented<T extends string>({ value, options, onChange, label, disabled, disabledIds }: {
+  value: T; options: { id: T; label: string }[]; onChange: (v: T) => void; label: string; disabled?: boolean; disabledIds?: readonly T[];
 }) {
   return (
     <div className={s.seg} role="group" aria-label={label}>
       {options.map((o) => (
-        <button key={o.id} type="button" aria-pressed={value === o.id} disabled={disabled} onClick={() => onChange(o.id)}>{o.label}</button>
+        <button key={o.id} type="button" aria-pressed={value === o.id} disabled={disabled || disabledIds?.includes(o.id)} onClick={() => onChange(o.id)}>{o.label}</button>
       ))}
     </div>
   );
