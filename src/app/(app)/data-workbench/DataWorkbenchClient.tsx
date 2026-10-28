@@ -897,7 +897,7 @@ function ResultStep({
             <div>
               <div style={{ fontSize: 13, fontWeight: 700, color: c.ink }}>Temporary passwords</div>
               <div style={{ fontSize: 11.5, color: c.muted, marginTop: 2 }}>
-                No emails were sent. Copy these now and give each person their password — they are not shown again.
+                No emails were sent. Copy these now and give each person their password — they are not shown again. Each person chooses a new password at first sign-in.
               </div>
             </div>
             <button

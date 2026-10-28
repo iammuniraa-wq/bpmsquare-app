@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { tipTextProblems } from "@/lib/infoTip";
 import { PEOPLE_TIPS } from "./tips";
 import {
+  FIRST_SIGNIN_LINE, STATUS_WORD, accessEventDetails, accessEventTitle, personHref, planLockToggle, planPasswordReset, roleSummary, validityWord,
   accessWord, draftFromPerson, emptyInvite, filterPeople, freeEmployees, grantDraftFrom, grantsFromDraft, inviteSuccessText, mergePeople,
   passwordProblem, peopleRedirect, peopleWithRole, personDirty, planInvite, planPersonSave, roleChips, roleProblem, sortRoles, statusOf,
   type Login, type Member, type RoleFull,
@@ -72,19 +73,22 @@ describe("saving a person sends only what changed, through the routes Team and B
     ]);
     expect(planPersonSave(p, { ...draftFromPerson(p), role: "admin", roleIds: [] }).map((c) => c.method + c.url)).toEqual(["PATCH/api/settings/team/u1"]);
   });
-  it("switching Active off locks the login; switching it on unlocks", () => {
-    const off = planPersonSave(p, { ...draftFromPerson(p), active: false });
-    expect(off).toEqual([{ url: "/api/business-users/u1", method: "PATCH", body: { is_locked: true } }]);
+  it("Lock and Unlock are actions of their own, flipping with the login's state", () => {
+    expect(planLockToggle(p)).toEqual({ url: "/api/business-users/u1", method: "PATCH", body: { is_locked: true } });
     const locked = mergePeople([member()], [login({ is_locked: true })])[0];
-    expect(planPersonSave(locked, { ...draftFromPerson(locked), active: true })[0].body).toEqual({ is_locked: false });
+    expect(planLockToggle(locked).body).toEqual({ is_locked: false });
   });
-  it("login details go first, empty dates clear, a password and an employee link are sent once", () => {
+  it("Reset password is its own call and Save never carries a password", () => {
+    expect(planPasswordReset(p, "longenough")).toEqual({ url: "/api/business-users/u1", method: "PATCH", body: { new_password: "longenough" } });
+    expect(JSON.stringify(planPersonSave(p, { ...draftFromPerson(p), displayName: "x" }))).not.toContain("new_password");
+  });
+  it("login details go first, empty dates clear, an employee link is sent once", () => {
     const calls = planPersonSave(p, {
-      ...draftFromPerson(p), displayName: " Asha R ", validTo: "2027-01-01", counted: false, newPassword: "longenough", employeeId: "e9", role: "admin",
+      ...draftFromPerson(p), displayName: " Asha R ", validTo: "2027-01-01", counted: false, employeeId: "e9", role: "admin",
     });
     expect(calls[0]).toEqual({
       url: "/api/business-users/u1", method: "PATCH",
-      body: { display_name: "Asha R", valid_to: "2027-01-01", counted: false, new_password: "longenough", employee_id: "e9" },
+      body: { display_name: "Asha R", valid_to: "2027-01-01", counted: false, employee_id: "e9" },
     });
     expect(calls[1].url).toBe("/api/settings/team/u1");
     const cleared = mergePeople([member()], [login({ valid_from: "2026-01-01" })])[0];
@@ -96,7 +100,7 @@ describe("saving a person sends only what changed, through the routes Team and B
   });
   it("without the login controls only role and business roles are saved", () => {
     const bare = mergePeople([member()], [])[0];
-    expect(planPersonSave(bare, { ...draftFromPerson(bare), active: false, displayName: "x" })).toEqual([]);
+    expect(planPersonSave(bare, { ...draftFromPerson(bare), displayName: "x" })).toEqual([]);
   });
   it("short passwords are caught before the server", () => {
     expect(passwordProblem("short")).not.toBeNull();
@@ -111,11 +115,17 @@ describe("invite", () => {
     expect(plan.call).toEqual({ url: "/api/settings/team", method: "POST", body: { email: "new@acme.com", password: undefined, role: "admin" } });
     expect(plan.viaEmployee).toBe(false);
   });
+  it("the role picked is sent on both routes, also with an employee", () => {
+    const base = { ...emptyInvite(), email: "e@acme.com", password: "longenough", role: "admin" as const };
+    expect(planInvite(base, []).call?.body.role).toBe("admin");
+    expect(planInvite({ ...base, employeeId: "e1" }, []).call?.body.role).toBe("admin");
+    expect(planInvite({ ...base, employeeId: "e1", role: "member" }, []).call?.body.role).toBe("member");
+  });
   it("with an employee it is the Business Users create, which needs a password for a new login", () => {
     const base = { ...emptyInvite(), email: "e@acme.com", employeeId: "e1" };
     expect(planInvite(base, []).problem).toMatch(/password/i);
     expect(planInvite({ ...base, password: "longenough" }, []).call).toEqual({
-      url: "/api/business-users", method: "POST", body: { employee_id: "e1", email: "e@acme.com", password: "longenough", counted: true },
+      url: "/api/business-users", method: "POST", body: { employee_id: "e1", email: "e@acme.com", password: "longenough", role: "member", counted: true },
     });
     expect(planInvite(base, ["E@acme.com"]).call?.url).toBe("/api/business-users");
   });
@@ -127,6 +137,41 @@ describe("invite", () => {
     expect(inviteSuccessText({ linkedExisting: true }, true)).toMatch(/unchanged/);
     expect(inviteSuccessText({ passwordSet: true }, false)).toMatch(/sign-in details/);
     expect(inviteSuccessText({}, false)).toBe("Invite sent.");
+  });
+});
+
+describe("what the person panel and the employee record show", () => {
+  it("names a role's areas in one line, a few then a count", () => {
+    const g = (workcenter: string) => ({ workcenter, can_view: true, can_create: false, can_edit: false, can_delete: false });
+    expect(roleSummary(undefined)).toBe("No areas yet");
+    expect(roleSummary([g("accounts")])).toBe("Accounts");
+    expect(roleSummary([g("accounts"), g("contacts"), g("quotations"), g("cases"), g("assets")])).toBe("Accounts, Contacts, Quotations +2");
+  });
+  it("links the employee record to the person, and uses one word for a login outside its dates", () => {
+    expect(personHref("u 1")).toBe("/settings/people?person=u%201");
+    expect(STATUS_WORD.expired).toBe("Outside validity");
+  });
+  it("words a validity range", () => {
+    expect(validityWord(null, null)).toBeNull();
+    expect(validityWord("2026-01-05", "2026-12-31")).toBe("5 Jan 2026 to 31 Dec 2026");
+    expect(validityWord("2026-01-05", null)).toBe("From 5 Jan 2026");
+    expect(validityWord(null, "2026-12-31")).toBe("Until 31 Dec 2026");
+  });
+  it("reads a history row as an event: login added, removed, role, business roles, lock, validity, password", () => {
+    const row = (action: "create" | "update" | "delete", changes: { field: string; from: unknown; to: unknown }[]) => ({ action, changes });
+    expect(accessEventTitle(row("create", []))).toBe("Login added");
+    expect(accessEventTitle(row("delete", []))).toBe("Removed from workspace");
+    expect(accessEventTitle(row("update", [{ field: "role", from: "member", to: "admin" }]))).toBe("Role changed");
+    expect(accessEventTitle(row("update", [{ field: "business roles", from: null, to: "Sales rep" }]))).toBe("Business roles changed");
+    expect(accessEventTitle(row("update", [{ field: "locked", from: false, to: true }]))).toBe("Locked");
+    expect(accessEventTitle(row("update", [{ field: "locked", from: true, to: false }]))).toBe("Unlocked");
+    expect(accessEventTitle(row("update", [{ field: "valid to", from: null, to: "2027-01-01" }]))).toBe("Validity changed");
+    expect(accessEventTitle(row("update", [{ field: "password", from: null, to: "reset: changes at next sign-in" }]))).toBe("Password reset");
+    expect(accessEventDetails(row("update", [{ field: "role", from: "member", to: "admin" }]))).toEqual(["role: member \u2192 admin"]);
+    expect(accessEventDetails(row("update", [{ field: "password", from: null, to: "x" }, { field: "locked", from: false, to: true }]))).toEqual([]);
+  });
+  it("tells the person they choose a new password at first sign-in", () => {
+    expect(FIRST_SIGNIN_LINE).toBe("They will be asked to choose a new password at first sign-in.");
   });
 });
 
