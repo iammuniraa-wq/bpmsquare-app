@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   barPercent, buyoutRow, compact, dayChip, dayTone, daysText, deskSentence, donutSegments, millions, monthsAria, monthsHaveData, monthsMax,
-  percentOf, plural, ringDash, sentenceText, shortDate, tileMoney, timelinePosition, trendDeltaText, trendGeometry, winRateLabel,
+  assignLanes, percentOf, plural, ringDash, sentenceText, shortDate, tileMoney, timelinePosition, trendDeltaText, trendGeometry, winRateLabel,
 } from "./format";
 
 describe("money in millions", () => {
@@ -174,5 +174,24 @@ describe("months", () => {
     expect(monthsHaveData(months)).toBe(true);
     expect(monthsHaveData([{ key: "k", label: "Jan", won: 0, lost: 0 }])).toBe(false);
     expect(monthsAria(months)).toBe("Won and lost tenders by month. Sep 2 won, 1 lost; Oct 0 won, 3 lost.");
+  });
+});
+
+describe("assignLanes", () => {
+  it("puts neighbouring deadlines on different rows and keeps every row free of overlap", () => {
+    const days = [2, 3, 6, 9, 11, 14, 15, 18];
+    const pos = days.map((d) => timelinePosition(d));
+    const lanes = assignLanes(pos);
+    expect(lanes[0]).not.toBe(lanes[1]);
+    const byLane = new Map<number, { l: number; r: number }[]>();
+    pos.forEach((p, i) => {
+      const l = p.align === "start" ? p.pct : p.align === "end" ? p.pct - 27 : p.pct - 13.5;
+      byLane.set(lanes[i], [...(byLane.get(lanes[i]) ?? []), { l, r: l + 27 }]);
+    });
+    for (const rows of byLane.values()) for (let i = 1; i < rows.length; i++) expect(rows[i].l).toBeGreaterThanOrEqual(rows[i - 1].r);
+  });
+  it("uses one row when a single deadline is shown and a row pair for two", () => {
+    expect(assignLanes([timelinePosition(10)])).toEqual([0]);
+    expect(assignLanes([timelinePosition(10), timelinePosition(12)])).toEqual([0, 1]);
   });
 });

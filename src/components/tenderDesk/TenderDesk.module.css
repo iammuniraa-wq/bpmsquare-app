@@ -137,10 +137,10 @@
 .lg b { font-size: 18px; font-weight: 500; color: var(--tc-strong); }
 
 .tlWrap { position: relative; margin: 6px 6px 0; }
-.tl { list-style: none; margin: 0; padding: 0; position: relative; height: 158px; }
-.tlAxis { position: absolute; left: 0; right: 0; top: 79px; height: 2px; background: var(--tc-axis); }
+.tl { list-style: none; margin: 0; padding: 0; position: relative; height: var(--h, 158px); }
+.tlAxis { position: absolute; left: 0; right: 0; top: var(--a, 79px); height: 2px; background: var(--tc-axis); }
 .mk { position: absolute; top: 0; left: var(--x); width: 0; height: 100%; }
-.mkDot { position: absolute; left: 0; top: 71px; width: 16px; height: 16px; margin-left: -8px; border-radius: 50%; border: 3px solid var(--tc-base); }
+.mkDot { position: absolute; left: 0; top: calc(var(--a, 79px) - 8px); width: 16px; height: 16px; margin-left: -8px; border-radius: 50%; border: 3px solid var(--tc-base); }
 .dotRed { background: var(--tc-rose); box-shadow: 0 0 12px var(--tc-rose); }
 .dotAmber { background: var(--tc-amber); box-shadow: 0 0 12px var(--tc-amber); }
 .dotTeal { background: var(--tc-teal); box-shadow: 0 0 12px var(--tc-teal); }
@@ -151,7 +151,6 @@
 .mkLabel:hover { background: var(--tc-row); }
 .mkLabel b { display: block; font-size: 12px; font-weight: 500; color: var(--tc-strong); }
 .mkLabel span { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.up { top: 4px; } .down { top: 98px; }
 .alignStart { transform: none; text-align: left; } .alignEnd { transform: translateX(-100%); text-align: right; }
 .tlTicks { display: flex; justify-content: space-between; margin: 0 6px; font-size: 11px; color: var(--tc-dim); }
 .later { margin: 0; font-size: 12px; color: var(--tc-dim); }
@@ -190,7 +189,7 @@
   .tlWrap { margin: 0; }
   .mk { position: static; width: auto; height: auto; display: grid; grid-template-columns: 16px 1fr; align-items: center; gap: 10px; }
   .mkDot { position: static; margin-left: 0; }
-  .mkLabel, .up, .down, .alignStart, .alignEnd { position: static; width: auto; transform: none; text-align: left; }
+  .mkLabel, .alignStart, .alignEnd { position: static; width: auto; transform: none; text-align: left; }
   .pkg { grid-template-columns: 1fr; gap: 8px; }
 }
 
