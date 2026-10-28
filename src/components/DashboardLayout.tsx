@@ -17,7 +17,7 @@ import { ROUTES } from "@/lib/constants";
 import type { AnalyticsMetricId, TenantFeatures, DashLayoutItem } from "@/lib/constants";
 import { AlertTriangle, Activity, CheckIcon, Package, Phone, Gear, Globe, Wrench, CalendarCheck, Zap, Clipboard, Battery, FileText, Clock } from "@/components/Icons";
 import type { AnalyticsData } from "@/lib/data/labels";
-import { ANALYTICS_META, isAnalyticsId } from "@/lib/analyticsMeta";
+import { ANALYTICS_META, analyticsFeatureOn, isAnalyticsId } from "@/lib/analyticsMeta";
 import {
   BUNDLES, NATIVE_META, SIDEBAR_IDS, addBundleBlocks, blockAllowed, blockFlex, blockLabel, blockSize, curatedLayoutFor, moveBlock, resolveLayout,
   setSizeAt, toggleAnalyticsPin, toggleHiddenAt,
@@ -897,8 +897,7 @@ export function AdaptDrawer({
   const pinnedAnalyticsIds = new Set(layout.filter((b) => isAnalyticsId(b.id)).map((b) => b.id));
 
   const availableAnalytics = (Object.keys(ANALYTICS_META) as AnalyticsMetricId[]).filter((id) => {
-    const feat = ANALYTICS_META[id].feature;
-    return !feat || features[feat];
+    return analyticsFeatureOn(id, features);
   });
 
   const availableBundles = BUNDLES.filter((b) => !b.feature || features[b.feature]);

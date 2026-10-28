@@ -210,6 +210,22 @@ describe("getTenderDeskData", () => {
     expect(bad).toEqual([]);
   });
 
+  it("shows only what the workspace is scoped for: no RFQ module, no RFQ item and no RFQ read; no Contract projects, no buy-out and no project read", async () => {
+    const full = await getTenderDeskData(T1, { now: NOW });
+    expect(full.attention.map((a) => a.kind)).toContain("supplier_reply");
+    expect(full.buyout).not.toBeNull();
+
+    state.reads = [];
+    const d = await getTenderDeskData(T1, { now: NOW, modules: { rfq: false, contract_projects: false } });
+    expect(d.attention.map((a) => a.kind)).not.toContain("supplier_reply");
+    expect(d.buyout).toBeNull();
+    expect(d.kpis.buyoutBudget).toBeNull();
+    expect(d.kpis.buyoutCommitted).toBe(0);
+    expect(d.kpis.openCount).toBe(full.kpis.openCount);
+    const tables = JSON.stringify(state.reads);
+    for (const t of ["rfqs", "rfq_suppliers", "contract_projects", "project_buyout_packages", "project_budget_lines"]) expect(tables, t).not.toContain(t);
+  });
+
   it("answers pending, not an error, when the tender table is not there yet", async () => {
     state.db.missing.add("opportunity_tenders");
     const d = await getTenderDeskData(T1, { now: NOW });

@@ -1,5 +1,5 @@
 import type { DashLayoutItem, TenantFeatures } from "@/lib/constants";
-import { ANALYTICS_META, isAnalyticsId } from "@/lib/analyticsMeta";
+import { ANALYTICS_META, analyticsFeatureOn, isAnalyticsId } from "@/lib/analyticsMeta";
 
 /**
  * Nova Stream's own "Adapt" layer -- reuses the exact same DashLayoutItem[]
@@ -50,8 +50,7 @@ export function novaBlockLabel(id: string): string {
 export function novaBlockAllowed(id: string, features: TenantFeatures): boolean {
   if (isNovaNativeId(id)) return true;
   if (isAnalyticsId(id)) {
-    const feat = ANALYTICS_META[id].feature;
-    return !feat || features[feat] === true;
+    return analyticsFeatureOn(id, features);
   }
   return false;
 }

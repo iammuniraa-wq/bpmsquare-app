@@ -84,3 +84,23 @@ export const ANALYTICS_META: Record<AnalyticsMetricId, { label: string; feature?
 export function isAnalyticsId(id: string): id is AnalyticsMetricId {
   return id in ANALYTICS_META;
 }
+
+/**
+ * Modules a block needs IN ADDITION to its own `feature`: a tender workspace that did not buy Contract projects must not get the buy-out
+ * blocks, and one without Pipeline has no tenders to show. Every tender block reads tenders, which live in the Pipeline module.
+ */
+const TENDER_NEEDS: (keyof TenantFeatures)[] = ["pipeline"];
+export const ANALYTICS_REQUIRES: Partial<Record<AnalyticsMetricId, (keyof TenantFeatures)[]>> = {
+  tender_open_pipeline: TENDER_NEEDS, tender_weighted: TENDER_NEEDS, tender_closing_soon: TENDER_NEEDS, tender_win_rate: TENDER_NEEDS,
+  tender_by_stage: TENDER_NEEDS, tender_closing_list: TENDER_NEEDS, tender_won_lost: TENDER_NEEDS, tender_by_client: TENDER_NEEDS,
+  tender_attention: TENDER_NEEDS, tender_trend: TENDER_NEEDS, tender_deadlines: TENDER_NEEDS,
+  tender_buyout_committed: [...TENDER_NEEDS, "contract_projects"], tender_buyout: [...TENDER_NEEDS, "contract_projects"],
+};
+
+/** Whether the workspace owns every module this analytics block depends on: its own flag and the ones it also needs. */
+export function analyticsFeatureOn(id: AnalyticsMetricId, features: Partial<TenantFeatures> | null | undefined): boolean {
+  const f = features ?? {};
+  const own = ANALYTICS_META[id].feature;
+  if (own && f[own] !== true) return false;
+  return (ANALYTICS_REQUIRES[id] ?? []).every((k) => f[k] === true);
+}

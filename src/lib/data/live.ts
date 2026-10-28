@@ -2073,8 +2073,10 @@ export async function getAnalyticsDataLive(opts: { tender?: boolean } = {}): Pro
   // The tender edition's dashboard blocks. Tenant-scoped inside getTenderDeskData (the id is the caller's own); a failure leaves the dashboard
   // standing and the tender blocks saying the data is not available.
   let tender: TenderDeskData | null = null;
-  if (opts.tender !== false && tenant?.features?.gcc_tender === true) {
-    try { tender = await getTenderDeskData(tenantId); } catch (e) { console.error("[analytics] tender data could not be read", e); }
+  // Tenders live in the Pipeline module, so a tender workspace without Pipeline has none to show; the RFQ and Contract-project parts follow their own modules.
+  if (opts.tender !== false && tenant?.features?.gcc_tender === true && tenant?.features?.pipeline === true) {
+    const f = tenant.features;
+    try { tender = await getTenderDeskData(tenantId, { modules: { rfq: f.rfq === true, contract_projects: f.contract_projects === true } }); } catch (e) { console.error("[analytics] tender data could not be read", e); }
   }
 
   return {
