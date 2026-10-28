@@ -8,7 +8,7 @@ import type { DashLayoutItem, TenantFeatures } from "./constants";
 
 const ids = (l: DashLayoutItem[]) => l.map((b) => b.id);
 const CRM = { quotations: true, cases: true, accounts: true, pipeline: true } as TenantFeatures;
-const TENDER = { ...CRM, gcc_tender: true } as TenantFeatures;
+const TENDER = { ...CRM, gcc_tender: true, contract_projects: true } as TenantFeatures;
 const WFM_ONLY = { wfm: true } as TenantFeatures;
 const EXPECTED = [
   "tender_open_pipeline", "tender_weighted", "tender_closing_soon", "tender_win_rate", "tender_buyout_committed",
@@ -16,8 +16,26 @@ const EXPECTED = [
   "tender_deadlines", "tender_buyout",
 ];
 
+describe("the tender blocks follow the workspace's module scoping", () => {
+  const BUYOUT = ["tender_buyout_committed", "tender_buyout"];
+  it("a tender workspace without the Pipeline module gets no tender block, because tenders live there", () => {
+    const noPipeline = { gcc_tender: true, contract_projects: true } as TenantFeatures;
+    for (const id of EXPECTED) expect(blockAllowed(id, noPipeline), id).toBe(false);
+  });
+  it("without Contract projects only the two buy-out blocks go; the rest stay", () => {
+    const noProjects = { ...CRM, gcc_tender: true } as TenantFeatures;
+    for (const id of EXPECTED) expect(blockAllowed(id, noProjects), id).toBe(!BUYOUT.includes(id));
+    expect(ids(defaultLayoutFor(noProjects)).filter((i) => BUYOUT.includes(i))).toEqual([]);
+    expect(ids(curatedLayoutFor(noProjects)).filter((i) => BUYOUT.includes(i))).toEqual([]);
+  });
+  it("a workspace without the tender edition never gets any of them, whatever else it owns", () => {
+    const all = { ...CRM, contract_projects: true, rfq: true } as TenantFeatures;
+    for (const id of EXPECTED) expect(blockAllowed(id, all), id).toBe(false);
+  });
+});
+
 describe("the tender blocks as dashboard blocks", () => {
-  it("are thirteen analytics blocks, each gated by the platform-admin flag gcc_tender and nothing else", () => {
+  it("are thirteen analytics blocks, each gated by the platform-admin flag gcc_tender (plus the modules they read, see scoping above)", () => {
     expect(ids(TENDER_BLOCKS)).toEqual(EXPECTED);
     for (const id of EXPECTED) {
       expect(isAnalyticsId(id)).toBe(true);
@@ -92,7 +110,7 @@ describe("a workspace with the tender edition opens on the tender blocks", () =>
   });
 
   it("a tender workspace with no CRM modules still gets the tender lead (and the bundle path does not repeat the tender blocks)", () => {
-    const only = { gcc_tender: true, pipeline: true, wfm: true } as TenantFeatures;
+    const only = { gcc_tender: true, pipeline: true, contract_projects: true, wfm: true } as TenantFeatures;
     const l = ids(defaultLayoutFor(only));
     expect(l.slice(0, 13)).toEqual(EXPECTED);
     expect(l.filter((id) => isTenderBlockId(id))).toHaveLength(13);

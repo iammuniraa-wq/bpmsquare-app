@@ -69,7 +69,16 @@ function failed(table: string, error: Err): { rows: Row[]; ok: false; missing: b
   return { rows: [], ok: false, missing };
 }
 
-export async function getTenderDeskData(tenantId: string, opts: { now?: Date } = {}): Promise<TenderDeskData> {
+/**
+ * `modules` is what the workspace owns (its feature flags). The desk shows only what the workspace is scoped for: without the RFQ module
+ * there is no "supplier reply overdue" item and the RFQ tables are not read; without Contract projects there is no buy-out and the project
+ * tables are not read. Left out (undefined), every module counts as owned, which is what the tests and tools that already pass no flags expect.
+ */
+export type DeskModules = { rfq?: boolean; contract_projects?: boolean };
+
+export async function getTenderDeskData(tenantId: string, opts: { now?: Date; modules?: DeskModules } = {}): Promise<TenderDeskData> {
+  const hasRfq = opts.modules?.rfq !== false;
+  const hasProjects = opts.modules?.contract_projects !== false;
   const now = opts.now ?? new Date();
   const admin = createAdminSupabase();
 
@@ -108,9 +117,9 @@ export async function getTenderDeskData(tenantId: string, opts: { now?: Date } =
 
   const [decisions, rfqWaits, boq, projects] = await Promise.all([
     loadDecisions(admin, tenantId, tenders),
-    loadRfqWaits(admin, tenantId, todayKey),
+    hasRfq ? loadRfqWaits(admin, tenantId, todayKey) : Promise.resolve<RfqWait[]>([]),
     loadBoq(admin, tenantId, dealsClosingWithin(tenders, now, timezone, DESK_STALE_WINDOW_DAYS).map((t) => t.id)),
-    loadProjects(admin, tenantId, tenders.map((t) => t.id)),
+    hasProjects ? loadProjects(admin, tenantId, tenders.map((t) => t.id)) : Promise.resolve<DeskProject[]>([]),
   ]);
 
   const near = dealsClosingWithin(tenders, now, timezone, DESK_STALE_WINDOW_DAYS);

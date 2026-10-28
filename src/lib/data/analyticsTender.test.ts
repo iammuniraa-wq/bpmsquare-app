@@ -44,10 +44,16 @@ beforeEach(() => {
 
 describe("AnalyticsData.tender", () => {
   it("is the tender desk data for a workspace with gcc_tender, read once, for the caller's own tenant", async () => {
-    state.tenant = { features: { gcc_tender: true }, config: {} };
+    state.tenant = { features: { gcc_tender: true, pipeline: true }, config: {} };
     const a = await getAnalyticsDataLive();
     expect(a.tender).toEqual({ marker: "tender data" });
     expect(state.tenderCalls).toEqual(["tenant-a"]);
+  });
+
+  it("is null and never read for a tender workspace that does not own the Pipeline module, and is told which optional modules it owns", async () => {
+    state.tenant = { features: { gcc_tender: true }, config: {} };
+    expect((await getAnalyticsDataLive()).tender).toBeNull();
+    expect(state.tenderCalls).toEqual([]);
   });
 
   it("is null and never read for a workspace without the flag", async () => {
@@ -61,14 +67,14 @@ describe("AnalyticsData.tender", () => {
   });
 
   it("is left out when the caller does not draw it (the Reports page)", async () => {
-    state.tenant = { features: { gcc_tender: true }, config: {} };
+    state.tenant = { features: { gcc_tender: true, pipeline: true }, config: {} };
     const a = await getAnalyticsDataLive({ tender: false });
     expect(a.tender).toBeNull();
     expect(state.tenderCalls).toEqual([]);
   });
 
   it("is null, with the rest of the analytics intact, when reading it fails", async () => {
-    state.tenant = { features: { gcc_tender: true }, config: {} };
+    state.tenant = { features: { gcc_tender: true, pipeline: true }, config: {} };
     state.tenderImpl = async () => { throw new Error("boom"); };
     const err = vi.spyOn(console, "error").mockImplementation(() => {});
     const a = await getAnalyticsDataLive();
@@ -81,7 +87,7 @@ describe("AnalyticsData.tender", () => {
 
   it("is null without a signed-in tenant", async () => {
     state.user = null;
-    state.tenant = { features: { gcc_tender: true }, config: {} };
+    state.tenant = { features: { gcc_tender: true, pipeline: true }, config: {} };
     const a = await getAnalyticsDataLive();
     expect(a.tender).toBeNull();
     expect(state.tenderCalls).toEqual([]);

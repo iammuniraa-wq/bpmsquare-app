@@ -1,6 +1,6 @@
 import type React from "react";
 import type { AnalyticsMetricId, TenantFeatures, DashLayoutItem } from "@/lib/constants";
-import { ANALYTICS_META, isAnalyticsId } from "@/lib/analyticsMeta";
+import { ANALYTICS_META, analyticsFeatureOn, isAnalyticsId } from "@/lib/analyticsMeta";
 
 // The dashboard's block catalogue and layout rules, held apart from DashboardLayout.tsx (a "use client" file full of JSX) so they can be
 // tested and shared. Moved here unchanged except for the tender blocks (docs/design/tender-desk.md, "Integrated dashboard").
@@ -92,7 +92,8 @@ export const TENDER_TILE_IDS: ReadonlySet<string> = new Set(TENDER_BLOCKS.slice(
 /** The tender blocks a workspace opens on: all of them with the flag, none without it. */
 export function tenderLead(features: TenantFeatures): DashLayoutItem[] {
   if (features.gcc_tender !== true) return [];
-  return TENDER_BLOCKS.map((b) => ({ id: b.id, size: b.size }));
+  // Only the blocks whose modules the workspace owns: buy-out needs Contract projects, every block needs Pipeline.
+  return TENDER_BLOCKS.filter((b) => blockAllowed(b.id, features)).map((b) => ({ id: b.id, size: b.size }));
 }
 
 /** THE CURATED DASHBOARD (owner request 2026-09-21).
@@ -174,8 +175,7 @@ export function blockAllowed(id: string, features: TenantFeatures): boolean {
   const native = NATIVE_META[id];
   if (native) return !native.features || native.features.some((f) => features[f] === true);
   if (isAnalyticsId(id)) {
-    const feat = ANALYTICS_META[id].feature;
-    return !feat || features[feat] === true;
+    return analyticsFeatureOn(id, features);
   }
   return true;
 }

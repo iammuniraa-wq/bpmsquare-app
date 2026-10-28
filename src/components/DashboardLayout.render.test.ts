@@ -29,7 +29,7 @@ const analytics = (tender: AnalyticsData["tender"]): AnalyticsData => ({
 } as unknown as AnalyticsData);
 
 const CRM = { quotations: true, cases: true, accounts: true, work_orders: true, pipeline: true } as TenantFeatures;
-const TENDER = { ...CRM, gcc_tender: true } as TenantFeatures;
+const TENDER = { ...CRM, gcc_tender: true, pipeline: true, contract_projects: true } as TenantFeatures;
 
 type Over = Partial<Parameters<typeof DashboardLayout>[0]>;
 const dash = (over: Over = {}) =>
