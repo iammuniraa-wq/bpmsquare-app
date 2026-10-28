@@ -49,10 +49,14 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
   }
 
+  // Provisioning flow (owner decision 2026-10-28): the admin sets an initial password and hands it over; the first login forces the
+  // person to choose their own (must_change_password, enforced by the app layout). Only when THIS call created the account with that
+  // password: an account that already existed elsewhere keeps its own password and is not forced.
+  const passwordSet = !!password && isNew;
   const { error: linkErr } = await admin
     .from("tenant_users")
-    .insert({ tenant_id: id, user_id: userId, role });
+    .insert({ tenant_id: id, user_id: userId, role, must_change_password: passwordSet });
   if (linkErr) return NextResponse.json({ error: linkErr.message }, { status: 400 });
 
-  return NextResponse.json({ ok: true, passwordSet: !!password && isNew });
+  return NextResponse.json({ ok: true, passwordSet });
 }

@@ -8,7 +8,11 @@ export async function GET(request: NextRequest) {
   const code      = searchParams.get("code");
   const tokenHash = searchParams.get("token_hash");
   const type      = searchParams.get("type");
-  const next = type === "recovery"
+  // An invite link signs the person in once and sets no password; sending them to the home page left them unable to sign in a second
+  // time without a "forgot password" e-mail, which a workspace without its own e-mail sender cannot send (owner question 2026-10-28). So
+  // an invite lands on the same set-a-password screen a recovery does.
+  const landsOnPassword = type === "recovery" || type === "invite";
+  const next = landsOnPassword
     ? "/reset-password"
     : safeInternalPath(searchParams.get("next"));
 
@@ -88,7 +92,7 @@ export async function GET(request: NextRequest) {
       }
 
       const type = params.get('type');
-      const destination = type === 'recovery' ? '/reset-password' : '${next}';
+      const destination = (type === 'recovery' || type === 'invite') ? '/reset-password' : '${next}';
 
       // POST tokens to server so it can set proper SSR cookies
       const res = await fetch('${origin}/api/auth/session', {

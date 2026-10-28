@@ -210,7 +210,7 @@ export default function TenantEditor({ tenant, users, access, aiTokensUsed = nul
       });
       const json = await res.json().catch(() => ({}));
       if (res.ok) {
-        setInviteMsg(json.passwordSet ? "Account created with that password ✓" : "Invite sent ✓");
+        setInviteMsg(json.passwordSet ? "Account created. Share the initial password; they choose their own at first login ✓" : "Invite sent ✓");
         setInviteEmail("");
         setInvitePassword("");
         router.refresh();
