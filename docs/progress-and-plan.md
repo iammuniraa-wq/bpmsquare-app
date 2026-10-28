@@ -74,14 +74,24 @@ quiet); PROJECT.md's ledger carries the same list.
    Wire Rope bands on the Catalogue book, the Hand-over screen and the new
    labels; the script in `guides/pcbs-voiceover/ALL-SCENES-v6.txt` only needs
    the times refreshed.
-2. **ERP plan phases 1-3** after the owner's decisions (external refs, v1
+2. (Skipped for now, owner 2026-10-28.) **ERP plan phases 1-3** after the owner's decisions (external refs, v1
    writes for masters, the `DocumentWon` payload).
-3. Marketing enhancements still open: journeys health and heatmap; ABM "My
+3. (Out of scope for now, owner 2026-10-28.) Marketing enhancements still open: journeys health and heatmap; ABM "My
    ABM day"; signals heatmap and outside data; newsletter components,
    comments and approvals; leads recycling (item 4) and overdue reassign;
    forms languages and actions; the "every surface" pass per object.
 4. Drive guides (Sales, Admin, API, Marketing, Products) after validation.
-5. Estimator improvements (owner: "works but needs a lot of improvement").
+5. Estimator: a visual for every estimate, dynamically (owner 2026-10-28):
+   `docs/design/estimator-visual-for-every-estimate.md` (generic massing from
+   the template's dimensions + a composition strip on every estimate).
+6. **Assistant actions** (owner 2026-10-28: "add more AI capabilities, not for
+   KAMCO today, to have it in the pipeline"): `docs/design/assistant-actions.md`,
+   steps 0 to 6 in order (wording when off, decouple from Nova, more create
+   cards, change cards, transition verbs, delete cards, bulk). Each step
+   validated on the demo before any client flag is widened.
+7. (Out of scope for now, owner 2026-10-28.) **Access restrictions with access contexts** (C4C-style read/write per
+   object; owner 2026-10-28 "can be done later"): design doc first, reverses
+   decision 2026-10-23 on Business Roles; see `docs/design/people-access.md` 6.
 
 ## Open items waiting on the owner
 

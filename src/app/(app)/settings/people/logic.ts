@@ -1,5 +1,6 @@
 import { isMembershipActive } from "@/lib/constants";
 import { WORKCENTERS } from "@/lib/workcenters";
+import type { ChangeLogRow } from "@/app/(app)/administration/change-history/changeHistoryRows";
 
 // The rules behind Settings > People, kept free of React so they can be tested. One person is one row: the
 // workspace member (Settings > Team's list) joined with the login controls (Business Users' list) when the
@@ -25,7 +26,12 @@ export type Login = {
 };
 
 export type RoleLite = { id: string; name: string };
-export type EmployeeLite = { id: string; first_name: string; last_name: string; email: string | null; employee_code?: string | null };
+/** A role as the person panel lists it: its name and, when known, the areas it opens. */
+export type RoleView = RoleLite & { grants?: readonly Grant[] };
+export type EmployeeLite = {
+  id: string; first_name: string; last_name: string; email: string | null; employee_code?: string | null;
+  valid_from?: string | null; valid_to?: string | null;
+};
 
 export type StatusKey = "active" | "locked" | "expired";
 
@@ -39,7 +45,7 @@ export type Person = {
   status: StatusKey;
 };
 
-export const STATUS_WORD: Record<StatusKey, string> = { active: "Active", locked: "Locked", expired: "Out of validity" };
+export const STATUS_WORD: Record<StatusKey, string> = { active: "Active", locked: "Locked", expired: "Outside validity" };
 
 export function nameOf(m: Member, login: Login | null): string {
   return login?.display_name?.trim() || m.name?.trim() || m.email?.split("@")[0] || m.user_id.slice(0, 8);
@@ -90,12 +96,10 @@ export const employeeLabel = (e: EmployeeLite) => (e.employee_code ? `${employee
 export type PersonDraft = {
   role: "admin" | "member";
   roleIds: string[];
-  active: boolean;
   displayName: string;
   validFrom: string;
   validTo: string;
   counted: boolean;
-  newPassword: string;
   employeeId: string;
 };
 
@@ -104,12 +108,10 @@ export function draftFromPerson(p: Person): PersonDraft {
   return {
     role: p.role,
     roleIds: [...p.roleIds],
-    active: !l?.is_locked,
     displayName: l?.display_name ?? "",
     validFrom: l?.valid_from ?? "",
     validTo: l?.valid_to ?? "",
     counted: l?.counted ?? true,
-    newPassword: "",
     employeeId: "",
   };
 }
@@ -128,11 +130,9 @@ export function planPersonSave(p: Person, d: PersonDraft): Call[] {
   if (l) {
     const body: Record<string, unknown> = {};
     if (d.displayName.trim() !== (l.display_name ?? "")) body.display_name = d.displayName.trim();
-    if (d.active !== !l.is_locked) body.is_locked = !d.active;
     if (d.validFrom !== (l.valid_from ?? "")) body.valid_from = d.validFrom || null;
     if (d.validTo !== (l.valid_to ?? "")) body.valid_to = d.validTo || null;
     if (d.counted !== l.counted) body.counted = d.counted;
-    if (d.newPassword) body.new_password = d.newPassword;
     if (d.employeeId && !l.employee_id) body.employee_id = d.employeeId;
     if (Object.keys(body).length > 0) calls.push({ url: `/api/business-users/${p.userId}`, method: "PATCH", body });
   }
@@ -144,6 +144,11 @@ export function planPersonSave(p: Person, d: PersonDraft): Call[] {
 }
 
 export const personDirty = (p: Person, d: PersonDraft) => planPersonSave(p, d).length > 0;
+
+/** Lock or unlock straight away: the one action that flips with the login's current state. */
+export const planLockToggle = (p: Person): Call => ({ url: `/api/business-users/${p.userId}`, method: "PATCH", body: { is_locked: !p.login?.is_locked } });
+
+export const planPasswordReset = (p: Person, password: string): Call => ({ url: `/api/business-users/${p.userId}`, method: "PATCH", body: { new_password: password } });
 
 /** A new password is the only login field with its own rule on the client; the server repeats it. */
 export function passwordProblem(pw: string): string | null {
@@ -172,7 +177,7 @@ export function planInvite(d: InviteDraft, existingEmails: readonly string[]): I
     if (!exists && !d.password) return { call: null, viaEmployee: true, problem: "A password is needed for a new login." };
     return {
       viaEmployee: true, problem: null,
-      call: { url: "/api/business-users", method: "POST", body: { employee_id: d.employeeId, email, password: d.password || undefined, counted: true } },
+      call: { url: "/api/business-users", method: "POST", body: { employee_id: d.employeeId, email, password: d.password || undefined, role: d.role, counted: true } },
     };
   }
   return {
@@ -186,6 +191,19 @@ export function inviteSuccessText(json: { passwordSet?: boolean; linkedExisting?
   if (json.passwordSet) return "Login created. Share the sign-in details below.";
   return viaEmployee ? "Login created." : "Invite sent.";
 }
+
+const dayWord = (iso: string) => new Date(`${iso}T00:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
+
+/** "1 Jan 2026 to 31 Dec 2026", "From 1 Jan 2026" or "Until 31 Dec 2026"; null with no dates. */
+export function validityWord(from: string | null | undefined, to: string | null | undefined): string | null {
+  if (from && to) return `${dayWord(from)} to ${dayWord(to)}`;
+  if (from) return `From ${dayWord(from)}`;
+  if (to) return `Until ${dayWord(to)}`;
+  return null;
+}
+
+/** The line shown with the sign-in details of a login that was just given a password. */
+export const FIRST_SIGNIN_LINE = "They will be asked to choose a new password at first sign-in.";
 
 // ── Roles ───────────────────────────────────────────────────────────────────
 
@@ -239,6 +257,43 @@ export function roleProblem(name: string): string | null {
 // ── Old addresses ───────────────────────────────────────────────────────────
 
 export const PEOPLE_PATH = "/settings/people";
+
+/** Where People opens one person; the employee record links here. */
+export const personHref = (userId: string) => `${PEOPLE_PATH}?person=${encodeURIComponent(userId)}`;
+
+/** The workcenters a role opens, in one line: the first few by name, then how many more. */
+export function roleSummary(grants: readonly Grant[] | undefined, show = 3): string {
+  const names = WORKCENTERS.filter((w) => grants?.some((g) => g.workcenter === w.key && g.can_view)).map((w) => w.label);
+  if (names.length === 0) return "No areas yet";
+  return names.length <= show ? names.join(", ") : `${names.slice(0, show).join(", ")} +${names.length - show}`;
+}
+
+// ── The Changes section ─────────────────────────────────────────────────────
+
+const asText = (v: unknown) => (v === null || v === undefined || v === "" ? "none" : String(v));
+
+/** What happened, in the words a person would use, from one history row. */
+export function accessEventTitle(r: Pick<ChangeLogRow, "action" | "changes">): string {
+  if (r.action === "create") return "Login added";
+  if (r.action === "delete") return "Removed from workspace";
+  const fields = new Set(r.changes.map((c) => c.field));
+  const out: string[] = [];
+  if (fields.has("password")) out.push("Password reset");
+  if (fields.has("role")) out.push("Role changed");
+  if (fields.has("business roles")) out.push("Business roles changed");
+  const lock = r.changes.find((c) => c.field === "locked");
+  if (lock) out.push(lock.to ? "Locked" : "Unlocked");
+  if (fields.has("valid from") || fields.has("valid to")) out.push("Validity changed");
+  if (fields.has("counted user") || fields.has("display name") || fields.has("employee")) out.push("Details changed");
+  return out.length ? out.join(", ") : "Changed";
+}
+
+/** The before and after of each field, one short line each; a password or lock event needs none. */
+export function accessEventDetails(r: Pick<ChangeLogRow, "action" | "changes">): string[] {
+  return r.changes
+    .filter((c) => c.field !== "password" && c.field !== "locked")
+    .map((c) => (r.action === "update" ? `${c.field}: ${asText(c.from)} → ${asText(c.to)}` : `${c.field}: ${asText(c.to ?? c.from)}`));
+}
 
 /** Where the retired Team / Business users / Business roles addresses send you, keeping any other query. */
 export function peopleRedirect(tab: "roles" | undefined, search: Record<string, string | string[] | undefined> = {}): string {

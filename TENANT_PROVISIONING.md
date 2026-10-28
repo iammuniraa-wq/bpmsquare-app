@@ -153,16 +153,30 @@ pattern in `3433239`) rather than working around it per tenant.
 
 ## 4. People
 
-- **Workspace admins** (no employee record): Settings → People → invite with
-  role Admin. Existing platform accounts are linked directly (password
-  ignored, they keep their own).
+- **The provisioning invite is for the first admin only** (Admin → Tenants →
+  the tenant → Users → Invite): it gives the client's first admin system
+  access, once. Every other person is created inside the workspace in
+  **Settings → People** by that admin, never from Admin → Tenants.
+  A login created with an initial password changes it at first sign-in, on
+  every path (this invite, Settings → People, the employee record, the
+  Data Workbench Users import); an account that already existed elsewhere
+  is linked and keeps its own password. Every login and access change
+  (created, removed, role, Business Roles, lock, password reset, validity)
+  is recorded in Change history under "People and access".
+- **Other workspace admins and members** (no employee record): Settings →
+  People → Invite, role Admin or Member (always shown). Existing platform
+  accounts are linked directly (password ignored, they keep their own).
 - **Employees + logins** (few): Workforce → Employees → Add employee
   (EMP-#### auto-assigns; codes are system-generated and immutable —
   never typed). Set **WFM role** (supervisor/employee) and, on employees,
   the **Supervisor** field — that mapping is what routes corrections/
-  leave/OT requests to the right queue. Then invite the login from the
-  employee row: email + admin-chosen initial password; the matching
-  "WFM Supervisor"/"WFM Employee" Business Role attaches automatically.
+  leave/OT requests to the right queue. Then give the login from the
+  employee record: **Create business user** (opens the same Add panel with
+  the employee, its email and validity dates filled in) -- email, role and
+  an admin-chosen initial password; the matching "WFM Supervisor"/"WFM
+  Employee" Business Role attaches automatically. Once linked, the record
+  shows the login's state (Active / Locked / Outside validity) and links
+  to that person in Settings → People.
 - **Employees + logins (bulk, e.g. 100):** Data Workbench →
   1. Import **Employees** sheet (no code column — EMP block auto-assigns),
   2. **Export** Employees to obtain the assigned codes,

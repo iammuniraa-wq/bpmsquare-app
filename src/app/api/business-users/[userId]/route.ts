@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { requireTenantUser, createAdminSupabase } from "@/lib/supabase-server";
 import { tenantHasFeature } from "@/lib/tenant";
 import { isMembershipActive } from "@/lib/constants";
+import { loginLabel, logAccessChange, membershipChanges, PASSWORD_RESET_ENTRY } from "@/lib/peopleAccessLog";
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const cleanDate = (v: unknown) => (typeof v === "string" && DATE_RE.test(v) ? v : null);
@@ -29,7 +30,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
   const { data: member } = await admin
     .from("tenant_users")
-    .select("id, role, is_locked, valid_from, valid_to, employee_id, display_name")
+    .select("id, role, is_locked, valid_from, valid_to, employee_id, display_name, counted")
     .eq("tenant_id", tenantId)
     .eq("user_id", targetUserId)
     .maybeSingle();
@@ -38,6 +39,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   const body = await request.json();
 
   const patch: Record<string, unknown> = {};
+  let linkedEmployeeName: string | null = null;
 
   // Link an existing login to an employee record after the fact -- resolves
   // the "same person exists as an employee AND as an 'other login'" split.
@@ -67,6 +69,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       .maybeSingle();
     if (taken) return NextResponse.json({ error: "That employee already has a business user" }, { status: 409 });
     patch.employee_id = employee.id;
+    linkedEmployeeName = `${employee.first_name} ${employee.last_name}`.trim();
     if (!member.display_name) patch.display_name = `${employee.first_name} ${employee.last_name}`.trim();
   }
 
@@ -111,6 +114,9 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if (!updatedRows || updatedRows.length === 0) {
       return NextResponse.json({ error: "This login is already linked to a different employee" }, { status: 409 });
     }
+    const changes = membershipChanges(member, patch);
+    if (linkedEmployeeName) changes.push({ field: "employee", from: null, to: linkedEmployeeName });
+    await logAccessChange(supabase, { tenantId, userId: targetUserId, label: await loginLabel(admin, targetUserId), action: "update", changes });
   }
 
   // Optional password reset, admin-set -- e.g. after an employee forgets
@@ -148,6 +154,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     // forces the recipient to choose their own on next login.
     const { error: mcpErr } = await admin.from("tenant_users").update({ must_change_password: true }).eq("id", member.id).eq("tenant_id", tenantId);
     if (mcpErr) return NextResponse.json({ error: mcpErr.message }, { status: 500 });
+    // The event only: the password itself never goes anywhere near the history.
+    await logAccessChange(supabase, { tenantId, userId: targetUserId, label: await loginLabel(admin, targetUserId), action: "update", changes: [PASSWORD_RESET_ENTRY] });
   }
 
   return NextResponse.json({ ok: true });

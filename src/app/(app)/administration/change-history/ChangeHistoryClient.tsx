@@ -12,7 +12,7 @@ import { useTenantFeature } from "@/lib/tenant-context";
 // own small list rather than importing ImportObjectId, since not every
 // object with change history is (or ever will be) an import target, and the
 // coupling would be one more place a rename has to be remembered twice.
-const OBJECT_TYPES: { value: string; label: string }[] = [
+export const OBJECT_TYPES: { value: string; label: string }[] = [
   { value: "accounts", label: "Accounts" },
   { value: "webhooks", label: "Webhooks" },
   { value: "integration_mapping", label: "Integration mappings" },
@@ -56,6 +56,7 @@ const OBJECT_TYPES: { value: string; label: string }[] = [
   { value: "estimate_templates", label: "Estimate templates" },
   { value: "inventory", label: "Inventory" },
   { value: "employees", label: "Employees" },
+  { value: "tenant_users", label: "People and access" },
   { value: "wfm_projects", label: "Workforce: Projects" },
   { value: "wfm_leave_types", label: "Workforce: Leave types" },
   { value: "pricing_config", label: "Pricing: Versions" },

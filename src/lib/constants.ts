@@ -180,6 +180,7 @@ export const ROUTES = {
   settingsDashboard: "/settings/dashboard",
   settingsReset: "/settings/reset",
   settingsPeople: "/settings/people",
+  settingsSso: "/settings/sso",
   settingsEntities: "/settings/entities",
   settingsCustomFields: "/settings/custom-fields",
   settingsTemplates: "/settings/templates",

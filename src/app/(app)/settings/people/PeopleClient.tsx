@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import Button from "@/components/ui/Button";
 import EmptyState from "@/components/ui/EmptyState";
 import { Input } from "@/components/ui/Input";
@@ -16,6 +17,7 @@ import { filterPeople, freeEmployees, mergePeople, sortRoles, type Person, type 
 import { PeopleRows, RoleRows } from "./Rows";
 import PersonPanel from "./PersonPanel";
 import InvitePanel, { type Invited } from "./InvitePanel";
+import CredentialsNotice from "./CredentialsNotice";
 import RolePanel from "./RolePanel";
 
 type Sel = { kind: "person"; id: string } | { kind: "invite" } | { kind: "role"; id: string | null } | null;
@@ -39,6 +41,9 @@ export default function PeopleClient() {
   const [query, setQuery] = useState("");
   const [notice, setNotice] = useState<{ text: string; credentials: Invited["credentials"] } | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // The employee record links here with ?person=<user id>; it opens that person once, when the list has loaded.
+  const personParam = useSearchParams().get("person");
+  const personOpened = useRef(false);
 
   const reload = useCallback(async () => {
     try {
@@ -59,6 +64,17 @@ export default function PeopleClient() {
   }
 
   const people = data ? mergePeople(data.members, data.logins) : [];
+  useEffect(() => {
+    if (!data || !personParam || personOpened.current) return;
+    personOpened.current = true;
+    if (people.some((p) => p.userId === personParam)) setSel({ kind: "person", id: personParam });
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.delete("person");
+      window.history.replaceState(window.history.state, "", url.pathname + url.search + url.hash);
+    } catch { /* the address stays as it is */ }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data, personParam]);
   const roles = data ? sortRoles(data.roles) : [];
   const shown = filterPeople(people, roles, query);
   const openPerson = sel?.kind === "person" ? people.find((p) => p.userId === sel.id) ?? null : null;
@@ -90,10 +106,6 @@ export default function PeopleClient() {
 
   function changeTab(id: string) { setSel(null); setQuery(""); setTab(id); }
 
-  const copyDetails = async (c: NonNullable<Invited["credentials"]>) => {
-    try { await navigator.clipboard.writeText(`Sign-in: ${window.location.origin}\nEmail: ${c.email}\nInitial password: ${c.password}`); } catch { /* the details stay on screen to copy by hand */ }
-  };
-
   if (error && !data) {
     return <Notice tone="err" action={<Button size="sm" onClick={() => void reload()}>Try again</Button>}>{error}</Notice>;
   }
@@ -104,19 +116,7 @@ export default function PeopleClient() {
   return (
     <div className={s.shell}>
       {error && <Notice tone="err">{error}</Notice>}
-      {notice && (
-        <Notice tone="ok" action={<Button size="sm" onClick={() => setNotice(null)}>Dismiss</Button>}>
-          <div className={s.creds}>
-            <span>{notice.text}</span>
-            {notice.credentials && (
-              <>
-                <code>{notice.credentials.email} / {notice.credentials.password}</code>
-                <Button size="sm" onClick={() => void copyDetails(notice.credentials!)}>Copy details</Button>
-              </>
-            )}
-          </div>
-        </Notice>
-      )}
+      {notice && <CredentialsNotice text={notice.text} credentials={notice.credentials} onDismiss={() => setNotice(null)} />}
 
       {businessRoles && (
         <Tabs
@@ -177,7 +177,7 @@ export default function PeopleClient() {
           businessRoles={businessRoles}
           employees={freeEmployees(data.employees, data.logins)}
           onClose={() => setSel(null)}
-          onSaved={() => { setSel(null); flash("Saved"); void reload(); }}
+          onSaved={(text, credentials) => { setSel(null); flash(text, credentials ?? null); void reload(); }}
           onRemove={(p) => void remove(p)}
         />
       )}
