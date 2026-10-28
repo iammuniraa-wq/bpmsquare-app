@@ -9,10 +9,16 @@ const state = vi.hoisted(() => ({
   alreadyMember: false,
   inserted: [] as Record<string, unknown>[],
   invited: [] as { email: string; password?: string }[],
+  logged: [] as Record<string, unknown>[],
 }));
 
 vi.mock("@/lib/tenant", () => ({ isPlatformAdmin: async () => state.platformAdmin }));
+vi.mock("@/lib/changeLog", async () => {
+  const real = await vi.importActual<typeof import("@/lib/changeLog")>("@/lib/changeLog");
+  return { ...real, logChange: async (_s: unknown, e: Record<string, unknown>) => { state.logged.push(e); } };
+});
 vi.mock("@/lib/supabase-server", () => ({
+  getAuthUser: async () => ({ id: "u-platform", email: "platform@bpmsquare.test" }),
   createAdminSupabase: () => ({
     from: (table: string) => {
       if (table === "tenants") {
@@ -38,7 +44,7 @@ const post = (body: unknown) => POST(
   { params: Promise.resolve({ id: "t1" }) },
 );
 
-beforeEach(() => { state.platformAdmin = true; state.isNew = true; state.alreadyMember = false; state.inserted = []; state.invited = []; });
+beforeEach(() => { state.platformAdmin = true; state.isNew = true; state.alreadyMember = false; state.inserted = []; state.invited = []; state.logged = []; });
 
 describe("POST /api/admin/tenants/[id]/invite", () => {
   it("is for platform admins only", async () => {
@@ -67,6 +73,15 @@ describe("POST /api/admin/tenants/[id]/invite", () => {
     const res = await post({ email: "a@example.com", password: "starter-pass-1" });
     expect(await res.json()).toEqual({ ok: true, passwordSet: false });
     expect(state.inserted[0]).toMatchObject({ must_change_password: false, role: "admin" });
+  });
+
+  it("logs the first admin's login as created by the platform admin, without the password", async () => {
+    await post({ email: "a@example.com", password: "starter-pass-1", role: "admin" });
+    expect(state.logged).toEqual([expect.objectContaining({
+      tenantId: "t1", objectType: "tenant_users", objectId: "u-new", objectLabel: "a@example.com", action: "create", actorId: "u-platform", actorEmail: "platform@bpmsquare.test",
+      changes: [{ field: "role", from: null, to: "admin" }, { field: "sign-in", from: null, to: "initial password, changed at first sign-in" }],
+    })]);
+    expect(JSON.stringify(state.logged)).not.toContain("starter-pass-1");
   });
 
   it("refuses to add someone who is already a member", async () => {

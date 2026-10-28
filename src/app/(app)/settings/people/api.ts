@@ -1,3 +1,4 @@
+import type { ChangeLogRow } from "@/app/(app)/administration/change-history/changeHistoryRows";
 import type { Call, EmployeeLite, Login, Member, RoleFull } from "./logic";
 
 // Thin wrappers over the routes Settings > Team, Business Users and Business Roles always used. Nothing here
@@ -43,7 +44,13 @@ export function run<T = Record<string, unknown>>(call: Call): Promise<T> {
   });
 }
 
-export const removeMember = (userId: string) => send(`/api/settings/team/${userId}`, { method: "DELETE", keepalive: true });
+/** The change-history entries for one login, newest first. The route is admin-only and needs the Change History module. */
+export async function loadAccessChanges(userId: string): Promise<ChangeLogRow[]> {
+  const q = new URLSearchParams({ object_type: "tenant_users", object_id: userId, limit: "100" });
+  return (await send<{ rows?: ChangeLogRow[] }>(`/api/change-log?${q}`)).rows ?? [];
+}
+
+export const removeMember =(userId: string) => send(`/api/settings/team/${userId}`, { method: "DELETE", keepalive: true });
 
 export type RoleInput = { name: string; description: string | null; grants: unknown[] };
 export const createRole = (input: RoleInput) =>

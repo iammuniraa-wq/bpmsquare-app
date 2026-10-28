@@ -52,6 +52,7 @@ export const SETTINGS_MENU: SettingsMenuEntry[] = [
 
   // ── Users & access ──
   { id: "people", group: "access", label: "People", description: "Invite people, set who is admin, and choose which screens each person reaches", href: ROUTES.settingsPeople, keywords: ["team", "users", "invite", "members", "roles", "business users", "business roles", "permissions", "workcenter", "access", "login", "lock"], adminOnly: true },
+  { id: "sso", group: "access", label: "Single sign-on", description: "Let people sign in with your company identity provider", href: ROUTES.settingsSso, keywords: ["sso", "saml", "oidc", "identity provider", "okta", "azure", "entra", "sign in", "login"], adminOnly: true },
   { id: "coverage", group: "access", label: "Coverage", description: "Teams, rule-based segments and the wiring that replaces flat territory/sales org assignment — also drives auto-ownership, product availability and ERP routing", href: ROUTES.settingsCoverage, keywords: ["territory", "sales org", "segments", "ownership"], adminOnly: true, featureKey: "coverage_model" },
 
   // ── Sales ──

@@ -1,4 +1,5 @@
-import { requireTenantUser } from "@/lib/supabase-server";
+import { requireTenantUser, createAdminSupabase } from "@/lib/supabase-server";
+import { statusOf, type Login } from "../settings/people/logic";
 import { requireWorkcenterView } from "@/lib/permissions";
 import { requireFeature } from "@/lib/tenant";
 import { c } from "@/lib/theme";
@@ -10,6 +11,7 @@ import { sortRows, readSortParams, applyColFilters, parseColFilterParams, colFil
 import { ROUTES } from "@/lib/constants";
 import { statusLabel } from "@/lib/wfm/obsolete";
 import { NewEmployeeButton, EmployeeRowActions } from "./EmployeeEditor";
+import type { EmployeeLoginInfo } from "./EmployeeLogin";
 
 const fmtDate = (s: string | null) =>
   s ? new Date(s).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—";
@@ -47,6 +49,19 @@ export default async function EmployeesPage({
     .order("first_name");
   const employees = (data ?? []) as Employee[];
 
+  // Which employee has a login, and whether it can sign in today. Only an admin sees the row actions, so only an admin needs it.
+  const loginByEmployee = new Map<string, EmployeeLoginInfo>();
+  if (canEdit) {
+    const { data: logins } = await createAdminSupabase()
+      .from("tenant_users")
+      .select("user_id, employee_id, is_locked, valid_from, valid_to")
+      .eq("tenant_id", tenantId)
+      .not("employee_id", "is", null);
+    for (const l of (logins ?? []) as Pick<Login, "user_id" | "employee_id" | "is_locked" | "valid_from" | "valid_to">[]) {
+      if (l.employee_id) loginByEmployee.set(l.employee_id, { userId: l.user_id, status: statusOf(l as Login) });
+    }
+  }
+
   const needle = (q ?? "").trim().toLowerCase();
   const searched = needle
     ? employees.filter((e) => [e.first_name, e.last_name, e.employee_code, e.email, e.department, e.designation].some((v) => v?.toLowerCase().includes(needle)))
@@ -72,7 +87,7 @@ export default async function EmployeesPage({
     },
     ...(canEdit ? [{
       id: "actions", label: "", width: 210, cellStyle: { textAlign: "right" as const },
-      render: (e: Employee) => <EmployeeRowActions employee={e} />,
+      render: (e: Employee) => <EmployeeRowActions employee={e} login={loginByEmployee.get(e.id) ?? null} />,
     }] : []),
   ];
 

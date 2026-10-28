@@ -3,6 +3,8 @@ import { requireTenantUser, createAdminSupabase, findOrCreateUserForInvite } fro
 import { tenantHasFeature } from "@/lib/tenant";
 import { PRIMARY_HOST } from "@/lib/constants";
 import { shouldApplyRoles } from "@/lib/api/businessUsers";
+import { logAccessChange, roleChange } from "@/lib/peopleAccessLog";
+import { diffForLog } from "@/lib/changeLog";
 
 // The Business User layer (0057): a login bound to an Employee record, with
 // validity/lock/counted admin controls -- the SAP-style flow the design
@@ -161,12 +163,19 @@ export async function POST(request: NextRequest) {
     valid_from: employee.valid_from,
     valid_to: employee.valid_to,
     counted: body.counted === false ? false : true,
-    // Only true when a NEW auth account was just created with the password
-    // above -- findOrCreateUserForInvite silently ignores the password for
-    // an already-existing account (isNew: false), so nothing was actually
-    // set for them here and they shouldn't be forced to change anything.
-    must_change_password: isNew,
   };
+  // Only true when a NEW auth account was just created with the password
+  // above -- findOrCreateUserForInvite silently ignores the password for
+  // an already-existing account (isNew: false), so nothing was actually
+  // set for them here and they shouldn't be forced to change anything.
+  // Kept out of membershipFields: linking an existing membership must not clear a flag it already carries.
+  const forceChange = { must_change_password: isNew };
+  const startChanges = (signIn: string) => [
+    ...diffForLog("tenant_users", {}, {
+      employee: displayName, "valid from": employee.valid_from, "valid to": employee.valid_to,
+      "counted user": membershipFields.counted, "sign-in": signIn,
+    }),
+  ];
 
   if (!isNew) {
     const { data: alreadyMember } = await admin
@@ -183,6 +192,7 @@ export async function POST(request: NextRequest) {
       // place into a business user rather than erroring.
       const { error: uErr } = await admin.from("tenant_users").update(membershipFields).eq("id", alreadyMember.id).eq("tenant_id", tenantId);
       if (uErr) return NextResponse.json({ error: uErr.message }, { status: 500 });
+      await logAccessChange(supabase, { tenantId, userId, label: email, action: "update", changes: startChanges("existing login linked to the employee") });
       return NextResponse.json({ ok: true, user_id: userId, linkedExisting: true });
     }
   }
@@ -191,11 +201,19 @@ export async function POST(request: NextRequest) {
   // 2026-08-18): "whatever admin can do, supervisor can do as well" -- full
   // parity for now, finer role distinctions to come later. This closes the
   // whole class of supervisor-vs-admin visibility gaps at the root.
-  const memberRole = employee.wfm_role === "supervisor" ? "admin" : "member";
+  // That supervisor rule is only the default: the Add panel always sends the role the admin picked.
+  const memberRole: "admin" | "member" = body.role === "admin" || body.role === "member"
+    ? body.role
+    : employee.wfm_role === "supervisor" ? "admin" : "member";
   const { error: insertErr } = await admin
     .from("tenant_users")
-    .insert({ tenant_id: tenantId, user_id: userId, role: memberRole, ...membershipFields });
+    .insert({ tenant_id: tenantId, user_id: userId, role: memberRole, ...membershipFields, ...forceChange });
   if (insertErr) return NextResponse.json({ error: insertErr.message }, { status: 500 });
+
+  await logAccessChange(supabase, {
+    tenantId, userId, label: email, action: "create",
+    changes: [...roleChange(null, memberRole), ...startChanges(isNew ? "initial password, changed at first sign-in" : "existing login added")],
+  });
 
   if (applyRoles) {
     const { error: rErr } = await admin

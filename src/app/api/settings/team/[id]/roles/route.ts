@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { requireTenantUser, createAdminSupabase } from "@/lib/supabase-server";
 import { tenantHasFeature } from "@/lib/tenant";
+import { loginLabel, logAccessChange, roleNamesValue } from "@/lib/peopleAccessLog";
 
 // PUT /api/settings/team/[id]/roles -- replace a member's full set of
 // Business Role assignments wholesale (the UI always sends the complete
@@ -39,6 +40,10 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     }
   }
 
+  const admin = createAdminSupabase();
+  const { data: held } = await admin.from("business_user_roles").select("role_id").eq("tenant_id", tenantId).eq("user_id", targetUserId);
+  const beforeIds = (held ?? []).map((r: { role_id: string }) => r.role_id);
+
   const { error: dErr } = await createAdminSupabase().from("business_user_roles").delete().eq("tenant_id", tenantId).eq("user_id", targetUserId);
   if (dErr) return NextResponse.json({ error: dErr.message }, { status: 500 });
 
@@ -47,6 +52,16 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       roleIds.map((roleId) => ({ tenant_id: tenantId, user_id: targetUserId, role_id: roleId }))
     );
     if (iErr) return NextResponse.json({ error: iErr.message }, { status: 500 });
+  }
+
+  const changedIds = [...new Set([...beforeIds, ...roleIds])];
+  if (beforeIds.length !== roleIds.length || beforeIds.some((id) => !roleIds.includes(id))) {
+    const { data: named } = await admin.from("business_roles").select("id, name").eq("tenant_id", tenantId).in("id", changedIds);
+    const nameOf = (ids: string[]) => ids.map((id) => (named ?? []).find((r: { id: string; name: string }) => r.id === id)?.name).filter((n): n is string => !!n);
+    await logAccessChange(supabase, {
+      tenantId, userId: targetUserId, label: await loginLabel(admin, targetUserId), action: "update",
+      changes: [{ field: "business roles", from: roleNamesValue(nameOf(beforeIds)), to: roleNamesValue(nameOf(roleIds)) }],
+    });
   }
 
   return NextResponse.json({ ok: true });

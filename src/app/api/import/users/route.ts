@@ -6,6 +6,8 @@ import { USERS_SPEC, ROLE_LIST_SEPARATOR } from "@/lib/import/usersSchema";
 import { validateRow, hasBlockingIssue } from "@/lib/import/validate";
 import { describeDbError, readImportBody, summarise } from "@/lib/import/server";
 import { provisionStandardRoles } from "@/lib/standardRolesServer";
+import { logAccessBatch } from "@/lib/peopleAccessLog";
+import { diffForLog } from "@/lib/changeLog";
 import type { RowOutcome } from "@/lib/import/types";
 
 type AdminClient = ReturnType<typeof createAdminSupabase>;
@@ -90,6 +92,7 @@ export async function POST(request: NextRequest) {
   // Surfaced back to the admin so they can distribute logins -- the whole
   // point of the no-email flow.
   const credentials: { email: string; password: string }[] = [];
+  const loginsMade: { userId: string; label: string; changes: ReturnType<typeof diffForLog> }[] = [];
 
   for (const { rowNum, values } of rows) {
     const validated = validateRow(spec, values, rowNum);
@@ -143,6 +146,7 @@ export async function POST(request: NextRequest) {
     }
 
     let userId = authByEmail.get(email);
+    let createdHere = false;
 
     if (userId && memberIds.has(userId)) {
       outcomes.push({ rowNum, status: "skipped", reason: `${email} is already a member of this workspace` });
@@ -167,11 +171,13 @@ export async function POST(request: NextRequest) {
       userId = created.user.id;
       authByEmail.set(email, userId);
       credentials.push({ email, password });
+      createdHere = true;
     }
 
     const { error: linkErr } = await admin
       .from("tenant_users")
-      .insert({ tenant_id: tenantId, user_id: userId, role: memberRole, employee_id: employeeId });
+      // Only an account created in this loop got the temporary password; one that existed elsewhere keeps its own and is not forced.
+      .insert({ tenant_id: tenantId, user_id: userId, role: memberRole, employee_id: employeeId, must_change_password: createdHere });
 
     if (linkErr) {
       if (linkErr.code === "23505") {
@@ -183,6 +189,10 @@ export async function POST(request: NextRequest) {
     }
 
     memberIds.add(userId);
+    loginsMade.push({
+      userId, label: email,
+      changes: diffForLog("tenant_users", {}, { role: memberRole, "sign-in": createdHere ? "temporary password, changed at first sign-in" : "existing login added" }),
+    });
     if (employeeId) takenEmployeeIds.add(employeeId);
 
     // Business Roles only narrow a "member" -- an admin bypasses them
@@ -200,6 +210,8 @@ export async function POST(request: NextRequest) {
 
     outcomes.push({ rowNum, status: "inserted" });
   }
+
+  await logAccessBatch(admin, tenantId, loginsMade);
 
   return NextResponse.json({ ...summarise(outcomes), credentials });
 }

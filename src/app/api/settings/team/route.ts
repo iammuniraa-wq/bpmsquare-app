@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { requireTenantUser, createAdminSupabase, findOrCreateUserForInvite } from "@/lib/supabase-server";
 import { PRIMARY_HOST } from "@/lib/constants";
+import { logAccessChange, roleChange } from "@/lib/peopleAccessLog";
+import { diffForLog } from "@/lib/changeLog";
 
 // GET /api/settings/team — list members with email + name
 export async function GET() {
@@ -57,7 +59,7 @@ export async function GET() {
 // it's linked to this tenant directly instead of erroring.
 export async function POST(req: Request) {
   try {
-    const { tenantId, role } = await requireTenantUser();
+    const { supabase, tenantId, role } = await requireTenantUser();
     if (role !== "admin") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
     const body = await req.json();
@@ -92,14 +94,24 @@ export async function POST(req: Request) {
       }
     }
 
-    // Insert tenant_users row
+    // Forced change only when THIS call created the account with the password: an account that already existed keeps its own
+    // password (findOrCreateUserForInvite ignores the one sent), so there is nothing to force.
+    const passwordSet = !!password && isNew;
     const { error: insertErr } = await admin
       .from("tenant_users")
-      .insert({ tenant_id: tenantId, user_id: userId, role: memberRole });
+      .insert({ tenant_id: tenantId, user_id: userId, role: memberRole, must_change_password: passwordSet });
 
     if (insertErr) return NextResponse.json({ error: insertErr.message }, { status: 500 });
 
-    return NextResponse.json({ ok: true, user_id: userId, passwordSet: !!password && isNew });
+    await logAccessChange(supabase, {
+      tenantId, userId, label: email, action: "create",
+      changes: [
+        ...roleChange(null, memberRole),
+        ...diffForLog("tenant_users", {}, { "sign-in": passwordSet ? "initial password, changed at first sign-in" : isNew ? "invite email sent" : "existing login added" }),
+      ],
+    });
+
+    return NextResponse.json({ ok: true, user_id: userId, passwordSet });
   } catch (e: unknown) {
     const err = e as { status?: number; message?: string };
     return NextResponse.json({ error: err.message ?? "Error" }, { status: err.status ?? 500 });
