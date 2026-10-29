@@ -3,9 +3,9 @@
 // the API validates only when a check or a save is made. Pure, no I/O.
 
 import type {
-  DrawingMapRule, DrawingMeasure, EstimateComponent, EstimateTemplateBody, ProductMatch, QuoteGranularity, TemplateInput, TemplateInputType, TemplateRate, TemplateRule,
+  DrawingMapRule, DrawingMeasure, EstimateComponent, EstimateTemplateBody, ProductMatch, QuoteGranularity, TemplateInput, TemplateInputType, TemplateRate, TemplateRule, TemplateVisual, VisualRole,
 } from "@/lib/estimator/types";
-import { groupSlug } from "@/lib/estimator/types";
+import { groupSlug, VISUAL_ROLES } from "@/lib/estimator/types";
 
 /** `attrs` are the catalogue attributes a choice stands for; kept as read, not edited here. */
 export type OptionDraft = { key: string; label: string; value: string; attrs?: Record<string, string>; /** Design attribute: a material key or "#rrggbb"; empty = not set. */ visual?: string };
@@ -47,15 +47,21 @@ export type TemplateDraft = {
   geometry: string;
   inputs: InputDraft[]; rates: RateDraft[]; rules: RuleDraft[];
   drawing_map: DrawingRowDraft[];
+  /** The picture is switched off (only meaningful with no geometry module). */
+  picture_off: boolean;
+  /** The roles the person set; empty = the picture infers them from the inputs. */
+  visual: Partial<Record<VisualRole, string>>;
 };
 
 const str = (v: unknown): string => (v === undefined || v === null ? "" : String(v));
 
 export function toDraft(t: {
   name: string; description: string | null; trade: string | null; quote_granularity: QuoteGranularity; geometry: string | null;
-  inputs: TemplateInput[]; rates: TemplateRate[]; rules: TemplateRule[]; drawing_map?: DrawingMapRule[] | null;
+  inputs: TemplateInput[]; rates: TemplateRate[]; rules: TemplateRule[]; drawing_map?: DrawingMapRule[] | null; visual?: TemplateVisual | null;
 }): TemplateDraft {
   return {
+    picture_off: t.visual?.picture === "none",
+    visual: Object.fromEntries(VISUAL_ROLES.filter((r) => !!t.visual?.[r]).map((r) => [r, t.visual?.[r] as string])),
     drawing_map: (t.drawing_map ?? []).map((r) => ({ input: r.input, measure: r.measure, layers: (r.layers ?? []).join(", "), blocks: (r.blocks ?? []).join(", "), scale: str(r.scale) })),
     name: t.name, description: t.description ?? "", trade: t.trade ?? "", quote_granularity: t.quote_granularity, geometry: t.geometry ?? "",
     inputs: (t.inputs ?? []).map((i) => ({
@@ -118,7 +124,9 @@ export function toBody(d: TemplateDraft): EstimateTemplateBody & { geometry?: st
     if (r.element_type.trim()) rule.element_type = r.element_type.trim();
     return rule;
   });
-  return { ...(d.geometry ? { geometry: d.geometry } : {}), inputs, rates, rules, ...(d.drawing_map.length > 0 ? { drawing_map: d.drawing_map.map(toDrawingRule) } : {}) };
+  const roles = VISUAL_ROLES.filter((r) => !!d.visual[r]);
+  const visual: TemplateVisual | null = d.geometry ? null : d.picture_off ? { picture: "none" } : roles.length > 0 ? Object.fromEntries(roles.map((r) => [r, d.visual[r] as string])) : null;
+  return { ...(d.geometry ? { geometry: d.geometry } : {}), inputs, rates, rules, ...(d.drawing_map.length > 0 ? { drawing_map: d.drawing_map.map(toDrawingRule) } : {}), ...(visual ? { visual } : {}) };
 }
 
 /** Comma- or semicolon-separated names to a list; empty pieces are dropped. */

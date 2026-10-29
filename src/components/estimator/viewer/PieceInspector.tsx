@@ -21,7 +21,7 @@ export default function PieceInspector({
   onClear: () => void;
 }) {
   const alloc = useMemo(() => buildCostAllocator(model.pieces, lines), [model, lines]);
-  const labels = useMemo(() => new Map((getGeometry(model.geometry)?.piece_codes ?? []).map((p) => [p.code, p.label])), [model]);
+  const labels = useMemo(() => new Map((model.families ?? getGeometry(model.geometry)?.piece_codes ?? []).map((p) => [p.code, p.label])), [model]);
   const piece = mark ? model.pieces.find((p) => p.id === mark) ?? null : null;
 
   if (!piece) {
@@ -33,10 +33,12 @@ export default function PieceInspector({
     ["Piece", `${labels.get(piece.code) ?? piece.code}${piece.op ? (piece.op.door ? " (door opening)" : " (window opening)") : ""}`],
     ["Bill of materials line", cost.line ? cost.line.description : "Shared costs only"],
     ["Size (m)", pieceSizeLabel(piece)],
-    ["Concrete", `${piece.vol.toFixed(3)} m³`],
-    ["Weight", `${pieceWeightT(piece, densityTm3).toFixed(2)} t`],
+    // A sketch drawn from the inputs has no material or erection order of its own to report.
+    ...(model.illustrative
+      ? ([["Volume", `${piece.vol.toFixed(3)} m³`]] as [string, string][])
+      : ([["Concrete", `${piece.vol.toFixed(3)} m³`], ["Weight", `${pieceWeightT(piece, densityTm3).toFixed(2)} t`]] as [string, string][])),
     ["Cost share", `${money(cost.cost)} (${(cost.share * 100).toFixed(1)}% of the estimate)`],
-    ["Erected in", model.step_names[piece.step] ?? `Step ${piece.step + 1}`],
+    ...(model.illustrative ? [] : ([["Erected in", model.step_names[piece.step] ?? `Step ${piece.step + 1}`]] as [string, string][])),
   ];
   return (
     <div aria-live="polite">

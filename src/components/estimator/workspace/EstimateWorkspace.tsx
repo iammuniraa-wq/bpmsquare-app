@@ -21,10 +21,11 @@ import EmailIntake from "./EmailIntake";
 import PriceCard from "./PriceCard";
 import QuoteActions from "./QuoteActions";
 import SenderCard from "./SenderCard";
-import VillaCard from "./VillaCard";
-import FenceCard from "./FenceCard";
+import VisualStack from "./VisualStack";
 import { fenceViewOf } from "@/lib/estimator/fenceView";
-import { previewKindFor, wordsFor, opensWithDefaults } from "./layoutKind";
+import { buildStrip, customerStrip } from "@/lib/estimator/visualStrip";
+import { wordsFor, opensWithDefaults } from "./layoutKind";
+import { pictureFor } from "./picture";
 import { EstimateFocusContext } from "./focus";
 import { carriedUnitCosts, isDirty, shownBlank, shownFromPreview } from "./shown";
 import { useEstimateActions } from "./useEstimateActions";
@@ -108,19 +109,23 @@ export default function EstimateWorkspace(p: WorkspaceProps) {
   const shown = useMemo(() => (showStored ? saved.shown : blank ? shownBlank(preview) : shownFromPreview(preview)), [showStored, saved, preview, blank]);
   const options = showStored && preview ? shiftOptions(preview.options, saved.view.total - preview.view.total) : blank ? null : preview?.options ?? null;
   const altKey = t ? alternativesInput(t.inputs)?.key : undefined;
-  const fenceView = useMemo(() => (t && previewKindFor(t.geometry) === "fence" ? fenceViewOf(shown.model, t.inputs, params) : null), [t, shown.model, params]);
-
-  // Design attributes: the chosen options paint the model's slots. The model and the visuals keep their identity
+  // The picture: the trade's own model, else the massing drawn from the inputs. The model and the visuals keep their identity
   // while their content is unchanged, so picking a colour repaints the 3D view without rebuilding it.
-  const model = useStable(shown.model, sameModel);
-  const slots = t ? getGeometry(t.geometry)?.slots : undefined;
+  const pictureNow = useMemo(() => pictureFor(t, shown.model, params, shown.lines), [t, shown.model, shown.lines, params]);
+  const stableModel = useStable(pictureNow.model, sameModel);
+  const picture = useMemo(() => (stableModel ? { ...pictureNow, model: stableModel } : pictureNow), [pictureNow, stableModel]);
+  const fenceView = useMemo(() => (t && picture.kind === "fence" ? fenceViewOf(picture.model, t.inputs, params) : null), [t, picture, params]);
+  const strip = useMemo(() => buildStrip(shown.totals, shown.lines), [shown.totals, shown.lines]);
+
+  // Design attributes: the chosen options paint the model's slots.
+  const slots = t ? getGeometry(t.geometry)?.slots ?? picture.model?.slots : undefined;
   const visualsNow = useMemo(() => (t && slots ? resolveVisuals(slots, t.inputs, draft.values) : undefined), [t, slots, draft.values]);
   const visuals = useStable(visualsNow, sameVisuals);
 
   const marks = useMemo(() => {
-    const line = highlightCode ? shown.lines.find((l) => l.code === highlightCode) : null;
-    return line && shown.model ? marksForRef(line.element_ref, shown.model.pieces) : undefined;
-  }, [highlightCode, shown]);
+    const line = highlightCode ? picture.lines.find((l) => l.code === highlightCode) : null;
+    return line && picture.model ? marksForRef(line.element_ref, picture.model.pieces) : undefined;
+  }, [highlightCode, picture]);
   const show = useCallback((code: string) => {
     setHighlightCode(code);
     document.getElementById("villa")?.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
@@ -172,7 +177,7 @@ export default function EstimateWorkspace(p: WorkspaceProps) {
 
         {blank && editable && (
           <div className="est-note" role="status">
-            {shown.model
+            {picture.model
               ? `The 3D ${wordsFor(t?.geometry).subject} below uses starting sizes and nothing is saved yet. Paste the customer's email above, or change any detail, and it follows, with the price.`
               : `Paste the customer's email above, or fill in any detail, and the ${wordsFor(t?.geometry).subject} and the price appear here.`}
           </div>
@@ -199,12 +204,9 @@ export default function EstimateWorkspace(p: WorkspaceProps) {
             </div>
           )}
           <div className="est-stack" style={{ gridColumn: t ? undefined : "1 / -1" }}>
-            {t?.geometry && shown.model && previewKindFor(t.geometry) === "fence" && fenceView && <FenceCard view={fenceView} model={model ?? shown.model} lines={shown.lines} rates={t.rates} money={money} highlightMarks={marks} visuals={visuals} />}
-            {t?.geometry && shown.model && previewKindFor(t.geometry) === "pieces" && (
-              <VillaCard model={model ?? shown.model} lines={shown.lines} rates={t.rates} money={money} highlightMarks={marks} visuals={visuals}
-                note={highlightCode && marks && marks.length > 0 ? `Lighting up the ${marks.length} pieces of the line "${highlightCode}".` : undefined}
-                onUsePattern={editable ? (n) => { const o = t.inputs.find((i) => i.key === "pattern")?.options?.find((x) => x.value === n); if (o) draft.setValue("pattern", o.key); } : undefined} />
-            )}
+            <VisualStack picture={picture} fenceView={fenceView} strip={strip} rates={t?.rates ?? []} money={money} highlightMarks={marks} visuals={visuals}
+              note={highlightCode && marks && marks.length > 0 ? `Lighting up the ${marks.length} pieces of the line "${highlightCode}".` : undefined}
+              onUsePattern={editable && t ? (n) => { const o = t.inputs.find((i) => i.key === "pattern")?.options?.find((x) => x.value === n); if (o) draft.setValue("pattern", o.key); } : undefined} />
             <div id="price-card" style={{ scrollMarginTop: 80, minWidth: 0 }}>
             <PriceCard view={view} options={options} money={money}
               onPickOption={editable && altKey ? (k) => draft.setValue(altKey, k) : undefined}
@@ -224,7 +226,7 @@ export default function EstimateWorkspace(p: WorkspaceProps) {
         </div>
 
         {saved?.quote && view && view.sections.length > 0 && (
-          <CustomerPreview view={saved.view} options={options} money={money} customer={draft.customer || ""} quote={saved.quote} />
+          <CustomerPreview view={saved.view} options={options} money={money} customer={draft.customer || ""} quote={saved.quote} strip={t?.customer_visible ? customerStrip(strip) : null} />
         )}
         {p.renderInternal?.(shown, t)}
       </div>

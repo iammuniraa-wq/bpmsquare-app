@@ -98,6 +98,7 @@ export const PIPES_FITTINGS_STARTER: CatalogueStarter = {
   ],
   quote_granularity: "group",
   catalogue: PIPES_CATALOGUE,
+  visual: { run: "length_m", count: "valves_n" },
 
   inputs: [
     { key: "pipe_material", label: "Pipe material", type: "select", default: "steel", section: "Pipeline",

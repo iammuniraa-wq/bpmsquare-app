@@ -146,16 +146,18 @@ export default function BuildingViewer({
   if (!model || model.pieces.length === 0) {
     return <EmptyState title="Fill in the details to see the model" text="The 3D model is built from the pieces the details work out to." />;
   }
-  const families = (getGeometry(model.geometry)?.piece_codes ?? [])
+  const families = (model.families ?? getGeometry(model.geometry)?.piece_codes ?? [])
     .map((p) => ({ label: p.label, n: model.pieces.filter((x) => x.code === p.code).length }))
     .filter((f) => f.n > 0);
 
   return (
     <div>
       <div className="bpm-t-help" style={{ marginBottom: 8 }}>
-        <b style={{ color: "var(--ink)" }}>{model.pieces.length} pieces</b>, each one a bill-of-materials item
+        <b style={{ color: "var(--ink)" }}>{model.pieces.length} pieces</b>{model.illustrative ? "" : ", each one a bill-of-materials item"}
         {families.length > 0 ? `: ${families.map((f) => `${f.n} × ${f.label.toLowerCase()}`).join(", ")}` : ""}.
-        The model is generated from the inputs and stands in for the client&apos;s own BIM model.
+        {model.illustrative
+          ? " A sketch drawn to scale from the sizes you entered; it shows the shape of the job, not exact pieces."
+          : " The model is generated from the inputs and stands in for the client’s own BIM model."}
       </div>
       {!webgl ? (
         <div role="alert" style={{ padding: 16, border: "1px dashed var(--line)", borderRadius: 10, color: "var(--muted)", fontSize: 13 }}>

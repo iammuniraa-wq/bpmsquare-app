@@ -916,17 +916,17 @@ export async function insertTemplate(
     ...(header.customer_visible ? { customer_visible: true } : {}),
   };
   const drawing = body.drawing_map && body.drawing_map.length > 0 ? { drawing_map: body.drawing_map } : {};
-  // Each extra column family arrives with its own migration (0213 catalogue, 0215 drawing map). Try with everything, then
-  // without the drawing map, then with neither: the template is still created, as an ordinary editable one.
-  const attempts = [{ ...catalogue, ...drawing }, ...(Object.keys(drawing).length > 0 && Object.keys(catalogue).length > 0 ? [catalogue] : [])];
+  const visual = body.visual ? { visual: body.visual } : {};
+  // Each extra column family arrives with its own migration (0213 catalogue, 0215 drawing map, 0235 picture). Try with everything, then
+  // drop the newest family one at a time: the template is still created, as an ordinary editable one.
+  const attempts = [{ ...catalogue, ...drawing, ...visual }, { ...catalogue, ...drawing }, catalogue, {}]
+    .filter((a, i, all) => i === all.length - 1 || Object.keys(a).length > 0)
+    .filter((a, i, all) => all.findIndex((b) => JSON.stringify(b) === JSON.stringify(a)) === i);
   let data: unknown = null;
   let error: { code?: string; message: string } | null = null;
   for (const extras of attempts) {
     ({ data, error } = await supabase.from("estimate_templates").insert({ ...base, ...extras }).select("*").single());
     if (!error || error.code === "23505" || !isMissingRelation(error)) break;
-  }
-  if (error && isMissingRelation(error) && attempts.some((a) => Object.keys(a).length > 0)) {
-    ({ data, error } = await supabase.from("estimate_templates").insert(base).select("*").single());
   }
   if (error) {
     if (isMissingRelation(error)) return { data: null, status: 503, error: PENDING_MESSAGE };

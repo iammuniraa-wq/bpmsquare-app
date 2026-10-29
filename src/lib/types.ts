@@ -12,6 +12,7 @@ import type {
   EstimateComponent as EstimatorComponent,
   EstimateLineSource as EstimatorLineSource,
   DrawingMapRule as EstimatorDrawingMapRule,
+  TemplateVisual as EstimatorTemplateVisual,
 } from "@/lib/estimator/types";
 
 export type AccountType = "prospect" | "oem" | "direct" | "end_customer";
@@ -901,6 +902,8 @@ export type EstimateTemplate = {
   customer_visible?: boolean;
   /** 0215 (absent while it is pending): which DXF layers feed which number input (drawing intake). */
   drawing_map?: EstimatorDrawingMapRule[] | null;
+  /** 0235 (absent while it is pending): the picture built from the inputs for a template with no bespoke 3D model. */
+  visual?: EstimatorTemplateVisual | null;
   custom_data: Record<string, unknown> | null;
   created_by: string | null;
   created_at: string;

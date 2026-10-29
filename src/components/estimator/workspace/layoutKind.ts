@@ -44,10 +44,10 @@ const HAS_BUILD_SCHEDULE = new Set<string | null>([null, "precast_villa"]);
 
 export const hasBuildSchedule = (geometry: string | null | undefined): boolean => HAS_BUILD_SCHEDULE.has(geometry ?? null);
 
-/** Which preview a layout module draws. */
-export type PreviewKind = "fence" | "pieces" | "none";
-export const previewKindFor = (geometry: string | null | undefined): PreviewKind =>
-  geometry === "chainlink_fence" ? "fence" : geometry ? "pieces" : "none";
+/** Which preview a template draws: its bespoke module's, else the picture built from its inputs ("generic"), else nothing. */
+export type PreviewKind = "fence" | "pieces" | "generic" | "none";
+export const previewKindFor = (geometry: string | null | undefined, hasGenericPicture = false): PreviewKind =>
+  geometry === "chainlink_fence" ? "fence" : geometry ? "pieces" : hasGenericPicture ? "generic" : "none";
 
 /**
  * Layouts whose inputs all have sensible defaults open straight onto a floor, a fence or a cabin and its price. The precast

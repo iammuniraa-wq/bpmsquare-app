@@ -22,7 +22,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
     // Copy what is stored, in the validator's canonical form; a template that no
     // longer validates (it predates a rule) is copied as it is rather than refused.
-    const stored = { ...templateBody(t.data), ...(t.data.drawing_map && t.data.drawing_map.length > 0 ? { drawing_map: t.data.drawing_map } : {}) };
+    const stored = { ...templateBody(t.data), ...(t.data.drawing_map && t.data.drawing_map.length > 0 ? { drawing_map: t.data.drawing_map } : {}), ...(t.data.visual ? { visual: t.data.visual } : {}) };
     const v = validateTemplate(stored);
     const content = v.ok && v.template ? v.template : stored;
 

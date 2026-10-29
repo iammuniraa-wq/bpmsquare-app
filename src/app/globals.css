@@ -2263,6 +2263,22 @@ textarea.bpm-input { min-height: 72px; resize: vertical; }
   .est-review tr { padding: 8px 0; border-bottom: 1px solid var(--line); }
   .est-review td { border: 0; padding: 2px 0; }
 }
+/* The composition strip (every estimate): a bar per group, the cost components stacked, a pill per unpriced line. */
+.est-strip { display: grid; gap: 12px; min-width: 0; }
+.est-strip-title { display: flex; align-items: center; gap: 4px; }
+.est-strip-rows { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.est-strip-head { display: flex; justify-content: space-between; align-items: baseline; gap: 4px 12px; flex-wrap: wrap; font-size: 13px; }
+.est-strip-label { color: var(--ink); min-width: 0; overflow-wrap: anywhere; }
+.est-strip-figs { color: var(--muted); font-variant-numeric: tabular-nums; }
+.est-strip-track { height: 8px; border-radius: 4px; background: var(--line); overflow: hidden; margin-top: 4px; }
+.est-strip-fill { height: 100%; border-radius: 4px; transition: width .25s ease; }
+.est-strip-stack { display: flex; height: 10px; border-radius: 5px; overflow: hidden; gap: 1px; background: var(--line); }
+.est-strip-stack > div { transition: flex-grow .25s ease; }
+.est-strip-legend { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12.5px; color: var(--muted); }
+.est-strip-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
+.est-strip-pills { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.est-strip-pill { background: var(--amberbg); color: var(--amberink); border-radius: 999px; padding: 3px 10px; font-size: 12px; overflow-wrap: anywhere; }
+@media (prefers-reduced-motion: reduce) { .est-strip-fill, .est-strip-stack > div { transition: none; } }
 @media (max-width: 900px) {
   .est-grid { grid-template-columns: minmax(0, 1fr); }
   .est-opts { grid-template-columns: minmax(0, 1fr); }

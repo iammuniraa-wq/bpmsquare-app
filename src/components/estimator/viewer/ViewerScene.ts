@@ -180,7 +180,7 @@ export class ViewerScene {
   /** `keepView`: a recomputed model of the same building, so the camera stays where the person put it. */
   setModel(model: GeometryModel, keepView = false): void {
     this.clearModel();
-    this.slots = getGeometry(model.geometry)?.slots;
+    this.slots = model.slots ?? getGeometry(model.geometry)?.slots;
     this.ctx = createBuildCtx(this.lib, model);
 
     let maxY = 3;

@@ -16,6 +16,7 @@ const TITLES: Readonly<Record<string, string>> = {
   precast_villa: "The villa",
   tiles_floor: "The floor",
   porta_cabin: "The cabin",
+  generic: "The layout",
 };
 
 /** The card heading for a geometry key: "The villa", "The floor", "The cabin"; "The villa" while no model exists yet, else "The model". */

@@ -41,6 +41,8 @@ export type Piece = {
   item?: string;
   /** kind "equip" only: the room it stands in, e.g. "office-1" (a label for the inspector and the schedule). */
   room?: string;
+  /** The picture built from the inputs only: codes of the cost lines this piece stands for (a bespoke module links by mark ranges instead). */
+  lines?: string[];
 };
 
 /** A part of the model a design attribute can repaint (colour, finish, texture). */
@@ -69,6 +71,11 @@ export type GeometryModel = {
   inputs?: Record<string, number>;
   /** Closest the 3D camera starts, metres (the viewer's default suits a villa; a small model asks for less). */
   view_min_dist?: number;
+  /** A model that is not made by a registered module (the picture built from the inputs) names its piece families and design slots itself. */
+  families?: readonly PieceCodeInfo[];
+  slots?: readonly DesignSlot[];
+  /** True for a to-scale sketch drawn from the inputs, not an exact model the price is summed from. */
+  illustrative?: boolean;
 };
 
 export type GeometryResult = { ok: true; model: GeometryModel } | { ok: false; error: string };

@@ -123,6 +123,17 @@ export type DrawingMapRule = {
   scale?: number;
 };
 
+/** What a number input stands for in the picture built from the inputs (docs/design/estimator-visual-for-every-estimate.md). */
+export const VISUAL_ROLES = ["length", "width", "height", "run", "count", "area"] as const;
+export type VisualRole = (typeof VISUAL_ROLES)[number];
+
+/**
+ * The picture of a template that has no bespoke 3D module: which number input is the length, width, height, run, count or
+ * area of what is being built (input keys). `picture: "none"` switches the picture off. It only steers how the estimate is drawn;
+ * it never changes a calculation, so it is not part of the template's version.
+ */
+export type TemplateVisual = { picture?: "none" } & Partial<Record<VisualRole, string>>;
+
 export type EstimateTemplateBody = {
   /** Geometry module key (e.g. "precast_villa"): the template's pieces, 3D
    *  model and vol_/n_/area_ identifiers come from it. Absent = formula-only. */
@@ -132,6 +143,8 @@ export type EstimateTemplateBody = {
   rules: TemplateRule[];
   /** Drawing intake (0215): which DXF layers feed which number input. Absent = none. */
   drawing_map?: DrawingMapRule[];
+  /** The picture built from the inputs (0235). Absent = inferred from the inputs. */
+  visual?: TemplateVisual;
 };
 
 export type EstimateLineSource = "rule" | "schedule" | "manual";
