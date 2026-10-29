@@ -59,7 +59,10 @@ export async function disconnectTenant(supabase: SupabaseClient, tenantId: strin
 }
 
 /** Decrypted credentials for one tenant+connector, or null if not connected.
- * Only ever called server-side, immediately before using them to call out. */
+ * Only ever called server-side, immediately before using them to call out.
+ * connectTenant keeps a connector's non-secret fields (the Gmail address) in
+ * `config` and only the secret ones in `credentials`; callers need both, so the
+ * plain config values are laid underneath the decrypted secrets. */
 export async function getDecryptedCredentials(
   supabase: SupabaseClient,
   tenantId: string,
@@ -67,13 +70,16 @@ export async function getDecryptedCredentials(
 ): Promise<Record<string, string> | null> {
   const { data } = await supabase
     .from("tenant_connectors")
-    .select("credentials")
+    .select("credentials, config")
     .eq("tenant_id", tenantId)
     .eq("connector_id", connectorId)
     .maybeSingle();
   if (!data) return null;
-  const raw = data.credentials as Record<string, string>;
   const out: Record<string, string> = {};
+  for (const [k, v] of Object.entries((data.config ?? {}) as Record<string, unknown>)) {
+    if (typeof v === "string") out[k] = v;
+  }
+  const raw = (data.credentials ?? {}) as Record<string, string>;
   for (const [k, v] of Object.entries(raw)) out[k] = decrypt(v) ?? "";
   return out;
 }
