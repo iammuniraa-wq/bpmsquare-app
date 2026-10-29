@@ -1,40 +1,30 @@
--- KAMCO: remove the mail copied into the Inbox from the owner's Gmail during the 2026-10-29 dry run,
--- KEEPING only the dry-run test email(s) whose subject starts with "TEST tender".
--- Run on KAMCO's database only, AFTER the test email has arrived and the TestKamco channel is paused
--- (Settings > Inbox channels > untick "Take in new mail"), so nothing is copied in again.
--- Deleting emails cascades to inbound_email_attachments. Records already created from an email keep their own copies
+-- KAMCO: remove ALL mail copied into the Inbox from the owner's Gmail during the 2026-10-29 dry run.
+-- Run on KAMCO's database only. Do it BEFORE the next deploy/read so the channel is empty when it starts reading again.
+-- Deleting the emails cascades to inbound_email_attachments. Records already created from an email keep their own copies
 -- of the files (record_files), so tenders made during the dry run are not affected.
+-- Do NOT delete inbox_mailbox_state: it holds where the reader stopped. Without it the reader re-reads the last days of mail.
 --
--- To remove EVERYTHING including the test email, delete the line "and subject not ilike 'TEST tender%'" in steps 2 and 3.
+-- Supabase does not allow deleting storage files with SQL (42501). The attachment files go in step 3, in the Storage screen.
 
--- 1. See what will go and what stays (check the numbers before running the rest):
-select c.name,
-       count(e.id) filter (where e.subject not ilike 'TEST tender%') as to_delete,
-       count(e.id) filter (where e.subject ilike 'TEST tender%')     as kept
+-- 1. See what will go:
+select c.name, count(e.id) as emails
 from inbox_channels c
 left join inbound_emails e on e.channel_id = c.id
 where c.name = 'TestKamco'
 group by c.name;
 
--- 2. Delete the attachment files of the emails that go, from the private bucket.
-delete from storage.objects
-where bucket_id = 'inbox-attachments'
-  and name in (
-    select a.storage_path
-    from inbound_email_attachments a
-    join inbound_emails e on e.id = a.email_id
-    join inbox_channels c on c.id = e.channel_id
-    where c.name = 'TestKamco'
-      and e.subject not ilike 'TEST tender%'
-  );
-
--- 3. Delete those emails (and their attachment rows).
+-- 2. Delete the emails (and their attachment rows).
 delete from inbound_emails
-where channel_id in (select id from inbox_channels where name = 'TestKamco')
-  and subject not ilike 'TEST tender%';
+where channel_id in (select id from inbox_channels where name = 'TestKamco');
 
--- 4. Check: only the test email is left.
-select e.from_address, e.subject, e.received_at
+-- 3. Delete the attachment files (Storage screen, not SQL):
+--    Supabase dashboard > Storage > inbox-attachments > the folder named after KAMCO's tenant id > inbox
+--    Select every sub-folder in "inbox" and delete them. The tenant id is shown by this query:
+select t.id as tenant_id, t.name
+from tenants t join inbox_channels c on c.tenant_id = t.id
+where c.name = 'TestKamco';
+
+-- 4. Check it is empty:
+select count(*) as emails_left
 from inbound_emails e join inbox_channels c on c.id = e.channel_id
-where c.name = 'TestKamco'
-order by e.received_at desc;
+where c.name = 'TestKamco';
