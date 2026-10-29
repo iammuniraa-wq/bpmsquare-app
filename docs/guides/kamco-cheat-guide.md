@@ -14,7 +14,27 @@ Without this, BPMSquare cannot send RFQs or quotes by email, and the Inbox canno
 5. Click **Test connection**. A test email arrives in that inbox and the card shows a green message.
 6. If the test shows "Application-specific password required", the password entered was not an App Password. Disconnect and enter the 16-character code.
 
-**Company mailbox (Zoho, cPanel, Exchange IMAP):** use Connectors > Mail server with the SMTP and IMAP details and the mailbox's normal password.
+**Company (domain) mailbox, such as purchasing@yourcompany.com**
+
+Use Connectors > **Mail server (SMTP / IMAP)**. Your IT team or hosting provider has the server details.
+
+1. Connectors > Mail server > Connect.
+2. Enter: Email address; Username (usually the same address); Password; SMTP server and port; IMAP server and port.
+3. Save & connect, then **Test connection**. It logs in to both the sending side and the receiving side. Both must pass.
+4. Then Settings > RFQ > Mail channel: choose your mailbox.
+
+| Provider | SMTP server | SMTP port | IMAP server | IMAP port | Password |
+|---|---|---|---|---|---|
+| Zoho Mail | smtp.zoho.com | 587 | imap.zoho.com | 993 | App-specific password if two-factor is on |
+| Microsoft 365 | smtp.office365.com | 587 | outlook.office365.com | 993 | Admin must allow "Authenticated SMTP" and IMAP for the mailbox; otherwise use an app password |
+| cPanel / web hosting | mail.yourdomain.com | 587 or 465 | mail.yourdomain.com | 993 | The mailbox password |
+| Google Workspace | use the Gmail connector above | | | | App Password; the admin must allow it |
+
+If the test fails:
+- "Could not log in": the username or password is wrong, or the provider requires an app password.
+- A timeout: the server name or port is wrong, or the provider blocks the connection.
+- Receiving works only if **IMAP is switched on** for the mailbox. Ask your IT team to enable it. This is the most common reason the Inbox stays empty.
+- Microsoft 365: if sign-in is refused with a correct password, the admin has switched off basic sign-in for that mailbox. Ask them to enable Authenticated SMTP for it.
 
 If Google does not offer App passwords (a Workspace account where the admin has turned it off, or an account with Advanced Protection), use the Mail server connector or ask the Workspace admin.
 
