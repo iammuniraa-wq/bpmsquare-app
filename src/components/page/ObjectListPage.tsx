@@ -54,12 +54,14 @@ const td: React.CSSProperties = { padding: "11px 14px", fontSize: 13.5, vertical
  * hands over the already-filtered, already-paged `rows`.
  */
 export default function ObjectListPage<T>({
-  title, subtitle, newLabel, newHref, newAction, menuItems, chips, search, advancedFilterObject,
+  title, subtitle, info, newLabel, newHref, newAction, menuItems, chips, search, advancedFilterObject,
   columns, rows, rowKey, rowHref, total, page, pageSize = DEFAULT_PAGE_SIZE, baseHref,
   sort, dir, linkParams, empty, filtered, beforeTable, wrapBody, columnSearch = true,
 }: {
   title: string;
   subtitle?: string;
+  /** An explanation of the list, behind an "i" after the title. */
+  info?: string;
   /** Singular object name: "Supplier" -> "+ New Supplier". Omit when the list has no create route. */
   newLabel?: string;
   newHref?: string;
@@ -200,6 +202,7 @@ export default function ObjectListPage<T>({
       <PageHeader
         title={title}
         subtitle={subtitle}
+        info={info}
         action={(newHref || newAction || (menuItems && menuItems.length > 0)) ? (
           <>
             {menuItems && menuItems.length > 0 && <MoreMenu items={menuItems} />}

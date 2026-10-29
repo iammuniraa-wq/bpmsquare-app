@@ -10,6 +10,7 @@ import Card from "@/components/ui/Card";
 import Field from "@/components/ui/Field";
 import { Input, Select } from "@/components/ui/Input";
 import RemoveEmployeeDialog from "./RemoveEmployeeDialog";
+import EmployeeLogin, { type EmployeeLoginInfo } from "./EmployeeLogin";
 import { restoreNote } from "@/lib/wfm/obsolete";
 
 type Draft = {
@@ -29,7 +30,7 @@ const draftFrom = (e: Employee): Draft => ({
 });
 
 /** The create / edit dialog -- employees are small enough to live in a dialog, not on a page. */
-function EmployeeDialog({ employee, onClose }: { employee: Employee | null; onClose: () => void }) {
+function EmployeeDialog({ employee, login, onClose }: { employee: Employee | null; login?: EmployeeLoginInfo | null; onClose: () => void }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState("");
@@ -62,6 +63,7 @@ function EmployeeDialog({ employee, onClose }: { employee: Employee | null; onCl
     <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(15,23,32,.45)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 50, padding: 16 }}>
       <div onClick={(e) => e.stopPropagation()} role="dialog" aria-label={employee ? "Edit employee" : "New employee"} style={{ width: 640, maxWidth: "100%", maxHeight: "92vh", overflowY: "auto" }}>
         <Card title={employee ? "Edit Employee" : "New Employee"} padding={20}>
+          {employee && <div style={{ marginBottom: 14 }}><EmployeeLogin employee={employee} login={login ?? null} /></div>}
           <div className="fg3">
             <Field label="First name" required><Input value={draft.first_name} onChange={(e) => setDraft({ ...draft, first_name: e.target.value })} autoFocus /></Field>
             <Field label="Last name"><Input value={draft.last_name} onChange={(e) => setDraft({ ...draft, last_name: e.target.value })} /></Field>
@@ -110,7 +112,7 @@ export function NewEmployeeButton() {
 }
 
 /** Row actions. Plain buttons rather than a menu: the table scrolls sideways, which would clip a dropdown on the last rows. */
-export function EmployeeRowActions({ employee }: { employee: Employee }) {
+export function EmployeeRowActions({ employee, login }: { employee: Employee; login: EmployeeLoginInfo | null }) {
   const router = useRouter();
   const { confirm, toast } = useFeel();
   const [editing, setEditing] = useState(false);
@@ -129,11 +131,12 @@ export function EmployeeRowActions({ employee }: { employee: Employee }) {
   return (
     <>
       <span style={{ display: "inline-flex", gap: 4, whiteSpace: "nowrap" }}>
+        {!obsolete && <EmployeeLogin employee={employee} login={login} compact />}
         <Button variant="quiet" size="sm" onClick={() => setEditing(true)}>Edit</Button>
         {obsolete && <Button variant="quiet" size="sm" onClick={() => { void reactivate(); }}>Make active</Button>}
         <Button variant="quiet" size="sm" onClick={() => setRemoving(true)} style={{ color: "var(--err-ink)" }}>Delete</Button>
       </span>
-      {editing && <EmployeeDialog employee={employee} onClose={() => setEditing(false)} />}
+      {editing && <EmployeeDialog employee={employee} login={login} onClose={() => setEditing(false)} />}
       {removing && <RemoveEmployeeDialog employee={employee} onClose={() => setRemoving(false)} />}
     </>
   );

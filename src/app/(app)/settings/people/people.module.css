@@ -21,6 +21,7 @@
 .card { background: var(--card-bg); border: 1px solid var(--line); border-radius: var(--card-radius); box-shadow: var(--card-shadow); overflow: hidden; min-width: 0; }
 .listHead, .item { display: grid; gap: 4px 14px; align-items: center; min-width: 0; }
 .people .listHead, .people .item { grid-template-columns: minmax(0, 1.2fr) minmax(0, 1.4fr) minmax(0, 1.5fr) 130px; }
+.people.withEmployee .listHead, .people.withEmployee .item { grid-template-columns: minmax(0, 1.1fr) minmax(0, 1.3fr) minmax(0, 1fr) minmax(0, 1.3fr) 130px; }
 .roles .listHead, .roles .item { grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) 90px; }
 .listHead { padding: 9px 16px; font-size: 12px; font-weight: 600; color: var(--hint); background: var(--panel2); }
 .item { position: relative; padding: 10px 16px; border-top: 1px solid var(--line); min-height: 56px; }
@@ -48,14 +49,6 @@
 .count { font-size: 13px; color: var(--muted); }
 
 /* The panel */
-.chipPick { display: flex; flex-wrap: wrap; gap: 8px; }
-.pick {
-  display: inline-flex; align-items: center; min-height: 36px; padding: 0 12px; font: inherit; font-size: 13px; color: var(--ink);
-  background: var(--panel); border: 1px solid var(--line); border-radius: 999px; cursor: pointer;
-}
-.pick[aria-pressed="true"] { color: var(--ink); font-weight: 600; background: color-mix(in srgb, var(--modern-accent, var(--tenant-accent, var(--accent))) 14%, var(--panel)); border-color: var(--modern-accent, var(--tenant-accent, var(--accent))); }
-.pick:focus-visible { outline: 2px solid var(--modern-accent, var(--tenant-accent, var(--accent))); outline-offset: 2px; }
-.pick:disabled { opacity: .55; cursor: default; }
 .more { border: 1px solid var(--line); border-radius: 10px; background: var(--panel2); }
 .more > summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; padding: 0 12px; font-size: 13px; font-weight: 600; color: var(--muted); list-style: none; }
 .more > summary::-webkit-details-marker { display: none; }
@@ -72,6 +65,23 @@
 .acts { display: inline-flex; gap: 12px; flex-wrap: wrap; }
 .acts label { display: inline-flex; align-items: center; gap: 5px; font-size: 12.5px; color: var(--muted); min-height: 36px; cursor: pointer; }
 
+/* The login chip on an employee record: its state, linking to the person */
+.loginChip {
+  display: inline-flex; align-items: center; gap: 8px; min-height: 32px; padding: 0 12px; font-size: 12.5px; font-weight: 600; color: var(--ink);
+  background: var(--panel2); border: 1px solid var(--line); border-radius: 999px; text-decoration: none;
+}
+.loginChip:focus-visible { outline: 2px solid var(--modern-accent, var(--tenant-accent, var(--accent))); outline-offset: 2px; }
+
+/* The person panel: actions on top, then the changes list */
+.actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.resetRow { display: flex; align-items: flex-end; gap: 10px; flex-wrap: wrap; }
+.resetRow :global(.bpm-opt) { flex: 1; min-width: 180px; }
+.resetRow :global(.bpm-input) { width: 100%; min-width: 0; }
+.events { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+.event { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; border-top: 1px solid var(--line); min-width: 0; overflow-wrap: anywhere; }
+.event:first-child { border-top: 0; }
+.eventTitle { font-size: 13.5px; font-weight: 600; }
+
 /* A sign-in details box that must stay on screen until dismissed */
 .creds { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .creds code { font-size: 12.5px; overflow-wrap: anywhere; }
@@ -82,14 +92,17 @@
 
 @media (max-width: 780px) {
   .listHead { display: none; }
-  .people .item { grid-template-columns: minmax(0, 1fr) auto; padding: 10px 14px; row-gap: 2px; }
+  .people .item, .people.withEmployee .item { grid-template-columns: minmax(0, 1fr) auto; padding: 10px 14px; row-gap: 2px; }
   .people .nameCell { grid-column: 1; grid-row: 1; }
   .people .statusCell { grid-column: 2; grid-row: 1; }
+  .people .employeeCell { display: none; }
   .people .emailCell { grid-column: 1 / -1; grid-row: 2; }
   .people .chipsCell { grid-column: 1 / -1; grid-row: 3; }
   .roles .item { grid-template-columns: minmax(0, 1fr) auto; padding: 10px 14px; row-gap: 2px; }
   .roles .accessCell { grid-column: 1; grid-row: 2; }
   .roles .countCell { grid-column: 2; grid-row: 1; }
   .search { max-width: none; }
-  .pick, .acts label, .checkRow :global(.bpm-opt-check) label { min-height: 44px; }
+  .actions :global(.bpm-btn), .resetRow :global(.bpm-btn) { min-height: 44px; }
+  .loginChip { min-height: 44px; }
+  .acts label, .checkRow :global(.bpm-opt-check) label { min-height: 44px; }
 }

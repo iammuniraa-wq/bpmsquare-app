@@ -206,7 +206,7 @@ export default async function WorkOrdersPage({
 
   return (
     <ObjectListPage
-      title="Work Orders"
+      title="Work orders"
       subtitle={`${all.length} total · ${cnt("in_progress")} in progress · ${cnt("scheduled")} scheduled`}
       menuItems={menuItems}
       chips={chips}

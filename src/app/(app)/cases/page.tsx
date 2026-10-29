@@ -127,7 +127,7 @@ export default async function CasesPage({
         </Link>
       ),
     },
-    { id: "stage", label: "Stage", sortKey: "stage", render: ({ serviceCase: sc }) => <StatusPill label={CASE_STATUS_LABEL[sc.status]} tone={statusTone[sc.status]} /> },
+    { id: "stage", label: "Status", sortKey: "stage", render: ({ serviceCase: sc }) => <StatusPill label={CASE_STATUS_LABEL[sc.status]} tone={statusTone[sc.status]} /> },
     {
       id: "account", label: "Account", sortKey: "account",
       render: ({ account }) => (

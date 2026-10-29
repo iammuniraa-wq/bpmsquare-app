@@ -62,7 +62,7 @@ describe("old addresses redirect to the tab that holds what they showed (batch S
     ["/settings/workforce/kiosks", WfKiosksRedirect, "/settings/workforce?tab=places"],
     ["/settings/workforce/leave-types", WfLeaveRedirect, "/settings/workforce?tab=leave"],
     ["/settings/workforce/reminders", WfRemindersRedirect, "/settings/workforce?tab=alerts"],
-    ["/settings/workforce/employment", WfEmploymentRedirect, "/settings/workforce?tab=billing"],
+    ["/settings/workforce/employment", WfEmploymentRedirect, "/settings/workforce"],
   ];
   for (const [from, page, to] of cases) {
     it(`${from} -> ${to}`, () => expect(target(page)).toBe(to));

@@ -5,7 +5,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminSupabase, getAuthUser, resolveHostTenant } from "./supabase-server";
 import type { TenantConfig, TenantFeatures } from "./constants";
 import { resolveCurrency, type CurrencyDef } from "./currency";
-import { unsealIntegrationPush } from "./webhookPush";
+import { maskIntegrationPush } from "./webhookPush";
 
 export { isPlatformAdmin } from "./supabase-server";
 
@@ -174,10 +174,10 @@ export async function tenantHasNovaSurfaces(
  */
 export function redactTenantForRole(tenant: Tenant, role: "admin" | "member" | null): Tenant {
   if (role === "admin") {
-    // The ERP push secrets are stored sealed (encrypted), so the admin who manages them is handed
-    // the real values here; account_360 auth values never travel (the editor only needs "has one").
+    // Signing secrets are write-only even for the admin: the screen is told only that one is set, and sees the real value
+    // once, in the response to Regenerate. account_360 auth values never travel either (the editor only needs "has one").
     const adminPush = tenant.config?.integration_push;
-    return adminPush ? { ...tenant, config: { ...tenant.config, integration_push: unsealIntegrationPush(adminPush) } } : tenant;
+    return adminPush ? { ...tenant, config: { ...tenant.config, integration_push: maskIntegrationPush(adminPush) } } : tenant;
   }
   const push = tenant.config?.integration_push;
   const a360 = tenant.config?.account_360;

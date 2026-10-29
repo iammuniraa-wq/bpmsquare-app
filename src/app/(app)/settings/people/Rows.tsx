@@ -1,16 +1,19 @@
 "use client";
 
 import s from "./people.module.css";
-import { STATUS_WORD, accessWord, peopleWithRole, roleChips, type Person, type RoleFull, type RoleLite } from "./logic";
+import { STATUS_WORD, accessWord, linkedEmployeeName, peopleWithRole, roleChips, type EmployeeLite, type Person, type RoleFull, type RoleLite } from "./logic";
 
 const DOT = { active: `${s.dot} ${s.dotOn}`, locked: `${s.dot} ${s.dotOff}`, expired: `${s.dot} ${s.dotWarn}` } as const;
 
-/** One row per person: name, email, role chips, status. The whole row opens the panel. */
-export function PeopleRows({ items, roles, onOpen }: { items: readonly Person[]; roles: readonly RoleLite[]; onOpen: (p: Person) => void }) {
+/**
+ * One row per person: name, email, employee (when logins can be tied to employees), role chips, status. The whole row opens
+ * the panel. The employee column is left out of the phone card.
+ */
+export function PeopleRows({ items, roles, employees, onOpen }: { items: readonly Person[]; roles: readonly RoleLite[]; employees?: readonly EmployeeLite[]; onOpen: (p: Person) => void }) {
   return (
-    <div className={s.people} role="list" aria-label="People">
+    <div className={`${s.people} ${employees ? s.withEmployee : ""}`} role="list" aria-label="People">
       <div className={s.listHead} aria-hidden="true">
-        <span>Name</span><span>Email</span><span>Role</span><span>Status</span>
+        <span>Name</span><span>Email</span>{employees && <span className={s.employeeCell}>Employee</span>}<span>Role</span><span>Status</span>
       </div>
       {items.map((p) => (
         <div key={p.userId} className={s.item} role="listitem">
@@ -18,6 +21,7 @@ export function PeopleRows({ items, roles, onOpen }: { items: readonly Person[];
             <span className={s.name}>{p.name}</span>
           </button>
           <span className={`${s.email} ${s.emailCell}`}>{p.email ?? ""}</span>
+          {employees && <span className={`${s.email} ${s.employeeCell}`}>{linkedEmployeeName(p, employees)}</span>}
           <span className={`${s.chips} ${s.chipsCell}`}>
             {roleChips(p, roles).map((c, i) => (
               <span key={`${c}-${i}`} className={`${s.chip} ${i === 0 && p.role === "admin" ? s.chipAdmin : ""}`}>{c}</span>

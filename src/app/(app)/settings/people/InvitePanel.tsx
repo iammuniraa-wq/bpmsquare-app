@@ -8,22 +8,32 @@ import { Opt } from "@/components/ui/Opt";
 import { Segmented } from "../middleware/ui";
 import s from "./people.module.css";
 import { PEOPLE_TIPS } from "./tips";
-import { emptyInvite, employeeLabel, inviteSuccessText, planInvite, type EmployeeLite, type InviteDraft } from "./logic";
+import { emptyInvite, employeeLabel, inviteSuccessText, planInvite, validityWord, type EmployeeLite, type InviteDraft } from "./logic";
 import { run } from "./api";
 
 export type Invited = { text: string; credentials: { email: string; password: string } | null };
 
-/** Add someone: an email, a role, and optionally a password or an employee to give a login to. */
-export default function InvitePanel({ employees, existingEmails, onClose, onDone }: {
+/**
+ * Add someone: an email, a role (always), and optionally a password or an employee to give a login to. Opened from the
+ * employee record it arrives with that employee and its e-mail already chosen.
+ */
+export default function InvitePanel({ employees, existingEmails, prefillEmployeeId, onClose, onDone }: {
   employees: readonly EmployeeLite[];
   existingEmails: readonly string[];
+  prefillEmployeeId?: string;
   onClose: () => void;
   onDone: (r: Invited) => void;
 }) {
-  const [draft, setDraft] = useState<InviteDraft>(emptyInvite);
+  const [draft, setDraft] = useState<InviteDraft>(() => {
+    const emp = employees.find((e) => e.id === prefillEmployeeId);
+    return emp ? { ...emptyInvite(), employeeId: emp.id, email: emp.email ?? "" } : emptyInvite();
+  });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const set = (patch: Partial<InviteDraft>) => setDraft((d) => ({ ...d, ...patch }));
+
+  const picked = employees.find((e) => e.id === draft.employeeId);
+  const validity = picked ? validityWord(picked.valid_from, picked.valid_to) : null;
 
   function pickEmployee(id: string) {
     const emp = employees.find((e) => e.id === id);
@@ -63,11 +73,9 @@ export default function InvitePanel({ employees, existingEmails, onClose, onDone
         <Opt label="Email" htmlFor="inv-email">
           <Input id="inv-email" type="email" required autoComplete="off" placeholder="colleague@company.com" value={draft.email} onChange={(e) => set({ email: e.target.value })} />
         </Opt>
-        {!draft.employeeId && (
-          <Opt label="Role" info={PEOPLE_TIPS.role}>
-            <Segmented label="Role" value={draft.role} options={[{ id: "member", label: "Member" }, { id: "admin", label: "Admin" }]} onChange={(role) => set({ role })} />
-          </Opt>
-        )}
+        <Opt label="Role" info={PEOPLE_TIPS.role}>
+          <Segmented label="Role" value={draft.role} options={[{ id: "member", label: "Member" }, { id: "admin", label: "Admin" }]} onChange={(role) => set({ role })} />
+        </Opt>
         <Opt label="Password" info={draft.employeeId ? PEOPLE_TIPS.inviteEmployee : PEOPLE_TIPS.invitePassword} htmlFor="inv-pw">
           <Input id="inv-pw" type="password" autoComplete="new-password" placeholder={draft.employeeId ? "Required for a new login" : "Optional"} value={draft.password} onChange={(e) => set({ password: e.target.value })} />
         </Opt>
@@ -77,6 +85,11 @@ export default function InvitePanel({ employees, existingEmails, onClose, onDone
               <option value="">None</option>
               {employees.map((e) => <option key={e.id} value={e.id}>{employeeLabel(e)}</option>)}
             </Select>
+          </Opt>
+        )}
+        {validity && (
+          <Opt label="Validity" info={PEOPLE_TIPS.inviteValidity}>
+            <span className={s.small}>{validity}</span>
           </Opt>
         )}
       </form>

@@ -80,7 +80,7 @@ function statusPill(r: Row) {
   if (r.state === "in") return <Pill label="In" tone="green" />;
   if (r.state === "break") return <Pill label="On break" tone="amber" />;
   if (r.absent) return <Pill label="Absent" tone="red" />;
-  if (r.punches > 0) return <Pill label="Out" tone="blue" />;
+  if (r.punches > 0) return <Pill label="Checked out" tone="blue" />;
   return <Pill label="Not in yet" tone="teal" />;
 }
 

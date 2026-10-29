@@ -2,6 +2,8 @@ import { NextResponse, type NextRequest } from "next/server";
 import { isPlatformAdmin } from "@/lib/tenant";
 import { createAdminSupabase, findOrCreateUserForInvite } from "@/lib/supabase-server";
 import { PRIMARY_HOST } from "@/lib/constants";
+import { logAccessChange, roleChange } from "@/lib/peopleAccessLog";
+import { diffForLog } from "@/lib/changeLog";
 
 // POST /api/admin/tenants/[id]/invite — platform admin adds any email into an
 // existing tenant. If the email already has an account (in this tenant or any
@@ -57,6 +59,14 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     .from("tenant_users")
     .insert({ tenant_id: id, user_id: userId, role, must_change_password: passwordSet });
   if (linkErr) return NextResponse.json({ error: linkErr.message }, { status: 400 });
+
+  await logAccessChange(admin, {
+    tenantId: id, userId, label: email, action: "create",
+    changes: [
+      ...roleChange(null, role),
+      ...diffForLog("tenant_users", {}, { "sign-in": passwordSet ? "initial password, changed at first sign-in" : isNew ? "invite email sent" : "existing login added" }),
+    ],
+  });
 
   return NextResponse.json({ ok: true, passwordSet });
 }

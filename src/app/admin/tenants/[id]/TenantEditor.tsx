@@ -597,6 +597,9 @@ export default function TenantEditor({ tenant, users, access, aiTokensUsed = nul
             onChange={(e) => setInvitePassword(e.target.value)}
           />
           <div style={{ fontSize: 11, color: "#9ca3af", marginTop: 4 }}>
+            First admin of a new workspace. Everyone else is added inside the workspace in Settings &gt; People.
+          </div>
+          <div style={{ fontSize: 11, color: "#9ca3af", marginTop: 2 }}>
             If an existing user's email is entered, they're linked to this tenant directly (password ignored).
           </div>
         </div>
