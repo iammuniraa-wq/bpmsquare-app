@@ -213,11 +213,17 @@ export async function fetchNewMail(mb: Mailbox, state: { uidValidity: bigint | n
       const validity = BigInt(box.uidValidity);
       const fresh = state.uidValidity === null || state.uidValidity !== validity || state.lastUid <= 0;
       let uids: number[];
+      const since = new Date(Date.now() - opts.firstRunDays * 86_400_000);
       if (fresh) {
-        const since = new Date(Date.now() - opts.firstRunDays * 86_400_000);
         uids = ((await client.search({ since }, { uid: true })) || []) as number[];
       } else {
-        uids = ((await client.search({ uid: `${state.lastUid + 1}:*` }, { uid: true })) || []) as number[];
+        try {
+          uids = ((await client.search({ uid: `${state.lastUid + 1}:*` }, { uid: true })) || []) as number[];
+        } catch (e) {
+          // Some servers refuse the open-ended UID range; fall back to the date search, and the filter below keeps only new mail.
+          if (!client.usable) throw e;
+          uids = ((await client.search({ since }, { uid: true })) || []) as number[];
+        }
         uids = uids.filter((u) => u > state.lastUid);
       }
       uids.sort((a, b) => a - b);
@@ -287,9 +293,9 @@ export async function fetchNewMail(mb: Mailbox, state: { uidValidity: bigint | n
 }
 
 /** imapflow's own message is often just "Command failed"; the server's reply says why. */
-function imapErrorText(e: unknown): string {
-  const err = e as { message?: string; responseText?: string };
-  return [err.message, err.responseText].filter(Boolean).join(": ").slice(0, 300) || "unknown IMAP error";
+export function imapErrorText(e: unknown): string {
+  const err = e as { message?: string; responseText?: string; executedCommand?: string };
+  return [err.message, err.responseText, err.executedCommand ? `(${String(err.executedCommand).replace(/\s+/g, " ").slice(0, 80)})` : ""].filter(Boolean).join(" ").slice(0, 300) || "unknown IMAP error";
 }
 
 /** Connector test: log in to both servers, send nothing. */
