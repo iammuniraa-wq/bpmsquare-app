@@ -3,7 +3,7 @@
 // prints these as running text.
 
 export const WEBHOOK_TIPS = {
-  page: "Every address BPMSquare calls is made and kept here. An Event webhook sends changes as they happen; a Call webhook sends one record when something fires it.",
+  page: "Every address BPMSquare calls is kept here. An Event webhook sends changes in scheduled batches; a Call webhook sends one record when something fires it.",
   kind: "Event sends every change to the objects you pick; Call sends one record when something fires it, such as an awarded quote. It cannot change later.",
   objectType: "The one kind of record this webhook sends. It decides which tokens you can use, and it cannot change later.",
   events: "Pick the objects whose changes are sent. All objects sends every change.",
@@ -33,6 +33,6 @@ export type WebhookTipKey = keyof typeof WEBHOOK_TIPS;
 /** The tip on a Call webhook's kind line depends on the kind, so it is built here and held to the same limit. */
 export function kindTip(kind: "event" | "call"): string {
   return kind === "event"
-    ? "Sends every change to the objects you picked, signed, as it happens. It cannot be turned into a Call."
+    ? "Sends the changes to the objects you picked in signed batches on a schedule. It cannot be turned into a Call."
     : "Sends one record when something fires it: an awarded quote, a button or a coverage rule. It cannot be turned into an Event.";
 }

@@ -1,5 +1,5 @@
 import { resolveApiAuth, ERR_401_TENANT, ERR_403_SCOPE, jsonOk, jsonError, optionsResponse } from "../_auth";
-import { canReadChangeType, changeTypeFilter, scopeForChangeType, stripInternalChangeFields } from "@/lib/api/changeFeedScope";
+import { applyChangeTypeFilter, canReadChangeType, CHANGE_EVENT_COLUMNS, changeTypeFilter, scopeForChangeType, shapeChangeEvent, type ChangeLogEventRow } from "@/lib/api/changeFeedScope";
 import { createAdminSupabase } from "@/lib/supabase-server";
 
 // GET /api/v1/changes?since=<cursor>&object_type=quotes&limit=100
@@ -49,14 +49,13 @@ export async function GET(req: Request) {
 
   let q = createAdminSupabase()
     .from("change_log")
-    .select("id, object_type, object_id, object_label, action, changes, actor_email, created_at")
+    .select(CHANGE_EVENT_COLUMNS)
     .eq("tenant_id", tenantId)                       // tenant isolation
     .order("created_at", { ascending: true })
     .order("id", { ascending: true })
     .limit(limit);
 
-  if (typeFilter.kind === "only") q = q.in("object_type", typeFilter.types.length ? typeFilter.types : ["__none__"]);
-  else if (typeFilter.types.length) q = q.not("object_type", "in", `(${typeFilter.types.join(",")})`);
+  q = applyChangeTypeFilter(q, typeFilter);
   if (objectType) q = q.eq("object_type", objectType);
   // Keyset: rows strictly after the cursor's (created_at, id).
   if (cursor) q = q.or(`created_at.gt.${cursor.ts},and(created_at.eq.${cursor.ts},id.gt.${cursor.id})`);
@@ -64,22 +63,13 @@ export async function GET(req: Request) {
   const { data, error } = await q;
   if (error) return jsonError(500, "Could not read changes", { message: error.message });
 
-  const rows = data ?? [];
+  const rows = (data ?? []) as unknown as ChangeLogEventRow[];
   const last = rows[rows.length - 1];
-  const nextCursor = last ? encodeCursor(last.created_at as string, last.id as string) : (sinceRaw ?? null);
+  const nextCursor = last ? encodeCursor(last.created_at, last.id) : (sinceRaw ?? null);
   const hasMore = rows.length === limit;
 
   return jsonOk({
-    data: rows.map((r) => ({
-      id: r.id,
-      object_type: r.object_type,
-      object_id: r.object_id,
-      object_label: r.object_label,
-      action: r.action,
-      changes: stripInternalChangeFields(r.object_type as string, r.changes),
-      actor: r.actor_email ?? null,
-      at: r.created_at,
-    })),
+    data: rows.map(shapeChangeEvent),
     meta: { count: rows.length, has_more: hasMore, object_type: objectType ?? null },
     cursor: nextCursor,
     _links: {

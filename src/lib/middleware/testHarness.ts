@@ -78,7 +78,11 @@ export function fakeAdmin(seed: Record<string, Row[]> = {}, opts: { missing?: st
     lte(c: string, v: unknown) { return this.f(`${c}<=`, (r) => r[c] != null && String(r[c]) <= String(v)); }
     gt(c: string, v: unknown) { return this.f(`${c}>`, (r) => r[c] != null && String(r[c]) > String(v)); }
     gte(c: string, v: unknown) { return this.f(`${c}>=`, (r) => r[c] != null && String(r[c]) >= String(v)); }
-    not(c: string, _op: string, _v: unknown) { return this.f(`${c} notnull`, (r) => r[c] != null); }
+    not(c: string, op: string, v: unknown) {
+      // not(col, "in", "(a,b)") excludes those values; any other form keeps the old "is not null" stand-in.
+      if (op === "in" && typeof v === "string") { const out = v.replace(/^\(|\)$/g, "").split(","); return this.f(`${c} not in`, (r) => !out.includes(String(r[c]))); }
+      return this.f(`${c} notnull`, (r) => r[c] != null);
+    }
     filter(c: string, _op: string, v: unknown) { return this.f(`${c} filter`, (r) => String((r.features as Record<string, unknown> | undefined)?.[c.split(">>")[1]?.replace(/'/g, "") ?? ""] ?? "") === String(v)); }
     // Two forms: no wildcard is case-insensitive equality (the webhooks library); "%x%" is case-insensitive contains.
     ilike(c: string, pattern: string) {

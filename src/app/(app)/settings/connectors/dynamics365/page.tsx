@@ -34,7 +34,7 @@ export default async function Dynamics365Page({ searchParams }: { searchParams: 
       <div style={{ marginBottom: 8 }}>
         <Link href={ROUTES.settingsConnectors} style={{ fontSize: 11.5, color: c.muted, textDecoration: "none" }}>← Connectors</Link>
       </div>
-      <SettingsPageHeader title="Microsoft Dynamics 365" subtitle="Sync master data in from Dynamics and send won fence projects back as projects." />
+      <SettingsPageHeader title="Microsoft Dynamics 365" subtitle="Sync master data in from Dynamics and send awarded Standard Quotes back as projects." />
       <D365Client />
     </>
   );

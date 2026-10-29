@@ -119,6 +119,8 @@ function ConnectorTile({
   const [testMsg, setTestMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
   const connected = !!row;
+  // Where this connector is set up when it is not a form here: its own page, or the Integration middleware (SAP has no other home).
+  const href = connectorTileHref(def, middlewareOn);
 
   // Collapsing resets any in-progress edit -- reopening a tile should never
   // resurface a half-filled form or a stale test result from last time.
@@ -226,23 +228,23 @@ function ConnectorTile({
                 </div>
               )}
 
-              {def.configureHref && (
-                <a href={connectorTileHref(def, middlewareOn)} style={{ ...actionBtn(c.accent), textDecoration: "none", display: "inline-flex" }}>
+              {href && (
+                <a href={href} style={{ ...actionBtn(c.accent), textDecoration: "none", display: "inline-flex" }}>
                   {middlewareOn && def.middleware ? "Managed in Integration middleware" : connected ? "Open settings" : "Set up"}
                 </a>
               )}
 
-              {!def.configureHref && !connected && def.authType === "oauth2" && (
+              {!href && !connected && def.authType === "oauth2" && (
                 <a href={`/api/connectors/${def.id}/oauth/start`} style={{ ...actionBtn(c.accent), textDecoration: "none", display: "inline-flex" }}>
                   Connect
                 </a>
               )}
 
-              {!def.configureHref && !connected && def.authType === "api_key" && !editing && (
+              {!href && !connected && def.authType === "api_key" && !editing && (
                 <button onClick={() => setEditing(true)} style={actionBtn(c.accent)}>Connect</button>
               )}
 
-              {!def.configureHref && !connected && def.authType === "api_key" && editing && (
+              {!href && !connected && def.authType === "api_key" && editing && (
                 <div style={{ display: "flex", flexDirection: "column", gap: 12, maxWidth: 420 }}>
                   {def.fields.map((f) => (
                     <div key={f.key}>
@@ -264,7 +266,7 @@ function ConnectorTile({
                 </div>
               )}
 
-              {connected && !def.configureHref && (
+              {connected && !href && (
                 <div style={{ display: "flex", gap: 8 }}>
                   {def.testable && (
                     <button onClick={test} disabled={testing} style={actionBtn(c.panel2, c.ink)}>

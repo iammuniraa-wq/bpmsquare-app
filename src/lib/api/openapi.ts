@@ -189,7 +189,7 @@ export function buildOpenApiSpec(): Record<string, unknown> {
       title: "BPMSquare REST API",
       version: "1.0.0",
       description:
-        "Tenant-scoped REST API. Authenticate with a per-tenant Bearer API key (Settings → Admin → this tenant); the tenant is resolved from the key, never from the request path. Every list endpoint accepts the enriched query layer (select/filter/sort/paginate/aggregate/search/group_by).",
+        "Tenant-scoped REST API. Authenticate with a per-tenant Bearer API key (Settings → API keys & developer); the tenant is resolved from the key, never from the request path. Every list endpoint accepts the enriched query layer (select/filter/sort/paginate/aggregate/search/group_by).",
     },
     servers: [{ url: "/api/v1" }],
     security: [{ bearerAuth: [] }],
