@@ -66,8 +66,8 @@ type Tab = "overview" | "room" | "competitors" | "boq" | "costing" | "lines" | "
 /** A tender deal's extras (GCC tender deals): its tender block and what the countdown needs. Absent for every other deal. */
 export type TenderTabData = {
   view: TenderView;
-  /** The Deal Room, when the workspace has the deal_room flag: its unread and open-question counts. null = no room on this workspace. */
-  room: { pending: boolean; unread: number; openQuestions: number; isAdmin: boolean } | null;
+  /** The Deal Room, when the workspace has the deal_room flag: its unread count. null = no room on this workspace. */
+  room: { pending: boolean; unread: number; isAdmin: boolean } | null;
   /** The caller may change the BOQ (edit access to the Pipeline). Absent = yes; the server decides anyway. */
   boqEdit?: boolean;
   /** Slice 4 (migration 0225): bid versions, logged calls and the outcome facts. Absent = the screens for them are not drawn. */
@@ -165,8 +165,6 @@ export default function OpportunityDetailClient({ opp, accountName, contacts, in
   const shownTab = useRef<Tab>(tab);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
-  const [roomFilter, setRoomFilter] = useState<"all" | "questions">("all");
-  const [roomOpen, setRoomOpen] = useState(tender?.room?.openQuestions ?? 0);
   const [roomUnread, setRoomUnread] = useState(tender?.room?.unread ?? 0);
   const [narrow, setNarrow] = useState(false);
   const [phone, setPhone] = useState(false);
@@ -482,14 +480,14 @@ export default function OpportunityDetailClient({ opp, accountName, contacts, in
         ) : narrow ? (
           <Card padding={18}>
             <div data-guide="room.open_full" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              <div style={{ fontSize: 13, color: c.muted }}>{roomOpen} open question{roomOpen === 1 ? "" : "s"}{roomUnread > 0 ? ` · ${roomUnread} unread` : ""}</div>
+              <div style={{ fontSize: 13, color: c.muted }}>{roomUnread > 0 ? `${roomUnread} unread` : "Nothing unread"}</div>
               <Button href={`${ROUTES.pipelineDetail(opp.id)}/room`} variant="primary" style={{ minHeight: 44 }}>Open the room</Button>
             </div>
           </Card>
         ) : (
           <DealRoom
-            opportunityId={opp.id} currentUserId={currentUserId} isAdmin={tender.room.isAdmin} todayKey={todayKey} initialFilter={roomFilter}
-            onSeen={() => setRoomUnread(0)} onOpenQuestions={setRoomOpen}
+            opportunityId={opp.id} currentUserId={currentUserId} isAdmin={tender.room.isAdmin}
+            onSeen={() => setRoomUnread(0)}
             headerExtra={tender.calls?.canEdit && !tender.calls.pending ? <LogCallButton opportunityId={opp.id} onLogged={() => router.refresh()} /> : undefined}
           />
         )
@@ -503,7 +501,6 @@ export default function OpportunityDetailClient({ opp, accountName, contacts, in
           currentUserId={currentUserId} nowIso={tender.nowIso} timezone={tender.timezone} finished={!tenderLive} sourceEmail={sourceEmail}
           deal={{ title: opp.title, description: opp.description ?? "", contact_id: opp.contact_id ?? "", owner_id: opp.owner_id ?? "", source: opp.source ?? "direct", team: (opp.team ?? []) as { user_id: string; role: string }[], created_at: opp.created_at, closed_at: opp.closed_at ?? null }}
           outcome={tender.outcome ?? null} overdue={overdue} onOpenHistory={() => setHistoryOpen(true)} fmt={inr} unpricedLines={unpricedLines} canEdit={tender.boqEdit !== false}
-          room={tender.room && !tender.room.pending ? { openQuestions: roomOpen, onOpen: (f) => { setRoomFilter(f); openTab("room"); } } : null}
           onError={setError} onNotice={setNotice}
         />
       )}

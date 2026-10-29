@@ -57,7 +57,7 @@ const tabLabels = (html: string) => [...html.matchAll(/role="tab"[^>]*>([^<]*)/g
 describe("the tabs of a tender deal", () => {
   it("a tender has exactly Overview, Bill of quantities, Costing, Bid, Room, Competitors, in that order: no Tender, Lines, Estimates, Quotes, Related or Activity tab", () => {
     const out = page({ related: createElement("div", null, "RFQ") }, {
-      room: { pending: false, unread: 0, openQuestions: 0, isAdmin: false }, costing: { canEdit: true },
+      room: { pending: false, unread: 0, isAdmin: false }, costing: { canEdit: true },
       bids: { versions: [], pending: false, working_total: 0, canEdit: true },
     });
     expect(tabLabels(out).map((l) => l.replace(/\d+$/, ""))).toEqual(["Overview", "Bill of quantities", "Costing", "Bid", "Room", "Competitors"]);
@@ -172,11 +172,12 @@ describe("the merged Overview", () => {
     expect(out).toContain("Nothing is waiting for you.");
   });
 
-  it("Open work links to the open Deal Room questions when the room is on, and not otherwise", () => {
-    const withRoom = page({}, { room: { pending: false, unread: 0, openQuestions: 3, isAdmin: false } });
-    expect(withRoom).toContain('data-guide="tender.open_questions"');
-    expect(withRoom).toContain("3 open questions");
-    expect(out).not.toContain("open question");
+  it("Open work lists overdue next steps and unpriced lines only, never Deal Room questions", () => {
+    const withRoom = page({}, { room: { pending: false, unread: 0, isAdmin: false } });
+    expect(withRoom).not.toContain('data-guide="tender.open_questions"');
+    expect(withRoom).not.toContain("open question");
+    expect(withRoom).toContain('data-guide="tender.unpriced"');
+    expect(withRoom).toContain("0 lines without a price");
   });
 
   it("the Bid guarantee block has its state, amount, currency, valid-until, a Release guarantee button, and the new state words", () => {

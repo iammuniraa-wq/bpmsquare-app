@@ -3,66 +3,60 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { c } from "@/lib/theme";
 import Button from "@/components/ui/Button";
-import Field from "@/components/ui/Field";
 import { Input, Select, Textarea } from "@/components/ui/Input";
+import Tabs from "@/components/ui/Tabs";
+import { useUrlTab } from "@/components/ui/useUrlTab";
+import Pill from "@/components/Pill";
 import InfoTip from "@/components/ui/InfoTip";
-import SettingsSection from "@/components/settings/SettingsSection";
 import { useFeel } from "@/components/FeelProvider";
 import {
-  ROOM, linkify, mentionLabels, mergeMessages, nextPollDelay, pollSince, questionState, seenLabel, splitMentions,
+  ROOM, linkify, mentionLabels, mergeMessages, nextPollDelay, pollSince, seenLabel, splitMentions,
   type RoomMessageView, type RoomPayload,
 } from "@/lib/tender/room";
 import { TENDER_TIPS } from "@/lib/tender/tips";
 
 // The internal Deal Room (docs/design/gcc-tender-deals.md sections 4 and 10): one room per tender deal, for the workspace's own
-// people. Messages are plain text with links (never HTML), a message can be a question (owner, due date, open / answered), a
-// decision is a pinned one-liner, files go through short-lived signed links. It polls every 10 seconds while the tab is
-// visible and backs off when hidden or after a failure. All rules (who may post, what is removed, what is unread) are the
-// server's; this component only draws them.
+// people. Four sub-tabs in one column: Discussion (the thread and the composer), Team (who is in the room), Decisions (pinned
+// one-liners) and Documents (the files shared in the room). Messages are plain text with links (never HTML); files go through
+// short-lived signed links. Questions are no longer started from here (owner decision 2026-10-29); an old question row still
+// shows, as a message with a Question pill. It polls every 10 seconds while the tab is visible and backs off when hidden or
+// after a failure. All rules (who may post, what is removed, what is unread) are the server's; this component only draws them.
 
 const fmtStamp = (s: string | null | undefined) => (s ? new Date(s).toLocaleString("en-GB", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) : "");
-const fmtDay = (s: string | null | undefined) => (s ? new Date(`${s}T00:00:00`).toLocaleDateString("en-GB", { day: "2-digit", month: "short" }) : "");
 const sizeLabel = (n: number) => (n >= 1024 * 1024 ? `${(n / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`);
 const PENDING_TEXT = "The Deal Room needs a database update (migration 0222). Ask your administrator to apply it.";
 const ACCEPT = ".pdf,.docx,.xlsx,.csv,.txt,.dxf,.dwg,.png,.jpg,.jpeg";
+export const ROOM_TABS = ["discussion", "team", "decisions", "documents"] as const;
 
 const css = `
-.dr-grid{display:grid;gap:14px;grid-template-columns:240px minmax(0,1fr) 260px;grid-template-areas:"left centre right";align-items:start}
-.dr-left{grid-area:left;display:flex;flex-direction:column;gap:12px}.dr-centre{grid-area:centre;min-width:0}.dr-right{grid-area:right;display:flex;flex-direction:column;gap:12px}
-@media (max-width:900px){.dr-grid{grid-template-columns:minmax(0,1fr);grid-template-areas:"centre" "left" "right"}}
-.dr-msg a{color:var(--tenant-accent,#378ADD);word-break:break-all}
+.dr-msg a{color:var(--tenant-accent);word-break:break-all}
 .dr-msg{scroll-margin-top:80px}
 `;
 
-export default function DealRoom({ opportunityId, currentUserId, isAdmin, todayKey, initialFilter = "all", onSeen, onOpenQuestions, headerExtra }: {
+export default function DealRoom({ opportunityId, currentUserId, isAdmin, onSeen, headerExtra, initialState }: {
   opportunityId: string;
   currentUserId: string;
   isAdmin: boolean;
-  todayKey: string;
-  initialFilter?: "all" | "questions";
   /** Called when the room has been read (the unread badge can clear). */
   onSeen?: () => void;
-  /** Called with the number of open questions whenever it changes (the Overview shows it). */
-  onOpenQuestions?: (count: number) => void;
   /** Extra controls in the room's header (the Log a call button). */
   headerExtra?: React.ReactNode;
+  /** A room already loaded (the render tests draw the tabs from it); the live screen leaves it out and loads itself. */
+  initialState?: { payload: RoomPayload; messages: RoomMessageView[] };
 }) {
   const { confirm } = useFeel();
   const base = `/api/deal-rooms/${opportunityId}`;
-  const [payload, setPayload] = useState<RoomPayload | null>(null);
-  const [messages, setMessages] = useState<RoomMessageView[]>([]);
+  const [payload, setPayload] = useState<RoomPayload | null>(initialState?.payload ?? null);
+  const [messages, setMessages] = useState<RoomMessageView[]>(initialState?.messages ?? []);
   const [more, setMore] = useState(false);
   const [error, setError] = useState("");
   const [pendingMigration, setPendingMigration] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!initialState);
   const [busy, setBusy] = useState(false);
-  const [filter, setFilter] = useState<"all" | "questions">(initialFilter);
+  const [sub, setSub] = useUrlTab(ROOM_TABS, "room");
   const cursor = useRef<string | null>(null);
 
   const [text, setText] = useState("");
-  const [asQuestion, setAsQuestion] = useState(false);
-  const [owner, setOwner] = useState("");
-  const [due, setDue] = useState("");
   const [files, setFiles] = useState<File[]>([]);
   const [replyTo, setReplyTo] = useState<RoomMessageView | null>(null);
   const [decision, setDecision] = useState("");
@@ -146,7 +140,7 @@ export default function DealRoom({ opportunityId, currentUserId, isAdmin, todayK
     if (!text.trim()) return;
     setBusy(true);
     try {
-      const fields = { body: text, kind: asQuestion ? "question" : "message", parent_id: replyTo?.id ?? undefined, owner_id: asQuestion && owner ? owner : undefined, due: asQuestion && due ? due : undefined };
+      const fields = { body: text, kind: "message", parent_id: replyTo?.id ?? undefined };
       let res: Response;
       if (files.length > 0) {
         const form = new FormData();
@@ -159,7 +153,7 @@ export default function DealRoom({ opportunityId, currentUserId, isAdmin, todayK
       const j = await res.json().catch(() => ({}));
       if (!res.ok) { setError(j.error ?? "Could not post"); return; }
       setMessages((prev) => mergeMessages(prev, [j.message]));
-      setText(""); setAsQuestion(false); setOwner(""); setDue(""); setFiles([]); setReplyTo(null);
+      setText(""); setFiles([]); setReplyTo(null);
       void refreshHeader();
     } finally { setBusy(false); }
   }
@@ -175,10 +169,10 @@ export default function DealRoom({ opportunityId, currentUserId, isAdmin, todayK
     setDecision("");
   }
 
-  async function act(m: RoomMessageView, action: "answer" | "reopen" | "remove") {
-    if (action === "remove" && !(await confirm({ title: "Remove this message?", body: "It stays in the history as removed; its text is no longer shown.", confirmLabel: "Remove", tone: "danger" }))) return;
+  async function remove(m: RoomMessageView) {
+    if (!(await confirm({ title: "Remove this message?", body: "It stays in the history as removed; its text is no longer shown.", confirmLabel: "Remove", tone: "danger" }))) return;
     setError("");
-    const res = await fetch(`${base}/messages/${m.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action }) });
+    const res = await fetch(`${base}/messages/${m.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "remove" }) });
     const j = await res.json().catch(() => ({}));
     if (!res.ok) { setError(j.error ?? "Could not change it"); return; }
     setMessages((prev) => mergeMessages(prev, [j.message]));
@@ -208,23 +202,23 @@ export default function DealRoom({ opportunityId, currentUserId, isAdmin, todayK
     if (label) setText((t) => `${t}${t && !/\s$/.test(t) ? " " : ""}@${label} `);
   };
 
-  const openCount = messages.filter((m) => !m.removed && m.kind === "question" && m.question?.status === "open").length;
-  useEffect(() => { if (ready) onOpenQuestions?.(openCount); }, [ready, openCount, onOpenQuestions]);
-
   if (pendingMigration) return <div role="alert" data-guide="room.pending_migration" style={{ fontSize: 13, color: "var(--amberink)" }}>{PENDING_TEXT}</div>;
   if (loading) return <div style={{ color: c.hint, fontSize: 13 }}>Opening the room…</div>;
   if (!payload) return <div role="alert" style={{ fontSize: 13, color: "var(--err-ink)" }}>{error || "Could not open the room"}</div>;
 
   const live = messages.filter((m) => !m.removed);
   const decisions = live.filter((m) => m.kind === "decision");
-  const questions = live.filter((m) => m.kind === "question");
-  const openQs = questions.filter((q) => q.question?.status === "open");
-  const answeredQs = questions.filter((q) => q.question?.status === "answered");
   const allFiles = live.flatMap((m) => m.files.map((f) => ({ ...f, by: m.author_name, at: m.created_at })));
   const thread = messages.filter((m) => m.kind !== "decision");
-  const roots = thread.filter((m) => !m.parent_id && (filter === "all" || (m.kind === "question" && m.question?.status === "open")));
+  const roots = thread.filter((m) => !m.parent_id);
   const repliesOf = (id: string) => thread.filter((m) => m.parent_id === id);
   const nowDate = new Date();
+  const tabs = [
+    { id: "discussion", label: "Discussion" },
+    { id: "team", label: "Team" },
+    { id: "decisions", label: "Decisions", count: decisions.length },
+    { id: "documents", label: "Documents", count: allFiles.length },
+  ];
 
   const renderBody = (body: string) =>
     linkify(body).map((seg, i) =>
@@ -235,33 +229,25 @@ export default function DealRoom({ opportunityId, currentUserId, isAdmin, todayK
 
   const renderMessage = (m: RoomMessageView, child = false) => {
     const mine = m.author_id === currentUserId;
-    const q = m.question;
-    const canQuestion = !!q && (mine || q.owner_id === currentUserId || isAdmin);
-    const state = q ? questionState({ question_status: q.status, question_due: q.due }, todayKey) : null;
     return (
       <div key={m.id} id={`msg-${m.id}`} className="dr-msg" data-guide="room.message" style={{ marginLeft: child ? 22 : 0, padding: "9px 12px", borderRadius: 8, background: mine ? "var(--panel2)" : "transparent", border: `1px solid ${c.line}` }}>
         <div style={{ display: "flex", gap: 8, alignItems: "baseline", flexWrap: "wrap", fontSize: 12, color: c.hint }}>
           <span style={{ fontWeight: 700, color: c.ink }}>{m.author_name}</span><span>{fmtStamp(m.created_at)}</span>
-          {q && <span style={{ fontWeight: 600, color: state === "overdue" ? "var(--redink)" : state === "answered" ? "var(--greenink)" : "var(--amberink)" }}>
-            {state === "answered" ? "Answered" : state === "overdue" ? "Open · overdue" : "Open question"}
-          </span>}
+          {m.kind === "question" && <Pill label="Question" tone="amber" />}
         </div>
         {m.removed ? (
           <div style={{ fontStyle: "italic", color: c.hint, fontSize: 13, marginTop: 4 }}>Message removed</div>
         ) : (
           <>
             <div style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere", fontSize: 13.5, color: c.ink, marginTop: 4 }}>{renderBody(m.body ?? "")}</div>
-            {q && (q.owner_name || q.due) && <div style={{ fontSize: 12, color: c.muted, marginTop: 4 }}>{[q.owner_name ? `Owner: ${q.owner_name}` : null, q.due ? `Due ${fmtDay(q.due)}` : null].filter(Boolean).join(" · ")}</div>}
             {m.files.length > 0 && (
               <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 6 }}>
                 {m.files.map((f) => <a key={f.id} href={`${base}/files/${f.id}`} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12.5, color: c.accent }}>{f.name} ({sizeLabel(f.size)})</a>)}
               </div>
             )}
             <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginTop: 6 }}>
-              {!child && <Button size="sm" variant="quiet" data-guide="room.reply" onClick={() => setReplyTo(m)}>Reply</Button>}
-              {canQuestion && q.status === "open" && <Button size="sm" variant="quiet" data-guide="room.answer" onClick={() => act(m, "answer")}>Mark answered</Button>}
-              {canQuestion && q.status === "answered" && <Button size="sm" variant="quiet" onClick={() => act(m, "reopen")}>Reopen</Button>}
-              {(mine || isAdmin) && <Button size="sm" variant="quiet" data-guide="room.remove" onClick={() => act(m, "remove")}>Remove</Button>}
+              {!child && <Button size="sm" variant="quiet" data-guide="room.reply" style={{ minHeight: 44 }} onClick={() => setReplyTo(m)}>Reply</Button>}
+              {(mine || isAdmin) && <Button size="sm" variant="quiet" data-guide="room.remove" style={{ minHeight: 44 }} onClick={() => remove(m)}>Remove</Button>}
             </div>
           </>
         )}
@@ -273,21 +259,21 @@ export default function DealRoom({ opportunityId, currentUserId, isAdmin, todayK
     <div data-guide="room.tab">
       <style>{css}</style>
       {error && <div role="alert" style={{ background: "var(--err-bg)", border: "1px solid var(--err-line)", borderRadius: 8, padding: "8px 12px", fontSize: 12.5, color: "var(--err-ink)", marginBottom: 10 }}>{error}</div>}
-      <div className="dr-grid">
-        <div className="dr-centre">
-          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, flexWrap: "wrap" }}>
-            <span style={{ fontWeight: 700, fontSize: 14, color: c.ink }}>Team room</span>
-            <InfoTip label="Deal Room">{TENDER_TIPS.room}</InfoTip>
-            {headerExtra}
-            <div role="group" aria-label="Show" style={{ marginLeft: "auto", display: "flex", gap: 6 }}>
-              <Button size="sm" variant={filter === "all" ? "primary" : "secondary"} aria-pressed={filter === "all"} data-guide="room.filter_all" onClick={() => setFilter("all")}>All</Button>
-              <Button size="sm" variant={filter === "questions" ? "primary" : "secondary"} aria-pressed={filter === "questions"} data-guide="room.filter_questions" onClick={() => setFilter("questions")}>Open questions ({openQs.length})</Button>
-            </div>
-          </div>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6, flexWrap: "wrap" }}>
+        <span style={{ fontWeight: 700, fontSize: 14, color: c.ink }}>Team room</span>
+        <InfoTip label="Deal Room">{TENDER_TIPS.room}</InfoTip>
+        {headerExtra}
+      </div>
+      <div data-guide="room.subtabs" style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 12 }}>
+        <div style={{ flex: "1 1 auto", minWidth: 0 }}><Tabs tabs={tabs} value={sub} onChange={setSub} label="Room sections" /></div>
+        <InfoTip label="Room sections">{TENDER_TIPS.roomTabs}</InfoTip>
+      </div>
 
+      {sub === "discussion" && (
+        <div role="tabpanel" data-guide="room.discussion">
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }} aria-live="polite">
-            {more && <div><Button size="sm" variant="quiet" onClick={olderPage}>Show earlier messages</Button></div>}
-            {roots.length === 0 && <div style={{ fontSize: 13, color: c.hint, padding: "14px 4px" }}>{filter === "questions" ? "No open questions." : "No messages yet. Start the discussion below."}</div>}
+            {more && <div><Button size="sm" variant="quiet" style={{ minHeight: 44 }} onClick={olderPage}>Show earlier messages</Button></div>}
+            {roots.length === 0 && <div style={{ fontSize: 13, color: c.hint, padding: "14px 4px" }}>No messages yet. Start the discussion below.</div>}
             {roots.map((m) => (
               <div key={m.id} style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                 {renderMessage(m)}
@@ -300,7 +286,7 @@ export default function DealRoom({ opportunityId, currentUserId, isAdmin, todayK
             {replyTo && (
               <div style={{ fontSize: 12, color: c.muted, display: "flex", alignItems: "center", gap: 8 }}>
                 Replying to {replyTo.author_name}
-                <Button size="sm" variant="quiet" onClick={() => setReplyTo(null)}>Cancel</Button>
+                <Button size="sm" variant="quiet" style={{ minHeight: 44 }} onClick={() => setReplyTo(null)}>Cancel</Button>
               </div>
             )}
             <Textarea aria-label="Message" value={text} onChange={(e) => setText(e.target.value)} maxLength={ROOM.bodyMax} placeholder="Write to your team. @ mentions a member." style={{ minHeight: 70 }} />
@@ -314,104 +300,80 @@ export default function DealRoom({ opportunityId, currentUserId, isAdmin, todayK
                 <input type="file" multiple accept={ACCEPT} style={{ display: "none" }} onChange={(e) => { setFiles((prev) => [...prev, ...Array.from(e.target.files ?? [])].slice(0, ROOM.maxFiles)); e.target.value = ""; }} />
               </label>
               <InfoTip label="Attach files">{TENDER_TIPS.roomFiles}</InfoTip>
-              <label data-guide="room.question_toggle" style={{ display: "inline-flex", alignItems: "center", gap: 6, minHeight: 44, fontSize: 13, color: c.ink, cursor: "pointer" }}>
-                <input type="checkbox" checked={asQuestion} onChange={(e) => setAsQuestion(e.target.checked)} style={{ width: 18, height: 18 }} /> Question
-              </label>
-              <InfoTip label="Question">{TENDER_TIPS.roomQuestion}</InfoTip>
               <Button variant="primary" loading={busy} disabled={!text.trim()} data-guide="room.send" style={{ marginLeft: "auto", minHeight: 44 }} onClick={send}>Send</Button>
             </div>
-            {asQuestion && (
-              <div className="fg2">
-                <Field label="Owner" guide="room.question_owner">
-                  <Select value={owner} onChange={(e) => setOwner(e.target.value)}>
-                    <option value="">— Not set —</option>
-                    {payload.members.map((m) => <option key={m.user_id} value={m.user_id}>{m.name}</option>)}
-                  </Select>
-                </Field>
-                <Field label="Due" guide="room.question_due"><Input type="date" value={due} onChange={(e) => setDue(e.target.value)} /></Field>
-              </div>
-            )}
             {files.length > 0 && (
               <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
                 {files.map((f, i) => (
                   <span key={`${f.name}-${i}`} style={{ fontSize: 12, border: `1px solid ${c.line}`, borderRadius: 999, padding: "2px 10px", display: "inline-flex", gap: 6, alignItems: "center" }}>
                     {f.name} ({sizeLabel(f.size)})
-                    <button type="button" aria-label={`Remove ${f.name}`} onClick={() => setFiles((prev) => prev.filter((_, j) => j !== i))} style={{ border: "none", background: "none", cursor: "pointer", color: c.muted, minWidth: 24, minHeight: 24 }}>×</button>
+                    <button type="button" aria-label={`Remove ${f.name}`} onClick={() => setFiles((prev) => prev.filter((_, j) => j !== i))} style={{ border: "none", background: "none", cursor: "pointer", color: c.muted, minWidth: 44, minHeight: 44 }}>×</button>
                   </span>
                 ))}
               </div>
             )}
           </div>
         </div>
+      )}
 
-        <div className="dr-left">
-          <SettingsSection id="room.questions" title="Open questions" info={TENDER_TIPS.roomQuestion} summary={`${openQs.length} open · ${answeredQs.length} answered`} defaultOpen>
-            <div data-guide="room.questions" style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {openQs.length === 0 && <div style={{ fontSize: 12.5, color: c.hint }}>Nothing open.</div>}
-              {openQs.map((q) => {
-                const state = questionState({ question_status: q.question!.status, question_due: q.question!.due }, todayKey);
-                return (
-                  <button key={q.id} type="button" onClick={() => document.getElementById(`msg-${q.id}`)?.scrollIntoView({ behavior: "smooth", block: "center" })}
-                    style={{ textAlign: "left", background: "none", border: `1px solid ${c.line}`, borderRadius: 8, padding: "8px 10px", cursor: "pointer", minHeight: 44, color: c.ink, fontSize: 12.5 }}>
-                    <div style={{ overflowWrap: "anywhere" }}>{(q.body ?? "").slice(0, 90)}</div>
-                    <div style={{ color: state === "overdue" ? "var(--redink)" : c.hint, marginTop: 2 }}>{[q.question!.owner_name, q.question!.due ? `${state === "overdue" ? "Overdue · " : "Due "}${fmtDay(q.question!.due)}` : null].filter(Boolean).join(" · ") || "No owner or due date"}</div>
-                  </button>
-                );
-              })}
+      {sub === "team" && (
+        <div role="tabpanel" data-guide="room.members" style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, fontWeight: 700, fontSize: 13, color: c.ink }}>
+            Members <InfoTip label="Members">{TENDER_TIPS.roomMembers}</InfoTip>
+          </div>
+          {payload.members.map((m) => (
+            <div key={m.user_id} style={{ display: "flex", justifyContent: "space-between", gap: 8, fontSize: 13, minHeight: 44, alignItems: "center", borderBottom: `1px solid ${c.line}` }}>
+              <span style={{ color: c.ink, overflowWrap: "anywhere" }}>{m.name}{m.is_you ? " (you)" : ""}</span>
+              <span style={{ color: c.hint, whiteSpace: "nowrap" }}>{m.is_you ? "Here now" : seenLabel(m.last_seen_at, nowDate)}</span>
             </div>
-          </SettingsSection>
-          <SettingsSection id="room.members" title="Members" info={TENDER_TIPS.roomMembers} summary={`${payload.members.length} following`}>
-            <div data-guide="room.members" style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              {payload.members.map((m) => (
-                <div key={m.user_id} style={{ display: "flex", justifyContent: "space-between", gap: 8, fontSize: 12.5, minHeight: 28 }}>
-                  <span style={{ color: c.ink, overflowWrap: "anywhere" }}>{m.name}{m.is_you ? " (you)" : ""}</span>
-                  <span style={{ color: c.hint, whiteSpace: "nowrap" }}>{m.is_you ? "Here now" : seenLabel(m.last_seen_at, nowDate)}</span>
-                </div>
-              ))}
-              {payload.candidates.length > 0 && (
-                <div data-guide="room.add_member" style={{ display: "flex", gap: 6, marginTop: 6 }}>
-                  <Select aria-label="Add a colleague" value={addUser} onChange={(e) => setAddUser(e.target.value)} style={{ minHeight: 44 }}>
-                    <option value="">Add by name…</option>
-                    {payload.candidates.map((p) => <option key={p.user_id} value={p.user_id}>{p.name}</option>)}
-                  </Select>
-                  <Button variant="secondary" disabled={!addUser} onClick={addMember} style={{ minHeight: 44 }}>Add</Button>
-                </div>
-              )}
+          ))}
+          {payload.candidates.length > 0 && (
+            <div data-guide="room.add_member" style={{ display: "flex", gap: 6, marginTop: 6, flexWrap: "wrap" }}>
+              <Select aria-label="Add a colleague" value={addUser} onChange={(e) => setAddUser(e.target.value)} style={{ minHeight: 44, flex: "1 1 200px", width: "auto" }}>
+                <option value="">Add by name…</option>
+                {payload.candidates.map((p) => <option key={p.user_id} value={p.user_id}>{p.name}</option>)}
+              </Select>
+              <Button variant="secondary" disabled={!addUser} onClick={addMember} style={{ minHeight: 44 }}>Add</Button>
             </div>
-          </SettingsSection>
+          )}
         </div>
+      )}
 
-        <div className="dr-right">
-          <SettingsSection id="room.decisions" title="Decisions" info={TENDER_TIPS.roomDecision} summary={`${decisions.length} pinned`} defaultOpen>
-            <div data-guide="room.decisions" style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {decisions.length === 0 && <div style={{ fontSize: 12.5, color: c.hint }}>None pinned yet.</div>}
-              {decisions.map((d) => (
-                <div key={d.id} id={`msg-${d.id}`} style={{ fontSize: 12.5, color: c.ink, borderLeft: `3px solid ${c.accent}`, paddingLeft: 8 }}>
-                  <div style={{ overflowWrap: "anywhere" }}>{d.body}</div>
-                  <div style={{ color: c.hint, marginTop: 2, display: "flex", gap: 6, alignItems: "center" }}>
-                    {d.author_name} · {fmtStamp(d.created_at)}
-                    {(d.author_id === currentUserId || isAdmin) && <Button size="sm" variant="quiet" onClick={() => act(d, "remove")}>Remove</Button>}
-                  </div>
-                </div>
-              ))}
-              <div style={{ display: "flex", gap: 6 }} data-guide="room.decision_input">
-                <Input aria-label="New decision" value={decision} onChange={(e) => setDecision(e.target.value)} maxLength={ROOM.decisionMax} placeholder="Agreed to…" />
-                <Button variant="secondary" disabled={!decision.trim() || busy} onClick={postDecision} style={{ minHeight: 44 }}>Pin</Button>
+      {sub === "decisions" && (
+        <div role="tabpanel" data-guide="room.decisions" style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, fontWeight: 700, fontSize: 13, color: c.ink }}>
+            Decisions <InfoTip label="Decisions">{TENDER_TIPS.roomDecision}</InfoTip>
+          </div>
+          {decisions.length === 0 && <div style={{ fontSize: 13, color: c.hint }}>None pinned yet.</div>}
+          {decisions.map((d) => (
+            <div key={d.id} id={`msg-${d.id}`} style={{ fontSize: 13, color: c.ink, borderLeft: `3px solid ${c.accent}`, paddingLeft: 8 }}>
+              <div style={{ overflowWrap: "anywhere" }}>{d.body}</div>
+              <div style={{ color: c.hint, marginTop: 2, display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap", fontSize: 12 }}>
+                {d.author_name} · {fmtStamp(d.created_at)}
+                {(d.author_id === currentUserId || isAdmin) && <Button size="sm" variant="quiet" style={{ minHeight: 44 }} onClick={() => remove(d)}>Remove</Button>}
               </div>
             </div>
-          </SettingsSection>
-          <SettingsSection id="room.files" title="Files" info={TENDER_TIPS.roomFiles} summary={`${allFiles.length} shared`}>
-            <div data-guide="room.files" style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              {allFiles.length === 0 && <div style={{ fontSize: 12.5, color: c.hint }}>No files yet.</div>}
-              {allFiles.map((f) => (
-                <a key={f.id} href={`${base}/files/${f.id}`} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12.5, color: c.accent, overflowWrap: "anywhere", minHeight: 28 }}>
-                  {f.name} <span style={{ color: c.hint }}>({sizeLabel(f.size)} · {f.by})</span>
-                </a>
-              ))}
-            </div>
-          </SettingsSection>
+          ))}
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }} data-guide="room.decision_input">
+            <Input aria-label="New decision" value={decision} onChange={(e) => setDecision(e.target.value)} maxLength={ROOM.decisionMax} placeholder="Agreed to…" style={{ minHeight: 44, flex: "1 1 220px", width: "auto" }} />
+            <Button variant="secondary" disabled={!decision.trim() || busy} onClick={postDecision} style={{ minHeight: 44 }}>Pin</Button>
+          </div>
         </div>
-      </div>
+      )}
+
+      {sub === "documents" && (
+        <div role="tabpanel" data-guide="room.files" style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, fontWeight: 700, fontSize: 13, color: c.ink }}>
+            Files <InfoTip label="Files">{TENDER_TIPS.roomFiles}</InfoTip>
+          </div>
+          {allFiles.length === 0 && <div style={{ fontSize: 13, color: c.hint }}>No files yet. Attach one to a message in Discussion.</div>}
+          {allFiles.map((f) => (
+            <a key={f.id} href={`${base}/files/${f.id}`} target="_blank" rel="noopener noreferrer" style={{ fontSize: 13, color: c.accent, overflowWrap: "anywhere", minHeight: 44, display: "flex", alignItems: "center" }}>
+              <span>{f.name} <span style={{ color: c.hint }}>({sizeLabel(f.size)} · {f.by})</span></span>
+            </a>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

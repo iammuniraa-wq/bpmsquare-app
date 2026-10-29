@@ -47,7 +47,7 @@ const money = (amount: number | null, currency: string | null) =>
  * live in the header. Saves go to /api/opportunities/[id] (deal fields), .../tender (tender fields) and .../tender/bond (guarantee state).
  */
 export default function TenderOverview({
-  opportunityId, deal, tender, approval, room, accounts, members, contacts, currentUserId, nowIso, timezone, finished, sourceEmail,
+  opportunityId, deal, tender, approval, accounts, members, contacts, currentUserId, nowIso, timezone, finished, sourceEmail,
   outcome, overdue, unpricedLines, canEdit, fmt, onError, onNotice, onOpenHistory,
 }: {
   opportunityId: string;
@@ -55,8 +55,6 @@ export default function TenderOverview({
   tender: TenderView;
   /** null while migration 0221 is pending. */
   approval: ApprovalView | null;
-  /** Set when the Deal Room is on: the open-question count and the way into the room. */
-  room?: { openQuestions: number; onOpen: (filter: "all" | "questions") => void } | null;
   accounts: { id: string; name: string }[];
   members: Member[];
   contacts: { id: string; name: string }[];
@@ -165,9 +163,8 @@ export default function TenderOverview({
     ? [BOND_STATUS_LABEL[tender.bond_status], tender.bid_bond_amount != null ? money(tender.bid_bond_amount, tender.bid_bond_currency) : null, tender.bid_bond_expiry ? `valid to ${fmtDate(tender.bid_bond_expiry)}` : null].filter(Boolean).join(" · ")
     : "No guarantee recorded";
 
-  const openQuestions = room?.openQuestions ?? 0;
   const overdueSteps = overdue?.count ?? 0;
-  const openTotal = openQuestions + overdueSteps + unpricedLines;
+  const openTotal = overdueSteps + unpricedLines;
   const asked = [tender.tender_no, tender.issuer_name, tender.portal ? TENDER_PORTAL_LABEL[tender.portal] : null].filter(Boolean).join(" · ") || "Nothing filled in yet";
   const issuerAccount = accounts.find((a) => a.id === form.issuer_account_id) ?? null;
   const memberLabel = (m: Member) => m.name ?? m.email ?? m.user_id.slice(0, 8);
@@ -185,7 +182,7 @@ export default function TenderOverview({
         closingAt={tender.closing_at} nowIso={nowIso} timezone={timezone} finished={finished} decision={tender.decision}
         approvalPending={approval?.pending?.decision ?? null}
         bond={{ amount: tender.bid_bond_amount, expiry: tender.bid_bond_expiry, status: tender.bond_status }}
-        openQuestions={room ? openQuestions : null} overdueSteps={overdueSteps}
+        openQuestions={null} overdueSteps={overdueSteps}
       />
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 440px), 1fr))", gap: 12, alignItems: "start" }}>
@@ -269,14 +266,6 @@ export default function TenderOverview({
 
           <SettingsSection id="tender.open_work" title="Open work" info={TENDER_TIPS.openWork} summary={openTotal === 0 ? "Nothing open" : `${openTotal} open`} defaultOpen defaultOpenNarrow>
             <div data-guide="tender.open_work" style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
-              {room && (
-                <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
-                  <Button size="sm" variant="secondary" data-guide="tender.open_questions" style={needs(openQuestions)} onClick={() => room.onOpen("questions")}>
-                    {openQuestions} open question{openQuestions === 1 ? "" : "s"}
-                  </Button>
-                  <InfoTip label="Open questions">{TENDER_TIPS.roomQuestionsLink}</InfoTip>
-                </span>
-              )}
               {overdue && overdueSteps > 0 && (
                 <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
                   <Button size="sm" variant="secondary" data-guide="tender.overdue_steps" title={overdue.first ?? undefined} style={needs(overdueSteps, "bad")} onClick={onOpenHistory}>

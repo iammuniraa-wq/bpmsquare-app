@@ -248,7 +248,7 @@ describe("the tabs of a tender deal", () => {
   } as never)));
 
   it("a tender deal has a Competitors tab, last, after Room; a standard deal never does", () => {
-    const withRoom = page({ initialTab: "overview" }, { room: { pending: false, unread: 0, openQuestions: 0, isAdmin: false } });
+    const withRoom = page({ initialTab: "overview" }, { room: { pending: false, unread: 0, isAdmin: false } });
     expect(withRoom).toContain("Competitors");
     expect(withRoom.indexOf('data-guide="tab:room"')).toBeLessThan(withRoom.indexOf('data-guide="tab:competitors"'));
     expect(withRoom.indexOf('data-guide="tab:boq"')).toBeLessThan(withRoom.indexOf('data-guide="tab:competitors"'));
