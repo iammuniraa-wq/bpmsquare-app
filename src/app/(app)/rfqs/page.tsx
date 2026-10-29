@@ -12,6 +12,7 @@ import { RFQ_STATUS_LABEL, type RfqStatus, type RfqOriginType } from "@/lib/rfq/
 import { originHref, quoteLabel, itemsSummary, searchText, isDocumentOrigin, QUOTE_ORIGIN_TYPES } from "@/lib/rfq/linking";
 import { RFQ_STATUS_TONE, fmtDate } from "@/components/rfq/rfqUi";
 
+import { readAllPages } from "@/lib/pagedRead";
 type Row = {
   id: string; ref: string | null; title: string; status: RfqStatus; origin_type: RfqOriginType; origin_id: string | null; origin_label: string | null;
   respond_by: string | null; created_at: string; asked: number; replied: number; unread: number;
@@ -53,9 +54,9 @@ export default async function RfqsPage({ searchParams }: { searchParams: Promise
   const { sort, dir } = readSortParams(params);
   const page = Math.max(1, Number(params.page) || 1);
 
-  const { data, error } = await supabase.from("rfqs")
+  const { data, error } = await readAllPages((lo, hi) => supabase.from("rfqs")
     .select("id, ref, title, status, origin_type, origin_id, origin_label, respond_by, created_at")
-    .eq("tenant_id", tenantId).order("created_at", { ascending: false }).limit(2000);
+    .eq("tenant_id", tenantId).order("created_at", { ascending: false }).order("id", { ascending: true }).range(lo, hi));
   const pending = !!error;
   const base = (data ?? []) as Omit<Row, "asked" | "replied" | "unread" | "item_names">[];
 

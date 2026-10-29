@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { DEFAULT_TENDER_STAGES, type TenantFeatures } from "@/lib/constants";
 import { parseSent, type TenderDecision, type TenderFields } from "./rules";
 import { parseBondStatus, type BondStatus } from "./bond";
+import { readAllPages } from "@/lib/pagedRead";
 
 // Server-side helpers for tender deals (migration 0220). Every query is tenant-scoped on the admin client
 // (MULTI_TENANT_GUARDRAILS.md) and every one tolerates the migration being pending: a missing table or column reads as
@@ -96,7 +97,7 @@ export async function tenderForDeal(admin: SupabaseClient, tenantId: string, fea
 
 /** Every tender row of a workspace; `pending` is true when migration 0220 has not been applied. */
 export async function listTenders(admin: SupabaseClient, tenantId: string): Promise<{ rows: TenderRow[]; pending: boolean }> {
-  const { data, error } = await withBondFallback((cols) => admin.from("opportunity_tenders").select(cols).eq("tenant_id", tenantId).limit(2000));
+  const { data, error } = await withBondFallback((cols) => readAllPages((from, to) => admin.from("opportunity_tenders").select(cols).eq("tenant_id", tenantId).order("opportunity_id", { ascending: true }).range(from, to)));
   if (error) return { rows: [], pending: isMissingSchema(error) };
   return { rows: ((data ?? []) as unknown as Record<string, unknown>[]).map(normalise), pending: false };
 }

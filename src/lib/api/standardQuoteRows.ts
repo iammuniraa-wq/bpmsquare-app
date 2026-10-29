@@ -1,6 +1,7 @@
 import "server-only";
 import { createAdminSupabase } from "@/lib/supabase-server";
 
+import { readAllPages } from "@/lib/pagedRead";
 // The machine-facing view of a standard quote (v1 API, /api/v1/ask, the report builder and the
 // MCP tools): the header, who it is for by id, and on the detail endpoint the lines.
 //
@@ -87,14 +88,14 @@ export function shapeStandardQuoteLine(raw: Row): Row {
 export async function loadStandardQuotesForApi(tenantId: string): Promise<Row[]> {
   const admin = createAdminSupabase();
   const run = (cols: string) =>
-    admin.from("standard_quotes").select(`${cols}, accounts(id, name)`).eq("tenant_id", tenantId).order("created_at", { ascending: false });
+    readAllPages((lo, hi) => admin.from("standard_quotes").select(`${cols}, accounts(id, name)`).eq("tenant_id", tenantId).order("created_at", { ascending: false }).order("id", { ascending: true }).range(lo, hi));
 
   let res = await run(`${STANDARD_QUOTE_LIST_COLUMNS}, custom_data`);
   if (res.error) res = await run(STANDARD_QUOTE_LIST_COLUMNS);
   if (res.error) return [];
 
   const counts = new Map<string, number>();
-  const { data: lines } = await admin.from("standard_quote_lines").select("standard_quote_id").eq("tenant_id", tenantId).limit(50000);
+  const { data: lines } = await readAllPages((lo, hi) => admin.from("standard_quote_lines").select("standard_quote_id").eq("tenant_id", tenantId).order("id", { ascending: true }).range(lo, hi));
   for (const l of (lines ?? []) as { standard_quote_id: string }[]) counts.set(l.standard_quote_id, (counts.get(l.standard_quote_id) ?? 0) + 1);
 
   return ((res.data ?? []) as unknown as Row[]).map((r) => shapeStandardQuoteRow(r, counts.get(String(r.id)) ?? 0));

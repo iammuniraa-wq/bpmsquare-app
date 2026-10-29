@@ -10,6 +10,7 @@ import { paidWithinMonthlyAllowance } from "./leaveRules";
 import { isSecondSaturday } from "./saturdayRule";
 import { clipDatesToValidity, inRangeOrFilter, isEmployeeInRange, isObsolete, obsoleteLabel } from "./obsolete";
 
+import { readAllPages } from "@/lib/pagedRead";
 // Shared per-employee-per-month aggregation — the one place the "rules
 // engine" (§6) actually runs across a whole month, used by BOTH the
 // employee's own timesheet (/wfm-app/timesheet) and the admin monthly
@@ -249,21 +250,24 @@ async function buildSummaries(
   const config = await getWfmConfig(admin, tenantId);
   const todayKey = dateKeyInTz(new Date(), config.timezone);
 
-  let employeeQuery = admin
-    .from("employees")
-    .select("id, employee_code, first_name, last_name, employment_type, shift_id, site_id, status, valid_to")
-    .eq("tenant_id", tenantId)
-    // Active employees, plus obsolete ones whose valid_to falls on or after
-    // the first day of this report; their later days are clipped below.
-    .or(inRangeOrFilter(dates[0]));
-  // `undefined` is the ONLY "unrestricted" signal. An empty array means
-  // "this scoped caller may see nobody" -- it must yield zero rows, never
-  // fall through to the whole tenant. (A zero-scope supervisor -- one with
-  // wfm_role=supervisor but no assigned site -- passes scope.employeeIds
-  // = [] here; the `&& length > 0` guard was leaking every employee's
-  // hours/pay to them via the summary + Excel export. Matches
-  // getWfmLiveBoardSnapshot's `if (employeeIds)` at server.ts.)
-  if (employeeIds) employeeQuery = employeeQuery.in("id", employeeIds);
+  const employeeQuery = readAllPages((lo, hi) => {
+    let q = admin
+      .from("employees")
+      .select("id, employee_code, first_name, last_name, employment_type, shift_id, site_id, status, valid_to")
+      .eq("tenant_id", tenantId)
+      // Active employees, plus obsolete ones whose valid_to falls on or after
+      // the first day of this report; their later days are clipped below.
+      .or(inRangeOrFilter(dates[0]));
+    // `undefined` is the ONLY "unrestricted" signal. An empty array means
+    // "this scoped caller may see nobody" -- it must yield zero rows, never
+    // fall through to the whole tenant. (A zero-scope supervisor -- one with
+    // wfm_role=supervisor but no assigned site -- passes scope.employeeIds
+    // = [] here; the `&& length > 0` guard was leaking every employee's
+    // hours/pay to them via the summary + Excel export. Matches
+    // getWfmLiveBoardSnapshot's `if (employeeIds)` at server.ts.)
+    if (employeeIds) q = q.in("id", employeeIds);
+    return q.order("id", { ascending: true }).range(lo, hi);
+  });
 
   tr.stage("batchQueries");
   const [{ data: employees }, { data: sites }, { data: shifts }, { data: holidays }, { data: leaves }, { data: otRows }, { data: rosterRows }] = await Promise.all([
@@ -277,28 +281,28 @@ async function buildSummaries(
     // (e.g. the 1st-15th) still needs every leave day in that full month
     // loaded, or the paid-days-per-month allowance below undercounts and
     // wrongly calls a day "still paid" that the full month would not.
-    admin.from("wfm_leave_records")
+    readAllPages((lo, hi) => admin.from("wfm_leave_records")
       .select("employee_id, leave_type_id, date_from, date_to, half_day, wfm_leave_types(name, category)")
       .eq("tenant_id", tenantId)
       .lte("date_from", monthBounds(dates[dates.length - 1])[1])
-      .gte("date_to", monthBounds(dates[0])[0]),
+      .gte("date_to", monthBounds(dates[0])[0]).order("id", { ascending: true }).range(lo, hi)),
     // OT is read from its own session rows (not re-derived from events):
     // each row already carries the day it started on, so an all-night
     // stretch stays one payable block instead of splitting at midnight.
-    admin.from("wfm_ot_sessions")
+    readAllPages((lo, hi) => admin.from("wfm_ot_sessions")
       .select("employee_id, ot_date, minutes, status, started_at, ended_at")
       .eq("tenant_id", tenantId)
       .gte("ot_date", dates[0])
-      .lte("ot_date", dates[dates.length - 1]),
+      .lte("ot_date", dates[dates.length - 1]).order("id", { ascending: true }).range(lo, hi)),
     // Roster overrides the standing shift for the dates it covers. Read here
     // for the first time by any rules path -- without it, someone rostered
     // onto nights is measured against their day shift and marked late every
     // single night.
-    admin.from("wfm_roster_assignments")
+    readAllPages((lo, hi) => admin.from("wfm_roster_assignments")
       .select("employee_id, date, shift_id, is_day_off")
       .eq("tenant_id", tenantId)
       .gte("date", dates[0])
-      .lte("date", dates[dates.length - 1]),
+      .lte("date", dates[dates.length - 1]).order("id", { ascending: true }).range(lo, hi)),
   ]);
 
   const rangeFrom = dates[0];

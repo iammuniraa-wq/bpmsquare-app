@@ -5,7 +5,7 @@ type Call = { table: string; eq: Record<string, unknown> };
 
 const db: { tables: Record<string, Row[]>; calls: Call[] } = { tables: {}, calls: [] };
 
-// Minimal PostgREST stand-in: honours eq / in / not-null / range and records
+// Minimal PostgREST stand-in: honours eq / in / not-null / range (order is a no-op) and records
 // the eq filters each query carried, so the tenant-scoping rule can be asserted.
 function fakeAdmin() {
   return {
@@ -19,6 +19,7 @@ function fakeAdmin() {
         eq: (c: string, v: unknown) => { eq[c] = v; return builder; },
         in: (c: string, v: unknown[]) => { inF[c] = v; return builder; },
         not: (c: string, op: string, v: unknown) => { if (op === "is" && v === null) notNull.push(c); return builder; },
+        order: () => builder, // rows are already in a fixed order here
         range: (a: number, b: number) => { range = [a, b]; return builder; },
         then: (resolve: (v: { data: Row[]; error: null }) => unknown) => {
           db.calls.push({ table, eq: { ...eq } });

@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { pickCurrentSupplier, type Candidate, type CurrentPick } from "./currentSupplierRank";
 
+import { readAllPages } from "@/lib/pagedRead";
 // Server half of "current supplier": gathers candidates for a set of
 // products and hands them to the pure ranking. Runs on the service-role
 // client, so EVERY query carries .eq("tenant_id", tenantId). Each source
@@ -42,7 +43,7 @@ export async function currentSuppliersForProducts(admin: SupabaseClient, tenantI
 
   // 2. Awarded RFQ responses for these products.
   const awards = new Map<string, Candidate[]>();
-  const { data: lines, error: lineErr } = await admin.from("rfq_lines").select("id, product_id").eq("tenant_id", tenantId).in("product_id", ids).limit(2000);
+  const { data: lines, error: lineErr } = await readAllPages((lo, hi) => admin.from("rfq_lines").select("id, product_id").eq("tenant_id", tenantId).in("product_id", ids).order("id", { ascending: true }).range(lo, hi));
   if (!lineErr && lines?.length) {
     const productOfLine = new Map((lines as { id: string; product_id: string }[]).map((l) => [l.id, l.product_id]));
     const resps = await inChunks<{ rfq_supplier_id: string; rfq_line_id: string; unit_price: number | null; currency: string | null; updated_at: string }>(
@@ -65,7 +66,7 @@ export async function currentSuppliersForProducts(admin: SupabaseClient, tenantI
 
   // 3. Purchase order lines for these products (0130 added product_id).
   const orders = new Map<string, Candidate[]>();
-  const { data: poLines, error: poLineErr } = await admin.from("purchase_order_lines").select("product_id, po_id, rate").eq("tenant_id", tenantId).in("product_id", ids).limit(2000);
+  const { data: poLines, error: poLineErr } = await readAllPages((lo, hi) => admin.from("purchase_order_lines").select("product_id, po_id, rate").eq("tenant_id", tenantId).in("product_id", ids).order("id", { ascending: true }).range(lo, hi));
   if (!poLineErr && poLines?.length) {
     const poIds = [...new Set((poLines as { po_id: string }[]).map((l) => l.po_id))];
     const pos = await inChunks<{ id: string; supplier_id: string; order_date: string | null; created_at: string }>(

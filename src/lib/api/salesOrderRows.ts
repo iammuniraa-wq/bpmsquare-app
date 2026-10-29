@@ -3,6 +3,7 @@ import { createAdminSupabase } from "@/lib/supabase-server";
 import { CHECK_COLUMNS, TRANSFER_COLUMNS, shapeCheck, type CheckRow, type TransferRow } from "@/lib/salesOrders/erpChecks";
 import { hashOf } from "@/lib/salesOrders/erpState";
 
+import { readAllPages } from "@/lib/pagedRead";
 // The machine-facing view of a sales order (v1 API, /api/v1/ask, the report builder and the MCP tools): the header,
 // who it is for by id and name, and on the detail endpoint the lines, notes and terms.
 //
@@ -125,19 +126,19 @@ export function shapeSalesOrderLine(raw: Row): Row {
 /** Every sales order of a tenant, public shape. A missing table (0212 pending) reads as none -- never an error. */
 export async function loadSalesOrdersForApi(tenantId: string): Promise<Row[]> {
   const admin = createAdminSupabase();
-  const res = await admin
+  const res = await readAllPages((lo, hi) => admin
     .from("sales_orders")
     .select(`${SALES_ORDER_LIST_COLUMNS}, accounts(id, name), sales_order_types(id, name)`)
     .eq("tenant_id", tenantId)
-    .order("created_at", { ascending: false });
+    .order("created_at", { ascending: false }).order("id", { ascending: true }).range(lo, hi));
   if (res.error) return [];
 
   const counts = new Map<string, number>();
-  const { data: lines } = await admin.from("sales_order_lines").select("order_id").eq("tenant_id", tenantId).limit(50000);
+  const { data: lines } = await readAllPages((lo, hi) => admin.from("sales_order_lines").select("order_id").eq("tenant_id", tenantId).order("id", { ascending: true }).range(lo, hi));
   for (const l of (lines ?? []) as { order_id: string }[]) counts.set(l.order_id, (counts.get(l.order_id) ?? 0) + 1);
   // Invoices the ERP reported, rolled up per order (a missing table reads as none).
   const invoices = new Map<string, InvoiceSummary>();
-  const docs = await admin.from("erp_documents").select("order_id, amount, status_spine").eq("tenant_id", tenantId).eq("kind", "invoice").limit(50000);
+  const docs = await readAllPages((lo, hi) => admin.from("erp_documents").select("order_id, amount, status_spine").eq("tenant_id", tenantId).eq("kind", "invoice").order("id", { ascending: true }).range(lo, hi));
   if (!docs.error) {
     for (const d of (docs.data ?? []) as { order_id: string; amount: number | string | null; status_spine: string | null }[]) {
       if (d.status_spine === "cancelled") continue;
@@ -151,7 +152,7 @@ export async function loadSalesOrdersForApi(tenantId: string): Promise<Row[]> {
   }
   // The latest Check with ERP status per order and kind (a missing table reads as none).
   const checks = new Map<string, CheckStatuses>();
-  const chk = await admin.from("sales_order_checks").select("order_id, kind, status").eq("tenant_id", tenantId).limit(50000);
+  const chk = await readAllPages((lo, hi) => admin.from("sales_order_checks").select("order_id, kind, status").eq("tenant_id", tenantId).order("id", { ascending: true }).range(lo, hi));
   if (!chk.error) {
     for (const c of (chk.data ?? []) as { order_id: string; kind: string; status: string }[]) {
       const cur = checks.get(c.order_id) ?? { credit_check: null, price_check: null, stock_check: null };

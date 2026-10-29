@@ -43,6 +43,7 @@ import {
   clarifyOffer, clarifyQuestion, runCreateFlow, type ClarifyOffer, type CreateFlowInput, type CreateFlowIo, type CreateFlowReply,
 } from "@/lib/assistant/createResearch";
 
+import { readAllPages } from "@/lib/pagedRead";
 /**
  * Conversational data assistant (the bottom-right dock).
  *
@@ -217,10 +218,10 @@ const QUICK_LOOKUPS: QuickLookup[] = [
     description: "How many employees are checked in right now / on break (Workforce presence)",
     run: async (supabase, tenantId) => {
       const since = new Date(Date.now() - 36 * 60 * 60 * 1000).toISOString();
-      const { data } = await supabase
+      const { data } = await readAllPages((lo, hi) => supabase
         .from("wfm_presence_events").select("employee_id, kind, ts")
         .eq("tenant_id", tenantId).is("superseded_by", null).gte("ts", since)
-        .order("ts", { ascending: true });
+        .order("ts", { ascending: true }).order("id", { ascending: true }).range(lo, hi));
       const last = new Map<string, string>();
       for (const e of data ?? []) last.set(e.employee_id as string, e.kind as string);
       const checkedIn = [...last.values()].filter((k) => k === "check_in" || k === "break_end").length;

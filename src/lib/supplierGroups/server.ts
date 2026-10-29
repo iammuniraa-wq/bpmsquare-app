@@ -10,6 +10,7 @@ import {
   type GroupInput, type GroupRow, type GroupView, type Restriction,
 } from "./rules";
 
+import { readAllPages } from "@/lib/pagedRead";
 // Server side of the supplier groups (migration 0233). Every query is tenant-scoped on the service-role client (the tables have a tenant
 // SELECT policy and nothing that writes), every id from a request is verified against the workspace first, and every read tolerates the
 // migration being pending: a missing table reads as "no group", which leaves all suppliers open, never as a crash.
@@ -65,7 +66,7 @@ export async function allowedSuppliersForAccount(tenantId: string, accountId: st
   if (g.error || !g.data) return NOT_RESTRICTED;
   const group = g.data as { id: string; name: string; active: boolean };
   if (group.active === false) return NOT_RESTRICTED;
-  const m = await admin.from("supplier_group_members").select("supplier_id").eq("tenant_id", tenantId).eq("group_id", group.id).limit(5000);
+  const m = await readAllPages((lo, hi) => admin.from("supplier_group_members").select("supplier_id").eq("tenant_id", tenantId).eq("group_id", group.id).order("supplier_id", { ascending: true }).range(lo, hi));
   if (m.error) return NOT_RESTRICTED;
   return restrictionFrom(group, ((m.data ?? []) as { supplier_id: string }[]).map((x) => x.supplier_id));
 }
@@ -150,10 +151,10 @@ export async function packageOfRfq(admin: SupabaseClient, tenantId: string, rfqI
 // ── Reads ──────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
 export async function loadGroups(admin: SupabaseClient, tenantId: string): Promise<{ groups: GroupView[]; pending: boolean }> {
-  const g = await admin.from("supplier_groups").select(GROUP_COLS).eq("tenant_id", tenantId).order("name", { ascending: true }).limit(1000);
+  const g = await readAllPages((lo, hi) => admin.from("supplier_groups").select(GROUP_COLS).eq("tenant_id", tenantId).order("name", { ascending: true }).order("id", { ascending: true }).range(lo, hi));
   if (g.error) return { groups: [], pending: isMissingSchema(g.error) };
   const rows = ((g.data ?? []) as Record<string, unknown>[]).map(normaliseGroup);
-  const members = await admin.from("supplier_group_members").select("group_id, supplier_id").eq("tenant_id", tenantId).limit(20000);
+  const members = await readAllPages((lo, hi) => admin.from("supplier_group_members").select("group_id, supplier_id").eq("tenant_id", tenantId).order("group_id", { ascending: true }).order("supplier_id", { ascending: true }).range(lo, hi));
   const byGroup = new Map<string, string[]>();
   for (const m of (members.error ? [] : (members.data ?? [])) as { group_id: string; supplier_id: string }[]) byGroup.set(m.group_id, [...(byGroup.get(m.group_id) ?? []), m.supplier_id]);
   const accountIds = [...new Set(rows.map((r) => r.account_id).filter((x): x is string => !!x))];
@@ -189,7 +190,7 @@ export async function loadPickerSuppliers(admin: SupabaseClient, tenantId: strin
       out.push(...((data ?? []) as PickerSupplier[]));
     }
   } else {
-    const { data } = await admin.from("suppliers").select(cols).eq("tenant_id", tenantId).order("name", { ascending: true }).limit(5000);
+    const { data } = await readAllPages((lo, hi) => admin.from("suppliers").select(cols).eq("tenant_id", tenantId).order("name", { ascending: true }).order("id", { ascending: true }).range(lo, hi));
     out.push(...((data ?? []) as PickerSupplier[]));
   }
   return out.filter((s) => s.status !== "inactive").sort((a, b) => a.name.localeCompare(b.name));
@@ -214,7 +215,7 @@ async function accountProblem(req: GroupCtx, accountId: string, ownGroupId: stri
 }
 
 async function nameProblem(req: GroupCtx, name: string, ownGroupId: string | null): Promise<Failure | null> {
-  const { data, error } = await req.admin.from("supplier_groups").select("id, name").eq("tenant_id", req.tenantId).limit(2000);
+  const { data, error } = await readAllPages((lo, hi) => req.admin.from("supplier_groups").select("id, name").eq("tenant_id", req.tenantId).order("id", { ascending: true }).range(lo, hi));
   if (error) return isMissingSchema(error) ? needsGroupUpdate() : { status: 500, error: error.message };
   const clash = ((data ?? []) as { id: string; name: string }[]).find((g) => g.id !== ownGroupId && g.name.trim().toLowerCase() === name.trim().toLowerCase());
   return clash ? { status: 409, error: `There is already a group called "${clash.name}"` } : null;
@@ -298,7 +299,7 @@ export async function setGroupMembers(req: GroupCtx, group: Pick<GroupRow, "id" 
     for (const s of (data ?? []) as { id: string; name: string }[]) names.set(s.id, s.name);
   }
   if (names.size !== wanted.length) return { ok: false, status: 404, error: "A supplier was not found" };
-  const cur = await admin.from("supplier_group_members").select("supplier_id").eq("tenant_id", tenantId).eq("group_id", group.id).limit(20000);
+  const cur = await readAllPages((lo, hi) => admin.from("supplier_group_members").select("supplier_id").eq("tenant_id", tenantId).eq("group_id", group.id).order("supplier_id", { ascending: true }).range(lo, hi));
   if (cur.error) return { ok: false, ...(isMissingSchema(cur.error) ? needsGroupUpdate() : { status: 500, error: cur.error.message }) };
   const have = new Set(((cur.data ?? []) as { supplier_id: string }[]).map((r) => r.supplier_id));
   const added = wanted.filter((id) => !have.has(id));

@@ -3,6 +3,7 @@ import { createAdminSupabase } from "@/lib/supabase-server";
 import { getWfmConfig } from "@/lib/wfm/server";
 
 
+import { readAllPages } from "@/lib/pagedRead";
 // Capped per route, not via vercel.json. That config carried
 // "src/app/api/wfm/**": { maxDuration: 60 } from 2026-10-03 and it never
 // took effect -- on 2026-10-07 these routes still ran the full 300s during a
@@ -41,12 +42,12 @@ export async function GET(request: NextRequest) {
     const config = await getWfmConfig(admin, tenant.id);
     const cutoff = new Date(Date.now() - config.selfie_retention_days * 24 * 60 * 60 * 1000).toISOString();
 
-    const { data: stale } = await admin
+    const { data: stale } = await readAllPages((lo, hi) => admin
       .from("wfm_presence_events")
       .select("id, selfie_path")
       .eq("tenant_id", tenant.id)
       .not("selfie_path", "is", null)
-      .lt("ts", cutoff);
+      .lt("ts", cutoff).order("id", { ascending: true }).range(lo, hi));
 
     let purged = 0;
     let errors = 0;

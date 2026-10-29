@@ -18,7 +18,8 @@ export async function generateNextWorkOrderRef(
     .select("ref")
     .eq("tenant_id", tenantId)
     .like("ref", `WO-${year}-%`)
-    .limit(5000);
+    .order("created_at", { ascending: false })
+    .limit(1000);
   const seq = nextSeqFromRefs((data ?? []).map((r) => r.ref as string), new RegExp(`^WO-${year}-(\\d+)$`));
   return firstFreeRef(supabase, "work_orders", tenantId, (s) => `WO-${year}-${String(s).padStart(4, "0")}`, seq);
 }

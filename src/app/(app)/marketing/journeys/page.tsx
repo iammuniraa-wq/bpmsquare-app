@@ -9,6 +9,7 @@ import { journeyPage, PENDING_MESSAGE } from "@/lib/marketing/journeys/access";
 import { triggerLabel } from "@/lib/marketing/journeys/definition";
 import { listJourneyRows } from "@/lib/marketing/journeys/store";
 
+import { readAllPages } from "@/lib/pagedRead";
 const MONO = "ui-monospace, SFMono-Regular, Menlo, monospace";
 const fmtDate = (s: string) => new Date(s).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
 const STATUS: Record<string, string> = { draft: "Draft", live: "Live", paused: "Paused", archived: "Archived" };
@@ -34,8 +35,8 @@ export default async function JourneysPage({ searchParams }: { searchParams: Pro
   // People in each journey and emails sent this month, from the rows the runner writes.
   const monthStart = new Date(); monthStart.setUTCDate(1); monthStart.setUTCHours(0, 0, 0, 0);
   const [runs, steps] = await Promise.all([
-    ctx.admin.from("journey_runs").select("journey_id").eq("tenant_id", ctx.tenantId).limit(20000),
-    ctx.admin.from("journey_run_steps").select("journey_id").eq("tenant_id", ctx.tenantId).eq("sent", true).gte("at", monthStart.toISOString()).limit(20000),
+    readAllPages((lo, hi) => ctx.admin.from("journey_runs").select("journey_id").eq("tenant_id", ctx.tenantId).order("id", { ascending: true }).range(lo, hi)),
+    readAllPages((lo, hi) => ctx.admin.from("journey_run_steps").select("journey_id").eq("tenant_id", ctx.tenantId).eq("sent", true).gte("at", monthStart.toISOString()).order("id", { ascending: true }).range(lo, hi)),
   ]);
   const count = (data: unknown): Map<string, number> => {
     const m = new Map<string, number>();

@@ -3,7 +3,9 @@
 // delete, exact counts) over arrays of rows, unique-constraint errors (23505) and a storage bucket. It is a test helper,
 // not product code: nothing outside *.test.ts imports it.
 
-import { randomUUID } from "node:crypto";
+// Generated ids are UUID-shaped but increase with insertion order, so an `.order("id")` tie-break keeps the order rows were created in (a heap scan does the same in practice).
+let idSeq = 0;
+const nextId = () => `00000000-0000-4000-8000-${String(++idSeq).padStart(12, "0")}`;
 
 export type Row = Record<string, unknown>;
 type Result = { data: unknown; error: { code?: string; message: string; details?: string } | null; count?: number | null };
@@ -38,6 +40,8 @@ export class MemoryDb {
   missing = new Set<string>();
   /** Columns that do not exist yet (a migration that adds a column is pending): a select naming one, or a write carrying one, answers 42703. */
   missingColumns: Record<string, Set<string>> = {};
+  /** PostgREST's max-rows: no response carries more rows than this, whatever `.limit()` or `.range()` asked for. Null = unclamped. */
+  maxRows: number | null = null;
 
   constructor(seed: Record<string, Row[]> = {}) {
     for (const [t, rows] of Object.entries(seed)) this.tables[t] = rows.map((r) => ({ ...r }));
@@ -96,7 +100,7 @@ class Query implements PromiseLike<Result> {
   private mode: "select" | "insert" | "update" | "delete" | "upsert" = "select";
   private payload: Row | Row[] | null = null;
   private onConflict: string | null = null;
-  private orderBy: { col: string; asc: boolean } | null = null;
+  private orderBy: { col: string; asc: boolean }[] = [];
   private lim: number | null = null;
   private from_: number | null = null;
   private to_: number | null = null;
@@ -152,7 +156,7 @@ class Query implements PromiseLike<Result> {
     this.preds.push((r) => parts.some((f) => f(r)));
     return this;
   }
-  order(col: string, opts?: { ascending?: boolean }) { this.orderBy = { col, asc: opts?.ascending !== false }; return this; }
+  order(col: string, opts?: { ascending?: boolean }) { this.orderBy.push({ col, asc: opts?.ascending !== false }); return this; }
   limit(n: number) { this.lim = n; return this; }
   range(a: number, b: number) { this.from_ = a; this.to_ = b; return this; }
   single() { this.single_ = "single"; return this; }
@@ -175,7 +179,7 @@ class Query implements PromiseLike<Result> {
     if (this.mode === "insert" || this.mode === "upsert") {
       const list = Array.isArray(this.payload) ? this.payload : [this.payload as Row];
       for (const raw of list) {
-        const row: Row = { id: raw.id ?? randomUUID(), created_at: new Date().toISOString(), ...raw };
+        const row: Row = { id: raw.id ?? nextId(), created_at: new Date().toISOString(), ...raw };
         if (this.mode === "upsert" && this.onConflict) {
           const keys = this.onConflict.split(",");
           const hit = rows.find((e) => keys.every((k) => e[k] === row[k]));
@@ -201,13 +205,20 @@ class Query implements PromiseLike<Result> {
 
     if (this.mode !== "select" && !this.returning) return { data: null, error: null };
 
-    if (this.orderBy) {
-      const { col, asc } = this.orderBy;
-      out = [...out].sort((a, b) => (asc ? 1 : -1) * cmp(a[col], b[col]));
+    if (this.orderBy.length > 0) {
+      // Like Postgres: the first order() is the primary key and later ones break its ties.
+      out = [...out].sort((a, b) => {
+        for (const { col, asc } of this.orderBy) {
+          const c = cmp(a[col], b[col]);
+          if (c) return (asc ? 1 : -1) * c;
+        }
+        return 0;
+      });
     }
     const total = out.length;
     if (this.from_ !== null && this.to_ !== null) out = out.slice(this.from_, this.to_ + 1);
     if (this.lim !== null) out = out.slice(0, this.lim);
+    if (this.db.maxRows !== null && !this.single_) out = out.slice(0, this.db.maxRows);
     const count = this.wantCount ? total : null;
     if (this.head) return { data: null, error: null, count };
     const clone = out.map((r) => ({ ...r }));

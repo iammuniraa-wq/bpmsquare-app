@@ -25,6 +25,7 @@ import {
   type BoqSummary, type CompareView, type CostingData, type CostingEstimateItem, type CostingItem, type CostingRfqItem,
 } from "./rules";
 
+import { readAllPages } from "@/lib/pagedRead";
 // Server side of the Costing tab (docs/design/gcc-tender-deals.md section 25). Estimates and RFQs of one tender deal in one list, the
 // compare screen of an RFQ, and the ONE place an RFQ line is awarded for a tender: "Award and price". Every query is tenant-scoped on the
 // service-role client and tolerates a pending migration. The door is openCostingRequest(): the tender flags, the Pipeline view (edit for
@@ -73,8 +74,8 @@ type BoqRowLite = { boq_id: string | null; line_id: string; item: string; priced
 /** The deal's rows: every selected deal line, with its BOQ item number where it has one. Removed rows are left out. */
 async function loadRows(admin: SupabaseClient, tenantId: string, oppId: string, validityDays: number, today: string): Promise<{ rows: BoqRowLite[]; lines: (DocLineForRfq & { is_selected?: boolean | null })[] }> {
   const dealLines = await loadOpportunityLines(admin, tenantId, oppId);
-  const { data, error } = await admin.from("tender_boq_lines")
-    .select("id, line_id, item_no, row_no, removed_in_revision, price_source, price_as_of, stale_accepted").eq("tenant_id", tenantId).eq("opportunity_id", oppId).limit(5000);
+  const { data, error } = await readAllPages((lo, hi) => admin.from("tender_boq_lines")
+    .select("id, line_id, item_no, row_no, removed_in_revision, price_source, price_as_of, stale_accepted").eq("tenant_id", tenantId).eq("opportunity_id", oppId).order("id", { ascending: true }).range(lo, hi));
   const boqByLine = new Map<string, Record<string, unknown>>();
   if (!error) for (const b of (data ?? []) as Record<string, unknown>[]) if (b.line_id) boqByLine.set(String(b.line_id), b);
   const rows: BoqRowLite[] = [];
@@ -212,8 +213,8 @@ async function rfqItemsFor(
   const supRows: S[] = [];
   for (const part of chunks(ids, 100)) {
     const [l, s] = await Promise.all([
-      admin.from("rfq_lines").select("id, rfq_id, qty, status, awarded_unit_cost").eq("tenant_id", tenantId).in("rfq_id", part).limit(5000),
-      admin.from("rfq_suppliers").select("id, rfq_id, status").eq("tenant_id", tenantId).in("rfq_id", part).limit(2000),
+      readAllPages((lo, hi) => admin.from("rfq_lines").select("id, rfq_id, qty, status, awarded_unit_cost").eq("tenant_id", tenantId).in("rfq_id", part).order("id", { ascending: true }).range(lo, hi)),
+      readAllPages((lo, hi) => admin.from("rfq_suppliers").select("id, rfq_id, status").eq("tenant_id", tenantId).in("rfq_id", part).order("id", { ascending: true }).range(lo, hi)),
     ]);
     lineRows.push(...((l.data ?? []) as unknown as L[]).map((x) => ({ ...x, qty: num(x.qty), awarded_unit_cost: num(x.awarded_unit_cost) })));
     supRows.push(...((s.data ?? []) as unknown as S[]));
@@ -221,13 +222,13 @@ async function rfqItemsFor(
   const respRows: (CompareResponse & { rfq_supplier_id: string })[] = [];
   const liveSupplier = supRows.filter((s) => s.status !== "cancelled");
   for (const part of chunks(liveSupplier.map((s) => s.id), 100)) {
-    const { data } = await admin.from("rfq_responses").select("id, rfq_supplier_id, rfq_line_id, status, unit_price, fx_rate, currency, valid_until, submitted_at, lead_time_days, moq, note")
-      .eq("tenant_id", tenantId).in("rfq_supplier_id", part).limit(5000);
+    const { data } = await readAllPages((lo, hi) => admin.from("rfq_responses").select("id, rfq_supplier_id, rfq_line_id, status, unit_price, fx_rate, currency, valid_until, submitted_at, lead_time_days, moq, note")
+      .eq("tenant_id", tenantId).in("rfq_supplier_id", part).order("id", { ascending: true }).range(lo, hi));
     respRows.push(...((data ?? []) as unknown as (CompareResponse & { rfq_supplier_id: string })[]).map((x) => ({ ...x, unit_price: num(x.unit_price), fx_rate: num(x.fx_rate), moq: num(x.moq) })));
   }
   const awardsByRfq = new Map<string, number>();
   {
-    const { data, error } = await admin.from("rfq_line_awards").select("rfq_id, rfq_line_id, applied_to_deal_at").eq("tenant_id", tenantId).in("rfq_id", ids).is("superseded_at", null).limit(5000);
+    const { data, error } = await readAllPages((lo, hi) => admin.from("rfq_line_awards").select("rfq_id, rfq_line_id, applied_to_deal_at").eq("tenant_id", tenantId).in("rfq_id", ids).is("superseded_at", null).order("id", { ascending: true }).range(lo, hi));
     if (!error) for (const a of (data ?? []) as { rfq_id: string; applied_to_deal_at: string | null }[]) if (!a.applied_to_deal_at) awardsByRfq.set(a.rfq_id, (awardsByRfq.get(a.rfq_id) ?? 0) + 1);
   }
   // deal line per RFQ line (the line that asked): the item numbers an RFQ prices

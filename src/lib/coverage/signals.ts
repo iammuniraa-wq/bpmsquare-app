@@ -27,7 +27,8 @@ type Query = any;
 async function pageAll<T>(build: () => Query): Promise<T[]> {
   const all: T[] = [];
   for (let from = 0; ; from += PAGE) {
-    const { data, error } = await build().range(from, from + PAGE - 1);
+    // A stable order: without one, PostgREST may return rows in a different order per page and skip or repeat some.
+    const { data, error } = await build().order("id", { ascending: true }).range(from, from + PAGE - 1);
     if (error || !data || data.length === 0) break;
     all.push(...(data as T[]));
     if (data.length < PAGE) break;

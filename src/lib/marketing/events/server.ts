@@ -14,6 +14,7 @@ import {
   EVENT_STATUSES, canMove, resultsOf, sanitizeEvent, type EventKind, type EventSave, type EventStatus, type FollowUpOn, type RegistrationStatus, type Results,
 } from "./rules";
 
+import { readAllPages } from "@/lib/pagedRead";
 // Marketing events: the signed-in side. Events use the SESSION client (the 0195 policy is the real backstop) and every
 // query also names the tenant; registrations are select-only to members (0196), so they are written with the
 // service-role client after moduleAccess() -> requireTenantUser(), and every one of those queries names the tenant.
@@ -63,7 +64,7 @@ export async function listEvents(ctx: ModuleCtx, p: ListParams): Promise<{ rows:
   }
   const base = (data ?? []) as Omit<ListedEvent, "registered" | "attended">[];
   const regs = base.length
-    ? await ctx.supabase.from("event_registrations").select("event_id, status").eq("tenant_id", ctx.tenantId).in("event_id", base.map((r) => r.id)).limit(20000)
+    ? await readAllPages((lo, hi) => ctx.supabase.from("event_registrations").select("event_id, status").eq("tenant_id", ctx.tenantId).in("event_id", base.map((r) => r.id)).order("id", { ascending: true }).range(lo, hi))
     : { data: [] as { event_id: string; status: RegistrationStatus }[] };
   const tally = new Map<string, { registered: number; attended: number }>();
   for (const r of (regs.data ?? []) as { event_id: string; status: RegistrationStatus }[]) {
@@ -209,7 +210,7 @@ export async function listAttendees(ctx: ModuleCtx, eventId: string): Promise<{ 
 }
 
 export async function loadResults(ctx: ModuleCtx, event: Pick<EventRecord, "id" | "capacity">): Promise<Results> {
-  const { data } = await ctx.supabase.from("event_registrations").select("status").eq("tenant_id", ctx.tenantId).eq("event_id", event.id).limit(50000);
+  const { data } = await readAllPages((lo, hi) => ctx.supabase.from("event_registrations").select("status").eq("tenant_id", ctx.tenantId).eq("event_id", event.id).order("id", { ascending: true }).range(lo, hi));
   return resultsOf(((data ?? []) as { status: RegistrationStatus }[]).map((r) => r.status), event.capacity);
 }
 
@@ -250,7 +251,7 @@ export async function markRemainingNoShows(ctx: ModuleCtx, eventId: string, now:
   const ev = await loadEvent(ctx, eventId);
   if (!ev.data) throw { status: 404, message: "Event not found" };
   if (Date.parse(ev.data.starts_at) > now.getTime()) throw { status: 409, message: "The event has not started yet." };
-  const { data } = await ctx.admin.from("event_registrations").select("id, event_id, contact_id, account_id").eq("tenant_id", ctx.tenantId).eq("event_id", eventId).eq("status", "registered").limit(2000);
+  const { data } = await readAllPages((lo, hi) => ctx.admin.from("event_registrations").select("id, event_id, contact_id, account_id").eq("tenant_id", ctx.tenantId).eq("event_id", eventId).eq("status", "registered").order("id", { ascending: true }).range(lo, hi));
   const rows = (data ?? []) as { id: string; event_id: string; contact_id: string; account_id: string | null }[];
   const stamp = now.toISOString();
   let marked = 0;

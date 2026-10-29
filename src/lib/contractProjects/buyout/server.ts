@@ -14,6 +14,7 @@ import {
 } from "./rules";
 import { isMissingSchema } from "@/lib/tender/server";
 
+import { readAllPages } from "@/lib/pagedRead";
 // Server side of the Buy-out tab (migration 0234, docs/design/contract-buyout.md). Every query is tenant-scoped on the service-role client, every
 // id from a request is verified against the workspace AND the project before it is used, and every read tolerates the migration being pending
 // (a missing table or column reads as `pending`, never as a crash). The cost side only: nothing here is ever printed for a customer or exposed
@@ -86,7 +87,7 @@ const normalisePackage = (r: Record<string, unknown>): PackageDbRow => ({
 });
 
 export async function loadPackageRows(admin: SupabaseClient, tenantId: string, projectId: string): Promise<{ rows: PackageDbRow[]; pending: boolean }> {
-  const { data, error } = await admin.from("project_buyout_packages").select(PACKAGE_COLS).eq("tenant_id", tenantId).eq("project_id", projectId).order("created_at", { ascending: true }).limit(2000);
+  const { data, error } = await readAllPages((lo, hi) => admin.from("project_buyout_packages").select(PACKAGE_COLS).eq("tenant_id", tenantId).eq("project_id", projectId).order("created_at", { ascending: true }).order("id", { ascending: true }).range(lo, hi));
   if (error) return { rows: [], pending: isMissingSchema(error) };
   return { rows: ((data ?? []) as Record<string, unknown>[]).map(normalisePackage), pending: false };
 }
@@ -99,7 +100,7 @@ export async function loadPackageRow(admin: SupabaseClient, tenantId: string, pr
 }
 
 export async function loadPackageLines(admin: SupabaseClient, tenantId: string, projectId: string): Promise<PackageLineDb[]> {
-  const { data, error } = await admin.from("project_buyout_package_lines").select("id, package_id, budget_line_id, line_key, sort_order").eq("tenant_id", tenantId).eq("project_id", projectId).order("sort_order", { ascending: true }).limit(20000);
+  const { data, error } = await readAllPages((lo, hi) => admin.from("project_buyout_package_lines").select("id, package_id, budget_line_id, line_key, sort_order").eq("tenant_id", tenantId).eq("project_id", projectId).order("sort_order", { ascending: true }).order("id", { ascending: true }).range(lo, hi));
   if (error) return [];
   return ((data ?? []) as PackageLineDb[]).map((l) => ({ ...l, sort_order: Number(l.sort_order ?? 0) }));
 }
@@ -148,7 +149,7 @@ export async function loadRounds(admin: SupabaseClient, tenantId: string, packag
   if (packageIds.length === 0) return out;
   const heads: RoundData["head"][] = [];
   for (const part of chunks(packageIds, 100)) {
-    const { data, error } = await admin.from("rfqs").select("id, ref, status, package_id, respond_by, created_at, requested_by").eq("tenant_id", tenantId).in("package_id", part).order("created_at", { ascending: true }).limit(2000);
+    const { data, error } = await readAllPages((lo, hi) => admin.from("rfqs").select("id, ref, status, package_id, respond_by, created_at, requested_by").eq("tenant_id", tenantId).in("package_id", part).order("created_at", { ascending: true }).order("id", { ascending: true }).range(lo, hi));
     if (error) return out;
     heads.push(...((data ?? []) as RoundData["head"][]));
   }
@@ -158,8 +159,8 @@ export async function loadRounds(admin: SupabaseClient, tenantId: string, packag
   const sups: (RoundData["suppliers"][number] & { rfq_id: string })[] = [];
   for (const part of chunks(ids, 100)) {
     const [l, s] = await Promise.all([
-      admin.from("rfq_lines").select("id, rfq_id, sl_no, qty, status, package_line_id, description, uom, awarded_unit_cost").eq("tenant_id", tenantId).in("rfq_id", part).limit(5000),
-      admin.from("rfq_suppliers").select("id, rfq_id, supplier_id, status, replied_at").eq("tenant_id", tenantId).in("rfq_id", part).limit(2000),
+      readAllPages((lo, hi) => admin.from("rfq_lines").select("id, rfq_id, sl_no, qty, status, package_line_id, description, uom, awarded_unit_cost").eq("tenant_id", tenantId).in("rfq_id", part).order("id", { ascending: true }).range(lo, hi)),
+      readAllPages((lo, hi) => admin.from("rfq_suppliers").select("id, rfq_id, supplier_id, status, replied_at").eq("tenant_id", tenantId).in("rfq_id", part).order("id", { ascending: true }).range(lo, hi)),
     ]);
     lines.push(...((l.data ?? []) as Record<string, unknown>[]).map((x) => ({ ...(x as unknown as RoundData["lines"][number] & { rfq_id: string }), qty: num(x.qty), awarded_unit_cost: num(x.awarded_unit_cost), sl_no: Number(x.sl_no ?? 0) })));
     sups.push(...((s.data ?? []) as unknown as (RoundData["suppliers"][number] & { rfq_id: string })[]));
@@ -167,8 +168,8 @@ export async function loadRounds(admin: SupabaseClient, tenantId: string, packag
   const live = sups.filter((s) => s.status !== "cancelled");
   const resp: (RoundData["responses"][number])[] = [];
   for (const part of chunks(live.map((s) => s.id), 100)) {
-    const { data } = await admin.from("rfq_responses").select("id, rfq_supplier_id, rfq_line_id, status, unit_price, fx_rate, currency, lead_time_days, moq, valid_until, note, submitted_at")
-      .eq("tenant_id", tenantId).in("rfq_supplier_id", part).limit(10000);
+    const { data } = await readAllPages((lo, hi) => admin.from("rfq_responses").select("id, rfq_supplier_id, rfq_line_id, status, unit_price, fx_rate, currency, lead_time_days, moq, valid_until, note, submitted_at")
+      .eq("tenant_id", tenantId).in("rfq_supplier_id", part).order("id", { ascending: true }).range(lo, hi));
     resp.push(...((data ?? []) as Record<string, unknown>[]).map((x) => ({ ...(x as unknown as RoundData["responses"][number]), unit_price: num(x.unit_price), fx_rate: num(x.fx_rate), moq: num(x.moq), lead_time_days: num(x.lead_time_days) })));
   }
   for (const h of heads) {

@@ -7,6 +7,7 @@ import { isSchemaPending } from "@/lib/marketing/pending";
 import { cleanRules } from "./rules";
 import type { SalesOrder, SalesOrderLine, SalesOrderType } from "./types";
 
+import { readAllPages } from "@/lib/pagedRead";
 // Shared plumbing of the /api/sales-orders* routes: the guard every route starts with, the "database update
 // pending" answer, and the few reads several routes repeat. Everything is tenant-scoped by the caller's tenantId.
 
@@ -72,7 +73,7 @@ export async function orderErpLinked(db: SupabaseClient, tenantId: string, order
 }
 
 export async function loadLines(db: SupabaseClient, tenantId: string, orderId: string): Promise<SalesOrderLine[]> {
-  const { data } = await db.from("sales_order_lines").select("*").eq("order_id", orderId).eq("tenant_id", tenantId).order("line_no");
+  const { data } = await readAllPages((lo, hi) => db.from("sales_order_lines").select("*").eq("order_id", orderId).eq("tenant_id", tenantId).order("line_no").order("id", { ascending: true }).range(lo, hi));
   return ((data ?? []) as SalesOrderLine[]).slice().sort((a, b) => a.line_no - b.line_no);
 }
 

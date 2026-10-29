@@ -13,6 +13,7 @@ import type { TenantFeatures } from "@/lib/constants";
 import type { Account, Segment } from "@/lib/types";
 import type { AbmProgram, AbmTargetAccount, AbmTier } from "./types";
 
+import { readAllPages } from "@/lib/pagedRead";
 // ABM server core (0180-0183, docs/abm-architecture.md).
 //
 // How tenant isolation holds here, concretely (MULTI_TENANT_GUARDRAILS.md):
@@ -155,7 +156,7 @@ export async function accountIdsForSegment(ctx: Pick<AbmCtx, "supabase" | "tenan
   const { data: seg } = await ctx.supabase.from("segments").select("*").eq("id", segmentId).eq("tenant_id", ctx.tenantId).maybeSingle();
   if (!seg) return [];
   const segment = seg as Segment;
-  const { data: rows } = await ctx.supabase.from("accounts").select("*").eq("tenant_id", ctx.tenantId).limit(5000);
+  const { data: rows } = await readAllPages((lo, hi) => ctx.supabase.from("accounts").select("*").eq("tenant_id", ctx.tenantId).order("id", { ascending: true }).range(lo, hi));
   const accounts = (rows ?? []) as Account[];
   const explicit = new Set(segment.account_ids ?? []);
   const filters = (segment.filters ?? []) as SegmentFilter[];
