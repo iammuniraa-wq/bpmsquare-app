@@ -15,6 +15,7 @@ export const BOQ_TABLE_TIPS = {
   cost: "Your internal cost per unit. It never reaches the priced BOQ, the answer sheet or a bid version.",
   product: "The catalog product this line is tied to, so supplier and BOM prices can find it. Link it in Match.",
   stale: "The price is older than your workspace's validity days. It is only used when you choose it knowingly.",
+  editCost: "A typed cost is saved as Manual and keeps the source it replaced. The rate becomes cost plus the markup.",
 } as const;
 
 export type BoqTableTipKey = keyof typeof BOQ_TABLE_TIPS;

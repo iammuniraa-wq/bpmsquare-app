@@ -15,7 +15,7 @@ import { isMissingSchema, loadTender, type TenderRow } from "../server";
 import { BOQ_LIMITS, detectColumns, detectLayout, extractLines, planColumns, sameLayout, type BoqLine, type ColumnMap, type ColumnPlan, type ParsedBoq, type SkippedRow } from "./parse";
 import { diffBoq, relinkPlan, type BoqDiff, type ExistingLine } from "./diff";
 import { defaultMarkupPct, isStale, pickAuto, priceValidityDays, rateFor, refuseCandidate, staleText, type Candidate, type PriceSource } from "./price";
-import { manualSourceRef } from "./table";
+import { manualCostPlan, manualSourceRef } from "./table";
 import { candidatesFor, loadPriceContext, type SourceLine } from "./sources";
 import { loadWorkbook, sheetNames, sheetToGrid } from "./workbook";
 import { buildAnswerSheet, writePricedWorkbook, type AnswerRow, type PricedRow } from "./write";
@@ -457,7 +457,7 @@ export async function candidatesForLine(r: BoqRequest, boqLineId: string): Promi
   return { ok: true, candidates, validity_days: validity, today };
 }
 
-export type PriceBody = { source: PriceSource; ref?: string | null; markup_pct?: number | null; accept_stale?: boolean; rate?: number | null };
+export type PriceBody = { source: PriceSource; ref?: string | null; markup_pct?: number | null; accept_stale?: boolean; rate?: number | null; cost?: number | null };
 
 const cleanMarkup = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? Math.max(0, Math.min(1000, v)) : 0);
 
@@ -472,7 +472,14 @@ export async function priceOneLine(r: BoqRequest, boqLineId: string, body: Price
   let rate: number;
   let fields: Record<string, unknown>;
 
-  if (body.source === "manual") {
+  if (body.source === "manual" && typeof body.cost === "number") {
+    // A hand-typed COST: the rate follows from it and the markup, and the source it replaced is kept in the reference like a typed rate.
+    if (!Number.isFinite(body.cost) || body.cost < 0 || body.cost > MAX_NUMERIC_12_2) return { ok: false, status: 422, error: "Enter a cost of 0 or more" };
+    const markup = typeof body.markup_pct === "number" ? cleanMarkup(body.markup_pct) : boq.markup_pct != null ? cleanMarkup(boq.markup_pct) : defaultMarkupPct(config);
+    const plan = manualCostPlan(body.cost, markup, boq, today);
+    if (plan.rate > MAX_NUMERIC_12_2) return { ok: false, status: 422, error: "That rate is too large" };
+    rate = plan.rate; fields = plan.fields;
+  } else if (body.source === "manual") {
     const v = typeof body.rate === "number" ? body.rate : Number.NaN;
     if (!Number.isFinite(v) || v < 0 || v > MAX_NUMERIC_12_2) return { ok: false, status: 422, error: "Enter a rate of 0 or more" };
     rate = round2(v);
@@ -501,7 +508,11 @@ export async function priceOneLine(r: BoqRequest, boqLineId: string, body: Price
   const user = await getAuthUser();
   await logChange(r.supabase, {
     tenantId, objectType: "opportunity_tenders", objectId: opp.id, objectLabel: `${opp.ref ?? ""} ${opp.title}`.trim(), action: "update", actorId: user?.id, actorEmail: user?.email,
-    changes: [{ field: `BOQ rate ${boq.item_no ?? `row ${boq.row_no}`}`, from: Number(line.rate), to: rate }, { field: "BOQ rate source", from: boq.price_source, to: fields.price_source }],
+    changes: [
+      { field: `BOQ rate ${boq.item_no ?? `row ${boq.row_no}`}`, from: Number(line.rate), to: rate },
+      { field: "BOQ rate source", from: boq.price_source, to: fields.price_source },
+      ...(typeof body.cost === "number" && body.source === "manual" ? [{ field: `BOQ cost ${boq.item_no ?? `row ${boq.row_no}`}`, from: boq.unit_cost, to: body.cost }] : []),
+    ],
   });
   return { ok: true, rate, amount };
 }

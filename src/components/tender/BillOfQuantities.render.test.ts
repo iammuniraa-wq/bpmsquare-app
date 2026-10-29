@@ -279,6 +279,18 @@ describe("the row panel", () => {
     expect(src).not.toMatch(/\/award|source: "supplier"/);
   });
 
+  it("offers Edit cost to an editor, saved as Manual (not to a view-only person)", () => {
+    const out = open();
+    expect(out).toContain('data-guide="boq.row.cost_edit"');
+    expect(out).toContain("Cost / unit");
+    expect(out).toContain("Save cost");
+    expect(out).toMatch(/<input[^>]*value="16"/);
+    for (const b of [...out.matchAll(/<button[^>]*data-guide="boq\.row\.save_cost"[^>]*>/g)].map((m) => m[0])) expect(b).toMatch(/min-height:44px/);
+    const view = open({ canEdit: false });
+    expect(view).not.toContain('data-guide="boq.row.cost_edit"');
+    expect(view).not.toContain("Save cost");
+  });
+
   it("a view-only person sees the values but cannot save", () => {
     const out = open({ canEdit: false });
     expect(out).toContain("Item A.1");

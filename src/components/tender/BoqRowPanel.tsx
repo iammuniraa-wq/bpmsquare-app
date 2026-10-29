@@ -52,6 +52,7 @@ export default function BoqRowPanel({ base, row, links, canEdit, markup, validit
   const [description, setDescription] = useState(row.description);
   const [qty, setQty] = useState(numText(row.qty));
   const [rate, setRate] = useState(row.priced ? numText(row.rate) : "");
+  const [cost, setCost] = useState(row.unit_cost != null ? numText(row.unit_cost) : "");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [cands, setCands] = useState<Cand[] | null>(initialCandidates ?? null);
@@ -92,6 +93,19 @@ export default function BoqRowPanel({ base, row, links, canEdit, markup, validit
       onNotice("Saved");
       onChanged();
       onClose();
+    } catch { setError("Network error. Try again."); } finally { setBusy(false); }
+  }
+
+  const costValid = cost.trim() !== "" && Number(cost) >= 0;
+  const costChanged = costValid && Number(cost) !== row.unit_cost;
+
+  async function saveCost() {
+    setError(""); onError("");
+    if (!costValid) { setError("Enter a cost of 0 or more"); return; }
+    setBusy(true);
+    try {
+      const ok = await call(`${base}/price`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ line: row.id, source: "manual", cost: Number(cost), markup_pct: markup }) });
+      if (ok) { onNotice("Cost saved"); onChanged(); onClose(); }
     } catch { setError("Network error. Try again."); } finally { setBusy(false); }
   }
 
@@ -146,6 +160,14 @@ export default function BoqRowPanel({ base, row, links, canEdit, markup, validit
             {row.stale && <div style={{ color: "var(--amberink)", fontWeight: 600 }}>{row.stale_text}{row.stale_accepted ? ", accepted knowingly" : ""}</div>}
           </div>
           {breakdown && <div style={small}>Cost {money(breakdown.cost)} + {breakdown.markup}% markup = rate {money(breakdown.rate)}</div>}
+          {canEdit && (
+            <div data-guide="boq.row.cost_edit" className="fg2" style={{ alignItems: "flex-end" }}>
+              <Field label="Cost / unit" info={BOQ_TABLE_TIPS.editCost}>
+                <Input type="number" min={0} step="0.01" inputMode="decimal" value={cost} onChange={(e) => setCost(e.target.value)} style={{ minHeight: 44 }} />
+              </Field>
+              <Button variant="secondary" loading={busy} disabled={!costChanged} onClick={() => void saveCost()} style={{ minHeight: 44 }} data-guide="boq.row.save_cost">Save cost</Button>
+            </div>
+          )}
           {mine.map((l) => (
             <div key={l.id} data-guide="boq.row.estimate" style={small}>
               Estimate <b style={{ color: c.ink }}>{l.estimate_ref ?? l.estimate_name}</b> · {l.output_label}

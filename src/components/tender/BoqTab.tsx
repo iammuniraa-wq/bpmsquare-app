@@ -22,6 +22,7 @@ import { reloadAfterSave } from "./refreshAfterSave";
 import type { EstimatesState } from "@/lib/tender/estimates/server";
 import type { OpportunityLine } from "@/lib/types";
 import DealLinesBoq from "./DealLinesBoq";
+import { useCards } from "./useCards";
 
 // The Bill of quantities of a tender deal (GCC tender deals, redesign 2026-10-27): ONE table, one row per line of the client's BOQ, that
 // replaces the old BOQ tab and the Lines tab. The client's item number is always shown. A row opens a side panel; awarding a supplier is
@@ -51,20 +52,6 @@ export function leftText(left: { item: string; reason: string }[] | undefined): 
   const list = left ?? [];
   const head = list.slice(0, 3).map((x) => `${x.item} ${x.reason}`).join("; ");
   return list.length > 3 ? `${head}; +${list.length - 3}` : head;
-}
-
-/** Phone layout (cards) under 900 px, table above. A prop fixes it, for a server render. */
-function useCards(fixed?: "table" | "cards"): boolean {
-  const [narrow, setNarrow] = useState(false);
-  useEffect(() => {
-    if (fixed) return;
-    const mq = window.matchMedia("(max-width: 900px)");
-    const on = () => setNarrow(mq.matches);
-    on();
-    mq.addEventListener("change", on);
-    return () => mq.removeEventListener("change", on);
-  }, [fixed]);
-  return fixed ? fixed === "cards" : narrow;
 }
 
 export default function BoqTab({ opportunityId, canEdit, onError, onNotice, onLinesChanged, onOpenCosting, initialData, initialEstimates, layout, initialOpenRow, dealLines, dealLinesVersion, filterRequest }: {

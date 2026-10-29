@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { DEFAULT_MARKUP_PCT, defaultMarkupPct, isStale, type PriceSource } from "./price";
 import {
-  PAGE_SIZE, activeRows, costBreakdown, estimateRefsOf, filterCounts, filterRows, isStaleRow, isUnpricedRow, itemLabel, manualSourceRef, pageOf, parseFilter, parseMarkup,
+  PAGE_SIZE, activeRows, costBreakdown, estimateRefsOf, filterCounts, filterRows, isStaleRow, isUnpricedRow, itemLabel, manualCostPlan, manualSourceRef, pageOf, parseFilter, parseMarkup,
   pricedPercent, rfqRefOf, rowChips, sourceView, type RowLike,
 } from "./table";
 
@@ -158,5 +158,19 @@ describe("totals, paging and the markup box", () => {
     expect(costBreakdown({ unit_cost: 100, markup_pct: 15, rate: 115 })).toEqual({ cost: 100, markup: 15, rate: 115 });
     expect(costBreakdown({ unit_cost: null, markup_pct: null, rate: 20 })).toBeNull();
     expect(costBreakdown({ unit_cost: 0, markup_pct: 10, rate: 20 })).toBeNull();
+  });
+});
+
+describe("a cost typed by hand (Edit cost in the row panel)", () => {
+  it("sets the cost, the markup and the Manual source, and the rate is cost plus markup", () => {
+    const p = manualCostPlan(22, 15, { price_source: null, price_source_ref: null }, "2026-10-29");
+    expect(p.rate).toBe(25.3);
+    expect(p.fields).toMatchObject({ price_source: "manual", unit_cost: 22, markup_pct: 15, price_as_of: "2026-10-29", stale_accepted: false, price_source_ref: null });
+  });
+
+  it("keeps the source it replaced, and a markup of 0 sells at cost", () => {
+    const p = manualCostPlan(100, 0, { price_source: "supplier", price_source_ref: "RFQ-0012 · Gulf Pipes" }, "2026-10-29");
+    expect(p.rate).toBe(100);
+    expect(p.fields.price_source_ref).toBe("was Supplier · RFQ-0012 · Gulf Pipes");
   });
 });

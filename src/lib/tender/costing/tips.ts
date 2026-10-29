@@ -17,6 +17,8 @@ export const COSTING_TIPS = {
   reason: "Say why you chose a price that is not the lowest valid one. It stays with the award and in the RFQ's history.",
   fx: "The supplier quoted in another currency. Type the rate to your currency so the comparison and the cost are in one currency.",
   awardedUnpriced: "These lines were awarded but their BOQ rows do not carry the price yet. Price them to write cost, markup and source.",
+  state: "Applied means BOQ rows carry this cost. Changed, re-price means the estimate moved after it priced them.",
+  age: "How long since the estimate changed or the RFQ was raised.",
   defaultMarkup: "The markup an award adds to a supplier's cost when you do not type another. Cost 100 with 15 percent gives a rate of 115.",
 } as const;
 

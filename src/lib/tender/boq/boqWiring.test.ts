@@ -133,9 +133,11 @@ describe("the BOQ routes", () => {
     expect(exportPart.replace(/\/\/[^\n]*|\/\*\*[\s\S]*?\*\//g, "")).not.toMatch(/unit_cost|markup/);
   });
 
-  it("a price is never taken from the request except a manual rate", () => {
+  it("a price is never taken from the request except a manual rate or a manual cost", () => {
     const route = read("src/app/api/opportunities/[id]/boq/price/route.ts");
-    expect(route).not.toMatch(/body\.price\b|body\.unit_cost|body\.cost\b/);
+    expect(route).not.toMatch(/body\.price\b|body\.unit_cost/);
+    // A typed cost is only honoured under the manual source, so a caller cannot label a number as a supplier's.
+    expect(read("src/lib/tender/boq/server.ts")).toMatch(/body\.source === "manual" && typeof body\.cost === "number"/);
     expect(read("src/lib/tender/boq/server.ts")).toMatch(/candidatesFor\(ctx, sourceLine\(\{ boq, line \}\)\)\.find\(\(c\) => c\.source === body\.source && c\.ref === \(body\.ref \?\? ""\)\)/);
   });
 
