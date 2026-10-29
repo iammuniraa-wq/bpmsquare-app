@@ -1,6 +1,6 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { loadMailbox, fetchNewMail, type FetchedMail, type Mailbox } from "@/lib/mail/mailbox";
+import { loadMailbox, fetchNewMail, imapErrorText, type FetchedMail, type Mailbox } from "@/lib/mail/mailbox";
 import { parseSubjectTag } from "@/lib/rfq/token";
 import { INBOX_LIMITS, type InboxChannel } from "./types";
 import { ingestInboxMail, type InboxMail } from "./ingest";
@@ -86,7 +86,7 @@ export async function pollInboxMailboxes(admin: SupabaseClient, opts: {
       }, { onConflict: "tenant_id,connector_id" });
       results.push({ tenantId: ch.tenant_id, channelId: ch.id, read: res.messages.length, stored });
     } catch (e) {
-      const msg = (e as Error).message?.slice(0, 500) ?? "poll failed";
+      const msg = imapErrorText(e) || "poll failed";
       await admin.from("inbox_mailbox_state").upsert({
         tenant_id: ch.tenant_id, connector_id: ch.connector_id, uid_validity: prev?.uid_validity ?? null, last_uid: Number(prev?.last_uid ?? 0), last_polled_at: stamp, last_error: msg,
       }, { onConflict: "tenant_id,connector_id" });
