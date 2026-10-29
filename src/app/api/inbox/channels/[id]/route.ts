@@ -40,6 +40,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     const { data, error } = await admin.from("inbox_channels").update(patch).eq("id", id).eq("tenant_id", tenantId).select("*").single();
     if (error || !data) {
       if (error?.code === "23505") return NextResponse.json({ error: "That mailbox already feeds another channel." }, { status: 409 });
+      if (/filter_(senders|subjects)/.test(error?.message ?? "")) return NextResponse.json({ error: "The sender and subject filter cannot be stored yet: the database update 0236 has not been run." }, { status: 409 });
       return NextResponse.json({ error: error?.message ?? "Could not save the channel." }, { status: 500 });
     }
     const after = data as Record<string, unknown>;

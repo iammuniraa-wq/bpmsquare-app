@@ -1,3 +1,4 @@
+import { parseFilterList } from "./rules";
 import { DEFAULT_ACTIONS, MAILBOX_CONNECTORS, type DefaultAction, type MailboxConnector } from "./types";
 
 // What a channel's settings form may send, checked in one place (pure, so the route and its tests share it). Anything not
@@ -13,6 +14,8 @@ export type ChannelValues = {
   reply_name?: string | null;
   connector_id?: MailboxConnector | null;
   active?: boolean;
+  filter_senders?: string[];
+  filter_subjects?: string[];
 };
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -60,5 +63,7 @@ export function parseChannelInput(raw: unknown, opts: { create: boolean }): { ok
     if (typeof b.active !== "boolean") return { ok: false, error: "active must be yes or no." };
     values.active = b.active;
   }
+  if (has("filter_senders")) values.filter_senders = parseFilterList(b.filter_senders);
+  if (has("filter_subjects")) values.filter_subjects = parseFilterList(b.filter_subjects);
   return { ok: true, values, rotate: b.rotate_alias === true };
 }

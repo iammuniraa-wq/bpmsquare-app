@@ -69,7 +69,8 @@ export async function inboxAccess(edit: boolean): Promise<InboxCtx> {
 
 // ── Channels ────────────────────────────────────────────────────────────────────────────────────────────────────────
 
-const CHANNEL_COLUMNS = "id, tenant_id, name, address_alias, connector_id, role_ids, default_action, default_template_id, reply_from, reply_name, active, last_received_at, created_at, updated_at";
+// "*" so a workspace that has not run migration 0236 yet (filter columns) still loads its channels.
+const CHANNEL_COLUMNS = "*";
 
 export function toChannel(r: Record<string, unknown>): InboxChannel {
   return {
@@ -80,6 +81,8 @@ export function toChannel(r: Record<string, unknown>): InboxChannel {
     default_template_id: (r.default_template_id as string | null) ?? null,
     reply_from: (r.reply_from as string | null) ?? null, reply_name: (r.reply_name as string | null) ?? null,
     active: r.active !== false,
+    filter_senders: Array.isArray(r.filter_senders) ? (r.filter_senders as string[]) : [],
+    filter_subjects: Array.isArray(r.filter_subjects) ? (r.filter_subjects as string[]) : [],
     created_at: r.created_at as string | undefined, updated_at: r.updated_at as string | undefined,
   };
 }

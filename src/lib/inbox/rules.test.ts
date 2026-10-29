@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  matchesChannelFilter, parseFilterList,
   ALIAS_PREFIX, addDays, askForDrawingReply, attachmentQuality, bodyFrom, canSeeChannel, channelAddress, cleanBody, expiryOnConversion,
   expiryOnReceipt, htmlToPlain, isAliasLocalPart, isExpired, medianFirstReplyMinutes, messageIdList, minutesWord, needsBetterDrawing,
   newAliasKey, normaliseMessageId, normaliseSubject, orderCreateTypes, parseAddress, parseAliasAddress, replyHeaders, replySubject,
@@ -288,5 +289,37 @@ describe("the name suggested for a new account", () => {
     const { suggestedAccountName } = await import("./rules");
     expect(suggestedAccountName({ name: "Sam Lee", address: "sam@x.example" }, "Hi,\nplease quote.\nSam")).toBe("Sam Lee");
     expect(suggestedAccountName({ name: null, address: "sam.lee@x.example" }, null)).toBe("Sam Lee");
+  });
+});
+
+
+describe("channel filter: only take in the mail you want", () => {
+  it("cleans a typed list: commas, semicolons and lines, lower case, no blanks or repeats", () => {
+    expect(parseFilterList(" Tender, RFQ;; tender \n @Ministry.gov.sa ")).toEqual(["tender", "rfq", "@ministry.gov.sa"]);
+    expect(parseFilterList(["A@B.com", "a@b.com", ""])).toEqual(["a@b.com"]);
+    expect(parseFilterList(null)).toEqual([]);
+    expect(parseFilterList(Array.from({ length: 30 }, (_, i) => `w${i}`))).toHaveLength(20);
+  });
+
+  it("takes everything when no filter is set", () => {
+    expect(matchesChannelFilter({}, "x@y.com", "Hello")).toBe(true);
+    expect(matchesChannelFilter({ senders: [], subjects: [] }, null, null)).toBe(true);
+  });
+
+  it("matches a full address, a domain and its sub-domains, case-insensitively", () => {
+    const f = { senders: ["buyer@client.com", "@ministry.gov.sa"] };
+    expect(matchesChannelFilter(f, "Buyer@Client.com", "x")).toBe(true);
+    expect(matchesChannelFilter(f, "Ali <ali@ministry.gov.sa>", "x")).toBe(true);
+    expect(matchesChannelFilter(f, "ali@tenders.ministry.gov.sa", "x")).toBe(true);
+    expect(matchesChannelFilter(f, "other@client.com", "x")).toBe(false);
+    expect(matchesChannelFilter(f, "a@notministry.gov.sa", "x")).toBe(false);
+    expect(matchesChannelFilter(f, null, "x")).toBe(false);
+  });
+
+  it("matches a word in the subject, and a sender OR a word is enough", () => {
+    const f = { senders: ["@ministry.gov.sa"], subjects: ["tender", "rfq"] };
+    expect(matchesChannelFilter(f, "a@b.com", "TEST Tender - Reservoir")).toBe(true);
+    expect(matchesChannelFilter(f, "a@ministry.gov.sa", "Hello")).toBe(true);
+    expect(matchesChannelFilter(f, "a@b.com", "Newsletter")).toBe(false);
   });
 });

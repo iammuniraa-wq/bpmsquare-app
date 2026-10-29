@@ -189,7 +189,7 @@ async function streamToBuffer(stream: NodeJS.ReadableStream, limit: number): Pro
  * inbox. Read-only: nothing is flagged, moved or deleted.
  */
 export async function fetchNewMail(mb: Mailbox, state: { uidValidity: bigint | null; lastUid: number }, opts: {
-  wanted: (subject: string, inReplyTo: string | null) => boolean;
+  wanted: (subject: string, inReplyTo: string | null, from: string | null) => boolean;
   maxMessages: number;
   maxAttachmentBytes: number;
   firstRunDays: number;
@@ -238,7 +238,7 @@ export async function fetchNewMail(mb: Mailbox, state: { uidValidity: bigint | n
           const headerText = msg.headers ? Buffer.from(msg.headers).toString("utf8") : "";
           const headers = parseHeaderBlock(headerText);
           const inReplyTo = /<[^>]+>/.exec(headers["in-reply-to"] ?? "")?.[0] ?? null;
-          if (!opts.wanted(subject, inReplyTo)) continue;
+          if (!opts.wanted(subject, inReplyTo, msg.envelope.from?.[0]?.address ?? null)) continue;
           if (messages.length >= opts.maxMessages) { lastUid = uid - 1; break; }
 
           const parts: { text?: string; html?: string; files: { part: string; filename: string; type: string; size: number }[] } = { files: [] };

@@ -439,3 +439,43 @@ export function minutesWord(min: number | null): string {
 export function orderCreateTypes<T extends string>(all: readonly T[], preferred: string | null | undefined): T[] {
   return preferred && (all as readonly string[]).includes(preferred) ? [preferred as T, ...all.filter((t) => t !== preferred)] : [...all];
 }
+
+
+// ── Channel filter: only take in the mail you want ───────────────────────────────────────────────────────────────
+
+/** "a@b.com, @c.org; tender" (or an array) to a clean list: lower case, no blanks or repeats, at most 20 entries of 120 characters. */
+export function parseFilterList(v: unknown): string[] {
+  const parts = Array.isArray(v) ? v.map(String) : typeof v === "string" ? v.split(/[,;\n]+/) : [];
+  const out: string[] = [];
+  for (const p of parts) {
+    const t = p.trim().toLowerCase().slice(0, 120);
+    if (t && !out.includes(t)) out.push(t);
+    if (out.length >= 20) break;
+  }
+  return out;
+}
+
+/**
+ * Does a mail pass a channel's filter? No filter at all = yes. Otherwise it passes when the sender matches one entry (a full
+ * address, or a domain written "@ministry.gov.sa" or "ministry.gov.sa", which also covers its sub-domains) OR the subject
+ * contains one of the words. Case does not matter.
+ */
+export function matchesChannelFilter(
+  filter: { senders?: readonly string[] | null; subjects?: readonly string[] | null },
+  from: string | null | undefined,
+  subject: string | null | undefined,
+): boolean {
+  const senders = filter.senders ?? [];
+  const subjects = filter.subjects ?? [];
+  if (senders.length === 0 && subjects.length === 0) return true;
+  const address = (parseAddress(from).address ?? "").toLowerCase();
+  const sender = address && senders.some((s) => {
+    const entry = s.toLowerCase();
+    if (entry.includes("@") && !entry.startsWith("@")) return address === entry;
+    const domain = entry.replace(/^@/, "");
+    return address.endsWith(`@${domain}`) || address.endsWith(`.${domain}`);
+  });
+  if (sender) return true;
+  const text = (subject ?? "").toLowerCase();
+  return subjects.some((w) => text.includes(w.toLowerCase()));
+}

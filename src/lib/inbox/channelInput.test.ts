@@ -48,3 +48,16 @@ describe("a channel form", () => {
     for (const b of [null, "x", 5, [], undefined]) expect(parseChannelInput(b, { create: true })).toEqual({ ok: false, error: "Bad request" });
   });
 });
+
+
+describe("channel filter input", () => {
+  it("accepts the sender and subject filters as typed text or lists and cleans them", () => {
+    const r = parseChannelInput({ filter_senders: "@Ministry.gov.sa, Buyer@x.com", filter_subjects: ["Tender", "rfq", "tender"] }, { create: false });
+    expect(r).toMatchObject({ ok: true, values: { filter_senders: ["@ministry.gov.sa", "buyer@x.com"], filter_subjects: ["tender", "rfq"] } });
+  });
+  it("leaves the filters alone when they are not sent, and empties them when sent blank", () => {
+    expect(parseChannelInput({ name: "A" }, { create: false })).toMatchObject({ ok: true, values: { name: "A" } });
+    const r = parseChannelInput({ filter_senders: "" }, { create: false });
+    expect(r.ok && r.values).toEqual({ filter_senders: [] });
+  });
+});
