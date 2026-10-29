@@ -141,6 +141,7 @@ function ConnectorTile({
       if (!res.ok) { setError(json.error ?? "Failed to connect"); return; }
       setEditing(false);
       setValues({});
+      setTestMsg(null);
       onChange();
     } finally {
       setSaving(false);
@@ -151,6 +152,7 @@ function ConnectorTile({
   async function disconnect() {
     if (!(await confirm({ title: `Disconnect ${def.name}?`, body: "Anything relying on it stops working straight away.", confirmLabel: "Disconnect", tone: "danger" }))) return;
     await fetch(`/api/connectors/${def.id}`, { method: "DELETE" });
+    setTestMsg(null);
     onChange();
   }
 
