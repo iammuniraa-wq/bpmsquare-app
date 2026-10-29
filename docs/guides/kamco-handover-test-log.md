@@ -27,3 +27,13 @@ Test records are prefixed TEST. Created in this pass: deal OPP-0025 "TEST Deal -
 - Approvers include sap.rashid@gmail.com, sap.rashid+kamco@gmail.com, sna2care@gmail.com. Keep Anas and Abdulkhader.
 - Display names: "Anas abc", "Ab Na" (not an admin). Fix in People.
 - TEST accounts, tenders, deals remain.
+
+
+## Dry run 2 (full flow from an email, 2026-10-29 evening)
+Email in Inbox (filtered) > Create Deal (OPP-0027) > bid decision proposed and approved > BOQ uploaded (12 lines) > RFQ-0005 sent via own mailbox > two replies entered > compare and award (Precast Arabia, 712,920) > BOQ priced 100% (819,858 with 15%) > bid version 1 submitted > Awarded > contract project CPR-0002 (budget 712,920, margin 13%). All passed.
+
+Fixed during the run: Gmail connector credentials (address kept in config), stale test message, mailbox reader skips unreadable messages and falls back to a date search, Read mail now button, sender/subject channel filter (migration 0236, bundle 44).
+
+Open gaps: Edit button for connector setup; draft RFQ with hand-keyed replies cannot be awarded; tender BOQ does not offer the email's own attachment; bid end date not read from the email; Team picker lists roles of modules not in the workspace; channel Create-offers suggests Quote first; approvers list includes owner test accounts; names "Anas abc", "Ab Na"; inbound address needs a platform domain; Gmail App Password may be unavailable on some accounts.
+
+Clean-up before handover: Email output back to business partners; self-approval off; delete TestKamco channel and the copied mail (cleanup SQL + Storage folder); delete the Google App Password; supplier test addresses (.example) removed; TEST deals/tenders/RFQs/accounts; fix variable name RESEND_SENDING_DOMAI in Vercel.

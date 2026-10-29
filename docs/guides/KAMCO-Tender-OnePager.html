@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>KAMCO: from tender email to contract project</title>
+<style>
+  @page { size: A4; margin: 0; }
+  :root { --ink:#142033; --muted:#566377; --line:#d9e0ea; --accent:#1f5fbf; --soft:#eef3fb; --warn:#fff6e6; --warnline:#f0c97a; }
+  * { box-sizing: border-box; }
+  body { margin:0; font: 9.1pt/1.36 "Segoe UI", Arial, sans-serif; color: var(--ink); }
+  .page { width:210mm; height:297mm; padding:11mm 12mm 9mm; overflow:hidden; }
+  header { display:flex; justify-content:space-between; align-items:flex-end; border-bottom:2px solid var(--accent); padding-bottom:5px; margin-bottom:7px; }
+  h1 { font-size:15pt; margin:0; letter-spacing:-.2px; }
+  header .sub { color:var(--muted); font-size:8.6pt; margin-top:1px; }
+  header .brand { font-weight:700; color:var(--accent); font-size:10.5pt; }
+  h2 { font-size:9.6pt; margin:8px 0 4px; color:var(--accent); text-transform:uppercase; letter-spacing:.5px; }
+  .flow { display:grid; grid-template-columns:repeat(4,1fr); gap:5px; }
+  .step { border:1px solid var(--line); border-radius:6px; padding:5px 6px; background:#fff; }
+  .step .t { display:block; font-size:9pt; margin-bottom:2px; }
+  .step .d { color:var(--muted); font-size:8.2pt; }
+  .step .d b { color:var(--ink); }
+  .step .n { display:inline-block; color:#fff !important; width:14px; height:14px; line-height:14px; text-align:center; border-radius:50%; background:var(--accent); color:#fff; font-size:7.6pt; margin-right:4px; }
+  table { width:100%; border-collapse:collapse; }
+  td, th { text-align:left; vertical-align:top; padding:4px 5px; border-bottom:1px solid var(--line); font-size:8.7pt; }
+  th { background:var(--soft); font-size:7.8pt; text-transform:uppercase; letter-spacing:.3px; }
+  td.k { width:27%; font-weight:600; }
+  .cols { display:grid; grid-template-columns:1.18fr 1fr; gap:9px; }
+  ul { margin:0; padding-left:13px; }
+  li { margin:0 0 2.5px; }
+  .warn { background:var(--warn); border:1px solid var(--warnline); border-radius:6px; padding:5px 7px; }
+  .warn li { margin-bottom:3px; }
+  code { background:var(--soft); padding:0 3px; border-radius:3px; font-size:7.9pt; }
+  footer { margin-top:6px; border-top:1px solid var(--line); padding-top:4px; color:var(--muted); font-size:7.8pt; display:flex; justify-content:space-between; }
+</style></head>
+<body><div class="page">
+<header>
+  <div><h1>From a tender email to a contract project</h1><div class="sub">KAMCO on BPMSquare: the daily flow, the one-time setup, and what to watch for</div></div>
+  <div class="brand">BPMSquare</div>
+</header>
+
+<h2>The daily flow</h2>
+<div class="flow">
+  <div class="step"><b class="t"><span class="n">1</span>Email arrives</b><div class="d">Inbox shows it. <b>Create from this email → Deal</b> makes the tender (you choose what an email becomes).</div></div>
+  <div class="step"><b class="t"><span class="n">2</span>Bid decision</b><div class="d"><b>Propose bid decision</b> (Go or No-go, with a reason). An approver approves; the tender moves to Estimating.</div></div>
+  <div class="step"><b class="t"><span class="n">3</span>Bill of quantities</b><div class="d"><b>Bill of quantities → Upload BOQ (.xlsx)</b>. Columns are read for you; check, then <b>Create the deal lines</b>.</div></div>
+  <div class="step"><b class="t"><span class="n">4</span>Ask suppliers</b><div class="d"><b>Costing → New RFQ</b>, pick suppliers, <b>Send</b>. Replies arrive by email or are keyed in with <b>Enter reply</b>.</div></div>
+  <div class="step"><b class="t"><span class="n">5</span>Compare and award</b><div class="d"><b>Costing → Compare and award</b>. Lowest valid price is marked; awarding another needs a reason. Cost + markup becomes the rate.</div></div>
+  <div class="step"><b class="t"><span class="n">6</span>Submit the bid</b><div class="d"><b>Bid tab</b> lists what is missing (unpriced lines, old prices, no approval). <b>Submit</b> saves version 1 and its total.</div></div>
+  <div class="step"><b class="t"><span class="n">7</span>Award</b><div class="d">Set stage <b>Awarded</b> → <b>Won → Create contract project</b>. Contract value, budget and planned margin come across.</div></div>
+  <div class="step"><b class="t"><span class="n">8</span>Run the project</b><div class="d">Budget, buy-out, variations, invoicing and handover live on the contract project.</div></div>
+</div>
+
+<div class="cols">
+<div>
+<h2>Set up once (Settings)</h2>
+<table>
+<tr><th>Setting</th><th>What to do</th></tr>
+<tr><td class="k">Connectors → Gmail or Mail server</td><td>Connect the <b>tenders mailbox</b>, then <b>Test connection</b>. Gmail needs an <b>App Password</b> (Google Account → Security → 2-Step Verification → App passwords); your normal password is refused. A company mailbox uses <b>Mail server</b> with its SMTP and IMAP details.</td></tr>
+<tr><td class="k">Inbox channels</td><td><b>New channel</b> on that mailbox. Fill <b>Only from these senders</b> and/or <b>Subject contains</b> (for example <code>tender, RFQ, BOQ</code>) so only tender mail is copied in. Leave Team empty.</td></tr>
+<tr><td class="k">RFQ → Mail channel</td><td>Choose <b>Your own mailbox</b> to send RFQs from your address and read replies back.</td></tr>
+<tr><td class="k">Tenders</td><td>Pick the <b>approvers</b>. Keep “Allow self-approval” off in daily use.</td></tr>
+<tr><td class="k">Email output</td><td><b>Send to business partners</b> for real use. “Specified address” redirects every email to one inbox: for testing only.</td></tr>
+<tr><td class="k">Suppliers</td><td>Give each supplier an <b>email address</b>. A supplier with none cannot be sent an RFQ.</td></tr>
+<tr><td class="k">People</td><td>Create a login from each employee (<b>Employees → Create login</b>). Everyone sets their own password at first sign-in.</td></tr>
+</table>
+</div>
+<div>
+<h2>Good to know</h2>
+<div class="warn"><ul>
+  <li><b>Use a dedicated mailbox</b> (tenders@…), not a personal inbox. A channel reads the whole mailbox; the filter limits what is kept.</li>
+  <li>Mail <b>from the mailbox’s own address</b> is ignored on purpose. Test from a different address.</li>
+  <li>The mailbox is read <b>every 5 minutes</b>. <b>Read mail now</b> on the channel does it at once.</li>
+  <li><b>An RFQ must be sent</b> (not Draft) before Compare and award appears on the tender.</li>
+  <li>The <b>BOQ is uploaded again</b> from the Bill of quantities tab, even if it came as an email attachment.</li>
+  <li>The <b>bid end date</b> is not read from the email text: set it on the tender.</li>
+  <li>Prices older than the validity window (Tenders settings) are flagged <b>stale</b>; reprice or ask again.</li>
+  <li>Platform emails (invites, approval notices) need the email key on the server: already set for KAMCO.</li>
+</ul></div>
+<h2>If something does not work</h2>
+<ul>
+  <li><b>Test connection fails:</b> read the message. “Application-specific password required” means a Google App Password is needed.</li>
+  <li><b>Channel shows an error:</b> open it; the line under Mailbox names the reason.</li>
+  <li><b>Email not in the Inbox:</b> check the filter words and sender, then <b>Read mail now</b>.</li>
+</ul>
+</div>
+</div>
+
+<footer><span>Help: sna2care@gmail.com</span><span>BPMSquare · KAMCO handover · October 2026</span></footer>
+</div></body></html>
