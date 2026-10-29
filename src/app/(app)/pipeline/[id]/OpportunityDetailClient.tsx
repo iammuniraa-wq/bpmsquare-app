@@ -9,7 +9,7 @@ import { formatMoney } from "@/lib/currency";
 import { useFeel } from "@/components/FeelProvider";
 import { ROUTES, LOSS_REASONS, LOSS_REASON_LABEL, type OpportunityStageDef } from "@/lib/constants";
 import type { Opportunity, OpportunityLine } from "@/lib/types";
-import { daysBetween, weightedValue, isClosedStage, outcomeForStage, OPPORTUNITY_SOURCES, OPPORTUNITY_SOURCE_LABEL, TEAM_ROLES, TEAM_ROLE_LABEL, type TeamRole } from "@/lib/sales/opportunity";
+import { daysBetween, isClosedStage, outcomeForStage, OPPORTUNITY_SOURCES, OPPORTUNITY_SOURCE_LABEL, TEAM_ROLES, TEAM_ROLE_LABEL, type TeamRole } from "@/lib/sales/opportunity";
 import type { LinkedQuote } from "@/lib/sales/opportunityServer";
 import { documentTotal } from "@/lib/sales/lineTotals";
 import { useUnsavedChangesGuard } from "@/lib/unsavedChanges";
@@ -426,7 +426,7 @@ export default function OpportunityDetailClient({ opp, accountName, contacts, in
           ),
         },
         ...(tenderFacts ?? [
-          { label: "Probability", value: <>{opp.probability ?? 0}%<div style={{ fontSize: 11, fontWeight: 400, color: c.hint }}>weighted {inr(weightedValue(Number(opp.amount || 0), opp.probability ?? 0))}</div></> },
+          { label: "Probability", value: <>{opp.probability ?? 0}%</> },
           { label: "Owner", value: <>{memberName(opp.owner_id)}<div style={{ fontSize: 11, fontWeight: 400, color: c.hint }}>{daysBetween(opp.stage_since, todayKey)}d in {stageDefNow?.label ?? opp.stage}</div></> },
         ]),
       ]}

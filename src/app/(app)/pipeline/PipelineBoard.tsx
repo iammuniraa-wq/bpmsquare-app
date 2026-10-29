@@ -11,7 +11,7 @@ import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
 import { Input, Select } from "@/components/ui/Input";
 import { ROUTES, LOSS_REASONS, LOSS_REASON_LABEL, type OpportunityStageDef } from "@/lib/constants";
-import { daysBetween, weightedValue, isClosedStage, outcomeForStage } from "@/lib/sales/opportunity";
+import { daysBetween, isClosedStage, outcomeForStage } from "@/lib/sales/opportunity";
 import type { OpportunityRow } from "@/lib/sales/opportunityServer";
 
 // The deals board (§4.5). Drag a card to another column to change its
@@ -59,7 +59,6 @@ export default function PipelineBoard({ rows, stages, members, accounts, todayKe
   const filtered = local.filter((r) => (!owner || r.owner_id === owner) && (!account || r.account_id === account));
   const openRows = filtered.filter((r) => r.outcome === "open");
   const totalOpen = openRows.reduce((s, r) => s + Number(r.amount || 0), 0);
-  const weighted = openRows.reduce((s, r) => s + weightedValue(Number(r.amount || 0), r.probability ?? 0), 0);
   const columns = stages.filter((s) => showClosed || !s.is_closed);
 
   async function moveTo(id: string, stage: string, extra: Record<string, unknown> = {}) {
@@ -115,7 +114,6 @@ export default function PipelineBoard({ rows, stages, members, accounts, todayKe
       <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 12 }}>
         <div style={{ display: "flex", gap: 14, fontSize: 12.5, color: c.muted }}>
           <span>Open <b style={{ color: c.ink }}>{money(totalOpen)}</b></span>
-          <span>Weighted <b style={{ color: c.ink }}>{money(weighted)}</b></span>
         </div>
         <span style={{ marginLeft: "auto" }} />
         <Select value={owner} onChange={(e) => setOwner(e.target.value)} aria-label="Owner" style={{ width: "auto" }}>
@@ -167,8 +165,8 @@ export default function PipelineBoard({ rows, stages, members, accounts, todayKe
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
               <tr style={{ background: c.panel2 }}>
-                {["Deal", "Account", "Stage", "Amount", "Prob.", "Weighted", "Owner", "Days", closeLabel].map((h, i) => (
-                  <th key={h} style={{ textAlign: i >= 3 && i <= 5 || i === 7 ? "right" : "left", padding: "8px 12px", fontSize: 11, color: c.hint, fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.4 }}>{h}</th>
+                {["Deal", "Account", "Stage", "Amount", "Prob.", "Owner", "Days", closeLabel].map((h, i) => (
+                  <th key={h} style={{ textAlign: i >= 3 && i <= 4 || i === 6 ? "right" : "left", padding: "8px 12px", fontSize: 11, color: c.hint, fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.4 }}>{h}</th>
                 ))}
               </tr>
             </thead>
@@ -183,7 +181,6 @@ export default function PipelineBoard({ rows, stages, members, accounts, todayKe
                     <td style={{ padding: "9px 12px", fontSize: 12.5 }}><span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><span style={{ width: 8, height: 8, borderRadius: 999, background: s?.color ?? c.line }} />{s?.label ?? r.stage}</span></td>
                     <td style={{ padding: "9px 12px", fontSize: 12.5, textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{money(Number(r.amount || 0))}</td>
                     <td style={{ padding: "9px 12px", fontSize: 12.5, textAlign: "right" }}>{r.probability ?? 0}%</td>
-                    <td style={{ padding: "9px 12px", fontSize: 12.5, textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{money(weightedValue(Number(r.amount || 0), r.probability ?? 0))}</td>
                     <td style={{ padding: "9px 12px", fontSize: 12.5, color: c.muted }}>{m?.name ?? m?.email ?? "—"}</td>
                     <td style={{ padding: "9px 12px", fontSize: 12.5, textAlign: "right", color: c.muted }}>{daysBetween(r.stage_since, todayKey)}</td>
                     <td style={{ padding: "9px 12px", fontSize: 12.5, color: c.muted }}>{fmtDate(r.expected_close)}</td>
