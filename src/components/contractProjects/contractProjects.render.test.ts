@@ -158,6 +158,11 @@ describe("Budget", () => {
   const props = { projectId: "p1", revision: { id: "r0", rev_no: 0, status: "draft" as const }, revisions: [{ id: "r0", rev_no: 0, status: "draft" as const }], lines, resources: view().resources, canEdit: true, projectClosed: false, currency: "SAR" };
   const out = strip(renderToString(createElement(BudgetGrid, props)));
 
+  it("opens with a one-line Budget header and its i", () => {
+    expect(out).toContain('<h2 class="bpm-t-section">Budget</h2>');
+    expect(out).toContain("About Budget");
+  });
+
   it("groups the lines by resource type with a subtotal each, and shows every line's amount", () => {
     expect(out).toContain("11 · Material · SAR 12,800.00");
     expect(out).toContain("31 · Man Power · SAR 10,000.00");
@@ -196,9 +201,13 @@ describe("Budget", () => {
   });
 
   it("committed and actual cost appear, read-only, only once the ERP has filled them", () => {
-    expect(out).not.toContain("Committed");
+    expect(out).not.toContain("Ordered");
+    expect(out).not.toContain("Spent");
     const withErp = strip(renderToString(createElement(BudgetGrid, { ...props, lines: [line({ committed: 5000, actual: 1200 })] })));
-    expect(withErp).toContain("Committed");
+    expect(withErp).toContain("Ordered");
+    expect(withErp).toContain("Spent");
+    expect(withErp).not.toContain("Committed");
+    expect(withErp).not.toContain(">Actual<");
     expect(withErp).toContain("5,000.00");
   });
 
@@ -277,6 +286,9 @@ describe("the record page", () => {
   const page = readFileSync(path.join(ROOT, "src/app/(app)/contract-projects/[id]/page.tsx"), "utf8");
   it("has the five tabs the design names, Activity carrying the Nova timeline", () => {
     for (const id of ['id: "overview"', 'id: "budget"', 'id: "revisions"', 'id: "handover"', 'id: "activity"']) expect(page).toContain(id);
+    // The ids stay (links keep working); only the words changed.
+    expect(page).toContain('id: "variations", label: "Client changes"');
+    expect(page).toContain('id: "invoicing", label: "Client billing"');
     expect(page).toContain('<RecordActivity objectType="contract_projects"');
   });
 });

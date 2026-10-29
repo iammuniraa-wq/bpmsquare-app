@@ -134,7 +134,7 @@ export default function CostingTab({ opportunityId, canEdit, onError, onNotice, 
       )}
 
       <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-        <span className="bpm-label-row"><h2 className="bpm-t-section">Estimates and RFQs</h2><InfoTip label="Costing">{COSTING_TIPS.tab}</InfoTip></span>
+        <span className="bpm-label-row"><h2 className="bpm-t-section">Cost sources</h2><InfoTip label="Costing">{COSTING_TIPS.tab}</InfoTip></span>
         <span style={{ marginLeft: "auto", display: "inline-flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
           {data.estimates_on && !data.pending_estimates && data.can_create_estimate && canEdit && (
             <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>

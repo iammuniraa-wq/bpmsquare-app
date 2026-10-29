@@ -45,14 +45,16 @@ const controls = (html: string) => [...html.matchAll(/<(?:button|a)\b[^>]*class=
 describe("the Buy-out tab", () => {
   const out = tab(data());
 
-  it("opens with the approved group, four tiles and what each says under its figure", () => {
+  it("opens with the approved group, three tiles and what each says under its figure", () => {
     expect(out).toContain('data-guide="buyout.group"');
     expect(out).toContain("Suppliers from:");
     expect(out).toContain("Red Sea approved vendors");
     expect(out).toContain('data-guide="buyout.kpis"');
-    for (const w of ["Budget in packages", "INR 924,670", "5 packages, 12 budget lines", "Committed", "INR 170,300", "18% of the budget, 2 awarded", "Best quotes vs budget", "+INR 1,030", "under budget where quotes are in", "Needs a decision", "1 ready to award, 1 waiting on replies"]) {
+    for (const w of ["Packages", "5 packages, 12 budget lines", "Ordered vs budget", "INR 170,300", "18% of INR 924,670, 2 awarded", "Needs decision", "1 ready to award, 1 waiting on replies"]) {
       expect(out, w).toContain(w);
     }
+    for (const gone of ["Budget in packages", "Best quotes vs budget", "Needs a decision"]) expect(out, gone).not.toContain(gone);
+    expect(out.match(/data-tone="/g)).toHaveLength(3);
     expect(out).toContain('data-tone="warn"');
     expect(out).toContain('data-tone="info"');
   });
@@ -76,7 +78,7 @@ describe("the Buy-out tab", () => {
 
   it("is one table: package with its lines, kind and ref, the figures, the status chip and the ePROMIS chip", () => {
     expect(out).toContain('data-guide="buyout.table"');
-    for (const h of ["Package", "Budget", "Best quote", "Committed", "Against budget", "Status", "ePROMIS"]) expect(out, h).toContain(`>${h}</th>`);
+    for (const h of ["Package", "Budget", "Best quote", "Ordered", "Against budget", "Status", "ePROMIS"]) expect(out, h).toContain(`>${h}</th>`);
     expect(out).toContain("HDPE pipe supply");
     expect(out).toContain("2 lines · Supplier · PKG-0002");
     expect(out).toContain("2 lines · Subcontract · PKG-0005");
@@ -101,7 +103,7 @@ describe("the Buy-out tab", () => {
   it("prints none of its explanations; they sit behind the i", () => {
     for (const tip of Object.values(BUYOUT_TIPS)) expect(out).not.toContain(tip);
     expect(out).toContain("About Approved suppliers");
-    expect(out).toContain("About Committed");
+    expect(out).toContain("About Ordered vs budget");
     expect(out).toContain("About Packages");
   });
 
@@ -231,7 +233,7 @@ describe("the package panel", () => {
 
   it("shows the budget against the best quote and the committed price, and warns (never blocks) when over", () => {
     expect(out).toContain('data-guide="buyout.bars"');
-    for (const w of ["Budget", "Best quote", "Committed", "INR 420,000", "INR 431,000"]) expect(out, w).toContain(w);
+    for (const w of ["Budget", "Best quote", "Ordered", "INR 420,000", "INR 431,000"]) expect(out, w).toContain(w);
     expect(out).toContain("The best quote is over the budget by INR 11,000. You can still award and hand over.");
     const under = panel({ initialDetail: detail({ budget_bars: { budget: 500000, best_quote: 431000, committed: null } }) });
     expect(under).not.toContain("is over the budget");
@@ -320,7 +322,7 @@ describe("awarding", () => {
 
   it("committed over the budget warns without blocking", () => {
     const out = panel({ row: row({ status: "awarded" }), initialDetail: awardedDetail() });
-    expect(out).toContain("Committed is over the budget by INR 18,500. You can still award and hand over.");
+    expect(out).toContain("Ordered is over the budget by INR 18,500. You can still award and hand over.");
   });
 
   it("the quote card marks lowest valid and the winner with words, not colour alone", () => {

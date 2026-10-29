@@ -63,6 +63,13 @@ describe("the Costing tab", () => {
     expect(out).toContain(">12<");
   });
 
+  it("names the list Cost sources, with an i", () => {
+    const out = tab(data());
+    expect(out).toContain(">Cost sources</h2>");
+    expect(out).toContain("About Costing");
+    expect(out).not.toContain("Estimates and RFQs");
+  });
+
   it("lists estimates and RFQs together, each with the rows it prices, its state, its total and its age", () => {
     const out = tab(data());
     expect(out).toContain("EST-0016 · Floor tiles");

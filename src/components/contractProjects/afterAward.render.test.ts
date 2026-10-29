@@ -59,6 +59,11 @@ describe("the Variations tab", () => {
   ];
   const out = vtab(vdata(rows));
 
+  it("has a one-line header named for the client, with an i", () => {
+    expect(out).toContain("Client change orders");
+    expect(out).toContain("About Client changes");
+  });
+
   it("opens with three tiles: approved variations, the revised contract value (with the original), and what waits", () => {
     expect(out).toContain('data-guide="cp.variations.kpis"');
     expect(out).toContain("Approved variations");
@@ -171,6 +176,11 @@ describe("the Invoicing tab", () => {
     milestone({ id: "m2", title: "Mobilisation", basis: "fixed", percent: null, fixed_amount: 10000, amount: 10000, status: "invoiced", display_status: "invoiced", invoice_id: "i2", invoice_ref: "INV-0002", invoice_status: "sent" }),
   ];
   const out = itab(mdata(rows));
+
+  it("has a one-line header named for the client, with an i", () => {
+    expect(out).toContain("Billing to the client");
+    expect(out).toContain("About Client billing");
+  });
 
   it("opens with three tiles: contracted, invoiced, still to invoice", () => {
     expect(out).toContain('data-guide="cp.invoicing.kpis"');

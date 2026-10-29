@@ -422,8 +422,35 @@ function VBarTriplet({ bars, height = 90 }: { bars: { label: string; value: numb
   );
 }
 
-function StatTile({ value, label, icon, href, tone }: { value: number | string; label: string; icon: React.ReactNode; href: string; tone?: PillarKey }) {
+function StatTile({ value, label, icon, href, tone, info }: { value: number | string; label: string; icon: React.ReactNode; href: string; tone?: PillarKey; info?: string }) {
   const modern = useUiTheme() !== "classic";
+  const labelStyle = { fontSize: 11, color: c.hint, marginTop: 5 } as const;
+  // An "i" cannot sit inside the link (a button in an anchor), so a tile with one keeps the label row outside it.
+  if (info) {
+    return (
+      <div style={{ display: "flex", flexDirection: "column", gap: 12, flex: 1, padding: "14px 16px", minWidth: 0 }}>
+        <Link href={href} style={{ textDecoration: "none", display: "flex", flexDirection: "column", gap: 12 }}>
+          <div style={{
+            width: 28, height: 28, borderRadius: modern ? 8 : 7,
+            background: tone ? pillar[tone].bg : (modern ? "var(--modern-accent-bg)" : ledger.accentSoft),
+            display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+          }}>
+            {icon}
+          </div>
+          <div style={{
+            ...(modern ? {} : serifNum),
+            fontSize: kpiNumFontSize(String(value)) + 2, fontWeight: modern ? 800 : 700,
+            color: tone ? pillar[tone].fg : (modern ? "var(--modern-accent)" : ledger.accent),
+            letterSpacing: modern ? "-0.01em" : undefined,
+            lineHeight: 1.15, whiteSpace: "nowrap",
+          }}>{value}</div>
+        </Link>
+        <div style={{ ...labelStyle, marginTop: -7, display: "flex", alignItems: "center", gap: 4 }}>
+          <span>{label}</span><InfoTip label={label}>{info}</InfoTip>
+        </div>
+      </div>
+    );
+  }
   return (
     <Link href={href} style={{ textDecoration: "none", display: "flex", flexDirection: "column", gap: 12, flex: 1, padding: "14px 16px", minWidth: 0 }}>
       <div style={{
@@ -441,7 +468,7 @@ function StatTile({ value, label, icon, href, tone }: { value: number | string; 
           letterSpacing: modern ? "-0.01em" : undefined,
           lineHeight: 1.15, whiteSpace: "nowrap",
         }}>{value}</div>
-        <div style={{ fontSize: 11, color: c.hint, marginTop: 5 }}>{label}</div>
+        <div style={labelStyle}>{label}</div>
       </div>
     </Link>
   );
@@ -643,7 +670,7 @@ export function renderWidget(id: AnalyticsMetricId, a: AnalyticsData, size: "com
     case "work_orders":     return <AnalyticsCard fill={fill} title="Work orders" href={ROUTES.workOrders}><StatTile tone={tone} value={a.totals.workOrders} label="Total work orders" icon={<Wrench size={14} color={iconColor} />} href={ROUTES.workOrders} /></AnalyticsCard>;
     case "contracts":       return <AnalyticsCard fill={fill} title="AMC contracts" href={ROUTES.amc}><div style={{ display: "flex" }}><StatTile tone={tone} value={a.contractStats.activeCount} label="Active" icon={<CalendarCheck size={14} color={iconColor} />} href={ROUTES.amc} /><StatTile tone={tone} value={inr(a.contractStats.totalValue)} label="Total value" icon={<CalendarCheck size={14} color={iconColor} />} href={ROUTES.amc} /></div></AnalyticsCard>;
     case "leads":           return <AnalyticsCard fill={fill} title="Leads" href={ROUTES.leads}><StatTile tone={tone} value={a.totals.leads} label="Total leads" icon={<Zap size={14} color={iconColor} />} href={ROUTES.leads} /></AnalyticsCard>;
-    case "pipeline_open_value": return <AnalyticsCard fill={fill} title="Pipeline" href={ROUTES.pipeline}><div style={{ display: "flex" }}><StatTile tone={tone} value={a.totals.openDeals} label="Open deals" icon={<Zap size={14} color={iconColor} />} href={ROUTES.pipeline} /><StatTile tone={tone} value={inr(a.totals.openDealValue)} label="Open value" icon={<Zap size={14} color={iconColor} />} href={ROUTES.pipeline} /><StatTile tone={tone} value={inr(a.totals.weightedDealValue)} label="Weighted" icon={<Zap size={14} color={iconColor} />} href={ROUTES.pipeline} /></div></AnalyticsCard>;
+    case "pipeline_open_value": return <AnalyticsCard fill={fill} title="Pipeline" href={ROUTES.pipeline}><div style={{ display: "flex" }}><StatTile tone={tone} value={a.totals.openDeals} label="Open deals" icon={<Zap size={14} color={iconColor} />} href={ROUTES.pipeline} /><StatTile tone={tone} value={inr(a.totals.openDealValue)} label="Open value" icon={<Zap size={14} color={iconColor} />} href={ROUTES.pipeline} /><StatTile tone={tone} value={inr(a.totals.weightedDealValue)} label="Weighted" info="Each open deal's value times its chance of winning, added up." icon={<Zap size={14} color={iconColor} />} href={ROUTES.pipeline} /></div></AnalyticsCard>;
     case "rfq_open":        return <AnalyticsCard fill={fill} title="RFQs" href={ROUTES.rfqs}><div style={{ display: "flex" }}><StatTile tone={tone} value={a.totals.openRfqs} label="Open" icon={<Zap size={14} color={iconColor} />} href={`${ROUTES.rfqs}?view=awaiting`} /><StatTile tone={tone} value={a.totals.rfqsToAward} label="Replies to award" icon={<Zap size={14} color={iconColor} />} href={`${ROUTES.rfqs}?view=to_award`} /></div></AnalyticsCard>;
     case "abm_targets_engaged": return <AnalyticsCard fill={fill} title="ABM" href={ROUTES.marketingAbm}><div style={{ display: "flex" }}><StatTile tone={tone} value={a.totals.abmEngaged} label={`Engaged of ${a.totals.abmTargets}`} icon={<Zap size={14} color={iconColor} />} href={ROUTES.marketingAbm} /></div></AnalyticsCard>;
     case "estimates_open":  return <AnalyticsCard fill={fill} title="Estimates" href={ROUTES.estimates}><div style={{ display: "flex" }}><StatTile tone={tone} value={a.totals.draftEstimates} label="Drafts" icon={<Zap size={14} color={iconColor} />} href={`${ROUTES.estimates}?status=draft`} /><StatTile tone={tone} value={a.totals.quotedEstimates} label="Quoted" icon={<Zap size={14} color={iconColor} />} href={`${ROUTES.estimates}?status=quoted`} /></div></AnalyticsCard>;

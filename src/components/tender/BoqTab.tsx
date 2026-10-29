@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { c } from "@/lib/theme";
 import Button from "@/components/ui/Button";
-import Field from "@/components/ui/Field";
 import { Input } from "@/components/ui/Input";
 import InfoTip from "@/components/ui/InfoTip";
 import Card from "@/components/ui/Card";
@@ -47,6 +46,13 @@ const fmtDate = (s: string | null) => (s ? new Date(s).toLocaleDateString("en-GB
 const FILTER_LABEL: Record<BoqFilter, string> = { all: "All", unpriced: "Unpriced", stale: "Stale" };
 const markupKey = (opportunityId: string) => `boq-markup:${opportunityId}`;
 
+/** The first three reasons a line was left unpriced, then "+k", for the notice after Price all. */
+export function leftText(left: { item: string; reason: string }[] | undefined): string {
+  const list = left ?? [];
+  const head = list.slice(0, 3).map((x) => `${x.item} ${x.reason}`).join("; ");
+  return list.length > 3 ? `${head}; +${list.length - 3}` : head;
+}
+
 /** Phone layout (cards) under 900 px, table above. A prop fixes it, for a server render. */
 function useCards(fixed?: "table" | "cards"): boolean {
   const [narrow, setNarrow] = useState(false);
@@ -89,7 +95,6 @@ export default function BoqTab({ opportunityId, canEdit, onError, onNotice, onLi
   const [openId, setOpenId] = useState<string | null>(initialOpenRow ?? null);
   const [markup, setMarkup] = useState(String(initialData?.default_markup_pct ?? DEFAULT_MARKUP_PCT));
   const [markupSet, setMarkupSet] = useState(false);
-  const [left, setLeft] = useState<{ id: string; item: string; reason: string }[] | null>(null);
   const cards = useCards(layout);
   const askedFilter = useRef(0);
   useEffect(() => {
@@ -145,8 +150,7 @@ export default function BoqTab({ opportunityId, canEdit, onError, onNotice, onLi
     const j = await res.json().catch(() => ({}));
     setBusy(false);
     if (!res.ok) { onError(j.error ?? "Could not price the lines"); return; }
-    setLeft(j.left_count > 0 ? j.left : null);
-    onNotice(`${j.priced} line${j.priced === 1 ? "" : "s"} priced${j.left_count ? `, ${j.left_count} left` : ""}`);
+    onNotice(`${j.priced} line${j.priced === 1 ? "" : "s"} priced${j.left_count ? `, ${j.left_count} left: ${leftText(j.left)}` : ""}`);
     changed();
   }
 
@@ -167,16 +171,22 @@ export default function BoqTab({ opportunityId, canEdit, onError, onNotice, onLi
 
   return (
     <div data-guide="boq.tab" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-      <div data-guide="boq.toolbar" style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "flex-end" }}>
+      <div data-guide="boq.toolbar" style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
         {canEdit && upload.button}
         {canEdit && hasBoq && (
           <>
-            <Field label="Markup on cost %" info={BOQ_TABLE_TIPS.markup} guide="boq.markup">
-              <Input type="number" min={0} step="0.5" inputMode="decimal" value={markup} onChange={(e) => changeMarkup(e.target.value)} style={{ width: 110, minHeight: 44 }} />
-            </Field>
+            <label data-guide="boq.markup" style={{ display: "inline-flex", alignItems: "center", gap: 6, minHeight: 44, fontSize: 13, color: c.ink }}>
+              Markup on cost
+              <Input type="number" min={0} step="0.5" inputMode="decimal" value={markup} onChange={(e) => changeMarkup(e.target.value)} style={{ width: 72, minHeight: 44 }} />
+              %
+              <InfoTip label="Markup">{BOQ_TABLE_TIPS.markup}</InfoTip>
+            </label>
             <Button variant="primary" loading={busy} disabled={total.unpriced === 0} onClick={() => void priceAll()} style={{ minHeight: 44 }} data-guide="boq.price_all">Price all lines</Button>
             <InfoTip label="Price all">{TENDER_TIPS.boqPriceAll}</InfoTip>
           </>
+        )}
+        {canEdit && hasBoq && (
+          <span data-guide="boq.price_all_note" style={{ marginLeft: "auto", fontSize: 12, color: c.muted }}>Price all uses supplier, then BOM, then past project. Fresh prices only.</span>
         )}
       </div>
       {upload.panel}
@@ -200,19 +210,11 @@ export default function BoqTab({ opportunityId, canEdit, onError, onNotice, onLi
         <>
           <StatStrip guide="boq.summary">
             <StatTile tone="context" label="Lines" value={String(total.lines)} sub={data.source ? `${data.source.file_name} · v${data.source.version}` : undefined} />
-            <StatTile tone={total.unpriced > 0 ? "warn" : "good"} label="Priced" value={`${pct}%`} sub={total.unpriced > 0 ? `${total.priced} of ${total.lines}, ${total.unpriced} to price` : "all lines priced"} />
+            <StatTile tone={total.unpriced > 0 ? "warn" : "good"} label="Priced" value={`${pct}%`} info={BOQ_TABLE_TIPS.priced} sub={total.unpriced > 0 ? `${total.priced} of ${total.lines} · ${total.unpriced} to price` : "all lines priced"} />
             <StatTile tone="info" label="Total" info={BOQ_TABLE_TIPS.total} value={formatMoney(total.amount, cur, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} sub="at cost + markup" />
           </StatStrip>
 
           <BoqMatch base={base} count={total.no_product ?? 0} canEdit={canEdit} onError={onError} onNotice={onNotice} onChanged={changed} />
-
-          {left && (
-            <div role="status" data-guide="boq.left" style={{ fontSize: 12.5, color: "var(--amberink)", display: "flex", flexDirection: "column", gap: 2 }}>
-              <b>Left unpriced</b>
-              {left.slice(0, 20).map((x) => <div key={x.id}>{x.item}: {x.reason}</div>)}
-              {left.length > 20 && <div>…and {left.length - 20} more</div>}
-            </div>
-          )}
 
           <div data-guide="boq.filters" role="group" aria-label="Filter the rows" style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center" }}>
             {BOQ_FILTERS.map((f) => (

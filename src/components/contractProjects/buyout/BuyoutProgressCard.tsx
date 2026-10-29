@@ -35,10 +35,10 @@ export default function BuyoutProgressCard({ projectId, currency, initial }: { p
               <b>{awarded}</b> of {packages.length} package{packages.length === 1 ? "" : "s"} awarded{handed > 0 ? `, ${handed} handed over` : ""}
             </div>
             <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5, color: c.muted }}>
-              <span>Committed</span>
+              <span>Ordered</span>
               <span style={{ fontVariantNumeric: "tabular-nums", color: c.ink }}>{money(tiles.committed, currency)} of {money(tiles.budget, currency)}</span>
             </div>
-            <div role="img" aria-label={`Committed ${money(tiles.committed, currency)} of ${money(tiles.budget, currency)}`} style={{ height: 12, borderRadius: 6, background: c.panel2, overflow: "hidden" }}>
+            <div role="img" aria-label={`Ordered ${money(tiles.committed, currency)} of ${money(tiles.budget, currency)}`} style={{ height: 12, borderRadius: 6, background: c.panel2, overflow: "hidden" }}>
               <div style={{ width: `${pct}%`, height: "100%", background: over > 0 ? pillar.amber.base : pillar.teal.base }} />
             </div>
             {over > 0 && <div role="status" data-guide="cp.buyout.over" style={{ fontSize: 12.5, color: "var(--amberink)" }}>Over the budget by {money(over, currency)}.</div>}

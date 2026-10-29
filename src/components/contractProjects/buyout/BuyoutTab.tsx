@@ -66,10 +66,9 @@ export default function BuyoutTab({ projectId, data: fromServer, currency, canEd
       </div>
 
       <StatStrip guide="buyout.kpis">
-        <StatTile tone="neutral" label="Budget in packages" info={BUYOUT_TIPS.budget} value={money(t.budget, currency)} sub={subs.budget} />
-        <StatTile tone={subs.committedTone} label="Committed" info={BUYOUT_TIPS.committed} value={money(t.committed, currency)} sub={subs.committed} />
-        <StatTile tone={subs.bestTone} label="Best quotes vs budget" info={BUYOUT_TIPS.bestVsBudget} value={subs.bestValue} sub={subs.best} />
-        <StatTile tone={t.needs_decision > 0 ? "warn" : "neutral"} label="Needs a decision" info={BUYOUT_TIPS.needsDecision} value={String(t.needs_decision)} sub={subs.decision} />
+        <StatTile tone="neutral" label="Packages" info={BUYOUT_TIPS.packagesTile} value={String(t.packages)} sub={subs.budget} />
+        <StatTile tone={subs.committedTone} label="Ordered vs budget" info={BUYOUT_TIPS.committed} value={money(t.committed, currency)} sub={subs.committed} />
+        <StatTile tone={t.needs_decision > 0 ? "warn" : "neutral"} label="Needs decision" info={BUYOUT_TIPS.needsDecision} value={String(t.needs_decision)} sub={subs.decision} />
       </StatStrip>
 
       <div data-guide="buyout.filters" role="group" aria-label="Filter packages" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -105,7 +104,7 @@ export default function BuyoutTab({ projectId, data: fromServer, currency, canEd
                 <thead>
                   <tr>
                     <th style={th}>Package</th>
-                    <th style={{ ...th, textAlign: "right" }}>Budget</th><th style={{ ...th, textAlign: "right" }}>Best quote</th><th style={{ ...th, textAlign: "right" }}>Committed</th><th style={{ ...th, textAlign: "right" }}>Against budget</th>
+                    <th style={{ ...th, textAlign: "right" }}>Budget</th><th style={{ ...th, textAlign: "right" }}>Best quote</th><th style={{ ...th, textAlign: "right" }}>Ordered</th><th style={{ ...th, textAlign: "right" }}>Against budget</th>
                     <th style={th}>Status</th><th style={th}>ePROMIS</th>
                   </tr>
                 </thead>
@@ -148,7 +147,7 @@ export default function BuyoutTab({ projectId, data: fromServer, currency, canEd
                     </span>
                     <CardRow label="Budget" value={money(p.budget, currency)} />
                     <CardRow label="Best quote" value={money(p.best_quote, currency)} />
-                    {p.committed != null && <CardRow label="Committed" value={money(p.committed, currency)} />}
+                    {p.committed != null && <CardRow label="Ordered" value={money(p.committed, currency)} />}
                     <CardRow label="Against budget" value={a.text} ink={toneInk[a.tone]} />
                   </button>
                 );

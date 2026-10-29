@@ -124,6 +124,6 @@ describe("on the Bill of quantities", () => {
 
   it("the chip does not change the Priced figure", () => {
     expect(render({ ...base.totals, no_product: 3 })).toContain("0%");
-    expect(render({ ...base.totals, no_product: 3 })).toContain("0 of 1, 1 to price");
+    expect(render({ ...base.totals, no_product: 3 })).toContain("0 of 1 · 1 to price");
   });
 });

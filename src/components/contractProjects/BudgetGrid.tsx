@@ -60,7 +60,7 @@ export default function BudgetGrid({ projectId, revision, revisions, lines, reso
   canEdit: boolean;
   projectClosed: boolean;
   currency: string | null;
-  /** The project came from a tender: a Committed column shows the awarded price of the Buy-out package each line is in. */
+  /** The project came from a tender: an Ordered column shows the awarded price of the Buy-out package each line is in. */
   buyoutOn?: boolean;
   /** Lets a server render (and its test) show the column. The page never passes it. */
   initialBuyout?: BuyoutData | null;
@@ -118,6 +118,7 @@ export default function BudgetGrid({ projectId, revision, revisions, lines, reso
 
   return (
     <div data-guide="cp.budget" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      <span className="bpm-label-row"><h2 className="bpm-t-section">Budget</h2><InfoTip label="Budget">{PROJECT_TIPS.budgetTab}</InfoTip></span>
       <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
         <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, color: c.muted }}>
           Revision
@@ -156,8 +157,8 @@ export default function BudgetGrid({ projectId, revision, revisions, lines, reso
                   <th style={head}><span style={{ display: "inline-flex", alignItems: "center", gap: 3 }}>Unit cost <InfoTip label="Unit cost">{PROJECT_TIPS.estimated}</InfoTip></span></th>
                   <th style={{ ...head, textAlign: "right" }}>Amount</th>
                   <th style={head}><span style={{ display: "inline-flex", alignItems: "center", gap: 3 }}>Reserve <InfoTip label="Reserve">{PROJECT_TIPS.reserve}</InfoTip></span></th>
-                  {showCommitted && <th data-guide="cp.budget.committed" style={{ ...head, textAlign: "right" }}><span style={{ display: "inline-flex", alignItems: "center", gap: 3 }}>Committed <InfoTip label="Committed">{PROJECT_TIPS.committed}</InfoTip></span></th>}
-                  {showErp && <th style={{ ...head, textAlign: "right" }}><span style={{ display: "inline-flex", alignItems: "center", gap: 3 }}>Actual <InfoTip label="Actual">{PROJECT_TIPS.actual}</InfoTip></span></th>}
+                  {showCommitted && <th data-guide="cp.budget.committed" style={{ ...head, textAlign: "right" }}><span style={{ display: "inline-flex", alignItems: "center", gap: 3 }}>Ordered <InfoTip label="Ordered">{PROJECT_TIPS.ordered}</InfoTip></span></th>}
+                  {showErp && <th style={{ ...head, textAlign: "right" }}><span style={{ display: "inline-flex", alignItems: "center", gap: 3 }}>Spent <InfoTip label="Spent">{PROJECT_TIPS.spent}</InfoTip></span></th>}
                   <th style={head}><span style={{ position: "absolute", left: -9999 }}>Remove</span></th>
                 </tr>
               </thead>

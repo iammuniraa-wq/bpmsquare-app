@@ -180,8 +180,8 @@ export default function PackagePanel({ projectId, row, currency, canEdit, groupN
               <div data-guide="buyout.bars" style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 <Bar label="Budget" amount={bars.budget} scale={bars.budget} color={c.hint} currency={currency} />
                 <Bar label="Best quote" amount={bars.best_quote} scale={bars.budget} color={pillar.blue.base} currency={currency} />
-                <Bar label="Committed" amount={bars.committed} scale={bars.budget} color={pillar.teal.base} currency={currency} />
-                {over > 0 && <div role="status" data-guide="buyout.over" style={{ fontSize: 12.5, color: "var(--amberink)" }}>{bars.committed != null ? "Committed" : "The best quote"} is over the budget by {money(over, currency)}. You can still award and hand over.</div>}
+                <Bar label="Ordered" amount={bars.committed} scale={bars.budget} color={pillar.teal.base} currency={currency} />
+                {over > 0 && <div role="status" data-guide="buyout.over" style={{ fontSize: 12.5, color: "var(--amberink)" }}>{bars.committed != null ? "Ordered" : "The best quote"} is over the budget by {money(over, currency)}. You can still award and hand over.</div>}
               </div>
             </SettingsSection>
 

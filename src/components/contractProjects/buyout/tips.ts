@@ -4,6 +4,7 @@
 export const BUYOUT_TIPS = {
   tab: "Decide who supplies each package, from the client's approved suppliers. The purchase order itself is raised in ePROMIS or your ERP.",
   group: "Only suppliers in this client's approved group can be asked. Without a group, every active supplier can be.",
+  packagesTile: "How many packages exist and how many budget lines they hold. A line sits in one package at most.",
   budget: "The budget of the lines you put into packages. A line sits in one package at most.",
   committed: "The awarded price of each awarded package. Where it is over the budget you are warned, not stopped.",
   bestVsBudget: "Best valid quote of each package that has replies, against its budget. Plus is under budget, minus is over.",

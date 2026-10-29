@@ -50,7 +50,7 @@ describe("tiles and the against-budget cell", () => {
   it("works the words under each tile from the rows", () => {
     const s = tileSubs(data(), "INR");
     expect(s.budget).toBe("5 packages, 12 budget lines");
-    expect(s.committed).toBe("18% of the budget, 2 awarded");
+    expect(s.committed).toBe("18% of INR 924,670, 2 awarded");
     expect(s.committedTone).toBe("info");
     expect(s.best).toBe("under budget where quotes are in");
     expect(s.bestTone).toBe("good");

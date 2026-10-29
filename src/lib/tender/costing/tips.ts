@@ -2,7 +2,7 @@
 // InfoTip limit: two sentences, 160 characters. The screens never print these as running text.
 
 export const COSTING_TIPS = {
-  tab: "Everything that gives your BOQ rows a cost: estimates you build and prices suppliers quote. Each line shows the rows it prices.",
+  tab: "Each BOQ row takes its cost from one source: an estimate you build or a price a supplier quoted. Each line shows the rows it prices.",
   rowsPriced: "BOQ rows that have a rate. A rate comes from an estimate, an awarded supplier price, a past project or the client's own rate.",
   needCost: "BOQ rows with no rate yet. Open them in the Bill of quantities, or ask suppliers and build an estimate here.",
   rfqsOut: "RFQs sent to suppliers that can still be answered or awarded.",

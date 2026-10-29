@@ -191,3 +191,11 @@ describe("the dark look is scoped to the dashboard", () => {
     expect(css).toContain("background-image:none !important");
   });
 });
+
+describe("the Weighted tile on the Pipeline card", () => {
+  it("explains itself behind an i, outside the link", () => {
+    const out = dash({ features: CRM, dashLayout: [{ id: "pipeline_open_value" }] });
+    expect(out).toContain("About Weighted");
+    expect(out).toMatch(/Weighted<\/span><button[^>]*aria-label="About Weighted"/);
+  });
+});

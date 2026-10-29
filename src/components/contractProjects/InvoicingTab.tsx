@@ -13,6 +13,7 @@ import { day, money } from "@/lib/contractProjects/format";
 import { MILESTONE_STATUS_LABEL, MILESTONE_TONE } from "@/lib/contractProjects/milestones";
 import type { MilestonesData, MilestoneView } from "@/lib/contractProjects/milestonesServer";
 import { PROJECT_TIPS } from "@/lib/contractProjects/tips";
+import InfoTip from "@/components/ui/InfoTip";
 import { taxBasisText, taxOn } from "@/lib/contractProjects/milestoneTax";
 import MilestonePanel from "./MilestonePanel";
 import { useReloaded } from "./useReloaded";
@@ -67,6 +68,8 @@ export default function InvoicingTab({ projectId, data: fromServer, projectClose
         <StatTile tone="good" label="Invoiced" value={money(t.invoiced, cur)} sub={t.paid > 0 ? `${money(t.paid, cur)} paid` : "none paid yet"} />
         <StatTile tone={t.toInvoice > 0 ? "warn" : "neutral"} label="Still to invoice" info={PROJECT_TIPS.stillToInvoice} value={money(t.toInvoice, cur)} sub={t.contracted > 0 ? `${Math.round((t.toInvoice / t.contracted) * 100)}% of the contract` : "no contract value"} />
       </StatStrip>
+
+      <span className="bpm-label-row"><h2 className="bpm-t-section">Billing to the client</h2><InfoTip label="Client billing">{PROJECT_TIPS.billing}</InfoTip></span>
 
       {t.warning && <div role="status" data-guide="cp.invoicing.warning" style={{ fontSize: 13, color: "var(--amberink)" }}>{t.warning}</div>}
       {error && <div role="alert" style={{ fontSize: 12.5, color: "var(--err-ink)" }}>{error}</div>}
