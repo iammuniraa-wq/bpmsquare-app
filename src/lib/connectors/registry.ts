@@ -27,7 +27,7 @@ export const CONNECTOR_CATALOG: ConnectorDef[] = [
   {
     id: "slack",
     name: "Slack",
-    description: "Post BPMSquare notifications to a Slack channel via an Incoming Webhook.",
+    description: "Connect a Slack Incoming Webhook and test the connection. Nothing is posted to Slack yet.",
     icon: "⇄",
     authType: "api_key",
     fields: [
@@ -38,7 +38,7 @@ export const CONNECTOR_CATALOG: ConnectorDef[] = [
   {
     id: "google_calendar",
     name: "Google Calendar",
-    description: "Read upcoming events from a calendar's private iCal feed — Calendar settings → \"Integrate calendar\" → \"Secret address in iCal format.\"",
+    description: "Connect a calendar's private iCal address (Calendar settings → \"Integrate calendar\" → \"Secret address in iCal format\") and test the connection. Events are not read yet.",
     icon: "⇄",
     authType: "api_key",
     fields: [
@@ -79,7 +79,7 @@ export const CONNECTOR_CATALOG: ConnectorDef[] = [
     id: "dynamics365",
     name: "Microsoft Dynamics 365",
     shortName: "Dynamics 365",
-    description: "Bring customers, contacts, vendors, products and projects in from Dynamics 365 Finance & Operations, Dataverse (Sales, Field Service, Project Operations) or Business Central — and send won fence projects back as projects. Sign in with an app secret, a certificate, a user account, or (Business Central on-premises) a username and password.",
+    description: "Bring customers, contacts, vendors, products and projects in from Dynamics 365 Finance & Operations, Dataverse (Sales, Field Service, Project Operations) or Business Central — and send awarded Standard Quotes back as projects. Sign in with an app secret, a certificate, a user account, or (Business Central on-premises) a username and password.",
     icon: "⇄",
     authType: "api_key",
     fields: [],

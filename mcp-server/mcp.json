@@ -1,11 +1,11 @@
 {
   "name": "bpmsquare",
-  "version": "1.17.0",
-  "description": "BPMSquare MCP server — field service CRM for electromechanical repair businesses. Generic across every tenant; nothing here is Vikas/Hosapete-specific.",
+  "version": "1.18.0",
+  "description": "BPMSquare MCP server — read access to a workspace's business data (accounts, contacts, quotations, cases, invoices, inventory and more) through the BPMSquare REST API. Generic across every tenant; nothing here is specific to one workspace.",
   "api_base": "https://<your-tenant-domain>/api/v1",
   "auth": {
     "type": "bearer",
-    "description": "A per-tenant API key, generated in Settings → Admin → this tenant (not a shared/global key). Send as: Authorization: Bearer <tenant API key>."
+    "description": "A per-tenant API key, generated in Settings → API keys & developer (not a shared/global key). Send as: Authorization: Bearer <tenant API key>."
   },
   "tools": [
     {

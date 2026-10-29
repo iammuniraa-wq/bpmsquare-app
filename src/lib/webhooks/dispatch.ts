@@ -3,6 +3,7 @@ import { createHmac } from "crypto";
 import type { createAdminSupabase } from "@/lib/supabase-server";
 import { fetchPublic } from "@/lib/net/safeHost";
 import { unsealSecret } from "@/lib/encryption";
+import { applyChangeTypeFilter, CHANGE_EVENT_COLUMNS, shapeChangeEvent, webhookTypeFilter, type ChangeLogEventRow } from "@/lib/api/changeFeedScope";
 
 type Admin = ReturnType<typeof createAdminSupabase>;
 
@@ -24,18 +25,6 @@ export type WebhookRow = {
   cursor_id: string | null;
   failure_count: number;
 };
-
-type ChangeLogRow = {
-  id: string; object_type: string; object_id: string; object_label: string | null;
-  action: string; changes: unknown; actor_email: string | null; created_at: string;
-};
-
-function mapEvent(r: ChangeLogRow) {
-  return {
-    id: r.id, object_type: r.object_type, object_id: r.object_id, object_label: r.object_label,
-    action: r.action, changes: r.changes, actor: r.actor_email ?? null, at: r.created_at,
-  };
-}
 
 /** Sign and POST a JSON payload; HMAC-SHA256 over the raw body, same scheme as the on-demand push. */
 export async function postSigned(url: string, secret: string, payload: unknown, deliveryId: string): Promise<{ status: number | null; ok: boolean; error?: string; ms: number }> {
@@ -70,14 +59,15 @@ export async function postSigned(url: string, secret: string, payload: unknown, 
 export async function deliverWebhook(admin: Admin, wh: WebhookRow): Promise<{ delivered: number; ok: boolean; skipped?: boolean }> {
   let q = admin
     .from("change_log")
-    .select("id, object_type, object_id, object_label, action, changes, actor_email, created_at")
+    .select(CHANGE_EVENT_COLUMNS)
     .eq("tenant_id", wh.tenant_id)
     .order("created_at", { ascending: true })
     .order("id", { ascending: true })
     .limit(BATCH);
 
-  const types = Array.isArray(wh.object_types) ? wh.object_types : ["*"];
-  if (!types.includes("*") && types.length) q = q.in("object_type", types);
+  // "All objects" never carries the explicit-grant-only objects (employees, contacts, RFQs ...); a webhook
+  // gets them only by naming them -- the same rule as an API key, from the same module as /api/v1/changes.
+  q = applyChangeTypeFilter(q, webhookTypeFilter(wh.object_types));
 
   if (wh.cursor_ts && wh.cursor_id) {
     q = q.or(`created_at.gt.${wh.cursor_ts},and(created_at.eq.${wh.cursor_ts},id.gt.${wh.cursor_id})`);
@@ -86,14 +76,14 @@ export async function deliverWebhook(admin: Admin, wh: WebhookRow): Promise<{ de
   const { data, error } = await q;
   if (error) return { delivered: 0, ok: false };
 
-  const rows = (data ?? []) as ChangeLogRow[];
+  const rows = (data ?? []) as unknown as ChangeLogEventRow[];
   if (rows.length === 0) return { delivered: 0, ok: true, skipped: true };
 
   const deliveryId = crypto.randomUUID();
   const payload = {
     delivery_id: deliveryId,
     sent_at: new Date().toISOString(),
-    events: rows.map(mapEvent),
+    events: rows.map(shapeChangeEvent),
   };
 
   // The secret may be sealed (webhooks created or edited in the library) or legacy plaintext; unsealSecret reads both.

@@ -27,7 +27,7 @@ export const MIDDLEWARE_TIPS = {
 
   // Links
   links: "Each row links a BPMSquare object with one in your ERP. A quote goes to the ERP when it is awarded; a rejected quote never leaves.",
-  linksSap: "Each row brings records from SAP into BPMSquare. Nothing is sent to SAP yet.",
+  linksSap: "Each row brings records from SAP into BPMSquare. Sales Orders can also be checked with SAP and sent to it, from the order.",
   createAs: "What the quote becomes in your ERP. A choice that is greyed out is not ready for your ERP yet.",
   whichWebhook: "The webhook from Settings > Webhooks that receives the quote when it is awarded. It is sent once, like any other link.",
   include: "What travels with the quote. A greyed item cannot be sent to the chosen target.",

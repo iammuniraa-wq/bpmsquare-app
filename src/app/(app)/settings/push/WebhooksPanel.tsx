@@ -107,7 +107,7 @@ export default function WebhooksPanel() {
         {!creating && <button onClick={() => setCreating(true)} style={btn}>+ New webhook</button>}
       </div>
       <div className="bpm-t-help" style={{ marginBottom: 10 }}>
-        Push every create/update/delete to your endpoint as it happens, signed with HMAC-SHA256 (header <code style={{ fontFamily: "monospace" }}>X-BPMSquare-Signature</code>). Only events after registration are delivered.
+        Push every create/update/delete to your endpoint in batches on a schedule, signed with HMAC-SHA256 (header <code style={{ fontFamily: "monospace" }}>X-BPMSquare-Signature</code>). Only events after registration are delivered.
       </div>
 
       {error && <div style={{ fontSize: 11.5, color: "var(--err-ink)", marginBottom: 8 }}>{error}</div>}
