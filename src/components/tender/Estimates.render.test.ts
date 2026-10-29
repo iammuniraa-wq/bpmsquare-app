@@ -23,6 +23,8 @@ import { LineEstimates } from "./BoqEstimates";
 import { AllocatePanel, EstimateAttention } from "./BoqEstimatePanels";
 import TenderEstimateStrip from "./TenderEstimateStrip";
 import BoqTab, { type BoqScreenState } from "./BoqTab";
+import QuoteActions from "@/components/estimator/workspace/QuoteActions";
+import { quoteAbility } from "@/app/(app)/estimates/quoteAbility";
 
 const ROOT = path.resolve(__dirname, "../../..");
 const read = (p: string) => readFileSync(path.join(ROOT, p), "utf8");
@@ -270,11 +272,18 @@ describe("the strip on an estimate made for a tender", () => {
   });
   const html = (c: EstimateTenderContext, canEdit = true) => clean(renderToString(createElement(TenderEstimateStrip, { ctx: c, estimateId: EST, canEdit })));
 
-  it("says which tender the estimate is for and links back to it", () => {
+  it("says which tender the estimate is for and links back to where the person came from, never to the old Estimates tab", () => {
     const out = html(ctx());
     expect(out).toContain("Tender: OPP-0011");
-    expect(out).toContain(`href="/pipeline/${OPP}?tab=estimates"`);
-    expect(out).toContain("Back to the tender");
+    expect(out).toContain(`href="/pipeline/${OPP}?tab=costing"`);
+    expect(out).toContain("Back to Costing");
+    expect(out).not.toContain("tab=estimates");
+  });
+
+  it("an estimate that prices one BOQ line leads back to that line, which opens in its panel", () => {
+    const out = html(ctx({ links: [{ link_id: "l1", boq_id: "b1", item_no: "1.1", item: "1.1 Floor tiles", qty: 120, uom: "m2", waiting: false, stale: false, needs_review: false, review_note: null, output_label: "Whole estimate" }] }));
+    expect(out).toContain("Back to BOQ line 1.1");
+    expect(out).toContain(`href="/pipeline/${OPP}?tab=boq&amp;row=b1"`);
   });
 
   it("a build waiting to be used offers to price the line, an estimate that moved on offers to re-price, an award leaves its note", () => {
@@ -284,7 +293,10 @@ describe("the strip on an estimate made for a tender", () => {
       { link_id: "l3", boq_id: "b3", item: "1.5 Valves", qty: 4, uom: "no", waiting: false, stale: false, needs_review: true, review_note: "RFQ-0004 was awarded to Gulf Pipes", output_label: "Line" },
     ] }));
     expect(out).toContain("Built for BOQ item 1.3 HDPE pipe · 120 m");
-    expect(out).toContain("Price the line from this estimate");
+    expect(out).toContain("Apply to BOQ line 1.3");
+    expect(out).not.toContain("Price the line from this estimate");
+    expect(out).toContain("Apply again to BOQ");
+    expect(out).toContain("Back to the BOQ");
     expect(out).toContain("Estimate changed, re-price 1 BOQ line");
     expect(out).toContain("RFQ-0004 was awarded to Gulf Pipes");
     expect(out).toContain(`href="/pipeline/${OPP}?tab=boq"`);
@@ -310,7 +322,7 @@ describe("the strip on an estimate made for a tender", () => {
     expect(out).toMatch(/<div role="alert" data-guide="tender.estimate.quantity"/);
     // The sentence is printed on the screen, not held in a tooltip, and the action is still the one standard button.
     expect(out).not.toContain(ESTIMATE_TIPS.tenderStrip + "The quantity");
-    expect(out).toContain("Price the line from this estimate");
+    expect(out).toContain("Apply to BOQ line 1.1");
   });
 
   it("shows both numbers when the estimate's own quantity is known and differs, on a waiting build-up and on a rate already in use", () => {
@@ -405,5 +417,41 @@ describe("what a screen never shows and where its words live", () => {
       const src = read(f).replace(/\/\/[^\n]*/g, "").replace(/\/\*[\s\S]*?\*\//g, "");
       expect(src, f).not.toMatch(/applied_cost:|unit_cost:|cost_per_unit:|rate:/);
     }
+  });
+});
+
+describe("Create quote and the email source on an estimate", () => {
+  const actions = (p: Record<string, unknown>) => clean(renderToString(createElement(QuoteActions, { quote: null, canQuote: true, quoteUnavailable: null, blocked: null, busy: null, isNew: false, error: "", onCreate: () => {}, onSaveDraft: () => {}, ...p } as never)));
+
+  it("an estimate made for a tender cannot be quoted: no Create quote, no quote words, and a standalone estimate keeps it", () => {
+    const tender = quoteAbility({} as never, { features: { standard_quotes: true } } as never, true, false, true);
+    expect(tender).toEqual({ canQuote: false, quoteUnavailable: null });
+    expect(actions({ canQuote: tender.canQuote, forTender: true })).toBe("");
+    expect(actions({ canQuote: true })).toContain("Create quote");
+    const off = quoteAbility({} as never, { features: { standard_quotes: false } } as never, true, false);
+    expect(off.quoteUnavailable).toContain("Standard Quotes isn't enabled");
+  });
+
+  it("a new estimate for a tender can still be saved as a draft, and an error stays visible", () => {
+    const out = actions({ canQuote: false, forTender: true, isNew: true });
+    expect(out).toContain("Save as draft");
+    expect(out).not.toContain("Create quote");
+    expect(actions({ canQuote: false, forTender: true, error: "Could not save" })).toContain("Could not save");
+  });
+
+  it("an estimate that already has a quote still links to it", () => {
+    expect(actions({ quote: { id: "q1", ref: "SQ-1", status: "draft" }, forTender: true })).toContain("Open quote SQ-1");
+  });
+
+  it("the email source is a closed section for a tender estimate or one with lines, and remembers its state", () => {
+    const src = read("src/components/estimator/workspace/EstimateWorkspace.tsx");
+    expect(src).toContain('id="source" title="Source: start from an email"');
+    expect(src).toMatch(/!p\.fromTender && !hasLines/);
+    expect(src).toContain("est.fold.source.");
+  });
+
+  it("the tender page opens the BOQ row the estimate came from", () => {
+    expect(read("src/app/(app)/pipeline/[id]/page.tsx")).toContain("initialOpenRow=");
+    expect(read("src/app/(app)/pipeline/[id]/OpportunityDetailClient.tsx")).toContain("initialOpenRow={initialOpenRow}");
   });
 });

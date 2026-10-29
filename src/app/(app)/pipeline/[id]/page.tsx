@@ -30,7 +30,7 @@ import { linesVersion } from "@/lib/sales/dealLines";
 import { rfqLineStatuses } from "@/lib/rfq/server";
 import { loadProjectBySource } from "@/lib/contractProjects/server";
 
-export default async function OpportunityDetailPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams?: Promise<{ tab?: string; boqfilter?: string }> }) {
+export default async function OpportunityDetailPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams?: Promise<{ tab?: string; boqfilter?: string; row?: string }> }) {
   await requireWorkcenterView("pipeline");
   await requireFeature("pipeline");
   const { id } = await params;
@@ -141,6 +141,7 @@ export default async function OpportunityDetailPage({ params, searchParams }: { 
       activity={<RecordActivity objectType="opportunities" objectId={id} extraChangeLogTypes={tender ? ["opportunity_tenders", "opportunity_competitors"] : undefined} isAdmin={role === "admin"} />}
       tender={tenderTab}
       initialTab={tenderTab ? wantedTab : undefined}
+      initialOpenRow={tenderTab && sp?.row && /^[0-9a-f-]{36}$/i.test(sp.row) ? sp.row : undefined}
       contractProject={contractProject}
       canStartContractProject={canStartProject}
       sourceEmail={tender ? <SourceEmailSlot objectType="opportunities" objectId={id} bare /> : undefined}

@@ -8,7 +8,10 @@ export function quoteAbility(
   tenant: Pick<Tenant, "features"> | null,
   canEdit: boolean,
   hasQuote: boolean,
+  /** The estimate belongs to a tender deal: it feeds the BOQ, it is never quoted from here. */
+  hasTender = false,
 ): { canQuote: boolean; quoteUnavailable: string | null } {
+  if (hasTender) return { canQuote: false, quoteUnavailable: null };
   const quotesOn = tenant?.features?.standard_quotes === true;
   const canQuote = canEdit && quotesOn && canCreateWorkcenter(perms, "standard_quotes");
   const quoteUnavailable = !quotesOn

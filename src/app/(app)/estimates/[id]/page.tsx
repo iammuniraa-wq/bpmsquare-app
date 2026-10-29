@@ -59,7 +59,6 @@ export default async function EstimatePage({
       ])
     : [{ data: [] }, { data: [] }];
   const [meta, tenant] = await Promise.all([loadTenantMeta(tenantId), getTenant()]);
-  const { canQuote, quoteUnavailable } = quoteAbility(perms, tenant, canEdit, !!quote);
   const lineProducts = await lineProductViews(supabase, tenantId, lines.map((l) => l.product_id), { canOpenProducts: canViewWorkcenter(perms, "products") });
   // GCC tender deals (slice 3c-1): an estimate made for a tender shows which tender it is for. A standard estimate asks nothing here.
   const tenderCtx = tenant?.features?.gcc_tender === true && canViewWorkcenter(perms, "pipeline")
@@ -67,6 +66,7 @@ export default async function EstimatePage({
         id: estimate.id, ref: estimate.ref, standard_quote_id: estimate.standard_quote_id, opportunity_id: (estimate as { opportunity_id?: string | null }).opportunity_id ?? null,
       })
     : null;
+  const { canQuote, quoteUnavailable } = quoteAbility(perms, tenant, canEdit, !!quote, tenderCtx !== null);
 
   return (
     <ObjectRecordPage
@@ -103,7 +103,7 @@ export default async function EstimatePage({
             estimate={estimate} lines={lines} template={template} templateOutdated={template_outdated}
             account={account} contact={contact} quote={quote}
             vatPct={estimate.totals?.vat_pct ?? meta.vat_pct} createdLabel={fmtDate(estimate.created_at)}
-            canEdit={canEdit} canQuote={canQuote} quoteUnavailable={quoteUnavailable} isAdmin={isAdmin}
+            canEdit={canEdit} canQuote={canQuote} quoteUnavailable={quoteUnavailable} fromTender={tenderCtx !== null} isAdmin={isAdmin}
             accounts={(accountsRes.data ?? []) as { id: string; name: string }[]}
             contacts={(contactsRes.data ?? []) as { id: string; name: string; account_id: string | null }[]}
             lineProducts={lineProducts}

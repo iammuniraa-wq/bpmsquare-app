@@ -29,6 +29,11 @@ export default function TenderEstimateStrip({ ctx, estimateId, canEdit }: { ctx:
   const [error, setError] = useState("");
   const base = `/api/opportunities/${ctx.deal.id}/tender/estimates`;
   const dealHref = `/pipeline/${ctx.deal.id}`;
+  const itemNo = (l: EstimateTenderContext["links"][number]) => l.item_no ?? l.item.split(" ")[0];
+  // Back goes to where the person came from: the one BOQ line this estimate prices (its panel opens), else the BOQ, else Costing.
+  const only = ctx.links.length === 1 ? ctx.links[0] : null;
+  const backHref = only ? `${dealHref}?tab=boq&row=${only.boq_id}` : ctx.links.length > 1 ? `${dealHref}?tab=boq` : `${dealHref}?tab=costing`;
+  const backLabel = only ? `← Back to BOQ line ${itemNo(only)}` : ctx.links.length > 1 ? "← Back to the BOQ" : "← Back to Costing";
 
   async function price(linkIds: string[], label: string) {
     if (ctx.bid_locked && !(await confirm({ title: "The bid is already in", body: "Re-pricing changes the rate on the deal's lines. The submitted bid version is kept as it was.", confirmLabel: "Re-price" }))) return;
@@ -58,8 +63,7 @@ export default function TenderEstimateStrip({ ctx, estimateId, canEdit }: { ctx:
           <span style={{ color: c.muted }}>{ctx.deal.ref ? ctx.deal.title : ""}</span>
           <InfoTip label="Tender estimate">{ESTIMATE_TIPS.tenderStrip}</InfoTip>
         </span>
-        <Link href={`${dealHref}?tab=estimates`} data-guide="tender.estimate.back" style={{ fontSize: 12.5, color: c.ink, minHeight: 44, display: "inline-flex", alignItems: "center" }}>← Back to the tender</Link>
-        {ctx.links.length > 0 && <Link href={`${dealHref}?tab=boq`} data-guide="tender.estimate.to_boq" style={{ fontSize: 12.5, color: c.ink, minHeight: 44, display: "inline-flex", alignItems: "center" }}>BOQ</Link>}
+        <Link href={backHref} data-guide="tender.estimate.back" style={{ fontSize: 12.5, color: c.ink, minHeight: 44, display: "inline-flex", alignItems: "center" }}>{backLabel}</Link>
       </div>
 
       {typeof ctx.cost === "number" && (
@@ -85,7 +89,7 @@ export default function TenderEstimateStrip({ ctx, estimateId, canEdit }: { ctx:
         <div key={l.link_id} style={{ display: "flex", flexDirection: "column", gap: 4 }}>
           <div data-guide="tender.estimate.waiting" style={{ display: "flex", flexWrap: "wrap", gap: "4px 10px", alignItems: "center", fontSize: 12.5, color: c.ink }}>
             <span style={{ flex: "1 1 240px", overflowWrap: "anywhere" }}>Built for BOQ item {l.item} · {l.qty} {l.uom ?? ""}</span>
-            {canEdit && <Button size="sm" variant="primary" loading={busy === l.link_id} onClick={() => void price([l.link_id], l.link_id)} style={{ minHeight: 44 }} data-guide="tender.estimate.use_total">Price the line from this estimate</Button>}
+            {canEdit && <Button size="sm" variant="primary" loading={busy === l.link_id} onClick={() => void price([l.link_id], l.link_id)} style={{ minHeight: 44 }} data-guide="tender.estimate.use_total">Apply to BOQ line {itemNo(l)}</Button>}
           </div>
           {l.quantity?.note && <div role="alert" data-guide="tender.estimate.quantity" style={{ fontSize: 12.5, fontWeight: 600, color: "var(--amberink)", background: "var(--amberbg)", borderRadius: 6, padding: "6px 8px", overflowWrap: "anywhere" }}>{l.quantity.note}</div>}
         </div>
@@ -96,7 +100,7 @@ export default function TenderEstimateStrip({ ctx, estimateId, canEdit }: { ctx:
       {stale.length > 0 && (
         <div data-guide="tender.estimate.stale" style={{ display: "flex", flexWrap: "wrap", gap: "4px 10px", alignItems: "center", fontSize: 12.5, color: "var(--amberink)" }}>
           <b>Estimate changed, re-price {stale.length} BOQ line{stale.length === 1 ? "" : "s"}</b> <InfoTip label="Estimate changed">{ESTIMATE_TIPS.stale}</InfoTip>
-          {canEdit && <Button size="sm" variant="secondary" loading={busy === "stale"} onClick={() => void price(stale.map((l) => l.link_id), "stale")} style={{ minHeight: 44 }} data-guide="tender.estimate.reprice">Re-price</Button>}
+          {canEdit && <Button size="sm" variant="secondary" loading={busy === "stale"} onClick={() => void price(stale.map((l) => l.link_id), "stale")} style={{ minHeight: 44 }} data-guide="tender.estimate.reprice">Apply again to BOQ</Button>}
         </div>
       )}
       {review.map((l) => (
