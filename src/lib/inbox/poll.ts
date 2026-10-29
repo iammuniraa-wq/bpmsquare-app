@@ -81,7 +81,8 @@ export async function pollInboxMailboxes(admin: SupabaseClient, opts: {
         if (r.ok && !r.duplicate) stored++;
       }
       await admin.from("inbox_mailbox_state").upsert({
-        tenant_id: ch.tenant_id, connector_id: ch.connector_id, uid_validity: res.uidValidity.toString(), last_uid: res.lastUid, last_polled_at: stamp, last_error: null,
+        tenant_id: ch.tenant_id, connector_id: ch.connector_id, uid_validity: res.uidValidity.toString(), last_uid: res.lastUid, last_polled_at: stamp,
+        last_error: res.skipped?.length ? `Skipped ${res.skipped.length}: ${res.skipped[0]}`.slice(0, 500) : null,
       }, { onConflict: "tenant_id,connector_id" });
       results.push({ tenantId: ch.tenant_id, channelId: ch.id, read: res.messages.length, stored });
     } catch (e) {
