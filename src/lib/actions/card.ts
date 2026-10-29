@@ -1,11 +1,11 @@
 import "server-only";
 import crypto from "crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { getEffectiveFieldConfig } from "@/lib/fieldConfig";
+import { getEffectiveFieldConfig, getSalesConfig } from "@/lib/fieldConfig";
 import { applyRules, type EffectiveField, type FieldRule } from "@/lib/fieldRegistry";
 import { isUuid } from "@/lib/assistant/objects";
 import type { CardDuplicate, CardField, CardWidget, ConfirmCard } from "@/lib/assistant/cards";
-import { findAccountDuplicates, findContactDuplicates, type DuplicateHit } from "@/lib/assistant/duplicates";
+import { findAccountDuplicates, findContactDuplicates, findProductDuplicates, findSupplierDuplicates, findTenderDuplicates, type DuplicateHit } from "@/lib/assistant/duplicates";
 import { redactPii } from "@/lib/changeLog";
 import type { CreateActionDef, RefDef } from "./registry";
 import { hashOf, signToken } from "./token";
@@ -53,21 +53,41 @@ export async function loadSpec(supabase: SupabaseClient, tenantId: string, def: 
   const cfg = await getEffectiveFieldConfig(supabase, tenantId, def.registryType);
   const refFields: SpecField[] = def.refs.map((r) => ({ key: r.key, label: r.label, widget: "ref", kind: "ref", baseRequired: r.required, ref: r }));
   const refKeys = new Set(def.refs.map((r) => r.key));
-  const fields: SpecField[] = cfg.sections
-    .flatMap((s) => s.fields)
+  const offered = def.fieldKeys ? new Set(def.fieldKeys) : null;
+  const all = cfg.sections.flatMap((s) => s.fields);
+  // A product's category is a code from the workspace's own tree; with no tree it is free text, as on the New form.
+  const categories = all.some((f) => offered?.has(f.field_key) && f.selectSource === "product_category")
+    ? (await getSalesConfig(supabase, tenantId)).product_categories
+    : [];
+  const extra: SpecField[] = (def.extraFields ?? []).map((e) => ({
+    key: e.key, label: e.label, widget: e.widget, kind: "standard", baseRequired: def.requiredKeys.includes(e.key), options: e.options,
+  }));
+  const fields: SpecField[] = all
     // What the New form lets a person type: editable, not a computed column, not hidden by the workspace.
     .filter((f) => f.editable !== false && !f.exportOnly && !f.hidden && !refKeys.has(f.field_key))
-    .map((f) => ({
-      key: f.field_key, label: f.label, widget: widgetOf(f), kind: f.kind,
-      baseRequired: def.requiredKeys.includes(f.field_key) || f.required,
-      options: optionsOf(f),
-      format: f.widget === "email" ? "email" as const : undefined,
-    }));
+    // An allow-listed action offers only the fields it names (and never a custom field: its route does not store one).
+    .filter((f) => !offered || (f.kind === "standard" && offered.has(f.field_key)))
+    .map((f) => {
+      const options = f.selectSource === "product_category"
+        ? (categories.length ? categories.map((c) => ({ value: c.code, label: c.name })) : undefined)
+        : optionsOf(f);
+      const widget = widgetOf(f);
+      return {
+        key: f.field_key, label: f.label,
+        // A pick list with nothing to pick from cannot be answered: it is plain text instead.
+        widget: widget === "enum" && !options?.length ? "text" as const : widget,
+        kind: f.kind,
+        baseRequired: def.requiredKeys.includes(f.field_key) || f.required,
+        options,
+        format: f.widget === "email" ? "email" as const : undefined,
+      };
+    });
+  const listed = [...extra, ...fields];
   // A key the route insists on that the field config does not list (a workspace cannot hide its way out of it).
-  for (const k of def.requiredKeys) if (!refKeys.has(k) && !fields.some((f) => f.key === k)) {
-    fields.unshift({ key: k, label: k, widget: "text", kind: "standard", baseRequired: true });
+  for (const k of def.requiredKeys) if (!refKeys.has(k) && !listed.some((f) => f.key === k)) {
+    listed.unshift({ key: k, label: k, widget: "text", kind: "standard", baseRequired: true });
   }
-  return { fields: [...refFields, ...fields], rules: cfg.rules };
+  return { fields: [...refFields, ...listed], rules: cfg.rules };
 }
 
 /** Hash of what a card offers, not what it holds: the action, the route and every field with its type and options. */
@@ -192,6 +212,9 @@ export async function duplicatesFor(
   let hits: DuplicateHit[] = [];
   if (def.object === "account") hits = await findAccountDuplicates(supabase, tenantId, values.name, values.website);
   else if (def.object === "contact") hits = await findContactDuplicates(supabase, tenantId, values.account_id, values.name);
+  else if (def.object === "supplier") hits = await findSupplierDuplicates(supabase, tenantId, values.name);
+  else if (def.object === "product") hits = await findProductDuplicates(supabase, tenantId, values.name, values.sku);
+  else if (def.object === "tender") hits = await findTenderDuplicates(supabase, tenantId, values.tender_no);
   return hits.map((h) => ({ id: h.id, label: h.ref ? `${h.name} (${h.ref})` : h.name, href: def.hrefFor(h.id) }));
 }
 

@@ -77,12 +77,15 @@ const createEnum = (p: Record<string, unknown>) => ((p.tools as { name: string; 
 beforeEach(() => { vi.clearAllMocks(); });
 
 describe("create_record is offered only when everything allows it", () => {
-  it("not with the flag off: no tool, no field catalogue, and the prompt still says it cannot create", async () => {
+  it("not with the flag off: no tool, no field catalogue, and the prompt names the feature state, never an inability", async () => {
     const s = setup({ features: { ...ON, ai_assistant_actions: false } });
     await askAssistant(ask("create an account Tesla Germany"), s.ctx);
     expect(toolNames(s.params[0])).not.toContain("create_record");
     expect(stable(s.params[0])).not.toContain("CREATABLE");
-    expect(stable(s.params[0])).toContain("You cannot create, change or delete anything");
+    expect(stable(s.params[0])).toContain("Creating and changing records from this chat is not enabled in this workspace");
+    expect(stable(s.params[0])).toContain("never that you are unable");
+    expect(stable(s.params[0])).not.toContain("You cannot create");
+    expect(stable(s.params[0])).toContain("open the New ... screen");
   });
 
   it("not without Nova, and not without a signed-in person to bind the card to", async () => {

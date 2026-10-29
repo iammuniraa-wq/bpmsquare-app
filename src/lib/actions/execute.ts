@@ -137,7 +137,7 @@ export async function executeCard(ctx: ExecCtx, body: ActBody): Promise<ExecOutc
     const req = new NextRequest(new URL(def.route, ctx.baseUrl), {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify(toRouteBody(spec, values)),
+      body: JSON.stringify(def.body ? def.body(values) : toRouteBody(spec, values)),
     });
     const res = await runVia("assistant", () => POST(req));
     const json = (await res.json().catch(() => ({}))) as { id?: string; name?: string; error?: string };

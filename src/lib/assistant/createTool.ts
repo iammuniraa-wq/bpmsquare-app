@@ -36,10 +36,10 @@ export async function createCatalog(supabase: SupabaseClient, tenantId: string, 
     const spec = await loadSpec(supabase, tenantId, a);
     const fields = spec.fields
       .filter((f) => f.kind !== "ref")
-      .map((f) => `${f.key}${f.baseRequired ? "*" : ""} (${promptText(f.label, 60)}${f.options?.length ? `: ${f.options.map((o) => promptText(o.value, 40)).join("|")}` : ""})`)
+      .map((f) => `${f.key}${f.baseRequired ? "*" : ""} (${promptText(f.label, 60)}${f.widget === "date" ? ", yyyy-mm-dd" : ""}${f.options?.length ? `: ${f.options.map((o) => promptText(o.value, 40)).join("|")}` : ""})`)
       .join(", ");
     const refs = a.refs.map((r) => `${r.param}${r.required ? "*" : ""} (name of the ${r.label.toLowerCase()})`).join(", ");
-    return `- ${a.object}: fields: ${fields}${refs ? `\n  references: ${refs}` : ""}`;
+    return `- ${a.object}${a.blurb ? ` (${a.blurb})` : ""}: fields: ${fields}${refs ? `\n  references: ${refs}` : ""}`;
   }));
   return "CREATABLE objects for create_record (* = required; use these keys exactly):\n" + blocks.join("\n");
 }

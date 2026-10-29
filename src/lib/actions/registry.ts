@@ -4,7 +4,9 @@ import { canCreateWorkcenter, type PermissionSet } from "@/lib/permissions";
 import { ROUTES } from "@/lib/constants";
 import type { PilotObjectType } from "@/lib/fieldRegistry";
 import type { WorkcenterKey } from "@/lib/workcenters";
-import type { NextStep } from "@/lib/assistant/cards";
+import type { CardWidget, NextStep } from "@/lib/assistant/cards";
+import type { AssistantObjectType } from "@/lib/assistant/objects";
+import { TENDER_PORTALS, TENDER_PORTAL_LABEL } from "@/lib/tender/rules";
 
 // The action registry: what the assistant is allowed to DO, one entry per thing. An entry names the object's own
 // app route (the one the New form posts to), so an assistant create goes through exactly the validation, foreign-id
@@ -30,20 +32,43 @@ export type RefDef = {
   fromPage?: "account";
 };
 
+/** A field the route takes that the object's field registry does not list (a tender's number, portal, bid end date). */
+export type ExtraFieldDef = {
+  key: string;
+  label: string;
+  widget: CardWidget;
+  options?: { value: string; label: string }[];
+};
+
 export type CreateActionDef = {
   key: string;
   kind: "create";
-  /** Assistant object type (assistant/objects.ts), also the tool's `object` value. */
+  /** The tool's `object` value; the assistant object type (assistant/objects.ts) unless `base` says which one it is a kind of. */
   object: string;
+  /** The assistant object type this is a kind of, when `object` is a narrower word (a tender is a deal). */
+  base?: AssistantObjectType;
   noun: string;
+  /** One clause for the CREATABLE block when the object's name alone does not say what it is. */
+  blurb?: string;
   registryType: PilotObjectType;
   /** The change-log / PII object name, the same string the route logs under. */
-  table: "accounts" | "contacts";
+  table: "accounts" | "contacts" | "suppliers" | "products" | "opportunities";
   route: string;
   load: () => Promise<{ POST: RouteHandler }>;
   featureKey: string;
+  /** Further module flags the route itself insists on (a tender deal also needs Pipeline). */
+  alsoFeatures?: string[];
   workcenter: WorkcenterKey;
-  /** Required by the route itself (it answers 400 without them), whatever the field config says. */
+  /**
+   * When present, ONLY these standard fields of the registry are offered, and no custom fields: the route takes exactly
+   * these, and a field it would silently drop (or one that is internal, like a product's cost price) must not be on a card.
+   */
+  fieldKeys?: readonly string[];
+  /** Fields the route takes that the registry lacks; they come first on the card and carry no workspace label override. */
+  extraFields?: ExtraFieldDef[];
+  /** The request body for a route that does not take the flat field-to-value shape. */
+  body?: (values: Record<string, string>) => Record<string, unknown>;
+  /** Required on the card: the route answers 400 without them, or the assistant insists on them. */
   requiredKeys: string[];
   refs: RefDef[];
   labelOf: (values: Record<string, string>) => string;
@@ -56,6 +81,25 @@ export type CreateActionDef = {
    */
   research?: Record<string, string>;
 };
+
+/**
+ * What New tender sends: the deal's account, title and source on top, the tender details in `tender`. The bid end date is a
+ * calendar date on a card, so it goes as noon UTC: the same calendar day in every zone from the Gulf to the Americas, and the
+ * person can set the hour on the deal. Nothing else is sent: no stage, no deal type, no amount (the lines make that).
+ */
+export function tenderBody(v: Record<string, string>): Record<string, unknown> {
+  const tender: Record<string, unknown> = {};
+  if (v.tender_no) tender.tender_no = v.tender_no;
+  if (v.issuer_name) tender.issuer_name = v.issuer_name;
+  if (v.portal) tender.portal = v.portal;
+  if (v.closing_at) tender.closing_at = `${v.closing_at}T12:00:00.000Z`;
+  return {
+    account_id: v.account_id,
+    ...(v.title ? { title: v.title } : {}),
+    ...(v.source ? { source: v.source } : {}),
+    tender,
+  };
+}
 
 export const ACTIONS: CreateActionDef[] = [
   {
@@ -92,6 +136,49 @@ export const ACTIONS: CreateActionDef[] = [
     hrefFor: ROUTES.contact,
     next: (r) => [{ id: `open:${r.id}`, label: `Open ${r.label}`, kind: "navigate", target: ROUTES.contact(r.id) }],
   },
+  {
+    key: "create_supplier", kind: "create", object: "supplier", noun: "supplier", registryType: "supplier", table: "suppliers",
+    route: "/api/suppliers", load: () => import("@/app/api/suppliers/route"),
+    featureKey: "suppliers", workcenter: "suppliers",
+    // Status is set by the route (active); phone, email and GSTIN are details the Suppliers screen collects, not asked here.
+    fieldKeys: ["name", "type", "city", "notes"],
+    requiredKeys: ["name"], refs: [],
+    labelOf: (v) => v.name ?? "",
+    hrefFor: ROUTES.supplier,
+    next: (r) => [{ id: `open:${r.id}`, label: `Open ${r.label}`, kind: "navigate", target: ROUTES.supplier(r.id) }],
+  },
+  {
+    key: "create_product", kind: "create", object: "product", noun: "product", registryType: "product", table: "products",
+    route: "/api/products", load: () => import("@/app/api/products/route"),
+    featureKey: "products", workcenter: "products",
+    // cost_price is internal (margin): it is not on the card, not in the prompt, and a press that sends it is refused.
+    fieldKeys: ["name", "sku", "category", "uom", "list_price"],
+    requiredKeys: ["name"], refs: [],
+    labelOf: (v) => v.name ?? "",
+    hrefFor: ROUTES.product,
+    next: (r) => [{ id: `open:${r.id}`, label: `Open ${r.label}`, kind: "navigate", target: ROUTES.product(r.id) }],
+  },
+  {
+    key: "create_tender", kind: "create", object: "tender", base: "opportunity", noun: "tender deal",
+    blurb: "a deal in the Pipeline that carries its tender details; the deal type and first stage are set by the app",
+    registryType: "opportunity", table: "opportunities",
+    // The route New tender posts to: it makes the deal and its tender row together and decides the stage and deal type.
+    route: "/api/opportunities/tender", load: () => import("@/app/api/opportunities/tender/route"),
+    featureKey: "gcc_tender", alsoFeatures: ["pipeline"], workcenter: "pipeline",
+    fieldKeys: ["title", "source"],
+    extraFields: [
+      { key: "tender_no", label: "Tender number", widget: "text" },
+      { key: "issuer_name", label: "Issuer", widget: "text" },
+      { key: "portal", label: "Portal", widget: "enum", options: TENDER_PORTALS.map((p) => ({ value: p, label: TENDER_PORTAL_LABEL[p] })) },
+      { key: "closing_at", label: "Bid end date", widget: "date" },
+    ],
+    requiredKeys: ["tender_no", "closing_at"],
+    refs: [{ key: "account_id", label: "Account", param: "account", table: "accounts", required: true, fromPage: "account" }],
+    body: tenderBody,
+    labelOf: (v) => [v.tender_no, v.issuer_name].filter(Boolean).join(" · ") || v.title || "",
+    hrefFor: ROUTES.pipelineDetail,
+    next: (r) => [{ id: `open:${r.id}`, label: `Open ${r.label}`, kind: "navigate", target: ROUTES.pipelineDetail(r.id) }],
+  },
 ];
 
 export const actionByKey = (key: string): CreateActionDef | undefined => ACTIONS.find((a) => a.key === key);
@@ -112,16 +199,14 @@ export const DEFERRED: Record<string, string> = {
   "work-orders": "created from a case with its authorisation (quote or contract); the Create work order action on the case stays the way in",
   invoices: "an outward financial document; a verb for a later step, not a plain create",
   leads: "carries consent and a source; next in line",
-  opportunities: "needs an account and a stage; next in line. A tender deal also needs its tender number, issuer, portal and bid end date, so New tender on the Pipeline's Tenders tab (and Create deal from an Inbox email) stay the way in",
-  products: "next in line; same shape as accounts",
+  opportunities: "a plain deal needs an account and a stage; next in line. A tender deal is registered (create_tender at /api/opportunities/tender); Create deal from an Inbox email stays the way in",
   "purchase-orders": "has lines and a supplier and goes outward; a verb for a later step",
   quotes: "needs line items and pricing; the quote screens and the pricing engine stay the way in",
-  rfqs: "has lines and suppliers; the RFQ screen stays the way in",
+  rfqs: "the route takes its lines from the request body (it does not copy a deal's unpriced lines), so the assistant would have to compose line items; Raise RFQ on the deal and the RFQ screen stay the way in",
   "standard-quotes": "needs line items and pricing; the quote screens stay the way in",
   "sales-orders": "made from an accepted quote or a won deal with its lines and prices copied; Create sales order on the quote stays the way in, and the assistant reads orders through Talk to data",
   "sales-order-types": "settings for Sales Orders",
   "contract-projects": "made from an awarded tender with its lines and costs copied, and its budget is approved by a manager; Create contract project on the awarded deal stays the way in, and the assistant reads projects (header and totals only) through Talk to data",
-  suppliers: "next in line; same shape as accounts",
   "supplier-groups": "a client's approved vendor list in a workspace with the tender edition; set up from the Groups tab in Suppliers, which also holds the members",
   technicians: "linked to a login and skills; set up from the Technicians screen",
   // Marketing and studios: configuration-heavy, not a typed record.
@@ -165,5 +250,6 @@ export function actionsEnabled(features: Record<string, boolean | undefined>): b
 /** Actions this caller may start: the flag, the object's module, and the Business Role's create grant. */
 export function availableActions(gate: ActionGate): CreateActionDef[] {
   if (!actionsEnabled(gate.features)) return [];
-  return ACTIONS.filter((a) => gate.features[a.featureKey] === true && canCreateWorkcenter(gate.perms, a.workcenter));
+  return ACTIONS.filter((a) =>
+    gate.features[a.featureKey] === true && (a.alsoFeatures ?? []).every((k) => gate.features[k] === true) && canCreateWorkcenter(gate.perms, a.workcenter));
 }
