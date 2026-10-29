@@ -53,7 +53,9 @@ Choose the approvers. The person who proposes a bid decision cannot approve it u
 
 1. Settings > Connectors: connect the mailbox (step 1).
 2. Settings > Inbox channels > New channel. Choose the connected mailbox. Leave Team empty (everyone with the Inbox sees it). Leave "Create offers first" on "Nothing in particular": the person reading each email chooses what to create (tender, deal, RFQ).
-3. Send a test email to the mailbox. Within a minute or two it appears in the Inbox.
-4. To stop receiving: untick "Take in new mail". A channel that holds mail cannot be deleted; it is paused, and mail clears itself after 90 days.
+3. **Limit what comes in.** In the channel, fill "Only from these senders" (an address like buyer@client.com, or a whole domain like @ministry.gov.sa) and/or "Subject contains" (words such as tender, RFQ, BOQ). Mail that matches either is taken in; everything else stays in the mailbox and is never copied. Leave both empty only for a mailbox used for nothing else.
+4. Mail from the mailbox's own address is ignored on purpose (so BPMSquare never answers itself): send your test from a different address.
+5. Send a test email to the mailbox. It appears in the Inbox within about 5 minutes (the mailbox is read every 5 minutes, or press **Read mail now** on the channel).
+6. To stop receiving: untick "Take in new mail". A channel that holds mail cannot be deleted; it is paused, and mail clears itself after 90 days.
 
 Receiving at an address on our platform (tenders@yourworkspace) is switched on by us when needed; until then the connected mailbox is the way in.

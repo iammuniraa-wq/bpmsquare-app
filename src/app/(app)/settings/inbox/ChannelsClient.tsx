@@ -19,7 +19,7 @@ import { whenWord } from "@/components/inbox/bits";
 type Channel = {
   id: string; name: string; address_alias: string; address: string | null; connector_id: MailboxConnector | null;
   role_ids: string[]; default_action: DefaultAction; default_template_id: string | null; reply_from: string | null; reply_name: string | null;
-  active: boolean; last_received_at: string | null; mailbox_connected: boolean | null; last_polled_at: string | null; last_error: string | null;
+  active: boolean; filter_senders?: string[]; filter_subjects?: string[]; last_received_at: string | null; mailbox_connected: boolean | null; last_polled_at: string | null; last_error: string | null;
 };
 type Data = {
   channels: Channel[]; roles: { id: string; name: string }[]; connectors: { gmail: boolean; mail_server: boolean };
@@ -28,14 +28,15 @@ type Data = {
 };
 type Draft = {
   name: string; role_ids: string[]; default_action: DefaultAction; default_template_id: string; connector_id: "" | MailboxConnector;
-  reply_from: string; reply_name: string; active: boolean;
+  reply_from: string; reply_name: string; active: boolean; filter_senders: string; filter_subjects: string;
 };
 
 const ACTION_WORD: Record<DefaultAction, string> = { ...CREATE_LABEL, none: "Nothing in particular" };
-const emptyDraft: Draft = { name: "", role_ids: [], default_action: "none", default_template_id: "", connector_id: "", reply_from: "", reply_name: "", active: true };
+const emptyDraft: Draft = { name: "", role_ids: [], default_action: "none", default_template_id: "", connector_id: "", reply_from: "", reply_name: "", active: true, filter_senders: "", filter_subjects: "" };
 const draftOf = (c: Channel): Draft => ({
   name: c.name, role_ids: c.role_ids, default_action: c.default_action, default_template_id: c.default_template_id ?? "",
   connector_id: c.connector_id ?? "", reply_from: c.reply_from ?? "", reply_name: c.reply_name ?? "", active: c.active,
+  filter_senders: (c.filter_senders ?? []).join(", "), filter_subjects: (c.filter_subjects ?? []).join(", "),
 });
 
 const MORE = 6;
@@ -100,6 +101,7 @@ export default function ChannelsClient() {
           key={sel.id ?? "new"} data={data} channel={open}
           onClose={() => setSel(null)}
           onSaved={async (verb) => { toast({ text: verb, tone: "success" }); await load(); setSel(null); }}
+          onRead={load}
           onRotated={async () => { toast({ text: "New address made. Update anything that forwards to the old one.", tone: "success" }); await load(); }}
           confirm={confirm}
         />
@@ -108,18 +110,34 @@ export default function ChannelsClient() {
   );
 }
 
-function ChannelPanel({ data, channel, onClose, onSaved, onRotated, confirm }: {
-  data: Data; channel: Channel | null; onClose: () => void; onSaved: (verb: string) => Promise<void>; onRotated: () => Promise<void>;
+function ChannelPanel({ data, channel, onClose, onSaved, onRotated, onRead, confirm }: {
+  data: Data; channel: Channel | null; onClose: () => void; onSaved: (verb: string) => Promise<void>; onRotated: () => Promise<void>; onRead: () => Promise<void>;
   confirm: ReturnType<typeof useFeel>["confirm"];
 }) {
   const { toast } = useFeel();
   const [d, setD] = useState<Draft>(channel ? draftOf(channel) : emptyDraft);
-  const [busy, setBusy] = useState<"" | "save" | "delete" | "rotate">("");
+  const [busy, setBusy] = useState<"" | "save" | "delete" | "rotate" | "read">("");
   const [error, setError] = useState("");
   const [allRoles, setAllRoles] = useState(false);
   const set = <K extends keyof Draft>(k: K, v: Draft[K]) => setD((x) => ({ ...x, [k]: v }));
   const roles = allRoles ? data.roles : data.roles.slice(0, MORE);
   const mailboxOk = d.connector_id === "" ? null : d.connector_id === "gmail" ? data.connectors.gmail : data.connectors.mail_server;
+
+  async function readNow() {
+    if (!channel) return;
+    setBusy("read");
+    setError("");
+    try {
+      const res = await fetch(`/api/inbox/channels/${channel.id}/poll`, { method: "POST" });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) { setError(j.error ?? "Could not read the mailbox."); return; }
+      if (j.error) toast({ text: `The mailbox answered with an error: ${j.error}`, tone: "error" });
+      else toast({ text: j.stored ? `${j.stored} new ${j.stored === 1 ? "email" : "emails"} taken in.` : "No new mail.", tone: "success" });
+      await onRead();
+    } finally {
+      setBusy("");
+    }
+  }
 
   async function save() {
     setError("");
@@ -130,6 +148,9 @@ function ChannelPanel({ data, channel, onClose, onSaved, onRotated, confirm }: {
         name: d.name.trim(), role_ids: d.role_ids, default_action: d.default_action,
         default_template_id: d.default_action === "estimate" && d.default_template_id ? d.default_template_id : null,
         connector_id: d.connector_id || null, reply_from: d.reply_from.trim() || null, reply_name: d.reply_name.trim() || null, active: d.active,
+        // Sent only when set or changed, so a workspace that has not run the filter migration (0236) can still save a channel.
+        ...(d.filter_senders.trim() || d.filter_senders.trim() !== (channel ? draftOf(channel).filter_senders : "") ? { filter_senders: d.filter_senders } : {}),
+        ...(d.filter_subjects.trim() || d.filter_subjects.trim() !== (channel ? draftOf(channel).filter_subjects : "") ? { filter_subjects: d.filter_subjects } : {}),
       };
       const res = await fetch(channel ? `/api/inbox/channels/${channel.id}` : "/api/inbox/channels", {
         method: channel ? "PATCH" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
@@ -242,8 +263,24 @@ function ChannelPanel({ data, channel, onClose, onSaved, onRotated, confirm }: {
           {d.connector_id && mailboxOk && channel?.last_polled_at && (
             <div className="bpm-t-help" style={{ marginTop: 6 }}>Last read {whenWord(channel.last_polled_at)}{channel.last_error ? `, with an error: ${channel.last_error}` : ""}.</div>
           )}
+          {channel && d.connector_id && mailboxOk && channel.active && (
+            <div style={{ marginTop: 8 }}>
+              <Button variant="secondary" size="sm" disabled={!!busy} loading={busy === "read"} onClick={readNow} data-guide="inbox.channels.read_now">Read mail now</Button>
+            </div>
+          )}
         </Field>
       </div>
+
+      {d.connector_id && (
+        <>
+          <Field label="Only from these senders" info={INBOX_TIPS.filterSenders}>
+            <Input value={d.filter_senders} maxLength={600} placeholder="@ministry.gov.sa, buyer@client.com" data-guide="inbox.channels.filter_senders" onChange={(e) => set("filter_senders", e.target.value)} />
+          </Field>
+          <Field label="Subject contains" info={INBOX_TIPS.filterSubjects}>
+            <Input value={d.filter_subjects} maxLength={600} placeholder="tender, RFQ, BOQ" data-guide="inbox.channels.filter_subjects" onChange={(e) => set("filter_subjects", e.target.value)} />
+          </Field>
+        </>
+      )}
 
       <Field label="Reply name" info={INBOX_TIPS.replyFrom}>
         <Input value={d.reply_name} maxLength={120} placeholder="Gulf Fence Sales" onChange={(e) => set("reply_name", e.target.value)} />

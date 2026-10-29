@@ -20,6 +20,8 @@ export const INBOX_TIPS = {
   mailbox: "Reads the company's own Gmail or mail server into this channel. Nothing in the mailbox is marked read, moved or deleted.",
   replyFrom: "With a mailbox, replies go from the mailbox. Otherwise they go from BPMSquare's sender, with this name, and answers return to this address.",
   rotate: "Makes a new address and stops the old one working. Anything still forwarding to the old address is lost until you update it.",
+  filterSenders: "Only mail from these addresses or domains is taken in, for example buyer@ministry.gov.sa or @ministry.gov.sa. Leave empty to take mail from anyone.",
+  filterSubjects: "Only mail whose subject has one of these words is taken in, for example tender, RFQ. A matching sender or word is enough; the rest stays in the mailbox.",
   paused: "A paused channel takes in no new mail. Its old mail stays readable until it is cleared.",
 } as const;
 

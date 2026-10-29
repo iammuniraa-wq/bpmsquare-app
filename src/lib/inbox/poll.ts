@@ -5,6 +5,7 @@ import { parseSubjectTag } from "@/lib/rfq/token";
 import { INBOX_LIMITS, type InboxChannel } from "./types";
 import { ingestInboxMail, type InboxMail } from "./ingest";
 import { isMissingRelation, toChannel } from "./server";
+import { matchesChannelFilter } from "./rules";
 
 // Intake B: read the client's own mailbox. For every active channel with a connected mailbox, over IMAP, read-only: a UID
 // cursor per mailbox (inbox_mailbox_state, the pattern of rfq_mailbox_state), a bounded batch per run, a three-day
@@ -34,6 +35,8 @@ type State = { tenant_id: string; connector_id: string; uid_validity: string | n
 /** One run over every connected channel, oldest-polled first, stopping when the time budget is spent. */
 export async function pollInboxMailboxes(admin: SupabaseClient, opts: {
   budgetMs?: number;
+  /** Read one channel only (the "Read mail now" button); the scheduled run reads them all. */
+  only?: { tenantId: string; channelId: string };
   now?: Date;
   load?: typeof loadMailbox;
   fetch?: (mb: Mailbox, state: { uidValidity: bigint | null; lastUid: number }) => ReturnType<typeof fetchNewMail>;
@@ -41,8 +44,10 @@ export async function pollInboxMailboxes(admin: SupabaseClient, opts: {
   const started = Date.now();
   const budget = opts.budgetMs ?? 240_000;
   const load = opts.load ?? loadMailbox;
-  const fetchMail = opts.fetch ?? ((mb, state) => fetchNewMail(mb, state, {
-    wanted: wantedForInbox,
+  // Per channel: mail that does not match the channel's sender/subject filter is never downloaded or stored (and does not
+  // count against the batch), so a backlog of unrelated mail passes quickly.
+  const fetchFor = (ch: InboxChannel): NonNullable<typeof opts.fetch> => opts.fetch ?? ((mb, state) => fetchNewMail(mb, state, {
+    wanted: (subject, _inReplyTo, from) => wantedForInbox(subject) && matchesChannelFilter({ senders: ch.filter_senders, subjects: ch.filter_subjects }, from, subject),
     maxMessages: POLL_MAX_MESSAGES,
     maxAttachmentBytes: INBOX_LIMITS.maxAttachmentBytes,
     firstRunDays: POLL_FIRST_RUN_DAYS,
@@ -51,11 +56,12 @@ export async function pollInboxMailboxes(admin: SupabaseClient, opts: {
   const { data, error } = await admin.from("inbox_channels").select("*").not("connector_id", "is", null).eq("active", true);
   if (error) return { channels: 0, results: [], pending: isMissingRelation(error) };
   const withConnector = ((data ?? []) as Record<string, unknown>[]).map(toChannel).filter((c): c is InboxChannel & { connector_id: "gmail" | "mail_server" } => !!c.connector_id);
-  if (withConnector.length === 0) return { channels: 0, results: [] };
+  const scoped = opts.only ? withConnector.filter((c) => c.tenant_id === opts.only!.tenantId && c.id === opts.only!.channelId) : withConnector;
+  if (scoped.length === 0) return { channels: 0, results: [] };
   // A workspace without the module is not polled at all: the cursor must not move past mail nobody will read.
-  const { data: on } = await admin.from("tenants").select("id").in("id", [...new Set(withConnector.map((c) => c.tenant_id))]).contains("features", { inbox: true });
+  const { data: on } = await admin.from("tenants").select("id").in("id", [...new Set(scoped.map((c) => c.tenant_id))]).contains("features", { inbox: true });
   const owners = new Set(((on ?? []) as { id: string }[]).map((t) => t.id));
-  const channels = withConnector.filter((c) => owners.has(c.tenant_id));
+  const channels = scoped.filter((c) => owners.has(c.tenant_id));
   if (channels.length === 0) return { channels: 0, results: [] };
 
   const { data: states } = await admin.from("inbox_mailbox_state").select("tenant_id, connector_id, uid_validity, last_uid, last_polled_at");
@@ -74,7 +80,7 @@ export async function pollInboxMailboxes(admin: SupabaseClient, opts: {
         results.push({ tenantId: ch.tenant_id, channelId: ch.id, error: "mailbox not connected" });
         continue;
       }
-      const res = await fetchMail(mb, { uidValidity: prev?.uid_validity ? BigInt(prev.uid_validity) : null, lastUid: Number(prev?.last_uid ?? 0) });
+      const res = await fetchFor(ch)(mb, { uidValidity: prev?.uid_validity ? BigInt(prev.uid_validity) : null, lastUid: Number(prev?.last_uid ?? 0) });
       let stored = 0;
       for (const m of res.messages) {
         const r = await ingestInboxMail(admin, ch, toInboxMail(m, ch.connector_id, res.uidValidity), { mailboxAddress: mb.address, now: opts.now });

@@ -62,6 +62,9 @@ export type InboxChannel = {
   reply_from: string | null;
   reply_name: string | null;
   active: boolean;
+  /** Only take in mail from these senders (an address or @domain) or with these words in the subject; both empty = everything. */
+  filter_senders?: string[];
+  filter_subjects?: string[];
   created_at?: string;
   updated_at?: string;
 };
