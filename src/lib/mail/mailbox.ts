@@ -193,7 +193,7 @@ export async function fetchNewMail(mb: Mailbox, state: { uidValidity: bigint | n
   maxMessages: number;
   maxAttachmentBytes: number;
   firstRunDays: number;
-}): Promise<{ uidValidity: bigint; lastUid: number; messages: FetchedMail[] }> {
+}): Promise<{ uidValidity: bigint; lastUid: number; messages: FetchedMail[]; skipped: string[] }> {
   await assertPublicHost(mb.imap.host);
   const client = new ImapFlow({
     host: mb.imap.host,
@@ -204,6 +204,7 @@ export async function fetchNewMail(mb: Mailbox, state: { uidValidity: bigint | n
     socketTimeout: 60_000,
   });
   const messages: FetchedMail[] = [];
+  const skipped: string[] = [];
   await client.connect();
   try {
     const lock = await client.getMailboxLock("INBOX");
@@ -224,52 +225,71 @@ export async function fetchNewMail(mb: Mailbox, state: { uidValidity: bigint | n
       // Oldest first, bounded: anything past the cap is picked up next run.
       for (const uid of uids.slice(0, opts.maxMessages * 4)) {
         lastUid = Math.max(lastUid, uid);
-        const msg = await client.fetchOne(String(uid), { envelope: true, bodyStructure: true, headers: FETCHED_HEADERS }, { uid: true });
-        if (!msg || !msg.envelope) continue;
-        const subject = msg.envelope.subject ?? "";
-        const headerText = msg.headers ? Buffer.from(msg.headers).toString("utf8") : "";
-        const headers = parseHeaderBlock(headerText);
-        const inReplyTo = /<[^>]+>/.exec(headers["in-reply-to"] ?? "")?.[0] ?? null;
-        if (!opts.wanted(subject, inReplyTo)) continue;
-        if (messages.length >= opts.maxMessages) { lastUid = uid - 1; break; }
+        try {
+          const msg = await client.fetchOne(String(uid), { envelope: true, bodyStructure: true, headers: FETCHED_HEADERS }, { uid: true });
+          if (!msg || !msg.envelope) continue;
+          const subject = msg.envelope.subject ?? "";
+          const headerText = msg.headers ? Buffer.from(msg.headers).toString("utf8") : "";
+          const headers = parseHeaderBlock(headerText);
+          const inReplyTo = /<[^>]+>/.exec(headers["in-reply-to"] ?? "")?.[0] ?? null;
+          if (!opts.wanted(subject, inReplyTo)) continue;
+          if (messages.length >= opts.maxMessages) { lastUid = uid - 1; break; }
 
-        const parts: { text?: string; html?: string; files: { part: string; filename: string; type: string; size: number }[] } = { files: [] };
-        if (msg.bodyStructure) walk(msg.bodyStructure as unknown as BodyNode, parts);
-        const read = async (part: string, limit: number) => {
-          const dl = await client.download(String(uid), part, { uid: true });
-          return dl?.content ? streamToBuffer(dl.content, limit) : null;
-        };
-        const text = parts.text ? ((await read(parts.text, 512 * 1024))?.toString("utf8") ?? "") : "";
-        const html = parts.html ? ((await read(parts.html, 1024 * 1024))?.toString("utf8") ?? null) : null;
-        const attachments: FetchedAttachment[] = [];
-        for (const f of parts.files.slice(0, 10)) {
-          if (f.size > opts.maxAttachmentBytes * 1.4) continue; // base64 size on the wire
-          const buf = await read(f.part, opts.maxAttachmentBytes);
-          if (buf) attachments.push({ filename: f.filename, contentType: f.type || "application/octet-stream", content: buf });
+          const parts: { text?: string; html?: string; files: { part: string; filename: string; type: string; size: number }[] } = { files: [] };
+          if (msg.bodyStructure) walk(msg.bodyStructure as unknown as BodyNode, parts);
+          // A part the server will not hand over is left out and noted; the message itself still arrives.
+          const read = async (part: string, limit: number, what: string) => {
+            try {
+              const dl = await client.download(String(uid), part, { uid: true });
+              return dl?.content ? await streamToBuffer(dl.content, limit) : null;
+            } catch (e) {
+              if (!client.usable) throw e;
+              skipped.push(`uid ${uid} ${what}: ${imapErrorText(e)}`);
+              return null;
+            }
+          };
+          const text = parts.text ? ((await read(parts.text, 512 * 1024, "text"))?.toString("utf8") ?? "") : "";
+          const html = parts.html ? ((await read(parts.html, 1024 * 1024, "html"))?.toString("utf8") ?? null) : null;
+          const attachments: FetchedAttachment[] = [];
+          for (const f of parts.files.slice(0, 10)) {
+            if (f.size > opts.maxAttachmentBytes * 1.4) continue; // base64 size on the wire
+            const buf = await read(f.part, opts.maxAttachmentBytes, `file ${f.filename}`);
+            if (buf) attachments.push({ filename: f.filename, contentType: f.type || "application/octet-stream", content: buf });
+          }
+          const from = msg.envelope.from?.[0]?.address ?? null;
+          messages.push({
+            uid,
+            messageId: msg.envelope.messageId ?? null,
+            inReplyTo: inReplyTo ?? msg.envelope.inReplyTo ?? null,
+            references: headers["references"] ?? null,
+            headers,
+            from,
+            to: (msg.envelope.to ?? []).map((a) => a.address ?? "").filter(Boolean),
+            subject,
+            date: msg.envelope.date ? new Date(msg.envelope.date).toISOString() : null,
+            text,
+            html,
+            attachments,
+          });
+        } catch (e) {
+          // One message the server cannot serve must not block the mail behind it; a dead connection still fails the run.
+          if (!client.usable) throw e;
+          skipped.push(`uid ${uid}: ${imapErrorText(e)}`);
         }
-        const from = msg.envelope.from?.[0]?.address ?? null;
-        messages.push({
-          uid,
-          messageId: msg.envelope.messageId ?? null,
-          inReplyTo: inReplyTo ?? msg.envelope.inReplyTo ?? null,
-          references: headers["references"] ?? null,
-          headers,
-          from,
-          to: (msg.envelope.to ?? []).map((a) => a.address ?? "").filter(Boolean),
-          subject,
-          date: msg.envelope.date ? new Date(msg.envelope.date).toISOString() : null,
-          text,
-          html,
-          attachments,
-        });
       }
-      return { uidValidity: validity, lastUid, messages };
+      return { uidValidity: validity, lastUid, messages, skipped };
     } finally {
       lock.release();
     }
   } finally {
     try { await client.logout(); } catch { /* best-effort */ }
   }
+}
+
+/** imapflow's own message is often just "Command failed"; the server's reply says why. */
+function imapErrorText(e: unknown): string {
+  const err = e as { message?: string; responseText?: string };
+  return [err.message, err.responseText].filter(Boolean).join(": ").slice(0, 300) || "unknown IMAP error";
 }
 
 /** Connector test: log in to both servers, send nothing. */
