@@ -3,24 +3,58 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { getAuthUser } from "@/lib/supabase-server";
 import { logChange } from "@/lib/changeLog";
 import { isMissingSchema } from "@/lib/tender/server";
-import { COMPETITOR_LIMITS, findByName, inDisplayOrder, type CompetitorView } from "./rules";
+import { COMPETITOR_LIMITS, findByName, inDisplayOrder, readEvidence, type CompetitorView } from "./rules";
 
 // Server side of the Competitors tab (migration 0229). Every query is on the service-role client and carries the workspace and the deal;
 // a missing table answers `pending` instead of an error. The deal's winner lives in two older places as well (opportunity_tenders
 // .winning_bidder and opportunities.competitor): everything that marks or clears a winner goes through syncDealWinner so the three
 // never disagree.
 
-export const COMPETITOR_COLS = "id, name, website, country, expected_price, strengths, notes, is_winner, sort, created_at";
+/** The columns migration 0239 adds; until it is applied a read without them is the only one that works. */
+export const COMPETITOR_COLS_LEGACY = "id, name, website, country, expected_price, strengths, notes, is_winner, sort, created_at";
+export const COMPETITOR_COLS = `${COMPETITOR_COLS_LEGACY}, status, origin, evidence`;
 export const PENDING_COMPETITORS = "Competitors need a database update (migration 0229). Ask your administrator to apply it.";
+export const PENDING_RESEARCH = "Market research needs a database update (migration 0239). Ask your administrator to apply it.";
 export const UUID = /^[0-9a-f-]{36}$/i;
 
-export async function listCompetitors(admin: SupabaseClient, tenantId: string, opportunityId: string): Promise<{ rows: CompetitorView[]; pending: boolean }> {
-  const { data, error } = await admin.from("opportunity_competitors").select(COMPETITOR_COLS).eq("tenant_id", tenantId).eq("opportunity_id", opportunityId).limit(COMPETITOR_LIMITS.perDeal + 5);
-  if (error) {
-    if (!isMissingSchema(error)) console.error("Competitors read failed:", error.message);
-    return { rows: [], pending: isMissingSchema(error) };
+/** A stored row as the screen gets it: rows saved before migration 0239 are the team's own, and evidence is only ever shown with an https source. */
+export function toView(row: Record<string, unknown>): CompetitorView {
+  const status = row.status === "proposed" || row.status === "rejected" ? row.status : "accepted";
+  return { ...(row as unknown as CompetitorView), status, origin: row.origin === "research" ? "research" : "manual", evidence: readEvidence(row.evidence) };
+}
+
+type Db = { rows: CompetitorView[]; pending: boolean; researchPending: boolean };
+
+/** Reads with the 0239 columns, and without them when they are not there yet. A table that is missing altogether is `pending`. */
+async function selectRows(admin: SupabaseClient, tenantId: string, opportunityId: string): Promise<Db & { error?: string }> {
+  const query = (cols: string) => admin.from("opportunity_competitors").select(cols).eq("tenant_id", tenantId).eq("opportunity_id", opportunityId).limit(COMPETITOR_LIMITS.perDeal * 2);
+  let r = await query(COMPETITOR_COLS);
+  let researchPending = false;
+  if (r.error && isMissingSchema(r.error)) { r = await query(COMPETITOR_COLS_LEGACY); researchPending = !r.error; }
+  if (r.error) {
+    if (!isMissingSchema(r.error)) console.error("Competitors read failed:", r.error.message);
+    return { rows: [], pending: isMissingSchema(r.error), researchPending: false, error: r.error.message };
   }
-  return { rows: inDisplayOrder((data ?? []) as CompetitorView[]), pending: false };
+  return { rows: ((r.data ?? []) as unknown as Record<string, unknown>[]).map(toView), pending: false, researchPending };
+}
+
+/**
+ * The deal's competitors in display order. Rejected rows are left out unless `includeRejected` (the research route and the duplicate
+ * checks need them: a rejected company keeps its name so it is not proposed again).
+ */
+export async function listCompetitors(admin: SupabaseClient, tenantId: string, opportunityId: string, opts: { includeRejected?: boolean } = {}): Promise<{ rows: CompetitorView[]; pending: boolean; researchPending: boolean }> {
+  const r = await selectRows(admin, tenantId, opportunityId);
+  const rows = opts.includeRejected ? r.rows : r.rows.filter((x) => x.status !== "rejected");
+  return { rows: inDisplayOrder(rows), pending: r.pending, researchPending: r.researchPending };
+}
+
+/** One competitor by its id, this deal and this workspace (another workspace's id is simply not found). */
+export async function loadCompetitor(admin: SupabaseClient, tenantId: string, opportunityId: string, competitorId: string): Promise<{ row: CompetitorView | null; error: { code?: string; message: string } | null; legacy: boolean }> {
+  const one = (cols: string) => admin.from("opportunity_competitors").select(cols).eq("id", competitorId).eq("opportunity_id", opportunityId).eq("tenant_id", tenantId).maybeSingle();
+  let r = await one(COMPETITOR_COLS);
+  let legacy = false;
+  if (r.error && isMissingSchema(r.error)) { r = await one(COMPETITOR_COLS_LEGACY); legacy = !r.error; }
+  return { row: r.data ? toView(r.data as unknown as Record<string, unknown>) : null, error: r.error, legacy };
 }
 
 /** Writes the winner's name (or clears it) where the older screens read it. `onlyIf` clears only when the stored name is still that one. */
@@ -61,26 +95,31 @@ export async function recordWinnerByName(args: {
   const name = typeof args.name === "string" ? args.name.trim().replace(/\s+/g, " ").slice(0, COMPETITOR_LIMITS.nameMax) : "";
   if (!name) return;
   try {
-    const { rows, pending } = await listCompetitors(admin, tenantId, opportunity.id);
+    const { rows, pending } = await listCompetitors(admin, tenantId, opportunity.id, { includeRejected: true });
     if (pending) return;
     let target = findByName(rows, name);
     let created = false;
     if (target?.is_winner) return;
     if (!target) {
-      if (rows.length >= COMPETITOR_LIMITS.perDeal) return;
+      if (rows.filter((x) => x.status !== "rejected").length >= COMPETITOR_LIMITS.perDeal) return;
       const { data, error } = await admin.from("opportunity_competitors")
         .insert({ tenant_id: tenantId, opportunity_id: opportunity.id, name, created_by: userId, sort: rows.length })
-        .select(COMPETITOR_COLS).maybeSingle();
+        .select(COMPETITOR_COLS_LEGACY).maybeSingle();
       if (error) {
         if (error.code !== "23505") { console.error("Competitor insert failed:", error.message); return; }
-        target = findByName((await listCompetitors(admin, tenantId, opportunity.id)).rows, name);
+        target = findByName((await listCompetitors(admin, tenantId, opportunity.id, { includeRejected: true })).rows, name);
         if (!target) return;
       } else {
-        target = data as CompetitorView | null;
+        target = data ? toView(data as unknown as Record<string, unknown>) : null;
         created = true;
       }
     }
     if (!target) return;
+    // Naming a proposed or rejected company as the winner is the person's own yes: it joins the team's list first.
+    if (target.status !== "accepted") {
+      const accepted = await admin.from("opportunity_competitors").update({ status: "accepted", updated_at: new Date().toISOString() }).eq("id", target.id).eq("opportunity_id", opportunity.id).eq("tenant_id", tenantId);
+      if (accepted.error) { console.error("Competitor accept failed:", accepted.error.message); return; }
+    }
     const marked = await markWinner(admin, tenantId, opportunity.id, target);
     if (!marked.ok) { console.error("Winner mark failed:", marked.error); return; }
     const user = await getAuthUser();

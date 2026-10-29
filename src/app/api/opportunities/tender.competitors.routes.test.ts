@@ -379,3 +379,96 @@ describe("Company insights", () => {
     expect(state.analysed).toEqual([]);
   });
 });
+
+describe("proposals from market research (migration 0239)", () => {
+  const proposed = (n: number, name: string, over: Record<string, unknown> = {}) => compRow(n, name, {
+    status: "proposed", origin: "research", evidence: { v: 1, facts: [{ text: "Won an award", kind: "award", source_url: "https://news.example.com/a", source_title: null, published_on: null }], price: null, wins: null, researched_at: "2026-10-29T08:00:00Z", model: "m" },
+    ...over,
+  });
+  const patch = (n: number, body: Record<string, unknown>) => itemPatch(req("PATCH", body), cctx(OPP, uid(n)));
+
+  it("lists the team's competitors first, then the proposals with their evidence, and leaves rejected ones out", async () => {
+    state.db.rows("opportunity_competitors").push(proposed(1, "Proposed Co"), compRow(2, "Own Co", { status: "accepted" }), proposed(3, "Rejected Co", { status: "rejected" }));
+    const body = await (await listGet(req("GET"), ctx(OPP))).json();
+    expect(body.competitors.map((c: { name: string; status: string }) => [c.name, c.status])).toEqual([["Own Co", "accepted"], ["Proposed Co", "proposed"]]);
+    expect(body.competitors[1].evidence.facts[0].source_url).toBe("https://news.example.com/a");
+    expect(body.researchPending).toBe(false);
+  });
+
+  it("a stored fact with a source that is not https never reaches the screen", async () => {
+    state.db.rows("opportunity_competitors").push(proposed(1, "Proposed Co", { evidence: { v: 1, facts: [{ text: "x", kind: "award", source_url: "javascript:alert(1)" }], price: null, wins: null } }));
+    expect((await (await listGet(req("GET"), ctx(OPP))).json()).competitors[0].evidence).toBeNull();
+  });
+
+  it("Accept makes a proposal the team's own, and logs it", async () => {
+    state.db.rows("opportunity_competitors").push(proposed(1, "Proposed Co"));
+    expect((await patch(1, { status: "accepted" })).status).toBe(200);
+    expect(named("Proposed Co")).toMatchObject({ status: "accepted", tenant_id: T1, opportunity_id: OPP });
+    expect(state.changes.at(-1)?.changes).toEqual([{ field: "competitor accepted", from: null, to: "Proposed Co" }]);
+  });
+
+  it("Reject keeps the row and its name (so research does not propose it again) but hides it, and only a proposal can be rejected", async () => {
+    state.db.rows("opportunity_competitors").push(proposed(1, "Proposed Co"), compRow(2, "Own Co"));
+    expect((await patch(1, { status: "rejected" })).status).toBe(200);
+    expect(comps().find((c) => c.id === uid(1))).toMatchObject({ status: "rejected", name: "Proposed Co" });
+    expect((await (await listGet(req("GET"), ctx(OPP))).json()).competitors.map((c: { name: string }) => c.name)).toEqual(["Own Co"]);
+    expect((await patch(1, { notes: "x" })).status).toBe(404);
+    expect((await patch(2, { status: "rejected" })).status).toBe(409);
+    expect(named("Own Co").status ?? "accepted").toBe("accepted");
+    expect(state.changes.at(-1)?.changes).toEqual([{ field: "competitor rejected", from: null, to: "Proposed Co" }]);
+  });
+
+  it("a proposal cannot be marked as the winner until it is accepted (they can be done together)", async () => {
+    state.db.rows("opportunity_competitors").push(proposed(1, "Proposed Co"));
+    expect((await patch(1, { is_winner: true })).status).toBe(409);
+    expect(named("Proposed Co").is_winner).toBe(false);
+    expect(deal().competitor).toBeNull();
+    expect((await patch(1, { status: "accepted", is_winner: true })).status).toBe(200);
+    expect(named("Proposed Co")).toMatchObject({ status: "accepted", is_winner: true });
+    expect(deal().competitor).toBe("Proposed Co");
+  });
+
+  it("adding by hand a company that is already proposed is refused; one that was rejected comes back as the team's own", async () => {
+    state.db.rows("opportunity_competitors").push(proposed(1, "Proposed Co"), proposed(2, "Rejected Co", { status: "rejected" }));
+    const dup = await add({ name: "proposed co" });
+    expect(dup.status).toBe(409);
+    expect((await dup.json()).error).toMatch(/already proposed/i);
+    expect((await add({ name: "Rejected Co", country: "Oman" })).status).toBe(201);
+    expect(comps().filter((c) => c.name === "Rejected Co")).toHaveLength(1);
+    expect(named("Rejected Co")).toMatchObject({ status: "accepted", country: "Oman" });
+  });
+
+  it("naming a proposed company as who won is the person's yes: it joins the team's list and is marked", async () => {
+    state.db.rows("opportunity_competitors").push(proposed(1, "Proposed Co"));
+    expect((await stdPatch(req("PATCH", { stage: "bid_lost", loss_reason: "price", competitor: "proposed co" }), ctx(OPP))).status).toBe(200);
+    expect(comps()).toHaveLength(1);
+    expect(named("Proposed Co")).toMatchObject({ status: "accepted", is_winner: true });
+  });
+
+  it("another workspace's proposal, or one of another deal, is a 404 and is left as it was", async () => {
+    state.db.rows("opportunity_competitors").push(proposed(5, "Alien Co", { tenant_id: T2, opportunity_id: OPP_T2 }), proposed(6, "Next door", { opportunity_id: OPP_OTHER }));
+    expect((await patch(5, { status: "accepted" })).status).toBe(404);
+    expect((await patch(6, { status: "accepted" })).status).toBe(404);
+    expect(state.db.rows("opportunity_competitors").map((c) => c.status)).toEqual(["proposed", "proposed"]);
+  });
+
+  it("a view-only person cannot accept or reject", async () => {
+    state.db.rows("opportunity_competitors").push(proposed(1, "Proposed Co"));
+    state.edit = false;
+    expect((await patch(1, { status: "accepted" })).status).toBe(403);
+    expect(named("Proposed Co").status).toBe("proposed");
+  });
+
+  it("while 0239 is pending every competitor reads as the team's own, the list still works, and Accept says a database update is needed", async () => {
+    state.db.missingColumns.opportunity_competitors = new Set(["status", "origin", "evidence"]);
+    state.db.rows("opportunity_competitors").push(compRow(1, "Rival Co"));
+    const body = await (await listGet(req("GET"), ctx(OPP))).json();
+    expect(body).toMatchObject({ pending: false, researchPending: true });
+    expect(body.competitors).toEqual([expect.objectContaining({ name: "Rival Co", status: "accepted", origin: "manual", evidence: null })]);
+    expect((await add({ name: "New Co" })).status).toBe(201);
+    const res = await patch(1, { status: "accepted" });
+    expect(res.status).toBe(503);
+    expect((await res.json()).error).toMatch(/migration 0239/);
+    expect((await patch(1, { is_winner: true })).status).toBe(200);
+  });
+});

@@ -7,23 +7,45 @@ import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
 import EmptyState from "@/components/ui/EmptyState";
 import InfoTip from "@/components/ui/InfoTip";
-import StatTile, { StatStrip } from "@/components/ui/StatTile";
+import StatusPill from "@/components/ui/StatusPill";
 import { useFeel } from "@/components/FeelProvider";
 import { askDock } from "@/lib/analysis/dockAsk";
-import { COMPETITOR_LIMITS, analyseAllSentence, competitorStats, type CompetitorView, type CompetitorsData } from "@/lib/tender/competitors/rules";
+import { TONE_PILLAR } from "@/lib/ui/tone";
+import { COMPETITOR_LIMITS, COMPETITOR_PRICE_LABEL, competitorStats, type CompetitorView, type CompetitorsData } from "@/lib/tender/competitors/rules";
 import { COMPETITOR_TIPS } from "@/lib/tender/competitors/tips";
 import type { DockAnalysis } from "@/lib/assistant/analysisTool";
-import CompetitorCard, { type InsightState } from "./CompetitorCard";
+import CompetitorDetailPanel, { type InsightState } from "./CompetitorDetailPanel";
 import CompetitorPanel from "./CompetitorPanel";
 
-// The Competitors tab of a tender deal (migration 0229): who we expect to bid against, what we know about each, and who won. A list of
-// cards (one column on a phone, a grid on a desktop), a strip of three figures, "+ Add competitor" in the shared side panel, and on each
-// card a Company insights button that runs the existing company analysis for that competitor only when it is pressed (it costs AI
+// The Competitors tab of a tender deal (migration 0229, 0239): who we expect to bid against. One line of figures, then one list that shows
+// only Company, Expected price and Status (Proposed by market research, or Added by you); a row opens the detail panel with the evidence
+// and the actions. Under 780 px each row becomes a card, so nothing scrolls sideways. Company insights run only when pressed (they cost AI
 // allowance). Edit access comes from the deal; the server decides again on every call.
 
 const PENDING = "Competitors need a database update (migration 0229). Ask your administrator to apply it.";
 
-export default function CompetitorsTab({ opportunityId, canEdit, onError, onNotice, onChanged, initialData, initialPanel = false }: {
+const css = `
+.cmp-table{width:100%;border-collapse:collapse}
+.cmp-table th{text-align:left;font-size:10.5px;font-weight:700;color:var(--hint);text-transform:uppercase;letter-spacing:.4px;padding:6px 8px}
+.cmp-table td{padding:6px 8px;border-top:1px solid var(--line);vertical-align:middle}
+.cmp-row{cursor:pointer}
+.cmp-row:hover{background:var(--panel2)}
+.cmp-open{all:unset;box-sizing:border-box;cursor:pointer;min-height:44px;display:flex;align-items:center;font-weight:700;font-size:14px;color:var(--ink);overflow-wrap:anywhere}
+.cmp-open:focus-visible{outline:2px solid var(--tenant-accent);outline-offset:2px}
+.cmp-chev{color:var(--hint);width:24px;text-align:right}
+@media (max-width:780px){
+  .cmp-table thead{display:none}
+  .cmp-table,.cmp-table tbody{display:block}
+  .cmp-table tr{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 10px;padding:6px 12px;border:1px solid var(--line);border-radius:10px;margin-bottom:8px;align-items:center}
+  .cmp-table td{display:block;padding:0;border:0}
+  .cmp-table td.cmp-name{grid-column:1}
+  .cmp-table td.cmp-status{grid-column:2;grid-row:1}
+  .cmp-table td.cmp-price{grid-column:1 / -1;padding-bottom:6px}
+  .cmp-chev{display:none}
+}
+`;
+
+export default function CompetitorsTab({ opportunityId, canEdit, onError, onNotice, onChanged, initialData, initialPanel = false, initialOpen = null }: {
   opportunityId: string;
   canEdit: boolean;
   onError: (message: string) => void;
@@ -33,6 +55,8 @@ export default function CompetitorsTab({ opportunityId, canEdit, onError, onNoti
   /** Lets a server render (and its test) show the tab with its list. The page never passes it. */
   initialData?: CompetitorsData;
   initialPanel?: boolean;
+  /** Lets a server render show a competitor's detail panel. The page never passes it. */
+  initialOpen?: string | null;
 }) {
   const router = useRouter();
   const { confirm } = useFeel();
@@ -40,8 +64,9 @@ export default function CompetitorsTab({ opportunityId, canEdit, onError, onNoti
   const [loadError, setLoadError] = useState("");
   const [showAll, setShowAll] = useState(false);
   const [panel, setPanel] = useState<{ competitor?: CompetitorView } | null>(initialPanel ? {} : null);
+  const [openId, setOpenId] = useState<string | null>(initialOpen);
   const [insights, setInsights] = useState<Record<string, InsightState>>({});
-  const [busyAll, setBusyAll] = useState(false);
+  const [busy, setBusy] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -62,6 +87,7 @@ export default function CompetitorsTab({ opportunityId, canEdit, onError, onNoti
   const available = data?.insights.available === true;
   const stats = competitorStats(list);
   const shown = showAll ? list : list.slice(0, COMPETITOR_LIMITS.shown);
+  const open = list.find((x) => x.id === openId) ?? null;
 
   async function send(url: string, init: RequestInit, failure: string): Promise<boolean> {
     onError("");
@@ -74,91 +100,78 @@ export default function CompetitorsTab({ opportunityId, canEdit, onError, onNoti
     return true;
   }
 
+  const itemUrl = (x: CompetitorView) => `/api/opportunities/${opportunityId}/competitors/${x.id}`;
+
   async function toggleWinner(x: CompetitorView) {
-    if (await send(`/api/opportunities/${opportunityId}/competitors/${x.id}`, { method: "PATCH", body: JSON.stringify({ is_winner: !x.is_winner }) }, "Could not save")) {
+    if (await send(itemUrl(x), { method: "PATCH", body: JSON.stringify({ is_winner: !x.is_winner }) }, "Could not save")) {
       await load();
       onChanged?.();
     }
+  }
+
+  async function answer(x: CompetitorView, status: "accepted" | "rejected") {
+    setBusy(true);
+    try {
+      if (await send(itemUrl(x), { method: "PATCH", body: JSON.stringify({ status }) }, "Could not save")) {
+        setOpenId(status === "rejected" ? null : x.id);
+        onNotice?.(status === "accepted" ? `${x.name} added to this tender` : `${x.name} rejected`);
+        await load();
+        onChanged?.();
+      }
+    } finally { setBusy(false); }
   }
 
   async function remove(x: CompetitorView) {
     const yes = await confirm({ title: `Remove ${x.name}?`, body: "It is taken off this tender's list. An analysis already saved for the company stays in your workspace.", confirmLabel: "Remove", tone: "danger" });
     if (!yes) return;
-    if (await send(`/api/opportunities/${opportunityId}/competitors/${x.id}`, { method: "DELETE" }, "Could not remove")) {
+    if (await send(itemUrl(x), { method: "DELETE" }, "Could not remove")) {
       setInsights((s) => { const { [x.id]: _gone, ...rest } = s; void _gone; return rest; });
+      setOpenId(null);
       await load();
       onChanged?.();
     }
   }
 
-  /** One analysis. Returns false when the workspace should stop asking (a limit, or no access). */
-  async function runInsight(id: string, refresh: boolean): Promise<boolean> {
+  /** One analysis for the competitor whose panel is open. */
+  async function runInsight(id: string, refresh: boolean) {
     setInsights((s) => ({ ...s, [id]: { status: "loading" } }));
     try {
       const res = await fetch(`/api/opportunities/${opportunityId}/competitors/${id}/insights`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ refresh }) });
       const j = await res.json().catch(() => ({}));
       if (!res.ok || !j.analysis) {
         setInsights((s) => ({ ...s, [id]: { status: "error", message: j.error ?? "The analysis is unavailable right now." } }));
-        return res.status !== 429 && res.status !== 403;
+        return;
       }
       setInsights((s) => ({ ...s, [id]: { status: "done", analysis: j.analysis as DockAnalysis, open: true } }));
-      return true;
     } catch {
       setInsights((s) => ({ ...s, [id]: { status: "error", message: "The analysis is unavailable right now." } }));
-      return false;
     }
-  }
-
-  async function analyseAll() {
-    const todo = list.filter((x) => insights[x.id]?.status !== "done");
-    if (todo.length === 0) return;
-    const yes = await confirm({ title: `Analyse ${todo.length} ${todo.length === 1 ? "competitor" : "competitors"}?`, body: analyseAllSentence(todo.length), confirmLabel: `Run ${todo.length}` });
-    if (!yes) return;
-    setBusyAll(true);
-    try {
-      for (const x of todo) {
-        // One at a time: each call reserves its own slot against the daily limit.
-        if (!(await runInsight(x.id, false))) break;
-      }
-    } finally { setBusyAll(false); }
   }
 
   const toggleInsights = (id: string) => setInsights((s) => {
     const cur = s[id];
     return cur?.status === "done" ? { ...s, [id]: { ...cur, open: !cur.open } } : s;
   });
-  const open = (href: string) => { if (href.startsWith("/") && !href.startsWith("//")) router.push(href); };
+  const goTo = (href: string) => { if (href.startsWith("/") && !href.startsWith("//")) router.push(href); };
+
+  const summary = `${stats.total} on this tender${stats.cheaper > 0 ? ` · ${stats.cheaper} expected below us` : ""}${stats.proposed > 0 ? ` · ${stats.proposed} proposed` : ""}`;
 
   return (
     <div className="bpm-tap" data-guide="competitor.tab" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+      <style>{css}</style>
       {pending && <div role="alert" data-guide="competitor.pending" style={{ fontSize: 13, color: "var(--amberink)" }}>{PENDING}</div>}
       {loadError && <div role="alert" style={{ fontSize: 13, color: "var(--err-ink)" }}>{loadError}</div>}
 
-      {!pending && (
-        <StatStrip guide="competitor.strip">
-          <StatTile tone="info" label="Competitors" value={String(stats.total)} sub={stats.total === 0 ? "none added yet" : "on this tender"} />
-          <StatTile
-            tone={stats.cheaper > 0 ? "warn" : "neutral"} label="Expect to be cheaper" info={COMPETITOR_TIPS.cheaper}
-            value={String(stats.cheaper)} sub={stats.priced === 0 ? "no price view recorded" : `of ${stats.priced} with a price view`}
-          />
-          <StatTile tone={stats.winner ? "bad" : "neutral"} label="Winner" info={COMPETITOR_TIPS.winner} value={stats.winner ?? "Not decided"} sub={stats.winner ? "won this tender" : "mark one when the tender is decided"} />
-        </StatStrip>
-      )}
-
       <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
         <span className="bpm-label-row"><h2 className="bpm-t-section">Competitors</h2><InfoTip label="Competitors">{COMPETITOR_TIPS.tab}</InfoTip></span>
-        {data && !pending && !available && data.insights.reason && list.length > 0 && (
-          <InfoTip label="Company insights">{data.insights.reason}</InfoTip>
-        )}
-        {!pending && (
+        {data && !pending && <span data-guide="competitor.summary" style={{ fontSize: 13, color: c.muted }}>{summary}</span>}
+        {!pending && canEdit && (
           <span style={{ marginLeft: "auto", display: "inline-flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-            {available && list.length >= 2 && (
-              <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
-                <Button variant="secondary" size="sm" loading={busyAll} data-guide="competitor.analyse_all" style={{ minHeight: 44 }} onClick={analyseAll}>Analyse all</Button>
-                <InfoTip label="Analyse all">{COMPETITOR_TIPS.insightsAll}</InfoTip>
-              </span>
-            )}
-            {canEdit && !(data !== null && list.length === 0) && <Button variant="primary" size="sm" data-guide="competitor.add" style={{ minHeight: 44 }} onClick={() => setPanel({})}>+ Add competitor</Button>}
+            <Button variant="secondary" size="sm" data-guide="competitor.add" style={{ minHeight: 44 }} onClick={() => setPanel({})}>Add competitor</Button>
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+              <Button variant="primary" size="sm" disabled data-guide="competitor.suggest" style={{ minHeight: 44 }}>Suggest from market research</Button>
+              <InfoTip label="Suggest from market research">{COMPETITOR_TIPS.suggest}</InfoTip>
+            </span>
           </span>
         )}
       </div>
@@ -169,28 +182,53 @@ export default function CompetitorsTab({ opportunityId, canEdit, onError, onNoti
         <Card padding={0}>
           <EmptyState
             title="No competitors yet"
-            text={canEdit ? "Add the companies you expect to bid against. Their price position and strengths help the team price." : "No competitors have been added to this tender."}
-            action={canEdit ? <Button variant="primary" style={{ minHeight: 44 }} onClick={() => setPanel({})}>+ Add competitor</Button> : undefined}
+            text={canEdit ? "Add the companies you expect to bid against, or ask market research to suggest some. Their price position and strengths help the team price." : "No competitors have been added to this tender."}
+            action={canEdit ? <Button variant="primary" style={{ minHeight: 44 }} onClick={() => setPanel({})}>Add competitor</Button> : undefined}
           />
         </Card>
       )}
 
       {shown.length > 0 && (
-        <div data-guide="competitor.list" style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 320px), 1fr))", alignItems: "start" }}>
-          {shown.map((x) => (
-            <CompetitorCard
-              key={x.id} competitor={x} canEdit={canEdit} insightsAvailable={available} insight={insights[x.id]}
-              onInsights={(refresh) => void runInsight(x.id, refresh)} onToggleInsights={() => toggleInsights(x.id)}
-              onEdit={() => setPanel({ competitor: x })} onToggleWinner={() => void toggleWinner(x)} onRemove={() => void remove(x)}
-              onOpen={open} onAsk={(q) => askDock(q, null)}
-            />
-          ))}
-        </div>
+        <table className="cmp-table" data-guide="competitor.table">
+          <thead>
+            <tr>
+              <th scope="col">Company</th>
+              <th scope="col">Expected price</th>
+              <th scope="col"><span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>Status<InfoTip label="Status">{COMPETITOR_TIPS.status}</InfoTip></span></th>
+              <th scope="col"><span style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0 0 0 0)" }}>Open</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            {shown.map((x) => (
+              <tr key={x.id} className="cmp-row" data-guide="competitor.row" data-competitor={x.id} onClick={() => setOpenId(x.id)}>
+                <td className="cmp-name">
+                  <button type="button" className="cmp-open" data-guide="competitor.open" aria-haspopup="dialog" onClick={(e) => { e.stopPropagation(); setOpenId(x.id); }}>
+                    {x.name}
+                    {x.is_winner && <span style={{ marginLeft: 8 }}><StatusPill label="Winner" tone={TONE_PILLAR.bad} /></span>}
+                  </button>
+                </td>
+                <td className="cmp-price" style={{ fontSize: 13, color: c.ink }}>
+                  {x.expected_price ? COMPETITOR_PRICE_LABEL[x.expected_price] : <StatusPill label="Unknown" tone="purple" />}
+                </td>
+                <td className="cmp-status"><StatusPill label={x.status === "proposed" ? "Proposed" : "Added by you"} tone={x.status === "proposed" ? "blue" : TONE_PILLAR.good} /></td>
+                <td className="cmp-chev" aria-hidden="true">›</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       )}
       {list.length > COMPETITOR_LIMITS.shown && (
         <div><Button variant="quiet" size="sm" style={{ minHeight: 44 }} onClick={() => setShowAll((v) => !v)}>{showAll ? "Show fewer" : `Show all ${list.length}`}</Button></div>
       )}
 
+      {open && !panel && (
+        <CompetitorDetailPanel
+          competitor={open} canEdit={canEdit} ourBid={data?.our_bid ?? null} insightsAvailable={available} insight={insights[open.id]} busy={busy}
+          onClose={() => setOpenId(null)} onAccept={() => void answer(open, "accepted")} onReject={() => void answer(open, "rejected")}
+          onEdit={() => setPanel({ competitor: open })} onToggleWinner={() => void toggleWinner(open)} onRemove={() => void remove(open)}
+          onInsights={(refresh) => void runInsight(open.id, refresh)} onToggleInsights={() => toggleInsights(open.id)} onOpen={goTo} onAsk={(q) => askDock(q, null)}
+        />
+      )}
       {panel && (
         <CompetitorPanel
           opportunityId={opportunityId} competitor={panel.competitor} onClose={() => setPanel(null)}

@@ -5,8 +5,7 @@ import { analysisAccess } from "@/lib/analysis/gate";
 import { toDock } from "@/lib/assistant/analysisRun";
 import { openTenderDealRequest } from "@/lib/tender/dealAccess";
 import { isMissingSchema } from "@/lib/tender/server";
-import { COMPETITOR_COLS, PENDING_COMPETITORS, UUID } from "@/lib/tender/competitors/server";
-import type { CompetitorView } from "@/lib/tender/competitors/rules";
+import { PENDING_COMPETITORS, UUID, loadCompetitor } from "@/lib/tender/competitors/server";
 
 // A web analysis runs up to four searches server-side before the model answers (the same call as POST /api/ai/analysis).
 export const maxDuration = 120;
@@ -22,10 +21,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   if (!gate.ok) return NextResponse.json({ error: gate.error }, { status: gate.status });
   if (!UUID.test(competitorId)) return NextResponse.json({ error: "Not found" }, { status: 404 });
   const { admin, tenantId } = gate.req;
-  const { data, error: loadError } = await admin.from("opportunity_competitors").select(COMPETITOR_COLS).eq("id", competitorId).eq("opportunity_id", id).eq("tenant_id", tenantId).maybeSingle();
+  const { row, error: loadError } = await loadCompetitor(admin, tenantId, id, competitorId);
   if (loadError) return NextResponse.json({ error: isMissingSchema(loadError) ? PENDING_COMPETITORS : loadError.message }, { status: isMissingSchema(loadError) ? 503 : 500 });
-  const row = data as CompetitorView | null;
-  if (!row) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  if (!row || row.status === "rejected") return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   const access = await resolveAnalysisAccess();
   if (access instanceof NextResponse) return access;
