@@ -42,7 +42,12 @@ export const PROJECT_TIPS = {
   milestoneInvoice: "Makes a draft invoice for the milestone amount and links it here. The invoice appears in Invoices.",
   stillToInvoice: "The contract value less what has been invoiced so far, including milestones not yet in the schedule.",
   bidAgainstBudget: "Compares the cost recorded when the winning bid went in with the project's current budget. A larger budget means costs grew after the bid.",
-  origin: "Where the project came from: the tender, the bid version that won, the BOQ file and the estimates that priced it.",
+  whereBudgetGoes: "One bar for the contract value: the budget by cost type, and what is left as margin. Over-allocation shows in red.",
+  path: "Draft, Baseline waiting, Active, Handed over, Closed. Handed over means a buy-out package was handed over or the budget file was downloaded.",
+  copyTerms: "Makes one milestone per payment term of the template chosen on the winning bid. Edit them afterwards as you like.",
+  paymentTerms: "How the client pays, from your templates. It prints on the bid documents, is saved with the submitted bid and copies into the billing schedule if you win.",
+  paymentTemplates: "A few named payment schedules: each milestone is a percent of the contract or a fixed amount, with a due-when text. Pick one on a tender's Bid tab.",
+  marginFloor: "Planned margin under this percent turns amber, and below zero it turns red. Planned margin is the contract value less what you have allocated.",
 } as const;
 
 export type ProjectTipKey = keyof typeof PROJECT_TIPS;

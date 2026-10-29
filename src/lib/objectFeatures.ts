@@ -100,9 +100,13 @@ export const OBJECT_FEATURE: Record<string, keyof TenantFeatures | null> = {
   tender_bid_versions: "gcc_tender",
   // The internal cost of each bid version (0230): service role only, no policy, never read by an export, a link or the API.
   tender_bid_version_costs: "gcc_tender",
+  // The payment-term template a bid version went out with (0240): service-role writes, in-app only.
+  tender_bid_version_terms: "gcc_tender",
   deal_activities: "gcc_tender",
   // Competitors of a tender deal (0229): a child record of the deal, gated like the tender block.
   opportunity_competitors: "gcc_tender",
+  // What went to the client on a tender (0237): service-role writes, in-app only; a log entry, not a business object (no import, export or v1).
+  tender_bid_sends: "gcc_tender",
   // The Deal Room (0222): internal only, behind its own platform-admin flag.
   deal_rooms: "deal_room",
   deal_room_members: "deal_room",

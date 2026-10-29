@@ -173,7 +173,7 @@ describe("the module is off", () => {
       await budgetGet(get(`?revision=${T2_REVISION}`), ctx(id)), await budgetPut(json("PUT", { revision_id: T2_REVISION, lines: [] }), ctx(id)),
       await revisionsGet(get(), ctx(id)), await revisionPost(json("POST", { justification_code: "other" }), ctx(id)), await askPost(json("POST", {}), ctx(id)),
       await decide(json("PATCH", { action: "approve" }), dctx(id, T2_REVISION)), await handoverGet(get(), ctx(id)),
-      await mastersGet(get("?summary=1")), await mastersPost(json("POST", { kind: "cost_code", code: "1", name: "x" })), await settingsGet(), await settingsPut(json("PUT", { default_margin_pct: 10 })),
+      await mastersGet(get("?summary=1")), await mastersPost(json("POST", { kind: "cost_code", code: "1", name: "x" })), await settingsGet(), await settingsPut(json("PUT", { margin_floor_pct: 10 })),
     ];
     for (const a of answers) expect(a.status).toBe(404);
     expect(state.touched.filter((t) => NEW_TABLES.includes(t))).toEqual([]);
@@ -717,21 +717,49 @@ describe("the code lists", () => {
   });
 });
 
-describe("the one workspace setting", () => {
-  it("is the default margin: admin only, 0 to 95, kept with the rest of the config", async () => {
+describe("the workspace settings of the module", () => {
+  const milestone = (title: string, percent: number, trigger = "") => ({ title, basis: "percent", percent, trigger });
+
+  it("the margin floor: admin only, 0 to 95 or empty, kept with the rest of the config", async () => {
     expect((await settingsGet()).status).toBe(403);
-    expect((await settingsPut(json("PUT", { default_margin_pct: 20 }))).status).toBe(403);
+    expect((await settingsPut(json("PUT", { margin_floor_pct: 20 }))).status).toBe(403);
     as(BOSS, "admin");
-    expect(await (await settingsGet()).json()).toEqual({ default_margin_pct: 15 });
-    expect((await settingsPut(json("PUT", { default_margin_pct: 120 }))).status).toBe(422);
-    expect((await settingsPut(json("PUT", { default_margin_pct: "abc" }))).status).toBe(422);
-    state.db.rows("tenants").find((t) => t.id === T1)!.config = { tender: { approvers: [BOSS] } };
-    expect((await settingsPut(json("PUT", { default_margin_pct: 22.5 }))).status).toBe(200);
+    expect(await (await settingsGet()).json()).toEqual({ margin_floor_pct: null, payment_term_templates: [] });
+    expect((await settingsPut(json("PUT", { margin_floor_pct: 120 }))).status).toBe(422);
+    expect((await settingsPut(json("PUT", { margin_floor_pct: "abc" }))).status).toBe(422);
+    expect((await settingsPut(json("PUT", {}))).status).toBe(400);
+    state.db.rows("tenants").find((t) => t.id === T1)!.config = { tender: { approvers: [BOSS] }, contract_projects: { default_margin_pct: 15 } };
+    expect((await settingsPut(json("PUT", { margin_floor_pct: 12.5 }))).status).toBe(200);
     const cfg = state.db.rows("tenants").find((t) => t.id === T1)!.config as Record<string, Record<string, unknown>>;
-    expect(cfg.contract_projects.default_margin_pct).toBe(22.5);
+    expect(cfg.contract_projects.margin_floor_pct).toBe(12.5);
+    expect(cfg.contract_projects).not.toHaveProperty("default_margin_pct"); // the retired setting is dropped on the first save
     expect(cfg.tender.approvers).toEqual([BOSS]);
+    expect((await (await settingsGet()).json()).margin_floor_pct).toBe(12.5);
+    expect((await settingsPut(json("PUT", { margin_floor_pct: null }))).status).toBe(200);
+    expect((await (await settingsGet()).json()).margin_floor_pct).toBeNull();
   });
 
+  it("payment-term templates: saved whole, each new one gets an id, a bad one is refused and nothing is written", async () => {
+    as(BOSS, "admin");
+    const good = [{ name: "30 / 60 / 10", milestones: [milestone("Advance", 30, "On award"), milestone("Delivery", 60, "On delivery"), milestone("Retention", 10, "After 12 months")] }];
+    const saved = await settingsPut(json("PUT", { payment_term_templates: good }));
+    expect(saved.status).toBe(200);
+    const returned = (await saved.json()).payment_term_templates as { id: string; name: string }[];
+    expect(returned).toHaveLength(1);
+    expect(returned[0].id).toMatch(/^[0-9a-f-]{36}$/);
+    expect((await (await settingsGet()).json()).payment_term_templates).toEqual(returned.map((t) => expect.objectContaining({ id: t.id, name: "30 / 60 / 10" })));
+
+    for (const bad of [
+      [{ name: "", milestones: [milestone("A", 10)] }],
+      [{ name: "No milestones", milestones: [] }],
+      [{ name: "Over", milestones: [milestone("A", 120)] }],
+      [{ name: "Same", milestones: [milestone("A", 10)] }, { name: "same", milestones: [milestone("B", 10)] }],
+    ]) expect((await settingsPut(json("PUT", { payment_term_templates: bad }))).status, JSON.stringify(bad)).toBe(422);
+    expect(((await (await settingsGet()).json()).payment_term_templates as unknown[]).length).toBe(1);
+  });
+});
+
+describe("an estimated cost from a tender", () => {
   it("changes what an estimated cost starts at", async () => {
     state.config = { contract_projects: { default_margin_pct: 50 } };
     await fromTender();

@@ -115,7 +115,7 @@ describe("The other project actions refresh the page", () => {
   });
   it("the page feeds the tabs from the server, so a refresh brings every tile", () => {
     const page = read("src/app/(app)/contract-projects/[id]/page.tsx");
-    expect(page).toContain("externalLine={<ProjectKpiStrip view={view} />}");
+    expect(page).toContain("externalLine={<><ProjectPathBar path={view.path} /><ProjectKpiStrip view={view} /></>}");
     expect(page).toContain("<VariationsSection req={req} project={p} />");
     expect(page).toContain("<InvoicingSection req={req} project={p} />");
   });

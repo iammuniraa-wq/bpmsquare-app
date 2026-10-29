@@ -20,6 +20,8 @@ import HandoverPanel from "./HandoverPanel";
 import ApprovalControls from "./ApprovalControls";
 import ContractProjectBanner from "./ContractProjectBanner";
 import { budgetTotals, diffRevisions, plannedMargin } from "@/lib/contractProjects/budget";
+import { projectPath } from "@/lib/contractProjects/path";
+import ProjectPathBar from "./ProjectPathBar";
 import { PROJECT_TIPS } from "@/lib/contractProjects/tips";
 import type { ProjectView } from "@/lib/contractProjects/view";
 import type { BudgetLine } from "@/lib/contractProjects/types";
@@ -43,84 +45,154 @@ const rev = (over: Record<string, unknown> = {}) => ({ id: "r0", project_id: "p1
 const totals = budgetTotals(lines);
 
 const view = (over: Partial<ProjectView> = {}): ProjectView => ({
-  project: { id: "p1", tenant_id: "t", ref: "CPR-0001", name: "ARB-1 Fence", account_id: "a", source_opportunity_id: "o1", status: "draft", contract_value: 30000, currency: "SAR", planned_start: "2026-11-01", planned_end: "2027-03-01", manager_id: null, erp_system: null, erp_id: null, custom_data: null, created_by: "u1", created_at: "", updated_at: "" },
+  project: { id: "p1", tenant_id: "t", ref: "CPR-0001", name: "ARB-1 Fence", account_id: "a", source_opportunity_id: "o1", status: "draft", contract_value: 30000, currency: "SAR", planned_start: "2026-11-01", planned_end: "2027-03-01", manager_id: null, erp_system: null, erp_id: null, custom_data: null, handover_sent_at: null, created_by: "u1", created_at: "", updated_at: "" },
   account_name: "Aramco", manager_name: "A. Nasser", source: { id: "o1", ref: "OPP-1", title: "ARB-1" },
   revisions: [rev()] as ProjectView["revisions"], revision: rev() as ProjectView["revision"], lines, totals, margin: plannedMargin(30000, totals.total), compare: null,
   resources: [{ code: "11", name: "Material", revenue_side: false }, { code: "31", name: "Man Power", revenue_side: false }, { code: "91", name: "Revenue", revenue_side: true }],
   justifications: [{ code: "scope_change", name: "Scope change" }, { code: "other", name: "Other" }],
-  approval: { pending: null, canDecide: false, askBlocked: null, history: [] }, canEdit: true, needsApprovalUpdate: false, ...over,
+  approval: { pending: null, canDecide: false, askBlocked: null, history: [] }, canEdit: true, needsApprovalUpdate: false,
+  marginFloor: null, path: projectPath({ status: "draft", handover_sent_at: null }, false), ...over,
 });
 
 describe("Overview", () => {
   const out = strip(renderToString(createElement(ProjectOverview, { view: view() })));
 
-  it("does not repeat the four header figures: they appear once, in the page header strip", () => {
+  it("does not repeat the key figures: they appear once, in the page header section", () => {
     expect(out).not.toContain('data-guide="cp.kpis"');
     expect(out).not.toContain("Planned margin");
     expect(out).not.toContain("from the awarded tender");
     expect(out).not.toContain("Baseline · Draft");
   });
 
-  it("shows the budget against the contract value and the split by cost type, with names", () => {
+  it("shows ONE graph, Where the budget goes: the cost types and a Margin segment, in one legend row", () => {
+    expect(out).toContain("Where the budget goes");
     expect(out).toContain('data-guide="cp.bar"');
     expect(out).toContain('data-guide="cp.stack"');
     expect(out).toContain("Material");
     expect(out).toContain("Man Power");
-    expect(out).toContain("SAR 12,800");
+    expect(out).toContain("Margin 24%"); // (30000 - 22800) / 30000
+    expect(out).toContain("Budget SAR 22,800 of contract value SAR 30,000. The rest is your margin.");
+    expect(out).toContain("Material: SAR 12,800");
+    expect(out).not.toContain("Budget against contract value");
+    expect(out).not.toContain("Budget by cost type");
+    expect(out).not.toContain("Over by");
   });
 
-  it("lists what needs a person, each linking to the Budget tab, and the approval control", () => {
-    expect(out).toContain('data-guide="cp.attention"');
-    expect(out).toContain("1 line with an estimated cost");
+  it("an over-allocated budget fills the bar and says Over by in red", () => {
+    const over = strip(renderToString(createElement(ProjectOverview, { view: view({ project: { ...view().project, contract_value: 20000 } }) })));
+    expect(over).toContain("Over by SAR 2,800");
+    expect(over).not.toContain("Margin ");
+  });
+
+  it("opens with a Needs-you banner: the approval action and each thing to fix as a link, before the graph", () => {
+    expect(out).toContain('data-guide="cp.needs_you"');
+    expect(out.indexOf('data-guide="cp.needs_you"')).toBeLessThan(out.indexOf('data-guide="cp.bar"'));
+    expect(out).toContain('data-guide="cp.approval.ask"');
     expect(out).toContain("1 line without a cost code");
     expect(out).toContain("/contract-projects/p1?tab=budget");
-    expect(out).toContain('data-guide="cp.approval.ask"');
+    expect(out).toContain(">Fix<");
+    expect(out).not.toContain("estimated cost");
+    expect(out).not.toContain('data-guide="cp.attention"');
   });
 
-  it("links the tender and prints none of the explanations", () => {
-    expect(out).toContain("/pipeline/o1");
-    for (const tip of [PROJECT_TIPS.budgetVsContract, PROJECT_TIPS.costTypes, PROJECT_TIPS.attention, PROJECT_TIPS.plannedMargin]) expect(out).not.toContain(tip);
-    expect(out).toContain("About Budget against contract value");
+  it("omits the banner altogether (not an empty card) when nothing is waiting for this person", () => {
+    const fixed = lines.map((l) => ({ ...l, cost_code: "32 31 13" }));
+    const quiet = strip(renderToString(createElement(ProjectOverview, { view: view({ lines: fixed, totals: budgetTotals(fixed), canEdit: false }) })));
+    expect(quiet).not.toContain("cp.needs_you");
+    expect(quiet).not.toContain("Needs you");
+  });
+
+  it("a person who may only decide sees Approve and Reject in the banner, and nothing about asking", () => {
+    const pending = { id: "ar1", revision_id: "r0", rev_no: 0, status: "pending" as const, reason: null, requested_by_name: "Sara", requested_at: "2026-10-26T00:00:00Z", decided_by_name: null, decided_at: null, comment: null, mine: false };
+    const waiting = strip(renderToString(createElement(ProjectOverview, { view: view({ revision: rev({ status: "pending" }) as ProjectView["revision"], approval: { pending, canDecide: true, askBlocked: null, history: [] } }) })));
+    expect(waiting).toContain("cp.approval.approve");
+    expect(waiting).toContain("cp.approval.reject");
+    expect(waiting).not.toContain("cp.approval.ask");
+  });
+
+  it("keeps the project details folded away, with a one-line summary, and prints none of the explanations", () => {
+    expect(out).toContain("Project details");
+    expect(out).toContain("A. Nasser · 01 Nov 2026");
+    expect(out).not.toContain("Planned end");
+    expect(out).not.toContain("Customer");
+    for (const tip of [PROJECT_TIPS.whereBudgetGoes, PROJECT_TIPS.plannedMargin, PROJECT_TIPS.erpId]) expect(out).not.toContain(tip);
+    expect(out).toContain("About Where the budget goes");
+  });
+
+  it("the tender it came from is the page header's back link, not a card or a Details row", () => {
+    expect(out).not.toContain("Came from");
+    expect(out).not.toContain("/pipeline/o1");
+    const page = readFileSync(path.join(ROOT, "src/app/(app)/contract-projects/[id]/page.tsx"), "utf8");
+    expect(page).toContain("backHref={view.source ? ROUTES.pipelineDetail(view.source.id) : ROUTES.contractProjects}");
+    expect(page).toContain("`Tender ${view.source.ref ?? view.source.title}`");
+    expect(page).toContain("from bid v${origin.bid.version_no}");
   });
 
   it("a project with no lines says where to add them", () => {
     const empty = strip(renderToString(createElement(ProjectOverview, { view: view({ lines: [], totals: budgetTotals([]), margin: plannedMargin(30000, 0) }) })));
     expect(empty).toContain("Add budget lines on the Budget tab");
-    expect(empty).toContain("Nothing to fix");
   });
 });
 
-describe("Header figures (shown once, on every tab)", () => {
+describe("Key figures (shown once, on every tab)", () => {
   const out = strip(renderToString(createElement(ProjectKpiStrip, { view: view() })));
 
-  it("opens with the contract value, the budget, the planned margin and the line count, as tinted tiles", () => {
+  it("is one section with three tiles: the contract value, the budget and the planned margin", () => {
+    expect(out).toContain("Key figures");
     expect(out).toContain('data-guide="cp.kpis"');
     expect(out).toContain("SAR 30,000");
     expect(out).toContain("SAR 22,800");
     expect(out).toContain("24%"); // (30000 - 22800) / 30000
     expect(out).toContain("Baseline · Draft");
     expect(out).toContain("from the awarded tender");
+    expect(out).not.toContain("Lines");
+    expect(out.match(/data-tone=/g)).toHaveLength(3);
     expect(out).toContain('data-tone="info"');
-    expect(out).toContain('data-tone="good"'); // margin 24%
+    expect(out).toContain('data-tone="good"'); // margin 24%, no floor set
     expect(out).toContain(`background:${pillar.blue.bg}`);
     expect(out).toContain("repeat(auto-fit, minmax(170px, 1fr))"); // wraps on a phone
-    // The only hex in the markup is a theme.ts pillar edge token.
-    expect(Object.values(pillar).reduce((h, p) => h.split(p.base).join(""), out)).not.toMatch(/#[0-9a-fA-F]{3,8}\b/);
+    // No colour literal in the tiles themselves (the section's own chrome is the shared SettingsSection).
+    const tiles = out.slice(out.indexOf('data-guide="cp.kpis"'));
+    expect(Object.values(pillar).reduce((h, p) => h.split(p.base).join(""), tiles)).not.toMatch(/#[0-9a-fA-F]{3,8}\b/);
   });
 
-  it("an over-budget project shows a negative margin in red, and a project with no contract value says what it needs", () => {
-    const over = strip(renderToString(createElement(ProjectKpiStrip, { view: view({ margin: plannedMargin(10000, totals.total), project: { ...view().project, contract_value: 10000 } }) })));
+  it("the section is open on a PC, folds away on a phone, and says the contract and margin in its summary", () => {
+    const src = readFileSync(path.join(ROOT, "src/components/contractProjects/ProjectKpiStrip.tsx"), "utf8");
+    expect(src).toContain('id="cp.key_figures"');
+    expect(src).toContain("defaultOpen defaultOpenNarrow={false}");
+    expect(src).toContain("summary={`${money(p.contract_value, cur)} · margin ${pct(margin.pct)}`}");
+  });
+
+  it("the margin goes amber under the workspace floor, red when negative, and never amber without a floor", () => {
+    const tone = (v: ProjectView) => strip(renderToString(createElement(ProjectKpiStrip, { view: v })));
+    expect(tone(view({ marginFloor: 30 }))).toContain('data-tone="warn"'); // 24% under a 30% floor
+    expect(tone(view({ marginFloor: 20 }))).not.toContain('data-tone="warn"');
+    expect(tone(view({ marginFloor: null, margin: plannedMargin(30000, 29000) }))).not.toContain('data-tone="warn"'); // 3%, no floor set
+    const over = tone(view({ margin: plannedMargin(10000, totals.total), project: { ...view().project, contract_value: 10000 } }));
     expect(over).toContain("-128%");
     expect(over).toContain('data-tone="bad"');
-    const none = strip(renderToString(createElement(ProjectKpiStrip, { view: view({ margin: plannedMargin(0, totals.total), project: { ...view().project, contract_value: 0 } }) })));
+    const none = tone(view({ margin: plannedMargin(0, totals.total), project: { ...view().project, contract_value: 0 } }));
     expect(none).toContain("Needs a contract value");
     expect(none).not.toContain('data-tone="good"');
   });
 
-  it("is drawn by the page header, not by the Overview tab", () => {
+  it("is drawn by the page header, with the project path above it, not by the Overview tab", () => {
     const page = readFileSync(path.join(ROOT, "src/app/(app)/contract-projects/[id]/page.tsx"), "utf8");
     expect(page).toContain("<ProjectKpiStrip");
+    expect(page).toContain("<ProjectPathBar");
     expect(page).not.toContain("facts={[");
+  });
+});
+
+describe("Project path", () => {
+  it("shows Draft, Baseline waiting, Active, Handed over and Closed with the current step marked", () => {
+    const out = strip(renderToString(createElement(ProjectPathBar, { path: projectPath({ status: "active", handover_sent_at: null }, false) })));
+    for (const label of ["Draft", "Baseline waiting", "Active", "Handed over", "Closed"]) expect(out).toContain(label);
+    expect(out).toContain('data-step="active" data-state="current" aria-current="step"');
+    expect(out).toContain('data-step="draft" data-state="done"');
+    expect(out).toContain('data-step="closed" data-state="todo"');
+    expect(out).toContain("About Project path");
+    expect(out).toContain("overflow-x:auto"); // scrolls sideways on a phone
   });
 });
 
@@ -256,6 +328,7 @@ describe("Revisions", () => {
 describe("Handover", () => {
   it("offers the Excel download and a disabled Send to ePROMIS with its explanation behind an i", () => {
     const out = strip(renderToString(createElement(HandoverPanel, { projectId: "p1", revisionId: "r0", revLabel: "Baseline", hasBudget: true })));
+    expect(out).toContain("Hand over to the ERP");
     expect(out).toContain("/api/contract-projects/p1/handover?revision=r0");
     expect(out).toContain("Download Excel");
     expect(out).toMatch(/<button[^>]*disabled[^>]*data-guide="cp.handover.send"|<button[^>]*data-guide="cp.handover.send"[^>]*disabled/);

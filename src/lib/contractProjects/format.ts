@@ -1,3 +1,6 @@
+import type { MarginState } from "./budget";
+import type { Tone } from "@/lib/ui/tone";
+
 // Small, pure display helpers shared by the contract project screens (server and client).
 
 export const money = (n: number | null | undefined, currency?: string | null, digits = 0): string =>
@@ -15,3 +18,6 @@ export const day = (iso: string | null | undefined): string =>
 /** The tone of a status chip: StatusPill's tones. */
 export const projectTone = (status: string): "blue" | "amber" | "green" | "red" | "teal" =>
   status === "active" ? "green" : status === "baseline_pending" ? "amber" : status === "closed" ? "teal" : "blue";
+
+/** The tile tone of a planned margin: red when negative, amber under the workspace floor, green otherwise, plain while there is none. */
+export const marginTone = (state: MarginState): Tone => (state === "over" ? "bad" : state === "low" ? "warn" : state === "ok" ? "good" : "neutral");

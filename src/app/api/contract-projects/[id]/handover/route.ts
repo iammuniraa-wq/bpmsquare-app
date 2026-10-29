@@ -47,6 +47,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     tenantId, objectType: "contract_projects", objectId: id, objectLabel: `${project.ref ?? ""} ${project.name}`.trim(), action: "update", actorId: user?.id, actorEmail: user?.email,
     changes: [{ field: "Handover file downloaded", from: null, to: `Revision ${revision.rev_no}` }],
   });
+  // The "Handed over" step of the project path. Until migration 0240 is applied the column is not there and the stamp is simply skipped.
+  await admin.from("contract_projects").update({ handover_sent_at: new Date().toISOString() }).eq("id", id).eq("tenant_id", tenantId);
   const fileName = `${(project.ref ?? "project").replace(/[^A-Za-z0-9._-]/g, "")}-budget-rev${revision.rev_no}.xlsx`;
   return new NextResponse(new Uint8Array(buffer), {
     headers: {

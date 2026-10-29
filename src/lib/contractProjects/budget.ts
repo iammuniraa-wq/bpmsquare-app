@@ -114,6 +114,26 @@ export function plannedMargin(contractValue: number, budgetTotal: number): { amo
   return { amount, pct: contractValue > 0 ? Math.round(((contractValue - budgetTotal) / contractValue) * 1000) / 10 : null };
 }
 
+export type MarginState = "none" | "ok" | "low" | "over";
+
+/**
+ * How a planned margin reads against the workspace's floor: red (`over`) when negative, amber (`low`) under the floor, otherwise `ok`;
+ * `none` while there is no margin to read. A workspace with no floor set never goes amber: there is no number here to fall back on.
+ */
+export function marginState(pct: number | null | undefined, floor: number | null | undefined): MarginState {
+  if (pct === null || pct === undefined || !Number.isFinite(pct)) return "none";
+  if (pct < 0) return "over";
+  return floor !== null && floor !== undefined && pct < floor ? "low" : "ok";
+}
+
+/** The workspace's margin floor (Settings > Contract projects): a number from 0 to 95, or null when none is set. */
+export function readMarginFloor(config: { contract_projects?: { margin_floor_pct?: unknown } } | null | undefined): number | null {
+  const v = config?.contract_projects?.margin_floor_pct;
+  if (v === undefined || v === null || v === "") return null;
+  const n = Number(v);
+  return Number.isFinite(n) && n >= 0 && n <= 95 ? n : null;
+}
+
 // ── The difference between two revisions ──────────────────────────────────────────────────────────────────────────
 
 const DIFF_FIELDS = ["resource_code", "cost_code", "wbs", "description", "qty", "unit", "unit_cost", "amount", "reserve"] as const;

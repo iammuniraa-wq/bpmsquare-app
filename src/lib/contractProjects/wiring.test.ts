@@ -111,11 +111,11 @@ describe("gating and wiring", () => {
   it("every control of the screens carries a data-guide id the assistant can point at", () => {
     const files = [
       "src/components/contractProjects/ApprovalControls.tsx", "src/components/contractProjects/BudgetGrid.tsx", "src/components/contractProjects/RevisionsPanel.tsx",
-      "src/components/contractProjects/HandoverPanel.tsx", "src/components/contractProjects/ContractProjectBanner.tsx", "src/components/contractProjects/ProjectOverview.tsx", "src/components/contractProjects/ProjectDetailsForm.tsx",
+      "src/components/contractProjects/HandoverPanel.tsx", "src/components/contractProjects/ContractProjectBanner.tsx", "src/components/contractProjects/ProjectOverview.tsx", "src/components/contractProjects/ProjectDetailsForm.tsx", "src/components/contractProjects/ProjectPathBar.tsx",
       "src/app/(app)/settings/contract-projects/ContractProjectsSettingsClient.tsx",
     ];
     const ids = new Set(files.flatMap((f) => [...read(f).matchAll(/"(cp\.[a-z_.]+)"/g)].map((m) => m[1])));
-    for (const id of ["cp.overview", "cp.approval.ask", "cp.approval.approve", "cp.approval.reject", "cp.approval.withdraw", "cp.budget", "cp.budget.add", "cp.budget.save", "cp.budget.revision", "cp.revisions", "cp.revisions.start_button", "cp.handover.download", "cp.handover.send", "cp.banner.create", "cp.settings", "cp.settings.import", "cp.settings.margin"]) {
+    for (const id of ["cp.overview", "cp.approval.ask", "cp.approval.approve", "cp.approval.reject", "cp.approval.withdraw", "cp.budget", "cp.budget.add", "cp.budget.save", "cp.budget.revision", "cp.revisions", "cp.revisions.start_button", "cp.handover.download", "cp.handover.send", "cp.banner.create", "cp.settings", "cp.settings.import", "cp.settings.margin_floor", "cp.needs_you", "cp.path"]) {
       expect(ids, id).toContain(id);
     }
   });

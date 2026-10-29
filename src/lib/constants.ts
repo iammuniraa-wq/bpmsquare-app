@@ -1229,6 +1229,11 @@ export const LOSS_REASON_LABEL: Record<LossReason, string> = {
   other: "Other",
 };
 
+/** One milestone of a payment-term template: a share of the contract (percent) or a fixed amount, due on a trigger such as "on award". */
+export type PaymentTermMilestone = { title: string; basis: "percent" | "fixed"; percent: number | null; fixed_amount: number | null; trigger: string };
+/** A named payment schedule the workspace keeps (tenants.config.contract_projects.payment_term_templates). */
+export type PaymentTermTemplate = { id: string; name: string; milestones: PaymentTermMilestone[] };
+
 // TenantConfig — full shape of tenants.config JSONB column.
 export type TenantConfig = {
   entities: TenantEntity[];
@@ -1242,9 +1247,11 @@ export type TenantConfig = {
   // `default_markup_pct` (Costing, default 15): the markup "Award and price" adds to a supplier's cost when the person does not type another.
   // Read through tenderMarkupDefault() in src/lib/tender/costing/rules.ts.
   tender?: { approvers?: string[]; allow_self_approval?: boolean; price_validity_days?: number; default_markup_pct?: number };
-  // Contract projects (slice 5a): `default_margin_pct` (default 15) is the margin assumed when a tender line's cost is not known, so the
-  // project's budget starts from "rate less this margin" and says "estimated". Read through contractProjectSettings(); Settings > Contract projects.
-  contract_projects?: { default_margin_pct?: number };
+  // Contract projects. `margin_floor_pct`: the planned margin under which a project turns amber (red when negative); absent = no floor.
+  // `payment_term_templates`: a few named payment schedules (milestones as percent or fixed amount, each with a trigger text) chosen on a
+  // tender's Bid tab and copied into the project's billing schedule. Read through src/lib/contractProjects/paymentTerms.ts; Settings > Contract projects.
+  // `default_margin_pct` was removed 2026-10-29 (the budget is allocated by people, not guessed); a stored value is ignored.
+  contract_projects?: { default_margin_pct?: number; margin_floor_pct?: number; payment_term_templates?: PaymentTermTemplate[] };
   // E-invoicing scheme of the workspace (Region pack switch until the pack framework exists, einvoicing_ksa flag).
   // `scheme: null` switches the feature off even with the flag on; an absent key with the flag on means ksa_zatca.
   // `default_doc_type` is what a buyer without a VAT number gets (default simplified).

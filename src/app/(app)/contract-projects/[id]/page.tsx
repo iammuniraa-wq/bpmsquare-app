@@ -17,6 +17,7 @@ import { listMembersForPicker } from "@/lib/sales/opportunityServer";
 import { loadProject, UUID_RE, type ProjectCtx } from "@/lib/contractProjects/server";
 import { buildProjectView } from "@/lib/contractProjects/view";
 import ProjectKpiStrip from "@/components/contractProjects/ProjectKpiStrip";
+import ProjectPathBar from "@/components/contractProjects/ProjectPathBar";
 import { projectTone } from "@/lib/contractProjects/format";
 import { PROJECT_STATUS_LABEL } from "@/lib/contractProjects/types";
 import BuyoutSection from "@/components/contractProjects/buyout/BuyoutSection";
@@ -45,17 +46,20 @@ export default async function ContractProjectPage({ params, searchParams }: { pa
   const members = view.canEdit && p.status !== "closed" ? await listMembersForPicker(req.admin, tenantId) : [];
   const buyoutOn = buyoutVisible(p, tenant?.features);
   const deletable =p.status === "draft" && view.revisions.every((r) => r.status === "draft");
+  // A project made from a tender goes back to that tender, and says which bid and which BOQ file it came from, in the header.
+  const origin = view.origin;
+  const originMeta = [view.account_name, origin?.bid ? `from bid v${origin.bid.version_no}` : null, origin?.boq?.file_name].filter(Boolean).join(" · ");
 
   return (
     <ObjectRecordPage
-      backHref={ROUTES.contractProjects}
-      backLabel="All contract projects"
+      backHref={view.source ? ROUTES.pipelineDetail(view.source.id) : ROUTES.contractProjects}
+      backLabel={view.source ? `Tender ${view.source.ref ?? view.source.title}` : "All contract projects"}
       title={p.name}
       reference={p.ref}
-      meta={view.account_name ?? undefined}
+      meta={originMeta || undefined}
       status={<StatusPill label={PROJECT_STATUS_LABEL[p.status]} tone={projectTone(p.status)} />}
       menu={<ProjectMenu projectId={p.id} status={p.status} canEdit={view.canEdit} deletable={deletable} />}
-      externalLine={<ProjectKpiStrip view={view} />}
+      externalLine={<><ProjectPathBar path={view.path} /><ProjectKpiStrip view={view} /></>}
       basePath={ROUTES.contractProject(p.id)}
       activeTab={tab}
       tabs={[

@@ -137,6 +137,8 @@ export type ProjectRow = {
   erp_system: string | null;
   erp_id: string | null;
   custom_data: Record<string, unknown> | null;
+  /** 0240: when the budget file was last downloaded for the ERP (the "Handed over" step). Null until then, and while that migration is pending. */
+  handover_sent_at: string | null;
   created_by: string | null;
   created_at: string;
   updated_at: string;

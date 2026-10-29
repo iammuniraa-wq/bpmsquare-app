@@ -1,7 +1,8 @@
 import "server-only";
 import { getTenant } from "@/lib/tenant";
 import { loadActorNames } from "@/lib/actorNames";
-import { budgetTotals, diffRevisions, plannedMargin, type BudgetTotals, type RevisionDiff } from "./budget";
+import { budgetTotals, diffRevisions, plannedMargin, readMarginFloor, type BudgetTotals, type RevisionDiff } from "./budget";
+import { projectPath, type ProjectPath } from "./path";
 import { buildProjectApprovalView, type ProjectApprovalView } from "./approvalServer";
 import { currentRevision, ensureMasterSeeds, loadLines, loadMasters, loadRevisions, type ProjectCtx } from "./server";
 import { loadAfterAwardView, type BidAgainstBudget, type ProjectOrigin } from "./originServer";
@@ -30,6 +31,10 @@ export type ProjectView = {
   approval: ProjectApprovalView | null;
   canEdit: boolean;
   needsApprovalUpdate: boolean;
+  /** The workspace's margin floor (Settings > Contract projects), or null when none is set. */
+  marginFloor: number | null;
+  /** Draft, Baseline waiting, Active, Handed over, Closed, with the step the project is on. */
+  path: ProjectPath;
   /** Where the project came from (the deal, the winning bid version, the BOQ file, the estimates) and how its budget stands against that bid's cost. */
   origin?: ProjectOrigin | null;
   bidAgainstBudget?: BidAgainstBudget | null;
@@ -72,6 +77,10 @@ export async function buildProjectView(req: ProjectCtx, project: ProjectRow, opt
     source: (sourceRow.data as { id: string; ref: string | null; title: string } | null) ?? null,
   });
 
+  // "Handed over" also means a buy-out package was handed over; a missing buy-out table reads as none.
+  const handed = await admin.from("project_buyout_packages").select("id").eq("tenant_id", tenantId).eq("project_id", project.id).eq("status", "handed_over").limit(1);
+  const anyHandedOver = !handed.error && (handed.data ?? []).length > 0;
+
   return {
     project,
     account_name: (accountRow.data as { name?: string } | null)?.name ?? null,
@@ -83,6 +92,7 @@ export async function buildProjectView(req: ProjectCtx, project: ProjectRow, opt
     resources: resourceRows.filter((r) => r.active || lines.some((l) => l.resource_code === r.code)).map((r) => ({ code: r.code, name: r.name, revenue_side: r.flags?.revenue_side === true })),
     justifications: justificationRows.map((r) => ({ code: r.code, name: r.name })),
     approval, canEdit: req.canEdit, needsApprovalUpdate: approval === null,
+    marginFloor: readMarginFloor(tenant?.config), path: projectPath(project, anyHandedOver),
     origin: after.origin, bidAgainstBudget: after.bidAgainstBudget,
   };
 }

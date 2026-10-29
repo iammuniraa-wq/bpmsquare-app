@@ -66,11 +66,16 @@ export async function openProjectRequest(opts: { write?: boolean; admin?: boolea
 
 // ── Reads ──────────────────────────────────────────────────────────────────────────────────────────────────────────
 
-const PROJECT_COLS = "id, tenant_id, ref, name, account_id, source_opportunity_id, status, contract_value, currency, planned_start, planned_end, manager_id, erp_system, erp_id, custom_data, created_by, created_at, updated_at";
+const PROJECT_COLS_BASE = "id, tenant_id, ref, name, account_id, source_opportunity_id, status, contract_value, currency, planned_start, planned_end, manager_id, erp_system, erp_id, custom_data, created_by, created_at, updated_at";
+// Migration 0240 adds columns to the project; a database that has not had it yet is read with the base list.
+const PROJECT_COLS = `${PROJECT_COLS_BASE}, handover_sent_at`;
 const REVISION_COLS = "id, project_id, rev_no, status, justification_code, justification_text, created_by, created_at, approved_by, approved_at, locked_at, total";
 const LINE_COLS = "id, line_no, line_key, resource_code, cost_code, wbs, description, qty, unit, unit_cost, amount, cost_known, source_ref, reserve, committed, actual";
 
-export const normaliseProject = (r: Record<string, unknown>): ProjectRow => ({ ...(r as unknown as ProjectRow), contract_value: Number(r.contract_value ?? 0) });
+export const normaliseProject = (r: Record<string, unknown>): ProjectRow => ({
+  ...(r as unknown as ProjectRow), contract_value: Number(r.contract_value ?? 0),
+  handover_sent_at: typeof r.handover_sent_at === "string" ? r.handover_sent_at : null,
+});
 export const normaliseRevision = (r: Record<string, unknown>): RevisionRow => ({ ...(r as unknown as RevisionRow), rev_no: Number(r.rev_no ?? 0), total: Number(r.total ?? 0) });
 export const normaliseLine = (r: Record<string, unknown>): BudgetLine => ({
   ...(r as unknown as BudgetLine), line_no: Number(r.line_no ?? 0), qty: Number(r.qty ?? 0), unit_cost: Number(r.unit_cost ?? 0), amount: Number(r.amount ?? 0),
@@ -80,7 +85,8 @@ export const normaliseLine = (r: Record<string, unknown>): BudgetLine => ({
 
 export async function loadProject(admin: SupabaseClient, tenantId: string, id: string): Promise<{ kind: "ok"; project: ProjectRow } | { kind: "missing" } | { kind: "pending" }> {
   if (!UUID_RE.test(id)) return { kind: "missing" };
-  const { data, error } = await admin.from("contract_projects").select(PROJECT_COLS).eq("id", id).eq("tenant_id", tenantId).maybeSingle();
+  let { data, error } = await admin.from("contract_projects").select(PROJECT_COLS).eq("id", id).eq("tenant_id", tenantId).maybeSingle();
+  if (error && isMissingSchema(error)) ({ data, error } = await admin.from("contract_projects").select(PROJECT_COLS_BASE).eq("id", id).eq("tenant_id", tenantId).maybeSingle());
   if (error) return isMissingSchema(error) ? { kind: "pending" } : { kind: "missing" };
   return data ? { kind: "ok", project: normaliseProject(data as Record<string, unknown>) } : { kind: "missing" };
 }

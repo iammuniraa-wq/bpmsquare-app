@@ -37,6 +37,7 @@ export default function InvoicingTab({ projectId, data: fromServer, projectClose
   const [panel, setPanel] = useState<{ id?: string } | null>(initialPanel ?? null);
   const [showAll, setShowAll] = useState(false);
   const [busyId, setBusyId] = useState("");
+  const [copying, setCopying] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const cur = data.currency;
@@ -61,6 +62,18 @@ export default function InvoicingTab({ projectId, data: fromServer, projectClose
     } finally { setBusyId(""); }
   }
 
+  async function copyTerms() {
+    setError(""); setNotice(""); setCopying(true);
+    try {
+      const res = await fetch(`/api/contract-projects/${projectId}/milestones/copy-terms`, { method: "POST" });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) { setError(j.error ?? "Could not copy the payment terms"); await reload(); return; }
+      setNotice(`${j.created} milestone${j.created === 1 ? "" : "s"} made from ${j.template}.`);
+      await reload();
+    } finally { setCopying(false); }
+  }
+  const offerTerms = data.canEdit && !projectClosed && data.milestones.length === 0 ? data.termsOffer : null;
+
   return (
     <div data-guide="cp.invoicing" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
       <StatStrip guide="cp.invoicing.kpis">
@@ -78,7 +91,17 @@ export default function InvoicingTab({ projectId, data: fromServer, projectClose
 
       <Card
         title="Billing schedule" padding={0}
-        action={data.canEdit && !projectClosed ? <Button variant="primary" size="sm" data-guide="cp.milestone.add" style={{ minHeight: 44 }} onClick={() => { setError(""); setPanel({}); }}>+ Add milestone</Button> : undefined}
+        action={data.canEdit && !projectClosed ? (
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
+            {offerTerms && (
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                <Button variant="secondary" size="sm" loading={copying} data-guide="cp.milestone.copy_terms" style={{ minHeight: 44 }} onClick={copyTerms}>Copy the tender&apos;s payment terms</Button>
+                <InfoTip label="Copy the tender's payment terms">{PROJECT_TIPS.copyTerms}</InfoTip>
+              </span>
+            )}
+            <Button variant="primary" size="sm" data-guide="cp.milestone.add" style={{ minHeight: 44 }} onClick={() => { setError(""); setPanel({}); }}>+ Add milestone</Button>
+          </span>
+        ) : undefined}
       >
         {data.milestones.length === 0 ? (
           <EmptyState title="No milestones yet" text={data.canEdit ? "Add the amounts you will bill and when, as a percent of the contract value or a fixed amount." : undefined} />
