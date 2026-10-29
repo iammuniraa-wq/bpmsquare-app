@@ -47,6 +47,13 @@ If Google does not offer App passwords (a Workspace account where the admin has 
 
 Choose the approvers. The person who proposes a bid decision cannot approve it unless "Allow self-approval" is on. Keep that off in production.
 
-## 4. Receive tenders by email (Inbox > Add a channel)
+## 4. Receive tenders by email (Settings > Inbox channels)
 
-To be completed after the dry run.
+**Connect a dedicated mailbox (for example tenders@yourcompany.com), never a personal inbox.** A channel reads everything in the connected mailbox and copies it into the Inbox. It does not filter for tenders. Mail already in the mailbox when you switch the channel on comes in too.
+
+1. Settings > Connectors: connect the mailbox (step 1).
+2. Settings > Inbox channels > New channel. Choose the connected mailbox. Leave Team empty (everyone with the Inbox sees it). Leave "Create offers first" on "Nothing in particular": the person reading each email chooses what to create (tender, deal, RFQ).
+3. Send a test email to the mailbox. Within a minute or two it appears in the Inbox.
+4. To stop receiving: untick "Take in new mail". A channel that holds mail cannot be deleted; it is paused, and mail clears itself after 90 days.
+
+Receiving at an address on our platform (tenders@yourworkspace) is switched on by us when needed; until then the connected mailbox is the way in.
