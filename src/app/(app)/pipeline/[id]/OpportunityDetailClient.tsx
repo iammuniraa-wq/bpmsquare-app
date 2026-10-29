@@ -30,6 +30,8 @@ import RecordFacts from "@/components/page/RecordFacts";
 import ClosingChip from "@/components/tender/ClosingChip";
 import { tenderIsLive } from "@/lib/tender/rules";
 import { tenderPrimary, type TenderPrimaryKey } from "@/lib/tender/headerAction";
+import { tenderSteps } from "@/lib/tender/steps";
+import TenderStepper from "@/components/tender/TenderStepper";
 import { resolveTenderTab, type TenderTabId } from "@/lib/tender/tabs";
 import { TENDER_TIPS } from "@/lib/tender/tips";
 import type { BoqFilter } from "@/lib/tender/boq/table";
@@ -38,7 +40,7 @@ import type { ApprovalView } from "@/lib/tender/approval";
 import TenderOverview from "./TenderOverview";
 import BidDecisionMarker, { BidDecisionPanel } from "./BidDecisionMarker";
 import BondChip from "@/components/tender/BondChip";
-import { guaranteeRecorded } from "@/lib/tender/bond";
+import { guaranteeRecorded, BOND_STATUS_LABEL } from "@/lib/tender/bond";
 import BidsTab from "@/components/tender/BidsTab";
 import CallsPanel from "@/components/tender/CallsPanel";
 import { LogCallButton } from "@/components/tender/LogCall";
@@ -70,6 +72,8 @@ export type TenderTabData = {
   room: { pending: boolean; unread: number; isAdmin: boolean } | null;
   /** The caller may change the BOQ (edit access to the Pipeline). Absent = yes; the server decides anyway. */
   boqEdit?: boolean;
+  /** The BOQ's totals for the path across the top (absent in a render that has none = no BOQ yet). */
+  boq?: { hasBoq: boolean; lines: number; unpriced: number; stale: number; noProduct: number; amount: number };
   /** Slice 4 (migration 0225): bid versions, logged calls and the outcome facts. Absent = the screens for them are not drawn. */
   bids?: BidsData | null;
   calls?: CallsData | null;
@@ -169,15 +173,12 @@ export default function OpportunityDetailClient({ opp, accountName, contacts, in
   const [notice, setNotice] = useState("");
   const [roomUnread, setRoomUnread] = useState(tender?.room?.unread ?? 0);
   const [narrow, setNarrow] = useState(false);
-  const [phone, setPhone] = useState(false);
   useEffect(() => {
     const mq = window.matchMedia("(max-width: 900px)");
-    const small = window.matchMedia("(max-width: 780px)");
-    const on = () => { setNarrow(mq.matches); setPhone(small.matches); };
+    const on = () => setNarrow(mq.matches);
     on();
     mq.addEventListener("change", on);
-    small.addEventListener("change", on);
-    return () => { mq.removeEventListener("change", on); small.removeEventListener("change", on); };
+    return () => mq.removeEventListener("change", on);
   }, []);
   // The selected tab is always in view in the strip; on a phone, switching also brings the strip to the top so the new content is
   // what the person sees, not the header they scrolled past.
@@ -353,11 +354,26 @@ export default function OpportunityDetailClient({ opp, accountName, contacts, in
     else if (key === "record_outcome") markWon();
     else if (key === "create_project") createContractProject();
   }
+  // The path across the top (lib/tender/steps.ts) decides whether the stage's button leads the Next row or follows a jump to a tab.
+  const boqNow = tender?.boq ?? { hasBoq: false, lines: 0, unpriced: 0, stale: 0, noProduct: 0, amount: 0 };
+  const stepsNow = tender
+    ? tenderSteps({
+        stage: opp.stage, outcome: opp.outcome, bids: tender.bids?.versions.length ?? 0, canEdit: tender.boqEdit !== false,
+        approvedGo: approvalNow ? approvalNow.standing?.decision === "go" : null,
+        proposalPending: !!approvalNow?.pending, canDecide: approvalNow?.canDecide === true,
+        project: contractProject ? { existing: !!contractProject.existing, canCreate: contractProject.canCreate } : null,
+        hasBoq: boqNow.hasBoq, boqLines: boqNow.lines, unpriced: boqNow.unpriced, stale: boqNow.stale, noProduct: boqNow.noProduct, boqAmount: boqNow.amount,
+        decisionStanding: approvalNow?.standing?.decision ?? null, closingAt: tender.view.closing_at, projectId: contractProject?.existing?.id ?? null,
+        detailsFilled: !!(tender.view.tender_no && tender.view.issuer_name && tender.view.closing_at),
+        guaranteeSubmitted: tender.view.bond_status === "submitted" || tender.view.bond_status === "released",
+      }, inr)
+    : null;
+  const headerLeads = stepsNow?.next.primary?.kind === "header";
   const primary = tender
     ? tenderButton
       ? tenderButton.key === "open_project" && contractProject?.existing
         ? <Button variant="primary" href={ROUTES.contractProject(contractProject.existing.id)} data-guide={tenderButton.guide} style={{ minHeight: 44 }}>{tenderButton.label}</Button>
-        : <Button variant="primary" onClick={() => runPrimary(tenderButton.key)} loading={tenderButton.key === "create_project" && pending} data-guide={tenderButton.guide} style={{ minHeight: 44 }}>{tenderButton.label}</Button>
+        : <Button variant={headerLeads ? "primary" : "secondary"} onClick={() => runPrimary(tenderButton.key)} loading={tenderButton.key === "create_project" && pending} data-guide={tenderButton.guide} style={{ minHeight: 44 }}>{tenderButton.label}</Button>
       : null
     : canConvert
       ? <Button variant="primary" onClick={convert} loading={pending}>Convert to Standard Quote</Button>
@@ -413,6 +429,12 @@ export default function OpportunityDetailClient({ opp, accountName, contacts, in
       ]
     : null;
 
+  const bondLabel = tender && guaranteeRecorded({ bid_bond_amount: tender.view.bid_bond_amount ?? null, bid_bond_expiry: tender.view.bid_bond_expiry ?? null, bond_status: tender.view.bond_status ?? "held" })
+    ? (BOND_STATUS_LABEL[tender.view.bond_status ?? "held"] ?? "recorded") : "none";
+  const detailsSummary = tender
+    ? `${stageDefNow?.label ?? opp.stage} · ${inr(Number(opp.amount || 0))}${tender.view.closing_at ? ` · bid ends ${fmtDate(tender.view.closing_at)}` : ""} · guarantee ${bondLabel.toLowerCase()}`
+    : "";
+
   const factsRow = (
     <RecordFacts
       facts={[
@@ -450,7 +472,7 @@ export default function OpportunityDetailClient({ opp, accountName, contacts, in
         }
         action={
           <>
-            {primary}
+            {tender ? null : primary}
             <MoreMenu
               items={[
                 { label: "History", onSelect: () => setHistoryOpen(true), hidden: !tender },
@@ -464,9 +486,18 @@ export default function OpportunityDetailClient({ opp, accountName, contacts, in
         }
       />
 
-      {tender && phone ? (
-        <SettingsSection id="tender.header_facts" title="Deal facts" summary={`${stageDefNow?.label ?? opp.stage} · ${inr(Number(opp.amount || 0))}`} defaultOpen={false}>{factsRow}</SettingsSection>
-      ) : factsRow}
+      {tender && stepsNow && (
+        <>
+          <TenderStepper
+            steps={stepsNow.steps} current={stepsNow.current} next={stepsNow.next} checklist={stepsNow.checklist} primaryButton={primary}
+            onJump={(to) => { if (to.tab === "boq" && to.filter) { boqAsks.current += 1; setBoqRequest({ filter: to.filter, n: boqAsks.current }); setTab("boq"); } else openTab(to.tab as Tab); }}
+          />
+          <div style={{ marginBottom: 14 }}>
+            <SettingsSection id="tender.header_facts" title="Details" info={TENDER_TIPS.details} summary={detailsSummary} defaultOpen={false} defaultOpenNarrow={false}>{factsRow}</SettingsSection>
+          </div>
+        </>
+      )}
+      {!tender && factsRow}
 
       {externalLine}
 

@@ -24,6 +24,7 @@ vi.mock("next/link", () => ({ default: (p: { href: string; children: unknown }) 
 
 import OpportunityDetailClient from "./OpportunityDetailClient";
 import SettingsSection from "@/components/settings/SettingsSection";
+import BidDecisionMarker from "./BidDecisionMarker";
 
 const ROOT = path.resolve(__dirname, "../../../../..");
 const read = (p: string) => readFileSync(path.join(ROOT, p), "utf8");
@@ -89,18 +90,31 @@ describe("the tabs of a tender deal", () => {
 });
 
 describe("the header of a tender deal (every tab)", () => {
-  it("shows Stage, then the bid decision marker, the Bid end date chip and the Bid guarantee chip, once each", () => {
-    for (const tab of ["overview", "lines", "activity"]) {
+  it("shows the path of the tender on every tab, and the five facts in one Details section that is closed by default", () => {
+    for (const tab of ["overview", "boq", "competitors"]) {
       const out = page({ initialTab: tab });
-      expect(out, tab).toContain('aria-label="Stage"');
-      expect(out, tab).toContain("Bid decision: Pending");
-      expect(out, tab).toContain("Bid ends in 4 days");
-      expect(out, tab).toContain("Guarantee: Issued");
-      expect(out.indexOf("Bid decision: Pending"), tab).toBeGreaterThan(out.indexOf('aria-label="Stage"'));
-      expect(out.indexOf("Bid ends in 4 days"), tab).toBeGreaterThan(out.indexOf("Bid decision: Pending"));
-      expect(out.indexOf("Guarantee: Issued"), tab).toBeGreaterThan(out.indexOf("Bid ends in 4 days"));
-      expect(out.match(/Bid decision: Pending/g)?.length, tab).toBe(1);
+      expect(out, tab).toContain('data-guide="tender.steps"');
+      expect(out, tab).toContain('data-guide="tender.next"');
+      expect(out, tab).toContain('data-guide="tender.checklist"');
+      expect(out, tab).toMatch(/aria-expanded="false"[^>]*>(?:<span[^>]*>)?Details|Details<\/span><\/button>/);
+      expect(out, tab).toMatch(/Estimating · [^<]* · bid ends 30 Oct 2026 · guarantee issued/);
+      // Closed: the stage select and the chips are not drawn until the section is opened.
+      expect(out, tab).not.toContain('aria-label="Stage"');
+      expect(out, tab).not.toContain("Bid decision: Pending");
+      expect(out.indexOf('data-guide="tender.steps"'), tab).toBeLessThan(out.indexOf("Details"));
     }
+  });
+
+  it("the Details section holds Stage, the bid decision marker, the Bid end date chip and the Bid guarantee chip, in that order", () => {
+    const src = read("src/app/(app)/pipeline/[id]/OpportunityDetailClient.tsx");
+    expect(src).toMatch(/<SettingsSection id="tender\.header_facts" title="Details"[^>]*defaultOpen=\{false\} defaultOpenNarrow=\{false\}>\{factsRow\}<\/SettingsSection>/);
+    const tf = src.slice(src.indexOf("const tenderFacts = tender"), src.indexOf("const factsRow = ("));
+    for (const w of ["BidDecisionMarker", 'label: "Bid end date"', 'label: "Bid guarantee"']) expect(tf, w).toContain(w);
+    expect(tf.indexOf("BidDecisionMarker")).toBeLessThan(tf.indexOf('label: "Bid end date"'));
+    expect(tf.indexOf('label: "Bid end date"')).toBeLessThan(tf.indexOf('label: "Bid guarantee"'));
+    const row = src.slice(src.indexOf("const factsRow = ("));
+    expect(row.indexOf('label: "Stage"')).toBeGreaterThan(-1);
+    expect(row.indexOf('label: "Stage"')).toBeLessThan(row.indexOf("...(tenderFacts"));
   });
 
   it("the subtitle says the bid ends, not that the deal closes", () => {
@@ -111,21 +125,22 @@ describe("the header of a tender deal (every tab)", () => {
 
   it("the marker follows the decision: awaiting, go and no-go, each with its tone", () => {
     const entry = { id: "r", decision: "go" as const, reason: "x", status: "pending" as const, requested_by_name: "S. Khan", requested_at: "2026-10-20T00:00:00Z", decided_by_name: null, decided_at: null, comment: null };
-    const waiting = page({}, { approval: approval({ pending: { ...entry, mine: false } }) });
+    const marker = (a: ApprovalView, v: TenderView = view) => clean(renderToString(createElement(BidDecisionMarker, { opportunityId: OPP, tender: v, approval: a, onError: () => {}, onNotice: () => {}, onSaved: () => {} } as never)));
+    const waiting = marker(approval({ pending: { ...entry, mine: false } }));
     expect(waiting).toContain("Bid decision: Awaiting approval");
     expect(waiting).toMatch(/data-tone="warn" data-state="awaiting"|data-state="awaiting"[^>]*data-tone="warn"/);
-    const go = page({}, { approval: approval({ standing: { ...entry, status: "approved" } }), view: { ...view, decision: "go" } });
+    const go = marker(approval({ standing: { ...entry, status: "approved" } }), { ...view, decision: "go" });
     expect(go).toContain("Bid decision: Go");
     expect(go).toMatch(/data-state="go"/);
-    const noGo = page({}, { approval: approval({ standing: { ...entry, decision: "no_go", status: "approved" } }), view: { ...view, decision: "no_go" } });
+    const noGo = marker(approval({ standing: { ...entry, decision: "no_go", status: "approved" } }), { ...view, decision: "no_go" });
     expect(noGo).toContain("Bid decision: No-go");
     expect(noGo).toMatch(/data-tone="bad"/);
   });
 
-  it("a tender with no guarantee recorded says so instead of showing a chip", () => {
+  it("a tender with no guarantee recorded says so in the Details summary", () => {
     const out = page({}, { view: { ...view, bid_bond_amount: null, bid_bond_expiry: null, bond_status: "requested" } });
-    expect(out).toContain("None recorded");
-    expect(out).not.toContain("Guarantee: ");
+    expect(out).toContain("guarantee none");
+    expect(out).not.toContain("guarantee issued");
   });
 
   it("after the bid is in, the Bid end date is a date, not a countdown", () => {

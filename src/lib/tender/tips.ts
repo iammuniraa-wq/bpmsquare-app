@@ -57,6 +57,9 @@ export const TENDER_TIPS = {
   outcome: "How the tender ended: the awarded value, who won and why we lost. These facts feed win and loss reporting later.",
   outcomeLostTo: "The company that won the tender. It is also saved as the deal's competitor.",
   outcomeCompare: "Our last submitted total against the price the tender was awarded at. Percent is measured on the awarded price.",
+  steps: "The path of a tender from the email to the outcome. The current step shows what to do next and what is done so far.",
+  nextStep: "One next step at a time. The button does it or opens the place where it is done.",
+  details: "Stage, amount, bid decision, bid end date and bid guarantee. Open it to change the stage or read the full state.",
   reminders:"Reminders go by email to the owner and team and are logged under Outbound emails. Changing the bid end date restarts them.",
 } as const;
 

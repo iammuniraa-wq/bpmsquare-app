@@ -29,6 +29,7 @@ import { isOutcomeStage, type OutcomeData } from "@/lib/tender/outcome";
 import { linesVersion } from "@/lib/sales/dealLines";
 import { rfqLineStatuses } from "@/lib/rfq/server";
 import { loadProjectBySource } from "@/lib/contractProjects/server";
+import { buildBoqState } from "@/lib/tender/boq/server";
 
 export default async function OpportunityDetailPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams?: Promise<{ tab?: string; boqfilter?: string; row?: string }> }) {
   await requireWorkcenterView("pipeline");
@@ -85,6 +86,12 @@ export default async function OpportunityDetailPage({ params, searchParams }: { 
     const costingTab = (tenant?.features?.estimator === true && canViewWorkcenter(dealPerms, "estimates")) || (tenant?.features?.rfq === true && canViewWorkcenter(dealPerms, "rfqs")) ? { canEdit: boqEdit } : null;
     // Slice 4 (migration 0225): bid versions, logged calls and, once the tender has ended, the outcome facts.
     const latestBid = bidList.versions[0] ?? null;
+    // The path across the top reads the BOQ's totals; a BOQ that cannot be read (migration pending) is simply "no BOQ yet".
+    let boq: NonNullable<TenderTabData["boq"]> = { hasBoq: false, lines: 0, unpriced: 0, stale: 0, noProduct: 0, amount: 0 };
+    try {
+      const st = await buildBoqState({ admin, supabase, tenantId, userId, role: role === "admin" ? "admin" : "member", opp, tender });
+      if (st.source) boq = { hasBoq: true, lines: st.totals.lines, unpriced: st.totals.unpriced, stale: st.totals.stale, noProduct: st.totals.no_product, amount: st.totals.amount };
+    } catch { /* the BOQ tab reports its own error */ }
     const bids: BidsData = { versions: bidList.versions, pending: bidList.pending, working_total: 0, canEdit: boqEdit };
     const calls: CallsData = { calls: callList.calls, pending: callList.pending, canEdit: boqEdit };
     const outcome: OutcomeData | null = isOutcomeStage(opp.stage) ? {
@@ -92,7 +99,7 @@ export default async function OpportunityDetailPage({ params, searchParams }: { 
       competitor: opp.competitor, loss_reason: opp.loss_reason, our_total: latestBid ? latestBid.total : null, our_version: latestBid ? latestBid.version_no : null,
       currency: opp.currency, canEdit: boqEdit, pending: bidList.pending,
     } : null;
-    tenderTab = { view, approval, boqEdit, bids, calls, outcome, costing: costingTab, room: room ? { pending: room.pending, unread: room.unread, isAdmin: role === "admin" } : null, accounts: (allAccounts ?? []) as { id: string; name: string }[], nowIso: new Date().toISOString(), timezone };
+    tenderTab = { view, approval, boqEdit, boq, bids, calls, outcome, costing: costingTab, room: room ? { pending: room.pending, unread: room.unread, isAdmin: role === "admin" } : null, accounts: (allAccounts ?? []) as { id: string; name: string }[], nowIso: new Date().toISOString(), timezone };
   }
 
   // Contract projects (slice 5a): only for a tender, and only in a workspace with the module (otherwise no query at all).
