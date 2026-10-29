@@ -66,3 +66,46 @@ export async function findContactDuplicates(
     .eq("tenant_id", tenantId).eq("account_id", accountId).ilike("name", `%${needle}%`).limit(3);
   return ((data ?? []) as { id: string; name: string; ref?: string | null }[]).map((d) => ({ id: d.id, name: d.name, ref: d.ref ?? null }));
 }
+
+/** A supplier whose name contains this one (the stored name may be the longer). */
+export async function findSupplierDuplicates(supabase: SupabaseClient, tenantId: string, draftName: string | undefined): Promise<DuplicateHit[]> {
+  const needle = clean(draftName ?? "");
+  if (needle.length < 3) return [];
+  const { data } = await supabase.from("suppliers").select("id, name, ref").eq("tenant_id", tenantId).ilike("name", `%${needle}%`).limit(3);
+  return ((data ?? []) as { id: string; name: string; ref?: string | null }[]).map((d) => ({ id: d.id, name: d.name, ref: d.ref ?? null }));
+}
+
+/** The same SKU, or a product of a similar name. */
+export async function findProductDuplicates(
+  supabase: SupabaseClient,
+  tenantId: string,
+  draftName: string | undefined,
+  sku: string | undefined,
+): Promise<DuplicateHit[]> {
+  const hits = new Map<string, DuplicateHit>();
+  const add = (rows: { id: string; name: string; ref?: string | null }[] | null) => {
+    for (const d of rows ?? []) if (!hits.has(d.id)) hits.set(d.id, { id: d.id, name: d.name, ref: d.ref ?? null });
+  };
+  const code = (sku ?? "").trim();
+  if (code) {
+    const { data } = await supabase.from("products").select("id, name, ref").eq("tenant_id", tenantId).eq("sku", code).limit(3);
+    add(data);
+  }
+  const needle = clean(draftName ?? "");
+  if (needle.length >= 3) {
+    const { data } = await supabase.from("products").select("id, name, ref").eq("tenant_id", tenantId).ilike("name", `%${needle}%`).limit(3);
+    add(data);
+  }
+  return [...hits.values()].slice(0, 5);
+}
+
+/** A tender with this number already in the workspace; the hit is its deal. A missing tender table is simply no duplicate. */
+export async function findTenderDuplicates(supabase: SupabaseClient, tenantId: string, tenderNo: string | undefined): Promise<DuplicateHit[]> {
+  const no = (tenderNo ?? "").trim();
+  if (!no) return [];
+  const { data: t } = await supabase.from("opportunity_tenders").select("opportunity_id").eq("tenant_id", tenantId).eq("tender_no", no).limit(3);
+  const ids = ((t ?? []) as { opportunity_id: string }[]).map((r) => r.opportunity_id);
+  if (ids.length === 0) return [];
+  const { data } = await supabase.from("opportunities").select("id, title, ref").eq("tenant_id", tenantId).in("id", ids);
+  return ((data ?? []) as { id: string; title: string; ref?: string | null }[]).map((d) => ({ id: d.id, name: d.title, ref: d.ref ?? null }));
+}

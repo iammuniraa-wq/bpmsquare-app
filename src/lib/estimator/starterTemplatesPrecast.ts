@@ -69,6 +69,7 @@ export const PRECAST_ELEMENTS_STARTER: CatalogueStarter = {
   ],
   quote_granularity: "group",
   catalogue: PRECAST_CATALOGUE,
+  visual: { count: "slab_n", length: "slab_len_m", width: "slab_w_m", height: "slab_t_m" },
 
   inputs: [
     { key: "wall_n", label: "Panels", type: "number", default: 100, min: 0, max: 10000, unit: "nr", section: "Boundary wall panels" },

@@ -5,6 +5,7 @@ import { emailOutputFor, resolveOutbound } from "@/lib/emailOutputRules";
 import { logEmail } from "@/lib/emailLog";
 import { parseSent, reminderDecision, reminderMessage, tenderIsLive } from "./rules";
 import { isMissingSchema } from "./server";
+import { readAllPages } from "@/lib/pagedRead";
 import { bondReminderLine, parseBondStatus } from "./bond";
 import { defaultMailer, displayName, memberEmails, type TenderMailer } from "./notify";
 
@@ -49,7 +50,7 @@ export async function sendTenderReminders(admin: SupabaseClient, deps: { now?: D
       const tz = t.config?.wfm?.timezone || DEFAULT_WFM_CONFIG.timezone;
       // Only tenders that have not already closed more than a day ago can be due; the rest never need loading.
       const since = new Date(now.getTime() - 2 * 86_400_000).toISOString();
-      const readTenders = (cols: string) => admin.from("opportunity_tenders").select(cols).eq("tenant_id", t.id).not("closing_at", "is", null).gte("closing_at", since);
+      const readTenders = (cols: string) => readAllPages((lo, hi) => admin.from("opportunity_tenders").select(cols).eq("tenant_id", t.id).not("closing_at", "is", null).gte("closing_at", since).order("opportunity_id", { ascending: true }).range(lo, hi));
       const BASE = "opportunity_id, tender_no, issuer_name, closing_at, decision, reminders_sent, updated_at";
       // The bond columns arrive with 0221; until then the reminders simply carry no bond line.
       let { data: rows, error: tErr } = await readTenders(`${BASE}, bid_bond_amount, bid_bond_currency, bid_bond_expiry, bond_status`);
@@ -62,10 +63,16 @@ export async function sendTenderReminders(admin: SupabaseClient, deps: { now?: D
       const tenders = (rows ?? []) as unknown as TenderDbRow[];
       if (tenders.length === 0) continue;
 
-      const { data: deals } = await admin
-        .from("opportunities").select("id, ref, title, outcome, stage, owner_id, team")
-        .eq("tenant_id", t.id).in("id", tenders.map((r) => r.opportunity_id));
-      const dealById = new Map(((deals ?? []) as DealRow[]).map((d) => [d.id, d]));
+      // 100 ids per request: a long in-list overflows the URL long before the row cap matters.
+      const deals: DealRow[] = [];
+      const dealIds = tenders.map((r) => r.opportunity_id);
+      for (let i = 0; i < dealIds.length; i += 100) {
+        const { data } = await admin
+          .from("opportunities").select("id, ref, title, outcome, stage, owner_id, team")
+          .eq("tenant_id", t.id).in("id", dealIds.slice(i, i + 100));
+        deals.push(...((data ?? []) as DealRow[]));
+      }
+      const dealById = new Map(deals.map((d) => [d.id, d]));
 
       for (const tender of tenders) {
         const deal = dealById.get(tender.opportunity_id);

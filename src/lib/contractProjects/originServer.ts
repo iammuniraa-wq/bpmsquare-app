@@ -4,6 +4,7 @@ import { loadWinningBid } from "@/lib/tender/bids/costServer";
 import { bidVsBudget, snapshotCostTotal, type BidVsBudget } from "@/lib/tender/bids/costSnapshot";
 import type { ProjectRow } from "./types";
 
+import { readAllPages } from "@/lib/pagedRead";
 // Where a contract project came from, read-only: the deal, the bid version that won, the BOQ file and the estimates that priced it, and
 // how the project's budget now stands against the cost of that bid. Everything is tenant-scoped, comes from the project's own
 // source_opportunity_id (never from a request), and tolerates a table that is not there yet. Internal: shown only on the project.
@@ -31,7 +32,7 @@ export async function loadAfterAwardView(
   const [winning, boqRes, linkRes] = await Promise.all([
     loadWinningBid(admin, tenantId, oppId),
     admin.from("tender_boq_sources").select("file_name, uploaded_at, version").eq("tenant_id", tenantId).eq("opportunity_id", oppId).eq("is_current", true).limit(1),
-    admin.from("tender_boq_estimate_links").select("estimate_id").eq("tenant_id", tenantId).eq("opportunity_id", oppId).limit(5000),
+    readAllPages((lo, hi) => admin.from("tender_boq_estimate_links").select("estimate_id").eq("tenant_id", tenantId).eq("opportunity_id", oppId).order("id", { ascending: true }).range(lo, hi)),
   ]);
   const boqRow = boqRes.error ? null : ((boqRes.data ?? [])[0] as { file_name: string; uploaded_at: string; version: number | string } | undefined);
   const estimateIds = [...new Set((linkRes.error ? [] : (linkRes.data ?? []) as { estimate_id: string }[]).map((l) => l.estimate_id))];

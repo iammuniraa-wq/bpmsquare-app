@@ -35,6 +35,7 @@ import { getInboxAnalytics, NO_INBOX_ANALYTICS, type InboxAnalytics } from "@/li
 import { getTenderDeskData } from "@/lib/tenderDesk/server";
 import type { TenderDeskData } from "@/lib/tenderDesk/types";
 
+import { readAllPages } from "@/lib/pagedRead";
 /**
  * Every read helper below scopes to this tenant explicitly (service-role client
  * + .eq("tenant_id", ...)) rather than relying on RLS/the session JWT's baked-in
@@ -1630,34 +1631,34 @@ export async function getAnalyticsDataLive(opts: { tender?: boolean } = {}): Pro
 
   const [
     tenant,
-    { data: accounts }, { data: contacts }, { data: assets },
+    { data: accounts }, { count: contactCount }, { data: assets },
     { data: cases }, { data: workOrders }, { data: contracts },
     { data: leads }, { data: technicians }, { data: quotes },
     { data: invoices }, { data: activities }, { count: productCount }, { data: openDealsRaw }, { data: rfqRaw }, { data: estimateRaw }, { data: abmRaw }, { data: orderRaw },
   ] = await Promise.all([
     getTenant(),
-    supabase.from("accounts").select("id, type").eq("tenant_id", tenantId),
-    supabase.from("contacts").select("id").eq("tenant_id", tenantId),
-    supabase.from("assets").select("id, kind, is_loaner, loaner_status").eq("tenant_id", tenantId),
-    supabase.from("service_cases").select("id, status, quote_id").eq("tenant_id", tenantId),
-    supabase.from("work_orders").select("id, status").eq("tenant_id", tenantId),
-    supabase.from("contracts").select("id, status, value").eq("tenant_id", tenantId),
-    supabase.from("leads").select("id, status").eq("tenant_id", tenantId),
-    supabase.from("technicians").select("id, status").eq("tenant_id", tenantId),
-    supabase.from("quotes").select("id, status, outcome, total, valid_until, created_at, account_id, accounts(name)").eq("tenant_id", tenantId).order("created_at"),
-    supabase.from("invoices").select("id, status, total, paid_amount, account_id, accounts(name)").eq("tenant_id", tenantId),
+    readAllPages((lo, hi) => supabase.from("accounts").select("id, type").eq("tenant_id", tenantId).order("id", { ascending: true }).range(lo, hi)),
+    supabase.from("contacts").select("id", { count: "exact", head: true }).eq("tenant_id", tenantId),
+    readAllPages((lo, hi) => supabase.from("assets").select("id, kind, is_loaner, loaner_status").eq("tenant_id", tenantId).order("id", { ascending: true }).range(lo, hi)),
+    readAllPages((lo, hi) => supabase.from("service_cases").select("id, status, quote_id").eq("tenant_id", tenantId).order("id", { ascending: true }).range(lo, hi)),
+    readAllPages((lo, hi) => supabase.from("work_orders").select("id, status").eq("tenant_id", tenantId).order("id", { ascending: true }).range(lo, hi)),
+    readAllPages((lo, hi) => supabase.from("contracts").select("id, status, value").eq("tenant_id", tenantId).order("id", { ascending: true }).range(lo, hi)),
+    readAllPages((lo, hi) => supabase.from("leads").select("id, status").eq("tenant_id", tenantId).order("id", { ascending: true }).range(lo, hi)),
+    readAllPages((lo, hi) => supabase.from("technicians").select("id, status").eq("tenant_id", tenantId).order("id", { ascending: true }).range(lo, hi)),
+    readAllPages((lo, hi) => supabase.from("quotes").select("id, status, outcome, total, valid_until, created_at, account_id, accounts(name)").eq("tenant_id", tenantId).order("created_at").order("id", { ascending: true }).range(lo, hi)),
+    readAllPages((lo, hi) => supabase.from("invoices").select("id, status, total, paid_amount, account_id, accounts(name)").eq("tenant_id", tenantId).order("id", { ascending: true }).range(lo, hi)),
     supabase.from("activities").select("*, accounts(name)").eq("tenant_id", tenantId).order("at", { ascending: false }).limit(6),
     supabase.from("products").select("id", { count: "exact", head: true }).eq("tenant_id", tenantId).eq("status", "active"),
     // 0120 may be pending on an environment: an error reads as no deals.
-    supabase.from("opportunities").select("amount, probability").eq("tenant_id", tenantId).eq("outcome", "open"),
+    readAllPages((lo, hi) => supabase.from("opportunities").select("amount, probability").eq("tenant_id", tenantId).eq("outcome", "open").order("id", { ascending: true }).range(lo, hi)),
     // 0128 may be pending: an error reads as no RFQs.
-    supabase.from("rfqs").select("status").eq("tenant_id", tenantId).in("status", ["sent", "partially_replied", "replied"]),
+    readAllPages((lo, hi) => supabase.from("rfqs").select("status").eq("tenant_id", tenantId).in("status", ["sent", "partially_replied", "replied"]).order("id", { ascending: true }).range(lo, hi)),
     // 0131 may be pending: an error reads as no estimates.
-    supabase.from("estimates").select("status").eq("tenant_id", tenantId).in("status", ["draft", "quoted"]),
+    readAllPages((lo, hi) => supabase.from("estimates").select("status").eq("tenant_id", tenantId).in("status", ["draft", "quoted"]).order("id", { ascending: true }).range(lo, hi)),
     // 0180-0181 may be pending: an error reads as no ABM targets.
-    supabase.from("abm_target_accounts").select("progress, abm_programs!inner(status)").eq("tenant_id", tenantId).eq("abm_programs.status", "active").limit(20000),
+    readAllPages((lo, hi) => supabase.from("abm_target_accounts").select("progress, abm_programs!inner(status)").eq("tenant_id", tenantId).eq("abm_programs.status", "active").order("id", { ascending: true }).range(lo, hi)),
     // 0212 may be pending: an error reads as no orders.
-    supabase.from("sales_orders").select("status, total").eq("tenant_id", tenantId).in("status", ["draft", "confirmed"]).limit(20000),
+    readAllPages((lo, hi) => supabase.from("sales_orders").select("status, total").eq("tenant_id", tenantId).in("status", ["draft", "confirmed"]).order("id", { ascending: true }).range(lo, hi)),
   ]);
   const orderRows = (orderRaw ?? []) as Array<{ status: string; total: number | null }>;
   const abmRows = (abmRaw ?? []) as unknown as Array<{ progress: string }>;
@@ -1679,7 +1680,7 @@ export async function getAnalyticsDataLive(opts: { tender?: boolean } = {}): Pro
 
   const totals = {
     accounts:        allAccounts.length,
-    contacts:        (contacts ?? []).length,
+    contacts:        contactCount ?? 0,
     customerAssets:  allAssets.filter((a) => !a.is_loaner).length,
     openCases:       allCases.filter((c) => OPEN_CASE_STATUSES.includes(c.status as CaseStatus)).length,
     workOrders:      allWorkOrders.length,

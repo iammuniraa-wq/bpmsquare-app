@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { isSchemaPending } from "@/lib/marketing/pending";
 import type { SalesOrder } from "@/lib/salesOrders/types";
 
+import { readAllPages } from "@/lib/pagedRead";
 export type OrderListRow = Pick<SalesOrder, "id" | "ref" | "status" | "status_label" | "spine" | "account_id" | "total" | "currency" | "expected_date" | "requested_date" | "customer_po" | "created_at" | "origin"> & {
   account_name: string;
   /** The ERP's own order number when an ERP holds this order (the link's key); null otherwise. */
@@ -20,14 +21,14 @@ const COLUMNS = "id, ref, status, status_label, spine, account_id, total, curren
  */
 export async function loadOrderRows(supabase: SupabaseClient, tenantId: string): Promise<{ rows: OrderListRow[]; available: boolean }> {
   // erp_customer_name comes with migration 0216: while that is pending the list still loads, without it.
-  const read = (cols: string) => supabase.from("sales_orders").select(cols).eq("tenant_id", tenantId).order("created_at", { ascending: false });
+  const read = (cols: string) => readAllPages((lo, hi) => supabase.from("sales_orders").select(cols).eq("tenant_id", tenantId).order("created_at", { ascending: false }).order("id", { ascending: true }).range(lo, hi));
   let res = await read(`${COLUMNS}, erp_customer_name`);
   if (res.error && isSchemaPending(res.error)) res = await read(COLUMNS);
   const { data, error } = res;
   if (error) return { rows: [], available: false };
   const orders = (data ?? []) as unknown as (Omit<OrderListRow, "account_name" | "erp_number" | "customer_not_synced"> & { erp_customer_name?: string | null })[];
   const erpNumbers = new Map<string, string>();
-  const { data: links } = await supabase.from("connector_links").select("object_id, external_key").eq("tenant_id", tenantId).eq("object_type", "sales_orders").limit(5000);
+  const { data: links } = await readAllPages((lo, hi) => supabase.from("connector_links").select("object_id, external_key").eq("tenant_id", tenantId).eq("object_type", "sales_orders").order("id", { ascending: true }).range(lo, hi));
   for (const l of (links ?? []) as { object_id: string; external_key: string | null }[]) if (l.external_key) erpNumbers.set(l.object_id, l.external_key);
   const ids = [...new Set(orders.map((o) => o.account_id).filter((x): x is string => !!x))];
   const names = new Map<string, string>();

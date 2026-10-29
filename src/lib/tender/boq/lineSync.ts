@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import { readAllPages } from "@/lib/pagedRead";
 // Where the deal's Lines editor and the BOQ meet. A tender deal's lines are ordinary opportunity_lines; the BOQ rows say which
 // row of the client's file each came from. Everything here is tenant-scoped and tolerates migration 0223 being pending (a missing
 // table reads as "this deal has no BOQ"). Kept out of the standard deal files on purpose: they call it only for a tender deal.
@@ -12,7 +13,7 @@ export async function dealHasBoq(admin: SupabaseClient, tenantId: string, oppId:
 
 /** deal line id -> the row number in the client's file. */
 export async function boqRowOrder(admin: SupabaseClient, tenantId: string, oppId: string): Promise<Map<string, number>> {
-  const { data, error } = await admin.from("tender_boq_lines").select("line_id, row_no").eq("tenant_id", tenantId).eq("opportunity_id", oppId).limit(5000);
+  const { data, error } = await readAllPages((lo, hi) => admin.from("tender_boq_lines").select("line_id, row_no").eq("tenant_id", tenantId).eq("opportunity_id", oppId).order("id", { ascending: true }).range(lo, hi));
   const out = new Map<string, number>();
   if (error) return out;
   for (const r of (data ?? []) as { line_id: string | null; row_no: number }[]) if (r.line_id) out.set(r.line_id, Number(r.row_no));
@@ -33,7 +34,7 @@ export async function boqOrderedLines<T extends { id: string }>(admin: SupabaseC
 
 /** deal line id -> BOQ row id, read BEFORE the editor's save deletes the lines (the delete clears line_id on the BOQ rows). */
 export async function snapshotBoqLinks(admin: SupabaseClient, tenantId: string, oppId: string): Promise<Map<string, string>> {
-  const { data, error } = await admin.from("tender_boq_lines").select("id, line_id").eq("tenant_id", tenantId).eq("opportunity_id", oppId).limit(5000);
+  const { data, error } = await readAllPages((lo, hi) => admin.from("tender_boq_lines").select("id, line_id").eq("tenant_id", tenantId).eq("opportunity_id", oppId).order("id", { ascending: true }).range(lo, hi));
   const out = new Map<string, string>();
   if (error) return out;
   for (const r of (data ?? []) as { id: string; line_id: string | null }[]) if (r.line_id) out.set(r.line_id, r.id);

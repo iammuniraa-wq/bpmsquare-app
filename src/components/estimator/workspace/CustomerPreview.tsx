@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { ROUTES } from "@/lib/constants";
 import Card from "@/components/ui/Card";
+import { CustomerVisualStrip } from "@/components/estimator/EstimateVisualStrip";
+import type { CustomerStrip } from "@/lib/estimator/visualStrip";
 import Chip from "./Chip";
 import type { PriceOption, PriceView } from "@/lib/estimator/preview";
 
@@ -10,13 +12,15 @@ import type { PriceOption, PriceView } from "@/lib/estimator/preview";
  * and no margin in it by construction. Shown once the quote exists.
  */
 export default function CustomerPreview({
-  view, options, money, customer, quote,
+  view, options, money, customer, quote, strip,
 }: {
   view: PriceView;
   options: { label: string; items: PriceOption[] } | null;
   money: (n: number) => string;
   customer: string;
   quote: { id: string; ref: string } | null;
+  /** The composition strip, shares only (the template is offered to customers). */
+  strip?: CustomerStrip | null;
 }) {
   return (
     <Card padding={18}>
@@ -33,6 +37,7 @@ export default function CustomerPreview({
         <div className="est-row"><span>VAT {view.vat_pct}%</span><span>{money(view.vat)}</span></div>
         <div className="est-row" style={{ fontWeight: 700 }}><span>Total</span><span>{money(view.total)}</span></div>
       </div>
+      {strip && strip.groups.length > 0 && <div style={{ maxWidth: 640, marginTop: 14 }}><CustomerVisualStrip strip={strip} /></div>}
       {options && (
         <p className="bpm-t-help" style={{ margin: "10px 0 0" }}>
           Options: {options.items.map((o) => `${o.label} ${money(o.total)}`).join(" · ")}.

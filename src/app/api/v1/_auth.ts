@@ -109,7 +109,7 @@ export async function resolveApiAuth(req: Request): Promise<ApiAuth | null> {
 // tenders: bid / no-bid decisions, bond amounts and closing dates are commercially sensitive (0220) -- a key reaches them
 // only by naming "tenders", so a pre-existing "*" key never widens when a workspace gets the tender edition.
 // contract_projects: the project budget and planned margin are internal cost (0226) -- a key reaches them only by naming "contract_projects".
-const EXPLICIT_SCOPE_ONLY = new Set(["employees", "contacts", "rfqs", "estimates", "abm_targets", "tenders", "contract_projects"]);
+export const EXPLICIT_SCOPE_ONLY = new Set(["employees", "contacts", "rfqs", "estimates", "abm_targets", "tenders", "contract_projects"]);
 
 /** Does this scope permit read (write=false) or write (write=true) on `object`? */
 export function scopeAllows(scopes: ApiScopes, object: string, write: boolean): boolean {
@@ -192,7 +192,7 @@ export function corsHeaders(methods: string = READ_METHODS): Record<string, stri
 
 export const ERR_401_TENANT = () =>
   Response.json(
-    { error: "Unauthorized", message: "Include header: Authorization: Bearer <tenant API key>. Generate one in Settings → Admin → this tenant." },
+    { error: "Unauthorized", message: "Include header: Authorization: Bearer <tenant API key>. Generate one in Settings → API keys & developer." },
     { status: 401, headers: { "Content-Type": "application/json" } }
   );
 

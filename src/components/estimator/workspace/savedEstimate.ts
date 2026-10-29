@@ -4,10 +4,11 @@ import type { Estimate, EstimateLine, EstimateTemplate } from "@/lib/types";
 import type { SavedEstimate } from "./EstimateWorkspace";
 import type { WorkspaceLine, WorkspaceTemplate } from "./types";
 
-export function toWorkspaceTemplate(t: Pick<EstimateTemplate, "id" | "name" | "description" | "geometry" | "inputs" | "rates" | "rules" | "quote_granularity">): WorkspaceTemplate {
+export function toWorkspaceTemplate(t: Pick<EstimateTemplate, "id" | "name" | "description" | "geometry" | "inputs" | "rates" | "rules" | "quote_granularity"> & Partial<Pick<EstimateTemplate, "visual" | "customer_visible">>): WorkspaceTemplate {
   return {
     id: t.id, name: t.name, description: t.description, geometry: t.geometry ?? null,
     inputs: t.inputs ?? [], rates: t.rates ?? [], rules: t.rules ?? [], quote_granularity: t.quote_granularity ?? "group",
+    visual: t.visual ?? null, customer_visible: t.customer_visible === true,
   };
 }
 

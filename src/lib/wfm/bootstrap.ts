@@ -4,6 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { scopeEmployeeIds, type WfmScope } from "./scope";
 import { markObsoleteEmbeds } from "./obsolete";
 
+import { readAllPages } from "@/lib/pagedRead";
 // Shared payload builders for the WFM screens' bootstrap data -- each one
 // produces EXACTLY what the corresponding /api/wfm/* GET route returns, and
 // is used by both that route (the client-side refresh path) and the page's
@@ -25,26 +26,26 @@ function orThrow<T>({ data, error }: { data: T | null; error: { message: string 
 
 export async function wfmEmployeesPayload(supabase: SupabaseClient, tenantId: string) {
   const [empRes, { data: memberships }, overrideRes, modeRes] = await Promise.all([
-    supabase
+    readAllPages((lo, hi) => supabase
       .from("employees")
       .select(
         "id, employee_code, first_name, last_name, phone, status, valid_from, valid_to, employment_type, wfm_role, shift_id, site_id, supervisor_id, consent_recorded_at, custom_data, wfm_shifts(name), wfm_sites!site_id(name)"
       )
       .eq("tenant_id", tenantId)
-      .order("employee_code"),
-    supabase
+      .order("employee_code").order("id", { ascending: true }).range(lo, hi)),
+    readAllPages((lo, hi) => supabase
       .from("tenant_users")
       .select("employee_id, user_id")
       .eq("tenant_id", tenantId)
-      .not("employee_id", "is", null),
+      .not("employee_id", "is", null).order("id", { ascending: true }).range(lo, hi)),
     // KAN-29, read on its own: while migration 0126 is pending this errors
     // (42703) and is ignored, so the screen -- and every other consumer of
     // this payload -- keeps working with every row reading as "inherit".
-    supabase.from("employees").select("id, self_service_override").eq("tenant_id", tenantId),
+    readAllPages((lo, hi) => supabase.from("employees").select("id, self_service_override").eq("tenant_id", tenantId).order("id", { ascending: true }).range(lo, hi)),
     // KAN-29 part 2 (migration 0127), its OWN read for the same reason -- and
     // separate from the override read above, so a pending 0127 cannot also
     // blank the override column and make everyone read as "inherit".
-    supabase.from("employees").select("id, remote_mode").eq("tenant_id", tenantId),
+    readAllPages((lo, hi) => supabase.from("employees").select("id, remote_mode").eq("tenant_id", tenantId).order("id", { ascending: true }).range(lo, hi)),
   ]);
   const employees = orThrow(empRes);
   const overrideById = new Map<string, boolean | null>(
@@ -120,8 +121,8 @@ export async function wfmLeaveTypesPayload(supabase: SupabaseClient, tenantId: s
     supabase.from("wfm_leave_quotas").select("leave_type_id, annual_quota").eq("tenant_id", tenantId).is("employee_id", null),
     // Usage, so the settings screen can say "in use" and refuse a delete
     // honestly. Counted here rather than per row: one read each.
-    supabase.from("wfm_leave_records").select("leave_type_id").eq("tenant_id", tenantId),
-    supabase.from("wfm_leave_requests").select("leave_type_id, status").eq("tenant_id", tenantId),
+    readAllPages((lo, hi) => supabase.from("wfm_leave_records").select("leave_type_id").eq("tenant_id", tenantId).order("id", { ascending: true }).range(lo, hi)),
+    readAllPages((lo, hi) => supabase.from("wfm_leave_requests").select("leave_type_id, status").eq("tenant_id", tenantId).order("id", { ascending: true }).range(lo, hi)),
   ]);
   const types = orThrow(typesRes) as { id: string; name: string; category: string; active: boolean; monthly_limit?: number | null; paid_days_per_month?: number | null; quota_period?: "year" | "month" | null }[];
   const quotaByType = new Map((quotas ?? []).map((q) => [q.leave_type_id, q.annual_quota]));

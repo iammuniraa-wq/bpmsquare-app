@@ -37,6 +37,8 @@ export default function TemplateEditor({ template, estimateCount }: { template: 
 
   // The layer map needs migration 0215; while the column is missing the section says so and the map is never sent.
   const drawingAvailable = "drawing_map" in template;
+  // The picture settings need migration 0235 the same way; without the column the picture is inferred from the inputs.
+  const visualAvailable = "visual" in template;
   const dirty = JSON.stringify(draft) !== savedJson;
   const body = useMemo(() => toBody(draft), [draft]);
   const formula = activeRule !== null ? (draft.rules[activeRule]?.qty ?? null) : null;
@@ -53,6 +55,7 @@ export default function TemplateEditor({ template, estimateCount }: { template: 
           name: draft.name, description: draft.description, trade: draft.trade, quote_granularity: draft.quote_granularity,
           geometry: draft.geometry, inputs: body.inputs, rates: body.rates, rules: body.rules, expected_version: version,
           ...(drawingAvailable ? { drawing_map: body.drawing_map ?? [] } : {}),
+          ...(visualAvailable ? { visual: body.visual ?? null } : {}),
         }),
       });
       const json = await res.json().catch(() => ({}));
@@ -93,7 +96,7 @@ export default function TemplateEditor({ template, estimateCount }: { template: 
         />
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 14, maxWidth: 900 }}>
-        {tab === "details" && <DetailsSection draft={draft} onChange={patch} />}
+        {tab === "details" && <DetailsSection draft={draft} onChange={patch} visualAvailable={visualAvailable} />}
         {tab === "inputs" && (
           <>
             <InputsEditor inputs={draft.inputs} geometry={draft.geometry} onChange={(inputs) => patch({ inputs })} issues={issues} />

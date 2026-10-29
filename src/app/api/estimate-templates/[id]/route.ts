@@ -7,7 +7,7 @@ import { estimatorAccess, errorResponse, pendingResponse, isMissingRelation, loa
 // One template.
 //
 // GET    -> { template, estimate_count }
-// PATCH  { name?, description?, trade?, is_active?, quote_granularity?, geometry?, inputs?, rates?, rules?, expected_version? }
+// PATCH  { name?, description?, trade?, is_active?, quote_granularity?, geometry?, inputs?, rates?, rules?, drawing_map?, visual?, expected_version? }
 //   Content changes (inputs, rates, rules, geometry, quote_granularity) are validated as a whole
 //   (422 with every issue) and bump `version`, so an estimate can tell it was made from an older
 //   one; editing never re-prices an existing estimate. Name / description / trade / is_active are
@@ -68,11 +68,13 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
     let content = false;
     const contentKeys = ["inputs", "rates", "rules"] as const;
-    const touchesBody = contentKeys.some((k) => k in b) || "geometry" in b || "drawing_map" in b;
+    const touchesBody = contentKeys.some((k) => k in b) || "geometry" in b || "drawing_map" in b || "visual" in b;
     let drawingMapPending = false;
+    let visualPending = false;
     if (touchesBody) {
       const merged = {
         drawing_map: "drawing_map" in b ? b.drawing_map : before.drawing_map,
+        visual: "visual" in b ? b.visual : before.visual,
         geometry: "geometry" in b ? (h.geometry ?? undefined) : (before.geometry ?? undefined),
         inputs: "inputs" in b ? b.inputs : before.inputs,
         rates: "rates" in b ? b.rates : before.rates,
@@ -89,10 +91,15 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       patch.geometry = next.geometry ?? null;
       // The drawing layer map (0215) only steers how a DXF drawing is read; it never changes a calculation, so it is not part of
       // the version. While the column is missing the map is dropped from the write and the response says so.
-      const { drawing_map: nextMap, ...nextCore } = next;
+      const { drawing_map: nextMap, visual: nextVisual, ...nextCore } = next;
       if ("drawing_map" in b) {
         if ("drawing_map" in before) patch.drawing_map = nextMap ?? null;
         else if (nextMap) drawingMapPending = true;
+      }
+      // The picture settings (0235) likewise only steer how the estimate is drawn, so they are not versioned either.
+      if ("visual" in b) {
+        if ("visual" in before) patch.visual = nextVisual ?? null;
+        else if (nextVisual) visualPending = true;
       }
       // jsonb does not keep key order, so compare both sides in the validator's canonical form.
       const was = validateTemplate(templateBody({ ...before, geometry: before.geometry ?? null }));
@@ -121,7 +128,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     if (changes.length > 0) {
       await logChange(supabase, { tenantId, objectType: "estimate_templates", objectId: id, objectLabel: before.name, action: "update", actorId: userId, actorEmail: email, changes });
     }
-    return NextResponse.json({ template: data, ...(drawingMapPending ? { drawing_map_pending: true } : {}) });
+    return NextResponse.json({ template: data, ...(drawingMapPending ? { drawing_map_pending: true } : {}), ...(visualPending ? { visual_pending: true } : {}) });
   } catch (e) {
     return errorResponse(e);
   }

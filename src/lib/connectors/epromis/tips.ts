@@ -10,7 +10,7 @@ export const EPROMIS_TIPS = {
   credential: "Stored encrypted and never shown again. Leave it blank when editing to keep the stored one.",
   company: "A company or database code some ePROMIS setups need on every request. Leave it blank if ePROMIS does not ask for one.",
   companySent: "Whether the code travels in a header or in the address, and under which name.",
-  endpointMap: "Where each ePROMIS operation lives. It is filled once KAMCO's API documentation is available; until then every operation answers Not configured.",
+  endpointMap: "Where each ePROMIS operation lives. It is filled from the ePROMIS API documentation; until then every operation answers Not configured.",
   template: "Fills the box with the empty shape of the map. No address or field is guessed.",
 } as const;
 

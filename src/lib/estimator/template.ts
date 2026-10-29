@@ -22,7 +22,8 @@ import type {
 } from "./types";
 import { ATTR_KEY_RE, MAX_ATTRS, MAX_ATTR_VALUE } from "./productMatch";
 import { FORMULA_FUNCTIONS, formulaIdentifiers, parseFormula } from "./formula";
-import { getGeometry, geometryIdentifiers, TOTAL_IDENTIFIERS, GEOMETRY_KEYS } from "./geometry";
+import { getGeometry, geometryIdentifiers, TOTAL_IDENTIFIERS, GEOMETRY_KEYS, GENERIC_SLOT_KEYS } from "./geometry";
+import { validateVisual } from "./visual";
 import { SIM_CAPACITY_RATES, SIM_RATE_KEYS } from "./simRates";
 import { isVisualValue } from "./materialCatalog";
 
@@ -408,6 +409,7 @@ export function validateTemplate(raw: unknown): TemplateValidation {
 
   const rules = validateRuleShapes(raw.rules, new Set(rates.map((r) => r.key)), inputs, issues);
   const drawingMap = validateDrawingMap(raw.drawing_map, inputs, issues);
+  const visual = validateVisual(raw.visual, inputs, issues);
 
   // Geometry module: optional, must exist, and the template must supply the
   // inputs the module reads. Its pieces then add vol_/n_/area_ names.
@@ -499,7 +501,7 @@ export function validateTemplate(raw: unknown): TemplateValidation {
     if (rule.cost.kind === "product") for (const k of rule.cost.match?.from ?? []) used.add(k);
   });
 
-  if (!geometry) inputs.forEach((x, i) => { if (x.paints) { used.add(x.key); warnings.push({ path: `inputs[${i}].paints`, message: `"${x.key}" paints a part of the model, but this template has no 3D layout, so it changes nothing.` }); } });
+  if (!geometry) inputs.forEach((x, i) => { if (x.paints && GENERIC_SLOT_KEYS.has(x.paints) && visual?.picture !== "none") used.add(x.key); else if (x.paints) { used.add(x.key); warnings.push({ path: `inputs[${i}].paints`, message: `"${x.key}" paints a part of the model, but this template has no 3D layout, so it changes nothing.` }); } });
   inputs.forEach((x, i) => { if (!used.has(x.key)) warnings.push({ path: `inputs[${i}]`, message: `Input "${x.key}" is not used by any rule.` }); });
   rates.forEach((x, i) => { if (!used.has(x.key) && !SIM_RATE_KEYS.has(x.key)) warnings.push({ path: `rates[${i}]`, message: `Rate "${x.key}" is not used by any rule.` }); });
 
@@ -516,6 +518,7 @@ export function validateTemplate(raw: unknown): TemplateValidation {
       ...(r.element_type ? { element_type: r.element_type } : {}),
     })),
     ...(drawingMap ? { drawing_map: drawingMap } : {}),
+    ...(visual ? { visual } : {}),
   };
   return { ok: true, issues, warnings, template };
 }

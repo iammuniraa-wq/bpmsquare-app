@@ -53,7 +53,7 @@ export async function POST(req: NextRequest) {
     const found = ((existing ?? []) as { name: string }[]).find((t) => t.name.toLowerCase() === starter.name.toLowerCase());
     if (found) return NextResponse.json({ template: found, created: false });
 
-    const v = validateTemplate({ geometry: starter.geometry, inputs: starter.inputs, rates: starter.rates, rules: starter.rules, drawing_map: starter.drawing_map });
+    const v = validateTemplate({ geometry: starter.geometry, inputs: starter.inputs, rates: starter.rates, rules: starter.rules, drawing_map: starter.drawing_map, visual: starter.visual });
     if (!v.ok || !v.template) return NextResponse.json({ error: "The starter template failed validation.", issues: v.issues }, { status: 500 });
     const r = await insertTemplate(supabase, tenantId, userId, {
       name: starter.name, description: starter.description, trade: starter.trade, quote_granularity: starter.quote_granularity,

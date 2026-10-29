@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { canReadChangeType, changeTypeFilter, scopeForChangeType, stripInternalChangeFields } from "./changeFeedScope";
+import { canReadChangeType, changeTypeFilter, redactChangeEntries, scopeForChangeType, shapeChangeEvent, stripInternalChangeFields, webhookTypeFilter } from "./changeFeedScope";
 import type { ApiScopes } from "@/app/api/v1/_auth";
 
 // Audit 2026-10-21 (M1): /api/v1/changes returned every object's change history to any
@@ -68,5 +68,29 @@ describe("change feed scope", () => {
     expect(stripInternalChangeFields("products", changes)).toEqual([{ field: "name", from: "A", to: "B" }]);
     expect(stripInternalChangeFields("accounts", changes)).toEqual(changes);
     expect(stripInternalChangeFields("products", null)).toBeNull();
+  });
+
+  it("a webhook's all-objects filter equals a wildcard key's: every explicit-only type is held back", () => {
+    const hook = webhookTypeFilter(["*"]);
+    const apiKey = changeTypeFilter(key(["*"]));
+    expect(hook.kind).toBe("except");
+    expect([...hook.types].sort()).toEqual([...apiKey.types].sort());
+    expect(webhookTypeFilter(null)).toEqual(hook);
+    expect(webhookTypeFilter([])).toEqual(hook);
+  });
+
+  it("a webhook that names an explicit-only type (by change type or by scope) gets that type, a named list is literal", () => {
+    expect(webhookTypeFilter(["*", "employees"]).types).not.toContain("employees");
+    expect(webhookTypeFilter(["*", "employees"]).types).toContain("rfqs");
+    expect(webhookTypeFilter(["*", "rfqs"]).types).not.toContain("pricing_rfqs");
+    expect(webhookTypeFilter(["employees", "quotes"])).toEqual({ kind: "only", types: ["employees", "quotes"] });
+  });
+
+  it("one shaper serves both feeds: internal columns stripped, personal fields redacted", () => {
+    const row = { id: "i", object_type: "employees", object_id: "o", object_label: "L", action: "update", actor_email: null, created_at: "t",
+      changes: [{ field: "phone", from: "0501", to: "0502" }, { field: "name", from: "A", to: "B" }] };
+    expect(shapeChangeEvent(row).changes).toEqual([{ field: "phone", from: "[redacted]", to: "[redacted]", redacted: true }, { field: "name", from: "A", to: "B" }]);
+    expect(shapeChangeEvent({ ...row, object_type: "products", changes: [{ field: "cost_price", from: 1, to: 2 }] }).changes).toEqual([]);
+    expect(redactChangeEntries("quotes", row.changes)).toBe(row.changes);
   });
 });

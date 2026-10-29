@@ -6,6 +6,7 @@ import { orderFingerprintValues, orderStatusOf, type MappedLine, type MappedOrde
 import { fingerprint } from "@/lib/connectors/d365/mapping";
 import { ERP_DOCUMENTS_BUNDLE, type ErpDocumentKind } from "./erpDocs";
 
+import { readAllPages } from "@/lib/pagedRead";
 // What every ERP's order reader writes the same way (SO2, extended for SAP in SO4b): one ERP order into sales_orders, its lines,
 // its connector link, and the deliveries and invoices it reports into erp_documents. The connector supplies the mapped rows (a
 // MappedOrder / MappedDocument, built from its own system's words) and a way to read the lines when the header did not carry them.
@@ -63,7 +64,7 @@ export async function linkedObject(ctx: WriteCtx, entity: "customers" | "product
 
 async function replaceLines(ctx: WriteCtx, orderId: string, m: MappedOrder, productIds: (string | null)[]): Promise<void> {
   const { admin, tenantId } = ctx;
-  const { data: old } = await admin.from("sales_order_lines").select("id").eq("order_id", orderId).eq("tenant_id", tenantId);
+  const { data: old } = await readAllPages((lo, hi) => admin.from("sales_order_lines").select("id").eq("order_id", orderId).eq("tenant_id", tenantId).order("id", { ascending: true }).range(lo, hi));
   const oldIds = ((old ?? []) as { id: string }[]).map((r) => r.id);
   if (m.lines.length) {
     const rows = m.lines.map((l, i) => ({

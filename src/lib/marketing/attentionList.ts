@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { NEEDS_ATTENTION_STATUSES, isEmailStatus, type EmailStatus } from "./emailHealth";
 import { isSchemaPending } from "./pending";
 
+import { readAllPages } from "@/lib/pagedRead";
 // The contacts whose email address needs a person to look at it: bounced, marked as
 // spam, invalid, or having trouble. Feeds the "Email needs attention" view of the
 // Contacts list (Newsletter Studio). Tenant-scoped on the service-role client.
@@ -11,12 +12,12 @@ export type AttentionEntry = { status: EmailStatus; at: string | null; reason: s
 
 /** contact id -> entry, or null while migration 0144 is pending. */
 export async function loadAttention(admin: SupabaseClient, tenantId: string): Promise<Map<string, AttentionEntry> | null> {
-  const { data, error } = await admin
+  const { data, error } = await readAllPages((lo, hi) => admin
     .from("contacts")
     .select("id, email_status, email_status_at, email_status_reason")
     .eq("tenant_id", tenantId)
     .in("email_status", [...NEEDS_ATTENTION_STATUSES])
-    .limit(5000);
+    .order("id", { ascending: true }).range(lo, hi));
   if (error) {
     if (!isSchemaPending(error)) console.error(`[email health] attention list: ${error.message}`);
     return null;

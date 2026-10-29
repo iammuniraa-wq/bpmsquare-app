@@ -20,6 +20,7 @@ import { candidatesFor, loadPriceContext, type SourceLine } from "./sources";
 import { loadWorkbook, sheetNames, sheetToGrid } from "./workbook";
 import { buildAnswerSheet, writePricedWorkbook, type AnswerRow, type PricedRow } from "./write";
 
+import { readAllPages } from "@/lib/pagedRead";
 // Server side of the tender BOQ (migration 0223, slice 3a). Every query is tenant-scoped on the admin client and every one
 // tolerates the migration being pending (a missing table answers `pending`, never a crash). The BOQ is reached ONLY through
 // openBoqRequest(): flags gcc_tender + pipeline, the caller's view (or edit, for a write) of the Pipeline workcenter, and a tender
@@ -106,7 +107,7 @@ export async function loadCurrentSource(admin: SupabaseClient, tenantId: string,
 }
 
 async function loadRows(admin: SupabaseClient, tenantId: string, oppId: string): Promise<BoqRow[]> {
-  const { data, error } = await admin.from("tender_boq_lines").select(ROW_COLS).eq("tenant_id", tenantId).eq("opportunity_id", oppId).order("row_no").limit(5000);
+  const { data, error } = await readAllPages((lo, hi) => admin.from("tender_boq_lines").select(ROW_COLS).eq("tenant_id", tenantId).eq("opportunity_id", oppId).order("row_no").order("id", { ascending: true }).range(lo, hi));
   if (error) return [];
   return ((data ?? []) as Record<string, unknown>[]).map(toRow);
 }

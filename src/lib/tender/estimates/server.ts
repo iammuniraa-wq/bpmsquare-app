@@ -10,6 +10,7 @@ import { opportunityStages } from "@/lib/sales/opportunity";
 import { refreshOpportunityDerived } from "@/lib/sales/opportunityServer";
 import { rfqConfig } from "@/lib/rfq/types";
 import { openTenderDealRequest, type TenderDealRequest } from "@/lib/tender/dealAccess";
+import { readAllPages } from "@/lib/pagedRead";
 import { isMissingSchema } from "@/lib/tender/server";
 import { bundles, type BoqRequest } from "@/lib/tender/boq/server";
 import { proposeByMatch, proposeSpread, type BoqInput, type Proposal, type ProposalBy } from "./allocate";
@@ -151,9 +152,10 @@ function toLink(r: Record<string, unknown>): LinkRow {
 }
 
 export async function loadLinks(admin: SupabaseClient, tenantId: string, oppId: string, onlyBoq?: readonly string[]): Promise<{ rows: LinkRow[]; pending: boolean }> {
-  let q = admin.from("tender_boq_estimate_links").select(LINK_COLS).eq("tenant_id", tenantId).eq("opportunity_id", oppId).limit(10000);
-  if (onlyBoq) q = q.in("boq_line_id", [...onlyBoq]);
-  const { data, error } = await q;
+  const { data, error } = await readAllPages((lo, hi) => {
+    const q = admin.from("tender_boq_estimate_links").select(LINK_COLS).eq("tenant_id", tenantId).eq("opportunity_id", oppId);
+    return (onlyBoq ? q.in("boq_line_id", [...onlyBoq]) : q).order("id", { ascending: true }).range(lo, hi);
+  });
   if (error) return { rows: [], pending: isMissingSchema(error) };
   return { rows: ((data ?? []) as Record<string, unknown>[]).map(toLink), pending: false };
 }

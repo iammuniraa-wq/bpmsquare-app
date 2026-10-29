@@ -1,5 +1,6 @@
-import { scopeAllows, type ApiScopes } from "@/app/api/v1/_auth";
+import { EXPLICIT_SCOPE_ONLY, scopeAllows, type ApiScopes } from "@/app/api/v1/_auth";
 import type { ChangeEntry } from "@/lib/changeLog";
+import { PII_FIELDS } from "@/lib/piiFields";
 
 // GET /api/v1/changes is the change_log of the whole workspace. It used to be
 // reachable with ANY read-scoped key and returned every object type, so a key
@@ -79,4 +80,65 @@ export function stripInternalChangeFields(objectType: string, changes: unknown):
   const internal = INTERNAL_FIELDS[objectType];
   if (!internal || !Array.isArray(changes)) return changes;
   return (changes as ChangeEntry[]).filter((c) => !(c && typeof c === "object" && internal.has(String(c.field))));
+}
+
+/** Encrypted-at-rest / contact fields are stored already redacted by diffForLog. This is the read-side
+ *  backstop for an older or hand-written row: whatever the stored value, an outbound feed shows "[redacted]". */
+export function redactChangeEntries(objectType: string, changes: unknown): unknown {
+  const pii = PII_FIELDS[objectType] ?? PII_FIELDS[`${objectType}s`];
+  if (!pii || !Array.isArray(changes)) return changes;
+  return (changes as ChangeEntry[]).map((c) => {
+    if (!c || typeof c !== "object" || !pii.has(String(c.field)) || c.redacted === true) return c;
+    return { ...c, from: c.from ? "[redacted]" : null, to: c.to ? "[redacted]" : null, redacted: true };
+  });
+}
+
+export type ChangeLogEventRow = {
+  id: string; object_type: string; object_id: string; object_label: string | null;
+  action: string; changes: unknown; actor_email: string | null; created_at: string;
+};
+
+/** The one columns list both outbound change feeds read. */
+export const CHANGE_EVENT_COLUMNS = "id, object_type, object_id, object_label, action, changes, actor_email, created_at";
+
+/** THE shape of a change on every outbound surface (GET /api/v1/changes and event webhook batches):
+ *  internal columns stripped, personal fields redacted. One function, so the two cannot drift. */
+export function shapeChangeEvent(r: ChangeLogEventRow) {
+  return {
+    id: r.id,
+    object_type: r.object_type,
+    object_id: r.object_id,
+    object_label: r.object_label,
+    action: r.action,
+    changes: redactChangeEntries(r.object_type, stripInternalChangeFields(r.object_type, r.changes)),
+    actor: r.actor_email ?? null,
+    at: r.created_at,
+  };
+}
+
+/** The change_log object types that need an explicit grant: the ones whose v1 scope is explicit-only. */
+export const EXPLICIT_ONLY_CHANGE_TYPES: string[] = MAPPED_CHANGE_TYPES.filter((t) => {
+  const scope = scopeForChangeType(t);
+  return scope !== null && EXPLICIT_SCOPE_ONLY.has(scope);
+});
+
+/** The object_type filter for an event webhook. "All objects" (or nothing named) carries every
+ *  type EXCEPT those that need an explicit grant, exactly like a "*" API key; those are delivered
+ *  only when the webhook names them (by change type or by its scope name). A named list is
+ *  delivered as named. */
+export function webhookTypeFilter(objectTypes: string[] | null | undefined): ChangeTypeFilter {
+  const named = Array.isArray(objectTypes) && objectTypes.length ? objectTypes : ["*"];
+  if (!named.includes("*")) return { kind: "only", types: named };
+  return {
+    kind: "except",
+    types: EXPLICIT_ONLY_CHANGE_TYPES.filter((t) => !named.includes(t) && !named.includes(scopeForChangeType(t) ?? "")),
+  };
+}
+
+type TypeFilterable<Q> = { in(col: string, vals: string[]): Q; not(col: string, op: string, val: string): Q };
+
+/** Apply a ChangeTypeFilter to a change_log query. */
+export function applyChangeTypeFilter<Q extends TypeFilterable<Q>>(q: Q, filter: ChangeTypeFilter): Q {
+  if (filter.kind === "only") return q.in("object_type", filter.types.length ? filter.types : ["__none__"]);
+  return filter.types.length ? q.not("object_type", "in", `(${filter.types.join(",")})`) : q;
 }

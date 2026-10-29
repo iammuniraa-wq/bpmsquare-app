@@ -13,6 +13,11 @@ import { TILES_FLOOR_MODULE } from "./tilesFloor";
 import { PORTA_CABIN_MODULE } from "./portaCabin";
 import type { GeometryModel, GeometryModule, PieceFamilyTotals } from "./types";
 
+// The picture built from the inputs is exported here but is deliberately NOT in MODULES: it is not a module a template names (it adds
+// no formula identifiers and prices nothing), it only draws. See generic.ts.
+export { GENERIC_KEY, GENERIC_SLOTS, GENERIC_SLOT_KEYS, GENERIC_FAMILIES, layoutGeneric, withGenericRefs, familyForLine } from "./generic";
+export type { GenericArgs, GenericLine } from "./generic";
+
 export type { GeometryModel, GeometryModule, GeometryResult, Piece, PieceOpening, Vec3, PieceKind, PieceCodeInfo, PieceFamilyTotals } from "./types";
 
 const MODULES: Readonly<Record<string, GeometryModule>> = {

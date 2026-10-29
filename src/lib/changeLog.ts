@@ -2,6 +2,7 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { currentVia } from "@/lib/actions/via";
 import { createAdminSupabase } from "@/lib/supabase-server";
+import { PII_FIELDS } from "@/lib/piiFields";
 
 // "reopen" is a distinct action from "update" -- moving a quote off a closed
 // status back into the pipeline undoes a closed deal, which is worth being
@@ -9,26 +10,6 @@ import { createAdminSupabase } from "@/lib/supabase-server";
 export type ChangeLogAction = "create" | "update" | "delete" | "reopen";
 
 export type ChangeEntry = { field: string; from: unknown; to: unknown; redacted?: boolean };
-
-/**
- * Fields that are stored encrypted (see src/lib/encryption.ts). Kept as its
- * own small map here rather than importing encryption.ts's private
- * ACCOUNT_PII/CONTACT_PII consts, since this file's failure mode is
- * different: a bug here must never leak a plaintext PII value into an
- * otherwise-unencrypted audit table, so the list is deliberately explicit
- * and reviewed here, not inherited silently.
- */
-const PII_FIELDS: Record<string, Set<string>> = {
-  accounts: new Set(["phone", "phone2", "email", "email2", "gstin", "buyer_id_number"]),
-  contacts: new Set(["phone", "phone2", "phone3", "email", "email2"]),
-  // employees stores these plaintext (bpmsquarecore.md §7's encryption scope
-  // is accounts/contacts only), but the audit log redacts them anyway --
-  // consistent treatment of a person's contact details regardless of which
-  // table they live in.
-  employees: new Set(["phone", "email"]),
-  // The Talk to us contact email on a process study (encrypted at rest).
-  process_studies: new Set(["contact_email"]),
-};
 
 function deepEqual(a: unknown, b: unknown): boolean {
   return JSON.stringify(a ?? null) === JSON.stringify(b ?? null);

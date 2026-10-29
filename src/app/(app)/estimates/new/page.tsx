@@ -20,7 +20,7 @@ import StarterButton from "./StarterButton";
 import TemplateCards from "./TemplateCards";
 import { aiConfigured } from "@/lib/estimator/aiServer";
 
-type TemplateRow = Pick<EstimateTemplate, "id" | "name" | "description" | "geometry" | "inputs" | "rates" | "rules" | "quote_granularity" | "icon" | "keywords" | "locked">;
+type TemplateRow = Pick<EstimateTemplate, "id" | "name" | "description" | "geometry" | "inputs" | "rates" | "rules" | "quote_granularity" | "icon" | "keywords" | "locked" | "visual" | "customer_visible">;
 
 export default async function NewEstimatePage({ searchParams }: { searchParams: Promise<{ account_id?: string; from?: string; template?: string; email?: string; from_email?: string; opportunity?: string }> }) {
   await requireWorkcenterView("estimates");
@@ -60,6 +60,7 @@ export default async function NewEstimatePage({ searchParams }: { searchParams: 
   const templates = rows.map((t): WorkspaceTemplate => ({
     id: t.id, name: t.name, description: t.description, geometry: t.geometry ?? null,
     inputs: t.inputs ?? [], rates: t.rates ?? [], rules: t.rules ?? [], quote_granularity: t.quote_granularity ?? "group",
+    visual: t.visual ?? null, customer_visible: t.customer_visible === true,
   }));
 
   if (templates.length === 0) {
