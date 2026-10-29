@@ -100,6 +100,7 @@ export default function ChannelsClient() {
           key={sel.id ?? "new"} data={data} channel={open}
           onClose={() => setSel(null)}
           onSaved={async (verb) => { toast({ text: verb, tone: "success" }); await load(); setSel(null); }}
+          onRead={load}
           onRotated={async () => { toast({ text: "New address made. Update anything that forwards to the old one.", tone: "success" }); await load(); }}
           confirm={confirm}
         />
@@ -108,18 +109,34 @@ export default function ChannelsClient() {
   );
 }
 
-function ChannelPanel({ data, channel, onClose, onSaved, onRotated, confirm }: {
-  data: Data; channel: Channel | null; onClose: () => void; onSaved: (verb: string) => Promise<void>; onRotated: () => Promise<void>;
+function ChannelPanel({ data, channel, onClose, onSaved, onRotated, onRead, confirm }: {
+  data: Data; channel: Channel | null; onClose: () => void; onSaved: (verb: string) => Promise<void>; onRotated: () => Promise<void>; onRead: () => Promise<void>;
   confirm: ReturnType<typeof useFeel>["confirm"];
 }) {
   const { toast } = useFeel();
   const [d, setD] = useState<Draft>(channel ? draftOf(channel) : emptyDraft);
-  const [busy, setBusy] = useState<"" | "save" | "delete" | "rotate">("");
+  const [busy, setBusy] = useState<"" | "save" | "delete" | "rotate" | "read">("");
   const [error, setError] = useState("");
   const [allRoles, setAllRoles] = useState(false);
   const set = <K extends keyof Draft>(k: K, v: Draft[K]) => setD((x) => ({ ...x, [k]: v }));
   const roles = allRoles ? data.roles : data.roles.slice(0, MORE);
   const mailboxOk = d.connector_id === "" ? null : d.connector_id === "gmail" ? data.connectors.gmail : data.connectors.mail_server;
+
+  async function readNow() {
+    if (!channel) return;
+    setBusy("read");
+    setError("");
+    try {
+      const res = await fetch(`/api/inbox/channels/${channel.id}/poll`, { method: "POST" });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) { setError(j.error ?? "Could not read the mailbox."); return; }
+      if (j.error) toast({ text: `The mailbox answered with an error: ${j.error}`, tone: "error" });
+      else toast({ text: j.stored ? `${j.stored} new ${j.stored === 1 ? "email" : "emails"} taken in.` : "No new mail.", tone: "success" });
+      await onRead();
+    } finally {
+      setBusy("");
+    }
+  }
 
   async function save() {
     setError("");
@@ -241,6 +258,11 @@ function ChannelPanel({ data, channel, onClose, onSaved, onRotated, confirm }: {
           )}
           {d.connector_id && mailboxOk && channel?.last_polled_at && (
             <div className="bpm-t-help" style={{ marginTop: 6 }}>Last read {whenWord(channel.last_polled_at)}{channel.last_error ? `, with an error: ${channel.last_error}` : ""}.</div>
+          )}
+          {channel && d.connector_id && mailboxOk && channel.active && (
+            <div style={{ marginTop: 8 }}>
+              <Button variant="secondary" size="sm" disabled={!!busy} loading={busy === "read"} onClick={readNow} data-guide="inbox.channels.read_now">Read mail now</Button>
+            </div>
           )}
         </Field>
       </div>

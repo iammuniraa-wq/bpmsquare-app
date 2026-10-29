@@ -34,6 +34,8 @@ type State = { tenant_id: string; connector_id: string; uid_validity: string | n
 /** One run over every connected channel, oldest-polled first, stopping when the time budget is spent. */
 export async function pollInboxMailboxes(admin: SupabaseClient, opts: {
   budgetMs?: number;
+  /** Read one channel only (the "Read mail now" button); the scheduled run reads them all. */
+  only?: { tenantId: string; channelId: string };
   now?: Date;
   load?: typeof loadMailbox;
   fetch?: (mb: Mailbox, state: { uidValidity: bigint | null; lastUid: number }) => ReturnType<typeof fetchNewMail>;
@@ -51,11 +53,12 @@ export async function pollInboxMailboxes(admin: SupabaseClient, opts: {
   const { data, error } = await admin.from("inbox_channels").select("*").not("connector_id", "is", null).eq("active", true);
   if (error) return { channels: 0, results: [], pending: isMissingRelation(error) };
   const withConnector = ((data ?? []) as Record<string, unknown>[]).map(toChannel).filter((c): c is InboxChannel & { connector_id: "gmail" | "mail_server" } => !!c.connector_id);
-  if (withConnector.length === 0) return { channels: 0, results: [] };
+  const scoped = opts.only ? withConnector.filter((c) => c.tenant_id === opts.only!.tenantId && c.id === opts.only!.channelId) : withConnector;
+  if (scoped.length === 0) return { channels: 0, results: [] };
   // A workspace without the module is not polled at all: the cursor must not move past mail nobody will read.
-  const { data: on } = await admin.from("tenants").select("id").in("id", [...new Set(withConnector.map((c) => c.tenant_id))]).contains("features", { inbox: true });
+  const { data: on } = await admin.from("tenants").select("id").in("id", [...new Set(scoped.map((c) => c.tenant_id))]).contains("features", { inbox: true });
   const owners = new Set(((on ?? []) as { id: string }[]).map((t) => t.id));
-  const channels = withConnector.filter((c) => owners.has(c.tenant_id));
+  const channels = scoped.filter((c) => owners.has(c.tenant_id));
   if (channels.length === 0) return { channels: 0, results: [] };
 
   const { data: states } = await admin.from("inbox_mailbox_state").select("tenant_id, connector_id, uid_validity, last_uid, last_polled_at");

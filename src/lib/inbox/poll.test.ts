@@ -51,6 +51,17 @@ describe("intake B: read the client's own mailbox", () => {
     expect(db.rows("inbox_mailbox_state")[0]).toMatchObject({ tenant_id: T1, connector_id: "gmail", uid_validity: "7", last_uid: 42, last_error: null });
   });
 
+  it("Read mail now reads only the named channel of the named workspace", async () => {
+    db.rows("tenants").find((t) => t.id === T2)!.features = { inbox: true };
+    const fetch = vi.fn(async () => ({ uidValidity: BigInt(7), lastUid: 3, messages: [fetched(3)], skipped: [] }));
+    const load = vi.fn(async () => box());
+    const r = await pollInboxMailboxes(as(db), { load: load as never, fetch: fetch as never, only: { tenantId: T1, channelId: CH_BOX } });
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(r.results).toEqual([{ tenantId: T1, channelId: CH_BOX, read: 1, stored: 1 }]);
+    const other = await pollInboxMailboxes(as(db), { load: load as never, fetch: fetch as never, only: { tenantId: T1, channelId: CH_BOX_T2 } });
+    expect(other).toEqual({ channels: 0, results: [] });
+  });
+
   it("the first run has no cursor (the reader looks back three days), and a re-poll of the same mail stores it once", async () => {
     const fetch = vi.fn(async () => ({ uidValidity: BigInt(9), lastUid: 5, messages: [fetched(5)] }));
     const load = vi.fn(async () => box());
