@@ -2131,7 +2131,8 @@ textarea.bpm-input { min-height: 72px; resize: vertical; }
 .bpm-settings-landing-links a:hover { color: var(--ink); text-decoration: underline; }
 
 @media (max-width: 780px) {
-  .bpm-settings { display: flex; flex-direction: column; gap: 14px; }
+  /* stretch, not the grid's "start": a start-aligned column item is as wide as its widest unscrollable content (a table with a min-width inside its own overflow wrapper counts), so a settings page grew past the phone. */
+  .bpm-settings { display: flex; flex-direction: column; align-items: stretch; gap: 14px; }
   .bpm-settings-nav { position: static; max-height: none; overflow: visible; padding: 10px 8px 12px; }
   .bpm-settings-item { padding: 12px 10px; font-size: 14px; }
   .bpm-settings-item-desc, .bpm-settings-chevron { display: block; }

@@ -197,6 +197,45 @@ describe("Project path", () => {
     expect(out).toContain("About Project path");
     expect(out).toContain("overflow-x:auto"); // scrolls sideways on a phone
   });
+
+  it("scrolls inside its own row: a positioned, shrinkable list, so the page never scrolls sideways (phone fix)", () => {
+    const out = strip(renderToString(createElement(ProjectPathBar, { path: projectPath({ status: "active", handover_sent_at: null }, false) })));
+    const list = out.match(/<ol[^>]*>/)?.[0] ?? "";
+    expect(list).toContain("position:relative"); // contains the absolutely placed screen-reader spans inside each step
+    expect(list).toContain("overflow-x:auto");
+    expect(list).toContain("min-width:0");
+    expect(out.match(/<div data-guide="cp\.path"[^>]*>/)?.[0]).toContain("min-width:0");
+  });
+});
+
+describe("Settings > Contract projects on a phone", () => {
+  const read = (rel: string) => readFileSync(path.join(ROOT, rel), "utf8");
+
+  it("keeps every settings sub-page at the phone width: the column stretches and the rows wrap instead of scrolling the page", () => {
+    const css = read("src/app/globals.css");
+    expect(css).toMatch(/\.bpm-settings \{ display: flex; flex-direction: column; align-items: stretch;/);
+    const client = read("src/app/(app)/settings/contract-projects/ContractProjectsSettingsClient.tsx");
+    const terms = read("src/app/(app)/settings/contract-projects/PaymentTermsSection.tsx");
+    for (const src of [client, terms]) {
+      expect(src).not.toContain("<table");
+      expect(src).toContain('flexWrap: "wrap"');
+      expect(src).toContain("minHeight: 44");
+    }
+    expect(client).toMatch(/maxWidth: 860, minWidth: 0/);
+  });
+
+  it("lays a milestone out as two lines (Due when beside Remove, on one baseline) and stacks it in one column under 780 px", () => {
+    const terms = read("src/app/(app)/settings/contract-projects/PaymentTermsSection.tsx");
+    expect(terms).toContain("className={s.row}");
+    expect(terms).toContain("className={s.due}");
+    expect(terms).toContain("className={s.remove}");
+    const css = read("src/app/(app)/settings/contract-projects/PaymentTermsSection.module.css");
+    expect(css).toMatch(/\.row \{[^}]*align-items: end/);
+    expect(css).toMatch(/\.due \{ grid-column: 1 \/ span 2/);
+    expect(css).toMatch(/\.remove \{[^}]*grid-column: 3;[^}]*min-height: 44px/);
+    expect(css).toMatch(/@media \(max-width: 780px\) \{[^@]*grid-template-columns: minmax\(0, 1fr\)/);
+    expect(css).not.toMatch(/#[0-9a-fA-F]{3,8}/); // theme variables only
+  });
 });
 
 describe("Approval controls", () => {

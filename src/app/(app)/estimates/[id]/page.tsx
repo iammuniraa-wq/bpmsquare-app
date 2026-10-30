@@ -70,8 +70,8 @@ export default async function EstimatePage({
 
   return (
     <ObjectRecordPage
-      backHref={ROUTES.estimates}
-      backLabel="All estimates"
+      backHref={tenderCtx ? `${ROUTES.pipelineDetail(tenderCtx.deal.id)}?tab=costing` : ROUTES.estimates}
+      backLabel={tenderCtx ? "Back to the tender" : "All estimates"}
       title={estimate.name}
       reference={estimate.ref}
       meta={[account?.name, template?.name].filter(Boolean).join(" · ") || undefined}

@@ -1,0 +1,11 @@
+/* One milestone in the payment-term panel: line one is Milestone, Amount as, Percent; line two is Due when (the width that is left) with Remove on the same baseline at the right. One column under 780px. Theme variables only. */
+.row { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1.3fr) minmax(0, 1fr); gap: 8px; align-items: end; min-width: 0; }
+.row > * { min-width: 0; }
+.due { grid-column: 1 / span 2; }
+.row[data-solo="true"] .due { grid-column: 1 / -1; }
+.remove { grid-column: 3; min-height: 44px; width: 100%; justify-content: center; }
+
+@media (max-width: 780px) {
+  .row { grid-template-columns: minmax(0, 1fr); }
+  .due, .remove { grid-column: auto; }
+}

@@ -68,25 +68,21 @@ export default function ContractProjectsSettingsClient() {
   if (!kinds) return <div style={{ ...cardStyle, color: c.hint }}>{msg?.text ?? "Loading…"}</div>;
 
   return (
-    <div data-guide="cp.settings" style={{ display: "flex", flexDirection: "column", gap: 16, maxWidth: 860 }}>
+    <div data-guide="cp.settings" style={{ display: "flex", flexDirection: "column", gap: 16, maxWidth: 860, minWidth: 0 }}>
       <section style={{ ...cardStyle, padding: 0, overflow: "hidden" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 6, fontWeight: 700, color: c.ink, fontSize: 14, padding: "14px 16px" }}>
           Lists <InfoTip label="Lists">{PROJECT_TIPS.masters}</InfoTip>
           <InfoTip label="Starter lists">{PROJECT_TIPS.mastersDefaults}</InfoTip>
         </div>
-        <div style={{ overflowX: "auto" }}>
-          <table style={{ width: "100%", minWidth: 520, borderCollapse: "collapse" }}>
-            <tbody>
-              {kinds.map((k) => (
-                <tr key={k.kind} data-guide={`cp.settings.row.${k.kind}`} style={{ borderTop: `1px solid ${c.line}` }}>
-                  <td style={{ padding: "10px 16px", fontSize: 13.5, color: c.ink, fontWeight: 600 }}>{k.label}</td>
-                  <td style={{ padding: "10px 8px", fontSize: 13, color: c.muted }}>{k.active} active{k.total !== k.active ? ` of ${k.total}` : ""}</td>
-                  <td style={{ padding: "10px 8px", fontSize: 12.5, color: c.hint }}>{k.total === 0 ? "Empty" : k.defaults === k.total ? "Starter list" : k.files > 0 ? "From file" : "Entered by hand"}</td>
-                  <td style={{ padding: "6px 16px", textAlign: "right" }}><Button size="sm" variant="secondary" data-guide="cp.settings.open" style={{ minHeight: 44 }} onClick={() => setPanel(k)}>Open</Button></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div data-guide="cp.settings.lists" style={{ minWidth: 0 }}>
+          {kinds.map((k) => (
+            <div key={k.kind} data-guide={`cp.settings.row.${k.kind}`} style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: "2px 12px", padding: "6px 16px", minHeight: 56, borderTop: `1px solid ${c.line}`, minWidth: 0 }}>
+              <span style={{ flex: "1 1 150px", minWidth: 0, fontSize: 13.5, color: c.ink, fontWeight: 600, overflowWrap: "anywhere" }}>{k.label}</span>
+              <span style={{ fontSize: 13, color: c.muted }}>{k.active} active{k.total !== k.active ? ` of ${k.total}` : ""}</span>
+              <span style={{ fontSize: 12.5, color: c.hint }}>{k.total === 0 ? "Empty" : k.defaults === k.total ? "Starter list" : k.files > 0 ? "From file" : "Entered by hand"}</span>
+              <Button size="sm" variant="secondary" data-guide="cp.settings.open" style={{ minHeight: 44, marginLeft: "auto" }} onClick={() => setPanel(k)}>Open</Button>
+            </div>
+          ))}
         </div>
       </section>
 
