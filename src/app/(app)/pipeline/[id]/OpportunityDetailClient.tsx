@@ -42,6 +42,7 @@ import BidDecisionMarker, { BidDecisionPanel } from "./BidDecisionMarker";
 import BondChip from "@/components/tender/BondChip";
 import { guaranteeRecorded, BOND_STATUS_LABEL } from "@/lib/tender/bond";
 import BidsTab from "@/components/tender/BidsTab";
+import InteractionsTab from "@/components/tender/InteractionsTab";
 import CallsPanel from "@/components/tender/CallsPanel";
 import { LogCallButton } from "@/components/tender/LogCall";
 import { overdueSummary, type CallsData } from "@/lib/tender/calls";
@@ -63,7 +64,7 @@ import { editorUom } from "@/lib/sales/uom";
 // primary header button that follows the stage, and History in the "..." menu (a side panel, a bottom sheet on a phone).
 
 type Member = { user_id: string; name: string | null; email: string | null };
-type Tab = "overview" | "room" | "competitors" | "boq" | "costing" | "lines" | "bid" | "quotes" | "related" | "activity";
+type Tab = "overview" | "room" | "competitors" | "boq" | "costing" | "lines" | "bid" | "interactions" | "quotes" | "related" | "activity";
 
 /** A tender deal's extras (GCC tender deals): its tender block and what the countdown needs. Absent for every other deal. */
 export type TenderTabData = {
@@ -77,6 +78,8 @@ export type TenderTabData = {
   /** Slice 4 (migration 0225): bid versions, logged calls and the outcome facts. Absent = the screens for them are not drawn. */
   bids?: BidsData | null;
   calls?: CallsData | null;
+  /** The Interactions tab (email with the client). Absent = no tab. */
+  interactions?: { canEdit: boolean } | null;
   outcome?: OutcomeData | null;
   /** The Costing tab (estimates and RFQs). Set only when the caller may view Estimates or RFQs in a workspace that has either module; absent = no tab. */
   costing?: { canEdit: boolean } | null;
@@ -142,7 +145,7 @@ export default function OpportunityDetailClient({ opp, accountName, contacts, in
   // A tender has six tabs and no others (lib/tender/tabs.ts): an old ?tab= value or a remembered state that names a tab that is gone
   // (lines, estimates, related, bids, quotes, activity, tender) lands on the nearest one, and "activity" opens History.
   const tenderTabs: TenderTabId[] = tender
-    ? ["overview", "boq", ...(tender.costing ? ["costing" as const] : []), ...(tender.bids ? ["bid" as const] : []), ...(tender.room ? ["room" as const] : []), "competitors"]
+    ? ["overview", "boq", ...(tender.costing ? ["costing" as const] : []), ...(tender.bids ? ["bid" as const] : []), ...(tender.interactions ? ["interactions" as const] : []), ...(tender.room ? ["room" as const] : []), "competitors"]
     : [];
   const resolved = tender ? resolveTenderTab(initialTab, tenderTabs) : null;
   const startTab: Tab | undefined = tender ? resolved!.tab : (initialTab as string | undefined) === "tender" ? "overview" : (initialTab as Tab | undefined);
@@ -387,6 +390,7 @@ export default function OpportunityDetailClient({ opp, accountName, contacts, in
         { id: "boq", label: "Bill of quantities" },
         ...(tender.costing ? [{ id: "costing" as Tab, label: "Costing" }] : []),
         ...(tender.bids ? [{ id: "bid" as Tab, label: "Bid", count: tender.bids.versions.length }] : []),
+        ...(tender.interactions ? [{ id: "interactions" as Tab, label: "Interactions" }] : []),
         ...(tender.room ? [{ id: "room" as Tab, label: "Room", count: tab === "room" ? 0 : roomUnread }] : []),
         { id: "competitors", label: "Competitors" },
       ]
@@ -616,6 +620,10 @@ export default function OpportunityDetailClient({ opp, accountName, contacts, in
             approvedGo: approvalNow ? approvalNow.standing?.decision === "go" : null,
             guarantee: { amount: tender.view.bid_bond_amount ?? null, expiry: tender.view.bid_bond_expiry ?? null, status: tender.view.bond_status ?? "held" },
           }} />
+      )}
+
+      {tab === "interactions" && tender?.interactions && (
+        <InteractionsTab opportunityId={opp.id} canEdit={tender.interactions.canEdit} onError={setError} onNotice={setNotice} onChanged={() => router.refresh()} />
       )}
 
       {tab === "quotes" && !tender && (

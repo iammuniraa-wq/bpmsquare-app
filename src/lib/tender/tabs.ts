@@ -1,11 +1,11 @@
 // The tabs of a tender deal and where an old link lands (redesign, docs/design/gcc-tender-deals.md section 26). PURE.
 //
-// Overview | Bill of quantities | Costing | Bid | Room | Competitors, in that order, and nothing else. History is not a tab: it is a
+// Overview | Bill of quantities | Costing | Bid | Interactions | Room | Competitors, in that order, and nothing else. History is not a tab: it is a
 // panel opened from the header "..." menu. The Quotes, Related, Estimates, Lines and Activity tabs are gone; a bookmark or a saved
 // state that still names one lands on the nearest place instead of breaking.
 
-export type TenderTabId = "overview" | "boq" | "costing" | "bid" | "room" | "competitors";
-export const TENDER_TAB_ORDER: readonly TenderTabId[] = ["overview", "boq", "costing", "bid", "room", "competitors"];
+export type TenderTabId = "overview" | "boq" | "costing" | "bid" | "interactions" | "room" | "competitors";
+export const TENDER_TAB_ORDER: readonly TenderTabId[] = ["overview", "boq", "costing", "bid", "interactions", "room", "competitors"];
 
 const OLD: Record<string, { tab: TenderTabId; history?: boolean }> = {
   tender: { tab: "overview" },

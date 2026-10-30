@@ -62,6 +62,9 @@ export const TENDER_TIPS = {
   details: "Stage, amount, bid decision, bid end date and bid guarantee. Open it to change the stage or read the full state.",
   sentToClient: "Every time the priced BOQ or the answer sheet went to the client: by email from here, or recorded by hand after a portal upload.",
   sendByEmail: "Sends the file through the tender and logs it under Sent to client and Outbound emails. Costs and markup are never in the file.",
+  interactions: "Every email with the client on this tender: the one it came from, what you sent, and mail the Inbox files here. Personal mailboxes are not included.",
+  interactionsCompose: "Sends from the workspace address and is logged here and under Outbound emails. A demo workspace sends to its test inbox instead.",
+  interactionsInbox: "Text is shown only to people on the Inbox channel the mail arrived in. Open it in the Inbox to reply in the same thread.",
   reminders:"Reminders go by email to the owner and team and are logged under Outbound emails. Changing the bid end date restarts them.",
 } as const;
 

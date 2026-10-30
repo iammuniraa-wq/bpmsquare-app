@@ -101,7 +101,7 @@ export default async function OpportunityDetailPage({ params, searchParams }: { 
       competitor: opp.competitor, loss_reason: opp.loss_reason, our_total: latestBid ? latestBid.total : null, our_version: latestBid ? latestBid.version_no : null,
       currency: opp.currency, canEdit: boqEdit, pending: bidList.pending,
     } : null;
-    tenderTab = { view, approval, boqEdit, boq, bids, calls, outcome, costing: costingTab, room: room ? { pending: room.pending, unread: room.unread, isAdmin: role === "admin" } : null, accounts: (allAccounts ?? []) as { id: string; name: string }[], nowIso: new Date().toISOString(), timezone };
+    tenderTab = { view, approval, boqEdit, boq, bids, interactions: { canEdit: boqEdit }, calls, outcome, costing: costingTab, room: room ? { pending: room.pending, unread: room.unread, isAdmin: role === "admin" } : null, accounts: (allAccounts ?? []) as { id: string; name: string }[], nowIso: new Date().toISOString(), timezone };
   }
 
   // Contract projects (slice 5a): only for a tender, and only in a workspace with the module (otherwise no query at all).

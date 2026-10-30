@@ -82,10 +82,10 @@ describe("the primary header button of a tender, by stage", () => {
 });
 
 describe("the tabs of a tender and where an old link lands", () => {
-  const all: TenderTabId[] = ["overview", "boq", "costing", "bid", "room", "competitors"];
+  const all: TenderTabId[] = ["overview", "boq", "costing", "bid", "interactions", "room", "competitors"];
   const land = (raw: string | null | undefined, available: TenderTabId[] = all) => resolveTenderTab(raw, available);
 
-  it("the order is Overview, Bill of quantities, Costing, Bid, Room, Competitors", () => {
+  it("the order is Overview, Bill of quantities, Costing, Bid, Interactions, Room, Competitors", () => {
     expect(TENDER_TAB_ORDER).toEqual(all);
   });
 

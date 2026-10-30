@@ -107,6 +107,8 @@ export const OBJECT_FEATURE: Record<string, keyof TenantFeatures | null> = {
   opportunity_competitors: "gcc_tender",
   // What went to the client on a tender (0237): service-role writes, in-app only; a log entry, not a business object (no import, export or v1).
   tender_bid_sends: "gcc_tender",
+  // Emails written to the client from a tender (0241): private correspondence, service role only, no policy; in-app routes only.
+  tender_client_messages: "gcc_tender",
   // The Deal Room (0222): internal only, behind its own platform-admin flag.
   deal_rooms: "deal_room",
   deal_room_members: "deal_room",
@@ -128,6 +130,9 @@ export const OBJECT_FEATURE: Record<string, keyof TenantFeatures | null> = {
   // so there is no Data Workbench route, no v1 endpoint, no MCP tool and no LIST_SOURCES entry.
   project_buyout_packages: "contract_projects",
   project_buyout_package_lines: "contract_projects",
+  // The work breakdown (0240): a work package of a project and the budget lines it holds. In-app routes only, like the buy-out packages.
+  project_work_packages: "contract_projects",
+  project_work_package_lines: "contract_projects",
   // Supplier groups (0233): a client's approved vendor list. In-app routes only; the Suppliers module owns them (the routes also need gcc_tender).
   supplier_groups: "suppliers",
   supplier_group_members: "suppliers",
