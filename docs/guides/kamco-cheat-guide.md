@@ -59,3 +59,31 @@ Choose the approvers. The person who proposes a bid decision cannot approve it u
 6. To stop receiving: untick "Take in new mail". A channel that holds mail cannot be deleted; it is paused, and mail clears itself after 90 days.
 
 Receiving at an address on our platform (tenders@yourworkspace) is switched on by us when needed; until then the connected mailbox is the way in.
+
+## 5. The tender path (after the October redesign)
+
+Each tender shows one path: **Received, Decision, BOQ, Costing, Bid, Submitted, Won or lost**. The blue **Next** row says what to do now and has the main button. **Details** (amount, stage, bid decision, bid end date, guarantee) is closed until you open it. The step-by-step with pictures is in `kamco-redesign-walkthrough.md`.
+
+- **BOQ:** columns are **Cost from**, **Cost / unit**, **Markup %**, **Rate / unit**, **Product**; each has an "i". The **Priced** tile shows "6 of 12 · 6 to price". To type your own cost, click a row, then **Cost / unit** and **Save cost**.
+- **Costing:** one table, **Cost sources**, of estimates and RFQs. **Add rows** gives an estimate more BOQ rows. **Compare and award** is on a sent RFQ. An estimate opened from a tender has **Back to Costing**, not Create quote.
+- **Bid:** read **Before you submit**, choose **Payment terms**, then **Submit bid**. **Send by email** sends the priced BOQ or the answer sheet through the tender and logs it under **Sent to client**.
+- **Interactions:** one timeline of email with the client; **New email** writes from the tender. **Room** is internal only (Discussion, Team, Decisions, Documents).
+- **Competitors:** a list of Company, Expected price, Status. **Suggest from market research** asks three questions, then proposes companies with a source for every fact; nothing is saved as yours until you accept it. It uses part of the AI allowance.
+
+## 6. After the win: the contract project
+
+The project appears once the tender is **Won** (**Create contract project**). It carries the contract value and the client's lines; **no cost is guessed**.
+
+- **Budget:** choose **Allocate by** **BOQ line** or **Work package**, then type costs. **Margin so far** is the contract value less what you allocated, and reads **Not allocated yet** until you allocate. **Fill from tender costs** copies the recorded costs once.
+- **Work breakdown (WBS):** group BOQ lines into work packages, each with an owner. The owner must be an employee with a login.
+- **Tabs:** **Budget, Buy-out, Client changes, Client billing, Revisions, Hand over to the ERP** (the Handover tab). **Ordered** and **Spent** replace Committed and Actual.
+- **Client billing:** **+ Add milestone**, or **Copy the tender's payment terms** when the bid carried a template.
+
+## 7. Settings added or changed
+
+| Where | What |
+|---|---|
+| Settings > Contract projects > **Payment terms** | A few templates (name and milestones as percent or amount, with a trigger text). Chosen on the Bid tab. |
+| Settings > Contract projects > **Margin floor** | One percent. Margin turns amber under it, red when negative. Not set = never amber. |
+| Settings > Contract projects | The old default margin setting is gone. |
+| Settings > Tenders | Approvers, as before. |

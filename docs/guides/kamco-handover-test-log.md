@@ -44,3 +44,6 @@ Clean-up before handover: Email output back to business partners; self-approval 
 - Baseline revision starts as Draft. Overview > APPROVAL > Ask for approval > Approve (self-approval on) makes it Approved and the project Active.
 - Buy-out before approval: New package says "Every budget line is already in a package" with 0 packages: misleading; should say the baseline must be approved first.
 - Buy-out after approval: package PKG-0005 (lines 2.1 to 2.3, 261,200) created; Send request to Gulf Pipes and Precast Arabia worked, package status Out. Package panel has no hand-entry of a reply (replies by email link, or on the package's RFQ).
+
+## Update 2026-10-30: project budget (supersedes the conversion notes above)
+After the October redesign a project made from a won tender no longer copies costs into the budget. It carries the contract value and the client's lines, shows **Not allocated yet**, and the user allocates costs by BOQ line or work package (or copies recorded tender costs once with **Fill from tender costs**). The "budget 712,920 = awarded supplier cost" and "12 lines without a cost code" results above describe CPR-0002 as it was created; its numbers are seed data. Tabs were renamed: Variations is **Client changes**, Invoicing is **Client billing**, Handover is **Hand over to the ERP**.
