@@ -4,7 +4,7 @@ import { renderToString } from "react-dom/server";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import type { OpportunityLine } from "@/lib/types";
-import type { BidsData } from "@/lib/tender/bids/rules";
+import type { BidsData, SendView } from "@/lib/tender/bids/rules";
 import { tipTextProblems } from "@/lib/infoTip";
 import { TENDER_TIPS } from "@/lib/tender/tips";
 
@@ -133,7 +133,7 @@ describe("Documents we send", () => {
 });
 
 describe("Send by email and Sent to client (KAMCO feedback slice 5)", () => {
-  const send = (i: number, over: Record<string, unknown> = {}) => ({ id: `s${i}`, version_no: i === 1 ? 2 : null, sent_at: `2026-10-2${i}T09:00:00Z`, sent_by_name: "S. Khan", channel: i === 1 ? "email" : "portal", document: i === 1 ? "priced_boq" : "answer_sheet", to_text: i === 1 ? "buyer@ministry.gov.sa" : "Ariba", note: null, ...over });
+  const send = (i: number, over: Partial<SendView> = {}): SendView => ({ id: `s${i}`, version_no: i === 1 ? 2 : null, sent_at: `2026-10-2${i}T09:00:00Z`, sent_by_name: "S. Khan", channel: i === 1 ? "email" : "portal", document: i === 1 ? "priced_boq" : "answer_sheet", to_text: i === 1 ? "buyer@ministry.gov.sa" : "Ariba", note: null, ...over });
 
   it("offers Send by email next to each of the two files, 44 px, to a person who may change the deal", () => {
     const out = bid();
