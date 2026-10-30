@@ -119,7 +119,10 @@ export const JUSTIFICATION_NEEDS_NOTE = "other";
 
 /** What a tender line becomes: the default resource is Material. */
 export const DEFAULT_RESOURCE_CODE = "11";
-export const DEFAULT_MARGIN_PCT = 15;
+
+/** How a project's budget is allocated (0240): a cost typed on each BOQ line, or one cost per work package spread over its lines. */
+export const ALLOCATION_BASES = ["line", "package"] as const;
+export type AllocationBasis = (typeof ALLOCATION_BASES)[number];
 
 export type ProjectRow = {
   id: string;
@@ -139,6 +142,8 @@ export type ProjectRow = {
   custom_data: Record<string, unknown> | null;
   /** 0240: when the budget file was last downloaded for the ERP (the "Handed over" step). Null until then, and while that migration is pending. */
   handover_sent_at: string | null;
+  /** 0240: allocate the budget by BOQ line or by work package. "line" while that migration is pending. */
+  allocation_basis: AllocationBasis;
   created_by: string | null;
   created_at: string;
   updated_at: string;
@@ -159,7 +164,12 @@ export type RevisionRow = {
   total: number;
 };
 
-/** One budget line as the screens and routes carry it. `committed` and `actual` are read-only here (slice 5b fills them). */
+/**
+ * One budget line as the screens and routes carry it. `committed` and `actual` are read-only here (slice 5b fills them). `amount` is the
+ * cost ALLOCATED to the line (0 until a person allocates one); `client_rate` / `client_amount` are what the client pays for it (from the
+ * tender, null on a line made by hand); `source_line_id` is the tender line it came from. `cost_known` is retired: it stays as a column,
+ * is always written true and is read by nothing.
+ */
 export type BudgetLine = {
   id: string;
   line_key: string;
@@ -177,6 +187,11 @@ export type BudgetLine = {
   reserve: boolean;
   committed: number | null;
   actual: number | null;
+  /** 0240. False until a cost has been allocated; a line saved before that migration counts as allocated. */
+  allocated: boolean;
+  client_rate: number | null;
+  client_amount: number | null;
+  source_line_id: string | null;
 };
 
 /** A line a person or the tender copy is about to save: no id, no committed / actual. */
@@ -192,6 +207,27 @@ export type DraftLine = {
   cost_known: boolean;
   source_ref: string | null;
   reserve: boolean;
+  /** The cost allocated to the line when it is not simply qty times unit cost (an allocation typed as an amount). Absent = qty times unit cost. */
+  amount?: number | null;
+  /** Absent = allocated, so a line made by hand or by a variation counts in the budget as before. */
+  allocated?: boolean;
+  client_rate?: number | null;
+  client_amount?: number | null;
+  source_line_id?: string | null;
+};
+
+/** A work package of a project (the WBS): a code, a name, an owner (an employee with a login) and, in package mode, the cost allocated to it. */
+export type WorkPackageRow = {
+  id: string;
+  code: string;
+  name: string;
+  owner_employee_id: string | null;
+  owner_name: string | null;
+  allocated_cost: number | null;
+  sort_order: number;
+  note: string | null;
+  /** The line_keys of the budget lines it holds. */
+  line_keys: string[];
 };
 
 export const LINE_LIMITS = { maxLines: 5000, maxQty: 999_999_999, maxUnitCost: 999_999_999, maxAmount: 999_999_999_999 } as const;

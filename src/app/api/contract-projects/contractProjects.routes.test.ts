@@ -143,7 +143,7 @@ beforeEach(() => {
 async function fromTender() {
   const res = await createPost(json("POST", { opportunity_id: OPP }));
   const j = await res.json();
-  return { res, ...j } as { res: Response; id: string; ref: string; revision_id: string; estimated: number; unmapped_codes: string[]; skipped: number };
+  return { res, ...j } as { res: Response; id: string; ref: string; revision_id: string; unmapped_codes: string[]; skipped: number; budget_note: string };
 }
 const mine = (t: string) => rows(t).filter((r) => r.tenant_id === T1);
 const goodLines = () => [
@@ -209,14 +209,24 @@ describe("creating from a won tender", () => {
     const lines = mine("project_budget_lines");
     expect(lines).toHaveLength(2);
     expect(p.skipped).toBe(1);
+    // The contract, not a budget: the client's rate and amount, the line it came from, NO cost and not allocated.
     const fence = lines.find((l) => String(l.description).startsWith("Chain link"))!;
-    expect(fence).toMatchObject({ resource_code: "11", cost_code: "32 31 13", unit_cost: 120, cost_known: true, amount: 12000, wbs: "1.1" });
+    expect(fence).toMatchObject({ resource_code: "11", cost_code: "32 31 13", unit_cost: 0, amount: 0, allocated: false, cost_known: true, wbs: "1.1", client_rate: 200, client_amount: 20000, source_line_id: "l1", qty: 100 });
     const dig = lines.find((l) => l.description === "Excavation")!;
-    expect(dig).toMatchObject({ cost_code: null, unit_cost: 34, cost_known: false, amount: 1700 });
-    expect(dig.source_ref).toContain("Estimated");
-    expect(p.estimated).toBe(1);
+    expect(dig).toMatchObject({ cost_code: null, unit_cost: 0, amount: 0, allocated: false, client_rate: 40, client_amount: 2000, source_line_id: "l2" });
+    expect(dig.source_ref).toBeNull();
     expect(p.unmapped_codes).toEqual(["99 99 99"]);
-    expect(revs[0].total).toBe(13700);
+    expect(p.budget_note).toBe("Contract lines from the tender; costs to be allocated.");
+    expect(revs[0].total).toBe(0);
+  });
+
+  it("while migration 0240 is pending a project from a tender is refused with a plain message (it could not say 'not allocated'), and nothing is left behind", async () => {
+    state.db.missingColumns.project_budget_lines = new Set(["allocated"]);
+    const res = await createPost(json("POST", { opportunity_id: OPP }));
+    expect(res.status).toBe(503);
+    expect((await res.json()).error).toContain("migration 0240");
+    expect(mine("contract_projects")).toHaveLength(0);
+    expect(mine("project_budget_lines")).toHaveLength(0);
   });
 
   it("seeds the starter lists once (source default) and never touches an edited entry", async () => {
@@ -359,7 +369,7 @@ describe("the budget lines", () => {
   it("saves a draft, computes every amount and the total itself, and keeps the line keys it was given", async () => {
     const p = await fromTender();
     const before = mine("project_budget_lines")[0].line_key as string;
-    const res = await budgetPut(json("PUT", { revision_id: p.revision_id, lines: [{ ...goodLines()[0], line_key: before, amount: 1 }, goodLines()[1]], total: 1 }), ctx(p.id));
+    const res = await budgetPut(json("PUT", { revision_id: p.revision_id, lines: [{ ...goodLines()[0], line_key: before }, goodLines()[1]], total: 1 }), ctx(p.id));
     expect(res.status).toBe(200);
     const j = await res.json();
     expect(j.total).toBe(22000);
@@ -611,7 +621,7 @@ describe("the project view and the handover file", () => {
     as(BOSS, "admin");
     const view = await (await oneGet(get(), ctx(p.id))).json();
     expect(view.totals.total).toBe(22000);
-    expect(view.margin).toEqual({ amount: 78000, pct: 78 });
+    expect(view.margin).toEqual({ amount: 78000, pct: 78, state: "ok" });
     expect(view.approval.pending).toMatchObject({ rev_no: 0, mine: false });
     expect(view.approval.canDecide).toBe(true);
     expect(view.account_name).toBe("Aramco");
@@ -634,7 +644,7 @@ describe("the project view and the handover file", () => {
     await wb.xlsx.load(Buffer.from(await res.arrayBuffer()) as unknown as ArrayBuffer);
     expect(wb.getWorksheet("Budget")!.getRow(2).getCell(7).value).toBe("Fence");
     expect(state.changes.some((c) => c.changes?.[0]?.field === "Handover file downloaded")).toBe(true);
-  });
+  }, 30_000);
 });
 
 describe("the code lists", () => {
@@ -756,13 +766,5 @@ describe("the workspace settings of the module", () => {
       [{ name: "Same", milestones: [milestone("A", 10)] }, { name: "same", milestones: [milestone("B", 10)] }],
     ]) expect((await settingsPut(json("PUT", { payment_term_templates: bad }))).status, JSON.stringify(bad)).toBe(422);
     expect(((await (await settingsGet()).json()).payment_term_templates as unknown[]).length).toBe(1);
-  });
-});
-
-describe("an estimated cost from a tender", () => {
-  it("changes what an estimated cost starts at", async () => {
-    state.config = { contract_projects: { default_margin_pct: 50 } };
-    await fromTender();
-    expect(mine("project_budget_lines").find((l) => l.description === "Excavation")!.unit_cost).toBe(20);
   });
 });

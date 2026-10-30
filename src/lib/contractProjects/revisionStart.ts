@@ -1,7 +1,7 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { lineAmount, round2 } from "./budget";
-import { insertLines, isMissingSchema, lineRows, loadLines, loadRevisions, needsUpdate } from "./server";
+import { round2 } from "./budget";
+import { draftAmount, insertLines, isMissingSchema, lineRows, loadLines, loadRevisions, needsUpdate } from "./server";
 import type { DraftLine } from "./types";
 
 // Starting the next budget revision of a project: a DRAFT copy of the approved one (same lines, same line_key so a change can be shown)
@@ -24,7 +24,7 @@ export async function startDraftRevision(
 
   const extra = args.extraLines ?? [];
   const revNo = Math.max(...revisions.map((r) => r.rev_no)) + 1;
-  const total = round2(approved.total + extra.reduce((s, l) => s + lineAmount(l.qty, l.unit_cost), 0));
+  const total = round2(approved.total + extra.reduce((s, l) => s + draftAmount(l), 0));
   const made = await admin.from("project_budget_revisions").insert({
     tenant_id: tenantId, project_id: projectId, rev_no: revNo, status: "draft", justification_code: args.justificationCode, justification_text: args.justificationText, created_by: userId, total,
   }).select("id").single();
@@ -38,7 +38,9 @@ export async function startDraftRevision(
   // A copy of the approved lines: same keys, no committed / actual (those belong to the ERP read-back, not to a revision).
   const copy: DraftLine[] = (await loadLines(admin, tenantId, approved.id)).map((l) => ({
     line_key: l.line_key, resource_code: l.resource_code, cost_code: l.cost_code, wbs: l.wbs, description: l.description, qty: l.qty, unit: l.unit,
-    unit_cost: l.unit_cost, cost_known: l.cost_known, source_ref: l.source_ref, reserve: l.reserve,
+    unit_cost: l.unit_cost, cost_known: true, source_ref: l.source_ref, reserve: l.reserve,
+    // The allocation travels with the line, amount as allocated (an allocation typed as an amount is not always qty times unit cost).
+    amount: l.amount, allocated: l.allocated, client_rate: l.client_rate, client_amount: l.client_amount, source_line_id: l.source_line_id,
   }));
   const all = [...copy, ...extra];
   if (all.length > 0) {

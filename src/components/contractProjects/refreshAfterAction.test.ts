@@ -106,9 +106,9 @@ describe("The other project actions refresh the page", () => {
     expect(m).toMatch(/if \(!res\.ok\) \{[^}]*return; \}\s*router\.refresh\(\);/);
     expect(m).toContain("router.push(ROUTES.contractProjects)");
   });
-  it("Save budget refreshes the header tiles and keeps the saved lines", () => {
+  it("Save allocation refreshes the header tiles and keeps what was saved", () => {
     const b = read(`${CP}BudgetGrid.tsx`);
-    expect(b).toMatch(/setNotice\("Budget saved"\);\s*router\.refresh\(\);/);
+    expect(b).toMatch(/setNotice\("Allocation saved"\);\s*router\.refresh\(\);/);
   });
   it("Start revision opens the new revision (a navigation, so the whole page is read again)", () => {
     expect(read(`${CP}RevisionsPanel.tsx`)).toContain("router.push(`${ROUTES.contractProject(p.id)}?tab=budget&revision=${j.id}`)");

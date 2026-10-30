@@ -15,7 +15,7 @@ import { resolveCurrency } from "@/lib/currency";
 // POST /api/contract-projects
 //        { opportunity_id }                                  from an AWARDED tender of this workspace: one project per tender (409 otherwise)
 //        { name, account_id?, contract_value?, currency?, planned_start?, planned_end?, manager_id? }   by hand
-//      Every foreign id is verified against this workspace. -> 201 { id, ref, revision_id, estimated?, unmapped_codes?, skipped? }
+//      Every foreign id is verified against this workspace. -> 201 { id, ref, revision_id, unmapped_codes?, skipped?, budget_note? }  (a tender gives the contract lines with an empty allocation; no cost is guessed)
 
 export async function GET(request: NextRequest) {
   const gate = await openProjectRequest();
@@ -48,7 +48,7 @@ export async function POST(request: NextRequest) {
     });
     if (!made.ok) return NextResponse.json({ error: made.error, ...(made.extra ?? {}) }, { status: made.status });
     return NextResponse.json(
-      { id: made.project.id, ref: made.project.ref, revision_id: made.revisionId, estimated: s.estimated, unmapped_codes: s.unmappedCodes, skipped: s.skipped, from_estimate: s.fromEstimate, estimate_warnings: s.estimateWarnings, cost_source: s.costSource.kind === "bid_version" ? `bid_version_${s.costSource.version_no}` : "boq", budget_note: s.budgetNote },
+      { id: made.project.id, ref: made.project.ref, revision_id: made.revisionId, unmapped_codes: s.unmappedCodes, skipped: s.skipped, budget_note: s.budgetNote },
       { status: 201 },
     );
   }

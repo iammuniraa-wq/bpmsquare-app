@@ -5,7 +5,7 @@ import { createAdminSupabase, requireTenantUser } from "@/lib/supabase-server";
 import { tenantHasFeature } from "@/lib/tenant";
 import { canEditWorkcenter, canViewWorkcenter, resolvePermissions } from "@/lib/permissions";
 import { isMissingSchema } from "@/lib/tender/server";
-import { budgetTotals, lineAmount, round2 } from "./budget";
+import { budgetTotals, lineAmount, round2, type TotalsLine } from "./budget";
 import {
   JUSTIFICATION_SEEDS, MASTERFORMAT_DIVISIONS, MASTERFORMAT_SECTIONS, MATERIAL_GROUP_SEEDS, RESOURCE_SEEDS, isMasterKind,
   type BudgetLine, type DraftLine, type MasterKind, type MasterRow, type ProjectRow, type RevisionRow,
@@ -18,6 +18,7 @@ import { readAllPages } from "@/lib/pagedRead";
 // `contract_projects` (plus `gcc_tender`): the gate answers 404 first.
 
 export const CONTRACT_PROJECTS_BUNDLE = "scripts/run-bundle-36-contract-projects-2026-10-26.sql";
+export const ALLOCATION_BUNDLE = "scripts/run-bundle-48-project-allocation-wbs-2026-10-29.sql";
 export const APPROVAL_BUNDLE = "scripts/run-bundle-32-tender-approval-and-room-2026-10-25.sql";
 export { isMissingSchema };
 
@@ -36,6 +37,12 @@ export const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f
 export const needsUpdate = (): Failure => ({
   status: 503, error: "A database update is needed before contract projects can be used. Ask your administrator to apply it.",
   extra: { needsDatabaseUpdate: true, bundle: CONTRACT_PROJECTS_BUNDLE },
+});
+
+/** Allocating a budget and work packages need migration 0240; until it is applied the screens and routes say so instead of failing. */
+export const needsAllocationUpdate = (): Failure => ({
+  status: 503, error: "Work packages and budget allocation need a database update (migration 0240). Ask your administrator to apply it.",
+  extra: { needsDatabaseUpdate: true, bundle: ALLOCATION_BUNDLE },
 });
 
 /**
@@ -68,20 +75,38 @@ export async function openProjectRequest(opts: { write?: boolean; admin?: boolea
 
 const PROJECT_COLS_BASE = "id, tenant_id, ref, name, account_id, source_opportunity_id, status, contract_value, currency, planned_start, planned_end, manager_id, erp_system, erp_id, custom_data, created_by, created_at, updated_at";
 // Migration 0240 adds columns to the project; a database that has not had it yet is read with the base list.
-const PROJECT_COLS = `${PROJECT_COLS_BASE}, handover_sent_at`;
+const PROJECT_COLS = `${PROJECT_COLS_BASE}, handover_sent_at, allocation_basis`;
 const REVISION_COLS = "id, project_id, rev_no, status, justification_code, justification_text, created_by, created_at, approved_by, approved_at, locked_at, total";
-const LINE_COLS = "id, line_no, line_key, resource_code, cost_code, wbs, description, qty, unit, unit_cost, amount, cost_known, source_ref, reserve, committed, actual";
+const LINE_COLS_BASE = "id, line_no, line_key, resource_code, cost_code, wbs, description, qty, unit, unit_cost, amount, cost_known, source_ref, reserve, committed, actual";
+// The allocation columns of migration 0240; a database that has not had it yet is read with the base list.
+const ALLOCATION_LINE_COLS = "allocated, client_rate, client_amount, source_line_id";
+const LINE_COLS = `${LINE_COLS_BASE}, ${ALLOCATION_LINE_COLS}`;
 
 export const normaliseProject = (r: Record<string, unknown>): ProjectRow => ({
   ...(r as unknown as ProjectRow), contract_value: Number(r.contract_value ?? 0),
   handover_sent_at: typeof r.handover_sent_at === "string" ? r.handover_sent_at : null,
+  allocation_basis: r.allocation_basis === "package" ? "package" : "line",
 });
 export const normaliseRevision = (r: Record<string, unknown>): RevisionRow => ({ ...(r as unknown as RevisionRow), rev_no: Number(r.rev_no ?? 0), total: Number(r.total ?? 0) });
 export const normaliseLine = (r: Record<string, unknown>): BudgetLine => ({
   ...(r as unknown as BudgetLine), line_no: Number(r.line_no ?? 0), qty: Number(r.qty ?? 0), unit_cost: Number(r.unit_cost ?? 0), amount: Number(r.amount ?? 0),
   cost_known: r.cost_known !== false, reserve: r.reserve === true,
   committed: r.committed == null ? null : Number(r.committed), actual: r.actual == null ? null : Number(r.actual),
+  // A line saved before 0240 counts as allocated, as every line did.
+  allocated: r.allocated !== false,
+  client_rate: r.client_rate == null ? null : Number(r.client_rate), client_amount: r.client_amount == null ? null : Number(r.client_amount),
+  source_line_id: typeof r.source_line_id === "string" ? r.source_line_id : null,
 });
+
+/** The columns the allocation added to a budget line row (what is stripped when the database has not had migration 0240). */
+const ALLOCATION_KEYS = ["allocated", "client_rate", "client_amount", "source_line_id"] as const;
+export const stripAllocation = (rows: readonly Record<string, unknown>[]): Record<string, unknown>[] =>
+  rows.map((r) => Object.fromEntries(Object.entries(r).filter(([k]) => !(ALLOCATION_KEYS as readonly string[]).includes(k))));
+/** Is the allocation schema (migration 0240) in the database? One cheap probe. */
+export async function allocationSchemaReady(admin: SupabaseClient): Promise<boolean> {
+  const { error } = await admin.from("project_budget_lines").select("allocated").limit(1);
+  return !isMissingSchema(error);
+}
 
 export async function loadProject(admin: SupabaseClient, tenantId: string, id: string): Promise<{ kind: "ok"; project: ProjectRow } | { kind: "missing" } | { kind: "pending" }> {
   if (!UUID_RE.test(id)) return { kind: "missing" };
@@ -114,7 +139,9 @@ export function currentRevision(revisions: readonly RevisionRow[]): RevisionRow 
 }
 
 export async function loadLines(admin: SupabaseClient, tenantId: string, revisionId: string): Promise<BudgetLine[]> {
-  const { data, error } = await readAllPages((lo, hi) => admin.from("project_budget_lines").select(LINE_COLS).eq("tenant_id", tenantId).eq("revision_id", revisionId).order("line_no", { ascending: true }).order("id", { ascending: true }).range(lo, hi));
+  const read = (cols: string) => readAllPages((lo, hi) => admin.from("project_budget_lines").select(cols).eq("tenant_id", tenantId).eq("revision_id", revisionId).order("line_no", { ascending: true }).order("id", { ascending: true }).range(lo, hi));
+  let { data, error } = await read(LINE_COLS);
+  if (error && isMissingSchema(error)) ({ data, error } = await read(LINE_COLS_BASE));
   if (error) return [];
   return ((data ?? []) as Record<string, unknown>[]).map(normaliseLine);
 }
@@ -211,25 +238,37 @@ export async function checkLineCodes(admin: SupabaseClient, tenantId: string, li
   return { ok: true };
 }
 
+/** The amount a draft line carries: the allocated amount when one was typed, else quantity times unit cost; nothing while it is not allocated. */
+export const draftAmount = (l: Pick<DraftLine, "qty" | "unit_cost" | "amount" | "allocated">): number =>
+  l.allocated === false ? 0 : l.amount !== undefined && l.amount !== null ? round2(l.amount) : lineAmount(l.qty, l.unit_cost);
+
 /** Rows ready to insert: the amount is recomputed here, line numbers are 1..n in the order given, and a new line gets a fresh key. */
 export function lineRows(tenantId: string, projectId: string, revisionId: string, lines: readonly DraftLine[]): Record<string, unknown>[] {
   return lines.map((l, i) => ({
     tenant_id: tenantId, project_id: projectId, revision_id: revisionId, line_no: i + 1, line_key: l.line_key || randomUUID(),
     resource_code: l.resource_code, cost_code: l.cost_code, wbs: l.wbs, description: l.description, qty: l.qty, unit: l.unit,
-    unit_cost: l.unit_cost, amount: lineAmount(l.qty, l.unit_cost), cost_known: l.cost_known, source_ref: l.source_ref, reserve: l.reserve,
+    unit_cost: l.allocated === false ? 0 : l.unit_cost, amount: draftAmount(l), cost_known: true, source_ref: l.source_ref, reserve: l.reserve,
+    allocated: l.allocated !== false, client_rate: l.client_rate ?? null, client_amount: l.client_amount ?? null, source_line_id: l.source_line_id ?? null,
   }));
 }
 
+/**
+ * Inserts budget lines in batches. Until migration 0240 is applied the allocation columns are not there: the batch is written again
+ * without them (a line made then simply counts as allocated, as before) rather than failing.
+ */
 export async function insertLines(admin: SupabaseClient, rows: Record<string, unknown>[]): Promise<{ message: string } | null> {
+  let legacy = false;
   for (let i = 0; i < rows.length; i += 500) {
-    const { error } = await admin.from("project_budget_lines").insert(rows.slice(i, i + 500));
+    const batch = rows.slice(i, i + 500);
+    let { error } = await admin.from("project_budget_lines").insert(legacy ? stripAllocation(batch) : batch);
+    if (error && !legacy && isMissingSchema(error)) { legacy = true; ({ error } = await admin.from("project_budget_lines").insert(stripAllocation(batch))); }
     if (error) return { message: error.message };
   }
   return null;
 }
 
 /** The total of a revision, from its lines, written back so a list can show it without reading every line. */
-export async function refreshRevisionTotal(admin: SupabaseClient, tenantId: string, revisionId: string, lines?: readonly Pick<BudgetLine, "amount" | "resource_code" | "cost_code" | "cost_known" | "reserve">[]): Promise<number> {
+export async function refreshRevisionTotal(admin: SupabaseClient, tenantId: string, revisionId: string, lines?: readonly TotalsLine[]): Promise<number> {
   const rows = lines ?? (await loadLines(admin, tenantId, revisionId));
   const total = budgetTotals(rows).total;
   await admin.from("project_budget_revisions").update({ total }).eq("id", revisionId).eq("tenant_id", tenantId);

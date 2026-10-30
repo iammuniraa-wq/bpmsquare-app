@@ -47,6 +47,15 @@ export function cleanDraftLines(raw: unknown): CleanLines {
     if (lineAmount(qty, unitCost) > LINE_LIMITS.maxAmount) return { ok: false, error: "That line is too large", row };
     const key = r.line_key;
     if (key !== undefined && key !== null && key !== "" && !isUuid(key)) return { ok: false, error: "line_key is not an id", row };
+    // The allocation (0240). A line saved without these counts as allocated, as every line did before; an unallocated line carries no cost.
+    const allocated = r.allocated === false ? false : true;
+    const amountRaw = r.amount === undefined || r.amount === null || r.amount === "" ? null : num(r.amount);
+    if (r.amount !== undefined && r.amount !== null && r.amount !== "" && (amountRaw === null || amountRaw < 0 || amountRaw > LINE_LIMITS.maxAmount)) return { ok: false, error: "The allocated cost must be a number of 0 or more", row };
+    const clientRate = r.client_rate === undefined || r.client_rate === null || r.client_rate === "" ? null : num(r.client_rate);
+    const clientAmount = r.client_amount === undefined || r.client_amount === null || r.client_amount === "" ? null : num(r.client_amount);
+    if ((clientRate !== null && (clientRate < 0 || clientRate > LINE_LIMITS.maxUnitCost)) || (clientAmount !== null && (clientAmount < 0 || clientAmount > LINE_LIMITS.maxAmount))) return { ok: false, error: "The client's rate and amount must be numbers of 0 or more", row };
+    const sourceLine = r.source_line_id;
+    if (sourceLine !== undefined && sourceLine !== null && sourceLine !== "" && !isUuid(sourceLine)) return { ok: false, error: "source_line_id is not an id", row };
     lines.push({
       line_key: isUuid(key) ? key : null,
       resource_code: text(r.resource_code, 40),
@@ -55,10 +64,15 @@ export function cleanDraftLines(raw: unknown): CleanLines {
       description,
       qty: Math.round(qty * 1000) / 1000,
       unit: text(r.unit, 30),
-      unit_cost: round4(unitCost),
-      cost_known: r.cost_known === false ? false : true,
+      unit_cost: allocated ? round4(unitCost) : 0,
+      cost_known: true,
       source_ref: text(r.source_ref, 300),
       reserve: r.reserve === true,
+      allocated,
+      amount: allocated ? (amountRaw === null ? null : round2(amountRaw)) : 0,
+      client_rate: clientRate === null ? null : round4(clientRate),
+      client_amount: clientAmount === null ? null : round2(clientAmount),
+      source_line_id: isUuid(sourceLine) ? sourceLine : null,
     });
   }
   const keys = lines.map((l) => l.line_key).filter((k): k is string => !!k);
@@ -80,22 +94,30 @@ export type BudgetTotals = {
   /** Of the total, the lines marked as reserve. */
   reserve: number;
   byResource: { code: string; amount: number }[];
-  /** Lines whose cost is a guess (rate less the default margin), and what they add up to. */
-  estimatedCount: number;
-  estimatedAmount: number;
+  /** Lines a cost has been allocated to, and lines that are still waiting for one. */
+  allocatedCount: number;
+  unallocatedCount: number;
+  /** What the client pays across the lines that know it (the tender's amounts); 0 on a project made by hand. */
+  clientTotal: number;
   /** Lines with no cost code, or no resource. */
   noCostCodeCount: number;
   noResourceCount: number;
 };
 
-export function budgetTotals(lines: readonly Pick<BudgetLine, "amount" | "resource_code" | "cost_code" | "cost_known" | "reserve">[]): BudgetTotals {
+/** The fields a line's totals read. `allocated` absent means allocated, as every line was before the allocation existed. */
+export type TotalsLine = Pick<BudgetLine, "amount" | "resource_code" | "cost_code" | "reserve"> & { allocated?: boolean; client_amount?: number | null };
+
+export function budgetTotals(lines: readonly TotalsLine[]): BudgetTotals {
   const by = new Map<string, number>();
-  let total = 0, reserve = 0, estimatedCount = 0, estimatedAmount = 0, noCostCodeCount = 0, noResourceCount = 0;
+  let total = 0, reserve = 0, allocatedCount = 0, unallocatedCount = 0, clientTotal = 0, noCostCodeCount = 0, noResourceCount = 0;
   for (const l of lines) {
-    const a = Number(l.amount) || 0;
+    const isAllocated = l.allocated !== false;
+    // A line nobody has allocated a cost to adds nothing, whatever its stored amount says.
+    const a = isAllocated ? Number(l.amount) || 0 : 0;
     total += a;
     if (l.reserve) reserve += a;
-    if (!l.cost_known) { estimatedCount++; estimatedAmount += a; }
+    if (isAllocated) allocatedCount++; else unallocatedCount++;
+    clientTotal += Number(l.client_amount) || 0;
     if (!l.cost_code) noCostCodeCount++;
     if (!l.resource_code) noResourceCount++;
     const k = l.resource_code ?? "";
@@ -104,7 +126,7 @@ export function budgetTotals(lines: readonly Pick<BudgetLine, "amount" | "resour
   return {
     lineCount: lines.length, total: round2(total), reserve: round2(reserve),
     byResource: [...by.entries()].map(([code, amount]) => ({ code, amount: round2(amount) })).sort((a, b) => a.code.localeCompare(b.code, undefined, { numeric: true })),
-    estimatedCount, estimatedAmount: round2(estimatedAmount), noCostCodeCount, noResourceCount,
+    allocatedCount, unallocatedCount, clientTotal: round2(clientTotal), noCostCodeCount, noResourceCount,
   };
 }
 
@@ -126,6 +148,16 @@ export function marginState(pct: number | null | undefined, floor: number | null
   return floor !== null && floor !== undefined && pct < floor ? "low" : "ok";
 }
 
+export type MarginView = { amount: number; pct: number | null; state: MarginState };
+
+/**
+ * The planned margin of a project as the screens show it: the contract value less what has been ALLOCATED so far, recalculated on every
+ * change. While nothing is allocated the state is `none` ("Not allocated yet"), never a flattering 100 percent.
+ */
+export function marginView(contractValue: number, totals: Pick<BudgetTotals, "total" | "allocatedCount">, floor: number | null | undefined): MarginView {
+  const m = plannedMargin(contractValue, totals.total);
+  return { ...m, state: totals.allocatedCount === 0 ? "none" : marginState(m.pct, floor) };
+}
 /** The workspace's margin floor (Settings > Contract projects): a number from 0 to 95, or null when none is set. */
 export function readMarginFloor(config: { contract_projects?: { margin_floor_pct?: unknown } } | null | undefined): number | null {
   const v = config?.contract_projects?.margin_floor_pct;
@@ -136,7 +168,7 @@ export function readMarginFloor(config: { contract_projects?: { margin_floor_pct
 
 // ── The difference between two revisions ──────────────────────────────────────────────────────────────────────────
 
-const DIFF_FIELDS = ["resource_code", "cost_code", "wbs", "description", "qty", "unit", "unit_cost", "amount", "reserve"] as const;
+const DIFF_FIELDS = ["resource_code", "cost_code", "wbs", "description", "qty", "unit", "unit_cost", "amount", "reserve", "allocated"] as const;
 export type DiffField = (typeof DIFF_FIELDS)[number];
 
 export type RevisionDiff = {

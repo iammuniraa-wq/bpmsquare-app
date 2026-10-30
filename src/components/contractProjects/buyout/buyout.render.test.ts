@@ -17,6 +17,7 @@ import PackagePanel, { QuoteCard, RoundsTable, type Action } from "./PackagePane
 import BuyoutProgressCard from "./BuyoutProgressCard";
 import SendRequestForm from "./SendRequestForm";
 import BudgetGrid from "../BudgetGrid";
+import { allocationView } from "@/lib/contractProjects/allocation";
 import { BUYOUT_TIPS } from "./tips";
 import { awardedDetail, data, detail, lines, packages, rounds, row } from "./testData";
 import type { BuyoutData, PackageDetail, PickerList } from "./types";
@@ -427,12 +428,16 @@ describe("Overview and Budget", () => {
 
   const line = (over: Partial<BudgetLine> = {}): BudgetLine => ({
     id: "i1", line_key: "k1", line_no: 1, resource_code: "11", cost_code: "32 31 13", wbs: "1.1", description: "Pipe", qty: 100, unit: "m", unit_cost: 120, amount: 12000,
-    cost_known: true, source_ref: null, reserve: false, committed: null, actual: null, ...over,
+    cost_known: true, source_ref: null, reserve: false, committed: null, actual: null, allocated: true, client_rate: null, client_amount: null, source_line_id: null, ...over,
   });
-  const grid = (props: Partial<Parameters<typeof BudgetGrid>[0]> = {}) => clean(renderToString(createElement(BudgetGrid, {
-    projectId: "p1", revision: { id: "r0", rev_no: 0, status: "draft" }, revisions: [{ id: "r0", rev_no: 0, status: "draft" }], lines: [line(), line({ id: "i2", line_key: "k2", description: "Gate" })],
-    resources: [{ code: "11", name: "Material", revenue_side: false }], canEdit: true, projectClosed: false, currency: "INR", ...props,
-  })));
+  const grid = (props: Partial<Parameters<typeof BudgetGrid>[0]> = {}) => {
+    const lines = props.lines ?? [line(), line({ id: "i2", line_key: "k2", description: "Gate" })];
+    return clean(renderToString(createElement(BudgetGrid, {
+      projectId: "p1", revision: { id: "r0", rev_no: 0, status: "draft" }, revisions: [{ id: "r0", rev_no: 0, status: "draft" }], lines,
+      allocation: allocationView({ allocation_basis: "line", contract_value: 0 }, lines, [], null),
+      resources: [{ code: "11", name: "Material", revenue_side: false }], canEdit: true, projectClosed: false, currency: "INR", ...props,
+    })));
+  };
 
   it("the Budget tab gets a Committed column from the buy-out summary, with a dash for a line not yet bought", () => {
     const out = grid({ buyoutOn: true, initialBuyout: data({ committed_by_line: { k1: 12000 } }) });

@@ -53,7 +53,8 @@ export async function listProjects(admin: SupabaseClient, tenantId: string, para
   const all: ProjectListRow[] = projects.map((p) => {
     const revs = revisions.get(p.id) ?? [];
     const shown = revs.find((r) => r.status === "approved") ?? revs.find((r) => r.status === "draft" || r.status === "pending") ?? null;
-    const margin = shown ? plannedMargin(p.contract_value, shown.total) : null;
+    // Nothing allocated yet (a total of 0) has no margin to show, rather than a flattering 100 percent.
+    const margin = shown && shown.total > 0 ? plannedMargin(p.contract_value, shown.total) : null;
     return {
       id: p.id, ref: p.ref, name: p.name, status: p.status, account_id: p.account_id, account_name: p.account_id ? names.get(p.account_id) ?? null : null,
       contract_value: p.contract_value, currency: p.currency, budget_total: shown ? shown.total : null,

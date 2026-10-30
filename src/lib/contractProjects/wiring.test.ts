@@ -112,10 +112,11 @@ describe("gating and wiring", () => {
     const files = [
       "src/components/contractProjects/ApprovalControls.tsx", "src/components/contractProjects/BudgetGrid.tsx", "src/components/contractProjects/RevisionsPanel.tsx",
       "src/components/contractProjects/HandoverPanel.tsx", "src/components/contractProjects/ContractProjectBanner.tsx", "src/components/contractProjects/ProjectOverview.tsx", "src/components/contractProjects/ProjectDetailsForm.tsx", "src/components/contractProjects/ProjectPathBar.tsx",
+      "src/components/contractProjects/AllocationTable.tsx", "src/components/contractProjects/WorkPackagesPanel.tsx", "src/components/contractProjects/WorkPackagePanel.tsx", "src/components/contractProjects/LineDetailsPanel.tsx",
       "src/app/(app)/settings/contract-projects/ContractProjectsSettingsClient.tsx",
     ];
     const ids = new Set(files.flatMap((f) => [...read(f).matchAll(/"(cp\.[a-z_.]+)"/g)].map((m) => m[1])));
-    for (const id of ["cp.overview", "cp.approval.ask", "cp.approval.approve", "cp.approval.reject", "cp.approval.withdraw", "cp.budget", "cp.budget.add", "cp.budget.save", "cp.budget.revision", "cp.revisions", "cp.revisions.start_button", "cp.handover.download", "cp.handover.send", "cp.banner.create", "cp.settings", "cp.settings.import", "cp.settings.margin_floor", "cp.needs_you", "cp.path"]) {
+    for (const id of ["cp.overview", "cp.approval.ask", "cp.approval.approve", "cp.approval.reject", "cp.approval.withdraw", "cp.budget", "cp.budget.add", "cp.alloc.save", "cp.alloc.basis", "cp.alloc.fill", "cp.alloc.input", "cp.alloc.tiles", "cp.wbs", "cp.wbs.add", "cp.wbs.save", "cp.wbs.owner", "cp.budget.revision", "cp.revisions", "cp.revisions.start_button", "cp.handover.download", "cp.handover.send", "cp.banner.create", "cp.settings", "cp.settings.import", "cp.settings.margin_floor", "cp.needs_you", "cp.path"]) {
       expect(ids, id).toContain(id);
     }
   });
@@ -155,7 +156,7 @@ describe("a workspace without the module", () => {
     const routes = walk(path.join(ROOT, "src/app/api/contract-projects")).filter((f) => /route\.ts$/.test(f));
     expect(routes.length).toBeGreaterThanOrEqual(10);
     // The buy-out routes open through their own door, which is the same gate plus the tender-project check.
-    for (const f of routes) expect(readFileSync(f, "utf8"), f).toMatch(/openProjectRequest\(|openBuyoutRequest\(|openPackageRequest\(/);
+    for (const f of routes) expect(readFileSync(f, "utf8"), f).toMatch(/openProjectRequest\(|openBuyoutRequest\(|openPackageRequest\(|openAllocation\(/);
     expect(read("src/lib/contractProjects/buyout/server.ts")).toMatch(/const gate = await openProjectRequest\(\{ write: opts\.write \}\);/);
     const gate = read("src/lib/contractProjects/server.ts");
     expect(gate).toMatch(/for \(const key of \["contract_projects", "gcc_tender"\] as const\)/);

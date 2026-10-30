@@ -2,14 +2,15 @@
 // I/O and no server imports, so the submit route, the project creation and the tests share one shape and one reading.
 //
 // A bid version (rules.ts) is what the client was offered and never carries a cost. This is its private companion: for each bid line the
-// recorded cost per unit, the row markup, and the budget lines that cost becomes (resource type, cost code, quantity, unit cost), worked
-// out the way the contract project budget always has been (mapTenderToBudget: the BOQ row's recorded cost, the estimates that priced it,
-// or the selling rate less the default margin, marked "estimated"). It is frozen at submit time, so a project starts from the bid that
-// WON and not from whatever the BOQ was edited into afterwards. It is stored in its own table (migration 0230) that no export, PDF,
-// public link, answer sheet, Standard Quote, list source or API reads.
+// recorded cost per unit, the row markup, and the cost lines that cost becomes (resource type, cost code, quantity, unit cost), worked out
+// by mapTenderToCostLines: the estimates that priced the row, else the BOQ row's recorded cost, else nothing (the cost is never guessed).
+// It is frozen at submit time, so "Fill from tender costs" on a contract project reads the bid that WON and not whatever the BOQ was
+// edited into afterwards. It is stored in its own table (migration 0230) that no export, PDF, public link, answer sheet, Standard Quote,
+// list source or API reads.
 
-import { mapTenderToBudget, type BoqInfo, type DealLine, type EstimateBudgetInput } from "@/lib/contractProjects/fromTender";
-import { DEFAULT_RESOURCE_CODE, type DraftLine } from "@/lib/contractProjects/types";
+import type { BoqInfo, DealLine, EstimateBudgetInput } from "@/lib/contractProjects/fromTender";
+import type { DraftLine } from "@/lib/contractProjects/types";
+import { mapTenderToCostLines } from "./costLines";
 import type { Snapshot } from "./rules";
 
 export const COST_SNAPSHOT_VERSION = 1;
@@ -24,7 +25,7 @@ export type CostLine = {
   markup_pct: number | null;
   /** The cost code as the client's BOQ wrote it (checked against the workspace list when a project is made, not now). */
   cost_code: string | null;
-  /** The budget lines are a guess: the rate less the default margin. */
+  /** No cost was recorded for the row (the cost is never guessed; older snapshots stored a guess under this flag). */
   estimated: boolean;
   /** The budget lines came from the estimates that priced the row. */
   from_estimate: boolean;
@@ -35,7 +36,6 @@ export type CostLine = {
 
 export type CostSnapshot = {
   v: typeof COST_SNAPSHOT_VERSION;
-  margin_pct: number;
   /** Things worth saying about the estimates behind it (an output that is gone, a cost the estimate does not have yet). */
   warnings: string[];
   lines: CostLine[];
@@ -58,7 +58,6 @@ export function buildCostSnapshot(args: {
   snapshot: Pick<Snapshot, "lines" | "source_ids">;
   dealLines: ReadonlyMap<string, DealLine>;
   boq: ReadonlyMap<string, CostBoqInfo>;
-  defaultMarginPct: number;
   estimates?: EstimateBudgetInput;
 }): CostSnapshot {
   const warnings = new Set<string>();
@@ -70,9 +69,7 @@ export function buildCostSnapshot(args: {
     if (!deal) return empty;
     // The cost code is kept as the client wrote it: the workspace's list is read when a project is made, so a list imported later still counts.
     const raw = info?.cost_code?.trim() || null;
-    const mapped = mapTenderToBudget({
-      lines: [deal], boq: args.boq, costCodes: new Set(raw ? [raw] : []), defaultMarginPct: args.defaultMarginPct, estimates: args.estimates,
-    });
+    const mapped = mapTenderToCostLines({ lines: [deal], boq: args.boq, costCodes: new Set(raw ? [raw] : []), estimates: args.estimates });
     for (const w of mapped.estimateWarnings) warnings.add(w);
     return {
       ...empty,
@@ -85,7 +82,7 @@ export function buildCostSnapshot(args: {
       lines: mapped.lines,
     };
   });
-  return { v: COST_SNAPSHOT_VERSION, margin_pct: args.defaultMarginPct, warnings: [...warnings].slice(0, 50), lines };
+  return { v: COST_SNAPSHOT_VERSION, warnings: [...warnings].slice(0, 50), lines };
 }
 
 export const snapshotCostTotal = (s: Pick<CostSnapshot, "lines">): number => round2(s.lines.reduce((t, l) => t + l.cost_total, 0));
@@ -121,67 +118,9 @@ export function parseCostSnapshot(raw: unknown): CostSnapshot | null {
     });
   }
   return {
-    v: COST_SNAPSHOT_VERSION, margin_pct: num(o.margin_pct) ?? 0,
+    v: COST_SNAPSHOT_VERSION,
     warnings: (Array.isArray(o.warnings) ? o.warnings : []).filter((w): w is string => typeof w === "string").slice(0, 50), lines,
   };
-}
-
-// ── The project budget a snapshot gives ────────────────────────────────────────────────────────────────────────────────
-
-export type SnapshotBudget = {
-  lines: DraftLine[];
-  /** Bid lines whose cost was a guess. */
-  estimated: number;
-  /** Cost codes the BOQ carried that the workspace's list does not hold. */
-  unmappedCodes: string[];
-  /** Bid lines whose budget came from estimates. */
-  fromEstimate: number;
-  estimateWarnings: string[];
-};
-
-/** The cost codes a snapshot mentions (to look them up in the workspace's list). */
-export function snapshotCostCodes(s: CostSnapshot): string[] {
-  return [...new Set(s.lines.flatMap((l) => [l.cost_code, ...l.lines.map((b) => b.cost_code)]).filter((c): c is string => !!c))];
-}
-
-/**
- * The baseline budget lines a snapshot gives. Cost codes are checked against the workspace's CURRENT list (`costCodes`, active codes):
- * a known one is kept (in the list's own spelling), an unknown one is dropped, listed, and said on the line, as the BOQ path always did.
- */
-export function snapshotToBudget(s: CostSnapshot, costCodes: ReadonlySet<string>): SnapshotBudget {
-  const byLower = new Map([...costCodes].map((c) => [c.trim().toLowerCase(), c]));
-  const unmapped = new Set<string>();
-  const out: DraftLine[] = [];
-  let estimated = 0, fromEstimate = 0;
-  for (const cl of s.lines) {
-    if (cl.estimated) estimated++;
-    if (cl.from_estimate) fromEstimate++;
-    for (const b of cl.lines) {
-      const given = b.cost_code?.trim() || null;
-      const known = given ? byLower.get(given.toLowerCase()) ?? null : null;
-      if (given && !known) unmapped.add(given);
-      out.push({
-        ...b, line_key: null, resource_code: b.resource_code ?? DEFAULT_RESOURCE_CODE, cost_code: known,
-        source_ref: [b.source_ref, given && !known && !cl.from_estimate ? `BOQ cost code ${given} is not in your cost codes` : null].filter(Boolean).join(" · ").slice(0, 300) || null,
-      });
-    }
-  }
-  return { lines: out, estimated, unmappedCodes: [...unmapped].sort(), fromEstimate, estimateWarnings: s.warnings };
-}
-
-// ── Where a project's budget started from, in words ────────────────────────────────────────────────────────────────────
-
-export type CostSource =
-  | { kind: "bid_version"; version_no: number; submitted_at: string }
-  | { kind: "boq"; reason: "no_version" | "no_snapshot"; version_no: number | null };
-
-const dayOf = (iso: string): string => { const d = new Date(iso); return Number.isNaN(d.getTime()) ? "" : d.toISOString().slice(0, 10); };
-
-/** The budget note kept on the baseline revision: which source the budget was started from, and why when it was the BOQ. */
-export function budgetNote(src: CostSource): string {
-  if (src.kind === "bid_version") return `Started from bid version ${src.version_no}${dayOf(src.submitted_at) ? ` (submitted ${dayOf(src.submitted_at)})` : ""}: the cost recorded when the bid went in.`;
-  if (src.reason === "no_version") return "Started from the current BOQ: no bid version was submitted for this tender.";
-  return `Started from the current BOQ: bid version ${src.version_no} was submitted before bid costs were stored.`;
 }
 
 // ── Bid against budget ─────────────────────────────────────────────────────────────────────────────────────────────────

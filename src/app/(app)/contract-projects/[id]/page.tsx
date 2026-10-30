@@ -16,6 +16,8 @@ import ProjectDetailsForm from "@/components/contractProjects/ProjectDetailsForm
 import { listMembersForPicker } from "@/lib/sales/opportunityServer";
 import { loadProject, UUID_RE, type ProjectCtx } from "@/lib/contractProjects/server";
 import { buildProjectView } from "@/lib/contractProjects/view";
+import { fillAvailable } from "@/lib/contractProjects/allocationServer";
+import { loadEmployeeChoices } from "@/lib/contractProjects/workPackagesServer";
 import ProjectKpiStrip from "@/components/contractProjects/ProjectKpiStrip";
 import ProjectPathBar from "@/components/contractProjects/ProjectPathBar";
 import { projectTone } from "@/lib/contractProjects/format";
@@ -39,7 +41,10 @@ export default async function ContractProjectPage({ params, searchParams }: { pa
     return <div role="alert" style={{ fontSize: 13, color: "var(--amberink)" }}>Contract projects need a database update (migration 0226). Ask your administrator to apply it.</div>;
   }
   if (found.kind !== "ok") notFound();
-  const view = await buildProjectView(req, found.project, { revisionId: revision && UUID_RE.test(revision) ? revision : null });
+  // Work packages and the employees who can own one are read only where they are drawn: the Budget tab.
+  const onBudgetTab = tab === "budget";
+  const view = await buildProjectView(req, found.project, { revisionId: revision && UUID_RE.test(revision) ? revision : null, withPackages: onBudgetTab });
+  const employees = onBudgetTab && view.canEdit ? await loadEmployeeChoices(req.admin, tenantId) : [];
   const p = view.project;
   const rev = view.revision;
   const revLabel = rev ? (rev.rev_no === 0 ? "Baseline" : `Revision ${rev.rev_no}`) : null;
@@ -73,6 +78,8 @@ export default async function ContractProjectPage({ params, searchParams }: { pa
             <BudgetGrid
               key={rev.id} projectId={p.id} revision={rev} revisions={view.revisions} lines={view.lines} resources={view.resources}
               canEdit={view.canEdit} projectClosed={p.status === "closed"} currency={p.currency} buyoutOn={buyoutOn}
+              contractValue={p.contract_value} marginFloor={view.marginFloor} basis={p.allocation_basis} allocation={view.allocation} packages={view.packages}
+              packagesPending={view.packagesPending} employees={employees} fillAvailable={fillAvailable(p, view.lines)}
             />
           ) : <div style={{ fontSize: 13, color: "var(--hint)" }}>There is no budget yet.</div>,
         },

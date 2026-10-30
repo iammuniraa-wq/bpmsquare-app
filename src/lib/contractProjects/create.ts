@@ -7,20 +7,18 @@ import { getAuthUser } from "@/lib/supabase-server";
 import { insertWithMasterRef } from "@/lib/masterRef";
 import { loadOpportunity, loadOpportunityLines } from "@/lib/sales/opportunityServer";
 import { loadTender, accountInTenant } from "@/lib/tender/server";
-import { loadEstimateBudgetInputs } from "@/lib/tender/estimates/budgetServer";
-import { loadWinningBid } from "@/lib/tender/bids/costServer";
-import { budgetNote, snapshotCostCodes, snapshotToBudget, type CostSource } from "@/lib/tender/bids/costSnapshot";
 import { budgetTotals, round2 } from "./budget";
-import { contractValueFor, contractProjectSettings, mapTenderToBudget, projectNameFromDeal, type BoqInfo, type DealLine } from "./fromTender";
+import { contractValueFor, mapTenderToBudget, projectNameFromDeal, type BoqInfo, type DealLine } from "./fromTender";
 import {
-  ensureMasterSeeds, existingCodes, insertLines, isMissingSchema, lineRows, loadProjectBySource, memberInTenant, needsUpdate, normaliseProject,
+  allocationSchemaReady, draftAmount, ensureMasterSeeds, existingCodes, insertLines, isMissingSchema, lineRows, loadProjectBySource, memberInTenant, needsAllocationUpdate, needsUpdate, normaliseProject,
   UUID_RE, type Failure, type ProjectCtx,
 } from "./server";
 import type { DraftLine, ProjectRow } from "./types";
 
 import { readAllPages } from "@/lib/pagedRead";
 // Making a contract project (slice 5a): from an awarded tender in one step, or by hand. Both paths end the same way: a project, its
-// revision 0 (draft, the baseline to be approved) and its lines, with every foreign id checked against THIS workspace first.
+// revision 0 (draft, the baseline to be approved) and its lines, with every foreign id checked against THIS workspace first. From a tender
+// the lines are the CONTRACT (quantity, unit, the client's rate and amount) with an empty allocation: no cost is guessed.
 
 export type CreateInput = {
   name: string;
@@ -51,18 +49,14 @@ export type TenderSource = {
   currency: string | null;
   contractValue: number;
   lines: DraftLine[];
-  estimated: number;
   unmappedCodes: string[];
   skipped: number;
-  /** BOQ lines whose budget came from the estimates that priced them, and what was worth saying about them (slice 3c-1). */
-  fromEstimate: number;
-  estimateWarnings: string[];
-  /** Which source the budget lines came from: the winning bid version's recorded cost, or the current BOQ (and why). */
-  costSource: CostSource;
   budgetNote: string;
 };
 
-/** What an awarded tender of this workspace gives a project: its lines mapped to budget lines, its account and its contract value. */
+export const TENDER_BUDGET_NOTE = "Contract lines from the tender; costs to be allocated.";
+
+/** What an awarded tender of this workspace gives a project: its lines as the contract, its account and its contract value. */
 export async function loadTenderSource(admin: SupabaseClient, tenantId: string, opportunityId: string): Promise<{ ok: true; source: TenderSource } | ({ ok: false } & Failure)> {
   if (!UUID_RE.test(opportunityId)) return { ok: false, status: 404, error: "Tender not found" };
   const opp = await loadOpportunity(admin, tenantId, opportunityId);
@@ -73,32 +67,17 @@ export async function loadTenderSource(admin: SupabaseClient, tenantId: string, 
   const tenant = await getTenant();
   await ensureMasterSeeds(admin, tenantId);
 
-  // The budget starts from the cost recorded with the WINNING bid version (the last one submitted), so it is the bid that won and not the
-  // BOQ as it was edited afterwards. A version submitted before costs were stored (or while 0230 is pending) falls back to the BOQ.
-  const winning = await loadWinningBid(admin, tenantId, opportunityId);
-  let costSource: CostSource;
-  let mapping: { lines: DraftLine[]; estimated: number; unmappedCodes: string[]; skipped: number; fromEstimate: number; estimateWarnings: string[] };
-  if (winning?.cost) {
-    costSource = { kind: "bid_version", version_no: winning.version_no, submitted_at: winning.submitted_at };
-    const costCodes = await existingCodes(admin, tenantId, "cost_code", snapshotCostCodes(winning.cost));
-    mapping = { ...snapshotToBudget(winning.cost, costCodes), skipped: 0 };
-  } else {
-    costSource = { kind: "boq", reason: winning ? "no_snapshot" : "no_version", version_no: winning?.version_no ?? null };
-    const [deal, boqRes] = await Promise.all([
-      loadOpportunityLines(admin, tenantId, opportunityId),
-      readAllPages((lo, hi) => admin.from("tender_boq_lines").select("line_id, item_no, cost_code, unit_cost, price_source, price_source_ref").eq("tenant_id", tenantId).eq("opportunity_id", opportunityId).order("id", { ascending: true }).range(lo, hi)),
-    ]);
-    const boq = new Map<string, BoqInfo>();
-    for (const r of ((boqRes.error ? [] : boqRes.data ?? []) as (BoqInfo & { line_id: string | null; unit_cost: number | string | null })[])) {
-      if (r.line_id) boq.set(r.line_id, { item_no: r.item_no, cost_code: r.cost_code, unit_cost: r.unit_cost == null ? null : Number(r.unit_cost), price_source: r.price_source, price_source_ref: r.price_source_ref });
-    }
-    const codes = [...new Set([...boq.values()].map((b) => b.cost_code?.trim()).filter((c): c is string => !!c))];
-    const costCodes = await existingCodes(admin, tenantId, "cost_code", codes);
-    const { defaultMarginPct } = contractProjectSettings(tenant?.config);
-    // Slice 3c-1: BOQ lines that estimates priced take the estimate's cost lines (by resource, real costs); the rest keep the rule above.
-    const estimates = await loadEstimateBudgetInputs(admin, tenantId, opportunityId);
-    mapping = mapTenderToBudget({ lines: deal as unknown as DealLine[], boq, costCodes, defaultMarginPct, estimates });
+  const [deal, boqRes] = await Promise.all([
+    loadOpportunityLines(admin, tenantId, opportunityId),
+    readAllPages((lo, hi) => admin.from("tender_boq_lines").select("line_id, item_no, cost_code").eq("tenant_id", tenantId).eq("opportunity_id", opportunityId).order("id", { ascending: true }).range(lo, hi)),
+  ]);
+  const boq = new Map<string, Pick<BoqInfo, "item_no" | "cost_code">>();
+  for (const r of ((boqRes.error ? [] : boqRes.data ?? []) as { line_id: string | null; item_no: string | null; cost_code: string | null }[])) {
+    if (r.line_id) boq.set(r.line_id, { item_no: r.item_no, cost_code: r.cost_code });
   }
+  const codes = [...new Set([...boq.values()].map((b) => b.cost_code?.trim()).filter((c): c is string => !!c))];
+  const costCodes = await existingCodes(admin, tenantId, "cost_code", codes);
+  const mapping = mapTenderToBudget({ lines: deal as unknown as DealLine[], boq, costCodes });
 
   // The award value arrives with the outcome facts of bid versions (a later migration): read it if it is there, ignore it if not.
   const award = await admin.from("opportunity_tenders").select("award_value").eq("opportunity_id", opportunityId).eq("tenant_id", tenantId).maybeSingle();
@@ -109,8 +88,7 @@ export async function loadTenderSource(admin: SupabaseClient, tenantId: string, 
     source: {
       title: opp.title, accountId: opp.account_id, currency: opp.currency ?? resolveCurrency(tenant?.config).code,
       contractValue: contractValueFor({ awardValue, dealAmount: Number(opp.amount) }),
-      lines: mapping.lines, estimated: mapping.estimated, unmappedCodes: mapping.unmappedCodes, skipped: mapping.skipped,
-      fromEstimate: mapping.fromEstimate, estimateWarnings: mapping.estimateWarnings, costSource, budgetNote: budgetNote(costSource),
+      lines: mapping.lines, unmappedCodes: mapping.unmappedCodes, skipped: mapping.skipped, budgetNote: TENDER_BUDGET_NOTE,
     },
   };
 }
@@ -125,6 +103,8 @@ export async function createProject(req: ProjectCtx, input: CreateInput): Promis
     if (existing) return { ok: false, status: 409, error: `This tender already has a contract project${existing.ref ? `: ${existing.ref}` : ""}`, extra: { already_exists: true, project_id: existing.id } };
   }
   await ensureMasterSeeds(admin, tenantId);
+  // A project made from a tender is an empty allocation: it needs the allocation columns (0240). Say so rather than make a budget that cannot say "not allocated".
+  if (input.lines.some((l) => l.allocated === false) && !(await allocationSchemaReady(admin))) return { ok: false, ...needsAllocationUpdate() };
 
   const made = await insertWithMasterRef<{ id: string; ref: string | null }>(admin, "contract_projects", tenantId, {
     tenant_id: tenantId, name: input.name, account_id: input.account_id, source_opportunity_id: input.source_opportunity_id, status: "draft",
@@ -139,7 +119,7 @@ export async function createProject(req: ProjectCtx, input: CreateInput): Promis
   const projectId = made.data.id;
   const undo = () => admin.from("contract_projects").delete().eq("id", projectId).eq("tenant_id", tenantId);
 
-  const total = budgetTotals(input.lines.map((l) => ({ ...l, amount: round2(l.qty * l.unit_cost) }))).total;
+  const total = budgetTotals(input.lines.map((l) => ({ ...l, amount: draftAmount(l) }))).total;
   const rev = await admin.from("project_budget_revisions").insert({ tenant_id: tenantId, project_id: projectId, rev_no: 0, status: "draft", created_by: userId, total, justification_text: input.budget_note ? input.budget_note.slice(0, 1000) : null }).select("id").single();
   if (rev.error || !rev.data) { await undo(); return { ok: false, status: 500, error: rev.error?.message ?? "Could not create the budget" }; }
   const revisionId = (rev.data as { id: string }).id;

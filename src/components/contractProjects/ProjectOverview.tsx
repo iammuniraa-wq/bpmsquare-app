@@ -32,6 +32,7 @@ export default function ProjectOverview({ view, editor, buyoutOn = false }: { vi
   const cur = p.currency;
   const tab = (t: string) => `${ROUTES.contractProject(p.id)}?tab=${t}`;
   const attention: { key: string; text: string; link: string; href: string }[] = [];
+  if (totals.unallocatedCount > 0) attention.push({ key: "alloc", text: `${totals.unallocatedCount} line${totals.unallocatedCount === 1 ? "" : "s"} not allocated`, link: "Allocate", href: tab("budget") });
   if (totals.noResourceCount > 0) attention.push({ key: "res", text: `${totals.noResourceCount} line${totals.noResourceCount === 1 ? "" : "s"} without a resource type`, link: "Fix", href: tab("budget") });
   if (totals.noCostCodeCount > 0) attention.push({ key: "code", text: `${totals.noCostCodeCount} line${totals.noCostCodeCount === 1 ? "" : "s"} without a cost code`, link: "Fix", href: tab("budget") });
   const approvalDue = approvalActionDue(view);
