@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import Button from "@/components/ui/Button";
 import InfoTip from "@/components/ui/InfoTip";
 import { STEP_LABEL, type Checklist, type NextStep, type StepId, type StepState, type TabJump } from "@/lib/tender/steps";
@@ -23,10 +24,17 @@ export default function TenderStepper({ steps, current, next, checklist, onJump,
 }) {
   const done = checklist.filter((x) => x.done).length;
   const lead = next.primary;
+  const listRef = useRef<HTMLOListElement>(null);
+  // On a phone the steps scroll sideways; bring the current one into view so the person sees where they are.
+  useEffect(() => {
+    const list = listRef.current;
+    const cur = list?.querySelector<HTMLElement>("[aria-current=\"step\"]");
+    if (list && cur) list.scrollLeft = Math.max(0, cur.offsetLeft - list.clientWidth / 2 + cur.clientWidth / 2);
+  }, [current]);
   return (
     <div className={s.wrap}>
       <div className={s.stepsRow}>
-        <ol className={s.steps} data-guide="tender.steps" aria-label="Tender steps">
+        <ol ref={listRef} className={s.steps} data-guide="tender.steps" aria-label="Tender steps">
           {steps.map((st, i) => (
             <li key={st.id} className={s.step} data-step={st.id} data-state={st.state} aria-current={st.id === current && st.state !== "skipped" ? "step" : undefined}>
               <span className={s.dot} aria-hidden="true">{st.state === "done" ? "✓" : i + 1}</span>
