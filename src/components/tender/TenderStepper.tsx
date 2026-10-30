@@ -61,7 +61,7 @@ export default function TenderStepper({ steps, current, next, checklist, onJump,
       </div>
       {checklist.length > 0 && (
         <details className={s.checklist} data-guide="tender.checklist">
-          <summary>Done so far ({done} of {checklist.length})</summary>
+          <summary>This step: {done} of {checklist.length} checks done</summary>
           <ul>
             {checklist.map((x) => (
               <li key={x.label} data-done={x.done}><span className={s.tick} aria-hidden="true">{x.done ? "✓" : "○"}</span><span>{x.label}</span></li>
