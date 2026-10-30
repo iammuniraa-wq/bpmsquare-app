@@ -8,6 +8,7 @@ import { openTenderDealRequest, PENDING_BIDS } from "@/lib/tender/dealAccess";
 import { parseSubmit, submitProblem } from "@/lib/tender/bids/rules";
 import { currentSnapshot, latestVersionNo, listBidVersions } from "@/lib/tender/bids/server";
 import { buildCurrentCost, saveCostSnapshot, type SaveCostResult } from "@/lib/tender/bids/costServer";
+import { saveVersionTerms } from "@/lib/contractProjects/paymentTermsServer";
 
 // GET  /api/opportunities/[id]/tender/bids  -- the versions of a tender deal's bid, newest first, without their lines.
 // POST /api/opportunities/[id]/tender/bids  { revision_reason?, note? } -- "Submit bid": snapshot the deal's lines as the next
@@ -31,7 +32,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const { id } = await params;
   const gate = await openTenderDealRequest(id, true);
   if (!gate.ok) return NextResponse.json({ error: gate.error }, { status: gate.status });
-  const { admin, supabase, tenantId, userId, opp } = gate.req;
+  const { admin, supabase, tenantId, userId, opp, tender } = gate.req;
   const body = await request.json().catch(() => ({}));
 
   const latest = await latestVersionNo(admin, tenantId, id);
@@ -62,6 +63,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   }
 
   const costSnapshot: SaveCostResult = await saveCostSnapshot(admin, tenantId, id, versionNo, cost);
+  // The payment terms the tender chose go with the version (never throws: a bid is not undone because its terms could not be kept).
+  await saveVersionTerms(admin, tenantId, id, versionNo, tender.custom_data);
 
   let stageMoved = false;
   let stageError: string | null = null;

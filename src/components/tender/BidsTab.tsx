@@ -18,6 +18,7 @@ import { toneTokens } from "@/lib/ui/tone";
 import { bidsUrl, mergeBids, reloadAfterSave } from "./refreshAfterSave";
 import BidDocuments from "./BidDocuments";
 import SentToClient from "./SentToClient";
+import PaymentTermsPicker from "@/components/contractProjects/PaymentTermsPicker";
 
 // The Bid tab of a tender deal (docs/design/gcc-tender-deals.md sections 15 and 26): a readiness line that warns and never blocks,
 // Submit bid / Revise bid, the numbered versions that never change, a comparison of any two, and "Documents we send" (the priced BOQ,
@@ -268,6 +269,7 @@ export default function BidsTab({ opportunityId, data: pageData, stage, outcome,
         </SettingsSection>
       )}
 
+      <PaymentTermsPicker opportunityId={opportunityId} canEdit={data.canEdit} />
       <BidDocuments opportunityId={opportunityId} versions={versions} quotes={quotes} canMakeQuote={canMakeQuote} canSend={data.canEdit && !sends.pending} fmt={fmt} onError={onError} onNotice={onNotice} onChanged={onChanged} onSent={() => void reloadSends()} />
       <SentToClient opportunityId={opportunityId} sends={sends} versions={versions} canEdit={data.canEdit} onRecorded={() => { void reloadSends(); onChanged?.(); }} onError={onError} onNotice={onNotice} />
     </div>

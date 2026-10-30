@@ -18,7 +18,9 @@ import { defaultMarkupPct, isStale, pickAuto, priceValidityDays, rateFor, refuse
 import { manualCostPlan, manualSourceRef } from "./table";
 import { candidatesFor, loadPriceContext, type SourceLine } from "./sources";
 import { loadWorkbook, sheetNames, sheetToGrid } from "./workbook";
-import { buildAnswerSheet, writePricedWorkbook, type AnswerRow, type PricedRow } from "./write";
+import { buildAnswerSheet, writePricedWorkbook, type AnswerRow, type PricedRow, type TermsText } from "./write";
+import { choiceOf } from "@/lib/contractProjects/paymentTermsServer";
+import { termLines } from "@/lib/contractProjects/paymentTerms";
 
 import { readAllPages } from "@/lib/pagedRead";
 // Server side of the tender BOQ (migration 0223, slice 3a). Every query is tenant-scoped on the admin client and every one
@@ -612,6 +614,14 @@ export async function priceAllLines(r: BoqRequest, markupInput: unknown): Promis
 
 export type ExportResult = { ok: true; buffer: Buffer; fileName: string; unpriced: number } | ({ ok: false } & Failure);
 
+/** The payment terms the tender chose, as printable lines; null when no template was chosen (then nothing is printed). Terms only: never a cost or a markup. */
+function termsOf(r: BoqRequest): TermsText | null {
+  const choice = choiceOf(r.tender.custom_data);
+  if (!choice) return null;
+  const fmt = new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 });
+  return { name: choice.name, lines: termLines(choice.milestones, (n) => `${r.opp.currency ? `${r.opp.currency} ` : ""}${fmt.format(n)}`) };
+}
+
 /** The CLIENT'S file with our unit rates and amounts written into it. Only the selling rate and its amount are passed on: no cost, no markup. */
 export async function exportPriced(r: BoqRequest): Promise<ExportResult> {
   const b = await bundles(r);
@@ -626,7 +636,7 @@ export async function exportPriced(r: BoqRequest): Promise<ExportResult> {
   try {
     const buffer = await writePricedWorkbook(original, {
       sheet: source.sheet_name, header_row: source.header_row, qty_col: qtyCol, rate_col: source.rate_col ?? (source.column_map.rate ?? 0), amount_col: source.amount_col ?? (source.column_map.amount ?? 0),
-      added: source.added_columns, total_row: source.total_row, first_row: Math.min(...rowNos), last_row: Math.max(...rowNos), rows,
+      added: source.added_columns, total_row: source.total_row, first_row: Math.min(...rowNos), last_row: Math.max(...rowNos), rows, terms: termsOf(r),
     });
     const base = source.file_name.replace(/\.xlsx$/i, "");
     return { ok: true, buffer, fileName: safeFileName(`${base} - priced.xlsx`, "xlsx"), unpriced: items.length - rows.length };
@@ -645,7 +655,7 @@ export async function exportAnswerSheet(r: BoqRequest): Promise<ExportResult> {
       notes: priced ? boq.cost_code ?? "" : "Not priced",
     };
   });
-  const buffer = await buildAnswerSheet(rows, r.tender.tender_no ?? r.opp.title);
+  const buffer = await buildAnswerSheet(rows, r.tender.tender_no ?? r.opp.title, termsOf(r));
   return { ok: true, buffer, fileName: safeFileName(`${r.tender.tender_no ?? r.opp.ref ?? "BOQ"} - answer sheet.xlsx`, "xlsx"), unpriced: rows.filter((x) => x.rate == null).length };
 }
 

@@ -202,6 +202,29 @@ describe("Send by email and Sent to client (KAMCO feedback slice 5)", () => {
   });
 });
 
+describe("payment terms on the Bid tab", () => {
+  it("mounts the picker for the deal, before Documents we send, editable only for a person who may change the deal", () => {
+    const out = bid();
+    expect(out).toContain('data-guide="tender.payment_terms"');
+    expect(out.indexOf('data-guide="tender.payment_terms"')).toBeLessThan(out.indexOf("Documents we send"));
+    expect(read("src/components/tender/BidsTab.tsx")).toMatch(/<PaymentTermsPicker opportunityId=\{opportunityId\} canEdit=\{data\.canEdit\} \/>/);
+  });
+
+  it("Submit bid keeps the chosen terms with the version, after the version row is inserted", () => {
+    const route = read("src/app/api/opportunities/[id]/tender/bids/route.ts");
+    expect(route).toContain("saveVersionTerms(admin, tenantId, id, versionNo, tender.custom_data)");
+    expect(route.indexOf('from("tender_bid_versions").insert')).toBeLessThan(route.indexOf("saveVersionTerms("));
+  });
+
+  it("the downloads and Send by email print the chosen terms through the one shared writer, and nothing else about cost", () => {
+    const server = read("src/lib/tender/boq/server.ts");
+    expect(server).toContain("choiceOf(r.tender.custom_data)");
+    expect(server).toContain("termLines(choice.milestones");
+    expect(server).toMatch(/rows, terms: termsOf\(r\)/);
+    expect(server).toMatch(/buildAnswerSheet\(rows, .*termsOf\(r\)\)/);
+  });
+});
+
 describe("a tender whose lines were typed by hand", () => {
   const line = (id: string, no: string | null, description: string, qty: number, rate: number): OpportunityLine => ({ id, tenant_id: "t1", opportunity_id: OPP, sl_no: no, description, uom: "m", qty, rate, discount_pct: 0, amount: qty * rate, product_id: null, pricing_document_id: null, group_id: null, group_label: null, group_type: null, break_of: null, break_qty: null, is_selected: true, show_on_pdf: true } as unknown as OpportunityLine);
   const lines = [line("a", "1", "Pipe 6in", 10, 50), line("b", "2", "Flange", 4, 0)];
