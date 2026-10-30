@@ -9,6 +9,7 @@ import StatTile, { StatStrip } from "@/components/ui/StatTile";
 import StatusPill from "@/components/ui/StatusPill";
 import { day, money, signedMoney } from "@/lib/contractProjects/format";
 import { PROJECT_TIPS } from "@/lib/contractProjects/tips";
+import InfoTip from "@/components/ui/InfoTip";
 import { VARIATION_STATUS_LABEL, VARIATION_TONE } from "@/lib/contractProjects/variations";
 import type { VariationsData, VariationView } from "@/lib/contractProjects/variationsServer";
 import VariationPanel, { type VariationOutcome } from "./VariationPanel";
@@ -63,6 +64,8 @@ export default function VariationsTab({ projectId, data: fromServer, initialPane
         <StatTile tone="info" label="Revised contract value" value={money(t.revised, cur)} sub={`original ${money(t.original, cur)}`} />
         <StatTile tone={t.pendingCount > 0 ? "warn" : "neutral"} label="Waiting for approval" value={String(t.pendingCount)} sub={t.pendingCount > 0 ? signedMoney(t.pending, cur) : "nothing waiting"} />
       </StatStrip>
+
+      <span className="bpm-label-row"><h2 className="bpm-t-section">Client change orders</h2><InfoTip label="Client changes">{PROJECT_TIPS.variations}</InfoTip></span>
 
       {notice && <div role="status" data-guide="cp.variations.notice" style={{ fontSize: 13, color: c.ink, background: "var(--card-bg)", border: "1px solid var(--line)", borderRadius: 8, padding: "8px 12px" }}>{notice}</div>}
 

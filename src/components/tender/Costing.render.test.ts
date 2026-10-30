@@ -63,8 +63,18 @@ describe("the Costing tab", () => {
     expect(out).toContain(">12<");
   });
 
-  it("lists estimates and RFQs together, each with the rows it prices, its state, its total and its age", () => {
+  it("names the list Cost sources, with an i", () => {
     const out = tab(data());
+    expect(out).toContain(">Cost sources</h2>");
+    expect(out).toContain("About Costing");
+    expect(out).not.toContain("Estimates and RFQs");
+  });
+
+  it("lists estimates and RFQs together in one table, each with the rows it prices, its state, its total and its age", () => {
+    const out = tab(data());
+    expect(out).toContain('data-guide="costing.table"');
+    for (const h of [">Type<", ">Reference<", ">Prices BOQ rows<", ">State<", ">Cost<", ">Age<"]) expect(out, h).toContain(h);
+    expect(out).toContain("Each BOQ row takes its cost from one source.");
     expect(out).toContain("EST-0016 · Floor tiles");
     expect(out).toContain("RFQ-0012 · Skirting, membrane");
     expect(out).toContain("1.1 · 1.3 · 1.4");
@@ -105,7 +115,7 @@ describe("the Costing tab", () => {
     const view = tab(data(), { canEdit: false });
     expect(view).not.toContain('data-guide="costing.rfq.new"');
     expect(view).not.toContain('data-guide="costing.estimate.new"');
-    expect(view).not.toContain("Price the BOQ rows");
+    expect(view).not.toContain(">Add rows<");
     expect(view).not.toContain("Re-price 1 row");
     const noRfq = tab(data({ rfqs_on: false, items: [est()] }));
     expect(noRfq).not.toContain('data-guide="costing.rfq.new"');
@@ -120,7 +130,8 @@ describe("the Costing tab", () => {
     const out = tab(data());
     expect(out).toContain('data-guide="costing.estimate.open"');
     expect(out).toContain('data-guide="costing.estimate.price_rows"');
-    expect(out).toContain("Price more BOQ rows");
+    expect(out).toContain(">Add rows<");
+    expect(out).not.toContain("Price more BOQ rows");
     expect(out).toContain("Re-price 1 row");
     expect(out).toContain('data-guide="costing.rfq.compare"');
     expect(out).toContain("Compare and award");
@@ -162,12 +173,19 @@ describe("the Costing tab", () => {
     expect(tab(data({ pending_rfqs: true, items: [est()] }))).toContain("migration 0128");
   });
 
-  it("pages a long list: eight rows, then 'Show all'", () => {
-    const many = Array.from({ length: 11 }, (_, i) => est({ id: `e${i}`, ref: `EST-${100 + i}`, name: `Estimate ${i}` }));
+  it("pages a long list: ten rows, then 'Show all'", () => {
+    const many = Array.from({ length: 13 }, (_, i) => est({ id: `e${i}`, ref: `EST-${100 + i}`, name: `Estimate ${i}` }));
     const out = tab(data({ items: many }));
-    expect(out).toContain("EST-107");
-    expect(out).not.toContain("EST-108");
-    expect(out).toContain("Show all 11");
+    expect(out).toContain("EST-109");
+    expect(out).not.toContain("EST-110");
+    expect(out).toContain("Show all 13");
+  });
+
+  it("on a phone the list stays a stack of cards", () => {
+    const out = tab(data(), { layout: "cards" });
+    expect(out).toContain('data-guide="costing.list"');
+    expect(out).not.toContain('data-guide="costing.table"');
+    expect(out).toContain(">Add rows<");
   });
 
   it("never prints running text: the explanations are behind an i", () => {

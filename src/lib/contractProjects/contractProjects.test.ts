@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { tipTextProblems } from "@/lib/infoTip";
 import { parseDelimited } from "@/lib/import/parse";
-import { budgetTotals, cleanDraftLines, diffRevisions, lineAmount, plannedMargin, unknownCodes } from "./budget";
-import { contractProjectSettings, contractValueFor, estimateUnitCost, mapTenderToBudget, type BoqInfo, type DealLine } from "./fromTender";
+import { readFileSync } from "node:fs";
+import path from "node:path";
+import { budgetTotals, cleanDraftLines, diffRevisions, lineAmount, marginView, plannedMargin, unknownCodes } from "./budget";
+import { clientRateOf, contractValueFor, mapTenderToBudget, type BoqInfo, type DealLine } from "./fromTender";
 import { parseMasterGrid } from "./masters";
 import { askMessage, askProblem, canDecide, decidersFor, justificationProblem, outcomeMessage, requestReason, tenderSettings, approverIds } from "./approval";
 import { buildHandoverWorkbook } from "./handover";
@@ -11,7 +13,7 @@ import { JUSTIFICATION_SEEDS, MASTERFORMAT_DIVISIONS, MASTERFORMAT_SECTIONS, MAT
 
 const line = (over: Partial<BudgetLine> = {}): BudgetLine => ({
   id: "i", line_key: "k1", line_no: 1, resource_code: "11", cost_code: "03", wbs: null, description: "Concrete", qty: 10, unit: "m3", unit_cost: 100, amount: 1000,
-  cost_known: true, source_ref: null, reserve: false, committed: null, actual: null, ...over,
+  cost_known: true, source_ref: null, reserve: false, committed: null, actual: null, allocated: true, client_rate: null, client_amount: null, source_line_id: null, ...over,
 });
 
 describe("budget arithmetic", () => {
@@ -21,15 +23,14 @@ describe("budget arithmetic", () => {
     expect(lineAmount(0, 50)).toBe(0);
   });
 
-  it("totals, reserve, estimated lines and the split by resource", () => {
+  it("totals, reserve and the split by resource", () => {
     const t = budgetTotals([
       line({ amount: 1000 }), line({ amount: 500, resource_code: "31", cost_code: null }),
-      line({ amount: 200, cost_known: false, reserve: true }), line({ amount: 50, resource_code: null }),
+      line({ amount: 200, reserve: true }), line({ amount: 50, resource_code: null }),
     ]);
     expect(t.total).toBe(1750);
     expect(t.reserve).toBe(200);
-    expect(t.estimatedCount).toBe(1);
-    expect(t.estimatedAmount).toBe(200);
+    expect(t.allocatedCount).toBe(4);
     expect(t.noCostCodeCount).toBe(1);
     expect(t.noResourceCount).toBe(1);
     expect(t.byResource.find((r) => r.code === "11")?.amount).toBe(1200);
@@ -60,9 +61,12 @@ describe("the shape of a saved set of lines", () => {
     expect(cleanDraftLines("lines")).toMatchObject({ ok: false });
   });
 
-  it("never believes an amount that is sent", () => {
-    const r = cleanDraftLines([{ description: "x", qty: 2, unit_cost: 5, amount: 99999 }]);
-    expect(r.ok && Object.keys(r.lines[0])).not.toContain("amount");
+  it("an amount is the cost ALLOCATED to the line: kept when it is a valid number, else the line costs quantity times unit cost", () => {
+    const r = cleanDraftLines([{ description: "x", qty: 2, unit_cost: 5, amount: 99999 }, { description: "y", qty: 2, unit_cost: 5 }]);
+    expect(r.ok && r.lines.map((l) => l.amount)).toEqual([99999, null]);
+    expect(cleanDraftLines([{ description: "x", amount: -5 }]).ok).toBe(false);
+    expect(cleanDraftLines([{ description: "x", amount: "abc" }]).ok).toBe(false);
+    expect(cleanDraftLines([{ description: "x", amount: 1e13 }]).ok).toBe(false);
   });
 
   it("lists the codes the workspace's lists do not hold", () => {
@@ -98,40 +102,36 @@ describe("making a budget from a won tender", () => {
   const info = (over: Partial<BoqInfo> = {}): BoqInfo => ({ item_no: "1.1", cost_code: "32 31 13", unit_cost: null, price_source: null, price_source_ref: null, ...over });
   const codes = new Set(["32 31 13", "03 30 00"]);
 
-  it("a recorded cost is kept and known; no cost is the rate less the default margin and is marked estimated", () => {
-    const known = mapTenderToBudget({ lines: [deal()], boq: new Map([["d1", info({ unit_cost: 120, price_source: "supplier", price_source_ref: "RFQ-0004" })]]), costCodes: codes, defaultMarginPct: 15 });
-    expect(known.lines[0]).toMatchObject({ unit_cost: 120, cost_known: true });
-    expect(known.estimated).toBe(0);
-    expect(known.lines[0].source_ref).toContain("RFQ-0004");
-
-    const guess = mapTenderToBudget({ lines: [deal()], boq: new Map([["d1", info()]]), costCodes: codes, defaultMarginPct: 15 });
-    expect(guess.lines[0]).toMatchObject({ unit_cost: 170, cost_known: false });
-    expect(guess.estimated).toBe(1);
-    expect(guess.lines[0].source_ref).toContain("Estimated");
+  it("a line becomes the CONTRACT: quantity, unit and the client's rate and amount, with no cost and not allocated (nothing is guessed)", () => {
+    const m = mapTenderToBudget({ lines: [deal()], boq: new Map([["d1", info({ unit_cost: 120, price_source: "supplier", price_source_ref: "RFQ-0004" })]]), costCodes: codes });
+    expect(m.lines[0]).toMatchObject({ unit_cost: 0, amount: 0, allocated: false, cost_known: true, client_rate: 200, client_amount: 20000, source_line_id: "d1", source_ref: null });
+    // A recorded cost on the BOQ row is NOT copied here: Fill from tender costs does that, once, by button.
+    expect(JSON.stringify(m.lines[0])).not.toContain("120");
   });
 
-  it("the discount comes off the rate before the margin, and a rate of zero estimates to zero", () => {
-    expect(estimateUnitCost(200, 10, 15)).toBe(153);
-    expect(estimateUnitCost(0, 0, 15)).toBe(0);
-    expect(estimateUnitCost(100, 0, 500)).toBe(5); // margin is capped at 95
+  it("the discount comes off the client's rate, and the amount is quantity times that rate", () => {
+    expect(clientRateOf(200, 10)).toBe(180);
+    expect(clientRateOf(0, 0)).toBe(0);
+    expect(clientRateOf(100, 500)).toBe(0); // a discount is capped at 100 percent
+    const m = mapTenderToBudget({ lines: [deal({ discount_pct: 10, qty: 3 })], boq: new Map(), costCodes: codes });
+    expect(m.lines[0]).toMatchObject({ client_rate: 180, client_amount: 540 });
   });
 
   it("starts every line as Material, keeps the item number as the WBS and copies quantity and unit", () => {
-    const m = mapTenderToBudget({ lines: [deal()], boq: new Map([["d1", info()]]), costCodes: codes, defaultMarginPct: 15 });
+    const m = mapTenderToBudget({ lines: [deal()], boq: new Map([["d1", info()]]), costCodes: codes });
     expect(m.lines[0]).toMatchObject({ resource_code: "11", wbs: "1.1", qty: 100, unit: "m", reserve: false, line_key: null });
   });
 
-  it("uses the BOQ's cost code only when the workspace's list holds it (case and spacing aside); otherwise leaves it blank and says so", () => {
-    const ok = mapTenderToBudget({ lines: [deal()], boq: new Map([["d1", info({ cost_code: " 32 31 13 " })]]), costCodes: codes, defaultMarginPct: 15 });
+  it("uses the BOQ's cost code only when the workspace's list holds it (case and spacing aside); otherwise leaves it blank and lists it", () => {
+    const ok = mapTenderToBudget({ lines: [deal()], boq: new Map([["d1", info({ cost_code: " 32 31 13 " })]]), costCodes: codes });
     expect(ok.lines[0].cost_code).toBe("32 31 13");
-    const no = mapTenderToBudget({ lines: [deal()], boq: new Map([["d1", info({ cost_code: "99 99 99" })]]), costCodes: codes, defaultMarginPct: 15 });
+    const no = mapTenderToBudget({ lines: [deal()], boq: new Map([["d1", info({ cost_code: "99 99 99" })]]), costCodes: codes });
     expect(no.lines[0].cost_code).toBeNull();
     expect(no.unmappedCodes).toEqual(["99 99 99"]);
-    expect(no.lines[0].source_ref).toContain("not in your cost codes");
   });
 
   it("leaves out lines that are not selected and quantity-break rows", () => {
-    const m = mapTenderToBudget({ lines: [deal(), deal({ id: "d2", is_selected: false }), deal({ id: "d3", break_of: "d1" })], boq: new Map(), costCodes: codes, defaultMarginPct: 15 });
+    const m = mapTenderToBudget({ lines: [deal(), deal({ id: "d2", is_selected: false }), deal({ id: "d3", break_of: "d1" })], boq: new Map(), costCodes: codes });
     expect(m.lines).toHaveLength(1);
     expect(m.skipped).toBe(2);
   });
@@ -142,11 +142,46 @@ describe("making a budget from a won tender", () => {
     expect(contractValueFor({ awardValue: 0, dealAmount: undefined })).toBe(0);
   });
 
-  it("the default margin is 15 unless the workspace set one, and is kept in range", () => {
-    expect(contractProjectSettings(null).defaultMarginPct).toBe(15);
-    expect(contractProjectSettings({ contract_projects: { default_margin_pct: 20 } }).defaultMarginPct).toBe(20);
-    expect(contractProjectSettings({ contract_projects: { default_margin_pct: 500 } }).defaultMarginPct).toBe(95);
-    expect(contractProjectSettings({ contract_projects: { default_margin_pct: 0 } }).defaultMarginPct).toBe(0);
+  it("there is no default-margin setting any more: nothing in the module estimates a cost", () => {
+    const src = [readFileSync(path.join(__dirname, "fromTender.ts"), "utf8"), readFileSync(path.join(__dirname, "types.ts"), "utf8")].join("\n");
+    expect(src).not.toMatch(/estimateUnitCost|contractProjectSettings|clampMargin|DEFAULT_MARGIN_PCT|defaultMarginPct/);
+  });
+});
+
+describe("what has been allocated", () => {
+  it("totals count only allocated lines; the unallocated ones are counted and add nothing", () => {
+    const t = budgetTotals([
+      line({ amount: 1000, client_amount: 1500 }), line({ amount: 500, resource_code: "31", cost_code: null, client_amount: 800 }),
+      line({ amount: 0, allocated: false, client_amount: 300 }), line({ amount: 999, allocated: false, resource_code: null }),
+    ]);
+    expect(t.total).toBe(1500);
+    expect(t.allocatedCount).toBe(2);
+    expect(t.unallocatedCount).toBe(2);
+    expect(t.clientTotal).toBe(2600);
+    expect(t.lineCount).toBe(4);
+    expect(t.byResource.find((r) => r.code === "11")?.amount).toBe(1000);
+  });
+
+  it("the margin is the contract value less what is allocated; while nothing is, it is none, never 100 percent", () => {
+    const none = marginView(1000, budgetTotals([line({ amount: 0, allocated: false })]), 10);
+    expect(none).toMatchObject({ state: "none", amount: 1000, pct: 100 });
+    expect(marginView(1000, { total: 0, allocatedCount: 0 }, null).state).toBe("none");
+    expect(marginView(1000, { total: 800, allocatedCount: 1 }, 10)).toMatchObject({ amount: 200, pct: 20, state: "ok" });
+    expect(marginView(1000, { total: 950, allocatedCount: 1 }, 10).state).toBe("low");
+    expect(marginView(1000, { total: 950, allocatedCount: 1 }, null).state).toBe("ok");
+    expect(marginView(1000, { total: 1200, allocatedCount: 1 }, 10)).toMatchObject({ amount: -200, state: "over" });
+    expect(marginView(0, { total: 100, allocatedCount: 1 }, 10).state).toBe("none"); // no contract value to read it against
+  });
+
+  it("a line sent without allocation fields counts as allocated, and an unallocated line carries no cost", () => {
+    const r = cleanDraftLines([{ description: "Old", qty: 2, unit_cost: 50 }, { description: "New", qty: 2, unit_cost: 50, allocated: false }, { description: "Typed", qty: 3, amount: 100.005, client_amount: 400, client_rate: 133.3333, source_line_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" }]);
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.lines[0]).toMatchObject({ allocated: true, amount: null, unit_cost: 50 });
+    expect(r.lines[1]).toMatchObject({ allocated: false, amount: 0, unit_cost: 0 });
+    expect(r.lines[2]).toMatchObject({ allocated: true, amount: 100.01, client_amount: 400, client_rate: 133.3333, source_line_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" });
+    expect(cleanDraftLines([{ description: "x", amount: -1 }]).ok).toBe(false);
+    expect(cleanDraftLines([{ description: "x", source_line_id: "nope" }]).ok).toBe(false);
   });
 });
 
@@ -284,7 +319,7 @@ describe("the handover workbook", () => {
   it("has the project, the budget lines with resource and cost code names, a total and the material list", async () => {
     const buf = await buildHandoverWorkbook({
       project, accountName: "Aramco", managerName: "Sara", revision, resourceNames: new Map([["11", "Material"], ["31", "Man Power"]]), costCodeNames: new Map([["03", "Concrete"]]),
-      lines: [line({ amount: 1000 }), line({ line_key: "k2", line_no: 2, resource_code: "31", cost_code: null, description: "Labour", amount: 500, unit_cost: 50, qty: 10, cost_known: false })],
+      lines: [line({ amount: 1000 }), line({ line_key: "k2", line_no: 2, resource_code: "31", cost_code: null, description: "Labour", amount: 500, unit_cost: 50, qty: 10, allocated: false })],
     });
     const { default: Excel } = await import("exceljs");
     const wb = new Excel.Workbook();
@@ -294,15 +329,16 @@ describe("the handover workbook", () => {
     const cells = new Map<string, unknown>();
     sp.eachRow((r) => cells.set(String(r.getCell(1).value), r.getCell(2).value));
     expect(cells.get("Customer")).toBe("Aramco");
-    expect(cells.get("Budget total")).toBe(1500);
-    expect(cells.get("Planned margin")).toBe(3500);
+    expect(cells.get("Budget total")).toBe(1000); // the line nobody has allocated to adds nothing
+    expect(cells.get("Planned margin")).toBe(4000);
     const sb = wb.getWorksheet("Budget")!;
     expect(sb.getRow(2).getCell(3).value).toBe("Material");
     expect(sb.getRow(2).getCell(5).value).toBe("Concrete");
-    expect(sb.getRow(3).getCell(12).value).toBe("Estimated");
-    expect(sb.getRow(4).getCell(11).value).toBe(1500);
+    expect(sb.getRow(3).getCell(12).value).toBe("No"); // the Allocated column
+    expect(sb.getRow(2).getCell(12).value).toBe("Yes");
+    expect(sb.getRow(4).getCell(11).value).toBe(1000);
     const sm = wb.getWorksheet("Materials (BOM)")!;
     expect(sm.rowCount).toBe(2);
     expect(sm.getRow(2).getCell(3).value).toBe("Concrete");
-  });
+  }, 30_000);
 });

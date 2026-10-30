@@ -3,7 +3,6 @@ import { notFound } from "next/navigation";
 import { requireFeature, getTenant, getUserRole } from "@/lib/tenant";
 import { requireWorkcenterView, resolvePermissions, canEditWorkcenter } from "@/lib/permissions";
 import { requireTenantUser, createAdminSupabase } from "@/lib/supabase-server";
-import { tenantToday } from "@/lib/tenantClock";
 import { ROUTES } from "@/lib/constants";
 import { c } from "@/lib/theme";
 import { loadOpportunity } from "@/lib/sales/opportunityServer";
@@ -18,11 +17,10 @@ import { LogCallButton } from "@/components/tender/LogCall";
  * Room tab and the room routes: the Pipeline module and workcenter, the platform-admin flags gcc_tender and deal_room, and a
  * tender deal of THIS workspace. Anything else is a 404, so the page does not reveal that a room exists.
  */
-export default async function DealRoomPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ filter?: string }> }) {
+export default async function DealRoomPage({ params }: { params: Promise<{ id: string }> }) {
   await requireWorkcenterView("pipeline");
   await requireFeature("pipeline");
   const { id } = await params;
-  const { filter } = await searchParams;
   const { supabase, tenantId, userId } = await requireTenantUser();
   const tenant = await getTenant();
   if (!(tenant?.features?.gcc_tender === true && tenant.features.deal_room === true)) notFound();
@@ -30,7 +28,7 @@ export default async function DealRoomPage({ params, searchParams }: { params: P
   const opp = await loadOpportunity(admin, tenantId, id);
   const tender = opp ? await tenderForDeal(admin, tenantId, tenant?.features, id) : null;
   if (!opp || !tender) notFound();
-  const [role, todayKey] = await Promise.all([getUserRole(), tenantToday(tenantId)]);
+  const role = await getUserRole();
   const canLogCall = canEditWorkcenter(await resolvePermissions(supabase, tenantId, userId, role === "admin" ? "admin" : "member"), "pipeline");
 
   return (
@@ -40,7 +38,7 @@ export default async function DealRoomPage({ params, searchParams }: { params: P
         <Link href={ROUTES.pipelineDetail(id)} style={{ fontSize: 11.5, color: c.muted, textDecoration: "none" }}>← {opp.title}</Link>
       </div>
       <PageHeader title="Deal Room" subtitle={[opp.ref, opp.title].filter(Boolean).join(" · ")} />
-      <DealRoom opportunityId={id} currentUserId={userId} isAdmin={role === "admin"} todayKey={todayKey} initialFilter={filter === "questions" ? "questions" : "all"} headerExtra={canLogCall ? <LogCallButton opportunityId={id} /> : undefined} />
+      <DealRoom opportunityId={id} currentUserId={userId} isAdmin={role === "admin"} headerExtra={canLogCall ? <LogCallButton opportunityId={id} /> : undefined} />
     </div>
   );
 }

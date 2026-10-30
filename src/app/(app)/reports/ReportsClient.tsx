@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { c, pillar, type PillarKey } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
 import Pill from "@/components/Pill";
+import InfoTip from "@/components/ui/InfoTip";
 import QuoteStatusPill from "@/components/QuoteStatusPill";
 import { ROUTES, type QuoteStatusDef } from "@/lib/constants";
 import type { AnalyticsMetricId } from "@/lib/constants";
@@ -376,13 +377,13 @@ function QueueSummary({ pending, noun, chips, href }: {
 // WFM-only supervisor granted Analytics sees the WFM metrics but not the
 // CRM/service ones. Metrics with no workcenter are always shown (subject to
 // feature + admin-hidden).
-const METRIC_META: Record<AnalyticsMetricId, { label: string; feature?: keyof TenantFeatures; workcenter?: WorkcenterKey }> = {
+const METRIC_META: Record<AnalyticsMetricId, { label: string; feature?: keyof TenantFeatures; workcenter?: WorkcenterKey; info?: string }> = {
   // Per person, not per workspace: present only to keep this map exhaustive, and left out of the show/hide list below.
   my_briefing:            { label: "My day (daily briefing)", feature: "ai_assistant" },
   // Present because METRIC_META is exhaustive over AnalyticsMetricId, not because they belong on Reports: they are dashboard blocks that read
   // the tender desk data (docs/design/tender-desk.md), left out of the show / hide list below.
   tender_open_pipeline:     { label: "Tenders: open pipeline",         feature: "gcc_tender", workcenter: "pipeline" },
-  tender_weighted:          { label: "Tenders: weighted by chance",    feature: "gcc_tender", workcenter: "pipeline" },
+  tender_weighted:          { label: "Tenders: weighted by chance",    feature: "gcc_tender", workcenter: "pipeline", info: "Each open deal's value times its chance of winning, added up." },
   tender_closing_soon:      { label: "Tenders: closing in 14 days",    feature: "gcc_tender", workcenter: "pipeline" },
   tender_win_rate:          { label: "Tenders: win rate",              feature: "gcc_tender", workcenter: "pipeline" },
   tender_buyout_committed:  { label: "Tenders: buy-out committed",     feature: "gcc_tender", workcenter: "pipeline" },
@@ -615,6 +616,7 @@ export default function ReportsClient({
                   style={{ accentColor: c.accent, width: 14, height: 14 }}
                 />
                 <span style={{ fontSize: 12.5, color: c.ink }}>{meta.label}</span>
+                {meta.info && <InfoTip label={meta.label}>{meta.info}</InfoTip>}
                 {featureOff && <span style={{ fontSize: 11, color: c.hint }}>(feature off)</span>}
               </label>
             );

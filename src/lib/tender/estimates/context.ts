@@ -26,7 +26,10 @@ export async function tenderDealContext(admin: SupabaseClient, tenantId: string,
 }
 
 export type EstimateBoqLink = {
-  link_id: string; boq_id: string; item: string; qty: number; uom: string | null;
+  link_id: string; boq_id: string; item: string;
+  /** The client's item number as written ("1.1", or "row 5" when the file gave none), for "Back to BOQ line 1.1". Absent = take the first word of `item`. */
+  item_no?: string;
+  qty: number; uom: string | null;
   waiting: boolean; stale: boolean; needs_review: boolean; review_note: string | null; output_label: string;
   /** Only for a rate build-up: is this estimate made for the quantity of the BOQ line? Absent = nothing to say. */
   quantity?: QuantityView | null;
@@ -91,7 +94,7 @@ export async function estimateTenderContext(
     links: mine.map((l) => {
       const b = boq.get(l.boq_line_id);
       return {
-        link_id: l.id, boq_id: l.boq_line_id, item: b ? `${b.item_no ?? `row ${b.row_no}`} ${b.file_description}`.trim().slice(0, 80) : "A BOQ line",
+        link_id: l.id, boq_id: l.boq_line_id, item_no: b ? (b.item_no ?? `row ${b.row_no}`) : undefined, item: b ? `${b.item_no ?? `row ${b.row_no}`} ${b.file_description}`.trim().slice(0, 80) : "A BOQ line",
         qty: b?.file_qty ?? 0, uom: b?.file_uom ?? null, waiting: !l.applied_at, stale: isLinkStale(l, head.updated_at), needs_review: l.needs_review, review_note: l.review_note,
         quantity: quantities.get(l.id) ?? null,
         unit_cost: unitCostOf(l, b?.file_qty ?? 0, estLines, head.cost_total),

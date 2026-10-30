@@ -5,7 +5,7 @@ import { loadBuyout } from "./api";
 import type { BuyoutData } from "./types";
 
 /**
- * The buy-out summary for the screens that only show a figure from it (the Overview card, the Budget tab's Committed column). It reads
+ * The buy-out summary for the screens that only show a figure from it (the Overview card, the Budget tab's Ordered column). It reads
  * GET /api/contract-projects/[id]/buyout once after mount and answers null while it loads or when it is unavailable (the database update
  * is pending, the route is missing, the person may not see it), so those screens simply leave their addition out. `initial` lets a server
  * render (and its test) show the loaded state.

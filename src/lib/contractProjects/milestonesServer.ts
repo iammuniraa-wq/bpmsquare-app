@@ -10,6 +10,8 @@ import { isMissingSchema, UUID_RE, type Failure, type ProjectCtx } from "./serve
 import type { ProjectRow } from "./types";
 import { money } from "./format";
 import { resolveMilestoneTax, taxNote, type MilestoneTax } from "./milestoneTax";
+import { toMilestoneInput } from "./paymentTerms";
+import { loadWinningTerms } from "./paymentTermsServer";
 import {
   INVOICE_MILESTONE_KEY, INVOICE_PROJECT_KEY, MILESTONE_LIMITS, amountEditable, effectiveStatus, invoiceBody, invoiceProblem, isRemovable, milestoneAmount, milestoneTotals,
   statusChangeProblem, type MilestoneInput, type MilestoneRow, type MilestoneStatus, type MilestoneTotals,
@@ -51,6 +53,8 @@ export type MilestonesData = {
   hasCustomer: boolean;
   /** Which tax comes on top of a milestone amount (the amounts shown are before it). */
   tax: MilestoneTax;
+  /** The payment terms chosen on the winning bid, offered as a copy while the schedule is empty; null when there is nothing to offer. */
+  termsOffer: { name: string; count: number } | null;
 };
 
 export async function loadMilestones(admin: SupabaseClient, tenantId: string, projectId: string): Promise<{ rows: MilestoneRow[]; pending: boolean }> {
@@ -87,7 +91,10 @@ export async function buildMilestonesData(req: ProjectCtx, project: ProjectRow):
   const invoicesOn = await tenantHasFeature(supabase, tenantId, "invoices");
   const { rows, pending } = await loadMilestones(admin, tenantId, project.id);
   const base = { currency: project.currency, canEdit: req.canEdit, invoicesOn, hasCustomer: !!project.account_id, tax: await workspaceMilestoneTax() };
-  if (pending) return { milestones: [], totals: milestoneTotals([], project.contract_value), pending: true, ...base };
+  if (pending) return { milestones: [], totals: milestoneTotals([], project.contract_value), pending: true, termsOffer: null, ...base };
+  // Offered only on an empty schedule of a project that came from a tender whose winning bid carries a template.
+  const winning = rows.length === 0 && project.source_opportunity_id && project.status !== "closed" ? await loadWinningTerms(admin, tenantId, project.source_opportunity_id) : null;
+  const termsOffer = winning ? { name: winning.choice.name, count: winning.choice.milestones.length } : null;
   const inv = await invoicesOf(admin, tenantId, rows.map((r) => r.invoice_id));
   const withInvoice = rows.map((r) => ({ ...r, invoice_status: r.invoice_id ? inv.get(r.invoice_id)?.status ?? null : null }));
   return {
@@ -95,7 +102,7 @@ export async function buildMilestonesData(req: ProjectCtx, project: ProjectRow):
       ...r, amount: milestoneAmount(r, project.contract_value), display_status: effectiveStatus(r, r.invoice_status),
       invoice_ref: r.invoice_id ? inv.get(r.invoice_id)?.ref ?? null : null,
     })),
-    totals: milestoneTotals(withInvoice, project.contract_value), pending: false, ...base,
+    totals: milestoneTotals(withInvoice, project.contract_value), pending: false, termsOffer, ...base,
   };
 }
 
@@ -127,6 +134,32 @@ export async function createMilestone(req: ProjectCtx, project: ProjectRow, inpu
   const milestone = normaliseMilestone(made.data as Record<string, unknown>);
   await logMilestone(req, project, [{ field: "Invoicing milestone added", from: null, to: `${milestone.title}, ${milestone.basis === "percent" ? `${milestone.percent}%` : milestone.fixed_amount}` }]);
   return { ok: true, milestone };
+}
+
+/**
+ * "Copy the tender's payment terms": one planned milestone per milestone of the template chosen on the winning bid, on an EMPTY schedule.
+ * The terms come from the project's own source tender (tenant-scoped), never from the request; the log gets one entry for the whole copy.
+ */
+export async function copyTenderTerms(req: ProjectCtx, project: ProjectRow): Promise<Result<{ created: number; template: string }>> {
+  const { admin, tenantId, userId } = req;
+  if (project.status === "closed") return { ok: false, status: 409, error: "This project is closed" };
+  if (!project.source_opportunity_id) return { ok: false, status: 409, error: "This project did not come from a tender" };
+  const existing = await loadMilestones(admin, tenantId, project.id);
+  if (existing.pending) return { ok: false, ...needsMilestoneUpdate() };
+  if (existing.rows.length > 0) return { ok: false, status: 409, error: "The billing schedule already has milestones" };
+  const winning = await loadWinningTerms(admin, tenantId, project.source_opportunity_id);
+  if (!winning) return { ok: false, status: 404, error: "No payment terms were chosen on the tender" };
+  const rows = winning.choice.milestones.map(toMilestoneInput).map((m, i) => ({
+    tenant_id: tenantId, project_id: project.id, title: m.title, due_date: null, basis: m.basis, percent: m.percent, fixed_amount: m.fixed_amount,
+    status: "planned", invoice_id: null, sort_order: (i + 1) * 10, note: m.note, created_by: userId,
+  }));
+  const made = await admin.from("contract_project_milestones").insert(rows).select("id");
+  if (made.error) {
+    if (isMissingSchema(made.error)) return { ok: false, ...needsMilestoneUpdate() };
+    return { ok: false, status: 500, error: made.error.message };
+  }
+  await logMilestone(req, project, [{ field: "Payment terms copied from the tender", from: null, to: `${winning.choice.name}, ${rows.length} milestone${rows.length === 1 ? "" : "s"}` }]);
+  return { ok: true, created: rows.length, template: winning.choice.name };
 }
 
 /** An edit. The amount can change only until an invoice exists; a status change is only the allowed hand-made ones (planned, ready, paid). */

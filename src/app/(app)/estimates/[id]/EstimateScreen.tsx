@@ -31,6 +31,8 @@ export type EstimateScreenProps = {
   canEdit: boolean;
   canQuote: boolean;
   quoteUnavailable: string | null;
+  /** The estimate belongs to a tender deal (no Create quote; the email source starts closed). */
+  fromTender?: boolean;
   isAdmin: boolean;
   accounts: AccountOption[];
   contacts: ContactOption[];
@@ -77,6 +79,7 @@ export default function EstimateScreen(p: EstimateScreenProps) {
       canEdit={p.canEdit}
       canQuote={p.canQuote}
       quoteUnavailable={p.quoteUnavailable}
+      fromTender={p.fromTender}
       saved={saved}
       initialHighlight={p.line ?? null}
       renderInternal={(shown) => (

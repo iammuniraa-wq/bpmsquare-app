@@ -23,7 +23,7 @@ vi.mock("@/lib/supabase-server", () => ({
 }));
 vi.mock("@/lib/tenant", () => ({
   tenantHasFeature: async (_s: unknown, _t: string, key: string) => !!state.features[key],
-  getTenant: async () => ({ config: { contract_projects: { default_margin_pct: 20 } }, features: state.features }),
+  getTenant: async () => ({ config: {}, features: state.features }),
 }));
 vi.mock("@/lib/permissions", () => ({
   resolvePermissions: async () => ({ unrestricted: true, grants: new Map() }),
@@ -85,17 +85,17 @@ describe("submitting a bid keeps its cost", () => {
     expect(res.status).toBe(201);
     expect(await res.json()).toMatchObject({ version_no: 1, cost_snapshot: "saved" });
     expect(costs()).toHaveLength(1);
-    const row = costs()[0] as { tenant_id: string; opportunity_id: string; version_no: number; total_cost: number; line_count: number; snapshot: { v: number; margin_pct: number; lines: { item_no: string; unit_cost: number | null; markup_pct: number | null; cost_total: number; estimated: boolean; lines: { unit_cost: number; qty: number }[] }[] } };
+    const row = costs()[0] as { tenant_id: string; opportunity_id: string; version_no: number; total_cost: number; line_count: number; snapshot: { v: number; lines: { item_no: string; unit_cost: number | null; markup_pct: number | null; cost_total: number; estimated: boolean; lines: { unit_cost: number; qty: number }[] }[] } };
     expect(row).toMatchObject({ tenant_id: T1, opportunity_id: OPP, version_no: 1, line_count: 3 });
     expect(row.snapshot.v).toBe(1);
-    expect(row.snapshot.margin_pct).toBe(20);
+    expect(row.snapshot).not.toHaveProperty("margin_pct"); // the cost is never guessed, so there is no default margin to keep
     // The client's file order: Mobilisation, Pipe, Gate.
     expect(row.snapshot.lines.map((l) => l.item_no)).toEqual(["3", "2", "1"]);
     const [mob, pipe, gate] = row.snapshot.lines;
-    expect(mob).toMatchObject({ unit_cost: null, markup_pct: null, estimated: true, cost_total: 4000 });
+    expect(mob).toMatchObject({ unit_cost: null, markup_pct: null, estimated: true, cost_total: 0, lines: [] }); // no recorded cost: nothing kept
     expect(pipe).toMatchObject({ unit_cost: 7.5, markup_pct: 60, estimated: false, cost_total: 750 });
     expect(gate).toMatchObject({ unit_cost: 60, markup_pct: 66.66, estimated: false, cost_total: 240 });
-    expect(row.total_cost).toBe(4990);
+    expect(row.total_cost).toBe(990);
   });
 
   it("the version row and the answers about versions carry no cost, markup or margin", async () => {

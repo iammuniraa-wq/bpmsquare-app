@@ -14,6 +14,8 @@ export type HandoverInput = {
   /** code -> name, for the resource levels and the cost codes the lines use. */
   resourceNames: ReadonlyMap<string, string>;
   costCodeNames: ReadonlyMap<string, string>;
+  /** line_key -> the code of the work package that holds the line (the WBS column). */
+  packageCodes?: ReadonlyMap<string, string>;
 };
 
 const MATERIAL = "11";
@@ -44,7 +46,7 @@ export async function buildHandoverWorkbook(input: HandoverInput): Promise<Buffe
   sb.columns = [
     { header: "#", width: 6 }, { header: "Resource code", width: 14 }, { header: "Resource", width: 22 }, { header: "Cost code", width: 14 }, { header: "Cost code name", width: 30 },
     { header: "WBS", width: 14 }, { header: "Description", width: 48 }, { header: "Qty", width: 12 }, { header: "Unit", width: 10 },
-    { header: "Unit cost", width: 14 }, { header: "Amount", width: 16 }, { header: "Cost known", width: 12 }, { header: "Reserve", width: 10 }, { header: "Source", width: 40 },
+    { header: "Unit cost", width: 14 }, { header: "Amount", width: 16 }, { header: "Allocated", width: 12 }, { header: "Work package", width: 14 }, { header: "Reserve", width: 10 }, { header: "Source", width: 40 },
   ];
   sb.getRow(1).font = bold;
   sb.views = [{ state: "frozen", ySplit: 1 }];
@@ -52,7 +54,7 @@ export async function buildHandoverWorkbook(input: HandoverInput): Promise<Buffe
     sb.addRow([
       l.line_no, l.resource_code ?? "", l.resource_code ? input.resourceNames.get(l.resource_code) ?? "" : "", l.cost_code ?? "",
       l.cost_code ? input.costCodeNames.get(l.cost_code) ?? "" : "", l.wbs ?? "", l.description, l.qty, l.unit ?? "", l.unit_cost, l.amount,
-      l.cost_known ? "Yes" : "Estimated", l.reserve ? "Yes" : "", l.source_ref ?? "",
+      l.allocated ? "Yes" : "No", input.packageCodes?.get(l.line_key) ?? "", l.reserve ? "Yes" : "", l.source_ref ?? "",
     ]);
   }
   const total = sb.addRow(["", "", "", "", "", "", "Total", "", "", "", totals.total]);

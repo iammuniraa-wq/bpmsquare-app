@@ -165,7 +165,7 @@ describe("the wiring that applies (3b)", () => {
   it("the screens carry data-guide ids the assistant can point at", () => {
     const src = read("src/components/tender/DealRoom.tsx") + read("src/app/(app)/pipeline/[id]/OpportunityDetailClient.tsx");
     const ids = new Set([...src.matchAll(/"(room\.[a-z_.]+)"/g)].map((m) => m[1]));
-    for (const id of ["room.tab", "room.composer", "room.send", "room.question_toggle", "room.attach", "room.mention", "room.members", "room.add_member", "room.questions", "room.decisions", "room.decision_input", "room.files", "room.reply", "room.remove", "room.answer", "room.open_full"]) {
+    for (const id of ["room.tab", "room.subtabs", "room.discussion", "room.composer", "room.send", "room.attach", "room.mention", "room.members", "room.add_member", "room.decisions", "room.decision_input", "room.files", "room.reply", "room.remove", "room.open_full"]) {
       expect(ids, id).toContain(id);
     }
   });

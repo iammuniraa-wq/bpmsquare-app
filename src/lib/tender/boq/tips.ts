@@ -10,6 +10,12 @@ export const BOQ_TABLE_TIPS = {
   filters: "Unpriced rows have no rate. Stale rows have a supplier or past-project price older than your workspace's limit.",
   markup: "Markup on cost for Price all. Supplier and BOM figures are costs, so the rate is the cost plus this markup; past-project and client rates are used as they are.",
   total: "The priced rows added up at their rates, which already include the markup on cost.",
+  priced: "Lines that have a selling rate. The rest still need a cost from Costing or a rate typed in the row.",
+  source: "Where the cost behind the rate came from: an estimate, an awarded RFQ, a past project, the client's file or a hand-typed figure.",
+  cost: "Your internal cost per unit. It never reaches the priced BOQ, the answer sheet or a bid version.",
+  product: "The catalog product this line is tied to, so supplier and BOM prices can find it. Link it in Match.",
+  stale: "The price is older than your workspace's validity days. It is only used when you choose it knowingly.",
+  editCost: "A typed cost is saved as Manual and keeps the source it replaced. The rate becomes cost plus the markup.",
 } as const;
 
 export type BoqTableTipKey = keyof typeof BOQ_TABLE_TIPS;

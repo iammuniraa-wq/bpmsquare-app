@@ -11,9 +11,10 @@ import { Select } from "@/components/ui/Input";
 import InfoTip from "@/components/ui/InfoTip";
 import SettingsSection from "@/components/settings/SettingsSection";
 import { TENDER_TIPS } from "@/lib/tender/tips";
-import { defaultQuoteVersion, type BidVersionSummary } from "@/lib/tender/bids/rules";
+import { defaultQuoteVersion, type BidVersionSummary, type EmailDocument } from "@/lib/tender/bids/rules";
 import type { LinkedQuote } from "@/lib/sales/opportunityServer";
 import BoqDownloads from "./BoqDownloads";
+import SendByEmail from "./SendByEmail";
 
 // "Documents we send" on the Bid tab of a tender deal (redesign, docs/design/gcc-tender-deals.md section 26): the priced BOQ Excel and the
 // answer sheet (never a cost or a markup), and the Standard Quotes made from this deal. A quote is made from a CHOSEN bid version, keeps
@@ -23,16 +24,20 @@ import BoqDownloads from "./BoqDownloads";
 const SHOWN_QUOTES = 5;
 const fmtDay = (s: string) => new Date(s).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
 
-export default function BidDocuments({ opportunityId, versions, quotes, canMakeQuote, fmt, onError, onNotice, onChanged }: {
+export default function BidDocuments({ opportunityId, versions, quotes, canMakeQuote, canSend = false, fmt, onError, onNotice, onChanged, onSent }: {
   opportunityId: string;
   versions: readonly BidVersionSummary[];
   quotes: readonly LinkedQuote[];
   /** Standard Quotes are on in this workspace and the caller may change the deal. */
   canMakeQuote: boolean;
+  /** The caller may change the deal: "Send by email" is offered next to each file. */
+  canSend?: boolean;
   fmt: (n: number) => string;
   onError: (message: string) => void;
   onNotice: (message: string) => void;
   onChanged?: () => void;
+  /** Called after a file was sent by email, so Sent to client is read again. */
+  onSent?: () => void;
 }) {
   const router = useRouter();
   // The latest version unless the person picked one: a state set once at mount stayed on the old latest after a new version was submitted.
@@ -40,6 +45,7 @@ export default function BidDocuments({ opportunityId, versions, quotes, canMakeQ
   const version = defaultQuoteVersion(versions, picked);
   const [busy, setBusy] = useState(false);
   const [showAll, setShowAll] = useState(false);
+  const [emailing, setEmailing] = useState<EmailDocument | null>(null);
   const shown = showAll ? quotes : quotes.slice(0, SHOWN_QUOTES);
 
   async function makeQuote() {
@@ -59,7 +65,17 @@ export default function BidDocuments({ opportunityId, versions, quotes, canMakeQ
   return (
     <SettingsSection id="tender.bids.documents" title="Documents we send" info={TENDER_TIPS.bidDocuments} summary={quotes.length === 0 ? "Priced BOQ, answer sheet" : `Priced BOQ, answer sheet, ${quotes.length} quote${quotes.length === 1 ? "" : "s"}`} defaultOpen>
       <div data-guide="tender.bid.documents" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-        <BoqDownloads opportunityId={opportunityId} />
+        <BoqDownloads
+          opportunityId={opportunityId}
+          afterPriced={canSend ? <Button variant="secondary" style={{ minHeight: 44 }} data-guide="tender.bid.email_priced" onClick={() => setEmailing("priced_boq")}>Send by email</Button> : undefined}
+          afterAnswer={canSend ? <Button variant="secondary" style={{ minHeight: 44 }} data-guide="tender.bid.email_answer" onClick={() => setEmailing("answer_sheet")}>Send by email</Button> : undefined}
+        />
+        {emailing && (
+          <SendByEmail
+            opportunityId={opportunityId} document={emailing} onClose={() => setEmailing(null)}
+            onSent={(message) => { setEmailing(null); onError(""); onNotice(message); onSent?.(); onChanged?.(); }}
+          />
+        )}
 
         {canMakeQuote && (
           <div data-guide="tender.bid.quote" style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "flex-end" }}>

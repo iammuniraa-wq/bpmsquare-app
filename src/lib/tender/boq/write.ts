@@ -11,6 +11,9 @@ import { loadWorkbook } from "./workbook";
 
 export type PricedRow = { row_no: number; rate: number; amount: number };
 
+/** The payment terms chosen on the tender, printed as lines on their own sheet: a template name and one line per milestone. */
+export type TermsText = { name: string; lines: string[] };
+
 export type WritePlan = {
   sheet: string;
   header_row: number;
@@ -26,9 +29,22 @@ export type WritePlan = {
   last_row: number;
   /** Only the lines that have a rate. The others are left exactly as the client sent them. */
   rows: PricedRow[];
+  /** The tender's chosen payment terms. Nothing is added to the file when absent. */
+  terms?: TermsText | null;
 };
 
 const MONEY_FORMAT = "#,##0.00";
+
+/** A last sheet with the payment terms. Own sheet, so the client's layout and the portal-paste sheet stay as they are. */
+function addTermsSheet(wb: ExcelJS.Workbook, terms: TermsText | null | undefined) {
+  if (!terms || terms.lines.length === 0) return;
+  const ws = wb.addWorksheet(wb.getWorksheet("Payment terms") ? "Payment terms (bid)" : "Payment terms");
+  ws.getColumn(1).width = 90;
+  ws.getCell(1, 1).value = "Payment terms";
+  ws.getCell(1, 1).font = { bold: true, size: 13 };
+  ws.getCell(2, 1).value = terms.name;
+  terms.lines.forEach((line, i) => { ws.getCell(4 + i, 1).value = line; });
+}
 
 const isFormula = (v: ExcelJS.CellValue): v is ExcelJS.CellFormulaValue | ExcelJS.CellSharedFormulaValue =>
   !!v && typeof v === "object" && ("formula" in (v as object) || "sharedFormula" in (v as object));
@@ -86,6 +102,7 @@ export async function writePricedWorkbook(original: Uint8Array, plan: WritePlan)
   }
 
   // The client's formulas are recalculated when the file opens, so a total they own shows the new figures even in a viewer that kept the old result.
+  addTermsSheet(wb, plan.terms);
   wb.calcProperties = { ...(wb.calcProperties ?? {}), fullCalcOnLoad: true };
   return Buffer.from(await wb.xlsx.writeBuffer());
 }
@@ -93,7 +110,7 @@ export async function writePricedWorkbook(original: Uint8Array, plan: WritePlan)
 export type AnswerRow = { item_no: string | null; description: string; uom: string | null; qty: number; rate: number | null; amount: number | null; notes: string };
 
 /** A clean sheet of the lines for copy and paste into a portal form (Ariba): item, description, unit, quantity, rate, amount, notes. */
-export async function buildAnswerSheet(rows: readonly AnswerRow[], title: string): Promise<Buffer> {
+export async function buildAnswerSheet(rows: readonly AnswerRow[], title: string, terms?: TermsText | null): Promise<Buffer> {
   const { default: Excel } = await import("exceljs");
   const wb = new Excel.Workbook();
   const ws = wb.addWorksheet("Answer sheet");
@@ -120,6 +137,7 @@ export async function buildAnswerSheet(rows: readonly AnswerRow[], title: string
   t.font = { bold: true };
   t.getCell("amount").value = { formula: `SUM(F2:F${Math.max(last, 2)})`, result: total } as ExcelJS.CellValue;
   t.getCell("amount").numFmt = MONEY_FORMAT;
+  addTermsSheet(wb, terms);
   wb.title = title.slice(0, 100);
   return Buffer.from(await wb.xlsx.writeBuffer());
 }

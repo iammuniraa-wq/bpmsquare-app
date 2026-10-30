@@ -27,6 +27,10 @@ describe("reading a posted message", () => {
     expect(parseMessage({ body: "x".repeat(ROOM.bodyMax) })).toMatchObject({ ok: true });
   });
 
+  it("a plain message needs only a body: no owner, due date or question flag (the Room screen sends nothing else)", () => {
+    expect(parseMessage({ body: "Datasheet is in the folder", kind: "message", parent_id: "p1" })).toEqual({ ok: true, kind: "message", text: "Datasheet is in the folder", parentId: "p1", ownerId: null, due: null });
+  });
+
   it("a question carries an owner and a due date, which must be a real date", () => {
     expect(parseMessage({ body: "Who has the datasheet?", kind: "question", owner_id: "u1", due: "2026-11-02" })).toEqual({ ok: true, kind: "question", text: "Who has the datasheet?", parentId: null, ownerId: "u1", due: "2026-11-02" });
     expect(parseMessage({ body: "Q", is_question: true })).toMatchObject({ ok: true, kind: "question" });

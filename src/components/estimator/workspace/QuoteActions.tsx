@@ -9,11 +9,13 @@ import Button from "@/components/ui/Button";
  * is locked. Save as draft is for a new estimate that is not ready to quote.
  */
 export default function QuoteActions({
-  quote, canQuote, quoteUnavailable, blocked, busy, isNew, error, onCreate, onSaveDraft,
+  quote, canQuote, quoteUnavailable, forTender, blocked, busy, isNew, error, onCreate, onSaveDraft,
 }: {
   quote: { id: string; ref: string; status: string } | null;
   canQuote: boolean;
   quoteUnavailable: string | null;
+  /** An estimate made for a tender is not quoted from here: the BOQ takes its cost. Nothing about quotes is shown (a new one can still be saved as a draft). */
+  forTender?: boolean;
   /** Why Create quote cannot be pressed yet, in plain words. */
   blocked: string | null;
   busy: null | "draft" | "save" | "quote" | "recalc";
@@ -27,6 +29,15 @@ export default function QuoteActions({
       <div style={{ display: "grid", gap: 8 }}>
         <Button href={ROUTES.standardQuote(quote.id)} variant="primary" style={{ width: "100%", justifyContent: "center" }}>Open quote {quote.ref}</Button>
         <p className="bpm-t-help" style={{ margin: 0 }}>The quote has been made from this estimate, so the estimate is locked. To revise it, make a copy from the ⋯ menu.</p>
+      </div>
+    );
+  }
+  if (forTender) {
+    if (!error && !isNew) return null;
+    return (
+      <div style={{ display: "grid", gap: 8 }}>
+        {error && <div role="alert" className="est-warn">{error}</div>}
+        {isNew && <Button variant="secondary" loading={busy === "draft"} disabled={busy !== null} onClick={onSaveDraft} style={{ width: "100%", justifyContent: "center" }}>Save as draft</Button>}
       </div>
     );
   }

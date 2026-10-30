@@ -91,6 +91,11 @@ import { PATCH as variationPatch, DELETE as variationDelete } from "./[id]/varia
 import { GET as milestonesGet, POST as milestonesPost } from "./[id]/milestones/route";
 import { PATCH as milestonePatch, DELETE as milestoneDelete } from "./[id]/milestones/[milestoneId]/route";
 import { POST as milestoneInvoice } from "./[id]/milestones/[milestoneId]/invoice/route";
+import { GET as allocGet, PUT as allocPut } from "./[id]/allocation/route";
+import { PATCH as basisPatch } from "./[id]/allocation/basis/route";
+import { POST as fillPost } from "./[id]/allocation/fill/route";
+import { GET as wpGet, POST as wpPost } from "./[id]/work-packages/route";
+import { PATCH as wpPatch, DELETE as wpDelete } from "./[id]/work-packages/[pid]/route";
 
 const json = (method: string, body?: unknown) => new NextRequest(new URL("http://internal.invalid/x"), { method, headers: { "content-type": "application/json" }, body: body === undefined ? undefined : JSON.stringify(body) });
 const get = (qs = "") => new NextRequest(new URL(`http://internal.invalid/x${qs}`));
@@ -105,15 +110,15 @@ const varRequests = () => mine("approval_requests").filter((r) => r.kind === "pr
 const NEW_TABLES = ["contract_project_variations", "contract_project_milestones", "tender_bid_version_costs"];
 
 const WINNING_COST = {
-  v: 1, margin_pct: 15, warnings: [],
+  v: 1, warnings: [],
   lines: [
     {
       key: "no:1.1", item_no: "1.1", unit_cost: 130, markup_pct: 50, cost_code: "32 31 13", estimated: false, from_estimate: false, cost_total: 13000,
       lines: [{ resource_code: "11", cost_code: "32 31 13", wbs: "1.1", description: "Chain link fence 2.4m", qty: 100, unit: "m", unit_cost: 130, cost_known: true, source_ref: "Cost from RFQ-0004", reserve: false }],
     },
     {
-      key: "no:1.2", item_no: "1.2", unit_cost: null, markup_pct: null, cost_code: "99 99 99", estimated: true, from_estimate: false, cost_total: 1800,
-      lines: [{ resource_code: "11", cost_code: "99 99 99", wbs: "1.2", description: "Excavation", qty: 50, unit: "m3", unit_cost: 36, cost_known: false, source_ref: "Estimated: rate less 15% margin", reserve: false }],
+      key: "no:1.2", item_no: "1.2", unit_cost: null, markup_pct: null, cost_code: "99 99 99", estimated: true, from_estimate: false, cost_total: 0,
+      lines: [],
     },
   ],
 };
@@ -171,7 +176,7 @@ beforeEach(() => {
 async function fromTender() {
   const res = await createPost(json("POST", { opportunity_id: OPP }));
   const j = await res.json();
-  return { res, ...j } as { res: Response; id: string; ref: string; revision_id: string; cost_source: string; budget_note: string; estimated: number; unmapped_codes: string[] };
+  return { res, ...j } as { res: Response; id: string; ref: string; revision_id: string; budget_note: string; unmapped_codes: string[] };
 }
 const goodLines = () => [
   { description: "Fence", resource_code: "11", cost_code: "32 31 13", qty: 100, unit: "m", unit_cost: 120 },
@@ -236,69 +241,102 @@ describe("the module is off", () => {
   });
 });
 
-describe("the budget starts from the winning bid's recorded cost", () => {
+describe("the project starts as the contract, and Fill from tender costs reads the winning bid's recorded cost", () => {
   function bidVersions(withCost: boolean) {
     rows("tender_bid_versions").push(
       { id: "bv1", tenant_id: T1, opportunity_id: OPP, version_no: 1, submitted_at: "2026-10-08T08:00:00Z", currency: "SAR", total: 21000, line_count: 2 },
       { id: "bv2", tenant_id: T1, opportunity_id: OPP, version_no: 2, submitted_at: "2026-10-12T08:00:00Z", currency: "SAR", total: 22000, line_count: 2 },
     );
-    if (withCost) rows("tender_bid_version_costs").push({ id: "bc2", tenant_id: T1, opportunity_id: OPP, version_no: 2, total_cost: 14800, line_count: 2, snapshot: WINNING_COST });
+    if (withCost) rows("tender_bid_version_costs").push({ id: "bc2", tenant_id: T1, opportunity_id: OPP, version_no: 2, total_cost: 13000, line_count: 2, snapshot: WINNING_COST });
   }
+  const fill = (id: string, body: Record<string, unknown> = {}) => fillPost(json("POST", body), ctx(id));
 
-  it("uses the LAST version's cost instead of the current BOQ, and says so in the baseline's note", async () => {
+  it("creating from the tender copies the contract (quantity, the client's rate and amount) and NO cost, whichever bid was submitted", async () => {
     bidVersions(true);
-    // An earlier version's cost must not be the one used.
-    rows("tender_bid_version_costs").push({ id: "bc1", tenant_id: T1, opportunity_id: OPP, version_no: 1, total_cost: 1, line_count: 1, snapshot: { v: 1, margin_pct: 15, warnings: [], lines: [] } });
     const p = await fromTender();
     expect(p.res.status).toBe(201);
-    expect(p.cost_source).toBe("bid_version_2");
-    expect(p.budget_note).toBe("Started from bid version 2 (submitted 2026-10-12): the cost recorded when the bid went in.");
+    expect(p.budget_note).toBe("Contract lines from the tender; costs to be allocated.");
     const lines = mine("project_budget_lines");
     expect(lines).toHaveLength(2);
-    expect(lines.find((l) => String(l.description).startsWith("Chain link"))).toMatchObject({ unit_cost: 130, amount: 13000, cost_code: "32 31 13", cost_known: true });
-    expect(lines.find((l) => l.description === "Excavation")).toMatchObject({ unit_cost: 36, cost_known: false, cost_code: null });
-    expect(String(lines.find((l) => l.description === "Excavation")!.source_ref)).toContain("99 99 99 is not in your cost codes");
+    expect(lines.every((l) => l.unit_cost === 0 && l.amount === 0 && l.allocated === false)).toBe(true);
+    expect(lines.find((l) => String(l.description).startsWith("Chain link"))).toMatchObject({ client_rate: 200, client_amount: 20000, source_line_id: "l1", cost_code: "32 31 13" });
     expect(p.unmapped_codes).toEqual(["99 99 99"]);
-    expect(p.estimated).toBe(1);
-    const rev = mine("project_budget_revisions")[0];
-    expect(rev).toMatchObject({ rev_no: 0, total: 14800, justification_text: p.budget_note });
+    expect(mine("project_budget_revisions")[0]).toMatchObject({ rev_no: 0, total: 0 });
   });
 
-  it("falls back to the current BOQ for a version submitted before costs were stored, and says why", async () => {
+  it("Fill uses the LAST version's recorded cost; a line with none is listed, never filled with a guess", async () => {
+    bidVersions(true);
+    // An earlier version's cost must not be the one used.
+    rows("tender_bid_version_costs").push({ id: "bc1", tenant_id: T1, opportunity_id: OPP, version_no: 1, total_cost: 1, line_count: 1, snapshot: { v: 1, warnings: [], lines: [] } });
+    const p = await fromTender();
+    const res = await fill(p.id);
+    expect(res.status).toBe(200);
+    const j = await res.json();
+    expect(j).toMatchObject({ filled: 1, total: 13000 });
+    expect(j.skipped).toEqual([{ item: "1.2", reason: "no recorded cost in bid v2" }]);
+    const lines = mine("project_budget_lines");
+    expect(lines.find((l) => String(l.description).startsWith("Chain link"))).toMatchObject({ amount: 13000, unit_cost: 130, allocated: true, source_ref: "Cost from bid v2 (RFQ-0004)" });
+    expect(lines.find((l) => l.description === "Excavation")).toMatchObject({ amount: 0, allocated: false });
+    expect(mine("project_budget_revisions")[0].total).toBe(13000);
+    expect(state.changes.some((c) => c.changes?.some((x) => x.field === "Fill from tender costs" && x.to === 13000))).toBe(true);
+  });
+
+  it("without a stored bid cost it reads the tender's BOQ rows, only a cost above zero", async () => {
     bidVersions(false);
     const p = await fromTender();
-    expect(p.cost_source).toBe("boq");
-    expect(p.budget_note).toBe("Started from the current BOQ: bid version 2 was submitted before bid costs were stored.");
-    expect(mine("project_budget_lines").find((l) => String(l.description).startsWith("Chain link"))).toMatchObject({ unit_cost: 120 });
-    expect(mine("project_budget_revisions")[0].justification_text).toBe(p.budget_note);
+    const j = await (await fill(p.id)).json();
+    expect(j.filled).toBe(1);
+    expect(mine("project_budget_lines").find((l) => String(l.description).startsWith("Chain link"))).toMatchObject({ amount: 12000, unit_cost: 120, allocated: true });
+    expect(j.skipped).toEqual([{ item: "1.2", reason: "no recorded cost on the tender" }]);
   });
 
-  it("falls back to the current BOQ when no bid version was ever submitted", async () => {
+  it("does it once: a line that already has an allocation is kept unless the person confirms a replace", async () => {
     const p = await fromTender();
-    expect(p.budget_note).toBe("Started from the current BOQ: no bid version was submitted for this tender.");
+    const key = String(mine("project_budget_lines").find((l) => String(l.description).startsWith("Chain link"))!.line_key);
+    await allocPut(json("PUT", { revision_id: p.revision_id, basis_rows: [{ line_key: key, amount: 500 }] }), ctx(p.id));
+    const kept = await (await fill(p.id)).json();
+    expect(kept.filled).toBe(0);
+    expect(kept.skipped).toContainEqual({ item: "1.1", reason: "already allocated" });
+    expect(mine("project_budget_lines").find((l) => l.line_key === key)!.amount).toBe(500);
+    const replaced = await (await fill(p.id, { replace: true })).json();
+    expect(replaced.filled).toBe(1);
+    expect(mine("project_budget_lines").find((l) => l.line_key === key)!.amount).toBe(12000);
   });
 
-  it("falls back, and still works, while migration 0230 is pending", async () => {
-    bidVersions(true);
-    rows("tender_bid_version_costs").length = 0;
-    state.db.missing.add("tender_bid_version_costs");
+  it("an old snapshot that holds a guessed cost (stored before costs stopped being guessed) is not filled", async () => {
+    bidVersions(false);
+    rows("tender_bid_version_costs").push({
+      id: "bc2", tenant_id: T1, opportunity_id: OPP, version_no: 2, total_cost: 1800, line_count: 1,
+      snapshot: { v: 1, margin_pct: 15, warnings: [], lines: [{ key: "no:1.2", item_no: "1.2", unit_cost: null, markup_pct: null, cost_code: null, estimated: true, from_estimate: false, cost_total: 1800, lines: [{ resource_code: "11", cost_code: null, wbs: "1.2", description: "Excavation", qty: 50, unit: "m3", unit_cost: 36, cost_known: false, source_ref: "Estimated: rate less 15% margin", reserve: false }] }] },
+    });
     const p = await fromTender();
-    expect(p.res.status).toBe(201);
-    expect(p.budget_note).toContain("before bid costs were stored");
+    const j = await (await fill(p.id)).json();
+    expect(j.skipped).toContainEqual({ item: "1.2", reason: "no recorded cost in bid v2" });
+    expect(mine("project_budget_lines").find((l) => l.description === "Excavation")).toMatchObject({ amount: 0, allocated: false });
   });
 
   it("another workspace's bid cost is never used", async () => {
     rows("tender_bid_versions").push({ id: "bvx", tenant_id: T2, opportunity_id: OPP, version_no: 5, submitted_at: "2026-10-12T08:00:00Z", currency: "SAR", total: 1, line_count: 1 });
     rows("tender_bid_version_costs").push({ id: "bcx", tenant_id: T2, opportunity_id: OPP, version_no: 5, total_cost: 1, line_count: 1, snapshot: WINNING_COST });
     const p = await fromTender();
-    expect(p.budget_note).toBe("Started from the current BOQ: no bid version was submitted for this tender.");
+    const j = await (await fill(p.id)).json();
+    expect(j.filled).toBe(1); // the BOQ rows of THIS workspace, not the other workspace's 13000
+    expect(mine("project_budget_lines").find((l) => String(l.description).startsWith("Chain link"))!.amount).toBe(12000);
+  });
+
+  it("a project made by hand has no tender to copy from; a view-only person cannot fill", async () => {
+    const hand = await (await createPost(json("POST", { name: "By hand", contract_value: 100 }))).json();
+    expect((await fill(hand.id)).status).toBe(409);
+    const p = await fromTender();
+    state.edit = false;
+    expect((await fill(p.id)).status).toBe(403);
   });
 });
 
 describe("where the project came from, and the bid against the budget", () => {
   it("the project is given the tender, the winning version, the BOQ file and the estimates used, and the bid's cost against its budget", async () => {
     rows("tender_bid_versions").push({ id: "bv2", tenant_id: T1, opportunity_id: OPP, version_no: 2, submitted_at: "2026-10-12T08:00:00Z", currency: "SAR", total: 22000, line_count: 2 });
-    rows("tender_bid_version_costs").push({ id: "bc2", tenant_id: T1, opportunity_id: OPP, version_no: 2, total_cost: 14800, line_count: 2, snapshot: WINNING_COST });
+    rows("tender_bid_version_costs").push({ id: "bc2", tenant_id: T1, opportunity_id: OPP, version_no: 2, total_cost: 13000, line_count: 2, snapshot: WINNING_COST });
     rows("tender_boq_estimate_links").push({ tenant_id: T1, opportunity_id: OPP, estimate_id: "e1" }, { tenant_id: T1, opportunity_id: OPP, estimate_id: "e1" });
     rows("estimates").push({ id: "e1", tenant_id: T1, opportunity_id: OPP, ref: "EST-0003", name: "Fence build-up" }, { id: "e2", tenant_id: T2, opportunity_id: OPP, ref: "EST-9999", name: "Not ours" });
     const p = await withBaseline();
@@ -307,9 +345,9 @@ describe("where the project came from, and the bid against the budget", () => {
       deal: { id: OPP, ref: "OPP-1" }, bid: { version_no: 2, total: 22000, currency: "SAR" }, boq: { file_name: "ARB-1-BOQ.xlsx", version: 2 },
       estimates: [{ id: "e1", ref: "EST-0003" }],
     });
-    // The approved budget is 22000 (the person edited the lines); the bid's cost was 14800.
-    expect(view.bidAgainstBudget).toMatchObject({ available: true, version_no: 2, figures: { bid_price: 22000, bid_cost: 14800, budget: 22000, delta: 7200 } });
-    expect(view.bidAgainstBudget.figures.delta_pct).toBeCloseTo(48.6, 1);
+    // The approved budget is 22000 (the person edited the lines); the bid's recorded cost was 13000 (a line with no recorded cost adds nothing).
+    expect(view.bidAgainstBudget).toMatchObject({ available: true, version_no: 2, figures: { bid_price: 22000, bid_cost: 13000, budget: 22000, delta: 9000 } });
+    expect(view.bidAgainstBudget.figures.delta_pct).toBeCloseTo(69.2, 1);
   });
 
   it("says plainly when the winning bid has no stored cost, and shows nothing for a project made by hand", async () => {
@@ -745,5 +783,259 @@ describe("invoicing milestones", () => {
     const made = await add(p, { title: "x", basis: "fixed", fixed_amount: 1 });
     expect(made.status).toBe(503);
     expect((await oneGet(get(), ctx(p.id))).status).toBe(200);
+  });
+});
+
+// ── Allocating the budget, work packages (migration 0240) ──────────────────────────────────────────────────────────────────
+
+const EMP_LOGIN = "e1111111-1111-4111-8111-111111111111";
+const EMP_NO_LOGIN = "e2222222-2222-4222-8222-222222222222";
+const EMP_T2 = "e3333333-3333-4333-8333-333333333333";
+const EMP_OFF = "e4444444-4444-4444-8444-444444444444";
+const pctx = (id: string, pid: string) => ({ params: Promise.resolve({ id, pid }) });
+const keyOf = (p: string) => String(mine("project_budget_lines").find((l) => String(l.description).startsWith(p))!.line_key);
+const lineOf = (p: string) => mine("project_budget_lines").find((l) => String(l.description).startsWith(p))!;
+const alloc = (id: string, revision_id: string, basis_rows: unknown) => allocPut(json("PUT", { revision_id, basis_rows }), ctx(id));
+const packs = () => mine("project_work_packages");
+
+describe("allocating the budget by BOQ line", () => {
+  beforeEach(() => {
+    rows("employees").push(
+      { id: EMP_LOGIN, tenant_id: T1, first_name: "Sara", last_name: "Khan", employee_code: "E-1", email: "sara@kamco.test", status: "active" },
+      { id: EMP_NO_LOGIN, tenant_id: T1, first_name: "Omar", last_name: "Ali", employee_code: "E-2", email: "omar@kamco.test", status: "active" },
+      { id: EMP_OFF, tenant_id: T1, first_name: "Gone", last_name: "Person", employee_code: "E-3", email: null, status: "inactive" },
+      { id: EMP_T2, tenant_id: T2, first_name: "Other", last_name: "Workspace", employee_code: "X-1", email: null, status: "active" },
+    );
+    rows("tenant_users").push({ tenant_id: T1, user_id: "u-sara", role: "member", employee_id: EMP_LOGIN }, { tenant_id: T2, user_id: "u-other", role: "member", employee_id: EMP_T2 });
+  });
+
+  it("the cost typed on a line is the line's amount; the total, the unit cost and the margin follow it, and it is logged", async () => {
+    const p = await fromTender();
+    const res = await alloc(p.id, p.revision_id, [{ line_key: keyOf("Chain link"), amount: 15000 }, { line_key: keyOf("Excavation"), amount: "1500.555" }]);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ ok: true, total: 16500.56 });
+    expect(lineOf("Chain link")).toMatchObject({ amount: 15000, unit_cost: 150, allocated: true });
+    expect(lineOf("Excavation")).toMatchObject({ amount: 1500.56, unit_cost: 30.0112, allocated: true });
+    expect(mine("project_budget_revisions")[0].total).toBe(16500.56);
+    const view = await (await oneGet(get(), ctx(p.id))).json();
+    expect(view.margin).toMatchObject({ amount: 83499.44, state: "ok" });
+    expect(view.allocation.totals).toMatchObject({ allocatedCount: 2, unallocatedCount: 0 });
+    expect(state.changes.some((c) => c.changes?.some((x) => x.field === "Allocated" && x.from === 0 && x.to === 16500.56))).toBe(true);
+  });
+
+  it("nothing allocated reads as 'none', never 100 percent; null clears a line", async () => {
+    const p = await fromTender();
+    const before = await (await oneGet(get(), ctx(p.id))).json();
+    expect(before.margin.state).toBe("none");
+    expect(before.allocation.totals).toMatchObject({ allocatedCount: 0, unallocatedCount: 2 });
+    await alloc(p.id, p.revision_id, [{ line_key: keyOf("Chain link"), amount: 15000 }]);
+    await alloc(p.id, p.revision_id, [{ line_key: keyOf("Chain link"), amount: null }]);
+    expect(lineOf("Chain link")).toMatchObject({ amount: 0, unit_cost: 0, allocated: false });
+    expect(mine("project_budget_revisions")[0].total).toBe(0);
+  });
+
+  it("refuses what cannot be an allocation, and writes nothing", async () => {
+    const p = await fromTender();
+    for (const bad of [[{ line_key: keyOf("Chain link"), amount: -1 }], [{ line_key: keyOf("Chain link"), amount: "abc" }], [{ line_key: "ffffffff-ffff-4fff-8fff-fffffffffffe", amount: 5 }], "x", [{ line_key: keyOf("Chain link"), amount: 1 }, { line_key: keyOf("Chain link"), amount: 2 }]]) {
+      expect((await alloc(p.id, p.revision_id, bad)).status, JSON.stringify(bad)).toBe(422);
+    }
+    expect((await allocPut(json("PUT", { basis_rows: [] }), ctx(p.id))).status).toBe(400);
+    expect(mine("project_budget_lines").every((l) => l.allocated === false)).toBe(true);
+  });
+
+  it("is locked once the baseline is waiting for approval or approved; the view stays readable", async () => {
+    const p = await fromTender();
+    await alloc(p.id, p.revision_id, [{ line_key: keyOf("Chain link"), amount: 15000 }]);
+    const ask = await askPost(json("POST", {}), ctx(p.id));
+    expect([200, 201]).toContain(ask.status);
+    const waiting = await alloc(p.id, p.revision_id, [{ line_key: keyOf("Chain link"), amount: 1 }]);
+    expect(waiting.status).toBe(409);
+    expect((await waiting.json()).locked).toBe(true);
+    expect(lineOf("Chain link").amount).toBe(15000);
+    expect((await allocGet(get(), ctx(p.id))).status).toBe(200);
+  });
+
+  it("a view-only person cannot allocate; another workspace's project and revision are a 404", async () => {
+    const p = await fromTender();
+    state.edit = false;
+    expect((await alloc(p.id, p.revision_id, [])).status).toBe(403);
+    state.edit = true;
+    expect((await alloc(T2_PROJECT, p.revision_id, [])).status).toBe(404);
+    expect((await alloc(p.id, "aaaaaaaa-0000-4000-8000-000000000000", [])).status).toBe(404);
+    expect((await allocGet(get(), ctx(T2_PROJECT))).status).toBe(404);
+  });
+
+  it("while migration 0240 is pending it says so instead of failing", async () => {
+    const p = await fromTender();
+    state.db.missingColumns.project_budget_lines = new Set(["allocated"]);
+    const res = await alloc(p.id, p.revision_id, [{ line_key: keyOf("Chain link"), amount: 5 }]);
+    expect(res.status).toBe(503);
+    expect((await res.json()).error).toContain("migration 0240");
+  });
+
+  it("GET gives the allocation, the packages, the employees (with whether each has a login) and whether Fill is possible", async () => {
+    const p = await fromTender();
+    const j = await (await allocGet(get(), ctx(p.id))).json();
+    expect(j.allocation.basis).toBe("line");
+    expect(j.allocation.lineRows).toHaveLength(2);
+    expect(j.fill_available).toBe(true);
+    // Ordered by surname; whether each has a login is what the owner picker needs.
+    expect(j.employees).toEqual([
+      { id: EMP_NO_LOGIN, name: "Omar Ali", code: "E-2", email: "omar@kamco.test", has_login: false },
+      { id: EMP_LOGIN, name: "Sara Khan", code: "E-1", email: "sara@kamco.test", has_login: true },
+    ]);
+  });
+});
+
+describe("work packages and allocating by package", () => {
+  const base = async () => {
+    const p = await fromTender();
+    return { p, a: keyOf("Chain link"), b: keyOf("Excavation") };
+  };
+  const make = (id: string, body: Record<string, unknown>) => wpPost(json("POST", body), ctx(id));
+
+  beforeEach(() => {
+    rows("employees").push(
+      { id: EMP_LOGIN, tenant_id: T1, first_name: "Sara", last_name: "Khan", employee_code: "E-1", email: null, status: "active" },
+      { id: EMP_NO_LOGIN, tenant_id: T1, first_name: "Omar", last_name: "Ali", employee_code: "E-2", email: null, status: "active" },
+      { id: EMP_OFF, tenant_id: T1, first_name: "Gone", last_name: "Person", employee_code: "E-3", email: null, status: "inactive" },
+      { id: EMP_T2, tenant_id: T2, first_name: "Other", last_name: "Workspace", employee_code: "X-1", email: null, status: "active" },
+    );
+    rows("tenant_users").push({ tenant_id: T1, user_id: "u-sara", role: "member", employee_id: EMP_LOGIN }, { tenant_id: T2, user_id: "u-other", role: "member", employee_id: EMP_T2 });
+    state.db.unique("project_work_packages", (x, y) => x.project_id === y.project_id && x.code === y.code);
+    state.db.unique("project_work_package_lines", (x, y) => x.project_id === y.project_id && x.line_key === y.line_key);
+  });
+
+  it("makes a package with a code, a name, an owner who has a login and its lines; the code is unique on the project", async () => {
+    const { p, a } = await base();
+    const res = await make(p.id, { code: "WP-1", name: "Earthworks", owner_employee_id: EMP_LOGIN, line_keys: [a] });
+    expect(res.status).toBe(201);
+    expect(packs()[0]).toMatchObject({ code: "WP-1", name: "Earthworks", owner_employee_id: EMP_LOGIN, project_id: p.id, tenant_id: T1 });
+    expect(mine("project_work_package_lines")).toHaveLength(1);
+    expect((await make(p.id, { code: "WP-1", name: "Again" })).status).toBe(409);
+    const list = await (await wpGet(get(), ctx(p.id))).json();
+    expect(list.packages).toEqual([expect.objectContaining({ code: "WP-1", owner_name: "Sara Khan", line_keys: [a] })]);
+    expect(state.changes.some((c) => c.changes?.some((x) => x.field === "Work package WP-1 added"))).toBe(true);
+  });
+
+  it("an owner without a login is refused with 'Create login' first; so is an inactive one, and an employee of another workspace is a 404", async () => {
+    const { p } = await base();
+    const noLogin = await make(p.id, { code: "WP-1", name: "x", owner_employee_id: EMP_NO_LOGIN });
+    expect(noLogin.status).toBe(422);
+    const j = await noLogin.json();
+    expect(j.error).toContain("has no login");
+    expect(j.needs_login).toBe(true);
+    expect((await make(p.id, { code: "WP-1", name: "x", owner_employee_id: EMP_OFF })).status).toBe(422);
+    expect((await make(p.id, { code: "WP-1", name: "x", owner_employee_id: EMP_T2 })).status).toBe(404);
+    expect(packs()).toHaveLength(0);
+    // Once the login exists the same request works.
+    rows("tenant_users").push({ tenant_id: T1, user_id: "u-omar", role: "member", employee_id: EMP_NO_LOGIN });
+    expect((await make(p.id, { code: "WP-1", name: "x", owner_employee_id: EMP_NO_LOGIN })).status).toBe(201);
+  });
+
+  it("a line sits in one package: a second package asking for it gets '<item> is already in <code>'", async () => {
+    const { p, a, b } = await base();
+    await make(p.id, { code: "WP-1", name: "One", line_keys: [a] });
+    const clash = await make(p.id, { code: "WP-2", name: "Two", line_keys: [a, b] });
+    expect(clash.status).toBe(409);
+    expect((await clash.json()).error).toBe("1.1 is already in WP-1");
+    expect(packs()).toHaveLength(1);
+    expect((await make(p.id, { code: "WP-2", name: "Two", line_keys: ["ffffffff-ffff-4fff-8fff-fffffffffffe"] })).status).toBe(422);
+  });
+
+  it("changing a package replaces its lines and its owner; a view-only person and another workspace's package are refused", async () => {
+    const { p, a, b } = await base();
+    const id = (await (await make(p.id, { code: "WP-1", name: "One", line_keys: [a] })).json()).id as string;
+    expect((await wpPatch(json("PATCH", { line_keys: [b], owner_employee_id: EMP_LOGIN, name: "Renamed" }), pctx(p.id, id))).status).toBe(200);
+    expect(mine("project_work_package_lines").map((l) => l.line_key)).toEqual([b]);
+    expect(packs()[0]).toMatchObject({ name: "Renamed", owner_employee_id: EMP_LOGIN });
+    expect((await wpPatch(json("PATCH", { owner_employee_id: EMP_NO_LOGIN }), pctx(p.id, id))).status).toBe(422);
+    expect((await wpPatch(json("PATCH", { owner_employee_id: null }), pctx(p.id, id))).status).toBe(200);
+    expect(packs()[0].owner_employee_id).toBeNull();
+    rows("project_work_packages").push({ id: "pw-t2", tenant_id: T2, project_id: T2_PROJECT, code: "WP-9", name: "Theirs", owner_employee_id: null, allocated_cost: null, sort_order: 10, note: null });
+    expect((await wpPatch(json("PATCH", { name: "Mine now" }), pctx(p.id, "pw-t2"))).status).toBe(404);
+    expect((await wpDelete(json("DELETE"), pctx(p.id, "pw-t2"))).status).toBe(404);
+    state.edit = false;
+    expect((await wpPatch(json("PATCH", { name: "x" }), pctx(p.id, id))).status).toBe(403);
+    expect((await make(p.id, { code: "WP-3", name: "x" })).status).toBe(403);
+  });
+
+  it("by work package: a cost typed on a package is spread over its lines in proportion to the client's amounts; lines in no package are not allocated", async () => {
+    const { p, a, b } = await base();
+    const id = (await (await make(p.id, { code: "WP-1", name: "One", line_keys: [a, b] })).json()).id as string;
+    expect((await basisPatch(json("PATCH", { basis: "package" }), ctx(p.id))).status).toBe(200);
+    expect(project(p.id).allocation_basis).toBe("package");
+    // In package mode the body carries packages, not lines.
+    expect((await alloc(p.id, p.revision_id, [])).status).toBe(422);
+    const res = await allocPut(json("PUT", { revision_id: p.revision_id, packages: [{ id, allocated_cost: 11000 }] }), ctx(p.id));
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ total: 11000 });
+    // 20,000 and 2,000 of the client's money: 10,000 and 1,000 of the cost.
+    expect(lineOf("Chain link")).toMatchObject({ amount: 10000, allocated: true });
+    expect(lineOf("Excavation")).toMatchObject({ amount: 1000, allocated: true });
+    expect(packs()[0].allocated_cost).toBe(11000);
+    // Taking a line out of the package puts it back to not allocated and re-spreads the cost over the rest.
+    await wpPatch(json("PATCH", { line_keys: [a] }), pctx(p.id, id));
+    expect(lineOf("Chain link")).toMatchObject({ amount: 11000, allocated: true });
+    expect(lineOf("Excavation")).toMatchObject({ amount: 0, allocated: false });
+    expect(mine("project_budget_revisions")[0].total).toBe(11000);
+    // Removing the package takes its cost with it.
+    expect((await wpDelete(json("DELETE"), pctx(p.id, id))).status).toBe(200);
+    expect(packs()).toHaveLength(0);
+    expect(mine("project_work_package_lines")).toHaveLength(0);
+    expect(mine("project_budget_lines").every((l) => l.allocated === false && l.amount === 0)).toBe(true);
+    expect(mine("project_budget_revisions")[0].total).toBe(0);
+  });
+
+  it("a package id from another workspace in an allocation is a 404 and changes nothing", async () => {
+    const { p, a } = await base();
+    await make(p.id, { code: "WP-1", name: "One", line_keys: [a] });
+    await basisPatch(json("PATCH", { basis: "package" }), ctx(p.id));
+    rows("project_work_packages").push({ id: "aaaaaaaa-1111-4111-8111-000000000009", tenant_id: T2, project_id: T2_PROJECT, code: "WP-9", name: "Theirs", owner_employee_id: null, allocated_cost: 5, sort_order: 10, note: null });
+    const res = await allocPut(json("PUT", { revision_id: p.revision_id, packages: [{ id: "aaaaaaaa-1111-4111-8111-000000000009", allocated_cost: 99 }] }), ctx(p.id));
+    expect(res.status).toBe(404);
+    expect(rows("project_work_packages").find((x) => x.id === "aaaaaaaa-1111-4111-8111-000000000009")!.allocated_cost).toBe(5);
+  });
+
+  it("switching the basis clears what was typed and keeps the grouping; it is refused once a baseline is waiting or approved", async () => {
+    const { p, a } = await base();
+    await make(p.id, { code: "WP-1", name: "One", line_keys: [a] });
+    await alloc(p.id, p.revision_id, [{ line_key: a, amount: 700 }]);
+    const done = await basisPatch(json("PATCH", { basis: "package" }), ctx(p.id));
+    expect(done.status).toBe(200);
+    expect(await done.json()).toMatchObject({ basis: "package", total: 0 });
+    expect(lineOf("Chain link")).toMatchObject({ amount: 0, allocated: false });
+    expect(mine("project_work_package_lines")).toHaveLength(1); // grouping kept
+    expect((await basisPatch(json("PATCH", { basis: "nonsense" }), ctx(p.id))).status).toBe(400);
+    await basisPatch(json("PATCH", { basis: "line" }), ctx(p.id));
+    await alloc(p.id, p.revision_id, [{ line_key: a, amount: 700 }]);
+    await askPost(json("POST", {}), ctx(p.id));
+    const locked = await basisPatch(json("PATCH", { basis: "package" }), ctx(p.id));
+    expect(locked.status).toBe(409);
+    expect(project(p.id).allocation_basis).not.toBe("package");
+    expect(lineOf("Chain link").amount).toBe(700);
+  });
+
+  it("Fill by package sums the recorded costs of a package's lines and spreads them", async () => {
+    const { p, a, b } = await base();
+    const id = (await (await make(p.id, { code: "WP-1", name: "One", line_keys: [a, b] })).json()).id as string;
+    await basisPatch(json("PATCH", { basis: "package" }), ctx(p.id));
+    const res = await fillPost(json("POST", {}), ctx(p.id));
+    expect(res.status).toBe(200);
+    const j = await res.json();
+    expect(j.filled).toBe(1);
+    expect(j.skipped).toContainEqual({ item: "1.2", reason: "no recorded cost on the tender" });
+    expect(packs().find((x) => x.id === id)!.allocated_cost).toBe(12000);
+    // The whole package cost (12,000) is laid over both lines by the client's amounts.
+    expect(Number(lineOf("Chain link").amount) + Number(lineOf("Excavation").amount)).toBe(12000);
+  });
+
+  it("while migration 0240 is pending the work packages say so", async () => {
+    const { p } = await base();
+    state.db.missing.add("project_work_packages");
+    expect((await make(p.id, { code: "WP-1", name: "x" })).status).toBe(503);
+    const list = await wpGet(get(), ctx(p.id));
+    expect(list.status).toBe(503);
+    expect((await list.json()).pending).toBe(true);
   });
 });

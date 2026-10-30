@@ -28,7 +28,7 @@ export default function WhoWonPicker({ opportunityId, value, onChange, id, guide
     let live = true;
     fetch(`/api/opportunities/${opportunityId}/competitors`)
       .then((r) => (r.ok ? r.json() : null))
-      .then((j) => { if (live && j && !j.pending && Array.isArray(j.competitors)) setList(j.competitors); })
+      .then((j) => { if (live && j && !j.pending && Array.isArray(j.competitors)) setList(j.competitors.filter((x: CompetitorView) => x.status !== "proposed")); })
       .catch(() => {});
     return () => { live = false; };
   }, [opportunityId, initialCompetitors]);

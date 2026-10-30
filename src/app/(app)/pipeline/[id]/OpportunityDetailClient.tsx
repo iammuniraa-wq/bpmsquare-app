@@ -9,7 +9,7 @@ import { formatMoney } from "@/lib/currency";
 import { useFeel } from "@/components/FeelProvider";
 import { ROUTES, LOSS_REASONS, LOSS_REASON_LABEL, type OpportunityStageDef } from "@/lib/constants";
 import type { Opportunity, OpportunityLine } from "@/lib/types";
-import { daysBetween, weightedValue, isClosedStage, outcomeForStage, OPPORTUNITY_SOURCES, OPPORTUNITY_SOURCE_LABEL, TEAM_ROLES, TEAM_ROLE_LABEL, type TeamRole } from "@/lib/sales/opportunity";
+import { daysBetween, isClosedStage, outcomeForStage, OPPORTUNITY_SOURCES, OPPORTUNITY_SOURCE_LABEL, TEAM_ROLES, TEAM_ROLE_LABEL, type TeamRole } from "@/lib/sales/opportunity";
 import type { LinkedQuote } from "@/lib/sales/opportunityServer";
 import { documentTotal } from "@/lib/sales/lineTotals";
 import { useUnsavedChangesGuard } from "@/lib/unsavedChanges";
@@ -30,6 +30,8 @@ import RecordFacts from "@/components/page/RecordFacts";
 import ClosingChip from "@/components/tender/ClosingChip";
 import { tenderIsLive } from "@/lib/tender/rules";
 import { tenderPrimary, type TenderPrimaryKey } from "@/lib/tender/headerAction";
+import { tenderSteps } from "@/lib/tender/steps";
+import TenderStepper from "@/components/tender/TenderStepper";
 import { resolveTenderTab, type TenderTabId } from "@/lib/tender/tabs";
 import { TENDER_TIPS } from "@/lib/tender/tips";
 import type { BoqFilter } from "@/lib/tender/boq/table";
@@ -38,8 +40,9 @@ import type { ApprovalView } from "@/lib/tender/approval";
 import TenderOverview from "./TenderOverview";
 import BidDecisionMarker, { BidDecisionPanel } from "./BidDecisionMarker";
 import BondChip from "@/components/tender/BondChip";
-import { guaranteeRecorded } from "@/lib/tender/bond";
+import { guaranteeRecorded, BOND_STATUS_LABEL } from "@/lib/tender/bond";
 import BidsTab from "@/components/tender/BidsTab";
+import InteractionsTab from "@/components/tender/InteractionsTab";
 import CallsPanel from "@/components/tender/CallsPanel";
 import { LogCallButton } from "@/components/tender/LogCall";
 import { overdueSummary, type CallsData } from "@/lib/tender/calls";
@@ -61,18 +64,22 @@ import { editorUom } from "@/lib/sales/uom";
 // primary header button that follows the stage, and History in the "..." menu (a side panel, a bottom sheet on a phone).
 
 type Member = { user_id: string; name: string | null; email: string | null };
-type Tab = "overview" | "room" | "competitors" | "boq" | "costing" | "lines" | "bid" | "quotes" | "related" | "activity";
+type Tab = "overview" | "room" | "competitors" | "boq" | "costing" | "lines" | "bid" | "interactions" | "quotes" | "related" | "activity";
 
 /** A tender deal's extras (GCC tender deals): its tender block and what the countdown needs. Absent for every other deal. */
 export type TenderTabData = {
   view: TenderView;
-  /** The Deal Room, when the workspace has the deal_room flag: its unread and open-question counts. null = no room on this workspace. */
-  room: { pending: boolean; unread: number; openQuestions: number; isAdmin: boolean } | null;
+  /** The Deal Room, when the workspace has the deal_room flag: its unread count. null = no room on this workspace. */
+  room: { pending: boolean; unread: number; isAdmin: boolean } | null;
   /** The caller may change the BOQ (edit access to the Pipeline). Absent = yes; the server decides anyway. */
   boqEdit?: boolean;
+  /** The BOQ's totals for the path across the top (absent in a render that has none = no BOQ yet). */
+  boq?: { hasBoq: boolean; lines: number; unpriced: number; stale: number; noProduct: number; amount: number };
   /** Slice 4 (migration 0225): bid versions, logged calls and the outcome facts. Absent = the screens for them are not drawn. */
   bids?: BidsData | null;
   calls?: CallsData | null;
+  /** The Interactions tab (email with the client). Absent = no tab. */
+  interactions?: { canEdit: boolean } | null;
   outcome?: OutcomeData | null;
   /** The Costing tab (estimates and RFQs). Set only when the caller may view Estimates or RFQs in a workspace that has either module; absent = no tab. */
   costing?: { canEdit: boolean } | null;
@@ -91,12 +98,14 @@ function toEditorLines(rows: OpportunityLine[]): Line[] {
   }));
 }
 
-export default function OpportunityDetailClient({ opp, accountName, contacts, initialLines, linesVersion, quotes, stages, members, products, pricingEnabled, standardQuotesEnabled, todayKey, currentUserId, related, activity, externalLine, tender, sourceEmail, priceValidityDays, contractProject, canStartContractProject = false, initialTab }: {
+export default function OpportunityDetailClient({ opp, accountName, contacts, initialLines, linesVersion, quotes, stages, members, products, pricingEnabled, standardQuotesEnabled, todayKey, currentUserId, related, activity, externalLine, tender, sourceEmail, priceValidityDays, contractProject, canStartContractProject = false, initialTab, initialOpenRow }: {
   /**
    * The tab to open on: a server render (and its test) passes a Tab, the page passes the raw ?tab= of a tender deal. A tender resolves it
    * to one of its six tabs (an old name lands on the nearest one; "activity" opens History); a standard deal only takes its own tabs.
    */
   initialTab?: Tab | string;
+  /** A BOQ row to open in its panel when the tender opens on the BOQ (the estimate's "Back to BOQ line" link). */
+  initialOpenRow?: string;
   opp: Opportunity & { stage_since: string };
   accountName: string;
   contacts: { id: string; name: string }[];
@@ -136,7 +145,7 @@ export default function OpportunityDetailClient({ opp, accountName, contacts, in
   // A tender has six tabs and no others (lib/tender/tabs.ts): an old ?tab= value or a remembered state that names a tab that is gone
   // (lines, estimates, related, bids, quotes, activity, tender) lands on the nearest one, and "activity" opens History.
   const tenderTabs: TenderTabId[] = tender
-    ? ["overview", "boq", ...(tender.costing ? ["costing" as const] : []), ...(tender.bids ? ["bid" as const] : []), ...(tender.room ? ["room" as const] : []), "competitors"]
+    ? ["overview", "boq", ...(tender.costing ? ["costing" as const] : []), ...(tender.bids ? ["bid" as const] : []), ...(tender.interactions ? ["interactions" as const] : []), ...(tender.room ? ["room" as const] : []), "competitors"]
     : [];
   const resolved = tender ? resolveTenderTab(initialTab, tenderTabs) : null;
   const startTab: Tab | undefined = tender ? resolved!.tab : (initialTab as string | undefined) === "tender" ? "overview" : (initialTab as Tab | undefined);
@@ -165,19 +174,14 @@ export default function OpportunityDetailClient({ opp, accountName, contacts, in
   const shownTab = useRef<Tab>(tab);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
-  const [roomFilter, setRoomFilter] = useState<"all" | "questions">("all");
-  const [roomOpen, setRoomOpen] = useState(tender?.room?.openQuestions ?? 0);
   const [roomUnread, setRoomUnread] = useState(tender?.room?.unread ?? 0);
   const [narrow, setNarrow] = useState(false);
-  const [phone, setPhone] = useState(false);
   useEffect(() => {
     const mq = window.matchMedia("(max-width: 900px)");
-    const small = window.matchMedia("(max-width: 780px)");
-    const on = () => { setNarrow(mq.matches); setPhone(small.matches); };
+    const on = () => setNarrow(mq.matches);
     on();
     mq.addEventListener("change", on);
-    small.addEventListener("change", on);
-    return () => { mq.removeEventListener("change", on); small.removeEventListener("change", on); };
+    return () => mq.removeEventListener("change", on);
   }, []);
   // The selected tab is always in view in the strip; on a phone, switching also brings the strip to the top so the new content is
   // what the person sees, not the header they scrolled past.
@@ -353,11 +357,26 @@ export default function OpportunityDetailClient({ opp, accountName, contacts, in
     else if (key === "record_outcome") markWon();
     else if (key === "create_project") createContractProject();
   }
+  // The path across the top (lib/tender/steps.ts) decides whether the stage's button leads the Next row or follows a jump to a tab.
+  const boqNow = tender?.boq ?? { hasBoq: false, lines: 0, unpriced: 0, stale: 0, noProduct: 0, amount: 0 };
+  const stepsNow = tender
+    ? tenderSteps({
+        stage: opp.stage, outcome: opp.outcome, bids: tender.bids?.versions.length ?? 0, canEdit: tender.boqEdit !== false,
+        approvedGo: approvalNow ? approvalNow.standing?.decision === "go" : null,
+        proposalPending: !!approvalNow?.pending, canDecide: approvalNow?.canDecide === true,
+        project: contractProject ? { existing: !!contractProject.existing, canCreate: contractProject.canCreate } : null,
+        hasBoq: boqNow.hasBoq, boqLines: boqNow.lines, unpriced: boqNow.unpriced, stale: boqNow.stale, noProduct: boqNow.noProduct, boqAmount: boqNow.amount,
+        decisionStanding: approvalNow?.standing?.decision ?? null, closingAt: tender.view.closing_at, projectId: contractProject?.existing?.id ?? null,
+        detailsFilled: !!(tender.view.tender_no && tender.view.issuer_name && tender.view.closing_at),
+        guaranteeSubmitted: tender.view.bond_status === "submitted" || tender.view.bond_status === "released",
+      }, inr)
+    : null;
+  const headerLeads = stepsNow?.next.primary?.kind === "header";
   const primary = tender
     ? tenderButton
       ? tenderButton.key === "open_project" && contractProject?.existing
         ? <Button variant="primary" href={ROUTES.contractProject(contractProject.existing.id)} data-guide={tenderButton.guide} style={{ minHeight: 44 }}>{tenderButton.label}</Button>
-        : <Button variant="primary" onClick={() => runPrimary(tenderButton.key)} loading={tenderButton.key === "create_project" && pending} data-guide={tenderButton.guide} style={{ minHeight: 44 }}>{tenderButton.label}</Button>
+        : <Button variant={headerLeads ? "primary" : "secondary"} onClick={() => runPrimary(tenderButton.key)} loading={tenderButton.key === "create_project" && pending} data-guide={tenderButton.guide} style={{ minHeight: 44 }}>{tenderButton.label}</Button>
       : null
     : canConvert
       ? <Button variant="primary" onClick={convert} loading={pending}>Convert to Standard Quote</Button>
@@ -371,6 +390,7 @@ export default function OpportunityDetailClient({ opp, accountName, contacts, in
         { id: "boq", label: "Bill of quantities" },
         ...(tender.costing ? [{ id: "costing" as Tab, label: "Costing" }] : []),
         ...(tender.bids ? [{ id: "bid" as Tab, label: "Bid", count: tender.bids.versions.length }] : []),
+        ...(tender.interactions ? [{ id: "interactions" as Tab, label: "Interactions" }] : []),
         ...(tender.room ? [{ id: "room" as Tab, label: "Room", count: tab === "room" ? 0 : roomUnread }] : []),
         { id: "competitors", label: "Competitors" },
       ]
@@ -413,6 +433,12 @@ export default function OpportunityDetailClient({ opp, accountName, contacts, in
       ]
     : null;
 
+  const bondLabel = tender && guaranteeRecorded({ bid_bond_amount: tender.view.bid_bond_amount ?? null, bid_bond_expiry: tender.view.bid_bond_expiry ?? null, bond_status: tender.view.bond_status ?? "held" })
+    ? (BOND_STATUS_LABEL[tender.view.bond_status ?? "held"] ?? "recorded") : "none";
+  const detailsSummary = tender
+    ? `${stageDefNow?.label ?? opp.stage} · ${inr(Number(opp.amount || 0))}${tender.view.closing_at ? ` · bid ends ${fmtDate(tender.view.closing_at)}` : ""} · guarantee ${bondLabel.toLowerCase()}`
+    : "";
+
   const factsRow = (
     <RecordFacts
       facts={[
@@ -426,7 +452,7 @@ export default function OpportunityDetailClient({ opp, accountName, contacts, in
           ),
         },
         ...(tenderFacts ?? [
-          { label: "Probability", value: <>{opp.probability ?? 0}%<div style={{ fontSize: 11, fontWeight: 400, color: c.hint }}>weighted {inr(weightedValue(Number(opp.amount || 0), opp.probability ?? 0))}</div></> },
+          { label: "Probability", value: <>{opp.probability ?? 0}%</> },
           { label: "Owner", value: <>{memberName(opp.owner_id)}<div style={{ fontSize: 11, fontWeight: 400, color: c.hint }}>{daysBetween(opp.stage_since, todayKey)}d in {stageDefNow?.label ?? opp.stage}</div></> },
         ]),
       ]}
@@ -450,7 +476,7 @@ export default function OpportunityDetailClient({ opp, accountName, contacts, in
         }
         action={
           <>
-            {primary}
+            {tender ? null : primary}
             <MoreMenu
               items={[
                 { label: "History", onSelect: () => setHistoryOpen(true), hidden: !tender },
@@ -464,9 +490,18 @@ export default function OpportunityDetailClient({ opp, accountName, contacts, in
         }
       />
 
-      {tender && phone ? (
-        <SettingsSection id="tender.header_facts" title="Deal facts" summary={`${stageDefNow?.label ?? opp.stage} · ${inr(Number(opp.amount || 0))}`} defaultOpen={false}>{factsRow}</SettingsSection>
-      ) : factsRow}
+      {tender && stepsNow && (
+        <>
+          <TenderStepper
+            steps={stepsNow.steps} current={stepsNow.current} next={stepsNow.next} checklist={stepsNow.checklist} primaryButton={primary}
+            onJump={(to) => { if (to.tab === "boq" && to.filter) { boqAsks.current += 1; setBoqRequest({ filter: to.filter, n: boqAsks.current }); setTab("boq"); } else openTab(to.tab as Tab); }}
+          />
+          <div style={{ marginBottom: 14 }}>
+            <SettingsSection id="tender.header_facts" title="Details" info={TENDER_TIPS.details} summary={detailsSummary} defaultOpen={false} defaultOpenNarrow={false}>{factsRow}</SettingsSection>
+          </div>
+        </>
+      )}
+      {!tender && factsRow}
 
       {externalLine}
 
@@ -482,20 +517,20 @@ export default function OpportunityDetailClient({ opp, accountName, contacts, in
         ) : narrow ? (
           <Card padding={18}>
             <div data-guide="room.open_full" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              <div style={{ fontSize: 13, color: c.muted }}>{roomOpen} open question{roomOpen === 1 ? "" : "s"}{roomUnread > 0 ? ` · ${roomUnread} unread` : ""}</div>
+              <div style={{ fontSize: 13, color: c.muted }}>{roomUnread > 0 ? `${roomUnread} unread` : "Nothing unread"}</div>
               <Button href={`${ROUTES.pipelineDetail(opp.id)}/room`} variant="primary" style={{ minHeight: 44 }}>Open the room</Button>
             </div>
           </Card>
         ) : (
           <DealRoom
-            opportunityId={opp.id} currentUserId={currentUserId} isAdmin={tender.room.isAdmin} todayKey={todayKey} initialFilter={roomFilter}
-            onSeen={() => setRoomUnread(0)} onOpenQuestions={setRoomOpen}
+            opportunityId={opp.id} currentUserId={currentUserId} isAdmin={tender.room.isAdmin}
+            onSeen={() => setRoomUnread(0)}
             headerExtra={tender.calls?.canEdit && !tender.calls.pending ? <LogCallButton opportunityId={opp.id} onLogged={() => router.refresh()} /> : undefined}
           />
         )
       )}
       {tab === "competitors" && tender && <CompetitorsTab opportunityId={opp.id} canEdit={tender.boqEdit !== false} onError={setError} onNotice={setNotice} onChanged={() => router.refresh()} />}
-      {tab === "boq" && tender && <BoqTab opportunityId={opp.id} canEdit={tender.boqEdit !== false} onError={setError} onNotice={setNotice} onLinesChanged={() => router.refresh()} onOpenCosting={tender.costing ? () => openTab("costing") : undefined} dealLines={initialLines} dealLinesVersion={linesVersion} filterRequest={boqRequest} />}
+      {tab === "boq" && tender && <BoqTab opportunityId={opp.id} canEdit={tender.boqEdit !== false} onError={setError} onNotice={setNotice} onLinesChanged={() => router.refresh()} onOpenCosting={tender.costing ? () => openTab("costing") : undefined} dealLines={initialLines} dealLinesVersion={linesVersion} filterRequest={boqRequest} initialOpenRow={initialOpenRow} />}
       {tab === "costing" && tender?.costing && <CostingTab opportunityId={opp.id} canEdit={tender.costing.canEdit} onError={setError} onNotice={setNotice} onChanged={() => router.refresh()} onOpenBoq={(filter) => { boqAsks.current += 1; setBoqRequest(filter ? { filter, n: boqAsks.current } : undefined); setTab("boq"); }} />}
       {tab === "overview" && tender && (
         <TenderOverview
@@ -503,7 +538,6 @@ export default function OpportunityDetailClient({ opp, accountName, contacts, in
           currentUserId={currentUserId} nowIso={tender.nowIso} timezone={tender.timezone} finished={!tenderLive} sourceEmail={sourceEmail}
           deal={{ title: opp.title, description: opp.description ?? "", contact_id: opp.contact_id ?? "", owner_id: opp.owner_id ?? "", source: opp.source ?? "direct", team: (opp.team ?? []) as { user_id: string; role: string }[], created_at: opp.created_at, closed_at: opp.closed_at ?? null }}
           outcome={tender.outcome ?? null} overdue={overdue} onOpenHistory={() => setHistoryOpen(true)} fmt={inr} unpricedLines={unpricedLines} canEdit={tender.boqEdit !== false}
-          room={tender.room && !tender.room.pending ? { openQuestions: roomOpen, onOpen: (f) => { setRoomFilter(f); openTab("room"); } } : null}
           onError={setError} onNotice={setNotice}
         />
       )}
@@ -586,6 +620,10 @@ export default function OpportunityDetailClient({ opp, accountName, contacts, in
             approvedGo: approvalNow ? approvalNow.standing?.decision === "go" : null,
             guarantee: { amount: tender.view.bid_bond_amount ?? null, expiry: tender.view.bid_bond_expiry ?? null, status: tender.view.bond_status ?? "held" },
           }} />
+      )}
+
+      {tab === "interactions" && tender?.interactions && (
+        <InteractionsTab opportunityId={opp.id} canEdit={tender.interactions.canEdit} onError={setError} onNotice={setNotice} onChanged={() => router.refresh()} />
       )}
 
       {tab === "quotes" && !tender && (

@@ -264,7 +264,7 @@ describe("the new routes", () => {
   const routes = ["variations", "milestones"].flatMap((d) => walk(path.join(ROOT, "src/app/api/contract-projects/[id]", d)).filter((f) => /route\.ts$/.test(f)));
 
   it("every one starts with the project gate and never reads the workspace, the author or the status from the request", () => {
-    expect(routes.length).toBe(5);
+    expect(routes.length).toBe(6);
     for (const f of routes) {
       const src = readFileSync(f, "utf8");
       expect(src, f).toContain("openProjectRequest(");
@@ -291,7 +291,7 @@ describe("the new routes", () => {
     const ids = new Set(files.flatMap((s) => [...s.matchAll(/"(cp\.[a-z_.]+)"/g)].map((m) => m[1])));
     for (const id of [
       "cp.variations", "cp.variation.add", "cp.variation.save", "cp.variation.send", "cp.variation.approve", "cp.variation.reject", "cp.variation.withdraw", "cp.variation.remove",
-      "cp.invoicing", "cp.milestone.add", "cp.milestone.save", "cp.milestone.create_invoice", "cp.milestone.remove", "cp.origin", "cp.bidvs",
+      "cp.invoicing", "cp.milestone.add", "cp.milestone.save", "cp.milestone.create_invoice", "cp.milestone.remove", "cp.milestone.copy_terms", "cp.bidvs",
     ]) expect(ids, id).toContain(id);
   });
 });

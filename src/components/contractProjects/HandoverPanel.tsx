@@ -7,7 +7,7 @@ import { PROJECT_TIPS } from "@/lib/contractProjects/tips";
 /** Hand the project over: the Excel file now; the ERP push is a later step and its button says so. */
 export default function HandoverPanel({ projectId, revisionId, revLabel, hasBudget }: { projectId: string; revisionId: string | null; revLabel: string | null; hasBudget: boolean }) {
   return (
-    <Card title="Handover" info={PROJECT_TIPS.handover} padding={16}>
+    <Card title="Hand over to the ERP" info={PROJECT_TIPS.handover} padding={16}>
       <div data-guide="cp.handover" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
         <div style={{ fontSize: 13, color: c.muted }}>{hasBudget && revLabel ? `Budget file for ${revLabel}.` : "There is no budget to hand over yet."}</div>
         <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>

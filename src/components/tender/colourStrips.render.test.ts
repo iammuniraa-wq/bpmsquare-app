@@ -111,7 +111,7 @@ describe("the strip on the Bill of quantities", () => {
     const out = html(state({ priced: 1, unpriced: 2 }));
     expect(tileOf(out, "Priced")).toContain('data-tone="warn"');
     expect(out).toContain("33%");
-    expect(out).toContain("1 of 3, 2 to price");
+    expect(out).toContain("1 of 3 · 2 to price");
   });
 
   it("carries no colour literal of its own and no coloured edge", () => {

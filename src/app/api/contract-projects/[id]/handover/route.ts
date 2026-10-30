@@ -3,6 +3,7 @@ import { logChange } from "@/lib/changeLog";
 import { loadActorNames } from "@/lib/actorNames";
 import { getAuthUser } from "@/lib/supabase-server";
 import { buildHandoverWorkbook } from "@/lib/contractProjects/handover";
+import { loadPackages } from "@/lib/contractProjects/workPackagesServer";
 import { currentRevision, loadLines, loadMasters, loadProject, loadRevision, loadRevisions, needsUpdate, openProjectRequest, UUID_RE } from "@/lib/contractProjects/server";
 
 // GET /api/contract-projects/[id]/handover?revision=<id>
@@ -37,8 +38,9 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     project.account_id ? admin.from("accounts").select("name").eq("id", project.account_id).eq("tenant_id", tenantId).maybeSingle() : Promise.resolve({ data: null }),
     loadActorNames(admin, tenantId, [project.manager_id]),
   ]);
+  const packageCodes = new Map((await loadPackages(admin, tenantId, id)).packages.flatMap((p) => p.line_keys.map((k) => [k, p.code] as const)));
   const buffer = await buildHandoverWorkbook({
-    project, accountName: (accountRow.data as { name?: string } | null)?.name ?? null, managerName: project.manager_id ? names.get(project.manager_id) ?? null : null,
+    packageCodes, project, accountName: (accountRow.data as { name?: string } | null)?.name ?? null, managerName: project.manager_id ? names.get(project.manager_id) ?? null : null,
     revision, lines, resourceNames, costCodeNames,
   });
 
@@ -47,6 +49,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     tenantId, objectType: "contract_projects", objectId: id, objectLabel: `${project.ref ?? ""} ${project.name}`.trim(), action: "update", actorId: user?.id, actorEmail: user?.email,
     changes: [{ field: "Handover file downloaded", from: null, to: `Revision ${revision.rev_no}` }],
   });
+  // The "Handed over" step of the project path. Until migration 0240 is applied the column is not there and the stamp is simply skipped.
+  await admin.from("contract_projects").update({ handover_sent_at: new Date().toISOString() }).eq("id", id).eq("tenant_id", tenantId);
   const fileName = `${(project.ref ?? "project").replace(/[^A-Za-z0-9._-]/g, "")}-budget-rev${revision.rev_no}.xlsx`;
   return new NextResponse(new Uint8Array(buffer), {
     headers: {

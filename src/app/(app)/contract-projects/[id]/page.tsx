@@ -16,7 +16,10 @@ import ProjectDetailsForm from "@/components/contractProjects/ProjectDetailsForm
 import { listMembersForPicker } from "@/lib/sales/opportunityServer";
 import { loadProject, UUID_RE, type ProjectCtx } from "@/lib/contractProjects/server";
 import { buildProjectView } from "@/lib/contractProjects/view";
+import { fillAvailable } from "@/lib/contractProjects/allocationServer";
+import { loadEmployeeChoices } from "@/lib/contractProjects/workPackagesServer";
 import ProjectKpiStrip from "@/components/contractProjects/ProjectKpiStrip";
+import ProjectPathBar from "@/components/contractProjects/ProjectPathBar";
 import { projectTone } from "@/lib/contractProjects/format";
 import { PROJECT_STATUS_LABEL } from "@/lib/contractProjects/types";
 import BuyoutSection from "@/components/contractProjects/buyout/BuyoutSection";
@@ -38,24 +41,30 @@ export default async function ContractProjectPage({ params, searchParams }: { pa
     return <div role="alert" style={{ fontSize: 13, color: "var(--amberink)" }}>Contract projects need a database update (migration 0226). Ask your administrator to apply it.</div>;
   }
   if (found.kind !== "ok") notFound();
-  const view = await buildProjectView(req, found.project, { revisionId: revision && UUID_RE.test(revision) ? revision : null });
+  // Work packages and the employees who can own one are read only where they are drawn: the Budget tab.
+  const onBudgetTab = tab === "budget";
+  const view = await buildProjectView(req, found.project, { revisionId: revision && UUID_RE.test(revision) ? revision : null, withPackages: onBudgetTab });
+  const employees = onBudgetTab && view.canEdit ? await loadEmployeeChoices(req.admin, tenantId) : [];
   const p = view.project;
   const rev = view.revision;
   const revLabel = rev ? (rev.rev_no === 0 ? "Baseline" : `Revision ${rev.rev_no}`) : null;
   const members = view.canEdit && p.status !== "closed" ? await listMembersForPicker(req.admin, tenantId) : [];
   const buyoutOn = buyoutVisible(p, tenant?.features);
   const deletable =p.status === "draft" && view.revisions.every((r) => r.status === "draft");
+  // A project made from a tender goes back to that tender, and says which bid and which BOQ file it came from, in the header.
+  const origin = view.origin;
+  const originMeta = [view.account_name, origin?.bid ? `from bid v${origin.bid.version_no}` : null, origin?.boq?.file_name].filter(Boolean).join(" · ");
 
   return (
     <ObjectRecordPage
-      backHref={ROUTES.contractProjects}
-      backLabel="All contract projects"
+      backHref={view.source ? ROUTES.pipelineDetail(view.source.id) : ROUTES.contractProjects}
+      backLabel={view.source ? `Tender ${view.source.ref ?? view.source.title}` : "All contract projects"}
       title={p.name}
       reference={p.ref}
-      meta={view.account_name ?? undefined}
+      meta={originMeta || undefined}
       status={<StatusPill label={PROJECT_STATUS_LABEL[p.status]} tone={projectTone(p.status)} />}
       menu={<ProjectMenu projectId={p.id} status={p.status} canEdit={view.canEdit} deletable={deletable} />}
-      externalLine={<ProjectKpiStrip view={view} />}
+      externalLine={<><ProjectPathBar path={view.path} /><ProjectKpiStrip view={view} /></>}
       basePath={ROUTES.contractProject(p.id)}
       activeTab={tab}
       tabs={[
@@ -69,12 +78,14 @@ export default async function ContractProjectPage({ params, searchParams }: { pa
             <BudgetGrid
               key={rev.id} projectId={p.id} revision={rev} revisions={view.revisions} lines={view.lines} resources={view.resources}
               canEdit={view.canEdit} projectClosed={p.status === "closed"} currency={p.currency} buyoutOn={buyoutOn}
+              contractValue={p.contract_value} marginFloor={view.marginFloor} basis={p.allocation_basis} allocation={view.allocation} packages={view.packages}
+              packagesPending={view.packagesPending} employees={employees} fillAvailable={fillAvailable(p, view.lines)}
             />
           ) : <div style={{ fontSize: 13, color: "var(--hint)" }}>There is no budget yet.</div>,
         },
         ...(buyoutOn ? [{ id: "buyout", label: "Buy-out", content: <BuyoutSection projectId={p.id} currency={p.currency} canEdit={view.canEdit && p.status !== "closed"} /> }] : []),
-        { id: "variations", label: "Variations", content: <VariationsSection req={req} project={p} /> },
-        { id: "invoicing", label: "Invoicing", content: <InvoicingSection req={req} project={p} /> },
+        { id: "variations", label: "Client changes", content: <VariationsSection req={req} project={p} /> },
+        { id: "invoicing", label: "Client billing", content: <InvoicingSection req={req} project={p} /> },
         { id: "revisions", label: "Revisions", count: view.revisions.length, content: <RevisionsPanel view={view} /> },
         { id: "handover", label: "Handover", content: <HandoverPanel projectId={p.id} revisionId={rev?.id ?? null} revLabel={revLabel} hasBudget={!!rev && view.lines.length > 0} /> },
         { id: "activity", label: "Activity", content: <RecordActivity objectType="contract_projects" objectId={p.id} isAdmin={role === "admin"} /> },

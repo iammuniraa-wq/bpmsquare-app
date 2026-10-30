@@ -6,6 +6,7 @@ import { PRICE_SOURCES, type PriceSource } from "@/lib/tender/boq/price";
 //   { all: true, markup_pct }                                       price the lines that have no rate, from FRESH sources only
 //   { line, source, ref, markup_pct?, accept_stale? }               apply one offered price (the server looks the price up again)
 //   { line, source: "manual", rate }                                a rate typed by hand
+//   { line, source: "manual", cost, markup_pct? }                   a cost typed by hand; the rate is cost plus the markup
 // The price never comes from the body except for a manual rate: source and ref only NAME an offer the server finds for itself.
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -28,6 +29,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     source, ref: typeof body.ref === "string" ? body.ref : null,
     markup_pct: typeof body.markup_pct === "number" ? body.markup_pct : null,
     accept_stale: body.accept_stale === true, rate: typeof body.rate === "number" ? body.rate : null,
+    cost: typeof body.cost === "number" ? body.cost : null,
   });
   if (!out.ok) return NextResponse.json({ error: out.error }, { status: out.status });
   return NextResponse.json(out);

@@ -77,7 +77,7 @@ export default function CostingRow({ item, opportunityId, today, canEdit, canAwa
             <Button variant="secondary" size="sm" href={href} style={{ minHeight: 44 }} data-guide="costing.estimate.open">Open</Button>
             {canEdit && !item.locked && (
               <Button variant="secondary" size="sm" onClick={() => onPriceRows(item.id)} disabled={busy} style={{ minHeight: 44 }} data-guide="costing.estimate.price_rows">
-                {item.linked_rows > 0 ? "Price more BOQ rows" : "Price the BOQ rows"}
+                Add rows
               </Button>
             )}
             {canEdit && item.stale_link_ids.length > 0 && (

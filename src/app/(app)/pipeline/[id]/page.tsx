@@ -23,14 +23,16 @@ import SourceEmailSlot from "@/components/inbox/SourceEmailSlot";
 import { rfqPrefill } from "@/components/rfq/prefill";
 import { boqOrderedLines } from "@/lib/tender/boq/lineSync";
 import { listBidVersions } from "@/lib/tender/bids/server";
+import { listSends } from "@/lib/tender/bids/sends";
 import { priceValidityDays } from "@/lib/tender/boq/price";
 import { listCalls } from "@/lib/tender/callsServer";
 import { isOutcomeStage, type OutcomeData } from "@/lib/tender/outcome";
 import { linesVersion } from "@/lib/sales/dealLines";
 import { rfqLineStatuses } from "@/lib/rfq/server";
 import { loadProjectBySource } from "@/lib/contractProjects/server";
+import { buildBoqState } from "@/lib/tender/boq/server";
 
-export default async function OpportunityDetailPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams?: Promise<{ tab?: string; boqfilter?: string }> }) {
+export default async function OpportunityDetailPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams?: Promise<{ tab?: string; boqfilter?: string; row?: string }> }) {
   await requireWorkcenterView("pipeline");
   await requireFeature("pipeline");
   const { id } = await params;
@@ -61,7 +63,7 @@ export default async function OpportunityDetailPage({ params, searchParams }: { 
   let tenderTab: TenderTabData | null = null;
   if (tender) {
     const roomOn = tenant?.features?.deal_room === true;
-    const [names, timezone, { data: allAccounts }, approval, room, bidList, callList] = await Promise.all([
+    const [names, timezone, { data: allAccounts }, approval, room, bidList, callList, sendList] = await Promise.all([
       loadActorNames(admin, tenantId, [tender.decided_by, tender.bond_released_by]),
       tenantTimezone(tenantId),
       admin.from("accounts").select("id, name").eq("tenant_id", tenantId).order("name"),
@@ -69,6 +71,7 @@ export default async function OpportunityDetailPage({ params, searchParams }: { 
       roomOn ? roomSummary(admin, tenantId, userId, id) : Promise.resolve(null),
       listBidVersions(admin, tenantId, id),
       listCalls(admin, tenantId, id, { userId, isAdmin: role === "admin" }),
+      listSends(admin, tenantId, id),
     ]);
     const view: TenderView = {
       tender_no: tender.tender_no, issuer_name: tender.issuer_name, issuer_account_id: tender.issuer_account_id, portal: tender.portal,
@@ -85,14 +88,20 @@ export default async function OpportunityDetailPage({ params, searchParams }: { 
     const costingTab = (tenant?.features?.estimator === true && canViewWorkcenter(dealPerms, "estimates")) || (tenant?.features?.rfq === true && canViewWorkcenter(dealPerms, "rfqs")) ? { canEdit: boqEdit } : null;
     // Slice 4 (migration 0225): bid versions, logged calls and, once the tender has ended, the outcome facts.
     const latestBid = bidList.versions[0] ?? null;
-    const bids: BidsData = { versions: bidList.versions, pending: bidList.pending, working_total: 0, canEdit: boqEdit };
+    // The path across the top reads the BOQ's totals; a BOQ that cannot be read (migration pending) is simply "no BOQ yet".
+    let boq: NonNullable<TenderTabData["boq"]> = { hasBoq: false, lines: 0, unpriced: 0, stale: 0, noProduct: 0, amount: 0 };
+    try {
+      const st = await buildBoqState({ admin, supabase, tenantId, userId, role: role === "admin" ? "admin" : "member", opp, tender });
+      if (st.source) boq = { hasBoq: true, lines: st.totals.lines, unpriced: st.totals.unpriced, stale: st.totals.stale, noProduct: st.totals.no_product, amount: st.totals.amount };
+    } catch { /* the BOQ tab reports its own error */ }
+    const bids: BidsData = { versions: bidList.versions, pending: bidList.pending, working_total: 0, canEdit: boqEdit, sends: sendList };
     const calls: CallsData = { calls: callList.calls, pending: callList.pending, canEdit: boqEdit };
     const outcome: OutcomeData | null = isOutcomeStage(opp.stage) ? {
       stage: opp.stage, award_value: tender.award_value, winning_bidder: tender.winning_bidder, award_date: tender.award_date, outcome_note: tender.outcome_note,
       competitor: opp.competitor, loss_reason: opp.loss_reason, our_total: latestBid ? latestBid.total : null, our_version: latestBid ? latestBid.version_no : null,
       currency: opp.currency, canEdit: boqEdit, pending: bidList.pending,
     } : null;
-    tenderTab = { view, approval, boqEdit, bids, calls, outcome, costing: costingTab, room: room ? { pending: room.pending, unread: room.unread, openQuestions: room.openQuestions, isAdmin: role === "admin" } : null, accounts: (allAccounts ?? []) as { id: string; name: string }[], nowIso: new Date().toISOString(), timezone };
+    tenderTab = { view, approval, boqEdit, boq, bids, interactions: { canEdit: boqEdit }, calls, outcome, costing: costingTab, room: room ? { pending: room.pending, unread: room.unread, isAdmin: role === "admin" } : null, accounts: (allAccounts ?? []) as { id: string; name: string }[], nowIso: new Date().toISOString(), timezone };
   }
 
   // Contract projects (slice 5a): only for a tender, and only in a workspace with the module (otherwise no query at all).
@@ -141,6 +150,7 @@ export default async function OpportunityDetailPage({ params, searchParams }: { 
       activity={<RecordActivity objectType="opportunities" objectId={id} extraChangeLogTypes={tender ? ["opportunity_tenders", "opportunity_competitors"] : undefined} isAdmin={role === "admin"} />}
       tender={tenderTab}
       initialTab={tenderTab ? wantedTab : undefined}
+      initialOpenRow={tenderTab && sp?.row && /^[0-9a-f-]{36}$/i.test(sp.row) ? sp.row : undefined}
       contractProject={contractProject}
       canStartContractProject={canStartProject}
       sourceEmail={tender ? <SourceEmailSlot objectType="opportunities" objectId={id} bare /> : undefined}

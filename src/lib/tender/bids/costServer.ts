@@ -1,7 +1,6 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { getTenant } from "@/lib/tenant";
-import { contractProjectSettings, type DealLine } from "@/lib/contractProjects/fromTender";
+import type { DealLine } from "@/lib/contractProjects/fromTender";
 import { loadOpportunityLines } from "@/lib/sales/opportunityServer";
 import { loadEstimateBudgetInputs } from "../estimates/budgetServer";
 import { isMissingSchema } from "../server";
@@ -13,12 +12,11 @@ import { readAllPages } from "@/lib/pagedRead";
 // only these functions, on the service-role client, ever touch it. Every query is tenant-scoped and tolerates the migration being
 // pending. This is the only place that writes or reads the table; the bid routes, the exports and the answer sheet never import it.
 
-/** The cost of a bid as it stands now: the deal's lines, their BOQ rows, the estimates that priced them and the workspace's margin. */
+/** The cost of a bid as it stands now: the deal's lines, their BOQ rows and the estimates that priced them. */
 export async function buildCurrentCost(admin: SupabaseClient, tenantId: string, opportunityId: string, snap: Pick<Snapshot, "lines" | "source_ids">): Promise<CostSnapshot> {
-  const [deal, boqRes, tenant, estimates] = await Promise.all([
+  const [deal, boqRes, estimates] = await Promise.all([
     loadOpportunityLines(admin, tenantId, opportunityId),
     readAllPages((lo, hi) => admin.from("tender_boq_lines").select("line_id, item_no, cost_code, unit_cost, markup_pct, price_source, price_source_ref").eq("tenant_id", tenantId).eq("opportunity_id", opportunityId).order("id", { ascending: true }).range(lo, hi)),
-    getTenant(),
     loadEstimateBudgetInputs(admin, tenantId, opportunityId),
   ]);
   const boq = new Map<string, CostBoqInfo>();
@@ -30,7 +28,7 @@ export async function buildCurrentCost(admin: SupabaseClient, tenantId: string, 
     });
   }
   const dealLines = new Map((deal as unknown as DealLine[]).map((l) => [l.id, l]));
-  return buildCostSnapshot({ snapshot: snap, dealLines, boq, defaultMarginPct: contractProjectSettings(tenant?.config).defaultMarginPct, estimates });
+  return buildCostSnapshot({ snapshot: snap, dealLines, boq, estimates });
 }
 
 export type SaveCostResult = "saved" | "pending" | "failed";

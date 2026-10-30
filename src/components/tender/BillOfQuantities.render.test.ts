@@ -14,7 +14,7 @@ import type { LinkView } from "@/lib/tender/estimates/server";
 const nav = vi.hoisted(() => ({ search: "" }));
 vi.mock("next/navigation", () => ({ useSearchParams: () => new URLSearchParams(nav.search), useRouter: () => ({ push: () => {}, refresh: () => {}, replace: () => {} }) }));
 
-import BoqTab, { type BoqScreenState } from "./BoqTab";
+import BoqTab, { leftText, type BoqScreenState } from "./BoqTab";
 import BoqDownloads, { AnswerSheetButton, PricedBoqButton } from "./BoqDownloads";
 
 const ROOT = path.resolve(__dirname, "../../..");
@@ -58,7 +58,10 @@ describe("the table (desktop)", () => {
   it("is one table, one row per client line, with the client's item numbers as written and a row without a number named by its row in the file", () => {
     const out = html();
     expect(out).toContain("<table");
-    for (const th of ["Item", "Description", "Qty", "Unit", "Source", "Cost", "Mk", "Rate", "Amount", "Linked"]) expect(out, th).toContain(`>${th}</th>`);
+    expect(out).toContain(">Item</th>");
+    for (const th of ["Cost from", "Cost / unit", "Markup %", "Rate / unit", "Product"]) expect(out, th).toMatch(new RegExp(`<th[^>]*><span[^>]*>${th.replace("/", "\/")}<button[^>]*aria-label="About ${th.replace("/", "\/")}"`));
+    for (const th of ["Description", "Qty", "Unit", "Amount"]) expect(out, th).toContain(`>${th}</th>`);
+    for (const old of [">Source<", ">Mk<", ">Linked<"]) expect(out, old).not.toContain(old);
     for (const item of ["A.1", "A.2", "A.3", "A.4", "#12"]) expect(out, item).toContain(`aria-label="Open item ${item}"`);
     expect(out).not.toContain("Dropped in revision");
     expect(out.match(/data-guide="boq\.line"/g)?.length).toBe(5);
@@ -121,7 +124,9 @@ describe("the toolbar, the strip and the filters", () => {
     const bar = out.slice(out.indexOf('data-guide="boq.toolbar"'), out.indexOf('data-guide="boq.summary"'));
     expect(bar).toContain("Upload revised BOQ");
     expect(bar).toContain("Price all lines");
-    expect(bar).toContain('data-guide="boq.markup"');
+    expect(bar).toMatch(/<label data-guide="boq\.markup"[^>]*>Markup on cost<input[^>]*value="15"[^>]*\/>%<button[^>]*aria-label="About Markup"/);
+    expect(bar).toContain("align-items:center");
+    expect(bar).toContain("Price all uses supplier, then BOM, then past project. Fresh prices only.");
     expect(out).toContain('data-guide="boq.match.chip"');
     for (const w of ["Download priced BOQ", "Export answer sheet", "boq.download", "boq.answer_sheet"]) expect(out, w).not.toContain(w);
   });
@@ -135,7 +140,26 @@ describe("the toolbar, the strip and the filters", () => {
   it("the strip says lines, the priced percent and the total at cost plus markup", () => {
     const out = html();
     expect(out).toContain('data-guide="boq.summary"');
-    for (const w of ["Lines", "Priced", "Total", "60%", "3 of 5, 2 to price", "at cost + markup", "31,645.00"]) expect(out, w).toContain(w);
+    for (const w of ["Lines", "Priced", "Total", "60%", "3 of 5 · 2 to price", "at cost + markup", "31,645.00"]) expect(out, w).toContain(w);
+  });
+
+  it("the Priced tile carries the to-price count and an i; the separate left list is gone", () => {
+    const out = html();
+    expect(out).toMatch(/Priced<\/span><button[^>]*aria-label="About Priced"/);
+    expect(out).not.toContain("boq.left");
+    expect(out).not.toContain("Left unpriced");
+    expect(html({ initialData: state({ totals: { lines: 5, priced: 5, unpriced: 0, stale: 0, amount: 1, no_product: 0 } }) })).toContain("all lines priced");
+  });
+
+  it("a stale chip carries its own i in the table, and not inside a phone card", () => {
+    expect(html()).toMatch(/data-chip="stale"[^>]*>.*?aria-label="About Stale"/);
+    expect(html({ layout: "cards" })).not.toContain("About Stale");
+  });
+
+  it("the notice after Price all lists the first three reasons, then how many more", () => {
+    expect(leftText([{ item: "5.1", reason: "no price found" }])).toBe("5.1 no price found");
+    expect(leftText([1, 2, 3, 4, 5].map((n) => ({ item: `${n}`, reason: "no price found" })))).toBe("1 no price found; 2 no price found; 3 no price found; +2");
+    expect(leftText(undefined)).toBe("");
   });
 
   it("filters All, Unpriced and Stale carry their counts; the address picks one and shows only those rows", () => {
@@ -253,6 +277,18 @@ describe("the row panel", () => {
     expect(src).toMatch(/rfqCand/);
     expect(src).toContain("Award in Costing");
     expect(src).not.toMatch(/\/award|source: "supplier"/);
+  });
+
+  it("offers Edit cost to an editor, saved as Manual (not to a view-only person)", () => {
+    const out = open();
+    expect(out).toContain('data-guide="boq.row.cost_edit"');
+    expect(out).toContain("Cost / unit");
+    expect(out).toContain("Save cost");
+    expect(out).toMatch(/<input[^>]*value="16"/);
+    for (const b of [...out.matchAll(/<button[^>]*data-guide="boq\.row\.save_cost"[^>]*>/g)].map((m) => m[0])) expect(b).toMatch(/min-height:44px/);
+    const view = open({ canEdit: false });
+    expect(view).not.toContain('data-guide="boq.row.cost_edit"');
+    expect(view).not.toContain("Save cost");
   });
 
   it("a view-only person sees the values but cannot save", () => {

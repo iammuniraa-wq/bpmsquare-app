@@ -7,7 +7,10 @@ export const COMPETITOR_TIPS = {
   strengths: "What they are good at: price, local presence, past work for this client, delivery speed.",
   winner: "Mark the company that won. It is saved as who won on the deal, so Lost tenders and reports agree.",
   insights: "Searches the public web for this company and shows what it is doing. It uses part of your AI allowance; a saved card shows again free.",
-  insightsAll: "Runs the company analysis for every competitor on this list, one at a time.",
+  status: "Proposed came from market research and is not saved as a competitor until you accept it. Added by you is yours.",
+  evidence: "Each fact links to the page it came from. Nothing without a source is shown; not found means no page stated it.",
+  suggest: "Searches the public web for likely bidders and proposes them with a source for every fact. It uses part of your AI allowance; nothing is saved until you accept.",
+  assumes: "What the research was told about this tender. It is context for you; it is not saved as a tender field.",
   cheaper: "How many competitors you expect to quote below you. Only those with an expected price count.",
   whoWon: "Pick a competitor from this tender, or Someone else to add a new one. The company you pick is marked as the winner.",
 } as const;

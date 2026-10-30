@@ -17,6 +17,8 @@ import { type CostingData } from "@/lib/tender/costing/rules";
 import { COSTING_TIPS } from "@/lib/tender/costing/tips";
 import { ESTIMATE_TIPS } from "@/lib/tender/estimates/tips";
 import CostingRow from "./costing/CostingRow";
+import CostSourcesTable from "./costing/CostSourcesTable";
+import { useCards } from "./useCards";
 import CompareAward from "./costing/CompareAward";
 import PriceRowsPanel from "./costing/PriceRowsPanel";
 import { postReprice } from "./quantityGuard";
@@ -26,11 +28,11 @@ import { postReprice } from "./quantityGuard";
 // award screen where a supplier price becomes a row's cost plus markup. It replaces the Estimates tab and the RFQ card on the Related
 // tab for a tender. Costs are internal: the tab is for people who may see Estimates or RFQs.
 
-const PAGE = 8;
+const PAGE = 10;
 const PENDING_EST = "Estimates inside a tender need a database update (migration 0227). Ask your administrator to apply it.";
 const PENDING_RFQ = "RFQs need a database update (migration 0128). Ask your administrator to apply it.";
 
-export default function CostingTab({ opportunityId, canEdit, onError, onNotice, onOpenBoq, onChanged, initialData, initialCompareId }: {
+export default function CostingTab({ opportunityId, canEdit, onError, onNotice, onOpenBoq, onChanged, initialData, initialCompareId, layout }: {
   opportunityId: string;
   canEdit: boolean;
   onError: (message: string) => void;
@@ -42,6 +44,7 @@ export default function CostingTab({ opportunityId, canEdit, onError, onNotice, 
   /** Lets a server render (and its test) show the loaded tab. The page never passes it. */
   initialData?: CostingData;
   initialCompareId?: string;
+  layout?: "table" | "cards";
 }) {
   const { confirm } = useFeel();
   const url = `/api/opportunities/${opportunityId}/tender/costing`;
@@ -54,6 +57,7 @@ export default function CostingTab({ opportunityId, canEdit, onError, onNotice, 
   const [template, setTemplate] = useState("");
   const [busy, setBusy] = useState(false);
   const compareRef = useRef<HTMLDivElement>(null);
+  const cards = useCards(layout);
 
   const load = useCallback(async () => {
     try {
@@ -134,7 +138,7 @@ export default function CostingTab({ opportunityId, canEdit, onError, onNotice, 
       )}
 
       <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-        <span className="bpm-label-row"><h2 className="bpm-t-section">Estimates and RFQs</h2><InfoTip label="Costing">{COSTING_TIPS.tab}</InfoTip></span>
+        <span className="bpm-label-row"><h2 className="bpm-t-section">Cost sources</h2><InfoTip label="Costing">{COSTING_TIPS.tab}</InfoTip></span>
         <span style={{ marginLeft: "auto", display: "inline-flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
           {data.estimates_on && !data.pending_estimates && data.can_create_estimate && canEdit && (
             <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
@@ -160,19 +164,31 @@ export default function CostingTab({ opportunityId, canEdit, onError, onNotice, 
           />
         </Card>
       ) : (
-        <Card padding={12}>
-          <div data-guide="costing.list" style={{ display: "flex", flexDirection: "column" }}>
-            {shown.map((item) => (
-              <CostingRow
-                key={`${item.kind}:${item.id}`} item={item} opportunityId={opportunityId} today={data.today}
-                canEdit={canEdit && data.can_edit} canAward={canEdit && data.can_award} rfqsOn={data.rfqs_on && !data.pending_rfqs}
-                onOpenBoq={onOpenBoq ? () => onOpenBoq() : undefined}
-                onCompare={setCompareId} onPriceAwarded={setCompareId} onPriceRows={setPriceRowsFor} onReprice={(id) => void reprice(id)}
-                onRfqCreated={() => { onNotice?.("RFQ created"); afterChange(); }}
-                busy={busy} comparing={compareId === item.id}
-              />
-            ))}
-          </div>
+        <Card padding={cards ? 12 : 0}>
+          {cards ? (
+            <div data-guide="costing.list" style={{ display: "flex", flexDirection: "column" }}>
+              {shown.map((item) => (
+                <CostingRow
+                  key={`${item.kind}:${item.id}`} item={item} opportunityId={opportunityId} today={data.today}
+                  canEdit={canEdit && data.can_edit} canAward={canEdit && data.can_award} rfqsOn={data.rfqs_on && !data.pending_rfqs}
+                  onOpenBoq={onOpenBoq ? () => onOpenBoq() : undefined}
+                  onCompare={setCompareId} onPriceAwarded={setCompareId} onPriceRows={setPriceRowsFor} onReprice={(id) => void reprice(id)}
+                  onRfqCreated={() => { onNotice?.("RFQ created"); afterChange(); }}
+                  busy={busy} comparing={compareId === item.id}
+                />
+              ))}
+            </div>
+          ) : (
+            <CostSourcesTable
+              items={shown} opportunityId={opportunityId} today={data.today}
+              canEdit={canEdit && data.can_edit} canAward={canEdit && data.can_award} rfqsOn={data.rfqs_on && !data.pending_rfqs}
+              onOpenBoq={onOpenBoq ? () => onOpenBoq() : undefined}
+              onCompare={setCompareId} onPriceAwarded={setCompareId} onPriceRows={setPriceRowsFor} onReprice={(id) => void reprice(id)}
+              onRfqCreated={() => { onNotice?.("RFQ created"); afterChange(); }}
+              busy={busy} comparingId={compareId}
+            />
+          )}
+          {!cards && <div style={{ padding: "6px 12px", fontSize: 12, color: c.muted }}>Each BOQ row takes its cost from one source.</div>}
           {data.items.length > PAGE && (
             <Button variant="quiet" onClick={() => setShowAll(!showAll)} style={{ minHeight: 44 }} data-guide="costing.show_all">{showAll ? "Show fewer" : `Show all ${data.items.length}`}</Button>
           )}

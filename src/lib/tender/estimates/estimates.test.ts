@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { tipTextProblems } from "@/lib/infoTip";
-import { mapTenderToBudget, type BoqInfo, type DealLine } from "@/lib/contractProjects/fromTender";
+import type { BoqInfo, DealLine } from "@/lib/contractProjects/fromTender";
+import { mapTenderToCostLines } from "@/lib/tender/bids/costLines";
 import { buildSnapshot } from "@/lib/tender/bids/rules";
 import { PRICE_SOURCE_LABEL } from "@/lib/tender/boq/price";
 import { ESTIMATE_TIPS } from "./tips";
@@ -369,7 +370,7 @@ describe("the budget a tender's estimates give a contract project", () => {
     expect(gone.warnings).toHaveLength(2);
   });
 
-  describe("in the budget from a won tender", () => {
+  describe("in the cost lines of a bid (what Fill from tender costs reads)", () => {
     const deal = (over: Partial<DealLine> = {}): DealLine => ({ id: "d1", sl_no: "1.1", description: "HDPE pipe laid", uom: "m", qty: 120, rate: 90, discount_pct: 0, is_selected: true, break_of: null, ...over });
     const boq = new Map<string, BoqInfo>([
       ["d1", { item_no: "1.1", cost_code: "33 11 00", unit_cost: null, price_source: "estimate", price_source_ref: "EST-0007" }],
@@ -378,36 +379,37 @@ describe("the budget a tender's estimates give a contract project", () => {
     const codes = new Set(["33 11 00"]);
     const estimates = new Map([["d1", { links: [{ link: { output: "total", basis: "total" as const, share_pct: 100, ...info() }, estimate: est }] }]]);
 
-    it("takes the estimate's lines for a BOQ line it priced and keeps the old rule for the rest", () => {
-      const m = mapTenderToBudget({ lines: [deal(), deal({ id: "d2", sl_no: "1.2", description: "Valves", qty: 4, rate: 100 })], boq, costCodes: codes, defaultMarginPct: 15, estimates });
+    it("takes the estimate's lines for a BOQ line it priced; a line with no recorded cost has NO cost lines (it is never guessed)", () => {
+      const m = mapTenderToCostLines({ lines: [deal(), deal({ id: "d2", sl_no: "1.2", description: "Valves", qty: 4, rate: 100 })], boq, costCodes: codes, estimates });
       expect(m.fromEstimate).toBe(1);
-      expect(m.lines).toHaveLength(4); // three estimate lines + one standard line
-      expect(m.lines.slice(0, 3).every((l) => l.cost_known)).toBe(true);
-      const last = m.lines[3];
-      expect(last).toMatchObject({ resource_code: "11", unit_cost: 85, cost_known: false });
-      expect(m.estimated).toBe(1);
+      expect(m.lines).toHaveLength(3); // three estimate lines, nothing for the line with no cost
+      expect(m.lines.every((l) => l.cost_known)).toBe(true);
+      expect(m.estimated).toBe(1); // counts the line with no recorded cost
+      expect(m.lines.some((l) => l.description === "Valves")).toBe(false);
       expect(m.unmappedCodes).toEqual([]);
     });
 
-    it("without estimates the result is exactly what it was before", () => {
-      const a = mapTenderToBudget({ lines: [deal()], boq, costCodes: codes, defaultMarginPct: 15 });
-      const b = mapTenderToBudget({ lines: [deal()], boq, costCodes: codes, defaultMarginPct: 15, estimates: new Map() });
-      expect(b.lines).toEqual(a.lines);
-      expect(a.fromEstimate).toBe(0);
+    it("a recorded BOQ cost becomes one cost line; without estimates or a cost there is nothing", () => {
+      const priced = new Map<string, BoqInfo>([["d1", { item_no: "1.1", cost_code: "33 11 00", unit_cost: 76.5, price_source: "supplier", price_source_ref: "RFQ-0004" }]]);
+      const a = mapTenderToCostLines({ lines: [deal()], boq: priced, costCodes: codes });
       expect(a.lines).toHaveLength(1);
-      expect(a.lines[0]).toMatchObject({ resource_code: "11", unit_cost: 76.5, cost_known: false });
+      expect(a.lines[0]).toMatchObject({ resource_code: "11", unit_cost: 76.5, cost_known: true, source_ref: "Cost from RFQ-0004" });
+      const b = mapTenderToCostLines({ lines: [deal()], boq, costCodes: codes, estimates: new Map() });
+      expect(b.lines).toEqual([]);
+      expect(b.estimated).toBe(1);
+      expect(b.fromEstimate).toBe(0);
     });
 
-    it("falls back to the old rule when the estimate gives nothing usable, and says why", () => {
+    it("falls back to the recorded cost (or nothing) when the estimate gives nothing usable, and says why", () => {
       const gone = new Map([["d1", { links: [{ link: { output: "wbs:9", basis: "total" as const, share_pct: 100, ...info() }, estimate: est }] }]]);
-      const m = mapTenderToBudget({ lines: [deal()], boq, costCodes: codes, defaultMarginPct: 15, estimates: gone });
+      const m = mapTenderToCostLines({ lines: [deal()], boq, costCodes: codes, estimates: gone });
       expect(m.fromEstimate).toBe(0);
-      expect(m.lines).toHaveLength(1);
+      expect(m.lines).toEqual([]);
       expect(m.estimateWarnings.length).toBe(1);
     });
 
     it("an unmapped BOQ cost code is still reported when the estimate supplies the lines", () => {
-      const m = mapTenderToBudget({ lines: [deal()], boq, costCodes: new Set(["00 00 00"]), defaultMarginPct: 15, estimates });
+      const m = mapTenderToCostLines({ lines: [deal()], boq, costCodes: new Set(["00 00 00"]), estimates });
       expect(m.unmappedCodes).toEqual(["33 11 00"]);
       expect(m.lines.every((l) => l.cost_code === null)).toBe(true);
     });

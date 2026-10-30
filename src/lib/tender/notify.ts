@@ -12,8 +12,10 @@ import { logEmail } from "@/lib/emailLog";
 //     (mark read, link to the deal) works unchanged. The inbox is a Nova surface; a workspace without it still gets the e-mail.
 // Nothing here throws: a failed notification never fails the decision or the message that caused it.
 
+export type TenderMailAttachment = { filename: string; content: Buffer };
+
 export type TenderMailer = {
-  send(p: { from: string; to: string[]; subject: string; text: string }): Promise<{ error?: string | null }>;
+  send(p: { from: string; to: string[]; subject: string; text: string; attachments?: TenderMailAttachment[] }): Promise<{ error?: string | null }>;
 };
 
 export function defaultMailer(): TenderMailer | null {
@@ -21,7 +23,7 @@ export function defaultMailer(): TenderMailer | null {
   const resend = new Resend(process.env.RESEND_API_KEY);
   return {
     async send(p) {
-      const r = await resend.emails.send({ from: p.from, to: p.to, subject: p.subject, text: p.text });
+      const r = await resend.emails.send({ from: p.from, to: p.to, subject: p.subject, text: p.text, ...(p.attachments?.length ? { attachments: p.attachments } : {}) });
       return { error: r.error?.message ?? null };
     },
   };
@@ -53,32 +55,47 @@ export async function memberEmails(admin: SupabaseClient, tenantId: string, user
   return out;
 }
 
-/** Send one e-mail to workspace members through resolveOutbound and log it. Returns true when it went. */
-export async function sendTenderMail(
+export type TenderMailResult =
+  | { ok: true; to: string[]; intended: string[]; redirected: boolean }
+  | { ok: false; error: string; stage: "route" | "send" };
+
+type TenderMailMessage = { to: string[]; subject: string; text: string; dealId: string; dealLabel: string; actorId?: string | null; actorEmail?: string | null; attachments?: TenderMailAttachment[] };
+
+/**
+ * Send one e-mail through resolveOutbound and log it, and say where it really went (a demo workspace redirects: the caller records the
+ * redirect, not the address the person typed). `stage` tells a refusal before sending (no redirect inbox on a demo workspace) from a
+ * failure of the sender itself.
+ */
+export async function sendTenderMailDetailed(
   admin: SupabaseClient,
   tenant: NotifyTenant,
-  msg: { to: string[]; subject: string; text: string; dealId: string; dealLabel: string; actorId?: string | null; actorEmail?: string | null },
+  msg: TenderMailMessage,
   mailer: TenderMailer | null | undefined = defaultMailer(),
-): Promise<boolean> {
+): Promise<TenderMailResult> {
   const label = msg.dealLabel;
-  const fail = async (why: string) => {
+  const fail = async (why: string, stage: "route" | "send"): Promise<TenderMailResult> => {
     await logEmail(admin, { tenantId: tenant.id, kind: "tender", toEmail: msg.to.join(", "), subject: msg.subject, status: "failed", error: why, relatedObjectType: "opportunities", relatedObjectId: msg.dealId, relatedObjectLabel: label, actorId: msg.actorId, actorEmail: msg.actorEmail });
-    return false;
+    return { ok: false, error: why, stage };
   };
-  if (msg.to.length === 0) return false;
+  if (msg.to.length === 0) return { ok: false, error: "No recipient.", stage: "route" };
   const routed = resolveOutbound(emailOutputFor({ is_demo: tenant.is_demo, config: tenant.config }), { to: msg.to, subject: msg.subject, text: msg.text });
-  if (!routed.ok) return fail(routed.error);
-  if (!mailer) return fail("Email sending isn't configured (missing RESEND_API_KEY).");
+  if (!routed.ok) return fail(routed.error, "route");
+  if (!mailer) return fail("Email sending isn't configured (missing RESEND_API_KEY).", "send");
   const from = `${displayName(tenant.name)} <${(tenant.slug || "tenders").toLowerCase().replace(/[^a-z0-9._-]/g, "") || "tenders"}@${process.env.RESEND_SENDING_DOMAIN || "bpmsquare.com"}>`;
   let sendError: string | null = null;
   try {
-    sendError = (await mailer.send({ from, to: routed.email.to, subject: routed.email.subject, text: routed.email.text })).error ?? null;
+    sendError = (await mailer.send({ from, to: routed.email.to, subject: routed.email.subject, text: routed.email.text, ...(msg.attachments?.length ? { attachments: msg.attachments } : {}) })).error ?? null;
   } catch (e) {
     sendError = (e as Error).message;
   }
-  if (sendError) return fail(sendError);
+  if (sendError) return fail(sendError, "send");
   await logEmail(admin, { tenantId: tenant.id, kind: "tender", toEmail: routed.email.to.join(", "), subject: routed.email.subject, status: "sent", relatedObjectType: "opportunities", relatedObjectId: msg.dealId, relatedObjectLabel: label, actorId: msg.actorId, actorEmail: msg.actorEmail });
-  return true;
+  return { ok: true, to: routed.email.to, intended: routed.email.intended, redirected: routed.email.redirected };
+}
+
+/** Send one e-mail to workspace members through resolveOutbound and log it. Returns true when it went. */
+export async function sendTenderMail(admin: SupabaseClient, tenant: NotifyTenant, msg: TenderMailMessage, mailer: TenderMailer | null | undefined = defaultMailer()): Promise<boolean> {
+  return (await sendTenderMailDetailed(admin, tenant, msg, mailer)).ok;
 }
 
 /**

@@ -154,7 +154,7 @@ export default async function NewEstimatePage({ searchParams }: { searchParams: 
   }
 
   const [meta, tenant] = await Promise.all([loadTenantMeta(tenantId), getTenant()]);
-  const { canQuote, quoteUnavailable } = quoteAbility(perms, tenant, canEditWorkcenter(perms, "estimates"), false);
+  const { canQuote, quoteUnavailable } = quoteAbility(perms, tenant, canEditWorkcenter(perms, "estimates"), false, dealCtx !== null);
 
   return (
     <>
@@ -175,6 +175,7 @@ export default async function NewEstimatePage({ searchParams }: { searchParams: 
         canEdit
         canQuote={canQuote}
         quoteUnavailable={quoteUnavailable}
+        fromTender={dealCtx !== null}
         emailFirst={emailParam === "1" || (viaInbox && !chosen)}
       />
     </>

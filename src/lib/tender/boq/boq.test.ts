@@ -309,4 +309,26 @@ describe("writing the priced workbook", () => {
     expect(ws.getCell("F4").value).toMatchObject({ result: 24000 });
     expect(JSON.stringify(ws.getSheetValues())).not.toMatch(/cost|margin|markup/i);
   });
+
+  const terms = { name: "Standard 30/70", lines: ["Advance: 30%, on award", "Balance: 70%, on delivery"] };
+
+  it("the chosen payment terms are printed on their own last sheet of the answer sheet and the priced file; nothing is added without a choice", async () => {
+    const sheet = await loadWorkbook(await buildAnswerSheet([{ item_no: "A.1", description: "Excavation", uom: "m3", qty: 1, rate: 20, amount: 20, notes: "" }], "ARB-1", terms));
+    expect(sheet.worksheets.map((w) => w.name)).toEqual(["Answer sheet", "Payment terms"]);
+    const pt = sheet.getWorksheet("Payment terms")!;
+    expect(pt.getCell("A1").value).toBe("Payment terms");
+    expect(pt.getCell("A2").value).toBe("Standard 30/70");
+    expect(pt.getCell("A4").value).toBe("Advance: 30%, on award");
+    expect(pt.getCell("A5").value).toBe("Balance: 70%, on delivery");
+    expect(JSON.stringify(pt.getSheetValues())).not.toMatch(/cost|margin|markup/i);
+
+    const priced = await loadWorkbook(await writePricedWorkbook(await messyWorkbook(), basePlan({ terms })));
+    expect(priced.worksheets.at(-1)!.name).toBe("Payment terms");
+    expect(priced.getWorksheet("BOQ Bill 1")!.getCell("F8").value).toBe(20);
+
+    expect((await loadWorkbook(await buildAnswerSheet([], "ARB-1"))).worksheets.map((w) => w.name)).toEqual(["Answer sheet"]);
+    expect((await loadWorkbook(await buildAnswerSheet([], "ARB-1", { name: "Empty", lines: [] }))).worksheets.map((w) => w.name)).toEqual(["Answer sheet"]);
+    const plain = await loadWorkbook(await writePricedWorkbook(await messyWorkbook(), basePlan()));
+    expect(plain.getWorksheet("Payment terms")).toBeUndefined();
+  });
 });

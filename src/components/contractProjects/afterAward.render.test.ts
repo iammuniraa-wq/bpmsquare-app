@@ -14,7 +14,7 @@ vi.mock("next/link", () => ({ default: (p: { href: string; children: unknown }) 
 import VariationsTab, { outcomeSentence } from "./VariationsTab";
 import InvoicingTab from "./InvoicingTab";
 import ProjectOverview from "./ProjectOverview";
-import { BidAgainstBudgetCard, ProjectOriginCard } from "./ProjectOriginCards";
+import { BidAgainstBudgetCard } from "./ProjectOriginCards";
 import { PROJECT_TIPS } from "@/lib/contractProjects/tips";
 import { budgetTotals, plannedMargin } from "@/lib/contractProjects/budget";
 import { variationTotals } from "@/lib/contractProjects/variations";
@@ -22,7 +22,6 @@ import { milestoneTotals } from "@/lib/contractProjects/milestones";
 import type { VariationsData, VariationView } from "@/lib/contractProjects/variationsServer";
 import type { MilestonesData, MilestoneView } from "@/lib/contractProjects/milestonesServer";
 import type { ProjectView } from "@/lib/contractProjects/view";
-import type { ProjectOrigin } from "@/lib/contractProjects/originServer";
 import { statusChoices } from "./MilestonePanel";
 
 // The after-award screens render, with the right things on them and none of their explanations printed (6b). A server render of the real
@@ -48,7 +47,7 @@ const milestone = (over: Partial<MilestoneView> = {}): MilestoneView => ({
   created_by: "u1", created_at: "", updated_at: "", amount: 31500, display_status: "planned", invoice_ref: null, invoice_status: null, ...over,
 });
 const mdata = (rows: MilestoneView[], over: Partial<MilestonesData> = {}): MilestonesData => ({
-  milestones: rows, totals: milestoneTotals(rows.map((r) => ({ ...r, invoice_status: r.invoice_status })), 105000), currency: "SAR", pending: false, canEdit: true, invoicesOn: true, hasCustomer: true, tax: { kind: "added", label: "VAT", rate: 15, source: "einvoice" }, ...over,
+  milestones: rows, totals: milestoneTotals(rows.map((r) => ({ ...r, invoice_status: r.invoice_status })), 105000), currency: "SAR", pending: false, canEdit: true, invoicesOn: true, hasCustomer: true, tax: { kind: "added", label: "VAT", rate: 15, source: "einvoice" }, termsOffer: null, ...over,
 });
 const itab = (d: MilestonesData, panel?: { id?: string }, closed = false) => clean(renderToString(createElement(InvoicingTab, { projectId: "p1", data: d, initialPanel: panel, projectClosed: closed })));
 
@@ -58,6 +57,11 @@ describe("the Variations tab", () => {
     variation({ id: "v2", ref: "VAR-0002", title: "Omit the gate", amount: -2000, cost_amount: -1200, status: "submitted", submitted_by_name: "Sara", submitted_at: "2026-10-23T00:00:00Z", can_decide: true }),
   ];
   const out = vtab(vdata(rows));
+
+  it("has a one-line header named for the client, with an i", () => {
+    expect(out).toContain("Client change orders");
+    expect(out).toContain("About Client changes");
+  });
 
   it("opens with three tiles: approved variations, the revised contract value (with the original), and what waits", () => {
     expect(out).toContain('data-guide="cp.variations.kpis"');
@@ -171,6 +175,11 @@ describe("the Invoicing tab", () => {
     milestone({ id: "m2", title: "Mobilisation", basis: "fixed", percent: null, fixed_amount: 10000, amount: 10000, status: "invoiced", display_status: "invoiced", invoice_id: "i2", invoice_ref: "INV-0002", invoice_status: "sent" }),
   ];
   const out = itab(mdata(rows));
+
+  it("has a one-line header named for the client, with an i", () => {
+    expect(out).toContain("Billing to the client");
+    expect(out).toContain("About Client billing");
+  });
 
   it("opens with three tiles: contracted, invoiced, still to invoice", () => {
     expect(out).toContain('data-guide="cp.invoicing.kpis"');
@@ -295,33 +304,34 @@ describe("the Invoicing tab", () => {
   });
 });
 
-describe("where the project came from, and the bid against the budget", () => {
-  const origin: ProjectOrigin = {
-    deal: { id: "o1", ref: "OPP-1", title: "ARB-1" }, bid: { version_no: 2, submitted_at: "2026-10-12T08:00:00Z", total: 22000, currency: "SAR" },
-    boq: { file_name: "ARB-1-BOQ.xlsx", uploaded_at: "2026-10-05T00:00:00Z", version: 2 }, estimates: [{ id: "e1", ref: "EST-0003", name: "Fence build-up" }],
-  };
+describe("copying the tender's payment terms into the billing schedule", () => {
+  const terms = { name: "30 / 60 / 10", count: 3 };
 
-  it("the origin card links the tender, the bid version (number, date, price), the BOQ file and each estimate used, all read-only links", () => {
-    const out = clean(renderToString(createElement(ProjectOriginCard, { origin })));
-    expect(out).toContain('data-guide="cp.origin"');
-    expect(out).toContain("/pipeline/o1");
-    expect(out).toContain("/pipeline/o1?tab=bids");
-    expect(out).toContain("Version 2 · 12 Oct 2026 · SAR 22,000");
-    expect(out).toContain("/pipeline/o1?tab=boq");
-    expect(out).toContain("ARB-1-BOQ.xlsx");
-    expect(out).toContain("/estimates/e1");
-    expect(out).toContain("EST-0003");
-    expect(out).not.toContain(PROJECT_TIPS.origin);
-    expect(out).not.toContain("<input");
+  it("offers Copy the tender's payment terms (secondary, with an i) only while the schedule is empty, the person may edit and terms exist", () => {
+    const out = itab(mdata([], { termsOffer: terms }));
+    expect(out).toContain('data-guide="cp.milestone.copy_terms"');
+    expect(out).toContain("Copy the tender&#x27;s payment terms");
+    expect(out).toContain("About Copy the tender&#x27;s payment terms");
+    expect(out).not.toContain(PROJECT_TIPS.copyTerms);
+    expect(out).toContain('data-guide="cp.milestone.add"'); // + Add milestone stays the primary action
+    expect(out.indexOf("cp.milestone.copy_terms")).toBeLessThan(out.indexOf("cp.milestone.add"));
   });
 
-  it("says plainly when there is no bid version, BOQ file or estimate", () => {
-    const out = clean(renderToString(createElement(ProjectOriginCard, { origin: { ...origin, bid: null, boq: null, estimates: [] } })));
-    expect(out).toContain("No bid version");
-    expect(out).toContain("No BOQ file");
-    expect(out).toContain("None used");
+  it("is not offered with a schedule already made, to someone who cannot edit, on a closed project, or without terms", () => {
+    expect(itab(mdata([milestone()], { termsOffer: terms }))).not.toContain("cp.milestone.copy_terms");
+    expect(itab(mdata([], { termsOffer: terms, canEdit: false }))).not.toContain("cp.milestone.copy_terms");
+    expect(itab(mdata([], { termsOffer: terms }), undefined, true)).not.toContain("cp.milestone.copy_terms");
+    expect(itab(mdata([], { termsOffer: null }))).not.toContain("cp.milestone.copy_terms");
   });
 
+  it("the button is a 44 px target that posts to the copy-terms route", () => {
+    const s = src("InvoicingTab.tsx");
+    expect(s).toMatch(/data-guide="cp\.milestone\.copy_terms" style=\{\{ minHeight: 44 \}\}/);
+    expect(s).toContain("/milestones/copy-terms");
+  });
+});
+
+describe("the bid against the budget", () => {
   it("the bid card shows the bid's cost, the budget now, the difference with a word as well as a colour, and the two margins", () => {
     const bid = { available: true as const, version_no: 2, figures: { bid_price: 100000, bid_cost: 80000, budget: 84000, delta: 4000, delta_pct: 5, bid_margin_pct: 20, planned_margin_pct: 19.2 } };
     const out = clean(renderToString(createElement(BidAgainstBudgetCard, { bid, currency: "SAR" })));
@@ -335,22 +345,20 @@ describe("where the project came from, and the bid against the budget", () => {
     expect(clean(renderToString(createElement(BidAgainstBudgetCard, { bid: { available: false as const, version_no: 1 }, currency: "SAR" })))).toContain("submitted before bid costs were stored");
   });
 
-  it("the Overview carries the two cards when the project came from a tender, and drops the duplicate Tender row from Details", () => {
-    const lines = [{ id: "i1", line_key: "k1", line_no: 1, resource_code: "11", cost_code: null, wbs: null, description: "Fence", qty: 1, unit: "m", unit_cost: 100, amount: 100, cost_known: true, source_ref: null, reserve: false, committed: null, actual: null }];
+  it("the Overview carries the bid card when the project came from a tender, and no origin card (the origin is the page header)", () => {
+    const lines = [{ id: "i1", line_key: "k1", line_no: 1, resource_code: "11", cost_code: "32 31 13", wbs: null, description: "Fence", qty: 1, unit: "m", unit_cost: 100, amount: 100, cost_known: true, source_ref: null, reserve: false, committed: null, actual: null }];
     const totals = budgetTotals(lines);
     const base = {
-      project: { id: "p1", tenant_id: "t", ref: "CPR-0001", name: "ARB-1 Fence", account_id: "a", source_opportunity_id: "o1", status: "draft", contract_value: 30000, currency: "SAR", planned_start: null, planned_end: null, manager_id: null, erp_system: null, erp_id: null, custom_data: null, created_by: "u1", created_at: "", updated_at: "" },
+      project: { id: "p1", tenant_id: "t", ref: "CPR-0001", name: "ARB-1 Fence", account_id: "a", source_opportunity_id: "o1", status: "draft", contract_value: 30000, currency: "SAR", planned_start: null, planned_end: null, manager_id: null, erp_system: null, erp_id: null, custom_data: null, handover_sent_at: null, created_by: "u1", created_at: "", updated_at: "" },
       account_name: "Aramco", manager_name: null, source: { id: "o1", ref: "OPP-1", title: "ARB-1" }, revisions: [], revision: null, lines, totals, margin: plannedMargin(30000, totals.total), compare: null,
       resources: [{ code: "11", name: "Material", revenue_side: false }], justifications: [], approval: { pending: null, canDecide: false, askBlocked: null, history: [] }, canEdit: true, needsApprovalUpdate: false,
+      marginFloor: null,
     } as unknown as ProjectView;
-    const bid = { available: false as const, version_no: 2 };
-    const withCards = clean(renderToString(createElement(ProjectOverview, { view: { ...base, origin, bidAgainstBudget: bid } })));
-    expect(withCards).toContain('data-guide="cp.origin"');
-    expect(withCards).toContain('data-guide="cp.bidvs"');
-    expect(withCards.match(/>Tender</g) ?? []).toHaveLength(1); // the origin card's row, not a second one in Details
-    const without = clean(renderToString(createElement(ProjectOverview, { view: base })));
-    expect(without).not.toContain('data-guide="cp.origin"');
-    expect(without).toContain(">Tender<");
+    const withCard = clean(renderToString(createElement(ProjectOverview, { view: { ...base, bidAgainstBudget: { available: false as const, version_no: 2 } } })));
+    expect(withCard).toContain('data-guide="cp.bidvs"');
+    expect(withCard).not.toContain('data-guide="cp.origin"');
+    expect(withCard).not.toContain("Came from");
+    expect(clean(renderToString(createElement(ProjectOverview, { view: base })))).not.toContain('data-guide="cp.bidvs"');
   });
 });
 

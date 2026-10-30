@@ -5,7 +5,7 @@ import { readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 import type { Opportunity, OpportunityLine } from "@/lib/types";
 import type { OpportunityStageDef } from "@/lib/constants";
-import type { CompetitorView, CompetitorsData } from "@/lib/tender/competitors/rules";
+import type { CompetitorEvidence, CompetitorView, CompetitorsData } from "@/lib/tender/competitors/rules";
 import { fixtureCard } from "@/lib/analysis/cardFixture";
 import type { DockAnalysis } from "@/lib/assistant/analysisTool";
 
@@ -22,7 +22,9 @@ vi.mock("next/navigation", () => ({
 }));
 
 import CompetitorsTab from "./competitors/CompetitorsTab";
-import CompetitorCard from "./competitors/CompetitorCard";
+import CompetitorDetailPanel from "./competitors/CompetitorDetailPanel";
+import ResearchQuestions from "./competitors/ResearchQuestions";
+import { missingQuestions } from "@/lib/tender/competitors/researchRules";
 import CompetitorPanel from "./competitors/CompetitorPanel";
 import WhoWonPicker from "./competitors/WhoWonPicker";
 import OutcomeSection from "./OutcomeSection";
@@ -35,7 +37,7 @@ const OPP = "cccccccc-cccc-4ccc-8ccc-ccccccccccc2";
 
 const comp = (n: number, name: string, over: Partial<CompetitorView> = {}): CompetitorView => ({
   id: `a0000000-0000-4000-8000-${String(n).padStart(12, "0")}`, name, website: null, country: null, expected_price: null, strengths: null, notes: null, is_winner: false, sort: n,
-  created_at: `2026-10-0${(n % 9) + 1}T00:00:00Z`, ...over,
+  created_at: `2026-10-0${(n % 9) + 1}T00:00:00Z`, status: "accepted", origin: "manual", evidence: null, ...over,
 });
 const data = (competitors: CompetitorView[], over: Partial<CompetitorsData> = {}): CompetitorsData => ({ competitors, pending: false, insights: { available: true }, ...over });
 const tab = (d: CompetitorsData, props: Partial<Parameters<typeof CompetitorsTab>[0]> = {}) =>
@@ -48,62 +50,64 @@ function buttonsOf(html: string, guidePrefix: string) {
 }
 
 describe("the Competitors tab", () => {
-  it("shows a card per competitor with name, website, country, price view, strengths and note, as text", () => {
+  it("lists one row per competitor with company, expected price and status, as text", () => {
     const out = tab(data([RIVAL, comp(2, "<script>alert(1)</script>", { strengths: "<b>bold</b>" })]));
     expect(out).toContain('data-guide="competitor.tab"');
+    expect(out).toContain('data-guide="competitor.table"');
+    expect(out.match(/data-guide="competitor\.row"/g)).toHaveLength(2);
     expect(out).toContain("Rival Co");
-    expect(out).toContain("www.rival.com");
-    expect(out).toContain('href="https://www.rival.com"');
-    expect(out).toContain('rel="noopener noreferrer"');
-    expect(out).toContain("Saudi Arabia");
-    expect(out).toContain("Expected price: Below us");
-    expect(out).toContain("Local presence &amp; fast delivery");
-    expect(out).toContain("Won the last two for this client");
+    expect(out).toContain("Below us");
+    expect(out).toContain("Added by you");
+    expect(out).toContain("Unknown");
+    for (const head of ["Company", "Expected price", "Status"]) expect(out, head).toContain(`>${head}`);
     expect(out).not.toContain("<script>");
-    expect(out).not.toContain("<b>bold</b>");
+    // The list shows three things only: the rest is behind a click.
+    for (const hidden of ["Local presence", "Won the last two for this client", "Saudi Arabia", "www.rival.com"]) expect(out, hidden).not.toContain(hidden);
   });
 
-  it("the strip counts the competitors, those expected to be cheaper, and names the winner", () => {
-    const out = tab(data([RIVAL, comp(2, "Second Co", { expected_price: "higher", is_winner: true }), comp(3, "Third Co")]));
-    expect(out).toContain('data-guide="competitor.strip"');
-    expect(out).toContain("Expect to be cheaper");
-    expect(out).toContain("of 2 with a price view");
-    expect(out).toContain("Second Co");
-    expect(out).toContain("Won this tender");
-    expect(tab(data([comp(1, "A")]))).toContain("Not decided");
+  it("the header line counts the competitors, those expected below us and the proposals; a proposal is not counted as a competitor", () => {
+    const out = tab(data([RIVAL, comp(2, "Second Co", { expected_price: "higher", is_winner: true }), comp(3, "Third Co", { status: "proposed", origin: "research" })]));
+    expect(out).toContain('data-guide="competitor.summary"');
+    expect(out).toContain("2 on this tender · 1 expected below us · 1 proposed");
+    expect(out).not.toContain("competitor.strip");
+    expect(out).toContain("Winner");
+    expect(tab(data([comp(1, "A")]))).toContain("1 on this tender</span>");
+  });
+
+  it("a proposal reads Proposed and the team's own competitor reads Added by you, in the order the server sends them", () => {
+    const out = tab(data([RIVAL, comp(1, "Proposed Co", { status: "proposed", origin: "research" })]));
+    expect(out).toContain(">Proposed<");
+    expect(out).toContain(">Added by you<");
+    expect(out.indexOf("Rival Co")).toBeLessThan(out.indexOf("Proposed Co"));
   });
 
   it("an empty tab says what to do next and offers the add button; a view-only person is not offered it", () => {
     const empty = tab(data([]));
     expect(empty).toContain("No competitors yet");
     expect(empty).toContain("Add the companies you expect to bid against");
-    expect(empty).toContain("+ Add competitor");
+    expect(empty).toContain("Add competitor");
+    expect(empty).toContain('data-guide="competitor.suggest"');
     const view = tab(data([]), { canEdit: false });
     expect(view).toContain("No competitors have been added to this tender.");
-    expect(view).not.toContain("+ Add competitor");
-    expect(tab(data([RIVAL]), { canEdit: false })).not.toContain('data-guide="competitor.edit"');
+    expect(view).not.toContain("Add competitor");
+    expect(view).not.toContain("competitor.suggest");
   });
 
-  it("says a database update is needed while the migration is pending, with no add button and no strip", () => {
+  it("says a database update is needed while the migration is pending, with no add button and no list", () => {
     const out = tab(data([], { pending: true }));
     expect(out).toContain("migration 0229");
-    expect(out).not.toContain("+ Add competitor");
-    expect(out).not.toContain("competitor.strip");
+    expect(out).not.toContain("Add competitor");
+    expect(out).not.toContain("competitor.table");
   });
 
-  it("Company insights is a button per card when the analysis is available and absent when it is not; Analyse all needs two or more", () => {
-    const one = tab(data([RIVAL]));
-    expect(one).toContain('data-guide="competitor.insights"');
-    expect(one).toContain("Company insights");
-    expect(one).not.toContain("competitor.analyse_all");
-    expect(tab(data([RIVAL, comp(2, "B")]))).toContain('data-guide="competitor.analyse_all"');
-    const off = tab(data([RIVAL, comp(2, "B")], { insights: { available: false, reason: "Company analysis is not switched on for this workspace." } }));
-    expect(off).not.toContain("competitor.insights");
-    expect(off).not.toContain("competitor.analyse_all");
-    expect(off).toContain('aria-label="About Company insights"');
+  it("there is no Analyse all and no strip of big tiles any more", () => {
+    const out = tab(data([RIVAL, comp(2, "B")]));
+    expect(out).not.toContain("competitor.analyse_all");
+    expect(out).not.toContain("Analyse all");
+    expect(out).not.toContain("Expect to be cheaper");
   });
 
-  it("pages a long list: a few cards, then Show all", () => {
+  it("pages a long list: a few rows, then Show all", () => {
     const many = data(Array.from({ length: 9 }, (_, i) => comp(i + 1, `Company number ${i + 1}`)));
     const out = tab(many);
     expect(out).toContain("Company number 6");
@@ -134,15 +138,17 @@ describe("the Competitors tab", () => {
 describe("a phone (375 px) and a desktop share one markup that fits both", () => {
   const out = tab(data([RIVAL, comp(2, "Second Co", { is_winner: true })]));
 
-  it("the cards are a grid that falls to one column on a phone, with no fixed width anywhere", () => {
-    expect(out).toContain("repeat(auto-fill, minmax(min(100%, 320px), 1fr))");
+  it("the table becomes cards under 780 px, with no fixed width anywhere and no sideways scroll", () => {
+    expect(out).toMatch(/@media \(max-width:780px\)/);
+    expect(out).toContain(".cmp-table thead{display:none}");
     expect(out).not.toMatch(/(?<![-a-z])width:\s*\d{3,}px/);
     expect(out).not.toMatch(/overflow-x:\s*(scroll|auto)/);
   });
 
   it("every button on the tab is a 44 px target, either set on the button or lifted by the tab's .bpm-tap on a phone", () => {
     expect(out).toContain('class="bpm-tap"');
-    for (const b of [...buttonsOf(out, "competitor.add"), ...buttonsOf(out, "competitor.insights"), ...buttonsOf(out, "competitor.edit"), ...buttonsOf(out, "competitor.analyse_all")]) expect(b, b).toMatch(/min-height:44px/);
+    for (const b of [...buttonsOf(out, "competitor.add"), ...buttonsOf(out, "competitor.open"), ...buttonsOf(out, "competitor.suggest")]) expect(b, b).toMatch(/min-height:44px|class="cmp-open"/);
+    expect(out).toContain(".cmp-open{all:unset;box-sizing:border-box;cursor:pointer;min-height:44px");
     const css = readFileSync(path.join(ROOT, "src/app/globals.css"), "utf8");
     expect(css).toMatch(/\.bpm-tap \.bpm-btn, \.bpm-tap \.bpm-input \{ min-height: 44px; \}/);
   });
@@ -163,34 +169,159 @@ describe("a phone (375 px) and a desktop share one markup that fits both", () =>
   });
 });
 
-describe("Company insights on a card", () => {
+describe("the competitor's detail panel", () => {
   const analysis: DockAnalysis = { card: fixtureCard(), cached: true, saved: true, notice: null, webDerived: false, digest: "", subject: { accountId: null, name: "Rival Co", domain: null, country: null } };
-  const card = (insight?: Parameters<typeof CompetitorCard>[0]["insight"]) => clean(renderToString(createElement(CompetitorCard, {
-    competitor: RIVAL, canEdit: true, insightsAvailable: true, insight, onInsights: noop, onToggleInsights: noop, onEdit: noop, onToggleWinner: noop, onRemove: noop, onOpen: noop, onAsk: noop,
-  })));
+  const evidence: CompetitorEvidence = {
+    v: 1, researched_at: "2026-10-29T08:00:00Z", model: "m",
+    facts: [
+      { text: "Won the 2025 pump supply award at Jubail", kind: "award", source_url: "https://news.example.com/jubail-award", source_title: "Jubail awards", published_on: "2025-06-02" },
+      { text: "Opened a Riyadh office", kind: "profile", source_url: "https://www.rival.com/about", source_title: null, published_on: null },
+    ],
+    price: { text: "A comparable award was valued at SAR 1.9 million", amount: 1_900_000, source_url: "https://news.example.com/jubail-award" },
+    wins: { text: "Won the 2024 tender against us at this client", source_url: "https://news.example.com/2024" },
+  };
+  const panel = (x: CompetitorView, extra: Record<string, unknown> = {}) => clean(renderToString(createElement(CompetitorDetailPanel, {
+    competitor: x, canEdit: true, insightsAvailable: true, onClose: noop, onAccept: noop, onReject: noop, onEdit: noop, onToggleWinner: noop, onRemove: noop,
+    onInsights: noop, onToggleInsights: noop, onOpen: noop, onAsk: noop, ...extra,
+  } as never)));
 
-  it("shows the existing analysis card once it is loaded, with the button turned into Hide insights", () => {
-    const out = card({ status: "done", analysis, open: true });
+  it("shows the team's facts and the evidence, every fact with a link to its source page", () => {
+    const out = panel({ ...RIVAL, status: "proposed", origin: "research", evidence }, { ourBid: { total: 2_000_000, currency: "SAR", version_no: 2 } });
+    for (const label of ["Website", "Country", "Expected price", "Strengths", "Notes", "Evidence", "Won against us", "Their likely price"]) expect(out, label).toContain(label);
+    expect(out).toContain("Won the 2025 pump supply award at Jubail");
+    expect(out).toContain('href="https://news.example.com/jubail-award"');
+    expect(out).toContain("source: Jubail awards");
+    expect(out).toContain("source: rival.com");
+    expect(out).toContain('rel="noopener noreferrer"');
+    expect(out).toContain("Won the 2024 tender against us at this client");
+    expect(out).toContain("A comparable award was valued at SAR 1.9 million");
+    expect(out).toContain("our bid SAR 2,000,000 (v2) · theirs is -5.0% against ours");
+  });
+
+  it("says not found, never a guess, where no page stated a thing", () => {
+    const out = panel({ ...RIVAL, status: "proposed", origin: "research", evidence: { ...evidence, price: null, wins: null, facts: [evidence.facts[0]] } });
+    expect(out.match(/not found/g)).toHaveLength(2);
+    expect(panel(RIVAL).match(/not found/g)).toHaveLength(3);
+  });
+
+  it("never links to a page or a website that is not https", () => {
+    const bad = { ...evidence, facts: [{ ...evidence.facts[0], source_url: "javascript:alert(1)" }], wins: { text: "x", source_url: "http://plain.example.com" } };
+    const out = panel({ ...comp(1, "X", { website: "javascript:alert(1)" }), evidence: bad });
+    expect(out).not.toContain("javascript:");
+    expect(out).not.toContain('href="http://');
+  });
+
+  it("a proposal offers Accept and Reject only; the team's own competitor offers Edit, Mark as winner and Remove", () => {
+    const proposed = panel({ ...RIVAL, status: "proposed", origin: "research", evidence });
+    expect(proposed).toContain('data-guide="competitor.accept"');
+    expect(proposed).toContain('data-guide="competitor.reject"');
+    for (const gone of ["competitor.edit", "competitor.winner", "competitor.remove"]) expect(proposed, gone).not.toContain(gone);
+    expect(proposed).toContain("Proposed");
+    const own = panel(RIVAL);
+    for (const g of ["competitor.edit", "competitor.winner", "competitor.remove"]) expect(own, g).toContain(`data-guide="${g}"`);
+    expect(own).toContain("Mark as winner");
+    expect(own).toContain("Added by you");
+    expect(own).not.toContain("competitor.accept");
+    expect(panel({ ...RIVAL, is_winner: true })).toContain("Unmark winner");
+  });
+
+  it("a view-only person gets the facts and no actions", () => {
+    const out = panel({ ...RIVAL, status: "proposed", origin: "research", evidence }, { canEdit: false });
+    expect(out).toContain("Won the 2025 pump supply award at Jubail");
+    for (const gone of ["competitor.accept", "competitor.reject", "competitor.edit"]) expect(out, gone).not.toContain(gone);
+  });
+
+  it("Company insights moved into the panel: a button when available, the analysis card once loaded, a plain reason when it fails", () => {
+    expect(panel(RIVAL)).toContain("Company insights");
+    expect(panel(RIVAL, { insightsAvailable: false })).not.toContain('data-guide="competitor.insights"');
+    const out = panel(RIVAL, { insight: { status: "done", analysis, open: true } });
     expect(out).toContain("Hide insights");
     expect(out).toContain("Worth following up");
-    expect(out).toContain("What they are doing");
-    expect(card({ status: "done", analysis, open: false })).toContain("Show insights");
-    expect(card({ status: "done", analysis, open: false })).not.toContain("Worth following up");
-  });
-
-  it("shows a loading state on the button and a plain reason when the analysis fails", () => {
-    expect(card({ status: "loading" })).toContain("Analysing…");
-    const failed = card({ status: "error", message: "The daily limit for company analyses is reached. Try again tomorrow." });
+    expect(panel(RIVAL, { insight: { status: "done", analysis, open: false } })).toContain("Show insights");
+    expect(panel(RIVAL, { insight: { status: "loading" } })).toContain("Analysing…");
+    const failed = panel(RIVAL, { insight: { status: "error", message: "The daily limit for company analyses is reached. Try again tomorrow." } });
     expect(failed).toContain('role="alert"');
     expect(failed).toContain("The daily limit for company analyses is reached.");
-    expect(failed).toContain("Company insights");
   });
 
-  it("never links to a website that is not https", () => {
-    const out = clean(renderToString(createElement(CompetitorCard, {
-      competitor: comp(1, "X", { website: "javascript:alert(1)" }), canEdit: false, insightsAvailable: false, onInsights: noop, onToggleInsights: noop, onEdit: noop, onToggleWinner: noop, onRemove: noop, onOpen: noop, onAsk: noop,
-    })));
-    expect(out).not.toContain("javascript:");
+  it("opens from a row on the tab", () => {
+    const out = tab(data([RIVAL]), { initialOpen: RIVAL.id });
+    expect(out).toContain('role="dialog"');
+    expect(out).toContain('data-guide="competitor.detail"');
+    expect(out).toContain("Local presence &amp; fast delivery");
+    expect(out).toContain("www.rival.com");
+  });
+
+  it("the list's own row never shows the evidence or the website (only the panel does)", () => {
+    expect(tab(data([{ ...RIVAL, evidence }]))).not.toContain("Jubail");
+  });
+});
+
+describe("Suggest from market research", () => {
+  const questions = missingQuestions({}, { country: "Saudi Arabia" });
+  const asking = (answers = {}) => clean(renderToString(createElement(ResearchQuestions, { questions, answers, onAnswer: noop, onCancel: noop } as never)));
+
+  it("the button is the primary action of the header, with its explanation behind an i", () => {
+    const out = tab(data([RIVAL]));
+    expect(out).toContain('data-guide="competitor.suggest"');
+    expect(out).toContain("Suggest from market research");
+    expect(out).toContain('aria-label="About Suggest from market research"');
+    expect(buttonsOf(out, "competitor.suggest")[0]).toMatch(/bpm-btn-primary/);
+    expect(buttonsOf(out, "competitor.suggest")[0]).not.toMatch(/disabled/);
+    expect(buttonsOf(out, "competitor.suggest")[0]).toMatch(/min-height:44px/);
+  });
+
+  it("is switched off, and the i says why, when web research or the person's access is not available", () => {
+    const off = tab(data([RIVAL], { insights: { available: false, reason: "Company analysis is not switched on for this workspace." } }));
+    expect(buttonsOf(off, "competitor.suggest")[0]).toMatch(/disabled/);
+    expect(off).toContain('aria-label="About Suggest from market research"');
+  });
+
+  it("is switched off while migration 0239 is pending, with the update line", () => {
+    const out = tab(data([RIVAL], { researchPending: true }));
+    expect(buttonsOf(out, "competitor.suggest")[0]).toMatch(/disabled/);
+    expect(out).toContain('data-guide="competitor.research.pending"');
+    expect(out).toContain("migration 0239");
+  });
+
+  it("a view-only person is not offered it", () => {
+    expect(tab(data([RIVAL]), { canEdit: false })).not.toContain("competitor.suggest");
+  });
+
+  it("asks one question at a time as option chips, each a 44 px target, with a Cancel", () => {
+    const out = asking();
+    expect(out).toContain('data-guide="competitor.research.questions"');
+    expect(out).toContain("Is this a supply-only tender, or supply and install?");
+    expect(out).not.toContain("Where should I look for competitors?");
+    const chips = [...out.matchAll(/<button\b[^>]*data-guide="competitor\.research\.option"[^>]*>([^<]*)/g)];
+    expect(chips.map((m) => m[1])).toEqual(["Supply only", "Supply and install"]);
+    for (const m of chips) expect(m[0], m[0]).toMatch(/min-height:44px/);
+    expect(buttonsOf(out, "competitor.research.cancel")[0]).toMatch(/min-height:44px/);
+  });
+
+  it("an answered question shrinks to one muted line and the next one appears", () => {
+    const out = asking({ scope: "supply_install" });
+    expect(out).toContain("Is this a supply-only tender, or supply and install? Supply and install");
+    expect(out).toContain("Where should I look for competitors?");
+    expect(out).toContain("Saudi Arabia only");
+    expect(out).toContain(">GCC<");
+    expect(out).not.toContain(">Supply only<");
+  });
+
+  it("the tab says what the research assumed, with a Change link, once a run has been answered", () => {
+    const out = tab(data([RIVAL], { research: { scope: "supply_install", region: "gcc", issuer_type: "government" } }));
+    expect(out).toContain('data-guide="competitor.research.assumes"');
+    expect(out).toContain("Research assumes: supply and install · GCC · government");
+    expect(out).toContain('data-guide="competitor.research.change"');
+    expect(tab(data([RIVAL], { research: { scope: "supply", region: "gcc", issuer_type: "private" } }), { canEdit: false })).not.toContain("competitor.research.change");
+    expect(tab(data([RIVAL]))).not.toContain("Research assumes");
+  });
+
+  it("the answers are not a tender field: the tab and the research files never write them to the tender or the deal", () => {
+    const route = readFileSync(path.join(ROOT, "src/app/api/opportunities/[id]/competitors/research/route.ts"), "utf8");
+    expect(route).toMatch(/custom_data: \{ \.\.\.custom, competitor_research:/);
+    expect(route).not.toMatch(/from\("opportunities"\)/);
+    expect(route.match(/from\("opportunity_tenders"\)/g)).toHaveLength(1);
   });
 });
 
@@ -248,7 +379,7 @@ describe("the tabs of a tender deal", () => {
   } as never)));
 
   it("a tender deal has a Competitors tab, last, after Room; a standard deal never does", () => {
-    const withRoom = page({ initialTab: "overview" }, { room: { pending: false, unread: 0, openQuestions: 0, isAdmin: false } });
+    const withRoom = page({ initialTab: "overview" }, { room: { pending: false, unread: 0, isAdmin: false } });
     expect(withRoom).toContain("Competitors");
     expect(withRoom.indexOf('data-guide="tab:room"')).toBeLessThan(withRoom.indexOf('data-guide="tab:competitors"'));
     expect(withRoom.indexOf('data-guide="tab:boq"')).toBeLessThan(withRoom.indexOf('data-guide="tab:competitors"'));
@@ -258,12 +389,12 @@ describe("the tabs of a tender deal", () => {
   it("opening the tab shows its header and the add button at once, before the list has loaded", () => {
     const out = page({ initialTab: "competitors" }, { boqEdit: true });
     expect(out).toContain('data-guide="competitor.tab"');
-    expect(out).toContain("+ Add competitor");
+    expect(out).toContain("Add competitor");
     expect(out).toContain("Loading competitors…");
   });
 
   it("a view-only person gets the tab without the add button", () => {
-    expect(page({ initialTab: "competitors" }, { boqEdit: false })).not.toContain("+ Add competitor");
+    expect(page({ initialTab: "competitors" }, { boqEdit: false })).not.toContain("Add competitor");
   });
 
   it("the standard deal's own competitor box on the Overview tab is unchanged", () => {

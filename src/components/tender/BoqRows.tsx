@@ -1,6 +1,8 @@
 "use client";
 
 import Pill from "@/components/Pill";
+import InfoTip from "@/components/ui/InfoTip";
+import { BOQ_TABLE_TIPS, type BoqTableTipKey } from "@/lib/tender/boq/tips";
 import type { PillarKey } from "@/lib/theme";
 import { itemLabel, rowChips, sourceView, type Chip, type EstimateLinkLike } from "@/lib/tender/boq/table";
 import type { PriceSource } from "@/lib/tender/boq/price";
@@ -21,13 +23,17 @@ const qtyText = (n: number) => n.toLocaleString("en-US", { maximumFractionDigits
 
 const CHIP_TONE: Record<Chip["kind"], PillarKey> = { estimate: "purple", rfq: "blue", unpriced: "red", stale: "amber", changed: "amber" };
 
-export function RowChips({ row, links }: { row: BoqRow; links: readonly EstimateLinkLike[] }) {
+/** `tips` is off inside a card: the whole card is a button and an "i" cannot sit inside another button. */
+export function RowChips({ row, links, tips = true }: { row: BoqRow; links: readonly EstimateLinkLike[]; tips?: boolean }) {
   const chips = rowChips(row, links);
   if (chips.length === 0) return null;
   return (
     <span className={s.chips} data-guide="boq.chips">
       {chips.map((k) => (
-        <span key={k.kind + k.label} data-chip={k.kind}><Pill label={k.kind === "estimate" && !/^EST/i.test(k.label) ? `Estimate ${k.label}` : k.label} tone={CHIP_TONE[k.kind]} /></span>
+        <span key={k.kind + k.label} data-chip={k.kind} style={{ display: "inline-flex", alignItems: "center", gap: 2 }}>
+          <Pill label={k.kind === "estimate" && !/^EST/i.test(k.label) ? `Estimate ${k.label}` : k.label} tone={CHIP_TONE[k.kind]} />
+          {tips && k.kind === "stale" && <span onClick={(e) => e.stopPropagation()}><InfoTip label="Stale">{BOQ_TABLE_TIPS.stale}</InfoTip></span>}
+        </span>
       ))}
     </span>
   );
@@ -44,6 +50,14 @@ function SourceCell({ row }: { row: BoqRow }) {
   );
 }
 
+function Head({ label, tip, num }: { label: string; tip: BoqTableTipKey; num?: boolean }) {
+  return (
+    <th scope="col" className={num ? s.num : undefined}>
+      <span style={{ display: "inline-flex", alignItems: "center", gap: 3 }}>{label}<InfoTip label={label}>{BOQ_TABLE_TIPS[tip]}</InfoTip></span>
+    </th>
+  );
+}
+
 /** Desktop: one table. The first cell is a button, so the keyboard and a screen reader reach every row; a click anywhere on the row opens it too. */
 export function BoqTable({ rows, links, openId, onOpen }: { rows: readonly BoqRow[]; links: readonly EstimateLinkLike[]; openId: string | null; onOpen: (id: string) => void }) {
   return (
@@ -51,8 +65,8 @@ export function BoqTable({ rows, links, openId, onOpen }: { rows: readonly BoqRo
       <table className={s.table}>
         <thead>
           <tr>
-            <th scope="col">Item</th><th scope="col">Description</th><th scope="col" className={s.num}>Qty</th><th scope="col">Unit</th><th scope="col">Source</th>
-            <th scope="col" className={s.num}>Cost</th><th scope="col" className={s.num}>Mk</th><th scope="col" className={s.num}>Rate</th><th scope="col" className={s.num}>Amount</th><th scope="col">Linked</th>
+            <th scope="col">Item</th><th scope="col">Description</th><th scope="col" className={s.num}>Qty</th><th scope="col">Unit</th><Head label="Cost from" tip="source" />
+            <Head label="Cost / unit" tip="cost" num /><Head label="Markup %" tip="markup" num /><Head label="Rate / unit" tip="rate" num /><th scope="col" className={s.num}>Amount</th><Head label="Product" tip="product" />
           </tr>
         </thead>
         <tbody>
@@ -94,7 +108,7 @@ export function BoqCards({ rows, links, openId, onOpen }: { rows: readonly BoqRo
               <span>{qtyText(l.qty)} {l.uom ?? ""}</span>
               <span>{v.label}{v.detail ? ` · ${v.detail}` : ""}{v.was ? ` (was ${v.was})` : ""}</span>
             </span>
-            <RowChips row={l} links={links} />
+            <RowChips row={l} links={links} tips={false} />
             <span className={s.cardEnd}>
               <span>Rate {l.priced ? money(l.rate) : "–"}</span>
               <b>{l.priced ? money(l.amount) : "–"}</b>

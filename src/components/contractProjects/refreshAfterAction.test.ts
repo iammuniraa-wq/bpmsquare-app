@@ -106,16 +106,16 @@ describe("The other project actions refresh the page", () => {
     expect(m).toMatch(/if \(!res\.ok\) \{[^}]*return; \}\s*router\.refresh\(\);/);
     expect(m).toContain("router.push(ROUTES.contractProjects)");
   });
-  it("Save budget refreshes the header tiles and keeps the saved lines", () => {
+  it("Save allocation refreshes the header tiles and keeps what was saved", () => {
     const b = read(`${CP}BudgetGrid.tsx`);
-    expect(b).toMatch(/setNotice\("Budget saved"\);\s*router\.refresh\(\);/);
+    expect(b).toMatch(/setNotice\("Allocation saved"\);\s*router\.refresh\(\);/);
   });
   it("Start revision opens the new revision (a navigation, so the whole page is read again)", () => {
     expect(read(`${CP}RevisionsPanel.tsx`)).toContain("router.push(`${ROUTES.contractProject(p.id)}?tab=budget&revision=${j.id}`)");
   });
   it("the page feeds the tabs from the server, so a refresh brings every tile", () => {
     const page = read("src/app/(app)/contract-projects/[id]/page.tsx");
-    expect(page).toContain("externalLine={<ProjectKpiStrip view={view} />}");
+    expect(page).toContain("externalLine={<><ProjectPathBar path={view.path} /><ProjectKpiStrip view={view} /></>}");
     expect(page).toContain("<VariationsSection req={req} project={p} />");
     expect(page).toContain("<InvoicingSection req={req} project={p} />");
   });

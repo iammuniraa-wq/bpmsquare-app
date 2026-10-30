@@ -44,7 +44,7 @@ export function tileSubs(data: Pick<BuyoutData, "tiles" | "packages">, currency:
   const over = tiles.committed > tiles.budget && tiles.budget > 0;
   return {
     budget: `${tiles.packages} package${tiles.packages === 1 ? "" : "s"}, ${lines} budget line${lines === 1 ? "" : "s"}`,
-    committed: over ? `over the budget by ${money(tiles.committed - tiles.budget, currency)}` : `${share}% of the budget, ${awarded} awarded`,
+    committed: over ? `over the budget by ${money(tiles.committed - tiles.budget, currency)}` : `${share}% of ${money(tiles.budget, currency)}, ${awarded} awarded`,
     committedTone: (over ? "warn" : "info") as "warn" | "info",
     best: tiles.best_vs_budget >= 0 ? "under budget where quotes are in" : "over budget where quotes are in",
     bestTone: (tiles.best_vs_budget >= 0 ? "good" : "warn") as "good" | "warn",

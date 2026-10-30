@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import { useCurrency } from "@/lib/tenant-context";
@@ -15,6 +15,7 @@ import AccountPicker from "@/components/estimator/AccountPicker";
 import type { AccountOption, ContactOption } from "@/components/estimator/AccountPicker";
 import AboutCard from "./AboutCard";
 import AccountPrompt from "./AccountPrompt";
+import Collapsible from "./Collapsible";
 import CustomerDetails from "./CustomerDetails";
 import CustomerPreview from "./CustomerPreview";
 import EmailIntake from "./EmailIntake";
@@ -62,6 +63,8 @@ export type WorkspaceProps = {
   canEdit: boolean;
   canQuote: boolean;
   quoteUnavailable: string | null;
+  /** The estimate belongs to a tender deal: no Create quote (the BOQ is the end of the road) and the email source starts closed. */
+  fromTender?: boolean;
   saved?: SavedEstimate;
   /** A bill-of-materials code to light up on arrival (old ?line= links). */
   initialHighlight?: string | null;
@@ -91,6 +94,17 @@ export default function EstimateWorkspace(p: WorkspaceProps) {
   const [highlightCode, setHighlightCode] = useState<string | null>(p.initialHighlight ?? null);
   const locked = !!saved?.locked;
   const editable = p.canEdit && !locked;
+  // "Source: start from an email" is closed when the estimate came from a tender or already has lines, and remembers what the person chose.
+  const hasLines = (saved?.view.sections.length ?? 0) > 0;
+  const sourceKey = `est.fold.source.${saved?.id ?? "new"}`;
+  const [sourceOpen, setSourceOpen] = useState(!!p.emailFirst || (!p.fromTender && !hasLines));
+  useEffect(() => {
+    try { const v = window.localStorage.getItem(sourceKey); if (v === "1" || v === "0") setSourceOpen(v === "1"); } catch { /* storage can be blocked */ }
+  }, [sourceKey]);
+  const toggleSource = (open: boolean) => {
+    setSourceOpen(open);
+    try { window.localStorage.setItem(sourceKey, open ? "1" : "0"); } catch { /* storage can be blocked */ }
+  };
 
   const params = useMemo(() => (t ? toParams(t.inputs, draft.values) : {}), [t, draft.values]);
   const dirty = saved ? isDirty(saved.storedParams, params, saved.storedMargin, draft.margin) : true;
@@ -170,7 +184,9 @@ export default function EstimateWorkspace(p: WorkspaceProps) {
           </Card>
         )}
         {editable && t && (
-          <EmailIntake templates={p.templates} template={t} autoPick={!!p.emailFirst} onTemplate={draft.pickTemplate} onApply={draft.applyProposal} initialText={draft.brief} emailId={draft.sourceEmailId} />
+          <Collapsible id="source" title="Source: start from an email" open={sourceOpen} onToggle={toggleSource}>
+            <EmailIntake templates={p.templates} template={t} autoPick={!!p.emailFirst} onTemplate={draft.pickTemplate} onApply={draft.applyProposal} initialText={draft.brief} emailId={draft.sourceEmailId} />
+          </Collapsible>
         )}
         {locked && <div className="est-note" role="status">This estimate has a quote, so it is locked. Everything below is as it was quoted.</div>}
         {!t && <Card padding={16}><div className="bpm-t-help">This estimate&apos;s template was deleted, so its inputs can&apos;t be shown or recalculated. Its lines and totals are kept as they were.</div></Card>}
@@ -218,7 +234,7 @@ export default function EstimateWorkspace(p: WorkspaceProps) {
                     onContinue={(id) => { draft.setAccountId(id); void act.createQuote(id); }} onCancel={() => act.setNeedAccount(false)} />
                 </div>
               )}
-              <QuoteActions quote={saved?.quote ?? null} canQuote={p.canQuote && p.canEdit} quoteUnavailable={p.quoteUnavailable} blocked={blocked}
+              <QuoteActions quote={saved?.quote ?? null} canQuote={p.canQuote && p.canEdit} quoteUnavailable={p.quoteUnavailable} forTender={!!p.fromTender} blocked={blocked}
                 busy={act.busy} isNew={!saved} error={act.error} onCreate={() => void act.createQuote()} onSaveDraft={() => void act.saveDraft()} />
             </PriceCard>
             </div>

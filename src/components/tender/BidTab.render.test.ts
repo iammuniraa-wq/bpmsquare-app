@@ -4,7 +4,7 @@ import { renderToString } from "react-dom/server";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import type { OpportunityLine } from "@/lib/types";
-import type { BidsData } from "@/lib/tender/bids/rules";
+import type { BidsData, SendView } from "@/lib/tender/bids/rules";
 import { tipTextProblems } from "@/lib/infoTip";
 import { TENDER_TIPS } from "@/lib/tender/tips";
 
@@ -129,6 +129,99 @@ describe("Documents we send", () => {
 
   it("the new explanations fit behind an i", () => {
     for (const k of ["bidDocuments", "bidQuote", "history"] as const) expect(tipTextProblems(TENDER_TIPS[k]), k).toEqual([]);
+  });
+});
+
+describe("Send by email and Sent to client (KAMCO feedback slice 5)", () => {
+  const send = (i: number, over: Partial<SendView> = {}): SendView => ({ id: `s${i}`, version_no: i === 1 ? 2 : null, sent_at: `2026-10-2${i}T09:00:00Z`, sent_by_name: "S. Khan", channel: i === 1 ? "email" : "portal", document: i === 1 ? "priced_boq" : "answer_sheet", to_text: i === 1 ? "buyer@ministry.gov.sa" : "Ariba", note: null, ...over });
+
+  it("offers Send by email next to each of the two files, 44 px, to a person who may change the deal", () => {
+    const out = bid();
+    for (const g of ["tender.bid.email_priced", "tender.bid.email_answer"]) {
+      const b = out.match(new RegExp(`<button\\b[^>]*data-guide="${g}"[^>]*>[^<]*`))?.[0] ?? "";
+      expect(b, g).toContain("Send by email");
+      expect(b, g).toContain("min-height:44px");
+    }
+    expect(out.indexOf('data-guide="tender.bid.email_priced"')).toBeGreaterThan(out.indexOf('data-guide="boq.download"'));
+    expect(out.indexOf('data-guide="tender.bid.email_answer"')).toBeGreaterThan(out.indexOf('data-guide="boq.answer_sheet"'));
+  });
+
+  it("a view-only person gets no Send by email and no Record a send", () => {
+    const out = bid({ data: bids({ canEdit: false, sends: { rows: [send(1)], pending: false } }) });
+    expect(out).not.toContain("Send by email");
+    expect(out).not.toContain('data-guide="tender.bid.record_send"');
+    expect(out).toContain("buyer@ministry.gov.sa");
+  });
+
+  it("lists what went to the client (a table on a PC, cards under 780 px) after Documents we send", () => {
+    const out = bid({ data: bids({ sends: { rows: [send(2), send(1)], pending: false } }) });
+    expect(out).toContain("Sent to client");
+    expect(out).toContain('data-guide="tender.bid.sent_table"');
+    for (const w of ["When", "Who", "Document", "How", "To", "Version", "buyer@ministry.gov.sa", "Ariba", "Priced BOQ", "Answer sheet", "v2"]) expect(out, w).toContain(w);
+    expect(out.match(/data-guide="tender\.bid\.sent_card"/g)).toHaveLength(2);
+    expect(out).toContain('data-guide="tender.bid.record_send"');
+    expect(out.indexOf("Sent to client")).toBeGreaterThan(out.indexOf("Documents we send"));
+    expect(read("src/components/tender/SentToClient.module.css")).toMatch(/@media \(max-width: 780px\)[\s\S]*\.tableWrap \{ display: none; \}[\s\S]*\.cards \{ display: flex; \}/);
+  });
+
+  it("says so when nothing has been sent, and pages a long list", () => {
+    expect(bid()).toContain("Nothing sent yet");
+    expect(read("src/components/tender/SentToClient.tsx")).toContain("Nothing has gone to the client yet");
+    const many = bid({ data: bids({ sends: { rows: Array.from({ length: 7 }, (_, i) => send(i + 1, { id: `m${i}` })), pending: false } }) });
+    expect(many).toContain("Show all 7");
+    expect(many.match(/data-guide="tender\.bid\.sent_row"/g)).toHaveLength(5);
+  });
+
+  it("while migration 0237 is pending it says a database update is needed and offers no sending", () => {
+    const out = bid({ data: bids({ sends: { rows: [], pending: true } }) });
+    expect(out).toContain("Sent-to-client records need a database update (migration 0237). Ask your administrator to apply it.");
+    expect(out).not.toContain("Send by email");
+    expect(out).not.toContain('data-guide="tender.bid.record_send"');
+  });
+
+  it("the explanations sit behind an i, and the submit form carries the Submit bid explanation", () => {
+    const out = bid({ data: bids({ sends: { rows: [send(1)], pending: false } }), initialSubmitOpen: true });
+    expect(out).not.toContain(TENDER_TIPS.sentToClient);
+    expect(out).toContain('aria-label="About Sent to client"');
+    const form = out.slice(out.indexOf('data-guide="tender.bid.form"'));
+    expect(form.slice(0, form.indexOf('data-guide="tender.bid.confirm"'))).toContain('aria-label="About Submit bid"');
+  });
+
+  it("the panels are the shared side panel with 44 px footers and guide ids on every field", () => {
+    const email = read("src/components/tender/SendByEmail.tsx");
+    const record = read("src/components/tender/SentToClient.tsx");
+    for (const src of [email, record]) {
+      expect(src).toContain('import SidePanel from "@/components/ui/SidePanel"');
+      expect([...src.matchAll(/<Button\b[^>]*style=\{\{([^}]*)\}\}/g)].every((m) => m[1].includes("minHeight: 44"))).toBe(true);
+    }
+    for (const g of ["tender.bid.email_to", "tender.bid.email_note", "tender.bid.email_send", "tender.bid.email_cancel"]) expect(email).toContain(`"${g}"`);
+    for (const g of ["tender.bid.record_document", "tender.bid.record_channel", "tender.bid.record_to", "tender.bid.record_version", "tender.bid.record_note", "tender.bid.record_save"]) expect(record).toContain(`"${g}"`);
+    expect(email).toContain("/tender/bids/send-email");
+    expect(record).toContain("/tender/bids/sends");
+    for (const f of ["src/components/tender/SendByEmail.tsx", "src/components/tender/SentToClient.tsx", "src/components/tender/SentToClient.module.css"]) expect(read(f).replace(/\/\/[^\n]*|\/\*[\s\S]*?\*\//g, ""), f).not.toMatch(/#[0-9a-fA-F]{3,8}\b|rgba?\(/);
+  });
+});
+
+describe("payment terms on the Bid tab", () => {
+  it("mounts the picker for the deal, before Documents we send, editable only for a person who may change the deal", () => {
+    const out = bid();
+    expect(out).toContain('data-guide="tender.payment_terms"');
+    expect(out.indexOf('data-guide="tender.payment_terms"')).toBeLessThan(out.indexOf("Documents we send"));
+    expect(read("src/components/tender/BidsTab.tsx")).toMatch(/<PaymentTermsPicker opportunityId=\{opportunityId\} canEdit=\{data\.canEdit\} \/>/);
+  });
+
+  it("Submit bid keeps the chosen terms with the version, after the version row is inserted", () => {
+    const route = read("src/app/api/opportunities/[id]/tender/bids/route.ts");
+    expect(route).toContain("saveVersionTerms(admin, tenantId, id, versionNo, tender.custom_data)");
+    expect(route.indexOf('from("tender_bid_versions").insert')).toBeLessThan(route.indexOf("saveVersionTerms("));
+  });
+
+  it("the downloads and Send by email print the chosen terms through the one shared writer, and nothing else about cost", () => {
+    const server = read("src/lib/tender/boq/server.ts");
+    expect(server).toContain("choiceOf(r.tender.custom_data)");
+    expect(server).toContain("termLines(choice.milestones");
+    expect(server).toMatch(/rows, terms: termsOf\(r\)/);
+    expect(server).toMatch(/buildAnswerSheet\(rows, .*termsOf\(r\)\)/);
   });
 });
 

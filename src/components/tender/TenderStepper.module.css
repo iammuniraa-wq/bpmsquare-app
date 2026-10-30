@@ -1,0 +1,37 @@
+/* The tender path (KAMCO feedback slice 2). Theme variables only; the steps scroll sideways under 900px, the Next row stacks at phone width. */
+.wrap { margin-bottom: 14px; min-width: 0; }
+.stepsRow { display: flex; align-items: flex-start; gap: 4px; margin-bottom: 10px; min-width: 0; }
+.steps { flex: 1; min-width: 0; display: flex; list-style: none; margin: 0; padding: 0 0 4px; overflow-x: auto; gap: 0; }
+.step { flex: 1 0 92px; min-width: 92px; display: flex; flex-direction: column; align-items: center; gap: 5px; position: relative; padding-top: 2px; }
+.step:not(:first-child)::before { content: ""; position: absolute; top: 13px; right: 50%; width: 100%; height: 2px; background: var(--line); z-index: 0; }
+.step[data-state="done"]:not(:first-child)::before, .step[data-state="current"]:not(:first-child)::before { background: var(--tealink); }
+.dot {
+  position: relative; z-index: 1; width: 22px; height: 22px; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center;
+  font-size: 11.5px; font-weight: 700; background: var(--card-bg); color: var(--hint); border: 2px solid var(--line);
+}
+.step[data-state="done"] .dot { background: var(--tealink); border-color: var(--tealink); color: var(--card-bg); }
+.step[data-state="current"] .dot { background: var(--blueink); border-color: var(--blueink); color: var(--card-bg); box-shadow: 0 0 0 3px var(--bluebg); }
+.step[data-state="skipped"] .dot { border-style: dashed; }
+.label { font-size: 12px; font-weight: 600; color: var(--hint); text-align: center; white-space: nowrap; }
+.step[data-state="done"] .label { color: var(--muted); }
+.step[data-state="current"] .label { color: var(--ink); font-weight: 700; }
+.step[data-state="skipped"] .label { text-decoration: line-through; }
+
+.next { display: flex; align-items: center; flex-wrap: wrap; gap: 10px 14px; padding: 12px 14px; border-radius: var(--card-radius); background: var(--bluebg); color: var(--blueink); min-width: 0; }
+.nextText { flex: 1 1 260px; min-width: 0; }
+.nextTitle { display: flex; align-items: center; gap: 4px; font-size: 14.5px; font-weight: 700; }
+.nextDetail { margin-top: 2px; font-size: 12.5px; color: var(--muted); }
+.buttons { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+
+.checklist { margin-top: 8px; }
+.checklist summary { min-height: 44px; display: flex; align-items: center; cursor: pointer; font-size: 12.5px; font-weight: 600; color: var(--muted); }
+.checklist ul { list-style: none; margin: 0 0 4px; padding: 0 0 0 4px; display: flex; flex-direction: column; gap: 6px; }
+.checklist li { display: flex; gap: 8px; font-size: 13px; color: var(--ink); }
+.tick { flex: none; width: 16px; color: var(--hint); }
+.checklist li[data-done="true"] .tick { color: var(--tealink); }
+
+@media (max-width: 780px) {
+  .next { flex-direction: column; align-items: stretch; }
+  .buttons { flex-direction: column; align-items: stretch; }
+  .buttons > * { width: 100%; justify-content: center; }
+}

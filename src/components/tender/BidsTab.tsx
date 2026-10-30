@@ -11,12 +11,14 @@ import { submitWarnings, type SubmitFacts } from "@/lib/tender/submitChecks";
 import StatTile, { StatStrip } from "@/components/ui/StatTile";
 import { toneForDelta } from "@/lib/ui/tone";
 import SettingsSection from "@/components/settings/SettingsSection";
-import { BID_LIMITS, BID_REVISE_STAGES, BID_SUBMIT_STAGES, deltaText, type BidDiff, type BidLine, type BidsData } from "@/lib/tender/bids/rules";
+import { BID_LIMITS, BID_REVISE_STAGES, BID_SUBMIT_STAGES, deltaText, type BidDiff, type BidLine, type BidsData, type SendsData } from "@/lib/tender/bids/rules";
 import { TENDER_TIPS } from "@/lib/tender/tips";
 import type { LinkedQuote } from "@/lib/sales/opportunityServer";
 import { toneTokens } from "@/lib/ui/tone";
 import { bidsUrl, mergeBids, reloadAfterSave } from "./refreshAfterSave";
 import BidDocuments from "./BidDocuments";
+import SentToClient from "./SentToClient";
+import PaymentTermsPicker from "@/components/contractProjects/PaymentTermsPicker";
 
 // The Bid tab of a tender deal (docs/design/gcc-tender-deals.md sections 15 and 26): a readiness line that warns and never blocks,
 // Submit bid / Revise bid, the numbered versions that never change, a comparison of any two, and "Documents we send" (the priced BOQ,
@@ -56,6 +58,15 @@ export default function BidsTab({ opportunityId, data: pageData, stage, outcome,
   const [loaded, setLoaded] = useState({ versions: pageData.versions, pending: pageData.pending });
   useEffect(() => { setLoaded({ versions: pageData.versions, pending: pageData.pending }); }, [pageData.versions, pageData.pending]);
   const data: BidsData = { ...pageData, ...loaded };
+  // What went to the client: the page reads it; a send made here is read again at once (the server render then replaces it).
+  const [sends, setSends] = useState<SendsData>(pageData.sends ?? { rows: [], pending: false });
+  useEffect(() => { if (pageData.sends) setSends(pageData.sends); }, [pageData.sends]);
+  const reloadSends = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/opportunities/${opportunityId}/tender/bids/sends`, { cache: "no-store" });
+      if (res.ok) setSends((await res.json()) as SendsData);
+    } catch { /* the page's own refresh brings the same list */ }
+  }, [opportunityId]);
   const [busy, setBusy] = useState(false);
   const [askSubmit, setAskSubmit] = useState(initialSubmitOpen);
   const [reason, setReason] = useState("");
@@ -200,7 +211,7 @@ export default function BidsTab({ opportunityId, data: pageData, stage, outcome,
         </div>
         {canSubmit && askSubmit && (
           <div role="group" aria-label={`Submit version ${nextNo}`} data-guide="tender.bid.form" style={{ display: "flex", flexDirection: "column", gap: 10, border: `1px solid ${c.line}`, borderRadius: 10, padding: 12 }}>
-            <div style={{ fontWeight: 700, fontSize: 13.5, color: c.ink }}>Submit version {nextNo} · {fmt(data.working_total)}</div>
+            <div style={{ fontWeight: 700, fontSize: 13.5, color: c.ink, display: "flex", alignItems: "center", gap: 4 }}>Submit version {nextNo} · {fmt(data.working_total)}<InfoTip label="Submit bid">{TENDER_TIPS.bidSubmit}</InfoTip></div>
             {nextNo > 1 && (
               <Field label="Why is the bid revised?" required info={TENDER_TIPS.bidReason} guide="tender.bid.reason">
                 <Textarea value={reason} onChange={(e) => setReason(e.target.value)} maxLength={BID_LIMITS.reasonMax} style={{ minHeight: 64 }} />
@@ -258,7 +269,9 @@ export default function BidsTab({ opportunityId, data: pageData, stage, outcome,
         </SettingsSection>
       )}
 
-      <BidDocuments opportunityId={opportunityId} versions={versions} quotes={quotes} canMakeQuote={canMakeQuote} fmt={fmt} onError={onError} onNotice={onNotice} onChanged={onChanged} />
+      <PaymentTermsPicker opportunityId={opportunityId} canEdit={data.canEdit} />
+      <BidDocuments opportunityId={opportunityId} versions={versions} quotes={quotes} canMakeQuote={canMakeQuote} canSend={data.canEdit && !sends.pending} fmt={fmt} onError={onError} onNotice={onNotice} onChanged={onChanged} onSent={() => void reloadSends()} />
+      <SentToClient opportunityId={opportunityId} sends={sends} versions={versions} canEdit={data.canEdit} onRecorded={() => { void reloadSends(); onChanged?.(); }} onError={onError} onNotice={onNotice} />
     </div>
   );
 }

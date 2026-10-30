@@ -3,6 +3,7 @@
 // edits the rate; chips say which estimate prices the row, which RFQ it was awarded under, and whether it is unpriced or stale.
 
 import { PRICE_SOURCE_LABEL, type PriceSource } from "./price";
+import { awardRate, roundCost } from "../costing/rules";
 
 export const BOQ_FILTERS = ["all", "unpriced", "stale"] as const;
 export type BoqFilter = (typeof BOQ_FILTERS)[number];
@@ -53,6 +54,17 @@ export function manualSourceRef(prev: { price_source: PriceSource | null; price_
   if (prev.price_source === "manual") return prev.price_source_ref && prev.price_source_ref.startsWith(WAS) ? prev.price_source_ref : null;
   const label = PRICE_SOURCE_LABEL[prev.price_source];
   return `${WAS}${label}${prev.price_source_ref ? ` · ${prev.price_source_ref}` : ""}`.slice(0, 200);
+}
+
+/**
+ * A cost typed by hand in the row panel: the rate is the cost plus the markup, the source is Manual and the one it replaced is kept in the
+ * reference (as for a typed rate), and the cost and markup are stored so the row reads "cost + markup = rate".
+ */
+export function manualCostPlan(cost: number, markupPct: number, prev: { price_source: PriceSource | null; price_source_ref: string | null }, today: string) {
+  return {
+    rate: awardRate(cost, markupPct),
+    fields: { price_source: "manual" as const, price_source_ref: manualSourceRef(prev), price_as_of: today, stale_accepted: false, unit_cost: roundCost(cost), markup_pct: markupPct },
+  };
 }
 
 /** The Source cell: the source's name, and for a manual rate the source it replaced ("Supplier · RFQ-0012 · Gulf Pipes"). */

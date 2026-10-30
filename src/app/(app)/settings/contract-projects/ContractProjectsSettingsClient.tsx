@@ -12,21 +12,25 @@ import { SettingsSave } from "@/components/settings/SettingsHeaderActions";
 import { useSettingsDirty } from "@/components/settings/useSettingsDirty";
 import { PROJECT_TIPS } from "@/lib/contractProjects/tips";
 import type { MasterKind, MasterRow } from "@/lib/contractProjects/types";
+import type { PaymentTermTemplate } from "@/lib/constants";
+import PaymentTermsSection from "./PaymentTermsSection";
 
 type KindRow = { kind: MasterKind; label: string; total: number; active: number; files: number; defaults: number; manual: number };
 type ImportResult = { added: number; updated: number; refused: number; problems: { row: number; message: string }[]; warnings: { row: number; message: string }[]; preview: boolean; error?: string };
 
 /**
- * Settings > Contract projects: the one place for the lists a budget line points at (a single table, a row per list) and the default
- * margin. The lists start as defaults; a file import replaces or extends them, matched on list + code, and the ERP will refresh them later.
+ * Settings > Contract projects: the one place for the lists a budget line points at (a single table, a row per list), the payment-term
+ * templates (a single table, a row per template) and the margin floor. The lists start as defaults; a file import replaces or extends
+ * them, matched on list + code, and the ERP will refresh them later.
  */
 export default function ContractProjectsSettingsClient() {
   const [kinds, setKinds] = useState<KindRow[] | null>(null);
-  const [margin, setMargin] = useState<number>(15);
+  const [floor, setFloor] = useState<string>("");
+  const [templates, setTemplates] = useState<PaymentTermTemplate[]>([]);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [panel, setPanel] = useState<KindRow | null>(null);
-  const { dirty, markSaved } = useSettingsDirty(margin);
+  const { dirty, markSaved } = useSettingsDirty(floor);
 
   const load = useCallback(async () => {
     const [m, s] = await Promise.all([fetch("/api/contract-projects/masters?summary=1"), fetch("/api/settings/contract-projects")]);
@@ -34,18 +38,31 @@ export default function ContractProjectsSettingsClient() {
     const sj = await s.json().catch(() => ({}));
     if (!m.ok) { setMsg({ ok: false, text: mj.error ?? "Couldn't load the lists." }); return; }
     setKinds(mj.kinds as KindRow[]);
-    if (s.ok) { setMargin(Number(sj.default_margin_pct) || 0); markSaved(Number(sj.default_margin_pct) || 0); }
+    if (s.ok) {
+      const f = sj.margin_floor_pct === null || sj.margin_floor_pct === undefined ? "" : String(sj.margin_floor_pct);
+      setFloor(f); markSaved(f);
+      setTemplates((sj.payment_term_templates ?? []) as PaymentTermTemplate[]);
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   useEffect(() => { void load(); }, [load]);
 
-  async function saveMargin() {
+  async function saveFloor() {
     setBusy(true); setMsg(null);
-    const res = await fetch("/api/settings/contract-projects", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ default_margin_pct: margin }) });
+    const res = await fetch("/api/settings/contract-projects", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ margin_floor_pct: floor.trim() === "" ? null : Number(floor) }) });
     const j = await res.json().catch(() => ({}));
     setBusy(false);
     if (!res.ok) { setMsg({ ok: false, text: j.error ?? "Couldn't save." }); return; }
-    markSaved(margin); setMsg({ ok: true, text: "Saved." });
+    markSaved(floor); setMsg({ ok: true, text: "Saved." });
+  }
+
+  /** Saves the whole list of templates; the server answers with the ids it gave the new ones. */
+  async function saveTemplates(next: PaymentTermTemplate[]): Promise<string | null> {
+    const res = await fetch("/api/settings/contract-projects", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ payment_term_templates: next }) });
+    const j = await res.json().catch(() => ({}));
+    if (!res.ok) return j.error ?? "Couldn't save the template.";
+    setTemplates((j.payment_term_templates ?? next) as PaymentTermTemplate[]);
+    return null;
   }
 
   if (!kinds) return <div style={{ ...cardStyle, color: c.hint }}>{msg?.text ?? "Loading…"}</div>;
@@ -73,17 +90,19 @@ export default function ContractProjectsSettingsClient() {
         </div>
       </section>
 
+      <PaymentTermsSection templates={templates} onSave={saveTemplates} />
+
       <section style={{ ...cardStyle }}>
-        <label data-guide="cp.settings.margin" style={{ display: "flex", alignItems: "center", gap: 10, minHeight: 44, fontSize: 13, color: c.ink, flexWrap: "wrap" }}>
-          <span>Default margin for estimated costs</span>
-          <InfoTip label="Default margin">{PROJECT_TIPS.defaultMargin}</InfoTip>
-          <input type="number" min={0} max={95} step={0.5} inputMode="decimal" value={margin} aria-label="Default margin in percent"
-            onChange={(e) => setMargin(Number(e.target.value))} className="bpm-input" style={{ width: 96, marginLeft: "auto" }} />
+        <label data-guide="cp.settings.margin_floor" style={{ display: "flex", alignItems: "center", gap: 10, minHeight: 44, fontSize: 13, color: c.ink, flexWrap: "wrap" }}>
+          <span>Margin floor</span>
+          <InfoTip label="Margin floor">{PROJECT_TIPS.marginFloor}</InfoTip>
+          <input type="number" min={0} max={95} step={0.5} inputMode="decimal" value={floor} placeholder="Not set" aria-label="Margin floor in percent"
+            onChange={(e) => setFloor(e.target.value)} className="bpm-input" style={{ width: 96, marginLeft: "auto", minHeight: 44 }} />
           <span style={{ color: c.hint }}>%</span>
         </label>
       </section>
 
-      <SettingsSave dirty={dirty} saving={busy} saved={!!msg?.ok} error={msg && !msg.ok ? msg.text : ""} onSave={saveMargin} />
+      <SettingsSave dirty={dirty} saving={busy} saved={!!msg?.ok} error={msg && !msg.ok ? msg.text : ""} onSave={saveFloor} />
       {panel && <KindPanel kind={panel} onClose={() => { setPanel(null); void load(); }} />}
     </div>
   );
