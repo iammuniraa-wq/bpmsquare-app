@@ -239,6 +239,7 @@ describe("wiring", () => {
       "src/app/api/opportunities/[id]/competitors/route.ts",
       "src/app/api/opportunities/[id]/competitors/[competitorId]/route.ts",
       "src/app/api/opportunities/[id]/competitors/[competitorId]/insights/route.ts",
+      "src/app/api/opportunities/[id]/competitors/research/route.ts",
     ]) {
       const src = read(f);
       expect(src, f).toContain("openTenderDealRequest(");
@@ -246,6 +247,26 @@ describe("wiring", () => {
     }
     const server = read("src/lib/tender/competitors/server.ts");
     for (const m of server.matchAll(/admin\.from\("opportunity_competitors"\)[\s\S]*?(?=\n\s*(?:if|const|return|let|await|\}))/g)) expect(m[0], m[0]).toMatch(/tenant_id/);
+  });
+
+  it("the research route is gated, metered and capped, and the model's answer reaches the database only through the validator", () => {
+    const src = read("src/app/api/opportunities/[id]/competitors/research/route.ts");
+    const gate = src.indexOf("openTenderDealRequest(id, true)");
+    for (const step of ["webAvailability(", "listCompetitors(", "missingQuestions(", "allowanceFor(", "RESEARCH_LIMITS.perDay", "runCompetitorResearch(", "logUsage(", "validateCompetitorResearch("]) {
+      expect(src, step).toContain(step);
+      expect(src.lastIndexOf(step), step).toBeGreaterThan(gate);
+    }
+    // Order: the questions before the allowance and the cap, those before the search; the usage row only after the search; the validator before any insert.
+    const at = (k: string) => src.lastIndexOf(k);
+    expect(at("missingQuestions(")).toBeLessThan(at("allowanceFor("));
+    expect(at("allowanceFor(")).toBeLessThan(at("runCompetitorResearch("));
+    expect(at("RESEARCH_LIMITS.perDay")).toBeLessThan(at("runCompetitorResearch("));
+    expect(at("runCompetitorResearch(")).toBeLessThan(at("logUsage("));
+    expect(at("validateCompetitorResearch(")).toBeLessThan(at('from("opportunity_competitors").insert'));
+    // Every row it writes is proposed research with the workspace from the session; the request body is never read for those.
+    expect(src).toContain('status: "proposed", origin: "research"');
+    expect(src).not.toMatch(/body\??\.(tenant_id|opportunity_id|status|evidence|origin)/);
+    expect(src).toMatch(/\.eq\("opportunity_id", id\)\.eq\("tenant_id", tenantId\)/);
   });
 
   it("the insights route takes the company from the stored competitor and never from the request", () => {
@@ -265,8 +286,8 @@ describe("wiring", () => {
   });
 
   it("every control on the tab carries a data-guide id the assistant can point at", () => {
-    const files = ["CompetitorsTab.tsx", "CompetitorDetailPanel.tsx", "CompetitorPanel.tsx", "WhoWonPicker.tsx"].map((f) => read(`src/components/tender/competitors/${f}`)).join("\n");
+    const files = ["CompetitorsTab.tsx", "CompetitorDetailPanel.tsx", "CompetitorPanel.tsx", "WhoWonPicker.tsx", "ResearchQuestions.tsx"].map((f) => read(`src/components/tender/competitors/${f}`)).join("\n");
     const ids = new Set([...files.matchAll(/"(competitor\.[a-z_.]+)"/g)].map((m) => m[1]));
-    for (const id of ["competitor.add", "competitor.suggest", "competitor.table", "competitor.row", "competitor.open", "competitor.insights", "competitor.accept", "competitor.reject", "competitor.edit", "competitor.winner", "competitor.remove", "competitor.save", "competitor.field.name", "competitor.tab", "competitor.detail", "competitor.evidence"]) expect(ids, id).toContain(id);
+    for (const id of ["competitor.add", "competitor.suggest", "competitor.table", "competitor.row", "competitor.open", "competitor.insights", "competitor.accept", "competitor.reject", "competitor.edit", "competitor.winner", "competitor.remove", "competitor.save", "competitor.field.name", "competitor.tab", "competitor.detail", "competitor.evidence", "competitor.research.questions", "competitor.research.option", "competitor.research.assumes"]) expect(ids, id).toContain(id);
   });
 });

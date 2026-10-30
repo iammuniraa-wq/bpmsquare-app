@@ -23,6 +23,8 @@ vi.mock("next/navigation", () => ({
 
 import CompetitorsTab from "./competitors/CompetitorsTab";
 import CompetitorDetailPanel from "./competitors/CompetitorDetailPanel";
+import ResearchQuestions from "./competitors/ResearchQuestions";
+import { missingQuestions } from "@/lib/tender/competitors/researchRules";
 import CompetitorPanel from "./competitors/CompetitorPanel";
 import WhoWonPicker from "./competitors/WhoWonPicker";
 import OutcomeSection from "./OutcomeSection";
@@ -252,6 +254,74 @@ describe("the competitor's detail panel", () => {
 
   it("the list's own row never shows the evidence or the website (only the panel does)", () => {
     expect(tab(data([{ ...RIVAL, evidence }]))).not.toContain("Jubail");
+  });
+});
+
+describe("Suggest from market research", () => {
+  const questions = missingQuestions({}, { country: "Saudi Arabia" });
+  const asking = (answers = {}) => clean(renderToString(createElement(ResearchQuestions, { questions, answers, onAnswer: noop, onCancel: noop } as never)));
+
+  it("the button is the primary action of the header, with its explanation behind an i", () => {
+    const out = tab(data([RIVAL]));
+    expect(out).toContain('data-guide="competitor.suggest"');
+    expect(out).toContain("Suggest from market research");
+    expect(out).toContain('aria-label="About Suggest from market research"');
+    expect(buttonsOf(out, "competitor.suggest")[0]).toMatch(/bpm-btn-primary/);
+    expect(buttonsOf(out, "competitor.suggest")[0]).not.toMatch(/disabled/);
+    expect(buttonsOf(out, "competitor.suggest")[0]).toMatch(/min-height:44px/);
+  });
+
+  it("is switched off, and the i says why, when web research or the person's access is not available", () => {
+    const off = tab(data([RIVAL], { insights: { available: false, reason: "Company analysis is not switched on for this workspace." } }));
+    expect(buttonsOf(off, "competitor.suggest")[0]).toMatch(/disabled/);
+    expect(off).toContain('aria-label="About Suggest from market research"');
+  });
+
+  it("is switched off while migration 0239 is pending, with the update line", () => {
+    const out = tab(data([RIVAL], { researchPending: true }));
+    expect(buttonsOf(out, "competitor.suggest")[0]).toMatch(/disabled/);
+    expect(out).toContain('data-guide="competitor.research.pending"');
+    expect(out).toContain("migration 0239");
+  });
+
+  it("a view-only person is not offered it", () => {
+    expect(tab(data([RIVAL]), { canEdit: false })).not.toContain("competitor.suggest");
+  });
+
+  it("asks one question at a time as option chips, each a 44 px target, with a Cancel", () => {
+    const out = asking();
+    expect(out).toContain('data-guide="competitor.research.questions"');
+    expect(out).toContain("Is this a supply-only tender, or supply and install?");
+    expect(out).not.toContain("Where should I look for competitors?");
+    const chips = [...out.matchAll(/<button\b[^>]*data-guide="competitor\.research\.option"[^>]*>([^<]*)/g)];
+    expect(chips.map((m) => m[1])).toEqual(["Supply only", "Supply and install"]);
+    for (const m of chips) expect(m[0], m[0]).toMatch(/min-height:44px/);
+    expect(buttonsOf(out, "competitor.research.cancel")[0]).toMatch(/min-height:44px/);
+  });
+
+  it("an answered question shrinks to one muted line and the next one appears", () => {
+    const out = asking({ scope: "supply_install" });
+    expect(out).toContain("Is this a supply-only tender, or supply and install? Supply and install");
+    expect(out).toContain("Where should I look for competitors?");
+    expect(out).toContain("Saudi Arabia only");
+    expect(out).toContain(">GCC<");
+    expect(out).not.toContain(">Supply only<");
+  });
+
+  it("the tab says what the research assumed, with a Change link, once a run has been answered", () => {
+    const out = tab(data([RIVAL], { research: { scope: "supply_install", region: "gcc", issuer_type: "government" } }));
+    expect(out).toContain('data-guide="competitor.research.assumes"');
+    expect(out).toContain("Research assumes: supply and install · GCC · government");
+    expect(out).toContain('data-guide="competitor.research.change"');
+    expect(tab(data([RIVAL], { research: { scope: "supply", region: "gcc", issuer_type: "private" } }), { canEdit: false })).not.toContain("competitor.research.change");
+    expect(tab(data([RIVAL]))).not.toContain("Research assumes");
+  });
+
+  it("the answers are not a tender field: the tab and the research files never write them to the tender or the deal", () => {
+    const route = readFileSync(path.join(ROOT, "src/app/api/opportunities/[id]/competitors/research/route.ts"), "utf8");
+    expect(route).toMatch(/custom_data: \{ \.\.\.custom, competitor_research:/);
+    expect(route).not.toMatch(/from\("opportunities"\)/);
+    expect(route.match(/from\("opportunity_tenders"\)/g)).toHaveLength(1);
   });
 });
 

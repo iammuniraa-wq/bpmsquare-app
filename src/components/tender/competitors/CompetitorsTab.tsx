@@ -13,9 +13,11 @@ import { askDock } from "@/lib/analysis/dockAsk";
 import { TONE_PILLAR } from "@/lib/ui/tone";
 import { COMPETITOR_LIMITS, COMPETITOR_PRICE_LABEL, competitorStats, type CompetitorView, type CompetitorsData } from "@/lib/tender/competitors/rules";
 import { COMPETITOR_TIPS } from "@/lib/tender/competitors/tips";
+import { assumesLine, type PartialAnswers, type Question } from "@/lib/tender/competitors/researchRules";
 import type { DockAnalysis } from "@/lib/assistant/analysisTool";
 import CompetitorDetailPanel, { type InsightState } from "./CompetitorDetailPanel";
 import CompetitorPanel from "./CompetitorPanel";
+import ResearchQuestions from "./ResearchQuestions";
 
 // The Competitors tab of a tender deal (migration 0229, 0239): who we expect to bid against. One line of figures, then one list that shows
 // only Company, Expected price and Status (Proposed by market research, or Added by you); a row opens the detail panel with the evidence
@@ -23,6 +25,7 @@ import CompetitorPanel from "./CompetitorPanel";
 // allowance). Edit access comes from the deal; the server decides again on every call.
 
 const PENDING = "Competitors need a database update (migration 0229). Ask your administrator to apply it.";
+const PENDING_RESEARCH = "Market research needs a database update (migration 0239). Ask your administrator to apply it.";
 
 const css = `
 .cmp-table{width:100%;border-collapse:collapse}
@@ -67,6 +70,8 @@ export default function CompetitorsTab({ opportunityId, canEdit, onError, onNoti
   const [openId, setOpenId] = useState<string | null>(initialOpen);
   const [insights, setInsights] = useState<Record<string, InsightState>>({});
   const [busy, setBusy] = useState(false);
+  const [searching, setSearching] = useState(false);
+  const [asking, setAsking] = useState<{ questions: Question[]; answers: PartialAnswers; fresh: boolean } | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -148,6 +153,36 @@ export default function CompetitorsTab({ opportunityId, canEdit, onError, onNoti
     }
   }
 
+  /**
+   * Market research. The server asks what it needs first (`needs`) and runs nothing until all three questions are answered; the answers
+   * go back with each call, and the last call is the one that searches (about a minute). Proposals arrive as rows labelled Proposed.
+   */
+  async function suggest(answers: PartialAnswers, fresh: boolean) {
+    onError("");
+    setSearching(true);
+    try {
+      const res = await fetch(`/api/opportunities/${opportunityId}/competitors/research`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ answers, fresh }) });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) { setAsking(null); onError(j.error ?? "The research could not run right now. Nothing was saved."); return; }
+      if (Array.isArray(j.needs)) { setAsking({ questions: j.needs as Question[], answers, fresh }); return; }
+      setAsking(null);
+      onNotice?.(j.notice ?? `${j.proposed} ${j.proposed === 1 ? "competitor" : "competitors"} proposed. Open one to see its sources, then accept or reject it.`);
+      await load();
+      onChanged?.();
+    } catch {
+      setAsking(null);
+      onError("The research could not run right now. Nothing was saved.");
+    } finally { setSearching(false); }
+  }
+
+  function answerQuestion(key: Question["key"], value: string) {
+    if (!asking) return;
+    const answers = { ...asking.answers, [key]: value };
+    const open = asking.questions.filter((q) => !answers[q.key]);
+    if (open.length > 0) { setAsking({ ...asking, answers }); return; }
+    void suggest(answers, asking.fresh);
+  }
+
   const toggleInsights = (id: string) => setInsights((s) => {
     const cur = s[id];
     return cur?.status === "done" ? { ...s, [id]: { ...cur, open: !cur.open } } : s;
@@ -169,12 +204,28 @@ export default function CompetitorsTab({ opportunityId, canEdit, onError, onNoti
           <span style={{ marginLeft: "auto", display: "inline-flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
             <Button variant="secondary" size="sm" data-guide="competitor.add" style={{ minHeight: 44 }} onClick={() => setPanel({})}>Add competitor</Button>
             <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
-              <Button variant="primary" size="sm" disabled data-guide="competitor.suggest" style={{ minHeight: 44 }}>Suggest from market research</Button>
-              <InfoTip label="Suggest from market research">{COMPETITOR_TIPS.suggest}</InfoTip>
+              <Button
+                variant="primary" size="sm" loading={searching} disabled={!available || data?.researchPending === true || asking !== null} data-guide="competitor.suggest" style={{ minHeight: 44 }}
+                onClick={() => void suggest({}, false)}
+              >
+                {searching ? "Searching…" : "Suggest from market research"}
+              </Button>
+              <InfoTip label="Suggest from market research">{!available && data?.insights.reason ? data.insights.reason : COMPETITOR_TIPS.suggest}</InfoTip>
             </span>
           </span>
         )}
       </div>
+
+      {searching && <div role="status" data-guide="competitor.research.running" style={{ fontSize: 13, color: c.muted }}>Searching the public web. This takes about a minute; nothing is saved until you accept.</div>}
+      {data?.researchPending === true && canEdit && !pending && <div data-guide="competitor.research.pending" style={{ fontSize: 12.5, color: "var(--amberink)" }}>{PENDING_RESEARCH}</div>}
+      {asking && <ResearchQuestions questions={asking.questions} answers={asking.answers} disabled={searching} onAnswer={answerQuestion} onCancel={() => setAsking(null)} />}
+      {data?.research && !asking && !searching && (
+        <div data-guide="competitor.research.assumes" style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", fontSize: 12.5, color: c.hint }}>
+          <span>Research assumes: {assumesLine(data.research, null)}</span>
+          <InfoTip label="Research assumes">{COMPETITOR_TIPS.assumes}</InfoTip>
+          {canEdit && <Button variant="quiet" size="sm" data-guide="competitor.research.change" style={{ minHeight: 44 }} onClick={() => void suggest({}, true)}>Change</Button>}
+        </div>
+      )}
 
       {data === null && !loadError && <div role="status" style={{ fontSize: 13, color: c.hint }}>Loading competitors…</div>}
 

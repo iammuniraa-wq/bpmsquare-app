@@ -106,7 +106,7 @@ export function parseResearchJson(content: Block[]): unknown {
 
 export type MessagesClient = Pick<Anthropic, "messages">;
 
-function addUsage(a: ApiUsage & { server_tool_use?: { web_search_requests?: number } }, b: ApiUsage & { server_tool_use?: { web_search_requests?: number } }) {
+export function addUsage(a: ApiUsage & { server_tool_use?: { web_search_requests?: number } }, b: ApiUsage & { server_tool_use?: { web_search_requests?: number } }) {
   const n = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : 0);
   return {
     input_tokens: n(a.input_tokens) + n(b.input_tokens),
