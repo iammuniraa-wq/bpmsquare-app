@@ -220,7 +220,7 @@ describe("the prompt", () => {
   it("sends the tender's title, number, issuer, the three answers, the BOQ descriptions and the names already listed: nothing else", () => {
     const p = buildCompetitorPrompt(input);
     for (const part of ["Valves for Plant 4", "ARB-4", "Aramco", "supply and install", "the GCC region", "a government body", "Gate valve DN100", "Rival Co"]) expect(p, part).toContain(part);
-    expect(p).toMatch(/^<tender>.*<\/tender>\n<items>.*<\/items>\n<exclude>.*<\/exclude>\n/s);
+    expect(p).toMatch(/^<tender>[\s\S]*<\/tender>\n<items>[\s\S]*<\/items>\n<exclude>[\s\S]*<\/exclude>\n/);
   });
 
   it("cannot be broken out of by a title or a BOQ line: angle brackets are escaped, only eight items go, each short", () => {
