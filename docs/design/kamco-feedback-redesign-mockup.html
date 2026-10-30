@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>KAMCO redesign mock-up</title>
+<style>
+:root{--ink:#142033;--muted:#566377;--hint:#8a95a6;--line:#d9e0ea;--panel:#fff;--soft:#f3f6fb;--accent:#1f5fbf;--good:#1e7a4d;--goodbg:#e4f4ec;--warn:#9a6200;--warnbg:#fff3dc;--bad:#b3261e;--badbg:#fde8e6;--info:#1f5fbf;--infobg:#e8f0fd}
+*{box-sizing:border-box}body{margin:0;background:#eef1f6;color:var(--ink);font:14px/1.4 "Segoe UI",Arial,sans-serif}
+.wrap{max-width:1100px;margin:0 auto;padding:16px}
+h1{font-size:18px;margin:4px 0 2px}.sub{color:var(--muted);font-size:12.5px;margin-bottom:10px}
+.nav{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+.nav button{border:1px solid var(--line);background:#fff;border-radius:8px;padding:9px 12px;min-height:44px;cursor:pointer;font:inherit}
+.nav button.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+.screen{display:none}.screen.on{display:block}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px;margin-bottom:10px}
+.note{background:#fffbe9;border:1px dashed #d8b84a;border-radius:8px;padding:8px 10px;font-size:12.5px;margin-bottom:10px}
+.note b{color:#7a5c00}
+.steps{display:flex;gap:0;overflow-x:auto;margin-bottom:8px}
+.step{flex:1;min-width:92px;text-align:center;font-size:12px;color:var(--hint);position:relative;padding:0 2px}
+.step .dot{width:22px;height:22px;border-radius:50%;background:#dfe5ee;color:#fff;margin:0 auto 4px;line-height:22px;font-size:11px}
+.step.done .dot{background:var(--good)}.step.cur .dot{background:var(--accent);box-shadow:0 0 0 4px #cfe0fb}.step.cur{color:var(--ink);font-weight:600}.step.done{color:var(--muted)}
+.next{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:var(--infobg);border-radius:8px;padding:8px 10px}
+.btn{border:1px solid var(--line);background:#fff;border-radius:8px;padding:0 12px;min-height:44px;font:inherit;cursor:pointer;display:inline-flex;align-items:center}
+.btn.p{background:var(--accent);color:#fff;border-color:var(--accent)}
+.i{display:inline-block;width:15px;height:15px;border:1px solid var(--hint);border-radius:50%;text-align:center;font-size:10px;line-height:13px;color:var(--hint);margin-left:4px;cursor:help}
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin:10px 0;overflow-x:auto}
+.tabs span{padding:9px 12px;font-size:13px;color:var(--muted);white-space:nowrap}.tabs span.on{color:var(--accent);border-bottom:2px solid var(--accent);font-weight:600}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:8px}
+.tile{border:1px solid var(--line);border-radius:10px;padding:8px 10px;background:#fff}
+.tile .l{font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted)}.tile .v{font-size:20px;font-weight:700}.tile .s{font-size:12px;color:var(--hint)}
+.tile.good{background:var(--goodbg)}.tile.warn{background:var(--warnbg)}.tile.info{background:var(--infobg)}
+.bar{height:10px;border-radius:5px;background:#e3e8f0;overflow:hidden;display:flex}.bar i{display:block;height:100%}
+table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:7px 8px;border-bottom:1px solid var(--line);font-size:13px;vertical-align:middle}
+th{font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);background:var(--soft)}td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
+.chip{display:inline-block;border-radius:999px;padding:1px 8px;font-size:11.5px}.c-est{background:var(--infobg);color:var(--info)}.c-rfq{background:#ece9fb;color:#5b3fb5}.c-stale{background:var(--warnbg);color:var(--warn)}.c-ok{background:var(--goodbg);color:var(--good)}.c-no{background:var(--badbg);color:var(--bad)}
+.tb{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.tb .field{display:flex;align-items:center;gap:6px;border:1px solid var(--line);border-radius:8px;padding:0 10px;min-height:44px;background:#fff}.tb input{border:0;width:54px;font:inherit;text-align:right;outline:0}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}.grid3{display:grid;grid-template-columns:200px 1fr 220px;gap:10px}
+@media(max-width:900px){.grid2,.grid3{grid-template-columns:1fr}}
+.att{display:flex;gap:10px;flex-wrap:wrap;align-items:center;background:var(--warnbg);border-radius:8px;padding:8px 10px;margin-bottom:10px}
+details summary{cursor:pointer;color:var(--muted);font-size:13px;padding:4px 0}
+.msg{border-radius:8px;padding:6px 10px;margin:4px 0;font-size:13px;background:var(--soft)}.msg.me{background:var(--infobg)}
+.vis{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}.vis span{padding:6px 10px;font-size:12.5px}.vis .on{background:var(--accent);color:#fff}
+</style></head><body><div class="wrap">
+<h1>KAMCO redesign mock-up</h1>
+<div class="sub">Sample data only. Six screens: tender flow, BOQ, Costing, contract project overview, Deal Room and Competitors. Nothing is built.</div>
+<div class="nav" id="nav"></div>
+
+<!-- 1 TENDER FLOW -->
+<div class="screen" id="s0">
+<div class="note"><b>Changes:</b> a stepper shows the whole path and where you are; one next-step button; a done-checklist for the current step; chips collapse into one "Details" row (closed by default).</div>
+<div class="card">
+  <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px"><div><b style="font-size:16px">TEST-HANDOVER-001 · Coastal Developments LLC</b><div class="sub" style="margin:0">OPP-0026 · bid ends 12 Nov 2026</div></div><div><span class="chip c-est">Estimating</span></div></div>
+  <div class="steps" style="margin-top:12px">
+    <div class="step done"><div class="dot">✓</div>Received</div><div class="step done"><div class="dot">✓</div>Decision</div><div class="step done"><div class="dot">✓</div>BOQ</div>
+    <div class="step cur"><div class="dot">4</div>Costing</div><div class="step"><div class="dot">5</div>Bid</div><div class="step"><div class="dot">6</div>Submitted</div><div class="step"><div class="dot">7</div>Won or lost</div>
+  </div>
+  <div class="next"><div style="flex:1"><b>Next: price every BOQ line</b><div style="font-size:12.5px;color:var(--muted)">9 of 12 lines have a cost. 3 still need a cost.<span class="i">i</span></div></div><button class="btn">Open the 3 lines</button><button class="btn p">Continue to Bid</button></div>
+  <details style="margin-top:6px"><summary>Details (guarantee, addenda, closing, documents)</summary><div class="tiles" style="margin-top:6px"><div class="tile"><div class="l">Closing</div><div class="v">14 days</div></div><div class="tile"><div class="l">Guarantee</div><div class="v">Issued</div><div class="s">expires 30 Jan</div></div><div class="tile"><div class="l">Addenda</div><div class="v">1</div></div><div class="tile"><div class="l">Documents</div><div class="v">4</div></div></div></details>
+</div>
+<div class="tabs"><span>Overview</span><span>Bill of quantities</span><span class="on">Costing</span><span>Bid</span><span>Room</span><span>Competitors</span></div>
+</div>
+
+<!-- 2 BOQ -->
+<div class="screen" id="s1">
+<div class="note"><b>Changes:</b> toolbar on one baseline; "not priced" merged into the Priced tile; every column head has an "i"; "Linked" is renamed Product; cost can be edited from the row; "How Price all works" is one line.</div>
+<div class="tb card">
+  <button class="btn">Upload revised BOQ</button>
+  <div class="field">Markup on cost <input value="15"> %<span class="i">i</span></div>
+  <button class="btn p">Price all lines</button><span class="i">i</span>
+  <span style="margin-left:auto;font-size:12.5px;color:var(--muted)">Price all uses supplier, then BOM, then past project. Fresh prices only.</span>
+</div>
+<div class="tiles card" style="padding:8px">
+  <div class="tile info"><div class="l">Lines</div><div class="v">12</div><div class="s">BOQ-v1.xlsx · v2</div></div>
+  <div class="tile warn"><div class="l">Priced<span class="i">i</span></div><div class="v">75%</div><div class="s">9 of 12 · 3 to price</div></div>
+  <div class="tile good"><div class="l">Total<span class="i">i</span></div><div class="v">819,858.00</div><div class="s">cost + markup</div></div>
+</div>
+<div class="card" style="padding:0;overflow:auto"><table>
+<tr><th>Item</th><th>Description</th><th class="n">Qty</th><th>Unit</th><th>Cost from<span class="i">i</span></th><th class="n">Cost / unit</th><th class="n">Markup %<span class="i">i</span></th><th class="n">Rate / unit<span class="i">i</span></th><th class="n">Amount</th><th>Product<span class="i">i</span></th></tr>
+<tr><td>1.1</td><td>Excavation in trench</td><td class="n">1,200</td><td>m3</td><td><span class="chip c-est">Estimate</span></td><td class="n">180.03</td><td class="n">15</td><td class="n">207.03</td><td class="n">248,436</td><td>–</td></tr>
+<tr><td>2.1</td><td>Precast pipe 600 mm</td><td class="n">450</td><td>m</td><td><span class="chip c-rfq">RFQ</span></td><td class="n">310.00</td><td class="n">15</td><td class="n">356.50</td><td class="n">160,425</td><td>PIPE-600</td></tr>
+<tr><td>4.2</td><td>Manhole cover</td><td class="n">40</td><td>no.</td><td><span class="chip c-stale">Stale · 140 d</span><span class="i">i</span></td><td class="n">95.00</td><td class="n">15</td><td class="n">109.25</td><td class="n">4,370</td><td>–</td></tr>
+<tr><td>5.1</td><td>Backfill</td><td class="n">900</td><td>m3</td><td><span class="chip c-no">Not priced</span></td><td class="n">–</td><td class="n">–</td><td class="n">–</td><td class="n">–</td><td>–</td></tr></table></div>
+<div class="card"><b>Row panel: 5.1 Backfill</b>
+  <div class="tb" style="margin-top:8px"><div class="field">Cost / unit <input value="" placeholder="0.00"></div><button class="btn">Save cost</button><div class="field">Rate / unit <input value=""></div><button class="btn">Save rate</button><button class="btn">Price from Costing</button></div>
+  <div style="font-size:12.5px;color:var(--muted);margin-top:6px">A typed cost is saved as <b>Manual</b> and keeps the source it replaced. All controls share one height and baseline.</div></div>
+</div>
+
+<!-- 3 COSTING -->
+<div class="screen" id="s2">
+<div class="note"><b>Changes:</b> one compact table replaces the tall cards; "Prices" lists BOQ rows; one Add rows action; renamed <b>Cost sources</b>.</div>
+<div class="tiles card" style="padding:8px">
+  <div class="tile good"><div class="l">Rows priced</div><div class="v">12 <span style="font-size:13px;font-weight:400">of 12</span></div></div>
+  <div class="tile"><div class="l">Still need a cost</div><div class="v">0</div></div>
+  <div class="tile info"><div class="l">RFQs out</div><div class="v">0</div></div>
+  <div class="tile"><div class="l">Replies in</div><div class="v">0</div></div>
+</div>
+<div class="card" style="padding:0;overflow:auto">
+  <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;flex-wrap:wrap;gap:6px"><b>Cost sources<span class="i">i</span></b><span><button class="btn">New estimate</button> <button class="btn p">New RFQ</button></span></div>
+  <table><tr><th>Type</th><th>Reference</th><th>Prices BOQ rows</th><th>State</th><th class="n">Cost</th><th>Age</th><th></th></tr>
+  <tr><td><span class="chip c-est">Estimate</span></td><td>EST-0002</td><td>1.1</td><td><span class="chip c-ok">Applied</span></td><td class="n">216,040.73</td><td>1 d</td><td><button class="btn">Open</button></td></tr>
+  <tr><td><span class="chip c-rfq">RFQ</span></td><td>RFQ-0004</td><td>2.1 · 4.2 · 2.3 · 5.2 +8</td><td><span class="chip c-stale">Draft</span></td><td class="n">best 699,400.00</td><td>1 d</td><td><button class="btn">Open</button></td></tr></table>
+  <div style="padding:8px 12px;font-size:12.5px;color:var(--muted)">Each BOQ row takes its cost from one source. <a href="#" style="color:var(--accent)">Add rows to a source</a></div>
+</div></div>
+
+<!-- 4 CONTRACT PROJECT -->
+<div class="screen" id="s3">
+<div class="note"><b>Changes:</b> origin in the header with a back link to the tender; one 3-tile strip (collapsible); attention and approval first; one graph that says what it is; details collapsed; tabs renamed (Client billing, Client changes, Ordered / Spent).</div>
+<div class="card">
+  <div style="font-size:12.5px"><a href="#" style="color:var(--accent)">← Tender OPP-0027</a> · from bid v1 · BOQ-v1.xlsx</div>
+  <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px;margin-top:4px"><b style="font-size:16px">CPR-0002 · Pump station package</b><span class="chip c-ok">Active</span></div>
+  <div class="att" style="margin-top:10px"><b>Needs you</b><span>Baseline approval waiting</span><button class="btn p">Approve</button><span>12 lines without a cost code</span><a href="#" style="color:var(--warn)">Fix</a></div>
+  <details open><summary>Key figures</summary><div class="tiles"><div class="tile info"><div class="l">Contract value</div><div class="v">819,858</div><div class="s">from the awarded tender</div></div><div class="tile"><div class="l">Budget</div><div class="v">712,920</div><div class="s">Baseline · Approved</div></div><div class="tile good"><div class="l">Planned margin</div><div class="v">13.0%</div><div class="s">106,938</div></div></div></details>
+</div>
+<div class="tabs"><span class="on">Overview</span><span>Budget</span><span>Buy-out</span><span>Client changes</span><span>Client billing</span><span>Revisions</span></div>
+<div class="card"><b>Where the budget goes</b><span class="i">i</span>
+  <div style="font-size:12.5px;color:var(--muted);margin:2px 0 8px">Budget 712,920 of contract value 819,858. The rest is your margin.</div>
+  <div class="bar" style="height:18px"><i style="width:55%;background:#1f5fbf"></i><i style="width:20%;background:#7b4fd1"></i><i style="width:12%;background:#1a9a8a"></i><i style="width:13%;background:#d6dde8"></i></div>
+  <div style="display:flex;gap:14px;flex-wrap:wrap;font-size:12.5px;margin-top:6px"><span>■ Material 55%</span><span>■ Sub contractor 20%</span><span>■ Man power 12%</span><span>■ Margin 13%</span></div></div>
+<details><summary>Project details (customer, manager, dates, ERP id)</summary></details>
+</div>
+
+<!-- 5 ROOM + COMPETITORS -->
+<div class="screen" id="s4">
+<div class="note"><b>Changes:</b> Room becomes four sub-tabs (Discussion, Team, Decisions, Documents); open questions removed. Competitors stays its own tab: AI proposes from sourced research, you add or edit, and it asks when something is unclear.</div>
+<div class="card"><div class="tabs" style="margin-top:0"><span>Overview</span><span>Bill of quantities</span><span>Costing</span><span>Bid</span><span class="on">Room</span><span>Competitors</span></div>
+  <div class="tabs" style="margin-top:0"><span class="on">Discussion</span><span>Team</span><span>Decisions</span><span>Documents</span></div>
+  <div class="msg">Anas: Supplier prices are in.</div><div class="msg me">You: Award precast to Arabia.</div>
+  <div class="tb" style="margin-top:8px"><div class="field" style="flex:1"><input style="width:100%;text-align:left" placeholder="Write a message"></div><button class="btn p">Send</button></div>
+  <div style="font-size:12.5px;color:var(--muted);margin-top:8px"><b>Team</b> lists members, adds people, and switches the room between Internal and With client. <b>Decisions</b> holds the pinned one-liners. <b>Documents</b> holds the files shared in the room.</div>
+</div>
+<div class="card"><div class="tabs" style="margin-top:0"><span>Overview</span><span>Bill of quantities</span><span>Costing</span><span>Bid</span><span>Room</span><span class="on">Competitors</span></div>
+  <div class="tb" style="margin-bottom:8px"><b>Competitors</b><span style="font-size:12.5px;color:var(--muted)">3 on this tender · we are 4% above the best guess</span><span style="margin-left:auto"></span><button class="btn">Add competitor</button><button class="btn p">Suggest from market research</button></div>
+  <div class="note" style="background:var(--infobg);border-color:#b8cdf0"><b>Before I search, I need to check two things</b><div style="margin-top:4px">1. Is this a supply-only tender or supply and install? 2. Which region should I look in: Saudi Arabia only, or GCC?</div><div class="tb" style="margin-top:6px"><button class="btn">Supply and install</button><button class="btn">Supply only</button><button class="btn">Saudi only</button><button class="btn">GCC</button></div></div>
+  <table id="ctab"><tr><th>Company</th><th>Expected price</th><th>Status</th><th></th></tr>
+  <tr class="crow" data-k="0" style="cursor:pointer"><td><b>Gulf Build Co</b></td><td><span class="chip c-stale">Unknown</span></td><td><span class="chip" style="background:var(--infobg);color:var(--info)">Proposed</span></td><td class="n" style="color:var(--hint)">›</td></tr>
+  <tr class="crow" data-k="1" style="cursor:pointer"><td><b>Arabian Civil</b></td><td><span class="chip c-stale">Similar</span></td><td><span class="chip c-ok">Added by you</span></td><td class="n" style="color:var(--hint)">›</td></tr>
+  <tr class="crow" data-k="2" style="cursor:pointer"><td><b>Nile Works</b></td><td><span class="chip c-ok">Higher</span></td><td><span class="chip c-ok">Added by you</span></td><td class="n" style="color:var(--hint)">›</td></tr></table>
+  <div id="cdet" class="card" style="display:none;margin:10px 0 0;background:var(--soft)">
+    <div style="display:flex;justify-content:space-between;gap:8px"><b id="cname"></b><a href="#" id="cclose" style="color:var(--accent)">Close</a></div>
+    <div id="cbody" style="font-size:13px;margin-top:6px;display:grid;gap:4px"></div>
+    <div class="tb" style="margin-top:8px" id="cact"></div>
+  </div>
+  <div style="font-size:12.5px;color:var(--muted);margin-top:8px">Every fact shows its source link. If nothing is found it says Unknown or not found: nothing is guessed, and nothing is saved until you accept it.</div>
+</div>
+</div>
+
+<!-- 6 ALLOCATION -->
+<div class="wrap" style="padding-top:0"><div class="screen" id="s5">
+<div class="note"><b>Your decisions:</b> the user allocates the budget. Contract value minus allocated = margin, live. The user chooses the basis: <b>BOQ line</b> or <b>Work package</b> (WBS). Try both, type costs, press "Fill from tender costs".</div>
+<div class="card">
+  <div class="tb" style="margin-bottom:10px"><b>Allocate by</b><span class="i">i</span>
+    <span class="vis" id="basis"><span class="on" data-b="line">BOQ line</span><span data-b="pkg">Work package</span></span>
+    <span style="margin-left:auto"></span><button class="btn" id="fill">Fill from tender costs</button><span class="i">i</span><button class="btn p">Ask for approval</button></div>
+  <div class="tiles">
+    <div class="tile info"><div class="l">Contract value<span class="i">i</span></div><div class="v">819,858</div><div class="s">from the awarded tender</div></div>
+    <div class="tile"><div class="l">Allocated<span class="i">i</span></div><div class="v" id="alloc">0</div><div class="s" id="allocs"></div></div>
+    <div class="tile good" id="mtile"><div class="l">Margin so far<span class="i">i</span></div><div class="v" id="marg">Not allocated yet</div><div class="s" id="margs">type a cost</div></div>
+  </div>
+  <div class="bar" style="height:14px;margin-top:10px"><i id="bar1" style="width:0;background:#1f5fbf"></i></div>
+</div>
+<div class="card" style="padding:0;overflow:auto"><table><thead id="head"></thead><tbody id="rows"></tbody></table></div>
+<div class="card" id="wbs"><div class="tb"><b>Work breakdown (WBS)</b><span class="i">i</span><span style="margin-left:auto"></span><button class="btn">New work package</button></div>
+  <div style="font-size:12.5px;color:var(--muted);margin:6px 0">Group BOQ lines into packages and give each an owner. A line sits in one package. Unassigned lines: <b>none</b>.</div>
+  <div class="grid2"><div style="border:1px solid var(--line);border-radius:8px;padding:8px"><b>WP-1 Earthworks</b> · Site engineer<div style="font-size:12.5px;color:var(--muted)">1.1 Excavation · 5.1 Backfill</div></div><div style="border:1px solid var(--line);border-radius:8px;padding:8px"><b>WP-2 Pipework</b> · Estimator<div style="font-size:12.5px;color:var(--muted)">2.1 Precast pipe · 2.3 Bedding</div></div><div style="border:1px solid var(--line);border-radius:8px;padding:8px"><b>WP-3 Chambers</b> · Unassigned<div style="font-size:12.5px;color:var(--muted)">4.2 Manhole cover</div></div></div>
+  <div style="font-size:12.5px;color:var(--muted);margin-top:6px">Owners are workspace employees; they see their packages and what is left on each.</div></div>
+</div>
+<script>
+const L=[["1.1","Excavation in trench",248436,180000],["2.1","Precast pipe 600 mm",160425,140000],["2.3","Bedding and surround",98000,80000],["4.2","Manhole cover",4370,3800],["5.1","Backfill",308627,250000]];
+const P=[["WP-1","Earthworks","1.1, 5.1",557063,430000],["WP-2","Pipework","2.1, 2.3",258425,220000],["WP-3","Chambers","4.2",4370,3800]];
+const CV=819858;let mode="line";const rows=document.getElementById("rows"),head=document.getElementById("head");
+const inp=(i)=>`<input data-i="${i}" style="width:100px;text-align:right;min-height:36px;border:1px solid var(--line);border-radius:6px;font:inherit;padding:0 8px" placeholder="0">`;
+function draw(){const D=mode==="line"?L:P;
+head.innerHTML=mode==="line"?'<tr><th>Item</th><th>Description</th><th class="n">Client amount</th><th class="n">Allocated cost</th><th class="n">Left</th></tr>':'<tr><th>Package</th><th>Name</th><th>Lines</th><th class="n">Client amount</th><th class="n">Allocated cost</th><th class="n">Left</th></tr>';
+rows.innerHTML=D.map((r,i)=>mode==="line"?`<tr><td>${r[0]}</td><td>${r[1]}</td><td class="n">${r[2].toLocaleString()}</td><td class="n">${inp(i)}</td><td class="n" id="l${i}">${r[2].toLocaleString()}</td></tr>`:`<tr><td>${r[0]}</td><td>${r[1]}</td><td>${r[2]}</td><td class="n">${r[3].toLocaleString()}</td><td class="n">${inp(i)}</td><td class="n" id="l${i}">${r[3].toLocaleString()}</td></tr>`).join("");
+document.getElementById("wbs").style.display=mode==="pkg"?"block":"none";calc()}
+function amt(i){return mode==="line"?L[i][2]:P[i][3]}
+function calc(){let t=0,n=0;const ins=rows.querySelectorAll("input");ins.forEach((x,i)=>{const v=Number(x.value)||0;if(v>0)n++;t+=v;document.getElementById("l"+i).textContent=(amt(i)-v).toLocaleString()});
+document.getElementById("alloc").textContent=t.toLocaleString();document.getElementById("allocs").textContent=n+" of "+ins.length+(mode==="line"?" lines":" packages");
+document.getElementById("bar1").style.width=Math.min(100,t/CV*100)+"%";
+const m=document.getElementById("marg"),ms=document.getElementById("margs"),mt=document.getElementById("mtile");mt.style.background="";mt.className="tile good";
+if(t===0){m.textContent="Not allocated yet";ms.textContent="type a cost";return}
+const mg=CV-t;m.textContent=(mg/CV*100).toFixed(1)+"%";ms.textContent=mg.toLocaleString()+" left of "+CV.toLocaleString();
+if(mg<0){mt.className="tile";mt.style.background="var(--badbg)"}else if(mg/CV<0.1){mt.className="tile";mt.style.background="var(--warnbg)"}}
+rows.addEventListener("input",calc);
+document.getElementById("fill").onclick=()=>{const D=mode==="line"?L:P;rows.querySelectorAll("input").forEach((x,i)=>{x.value=D[i][mode==="line"?3:4]});calc()};
+document.querySelectorAll("#basis span").forEach(b=>b.onclick=()=>{mode=b.dataset.b;document.querySelectorAll("#basis span").forEach(x=>x.classList.toggle("on",x===b));draw()});
+draw();
+</script>
+<script>
+
+const CD=[{n:"Gulf Build Co",b:["Evidence: won a Riyadh drainage package in 2025 (<a href='#' style='color:var(--accent)'>source: Etimad award notice</a>)","Strengths: local plant (source: company site)","Won vs us: not found","Their likely price: not found"],a:["Accept","Reject"]},{n:"Arabian Civil",b:["Your note: client history","Won vs us: 1 of 4","Their likely price: 815,000 · our bid 819,858 (+0.6%)"],a:["Edit","Remove"]},{n:"Nile Works",b:["Strengths: large crew","Won vs us: 0 of 2","Their likely price: 860,000 · our bid 819,858 (-4.7%)"],a:["Edit","Remove"]}];
+document.querySelectorAll(".crow").forEach(r=>r.onclick=()=>{const c=CD[r.dataset.k];document.getElementById("cname").textContent=c.n;document.getElementById("cbody").innerHTML=c.b.map(x=>"<div>"+x+"</div>").join("");document.getElementById("cact").innerHTML=c.a.map((x,i)=>'<button class="btn'+(i===0&&x==="Accept"?" p":"")+'">'+x+"</button>").join("");document.getElementById("cdet").style.display="block"});
+document.getElementById("cclose").onclick=e=>{e.preventDefault();document.getElementById("cdet").style.display="none"};
+const names=["1 Tender flow","2 BOQ","3 Costing","4 Contract project","5 Room & competitors","6 Allocate budget"];
+const nav=document.getElementById("nav");
+names.forEach((n,i)=>{const b=document.createElement("button");b.textContent=n;b.onclick=()=>show(i);nav.appendChild(b)});
+function show(i){document.querySelectorAll(".screen").forEach((s,k)=>s.classList.toggle("on",k===i));[...nav.children].forEach((b,k)=>b.classList.toggle("on",k===i))}
+show(0);
+</script></body></html>

@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>{{TITLE}} — step by step — BPMSquare</title>
+<meta name="description" content="{{ONE SENTENCE}}" />
+<link rel="icon" type="image/svg+xml" href="favicon.svg" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="site.css">
+<link rel="stylesheet" href="guides.css">
+</head>
+<body>
+<!-- COPY the <svg> sprite block and the <header> from tenders.html exactly (same nav; add <a href="guides.html">Guides</a> once the index exists). -->
+
+<div class="g-hero">
+  <div class="wrap">
+    <div class="crumb"><a href="guides.html">Guides</a> / {{AREA}}</div>
+    <h1>{{TITLE}}, step by step</h1>
+    <p>{{ONE OR TWO SENTENCES: what you do here and what you get}}</p>
+    <div class="g-chips"><a href="#flow-1">{{Flow 1 name}}</a><a href="#flow-2">{{Flow 2 name}}</a></div>
+  </div>
+</div>
+
+<main class="g-body"><div class="wrap">
+
+<section class="g-flow" id="flow-1">
+  <h2>{{Flow 1 name, a task a user wants to do}}</h2>
+  <p class="g-sub">{{One sentence: when you do this.}}</p>
+
+  <article class="gstep" id="f1s1">
+    <div>
+      <div class="gnum">1</div>
+      <h3>{{Click ... (starts with a verb)}}</h3>
+      <p>{{One or two short sentences. Labels in <b>bold</b> exactly as on screen.}}</p>
+    </div>
+    <figure><img src="assets/guides/{{slug}}/01-name.jpg" alt="{{what the picture shows}}" width="{{w}}" height="{{h}}" loading="lazy"><figcaption>{{Caption}}</figcaption></figure>
+  </article>
+  <!-- one <article class="gstep"> per click; the red badge number inside the picture equals the number shown in .gnum -->
+</section>
+
+</div></main>
+
+<!-- COPY the cta-sec block and <footer> from tenders.html exactly; add the Guides link to .fnav. -->
+</body>
+</html>
