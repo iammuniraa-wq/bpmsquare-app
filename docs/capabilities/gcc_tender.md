@@ -22,6 +22,7 @@ rules:
 - The Bid tab saves each bid that goes in as a numbered version (no limit) with the deal's lines and total as they were, never a cost or markup; from the second version a reason is required, and any two versions can be compared line by line and by total.
 - Submit bid moves the tender to Submitted and Revise bid returns it to Estimating; a saved version is never edited or deleted.
 - Documents we send on the Bid tab holds the priced BOQ, the answer sheet and Make a Standard Quote from this version: the quote is made from the version you pick, keeps the client's own item numbers, links back to the tender and is listed there with the other quotes made from it.
+- Send by email (next to each file in Documents we send) sends the priced BOQ or the answer sheet to one address through the tender, logs it under Outbound emails, and records it under Sent to client (a demo workspace is redirected and the record says so). Sent to client lists every send; Record a send adds one made by hand, such as a portal upload.
 - History, in the header menu, opens the changes to the tender and its logged calls in a side panel (a bottom sheet on a phone).
 - On a phone the header is the title, the stage, the primary button and the menu, with the other facts folded into Deal facts; the tabs scroll sideways and a selected tab opens with its content in view.
 - A tender whose lines were typed by hand, with no client file uploaded, shows those lines as rows of the Bill of quantities and can add, change or delete a line there.

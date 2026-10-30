@@ -23,6 +23,7 @@ import SourceEmailSlot from "@/components/inbox/SourceEmailSlot";
 import { rfqPrefill } from "@/components/rfq/prefill";
 import { boqOrderedLines } from "@/lib/tender/boq/lineSync";
 import { listBidVersions } from "@/lib/tender/bids/server";
+import { listSends } from "@/lib/tender/bids/sends";
 import { priceValidityDays } from "@/lib/tender/boq/price";
 import { listCalls } from "@/lib/tender/callsServer";
 import { isOutcomeStage, type OutcomeData } from "@/lib/tender/outcome";
@@ -62,7 +63,7 @@ export default async function OpportunityDetailPage({ params, searchParams }: { 
   let tenderTab: TenderTabData | null = null;
   if (tender) {
     const roomOn = tenant?.features?.deal_room === true;
-    const [names, timezone, { data: allAccounts }, approval, room, bidList, callList] = await Promise.all([
+    const [names, timezone, { data: allAccounts }, approval, room, bidList, callList, sendList] = await Promise.all([
       loadActorNames(admin, tenantId, [tender.decided_by, tender.bond_released_by]),
       tenantTimezone(tenantId),
       admin.from("accounts").select("id, name").eq("tenant_id", tenantId).order("name"),
@@ -70,6 +71,7 @@ export default async function OpportunityDetailPage({ params, searchParams }: { 
       roomOn ? roomSummary(admin, tenantId, userId, id) : Promise.resolve(null),
       listBidVersions(admin, tenantId, id),
       listCalls(admin, tenantId, id, { userId, isAdmin: role === "admin" }),
+      listSends(admin, tenantId, id),
     ]);
     const view: TenderView = {
       tender_no: tender.tender_no, issuer_name: tender.issuer_name, issuer_account_id: tender.issuer_account_id, portal: tender.portal,
@@ -92,7 +94,7 @@ export default async function OpportunityDetailPage({ params, searchParams }: { 
       const st = await buildBoqState({ admin, supabase, tenantId, userId, role: role === "admin" ? "admin" : "member", opp, tender });
       if (st.source) boq = { hasBoq: true, lines: st.totals.lines, unpriced: st.totals.unpriced, stale: st.totals.stale, noProduct: st.totals.no_product, amount: st.totals.amount };
     } catch { /* the BOQ tab reports its own error */ }
-    const bids: BidsData = { versions: bidList.versions, pending: bidList.pending, working_total: 0, canEdit: boqEdit };
+    const bids: BidsData = { versions: bidList.versions, pending: bidList.pending, working_total: 0, canEdit: boqEdit, sends: sendList };
     const calls: CallsData = { calls: callList.calls, pending: callList.pending, canEdit: boqEdit };
     const outcome: OutcomeData | null = isOutcomeStage(opp.stage) ? {
       stage: opp.stage, award_value: tender.award_value, winning_bidder: tender.winning_bidder, award_date: tender.award_date, outcome_note: tender.outcome_note,

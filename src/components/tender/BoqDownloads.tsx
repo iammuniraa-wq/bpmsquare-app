@@ -60,11 +60,17 @@ export function AnswerSheetButton({ opportunityId, variant = "secondary" }: { op
 }
 
 /** Both, side by side, for the Bid tab's "Documents we send". */
-export default function BoqDownloads({ opportunityId }: { opportunityId: string }) {
+export default function BoqDownloads({ opportunityId, afterPriced, afterAnswer }: { opportunityId: string; afterPriced?: React.ReactNode; afterAnswer?: React.ReactNode }) {
   return (
-    <div data-guide="boq.downloads" style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
-      <PricedBoqButton opportunityId={opportunityId} />
-      <AnswerSheetButton opportunityId={opportunityId} />
+    <div data-guide="boq.downloads" style={{ display: "flex", flexWrap: "wrap", gap: "8px 16px", alignItems: "center" }}>
+      <span style={{ display: "inline-flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
+        <PricedBoqButton opportunityId={opportunityId} />
+        {afterPriced}
+      </span>
+      <span style={{ display: "inline-flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
+        <AnswerSheetButton opportunityId={opportunityId} />
+        {afterAnswer}
+      </span>
     </div>
   );
 }

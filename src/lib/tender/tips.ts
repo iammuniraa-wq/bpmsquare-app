@@ -60,6 +60,8 @@ export const TENDER_TIPS = {
   steps: "The path of a tender from the email to the outcome. The current step shows what to do next and what is done so far.",
   nextStep: "One next step at a time. The button does it or opens the place where it is done.",
   details: "Stage, amount, bid decision, bid end date and bid guarantee. Open it to change the stage or read the full state.",
+  sentToClient: "Every time the priced BOQ or the answer sheet went to the client: by email from here, or recorded by hand after a portal upload.",
+  sendByEmail: "Sends the file through the tender and logs it under Sent to client and Outbound emails. Costs and markup are never in the file.",
   reminders:"Reminders go by email to the owner and team and are logged under Outbound emails. Changing the bid end date restarts them.",
 } as const;
 

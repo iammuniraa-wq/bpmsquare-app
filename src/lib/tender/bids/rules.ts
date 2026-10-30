@@ -213,10 +213,72 @@ export type BidsData = {
   /** The deal lines' total right now (what the next version would carry). */
   working_total: number;
   canEdit: boolean;
+  /** What went to the client (migration 0237). Absent = the page did not read it; the Bid tab then asks for it itself. */
+  sends?: SendsData;
 };
 
 /** The version a Standard Quote is made from unless the person picks another: the latest, whatever order the list arrives in. Empty when there is none. */
 export function defaultQuoteVersion(versions: readonly { version_no: number }[], picked?: string | null): string {
   if (picked && versions.some((v) => String(v.version_no) === picked)) return picked;
   return versions.length === 0 ? "" : String(Math.max(...versions.map((v) => v.version_no)));
+}
+
+// ── Sent to client (migration 0237, KAMCO feedback slice 5) ─────────────────────────────────────────────────────────
+
+export const SEND_CHANNELS = ["email", "portal", "other"] as const;
+export type SendChannel = (typeof SEND_CHANNELS)[number];
+export const SEND_CHANNEL_LABEL: Record<SendChannel, string> = { email: "Email", portal: "Portal", other: "Other" };
+export const SEND_DOCUMENTS = ["priced_boq", "answer_sheet", "other"] as const;
+export type SendDocument = (typeof SEND_DOCUMENTS)[number];
+export const SEND_DOCUMENT_LABEL: Record<SendDocument, string> = { priced_boq: "Priced BOQ", answer_sheet: "Answer sheet", other: "Other document" };
+/** The documents the tender can build and attach itself. */
+export const EMAIL_DOCUMENTS = ["priced_boq", "answer_sheet"] as const;
+export type EmailDocument = (typeof EMAIL_DOCUMENTS)[number];
+export const SEND_LIMITS = { toMax: 300, noteMax: 1000 } as const;
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+export const isEmailAddress = (s: string) => EMAIL_RE.test(s.trim());
+
+export type SendInput = { channel: SendChannel; document: SendDocument; to_text: string | null; note: string | null; version_no: number | null };
+export type SendView = {
+  id: string; version_no: number | null; sent_at: string; sent_by_name: string | null;
+  channel: SendChannel; document: SendDocument; to_text: string | null; note: string | null;
+};
+export type SendsData = { rows: SendView[]; pending: boolean };
+
+/** A hand-recorded send (portal upload, a letter, an email sent outside the tender). `versionNos` are the deal's own submitted versions. */
+export function parseSend(body: unknown, versionNos: readonly number[]): { ok: true; value: SendInput } | { ok: false; error: string } {
+  const b = (body && typeof body === "object" ? body : {}) as Record<string, unknown>;
+  if (!(SEND_CHANNELS as readonly unknown[]).includes(b.channel)) return { ok: false, error: "Pick how it was sent" };
+  if (!(SEND_DOCUMENTS as readonly unknown[]).includes(b.document)) return { ok: false, error: "Pick the document that was sent" };
+  const to = clean(b.to_text);
+  const note = clean(b.note);
+  if (to.length > SEND_LIMITS.toMax) return { ok: false, error: `"To" is too long (${SEND_LIMITS.toMax} characters at most)` };
+  if (note.length > SEND_LIMITS.noteMax) return { ok: false, error: `The note is too long (${SEND_LIMITS.noteMax} characters at most)` };
+  let version: number | null = null;
+  if (b.version_no !== null && b.version_no !== undefined && b.version_no !== "") {
+    const n = Number(b.version_no);
+    if (!Number.isInteger(n) || !versionNos.includes(n)) return { ok: false, error: "That bid version does not exist on this tender" };
+    version = n;
+  }
+  return { ok: true, value: { channel: b.channel as SendChannel, document: b.document as SendDocument, to_text: to || null, note: note || null, version_no: version } };
+}
+
+export type EmailSendInput = { document: EmailDocument; to: string; note: string | null };
+
+/** "Send by email": one recipient, one of the two files the tender builds itself, and an optional note. */
+export function parseEmailSend(body: unknown): { ok: true; value: EmailSendInput } | { ok: false; error: string } {
+  const b = (body && typeof body === "object" ? body : {}) as Record<string, unknown>;
+  if (!(EMAIL_DOCUMENTS as readonly unknown[]).includes(b.document)) return { ok: false, error: "Pick the priced BOQ or the answer sheet" };
+  const to = clean(b.to);
+  if (!isEmailAddress(to)) return { ok: false, error: "Enter a valid email address" };
+  if (to.length > SEND_LIMITS.toMax) return { ok: false, error: "The address is too long" };
+  const note = clean(b.note);
+  if (note.length > SEND_LIMITS.noteMax) return { ok: false, error: `The note is too long (${SEND_LIMITS.noteMax} characters at most)` };
+  return { ok: true, value: { document: b.document as EmailDocument, to, note: note || null } };
+}
+
+/** What the "To" column reads for an emailed send: the address, or the redirect on a demo workspace. */
+export function sendToText(routed: { redirected: boolean; to: readonly string[]; intended: readonly string[] }): string {
+  const text = routed.redirected ? `(redirected; addressed to ${routed.intended.join(", ")})` : routed.to.join(", ");
+  return text.slice(0, SEND_LIMITS.toMax);
 }
