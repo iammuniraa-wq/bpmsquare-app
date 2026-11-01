@@ -8,7 +8,8 @@ import { NAV, ROUTES } from "@/lib/constants";
 import type { NavItem } from "@/lib/constants";
 import Logo from "./Logo";
 import { useSettings, ACCENT_PRESETS } from "@/lib/settings";
-import { StarFilled, StarOutline, Gear, Monitor, Globe, Phone, FileText, BarChart2, Clipboard, Activity, CalendarCheck, Wrench, MapPin, Mail, Package, Zap, LinkIcon, Clock, Users, CheckIcon, Database, Box, Shield, Tag, Truck, Filter, Coins } from "@/components/Icons";
+import { StarFilled, StarOutline, Gear } from "@/components/Icons";
+import { NAV_GLYPHS } from "@/components/navGlyphs";
 import { useTenant, useUiTheme, useViewableWorkcenters, useIsWfmSupervisor, useTopBarIdentity, useIsSpectacular } from "@/lib/tenant-context";
 import SpacesRow from "@/components/SpacesRow";
 import { isNavItemHidden } from "@/lib/navVisibility";
@@ -86,61 +87,10 @@ function saveNavState(s: NavState) {
 
 // ── Nav glyphs ────────────────────────────────────────────────────────────────
 // Under the "nextgen" theme the sidebar renders a real SVG icon per route
-// instead of the unicode glyphs baked into NAV -- the single loudest
-// dated-look signal in the old chrome. Other themes keep the text glyphs.
+// instead of the unicode glyphs baked into NAV. The map lives in navGlyphs.ts
+// (one distinct glyph per destination, enforced by its test).
 
-export const NAV_GLYPHS: Record<string, React.ComponentType<{ size?: number; color?: string }>> = {
-  [ROUTES.dashboard]: Monitor,
-  [ROUTES.accounts]: Globe,
-  [ROUTES.contacts]: Phone,
-  [ROUTES.quotations]: FileText,
-  [ROUTES.pipeline]: BarChart2,
-  [ROUTES.invoices]: Clipboard,
-  [ROUTES.cases]: Activity,
-  [ROUTES.amc]: CalendarCheck,
-  [ROUTES.workOrders]: Wrench,
-  [ROUTES.dispatch]: MapPin,
-  // Technicians is a people list (field staff), not a settings screen --
-  // was Gear (2026-08-25 icon audit).
-  [ROUTES.technicians]: Users,
-  [ROUTES.marketing]: Mail,
-  // Segmentation divides an audience into groups -- a shipping-box icon
-  // (Package, also Inventory's icon) didn't represent that at all.
-  [ROUTES.marketingSegments]: Filter,
-  [ROUTES.leads]: Zap,
-  [ROUTES.partners]: LinkIcon,
-  // Assets is equipment/records, not configuration -- was Gear, which the
-  // "Master data" parent item then inherited too (it reuses Assets' own
-  // href/icon), so BOTH read as "Settings" (owner-flagged 2026-08-25).
-  [ROUTES.assets]: Box,
-  // Suppliers previously reused Accounts' own Globe -- confusing since both
-  // sit in the same Master Data group. Truck reads as supply chain instead.
-  [ROUTES.suppliers]: Truck,
-  [ROUTES.inventory]: Package,
-  // Products had no entry at all (silently fell back to Gear). Tag reads as
-  // a catalog/price-tag item, distinct from Inventory's box-of-stock.
-  [ROUTES.products]: Tag,
-  [ROUTES.purchaseOrders]: Clipboard,
-  [ROUTES.reports]: BarChart2,
-  [ROUTES.dataWorkbench]: Clipboard,
-  [ROUTES.wfmMe]: Clock,
-  [ROUTES.wfmLiveBoard]: Clock,
-  [ROUTES.wfmEmployees]: Users,
-  [ROUTES.wfmCorrections]: CheckIcon,
-  // Added 2026-08-22 (Nova readiness audit): these routes fell back to their
-  // NAV text/emoji glyph on Nova surfaces -- an SVG-only violation.
-  [ROUTES.standardQuotes]: FileText,
-  [ROUTES.wfmRoster]: CalendarCheck,
-  [ROUTES.wfmLeave]: CalendarCheck,
-  [ROUTES.wfmSummary]: BarChart2,
-  [ROUTES.employees]: Users,
-  // Audit & Users (administration) previously shared Gear with Settings --
-  // the two are different destinations and looked identical in Spaces
-  // (owner-flagged 2026-08-25). Shield reads as oversight/audit.
-  [ROUTES.administration]: Shield,
-  [ROUTES.pricingToday]: Coins,
-  [ROUTES.settings]: Gear,
-};
+export { NAV_GLYPHS };
 
 // Exported so MobileTabBar draws the SAME glyph for a destination as the
 // sidebar does -- a second copy of the map would drift the first time an
