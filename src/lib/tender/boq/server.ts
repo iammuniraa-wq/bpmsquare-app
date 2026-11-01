@@ -12,7 +12,7 @@ import { linesVersion } from "@/lib/sales/dealLines";
 import { safeFileName, sniffAttachment } from "@/lib/inbox/rules";
 import type { OpportunityLine } from "@/lib/types";
 import { isMissingSchema, loadTender, type TenderRow } from "../server";
-import { BOQ_LIMITS, detectColumns, detectLayout, extractLines, planColumns, sameLayout, type BoqLine, type ColumnMap, type ColumnPlan, type ParsedBoq, type SkippedRow } from "./parse";
+import { BOQ_LIMITS, DETAILS_MAX, detectColumns, detectLayout, extractLines, multilineText, planColumns, sameLayout, type BoqLine, type ClientData, type ColumnMap, type ColumnPlan, type HeaderInfo, type ParsedBoq, type SkippedRow } from "./parse";
 import { diffBoq, relinkPlan, type BoqDiff, type ExistingLine } from "./diff";
 import { defaultMarkupPct, isStale, pickAuto, priceValidityDays, rateFor, refuseCandidate, staleText, type Candidate, type PriceSource } from "./price";
 import { manualCostPlan, manualSourceRef } from "./table";
@@ -82,16 +82,32 @@ export type SourceRow = {
   id: string; opportunity_id: string; version: number; is_current: boolean; file_name: string; storage_path: string; size_bytes: number;
   sheet_name: string; header_row: number; header_labels: string[]; column_map: ColumnMap; rate_col: number | null; amount_col: number | null;
   added_columns: boolean; total_row: number | null; line_count: number; uploaded_by: string | null; uploaded_at: string;
+  /** Project code and name from the title block of the client's sheet (0242). Absent until that migration is applied. */
+  header_info?: HeaderInfo | null;
 };
 export type BoqRow = {
   id: string; opportunity_id: string; source_id: string; line_id: string | null; item_key: string; item_no: string | null; cost_code: string | null; row_no: number;
   file_description: string; file_uom: string | null; file_qty: number; file_rate: number | null;
   price_source: PriceSource | null; price_source_ref: string | null; price_as_of: string | null; stale_accepted: boolean;
   unit_cost: number | null; markup_pct: number | null; removed_in_revision: boolean;
+  /** The long Description next to a Narration, and the client's other columns (0242). Absent until that migration is applied. */
+  file_details?: string | null; client_data?: ClientData | null;
 };
 
-const SOURCE_COLS = "id, opportunity_id, version, is_current, file_name, storage_path, size_bytes, sheet_name, header_row, header_labels, column_map, rate_col, amount_col, added_columns, total_row, line_count, uploaded_by, uploaded_at";
-const ROW_COLS = "id, opportunity_id, source_id, line_id, item_key, item_no, cost_code, row_no, file_description, file_uom, file_qty, file_rate, price_source, price_source_ref, price_as_of, stale_accepted, unit_cost, markup_pct, removed_in_revision";
+const SOURCE_COLS_BASE = "id, opportunity_id, version, is_current, file_name, storage_path, size_bytes, sheet_name, header_row, header_labels, column_map, rate_col, amount_col, added_columns, total_row, line_count, uploaded_by, uploaded_at";
+const SOURCE_COLS = `${SOURCE_COLS_BASE}, header_info`;
+const ROW_COLS_BASE = "id, opportunity_id, source_id, line_id, item_key, item_no, cost_code, row_no, file_description, file_uom, file_qty, file_rate, price_source, price_source_ref, price_as_of, stale_accepted, unit_cost, markup_pct, removed_in_revision";
+const ROW_COLS = `${ROW_COLS_BASE}, file_details, client_data`;
+
+/** A column the code knows but the database does not have yet: migration 0242 is pending. Not the same as a missing table. */
+const isMissingColumn = (e: { code?: string } | null | undefined) => !!e && (e.code === "42703" || e.code === "PGRST204");
+export const CLIENT_FORMAT_PENDING = "Applying this layout fully needs a database update (migration 0242)";
+
+/** Whether the client-format columns (0242) exist. One cheap read; the code then writes them, or leaves them out and says so. */
+export async function clientFormatReady(admin: SupabaseClient, tenantId: string): Promise<boolean> {
+  const { error } = await admin.from("tender_boq_lines").select("file_details, client_data").eq("tenant_id", tenantId).limit(1);
+  return !error;
+}
 
 const num = (v: unknown): number | null => (v == null ? null : Number(v));
 const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
@@ -113,13 +129,17 @@ function toRow(r: Record<string, unknown>): BoqRow {
 }
 
 export async function loadCurrentSource(admin: SupabaseClient, tenantId: string, oppId: string): Promise<{ source: SourceRow | null; pending: boolean }> {
-  const { data, error } = await admin.from("tender_boq_sources").select(SOURCE_COLS).eq("tenant_id", tenantId).eq("opportunity_id", oppId).eq("is_current", true).maybeSingle();
+  const read = (cols: string) => admin.from("tender_boq_sources").select(cols).eq("tenant_id", tenantId).eq("opportunity_id", oppId).eq("is_current", true).maybeSingle();
+  let { data, error } = await read(SOURCE_COLS);
+  if (isMissingColumn(error)) ({ data, error } = await read(SOURCE_COLS_BASE));
   if (error) return { source: null, pending: isMissingSchema(error) };
-  return { source: data ? toSource(data as Record<string, unknown>) : null, pending: false };
+  return { source: data ? toSource(data as unknown as Record<string, unknown>) : null, pending: false };
 }
 
 async function loadRows(admin: SupabaseClient, tenantId: string, oppId: string): Promise<BoqRow[]> {
-  const { data, error } = await readAllPages((lo, hi) => admin.from("tender_boq_lines").select(ROW_COLS).eq("tenant_id", tenantId).eq("opportunity_id", oppId).order("row_no").order("id", { ascending: true }).range(lo, hi));
+  const read = (cols: string) => readAllPages((lo, hi) => admin.from("tender_boq_lines").select(cols).eq("tenant_id", tenantId).eq("opportunity_id", oppId).order("row_no").order("id", { ascending: true }).range(lo, hi));
+  let { data, error } = await read(ROW_COLS);
+  if (isMissingColumn(error)) ({ data, error } = await read(ROW_COLS_BASE));
   if (error) return [];
   return ((data ?? []) as Record<string, unknown>[]).map(toRow);
 }
@@ -147,6 +167,8 @@ async function relink(admin: SupabaseClient, tenantId: string, oppId: string, ro
 export type BoqLineView = {
   id: string; line_id: string | null; row_no: number; item_no: string | null; cost_code: string | null; description: string; uom: string | null; qty: number;
   rate: number; amount: number; priced: boolean; linked: boolean; removed: boolean;
+  /** The long Description kept next to the line's name (a Narration), and the client's other columns. Null for a Description-only file. */
+  details: string | null; client_data: ClientData | null;
   price_source: PriceSource | null; price_source_ref: string | null; price_as_of: string | null;
   stale: boolean; stale_text: string | null; stale_accepted: boolean; unit_cost: number | null; markup_pct: number | null; file_rate: number | null;
 };
@@ -185,6 +207,7 @@ export async function buildBoqState(r: BoqRequest): Promise<BoqState> {
         id: b.id, line_id: l?.id ?? null, row_no: b.row_no, item_no: b.item_no, cost_code: b.cost_code,
         description: l?.description ?? b.file_description, uom: b.file_uom ?? l?.uom ?? null, qty: l ? Number(l.qty) : b.file_qty,
         rate, amount: l ? Number(l.amount) : 0, priced: !!l && rate > 0, linked: !!l, removed: b.removed_in_revision,
+        details: b.file_details ?? null, client_data: b.client_data && typeof b.client_data === "object" ? b.client_data : null,
         price_source: b.price_source, price_source_ref: b.price_source_ref, price_as_of: b.price_as_of,
         stale, stale_text: stale ? staleText(b.price_as_of, today) : null, stale_accepted: b.stale_accepted,
         unit_cost: b.unit_cost, markup_pct: b.markup_pct, file_rate: b.file_rate,
@@ -216,6 +239,14 @@ export type AnalysisView = {
   reused_map: boolean; needs_mapping: boolean;
   line_count: number; sample: BoqLine[]; skipped: SkippedRow[]; skipped_count: number; total_row: number | null; truncated: boolean;
   columns: ColumnPlan | null;
+  /** Project code / name from the sheet's title block. */
+  header_info: HeaderInfo;
+  /** Labels of the columns kept as client data. */
+  client_columns: string[];
+  /** Lines with a Narration and a Description (the Description kept as details). */
+  details_count: number;
+  /** Set when the file carries details, client columns or a title block and the database cannot hold them yet (0242 pending). */
+  notice: string | null;
   diff: { added: number; changed: number; unchanged: number; dropped: number; kept: number; added_items: string[]; changed_items: { item: string; fields: string[] }[]; dropped_items: string[]; kept_items: string[] } | null;
 };
 type Analysed = { view: AnalysisView; parsed: ParsedBoq; headerLabels: string[]; diff: BoqDiff | null; sheet: string };
@@ -228,7 +259,7 @@ async function existingLines(admin: SupabaseClient, tenantId: string, oppId: str
   const rows = await relink(admin, tenantId, oppId, await loadRows(admin, tenantId, oppId), dealLines);
   const byId = new Map(dealLines.map((l) => [l.id, l]));
   const existing = rows.map((b): ExistingLine => ({
-    key: b.item_key, item_no: b.item_no, description: b.file_description, uom: b.file_uom, qty: b.file_qty, cost_code: b.cost_code,
+    key: b.item_key, item_no: b.item_no, description: b.file_description, uom: b.file_uom, qty: b.file_qty, cost_code: b.cost_code, details: b.file_details,
     priced: (b.line_id ? Number(byId.get(b.line_id)?.rate ?? 0) > 0 : false) || b.price_source != null, removed: b.removed_in_revision,
   }));
   return { rows, lines: dealLines, existing };
@@ -279,7 +310,7 @@ export async function analyseUpload(r: BoqRequest, input: UploadInput): Promise<
   }
   const mapOk = map.description != null && map.qty != null;
   const needsMapping = headerRow == null || !mapOk;
-  const parsed: ParsedBoq = !needsMapping ? extractLines(grid, headerRow!, map) : { lines: [], skipped: [], total_row: null, truncated: false };
+  const parsed: ParsedBoq = !needsMapping ? extractLines(grid, headerRow!, map) : { lines: [], skipped: [], total_row: null, truncated: false, client_columns: [], header_info: {} };
   const headerCells = headerRow ? grid[headerRow - 1] ?? [] : [];
   const headerLabels = headerCells.map((c) => (c == null ? "" : String(c)));
 
@@ -287,6 +318,7 @@ export async function analyseUpload(r: BoqRequest, input: UploadInput): Promise<
   const diff = ex && ex.existing.length > 0 ? diffBoq(ex.existing, parsed.lines) : null;
   const colCount = Math.min(BOQ_LIMITS.maxColumns, Math.max(1, ...grid.slice(0, 40).map((row) => row.length)));
 
+  const carriesClientFormat = parsed.lines.some((l) => l.details || l.client_data) || Object.keys(parsed.header_info).length > 0;
   const view: AnalysisView = {
     sheets: names, sheet, header_row: headerRow, map,
     headers: Array.from({ length: colCount }, (_, i) => ({ col: i + 1, label: headerLabels[i] ?? "" })),
@@ -294,6 +326,8 @@ export async function analyseUpload(r: BoqRequest, input: UploadInput): Promise<
     reused_map: reused, needs_mapping: needsMapping,
     line_count: parsed.lines.length, sample: parsed.lines.slice(0, 8), skipped: parsed.skipped.slice(0, 30), skipped_count: parsed.skipped.length, total_row: parsed.total_row, truncated: parsed.truncated,
     columns: !needsMapping ? planColumns(grid, headerRow!, map) : null,
+    header_info: parsed.header_info, client_columns: parsed.client_columns, details_count: parsed.lines.filter((l) => !!l.details).length,
+    notice: carriesClientFormat && !(await clientFormatReady(r.admin, r.tenantId)) ? CLIENT_FORMAT_PENDING : null,
     diff: diff && {
       added: diff.added.length, changed: diff.changed.length, unchanged: diff.unchanged, dropped: diff.dropped.length, kept: diff.kept.length,
       added_items: diff.added.slice(0, 30).map(itemLabel), changed_items: diff.changed.slice(0, 30).map((c) => ({ item: itemLabel(c.line), fields: c.fields })),
@@ -321,7 +355,7 @@ export type AppliedLines = { ok: true; added: number; changed: number; dropped: 
  */
 export async function applyBoqLines(
   r: BoqRequest, incoming: readonly BoqLine[],
-  source: { id: string; fileLabel: string; previous: { file_name: string; version: number } | null; logField?: string },
+  source: { id: string; fileLabel: string; previous: { file_name: string; version: number } | null; logField?: string; keepMissing?: boolean },
 ): Promise<AppliedLines> {
   const { admin, tenantId, userId, opp } = r;
   const sourceId = source.id;
@@ -330,7 +364,10 @@ export async function applyBoqLines(
   const today = await tenantToday(tenantId);
   const config = await loadConfig(admin, tenantId);
   const { rows, lines: dealLines, existing } = await existingLines(admin, tenantId, opp.id);
-  const diff = diffBoq(existing, incoming);
+  const full = diffBoq(existing, incoming);
+  // keepMissing (Data Workbench import): the file only adds and updates; a line it does not mention is neither removed nor flagged.
+  const diff = source.keepMissing ? { ...full, dropped: [], kept: [] } : full;
+  const ready = await clientFormatReady(admin, tenantId);
   const rowByKey = new Map(rows.map((x) => [x.item_key, x]));
   const lineById = new Map(dealLines.map((l) => [l.id, l]));
   const now = new Date().toISOString();
@@ -342,7 +379,10 @@ export async function applyBoqLines(
     const qty = round2(l.qty);
     return { id, rate, row: { id, tenant_id: tenantId, opportunity_id: opp.id, sl_no: l.item_no ?? String(l.row_no), description: l.description, uom: l.uom, qty, rate, discount_pct: 0, amount: round2(qty * rate), is_selected: true, show_on_pdf: true } };
   };
-  const boqBase = (l: BoqLine) => ({ source_id: sourceId, item_no: l.item_no, cost_code: l.cost_code, row_no: l.row_no, file_description: l.description, file_uom: l.uom, file_qty: l.qty, file_rate: l.file_rate, removed_in_revision: false, updated_at: now });
+  const boqBase = (l: BoqLine) => ({ source_id: sourceId, item_no: l.item_no, cost_code: l.cost_code, row_no: l.row_no, file_description: l.description, file_uom: l.uom, file_qty: l.qty, file_rate: l.file_rate, removed_in_revision: false, updated_at: now,
+    // Until migration 0242 is applied the columns are left out; the upload preview says so.
+    ...(ready ? { file_details: l.details ?? null, client_data: l.client_data ?? null } : {}),
+  });
   const fromFile = (rate: number) => rate > 0 ? { price_source: "boq_rate", price_source_ref: fileLabel, price_as_of: today, stale_accepted: false, unit_cost: null, markup_pct: null, priced_by: userId, priced_at: now } : {};
 
   const toInsertLines: Record<string, unknown>[] = [];
@@ -442,6 +482,7 @@ export async function applyUpload(r: BoqRequest, input: UploadInput): Promise<Ap
     file_name: safeFileName(input.fileName, ext), storage_path: path, size_bytes: input.bytes.byteLength, sheet_name: a.sheet, header_row: view.header_row,
     header_labels: a.headerLabels, column_map: view.map, rate_col: cols.rate_col, amount_col: cols.amount_col, added_columns: cols.added,
     total_row: a.parsed.total_row, line_count: incoming.length, uploaded_by: userId,
+    ...(await clientFormatReady(admin, tenantId) ? { header_info: a.parsed.header_info } : {}),
   });
   if (sErr) {
     if (previous) await admin.from("tender_boq_sources").update({ is_current: true }).eq("id", previous.id).eq("tenant_id", tenantId).eq("opportunity_id", opp.id);
@@ -577,7 +618,7 @@ export async function priceOneLine(r: BoqRequest, boqLineId: string, body: Price
   return { ok: true, rate, amount };
 }
 
-export type EditBody = { qty?: unknown; description?: unknown; cost_code?: unknown };
+export type EditBody = { qty?: unknown; description?: unknown; cost_code?: unknown; details?: unknown };
 const MAX_QTY = 9_999_999_999.99;
 
 export type EditOutcome = { boqId: string; ok: boolean; status?: number; error?: string; changed?: boolean; qty?: number; description?: string; amount?: number };
@@ -605,7 +646,7 @@ export async function editBoqLines(r: BoqRequest, edits: { boqId: string; body: 
     const label = boq.item_no ?? `row ${boq.row_no}`;
     let qty = Number(line.qty);
     let description = line.description;
-    let codePatch: { cost_code: string | null } | null = null;
+    let codePatch: { cost_code?: string | null; file_details?: string | null } | null = null;
     let failure: string | null = null;
 
     if (body.qty !== undefined) {
@@ -631,9 +672,20 @@ export async function editBoqLines(r: BoqRequest, edits: { boqId: string; body: 
         const code = typeof body.cost_code === "string" ? body.cost_code.trim() : "";
         if (code.length > 60) failure = "The cost code is longer than 60 characters";
         else if ((code || null) !== (boq.cost_code ?? null)) {
-          codePatch = { cost_code: code || null };
+          codePatch = { ...(codePatch ?? {}), cost_code: code || null };
           // Not "BOQ cost ...": that prefix is the typed unit cost, which the change feed holds back.
           lineChanges.push({ field: `BOQ code ${label}`, from: boq.cost_code, to: code || null });
+        }
+      }
+    }
+    if (!failure && body.details !== undefined) {
+      if (body.details !== null && typeof body.details !== "string") failure = "The details must be text";
+      else if (typeof body.details === "string" && body.details.length > DETAILS_MAX * 2) failure = `The details are longer than ${DETAILS_MAX.toLocaleString("en-US")} characters`;
+      else {
+        const text = typeof body.details === "string" ? multilineText(body.details) : "";
+        if ((text || null) !== (boq.file_details ?? null)) {
+          codePatch = { ...(codePatch ?? {}), file_details: text || null };
+          lineChanges.push({ field: `BOQ details ${label}`, from: (boq.file_details ?? "").slice(0, 200) || null, to: text.slice(0, 200) || null });
         }
       }
     }
@@ -649,7 +701,7 @@ export async function editBoqLines(r: BoqRequest, edits: { boqId: string; body: 
     }
     if (codePatch) {
       const { error } = await admin.from("tender_boq_lines").update({ ...codePatch, updated_at: new Date().toISOString() }).eq("id", boq.id).eq("tenant_id", tenantId).eq("opportunity_id", opp.id);
-      if (error) { outcomes.push({ boqId, ok: false, status: 500, error: error.message }); continue; }
+      if (error) { outcomes.push({ boqId, ok: false, status: isMissingColumn(error) ? 503 : 500, error: isMissingColumn(error) ? CLIENT_FORMAT_PENDING : error.message }); continue; }
     }
     // A second edit of the same row in this call starts from what the first one wrote.
     item.line = { ...line, ...patch } as OpportunityLine;

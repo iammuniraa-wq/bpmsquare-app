@@ -5,6 +5,9 @@ import type { QueryableField } from "./query";
 import type { WorkcenterKey } from "@/lib/workcenters";
 import { PROJECT_HOURS_FIELDS, loadProjectHoursRows } from "@/lib/wfm/projectHoursRows";
 import { loadEstimatesForApi } from "@/lib/estimator/apiRows";
+import { TENDER_BOQ_LINE_FIELDS, boqApiContext, loadBoqRowsForApi } from "@/lib/tender/boq/apiRows";
+import { listTenders } from "@/lib/tender/server";
+import { fetchAllRows } from "@/lib/import/server";
 import { loadStandardQuotesForApi } from "@/lib/api/standardQuoteRows";
 import { loadSalesOrdersForApi } from "@/lib/api/salesOrderRows";
 import { loadEinvoiceSummaries } from "@/lib/einvoicing/listRows";
@@ -708,6 +711,27 @@ export const LIST_SOURCES: Record<string, ListSource> = {
     relatedWorkcenter: "estimates",
     fields: ESTIMATE_FIELDS,
     load: loadEstimatesForApi,
+  },
+  tender_boq_lines: {
+    label: "Tender BOQ lines",
+    description: "One row per line of a tender's Bill of quantities: item number, cost code, description (the line name), details, the client's other columns, unit, quantity, our unit rate and amount, the rate's source and status. No cost or markup.",
+    relatedWorkcenter: "pipeline",
+    fields: TENDER_BOQ_LINE_FIELDS,
+    // Asked with the "tenders" scope, never the wildcard (api/v1/ask). Cost, markup and the price reference (it names the supplier)
+    // are internal and are not selected by the shared loader: see apiRows.ts.
+    load: async (tenantId) => {
+      const admin = createAdminSupabase();
+      const { rows: tenders } = await listTenders(admin, tenantId);
+      if (tenders.length === 0) return [];
+      const [deals, ctx] = await Promise.all([fetchAllRows<{ id: string; ref: string | null }>(admin, "opportunities", "id, ref", tenantId), boqApiContext(admin, tenantId)]);
+      const refById = new Map(deals.map((d) => [d.id, d.ref]));
+      const out: Record<string, unknown>[] = [];
+      for (let i = 0; i < tenders.length; i += 10) {
+        const loaded = await Promise.all(tenders.slice(i, i + 10).map((t) => loadBoqRowsForApi(admin, tenantId, t.opportunity_id, { ctx, tender: { ref: refById.get(t.opportunity_id) ?? null, tender_no: t.tender_no } })));
+        for (const { rows } of loaded) out.push(...rows.map((r) => ({ ...r, _links: { tender: `/api/v1/tenders/${String(r.tender_id)}` } })));
+      }
+      return out;
+    },
   },
   projects: {
     label: "Projects (workforce, project costing)",

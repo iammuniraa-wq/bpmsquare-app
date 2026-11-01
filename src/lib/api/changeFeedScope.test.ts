@@ -70,6 +70,22 @@ describe("change feed scope", () => {
     expect(stripInternalChangeFields("products", null)).toBeNull();
   });
 
+  it("a tender's typed cost and the price-all line (markup) never leave through the feed; rates and uploads do", () => {
+    const changes = [
+      { field: "BOQ cost 1.1", from: 10, to: 17.5 },
+      { field: "BOQ price all", from: null, to: "12 priced, 3 left unpriced (markup 15% on costs)" },
+      { field: "BOQ rate 1.1", from: 0, to: 20 },
+      { field: "BOQ code 1.1", from: null, to: "31 23" },
+      { field: "BOQ upload", from: null, to: "boq.xlsx · 10 lines" },
+    ];
+    expect(stripInternalChangeFields("opportunity_tenders", changes)).toEqual(changes.slice(2));
+    expect(stripInternalChangeFields("accounts", changes)).toEqual(changes);
+    expect(scopeForChangeType("tender_boq_lines")).toBe("tenders");
+    expect(scopeForChangeType("opportunity_tenders")).toBe("tenders");
+    expect(canReadChangeType(key(["*"]), "tender_boq_lines")).toBe(false);
+    expect(canReadChangeType(key(["tenders"]), "tender_boq_lines")).toBe(true);
+  });
+
   it("a webhook's all-objects filter equals a wildcard key's: every explicit-only type is held back", () => {
     const hook = webhookTypeFilter(["*"]);
     const apiKey = changeTypeFilter(key(["*"]));

@@ -1,6 +1,6 @@
 {
   "name": "bpmsquare",
-  "version": "1.18.0",
+  "version": "1.20.0",
   "description": "BPMSquare MCP server — read access to a workspace's business data (accounts, contacts, quotations, cases, invoices, inventory and more) through the BPMSquare REST API. Generic across every tenant; nothing here is specific to one workspace.",
   "api_base": "https://<your-tenant-domain>/api/v1",
   "auth": {
@@ -743,6 +743,98 @@
           "id": {
             "type": "string",
             "description": "Employee id (UUID) as returned by list_employees"
+          }
+        }
+      }
+    },
+    {
+      "name": "list_tenders",
+      "description": "List the tenant's tender deals: deal id and ref, title, customer, tender number, issuer, portal, bid end date, bid guarantee, change requests, go / no-go decision, stage, outcome and amount. Needs an API key explicitly scoped to \"tenders\". Decision reasons, the source e-mail and costs are never returned.",
+      "method": "GET",
+      "path": "/api/v1/tenders",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "stage": {
+            "type": "string",
+            "description": "Only tenders in this stage (received, bid_no_bid, estimating, submitted, clarifications, awarded, bid_lost, no_bid)"
+          },
+          "outcome": {
+            "type": "string",
+            "description": "open, won, lost or dropped"
+          },
+          "decision": {
+            "type": "string",
+            "description": "go or no_go"
+          },
+          "portal": {
+            "type": "string",
+            "description": "ariba, email, excel or other"
+          },
+          "closing": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 365,
+            "description": "Only open tenders whose bid end date is today or within this many days"
+          }
+        }
+      }
+    },
+    {
+      "name": "get_tender",
+      "description": "Fetch one tender deal by id: the same fields as list_tenders plus a summary of its Bill of quantities (lines, priced, unpriced, stale, amount, file name and version). Needs an API key explicitly scoped to \"tenders\".",
+      "method": "GET",
+      "path": "/api/v1/tenders/{id}",
+      "inputSchema": {
+        "type": "object",
+        "required": [
+          "id"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Deal UUID (the tender's id from list_tenders)"
+          }
+        }
+      }
+    },
+    {
+      "name": "get_tender_boq",
+      "description": "The Bill of quantities of one tender, one row per line and paged: item number, cost code, description (the line name), details (the long text), client_columns (the client's own other columns such as Sr #, Bill #, Section, Page #, Revision #), unit, quantity, our unit rate and amount, where the rate came from (boq_rate, bom, past_project, supplier, manual, estimate), the price date and the line status (priced, unpriced, stale, removed). Cost, markup and supplier names are never returned. Needs an API key explicitly scoped to \"tenders\".",
+      "method": "GET",
+      "path": "/api/v1/tenders/{id}/boq",
+      "inputSchema": {
+        "type": "object",
+        "required": [
+          "id"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Deal UUID of the tender"
+          },
+          "filter": {
+            "type": "string",
+            "description": "field:op:value triples joined by ';', e.g. status:eq:unpriced or cost_code:like:03"
+          },
+          "search": {
+            "type": "string",
+            "description": "Text to find in the description, details, item number or cost code"
+          },
+          "sort": {
+            "type": "string",
+            "description": "Comma list, leading - is descending, e.g. row_no or -amount"
+          },
+          "page": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "1-based page"
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 200,
+            "description": "Rows per page, max 200"
           }
         }
       }

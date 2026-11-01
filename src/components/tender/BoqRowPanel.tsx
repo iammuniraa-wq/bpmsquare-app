@@ -24,6 +24,32 @@ type Cand = { source: Exclude<PriceSource, "manual" | "estimate">; ref: string; 
 const fmtDate = (s: string | null) => (s ? new Date(s).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "no date");
 const numText = (n: number) => (Number.isFinite(n) ? String(n) : "");
 
+const foldKey = (id: string) => `boq-panel-fold:${id}`;
+function readFold(id: string): boolean {
+  try { return window.localStorage.getItem(foldKey(id)) === "1"; } catch { return false; }
+}
+
+/** A section that opens and closes and remembers it. The header is one button; the "i" sits beside it, never inside. */
+function Fold({ id, title, tip, count, guide, children }: { id: string; title: string; tip: string; count?: number; guide: string; children: React.ReactNode }) {
+  const [open, setOpen] = useState(() => (typeof window === "undefined" ? false : readFold(id)));
+  function toggle() {
+    const next = !open;
+    setOpen(next);
+    try { window.localStorage.setItem(foldKey(id), next ? "1" : "0"); } catch { /* remembering is a convenience */ }
+  }
+  return (
+    <div data-guide={guide} style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+        <button type="button" onClick={toggle} aria-expanded={open} style={{ background: "transparent", border: 0, padding: 0, minHeight: 44, display: "inline-flex", alignItems: "center", gap: 6, fontWeight: 700, fontSize: 12.5, color: c.ink, cursor: "pointer" }}>
+          <span aria-hidden="true">{open ? "▾" : "▸"}</span>{title}{count ? ` (${count})` : ""}
+        </button>
+        <InfoTip label={title}>{tip}</InfoTip>
+      </div>
+      {open && children}
+    </div>
+  );
+}
+
 export default function BoqRowPanel({ base, row, links, canEdit, markup, validityDays, onClose, onChanged, onError, onNotice, onOpenCosting, initialCandidates, opportunityId, estimates }: {
   /** /api/opportunities/[id]/boq */
   base: string;
@@ -50,6 +76,8 @@ export default function BoqRowPanel({ base, row, links, canEdit, markup, validit
 }) {
   const { confirm } = useFeel();
   const [description, setDescription] = useState(row.description);
+  const [details, setDetails] = useState(row.details ?? "");
+  const [moreDetails, setMoreDetails] = useState(false);
   const [qty, setQty] = useState(numText(row.qty));
   const [rate, setRate] = useState(row.priced ? numText(row.rate) : "");
   const [cost, setCost] = useState(row.unit_cost != null ? numText(row.unit_cost) : "");
@@ -65,7 +93,9 @@ export default function BoqRowPanel({ base, row, links, canEdit, markup, validit
   const qtyChanged = qty.trim() !== "" && Number(qty) !== row.qty;
   const descChanged = description.trim() !== row.description;
   const rateChanged = rate.trim() !== "" && Number(rate) !== (row.priced ? row.rate : NaN);
-  const dirty = qtyChanged || descChanged || rateChanged;
+  const detailsChanged = details.trim() !== (row.details ?? "").trim();
+  const clientEntries = Object.entries(row.client_data ?? {});
+  const dirty = qtyChanged || descChanged || rateChanged || detailsChanged;
 
   async function call(url: string, init: RequestInit): Promise<boolean> {
     const res = await fetch(url, init);
@@ -82,8 +112,8 @@ export default function BoqRowPanel({ base, row, links, canEdit, markup, validit
     setBusy(true);
     try {
       // Quantity and description first: the rate's amount is then worked out on the new quantity.
-      if (qtyChanged || descChanged) {
-        const ok = await call(`${base}/lines/${row.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...(qtyChanged ? { qty: Number(qty) } : {}), ...(descChanged ? { description } : {}) }) });
+      if (qtyChanged || descChanged || detailsChanged) {
+        const ok = await call(`${base}/lines/${row.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...(qtyChanged ? { qty: Number(qty) } : {}), ...(descChanged ? { description } : {}), ...(detailsChanged ? { details } : {}) }) });
         if (!ok) return;
       }
       if (rateChanged) {
@@ -143,6 +173,18 @@ export default function BoqRowPanel({ base, row, links, canEdit, markup, validit
         <Field label="Description" guide="boq.row.description">
           <Textarea value={description} onChange={(e) => setDescription(e.target.value)} disabled={!canEdit} maxLength={1000} style={{ minHeight: 64 }} />
         </Field>
+        {(row.details || (canEdit && detailsChanged)) && (
+          <Field label="Details" info={BOQ_TABLE_TIPS.details} guide="boq.row.details">
+            {canEdit ? (
+              <Textarea value={details} onChange={(e) => setDetails(e.target.value)} maxLength={4000} rows={moreDetails ? 12 : 3} style={{ minHeight: 64, whiteSpace: "pre-wrap" }} />
+            ) : (
+              <div style={{ ...small, color: c.ink, whiteSpace: "pre-wrap", ...(moreDetails ? {} : { maxHeight: "4.5em", overflow: "hidden" }) }}>{row.details}</div>
+            )}
+            {(row.details ?? "").split("\n").length > 3 || (row.details ?? "").length > 240 ? (
+              <Button variant="quiet" onClick={() => setMoreDetails(!moreDetails)} aria-expanded={moreDetails} style={{ minHeight: 44 }} data-guide="boq.row.details_more">{moreDetails ? "Show less" : "Show all"}</Button>
+            ) : null}
+          </Field>
+        )}
         <div className="fg2">
           <Field label={`Quantity${row.uom ? ` (${row.uom})` : ""}`} guide="boq.row.qty">
             <Input type="number" min={0} step="any" inputMode="decimal" value={qty} onChange={(e) => setQty(e.target.value)} disabled={!canEdit} style={{ minHeight: 44 }} />
@@ -186,6 +228,19 @@ export default function BoqRowPanel({ base, row, links, canEdit, markup, validit
             </div>
           )}
         </div>
+
+        {clientEntries.length > 0 && (
+          <Fold id="client-columns" title="Client columns" tip={BOQ_TABLE_TIPS.clientColumns} count={clientEntries.length} guide="boq.row.client_columns">
+            <dl style={{ margin: 0, display: "grid", gridTemplateColumns: "minmax(80px, 38%) 1fr", gap: "4px 10px", fontSize: 12.5 }}>
+              {clientEntries.map(([k, v]) => (
+                <div key={k} style={{ display: "contents" }}>
+                  <dt style={{ color: c.muted, overflowWrap: "anywhere" }}>{k}</dt>
+                  <dd style={{ margin: 0, color: c.ink, overflowWrap: "anywhere" }}>{v}</dd>
+                </div>
+              ))}
+            </dl>
+          </Fold>
+        )}
 
         {canEdit && estimates && opportunityId && row.linked && (
           <div data-guide="boq.row.estimate_actions">

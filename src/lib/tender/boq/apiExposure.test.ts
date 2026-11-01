@@ -60,3 +60,70 @@ describe("part 1: the shared loader reads no internal column", () => {
     }
   });
 });
+
+describe("part 2: the v1 routes, Talk to data, the keys panel and the change feed", () => {
+  const routes = ["src/app/api/v1/tenders/route.ts", "src/app/api/v1/tenders/[id]/route.ts", "src/app/api/v1/tenders/[id]/boq/route.ts"];
+
+  it("every v1 tender route authorizes through the explicit tenders scope, checks the Pipeline, and names the workspace on every query", () => {
+    for (const f of routes) {
+      const src = read(f);
+      expect(src, f).toMatch(/authorizeApi\(req, "tenders"\)/);
+      expect(src, f).toMatch(/tenantHasFeature\(.*"pipeline"\)/);
+      expect(src, f).not.toMatch(/requireTenantUser|resolveTenantFromBearer/);
+      for (const m of src.matchAll(/\.from\("([a-z_]+)"\)[^;]*?;\n/g)) expect(m[0], `${f}: ${m[0].slice(0, 80)}`).toMatch(/tenant_id/);
+      for (const cols of [...selects(src, "tender_boq_lines"), ...selects(src, "opportunity_tenders")]) {
+        expect(cols).not.toMatch(INTERNAL);
+        expect(cols).not.toContain("*");
+      }
+    }
+  });
+
+  it("Talk to data: the BOQ source reads only through the shared loader, and asking for it needs the tenders scope", () => {
+    const src = read("src/lib/api/listSources.ts");
+    const block = src.slice(src.indexOf("  tender_boq_lines: {"), src.indexOf("  projects: {"));
+    expect(block).toContain("fields: TENDER_BOQ_LINE_FIELDS");
+    expect(block).toContain("loadBoqRowsForApi(");
+    expect(block).not.toMatch(/\.from\("tender_boq_lines"\)|unit_cost|markup_pct|price_source_ref/);
+    expect(src.indexOf("  tender_boq_lines: {")).toBeGreaterThan(src.indexOf("  estimates: {"));
+    expect(read("src/app/api/v1/ask/route.ts")).toMatch(/object === "tender_boq_lines" \? "tenders" : object/);
+  });
+
+  it("a key can be minted with the scope, the index and the registry name the endpoints, and the scope stays explicit-only", () => {
+    expect(read("src/app/(app)/settings/developer/ApiKeysPanel.tsx")).toMatch(/key: "tenders", label: "Tenders \(bids and BOQ rates, no costs\)"/);
+    const index = read("src/app/api/v1/route.ts");
+    for (const e of ["GET /api/v1/tenders\"", "GET /api/v1/tenders/:id\"", "GET /api/v1/tenders/:id/boq\""]) expect(index, e).toContain(e);
+    expect(read("src/lib/api/registry.ts")).toContain('"/api/v1/tenders"');
+    expect(read("src/lib/api/openapi.ts")).toContain('paths["/tenders/{id}/boq"]');
+    expect(read("src/app/api/v1/_auth.ts")).toMatch(/EXPLICIT_SCOPE_ONLY = new Set\([^)]*"tenders"/);
+  });
+});
+
+describe("part 3: the MCP manifest", () => {
+  const mcp = JSON.parse(read("mcp-server/mcp.json")) as { version: string; tools: { name: string; description: string; method: string; path: string; inputSchema: { properties?: Record<string, unknown>; required?: string[] } }[] };
+  const tools = ["list_tenders", "get_tender", "get_tender_boq"].map((n) => mcp.tools.find((t) => t.name === n));
+
+  it("is version 1.20.0 with the three tender tools, each a GET on the v1 endpoint it names", () => {
+    expect(mcp.version).toBe("1.20.0");
+    expect(tools.every(Boolean)).toBe(true);
+    expect(tools.map((t) => `${t!.method} ${t!.path}`)).toEqual(["GET /api/v1/tenders", "GET /api/v1/tenders/{id}", "GET /api/v1/tenders/{id}/boq"]);
+    expect(new Set(mcp.tools.map((t) => t.name)).size).toBe(mcp.tools.length);
+    expect(tools[1]!.inputSchema.required).toEqual(["id"]);
+    expect(tools[2]!.inputSchema.required).toEqual(["id"]);
+    expect(Object.keys(tools[0]!.inputSchema.properties!)).toEqual(["stage", "outcome", "decision", "portal", "closing"]);
+  });
+
+  it("each tells the model the key must be scoped to tenders, and none describes a cost, a markup or a supplier name as returned", () => {
+    for (const t of tools) {
+      expect(t!.description, t!.name).toContain('scoped to \\"tenders\\"'.replace(/\\"/g, '"'));
+      // Every mention of the internal data is a promise that it is NOT returned.
+      for (const sentence of t!.description.split(/(?<=\.)\s+/)) {
+        if (/\b(costs?|markup|margin|supplier names?)\b/i.test(sentence) && !/cost code/i.test(sentence.replace(/never returned/i, ""))) expect(sentence, `${t!.name}: ${sentence}`).toMatch(/never returned/);
+      }
+      expect(JSON.stringify(t!.inputSchema), t!.name).not.toMatch(/unit_cost|markup|price_source_ref/);
+    }
+  });
+
+  it("the manifest keeps the product-structure words out, as productApiExposure.test.ts requires", () => {
+    expect(read("mcp-server/mcp.json")).not.toMatch(/bom_lines|BOM components|rolled-up/i);
+  });
+});

@@ -4,7 +4,8 @@ export type ImportObjectId =
   | "users" | "employees" | "products" | "wfm_projects" | "opportunities" | "rfqs" | "estimates"
   | "product_bom_lines" | "consents" | "abm_programs" | "abm_targets" | "abm_members"
   | "standard_quotes" | "standard_quote_lines"
-  | "sales_orders" | "sales_order_lines";
+  | "sales_orders" | "sales_order_lines"
+  | "tender_boq_lines";
 
 /**
  * quotes is excluded from Export and Update: it isn't on FIELD_REGISTRY (reverted
@@ -47,6 +48,8 @@ export type FieldSpec = {
   scope?: "header" | "line";
   /** In Export column lists but stripped from Import/Update specs — system-computed values an importer can't set. */
   exportOnly?: boolean;
+  /** Read on Import (and offered for mapping on Update) but never an Export column: a spelling a client's file uses, such as a Narration column. */
+  importOnly?: boolean;
   example?: string;
 };
 

@@ -48,6 +48,9 @@ export async function GET(req: Request) {
       "GET /api/v1/rfqs":                 "List RFQs (needs a key scoped to \"rfqs\") · filters: ?status=, ?origin_type=, ?origin_id=",
       "GET /api/v1/estimates":            "List project estimates (needs a key scoped to \"estimates\"): customer, template, status and the quoted price. No costs or margin · filters: ?status=, ?account_id=",
       "GET /api/v1/estimates/:id":        "One estimate: the same customer-safe fields, never costs or the bill of materials",
+      "GET /api/v1/tenders":              "List tenders (needs a key scoped to \"tenders\"): tender number, issuer, portal, bid end date, guarantee, go / no-go, stage, amount · filters: ?stage=, ?outcome=, ?decision=, ?portal=, ?closing=<days>",
+      "GET /api/v1/tenders/:id":          "One tender with its BOQ summary (lines, priced, amount, file)",
+      "GET /api/v1/tenders/:id/boq":      "The tender's Bill of quantities, one row per line: item number, cost code, description (the line name), details, the client's own other columns (client_columns), unit, quantity, our unit rate and amount, where the rate came from and its status. No cost, markup or supplier name",
       "GET /api/v1/rfqs/:id":             "RFQ with lines, suppliers and their quoted prices, and awards",
       "GET /api/v1/standard-quotes":      "List standard quotes (scope \"standard_quotes\"): customer, status, validity, discount/tax/shipping and totals · filters: ?status=, ?account_id=, ?opportunity_id=",
       "GET /api/v1/sales-orders":         "List sales orders (scope \"sales_orders\"): customer, type, status, pricing mode, totals, requested / expected delivery · filters: ?status=, ?account_id=, ?source_id=",
@@ -83,7 +86,7 @@ export async function GET(req: Request) {
       example:   "GET /api/v1/quotations?filter=status:eq:draft;total:gte:50000&select=ref,total,account.name&sort=-total&aggregate=sum:total",
     },
     access_control:
-      "Scoped API keys are live. A key carries a scope: read and/or write, and either all objects or a named subset (quotations, accounts, cases, inventory, invoices, purchase-orders). A read-only key gets 403 on any write; a key scoped to a subset gets 403 on any object outside it. \"employees\" is the one object the all-objects wildcard does NOT cover — staff personal data requires a key that names it explicitly. Mint and revoke keys in Settings → API keys & developer.",
+      "Scoped API keys are live. A key carries a scope: read and/or write, and either all objects or a named subset (quotations, accounts, cases, inventory, invoices, purchase-orders). A read-only key gets 403 on any write; a key scoped to a subset gets 403 on any object outside it. \"employees\" (staff personal data) and \"tenders\" (bids and the rates we bid) are objects the all-objects wildcard does NOT cover — a key must name them explicitly. Mint and revoke keys in Settings → API keys & developer.",
     webhooks:
       "Live (push). Register an endpoint in Settings → API keys & developer; every create/update/delete is delivered as a signed batch (HMAC-SHA256, header X-BPMSquare-Signature) with the same event shape as GET /api/v1/changes. Only events after registration are sent; the /changes feed remains the pull-based backfill.",
     ask: {

@@ -7,8 +7,8 @@ import { relinkPlan } from "./diff";
 import { isStale, priceValidityDays, type PriceSource } from "./price";
 
 // The customer-safe view of a tender's Bill of quantities for the v1 API, MCP, Talk to data, the report builder and the Data Workbench
-// export: one row per line, as the BOQ screen shows it (item, cost code, description, unit, quantity, our unit rate and amount, where
-// the rate came from, its date and the line's status).
+// export: one row per line, as the BOQ screen shows it (item, cost code, description = the line's name, details, unit, quantity, our unit
+// rate and amount, where the rate came from, its date and the line's status) plus the client's own other columns (client_columns).
 //
 // DELIBERATELY NOT SELECTED, anywhere on these surfaces: unit_cost, markup_pct and price_source_ref (the cost we paid, the margin on
 // it, and the supplier / RFQ / past deal that gave it), priced_by, priced_at, stale_accepted, line_id, source_id, item_key. One
@@ -23,6 +23,9 @@ export const TENDER_BOQ_LINE_FIELDS: QueryableField[] = [
   { path: "item_no", type: "string", searchable: true },
   { path: "cost_code", type: "string", searchable: true },
   { path: "description", type: "string", searchable: true },
+  { path: "details", type: "string", searchable: true },
+  // An object of the client's own column labels and cell texts (Sr #, Bill #, Section...). Returned, not queried.
+  { path: "client_columns", type: "string" },
   { path: "unit", type: "string" },
   { path: "quantity", type: "number" },
   { path: "rate", type: "number" },
@@ -32,7 +35,10 @@ export const TENDER_BOQ_LINE_FIELDS: QueryableField[] = [
   { path: "status", type: "string" },
 ];
 
-const LINE_COLS = "id, line_id, row_no, item_no, cost_code, file_description, file_uom, file_qty, price_source, price_as_of, stale_accepted, removed_in_revision";
+const LINE_COLS = "id, line_id, row_no, item_no, cost_code, file_description, file_uom, file_qty, price_source, price_as_of, stale_accepted, removed_in_revision, file_details, client_data";
+// The same without the two client-format columns, for a database where migration 0242 has not been applied yet.
+const LINE_COLS_BASE = "id, line_id, row_no, item_no, cost_code, file_description, file_uom, file_qty, price_source, price_as_of, stale_accepted, removed_in_revision";
+const missingColumn = (e: { code?: string } | null | undefined) => !!e && (e.code === "42703" || e.code === "PGRST204");
 const DEAL_LINE_COLS = "id, sl_no, description, uom, qty, rate, amount";
 
 export type BoqApiSource = { file_name: string; version: number; uploaded_at: string };
@@ -61,8 +67,11 @@ export async function loadBoqRowsForApi(admin: SupabaseClient, tenantId: string,
   if (srcErr || !src) return empty;
   const source: BoqApiSource = { file_name: String(src.file_name), version: Number(src.version ?? 1), uploaded_at: String(src.uploaded_at ?? "") };
 
+  const readLines = (full: boolean) => readAllPages<Record<string, unknown>>((lo, hi) => (full
+    ? admin.from("tender_boq_lines").select(LINE_COLS).eq("tenant_id", tenantId).eq("opportunity_id", opportunityId).order("row_no").order("id", { ascending: true }).range(lo, hi)
+    : admin.from("tender_boq_lines").select(LINE_COLS_BASE).eq("tenant_id", tenantId).eq("opportunity_id", opportunityId).order("row_no").order("id", { ascending: true }).range(lo, hi)));
   const [lines, deal, ctx, tender] = await Promise.all([
-    readAllPages<Record<string, unknown>>((lo, hi) => admin.from("tender_boq_lines").select(LINE_COLS).eq("tenant_id", tenantId).eq("opportunity_id", opportunityId).order("row_no").order("id", { ascending: true }).range(lo, hi)),
+    readLines(true).then((res) => (missingColumn(res.error) ? readLines(false) : res)),
     readAllPages<Record<string, unknown>>((lo, hi) => admin.from("opportunity_lines").select(DEAL_LINE_COLS).eq("tenant_id", tenantId).eq("opportunity_id", opportunityId).order("id", { ascending: true }).range(lo, hi)),
     opts.ctx ?? boqApiContext(admin, tenantId),
     opts.tender ? Promise.resolve(opts.tender) : loadTenderNames(admin, tenantId, opportunityId),
@@ -106,6 +115,8 @@ export async function loadBoqRowsForApi(admin: SupabaseClient, tenantId: string,
       item_no: b.item_no ?? null,
       cost_code: b.cost_code ?? null,
       description: l?.description ?? String(b.file_description ?? ""),
+      details: (b.file_details as string | null | undefined) ?? null,
+      client_columns: b.client_data && typeof b.client_data === "object" && Object.keys(b.client_data as object).length > 0 ? b.client_data : null,
       unit: (b.file_uom as string | null) ?? l?.uom ?? null,
       quantity: l ? l.qty : num(b.file_qty),
       rate: priced ? rate : null,
