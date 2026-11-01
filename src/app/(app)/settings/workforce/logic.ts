@@ -19,7 +19,7 @@ export function workforceTabs(projectsOn: boolean): WorkforceTab[] {
 /** Every config key the screen edits. The list screens (shifts, places, leave types) have their own routes. */
 export const CONFIG_KEYS = [
   "timezone", "week_off_days", "deduct_breaks", "late_marks_per_half_day", "punch_types", "ot_rate_per_hour",
-  "selfie_mode", "selfie_retention_days", "face_punch", "face_login", "face_verification_mode", "passkey_login",
+  "ot_min_minutes", "payroll_by_location", "selfie_mode", "selfie_retention_days", "face_punch", "face_login", "face_verification_mode", "passkey_login",
   "employee_self_service", "home_landing", "login_mode", "saturday_rule", "employment_types",
   "geofence_mode", "require_location", "leave_carry_forward",
   "long_day_alert", "break_alert", "holiday_week_alert", "notifications", "costing",

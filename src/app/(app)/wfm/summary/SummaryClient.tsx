@@ -66,6 +66,8 @@ type EmployeeSummary = {
     incomplete_days: number;
     ot_minutes: number;
     ot_amount: number;
+    /** Approved OT on days under the workspace minimum: shown, not paid. */
+    ot_not_counted_minutes?: number;
   };
 };
 
@@ -111,6 +113,7 @@ function MonthlyEmployeeCard({ r }: { r: EmployeeSummary }) {
     ["Night shifts", r.totals.night_shifts || "—"],
     ["Night allowance", r.totals.night_allowance_total ? rupees(r.totals.night_allowance_total) : "—"],
     ["OT hours", r.totals.ot_minutes ? fmtHM(r.totals.ot_minutes) : "—"],
+    ...((r.totals.ot_not_counted_minutes ?? 0) > 0 ? [["OT not counted", fmtHM(r.totals.ot_not_counted_minutes ?? 0)] as [string, React.ReactNode]] : []),
     ["OT amount", r.totals.ot_amount ? rupees(r.totals.ot_amount) : "—"],
     ["Incomplete days", <span key="i" style={{ color: r.totals.incomplete_days > 0 ? statusInk.bad : undefined }}>{r.totals.incomplete_days || "—"}</span>],
   ];
@@ -178,6 +181,8 @@ function MonthlySection({ title, rows }: { title: string; rows: EmployeeSummary[
   const isMobile = useIsMobile();
   useEffect(() => { setPage((p) => clampPage(p, rows.length, PAGE_SIZE)); }, [rows.length]);
   const pageRows = paginate(rows, page, PAGE_SIZE);
+  // Present only in a workspace that sets a minimum overtime per day.
+  const showNotCounted = rows.some((r) => (r.totals.ot_not_counted_minutes ?? 0) > 0);
   if (isMobile) {
     return (
       <section style={{ ...cardStyle, padding: 0, marginBottom: 18 }}>
@@ -204,7 +209,7 @@ function MonthlySection({ title, rows }: { title: string; rows: EmployeeSummary[
             <th style={th}>Days present</th><th style={th}>Absent</th><th style={th}>Hours</th><th style={th}>Late marks</th>
             <th style={th}>Half-day ded.</th><th style={th}>Paid leave</th><th style={th}>Unpaid leave</th>
             <th style={th}>Holidays</th><th style={th}>Night shifts</th><th style={th}>Night allowance</th>
-            <th style={th}>OT hrs</th><th style={th}>OT amt</th><th style={th}>Incomplete</th>
+            <th style={th}>OT hrs</th>{showNotCounted && <th style={th}>OT not counted</th>}<th style={th}>OT amt</th><th style={th}>Incomplete</th>
           </tr>
         </thead>
         <tbody>
@@ -224,11 +229,12 @@ function MonthlySection({ title, rows }: { title: string; rows: EmployeeSummary[
               <td style={td}>{r.totals.night_shifts}</td>
               <td style={td}>{r.totals.night_allowance_total ? formatMoney(r.totals.night_allowance_total, cur, {}) : "—"}</td>
               <td style={td}>{r.totals.ot_minutes ? fmtHM(r.totals.ot_minutes) : "—"}</td>
+              {showNotCounted && <td style={{ ...td, color: c.hint }}>{r.totals.ot_not_counted_minutes ? fmtHM(r.totals.ot_not_counted_minutes) : "—"}</td>}
               <td style={td}>{r.totals.ot_amount ? formatMoney(Math.round(r.totals.ot_amount), cur, {}) : "—"}</td>
               <td style={{ ...td, color: r.totals.incomplete_days > 0 ? statusInk.bad : undefined }}>{r.totals.incomplete_days || "—"}</td>
             </tr>
           ))}
-          {rows.length === 0 && <tr><td style={{ ...td, color: c.hint }} colSpan={16}>No employees in this section.</td></tr>}
+          {rows.length === 0 && <tr><td style={{ ...td, color: c.hint }} colSpan={showNotCounted ? 17 : 16}>No employees in this section.</td></tr>}
         </tbody>
       </table>
       <div style={{ padding: "0 12px 10px" }}>

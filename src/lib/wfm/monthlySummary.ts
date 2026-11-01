@@ -8,6 +8,7 @@ import { computeDayHours, shiftDayKey, workSessions, overnightTail, type BreakSe
 import type { PresenceKind } from "./types";
 import { paidWithinMonthlyAllowance } from "./leaveRules";
 import { isSecondSaturday } from "./saturdayRule";
+import { otCountedMinutes, standardMinutesForDay } from "./reportRules";
 import { clipDatesToValidity, inRangeOrFilter, isEmployeeInRange, isObsolete, obsoleteLabel } from "./obsolete";
 
 import { readAllPages } from "@/lib/pagedRead";
@@ -47,6 +48,17 @@ export type EmployeeDayRecord = {
    * An OT stretch that ran past midnight counts wholly on the day it
    * started -- wfm_ot_sessions.ot_date, not the punch-out's calendar day. */
   ot_minutes: number;
+  /** The part of ot_minutes that counts toward pay: all of it, unless the day
+   *  is below the workspace's ot_min_minutes, in which case 0. Every total and
+   *  amount is built from THIS, never from ot_minutes. */
+  ot_counted_minutes: number;
+  /** Approved OT that day, but under the minimum -- shown, not counted. */
+  ot_below_minimum: boolean;
+  /** Standard hours for the day, in minutes: the shift length on a day the
+   *  person was expected to work, else 0 (see standardMinutesForDay). */
+  standard_minutes: number;
+  /** Worked (net or gross per deduct_breaks) minus standard, negative allowed. */
+  actual_minutes: number;
   /** Submitted but not yet approved -- shown to supervisors so a pending
    * block is visible, never added to payable totals. */
   ot_pending_minutes: number;
@@ -83,12 +95,20 @@ export type EmployeeMonthSummary = {
     night_shifts: number;
     night_allowance_total: number;
     incomplete_days: number;
-    /** Approved OT for the month, exact minutes -- the payable figure. */
+    /** Approved OT for the month that COUNTS, exact minutes -- the payable
+     * figure. Days under ot_min_minutes contribute 0 here. */
     ot_minutes: number;
     /** ot_minutes priced at the tenant's flat ot_rate_per_hour. Exact
      * pro-rata (minutes/60 * rate), no rounding up to whole hours. */
     ot_amount: number;
+    /** Approved OT on days under the minimum: shown, never paid. 0 when the
+     * workspace sets no minimum. */
+    ot_not_counted_minutes: number;
     ot_pending_minutes: number;
+    /** Sum of the days' standard minutes (see standardMinutesForDay). */
+    standard_minutes: number;
+    /** working_minutes - standard_minutes; negative when under standard. */
+    actual_minutes: number;
   };
 };
 
@@ -503,6 +523,19 @@ async function buildSummaries(
 
       const incomplete = hours.open && date < todayKey;
 
+      const otApproved = otByEmpDay.get(`${emp.id}|${date}`)?.approved ?? 0;
+      const otCounted = otCountedMinutes(otApproved, config.ot_min_minutes ?? 0);
+      const standard = standardMinutesForDay({
+        shift: dayShift ?? null,
+        dayOff: effective.isDayOff,
+        weekOff: isWeekOff,
+        holiday: !!holiday,
+        leave: onLeave,
+        date,
+        todayKey,
+        punches: dayEvents.length,
+      });
+
       return {
         date,
         first_in: firstIn?.ts ?? null,
@@ -521,7 +554,11 @@ async function buildSummaries(
         night_allowance_amount: dayShift?.night_allowance_amount ?? 0,
         is_week_off: isWeekOff || effective.isDayOff,
         punches: dayEvents.length,
-        ot_minutes: otByEmpDay.get(`${emp.id}|${date}`)?.approved ?? 0,
+        ot_minutes: otApproved,
+        ot_counted_minutes: otCounted,
+        ot_below_minimum: otApproved > 0 && otCounted === 0,
+        standard_minutes: standard,
+        actual_minutes: (config.deduct_breaks ? hours.net_minutes : hours.gross_minutes) - standard,
         ot_pending_minutes: otByEmpDay.get(`${emp.id}|${date}`)?.pending ?? 0,
         ot_segments: otByEmpDay.get(`${emp.id}|${date}`)?.segments ?? [],
       };
@@ -529,7 +566,11 @@ async function buildSummaries(
 
     const workingDays = days.filter((d) => !d.incomplete);
     const lateMarks = days.filter((d) => d.late).length;
-    const otTotal = days.reduce((s2, d) => s2 + d.ot_minutes, 0);
+    // Counted OT only: a day under the workspace minimum is shown, never paid.
+    const otTotal = days.reduce((s2, d) => s2 + d.ot_counted_minutes, 0);
+    const otNotCounted = days.reduce((s2, d) => s2 + (d.ot_minutes - d.ot_counted_minutes), 0);
+    const workingTotal = workingDays.reduce((s, d) => s + (config.deduct_breaks ? d.net_minutes : d.gross_minutes), 0);
+    const standardTotal = days.reduce((s, d) => s + d.standard_minutes, 0);
 
     return {
       employee_id: emp.id,
@@ -544,7 +585,7 @@ async function buildSummaries(
       totals: {
         days_present: days.filter((d) => d.punches > 0).length,
         absent_days: days.filter((d) => d.absent).length,
-        working_minutes: workingDays.reduce((s, d) => s + (config.deduct_breaks ? d.net_minutes : d.gross_minutes), 0),
+        working_minutes: workingTotal,
         late_marks: lateMarks,
         half_day_deductions: Math.floor(lateMarks / Math.max(1, config.late_marks_per_half_day)),
         // A half-day leave counts as 0.5 -- same rule getLeaveBalance applies,
@@ -559,7 +600,10 @@ async function buildSummaries(
         incomplete_days: days.filter((d) => d.incomplete).length,
         ot_minutes: otTotal,
         ot_amount: (otTotal / 60) * (config.ot_rate_per_hour ?? 0),
+        ot_not_counted_minutes: otNotCounted,
         ot_pending_minutes: days.reduce((s2, d) => s2 + d.ot_pending_minutes, 0),
+        standard_minutes: standardTotal,
+        actual_minutes: workingTotal - standardTotal,
       },
     };
   });

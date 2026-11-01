@@ -51,6 +51,13 @@ describe("one Save sends only what changed", () => {
     expect(changedConfig(base, edited, false)).toEqual({});
     expect(Object.keys(changedConfig(base, edited, true))).toEqual(["costing"]);
   });
+  it("sends the two payroll report settings when they change, and nothing when they do not", () => {
+    const base = cfg();
+    expect(base.payroll_by_location).toBe(false);
+    expect(base.ot_min_minutes).toBe(0);
+    expect(changedConfig(base, { ...base, payroll_by_location: true, ot_min_minutes: 30 }, false)).toEqual({ payroll_by_location: true, ot_min_minutes: 30 });
+    expect(changedConfig(base, { ...base }, false)).toEqual({});
+  });
   it("does not count an abandoned empty employment type as a change", () => {
     const base = cfg();
     const added = { ...base, employment_types: [...base.employment_types, { code: "", label: "" }] };
@@ -119,8 +126,20 @@ describe("the tabs render", () => {
     const out = html(el(RulesTab, { cfg: cfg(), savedCodes: [], shifts: [], onChange: noop }));
     for (const label of ["Timezone", "Late marks per half-day", "Weekly off days", "Take breaks off worked hours", "Extra punch types", "Selfie with a punch"]) expect(out, label).toContain(label);
     expect((out.match(/<details/g) ?? []).length).toBe(1);
-    for (const inMore of ["Employee self-service", "Face punch", "Face sign-in", "Passkey sign-in", "Alternate Saturdays", "Employment types", "Keep selfies for"]) expect(out, inMore).toContain(inMore);
+    for (const inMore of ["Employee self-service", "Face punch", "Face sign-in", "Passkey sign-in", "Alternate Saturdays", "Keep selfies for"]) expect(out, inMore).toContain(inMore);
     expect(out).not.toMatch(/defaultOpen/);
+  });
+  it("Rules shows employment types and the location report switch up front, outside the More section", () => {
+    const out = html(el(RulesTab, { cfg: cfg(), savedCodes: [], shifts: [], onChange: noop }));
+    const beforeMore = out.slice(0, out.indexOf("<details"));
+    expect(beforeMore).toContain("Employment types");
+    expect(beforeMore).toContain("+ Add type");
+    expect(beforeMore).toContain("Report by location");
+  });
+  it("Rules shows the minimum overtime per day only while overtime is on", () => {
+    const base = cfg();
+    expect(html(el(RulesTab, { cfg: { ...base, punch_types: { ...base.punch_types, ot: false } }, savedCodes: [], shifts: [], onChange: noop }))).not.toContain("Minimum overtime per day");
+    expect(html(el(RulesTab, { cfg: { ...base, punch_types: { ...base.punch_types, ot: true } }, savedCodes: [], shifts: [], onChange: noop }))).toContain("Minimum overtime per day");
   });
   it("Rules shows the overtime rate only while overtime is on", () => {
     const base = cfg();
