@@ -30,6 +30,8 @@ const SCOPE_FOR_TYPE: Record<string, string> = {
   opportunities: "opportunities",
   // Tender block of a deal (0220): bid decisions and bond amounts are sensitive, so the "tenders" scope, never the wildcard.
   opportunity_tenders: "tenders", opportunity_competitors: "tenders",
+  // The tender's Bill of quantities. Its edits are logged on the tender (opportunity_tenders); this line is for a direct log on the lines.
+  tender_boq_lines: "tenders",
   // Contract projects (0226): budget totals and margin are internal cost, so the explicit "contract_projects" scope, never the wildcard.
   contract_projects: "contract_projects",
   wfm_projects: "projects",
@@ -48,6 +50,11 @@ const SCOPE_FOR_TYPE: Record<string, string> = {
 const INTERNAL_FIELDS: Record<string, ReadonlySet<string>> = {
   products: new Set(["cost_price"]),
   product: new Set(["cost_price"]),
+};
+
+/** Fields of a type that are internal by their NAME: a BOQ row's typed unit cost is logged as "BOQ cost <item>", and "BOQ price all" carries the markup. */
+const INTERNAL_FIELD_PREFIXES: Record<string, readonly string[]> = {
+  opportunity_tenders: ["BOQ cost ", "BOQ price all"],
 };
 
 export function scopeForChangeType(objectType: string): string | null {
@@ -78,8 +85,13 @@ export function changeTypeFilter(scopes: ApiScopes): ChangeTypeFilter {
 
 export function stripInternalChangeFields(objectType: string, changes: unknown): unknown {
   const internal = INTERNAL_FIELDS[objectType];
-  if (!internal || !Array.isArray(changes)) return changes;
-  return (changes as ChangeEntry[]).filter((c) => !(c && typeof c === "object" && internal.has(String(c.field))));
+  const prefixes = INTERNAL_FIELD_PREFIXES[objectType];
+  if ((!internal && !prefixes) || !Array.isArray(changes)) return changes;
+  return (changes as ChangeEntry[]).filter((c) => {
+    if (!c || typeof c !== "object") return true;
+    const field = String(c.field);
+    return !(internal?.has(field) || prefixes?.some((p) => field.startsWith(p)));
+  });
 }
 
 /** Encrypted-at-rest / contact fields are stored already redacted by diffForLog. This is the read-side

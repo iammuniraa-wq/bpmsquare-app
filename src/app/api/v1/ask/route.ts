@@ -48,7 +48,7 @@ export async function POST(req: Request) {
   // project_hours rides on the "projects" scope (it is the projects' hours),
   // with the person redacted unless the key also holds "employees" -- the
   // same rule /api/v1/project-hours applies.
-  const auth = await authorizeApi(req, object === "project_hours" ? "projects" : object);
+  const auth = await authorizeApi(req, object === "project_hours" ? "projects" : object === "tender_boq_lines" ? "tenders" : object);
   if ("error" in auth) return auth.error;
   const peopleAllowed = object !== "project_hours" || auth.scopes.objects.includes("employees");
   const fields = peopleAllowed ? src.fields : src.fields.filter((f) => !f.path.startsWith("employee."));

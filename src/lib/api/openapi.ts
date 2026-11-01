@@ -119,6 +119,14 @@ export function buildOpenApiSpec(): Record<string, unknown> {
     };
   }
 
+  // A tender's Bill of quantities hangs off the tender; the loop above only makes /{id}.
+  paths["/tenders/{id}/boq"] = {
+    parameters: [{ in: "path", name: "id", required: true, schema: { type: "string", format: "uuid" } }],
+    get: {
+      summary: "A tender's Bill of quantities (one row per line, no costs)", tags: ["tenders"], parameters: QUERY_PARAMS, responses: { ...listResponse(), "404": { description: "Not a tender of your tenant" } },
+    },
+  };
+
   // Cross-cutting endpoints without an entity schema: the change feed and the
   // natural-language query. Added explicitly so the spec is complete.
   paths["/changes"] = {

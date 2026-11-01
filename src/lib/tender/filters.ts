@@ -38,6 +38,15 @@ export function parseTenderFilter(get: (key: string) => string | null, stageValu
 
 export const tenderFilterActive = (f: TenderFilter): boolean => Object.keys(f).length > 0;
 
+/** The v1 list's ?closing=<days>: open tenders whose bid end date is today or within that many days, both read in the workspace time zone. Same meaning as the Tenders tab. */
+export function closingWithinDays<T extends { outcome?: unknown; closing_at?: unknown }>(rows: readonly T[], days: number, now: Date, timezone: string): T[] {
+  return rows.filter((r) => {
+    if (r.outcome != null && r.outcome !== "open") return false;
+    const d = daysUntilClosing(typeof r.closing_at === "string" ? r.closing_at : null, now, timezone);
+    return d !== null && d >= 0 && d <= days;
+  });
+}
+
 type FilterRow = {
   stage: string;
   outcome: string;

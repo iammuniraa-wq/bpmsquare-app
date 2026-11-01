@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applyTenderFilter, parseTenderFilter, tenderFilterActive } from "./filters";
+import { applyTenderFilter, closingWithinDays, parseTenderFilter, tenderFilterActive } from "./filters";
 import { tenderLinks, TENDERS_TAB } from "@/lib/tenderDesk/links";
 import { DEFAULT_TENDER_STAGES } from "@/lib/constants";
 
@@ -93,5 +93,17 @@ describe("the Tenders tab filters written by the dashboard", () => {
 
   it("filters combine: received tenders closing within 14 days", () => {
     expect(idsOf("stage=received&closing=14")).toEqual(["today"]);
+  });
+});
+
+describe("the v1 list's ?closing=<days> (closingWithinDays)", () => {
+  const t = (id: string, closing_at: string | null, outcome: string | null = "open") => ({ id, closing_at, outcome });
+  const rows = [
+    t("today", "2026-10-28T20:00:00Z"), t("in5", "2026-11-02T09:00:00Z"), t("in20", "2026-11-17T09:00:00Z"),
+    t("gone", "2026-10-20T09:00:00Z"), t("won", "2026-10-30T09:00:00Z", "won"), t("none", null), t("nullOutcome", "2026-10-30T09:00:00Z", null),
+  ];
+  it("keeps open tenders whose bid end date is today or within N days, in the workspace time zone, like the Tenders tab", () => {
+    expect(closingWithinDays(rows, 7, NOW, TZ).map((r) => r.id)).toEqual(["today", "in5", "nullOutcome"]);
+    expect(closingWithinDays(rows, 30, NOW, TZ).map((r) => r.id)).toEqual(["today", "in5", "in20", "nullOutcome"]);
   });
 });
