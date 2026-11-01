@@ -45,3 +45,73 @@ export function boqUploadRule(targets: readonly NavTarget[]): string {
     bulk + " " + machine
   );
 }
+
+// ── Answered by the server, with no model call ──────────────────────────────────────────────────────────────
+// KAMCO 2026-11-01: asked which Excel format the BOQ upload needs, the model answered with one sentence and a button even though the rule
+// above asks for four lines. A question like that has a fixed answer, so the server writes it from the same constants and the same
+// navigation list, for free and in the same words every time. The rule above stays for what the pattern does not catch.
+
+const BOQ_SUBJECT = /\b(?:boqs?|b\.o\.q|bills? of quantit(?:y|ies))\b/;
+const BOQ_ASPECT = new RegExp(
+  [
+    String.raw`\b(?:upload|uploading|import|importing|load|loading|attach|excel|xlsx?|spreadsheet|csv|template|formats?|columns?|layout|headers?|bulk|export|exporting|workbench|api|mcp|endpoints?)\b`,
+    String.raw`\blimits?\b`, String.raw`\b(?:maximum|max)\b`, String.raw`\bfile size\b`, String.raw`\btoo (?:big|large)\b`,
+    String.raw`\bbring (?:it |them )?in\b`, String.raw`\bown (?:file|excel|sheet)\b`,
+    String.raw`\bhow many (?:lines|rows|items)\b.*\b(?:can|allowed|support|accept|upload|import|handle|read)\b`,
+  ].join("|"),
+);
+const BULK_TOPIC = /\b(?:bulk|export|exporting|workbench|big|large|huge|thousands?|hundreds?|many|revise|revision|revised|update|re-?import|re-?upload)\b/;
+const API_TOPIC = /\b(?:api|mcp|endpoints?|integration|programmatic(?:ally)?|webhooks?)\b/;
+
+/**
+ * A question about getting a BOQ into the product or out of it: uploading or importing it, its Excel format, template or columns,
+ * whether the client's own file works, the limits, bulk import or export, or reading it through the API or MCP. Deterministic and
+ * deliberately narrow: it needs the BOQ itself AND one of those aspects, so "total of the BOQ", "upload a quote" and "estimate
+ * template" are not caught.
+ */
+export function isBoqHelpQuestion(message: string): boolean {
+  const text = message.trim().toLowerCase().replace(/[\u2018\u2019]/g, "'");
+  if (!text || text.length > 300) return false;
+  return BOQ_SUBJECT.test(text) && BOQ_ASPECT.test(text);
+}
+
+export type BoqHelpReply = { answer: string; target: NavTarget };
+
+/**
+ * The fixed answer to a BOQ-help question, or null when this person has no tender edition (the model then answers as before).
+ * `targets` is the caller's own navigation list, plus the open tender's BOQ tab when one is open. Data Workbench is described only if
+ * that list contains it; the API and MCP line only when the question is about them.
+ */
+export function boqHelpAnswer(message: string, targets: readonly NavTarget[]): BoqHelpReply | null {
+  if (!isBoqHelpQuestion(message)) return null;
+  const open = targets.find((t) => t.id.startsWith(TENDER_BOQ_OPEN_PREFIX));
+  const list = targets.find((t) => t.id === TENDER_BOQ_LIST_TARGET);
+  const target = open ?? list;
+  if (!target) return null;
+  const text = message.toLowerCase();
+  const lines = BOQ_LIMITS.maxLines.toLocaleString("en-US");
+  const mb = Math.round(BOQ_LIMITS.maxFileBytes / (1024 * 1024));
+  const hasWorkbench = targets.some((t) => t.id === DATA_WORKBENCH_TARGET);
+
+  const out = [
+    open
+      ? "- **Where:** this tender's Bill of quantities tab, then Upload BOQ."
+      : "- **Where:** Pipeline, Tenders, open the tender, its Bill of quantities tab, then Upload BOQ.",
+    "- **Template:** Download BOQ template, on the same toolbar. The client's own Excel works as it is; the header row is found for you.",
+    "- **Columns read:** Item no., Description, Unit, Quantity, and an optional Cost code. A Narration column becomes the line name and the Description is kept as details. Other client columns (Sr #, Bill #, Section, Page #, Revision #) are kept as client data.",
+    `- **Limits:** ${lines} lines and ${mb} MB per file. Split a larger BOQ by package and upload the parts one after the other.`,
+  ];
+  if (BULK_TOPIC.test(text)) {
+    out.push(
+      hasWorkbench
+        ? `- **Bulk:** Data Workbench, object "${TENDER_BOQ_LINES_SPEC.label}". Import adds lines and updates the ones it matches by item number, and never removes a line. Export gives every line with its Record ID, which Update needs.`
+        : "- **Bulk:** Data Workbench is not switched on for you. Use Upload BOQ to load or revise a BOQ.",
+    );
+  }
+  if (API_TOPIC.test(text)) {
+    out.push(
+      `- **API and MCP:** GET ${TENDER_API_PATHS.join(", GET ")} with an API key that has the tenders scope; MCP tools ${TENDER_MCP_TOOLS.join(", ")}. Cost, markup and supplier names are never exposed.`,
+    );
+  }
+  return { answer: out.join("\n"), target };
+}
