@@ -177,7 +177,7 @@ describe("the wiring that applies (3b)", () => {
     for (const [k, v] of Object.entries(TENDER_TIPS).filter(([k]) => k.startsWith("boq") || k === "priceValidity")) expect(tipTextProblems(v), k).toEqual([]);
     const files = ["BoqTab", "BoqUpload", "BoqRows", "BoqRowPanel", "BoqDownloads"].map((f) => `src/components/tender/${f}.tsx`);
     const ids = new Set(files.flatMap((f) => [...read(f).matchAll(/"(boq\.[a-z_.]+)"/g)].map((m) => m[1])));
-    for (const id of ["boq.tab", "boq.toolbar", "boq.upload", "boq.file", "boq.preview", "boq.sheet", "boq.header_row", "boq.apply", "boq.cancel", "boq.diff", "boq.markup", "boq.price_all", "boq.summary", "boq.filters", "boq.table", "boq.cards", "boq.line", "boq.open_row", "boq.chips", "boq.source", "boq.show_more", "boq.row", "boq.row.save", "boq.row.qty", "boq.row.rate", "boq.row.description", "boq.row.cost", "boq.row.costing", "boq.price_line", "boq.picker", "boq.candidate", "boq.download", "boq.answer_sheet"]) {
+    for (const id of ["boq.tab", "boq.toolbar", "boq.upload", "boq.template", "boq.file", "boq.preview", "boq.sheet", "boq.header_row", "boq.apply", "boq.cancel", "boq.diff", "boq.markup", "boq.price_all", "boq.summary", "boq.filters", "boq.table", "boq.cards", "boq.line", "boq.open_row", "boq.chips", "boq.source", "boq.show_more", "boq.row", "boq.row.save", "boq.row.qty", "boq.row.rate", "boq.row.description", "boq.row.cost", "boq.row.costing", "boq.price_line", "boq.picker", "boq.candidate", "boq.download", "boq.answer_sheet"]) {
       expect(ids, id).toContain(id);
     }
     for (const [k, v] of Object.entries(BOQ_TABLE_TIPS)) expect(tipTextProblems(v), k).toEqual([]);

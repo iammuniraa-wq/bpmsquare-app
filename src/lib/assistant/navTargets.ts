@@ -10,6 +10,11 @@ import { OBJECT_DEFS, type AssistantObjectType } from "./objects";
 // caller cannot reach is not in the list at all. Pure and client-safe so the gating is unit-tested.
 
 export type NavTargetKind = "nav" | "settings" | "create";
+/** Pipeline > Tenders, the place a BOQ is uploaded from (open a tender, Bill of quantities tab). */
+export const TENDER_BOQ_LIST_TARGET = "nav:/pipeline?tab=tenders";
+/** Prefix of the target for the tender that is open right now; built per ask by tenderBoqTarget. */
+export const TENDER_BOQ_OPEN_PREFIX = "nav:/pipeline/";
+
 export type NavTarget = { id: string; label: string; section: string; href: string; kind: NavTargetKind };
 
 export type NavGateCtx = {
@@ -47,6 +52,11 @@ export function buildNavTargets(ctx: NavGateCtx): NavTarget[] {
     }
   }
 
+  // The Tenders tab is a tab of Pipeline, not a sidebar row, so the NAV walk above cannot offer it.
+  if (ctx.features.gcc_tender === true && ctx.features.pipeline === true && ctx.canView("pipeline")) {
+    add({ id: TENDER_BOQ_LIST_TARGET, label: "Tenders", section: "Pipeline", href: "/pipeline?tab=tenders", kind: "nav" });
+  }
+
   for (const g of visibleSettingsMenu({ isAdmin: ctx.isAdmin, canEdit: ctx.canEdit, features: ctx.features })) {
     for (const item of g.items) add({ id: `settings:${item.id}`, label: `Settings: ${item.label}`, section: `Settings · ${g.label}`, href: item.href, kind: "settings" });
   }
@@ -58,6 +68,11 @@ export function buildNavTargets(ctx: NavGateCtx): NavTarget[] {
   }
 
   return [...out.values()];
+}
+
+/** The Bill of quantities tab of the tender that is open now. The caller has checked that the deal is a tender of this workspace. */
+export function tenderBoqTarget(opportunityId: string): NavTarget {
+  return { id: `${TENDER_BOQ_OPEN_PREFIX}${opportunityId}?tab=boq`, label: "This tender: Bill of quantities", section: "Pipeline", href: `/pipeline/${opportunityId}?tab=boq`, kind: "nav" };
 }
 
 /** A path the dock may navigate to: internal, no scheme, no `//`, none of the characters that break out of a string. */
@@ -74,6 +89,7 @@ const ALIASES: Record<string, string[]> = {
   "nav:/cases": ["tickets", "service cases"],
   "nav:/reports": ["reports", "analytics"],
   "nav:/pipeline": ["deals", "opportunities", "pipeline"],
+  [TENDER_BOQ_LIST_TARGET]: ["tenders", "tender list", "bill of quantities", "boq", "boq upload", "upload boq"],
   // Settings pages that were folded into tabs (batch S2) keep answering to their old names.
   "settings:company": ["company profile", "entities and tax", "currency", "tax", "number ranges"],
   "settings:appearance": ["theme", "theme and colours", "navigation visibility", "reset layout", "dashboard content"],

@@ -8,11 +8,14 @@ import { Input, Select } from "@/components/ui/Input";
 import InfoTip from "@/components/ui/InfoTip";
 import Card from "@/components/ui/Card";
 import { TENDER_TIPS } from "@/lib/tender/tips";
-import { BOQ_FIELDS, FIELD_LABEL, colLetter, type BoqField, type ColumnMap } from "@/lib/tender/boq/parse";
+import { BOQ_FIELDS, BOQ_LIMITS, FIELD_LABEL, colLetter, type BoqField, type ColumnMap } from "@/lib/tender/boq/parse";
 
 // Upload BOQ, on the Bill of quantities toolbar (GCC tender deals): pick the client's Excel, check how it was read (sheet, header row,
 // columns), see what a revised file changes, then apply. The button sits in the toolbar and the check opens as a card above the table.
 // Writes go to /api/opportunities/[id]/boq; the workspace and the deal are the server's, not this component's.
+
+/** Static file in public/templates; the proxy session gate covers it, so it is only served to signed-in users. */
+const BOQ_TEMPLATE_PATH = "/templates/BPMSquare-BOQ-template.xlsx";
 
 type Preview = {
   sheets: string[]; sheet: string; header_row: number | null; map: ColumnMap; headers: { col: number; label: string }[]; preview: string[][];
@@ -98,6 +101,8 @@ export function useBoqUpload({ base, hasBoq, onError, onNotice, onApplied }: {
       <input ref={fileInput} type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden data-guide="boq.file" onChange={(e) => void pick(e.target.files?.[0] ?? null)} />
       <Button variant={hasBoq ? "secondary" : "primary"} loading={busy && !preview} onClick={() => fileInput.current?.click()} style={{ minHeight: 44 }} data-guide="boq.upload">{hasBoq ? "Upload revised BOQ" : "Upload BOQ (.xlsx)"}</Button>
       <InfoTip label="Upload">{hasBoq ? TENDER_TIPS.boqReupload : TENDER_TIPS.boqUpload}</InfoTip>
+      <Button variant="secondary" href={BOQ_TEMPLATE_PATH} download="BPMSquare-BOQ-template.xlsx" style={{ minHeight: 44 }} data-guide="boq.template">Download BOQ template</Button>
+      <InfoTip label="BOQ template">{TENDER_TIPS.boqTemplate}</InfoTip>
     </>
   );
 
@@ -133,7 +138,12 @@ export function useBoqUpload({ base, hasBoq, onError, onNotice, onApplied }: {
           <div role="alert" style={{ fontSize: 12.5, color: "var(--redink)" }}>No header row was found. Enter the row number of the header, then choose the Description and Quantity columns.</div>
         ) : (
           <div style={{ fontSize: 12.5, color: c.ink }}>
-            {preview.line_count} lines found{preview.skipped_count ? ` · ${preview.skipped_count} rows skipped (headings, totals)` : ""}{preview.truncated ? " · only the first 2,000 are read" : ""}
+            {preview.line_count} lines found{preview.skipped_count ? ` · ${preview.skipped_count} rows skipped (headings, totals)` : ""}{preview.truncated ? ` · only the first ${BOQ_LIMITS.maxLines.toLocaleString("en-US")} are read` : ""}
+          </div>
+        )}
+        {preview.truncated && (
+          <div role="alert" data-guide="boq.too_long" style={{ fontSize: 12.5, color: "var(--amberink)" }}>
+            This BOQ has more than {BOQ_LIMITS.maxLines.toLocaleString("en-US")} lines, so the rest would be left out. Cancel, split the BOQ by package, and upload the parts one after the other.
           </div>
         )}
         {preview.columns?.added && (
@@ -157,7 +167,7 @@ export function useBoqUpload({ base, hasBoq, onError, onNotice, onApplied }: {
           </div>
         )}
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <Button variant="primary" disabled={preview.needs_mapping || busy} loading={busy} onClick={() => void apply()} style={{ minHeight: 44 }} data-guide="boq.apply">{hasBoq ? "Update the deal lines" : "Create the deal lines"}</Button>
+          <Button variant="primary" disabled={preview.needs_mapping || preview.truncated || busy} loading={busy} onClick={() => void apply()} style={{ minHeight: 44 }} data-guide="boq.apply">{hasBoq ? "Update the deal lines" : "Create the deal lines"}</Button>
           <Button variant="secondary" disabled={busy} onClick={cancel} style={{ minHeight: 44 }} data-guide="boq.cancel">Cancel</Button>
         </div>
       </div>

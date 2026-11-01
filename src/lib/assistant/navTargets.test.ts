@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { WorkcenterKey } from "@/lib/workcenters";
-import { buildNavTargets, isInternalPath, isNavigationRequest, matchNavigation, matchRecordOpen, type NavGateCtx } from "./navTargets";
+import { buildNavTargets, isInternalPath, isNavigationRequest, matchNavigation, matchRecordOpen, tenderBoqTarget, TENDER_BOQ_LIST_TARGET, type NavGateCtx } from "./navTargets";
+import { boqUploadRule } from "./boqHelp";
 import { navigateTool } from "./navTools";
 import { parsePageContext } from "./objects";
 
@@ -149,5 +150,45 @@ describe("the page the person is on", () => {
     expect(parsePageContext("/quotations/not-an-id")).toBeNull();
     expect(parsePageContext("/settings/currency")).toBeNull();
     expect(parsePageContext(null)).toBeNull();
+  });
+});
+
+describe("a BOQ upload question goes to the tender, not to Estimates", () => {
+  const tenderCtx = (over: Partial<NavGateCtx> & { view?: WorkcenterKey[] } = {}) => ctx({ features: { pipeline: true, gcc_tender: true, estimator: true }, ...over });
+
+  it("offers Pipeline, Tenders only to a workspace with the tender edition and a Pipeline view", () => {
+    expect(ids(tenderCtx())).toContain(TENDER_BOQ_LIST_TARGET);
+    expect(ids(ctx({ features: { pipeline: true } }))).not.toContain(TENDER_BOQ_LIST_TARGET);
+    expect(ids(tenderCtx({ view: ["accounts"] }))).not.toContain(TENDER_BOQ_LIST_TARGET);
+  });
+
+  it("the target is the Tenders tab and an internal path", () => {
+    const t = buildNavTargets(tenderCtx()).find((x) => x.id === TENDER_BOQ_LIST_TARGET)!;
+    expect(t.href).toBe("/pipeline?tab=tenders");
+    expect(isInternalPath(t.href)).toBe(true);
+    expect(matchNavigation("open tenders", [t])?.href).toBe("/pipeline?tab=tenders");
+  });
+
+  it("an open tender gets its own Bill of quantities button", () => {
+    const t = tenderBoqTarget(UUID);
+    expect(t.href).toBe(`/pipeline/${UUID}?tab=boq`);
+    expect(isInternalPath(t.href)).toBe(true);
+  });
+
+  it("the assistant rule names the upload steps, the template, the columns and the limits, and points at the tender", () => {
+    const rule = boqUploadRule(buildNavTargets(tenderCtx()));
+    expect(rule).toContain("Bill of quantities");
+    expect(rule).toContain("Upload BOQ");
+    expect(rule).toContain("Download BOQ template");
+    expect(rule).toContain("Item no., Description, Unit, Quantity");
+    expect(rule).toContain("2,000 lines and 15 MB");
+    expect(rule).toContain(`navigate with ${TENDER_BOQ_LIST_TARGET}`);
+    expect(rule).toContain("never Estimates");
+    const withOpen = boqUploadRule([...buildNavTargets(tenderCtx()), tenderBoqTarget(UUID)]);
+    expect(withOpen).toContain(`navigate with ${tenderBoqTarget(UUID).id}`);
+  });
+
+  it("says nothing about BOQs to a workspace without the tender edition", () => {
+    expect(boqUploadRule(buildNavTargets(ctx()))).toBe("");
   });
 });
