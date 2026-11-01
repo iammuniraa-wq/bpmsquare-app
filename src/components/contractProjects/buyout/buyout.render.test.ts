@@ -79,7 +79,7 @@ describe("the Buy-out tab", () => {
 
   it("is one table: package with its lines, kind and ref, the figures, the status chip and the ePROMIS chip", () => {
     expect(out).toContain('data-guide="buyout.table"');
-    for (const h of ["Package", "Budget", "Best quote", "Ordered", "Against budget", "Status", "ePROMIS"]) expect(out, h).toContain(`>${h}</th>`);
+    for (const h of ["Package", "Package budget", "Best quote", "Ordered", "Against budget", "Status", "ePROMIS"]) expect(out, h).toContain(`>${h}</th>`);
     expect(out).toContain("HDPE pipe supply");
     expect(out).toContain("2 lines · Supplier · PKG-0002");
     expect(out).toContain("2 lines · Subcontract · PKG-0005");

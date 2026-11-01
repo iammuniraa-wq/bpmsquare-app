@@ -104,7 +104,7 @@ export default function BuyoutTab({ projectId, data: fromServer, currency, canEd
                 <thead>
                   <tr>
                     <th style={th}>Package</th>
-                    <th style={{ ...th, textAlign: "right" }}>Budget</th><th style={{ ...th, textAlign: "right" }}>Best quote</th><th style={{ ...th, textAlign: "right" }}>Ordered</th><th style={{ ...th, textAlign: "right" }}>Against budget</th>
+                    <th style={{ ...th, textAlign: "right" }}>Package budget</th><th style={{ ...th, textAlign: "right" }}>Best quote</th><th style={{ ...th, textAlign: "right" }}>Ordered</th><th style={{ ...th, textAlign: "right" }}>Against budget</th>
                     <th style={th}>Status</th><th style={th}>ePROMIS</th>
                   </tr>
                 </thead>

@@ -9,7 +9,7 @@ export async function readUploadForm(request: NextRequest): Promise<{ ok: true; 
   try { form = await request.formData(); } catch { return { ok: false, status: 400, error: "Send the file as a form upload" }; }
   const file = form.get("file");
   if (!(file instanceof File)) return { ok: false, status: 400, error: "Choose an Excel file" };
-  if (file.size > BOQ_LIMITS.maxFileBytes) return { ok: false, status: 413, error: "The file is larger than 15 MB" };
+  if (file.size > BOQ_LIMITS.maxFileBytes) return { ok: false, status: 413, error: "The file is larger than 15 MB. Split the BOQ by package and upload the parts one after the other." };
   const sheet = form.get("sheet");
   const headerRow = Number(form.get("header_row"));
   let map = null;

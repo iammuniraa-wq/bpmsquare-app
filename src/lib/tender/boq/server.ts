@@ -226,7 +226,7 @@ async function existingLines(admin: SupabaseClient, tenantId: string, oppId: str
 
 export async function analyseUpload(r: BoqRequest, input: UploadInput): Promise<({ ok: true } & Analysed) | ({ ok: false } & Failure)> {
   if (input.bytes.byteLength === 0) return { ok: false, status: 422, error: "The file is empty" };
-  if (input.bytes.byteLength > BOQ_LIMITS.maxFileBytes) return { ok: false, status: 413, error: "The file is larger than 15 MB" };
+  if (input.bytes.byteLength > BOQ_LIMITS.maxFileBytes) return { ok: false, status: 413, error: "The file is larger than 15 MB. Split the BOQ by package and upload the parts one after the other." };
   const sniffed = sniffAttachment(input.bytes, input.fileName);
   if (!sniffed.ok || sniffed.ext !== "xlsx") return { ok: false, status: 422, error: "Upload the client's BOQ as an Excel .xlsx file (an older .xls can be saved as .xlsx first)" };
 
@@ -309,6 +309,8 @@ export async function applyUpload(r: BoqRequest, input: UploadInput): Promise<Ap
   if (!a.ok) return a;
   if (a.view.needs_mapping || !a.view.header_row) return { ok: false, status: 422, error: "Pick the header row and the Description and Quantity columns first" };
   if (a.parsed.lines.length === 0) return { ok: false, status: 422, error: "No lines were found below the header row" };
+  // Saving the first lines only would drop the rest, and on a revised file would read them as removed.
+  if (a.parsed.truncated) return { ok: false, status: 422, error: `The BOQ has more than ${BOQ_LIMITS.maxLines.toLocaleString("en-US")} lines. Split it by package and upload the parts one after the other.` };
   const view = a.view;
   const incoming = a.parsed.lines;
   const today = await tenantToday(tenantId);

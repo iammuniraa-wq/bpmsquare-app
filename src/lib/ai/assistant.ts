@@ -12,7 +12,8 @@ import { compileAndRun, type ReportResult } from "@/lib/ai/reportCompile";
 import { OVER_BUDGET_MESSAGE } from "@/lib/ai/usageCap";
 import { OBJECT_FEATURE } from "@/lib/objectFeatures";
 import type { CurrencyDef } from "@/lib/currency";
-import { buildNavTargets, isInternalPath, isNavigationRequest, matchNavigation, matchRecordOpen, recordHref, type NavTarget } from "@/lib/assistant/navTargets";
+import { buildNavTargets, isInternalPath, isNavigationRequest, matchNavigation, matchRecordOpen, recordHref, tenderBoqTarget, type NavTarget } from "@/lib/assistant/navTargets";
+import { boqUploadRule } from "@/lib/assistant/boqHelp";
 import { navigateTool, openRecordTool } from "@/lib/assistant/navTools";
 import { objectDef } from "@/lib/assistant/objects";
 import { modelFor, routeAsk, type ModelTier } from "@/lib/assistant/models";
@@ -476,6 +477,7 @@ export function promptParts(args: {
       ? "\n\nNAVIGATION (id | label | section) -- the ONLY places navigate can open:\n" + targets.map((t) => `${t.id} | ${t.label} | ${t.section}`).join("\n")
       : "") +
     (actionCatalog ? "\n\n" + actionCatalog : "") +
+    boqUploadRule(targets) +
     "\n\nRULES:\n" +
     "1. NEVER state a number, list or fact about the user's data without querying for it first in this conversation. If a tool errors, fix the query and retry.\n" +
     "2. TWO ways to answer a data question -- pick the one that fits: query_data for a specific number or short list you'll describe in a sentence ('how many', 'total value', 'list the top 3'); chart for anything that's naturally a breakdown, a trend, a ranking, or a broad 'insights about X' / 'how's X doing' question -- chart hands the whole sub-question to the same compile engine Talk to data uses and renders inline, so don't also re-derive the numbers yourself with query_data first.\n" +
@@ -633,6 +635,11 @@ export async function askAssistant(history: ChatTurn[], ctx: AssistantAskCtx): P
   const webHistory = history.slice(-WEB_TAINT_WINDOW).some((t) => t.role === "assistant" && t.web === true);
   const open = await resolvePageRecord(toolCtx, ctx.route).catch(() => null);
   const screen = await resolveScreen(ctx.route, accessFor(), deps).catch(() => null);
+  // A tender that is open gets its own Bill of quantities button; the deal is looked up in this workspace first.
+  if (open?.objectType === "opportunity" && ctx.features.gcc_tender === true) {
+    const { data: isTender } = await ctx.supabase.from("opportunity_tenders").select("opportunity_id").eq("tenant_id", ctx.tenantId).eq("opportunity_id", open.recordId).maybeSingle();
+    if (isTender) targets.push(tenderBoqTarget(open.recordId));
+  }
   const today = (ctx.now ?? new Date()).toISOString().slice(0, 10);
   const actions = ctx.userId ? availableActions({ features: ctx.features, perms: ctx.perms }) : [];
   const actionCatalog = actions.length ? await createCatalog(ctx.supabase, ctx.tenantId, actions).catch(() => null) : null;
