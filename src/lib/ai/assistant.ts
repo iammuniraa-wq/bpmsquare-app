@@ -12,7 +12,8 @@ import { compileAndRun, type ReportResult } from "@/lib/ai/reportCompile";
 import { OVER_BUDGET_MESSAGE } from "@/lib/ai/usageCap";
 import { OBJECT_FEATURE } from "@/lib/objectFeatures";
 import type { CurrencyDef } from "@/lib/currency";
-import { buildNavTargets, isInternalPath, isNavigationRequest, matchNavigation, matchRecordOpen, recordHref, tenderBoqTarget, type NavTarget } from "@/lib/assistant/navTargets";
+import { answerUnavailableAsk, judgeNavigation, NAV_NONE } from "@/lib/assistant/navGuard";
+import { buildNavTargets, isInternalPath, navigationPromptBlock, isNavigationRequest, matchNavigation, matchRecordOpen, recordHref, tenderBoqTarget, type NavGateCtx, type NavTarget } from "@/lib/assistant/navTargets";
 import { boqUploadRule } from "@/lib/assistant/boqHelp";
 import { navigateTool, openRecordTool } from "@/lib/assistant/navTools";
 import { objectDef } from "@/lib/assistant/objects";
@@ -473,9 +474,7 @@ export function promptParts(args: {
     (lookups.length
       ? "\n\nSPECIAL quick_lookup lookups:\n" + lookups.map((l) => `- ${l.id}: ${l.description}`).join("\n")
       : "") +
-    (targets.length
-      ? "\n\nNAVIGATION (id | label | section) -- the ONLY places navigate can open:\n" + targets.map((t) => `${t.id} | ${t.label} | ${t.section}`).join("\n")
-      : "") +
+    navigationPromptBlock(targets) +
     (actionCatalog ? "\n\n" + actionCatalog : "") +
     boqUploadRule(targets) +
     "\n\nRULES:\n" +
@@ -549,7 +548,7 @@ export async function askAssistant(history: ChatTurn[], ctx: AssistantAskCtx): P
   const toolCtx: ToolCtx = { supabase: ctx.supabase, tenantId: ctx.tenantId, perms: ctx.perms, features: ctx.features };
   const question = history[history.length - 1]?.text ?? "";
 
-  const targets = buildNavTargets({
+  const navCtx: NavGateCtx = {
     features: ctx.features,
     isAdmin: ctx.isAdmin,
     // Admins and anyone who may edit Workforce. A supervisor made only by an employee record is not counted: the safe direction.
@@ -557,7 +556,8 @@ export async function askAssistant(history: ChatTurn[], ctx: AssistantAskCtx): P
     canView: (wc) => canViewWorkcenter(ctx.perms, wc),
     canCreate: (wc) => canCreateWorkcenter(ctx.perms, wc),
     canEdit: (wc) => canEditWorkcenter(ctx.perms, wc),
-  });
+  };
+  const targets = buildNavTargets(navCtx);
 
   // 0. A task the person picked from the screen's own list is answered from the manifest: no model, no allowance.
   const accessFor = () => screenAccessFor(ctx.perms, ctx.features, ctx.isWorkspaceAdmin ?? ctx.isAdmin);
@@ -604,6 +604,9 @@ export async function askAssistant(history: ChatTurn[], ctx: AssistantAskCtx): P
   // 1. A plain "open ..." is answered without a model: free, instant, and it keeps working over the allowance.
   const direct = matchNavigation(question, targets);
   if (direct) return { answer: `Opening ${direct.label.replace(/^Settings: /, "Settings · ")}.`, cards: [cardFor(direct)], autoFollow: true };
+  // 1b. "where is X" for a screen this person cannot reach: the reason, with no button and no model. Never the nearest other screen.
+  const missingAnswer = answerUnavailableAsk(question, targets, navCtx);
+  if (missingAnswer) return { answer: missingAnswer };
   const recordAsk = matchRecordOpen(question);
   if (recordAsk && usableObjects(toolCtx).some((d) => d.type === recordAsk.objectType)) {
     const hits = await findRecords(toolCtx, recordAsk.objectType, recordAsk.ref);
@@ -872,9 +875,23 @@ export async function askAssistant(history: ChatTurn[], ctx: AssistantAskCtx): P
           const lookup = lookups.find((l) => l.id === id);
           out = lookup ? await lookup.run(ctx.supabase, ctx.tenantId) : `Error: unknown lookup "${id}".`;
         } else if (tu.name === "navigate") {
-          const t = byId.get(String((tu.input as { target?: string }).target ?? ""));
-          if (t && isInternalPath(t.href)) { addCards([cardFor(t)]); out = `Button shown: ${cardFor(t).label}. Reply with one short line.`; }
-          else out = "Error: that is not one of the places you may open. Pick an id from the NAVIGATION list.";
+          const input = tu.input as { target?: string; asked_for?: string };
+          const pick = String(input.target ?? "");
+          if (pick !== NAV_NONE && !byId.has(pick)) {
+            out = "Error: that is not one of the places you may open. Pick an id from the NAVIGATION list, or none.";
+          } else {
+            const verdict = judgeNavigation({ pick, askedFor: input.asked_for, message: question, targets, ctx: navCtx });
+            if (verdict.kind === "open") {
+              const shown = verdict.targets.filter((t) => isInternalPath(t.href));
+              addCards(shown.map(cardFor));
+              out = `Button shown: ${shown.map((t) => cardFor(t).label).join(", ")}. Reply with one short line.`;
+            } else {
+              // The answer is the server's own words, not the model's: it is final, so nothing can dress it up as a button.
+              if (verdict.kind === "unknown") addCards(verdict.suggestions.filter((t) => isInternalPath(t.href)).map(cardFor));
+              // Suggestions are offered, never followed on their own.
+              return { ...finish(verdict.message), autoFollow: undefined };
+            }
+          }
         } else if (tu.name === "open_record") {
           out = await runOpenRecord(tu.input as { object?: string; query?: string }, toolCtx, addCards);
         } else if (tu.name === "create_record" && actionCatalog && ctx.userId) {

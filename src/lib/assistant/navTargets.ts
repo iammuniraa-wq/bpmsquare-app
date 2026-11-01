@@ -1,6 +1,6 @@
 import { NAV, type NavItem } from "@/lib/constants";
 import { CREATE_ACTIONS } from "@/lib/createActions";
-import { visibleSettingsMenu } from "@/lib/settingsMenu";
+import { SETTINGS_GROUPS, SETTINGS_MENU } from "@/lib/settingsMenu";
 import type { WorkcenterKey } from "@/lib/workcenters";
 import { OBJECT_DEFS, type AssistantObjectType } from "./objects";
 
@@ -27,61 +27,6 @@ export type NavGateCtx = {
   canEdit: (wc: WorkcenterKey) => boolean;
 };
 
-export function buildNavTargets(ctx: NavGateCtx): NavTarget[] {
-  const out = new Map<string, NavTarget>();
-  const add = (t: NavTarget) => { if (!out.has(t.id)) out.set(t.id, t); };
-
-  // Same rule as the sidebar and the palette's `canSee`.
-  const canSee = (item: NavItem) =>
-    (!item.featureKey || ctx.features[item.featureKey] === true) &&
-    (!item.adminOnly || ctx.isAdmin) &&
-    (!item.workcenterKey || ctx.canView(item.workcenterKey as WorkcenterKey)) &&
-    (!item.supervisorOnly || ctx.isWfmSupervisor);
-
-  for (const group of NAV) {
-    for (const item of group.items) {
-      const children = item.children ?? [];
-      if (children.length === 0) {
-        if (canSee(item)) add({ id: `nav:${item.href}`, label: item.label, section: group.group, href: item.href, kind: "nav" });
-        continue;
-      }
-      // A parent row only expands the sidebar; its children are the places.
-      for (const child of children) {
-        if (canSee(child)) add({ id: `nav:${child.href}`, label: child.label, section: item.label, href: child.href, kind: "nav" });
-      }
-    }
-  }
-
-  // The Tenders tab is a tab of Pipeline, not a sidebar row, so the NAV walk above cannot offer it.
-  if (ctx.features.gcc_tender === true && ctx.features.pipeline === true && ctx.canView("pipeline")) {
-    add({ id: TENDER_BOQ_LIST_TARGET, label: "Tenders", section: "Pipeline", href: "/pipeline?tab=tenders", kind: "nav" });
-  }
-
-  for (const g of visibleSettingsMenu({ isAdmin: ctx.isAdmin, canEdit: ctx.canEdit, features: ctx.features })) {
-    for (const item of g.items) add({ id: `settings:${item.id}`, label: `Settings: ${item.label}`, section: `Settings · ${g.label}`, href: item.href, kind: "settings" });
-  }
-
-  for (const a of CREATE_ACTIONS) {
-    if (ctx.features[a.featureKey] !== true) continue;
-    if (a.workcenterKey && !ctx.canCreate(a.workcenterKey)) continue;
-    add({ id: `create:${a.href}`, label: a.label, section: "Create", href: a.href, kind: "create" });
-  }
-
-  return [...out.values()];
-}
-
-/** The Bill of quantities tab of the tender that is open now. The caller has checked that the deal is a tender of this workspace. */
-export function tenderBoqTarget(opportunityId: string): NavTarget {
-  return { id: `${TENDER_BOQ_OPEN_PREFIX}${opportunityId}?tab=boq`, label: "This tender: Bill of quantities", section: "Pipeline", href: `/pipeline/${opportunityId}?tab=boq`, kind: "nav" };
-}
-
-/** A path the dock may navigate to: internal, no scheme, no `//`, none of the characters that break out of a string. */
-export function isInternalPath(href: unknown): href is string {
-  return typeof href === "string" && /^\/(?!\/)[A-Za-z0-9/_\-.?=&%]*$/.test(href);
-}
-
-// ── Plain-words navigation, answered without a model call ───────────────────────────────────────────────────
-
 const ALIASES: Record<string, string[]> = {
   "nav:/quotations": ["quotes", "quotations", "quotation", "quote"],
   "nav:/": ["home", "dashboard"],
@@ -96,11 +41,122 @@ const ALIASES: Record<string, string[]> = {
   "settings:products": ["product categories", "item types"],
   "settings:quotations": ["quote statuses", "quote types", "offer types", "text templates", "email templates", "asset print fields"],
   "settings:pricing": ["small scale pricing", "dynamic pricing"],
+  "nav:/data-workbench": ["workbench", "data import", "bulk import", "import data", "export data"],
   "settings:workforce": ["attendance rules", "shifts", "sites", "leave types", "punching and verification", "kiosks", "reminders and notifications", "employment and billing"],
 };
 
-const norm = (s: string): string =>
+/** Words that justify offering a screen without being its name ("upload", "excel" point at Data Workbench). */
+const EXTRA_TERMS: Record<string, string[]> = {
+  "nav:/data-workbench": ["import", "export", "upload", "excel", "csv", "bulk", "template"],
+};
+
+export const norm = (s: string): string =>
   s.toLowerCase().replace(/[^a-z0-9 ]+/g, " ").split(/\s+/).filter(Boolean).map((w) => (w.length > 3 ? w.replace(/s$/, "") : w)).join(" ");
+
+// ── The full screen catalogue, gating included ─────────────────────────────────────────────────────────────────
+// One table of EVERY screen the assistant knows by name, allowed or not, each with the gate that decides whether this
+// caller reaches it and, when not, why. buildNavTargets is this table filtered by the gate, so the list the model may
+// pick from and the honest "that is not switched on" answer can never disagree.
+
+export type MissingReason = "not_enabled" | "no_access" | "admin_only" | "unavailable";
+
+export type CatalogEntry = NavTarget & {
+  /** What a person calls it: the label and its aliases. A message naming one of these names this screen. */
+  names: string[];
+  /** Everything that may justify offering it: the names, the section and search keywords. */
+  terms: string[];
+  /** null when this caller reaches the screen, otherwise the first reason that stops them. */
+  gate: (ctx: NavGateCtx) => MissingReason | null;
+};
+
+let catalogMemo: CatalogEntry[] | null = null;
+
+export function screenCatalog(): CatalogEntry[] {
+  if (catalogMemo) return catalogMemo;
+  const out = new Map<string, CatalogEntry>();
+  const add = (e: Omit<CatalogEntry, "names" | "terms"> & { keywords?: string[]; displayNames?: string[] }) => {
+    if (out.has(e.id)) return;
+    const names = [...new Set([...(e.displayNames ?? [e.label]), ...(ALIASES[e.id] ?? [])])];
+    const { keywords, displayNames: _d, ...rest } = e;
+    out.set(e.id, { ...rest, names, terms: [...names, e.section, ...(keywords ?? []), ...(EXTRA_TERMS[e.id] ?? [])] });
+  };
+
+  const navGate = (item: NavItem) => (ctx: NavGateCtx): MissingReason | null =>
+    item.featureKey && ctx.features[item.featureKey] !== true ? "not_enabled"
+    : item.adminOnly && !ctx.isAdmin ? "admin_only"
+    : item.workcenterKey && !ctx.canView(item.workcenterKey as WorkcenterKey) ? "no_access"
+    : item.supervisorOnly && !ctx.isWfmSupervisor ? "no_access"
+    : null;
+
+  for (const group of NAV) {
+    for (const item of group.items) {
+      const children = item.children ?? [];
+      if (children.length === 0) {
+        add({ id: `nav:${item.href}`, label: item.label, section: group.group, href: item.href, kind: "nav", gate: navGate(item) });
+        continue;
+      }
+      // A parent row only expands the sidebar; its children are the places.
+      for (const child of children) add({ id: `nav:${child.href}`, label: child.label, section: item.label, href: child.href, kind: "nav", gate: navGate(child) });
+    }
+  }
+
+  // The Tenders tab is a tab of Pipeline, not a sidebar row, so the NAV walk above cannot offer it.
+  add({
+    id: TENDER_BOQ_LIST_TARGET, label: "Tenders", section: "Pipeline", href: "/pipeline?tab=tenders", kind: "nav",
+    gate: (ctx) => (ctx.features.gcc_tender !== true || ctx.features.pipeline !== true ? "not_enabled" : !ctx.canView("pipeline") ? "no_access" : null),
+  });
+
+  for (const g of SETTINGS_GROUPS) {
+    for (const m of SETTINGS_MENU.filter((x) => x.group === g.id)) {
+      add({
+        id: `settings:${m.id}`, label: `Settings: ${m.label}`, section: `Settings · ${g.label}`, href: m.href, kind: "settings",
+        displayNames: [m.label, `Settings: ${m.label}`], keywords: m.keywords,
+        gate: (ctx) =>
+          (m.featureKey && ctx.features[m.featureKey] !== true) || (m.featureAnyOf && !m.featureAnyOf.some((k) => ctx.features[k] === true)) ? "not_enabled"
+          : m.hiddenWhenFeature && ctx.features[m.hiddenWhenFeature] === true ? "unavailable"
+          : m.adminOnly && !ctx.isAdmin && !(m.relatedWorkcenter && ctx.canEdit(m.relatedWorkcenter)) ? "admin_only"
+          : null,
+      });
+    }
+  }
+
+  for (const a of CREATE_ACTIONS) {
+    add({
+      id: `create:${a.href}`, label: a.label, section: "Create", href: a.href, kind: "create",
+      gate: (ctx) => (ctx.features[a.featureKey] !== true ? "not_enabled" : a.workcenterKey && !ctx.canCreate(a.workcenterKey) ? "no_access" : null),
+    });
+  }
+
+  catalogMemo = [...out.values()];
+  return catalogMemo;
+}
+
+export function buildNavTargets(ctx: NavGateCtx): NavTarget[] {
+  return screenCatalog()
+    .filter((e) => e.gate(ctx) === null)
+    .map(({ id, label, section, href, kind }) => ({ id, label, section, href, kind }));
+}
+
+/** The NAVIGATION block of the assistant's system prompt. One definition, used by the product and by scripts/assistant-nav-eval.ts. */
+export function navigationPromptBlock(targets: readonly NavTarget[]): string {
+  if (targets.length === 0) return "";
+  return (
+    "\n\nNAVIGATION (id | label | section) -- the ONLY places navigate can open:\n" + targets.map((t) => `${t.id} | ${t.label} | ${t.section}`).join("\n") +
+    "\nIf the screen the person named is not in this NAVIGATION list, call navigate with target none and asked_for set to the name they used. Never pick a different screen as a substitute, and never say a screen exists that is not in the list."
+  );
+}
+
+/** The Bill of quantities tab of the tender that is open now. The caller has checked that the deal is a tender of this workspace. */
+export function tenderBoqTarget(opportunityId: string): NavTarget {
+  return { id: `${TENDER_BOQ_OPEN_PREFIX}${opportunityId}?tab=boq`, label: "This tender: Bill of quantities", section: "Pipeline", href: `/pipeline/${opportunityId}?tab=boq`, kind: "nav" };
+}
+
+/** A path the dock may navigate to: internal, no scheme, no `//`, none of the characters that break out of a string. */
+export function isInternalPath(href: unknown): href is string {
+  return typeof href === "string" && /^\/(?!\/)[A-Za-z0-9/_\-.?=&%]*$/.test(href);
+}
+
+// ── Plain-words navigation, answered without a model call ───────────────────────────────────────────────────
 
 const OPEN_RE = /^\s*(?:please\s+|can you\s+|could you\s+)?(?:open|go to|goto|take me to|show me|navigate to|jump to|show)\s+(?:the\s+|my\s+)?(.+?)(?:\s+(?:page|screen|list))?[\s.!?]*$/i;
 const CREATE_RE = /^\s*(?:please\s+|can you\s+|could you\s+)?(?:(?:create|add|start|make|open)\s+)?(?:a\s+|an\s+)?(new\s+.+?)[\s.!?]*$/i;
