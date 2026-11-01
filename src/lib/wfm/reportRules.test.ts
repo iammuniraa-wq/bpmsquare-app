@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
-  cleanSheetName, employmentTypeError, formatSignedHM, otCountedMinutes, shiftMinutes, standardMinutesForDay, uniqueSheetName,
+  cleanSheetName, employmentTypeError, formatSignedHM, locationSheetName, otCountedMinutes, shiftMinutes, standardMinutesForDay, uniqueSheetName,
 } from "./reportRules";
 
 describe("overtime minimum", () => {
@@ -77,5 +77,12 @@ describe("sheet names", () => {
     expect(second).toHaveLength(31);
     expect(second.endsWith(" (2)")).toBe(true);
     expect(uniqueSheetName("", taken)).toBe("Sheet");
+  });
+  it("names a location sheet '<Location> - <Type>' and shortens the location first when it does not fit", () => {
+    expect(locationSheetName("Doha", "Trainee")).toBe("Doha - Trainee");
+    const long = locationSheetName("Industrial Area Warehouse Number Seven", "To Be Assigned");
+    expect(long).toHaveLength(31);
+    expect(long.endsWith(" - To Be Assigned")).toBe(true);
+    expect(locationSheetName("A/B", "x:y")).toBe("A-B - x-y");
   });
 });

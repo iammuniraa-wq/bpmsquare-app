@@ -90,3 +90,18 @@ export function uniqueSheetName(raw: string, taken: Set<string>): string {
   taken.add(name.toLowerCase());
   return name;
 }
+
+/**
+ * "<Location> - <Type>" inside Excel's 31 characters. When it does not fit, the location is shortened first so the type
+ * (the part that tells two sheets of one site apart) stays readable.
+ */
+export function locationSheetName(location: string, type: string): string {
+  const sep = " - ";
+  let l = cleanSheetName(location);
+  let t = cleanSheetName(type);
+  if (l.length + sep.length + t.length > 31) {
+    t = t.slice(0, 20);
+    l = l.slice(0, 31 - sep.length - t.length).trimEnd();
+  }
+  return `${l}${sep}${t}`;
+}
