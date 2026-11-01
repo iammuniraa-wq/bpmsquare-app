@@ -1,4 +1,6 @@
 /* Data Workbench layout. Theme variables only. One column under 900 px: the picker moves into a bottom sheet. */
+.grid { display: grid; grid-template-columns: 240px minmax(0, 1fr); gap: 18px; align-items: start; }
+.col { position: sticky; top: 20px; min-width: 0; }
 .tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin: 10px 0 16px; }
 .tile {
   display: flex; flex-direction: column; gap: 2px; text-align: left; min-height: 44px; padding: 14px;
@@ -27,6 +29,8 @@ button.change { display: none; margin-inline-start: auto; min-height: 44px; }
 .phoneOnly { display: none; }
 
 @media (max-width: 899px) {
+  .grid { grid-template-columns: minmax(0, 1fr); }
+  .col { display: none; }
   .tiles { grid-template-columns: minmax(0, 1fr); }
   button.change { display: inline-flex; }
   .phoneOnly { display: flex; }

@@ -43,6 +43,7 @@ export default async function DataWorkbenchPage() {
   // the catalog names. The routes behind the screen enforce the same answer.
   const objectOrder = ownedObjectIds(tenant?.features, featureForObject);
 
+  // Catalog order, not alphabetical: the picker groups by module and nests lines under their parent.
   const specs: ObjectSpec[] = (
     await Promise.all(
       objectOrder.map(async (id): Promise<ObjectSpec> => {
@@ -60,7 +61,7 @@ export default async function DataWorkbenchPage() {
         return id === "products" && !(await supplierColumnAvailable(supabase)) ? withoutSupplierFields(built) : built;
       })
     )
-  ).sort((a, b) => a.label.localeCompare(b.label));
+  );
   const objects: DwObject[] = specs.map((spec) => ({ spec, catalog: DW_CATALOG[spec.id] }));
   // Never listed (bpmsquarecore 3b), only named when a link or a search asks for one the workspace has not switched on.
   const owned = new Set<ImportObjectId>(objectOrder);

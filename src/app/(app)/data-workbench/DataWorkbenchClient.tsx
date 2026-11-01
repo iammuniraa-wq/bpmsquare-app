@@ -18,11 +18,16 @@ import type {
   UpdateResponse,
   ValidatedRow,
 } from "@/lib/import/types";
-import { DW_MODES, supportedMode, type DwMode, type DwObject } from "@/lib/import/catalog";
+import { DW_CATALOG, DW_MODES, supportedMode, type DwGroupId, type DwMode, type DwObject } from "@/lib/import/catalog";
+import SidePanel from "@/components/ui/SidePanel";
+import InfoTip from "@/components/ui/InfoTip";
 import { useUrlTab } from "@/components/ui/useUrlTab";
 import ColumnMapper from "./ColumnMapper";
 import ExportFlow from "./ExportFlow";
 import ObjectHeader from "./ObjectHeader";
+import ObjectPicker from "./ObjectPicker";
+import { shouldFocusSearch, type OpenOverrides, type PickerEntry, type PickerUnowned } from "./pickerModel";
+import s from "./DataWorkbench.module.css";
 import StartScreen from "./StartScreen";
 import { browserStorage, ownedRecents, readRecents, touchRecent } from "./recents";
 import { banner, btn, btnGhost, card, mono, pill, stepDot, td, th, tone } from "./ui";
@@ -86,6 +91,8 @@ function clearExtractSnapshot(objectId: string) {
 /** An object the catalog knows that this workspace has not switched on: named only in reply to a link or a search. */
 export type DwUnowned = { id: ImportObjectId; label: string };
 
+const PHONE_QUERY = "(max-width: 899px)";
+
 export default function DataWorkbenchClient({ objects, unowned, recentsKey }: { objects: DwObject[]; unowned: DwUnowned[]; recentsKey: string }) {
   const params = useSearchParams();
   const [mode, setMode] = useUrlTab(DW_MODES) as [DwMode, (id: string) => void];
@@ -95,8 +102,10 @@ export default function DataWorkbenchClient({ objects, unowned, recentsKey }: { 
   const current = byId.get(objectId as ImportObjectId) ?? null;
   const shownMode: DwMode = current ? supportedMode(current.spec.id, mode) : mode;
   const rawObject = params.get("object");
-  const navRef = useRef<HTMLElement>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
   const [recents, setRecents] = useState<string[]>([]);
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [overrides, setOverrides] = useState<OpenOverrides>({});
   // The task named in the link (?tab=update with no object) or tapped on the start screen.
   const [picked, setPicked] = useState<DwMode | null>(() => {
     const t = params.get("tab");
@@ -120,98 +129,102 @@ export default function DataWorkbenchClient({ objects, unowned, recentsKey }: { 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rawObject]);
 
-  function openObject(id: ImportObjectId) {
-    if (!byId.has(id)) return;
-    const m = supportedMode(id, mode);
+  const onPhone = () => typeof window !== "undefined" && window.matchMedia(PHONE_QUERY).matches;
+  /** The cursor goes to the picker's search; on a phone the picker is a sheet, so it opens. */
+  function focusPicker() {
+    if (onPhone()) setSheetOpen(true);
+    else searchRef.current?.focus();
+  }
+
+  // "/" from anywhere that is not a field focuses the search.
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (!shouldFocusSearch(e, document.activeElement as HTMLElement | null)) return;
+      e.preventDefault();
+      focusPicker();
+    }
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, []);
+
+  function openObject(id: string) {
+    const target = byId.get(id as ImportObjectId);
+    if (!target) return;
+    const m = supportedMode(target.spec.id, mode);
     if (m !== mode) setMode(m);
-    setObject(id);
+    setObject(target.spec.id);
+    setSheetOpen(false);
   }
 
   function chooseTask(m: DwMode) {
     setPicked(m);
     setMode(m);
-    navRef.current?.querySelector<HTMLElement>("button")?.focus();
+    focusPicker();
   }
+
+  const entries: PickerEntry[] = useMemo(
+    () => objects.map(({ spec, catalog }) => ({ id: spec.id, label: spec.label, icon: spec.icon, group: catalog.group, parent: catalog.parent, modes: catalog.modes, keywords: catalog.keywords })),
+    [objects],
+  );
+  const unownedEntries: PickerUnowned[] = useMemo(() => unowned.map((u) => ({ id: u.id, label: u.label, keywords: DW_CATALOG[u.id].keywords })), [unowned]);
+  const toggleGroup = (g: DwGroupId, open: boolean) => setOverrides((o) => ({ ...o, [g]: open }));
+  const pickerProps = {
+    entries, unowned: unownedEntries, selectedId: current?.spec.id ?? null, mode: current ? shownMode : picked, recents,
+    overrides, onToggleGroup: toggleGroup, onPick: openObject,
+  };
 
   const spec = current?.spec;
   const parent = current?.catalog.parent ? byId.get(current.catalog.parent) : undefined;
   const strayLabel = !current && rawObject ? unowned.find((u) => u.id === rawObject)?.label ?? null : null;
   const ownedSet = new Set<string>(objectIds);
   const startRecents = ownedRecents(recents, ownedSet).map((id) => ({ id, label: byId.get(id as ImportObjectId)!.spec.label, icon: byId.get(id as ImportObjectId)!.spec.icon }));
+  // "Needs Accounts first": only the objects this workspace has; a name it cannot import would send the person nowhere.
+  const needs = spec ? spec.dependsOn.filter((id) => byId.has(id)).map((id) => byId.get(id)!.spec.label) : [];
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      <div className="hub-grid" style={{ display: "grid", gridTemplateColumns: "215px 1fr", gap: 18, alignItems: "start" }}>
-        <nav ref={navRef} style={{ display: "flex", flexDirection: "column", gap: 3, position: "sticky", top: 20 }}>
-          <div style={{ fontSize: 10.5, fontWeight: 700, color: c.hint, textTransform: "uppercase", letterSpacing: 0.7, padding: "4px 10px 8px" }}>
-            Objects
-          </div>
-          {objects.map(({ spec: obj, catalog }) => {
-            const active = obj.id === current?.spec.id;
-            const lacks = !catalog.modes.includes(mode);
-            return (
-              <button
-                key={obj.id}
-                onClick={() => openObject(obj.id)}
-                style={{
-                  display: "flex", alignItems: "center", gap: 10,
-                  padding: "10px 12px", borderRadius: 8, border: "none", cursor: "pointer",
-                  textAlign: "left", width: "100%",
-                  background: active ? c.accentbg : "transparent",
-                  color: active ? c.accent : c.ink,
-                  fontWeight: active ? 600 : 400,
-                }}
-              >
-                <span style={{ fontSize: 16, width: 20, textAlign: "center", flexShrink: 0 }}>{obj.icon}</span>
-                <div>
-                  <div style={{ fontSize: 13 }}>{obj.label}</div>
-                  <div style={{ fontSize: 10.5, color: c.hint, marginTop: 1, fontWeight: 400 }}>
-                    {lacks ? `no ${mode}` : `${obj.fields.length} fields`}
-                  </div>
-                </div>
-              </button>
-            );
-          })}
+    <div className={s.grid}>
+      <aside className={s.col} data-guide="dw.picker" style={{ ...card, padding: 12 }}>
+        <ObjectPicker {...pickerProps} inputRef={searchRef} />
+      </aside>
 
-          {mode === "import" && spec && (
-            <div style={{ borderTop: `1px solid ${c.line}`, marginTop: 12, paddingTop: 12, padding: "12px 10px 0" }}>
-              <strong style={{ display: "block", marginBottom: 4, color: c.muted, fontSize: 11 }}>Import order</strong>
-              <div style={{ fontSize: 11, color: c.hint, lineHeight: 1.6 }}>
-                {spec.dependsOn.length > 0 ? (
-                  <>Import {spec.dependsOn.map((id) => byId.get(id)?.spec.label ?? id).join(", ")} first — {spec.label} links to {spec.dependsOn.length === 1 ? "it" : "them"} by name.</>
-                ) : (
-                  <>{spec.label} has no dependencies — safe to import first.</>
-                )}
-              </div>
-            </div>
-          )}
-        </nav>
-
-        <div style={{ minWidth: 0 }}>
-          {current && spec ? (
-            <>
-              <ObjectHeader
-                spec={spec}
-                catalog={current.catalog}
-                parentLabel={parent?.spec.label ?? null}
-                mode={shownMode}
-                onMode={(m) => setMode(m)}
-              />
-              {shownMode === "export" && <ExportFlow key={`${shownMode}-${spec.id}`} spec={spec} />}
-              {(shownMode === "import" || shownMode === "update") && (
-                <ImportFlow key={`${shownMode}-${spec.id}`} spec={spec} mode={shownMode} />
-              )}
-            </>
-          ) : (
-            <StartScreen recents={startRecents} stray={strayLabel} picked={picked} onTask={chooseTask} onRecent={(id) => openObject(id as ImportObjectId)} />
-          )}
-        </div>
+      <div style={{ minWidth: 0 }}>
+        {current && spec ? (
+          <>
+            <ObjectHeader
+              spec={spec}
+              catalog={current.catalog}
+              parentLabel={parent?.spec.label ?? null}
+              mode={shownMode}
+              onMode={(m) => setMode(m)}
+              onChange={() => setSheetOpen(true)}
+            />
+            {shownMode === "export" && <ExportFlow key={`${shownMode}-${spec.id}`} spec={spec} />}
+            {(shownMode === "import" || shownMode === "update") && (
+              <ImportFlow key={`${shownMode}-${spec.id}`} spec={spec} mode={shownMode} needs={needs} />
+            )}
+          </>
+        ) : (
+          <StartScreen
+            recents={startRecents}
+            stray={strayLabel}
+            picked={picked}
+            onTask={chooseTask}
+            onRecent={openObject}
+            onChoose={() => setSheetOpen(true)}
+          />
+        )}
       </div>
+
+      {sheetOpen && (
+        <SidePanel title="Choose an object" onClose={() => setSheetOpen(false)}>
+          <ObjectPicker {...pickerProps} autoFocus onEscape={() => setSheetOpen(false)} guide="dw.search.sheet" />
+        </SidePanel>
+      )}
     </div>
   );
 }
 
-function ImportFlow({ spec: baseSpec, mode }: { spec: ObjectSpec; mode: "import" | "update" }) {
+function ImportFlow({ spec: baseSpec, mode, needs }: { spec: ObjectSpec; mode: "import" | "update"; needs: string[] }) {
   // Update mode works against an exported file: a Record ID column is required,
   // and only scalar (non-relationship) fields are mapped/submitted — relationship
   // changes aren't supported by bulk Update, matching what each object's own
@@ -402,6 +415,7 @@ function ImportFlow({ spec: baseSpec, mode }: { spec: ObjectSpec; mode: "import"
         <UploadStep
           spec={spec}
           mode={mode}
+          needs={needs}
           dragging={dragging}
           setDragging={setDragging}
           fileRef={fileRef}
@@ -557,11 +571,13 @@ function SectionTitle({ title, subtitle }: { title: string; subtitle?: string })
 }
 
 function UploadStep({
-  spec, mode, dragging, setDragging, fileRef, onFile, parseError,
+  spec, mode, needs, dragging, setDragging, fileRef, onFile, parseError,
   onExtractFile, extracting, extractError,
 }: {
   spec: ObjectSpec;
   mode: "import" | "update";
+  /** Labels of the objects this one links to by name, that must already be in the workspace. */
+  needs: string[];
   dragging: boolean;
   setDragging: (v: boolean) => void;
   fileRef: React.RefObject<HTMLInputElement | null>;
@@ -577,6 +593,14 @@ function UploadStep({
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      {mode === "import" && needs.length > 0 && (
+        <div>
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 2, padding: "3px 4px 3px 12px", borderRadius: 999, fontSize: 12, fontWeight: 600, background: tone.warn.bg, color: tone.warn.fg }} data-guide="dw.needs">
+            {`Needs ${needs.join(", ")} first`}
+            <InfoTip label="Import order">{`${spec.label} links to ${needs.length === 1 ? "that object" : "those objects"} by name, so ${needs.length === 1 ? "it" : "they"} must already be in the workspace.`}</InfoTip>
+          </span>
+        </div>
+      )}
       {onExtractFile && (
         <div style={{ ...card, border: `1px solid ${c.accent}40` }}>
           <SectionTitle
