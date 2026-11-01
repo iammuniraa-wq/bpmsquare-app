@@ -173,7 +173,7 @@ export async function wfmLeaveRequestsPayload(
 ) {
   let query = supabase
     .from("wfm_leave_requests")
-    .select("*, employees(first_name, last_name, employee_code, status), wfm_leave_types(name, category)")
+    .select("*, employees(first_name, last_name, employee_code, status, employment_type), wfm_leave_types(name, category)")
     .eq("tenant_id", tenantId)
     .order("created_at", { ascending: false });
   const scoped = opts.scope ? scopeEmployeeIds(opts.scope) : null;

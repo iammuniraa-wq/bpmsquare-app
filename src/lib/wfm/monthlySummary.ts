@@ -8,6 +8,8 @@ import { computeDayHours, shiftDayKey, workSessions, overnightTail, type BreakSe
 import type { PresenceKind } from "./types";
 import { paidWithinMonthlyAllowance } from "./leaveRules";
 import { isSecondSaturday } from "./saturdayRule";
+import { leaveRuleFor, rulesFor } from "./typeRules";
+import { leaveEntryAfterAllowance, weekOffForDay } from "./summaryDayRules";
 import { otCountedMinutes, standardMinutesForDay } from "./reportRules";
 import { clipDatesToValidity, inRangeOrFilter, isEmployeeInRange, isObsolete, obsoleteLabel } from "./obsolete";
 
@@ -389,17 +391,34 @@ async function buildSummaries(
   // Sick paid for one day a month (BIM): beyond a type's paid allowance in a
   // month, a paid-category day counts as UNPAID in the totals and the
   // export. The day still shows the type's name, with the reason appended.
+  // The allowance is resolved per employee and per DAY (rules by employment
+  // type start on their effective_from date), so a month that straddles that
+  // date splits: earlier days keep the leave type's own rule.
   tr.stage(`paidAllowanceByType (leaveDays=${leaveDaysByEmpTypeMonth.size})`);
-  const allowanceByType = await paidAllowanceByType(admin, tenantId);
+  const leaveTypeInfo = await leaveTypeRuleInfo(admin, tenantId);
+  const typeLabelOf = new Map(config.employment_types.map((t) => [t.code, t.label]));
+  const empTypeById = new Map(employeeRows.map((e) => [e.id as string, (e.employment_type as string | null) ?? null]));
   for (const [k, days] of leaveDaysByEmpTypeMonth) {
     const [empId, typeId] = k.split("|");
-    const allowance = allowanceByType.get(typeId);
-    if (allowance === null || allowance === undefined) continue;
-    const paid = paidWithinMonthlyAllowance(allowance, days);
+    const info = leaveTypeInfo.get(typeId);
+    if (!info) continue;
+    const empType = empTypeById.get(empId) ?? null;
+    const typeLabel = (empType && typeLabelOf.get(empType)) || empType || "";
+    // At most two groups: days under the workspace rule, days under the type's.
+    const groups = new Map<string, { rule: ReturnType<typeof leaveRuleFor>; days: { date: string; half_day: boolean }[] }>();
     for (const day of days) {
-      const entry = leaveByEmpDay.get(`${empId}|${day.date}`);
-      if (entry && entry.category === "paid" && paid.get(day.date) === false) {
-        leaveByEmpDay.set(`${empId}|${day.date}`, { ...entry, category: "unpaid", name: `${entry.name} (beyond ${allowance} paid day${allowance === 1 ? "" : "s"} this month)` });
+      const rule = leaveRuleFor(empType, { id: typeId, ...info }, config, day.date);
+      const g = groups.get(rule.source) ?? { rule, days: [] };
+      g.days.push(day);
+      groups.set(rule.source, g);
+    }
+    for (const { rule, days: groupDays } of groups.values()) {
+      if (rule.paid_days_per_month === null) continue;
+      const paid = paidWithinMonthlyAllowance(rule.paid_days_per_month, groupDays);
+      for (const day of groupDays) {
+        const key = `${empId}|${day.date}`;
+        const entry = leaveByEmpDay.get(key);
+        if (entry) leaveByEmpDay.set(key, leaveEntryAfterAllowance(entry, rule, typeLabel, paid.get(day.date)));
       }
     }
   }
@@ -495,8 +514,11 @@ async function buildSummaries(
       // just switched on) -- a live date check, same rationale as the punch
       // route's own 2nd-Saturday gate, so absence/lateness can't be judged
       // against a shift nobody was expected to work just because a row is late.
-      const isWeekOff = config.week_off_days.includes(weekdayOf(date))
-        || (config.saturday_rule.enabled && isSecondSaturday(date, config.timezone));
+      const isWeekOff = weekOffForDay({
+        weekOffDays: rulesFor(emp.employment_type, config, date).week_off_days,
+        weekday: weekdayOf(date),
+        secondSaturday: config.saturday_rule.enabled && isSecondSaturday(date, config.timezone),
+      });
 
       let late = false;
       let absent = false;
@@ -611,11 +633,15 @@ async function buildSummaries(
   return built;
 }
 
-/** paid_days_per_month per leave type (0109); empty until the migration is applied. */
-async function paidAllowanceByType(admin: ReturnType<typeof createAdminSupabase>, tenantId: string): Promise<Map<string, number | null>> {
-  const { data, error } = await admin.from("wfm_leave_types").select("id, paid_days_per_month").eq("tenant_id", tenantId);
-  if (error) return new Map();
-  return new Map((data ?? []).map((t) => [t.id as string, (t.paid_days_per_month as number | null) ?? null]));
+/** Category and paid_days_per_month per leave type (0109). paid_days_per_month is null until that migration is applied. */
+async function leaveTypeRuleInfo(admin: ReturnType<typeof createAdminSupabase>, tenantId: string): Promise<Map<string, { category: string; paid_days_per_month: number | null }>> {
+  let res = await admin.from("wfm_leave_types").select("id, category, paid_days_per_month").eq("tenant_id", tenantId);
+  if (res.error && /paid_days_per_month/.test(res.error.message)) {
+    res = (await admin.from("wfm_leave_types").select("id, category").eq("tenant_id", tenantId)) as typeof res;
+  }
+  if (res.error) return new Map();
+  return new Map(((res.data ?? []) as { id: string; category: string; paid_days_per_month?: number | null }[])
+    .map((t) => [t.id, { category: t.category, paid_days_per_month: t.paid_days_per_month ?? null }]));
 }
 
 /** Leave types with their 0109/0112 rules, falling back to the 0062 shape. */
@@ -634,6 +660,11 @@ async function activeLeaveTypesWithLimits(admin: ReturnType<typeof createAdminSu
  * one (0112). Carries the type's period, monthly cap and paid allowance so
  * the request screen can say so. */
 export async function getLeaveBalance(tenantId: string, employeeId: string, yearMonth: string | number) {
+  return (await getLeaveBalanceDetail(tenantId, employeeId, yearMonth)).rows;
+}
+
+/** getLeaveBalance plus what the screen needs to explain a rule by employment type: the types left out, and the type's name. */
+export async function getLeaveBalanceDetail(tenantId: string, employeeId: string, yearMonth: string | number) {
   const admin = createAdminSupabase();
   const ym = typeof yearMonth === "number" ? `${yearMonth}-${new Date().toISOString().slice(5, 7)}` : yearMonth;
   const year = ym.slice(0, 4);
@@ -641,6 +672,12 @@ export async function getLeaveBalance(tenantId: string, employeeId: string, year
   const yearEnd = `${year}-12-31`;
   const monthStart = `${ym}-01`;
   const monthEnd = new Date(Date.UTC(Number(year), Number(ym.slice(5, 7)), 0)).toISOString().slice(0, 10);
+
+  const config = await getWfmConfig(admin, tenantId);
+  const todayKey = dateKeyInTz(new Date(), config.timezone);
+  const { data: empRow } = await admin.from("employees").select("employment_type").eq("id", employeeId).eq("tenant_id", tenantId).maybeSingle();
+  const empType = (empRow?.employment_type as string | null | undefined) ?? null;
+  const empTypeLabel = config.employment_types.find((t) => t.code === empType)?.label ?? empType ?? "";
 
   const [types, { data: quotas }, { data: leaves }] = await Promise.all([
     activeLeaveTypesWithLimits(admin, tenantId),
@@ -650,7 +687,10 @@ export async function getLeaveBalance(tenantId: string, employeeId: string, year
       .lte("date_from", yearEnd).gte("date_to", yearStart),
   ]);
 
-  return types.map((t) => {
+  // A type the employee's employment type is not offered is left out (rules by employment type). Judged for today.
+  const offered = types.map((t) => ({ t, rule: leaveRuleFor(empType, t, config, todayKey) })).filter((x) => x.rule.eligible);
+
+  const rows = offered.map(({ t, rule }) => {
     const override = (quotas ?? []).find((q) => q.leave_type_id === t.id && q.employee_id === employeeId);
     const defaultQuota = (quotas ?? []).find((q) => q.leave_type_id === t.id && !q.employee_id);
     const quota = override?.annual_quota ?? defaultQuota?.annual_quota ?? 0;
@@ -669,6 +709,16 @@ export async function getLeaveBalance(tenantId: string, employeeId: string, year
     return {
       leave_type_id: t.id, name: t.name, category: t.category, quota, used, balance: quota - used,
       period: t.quota_period, monthly_limit: t.monthly_limit, paid_days_per_month: t.paid_days_per_month,
+      // How the days of this type are paid for this person, and whether the employment type set that (see leavePayLabel).
+      pay: (rule.unpaid ? "unpaid" : rule.paid_days_per_month !== null && rule.paid_days_per_month > 0 ? { paid_days_per_month: rule.paid_days_per_month } : "paid") as "paid" | "unpaid" | { paid_days_per_month: number },
+      pay_source: rule.source,
+      rule,
+      employment_type_label: rule.source === "type" ? empTypeLabel : null,
     };
   });
+  return {
+    rows,
+    notOffered: types.filter((t) => !leaveRuleFor(empType, t, config, todayKey).eligible).map((t) => ({ id: t.id, name: t.name })),
+    employmentTypeLabel: empTypeLabel,
+  };
 }

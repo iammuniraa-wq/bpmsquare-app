@@ -27,6 +27,13 @@ describe("checkMonthlyLimit — CompOff at most 1 a month", () => {
   });
 });
 
+describe("paidWithinMonthlyAllowance — a rule by employment type can set the allowance to 0", () => {
+  it("makes every day unpaid, half-days included", () => {
+    const m = paidWithinMonthlyAllowance(0, [{ date: "2026-11-03", half_day: false }, { date: "2026-11-04", half_day: true }]);
+    expect([...m.values()]).toEqual([false, false]);
+  });
+});
+
 describe("paidWithinMonthlyAllowance — Sick paid for 1 day a month", () => {
   it("pays the first day and marks the rest unpaid, in date order", () => {
     const m = paidWithinMonthlyAllowance(1, [
