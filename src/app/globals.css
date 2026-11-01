@@ -1885,6 +1885,8 @@ textarea.bpm-input { min-height: 72px; resize: vertical; }
 }
 .bpm-tab:hover { color: var(--ink); background: var(--panel2); }
 .bpm-tab:disabled { opacity: 0.5; cursor: default; pointer-events: none; }
+/* A greyed tab keeps its reason: the "i" sits right after it, outside the disabled button. */
+.bpm-tab-with-info { display: inline-flex; align-items: center; gap: 2px; flex: none; }
 .bpm-tab[aria-selected="true"] {
   color: color-mix(in srgb, var(--tab-accent) 72%, var(--ink)); font-weight: 700;
   border-bottom-color: var(--tab-accent);

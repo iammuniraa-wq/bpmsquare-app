@@ -4,7 +4,7 @@ import DataWorkbenchClient from "./DataWorkbenchClient";
 import { requireTenantUser } from "@/lib/supabase-server";
 import { getTenant, requireFeature } from "@/lib/tenant";
 import { getEffectiveFieldConfig, getSalesConfig } from "@/lib/fieldConfig";
-import { REGISTRY_OBJECT_TYPE, buildObjectSpec } from "@/lib/import/registrySchema";
+import { REGISTRY_OBJECT_TYPE, buildObjectSpec, defaultObjectLabel } from "@/lib/import/registrySchema";
 import { USERS_SPEC } from "@/lib/import/usersSchema";
 import { QUOTE_LINES_SPEC } from "@/lib/import/quoteLinesSchema";
 import { PRODUCT_BOM_LINES_SPEC } from "@/lib/import/productBomLinesSchema";
@@ -16,7 +16,8 @@ import { EMPLOYEES_SPEC, buildEmployeesSpec } from "@/lib/import/employeesSchema
 import { requireWorkcenterView } from "@/lib/permissions";
 import { featureForObject } from "@/lib/objectFeatures";
 import { supplierColumnAvailable, withoutSupplierFields } from "@/lib/products/supplier";
-import { DW_CATALOG, ownedObjectIds, type DwObject } from "@/lib/import/catalog";
+import { DW_CATALOG, DW_OBJECT_IDS, ownedObjectIds, type DwObject } from "@/lib/import/catalog";
+import { recentsKey } from "./recents";
 import type { ImportObjectId, ObjectSpec } from "@/lib/import/types";
 
 // Objects with no FIELD_REGISTRY entry (REGISTRY_OBJECT_TYPE[id] === null) use
@@ -35,7 +36,7 @@ const STATIC_SPECS: Partial<Record<ImportObjectId, ObjectSpec>> = {
 export default async function DataWorkbenchPage() {
   await requireWorkcenterView("data_workbench");
   await requireFeature("data_workbench");
-  const { supabase, tenantId } = await requireTenantUser();
+  const { supabase, tenantId, userId } = await requireTenantUser();
 
   const [salesConfig, tenant] = await Promise.all([getSalesConfig(supabase, tenantId), getTenant()]);
   // Which objects this tenant may bulk-load at all: the module that owns each object (OBJECT_FEATURE) plus the extra flags
@@ -61,6 +62,9 @@ export default async function DataWorkbenchPage() {
     )
   ).sort((a, b) => a.label.localeCompare(b.label));
   const objects: DwObject[] = specs.map((spec) => ({ spec, catalog: DW_CATALOG[spec.id] }));
+  // Never listed (bpmsquarecore 3b), only named when a link or a search asks for one the workspace has not switched on.
+  const owned = new Set<ImportObjectId>(objectOrder);
+  const unowned = DW_OBJECT_IDS.filter((id) => !owned.has(id)).map((id) => ({ id, label: STATIC_SPECS[id]?.label ?? defaultObjectLabel(id) }));
 
   return (
     <>
@@ -69,7 +73,7 @@ export default async function DataWorkbenchPage() {
         title="Data Workbench"
         subtitle="Bring your data in from Excel or CSV — download a template or upload your own file, match the columns, then review before anything is saved. Templates always match your current field setup."
       />
-      <DataWorkbenchClient objects={objects} />
+      <DataWorkbenchClient objects={objects} unowned={unowned} recentsKey={recentsKey(tenantId, userId)} />
     </>
   );
 }

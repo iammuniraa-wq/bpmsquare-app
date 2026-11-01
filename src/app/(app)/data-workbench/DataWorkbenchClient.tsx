@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useSearchParams } from "next/navigation";
 import { c } from "@/lib/theme";
 import { ImportParseError, parseImportFile } from "@/lib/import/parse";
 import { applyMapping, suggestMapping } from "@/lib/import/mapping";
@@ -17,21 +18,16 @@ import type {
   UpdateResponse,
   ValidatedRow,
 } from "@/lib/import/types";
-import type { DwObject } from "@/lib/import/catalog";
-import Tabs from "@/components/ui/Tabs";
+import { DW_MODES, supportedMode, type DwMode, type DwObject } from "@/lib/import/catalog";
 import { useUrlTab } from "@/components/ui/useUrlTab";
 import ColumnMapper from "./ColumnMapper";
 import ExportFlow from "./ExportFlow";
+import ObjectHeader from "./ObjectHeader";
+import StartScreen from "./StartScreen";
+import { browserStorage, ownedRecents, readRecents, touchRecent } from "./recents";
 import { banner, btn, btnGhost, card, mono, pill, stepDot, td, th, tone } from "./ui";
 
 type Step = "upload" | "extract-review" | "map" | "review" | "done";
-type Mode = "import" | "export" | "update";
-
-const MODES: { id: Mode; label: string }[] = [
-  { id: "import", label: "Import" },
-  { id: "export", label: "Export" },
-  { id: "update", label: "Update" },
-];
 
 const STEPS: { id: Step; label: string }[] = [
   { id: "upload", label: "Upload" },
@@ -87,30 +83,76 @@ function clearExtractSnapshot(objectId: string) {
   }
 }
 
-export default function DataWorkbenchClient({ objects }: { objects: DwObject[] }) {
-  const specs = objects.map((o) => o.spec);
-  const [mode, setMode] = useUrlTab(MODES.map((m) => m.id)) as [Mode, (id: string) => void];
-  const [activeId, setActiveId] = useState<ImportObjectId>(specs[0]?.id ?? "accounts");
+/** An object the catalog knows that this workspace has not switched on: named only in reply to a link or a search. */
+export type DwUnowned = { id: ImportObjectId; label: string };
 
-  // The catalog is the one answer to "which objects does this mode have": it is tied to the route folders by catalog.test.ts.
-  const visibleSpecs = objects.filter((o) => o.catalog.modes.includes(mode)).map((o) => o.spec);
-  const spec = visibleSpecs.find((s) => s.id === activeId) ?? visibleSpecs[0];
+export default function DataWorkbenchClient({ objects, unowned, recentsKey }: { objects: DwObject[]; unowned: DwUnowned[]; recentsKey: string }) {
+  const params = useSearchParams();
+  const [mode, setMode] = useUrlTab(DW_MODES) as [DwMode, (id: string) => void];
+  const objectIds = useMemo(() => objects.map((o) => o.spec.id), [objects]);
+  const byId = useMemo(() => new Map(objects.map((o) => [o.spec.id, o])), [objects]);
+  const [objectId, setObject] = useUrlTab(objectIds, "object", "");
+  const current = byId.get(objectId as ImportObjectId) ?? null;
+  const shownMode: DwMode = current ? supportedMode(current.spec.id, mode) : mode;
+  const rawObject = params.get("object");
+  const navRef = useRef<HTMLElement>(null);
+  const [recents, setRecents] = useState<string[]>([]);
+  // The task named in the link (?tab=update with no object) or tapped on the start screen.
+  const [picked, setPicked] = useState<DwMode | null>(() => {
+    const t = params.get("tab");
+    return (DW_MODES as string[]).includes(t ?? "") ? (t as DwMode) : null;
+  });
+
+  // An object whose catalog lacks the mode in the URL falls back to its first supported mode, and the URL follows.
+  useEffect(() => {
+    if (current && shownMode !== mode) setMode(shownMode);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [current?.spec.id, mode]);
+
+  // Using an object (from the picker, a link or a recent) moves it to the front of this person's recents.
+  useEffect(() => {
+    setRecents(objectId ? touchRecent(browserStorage(), recentsKey, objectId) : readRecents(browserStorage(), recentsKey));
+  }, [objectId, recentsKey]);
+
+  // Arriving on /data-workbench with no object (a sidebar click or an assistant button) means the start screen.
+  useEffect(() => {
+    if (!rawObject && objectId) setObject("");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rawObject]);
+
+  function openObject(id: ImportObjectId) {
+    if (!byId.has(id)) return;
+    const m = supportedMode(id, mode);
+    if (m !== mode) setMode(m);
+    setObject(id);
+  }
+
+  function chooseTask(m: DwMode) {
+    setPicked(m);
+    setMode(m);
+    navRef.current?.querySelector<HTMLElement>("button")?.focus();
+  }
+
+  const spec = current?.spec;
+  const parent = current?.catalog.parent ? byId.get(current.catalog.parent) : undefined;
+  const strayLabel = !current && rawObject ? unowned.find((u) => u.id === rawObject)?.label ?? null : null;
+  const ownedSet = new Set<string>(objectIds);
+  const startRecents = ownedRecents(recents, ownedSet).map((id) => ({ id, label: byId.get(id as ImportObjectId)!.spec.label, icon: byId.get(id as ImportObjectId)!.spec.icon }));
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      <Tabs tabs={MODES} value={mode} onChange={setMode} label="Data Workbench modes" />
-
       <div className="hub-grid" style={{ display: "grid", gridTemplateColumns: "215px 1fr", gap: 18, alignItems: "start" }}>
-        <nav style={{ display: "flex", flexDirection: "column", gap: 3, position: "sticky", top: 20 }}>
+        <nav ref={navRef} style={{ display: "flex", flexDirection: "column", gap: 3, position: "sticky", top: 20 }}>
           <div style={{ fontSize: 10.5, fontWeight: 700, color: c.hint, textTransform: "uppercase", letterSpacing: 0.7, padding: "4px 10px 8px" }}>
-            {mode === "import" ? "What to import" : mode === "export" ? "What to export" : "What to update"}
+            Objects
           </div>
-          {visibleSpecs.map((obj) => {
-            const active = obj.id === activeId;
+          {objects.map(({ spec: obj, catalog }) => {
+            const active = obj.id === current?.spec.id;
+            const lacks = !catalog.modes.includes(mode);
             return (
               <button
                 key={obj.id}
-                onClick={() => setActiveId(obj.id)}
+                onClick={() => openObject(obj.id)}
                 style={{
                   display: "flex", alignItems: "center", gap: 10,
                   padding: "10px 12px", borderRadius: 8, border: "none", cursor: "pointer",
@@ -124,61 +166,46 @@ export default function DataWorkbenchClient({ objects }: { objects: DwObject[] }
                 <div>
                   <div style={{ fontSize: 13 }}>{obj.label}</div>
                   <div style={{ fontSize: 10.5, color: c.hint, marginTop: 1, fontWeight: 400 }}>
-                    {obj.fields.length} fields
+                    {lacks ? `no ${mode}` : `${obj.fields.length} fields`}
                   </div>
                 </div>
               </button>
             );
           })}
 
-          {mode === "import" && (
+          {mode === "import" && spec && (
             <div style={{ borderTop: `1px solid ${c.line}`, marginTop: 12, paddingTop: 12, padding: "12px 10px 0" }}>
               <strong style={{ display: "block", marginBottom: 4, color: c.muted, fontSize: 11 }}>Import order</strong>
               <div style={{ fontSize: 11, color: c.hint, lineHeight: 1.6 }}>
-                {spec && spec.dependsOn.length > 0 ? (
-                  <>Import {spec.dependsOn.map((id) => specs.find((s) => s.id === id)?.label ?? id).join(", ")} first — {spec.label} links to {spec.dependsOn.length === 1 ? "it" : "them"} by name.</>
+                {spec.dependsOn.length > 0 ? (
+                  <>Import {spec.dependsOn.map((id) => byId.get(id)?.spec.label ?? id).join(", ")} first — {spec.label} links to {spec.dependsOn.length === 1 ? "it" : "them"} by name.</>
                 ) : (
-                  <>{spec?.label ?? "This object"} has no dependencies — safe to import first.</>
+                  <>{spec.label} has no dependencies — safe to import first.</>
                 )}
               </div>
-              {spec?.id === "quotes" && (
-                <div style={{ fontSize: 11, color: c.hint, lineHeight: 1.6, marginTop: 8 }}>
-                  This file must contain each quote's line items too — Quotes import can only create a quote with its lines together, in one file.
-                </div>
-              )}
-              {spec?.id === "quote_lines" && (
-                <div style={{ fontSize: 11, color: c.hint, lineHeight: 1.6, marginTop: 8 }}>
-                  Only adds lines to a quote that already exists. To create a new quote, use Quotes instead — its file includes both the header and the lines.
-                </div>
-              )}
-              {spec?.id === "standard_quotes" && (
-                <div style={{ fontSize: 11, color: c.hint, lineHeight: 1.6, marginTop: 8 }}>
-                  Creates draft quotes without lines. Export them to see each Quote ID, then add the lines with Standard Quote Lines.
-                </div>
-              )}
-              {spec?.id === "sales_orders" && (
-                <div style={{ fontSize: 11, color: c.hint, lineHeight: 1.6, marginTop: 8 }}>
-                  Creates draft orders without lines. Export them to see each Order ID, then add the lines with Sales Order Lines.
-                </div>
-              )}
-              {spec?.id === "sales_order_lines" && (
-                <div style={{ fontSize: 11, color: c.hint, lineHeight: 1.6, marginTop: 8 }}>
-                  Only adds lines to a draft sales order that already exists, found by its Order ID.
-                </div>
-              )}
-              {spec?.id === "standard_quote_lines" && (
-                <div style={{ fontSize: 11, color: c.hint, lineHeight: 1.6, marginTop: 8 }}>
-                  Only adds lines to a draft standard quote that already exists, found by its Quote ID.
-                </div>
-              )}
             </div>
           )}
         </nav>
 
-        {spec && mode === "export" && <ExportFlow key={`${mode}-${activeId}`} spec={spec} />}
-        {spec && (mode === "import" || mode === "update") && (
-          <ImportFlow key={`${mode}-${activeId}`} spec={spec} mode={mode} />
-        )}
+        <div style={{ minWidth: 0 }}>
+          {current && spec ? (
+            <>
+              <ObjectHeader
+                spec={spec}
+                catalog={current.catalog}
+                parentLabel={parent?.spec.label ?? null}
+                mode={shownMode}
+                onMode={(m) => setMode(m)}
+              />
+              {shownMode === "export" && <ExportFlow key={`${shownMode}-${spec.id}`} spec={spec} />}
+              {(shownMode === "import" || shownMode === "update") && (
+                <ImportFlow key={`${shownMode}-${spec.id}`} spec={spec} mode={shownMode} />
+              )}
+            </>
+          ) : (
+            <StartScreen recents={startRecents} stray={strayLabel} picked={picked} onTask={chooseTask} onRecent={(id) => openObject(id as ImportObjectId)} />
+          )}
+        </div>
       </div>
     </div>
   );
@@ -369,16 +396,6 @@ function ImportFlow({ spec: baseSpec, mode }: { spec: ObjectSpec; mode: "import"
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-        <div style={{ width: 40, height: 40, borderRadius: 10, background: c.accentbg, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, color: c.accent }}>
-          {spec.icon}
-        </div>
-        <div>
-          <div style={{ fontSize: 16, fontWeight: 700, color: c.ink }}>{spec.label}</div>
-          <div style={{ fontSize: 12.5, color: c.muted }}>{spec.description}</div>
-        </div>
-      </div>
-
       <StepBar step={step} />
 
       {step === "upload" && (
