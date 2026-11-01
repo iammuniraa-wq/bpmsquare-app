@@ -92,9 +92,6 @@ export default function ColumnMapper({ sheet, spec, mapping, onChange }: Props) 
         </table>
       </div>
 
-      <div style={{ fontSize: 11.5, color: c.hint, lineHeight: 1.6 }}>
-        Columns set to <em>don&apos;t import</em> are left untouched — extra columns in your file are fine.
-      </div>
     </div>
   );
 }

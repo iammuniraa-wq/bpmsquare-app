@@ -1,6 +1,9 @@
 import { NAV, type NavItem } from "@/lib/constants";
 import { CREATE_ACTIONS } from "@/lib/createActions";
 import { SETTINGS_GROUPS, SETTINGS_MENU } from "@/lib/settingsMenu";
+import { DW_CATALOG, DW_OBJECT_IDS, type DwMode } from "@/lib/import/catalog";
+import { featureForObject } from "@/lib/objectFeatureMap";
+import type { ImportObjectId } from "@/lib/import/types";
 import type { WorkcenterKey } from "@/lib/workcenters";
 import { OBJECT_DEFS, type AssistantObjectType } from "./objects";
 
@@ -12,6 +15,8 @@ import { OBJECT_DEFS, type AssistantObjectType } from "./objects";
 export type NavTargetKind = "nav" | "settings" | "create";
 /** Pipeline > Tenders, the place a BOQ is uploaded from (open a tender, Bill of quantities tab). */
 export const TENDER_BOQ_LIST_TARGET = "nav:/pipeline?tab=tenders";
+/** One object of Data Workbench in one mode ("Import Accounts"): the deep link `?tab=<mode>&object=<id>` the page opens on. */
+export const dataWorkbenchTarget = (mode: DwMode, object: ImportObjectId): string => `nav:/data-workbench?tab=${mode}&object=${object}`;
 /** Prefix of the target for the tender that is open right now; built per ask by tenderBoqTarget. */
 export const TENDER_BOQ_OPEN_PREFIX = "nav:/pipeline/";
 
@@ -49,6 +54,9 @@ const ALIASES: Record<string, string[]> = {
 const EXTRA_TERMS: Record<string, string[]> = {
   "nav:/data-workbench": ["import", "export", "upload", "excel", "csv", "bulk", "template"],
 };
+
+/** What a person says for each mode; the first is the label's verb ("Import Accounts"). */
+const DW_MODE_VERBS: Record<DwMode, string[]> = { import: ["Import", "Upload"], export: ["Export", "Download"], update: ["Update", "Bulk update"] };
 
 export const norm = (s: string): string =>
   s.toLowerCase().replace(/[^a-z0-9 ]+/g, " ").split(/\s+/).filter(Boolean).map((w) => (w.length > 3 ? w.replace(/s$/, "") : w)).join(" ");
@@ -105,6 +113,29 @@ export function screenCatalog(): CatalogEntry[] {
     id: TENDER_BOQ_LIST_TARGET, label: "Tenders", section: "Pipeline", href: "/pipeline?tab=tenders", kind: "nav",
     gate: (ctx) => (ctx.features.gcc_tender !== true || ctx.features.pipeline !== true ? "not_enabled" : !ctx.canView("pipeline") ? "no_access" : null),
   });
+
+  // Data Workbench objects are generated from the catalog, one target per object and mode it has: the page gate first (the module
+  // and the Business Role), then the module that owns the object, then the extra flags the catalog names. An object the
+  // workspace lacks keeps its entry, so asking for it gets the honest "not switched on" answer instead of a different screen.
+  const workbench = NAV.flatMap((g) => g.items.flatMap((i) => [i, ...(i.children ?? [])])).find((i) => i.href === "/data-workbench");
+  if (workbench) {
+    const pageGate = navGate(workbench);
+    for (const id of DW_OBJECT_IDS) {
+      const cat = DW_CATALOG[id];
+      const feature = featureForObject(id);
+      const objectGate = (ctx: NavGateCtx): MissingReason | null =>
+        (feature !== null && ctx.features[feature] !== true) || (cat.alsoNeeds ?? []).some((k) => ctx.features[k] !== true) ? "not_enabled" : null;
+      for (const mode of cat.modes) {
+        const verbs = DW_MODE_VERBS[mode];
+        const nouns = [cat.label, ...cat.keywords];
+        add({
+          id: dataWorkbenchTarget(mode, id), label: `${verbs[0]} ${cat.label}`, section: "Data Workbench", href: `/data-workbench?tab=${mode}&object=${id}`, kind: "nav",
+          displayNames: verbs.flatMap((v) => nouns.map((n) => `${v} ${n}`)),
+          gate: (ctx) => pageGate(ctx) ?? objectGate(ctx),
+        });
+      }
+    }
+  }
 
   for (const g of SETTINGS_GROUPS) {
     for (const m of SETTINGS_MENU.filter((x) => x.group === g.id)) {

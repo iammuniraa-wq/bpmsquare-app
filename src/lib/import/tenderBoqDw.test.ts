@@ -39,6 +39,7 @@ const importLines = await import("@/app/api/import/tender_boq_lines/route");
 const exportLines = await import("@/app/api/export/tender_boq_lines/route");
 const updateLines = await import("@/app/api/update/tender_boq_lines/route");
 const { REGISTRY_OBJECT_TYPE } = await import("./registrySchema");
+const { DW_CATALOG, ownedObjectIds } = await import("./catalog");
 const { TENDER_BOQ_LINES_SPEC, TENDER_BOQ_UPDATE_KEYS } = await import("./tenderBoqLinesSchema");
 
 const root = path.resolve(__dirname, "../../..");
@@ -475,10 +476,20 @@ describe("the module gate", () => {
 });
 
 describe("the Data Workbench page lists the object only for an edition that has the Pipeline", () => {
-  it("is in the page's object order, static spec and Pipeline filter", () => {
+  it("is in the catalog (Sales, under Deals, needing the Pipeline) and the page's static specs", () => {
+    expect(DW_CATALOG.tender_boq_lines).toMatchObject({ group: "sales", parent: "opportunities", alsoNeeds: ["pipeline"] });
+    expect(DW_CATALOG.tender_boq_lines.modes).toEqual(["import", "export", "update"]);
     const page = read("src/app/(app)/data-workbench/page.tsx");
-    expect(page).toContain('"sales_order_lines", "tender_boq_lines"');
     expect(page).toContain("tender_boq_lines: TENDER_BOQ_LINES_SPEC");
-    expect(page).toContain('id === "tender_boq_lines" && tenant?.features?.pipeline !== true');
+    expect(page).toContain("ownedObjectIds(");
+  });
+
+  it("the Pipeline filter lives in the catalog: no Pipeline, no object", () => {
+    // The module mapping is mocked above; the edition flag is what featureForObject answers for this object.
+    const owner = (id: string) => (id === "tender_boq_lines" ? ("gcc_tender" as const) : null);
+    const features = { gcc_tender: true };
+    expect(ownedObjectIds({ ...features, pipeline: true }, owner)).toContain("tender_boq_lines");
+    expect(ownedObjectIds(features, owner)).not.toContain("tender_boq_lines");
+    expect(ownedObjectIds({ pipeline: true }, owner)).not.toContain("tender_boq_lines");
   });
 });

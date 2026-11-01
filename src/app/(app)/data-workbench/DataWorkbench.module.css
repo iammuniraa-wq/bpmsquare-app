@@ -1,0 +1,43 @@
+/* Data Workbench layout. Theme variables only. One column under 900 px: the picker moves into a bottom sheet. */
+.grid { display: grid; grid-template-columns: 240px minmax(0, 1fr); gap: 18px; align-items: start; }
+.col { position: sticky; top: 20px; min-width: 0; }
+.tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin: 10px 0 16px; }
+.tile {
+  display: flex; flex-direction: column; gap: 2px; text-align: left; min-height: 44px; padding: 14px;
+  border: 1px solid var(--line); border-radius: 10px; background: var(--panel); color: var(--ink); font: inherit; cursor: pointer;
+}
+.tile:hover { border-color: var(--accent); }
+.tile[aria-pressed="true"] { border-color: var(--accent); background: var(--accentbg); }
+.tile:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.tileIcon { display: inline-flex; color: var(--accent); margin-bottom: 6px; }
+.tileText { font-size: 12.5px; color: var(--muted); }
+
+.sec { font-size: 10.5px; font-weight: 700; color: var(--hint); text-transform: uppercase; letter-spacing: 0.7px; padding: 8px 10px 4px; }
+.recents { display: flex; gap: 8px; flex-wrap: wrap; }
+
+.head { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+.headIcon {
+  flex: none; width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center;
+  font-size: 20px; background: var(--accentbg); color: var(--accent);
+}
+.headTitle { display: flex; align-items: center; font-size: 16px; font-weight: 700; color: var(--ink); overflow-wrap: anywhere; }
+.tabsWrap { margin-bottom: 14px; }
+button.change { display: none; margin-inline-start: auto; min-height: 44px; }
+
+/* The primary action of a phone screen sits in one standard place: a bar at the bottom of the card that stays in view. */
+.sticky, .actionBar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 16px; }
+.phoneOnly { display: none; }
+
+@media (max-width: 899px) {
+  .grid { grid-template-columns: minmax(0, 1fr); }
+  .col { display: none; }
+  .tiles { grid-template-columns: minmax(0, 1fr); }
+  button.change { display: inline-flex; }
+  .phoneOnly { display: flex; }
+  .sticky, .actionBar { position: sticky; bottom: 0; z-index: 5; background: var(--panel); border-top: 1px solid var(--line); padding: 10px 0; }
+  .actionBar button, .sticky button { min-height: 44px; }
+}
+/* Under 780 px a fixed tab bar sits at the bottom: the bar stops above it. */
+@media (max-width: 780px) {
+  .sticky, .actionBar { bottom: calc(58px + env(safe-area-inset-bottom, 0px)); }
+}

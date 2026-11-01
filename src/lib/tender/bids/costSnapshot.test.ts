@@ -94,7 +94,7 @@ describe("the cost never leaves the building", () => {
   it("only the bid cost module, the submit route and the project creation ever name the table", () => {
     const named = src.filter((f) => text(f).includes("tender_bid_version_costs")).map(rel).sort();
     expect(named).toEqual([
-      "src/lib/objectFeatures.ts",
+      "src/lib/objectFeatureMap.ts",
       "src/lib/tender/bids/costServer.ts",
     ]);
   }, 60_000);

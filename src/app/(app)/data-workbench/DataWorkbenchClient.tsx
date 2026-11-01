@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useSearchParams } from "next/navigation";
 import { c } from "@/lib/theme";
 import { ImportParseError, parseImportFile } from "@/lib/import/parse";
 import { applyMapping, suggestMapping } from "@/lib/import/mapping";
@@ -17,20 +18,22 @@ import type {
   UpdateResponse,
   ValidatedRow,
 } from "@/lib/import/types";
-import Tabs from "@/components/ui/Tabs";
+import { DW_CATALOG, DW_MODES, supportedMode, type DwGroupId, type DwMode, type DwObject } from "@/lib/import/catalog";
+import SidePanel from "@/components/ui/SidePanel";
+import InfoTip from "@/components/ui/InfoTip";
 import { useUrlTab } from "@/components/ui/useUrlTab";
 import ColumnMapper from "./ColumnMapper";
 import ExportFlow from "./ExportFlow";
+import ObjectHeader from "./ObjectHeader";
+import { DW_TIPS, needsFirstTip } from "./tips";
+import ObjectPicker from "./ObjectPicker";
+import { shouldFocusSearch, type OpenOverrides, type PickerEntry, type PickerUnowned } from "./pickerModel";
+import s from "./DataWorkbench.module.css";
+import StartScreen from "./StartScreen";
+import { browserStorage, ownedRecents, readRecents, touchRecent } from "./recents";
 import { banner, btn, btnGhost, card, mono, pill, stepDot, td, th, tone } from "./ui";
 
 type Step = "upload" | "extract-review" | "map" | "review" | "done";
-type Mode = "import" | "export" | "update";
-
-const MODES: { id: Mode; label: string }[] = [
-  { id: "import", label: "Import" },
-  { id: "export", label: "Export" },
-  { id: "update", label: "Update" },
-];
 
 const STEPS: { id: Step; label: string }[] = [
   { id: "upload", label: "Upload" },
@@ -86,116 +89,143 @@ function clearExtractSnapshot(objectId: string) {
   }
 }
 
-export default function DataWorkbenchClient({ specs }: { specs: ObjectSpec[] }) {
-  const [mode, setMode] = useUrlTab(MODES.map((m) => m.id)) as [Mode, (id: string) => void];
-  const [activeId, setActiveId] = useState<ImportObjectId>(specs[0]?.id ?? "accounts");
+/** An object the catalog knows that this workspace has not switched on: named only in reply to a link or a search. */
+export type DwUnowned = { id: ImportObjectId; label: string };
 
-  const visibleSpecs = specs.filter((s) => {
-    // users are invite-only; consents are an append-only ledger -- an answer is changed by importing a new one.
-    if (mode === "update") return s.id !== "users" && s.id !== "consents";
-    // RFQs are Export + Update only: an RFQ is born from a record (quote,
-    // case, work order...) or the RFQ screen together with its lines and
-    // suppliers, and a flat file can't carry that -- there is deliberately
-    // no /api/import/rfqs.
-    if (mode === "import") return s.id !== "rfqs";
-    // Estimates are HEADER FIELDS ONLY on every mode: the lines, quantities,
-    // unit costs and totals come out of the estimator (a template, inputs and
-    // priced products), so a flat file can neither create nor correct them.
-    // Import makes a draft from a template name; Export/Update carry the
-    // header (name, status, margin, notes, custom fields) keyed on the real id.
-    return true;
+const PHONE_QUERY = "(max-width: 899px)";
+
+export default function DataWorkbenchClient({ objects, unowned, recentsKey }: { objects: DwObject[]; unowned: DwUnowned[]; recentsKey: string }) {
+  const params = useSearchParams();
+  const [mode, setMode] = useUrlTab(DW_MODES) as [DwMode, (id: string) => void];
+  const objectIds = useMemo(() => objects.map((o) => o.spec.id), [objects]);
+  const byId = useMemo(() => new Map(objects.map((o) => [o.spec.id, o])), [objects]);
+  const [objectId, setObject] = useUrlTab(objectIds, "object", "");
+  const current = byId.get(objectId as ImportObjectId) ?? null;
+  const shownMode: DwMode = current ? supportedMode(current.spec.id, mode) : mode;
+  const rawObject = params.get("object");
+  const searchRef = useRef<HTMLInputElement>(null);
+  const [recents, setRecents] = useState<string[]>([]);
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [overrides, setOverrides] = useState<OpenOverrides>({});
+  // The task named in the link (?tab=update with no object) or tapped on the start screen.
+  const [picked, setPicked] = useState<DwMode | null>(() => {
+    const t = params.get("tab");
+    return (DW_MODES as string[]).includes(t ?? "") ? (t as DwMode) : null;
   });
-  const spec = visibleSpecs.find((s) => s.id === activeId) ?? visibleSpecs[0];
+
+  // An object whose catalog lacks the mode in the URL falls back to its first supported mode, and the URL follows.
+  useEffect(() => {
+    if (current && shownMode !== mode) setMode(shownMode);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [current?.spec.id, mode]);
+
+  // Using an object (from the picker, a link or a recent) moves it to the front of this person's recents.
+  useEffect(() => {
+    setRecents(objectId ? touchRecent(browserStorage(), recentsKey, objectId) : readRecents(browserStorage(), recentsKey));
+  }, [objectId, recentsKey]);
+
+  // Arriving on /data-workbench with no object (a sidebar click or an assistant button) means the start screen.
+  useEffect(() => {
+    if (!rawObject && objectId) setObject("");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rawObject]);
+
+  const onPhone = () => typeof window !== "undefined" && window.matchMedia(PHONE_QUERY).matches;
+  /** The cursor goes to the picker's search; on a phone the picker is a sheet, so it opens. */
+  function focusPicker() {
+    if (onPhone()) setSheetOpen(true);
+    else searchRef.current?.focus();
+  }
+
+  // "/" from anywhere that is not a field focuses the search.
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (!shouldFocusSearch(e, document.activeElement as HTMLElement | null)) return;
+      e.preventDefault();
+      focusPicker();
+    }
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, []);
+
+  function openObject(id: string) {
+    const target = byId.get(id as ImportObjectId);
+    if (!target) return;
+    const m = supportedMode(target.spec.id, mode);
+    if (m !== mode) setMode(m);
+    setObject(target.spec.id);
+    setSheetOpen(false);
+  }
+
+  function chooseTask(m: DwMode) {
+    setPicked(m);
+    setMode(m);
+    focusPicker();
+  }
+
+  const entries: PickerEntry[] = useMemo(
+    () => objects.map(({ spec, catalog }) => ({ id: spec.id, label: spec.label, icon: spec.icon, group: catalog.group, parent: catalog.parent, modes: catalog.modes, keywords: catalog.keywords })),
+    [objects],
+  );
+  const unownedEntries: PickerUnowned[] = useMemo(() => unowned.map((u) => ({ id: u.id, label: u.label, keywords: DW_CATALOG[u.id].keywords })), [unowned]);
+  const toggleGroup = (g: DwGroupId, open: boolean) => setOverrides((o) => ({ ...o, [g]: open }));
+  const pickerProps = {
+    entries, unowned: unownedEntries, selectedId: current?.spec.id ?? null, mode: current ? shownMode : picked, recents,
+    overrides, onToggleGroup: toggleGroup, onPick: openObject,
+  };
+
+  const spec = current?.spec;
+  const parent = current?.catalog.parent ? byId.get(current.catalog.parent) : undefined;
+  const strayLabel = !current && rawObject ? unowned.find((u) => u.id === rawObject)?.label ?? null : null;
+  const ownedSet = new Set<string>(objectIds);
+  const startRecents = ownedRecents(recents, ownedSet).map((id) => ({ id, label: byId.get(id as ImportObjectId)!.spec.label, icon: byId.get(id as ImportObjectId)!.spec.icon }));
+  // "Needs Accounts first": only the objects this workspace has; a name it cannot import would send the person nowhere.
+  const needs = spec ? spec.dependsOn.filter((id) => byId.has(id)).map((id) => byId.get(id)!.spec.label) : [];
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      <Tabs tabs={MODES} value={mode} onChange={setMode} label="Data Workbench modes" />
+    <div className={`${s.grid} sticky-actions-page`}>
+      <aside className={s.col} data-guide="dw.picker" style={{ ...card, padding: 12 }}>
+        <ObjectPicker {...pickerProps} inputRef={searchRef} />
+      </aside>
 
-      <div className="hub-grid" style={{ display: "grid", gridTemplateColumns: "215px 1fr", gap: 18, alignItems: "start" }}>
-        <nav style={{ display: "flex", flexDirection: "column", gap: 3, position: "sticky", top: 20 }}>
-          <div style={{ fontSize: 10.5, fontWeight: 700, color: c.hint, textTransform: "uppercase", letterSpacing: 0.7, padding: "4px 10px 8px" }}>
-            {mode === "import" ? "What to import" : mode === "export" ? "What to export" : "What to update"}
-          </div>
-          {visibleSpecs.map((obj) => {
-            const active = obj.id === activeId;
-            return (
-              <button
-                key={obj.id}
-                onClick={() => setActiveId(obj.id)}
-                style={{
-                  display: "flex", alignItems: "center", gap: 10,
-                  padding: "10px 12px", borderRadius: 8, border: "none", cursor: "pointer",
-                  textAlign: "left", width: "100%",
-                  background: active ? c.accentbg : "transparent",
-                  color: active ? c.accent : c.ink,
-                  fontWeight: active ? 600 : 400,
-                }}
-              >
-                <span style={{ fontSize: 16, width: 20, textAlign: "center", flexShrink: 0 }}>{obj.icon}</span>
-                <div>
-                  <div style={{ fontSize: 13 }}>{obj.label}</div>
-                  <div style={{ fontSize: 10.5, color: c.hint, marginTop: 1, fontWeight: 400 }}>
-                    {obj.fields.length} fields
-                  </div>
-                </div>
-              </button>
-            );
-          })}
-
-          {mode === "import" && (
-            <div style={{ borderTop: `1px solid ${c.line}`, marginTop: 12, paddingTop: 12, padding: "12px 10px 0" }}>
-              <strong style={{ display: "block", marginBottom: 4, color: c.muted, fontSize: 11 }}>Import order</strong>
-              <div style={{ fontSize: 11, color: c.hint, lineHeight: 1.6 }}>
-                {spec && spec.dependsOn.length > 0 ? (
-                  <>Import {spec.dependsOn.map((id) => specs.find((s) => s.id === id)?.label ?? id).join(", ")} first — {spec.label} links to {spec.dependsOn.length === 1 ? "it" : "them"} by name.</>
-                ) : (
-                  <>{spec?.label ?? "This object"} has no dependencies — safe to import first.</>
-                )}
-              </div>
-              {spec?.id === "quotes" && (
-                <div style={{ fontSize: 11, color: c.hint, lineHeight: 1.6, marginTop: 8 }}>
-                  This file must contain each quote's line items too — Quotes import can only create a quote with its lines together, in one file.
-                </div>
-              )}
-              {spec?.id === "quote_lines" && (
-                <div style={{ fontSize: 11, color: c.hint, lineHeight: 1.6, marginTop: 8 }}>
-                  Only adds lines to a quote that already exists. To create a new quote, use Quotes instead — its file includes both the header and the lines.
-                </div>
-              )}
-              {spec?.id === "standard_quotes" && (
-                <div style={{ fontSize: 11, color: c.hint, lineHeight: 1.6, marginTop: 8 }}>
-                  Creates draft quotes without lines. Export them to see each Quote ID, then add the lines with Standard Quote Lines.
-                </div>
-              )}
-              {spec?.id === "sales_orders" && (
-                <div style={{ fontSize: 11, color: c.hint, lineHeight: 1.6, marginTop: 8 }}>
-                  Creates draft orders without lines. Export them to see each Order ID, then add the lines with Sales Order Lines.
-                </div>
-              )}
-              {spec?.id === "sales_order_lines" && (
-                <div style={{ fontSize: 11, color: c.hint, lineHeight: 1.6, marginTop: 8 }}>
-                  Only adds lines to a draft sales order that already exists, found by its Order ID.
-                </div>
-              )}
-              {spec?.id === "standard_quote_lines" && (
-                <div style={{ fontSize: 11, color: c.hint, lineHeight: 1.6, marginTop: 8 }}>
-                  Only adds lines to a draft standard quote that already exists, found by its Quote ID.
-                </div>
-              )}
-            </div>
-          )}
-        </nav>
-
-        {spec && mode === "export" && <ExportFlow key={`${mode}-${activeId}`} spec={spec} />}
-        {spec && (mode === "import" || mode === "update") && (
-          <ImportFlow key={`${mode}-${activeId}`} spec={spec} mode={mode} />
+      <div style={{ minWidth: 0 }}>
+        {current && spec ? (
+          <>
+            <ObjectHeader
+              spec={spec}
+              catalog={current.catalog}
+              parentLabel={parent?.spec.label ?? null}
+              mode={shownMode}
+              onMode={(m) => setMode(m)}
+              onChange={() => setSheetOpen(true)}
+            />
+            {shownMode === "export" && <ExportFlow key={`${shownMode}-${spec.id}`} spec={spec} />}
+            {(shownMode === "import" || shownMode === "update") && (
+              <ImportFlow key={`${shownMode}-${spec.id}`} spec={spec} mode={shownMode} needs={needs} onGoExport={() => setMode("export")} />
+            )}
+          </>
+        ) : (
+          <StartScreen
+            recents={startRecents}
+            stray={strayLabel}
+            picked={picked}
+            onTask={chooseTask}
+            onRecent={openObject}
+            onChoose={() => setSheetOpen(true)}
+          />
         )}
       </div>
+
+      {sheetOpen && (
+        <SidePanel title="Choose an object" onClose={() => setSheetOpen(false)}>
+          <ObjectPicker {...pickerProps} autoFocus onEscape={() => setSheetOpen(false)} guide="dw.search.sheet" />
+        </SidePanel>
+      )}
     </div>
   );
 }
 
-function ImportFlow({ spec: baseSpec, mode }: { spec: ObjectSpec; mode: "import" | "update" }) {
+function ImportFlow({ spec: baseSpec, mode, needs, onGoExport }: { spec: ObjectSpec; mode: "import" | "update"; needs: string[]; onGoExport: () => void }) {
   // Update mode works against an exported file: a Record ID column is required,
   // and only scalar (non-relationship) fields are mapped/submitted — relationship
   // changes aren't supported by bulk Update, matching what each object's own
@@ -380,22 +410,14 @@ function ImportFlow({ spec: baseSpec, mode }: { spec: ObjectSpec; mode: "import"
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-        <div style={{ width: 40, height: 40, borderRadius: 10, background: c.accentbg, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, color: c.accent }}>
-          {spec.icon}
-        </div>
-        <div>
-          <div style={{ fontSize: 16, fontWeight: 700, color: c.ink }}>{spec.label}</div>
-          <div style={{ fontSize: 12.5, color: c.muted }}>{spec.description}</div>
-        </div>
-      </div>
-
       <StepBar step={step} />
 
       {step === "upload" && (
         <UploadStep
           spec={spec}
           mode={mode}
+          needs={needs}
+          onGoExport={onGoExport}
           dragging={dragging}
           setDragging={setDragging}
           fileRef={fileRef}
@@ -432,11 +454,13 @@ function ImportFlow({ spec: baseSpec, mode }: { spec: ObjectSpec; mode: "import"
         <div style={card}>
           <SectionTitle
             title="Match your columns to BPMSquare fields"
+            info={DW_TIPS.map}
             subtitle={`${fileName} — ${sheet.rows.length} data row${sheet.rows.length === 1 ? "" : "s"}, ${sheet.headers.length} columns${sheet.format === "xlsx" ? " (Excel)" : ""}`}
           />
           <ColumnMapper sheet={sheet} spec={spec} mapping={mapping} onChange={setMapping} />
-          <div style={{ display: "flex", gap: 10, marginTop: 18, alignItems: "center" }}>
+          <div className={s.actionBar}>
             <button
+              data-guide="dw.map.continue"
               onClick={() => setStep("review")}
               disabled={!canProceedFromMapping}
               style={{ ...btn(canProceedFromMapping ? c.accent : c.line), cursor: canProceedFromMapping ? "pointer" : "not-allowed" }}
@@ -452,9 +476,7 @@ function ImportFlow({ spec: baseSpec, mode }: { spec: ObjectSpec; mode: "import"
         <div style={card}>
           <SectionTitle
             title={mode === "update" ? "Review before updating" : "Review before importing"}
-            subtitle={mode === "update"
-              ? "Rows with problems are left out — everything else updates the matching record."
-              : "Rows with problems are left out — everything else is imported."}
+            info={mode === "update" ? DW_TIPS.reviewUpdate : DW_TIPS.reviewImport}
           />
 
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 14 }}>
@@ -468,29 +490,6 @@ function ImportFlow({ spec: baseSpec, mode }: { spec: ObjectSpec; mode: "import"
                 {showOnlyProblems ? "Show all rows" : "Show only problems"}
               </button>
             )}
-          </div>
-
-          <ReviewTable
-            rows={showOnlyProblems ? problemRows : validated}
-            columns={reviewColumns}
-          />
-
-          {serverError && <div style={{ ...banner(tone.bad), marginTop: 12 }}>{serverError}</div>}
-
-          <div style={{ display: "flex", gap: 10, marginTop: 18, alignItems: "center", flexWrap: "wrap" }}>
-            <button
-              onClick={runImport}
-              disabled={readyRows.length === 0 || pending}
-              style={{
-                ...btn(readyRows.length > 0 && !pending ? tone.ok.base : c.line),
-                cursor: readyRows.length > 0 && !pending ? "pointer" : "not-allowed",
-              }}
-            >
-              {pending
-                ? (mode === "update" ? "Updating…" : "Importing…")
-                : `${mode === "update" ? "Update" : "Import"} ${readyRows.length} row${readyRows.length === 1 ? "" : "s"}`}
-            </button>
-            <button onClick={() => setStep("map")} style={btnGhost}>← Back to columns</button>
             {problemRows.length > 0 && (
               <button
                 onClick={() =>
@@ -505,11 +504,35 @@ function ImportFlow({ spec: baseSpec, mode }: { spec: ObjectSpec; mode: "import"
                     )
                   )
                 }
-                style={btnGhost}
+                style={{ ...btnGhost, padding: "5px 11px", fontSize: 12 }}
               >
                 ↓ Download problem list
               </button>
             )}
+          </div>
+
+          <ReviewTable
+            rows={showOnlyProblems ? problemRows : validated}
+            columns={reviewColumns}
+          />
+
+          {serverError && <div style={{ ...banner(tone.bad), marginTop: 12 }}>{serverError}</div>}
+
+          <div className={s.actionBar}>
+            <button
+              data-guide="dw.review.run"
+              onClick={runImport}
+              disabled={readyRows.length === 0 || pending}
+              style={{
+                ...btn(readyRows.length > 0 && !pending ? tone.ok.base : c.line),
+                cursor: readyRows.length > 0 && !pending ? "pointer" : "not-allowed",
+              }}
+            >
+              {pending
+                ? (mode === "update" ? "Updating…" : "Importing…")
+                : `${mode === "update" ? "Update" : "Import"} ${readyRows.length} row${readyRows.length === 1 ? "" : "s"}`}
+            </button>
+            <button onClick={() => setStep("map")} style={btnGhost}>← Back to columns</button>
           </div>
         </div>
       )}
@@ -527,7 +550,7 @@ function StepBar({ step }: { step: Step }) {
   // go blank while the user is on the extraction path.
   const index = step === "extract-review" ? 1 : STEPS.findIndex((s) => s.id === step);
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+    <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: "6px 6px" }}>
       {STEPS.map((s, i) => (
         <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 6 }}>
           <div style={stepDot(i === index, i < index)}>{i < index ? "✓" : i + 1}</div>
@@ -541,21 +564,39 @@ function StepBar({ step }: { step: Step }) {
   );
 }
 
-function SectionTitle({ title, subtitle }: { title: string; subtitle?: string }) {
+function SectionTitle({ title, subtitle, info }: { title: string; subtitle?: string; info?: string }) {
   return (
     <div style={{ marginBottom: 14 }}>
-      <div style={{ fontSize: 13.5, fontWeight: 700, color: c.ink }}>{title}</div>
+      <div style={{ display: "flex", alignItems: "center", fontSize: 13.5, fontWeight: 700, color: c.ink }}>
+        <span>{title}</span>
+        {info && <InfoTip label={title}>{info}</InfoTip>}
+      </div>
       {subtitle && <div style={{ fontSize: 12, color: c.muted, marginTop: 3 }}>{subtitle}</div>}
     </div>
   );
 }
 
+/** A short fact about the file, as a pill with its explanation behind an "i". */
+function Chip({ t, tip, label, guide, children }: { t: { fg: string; bg: string }; tip: string; label: string; guide: string; children: React.ReactNode }) {
+  return (
+    <span
+      data-guide={guide}
+      style={{ display: "inline-flex", alignItems: "center", gap: 2, maxWidth: "100%", padding: "3px 4px 3px 12px", borderRadius: 999, fontSize: 12, fontWeight: 600, background: t.bg, color: t.fg, overflowWrap: "anywhere" }}
+    >
+      {children}
+      <InfoTip label={label}>{tip}</InfoTip>
+    </span>
+  );
+}
+
 function UploadStep({
-  spec, mode, dragging, setDragging, fileRef, onFile, parseError,
-  onExtractFile, extracting, extractError,
+  spec, mode, needs, dragging, setDragging, fileRef, onFile, parseError,
+  onExtractFile, extracting, extractError, onGoExport,
 }: {
   spec: ObjectSpec;
   mode: "import" | "update";
+  /** Labels of the objects this one links to by name, that must already be in the workspace. */
+  needs: string[];
   dragging: boolean;
   setDragging: (v: boolean) => void;
   fileRef: React.RefObject<HTMLInputElement | null>;
@@ -565,36 +606,96 @@ function UploadStep({
   onExtractFile?: (f: File) => void;
   extracting?: boolean;
   extractError?: string;
+  /** Update needs a file that came from Export: this switches the tab. */
+  onGoExport: () => void;
 }) {
   const required = spec.fields.filter((f) => f.required);
   const extractRef = useRef<HTMLInputElement>(null);
+  const browse = () => fileRef.current?.click();
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      {onExtractFile && (
-        <div style={{ ...card, border: `1px solid ${c.accent}40` }}>
-          <SectionTitle
-            title="Upload any document"
-            subtitle={`A quote letter, invoice, or spreadsheet — PDF, Word, Excel, or CSV, in whatever shape it already comes in. AI pulls out the ${spec.label.toLowerCase()} data and you review it before anything is imported — no reformatting needed first.`}
-          />
-          <div
-            onClick={() => !extracting && extractRef.current?.click()}
-            style={{
-              border: `2px dashed ${c.accent}`,
-              borderRadius: 10,
-              padding: "30px 24px",
-              textAlign: "center",
-              cursor: extracting ? "wait" : "pointer",
-              background: c.accentbg,
-              opacity: extracting ? 0.7 : 1,
-              transition: "all .15s",
-            }}
-          >
-            <div style={{ fontSize: 24, marginBottom: 8 }}>{extracting ? "⏳" : "✨"}</div>
-            <div style={{ fontSize: 13, fontWeight: 600, color: c.ink }}>
-              {extracting ? "Reading your document…" : "Drop a file here, or click to browse"}
-            </div>
-            <div style={{ fontSize: 12, color: c.hint, marginTop: 5 }}>PDF, Word, Excel, or CSV · up to 15 MB</div>
+    <div style={card}>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 14 }}>
+        {mode === "import" && needs.length > 0 && (
+          <Chip t={tone.warn} label="Import order" guide="dw.needs" tip={needsFirstTip(spec.label, needs.length)}>{`Needs ${needs.join(", ")} first`}</Chip>
+        )}
+        {mode === "update" && <Chip t={tone.info} label="Update file" guide="dw.needs_export" tip={DW_TIPS.needsExport}>Needs a file from Export</Chip>}
+        {required.length > 0 && (
+          <Chip t={tone.ok} label="Required columns" guide="dw.required" tip={mode === "update" ? DW_TIPS.requiredUpdate : DW_TIPS.required}>
+            {`Required: ${required.map((f) => f.label).join(", ")}`}
+          </Chip>
+        )}
+        <InfoTip label="Your file">{DW_TIPS.ownColumns}</InfoTip>
+      </div>
+
+      <div
+        role="button"
+        tabIndex={0}
+        data-guide="dw.upload"
+        aria-label="Choose a file to upload"
+        onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
+        onDragLeave={() => setDragging(false)}
+        onDrop={(e) => {
+          e.preventDefault();
+          setDragging(false);
+          const file = e.dataTransfer.files[0];
+          if (file) onFile(file);
+        }}
+        onClick={browse}
+        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); browse(); } }}
+        style={{
+          border: `2px dashed ${dragging ? c.accent : c.line}`,
+          borderRadius: 10,
+          padding: "30px 20px",
+          textAlign: "center",
+          cursor: "pointer",
+          background: dragging ? c.accentbg : c.panel2,
+          transition: "all .15s",
+        }}
+      >
+        <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ color: c.hint, marginBottom: 8 }}>
+          <path d="M12 16V4" /><path d="m7 9 5-5 5 5" /><path d="M5 20h14" />
+        </svg>
+        <div style={{ fontSize: 13, fontWeight: 600, color: c.ink }}>Drop a file here, or click to browse</div>
+        <div style={{ fontSize: 12, color: c.hint, marginTop: 5 }}>Excel (.xlsx) or CSV · up to 15 MB</div>
+        <input
+          ref={fileRef}
+          type="file"
+          accept=".csv,.xlsx,.xlsm,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (file) onFile(file);
+            e.target.value = "";
+          }}
+          style={{ display: "none" }}
+        />
+      </div>
+      {parseError && <div style={{ ...banner(tone.bad), marginTop: 12 }}>{parseError}</div>}
+
+      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center", marginTop: 14 }}>
+        {mode === "import" ? (
+          <>
+            <button type="button" data-guide="dw.template" onClick={() => downloadCsv(`bpmsquare_${spec.id}_template.csv`, buildTemplateCsv(spec))} style={{ ...btnGhost, minHeight: 44 }}>
+              {`↓ Download ${spec.label} template`}
+            </button>
+            <InfoTip label="Template">{DW_TIPS.template}</InfoTip>
+          </>
+        ) : (
+          <button type="button" data-guide="dw.go_export" onClick={onGoExport} style={{ ...btnGhost, minHeight: 44 }}>Go to Export</button>
+        )}
+        {onExtractFile && (
+          <>
+            <button
+              type="button"
+              data-guide="dw.extract"
+              disabled={extracting}
+              onClick={() => extractRef.current?.click()}
+              style={{ ...btnGhost, minHeight: 44, cursor: extracting ? "wait" : "pointer", opacity: extracting ? 0.7 : 1 }}
+            >
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8L12 3Z" /></svg>
+              {extracting ? "Reading your document…" : "Read a PDF or Word document"}
+            </button>
+            <InfoTip label="Reading a document">{DW_TIPS.extract}</InfoTip>
             <input
               ref={extractRef}
               type="file"
@@ -607,88 +708,13 @@ function UploadStep({
               }}
               style={{ display: "none" }}
             />
-          </div>
-          {extractError && <div style={{ ...banner(tone.bad), marginTop: 12 }}>{extractError}</div>}
-        </div>
-      )}
+          </>
+        )}
+      </div>
+      {extractError && <div style={{ ...banner(tone.bad), marginTop: 12 }}>{extractError}</div>}
 
-      {mode === "update" ? (
-        <div style={card}>
-          <SectionTitle
-            title="Or use a file you exported"
-            subtitle="Update matches rows by Record ID, so it needs a file that already has that column — go to Export, download a CSV, edit the values you want to change, then upload it here."
-          />
-          {required.length > 0 && (
-            <div style={banner(tone.warn)}>
-              <strong>Required:</strong>{" "}
-              {required.map((f) => f.label).join(", ")}. Everything else is left unchanged unless you map it.
-            </div>
-          )}
-        </div>
-      ) : (
-        <div style={card}>
-          <SectionTitle
-            title="Or start from the template"
-            subtitle="Already have your data in a spreadsheet? Download the template — pre-filled with example rows and every column this import understands — and replace the examples with your data."
-          />
-          {required.length > 0 && (
-            <div style={{ ...banner(tone.warn), marginBottom: 14 }}>
-              <strong>Required:</strong>{" "}
-              {required.map((f) => f.label).join(", ")}. Everything else is optional.
-            </div>
-          )}
-          <button
-            onClick={() => downloadCsv(`bpmsquare_${spec.id}_template.csv`, buildTemplateCsv(spec))}
-            style={btn()}
-          >
-            ↓ Download {spec.label} template
-          </button>
-        </div>
-      )}
-
-      <div style={card}>
-        <SectionTitle
-          title="Upload your file"
-          subtitle="Your own column names are fine — you'll match them to fields in the next step."
-        />
-        <div
-          onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
-          onDragLeave={() => setDragging(false)}
-          onDrop={(e) => {
-            e.preventDefault();
-            setDragging(false);
-            const file = e.dataTransfer.files[0];
-            if (file) onFile(file);
-          }}
-          onClick={() => fileRef.current?.click()}
-          style={{
-            border: `2px dashed ${dragging ? c.accent : c.line}`,
-            borderRadius: 10,
-            padding: "34px 24px",
-            textAlign: "center",
-            cursor: "pointer",
-            background: dragging ? c.accentbg : c.panel2,
-            transition: "all .15s",
-          }}
-        >
-          <div style={{ fontSize: 26, marginBottom: 8 }}>⇅</div>
-          <div style={{ fontSize: 13, fontWeight: 600, color: c.ink }}>Drop a file here, or click to browse</div>
-          <div style={{ fontSize: 12, color: c.hint, marginTop: 5 }}>
-            Excel (.xlsx) or CSV · up to 15 MB
-          </div>
-          <input
-            ref={fileRef}
-            type="file"
-            accept=".csv,.xlsx,.xlsm,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            onChange={(e) => {
-              const file = e.target.files?.[0];
-              if (file) onFile(file);
-              e.target.value = "";
-            }}
-            style={{ display: "none" }}
-          />
-        </div>
-        {parseError && <div style={{ ...banner(tone.bad), marginTop: 12 }}>{parseError}</div>}
+      <div className={`${s.actionBar} ${s.phoneOnly}`}>
+        <button type="button" className="bpm-btn bpm-btn-primary bpm-btn-md" style={{ flex: 1, justifyContent: "center" }} onClick={browse}>Choose a file</button>
       </div>
     </div>
   );
@@ -723,7 +749,8 @@ function ExtractReviewStep({
       <div style={{ flexShrink: 0 }}>
         <SectionTitle
           title="Review what was extracted"
-          subtitle={`${fileName} — ${rows.length} record${rows.length === 1 ? "" : "s"} found. Fix anything wrong before continuing — nothing is imported yet.`}
+          info={DW_TIPS.extractReview}
+          subtitle={`${fileName} — ${rows.length} record${rows.length === 1 ? "" : "s"} found`}
         />
 
         {notes.length > 0 && (

@@ -1,6 +1,17 @@
 import Link from "next/link";
+import InfoTip from "@/components/ui/InfoTip";
 
-export type TabDef = { id: string; label: string; count?: number };
+export type TabDef = {
+  id: string;
+  label: string;
+  count?: number;
+  /** State mode only: the tab is shown but cannot be chosen, and the arrow keys skip it. Give `info` to say why. */
+  disabled?: boolean;
+  /** An explanation behind an "i" after the tab. Used beside a disabled tab, where the reason must not vanish. */
+  info?: React.ReactNode;
+  /** data-guide id for the assistant's guide mode; defaults to tab:<id>. */
+  guide?: string;
+};
 
 type Props = {
   tabs: TabDef[];
@@ -35,21 +46,24 @@ export default function Tabs({ tabs, value, onChange, hrefFor, label = "Sections
             </Link>
           );
         }
-        return (
+        const tab = (
           <button
             key={t.id}
             type="button"
             role="tab"
-            data-guide={`tab:${t.id}`}
+            data-guide={t.guide ?? `tab:${t.id}`}
             aria-selected={selected}
+            disabled={t.disabled}
             tabIndex={selected ? 0 : -1}
             className="bpm-tab"
             onClick={() => onChange?.(t.id)}
             onKeyDown={(e) => {
               if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
               e.preventDefault();
-              const i = tabs.findIndex((x) => x.id === t.id);
-              const next = tabs[(i + (e.key === "ArrowRight" ? 1 : -1) + tabs.length) % tabs.length];
+              const live = tabs.filter((x) => !x.disabled);
+              if (live.length === 0) return;
+              const i = live.findIndex((x) => x.id === t.id);
+              const next = live[(i + (e.key === "ArrowRight" ? 1 : -1) + live.length) % live.length];
               onChange?.(next.id);
               const strip = e.currentTarget.parentElement;
               requestAnimationFrame(() => {
@@ -59,6 +73,13 @@ export default function Tabs({ tabs, value, onChange, hrefFor, label = "Sections
           >
             {body}
           </button>
+        );
+        if (!t.info) return tab;
+        return (
+          <span key={t.id} role="presentation" className="bpm-tab-with-info">
+            {tab}
+            <InfoTip label={t.label}>{t.info}</InfoTip>
+          </span>
         );
       })}
     </div>

@@ -253,6 +253,10 @@ const OBJECT_META: Record<ImportObjectId, { label: string; icon: string; descrip
   consents: { label: "Consents", icon: "✓", description: "", dependsOn: ["contacts"] },
 };
 
+/** The label and description an object has before any spec is built: the picker names objects a workspace does not have, and the catalog test checks labels for clashes. */
+export const defaultObjectLabel = (id: ImportObjectId): string => OBJECT_META[id].label;
+export const defaultObjectDescription = (id: ImportObjectId): string => OBJECT_META[id].description;
+
 function resolveOptions(field: FieldConfigResult["sections"][number]["fields"][number], salesConfig: SalesConfig): string[] | undefined {
   // Picklists are {code, name}; files carry the CODE (same contract as the
   // API and the DB) — an Export emits codes, so round-tripping just works.

@@ -4,7 +4,7 @@ import DataWorkbenchClient from "./DataWorkbenchClient";
 import { requireTenantUser } from "@/lib/supabase-server";
 import { getTenant, requireFeature } from "@/lib/tenant";
 import { getEffectiveFieldConfig, getSalesConfig } from "@/lib/fieldConfig";
-import { REGISTRY_OBJECT_TYPE, buildObjectSpec } from "@/lib/import/registrySchema";
+import { REGISTRY_OBJECT_TYPE, buildObjectSpec, defaultObjectLabel } from "@/lib/import/registrySchema";
 import { USERS_SPEC } from "@/lib/import/usersSchema";
 import { QUOTE_LINES_SPEC } from "@/lib/import/quoteLinesSchema";
 import { PRODUCT_BOM_LINES_SPEC } from "@/lib/import/productBomLinesSchema";
@@ -16,16 +16,10 @@ import { EMPLOYEES_SPEC, buildEmployeesSpec } from "@/lib/import/employeesSchema
 import { requireWorkcenterView } from "@/lib/permissions";
 import { featureForObject } from "@/lib/objectFeatures";
 import { supplierColumnAvailable, withoutSupplierFields } from "@/lib/products/supplier";
+import { DW_CATALOG, DW_OBJECT_IDS, ownedObjectIds, type DwObject } from "@/lib/import/catalog";
+import { recentsKey } from "./recents";
+import { DW_TIPS } from "./tips";
 import type { ImportObjectId, ObjectSpec } from "@/lib/import/types";
-
-// Display order is alphabetical by label (sorted after specs are built,
-// since labels are tenant-configurable) -- this list only defines WHICH
-// objects exist, not their order.
-const OBJECT_ORDER: ImportObjectId[] = [
-  "accounts", "contacts", "assets", "suppliers", "products", "product_bom_lines", "wfm_projects", "opportunities", "rfqs", "estimates", "abm_programs", "abm_targets", "abm_members", "quotes", "quote_lines", "standard_quotes", "standard_quote_lines", "sales_orders", "sales_order_lines", "tender_boq_lines",
-  "cases", "work_orders", "invoices", "purchase_orders", "inventory",
-  "users", "employees", "consents",
-];
 
 // Objects with no FIELD_REGISTRY entry (REGISTRY_OBJECT_TYPE[id] === null) use
 // a static, hand-authored spec instead of buildObjectSpec()'s field-config path.
@@ -43,23 +37,14 @@ const STATIC_SPECS: Partial<Record<ImportObjectId, ObjectSpec>> = {
 export default async function DataWorkbenchPage() {
   await requireWorkcenterView("data_workbench");
   await requireFeature("data_workbench");
-  const { supabase, tenantId } = await requireTenantUser();
+  const { supabase, tenantId, userId } = await requireTenantUser();
 
   const [salesConfig, tenant] = await Promise.all([getSalesConfig(supabase, tenantId), getTenant()]);
-  // Which objects this tenant may bulk-load at all. This used to name five
-  // objects and let the other eleven through unconditionally, so a tenant
-  // who had bought neither Cases nor Assets could still import, export and
-  // update them here. One map now answers for all sixteen, and the routes
-  // behind them enforce the same answer.
-  const objectOrder = OBJECT_ORDER.filter((id) => {
-    const key = featureForObject(id);
-    // Consents are the marketing program's: they need the marketing module as well as their own flag.
-    if (id === "consents" && tenant?.features?.marketing !== true) return false;
-    // A tender's BOQ lives on the Pipeline: the edition (gcc_tender, from featureForObject) needs it too.
-    if (id === "tender_boq_lines" && tenant?.features?.pipeline !== true) return false;
-    return key === null || tenant?.features?.[key] === true;
-  });
+  // Which objects this tenant may bulk-load at all: the module that owns each object (OBJECT_FEATURE) plus the extra flags
+  // the catalog names. The routes behind the screen enforce the same answer.
+  const objectOrder = ownedObjectIds(tenant?.features, featureForObject);
 
+  // Catalog order, not alphabetical: the picker groups by module and nests lines under their parent.
   const specs: ObjectSpec[] = (
     await Promise.all(
       objectOrder.map(async (id): Promise<ObjectSpec> => {
@@ -77,16 +62,17 @@ export default async function DataWorkbenchPage() {
         return id === "products" && !(await supplierColumnAvailable(supabase)) ? withoutSupplierFields(built) : built;
       })
     )
-  ).sort((a, b) => a.label.localeCompare(b.label));
+  );
+  const objects: DwObject[] = specs.map((spec) => ({ spec, catalog: DW_CATALOG[spec.id] }));
+  // Never listed (bpmsquarecore 3b), only named when a link or a search asks for one the workspace has not switched on.
+  const owned = new Set<ImportObjectId>(objectOrder);
+  const unowned = DW_OBJECT_IDS.filter((id) => !owned.has(id)).map((id) => ({ id, label: STATIC_SPECS[id]?.label ?? defaultObjectLabel(id) }));
 
   return (
     <>
       <TabTitle title="Data Workbench" />
-      <PageHeader
-        title="Data Workbench"
-        subtitle="Bring your data in from Excel or CSV — download a template or upload your own file, match the columns, then review before anything is saved. Templates always match your current field setup."
-      />
-      <DataWorkbenchClient specs={specs} />
+      <PageHeader title="Data Workbench" info={DW_TIPS.page} />
+      <DataWorkbenchClient objects={objects} unowned={unowned} recentsKey={recentsKey(tenantId, userId)} />
     </>
   );
 }

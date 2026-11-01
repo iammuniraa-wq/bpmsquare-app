@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import type { WorkcenterKey } from "@/lib/workcenters";
-import { buildNavTargets, isInternalPath, isNavigationRequest, matchNavigation, matchRecordOpen, tenderBoqTarget, TENDER_BOQ_LIST_TARGET, type NavGateCtx } from "./navTargets";
+import { DW_CATALOG, DW_OBJECT_IDS } from "@/lib/import/catalog";
+import type { ImportObjectId } from "@/lib/import/types";
+import { buildNavTargets, dataWorkbenchTarget, isInternalPath, isNavigationRequest, matchNavigation, matchRecordOpen, screenCatalog, tenderBoqTarget, TENDER_BOQ_LIST_TARGET, type NavGateCtx } from "./navTargets";
 import { boqUploadRule } from "./boqHelp";
 import { navigateTool } from "./navTools";
 import { parsePageContext } from "./objects";
@@ -190,5 +194,63 @@ describe("a BOQ upload question goes to the tender, not to Estimates", () => {
 
   it("says nothing about BOQs to a workspace without the tender edition", () => {
     expect(boqUploadRule(buildNavTargets(ctx()))).toBe("");
+  });
+});
+
+describe("Data Workbench objects are targets of their own", () => {
+  const bench = (over: Partial<NavGateCtx> & { view?: WorkcenterKey[] } = {}) =>
+    ctx({ features: { data_workbench: true, accounts: true, contacts: true, pipeline: true, gcc_tender: true }, ...over });
+  const catalog = screenCatalog().filter((e) => e.id.startsWith("nav:/data-workbench?"));
+
+  it("has one target per object and per mode the object has, and none for a mode it lacks", () => {
+    let expected = 0;
+    for (const id of DW_OBJECT_IDS) {
+      for (const mode of DW_CATALOG[id].modes) {
+        expect(catalog.some((e) => e.id === dataWorkbenchTarget(mode, id)), `${mode} ${id}`).toBe(true);
+        expected++;
+      }
+    }
+    expect(catalog).toHaveLength(expected);
+    expect(catalog.map((e) => e.id)).not.toContain(dataWorkbenchTarget("import", "rfqs"));
+    expect(catalog.map((e) => e.id)).not.toContain(dataWorkbenchTarget("update", "users"));
+    expect(new Set(catalog.map((e) => e.id)).size).toBe(catalog.length);
+  });
+
+  it("each one is the deep link the page opens on, an internal path under the Data Workbench section", () => {
+    for (const e of catalog) {
+      const m = /^nav:\/data-workbench\?tab=(import|export|update)&object=([a-z_]+)$/.exec(e.id)!;
+      expect(m, e.id).not.toBeNull();
+      expect(e.href).toBe(`/data-workbench?tab=${m[1]}&object=${m[2]}`);
+      expect(isInternalPath(e.href), e.href).toBe(true);
+      expect(e.section).toBe("Data Workbench");
+      expect(e.label).toBe(`${m[1][0].toUpperCase()}${m[1].slice(1)} ${DW_CATALOG[m[2] as ImportObjectId].label}`);
+    }
+  });
+
+  it("answers to the label and to the words people use for the object", () => {
+    const e = catalog.find((x) => x.id === dataWorkbenchTarget("import", "accounts"))!;
+    expect(e.names).toContain("Import Accounts");
+    expect(e.names).toContain("Upload customers");
+    expect(catalog.find((x) => x.id === dataWorkbenchTarget("update", "contacts"))!.names).toContain("Bulk update Contacts");
+  });
+
+  it("is offered only when the page, the object's module and its extra flags are all on", () => {
+    const t = (c: NavGateCtx) => ids(c);
+    expect(t(bench())).toContain(dataWorkbenchTarget("import", "accounts"));
+    expect(t(bench())).toContain(dataWorkbenchTarget("export", "tender_boq_lines"));
+    expect(t(bench())).not.toContain(dataWorkbenchTarget("import", "cases")); // Cases was not bought
+    expect(t(bench({ features: { accounts: true } }))).not.toContain(dataWorkbenchTarget("import", "accounts")); // Data Workbench itself is off
+    expect(t(bench({ features: { data_workbench: true, accounts: true, gcc_tender: true } }))).not.toContain(dataWorkbenchTarget("export", "tender_boq_lines")); // no Pipeline
+    expect(t(bench({ view: ["accounts"] }))).not.toContain(dataWorkbenchTarget("import", "accounts")); // a Business Role without the Data Workbench grant
+  });
+
+  it("the page target is still there beside them", () => {
+    expect(ids(bench())).toContain("nav:/data-workbench");
+  });
+
+  it("stays client-safe: no server-only module in its imports", () => {
+    const src = readFileSync(path.resolve(__dirname, "navTargets.ts"), "utf8");
+    for (const banned of ["@/lib/objectFeatures\"", "registrySchema", "supabase-server", "server-only"]) expect(src, banned).not.toContain(banned);
+    expect(src).toContain("@/lib/objectFeatureMap");
   });
 });

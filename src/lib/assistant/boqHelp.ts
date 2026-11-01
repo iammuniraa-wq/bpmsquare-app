@@ -1,6 +1,6 @@
 import { BOQ_LIMITS } from "@/lib/tender/boq/parse";
 import { TENDER_BOQ_LINES_SPEC } from "@/lib/import/tenderBoqLinesSchema";
-import { TENDER_BOQ_LIST_TARGET, TENDER_BOQ_OPEN_PREFIX, type NavTarget } from "./navTargets";
+import { dataWorkbenchTarget, TENDER_BOQ_LIST_TARGET, TENDER_BOQ_OPEN_PREFIX, type NavTarget } from "./navTargets";
 
 // What the assistant says when asked to upload a BOQ, for the BOQ Excel format, for bulk import or export of BOQ lines, or whether the
 // BOQ can be pulled through the API or MCP. Kept beside the nav targets so the answer and the button agree: the tender's Bill of
@@ -9,6 +9,9 @@ import { TENDER_BOQ_LIST_TARGET, TENDER_BOQ_OPEN_PREFIX, type NavTarget } from "
 
 /** The Data Workbench screen in the NAVIGATION list: present only when the workspace has it switched on and the caller may open it. */
 export const DATA_WORKBENCH_TARGET = "nav:/data-workbench";
+
+/** Data Workbench opened on the BOQ lines, Import tab: present in the navigation list only when the workspace has the tender edition and Data Workbench. */
+export const DATA_WORKBENCH_BOQ_TARGET = dataWorkbenchTarget("import", "tender_boq_lines");
 
 /** The v1 endpoints and MCP tools that carry a tender's BOQ. Pinned by boqHelp.test.ts against the manifest and the API index. */
 export const TENDER_API_PATHS = ["/api/v1/tenders", "/api/v1/tenders/{id}", "/api/v1/tenders/{id}/boq"] as const;
@@ -31,8 +34,10 @@ export function boqUploadRule(targets: readonly NavTarget[]): string {
     `(4) up to ${lines} lines and ${mb} MB per file, so a larger BOQ is split by package and the parts uploaded one after the other. ` +
     `Then call navigate with ${open ? `${open.id} (the tender that is open now)` : list!.id}.`;
 
+  const hasBoqObject = targets.some((t) => t.id === DATA_WORKBENCH_BOQ_TARGET);
   const bulk = hasWorkbench
-    ? `Bulk import and export: Data Workbench has the object "${object}". Import adds new lines and updates the ones it matches by item number, and never removes a line. Export writes every line with its Record ID. Update changes quantity, description, details and cost code by Record ID.`
+    ? `Bulk import and export: Data Workbench has the object "${object}". Import adds new lines and updates the ones it matches by item number, and never removes a line. Export writes every line with its Record ID. Update changes quantity, description, details and cost code by Record ID.` +
+      (hasBoqObject ? ` For bulk work call navigate with ${DATA_WORKBENCH_BOQ_TARGET}; it opens Data Workbench on that object.` : "")
     : "Bulk import and export of BOQ lines: Data Workbench is not switched on for this person. Say so in one sentence, name Upload BOQ on the tender's Bill of quantities tab as the way to load or revise a BOQ, and never describe Data Workbench steps or offer to open it.";
 
   const machine =
