@@ -11,6 +11,7 @@ import { PRODUCT_BOM_LINES_SPEC } from "@/lib/import/productBomLinesSchema";
 import { CONSENTS_SPEC } from "@/lib/import/consentsSchema";
 import { STANDARD_QUOTE_LINES_SPEC } from "@/lib/import/standardQuoteLinesSchema";
 import { SALES_ORDER_LINES_SPEC } from "@/lib/import/salesOrderLinesSchema";
+import { TENDER_BOQ_LINES_SPEC } from "@/lib/import/tenderBoqLinesSchema";
 import { EMPLOYEES_SPEC, buildEmployeesSpec } from "@/lib/import/employeesSchema";
 import { requireWorkcenterView } from "@/lib/permissions";
 import { featureForObject } from "@/lib/objectFeatures";
@@ -21,7 +22,7 @@ import type { ImportObjectId, ObjectSpec } from "@/lib/import/types";
 // since labels are tenant-configurable) -- this list only defines WHICH
 // objects exist, not their order.
 const OBJECT_ORDER: ImportObjectId[] = [
-  "accounts", "contacts", "assets", "suppliers", "products", "product_bom_lines", "wfm_projects", "opportunities", "rfqs", "estimates", "abm_programs", "abm_targets", "abm_members", "quotes", "quote_lines", "standard_quotes", "standard_quote_lines", "sales_orders", "sales_order_lines",
+  "accounts", "contacts", "assets", "suppliers", "products", "product_bom_lines", "wfm_projects", "opportunities", "rfqs", "estimates", "abm_programs", "abm_targets", "abm_members", "quotes", "quote_lines", "standard_quotes", "standard_quote_lines", "sales_orders", "sales_order_lines", "tender_boq_lines",
   "cases", "work_orders", "invoices", "purchase_orders", "inventory",
   "users", "employees", "consents",
 ];
@@ -36,6 +37,7 @@ const STATIC_SPECS: Partial<Record<ImportObjectId, ObjectSpec>> = {
   consents: CONSENTS_SPEC,
   standard_quote_lines: STANDARD_QUOTE_LINES_SPEC,
   sales_order_lines: SALES_ORDER_LINES_SPEC,
+  tender_boq_lines: TENDER_BOQ_LINES_SPEC,
 };
 
 export default async function DataWorkbenchPage() {
@@ -53,6 +55,8 @@ export default async function DataWorkbenchPage() {
     const key = featureForObject(id);
     // Consents are the marketing program's: they need the marketing module as well as their own flag.
     if (id === "consents" && tenant?.features?.marketing !== true) return false;
+    // A tender's BOQ lives on the Pipeline: the edition (gcc_tender, from featureForObject) needs it too.
+    if (id === "tender_boq_lines" && tenant?.features?.pipeline !== true) return false;
     return key === null || tenant?.features?.[key] === true;
   });
 
