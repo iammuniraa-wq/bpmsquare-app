@@ -99,6 +99,10 @@ describe("labels", () => {
     }
   });
 
+  it("the catalog's label is the one the registry and the static specs carry (the assistant cannot read a spec)", () => {
+    for (const id of ids) expect(DW_CATALOG[id].label, id).toBe(staticById.get(id)?.label ?? defaultObjectLabel(id));
+  });
+
   it("the registry's default label agrees with the static spec's own", () => {
     for (const s of STATIC) expect(defaultObjectLabel(s.id), s.id).toBe(s.label);
   });

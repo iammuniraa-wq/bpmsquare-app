@@ -4,7 +4,7 @@ import { CREATE_ACTIONS } from "@/lib/createActions";
 import { SETTINGS_MENU, visibleSettingsMenu } from "@/lib/settingsMenu";
 import type { WorkcenterKey } from "@/lib/workcenters";
 import { answerUnavailableAsk, judgeNavigation, NAV_NONE, namedGroups } from "./navGuard";
-import { buildNavTargets, matchNavigation, screenCatalog, tenderBoqTarget, TENDER_BOQ_LIST_TARGET, type NavGateCtx } from "./navTargets";
+import { buildNavTargets, dataWorkbenchTarget, matchNavigation, screenCatalog, tenderBoqTarget, TENDER_BOQ_LIST_TARGET, type NavGateCtx } from "./navTargets";
 import { navigateTool } from "./navTools";
 
 // Deterministic: the server's check on the model's navigate pick, per workspace type. No model is called.
@@ -71,6 +71,9 @@ check("KAMCO-like workspace (tender edition on, Data Workbench off)", KAMCO, [
   { say: "where is data workbench", pick: "nav:/reports", askedFor: "data workbench", expect: { kind: "unavailable", text: "Data Workbench is not switched on in your workspace. Ask your administrator to enable it." } },
   { say: "where is data workbench", pick: NAV_NONE, askedFor: "data workbench", expect: { kind: "unavailable", text: "Data Workbench is not switched on" } },
   { say: "I want to bulk import from Excel, where do I do that", pick: "nav:/accounts", askedFor: "data workbench", expect: { kind: "unavailable", text: "Data Workbench is not switched on" } },
+  { say: "import accounts", pick: "nav:/accounts", askedFor: "import accounts", expect: { kind: "unavailable", text: "Import Accounts is not switched on" } },
+  { say: "import accounts", pick: NAV_NONE, askedFor: "import accounts", expect: { kind: "unavailable", text: "Import Accounts is not switched on" } },
+  { say: "export tender boq lines", pick: "nav:/pipeline", askedFor: "export tender boq lines", expect: { kind: "unavailable", text: "Export Tender BOQ lines is not switched on" } },
   { say: "analytics", pick: "nav:/reports", askedFor: "analytics", expect: { kind: "open", ids: ["nav:/reports"] } },
   { say: "where can I see analytics", pick: "nav:/reports", expect: { kind: "open", ids: ["nav:/reports"] } },
   { say: "where do I see tenders", pick: TENDER_BOQ_LIST_TARGET, askedFor: "tenders", expect: { kind: "open", ids: [TENDER_BOQ_LIST_TARGET] } },
@@ -93,6 +96,12 @@ check("demo-like workspace (everything on)", DEMO, [
   { say: "where is data workbench", pick: "nav:/reports", askedFor: "data workbench", expect: { kind: "open", ids: ["nav:/data-workbench"] } },
   { say: "where is data workbench", pick: NAV_NONE, askedFor: "data workbench", expect: { kind: "open", ids: ["nav:/data-workbench"] } },
   { say: "I want to bulk import from Excel", pick: "nav:/data-workbench", askedFor: "data workbench", expect: { kind: "open", ids: ["nav:/data-workbench"] } },
+  // An object and a mode: the deep link the page opens on, whatever the model picked beside it.
+  { say: "import accounts", pick: dataWorkbenchTarget("import", "accounts"), askedFor: "import accounts", expect: { kind: "open", ids: ["nav:/data-workbench?tab=import&object=accounts"] } },
+  { say: "import accounts", pick: "nav:/accounts", askedFor: "import accounts", expect: { kind: "open", ids: ["nav:/data-workbench?tab=import&object=accounts"] } },
+  { say: "export tender BOQ lines", pick: NAV_NONE, askedFor: "export tender boq lines", expect: { kind: "open", ids: ["nav:/data-workbench?tab=export&object=tender_boq_lines"] } },
+  { say: "I need to bulk update contacts", pick: "nav:/contacts", askedFor: "bulk update contacts", expect: { kind: "open", ids: ["nav:/data-workbench?tab=update&object=contacts"] } },
+  { say: "download customers", pick: NAV_NONE, askedFor: "download customers", expect: { kind: "open", ids: ["nav:/data-workbench?tab=export&object=accounts"] } },
   { say: "analytics", pick: "nav:/reports", askedFor: "analytics", expect: { kind: "open", ids: ["nav:/reports"] } },
   { say: "where are the people settings", pick: "settings:people", askedFor: "people settings", expect: { kind: "open", ids: ["settings:people"] } },
   { say: "where do I create a new account", pick: "create:/accounts/new", askedFor: "new account", expect: { kind: "open", ids: ["create:/accounts/new"] } },
@@ -105,6 +114,15 @@ check("restricted member (Accounts view only, not an admin)", MEMBER, [
   { say: "where are the single sign-on settings", pick: "nav:/accounts", askedFor: "single sign-on", expect: { kind: "unavailable", text: "only for workspace administrators" } },
   { say: "where are my accounts", pick: "nav:/accounts", askedFor: "accounts", expect: { kind: "open", ids: ["nav:/accounts"] } },
   { say: "where are my accounts", pick: "nav:/reports", askedFor: "accounts", expect: { kind: "open", ids: ["nav:/accounts"] } },
+  { say: "import accounts", pick: "nav:/accounts", askedFor: "import accounts", expect: { kind: "unavailable", text: "You do not have access to Import Accounts." } },
+]);
+
+// Data Workbench on, but this workspace never bought Cases or the tender edition: the page opens, the object does not.
+const BENCH_ONLY = () => ctxOf(["data_workbench", "accounts", "contacts", "pipeline"]);
+check("workspace with Data Workbench but without Cases or the tender edition", BENCH_ONLY, [
+  { say: "import accounts", pick: "nav:/accounts", askedFor: "import accounts", expect: { kind: "open", ids: ["nav:/data-workbench?tab=import&object=accounts"] } },
+  { say: "import cases", pick: "nav:/accounts", askedFor: "import cases", expect: { kind: "unavailable", text: "Import Cases is not switched on" } },
+  { say: "export tender boq lines", pick: NAV_NONE, askedFor: "export tender boq lines", expect: { kind: "unavailable", text: "Export Tender BOQ lines is not switched on" } },
 ]);
 
 describe("the answer when a named screen is out of reach", () => {
@@ -185,6 +203,15 @@ describe("the catalogue and the list the model sees cannot disagree", () => {
       expect(offered).toEqual(shown);
     });
   }
+  it("a Data Workbench object is reachable exactly when the page is, its module is on and its extra flags are on", () => {
+    const e = screenCatalog().find((x) => x.id === "nav:/data-workbench?tab=import&object=tender_boq_lines")!;
+    expect(e.gate(DEMO())).toBeNull();
+    expect(e.gate(ctxOf(["data_workbench", "gcc_tender"]))).toBe("not_enabled"); // the Pipeline too
+    expect(e.gate(ctxOf(["data_workbench", "pipeline"]))).toBe("not_enabled"); // the tender edition too
+    expect(e.gate(ctxOf(["gcc_tender", "pipeline"]))).toBe("not_enabled"); // the page itself
+    expect(e.gate(MEMBER())).toBe("no_access");
+    expect(e.gate(ctxOf(["data_workbench", "gcc_tender", "pipeline"]))).toBeNull();
+  });
   it("Data Workbench is gated by the data_workbench module", () => {
     const e = screenCatalog().find((x) => x.id === "nav:/data-workbench")!;
     expect(e.gate(KAMCO())).toBe("not_enabled");

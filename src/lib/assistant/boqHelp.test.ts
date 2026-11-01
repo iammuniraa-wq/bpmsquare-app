@@ -3,7 +3,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { BOQ_LIMITS } from "@/lib/tender/boq/parse";
 import { TENDER_BOQ_LINES_SPEC } from "@/lib/import/tenderBoqLinesSchema";
-import { DATA_WORKBENCH_TARGET, TENDER_API_PATHS, TENDER_MCP_TOOLS, boqHelpAnswer, boqUploadRule, isBoqHelpQuestion } from "./boqHelp";
+import { DATA_WORKBENCH_BOQ_TARGET, DATA_WORKBENCH_TARGET, TENDER_API_PATHS, TENDER_MCP_TOOLS, boqHelpAnswer, boqUploadRule, isBoqHelpQuestion } from "./boqHelp";
 import { buildNavTargets, tenderBoqTarget, TENDER_BOQ_LIST_TARGET, type NavGateCtx } from "./navTargets";
 
 // What the assistant is told about the tender BOQ. The facts are built from the product's own constants, and Data Workbench is described
@@ -37,6 +37,10 @@ describe("the BOQ rule", () => {
 
   it("with Data Workbench on, names its object and the three modes as they behave", () => {
     expect(DATA_WORKBENCH_TARGET).toBe("nav:/data-workbench");
+    // The page target stays; the object target is added beside it, not substituted for it.
+    expect(DATA_WORKBENCH_BOQ_TARGET).toBe("nav:/data-workbench?tab=import&object=tender_boq_lines");
+    expect(on).toContain(`call navigate with ${DATA_WORKBENCH_BOQ_TARGET}`);
+    expect(buildNavTargets(ctx({ ...withTenders, data_workbench: true, pipeline: true })).map((t) => t.id)).toEqual(expect.arrayContaining([DATA_WORKBENCH_TARGET, DATA_WORKBENCH_BOQ_TARGET]));
     expect(on).toContain(`Data Workbench has the object "${TENDER_BOQ_LINES_SPEC.label}"`);
     expect(on).toContain("never removes a line");
     expect(on).toContain("Record ID");
