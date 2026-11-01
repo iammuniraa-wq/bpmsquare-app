@@ -19,7 +19,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { answerUnavailableAsk, judgeNavigation, NAV_NONE } from "../src/lib/assistant/navGuard";
 import { buildNavTargets, matchNavigation, navigationPromptBlock, type NavGateCtx } from "../src/lib/assistant/navTargets";
-import { boqUploadRule } from "../src/lib/assistant/boqHelp";
+import { boqHelpAnswer, boqUploadRule } from "../src/lib/assistant/boqHelp";
 import { navigateTool } from "../src/lib/assistant/navTools";
 import { NAV } from "../src/lib/constants";
 import { CREATE_ACTIONS } from "../src/lib/createActions";
@@ -67,7 +67,7 @@ const KAMCO: Profile = {
     { say: "where can I see analytics", expect: open("nav:/reports") },
     { say: "open tenders", expect: open("nav:/pipeline?tab=tenders") },
     { say: "where do I see my tenders", expect: open("nav:/pipeline?tab=tenders") },
-    { say: "how do I upload a BOQ", expect: open("nav:/pipeline?tab=tenders") },
+    { say: "how do I upload a BOQ", expect: says(["Upload BOQ"], ["button above"]) },
     { say: "where are my estimates", expect: open("nav:/estimates") },
     { say: "where are the invoices", expect: missing("Invoices is not switched on") },
     { say: "open the quotations", expect: missing("Quotations is not switched on") },
@@ -77,6 +77,7 @@ const KAMCO: Profile = {
     { say: "where do I create a new account", expect: open("create:/accounts/new") },
     { say: "where is the pipeline", expect: open("nav:/pipeline") },
     // The tender BOQ: format, limits, bulk import (Data Workbench is off here, so it must be declined) and the API / MCP.
+    { say: "I want to upload a big BOQ from the client's own excel, which format do you need?", expect: says(["Download BOQ template"], ["button above"]) },
     { say: "which columns does the BOQ upload read", expect: says(["Narration", "Quantity"]) },
     { say: "can I use the client's own Excel for the BOQ or do I have to retype it", expect: says(["own Excel", "as it is", "Narration", "client"]) },
     { say: "what are the limits for a BOQ file", expect: says(["2,000"], ["unit_cost"]) },
@@ -119,6 +120,9 @@ async function runOne(client: Anthropic, model: string, p: Profile, question: Q)
   if (direct) return { kind: "open", ids: [direct.id], via: "shortcut" };
   const miss = answerUnavailableAsk(q, targets, p.ctx);
   if (miss) return { kind: "unavailable", text: miss, via: "server" };
+  // The server answers BOQ upload / format / limits questions itself, with no model call.
+  const boq = boqHelpAnswer(q, targets);
+  if (boq) return { kind: "text", text: boq.answer };
 
   const system =
     "You are the BPMSquare Assistant, the in-app helper for a business running its sales, service and operations on BPMSquare. You take people to the screen they ask for.\n" +

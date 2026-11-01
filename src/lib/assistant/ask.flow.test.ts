@@ -299,6 +299,36 @@ describe("navigation", () => {
     expect(s.create).not.toHaveBeenCalled();
   });
 
+  it("a BOQ upload or format question is answered in full with no model call and no allowance", async () => {
+    const s = setup({ features: { ...FEATURES, pipeline: true, gcc_tender: true }, used: 9_000_000, budget: 1000 });
+    const r = await askAssistant(ask("I want to upload a big BOQ from the client's own excel, which format do you need?"), s.ctx);
+    expect(r.answer).toContain("Download BOQ template");
+    expect(r.answer).toContain("2,000 lines and 15 MB");
+    expect(r.answer).toContain("Narration");
+    expect(r.answer).toContain("Data Workbench is not switched on");
+    expect(r.cards).toEqual([expect.objectContaining({ href: "/pipeline?tab=tenders" })]);
+    expect(r.autoFollow).toBeUndefined();
+    expect(r.overBudget).toBeUndefined();
+    expect(s.create).not.toHaveBeenCalled();
+    expect(s.allowanceFor).not.toHaveBeenCalled();
+    expect(s.logUsage).not.toHaveBeenCalled();
+  });
+
+  it("names Data Workbench only when the workspace has it, and goes to the model when there is no tender edition", async () => {
+    const on = setup({ features: { ...FEATURES, pipeline: true, gcc_tender: true, data_workbench: true } });
+    expect((await askAssistant(ask("how do I bulk import BOQ lines"), on.ctx)).answer).toContain('"Tender BOQ lines"');
+    const none = setup();
+    await askAssistant(ask("how do I upload a BOQ"), none.ctx);
+    expect(none.create).toHaveBeenCalledTimes(1);
+  });
+
+  it("a question that is not about the BOQ is not captured", async () => {
+    const s = setup({ features: { ...FEATURES, pipeline: true, gcc_tender: true }, replies: [text("a"), text("b")] });
+    await askAssistant(ask("upload a quote"), s.ctx);
+    await askAssistant(ask("I need an estimate template"), s.ctx);
+    expect(s.create).toHaveBeenCalledTimes(2);
+  });
+
   it("a name the product does not know is quoted back, not guessed", async () => {
     const s = setup({ replies: [toolUse("navigate", { target: "nav:/quotations", asked_for: "budget cockpit" }), text("unused")] });
     const r = await askAssistant(ask("show me the budget cockpit"), s.ctx);

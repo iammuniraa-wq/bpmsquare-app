@@ -14,7 +14,7 @@ import { OBJECT_FEATURE } from "@/lib/objectFeatures";
 import type { CurrencyDef } from "@/lib/currency";
 import { answerUnavailableAsk, judgeNavigation, NAV_NONE } from "@/lib/assistant/navGuard";
 import { buildNavTargets, isInternalPath, navigationPromptBlock, isNavigationRequest, matchNavigation, matchRecordOpen, recordHref, tenderBoqTarget, type NavGateCtx, type NavTarget } from "@/lib/assistant/navTargets";
-import { boqUploadRule } from "@/lib/assistant/boqHelp";
+import { boqHelpAnswer, boqUploadRule } from "@/lib/assistant/boqHelp";
 import { navigateTool, openRecordTool } from "@/lib/assistant/navTools";
 import { objectDef } from "@/lib/assistant/objects";
 import { modelFor, routeAsk, type ModelTier } from "@/lib/assistant/models";
@@ -619,6 +619,21 @@ export async function askAssistant(history: ChatTurn[], ctx: AssistantAskCtx): P
     }
   }
 
+  // The tender that is open gets its own Bill of quantities button; the deal is looked up in this workspace first.
+  const addOpenTenderTarget = async (page: ResolvedPage | null) => {
+    if (page?.objectType !== "opportunity" || ctx.features.gcc_tender !== true) return;
+    const { data: isTender } = await ctx.supabase.from("opportunity_tenders").select("opportunity_id").eq("tenant_id", ctx.tenantId).eq("opportunity_id", page.recordId).maybeSingle();
+    if (isTender) targets.push(tenderBoqTarget(page.recordId));
+  };
+  // 1c. Getting a BOQ in or out (upload, Excel format, columns, limits, bulk, API) has a fixed answer built from the product's own
+  // constants and this person's own navigation list: no model, no allowance, the same words every time.
+  const boqQuestion = boqHelpAnswer(question, targets);
+  if (boqQuestion) {
+    await addOpenTenderTarget(await resolvePageRecord(toolCtx, ctx.route).catch(() => null));
+    const fixed = boqHelpAnswer(question, targets);
+    if (fixed) return { answer: fixed.answer, cards: [cardFor(fixed.target)] };
+  }
+
   // 2. Everything else needs the model, so the allowance is read first and, when spent, no call is made.
   const allowance = await meter.open();
   if (!allowance.allowed) return { answer: OVER_BUDGET_MESSAGE, overBudget: true };
@@ -638,11 +653,7 @@ export async function askAssistant(history: ChatTurn[], ctx: AssistantAskCtx): P
   const webHistory = history.slice(-WEB_TAINT_WINDOW).some((t) => t.role === "assistant" && t.web === true);
   const open = await resolvePageRecord(toolCtx, ctx.route).catch(() => null);
   const screen = await resolveScreen(ctx.route, accessFor(), deps).catch(() => null);
-  // A tender that is open gets its own Bill of quantities button; the deal is looked up in this workspace first.
-  if (open?.objectType === "opportunity" && ctx.features.gcc_tender === true) {
-    const { data: isTender } = await ctx.supabase.from("opportunity_tenders").select("opportunity_id").eq("tenant_id", ctx.tenantId).eq("opportunity_id", open.recordId).maybeSingle();
-    if (isTender) targets.push(tenderBoqTarget(open.recordId));
-  }
+  await addOpenTenderTarget(open);
   const today = (ctx.now ?? new Date()).toISOString().slice(0, 10);
   const actions = ctx.userId ? availableActions({ features: ctx.features, perms: ctx.perms }) : [];
   const actionCatalog = actions.length ? await createCatalog(ctx.supabase, ctx.tenantId, actions).catch(() => null) : null;
