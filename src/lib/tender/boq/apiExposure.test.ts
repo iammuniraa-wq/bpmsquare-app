@@ -97,3 +97,33 @@ describe("part 2: the v1 routes, Talk to data, the keys panel and the change fee
     expect(read("src/app/api/v1/_auth.ts")).toMatch(/EXPLICIT_SCOPE_ONLY = new Set\([^)]*"tenders"/);
   });
 });
+
+describe("part 3: the MCP manifest", () => {
+  const mcp = JSON.parse(read("mcp-server/mcp.json")) as { version: string; tools: { name: string; description: string; method: string; path: string; inputSchema: { properties?: Record<string, unknown>; required?: string[] } }[] };
+  const tools = ["list_tenders", "get_tender", "get_tender_boq"].map((n) => mcp.tools.find((t) => t.name === n));
+
+  it("is version 1.19.0 with the three tender tools, each a GET on the v1 endpoint it names", () => {
+    expect(mcp.version).toBe("1.19.0");
+    expect(tools.every(Boolean)).toBe(true);
+    expect(tools.map((t) => `${t!.method} ${t!.path}`)).toEqual(["GET /api/v1/tenders", "GET /api/v1/tenders/{id}", "GET /api/v1/tenders/{id}/boq"]);
+    expect(new Set(mcp.tools.map((t) => t.name)).size).toBe(mcp.tools.length);
+    expect(tools[1]!.inputSchema.required).toEqual(["id"]);
+    expect(tools[2]!.inputSchema.required).toEqual(["id"]);
+    expect(Object.keys(tools[0]!.inputSchema.properties!)).toEqual(["stage", "outcome", "decision", "portal", "closing"]);
+  });
+
+  it("each tells the model the key must be scoped to tenders, and none describes a cost, a markup or a supplier name as returned", () => {
+    for (const t of tools) {
+      expect(t!.description, t!.name).toContain('scoped to \\"tenders\\"'.replace(/\\"/g, '"'));
+      // Every mention of the internal data is a promise that it is NOT returned.
+      for (const sentence of t!.description.split(/(?<=\.)\s+/)) {
+        if (/\b(costs?|markup|margin|supplier names?)\b/i.test(sentence) && !/cost code/i.test(sentence.replace(/never returned/i, ""))) expect(sentence, `${t!.name}: ${sentence}`).toMatch(/never returned/);
+      }
+      expect(JSON.stringify(t!.inputSchema), t!.name).not.toMatch(/unit_cost|markup|price_source_ref/);
+    }
+  });
+
+  it("the manifest keeps the product-structure words out, as productApiExposure.test.ts requires", () => {
+    expect(read("mcp-server/mcp.json")).not.toMatch(/bom_lines|BOM components|rolled-up/i);
+  });
+});

@@ -272,7 +272,7 @@
     }
   ],
   "mcp": {
-    "version": "1.18.0",
+    "version": "1.19.0",
     "tools": [
       {
         "name": "list_accounts",
@@ -409,6 +409,18 @@
       {
         "name": "get_employee",
         "description": "Get one employee record by id, including any tenant-defined custom fields."
+      },
+      {
+        "name": "list_tenders",
+        "description": "List the tenant's tender deals: deal id and ref, title, customer, tender number, issuer, portal, bid end date, bid guarantee, change requests, go / no-go decision, stage, outcome and amount."
+      },
+      {
+        "name": "get_tender",
+        "description": "Fetch one tender deal by id: the same fields as list_tenders plus a summary of its Bill of quantities (lines, priced, unpriced, stale, amount, file name and version)."
+      },
+      {
+        "name": "get_tender_boq",
+        "description": "The Bill of quantities of one tender, one row per line and paged: item number, cost code, description, unit, quantity, our unit rate and amount, where the rate came from (boq_rate, bom, past_project, supplier, manual, es"
       }
     ]
   },
