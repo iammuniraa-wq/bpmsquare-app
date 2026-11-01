@@ -26,4 +26,16 @@ describe("workforce settings route", () => {
     const missing = Object.keys(DEFAULT_WFM_CONFIG).filter((key) => !src.includes(`body.${key}`));
     expect(missing, `WfmConfig keys with no handling in the PUT route (they will be dropped on save): ${missing.join(", ")}`).toEqual([]);
   });
+
+  it("keeps the two payroll report settings (CR-BIM-001) off by default and handled on save", () => {
+    const src = readFileSync("src/app/api/settings/workforce/route.ts", "utf8");
+    expect(DEFAULT_WFM_CONFIG.payroll_by_location).toBe(false);
+    expect(DEFAULT_WFM_CONFIG.ot_min_minutes).toBe(0);
+    expect(src).toContain("typeof body.payroll_by_location === \"boolean\"");
+    expect(src).toContain("typeof body.ot_min_minutes === \"number\"");
+    // The Settings screen only sends keys it lists.
+    const logic = readFileSync("src/app/(app)/settings/workforce/logic.ts", "utf8");
+    expect(logic).toContain("\"ot_min_minutes\"");
+    expect(logic).toContain("\"payroll_by_location\"");
+  });
 });

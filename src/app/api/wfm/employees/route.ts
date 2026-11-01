@@ -4,6 +4,7 @@ import { requireWfmSupervisor, getWfmConfig } from "@/lib/wfm/server";
 import { wfmEmployeesPayload } from "@/lib/wfm/bootstrap";
 import { generateNextEmployeeCode, isEmployeeCodeCollision } from "@/lib/employeeRef";
 import { resolveWfmScope, filterEmployeesToScope } from "@/lib/wfm/scope";
+import { employmentTypeError } from "@/lib/wfm/reportRules";
 
 
 // Capped per route, not via vercel.json. That config carried
@@ -65,7 +66,7 @@ export async function POST(request: NextRequest) {
   const cfg = await getWfmConfig(createAdminSupabase(), ctx.tenantId);
   const validTypes = cfg.employment_types.map((t) => t.code);
   if (employment_type && !validTypes.includes(employment_type)) {
-    return NextResponse.json({ error: "Invalid employment_type" }, { status: 400 });
+    return NextResponse.json({ error: employmentTypeError(employment_type, cfg.employment_types) }, { status: 400 });
   }
   if (wfm_role && !["employee", "supervisor"].includes(wfm_role)) {
     return NextResponse.json({ error: "Invalid wfm_role" }, { status: 400 });

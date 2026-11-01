@@ -950,6 +950,17 @@ export type WfmConfig = {
   // (exact minutes, no rounding). 0 = OT hours are tracked but no cost is
   // computed, which is the safe default until a tenant sets a real rate.
   ot_rate_per_hour: number;
+  /** Overtime on a day totalling LESS than this many minutes is shown in the
+   *  daily detail but not counted: it adds nothing to the OT total or the OT
+   *  amount (BIM CR-BIM-001, they set 30). 0 = every approved minute counts,
+   *  which is how the product worked before this key existed. A day at or
+   *  above the minimum counts in full, not just the part above it. */
+  ot_min_minutes: number;
+  /** Organise the monthly Excel export per location and, inside each, per
+   *  employment type (sheets "<Location> - <Type>"), with a Sl No and a
+   *  Category column and the Actual Hrs figure (BIM CR-BIM-001). false = the
+   *  per-type sheets the export has always had, byte for byte. */
+  payroll_by_location: boolean;
   // Employee self-service. Default true = the model every existing tenant
   // runs: employees log in, punch from their own phone, self-enroll their
   // face, and file their own leave/corrections.
@@ -1056,6 +1067,8 @@ export const DEFAULT_WFM_CONFIG: WfmConfig = {
   employment_types: DEFAULT_EMPLOYMENT_TYPES,
   punch_types: { ot: false, mobile_work: false, business_trip: false },
   ot_rate_per_hour: 0,
+  ot_min_minutes: 0,
+  payroll_by_location: false,
   employee_self_service: true,
   login_mode: "email",
   face_login: false,

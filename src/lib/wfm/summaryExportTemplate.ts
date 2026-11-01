@@ -1,4 +1,5 @@
 import type { EmployeeDayRecord, EmployeeMonthSummary } from "./monthlySummary";
+import { formatSignedHM } from "./reportRules";
 
 // The ONE place the CA export's column layout lives. Requirements §5.6:
 // "[ASSUMPTION] placeholder layout until sample received; build the export
@@ -25,7 +26,9 @@ export const DURATION_FMT = "[h]:mm";
 export type SummaryColumn = {
   header: string;
   width: number;
-  accessor: (row: EmployeeMonthSummary) => string | number;
+  accessor: (row: EmployeeMonthSummary, index: number) => string | number;
+  /** A TOTAL-row value for a column that cannot be an Excel SUM (the Actual Hrs text). */
+  total?: (rows: EmployeeMonthSummary[]) => string | number;
   /** Excel number format applied to the whole column. Used for the h:mm
    * duration columns -- see `durationDays`. */
   numFmt?: string;
@@ -92,6 +95,8 @@ export type DailyDetailColumn = {
   accessor: (ctx: DailyDetailContext) => string | number;
   numFmt?: string;
   sum?: true;
+  /** Text for the per-employee subtotal row when the column cannot be an Excel SUM (the Actual Hrs text). */
+  subtotal?: (days: EmployeeDayRecord[]) => string;
 };
 
 export const DAILY_DETAIL_COLUMNS: DailyDetailColumn[] = [
@@ -133,7 +138,7 @@ export const DAILY_DETAIL_COLUMNS: DailyDetailColumn[] = [
   },
   // APPROVED OT only, same rule as the monthly OT Hours column above --
   // pending/rejected sessions never reach this figure.
-  { header: "OT Hours", width: 11, accessor: ({ day }) => durationDays(day.ot_minutes), numFmt: DURATION_FMT },
+  { header: "OT Hours", width: 11, accessor: ({ day }) => durationDays(day.ot_counted_minutes), numFmt: DURATION_FMT },
   { header: "Status", width: 20, accessor: ({ day }) => dayStatus(day) },
 ];
 
@@ -208,7 +213,7 @@ export const PAYROLL_DAY_COLUMNS: DailyDetailColumn[] = [
     numFmt: DURATION_FMT,
     sum: true,
   },
-  { header: "OT", width: 9, accessor: ({ day }) => durationDays(day.ot_minutes), numFmt: DURATION_FMT, sum: true },
+  { header: "OT", width: 9, accessor: ({ day }) => durationDays(day.ot_counted_minutes), numFmt: DURATION_FMT, sum: true },
   { header: "Status", width: 20, accessor: ({ day }) => dayStatus(day) },
 ];
 
@@ -219,3 +224,119 @@ export const PAYROLL_DAY_SUM_COLUMNS = PAYROLL_DAY_COLUMNS
   .map((c, i) => ({ c, n: i + 1 }))
   .filter(({ c }) => c.sum)
   .map(({ n }) => n);
+
+// ── Location-wise report (CR-BIM-001) ────────────────────────────────────────
+// The sheets above are exactly what the export has always produced. A workspace
+// that switches on `payroll_by_location` and/or sets an OT minimum gets the
+// same columns plus the extras below, built by these functions. With both off,
+// every function returns the constant arrays above untouched, so the default
+// workbook cannot drift.
+
+export type ReportOptions = {
+  /** payroll_by_location: Sl No, Category, Standard Hrs and Actual Hrs are added. */
+  byLocation: boolean;
+  /** ot_min_minutes > 0: an "OT not counted" column and a note on the day's status. */
+  showOtNotCounted: boolean;
+  /** Label for an employment-type code (the Category column). */
+  typeLabel: (code: string) => string;
+};
+
+export const PLAIN_REPORT_OPTIONS: ReportOptions = { byLocation: false, showOtNotCounted: false, typeLabel: (c) => c };
+
+export function reportOptionsFor(
+  config: { payroll_by_location?: boolean; ot_min_minutes?: number; employment_types: { code: string; label: string }[] }
+): ReportOptions {
+  const labels = new Map(config.employment_types.map((t) => [t.code, t.label]));
+  return {
+    byLocation: config.payroll_by_location === true,
+    showOtNotCounted: (config.ot_min_minutes ?? 0) > 0,
+    typeLabel: (code) => labels.get(code) ?? code,
+  };
+}
+
+const isPlain = (o: ReportOptions) => !o.byLocation && !o.showOtNotCounted;
+
+const SL_NO: SummaryColumn = { header: "Sl No", width: 7, accessor: (_r, i) => i + 1 };
+const sumActual = (rows: EmployeeMonthSummary[]) => formatSignedHM(rows.reduce((s, r) => s + r.totals.actual_minutes, 0));
+
+/** Insert `add` right after the column headed `after` (or at the end if there is none). */
+function insertAfter<T extends { header: string }>(cols: T[], after: string, add: T[]): T[] {
+  const i = cols.findIndex((c) => c.header === after);
+  return i < 0 ? [...cols, ...add] : [...cols.slice(0, i + 1), ...add, ...cols.slice(i + 1)];
+}
+
+/** Per-type / per-location section sheet columns. */
+export function sectionColumns(o: ReportOptions): SummaryColumn[] {
+  if (isPlain(o)) return MONTHLY_SUMMARY_COLUMNS;
+  let cols = MONTHLY_SUMMARY_COLUMNS;
+  if (o.byLocation) {
+    cols = insertAfter(cols, "Name", [{ header: "Category", width: 16, accessor: (r) => o.typeLabel(r.employment_type) }]);
+    cols = insertAfter(cols, "Working Hours", [
+      { header: "Standard Hrs", width: 13, accessor: (r) => durationDays(r.totals.standard_minutes), numFmt: DURATION_FMT },
+      { header: "Actual Hrs", width: 12, accessor: (r) => formatSignedHM(r.totals.actual_minutes), total: sumActual },
+    ]);
+  }
+  if (o.showOtNotCounted) {
+    cols = insertAfter(cols, "OT Hours", [
+      { header: "OT not counted", width: 14, accessor: (r) => durationDays(r.totals.ot_not_counted_minutes), numFmt: DURATION_FMT },
+    ]);
+  }
+  return o.byLocation ? [SL_NO, ...cols] : cols;
+}
+
+/** Flat payroll Summary columns and the 1-based column its TOTAL row starts summing from. */
+export function payrollSummaryColumns(o: ReportOptions): { columns: SummaryColumn[]; totalFrom: number } {
+  if (isPlain(o)) return { columns: PAYROLL_SUMMARY_COLUMNS, totalFrom: PAYROLL_SUMMARY_TOTAL_FROM };
+  let cols = PAYROLL_SUMMARY_COLUMNS;
+  if (o.byLocation) {
+    cols = insertAfter(cols, "Name", [{ header: "Category", width: 16, accessor: (r) => o.typeLabel(r.employment_type) }]);
+    cols = insertAfter(cols, "Total Worked", [
+      { header: "Standard Hrs", width: 13, accessor: (r) => durationDays(r.totals.standard_minutes), numFmt: DURATION_FMT },
+      { header: "Actual Hrs", width: 12, accessor: (r) => formatSignedHM(r.totals.actual_minutes), total: sumActual },
+    ]);
+  }
+  if (o.showOtNotCounted) {
+    cols = insertAfter(cols, "OT", [
+      { header: "OT not counted", width: 14, accessor: (r) => durationDays(r.totals.ot_not_counted_minutes), numFmt: DURATION_FMT },
+    ]);
+  }
+  if (o.byLocation) cols = [SL_NO, ...cols];
+  // The TOTAL row starts at the first numeric column, "Days Present", wherever the added text columns pushed it.
+  return { columns: cols, totalFrom: cols.findIndex((c) => c.header === "Days Present") + 1 };
+}
+
+const OT_NOTE = "OT below minimum, not counted";
+const statusWithOtNote = (d: EmployeeDayRecord) => {
+  const base = dayStatus(d);
+  return d.ot_below_minimum ? (base ? `${base} — ${OT_NOTE}` : OT_NOTE) : base;
+};
+const otNotCountedDay = (day: EmployeeDayRecord) => durationDays(day.ot_minutes - day.ot_counted_minutes);
+const sumDayActual = (days: EmployeeDayRecord[]) => formatSignedHM(days.reduce((s, d) => s + d.actual_minutes, 0));
+
+function withDayExtras(base: DailyDetailColumn[], o: ReportOptions, after: { worked: string; ot: string; status: string }): DailyDetailColumn[] {
+  let cols = base;
+  if (o.byLocation) {
+    cols = insertAfter(cols, after.worked, [
+      { header: "Standard Hrs", width: 13, accessor: ({ day }) => durationDays(day.standard_minutes), numFmt: DURATION_FMT, sum: true },
+      { header: "Actual Hrs", width: 12, accessor: ({ day }) => formatSignedHM(day.actual_minutes), subtotal: sumDayActual },
+    ]);
+  }
+  if (o.showOtNotCounted) {
+    cols = insertAfter(cols, after.ot, [
+      { header: "OT not counted", width: 14, accessor: ({ day }) => otNotCountedDay(day), numFmt: DURATION_FMT, sum: true },
+    ]);
+    cols = cols.map((c) => (c.header === after.status ? { ...c, width: 34, accessor: ({ day }: DailyDetailContext) => statusWithOtNote(day) } : c));
+  }
+  return cols;
+}
+
+export function dailyDetailColumns(o: ReportOptions): DailyDetailColumn[] {
+  if (isPlain(o)) return DAILY_DETAIL_COLUMNS;
+  return withDayExtras(DAILY_DETAIL_COLUMNS, o, { worked: "Total Worked", ot: "OT Hours", status: "Status" });
+}
+
+export function payrollDayColumns(o: ReportOptions): DailyDetailColumn[] {
+  if (isPlain(o)) return PAYROLL_DAY_COLUMNS;
+  return withDayExtras(PAYROLL_DAY_COLUMNS, o, { worked: "Total Worked", ot: "OT", status: "Status" });
+}
+

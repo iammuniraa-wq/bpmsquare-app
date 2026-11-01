@@ -24,6 +24,10 @@ export type TimelineDay = {
   holiday: string | null;
   is_week_off: boolean;
   ot_minutes: number;
+  /** What counts toward pay; absent on older payloads, where all of ot_minutes counts. */
+  ot_counted_minutes?: number;
+  /** Under the workspace's minimum overtime: shown, not counted. */
+  ot_below_minimum?: boolean;
   ot_pending_minutes: number;
   ot_segments: TimelineOtSegment[];
 };
@@ -134,7 +138,7 @@ export default function MonthTimeline({
 
   const totals = useMemo(() => ({
     worked: days.reduce((s, d) => s + d.net_minutes, 0),
-    ot: days.reduce((s, d) => s + d.ot_minutes, 0),
+    ot: days.reduce((s, d) => s + (d.ot_counted_minutes ?? d.ot_minutes), 0),
     otPending: days.reduce((s, d) => s + d.ot_pending_minutes, 0),
   }), [days]);
 
@@ -259,7 +263,12 @@ export default function MonthTimeline({
                   channel carrying the value. */}
               <span style={{ width: 92, flexShrink: 0, textAlign: "right", fontSize: 11, color: c.hint, fontVariantNumeric: "tabular-nums" }}>
                 {isFuture ? "" : day.net_minutes > 0 ? fmtHM(day.net_minutes) : state ? "" : "—"}
-                {day.ot_minutes > 0 && <span style={{ color: SEG.ot, marginLeft: 4 }}>+{fmtHM(day.ot_minutes)}</span>}
+                {day.ot_minutes > 0 && (
+                  <span
+                    style={{ color: SEG.ot, marginLeft: 4, opacity: day.ot_below_minimum ? 0.6 : 1 }}
+                    title={day.ot_below_minimum ? "Below the minimum overtime, not counted" : undefined}
+                  >+{fmtHM(day.ot_minutes)}{day.ot_below_minimum ? " (not counted)" : ""}</span>
+                )}
                 {isPending && <span title="Awaiting approval" style={{ color: pillar.amber.fg, marginLeft: 4 }}>●</span>}
               </span>
             </button>
@@ -319,7 +328,7 @@ function DayDetail({ day, hasPendingCorrection, onClose, onRequestCorrection }: 
         <div style={{ display: "flex", gap: 18, flexWrap: "wrap", marginBottom: 16 }}>
           <Stat label="Worked" value={fmtHM(day.net_minutes)} />
           {day.break_minutes > 0 && <Stat label="Breaks" value={fmtHM(day.break_minutes)} />}
-          {day.ot_minutes > 0 && <Stat label="Overtime" value={fmtHM(day.ot_minutes)} tone={SEG.ot} />}
+          {day.ot_minutes > 0 && <Stat label={day.ot_below_minimum ? "Overtime (not counted)" : "Overtime"} value={fmtHM(day.ot_minutes)} tone={SEG.ot} />}
           {day.ot_pending_minutes > 0 && <Stat label="OT pending" value={fmtHM(day.ot_pending_minutes)} tone={pillar.amber.fg} />}
         </div>
 

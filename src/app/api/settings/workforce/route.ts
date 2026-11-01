@@ -118,6 +118,15 @@ export async function PUT(request: NextRequest) {
   if (typeof body.ot_rate_per_hour === "number" && isFinite(body.ot_rate_per_hour) && body.ot_rate_per_hour >= 0) {
     next.ot_rate_per_hour = body.ot_rate_per_hour;
   }
+  // A whole number of minutes: it is compared with a day's approved OT, which
+  // is stored in whole minutes. Capped at a day so a typo can't silently
+  // switch overtime off for everyone.
+  if (typeof body.ot_min_minutes === "number" && isFinite(body.ot_min_minutes) && body.ot_min_minutes >= 0) {
+    next.ot_min_minutes = Math.min(1440, Math.round(body.ot_min_minutes));
+  }
+  if (typeof body.payroll_by_location === "boolean") {
+    next.payroll_by_location = body.payroll_by_location;
+  }
   if (body.punch_types && typeof body.punch_types === "object") {
     const incoming = body.punch_types as Partial<WfmConfig["punch_types"]>;
     const punchTypes: Partial<WfmConfig["punch_types"]> = {};

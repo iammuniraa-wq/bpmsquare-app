@@ -18,9 +18,10 @@ const TIMEZONES = [
 ];
 
 /**
- * How a day is counted and which punches are allowed: six everyday choices, with sign-in, face checks, alternate
- * Saturdays and employment types behind one More. Replaces Attendance rules and Punching & verification, and the
- * employment types that sat on Employment & billing.
+ * How a day is counted and which punches are allowed: the everyday choices, with sign-in, face checks and alternate
+ * Saturdays behind one More. Employment types sit in the main area (owner request 2026-11-01: adding Intern or Trainee
+ * must be obvious, not hidden). Replaces Attendance rules and Punching & verification, and the employment types that
+ * sat on Employment & billing.
  */
 export default function RulesTab({ cfg, savedCodes, shifts, onChange }: {
   cfg: WfmConfig;
@@ -71,6 +72,7 @@ export default function RulesTab({ cfg, savedCodes, shifts, onChange }: {
 
         <div className={s.full}>
           <SwitchRow label="Take breaks off worked hours" info={T.deductBreaks} checked={cfg.deduct_breaks} onChange={(deduct_breaks) => onChange({ deduct_breaks })} />
+          <SwitchRow label="Report by location" info={T.payrollByLocation} checked={cfg.payroll_by_location === true} onChange={(payroll_by_location) => onChange({ payroll_by_location })} />
         </div>
 
         <Field label="Extra punch types" info={T.punchTypes} htmlFor="wf-punch" style={{ gridColumn: "1 / -1" }}>
@@ -93,6 +95,31 @@ export default function RulesTab({ cfg, savedCodes, shifts, onChange }: {
             <Input type="number" min={0} step="0.01" value={cfg.ot_rate_per_hour} onChange={(e) => onChange({ ot_rate_per_hour: Math.max(0, Number(e.target.value) || 0) })} />
           </Field>
         )}
+        {cfg.punch_types.ot && (
+          <Field label="Minimum overtime per day (minutes)" info={T.otMinimum}>
+            <Input type="number" min={0} step="1" value={cfg.ot_min_minutes ?? 0} onChange={(e) => onChange({ ot_min_minutes: Math.max(0, parseInt(e.target.value) || 0) })} />
+          </Field>
+        )}
+
+        <Field label="Employment types" info={T.employmentTypes} htmlFor="wf-emp-0" style={{ gridColumn: "1 / -1" }}>
+          <div>
+            {cfg.employment_types.map((t, i) => (
+              <div key={i} className={`${s.typeRow} ${savedCodes.includes(t.code) ? "" : s.typeRowNew}`}>
+                <Input id={`wf-emp-${i}`} aria-label={`Employment type ${i + 1}`} value={t.label} placeholder="Intern" onChange={(e) => setTypeLabel(i, e.target.value)} />
+                {!savedCodes.includes(t.code) && (
+                  <Input aria-label={`Code for employment type ${i + 1}`} value={t.code} placeholder="code" maxLength={40} onChange={(e) => setTypeCode(i, e.target.value)} />
+                )}
+                <Button
+                  size="sm"
+                  aria-label={`Remove ${t.label || "type"}`}
+                  disabled={cfg.employment_types.length <= 1}
+                  onClick={() => onChange({ employment_types: cfg.employment_types.filter((_, j) => j !== i) })}
+                >Remove</Button>
+              </div>
+            ))}
+            <Button size="sm" onClick={() => onChange({ employment_types: [...cfg.employment_types, { code: "", label: "" }] })}>+ Add type</Button>
+          </div>
+        </Field>
       </div>
 
       <More>
@@ -152,26 +179,6 @@ export default function RulesTab({ cfg, savedCodes, shifts, onChange }: {
             </Select>
           </Field>
         )}
-
-        <Field label="Employment types" info={T.employmentTypes} htmlFor="wf-emp-0">
-          <div>
-            {cfg.employment_types.map((t, i) => (
-              <div key={i} className={`${s.typeRow} ${savedCodes.includes(t.code) ? "" : s.typeRowNew}`}>
-                <Input id={`wf-emp-${i}`} aria-label={`Employment type ${i + 1}`} value={t.label} placeholder="Intern" onChange={(e) => setTypeLabel(i, e.target.value)} />
-                {!savedCodes.includes(t.code) && (
-                  <Input aria-label={`Code for employment type ${i + 1}`} value={t.code} placeholder="code" maxLength={40} onChange={(e) => setTypeCode(i, e.target.value)} />
-                )}
-                <Button
-                  size="sm"
-                  aria-label={`Remove ${t.label || "type"}`}
-                  disabled={cfg.employment_types.length <= 1}
-                  onClick={() => onChange({ employment_types: cfg.employment_types.filter((_, j) => j !== i) })}
-                >Remove</Button>
-              </div>
-            ))}
-            <Button size="sm" onClick={() => onChange({ employment_types: [...cfg.employment_types, { code: "", label: "" }] })}>+ Add type</Button>
-          </div>
-        </Field>
       </More>
     </div>
   );
