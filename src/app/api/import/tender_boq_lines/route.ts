@@ -11,9 +11,9 @@ type Row = { rowNum: number; values: Record<string, string> };
 
 /**
  * Adds or revises the lines of an existing tender's Bill of quantities from a flat file, found by the deal's ID (OPP-0044) or the
- * tender number. The file is read as that tender's whole BOQ, exactly like a revised Excel upload: lines are matched by item number
- * (else description and unit), a quantity that moved updates the deal line, a line missing from the file is removed when unpriced and
- * kept and flagged when priced. A client rate in the file prices a line only where nobody priced it. No workbook is stored, so the
+ * tender number. Lines are matched by item number (else description and unit) like a revised Excel upload, but the import only ADDS
+ * and UPDATES: a line the file does not mention is never removed or flagged (that rule belongs to the Upload BOQ screen alone, which
+ * reads its file as the whole BOQ). A quantity that moved updates the deal line. A client rate in the file prices a line only where nobody priced it. No workbook is stored, so the
  * new source has an empty path; the answer sheet works, the priced-workbook download says why it cannot. One change-history entry
  * per tender. Cost and markup are not columns of this object.
  *
@@ -83,7 +83,7 @@ export async function POST(request: NextRequest) {
 
     const source = await insertDwSource(opened.req, { fileName, lineCount: lines.length });
     if (!source.ok) { for (const l of lines) outcomes.push({ rowNum: l.row_no, status: "failed", reason: source.error }); continue; }
-    const applied = await applyBoqLines(opened.req, lines, { id: source.sourceId, fileLabel: source.fileLabel, previous: source.previous, logField: "BOQ import (Data Workbench)" });
+    const applied = await applyBoqLines(opened.req, lines, { id: source.sourceId, fileLabel: source.fileLabel, previous: source.previous, logField: "BOQ import (Data Workbench)", keepMissing: true });
     if (!applied.ok) { for (const l of lines) outcomes.push({ rowNum: l.row_no, status: "failed", reason: applied.error }); continue; }
 
     const added = new Set(applied.diff.added.map((l) => l.key));

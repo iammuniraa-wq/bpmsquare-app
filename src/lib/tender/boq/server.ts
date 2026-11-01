@@ -321,7 +321,7 @@ export type AppliedLines = { ok: true; added: number; changed: number; dropped: 
  */
 export async function applyBoqLines(
   r: BoqRequest, incoming: readonly BoqLine[],
-  source: { id: string; fileLabel: string; previous: { file_name: string; version: number } | null; logField?: string },
+  source: { id: string; fileLabel: string; previous: { file_name: string; version: number } | null; logField?: string; keepMissing?: boolean },
 ): Promise<AppliedLines> {
   const { admin, tenantId, userId, opp } = r;
   const sourceId = source.id;
@@ -330,7 +330,9 @@ export async function applyBoqLines(
   const today = await tenantToday(tenantId);
   const config = await loadConfig(admin, tenantId);
   const { rows, lines: dealLines, existing } = await existingLines(admin, tenantId, opp.id);
-  const diff = diffBoq(existing, incoming);
+  const full = diffBoq(existing, incoming);
+  // keepMissing (Data Workbench import): the file only adds and updates; a line it does not mention is neither removed nor flagged.
+  const diff = source.keepMissing ? { ...full, dropped: [], kept: [] } : full;
   const rowByKey = new Map(rows.map((x) => [x.item_key, x]));
   const lineById = new Map(dealLines.map((l) => [l.id, l]));
   const now = new Date().toISOString();

@@ -209,15 +209,24 @@ describe("Import", () => {
     expect(entries[0].changes?.[0]).toMatchObject({ field: "BOQ import (Data Workbench)", from: "boq.xlsx (v1)", to: "revised.csv · 3 lines · 1 added, 1 changed, 0 removed, 0 kept" });
   });
 
-  it("reads the file as the whole BOQ: an unpriced line missing from it is removed, a priced one is kept and flagged", async () => {
-    seedBoq();
-    const j = await (await call(importLines.POST, rowsOf([T({ item_no: "1.3", description: "Disposal", quantity: "10" })]))).json();
-    expect(j).toMatchObject({ inserted: 1 });
-    expect(current.tables.tender_boq_lines.find((r) => r.id === "b2")).toBeUndefined();
-    expect(current.tables.opportunity_lines.find((l) => l.id === "l2")).toBeUndefined();
-    expect(current.tables.tender_boq_lines.find((r) => r.id === "b1")).toMatchObject({ removed_in_revision: true });
-    expect(current.tables.opportunity_lines.find((l) => l.id === "l1")).toBeDefined();
-    expect(logged.find((l) => l.objectType === "opportunity_tenders")!.changes?.[0].to).toContain("1 removed, 1 kept");
+  it("only adds and updates: a two-line file against a twelve-line tender leaves all twelve untouched, priced or not", async () => {
+    const line = (n: number, over: Row = {}): Row => ({ id: `ml${n}`, tenant_id: "t1", opportunity_id: O1, discount_pct: 0, is_selected: true, show_on_pdf: true, sl_no: `9.${n}`, description: `Item ${n}`, uom: "m", qty: 10, rate: n % 2 ? 5 : 0, amount: n % 2 ? 50 : 0, ...over });
+    const boq = (n: number): Row => ({ id: `mb${n}`, tenant_id: "t1", opportunity_id: O1, source_id: "s1", line_id: `ml${n}`, item_key: `n:9.${n}`, item_no: `9.${n}`, row_no: n + 1, file_description: `Item ${n}`, file_uom: "m", file_qty: 10, cost_code: null, file_rate: null, price_source: n % 2 ? "manual" : null, price_source_ref: null, price_as_of: null, stale_accepted: false, unit_cost: null, markup_pct: null, removed_in_revision: false });
+    const nums = Array.from({ length: 12 }, (_, i) => i + 1);
+    seedBoq({ opportunity_lines: [...nums.map((n) => line(n))], tender_boq_lines: nums.map(boq) });
+    const j = await (await call(importLines.POST, rowsOf([
+      T({ item_no: "9.1", description: "Item 1", unit: "m", quantity: "15" }),
+      T({ item_no: "9.99", description: "Brand new", unit: "m", quantity: "3" }),
+    ]))).json();
+    expect(j).toMatchObject({ inserted: 1, skipped: 1, failed: 0 });
+    const mine = current.tables.tender_boq_lines.filter((r) => r.opportunity_id === O1);
+    expect(mine).toHaveLength(13);
+    for (const n of nums) expect(mine.find((r) => r.id === `mb${n}`), `row ${n}`).toMatchObject({ removed_in_revision: false });
+    const lines = current.tables.opportunity_lines.filter((l) => l.opportunity_id === O1);
+    expect(lines).toHaveLength(13);
+    expect(lines.find((l) => l.id === "ml1")).toMatchObject({ qty: 15, amount: 75 });
+    for (const n of nums.slice(1)) expect(lines.find((l) => l.id === `ml${n}`), `line ${n}`).toMatchObject({ qty: 10 });
+    expect(logged.find((l) => l.objectType === "opportunity_tenders")!.changes?.[0].to).toContain("0 removed, 0 kept");
   });
 
   it("fails clearly for an unknown tender, a deal that is not a tender, another workspace's tender, a duplicate tender number and a bad row", async () => {

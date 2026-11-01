@@ -13,7 +13,7 @@ export const TENDER_BOQ_LINES_SPEC: ObjectSpec = {
   id: "tender_boq_lines",
   label: "Tender BOQ lines",
   icon: "≣",
-  description: "Lines of a tender's Bill of quantities: add or revise lines of an existing tender by item number, or bulk-edit quantity, description and cost code on lines already there. Cost and markup are never in a file. Import reads the file as the tender's whole Bill of quantities: a line missing from it is removed when unpriced and flagged when priced, as with a revised upload.",
+  description: "Lines of a tender's Bill of quantities: add or revise lines of an existing tender by item number, or bulk-edit quantity, description and cost code on lines already there. Cost and markup are never in a file. Import only adds lines and updates the ones it matches by item number; it never removes a line, whatever the file leaves out.",
   dependsOn: ["opportunities"],
   fields: [
     { key: "tender_ref", label: "Tender", type: "ref", required: true, hint: "Deal ID (OPP-0044) or the tender number of an existing tender", aliases: ["tender", "tender no", "tender number", "deal", "deal id", "opportunity"] },
