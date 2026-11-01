@@ -1,6 +1,6 @@
 # BPMSquare REST API and MCP reference
 
-Snapshot 2026-10-30. For integration developers at a client workspace. Everything here was derived from the route code under `src/app/api/v1`, `src/lib/api/*`, `mcp-server/mcp.json` and the settings routes. Where something could not be confirmed from the code it is marked "(verify)". All company names, refs, ids and keys in the samples are fictional (Example Trading LLC, ACC-0007, `bpm_live_xxxxxxxx`).
+Snapshot 2026-11-01. For integration developers at a client workspace. Everything here was derived from the route code under `src/app/api/v1`, `src/lib/api/*`, `mcp-server/mcp.json` and the settings routes. Where something could not be confirmed from the code it is marked "(verify)". All company names, refs, ids and keys in the samples are fictional (Example Trading LLC, ACC-0007, `bpm_live_xxxxxxxx`).
 
 ## 1. Overview
 
@@ -39,7 +39,7 @@ An expired or revoked key behaves as an unknown key (401).
 
 A scope is `{ read, write, objects }`. `read` defaults to true, `write` to false, `objects` to `["*"]` (every object). A read-only key gets 403 on a write; a key scoped to some objects gets 403 on any other object.
 
-Objects a key can name when it is minted (server list; the screen offers every one except `tenders`):
+Objects a key can name when it is minted (server list; the Settings screen offers every one, `tenders` included):
 
 `quotations`, `accounts`, `cases`, `inventory`, `invoices`, `purchase-orders`, `pricing`, `products`, `projects`, `opportunities`, `employees`, `rfqs`, `estimates`, `abm_programs`, `abm_targets`, `standard_quotes`, `sales_orders`, `tenders`.
 
@@ -1880,6 +1880,129 @@ The list object plus `intro_text`, `notes`, `terms` and `lines`.
 (The remaining header fields of 19.1 are present; shortened here.) Errors: 404. The MCP description of the list tool mentions ERP invoice roll-ups (`invoice_count` and so on); the standard quote list does not carry them (verify).
 
 ---
+## 19A. Tenders
+
+GCC tender deals and their Bill of quantities. Read-only. Scope `tenders`, explicit only: a key with access to everything gets 403, so the key must name `tenders`. Module GCC tender and Pipeline; a workspace without them gets 404. A tender's id is its deal id, so `/tenders/:id` and `/opportunities/:id` take the same uuid.
+
+Never returned on any tender endpoint: cost per unit, markup, who or what gave the price (supplier, RFQ, past deal), decision reasons, the source e-mail, custom fields.
+
+### 19A.1 GET /tenders
+
+Shortcut parameters: `stage` (`received bid_no_bid estimating submitted clarifications awarded bid_lost no_bid`), `outcome` (`open won lost dropped`), `decision` (`go no_go`), `portal` (`ariba email excel other`), `closing` (a whole number of days from 1 to 365: only open tenders whose bid end date is today or within that many days; anything else is 422).
+Queryable fields: `id, ref, title, account_name, stage, outcome, amount, expected_close, tender_no, issuer_name, portal, closing_at, bid_bond_amount, bid_bond_currency, bid_bond_expiry, addenda_count, decision, decided_at, created_at`. Searchable: `ref, title, account_name, tender_no, issuer_name`.
+
+```bash
+curl -s -H "Authorization: Bearer $KEY" "$BASE/tenders?outcome=open&closing=14"
+```
+
+```json
+{
+  "data": [
+    {
+      "id": "e4c8a2b6-91d3-4f07-b5a1-3d6f8e0a2c14",
+      "ref": "OPP-0004",
+      "title": "Drainage package, phase 2",
+      "account_name": "Example Authority",
+      "stage": "estimating",
+      "outcome": "open",
+      "amount": 1250000,
+      "tender_no": "T-2026-118",
+      "issuer_name": "Example Authority",
+      "portal": "email",
+      "closing_at": "2026-11-12",
+      "decision": "go",
+      "_links": {
+        "self": "/api/v1/tenders/e4c8a2b6-91d3-4f07-b5a1-3d6f8e0a2c14",
+        "boq": "/api/v1/tenders/e4c8a2b6-91d3-4f07-b5a1-3d6f8e0a2c14/boq"
+      }
+    }
+  ],
+  "meta": { "count": 1, "total": 1, "page": 1, "limit": 50, "has_more": false, "generated_at": "2026-11-01T08:00:00.000Z" },
+  "_links": { "self": "/api/v1/tenders", "next": null, "prev": null }
+}
+```
+
+(Shortened: the other queryable fields are present on each row.)
+
+### 19A.2 GET /tenders/:id
+
+The row above plus `boq`: a summary of the current Bill of quantities, or `null` when none is uploaded. `_links` carries `self`, `deal` (`/api/v1/opportunities/:id`) and `boq`.
+
+```json
+{
+  "data": {
+    "id": "e4c8a2b6-91d3-4f07-b5a1-3d6f8e0a2c14",
+    "ref": "OPP-0004",
+    "tender_no": "T-2026-118",
+    "stage": "estimating",
+    "boq": { "lines": 12, "priced": 6, "unpriced": 6, "stale": 0, "amount": 480000, "file_name": "BOQ-drainage.xlsx", "version": 2 },
+    "_links": {
+      "self": "/api/v1/tenders/e4c8a2b6-91d3-4f07-b5a1-3d6f8e0a2c14",
+      "deal": "/api/v1/opportunities/e4c8a2b6-91d3-4f07-b5a1-3d6f8e0a2c14",
+      "boq": "/api/v1/tenders/e4c8a2b6-91d3-4f07-b5a1-3d6f8e0a2c14/boq"
+    }
+  },
+  "_links": { "self": "/api/v1/tenders/e4c8a2b6-91d3-4f07-b5a1-3d6f8e0a2c14" }
+}
+```
+
+(Shortened; the other row fields are present as in 19A.1.) An id that is not a tender of the workspace is 404.
+
+### 19A.3 GET /tenders/:id/boq
+
+One row per line of the tender's Bill of quantities, paged, filtered and searched like any list (section 1.6). No Bill of quantities yet is `data: []` with `meta.source: null`, status 200. Otherwise `meta.source` holds `file_name`, `version` and `uploaded_at`.
+Queryable fields: `id, tender_id, tender_ref, tender_no, row_no, item_no, cost_code, description, details, client_columns, unit, quantity, rate, amount, rate_source, price_as_of, status`. Searchable: `tender_ref, tender_no, item_no, cost_code, description, details`. `client_columns` is returned but not queried.
+
+| Field | Meaning |
+|---|---|
+| `item_no` | The client's item number (the file's Item # column). |
+| `description` | The line's name (the file's Narration). |
+| `details` | The long text (the file's Description). |
+| `client_columns` | The client's other columns as they wrote them (for example Sr #, Bill #, Section, Page #, Revision #, Boq #), or `null`. |
+| `rate`, `amount` | Our unit rate and the line amount; `null` while the line is unpriced. |
+| `rate_source` | Where the rate came from: `boq_rate`, `bom`, `past_project`, `supplier`, `manual`, `estimate`. |
+| `status` | `priced`, `unpriced`, `stale` or `removed`. |
+
+```bash
+curl -s -H "Authorization: Bearer $KEY" "$BASE/tenders/$ID/boq?filter=status:eq:unpriced"
+```
+
+```json
+{
+  "data": [
+    {
+      "id": "0b7e5d31-4a96-4c28-8f1e-92a3c6d4b705",
+      "tender_id": "e4c8a2b6-91d3-4f07-b5a1-3d6f8e0a2c14",
+      "tender_ref": "OPP-0004",
+      "tender_no": "T-2026-118",
+      "row_no": 14,
+      "item_no": "2.2",
+      "cost_code": null,
+      "description": "HDPE pipe 300 mm",
+      "details": "Supply, lay and test HDPE pipe, 300 mm, including bedding and backfill.",
+      "client_columns": { "Sr #": "14", "Bill #": "2", "Section": "Drainage", "Page #": "3" },
+      "unit": "m",
+      "quantity": 450,
+      "rate": null,
+      "amount": null,
+      "rate_source": null,
+      "price_as_of": null,
+      "status": "unpriced"
+    }
+  ],
+  "meta": { "count": 1, "total": 6, "page": 1, "limit": 50, "has_more": false, "source": { "file_name": "BOQ-drainage.xlsx", "version": 2, "uploaded_at": "2026-10-30T09:12:00+00:00" } },
+  "_links": { "self": "/api/v1/tenders/e4c8a2b6-91d3-4f07-b5a1-3d6f8e0a2c14/boq" }
+}
+```
+
+(Shortened.)
+
+### 19A.4 Bulk load without the API: Data Workbench
+
+The same lines can be loaded in bulk through Data Workbench, object **Tender BOQ lines**. Import adds lines and updates existing ones by item number; it never removes a line. Export carries the Record ID of each line. Update matches on that Record ID only. Only the Upload BOQ button on the tender screen removes lines that a revised file no longer holds.
+
+---
+
 ## 20. API index, metadata and OpenAPI
 
 These meta endpoints answer for any key with read access (a write-only key gets 401). They are not feature gated.
@@ -1992,7 +2115,7 @@ Body:
 | `object` | string, required | One of the queryable objects below. |
 | `question` | string, required | Plain English. |
 
-Queryable objects (24): `quotations`, `accounts`, `cases`, `inventory`, `products`, `opportunities`, `tenders`, `contract_projects`, `rfqs`, `standard_quotes`, `sales_orders`, `abm_programs`, `abm_targets`, `estimates`, `projects`, `project_hours`, `employees`, `invoices`, `purchase-orders`, `contacts`, `assets`, `suppliers`, `work-orders`, `leads`. The fields you can ask about are the object's queryable fields (listed in each section above). Objects without an endpoint of their own here have these fields: contacts `id, ref, name, role, department, city, state, account.id, account.name`; assets `id, ref, name, kind, make, model, rating, serial, is_loaner, loaner_status, account.*`; suppliers `id, ref, name, type, city, status, phone, email, created_at`; work-orders `id, ref, status, auth_kind, scheduled_for, account.*, asset_name, technician_name, case_ref`; leads `id, title, source, status, created_at, account.*`; tenders `id, ref, title, account_name, stage, outcome, amount, expected_close, tender_no, issuer_name, portal, closing_at, bid_bond_amount, bid_bond_currency, bid_bond_expiry, addenda_count, decision, decided_at, created_at`; contract_projects `id, ref, name, status, account_name, contract_value, currency, budget_total, budget_state, margin_pct, planned_end, updated_at`. Because `contacts`, `tenders` and `contract_projects` are explicit-scope objects and a key cannot currently be minted with `contacts` or `contract_projects`, those two are effectively unreachable (verify).
+Queryable objects (25): `quotations`, `accounts`, `cases`, `inventory`, `products`, `opportunities`, `tenders`, `tender_boq_lines`, `contract_projects`, `rfqs`, `standard_quotes`, `sales_orders`, `abm_programs`, `abm_targets`, `estimates`, `projects`, `project_hours`, `employees`, `invoices`, `purchase-orders`, `contacts`, `assets`, `suppliers`, `work-orders`, `leads`. The fields you can ask about are the object's queryable fields (listed in each section above). Objects without an endpoint of their own here have these fields: contacts `id, ref, name, role, department, city, state, account.id, account.name`; assets `id, ref, name, kind, make, model, rating, serial, is_loaner, loaner_status, account.*`; suppliers `id, ref, name, type, city, status, phone, email, created_at`; work-orders `id, ref, status, auth_kind, scheduled_for, account.*, asset_name, technician_name, case_ref`; leads `id, title, source, status, created_at, account.*`; tenders `id, ref, title, account_name, stage, outcome, amount, expected_close, tender_no, issuer_name, portal, closing_at, bid_bond_amount, bid_bond_currency, bid_bond_expiry, addenda_count, decision, decided_at, created_at`; tender_boq_lines (the BOQ lines of every tender, the fields of section 19A.3) `id, tender_id, tender_ref, tender_no, row_no, item_no, cost_code, description, details, client_columns, unit, quantity, rate, amount, rate_source, price_as_of, status`; contract_projects `id, ref, name, status, account_name, contract_value, currency, budget_total, budget_state, margin_pct, planned_end, updated_at`. `tenders` and `tender_boq_lines` both need a key that names `tenders`. `contacts` and `contract_projects` are explicit-scope objects that a key cannot currently be minted with, so those two are effectively unreachable (verify).
 
 ### 21.1 Example: a ranked list
 
@@ -2055,7 +2178,7 @@ curl -s -X POST -H "Authorization: Bearer $KEY" -H "Content-Type: application/js
 }
 ```
 
-`data` holds the matching rows (first page); the answer to an aggregate question is in `meta.aggregates` and `meta.groups`. The echoed `compiled` string always uses the object name as the path (`/api/v1/<object>`), which is not a live path for every object (for example `sales_orders` is served at `/sales-orders`, and `tenders` has no list endpoint here); lift the query string, not the path.
+`data` holds the matching rows (first page); the answer to an aggregate question is in `meta.aggregates` and `meta.groups`. The echoed `compiled` string always uses the object name as the path (`/api/v1/<object>`), which is not a live path for every object (for example `sales_orders` is served at `/sales-orders`, and `tender_boq_lines` is served per tender at `/tenders/:id/boq`); lift the query string, not the path.
 
 ### 21.3 When the question cannot be answered
 
@@ -2127,7 +2250,7 @@ Notes:
 - `actor` is the person's email, or `api:v1` for API writes.
 - `meta.has_more` is true when the page is full (`count == limit`), so a final full page can report `true` and the next call return nothing.
 - When no rows are returned the response `cursor` repeats your `since` (or `null`); keep it.
-- Object types are those the app logs, for example `accounts, contacts, quotes, cases, invoices, purchase_orders, inventory, products, employees, rfqs, estimates, opportunities, wfm_projects, standard_quotes, sales_orders, abm_programs, abm_target_accounts`. Types with no v1 object scope (assets, suppliers, work orders, leads) appear only for a wildcard key. Mapping to scopes: quotes to `quotations`, purchase_orders to `purchase-orders`, wfm_projects to `projects`, abm_target_accounts to `abm_targets`, tender and contract-project types to `tenders` and `contract_projects` (explicit only).
+- Object types are those the app logs, for example `accounts, contacts, quotes, cases, invoices, purchase_orders, inventory, products, employees, rfqs, estimates, opportunities, wfm_projects, standard_quotes, sales_orders, abm_programs, abm_target_accounts`. Types with no v1 object scope (assets, suppliers, work orders, leads) appear only for a wildcard key. Mapping to scopes: quotes to `quotations`, purchase_orders to `purchase-orders`, wfm_projects to `projects`, abm_target_accounts to `abm_targets`, tender and contract-project types to `tenders` and `contract_projects` (explicit only). The feed holds back a tender's cost entries (`BOQ cost <item>` and `BOQ price all`, which carry cost and markup); other BOQ entries such as `BOQ upload` and `BOQ rate <item>` are shown to a key that names `tenders`.
 - Errors: 401, 403 (`object_type` outside the key's scope), 422 `{"error":"Invalid cursor","message":"`since` must be a cursor returned by a previous /changes response."}`, 500.
 
 ---
@@ -2215,7 +2338,7 @@ app.listen(3000);
 
 ### 25.1 What it is and how mcp.json is used
 
-The `mcp-server/mcp.json` file (name `bpmsquare`, manifest version `1.18.0`) is a **tool manifest**: for each tool it gives a name, a description, an HTTP method, a path under `/api/v1` and a JSON-Schema `inputSchema`. Every tool is a thin wrapper over one REST endpoint described in this document; the result of a tool call is the JSON body of that endpoint. The manifest has no tools that do anything the REST API cannot.
+The `mcp-server/mcp.json` file (name `bpmsquare`, manifest version `1.20.0`) is a **tool manifest**: for each tool it gives a name, a description, an HTTP method, a path under `/api/v1` and a JSON-Schema `inputSchema`. Every tool is a thin wrapper over one REST endpoint described in this document; the result of a tool call is the JSON body of that endpoint. The manifest has no tools that do anything the REST API cannot.
 
 The repository contains only the manifest; the process that exposes it to an MCP client (Claude Desktop, an AI assistant or any MCP host) is not in this repository (verify). A bridge is expected to do the following with a manifest entry:
 
@@ -2246,7 +2369,7 @@ A typical MCP client entry, assuming a generic stdio or HTTP bridge named `bpmsq
 
 ### 25.2 Authentication
 
-The same per-workspace bearer key as the REST API (section 1.2). Create a dedicated scoped, **read-only** key for an AI assistant and name only the objects it needs. The manifest text says the key is generated under "Settings, Admin, this tenant"; in the current app it is Settings, API keys & developer. Tools over explicit-scope objects (`list_rfqs`, `get_rfq`, `list_estimates`, `get_estimate`, `list_abm_targets`, `get_abm_target`, `list_employees`, `get_employee`) only work with a key that names that object. `create_project_invoice` is the only tool that needs a key with **write** on `projects`.
+The same per-workspace bearer key as the REST API (section 1.2). Create a dedicated scoped, **read-only** key for an AI assistant and name only the objects it needs. The manifest text says the key is generated under "Settings, Admin, this tenant"; in the current app it is Settings, API keys & developer. Tools over explicit-scope objects (`list_rfqs`, `get_rfq`, `list_estimates`, `get_estimate`, `list_abm_targets`, `get_abm_target`, `list_employees`, `get_employee`, `list_tenders`, `get_tender`, `get_tender_boq`) only work with a key that names that object. `create_project_invoice` is the only tool that needs a key with **write** on `projects`.
 
 ### 25.3 Tools at a glance
 
@@ -2286,8 +2409,11 @@ The same per-workspace bearer key as the REST API (section 1.2). Create a dedica
 | `get_invoice` | `GET /api/v1/invoices/{id}` | invoices, read | 9 |
 | `list_employees` | `GET /api/v1/employees` | employees (explicit), read | 6 |
 | `get_employee` | `GET /api/v1/employees/{id}` | employees (explicit), read | 6 |
+| `list_tenders` | `GET /api/v1/tenders` | tenders (explicit), read | 19A |
+| `get_tender` | `GET /api/v1/tenders/{id}` | tenders (explicit), read | 19A |
+| `get_tender_boq` | `GET /api/v1/tenders/{id}/boq` | tenders (explicit), read | 19A |
 
-34 tools. Not available as tools (use REST): creating, changing or deleting quotations, `/price`, `/ask`, `/changes`, quotation detail, case detail, contacts. The manifest lists `create_quotation` among its "coming soon" tools although the REST API already supports it.
+37 tools. Not available as tools (use REST): creating, changing or deleting quotations, `/price`, `/ask`, `/changes`, quotation detail, case detail, contacts. The manifest lists `create_quotation` among its "coming soon" tools although the REST API already supports it.
 
 ### 25.4 Tool reference
 
@@ -4948,6 +5074,42 @@ Sample result:
 ```
 
 Returns the complete employee row; fields shortened here, see section 6.2.
+
+#### 25.4.35 list_tenders
+
+List the tenant's tender deals: deal id and ref, title, customer, tender number, issuer, portal, bid end date, bid guarantee, change requests, go / no-go decision, stage, outcome and amount.
+
+Calls `GET /api/v1/tenders`. Scope: tenders (explicit), read. REST reference: section 19A.1.
+
+Input (all optional): `stage`, `outcome`, `decision` (`go` or `no_go`), `portal` (`ariba`, `email`, `excel` or `other`), `closing` (integer 1 to 365: only open tenders whose bid end date is within that many days).
+
+Sample call:
+
+```json
+{ "name": "list_tenders", "arguments": { "outcome": "open", "closing": 14 } }
+```
+
+Request sent: `GET /api/v1/tenders?outcome=open&closing=14`. The result is the body shown in 19A.1.
+
+#### 25.4.36 get_tender
+
+Fetch one tender by id: the same fields as `list_tenders` plus a summary of its Bill of quantities (lines, priced, unpriced, stale, amount, file name and version).
+
+Calls `GET /api/v1/tenders/{id}`. Scope: tenders (explicit), read. REST reference: section 19A.2. Input: `id` (required, the tender's deal uuid from `list_tenders`).
+
+#### 25.4.37 get_tender_boq
+
+The Bill of quantities of one tender, one row per line and paged, with `details` and `client_columns`. Cost, markup and supplier names are never returned.
+
+Calls `GET /api/v1/tenders/{id}/boq`. Scope: tenders (explicit), read. REST reference: section 19A.3. Input: `id` (required), then optional `filter` (`field:op:value` triples joined by `;`), `search`, `sort`, `page` and `limit` (maximum 200).
+
+Sample call:
+
+```json
+{ "name": "get_tender_boq", "arguments": { "id": "e4c8a2b6-91d3-4f07-b5a1-3d6f8e0a2c14", "filter": "status:eq:unpriced" } }
+```
+
+Request sent: `GET /api/v1/tenders/e4c8a2b6-91d3-4f07-b5a1-3d6f8e0a2c14/boq?filter=status:eq:unpriced`. The result is the body shown in 19A.3.
 
 ### 25.5 Tools that are announced but not built
 

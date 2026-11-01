@@ -1,5 +1,5 @@
-import { NAV_GLYPHS } from "@/components/Sidebar";
-import { Gear, Monitor, FileText, Wrench, Zap, Package, Users, BarChart2 } from "@/components/Icons";
+import { NAV_GLYPHS, GROUP_ICON } from "@/components/navGlyphs";
+import { Gear } from "@/components/Icons";
 import { buildNavGroups } from "@/lib/navGroups";
 import type { ViewableWorkcenters } from "@/lib/workcenters";
 
@@ -34,17 +34,6 @@ export type SpaceGroup = {
   label: string;
   icon: React.ComponentType<{ size?: number; color?: string }>;
   items: SpaceItem[];
-};
-
-const GROUP_ICON: Record<string, SpaceGroup["icon"]> = {
-  "WORKSPACE": Monitor,
-  "SALES & PROCUREMENT": FileText,
-  "SERVICE": Wrench,
-  "MARKETING": Zap,
-  "MASTER DATA": Package,
-  "WORKFORCE": Users,
-  "INSIGHTS": BarChart2,
-  "ADMIN": Gear,
 };
 
 export function buildSpaceGroups(features: Record<string, boolean>, viewable: ViewableWorkcenters, isWfmSupervisor: boolean, hidden: readonly string[] = []): SpaceGroup[] {

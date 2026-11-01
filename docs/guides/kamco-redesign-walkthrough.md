@@ -1,6 +1,6 @@
 # KAMCO walkthrough: from tender email to contract project
 
-Snapshot 2026-10-30. The screens after the October redesign. Every step has one picture. A red box and a red number mark where to click; the number matches the step. Pictures are from the KAMCO workspace, on TEST data only.
+Snapshot 2026-11-01. The screens after the October redesign. Every step has one picture. A red box and a red number mark where to click; the number matches the step. Pictures are from the KAMCO workspace, on TEST data only.
 
 Labels in **bold** are exactly as shown on screen. An "i" icon next to a label opens a short explanation: use it instead of guessing.
 
@@ -51,6 +51,7 @@ Or start a tender by hand: Pipeline, **New tender**.
 
 9. Click **Bill of quantities**. ![Click Bill of quantities](redesign-screenshots/09-boq-tab.png)
 10. Click **Upload revised BOQ** to load the client's .xlsx. The columns are read for you; check them, then create the lines. ![Click Upload revised BOQ](redesign-screenshots/10-boq-upload.png)
+    Your own Excel works as it is, with its own columns. If you have none, click **Download BOQ template** (next to the upload button) for a starting file. The preview shows **Project code** and **Project name** read from the title block of your file. Click a row to see its **Details** (the long Description) and, collapsed, **Client columns** (Sr #, Bill #, Section, Page # and so on). Limits: 2,000 lines and 15 MB.
 11. Set **Markup on cost** (%). It is added on the cost to make the rate. ![Click Markup on cost](redesign-screenshots/11-boq-markup.png)
 12. Click **Price all lines**. It uses supplier, then BOM, then past project, fresh prices only. ![Click Price all lines](redesign-screenshots/12-boq-price-all.png)
 13. Read the **Priced** tile: "6 of 12 · 6 to price". ![Read the Priced tile](redesign-screenshots/13-boq-priced-tile.png)
