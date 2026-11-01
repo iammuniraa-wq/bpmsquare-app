@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { requireTenantUser, createAdminSupabase, getAuthUser } from "@/lib/supabase-server";
 import { tenantHasFeature } from "@/lib/tenant";
-import { resolvePermissions, canViewWorkcenter, canEditWorkcenter } from "@/lib/permissions";
+import { resolvePermissions, canViewWorkcenter, canEditWorkcenter, type PermissionSet } from "@/lib/permissions";
 import { logChange } from "@/lib/changeLog";
 import { tenantToday } from "@/lib/tenantClock";
 import { opportunityStages } from "@/lib/sales/opportunity";
@@ -42,6 +42,9 @@ export type BoqRequest = {
 };
 export type Failure = { status: number; error: string };
 
+/** Who is asking, already resolved: the session, and what the caller's roles let them do in the Pipeline. */
+export type BoqCtx = { supabase: SupabaseClient; tenantId: string; userId: string; role: "admin" | "member"; perms: PermissionSet };
+
 export async function openBoqRequest(opportunityId: string, write: boolean): Promise<{ ok: true; req: BoqRequest } | ({ ok: false } & Failure)> {
   let ctx;
   try {
@@ -56,6 +59,13 @@ export async function openBoqRequest(opportunityId: string, write: boolean): Pro
     if (!(await tenantHasFeature(supabase, tenantId, key))) return notFound;
   }
   const perms = await resolvePermissions(supabase, tenantId, userId, role);
+  return boqRequestFor({ supabase, tenantId, userId, role, perms }, opportunityId, write);
+}
+
+/** The part of the gate that needs a deal: the Pipeline view (or edit, for a write) and a tender deal of THIS workspace. The caller has already checked the flags. */
+export async function boqRequestFor(ctx: BoqCtx, opportunityId: string, write: boolean): Promise<{ ok: true; req: BoqRequest } | ({ ok: false } & Failure)> {
+  const { supabase, tenantId, userId, role, perms } = ctx;
+  const notFound = { ok: false as const, status: 404, error: "Not found" };
   if (!canViewWorkcenter(perms, "pipeline")) return notFound;
   if (!/^[0-9a-f-]{36}$/i.test(opportunityId)) return notFound;
   const admin = createAdminSupabase();
@@ -303,55 +313,27 @@ async function inBatches<T>(items: readonly T[], size: number, fn: (x: T) => Pro
 
 export type ApplyResult = { ok: true; line_count: number; added: number; changed: number; dropped: number; kept: number; priced_from_file: number } | ({ ok: false } & Failure);
 
-export async function applyUpload(r: BoqRequest, input: UploadInput): Promise<ApplyResult> {
+export type AppliedLines = { ok: true; added: number; changed: number; dropped: number; kept: number; priced_from_file: number; diff: BoqDiff } | ({ ok: false } & Failure);
+
+/**
+ * The lines of a new current source: matched ones are updated, new ones inserted, vanished unpriced ones removed, vanished priced ones
+ * kept and flagged. Shared by the Excel upload and the Data Workbench import, so a line behaves the same whichever file brought it.
+ */
+export async function applyBoqLines(
+  r: BoqRequest, incoming: readonly BoqLine[],
+  source: { id: string; fileLabel: string; previous: { file_name: string; version: number } | null; logField?: string },
+): Promise<AppliedLines> {
   const { admin, tenantId, userId, opp } = r;
-  const a = await analyseUpload(r, input);
-  if (!a.ok) return a;
-  if (a.view.needs_mapping || !a.view.header_row) return { ok: false, status: 422, error: "Pick the header row and the Description and Quantity columns first" };
-  if (a.parsed.lines.length === 0) return { ok: false, status: 422, error: "No lines were found below the header row" };
-  // Saving the first lines only would drop the rest, and on a revised file would read them as removed.
-  if (a.parsed.truncated) return { ok: false, status: 422, error: `The BOQ has more than ${BOQ_LIMITS.maxLines.toLocaleString("en-US")} lines. Split it by package and upload the parts one after the other.` };
-  const view = a.view;
-  const incoming = a.parsed.lines;
+  const sourceId = source.id;
+  const fileLabel = source.fileLabel;
+  const previous = source.previous;
   const today = await tenantToday(tenantId);
   const config = await loadConfig(admin, tenantId);
-  const { source: previous, pending } = await loadCurrentSource(admin, tenantId, opp.id);
-  if (pending) return { ok: false, status: 503, error: "The BOQ needs a database update (migration 0223)" };
-
-  // 1. The original file, kept so the priced workbook can be written back into it.
-  const sniffed = sniffAttachment(input.bytes, input.fileName);
-  const ext = sniffed.ok ? sniffed.ext : "xlsx";
-  const path = `${tenantId}/${opp.id}/${randomUUID()}.${ext}`;
-  const up = await admin.storage.from(BOQ_BUCKET).upload(path, Buffer.from(input.bytes), { contentType: XLSX_MIME, upsert: false });
-  if (up.error) return { ok: false, status: 500, error: "The file could not be stored" };
-  const undoFile = async () => { await admin.storage.from(BOQ_BUCKET).remove([path]); };
-
-  // 2. A new current source; the previous one stays as history.
-  if (previous) {
-    const { error } = await admin.from("tender_boq_sources").update({ is_current: false }).eq("id", previous.id).eq("tenant_id", tenantId).eq("opportunity_id", opp.id);
-    if (error) { await undoFile(); return { ok: false, status: 500, error: error.message }; }
-  }
-  const cols = view.columns!;
-  const sourceId = randomUUID();
-  const { error: sErr } = await admin.from("tender_boq_sources").insert({
-    id: sourceId, tenant_id: tenantId, opportunity_id: opp.id, version: (previous?.version ?? 0) + 1, is_current: true,
-    file_name: safeFileName(input.fileName, ext), storage_path: path, size_bytes: input.bytes.byteLength, sheet_name: a.sheet, header_row: view.header_row,
-    header_labels: a.headerLabels, column_map: view.map, rate_col: cols.rate_col, amount_col: cols.amount_col, added_columns: cols.added,
-    total_row: a.parsed.total_row, line_count: incoming.length, uploaded_by: userId,
-  });
-  if (sErr) {
-    if (previous) await admin.from("tender_boq_sources").update({ is_current: true }).eq("id", previous.id).eq("tenant_id", tenantId).eq("opportunity_id", opp.id);
-    await undoFile();
-    return { ok: false, status: isMissingSchema(sErr) ? 503 : 500, error: isMissingSchema(sErr) ? "The BOQ needs a database update (migration 0223)" : sErr.message };
-  }
-
-  // 3. The lines: matched ones are updated, new ones inserted, vanished unpriced ones removed, vanished priced ones kept and flagged.
   const { rows, lines: dealLines, existing } = await existingLines(admin, tenantId, opp.id);
   const diff = diffBoq(existing, incoming);
   const rowByKey = new Map(rows.map((x) => [x.item_key, x]));
   const lineById = new Map(dealLines.map((l) => [l.id, l]));
   const now = new Date().toISOString();
-  const fileLabel = safeFileName(input.fileName, ext);
   let pricedFromFile = 0;
 
   const newDealLine = (l: BoqLine) => {
@@ -422,9 +404,83 @@ export async function applyUpload(r: BoqRequest, input: UploadInput): Promise<Ap
   const user = await getAuthUser();
   await logChange(r.supabase, {
     tenantId, objectType: "opportunity_tenders", objectId: opp.id, objectLabel: `${opp.ref ?? ""} ${opp.title}`.trim(), action: "update", actorId: user?.id, actorEmail: user?.email,
-    changes: [{ field: "BOQ upload", from: previous ? `${previous.file_name} (v${previous.version})` : null, to: `${fileLabel} · ${incoming.length} lines${previous ? ` · ${diff.added.length} added, ${diff.changed.length} changed, ${diff.dropped.length} removed, ${diff.kept.length} kept` : ""}` }],
+    changes: [{ field: source.logField ?? "BOQ upload", from: previous ? `${previous.file_name} (v${previous.version})` : null, to: `${fileLabel} · ${incoming.length} lines${previous ? ` · ${diff.added.length} added, ${diff.changed.length} changed, ${diff.dropped.length} removed, ${diff.kept.length} kept` : ""}` }],
   });
-  return { ok: true, line_count: incoming.length, added: diff.added.length, changed: diff.changed.length, dropped: diff.dropped.length, kept: diff.kept.length, priced_from_file: pricedFromFile };
+  return { ok: true, added: diff.added.length, changed: diff.changed.length, dropped: diff.dropped.length, kept: diff.kept.length, priced_from_file: pricedFromFile, diff };
+}
+
+export async function applyUpload(r: BoqRequest, input: UploadInput): Promise<ApplyResult> {
+  const { admin, tenantId, userId, opp } = r;
+  const a = await analyseUpload(r, input);
+  if (!a.ok) return a;
+  if (a.view.needs_mapping || !a.view.header_row) return { ok: false, status: 422, error: "Pick the header row and the Description and Quantity columns first" };
+  if (a.parsed.lines.length === 0) return { ok: false, status: 422, error: "No lines were found below the header row" };
+  // Saving the first lines only would drop the rest, and on a revised file would read them as removed.
+  if (a.parsed.truncated) return { ok: false, status: 422, error: `The BOQ has more than ${BOQ_LIMITS.maxLines.toLocaleString("en-US")} lines. Split it by package and upload the parts one after the other.` };
+  const view = a.view;
+  const incoming = a.parsed.lines;
+  const { source: previous, pending } = await loadCurrentSource(admin, tenantId, opp.id);
+  if (pending) return { ok: false, status: 503, error: "The BOQ needs a database update (migration 0223)" };
+
+  // 1. The original file, kept so the priced workbook can be written back into it.
+  const sniffed = sniffAttachment(input.bytes, input.fileName);
+  const ext = sniffed.ok ? sniffed.ext : "xlsx";
+  const path = `${tenantId}/${opp.id}/${randomUUID()}.${ext}`;
+  const up = await admin.storage.from(BOQ_BUCKET).upload(path, Buffer.from(input.bytes), { contentType: XLSX_MIME, upsert: false });
+  if (up.error) return { ok: false, status: 500, error: "The file could not be stored" };
+  const undoFile = async () => { await admin.storage.from(BOQ_BUCKET).remove([path]); };
+
+  // 2. A new current source; the previous one stays as history.
+  if (previous) {
+    const { error } = await admin.from("tender_boq_sources").update({ is_current: false }).eq("id", previous.id).eq("tenant_id", tenantId).eq("opportunity_id", opp.id);
+    if (error) { await undoFile(); return { ok: false, status: 500, error: error.message }; }
+  }
+  const cols = view.columns!;
+  const sourceId = randomUUID();
+  const { error: sErr } = await admin.from("tender_boq_sources").insert({
+    id: sourceId, tenant_id: tenantId, opportunity_id: opp.id, version: (previous?.version ?? 0) + 1, is_current: true,
+    file_name: safeFileName(input.fileName, ext), storage_path: path, size_bytes: input.bytes.byteLength, sheet_name: a.sheet, header_row: view.header_row,
+    header_labels: a.headerLabels, column_map: view.map, rate_col: cols.rate_col, amount_col: cols.amount_col, added_columns: cols.added,
+    total_row: a.parsed.total_row, line_count: incoming.length, uploaded_by: userId,
+  });
+  if (sErr) {
+    if (previous) await admin.from("tender_boq_sources").update({ is_current: true }).eq("id", previous.id).eq("tenant_id", tenantId).eq("opportunity_id", opp.id);
+    await undoFile();
+    return { ok: false, status: isMissingSchema(sErr) ? 503 : 500, error: isMissingSchema(sErr) ? "The BOQ needs a database update (migration 0223)" : sErr.message };
+  }
+
+  // 3. The lines.
+  const applied = await applyBoqLines(r, incoming, { id: sourceId, fileLabel: safeFileName(input.fileName, ext), previous });
+  if (!applied.ok) return applied;
+  return { ok: true, line_count: incoming.length, added: applied.added, changed: applied.changed, dropped: applied.dropped, kept: applied.kept, priced_from_file: applied.priced_from_file };
+}
+
+/**
+ * A current source row for lines that came through Data Workbench. No workbook was stored, so storage_path is empty (the column is NOT
+ * NULL) and the priced-workbook download refuses it; the version history and the "revised upload" comparison stay honest.
+ */
+export async function insertDwSource(r: BoqRequest, input: { fileName: string; lineCount: number }): Promise<{ ok: true; sourceId: string; fileLabel: string; previous: { file_name: string; version: number } | null } | ({ ok: false } & Failure)> {
+  const { admin, tenantId, userId, opp } = r;
+  const { source: previous, pending } = await loadCurrentSource(admin, tenantId, opp.id);
+  if (pending) return { ok: false, status: 503, error: "The BOQ needs a database update (migration 0223)" };
+  if (previous) {
+    const { error } = await admin.from("tender_boq_sources").update({ is_current: false }).eq("id", previous.id).eq("tenant_id", tenantId).eq("opportunity_id", opp.id);
+    if (error) return { ok: false, status: 500, error: error.message };
+  }
+  const ext = /\.xlsx$/i.test(input.fileName) ? "xlsx" : "csv";
+  const fileLabel = safeFileName(input.fileName || "data-workbench.csv", ext);
+  const sourceId = randomUUID();
+  const { error } = await admin.from("tender_boq_sources").insert({
+    id: sourceId, tenant_id: tenantId, opportunity_id: opp.id, version: (previous?.version ?? 0) + 1, is_current: true,
+    file_name: fileLabel, storage_path: "", size_bytes: 0, sheet_name: "Data Workbench", header_row: 1,
+    header_labels: ["item_no", "description", "unit", "quantity", "cost_code", "rate"], column_map: { item_no: 1, description: 2, uom: 3, qty: 4, cost_code: 5, rate: 6 },
+    rate_col: null, amount_col: null, added_columns: false, total_row: null, line_count: input.lineCount, uploaded_by: userId,
+  });
+  if (error) {
+    if (previous) await admin.from("tender_boq_sources").update({ is_current: true }).eq("id", previous.id).eq("tenant_id", tenantId).eq("opportunity_id", opp.id);
+    return { ok: false, status: isMissingSchema(error) ? 503 : 500, error: isMissingSchema(error) ? "The BOQ needs a database update (migration 0223)" : error.message };
+  }
+  return { ok: true, sourceId, fileLabel, previous: previous ? { file_name: previous.file_name, version: previous.version } : null };
 }
 
 // ── Pricing ──────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -521,51 +577,103 @@ export async function priceOneLine(r: BoqRequest, boqLineId: string, body: Price
   return { ok: true, rate, amount };
 }
 
-export type EditBody = { qty?: unknown; description?: unknown };
+export type EditBody = { qty?: unknown; description?: unknown; cost_code?: unknown };
 const MAX_QTY = 9_999_999_999.99;
 
+export type EditOutcome = { boqId: string; ok: boolean; status?: number; error?: string; changed?: boolean; qty?: number; description?: string; amount?: number };
+
 /**
- * Quantity and description of one BOQ row, from the row panel. The rate is changed through priceOneLine (a manual rate), so the source
- * rules live in one place. What the client's FILE said (file_qty, file_description) is never touched: a revised file is still compared
- * with the file, not with our edits. An estimate that priced the row shows "changed" by itself, because its cost per unit now differs.
+ * Quantity, description and cost code of BOQ rows, from the row panel (one row) or a Data Workbench Update (many, one tender). The rate is
+ * changed through priceOneLine (a manual rate), so the source rules live in one place. What the client's FILE said (file_qty,
+ * file_description) is never touched: a revised file is still compared with the file, not with our edits. An estimate that priced the row
+ * shows "changed" by itself, because its cost per unit now differs. The cost code is the BOQ row's own (the deal line has none).
+ * The rows are loaded once and the deal's totals refreshed and the change logged once per call.
  */
-export async function editBoqLine(r: BoqRequest, boqLineId: string, body: EditBody): Promise<{ ok: true; qty: number; description: string; amount: number } | ({ ok: false } & Failure)> {
+export async function editBoqLines(r: BoqRequest, edits: { boqId: string; body: EditBody }[]): Promise<EditOutcome[]> {
   const { admin, tenantId, opp } = r;
-  const b = await bundles(r, boqLineId);
-  if (!b || b.items.length === 0) return { ok: false, status: 404, error: "Line not found" };
-  const { boq, line } = b.items[0];
-
-  const patch: Record<string, unknown> = {};
+  const b = await bundles(r);
+  const byId = new Map((b?.items ?? []).map((x) => [x.boq.id, x]));
   const changes: { field: string; from: unknown; to: unknown }[] = [];
-  const label = boq.item_no ?? `row ${boq.row_no}`;
-  let qty = Number(line.qty);
-  let description = line.description;
-  if (body.qty !== undefined) {
-    const q = typeof body.qty === "number" ? body.qty : typeof body.qty === "string" && body.qty.trim() !== "" ? Number(body.qty) : Number.NaN;
-    if (!Number.isFinite(q) || q < 0 || q > MAX_QTY) return { ok: false, status: 422, error: "Enter a quantity of 0 or more" };
-    qty = round2(q);
-    if (qty !== Number(line.qty)) { patch.qty = qty; changes.push({ field: `BOQ quantity ${label}`, from: Number(line.qty), to: qty }); }
-  }
-  if (body.description !== undefined) {
-    const d = typeof body.description === "string" ? body.description.trim() : "";
-    if (!d) return { ok: false, status: 422, error: "A line needs a description" };
-    if (d.length > 1000) return { ok: false, status: 422, error: "The description is longer than 1,000 characters" };
-    description = d;
-    if (d !== line.description) { patch.description = d; changes.push({ field: `BOQ description ${label}`, from: line.description, to: d }); }
-  }
-  const amount = round2(qty * Number(line.rate) * (1 - Number(line.discount_pct ?? 0) / 100));
-  if (Object.keys(patch).length === 0) return { ok: true, qty, description, amount: Number(line.amount) };
-  if (patch.qty !== undefined) patch.amount = amount;
+  const outcomes: EditOutcome[] = [];
 
-  const { error } = await admin.from("opportunity_lines").update(patch).eq("id", line.id).eq("tenant_id", tenantId).eq("opportunity_id", opp.id);
-  if (error) return { ok: false, status: 500, error: error.message };
-  const config = await loadConfig(admin, tenantId);
-  await refreshOpportunityDerived(admin, tenantId, opp.id, opportunityStages(config as Parameters<typeof opportunityStages>[0]));
-  const user = await getAuthUser();
-  await logChange(r.supabase, {
-    tenantId, objectType: "opportunity_tenders", objectId: opp.id, objectLabel: `${opp.ref ?? ""} ${opp.title}`.trim(), action: "update", actorId: user?.id, actorEmail: user?.email, changes,
-  });
-  return { ok: true, qty, description, amount };
+  for (const { boqId, body } of edits) {
+    const item = byId.get(boqId);
+    if (!item) { outcomes.push({ boqId, ok: false, status: 404, error: "Line not found" }); continue; }
+    const { boq, line } = item;
+    const patch: Record<string, unknown> = {};
+    const lineChanges: { field: string; from: unknown; to: unknown }[] = [];
+    const label = boq.item_no ?? `row ${boq.row_no}`;
+    let qty = Number(line.qty);
+    let description = line.description;
+    let codePatch: { cost_code: string | null } | null = null;
+    let failure: string | null = null;
+
+    if (body.qty !== undefined) {
+      const q = typeof body.qty === "number" ? body.qty : typeof body.qty === "string" && body.qty.trim() !== "" ? Number(body.qty) : Number.NaN;
+      if (!Number.isFinite(q) || q < 0 || q > MAX_QTY) failure = "Enter a quantity of 0 or more";
+      else {
+        qty = round2(q);
+        if (qty !== Number(line.qty)) { patch.qty = qty; lineChanges.push({ field: `BOQ quantity ${label}`, from: Number(line.qty), to: qty }); }
+      }
+    }
+    if (!failure && body.description !== undefined) {
+      const d = typeof body.description === "string" ? body.description.trim() : "";
+      if (!d) failure = "A line needs a description";
+      else if (d.length > 1000) failure = "The description is longer than 1,000 characters";
+      else {
+        description = d;
+        if (d !== line.description) { patch.description = d; lineChanges.push({ field: `BOQ description ${label}`, from: line.description, to: d }); }
+      }
+    }
+    if (!failure && body.cost_code !== undefined) {
+      if (body.cost_code !== null && typeof body.cost_code !== "string") failure = "The cost code must be text";
+      else {
+        const code = typeof body.cost_code === "string" ? body.cost_code.trim() : "";
+        if (code.length > 60) failure = "The cost code is longer than 60 characters";
+        else if ((code || null) !== (boq.cost_code ?? null)) {
+          codePatch = { cost_code: code || null };
+          // Not "BOQ cost ...": that prefix is the typed unit cost, which the change feed holds back.
+          lineChanges.push({ field: `BOQ code ${label}`, from: boq.cost_code, to: code || null });
+        }
+      }
+    }
+    if (failure) { outcomes.push({ boqId, ok: false, status: 422, error: failure }); continue; }
+
+    const amount = round2(qty * Number(line.rate) * (1 - Number(line.discount_pct ?? 0) / 100));
+    if (lineChanges.length === 0) { outcomes.push({ boqId, ok: true, changed: false, qty, description, amount: Number(line.amount) }); continue; }
+    if (patch.qty !== undefined) patch.amount = amount;
+
+    if (Object.keys(patch).length > 0) {
+      const { error } = await admin.from("opportunity_lines").update(patch).eq("id", line.id).eq("tenant_id", tenantId).eq("opportunity_id", opp.id);
+      if (error) { outcomes.push({ boqId, ok: false, status: 500, error: error.message }); continue; }
+    }
+    if (codePatch) {
+      const { error } = await admin.from("tender_boq_lines").update({ ...codePatch, updated_at: new Date().toISOString() }).eq("id", boq.id).eq("tenant_id", tenantId).eq("opportunity_id", opp.id);
+      if (error) { outcomes.push({ boqId, ok: false, status: 500, error: error.message }); continue; }
+    }
+    // A second edit of the same row in this call starts from what the first one wrote.
+    item.line = { ...line, ...patch } as OpportunityLine;
+    if (codePatch) item.boq = { ...boq, ...codePatch };
+    changes.push(...lineChanges);
+    outcomes.push({ boqId, ok: true, changed: true, qty, description, amount });
+  }
+
+  if (changes.length > 0) {
+    const config = await loadConfig(admin, tenantId);
+    await refreshOpportunityDerived(admin, tenantId, opp.id, opportunityStages(config as Parameters<typeof opportunityStages>[0]));
+    const user = await getAuthUser();
+    await logChange(r.supabase, {
+      tenantId, objectType: "opportunity_tenders", objectId: opp.id, objectLabel: `${opp.ref ?? ""} ${opp.title}`.trim(), action: "update", actorId: user?.id, actorEmail: user?.email, changes,
+    });
+  }
+  return outcomes;
+}
+
+/** One row of the row panel: the same rules as editBoqLines. */
+export async function editBoqLine(r: BoqRequest, boqLineId: string, body: EditBody): Promise<{ ok: true; qty: number; description: string; amount: number } | ({ ok: false } & Failure)> {
+  const [o] = await editBoqLines(r, [{ boqId: boqLineId, body }]);
+  if (!o.ok) return { ok: false, status: o.status ?? 422, error: o.error ?? "The line could not be saved" };
+  return { ok: true, qty: o.qty!, description: o.description!, amount: o.amount! };
 }
 
 export type PriceAllResult = { ok: true; priced: number; left: { id: string; item: string; reason: string }[]; left_count: number };
@@ -629,6 +737,7 @@ export async function exportPriced(r: BoqRequest): Promise<ExportResult> {
   const b = await bundles(r);
   if (!b) return { ok: false, status: 404, error: "Upload a BOQ first" };
   const { source, items } = b;
+  if (!source.storage_path) return { ok: false, status: 422, error: "This Bill of quantities came from a Data Workbench file. Download the answer sheet instead." };
   const dl = await r.admin.storage.from(BOQ_BUCKET).download(source.storage_path);
   if (dl.error || !dl.data) return { ok: false, status: 404, error: "The original file is no longer available. Upload the BOQ again." };
   const original = new Uint8Array(await dl.data.arrayBuffer());

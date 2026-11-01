@@ -276,6 +276,43 @@ describe("navigation", () => {
     expect(JSON.stringify(bad.params[1].messages)).toContain("not one of the places");
   });
 
+  it("a screen the workspace lacks is never swapped for the nearest one (KAMCO: data workbench -> Analytics)", async () => {
+    // Asked in words that skip the model-free shortcut, so the model's navigate call is what gets checked.
+    const wrongPick = setup({ replies: [toolUse("navigate", { target: "nav:/accounts", asked_for: "data workbench" }), text("I've added a button that opens Accounts.")] });
+    const r = await askAssistant(ask("I need the data workbench for a big upload"), wrongPick.ctx);
+    expect(r.answer).toBe("Data Workbench is not switched on in your workspace. Ask your administrator to enable it.");
+    expect(r.cards).toBeUndefined();
+    expect(r.autoFollow).toBeUndefined();
+    expect(wrongPick.create).toHaveBeenCalledTimes(1); // the answer is final: the model is not asked to word it
+
+    const declined = setup({ replies: [toolUse("navigate", { target: "none", asked_for: "data workbench" }), text("unused")] });
+    const r2 = await askAssistant(ask("I need the data workbench for a big upload"), declined.ctx);
+    expect(r2.answer).toContain("Data Workbench is not switched on");
+    expect(r2.cards).toBeUndefined();
+  });
+
+  it("'where is X' for a screen the workspace lacks is answered with no model call at all", async () => {
+    const s = setup();
+    const r = await askAssistant(ask("where is data workbench"), s.ctx);
+    expect(r.answer).toBe("Data Workbench is not switched on in your workspace. Ask your administrator to enable it.");
+    expect(r.cards).toBeUndefined();
+    expect(s.create).not.toHaveBeenCalled();
+  });
+
+  it("a name the product does not know is quoted back, not guessed", async () => {
+    const s = setup({ replies: [toolUse("navigate", { target: "nav:/quotations", asked_for: "budget cockpit" }), text("unused")] });
+    const r = await askAssistant(ask("show me the budget cockpit"), s.ctx);
+    expect(r.answer).toBe('I do not know a screen called "budget cockpit".');
+    expect(r.cards).toBeUndefined();
+  });
+
+  it("the prompt tells the model it may decline", async () => {
+    const s = setup();
+    await askAssistant(ask("where can I see all quotes?"), s.ctx);
+    expect((s.params[0].system as { text: string }[])[0].text).toContain("target none");
+    expect(navEnum(s.params[0])).toContain("none");
+  });
+
   it("a question that happens to use the model does not auto-follow", async () => {
     const s = setup({ replies: [toolUse("navigate", { target: "nav:/quotations" }), text("There.")] });
     const r = await askAssistant(ask("where can I see all quotes?"), s.ctx);

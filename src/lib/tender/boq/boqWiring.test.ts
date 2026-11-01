@@ -141,6 +141,23 @@ describe("the BOQ routes", () => {
     expect(read("src/lib/tender/boq/server.ts")).toMatch(/candidatesFor\(ctx, sourceLine\(\{ boq, line \}\)\)\.find\(\(c\) => c\.source === body\.source && c\.ref === \(body\.ref \?\? ""\)\)/);
   });
 
+  it("the priced workbook is refused for a BOQ that came from a Data Workbench file (it has no workbook), the answer sheet is not", () => {
+    const server = read("src/lib/tender/boq/server.ts");
+    const priced = server.slice(server.indexOf("export async function exportPriced"), server.indexOf("export async function exportAnswerSheet"));
+    expect(priced).toMatch(/if \(!source\.storage_path\) return \{ ok: false, status: 422, error: "This Bill of quantities came from a Data Workbench file\. Download the answer sheet instead\." \}/);
+    expect(priced.indexOf("!source.storage_path")).toBeLessThan(priced.indexOf("storage.from(BOQ_BUCKET).download"));
+    expect(server.slice(server.indexOf("export async function exportAnswerSheet"))).not.toMatch(/storage_path/);
+    // A Data Workbench source is written with an empty path (the column is NOT NULL) and no stored file.
+    expect(server).toMatch(/file_name: fileLabel, storage_path: "", size_bytes: 0, sheet_name: "Data Workbench"/);
+  });
+
+  it("the shared seams keep the gate: the upload and Data Workbench both apply lines through applyBoqLines, and edits through editBoqLines", () => {
+    const server = read("src/lib/tender/boq/server.ts");
+    expect(server).toMatch(/export async function boqRequestFor\(ctx: BoqCtx, opportunityId: string, write: boolean\)/);
+    expect(server).toMatch(/applyBoqLines\(r, incoming, \{ id: sourceId, fileLabel: safeFileName\(input\.fileName, ext\), previous \}\)/);
+    expect(server.indexOf("export async function editBoqLines")).toBeLessThan(server.indexOf("export async function editBoqLine("));
+  });
+
   it("no console.log, and the standard files know nothing of the BOQ", () => {
     for (const f of [...walk("src/lib/tender/boq").filter((x) => /\.tsx?$/.test(x) && !x.endsWith(".test.ts")), "src/components/tender/BoqTab.tsx", ...routes]) expect(read(f), f).not.toMatch(/console\.log/);
     for (const f of ["src/app/api/opportunities/route.ts", "src/app/(app)/pipeline/new/NewOpportunityForm.tsx", "src/lib/sales/opportunity.ts", "src/lib/sales/opportunityServer.ts"]) {
