@@ -1,15 +1,29 @@
 "use client";
 
+import { useState } from "react";
 import Button from "@/components/ui/Button";
 import Field from "@/components/ui/Field";
 import { Input, Select } from "@/components/ui/Input";
 import { CheckOpt } from "@/components/ui/Opt";
-import type { WfmConfig } from "@/lib/constants";
+import SettingsList, { ListBar } from "@/components/settings/SettingsList";
+import type { WfmConfig, WfmTypeRules } from "@/lib/constants";
+import { customRuleCount } from "@/lib/wfm/typeRules";
 import type { WfmShift } from "@/lib/wfm/types";
 import { cleanCode, hhmm, slugCode } from "./logic";
 import { More, SwitchRow } from "./parts";
 import { WORKFORCE_TIPS as T } from "./tips";
+import TypeRulesPanel, { type RuleLeaveType } from "./TypeRulesPanel";
+import TypeRulesCompare from "./TypeRulesCompare";
 import s from "./workforce.module.css";
+
+/** What the Rules tab shows next to each employment type; all optional, a screen without them still works. */
+export type TypeFacts = {
+  leaveTypes: RuleLeaveType[];
+  people: Record<string, number>;
+  pending: Record<string, number>;
+  holidays: Record<string, number>;
+};
+const NO_FACTS: TypeFacts = { leaveTypes: [], people: {}, pending: {}, holidays: {} };
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const TIMEZONES = [
@@ -23,13 +37,19 @@ const TIMEZONES = [
  * must be obvious, not hidden). Replaces Attendance rules and Punching & verification, and the employment types that
  * sat on Employment & billing.
  */
-export default function RulesTab({ cfg, savedCodes, shifts, onChange }: {
+export default function RulesTab({ cfg, savedCodes, shifts, onChange, facts = NO_FACTS, onRulesApplied }: {
   cfg: WfmConfig;
   /** Codes already stored: a type that exists keeps its code when renamed, a new one gets its code from its label. */
   savedCodes: readonly string[];
   shifts: readonly WfmShift[];
   onChange: (patch: Partial<WfmConfig>) => void;
+  facts?: TypeFacts;
+  /** The panel saved the rules map on its own; the screen's saved copy and draft take the stored one. */
+  onRulesApplied?: (rules: Record<string, WfmTypeRules>) => void;
 }) {
+  const [view, setView] = useState<"list" | "compare">("list");
+  const [openType, setOpenType] = useState<number | null>(null);
+  const rules = cfg.type_rules ?? {};
   const toggleDay = (d: number) =>
     onChange({ week_off_days: cfg.week_off_days.includes(d) ? cfg.week_off_days.filter((x) => x !== d) : [...cfg.week_off_days, d].sort() });
   const punch = (key: keyof WfmConfig["punch_types"], v: boolean) => onChange({ punch_types: { ...cfg.punch_types, [key]: v } });
@@ -101,23 +121,44 @@ export default function RulesTab({ cfg, savedCodes, shifts, onChange }: {
           </Field>
         )}
 
-        <Field label="Employment types" info={T.employmentTypes} htmlFor="wf-emp-0" style={{ gridColumn: "1 / -1" }}>
-          <div>
-            {cfg.employment_types.map((t, i) => (
-              <div key={i} className={`${s.typeRow} ${savedCodes.includes(t.code) ? "" : s.typeRowNew}`}>
-                <Input id={`wf-emp-${i}`} aria-label={`Employment type ${i + 1}`} value={t.label} placeholder="Intern" onChange={(e) => setTypeLabel(i, e.target.value)} />
-                {!savedCodes.includes(t.code) && (
-                  <Input aria-label={`Code for employment type ${i + 1}`} value={t.code} placeholder="code" maxLength={40} onChange={(e) => setTypeCode(i, e.target.value)} />
-                )}
-                <Button
-                  size="sm"
-                  aria-label={`Remove ${t.label || "type"}`}
-                  disabled={cfg.employment_types.length <= 1}
-                  onClick={() => onChange({ employment_types: cfg.employment_types.filter((_, j) => j !== i) })}
-                >Remove</Button>
+        <Field label="Employment types" info={T.employmentTypes} htmlFor="wf-emp-types" style={{ gridColumn: "1 / -1" }}>
+          <div className={s.stack} id="wf-emp-types">
+            <ListBar>
+              <div className={s.seg} role="radiogroup" aria-label="View">
+                <button type="button" role="radio" aria-checked={view === "list"} onClick={() => setView("list")}>List</button>
+                <button type="button" role="radio" aria-checked={view === "compare"} onClick={() => setView("compare")}>Compare</button>
               </div>
-            ))}
-            <Button size="sm" onClick={() => onChange({ employment_types: [...cfg.employment_types, { code: "", label: "" }] })}>+ Add type</Button>
+              <Button size="sm" onClick={() => { onChange({ employment_types: [...cfg.employment_types, { code: "", label: "" }] }); setOpenType(cfg.employment_types.length); }}>+ Add type</Button>
+            </ListBar>
+            {view === "list" ? (
+              <SettingsList
+                label="Employment types"
+                headers={["People", "Rules"]}
+                rows={cfg.employment_types.map((t, i) => {
+                  const isSaved = savedCodes.includes(t.code);
+                  const n = customRuleCount(rules[t.code]);
+                  return {
+                    key: String(i),
+                    label: t.label || "new type",
+                    title: <span className={s.typeName}>{t.label || "New type"}{t.code && <span className={s.typeCode}>{t.code}</span>}</span>,
+                    cells: [
+                      isSaved ? (facts.people[t.code] ?? "") : "",
+                      isSaved ? <span key="r" className={`${s.chip} ${n > 0 ? s.chipCustom : ""}`}>{n > 0 ? `${n} custom` : "Same as everyone"}</span> : <span key="r" className={s.chip}>Save to set rules</span>,
+                    ],
+                  };
+                })}
+                onOpen={(k) => setOpenType(Number(k))}
+              />
+            ) : (
+              <TypeRulesCompare
+                types={cfg.employment_types}
+                savedCodes={savedCodes}
+                rules={rules}
+                weekOffDays={cfg.week_off_days}
+                leaveTypes={facts.leaveTypes}
+                onOpen={(i) => setOpenType(i)}
+              />
+            )}
           </div>
         </Field>
       </div>
@@ -180,6 +221,31 @@ export default function RulesTab({ cfg, savedCodes, shifts, onChange }: {
           </Field>
         )}
       </More>
+
+      {openType !== null && cfg.employment_types[openType] && (() => {
+        const t = cfg.employment_types[openType];
+        return (
+          <TypeRulesPanel
+            key={openType}
+            type={t}
+            isNew={!savedCodes.includes(t.code)}
+            canRemove={cfg.employment_types.length > 1}
+            saved={rules[t.code]}
+            allRules={rules}
+            weekOffDays={cfg.week_off_days}
+            leaveTypes={facts.leaveTypes}
+            typeOptions={cfg.employment_types.filter((x) => savedCodes.includes(x.code))}
+            people={facts.people[t.code] ?? 0}
+            pending={facts.pending[t.code] ?? 0}
+            holidaysFor={facts.holidays[t.code] ?? 0}
+            onLabel={(label) => setTypeLabel(openType, label)}
+            onCode={(raw) => setTypeCode(openType, raw)}
+            onRemove={() => { onChange({ employment_types: cfg.employment_types.filter((_, j) => j !== openType) }); setOpenType(null); }}
+            onClose={() => setOpenType(null)}
+            onApplied={(next) => onRulesApplied?.(next)}
+          />
+        );
+      })()}
     </div>
   );
 }

@@ -6,7 +6,8 @@ import { cardStyle } from "@/components/Shell";
 import { parseImportFile, ImportParseError } from "@/lib/import/parse";
 import type { ParsedSheet } from "@/lib/import/types";
 
-type Holiday = { id: string; date: string; name: string; applies_to: "all" | "full_time" | "contractor" };
+type Holiday = { id: string; date: string; name: string; applies_to: string; applies_to_label?: string };
+type TypeOpt = { code: string; label: string };
 type UploadResult = { applied: number; skipped: { row: number; reason: string }[] };
 
 const HOLIDAY_ALIASES: Record<"date" | "name" | "applies_to", string[]> = {
@@ -53,12 +54,14 @@ const btn: React.CSSProperties = { padding: "8px 14px", fontSize: 12.5, fontWeig
 const btnPrimary: React.CSSProperties = { ...btn, background: "var(--tenant-accent, #378ADD)", borderColor: "transparent", color: "#fff" };
 const fmtDate = (s: string) => new Date(s + "T00:00:00").toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
 
-export default function HolidaysClient() {
+export default function HolidaysClient({ employmentTypes = [] }: { employmentTypes?: TypeOpt[] }) {
   const [holidays, setHolidays] = useState<Holiday[]>([]);
   const [query, setQuery] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
-  const [form, setForm] = useState({ date: "", name: "", applies_to: "all" as Holiday["applies_to"] });
+  const [form, setForm] = useState({ date: "", name: "" });
+  const [audience, setAudience] = useState<"all" | "types">("all");
+  const [pickedTypes, setPickedTypes] = useState<string[]>([]);
   const [uploadBusy, setUploadBusy] = useState(false);
   const [uploadError, setUploadError] = useState("");
   const [uploadResult, setUploadResult] = useState<UploadResult | null>(null);
@@ -74,17 +77,20 @@ export default function HolidaysClient() {
 
   async function addHoliday() {
     if (!form.date || !form.name.trim()) { setError("Date and name are required"); return; }
+    if (audience === "types" && pickedTypes.length === 0) { setError("Choose at least one employment type"); return; }
     setBusy(true);
     setError("");
     try {
       const res = await fetch("/api/wfm/holidays", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify({ ...form, applies_to: audience === "types" ? pickedTypes : "all" }),
       });
       const json = await res.json();
       if (!res.ok) { setError(json.error ?? "Request failed"); return; }
-      setForm({ date: "", name: "", applies_to: "all" });
+      setForm({ date: "", name: "" });
+      setAudience("all");
+      setPickedTypes([]);
       await load();
     } catch {
       setError("Network error");
@@ -138,7 +144,7 @@ export default function HolidaysClient() {
 
       <section style={{ ...cardStyle, marginBottom: 14 }}>
         <div style={{ fontSize: 13, fontWeight: 600, color: c.ink, marginBottom: 3 }}>Upload a whole year at once</div>
-        <div style={{ fontSize: 12, color: c.muted, marginBottom: 10 }}>Columns: Date (YYYY-MM-DD), Name, Applies To (all / full_time / contractor — optional, defaults to everyone).</div>
+        <div style={{ fontSize: 12, color: c.muted, marginBottom: 10 }}>Columns: Date (YYYY-MM-DD), Name, Applies To (all, or employment type codes such as {employmentTypes.map((t) => t.code).join(", ") || "full_time"}, separated by commas — optional, defaults to everyone).</div>
         <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
           <button type="button" style={btn} onClick={downloadHolidayTemplate}>Download template</button>
           <input
@@ -184,7 +190,7 @@ export default function HolidaysClient() {
               <tr key={h.id}>
                 <td style={td}>{fmtDate(h.date)}</td>
                 <td style={{ ...td, fontWeight: 600, color: c.ink }}>{h.name}</td>
-                <td style={td}>{h.applies_to === "all" ? "Everyone" : h.applies_to === "full_time" ? "Full-time" : "Contractors"}</td>
+                <td style={td}>{h.applies_to === "all" ? "Everyone" : (h.applies_to_label ?? employmentTypes.find((t) => t.code === h.applies_to)?.label ?? h.applies_to)}</td>
                 <td style={td}><button style={btn} disabled={busy} onClick={() => removeHoliday(h.id)}>Remove</button></td>
               </tr>
             ))}
@@ -198,9 +204,23 @@ export default function HolidaysClient() {
             <div><label style={lbl}>Name</label><input style={inp} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Independence Day" /></div>
             <div>
               <label style={lbl}>Applies to</label>
-              <select style={inp} value={form.applies_to} onChange={(e) => setForm({ ...form, applies_to: e.target.value as Holiday["applies_to"] })}>
-                <option value="all">Everyone</option><option value="full_time">Full-time only</option><option value="contractor">Contractors only</option>
-              </select>
+              <div role="radiogroup" aria-label="Applies to" style={{ display: "flex", gap: 6 }}>
+                <button type="button" role="radio" aria-checked={audience === "all"} style={audience === "all" ? btnPrimary : btn} onClick={() => setAudience("all")}>Everyone</button>
+                <button type="button" role="radio" aria-checked={audience === "types"} style={audience === "types" ? btnPrimary : btn} onClick={() => setAudience("types")}>These types</button>
+              </div>
+              {audience === "types" && (
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8 }}>
+                  {employmentTypes.map((t) => {
+                    const on = pickedTypes.includes(t.code);
+                    return (
+                      <button key={t.code} type="button" aria-pressed={on} style={on ? btnPrimary : btn}
+                        onClick={() => setPickedTypes(on ? pickedTypes.filter((x) => x !== t.code) : [...pickedTypes, t.code])}>
+                        {t.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           </div>
           <button style={{ ...btnPrimary, marginTop: 14 }} disabled={busy} onClick={addHoliday}>Add holiday</button>

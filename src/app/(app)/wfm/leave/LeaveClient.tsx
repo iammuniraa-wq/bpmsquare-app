@@ -11,8 +11,12 @@ import { ROUTES } from "@/lib/constants";
 import type { LeaveRequestStatus, WfmLeaveRequest } from "@/lib/wfm/types";
 import Pager from "@/components/Pager";
 import { paginate, clampPage, DEFAULT_PAGE_SIZE } from "@/lib/paginate";
+import InfoTip from "@/components/ui/InfoTip";
+import { leavePayLabel, leaveRuleFor } from "@/lib/wfm/typeRules";
+import { TYPE_RULE_TIPS } from "@/app/(app)/settings/workforce/tips";
+import type { WfmTypeRules } from "@/lib/constants";
 
-type LeaveType = { id: string; name: string; category: "paid" | "unpaid" | "half_day"; active: boolean; annual_quota: number };
+type LeaveType = { id: string; name: string; category: "paid" | "unpaid" | "half_day"; active: boolean; annual_quota: number; paid_days_per_month?: number | null };
 type LeaveRecord = {
   id: string; employee_id: string; leave_type_id: string; date_from: string; date_to: string;
   half_day: boolean; remarks: string | null;
@@ -21,7 +25,7 @@ type LeaveRecord = {
 };
 type EmployeeOpt = { id: string; first_name: string; last_name: string; employee_code: string | null; status?: string; valid_to?: string | null };
 type LeaveRequestRow = WfmLeaveRequest & {
-  employees: { first_name: string; last_name: string; employee_code: string | null } | null;
+  employees: { first_name: string; last_name: string; employee_code: string | null; employment_type?: string | null } | null;
   wfm_leave_types: { name: string; category: string } | null;
 };
 
@@ -39,8 +43,10 @@ const btnGreen: React.CSSProperties = { ...btn, background: "#10b981", borderCol
 const btnRed: React.CSSProperties = { ...btn, background: "#ef4444", borderColor: "transparent", color: "#fff" };
 const fmtDate = (s: string) => new Date(s + "T00:00:00").toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
 
-export default function LeaveClient({ initial = null }: {
+export default function LeaveClient({ initial = null, typeRules = {}, employmentTypes = [] }: {
   initial?: { types: LeaveType[]; records: LeaveRecord[]; employees: EmployeeOpt[]; requests: LeaveRequestRow[] } | null;
+  typeRules?: Record<string, WfmTypeRules>;
+  employmentTypes?: { code: string; label: string }[];
 }) {
   const [types, setTypes] = useState<LeaveType[]>(initial?.types ?? []);
   const [records, setRecords] = useState<LeaveRecord[]>(initial?.records ?? []);
@@ -188,7 +194,24 @@ export default function LeaveClient({ initial = null }: {
                     </Link>
                     {r.employees?.employee_code && <span style={{ color: c.hint, marginLeft: 6, fontSize: 11 }}>{r.employees.employee_code}</span>}
                   </td>
-                  <td style={td}>{r.wfm_leave_types?.name ?? "—"}{r.half_day && <span style={{ color: c.hint }}> (half-day)</span>}</td>
+                  <td style={td}>
+                    {r.wfm_leave_types?.name ?? "—"}{r.half_day && <span style={{ color: c.hint }}> (half-day)</span>}
+                    {(() => {
+                      const lt = types.find((t) => t.id === r.leave_type_id);
+                      const empType = r.employees?.employment_type ?? null;
+                      if (!lt) return null;
+                      const label = employmentTypes.find((t) => t.code === empType)?.label ?? empType ?? "";
+                      const rule = leaveRuleFor(empType, lt, { type_rules: typeRules }, r.date_from);
+                      const pay = leavePayLabel(rule, lt.category, label);
+                      if (!pay.text) return null;
+                      return (
+                        <div style={{ marginTop: 3 }}>
+                          <Pill label={pay.text} tone={pay.tone === "red" ? "red" : pay.tone === "amber" ? "amber" : "blue"} />
+                          {!rule.eligible && <InfoTip label="Not offered">{TYPE_RULE_TIPS.requestNotOffered}</InfoTip>}
+                        </div>
+                      );
+                    })()}
+                  </td>
                   <td style={td}>{fmtDate(r.date_from)}</td>
                   <td style={td}>{fmtDate(r.date_to)}</td>
                   <td style={{ ...td, maxWidth: 220, color: c.muted }}>{r.reason_text}</td>
