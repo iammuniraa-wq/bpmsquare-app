@@ -17,6 +17,7 @@ import type {
   UpdateResponse,
   ValidatedRow,
 } from "@/lib/import/types";
+import type { DwObject } from "@/lib/import/catalog";
 import Tabs from "@/components/ui/Tabs";
 import { useUrlTab } from "@/components/ui/useUrlTab";
 import ColumnMapper from "./ColumnMapper";
@@ -86,25 +87,13 @@ function clearExtractSnapshot(objectId: string) {
   }
 }
 
-export default function DataWorkbenchClient({ specs }: { specs: ObjectSpec[] }) {
+export default function DataWorkbenchClient({ objects }: { objects: DwObject[] }) {
+  const specs = objects.map((o) => o.spec);
   const [mode, setMode] = useUrlTab(MODES.map((m) => m.id)) as [Mode, (id: string) => void];
   const [activeId, setActiveId] = useState<ImportObjectId>(specs[0]?.id ?? "accounts");
 
-  const visibleSpecs = specs.filter((s) => {
-    // users are invite-only; consents are an append-only ledger -- an answer is changed by importing a new one.
-    if (mode === "update") return s.id !== "users" && s.id !== "consents";
-    // RFQs are Export + Update only: an RFQ is born from a record (quote,
-    // case, work order...) or the RFQ screen together with its lines and
-    // suppliers, and a flat file can't carry that -- there is deliberately
-    // no /api/import/rfqs.
-    if (mode === "import") return s.id !== "rfqs";
-    // Estimates are HEADER FIELDS ONLY on every mode: the lines, quantities,
-    // unit costs and totals come out of the estimator (a template, inputs and
-    // priced products), so a flat file can neither create nor correct them.
-    // Import makes a draft from a template name; Export/Update carry the
-    // header (name, status, margin, notes, custom fields) keyed on the real id.
-    return true;
-  });
+  // The catalog is the one answer to "which objects does this mode have": it is tied to the route folders by catalog.test.ts.
+  const visibleSpecs = objects.filter((o) => o.catalog.modes.includes(mode)).map((o) => o.spec);
   const spec = visibleSpecs.find((s) => s.id === activeId) ?? visibleSpecs[0];
 
   return (

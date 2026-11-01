@@ -8,18 +8,13 @@ export type ImportObjectId =
   | "tender_boq_lines";
 
 /**
- * quotes is excluded from Export and Update: it isn't on FIELD_REGISTRY (reverted
- * back to the old page_layouts system — see FIELD_REGISTRY_ROLLOUT.md), so there's
- * no live field list to build a spec from. Import still nominally accepts quotes
- * (header/reference/line fields only), but Export/Update need a real field list.
+ * Which objects have an Export or an Update is decided by the route folders under src/app/api/{export,update} and
+ * mirrored in DW_CATALOG (catalog.ts), which a test ties together. These two types only narrow the ids the server
+ * helpers accept: users and consents have no Update (invites and an append-only ledger do not fit an id-match patch),
+ * and rfqs has no Import.
  */
-export type ExportableObjectId = Exclude<ImportObjectId, "quotes">;
+export type ExportableObjectId = ImportObjectId;
 
-/**
- * users is additionally excluded from Update — invite/role changes don't fit the id-match bulk-patch shape.
- * consents is excluded too: the consent ledger is append-only history, so an answer is changed by importing a
- * NEW answer, never by editing an old one.
- */
 export type UpdatableObjectId = Exclude<ExportableObjectId, "users" | "consents">;
 
 export type FieldType =
