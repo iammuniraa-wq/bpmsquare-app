@@ -1,6 +1,6 @@
 {
   "name": "bpmsquare",
-  "version": "1.19.0",
+  "version": "1.20.0",
   "description": "BPMSquare MCP server — read access to a workspace's business data (accounts, contacts, quotations, cases, invoices, inventory and more) through the BPMSquare REST API. Generic across every tenant; nothing here is specific to one workspace.",
   "api_base": "https://<your-tenant-domain>/api/v1",
   "auth": {
@@ -800,7 +800,7 @@
     },
     {
       "name": "get_tender_boq",
-      "description": "The Bill of quantities of one tender, one row per line and paged: item number, cost code, description, unit, quantity, our unit rate and amount, where the rate came from (boq_rate, bom, past_project, supplier, manual, estimate), the price date and the line status (priced, unpriced, stale, removed). Cost, markup and supplier names are never returned. Needs an API key explicitly scoped to \"tenders\".",
+      "description": "The Bill of quantities of one tender, one row per line and paged: item number, cost code, description (the line name), details (the long text), client_columns (the client's own other columns such as Sr #, Bill #, Section, Page #, Revision #), unit, quantity, our unit rate and amount, where the rate came from (boq_rate, bom, past_project, supplier, manual, estimate), the price date and the line status (priced, unpriced, stale, removed). Cost, markup and supplier names are never returned. Needs an API key explicitly scoped to \"tenders\".",
       "method": "GET",
       "path": "/api/v1/tenders/{id}/boq",
       "inputSchema": {
@@ -819,7 +819,7 @@
           },
           "search": {
             "type": "string",
-            "description": "Text to find in the description, item number or cost code"
+            "description": "Text to find in the description, details, item number or cost code"
           },
           "sort": {
             "type": "string",

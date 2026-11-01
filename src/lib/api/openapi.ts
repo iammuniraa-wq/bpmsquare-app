@@ -123,7 +123,7 @@ export function buildOpenApiSpec(): Record<string, unknown> {
   paths["/tenders/{id}/boq"] = {
     parameters: [{ in: "path", name: "id", required: true, schema: { type: "string", format: "uuid" } }],
     get: {
-      summary: "A tender's Bill of quantities (one row per line, no costs)", tags: ["tenders"], parameters: QUERY_PARAMS, responses: { ...listResponse(), "404": { description: "Not a tender of your tenant" } },
+      summary: "A tender's Bill of quantities (one row per line: name, details, client columns, rate; no costs)", tags: ["tenders"], parameters: QUERY_PARAMS, responses: { ...listResponse(), "404": { description: "Not a tender of your tenant" } },
     },
   };
 

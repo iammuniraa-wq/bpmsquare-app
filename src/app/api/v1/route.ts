@@ -50,7 +50,7 @@ export async function GET(req: Request) {
       "GET /api/v1/estimates/:id":        "One estimate: the same customer-safe fields, never costs or the bill of materials",
       "GET /api/v1/tenders":              "List tenders (needs a key scoped to \"tenders\"): tender number, issuer, portal, bid end date, guarantee, go / no-go, stage, amount · filters: ?stage=, ?outcome=, ?decision=, ?portal=, ?closing=<days>",
       "GET /api/v1/tenders/:id":          "One tender with its BOQ summary (lines, priced, amount, file)",
-      "GET /api/v1/tenders/:id/boq":      "The tender's Bill of quantities, one row per line: item number, cost code, description, unit, quantity, our unit rate and amount, where the rate came from and its status. No cost, markup or supplier name",
+      "GET /api/v1/tenders/:id/boq":      "The tender's Bill of quantities, one row per line: item number, cost code, description (the line name), details, the client's own other columns (client_columns), unit, quantity, our unit rate and amount, where the rate came from and its status. No cost, markup or supplier name",
       "GET /api/v1/rfqs/:id":             "RFQ with lines, suppliers and their quoted prices, and awards",
       "GET /api/v1/standard-quotes":      "List standard quotes (scope \"standard_quotes\"): customer, status, validity, discount/tax/shipping and totals · filters: ?status=, ?account_id=, ?opportunity_id=",
       "GET /api/v1/sales-orders":         "List sales orders (scope \"sales_orders\"): customer, type, status, pricing mode, totals, requested / expected delivery · filters: ?status=, ?account_id=, ?source_id=",

@@ -714,7 +714,7 @@ export const LIST_SOURCES: Record<string, ListSource> = {
   },
   tender_boq_lines: {
     label: "Tender BOQ lines",
-    description: "One row per line of a tender's Bill of quantities: item number, cost code, description, unit, quantity, our unit rate and amount, the rate's source and status. No cost or markup.",
+    description: "One row per line of a tender's Bill of quantities: item number, cost code, description (the line name), details, the client's other columns, unit, quantity, our unit rate and amount, the rate's source and status. No cost or markup.",
     relatedWorkcenter: "pipeline",
     fields: TENDER_BOQ_LINE_FIELDS,
     // Asked with the "tenders" scope, never the wildcard (api/v1/ask). Cost, markup and the price reference (it names the supplier)
