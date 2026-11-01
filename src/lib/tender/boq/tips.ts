@@ -15,6 +15,8 @@ export const BOQ_TABLE_TIPS = {
   cost: "Your internal cost per unit. It never reaches the priced BOQ, the answer sheet or a bid version.",
   product: "The catalog product this line is tied to, so supplier and BOM prices can find it. Link it in Match.",
   stale: "The price is older than your workspace's validity days. It is only used when you choose it knowingly.",
+  details: "The long Description from the client's file, kept next to the short Narration used as the line's name. A revised file replaces what you type here.",
+  clientColumns: "The other columns of the client's file, kept as they wrote them: serial number, bill, section, page, revision and so on. A revised file updates them.",
   editCost: "A typed cost is saved as Manual and keeps the source it replaced. The rate becomes cost plus the markup.",
 } as const;
 

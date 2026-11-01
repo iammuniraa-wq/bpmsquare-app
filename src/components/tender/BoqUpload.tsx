@@ -21,6 +21,8 @@ type Preview = {
   sheets: string[]; sheet: string; header_row: number | null; map: ColumnMap; headers: { col: number; label: string }[]; preview: string[][];
   reused_map: boolean; needs_mapping: boolean; line_count: number; sample: { row_no: number; item_no: string | null; description: string; qty: number; uom: string | null }[];
   skipped_count: number; total_row: number | null; truncated: boolean; columns: { added: boolean } | null;
+  header_info?: { project_code?: string; project_name?: string; tender_no?: string; client?: string };
+  client_columns?: string[]; details_count?: number; notice?: string | null;
   diff: { added: number; changed: number; unchanged: number; dropped: number; kept: number; added_items: string[]; changed_items: { item: string; fields: string[] }[]; dropped_items: string[]; kept_items: string[] } | null;
 };
 type Choice = { sheet: string; header_row: string; map: ColumnMap };
@@ -141,6 +143,21 @@ export function useBoqUpload({ base, hasBoq, onError, onNotice, onApplied }: {
             {preview.line_count} lines found{preview.skipped_count ? ` · ${preview.skipped_count} rows skipped (headings, totals)` : ""}{preview.truncated ? ` · only the first ${BOQ_LIMITS.maxLines.toLocaleString("en-US")} are read` : ""}
           </div>
         )}
+        {(preview.header_info?.project_code || preview.header_info?.project_name) && (
+          <div data-guide="boq.header_info" style={{ fontSize: 12.5, color: c.ink }}>
+            {[preview.header_info.project_code ? `Project code ${preview.header_info.project_code}` : "", preview.header_info.project_name ? `Project name ${preview.header_info.project_name}` : ""].filter(Boolean).join(" · ")}
+          </div>
+        )}
+        {(preview.client_columns?.length ?? 0) > 0 && !preview.needs_mapping && (
+          <div data-guide="boq.client_columns" style={{ fontSize: 12.5, color: c.muted, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+            Kept as client data: {preview.client_columns!.slice(0, 6).join(", ")}{preview.client_columns!.length > 6 ? ` +${preview.client_columns!.length - 6}` : ""}
+            <InfoTip label="Client data">{TENDER_TIPS.boqClientData}</InfoTip>
+          </div>
+        )}
+        {(preview.details_count ?? 0) > 0 && (
+          <div data-guide="boq.details_count" style={{ fontSize: 12.5, color: c.muted }}>{preview.details_count} lines keep their Description as details</div>
+        )}
+        {preview.notice && <div role="alert" data-guide="boq.notice" style={{ fontSize: 12.5, color: "var(--amberink)" }}>{preview.notice}</div>}
         {preview.truncated && (
           <div role="alert" data-guide="boq.too_long" style={{ fontSize: 12.5, color: "var(--amberink)" }}>
             This BOQ has more than {BOQ_LIMITS.maxLines.toLocaleString("en-US")} lines, so the rest would be left out. Cancel, split the BOQ by package, and upload the parts one after the other.

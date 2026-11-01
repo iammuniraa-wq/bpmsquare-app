@@ -16,6 +16,8 @@ export type BoqRow = {
   rate: number; amount: number; priced: boolean; linked: boolean; removed: boolean;
   price_source: PriceSource | null; price_source_ref: string | null; price_as_of: string | null;
   stale: boolean; stale_text: string | null; stale_accepted: boolean; unit_cost: number | null; markup_pct: number | null;
+  /** The long Description kept next to the name (a Narration), and the client's other columns. Absent or null for a Description-only file. */
+  details?: string | null; client_data?: Record<string, string> | null;
 };
 
 export const money = (n: number | null | undefined) => (n == null ? "–" : n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }));

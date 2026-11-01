@@ -12,13 +12,13 @@ export type Cell = string | number | null;
 /** grid[r][c], both 0-based. Spreadsheet row 1 is grid[0]. Merged cells carry their text in the top-left cell only. */
 export type Grid = Cell[][];
 
-export const BOQ_FIELDS = ["item_no", "description", "uom", "qty", "cost_code", "rate", "amount"] as const;
+export const BOQ_FIELDS = ["item_no", "narration", "description", "uom", "qty", "cost_code", "rate", "amount"] as const;
 export type BoqField = (typeof BOQ_FIELDS)[number];
 /** field -> 1-based column number. */
 export type ColumnMap = Partial<Record<BoqField, number>>;
 
 export const FIELD_LABEL: Record<BoqField, string> = {
-  item_no: "Item no.", description: "Description", uom: "Unit", qty: "Quantity", cost_code: "Cost code", rate: "Unit rate", amount: "Amount",
+  item_no: "Item no.", narration: "Narration", description: "Description", uom: "Unit", qty: "Quantity", cost_code: "Cost code", rate: "Unit rate", amount: "Amount",
 };
 /** The three a line cannot be read without. */
 export const REQUIRED_FIELDS: BoqField[] = ["description", "qty"];
@@ -55,10 +55,11 @@ export function parseNumber(v: Cell | undefined): number | null {
 /** The header spellings of each field. Exported so the Data Workbench spec offers the very same aliases the upload detects. */
 export const EXACT: Record<BoqField, string[]> = {
   item_no: ["item", "item no", "item number", "item ref", "no", "sl", "sl no", "s no", "sr", "sr no", "serial", "serial no", "serial number", "bill no", "bill ref", "bill item", "ref", "reference", "pos", "position", "clause", "clause no", "sn", "s n", "number", "bq no", "boq no", "boq item"],
+  narration: ["narration", "short description", "short name", "item name", "item title", "brief description"],
   description: ["description", "item description", "description of work", "description of works", "description of item", "description of items", "work description", "material description", "particulars", "scope", "scope of work", "scope of works", "work item", "details", "activity"],
   uom: ["unit", "units", "uom", "u o m", "um", "unit of measure", "unit of measurement", "measure"],
   qty: ["qty", "quantity", "quantities", "q ty", "qnty", "total qty", "total quantity", "boq qty", "boq quantity", "est qty", "estimated quantity", "no of units"],
-  cost_code: ["cost code", "cost code no", "csi", "csi code", "masterformat", "master format", "masterformat code", "master format code", "division", "wbs", "wbs code", "spec section", "specification section", "spec ref", "section", "section no", "code", "item code", "spec no"],
+  cost_code: ["cost code", "cost code no", "csi", "csi code", "masterformat", "master format", "masterformat code", "master format code", "division", "wbs", "wbs code", "spec section", "specification section", "spec ref", "code", "item code", "spec no"],
   rate: ["rate", "unit rate", "unit price", "price", "rate per unit", "contractor rate", "bid rate", "quoted rate"],
   amount: ["amount", "total", "total amount", "total price", "value", "line total", "extended", "extended price", "total value", "bid amount", "price total"],
 };
@@ -66,6 +67,7 @@ export const EXACT: Record<BoqField, string[]> = {
 /** Looser matches, for labels like "Description of Works / الوصف" or "Unit Rate in SAR". Lower strength than an exact name. */
 const CONTAINS: Record<BoqField, RegExp> = {
   item_no: /^(item|sl|sr|serial|bill)\b.*\b(no|number|ref)\b/,
+  narration: /narration/,
   description: /description|particulars|scope of/,
   uom: /\bunit of\b|\buom\b/,
   qty: /\bqty\b|quantit|\bq ty\b/,
@@ -76,17 +78,21 @@ const CONTAINS: Record<BoqField, RegExp> = {
 
 type Hit = { field: BoqField; strength: number };
 
-/** What a header label could be: exact names score 2, looser matches 1. */
+/** A column named Item beats a serial number (Sr, Sl, S no): a client file often carries both, and the item number is the one a revised file matches by. */
+const ITEM_NAMES = new Set(["item", "item no", "item number", "item ref", "item reference", "boq item"]);
+
+/** What a header label could be: item names score 3, other exact names 2, looser matches 1. */
 export function classifyLabel(raw: string): Hit[] {
   const label = normaliseLabel(raw);
   if (!label) return [];
   const hits: Hit[] = [];
   for (const f of BOQ_FIELDS) {
-    if (EXACT[f].includes(label)) hits.push({ field: f, strength: 2 });
+    if (f === "item_no" && ITEM_NAMES.has(label)) hits.push({ field: f, strength: 3 });
+    else if (EXACT[f].includes(label)) hits.push({ field: f, strength: 2 });
     else if (CONTAINS[f].test(label)) hits.push({ field: f, strength: 1 });
   }
   // "Total qty" is a quantity, "Unit rate" a rate: when a label is exactly known for one field, looser matches elsewhere are noise.
-  const exact = hits.filter((h) => h.strength === 2);
+  const exact = hits.filter((h) => h.strength >= 2);
   return exact.length > 0 ? exact : hits;
 }
 
@@ -108,6 +114,8 @@ export function detectColumns(headerCells: readonly Cell[]): ColumnMatch {
     usedCols.add(o.col);
     score += o.strength;
   }
+  // A sheet whose only text column is called Narration reads it as the description.
+  if (map.narration != null && map.description == null) { map.description = map.narration; delete map.narration; }
   return { map, score };
 }
 
@@ -145,11 +153,19 @@ export function sameLayout(grid: Grid, headerRow: number, labels: readonly strin
 
 // ── Rows ────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
+/** Client columns kept as the client wrote them: header label -> cell text. */
+export type ClientData = Record<string, string>;
+
 export type BoqLine = {
   /** 1-based spreadsheet row. */
   row_no: number;
   item_no: string | null;
+  /** The line's NAME: the Narration when the file has one, else the Description. */
   description: string;
+  /** The long Description when the file also carries a Narration; line breaks kept. Null for a Description-only file. */
+  details?: string | null;
+  /** Every other column of the file that has a value on this row (Sr #, Bill #, Section, Page #, Revision #, Boq #...). */
+  client_data?: ClientData | null;
   uom: string | null;
   qty: number;
   cost_code: string | null;
@@ -161,8 +177,14 @@ export type BoqLine = {
 
 export type SkippedRow = { row_no: number; reason: string; text: string };
 
+/** The title block above the table: the client's project code and name, and a tender number or client when the sheet names one. */
+export type HeaderInfo = { project_code?: string; project_name?: string; tender_no?: string; client?: string };
+
 export type ParsedBoq = {
   lines: BoqLine[];
+  /** Labels of the file's columns kept as client data (not mapped to a field). */
+  client_columns: string[];
+  header_info: HeaderInfo;
   skipped: SkippedRow[];
   /** The client's own total row (1-based), when the sheet has one. */
   total_row: number | null;
@@ -193,6 +215,68 @@ export function assignKeys<T extends { item_no: string | null; description: stri
   });
 }
 
+export const DETAILS_MAX = 4000;
+const CLIENT_VALUE_MAX = 300;
+const CLIENT_COLUMNS_MAX = 24;
+
+/** Text with its line breaks kept (a spec written over several lines), tidied: no trailing spaces, no run of blank lines. */
+export function multilineText(s: string): string {
+  return s.replace(/\r\n?/g, "\n").split("\n").map((l) => l.replace(/[ \t\u00a0]+/g, " ").trim()).join("\n").replace(/\n{3,}/g, "\n\n").trim().slice(0, DETAILS_MAX);
+}
+const oneLine = (s: string) => s.replace(/\s+/g, " ").trim();
+
+/** The header cells that are not mapped to a field and have a label: kept as client data. A repeated label gets (2), (3). */
+export function clientColumnsOf(header: readonly Cell[], map: ColumnMap): { col: number; label: string }[] {
+  const mapped = new Set(Object.values(map).filter((v): v is number => !!v));
+  const seen = new Map<string, number>();
+  const out: { col: number; label: string }[] = [];
+  header.slice(0, BOQ_LIMITS.maxColumns).forEach((cell, i) => {
+    const text = oneLine(cellText(cell)).slice(0, 60);
+    if (!text || mapped.has(i + 1) || out.length >= CLIENT_COLUMNS_MAX) return;
+    const n = (seen.get(text.toLowerCase()) ?? 0) + 1;
+    seen.set(text.toLowerCase(), n);
+    out.push({ col: i + 1, label: n === 1 ? text : `${text} (${n})` });
+  });
+  return out;
+}
+
+const TITLE_LABELS: [RegExp, keyof HeaderInfo][] = [
+  [/^project (code|no|number|id|ref|reference)$/, "project_code"],
+  [/^project( (name|title|description))?$/, "project_name"],
+  [/^(tender|rfq|bid) ?(no|number|ref|reference)?$/, "tender_no"],
+  [/^(client|employer|owner|customer)( name)?$/, "client"],
+];
+const titleKind = (label: string): keyof HeaderInfo | null => {
+  const l = normaliseLabel(label);
+  return TITLE_LABELS.find(([re]) => re.test(l))?.[1] ?? null;
+};
+
+/** Project Code / Project Name (and Tender no / Client) from the rows above the header: "Label | value", "Label: value", or the value under the label. */
+export function readHeaderInfo(grid: Grid, headerRow: number): HeaderInfo {
+  const info: HeaderInfo = {};
+  const put = (kind: keyof HeaderInfo, value: string) => {
+    const v = oneLine(value).slice(0, 200);
+    if (v && !info[kind] && !titleKind(v)) info[kind] = v;
+  };
+  for (let r = 0; r < Math.min(headerRow - 1, grid.length); r++) {
+    const row = grid[r] ?? [];
+    for (let c = 0; c < row.length; c++) {
+      const text = cellText(row[c]);
+      if (!text) continue;
+      const colon = text.indexOf(":");
+      const inline = colon > 0 ? titleKind(text.slice(0, colon)) : null;
+      if (inline && text.slice(colon + 1).trim()) { put(inline, text.slice(colon + 1)); continue; }
+      const kind = titleKind(text.replace(/[:\-]+$/, ""));
+      if (!kind) continue;
+      const right = row.slice(c + 1).map(cellText).find((t) => t !== "");
+      if (right && !titleKind(right)) { put(kind, right); continue; }
+      const below = cellText((grid[r + 1] ?? [])[c]);
+      if (below && r + 1 < headerRow - 1) put(kind, below);
+    }
+  }
+  return info;
+}
+
 /** Read the item rows below the header. Section headings, subtotals, blank rows and the grand total are skipped (and reported). */
 export function extractLines(grid: Grid, headerRow: number, map: ColumnMap): ParsedBoq {
   const out: Omit<BoqLine, "key">[] = [];
@@ -200,12 +284,16 @@ export function extractLines(grid: Grid, headerRow: number, map: ColumnMap): Par
   let totalRow: number | null = null;
   let truncated = false;
   const at = (row: Cell[], field: BoqField): Cell => (map[field] != null ? row[map[field]! - 1] ?? null : null);
+  const clientCols = clientColumnsOf(grid[headerRow - 1] ?? [], map);
 
   for (let r = headerRow; r < Math.min(grid.length, BOQ_LIMITS.maxRows); r++) {
     const row = grid[r] ?? [];
     const rowNo = r + 1;
     if (row.every((c) => cellText(c) === "")) continue;
-    const desc = cellText(at(row, "description"));
+    const longText = cellText(at(row, "description"));
+    const narration = cellText(at(row, "narration"));
+    // With both columns the Narration is the line's name and the Description its details; with one, that one is the name.
+    const desc = narration || longText;
     const itemNo = cellText(at(row, "item_no"));
     // The label of a total can sit in a column that is not the description (a merged "Total" cell to the left of it).
     const firstText = row.map(cellText).find((t) => t !== "" && parseNumber(t) == null) ?? "";
@@ -227,20 +315,43 @@ export function extractLines(grid: Grid, headerRow: number, map: ColumnMap): Par
     if (out.length >= BOQ_LIMITS.maxLines) { truncated = true; skipped.push({ row_no: rowNo, reason: `Only the first ${BOQ_LIMITS.maxLines} lines are read`, text: desc.slice(0, 80) }); continue; }
 
     const rate = parseNumber(at(row, "rate"));
+    const client: ClientData = {};
+    for (const cc of clientCols) {
+      const t = cellText(row[cc.col - 1]);
+      if (t) client[cc.label] = t.slice(0, CLIENT_VALUE_MAX);
+    }
     out.push({
       row_no: rowNo,
       item_no: itemNo || null,
-      description: desc.replace(/\s+/g, " ").slice(0, 1000),
+      description: oneLine(desc).slice(0, 1000),
+      details: narration && longText && oneLine(longText) !== oneLine(narration) ? multilineText(longText) : null,
+      client_data: Object.keys(client).length > 0 ? client : null,
       uom: cellText(at(row, "uom")) || null,
       qty,
       cost_code: cellText(at(row, "cost_code")) || null,
       file_rate: rate != null && rate > 0 ? rate : null,
     });
   }
-  return { lines: assignKeys(out), skipped, total_row: totalRow, truncated };
+  return { lines: assignKeys(out), skipped, total_row: totalRow, truncated, client_columns: clientCols.map((x) => x.label), header_info: readHeaderInfo(grid, headerRow) };
 }
 
 // ── Lines that did not come from a workbook ─────────────────────────────────────────────────────────────────────────
+
+/** The Client columns cell of a Data Workbench file: a JSON object of label -> text (what an export writes). Null when it is not one. */
+export function parseClientColumns(raw: string | undefined): { ok: true; data: ClientData | null } | { ok: false } {
+  const t = (raw ?? "").trim();
+  if (!t) return { ok: true, data: null };
+  let parsed: unknown;
+  try { parsed = JSON.parse(t); } catch { return { ok: false }; }
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return { ok: false };
+  const data: ClientData = {};
+  for (const [k, v] of Object.entries(parsed as Record<string, unknown>)) {
+    const label = oneLine(k).slice(0, 60);
+    const text = typeof v === "string" ? v.trim() : typeof v === "number" ? String(v) : "";
+    if (label && text && Object.keys(data).length < CLIENT_COLUMNS_MAX) data[label] = text.slice(0, CLIENT_VALUE_MAX);
+  }
+  return { ok: true, data: Object.keys(data).length > 0 ? data : null };
+}
 
 /** Data Workbench rows of ONE tender -> BOQ lines. The spreadsheet row number is the file's own row (header = row 1). */
 export function linesFromRows(rows: readonly { rowNum: number; values: Record<string, string> }[]): { lines: BoqLine[]; failed: RowOutcome[] } {
@@ -248,17 +359,24 @@ export function linesFromRows(rows: readonly { rowNum: number; values: Record<st
   const failed: RowOutcome[] = [];
   for (const { rowNum, values } of rows) {
     const fail = (reason: string) => failed.push({ rowNum, status: "failed", reason });
-    const description = (values.description ?? "").replace(/\s+/g, " ").trim().slice(0, 1000);
+    // The same rule as the Excel upload: with a Narration column it is the name and the Description is the details.
+    const narration = oneLine(values.narration ?? "");
+    const longText = (values.details ?? "").trim() || (narration ? (values.description ?? "").trim() : "");
+    const description = (narration || oneLine(values.description ?? "")).slice(0, 1000);
     if (!description) { fail("Description is required"); continue; }
     const qty = parseNumber(values.quantity);
     if (qty == null) { fail("Quantity must be a number"); continue; }
     if (qty < 0 || qty > 9_999_999_999) { fail("Quantity out of range"); continue; }
+    const client = parseClientColumns(values.client_columns);
+    if (!client.ok) { fail("Client columns must be a JSON object of column name and text, or empty"); continue; }
     if (out.length >= BOQ_LIMITS.maxLines) { fail(`Only the first ${BOQ_LIMITS.maxLines.toLocaleString("en-US")} lines of a tender are read`); continue; }
     const rate = parseNumber(values.rate);
     out.push({
       row_no: rowNum,
       item_no: cellText(values.item_no) || null,
       description,
+      details: longText && oneLine(longText) !== description ? multilineText(longText) : null,
+      client_data: client.data,
       uom: cellText(values.unit) || null,
       qty,
       cost_code: cellText(values.cost_code) || null,
@@ -309,5 +427,6 @@ export function parseColumnMap(input: unknown): ColumnMap | null {
     map[f] = n;
     used.add(n);
   }
+  if (map.narration != null && map.description == null) { map.description = map.narration; delete map.narration; }
   return REQUIRED_FIELDS.every((f) => map[f] != null) ? map : null;
 }

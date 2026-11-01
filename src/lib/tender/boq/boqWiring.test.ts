@@ -97,7 +97,7 @@ describe("the BOQ routes", () => {
     // The row panel's quantity / description route is a write, takes the row id from the path only, and never touches what the file said.
     const lineRoute = read("src/app/api/opportunities/[id]/boq/lines/[boqId]/route.ts");
     expect(lineRoute).toMatch(/openBoqRequest\(id, true\)/);
-    expect(lineRoute).toMatch(/editBoqLine\(gate\.req, boqId, \{ qty: body\.qty, description: body\.description \}\)/);
+    expect(lineRoute).toMatch(/editBoqLine\(gate\.req, boqId, \{ qty: body\.qty, description: body\.description, details: body\.details \}\)/);
     const edit = read("src/lib/tender/boq/server.ts");
     const editPart = edit.slice(edit.indexOf("export async function editBoqLine"), edit.indexOf("export type PriceAllResult"));
     expect(editPart).not.toMatch(/file_qty|file_description|file_uom|file_rate/);

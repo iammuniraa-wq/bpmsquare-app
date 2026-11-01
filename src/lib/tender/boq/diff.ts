@@ -12,6 +12,8 @@ export type ExistingLine = {
   uom: string | null;
   qty: number;
   cost_code: string | null;
+  /** The details the file carried last time. Undefined = the database has no such column yet (migration 0242 pending): not compared. */
+  details?: string | null;
   /** A rate has been set on the deal line. */
   priced: boolean;
   /** Already flagged "not in the latest BOQ" by an earlier upload. */
@@ -19,7 +21,7 @@ export type ExistingLine = {
 };
 
 export type ChangedLine = { key: string; line: BoqLine; was: ExistingLine; fields: ChangedField[] };
-export type ChangedField = "description" | "unit" | "quantity" | "cost code" | "back in the file";
+export type ChangedField = "description" | "unit" | "quantity" | "cost code" | "details" | "back in the file";
 
 export type BoqDiff = {
   added: BoqLine[];
@@ -50,6 +52,7 @@ export function diffBoq(existing: readonly ExistingLine[], incoming: readonly Bo
     if (squash(was.uom) !== squash(line.uom)) fields.push("unit");
     if (!sameQty(was.qty, line.qty)) fields.push("quantity");
     if (squash(was.cost_code) !== squash(line.cost_code)) fields.push("cost code");
+    if (was.details !== undefined && (was.details ?? "").trim() !== (line.details ?? "").trim()) fields.push("details");
     if (was.removed) fields.push("back in the file");
     if (fields.length > 0) changed.push({ key: line.key, line, was, fields });
     else unchanged++;
