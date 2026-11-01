@@ -1,0 +1,323 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Workforce rules by employment type — mock-up</title>
+<style>
+:root{--ink:#1c2733;--muted:#505b6a;--hint:#66707e;--line:#e2e7ee;--panel:#fff;--panel2:#f4f6f9;--accent:#378add;--accentbg:#e6f1fb;--good:#1e7a4d;--goodbg:#e4f4ec;--warn:#9a6200;--warnbg:#fff3dc;--bad:#b3261e;--badbg:#fde8e6}
+*{box-sizing:border-box}body{margin:0;background:#eef1f6;color:var(--ink);font:14px/1.4 "Segoe UI",Arial,sans-serif}
+.wrap{max-width:1180px;margin:0 auto;padding:16px}
+h1{font-size:18px;margin:4px 0 2px}.sub{color:var(--muted);font-size:12.5px;margin-bottom:10px}
+.note{background:#fffbe9;border:1px dashed #d8b84a;border-radius:8px;padding:8px 10px;font-size:12.5px;margin-bottom:10px}.note b{color:#7a5c00}
+.ctl{display:flex;gap:14px;flex-wrap:wrap;align-items:center;margin-bottom:10px;font-size:12.5px;color:var(--muted)}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:#fff}.seg button{border:0;background:none;padding:0 12px;min-height:40px;font:inherit;cursor:pointer;color:var(--muted)}.seg button.on{background:var(--accent);color:#fff}.seg.sm button{min-height:34px;font-size:12.5px}
+.i{display:inline-block;width:15px;height:15px;border:1px solid var(--hint);border-radius:50%;text-align:center;font-size:10px;line-height:13px;color:var(--hint);margin-left:5px;cursor:help;position:relative;vertical-align:middle;font-weight:400}
+.i:hover::after,.i:focus::after{content:attr(data-tip);position:absolute;left:0;top:20px;z-index:40;width:240px;background:#fff;border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:12.5px;line-height:1.4;color:var(--ink);box-shadow:0 8px 24px rgba(16,24,40,.12);text-align:left;white-space:normal;font-weight:400}
+
+/* app frame */
+.app{background:var(--panel2);border:1px solid var(--line);border-radius:12px;overflow:hidden;position:relative;min-height:560px}
+.app.pc{padding:18px}.app.phone{width:375px;margin:0 auto;padding:12px;min-height:740px}
+.ph{display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap}.ph h2{font-size:17px;margin:0}.ph .crumb{font-size:12px;color:var(--hint)}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:12px}.phone .card{padding:12px}
+.btn{border:1px solid var(--line);background:#fff;border-radius:8px;padding:0 14px;min-height:44px;font:inherit;cursor:pointer;display:inline-flex;align-items:center;gap:6px;color:var(--ink)}.btn.p{background:var(--accent);color:#fff;border-color:var(--accent)}.btn.sm{min-height:36px;padding:0 10px;font-size:13px}.btn.danger{color:var(--bad);border-color:#f0c8c5}.btn.ok{background:var(--good);color:#fff;border-color:var(--good)}
+.btn:disabled{opacity:.5;cursor:not-allowed}.btn.link{border:0;background:none;color:var(--accent);padding:0;min-height:0;font-size:12.5px}
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin:0 0 14px;overflow-x:auto}.tab{padding:9px 14px 8px;font-size:13px;color:var(--muted);border:0;background:none;font:inherit;cursor:pointer;border-bottom:3px solid transparent;margin-bottom:-1px;white-space:nowrap;border-radius:7px 7px 0 0;min-height:44px}.tab[aria-selected=true]{color:var(--accent);font-weight:700;border-bottom-color:var(--accent);background:color-mix(in srgb,var(--accent) 10%,transparent)}
+.chip{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:3px 10px;font-size:12px;font-weight:600;white-space:nowrap}.chip.warn{background:var(--warnbg);color:var(--warn)}.chip.info{background:var(--accentbg);color:var(--accent)}.chip.good{background:var(--goodbg);color:var(--good)}.chip.quiet{background:var(--panel2);color:var(--muted);font-weight:500}.chip.bad{background:var(--badbg);color:var(--bad)}
+.chip.sel{cursor:pointer;border:1px solid transparent}.chip.sel.on{border-color:var(--accent);background:var(--accentbg);color:var(--accent)}
+.field{display:flex;flex-direction:column;gap:5px;margin-bottom:12px}.field label,.lbl{font-size:11.5px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.4px}
+input[type=text],input[type=number],input[type=date],select{border:1px solid var(--line);border-radius:8px;padding:0 10px;min-height:40px;font:inherit;background:#fff;color:var(--ink);width:100%}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:0 16px}.phone .grid2{grid-template-columns:1fr}
+.days{display:flex;gap:6px;flex-wrap:wrap}.pick{border:1px solid var(--line);background:#fff;border-radius:8px;min-width:44px;min-height:40px;font:inherit;cursor:pointer;color:var(--muted)}.pick[aria-pressed=true]{background:var(--accent);color:#fff;border-color:var(--accent)}
+.sw{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:40px}.tog{width:38px;height:22px;border-radius:11px;background:#cfd6e0;position:relative;border:0;cursor:pointer;flex-shrink:0}.tog::after{content:"";position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:50%;background:#fff;transition:left .12s}.tog.on{background:var(--accent)}.tog.on::after{left:18px}
+table{width:100%;border-collapse:collapse;font-size:13px}th{text-align:left;color:var(--hint);font-weight:500;padding:8px 10px;border-bottom:1px solid var(--line);font-size:11.5px;white-space:nowrap}td{padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:middle}
+tr.row{cursor:pointer}tr.row:hover td{background:var(--panel2)}td.name{font-weight:600}
+.bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:space-between;margin-bottom:10px}
+.hd{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.hd b{font-size:13.5px}
+/* matrix */
+.mx{overflow:auto}.mx table{min-width:560px}.mx td,.mx th{text-align:center}.mx td:first-child,.mx th:first-child{text-align:left;font-weight:600}
+.mx td.c{background:var(--accentbg);color:var(--accent);font-weight:600;cursor:pointer}.mx td.s{color:var(--hint);cursor:pointer}.mx .sec td{background:var(--panel2);font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--hint);text-align:left}
+.phone .mx table{min-width:0}
+/* side panel */
+.backdrop{position:absolute;inset:0;background:rgba(20,32,51,.35);display:none;z-index:10}.backdrop.on{display:block}
+.panel{position:absolute;top:0;right:0;bottom:0;width:460px;max-width:100%;background:#fff;box-shadow:-10px 0 30px rgba(0,0,0,.14);display:none;z-index:11;flex-direction:column}.panel.on{display:flex}
+.phone .panel{top:auto;left:0;right:0;bottom:0;width:auto;max-height:88%;border-radius:14px 14px 0 0;box-shadow:0 -10px 30px rgba(0,0,0,.18)}
+.panel .top{padding:14px 16px 10px;border-bottom:1px solid var(--line)}.panel .top h3{margin:0;font-size:15px}.panel .top .s{font-size:12px;color:var(--muted)}
+.panel .body{padding:10px 16px;overflow:auto;flex:1}.panel .foot{padding:10px 16px;border-top:1px solid var(--line);display:flex;gap:8px;align-items:center;background:#fff}.panel .foot .sp{flex:1}
+.grp{margin:8px 0 4px}.grp>button{display:flex;align-items:center;gap:6px;width:100%;border:0;background:none;text-align:left;padding:0;min-height:40px;font:inherit;font-weight:700;color:var(--ink);cursor:pointer}.grp .ch{display:inline-block;width:12px;color:var(--hint);transition:transform .12s}.grp.open .ch{transform:rotate(90deg)}.grp .n{margin-left:auto;font-size:11.5px;font-weight:600;color:var(--accent);background:var(--accentbg);border-radius:9px;padding:0 7px}.grp .n.z{color:var(--hint);background:var(--panel2)}
+.rr{display:grid;grid-template-columns:1fr auto;gap:6px 10px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line)}.rr .l{font-size:13px}.rr .v{display:flex;align-items:center;gap:6px;justify-content:flex-end;flex-wrap:wrap}.rr .v select,.rr .v input{width:auto;min-width:120px}.rr .v input[type=number]{width:84px;min-width:0}.rr .reset{font-size:12px;color:var(--hint);border:0;background:none;cursor:pointer;min-height:32px}
+.rr .eff{grid-column:1/-1;font-size:12px;color:var(--hint)}
+.rr .days .pick{min-width:38px;min-height:36px;font-size:12px}
+/* dialog */
+.dlg{position:absolute;inset:0;display:none;z-index:20;align-items:center;justify-content:center;padding:12px}.dlg.on{display:flex}.dlg .box{background:#fff;border-radius:12px;padding:16px;max-width:440px;width:100%;box-shadow:0 16px 40px rgba(16,24,40,.22)}.dlg h3{margin:0 0 6px;font-size:15px}.dlg ul{margin:6px 0 10px;padding-left:18px;font-size:13px}.dlg .fx{font-size:12.5px;color:var(--muted);margin-bottom:12px}.dlg .acts{display:flex;gap:8px;justify-content:flex-end}
+.toast{position:absolute;left:50%;bottom:16px;transform:translateX(-50%);background:var(--ink);color:#fff;border-radius:10px;padding:10px 14px;font-size:13px;display:none;z-index:30;max-width:90%}.toast.on{display:block}
+.sticky{position:sticky;bottom:0;background:#fff;border-top:1px solid var(--line);padding:10px 12px;margin:12px -12px -12px;display:none;gap:8px}.phone .sticky{display:flex}
+.stat{border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:#fff}.stat .k{font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.4px}.stat .v{font-size:20px;font-weight:700}.stat .v.bad{color:var(--bad)}.stat .m{font-size:12px;color:var(--hint)}
+.tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;margin-bottom:12px}
+.blk{border:1px solid #f0c8c5;background:var(--badbg);color:var(--bad);border-radius:8px;padding:8px 10px;font-size:12.5px;margin:8px 0}.blk.warn{border-color:#ead9a6;background:var(--warnbg);color:var(--warn)}
+.req{display:flex;justify-content:space-between;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line);font-size:12.5px;flex-wrap:wrap}
+.kbd{font-size:12px;color:var(--muted);margin-top:8px}
+@media(max-width:900px){.app.pc .grid2{grid-template-columns:1fr}.app.pc .panel{top:auto;left:0;right:0;width:auto;max-height:88%;border-radius:14px 14px 0 0}.app.pc .sticky{display:flex}}
+</style></head><body><div class="wrap">
+<h1>Workforce rules by employment type — mock-up</h1>
+<div class="sub">Sample data only. Nothing is built. Switch the viewport and the screen; open a type, set a rule to Custom, Compare, Copy from, Apply; then look at what a Trainee and a supervisor see.</div>
+<div class="note"><b>The idea:</b> every employment type starts as <i>Same as everyone</i> (the workspace rules). A type only stores the rows an admin set to Custom. Rules are read per person at run time, so Apply is the save: everyone of that type is on the new rule the moment it is saved, with nothing to recompute. Holidays keep their own home (the Holidays screen) and now offer every configured type. A new type needs zero setup. <b>Worked example, loaded:</b> the BIM Trainee policy — weekly off <i>None</i> (Sunday is a training day), Paid leave, Sick and Comp off <i>Not offered</i>, and <i>Leave on approval</i> (an unpaid leave type) the one thing a trainee can request. Open <i>Trainee</i> to see it; Intern shows a lighter variant (Sick unpaid only).</div>
+
+<div class="ctl">
+  <span>Viewport</span><span class="seg" id="vp"><button class="on" data-v="pc">PC</button><button data-v="phone">Phone 375</button></span>
+  <span>Screen</span><span class="seg" id="sc"><button class="on" data-s="settings">Settings › Workforce</button><button data-s="holidays">Leave &amp; Holidays › Holidays</button><button data-s="me">My Workforce (Priya, Trainee)</button><button data-s="approve">Leave approvals (supervisor)</button></span>
+  <span class="seg"><button id="reset">Reset sample</button></span>
+</div>
+
+<div class="app pc" id="app">
+  <div id="screen"></div>
+  <div class="backdrop" id="backdrop"></div>
+  <div class="panel" id="panel"></div>
+  <div class="dlg" id="dlg"></div>
+  <div class="toast" id="toast"></div>
+</div>
+<div class="kbd">The type panel is a side panel on PC and a bottom sheet on a phone. Compare on a phone shows one type at a time with a chip row. Every explanation sits behind an <span class="i" data-tip="Two sentences, 160 characters at most, held in tips.ts and tested, like the rest of Settings › Workforce.">i</span>.</div>
+
+<script>
+// ── Sample data (what src/lib/constants.ts WfmConfig + the tenant's rows would hold) ──
+const WS0={week_off:[0],late:3,punch:{ot:true,wfh:true,site:true},ot_rate:150,ot_min:30};
+const LEAVE=[{id:"pl",name:"Paid leave",cat:"paid",quota:"1 a month",paid:null},{id:"sl",name:"Sick",cat:"paid",quota:"12 a year",paid:1},{id:"co",name:"Comp off",cat:"paid",quota:"12 a year",paid:null},{id:"ul",name:"Leave on approval",cat:"unpaid",quota:"30 a year",paid:null}];
+const SHIFTS=[{id:"day",name:"Day (09:00 to 18:00)"},{id:"short",name:"Short Saturday (09:00 to 14:00)"}];
+const PEOPLE=[["Asha Menon","full_time"],["Ravi Kumar","trainee"],["Priya Nair","trainee"],["Dev Patel","intern"]];
+function seed(){
+  return {
+    types:[{code:"full_time",label:"Full-time",n:52,saved:true},{code:"intern",label:"Intern",n:6,saved:true},{code:"trainee",label:"Trainee",n:14,saved:true},{code:"tba",label:"To Be Assigned",n:2,saved:true}],
+    // WfmConfig.type_rules — only what differs. Trainee = the BIM policy: no weekly off (Sunday is a training day),
+    // no paid leave, no sick leave, no comp off; "Leave on approval" (an unpaid-category type) stays available.
+    rules:{trainee:{week_off:[],"leave:pl":{mode:"off"},"leave:sl":{mode:"off"},"leave:co":{mode:"off"}},intern:{"leave:sl":{mode:"unpaid"}}},
+    holidays:[{date:"2027-01-26",name:"Republic Day",to:"all"},{date:"2027-03-10",name:"Holi",to:"all"},{date:"2027-04-14",name:"Dr Ambedkar Jayanti",to:"full_time"},{date:"2027-04-14",name:"Dr Ambedkar Jayanti",to:"intern"}],
+    requests:[{who:"Asha Menon",type:"full_time",lt:"pl",from:"2026-11-12",to:"2026-11-13",reason:"Family function",status:"pending"},{who:"Ravi Kumar",type:"trainee",lt:"sl",from:"2026-11-09",to:"2026-11-09",reason:"Fever",status:"pending"},{who:"Priya Nair",type:"trainee",lt:"ul",from:"2026-10-20",to:"2026-10-20",reason:"Personal",status:"approved"}],
+    log:[]
+  };
+}
+let S=seed();let vp="pc",screen="settings",view="list",openType=null,draft=null,openGroups=new Set(["Leave"]),holidayTo="all",holidayTypes=new Set(),meDraft={lt:"",from:"2026-11-16",to:"2026-11-16",reason:""};
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const DAYS=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+const typeLabel=c=>S.types.find(t=>t.code===c)?.label??c;
+
+// ── The rule catalog (what src/lib/wfm/typeRules.ts TYPE_RULES would declare). Adding a rule later is one entry. ──
+const RULES=[
+  ...LEAVE.map(lt=>({id:"leave:"+lt.id,group:"Leave",label:lt.name,kind:"leave",lt})),
+  {id:"week_off",group:"Days",label:"Weekly off days",kind:"days",tip:"No lateness or absence is marked on these days for this type. None makes every day a working day; holidays still apply."},
+  {id:"late",group:"Days",label:"Late marks per half-day",kind:"num",tip:"Every N late marks in a month count as one half-day in the summary."},
+  {id:"shift",group:"Days",label:"Default shift",kind:"shift",tip:"Given to a new employee of this type. A person's own shift still wins."},
+  {id:"ot",group:"Punches",label:"Overtime",kind:"allow",tip:"Not allowed hides the OT punch and the route refuses it. A type cannot switch on what the workspace has off."},
+  {id:"ot_rate",group:"Punches",label:"Overtime rate per hour",kind:"money",tip:"Paid on approved minutes for this type. Same as everyone uses the workspace rate."},
+  {id:"ot_min",group:"Punches",label:"Minimum overtime per day (min)",kind:"num",tip:"A day under this is shown but not counted. 0 counts everything."},
+  {id:"wfh",group:"Punches",label:"Work from home",kind:"allow",tip:"Not allowed hides the punch and refuses it. A person's own remote mode still needs this allowed."},
+  {id:"site",group:"Punches",label:"Site visit",kind:"allow",tip:"Not allowed hides the punch and refuses it."},
+];
+const GROUPS=["Leave","Days","Punches"];let panelTab="Leave";
+
+// ── The resolver (rulesFor): workspace value unless the type has an override. Unknown type = workspace. ──
+function wsValue(r){switch(r.kind){case"leave":return{mode:"ws",n:r.lt.paid};case"days":return WS0.week_off;case"num":return r.id==="late"?WS0.late:WS0.ot_min;case"shift":return null;case"allow":return WS0.punch[r.id];case"money":return WS0.ot_rate}}
+function rulesFor(code){const o=S.rules[code]??{};const out={};for(const r of RULES){const ov=o[r.id];out[r.id]=ov===undefined?{v:wsValue(r),src:"workspace"}:{v:ov,src:"type"}}return out}
+function leaveRule(code,lt){const res=rulesFor(code)["leave:"+lt.id].v;if(res.mode==="ws")return{eligible:true,paid:lt.cat==="paid"?(lt.paid===null?"all":lt.paid):"none",src:"workspace",cat:lt.cat};if(res.mode==="off")return{eligible:false,src:"type",cat:lt.cat};if(res.mode==="unpaid")return{eligible:true,paid:"none",src:"type",cat:lt.cat};return{eligible:true,paid:res.n,src:"type",cat:lt.cat}}
+// One label for "how this leave is paid for this person", used by the employee screen and the supervisor screen alike.
+function payLabel(code,lt){const r=leaveRule(code,lt);if(!r.eligible)return{text:`Not offered for ${typeLabel(code)}`,tone:"bad"};if(r.cat==="unpaid")return{text:"Unpaid, on approval",tone:"quiet"};if(r.paid==="none")return{text:`Unpaid for ${typeLabel(code)}`,tone:"warn"};if(r.paid==="all")return{text:"Paid",tone:"good"};return{text:`${r.paid} paid a month${r.src==="type"?" for "+typeLabel(code):""}`,tone:"quiet"}}
+function fmt(r,val){switch(r.kind){
+  case"leave":{if(val.mode==="ws")return r.lt.cat==="unpaid"?"Unpaid (category)":r.lt.paid===null?"Paid":`Paid, ${r.lt.paid} a month`;if(val.mode==="off")return"Not offered";if(val.mode==="unpaid")return"Unpaid";return`Paid, up to ${val.n} a month`}
+  case"days":return val.length?val.map(d=>DAYS[d]).join(", "):"None (every day is a working day)";
+  case"num":return String(val);case"money":return"₹ "+val;
+  case"shift":return val?SHIFTS.find(s=>s.id===val).name:"None";
+  case"allow":return val?"Allowed":"Not allowed"}}
+const customCount=code=>Object.keys(S.rules[code]??{}).length;
+
+// ── Settings › Workforce › Rules ──
+function renderSettings(){
+  const phone=vp==="phone";
+  const rows=S.types.map(t=>{const n=customCount(t.code);const chip=!t.saved?`<span class="chip quiet">Save to set rules</span>`:n?`<span class="chip info">${n} custom</span>`:`<span class="chip quiet">Same as everyone</span>`;
+    return`<tr class="row" data-t="${t.code}"><td class="name">${esc(t.label)}<div style="font-size:11px;color:var(--hint);font-weight:400">${esc(t.code)} · ${t.n} people</div></td>${phone?"":`<td>${t.n}</td>`}<td>${chip}</td></tr>`}).join("");
+  const matrix=renderMatrix();
+  return`<div class="ph"><h2>Workforce</h2><span class="i" data-tip="How attendance is counted, who works when, where people punch and who is told. Rules, Leave, Alerts and Billing save together; lists save in their own panel.">i</span><span class="crumb">Settings</span></div>
+  <div class="tabs" role="tablist"><button class="tab" aria-selected="true">Rules</button><button class="tab">Shifts</button><button class="tab">Places</button><button class="tab">Leave</button><button class="tab">Alerts</button></div>
+  <div class="card"><div class="grid2">
+    <div class="field"><label>Timezone<span class="i" data-tip="Lateness, shift days and absences are worked out in this timezone.">i</span></label><select><option>Asia/Kolkata</option></select></div>
+    <div class="field"><label>Late marks per half-day</label><input type="number" value="3"></div>
+    <div class="field" style="grid-column:1/-1"><label>Weekly off days<span class="i" data-tip="No lateness or absence is marked on these days, or on holidays. A type can have its own days.">i</span></label><div class="days">${DAYS.map((d,i)=>`<button class="pick" aria-pressed="${WS0.week_off.includes(i)}">${d}</button>`).join("")}</div></div>
+    <div class="field" style="grid-column:1/-1"><label>Extra punch types</label><div style="display:flex;gap:16px;flex-wrap:wrap;font-size:13px"><label><input type="checkbox" checked> Overtime</label><label><input type="checkbox" checked> Work from home</label><label><input type="checkbox" checked> Site visit</label></div></div>
+    <div class="field"><label>Overtime rate per hour</label><input type="number" value="150"></div>
+    <div class="field"><label>Minimum overtime per day (minutes)</label><input type="number" value="30"></div>
+  </div>
+  <div class="bar" style="margin-top:6px"><div class="hd"><b>Employment types</b><span class="i" data-tip="Add types such as Intern or Trainee. Open a type to give it its own rules; a type with none follows the workspace.">i</span></div>
+    <div style="display:flex;gap:8px;align-items:center"><span class="seg sm" id="viewSeg"><button class="${view==="list"?"on":""}" data-view="list">List</button><button class="${view==="matrix"?"on":""}" data-view="matrix">Compare</button></span><button class="btn sm" id="addType">+ Add type</button></div></div>
+  ${view==="list"?`<table><thead><tr><th>Type</th>${phone?"":"<th>People</th>"}<th>Rules</th></tr></thead><tbody>${rows}</tbody></table>`:matrix}
+  <div style="font-size:12px;color:var(--hint);margin-top:8px">Holidays that apply to one type are set on the <button class="btn link" data-go="holidays">Holidays screen</button>.</div>
+  </div>
+  <div class="sticky"><button class="btn p" style="flex:1;justify-content:center" disabled>Save</button></div>`;
+}
+function renderMatrix(){
+  const phone=vp==="phone";const cols=phone?[S.types.find(t=>t.code===(openType||"trainee"))??S.types[0]]:S.types.filter(t=>t.saved);
+  let h=phone?`<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">${S.types.filter(t=>t.saved).map(t=>`<span class="chip sel ${cols[0].code===t.code?"on":""}" data-mt="${t.code}">${esc(t.label)}</span>`).join("")}</div>`:"";
+  h+=`<div class="mx"><table><thead><tr><th>Rule</th><th>Everyone</th>${cols.map(t=>`<th>${esc(t.label)}<div style="font-weight:400;font-size:11px">${t.n} people</div></th>`).join("")}</tr></thead><tbody>`;
+  for(const g of GROUPS){h+=`<tr class="sec"><td colspan="${cols.length+2}">${g}</td></tr>`;
+    for(const r of RULES.filter(x=>x.group===g)){h+=`<tr><td>${esc(r.label)}</td><td style="color:var(--hint)">${esc(fmt(r,wsValue(r)))}</td>`;
+      for(const t of cols){const res=rulesFor(t.code)[r.id];h+=`<td class="${res.src==="type"?"c":"s"}" data-cell="${t.code}" title="Open ${esc(t.label)}">${res.src==="type"?esc(fmt(r,res.v)):"·"}</td>`}
+      h+=`</tr>`}}
+  h+=`<tr class="sec"><td colspan="${cols.length+2}">Holidays (from the Holidays screen)</td></tr><tr><td>Only for this type</td><td style="color:var(--hint)">${S.holidays.filter(x=>x.to==="all").length} for everyone</td>${cols.map(t=>{const n=S.holidays.filter(x=>x.to===t.code).length;return`<td class="${n?"c":"s"}" data-goh="1">${n||"·"}</td>`}).join("")}</tr>`;
+  h+=`</tbody></table></div><div style="font-size:12px;color:var(--hint);margin-top:6px">A dot means Same as everyone. A filled cell is a Custom rule; click it to edit the type.</div>`;
+  return h;
+}
+
+// ── The type panel ──
+function openPanel(code){openType=code;draft=JSON.parse(JSON.stringify(S.rules[code]??{}));panelTab="Leave";draw()}
+function closePanel(){openType=null;draft=null;draw()}
+function renderPanel(){
+  const t=S.types.find(x=>x.code===openType);if(!t)return"";
+  const eff=code=>{const o=draft;return r=>{const ov=o[r.id];return ov===undefined?{v:wsValue(r),src:"workspace"}:{v:ov,src:"type"}}};const get=eff();
+  const pending=S.requests.filter(q=>q.type===t.code&&q.status==="pending").length;
+  // Tabs within the panel (useUrlTab key `trule`, like the People panel's `ptab`): the first view is one short list of
+  // Same as everyone / Custom rows; nothing else. More rules later = another tab, never a longer page.
+  const tabs=`<div class="tabs" role="tablist" style="margin-bottom:6px">${GROUPS.map(g=>{const n=RULES.filter(r=>r.group===g&&draft[r.id]!==undefined).length;return`<button class="tab" role="tab" aria-selected="${panelTab===g}" data-pt="${g}">${g}${n?` <span class="chip info" style="padding:0 6px;font-size:11px">${n}</span>`:""}</button>`}).join("")}</div>`;
+  let body=tabs+RULES.filter(r=>r.group===panelTab).map(r=>ruleRow(r,get(r))).join("");
+  if(panelTab==="Days"){const hol=S.holidays.filter(h=>h.to===t.code).length;
+    body+=`<div class="rr" style="border:0"><div class="l">Holidays only for ${esc(t.label)}<span class="i" data-tip="Set on the Holidays screen, where each holiday says who it applies to. Shown here so the picture is complete.">i</span></div><div class="v"><span class="chip quiet">${hol} this year</span><button class="btn link" data-go="holidays">Open</button></div></div>`}
+  body+=`<div style="display:flex;gap:8px;flex-wrap:wrap;margin:12px 0 4px"><select id="copyFrom" style="width:auto;min-height:36px"><option value="">Copy rules from…</option>${S.types.filter(x=>x.saved&&x.code!==t.code).map(x=>`<option value="${x.code}">${esc(x.label)} (${customCount(x.code)} custom)</option>`).join("")}</select><button class="btn sm" id="resetAll" ${Object.keys(draft).length?"":"disabled"}>Reset all to everyone</button></div>`;
+  return`<div class="top"><div style="display:flex;justify-content:space-between;align-items:center"><h3>Rules for ${esc(t.label)}</h3><button class="btn sm" id="pClose">Close</button></div><div class="s">${t.n} people · ${pending} pending leave request${pending===1?"":"s"} · ${Object.keys(draft).length||"no"} custom rule${Object.keys(draft).length===1?"":"s"}</div></div>
+  <div class="body">${body}</div>
+  <div class="foot"><span class="sp" style="font-size:12px;color:var(--hint)">${JSON.stringify(draft)===JSON.stringify(S.rules[t.code]??{})?"No changes":"Unsaved changes"}</span><button class="btn" id="pCancel">Cancel</button><button class="btn p" id="pSave" ${JSON.stringify(draft)===JSON.stringify(S.rules[t.code]??{})?"disabled":""}>Apply to ${t.n} ${esc(t.label)}</button></div>`;
+}
+function ruleRow(r,res){
+  const custom=res.src==="type";const reset=custom?`<button class="reset" data-reset="${r.id}">Reset</button>`:"";
+  const tip=r.kind==="leave"?`Same as everyone follows the leave type. Unpaid records the day but pays nothing; Not offered hides the type for this employment type.`:r.tip;
+  let ctl="";
+  if(r.kind==="leave"){const m=custom?res.v.mode:"ws";ctl=`<select data-leave="${r.id}"><option value="ws" ${m==="ws"?"selected":""}>Same as everyone</option><option value="unpaid" ${m==="unpaid"?"selected":""}>Unpaid</option><option value="paid" ${m==="paid"?"selected":""}>Paid, up to N a month</option><option value="off" ${m==="off"?"selected":""}>Not offered</option></select>${m==="paid"?`<input type="number" min="0" step="0.5" value="${res.v.n??1}" data-leaven="${r.id}" aria-label="Paid days a month">`:""}`}
+  else if(r.kind==="allow"){const wsOn=WS0.punch[r.id];ctl=wsOn?`<select data-allow="${r.id}"><option value="ws" ${custom?"":"selected"}>Same as everyone (allowed)</option><option value="no" ${custom?"selected":""}>Not allowed</option></select>`:`<span class="chip quiet">Off for the workspace</span>`}
+  else if(r.kind==="days"){ctl=`<select data-mode="${r.id}"><option value="ws" ${custom?"":"selected"}>Same as everyone</option><option value="c" ${custom?"selected":""}>Custom</option></select>`}
+  else if(r.kind==="shift"){ctl=`<select data-shift="${r.id}"><option value="">Same as everyone (none)</option>${SHIFTS.map(s=>`<option value="${s.id}" ${custom&&res.v===s.id?"selected":""}>${esc(s.name)}</option>`).join("")}</select>`}
+  else{ctl=`<select data-mode="${r.id}"><option value="ws" ${custom?"":"selected"}>Same as everyone</option><option value="c" ${custom?"selected":""}>Custom</option></select>${custom?`<input type="number" min="0" value="${res.v}" data-numv="${r.id}" aria-label="${esc(r.label)}">`:""}`}
+  const extra=r.kind==="days"&&custom?`<div class="eff" style="padding-top:4px"><div class="days">${DAYS.map((d,i)=>`<button class="pick" data-day="${i}" aria-pressed="${res.v.includes(i)}">${d}</button>`).join("")}</div></div>`:"";
+  const effText=custom?`Custom: ${fmt(r,res.v)}`:`Same as everyone: ${fmt(r,wsValue(r))}`;
+  return`<div class="rr"><div class="l">${esc(r.label)}<span class="i" data-tip="${esc(tip)}">i</span>${custom?` <span class="chip info" style="padding:1px 7px;font-size:11px">Custom</span>`:""}</div><div class="v">${ctl}${reset}</div>${extra}<div class="eff">${effText}</div></div>`;
+}
+function wirePanel(p){
+  const t=S.types.find(x=>x.code===openType);
+  p.querySelector("#pClose").onclick=closePanel;p.querySelector("#pCancel").onclick=closePanel;
+  p.querySelectorAll("[data-pt]").forEach(b=>b.onclick=()=>{panelTab=b.dataset.pt;draw()});
+  p.querySelectorAll("[data-leave]").forEach(s=>s.onchange=()=>{const id=s.dataset.leave;const v=s.value;if(v==="ws")delete draft[id];else draft[id]=v==="paid"?{mode:"paid",n:1}:{mode:v};draw()});
+  p.querySelectorAll("[data-leaven]").forEach(i=>i.onchange=()=>{draft[i.dataset.leaven]={mode:"paid",n:Math.max(0,+i.value||0)};draw()});
+  p.querySelectorAll("[data-allow]").forEach(s=>s.onchange=()=>{const id=s.dataset.allow;if(s.value==="ws")delete draft[id];else draft[id]=false;draw()});
+  p.querySelectorAll("[data-mode]").forEach(s=>s.onchange=()=>{const id=s.dataset.mode;const r=RULES.find(x=>x.id===id);if(s.value==="ws")delete draft[id];else draft[id]=JSON.parse(JSON.stringify(wsValue(r)));draw()});
+  p.querySelectorAll("[data-numv]").forEach(i=>i.onchange=()=>{draft[i.dataset.numv]=Math.max(0,+i.value||0);draw()});
+  p.querySelectorAll("[data-shift]").forEach(s=>s.onchange=()=>{if(!s.value)delete draft.shift;else draft.shift=s.value;draw()});
+  p.querySelectorAll("[data-day]").forEach(b=>b.onclick=()=>{const d=+b.dataset.day;const cur=draft.week_off??[...WS0.week_off];draft.week_off=cur.includes(d)?cur.filter(x=>x!==d):[...cur,d].sort();draw()});
+  p.querySelectorAll("[data-reset]").forEach(b=>b.onclick=()=>{delete draft[b.dataset.reset];draw()});
+  p.querySelector("#resetAll").onclick=()=>{draft={};draw()};
+  p.querySelector("#copyFrom").onchange=e=>{if(!e.target.value)return;draft=JSON.parse(JSON.stringify(S.rules[e.target.value]??{}));toast(`Copied ${customCount(e.target.value)} rules from ${typeLabel(e.target.value)}. Nothing is saved until you apply.`);draw()};
+  p.querySelectorAll("[data-go]").forEach(b=>b.onclick=()=>{closePanel();setScreen(b.dataset.go)});
+  p.querySelector("#pSave").onclick=()=>confirmApply(t);
+}
+function diffLines(code,next){const before=S.rules[code]??{};const ids=new Set([...Object.keys(before),...Object.keys(next)]);const out=[];
+  for(const id of ids){if(JSON.stringify(before[id])===JSON.stringify(next[id]))continue;const r=RULES.find(x=>x.id===id);const a=before[id]===undefined?"Same as everyone":fmt(r,before[id]);const b=next[id]===undefined?"Same as everyone":fmt(r,next[id]);out.push({r,a,b})}
+  return out}
+function confirmApply(t){
+  const lines=diffLines(t.code,draft);const pending=S.requests.filter(q=>q.type===t.code&&q.status==="pending");const leaveTouched=lines.some(l=>l.r.kind==="leave");
+  const d=document.getElementById("dlg");
+  d.innerHTML=`<div class="box"><h3>Apply to ${t.n} ${esc(t.label)}?</h3><ul>${lines.map(l=>`<li><b>${esc(l.r.label)}</b>: ${esc(l.a)} → ${esc(l.b)}</li>`).join("")}</ul>
+  <div class="fx">Takes effect now for every ${esc(t.label)}: the punch screen, leave requests and the monthly summary read the rules per person, so there is nothing to recompute.${lines.some(l=>l.r.id==="week_off")?` Weekly off changes how absence and standard hours are counted on those days, for any month viewed from now on.`:""}${leaveTouched?` ${pending.length} pending leave request${pending.length===1?"":"s"} will be shown to the supervisor under the new rule. Approved leave stays approved; whether a day is paid is worked out by the summary with the rules in force when it is viewed or exported.`:""} Past exports already sent to payroll are files and do not change.</div>
+  <div class="acts"><button class="btn" id="dNo">Cancel</button><button class="btn p" id="dYes">Apply</button></div></div>`;
+  d.classList.add("on");
+  d.querySelector("#dNo").onclick=()=>d.classList.remove("on");
+  d.querySelector("#dYes").onclick=()=>{d.classList.remove("on");if(Object.keys(draft).length)S.rules[t.code]=draft;else delete S.rules[t.code];
+    lines.forEach(l=>S.log.push(`${new Date().toISOString().slice(0,16).replace("T"," ")} · Admin · Workforce rules · ${t.label} · ${l.r.label}: ${l.a} → ${l.b}`));
+    toast(`Applied to ${t.n} ${t.label}. Logged in Change history.`);closePanel()};
+}
+
+// ── Holidays screen (Leave & Holidays › Holidays) ──
+function renderHolidays(){
+  const groups=[];for(const h of S.holidays){let g=groups.find(x=>x.date===h.date&&x.name===h.name);if(!g){g={date:h.date,name:h.name,to:[]};groups.push(g)}g.to.push(h.to)}
+  groups.sort((a,b)=>a.date.localeCompare(b.date));
+  const rows=groups.map(g=>`<tr><td>${g.date}</td><td class="name">${esc(g.name)}</td><td>${g.to.includes("all")?`<span class="chip quiet">Everyone</span>`:g.to.map(c=>`<span class="chip info">${esc(typeLabel(c))}</span>`).join(" ")}</td><td><button class="btn sm" data-rm="${g.date}|${esc(g.name)}">Remove</button></td></tr>`).join("");
+  return`<div class="ph"><h2>Leave &amp; Holidays</h2><span class="crumb">Workforce</span></div>
+  <div class="tabs"><button class="tab">Leave</button><button class="tab" aria-selected="true">Holidays</button></div>
+  <div class="card"><div class="bar"><div class="hd"><b>Holiday calendar</b><span class="i" data-tip="Days nobody is marked late or absent. A holiday applies to everyone or to the employment types you pick.">i</span></div><button class="btn sm">Upload a year</button></div>
+  <table><thead><tr><th>Date</th><th>Name</th><th>Applies to</th><th></th></tr></thead><tbody>${rows||`<tr><td colspan="4" style="color:var(--hint)">No holidays yet.</td></tr>`}</tbody></table></div>
+  <div class="card"><div class="hd" style="margin-bottom:10px"><b>Add a holiday</b></div><div class="grid2">
+    <div class="field"><label>Date</label><input type="date" id="hDate" value="2027-05-01"></div>
+    <div class="field"><label>Name</label><input type="text" id="hName" placeholder="May Day"></div>
+    <div class="field" style="grid-column:1/-1"><label>Applies to<span class="i" data-tip="Everyone, or only the types you pick. One row per type is stored, so each can be removed on its own.">i</span></label>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><span class="seg sm"><button class="${holidayTo==="all"?"on":""}" data-hto="all">Everyone</button><button class="${holidayTo==="types"?"on":""}" data-hto="types">These types</button></span>
+      ${holidayTo==="types"?S.types.filter(t=>t.saved).map(t=>`<span class="chip sel ${holidayTypes.has(t.code)?"on":""}" data-ht="${t.code}">${esc(t.label)}</span>`).join(""):""}</div></div>
+  </div><button class="btn p" id="hAdd" ${holidayTo==="types"&&!holidayTypes.size?"disabled":""}>Add holiday</button>
+  <div style="font-size:12px;color:var(--hint);margin-top:8px">Upload columns: Date, Name, Applies To (all, or a type code: ${S.types.filter(t=>t.saved).map(t=>t.code).join(", ")}).</div></div>`;
+}
+
+// ── My Workforce as Priya (Trainee) ──
+function renderMe(){
+  const me="trainee";const lr=lt=>leaveRule(me,lt);const offered=LEAVE.filter(lt=>lr(lt).eligible);
+  const bal={pl:{q:1,u:1,per:"month"},sl:{q:12,u:2,per:"year"},co:{q:12,u:0,per:"year"},ul:{q:30,u:0,per:"year"}};
+  const tiles=offered.map(lt=>{const r=lr(lt);const b=bal[lt.id];const pl=payLabel(me,lt);return`<div class="stat"><div class="k">${esc(lt.name)}</div><div class="v ${b.q-b.u<=0?"bad":""}">${b.q-b.u}</div><div class="m">of ${b.q} left${b.per==="month"?" this month":""} · ${esc(pl.text)}${r.paid==="none"?'<span class="i" data-tip="This leave is recorded and approved as usual, and shows as unpaid in your month and in payroll.">i</span>':""}</div></div>`}).join("");
+  const sel=offered.map(lt=>{const b=bal[lt.id];const pl=payLabel(me,lt);return`<option value="${lt.id}" ${meDraft.lt===lt.id?"selected":""}>${esc(lt.name)} (${b.q-b.u} left${b.per==="month"?" this month":""} · ${esc(pl.text.toLowerCase())})</option>`}).join("");
+  const chosen=LEAVE.find(x=>x.id===meDraft.lt);const chosenRule=chosen?lr(chosen):null;
+  const mine=S.requests.filter(q=>q.who==="Priya Nair");
+  const hidden=LEAVE.filter(lt=>!lr(lt).eligible);
+  const wo=rulesFor(me).week_off;
+  return`<div class="ph"><h2>My Workforce</h2><span class="crumb">Priya Nair · Trainee · EMP-0231 · Day shift · Weekly off: ${esc(wo.v.length?wo.v.map(d=>DAYS[d]).join(", "):"none")}<span class="i" data-tip="Your employment type's weekly off. With none, every day of the week is a working day and a day with no punch counts as absent.">i</span></span></div>
+  <div class="tabs"><button class="tab">Today</button><button class="tab" aria-selected="true">Leave</button><button class="tab">Timesheet</button><button class="tab">Requests</button></div>
+  <div class="card"><div class="hd" style="margin-bottom:8px"><b>Leave balance</b></div><div class="tiles">${tiles}</div>
+  ${hidden.length?`<div style="font-size:12px;color:var(--hint)">Not offered for ${typeLabel(me)}: ${hidden.map(x=>esc(x.name)).join(", ")}<span class="i" data-tip="Your admin set these leave types as not offered for your employment type, so they are not in the list.">i</span></div>`:""}</div>
+  <div class="card"><div class="bar"><div class="hd"><b>Request leave</b></div></div><div class="grid2">
+    <div class="field"><label>From</label><input type="date" id="mFrom" value="${meDraft.from}"></div><div class="field"><label>To</label><input type="date" id="mTo" value="${meDraft.to}"></div>
+    <div class="field"><label>Leave type</label><select id="mType"><option value="">— select —</option>${sel}</select></div>
+    <div class="field"><label>Reason</label><input type="text" id="mReason" value="${esc(meDraft.reason)}" placeholder="e.g. Family function"></div></div>
+    ${chosenRule&&chosenRule.paid==="none"?`<div class="blk warn">This leave will be <b>unpaid</b>${chosenRule.cat==="unpaid"?"":`: ${esc(typeLabel(me))} has no paid ${esc(chosen.name)}`}. It is recorded only once your supervisor approves it.</div>`:""}
+    <button class="btn p" id="mSubmit" ${meDraft.lt&&meDraft.reason.trim()?"":"disabled"}>Submit request</button></div>
+  <div class="card"><div class="hd" style="margin-bottom:6px"><b>My requests</b></div>${mine.map(q=>{const lt=LEAVE.find(x=>x.id===q.lt);const r=lr(lt);return`<div class="req"><div><b>${esc(lt.name)}</b> <span style="color:var(--muted)">${q.from}${q.to!==q.from?" to "+q.to:""}</span></div><div style="display:flex;gap:6px">${r.eligible&&r.paid==="none"?`<span class="chip warn">Unpaid</span>`:""}<span class="chip ${q.status==="pending"?"warn":q.status==="approved"?"good":"bad"}">${q.status}</span></div></div>`}).join("")||`<div style="font-size:12px;color:var(--hint)">No leave requests yet.</div>`}</div>
+  <div class="sticky"><button class="btn p" style="flex:1;justify-content:center" id="mSubmit2" ${meDraft.lt&&meDraft.reason.trim()?"":"disabled"}>Submit request</button></div>`;
+}
+
+// ── Leave approvals (supervisor) ──
+function renderApprove(){
+  const rows=S.requests.filter(q=>q.status==="pending").map((q,i)=>{const lt=LEAVE.find(x=>x.id===q.lt);const pl=payLabel(q.type,lt);
+    return`<tr><td class="name">${esc(q.who)}<div style="font-size:11px;color:var(--hint);font-weight:400">${esc(typeLabel(q.type))}</div></td><td>${esc(lt.name)}${pl.tone==="good"?"":` <span class="chip ${pl.tone}">${esc(pl.text)}</span>`}${pl.tone==="bad"?`<span class="i" data-tip="Filed before the rule changed, or by an admin. Approve it and it is recorded as unpaid, or reject it and point to Leave on approval.">i</span>`:""}</td><td>${q.from}${q.to!==q.from?" to "+q.to:""}</td><td style="color:var(--muted)">${esc(q.reason)}</td><td style="white-space:nowrap"><button class="btn sm ok" data-ap="${i}">Approve</button> <button class="btn sm danger" data-rj="${i}">Reject</button></td></tr>`}).join("");
+  return`<div class="ph"><h2>Leave &amp; Holidays</h2><span class="crumb">Workforce · supervisor view</span></div>
+  <div class="tabs"><button class="tab" aria-selected="true">Leave</button><button class="tab">Holidays</button></div>
+  <div class="card"><div class="bar"><div class="hd"><b>Leave requests</b><span class="chip warn">${S.requests.filter(q=>q.status==="pending").length} pending</span></div></div>
+  <div style="overflow:auto"><table><thead><tr><th>Employee</th><th>Type</th><th>Dates</th><th>Reason</th><th></th></tr></thead><tbody>${rows||`<tr><td colspan="5" style="color:var(--hint)">No pending requests.</td></tr>`}</tbody></table></div>
+  <div style="font-size:12px;color:var(--hint);margin-top:8px">The chip is the rule for the person's employment type at the moment you look, the same rule the monthly summary and the payroll export use.<span class="i" data-tip="A supervisor approves the leave; the summary decides paid or unpaid from the employment type's rule and the leave type's paid days.">i</span></div></div>
+  <div class="card"><div class="hd" style="margin-bottom:6px"><b>Change history · Workforce rules</b></div>${S.log.length?S.log.slice().reverse().map(l=>`<div style="font-size:12.5px;padding:5px 0;border-bottom:1px solid var(--line)">${esc(l)}</div>`).join(""):`<div style="font-size:12px;color:var(--hint)">No rule changes yet. Apply a rule in Settings to see an entry.</div>`}</div>`;
+}
+
+// ── draw ──
+function toast(t){const e=document.getElementById("toast");e.textContent=t;e.classList.add("on");clearTimeout(e._t);e._t=setTimeout(()=>e.classList.remove("on"),3200)}
+function setScreen(s){screen=s;view="list";draw()}
+function draw(){
+  const app=document.getElementById("app");app.className="app "+vp;
+  const sc=document.getElementById("screen");
+  sc.innerHTML=screen==="settings"?renderSettings():screen==="holidays"?renderHolidays():screen==="me"?renderMe():renderApprove();
+  document.querySelectorAll("#sc button").forEach(b=>b.classList.toggle("on",b.dataset.s===screen));
+  // settings wiring
+  sc.querySelectorAll("tr.row").forEach(r=>r.onclick=()=>{const t=S.types.find(x=>x.code===r.dataset.t);if(t.saved)openPanel(t.code);else toast("Save the workspace first, then open the type.")});
+  sc.querySelectorAll("[data-view]").forEach(b=>b.onclick=()=>{view=b.dataset.view;draw()});
+  sc.querySelectorAll("[data-cell]").forEach(c=>c.onclick=()=>openPanel(c.dataset.cell));
+  sc.querySelectorAll("[data-mt]").forEach(c=>c.onclick=()=>{openType=c.dataset.mt;draft=null;draw()});
+  sc.querySelectorAll("[data-go]").forEach(b=>b.onclick=()=>setScreen(b.dataset.go));
+  sc.querySelectorAll("[data-goh]").forEach(b=>b.onclick=()=>setScreen("holidays"));
+  const add=sc.querySelector("#addType");if(add)add.onclick=()=>{const label=prompt("New employment type","Consultant");if(!label)return;const code=label.trim().toLowerCase().replace(/[^a-z0-9]+/g,"_").replace(/^_+|_+$/g,"");if(S.types.some(t=>t.code===code))return toast("That code is taken.");S.types.push({code,label:label.trim(),n:0,saved:true});toast(`${label.trim()} added with zero setup: it follows the workspace rules until you open it.`);draw()};
+  // holidays wiring
+  sc.querySelectorAll("[data-hto]").forEach(b=>b.onclick=()=>{holidayTo=b.dataset.hto;draw()});
+  sc.querySelectorAll("[data-ht]").forEach(c=>c.onclick=()=>{const k=c.dataset.ht;holidayTypes.has(k)?holidayTypes.delete(k):holidayTypes.add(k);draw()});
+  const hAdd=sc.querySelector("#hAdd");if(hAdd)hAdd.onclick=()=>{const date=sc.querySelector("#hDate").value,name=sc.querySelector("#hName").value.trim();if(!date||!name)return toast("Date and name are required.");const tos=holidayTo==="all"?["all"]:[...holidayTypes];let added=0;for(const to of tos){if(S.holidays.some(h=>h.date===date&&h.to===to))continue;S.holidays.push({date,name,to});added++}toast(added?`Added ${name} for ${tos.map(c=>c==="all"?"everyone":typeLabel(c)).join(", ")}.`:"A holiday for that date and audience already exists.");holidayTypes.clear();holidayTo="all";draw()};
+  sc.querySelectorAll("[data-rm]").forEach(b=>b.onclick=()=>{const [d,n]=b.dataset.rm.split("|");S.holidays=S.holidays.filter(h=>!(h.date===d&&h.name===n));draw()});
+  // me wiring
+  const mt=sc.querySelector("#mType");if(mt){mt.onchange=()=>{meDraft.lt=mt.value;draw()};sc.querySelector("#mFrom").onchange=e=>meDraft.from=e.target.value;sc.querySelector("#mTo").onchange=e=>meDraft.to=e.target.value;sc.querySelector("#mReason").oninput=e=>{meDraft.reason=e.target.value;const ok=meDraft.lt&&meDraft.reason.trim();sc.querySelectorAll("#mSubmit,#mSubmit2").forEach(b=>b.disabled=!ok)};
+    const submit=()=>{S.requests.unshift({who:"Priya Nair",type:"trainee",lt:meDraft.lt,from:meDraft.from,to:meDraft.to,reason:meDraft.reason.trim(),status:"pending"});const r=leaveRule("trainee",LEAVE.find(x=>x.id===meDraft.lt));toast(r.paid==="none"?"Request sent. It will be unpaid for your employment type.":"Request sent.");meDraft={lt:"",from:"2026-11-16",to:"2026-11-16",reason:""};draw()};
+    sc.querySelectorAll("#mSubmit,#mSubmit2").forEach(b=>b.onclick=submit)}
+  // approvals wiring
+  sc.querySelectorAll("[data-ap]").forEach(b=>b.onclick=()=>{const p=S.requests.filter(q=>q.status==="pending")[+b.dataset.ap];p.status="approved";toast("Approved. A leave record is written; the month works out paid or unpaid.");draw()});
+  sc.querySelectorAll("[data-rj]").forEach(b=>b.onclick=()=>{const p=S.requests.filter(q=>q.status==="pending")[+b.dataset.rj];p.status="rejected";draw()});
+  // panel
+  const p=document.getElementById("panel"),bd=document.getElementById("backdrop");
+  const showPanel=openType&&draft!==null&&screen==="settings";
+  p.classList.toggle("on",!!showPanel);bd.classList.toggle("on",!!showPanel);
+  if(showPanel){p.innerHTML=renderPanel();wirePanel(p)}
+  bd.onclick=closePanel;
+}
+document.querySelectorAll("#vp button").forEach(b=>b.onclick=()=>{vp=b.dataset.v;[...b.parentElement.children].forEach(x=>x.classList.toggle("on",x===b));draw()});
+document.querySelectorAll("#sc button").forEach(b=>b.onclick=()=>setScreen(b.dataset.s));
+document.getElementById("reset").onclick=()=>{S=seed();openType=null;draft=null;meDraft={lt:"",from:"2026-11-16",to:"2026-11-16",reason:""};draw();toast("Sample reset.")};
+document.addEventListener("keydown",e=>{if(e.key==="Escape"){document.getElementById("dlg").classList.remove("on");if(openType)closePanel()}});
+draw();
+</script></body></html>
