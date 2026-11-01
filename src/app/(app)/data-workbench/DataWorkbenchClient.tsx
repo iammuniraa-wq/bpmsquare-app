@@ -208,10 +208,11 @@ function ImportFlow({ spec: baseSpec, mode }: { spec: ObjectSpec; mode: "import"
     // key -- bulk Update edits quote header scalars only, one row per quote.
     // Tender BOQ lines: the Unit rate column stays in Update's list (it is a plain number field) but the route ignores it and says so in
     // the row's outcome. A rate needs a source (client's, supplier, past project...), so the Bill of quantities screen is the one place
-    // that sets it; item number, unit and tender are likewise not changed by a file.
+    // that sets it; item number, unit and tender are likewise not changed by a file, and the Client columns cell is read on Import and written
+    // by Export only.
     return {
       ...baseSpec,
-      fields: [ID_FIELD, ...baseSpec.fields.filter((f) => !f.exportOnly && f.type !== "ref" && f.scope !== "line" && f.key !== "quote_name")],
+      fields: [ID_FIELD, ...baseSpec.fields.filter((f) => !f.exportOnly && !f.importOnly && f.type !== "ref" && f.scope !== "line" && f.key !== "quote_name")],
     };
   }, [baseSpec, mode]);
   const fileRef = useRef<HTMLInputElement>(null);

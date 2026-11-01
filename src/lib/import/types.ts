@@ -48,6 +48,8 @@ export type FieldSpec = {
   scope?: "header" | "line";
   /** In Export column lists but stripped from Import/Update specs — system-computed values an importer can't set. */
   exportOnly?: boolean;
+  /** Read on Import (and offered for mapping on Update) but never an Export column: a spelling a client's file uses, such as a Narration column. */
+  importOnly?: boolean;
   example?: string;
 };
 

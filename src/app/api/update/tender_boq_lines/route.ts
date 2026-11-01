@@ -17,7 +17,7 @@ const may = (key: (typeof TENDER_BOQ_UPDATE_KEYS)[number]) => TENDER_BOQ_UPDATE_
 
 /**
  * Bulk-edits lines already on a tender's Bill of quantities, matched by their own Record ID (the export's "id" column), never by
- * item number: an item number can repeat across tenders and a revised file can renumber. Quantity, description and cost code change
+ * item number: an item number can repeat across tenders and a revised file can renumber. Quantity, description, details and cost code change
  * (the deal line's amount follows the quantity); a column that a file may not change is reported on the row, not applied. What the
  * client's file said is never touched, so a revised upload still compares against the file. Logged on the tender, like the screen's
  * own edits. Every query is on the workspace; an id of another workspace matches nothing.
@@ -64,6 +64,7 @@ export async function POST(request: NextRequest) {
       body.qty = q;
     }
     if (may("description") && "description" in values) body.description = values.description ?? "";
+    if (may("details") && "details" in values) body.details = values.details ?? "";
     if (may("cost_code") && "cost_code" in values) body.cost_code = values.cost_code?.trim() || null;
     if (Object.keys(body).length === 0) { outcomes.push({ rowNum, status: "skipped", reason: "No mapped columns to update" }); continue; }
     (perTender.get(oppId) ?? perTender.set(oppId, []).get(oppId)!).push({ rowNum, id, values, body });

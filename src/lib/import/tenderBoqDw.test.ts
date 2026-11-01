@@ -108,7 +108,7 @@ describe("the object", () => {
     const byKey = new Map(TENDER_BOQ_LINES_SPEC.fields.map((f) => [f.key, f]));
     expect(byKey.get("tender_ref")).toMatchObject({ type: "ref", required: true });
     for (const k of ["amount", "rate_source", "price_as_of", "status", "row_no"]) expect(byKey.get(k)?.exportOnly, k).toBe(true);
-    expect([...TENDER_BOQ_UPDATE_KEYS]).toEqual(["quantity", "description", "cost_code"]);
+    expect([...TENDER_BOQ_UPDATE_KEYS]).toEqual(["quantity", "description", "details", "cost_code"]);
     expect(byKey.get("rate")?.exportOnly).toBeFalsy();
   });
 
@@ -273,7 +273,7 @@ describe("Export", () => {
     expect(j.rows).toHaveLength(2);
     const a = j.rows.find((r: Record<string, string>) => r.item_no === "1.1");
     expect(a).toEqual({
-      id: "b1", tender_ref: "OPP-0044", item_no: "1.1", description: "Excavation", unit: "m3", quantity: "100", cost_code: "31 23",
+      id: "b1", tender_ref: "OPP-0044", item_no: "1.1", description: "Excavation", details: "", unit: "m3", quantity: "100", cost_code: "31 23", client_columns: "",
       rate: "20", amount: "2000", rate_source: "supplier", price_as_of: "2026-10-20", status: "priced", row_no: "2",
     });
     expect(j.rows.find((r: Record<string, string>) => r.item_no === "1.2")).toMatchObject({ id: "b2", rate: "", amount: "", rate_source: "", status: "unpriced" });
@@ -370,6 +370,95 @@ describe("Update (by id only)", () => {
     canEdit = false;
     expect((await call(updateLines.POST, rowsOf([{ id: "b1", quantity: "5" }]))).status).toBe(403);
     expect(current.tables.opportunity_lines.find((l) => l.id === "l1")!.qty).toBe(100);
+  });
+});
+
+describe("the client's own layout (Narration, Description, client columns)", () => {
+  const SPEC = "1) Non-shrink cementitious grout.\n2) Under base plates, 50 mm.";
+  const CLIENT = { "Sr #": "155", "Bill #": "A", Section: "00", "Page #": "00", "Revision #": "00", "Boq #": "A-00-00-00-A1518" };
+  const file = (over: Record<string, string> = {}) => T({ item_no: "A1518", narration: "Grouting (Non-shrink)", description: SPEC, unit: "M3", quantity: "10.130", rate: "4,014.000", client_columns: JSON.stringify(CLIENT), ...over });
+
+  it("imports a Narration as the line name and the Description as its details, keeps the client columns and the client's rate", async () => {
+    seedBoq();
+    const j = await (await call(importLines.POST, rowsOf([file()]))).json();
+    expect(j).toMatchObject({ inserted: 1, failed: 0 });
+    const boq = current.tables.tender_boq_lines.find((r) => r.item_key === "n:a1518")!;
+    expect(boq).toMatchObject({ file_description: "Grouting (Non-shrink)", file_details: SPEC, file_rate: 4014, client_data: CLIENT, file_qty: 10.13 });
+    expect(current.tables.opportunity_lines.find((l) => l.sl_no === "A1518")).toMatchObject({ description: "Grouting (Non-shrink)", rate: 4014, qty: 10.13 });
+  });
+
+  it("a file with a Description only is exactly as before: the name is the description and there are no details", async () => {
+    seedBoq();
+    await call(importLines.POST, rowsOf([T({ item_no: "Z1", description: "Plain line", unit: "m", quantity: "2" })]));
+    const boq = current.tables.tender_boq_lines.find((r) => r.item_key === "n:z1")!;
+    expect(boq).toMatchObject({ file_description: "Plain line", file_details: null, client_data: null });
+  });
+
+  it("round trips through Export: the name, the details and the client columns come back, and no cost, markup or price reference", async () => {
+    seedBoq();
+    await call(importLines.POST, rowsOf([file()]));
+    const j = await (await call(exportLines.POST, {})).json();
+    const row = j.rows.find((r: Record<string, string>) => r.item_no === "A1518");
+    expect(row).toMatchObject({ description: "Grouting (Non-shrink)", details: SPEC, unit: "M3", quantity: "10.13", rate: "4014" });
+    expect(JSON.parse(row.client_columns)).toEqual(CLIENT);
+    const text = JSON.stringify(j);
+    for (const secret of ["unit_cost", "markup", "price_source_ref", SECRET_REF, "17.3456"]) expect(text, secret).not.toContain(secret);
+    // The exported cells import again to the same line.
+    const again = await (await call(importLines.POST, rowsOf([T({ item_no: row.item_no, description: row.description, details: row.details, unit: row.unit, quantity: row.quantity, client_columns: row.client_columns })]))).json();
+    expect(again).toMatchObject({ failed: 0 });
+    expect(current.tables.tender_boq_lines.filter((r) => r.item_key === "n:a1518")).toHaveLength(1);
+  });
+
+  it("Update changes the details by Record ID and leaves the name and the client columns alone", async () => {
+    seedBoq();
+    await call(importLines.POST, rowsOf([file()]));
+    const id = current.tables.tender_boq_lines.find((r) => r.item_key === "n:a1518")!.id as string;
+    const j = await (await call(updateLines.POST, { rows: [{ rowNum: 2, values: { id, details: "Revised spec\n\n\n\nsecond paragraph", client_columns: "{}" } }] })).json();
+    expect(j).toMatchObject({ updated: 1, failed: 0 });
+    expect(current.tables.tender_boq_lines.find((r) => r.id === id)).toMatchObject({ file_description: "Grouting (Non-shrink)", file_details: "Revised spec\n\nsecond paragraph", client_data: CLIENT });
+    expect(logged.at(-1)!.changes!.map((c) => c.field)).toEqual(["BOQ details A1518"]);
+  });
+
+  it("a Client columns cell that is not a JSON object fails that row only", async () => {
+    seedBoq();
+    const j = await (await call(importLines.POST, rowsOf([file({ client_columns: "Sr #: 155" }), file({ item_no: "A1519" })]))).json();
+    expect(j).toMatchObject({ inserted: 1, failed: 1 });
+    expect(j.outcomes.find((o: { status: string }) => o.status === "failed").reason).toMatch(/JSON object/);
+  });
+
+  it("Export and Update offer no Narration column; Import does", () => {
+    const f = new Map(TENDER_BOQ_LINES_SPEC.fields.map((x) => [x.key, x]));
+    expect(f.get("narration")?.importOnly).toBe(true);
+    expect(f.get("client_columns")?.importOnly).toBeFalsy();
+    expect(read("src/app/(app)/data-workbench/ExportFlow.tsx")).toContain("!f.importOnly");
+    expect(read("src/app/(app)/data-workbench/DataWorkbenchClient.tsx")).toContain("!f.exportOnly && !f.importOnly");
+  });
+
+  it("while migration 0242 is pending the import still works, name from the Narration, and the details and client columns are left out", async () => {
+    seedBoq();
+    const real = current.client;
+    const NEW = /file_details|client_data|header_info/;
+    const failing = () => {
+      const q: unknown = new Proxy({}, { get: (_t, p) => (p === "then" ? (res: (v: unknown) => unknown) => Promise.resolve({ data: null, error: { code: "42703", message: "column does not exist" } }).then(res) : () => q) });
+      return q;
+    };
+    current = { ...current, client: { from: (t: string) => {
+      const q = real.from(t) as unknown as Record<string, (...a: unknown[]) => unknown>;
+      if (t !== "tender_boq_lines" && t !== "tender_boq_sources") return q;
+      return new Proxy(q, { get(target, p: string) {
+        if (p === "select") return (cols?: string) => (NEW.test(String(cols ?? "")) ? failing() : target.select(cols));
+        if (p === "insert" || p === "update") return (payload: unknown) => ((Array.isArray(payload) ? payload : [payload]).some((x) => NEW.test(Object.keys(x as object).join(","))) ? failing() : target[p](payload));
+        const v = target[p];
+        return typeof v === "function" ? v.bind(target) : v;
+      } });
+    } } as unknown as typeof real };
+    const j = await (await call(importLines.POST, rowsOf([file()]))).json();
+    expect(j).toMatchObject({ inserted: 1, failed: 0 });
+    const boq = current.tables.tender_boq_lines.find((r) => r.item_key === "n:a1518")!;
+    expect(boq).toMatchObject({ file_description: "Grouting (Non-shrink)", file_rate: 4014 });
+    expect(boq).not.toHaveProperty("file_details");
+    expect(boq).not.toHaveProperty("client_data");
+    expect(current.tables.tender_boq_sources.find((s) => s.is_current)).not.toHaveProperty("header_info");
   });
 });
 

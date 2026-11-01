@@ -27,7 +27,9 @@ const inputStyle: React.CSSProperties = {
   background: c.panel, color: c.ink, outline: "none",
 };
 
-export default function ExportFlow({ spec }: { spec: ObjectSpec }) {
+export default function ExportFlow({ spec: fullSpec }: { spec: ObjectSpec }) {
+  // importOnly fields read a file's own spelling on Import (a client's Narration column); an export has nothing to put in them.
+  const spec: ObjectSpec = { ...fullSpec, fields: fullSpec.fields.filter((f) => !f.importOnly) };
   const [selected, setSelected] = useState<Set<string>>(() => new Set(spec.fields.map((f) => f.key)));
   const [filters, setFilters] = useState<ExportFilter[]>([]);
   const [pending, setPending] = useState(false);

@@ -13,15 +13,18 @@ export const TENDER_BOQ_LINES_SPEC: ObjectSpec = {
   id: "tender_boq_lines",
   label: "Tender BOQ lines",
   icon: "≣",
-  description: "Lines of a tender's Bill of quantities: add or revise lines of an existing tender by item number, or bulk-edit quantity, description and cost code on lines already there. Cost and markup are never in a file. Import only adds lines and updates the ones it matches by item number; it never removes a line, whatever the file leaves out.",
+  description: "Lines of a tender's Bill of quantities: add or revise lines of an existing tender by item number, or bulk-edit quantity, description, details and cost code on lines already there. Cost and markup are never in a file. Import only adds lines and updates the ones it matches by item number; it never removes a line, whatever the file leaves out.",
   dependsOn: ["opportunities"],
   fields: [
     { key: "tender_ref", label: "Tender", type: "ref", required: true, hint: "Deal ID (OPP-0044) or the tender number of an existing tender", aliases: ["tender", "tender no", "tender number", "deal", "deal id", "opportunity"] },
     { key: "item_no", label: "Item no.", type: "text", hint: "The client's item number; a revised file matches lines by it", aliases: EXACT.item_no },
-    { key: "description", label: "Description", type: "text", required: true, hint: "Line description", aliases: EXACT.description },
+    { key: "narration", label: "Narration", type: "text", importOnly: true, hint: "The client's short name. When the file has it, it becomes the line name and the Description is kept as details", aliases: EXACT.narration },
+    { key: "description", label: "Description", type: "text", required: true, hint: "The line name, as the Bill of quantities shows it", aliases: EXACT.description },
+    { key: "details", label: "Details", type: "text", hint: "The long text of the line, kept next to its name", aliases: ["details", "specification", "long description", "full description"] },
     { key: "unit", label: "Unit", type: "text", hint: "Nos · m · m² · m³ · kg · LS", aliases: EXACT.uom },
     { key: "quantity", label: "Quantity", type: "number", required: true, hint: "Quantity in the client's file", aliases: EXACT.qty },
     { key: "cost_code", label: "Cost code", type: "text", hint: "CSI / WBS / cost code", aliases: EXACT.cost_code },
+    { key: "client_columns", label: "Client columns", type: "text", hint: "The client's other columns as JSON, the way an export writes them. Not changed by Update", aliases: ["client data"] },
     { key: "rate", label: "Unit rate", type: "number", hint: "Only on Import: the client's own rate in the file. Our rate is set on the Bill of quantities", aliases: EXACT.rate },
     // Export-only: computed, or answered by the pricing on the Bill of quantities.
     { key: "amount", label: "Amount", type: "number", exportOnly: true, hint: "Computed quantity × rate" },
@@ -37,4 +40,4 @@ export const TENDER_BOQ_LINES_SPEC: ObjectSpec = {
 };
 
 /** What an Update file may change on a line. The rate is deliberately not here (see above). */
-export const TENDER_BOQ_UPDATE_KEYS = ["quantity", "description", "cost_code"] as const;
+export const TENDER_BOQ_UPDATE_KEYS = ["quantity", "description", "details", "cost_code"] as const;
