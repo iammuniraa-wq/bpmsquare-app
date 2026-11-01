@@ -1,7 +1,9 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createAdminSupabase } from "@/lib/supabase-server";
 import { requireWfmEmployee, getWfmConfig } from "@/lib/wfm/server";
-import { getMonthlySummary, getLeaveBalance } from "@/lib/wfm/monthlySummary";
+import { getMonthlySummary, getLeaveBalanceDetail } from "@/lib/wfm/monthlySummary";
+import { dateKeyInTz } from "@/lib/wfm/server";
+import { customRuleCount, rulesFor } from "@/lib/wfm/typeRules";
 
 
 // Capped per route, not via vercel.json. That config carried
@@ -38,9 +40,9 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "month must be YYYY-MM" }, { status: 400 });
   }
 
-  const [summaries, leaveBalance] = await Promise.all([
+  const [summaries, leaveDetail] = await Promise.all([
     getMonthlySummary(tenantId, month, [employee.id]),
-    getLeaveBalance(tenantId, employee.id, month),
+    getLeaveBalanceDetail(tenantId, employee.id, month),
   ]);
 
   if (summaries.length === 0) {
@@ -53,7 +55,18 @@ export async function GET(request: NextRequest) {
   return NextResponse.json({
     month,
     summary: summaries[0],
-    leave_balance: leaveBalance,
+    leave_balance: leaveDetail.rows,
+    // Rules by employment type, so the screen can say what is different for this person. null = nothing differs.
+    leave_not_offered: leaveDetail.notOffered.map((t) => t.name),
+    employment_type_label: leaveDetail.employmentTypeLabel,
+    week_off: (() => {
+      const r = rulesFor(employee.employment_type, config, dateKeyInTz(new Date(), config.timezone));
+      return r.source.week_off_days === "type" ? r.week_off_days : null;
+    })(),
+    type_rules_active: (() => {
+      const entry = employee.employment_type ? config.type_rules[employee.employment_type] : undefined;
+      return customRuleCount(entry) > 0 && (!entry?.effective_from || entry.effective_from <= dateKeyInTz(new Date(), config.timezone));
+    })(),
     deduct_breaks: config.deduct_breaks,
     timezone: config.timezone,
   });

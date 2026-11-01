@@ -14,9 +14,11 @@ import { tipTextProblems } from "@/lib/infoTip";
 import { DEFAULT_WFM_CONFIG, type WfmConfig } from "@/lib/constants";
 import {
   ALERT_ROWS, alertCount, blankLeave, blankShift, blankSite, changedConfig, cleanCode, cleanEmploymentTypes, leaveDraftFrom, leavePayload,
-  leaveUsage, shiftPayload, shiftProblem, sitePayload, siteProblem, slugCode, workforceTabs, type LeaveType,
+  leaveUsage, shiftPayload, shiftProblem, sitePayload, siteProblem, slugCode, typeRulesPayload, workforceTabs, type LeaveType,
 } from "./logic";
-import { WORKFORCE_TIPS } from "./tips";
+import { TYPE_RULE_TIPS, WORKFORCE_TIPS } from "./tips";
+import TypeRulesPanel from "./TypeRulesPanel";
+import TypeRulesCompare from "./TypeRulesCompare";
 import RulesTab from "./RulesTab";
 import AlertsTab from "./AlertsTab";
 import BillingTab from "./BillingTab";
@@ -57,6 +59,19 @@ describe("one Save sends only what changed", () => {
     expect(base.ot_min_minutes).toBe(0);
     expect(changedConfig(base, { ...base, payroll_by_location: true, ot_min_minutes: 30 }, false)).toEqual({ payroll_by_location: true, ot_min_minutes: 30 });
     expect(changedConfig(base, { ...base }, false)).toEqual({});
+  });
+  it("sends type_rules only when it changed, and nothing else with it", () => {
+    const base = cfg();
+    expect(changedConfig(base, { ...base }, false)).toEqual({});
+    const rules = { trainee: { leave: { x: { mode: "off" as const } }, week_off_days: [] } };
+    expect(changedConfig(base, { ...base, type_rules: rules }, false)).toEqual({ type_rules: rules });
+  });
+  it("the panel payload carries the rules map only, drops an empty entry and does not trust a client date", () => {
+    expect(typeRulesPayload({
+      trainee: { effective_from: "2026-11-01", leave: { x: { mode: "off" } } },
+      intern: { effective_from: "2026-11-01", leave: {} },
+    })).toEqual({ type_rules: { trainee: { effective_from: "2026-11-01", leave: { x: { mode: "off" } } } } });
+    expect(Object.keys(typeRulesPayload({}))).toEqual(["type_rules"]);
   });
   it("does not count an abandoned empty employment type as a change", () => {
     const base = cfg();
@@ -119,6 +134,9 @@ describe("the explanations", () => {
   it("every tip fits the InfoTip limit", () => {
     for (const [k, v] of Object.entries(WORKFORCE_TIPS)) expect(tipTextProblems(v), k).toEqual([]);
   });
+  it("every rules-by-type tip fits the InfoTip limit", () => {
+    for (const [k, v] of Object.entries(TYPE_RULE_TIPS)) expect(tipTextProblems(v), k).toEqual([]);
+  });
 });
 
 describe("the tabs render", () => {
@@ -135,6 +153,45 @@ describe("the tabs render", () => {
     expect(beforeMore).toContain("Employment types");
     expect(beforeMore).toContain("+ Add type");
     expect(beforeMore).toContain("Report by location");
+  });
+  it("Rules lists employment types as a table with a List | Compare switch, and no per-type text boxes", () => {
+    const base = cfg({ employment_types: [{ code: "full_time", label: "Full-time" }, { code: "trainee", label: "Trainee" }], type_rules: { trainee: { week_off_days: [], leave: { x: { mode: "off" } } } } });
+    const out = html(el(RulesTab, { cfg: base, savedCodes: ["full_time", "trainee"], shifts: [], onChange: noop }));
+    expect(out).toContain('aria-label="Employment types"');
+    expect(out).toContain("List");
+    expect(out).toContain("Compare");
+    expect(out).toContain("2 custom");
+    expect(out).toContain("Same as everyone");
+    expect(out).not.toContain("Employment type 1");
+  });
+  it("the type panel shows Same as everyone on every row for a type with no entry", () => {
+    const leaveTypes = [
+      { id: "a", name: "Sick", category: "paid", active: true, paid_days_per_month: 1 },
+      { id: "b", name: "Paid leave", category: "paid", active: true },
+      { id: "c", name: "Leave on approval", category: "unpaid", active: true },
+    ];
+    const out = html(el(TypeRulesPanel, {
+      type: { code: "intern", label: "Intern" }, isNew: false, canRemove: true, saved: undefined, allRules: {}, weekOffDays: [0],
+      leaveTypes, typeOptions: [], people: 3, pending: 1, holidaysFor: 0,
+      onLabel: noop, onCode: noop, onRemove: noop, onClose: noop, onApplied: noop,
+    }));
+    expect(out).toContain("Rules for Intern");
+    expect(out).toContain("3 people");
+    expect(out).toContain("Same as everyone: Paid, up to 1 a month");
+    expect(out).toContain("Same as everyone: Paid");
+    expect(out).toContain("Unpaid, on approval");
+    expect(out).not.toContain("Custom:");
+    expect(out).toContain("No changes");
+  });
+  it("Compare puts types in columns and marks only the custom cells", () => {
+    const types = [{ code: "full_time", label: "Full-time" }, { code: "trainee", label: "Trainee" }];
+    const out = html(el(TypeRulesCompare, {
+      types, savedCodes: ["full_time", "trainee"], rules: { trainee: { week_off_days: [], leave: { a: { mode: "off" } } } }, weekOffDays: [0],
+      leaveTypes: [{ id: "a", name: "Sick", category: "paid", active: true }], onOpen: noop,
+    }));
+    expect(out).toContain("Trainee");
+    expect(out).toContain("Not offered");
+    expect((out.match(/data-custom="true"/g) ?? []).length).toBe(2);
   });
   it("Rules shows the minimum overtime per day only while overtime is on", () => {
     const base = cfg();

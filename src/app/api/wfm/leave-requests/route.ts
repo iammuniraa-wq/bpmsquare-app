@@ -3,7 +3,7 @@ import { createAdminSupabase } from "@/lib/supabase-server";
 import { requireWfm, requireWfmEmployee, getWfmConfig } from "@/lib/wfm/server";
 import { resolveWfmScope } from "@/lib/wfm/scope";
 import { getSupervisorEmails, sendWfmNotification } from "@/lib/wfm/notify";
-import { loadLeaveType, monthlyLimitError } from "@/lib/wfm/leaveServer";
+import { assertLeaveOffered, loadLeaveType, monthlyLimitError } from "@/lib/wfm/leaveServer";
 import { ROUTES } from "@/lib/constants";
 import { markObsoleteEmbeds } from "@/lib/wfm/obsolete";
 import type { LeaveRequestStatus } from "@/lib/wfm/types";
@@ -40,7 +40,7 @@ export async function GET(request: NextRequest) {
     .from("wfm_leave_requests")
     .select(
       isSupervisor
-        ? "*, employees(first_name, last_name, employee_code, status), wfm_leave_types(name, category)"
+        ? "*, employees(first_name, last_name, employee_code, status, employment_type), wfm_leave_types(name, category)"
         : "*, wfm_leave_types(name, category)"
     )
     .eq("tenant_id", tenantId)
@@ -101,6 +101,10 @@ export async function POST(request: NextRequest) {
   // this tenant -- same guardrail as leave-records' admin-entry path.
   const leaveType = await loadLeaveType(admin, tenantId, leave_type_id, true);
   if (!leaveType) return NextResponse.json({ error: "Unknown leave type" }, { status: 400 });
+
+  // Rules by employment type: some types are not offered to some people.
+  const offeredError = await assertLeaveOffered(admin, tenantId, employee.id, leaveType, date_from);
+  if (offeredError) return NextResponse.json({ error: offeredError }, { status: 400 });
 
   // Monthly limit (0109): approved records plus still-pending requests of
   // this type count against the month, so two requests cannot both squeeze

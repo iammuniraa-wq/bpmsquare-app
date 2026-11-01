@@ -23,7 +23,7 @@ export const WORKFORCE_TIPS = {
   passkey: "Employees unlock sign-in with their phone's fingerprint or Face ID. Only a public key is stored.",
   saturday: "The 1st, 3rd, 4th and 5th Saturdays use a short shift and the 2nd is a holiday, planned a month ahead. Working the 2nd needs an overtime punch.",
   saturdayShift: "Create the shift under Shifts first if it does not exist yet.",
-  employmentTypes: "Add types such as Intern or Trainee; each gets its own export sheet. A code can be set while the type is new and stays fixed after saving.",
+  employmentTypes: "Each type gets its own export sheet and can have its own rules. A code can be set while the type is new and stays fixed after saving.",
   payrollByLocation: "The monthly Excel export gets a sheet per location and employment type, with a serial number and category column. Off keeps today's sheets.",
   otMinimum: "Overtime on a day shorter than this many minutes is shown but not counted or paid. A day at or above it counts in full; 0 counts everything.",
   geofence: "Flag keeps the punch and marks it outside. Block rejects a punch outside every site.",
@@ -52,3 +52,22 @@ export const WORKFORCE_TIPS = {
 } as const;
 
 export type WorkforceTipKey = keyof typeof WORKFORCE_TIPS;
+
+/** Rules by employment type (docs/design/wfm-rules-by-type.md). Held to the same limit by workforce.test.ts. */
+export const TYPE_RULE_TIPS = {
+  types: "Each type follows the workspace until you set a row to Custom. A new type needs no setup.",
+  panel: "Only the rows you set are stored. Everything else follows the workspace.",
+  effectiveFrom: "Rules apply from this date. Days before it keep the workspace rules and are never changed.",
+  leaveRow: "Not offered hides the leave and refuses new requests. Unpaid records it but pays nothing.",
+  leaveUnpaidType: "Always unpaid. People of this type can request it and a supervisor approves it as usual.",
+  weekOff: "None means every weekday is a working day, so absence and standard hours count Sundays too. A roster day off still wins.",
+  holidaysFor: "Holidays set for this type only are managed under Leave & Holidays.",
+  copyFrom: "Copies the other type's rows into this panel. Nothing is saved until you apply.",
+  resetAll: "Clears every custom row so this type follows the workspace again.",
+  compare: "Types as columns, rules as rows. A filled cell is custom; a dot follows the workspace.",
+  requestNotOffered: "Filed before the rule changed, or entered by an admin. Approve to record it as unpaid, or reject and point to the unpaid leave type.",
+  employeeNotOffered: "Your employment type does not include these. Ask your supervisor if you need time off.",
+  employeeWeekOff: "Your employment type has its own weekly off. Days that are not off count as working days.",
+} as const;
+
+export type TypeRuleTipKey = keyof typeof TYPE_RULE_TIPS;

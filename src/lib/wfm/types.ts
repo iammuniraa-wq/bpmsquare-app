@@ -149,6 +149,7 @@ export type WfmHoliday = {
   id: string;
   date: string; // YYYY-MM-DD
   name: string;
+  /** "all", or the code of one configured employment type (WfmConfig.employment_types). */
   applies_to: "all" | WfmEmploymentType;
 };
 

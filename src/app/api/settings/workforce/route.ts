@@ -1,8 +1,11 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { revalidateTag } from "next/cache";
-import { requireTenantUser, createAdminSupabase } from "@/lib/supabase-server";
+import { requireTenantUser, createAdminSupabase, getAuthUser } from "@/lib/supabase-server";
 import { tenantHasFeature } from "@/lib/tenant";
-import { DEFAULT_WFM_CONFIG, type TenantConfig, type WfmConfig, type WfmCostingConfig } from "@/lib/constants";
+import { DEFAULT_WFM_CONFIG, type TenantConfig, type WfmConfig, type WfmCostingConfig, type WfmTypeRules } from "@/lib/constants";
+import { dateKeyInTz } from "@/lib/wfm/server";
+import { cleanTypeEntry, diffTypeRules } from "@/lib/wfm/typeRules";
+import { diffForLog, logChange, type ChangeEntry } from "@/lib/changeLog";
 
 // GET /api/settings/workforce — tenant WFM config with defaults filled in.
 export async function GET() {
@@ -34,6 +37,7 @@ export async function GET() {
     long_day_alert: { ...DEFAULT_WFM_CONFIG.long_day_alert, ...(stored.long_day_alert ?? {}) },
     break_alert: { ...DEFAULT_WFM_CONFIG.break_alert, ...(stored.break_alert ?? {}) },
     holiday_week_alert: { ...DEFAULT_WFM_CONFIG.holiday_week_alert, ...(stored.holiday_week_alert ?? {}) },
+    type_rules: stored.type_rules && typeof stored.type_rules === "object" ? stored.type_rules : {},
   });
 }
 
@@ -52,9 +56,9 @@ const CODE_RE = /^[a-z0-9_]{1,40}$/;
 
 // PUT /api/settings/workforce — update tenant WFM config (admin only).
 export async function PUT(request: NextRequest) {
-  let tenantId, role;
+  let tenantId, role, userId;
   try {
-    ({ tenantId, role } = await requireTenantUser());
+    ({ tenantId, role, userId } = await requireTenantUser());
   } catch (e: unknown) {
     const err = e as { status: number; message: string };
     return NextResponse.json({ error: err.message }, { status: err.status });
@@ -254,6 +258,72 @@ export async function PUT(request: NextRequest) {
   if (readErr) return NextResponse.json({ error: readErr.message }, { status: 500 });
 
   const currentConfig = (current?.config ?? {}) as TenantConfig;
+  const currentWfm = (currentConfig.wfm ?? {}) as Partial<WfmConfig>;
+
+  // Rules by employment type (docs/design/wfm-rules-by-type.md). Keyed by employment-type code; only custom rows are
+  // kept. Codes the tenant does not have are dropped (also when a type is removed on the Rules tab in the same save),
+  // and leave ids are verified against THIS tenant's leave types before they are stored.
+  const typeRulesChanges: ChangeEntry[] = [];
+  const configuredTypes = next.employment_types ?? currentWfm.employment_types ?? DEFAULT_WFM_CONFIG.employment_types;
+  const knownCodes = new Set(configuredTypes.map((t) => t.code));
+  const existingRules = (currentWfm.type_rules ?? {}) as Record<string, WfmTypeRules>;
+  if (body.type_rules && typeof body.type_rules === "object") {
+    const { data: leaveTypeRows } = await admin.from("wfm_leave_types").select("id, name").eq("tenant_id", tenantId);
+    const leaveTypes = (leaveTypeRows ?? []) as { id: string; name: string }[];
+    const leaveIds = new Set(leaveTypes.map((l) => l.id));
+    const today = dateKeyInTz(new Date(), next.timezone ?? currentWfm.timezone ?? DEFAULT_WFM_CONFIG.timezone);
+    const cleanedRules: Record<string, WfmTypeRules> = {};
+    for (const [code, raw] of Object.entries(body.type_rules as Record<string, unknown>)) {
+      if (!knownCodes.has(code) || !raw || typeof raw !== "object") continue;
+      const incoming = raw as { leave?: unknown; week_off_days?: unknown };
+      const draft: WfmTypeRules = {};
+      if (incoming.leave && typeof incoming.leave === "object") {
+        const leave: NonNullable<WfmTypeRules["leave"]> = {};
+        for (const [leaveId, m] of Object.entries(incoming.leave as Record<string, unknown>)) {
+          if (!leaveIds.has(leaveId) || !m || typeof m !== "object") continue;
+          const mode = (m as { mode?: unknown }).mode;
+          if (mode === "off" || mode === "unpaid") leave[leaveId] = { mode };
+          else if (mode === "paid") {
+            const n = (m as { paid_days_per_month?: unknown }).paid_days_per_month;
+            if (typeof n === "number" && Number.isFinite(n) && n >= 0 && n <= 31) {
+              leave[leaveId] = { mode: "paid", paid_days_per_month: Math.round(n * 2) / 2 };
+            }
+          }
+        }
+        draft.leave = leave;
+      }
+      // Empty is valid here (unlike the workspace list): it means no weekly off at all.
+      if (Array.isArray(incoming.week_off_days) && incoming.week_off_days.every((d) => Number.isInteger(d) && d >= 0 && d <= 6)) {
+        draft.week_off_days = [...new Set(incoming.week_off_days as number[])].sort();
+      }
+      // The date is the server's: a type's first custom rule starts today (tenant time) and later edits keep that
+      // start, so saving never rewrites a past day or month.
+      const kept = existingRules[code]?.effective_from;
+      draft.effective_from = kept ?? today;
+      const entry = cleanTypeEntry(draft);
+      if (entry) cleanedRules[code] = entry;
+    }
+    next.type_rules = cleanedRules;
+  } else if (next.employment_types) {
+    const pruned = Object.fromEntries(Object.entries(existingRules).filter(([code]) => knownCodes.has(code)));
+    if (Object.keys(pruned).length !== Object.keys(existingRules).length) next.type_rules = pruned;
+  }
+  if (next.type_rules) {
+    const { data: lt } = await admin.from("wfm_leave_types").select("id, name").eq("tenant_id", tenantId);
+    const names = (lt ?? []) as { id: string; name: string }[];
+    const labelOf = (code: string) => configuredTypes.find((t) => t.code === code)?.label ?? code;
+    for (const code of new Set([...Object.keys(existingRules), ...Object.keys(next.type_rules)])) {
+      const before = existingRules[code];
+      const after = next.type_rules[code];
+      for (const c of diffTypeRules(labelOf(code), before, after, names)) {
+        typeRulesChanges.push({ field: c.field, from: c.before, to: c.after });
+      }
+      if (after?.effective_from && after.effective_from !== before?.effective_from) {
+        typeRulesChanges.push({ field: `${labelOf(code)} · Applies from`, from: before?.effective_from ?? null, to: after.effective_from });
+      }
+    }
+  }
+
   const merged: TenantConfig = { ...currentConfig, wfm: { ...currentConfig.wfm, ...next } };
 
   const { error } = await admin.from("tenants").update({ config: merged }).eq("id", tenantId);
@@ -264,6 +334,17 @@ export async function PUT(request: NextRequest) {
   // "Face sign-in" or "Employee login" wouldn't reach the login screen until
   // the cache expired.
   revalidateTag("tenant-branding", { expire: 0 });
+
+  // Audit: the rest of the workspace settings this save changed, and each employment-type rule as its own line.
+  const { type_rules: _typeRules, ...otherNext } = next;
+  const changes = [...diffForLog("wfm_settings", currentWfm as Record<string, unknown>, otherNext as Record<string, unknown>), ...typeRulesChanges];
+  if (changes.length > 0) {
+    const user = await getAuthUser();
+    await logChange(admin, {
+      tenantId, objectType: "wfm_settings", objectId: tenantId, objectLabel: "Workforce rules",
+      action: "update", actorId: userId, actorEmail: user?.email ?? null, changes,
+    });
+  }
 
   return NextResponse.json({ ...DEFAULT_WFM_CONFIG, ...merged.wfm });
 }

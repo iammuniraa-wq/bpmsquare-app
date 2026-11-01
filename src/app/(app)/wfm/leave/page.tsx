@@ -1,6 +1,6 @@
 import { requireWorkcenterView } from "@/lib/permissions";
 import { requireFeature } from "@/lib/tenant";
-import { requireWfm, requireWfmSupervisorPage } from "@/lib/wfm/server";
+import { requireWfm, requireWfmSupervisorPage, getWfmConfig } from "@/lib/wfm/server";
 import { resolveWfmScope, filterEmployeesToScope } from "@/lib/wfm/scope";
 import { wfmEmployeesPayload, wfmLeaveTypesPayload, wfmLeaveRecordsPayload, wfmLeaveRequestsPayload } from "@/lib/wfm/bootstrap";
 import PageHeader from "@/components/PageHeader";
@@ -19,6 +19,7 @@ export default async function WfmLeavePage() {
   // the first paint (and the page payload) never carries people outside the
   // caller's reporting tree.
   let initial = null;
+  let config: Awaited<ReturnType<typeof getWfmConfig>> | null = null;
   try {
     const ctx = await requireWfm();
     const { supabase, tenantId } = ctx;
@@ -31,6 +32,10 @@ export default async function WfmLeavePage() {
     ]);
     initial = { types, records, employees, requests } as unknown as React.ComponentProps<typeof LeaveClient>["initial"];
   } catch { /* client load() handles it */ }
+  try {
+    const ctx = await requireWfm();
+    config = await getWfmConfig(ctx.supabase, ctx.tenantId);
+  } catch { /* the holiday form then offers Everyone only */ }
 
   return (
     <>
@@ -39,7 +44,7 @@ export default async function WfmLeavePage() {
         title="Leave & Holidays"
         subtitle="Approve leave requests, enter leave records directly, and manage the holiday calendar. Leave types are configured in Settings → Workforce."
       />
-      <LeaveHolidaysTabs initial={initial} />
+      <LeaveHolidaysTabs initial={initial} employmentTypes={config?.employment_types ?? []} typeRules={config?.type_rules ?? {}} />
     </>
   );
 }

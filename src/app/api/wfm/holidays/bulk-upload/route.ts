@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createAdminSupabase } from "@/lib/supabase-server";
-import { requireWfmSupervisor } from "@/lib/wfm/server";
+import { requireWfmSupervisor, getWfmConfig } from "@/lib/wfm/server";
+import { HOLIDAY_CHECK_PENDING, resolveHolidayAudience } from "@/lib/wfm/holidayAudience";
 
 
 // Capped per route, not via vercel.json. That config carried
@@ -13,7 +14,6 @@ import { requireWfmSupervisor } from "@/lib/wfm/server";
 export const maxDuration = 60;
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
-const APPLIES_TO = ["all", "full_time", "contractor"];
 const MAX_ROWS = 1000;
 
 type InputRow = { date?: string; name?: string; applies_to?: string };
@@ -42,6 +42,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: `Upload at most ${MAX_ROWS} rows at once` }, { status: 400 });
   }
 
+  const types = (await getWfmConfig(createAdminSupabase(), tenantId)).employment_types;
   const skipped: { row: number; reason: string }[] = [];
   // Keyed by date|applies_to, matching the table's own unique constraint --
   // a repeated pair in the same file would otherwise hit Postgres's "ON
@@ -53,16 +54,19 @@ export async function POST(request: NextRequest) {
     const rowNum = i + 2; // header occupies row 1
     const date = (r.date ?? "").trim();
     const name = (r.name ?? "").trim();
-    const appliesTo = r.applies_to && APPLIES_TO.includes(r.applies_to.trim().toLowerCase())
-      ? r.applies_to.trim().toLowerCase() : "all";
+    // A code or label of a configured employment type, several separated by commas, or all/blank for everyone.
+    const audience = resolveHolidayAudience(r.applies_to ?? "", types);
+    if ("error" in audience) { skipped.push({ row: rowNum, reason: audience.error }); return; }
     if (!DATE_RE.test(date)) { skipped.push({ row: rowNum, reason: `Invalid date "${r.date}" (use YYYY-MM-DD)` }); return; }
     if (!name) { skipped.push({ row: rowNum, reason: "Missing name" }); return; }
 
-    const key = `${date}|${appliesTo}`;
-    if (byKey.has(key)) {
-      skipped.push({ row: byKey.get(key)!.row, reason: `Duplicate row for ${date} -- row ${rowNum} used instead` });
+    for (const appliesTo of audience.codes) {
+      const key = `${date}|${appliesTo}`;
+      if (byKey.has(key)) {
+        skipped.push({ row: byKey.get(key)!.row, reason: `Duplicate row for ${date} -- row ${rowNum} used instead` });
+      }
+      byKey.set(key, { row: rowNum, data: { tenant_id: tenantId, date, name, applies_to: appliesTo } });
     }
-    byKey.set(key, { row: rowNum, data: { tenant_id: tenantId, date, name, applies_to: appliesTo } });
   });
 
   const toInsert = [...byKey.values()].map((v) => v.data);
@@ -75,7 +79,10 @@ export async function POST(request: NextRequest) {
     .from("wfm_holidays")
     .upsert(toInsert, { onConflict: "tenant_id,date,applies_to" })
     .select("id");
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) {
+    if ((error as { code?: string }).code === "23514") return NextResponse.json({ error: HOLIDAY_CHECK_PENDING }, { status: 400 });
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
 
   return NextResponse.json({ applied: data?.length ?? 0, skipped });
 }

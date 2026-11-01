@@ -1,4 +1,5 @@
-import type { WfmConfig } from "@/lib/constants";
+import type { WfmConfig, WfmTypeRules } from "@/lib/constants";
+import { cleanTypeEntry } from "@/lib/wfm/typeRules";
 import type { WfmShift } from "@/lib/wfm/types";
 import { WORKFORCE_TABS, type WorkforceTab } from "@/lib/settingsFolded";
 
@@ -22,7 +23,7 @@ export const CONFIG_KEYS = [
   "ot_min_minutes", "payroll_by_location", "selfie_mode", "selfie_retention_days", "face_punch", "face_login", "face_verification_mode", "passkey_login",
   "employee_self_service", "home_landing", "login_mode", "saturday_rule", "employment_types",
   "geofence_mode", "require_location", "leave_carry_forward",
-  "long_day_alert", "break_alert", "holiday_week_alert", "notifications", "costing",
+  "long_day_alert", "break_alert", "holiday_week_alert", "notifications", "costing", "type_rules",
 ] as const satisfies readonly (keyof WfmConfig)[];
 
 /**
@@ -38,6 +39,20 @@ export function changedConfig(saved: WfmConfig, draft: WfmConfig, projectsOn: bo
     if (JSON.stringify(saved[k]) !== JSON.stringify(next[k])) out[k] = next[k];
   }
   return out as Partial<WfmConfig>;
+}
+
+/**
+ * What the type panel sends: the whole rules map and nothing else (the panel saves on its own, so a Save elsewhere on
+ * the screen never carries rules and the panel never carries anything else). An entry with no custom row is dropped; the
+ * server decides effective_from, so whatever date the draft holds is not trusted.
+ */
+export function typeRulesPayload(rules: Record<string, WfmTypeRules>): { type_rules: Record<string, WfmTypeRules> } {
+  const out: Record<string, WfmTypeRules> = {};
+  for (const [code, entry] of Object.entries(rules)) {
+    const clean = cleanTypeEntry(entry);
+    if (clean) out[code] = clean;
+  }
+  return { type_rules: out };
 }
 
 // ── Employment types: the label is what people edit; the code is made from it once and never changes.

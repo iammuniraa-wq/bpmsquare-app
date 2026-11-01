@@ -11,6 +11,7 @@ import { deriveState } from "./types";
 import { computeDayHours, shiftDayKey, workSessions, type DayHours } from "./hours";
 import { makeShiftResolver, type RosterLike, type ShiftLike } from "./effectiveShift";
 import { inRangeOrFilter, obsoleteLabel } from "./obsolete";
+import { rulesFor } from "./typeRules";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { readAllPages } from "@/lib/pagedRead";
@@ -171,6 +172,7 @@ const getWfmConfigCached = cache(async (tenantId: string): Promise<WfmConfig> =>
     break_alert: { ...DEFAULT_WFM_CONFIG.break_alert, ...(stored.break_alert ?? {}) },
     holiday_week_alert: { ...DEFAULT_WFM_CONFIG.holiday_week_alert, ...(stored.holiday_week_alert ?? {}) },
     saturday_rule: { ...DEFAULT_WFM_CONFIG.saturday_rule, ...(stored.saturday_rule ?? {}) },
+    type_rules: stored.type_rules && typeof stored.type_rules === "object" ? stored.type_rules : {},
     // An empty/absent list means "never configured" -- fall back to the seed
     // pair rather than leaving a tenant with no selectable employment type.
     employment_types:
@@ -506,7 +508,9 @@ export async function getWfmLiveBoardSnapshot(
 
     let late = false;
     let absent = false;
-    if (expected && !effective.isDayOff && !onLeave && !holiday && !isWeekOff) {
+    // Weekly off is per employee (rules by employment type); a type with no rule gets the board-wide value.
+    const empWeekOff = rulesFor(emp.employment_type, config, todayKey).week_off_days.includes(weekday);
+    if (expected && !effective.isDayOff && !onLeave && !holiday && !empWeekOff) {
       const graceEnd = new Date(
         zonedTimestamp(todayKey, expected.start_time, config.timezone).getTime() +
           expected.grace_minutes * 60 * 1000

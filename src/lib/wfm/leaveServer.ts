@@ -2,6 +2,8 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { checkMonthlyLimit, monthLabel, type LeaveSpan } from "./leaveRules";
 import { LEAVE_TYPE_NEW_COLUMNS_RE } from "./leaveTypeInput";
+import { getWfmConfig } from "./server";
+import { leaveRuleFor } from "./typeRules";
 
 // Server-side half of the leave type rules (0109, 0112): load a type with
 // its limits (tolerating a database where the migrations are pending), and
@@ -25,6 +27,32 @@ export async function loadLeaveType(admin: SupabaseClient, tenantId: string, id:
   if (res.error || !res.data) return null;
   const d = res.data as Partial<LeaveTypeRow> & { id: string; name: string; category: string; active: boolean };
   return { ...d, monthly_limit: d.monthly_limit ?? null, paid_days_per_month: d.paid_days_per_month ?? null, quota_period: d.quota_period ?? "year" };
+}
+
+/**
+ * Is this leave type offered to the employee's employment type on the leave's first day (rules by employment type)?
+ * null when it is; otherwise the message to show, which points to the workspace's unpaid-category type when one exists.
+ * A leave dated before the rule's effective_from is judged by the leave type's own rule, so it is always offered.
+ * Used by BOTH create paths (employee request and admin entry); a supervisor approving a request already filed is
+ * deliberately not re-checked.
+ */
+export async function assertLeaveOffered(
+  admin: SupabaseClient,
+  tenantId: string,
+  employeeId: string,
+  type: LeaveTypeRow,
+  dateFrom: string
+): Promise<string | null> {
+  const { data: emp } = await admin.from("employees").select("employment_type").eq("id", employeeId).eq("tenant_id", tenantId).maybeSingle();
+  const empType = (emp?.employment_type as string | null | undefined) ?? null;
+  if (!empType) return null;
+  const config = await getWfmConfig(admin, tenantId);
+  if (leaveRuleFor(empType, type, config, dateFrom).eligible) return null;
+  const label = config.employment_types.find((t) => t.code === empType)?.label ?? empType;
+  const { data: onApproval } = await admin.from("wfm_leave_types").select("name")
+    .eq("tenant_id", tenantId).eq("active", true).eq("category", "unpaid").order("name").limit(1);
+  const alt = (onApproval?.[0]?.name as string | undefined);
+  return `${type.name} is not offered for ${label}.${alt ? ` Use ${alt}.` : ""}`;
 }
 
 /** The employee's quota for a type: their own override, else the tenant default. */

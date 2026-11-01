@@ -999,6 +999,22 @@ export type WfmConfig = {
    *  wfm_projects.bill_rate > the person's employment type > the workspace
    *  default -- mirroring attribution so there is one mental model. */
   costing: WfmCostingConfig;
+  /** Rule overrides per employment-type CODE (docs/design/wfm-rules-by-type.md). Only custom rows are stored; a type
+   *  with no entry, or a row left out, follows the workspace value above. Resolved by rulesFor()/leaveRuleFor()
+   *  in src/lib/wfm/typeRules.ts, never read directly at an enforcement point. */
+  type_rules: Record<string, WfmTypeRules>;
+};
+
+export type WfmTypeRules = {
+  /** "YYYY-MM-DD", workspace-local. The rules below apply to days ON or AFTER this date; earlier days keep the
+   *  workspace values, so a saved rule never rewrites a past day or month (owner 2026-11-03). Written by the Settings
+   *  screen on a type's first Apply and by the BIM SQL; absent = no date restriction. */
+  effective_from?: string;
+  /** Keyed by wfm_leave_types.id. off = not offered to this type; unpaid = recorded, every day counts as unpaid;
+   *  paid = the first `paid_days_per_month` days a month are paid (0 = unpaid). Absent = the leave type's own rule. */
+  leave?: Record<string, { mode: "off" } | { mode: "unpaid" } | { mode: "paid"; paid_days_per_month: number }>;
+  /** [] = none: every weekday is a working day. Absent = WfmConfig.week_off_days. */
+  week_off_days?: number[];
 };
 
 export type WfmCostingConfig = {
@@ -1074,6 +1090,7 @@ export const DEFAULT_WFM_CONFIG: WfmConfig = {
   face_login: false,
   passkey_login: false,
   costing: DEFAULT_WFM_COSTING,
+  type_rules: {},
 };
 
 // All metric IDs available in the Analytics page.

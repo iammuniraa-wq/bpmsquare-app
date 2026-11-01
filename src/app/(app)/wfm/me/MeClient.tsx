@@ -21,6 +21,9 @@ import Donut from "@/components/Donut";
 import PushOptIn from "@/components/wfm/PushOptIn";
 import MonthTimeline from "@/components/wfm/MonthTimeline";
 import LeaveRangePicker, { type LeaveDayContext } from "@/components/wfm/LeaveRangePicker";
+import InfoTip from "@/components/ui/InfoTip";
+import { formatWeekOff, leavePayLabel, type ResolvedLeaveRule } from "@/lib/wfm/typeRules";
+import { TYPE_RULE_TIPS } from "@/app/(app)/settings/workforce/tips";
 import PunchAudit from "@/components/wfm/PunchAudit";
 import {
   allowedKinds, isOtKind, PUNCH_KIND_GROUP, PUNCH_KIND_LABEL,
@@ -110,14 +113,16 @@ type DayRecord = {
   ot_minutes: number; ot_pending_minutes: number;
   ot_segments: { start: string; end: string; minutes: number; status: string }[];
 };
-type LeaveBalance = { leave_type_id: string; name: string; category: string; quota: number; used: number; balance: number; period?: "year" | "month"; monthly_limit?: number | null; paid_days_per_month?: number | null };
-type Holiday = { id: string; date: string; name: string; applies_to: string };
+type LeaveBalance = { leave_type_id: string; name: string; category: string; quota: number; used: number; balance: number; period?: "year" | "month"; monthly_limit?: number | null; paid_days_per_month?: number | null; rule?: ResolvedLeaveRule; pay_source?: "workspace" | "type" };
+/** What differs for this person because of their employment type (rules by employment type); empty when nothing does. */
+type TypeRuleNotes = { active: boolean; typeLabel: string; notOffered: string[]; weekOff: number[] | null };
+type Holiday = { id: string; date: string; name: string; applies_to: string; applies_to_label?: string };
 type CorrectionRequest = {
   id: string; target_date: string; status: "pending" | "approved" | "rejected";
   requested_change: { issue: string; by?: string; proposed_ts?: string }; reason_text: string; supervisor_remark: string | null;
 };
 type LeaveRequest = {
-  id: string; date_from: string; date_to: string; half_day: boolean;
+  id: string; leave_type_id?: string; date_from: string; date_to: string; half_day: boolean;
   reason_text: string; status: LeaveRequestStatus; supervisor_remark: string | null;
   wfm_leave_types: { name: string; category: string } | null;
   created_at: string;
@@ -447,6 +452,7 @@ export default function MeClient({
   const [days, setDays] = useState<DayRecord[]>([]);
   const [deductBreaks, setDeductBreaks] = useState(true);
   const [leaveBalance, setLeaveBalance] = useState<LeaveBalance[]>([]);
+  const [typeNotes, setTypeNotes] = useState<TypeRuleNotes>({ active: false, typeLabel: "", notOffered: [], weekOff: null });
   const [holidays, setHolidays] = useState<Holiday[]>([]);
   const [corrections, setCorrections] = useState<CorrectionRequest[]>([]);
   const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>([]);
@@ -516,6 +522,7 @@ export default function MeClient({
         setMonthTotals(ts.summary?.totals ?? null);
         setDays(ts.summary?.days ?? []);
         setLeaveBalance(ts.leave_balance ?? []);
+        setTypeNotes({ active: ts.type_rules_active === true, typeLabel: ts.employment_type_label ?? "", notOffered: ts.leave_not_offered ?? [], weekOff: Array.isArray(ts.week_off) ? ts.week_off : null });
         setDeductBreaks(ts.deduct_breaks !== false);
       }
       if (holRes.ok) setHolidays(await holRes.json());
@@ -2300,6 +2307,23 @@ export default function MeClient({
             </section>
           )}
 
+          {typeNotes.active && (typeNotes.weekOff || typeNotes.notOffered.length > 0) && (
+            <div style={{ fontSize: 12, color: c.muted, marginBottom: 12, display: "flex", flexDirection: "column", gap: 4 }}>
+              {typeNotes.weekOff && (
+                <span>
+                  Weekly off: {typeNotes.weekOff.length === 0 ? "none" : formatWeekOff(typeNotes.weekOff)}
+                  <InfoTip label="Weekly off">{TYPE_RULE_TIPS.employeeWeekOff}</InfoTip>
+                </span>
+              )}
+              {typeNotes.notOffered.length > 0 && (
+                <span>
+                  Not offered for {typeNotes.typeLabel}: {typeNotes.notOffered.join(", ")}
+                  <InfoTip label="Not offered">{TYPE_RULE_TIPS.employeeNotOffered}</InfoTip>
+                </span>
+              )}
+            </div>
+          )}
+
           <section style={{ ...cardStyle, marginBottom: 14 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10, gap: 10, flexWrap: "wrap" }}>
               <div style={{ fontSize: 12.5, fontWeight: 700, color: c.ink }}>
@@ -2343,11 +2367,19 @@ export default function MeClient({
                       <option value="">— select —</option>
                       {leaveBalance.map((lb) => (
                         <option key={lb.leave_type_id} value={lb.leave_type_id}>
-                          {lb.name} ({lb.balance} left{lb.period === "month" ? " this month" : ""}{lb.monthly_limit && lb.period !== "month" ? `, max ${lb.monthly_limit}/month` : ""}{lb.paid_days_per_month !== null && lb.paid_days_per_month !== undefined ? `, ${lb.paid_days_per_month} paid/month` : ""})
+                          {lb.name} ({lb.balance} left{lb.period === "month" ? " this month" : ""}{lb.monthly_limit && lb.period !== "month" ? `, max ${lb.monthly_limit}/month` : ""}{typeNotes.active && lb.rule && (lb.pay_source === "type" || lb.category === "unpaid")
+                            ? ` · ${leavePayLabel(lb.rule, lb.category, typeNotes.typeLabel).short ?? "paid"}`
+                            : lb.paid_days_per_month !== null && lb.paid_days_per_month !== undefined ? `, ${lb.paid_days_per_month} paid/month` : ""})
                         </option>
                       ))}
                     </select>
                   </div>
+                  {typeNotes.active && (() => {
+                    const lb = leaveBalance.find((x) => x.leave_type_id === leaveDraft.leave_type_id);
+                    return lb?.rule?.unpaid ? (
+                      <div role="status" style={{ fontSize: 12.5, color: statusInk.warn }}>This leave will be unpaid. It is recorded only once your supervisor approves it.</div>
+                    ) : null;
+                  })()}
                   {/* Half-day only makes sense for a single-day request. */}
                   {leaveDraft.date_from && leaveDraft.date_from === leaveDraft.date_to && (
                     <div>
@@ -2385,7 +2417,10 @@ export default function MeClient({
                   <div style={{ fontSize: 11, color: c.hint, marginTop: 2 }}>{r.reason_text}</div>
                   {r.supervisor_remark && <div style={{ fontSize: 11, color: c.hint, marginTop: 2 }}>Supervisor: {r.supervisor_remark}</div>}
                 </div>
-                <Pill label={r.status} tone={STATUS_TONE[r.status]} />
+                <span style={{ display: "inline-flex", gap: 6, alignItems: "center", flexShrink: 0 }}>
+                  {typeNotes.active && leaveBalance.find((x) => x.leave_type_id === r.leave_type_id)?.rule?.unpaid && <Pill label="Unpaid" tone="amber" />}
+                  <Pill label={r.status} tone={STATUS_TONE[r.status]} />
+                </span>
               </div>
             ))}
           </section>
@@ -2691,7 +2726,7 @@ export default function MeClient({
                       <tr key={h.id} style={{ opacity: past ? 0.5 : 1 }}>
                         <td style={{ ...td, color: c.ink, fontWeight: 600 }}>{new Date(h.date + "T00:00:00").toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}</td>
                         <td style={td}>{h.name}</td>
-                        <td style={{ ...td, color: c.muted }}>{h.applies_to === "all" ? "Everyone" : h.applies_to === "full_time" ? "Full-time" : "Contractors"}</td>
+                        <td style={{ ...td, color: c.muted }}>{h.applies_to === "all" ? "Everyone" : (h.applies_to_label ?? h.applies_to)}</td>
                         <td style={td}>{h.date === todayKey() ? <Pill label="Today" tone="green" /> : past ? <span style={{ color: c.hint, fontSize: 11 }}>past</span> : <span style={{ color: c.hint, fontSize: 11 }}>upcoming</span>}</td>
                       </tr>
                     );

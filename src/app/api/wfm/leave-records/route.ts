@@ -3,7 +3,7 @@ import { createAdminSupabase } from "@/lib/supabase-server";
 import { requireWfmSupervisor } from "@/lib/wfm/server";
 import { wfmLeaveRecordsPayload } from "@/lib/wfm/bootstrap";
 import { resolveWfmScope } from "@/lib/wfm/scope";
-import { loadLeaveType, monthlyLimitError } from "@/lib/wfm/leaveServer";
+import { assertLeaveOffered, loadLeaveType, monthlyLimitError } from "@/lib/wfm/leaveServer";
 
 
 // Capped per route, not via vercel.json. That config carried
@@ -70,6 +70,10 @@ export async function POST(request: NextRequest) {
   ]);
   if (!employee) return NextResponse.json({ error: "Unknown employee" }, { status: 400 });
   if (!leaveType) return NextResponse.json({ error: "Unknown leave type" }, { status: 400 });
+
+  // Rules by employment type bind admin entry too, so Sick cannot be filed by accident for a type that is not offered it.
+  const offeredError = await assertLeaveOffered(admin, tenantId, employee_id, leaveType, date_from);
+  if (offeredError) return NextResponse.json({ error: offeredError }, { status: 400 });
 
   // The monthly limit (0109) binds admin entry too -- the policy is the
   // policy; an exception is a deliberate change to the type, not a quiet
