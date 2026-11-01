@@ -60,6 +60,7 @@ export const OBJECT_TYPES: { value: string; label: string }[] = [
   { value: "tenant_users", label: "People and access" },
   { value: "wfm_projects", label: "Workforce: Projects" },
   { value: "wfm_leave_types", label: "Workforce: Leave types" },
+  { value: "wfm_settings", label: "Workforce: Rules" },
   { value: "pricing_config", label: "Pricing: Versions" },
   { value: "pricing_rfqs", label: "Pricing: RFQs" },
   { value: "teams", label: "Coverage: Teams" },
