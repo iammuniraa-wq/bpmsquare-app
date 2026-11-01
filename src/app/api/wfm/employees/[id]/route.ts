@@ -8,6 +8,7 @@ import { buildEmployeeHubProfile } from "@/lib/wfm/employeeHub";
 import { tenantOrigin } from "@/lib/constants";
 import { revokeFaceEnrollment } from "@/lib/wfm/faceEnrollment";
 import { reconcileObsoletePatch } from "@/lib/wfm/obsolete";
+import { employmentTypeError } from "@/lib/wfm/reportRules";
 
 
 // Capped per route, not via vercel.json. That config carried
@@ -102,7 +103,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
   const { data: employee } = await admin
     .from("employees")
-    .select("id, first_name, last_name, wfm_role, status, valid_to")
+    .select("id, first_name, last_name, wfm_role, status, valid_to, employment_type")
     .eq("id", id)
     .eq("tenant_id", tenantId)
     .maybeSingle();
@@ -207,6 +208,13 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   if (typeof body.phone === "string") patch.phone = body.phone.trim() || null;
   if (typeof body.employment_type === "string" && validEmploymentTypes.includes(body.employment_type)) {
     patch.employment_type = body.employment_type;
+  } else if (
+    typeof body.employment_type === "string" && body.employment_type.trim() &&
+    body.employment_type !== (employee as { employment_type?: string | null }).employment_type
+  ) {
+    // A change to a type the workspace has not set up. Said out loud, because ignoring it left a supervisor believing a
+    // trainee had become an employee. An unchanged (even since-removed) type is still left alone.
+    return NextResponse.json({ error: employmentTypeError(body.employment_type, wfmConfig.employment_types) }, { status: 400 });
   }
   if (["employee", "supervisor"].includes(body.wfm_role)) patch.wfm_role = body.wfm_role;
   if (["active", "inactive"].includes(body.status)) {
