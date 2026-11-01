@@ -6,6 +6,8 @@
 // from those names, and read the rows below it. The "fix the mapping" panel lets a person correct any of it; nothing here
 // is trusted beyond what the person confirms.
 
+import type { RowOutcome } from "@/lib/import/types";
+
 export type Cell = string | number | null;
 /** grid[r][c], both 0-based. Spreadsheet row 1 is grid[0]. Merged cells carry their text in the top-left cell only. */
 export type Grid = Cell[][];
@@ -50,7 +52,8 @@ export function parseNumber(v: Cell | undefined): number | null {
 
 // ── Header detection ────────────────────────────────────────────────────────────────────────────────────────────────
 
-const EXACT: Record<BoqField, string[]> = {
+/** The header spellings of each field. Exported so the Data Workbench spec offers the very same aliases the upload detects. */
+export const EXACT: Record<BoqField, string[]> = {
   item_no: ["item", "item no", "item number", "item ref", "no", "sl", "sl no", "s no", "sr", "sr no", "serial", "serial no", "serial number", "bill no", "bill ref", "bill item", "ref", "reference", "pos", "position", "clause", "clause no", "sn", "s n", "number", "bq no", "boq no", "boq item"],
   description: ["description", "item description", "description of work", "description of works", "description of item", "description of items", "work description", "material description", "particulars", "scope", "scope of work", "scope of works", "work item", "details", "activity"],
   uom: ["unit", "units", "uom", "u o m", "um", "unit of measure", "unit of measurement", "measure"],
@@ -235,6 +238,34 @@ export function extractLines(grid: Grid, headerRow: number, map: ColumnMap): Par
     });
   }
   return { lines: assignKeys(out), skipped, total_row: totalRow, truncated };
+}
+
+// ── Lines that did not come from a workbook ─────────────────────────────────────────────────────────────────────────
+
+/** Data Workbench rows of ONE tender -> BOQ lines. The spreadsheet row number is the file's own row (header = row 1). */
+export function linesFromRows(rows: readonly { rowNum: number; values: Record<string, string> }[]): { lines: BoqLine[]; failed: RowOutcome[] } {
+  const out: Omit<BoqLine, "key">[] = [];
+  const failed: RowOutcome[] = [];
+  for (const { rowNum, values } of rows) {
+    const fail = (reason: string) => failed.push({ rowNum, status: "failed", reason });
+    const description = (values.description ?? "").replace(/\s+/g, " ").trim().slice(0, 1000);
+    if (!description) { fail("Description is required"); continue; }
+    const qty = parseNumber(values.quantity);
+    if (qty == null) { fail("Quantity must be a number"); continue; }
+    if (qty < 0 || qty > 9_999_999_999) { fail("Quantity out of range"); continue; }
+    if (out.length >= BOQ_LIMITS.maxLines) { fail(`Only the first ${BOQ_LIMITS.maxLines.toLocaleString("en-US")} lines of a tender are read`); continue; }
+    const rate = parseNumber(values.rate);
+    out.push({
+      row_no: rowNum,
+      item_no: cellText(values.item_no) || null,
+      description,
+      uom: cellText(values.unit) || null,
+      qty,
+      cost_code: cellText(values.cost_code) || null,
+      file_rate: rate != null && rate > 0 ? rate : null,
+    });
+  }
+  return { lines: assignKeys(out), failed };
 }
 
 // ── Where the priced file writes ────────────────────────────────────────────────────────────────────────────────────

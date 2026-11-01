@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import ExcelJS from "exceljs";
-import { assignKeys, colLetter, detectColumns, detectLayout, extractLines, parseColumnMap, parseNumber, planColumns, sameLayout, type Grid } from "./parse";
+import { BOQ_LIMITS, EXACT, assignKeys, colLetter, detectColumns, detectLayout, extractLines, linesFromRows, parseColumnMap, parseNumber, planColumns, sameLayout, type Grid } from "./parse";
 import { diffBoq, diffSummary, type ExistingLine } from "./diff";
 import { AUTO_PRIORITY, ageDays, isStale, parseValidityDays, pickAuto, rateFor, refuseCandidate, staleText, type Candidate } from "./price";
 import { loadWorkbook, sheetNames, sheetToGrid } from "./workbook";
@@ -330,5 +330,49 @@ describe("writing the priced workbook", () => {
     expect((await loadWorkbook(await buildAnswerSheet([], "ARB-1", { name: "Empty", lines: [] }))).worksheets.map((w) => w.name)).toEqual(["Answer sheet"]);
     const plain = await loadWorkbook(await writePricedWorkbook(await messyWorkbook(), basePlan()));
     expect(plain.getWorksheet("Payment terms")).toBeUndefined();
+  });
+});
+
+describe("lines that come from Data Workbench rows", () => {
+  const row = (rowNum: number, values: Record<string, string>) => ({ rowNum, values });
+
+  it("reads the same fields the upload reads, keyed like the upload keys them", () => {
+    const { lines, failed } = linesFromRows([
+      row(2, { item_no: " 1.1 ", description: "Excavation   in soil", unit: "m3", quantity: "1,250.50", cost_code: "31 23 16", rate: "18.5" }),
+      row(3, { description: "Pipe", quantity: "4" }),
+      row(4, { description: "Pipe", quantity: "6", rate: "0" }),
+    ]);
+    expect(failed).toEqual([]);
+    expect(lines[0]).toMatchObject({ row_no: 2, item_no: "1.1", description: "Excavation in soil", uom: "m3", qty: 1250.5, cost_code: "31 23 16", file_rate: 18.5, key: "n:1.1" });
+    expect(lines[1]).toMatchObject({ item_no: null, uom: null, cost_code: null, file_rate: null, key: "d:pipe|" });
+    // The same description and unit twice is told apart, as in a workbook.
+    expect(lines[2].key).toBe("d:pipe|#2");
+  });
+
+  it("fails a row with no description, a bad or out-of-range quantity, and keeps the others", () => {
+    const { lines, failed } = linesFromRows([
+      row(2, { description: "", quantity: "1" }),
+      row(3, { description: "A", quantity: "many" }),
+      row(4, { description: "B", quantity: "-1" }),
+      row(5, { description: "C", quantity: "10000000000" }),
+      row(6, { description: "D", quantity: "0" }),
+    ]);
+    expect(failed.map((f) => [f.rowNum, f.reason])).toEqual([
+      [2, "Description is required"], [3, "Quantity must be a number"], [4, "Quantity out of range"], [5, "Quantity out of range"],
+    ]);
+    expect(lines.map((l) => l.row_no)).toEqual([6]);
+  });
+
+  it("reads no more than the upload's line limit for one tender and says so for the rest", () => {
+    const many = Array.from({ length: BOQ_LIMITS.maxLines + 3 }, (_, i) => row(i + 2, { item_no: String(i + 1), description: `Line ${i + 1}`, quantity: "1" }));
+    const { lines, failed } = linesFromRows(many);
+    expect(lines).toHaveLength(BOQ_LIMITS.maxLines);
+    expect(failed).toHaveLength(3);
+    expect(failed[0].reason).toBe("Only the first 2,000 lines of a tender are read");
+  });
+
+  it("offers the upload's own header spellings to the Data Workbench spec", () => {
+    expect(EXACT.description).toContain("description of works");
+    expect(EXACT.qty).toContain("quantity");
   });
 });
