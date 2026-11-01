@@ -1,5 +1,7 @@
 # Tender BOQ on Data Workbench, v1 API and MCP — build spec
 
+**Status 2026-11-01: built on `develop`.** Data Workbench object Tender BOQ lines (Import, Export, Update), `GET /api/v1/tenders`, `/tenders/{id}`, `/tenders/{id}/boq`, `tender_boq_lines` on `/ask`, MCP tools `list_tenders`, `get_tender`, `get_tender_boq` (manifest 1.20.0, 37 tools). The BOQ also reads the client's own Excel layout (Item #, Narration, Description, client columns; migration 0242) with a template download. Guides refreshed: `api-and-mcp-reference.md` (section 19A), `kamco-cheat-guide.md`, `kamco-redesign-walkthrough.md`. Read the table below as the state before the build.
+
 Owner request (2026-11-01, KAMCO): "keep it [the tender BOQ] connected with Data Workbench or API and MCP, in case we want to
 pull it." This is a build spec for Sonnet builders: every file, function and column named here was read in the code on
 2026-11-01 (branch `develop`). No migration, no SQL, no new table. No standard product file learns the word "tender" except
