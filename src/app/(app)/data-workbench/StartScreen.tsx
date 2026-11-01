@@ -6,17 +6,17 @@ import s from "./DataWorkbench.module.css";
 
 export type StartRecent = { id: string; label: string; icon: string };
 
-const TASKS: { mode: DwMode; title: string; text: string; icon: ReactNode }[] = [
+const TASKS: { mode: DwMode; guide: string; title: string; text: string; icon: ReactNode }[] = [
   {
-    mode: "import", title: "Bring data in", text: "Create new records from a file",
+    mode: "import", guide: "dw.start.import", title: "Bring data in", text: "Create new records from a file",
     icon: <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 3v12" /><path d="m7 10 5 5 5-5" /><path d="M5 20h14" /></svg>,
   },
   {
-    mode: "export", title: "Take data out", text: "Download records as CSV",
+    mode: "export", guide: "dw.start.export", title: "Take data out", text: "Download records as CSV",
     icon: <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 15V3" /><path d="m7 8 5-5 5 5" /><path d="M5 20h14" /></svg>,
   },
   {
-    mode: "update", title: "Fix data in bulk", text: "Change records you exported",
+    mode: "update", guide: "dw.start.update", title: "Fix data in bulk", text: "Change records you exported",
     icon: <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 20h4L19 9a2.1 2.1 0 0 0-4-4L4 16v4Z" /><path d="m14 6 4 4" /></svg>,
   },
 ];
@@ -52,7 +52,7 @@ export default function StartScreen({ recents, stray, picked, onTask, onRecent, 
             type="button"
             className={s.tile}
             aria-pressed={picked === t.mode}
-            data-guide={`dw.start.${t.mode}`}
+            data-guide={t.guide}
             onClick={() => onTask(t.mode)}
           >
             <span className={s.tileIcon}>{t.icon}</span>

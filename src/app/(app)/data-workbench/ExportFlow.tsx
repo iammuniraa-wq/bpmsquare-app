@@ -4,7 +4,10 @@ import { useState } from "react";
 import { c } from "@/lib/theme";
 import { buildExportCsv, downloadCsv } from "@/lib/import/template";
 import type { ExportFilter, ExportFilterOp, ExportResponse, ObjectSpec } from "@/lib/import/types";
+import InfoTip from "@/components/ui/InfoTip";
 import { banner, btn, btnGhost, card, tone } from "./ui";
+import { DW_TIPS } from "./tips";
+import s from "./DataWorkbench.module.css";
 
 const ID_COLUMN = { key: "id", label: "Record ID" };
 
@@ -78,10 +81,7 @@ export default function ExportFlow({ spec: fullSpec }: { spec: ObjectSpec }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <div style={card}>
-        <Title
-          title="Choose columns"
-          subtitle="Record ID is always included — it's what lets you re-upload this file under Update to change these records later."
-        />
+        <Title title="Choose columns" info={DW_TIPS.exportColumns} />
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(190px, 1fr))", gap: "8px 12px" }}>
           <label style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 12.5, color: c.hint }}>
             <input type="checkbox" checked disabled style={{ width: 14, height: 14 }} />
@@ -102,7 +102,7 @@ export default function ExportFlow({ spec: fullSpec }: { spec: ObjectSpec }) {
       </div>
 
       <div style={card}>
-        <Title title="Filters" subtitle="Only rows matching every filter below are exported. Leave empty to export everything." />
+        <Title title="Filters" info={DW_TIPS.exportFilters} />
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {filters.map((f, i) => {
             const field = spec.fields.find((sf) => sf.key === f.field);
@@ -144,18 +144,20 @@ export default function ExportFlow({ spec: fullSpec }: { spec: ObjectSpec }) {
         <div style={banner(tone.ok)}>{lastCount} row{lastCount === 1 ? "" : "s"} exported and downloaded.</div>
       )}
 
-      <button onClick={runExport} disabled={pending} style={{ ...btn(pending ? c.line : c.accent), cursor: pending ? "wait" : "pointer", alignSelf: "flex-start" }}>
-        {pending ? "Exporting…" : `↓ Download ${spec.label} CSV`}
-      </button>
+      <div className={s.actionBar} style={{ marginTop: 0 }}>
+        <button data-guide="dw.export.download" onClick={runExport} disabled={pending} style={{ ...btn(pending ? c.line : c.accent), minHeight: 44, cursor: pending ? "wait" : "pointer" }}>
+          {pending ? "Exporting…" : `↓ Download ${spec.label} CSV`}
+        </button>
+      </div>
     </div>
   );
 }
 
-function Title({ title, subtitle }: { title: string; subtitle?: string }) {
+function Title({ title, info }: { title: string; info?: string }) {
   return (
-    <div style={{ marginBottom: 14 }}>
-      <div style={{ fontSize: 13.5, fontWeight: 700, color: c.ink }}>{title}</div>
-      {subtitle && <div style={{ fontSize: 12, color: c.muted, marginTop: 3 }}>{subtitle}</div>}
+    <div style={{ marginBottom: 14, display: "flex", alignItems: "center", fontSize: 13.5, fontWeight: 700, color: c.ink }}>
+      <span>{title}</span>
+      {info && <InfoTip label={title}>{info}</InfoTip>}
     </div>
   );
 }

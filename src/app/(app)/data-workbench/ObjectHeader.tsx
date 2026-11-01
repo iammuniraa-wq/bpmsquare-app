@@ -7,6 +7,7 @@ import { DW_TIPS } from "./tips";
 import s from "./DataWorkbench.module.css";
 
 const MODE_LABEL: Record<DwMode, string> = { import: "Import", export: "Export", update: "Update" };
+const MODE_GUIDE: Record<DwMode, string> = { import: "dw.mode.import", export: "dw.mode.export", update: "dw.mode.update" };
 
 /** What the "i" after an object's name says: the catalog note when there is one, otherwise the spec's own description. */
 export function objectTip(catalog: DwCatalogEntry, spec: Pick<ObjectSpec, "description">): string {
@@ -17,7 +18,7 @@ export function objectTip(catalog: DwCatalogEntry, spec: Pick<ObjectSpec, "descr
 export function modeTabs(catalog: DwCatalogEntry): TabDef[] {
   return DW_MODES.map((m) => {
     const has = catalog.modes.includes(m);
-    return { id: m, label: MODE_LABEL[m], guide: `dw.mode.${m}`, disabled: !has, info: has ? undefined : (catalog.modeNote?.[m] ?? DW_TIPS.modeOff) };
+    return { id: m, label: MODE_LABEL[m], guide: MODE_GUIDE[m], disabled: !has, info: has ? undefined : (catalog.modeNote?.[m] ?? DW_TIPS.modeOff) };
   });
 }
 

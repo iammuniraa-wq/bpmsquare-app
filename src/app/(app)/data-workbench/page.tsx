@@ -18,6 +18,7 @@ import { featureForObject } from "@/lib/objectFeatures";
 import { supplierColumnAvailable, withoutSupplierFields } from "@/lib/products/supplier";
 import { DW_CATALOG, DW_OBJECT_IDS, ownedObjectIds, type DwObject } from "@/lib/import/catalog";
 import { recentsKey } from "./recents";
+import { DW_TIPS } from "./tips";
 import type { ImportObjectId, ObjectSpec } from "@/lib/import/types";
 
 // Objects with no FIELD_REGISTRY entry (REGISTRY_OBJECT_TYPE[id] === null) use
@@ -70,10 +71,7 @@ export default async function DataWorkbenchPage() {
   return (
     <>
       <TabTitle title="Data Workbench" />
-      <PageHeader
-        title="Data Workbench"
-        subtitle="Bring your data in from Excel or CSV — download a template or upload your own file, match the columns, then review before anything is saved. Templates always match your current field setup."
-      />
+      <PageHeader title="Data Workbench" info={DW_TIPS.page} />
       <DataWorkbenchClient objects={objects} unowned={unowned} recentsKey={recentsKey(tenantId, userId)} />
     </>
   );

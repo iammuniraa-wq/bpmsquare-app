@@ -71,7 +71,7 @@ describe("what the URL opens", () => {
   it("?tab=import&object=accounts opens Accounts on Import", () => {
     const out = html("tab=import&object=accounts");
     expect(out).toContain("Accounts");
-    expect(out).toContain("Upload your file");
+    expect(out).toContain("Drop a file here, or click to browse");
     expect(out).not.toContain("What do you want to do?");
     expect(out).toMatch(/aria-selected="true"[^>]*>Import</);
   });
@@ -79,7 +79,7 @@ describe("what the URL opens", () => {
   it("?tab=update&object=contacts opens Contacts on Update", () => {
     const out = html("tab=update&object=contacts");
     expect(out).toMatch(/aria-selected="true"[^>]*>Update</);
-    expect(out).toContain("Or use a file you exported");
+    expect(out).toContain("Needs a file from Export");
   });
 
   it("an object that lacks the mode in the link opens on its first supported mode", () => {
