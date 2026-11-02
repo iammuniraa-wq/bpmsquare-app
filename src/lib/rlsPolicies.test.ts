@@ -180,6 +180,23 @@ describe("credential tables are not member-writable (audit 2026-10-21)", () => {
     expect(bundle.replace(/\r\n/g, "\n")).toContain(file.replace(/\r\n/g, "\n").trim());
   });
 
+  it("0243 (WBS): the three new tables have RLS and a member SELECT policy and nothing that writes; the bundle carries the file verbatim", () => {
+    // The grouping decides where money is allocated, so a member must not rewrite it through PostgREST; every write is a service-role route.
+    const file = readFileSync(path.join(DIR, "0243_wbs.sql"), "utf8");
+    const sql = file.replace(/--[^\n]*/g, "");
+    for (const table of ["tender_wbs_items", "tender_wbs_line_parts", "project_work_package_line_parts"]) {
+      expect(sql, table).toMatch(new RegExp(`alter table ${table} enable row level security`));
+      expect(new RegExp(`create table if not exists ${table} \\([^;]*tenant_id\\s+uuid not null references tenants\\(id\\)`).test(sql), `${table} has tenant_id`).toBe(true);
+      const list = [...(policies.get(table)?.values() ?? [])];
+      expect(list.map((p) => p.cmd), table).toEqual(["select"]);
+      expect(list[0].text, table).toMatch(/tenant_id in \(select tenant_id from tenant_users where user_id = auth\.uid\(\)\)/);
+    }
+    // The existing project tables keep exactly the policies 0240 gave them.
+    for (const table of ["project_work_packages", "project_work_package_lines"]) expect([...(policies.get(table)?.values() ?? [])].map((p) => p.cmd), table).toEqual(["select"]);
+    const bundle = readFileSync(path.resolve(__dirname, "../../scripts/run-bundle-51-wbs-2026-11-02.sql"), "utf8");
+    expect(bundle.replace(/\r\n/g, "\n")).toContain(file.replace(/\r\n/g, "\n").trim());
+  });
+
   it("0216 (ERP documents): erp_documents has RLS and a member SELECT policy and nothing that writes; the bundle carries the file verbatim", () => {
     const file = readFileSync(path.join(DIR, "0216_erp_documents.sql"), "utf8");
     const sql = file.replace(/--[^\n]*/g, "");

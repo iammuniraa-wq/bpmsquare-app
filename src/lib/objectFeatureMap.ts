@@ -118,6 +118,9 @@ export const OBJECT_FEATURE: Record<string, keyof TenantFeatures | null> = {
   deal_room_files: "deal_room",
   // Estimates inside a tender (0227, slice 3c-1): which estimate output prices which BOQ line. In-app routes only: it is internal cost.
   tender_boq_estimate_links: "gcc_tender",
+  // The WBS of a tender deal (0243): items, and the split of a line across items. In-app routes only (no import, export or v1 yet).
+  tender_wbs_items: "gcc_tender",
+  tender_wbs_line_parts: "gcc_tender",
   // Contract projects (0226, slice 5a): the project a won tender becomes, its budget revisions and lines, and the ERP code lists
   // (resource levels, cost codes, justifications) that budget lines use. In-app routes only: the budget is internal cost.
   contract_projects: "contract_projects",
@@ -135,6 +138,7 @@ export const OBJECT_FEATURE: Record<string, keyof TenantFeatures | null> = {
   // The work breakdown (0240): a work package of a project and the budget lines it holds. In-app routes only, like the buy-out packages.
   project_work_packages: "contract_projects",
   project_work_package_lines: "contract_projects",
+  project_work_package_line_parts: "contract_projects",
   // Supplier groups (0233): a client's approved vendor list. In-app routes only; the Suppliers module owns them (the routes also need gcc_tender).
   supplier_groups: "suppliers",
   supplier_group_members: "suppliers",

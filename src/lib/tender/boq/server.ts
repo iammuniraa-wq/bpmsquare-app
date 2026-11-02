@@ -21,6 +21,11 @@ import { loadWorkbook, sheetNames, sheetToGrid } from "./workbook";
 import { buildAnswerSheet, writePricedWorkbook, type AnswerRow, type PricedRow, type TermsText } from "./write";
 import { choiceOf } from "@/lib/contractProjects/paymentTermsServer";
 import { termLines } from "@/lib/contractProjects/paymentTerms";
+import { loadMembers } from "@/lib/tender/wbs/read";
+import { wbsStateFor } from "@/lib/tender/wbs/server";
+import { EMPTY_WBS, type WbsState } from "@/lib/tender/wbs/types";
+import { membershipOf } from "@/lib/tender/wbs/view";
+import type { Share } from "@/lib/wbs/tree";
 
 import { readAllPages } from "@/lib/pagedRead";
 // Server side of the tender BOQ (migration 0223, slice 3a). Every query is tenant-scoped on the admin client and every one
@@ -171,6 +176,8 @@ export type BoqLineView = {
   details: string | null; client_data: ClientData | null;
   price_source: PriceSource | null; price_source_ref: string | null; price_as_of: string | null;
   stale: boolean; stale_text: string | null; stale_accepted: boolean; unit_cost: number | null; markup_pct: number | null; file_rate: number | null;
+  /** The WBS item the line sits in (the default), and its shares when it is split across items (then wbs_item_id is null). Empty until 0243 is applied. */
+  wbs_item_id: string | null; wbs_parts: Share[];
 };
 export type BoqState = {
   pending: boolean;
@@ -184,6 +191,8 @@ export type BoqState = {
   totals: { lines: number; priced: number; unpriced: number; stale: number; amount: number; no_product: number };
   /** Fingerprint of the deal's saved lines as read here; the product match sends it back so a list that went stale is refused. */
   lines_version: string;
+  /** The tender's WBS: items in tree order, each item's roll-up, the total. `pending` while migration 0243 is not applied (then the BOQ tab shows no WBS view). */
+  wbs: WbsState;
 };
 
 export async function buildBoqState(r: BoqRequest): Promise<BoqState> {
@@ -191,7 +200,7 @@ export async function buildBoqState(r: BoqRequest): Promise<BoqState> {
   const [{ source, pending }, config, today] = await Promise.all([loadCurrentSource(admin, tenantId, opp.id), loadConfig(admin, tenantId), tenantToday(tenantId)]);
   const validity = priceValidityDays(config);
   const markupDefault = defaultMarkupPct(config);
-  const empty: BoqState = { pending, source: null, lines: [], validity_days: validity, today, default_markup_pct: markupDefault, totals: { lines: 0, priced: 0, unpriced: 0, stale: 0, amount: 0, no_product: 0 }, lines_version: "" };
+  const empty: BoqState = { pending, source: null, lines: [], validity_days: validity, today, default_markup_pct: markupDefault, totals: { lines: 0, priced: 0, unpriced: 0, stale: 0, amount: 0, no_product: 0 }, lines_version: "", wbs: EMPTY_WBS };
   if (pending || !source) return empty;
 
   const dealLines = await loadOpportunityLines(admin, tenantId, opp.id);
@@ -210,9 +219,12 @@ export async function buildBoqState(r: BoqRequest): Promise<BoqState> {
         details: b.file_details ?? null, client_data: b.client_data && typeof b.client_data === "object" ? b.client_data : null,
         price_source: b.price_source, price_source_ref: b.price_source_ref, price_as_of: b.price_as_of,
         stale, stale_text: stale ? staleText(b.price_as_of, today) : null, stale_accepted: b.stale_accepted,
-        unit_cost: b.unit_cost, markup_pct: b.markup_pct, file_rate: b.file_rate,
+        unit_cost: b.unit_cost, markup_pct: b.markup_pct, file_rate: b.file_rate, wbs_item_id: null, wbs_parts: [],
       };
     });
+  // Where each line sits in the WBS (0243). Pending reads as "no WBS", never as a failure of the BOQ.
+  const { state: wbs, members } = await wbsStateFor(admin, tenantId, opp.id, lines);
+  if (!wbs.pending) for (const l of lines) { const m = membershipOf(members, l.id); l.wbs_item_id = m.wbs_item_id; l.wbs_parts = [...m.parts]; }
   const active = lines.filter((l) => !l.removed);
   return {
     pending: false,
@@ -224,6 +236,7 @@ export async function buildBoqState(r: BoqRequest): Promise<BoqState> {
       no_product: active.filter((l) => l.linked && !byId.get(l.line_id!)?.product_id).length,
     },
     lines_version: linesVersion(dealLines),
+    wbs,
   };
 }
 
@@ -345,9 +358,10 @@ async function inBatches<T>(items: readonly T[], size: number, fn: (x: T) => Pro
   for (const part of chunks(items, size)) await Promise.all(part.map(fn));
 }
 
-export type ApplyResult = { ok: true; line_count: number; added: number; changed: number; dropped: number; kept: number; priced_from_file: number } | ({ ok: false } & Failure);
+/** `respread`: split lines whose quantity changed in the revised file. Their percentages are kept and the quantities re-derive; the notice names them. */
+export type ApplyResult = { ok: true; line_count: number; added: number; changed: number; dropped: number; kept: number; priced_from_file: number; respread: string[]; respread_ids: string[] } | ({ ok: false } & Failure);
 
-export type AppliedLines = { ok: true; added: number; changed: number; dropped: number; kept: number; priced_from_file: number; diff: BoqDiff } | ({ ok: false } & Failure);
+export type AppliedLines = { ok: true; added: number; changed: number; dropped: number; kept: number; priced_from_file: number; respread: string[]; respread_ids: string[]; diff: BoqDiff } | ({ ok: false } & Failure);
 
 /**
  * The lines of a new current source: matched ones are updated, new ones inserted, vanished unpriced ones removed, vanished priced ones
@@ -368,6 +382,9 @@ export async function applyBoqLines(
   // keepMissing (Data Workbench import): the file only adds and updates; a line it does not mention is neither removed nor flagged.
   const diff = source.keepMissing ? { ...full, dropped: [], kept: [] } : full;
   const ready = await clientFormatReady(admin, tenantId);
+  // Split lines (0243): a changed quantity changes nothing in the parts (shares are percent); the lines are named so the upload says so.
+  const splitNow = (await loadMembers(admin, tenantId, opp.id)).members.parts;
+  const respread: { id: string; label: string }[] = [];
   const rowByKey = new Map(rows.map((x) => [x.item_key, x]));
   const lineById = new Map(dealLines.map((l) => [l.id, l]));
   const now = new Date().toISOString();
@@ -405,7 +422,10 @@ export async function applyBoqLines(
     const patch: Record<string, unknown> = {};
     if (have.file_description !== l.description) patch.description = l.description;
     if ((have.file_uom ?? null) !== (l.uom ?? null)) patch.uom = l.uom;
-    if (Math.abs(have.file_qty - l.qty) >= 0.0005) patch.qty = round2(l.qty);
+    if (Math.abs(have.file_qty - l.qty) >= 0.0005) {
+      patch.qty = round2(l.qty);
+      if ((splitNow.get(have.id) ?? []).length > 0) respread.push({ id: have.id, label: have.item_no ?? `#${have.row_no}` });
+    }
     if (l.item_no && have.item_no !== l.item_no) patch.sl_no = l.item_no;
     let boqPatch: Record<string, unknown> = {};
     const unpriced = !(Number(live.rate) > 0);
@@ -446,7 +466,7 @@ export async function applyBoqLines(
     tenantId, objectType: "opportunity_tenders", objectId: opp.id, objectLabel: `${opp.ref ?? ""} ${opp.title}`.trim(), action: "update", actorId: user?.id, actorEmail: user?.email,
     changes: [{ field: source.logField ?? "BOQ upload", from: previous ? `${previous.file_name} (v${previous.version})` : null, to: `${fileLabel} · ${incoming.length} lines${previous ? ` · ${diff.added.length} added, ${diff.changed.length} changed, ${diff.dropped.length} removed, ${diff.kept.length} kept` : ""}` }],
   });
-  return { ok: true, added: diff.added.length, changed: diff.changed.length, dropped: diff.dropped.length, kept: diff.kept.length, priced_from_file: pricedFromFile, diff };
+  return { ok: true, added: diff.added.length, changed: diff.changed.length, dropped: diff.dropped.length, kept: diff.kept.length, priced_from_file: pricedFromFile, respread: respread.map((x) => x.label), respread_ids: respread.map((x) => x.id), diff };
 }
 
 export async function applyUpload(r: BoqRequest, input: UploadInput): Promise<ApplyResult> {
@@ -493,7 +513,7 @@ export async function applyUpload(r: BoqRequest, input: UploadInput): Promise<Ap
   // 3. The lines.
   const applied = await applyBoqLines(r, incoming, { id: sourceId, fileLabel: safeFileName(input.fileName, ext), previous });
   if (!applied.ok) return applied;
-  return { ok: true, line_count: incoming.length, added: applied.added, changed: applied.changed, dropped: applied.dropped, kept: applied.kept, priced_from_file: applied.priced_from_file };
+  return { ok: true, line_count: incoming.length, added: applied.added, changed: applied.changed, dropped: applied.dropped, kept: applied.kept, priced_from_file: applied.priced_from_file, respread: applied.respread, respread_ids: applied.respread_ids };
 }
 
 /**

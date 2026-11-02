@@ -36,7 +36,7 @@ export async function loadPackage(admin: SupabaseClient, tenantId: string, proje
   return packages.find((p) => p.id === packageId) ?? null;
 }
 
-async function employeeNames(admin: SupabaseClient, tenantId: string, ids: readonly (string | null)[]): Promise<Map<string, string>> {
+export async function employeeNames(admin: SupabaseClient, tenantId: string, ids: readonly (string | null)[]): Promise<Map<string, string>> {
   const wanted = [...new Set(ids.filter((x): x is string => !!x))];
   const out = new Map<string, string>();
   for (let i = 0; i < wanted.length; i += 100) {
