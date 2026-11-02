@@ -18,6 +18,8 @@ export const BOQ_TABLE_TIPS = {
   details: "The long Description from the client's file, kept next to the short Narration used as the line's name. A revised file replaces what you type here.",
   clientColumns: "The other columns of the client's file, kept as they wrote them: serial number, bill, section, page, revision and so on. A revised file updates them.",
   editCost: "A typed cost is saved as Manual and keeps the source it replaced. The rate becomes cost plus the markup.",
+  wbs: "The WBS item the line sits in. A line shared across items shows how many; open it to see each share.",
+  respread: "This split line's quantity changed in the revised file. Its percentages are kept and the quantities follow; check them.",
 } as const;
 
 export type BoqTableTipKey = keyof typeof BOQ_TABLE_TIPS;

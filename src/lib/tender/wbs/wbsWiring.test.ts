@@ -69,8 +69,8 @@ describe("migration 0243", () => {
 describe("the tender WBS routes", () => {
   const routes = walk("src/app/api/opportunities/[id]/tender/wbs").filter((f) => f.endsWith("route.ts"));
 
-  it("there are five, each through the one gate, none taking the workspace from the request", () => {
-    expect(routes).toHaveLength(5);
+  it("there are six, each through the one gate, none taking the workspace from the request", () => {
+    expect(routes).toHaveLength(6);
     for (const f of routes) {
       const src = read(f);
       expect(src, f).toMatch(/openBoqRequest\(id, (true|false)\)/);
@@ -79,8 +79,10 @@ describe("the tender WBS routes", () => {
     }
   });
 
-  it("a write needs edit access and a read does not", () => {
-    for (const f of routes) {
+  it("a write needs edit access and a read does not (the owners list is read by editors only)", () => {
+    const owners = routes.find((f) => f.includes("/owners/"))!;
+    expect(read(owners)).toMatch(/openBoqRequest\(id, true\)/);
+    for (const f of routes.filter((r) => r !== owners)) {
       const src = read(f);
       for (const m of src.matchAll(/export async function (GET|POST|PUT|PATCH|DELETE)[\s\S]*?openBoqRequest\(id, (true|false)\)/g)) {
         expect(m[2], `${f} ${m[1]}`).toBe(m[1] === "GET" ? "false" : "true");

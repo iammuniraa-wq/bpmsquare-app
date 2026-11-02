@@ -1,0 +1,114 @@
+/* The WBS on the tender's Bill of quantities: the selection bar, the tree, the Unassigned list and the split panel. Theme variables only.
+   One column under 900 px: tree rows become cards, the selection bar sticks to the bottom, every control is at least 44 px. */
+
+.bar {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 8px 12px; box-sizing: border-box;
+  background: var(--panel2); border: 1px solid var(--line); border-radius: var(--card-radius); color: var(--ink); font-size: 13px;
+}
+.barCount { font-weight: 700; }
+.grow { flex: 1 1 auto; }
+
+.menu {
+  display: flex; flex-direction: column; gap: 4px; padding: 8px; box-sizing: border-box; max-height: 320px; overflow-y: auto;
+  background: var(--card-bg); border: 1px solid var(--line); border-radius: var(--card-radius);
+}
+.menuItem {
+  display: flex; gap: 8px; align-items: baseline; min-height: 44px; padding: 6px 10px; box-sizing: border-box; text-align: left; cursor: pointer;
+  background: transparent; border: 1px solid transparent; border-radius: 8px; color: var(--ink); font: inherit;
+}
+.menuItem:hover, .menuItem:focus-visible { background: var(--panel2); border-color: var(--line); outline: none; }
+.menuItem:disabled { opacity: 0.55; cursor: default; }
+.menuCode { font-weight: 700; white-space: nowrap; }
+.menuName { overflow-wrap: anywhere; }
+.inline { display: flex; flex-direction: column; gap: 10px; padding: 8px; }
+
+/* The view switch and the notices around it */
+.switch { display: inline-flex; gap: 4px; }
+.pending { font-size: 12.5px; color: var(--amberink); }
+
+/* A split line's chip and its expander row in the BOQ table */
+.chipRow { display: inline-flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+.chipBtn {
+  display: inline-flex; align-items: center; gap: 4px; min-height: 44px; padding: 0 4px; border: 0; background: transparent; cursor: pointer;
+  color: inherit; font: inherit;
+}
+.chipBtn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.parts { display: flex; flex-direction: column; gap: 2px; padding: 4px 10px 8px; font-size: 12.5px; color: var(--muted); }
+.partsRow { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: center; }
+.splitCell { padding: 0 !important; background: var(--panel2); }
+.check { display: inline-flex; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; cursor: pointer; }
+.check input { width: 18px; height: 18px; cursor: pointer; }
+
+/* Cards on a phone: the checkbox sits at the card's left */
+.cardRow { display: flex; align-items: stretch; gap: 4px; }
+.cardRow > button { flex: 1 1 auto; min-width: 0; }
+.cardFoot { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: center; padding: 0 4px 4px 48px; }
+
+/* The tree */
+.tools { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.bars { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--card-radius); background: var(--card-bg); }
+.barLine { display: grid; grid-template-columns: minmax(80px, 28%) 1fr auto; gap: 8px; align-items: center; font-size: 12.5px; color: var(--ink); }
+.barLabel { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.track { position: relative; height: 8px; border-radius: 4px; background: var(--panel2); overflow: hidden; }
+.fill { position: absolute; inset: 0 auto 0 0; background: var(--accent); border-radius: 4px; }
+.fillCost { position: absolute; inset: 0 auto 0 0; background: var(--muted); opacity: 0.55; border-radius: 4px; }
+.barNum { font-variant-numeric: tabular-nums; color: var(--muted); white-space: nowrap; }
+
+.tree { margin: 0; padding: 0; list-style: none; border: 1px solid var(--line); border-radius: var(--card-radius); background: var(--card-bg); overflow: hidden; }
+.treeHead, .row {
+  display: grid; grid-template-columns: minmax(220px, 1fr) minmax(90px, 140px) minmax(70px, 100px) minmax(100px, 140px) minmax(100px, 140px) 52px;
+  gap: 8px; align-items: center; padding: 0 10px; box-sizing: border-box;
+}
+.treeHead { min-height: 34px; font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); background: var(--panel2); border-bottom: 1px solid var(--line); }
+.row { min-height: 52px; border-bottom: 1px solid var(--line); color: var(--ink); font-size: 13px; }
+.row:last-child { border-bottom: 0; }
+.row[data-flag="1"] { background: var(--amberbg); }
+.nameCell { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.toggle {
+  display: inline-flex; align-items: center; justify-content: center; flex: none; min-width: 44px; min-height: 44px; padding: 0; border: 0; cursor: pointer;
+  background: transparent; color: var(--muted); font: inherit;
+}
+.toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.spacer { display: inline-block; flex: none; width: 44px; }
+.code { font-weight: 700; white-space: nowrap; }
+.name { overflow-wrap: anywhere; min-width: 0; }
+.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.muted { color: var(--muted); }
+.label { display: none; }
+.itemLines { margin: 0; padding: 0; list-style: none; background: var(--panel2); border-bottom: 1px solid var(--line); }
+.itemLine { display: flex; flex-wrap: wrap; gap: 2px 10px; align-items: center; padding: 4px 10px 4px 62px; font-size: 12.5px; color: var(--ink); min-height: 44px; box-sizing: border-box; }
+.open { background: transparent; border: 0; padding: 0; min-height: 44px; color: inherit; font: inherit; font-weight: 700; cursor: pointer; text-align: left; }
+.open:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.unassigned { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; border: 1px solid var(--amberink); border-radius: var(--card-radius); background: var(--amberbg); }
+.unTitle { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-weight: 700; font-size: 13px; color: var(--amberink); }
+.unRow { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: center; min-height: 44px; font-size: 12.5px; color: var(--ink); }
+.unRow .grow { min-width: 0; overflow-wrap: anywhere; }
+
+/* The split panel */
+.splitHead { font-size: 12.5px; color: var(--muted); }
+.partBox { display: flex; flex-direction: column; gap: 6px; padding: 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--card-bg); }
+.partTop { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.partTop > :first-child { flex: 1 1 180px; min-width: 0; }
+.partShare { width: 96px; text-align: right; }
+.derived { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; text-align: right; }
+.total { font-size: 13px; font-weight: 700; }
+.totalWarn { color: var(--amberink); }
+.totalOk { color: var(--tealink); }
+.blocker { font-size: 12.5px; color: var(--amberink); }
+
+@media (max-width: 900px) {
+  .bar[data-sticky="1"] { position: sticky; bottom: 0; z-index: 20; padding-bottom: max(8px, env(safe-area-inset-bottom, 0px)); box-shadow: 0 -6px 18px rgba(0, 0, 0, 0.18); }
+  .treeHead { display: none; }
+  .row { grid-template-columns: 1fr auto; grid-template-areas: "name actions" "owner owner" "lines lines" "client client" "cost cost"; gap: 2px 8px; padding: 6px 10px 8px; }
+  .row > .cName { grid-area: name; }
+  .row > .cActions { grid-area: actions; }
+  .row > .cOwner { grid-area: owner; }
+  .row > .cLines { grid-area: lines; }
+  .row > .cClient { grid-area: client; }
+  .row > .cCost { grid-area: cost; }
+  .row > .cOwner, .row > .cLines, .row > .cClient, .row > .cCost { display: flex; justify-content: space-between; gap: 8px; text-align: right; padding-left: 44px; }
+  .label { display: inline; color: var(--muted); text-align: left; }
+  .itemLine { padding-left: 16px; }
+  .barLine { grid-template-columns: 1fr; gap: 2px; }
+}

@@ -240,8 +240,15 @@ export async function updateItem(ctx: WbsCtx, id: string, input: ItemInput): Pro
   }
   if ("code" in input) {
     const code = cleanText(input.code, WBS_LIMITS.codeMax);
-    if (!code) return fail(422, "Give the WBS item a code");
-    if (code !== cur.code) {
+    if (!code) {
+      // Clearing a typed code hands the item back to the numbering.
+      if (cur.code_is_manual) {
+        patch.code_is_manual = false;
+        tree = tree.map((i) => (i.id === id ? { ...i, code_is_manual: false } : i));
+        reorder = true;
+        changes.push({ field: `WBS ${cur.code} code`, from: cur.code, to: "numbered automatically" });
+      }
+    } else if (code !== cur.code) {
       if (items.some((i) => i.id !== id && i.code === code)) return fail(409, `The code ${code} is already used on this tender`);
       patch.code = code; patch.code_is_manual = true;
       tree = tree.map((i) => (i.id === id ? { ...i, code, code_is_manual: true } : i));
@@ -470,10 +477,20 @@ export async function unsplitLine(ctx: WbsCtx, boqId: string, itemRaw?: unknown)
   return { ok: true, wbs_item_id: target };
 }
 
-/** Renumber: every code is recomputed, the ones a person typed included. The screen asks before calling this. */
-export async function renumberItems(ctx: WbsCtx): Promise<Result<{ changed: number }>> {
+/**
+ * Renumber: the auto-numbered codes are recomputed (1, 1.1, 1.1.1); a code a person typed is kept. With `all`, every code is recomputed and the typed
+ * flag is cleared too. The screen asks before calling this.
+ */
+export async function renumberItems(ctx: WbsCtx, opts: { all?: boolean } = {}): Promise<Result<{ changed: number }>> {
   const st = await load(ctx);
   if (!st.ok) return st;
+  if (!opts.all) {
+    const keep = codeChanges(st.items);
+    const err = await applyCodes(ctx, keep.map((c) => ({ id: c.id, to: c.to })));
+    if (err) return fail(500, err);
+    if (keep.length > 0) await ctx.log([{ field: "WBS renumbered", from: null, to: `${keep.length} code${keep.length === 1 ? "" : "s"}` }]);
+    return { ok: true, changed: keep.length };
+  }
   const changes = renumberAll(st.items);
   // An item that was typed but already carries its computed code only needs the flag cleared.
   const flagOnly = st.items.filter((i) => i.code_is_manual && !changes.some((c) => c.id === i.id));

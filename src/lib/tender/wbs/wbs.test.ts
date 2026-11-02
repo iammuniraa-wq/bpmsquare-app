@@ -335,16 +335,38 @@ describe("removing an item", () => {
 });
 
 describe("Renumber", () => {
-  it("recomputes every code and clears the typed flag", async () => {
+  it("recomputes the auto codes and keeps the ones a person typed", async () => {
+    const { ctx, tables } = setup();
+    ok(await createItem(ctx, { name: "A" }));
+    ok(await createItem(ctx, { name: "B", code: "C-200" }));
+    ok(await createItem(ctx, { name: "C" }));
+    // a code that drifted (hand-edited in the database, an old import) is put right; the typed one is not touched
+    (tables.tender_wbs_items.find((i) => i.name === "C") as Row).code = "9";
+    const r = ok(await renumberItems(ctx));
+    expect(r.changed).toBe(1);
+    expect(codes(tables)).toEqual({ A: "1", B: "C-200", C: "3" });
+    expect(tables.tender_wbs_items.find((i) => i.name === "B")?.code_is_manual).toBe(true);
+  });
+
+  it("with all, every code is recomputed and the typed flag is cleared", async () => {
     const { ctx, tables } = setup();
     ok(await createItem(ctx, { name: "A" }));
     ok(await createItem(ctx, { name: "B", code: "C-200" }));
     ok(await createItem(ctx, { name: "C" }));
     expect(codes(tables)).toEqual({ A: "1", B: "C-200", C: "3" });
-    const r = ok(await renumberItems(ctx));
+    const r = ok(await renumberItems(ctx, { all: true }));
     expect(r.changed).toBe(1);
     expect(codes(tables)).toEqual({ A: "1", B: "2", C: "3" });
     expect(tables.tender_wbs_items.every((i) => i.code_is_manual === false)).toBe(true);
+  });
+
+  it("clearing a typed code in the form hands the item back to the numbering", async () => {
+    const { ctx, tables } = setup();
+    ok(await createItem(ctx, { name: "A" }));
+    const b = ok(await createItem(ctx, { name: "B", code: "C-200" }));
+    ok(await updateItem(ctx, b.id, { code: "" }));
+    expect(codes(tables)).toEqual({ A: "1", B: "2" });
+    expect(tables.tender_wbs_items.find((i) => i.name === "B")?.code_is_manual).toBe(false);
   });
 });
 

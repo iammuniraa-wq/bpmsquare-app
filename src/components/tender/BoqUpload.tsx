@@ -34,8 +34,8 @@ export function useBoqUpload({ base, hasBoq, onError, onNotice, onApplied }: {
   hasBoq: boolean;
   onError: (m: string) => void;
   onNotice: (m: string) => void;
-  /** Called after the lines were created or updated, so the table and the page reload. */
-  onApplied: () => void;
+  /** Called after the lines were created or updated, so the table and the page reload. `respread` names the split lines whose quantity changed. */
+  onApplied: (r: { respread: string[]; respread_ids: string[] }) => void;
 }) {
   const [busy, setBusy] = useState(false);
   const [file, setFile] = useState<File | null>(null);
@@ -93,9 +93,10 @@ export function useBoqUpload({ base, hasBoq, onError, onNotice, onApplied }: {
     const j = await res.json().catch(() => ({}));
     setBusy(false);
     if (!res.ok) { onError(j.error ?? "Could not save the BOQ"); return; }
-    onNotice(`BOQ saved: ${j.line_count} lines${j.added || j.changed || j.dropped || j.kept ? ` (${j.added} added, ${j.changed} changed, ${j.dropped} removed, ${j.kept} kept)` : ""}`);
+    const respread: string[] = Array.isArray(j.respread) ? j.respread : [];
+    onNotice(`BOQ saved: ${j.line_count} lines${j.added || j.changed || j.dropped || j.kept ? ` (${j.added} added, ${j.changed} changed, ${j.dropped} removed, ${j.kept} kept)` : ""}${respread.length > 0 ? `. Shares re-spread on ${respread.slice(0, 6).join(", ")}${respread.length > 6 ? ` +${respread.length - 6}` : ""}` : ""}`);
     cancel();
-    onApplied();
+    onApplied({ respread, respread_ids: Array.isArray(j.respread_ids) ? j.respread_ids : [] });
   }
 
   const button = (
