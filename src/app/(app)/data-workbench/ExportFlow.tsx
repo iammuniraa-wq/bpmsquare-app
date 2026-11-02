@@ -81,7 +81,16 @@ export default function ExportFlow({ spec: fullSpec }: { spec: ObjectSpec }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <div style={card}>
-        <Title title="Choose columns" info={DW_TIPS.exportColumns} />
+        <Title
+          title="Choose columns"
+          info={DW_TIPS.exportColumns}
+          actions={
+            <>
+              <button type="button" data-guide="dw.export.clear_columns" onClick={() => setSelected(new Set())} disabled={selected.size === 0} style={{ ...btnGhost, padding: "5px 10px", fontSize: 12, minHeight: 32 }}>Clear all</button>
+              <button type="button" data-guide="dw.export.select_columns" onClick={() => setSelected(new Set(spec.fields.map((f) => f.key)))} disabled={selected.size === spec.fields.length} style={{ ...btnGhost, padding: "5px 10px", fontSize: 12, minHeight: 32 }}>Select all</button>
+            </>
+          }
+        />
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(190px, 1fr))", gap: "8px 12px" }}>
           <label style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 12.5, color: c.hint }}>
             <input type="checkbox" checked disabled style={{ width: 14, height: 14 }} />
@@ -153,11 +162,12 @@ export default function ExportFlow({ spec: fullSpec }: { spec: ObjectSpec }) {
   );
 }
 
-function Title({ title, info }: { title: string; info?: string }) {
+function Title({ title, info, actions }: { title: string; info?: string; actions?: React.ReactNode }) {
   return (
-    <div style={{ marginBottom: 14, display: "flex", alignItems: "center", fontSize: 13.5, fontWeight: 700, color: c.ink }}>
+    <div style={{ marginBottom: 14, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", fontSize: 13.5, fontWeight: 700, color: c.ink }}>
       <span>{title}</span>
       {info && <InfoTip label={title}>{info}</InfoTip>}
+      {actions && <span style={{ marginLeft: "auto", display: "flex", gap: 8 }}>{actions}</span>}
     </div>
   );
 }
