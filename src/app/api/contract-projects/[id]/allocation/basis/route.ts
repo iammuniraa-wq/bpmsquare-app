@@ -3,8 +3,8 @@ import { changeBasis, openAllocation } from "@/lib/contractProjects/allocationSe
 import { ALLOCATION_BASES, type AllocationBasis } from "@/lib/contractProjects/types";
 
 // PATCH /api/contract-projects/[id]/allocation/basis  { basis: "line" | "package" }
-//      Allocate by BOQ line or by work package. Allowed until a baseline is waiting for approval or approved (409 `locked` after). Switching
-//      clears every typed cost and every package cost; the package grouping is kept. 200 { basis, total }.
+//      Allocate by BOQ line or by WBS (stored as "package"). Allowed until a baseline is waiting for approval or approved (409 `locked` after). Switching
+//      clears every typed cost and every package cost; the WBS is kept. 200 { basis, total }.
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;

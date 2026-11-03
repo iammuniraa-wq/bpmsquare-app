@@ -8,6 +8,7 @@ import ObjectRecordPage from "@/components/page/ObjectRecordPage";
 import RecordActivity from "@/components/page/RecordActivity";
 import ProjectOverview from "@/components/contractProjects/ProjectOverview";
 import BudgetGrid from "@/components/contractProjects/BudgetGrid";
+import WbsTab from "@/components/contractProjects/WbsTab";
 import RevisionsPanel from "@/components/contractProjects/RevisionsPanel";
 import HandoverPanel from "@/components/contractProjects/HandoverPanel";
 import ProjectMenu from "@/components/contractProjects/ProjectMenu";
@@ -24,8 +25,9 @@ import { projectTone } from "@/lib/contractProjects/format";
 import { PROJECT_STATUS_LABEL } from "@/lib/contractProjects/types";
 import BuyoutSection from "@/components/contractProjects/buyout/BuyoutSection";
 import { buyoutVisible } from "@/components/contractProjects/buyout/rules";
+import { wbsSummary } from "@/lib/contractProjects/wbsSummary";
 
-/** The record page of a contract project: Overview (the visual summary), Budget, Buy-out (tender-made projects), Variations, Invoicing, Revisions, Handover, Activity. */
+/** The record page of a contract project: Overview (the visual summary), Budget, WBS, Buy-out (tender-made projects), Variations, Invoicing, Revisions, Handover, Activity. */
 export default async function ContractProjectPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ tab?: string; revision?: string }> }) {
   await requireWorkcenterView("contract_projects");
   await requireFeature("contract_projects");
@@ -41,10 +43,12 @@ export default async function ContractProjectPage({ params, searchParams }: { pa
     return <div role="alert" style={{ fontSize: 13, color: "var(--amberink)" }}>Contract projects need a database update (migration 0226). Ask your administrator to apply it.</div>;
   }
   if (found.kind !== "ok") notFound();
-  // Work packages and the employees who can own one are read only where they are drawn: the Budget tab.
+  // The WBS and the employees who can own an item are read only where they are drawn: Overview (its counts), Budget and WBS.
   const onBudgetTab = tab === "budget";
-  const view = await buildProjectView(req, found.project, { revisionId: revision && UUID_RE.test(revision) ? revision : null, withPackages: onBudgetTab });
-  const employees = onBudgetTab && view.canEdit ? await loadEmployeeChoices(req.admin, tenantId) : [];
+  const onWbsTab = tab === "wbs";
+  const withPackages = onBudgetTab || onWbsTab || !tab || tab === "overview";
+  const view = await buildProjectView(req, found.project, { revisionId: revision && UUID_RE.test(revision) ? revision : null, withPackages });
+  const employees = (onBudgetTab || onWbsTab) && view.canEdit ? await loadEmployeeChoices(req.admin, tenantId) : [];
   const p = view.project;
   const rev = view.revision;
   const revLabel = rev ? (rev.rev_no === 0 ? "Baseline" : `Revision ${rev.rev_no}`) : null;
@@ -53,7 +57,9 @@ export default async function ContractProjectPage({ params, searchParams }: { pa
   const deletable =p.status === "draft" && view.revisions.every((r) => r.status === "draft");
   // A project made from a tender goes back to that tender, and says which bid and which BOQ file it came from, in the header.
   const origin = view.origin;
-  const originMeta = [view.account_name, origin?.bid ? `from bid v${origin.bid.version_no}` : null, origin?.boq?.file_name].filter(Boolean).join(" · ");
+  // What the WBS holds, one line: "WBS 6 items · 14 lines · 2 unassigned" (a project made from a tender took it over).
+  const wbsLine = view.packages.length > 0 ? `WBS ${wbsSummary(view)}` : null;
+  const originMeta = [view.account_name, origin?.bid ? `from bid v${origin.bid.version_no}` : null, origin?.boq?.file_name, wbsLine].filter(Boolean).join(" · ");
 
   return (
     <ObjectRecordPage
@@ -82,6 +88,16 @@ export default async function ContractProjectPage({ params, searchParams }: { pa
               packagesPending={view.packagesPending} employees={employees} fillAvailable={fillAvailable(p, view.lines)}
             />
           ) : <div style={{ fontSize: 13, color: "var(--hint)" }}>There is no budget yet.</div>,
+        },
+        {
+          id: "wbs", label: "WBS", count: view.packages.length || undefined,
+          content: rev ? (
+            <WbsTab
+              projectId={p.id} basis={p.allocation_basis} revisionStatus={rev.status} projectClosed={p.status === "closed"} packages={view.packages} rows={view.allocation.wbsRows}
+              unassigned={view.allocation.unassigned} lines={view.lines} employees={employees} currency={p.currency} canEdit={view.canEdit} pending={view.packagesPending}
+              treePending={view.packagesTreePending} fromTender={!!p.source_opportunity_id}
+            />
+          ) : <div style={{ fontSize: 13, color: "var(--hint)" }}>There is no budget yet, so there are no lines to group.</div>,
         },
         ...(buyoutOn ? [{ id: "buyout", label: "Buy-out", content: <BuyoutSection projectId={p.id} currency={p.currency} canEdit={view.canEdit && p.status !== "closed"} /> }] : []),
         { id: "variations", label: "Client changes", content: <VariationsSection req={req} project={p} /> },

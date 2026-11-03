@@ -14,6 +14,7 @@ import {
   UUID_RE, type Failure, type ProjectCtx,
 } from "./server";
 import type { DraftLine, ProjectRow } from "./types";
+import { copyTenderWbs, type WbsCopyResult } from "./copyWbs";
 
 import { readAllPages } from "@/lib/pagedRead";
 // Making a contract project (slice 5a): from an awarded tender in one step, or by hand. Both paths end the same way: a project, its
@@ -94,7 +95,7 @@ export async function loadTenderSource(admin: SupabaseClient, tenantId: string, 
 }
 
 /** Checks every foreign id, then writes the project, revision 0 and the lines. A failure after the project row takes it back out. */
-export async function createProject(req: ProjectCtx, input: CreateInput): Promise<{ ok: true; project: ProjectRow; revisionId: string } | ({ ok: false } & Failure)> {
+export async function createProject(req: ProjectCtx, input: CreateInput): Promise<{ ok: true; project: ProjectRow; revisionId: string; wbs: WbsCopyResult | null } | ({ ok: false } & Failure)> {
   const { admin, supabase, tenantId, userId } = req;
   if (input.account_id && !(await accountInTenant(admin, tenantId, input.account_id))) return { ok: false, status: 404, error: "Account not found" };
   if (input.manager_id && !(await memberInTenant(admin, tenantId, input.manager_id))) return { ok: false, status: 404, error: "Manager not found" };
@@ -128,6 +129,9 @@ export async function createProject(req: ProjectCtx, input: CreateInput): Promis
     if (failed) { await undo(); return { ok: false, status: 500, error: failed.message }; }
   }
 
+  // The tender's WBS becomes the project's own copy (docs/design/wbs.md 2.5). While 0243 is pending, or if the copy fails, the project is made without one and says so.
+  const wbs = input.source_opportunity_id ? await copyTenderWbs(admin, tenantId, projectId, userId, input.source_opportunity_id, revisionId) : null;
+
   const user = await getAuthUser();
   const full = await admin.from("contract_projects").select("*").eq("id", projectId).eq("tenant_id", tenantId).maybeSingle();
   const project = normaliseProject((full.data as Record<string, unknown> | null) ?? { id: projectId, ref: made.data.ref, ...input, tenant_id: tenantId, status: "draft" });
@@ -135,10 +139,12 @@ export async function createProject(req: ProjectCtx, input: CreateInput): Promis
     tenantId, objectType: "contract_projects", objectId: projectId, objectLabel: `${project.ref ?? ""} ${project.name}`.trim(), action: "create", actorId: user?.id, actorEmail: user?.email,
     changes: [
       ...(input.source_opportunity_id ? [{ field: "Created from tender", from: null, to: input.name }] : []),
+      ...(wbs?.text ? [{ field: "WBS copied from tender", from: null, to: wbs.text }] : []),
+      ...(wbs?.failed ? [{ field: "WBS copied from tender", from: null, to: "could not be copied" }] : []),
       ...diffForLog("contract_projects", {}, { name: project.name, contract_value: project.contract_value, budget_lines: input.lines.length, baseline_budget: total }),
     ],
   });
-  return { ok: true, project, revisionId };
+  return { ok: true, project, revisionId, wbs };
 }
 
 export { projectNameFromDeal };

@@ -23,8 +23,8 @@ const money = (n: number) => n.toLocaleString("en-US", { minimumFractionDigits: 
 const qtyText = (n: number) => n.toLocaleString("en-US", { maximumFractionDigits: 3 });
 const label = (l: Pick<Line, "item_no" | "row_no">) => (l.item_no && l.item_no.trim() ? l.item_no : `#${l.row_no}`);
 
-export default function SplitPanel({ base, line, items, onClose, onDone, onError, initialRows }: {
-  /** /api/opportunities/[id]/tender/wbs */
+export default function SplitPanel({ base, line, items, onClose, onDone, onError, initialRows, idKey = "boq_id", itemKey = "wbs_item_id", allowNew = true, locked = null }: {
+  /** /api/opportunities/[id]/tender/wbs, or /api/contract-projects/[id]/work-packages for a budget line of a project. */
   base: string;
   line: Line;
   /** Every item of the tender: only the leaves can take a share. */
@@ -35,6 +35,14 @@ export default function SplitPanel({ base, line, items, onClose, onDone, onError
   onError: (m: string) => void;
   /** Lets a server render (and its test) show a prepared draft. The page never passes it. */
   initialRows?: DraftRow[];
+  /** The body key that names the line: the tender's BOQ row (`boq_id`) or the project's budget line (`line_key`). */
+  idKey?: "boq_id" | "line_key";
+  /** The body key that names a part's item: `wbs_item_id` on the tender, `package_id` on the project. */
+  itemKey?: "wbs_item_id" | "package_id";
+  /** A new item can be made from a part (tender only). */
+  allowNew?: boolean;
+  /** Why the split cannot be changed now (a locked allocation), or null. Printed, never behind an "i". */
+  locked?: string | null;
 }) {
   const { confirm } = useFeel();
   const leaves = leafItems(items);
@@ -60,7 +68,8 @@ export default function SplitPanel({ base, line, items, onClose, onDone, onError
   async function save() {
     setError(""); onError("");
     setBusy(true);
-    const out = await call<{ kind: string }>(`${base}/split`, "PUT", { boq_id: line.id, parts: draftToParts(rows) });
+    const parts = draftToParts(rows).map((p) => (itemKey === "wbs_item_id" ? p : { package_id: p.wbs_item_id, share_pct: p.share_pct }));
+    const out = await call<{ kind: string }>(`${base}/split`, "PUT", { [idKey]: line.id, parts });
     setBusy(false);
     if (!out.ok) { setError(out.error); onError(out.error); return; }
     onDone(out.data.kind === "whole" ? `${label(line)} sits whole in one WBS item` : `${label(line)} split across ${rows.length} WBS items`);
@@ -71,7 +80,7 @@ export default function SplitPanel({ base, line, items, onClose, onDone, onError
     const target = items.find((i) => i.id === (line.wbs_parts?.[0]?.wbs_item_id ?? first?.item));
     if (!(await confirm({ title: `Unsplit ${label(line)}?`, body: target ? `The whole line goes to ${target.code} ${target.name}. You can change it after.` : "The whole line goes to its first WBS item. You can change it after.", confirmLabel: "Unsplit" }))) return;
     setBusy(true);
-    const out = await call(`${base}/split`, "DELETE", { boq_id: line.id });
+    const out = await call(`${base}/split`, "DELETE", { [idKey]: line.id });
     setBusy(false);
     if (!out.ok) { setError(out.error); onError(out.error); return; }
     onDone(`${label(line)} is no longer split`);
@@ -83,13 +92,14 @@ export default function SplitPanel({ base, line, items, onClose, onDone, onError
       subtitle={<span className={s.splitHead}>{line.description} · {qtyText(line.qty)}{line.uom ? ` ${line.uom}` : ""}{line.priced ? ` · ${money(line.amount)}` : ""}</span>}
       footer={
         <>
-          {isSplit && <Button variant="quiet" disabled={busy} onClick={() => void unsplit()} style={{ minHeight: 44 }} data-guide="boq.split.unsplit">Unsplit</Button>}
+          {isSplit && <Button variant="quiet" disabled={busy || !!locked} onClick={() => void unsplit()} style={{ minHeight: 44 }} data-guide="boq.split.unsplit">Unsplit</Button>}
           <Button variant="secondary" onClick={onClose} style={{ minHeight: 44 }} data-guide="boq.split.cancel">Cancel</Button>
-          <Button variant="primary" loading={busy} disabled={!!blocker} onClick={() => void save()} style={{ minHeight: 44 }} data-guide="boq.split.save">Save split</Button>
+          <Button variant="primary" loading={busy} disabled={!!blocker || !!locked} onClick={() => void save()} style={{ minHeight: 44 }} data-guide="boq.split.save">Save split</Button>
         </>
       }
     >
       <div className="bpm-tap" data-guide="boq.split.panel" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        {locked && <div role="status" data-guide="boq.split.locked" style={{ fontSize: 13, color: "var(--amberink)" }}>{locked}</div>}
         {error && <div role="alert" style={{ background: "var(--err-bg)", border: "1px solid var(--err-line)", borderRadius: 8, padding: "8px 12px", fontSize: 12.5, color: "var(--err-ink)" }}>{error}</div>}
 
         <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
@@ -107,7 +117,7 @@ export default function SplitPanel({ base, line, items, onClose, onDone, onError
               <Select aria-label={`WBS item for part ${i + 1}`} value={r.item} onChange={(e) => update(r.key, (x) => ({ ...x, item: e.target.value }))} style={{ minHeight: 44 }}>
                 <option value="">Choose a WBS item</option>
                 {leaves.map((l) => <option key={l.id} value={l.id} disabled={chosenElsewhere(r.key, l.id)}>{l.code} {l.name}</option>)}
-                <option value={NEW_ITEM}>New WBS item…</option>
+                {allowNew && <option value={NEW_ITEM}>New WBS item…</option>}
               </Select>
               <Input
                 className={s.partShare} type="number" min={0} step="any" inputMode="decimal" style={{ minHeight: 44 }}

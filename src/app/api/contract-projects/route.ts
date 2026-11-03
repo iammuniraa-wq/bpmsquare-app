@@ -15,7 +15,7 @@ import { resolveCurrency } from "@/lib/currency";
 // POST /api/contract-projects
 //        { opportunity_id }                                  from an AWARDED tender of this workspace: one project per tender (409 otherwise)
 //        { name, account_id?, contract_value?, currency?, planned_start?, planned_end?, manager_id? }   by hand
-//      Every foreign id is verified against this workspace. -> 201 { id, ref, revision_id, unmapped_codes?, skipped?, budget_note? }  (a tender gives the contract lines with an empty allocation; no cost is guessed)
+//      Every foreign id is verified against this workspace. -> 201 { id, ref, revision_id, unmapped_codes?, skipped?, budget_note?, wbs?: { items, lines, split, unassigned, pending, text } }  (a tender gives the contract lines with an empty allocation; no cost is guessed)
 
 export async function GET(request: NextRequest) {
   const gate = await openProjectRequest();
@@ -48,7 +48,11 @@ export async function POST(request: NextRequest) {
     });
     if (!made.ok) return NextResponse.json({ error: made.error, ...(made.extra ?? {}) }, { status: made.status });
     return NextResponse.json(
-      { id: made.project.id, ref: made.project.ref, revision_id: made.revisionId, unmapped_codes: s.unmappedCodes, skipped: s.skipped, budget_note: s.budgetNote },
+      {
+        id: made.project.id, ref: made.project.ref, revision_id: made.revisionId, unmapped_codes: s.unmappedCodes, skipped: s.skipped, budget_note: s.budgetNote,
+        // The tender's WBS copied to the project; `pending` while migration 0243 is not applied (the project is made without one).
+        wbs: made.wbs ? { items: made.wbs.items, lines: made.wbs.lines, split: made.wbs.split, unassigned: made.wbs.unassigned, pending: made.wbs.pending || made.wbs.failed, text: made.wbs.text } : null,
+      },
       { status: 201 },
     );
   }

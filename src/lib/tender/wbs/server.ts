@@ -288,11 +288,10 @@ export async function deleteItem(ctx: WbsCtx, id: string): Promise<Result<{ line
   const mine = [...members.item.entries()].filter(([, item]) => item === id).map(([boq]) => boq);
   const partCount = [...members.parts.values()].filter((ps) => ps.some((p) => p.wbs_item_id === id)).length;
 
-  // Sub-items move up first, so the tree is whole at every step.
+  // Sub-items move up first, so the tree is whole at every step, and they take the removed item's place among its siblings.
   const kids = items.filter((i) => i.parent_id === id);
-  const base = nextSort(items.filter((i) => i.id !== id), cur.parent_id);
   for (const [n, k] of kids.entries()) {
-    const { error } = await ctx.admin.from("tender_wbs_items").update({ parent_id: cur.parent_id, sort_order: base + n * 10, updated_at: new Date().toISOString() }).eq("id", k.id).eq("tenant_id", ctx.tenantId).eq("opportunity_id", ctx.opportunityId);
+    const { error } = await ctx.admin.from("tender_wbs_items").update({ parent_id: cur.parent_id, sort_order: cur.sort_order + n, updated_at: new Date().toISOString() }).eq("id", k.id).eq("tenant_id", ctx.tenantId).eq("opportunity_id", ctx.opportunityId);
     if (error) return fail(500, error.message);
   }
   if (mine.length > 0) {
@@ -304,7 +303,7 @@ export async function deleteItem(ctx: WbsCtx, id: string): Promise<Result<{ line
   const gone = await ctx.admin.from("tender_wbs_items").delete().eq("id", id).eq("tenant_id", ctx.tenantId).eq("opportunity_id", ctx.opportunityId);
   if (gone.error) return fail(500, gone.error.message);
 
-  const after = items.filter((i) => i.id !== id).map((i) => (i.parent_id === id ? { ...i, parent_id: cur.parent_id, sort_order: base + kids.findIndex((k) => k.id === i.id) * 10 } : i));
+  const after = items.filter((i) => i.id !== id).map((i) => (i.parent_id === id ? { ...i, parent_id: cur.parent_id, sort_order: cur.sort_order + kids.findIndex((k) => k.id === i.id) } : i));
   const err = await recode(ctx, after);
   if (err) return fail(500, err);
   await ctx.log([{ field: `WBS ${cur.code} removed`, from: cur.name, to: mine.length + partCount > 0 ? `${mine.length} line${mine.length === 1 ? "" : "s"} to Unassigned${partCount > 0 ? `, ${partCount} share${partCount === 1 ? "" : "s"} of split lines now unassigned` : ""}` : null }]);

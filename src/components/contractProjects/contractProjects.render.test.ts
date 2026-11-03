@@ -49,7 +49,7 @@ const view = (over: Partial<ProjectView> = {}): ProjectView => ({
   project: { id: "p1", tenant_id: "t", ref: "CPR-0001", name: "ARB-1 Fence", account_id: "a", source_opportunity_id: "o1", status: "draft", contract_value: 30000, currency: "SAR", planned_start: "2026-11-01", planned_end: "2027-03-01", manager_id: null, erp_system: null, erp_id: null, custom_data: null, handover_sent_at: null, allocation_basis: "line", created_by: "u1", created_at: "", updated_at: "" },
   account_name: "Aramco", manager_name: "A. Nasser", source: { id: "o1", ref: "OPP-1", title: "ARB-1" },
   revisions: [rev()] as ProjectView["revisions"], revision: rev() as ProjectView["revision"], lines, totals, margin: marginView(30000, totals, null), compare: null,
-  allocation: allocationView({ allocation_basis: "line", contract_value: 30000 }, lines, [], null), packages: [], packagesPending: false,
+  allocation: allocationView({ allocation_basis: "line", contract_value: 30000 }, lines, [], null), packages: [], packagesPending: false, packagesTreePending: false,
   resources: [{ code: "11", name: "Material", revenue_side: false }, { code: "31", name: "Man Power", revenue_side: false }, { code: "91", name: "Revenue", revenue_side: true }],
   justifications: [{ code: "scope_change", name: "Scope change" }, { code: "other", name: "Other" }],
   approval: { pending: null, canDecide: false, askBlocked: null, history: [] }, canEdit: true, needsApprovalUpdate: false,
@@ -290,13 +290,13 @@ describe("Budget (the allocation screen)", () => {
     expect(out).toContain("About Budget");
   });
 
-  it("starts with Allocate by, a two-option switch (BOQ line or Work package), and no cost guessed", () => {
+  it("starts with Allocate by, a two-option switch (BOQ line or WBS), and no cost guessed", () => {
     expect(out).toContain('data-guide="cp.alloc.toolbar"');
     expect(out).toContain("Allocate by");
     expect(out).toContain("About Allocate by");
     expect(out).toContain('role="radiogroup"');
     expect(out).toMatch(/role="radio" aria-checked="true"[^>]*>BOQ line</);
-    expect(out).toMatch(/role="radio" aria-checked="false"[^>]*>Work package</);
+    expect(out).toMatch(/role="radio" aria-checked="false"[^>]*>WBS</);
     expect(out).not.toContain("estimated");
     for (const tip of [PROJECT_TIPS.allocateBy, PROJECT_TIPS.allocated, PROJECT_TIPS.left, PROJECT_TIPS.fill]) expect(out).not.toContain(tip);
   });
@@ -358,30 +358,25 @@ describe("Budget (the allocation screen)", () => {
     expect(draw({ fillAvailable: true, canEdit: false })).not.toContain("cp.alloc.fill");
   });
 
-  it("the work breakdown is on the screen, folded away while the basis is the BOQ line", () => {
-    expect(out).toContain("Work breakdown (WBS)");
-    expect(out).toContain("About Work breakdown (WBS)");
-    expect(out).toContain("0 packages · 3 unassigned");
-    expect(out).not.toContain("New work package"); // the section is closed
+  it("the WBS has its own tab: the Budget tab no longer carries the work breakdown section", () => {
+    expect(out).not.toContain("Work breakdown (WBS)");
+    expect(out).not.toContain("New work package");
+    expect(out).not.toContain("cp.wbs.add");
   });
 
-  it("by work package: a table of packages with an input each, the WBS open with owners, lines and the unassigned ones", () => {
+  it("by WBS: a tree with an input on each bottom-level item and roll-ups on its parents", () => {
     const wp = [
-      { id: "p1", code: "WP-1", name: "Earthworks", owner_employee_id: "e1", owner_name: "Sara Khan", allocated_cost: 12000, sort_order: 10, note: null, line_keys: ["k1", "k3"] },
-      { id: "p2", code: "WP-2", name: "Pipework", owner_employee_id: null, owner_name: null, allocated_cost: null, sort_order: 20, note: null, line_keys: [] },
+      { id: "p1", code: "WP-1", name: "Earthworks", owner_employee_id: "e1", owner_name: "Sara Khan", allocated_cost: 12000, sort_order: 10, note: null, line_keys: ["k1", "k3"], parent_id: null },
+      { id: "p2", code: "WP-2", name: "Pipework", owner_employee_id: null, owner_name: null, allocated_cost: null, sort_order: 20, note: null, line_keys: [], parent_id: null },
     ];
     const o = draw({ basis: "package", packages: wp, lines: [{ ...tenderLines[0], allocated: true, amount: 8000 }, tenderLines[1], { ...tenderLines[2], allocated: true, amount: 4000 }] });
-    for (const w of ["Package", "Name", "WP-1", "Earthworks", "SAR 25,000.00", "Pipework", "packages"]) expect(o, w).toContain(w);
-    expect(o).toMatch(/role="radio" aria-checked="true"[^>]*>Work package</);
-    expect(o).toContain("1 of 2 packages");
+    for (const w of ["WBS", "Name", "WP-1", "Earthworks", "SAR 25,000.00", "Pipework", "WBS items"]) expect(o, w).toContain(w);
+    expect(o).toMatch(/role="radio" aria-checked="true"[^>]*>WBS</);
+    expect(o).toContain("1 of 2 WBS items");
     expect(o.match(/<input[^>]*data-guide="cp.alloc.input"/g)).toHaveLength(4);
     expect(o).toContain('value="12000"');
-    expect(o).toContain("New work package");
-    expect(o).toContain("WP-1 Earthworks");
-    expect(o).toContain("Sara Khan");
-    expect(o).toContain("No owner");
-    expect(o).toContain("Unassigned lines: 1 (2.1)");
-    expect(o).toContain("1 line is not in a work package");
+    expect(o).toContain("1 line is not in a WBS item");
+    for (const w of ["New work package", "Work package", "work package"]) expect(o, w).not.toContain(w);
   });
 
   it("a line still lacking a resource type or a cost code says so under its description, in plain sight", () => {
@@ -393,12 +388,12 @@ describe("Budget (the allocation screen)", () => {
 
   it("by work package the lines stay reachable in a folded section (their details still need a person), with nothing to type", () => {
     const o = draw({ basis: "package" });
-    expect(o).toContain("3 lines · costs follow the packages");
+    expect(o).toContain("3 lines · costs follow the WBS");
     expect(o).toContain("Lines</span>");
   });
 
   it("by work package with no package yet says what to do next", () => {
-    expect(draw({ basis: "package" })).toContain("No work packages yet. Add one below");
+    expect(draw({ basis: "package" })).toContain("No WBS yet. Add the first item on the WBS tab");
   });
 
   it("a baseline waiting or approved locks the basis, the inputs, Add and Save, and says why", () => {
@@ -422,9 +417,9 @@ describe("Budget (the allocation screen)", () => {
     expect(draw({ basis: "package" })).not.toContain("cp.budget.add");
   });
 
-  it("while migration 0240 is pending the switch is hidden and the work packages say so", () => {
+  it("while migration 0240 is pending the switch is hidden and the WBS says so", () => {
     const o = draw({ packagesPending: true });
-    expect(o).toContain("Work packages need a database update (migration 0240)");
+    expect(o).toContain("The WBS needs a database update (migration 0240)");
     expect(o).not.toContain('data-guide="cp.alloc.basis"');
   });
 
@@ -449,7 +444,7 @@ describe("Budget (the allocation screen)", () => {
 
   it("an empty budget says what to do next, and every control is a 44 px target", () => {
     expect(draw({ lines: [] })).toContain("No lines yet. Add the first one.");
-    for (const f of ["BudgetGrid.tsx", "AllocationTable.tsx", "WorkPackagesPanel.tsx", "WorkPackagePanel.tsx", "LineDetailsPanel.tsx"]) {
+    for (const f of ["BudgetGrid.tsx", "AllocationTable.tsx", "WbsTab.tsx", "WbsItemPanel.tsx", "LineDetailsPanel.tsx"]) {
       const s = readFileSync(path.join(ROOT, "src/components/contractProjects", f), "utf8");
       expect(s.match(/minHeight: 44/g)!.length, f).toBeGreaterThanOrEqual(3);
       expect(s, f).not.toMatch(/#[0-9a-fA-F]{3,8}\b/);

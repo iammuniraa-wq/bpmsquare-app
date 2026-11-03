@@ -78,7 +78,7 @@ export default function LineDetailsPanel({ projectId, revisionId, lines, lineKey
   }
 
   async function remove() {
-    if (!(await confirm({ title: "Remove this line?", body: "It leaves the budget and any work package it was in. The tender is not changed.", confirmLabel: "Remove" }))) return;
+    if (!(await confirm({ title: "Remove this line?", body: "It leaves the budget and any WBS item it was in. The tender is not changed.", confirmLabel: "Remove" }))) return;
     await send(true);
   }
 
@@ -106,7 +106,7 @@ export default function LineDetailsPanel({ projectId, revisionId, lines, lineKey
         </Field>
         <Field label="Cost code" info={PROJECT_TIPS.costCode}><MasterPicker kind="cost_code" label="Cost code" value={f.cost_code} disabled={disabled} onChange={(v) => setF({ ...f, cost_code: v })} guide="cp.budget.cost_code" /></Field>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: 10 }}>
-          <Field label="Item reference" info={PROJECT_TIPS.wbs}><Input value={f.wbs} maxLength={100} disabled={disabled} style={{ minHeight: 44 }} onChange={(e) => setF({ ...f, wbs: e.target.value })} /></Field>
+          <Field label="Item no." info={PROJECT_TIPS.itemNo}><Input value={f.wbs} maxLength={100} disabled={disabled} style={{ minHeight: 44 }} onChange={(e) => setF({ ...f, wbs: e.target.value })} /></Field>
           <Field label="Quantity"><Input type="number" min="0" step="any" inputMode="decimal" value={f.qty} disabled={disabled} style={{ minHeight: 44 }} onChange={(e) => setF({ ...f, qty: e.target.value })} /></Field>
           <Field label="Unit"><Input value={f.unit} maxLength={30} disabled={disabled} style={{ minHeight: 44 }} onChange={(e) => setF({ ...f, unit: e.target.value })} /></Field>
         </div>

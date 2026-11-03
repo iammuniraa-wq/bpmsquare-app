@@ -3,7 +3,7 @@ import { getTenant } from "@/lib/tenant";
 import { loadActorNames } from "@/lib/actorNames";
 import { budgetTotals, diffRevisions, marginView, readMarginFloor, type BudgetTotals, type MarginView, type RevisionDiff } from "./budget";
 import { allocationView, type AllocationView } from "./allocation";
-import { loadPackages } from "./workPackagesServer";
+import { loadPackages, type PackagesData } from "./workPackagesServer";
 import { projectPath, type ProjectPath } from "./path";
 import { buildProjectApprovalView, type ProjectApprovalView } from "./approvalServer";
 import { currentRevision, ensureMasterSeeds, loadLines, loadMasters, loadRevisions, type ProjectCtx } from "./server";
@@ -27,11 +27,13 @@ export type ProjectView = {
   totals: BudgetTotals;
   /** Contract value less what has been ALLOCATED so far, and how it reads against the workspace's floor. */
   margin: MarginView;
-  /** The allocation as the Budget tab shows it (by BOQ line or by work package). */
+  /** The allocation as the Budget tab shows it (by BOQ line or by WBS). */
   allocation: AllocationView;
   packages: WorkPackageRow[];
-  /** Migration 0240 is not applied yet: work packages cannot be read or made. */
+  /** Migration 0240 is not applied yet: the WBS cannot be read or made. */
   packagesPending: boolean;
+  /** Migration 0243 is not applied yet: the WBS is a flat list and cannot be split. */
+  packagesTreePending: boolean;
   compare: { against: { id: string; rev_no: number; status: string }; diff: RevisionDiff } | null;
   resources: { code: string; name: string; revenue_side: boolean }[];
   justifications: { code: string; name: string }[];
@@ -56,8 +58,8 @@ export async function buildProjectView(req: ProjectCtx, project: ProjectRow, opt
     getTenant(),
     loadMasters(admin, tenantId, "resource"),
     loadMasters(admin, tenantId, "justification", { activeOnly: true }),
-    // Work packages are read only where they are drawn (the Budget tab) or asked for.
-    opts.withPackages ? loadPackages(admin, tenantId, project.id) : Promise.resolve({ packages: [] as WorkPackageRow[], pending: false }),
+    // The WBS is read only where it is drawn (Overview, Budget, WBS tabs) or asked for.
+    opts.withPackages ? loadPackages(admin, tenantId, project.id) : Promise.resolve<PackagesData>({ packages: [] as WorkPackageRow[], pending: false }),
   ]);
   const shown = (opts.revisionId ? revs.find((r) => r.id === opts.revisionId) : null) ?? currentRevision(revs);
   const lines = shown ? await loadLines(admin, tenantId, shown.id) : [];
@@ -100,7 +102,7 @@ export async function buildProjectView(req: ProjectCtx, project: ProjectRow, opt
     revisions: revs.map((r) => ({ ...r, created_by_name: r.created_by ? names.get(r.created_by) ?? null : null, approved_by_name: r.approved_by ? names.get(r.approved_by) ?? null : null })),
     revision: shown ? { ...shown, created_by_name: shown.created_by ? names.get(shown.created_by) ?? null : null, approved_by_name: shown.approved_by ? names.get(shown.approved_by) ?? null : null } : null,
     lines, totals, margin: marginView(project.contract_value, totals, marginFloor), compare,
-    allocation: allocationView(project, lines, packs.packages, marginFloor), packages: packs.packages, packagesPending: packs.pending,
+    allocation: allocationView(project, lines, packs.packages, marginFloor), packages: packs.packages, packagesPending: packs.pending, packagesTreePending: packs.treePending === true,
     resources: resourceRows.filter((r) => r.active || lines.some((l) => l.resource_code === r.code)).map((r) => ({ code: r.code, name: r.name, revenue_side: r.flags?.revenue_side === true })),
     justifications: justificationRows.map((r) => ({ code: r.code, name: r.name })),
     approval, canEdit: req.canEdit, needsApprovalUpdate: approval === null,
