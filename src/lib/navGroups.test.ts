@@ -8,9 +8,9 @@ const every = Object.fromEntries(
 ) as Record<string, boolean>;
 
 describe("NAV groups", () => {
-  it("are the eight groups of the navigation spec, in order", () => {
+  it("are the nine groups of the navigation spec, in order", () => {
     expect(NAV.map((g) => g.group)).toEqual([
-      "WORKSPACE", "SALES & PROCUREMENT", "SERVICE", "MARKETING", "MASTER DATA", "WORKFORCE", "INSIGHTS", "ADMIN",
+      "WORKSPACE", "SALES & PROCUREMENT", "SERVICE", "MARKETING", "INTELLIGENCE", "MASTER DATA", "WORKFORCE", "INSIGHTS", "ADMIN",
     ]);
   });
 

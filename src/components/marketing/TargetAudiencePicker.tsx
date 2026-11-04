@@ -8,7 +8,11 @@ import { ACCOUNT_TYPE_LABEL } from "@/lib/data/labels";
 import { ROUTES } from "@/lib/constants";
 import type { AccountType, MarketingTargetGroup } from "@/lib/types";
 import type { SegmentFilter } from "@/lib/marketingSegmentation";
-import { AccountIncludeExclude, ManualEmailChips, type AccountLite } from "./AudienceExtras";
+import { AccountIncludeExclude, ManualEmailChips, type AccountLite, type AddressState } from "./AudienceExtras";
+import AudienceCount from "./AudienceCount";
+import InfoTip from "@/components/ui/InfoTip";
+import { COMPOSE_TIPS } from "@/lib/marketing/composeTips";
+import { useAudiencePreview } from "./useAudiencePreview";
 
 const ALL_TYPES: AccountType[] = ["direct", "end_customer", "oem", "prospect"];
 
@@ -49,7 +53,6 @@ export default function TargetAudiencePicker({
    * arriving from "Use in campaign" on the Segmentation list page. */
   autoLoadGroupId?: string;
 }) {
-  const [preview, setPreview] = useState<{ will_receive: number; opted_out: number; no_email: number } | null>(null);
   const [groups, setGroups] = useState<MarketingTargetGroup[]>([]);
   const [selectedGroupId, setSelectedGroupId] = useState("");
   const [savingGroup, setSavingGroup] = useState(false);
@@ -79,7 +82,7 @@ export default function TargetAudiencePicker({
   }
 
   async function saveAsGroup() {
-    const name = window.prompt("Name this target group (e.g. \"OEM accounts, Mumbai\"):");
+    const name = window.prompt("Name this audience (e.g. \"OEM accounts, Mumbai\"):");
     if (!name?.trim()) return;
     setSavingGroup(true);
     try {
@@ -104,7 +107,7 @@ export default function TargetAudiencePicker({
 
   const { confirm } = useFeel();
   async function deleteGroup(id: string) {
-    if (!(await confirm({ title: "Delete this saved target group?", body: "Campaigns already built from it are unaffected.", tone: "danger" }))) return;
+    if (!(await confirm({ title: "Delete this saved audience?", body: "Campaigns already built from it are unaffected.", tone: "danger" }))) return;
     setGroups((g) => g.filter((x) => x.id !== id));
     if (selectedGroupId === id) setSelectedGroupId("");
     await fetch(`/api/marketing/target-groups/${id}`, { method: "DELETE" });
@@ -122,29 +125,22 @@ export default function TargetAudiencePicker({
     setTypes(next);
   }
 
-  useEffect(() => {
-    const rule = {
-      account_types: [...types], include_account_ids: [...includeIds], exclude_account_ids: [...excludeIds],
-      manual_emails: [...manualEmails], filters, match,
-    };
-    const timer = setTimeout(() => {
-      fetch("/api/marketing/recipients-preview", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(rule),
-      })
-        .then((r) => r.json())
-        .then(setPreview)
-        .catch(() => {});
-    }, 300);
-    return () => clearTimeout(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [types, includeIds, excludeIds, manualEmails, filters, match]);
+  const { preview, checking, error: previewError } = useAudiencePreview({
+    account_types: [...types], include_account_ids: [...includeIds], exclude_account_ids: [...excludeIds],
+    manual_emails: [...manualEmails], filters, match,
+  });
+
+  // What will happen to a typed address, from the send's own decisions: absent from the left-out list = ready.
+  const stateFor = (email: string): AddressState => {
+    if (!preview) return null;
+    const hit = preview.people.find((p) => (p.email ?? "").toLowerCase() === email);
+    return hit ? { label: hit.label, why: hit.why, fix: hit.fix } : "ready";
+  };
 
   return (
     <section style={cardStyle}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10, gap: 10, flexWrap: "wrap" }}>
-        <div style={{ fontSize: 12.5, fontWeight: 700, color: c.ink }}>Target audience</div>
+        <div style={{ fontSize: 12.5, fontWeight: 700, color: c.ink }}>Audience</div>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           {groups.length > 0 && (
             <select
@@ -152,15 +148,15 @@ export default function TargetAudiencePicker({
               onChange={(e) => { if (e.target.value) loadGroup(e.target.value); }}
               style={{ fontSize: 12, padding: "5px 8px", borderRadius: 6, border: `1px solid ${c.line}`, background: c.panel, color: c.ink }}
             >
-              <option value="">Load a saved target group…</option>
+              <option value="">Load a saved audience…</option>
               {groups.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
             </select>
           )}
           {selectedGroupId && (
-            <button onClick={() => deleteGroup(selectedGroupId)} style={{ fontSize: 11, color: "var(--err-ink)", background: "none", border: "none", cursor: "pointer" }}>Delete group</button>
+            <button type="button" onClick={() => deleteGroup(selectedGroupId)} style={{ fontSize: 11, color: "var(--err-ink)", background: "none", border: "none", cursor: "pointer" }}>Delete group</button>
           )}
-          <button onClick={saveAsGroup} disabled={savingGroup} style={{ fontSize: 11.5, padding: "5px 10px", borderRadius: 6, border: `1px solid ${c.accent}40`, background: c.accentbg, color: c.accent, fontWeight: 600, cursor: "pointer" }}>
-            {savingGroup ? "Saving…" : "Save as target group"}
+          <button type="button" onClick={saveAsGroup} disabled={savingGroup} style={{ fontSize: 11.5, padding: "5px 10px", borderRadius: 6, border: `1px solid ${c.accent}40`, background: c.accentbg, color: c.accent, fontWeight: 600, cursor: "pointer" }}>
+            {savingGroup ? "Saving…" : "Save as audience"}
           </button>
         </div>
       </div>
@@ -170,9 +166,9 @@ export default function TargetAudiencePicker({
           <div style={{ fontSize: 12.5, color: c.ink }}>
             <strong>Advanced segment active</strong> — {filters.length} condition{filters.length === 1 ? "" : "s"}, match {match === "all" ? "ALL" : "ANY"}.
             {" "}Type filters below are ignored while this is active.{" "}
-            <a href={ROUTES.marketingSegments} target="_blank" rel="noreferrer" style={{ color: c.accent, fontWeight: 600 }}>Edit in Segmentation ↗</a>
+            <a href={ROUTES.marketingSegments} target="_blank" rel="noreferrer" style={{ color: c.accent, fontWeight: 600 }}>Edit audience ↗</a>
           </div>
-          <button onClick={() => setFilters([])} style={{ fontSize: 11.5, flexShrink: 0, color: c.hint, background: "none", border: `1px solid ${c.line}`, borderRadius: 6, padding: "4px 10px", cursor: "pointer" }}>Clear</button>
+          <button type="button" onClick={() => setFilters([])} style={{ fontSize: 11.5, flexShrink: 0, color: c.hint, background: "none", border: `1px solid ${c.line}`, borderRadius: 6, padding: "4px 10px", cursor: "pointer" }}>Clear</button>
         </div>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 14 }}>
@@ -194,19 +190,16 @@ export default function TargetAudiencePicker({
       </div>
 
       <div style={{ paddingTop: 14, borderTop: `1px solid ${c.line}` }}>
-        <ManualEmailChips manualEmails={manualEmails} setManualEmails={setManualEmails} />
+        <ManualEmailChips manualEmails={manualEmails} setManualEmails={setManualEmails} stateFor={stateFor} />
       </div>
 
-      {preview && (
-        <div style={{ marginTop: 10, paddingTop: 10, borderTop: `1px solid ${c.line}`, fontSize: 13 }}>
-          <strong style={{ color: c.ink }}>→ {preview.will_receive} recipient{preview.will_receive === 1 ? "" : "s"}</strong>
-          {(preview.opted_out > 0 || preview.no_email > 0) && (
-            <span style={{ color: c.hint, marginLeft: 8, fontSize: 12 }}>
-              ({preview.opted_out > 0 ? `${preview.opted_out} opted out` : ""}{preview.opted_out > 0 && preview.no_email > 0 ? " · " : ""}{preview.no_email > 0 ? `${preview.no_email} no email on file` : ""})
-            </span>
-          )}
+      <div style={{ marginTop: 10, paddingTop: 10, borderTop: `1px solid ${c.line}` }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
+          <span style={{ fontSize: 11, fontWeight: 600, color: c.muted, textTransform: "uppercase", letterSpacing: "0.06em" }}>Who will receive it</span>
+          <InfoTip label="Who will receive it">{COMPOSE_TIPS.audienceCount}</InfoTip>
         </div>
-      )}
+        {previewError ? <div role="alert" style={{ fontSize: 12.5, color: "var(--err-ink)" }}>{previewError}</div> : <AudienceCount preview={preview} checking={checking} />}
+      </div>
     </section>
   );
 }

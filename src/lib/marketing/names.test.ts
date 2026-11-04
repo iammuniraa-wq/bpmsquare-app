@@ -20,9 +20,14 @@ describe("marketing names", () => {
     expect(leaves.some((l) => l.label === "Lead scores")).toBe(false);
   });
 
-  it("the attribution page is Revenue by source in the menu and the workcenter list", () => {
-    expect(leaves.find((l) => l.href === ROUTES.marketingAttribution)?.label).toBe("Revenue by source");
-    expect(WORKCENTERS.find((w) => w.key === "marketing_attribution")?.label).toBe("Revenue by source");
+  it("the attribution page is Results in the menu and the workcenter list (its page title stays Revenue by source)", () => {
+    expect(leaves.find((l) => l.href === ROUTES.marketingAttribution)?.label).toBe("Results");
+    expect(WORKCENTERS.find((w) => w.key === "marketing_attribution")?.label).toBe("Results");
+  });
+
+  it("the audience page is Audiences in the menu and the workcenter list", () => {
+    expect(leaves.find((l) => l.href === ROUTES.marketingSegments)?.label).toBe("Audiences");
+    expect(WORKCENTERS.find((w) => w.key === "marketing_segments")?.label).toBe("Audiences");
   });
 
   it("the consent page has one name in Settings", () => {
@@ -38,5 +43,23 @@ describe("the shared Tour", () => {
     expect(out).toContain('id="tstTourBtn"');
     expect(out).toContain("Show me how");
     expect(out).not.toContain('role="dialog"');
+  });
+});
+
+describe("Marketing and Intelligence are two parts (docs/design/marketing-two-parts.md)", () => {
+  const rows = (group: string) => NAV.find((g) => g.group === group)!.items.flatMap((i) => i.children ?? []);
+  const keys = (group: string) => rows(group).map((r) => r.workcenterKey).sort();
+
+  it("Marketing reaches people, Intelligence knows who is ready", () => {
+    expect(rows("MARKETING").map((r) => r.label)).toEqual(["Audiences", "Campaigns", "Newsletters", "Journeys", "Forms", "WhatsApp", "Events"]);
+    expect(rows("INTELLIGENCE").map((r) => r.label)).toEqual(["Buying signals", "Leads", "Scored leads", "ABM programs", "Results"]);
+  });
+
+  it("every marketing destination is in exactly one part, with its flag and workcenter key unchanged", () => {
+    const all = [...rows("MARKETING"), ...rows("INTELLIGENCE")];
+    expect(new Set(all.map((r) => r.href)).size).toBe(all.length);
+    expect(all.every((r) => r.featureKey && r.workcenterKey)).toBe(true);
+    expect(keys("MARKETING")).toEqual(["marketing", "marketing_events", "marketing_forms", "marketing_journeys", "marketing_newsletters", "marketing_segments", "marketing_whatsapp"]);
+    expect(keys("INTELLIGENCE")).toEqual(["abm", "leads", "leads", "marketing_attribution", "signals"]);
   });
 });

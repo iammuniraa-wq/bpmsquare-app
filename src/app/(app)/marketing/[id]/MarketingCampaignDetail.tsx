@@ -20,6 +20,7 @@ const RichTextEditor = dynamic(() => import("@/components/RichTextEditor"), {
 });
 import TargetAudiencePicker, { type AccountLite } from "@/components/marketing/TargetAudiencePicker";
 import TemplatePicker from "@/components/marketing/TemplatePicker";
+import ReviewAndSend from "@/components/marketing/ReviewAndSend";
 import NewsletterSourceCard from "@/components/marketing/NewsletterSourceCard";
 import { AudiencePanel, SeeAsPerson } from "@/components/marketing/NewsletterAudience";
 import type { ComposeNewsletter } from "@/lib/newsletter/composeData";
@@ -52,9 +53,10 @@ export default function MarketingCampaignDetail({
   const [match, setMatch] = useState<"all" | "any">(campaign.match ?? "all");
   const [saving, setSaving] = useState(false);
   const [sending, setSending] = useState(false);
+  const [reviewing, setReviewing] = useState(false);
   const [error, setError] = useState("");
 
-  async function saveChanges() {
+  async function saveChanges(): Promise<boolean> {
     setError("");
     setSaving(true);
     try {
@@ -75,29 +77,36 @@ export default function MarketingCampaignDetail({
       });
       if (!res.ok) { const j = await res.json(); throw new Error(j.error || "Failed to save"); }
       router.refresh();
+      return true;
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Failed to save");
+      return false;
     } finally {
       setSaving(false);
     }
   }
 
   const { confirm } = useFeel();
-  async function sendNow() {
-    if (!(await confirm({ title: "Send this campaign now?", body: "Emails go out immediately to everyone in the audience. This cannot be recalled.", confirmLabel: "Send now" }))) return;
-    setError("");
-    setSending(true);
+  // Saves the draft, then sends it. A failed save stops the send: the campaign must go out as it is on screen.
+  async function saveAndSend(): Promise<{ ok: true; outcome: { sent: number; failed: number; skipped: number } } | { ok: false; error: string }> {
+    if (!(await saveChanges())) return { ok: false, error: "Could not save your changes, so nothing was sent." };
     try {
-      await saveChanges();
       const res = await fetch(`/api/marketing/campaigns/${campaign.id}/send`, { method: "POST" });
       const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Send failed");
-      router.refresh();
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Send failed");
-    } finally {
-      setSending(false);
+      if (!res.ok) return { ok: false, error: json.error || "Send failed" };
+      return { ok: true, outcome: json };
+    } catch {
+      return { ok: false, error: "Send failed" };
     }
+  }
+
+  async function sendNow() {
+    if (!newsletter) { setReviewing(true); return; }
+    if (!(await confirm({ title: "Send this campaign now?", body: "Emails go out immediately to everyone in the audience. This cannot be recalled.", confirmLabel: "Send now" }))) return;
+    setSending(true);
+    const r = await saveAndSend();
+    setSending(false);
+    if (!r.ok) setError(r.error); else router.refresh();
   }
 
   return (
@@ -157,9 +166,18 @@ export default function MarketingCampaignDetail({
       {error && <div role="alert" style={{ fontSize: 12.5, color: "var(--err-ink)" }}>{error}</div>}
 
       <div className="bpm-form-footer" style={{ marginTop: 0 }}>
-        <Button variant="secondary" onClick={saveChanges} loading={saving} disabled={sending}>{saving ? "Saving…" : "Save changes"}</Button>
-        <Button variant="primary" onClick={sendNow} loading={sending} disabled={saving}>{sending ? "Sending…" : "Send now"}</Button>
+        <Button variant="secondary" onClick={() => void saveChanges()} loading={saving} disabled={sending}>{saving ? "Saving…" : "Save changes"}</Button>
+        <Button variant="primary" onClick={sendNow} loading={sending} disabled={saving}>{sending ? "Sending…" : newsletter ? "Send now" : "Review and send"}</Button>
       </div>
+      {reviewing && (
+        <ReviewAndSend
+          name={name} subject={subject}
+          rule={{ account_types: [...types], include_account_ids: [...includeIds], exclude_account_ids: [...excludeIds], manual_emails: [...manualEmails], filters, match }}
+          onSend={saveAndSend}
+          onClose={() => setReviewing(false)}
+          onDone={() => { setReviewing(false); router.refresh(); }}
+        />
+      )}
     </div>
   );
 }

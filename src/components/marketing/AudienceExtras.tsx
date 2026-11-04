@@ -3,6 +3,8 @@
 import { useMemo, useState } from "react";
 import { c } from "@/lib/theme";
 import { ACCOUNT_TYPE_LABEL } from "@/lib/data/labels";
+import InfoTip from "@/components/ui/InfoTip";
+import { COMPOSE_TIPS } from "@/lib/marketing/composeTips";
 import type { AccountType } from "@/lib/types";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -69,8 +71,8 @@ export function AccountIncludeExclude({
               <div key={a.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 12px", borderBottom: `1px solid ${c.line}` }}>
                 <span style={{ fontSize: 13, color: c.ink }}>{a.name} <span style={{ color: c.hint, fontSize: 11 }}>({ACCOUNT_TYPE_LABEL[a.type]})</span></span>
                 <div style={{ display: "flex", gap: 6 }}>
-                  <button onClick={() => addManual(a.id, "include")} style={{ fontSize: 11, padding: "3px 8px", borderRadius: 5, border: `1px solid ${c.accent}40`, background: c.accentbg, color: c.accent, cursor: "pointer" }}>+ Add</button>
-                  <button onClick={() => addManual(a.id, "exclude")} style={{ fontSize: 11, padding: "3px 8px", borderRadius: 5, border: "1px solid var(--err-line)", background: "var(--err-bg)", color: "var(--err-ink)", cursor: "pointer" }}>− Exclude</button>
+                  <button type="button" onClick={() => addManual(a.id, "include")} style={{ fontSize: 11, padding: "3px 8px", borderRadius: 5, border: `1px solid ${c.accent}40`, background: c.accentbg, color: c.accent, cursor: "pointer" }}>+ Add</button>
+                  <button type="button" onClick={() => addManual(a.id, "exclude")} style={{ fontSize: 11, padding: "3px 8px", borderRadius: 5, border: "1px solid var(--err-line)", background: "var(--err-bg)", color: "var(--err-ink)", cursor: "pointer" }}>− Exclude</button>
                 </div>
               </div>
             ))}
@@ -83,13 +85,13 @@ export function AccountIncludeExclude({
           {[...includeIds].map((id) => (
             <span key={id} style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 11.5, padding: "3px 8px", borderRadius: 5, background: c.accentbg, color: c.accent }}>
               + {accountsById.get(id)?.name ?? id}
-              <button onClick={() => removeManual(id)} style={{ background: "none", border: "none", color: c.accent, cursor: "pointer", fontSize: 13, lineHeight: 1 }}>×</button>
+              <button type="button" onClick={() => removeManual(id)} style={{ background: "none", border: "none", color: c.accent, cursor: "pointer", fontSize: 13, lineHeight: 1 }}>×</button>
             </span>
           ))}
           {[...excludeIds].map((id) => (
             <span key={id} style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 11.5, padding: "3px 8px", borderRadius: 5, background: "var(--err-bg)", color: "var(--err-ink)" }}>
               − {accountsById.get(id)?.name ?? id}
-              <button onClick={() => removeManual(id)} style={{ background: "none", border: "none", color: "var(--err-ink)", cursor: "pointer", fontSize: 13, lineHeight: 1 }}>×</button>
+              <button type="button" onClick={() => removeManual(id)} style={{ background: "none", border: "none", color: "var(--err-ink)", cursor: "pointer", fontSize: 13, lineHeight: 1 }}>×</button>
             </span>
           ))}
         </div>
@@ -100,11 +102,15 @@ export function AccountIncludeExclude({
 
 /** Hand-typed email addresses not tied to any account row -- shared between
  * the quick picker and the Segmentation builder. */
+export type AddressState = { label: string; why: string; fix: { label: string; href: string } | null } | "ready" | null;
+
 export function ManualEmailChips({
-  manualEmails, setManualEmails,
+  manualEmails, setManualEmails, stateFor,
 }: {
   manualEmails: Set<string>;
   setManualEmails: (next: Set<string>) => void;
+  /** What will happen to an address, from the send's own decisions. Absent = no status shown. */
+  stateFor?: (email: string) => AddressState;
 }) {
   const [emailInput, setEmailInput] = useState("");
   const [emailError, setEmailError] = useState("");
@@ -126,26 +132,35 @@ export function ManualEmailChips({
 
   return (
     <div>
-      <label style={lbl}>Also send to emails not in the system</label>
-      <div style={{ display: "flex", gap: 8 }}>
+      <label style={lbl} htmlFor="aud-extra-email">Add an email address</label>
+      <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
         <input
+          id="aud-extra-email"
           style={inp}
           value={emailInput}
           onChange={(e) => { setEmailInput(e.target.value); setEmailError(""); }}
           onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addManualEmail(); } }}
           placeholder="name@example.com"
         />
-        <button onClick={addManualEmail} style={{ flexShrink: 0, fontSize: 12, padding: "8px 14px", borderRadius: 8, border: `1px solid ${c.accent}40`, background: c.accentbg, color: c.accent, fontWeight: 600, cursor: "pointer" }}>Add</button>
+        <InfoTip label="Add an email address">{COMPOSE_TIPS.extraEmails}</InfoTip>
+        <button type="button" onClick={addManualEmail} style={{ flexShrink: 0, fontSize: 12, padding: "8px 14px", minHeight: 44, borderRadius: 8, border: `1px solid ${c.accent}40`, background: c.accentbg, color: c.accent, fontWeight: 600, cursor: "pointer" }}>Add</button>
       </div>
       {emailError && <div style={{ fontSize: 11, color: "var(--err-ink)", marginTop: 4 }}>{emailError}</div>}
       {manualEmails.size > 0 && (
         <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 }}>
-          {[...manualEmails].map((email) => (
-            <span key={email} style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 11.5, padding: "3px 8px", borderRadius: 5, background: c.panel2, color: c.ink, border: `1px solid ${c.line}` }}>
-              {email}
-              <button onClick={() => removeManualEmail(email)} style={{ background: "none", border: "none", color: c.hint, cursor: "pointer", fontSize: 13, lineHeight: 1 }}>×</button>
-            </span>
-          ))}
+          {[...manualEmails].map((email) => {
+            const st = stateFor?.(email) ?? null;
+            const blocked = st && st !== "ready";
+            return (
+              <span key={email} style={{ display: "inline-flex", alignItems: "center", gap: 6, flexWrap: "wrap", fontSize: 11.5, padding: "3px 8px", borderRadius: 5, background: blocked ? "var(--warn-bg, #faeeda)" : c.panel2, color: c.ink, border: `1px solid ${c.line}` }}>
+                {email}
+                {st === "ready" && <span style={{ color: "var(--ok-ink, #04342c)" }}>Ready</span>}
+                {blocked && <span style={{ color: c.muted }} title={st.why}>{st.label}</span>}
+                {blocked && st.fix && <a href={st.fix.href} target="_blank" rel="noreferrer" style={{ color: c.accent, fontWeight: 600 }}>{st.fix.label}</a>}
+                <button type="button" aria-label={`Remove ${email}`} onClick={() => removeManualEmail(email)} style={{ background: "none", border: "none", color: c.hint, cursor: "pointer", fontSize: 13, lineHeight: 1 }}>×</button>
+              </span>
+            );
+          })}
         </div>
       )}
     </div>

@@ -349,23 +349,36 @@ export const NAV: NavGroup[] = [
     ],
   },
   {
+    // Marketing in two parts (docs/design/marketing-two-parts.md): this group is "reach people", the next one
+    // is "know who is ready". Routes, feature flags and workcenter keys are unchanged; only the grouping and
+    // two labels moved, so a saved Business Role grant keeps working.
     group: "MARKETING",
     items: [
       {
         label: "Marketing", href: ROUTES.marketingSegments, icon: "📣", pillar: "purple",
         children: [
-          { label: "Segmentation", href: ROUTES.marketingSegments, icon: "⌗", pillar: "purple", featureKey: "marketing", workcenterKey: "marketing_segments" },
-          { label: "ABM programs", href: ROUTES.marketingAbm, icon: "◆", pillar: "purple", featureKey: "abm", workcenterKey: "abm" },
+          { label: "Audiences", href: ROUTES.marketingSegments, icon: "⌗", pillar: "purple", featureKey: "marketing", workcenterKey: "marketing_segments" },
           { label: "Campaigns", href: ROUTES.marketing, icon: "✉", pillar: "purple", featureKey: "marketing", workcenterKey: "marketing" },
           { label: "Newsletters", href: ROUTES.marketingNewsletters, icon: "✎", pillar: "purple", featureKey: "newsletter_studio", workcenterKey: "marketing_newsletters" },
+          { label: "Journeys", href: ROUTES.marketingJourneys, icon: "↠", pillar: "purple", featureKey: "journeys", workcenterKey: "marketing_journeys" },
+          { label: "Forms", href: ROUTES.marketingForms, icon: "☰", pillar: "purple", featureKey: "marketing_forms", workcenterKey: "marketing_forms" },
           { label: "WhatsApp", href: ROUTES.marketingWhatsapp, icon: "☏", pillar: "purple", featureKey: "whatsapp_marketing", workcenterKey: "marketing_whatsapp" },
           { label: "Events", href: ROUTES.marketingEvents, icon: "◷", pillar: "purple", featureKey: "marketing_events", workcenterKey: "marketing_events" },
-          { label: "Forms", href: ROUTES.marketingForms, icon: "☰", pillar: "purple", featureKey: "marketing_forms", workcenterKey: "marketing_forms" },
-          { label: "Journeys", href: ROUTES.marketingJourneys, icon: "↠", pillar: "purple", featureKey: "journeys", workcenterKey: "marketing_journeys" },
+        ],
+      },
+    ],
+  },
+  {
+    group: "INTELLIGENCE",
+    items: [
+      {
+        label: "Intelligence", href: ROUTES.marketingSignals, icon: "◎", pillar: "purple",
+        children: [
           { label: "Buying signals", href: ROUTES.marketingSignals, icon: "◎", pillar: "purple", featureKey: "buying_signals", workcenterKey: "signals" },
           { label: "Leads", href: ROUTES.leads, icon: "✦", pillar: "purple", featureKey: "leads", workcenterKey: "leads" },
           { label: "Scored leads", href: ROUTES.marketingLeads, icon: "⚡", pillar: "purple", featureKey: "marketing_scoring", workcenterKey: "leads" },
-          { label: "Revenue by source", href: ROUTES.marketingAttribution, icon: "⌁", pillar: "purple", featureKey: "marketing_attribution", workcenterKey: "marketing_attribution" },
+          { label: "ABM programs", href: ROUTES.marketingAbm, icon: "◆", pillar: "purple", featureKey: "abm", workcenterKey: "abm" },
+          { label: "Results", href: ROUTES.marketingAttribution, icon: "⌁", pillar: "purple", featureKey: "marketing_attribution", workcenterKey: "marketing_attribution" },
         ],
       },
     ],

@@ -47,7 +47,7 @@ export default async function MarketingPage({
     { id: "status", label: "Status", render: (camp) => <StatusPill label={STATUS_LABEL[camp.status]} tone={STATUS_TONE[camp.status]} /> },
     { id: "sent", label: "Sent", render: (camp) => camp.sent_count },
     { id: "failed", label: "Failed", render: (camp) => camp.failed_count },
-    { id: "skipped", label: "Skipped", render: (camp) => camp.skipped_count },
+    { id: "skipped", label: "Left out", render: (camp) => camp.skipped_count },
     { id: "created", label: "Created", cellStyle: { color: c.muted }, render: (camp) => fmtDate(camp.created_at) },
   ];
 
