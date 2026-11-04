@@ -5,7 +5,7 @@ import {
   CheckIcon, Database, Box, Shield, Tag, Truck, Filter, Coins, Zap, MessageSquare,
   Home, InboxTray, Compass, Wallet, Kanban, Calculator, Fence, ArrowLeftRight, FileStack, ShoppingCart, ShoppingBag,
   Briefcase, Receipt, LifeBuoy, Repeat, HardHat, Megaphone, Target, Send, Calendar, CalendarCheck, FormIcon, Route,
-  Radio, Gauge, TrendingUp, IdCard, Eye, Folder, Sun, Timer, ArrowUpDown, Sliders, PieChart, Hourglass,
+  Radio, Gauge, TrendingUp, IdCard, Eye, Folder, Sun, Timer, ArrowUpDown, Sliders, PieChart, Hourglass, Sparkles, Bot,
 } from "@/components/Icons";
 
 export type GlyphComponent = React.ComponentType<{ size?: number; color?: string }>;
@@ -77,6 +77,7 @@ export const NAV_GLYPHS: Record<string, GlyphComponent> = {
   [ROUTES.reports]: BarChart2,
   [ROUTES.pricingToday]: Coins,
   // Admin
+  [ROUTES.aiAutomation]: Sparkles,
   [ROUTES.dataWorkbench]: ArrowUpDown,
   [ROUTES.administration]: Shield,
   [ROUTES.settings]: Gear,
@@ -91,6 +92,7 @@ export const GROUP_ICON: Record<string, GlyphComponent> = {
   "MARKETING": Megaphone,
   "MASTER DATA": Database,
   "WORKFORCE": Hourglass,
+  "AI AUTOMATION": Bot,
   "INSIGHTS": PieChart,
   "ADMIN": Sliders,
 };

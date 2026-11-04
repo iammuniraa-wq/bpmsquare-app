@@ -47,6 +47,7 @@ vi.mock("@/lib/changeLog", () => ({
 vi.mock("@/lib/events/emitters", () => ({
   emitOpportunityStageChanged: async (_t: string, p: unknown) => { state.stageEvents.push(p); },
   emitOpportunityClosed: async () => {}, emitOpportunityUpdated: async () => {}, emitOpportunityCreated: async () => {},
+  emitTenderDecisionProposed: async () => {}, emitTenderDetailsChanged: async () => {},
 }));
 vi.mock("resend", () => ({
   Resend: class { emails = { send: async (p: { from: string; to: string[]; subject: string; text: string }) => { state.sent.push(p); return { error: null }; } }; },
