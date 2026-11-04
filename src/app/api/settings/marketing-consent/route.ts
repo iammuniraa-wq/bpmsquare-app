@@ -12,7 +12,7 @@ import { diffForLog, logChange } from "@/lib/changeLog";
 // country, relaxes it) and whether newsletter opens are counted.
 
 export async function GET() {
-  const g = await loadMarketingSettingsContext();
+  const g = await loadMarketingSettingsContext({ consent: true });
   if (!g.ok) return g.response;
   const { config, features } = g.ctx;
   return NextResponse.json({
@@ -28,7 +28,7 @@ export async function GET() {
 }
 
 export async function PUT(request: NextRequest) {
-  const g = await loadMarketingSettingsContext();
+  const g = await loadMarketingSettingsContext({ consent: true });
   if (!g.ok) return g.response;
   const { admin, tenantId, config } = g.ctx;
 

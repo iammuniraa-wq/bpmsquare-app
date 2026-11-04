@@ -90,7 +90,7 @@ export default function SegmentBuilder({ accounts, initial }: { accounts: Accoun
   }, [includeIds, excludeIds, manualEmails, filters, match]);
 
   async function save() {
-    if (!name.trim()) { setError("Give this target group a name."); return; }
+    if (!name.trim()) { setError("Give this audience a name."); return; }
     setError("");
     setSaving(true);
     try {
@@ -117,7 +117,7 @@ export default function SegmentBuilder({ accounts, initial }: { accounts: Accoun
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14, maxWidth: 980 }}>
       <section style={cardStyle}>
-        <label style={lbl}>Target group name</label>
+        <label style={lbl}>Audience name</label>
         <input style={inp} value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. OEM accounts, Mumbai" />
       </section>
 
@@ -243,7 +243,7 @@ export default function SegmentBuilder({ accounts, initial }: { accounts: Accoun
 
       <div>
         <button onClick={save} disabled={saving} style={{ padding: "10px 20px", borderRadius: 8, border: "none", background: c.accent, color: "#fff", fontWeight: 600, fontSize: 13.5, cursor: saving ? "not-allowed" : "pointer" }}>
-          {saving ? "Saving…" : initial ? "Save changes" : "Create target group"}
+          {saving ? "Saving…" : initial ? "Save changes" : "Create audience"}
         </button>
       </div>
     </div>

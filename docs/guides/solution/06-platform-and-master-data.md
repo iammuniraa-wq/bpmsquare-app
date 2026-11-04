@@ -1146,13 +1146,24 @@ Administrators and data owners. Module: **Data Workbench** (`data_workbench`). B
 | Sales orders | Yes | Yes | Yes | Header only |
 | Cases, Work orders, Invoices, Purchase orders | Yes | Yes | Yes | |
 | Deals (pipeline) | Yes | Yes | Yes | Amount and probability are computed |
-| Tender BOQ lines | Yes | Yes | Yes | Sits under Deals (pipeline). Adds or revises lines of an existing tender by item number and never removes a line. Cost and markup are never in a file |
+| Tender BOQ lines | Yes | Yes | Yes | Sits under Deals (pipeline). Adds or revises lines of an existing tender by item number and never removes a line. Cost and markup are never in a file. The **WBS code** column is on Export and Update only |
+| Tender WBS items | Yes | Yes | Yes | Sits under Deals (pipeline). Adds items to an existing tender's WBS, found by code; Update changes name, code, parent, owner and note by Record ID. No cost is ever in a file |
 | RFQs | No | Yes | Yes | An RFQ is raised from a record, with its lines and suppliers |
 | Estimates | Yes | Yes | Yes | Header only. Import makes a draft from a template name |
 | ABM programs, ABM target accounts, ABM buying groups | Yes | Yes | Yes | Needs ABM |
 | Projects (workforce) | Yes | Yes | Yes | Import parents before children |
 
 The picker lists only the objects your workspace owns. An object that cannot be used in a mode keeps its place and shows that mode as a grey tab with the reason, instead of disappearing.
+
+**Work with a tender's WBS in bulk**
+
+These objects need the tender module. Both sit under Deals (pipeline) in the **Sales** group.
+
+1. **Tender WBS items, Import.** Type `wbs` in **Find an object** and choose **Tender WBS items**. **Required** reads **Tender, Name**. **Tender** is the Deal ID (for example `OPP-0044`) or the tender number. **WBS code** is optional: empty gets the next number, and a code already on the tender is skipped, so loading the same file twice adds nothing. **Parent code** says where the item sits, and the parent may be a row further down the file. **Owner (email)** must belong to an active employee. One file can hold several tenders. Items go up to three levels deep.
+2. **Tender WBS items, Export.** One row for each item of every tender: **Record ID**, **Tender**, **WBS code**, **Name**, **Parent code**, **Owner (email)**, **Note**, and three columns that are only for reading, **Lines**, **Shared lines** and **Client amount**, rolled up from the sub-items. A WBS item has no price of its own, so no cost is in the file.
+3. **Tender WBS items, Update.** Rows are matched by **Record ID**. **Required** reads **Record ID, Name**. It changes name, code, parent, owner and note. A value that says what the item already has is "No change". An empty **Parent code** moves the item to the top level, an empty **Owner (email)** clears the owner, and an empty **WBS code** is left alone.
+4. **Tender BOQ lines, WBS code.** Which lines sit in which item is set on the lines. The **WBS code** column holds the item code for a whole line, a list such as `2.1:60;2.2:15;2.3:25` (code, a colon, the percent) for a split line, and nothing for a line in no item. It is on Export and Update only: Import never reads it, so a revised BOQ file does not regroup lines.
+5. On **Update**, upload an export, match the column to **WBS code** and review. A code or a list puts the line in that item or splits it, and an empty cell makes the line Unassigned. The code is looked up on the line's own tender. A row fails with a reason when the code does not exist, when the shares do not add up to 100 %, or when the item has sub-items, because lines go in bottom-level items. A cell that already matches is "No change". The moves go through the same checks as the screen and are recorded in the change history. If a row's other columns were updated but its WBS code failed, the reason says so.
 
 ### Fields and statuses
 

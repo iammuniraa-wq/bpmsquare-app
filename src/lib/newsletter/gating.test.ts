@@ -21,11 +21,16 @@ const walk = (dir: string, out: string[] = []): string[] => {
 };
 
 describe("the Newsletter Studio is behind its own flag", () => {
-  it("the menu item needs newsletter_studio and its own workcenter", () => {
+  it("the studio has no menu row of its own: Email shows its views only with newsletter_studio, and the studio pages gate on both", () => {
     const leaves = NAV.flatMap((g) => g.items.flatMap((i) => i.children ?? [i]));
-    const item = leaves.find((l) => l.href === "/marketing/newsletters");
-    expect(item?.featureKey).toBe("newsletter_studio");
-    expect(item?.workcenterKey).toBe("marketing_newsletters");
+    expect(leaves.some((l) => l.href === "/marketing/newsletters")).toBe(false);
+    const email = leaves.find((l) => l.href === "/marketing/email");
+    expect(email?.featureKey).toBe("marketing");
+    const page = readFileSync(join(SRC, "app", "(app)", "marketing", "newsletters", "pageData.ts"), "utf8");
+    expect(page).toContain('requireWorkcenterView("marketing_newsletters")');
+    expect(page).toContain('requireFeature("newsletter_studio")');
+    const email_page = readFileSync(join(SRC, "app", "(app)", "marketing", "email", "page.tsx"), "utf8");
+    expect(email_page).toContain("newsletter_studio");
   });
 
   it("the brand kit setting is hidden without the flag", () => {

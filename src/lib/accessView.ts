@@ -63,6 +63,7 @@ export function resolveAccess(args: {
 function leafViewable(item: NavItem, viewable: ViewableWorkcenters): boolean {
   if (item.adminOnly && viewable !== "all") return false;
   if (viewable === "all") return true;
+  if (item.workcenterAnyOf?.length) return item.workcenterAnyOf.some((w) => viewable.includes(w as WorkcenterKey));
   if (!item.workcenterKey) return true;
   return viewable.includes(item.workcenterKey as WorkcenterKey);
 }
@@ -78,7 +79,7 @@ export function explainNav(args: {
 
   const judge = (item: NavItem, group: string, parent: string | null) => {
     const hiddenBy: HidingLayer[] = [];
-    if (item.featureKey && features[item.featureKey as keyof TenantFeatures] !== true) hiddenBy.push("module");
+    if (item.featureAnyOf?.length ? !item.featureAnyOf.some((k) => features[k as keyof TenantFeatures] === true) : (item.featureKey && features[item.featureKey as keyof TenantFeatures] !== true)) hiddenBy.push("module");
     if (!leafViewable(item, access.viewable)) hiddenBy.push("role");
     if (hiddenHrefs.includes(item.href)) hiddenBy.push("navigation");
     if (item.supervisorOnly && !access.isWfmSupervisor) hiddenBy.push("supervisor");

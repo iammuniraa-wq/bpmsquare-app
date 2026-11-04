@@ -8,7 +8,8 @@ import ConsentClient from "./ConsentClient";
 
 /**
  * Settings -> Marketing -> Consent. Gated here as well as in the
- * menu: a workspace with neither the marketing_scoring program nor Newsletter Studio cannot reach it by URL.
+ * menu: a workspace with none of Marketing, the marketing_scoring program or Newsletter Studio cannot reach it by URL.
+ * Plain campaigns are gated by consent too, so a workspace with Marketing alone must be able to open it.
  */
 export default async function MarketingConsentSettingsPage() {
   let tenantId: string, role: string;
@@ -22,7 +23,7 @@ export default async function MarketingConsentSettingsPage() {
   const { data } = await createAdminSupabase().from("tenants").select("features").eq("id", tenantId!).single();
   const f = data?.features as Partial<TenantFeatures> | undefined;
   // Topics and counting opens serve newsletters too, so Newsletter Studio alone is enough.
-  if (!marketingScoringOn(f) && f?.newsletter_studio !== true) redirect(ROUTES.settings);
+  if (!marketingScoringOn(f) && f?.newsletter_studio !== true && f?.marketing !== true) redirect(ROUTES.settings);
 
   return (
     <>

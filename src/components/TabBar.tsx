@@ -7,7 +7,7 @@ import { c } from "@/lib/theme";
 import { AlertTriangle, XIcon, Dot } from "@/components/Icons";
 
 export default function TabBar() {
-  const { tabs, activeHref, focusTab, closeTab, closeAllTabs, limitWarning, clearLimitWarning } = useTabs();
+  const { tabs, activeHref, focusTab, closeTab, closeAllTabs, limitWarning, clearLimitWarning, roomMadeFor, clearRoomMade } = useTabs();
   // PILL TABS for Spectacular (owner request 2026-09-22: "redo the tabs which
   // are open in a rounded rectangle manner"). Branched in the component
   // rather than overridden in CSS: every one of these values is an inline
@@ -36,6 +36,12 @@ export default function TabBar() {
     window.addEventListener("resize", checkScroll);
     return () => { el.removeEventListener("scroll", checkScroll); window.removeEventListener("resize", checkScroll); };
   }, []);
+
+  useEffect(() => {
+    if (!roomMadeFor) return;
+    const t = setTimeout(clearRoomMade, 7000);
+    return () => clearTimeout(t);
+  }, [roomMadeFor, clearRoomMade]);
 
   // Scroll active tab into view when it changes
   useEffect(() => {
@@ -177,6 +183,20 @@ export default function TabBar() {
         onClick={() => scroll("right")}
         title="Scroll tabs right"
       >›</button>
+
+      {/* The strip was full: the oldest tab was closed instead of blocking the new page. */}
+      {roomMadeFor && (
+        <div role="status" style={{
+          position: "absolute", top: "calc(100% + 6px)", left: "50%", transform: "translateX(-50%)",
+          background: "var(--amberbg)", border: "1px solid var(--amberline)", borderRadius: 8, padding: "8px 14px",
+          display: "flex", alignItems: "center", gap: 10, boxShadow: "0 4px 20px rgba(0,0,0,.25)", zIndex: 500, maxWidth: "90vw",
+        }}>
+          <span style={{ fontSize: 12.5, color: "var(--amberink)", fontWeight: 500 }}>
+            {MAX_TABS} tabs were open, so “{roomMadeFor}” was closed to make room.
+          </span>
+          <button onClick={clearRoomMade} style={{ background: "none", border: "none", color: "#7a9ab5", cursor: "pointer", fontSize: 15, lineHeight: 1, padding: "0 2px" }} title="Dismiss">×</button>
+        </div>
+      )}
 
       {/* Max-tabs warning toast */}
       {limitWarning && (

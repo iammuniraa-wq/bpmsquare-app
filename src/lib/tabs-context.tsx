@@ -6,6 +6,7 @@ import {
 import { usePathname, useRouter } from "next/navigation";
 import { ROUTES } from "@/lib/constants";
 import { confirmLeave, setUnsavedGuard } from "@/lib/unsavedChanges";
+import { makeRoom } from "@/lib/tabsRoom";
 
 export type Tab = {
   href: string;   // unique key — one tab per URL
@@ -24,6 +25,9 @@ type TabsCtx = {
   updateTabTitle: (href: string, title: string) => void;
   limitWarning: boolean;
   clearLimitWarning: () => void;
+  /** Title of the tab that was closed to make room for a new one, until dismissed. */
+  roomMadeFor: string | null;
+  clearRoomMade: () => void;
 };
 
 const Ctx = createContext<TabsCtx | null>(null);
@@ -33,6 +37,7 @@ const noopTabs: TabsCtx = {
   openTab: () => {}, closeTab: () => {}, closeAllTabs: () => {},
   focusTab: () => {}, updateTabTitle: () => {},
   limitWarning: false, clearLimitWarning: () => {},
+  roomMadeFor: null, clearRoomMade: () => {},
 };
 
 export function useTabs() {
@@ -93,6 +98,9 @@ function tabMeta(href: string): { title: string; icon: string; section: string }
   if (p === "/marketing/segments")                 return { title: "Segments",        icon: "◎", section: "Marketing" };
   if (p.startsWith("/marketing/segments/"))        return { title: shortId(p),        icon: "◎", section: "Segment" };
   if (p === ROUTES.marketing)                      return { title: "Marketing",       icon: "◎", section: "Marketing" };
+  if (p === ROUTES.marketingIntelligence)          return { title: "Intelligence",    icon: "◎", section: "Intelligence" };
+  if (p === ROUTES.marketingEmail)                 return { title: "Email",           icon: "◎", section: "Marketing" };
+  if (p === ROUTES.marketingNew)                   return { title: "New email",       icon: "◎", section: "Marketing" };
   if (p.startsWith("/marketing/"))                 return { title: shortId(p),        icon: "◎", section: "Campaign" };
   if (p === ROUTES.wfmMe)               return { title: "My Workforce",        icon: "◔", section: "Workforce" };
   if (p === ROUTES.wfmLiveBoard)        return { title: "Live Board",          icon: "◔", section: "Workforce" };
@@ -129,6 +137,7 @@ export function TabsProvider({ children, trackTabs = true }: { children: React.R
   const router   = useRouter();
   const [tabs, setTabs] = useState<Tab[]>([]);
   const [limitWarning, setLimitWarning] = useState(false);
+  const [roomMadeFor, setRoomMadeFor] = useState<string | null>(null);
   const tabsRef = useRef<Tab[]>([]);
   const initRef = useRef(false);
   const lastValidHref = useRef<string>("");
@@ -158,15 +167,21 @@ export function TabsProvider({ children, trackTabs = true }: { children: React.R
         lastValidHref.current = pathname;
         return prev;
       }
+      let base = prev;
       if (prev.length >= MAX_TABS) {
-        setLimitWarning(true);
-        // Navigate back to last valid tab — user must close one first
-        const fallback = lastValidHref.current || (prev[prev.length - 1]?.href ?? ROUTES.dashboard);
-        router.replace(fallback);
-        return prev;
+        const room = makeRoom(prev, pathname, MAX_TABS, ROUTES.dashboard);
+        if (!room.closed) {
+          setLimitWarning(true);
+          // Every tab is protected: go back to the last valid tab, the user must close one first.
+          const fallback = lastValidHref.current || (prev[prev.length - 1]?.href ?? ROUTES.dashboard);
+          router.replace(fallback);
+          return prev;
+        }
+        base = room.tabs;
+        setRoomMadeFor(room.closed.title);
       }
       const meta = tabMeta(pathname);
-      const next = [...prev, { href: pathname, ...meta }];
+      const next = [...base, { href: pathname, ...meta }];
       tabsRef.current = next;
       save(next);
       lastValidHref.current = pathname;
@@ -186,12 +201,18 @@ export function TabsProvider({ children, trackTabs = true }: { children: React.R
     setTabs((prev) => {
       const exists = prev.find((t) => t.href === href);
       if (exists) { router.push(href); return prev; }
+      let base = prev;
       if (prev.length >= MAX_TABS) {
-        setLimitWarning(true);
-        return prev;
+        const room = makeRoom(prev, pathname, MAX_TABS, ROUTES.dashboard);
+        if (!room.closed) {
+          setLimitWarning(true);
+          return prev;
+        }
+        base = room.tabs;
+        setRoomMadeFor(room.closed.title);
       }
       const tab: Tab = { href, title: title ?? meta.title, icon: icon ?? meta.icon, section: meta.section };
-      const next = [...prev, tab];
+      const next = [...base, tab];
       tabsRef.current = next;
       save(next);
       router.push(href);
@@ -200,6 +221,7 @@ export function TabsProvider({ children, trackTabs = true }: { children: React.R
   }, [router]);
 
   const clearLimitWarning = useCallback(() => setLimitWarning(false), []);
+  const clearRoomMade = useCallback(() => setRoomMadeFor(null), []);
 
   const closeTab = useCallback((href: string) => {
     // Closing the tab you are on leaves the page: a dirty editor gets to
@@ -250,7 +272,7 @@ export function TabsProvider({ children, trackTabs = true }: { children: React.R
   }, [router, pathname]);
 
   return (
-    <Ctx.Provider value={{ tabs, activeHref: pathname, openTab, closeTab, closeAllTabs, focusTab, updateTabTitle, limitWarning, clearLimitWarning }}>
+    <Ctx.Provider value={{ tabs, activeHref: pathname, openTab, closeTab, closeAllTabs, focusTab, updateTabTitle, limitWarning, clearLimitWarning, roomMadeFor, clearRoomMade }}>
       {children}
     </Ctx.Provider>
   );

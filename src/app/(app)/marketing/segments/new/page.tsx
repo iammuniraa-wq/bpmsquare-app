@@ -12,7 +12,7 @@ export default async function NewSegmentPage() {
 
   return (
     <>
-      <PageHeader title="New target group" subtitle="Drag attributes onto the canvas to build a rule" />
+      <PageHeader title="New audience" subtitle="Drag attributes onto the canvas to build a rule" />
       <SegmentBuilder accounts={accounts} />
     </>
   );

@@ -18,13 +18,13 @@ function payload(config: Parameters<typeof limitsSettingsOf>[0], features: { jou
 }
 
 export async function GET() {
-  const g = await loadMarketingSettingsContext();
+  const g = await loadMarketingSettingsContext({ consent: true });
   if (!g.ok) return g.response;
   return NextResponse.json(payload(g.ctx.config, g.ctx.features));
 }
 
 export async function PUT(request: NextRequest) {
-  const g = await loadMarketingSettingsContext();
+  const g = await loadMarketingSettingsContext({ consent: true });
   if (!g.ok) return g.response;
   const { admin, session, tenantId, userId, config, features } = g.ctx;
 
