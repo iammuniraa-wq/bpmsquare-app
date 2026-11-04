@@ -14,6 +14,7 @@ import { logEmail } from "@/lib/emailLog";
 import { loadEmailOutput, resolveOutbound } from "@/lib/emailOutput";
 import { emitCampaignSent } from "@/lib/events/emitters";
 import { sendNewsletterBranch } from "@/lib/newsletter/sendRoute";
+import { countStatuses, recipientKey, restCandidates } from "@/lib/marketing/sendProgress";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -38,7 +39,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const { id } = await params;
   const { data: campaign } = await supabase.from("marketing_campaigns").select("*").eq("id", id).eq("tenant_id", tenantId).maybeSingle();
   if (!campaign) return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
-  if (campaign.status !== "draft") return NextResponse.json({ error: "This campaign has already been sent" }, { status: 409 });
+  // "Send the rest": a campaign that already went out, sent again to the people who failed or were never reached. Never
+  // to anyone already sent, and through the same consent gate below.
+  const retry = new URL(request.url).searchParams.get("retry") === "rest";
+  if (retry) {
+    if (campaign.newsletter_version_id) return NextResponse.json({ error: "Send the rest is for plain emails. Send the newsletter again from the studio." }, { status: 400 });
+    if (campaign.status === "draft") return NextResponse.json({ error: "This campaign has not been sent yet" }, { status: 409 });
+  } else if (campaign.status !== "draft") return NextResponse.json({ error: "This campaign has already been sent" }, { status: 409 });
   // A campaign that sends a newsletter version takes the studio's branch (consent per person, a
   // language per person, tracked links). Every other campaign continues below, unchanged.
   if (campaign.newsletter_version_id) return sendNewsletterBranch({ supabase, tenantId, campaign });
@@ -52,9 +59,15 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const fromLocalPart = (tenantRow?.slug || "marketing").toLowerCase().replace(/[^a-z0-9._-]/g, "");
   const fromAddress = `${companyName} <${fromLocalPart}@${sendingDomain}>`;
 
-  await supabase.from("marketing_campaigns").update({ status: "sending" }).eq("id", id).eq("tenant_id", tenantId);
+  if (retry) {
+    // Claim it atomically: two presses of the button must not send twice.
+    const { data: claimed } = await supabase.from("marketing_campaigns").update({ status: "sending" }).eq("id", id).eq("tenant_id", tenantId).in("status", ["sent", "failed"]).select("id");
+    if (!claimed?.length) return NextResponse.json({ error: "This campaign is already being sent" }, { status: 409 });
+  } else {
+    await supabase.from("marketing_campaigns").update({ status: "sending" }).eq("id", id).eq("tenant_id", tenantId);
+  }
 
-  const candidates = await resolveMarketingRecipients(tenantId, {
+  const everyone = await resolveMarketingRecipients(tenantId, {
     account_types: campaign.account_types ?? [],
     include_account_ids: campaign.include_account_ids ?? [],
     exclude_account_ids: campaign.exclude_account_ids ?? [],
@@ -62,6 +75,20 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     filters: campaign.filters ?? [],
     match: campaign.match ?? "all",
   });
+
+  // What was already recorded for this campaign, so the rest never repeats a send and a retried failure is updated in place.
+  const { data: existingRows } = retry
+    ? await supabase.from("marketing_campaign_recipients").select("id, account_id, manual_email, status").eq("campaign_id", id).eq("tenant_id", tenantId)
+    : { data: [] as { id: string; account_id: string | null; manual_email: string | null; status: string }[] };
+  const recorded = existingRows ?? [];
+  const candidates = retry ? restCandidates(everyone, recorded) : everyone;
+  const failedRowOf = new Map(recorded.filter((r) => r.status === "failed").map((r) => [recipientKey(r), r.id]));
+  // Insert a new recipient row, or (sending the rest) update the failed one this person already has.
+  const writeRow = async (target: { account_id: string | null; manual_email: string | null }, row: Record<string, unknown>) => {
+    const rowId = retry ? failedRowOf.get(recipientKey(target)) : undefined;
+    if (rowId) return supabase.from("marketing_campaign_recipients").update({ error: null, ...row }).eq("id", rowId).eq("tenant_id", tenantId);
+    return supabase.from("marketing_campaign_recipients").insert({ tenant_id: tenantId, campaign_id: id, ...target, ...row });
+  };
 
   const resend = new Resend(process.env.RESEND_API_KEY);
   const output = await loadEmailOutput(supabase, tenantId);
@@ -77,9 +104,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const verdict = await consentFor(candidate);
     if (!verdict.ok) {
       const plain = verdict.status === "skipped_opt_out" || verdict.status === "skipped_no_email";
-      await supabase.from("marketing_campaign_recipients").insert(plain
-        ? { tenant_id: tenantId, campaign_id: id, ...target, email: null, status: verdict.status }
-        : { tenant_id: tenantId, campaign_id: id, ...target, email: candidate.email, status: verdict.status, error: verdict.reason, contact_id: verdict.contact?.id ?? null });
+      await writeRow(target, plain
+        ? { email: null, status: verdict.status }
+        : { email: candidate.email, status: verdict.status, error: verdict.reason, contact_id: verdict.contact?.id ?? null });
       skipped++;
       continue;
     }
@@ -130,10 +157,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     if (sendError) {
       await Promise.all([
-        supabase.from("marketing_campaign_recipients").insert({
-          tenant_id: tenantId, campaign_id: id, ...target,
-          email: candidate.email, status: "failed", error: sendError.message,
-        }),
+        writeRow(target, { email: candidate.email, status: "failed", error: sendError.message }),
         logEmail(supabase, {
           tenantId, kind: "campaign", toEmail: candidate.email, subject,
           status: "failed", error: sendError.message,
@@ -144,10 +168,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       failed++;
     } else {
       await Promise.all([
-        supabase.from("marketing_campaign_recipients").insert({
-          tenant_id: tenantId, campaign_id: id, ...target,
-          email: candidate.email, status: "sent", sent_at: new Date().toISOString(),
-        }),
+        writeRow(target, { email: candidate.email, status: "sent", sent_at: new Date().toISOString() }),
         logEmail(supabase, {
           tenantId, kind: "campaign", toEmail: candidate.email, subject,
           status: "sent",
@@ -160,15 +181,21 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     await sleep(SEND_DELAY_MS);
   }
 
+  // After sending the rest the totals are the whole campaign's, not this run's.
+  if (retry) {
+    const { data: all } = await supabase.from("marketing_campaign_recipients").select("status").eq("campaign_id", id).eq("tenant_id", tenantId);
+    ({ sent, failed, skipped } = countStatuses(all ?? []));
+  }
   await supabase.from("marketing_campaigns").update({
     status: "sent",
     sent_count: sent,
     failed_count: failed,
     skipped_count: skipped,
-    sent_at: new Date().toISOString(),
+    ...(retry ? {} : { sent_at: new Date().toISOString() }),
   }).eq("id", id).eq("tenant_id", tenantId);
 
-  await emitCampaignSent(tenantId, { campaignId: id, name: campaign.name, sent, failed, skipped, actorId: user?.id });
+  // The "sent" event fires once, for the first send; sending the rest must not announce the campaign again.
+  if (!retry) await emitCampaignSent(tenantId, { campaignId: id, name: campaign.name, sent, failed, skipped, actorId: user?.id });
 
   return NextResponse.json({ sent, failed, skipped });
 }
