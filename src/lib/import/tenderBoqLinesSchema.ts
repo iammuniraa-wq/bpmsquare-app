@@ -13,7 +13,7 @@ export const TENDER_BOQ_LINES_SPEC: ObjectSpec = {
   id: "tender_boq_lines",
   label: "Tender BOQ lines",
   icon: "≣",
-  description: "Lines of a tender's Bill of quantities: add or revise lines of an existing tender by item number, or bulk-edit quantity, description, details and cost code on lines already there. Cost and markup are never in a file. Import only adds lines and updates the ones it matches by item number; it never removes a line, whatever the file leaves out.",
+  description: "Lines of a tender's Bill of quantities: add or revise lines of an existing tender by item number, or bulk-edit quantity, description, details, cost code and WBS code on lines already there. Cost and markup are never in a file. Import only adds lines and updates the ones it matches by item number; it never removes a line, whatever the file leaves out.",
   dependsOn: ["opportunities"],
   fields: [
     { key: "tender_ref", label: "Tender", type: "ref", required: true, hint: "Deal ID (OPP-0044) or the tender number of an existing tender", aliases: ["tender", "tender no", "tender number", "deal", "deal id", "opportunity"] },
@@ -26,6 +26,10 @@ export const TENDER_BOQ_LINES_SPEC: ObjectSpec = {
     { key: "cost_code", label: "Cost code", type: "text", hint: "CSI / WBS / cost code", aliases: EXACT.cost_code },
     { key: "client_columns", label: "Client columns", type: "text", hint: "The client's other columns as JSON, the way an export writes them. Not changed by Update", aliases: ["client data"] },
     { key: "rate", label: "Unit rate", type: "number", hint: "Only on Import: the client's own rate in the file. Our rate is set on the Bill of quantities", aliases: EXACT.rate },
+    // Where the line sits in the tender's WBS: one code for a whole line, "2.1:60;2.2:15;2.3:25" (code:percent) for a split line, empty for
+    // Unassigned. The same text the v1 API returns. Export writes it and Update sets it; Import never reads it, so a revised file can add or
+    // revise lines without regrouping the ones already there.
+    { key: "wbs_code", label: "WBS code", type: "text", updateOnly: true, hint: "WBS item code, or code:percent joined by ; for a split line (2.1:60;2.2:40). Empty = Unassigned. Shares must add up to 100" },
     // Export-only: computed, or answered by the pricing on the Bill of quantities.
     { key: "amount", label: "Amount", type: "number", exportOnly: true, hint: "Computed quantity × rate" },
     { key: "rate_source", label: "Rate source", type: "text", exportOnly: true, hint: "boq_rate · bom · past_project · supplier · manual · estimate" },
@@ -40,4 +44,4 @@ export const TENDER_BOQ_LINES_SPEC: ObjectSpec = {
 };
 
 /** What an Update file may change on a line. The rate is deliberately not here (see above). */
-export const TENDER_BOQ_UPDATE_KEYS = ["quantity", "description", "details", "cost_code"] as const;
+export const TENDER_BOQ_UPDATE_KEYS = ["quantity", "description", "details", "cost_code", "wbs_code"] as const;

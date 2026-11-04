@@ -56,6 +56,8 @@ export const REGISTRY_OBJECT_TYPE: Record<ImportObjectId, string | null> = {
   sales_order_lines: null,
   // Static spec (tenderBoqLinesSchema.ts), like sales_order_lines.
   tender_boq_lines: null,
+  // Static spec (tenderWbsItemsSchema.ts), like tender_boq_lines.
+  tender_wbs_items: null,
 };
 
 export type ReferenceFieldDef = {
@@ -241,6 +243,8 @@ const OBJECT_META: Record<ImportObjectId, { label: string; icon: string; descrip
   sales_order_lines: { label: "Sales Order Lines", icon: "≣", description: "", dependsOn: ["sales_orders"] },
   // Never read -- tender_boq_lines is null in REGISTRY_OBJECT_TYPE (static spec).
   tender_boq_lines: { label: "Tender BOQ lines", icon: "≣", description: "", dependsOn: ["opportunities"] },
+  // Never read -- tender_wbs_items is null in REGISTRY_OBJECT_TYPE (static spec).
+  tender_wbs_items: { label: "Tender WBS items", icon: "▤", description: "", dependsOn: ["opportunities"] },
   abm_members: { label: "ABM buying groups", icon: "☰", description: "People and their role in a target account's buying group, for one program. Private notes are not included.", dependsOn: ["abm_targets", "contacts"] },
   wfm_projects: { label: "Projects (workforce)", icon: "▦", description: "Project costing — projects and sub-projects that worked hours are attributed to. Import parents before children.", dependsOn: [] },
   users: { label: "Users", icon: "◍", description: "Invite team members and assign roles — each person receives an email invite", dependsOn: [] },

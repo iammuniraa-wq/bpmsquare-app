@@ -1,6 +1,6 @@
 {
   "name": "bpmsquare",
-  "version": "1.20.0",
+  "version": "1.21.0",
   "description": "BPMSquare MCP server — read access to a workspace's business data (accounts, contacts, quotations, cases, invoices, inventory and more) through the BPMSquare REST API. Generic across every tenant; nothing here is specific to one workspace.",
   "api_base": "https://<your-tenant-domain>/api/v1",
   "auth": {
@@ -800,7 +800,7 @@
     },
     {
       "name": "get_tender_boq",
-      "description": "The Bill of quantities of one tender, one row per line and paged: item number, cost code, description (the line name), details (the long text), client_columns (the client's own other columns such as Sr #, Bill #, Section, Page #, Revision #), unit, quantity, our unit rate and amount, where the rate came from (boq_rate, bom, past_project, supplier, manual, estimate), the price date and the line status (priced, unpriced, stale, removed). Cost, markup and supplier names are never returned. Needs an API key explicitly scoped to \"tenders\".",
+      "description": "The Bill of quantities of one tender, one row per line and paged: item number, cost code, description (the line name), details (the long text), client_columns (the client's own other columns such as Sr #, Bill #, Section, Page #, Revision #), unit, quantity, our unit rate and amount, where the rate came from (boq_rate, bom, past_project, supplier, manual, estimate), the price date and the line status (priced, unpriced, stale, removed), and where the line sits in the tender's WBS: wbs_code (a code, or for a split line the list code:percent joined by ';', e.g. 2.1:60;2.2:15;2.3:25) and wbs_parts (each share with its quantity and client amount). Cost, markup and supplier names are never returned. Needs an API key explicitly scoped to \"tenders\".",
       "method": "GET",
       "path": "/api/v1/tenders/{id}/boq",
       "inputSchema": {
@@ -824,6 +824,47 @@
           "sort": {
             "type": "string",
             "description": "Comma list, leading - is descending, e.g. row_no or -amount"
+          },
+          "page": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "1-based page"
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 200,
+            "description": "Rows per page, max 200"
+          }
+        }
+      }
+    },
+    {
+      "name": "get_tender_wbs",
+      "description": "The WBS (work breakdown structure) of one tender, one row per item in tree order and paged: code, name, parent, level (up to three), the owner's name, the number of BOQ lines, shared (split) lines and priced lines and the client amount, all rolled up from the sub-items, and parts (each BOQ line's share of that item with its quantity and client amount). A BOQ line normally sits in one item and can be split across several by percent. The meta carries the whole-WBS total and what is still unassigned. Only client amounts: cost, markup and margin are never returned. Needs an API key explicitly scoped to \"tenders\".",
+      "method": "GET",
+      "path": "/api/v1/tenders/{id}/wbs",
+      "inputSchema": {
+        "type": "object",
+        "required": [
+          "id"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Deal UUID of the tender"
+          },
+          "filter": {
+            "type": "string",
+            "description": "field:op:value triples joined by ';', e.g. level:eq:1 or parent_code:eq:2"
+          },
+          "search": {
+            "type": "string",
+            "description": "Text to find in an item's code or name"
+          },
+          "sort": {
+            "type": "string",
+            "description": "Comma list, leading - is descending, e.g. -client_amount"
           },
           "page": {
             "type": "integer",

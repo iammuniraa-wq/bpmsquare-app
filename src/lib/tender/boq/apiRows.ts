@@ -5,6 +5,9 @@ import { readAllPages } from "@/lib/pagedRead";
 import { tenantToday } from "@/lib/tenantClock";
 import { relinkPlan } from "./diff";
 import { isStale, priceValidityDays, type PriceSource } from "./price";
+import { annotator } from "@/lib/tender/wbs/apiShape";
+import { loadStructure } from "@/lib/tender/wbs/read";
+import type { LineMembers, WbsItemRow } from "@/lib/tender/wbs/types";
 
 // The customer-safe view of a tender's Bill of quantities for the v1 API, MCP, Talk to data, the report builder and the Data Workbench
 // export: one row per line, as the BOQ screen shows it (item, cost code, description = the line's name, details, unit, quantity, our unit
@@ -33,6 +36,10 @@ export const TENDER_BOQ_LINE_FIELDS: QueryableField[] = [
   { path: "rate_source", type: "string" },
   { path: "price_as_of", type: "date" },
   { path: "status", type: "string" },
+  // Where the line sits in the tender's WBS: its item code, or for a split line "2.1:60;2.2:15;2.3:25" (code:percent). Empty = unassigned.
+  // wbs_parts lists a split line's shares with the quantity and the CLIENT amount of each (never a cost). Returned, not queried.
+  { path: "wbs_code", type: "string", searchable: true },
+  { path: "wbs_parts", type: "string" },
 ];
 
 const LINE_COLS = "id, line_id, row_no, item_no, cost_code, file_description, file_uom, file_qty, price_source, price_as_of, stale_accepted, removed_in_revision, file_details, client_data";
@@ -44,6 +51,8 @@ const DEAL_LINE_COLS = "id, sl_no, description, uom, qty, rate, amount";
 export type BoqApiSource = { file_name: string; version: number; uploaded_at: string };
 export type BoqApiStatus = "priced" | "unpriced" | "stale" | "removed";
 export type BoqApiContext = { validity: number; today: string };
+/** The tender's WBS as it was read with the rows: `pending` while migration 0243 is not applied. */
+export type BoqApiWbs = { items: WbsItemRow[]; members: LineMembers; pending: boolean };
 export type BoqApiOpts = {
   /** Shared by a caller that loads many tenders, so the workspace setting and the date are read once. */
   ctx?: BoqApiContext;
@@ -60,22 +69,26 @@ export async function boqApiContext(admin: SupabaseClient, tenantId: string): Pr
   return { validity: priceValidityDays((data?.config ?? {}) as Parameters<typeof priceValidityDays>[0]), today };
 }
 
-export async function loadBoqRowsForApi(admin: SupabaseClient, tenantId: string, opportunityId: string, opts: BoqApiOpts = {}): Promise<{ source: BoqApiSource | null; rows: Record<string, unknown>[] }> {
-  const empty = { source: null, rows: [] };
+export async function loadBoqRowsForApi(admin: SupabaseClient, tenantId: string, opportunityId: string, opts: BoqApiOpts = {}): Promise<{ source: BoqApiSource | null; rows: Record<string, unknown>[]; wbs: BoqApiWbs }> {
+  const noWbs: BoqApiWbs = { items: [], members: { item: new Map(), parts: new Map() }, pending: false };
+  const empty = { source: null, rows: [], wbs: noWbs };
   const { data: src, error: srcErr } = await admin.from("tender_boq_sources").select("file_name, version, uploaded_at").eq("tenant_id", tenantId).eq("opportunity_id", opportunityId).eq("is_current", true).maybeSingle();
   // Migration 0223 pending (a missing table), or no file yet: an empty Bill of quantities, never an error.
-  if (srcErr || !src) return empty;
+  // The WBS is still read: items can exist on a tender that has no file yet (a Data Workbench import adds them).
+  if (srcErr || !src) return { ...empty, wbs: await loadStructure(admin, tenantId, opportunityId) };
   const source: BoqApiSource = { file_name: String(src.file_name), version: Number(src.version ?? 1), uploaded_at: String(src.uploaded_at ?? "") };
 
   const readLines = (full: boolean) => readAllPages<Record<string, unknown>>((lo, hi) => (full
     ? admin.from("tender_boq_lines").select(LINE_COLS).eq("tenant_id", tenantId).eq("opportunity_id", opportunityId).order("row_no").order("id", { ascending: true }).range(lo, hi)
     : admin.from("tender_boq_lines").select(LINE_COLS_BASE).eq("tenant_id", tenantId).eq("opportunity_id", opportunityId).order("row_no").order("id", { ascending: true }).range(lo, hi)));
-  const [lines, deal, ctx, tender] = await Promise.all([
+  const [lines, deal, ctx, tender, wbs] = await Promise.all([
     readLines(true).then((res) => (missingColumn(res.error) ? readLines(false) : res)),
     readAllPages<Record<string, unknown>>((lo, hi) => admin.from("opportunity_lines").select(DEAL_LINE_COLS).eq("tenant_id", tenantId).eq("opportunity_id", opportunityId).order("id", { ascending: true }).range(lo, hi)),
     opts.ctx ?? boqApiContext(admin, tenantId),
     opts.tender ? Promise.resolve(opts.tender) : loadTenderNames(admin, tenantId, opportunityId),
+    loadStructure(admin, tenantId, opportunityId),
   ]);
+  const wbsOf = annotator(wbs.items, wbs.pending ? null : wbs.members);
   if (lines.error || deal.error) return empty;
 
   const dealLines: DealLine[] = (deal.data ?? []).map((l) => ({
@@ -104,6 +117,9 @@ export async function loadBoqRowsForApi(admin: SupabaseClient, tenantId: string,
     const priced = !!l && rate > 0;
     const asOf = typeof b.price_as_of === "string" ? b.price_as_of.slice(0, 10) : null;
     const sourceCode = (b.price_source as PriceSource | null) ?? null;
+    const quantity = l ? l.qty : num(b.file_qty);
+    const amount = priced ? round2(l!.amount) : null;
+    const where = wbsOf(String(b.id), quantity, amount);
     const stale = priced && !!sourceCode && isStale(sourceCode, asOf, ctx.today, ctx.validity) && b.stale_accepted !== true;
     const status: BoqApiStatus = removed ? "removed" : !priced ? "unpriced" : stale ? "stale" : "priced";
     out.push({
@@ -118,15 +134,17 @@ export async function loadBoqRowsForApi(admin: SupabaseClient, tenantId: string,
       details: (b.file_details as string | null | undefined) ?? null,
       client_columns: b.client_data && typeof b.client_data === "object" && Object.keys(b.client_data as object).length > 0 ? b.client_data : null,
       unit: (b.file_uom as string | null) ?? l?.uom ?? null,
-      quantity: l ? l.qty : num(b.file_qty),
+      quantity,
       rate: priced ? rate : null,
-      amount: priced ? round2(l!.amount) : null,
+      amount,
       rate_source: priced ? sourceCode : null,
       price_as_of: priced ? asOf : null,
       status,
+      wbs_code: where.wbs_code,
+      wbs_parts: where.wbs_parts,
     });
   }
-  return { source, rows: out };
+  return { source, rows: out, wbs };
 }
 
 async function loadTenderNames(admin: SupabaseClient, tenantId: string, opportunityId: string): Promise<{ ref: string | null; tender_no: string | null }> {
