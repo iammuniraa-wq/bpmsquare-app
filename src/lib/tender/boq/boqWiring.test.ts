@@ -225,10 +225,10 @@ describe("the Bill of quantities screen (the rows, chips and panel are tested in
     expect(src).toMatch(/onLinesChanged\?: \(\) => void/);
     // One reload path: the table, the estimates and the page. Every place the lines change (upload, price all, match, the row panel) goes through it.
     expect(src).toMatch(/reloadAfterSave<State>\(base, setData, onLinesChanged\)/);
-    expect(src.match(/onChanged=\{changed\}/g)?.length ?? 0).toBe(2);
+    expect(src.match(/onChanged=\{changed\}/g)?.length ?? 0).toBe(3); // the match strip, the WBS tree, the row panel
     // Lines typed by hand (no client file) save through the same reload path.
     expect(src).toMatch(/<DealLinesBoq[\s\S]*onChanged=\{\(\) => onLinesChanged\?\.\(\)\}/);
-    expect(src).toMatch(/onApplied: \(\) => \{ setShown\(0\); changed\(\); \}/);
+    expect(src).toMatch(/onApplied: \(r\) => \{ setShown\(0\); setRespread\(new Set\(r\.respread_ids\)\); changed\(\); \}/);
     expect(src).toMatch(/changed\(\);\r?\n\s*\}\r?\n\r?\n\s*if \(!data\)/);
     expect(read("src/app/(app)/pipeline/[id]/OpportunityDetailClient.tsx")).toMatch(/onLinesChanged=\{\(\) => router\.refresh\(\)\}/);
   });

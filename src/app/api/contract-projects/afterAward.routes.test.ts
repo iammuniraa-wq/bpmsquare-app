@@ -96,6 +96,9 @@ import { PATCH as basisPatch } from "./[id]/allocation/basis/route";
 import { POST as fillPost } from "./[id]/allocation/fill/route";
 import { GET as wpGet, POST as wpPost } from "./[id]/work-packages/route";
 import { PATCH as wpPatch, DELETE as wpDelete } from "./[id]/work-packages/[pid]/route";
+import { PUT as wpAssign } from "./[id]/work-packages/assign/route";
+import { PUT as wpSplit, DELETE as wpUnsplit } from "./[id]/work-packages/split/route";
+import { POST as wpRenumber } from "./[id]/work-packages/renumber/route";
 
 const json = (method: string, body?: unknown) => new NextRequest(new URL("http://internal.invalid/x"), { method, headers: { "content-type": "application/json" }, body: body === undefined ? undefined : JSON.stringify(body) });
 const get = (qs = "") => new NextRequest(new URL(`http://internal.invalid/x${qs}`));
@@ -915,7 +918,7 @@ describe("work packages and allocating by package", () => {
     expect((await make(p.id, { code: "WP-1", name: "Again" })).status).toBe(409);
     const list = await (await wpGet(get(), ctx(p.id))).json();
     expect(list.packages).toEqual([expect.objectContaining({ code: "WP-1", owner_name: "Sara Khan", line_keys: [a] })]);
-    expect(state.changes.some((c) => c.changes?.some((x) => x.field === "Work package WP-1 added"))).toBe(true);
+    expect(state.changes.some((c) => c.changes?.some((x) => x.field === "WBS WP-1 added"))).toBe(true);
   });
 
   it("an owner without a login is refused with 'Create login' first; so is an inactive one, and an employee of another workspace is a 404", async () => {
@@ -1037,5 +1040,409 @@ describe("work packages and allocating by package", () => {
     const list = await wpGet(get(), ctx(p.id));
     expect(list.status).toBe(503);
     expect((await list.json()).pending).toBe(true);
+  });
+});
+
+// ── The WBS on the project (migration 0243, docs/design/wbs.md slice 3) ──────────────────────────────────────────────────────
+
+const TW = {
+  steel: "f0000000-0000-4000-8000-000000000001", fab: "f0000000-0000-4000-8000-000000000011", gal: "f0000000-0000-4000-8000-000000000012",
+  ere: "f0000000-0000-4000-8000-000000000002", foreign: "f0000000-0000-4000-8000-0000000000f9",
+};
+
+describe("the project takes over the tender's WBS, and keeps its own copy", () => {
+  beforeEach(() => {
+    rows("employees").push(
+      { id: EMP_LOGIN, tenant_id: T1, first_name: "Sara", last_name: "Khan", employee_code: "E-1", email: null, status: "active" },
+      { id: EMP_NO_LOGIN, tenant_id: T1, first_name: "Omar", last_name: "Ali", employee_code: "E-2", email: null, status: "active" },
+    );
+    rows("tenant_users").push({ tenant_id: T1, user_id: "u-sara", role: "member", employee_id: EMP_LOGIN });
+    state.db.unique("project_work_packages", (x, y) => x.project_id === y.project_id && x.code === y.code);
+    state.db.unique("project_work_package_lines", (x, y) => x.project_id === y.project_id && x.line_key === y.line_key);
+    state.db.unique("project_work_package_line_parts", (x, y) => x.project_id === y.project_id && x.line_key === y.line_key && x.package_id === y.package_id);
+    const item = (id: string, parent: string | null, code: string, name: string, sort: number, over: Record<string, unknown> = {}) =>
+      ({ id, tenant_id: T1, opportunity_id: OPP, parent_id: parent, code, name, owner_employee_id: null, sort_order: sort, code_is_manual: false, note: null, created_at: "2026-11-01T00:00:00Z", ...over });
+    rows("tender_wbs_items").push(
+      item(TW.steel, null, "1", "Steel", 10), item(TW.fab, TW.steel, "1.1", "Fabrication", 10, { owner_employee_id: EMP_LOGIN }), item(TW.gal, TW.steel, "1.2", "Galvanising", 20, { owner_employee_id: EMP_NO_LOGIN }),
+      item(TW.ere, null, "C-200", "Erection", 20, { code_is_manual: true }),
+    );
+    // b1 (the fence, 20,000 of the client's money) is split 60 / 40 over fabrication and galvanising; b2 (the excavation, 2,000) sits whole in Erection.
+    const b1 = rows("tender_boq_lines").find((r) => r.id === "b1")!, b2 = rows("tender_boq_lines").find((r) => r.id === "b2")!;
+    b1.wbs_item_id = null; b2.wbs_item_id = TW.ere;
+    rows("tender_wbs_line_parts").push(
+      { id: "tp1", tenant_id: T1, opportunity_id: OPP, boq_line_id: "b1", wbs_item_id: TW.fab, share_pct: 60, sort_order: 0 },
+      { id: "tp2", tenant_id: T1, opportunity_id: OPP, boq_line_id: "b1", wbs_item_id: TW.gal, share_pct: 40, sort_order: 1 },
+    );
+  });
+
+  const wbs = (id: string) => mine("project_work_packages").filter((p) => p.project_id === id);
+  const byCode = (id: string, code: string) => wbs(id).find((p) => p.code === code)!;
+
+  it("copies the tree, parents first, with codes, names, owners, the typed-code flag and a link back to each tender item", async () => {
+    const p = await fromTender();
+    expect(p.res.status).toBe(201);
+    const items = wbs(p.id);
+    expect(items.map((i) => i.code).sort()).toEqual(["1", "1.1", "1.2", "C-200"]);
+    expect(byCode(p.id, "1.1")).toMatchObject({ name: "Fabrication", parent_id: byCode(p.id, "1").id, owner_employee_id: EMP_LOGIN, source_wbs_item_id: TW.fab, code_is_manual: false, project_id: p.id, tenant_id: T1 });
+    expect(byCode(p.id, "C-200")).toMatchObject({ code_is_manual: true, parent_id: null, source_wbs_item_id: TW.ere });
+    expect(byCode(p.id, "1").parent_id).toBeNull();
+    // the ids are the project's own, never the tender's
+    expect(items.every((i) => !Object.values(TW).includes(String(i.id)))).toBe(true);
+  });
+
+  it("an owner without a login is carried over as it is (the login is asked for on the project, not while bidding)", async () => {
+    const p = await fromTender();
+    expect(byCode(p.id, "1.2").owner_employee_id).toBe(EMP_NO_LOGIN);
+    const list = await (await wpGet(get(), ctx(p.id))).json();
+    expect(list.packages.find((x: { code: string }) => x.code === "1.2")).toMatchObject({ owner_name: "Omar Ali" });
+    expect(list.employees.find((e: { id: string }) => e.id === EMP_NO_LOGIN).has_login).toBe(false);
+    // changing something else on that item is not blocked by the missing login; picking another owner without a login is
+    const id = String(byCode(p.id, "1.2").id);
+    expect((await wpPatch(json("PATCH", { name: "Galvanising (hot dip)" }), pctx(p.id, id))).status).toBe(200);
+    const again = await wpPatch(json("PATCH", { owner_employee_id: EMP_NO_LOGIN }), pctx(p.id, String(byCode(p.id, "1.1").id)));
+    expect(again.status).toBe(422);
+    expect((await again.json()).needs_login).toBe(true);
+  });
+
+  it("puts each whole line in its item and each share of a split line under its item; the budget lines are matched through the deal line", async () => {
+    const p = await fromTender();
+    const fence = keyOf("Chain link"), dig = keyOf("Excavation");
+    const whole = mine("project_work_package_lines");
+    expect(whole).toHaveLength(1);
+    expect(whole[0]).toMatchObject({ line_key: dig, package_id: byCode(p.id, "C-200").id, project_id: p.id });
+    const parts = mine("project_work_package_line_parts");
+    expect(parts.map((x) => [x.line_key, x.package_id, x.share_pct])).toEqual([[fence, byCode(p.id, "1.1").id, 60], [fence, byCode(p.id, "1.2").id, 40]]);
+  });
+
+  it("the response says what was copied, and the creation is logged", async () => {
+    const res = await createPost(json("POST", { opportunity_id: OPP }));
+    const j = await res.json();
+    expect(j.wbs).toMatchObject({ items: 4, lines: 2, split: 1, unassigned: 0, pending: false, text: "4 items · 2 lines (1 split) · 0 unassigned" });
+    expect(state.changes.some((c) => c.changes?.some((x) => x.field === "WBS copied from tender" && x.to === "4 items · 2 lines (1 split) · 0 unassigned"))).toBe(true);
+  });
+
+  it("a line whose BOQ row is unassigned, and the unassigned remainder of a split line, stay unassigned on the project", async () => {
+    rows("tender_wbs_line_parts").splice(1, 1); // the stair keeps only its 60 %
+    rows("tender_boq_lines").find((r) => r.id === "b2")!.wbs_item_id = null;
+    const p = await fromTender();
+    const j = await (await oneGet(get(), ctx(p.id))).json();
+    expect(j.project.id).toBe(p.id);
+    const all = await (await allocGet(get(), ctx(p.id))).json();
+    expect(all.allocation.unassigned.map((u: { description: string; remainder_pct: number; split: boolean }) => [u.description, u.remainder_pct, u.split])).toEqual([["Chain link fence 2.4m", 40, true], ["Excavation", 100, false]]);
+  });
+
+  it("the project is its own copy: changing the tender afterwards changes nothing here", async () => {
+    const p = await fromTender();
+    rows("tender_wbs_items").find((i) => i.id === TW.fab)!.name = "Renamed on the tender";
+    rows("tender_wbs_items").length = 0;
+    expect(byCode(p.id, "1.1").name).toBe("Fabrication");
+    expect(wbs(p.id)).toHaveLength(4);
+  });
+
+  it("a tender with no WBS gives a project with none, and says nothing is wrong", async () => {
+    rows("tender_wbs_items").length = 0;
+    const res = await createPost(json("POST", { opportunity_id: OPP }));
+    const j = await res.json();
+    expect(res.status).toBe(201);
+    expect(j.wbs).toMatchObject({ items: 0, pending: false });
+    expect(mine("project_work_packages")).toHaveLength(0);
+  });
+
+  it("while 0243 is pending the project is still made, without a WBS, and the response says so", async () => {
+    for (const setup of [() => state.db.missing.add("tender_wbs_items"), () => { state.db.missingColumns.project_work_packages = new Set(["parent_id"]); }, () => state.db.missing.add("project_work_package_line_parts")]) {
+      state.db = seed();
+      state.db.unique("contract_projects", (a, b) => a.tenant_id === b.tenant_id && !!a.source_opportunity_id && a.source_opportunity_id === b.source_opportunity_id);
+      state.db.unique("erp_masters", (a, b) => a.tenant_id === b.tenant_id && a.kind === b.kind && a.code === b.code);
+      rows("tender_wbs_items").push({ id: TW.steel, tenant_id: T1, opportunity_id: OPP, parent_id: null, code: "1", name: "Steel", owner_employee_id: null, sort_order: 10, code_is_manual: false });
+      setup();
+      const res = await createPost(json("POST", { opportunity_id: OPP }));
+      const j = await res.json();
+      expect(res.status).toBe(201);
+      expect(j.wbs.pending).toBe(true);
+      expect(mine("project_budget_lines").length).toBeGreaterThan(0);
+      expect(mine("project_work_packages")).toHaveLength(0);
+    }
+  });
+
+  it("a copy that fails halfway is taken back out, and the project still stands", async () => {
+    const real = state.db.from.bind(state.db);
+    state.db.from = ((t: string) => {
+      const q = real(t) as unknown as { insert: (r: unknown) => unknown };
+      if (t === "project_work_package_line_parts") q.insert = () => ({ then: (ok: (v: unknown) => unknown) => Promise.resolve({ data: null, error: { code: "XX000", message: "boom" } }).then(ok) }) as never;
+      return q as never;
+    }) as typeof state.db.from;
+    const res = await createPost(json("POST", { opportunity_id: OPP }));
+    const j = await res.json();
+    expect(res.status).toBe(201);
+    expect(j.wbs.pending).toBe(true);
+    expect(mine("project_work_packages")).toHaveLength(0);
+    expect(mine("project_work_package_lines")).toHaveLength(0);
+    expect(mine("project_budget_lines").length).toBeGreaterThan(0);
+  });
+});
+
+describe("the project's WBS: tree, lines, split and the lock", () => {
+  const make = (id: string, body: Record<string, unknown>) => wpPost(json("POST", body), ctx(id));
+  const assign = (id: string, line_keys: string[], package_id: string | null) => wpAssign(json("PUT", { line_keys, package_id }), ctx(id));
+  const split = (id: string, line_key: string, parts: { package_id: string; share_pct: number }[]) => wpSplit(json("PUT", { line_key, parts }), ctx(id));
+  const idOf = async (res: Response) => (await res.json()).id as string;
+
+  beforeEach(() => {
+    rows("employees").push(
+      { id: EMP_LOGIN, tenant_id: T1, first_name: "Sara", last_name: "Khan", employee_code: "E-1", email: null, status: "active" },
+      { id: EMP_NO_LOGIN, tenant_id: T1, first_name: "Omar", last_name: "Ali", employee_code: "E-2", email: null, status: "active" },
+    );
+    rows("tenant_users").push({ tenant_id: T1, user_id: "u-sara", role: "member", employee_id: EMP_LOGIN });
+    state.db.unique("project_work_packages", (x, y) => x.project_id === y.project_id && x.code === y.code);
+    state.db.unique("project_work_package_lines", (x, y) => x.project_id === y.project_id && x.line_key === y.line_key);
+    state.db.unique("project_work_package_line_parts", (x, y) => x.project_id === y.project_id && x.line_key === y.line_key && x.package_id === y.package_id);
+  });
+
+  const tree = async () => {
+    const p = await fromTender();
+    const a = await idOf(await make(p.id, { name: "Steel" }));
+    const a1 = await idOf(await make(p.id, { name: "Fabrication", parent_id: a }));
+    const a2 = await idOf(await make(p.id, { name: "Galvanising", parent_id: a }));
+    const b = await idOf(await make(p.id, { name: "Erection" }));
+    return { p, a, a1, a2, b, fence: keyOf("Chain link"), dig: keyOf("Excavation") };
+  };
+  const code = (id: string) => String(packs().find((x) => x.id === id)!.code);
+
+  it("items number themselves 1, 1.1, 1.2, 2; a typed code is kept; the fourth level and a cycle are refused", async () => {
+    const { p, a, a1, a2, b } = await tree();
+    expect([a, a1, a2, b].map(code)).toEqual(["1", "1.1", "1.2", "2"]);
+    const typed = await make(p.id, { name: "ERP one", code: "C-9" });
+    expect(typed.status).toBe(201);
+    expect(packs().find((x) => x.code === "C-9")!.code_is_manual).toBe(true);
+    expect((await make(p.id, { name: "Clash", code: "C-9" })).status).toBe(409);
+    const leaf = await idOf(await make(p.id, { name: "Level three", parent_id: a1 }));
+    expect(code(leaf)).toBe("1.1.1");
+    const deep = await make(p.id, { name: "Too deep", parent_id: leaf });
+    expect(deep.status).toBe(422);
+    expect((await deep.json()).error).toBe("A WBS goes three levels deep");
+    const cycle = await wpPatch(json("PATCH", { parent_id: a1 }), pctx(p.id, a));
+    expect(cycle.status).toBe(422);
+    expect((await cycle.json()).error).toBe("An item cannot be moved under itself");
+    expect((await make(p.id, { name: "x", parent_id: TW.foreign })).status).toBe(404);
+    expect(state.changes.some((c) => c.changes?.some((x) => x.field === "WBS 1.1 added"))).toBe(true);
+  });
+
+  it("lines sit on leaves: a branch refuses them, and a leaf that gains its first sub-item hands its lines (and its cost) to it", async () => {
+    const { p, a, a1, fence, dig } = await tree();
+    expect((await assign(p.id, [fence], a)).status).toBe(422);
+    expect((await assign(p.id, [fence, dig], a1)).status).toBe(200);
+    expect(mine("project_work_package_lines").map((l) => l.package_id)).toEqual([a1, a1]);
+    await basisPatch(json("PATCH", { basis: "package" }), ctx(p.id));
+    await allocPut(json("PUT", { revision_id: p.revision_id, packages: [{ id: a1, allocated_cost: 5000 }] }), ctx(p.id));
+    const sub = await make(p.id, { name: "Welding", parent_id: a1 });
+    expect(sub.status).toBe(201);
+    const subId = await idOf(sub);
+    expect(code(subId)).toBe("1.1.1");
+    expect(mine("project_work_package_lines").map((l) => l.package_id)).toEqual([subId, subId]);
+    expect(packs().find((x) => x.id === a1)!.allocated_cost).toBeNull();
+    expect(packs().find((x) => x.id === subId)!.allocated_cost).toBe(5000);
+    expect(Number(lineOf("Chain link").amount) + Number(lineOf("Excavation").amount)).toBe(5000);
+    // a branch refuses lines edited onto it, and an item cannot move under one that holds lines
+    expect((await wpPatch(json("PATCH", { line_keys: [fence] }), pctx(p.id, a1))).status).toBe(422);
+    const held = await wpPatch(json("PATCH", { parent_id: subId }), pctx(p.id, String(packs().find((x) => x.code === "2" || x.name === "Erection")!.id)));
+    expect(held.status).toBe(422);
+  });
+
+  it("Group into WBS puts lines in an item, null sends them back; a foreign item is a 404 and a foreign line is refused", async () => {
+    const { p, a1, a2, fence, dig } = await tree();
+    expect((await assign(p.id, [fence], a1)).status).toBe(200);
+    expect(await (await assign(p.id, [dig], a2)).json()).toMatchObject({ assigned: 1, unsplit: 0 });
+    expect((await assign(p.id, [fence, dig], null)).status).toBe(200);
+    expect(mine("project_work_package_lines")).toHaveLength(0);
+    rows("project_work_packages").push({ id: TW.foreign, tenant_id: T2, project_id: T2_PROJECT, code: "1", name: "Theirs", owner_employee_id: null, allocated_cost: null, sort_order: 10, note: null, parent_id: null });
+    expect((await assign(p.id, [fence], TW.foreign)).status).toBe(404);
+    expect((await assign(p.id, ["ffffffff-ffff-4fff-8fff-fffffffffffe"], a1)).status).toBe(422);
+    state.edit = false;
+    expect((await assign(p.id, [fence], a1)).status).toBe(403);
+  });
+
+  it("a line can be split: 60 / 15 / 25 is stored as shares; a total that is not 100, an item twice, a branch and a foreign item are refused", async () => {
+    const { p, a, a1, a2, b, fence } = await tree();
+    const ok = await split(p.id, fence, [{ package_id: a1, share_pct: 60 }, { package_id: a2, share_pct: 15 }, { package_id: b, share_pct: 25 }]);
+    expect(ok.status).toBe(200);
+    expect(await ok.json()).toEqual({ kind: "parts" });
+    expect(mine("project_work_package_line_parts").map((x) => [x.package_id, x.share_pct])).toEqual([[a1, 60], [a2, 15], [b, 25]]);
+    expect(mine("project_work_package_lines")).toHaveLength(0);
+    const sum = await split(p.id, fence, [{ package_id: a1, share_pct: 60 }, { package_id: a2, share_pct: 30 }]);
+    expect(sum.status).toBe(422);
+    expect((await sum.json()).error).toBe("Shares add up to 90.00 %, not 100 %");
+    expect((await split(p.id, fence, [{ package_id: a1, share_pct: 50 }, { package_id: a1, share_pct: 50 }])).status).toBe(422);
+    expect((await split(p.id, fence, [{ package_id: a, share_pct: 50 }, { package_id: b, share_pct: 50 }])).status).toBe(422);
+    rows("project_work_packages").push({ id: TW.foreign, tenant_id: T2, project_id: T2_PROJECT, code: "9", name: "Theirs", owner_employee_id: null, allocated_cost: null, sort_order: 10, note: null, parent_id: null });
+    expect((await split(p.id, fence, [{ package_id: TW.foreign, share_pct: 100 }])).status).toBe(404);
+    // the refused attempts changed nothing
+    expect(mine("project_work_package_line_parts")).toHaveLength(3);
+    expect(state.changes.some((c) => c.changes?.some((x) => x.field === "WBS split 1.1" && String(x.to).startsWith("1.1 60.00 %")))).toBe(true);
+  });
+
+  it("one part is not a split; Unsplit puts the whole line in the first item or the one named", async () => {
+    const { p, a1, a2, fence } = await tree();
+    await split(p.id, fence, [{ package_id: a1, share_pct: 70 }, { package_id: a2, share_pct: 30 }]);
+    const whole = await split(p.id, fence, [{ package_id: a2, share_pct: 100 }]);
+    expect(await whole.json()).toEqual({ kind: "whole" });
+    expect(mine("project_work_package_line_parts")).toHaveLength(0);
+    expect(mine("project_work_package_lines").map((l) => [l.line_key, l.package_id])).toEqual([[fence, a2]]);
+    await split(p.id, fence, [{ package_id: a1, share_pct: 70 }, { package_id: a2, share_pct: 30 }]);
+    expect(await (await wpUnsplit(json("DELETE", { line_key: fence }), ctx(p.id))).json()).toEqual({ package_id: a1 });
+    await split(p.id, fence, [{ package_id: a1, share_pct: 70 }, { package_id: a2, share_pct: 30 }]);
+    expect(await (await wpUnsplit(json("DELETE", { line_key: fence, package_id: a2 }), ctx(p.id))).json()).toEqual({ package_id: a2 });
+    expect((await wpUnsplit(json("DELETE", { line_key: fence }), ctx(p.id))).status).toBe(422);
+  });
+
+  it("by WBS the stair's budget amount is the sum of its parts' spreads, and the revision total follows", async () => {
+    const { p, a1, a2, b, fence, dig } = await tree();
+    await basisPatch(json("PATCH", { basis: "package" }), ctx(p.id));
+    await split(p.id, fence, [{ package_id: a1, share_pct: 60 }, { package_id: a2, share_pct: 15 }, { package_id: b, share_pct: 25 }]);
+    await assign(p.id, [dig], a1);
+    const res = await allocPut(json("PUT", { revision_id: p.revision_id, packages: [{ id: a1, allocated_cost: 9000 }, { id: a2, allocated_cost: 2000 }, { id: b, allocated_cost: 3000 }] }), ctx(p.id));
+    expect(res.status).toBe(200);
+    // Fabrication holds 60 % of the fence (12,000 of the client's money) and the whole excavation (2,000): 9,000 laid 12,000 : 2,000
+    const fabFence = Math.round((9000 * 12000) / 14000 * 100) / 100;
+    expect(Number(lineOf("Chain link").amount)).toBeCloseTo(fabFence + 2000 + 3000, 1);
+    expect(Number(lineOf("Excavation").amount)).toBeCloseTo(9000 - fabFence, 1);
+    expect(Number(mine("project_budget_revisions")[0].total)).toBe(14000);
+    // a cost typed on a branch is refused: parents are roll-ups
+    const branch = await allocPut(json("PUT", { revision_id: p.revision_id, packages: [{ id: String(packs().find((x) => x.code === "1")!.id), allocated_cost: 5 }] }), ctx(p.id));
+    expect(branch.status).toBe(422);
+    const view = await (await allocGet(get(), ctx(p.id))).json();
+    const root = view.allocation.wbsRows.find((r: { code: string }) => r.code === "1");
+    expect(root.rolled.allocated).toBe(11000);
+  });
+
+  it("removing an item sends its whole lines to Unassigned, leaves a split line's other shares as they are with an unassigned remainder, and moves its sub-items up", async () => {
+    const { p, a, a1, a2, b, fence, dig } = await tree();
+    await split(p.id, fence, [{ package_id: a1, share_pct: 60 }, { package_id: a2, share_pct: 15 }, { package_id: b, share_pct: 25 }]);
+    await assign(p.id, [dig], a2);
+    const gone = await wpDelete(json("DELETE"), pctx(p.id, a2));
+    expect(gone.status).toBe(200);
+    expect(await gone.json()).toMatchObject({ ok: true, lines: 1, parts: 1 });
+    expect(mine("project_work_package_lines")).toHaveLength(0);
+    expect(mine("project_work_package_line_parts").map((x) => x.share_pct)).toEqual([60, 25]);
+    const view = await (await allocGet(get(), ctx(p.id))).json();
+    expect(view.allocation.unassigned.map((u: { remainder_pct: number }) => u.remainder_pct).sort((x: number, y: number) => x - y)).toEqual([15, 100]);
+    // removing the parent moves what is left up one level and the codes close up
+    expect((await wpDelete(json("DELETE"), pctx(p.id, a))).status).toBe(200);
+    expect(packs().map((x) => [x.name, x.code, x.parent_id])).toEqual([["Fabrication", "1", null], ["Erection", "2", null]]);
+  });
+
+  it("Renumber recomputes the auto codes and keeps typed ones; all: true clears them too", async () => {
+    const { p, a1 } = await tree();
+    await wpPatch(json("PATCH", { code: "C-100" }), pctx(p.id, a1));
+    expect(packs().find((x) => x.id === a1)!.code_is_manual).toBe(true);
+    packs().find((x) => x.name === "Erection")!.code = "9"; // drifted
+    expect(await (await wpRenumber(json("POST", {}), ctx(p.id))).json()).toEqual({ changed: 1 });
+    expect(packs().map((x) => x.code).sort()).toEqual(["1", "1.2", "2", "C-100"]);
+    expect(await (await wpRenumber(json("POST", { all: true }), ctx(p.id))).json()).toEqual({ changed: 1 });
+    expect(packs().map((x) => x.code).sort()).toEqual(["1", "1.1", "1.2", "2"]);
+    expect(packs().every((x) => x.code_is_manual === false)).toBe(true);
+    // an empty code in the form hands a typed code back to the numbering
+    await wpPatch(json("PATCH", { code: "Z-1" }), pctx(p.id, a1));
+    await wpPatch(json("PATCH", { code: "" }), pctx(p.id, a1));
+    expect(packs().find((x) => x.id === a1)!.code).toBe("1.1");
+  });
+
+  it("swapping two items never meets the unique code", async () => {
+    const { p, a, b } = await tree();
+    packs().find((x) => x.id === b)!.sort_order = 5;
+    await wpRenumber(json("POST", {}), ctx(p.id));
+    expect([code(a), code(b)]).toEqual(["2", "1"]);
+  });
+
+  // ── The lock (section 2.6) ─────────────────────────────────────────────────────────────────────────────────────────
+
+  async function approvedWbsProject(basis: "line" | "package") {
+    const t = await tree();
+    await assign(t.p.id, [t.fence, t.dig], t.a1);
+    if (basis === "package") {
+      await basisPatch(json("PATCH", { basis: "package" }), ctx(t.p.id));
+      await allocPut(json("PUT", { revision_id: t.p.revision_id, packages: [{ id: t.a1, allocated_cost: 1000 }] }), ctx(t.p.id));
+    } else await alloc(t.p.id, t.p.revision_id, [{ line_key: t.fence, amount: 1000 }]);
+    as(ASKER);
+    const ask = await askPost(json("POST", {}), ctx(t.p.id));
+    const { id: requestId } = await ask.json();
+    as(BOSS, "admin");
+    await decide(json("PATCH", { action: "approve" }), dctx(t.p.id, requestId));
+    as(ASKER);
+    expect(project(t.p.id).status).toBe("active");
+    return t;
+  }
+
+  it("after the baseline is approved: names, codes, parents, owners and new items still change; the cost and (by WBS) the lines do not", async () => {
+    const t = await approvedWbsProject("package");
+    expect((await wpPatch(json("PATCH", { name: "Fabrication & welding", owner_employee_id: EMP_LOGIN, code: "F-1" }), pctx(t.p.id, t.a1))).status).toBe(200);
+    expect(packs().find((x) => x.id === t.a1)).toMatchObject({ name: "Fabrication & welding", owner_employee_id: EMP_LOGIN, code: "F-1", code_is_manual: true });
+    expect((await wpPatch(json("PATCH", { parent_id: null }), pctx(t.p.id, t.a2))).status).toBe(200);
+    expect((await make(t.p.id, { name: "Painting" })).status).toBe(201);
+    expect((await wpRenumber(json("POST", {}), ctx(t.p.id))).status).toBe(200);
+    // money: the allocation, the lines an item holds, a split
+    const cost = await allocPut(json("PUT", { revision_id: t.p.revision_id, packages: [{ id: t.a1, allocated_cost: 1 }] }), ctx(t.p.id));
+    expect(cost.status).toBe(409);
+    for (const res of [
+      await assign(t.p.id, [t.dig], t.a2),
+      await split(t.p.id, t.fence, [{ package_id: t.a1, share_pct: 50 }, { package_id: t.a2, share_pct: 50 }]),
+      await wpPatch(json("PATCH", { line_keys: [] }), pctx(t.p.id, t.a1)),
+    ]) {
+      expect(res.status).toBe(409);
+      const j = await res.json();
+      expect(j.locked).toBe(true);
+      expect(j.error).toBe("Allocation locked: start a revision to move lines");
+    }
+    expect(mine("project_work_package_lines").map((l) => l.package_id)).toEqual([t.a1, t.a1]);
+    // an item that holds lines or an allocation cannot be removed; an empty one can
+    const refuse = await wpDelete(json("DELETE"), pctx(t.p.id, t.a1));
+    expect(refuse.status).toBe(409);
+    expect((await wpDelete(json("DELETE"), pctx(t.p.id, t.b))).status).toBe(200);
+  });
+
+  it("by BOQ line the lines and shares stay free after approval (the money sits on the lines)", async () => {
+    const t = await approvedWbsProject("line");
+    expect((await assign(t.p.id, [t.dig], t.a2)).status).toBe(200);
+    expect((await split(t.p.id, t.fence, [{ package_id: t.a1, share_pct: 50 }, { package_id: t.a2, share_pct: 50 }])).status).toBe(200);
+    expect(Number(lineOf("Chain link").amount)).toBe(1000);
+    expect(mine("project_work_package_line_parts")).toHaveLength(2);
+  });
+
+  it("a closed project changes nothing", async () => {
+    const t = await tree();
+    project(t.p.id).status = "closed";
+    expect((await make(t.p.id, { name: "x" })).status).toBe(409);
+    expect((await assign(t.p.id, [t.fence], t.a1)).status).toBe(409);
+    expect((await wpRenumber(json("POST", {}), ctx(t.p.id))).status).toBe(409);
+    expect((await wpPatch(json("PATCH", { name: "y" }), pctx(t.p.id, t.a1))).status).toBe(409);
+  });
+
+  it("another workspace's item or project is a 404 on every WBS route; a view-only person is refused", async () => {
+    const t = await tree();
+    rows("project_work_packages").push({ id: TW.foreign, tenant_id: T2, project_id: T2_PROJECT, code: "1", name: "Theirs", owner_employee_id: null, allocated_cost: null, sort_order: 10, note: null, parent_id: null });
+    expect((await wpPatch(json("PATCH", { name: "mine now" }), pctx(t.p.id, TW.foreign))).status).toBe(404);
+    expect((await wpDelete(json("DELETE"), pctx(t.p.id, TW.foreign))).status).toBe(404);
+    expect((await wpAssign(json("PUT", { line_keys: [t.fence], package_id: t.a1 }), ctx(T2_PROJECT))).status).toBe(404);
+    expect((await wpSplit(json("PUT", { line_key: t.fence, parts: [] }), ctx(T2_PROJECT))).status).toBe(404);
+    expect((await wpRenumber(json("POST", {}), ctx(T2_PROJECT))).status).toBe(404);
+    expect(packs().find((x) => x.id === TW.foreign)).toBeUndefined();
+    state.edit = false;
+    expect((await wpRenumber(json("POST", {}), ctx(t.p.id))).status).toBe(403);
+    expect((await wpSplit(json("PUT", { line_key: t.fence, parts: [] }), ctx(t.p.id))).status).toBe(403);
+  });
+
+  it("while 0243 is pending the WBS is a flat list: items, names and owners still save; the tree, grouping and split say so", async () => {
+    const t = await tree();
+    state.db.missingColumns.project_work_packages = new Set(["parent_id", "source_wbs_item_id", "code_is_manual"]);
+    const list = await (await wpGet(get(), ctx(t.p.id))).json();
+    expect(list.tree_pending).toBe(true);
+    expect(list.packages.every((x: { parent_id: unknown }) => x.parent_id === null)).toBe(true);
+    const flat = await make(t.p.id, { name: "Flat item" });
+    expect(flat.status).toBe(201);
+    expect((await wpPatch(json("PATCH", { name: "Renamed flat" }), pctx(t.p.id, t.b))).status).toBe(200);
+    for (const res of [await make(t.p.id, { name: "Sub", parent_id: t.b }), await assign(t.p.id, [t.fence], t.b), await split(t.p.id, t.fence, [{ package_id: t.b, share_pct: 100 }]), await wpRenumber(json("POST", {}), ctx(t.p.id))]) {
+      expect(res.status).toBe(503);
+      expect((await res.json()).error).toBe("WBS needs a database update (migration 0243)");
+    }
+    expect((await allocGet(get(), ctx(t.p.id))).status).toBe(200);
   });
 });

@@ -7,12 +7,12 @@ import { loadEmployeeChoices, loadPackages } from "@/lib/contractProjects/workPa
 import { getTenant } from "@/lib/tenant";
 
 // GET /api/contract-projects/[id]/allocation?revision=<id>
-//        -> { revision, allocation: { basis, lineRows, packageRows, totals, margin, unassigned, warnings }, packages, packages_pending,
+//        -> { revision, allocation: { basis, lineRows, wbsRows, totals, margin, unassigned, warnings }, packages, packages_pending, tree_pending,
 //             employees: [{ id, name, code, email, has_login }], fill_available }
 // PUT /api/contract-projects/[id]/allocation
 //        line mode    { revision_id, basis_rows: [{ line_key, amount: number | null }] }
 //        package mode { revision_id, packages: [{ id, allocated_cost: number | null }] }
-//      The cost allocated to each BOQ line (or to each work package, spread over its lines in proportion to what the client pays). null clears
+//      The cost allocated to each BOQ line (or to each leaf WBS item, spread over what it holds in proportion to what the client pays). null clears
 //      it. Only the project's DRAFT revision: an approved or waiting budget answers 409 `locked`. The amount of a line, the revision total and
 //      the margin are the server's. 200 { total }.
 // The margin is the contract value less what has been allocated so far; the floor it is read against is the workspace's setting.
@@ -29,7 +29,7 @@ export async function GET(request: NextRequest, { params }: Ctx) {
   if (!revision) return NextResponse.json({ error: "Revision not found" }, { status: 404 });
   const [lines, packs, employees, tenant] = await Promise.all([loadLines(admin, tenantId, revision.id), loadPackages(admin, tenantId, id), loadEmployeeChoices(admin, tenantId), getTenant()]);
   return NextResponse.json({
-    revision, allocation: allocationView(open.project, lines, packs.packages, readMarginFloor(tenant?.config)), packages: packs.packages, packages_pending: packs.pending,
+    revision, allocation: allocationView(open.project, lines, packs.packages, readMarginFloor(tenant?.config)), packages: packs.packages, packages_pending: packs.pending, tree_pending: packs.treePending === true,
     employees, fill_available: fillAvailable(open.project, lines),
   });
 }

@@ -4,7 +4,7 @@ import { useState } from "react";
 import { c } from "@/lib/theme";
 import Button from "@/components/ui/Button";
 import Field from "@/components/ui/Field";
-import { Input, Textarea } from "@/components/ui/Input";
+import { Input, Select, Textarea } from "@/components/ui/Input";
 import InfoTip from "@/components/ui/InfoTip";
 import SidePanel from "@/components/ui/SidePanel";
 import { useFeel } from "@/components/FeelProvider";
@@ -13,6 +13,9 @@ import { PRICE_SOURCE_LABEL, rateFor, type PriceSource } from "@/lib/tender/boq/
 import { costBreakdown, itemLabel, rfqRefOf, sourceView } from "@/lib/tender/boq/table";
 import type { EstimatesState, LinkView } from "@/lib/tender/estimates/server";
 import { RowChips, money, type BoqRow } from "./BoqRows";
+import { call as wbsCall } from "./wbs/api";
+import { leafItems, wbsCell } from "@/lib/wbs/screen";
+import { WBS_PENDING } from "@/lib/wbs/tips";
 import { LineEstimates } from "./BoqEstimates";
 
 // One row of the Bill of quantities, opened (GCC tender deals): a side panel on a desktop, a bottom sheet on a phone. Quantity, rate and
@@ -50,7 +53,7 @@ function Fold({ id, title, tip, count, guide, children }: { id: string; title: s
   );
 }
 
-export default function BoqRowPanel({ base, row, links, canEdit, markup, validityDays, onClose, onChanged, onError, onNotice, onOpenCosting, initialCandidates, opportunityId, estimates }: {
+export default function BoqRowPanel({ base, row, links, canEdit, markup, validityDays, onClose, onChanged, onError, onNotice, onOpenCosting, initialCandidates, opportunityId, estimates, wbs, onSplit }: {
   /** /api/opportunities/[id]/boq */
   base: string;
   /** With `estimates`: the two row-level estimate actions ("Price from estimate", "Build up this rate") are offered under the cost block. */
@@ -73,6 +76,10 @@ export default function BoqRowPanel({ base, row, links, canEdit, markup, validit
   onOpenCosting?: (rowId: string) => void;
   /** Lets a server render (and its test) show the open list without a fetch. The page never passes it. */
   initialCandidates?: Cand[];
+  /** The tender's WBS: its items and where its routes are. `pending` = migration 0243 is not applied. Absent = no WBS field. */
+  wbs?: { base: string; pending: boolean; items: readonly { id: string; code: string; name: string; parent_id: string | null; sort_order: number; code_is_manual: boolean; owner_employee_id: string | null }[] };
+  /** Opens the split panel for this row. */
+  onSplit?: (rowId: string) => void;
 }) {
   const { confirm } = useFeel();
   const [description, setDescription] = useState(row.description);
@@ -96,6 +103,31 @@ export default function BoqRowPanel({ base, row, links, canEdit, markup, validit
   const detailsChanged = details.trim() !== (row.details ?? "").trim();
   const clientEntries = Object.entries(row.client_data ?? {});
   const dirty = qtyChanged || descChanged || rateChanged || detailsChanged;
+  const cell = wbs ? wbsCell({ wbs_item_id: row.wbs_item_id ?? null, wbs_parts: row.wbs_parts ?? [] }, wbs.items) : null;
+  const isSplit = cell?.kind === "split";
+
+  async function putWbs(itemId: string) {
+    if (!wbs) return;
+    setError(""); onError("");
+    setBusy(true);
+    const out = await wbsCall(`${wbs.base}/assign`, "PUT", { boq_ids: [row.id], wbs_item_id: itemId || null });
+    setBusy(false);
+    if (!out.ok) { setError(out.error); onError(out.error); return; }
+    onNotice(itemId ? "WBS item set" : "Line is unassigned");
+    onChanged();
+  }
+
+  async function unsplitHere() {
+    if (!wbs) return;
+    const first = row.wbs_parts?.[0] ? wbs.items.find((i) => i.id === row.wbs_parts![0].wbs_item_id) : undefined;
+    if (!(await confirm({ title: `Unsplit ${itemLabel(row)}?`, body: first ? `The whole line goes to ${first.code} ${first.name}. You can change it after.` : "The whole line goes to its first WBS item. You can change it after.", confirmLabel: "Unsplit" }))) return;
+    setBusy(true); setError(""); onError("");
+    const out = await wbsCall(`${wbs.base}/split`, "DELETE", { boq_id: row.id });
+    setBusy(false);
+    if (!out.ok) { setError(out.error); onError(out.error); return; }
+    onNotice("Line is no longer split");
+    onChanged();
+  }
 
   async function call(url: string, init: RequestInit): Promise<boolean> {
     const res = await fetch(url, init);
@@ -184,6 +216,23 @@ export default function BoqRowPanel({ base, row, links, canEdit, markup, validit
               <Button variant="quiet" onClick={() => setMoreDetails(!moreDetails)} aria-expanded={moreDetails} style={{ minHeight: 44 }} data-guide="boq.row.details_more">{moreDetails ? "Show less" : "Show all"}</Button>
             ) : null}
           </Field>
+        )}
+        {wbs && (
+          wbs.pending ? (
+            <div role="note" data-guide="boq.row.wbs_pending" style={{ fontSize: 12.5, color: "var(--amberink)" }}>{WBS_PENDING}</div>
+          ) : (
+            <Field label="WBS" info={BOQ_TABLE_TIPS.wbs} guide="boq.row.wbs">
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+                <Select aria-label="WBS item" value={isSplit ? "__split__" : row.wbs_item_id ?? ""} disabled={!canEdit || isSplit || busy} onChange={(e) => void putWbs(e.target.value)} style={{ minHeight: 44, flex: "1 1 180px", minWidth: 0 }} data-guide="boq.row.wbs_select">
+                  {isSplit && <option value="__split__">{cell!.label}: {cell!.title}</option>}
+                  <option value="">Unassigned</option>
+                  {leafItems(wbs.items).map((i) => <option key={i.id} value={i.id}>{i.code} {i.name}</option>)}
+                </Select>
+                {canEdit && onSplit && <Button variant="secondary" onClick={() => onSplit(row.id)} style={{ minHeight: 44 }} data-guide="boq.row.split">{isSplit ? "Edit split" : "Split…"}</Button>}
+                {canEdit && isSplit && <Button variant="quiet" onClick={() => void unsplitHere()} style={{ minHeight: 44 }} data-guide="boq.row.unsplit">Unsplit</Button>}
+              </div>
+            </Field>
+          )
         )}
         <div className="fg2">
           <Field label={`Quantity${row.uom ? ` (${row.uom})` : ""}`} guide="boq.row.qty">

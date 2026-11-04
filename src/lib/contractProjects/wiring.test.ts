@@ -112,7 +112,7 @@ describe("gating and wiring", () => {
     const files = [
       "src/components/contractProjects/ApprovalControls.tsx", "src/components/contractProjects/BudgetGrid.tsx", "src/components/contractProjects/RevisionsPanel.tsx",
       "src/components/contractProjects/HandoverPanel.tsx", "src/components/contractProjects/ContractProjectBanner.tsx", "src/components/contractProjects/ProjectOverview.tsx", "src/components/contractProjects/ProjectDetailsForm.tsx", "src/components/contractProjects/ProjectPathBar.tsx",
-      "src/components/contractProjects/AllocationTable.tsx", "src/components/contractProjects/WorkPackagesPanel.tsx", "src/components/contractProjects/WorkPackagePanel.tsx", "src/components/contractProjects/LineDetailsPanel.tsx",
+      "src/components/contractProjects/AllocationTable.tsx", "src/components/contractProjects/WbsTab.tsx", "src/components/contractProjects/WbsItemPanel.tsx", "src/components/contractProjects/LineDetailsPanel.tsx",
       "src/app/(app)/settings/contract-projects/ContractProjectsSettingsClient.tsx",
     ];
     const ids = new Set(files.flatMap((f) => [...read(f).matchAll(/"(cp\.[a-z_.]+)"/g)].map((m) => m[1])));

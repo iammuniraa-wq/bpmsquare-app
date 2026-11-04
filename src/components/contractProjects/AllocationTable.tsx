@@ -3,14 +3,16 @@
 import { c, pillar } from "@/lib/theme";
 import Button from "@/components/ui/Button";
 import InfoTip from "@/components/ui/InfoTip";
-import type { LineRow, PackageRow } from "@/lib/contractProjects/allocation";
+import { rollTyped, type LineRow, type WbsRow } from "@/lib/contractProjects/allocation";
+import { trimPct } from "@/lib/wbs/screen";
 import { money } from "@/lib/contractProjects/format";
 import { PROJECT_TIPS } from "@/lib/contractProjects/tips";
 
-// The allocation table of a project (mock-up screen 6): one row per BOQ line (or per work package) with what the client pays, the cost the
+// The allocation table of a project (mock-up screen 6): one row per BOQ line (or per WBS item, as a tree) with what the client pays, the cost the
 // person allocates (one input, 44 px) and what is left. The detail of a line (resource type, cost code, reserve, unit) sits behind its item
 // number, in a side panel. Under 780 px the table is a list of cards (the shared .bpm-rows-table / .bpm-rows-cards rules). Labels, values and
-// inputs only: the explanations are behind the "i".
+// inputs only: the explanations are behind the "i". In the WBS table a cost is typed on a bottom-level item only; a parent shows what its
+// sub-items add up to, in muted figures, and is never typed.
 
 const th: React.CSSProperties = { textAlign: "left", fontSize: 11, color: c.hint, textTransform: "uppercase", letterSpacing: 0.4, padding: "9px 12px", background: c.panel2, fontWeight: 600, whiteSpace: "nowrap" };
 const thR: React.CSSProperties = { ...th, textAlign: "right" };
@@ -37,8 +39,13 @@ type Common = {
 const amountOf = (v: string | undefined): number | null => (v === undefined || v.trim() === "" || !Number.isFinite(Number(v)) ? null : Number(v));
 const leftOf = (client: number | null, v: string | undefined): number | null => (client === null ? null : Math.round((client - (amountOf(v) ?? 0)) * 100) / 100);
 
+/** `2.1` for a whole line, `2.1 60 % · 2.2 15 %` for a split one, a dash for a line in no item. */
+export const wbsText = (r: Pick<LineRow, "wbs">): string => (r.wbs.length === 0 ? "—" : r.wbs.length === 1 && r.wbs[0].share_pct >= 99.99 ? r.wbs[0].code : r.wbs.map((x) => `${x.code} ${trimPct(x.share_pct)} %`).join(" · "));
+
 export function LinesTable({ rows, onOpen, ...p }: Common & { rows: LineRow[]; onOpen: (lineKey: string) => void }) {
   const showOrdered = !!p.erp?.ordered, showSpent = !!p.erp?.spent;
+  // The WBS column appears once the project has a WBS (any line sits in an item).
+  const showWbs = rows.some((r) => r.wbs.length > 0);
   const cell = (r: LineRow) => (
     <input
       className="bpm-input" type="number" min="0" step="any" inputMode="decimal" data-guide="cp.alloc.input" aria-label={`Allocated cost for ${r.item ?? r.description}`}
@@ -59,7 +66,7 @@ export function LinesTable({ rows, onOpen, ...p }: Common & { rows: LineRow[]; o
         <table data-guide="cp.alloc.table" style={{ width: "100%", minWidth: 640, borderCollapse: "collapse" }}>
           <thead>
             <tr>
-              <Head label="Item" /><Head label="Description" />
+              <Head label="Item" />{showWbs && <Head label="WBS" guide="cp.alloc.wbs_col" />}<Head label="Description" />
               <Head label="Client amount" right />
               <Head label="Allocated cost" right />
               <Head label="Left" tip={PROJECT_TIPS.left} right />
@@ -74,6 +81,7 @@ export function LinesTable({ rows, onOpen, ...p }: Common & { rows: LineRow[]; o
               return (
                 <tr key={r.line_key} style={{ borderTop: `1px solid ${c.line}` }}>
                   <td style={{ padding: "0 12px" }}>{opener(r)}</td>
+                  {showWbs && <td data-guide="cp.alloc.wbs_text" style={{ padding: "8px 12px", fontSize: 12.5, color: c.muted, minWidth: 80 }}>{wbsText(r)}</td>}
                   <td style={{ padding: "8px 12px", fontSize: 13, color: c.ink, minWidth: 200, overflowWrap: "anywhere" }}>{r.description}<Missing r={r} /></td>
                   <td style={num}>{r.client_amount === null ? "—" : money(r.client_amount, p.currency, 2)}</td>
                   <td style={{ ...num, padding: "4px 12px" }}>{cell(r)}</td>
@@ -93,6 +101,7 @@ export function LinesTable({ rows, onOpen, ...p }: Common & { rows: LineRow[]; o
           return (
             <div key={r.line_key} data-guide="cp.alloc.card" style={{ boxSizing: "border-box", width: "100%", padding: 12, border: `1px solid ${c.line}`, borderRadius: 12, background: "var(--card-bg)" }}>
               <div style={{ display: "flex", gap: 8, alignItems: "center" }}>{opener(r)}<span style={{ minWidth: 0, fontSize: 13.5, color: c.ink, overflowWrap: "anywhere" }}>{r.description}<Missing r={r} /></span></div>
+              {showWbs && <CardRow label="WBS" value={wbsText(r)} />}
               <CardRow label="Client amount" value={r.client_amount === null ? "—" : money(r.client_amount, p.currency, 2)} />
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, marginTop: 6, fontSize: 13 }}>
                 <span style={{ color: c.muted }}>Allocated cost</span>{cell(r)}
@@ -108,37 +117,42 @@ export function LinesTable({ rows, onOpen, ...p }: Common & { rows: LineRow[]; o
   );
 }
 
-export function PackagesTable({ rows, onOpen, ...p }: Common & { rows: PackageRow[]; onOpen: (id: string) => void }) {
-  const cell = (r: PackageRow) => (
+/** The WBS as a tree: an indented row per item, a cost input on each bottom-level item, and roll-ups on every parent. */
+export function WbsTable({ rows, onOpen, ...p }: Common & { rows: WbsRow[]; onOpen: (id: string) => void }) {
+  const live = rollTyped(rows, p.typed);
+  const indent = (r: WbsRow) => (r.depth - 1) * 18;
+  const cell = (r: WbsRow) => (
     <input
       className="bpm-input" type="number" min="0" step="any" inputMode="decimal" data-guide="cp.alloc.input" aria-label={`Allocated cost for ${r.code} ${r.name}`}
       value={p.typed[r.id] ?? ""} disabled={!p.editable} placeholder="0" style={inputStyle} onChange={(e) => p.onType(r.id, e.target.value)}
     />
   );
-  const opener = (r: PackageRow) => (
+  const shown = (r: WbsRow) => live.get(r.id) ?? { allocated: 0, left: r.rolled.left };
+  const opener = (r: WbsRow) => (
     <Button variant="quiet" data-guide="cp.alloc.open_package" aria-label={`Open ${r.code}`} style={{ minHeight: 44, fontWeight: 600 }} onClick={() => onOpen(r.id)}>{r.code}</Button>
   );
+  const linesText = (r: WbsRow) => (r.rolled.line_count === 0 ? "—" : r.is_leaf && r.shared_count > 0 ? `${r.line_count} (${r.shared_count} shared)` : String(r.rolled.line_count));
   if (rows.length === 0) {
-    return <div role="status" data-guide="cp.alloc.no_packages" style={{ padding: 16, fontSize: 13, color: c.hint }}>No work packages yet. Add one below, put lines in it, then type its cost.</div>;
+    return <div role="status" data-guide="cp.alloc.no_packages" style={{ padding: 16, fontSize: 13, color: c.hint }}>No WBS yet. Add the first item on the WBS tab, put lines in it, then type its cost.</div>;
   }
   return (
     <>
       <div className="bpm-rows-table" style={{ overflowX: "auto" }}>
         <table data-guide="cp.alloc.table" style={{ width: "100%", minWidth: 640, borderCollapse: "collapse" }}>
           <thead>
-            <tr><Head label="Package" /><Head label="Name" /><Head label="Lines" right /><Head label="Client amount" right /><Head label="Allocated cost" right /><Head label="Left" tip={PROJECT_TIPS.left} right /></tr>
+            <tr><Head label="WBS" /><Head label="Name" /><Head label="Lines" right /><Head label="Client amount" right /><Head label="Allocated cost" right /><Head label="Left" tip={PROJECT_TIPS.left} right /></tr>
           </thead>
           <tbody>
             {rows.map((r) => {
-              const left = leftOf(r.client_amount, p.typed[r.id]);
+              const v = shown(r);
               return (
-                <tr key={r.id} style={{ borderTop: `1px solid ${c.line}` }}>
-                  <td style={{ padding: "0 12px" }}>{opener(r)}</td>
-                  <td style={{ padding: "8px 12px", fontSize: 13, color: c.ink, minWidth: 160, overflowWrap: "anywhere" }}>{r.name}</td>
-                  <td style={num}>{r.line_count}</td>
-                  <td style={num}>{r.client_amount === null ? "—" : money(r.client_amount, p.currency, 2)}</td>
-                  <td style={{ ...num, padding: "4px 12px" }}>{cell(r)}</td>
-                  <td style={{ ...num, color: leftInk(left) }}>{left === null ? "—" : money(left, null, 2)}</td>
+                <tr key={r.id} data-guide="cp.alloc.wbs_row" data-leaf={r.is_leaf ? "1" : "0"} style={{ borderTop: `1px solid ${c.line}` }}>
+                  <td style={{ padding: `0 12px 0 ${12 + indent(r)}px` }}>{opener(r)}</td>
+                  <td style={{ padding: "8px 12px", fontSize: 13, color: c.ink, minWidth: 160, overflowWrap: "anywhere", fontWeight: r.is_leaf ? 400 : 600 }}>{r.name}</td>
+                  <td style={num}>{linesText(r)}</td>
+                  <td style={{ ...num, color: r.is_leaf ? c.ink : c.muted }}>{r.rolled.client_amount === null ? "—" : money(r.rolled.client_amount, p.currency, 2)}</td>
+                  <td style={{ ...num, padding: "4px 12px", color: c.muted }}>{r.is_leaf ? cell(r) : <span data-guide="cp.alloc.rolled">{money(v.allocated, null, 2)}</span>}</td>
+                  <td style={{ ...num, color: r.is_leaf ? leftInk(v.left) : c.muted }}>{v.left === null ? "—" : money(v.left, null, 2)}</td>
                 </tr>
               );
             })}
@@ -147,16 +161,18 @@ export function PackagesTable({ rows, onOpen, ...p }: Common & { rows: PackageRo
       </div>
       <div className="bpm-rows-cards" data-guide="cp.alloc.cards" style={{ gap: 10, padding: 12 }}>
         {rows.map((r) => {
-          const left = leftOf(r.client_amount, p.typed[r.id]);
+          const v = shown(r);
           return (
-            <div key={r.id} data-guide="cp.alloc.card" style={{ boxSizing: "border-box", width: "100%", padding: 12, border: `1px solid ${c.line}`, borderRadius: 12, background: "var(--card-bg)" }}>
-              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>{opener(r)}<span style={{ minWidth: 0, fontSize: 13.5, color: c.ink, overflowWrap: "anywhere" }}>{r.name}</span></div>
-              <CardRow label="Lines" value={String(r.line_count)} />
-              <CardRow label="Client amount" value={r.client_amount === null ? "—" : money(r.client_amount, p.currency, 2)} />
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, marginTop: 6, fontSize: 13 }}>
-                <span style={{ color: c.muted }}>Allocated cost</span>{cell(r)}
-              </div>
-              <CardRow label="Left" value={left === null ? "—" : money(left, null, 2)} ink={leftInk(left)} />
+            <div key={r.id} data-guide="cp.alloc.card" style={{ boxSizing: "border-box", width: "100%", padding: 12, marginLeft: indent(r), maxWidth: `calc(100% - ${indent(r)}px)`, border: `1px solid ${c.line}`, borderRadius: 12, background: "var(--card-bg)" }}>
+              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>{opener(r)}<span style={{ minWidth: 0, fontSize: 13.5, color: c.ink, overflowWrap: "anywhere", fontWeight: r.is_leaf ? 400 : 600 }}>{r.name}</span></div>
+              <CardRow label="Lines" value={linesText(r)} />
+              <CardRow label="Client amount" value={r.rolled.client_amount === null ? "—" : money(r.rolled.client_amount, p.currency, 2)} />
+              {r.is_leaf ? (
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, marginTop: 6, fontSize: 13 }}>
+                  <span style={{ color: c.muted }}>Allocated cost</span>{cell(r)}
+                </div>
+              ) : <CardRow label="Allocated cost" value={money(v.allocated, null, 2)} ink={c.muted} />}
+              <CardRow label="Left" value={v.left === null ? "—" : money(v.left, null, 2)} ink={r.is_leaf ? leftInk(v.left) : c.muted} />
             </div>
           );
         })}

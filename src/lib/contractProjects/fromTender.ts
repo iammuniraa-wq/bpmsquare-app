@@ -1,6 +1,7 @@
 import { round2, round4 } from "./budget";
 import { DEFAULT_RESOURCE_CODE, type DraftLine } from "./types";
 import type { BudgetPartInput } from "@/lib/tender/estimates/budgetParts";
+import { partsOf, remainderOf, treeOrder, type TreeItem } from "@/lib/wbs/tree";
 
 // "Create contract project" from a won tender (docs/design/gcc-tender-deals.md section 15), pure. The deal's lines become the contract: each
 // one a budget line with its quantity, unit and the CLIENT's rate and amount, resource Material, the cost code from the client's BOQ when
@@ -95,3 +96,64 @@ export function contractValueFor(args: { awardValue: number | null | undefined; 
 
 /** A project name from the deal: the deal's title, which already carries the tender number and issuer. */
 export const projectNameFromDeal = (title: string): string => (title.trim() || "Contract project").slice(0, 200);
+
+// ── The tender's WBS, copied to the project (docs/design/wbs.md section 2.5), pure ─────────────────────────────────────────────────────────────
+
+
+/** A tender WBS item as the copy reads it. */
+export type TenderWbsItem = TreeItem;
+/** A row of the tender BOQ as the copy reads it: the deal line it belongs to, the item it sits in, and its shares when it is split. */
+export type TenderBoqMembership = { line_id: string | null; wbs_item_id: string | null; parts: { wbs_item_id: string; share_pct: number }[] };
+
+export type WbsCopyPlan = {
+  /** In tree order, parents first. `new_id` is the project item's id; `parent` is the new id of its parent. */
+  items: { new_id: string; source_id: string; parent: string | null; code: string; name: string; owner_employee_id: string | null; code_is_manual: boolean; sort_order: number }[];
+  whole: { package: string; line_key: string; sort_order: number }[];
+  parts: { package: string; line_key: string; share_pct: number; sort_order: number }[];
+  /** The numbers the notice and the log entry say. */
+  summary: { items: number; lines: number; split: number; unassigned: number };
+};
+
+/**
+ * The project's own copy of the tender's WBS: every item (codes, names, owners, the typed-code flag), every whole line in its item, every
+ * share of a split line. A budget line is matched to its BOQ row through `source_line_id` (the deal line id). A line whose BOQ row is
+ * unassigned, and the unassigned remainder of a split line, stay so on the project. Nothing is read from the tender again afterwards.
+ */
+export function mapTenderWbs(args: {
+  items: readonly TenderWbsItem[];
+  boq: readonly TenderBoqMembership[];
+  budgetLines: readonly { line_key: string; source_line_id: string | null }[];
+  newId: () => string;
+}): WbsCopyPlan {
+  const ids = new Map(args.items.map((i) => [i.id, args.newId()]));
+  const items = treeOrder(args.items).map((i) => ({
+    new_id: ids.get(i.id) as string, source_id: i.id, parent: i.parent_id ? ids.get(i.parent_id) ?? null : null, code: i.code, name: i.name,
+    owner_employee_id: i.owner_employee_id, code_is_manual: i.code_is_manual, sort_order: i.sort_order,
+  }));
+  const byDealLine = new Map(args.boq.filter((b) => b.line_id).map((b) => [b.line_id as string, b]));
+  const whole: WbsCopyPlan["whole"] = [];
+  const parts: WbsCopyPlan["parts"] = [];
+  const order = new Map<string, number>();
+  const next = (pkg: string) => { const n = order.get(pkg) ?? 0; order.set(pkg, n + 1); return n; };
+  let lines = 0, split = 0, unassigned = 0;
+  for (const l of args.budgetLines) {
+    const m = l.source_line_id ? byDealLine.get(l.source_line_id) : undefined;
+    const shares = m ? partsOf({ wbs_item_id: m.wbs_item_id, parts: m.parts }).filter((s) => ids.has(s.wbs_item_id)) : [];
+    if (!m || shares.length === 0) { unassigned++; continue; }
+    lines++;
+    if (m.parts.length > 0) {
+      split++;
+      shares.forEach((s, i) => parts.push({ package: ids.get(s.wbs_item_id) as string, line_key: l.line_key, share_pct: s.share_pct, sort_order: i }));
+      if (remainderOf({ wbs_item_id: null, parts: shares }) > 0) unassigned++;
+    } else {
+      const pkg = ids.get(shares[0].wbs_item_id) as string;
+      whole.push({ package: pkg, line_key: l.line_key, sort_order: next(pkg) });
+    }
+  }
+  return { items, whole, parts, summary: { items: items.length, lines, split, unassigned } };
+}
+
+/** `9 items · 14 lines (2 split) · 4 unassigned`, the one line the log and the Overview say. */
+export function wbsCopyText(s: WbsCopyPlan["summary"]): string {
+  return `${s.items} item${s.items === 1 ? "" : "s"} · ${s.lines} line${s.lines === 1 ? "" : "s"}${s.split > 0 ? ` (${s.split} split)` : ""} · ${s.unassigned} unassigned`;
+}

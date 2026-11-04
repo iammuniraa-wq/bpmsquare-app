@@ -35,6 +35,12 @@ export default function ProjectOverview({ view, editor, buyoutOn = false }: { vi
   if (totals.unallocatedCount > 0) attention.push({ key: "alloc", text: `${totals.unallocatedCount} line${totals.unallocatedCount === 1 ? "" : "s"} not allocated`, link: "Allocate", href: tab("budget") });
   if (totals.noResourceCount > 0) attention.push({ key: "res", text: `${totals.noResourceCount} line${totals.noResourceCount === 1 ? "" : "s"} without a resource type`, link: "Fix", href: tab("budget") });
   if (totals.noCostCodeCount > 0) attention.push({ key: "code", text: `${totals.noCostCodeCount} line${totals.noCostCodeCount === 1 ? "" : "s"} without a cost code`, link: "Fix", href: tab("budget") });
+  // The WBS the project took over: items nobody owns yet (a bottom-level item is what a person runs).
+  const packages = view.packages ?? [];
+  const leafIds = new Set(packages.filter((x) => !packages.some((k) => k.parent_id === x.id)).map((x) => x.id));
+  const noOwner = packages.filter((x) => leafIds.has(x.id) && !x.owner_employee_id).length;
+  if (noOwner > 0) attention.push({ key: "wbs_owner", text: `${noOwner} WBS item${noOwner === 1 ? "" : "s"} without an owner`, link: "Assign", href: tab("wbs") });
+  if (view.packagesTreePending && p.source_opportunity_id) attention.push({ key: "wbs_pending", text: "The WBS needs a database update (migration 0243)", link: "Open", href: tab("wbs") });
   const approvalDue = approvalActionDue(view);
 
   const resourceName = new Map(view.resources.map((r) => [r.code, r.name]));

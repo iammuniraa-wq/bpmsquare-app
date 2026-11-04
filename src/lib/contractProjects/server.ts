@@ -41,7 +41,7 @@ export const needsUpdate = (): Failure => ({
 
 /** Allocating a budget and work packages need migration 0240; until it is applied the screens and routes say so instead of failing. */
 export const needsAllocationUpdate = (): Failure => ({
-  status: 503, error: "Work packages and budget allocation need a database update (migration 0240). Ask your administrator to apply it.",
+  status: 503, error: "The WBS and budget allocation need a database update (migration 0240). Ask your administrator to apply it.",
   extra: { needsDatabaseUpdate: true, bundle: ALLOCATION_BUNDLE },
 });
 

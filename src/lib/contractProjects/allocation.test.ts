@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { tipTextProblems } from "@/lib/infoTip";
-import { allocationView, parseLineAllocation, parsePackageAllocation, parseWorkPackage, spreadPackageCost, unassignedLines } from "./allocation";
+import { allocationView, lineMemberships, parseAssign, parseLineAllocation, parsePackageAllocation, parseSplit, parseWorkPackage, respreadTargets, rollTyped, spreadPackageCost, unassignedLines } from "./allocation";
 import { costsFromBoq, costsFromSnapshot, planFill } from "./fill";
 import { PROJECT_TIPS } from "./tips";
 import type { CostSnapshot } from "@/lib/tender/bids/costSnapshot";
@@ -64,25 +64,30 @@ describe("the allocation as the screen shows it", () => {
     expect(allocationView({ allocation_basis: "line", contract_value: 500 }, lines, [], 10).margin.state).toBe("over");
   });
 
-  it("by work package: one row per package with the client amount of its lines, and the unassigned lines warned", () => {
+  it("by WBS: one row per item with the client amount of its lines, and the unassigned lines warned", () => {
     const v = allocationView(
       { allocation_basis: "package", contract_value: 5000 }, lines,
       [pkg("p1", "WP-1", [K(1), K(2)], { allocated_cost: 600, owner_employee_id: "e1", owner_name: "Sara" })], 10,
     );
-    expect(v.packageRows).toEqual([{ id: "p1", code: "WP-1", name: "Package WP-1", owner_employee_id: "e1", owner_name: "Sara", line_count: 2, items: ["1.1", "2.1"], client_amount: 2000, allocated_cost: 600, allocated: true, left: 1400 }]);
-    expect(v.unassigned.map((u) => u.item)).toEqual(["3.1"]);
-    expect(v.warnings).toEqual(["1 line is not in a work package"]);
+    expect(v.wbsRows).toEqual([{
+      id: "p1", code: "WP-1", name: "Package WP-1", parent_id: null, depth: 1, is_leaf: true, owner_employee_id: "e1", owner_name: "Sara", source_wbs_item_id: null, line_count: 2, shared_count: 0,
+      items: ["1.1", "2.1"], client_amount: 2000, allocated_cost: 600, allocated: true, left: 1400, rolled: { line_count: 2, client_amount: 2000, allocated: 600, left: 1400 },
+    }]);
+    expect(v.unassigned.map((u) => [u.item, u.remainder_pct, u.split])).toEqual([["3.1", 100, false]]);
+    expect(v.warnings).toEqual(["1 line is not in a WBS item"]);
   });
 });
 
 describe("a work package from a request", () => {
   const valid = new Set([K(1), K(2)]);
 
-  it("a create needs a code and a name; trims them; takes lines of this budget only, once each", () => {
-    const ok = parseWorkPackage({ code: "  WP-1 ", name: " Earthworks ", owner_employee_id: K(9), line_keys: [K(1), K(2)], note: " x " }, valid, "create");
-    expect(ok).toEqual({ ok: true, value: { code: "WP-1", name: "Earthworks", owner_employee_id: K(9), line_keys: [K(1), K(2)], note: "x" } });
-    expect(parseWorkPackage({ name: "x" }, valid, "create").ok).toBe(false);
+  it("a create needs a name (the code numbers itself); trims them; takes lines of this budget only, once each", () => {
+    const ok = parseWorkPackage({ code: "  WP-1 ", name: " Earthworks ", owner_employee_id: K(9), line_keys: [K(1), K(2)], note: " x ", parent_id: K(8) }, valid, "create");
+    expect(ok).toEqual({ ok: true, value: { code: "WP-1", name: "Earthworks", parent_id: K(8), owner_employee_id: K(9), line_keys: [K(1), K(2)], note: "x" } });
+    expect(parseWorkPackage({ name: "x" }, valid, "create")).toEqual({ ok: true, value: { name: "x" } });
     expect(parseWorkPackage({ code: "A" }, valid, "create").ok).toBe(false);
+    expect(parseWorkPackage({ name: "x", parent_id: "nope" }, valid, "create").ok).toBe(false);
+    expect(parseWorkPackage({ name: "x", parent_id: "" }, valid, "create")).toEqual({ ok: true, value: { name: "x", parent_id: null } });
     expect(parseWorkPackage({ code: "A".repeat(30), name: "x" }, valid, "create")).toMatchObject({ ok: true, value: { code: "A".repeat(20) } });
     expect(parseWorkPackage({ code: "A", name: "x", line_keys: [K(1), K(1)] }, valid, "create")).toMatchObject({ ok: false });
     expect(parseWorkPackage({ code: "A", name: "x", line_keys: [K(5)] }, valid, "create")).toMatchObject({ ok: false });
@@ -94,6 +99,9 @@ describe("a work package from a request", () => {
     expect(parseWorkPackage({ name: "New" }, valid, "update")).toEqual({ ok: true, value: { name: "New" } });
     expect(parseWorkPackage({ name: "" }, valid, "update").ok).toBe(false);
     expect(parseWorkPackage({}, valid, "update")).toEqual({ ok: true, value: {} });
+    // an empty code hands the item back to the numbering
+    expect(parseWorkPackage({ code: "" }, valid, "update")).toEqual({ ok: true, value: { code: "" } });
+    expect(parseWorkPackage({ code: null }, valid, "update")).toEqual({ ok: true, value: { code: "" } });
   });
 });
 
@@ -169,3 +177,101 @@ describe("the tips of this slice fit the InfoTip limit", () => {
     }
   });
 });
+
+describe("the WBS tree with a split line (docs/design/wbs.md)", () => {
+  // The stair: 337.1 m, the client pays 141,582, split 60 / 15 / 25 over three bottom-level items under one parent.
+  const stair = line(1, { qty: 337.1, client_amount: 141582, wbs: "2.4", description: "Steel access stair" });
+  const rail = line(2, { qty: 10, client_amount: 8000, wbs: "2.5", description: "Handrail" });
+  const free = line(3, { qty: 1, client_amount: 500, wbs: "2.6", description: "Gate" });
+  const lines2 = [stair, rail, free];
+  const tree = (cost: Record<string, number | null> = {}) => [
+    pkg("root", "1", [], { parent_id: null, sort_order: 10 }),
+    pkg("fab", "1.1", [K(2)], { parent_id: "root", sort_order: 10, allocated_cost: cost.fab ?? null, line_parts: [{ line_key: K(1), share_pct: 60 }] }),
+    pkg("gal", "1.2", [], { parent_id: "root", sort_order: 20, allocated_cost: cost.gal ?? null, line_parts: [{ line_key: K(1), share_pct: 15 }] }),
+    pkg("ere", "2", [], { parent_id: null, sort_order: 20, allocated_cost: cost.ere ?? null, line_parts: [{ line_key: K(1), share_pct: 25 }] }),
+  ];
+
+  it("a line's memberships: whole in one item, shares across several", () => {
+    const m = lineMemberships(tree());
+    expect(m.get(K(2))).toEqual({ wbs_item_id: "fab", parts: [] });
+    expect(m.get(K(1))).toEqual({ wbs_item_id: null, parts: [{ wbs_item_id: "fab", share_pct: 60 }, { wbs_item_id: "gal", share_pct: 15 }, { wbs_item_id: "ere", share_pct: 25 }] });
+    expect(m.has(K(3))).toBe(false);
+  });
+
+  it("rows come in tree order with depth; a parent rolls its sub-items up and nothing is counted twice", () => {
+    const v = allocationView({ allocation_basis: "package", contract_value: 200000 }, lines2, tree({ fab: 70000, gal: 12000 }), null);
+    expect(v.wbsRows.map((r) => [r.code, r.depth, r.is_leaf])).toEqual([["1", 1, false], ["1.1", 2, true], ["1.2", 2, true], ["2", 1, true]]);
+    const [root, fab, gal, ere] = v.wbsRows;
+    expect(fab.client_amount).toBe(84949.2 + 8000);
+    expect(fab.line_count).toBe(2);
+    expect(fab.shared_count).toBe(1);
+    expect(gal.client_amount).toBe(21237.3);
+    expect(root.rolled).toMatchObject({ line_count: 3, client_amount: 84949.2 + 8000 + 21237.3, allocated: 82000 });
+    expect(root.rolled.left).toBe(round(84949.2 + 8000 + 21237.3 - 82000));
+    expect(ere.rolled.allocated).toBe(0);
+    // the whole WBS holds the stair once: 141,582 + 8,000, never more
+    expect(v.wbsRows.filter((r) => r.depth === 1).reduce((s, r) => s + (r.rolled.client_amount ?? 0), 0)).toBe(141582 + 8000);
+  });
+
+  it("the unassigned list names a line in no item, and a split line's remainder after an item was removed", () => {
+    const v = allocationView({ allocation_basis: "package", contract_value: 1 }, lines2, tree().filter((p) => p.id !== "gal"), null);
+    expect(v.unassigned.map((u) => [u.item, u.remainder_pct, u.split])).toEqual([["2.4", 15, true], ["2.6", 100, false]]);
+    expect(v.warnings).toEqual(["2 lines are not in a WBS item"]);
+  });
+
+  it("the line table says where each line sits: the item, or its shares", () => {
+    const v = allocationView({ allocation_basis: "line", contract_value: 1 }, lines2, tree(), null);
+    expect(v.lineRows.map((r) => r.wbs)).toEqual([
+      [{ code: "1.1", share_pct: 60 }, { code: "1.2", share_pct: 15 }, { code: "2", share_pct: 25 }],
+      [{ code: "1.1", share_pct: 100 }],
+      [],
+    ]);
+  });
+
+  it("a cost typed on a leaf is spread over what it holds: the stair's three spreads add up to what each item was given", () => {
+    const t = respreadTargets(tree({ fab: 70000, gal: 12000, ere: 20000 }), lines2);
+    // Fabrication holds 60 % of the stair (84,949.20 client) and the whole handrail (8,000): 70,000 laid by those amounts
+    const fabStair = (70000 * 84949.2) / (84949.2 + 8000);
+    const fabRail = 70000 - fabStair;
+    const stairTotal = round(fabStair) + 12000 + 20000;
+    expect(t.get(K(1))!.amount).toBeCloseTo(stairTotal, 1);
+    expect(t.get(K(2))!.amount).toBeCloseTo(fabRail, 1);
+    expect(t.has(K(3))).toBe(false);
+    // everything given to the leaves is on the lines, to the cent
+    const sum = [...t.values()].reduce((s, x) => s + x.amount, 0);
+    expect(Math.round(sum * 100)).toBe(Math.round((70000 + 12000 + 20000) * 100));
+    expect(t.get(K(1))!.unit_cost).toBeCloseTo(t.get(K(1))!.amount / 337.1, 3);
+  });
+
+  it("an item with no cost allocates nothing; a parent's own cost is ignored (parents are roll-ups)", () => {
+    const only = respreadTargets(tree({ gal: 3000 }), lines2);
+    expect([...only.keys()]).toEqual([K(1)]);
+    expect(only.get(K(1))!.amount).toBe(3000);
+    const withParentCost = tree({ gal: 3000 }).map((p) => (p.id === "root" ? { ...p, allocated_cost: 999999 } : p));
+    expect(respreadTargets(withParentCost, lines2).get(K(1))!.amount).toBe(3000);
+  });
+
+  it("live roll-up while typing: a parent adds the leaves' typed costs, left follows the client's money", () => {
+    const v = allocationView({ allocation_basis: "package", contract_value: 1 }, lines2, tree(), null);
+    const live = rollTyped(v.wbsRows, { fab: "1000", gal: "250.5", ere: "" });
+    expect(live.get("root")).toEqual({ allocated: 1250.5, left: round(84949.2 + 8000 + 21237.3 - 1250.5) });
+    expect(live.get("fab")!.allocated).toBe(1000);
+    expect(live.get("ere")).toEqual({ allocated: 0, left: 35395.5 });
+  });
+});
+
+describe("Group into WBS and Split from a request", () => {
+  const valid = new Set([K(1), K(2)]);
+  it("assign: lines of this budget, once each; the item is an id or null", () => {
+    expect(parseAssign({ line_keys: [K(1)], package_id: K(7) }, valid)).toEqual({ ok: true, line_keys: [K(1)], package_id: K(7) });
+    expect(parseAssign({ line_keys: [K(1), K(2)], package_id: null }, valid)).toEqual({ ok: true, line_keys: [K(1), K(2)], package_id: null });
+    expect(parseAssign({ line_keys: [K(1), K(2)] }, valid)).toMatchObject({ ok: true, package_id: null });
+    for (const bad of [{ line_keys: [] }, { line_keys: [K(1), K(1)] }, { line_keys: [K(9)] }, { line_keys: [K(1)], package_id: "x" }, {}, "x"]) expect(parseAssign(bad, valid).ok, JSON.stringify(bad)).toBe(false);
+  });
+  it("split: a line of this budget and parts that name an item and a share", () => {
+    expect(parseSplit({ line_key: K(1), parts: [{ package_id: K(7), share_pct: 60 }, { wbs_item_id: K(8), share_pct: "40" }] }, valid)).toEqual({ ok: true, line_key: K(1), parts: [{ package_id: K(7), share_pct: 60 }, { package_id: K(8), share_pct: 40 }] });
+    for (const bad of [{ line_key: K(9), parts: [] }, { line_key: K(1) }, { line_key: K(1), parts: [{ package_id: "x", share_pct: 5 }] }, { line_key: K(1), parts: [{ package_id: K(7), share_pct: "abc" }] }]) expect(parseSplit(bad, valid).ok, JSON.stringify(bad)).toBe(false);
+  });
+});
+
+const round = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;

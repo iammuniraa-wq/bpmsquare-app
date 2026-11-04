@@ -120,7 +120,7 @@ export const JUSTIFICATION_NEEDS_NOTE = "other";
 /** What a tender line becomes: the default resource is Material. */
 export const DEFAULT_RESOURCE_CODE = "11";
 
-/** How a project's budget is allocated (0240): a cost typed on each BOQ line, or one cost per work package spread over its lines. */
+/** How a project's budget is allocated (0240): a cost typed on each BOQ line, or one cost per bottom-level WBS item spread over what it holds. */
 export const ALLOCATION_BASES = ["line", "package"] as const;
 export type AllocationBasis = (typeof ALLOCATION_BASES)[number];
 
@@ -142,7 +142,7 @@ export type ProjectRow = {
   custom_data: Record<string, unknown> | null;
   /** 0240: when the budget file was last downloaded for the ERP (the "Handed over" step). Null until then, and while that migration is pending. */
   handover_sent_at: string | null;
-  /** 0240: allocate the budget by BOQ line or by work package. "line" while that migration is pending. */
+  /** 0240: allocate the budget by BOQ line or by WBS (stored as "package"). "line" while that migration is pending. */
   allocation_basis: AllocationBasis;
   created_by: string | null;
   created_at: string;
@@ -216,7 +216,10 @@ export type DraftLine = {
   source_line_id?: string | null;
 };
 
-/** A work package of a project (the WBS): a code, a name, an owner (an employee with a login) and, in package mode, the cost allocated to it. */
+/**
+ * An item of a project's WBS (the table is still project_work_packages): a code, a name, an optional parent (three levels), an owner (an
+ * employee with a login) and, on a leaf in the WBS basis, the cost allocated to it. A parent's figures are roll-ups, never stored.
+ */
 export type WorkPackageRow = {
   id: string;
   code: string;
@@ -226,8 +229,16 @@ export type WorkPackageRow = {
   allocated_cost: number | null;
   sort_order: number;
   note: string | null;
-  /** The line_keys of the budget lines it holds. */
+  /** The line_keys of the whole budget lines it holds. */
   line_keys: string[];
+  /** 0243. The item it sits under; null for a top-level item (and for every item while 0243 is pending). */
+  parent_id?: string | null;
+  /** 0243. The tender item it was copied from when the project was created. */
+  source_wbs_item_id?: string | null;
+  /** 0243. True once a person typed the code: renumbering leaves it alone. */
+  code_is_manual?: boolean;
+  /** 0243. The shares of the budget lines split across items, by line_key. */
+  line_parts?: { line_key: string; share_pct: number }[];
 };
 
 export const LINE_LIMITS = { maxLines: 5000, maxQty: 999_999_999, maxUnitCost: 999_999_999, maxAmount: 999_999_999_999 } as const;

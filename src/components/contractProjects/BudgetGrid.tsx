@@ -17,9 +17,9 @@ import { marginTone, money, pct } from "@/lib/contractProjects/format";
 import { PROJECT_TIPS } from "@/lib/contractProjects/tips";
 import { REVISION_STATUS_LABEL, type AllocationBasis, type BudgetLine, type RevisionRow, type WorkPackageRow } from "@/lib/contractProjects/types";
 import type { EmployeeChoice } from "@/lib/contractProjects/workPackagesServer";
-import { LinesTable, PackagesTable, type ErpCols } from "./AllocationTable";
+import { LinesTable, WbsTable, type ErpCols } from "./AllocationTable";
 import LineDetailsPanel from "./LineDetailsPanel";
-import WorkPackagesPanel from "./WorkPackagesPanel";
+import WbsItemPanel from "./WbsItemPanel";
 import { committedFor } from "./buyout/rules";
 import type { BuyoutData } from "./buyout/types";
 import { useBuyoutSummary } from "./buyout/useBuyoutSummary";
@@ -29,7 +29,7 @@ const num = (v: string | undefined): number | null => (v === undefined || v.trim
 
 /**
  * The Budget tab: where the budget is ALLOCATED by a person (KAMCO feedback, 2026-10-29). Nothing here is guessed. The person chooses the
- * basis, a cost on each BOQ line or one cost per work package; the contract value less what is allocated is the margin, live as they type.
+ * basis, a cost on each BOQ line or one cost per bottom-level WBS item; the contract value less what is allocated is the margin, live as they type.
  * "Fill from tender costs" copies the costs recorded on the tender once. The detail of a line sits in a side panel. Saving writes the
  * revision's allocation through PUT /api/contract-projects/[id]/allocation; the amounts, totals and margin are the server's.
  */
@@ -71,7 +71,8 @@ export default function BudgetGrid({
   // What is typed: the allocated cost per line (line mode) or per package (package mode), as the server last saved it.
   const initial = useMemo(() => {
     const t: Record<string, string> = {};
-    if (basis === "package") for (const p of allocation.packageRows) t[p.id] = p.allocated_cost === null ? "" : String(p.allocated_cost);
+    // A cost is typed on a bottom-level item; a parent shows the roll-up of its sub-items.
+    if (basis === "package") for (const p of allocation.wbsRows) { if (p.is_leaf) t[p.id] = p.allocated_cost === null ? "" : String(p.allocated_cost); }
     else for (const l of allocation.lineRows) t[l.line_key] = l.allocated ? String(l.amount) : "";
     return t;
   }, [allocation, basis]);
@@ -107,7 +108,7 @@ export default function BudgetGrid({
     setError(""); setNotice("");
     startTransition(async () => {
       const body = basis === "package"
-        ? { revision_id: revision.id, packages: allocation.packageRows.map((p) => ({ id: p.id, allocated_cost: num(typed[p.id]) })) }
+        ? { revision_id: revision.id, packages: allocation.wbsRows.filter((p) => p.is_leaf).map((p) => ({ id: p.id, allocated_cost: num(typed[p.id]) })) }
         : { revision_id: revision.id, basis_rows: allocation.lineRows.map((l) => ({ line_key: l.line_key, amount: num(typed[l.line_key]) })) };
       const res = await fetch(`/api/contract-projects/${projectId}/allocation`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
       const j = await res.json().catch(() => ({}));
@@ -121,8 +122,8 @@ export default function BudgetGrid({
   async function switchBasis(next: AllocationBasis) {
     if (next === basis || !editable || basisLocked) return;
     if (dirty && !(await confirm({ title: "Discard what you typed?", body: "The allocation has unsaved edits.", confirmLabel: "Discard" }))) return;
-    const label = next === "package" ? "work package" : "BOQ line";
-    if (!(await confirm({ title: `Switch to allocating by ${label}?`, body: "Typed costs are cleared. Your package grouping is kept.", confirmLabel: "Switch" }))) return;
+    const label = next === "package" ? "WBS" : "BOQ line";
+    if (!(await confirm({ title: `Switch to allocating by ${label}?`, body: "Typed costs are cleared. Your WBS is kept.", confirmLabel: "Switch" }))) return;
     setError(""); setNotice("");
     const res = await fetch(`/api/contract-projects/${projectId}/allocation/basis`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ basis: next }) });
     const j = await res.json().catch(() => ({}));
@@ -146,7 +147,7 @@ export default function BudgetGrid({
     });
   }
 
-  const rowsCount = basis === "package" ? allocation.packageRows.length : allocation.lineRows.length;
+  const rowsCount = basis === "package" ? allocation.wbsRows.length : allocation.lineRows.length;
   const lockedWords = revision.status === "draft" ? "You can view this budget but not change it" : revision.status === "pending" ? "Locked while it waits for approval" : "Locked";
 
   return (
@@ -155,12 +156,12 @@ export default function BudgetGrid({
 
       <div data-guide="cp.alloc.toolbar" style={{ display: "flex", alignItems: "center", gap: "8px 12px", flexWrap: "wrap" }}>
         {packagesPending ? (
-          <span role="status" data-guide="cp.alloc.pending" style={{ fontSize: 13, color: "var(--amberink)" }}>Work packages need a database update (migration 0240). Ask your administrator to apply it.</span>
+          <span role="status" data-guide="cp.alloc.pending" style={{ fontSize: 13, color: "var(--amberink)" }}>The WBS needs a database update (migration 0240). Ask your administrator to apply it.</span>
         ) : (
           <span style={{ display: "inline-flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
             <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 13, color: c.muted }}>Allocate by <InfoTip label="Allocate by">{PROJECT_TIPS.allocateBy}</InfoTip></span>
             <span role="radiogroup" aria-label="Allocate by" data-guide="cp.alloc.basis" style={{ display: "inline-flex", gap: 6 }}>
-              {([["line", "BOQ line"], ["package", "Work package"]] as const).map(([v, label]) => (
+              {([["line", "BOQ line"], ["package", "WBS"]] as const).map(([v, label]) => (
                 <button
                   key={v} type="button" role="radio" aria-checked={basis === v} disabled={!editable || basisLocked || pending}
                   onClick={() => { void switchBasis(v); }}
@@ -201,7 +202,7 @@ export default function BudgetGrid({
 
       <StatStrip guide="cp.alloc.tiles">
         <StatTile tone="info" label="Contract value" info={PROJECT_TIPS.contractValue} value={money(contractValue, currency)} sub="from the awarded tender" />
-        <StatTile tone="neutral" label="Allocated" info={PROJECT_TIPS.allocated} value={money(live.total, currency)} sub={`${live.count} of ${live.of} ${basis === "package" ? "packages" : "lines"}`} />
+        <StatTile tone="neutral" label="Allocated" info={PROJECT_TIPS.allocated} value={money(live.total, currency)} sub={`${live.count} of ${live.of} ${basis === "package" ? "WBS items" : "lines"}`} />
         <StatTile
           tone={marginTone(live.margin.state)} label="Margin so far" info={PROJECT_TIPS.plannedMargin}
           value={live.margin.state === "none" ? "Not allocated yet" : pct(live.margin.pct)}
@@ -217,14 +218,14 @@ export default function BudgetGrid({
       ) : (
         <div style={{ background: "var(--card-bg)", border: "1px solid var(--line)", borderRadius: "var(--card-radius)", overflow: "hidden" }}>
           {basis === "package"
-            ? <PackagesTable rows={allocation.packageRows} typed={typed} onType={type} editable={editable} currency={currency} onOpen={(id) => setPkgOpen(packages.find((p) => p.id === id) ?? null)} />
+            ? <WbsTable rows={allocation.wbsRows} typed={typed} onType={type} editable={editable} currency={currency} onOpen={(id) => setPkgOpen(packages.find((p) => p.id === id) ?? null)} />
             : <LinesTable rows={allocation.lineRows} typed={typed} onType={type} editable={editable} currency={currency} erp={erp} onOpen={(k) => setDetail(k)} />}
         </div>
       )}
 
       {basis === "package" && allocation.lineRows.length > 0 && (
         // The lines stay reachable (their resource type and cost code still need a person); their costs follow the packages, so nothing is typed here.
-        <SettingsSection id="cp.alloc.lines" title="Lines" summary={`${allocation.lineRows.length} line${allocation.lineRows.length === 1 ? "" : "s"} · costs follow the packages`}>
+        <SettingsSection id="cp.alloc.lines" title="Lines" summary={`${allocation.lineRows.length} line${allocation.lineRows.length === 1 ? "" : "s"} · costs follow the WBS`}>
           <LinesTable
             rows={allocation.lineRows} typed={Object.fromEntries(allocation.lineRows.map((l) => [l.line_key, l.allocated ? String(l.amount) : ""]))} onType={() => undefined}
             editable={false} currency={currency} erp={erp} onOpen={(k) => setDetail(k)}
@@ -235,11 +236,14 @@ export default function BudgetGrid({
       {allocation.warnings.map((w) => <div key={w} role="status" data-guide="cp.alloc.warning" style={{ fontSize: 13, color: "var(--amberink)" }}>{w}</div>)}
       {(error || notice) && <div role={error ? "alert" : "status"} style={{ fontSize: 13, color: error ? "var(--err-ink)" : "var(--tealink)" }}>{error || notice}</div>}
 
-      <WorkPackagesPanel
-        projectId={projectId} basis={basis} packages={packages} unassigned={allocation.unassigned} lines={lines} employees={employees} currency={currency}
-        canEdit={canEdit && !projectClosed} lockedReason={revision.status !== "draft" ? lockedWords : null} pending={packagesPending} rows={allocation.packageRows}
-        open={pkgOpen} onOpen={setPkgOpen}
-      />
+      {pkgOpen && pkgOpen !== "new" && (
+        <WbsItemPanel
+          key={pkgOpen.id} projectId={projectId} pkg={pkgOpen} packages={packages} lines={lines} employees={employees} basis={basis}
+          locked={!canEdit ? "You can view this project but not change it" : projectClosed ? "This project is closed" : null}
+          linesLocked={basis === "package" && revision.status !== "draft" ? lockedWords : null}
+          onClose={() => setPkgOpen(null)} onSaved={() => { setPkgOpen(null); router.refresh(); }}
+        />
+      )}
 
       {editable && (
         <div style={{ position: "sticky", bottom: 0, display: "flex", alignItems: "center", gap: 10, padding: "10px 0", background: "var(--bg, transparent)", zIndex: 5 }}>
