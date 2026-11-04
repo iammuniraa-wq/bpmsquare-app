@@ -45,6 +45,7 @@ export const NAV_GLYPHS: Record<string, GlyphComponent> = {
   // Marketing and Intelligence (two groups, docs/design/marketing-two-parts.md)
   [ROUTES.marketingSegments]: Filter,
   [ROUTES.marketingAbm]: Target,
+  [ROUTES.marketingEmail]: Send,
   [ROUTES.marketing]: Send,
   [ROUTES.marketingNewsletters]: Mail,
   [ROUTES.marketingWhatsapp]: MessageSquare,

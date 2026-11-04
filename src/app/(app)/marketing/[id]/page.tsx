@@ -46,8 +46,8 @@ export default async function CampaignDetailPage({ params }: { params: Promise<{
 
   return (
     <ObjectRecordPage
-      backHref={ROUTES.marketing}
-      backLabel="All campaigns"
+      backHref={ROUTES.marketingEmail}
+      backLabel="All email"
       title={campaign.name}
       meta={campaign.subject || "No subject yet"}
       status={<StatusPill label={STATUS_LABEL[campaign.status]} tone={STATUS_TONE[campaign.status]} />}

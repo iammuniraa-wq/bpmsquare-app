@@ -25,7 +25,7 @@ export const WORKCENTERS: { key: WorkcenterKey; label: string }[] = [
   { key: "work_orders", label: "Work Orders" },
   { key: "dispatch", label: "Dispatch" },
   { key: "technicians", label: "Technicians" },
-  { key: "marketing", label: "Marketing Campaigns" },
+  { key: "marketing", label: "Email" },
   { key: "marketing_segments", label: "Audiences" },
   { key: "marketing_newsletters", label: "Newsletters" },
   { key: "signals", label: "Buying signals" },

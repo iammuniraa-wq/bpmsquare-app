@@ -260,3 +260,18 @@ Risks:
 1. **Leads: merge `/leads` and "Scored leads" into one list?** Recommendation: yes, in slice 6, after the nav split has been seen. Until then both rows sit together in Intelligence.
 2. **Move the Intelligence screens to `/intelligence/...`?** Recommendation: no. The sidebar group tells the part; keeping URLs means no redirects and no broken links in sent emails, notices and change history.
 3. **Does Vikas Pioneers still send festival campaigns?** Recommendation: assume yes; slice 2 keeps festival templates as a "Seasonal" group in Designs and the plain composer unchanged, and Vikas is told before it ships.
+
+---
+
+## 14. Built
+
+**Slice 0 (8de1f3d2) and slice 1 (b363761a).** As in sections 7 and 9. Verified by tests, tsc and reading the code; not clicked in a browser: the Review and send panel, the address chips, the new sidebar groups, the tab-closing notice.
+
+**Slice 2, Email.**
+- Sidebar: one **Email** row (`/marketing/email`, flag `marketing`, workcenter `marketing`) replaces Campaigns and Newsletters.
+- `/marketing/email` has chips **Sends**, **Newsletters**, **Templates**. The last two appear only with `newsletter_studio` and keep the studio's own access check (`studioPage()`).
+- Sends has a Type column (Plain or Newsletter) and two buttons, **+ New email** and **+ New newsletter** (the second only with the studio).
+- `/marketing` and `/marketing/newsletters` redirect to Email (search and page kept). Record and composer addresses did not move.
+- The assistant's newsletter-studio manifest carries its own feature and workcenter gate now that the sidebar row is gone.
+- Deviations: the composer is still one page, not three steps (Audience, Message, Review and send arrive with slice 3, because the audience picker is replaced there). A role granted only the Newsletters workcenter (and not Email) no longer sees a sidebar row; the studio pages stay open to it by address and ⌘K "New Newsletter".
+- Verified by tests only: redirects (source checks), nav gating, assistant manifests.

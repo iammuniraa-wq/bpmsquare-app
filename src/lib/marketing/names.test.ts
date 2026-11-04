@@ -51,7 +51,7 @@ describe("Marketing and Intelligence are two parts (docs/design/marketing-two-pa
   const keys = (group: string) => rows(group).map((r) => r.workcenterKey).sort();
 
   it("Marketing reaches people, Intelligence knows who is ready", () => {
-    expect(rows("MARKETING").map((r) => r.label)).toEqual(["Audiences", "Campaigns", "Newsletters", "Journeys", "Forms", "WhatsApp", "Events"]);
+    expect(rows("MARKETING").map((r) => r.label)).toEqual(["Audiences", "Email", "Journeys", "Forms", "WhatsApp", "Events"]);
     expect(rows("INTELLIGENCE").map((r) => r.label)).toEqual(["Buying signals", "Leads", "Scored leads", "ABM programs", "Results"]);
   });
 
@@ -59,7 +59,7 @@ describe("Marketing and Intelligence are two parts (docs/design/marketing-two-pa
     const all = [...rows("MARKETING"), ...rows("INTELLIGENCE")];
     expect(new Set(all.map((r) => r.href)).size).toBe(all.length);
     expect(all.every((r) => r.featureKey && r.workcenterKey)).toBe(true);
-    expect(keys("MARKETING")).toEqual(["marketing", "marketing_events", "marketing_forms", "marketing_journeys", "marketing_newsletters", "marketing_segments", "marketing_whatsapp"]);
+    expect(keys("MARKETING")).toEqual(["marketing", "marketing_events", "marketing_forms", "marketing_journeys", "marketing_segments", "marketing_whatsapp"]);
     expect(keys("INTELLIGENCE")).toEqual(["abm", "leads", "leads", "marketing_attribution", "signals"]);
   });
 });

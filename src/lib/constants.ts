@@ -77,6 +77,7 @@ export const ROUTES = {
   leads: "/leads",
   partners: "/partners",
   marketing: "/marketing",
+  marketingEmail: "/marketing/email",
   marketingNew: "/marketing/new",
   marketingCampaign: (id: string) => `/marketing/${id}`,
   marketingUnsubscribe: (accountId: string, token: string) => `/marketing/unsubscribe/${accountId}/${token}`,
@@ -358,8 +359,9 @@ export const NAV: NavGroup[] = [
         label: "Marketing", href: ROUTES.marketingSegments, icon: "📣", pillar: "purple",
         children: [
           { label: "Audiences", href: ROUTES.marketingSegments, icon: "⌗", pillar: "purple", featureKey: "marketing", workcenterKey: "marketing_segments" },
-          { label: "Campaigns", href: ROUTES.marketing, icon: "✉", pillar: "purple", featureKey: "marketing", workcenterKey: "marketing" },
-          { label: "Newsletters", href: ROUTES.marketingNewsletters, icon: "✎", pillar: "purple", featureKey: "newsletter_studio", workcenterKey: "marketing_newsletters" },
+          // One Email entry for campaigns and newsletters: tabs Sends / Newsletters / Templates (the last two need
+          // newsletter_studio and are gated on the page). /marketing and /marketing/newsletters redirect here.
+          { label: "Email", href: ROUTES.marketingEmail, icon: "✉", pillar: "purple", featureKey: "marketing", workcenterKey: "marketing" },
           { label: "Journeys", href: ROUTES.marketingJourneys, icon: "↠", pillar: "purple", featureKey: "journeys", workcenterKey: "marketing_journeys" },
           { label: "Forms", href: ROUTES.marketingForms, icon: "☰", pillar: "purple", featureKey: "marketing_forms", workcenterKey: "marketing_forms" },
           { label: "WhatsApp", href: ROUTES.marketingWhatsapp, icon: "☏", pillar: "purple", featureKey: "whatsapp_marketing", workcenterKey: "marketing_whatsapp" },

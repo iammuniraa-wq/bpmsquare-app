@@ -78,8 +78,8 @@ export default function MarketingComposeForm({ accounts, initialGroupId }: { acc
 
   return (
     <ObjectFormPage
-      backHref={ROUTES.marketing}
-      backLabel="All campaigns"
+      backHref={ROUTES.marketingEmail}
+      backLabel="All email"
       title="New Campaign"
       subtitle="Email · choose the audience and the text"
       onSubmit={(e) => { e.preventDefault(); void saveDraft(); }}
