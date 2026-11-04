@@ -97,7 +97,8 @@ function tabMeta(href: string): { title: string; icon: string; section: string }
   if (p.startsWith("/standard-quotes/"))           return { title: shortId(p),        icon: "₹", section: "Standard Quote" };
   if (p === "/marketing/segments")                 return { title: "Segments",        icon: "◎", section: "Marketing" };
   if (p.startsWith("/marketing/segments/"))        return { title: shortId(p),        icon: "◎", section: "Segment" };
-  if (p === ROUTES.marketing)                      return { title: "Email",           icon: "◎", section: "Marketing" };
+  if (p === ROUTES.marketing)                      return { title: "Marketing",       icon: "◎", section: "Marketing" };
+  if (p === ROUTES.marketingIntelligence)          return { title: "Intelligence",    icon: "◎", section: "Intelligence" };
   if (p === ROUTES.marketingEmail)                 return { title: "Email",           icon: "◎", section: "Marketing" };
   if (p === ROUTES.marketingNew)                   return { title: "New email",       icon: "◎", section: "Marketing" };
   if (p.startsWith("/marketing/"))                 return { title: shortId(p),        icon: "◎", section: "Campaign" };

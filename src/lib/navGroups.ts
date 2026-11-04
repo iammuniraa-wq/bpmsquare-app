@@ -13,16 +13,23 @@ import type { ViewableWorkcenters, WorkcenterKey } from "@/lib/workcenters";
 // one child is. An adminOnly row (Settings) is for a member with unrestricted
 // access only -- nothing in Settings is scoped to a workcenter, so a member
 // restricted by a Business Role must not see it.
+/** A row is switched on by its one flag, or (an Overview) by any of several. */
+export function navFeatureOn(item: NavItem, features: Record<string, boolean> | undefined): boolean {
+  if (item.featureAnyOf?.length) return item.featureAnyOf.some((k) => features?.[k] === true);
+  return !item.featureKey || features?.[item.featureKey] === true;
+}
+
 export function isItemViewable(item: NavItem, viewable: ViewableWorkcenters): boolean {
   if (item.adminOnly && viewable !== "all") return false;
   if (viewable === "all") return true;
   if (item.children?.length) return item.children.some((ch) => isItemViewable(ch, viewable));
+  if (item.workcenterAnyOf?.length) return item.workcenterAnyOf.some((w) => viewable.includes(w as WorkcenterKey));
   if (!item.workcenterKey) return true;
   return viewable.includes(item.workcenterKey as WorkcenterKey);
 }
 
 export function leafAllowed(item: NavItem, features: Record<string, boolean> | undefined, viewable: ViewableWorkcenters, isWfmSupervisor: boolean): boolean {
-  return (!item.featureKey || features?.[item.featureKey] === true)
+  return navFeatureOn(item, features)
     && isItemViewable(item, viewable)
     && (!item.supervisorOnly || isWfmSupervisor);
 }

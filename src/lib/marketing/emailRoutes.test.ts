@@ -8,11 +8,11 @@ const page = (...p: string[]) => readFileSync(join(__dirname, "..", "..", "app",
 // Old addresses keep working (docs/design/marketing-two-parts.md section 8): the campaign list and the newsletter list
 // are views of Email now, and a bookmark or a stored link lands there.
 describe("Email absorbs the campaign and newsletter lists", () => {
-  it("the old campaign list redirects to Email and keeps the search and page", () => {
+  it("/marketing is the Marketing Overview now; the campaign list is Email", () => {
     const src = page("page.tsx");
-    expect(src).toContain("redirect(");
+    expect(src).not.toContain("redirect(");
+    expect(src).toContain("OverviewPath");
     expect(src).toContain("ROUTES.marketingEmail");
-    expect(src).toContain("sp.q");
   });
 
   it("the old newsletter list redirects to the Newsletters or Templates view of Email", () => {

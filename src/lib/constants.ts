@@ -78,6 +78,7 @@ export const ROUTES = {
   partners: "/partners",
   marketing: "/marketing",
   marketingEmail: "/marketing/email",
+  marketingIntelligence: "/marketing/intelligence",
   marketingNew: "/marketing/new",
   marketingCampaign: (id: string) => `/marketing/${id}`,
   marketingUnsubscribe: (accountId: string, token: string) => `/marketing/unsubscribe/${accountId}/${token}`,
@@ -272,6 +273,9 @@ export type NavItem = {
    * expand/collapse toggle rows (Sales/Service/Marketing/Master data), which
    * have no access of their own and are hidden only when every child is. */
   workcenterKey?: string;
+  /** For a row that belongs to a group of modules (an Overview): shown when ANY of these flags / workcenters is on. */
+  featureAnyOf?: string[];
+  workcenterAnyOf?: string[];
   /** Hidden from a WFM login unless it's a supervisor (wfm_role=supervisor
    * or tenant admin) -- for items that share the "wfm" workcenter grant with
    * a plain employee's My Workforce page but aren't meant for them. The real
@@ -356,8 +360,9 @@ export const NAV: NavGroup[] = [
     group: "MARKETING",
     items: [
       {
-        label: "Marketing", href: ROUTES.marketingSegments, icon: "📣", pillar: "purple",
+        label: "Marketing", href: ROUTES.marketing, icon: "📣", pillar: "purple",
         children: [
+          { label: "Overview", href: ROUTES.marketing, icon: "◈", pillar: "purple", featureKey: "marketing", workcenterKey: "marketing" },
           { label: "Audiences", href: ROUTES.marketingSegments, icon: "⌗", pillar: "purple", featureKey: "marketing", workcenterKey: "marketing_segments" },
           // One Email entry for campaigns and newsletters: tabs Sends / Newsletters / Templates (the last two need
           // newsletter_studio and are gated on the page). /marketing and /marketing/newsletters redirect here.
@@ -374,8 +379,9 @@ export const NAV: NavGroup[] = [
     group: "INTELLIGENCE",
     items: [
       {
-        label: "Intelligence", href: ROUTES.marketingSignals, icon: "◎", pillar: "purple",
+        label: "Intelligence", href: ROUTES.marketingIntelligence, icon: "◎", pillar: "purple",
         children: [
+          { label: "Overview", href: ROUTES.marketingIntelligence, icon: "◈", pillar: "purple", featureAnyOf: ["buying_signals", "leads", "marketing_scoring", "abm", "marketing_attribution"], workcenterAnyOf: ["signals", "leads", "abm", "marketing_attribution"] },
           { label: "Buying signals", href: ROUTES.marketingSignals, icon: "◎", pillar: "purple", featureKey: "buying_signals", workcenterKey: "signals" },
           { label: "Leads", href: ROUTES.leads, icon: "✦", pillar: "purple", featureKey: "leads", workcenterKey: "leads" },
           { label: "Scored leads", href: ROUTES.marketingLeads, icon: "⚡", pillar: "purple", featureKey: "marketing_scoring", workcenterKey: "leads" },

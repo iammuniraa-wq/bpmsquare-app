@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { NAV, ROUTES } from "@/lib/constants";
+import { navFeatureOn } from "@/lib/navGroups";
 import { CREATE_ACTIONS } from "@/lib/createActions";
 import type { NavItem } from "@/lib/constants";
 import type { SearchResult } from "@/lib/globalSearch";
@@ -122,9 +123,9 @@ export default function NovaPalette() {
   // sidebar wouldn't. ──
   const universe = useMemo<Item[]>(() => {
     const canSee = (item: NavItem) =>
-      (!item.featureKey || features?.[item.featureKey] === true) &&
+      navFeatureOn(item, features) &&
       (!item.adminOnly || viewable === "all") &&
-      (viewable === "all" || !item.workcenterKey || (viewable as string[]).includes(item.workcenterKey)) &&
+      (viewable === "all" || (item.workcenterAnyOf ? item.workcenterAnyOf.some((w) => (viewable as string[]).includes(w)) : (!item.workcenterKey || (viewable as string[]).includes(item.workcenterKey)))) &&
       (!item.supervisorOnly || isWfmSupervisor);
 
     const nav: Item[] = [];

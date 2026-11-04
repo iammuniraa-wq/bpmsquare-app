@@ -54,6 +54,15 @@ export const WORKCENTERS: { key: WorkcenterKey; label: string }[] = [
   { key: "process_studio", label: "Process Design Studio" },
 ];
 
+/**
+ * Marketing is two parts (docs/design/marketing-two-parts.md). A Business Role grants workcenters one by one, so a part is
+ * granted by granting its keys; the role editor groups them under these headings with a shortcut. No new key, no saved grant changes.
+ */
+export const WORKCENTER_PARTS: { label: string; keys: WorkcenterKey[] }[] = [
+  { label: "Marketing", keys: ["marketing", "marketing_segments", "marketing_newsletters", "marketing_journeys", "marketing_forms", "marketing_whatsapp", "marketing_events"] },
+  { label: "Intelligence", keys: ["signals", "leads", "abm", "marketing_attribution"] },
+];
+
 /** "all" = unrestricted (admins, and members with no Business Role
  * assigned); otherwise the explicit list of workcenters a member's
  * assigned Business Roles grant view access to. Shared client/server type

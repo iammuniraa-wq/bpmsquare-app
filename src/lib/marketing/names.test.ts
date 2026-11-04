@@ -51,15 +51,15 @@ describe("Marketing and Intelligence are two parts (docs/design/marketing-two-pa
   const keys = (group: string) => rows(group).map((r) => r.workcenterKey).sort();
 
   it("Marketing reaches people, Intelligence knows who is ready", () => {
-    expect(rows("MARKETING").map((r) => r.label)).toEqual(["Audiences", "Email", "Journeys", "Forms", "WhatsApp", "Events"]);
-    expect(rows("INTELLIGENCE").map((r) => r.label)).toEqual(["Buying signals", "Leads", "Scored leads", "ABM programs", "Results"]);
+    expect(rows("MARKETING").map((r) => r.label)).toEqual(["Overview", "Audiences", "Email", "Journeys", "Forms", "WhatsApp", "Events"]);
+    expect(rows("INTELLIGENCE").map((r) => r.label)).toEqual(["Overview", "Buying signals", "Leads", "Scored leads", "ABM programs", "Results"]);
   });
 
   it("every marketing destination is in exactly one part, with its flag and workcenter key unchanged", () => {
     const all = [...rows("MARKETING"), ...rows("INTELLIGENCE")];
     expect(new Set(all.map((r) => r.href)).size).toBe(all.length);
-    expect(all.every((r) => r.featureKey && r.workcenterKey)).toBe(true);
-    expect(keys("MARKETING")).toEqual(["marketing", "marketing_events", "marketing_forms", "marketing_journeys", "marketing_segments", "marketing_whatsapp"]);
-    expect(keys("INTELLIGENCE")).toEqual(["abm", "leads", "leads", "marketing_attribution", "signals"]);
+    expect(all.every((r) => (r.featureKey || r.featureAnyOf?.length) && (r.workcenterKey || r.workcenterAnyOf?.length))).toBe(true);
+    expect(keys("MARKETING")).toEqual(["marketing", "marketing", "marketing_events", "marketing_forms", "marketing_journeys", "marketing_segments", "marketing_whatsapp"]);
+    expect(keys("INTELLIGENCE").filter(Boolean)).toEqual(["abm", "leads", "leads", "marketing_attribution", "signals"]);
   });
 });
