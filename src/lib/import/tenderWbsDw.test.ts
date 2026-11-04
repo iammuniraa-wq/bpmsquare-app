@@ -391,7 +391,8 @@ describe("GET /api/v1/tenders/{id}/wbs", () => {
     expect(item("1")).toMatchObject({ owner_name: "Ana Lopez", line_count: 1, client_amount: 2000, tender_id: O1 });
     expect(item("2")).toMatchObject({ line_count: 2, shared_count: 2, client_amount: 500 });
     expect(item("2.1").parts).toEqual([{ boq_line_id: BQ.b, item_no: "1.2", share_pct: 60, quantity: 30, amount: 300, status: "priced" }]);
-    expect(meta).toMatchObject({ wbs_pending: false, total: { line_count: 3, shared_count: 2, client_amount: 2500 }, unassigned: { lines: 1, client_amount: 0 } });
+    expect(meta).toMatchObject({ wbs_pending: false, wbs_total: { line_count: 3, shared_count: 2, client_amount: 2500 }, unassigned: { lines: 1, client_amount: 0 } });
+    expect(typeof meta.total).toBe("number");
   });
 
   it("carries no cost, markup, supplier or employee id", async () => {

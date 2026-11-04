@@ -28,7 +28,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   const wbs = await loadWbsForApi(admin, tenantId, id);
   return enrichedList(req, wbs.items as unknown as Record<string, unknown>[], TENDER_WBS_FIELDS, {
     self: `/api/v1/tenders/${id}/wbs`,
-    extraMeta: { wbs_pending: wbs.pending, total: wbs.total, unassigned: wbs.unassigned },
+    extraMeta: { wbs_pending: wbs.pending, wbs_total: wbs.total, unassigned: wbs.unassigned },
   });
 }
 
