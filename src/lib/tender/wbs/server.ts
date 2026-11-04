@@ -505,7 +505,7 @@ export async function renumberItems(ctx: WbsCtx, opts: { all?: boolean } = {}): 
 /** The WBS of a deal for the lines the caller already has (the BOQ screen's own state): items in order, roll-ups, total. */
 export async function wbsStateFor(admin: SupabaseClient, tenantId: string, oppId: string, lines: readonly BoqFigureLine[]): Promise<{ state: WbsState; members: LineMembers }> {
   const [it, mem] = await Promise.all([loadItems(admin, tenantId, oppId), loadMembers(admin, tenantId, oppId)]);
-  if (it.pending || mem.pending) return { state: { pending: true, items: [], rollup: {}, total: { part_count: 0, shared_count: 0, client_amount: 0, cost: null, priced_count: 0 } }, members: mem.members };
+  if (it.pending || mem.pending) return { state: { pending: true, items: [], rollup: {}, total: { part_count: 0, shared_count: 0, client_amount: 0, cost: null, priced_count: 0, costed_count: 0 } }, members: mem.members };
   const names = await ownerNames(admin, tenantId, it.items);
   return { state: buildWbsState(it.items, names, lines, mem.members), members: mem.members };
 }

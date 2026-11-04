@@ -24,6 +24,9 @@ import CostingTab from "./CostingTab";
 import CostingRow from "./costing/CostingRow";
 import CompareAward from "./costing/CompareAward";
 import PriceRowsPanel from "./costing/PriceRowsPanel";
+import WbsTotals from "./costing/WbsTotals";
+import { rollupFigures, totalOf, treeOrder, type RollLine, type TreeItem } from "@/lib/wbs/tree";
+import type { WbsTotalsData } from "@/lib/tender/costing/wbsTotals";
 import OpportunityDetailClient from "@/app/(app)/pipeline/[id]/OpportunityDetailClient";
 
 const ROOT = path.resolve(__dirname, "../../..");
@@ -426,5 +429,95 @@ describe("the RFQ page for a tender RFQ", () => {
     const route = read("src/app/api/rfqs/[id]/route.ts");
     expect(route).toMatch(/tenant\?\.features\?\.gcc_tender === true/);
     expect(route).toContain("?tab=costing");
+  });
+});
+
+// ── Totals by WBS (docs/design/wbs.md slice 4) ──────────────────────────────────────────────────────────────────────────────────
+
+const witem = (id: string, code: string, parent: string | null, sort: number): TreeItem => ({ id, code, name: `Item ${code}`, parent_id: parent, sort_order: sort, code_is_manual: false, owner_employee_id: null });
+const WITEMS = [witem("root", "1", null, 10), witem("fab", "1.1", "root", 10), witem("gal", "1.2", "root", 20), witem("ere", "2", null, 20)];
+const STAIR: RollLine = { id: "stair", qty: 337.1, amount: 141582, cost: 100000, priced: true, wbs_item_id: null, parts: [{ wbs_item_id: "fab", share_pct: 60 }, { wbs_item_id: "gal", share_pct: 15 }, { wbs_item_id: "ere", share_pct: 25 }] };
+const wbsData = (lines: RollLine[] = [STAIR], items: TreeItem[] = WITEMS, over: Partial<WbsTotalsData> = {}): WbsTotalsData => {
+  const rolled = rollupFigures(items, lines);
+  return { pending: false, items: treeOrder(items).map((i) => ({ ...i, opportunity_id: OPP, note: null, owner_name: null })), rollup: Object.fromEntries(rolled), total: totalOf(items, rolled), unassigned: [], ...over } as WbsTotalsData;
+};
+const totals = (d: WbsTotalsData, props: Record<string, unknown> = {}) => clean(renderToString(createElement(WbsTotals, { opportunityId: OPP, initialData: d, layout: "table", currency: "SAR", ...props } as never)));
+
+describe("Totals by WBS on the Costing tab", () => {
+  it("is one folded section after Cost sources, with an i, and draws nothing until it is opened", () => {
+    const out = tab(data());
+    expect(out).toContain('data-guide="costing.wbs.section"');
+    expect(out).toContain(">Totals by WBS<");
+    expect(out).toContain('aria-label="About Totals by WBS"');
+    expect(out).toContain("Bid amount, cost and margin per WBS item");
+    expect(out).not.toContain('data-guide="costing.wbs.table"');
+    expect(out).toMatch(/aria-expanded="false"[^>]*>(?:<span[^>]*>)?Totals by WBS/);
+    expect(out.indexOf("costing.wbs.section")).toBeGreaterThan(out.indexOf('data-guide="costing.table"'));
+  });
+
+  it("shows each item with its bid amount, cost and margin; the stair counts by its 60 / 15 / 25 shares", () => {
+    const out = totals(wbsData());
+    expect(out).toContain('data-guide="costing.wbs.table"');
+    for (const h of [">Item<", ">Bid amount<", ">Cost<", ">Margin<"]) expect(out, h).toContain(h);
+    expect(out.match(/data-guide="costing\.wbs\.row"/g)).toHaveLength(4);
+    for (const w of ["SAR 84,949.20", "SAR 60,000.00", "24,949.20 (29%)", "SAR 21,237.30", "SAR 35,395.50", "Item 1.1", "Item 2"]) expect(out, w).toContain(w);
+    // the branch adds its sub-items; the footer adds the top-level items, so the stair is counted once
+    expect(out).toContain("SAR 106,186.50");
+    expect(out).toContain('data-guide="costing.wbs.total"');
+    expect(out).toContain("In a WBS item");
+    expect(out).toContain("SAR 141,582.00");
+    expect(out).toContain("41,582.00 (29%)");
+    expect(out).toMatch(/padding-left:28px/); // a sub-item is indented
+  });
+
+  it("leaves the margin blank while a priced row has no cost, and says so in the cell", () => {
+    const gate: RollLine = { id: "gate", qty: 1, amount: 500, cost: null, priced: true, wbs_item_id: "fab", parts: [] };
+    const out = totals(wbsData([STAIR, gate]));
+    expect(out).toContain('title="1 priced row has no cost"');
+    expect(out).toContain("SAR 85,449.20");
+  });
+
+  it("lists what is not in any item in amber, as the whole line or the remainder of a split one", () => {
+    const out = totals(wbsData([STAIR], WITEMS, { unassigned: [{ amount: 1000, remainder_pct: 100 }, { amount: 2000, remainder_pct: 15 }] }));
+    expect(out).toContain('data-guide="costing.wbs.outside"');
+    expect(out).toContain("Not in a WBS item: 2 rows, SAR 1,300.00");
+    expect(out).toContain("var(--amberink)");
+    expect(totals(wbsData())).not.toContain('data-guide="costing.wbs.outside"');
+  });
+
+  it("on a phone the same figures are cards, not a table", () => {
+    const out = totals(wbsData(), { layout: "cards" });
+    expect(out).toContain('data-guide="costing.wbs.list"');
+    expect(out).not.toContain('data-guide="costing.wbs.table"');
+    for (const w of ["Bid amount", "Cost", "Margin", "24,949.20 (29%)", "In a WBS item"]) expect(out, w).toContain(w);
+  });
+
+  it("pages a long tree: twelve rows, then Show all", () => {
+    const many = Array.from({ length: 15 }, (_, i) => witem(`i${i}`, String(i + 1), null, (i + 1) * 10));
+    const out = totals(wbsData([], many));
+    expect(out.match(/data-guide="costing\.wbs\.row"/g)).toHaveLength(12);
+    expect(out).toContain("Show all 15");
+    expect(buttonsOf(out, "costing.wbs.show_all")[0]).toMatch(/min-height:44px/);
+  });
+
+  it("with no WBS it says what to do next and leads to the Bill of quantities", () => {
+    const out = totals(wbsData([], []), { onOpenBoq: noop });
+    expect(out).toContain('data-guide="costing.wbs.empty"');
+    expect(out).toContain("No WBS on this tender yet. Group lines on the Bill of quantities.");
+    expect(buttonsOf(out, "costing.wbs.open_boq")[0]).toMatch(/min-height:44px/);
+    expect(totals(wbsData([], []))).not.toContain("costing.wbs.open_boq");
+  });
+
+  it("says so once while the WBS database update is pending", () => {
+    const out = totals(wbsData([], [], { pending: true }));
+    expect(out).toContain("WBS needs a database update (migration 0243)");
+    expect(out).not.toContain('data-guide="costing.wbs.table"');
+  });
+
+  it("reads the tender's WBS route, opens lazily and has no colour of its own", () => {
+    const src = read("src/components/tender/costing/WbsTotals.tsx");
+    expect(src).toContain("/tender/wbs");
+    expect(src.replace(/\/\/[^\n]*/g, "")).not.toMatch(/#[0-9a-fA-F]{3,8}\b|rgba?\(/);
+    expect(read("src/components/tender/CostingTab.tsx")).toMatch(/<SettingsSection id="costing\.wbs" title="Totals by WBS"/);
   });
 });

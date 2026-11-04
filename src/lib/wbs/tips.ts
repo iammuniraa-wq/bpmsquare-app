@@ -15,7 +15,8 @@ export const WBS_TIPS = {
   splitQty: "Shares are kept as percent, so a revised quantity re-derives the quantities and keeps your split.",
   rfqWhole: "A supplier prices the whole BOQ line, whatever its WBS split.",
   parent: "Optional. An item can sit under another, up to three levels deep.",
-  fromTender: "This item was copied from the tender when the project was created. The project keeps its own copy from then on.",
+  buyout: "Starts a buy-out package from this item's lines. A split line goes in whole; lines already in a package are left unticked.",
+  fromTender:"This item was copied from the tender when the project was created. The project keeps its own copy from then on.",
 } as const;
 
 export type WbsTipKey = keyof typeof WBS_TIPS;

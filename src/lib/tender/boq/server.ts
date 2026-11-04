@@ -21,11 +21,12 @@ import { loadWorkbook, sheetNames, sheetToGrid } from "./workbook";
 import { buildAnswerSheet, writePricedWorkbook, type AnswerRow, type PricedRow, type TermsText } from "./write";
 import { choiceOf } from "@/lib/contractProjects/paymentTermsServer";
 import { termLines } from "@/lib/contractProjects/paymentTerms";
-import { loadMembers } from "@/lib/tender/wbs/read";
+import { loadItems, loadMembers } from "@/lib/tender/wbs/read";
 import { wbsStateFor } from "@/lib/tender/wbs/server";
 import { EMPTY_WBS, type WbsState } from "@/lib/tender/wbs/types";
 import { membershipOf } from "@/lib/tender/wbs/view";
-import type { Share } from "@/lib/wbs/tree";
+import { partsOf, remainderOf, type Share } from "@/lib/wbs/tree";
+import { splitListText } from "@/lib/wbs/screen";
 
 import { readAllPages } from "@/lib/pagedRead";
 // Server side of the tender BOQ (migration 0223, slice 3a). Every query is tenant-scoped on the admin client and every one
@@ -804,8 +805,24 @@ function termsOf(r: BoqRequest): TermsText | null {
   return { name: choice.name, lines: termLines(choice.milestones, (n) => `${r.opp.currency ? `${r.opp.currency} ` : ""}${fmt.format(n)}`) };
 }
 
-/** The CLIENT'S file with our unit rates and amounts written into it. Only the selling rate and its amount are passed on: no cost, no markup. */
-export async function exportPriced(r: BoqRequest): Promise<ExportResult> {
+/** Where each BOQ row sits in the tender's WBS, as text, for the optional WBS column. Null while the WBS is pending or empty (then no column is added). */
+async function wbsRowTexts(r: BoqRequest, items: readonly LineBundle[]): Promise<{ rows: { row_no: number; text: string }[] } | null> {
+  const [it, mem] = await Promise.all([loadItems(r.admin, r.tenantId, r.opp.id), loadMembers(r.admin, r.tenantId, r.opp.id)]);
+  if (it.pending || mem.pending || it.items.length === 0) return null;
+  const codeOf = new Map(it.items.map((i) => [i.id, i.code]));
+  return {
+    rows: items.map((x) => {
+      const m = membershipOf(mem.members, x.boq.id);
+      return { row_no: x.boq.row_no, text: splitListText(partsOf(m).map((p) => ({ code: codeOf.get(p.wbs_item_id) ?? "?", share_pct: p.share_pct })), remainderOf(m)) };
+    }),
+  };
+}
+
+/**
+ * The CLIENT'S file with our unit rates and amounts written into it. Only the selling rate and its amount are passed on: no cost, no markup.
+ * `withWbs` adds one last column naming the WBS item of each row; it is off unless asked for, because the file is the client's own layout.
+ */
+export async function exportPriced(r: BoqRequest, opts: { withWbs?: boolean } = {}): Promise<ExportResult> {
   const b = await bundles(r);
   if (!b) return { ok: false, status: 404, error: "Upload a BOQ first" };
   const { source, items } = b;
@@ -820,6 +837,7 @@ export async function exportPriced(r: BoqRequest): Promise<ExportResult> {
     const buffer = await writePricedWorkbook(original, {
       sheet: source.sheet_name, header_row: source.header_row, qty_col: qtyCol, rate_col: source.rate_col ?? (source.column_map.rate ?? 0), amount_col: source.amount_col ?? (source.column_map.amount ?? 0),
       added: source.added_columns, total_row: source.total_row, first_row: Math.min(...rowNos), last_row: Math.max(...rowNos), rows, terms: termsOf(r),
+      wbs: opts.withWbs ? await wbsRowTexts(r, items) : null,
     });
     const base = source.file_name.replace(/\.xlsx$/i, "");
     return { ok: true, buffer, fileName: safeFileName(`${base} - priced.xlsx`, "xlsx"), unpriced: items.length - rows.length };

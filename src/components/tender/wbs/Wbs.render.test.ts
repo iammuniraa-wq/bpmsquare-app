@@ -95,7 +95,7 @@ describe("the view switch", () => {
 
   it("is absent when the tender has no BOQ, when the answer carries no WBS, and when 0243 is pending, which says so once", () => {
     expect(html({ initialData: state({ wbs: undefined }) })).not.toContain('data-guide="boq.view"');
-    const pending = html({ initialData: state({ wbs: { pending: true, items: [], rollup: {}, total: { part_count: 0, shared_count: 0, client_amount: 0, cost: null, priced_count: 0 } } }) }, "boqview=wbs");
+    const pending = html({ initialData: state({ wbs: { pending: true, items: [], rollup: {}, total: { part_count: 0, shared_count: 0, client_amount: 0, cost: null, priced_count: 0, costed_count: 0 } } }) }, "boqview=wbs");
     expect(pending).not.toContain('data-guide="boq.view"');
     expect(pending).toContain(WBS_PENDING);
     expect(pending.split(WBS_PENDING).length - 1).toBe(1);
@@ -302,7 +302,7 @@ describe("the row panel", () => {
     expect(out).toContain(">Unsplit<");
   });
   it("while 0243 is pending the field is the one amber line", () => {
-    const out = open(state({ wbs: { pending: true, items: [], rollup: {}, total: { part_count: 0, shared_count: 0, client_amount: 0, cost: null, priced_count: 0 } } }), "b2");
+    const out = open(state({ wbs: { pending: true, items: [], rollup: {}, total: { part_count: 0, shared_count: 0, client_amount: 0, cost: null, priced_count: 0, costed_count: 0 } } }), "b2");
     expect(out).toContain('data-guide="boq.row.wbs_pending"');
     expect(out).not.toContain('data-guide="boq.row.wbs"');
   });
