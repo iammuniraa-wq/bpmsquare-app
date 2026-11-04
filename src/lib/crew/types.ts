@@ -93,8 +93,12 @@ export type RunRequest = {
   trigger_ref: string;
   scope: RunScope;
   dedupe_key: string;
-  /** Candidate ids (deals or alias keys) the model may ask about. A foreign id is a tool error, not data. */
+  /** Candidate ids (deals or site ids) the model may ask about. A foreign id is a tool error, not data. An EMPTY list is a quiet
+   *  pass: the planner records it as a finished zero-token run whose trigger_ref says what was checked ("Nothing to report. 7 live
+   *  tenders checked"), so the Review tab can show it. */
   candidate_ids: string[];
+  /** Compact facts saved on the run (crew_runs.snapshot) so the NEXT run can say what changed (addenda count, BOQ version). */
+  snapshot?: Record<string, unknown>;
 };
 
 export type PlanCtx = {
