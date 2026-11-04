@@ -379,6 +379,14 @@ Estimators and buyers. Module: **Pipeline** plus **GCC tender deals**, and at le
 2. If rows still need a cost, **Show them in the Bill of quantities** opens the table filtered to them. Old prices have a **Show them** link too.
 3. **Estimates and RFQs** is one list. A row shows its type (Estimate or RFQ), a state, the BOQ rows it prices, its total and its age. **Show all N** pages the list.
 
+**Read the totals by WBS**
+
+1. When the tender has a WBS (section 3), a folded section **Totals by WBS** sits under the list. Select it to open it. It loads when you first open it. With no WBS it reads "No WBS on this tender yet" and offers **Open the Bill of quantities**.
+2. The table has one row for each WBS item with **Bid amount**, **Cost** and **Margin**. A parent adds up its sub-items, and a split line counts by its shares, so nothing is counted twice. The last row, **In a WBS item**, is the sum of everything that sits in an item.
+3. **Cost** and **Margin** show a dash until the rows have a cost. The margin appears only when every priced row under the item has a cost, with its percent of the bid beside it. Hover the margin to see how many priced rows still have no cost.
+4. An amber line, **Not in a WBS item: N rows, amount**, counts the rows that sit in no item and the unassigned rest of a split line. It shows only when there are some.
+5. Twelve rows show at first. **Show all N** lists the rest. On a phone each row is a card.
+
 **Build up a price with an estimate**
 
 1. Select **New estimate**, choose a **Template** and select **Start estimate**. The estimate opens linked to this tender (section 8).
@@ -419,6 +427,7 @@ RFQ rows show one of: Draft; Sent; N of M replied; N of M awarded; Awarded; Clos
 - A tender RFQ is awarded here only. The RFQ's own page says so and links back.
 - Once a bid has been submitted, awarding or re-pricing asks "The bid is already in". The new rate goes on the row. The submitted version stays as it was.
 - Cost and markup are internal. They are never in the priced Excel, the answer sheet, a bid version or a quote.
+- **Totals by WBS** is read-only. Items and lines are changed on the Bill of quantities. The section reads the same roll-up as the WBS view there, so the bid amounts match.
 - A supplier without an email address cannot be sent a request. The message names the supplier.
 - The RFQ mail channel, reply days and reminders are set in **Settings > Sales > RFQ** (Chapter 1, section 5.6).
 
@@ -466,7 +475,7 @@ Bid managers. Module: **Pipeline** plus **GCC tender deals**. Business role entr
 
 Under **Documents we send**:
 
-1. **Download priced BOQ** writes your rate and amount into the client's own Excel and keeps their layout. If some lines have no rate, you are asked to confirm.
+1. **Download priced BOQ** writes your rate and amount into the client's own Excel and keeps their layout. If some lines have no rate, you are asked to confirm. When the tender has a WBS, the tick box **Add a WBS column** sits next to it. It is off by default and is not remembered. Ticked, the file gets one last column, **WBS**, holding each row's item code, or for a split line a list such as `2.1 60 % · 2.2 40 %`. Rows in no item stay empty, and when no row is in an item no column is added.
 2. **Export answer sheet** gives a plain Excel list of the lines with your rates, for copying into a portal form. Nothing is sent anywhere.
 3. **Make a Standard Quote from this version** takes the version you pick (the latest by default). The quote keeps the client's item numbers and links back to the tender.
 
@@ -1204,7 +1213,7 @@ Project managers, finance and the people who approve budgets. Module: **Contract
 
 **Hand over and close**
 
-1. The **Handover** tab gives **Download Excel**: the project, its budget lines by resource and cost code, and the material list.
+1. The **Handover** tab gives **Download Excel**: the project, its budget lines by resource and cost code, the WBS, and the material list. On the **Budget** sheet, **Item no.** is the client's item number and **WBS item** is where the line sits in the project's WBS: the item code, a list such as `1.1 60 % · 1.2 15 % · 2 25 %` for a split line, or empty. When the project has WBS items a **WBS** sheet comes with the file: one row for each item in tree order (**WBS**, **Name**, **Parent**, **Owner**, **Client amount**, **Allocated**, **Lines**, sub-items rolled up) and, under an item, one row for each part of a split line with its **Share %**, **Qty**, **Unit** and client amount. Whole lines are not repeated there. The file is internal and carries cost.
 2. **More > Close project** closes an Active project. **Reopen project** opens it again. **Delete** works on a Draft project whose budgets are all drafts.
 
 ### Statuses
@@ -1285,6 +1294,13 @@ Buyers and project managers. Module: **Contract projects** plus **GCC tender dea
 2. Enter a **Name** (required) and a **Kind**: Supplier (goods) or Subcontract (work). The kind is only a label for now.
 3. Tick the budget lines to include. A line sits in one package at most. Lines already used are not offered. The panel shows how many lines are chosen and what they add up to.
 4. Select **Create package**.
+
+**Make a package from a WBS item**
+
+1. On the project's **WBS** tab, open an item (three dots, **Edit**) and select **Make buy-out package**. The button shows for an existing item on a project you can change and that has Buy-out. The item panel closes.
+2. If the baseline is not approved yet, the tab says "Packages are made from the approved baseline. Approve the baseline first."
+3. The new package panel opens with the **Name** set to the item's name and the item's lines of the approved budget ticked, sub-items included. A line split across items goes in whole, because a supplier prices the whole line, and a grey note beside it shows the share this item holds, for example "60 % in this WBS item". A line already in another package is listed unticked and names that package. Reserve lines are left out.
+4. Change the name, the **Kind** or the ticks if you want, then select **Create package**. The **Buy-out** tab opens on the new package.
 
 **Ask for prices**
 

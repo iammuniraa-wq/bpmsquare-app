@@ -1,6 +1,6 @@
 # BPMSquare REST API and MCP reference
 
-Snapshot 2026-11-01. For integration developers at a client workspace. Everything here was derived from the route code under `src/app/api/v1`, `src/lib/api/*`, `mcp-server/mcp.json` and the settings routes. Where something could not be confirmed from the code it is marked "(verify)". All company names, refs, ids and keys in the samples are fictional (Example Trading LLC, ACC-0007, `bpm_live_xxxxxxxx`).
+Snapshot 2026-11-04. For integration developers at a client workspace. Everything here was derived from the route code under `src/app/api/v1`, `src/lib/api/*`, `mcp-server/mcp.json` and the settings routes. Where something could not be confirmed from the code it is marked "(verify)". All company names, refs, ids and keys in the samples are fictional (Example Trading LLC, ACC-0007, `bpm_live_xxxxxxxx`).
 
 ## 1. Overview
 
@@ -1926,7 +1926,7 @@ curl -s -H "Authorization: Bearer $KEY" "$BASE/tenders?outcome=open&closing=14"
 
 ### 19A.2 GET /tenders/:id
 
-The row above plus `boq`: a summary of the current Bill of quantities, or `null` when none is uploaded. `_links` carries `self`, `deal` (`/api/v1/opportunities/:id`) and `boq`.
+The row above plus `boq`: a summary of the current Bill of quantities, or `null` when none is uploaded. `_links` carries `self`, `deal` (`/api/v1/opportunities/:id`), `boq` and `wbs`.
 
 ```json
 {
@@ -1939,7 +1939,8 @@ The row above plus `boq`: a summary of the current Bill of quantities, or `null`
     "_links": {
       "self": "/api/v1/tenders/e4c8a2b6-91d3-4f07-b5a1-3d6f8e0a2c14",
       "deal": "/api/v1/opportunities/e4c8a2b6-91d3-4f07-b5a1-3d6f8e0a2c14",
-      "boq": "/api/v1/tenders/e4c8a2b6-91d3-4f07-b5a1-3d6f8e0a2c14/boq"
+      "boq": "/api/v1/tenders/e4c8a2b6-91d3-4f07-b5a1-3d6f8e0a2c14/boq",
+      "wbs": "/api/v1/tenders/e4c8a2b6-91d3-4f07-b5a1-3d6f8e0a2c14/wbs"
     }
   },
   "_links": { "self": "/api/v1/tenders/e4c8a2b6-91d3-4f07-b5a1-3d6f8e0a2c14" }
@@ -1951,7 +1952,7 @@ The row above plus `boq`: a summary of the current Bill of quantities, or `null`
 ### 19A.3 GET /tenders/:id/boq
 
 One row per line of the tender's Bill of quantities, paged, filtered and searched like any list (section 1.6). No Bill of quantities yet is `data: []` with `meta.source: null`, status 200. Otherwise `meta.source` holds `file_name`, `version` and `uploaded_at`.
-Queryable fields: `id, tender_id, tender_ref, tender_no, row_no, item_no, cost_code, description, details, client_columns, unit, quantity, rate, amount, rate_source, price_as_of, status`. Searchable: `tender_ref, tender_no, item_no, cost_code, description, details`. `client_columns` is returned but not queried.
+Queryable fields: `id, tender_id, tender_ref, tender_no, row_no, item_no, cost_code, description, details, client_columns, unit, quantity, rate, amount, rate_source, price_as_of, status, wbs_code, wbs_parts`. Searchable: `tender_ref, tender_no, item_no, cost_code, description, details, wbs_code`. `client_columns` and `wbs_parts` are returned but not queried.
 
 | Field | Meaning |
 |---|---|
@@ -1962,6 +1963,8 @@ Queryable fields: `id, tender_id, tender_ref, tender_no, row_no, item_no, cost_c
 | `rate`, `amount` | Our unit rate and the line amount; `null` while the line is unpriced. |
 | `rate_source` | Where the rate came from: `boq_rate`, `bom`, `past_project`, `supplier`, `manual`, `estimate`. |
 | `status` | `priced`, `unpriced`, `stale` or `removed`. |
+| `wbs_code` | Where the line sits in the tender's WBS (section 19A.4): the item code for a whole line, the list `code:percent` joined by `;` for a split line (`2.1:60;2.2:15;2.3:25`), `null` while the line is in no item. |
+| `wbs_parts` | The shares of a split line, each with `wbs_code`, `share_pct`, `quantity` and `amount` (the client amount of that share); an empty list for a whole line. |
 
 ```bash
 curl -s -H "Authorization: Bearer $KEY" "$BASE/tenders/$ID/boq?filter=status:eq:unpriced"
@@ -1987,7 +1990,12 @@ curl -s -H "Authorization: Bearer $KEY" "$BASE/tenders/$ID/boq?filter=status:eq:
       "amount": null,
       "rate_source": null,
       "price_as_of": null,
-      "status": "unpriced"
+      "status": "unpriced",
+      "wbs_code": "2.1:60;2.2:40",
+      "wbs_parts": [
+        { "wbs_code": "2.1", "share_pct": 60, "quantity": 270, "amount": null },
+        { "wbs_code": "2.2", "share_pct": 40, "quantity": 180, "amount": null }
+      ]
     }
   ],
   "meta": { "count": 1, "total": 6, "page": 1, "limit": 50, "has_more": false, "source": { "file_name": "BOQ-drainage.xlsx", "version": 2, "uploaded_at": "2026-10-30T09:12:00+00:00" } },
@@ -1997,9 +2005,67 @@ curl -s -H "Authorization: Bearer $KEY" "$BASE/tenders/$ID/boq?filter=status:eq:
 
 (Shortened.)
 
-### 19A.4 Bulk load without the API: Data Workbench
+### 19A.4 GET /tenders/:id/wbs
 
-The same lines can be loaded in bulk through Data Workbench, object **Tender BOQ lines**. Import adds lines and updates existing ones by item number; it never removes a line. Export carries the Record ID of each line. Update matches on that Record ID only. Only the Upload BOQ button on the tender screen removes lines that a revised file no longer holds.
+The tender's WBS (work breakdown structure), one row per item in tree order, paged, filtered, searched and sorted like any list (section 1.6). Scope `tenders` (explicit only). The module needs Pipeline; a workspace without it, and an id that is not a tender of the workspace, gets 404. A tender with no WBS gives `data: []`, and so does a workspace whose database update for the WBS is not applied yet (`meta.wbs_pending: true`).
+Queryable fields: `id, tender_id, code, name, parent_id, parent_code, level, owner_name, note, line_count, shared_count, priced_count, client_amount, parts`. Searchable: `code, name`. `parts` is returned but not queried.
+
+| Field | Meaning |
+|---|---|
+| `code`, `name` | The item's code (1, 1.1, or your ERP's) and name. |
+| `parent_id`, `parent_code` | The item it sits under; `null` at the top level. |
+| `level` | 1 to 3. |
+| `owner_name` | The owner's **name** only (no email or id), or `null`. |
+| `line_count`, `shared_count`, `priced_count` | BOQ lines in the item and its sub-items, how many of those are shares of split lines, and how many are priced. A split line counts once for each share. |
+| `client_amount` | The client amount rolled up from the item's lines and sub-items; a split line counts by its share. |
+| `parts` | The item's own parts: one entry per BOQ line held in it, with `boq_line_id`, `item_no`, `share_pct`, `quantity`, `amount` (client amount of that share) and the line's `status`. |
+
+`meta` carries `wbs_pending` and, for the whole WBS, `total` (`line_count`, `shared_count`, `client_amount`) and `unassigned` (`lines`, `client_amount`: lines in no item and the unassigned rest of split lines). Cost, markup and margin are never returned. In this endpoint `meta.total` is that object and not a row count; page with `meta.has_more` and `meta.count` (verify).
+
+```bash
+curl -s -H "Authorization: Bearer $KEY" "$BASE/tenders/$ID/wbs?filter=level:eq:1"
+```
+
+```json
+{
+  "data": [
+    {
+      "id": "5d1f7c20-3b84-4a19-9e62-7c0a1d8f4b36",
+      "tender_id": "e4c8a2b6-91d3-4f07-b5a1-3d6f8e0a2c14",
+      "code": "2",
+      "name": "Pipework",
+      "parent_id": null,
+      "parent_code": null,
+      "level": 1,
+      "owner_name": "Example Estimator",
+      "note": null,
+      "line_count": 2,
+      "shared_count": 1,
+      "priced_count": 1,
+      "client_amount": 31920,
+      "parts": [
+        { "boq_line_id": "0b7e5d31-4a96-4c28-8f1e-92a3c6d4b705", "item_no": "2.2", "share_pct": 40, "quantity": 180, "amount": null, "status": "unpriced" }
+      ]
+    }
+  ],
+  "meta": {
+    "count": 1, "page": 1, "limit": 50, "has_more": false,
+    "wbs_pending": false,
+    "total": { "line_count": 4, "shared_count": 1, "client_amount": 220750 },
+    "unassigned": { "lines": 9, "client_amount": 695630 },
+    "generated_at": "2026-11-04T10:00:00.000Z"
+  },
+  "_links": { "self": "/api/v1/tenders/e4c8a2b6-91d3-4f07-b5a1-3d6f8e0a2c14/wbs", "next": null, "prev": null }
+}
+```
+
+(Shortened.) The OpenAPI document lists the path as `/tenders/{id}/wbs`.
+
+### 19A.5 Bulk load without the API: Data Workbench
+
+The same lines can be loaded in bulk through Data Workbench, object **Tender BOQ lines**. Import adds lines and updates existing ones by item number; it never removes a line. Export carries the Record ID of each line. Update matches on that Record ID only. Only the Upload BOQ button on the tender screen removes lines that a revised file no longer holds. The **WBS code** column (the same text as `wbs_code` above) is on Export and Update only: Update puts a line in an item, splits it (`2.1:60;2.2:15;2.3:25`, which must add up to 100) or makes it unassigned (empty cell), and Import never reads it.
+
+The WBS itself is the Data Workbench object **Tender WBS items**. Import adds items to an existing tender (the **Tender** column is a Deal ID or tender number; a code already on the tender is skipped; the parent is named by code and may come later in the file; the owner is an active employee's email). Export carries each item's Record ID, owner email, `Lines`, `Shared lines` and `Client amount`. Update matches on the Record ID and changes name, code, parent, owner and note. Neither carries a cost.
 
 ---
 
@@ -2338,7 +2404,7 @@ app.listen(3000);
 
 ### 25.1 What it is and how mcp.json is used
 
-The `mcp-server/mcp.json` file (name `bpmsquare`, manifest version `1.20.0`) is a **tool manifest**: for each tool it gives a name, a description, an HTTP method, a path under `/api/v1` and a JSON-Schema `inputSchema`. Every tool is a thin wrapper over one REST endpoint described in this document; the result of a tool call is the JSON body of that endpoint. The manifest has no tools that do anything the REST API cannot.
+The `mcp-server/mcp.json` file (name `bpmsquare`, manifest version `1.21.0`) is a **tool manifest**: for each tool it gives a name, a description, an HTTP method, a path under `/api/v1` and a JSON-Schema `inputSchema`. Every tool is a thin wrapper over one REST endpoint described in this document; the result of a tool call is the JSON body of that endpoint. The manifest has no tools that do anything the REST API cannot.
 
 The repository contains only the manifest; the process that exposes it to an MCP client (Claude Desktop, an AI assistant or any MCP host) is not in this repository (verify). A bridge is expected to do the following with a manifest entry:
 
@@ -2412,8 +2478,9 @@ The same per-workspace bearer key as the REST API (section 1.2). Create a dedica
 | `list_tenders` | `GET /api/v1/tenders` | tenders (explicit), read | 19A |
 | `get_tender` | `GET /api/v1/tenders/{id}` | tenders (explicit), read | 19A |
 | `get_tender_boq` | `GET /api/v1/tenders/{id}/boq` | tenders (explicit), read | 19A |
+| `get_tender_wbs` | `GET /api/v1/tenders/{id}/wbs` | tenders (explicit), read | 19A.4 |
 
-37 tools. Not available as tools (use REST): creating, changing or deleting quotations, `/price`, `/ask`, `/changes`, quotation detail, case detail, contacts. The manifest lists `create_quotation` among its "coming soon" tools although the REST API already supports it.
+38 tools. Not available as tools (use REST): creating, changing or deleting quotations, `/price`, `/ask`, `/changes`, quotation detail, case detail, contacts. The manifest lists `create_quotation` among its "coming soon" tools although the REST API already supports it.
 
 ### 25.4 Tool reference
 
@@ -5109,7 +5176,21 @@ Sample call:
 { "name": "get_tender_boq", "arguments": { "id": "e4c8a2b6-91d3-4f07-b5a1-3d6f8e0a2c14", "filter": "status:eq:unpriced" } }
 ```
 
-Request sent: `GET /api/v1/tenders/e4c8a2b6-91d3-4f07-b5a1-3d6f8e0a2c14/boq?filter=status:eq:unpriced`. The result is the body shown in 19A.3.
+Request sent: `GET /api/v1/tenders/e4c8a2b6-91d3-4f07-b5a1-3d6f8e0a2c14/boq?filter=status:eq:unpriced`. The result is the body shown in 19A.3. Each row also carries `wbs_code` and `wbs_parts`, which say where the line sits in the tender's WBS.
+
+#### 25.4.38 get_tender_wbs
+
+The WBS (work breakdown structure) of one tender, one row per item in tree order and paged: code, name, parent, level (up to three), the owner's name, the number of BOQ lines, shared (split) lines and priced lines and the client amount, all rolled up from the sub-items, and `parts` (each BOQ line's share of that item with its quantity and client amount). The meta carries the whole-WBS total and what is still unassigned. Only client amounts: cost, markup and margin are never returned.
+
+Calls `GET /api/v1/tenders/{id}/wbs`. Scope: tenders (explicit), read. REST reference: section 19A.4. Input: `id` (required, the tender's deal uuid), then optional `filter` (`field:op:value` triples joined by `;`, for example `level:eq:1` or `parent_code:eq:2`), `search` (text in an item's code or name), `sort` (a leading `-` is descending, for example `-client_amount`), `page` and `limit` (maximum 200).
+
+Sample call:
+
+```json
+{ "name": "get_tender_wbs", "arguments": { "id": "e4c8a2b6-91d3-4f07-b5a1-3d6f8e0a2c14", "filter": "level:eq:1" } }
+```
+
+Request sent: `GET /api/v1/tenders/e4c8a2b6-91d3-4f07-b5a1-3d6f8e0a2c14/wbs?filter=level:eq:1`. The result is the body shown in 19A.4.
 
 ### 25.5 Tools that are announced but not built
 
