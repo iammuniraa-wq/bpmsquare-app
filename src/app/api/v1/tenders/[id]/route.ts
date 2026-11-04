@@ -22,7 +22,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   if (!row) return Response.json({ error: "Not found" }, { status: 404 });
 
   const { source, rows } = await loadBoqRowsForApi(admin, tenantId, id, { tender: { ref: (row.ref as string | null) ?? null, tender_no: (row.tender_no as string | null) ?? null } });
-  const links = { self: `/api/v1/tenders/${id}`, deal: `/api/v1/opportunities/${id}`, boq: `/api/v1/tenders/${id}/boq` };
+  const links = { self: `/api/v1/tenders/${id}`, deal: `/api/v1/opportunities/${id}`, boq: `/api/v1/tenders/${id}/boq`, wbs: `/api/v1/tenders/${id}/wbs` };
   return jsonOk({
     data: { ...row, boq: source ? summariseBoqRows(rows, source) : null, _links: links },
     _links: { self: links.self },

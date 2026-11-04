@@ -233,7 +233,8 @@ function ImportFlow({ spec: baseSpec, mode, needs, onGoExport }: { spec: ObjectS
   const spec: ObjectSpec = useMemo(() => {
     // exportOnly fields (computed values like quote status/total/line amount)
     // are Export columns only -- never offered for mapping on Import/Update.
-    if (mode !== "update") return { ...baseSpec, fields: baseSpec.fields.filter((f) => !f.exportOnly) };
+    // updateOnly fields (a tender line's WBS code) are Export columns and Update columns; a new row on Import never regroups.
+    if (mode !== "update") return { ...baseSpec, fields: baseSpec.fields.filter((f) => !f.exportOnly && !f.updateOnly) };
     // Quotes additionally drop line-item columns and the quote_name grouping
     // key -- bulk Update edits quote header scalars only, one row per quote.
     // Tender BOQ lines: the Unit rate column stays in Update's list (it is a plain number field) but the route ignores it and says so in

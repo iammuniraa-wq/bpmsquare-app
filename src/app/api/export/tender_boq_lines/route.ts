@@ -52,6 +52,7 @@ export async function POST(request: NextRequest) {
           unit: s(l.unit),
           quantity: s(l.quantity),
           cost_code: s(l.cost_code),
+          wbs_code: s(l.wbs_code),
           client_columns: l.client_columns && typeof l.client_columns === "object" ? JSON.stringify(l.client_columns) : "",
           rate: s(l.rate),
           amount: s(l.amount),

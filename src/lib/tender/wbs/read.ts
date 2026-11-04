@@ -38,4 +38,11 @@ export async function loadMembers(admin: SupabaseClient, tenantId: string, oppId
   return { members, pending: false };
 }
 
-export const ownerNames = (admin: SupabaseClient, tenantId: string, items: readonly WbsItemRow[]) => employeeNames(admin, tenantId, items.map((i) => i.owner_employee_id));
+/** The items and where every line sits, in one read; `pending` when migration 0243 is not applied (then nothing is in it). */
+export async function loadStructure(admin: SupabaseClient, tenantId: string, oppId: string): Promise<{ items: WbsItemRow[]; members: LineMembers; pending: boolean }> {
+  const [it, mem] = await Promise.all([loadItems(admin, tenantId, oppId), loadMembers(admin, tenantId, oppId)]);
+  if (it.pending || mem.pending) return { items: [], members: { item: new Map(), parts: new Map() }, pending: true };
+  return { items: it.items, members: mem.members, pending: false };
+}
+
+export const ownerNames =(admin: SupabaseClient, tenantId: string, items: readonly WbsItemRow[]) => employeeNames(admin, tenantId, items.map((i) => i.owner_employee_id));

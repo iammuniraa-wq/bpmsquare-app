@@ -5,7 +5,7 @@ export type ImportObjectId =
   | "product_bom_lines" | "consents" | "abm_programs" | "abm_targets" | "abm_members"
   | "standard_quotes" | "standard_quote_lines"
   | "sales_orders" | "sales_order_lines"
-  | "tender_boq_lines";
+  | "tender_boq_lines" | "tender_wbs_items";
 
 /**
  * Which objects have an Export or an Update is decided by the route folders under src/app/api/{export,update} and
@@ -45,6 +45,8 @@ export type FieldSpec = {
   exportOnly?: boolean;
   /** Read on Import (and offered for mapping on Update) but never an Export column: a spelling a client's file uses, such as a Narration column. */
   importOnly?: boolean;
+  /** An Export column and mappable on Update, but not offered on Import: a column whose meaning on a new row would move existing data (a tender line's WBS code). */
+  updateOnly?: boolean;
   example?: string;
 };
 

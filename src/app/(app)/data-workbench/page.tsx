@@ -12,6 +12,7 @@ import { CONSENTS_SPEC } from "@/lib/import/consentsSchema";
 import { STANDARD_QUOTE_LINES_SPEC } from "@/lib/import/standardQuoteLinesSchema";
 import { SALES_ORDER_LINES_SPEC } from "@/lib/import/salesOrderLinesSchema";
 import { TENDER_BOQ_LINES_SPEC } from "@/lib/import/tenderBoqLinesSchema";
+import { TENDER_WBS_ITEMS_SPEC } from "@/lib/import/tenderWbsItemsSchema";
 import { EMPLOYEES_SPEC, buildEmployeesSpec } from "@/lib/import/employeesSchema";
 import { requireWorkcenterView } from "@/lib/permissions";
 import { featureForObject } from "@/lib/objectFeatures";
@@ -32,6 +33,7 @@ const STATIC_SPECS: Partial<Record<ImportObjectId, ObjectSpec>> = {
   standard_quote_lines: STANDARD_QUOTE_LINES_SPEC,
   sales_order_lines: SALES_ORDER_LINES_SPEC,
   tender_boq_lines: TENDER_BOQ_LINES_SPEC,
+  tender_wbs_items: TENDER_WBS_ITEMS_SPEC,
 };
 
 export default async function DataWorkbenchPage() {
@@ -42,7 +44,12 @@ export default async function DataWorkbenchPage() {
   const [salesConfig, tenant] = await Promise.all([getSalesConfig(supabase, tenantId), getTenant()]);
   // Which objects this tenant may bulk-load at all: the module that owns each object (OBJECT_FEATURE) plus the extra flags
   // the catalog names. The routes behind the screen enforce the same answer.
-  const objectOrder = ownedObjectIds(tenant?.features, featureForObject);
+  let objectOrder = ownedObjectIds(tenant?.features, featureForObject);
+  // Migration 0243 not applied yet: there is no WBS table, so the WBS object is not offered (its routes would only say so). Nothing else changes.
+  if (objectOrder.includes("tender_wbs_items")) {
+    const probe = await supabase.from("tender_wbs_items").select("id").eq("tenant_id", tenantId).limit(1);
+    if (probe.error && (probe.error.code === "42P01" || probe.error.code === "PGRST205")) objectOrder = objectOrder.filter((id) => id !== "tender_wbs_items");
+  }
 
   // Catalog order, not alphabetical: the picker groups by module and nests lines under their parent.
   const specs: ObjectSpec[] = (

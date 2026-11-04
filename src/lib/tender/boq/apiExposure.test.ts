@@ -62,7 +62,7 @@ describe("part 1: the shared loader reads no internal column", () => {
 });
 
 describe("part 2: the v1 routes, Talk to data, the keys panel and the change feed", () => {
-  const routes = ["src/app/api/v1/tenders/route.ts", "src/app/api/v1/tenders/[id]/route.ts", "src/app/api/v1/tenders/[id]/boq/route.ts"];
+  const routes = ["src/app/api/v1/tenders/route.ts", "src/app/api/v1/tenders/[id]/route.ts", "src/app/api/v1/tenders/[id]/boq/route.ts", "src/app/api/v1/tenders/[id]/wbs/route.ts"];
 
   it("every v1 tender route authorizes through the explicit tenders scope, checks the Pipeline, and names the workspace on every query", () => {
     for (const f of routes) {
@@ -91,21 +91,23 @@ describe("part 2: the v1 routes, Talk to data, the keys panel and the change fee
   it("a key can be minted with the scope, the index and the registry name the endpoints, and the scope stays explicit-only", () => {
     expect(read("src/app/(app)/settings/developer/ApiKeysPanel.tsx")).toMatch(/key: "tenders", label: "Tenders \(bids and BOQ rates, no costs\)"/);
     const index = read("src/app/api/v1/route.ts");
-    for (const e of ["GET /api/v1/tenders\"", "GET /api/v1/tenders/:id\"", "GET /api/v1/tenders/:id/boq\""]) expect(index, e).toContain(e);
+    for (const e of ["GET /api/v1/tenders\"", "GET /api/v1/tenders/:id\"", "GET /api/v1/tenders/:id/boq\"", "GET /api/v1/tenders/:id/wbs\""]) expect(index, e).toContain(e);
     expect(read("src/lib/api/registry.ts")).toContain('"/api/v1/tenders"');
     expect(read("src/lib/api/openapi.ts")).toContain('paths["/tenders/{id}/boq"]');
+    expect(read("src/lib/api/openapi.ts")).toContain('paths["/tenders/{id}/wbs"]');
     expect(read("src/app/api/v1/_auth.ts")).toMatch(/EXPLICIT_SCOPE_ONLY = new Set\([^)]*"tenders"/);
   });
 });
 
 describe("part 3: the MCP manifest", () => {
   const mcp = JSON.parse(read("mcp-server/mcp.json")) as { version: string; tools: { name: string; description: string; method: string; path: string; inputSchema: { properties?: Record<string, unknown>; required?: string[] } }[] };
-  const tools = ["list_tenders", "get_tender", "get_tender_boq"].map((n) => mcp.tools.find((t) => t.name === n));
+  const tools = ["list_tenders", "get_tender", "get_tender_boq", "get_tender_wbs"].map((n) => mcp.tools.find((t) => t.name === n));
 
-  it("is version 1.20.0 with the three tender tools, each a GET on the v1 endpoint it names", () => {
-    expect(mcp.version).toBe("1.20.0");
+  it("is version 1.21.0 with the four tender tools, each a GET on the v1 endpoint it names", () => {
+    expect(mcp.version).toBe("1.21.0");
     expect(tools.every(Boolean)).toBe(true);
-    expect(tools.map((t) => `${t!.method} ${t!.path}`)).toEqual(["GET /api/v1/tenders", "GET /api/v1/tenders/{id}", "GET /api/v1/tenders/{id}/boq"]);
+    expect(tools.map((t) => `${t!.method} ${t!.path}`)).toEqual(["GET /api/v1/tenders", "GET /api/v1/tenders/{id}", "GET /api/v1/tenders/{id}/boq", "GET /api/v1/tenders/{id}/wbs"]);
+    expect(tools[3]!.inputSchema.required).toEqual(["id"]);
     expect(new Set(mcp.tools.map((t) => t.name)).size).toBe(mcp.tools.length);
     expect(tools[1]!.inputSchema.required).toEqual(["id"]);
     expect(tools[2]!.inputSchema.required).toEqual(["id"]);
@@ -125,5 +127,42 @@ describe("part 3: the MCP manifest", () => {
 
   it("the manifest keeps the product-structure words out, as productApiExposure.test.ts requires", () => {
     expect(read("mcp-server/mcp.json")).not.toMatch(/bom_lines|BOM components|rolled-up/i);
+  });
+});
+
+describe("part 4: the WBS endpoint and the WBS columns show client amounts only", () => {
+  it("the WBS answer is built from the customer-safe BOQ rows, never from a query of its own on the lines", () => {
+    const api = read("src/lib/tender/wbs/api.ts");
+    expect(api).toContain("loadBoqRowsForApi(");
+    expect(api).not.toMatch(/\.from\(|unit_cost|markup|price_source_ref|cost_price/);
+    const shape = read("src/lib/tender/wbs/apiShape.ts");
+    expect(shape).not.toMatch(/\.from\(|unit_cost|markup_pct|price_source_ref|cost_price/);
+    // The roll-up is handed no unit cost at all, so its cost figure stays null and is never read into the answer.
+    expect(shape).toContain("cost: null");
+    expect(shape).not.toMatch(/\bf\??\.cost\b/);
+  });
+
+  it("the rows the structure comes from (items, line memberships, parts) hold no cost column", () => {
+    const readSrc = read("src/lib/tender/wbs/read.ts");
+    for (const table of ["tender_wbs_items", "tender_boq_lines", "tender_wbs_line_parts"]) {
+      for (const cols of selects(readSrc, table)) {
+        expect(cols).not.toMatch(INTERNAL);
+        expect(cols).not.toContain("*");
+      }
+    }
+  });
+
+  it("the endpoint's fields name no internal path and no employee id", () => {
+    const shape = read("src/lib/tender/wbs/apiShape.ts");
+    const block = shape.slice(shape.indexOf("export const TENDER_WBS_FIELDS"), shape.indexOf("/** The slice of an already-loaded"));
+    expect(block).not.toMatch(/cost|markup|margin|owner_employee_id|unit_cost|price_source/i);
+  });
+
+  it("a split line's part carries a share, a quantity and a client amount, and the BOQ fields name the two WBS columns", () => {
+    const names = TENDER_BOQ_LINE_FIELDS.map((f) => f.path);
+    expect(names).toContain("wbs_code");
+    expect(names).toContain("wbs_parts");
+    const shape = read("src/lib/tender/wbs/apiShape.ts");
+    expect(shape).toContain("export type ApiLinePart = { wbs_code: string; share_pct: number; quantity: number; amount: number | null };");
   });
 });

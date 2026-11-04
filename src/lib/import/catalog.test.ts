@@ -13,6 +13,7 @@ import { CONSENTS_SPEC } from "./consentsSchema";
 import { STANDARD_QUOTE_LINES_SPEC } from "./standardQuoteLinesSchema";
 import { SALES_ORDER_LINES_SPEC } from "./salesOrderLinesSchema";
 import { TENDER_BOQ_LINES_SPEC } from "./tenderBoqLinesSchema";
+import { TENDER_WBS_ITEMS_SPEC } from "./tenderWbsItemsSchema";
 import { EMPLOYEES_SPEC } from "./employeesSchema";
 import type { ImportObjectId, ObjectSpec } from "./types";
 
@@ -21,7 +22,7 @@ import type { ImportObjectId, ObjectSpec } from "./types";
 
 const API = join(__dirname, "..", "..", "app", "api");
 const ids = DW_OBJECT_IDS;
-const STATIC: ObjectSpec[] = [USERS_SPEC, QUOTE_LINES_SPEC, EMPLOYEES_SPEC, PRODUCT_BOM_LINES_SPEC, CONSENTS_SPEC, STANDARD_QUOTE_LINES_SPEC, SALES_ORDER_LINES_SPEC, TENDER_BOQ_LINES_SPEC];
+const STATIC: ObjectSpec[] = [USERS_SPEC, QUOTE_LINES_SPEC, EMPLOYEES_SPEC, PRODUCT_BOM_LINES_SPEC, CONSENTS_SPEC, STANDARD_QUOTE_LINES_SPEC, SALES_ORDER_LINES_SPEC, TENDER_BOQ_LINES_SPEC, TENDER_WBS_ITEMS_SPEC];
 const staticById = new Map(STATIC.map((s) => [s.id, s]));
 
 describe("the catalog covers every object once, in a real group", () => {
@@ -151,7 +152,7 @@ describe("module ownership", () => {
 
 // The filter page.tsx used before the catalog: OBJECT_ORDER, the two hard-coded special cases and featureForObject.
 const LEGACY_ORDER: ImportObjectId[] = [
-  "accounts", "contacts", "assets", "suppliers", "products", "product_bom_lines", "wfm_projects", "opportunities", "rfqs", "estimates", "abm_programs", "abm_targets", "abm_members", "quotes", "quote_lines", "standard_quotes", "standard_quote_lines", "sales_orders", "sales_order_lines", "tender_boq_lines",
+  "accounts", "contacts", "assets", "suppliers", "products", "product_bom_lines", "wfm_projects", "opportunities", "rfqs", "estimates", "abm_programs", "abm_targets", "abm_members", "quotes", "quote_lines", "standard_quotes", "standard_quote_lines", "sales_orders", "sales_order_lines", "tender_boq_lines", "tender_wbs_items",
   "cases", "work_orders", "invoices", "purchase_orders", "inventory",
   "users", "employees", "consents",
 ];
@@ -159,7 +160,7 @@ function legacyOwned(features: Partial<Record<string, boolean>>): ImportObjectId
   return LEGACY_ORDER.filter((id) => {
     const key = featureForObject(id);
     if (id === "consents" && features.marketing !== true) return false;
-    if (id === "tender_boq_lines" && features.pipeline !== true) return false;
+    if ((id === "tender_boq_lines" || id === "tender_wbs_items") && features.pipeline !== true) return false;
     return key === null || features[key] === true;
   });
 }
@@ -185,13 +186,14 @@ describe("the list a workspace sees is the one it saw before the catalog", () =>
     expect(new Set(ownedObjectIds(features, featureForObject))).toEqual(want);
   });
 
-  it("lists the same 28 objects the page listed, no more", () => {
+  it("lists the same 29 objects the page listed, no more", () => {
     expect([...ids].sort()).toEqual([...LEGACY_ORDER].sort());
-    expect(ids).toHaveLength(28);
+    expect(ids).toHaveLength(29);
   });
 
-  it("tender BOQ lines need the Pipeline as well as the tender edition, consents need Marketing as well as their own flag", () => {
+  it("tender BOQ lines and WBS items need the Pipeline as well as the tender edition, consents need Marketing as well as their own flag", () => {
     expect(DW_CATALOG.tender_boq_lines).toMatchObject({ group: "sales", parent: "opportunities", alsoNeeds: ["pipeline"] });
+    expect(DW_CATALOG.tender_wbs_items).toMatchObject({ group: "sales", parent: "opportunities", alsoNeeds: ["pipeline"] });
     expect(DW_CATALOG.consents.alsoNeeds).toEqual(["marketing"]);
   });
 });

@@ -14,8 +14,8 @@ export const DATA_WORKBENCH_TARGET = "nav:/data-workbench";
 export const DATA_WORKBENCH_BOQ_TARGET = dataWorkbenchTarget("import", "tender_boq_lines");
 
 /** The v1 endpoints and MCP tools that carry a tender's BOQ. Pinned by boqHelp.test.ts against the manifest and the API index. */
-export const TENDER_API_PATHS = ["/api/v1/tenders", "/api/v1/tenders/{id}", "/api/v1/tenders/{id}/boq"] as const;
-export const TENDER_MCP_TOOLS = ["list_tenders", "get_tender", "get_tender_boq"] as const;
+export const TENDER_API_PATHS = ["/api/v1/tenders", "/api/v1/tenders/{id}", "/api/v1/tenders/{id}/boq", "/api/v1/tenders/{id}/wbs"] as const;
+export const TENDER_MCP_TOOLS = ["list_tenders", "get_tender", "get_tender_boq", "get_tender_wbs"] as const;
 
 /** The rule appended to the assistant prompt; empty when the caller cannot reach tenders at all. */
 export function boqUploadRule(targets: readonly NavTarget[]): string {
@@ -36,7 +36,7 @@ export function boqUploadRule(targets: readonly NavTarget[]): string {
 
   const hasBoqObject = targets.some((t) => t.id === DATA_WORKBENCH_BOQ_TARGET);
   const bulk = hasWorkbench
-    ? `Bulk import and export: Data Workbench has the object "${object}". Import adds new lines and updates the ones it matches by item number, and never removes a line. Export writes every line with its Record ID. Update changes quantity, description, details and cost code by Record ID.` +
+    ? `Bulk import and export: Data Workbench has the object "${object}". Import adds new lines and updates the ones it matches by item number, and never removes a line. Export writes every line with its Record ID. Update changes quantity, description, details and cost code by Record ID, and sets the WBS code (wbs_code) of a line.` +
       (hasBoqObject ? ` For bulk work call navigate with ${DATA_WORKBENCH_BOQ_TARGET}; it opens Data Workbench on that object.` : "")
     : "Bulk import and export of BOQ lines: Data Workbench is not switched on for this person. Say so in one sentence, name Upload BOQ on the tender's Bill of quantities tab as the way to load or revise a BOQ, and never describe Data Workbench steps or offer to open it.";
 

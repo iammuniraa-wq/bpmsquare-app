@@ -67,6 +67,10 @@ export const DW_CATALOG: Record<ImportObjectId, DwCatalogEntry> = {
     label: "Tender BOQ lines", group: "sales", parent: "opportunities", modes: ALL, keywords: ["bill of quantities", "boq", "tender lines"], alsoNeeds: ["pipeline"],
     note: "Adds or revises lines of an existing tender by item number. A line is never removed, whatever the file leaves out.",
   },
+  tender_wbs_items: {
+    label: "Tender WBS items", group: "sales", parent: "opportunities", modes: ALL, keywords: ["wbs", "work breakdown", "work breakdown structure", "tender wbs"], alsoNeeds: ["pipeline"],
+    note: "Adds items to an existing tender's WBS or edits them. Which BOQ lines sit in an item is the WBS code on Tender BOQ lines.",
+  },
   rfqs: {
     label: "RFQs", group: "sales", modes: ["export", "update"], keywords: ["request for quotation", "suppliers", "rfq"],
     note: "Export with real IDs, then update header fields in bulk.",
