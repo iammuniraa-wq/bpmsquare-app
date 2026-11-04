@@ -82,7 +82,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       await ctx.supabase.from("abm_programs").update({ ...sourcePatch, source_snapshot_at: now, updated_at: now }).eq("id", id).eq("tenant_id", ctx.tenantId);
       await logChange(ctx.supabase, {
         tenantId: ctx.tenantId, objectType: "abm_programs", objectId: id, objectLabel: program.name, action: "update", actorId: ctx.userId, actorEmail: ctx.email,
-        changes: [{ field: "target list", from: null, to: `${result.added} added from ${via === "segment" ? "a segment" : "a target group"}` }],
+        changes: [{ field: "target list", from: null, to: `${result.added} added from ${via === "segment" ? "a segment" : "an audience"}` }],
       });
     }
     return NextResponse.json(result, { status: 201 });

@@ -37,7 +37,7 @@ export default function SegmentsListClient({ groups }: { groups: MarketingTarget
 
   const { confirm } = useFeel();
   async function remove(id: string) {
-    if (!(await confirm({ title: "Delete this target group?", body: "Campaigns already built from it are unaffected.", tone: "danger" }))) return;
+    if (!(await confirm({ title: "Delete this audience?", body: "Campaigns already built from it are unaffected.", tone: "danger" }))) return;
     setItems((current) => current.filter((g) => g.id !== id));
     await fetch(`/api/marketing/target-groups/${id}`, { method: "DELETE" });
     router.refresh();
@@ -46,7 +46,7 @@ export default function SegmentsListClient({ groups }: { groups: MarketingTarget
   if (items.length === 0) {
     return (
       <div style={{ ...cardStyle, textAlign: "center", padding: "48px 24px", color: c.muted }}>
-        No target groups yet. Build one with the Segmentation designer, then reuse it across campaigns.
+        No audiences yet. Build one, then reuse it across emails.
       </div>
     );
   }

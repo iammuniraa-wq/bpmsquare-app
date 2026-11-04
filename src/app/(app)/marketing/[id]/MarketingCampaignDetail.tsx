@@ -117,6 +117,16 @@ export default function MarketingCampaignDetail({
         </Field>
       </Card>
 
+      <TargetAudiencePicker
+        accounts={accounts}
+        types={types} setTypes={setTypes}
+        includeIds={includeIds} setIncludeIds={setIncludeIds}
+        excludeIds={excludeIds} setExcludeIds={setExcludeIds}
+        manualEmails={manualEmails} setManualEmails={setManualEmails}
+        filters={filters} setFilters={setFilters}
+        match={match} setMatch={setMatch}
+      />
+
       {newsletter ? (
         <NewsletterSourceCard
           newsletter={newsletter} languages={nlLanguages} onLanguages={setNlLanguages} fallback={nlFallback} onFallback={setNlFallback}
@@ -142,16 +152,6 @@ export default function MarketingCampaignDetail({
           <RichTextEditor value={body} onChange={setBody} placeholder="Write your message…" minHeight={160} />
         </Card>
       )}
-
-      <TargetAudiencePicker
-        accounts={accounts}
-        types={types} setTypes={setTypes}
-        includeIds={includeIds} setIncludeIds={setIncludeIds}
-        excludeIds={excludeIds} setExcludeIds={setExcludeIds}
-        manualEmails={manualEmails} setManualEmails={setManualEmails}
-        filters={filters} setFilters={setFilters}
-        match={match} setMatch={setMatch}
-      />
 
       {newsletter && (
         <>

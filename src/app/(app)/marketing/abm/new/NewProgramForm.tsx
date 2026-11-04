@@ -113,7 +113,7 @@ export default function NewProgramForm({ members, groups, segments, currentUserI
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             <Select value={source.kind} onChange={(e) => setSource({ kind: e.target.value as "none" | "group" | "segment", id: "" })} style={{ maxWidth: 220 }}>
               <option value="none">Start empty</option>
-              <option value="group">A marketing target group</option>
+              <option value="group">An audience</option>
               <option value="segment">A Coverage segment</option>
             </Select>
             {source.kind !== "none" && (

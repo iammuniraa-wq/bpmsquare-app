@@ -275,3 +275,12 @@ Risks:
 - The assistant's newsletter-studio manifest carries its own feature and workcenter gate now that the sidebar row is gone.
 - Deviations: the composer is still one page, not three steps (Audience, Message, Review and send arrive with slice 3, because the audience picker is replaced there). A role granted only the Newsletters workcenter (and not Email) no longer sees a sidebar row; the studio pages stay open to it by address and ⌘K "New Newsletter".
 - Verified by tests only: redirects (source checks), nav gating, assistant manifests.
+
+**Slice 3, Audiences.**
+- The campaign form's audience block is one **Audience** control: a select (Everyone we can email, a saved audience, or "One-off (changed here)") plus **More** for account types, specific accounts and extra addresses. It sits before the message in both the new and the draft form. A new email starts as Everyone.
+- The select tells the truth by value (`src/lib/marketing/audienceRule.ts`): load a saved audience and change a box, and it becomes a one-off with **Save as audience** beside it. A matching saved audience shows **Edit audience** and **Delete**.
+- The count (`AudienceCount`) is the send's own, with a status chip on every typed address.
+- "Target group" is gone from the screens: Audiences list and builder, ABM source ("From an audience"), ABM tips, the change-log line. Routes and the `marketing_target_groups` table are unchanged; no data migration.
+- Deviation: the composer is one page with Audience, then Message, then **Review and send** (the panel from slice 1), not a stepper. The three steps are the order of the cards.
+- The saved-audience dropdown, the account-type filter and the specific-account search are still reachable (under More). The Segmentation builder is untouched except wording.
+- Verified by tests and tsc only: the select/More behaviour in a browser.

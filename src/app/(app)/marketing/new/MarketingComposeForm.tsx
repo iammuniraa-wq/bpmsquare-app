@@ -32,7 +32,7 @@ export default function MarketingComposeForm({ accounts, initialGroupId }: { acc
   const [subject, setSubject] = useState("");
   const [customMessage, setCustomMessage] = useState("");
   const [body, setBody] = useState("");
-  const [types, setTypes] = useState<Set<AccountType>>(new Set());
+  const [types, setTypes] = useState<Set<AccountType>>(new Set(initialGroupId ? [] : ["direct", "end_customer", "oem", "prospect"]));
   const [includeIds, setIncludeIds] = useState<Set<string>>(new Set());
   const [excludeIds, setExcludeIds] = useState<Set<string>>(new Set());
   const [manualEmails, setManualEmails] = useState<Set<string>>(new Set());
@@ -99,6 +99,17 @@ export default function MarketingComposeForm({ accounts, initialGroupId }: { acc
         </Field>
       </Card>
 
+      <TargetAudiencePicker
+        accounts={accounts}
+        types={types} setTypes={setTypes}
+        includeIds={includeIds} setIncludeIds={setIncludeIds}
+        excludeIds={excludeIds} setExcludeIds={setExcludeIds}
+        manualEmails={manualEmails} setManualEmails={setManualEmails}
+        filters={filters} setFilters={setFilters}
+        match={match} setMatch={setMatch}
+        autoLoadGroupId={initialGroupId}
+      />
+
       <TemplatePicker
         selectedId={templateId}
         onSelect={setTemplateId}
@@ -118,16 +129,6 @@ export default function MarketingComposeForm({ accounts, initialGroupId }: { acc
         </Card>
       )}
 
-      <TargetAudiencePicker
-        accounts={accounts}
-        types={types} setTypes={setTypes}
-        includeIds={includeIds} setIncludeIds={setIncludeIds}
-        excludeIds={excludeIds} setExcludeIds={setExcludeIds}
-        manualEmails={manualEmails} setManualEmails={setManualEmails}
-        filters={filters} setFilters={setFilters}
-        match={match} setMatch={setMatch}
-        autoLoadGroupId={initialGroupId}
-      />
     </ObjectFormPage>
   );
 }
