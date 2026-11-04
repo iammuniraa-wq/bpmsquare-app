@@ -1,0 +1,101 @@
+{
+  "id": "quiet-09-late-by-two-or-three-minutes",
+  "tags": [
+    "quiet"
+  ],
+  "description": "Four of nine late by 2-3 minutes on two days; a candidate by count, clock noise by size, so nothing to report.",
+  "input": {
+    "site": {
+      "alias": "S2",
+      "shift_start": "09:00",
+      "grace_minutes": 0,
+      "radius_m": 150
+    },
+    "run": {
+      "from": "2026-10-19",
+      "to": "2026-11-01"
+    },
+    "config": {
+      "week_off_days": [
+        0
+      ]
+    },
+    "people": [
+      {
+        "alias": "P1",
+        "type": "full_time",
+        "days": {
+          "2026-10-27": "L2",
+          "2026-10-29": "L2"
+        }
+      },
+      {
+        "alias": "P2",
+        "type": "full_time",
+        "days": {
+          "2026-10-27": "L3",
+          "2026-10-29": "L3"
+        }
+      },
+      {
+        "alias": "P3",
+        "type": "full_time",
+        "days": {
+          "2026-10-27": "L2",
+          "2026-10-29": "L2"
+        }
+      },
+      {
+        "alias": "P4",
+        "type": "full_time",
+        "days": {
+          "2026-10-27": "L3",
+          "2026-10-29": "L3"
+        }
+      },
+      {
+        "alias": "P5",
+        "type": "full_time"
+      },
+      {
+        "alias": "P6",
+        "type": "full_time"
+      },
+      {
+        "alias": "P7",
+        "type": "full_time"
+      },
+      {
+        "alias": "P8",
+        "type": "full_time"
+      },
+      {
+        "alias": "P9",
+        "type": "full_time"
+      }
+    ]
+  },
+  "expect": {
+    "expected_candidates": [
+      {
+        "family": "late_cluster",
+        "level": "site"
+      }
+    ],
+    "must_flag": [],
+    "must_not_flag": [
+      {
+        "kind": "late_cluster",
+        "level": "site",
+        "reason": "2-3 minute lateness is noise"
+      }
+    ],
+    "must_gap": [],
+    "max_findings": 0,
+    "max_person_findings": 0,
+    "proposals": {
+      "allowed": [],
+      "forbidden_target_aliases": []
+    }
+  }
+}

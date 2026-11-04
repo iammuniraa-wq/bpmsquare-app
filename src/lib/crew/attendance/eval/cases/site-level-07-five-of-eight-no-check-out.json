@@ -1,0 +1,102 @@
+{
+  "id": "site-level-07-five-of-eight-no-check-out",
+  "tags": [
+    "site-level"
+  ],
+  "description": "Five of eight present did not check out on a Friday.",
+  "input": {
+    "site": {
+      "alias": "S1",
+      "shift_start": "09:00",
+      "grace_minutes": 10,
+      "radius_m": 150
+    },
+    "run": {
+      "from": "2026-10-19",
+      "to": "2026-11-01"
+    },
+    "config": {
+      "week_off_days": [
+        0
+      ]
+    },
+    "people": [
+      {
+        "alias": "P1",
+        "type": "full_time",
+        "days": {
+          "2026-10-30": "M"
+        }
+      },
+      {
+        "alias": "P2",
+        "type": "full_time",
+        "days": {
+          "2026-10-30": "M"
+        }
+      },
+      {
+        "alias": "P3",
+        "type": "full_time",
+        "days": {
+          "2026-10-30": "M"
+        }
+      },
+      {
+        "alias": "P4",
+        "type": "full_time",
+        "days": {
+          "2026-10-30": "M"
+        }
+      },
+      {
+        "alias": "P5",
+        "type": "full_time",
+        "days": {
+          "2026-10-30": "M"
+        }
+      },
+      {
+        "alias": "P6",
+        "type": "full_time"
+      },
+      {
+        "alias": "P7",
+        "type": "full_time"
+      },
+      {
+        "alias": "P8",
+        "type": "full_time"
+      }
+    ]
+  },
+  "expect": {
+    "expected_candidates": [
+      {
+        "family": "missing_out_cluster",
+        "level": "site"
+      }
+    ],
+    "must_flag": [
+      {
+        "kind": "missing_out_cluster",
+        "level": "site",
+        "must_cite": [
+          "people_affected",
+          "days"
+        ]
+      }
+    ],
+    "must_not_flag": [],
+    "must_gap": [],
+    "max_findings": 1,
+    "max_person_findings": 0,
+    "proposals": {
+      "allowed": [
+        "wfm.recheck",
+        "site_note"
+      ],
+      "forbidden_target_aliases": []
+    }
+  }
+}

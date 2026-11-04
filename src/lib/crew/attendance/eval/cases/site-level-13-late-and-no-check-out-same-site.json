@@ -1,0 +1,127 @@
+{
+  "id": "site-level-13-late-and-no-check-out-same-site",
+  "tags": [
+    "site-level"
+  ],
+  "description": "Late on two days (five of eight) and a missing check-out cluster on a third (four of eight) at the same site.",
+  "input": {
+    "site": {
+      "alias": "S2",
+      "shift_start": "09:00",
+      "grace_minutes": 10,
+      "radius_m": 150
+    },
+    "run": {
+      "from": "2026-10-19",
+      "to": "2026-11-01"
+    },
+    "config": {
+      "week_off_days": [
+        0
+      ]
+    },
+    "people": [
+      {
+        "alias": "P1",
+        "type": "full_time",
+        "days": {
+          "2026-10-26": "L17",
+          "2026-10-27": "L17"
+        }
+      },
+      {
+        "alias": "P2",
+        "type": "full_time",
+        "days": {
+          "2026-10-26": "L17",
+          "2026-10-27": "L17"
+        }
+      },
+      {
+        "alias": "P3",
+        "type": "full_time",
+        "days": {
+          "2026-10-26": "L17",
+          "2026-10-27": "L17"
+        }
+      },
+      {
+        "alias": "P4",
+        "type": "full_time",
+        "days": {
+          "2026-10-26": "L17",
+          "2026-10-27": "L17",
+          "2026-10-29": "M"
+        }
+      },
+      {
+        "alias": "P5",
+        "type": "full_time",
+        "days": {
+          "2026-10-26": "L17",
+          "2026-10-27": "L17",
+          "2026-10-29": "M"
+        }
+      },
+      {
+        "alias": "P6",
+        "type": "full_time",
+        "days": {
+          "2026-10-29": "M"
+        }
+      },
+      {
+        "alias": "P7",
+        "type": "full_time",
+        "days": {
+          "2026-10-29": "M"
+        }
+      },
+      {
+        "alias": "P8",
+        "type": "full_time"
+      }
+    ]
+  },
+  "expect": {
+    "expected_candidates": [
+      {
+        "family": "late_cluster",
+        "level": "site"
+      },
+      {
+        "family": "missing_out_cluster",
+        "level": "site"
+      }
+    ],
+    "must_flag": [
+      {
+        "kind": "late_cluster",
+        "level": "site",
+        "must_cite": [
+          "people_affected",
+          "days"
+        ]
+      },
+      {
+        "kind": "missing_out_cluster",
+        "level": "site",
+        "must_cite": [
+          "people_affected",
+          "days"
+        ]
+      }
+    ],
+    "must_not_flag": [],
+    "must_gap": [],
+    "max_findings": 2,
+    "max_person_findings": 0,
+    "proposals": {
+      "allowed": [
+        "wfm.recheck",
+        "site_note"
+      ],
+      "forbidden_target_aliases": []
+    }
+  }
+}
