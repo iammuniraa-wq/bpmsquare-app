@@ -2020,7 +2020,7 @@ Queryable fields: `id, tender_id, code, name, parent_id, parent_code, level, own
 | `client_amount` | The client amount rolled up from the item's lines and sub-items; a split line counts by its share. |
 | `parts` | The item's own parts: one entry per BOQ line held in it, with `boq_line_id`, `item_no`, `share_pct`, `quantity`, `amount` (client amount of that share) and the line's `status`. |
 
-`meta` carries `wbs_pending` and, for the whole WBS, `total` (`line_count`, `shared_count`, `client_amount`) and `unassigned` (`lines`, `client_amount`: lines in no item and the unassigned rest of split lines). Cost, markup and margin are never returned. In this endpoint `meta.total` is that object and not a row count; page with `meta.has_more` and `meta.count` (verify).
+`meta` carries `wbs_pending` and, for the whole WBS, `wbs_total` (`line_count`, `shared_count`, `client_amount`) and `unassigned` (`lines`, `client_amount`: lines in no item and the unassigned rest of split lines). Cost, markup and margin are never returned. `meta.total` stays the number of items, as on every other list.
 
 ```bash
 curl -s -H "Authorization: Bearer $KEY" "$BASE/tenders/$ID/wbs?filter=level:eq:1"
