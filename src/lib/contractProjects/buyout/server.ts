@@ -287,6 +287,12 @@ export async function buildSummary(req: BuyoutCtx): Promise<(BuyoutSummary & { p
   const taken = new Set(w.pkgLines.map((l) => l.line_key));
   const unassigned = w.baseline.lines.filter((l) => !l.reserve && !taken.has(l.line_key)).sort((a, b) => a.line_no - b.line_no).map(budgetLineRow);
   const projectBudget = w.baseline.lines.filter((l) => !l.reserve).reduce((s, l) => s + l.amount, 0);
+  const packageOf = new Map(w.packages.map((p) => [p.id, p]));
+  const packaged_lines: Record<string, { ref: string | null; name: string }> = {};
+  for (const l of w.pkgLines) {
+    const p = packageOf.get(l.package_id);
+    if (p) packaged_lines[l.line_key] = { ref: p.ref, name: p.name };
+  }
   const restriction = await allowedSuppliersForAccount(req.tenantId, req.project.account_id, req.admin);
   const committed_by_line: Record<string, number> = {};
   for (const p of w.packages) {
@@ -303,7 +309,7 @@ export async function buildSummary(req: BuyoutCtx): Promise<(BuyoutSummary & { p
     baseline: w.baseline.approved ? { revision_id: w.baseline.approved.id, rev_no: w.baseline.approved.rev_no } : null,
     group: restriction.group, restricted: restriction.restricted, currency: req.project.currency,
     tiles: buyoutTiles(rows, projectBudget),
-    packages: rows, unassigned_lines: unassigned, committed_by_line, can_edit: req.canEdit, can_send_rounds: req.canEdit && req.rfqEdit,
+    packages: rows, unassigned_lines: unassigned, packaged_lines, committed_by_line, can_edit: req.canEdit, can_send_rounds: req.canEdit && req.rfqEdit,
   };
 }
 

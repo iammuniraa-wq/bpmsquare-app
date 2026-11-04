@@ -20,6 +20,11 @@ import type { EmployeeChoice } from "@/lib/contractProjects/workPackagesServer";
 import { leafItems, trimPct, visibleItems } from "@/lib/wbs/screen";
 import { partsOf } from "@/lib/wbs/tree";
 import { WBS_PENDING, WBS_TIPS } from "@/lib/wbs/tips";
+import { ROUTES } from "@/lib/constants";
+import { wbsBuyoutPrefill } from "@/lib/contractProjects/wbsBuyout";
+import { isPending, loadBuyout } from "./buyout/api";
+import NewPackagePanel, { type NewPackageInitial } from "./buyout/NewPackagePanel";
+import type { BuyoutData } from "./buyout/types";
 import WbsItemPanel from "./WbsItemPanel";
 
 // The WBS tab of a contract project (docs/design/wbs.md section 3c): the tree the project took over from the tender, with who owns each item,
@@ -36,7 +41,7 @@ function readFold(projectId: string): Fold {
   } catch { return { closed: [], open: [] }; }
 }
 
-export default function WbsTab({ projectId, basis, revisionStatus, projectClosed, packages, rows, unassigned, lines, employees, currency, canEdit, pending, treePending, fromTender }: {
+export default function WbsTab({ projectId, basis, revisionStatus, projectClosed, packages, rows, unassigned, lines, employees, currency, canEdit, pending, treePending, fromTender, buyoutOn = false }: {
   projectId: string;
   basis: AllocationBasis;
   revisionStatus: RevisionStatus | null;
@@ -54,11 +59,14 @@ export default function WbsTab({ projectId, basis, revisionStatus, projectClosed
   treePending: boolean;
   /** The project was made from a tender (so an empty WBS means the tender had none). */
   fromTender: boolean;
+  /** The project has a Buy-out tab: an item can start a package. */
+  buyoutOn?: boolean;
 }) {
   const router = useRouter();
   const { confirm } = useFeel();
   const [panel, setPanel] = useState<Panel>(null);
   const [splitFor, setSplitFor] = useState<string | null>(null);
+  const [buyout, setBuyout] = useState<{ data: BuyoutData; initial: NewPackageInitial } | null>(null);
   const [owner, setOwner] = useState("");
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [target, setTarget] = useState("");
@@ -135,6 +143,18 @@ export default function WbsTab({ projectId, basis, revisionStatus, projectClosed
     if (!target || picked.size === 0) return;
     const out = await call(`/api/contract-projects/${projectId}/work-packages/assign`, "PUT", { line_keys: [...picked], package_id: target });
     if (out.ok) { setNotice(`${out.j.assigned} line${out.j.assigned === 1 ? "" : "s"} put in WBS ${byId.get(target)?.code ?? ""}`); setPicked(new Set()); router.refresh(); }
+  }
+
+  // The panel closes first so an answer like "approve the baseline first" is seen on the tab, not behind the panel.
+  async function makeBuyout(p: WorkPackageRow) {
+    setPanel(null); setBusy(true); setError(""); setNotice("");
+    try {
+      const r = await loadBuyout<BuyoutData>(projectId);
+      if (isPending(r.status, r.json)) { setError("Buy-out needs a database update. Ask your administrator to apply it."); return; }
+      if (!r.ok) { setError(r.json.error ?? "Could not load Buy-out"); return; }
+      if (!r.json.baseline) { setError("Packages are made from the approved baseline. Approve the baseline first."); return; }
+      setBuyout({ data: r.json, initial: wbsBuyoutPrefill(p, packages, lines, { unassigned_lines: r.json.unassigned_lines, packaged_lines: r.json.packaged_lines }) });
+    } finally { setBusy(false); }
   }
 
   const splitLine = splitFor ? lineByKey.get(splitFor) ?? null : null;
@@ -246,6 +266,13 @@ export default function WbsTab({ projectId, basis, revisionStatus, projectClosed
           key={panel.pkg?.id ?? `new-${panel.parentId ?? "root"}`} projectId={projectId} pkg={panel.pkg} parentId={panel.parentId} packages={packages} lines={lines} employees={employees}
           locked={lockWords} linesLocked={linesLocked ?? (treePending ? WBS_PENDING : null)} basis={basis} onClose={() => setPanel(null)}
           onSaved={() => { setPanel(null); router.refresh(); }} onEditSplit={treePending ? undefined : (k) => { setPanel(null); setSplitFor(k); }}
+          onMakeBuyout={buyoutOn && editable ? (p) => void makeBuyout(p) : undefined}
+        />
+      )}
+      {buyout && (
+        <NewPackagePanel
+          projectId={projectId} lines={buyout.data.unassigned_lines} currency={currency} initial={buyout.initial} onClose={() => setBuyout(null)}
+          onCreated={() => { setBuyout(null); router.push(`${ROUTES.contractProject(projectId)}?tab=buyout`); }}
         />
       )}
       {splitLine && (

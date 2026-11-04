@@ -95,7 +95,7 @@ export default async function ContractProjectPage({ params, searchParams }: { pa
             <WbsTab
               projectId={p.id} basis={p.allocation_basis} revisionStatus={rev.status} projectClosed={p.status === "closed"} packages={view.packages} rows={view.allocation.wbsRows}
               unassigned={view.allocation.unassigned} lines={view.lines} employees={employees} currency={p.currency} canEdit={view.canEdit} pending={view.packagesPending}
-              treePending={view.packagesTreePending} fromTender={!!p.source_opportunity_id}
+              treePending={view.packagesTreePending} fromTender={!!p.source_opportunity_id} buyoutOn={buyoutOn}
             />
           ) : <div style={{ fontSize: 13, color: "var(--hint)" }}>There is no budget yet, so there are no lines to group.</div>,
         },

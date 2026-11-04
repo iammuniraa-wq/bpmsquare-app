@@ -38,9 +38,9 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     project.account_id ? admin.from("accounts").select("name").eq("id", project.account_id).eq("tenant_id", tenantId).maybeSingle() : Promise.resolve({ data: null }),
     loadActorNames(admin, tenantId, [project.manager_id]),
   ]);
-  const packageCodes = new Map((await loadPackages(admin, tenantId, id)).packages.flatMap((p) => p.line_keys.map((k) => [k, p.code] as const)));
+  const { packages } = await loadPackages(admin, tenantId, id);
   const buffer = await buildHandoverWorkbook({
-    packageCodes, project, accountName: (accountRow.data as { name?: string } | null)?.name ?? null, managerName: project.manager_id ? names.get(project.manager_id) ?? null : null,
+    packages, project, accountName: (accountRow.data as { name?: string } | null)?.name ?? null, managerName: project.manager_id ? names.get(project.manager_id) ?? null : null,
     revision, lines, resourceNames, costCodeNames,
   });
 

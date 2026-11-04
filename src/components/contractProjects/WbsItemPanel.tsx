@@ -24,7 +24,7 @@ import type { Employee } from "@/lib/types";
  * task, so no login means no assignment). A line sits in one item or is split across several; lines are only held by bottom-level items. After the
  * baseline is approved the money is fixed: names, codes, parents and owners still save, the lines checklist does not (in the WBS basis).
  */
-export default function WbsItemPanel({ projectId, pkg, parentId, packages, lines, employees, locked, linesLocked, basis, onClose, onSaved, onEditSplit }: {
+export default function WbsItemPanel({ projectId, pkg, parentId, packages, lines, employees, locked, linesLocked, basis, onClose, onSaved, onEditSplit, onMakeBuyout }: {
   projectId: string;
   /** null = a new item. */
   pkg: WorkPackageRow | null;
@@ -42,6 +42,8 @@ export default function WbsItemPanel({ projectId, pkg, parentId, packages, lines
   onSaved: () => void;
   /** Opens the split panel for a split line. Absent = no Edit split link. */
   onEditSplit?: (lineKey: string) => void;
+  /** Starts a buy-out package from this item. Absent = no button (the project has no Buy-out, or nothing can be changed). */
+  onMakeBuyout?: (pkg: WorkPackageRow) => void;
 }) {
   const { confirm } = useFeel();
   const [code, setCode] = useState(pkg?.code_is_manual ? pkg.code : "");
@@ -173,6 +175,12 @@ export default function WbsItemPanel({ projectId, pkg, parentId, packages, lines
               })}
             </div>
           </Field>
+        )}
+        {pkg && onMakeBuyout && !locked && (
+          <div style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+            <Button variant="secondary" type="button" disabled={busy} data-guide="cp.wbs.make_buyout" style={{ minHeight: 44 }} onClick={() => onMakeBuyout(pkg)}>Make buy-out package</Button>
+            <InfoTip label="Buy-out package">{WBS_TIPS.buyout}</InfoTip>
+          </div>
         )}
         <Field label="Note"><Textarea rows={2} value={note} maxLength={PACKAGE_LIMITS.noteMax} disabled={disabled} onChange={(e) => setNote(e.target.value)} /></Field>
         {error && <div role="alert" style={{ fontSize: 12.5, color: "var(--err-ink)" }}>{error}</div>}

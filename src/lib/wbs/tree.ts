@@ -294,9 +294,12 @@ export function holdersOf(memberships: Iterable<Membership>): Set<string> {
 /** What a line contributes to the roll-up. `amount` is what the client pays (0 when unpriced), `cost` the line's total cost or null when unknown. */
 export type RollLine = Membership & { id: string; qty: number; amount: number; cost: number | null; priced: boolean; removed?: boolean };
 
-/** The figures of one item or of everything under it. `cost` is null while none of its lines has a cost. */
-export type Figures = { part_count: number; shared_count: number; client_amount: number; cost: number | null; priced_count: number };
-export const ZERO_FIGURES: Figures = { part_count: 0, shared_count: 0, client_amount: 0, cost: null, priced_count: 0 };
+/**
+ * The figures of one item or of everything under it. `cost` is null while none of its lines has a cost. `costed_count` is how many of the priced
+ * parts also have a cost: a margin (bid less cost) is only honest when it equals `priced_count`.
+ */
+export type Figures = { part_count: number; shared_count: number; client_amount: number; cost: number | null; priced_count: number; costed_count: number };
+export const ZERO_FIGURES: Figures = { part_count: 0, shared_count: 0, client_amount: 0, cost: null, priced_count: 0, costed_count: 0 };
 
 /** The figures of what sits directly in each item. A line removed from the latest file is not counted. */
 export function ownFigures(lines: readonly RollLine[]): Map<string, Figures> {
@@ -314,6 +317,7 @@ export function ownFigures(lines: readonly RollLine[]): Map<string, Figures> {
       f.client_amount = round2(f.client_amount + amounts[i]);
       if (costs) f.cost = round2((f.cost ?? 0) + costs[i]);
       if (line.priced) f.priced_count += 1;
+      if (line.priced && costs) f.costed_count += 1;
       out.set(s.wbs_item_id, f);
     });
   }
@@ -352,7 +356,7 @@ export function totalOf(items: readonly TreeItem[], rolled: ReadonlyMap<string, 
   for (const root of items.filter((i) => i.parent_id === null)) {
     const f = rolled.get(root.id);
     if (!f) continue;
-    t = { part_count: t.part_count + f.part_count, shared_count: t.shared_count + f.shared_count, client_amount: round2(t.client_amount + f.client_amount), cost: addNum(t.cost, f.cost), priced_count: t.priced_count + f.priced_count };
+    t = { part_count: t.part_count + f.part_count, shared_count: t.shared_count + f.shared_count, client_amount: round2(t.client_amount + f.client_amount), cost: addNum(t.cost, f.cost), priced_count: t.priced_count + f.priced_count, costed_count: t.costed_count + f.costed_count };
   }
   return t;
 }
