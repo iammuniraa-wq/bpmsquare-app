@@ -272,7 +272,7 @@
     }
   ],
   "mcp": {
-    "version": "1.20.0",
+    "version": "1.21.0",
     "tools": [
       {
         "name": "list_accounts",
@@ -421,6 +421,10 @@
       {
         "name": "get_tender_boq",
         "description": "The Bill of quantities of one tender, one row per line and paged: item number, cost code, description (the line name), details (the long text), client_columns (the client's own other columns such as Sr #, Bill #, Section"
+      },
+      {
+        "name": "get_tender_wbs",
+        "description": "The WBS (work breakdown structure) of one tender, one row per item in tree order and paged: code, name, parent, level (up to three), the owner's name, the number of BOQ lines, shared (split) lines and priced lines and th"
       }
     ]
   },

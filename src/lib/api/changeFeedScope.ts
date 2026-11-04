@@ -32,6 +32,8 @@ const SCOPE_FOR_TYPE: Record<string, string> = {
   opportunity_tenders: "tenders", opportunity_competitors: "tenders",
   // The tender's Bill of quantities. Its edits are logged on the tender (opportunity_tenders); this line is for a direct log on the lines.
   tender_boq_lines: "tenders",
+  // The tender's WBS (0243). Its edits are logged on the tender as "WBS <code> ..." (no cost in any of them); these two are for a direct log on the rows.
+  tender_wbs_items: "tenders", tender_wbs_line_parts: "tenders",
   // Contract projects (0226): budget totals and margin are internal cost, so the explicit "contract_projects" scope, never the wildcard.
   contract_projects: "contract_projects",
   wfm_projects: "projects",

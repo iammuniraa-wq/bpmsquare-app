@@ -109,7 +109,9 @@ describe("the object", () => {
     const byKey = new Map(TENDER_BOQ_LINES_SPEC.fields.map((f) => [f.key, f]));
     expect(byKey.get("tender_ref")).toMatchObject({ type: "ref", required: true });
     for (const k of ["amount", "rate_source", "price_as_of", "status", "row_no"]) expect(byKey.get(k)?.exportOnly, k).toBe(true);
-    expect([...TENDER_BOQ_UPDATE_KEYS]).toEqual(["quantity", "description", "details", "cost_code"]);
+    expect([...TENDER_BOQ_UPDATE_KEYS]).toEqual(["quantity", "description", "details", "cost_code", "wbs_code"]);
+    // The WBS code is an Export and Update column, never an Import one (a new row must not regroup existing lines).
+    expect(byKey.get("wbs_code")).toMatchObject({ updateOnly: true });
     expect(byKey.get("rate")?.exportOnly).toBeFalsy();
   });
 
@@ -274,7 +276,7 @@ describe("Export", () => {
     expect(j.rows).toHaveLength(2);
     const a = j.rows.find((r: Record<string, string>) => r.item_no === "1.1");
     expect(a).toEqual({
-      id: "b1", tender_ref: "OPP-0044", item_no: "1.1", description: "Excavation", details: "", unit: "m3", quantity: "100", cost_code: "31 23", client_columns: "",
+      id: "b1", tender_ref: "OPP-0044", item_no: "1.1", description: "Excavation", details: "", unit: "m3", quantity: "100", cost_code: "31 23", wbs_code: "", client_columns: "",
       rate: "20", amount: "2000", rate_source: "supplier", price_as_of: "2026-10-20", status: "priced", row_no: "2",
     });
     expect(j.rows.find((r: Record<string, string>) => r.item_no === "1.2")).toMatchObject({ id: "b2", rate: "", amount: "", rate_source: "", status: "unpriced" });
@@ -491,5 +493,203 @@ describe("the Data Workbench page lists the object only for an edition that has 
     expect(ownedObjectIds({ ...features, pipeline: true }, owner)).toContain("tender_boq_lines");
     expect(ownedObjectIds(features, owner)).not.toContain("tender_boq_lines");
     expect(ownedObjectIds({ pipeline: true }, owner)).not.toContain("tender_boq_lines");
+  });
+});
+
+// ── The WBS code column (docs/design/wbs.md section 5; migration 0243) ────────────────────────────────────────────────
+
+const U = (n: number) => `00000000-0000-4000-8000-${n.toString(16).padStart(12, "0")}`;
+const W = { w1: U(101), w2: U(102), w21: U(103), w22: U(104), w3: U(105), wf: U(106), wt2: U(107) };
+const BQ = { a: U(201), b: U(202), c: U(203), foreign: U(204) };
+const wi = (id: string, code: string, name: string, parent: string | null, sort: number, over: Row = {}): Row => ({
+  id, tenant_id: "t1", opportunity_id: O1, parent_id: parent, code, name, owner_employee_id: null, sort_order: sort, code_is_manual: false, note: null, created_at: null, ...over,
+});
+
+/** A tender with three lines and a WBS: 1 Civil, 2 Mechanical (2.1 Fabrication, 2.2 Erection), 3 Services. Line A is whole in 1, line B is split 60/40 over 2.1 and 2.2, line C is unassigned. */
+function seedWbs(extra: Record<string, Row[]> = {}) {
+  const dl = (id: string, sl: string, qty: number, rate: number): Row => ({ id, tenant_id: "t1", opportunity_id: O1, discount_pct: 0, is_selected: true, show_on_pdf: true, sl_no: sl, description: `Line ${sl}`, uom: "m", qty, rate, amount: qty * rate });
+  const bq = (id: string, line: string, item: string, row: number, qty: number, over: Row = {}): Row => ({ id, tenant_id: "t1", opportunity_id: O1, source_id: "s1", line_id: line, item_key: `n:${item}`, item_no: item, row_no: row, file_description: `Line ${item}`, file_uom: "m", file_qty: qty, cost_code: null, file_rate: null, price_source: null, price_source_ref: null, price_as_of: null, stale_accepted: false, unit_cost: null, markup_pct: null, removed_in_revision: false, wbs_item_id: null, ...over });
+  seed({
+    opportunity_lines: [dl("la", "1.1", 100, 20), dl("lb", "1.2", 50, 10), dl("lc", "1.3", 10, 0), { ...dl("lf", "1", 1, 5), tenant_id: "t2", opportunity_id: O9 }],
+    tender_boq_sources: [{ id: "s1", tenant_id: "t1", opportunity_id: O1, version: 1, is_current: true, file_name: "boq.xlsx", storage_path: "t1/o1/x.xlsx", uploaded_at: "2026-10-20T00:00:00Z" }],
+    tender_boq_lines: [
+      bq(BQ.a, "la", "1.1", 2, 100, { wbs_item_id: W.w1 }),
+      bq(BQ.b, "lb", "1.2", 3, 50),
+      bq(BQ.c, "lc", "1.3", 4, 10),
+      bq(BQ.foreign, "lf", "1", 2, 1, { tenant_id: "t2", opportunity_id: O9 }),
+    ],
+    tender_wbs_items: [
+      wi(W.w1, "1", "Civil", null, 10), wi(W.w2, "2", "Mechanical", null, 20), wi(W.w21, "2.1", "Fabrication", W.w2, 10), wi(W.w22, "2.2", "Erection", W.w2, 20), wi(W.w3, "3", "Services", null, 30),
+      wi(W.wf, "9", "Other tender only", null, 10, { opportunity_id: O3 }),
+      wi(W.wt2, "1", "Other workspace", null, 10, { tenant_id: "t2", opportunity_id: O9 }),
+    ],
+    tender_wbs_line_parts: [
+      { id: "p1", tenant_id: "t1", opportunity_id: O1, boq_line_id: BQ.b, wbs_item_id: W.w21, share_pct: 60, sort_order: 0 },
+      { id: "p2", tenant_id: "t1", opportunity_id: O1, boq_line_id: BQ.b, wbs_item_id: W.w22, share_pct: 40, sort_order: 1 },
+    ],
+    employees: [],
+    ...extra,
+  });
+}
+const partsFor = (boq: string) => current.tables.tender_wbs_line_parts.filter((p) => p.boq_line_id === boq).map((p) => [p.wbs_item_id, p.share_pct]);
+const lineRow = (id: string) => current.tables.tender_boq_lines.find((r) => r.id === id)!;
+const upd = async (values: Record<string, string>[]) => (await call(updateLines.POST, rowsOf(values))).json();
+
+describe("the WBS code column", () => {
+  it("is an Export and Update column of the BOQ lines, never an Import one", () => {
+    const f = TENDER_BOQ_LINES_SPEC.fields.find((x) => x.key === "wbs_code")!;
+    expect(f).toMatchObject({ updateOnly: true });
+    expect(f.exportOnly).toBeFalsy();
+    expect(read("src/app/(app)/data-workbench/DataWorkbenchClient.tsx")).toContain("!f.exportOnly && !f.updateOnly");
+  });
+
+  it("Export writes the item's code for a whole line, code:percent for a split line and nothing for an unassigned one", async () => {
+    seedWbs();
+    const j = await (await call(exportLines.POST, {})).json();
+    const cell = (item: string) => j.rows.find((r: Record<string, string>) => r.item_no === item).wbs_code;
+    expect(cell("1.1")).toBe("1");
+    expect(cell("1.2")).toBe("2.1:60;2.2:40");
+    expect(cell("1.3")).toBe("");
+    expect(j.rows).toHaveLength(3);
+  });
+
+  it("Import never reads it: a new row, or a revised one, regroups nothing", async () => {
+    seedWbs();
+    const j = await (await call(importLines.POST, rowsOf([T({ item_no: "1.1", description: "Line 1.1", unit: "m", quantity: "100", wbs_code: "3" }), T({ item_no: "7.7", description: "New line", unit: "m", quantity: "2", wbs_code: "3" })]))).json();
+    expect(j).toMatchObject({ failed: 0 });
+    expect(lineRow(BQ.a).wbs_item_id).toBe(W.w1);
+    const added = current.tables.tender_boq_lines.find((r) => r.item_key === "n:7.7")!;
+    expect(added.wbs_item_id ?? null).toBeNull();
+    expect(current.tables.tender_wbs_line_parts).toHaveLength(2);
+  });
+
+  it("Update puts a line in the item the code names, by the line's real id, and logs it on the tender", async () => {
+    seedWbs();
+    const j = await upd([{ id: BQ.c, wbs_code: "3" }]);
+    expect(j).toMatchObject({ updated: 1, failed: 0 });
+    expect(lineRow(BQ.c).wbs_item_id).toBe(W.w3);
+    const entry = logged.filter((l) => l.objectType === "opportunity_tenders").at(-1)!;
+    expect(entry).toMatchObject({ objectId: O1, tenantId: "t1" });
+    expect(entry.changes!.map((c) => c.field)).toEqual(["WBS 3 lines"]);
+  });
+
+  it("a code matches without regard to case, and a split list is written as parts with the whole line cleared", async () => {
+    seedWbs({ tender_wbs_items: [wi(W.w1, "C-100", "Civil", null, 10, { code_is_manual: true }), wi(W.w21, "F1", "Fab", null, 20), wi(W.w22, "E1", "Ere", null, 30)] });
+    const j = await upd([{ id: BQ.c, wbs_code: "c-100:70; F1:30" }]);
+    expect(j).toMatchObject({ updated: 1, failed: 0 });
+    expect(lineRow(BQ.c).wbs_item_id ?? null).toBeNull();
+    expect(partsFor(BQ.c)).toEqual([[W.w1, 70], [W.w21, 30]]);
+    expect(logged.at(-1)!.changes!.map((c) => c.field)).toEqual(["WBS split 1.3"]);
+  });
+
+  it("a split that does not add up to 100 fails that row clearly and writes nothing", async () => {
+    seedWbs();
+    const j = await upd([{ id: BQ.c, wbs_code: "1:70;3:20" }, { id: BQ.a, wbs_code: "1:100;3:5" }]);
+    expect(j).toMatchObject({ updated: 0, failed: 2 });
+    expect(j.outcomes[0].reason).toBe("WBS shares add up to 90 %, not 100 %");
+    expect(j.outcomes[1].reason).toBe("WBS shares add up to 105 %, not 100 %");
+    expect(current.tables.tender_wbs_line_parts).toHaveLength(2);
+    expect(lineRow(BQ.a).wbs_item_id).toBe(W.w1);
+  });
+
+  it("an unknown code, another tender's code, a single share under 100, a repeated code and a share that is not a number each fail the row", async () => {
+    seedWbs();
+    const j = await upd([
+      { id: BQ.c, wbs_code: "7.7" }, { id: BQ.c, wbs_code: "9" }, { id: BQ.c, wbs_code: "1:60" }, { id: BQ.c, wbs_code: "1:50;1:50" }, { id: BQ.c, wbs_code: "1:abc;3:50" }, { id: BQ.c, wbs_code: "1;3:50" },
+    ]);
+    expect(j).toMatchObject({ updated: 0, failed: 6 });
+    expect(j.outcomes.map((o: { reason: string }) => o.reason)).toEqual([
+      "WBS 7.7 does not exist on this tender", "WBS 9 does not exist on this tender", "WBS shares add up to 60 %, not 100 %", "WBS 1 appears twice",
+      'WBS 1: "abc" is not a share', "WBS 1 needs a share, like 1:60",
+    ]);
+    expect(lineRow(BQ.c).wbs_item_id ?? null).toBeNull();
+  });
+
+  it("an item with sub-items cannot hold a line, whole or as a part", async () => {
+    seedWbs();
+    const j = await upd([{ id: BQ.c, wbs_code: "2" }, { id: BQ.c, wbs_code: "2:50;3:50" }]);
+    expect(j).toMatchObject({ updated: 0, failed: 2 });
+    expect(j.outcomes[0].reason).toBe("WBS 2 has sub-items. Choose one of them");
+    expect(j.outcomes[1].reason).toMatch(/2 has sub-items/);
+  });
+
+  it("one share at 100 unsplits a split line into that item, and an empty cell makes a line unassigned", async () => {
+    seedWbs();
+    const j = await upd([{ id: BQ.b, wbs_code: "2.1:100" }, { id: BQ.a, wbs_code: "" }]);
+    expect(j).toMatchObject({ updated: 2, failed: 0 });
+    expect(lineRow(BQ.b).wbs_item_id).toBe(W.w21);
+    expect(partsFor(BQ.b)).toEqual([]);
+    expect(lineRow(BQ.a).wbs_item_id ?? null).toBeNull();
+  });
+
+  it("what an export wrote is No change when it comes back, whole, split or empty", async () => {
+    seedWbs();
+    const exp = await (await call(exportLines.POST, {})).json();
+    const back = exp.rows.map((r: Record<string, string>) => ({ id: r.id, wbs_code: r.wbs_code }));
+    const j = await upd(back);
+    expect(j).toMatchObject({ updated: 0, skipped: 3, failed: 0 });
+    expect(logged).toHaveLength(0);
+  });
+
+  it("the left-over share of a split line (an item was removed) comes back as No change too, and can be fixed with a full list", async () => {
+    seedWbs();
+    current.tables.tender_wbs_line_parts = current.tables.tender_wbs_line_parts.filter((p) => p.id !== "p2");
+    const exp = await (await call(exportLines.POST, {})).json();
+    const cell = exp.rows.find((r: Record<string, string>) => r.item_no === "1.2").wbs_code;
+    expect(cell).toBe("2.1:60");
+    expect(await upd([{ id: BQ.b, wbs_code: cell }])).toMatchObject({ updated: 0, skipped: 1, failed: 0 });
+    expect(await upd([{ id: BQ.b, wbs_code: "2.1:60;2.2:40" }])).toMatchObject({ updated: 1, failed: 0 });
+    expect(partsFor(BQ.b)).toEqual([[W.w21, 60], [W.w22, 40]]);
+  });
+
+  it("a row that changes the quantity and the WBS does both; one that fails the WBS says the rest was applied", async () => {
+    seedWbs();
+    const ok = await upd([{ id: BQ.a, quantity: "120", wbs_code: "3" }]);
+    expect(ok).toMatchObject({ updated: 1, failed: 0 });
+    expect(current.tables.opportunity_lines.find((l) => l.id === "la")).toMatchObject({ qty: 120, amount: 2400 });
+    expect(lineRow(BQ.a).wbs_item_id).toBe(W.w3);
+    const bad = await upd([{ id: BQ.c, quantity: "11", wbs_code: "nowhere" }]);
+    expect(bad.outcomes[0]).toMatchObject({ status: "failed", reason: "WBS nowhere does not exist on this tender (the other columns of this row were updated)" });
+    expect(current.tables.opportunity_lines.find((l) => l.id === "lc")!.qty).toBe(11);
+  });
+
+  it("a file without the column never touches the grouping", async () => {
+    seedWbs();
+    await upd([{ id: BQ.b, quantity: "55" }]);
+    expect(partsFor(BQ.b)).toHaveLength(2);
+    expect(lineRow(BQ.a).wbs_item_id).toBe(W.w1);
+  });
+
+  it("another workspace's line id matches nothing, and the same line twice in a file is refused the second time", async () => {
+    seedWbs();
+    const j = await upd([{ id: BQ.foreign, wbs_code: "1" }, { id: BQ.c, wbs_code: "3" }, { id: BQ.c, wbs_code: "1" }]);
+    expect(j.outcomes[0].reason).toBe(`No record with id "${BQ.foreign}" found in this workspace`);
+    expect(j.outcomes[2]).toMatchObject({ status: "failed", reason: "This line is in the file twice" });
+    expect(lineRow(BQ.foreign).wbs_item_id ?? null).toBeNull();
+    expect(lineRow(BQ.c).wbs_item_id).toBe(W.w3);
+  });
+
+  it("a viewer is refused and nothing moves", async () => {
+    seedWbs();
+    canEdit = false;
+    expect((await call(updateLines.POST, rowsOf([{ id: BQ.c, wbs_code: "3" }]))).status).toBe(403);
+    expect(lineRow(BQ.c).wbs_item_id ?? null).toBeNull();
+  });
+
+  it("while migration 0243 is pending the export still works with an empty column and an Update with a code says why, while one without a code is unaffected", async () => {
+    seedWbs();
+    current = fakeDb(current.tables, { copyReads: true, missingTables: ["tender_wbs_items", "tender_wbs_line_parts"] });
+    const exp = await (await call(exportLines.POST, {})).json();
+    expect(exp.rows).toHaveLength(3);
+    expect(exp.rows.every((r: Record<string, string>) => r.wbs_code === "")).toBe(true);
+    const j = await upd([{ id: BQ.c, wbs_code: "3" }, { id: BQ.c, wbs_code: "" }]);
+    expect(j.outcomes[0]).toMatchObject({ status: "failed", reason: "WBS needs a database update (migration 0243)" });
+    expect(j.outcomes[1]).toMatchObject({ status: "skipped", reason: "No change" });
+  });
+
+  it("the column adds no cost to an Export", async () => {
+    seedWbs();
+    const text = JSON.stringify(await (await call(exportLines.POST, {})).json());
+    for (const secret of ["unit_cost", "markup", "price_source_ref"]) expect(text, secret).not.toContain(secret);
   });
 });

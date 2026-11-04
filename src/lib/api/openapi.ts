@@ -127,6 +127,14 @@ export function buildOpenApiSpec(): Record<string, unknown> {
     },
   };
 
+  // The tender's WBS (work breakdown) hangs off the tender as well: the tree with client amounts and each item's parts, never a cost.
+  paths["/tenders/{id}/wbs"] = {
+    parameters: [{ in: "path", name: "id", required: true, schema: { type: "string", format: "uuid" } }],
+    get: {
+      summary: "A tender's WBS (one row per item in tree order: roll-ups of lines and client amount, and its parts; no costs)", tags: ["tenders"], parameters: QUERY_PARAMS, responses: { ...listResponse(), "404": { description: "Not a tender of your tenant" } },
+    },
+  };
+
   // Cross-cutting endpoints without an entity schema: the change feed and the
   // natural-language query. Added explicitly so the spec is complete.
   paths["/changes"] = {
