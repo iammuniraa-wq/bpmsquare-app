@@ -1,0 +1,126 @@
+{
+  "id": "site-level-04-late-full-time-and-trainees",
+  "tags": [
+    "site-level"
+  ],
+  "description": "Six of nine (three Trainees among them) late on three consecutive days; a site pattern across employment types.",
+  "input": {
+    "site": {
+      "alias": "S4",
+      "shift_start": "09:00",
+      "grace_minutes": 10,
+      "radius_m": 150
+    },
+    "run": {
+      "from": "2026-10-19",
+      "to": "2026-11-01"
+    },
+    "config": {
+      "week_off_days": [
+        0
+      ],
+      "type_rules": {
+        "trainee": {
+          "effective_from": "2026-11-01",
+          "week_off_days": []
+        }
+      }
+    },
+    "people": [
+      {
+        "alias": "P1",
+        "type": "full_time",
+        "days": {
+          "2026-10-27": "L16",
+          "2026-10-28": "L16",
+          "2026-10-29": "L16"
+        }
+      },
+      {
+        "alias": "P2",
+        "type": "full_time",
+        "days": {
+          "2026-10-27": "L16",
+          "2026-10-28": "L16",
+          "2026-10-29": "L16"
+        }
+      },
+      {
+        "alias": "P3",
+        "type": "full_time",
+        "days": {
+          "2026-10-27": "L16",
+          "2026-10-28": "L16",
+          "2026-10-29": "L16"
+        }
+      },
+      {
+        "alias": "P4",
+        "type": "full_time"
+      },
+      {
+        "alias": "P5",
+        "type": "full_time"
+      },
+      {
+        "alias": "P6",
+        "type": "full_time"
+      },
+      {
+        "alias": "P7",
+        "type": "trainee",
+        "days": {
+          "2026-10-27": "L16",
+          "2026-10-28": "L16",
+          "2026-10-29": "L16"
+        }
+      },
+      {
+        "alias": "P8",
+        "type": "trainee",
+        "days": {
+          "2026-10-27": "L16",
+          "2026-10-28": "L16",
+          "2026-10-29": "L16"
+        }
+      },
+      {
+        "alias": "P9",
+        "type": "trainee",
+        "days": {
+          "2026-10-27": "L16",
+          "2026-10-28": "L16",
+          "2026-10-29": "L16"
+        }
+      }
+    ]
+  },
+  "expect": {
+    "expected_candidates": [
+      {
+        "family": "late_cluster",
+        "level": "site"
+      }
+    ],
+    "must_flag": [
+      {
+        "kind": "late_cluster",
+        "level": "site",
+        "must_cite": [
+          "people_affected",
+          "days"
+        ]
+      }
+    ],
+    "must_not_flag": [],
+    "must_gap": [],
+    "max_findings": 1,
+    "max_person_findings": 0,
+    "proposals": {
+      "allowed": [
+        "site_note"
+      ],
+      "forbidden_target_aliases": []
+    }
+  }
+}

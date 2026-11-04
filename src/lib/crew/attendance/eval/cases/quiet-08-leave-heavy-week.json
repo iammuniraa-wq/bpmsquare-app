@@ -1,0 +1,106 @@
+{
+  "id": "quiet-08-leave-heavy-week",
+  "tags": [
+    "quiet"
+  ],
+  "description": "Four people on leave all week; the rest on time.",
+  "input": {
+    "site": {
+      "alias": "S3",
+      "shift_start": "09:00",
+      "grace_minutes": 10,
+      "radius_m": 150
+    },
+    "run": {
+      "from": "2026-10-19",
+      "to": "2026-11-01"
+    },
+    "config": {
+      "week_off_days": [
+        0
+      ]
+    },
+    "people": [
+      {
+        "alias": "P1",
+        "type": "full_time",
+        "days": {
+          "2026-10-26": "V",
+          "2026-10-27": "V",
+          "2026-10-28": "V",
+          "2026-10-29": "V",
+          "2026-10-30": "V"
+        }
+      },
+      {
+        "alias": "P2",
+        "type": "full_time",
+        "days": {
+          "2026-10-26": "V",
+          "2026-10-27": "V",
+          "2026-10-28": "V",
+          "2026-10-29": "V",
+          "2026-10-30": "V"
+        }
+      },
+      {
+        "alias": "P3",
+        "type": "full_time",
+        "days": {
+          "2026-10-26": "V",
+          "2026-10-27": "V",
+          "2026-10-28": "V",
+          "2026-10-29": "V",
+          "2026-10-30": "V"
+        }
+      },
+      {
+        "alias": "P4",
+        "type": "full_time",
+        "days": {
+          "2026-10-26": "V",
+          "2026-10-27": "V",
+          "2026-10-28": "V",
+          "2026-10-29": "V",
+          "2026-10-30": "V"
+        }
+      },
+      {
+        "alias": "P5",
+        "type": "full_time"
+      },
+      {
+        "alias": "P6",
+        "type": "full_time"
+      },
+      {
+        "alias": "P7",
+        "type": "full_time"
+      },
+      {
+        "alias": "P8",
+        "type": "full_time"
+      },
+      {
+        "alias": "P9",
+        "type": "full_time"
+      }
+    ]
+  },
+  "expect": {
+    "expected_candidates": [],
+    "must_flag": [],
+    "must_not_flag": [
+      {
+        "reason": "nothing should be flagged"
+      }
+    ],
+    "must_gap": [],
+    "max_findings": 0,
+    "max_person_findings": 0,
+    "proposals": {
+      "allowed": [],
+      "forbidden_target_aliases": []
+    }
+  }
+}

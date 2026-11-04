@@ -1,0 +1,114 @@
+{
+  "id": "site-level-03-late-on-fridays",
+  "tags": [
+    "site-level"
+  ],
+  "description": "Five of ten late by 20-30 minutes on both Fridays in the window.",
+  "input": {
+    "site": {
+      "alias": "S3",
+      "shift_start": "09:00",
+      "grace_minutes": 10,
+      "radius_m": 150
+    },
+    "run": {
+      "from": "2026-10-19",
+      "to": "2026-11-01"
+    },
+    "config": {
+      "week_off_days": [
+        0
+      ]
+    },
+    "people": [
+      {
+        "alias": "P1",
+        "type": "full_time"
+      },
+      {
+        "alias": "P2",
+        "type": "full_time"
+      },
+      {
+        "alias": "P3",
+        "type": "full_time",
+        "days": {
+          "2026-10-23": "L20",
+          "2026-10-30": "L30"
+        }
+      },
+      {
+        "alias": "P4",
+        "type": "full_time",
+        "days": {
+          "2026-10-23": "L30",
+          "2026-10-30": "L20"
+        }
+      },
+      {
+        "alias": "P5",
+        "type": "full_time",
+        "days": {
+          "2026-10-23": "L20",
+          "2026-10-30": "L30"
+        }
+      },
+      {
+        "alias": "P6",
+        "type": "full_time",
+        "days": {
+          "2026-10-23": "L30",
+          "2026-10-30": "L20"
+        }
+      },
+      {
+        "alias": "P7",
+        "type": "full_time",
+        "days": {
+          "2026-10-23": "L20",
+          "2026-10-30": "L30"
+        }
+      },
+      {
+        "alias": "P8",
+        "type": "full_time"
+      },
+      {
+        "alias": "P9",
+        "type": "full_time"
+      },
+      {
+        "alias": "P10",
+        "type": "full_time"
+      }
+    ]
+  },
+  "expect": {
+    "expected_candidates": [
+      {
+        "family": "late_cluster",
+        "level": "site"
+      }
+    ],
+    "must_flag": [
+      {
+        "kind": "late_cluster",
+        "level": "site",
+        "must_cite": [
+          "people_affected",
+          "days"
+        ]
+      }
+    ],
+    "must_not_flag": [],
+    "must_gap": [],
+    "max_findings": 1,
+    "max_person_findings": 0,
+    "proposals": {
+      "allowed": [
+        "site_note"
+      ],
+      "forbidden_target_aliases": []
+    }
+  }
+}

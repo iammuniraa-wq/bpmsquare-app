@@ -1,0 +1,102 @@
+{
+  "id": "person-level-04-no-check-out-five-days",
+  "tags": [
+    "person-level"
+  ],
+  "description": "One person with a check-in and no check-out on five days in two weeks; nobody else.",
+  "input": {
+    "site": {
+      "alias": "S2",
+      "shift_start": "09:00",
+      "grace_minutes": 10,
+      "radius_m": 150
+    },
+    "run": {
+      "from": "2026-10-19",
+      "to": "2026-11-01"
+    },
+    "config": {
+      "week_off_days": [
+        0
+      ]
+    },
+    "people": [
+      {
+        "alias": "P1",
+        "type": "full_time"
+      },
+      {
+        "alias": "P2",
+        "type": "full_time"
+      },
+      {
+        "alias": "P3",
+        "type": "full_time"
+      },
+      {
+        "alias": "P4",
+        "type": "full_time"
+      },
+      {
+        "alias": "P5",
+        "type": "full_time",
+        "days": {
+          "2026-10-20": "M",
+          "2026-10-22": "M",
+          "2026-10-23": "M",
+          "2026-10-26": "M",
+          "2026-10-28": "M"
+        }
+      },
+      {
+        "alias": "P6",
+        "type": "full_time"
+      },
+      {
+        "alias": "P7",
+        "type": "full_time"
+      },
+      {
+        "alias": "P8",
+        "type": "full_time"
+      }
+    ]
+  },
+  "expect": {
+    "expected_candidates": [
+      {
+        "family": "missing_out_cluster",
+        "level": "person",
+        "subject": "P5"
+      }
+    ],
+    "must_flag": [
+      {
+        "kind": "missing_out_cluster",
+        "level": "person",
+        "subject": "P5",
+        "must_cite": [
+          "count"
+        ]
+      }
+    ],
+    "must_not_flag": [],
+    "must_gap": [],
+    "max_findings": 1,
+    "max_person_findings": 1,
+    "proposals": {
+      "allowed": [
+        "wfm.recheck"
+      ],
+      "forbidden_target_aliases": [
+        "P1",
+        "P2",
+        "P3",
+        "P4",
+        "P6",
+        "P7",
+        "P8"
+      ]
+    }
+  }
+}

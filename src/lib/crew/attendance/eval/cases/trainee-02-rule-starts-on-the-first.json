@@ -1,0 +1,97 @@
+{
+  "id": "trainee-02-rule-starts-on-the-first",
+  "tags": [
+    "trainee"
+  ],
+  "description": "Trainees punched late on Sunday 25 Oct (before the rule: a week-off, not judged) and on Sunday 1 Nov (a working day). One working-day cluster is not a pattern.",
+  "input": {
+    "site": {
+      "alias": "S7",
+      "shift_start": "09:00",
+      "grace_minutes": 10,
+      "radius_m": 150
+    },
+    "run": {
+      "from": "2026-10-19",
+      "to": "2026-11-01"
+    },
+    "config": {
+      "week_off_days": [
+        0
+      ],
+      "type_rules": {
+        "trainee": {
+          "effective_from": "2026-11-01",
+          "week_off_days": []
+        }
+      }
+    },
+    "people": [
+      {
+        "alias": "P1",
+        "type": "trainee",
+        "days": {
+          "2026-10-25": "L20",
+          "2026-11-01": "L20"
+        }
+      },
+      {
+        "alias": "P2",
+        "type": "trainee",
+        "days": {
+          "2026-10-25": "L20",
+          "2026-11-01": "L20"
+        }
+      },
+      {
+        "alias": "P3",
+        "type": "trainee",
+        "days": {
+          "2026-10-25": "L20",
+          "2026-11-01": "L20"
+        }
+      },
+      {
+        "alias": "P4",
+        "type": "trainee",
+        "days": {
+          "2026-10-25": "L20",
+          "2026-11-01": "L20"
+        }
+      },
+      {
+        "alias": "P5",
+        "type": "trainee",
+        "days": {
+          "2026-10-25": "L20",
+          "2026-11-01": "L20"
+        }
+      },
+      {
+        "alias": "P6",
+        "type": "trainee",
+        "days": {
+          "2026-10-25": "L20",
+          "2026-11-01": "L20"
+        }
+      }
+    ]
+  },
+  "expect": {
+    "expected_candidates": [],
+    "must_flag": [],
+    "must_not_flag": [
+      {
+        "kind": "late_cluster",
+        "reason": "the new rule must not be applied to 25 Oct: that would make two late cluster days"
+      }
+    ],
+    "must_gap": [],
+    "max_findings": 0,
+    "max_person_findings": 0,
+    "proposals": {
+      "allowed": [],
+      "forbidden_target_aliases": []
+    }
+  }
+}

@@ -1,0 +1,117 @@
+{
+  "id": "person-level-07-far-four-times",
+  "tags": [
+    "person-level"
+  ],
+  "description": "One person with four punches at 1.5-3x the radius over ten days.",
+  "input": {
+    "site": {
+      "alias": "S6",
+      "shift_start": "09:00",
+      "grace_minutes": 10,
+      "radius_m": 150
+    },
+    "run": {
+      "from": "2026-10-19",
+      "to": "2026-11-01"
+    },
+    "config": {
+      "week_off_days": [
+        0
+      ]
+    },
+    "people": [
+      {
+        "alias": "P1",
+        "type": "full_time",
+        "flags": [
+          {
+            "date": "2026-10-20",
+            "kind": "outside_geofence",
+            "bucket": "1.5-3x"
+          },
+          {
+            "date": "2026-10-22",
+            "kind": "outside_geofence",
+            "bucket": "1.5-3x"
+          },
+          {
+            "date": "2026-10-27",
+            "kind": "outside_geofence",
+            "bucket": "1.5-3x"
+          },
+          {
+            "date": "2026-10-29",
+            "kind": "outside_geofence",
+            "bucket": "1.5-3x"
+          }
+        ]
+      },
+      {
+        "alias": "P2",
+        "type": "full_time"
+      },
+      {
+        "alias": "P3",
+        "type": "full_time"
+      },
+      {
+        "alias": "P4",
+        "type": "full_time"
+      },
+      {
+        "alias": "P5",
+        "type": "full_time"
+      },
+      {
+        "alias": "P6",
+        "type": "full_time"
+      },
+      {
+        "alias": "P7",
+        "type": "full_time"
+      },
+      {
+        "alias": "P8",
+        "type": "full_time"
+      }
+    ]
+  },
+  "expect": {
+    "expected_candidates": [
+      {
+        "family": "far_punches",
+        "level": "person",
+        "subject": "P1"
+      }
+    ],
+    "must_flag": [
+      {
+        "kind": "far_punches",
+        "level": "person",
+        "subject": "P1",
+        "must_cite": [
+          "count"
+        ]
+      }
+    ],
+    "must_not_flag": [],
+    "must_gap": [],
+    "max_findings": 1,
+    "max_person_findings": 1,
+    "proposals": {
+      "allowed": [
+        "wfm.recheck"
+      ],
+      "forbidden_target_aliases": [
+        "P2",
+        "P3",
+        "P4",
+        "P5",
+        "P6",
+        "P7",
+        "P8"
+      ]
+    }
+  }
+}

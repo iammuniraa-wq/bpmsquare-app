@@ -1,0 +1,93 @@
+{
+  "id": "trainee-01-sunday-is-a-working-day",
+  "tags": [
+    "trainee"
+  ],
+  "description": "RT Nagar, Sunday 1 Nov: six Trainees punch in, two Trainees absent, one full-time employee works a week-off. Nothing here is a late, check-out or location pattern.",
+  "input": {
+    "site": {
+      "alias": "S7",
+      "shift_start": "09:00",
+      "grace_minutes": 10,
+      "radius_m": 150
+    },
+    "run": {
+      "from": "2026-10-19",
+      "to": "2026-11-01"
+    },
+    "config": {
+      "week_off_days": [
+        0
+      ],
+      "type_rules": {
+        "trainee": {
+          "effective_from": "2026-11-01",
+          "week_off_days": []
+        }
+      }
+    },
+    "people": [
+      {
+        "alias": "P1",
+        "type": "trainee"
+      },
+      {
+        "alias": "P2",
+        "type": "trainee"
+      },
+      {
+        "alias": "P3",
+        "type": "trainee"
+      },
+      {
+        "alias": "P4",
+        "type": "trainee"
+      },
+      {
+        "alias": "P5",
+        "type": "trainee"
+      },
+      {
+        "alias": "P6",
+        "type": "trainee"
+      },
+      {
+        "alias": "P7",
+        "type": "trainee",
+        "days": {
+          "2026-11-01": "A"
+        }
+      },
+      {
+        "alias": "P8",
+        "type": "trainee",
+        "days": {
+          "2026-11-01": "A"
+        }
+      },
+      {
+        "alias": "P9",
+        "type": "full_time",
+        "days": {
+          "2026-11-01": "X"
+        }
+      }
+    ]
+  },
+  "expect": {
+    "expected_candidates": [],
+    "must_flag": [],
+    "must_not_flag": [
+      {
+        "reason": "a Trainee's Sunday is a working day: presence is not unusual, and absence is not one of this agent's families"
+      }
+    ],
+    "must_gap": [],
+    "max_findings": 0,
+    "max_person_findings": 0,
+    "proposals": {
+      "allowed": [],
+      "forbidden_target_aliases": []
+    }
+  }
+}

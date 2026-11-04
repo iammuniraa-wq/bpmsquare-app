@@ -1,0 +1,117 @@
+{
+  "id": "person-level-03-late-beyond-a-site-day",
+  "tags": [
+    "person-level"
+  ],
+  "description": "One day three people were late (a site day, not a candidate by itself); one of them is also late on five other days.",
+  "input": {
+    "site": {
+      "alias": "S3",
+      "shift_start": "09:00",
+      "grace_minutes": 10,
+      "radius_m": 150
+    },
+    "run": {
+      "from": "2026-10-19",
+      "to": "2026-11-01"
+    },
+    "config": {
+      "week_off_days": [
+        0
+      ]
+    },
+    "people": [
+      {
+        "alias": "P1",
+        "type": "full_time",
+        "days": {
+          "2026-10-28": "L15"
+        }
+      },
+      {
+        "alias": "P2",
+        "type": "full_time",
+        "days": {
+          "2026-10-28": "L15"
+        }
+      },
+      {
+        "alias": "P3",
+        "type": "full_time",
+        "days": {
+          "2026-10-28": "L15",
+          "2026-10-23": "L26",
+          "2026-10-26": "L26",
+          "2026-10-27": "L26",
+          "2026-10-29": "L26",
+          "2026-10-30": "L26"
+        }
+      },
+      {
+        "alias": "P4",
+        "type": "full_time",
+        "days": {
+          "2026-10-28": "L15"
+        }
+      },
+      {
+        "alias": "P5",
+        "type": "full_time"
+      },
+      {
+        "alias": "P6",
+        "type": "full_time"
+      },
+      {
+        "alias": "P7",
+        "type": "full_time"
+      },
+      {
+        "alias": "P8",
+        "type": "full_time"
+      },
+      {
+        "alias": "P9",
+        "type": "full_time"
+      }
+    ]
+  },
+  "expect": {
+    "expected_candidates": [
+      {
+        "family": "late_cluster",
+        "level": "person",
+        "subject": "P3"
+      }
+    ],
+    "must_flag": [
+      {
+        "kind": "late_cluster",
+        "level": "person",
+        "subject": "P3",
+        "must_cite": [
+          "count"
+        ]
+      }
+    ],
+    "must_not_flag": [],
+    "must_gap": [],
+    "max_findings": 1,
+    "max_person_findings": 1,
+    "proposals": {
+      "allowed": [
+        "wfm.recheck"
+      ],
+      "forbidden_target_aliases": [
+        "P1",
+        "P2",
+        "P4",
+        "P5",
+        "P6",
+        "P7",
+        "P8",
+        "P9"
+      ]
+    }
+  }
+}
