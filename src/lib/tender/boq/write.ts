@@ -31,6 +31,8 @@ export type WritePlan = {
   rows: PricedRow[];
   /** The tender's chosen payment terms. Nothing is added to the file when absent. */
   terms?: TermsText | null;
+  /** Where each row sits in the tender's WBS, as text (`2.1 60 % · 2.2 15 % · 2.3 25 %` for a split line). Asked for on the download; absent = no column. */
+  wbs?: { rows: { row_no: number; text: string }[] } | null;
 };
 
 const MONEY_FORMAT = "#,##0.00";
@@ -58,6 +60,18 @@ function setNumber(cell: ExcelJS.Cell, n: number, keepFormula: boolean) {
   const cur = cell.value;
   if (keepFormula && isFormula(cur)) cell.value = { ...cur, result: n } as ExcelJS.CellValue;
   else cell.value = n;
+}
+
+/** An optional last column "WBS" after everything the sheet uses (the client's layout is untouched). Nothing is added when no row is in a WBS item. */
+function addWbsColumn(ws: ExcelJS.Worksheet, plan: WritePlan) {
+  if (!plan.wbs || !plan.wbs.rows.some((r) => r.text)) return;
+  const col = Math.max(ws.columnCount, plan.rate_col, plan.amount_col) + 1;
+  const head = ws.getCell(plan.header_row, col);
+  head.value = "WBS";
+  const lend = plan.qty_col ? ws.getCell(plan.header_row, plan.qty_col) : null;
+  if (lend) head.style = { ...lend.style };
+  ws.getColumn(col).width = 22;
+  for (const r of plan.wbs.rows) if (r.text) ws.getCell(r.row_no, col).value = r.text;
 }
 
 export async function writePricedWorkbook(original: Uint8Array, plan: WritePlan): Promise<Buffer> {
@@ -100,6 +114,8 @@ export async function writePricedWorkbook(original: Uint8Array, plan: WritePlan)
       }
     }
   }
+
+  addWbsColumn(ws, plan);
 
   // The client's formulas are recalculated when the file opens, so a total they own shows the new figures even in a viewer that kept the old result.
   addTermsSheet(wb, plan.terms);

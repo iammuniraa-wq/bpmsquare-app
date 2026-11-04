@@ -18,6 +18,8 @@ import { COSTING_TIPS } from "@/lib/tender/costing/tips";
 import { ESTIMATE_TIPS } from "@/lib/tender/estimates/tips";
 import CostingRow from "./costing/CostingRow";
 import CostSourcesTable from "./costing/CostSourcesTable";
+import WbsTotals from "./costing/WbsTotals";
+import SettingsSection from "@/components/settings/SettingsSection";
 import { useCards } from "./useCards";
 import CompareAward from "./costing/CompareAward";
 import PriceRowsPanel from "./costing/PriceRowsPanel";
@@ -194,6 +196,12 @@ export default function CostingTab({ opportunityId, canEdit, onError, onNotice, 
           )}
         </Card>
       )}
+
+      <div data-guide="costing.wbs.section">
+        <SettingsSection id="costing.wbs" title="Totals by WBS" info={COSTING_TIPS.wbs} summary="Bid amount, cost and margin per WBS item">
+          <WbsTotals opportunityId={opportunityId} currency={data.currency} onOpenBoq={onOpenBoq ? () => onOpenBoq() : undefined} layout={layout} />
+        </SettingsSection>
+      </div>
 
       {compareId && (
         <div ref={compareRef} data-guide="costing.compare.wrap">

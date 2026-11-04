@@ -114,6 +114,8 @@ export type BuyoutSummary = {
   tiles: BuyoutTiles;
   packages: PackageRow[];
   unassigned_lines: BudgetLineRow[];
+  /** The package each packaged budget line (by line_key) is in, so a WBS item can say which of its lines are taken. */
+  packaged_lines: Record<string, { ref: string | null; name: string }>;
   /** For the Budget tab's Committed column: the awarded amount of each budget line (by line_key) of an awarded or handed-over package. */
   committed_by_line: Record<string, number>;
   can_edit: boolean;

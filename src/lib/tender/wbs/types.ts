@@ -20,7 +20,7 @@ export type WbsState = {
 };
 
 export const EMPTY_WBS: WbsState = {
-  pending: false, items: [], rollup: {}, total: { part_count: 0, shared_count: 0, client_amount: 0, cost: null, priced_count: 0 },
+  pending: false, items: [], rollup: {}, total: { part_count: 0, shared_count: 0, client_amount: 0, cost: null, priced_count: 0, costed_count: 0 },
 };
 
 /** The line as a split request names it: an existing item, or a new one made on the spot. */

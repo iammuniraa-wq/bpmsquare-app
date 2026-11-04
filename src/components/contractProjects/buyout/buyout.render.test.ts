@@ -21,7 +21,8 @@ import { allocationView } from "@/lib/contractProjects/allocation";
 import { BUYOUT_TIPS } from "./tips";
 import { awardedDetail, data, detail, lines, packages, rounds, row } from "./testData";
 import type { BuyoutData, PackageDetail, PickerList } from "./types";
-import type { BudgetLine } from "@/lib/contractProjects/types";
+import type { BudgetLine, WorkPackageRow } from "@/lib/contractProjects/types";
+import { wbsBuyoutPrefill } from "@/lib/contractProjects/wbsBuyout";
 
 // The Buy-out screens render, with the right words on them and none of their explanations printed (6b). A server render of the real components
 // with the mock-up's example packages. 375 px and PC share one markup: the table and the cards are both rendered and CSS picks one at 780 px
@@ -475,5 +476,86 @@ describe("the tab on the project page", () => {
 
   it("the Overview mounts the progress card only when Buy-out is on", () => {
     expect(src("src/components/contractProjects/ProjectOverview.tsx")).toContain("{buyoutOn && <BuyoutProgressCard projectId={p.id} currency={cur} />}");
+  });
+});
+
+// ── Make buy-out package, from a WBS item (docs/design/wbs.md slice 4) ───────────────────────────────────────────────────────────
+
+describe("the new package panel started from a WBS item", () => {
+  const K = (n: number) => `bbbbbbbb-bbbb-4bbb-8bbb-${String(n).padStart(12, "0")}`;
+  const bl = (n: number, over: Partial<BudgetLine> = {}): BudgetLine => ({
+    id: `rev-${n}`, line_key: K(n), line_no: n, resource_code: "11", cost_code: "03", wbs: `2.${n}`, description: `Line ${n}`, qty: 10, unit: "m", unit_cost: 100, amount: 1000, cost_known: true,
+    source_ref: null, reserve: false, committed: null, actual: null, allocated: true, client_rate: 120, client_amount: 1200, source_line_id: null, ...over,
+  });
+  const budget = [bl(1, { description: "Steel access stair", qty: 337.1, amount: 100000 }), bl(2, { description: "Handrail", amount: 5000 }), bl(3, { description: "Gate", amount: 800 })];
+  const wp = (id: string, code: string, parent: string | null, over: Partial<WorkPackageRow> = {}): WorkPackageRow => ({
+    id, code, name: `Item ${code}`, owner_employee_id: null, owner_name: null, allocated_cost: null, sort_order: 10, note: null, line_keys: [], parent_id: parent, line_parts: [], ...over,
+  });
+  const items = [
+    wp("fab", "1.1", null, { name: "Fabrication", line_keys: [K(2), K(3)], line_parts: [{ line_key: K(1), share_pct: 60 }] }),
+    wp("gal", "1.2", null, { name: "Galvanising", sort_order: 20, line_parts: [{ line_key: K(1), share_pct: 15 }] }),
+    wp("ere", "2", null, { name: "Erection", sort_order: 30, line_parts: [{ line_key: K(1), share_pct: 25 }] }),
+  ];
+  // The approved budget: the stair and the handrail are free (ids of the approved revision), the gate is already in PKG-0003.
+  const free = [
+    { id: "ap-1", line_key: K(1), line_no: 1, wbs: "2.1", description: "Steel access stair", qty: 337.1, unit: "m", amount: 100000 },
+    { id: "ap-2", line_key: K(2), line_no: 2, wbs: "2.2", description: "Handrail", qty: 10, unit: "m", amount: 5000 },
+  ];
+  const buyout = { unassigned_lines: free, packaged_lines: { [K(3)]: { ref: "PKG-0003", name: "Gates" } } };
+  const panel = (itemId: string) => {
+    const it = items.find((x) => x.id === itemId)!;
+    const initial = wbsBuyoutPrefill(it, items, budget, buyout);
+    return { initial, out: clean(renderToString(createElement(NewPackagePanel, { projectId: "p1", lines: free, currency: "INR", initial, onClose: noop, onCreated: noop }))) };
+  };
+
+  it("starts with the item's name and its lines ticked; a package made from Fabrication holds the whole stair", () => {
+    const { initial, out } = panel("fab");
+    expect(initial.name).toBe("Fabrication");
+    expect(initial.budget_line_ids).toEqual(["ap-1", "ap-2"]);
+    expect(out).toContain('value="Fabrication"');
+    expect(out.match(/data-guide="buyout.new.line"/g)).toHaveLength(2);
+    expect(out.match(/<input type="checkbox"[^>]*checked=""/g)).toHaveLength(2);
+    expect(out).toContain("2.1 · Steel access stair");
+    expect(out).toContain("2 lines, INR 105,000");
+  });
+
+  it("a split line goes in whole, and the panel shows how much of it sits in this item", () => {
+    const { initial, out } = panel("fab");
+    expect(initial.shares).toEqual({ "ap-1": 60 });
+    expect(out).toContain("60 % in this WBS item");
+    expect(out).not.toContain("15 % in this WBS item");
+    expect(out).toContain("INR 100,000"); // the whole stair's amount, not 60 % of it
+  });
+
+  it("a line already in a package is left unticked, with the package named", () => {
+    const { out } = panel("fab");
+    expect(out).toContain('data-guide="buyout.new.line_taken"');
+    expect(out).toContain("2.3 Gate · in PKG-0003");
+    const box = out.match(/data-guide="buyout\.new\.line_taken"[^>]*>(<input[^>]*>)/)?.[1] ?? "";
+    expect(box).toContain('disabled=""');
+    expect(box).not.toContain('checked=""');
+  });
+
+  it("an item whose only line is the stair's 15 % brings the whole stair too", () => {
+    const { initial, out } = panel("gal");
+    expect(initial.budget_line_ids).toEqual(["ap-1"]);
+    expect(initial.shares).toEqual({ "ap-1": 15 });
+    expect(out).toContain("15 % in this WBS item");
+    expect(out).toContain('value="Galvanising"');
+  });
+
+  it("the panel without a WBS item is as it was: nothing ticked, no taken lines", () => {
+    const o = clean(renderToString(createElement(NewPackagePanel, { projectId: "p1", lines: free, currency: "INR", onClose: noop, onCreated: noop })));
+    expect(o).not.toContain("buyout.new.line_taken");
+    expect(o).not.toContain("in this WBS item");
+    expect(o.match(/<input type="checkbox"[^>]*checked=""/g) ?? []).toHaveLength(0);
+  });
+
+  it("the WBS tab reads the buy-out summary on request and sends the person to the Buy-out tab after the package is made", () => {
+    const tabSrc = src("src/components/contractProjects/WbsTab.tsx");
+    expect(tabSrc).toContain("loadBuyout<BuyoutData>(projectId)");
+    expect(tabSrc).toContain("Packages are made from the approved baseline. Approve the baseline first.");
+    expect(tabSrc).toMatch(/\?tab=buyout/);
+    expect(tabSrc).toContain("onMakeBuyout={buyoutOn && editable ?");
   });
 });
