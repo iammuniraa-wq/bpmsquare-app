@@ -122,6 +122,22 @@ export const FEATURE_DEPENDENCIES: FeatureDependency[] = [
     why: "A contract project is made from a won tender, and its approvals reuse the tender's approvers.",
   },
   {
+    key: "crew_tender_watch", needs: "crew", strength: "hard",
+    why: "Tender Watch is an agent of the AI automation workcenter, which exists only while that flag is on.",
+  },
+  {
+    key: "crew_tender_watch", needs: "gcc_tender", strength: "hard",
+    why: "Tender Watch reads tender deals, so it needs the GCC tender edition of the Pipeline.",
+  },
+  {
+    key: "crew_attendance", needs: "crew", strength: "hard",
+    why: "Attendance Anomalies is an agent of the AI automation workcenter, which exists only while that flag is on.",
+  },
+  {
+    key: "crew_attendance", needs: "wfm", strength: "hard",
+    why: "Attendance Anomalies reads Workforce attendance, so it needs the Workforce module.",
+  },
+  {
     key: "marketing_scoring", needs: "marketing", strength: "hard",
     why: "Scoring, consent and topics are settings of the Marketing module; its settings pages sit under Marketing campaigns being on.",
   },
@@ -145,6 +161,7 @@ export const FEATURE_GROUP: Partial<Record<Key, SettingsGroupId>> = {
   // Integrations
   outbound_email: "integrations", gmail_reply_threading: "integrations", ai_assistant: "integrations", ai_assistant_web: "integrations", ai_assistant_actions: "integrations", ai_reports: "integrations",
   // Appearance
+  crew: "integrations", crew_tender_watch: "integrations", crew_attendance: "integrations",
   next_experience: "appearance", enterprise_theme: "appearance", spectacular_theme: "appearance",
 };
 

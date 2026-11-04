@@ -239,6 +239,18 @@
     {
       "key": "contract_projects",
       "comment": "Contract projects, slice 5a of the same design (docs/design/gcc-tender-deals.md section 15): the project a won tender becomes, with its cost budget by resource type and cost code, numbered revisions with a reason, a mana"
+    },
+    {
+      "key": "crew",
+      "comment": "AI automation (docs/design/nova-crew-agents.md, section 3.1): the workcenter of pre-built agents."
+    },
+    {
+      "key": "crew_tender_watch",
+      "comment": ""
+    },
+    {
+      "key": "crew_attendance",
+      "comment": ""
     }
   ],
   "extensionHooks": [
@@ -557,6 +569,43 @@
       "status": "live",
       "plain": "Rule-based teams and segments that decide who owns an account, which products are available and how records are routed to an ERP.",
       "rules": []
+    },
+    "crew": {
+      "status": "experimental",
+      "plain": "AI automation. A workcenter of pre-built agents that watch the workspace, tell a person what needs attention and, only when a person approves, draft the next step. A gallery of tiles, one per agent.",
+      "rules": [
+        "A platform admin switches it on in the tenant editor; each agent has its own flag as well, and with the flag off there is no menu entry, screen, cron work or cost.",
+        "An agent only proposes. It never sends, edits or computes a price, an attendance total or any other number: it reads through our own engines and reports with links to the records it looked at.",
+        "Anything that reaches a colleague opens an editor first and goes out only after a person presses Edit and send; there is no one-tap approval for text that reaches a person.",
+        "A workspace admin switches each agent on or off and can pause all agents at once; a platform admin can also stop everything with an environment setting.",
+        "Each agent has a monthly token allowance on top of the workspace's pooled AI allowance; the tightest wins, a spent allowance pauses the agent and never stops the plain screens.",
+        "Every run keeps a trace of what the agent looked at, concluded, proposed and could not check; it is kept for a fixed number of days and then deleted.",
+        "Agent output is not in global search, the standard API, the MCP server, webhooks or the Data Workbench."
+      ]
+    },
+    "crew_attendance": {
+      "status": "experimental",
+      "plain": "Attendance Anomalies. It reviews aliased attendance facts after the day closes and tells supervisors about patterns a daily list hides: a site, a day or a setting, rather than just a person.",
+      "rules": [
+        "It needs AI automation and Workforce, and stays off for a real workspace until the owner has the customer's written acceptance of the processing.",
+        "The model never sees a name, code, phone, e-mail, photo or coordinates: each person is a per-run alias, and names are put back only in the browser of a person allowed to see them.",
+        "Findings are review suggestions: they carry what was observed, what else could explain it and what the supervisor could do, and never judge honesty or suggest a pay or disciplinary step.",
+        "A supervisor sees findings for their own sites only and never findings about themselves; employees see nothing.",
+        "The only action it can propose is a recheck request that the supervisor edits and sends as their own message."
+      ]
+    },
+    "crew_tender_watch": {
+      "status": "experimental",
+      "plain": "Tender Watch. Each morning it looks at the live tenders, says which are at risk of missing the bid end date or going in incomplete, and who is holding each one up. It can draft a short note to that person for the deal team to edit and send.",
+      "rules": [
+        "It needs AI automation and GCC tender deals; the Deal Room and RFQ make its findings richer but are not required.",
+        "A day with no tender in the watch window costs nothing: the plain rules pick the candidates first and the model only judges those.",
+        "It never predicts a win, never suggests a price or margin, never advises bid or no-bid, and never states a number a tool did not give it; every figure and date is filled in by the server from the records it read.",
+        "The countdown e-mails and the Tender desk attention list stay plain rules and keep working as they are; Tender Watch reads them as inputs.",
+        "A finding goes to the deal owner, the team and workspace admins; a person can dismiss it or mark it Not an issue, which silences it for 30 days unless the situation gets worse.",
+        "A drafted note goes to the named person only after the deal owner, a team member or an admin edits and sends it, as a Deal Room mention and an e-mail; at most 3 per person per day and none about the same deal within 48 hours.",
+        "A person can opt in to a daily digest e-mail for themselves; it goes to internal members only and is redirected on a demo workspace."
+      ]
     },
     "data_workbench": {
       "status": "live",
