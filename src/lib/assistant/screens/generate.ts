@@ -113,6 +113,8 @@ function settingsScreens(): ScreenManifest[] {
 
 type StudioDef = {
   id: string; navHref: string; title: string; purpose: string; steps: readonly TourStepDef[]; match: (p: string) => boolean;
+  /** For a studio that no longer has a sidebar row of its own (the newsletter studio lives under Email). */
+  featureKey?: string; workcenter?: WorkcenterKey;
 };
 
 const under = (base: string, except: string[] = []) => (p: string) =>
@@ -121,7 +123,7 @@ const under = (base: string, except: string[] = []) => (p: string) =>
 const STUDIOS: StudioDef[] = [
   { id: "marketing.forms", navHref: ROUTES.marketingForms, title: "Form studio", purpose: "Build a sign-up form: what it asks, the consent words, what happens after, and where to share it.", steps: FORM_TOUR, match: under(ROUTES.marketingForms) },
   { id: "marketing.journeys", navHref: ROUTES.marketingJourneys, title: "Journey studio", purpose: "Design an automated series of messages, check who would enter, and try it on a real person before going live.", steps: JOURNEY_TOUR, match: under(ROUTES.marketingJourneys) },
-  { id: "marketing.newsletters", navHref: ROUTES.marketingNewsletters, title: "Newsletter studio", purpose: "Write a newsletter from blocks, translate it, preview it on phone and desktop, and send it.", steps: NEWSLETTER_TOUR, match: under(ROUTES.marketingNewsletters) },
+  { id: "marketing.newsletters", navHref: ROUTES.marketingNewsletters, title: "Newsletter studio", purpose: "Write a newsletter from blocks, translate it, preview it on phone and desktop, and send it.", steps: NEWSLETTER_TOUR, match: under(ROUTES.marketingNewsletters) , featureKey: "newsletter_studio", workcenter: "marketing_newsletters" },
   { id: "marketing.signals", navHref: ROUTES.marketingSignals, title: "Buying signals", purpose: "Accounts ranked by how ready they look to buy, with the signals behind each score.", steps: SIGNALS_TOUR, match: (p) => p === ROUTES.marketingSignals },
   { id: "marketing.whatsapp", navHref: ROUTES.marketingWhatsapp, title: "WhatsApp template studio", purpose: "Write a WhatsApp message template, choose its consent topic and mark it approved.", steps: WHATSAPP_TOUR, match: under(ROUTES.marketingWhatsapp, ["setup"]) },
   { id: "marketing.attribution", navHref: ROUTES.marketingAttribution, title: "Revenue by source", purpose: "Which campaigns, forms and newsletters started the deals, under the credit rule you choose.", steps: ATTRIBUTION_TOUR, match: (p) => p === ROUTES.marketingAttribution },
@@ -140,7 +142,7 @@ function studioScreens(): ScreenManifest[] {
     const idOf = (t: string) => `${s.id}.${t}`;
     return {
       id: s.id, kind: "studio" as const, title: s.title, purpose: s.purpose, match: s.match,
-      featureKey: nav?.featureKey, workcenter: nav?.workcenterKey as WorkcenterKey | undefined,
+      featureKey: nav?.featureKey ?? s.featureKey, workcenter: (nav?.workcenterKey as WorkcenterKey | undefined) ?? s.workcenter,
       controls,
       tasks: [{ id: "tour", label: "Walk through this screen", steps: s.steps.map((st) => ({ control: idOf(st.target), text: st.text })) }],
     };

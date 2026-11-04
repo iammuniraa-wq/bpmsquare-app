@@ -32,7 +32,7 @@ export default function MarketingComposeForm({ accounts, initialGroupId }: { acc
   const [subject, setSubject] = useState("");
   const [customMessage, setCustomMessage] = useState("");
   const [body, setBody] = useState("");
-  const [types, setTypes] = useState<Set<AccountType>>(new Set());
+  const [types, setTypes] = useState<Set<AccountType>>(new Set(initialGroupId ? [] : ["direct", "end_customer", "oem", "prospect"]));
   const [includeIds, setIncludeIds] = useState<Set<string>>(new Set());
   const [excludeIds, setExcludeIds] = useState<Set<string>>(new Set());
   const [manualEmails, setManualEmails] = useState<Set<string>>(new Set());
@@ -40,14 +40,18 @@ export default function MarketingComposeForm({ accounts, initialGroupId }: { acc
   const [match, setMatch] = useState<"all" | "any">("all");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+  // Once saved, a second press updates the same draft instead of creating a copy.
+  const [savedId, setSavedId] = useState<string | null>(null);
 
   async function saveDraft() {
     if (!name.trim()) { setError("Give this campaign a name."); return; }
     setError("");
+    setNotice("");
     setSaving(true);
     try {
-      const res = await fetch("/api/marketing/campaigns", {
-        method: "POST",
+      const res = await fetch(savedId ? `/api/marketing/campaigns/${savedId}` : "/api/marketing/campaigns", {
+        method: savedId ? "PATCH" : "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name, subject,
@@ -61,7 +65,11 @@ export default function MarketingComposeForm({ accounts, initialGroupId }: { acc
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Failed to save");
-      router.push(ROUTES.marketingCampaign(json.id));
+      const id: string = savedId ?? json.id;
+      setSavedId(id);
+      // The draft IS saved at this point; say so before the page changes, and keep the link in case it does not.
+      setNotice("Draft saved. Opening it…");
+      router.push(ROUTES.marketingCampaign(id));
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Failed to save");
       setSaving(false);
@@ -70,14 +78,19 @@ export default function MarketingComposeForm({ accounts, initialGroupId }: { acc
 
   return (
     <ObjectFormPage
-      backHref={ROUTES.marketing}
-      backLabel="All campaigns"
+      backHref={ROUTES.marketingEmail}
+      backLabel="All email"
       title="New Campaign"
       subtitle="Email · choose the audience and the text"
       onSubmit={(e) => { e.preventDefault(); void saveDraft(); }}
       saving={saving}
       saveLabel="Save draft"
       error={error}
+      footerLeft={notice ? (
+        <span role="status" style={{ fontSize: 12.5, color: "var(--ok-ink, #04342c)" }}>
+          {notice}{savedId ? <> <a href={ROUTES.marketingCampaign(savedId)} style={{ color: c.accent, fontWeight: 600 }}>Open the draft</a></> : null}
+        </span>
+      ) : undefined}
       maxWidth={760}
     >
       <Card>
@@ -85,6 +98,17 @@ export default function MarketingComposeForm({ accounts, initialGroupId }: { acc
           <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Diwali greeting 2026" />
         </Field>
       </Card>
+
+      <TargetAudiencePicker
+        accounts={accounts}
+        types={types} setTypes={setTypes}
+        includeIds={includeIds} setIncludeIds={setIncludeIds}
+        excludeIds={excludeIds} setExcludeIds={setExcludeIds}
+        manualEmails={manualEmails} setManualEmails={setManualEmails}
+        filters={filters} setFilters={setFilters}
+        match={match} setMatch={setMatch}
+        autoLoadGroupId={initialGroupId}
+      />
 
       <TemplatePicker
         selectedId={templateId}
@@ -105,16 +129,6 @@ export default function MarketingComposeForm({ accounts, initialGroupId }: { acc
         </Card>
       )}
 
-      <TargetAudiencePicker
-        accounts={accounts}
-        types={types} setTypes={setTypes}
-        includeIds={includeIds} setIncludeIds={setIncludeIds}
-        excludeIds={excludeIds} setExcludeIds={setExcludeIds}
-        manualEmails={manualEmails} setManualEmails={setManualEmails}
-        filters={filters} setFilters={setFilters}
-        match={match} setMatch={setMatch}
-        autoLoadGroupId={initialGroupId}
-      />
     </ObjectFormPage>
   );
 }

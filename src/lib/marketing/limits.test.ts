@@ -97,10 +97,15 @@ describe("the limits route", () => {
     expect((await put({ max_per_day: 2 })).status).toBe(403);
   });
 
-  it("is not there for a workspace without the marketing_scoring program", async () => {
-    db.tables.tenants[0].features = { marketing: true };
+  it("is not there for a workspace with no marketing at all", async () => {
+    db.tables.tenants[0].features = { quotations: true };
     expect((await GET()).status).toBe(404);
     expect((await put({ max_per_day: 2 })).status).toBe(404);
+  });
+
+  it("is there for a workspace with Marketing alone: plain campaigns are consent-gated too", async () => {
+    db.tables.tenants[0].features = { marketing: true };
+    expect((await GET()).status).toBe(200);
   });
 
   it("returns the values, the timezone chip and which modules have limits to show", async () => {

@@ -42,10 +42,12 @@ export const NAV_GLYPHS: Record<string, GlyphComponent> = {
   [ROUTES.workOrders]: Wrench,
   [ROUTES.dispatch]: MapPin,
   [ROUTES.technicians]: HardHat,
-  // Marketing
+  // Marketing and Intelligence (two groups, docs/design/marketing-two-parts.md)
   [ROUTES.marketingSegments]: Filter,
   [ROUTES.marketingAbm]: Target,
-  [ROUTES.marketing]: Send,
+  [ROUTES.marketingEmail]: Send,
+  [ROUTES.marketing]: Home,
+  [ROUTES.marketingIntelligence]: Eye,
   [ROUTES.marketingNewsletters]: Mail,
   [ROUTES.marketingWhatsapp]: MessageSquare,
   [ROUTES.marketingEvents]: CalendarCheck,
@@ -89,6 +91,7 @@ export const GROUP_ICON: Record<string, GlyphComponent> = {
   "SALES & PROCUREMENT": Wallet,
   "SERVICE": LifeBuoy,
   "MARKETING": Megaphone,
+  "INTELLIGENCE": Compass,
   "MASTER DATA": Database,
   "WORKFORCE": Hourglass,
   "INSIGHTS": PieChart,

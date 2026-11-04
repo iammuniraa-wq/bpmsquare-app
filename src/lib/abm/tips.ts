@@ -30,7 +30,7 @@ export function ownerTip(source: "coverage" | "program" | "manual", unchanged: b
 
 /** The "Copied list" chip: which kind of list, and when it was copied. */
 export function copiedListTip(fromGroup: boolean, date: string): string {
-  return `Copied from ${fromGroup ? "a marketing target group" : "a Coverage segment"} on ${date}. It does not change by itself.`;
+  return `Copied from ${fromGroup ? "an audience" : "a Coverage segment"} on ${date}. It does not change by itself.`;
 }
 
 /** The "i" on the Results card: where the money comes from, and where dropped and lost companies are counted. */

@@ -13,7 +13,7 @@ import { NAV_GLYPHS } from "@/components/navGlyphs";
 import { useTenant, useUiTheme, useViewableWorkcenters, useIsWfmSupervisor, useTopBarIdentity, useIsSpectacular } from "@/lib/tenant-context";
 import SpacesRow from "@/components/SpacesRow";
 import { isNavItemHidden } from "@/lib/navVisibility";
-import { isItemViewable } from "@/lib/navGroups";
+import { isItemViewable, navFeatureOn } from "@/lib/navGroups";
 import type { ViewableWorkcenters } from "@/lib/workcenters";
 
 // ── Nav order persistence ─────────────────────────────────────────────────────
@@ -47,7 +47,7 @@ export { isItemViewable };
  * sees empty ghost groups for every module it didn't buy. */
 function hasVisibleChild(item: NavItem, features?: Record<string, boolean>, viewable: ViewableWorkcenters = "all"): boolean {
   if (!item.children?.length) return true;
-  return item.children.some((ch) => (!ch.featureKey || features?.[ch.featureKey] === true) && isItemViewable(ch, viewable));
+  return item.children.some((ch) => navFeatureOn(ch, features) && isItemViewable(ch, viewable));
 }
 
 const TREE_KEY = "bpm_spec_tree_open";
@@ -55,7 +55,7 @@ const TREE_KEY = "bpm_spec_tree_open";
 export function flattenNav(features?: Record<string, boolean>, viewable: ViewableWorkcenters = "all"): FlatItem[] {
   return NAV.flatMap((grp) =>
     grp.items
-      .filter((item) => (!item.featureKey || features?.[item.featureKey] === true) && isItemViewable(item, viewable) && hasVisibleChild(item, features, viewable))
+      .filter((item) => navFeatureOn(item, features) && isItemViewable(item, viewable) && hasVisibleChild(item, features, viewable))
       .map((item) => ({ ...item, group: grp.group }))
   );
 }
@@ -288,7 +288,7 @@ function DraggableSection({
             {hasChildren && isOpen && (
               <div style={{ marginLeft: 10 }}>
                 {item.children!
-                  .filter((ch) => (!ch.featureKey || features?.[ch.featureKey] === true) && isItemViewable(ch, viewable) && !hidden.has(ch.href) && (!ch.supervisorOnly || isWfmSupervisor))
+                  .filter((ch) => navFeatureOn(ch, features) && isItemViewable(ch, viewable) && !hidden.has(ch.href) && (!ch.supervisorOnly || isWfmSupervisor))
                   .map((ch) => {
                     const childOn = isActive(ch.href);
                     return (
@@ -517,7 +517,7 @@ export default function Sidebar({ onNavigate, hideHeader }: { onNavigate?: () =>
   // A parent (Sales, Marketing, ...) shares its href with its first child, so
   // "is this href hidden" cannot decide a parent: it is hidden only when all
   // its children are (see lib/navVisibility.ts).
-  const childPresent = (ch: NavItem) => (!ch.featureKey || features?.[ch.featureKey] === true) && isItemViewable(ch, viewable);
+  const childPresent = (ch: NavItem) => navFeatureOn(ch, features) && isItemViewable(ch, viewable);
   const rowHidden = (i: FlatItem) => !i.adminOnly && isNavItemHidden(hidden, i, childPresent);
 
   const favItems  = navState.favs

@@ -121,7 +121,7 @@ export default async function AbmProgramsPage({ searchParams }: { searchParams: 
       filtered={!!(term || Object.keys(cfParams).length > 0 || view.id !== "all")}
       empty={{
         title: missing ? "ABM programs will appear here once the database update has been applied." : "No programs yet",
-        text: missing ? undefined : "Pick the companies that matter most and work them as a team. Start from a target group or choose accounts by hand.",
+        text: missing ? undefined : "Pick the companies that matter most and work them as a team. Start from an audience or choose accounts by hand.",
         filteredTitle: term ? `No programs match "${q}".` : "No programs here yet.",
       }}
     />

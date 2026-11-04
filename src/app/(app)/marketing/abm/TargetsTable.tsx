@@ -77,7 +77,7 @@ export default function TargetsTable({ rows }: { rows: TargetListRow[] }) {
     (!term || `${r.accountName} ${r.place} ${r.owner ?? ""} ${r.nextStep ?? ""}`.toLowerCase().includes(term)));
 
   if (rows.length === 0) {
-    return <Card padding={0}><EmptyState title="No target accounts yet" text="Add the companies this program is for: pick them by name, or copy a marketing target group or a Coverage segment." /></Card>;
+    return <Card padding={0}><EmptyState title="No target accounts yet" text="Add the companies this program is for: pick them by name, or copy an audience or a Coverage segment." /></Card>;
   }
 
   return (

@@ -13,7 +13,7 @@ import Field from "@/components/ui/Field";
 import { Input, Select, Textarea } from "@/components/ui/Input";
 import SectionCustomFields, { useSectionCustomFields } from "@/components/fields/SectionCustomFields";
 
-export default function NewContactForm({ accounts, defaultAccountId, isAdmin }: { accounts: Account[]; defaultAccountId?: string; isAdmin?: boolean }) {
+export default function NewContactForm({ accounts, defaultAccountId, defaultEmail, isAdmin }: { accounts: Account[]; defaultAccountId?: string; defaultEmail?: string; isAdmin?: boolean }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState("");
@@ -24,7 +24,7 @@ export default function NewContactForm({ accounts, defaultAccountId, isAdmin }: 
     account_id: defaultAccountId || accounts[0]?.id || "",
     name: "", role: "", department: "",
     phone: "", phone2: "", phone3: "",
-    email: "", email2: "",
+    email: defaultEmail ?? "", email2: "",
     website: "", linkedin_url: "", birthday: "",
     address_line1: "", address_line2: "",
     city: "", state: "", postal_code: "", country: "",

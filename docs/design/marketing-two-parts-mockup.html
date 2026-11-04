@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Marketing in two parts: mock-up</title>
+<style>
+:root{--bg:#eef1f6;--ink:#1c2733;--muted:#505b6a;--hint:#66707e;--line:#e2e7ee;--panel:#fff;--panel2:#f4f6f9;--accent:#378add;--accentbg:#e6f1fb;
+--teal:#1d9e75;--tealbg:#e1f5ee;--tealink:#04342c;--amberbg:#faeeda;--amberink:#633806;--redbg:#fcebeb;--redink:#791f1f;--bluebg:#e6f1fb;--blueink:#0c447c;--purplebg:#eeedfe;--purpleink:#26215c;--note:#fffbe9;--noteline:#d8b84a;--notink:#7a5c00;--side:#152233;--sideink:#c8d3e0}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0e1621;--ink:#e6edf5;--muted:#a9b6c5;--hint:#8c9aab;--line:#2a3747;--panel:#17212d;--panel2:#1d2938;--accent:#7fb2ec;--accentbg:#17304d;--teal:#3fb8c2;--tealbg:#123238;--tealink:#a8e6ea;--amberbg:#3a2c12;--amberink:#f1d29b;--redbg:#3d1c1c;--redink:#f3b4b4;--bluebg:#17304d;--blueink:#b7d6f6;--purplebg:#26234a;--purpleink:#cfcbf7;--note:#2f2a14;--noteline:#7d6a22;--notink:#e8d48a;--side:#0b121b}}
+:root[data-theme="dark"]{--bg:#0e1621;--ink:#e6edf5;--muted:#a9b6c5;--hint:#8c9aab;--line:#2a3747;--panel:#17212d;--panel2:#1d2938;--accent:#7fb2ec;--accentbg:#17304d;--teal:#3fb8c2;--tealbg:#123238;--tealink:#a8e6ea;--amberbg:#3a2c12;--amberink:#f1d29b;--redbg:#3d1c1c;--redink:#f3b4b4;--bluebg:#17304d;--blueink:#b7d6f6;--purplebg:#26234a;--purpleink:#cfcbf7;--note:#2f2a14;--noteline:#7d6a22;--notink:#e8d48a;--side:#0b121b}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.4 "Segoe UI",Arial,sans-serif}
+.wrap{max-width:1100px;margin:0 auto;padding:16px}
+body.phone .wrap{max-width:375px;padding:12px;outline:1px dashed var(--hint)}
+h1{font-size:18px;margin:4px 0 2px}.sub{color:var(--muted);font-size:12.5px;margin-bottom:10px}
+.tb{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.nav{display:flex;gap:6px;flex-wrap:wrap;margin:10px 0 12px}
+.btn,.nav button{border:1px solid var(--line);background:var(--panel);border-radius:8px;padding:0 12px;min-height:44px;cursor:pointer;font:inherit;display:inline-flex;align-items:center;gap:6px;color:var(--ink)}
+.nav button.on,.btn.p{background:var(--accent);color:#fff;border-color:var(--accent)}
+:root[data-theme="dark"] .nav button.on,:root[data-theme="dark"] .btn.p{color:#0b121b}
+.btn.sm{min-height:36px;font-size:13px}.btn:disabled{opacity:.5;cursor:default}
+.screen{display:none}.screen.on{display:block}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:10px}
+.note{background:var(--note);border:1px dashed var(--noteline);border-radius:8px;padding:8px 10px;font-size:12.5px;margin-bottom:10px}.note b{color:var(--notink)}
+.i{display:inline-block;width:15px;height:15px;border:1px solid var(--hint);border-radius:50%;text-align:center;font-size:10px;line-height:13px;color:var(--hint);margin-left:4px;cursor:help;position:relative;vertical-align:middle}
+.i:hover::after,.i:focus::after{content:attr(data-t);position:absolute;left:0;top:18px;z-index:9;background:var(--ink);color:var(--panel);padding:6px 8px;border-radius:6px;width:240px;font-size:12px;line-height:1.35;text-align:left;white-space:normal}
+.chip{display:inline-block;border-radius:999px;padding:1px 8px;font-size:11.5px;white-space:nowrap}
+.c-blue{background:var(--bluebg);color:var(--blueink)}.c-amber{background:var(--amberbg);color:var(--amberink)}.c-red{background:var(--redbg);color:var(--redink)}.c-teal{background:var(--tealbg);color:var(--tealink)}.c-purple{background:var(--purplebg);color:var(--purpleink)}.c-grey{background:var(--panel2);color:var(--muted)}
+a.lk,.lk{color:var(--accent);cursor:pointer;text-decoration:underline;font-size:12.5px}
+.hint{color:var(--hint);font-size:12.5px}.muted{color:var(--muted)}
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:12px}body.phone .cols{grid-template-columns:1fr}
+/* sidebar */
+.side{background:var(--side);color:var(--sideink);border-radius:12px;padding:10px 8px;font-size:13px}
+.side .g{font-size:10.5px;letter-spacing:.08em;color:#7f90a5;padding:8px 8px 4px}
+.side .p{padding:7px 8px;font-weight:600;color:#fff;display:flex;justify-content:space-between}
+.side .c{padding:6px 8px 6px 22px;display:block}.side .c.new{color:#fff;background:rgba(55,138,221,.25);border-radius:6px}
+.side .c.gone{text-decoration:line-through;opacity:.55}
+/* tiles / path */
+.path{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}body.phone .path{grid-template-columns:1fr}
+.step{border:1px solid var(--line);border-radius:12px;background:var(--panel);padding:10px;display:flex;flex-direction:column;gap:4px;min-height:132px}
+.step .n{width:24px;height:24px;border-radius:50%;background:var(--accent);color:#fff;font-size:12px;display:flex;align-items:center;justify-content:center;font-weight:700}
+:root[data-theme="dark"] .step .n{color:#0b121b}
+.step .l{font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted)}.step .v{font-size:22px;font-weight:700}.step .s{font-size:12.5px;color:var(--hint);flex:1}
+.step.good{background:var(--tealbg)}.step.warn{background:var(--amberbg)}.step.off{opacity:.55}
+.strip{display:flex;gap:8px;flex-wrap:wrap}.strip a{border:1px solid var(--line);border-radius:999px;padding:0 12px;min-height:44px;display:inline-flex;align-items:center;gap:6px;background:var(--panel);cursor:pointer;color:var(--ink)}
+/* tables */
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin:10px 0;overflow-x:auto}
+.tabs span{padding:10px 12px;font-size:13px;color:var(--muted);white-space:nowrap;cursor:pointer;min-height:44px}.tabs span.on{color:var(--accent);border-bottom:2px solid var(--accent);font-weight:600}
+table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:8px;border-bottom:1px solid var(--line);font-size:13px;vertical-align:middle}
+th{font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);background:var(--panel2)}td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
+.twrap{overflow:auto;border:1px solid var(--line);border-radius:10px;background:var(--panel)}
+body.phone .twrap table,body.phone .twrap thead{display:block}body.phone .twrap thead{display:none}
+body.phone .twrap tr{display:grid;grid-template-columns:1fr auto;gap:2px 8px;padding:8px;border-bottom:1px solid var(--line)}
+body.phone .twrap td{border:0;padding:1px 0}body.phone .twrap td.n{text-align:left}body.phone .twrap td.hm{display:none}
+/* stepper + form */
+.steps{display:flex;gap:0;margin:6px 0 12px}.steps span{flex:1;text-align:center;padding:10px 4px;font-size:13px;border-bottom:3px solid var(--line);color:var(--muted);cursor:pointer;min-height:44px}
+.steps span.on{border-color:var(--accent);color:var(--accent);font-weight:600}.steps span.done{border-color:var(--teal);color:var(--tealink)}
+input.in,select.in,textarea.in{border:1px solid var(--line);border-radius:8px;min-height:44px;padding:0 10px;font:inherit;background:var(--panel);color:var(--ink);width:100%}textarea.in{padding:8px 10px;min-height:80px}
+label.f{display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:10px 0 4px}
+.addr{display:flex;gap:6px;align-items:center;flex-wrap:wrap;padding:6px 0;border-top:1px solid var(--line)}
+.sticky{position:sticky;bottom:0;background:var(--bg);padding:10px 0;display:flex;gap:8px;flex-wrap:wrap}
+/* panel */
+.panel{position:fixed;top:0;right:0;bottom:0;width:440px;max-width:100%;background:var(--panel);border-left:1px solid var(--line);box-shadow:-8px 0 24px rgba(0,0,0,.2);z-index:20;display:none;flex-direction:column}
+.panel.on{display:flex}
+body.phone .panel{top:auto;left:0;width:100%;max-height:88vh;border-radius:14px 14px 0 0;border-left:0}
+.panel .ph{padding:12px 14px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;gap:8px}
+.panel .pb{padding:12px 14px;overflow:auto;flex:1}.panel .pf{padding:10px 14px;border-top:1px solid var(--line);display:flex;gap:8px;flex-wrap:wrap}
+.big{font-size:26px;font-weight:700}
+.reason{display:flex;justify-content:space-between;gap:8px;padding:8px 0;border-top:1px solid var(--line);align-items:flex-start}
+.reason .t{font-size:13px}.reason .t small{display:block;color:var(--hint);font-size:12px}
+.ok{color:var(--tealink);font-size:13px}.warnt{color:var(--amberink);font-size:13px}
+</style></head><body><div class="wrap">
+<div class="tb" style="justify-content:space-between"><div><h1>Marketing in two parts: mock-up</h1>
+<div class="sub">Sample data. The sidebar, both Overviews, Email, and the three-step send with its review panel all work in this page. Nothing is saved.</div></div>
+<div class="tb"><button class="btn sm" id="phone" aria-pressed="false">Phone 375 px</button><button class="btn sm" id="theme">Dark</button></div></div>
+<div class="nav" id="nav"></div>
+
+<!-- 0 SIDEBAR -->
+<div class="screen" id="s0">
+<div class="note"><b>The split.</b> Left: today, one parent with 12 rows. Right: two groups. Overview is the first row of each part. Scoring rules is not a row: it is a link on Intelligence Overview, to Settings (one place per setting).</div>
+<div class="cols">
+<div class="side"><div class="g">MARKETING (TODAY)</div><div class="p">Marketing <span>▾</span></div>
+<span class="c">Segmentation</span><span class="c">ABM programs</span><span class="c">Campaigns</span><span class="c">Newsletters</span><span class="c">WhatsApp</span><span class="c">Events</span><span class="c">Forms</span><span class="c">Journeys</span><span class="c">Buying signals</span><span class="c">Leads</span><span class="c">Scored leads</span><span class="c">Revenue by source</span></div>
+<div class="side"><div class="g">MARKETING</div><div class="p">Marketing <span>▾</span></div>
+<span class="c new">Overview</span><span class="c new">Audiences</span><span class="c new">Email</span><span class="c">Journeys</span><span class="c">Forms</span><span class="c">WhatsApp</span><span class="c">Events</span>
+<div class="g">INTELLIGENCE</div><div class="p">Intelligence <span>▾</span></div>
+<span class="c new">Overview</span><span class="c">Buying signals</span><span class="c">Leads</span><span class="c">Scored leads</span><span class="c">ABM programs</span><span class="c new">Results</span></div>
+</div>
+<div class="card" style="margin-top:10px"><b>Rules the sidebar keeps</b>
+<div class="hint" style="margin-top:6px">A part appears only when one of its rows is allowed by the workspace's flags and the person's business role. A role that is granted only Buying signals, Leads, ABM and Results sees Intelligence and no Marketing. On a phone the Nova tab bar shows four groups; Intelligence is under More.</div></div>
+</div>
+
+<!-- 1 MARKETING HOME -->
+<div class="screen" id="s1">
+<div class="note"><b>Marketing Overview.</b> Four steps, each with a number and one button. A step for a module the workspace did not buy is not drawn. Below: the always-on modules as links.</div>
+<h1>Marketing <span class="i" tabindex="0" data-t="Reach people by email, form, WhatsApp and events. Intelligence, next door, tells you who is ready.">i</span></h1>
+<div class="path" style="margin-top:10px">
+<div class="step"><span class="n">1</span><div class="l">Audience</div><div class="v">3</div><div class="s">saved audiences. 41 people can be emailed.</div><button class="btn sm">Audiences</button></div>
+<div class="step"><span class="n">2</span><div class="l">Message</div><div class="v">2 drafts</div><div class="s">1 newsletter design, 1 plain email.</div><button class="btn sm" data-go="4">New email</button></div>
+<div class="step warn"><span class="n">3</span><div class="l">Review and send</div><div class="v">38</div><div class="s">will receive "Diwali greeting". 3 left out.</div><button class="btn sm p" data-go="5">Review</button></div>
+<div class="step good"><span class="n">4</span><div class="l">What happened</div><div class="v">52 sent</div><div class="s">Eid offer, 2 days ago. 4 left out, 0 failed.</div><button class="btn sm">Open</button></div>
+</div>
+<div class="card" style="margin-top:12px"><b>Always on</b><div class="strip" style="margin-top:8px"><a>Journeys <span class="chip c-teal">2 running</span></a><a>Forms <span class="chip c-teal">1 live</span></a><a>Events <span class="chip c-blue">1 coming</span></a><a>WhatsApp <span class="chip c-grey">2 approved</span></a></div></div>
+<div class="card"><b>Empty state</b><div class="hint" style="margin:6px 0">A workspace with nothing yet:</div><div class="path"><div class="step off"><span class="n">1</span><div class="l">Audience</div><div class="s">No audience yet. Start with everyone we can email.</div></div><div class="step off"><span class="n">2</span><div class="l">Message</div><div class="s">Write your first email.</div><button class="btn sm p">New email</button></div><div class="step off"><span class="n">3</span><div class="l">Review and send</div><div class="s">Nothing waiting.</div></div><div class="step off"><span class="n">4</span><div class="l">What happened</div><div class="s">Appears after the first send.</div></div></div></div>
+</div>
+
+<!-- 2 INTELLIGENCE HOME -->
+<div class="screen" id="s2">
+<div class="note"><b>Intelligence Overview.</b> The path is the question a salesperson asks: who is in market, who is ready, where to focus, what worked.</div>
+<h1>Intelligence <span class="i" tabindex="0" data-t="Who is ready to buy and what worked. Scores come from your own quotes, cases, emails and forms.">i</span></h1>
+<div class="path" style="margin-top:10px">
+<div class="step"><span class="n">1</span><div class="l">Who is in market</div><div class="v">6</div><div class="s">accounts moved up this week. Top: Al Noor Steel.</div><button class="btn sm">Buying signals</button></div>
+<div class="step warn"><span class="n">2</span><div class="l">Who is ready</div><div class="v">4 hot</div><div class="s">2 overdue for a reply.</div><div class="tb"><button class="btn sm p">Leads</button><span class="lk">Scoring rules</span></div></div>
+<div class="step"><span class="n">3</span><div class="l">Where to focus</div><div class="v">2 programs</div><div class="s">9 target accounts engaged.</div><button class="btn sm">ABM programs</button></div>
+<div class="step good"><span class="n">4</span><div class="l">What worked</div><div class="v">SAR 312k</div><div class="s">Top source: Eid newsletter.</div><button class="btn sm">Results</button></div>
+</div></div>
+
+<!-- 3 EMAIL LIST -->
+<div class="screen" id="s3">
+<div class="note"><b>Email.</b> One entry for newsletters and plain email. <b>Sends</b> is the history (every newsletter send creates a row, plain emails are one row each). <b>Designs</b> is the Newsletter Studio list and the seasonal templates. Old addresses: /marketing and /marketing/newsletters redirect here.</div>
+<div class="tb" style="justify-content:space-between"><h1>Email</h1><button class="btn p" data-go="4">New email</button></div>
+<div class="tabs" id="etabs"><span class="on" data-t="sends">Sends</span><span data-t="designs">Designs</span></div>
+<div id="e-sends" class="twrap"><table><thead><tr><th>Name</th><th>Type</th><th>Status</th><th class="n">Will receive</th><th class="n hm">Left out</th><th class="hm">Date</th></tr></thead><tbody>
+<tr><td><b>Diwali greeting</b></td><td><span class="chip c-grey">Plain</span></td><td><span class="chip c-blue">Draft</span></td><td class="n">38</td><td class="n hm">3</td><td class="hm">-</td></tr>
+<tr><td><b>Eid offer</b></td><td><span class="chip c-purple">Newsletter</span></td><td><span class="chip c-teal">Sent</span></td><td class="n">52</td><td class="n hm">4</td><td class="hm">2 Nov</td></tr>
+<tr><td><b>Service reminder</b></td><td><span class="chip c-grey">Plain</span></td><td><span class="chip c-teal">Sent</span></td><td class="n">17</td><td class="n hm">0</td><td class="hm">28 Oct</td></tr></tbody></table></div>
+<div id="e-designs" class="twrap" style="display:none"><table><thead><tr><th>Design</th><th>Kind</th><th class="hm">Languages</th><th class="n">Sent</th></tr></thead><tbody>
+<tr><td><b>Eid offer</b></td><td><span class="chip c-purple">Newsletter</span></td><td class="hm">English, Arabic</td><td class="n">1</td></tr>
+<tr><td><b>Diwali greeting</b></td><td><span class="chip c-amber">Seasonal</span></td><td class="hm">English</td><td class="n">0</td></tr></tbody></table></div>
+<div class="hint" style="margin-top:8px">Designs is hidden unless the workspace has Newsletter Studio; then Email is a plain list of sends, as today.</div>
+</div>
+
+<!-- 4 COMPOSER -->
+<div class="screen" id="s4">
+<div class="note"><b>One send flow: Audience, Message, Review and send.</b> The same three steps for a plain email and a newsletter. Try typing an outside address and pressing Add: the form does not submit, and the chip says what will happen.</div>
+<div class="tb" style="justify-content:space-between"><h1>New email · Diwali greeting</h1><span class="chip c-blue">Draft</span></div>
+<div class="steps" id="stp"><span class="on" data-st="1">1 Audience</span><span data-st="2">2 Message</span><span data-st="3">3 Review and send</span></div>
+<div id="st1">
+<div class="card"><label class="f" for="aud">Audience <span class="i" tabindex="0" data-t="A saved audience, or build one now. Only people with consent for the topic are emailed.">i</span></label>
+<select class="in" id="aud"><option>OEM customers (28)</option><option>Everyone we can email (41)</option><option>Build one now...</option></select>
+<div class="hint" style="margin-top:6px"><span class="lk">Edit audience</span> · <span class="lk">Save as audience</span></div>
+<label class="f" for="addr">Add an email address</label>
+<div class="tb"><input class="in" id="addr" placeholder="name@example.com" style="flex:1;min-width:160px"><button type="button" class="btn" id="add">Add</button></div>
+<div id="addrs"></div>
+<div class="hint" style="margin-top:6px">Topic: <span class="chip c-teal">Offers</span> <span class="lk">Change in Settings &gt; Consent</span></div></div>
+<div class="card" id="cnt"><div class="big" id="cnt-n">38</div><div class="muted">will receive · <span id="cnt-m">3</span> left out</div></div>
+</div>
+<div id="st2" style="display:none"><div class="card"><label class="f" for="subj">Subject</label><input class="in" id="subj" value="Happy Diwali from {{company_name}}">
+<label class="f" for="msg">Message</label><textarea class="in" id="msg">Wishing you and your team a bright and prosperous Diwali.</textarea>
+<div class="hint" style="margin-top:6px">Seasonal designs and newsletter designs are on the Designs tab.</div></div></div>
+<div id="st3" style="display:none"><div class="card"><b>Ready to review</b><div class="hint" style="margin:6px 0">The panel shows the real count and why anyone is left out.</div><button class="btn p" id="openrev">Review and send</button></div></div>
+<div class="sticky"><button class="btn">Save draft</button><button class="btn p" id="next">Next</button></div>
+</div>
+
+<!-- 5 REVIEW PANEL page host -->
+<div class="screen" id="s5">
+<div class="note"><b>Review and send.</b> Replaces the generic "Send now?" question. A side panel on a PC, a bottom sheet on a phone. Reasons show five and "Show all". Each reason links to its fix. Open it below.</div>
+<div class="card"><div class="tb" style="justify-content:space-between"><b>Diwali greeting</b><span class="chip c-blue">Draft</span></div><div class="hint" style="margin:6px 0">Audience: OEM customers · Topic: Offers</div><button class="btn p" id="openrev2">Send now</button></div>
+</div>
+
+<!-- 6 SKIP + CONSENT CHIP -->
+<div class="screen" id="s6">
+<div class="note"><b>Plain reasons, one place for consent.</b> Left: how a sent record explains a left-out person. Right: the consent chip that replaces topic pickers on campaign, journey and send screens.</div>
+<div class="cols"><div class="card"><b>Recipients · Diwali greeting</b>
+<div class="reason"><div class="t">Al Noor Steel<small>This account has no email address.</small></div><span class="lk">Open the account</span></div>
+<div class="reason"><div class="t">fatima@example.com<small>This address is not a contact yet, so we cannot check consent.</small></div><span class="lk">Create contact</span></div>
+<div class="reason"><div class="t">Omar Trading<small>This person has not agreed to this topic.</small></div><span class="lk">Record consent</span></div>
+<div class="reason"><div class="t">Gulf Fabrication<small>The account unsubscribed.</small></div><span class="lk">Open the account</span></div>
+<div class="reason"><div class="t">Rashed Co<small>Sent</small></div><span class="chip c-teal">Sent</span></div></div>
+<div class="card"><b>Where consent lives</b>
+<div class="hint" style="margin:6px 0">Settings &gt; Marketing &gt; Consent holds topics, country rules, opens counting and limits. Everywhere else a chip shows the result:</div>
+<div class="strip"><a>Topic: Offers <span class="chip c-teal">strict</span></a><a>Opens: counted</a><a>Limits: 1 a day</a></div>
+<div class="hint" style="margin-top:10px">Each chip links to the one page. No "new topic" button inside a picker.</div></div></div>
+</div>
+
+</div>
+
+<!-- panel -->
+<div class="panel" id="rev" role="dialog" aria-label="Review and send"><div class="ph"><b>Review and send</b><button class="btn sm" id="closerev">Close</button></div>
+<div class="pb"><div class="hint">Diwali greeting · Offers</div><div class="big" id="r-n" style="margin-top:6px">38 will receive</div><div class="muted" id="r-m">3 left out</div>
+<div style="margin-top:10px" id="r-list"></div><button class="btn sm" id="showall" style="margin-top:8px">Show all</button>
+<div class="hint" style="margin-top:10px">Mail goes out at once and cannot be recalled. On the demo workspace every message goes to the owner's inbox.</div></div>
+<div class="pf"><button class="btn p" id="sendbtn">Send to 38</button><button class="btn" id="cancelrev">Back</button></div></div>
+
+<script>
+const SCREENS=["Sidebar","Marketing Overview","Intelligence Overview","Email","Compose (3 steps)","Review and send","Reasons and consent"];
+const nav=document.getElementById("nav");
+SCREENS.forEach((n,i)=>{const b=document.createElement("button");b.textContent=n;b.onclick=()=>go(i);b.dataset.i=i;nav.appendChild(b)});
+function go(i){document.querySelectorAll(".screen").forEach((s,k)=>s.classList.toggle("on",k===i));nav.querySelectorAll("button").forEach(b=>b.classList.toggle("on",+b.dataset.i===i));document.getElementById("rev").classList.remove("on");window.scrollTo(0,0)}
+document.querySelectorAll("[data-go]").forEach(b=>b.onclick=()=>go(+b.dataset.go));
+go(0);
+document.getElementById("phone").onclick=function(){const on=document.body.classList.toggle("phone");this.setAttribute("aria-pressed",on)};
+const root=document.documentElement,tb=document.getElementById("theme");
+const isDark=()=>root.getAttribute("data-theme")==="dark"||(!root.getAttribute("data-theme")&&matchMedia("(prefers-color-scheme: dark)").matches);
+const paint=()=>{tb.textContent=isDark()?"Light":"Dark"};paint();
+tb.onclick=()=>{root.setAttribute("data-theme",isDark()?"light":"dark");paint()};
+document.querySelectorAll("#etabs span").forEach(s=>s.onclick=()=>{document.querySelectorAll("#etabs span").forEach(x=>x.classList.toggle("on",x===s));document.getElementById("e-sends").style.display=s.dataset.t==="sends"?"":"none";document.getElementById("e-designs").style.display=s.dataset.t==="designs"?"":"none"});
+// stepper
+let st=1;const stp=document.getElementById("stp");
+function setSt(n){st=n;[1,2,3].forEach(k=>{document.getElementById("st"+k).style.display=k===n?"":"none"});stp.querySelectorAll("span").forEach(s=>{const k=+s.dataset.st;s.className=k===n?"on":k<n?"done":""});document.getElementById("next").style.display=n===3?"none":""}
+stp.querySelectorAll("span").forEach(s=>s.onclick=()=>setSt(+s.dataset.st));document.getElementById("next").onclick=()=>setSt(Math.min(3,st+1));setSt(1);
+// addresses
+const addrs=[];let base={n:38,m:3};
+const EMAIL=/^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+function paintAddrs(){const box=document.getElementById("addrs");box.innerHTML="";let ready=0,out=0;addrs.forEach(a=>{const d=document.createElement("div");d.className="addr";
+const known=a.startsWith("known");const chip=known?'<span class="chip c-teal">Ready</span>':'<span class="chip c-amber">Not a contact: cannot be emailed</span> <span class="lk">Create contact</span>';
+if(known)ready++;else out++;d.innerHTML='<span>'+a+'</span>'+chip+' <button type="button" class="btn sm" aria-label="Remove">x</button>';d.querySelector("button").onclick=()=>{addrs.splice(addrs.indexOf(a),1);paintAddrs()};box.appendChild(d)});
+document.getElementById("cnt-n").textContent=base.n+ready;document.getElementById("cnt-m").textContent=base.m+out;
+window.cur={n:base.n+ready,m:base.m+out}}
+document.getElementById("add").onclick=()=>{const v=document.getElementById("addr").value.trim().toLowerCase();if(!v)return;if(!EMAIL.test(v)){alert("Enter a valid email address.");return}if(!addrs.includes(v))addrs.push(v);document.getElementById("addr").value="";paintAddrs()};
+document.getElementById("addr").addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();document.getElementById("add").click()}});
+paintAddrs();
+// review
+const REASONS=[["Al Noor Steel","This account has no email address.","Open the account"],["fatima@example.com","This address is not a contact yet, so we cannot check consent.","Create contact"],["Omar Trading","This person has not agreed to this topic.","Record consent"],["Gulf Fabrication","The account unsubscribed.","Open the account"],["Sama Traders","This person has not agreed to this topic.","Record consent"],["Najd Metals","This account has no email address.","Open the account"]];
+let all=false;
+function paintRev(){const c=window.cur||{n:38,m:3};document.getElementById("r-n").textContent=c.n+" will receive";document.getElementById("r-m").textContent=c.m+" left out";document.getElementById("sendbtn").textContent="Send to "+c.n;
+const list=document.getElementById("r-list");list.innerHTML="";(all?REASONS:REASONS.slice(0,5)).forEach(r=>{const d=document.createElement("div");d.className="reason";d.innerHTML='<div class="t">'+r[0]+'<small>'+r[1]+'</small></div><span class="lk">'+r[2]+'</span>';list.appendChild(d)});document.getElementById("showall").style.display=all?"none":""}
+const openRev=()=>{paintRev();document.getElementById("rev").classList.add("on")};
+["openrev","openrev2"].forEach(id=>document.getElementById(id).onclick=openRev);
+document.getElementById("showall").onclick=()=>{all=true;paintRev()};
+["closerev","cancelrev"].forEach(id=>document.getElementById(id).onclick=()=>document.getElementById("rev").classList.remove("on"));
+document.getElementById("sendbtn").onclick=function(){document.getElementById("r-list").innerHTML='<div class="ok" role="status">Sent. See what was sent in Email &gt; Sends.</div>';this.disabled=true;document.getElementById("showall").style.display="none"};
+</script></body></html>

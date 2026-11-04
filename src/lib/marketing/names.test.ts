@@ -13,22 +13,26 @@ const createElement = create as unknown as (c: unknown, p: object | null, ...kid
 const leaves = NAV.flatMap((g) => g.items.flatMap((i) => (i.children?.length ? i.children : [i])));
 
 describe("marketing names", () => {
-  it("the scored lead list is called Scored leads and keeps its route and flag", () => {
-    const item = leaves.find((l) => l.href === ROUTES.marketingLeads)!;
-    expect(item.label).toBe("Scored leads");
-    expect(item.featureKey).toBe("marketing_scoring");
-    expect(leaves.some((l) => l.label === "Lead scores")).toBe(false);
+  it("scored leads are a view of Leads: one menu row, no second list", () => {
+    expect(leaves.filter((l) => l.label === "Leads").map((l) => l.href)).toEqual([ROUTES.leads]);
+    expect(leaves.some((l) => l.label === "Scored leads" || l.label === "Lead scores")).toBe(false);
+    expect(ROUTES.marketingLeads).toBe("/leads?view=scored");
   });
 
-  it("the attribution page is Revenue by source in the menu and the workcenter list", () => {
-    expect(leaves.find((l) => l.href === ROUTES.marketingAttribution)?.label).toBe("Revenue by source");
-    expect(WORKCENTERS.find((w) => w.key === "marketing_attribution")?.label).toBe("Revenue by source");
+  it("the attribution page is Results in the menu and the workcenter list (its page title stays Revenue by source)", () => {
+    expect(leaves.find((l) => l.href === ROUTES.marketingAttribution)?.label).toBe("Results");
+    expect(WORKCENTERS.find((w) => w.key === "marketing_attribution")?.label).toBe("Results");
+  });
+
+  it("the audience page is Audiences in the menu and the workcenter list", () => {
+    expect(leaves.find((l) => l.href === ROUTES.marketingSegments)?.label).toBe("Audiences");
+    expect(WORKCENTERS.find((w) => w.key === "marketing_segments")?.label).toBe("Audiences");
   });
 
   it("the consent page has one name in Settings", () => {
     const entry = SETTINGS_MENU.find((e) => e.href === ROUTES.settingsMarketingConsent)!;
     expect(entry.label).toBe("Consent");
-    expect(entry.featureAnyOf).toEqual(["marketing_scoring", "newsletter_studio"]);
+    expect(entry.featureAnyOf).toEqual(["marketing", "marketing_scoring", "newsletter_studio"]);
   });
 });
 
@@ -38,5 +42,23 @@ describe("the shared Tour", () => {
     expect(out).toContain('id="tstTourBtn"');
     expect(out).toContain("Show me how");
     expect(out).not.toContain('role="dialog"');
+  });
+});
+
+describe("Marketing and Intelligence are two parts (docs/design/marketing-two-parts.md)", () => {
+  const rows = (group: string) => NAV.find((g) => g.group === group)!.items.flatMap((i) => i.children ?? []);
+  const keys = (group: string) => rows(group).map((r) => r.workcenterKey).sort();
+
+  it("Marketing reaches people, Intelligence knows who is ready", () => {
+    expect(rows("MARKETING").map((r) => r.label)).toEqual(["Overview", "Audiences", "Email", "Journeys", "Forms", "WhatsApp", "Events"]);
+    expect(rows("INTELLIGENCE").map((r) => r.label)).toEqual(["Overview", "Buying signals", "Leads", "ABM programs", "Results"]);
+  });
+
+  it("every marketing destination is in exactly one part, with its flag and workcenter key unchanged", () => {
+    const all = [...rows("MARKETING"), ...rows("INTELLIGENCE")];
+    expect(new Set(all.map((r) => r.href)).size).toBe(all.length);
+    expect(all.every((r) => (r.featureKey || r.featureAnyOf?.length) && (r.workcenterKey || r.workcenterAnyOf?.length))).toBe(true);
+    expect(keys("MARKETING")).toEqual(["marketing", "marketing", "marketing_events", "marketing_forms", "marketing_journeys", "marketing_segments", "marketing_whatsapp"]);
+    expect(keys("INTELLIGENCE").filter(Boolean)).toEqual(["abm", "leads", "marketing_attribution", "signals"]);
   });
 });

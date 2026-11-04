@@ -19,7 +19,7 @@ export default async function EditSegmentPage({ params }: { params: Promise<{ id
   return (
     <>
       <TabTitle title={group.name} />
-      <PageHeader title={group.name} subtitle="Edit this target group's rule" />
+      <PageHeader title={group.name} subtitle="Edit this audience's rule" />
       <SegmentBuilder accounts={accounts} initial={group} />
     </>
   );

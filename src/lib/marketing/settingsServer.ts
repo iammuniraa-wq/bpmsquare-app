@@ -19,7 +19,12 @@ export type MarketingSettingsContext = {
   features: Partial<TenantFeatures>;
 };
 
-export async function loadMarketingSettingsContext(): Promise<{ ok: true; ctx: MarketingSettingsContext } | { ok: false; response: NextResponse }> {
+/**
+ * `consent: true` is for the Consent page and its Limits tab, which every workspace that sends marketing email needs
+ * (plain campaigns are gated by consent too): Marketing, Newsletter Studio or the scoring program is enough.
+ * Scoring, hand-over and the rest still need the marketing_scoring program.
+ */
+export async function loadMarketingSettingsContext(opts: { consent?: boolean } = {}): Promise<{ ok: true; ctx: MarketingSettingsContext } | { ok: false; response: NextResponse }> {
   let tenantId: string, userId: string, role: string, session: SupabaseClient;
   try {
     ({ tenantId, userId, role, supabase: session } = await requireTenantUser());
@@ -33,7 +38,8 @@ export async function loadMarketingSettingsContext(): Promise<{ ok: true; ctx: M
   const { data, error } = await admin.from("tenants").select("features, config").eq("id", tenantId).single();
   if (error || !data) return { ok: false, response: NextResponse.json({ error: error?.message ?? "Workspace not found" }, { status: 500 }) };
   const features = (data.features ?? {}) as Partial<TenantFeatures>;
-  if (!marketingScoringOn(features)) {
+  const allowed = marketingScoringOn(features) || (opts.consent === true && (features.marketing === true || features.newsletter_studio === true));
+  if (!allowed) {
     return { ok: false, response: NextResponse.json({ error: "Marketing scoring isn't enabled for your workspace" }, { status: 404 }) };
   }
   return { ok: true, ctx: { admin, session, tenantId, userId, config: (data.config ?? {}) as TenantConfig, features } };

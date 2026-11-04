@@ -10,6 +10,9 @@ import { paginate } from "@/lib/paginate";
 import { ROUTES } from "@/lib/constants";
 import NewLeadButton from "./NewLeadButton";
 import ConvertLeadButton from "./ConvertLeadButton";
+import LeadsViewSwitch from "./LeadsViewSwitch";
+import ScoredLeadsView from "./ScoredLeadsView";
+import { marketingScoringOn } from "@/lib/marketing/config";
 
 type LeadStatus = "new" | "inspecting" | "quoted" | "won" | "lost" | "converted";
 type LeadSource = "oem_referral" | "amc" | "direct" | "campaign" | "form" | "inbound";
@@ -34,11 +37,14 @@ type LeadRow = Awaited<ReturnType<typeof listLeadsLive>>[number];
 export default async function LeadsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; q?: string; page?: string }>;
+  searchParams: Promise<{ status?: string; q?: string; page?: string; view?: string } & Record<string, string | undefined>>;
 }) {
   await requireWorkcenterView("leads");
   await requireFeature("leads");
-  const { status: statusFilter, q, page: pageParam } = await searchParams;
+  const params = await searchParams;
+  const scoring = marketingScoringOn((await getTenant())?.features);
+  if (scoring && params.view === "scored") return <ScoredLeadsView params={params} />;
+  const { status: statusFilter, q, page: pageParam } = params;
   const page = Math.max(1, Number(pageParam) || 1);
   const leads = await listLeadsLive();
   const pipelineOn = (await getTenant())?.features?.pipeline === true;
@@ -99,6 +105,7 @@ export default async function LeadsPage({
       subtitle={`${filtered.length}${statusFilter ? ` ${STATUS_LABEL[statusFilter as LeadStatus] ?? statusFilter}` : ""} of ${leads.length} total · Marketing & enquiries`}
       newAction={<NewLeadButton accounts={accounts} />}
       chips={chips}
+      beforeTable={scoring ? <LeadsViewSwitch active="all" /> : undefined}
       search={{
         value: q,
         placeholder: "Search lead title or account…",

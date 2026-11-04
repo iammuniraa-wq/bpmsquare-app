@@ -6,7 +6,7 @@ import SidePanel from "@/components/ui/SidePanel";
 import InfoTip from "@/components/ui/InfoTip";
 import { Input } from "@/components/ui/Input";
 import { CheckOpt, Opt } from "@/components/ui/Opt";
-import { WORKCENTERS } from "@/lib/workcenters";
+import { WORKCENTERS, WORKCENTER_PARTS } from "@/lib/workcenters";
 import { AdaptDrawer } from "@/components/DashboardLayout";
 import type { DashLayoutItem, TenantFeatures } from "@/lib/constants";
 import s from "./people.module.css";
@@ -38,6 +38,11 @@ export default function RolePanel({ role, features, onClose, onChanged, onDelete
   const [error, setError] = useState<string | null>(null);
 
   const toggle = (key: string) => setDraft((d) => ({ ...d, [key]: { ...d[key], granted: !d[key].granted } }));
+  // A part (Marketing, Intelligence) is granted by granting its keys: this ticks them all, or clears them when all are ticked.
+  const togglePart = (keys: string[]) => setDraft((d) => {
+    const all = keys.every((k) => d[k].granted);
+    return { ...d, ...Object.fromEntries(keys.map((k) => [k, { ...d[k], granted: !all }])) };
+  });
   const toggleAct = (key: string, a: Action) => setDraft((d) => ({ ...d, [key]: { ...d[key], [a]: !d[key][a] } }));
 
   async function attempt(kind: "save" | "other", fn: () => Promise<void>) {
@@ -96,7 +101,16 @@ export default function RolePanel({ role, features, onClose, onChanged, onDelete
 
           <Opt label="Access" info={readOnly ? PEOPLE_TIPS.standardRole : PEOPLE_TIPS.roleAccess}>
             <div className={s.checklist} role="group" aria-label="Areas this role opens">
-              {WORKCENTERS.map((w) => {
+              {orderedWorkcenters().map((w) => {
+                if ("heading" in w) {
+                  const all = w.keys.every((k) => draft[k].granted);
+                  return (
+                    <div key={w.heading} className={s.checkRow} style={{ background: "var(--panel2)" }}>
+                      <strong style={{ fontSize: 12.5 }}>{w.heading}</strong>
+                      {!readOnly && <button type="button" className="bpm-btn bpm-btn-secondary bpm-btn-sm" onClick={() => togglePart(w.keys)}>{all ? "Clear all" : "Grant all"}</button>}
+                    </div>
+                  );
+                }
                 const g = draft[w.key];
                 return (
                   <div key={w.key} className={s.checkRow}>
@@ -164,4 +178,15 @@ export default function RolePanel({ role, features, onClose, onChanged, onDelete
       )}
     </>
   );
+}
+
+/** The workcenter list with Marketing and Intelligence gathered under their own headings; every key appears exactly once. */
+function orderedWorkcenters(): ({ key: string; label: string } | { heading: string; keys: string[] })[] {
+  const inPart = new Set<string>(WORKCENTER_PARTS.flatMap((p) => p.keys));
+  const out: ({ key: string; label: string } | { heading: string; keys: string[] })[] = WORKCENTERS.filter((w) => !inPart.has(w.key));
+  for (const part of WORKCENTER_PARTS) {
+    out.push({ heading: part.label, keys: part.keys });
+    for (const k of part.keys) { const w = WORKCENTERS.find((x) => x.key === k); if (w) out.push(w); }
+  }
+  return out;
 }

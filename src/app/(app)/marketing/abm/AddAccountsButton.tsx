@@ -77,7 +77,7 @@ export default function AddAccountsButton({ programId, defaultTier }: { programI
           <Field label="Choose companies" style={{ marginBottom: 12 }}>
             <Select value={mode} onChange={(e) => { setMode(e.target.value as Mode); setPreview(null); }}>
               <option value="name">By name</option>
-              <option value="group">From a marketing target group</option>
+              <option value="group">From an audience</option>
               <option value="segment">From a Coverage segment</option>
             </Select>
           </Field>
@@ -104,7 +104,7 @@ export default function AddAccountsButton({ programId, defaultTier }: { programI
               </ul>
             </div>
           ) : (
-            <Field label={mode === "group" ? "Target group" : "Segment"} hint="The list is copied into the program once. It does not change by itself afterwards.">
+            <Field label={mode === "group" ? "Audience" : "Segment"} hint="The list is copied into the program once. It does not change by itself afterwards.">
               <Select value={sourceId} onChange={(e) => { setSourceId(e.target.value); setPreview(null); }}>
                 <option value="">— Choose —</option>
                 {sources.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
