@@ -10,6 +10,7 @@ import type { AccountType, MarketingTargetGroup } from "@/lib/types";
 import type { SegmentFilter } from "@/lib/marketingSegmentation";
 import { AccountIncludeExclude, ManualEmailChips, type AccountLite, type AddressState } from "./AudienceExtras";
 import AudienceCount from "./AudienceCount";
+import ConsentChip from "./ConsentChip";
 import InfoTip from "@/components/ui/InfoTip";
 import { COMPOSE_TIPS } from "@/lib/marketing/composeTips";
 import { useAudiencePreview } from "./useAudiencePreview";
@@ -35,7 +36,7 @@ export default function TargetAudiencePicker({
   manualEmails, setManualEmails,
   filters, setFilters,
   match, setMatch,
-  autoLoadGroupId,
+  autoLoadGroupId, showConsent = true, consentTopicLabel,
 }: {
   accounts: AccountLite[];
   types: Set<AccountType>;
@@ -53,6 +54,9 @@ export default function TargetAudiencePicker({
   /** Pre-loads a saved target group once its list arrives -- used when
    * arriving from "Use in campaign" on the Segmentation list page. */
   autoLoadGroupId?: string;
+  /** Show the consent chip under the count (off when the page shows its own, as a newsletter campaign does). */
+  showConsent?: boolean;
+  consentTopicLabel?: string | null;
 }) {
   const [groups, setGroups] = useState<MarketingTargetGroup[]>([]);
   const [selectedGroupId, setSelectedGroupId] = useState("");
@@ -226,6 +230,7 @@ export default function TargetAudiencePicker({
         </div>
         {previewError ? <div role="alert" style={{ fontSize: 12.5, color: "var(--err-ink)" }}>{previewError}</div> : <AudienceCount preview={preview} checking={checking} />}
       </div>
+      {showConsent && <div style={{ marginTop: 6 }}><ConsentChip topicLabel={consentTopicLabel} /></div>}
     </section>
   );
 }

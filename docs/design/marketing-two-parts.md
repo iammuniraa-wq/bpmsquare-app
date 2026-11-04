@@ -284,3 +284,9 @@ Risks:
 - Deviation: the composer is one page with Audience, then Message, then **Review and send** (the panel from slice 1), not a stepper. The three steps are the order of the cards.
 - The saved-audience dropdown, the account-type filter and the specific-account search are still reachable (under More). The Segmentation builder is untouched except wording.
 - Verified by tests and tsc only: the select/More behaviour in a browser.
+
+**Slice 4, Consent in one place.**
+- New `ConsentChip` (topic, "Change in Settings", InfoTip) is the only consent element on the email screens: under the audience count of the campaign form, and on a newsletter campaign in place of the topic dropdown (the topic is the newsletter's own, set in the studio).
+- The Consent page and its Limits tab now open for a workspace with `marketing` alone (menu entry, page and the two routes via `loadMarketingSettingsContext({ consent: true })`). Before, a Newsletter-Studio-only workspace could open the page but the API answered 404, and a Marketing-only workspace could not open it although its sends are consent-gated. Scoring and Hand-over still need `marketing_scoring`.
+- Deliberate: the form, WhatsApp template and journey-step topic pickers stay. They *choose* a topic from the list for their own content; the list, country rules, opens counting and limits are defined only in Settings. The journey step already inherits the newsletter's topic.
+- Verified by tests and tsc only.

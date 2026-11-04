@@ -7,6 +7,7 @@ import Card from "@/components/ui/Card";
 import Field from "@/components/ui/Field";
 import type { ComposeNewsletter } from "@/lib/newsletter/composeData";
 import { COMPOSE_TIPS } from "@/lib/marketing/composeTips";
+import ConsentChip from "./ConsentChip";
 
 /**
  * "My newsletters" on a campaign: the design kept as a version, the languages this campaign sends
@@ -14,7 +15,7 @@ import { COMPOSE_TIPS } from "@/lib/marketing/composeTips";
  * and the topic consent is checked against. The words themselves are edited in the studio.
  */
 export default function NewsletterSourceCard({
-  newsletter, languages, onLanguages, fallback, onFallback, topic, onTopic, readOnly,
+  newsletter, languages, onLanguages, fallback, onFallback, topic, readOnly,
 }: {
   newsletter: ComposeNewsletter;
   languages: string[]; onLanguages: (l: string[]) => void;
@@ -45,12 +46,7 @@ export default function NewsletterSourceCard({
           {newsletter.languages.filter((l) => languages.includes(l.lang)).map((l) => <option key={l.lang} value={l.lang}>{l.name}</option>)}
         </select>
       </Field>
-      <Field label="Consent topic" info={COMPOSE_TIPS.consentTopic} style={{ marginBottom: 0 }}>
-        <select aria-label="Consent topic" style={select} value={topic ?? ""} disabled={readOnly} onChange={(e) => onTopic(e.target.value || null)}>
-          <option value="">Any consent topic</option>
-          {newsletter.topics.map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}
-        </select>
-      </Field>
+      <ConsentChip topicLabel={newsletter.topics.find((t) => t.key === topic)?.label ?? null} />
     </Card>
   );
 }

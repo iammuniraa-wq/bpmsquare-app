@@ -33,7 +33,7 @@ describe("marketing names", () => {
   it("the consent page has one name in Settings", () => {
     const entry = SETTINGS_MENU.find((e) => e.href === ROUTES.settingsMarketingConsent)!;
     expect(entry.label).toBe("Consent");
-    expect(entry.featureAnyOf).toEqual(["marketing_scoring", "newsletter_studio"]);
+    expect(entry.featureAnyOf).toEqual(["marketing", "marketing_scoring", "newsletter_studio"]);
   });
 });
 
