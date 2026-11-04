@@ -5,7 +5,7 @@ import { buildSummary, openBuyoutRequest, needsBuyoutUpdate } from "@/lib/contra
 //   The Buy-out tab of a contract project made from a tender (docs/design/contract-buyout.md section 5).
 //   -> { baseline: { revision_id, rev_no } | null, group: { id, name } | null, restricted: boolean, currency,
 //        tiles: { budget, committed, best_vs_budget, needs_decision, packages, project_budget, unassigned_budget },
-//        packages: PackageRow[], unassigned_lines: BudgetLineRow[], committed_by_line: { [line_key]: awarded amount }, can_edit, can_send_rounds }
+//        packages: PackageRow[], unassigned_lines: BudgetLineRow[], packaged_lines: { [line_key]: { ref, name } }, committed_by_line: { [line_key]: awarded amount }, can_edit, can_send_rounds }
 //   PackageRow: { id, ref, name, kind, status, line_count, budget, bid_cost, best_quote|null, committed|null, against_budget|null,
 //                 current_round|null, rounds, handover: { state: "not_ready"|"ready"|"sent", sent_at|null }, note, awarded_supplier_id, awarded_supplier_name }
 //   The shapes are typed in src/lib/contractProjects/buyout/rules.ts. Money is the internal COST side; positive best_vs_budget / against_budget is under budget.

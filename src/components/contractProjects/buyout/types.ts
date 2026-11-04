@@ -37,6 +37,8 @@ export type BuyoutTiles = { budget: number; committed: number; best_vs_budget: n
 /** A budget line not yet in any package. */
 export type BudgetLineRow = {
   id: string;
+  /** Stable across revisions: how a WBS item finds its lines in the approved budget. */
+  line_key?: string;
   line_no?: number | null;
   wbs?: string | null;
   description: string;
@@ -48,10 +50,14 @@ export type BudgetLineRow = {
 };
 
 export type BuyoutData = {
+  /** The approved budget revision packages are made from; null (or absent) while the baseline is not approved. */
+  baseline?: { revision_id: string; rev_no: number } | null;
   group: { id: string; name: string } | null;
   tiles: BuyoutTiles;
   packages: PackageRow[];
   unassigned_lines: BudgetLineRow[];
+  /** Optional: the package each packaged budget line (by line_key) is in. */
+  packaged_lines?: Record<string, { ref: string | null; name: string }>;
   /** Optional: the committed amount of each budget line whose package is awarded, keyed by the budget line id or its line key. Read by the Budget tab. */
   committed_by_line?: Record<string, number>;
   /** The database update that adds Buy-out has not been applied. */

@@ -53,6 +53,16 @@ export function partText(p: PartView, uom: string | null, money: (n: number) => 
 /** 60 -> "60", 33.3333 -> "33.3333", 12.5 -> "12.5": a share without trailing zeros. */
 export const trimPct = (n: number): string => String(Number(n.toFixed(4)));
 
+/**
+ * Where a line sits, as one string for an Excel cell: the code for a whole line (`2.1`), `2.1 60 % · 2.2 15 % · 2.3 25 %` for a split one, and
+ * `15 % unassigned` after it when an item was removed from a split line. Empty for a line in no item. One format on every file we write.
+ */
+export function splitListText(parts: readonly { code: string; share_pct: number }[], remainder = 0): string {
+  const rest = remainder > 0 && parts.length > 0 ? [`${trimPct(remainder)} % unassigned`] : [];
+  if (parts.length === 1 && Math.abs(parts[0].share_pct - 100) <= SHARE_TOLERANCE) return parts[0].code;
+  return [...parts.map((p) => `${p.code} ${trimPct(p.share_pct)} %`), ...rest].join(" · ");
+}
+
 // ── The split panel's draft ─────────────────────────────────────────────────────────────────────────────────────────
 
 /** One row of the panel. `item` is an item id, "" (not chosen yet) or NEW; `pct` and `qty` are what the person typed, kept as text so typing never jumps. */

@@ -249,6 +249,18 @@ describe("the item panel", () => {
     expect(panel({ pkg: pkg("x", "3", null), packages: [...PACKAGES, pkg("x", "3", null)] })).toContain("split across items");
   });
 
+  it("offers Make buy-out package on a saved item when the project has Buy-out and the person can change it", () => {
+    const out = panel({ onMakeBuyout: noop });
+    const b = buttonsOf(out, "cp.wbs.make_buyout");
+    expect(b).toHaveLength(1);
+    expect(b[0]).toMatch(/min-height:44px/);
+    expect(out).toContain("Make buy-out package");
+    expect(out).toContain('aria-label="About Buy-out package"');
+    expect(panel()).not.toContain("cp.wbs.make_buyout"); // no Buy-out on the project
+    expect(panel({ onMakeBuyout: noop, pkg: null })).not.toContain("cp.wbs.make_buyout"); // a new item has nothing to package yet
+    expect(panel({ onMakeBuyout: noop, locked: "This project is closed" })).not.toContain("cp.wbs.make_buyout");
+  });
+
   it("an owner without a login gets the amber line and the Create login prompt, but is not blocked from other changes", () => {
     const out = panel({ pkg: PACKAGES[2] });
     expect(out).toContain('data-guide="cp.wbs.needs_login"');
