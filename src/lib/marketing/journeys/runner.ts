@@ -1,6 +1,7 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { EVENTS } from "@/lib/events/catalog";
+import { eventsAfter } from "@/lib/events/consume";
 import { emitEvent } from "@/lib/events/emit";
 import { canContact, type ContactDecision } from "@/lib/marketing/consent";
 import { isSchemaPending } from "@/lib/marketing/pending";
@@ -87,20 +88,8 @@ async function writeCursor(admin: SupabaseClient, tenantId: string, c: Cursor) {
   await admin.from("journey_cursors").upsert({ tenant_id: tenantId, last_created_at: c.created_at, last_event_id: c.id, updated_at: new Date().toISOString() }, { onConflict: "tenant_id" });
 }
 
-/** Events strictly after the cursor, oldest first. A keyset on (created_at, id): the filter on id happens here because created_at can tie. */
-export async function eventsAfter(admin: SupabaseClient, tenantId: string, after: Cursor, names: string[], limit = EVENT_BATCH): Promise<EventLike[]> {
-  const { data, error } = await admin.from("domain_event")
-    .select("id, name, object_type, object_id, contact_id, account_id, campaign_id, source, depth, payload, created_at")
-    .eq("tenant_id", tenantId).in("name", names).gte("created_at", after.created_at)
-    .order("created_at", { ascending: true }).order("id", { ascending: true }).limit(limit);
-  if (error) {
-    if (isSchemaPending(error)) return [];
-    throw error;
-  }
-  // Compared as instants: the database writes "...+00:00" and the code writes "...Z", which do not sort as strings.
-  const c = Date.parse(after.created_at);
-  return ((data ?? []) as EventLike[]).filter((e) => { const t = Date.parse(e.created_at); return t > c || (t === c && e.id > after.id); });
-}
+// The keyset reader moved to src/lib/events/consume.ts so AI automation reads domain_event without importing from marketing/.
+export { eventsAfter };
 
 export type EnrolOutcome = "enrolled" | "duplicate" | "no_person" | "no_contact";
 

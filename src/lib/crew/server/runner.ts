@@ -12,6 +12,7 @@ import { agentModule } from "../definitions";
 import { agentEntry } from "../registry";
 import type { AgentSettings, RunContext } from "../types";
 import { anthropicModel, aiConfigured, crewDisabled } from "./model";
+import { sendDigests } from "./digest";
 import { persistFindings } from "./persist";
 import { agentTokensUsed, finishRun, loadSettings, SURFACE, type RunRow } from "./store";
 import { loadCrewTenant } from "./tenant";
@@ -120,6 +121,9 @@ export async function executeRun(admin: SupabaseClient, run: RunRow, deps: Runne
       closesAt: prepared.closesAt, labelOf: prepared.labelOf,
     }, result.accepted);
     await steps.add({ kind: "gate", name: "saved", output: { created: saved.created, refreshed: saved.refreshed, suppressed: saved.suppressed, proposals: saved.proposals, dropped: [...result.dropped, ...saved.skipped].map((d) => d.reason) } });
+    if (run.trigger === "schedule") {
+      try { await sendDigests(admin, tenant, run.agent_key, agentSettings().config.digest_optin ?? []); } catch (e) { console.error("[crew] digest failed", (e as Error).message); }
+    }
     return close("done", {
       ...patchBase, findings_count: saved.created, proposals_count: saved.proposals,
       nothing_to_report: result.accepted.length === 0 ? (result.nothingToReport ?? "Nothing needs attention.") : null,

@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { requireTenantUser, createAdminSupabase, getAuthUser } from "@/lib/supabase-server";
 import { tenantHasFeature } from "@/lib/tenant";
 import { diffForLog, logChange } from "@/lib/changeLog";
+import { emitTenderDetailsChanged } from "@/lib/events/emitters";
 import { loadOpportunity } from "@/lib/sales/opportunityServer";
 import { tenantTimezone } from "@/lib/tenantClock";
 import { closingDateKey, parseTenderFields } from "@/lib/tender/rules";
@@ -87,6 +88,11 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   }
 
   const user = await getAuthUser();
+  // Tender Watch wakes for this deal when the bid end date or the addenda count moved (fire-and-forget, never fails the save).
+  const addendaTo = "addenda_count" in patch ? Number(patch.addenda_count) : before.addenda_count;
+  if (closingChanged || addendaTo !== before.addenda_count) {
+    await emitTenderDetailsChanged(tenantId, { actorId: user?.id, opportunityId: id, ref: opp.ref, closingChanged, addendaFrom: before.addenda_count, addendaTo, stamp: String(patch.updated_at), accountId: opp.account_id });
+  }
   const { updated_at: _u, reminders_sent: _r, ...diffPatch } = patch;
   const changes = diffForLog("opportunity_tenders", before as unknown as Record<string, unknown>, diffPatch);
   if (changes.length > 0) {

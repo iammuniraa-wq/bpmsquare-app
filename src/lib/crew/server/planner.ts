@@ -1,5 +1,7 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { eventsAfter, type EventCursor } from "@/lib/events/consume";
+import { MAX_EVENT_DEPTH } from "@/lib/events/catalog";
 import { dayKey } from "@/lib/tender/rules";
 import { dailySlot } from "../core/schedule";
 import { purgeAfter } from "../core/fingerprint";
@@ -7,13 +9,16 @@ import { agentModule } from "../definitions";
 import { AGENTS, type AgentEntry } from "../registry";
 import type { AgentSettings, PlanCtx, RunRequest, RunTrigger } from "../types";
 import { crewDisabled } from "./model";
-import { enqueueRuns, loadSettings, type NewRun } from "./store";
+import { enqueueRuns, isPending, loadSettings, recentRunCount, type NewRun } from "./store";
 import { loadCrewTenant, type CrewTenant } from "./tenant";
 
 // The plan cron's brain (docs/design/nova-crew-agents.md section 3.3): per workspace with an enabled agent, (1) the schedule slot and
 // (2) domain_event wake-ups. Both only INSERT runs; the work cron executes them. A double tick, a retried request or two overlapping
 // crons enqueue nothing twice because (tenant_id, dedupe_key) is unique.
 
+const EVENT_DAILY_CAP = 40;
+const LEASE_MS = 4 * 60_000;
+const ZERO_UUID = "00000000-0000-0000-0000-000000000000";
 
 export type PlanSummary = { tenants: number; enqueued: number; quiet: number; paused: number; skipped: string[]; pending: boolean };
 
@@ -76,6 +81,69 @@ export async function planTenant(admin: SupabaseClient, tenant: CrewTenant, now:
   return out;
 }
 
+// ── Events ────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+async function takeCursor(admin: SupabaseClient, tenantId: string, now: Date): Promise<{ cursor: EventCursor; fresh: boolean } | "busy" | "pending"> {
+  const seed = await admin.from("crew_cursors").upsert({ tenant_id: tenantId }, { onConflict: "tenant_id", ignoreDuplicates: true });
+  if (seed.error) return isPending(seed.error) ? "pending" : "busy";
+  const { data, error } = await admin.from("crew_cursors")
+    .update({ locked_until: new Date(now.getTime() + LEASE_MS).toISOString() })
+    .eq("tenant_id", tenantId).or(`locked_until.is.null,locked_until.lt.${now.toISOString()}`).select("last_created_at, last_event_id");
+  if (error) return isPending(error) ? "pending" : "busy";
+  const row = (data ?? [])[0] as { last_created_at: string | null; last_event_id: string | null } | undefined;
+  if (!row) return "busy";
+  // A workspace whose bookmark does not exist yet starts from now: history is never replayed into model runs.
+  return row.last_created_at ? { cursor: { created_at: row.last_created_at, id: row.last_event_id ?? "" }, fresh: false } : { cursor: { created_at: now.toISOString(), id: "" }, fresh: true };
+}
+
+async function saveCursor(admin: SupabaseClient, tenantId: string, c: EventCursor, now: Date) {
+  await admin.from("crew_cursors").update({ last_created_at: c.created_at, last_event_id: c.id || null, locked_until: null, updated_at: now.toISOString() }).eq("tenant_id", tenantId);
+}
+
+/** Deal ids that woke the agent since the cursor. rfq.replied is about an RFQ, so its tender deal is looked up (tenant-scoped). */
+async function dealsFromEvents(admin: SupabaseClient, tenantId: string, events: { name: string; object_type: string; object_id: string | null; source: string; depth: number }[]): Promise<string[]> {
+  const deals = new Set<string>();
+  const rfqIds: string[] = [];
+  for (const e of events) {
+    if (e.source === "runner" || e.depth >= 1 || e.depth > MAX_EVENT_DEPTH || !e.object_id) continue;
+    if (e.object_type === "opportunity") deals.add(e.object_id);
+    else if (e.object_type === "rfq") rfqIds.push(e.object_id);
+  }
+  if (rfqIds.length) {
+    const { data } = await admin.from("rfqs").select("origin_id").eq("tenant_id", tenantId).eq("origin_type", "opportunity").in("id", rfqIds.slice(0, 100));
+    for (const r of (data ?? []) as { origin_id: string | null }[]) if (r.origin_id) deals.add(r.origin_id);
+  }
+  return [...deals];
+}
+
+export async function planEvents(admin: SupabaseClient, tenant: CrewTenant, now: Date): Promise<{ woken: number; notes: string[] }> {
+  const out = { woken: 0, notes: [] as string[] };
+  const entry = AGENTS.find((a) => a.key === "tender_watch")!;
+  if (tenant.features.crew !== true || tenant.features.crew_tender_watch !== true || crewDisabled() || !agentModule("tender_watch") || entry.engine !== "ready") return out;
+  const settings = await loadSettings(admin, tenant.id);
+  if (settings.pending || !settings.get("tender_watch").enabled || !tenant.hasTimezone) return out;
+  const taken = await takeCursor(admin, tenant.id, now);
+  if (taken === "busy" || taken === "pending") return out;
+  const { cursor, fresh } = taken;
+  if (fresh) { await saveCursor(admin, tenant.id, cursor, now); return out; }
+
+  const names = agentModule("tender_watch")!.def.triggers.events ?? [];
+  const events = await eventsAfter(admin, tenant.id, cursor, names);
+  if (events.length === 0) { await saveCursor(admin, tenant.id, cursor, now); return out; }
+  const last = events[events.length - 1];
+
+  const today = new Date(now.getTime() - 86_400_000).toISOString();
+  const used = await recentRunCount(admin, tenant.id, "tender_watch", "event", today);
+  const deals = (await dealsFromEvents(admin, tenant.id, events)).slice(0, Math.max(0, Math.min(20, EVENT_DAILY_CAP - used)));
+  for (const dealId of deals) {
+    const r = await planTenant(admin, tenant, now, "event", dealId, "tender_watch");
+    out.woken += r.enqueued;
+    out.notes.push(...r.notes);
+  }
+  await saveCursor(admin, tenant.id, { created_at: last.created_at, id: last.id }, now);
+  return out;
+}
+
 // ── Everything ────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
 export async function planAll(admin: SupabaseClient, now: Date = new Date()): Promise<PlanSummary> {
@@ -91,6 +159,8 @@ export async function planAll(admin: SupabaseClient, now: Date = new Date()): Pr
       const r = await planTenant(admin, tenant, now);
       sum.enqueued += r.enqueued; sum.quiet += r.quiet; sum.paused += r.paused; sum.skipped.push(...r.notes);
       if (r.pending) sum.pending = true;
+      const ev = await planEvents(admin, tenant, now);
+      sum.enqueued += ev.woken; sum.skipped.push(...ev.notes);
     } catch (e) {
       sum.skipped.push(`${t.id}: ${(e as Error).message}`);
     }
@@ -98,3 +168,4 @@ export async function planAll(admin: SupabaseClient, now: Date = new Date()): Pr
   return sum;
 }
 
+export { ZERO_UUID };
