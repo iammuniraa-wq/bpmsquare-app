@@ -36,3 +36,24 @@ describe("Email absorbs the campaign and newsletter lists", () => {
     expect(page("newsletters", "DesignsList.tsx")).toContain("studioPage()");
   });
 });
+
+describe("Scored leads is a view of Leads", () => {
+  it("the old scored address redirects to the Scored view and keeps the query", () => {
+    const src = page("leads", "page.tsx");
+    expect(src).toContain("redirect(");
+    expect(src).toContain('view: "scored"');
+    expect(src).toContain("ROUTES.leads");
+  });
+
+  it("Leads shows the Scored view only for a workspace with the scoring program, and keeps its own gates", () => {
+    const leads = readFileSync(join(__dirname, "..", "..", "app", "(app)", "leads", "page.tsx"), "utf8");
+    expect(leads).toContain('params.view === "scored"');
+    expect(leads).toContain("marketingScoringOn(");
+    expect(leads).toContain('requireFeature("leads")');
+    expect(readFileSync(join(__dirname, "..", "..", "app", "(app)", "leads", "ScoredLeadsView.tsx"), "utf8")).toContain("await leadPage()");
+  });
+
+  it("the record address did not move", () => {
+    expect(ROUTES.marketingLead("x")).toBe("/marketing/leads/x");
+  });
+});

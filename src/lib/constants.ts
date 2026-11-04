@@ -112,7 +112,7 @@ export const ROUTES = {
   marketingSegments: "/marketing/segments",
   marketingSegmentNew: "/marketing/segments/new",
   marketingSegment: (id: string) => `/marketing/segments/${id}`,
-  marketingLeads: "/marketing/leads",
+  marketingLeads: "/leads?view=scored",
   marketingLead: (id: string) => `/marketing/leads/${id}`,
   inbox: "/inbox",
   inboxMessage: (id: string) => `/inbox/${id}`,
@@ -381,10 +381,9 @@ export const NAV: NavGroup[] = [
       {
         label: "Intelligence", href: ROUTES.marketingIntelligence, icon: "◎", pillar: "purple",
         children: [
-          { label: "Overview", href: ROUTES.marketingIntelligence, icon: "◈", pillar: "purple", featureAnyOf: ["buying_signals", "leads", "marketing_scoring", "abm", "marketing_attribution"], workcenterAnyOf: ["signals", "leads", "abm", "marketing_attribution"] },
+          { label: "Overview", href: ROUTES.marketingIntelligence, icon: "◈", pillar: "purple", featureAnyOf: ["buying_signals", "leads", "abm", "marketing_attribution"], workcenterAnyOf: ["signals", "leads", "abm", "marketing_attribution"] },
           { label: "Buying signals", href: ROUTES.marketingSignals, icon: "◎", pillar: "purple", featureKey: "buying_signals", workcenterKey: "signals" },
           { label: "Leads", href: ROUTES.leads, icon: "✦", pillar: "purple", featureKey: "leads", workcenterKey: "leads" },
-          { label: "Scored leads", href: ROUTES.marketingLeads, icon: "⚡", pillar: "purple", featureKey: "marketing_scoring", workcenterKey: "leads" },
           { label: "ABM programs", href: ROUTES.marketingAbm, icon: "◆", pillar: "purple", featureKey: "abm", workcenterKey: "abm" },
           { label: "Results", href: ROUTES.marketingAttribution, icon: "⌁", pillar: "purple", featureKey: "marketing_attribution", workcenterKey: "marketing_attribution" },
         ],

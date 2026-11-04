@@ -21,7 +21,7 @@ export default async function IntelligenceOverviewPage() {
   const can = (feature: string, wc: Parameters<typeof canViewWorkcenter>[1]) => f[feature] === true && canViewWorkcenter(perms, wc);
 
   const showSignals = can("buying_signals", "signals");
-  const showLeads = can("marketing_scoring", "leads");
+  const showLeads = can("marketing_scoring", "leads") && f.leads === true;
   const showPlainLeads = !showLeads && can("leads", "leads");
   const showAbm = can("abm", "abm");
   const showResults = can("marketing_attribution", "marketing_attribution");
@@ -32,7 +32,7 @@ export default async function IntelligenceOverviewPage() {
 
   const steps: PathStep[] = [];
   if (showSignals) steps.push({ n: steps.length + 1, label: "Who is in market", value: n(counts.inMarket), text: counts.inMarket === null ? "Accounts ranked by how ready they look to buy." : "accounts comparing or deciding.", href: ROUTES.marketingSignals, action: "Buying signals" });
-  if (showLeads) steps.push({ n: steps.length + 1, label: "Who is ready", value: n(counts.scoredLeads), text: "scored leads, best first. How points are earned is set in Settings.", href: ROUTES.marketingLeads, action: "Scored leads", tone: counts.scoredLeads ? "warn" : undefined });
+  if (showLeads) steps.push({ n: steps.length + 1, label: "Who is ready", value: n(counts.scoredLeads), text: "scored leads, best first. How points are earned is set in Settings.", href: ROUTES.marketingLeads, action: "Leads", tone: counts.scoredLeads ? "warn" : undefined });
   else if (showPlainLeads) steps.push({ n: steps.length + 1, label: "Who is ready", value: null, text: "Leads from forms, enquiries and your team.", href: ROUTES.leads, action: "Leads" });
   if (showAbm) steps.push({ n: steps.length + 1, label: "Where to focus", value: n(counts.abmPrograms), text: counts.abmPrograms === null ? "Work the companies that matter most as a team." : "active programs.", href: ROUTES.marketingAbm, action: "ABM programs" });
   if (showResults) steps.push({ n: steps.length + 1, label: "What worked", value: null, text: "Which emails, forms and events started the deals.", href: ROUTES.marketingAttribution, action: "Results", tone: "good" });

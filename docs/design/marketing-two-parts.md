@@ -298,3 +298,10 @@ Risks:
 - Role editor: Marketing and Intelligence headings with **Grant all / Clear all** (`WORKCENTER_PARTS`). Keys and saved grants are unchanged.
 - Counts are small tolerant queries (`homeCounts.ts`, tenant-scoped; a missing table gives no number). Deviation from the mock-up: "Who is ready" shows scored leads, not hot/overdue, and the Marketing step 1 shows the number of saved audiences, not the number of people who can be emailed (that count needs the per-person consent check and is shown on the send form).
 - Verified by tests and tsc only. Not seen in a browser: both Overviews, the sidebar groups, the role editor headings.
+
+**Slice 6, Leads merge.**
+- One **Leads** row (`/leads`). In a workspace with the scoring program the list has a switch **All leads | Scored**: All keeps status, source and Convert; Scored (`/leads?view=scored`) keeps score, lead stage, owner, respond-by, stage and overdue chips, sorting and column filters, exactly as the old Scored leads page. New lead stays on All.
+- `/marketing/leads` redirects to `/leads?view=scored` keeping the query (search, stage, sort, page). `ROUTES.marketingLeads` now points at the Scored view, so the briefing and assistant links land there. The record address `/marketing/leads/[id]` did not move.
+- The Scored view keeps its own guard (`leadPage()`: the `leads` flag, the scoring program, the `leads` workcenter); a workspace without scoring gets no switch and the same plain list as before.
+- The Intelligence Overview's "Who is ready" tile needs both flags, as the Scored view does.
+- Verified by tests and tsc only; not seen in a browser. Unrelated, already failing on develop: four tests in `src/lib/salesOrders/sapFlow.test.ts`.
