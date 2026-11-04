@@ -1,5 +1,6 @@
 "use client";
 
+import CrewAdminPanel from "./CrewAdminPanel";
 import { useState, useTransition } from "react";
 import Pager from "@/components/Pager";
 import { paginate, clampPage, DEFAULT_PAGE_SIZE } from "@/lib/paginate";
@@ -360,6 +361,8 @@ export default function TenantEditor({ tenant, users, access, aiTokensUsed = nul
           </div>
         </section>
       )}
+
+      {features.crew === true && <CrewAdminPanel tenantId={tenant.id} />}
 
       {features.newsletter_studio === true && (
         <section style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 12, padding: 20, marginBottom: 16 }}>

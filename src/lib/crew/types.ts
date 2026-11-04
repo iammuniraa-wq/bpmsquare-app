@@ -60,6 +60,9 @@ export type AgentConfig = {
   watch_window_days?: number;
   /** Attendance: per family on/off. Buddy-punch and holiday-bridging default off. */
   families?: Record<string, boolean>;
+  /** Shadow rollout (design section 7 / open question 3): "admins" = only workspace admins see findings (the default), "deal_teams" =
+   *  the people a finding was addressed to see it too. Set only by a platform admin, in /admin/tenants. */
+  visibility?: "admins" | "deal_teams";
   /** User ids that opted in to the daily digest e-mail for themselves (internal members only, through resolveOutbound). */
   digest_optin?: string[];
 };

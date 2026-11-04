@@ -15,6 +15,18 @@
       "schedule": "0 20 * * *"
     },
     {
+      "path": "/api/crew/cron/plan",
+      "schedule": "*/15 * * * *"
+    },
+    {
+      "path": "/api/crew/cron/work",
+      "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/crew/cron/retention",
+      "schedule": "45 20 * * *"
+    },
+    {
       "path": "/api/webhooks/cron",
       "schedule": "30 20 * * *"
     },
