@@ -35,6 +35,8 @@ export type PlanOutcome = {
   /** "Nothing to review. N sites checked." */
   sitesChecked: number;
   quietSites: number;
+  /** The shift-days the plan covered. */
+  window: { from: string; to: string };
   skipped: { siteId: string; reason: string }[];
 };
 
@@ -47,7 +49,7 @@ export async function planAttendanceDetailed(ctx: PlanCtx): Promise<PlanOutcome>
   const chosen = ctx.settings.siteIds && ctx.settings.siteIds.length > 0 ? all.filter((id) => ctx.settings.siteIds!.includes(id)) : all;
   const sites = chosen.filter((id) => canViewSite(id, ctx.viewerScope ?? null));
 
-  const out: PlanOutcome = { requests: [], sitesChecked: 0, quietSites: 0, skipped: [] };
+  const out: PlanOutcome = { requests: [], sitesChecked: 0, quietSites: 0, window: { from, to }, skipped: [] };
   for (const siteId of sites) {
     try {
       const loaded = await loadSiteFacts(ctx.reads, { siteId, from, to, today: ctx.today, viewerScope: ctx.viewerScope });
