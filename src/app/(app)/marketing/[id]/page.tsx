@@ -12,6 +12,8 @@ import { ROUTES } from "@/lib/constants";
 import type { MarketingCampaignStatus } from "@/lib/types";
 import MarketingCampaignDetail from "./MarketingCampaignDetail";
 import { recipientStatusLabel, skipReason } from "@/lib/marketing/skipReasons";
+import { countStatuses, isQuotaError } from "@/lib/marketing/sendProgress";
+import CampaignSendStatus from "./CampaignSendStatus";
 import { loadComposeNewsletter } from "@/lib/newsletter/composeData";
 import { loadCampaignEngagement } from "@/lib/newsletter/engagement";
 import { languageDef } from "@/lib/newsletter/types";
@@ -35,6 +37,10 @@ export default async function CampaignDetailPage({ params }: { params: Promise<{
   if (!data) notFound();
   const { campaign, recipients } = data;
   const isDraft = campaign.status === "draft";
+  // While it is being sent the campaign row still says 0; the recorded recipients are the live truth.
+  const sending = campaign.status === "sending";
+  const live = countStatuses(recipients);
+  const shown = sending ? { sent: live.sent, failed: live.failed, skipped: live.skipped } : { sent: campaign.sent_count, failed: campaign.failed_count, skipped: campaign.skipped_count };
 
   const summaries = isDraft ? await listAccounts() : [];
   const accounts = summaries.map((s) => ({ id: s.account.id, name: s.account.name, type: s.account.type }));
@@ -52,9 +58,9 @@ export default async function CampaignDetailPage({ params }: { params: Promise<{
       meta={campaign.subject || "No subject yet"}
       status={<StatusPill label={STATUS_LABEL[campaign.status]} tone={STATUS_TONE[campaign.status]} />}
       facts={isDraft ? [] : [
-        { label: "Sent", value: <span style={{ color: "var(--teal)" }}>{campaign.sent_count}</span> },
-        { label: "Failed", value: <span style={{ color: "var(--red)" }}>{campaign.failed_count}</span> },
-        { label: "Left out", value: campaign.skipped_count },
+        { label: "Sent", value: <span style={{ color: "var(--teal)" }}>{shown.sent}</span> },
+        { label: "Failed", value: <span style={{ color: "var(--red)" }}>{shown.failed}</span> },
+        { label: "Left out", value: shown.skipped },
         { label: "Leads", value: <span style={{ color: c.accent }}>{leadsGenerated}</span> },
       ]}
       basePath={ROUTES.marketingCampaign(campaign.id)}
@@ -66,6 +72,13 @@ export default async function CampaignDetailPage({ params }: { params: Promise<{
             <MarketingCampaignDetail campaign={campaign} accounts={accounts} newsletter={nl} />
           ) : (
             <>
+            <CampaignSendStatus
+              campaignId={campaign.id}
+              status={campaign.status}
+              failed={live.failed}
+              quota={recipients.some((r) => r.status === "failed" && isQuotaError(r.error))}
+              canSendRest={!campaign.newsletter_version_id}
+            />
             {engagement && (
               <Card title="How it went, by language and by link">
                 <div style={{ display: "grid", gap: 14 }}>
