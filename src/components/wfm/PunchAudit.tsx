@@ -17,6 +17,8 @@ type PunchEvent = {
   geo_address: string | null;
   selfie_url: string | null;
   flags?: { face_verified?: boolean; face_mismatch?: boolean; face_unreadable?: boolean; low_accuracy?: boolean } | null;
+  /** The site's own pin, sent by the route only for a punch with no GPS fix (a kiosk punch). Not a GPS fix. */
+  site_pin?: { lat: number; lng: number; name: string; address: string | null } | null;
 };
 
 const KIND_LABEL: Record<PunchEvent["kind"], string> = {
@@ -24,6 +26,20 @@ const KIND_LABEL: Record<PunchEvent["kind"], string> = {
 };
 
 const fmtTime = (s: string) => new Date(s).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" });
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+const mapLink = (lat: number, lng: number) => `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
+
+/** What the selfie box says when there is no image. A punch older than the
+ *  workspace's retention window had its selfie purged on purpose (the cron
+ *  keeps the punch and its location), which is not the same as never having
+ *  had one. A supervisor correction never has a selfie. */
+export function selfieNote(e: Pick<PunchEvent, "ts" | "source">, retentionDays: number | null | undefined, now: number = Date.now()): string {
+  if (e.source !== "correction" && retentionDays && retentionDays > 0 && new Date(e.ts).getTime() < now - retentionDays * DAY_MS) {
+    return `Selfie removed after ${retentionDays} days`;
+  }
+  return "no selfie";
+}
 
 /**
  * The audit trail behind a punch: the selfie that was captured and where it
@@ -46,15 +62,19 @@ export default function PunchAudit({
   onFlag?: (event: { id: string; kind: PunchEvent["kind"]; ts: string }) => void;
 }) {
   const [events, setEvents] = useState<PunchEvent[] | null>(null);
+  const [retentionDays, setRetentionDays] = useState<number | null>(null);
   const [error, setError] = useState("");
 
   useEffect(() => {
+    setEvents(null);
+    setError("");
     const params = new URLSearchParams({ employee_id: employeeId });
     if (date) params.set("date", date);
     fetch(`/api/wfm/presence?${params}`)
       .then(async (r) => {
         const j = await r.json();
         if (!r.ok) { setError(j.error ?? "Could not load punches"); return; }
+        setRetentionDays(typeof j.selfie_retention_days === "number" ? j.selfie_retention_days : null);
         setEvents(j.events ?? []);
       })
       .catch(() => setError("Network error"));
@@ -62,6 +82,19 @@ export default function PunchAudit({
 
   if (error) return <div style={{ fontSize: 12, color: statusInk.bad, padding: "8px 0" }}>{error}</div>;
   if (!events) return <div style={{ fontSize: 12, color: c.hint, padding: "8px 0" }}>Loading punches…</div>;
+  return <PunchList events={events} retentionDays={retentionDays} canFlag={canFlag} onFlag={onFlag} />;
+}
+
+/** The loaded list, split from the fetch so the wording per punch source can be rendered and tested on its own. */
+export function PunchList({
+  events, retentionDays = null, canFlag, onFlag, now,
+}: {
+  events: PunchEvent[];
+  retentionDays?: number | null;
+  canFlag?: boolean;
+  onFlag?: (event: { id: string; kind: PunchEvent["kind"]; ts: string }) => void;
+  now?: number;
+}) {
   if (events.length === 0) return <div style={{ fontSize: 12, color: c.hint, padding: "8px 0" }}>No punches on this day.</div>;
 
   return (
@@ -84,11 +117,11 @@ export default function PunchAudit({
             </a>
           ) : (
             <div style={{
-              width: 56, height: 72, borderRadius: 8, border: `1px dashed ${c.line}`,
+              width: 56, height: 72, borderRadius: 8, border: `1px dashed ${c.line}`, flexShrink: 0,
               display: "flex", alignItems: "center", justifyContent: "center",
               fontSize: 10, color: c.hint, textAlign: "center", padding: 4,
             }}>
-              no selfie
+              {selfieNote(e, retentionDays, now)}
             </div>
           )}
 
@@ -128,7 +161,7 @@ export default function PunchAudit({
                   {e.geo_accuracy_m != null && <span style={{ color: c.hint }}> · ±{Math.round(e.geo_accuracy_m)}m</span>}
                   {" · "}
                   <a
-                    href={`https://www.google.com/maps/search/?api=1&query=${e.geo_lat},${e.geo_lng}`}
+                    href={mapLink(e.geo_lat, e.geo_lng)}
                     target="_blank"
                     rel="noopener noreferrer"
                     style={{ color: c.accent, textDecoration: "none", fontWeight: 600 }}
@@ -137,6 +170,33 @@ export default function PunchAudit({
                   </a>
                 </div>
               </>
+            ) : e.source === "kiosk_face" ? (
+              // A kiosk is a fixed device: its punches never carry a GPS fix
+              // by design, so this is neutral, not a fault.
+              <>
+                <div style={{ marginTop: 4, color: c.ink, fontSize: 12 }}>
+                  Recorded at the kiosk{(e.site_pin?.name ?? e.site_name) ? ` at ${e.site_pin?.name ?? e.site_name}` : ""}
+                </div>
+                {e.site_pin && (
+                  <>
+                    {e.site_pin.address && <div style={{ marginTop: 3, color: c.muted, fontSize: 12 }}>{e.site_pin.address}</div>}
+                    <div style={{ marginTop: 3, color: c.muted, fontSize: 11.5 }}>
+                      Site location (not a GPS fix): {e.site_pin.lat.toFixed(5)}, {e.site_pin.lng.toFixed(5)}
+                      {" · "}
+                      <a
+                        href={mapLink(e.site_pin.lat, e.site_pin.lng)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{ color: c.accent, textDecoration: "none", fontWeight: 600 }}
+                      >
+                        View on map ↗
+                      </a>
+                    </div>
+                  </>
+                )}
+              </>
+            ) : e.source === "correction" ? (
+              <div style={{ marginTop: 4, fontSize: 11.5, color: c.muted }}>Corrected by a supervisor: no location recorded</div>
             ) : (
               <div style={{ marginTop: 4, fontSize: 11.5, color: statusInk.warn }}>No location captured</div>
             )}

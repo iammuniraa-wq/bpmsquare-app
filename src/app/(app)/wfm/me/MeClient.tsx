@@ -1890,6 +1890,7 @@ export default function MeClient({
             <MonthTimeline
               days={days}
               month={month}
+              employeeId={me.employee.id}
               pendingCorrectionDates={corrections.filter((cr) => cr.status === "pending").map((cr) => cr.target_date)}
               onRequestCorrection={(date) => {
                 setCorrectionDraft({ target_date: date, issue: "missing_check_out", proposed_ts: "", reason_text: "" });

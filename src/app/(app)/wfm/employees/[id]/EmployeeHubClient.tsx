@@ -2,7 +2,8 @@
 
 import Tabs from "@/components/ui/Tabs";
 import { useUrlTab } from "@/components/ui/useUrlTab";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { DayPunchesRow, DayPunchesToggle } from "./DayPunches";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { c, statusInk } from "@/lib/theme";
@@ -154,6 +155,9 @@ export default function EmployeeHubClient({ employeeId, initialProfile = null, i
   const loadedMonth = useRef<string | null>(initialProfile?.month ?? null);
   // The day a supervisor is correcting, or null. Opens the time-correction dialog.
   const [correctingDate, setCorrectingDate] = useState<string | null>(null);
+  // The day whose punches are open beneath its row (one at a time).
+  const [openPunchDate, setOpenPunchDate] = useState<string | null>(null);
+  const togglePunches = useCallback((d: string) => setOpenPunchDate((cur) => (cur === d ? null : d)), []);
 
   const [loadError, setLoadError] = useState("");
   const [loading, setLoading] = useState(initialProfile == null);
@@ -589,7 +593,7 @@ export default function EmployeeHubClient({ employeeId, initialProfile = null, i
         <section style={{ ...cardStyle, padding: 0, overflow: "hidden" }}>
           <div style={{ padding: "10px 12px", borderBottom: `1px solid ${c.line}`, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
             <div style={{ fontSize: 13, fontWeight: 600, color: c.ink }}>Daily attendance</div>
-            <input style={{ ...inp, width: "auto" }} type="month" max={thisMonth()} value={month} onChange={(e) => setMonth(e.target.value)} />
+            <input style={{ ...inp, width: "auto" }} type="month" max={thisMonth()} value={month} onChange={(e) => { setMonth(e.target.value); setOpenPunchDate(null); }} />
           </div>
           <div style={{ overflowX: "auto" }}>
             <table className="data-table" style={{ width: "100%", borderCollapse: "collapse" }}>
@@ -598,7 +602,8 @@ export default function EmployeeHubClient({ employeeId, initialProfile = null, i
               </thead>
               <tbody>
                 {(profile.month_summary?.days ?? []).filter((d) => d.date <= todayKey()).slice().reverse().map((d) => (
-                  <tr key={d.date}>
+                  <Fragment key={d.date}>
+                  <tr>
                     <td style={{ ...td, fontWeight: 600, color: c.ink, whiteSpace: "nowrap" }}>{fmtDate(d.date)}</td>
                     <td style={{ ...td, whiteSpace: "nowrap" }}>{d.first_in ? new Date(d.first_in).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }) : "—"}</td>
                     <td style={{ ...td, whiteSpace: "nowrap" }}>{d.last_out ? new Date(d.last_out).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }) : "—"}</td>
@@ -620,13 +625,18 @@ export default function EmployeeHubClient({ employeeId, initialProfile = null, i
                         : <span style={{ color: c.hint }}>—</span>}
                     </td>
                     <td style={{ ...td, whiteSpace: "nowrap", textAlign: "right" }}>
-                      {/* Only inside the window the server will accept, so the
-                          button is not offered where it can only be refused. */}
-                      {isWithinEditWindow(d.date, todayKey()) && (
-                        <button style={btn} onClick={() => setCorrectingDate(d.date)}>Correct</button>
-                      )}
+                      <span style={{ display: "inline-flex", gap: 6, alignItems: "center" }}>
+                        <DayPunchesToggle date={d.date} open={openPunchDate === d.date} onToggle={togglePunches} />
+                        {/* Only inside the window the server will accept, so the
+                            button is not offered where it can only be refused. */}
+                        {isWithinEditWindow(d.date, todayKey()) && (
+                          <button style={btn} onClick={() => setCorrectingDate(d.date)}>Correct</button>
+                        )}
+                      </span>
                     </td>
                   </tr>
+                  {openPunchDate === d.date && <DayPunchesRow employeeId={employeeId} date={d.date} colSpan={8} />}
+                  </Fragment>
                 ))}
                 {(profile.month_summary?.days ?? []).length === 0 && (
                   <tr><td style={{ ...td, color: c.hint }} colSpan={8}>No records this month.</td></tr>

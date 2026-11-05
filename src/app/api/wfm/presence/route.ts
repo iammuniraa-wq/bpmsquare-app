@@ -87,8 +87,37 @@ export async function GET(request: NextRequest) {
     (e) => shiftDayKey(new Date(e.ts as string), config.timezone, shift) === dayKey
   );
 
-  const { data: sites } = await admin.from("wfm_sites").select("id, name").eq("tenant_id", tenantId);
+  const { data: sites } = await admin.from("wfm_sites").select("id, name, lat, lng").eq("tenant_id", tenantId);
   const siteName = new Map((sites ?? []).map((s) => [s.id as string, s.name as string]));
+  const siteById = new Map((sites ?? []).map((s) => [s.id as string, s]));
+
+  // A kiosk punch never carries a GPS fix (the device is fixed, so the punch
+  // is stamped with the kiosk's site instead). For those the screen shows the
+  // site's own pin, clearly labelled as the site and not a fix. The address
+  // is looked up once per distinct site for this request, never per punch,
+  // and lives only in this request (tenant-scoped data, so no shared cache).
+  // Everything here runs after the scope check above, so a viewer never gets
+  // the pin of a site belonging to an employee they cannot see.
+  const hasFix = (e: { geo_lat: unknown; geo_lng: unknown }) => e.geo_lat != null && e.geo_lng != null;
+  const pinSiteIds = [...new Set(
+    dayEvents.filter((e) => !hasFix(e) && e.site_id && siteById.has(e.site_id as string)).map((e) => e.site_id as string)
+  )];
+  const siteAddress = new Map<string, string | null>();
+  await Promise.all(
+    pinSiteIds.map(async (id) => {
+      const site = siteById.get(id)!;
+      let address: string | null = null;
+      if (geocodingConfigured()) {
+        try {
+          const r = await reverseGeocode(Number(site.lat), Number(site.lng));
+          if (r.status === "ok") address = r.address;
+        } catch {
+          address = null;
+        }
+      }
+      siteAddress.set(id, address);
+    })
+  );
 
   // Resolve any addresses we don't have yet, ONCE, and cache them on the
   // row. Doing it lazily on first view rather than at punch time keeps
@@ -145,6 +174,7 @@ export async function GET(request: NextRequest) {
         selfie_url = signed?.signedUrl ?? null;
       }
       const address = resolved.get(e.id as string) ?? (e.geo_address as string | null);
+      const pinSite = !hasFix(e) && e.site_id ? siteById.get(e.site_id as string) : undefined;
       return {
         id: e.id,
         kind: e.kind,
@@ -158,6 +188,14 @@ export async function GET(request: NextRequest) {
         geo_address: address || null,
         selfie_url,
         flags: e.flags ?? null,
+        site_pin: pinSite
+          ? {
+              lat: Number(pinSite.lat),
+              lng: Number(pinSite.lng),
+              name: pinSite.name as string,
+              address: siteAddress.get(e.site_id as string) ?? null,
+            }
+          : null,
       };
     })
   );
@@ -169,6 +207,7 @@ export async function GET(request: NextRequest) {
       full_name: [emp.first_name, emp.last_name].filter(Boolean).join(" "),
       employee_code: emp.employee_code,
     },
+    selfie_retention_days: config.selfie_retention_days,
     events: withUrls,
   });
 }
