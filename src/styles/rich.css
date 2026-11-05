@@ -564,3 +564,6 @@ html[data-rich-root="true"] .feel__undo { font-size: .875rem; min-height: 36px; 
   [data-rich="true"] :is(.bpm-btn, .bpm-stat, .bpm-m-tab, .rich-rail__btn, .bpm-tab, .bpm-menu-item, summary):active,
   [data-rich="true"] :is(.bpm-stat, .rich-rail__btn, .bpm-btn):hover { transform: none !important; }
 }
+
+/* Menu mode: the sidebar's sections must keep their own height and let the column scroll, otherwise a long list is squeezed and runs over the next section. */
+[data-rich="true"] .nova-sb-scroll > * { flex-shrink: 0; }

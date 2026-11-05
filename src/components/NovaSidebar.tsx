@@ -443,7 +443,7 @@ export default function NovaSidebar({ onNavigate }: { onNavigate?: () => void })
         </div>
       )}
 
-      <div style={{ flex: 1, overflowY: "auto", padding: "8px 0 16px", display: "flex", flexDirection: "column", minHeight: 0 }}>
+      <div className="nova-sb-scroll" style={{ flex: 1, overflowY: "auto", padding: "8px 0 16px", display: "flex", flexDirection: "column", minHeight: 0 }}>
         {/* Needs You Now */}
         {items.length > 0 && showNeeds && (
           <div style={{ padding: "12px 16px 4px", display: "flex", flexDirection: "column", flex: maximized === "needs" ? 1 : undefined, minHeight: 0 }}>
