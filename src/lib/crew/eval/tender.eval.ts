@@ -12,7 +12,7 @@ import { passesGate, runTenderCase, summarise, type CaseRun } from "./harness";
 // false positives, grounding drops and note recipients, writes docs/crew-eval/<date>-tender_watch.json, and FAILS when the release gate is missed.
 // Run it before any change to a prompt, a tool shape, a model or a threshold table, and quote the result in the commit.
 //
-//   (PowerShell, from the repository root)   npm run crew:eval
+//   (PowerShell, from the repository root)   npm run crew:eval -- tender
 //   CREW_EVAL_ONLY=TW-01,TW-27 npm run crew:eval        only those cases
 
 describe("Tender Watch against the real model", () => {

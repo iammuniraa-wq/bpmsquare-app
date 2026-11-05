@@ -8,7 +8,7 @@ import { tenantMemberIds } from "@/lib/tender/roomServer";
 // PUT /api/crew/settings/[agent]   agent = an agent key, or "workspace" for the Pause all agents switch.
 //   { enabled?, paused?, config? }  -- workspace admin only. The editable subset of config is whitelisted (sanitizeConfig); the monthly
 //   allowance and the shadow-period visibility are NOT settable here (platform admin only, /api/admin/crew/[tenantId]).
-// Tender Watch cannot be switched on until the workspace has a time zone (its schedule is read in the workspace clock).
+// An agent cannot be switched on until the workspace has a time zone (its schedule is read in the workspace clock).
 // Every change is written to Change History (object crew_settings).
 
 export async function PUT(request: NextRequest, { params }: { params: Promise<{ agent: string }> }) {
@@ -25,7 +25,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
   if (typeof body.paused === "boolean") patch.paused = body.paused;
   if (!isWorkspace) {
     if (typeof body.enabled === "boolean") {
-      if (body.enabled && entry!.key === "tender_watch" && !ctx.tenant.hasTimezone) return NextResponse.json({ error: "Set your time zone first (Settings, Workforce). Tender Watch runs on your own clock." }, { status: 409 });
+      if (body.enabled && !ctx.tenant.hasTimezone) return NextResponse.json({ error: `Set your time zone first (Settings, Workforce). ${entry!.name} runs on your own clock.` }, { status: 409 });
       patch.enabled = body.enabled;
     }
     if (body.config !== undefined) {

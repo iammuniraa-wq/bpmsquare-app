@@ -6,6 +6,8 @@ import { canViewWorkcenter, resolvePermissions, type PermissionSet } from "@/lib
 import { agentEntry, availableAgents, type AgentEntry } from "../registry";
 import type { AgentKey } from "../types";
 import type { Viewer } from "../core/visibility";
+import { requireWfm } from "@/lib/wfm/server";
+import { resolveWfmScope } from "@/lib/wfm/scope";
 import { loadCrewTenant, type CrewTenant } from "./tenant";
 
 // The one door for every AI automation route and page (design section 3.6 and 5.5): the session, the workspace from the HOST (never from the
@@ -56,3 +58,20 @@ export async function openCrew(agent?: string | null, opts: { adminOnly?: boolea
 export const viewerOf = (ctx: Pick<CrewCtx, "role" | "userId" | "perms">): Viewer => ({ role: ctx.role, userId: ctx.userId, pipeline: canViewWorkcenter(ctx.perms, "pipeline") });
 
 export const AGENT_KEYS: readonly AgentKey[] = ["tender_watch", "attendance"];
+
+/**
+ * The viewer with their attendance scope when it matters: a supervisor (not an admin) in a workspace that has the attendance agent. The scope is
+ * resolveWfmScope, the same answer the live board uses, so "who can see a finding" cannot drift from "whose rows can I see".
+ */
+export async function viewerWithScope(ctx: Pick<CrewCtx, "role" | "userId" | "perms" | "agents">): Promise<Viewer> {
+  const v = viewerOf(ctx);
+  if (ctx.role === "admin" || !ctx.agents.some((a) => a.key === "attendance")) return v;
+  try {
+    const wfm = await requireWfm();
+    if (!wfm.isSupervisor) return v;
+    const scope = await resolveWfmScope(wfm);
+    return { ...v, attendance: { unrestricted: scope.unrestricted, employeeIds: scope.employeeIds, siteIds: scope.siteIds } };
+  } catch {
+    return v;
+  }
+}

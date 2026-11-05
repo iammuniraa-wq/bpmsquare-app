@@ -8,8 +8,10 @@ import { agentModule } from "../definitions";
 import { AGENTS, type AgentEntry } from "../registry";
 import type { AgentKey, AgentSettings, Finding, Proposal } from "../types";
 import type { AgentSettingsDTO, CrewView, FindingDTO, ProposalDTO, RunDTO, TileDTO } from "../viewTypes";
-import { canSeeFinding, canSeeRuns } from "../core/visibility";
-import { viewerOf, type CrewCtx } from "./access";
+import { canSeeFinding, canSeeRun, canSeeRuns } from "../core/visibility";
+import { viewerWithScope, type CrewCtx } from "./access";
+import { aliasRenderers, recheckTargets } from "./attendanceNames";
+import type { AttendanceSnapshot } from "./attendance";
 import { aiConfigured, crewDisabled } from "./model";
 import { agentTokensUsed, listFindings, listProposals, listRuns, loadSettings, type RunRow } from "./store";
 
@@ -50,9 +52,10 @@ export async function loadCrewView(ctx: CrewCtx, only: AgentKey | null): Promise
   const used = new Map<AgentKey, number>();
   await Promise.all(entries.map(async (e) => { used.set(e.key, await agentTokensUsed(admin, tenantId, e.key)); }));
 
+  const viewer = await viewerWithScope(ctx);
   const runsAll = await listRuns(admin, tenantId, only, only ? 50 : 80);
   const allFindings = await listFindings(admin, tenantId, { agent: only, statuses: ["open", "seen"], limit: 200 });
-  const visible = allFindings.rows.filter((f) => entries.some((e) => e.key === f.agent_key) && canSeeFinding(viewerOf(ctx), f, settings.get(f.agent_key).config.visibility));
+  const visible = allFindings.rows.filter((f) => entries.some((e) => e.key === f.agent_key) && canSeeFinding(viewer, f, settings.get(f.agent_key).config.visibility));
 
   const tiles: TileDTO[] = entries.map((e) => {
     const lastRun = runsAll.rows.find((r) => r.agent_key === e.key && (r.status === "done" || r.status === "failed")) ?? null;
@@ -61,41 +64,78 @@ export async function loadCrewView(ctx: CrewCtx, only: AgentKey | null): Promise
   });
 
   const props = await listProposals(admin, tenantId, { findingIds: visible.map((f) => f.id), status: ["pending"] });
-  const names = await loadActorNames(admin, tenantId, props.flatMap((p) => ((p.payload as { recipient_ids?: string[] }).recipient_ids ?? [])));
+  const names = await loadActorNames(admin, tenantId, props.filter((p) => p.action_key === "tender.nudge").flatMap((p) => ((p.payload as { recipient_ids?: string[] }).recipient_ids ?? [])));
   const vis = await visuals(ctx, visible);
 
-  const findings: FindingDTO[] = visible.map((f) => ({
-    id: f.id, agent: f.agent_key, kind: f.kind, severity: f.severity, title: f.title, body: f.body, evidence: f.evidence ?? [], gaps: f.gaps ?? [], status: f.status,
-    createdAt: f.created_at, subjectId: f.subject_id, href: f.agent_key === "tender_watch" ? ROUTES.pipelineDetail(f.subject_id) : null, runId: f.run_id,
-    visual: vis.get(f.subject_id) ?? null,
-  }));
+  // Attendance: names go back into the text only now, for a viewer who may already see the finding (design 5.4).
+  const attendance = visible.filter((f) => f.agent_key === "attendance");
+  const render = attendance.length ? await aliasRenderers(admin, tenantId, attendance.map((f) => f.run_id).filter((x): x is string => !!x)) : new Map<string, (t: string) => string>();
+  const runById = new Map(runsAll.rows.map((r) => [r.id, r]));
+  const recheckIds = props.filter((p) => p.action_key === "wfm.recheck").flatMap((p) => employeeIdsOf(p));
+  const targetNames = recheckIds.length ? await recheckTargets(admin, tenantId, recheckIds) : new Map<string, string>();
+
+  const findings: FindingDTO[] = visible.map((f) => {
+    const put = (f.run_id && render.get(f.run_id)) || ((t: string) => t);
+    const att = f.agent_key === "attendance";
+    return {
+      id: f.id, agent: f.agent_key, kind: f.kind, severity: f.severity, title: put(f.title), body: put(f.body),
+      evidence: (f.evidence ?? []).map((e) => ({ ...e, label: put(e.label) })), gaps: (f.gaps ?? []).map(put), status: f.status,
+      createdAt: f.created_at, subjectId: f.subject_id,
+      href: f.agent_key === "tender_watch" ? ROUTES.pipelineDetail(f.subject_id) : att ? (f.subject_type === "employee" ? ROUTES.wfmEmployee(f.subject_id) : ROUTES.wfmLiveBoard) : null,
+      runId: f.run_id, visual: vis.get(f.subject_id) ?? null, strip: att ? stripOf(f.fingerprint, f.run_id ? runById.get(f.run_id)?.snapshot : null) : null,
+    };
+  });
 
   const proposals: ProposalDTO[] = props.map((p: Proposal) => ({
     id: p.id, findingId: p.finding_id ?? "", actionKey: p.action_key, message: String((p.payload as { message?: unknown }).message ?? ""),
-    toNames: (((p.payload as { recipient_ids?: string[] }).recipient_ids) ?? []).map((id) => names.get(id) ?? "A colleague"), status: p.status, expiresAt: p.expires_at,
+    toNames: p.action_key === "wfm.recheck"
+      ? employeeIdsOf(p).map((id) => targetNames.get(id) ?? "An employee")
+      : (((p.payload as { recipient_ids?: string[] }).recipient_ids) ?? []).map((id) => names.get(id) ?? "A colleague"),
+    targets: p.action_key === "wfm.recheck" ? employeeIdsOf(p).map((id) => ({ id, name: targetNames.get(id) ?? "An employee" })) : [],
+    status: p.status, expiresAt: p.expires_at,
     canDecide: p.approver_ids.includes(ctx.userId) && Date.parse(p.expires_at) > Date.now() && !!agentModule(p.agent_key),
   })).filter((p) => p.findingId);
 
   const settingsDto: CrewView["settings"] = {};
+  const siteChoices = entries.some((e) => e.key === "attendance") && ctx.role === "admin" ? await activeSites(admin, tenantId) : [];
   for (const e of entries) {
     const s = settings.get(e.key);
     const cap = effectiveAgentCap(s.monthly_token_cap, e.defaults.monthlyTokenCap);
     const u = used.get(e.key) ?? 0;
     const dto: AgentSettingsDTO = {
       enabled: s.enabled, paused: s.paused, config: { ...s.config, digest_optin: undefined, visibility: undefined }, cap, used: u, percent: percentUsed(u, cap),
-      digestOn: (s.config.digest_optin ?? []).includes(ctx.userId), needsTimezone: e.key === "tender_watch" && !ctx.tenant.hasTimezone,
+      digestOn: (s.config.digest_optin ?? []).includes(ctx.userId), needsTimezone: !ctx.tenant.hasTimezone,
+      sites: e.key === "attendance" ? siteChoices : [],
     };
     settingsDto[e.key] = dto;
   }
 
   const runs = runsAll.rows
-    .filter((r) => entries.some((e) => e.key === r.agent_key) && canSeeRuns(viewerOf(ctx), settings.get(r.agent_key).config.visibility))
+    .filter((r) => entries.some((e) => e.key === r.agent_key) && canSeeRun(viewer, r, settings.get(r.agent_key).config.visibility))
     .map((r) => runDTO(r, AGENTS.find((a) => a.key === r.agent_key)?.name ?? r.agent_key));
 
   return {
     pending: false, isAdmin: ctx.role === "admin", workspacePaused: ws.paused, platformStopped: crewDisabled(), tiles, findings, proposals, runs,
-    runsVisible: entries.some((e) => canSeeRuns(viewerOf(ctx), settings.get(e.key).config.visibility)), settings: settingsDto,
+    runsVisible: entries.some((e) => canSeeRuns(viewer, settings.get(e.key).config.visibility)), settings: settingsDto,
   };
+}
+
+async function activeSites(admin: CrewCtx["admin"], tenantId: string): Promise<{ id: string; name: string }[]> {
+  const { data } = await admin.from("wfm_sites").select("id, name").eq("tenant_id", tenantId).eq("active", true).order("name", { ascending: true }).limit(200);
+  return (data ?? []) as { id: string; name: string }[];
+}
+
+const employeeIdsOf = (p: Proposal): string[] => {
+  const ids = (p.payload as { employee_ids?: unknown }).employee_ids;
+  return Array.isArray(ids) ? ids.filter((x): x is string => typeof x === "string") : [];
+};
+
+/** The day dots of the attendance card, from the run that raised it: which shift-days the site was looked at, and which of them make up this pattern. */
+function stripOf(fingerprint: string, snapshot: Record<string, unknown> | null | undefined): FindingDTO["strip"] {
+  const snap = snapshot as Partial<AttendanceSnapshot> | null | undefined;
+  if (!snap?.strip || !Array.isArray(snap.strip.dates)) return null;
+  const marked = new Set(snap.marked?.[fingerprint] ?? []);
+  return { dates: snap.strip.dates, rostered: snap.strip.rostered ?? [], present: snap.strip.present ?? [], flagged: snap.strip.flagged ?? [], marked: snap.strip.dates.map((d) => marked.has(d)) };
 }
 
 function tile(
@@ -107,7 +147,7 @@ function tile(
     key: e.key, name: e.name, purpose: e.purpose, logo: e.logo, accent: e.accent, href: e.href,
     status: tileStatus({
       engineReady: e.engine === "ready" && !!agentModule(e.key), dbPending: x.pending, enabled: s.enabled, paused: s.paused, workspacePaused: x.ws === true,
-      platformStopped: crewDisabled(), aiConfigured: aiConfigured(), overCap: x.used >= cap, needsTimezone: e.key === "tender_watch" && !ctx.tenant.hasTimezone,
+      platformStopped: crewDisabled(), aiConfigured: aiConfigured(), overCap: x.used >= cap, needsTimezone: !ctx.tenant.hasTimezone,
     }),
     lastRunAt: x.lastRun ? (x.lastRun.finished_at ?? x.lastRun.queued_at) : null, lastRunNote: x.lastRun?.status === "failed" ? "The last run failed" : x.lastRun?.nothing_to_report ?? null,
     openFindings: x.open, used: x.used, cap, percent: percentUsed(x.used, cap),

@@ -13,6 +13,7 @@ import s from "./crew.module.css";
 // several thresholds a workspace should never edit. Admin only to change; everyone who sees the agent may switch their own digest.
 
 const DAYS = [["Mon", 1], ["Tue", 2], ["Wed", 3], ["Thu", 4], ["Fri", 5], ["Sat", 6], ["Sun", 0]] as const;
+const FAMILY_CHOICES = [{ id: "late_cluster", label: "Late arrivals" }, { id: "missing_out_cluster", label: "Missing check-outs" }, { id: "far_punches", label: "Punches far from the site" }] as const;
 const SENS: { id: Sensitivity; label: string }[] = [{ id: "quiet", label: "Quiet" }, { id: "balanced", label: "Balanced" }, { id: "thorough", label: "Thorough" }];
 
 export default function SettingsPanel({ entry, st, isAdmin, canDigest }: { entry: AgentEntry; st: AgentSettingsDTO; isAdmin: boolean; canDigest: boolean }) {
@@ -23,18 +24,21 @@ export default function SettingsPanel({ entry, st, isAdmin, canDigest }: { entry
   const [days, setDays] = useState<number[]>(sched.days ?? [0, 1, 2, 3, 4, 5, 6]);
   const [sens, setSens] = useState<Sensitivity>(st.config.sensitivity ?? entry.defaults.sensitivity);
   const [windowDays, setWindowDays] = useState(String(st.config.watch_window_days ?? 21));
+  const [siteIds, setSiteIds] = useState<string[]>(st.config.scope?.site_ids ?? []);
+  const [families, setFamilies] = useState<Record<string, boolean>>(st.config.families ?? {});
   const [more, setMore] = useState(false);
   const [digest, setDigest] = useState(st.digestOn);
   const [msg, setMsg] = useState("");
   const [busy, setBusy] = useState(false);
   const tender = entry.key === "tender_watch";
+  const attendance = entry.key === "attendance";
 
   async function save() {
     setBusy(true); setMsg("");
     try {
       const r = await fetch(`/api/crew/settings/${entry.key}`, {
         method: "PUT", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ enabled, config: { schedule: { time, ...(days.length < 7 ? { days } : {}), ...(sched.weeklyDay !== undefined ? { weeklyDay: sched.weeklyDay } : {}) }, sensitivity: sens, ...(tender ? { watch_window_days: Number(windowDays) } : {}) } }),
+        body: JSON.stringify({ enabled, config: { schedule: { time, ...(days.length < 7 ? { days } : {}), ...(sched.weeklyDay !== undefined ? { weeklyDay: sched.weeklyDay } : {}) }, sensitivity: sens, ...(tender ? { watch_window_days: Number(windowDays) } : {}), ...(attendance ? { scope: { site_ids: siteIds }, families } : {}) } }),
       });
       const j = (await r.json().catch(() => ({}))) as { error?: string };
       if (!r.ok) { setMsg(j.error ?? "Could not save."); return; }
@@ -49,6 +53,8 @@ export default function SettingsPanel({ entry, st, isAdmin, canDigest }: { entry
     else router.refresh();
   }
 
+  const toggleSite = (id: string) => setSiteIds((cur) => (cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id]));
+  const familyOn = (id: string) => families[id] !== false;
   const toggleDay = (d: number) => setDays((cur) => (cur.includes(d) ? cur.filter((x) => x !== d) : [...cur, d]).sort());
 
   return (
@@ -80,6 +86,15 @@ export default function SettingsPanel({ entry, st, isAdmin, canDigest }: { entry
         </div>
       </div>
 
+      {attendance && st.sites.length > 0 && (
+        <div className={s.setRow}>
+          <div className={s.setLabel}>Where <InfoTip label="Where">{CREW_TIPS.sites}</InfoTip></div>
+          <div className={s.sitePick} role="group" aria-label="Sites" data-guide="crew.settings.sites">
+            {st.sites.map((x) => <button key={x.id} type="button" disabled={!isAdmin} aria-pressed={siteIds.includes(x.id)} className={siteIds.includes(x.id) ? s.pickOn : ""} onClick={() => toggleSite(x.id)}>{x.name}</button>)}
+          </div>
+        </div>
+      )}
+
       {canDigest && (
         <div className={s.setRow}>
           <div className={s.setLabel}>My daily e-mail <InfoTip label="My daily e-mail">{CREW_TIPS.digest}</InfoTip></div>
@@ -94,6 +109,20 @@ export default function SettingsPanel({ entry, st, isAdmin, canDigest }: { entry
           <div className={s.meter}><span className={`${s.meterFill} ${st.percent >= 80 ? s.meterHot : ""}`} style={{ width: `${Math.max(2, st.percent)}%`, display: "block" }} /></div>
         </div>
       </div>
+
+      {attendance && (
+        <div style={{ padding: "8px 0" }}>
+          <button type="button" className={s.whyBtn} aria-expanded={more} onClick={() => setMore((v) => !v)} data-guide="crew.settings.more">{more ? "Fewer options" : "More options"}</button>
+          {more && (
+            <div className={s.setRow} style={{ borderBottom: 0 }}>
+              <div className={s.setLabel}>Looks for <InfoTip label="Looks for">{CREW_TIPS.families}</InfoTip></div>
+              <div className={s.sitePick} role="group" aria-label="Kinds of pattern">
+                {FAMILY_CHOICES.map((f) => <button key={f.id} type="button" disabled={!isAdmin} aria-pressed={familyOn(f.id)} className={familyOn(f.id) ? s.pickOn : ""} onClick={() => setFamilies((cur) => ({ ...cur, [f.id]: !familyOn(f.id) }))}>{f.label}</button>)}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {tender && (
         <div style={{ padding: "8px 0" }}>

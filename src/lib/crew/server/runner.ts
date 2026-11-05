@@ -74,6 +74,10 @@ export async function executeRun(admin: SupabaseClient, run: RunRow, deps: Runne
     await steps.add({ kind: "plan", name: "plan", output: { trigger: run.trigger, because: run.trigger_ref, candidates: ctx.candidateIds.size } });
 
     const prepared = await runtime.prepare(ctx, run);
+    // Attendance: the tools see the run's alias map, and the aliases of the people in the candidates are ids the model may name.
+    const toolCtx: RunContext = prepared.aliasMap
+      ? { ...ctx, aliases: new Map(Object.entries(prepared.aliasMap.persons)), candidateIds: new Set([...ctx.candidateIds, ...(prepared.toolIds ?? [])]) }
+      : ctx;
     await steps.add({ kind: "prefetch", name: prepared.prefetch.name, output: prepared.prefetch.output, refs: prepared.prefetch.refs });
     if (prepared.unavailable.length) await steps.add({ kind: "prefetch", name: "unavailable", output: { unavailable: prepared.unavailable }, ok: true });
 
@@ -100,8 +104,9 @@ export async function executeRun(admin: SupabaseClient, run: RunRow, deps: Runne
       model, system: runtime.system(), user: prepared.user,
       tools: [...toolSpecs(runtime.adapters.filter((a) => def.tools.includes(a.key))), submitToolSpec(runtime.findingsSchema)],
       limits: def.limits, steps, gate, meter,
-      runTool: makeToolRunner(runtime.adapters, def.tools, ctx, steps),
-      validate: (submit) => {
+      runTool: makeToolRunner(runtime.adapters, def.tools, toolCtx, steps),
+      validate: (submit, raw) => {
+        if (runtime.submission) return runtime.submission.validate(raw, steps.outputs, prepared);
         const accepted: ValidatedFinding[] = [];
         const rejected: { index: number; reason: string }[] = [];
         submit.findings.forEach((d, index) => { const v = validateDraft(d, env); if (v.ok) accepted.push(v.finding); else rejected.push({ index, reason: v.reason }); });
@@ -109,7 +114,7 @@ export async function executeRun(admin: SupabaseClient, run: RunRow, deps: Runne
       },
     });
 
-    const patchBase = { model: result.model, prompt_version: def.promptVersion, input_tokens: result.inputTokens, output_tokens: result.outputTokens, turns: result.turns, tool_calls: result.toolCalls, snapshot: prepared.snapshot };
+    const patchBase = { model: result.model, prompt_version: def.promptVersion, input_tokens: result.inputTokens, output_tokens: result.outputTokens, turns: result.turns, tool_calls: result.toolCalls, snapshot: prepared.snapshot, ...(prepared.aliasMap ? { alias_map: prepared.aliasMap } : {}) };
     if (result.status !== "done") {
       const status = result.status === "failed" ? "failed" : result.status;
       return close(status, { ...patchBase, error: result.reason ?? "The run did not finish." });
@@ -122,7 +127,7 @@ export async function executeRun(admin: SupabaseClient, run: RunRow, deps: Runne
     }, result.accepted);
     await steps.add({ kind: "gate", name: "saved", output: { created: saved.created, refreshed: saved.refreshed, suppressed: saved.suppressed, proposals: saved.proposals, dropped: [...result.dropped, ...saved.skipped].map((d) => d.reason) } });
     if (run.trigger === "schedule") {
-      try { await sendDigests(admin, tenant, run.agent_key, agentSettings().config.digest_optin ?? []); } catch (e) { console.error("[crew] digest failed", (e as Error).message); }
+      try { await sendDigests(admin, tenant, run.agent_key, agentSettings().config.digest_optin ?? [], undefined, agentSettings().config.visibility); } catch (e) { console.error("[crew] digest failed", (e as Error).message); }
     }
     return close("done", {
       ...patchBase, findings_count: saved.created, proposals_count: saved.proposals,

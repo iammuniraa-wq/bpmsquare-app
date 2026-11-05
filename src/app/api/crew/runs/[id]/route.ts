@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { openCrew } from "@/lib/crew/server/access";
-import { canSeeRuns } from "@/lib/crew/core/visibility";
+import { openCrew, viewerWithScope } from "@/lib/crew/server/access";
+import { canSeeRun } from "@/lib/crew/core/visibility";
 import { loadRun, loadSettings, loadSteps } from "@/lib/crew/server/store";
 
 // GET /api/crew/runs/[id] -> the trace of one run: what it looked at, concluded, proposed and could not check (design section 3.6).
@@ -15,6 +15,6 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   const run = await loadRun(ctx.admin, ctx.tenantId, id);
   if (!run || !ctx.agents.some((a) => a.key === run.agent_key)) return NextResponse.json({ error: "Not found" }, { status: 404 });
   const settings = await loadSettings(ctx.admin, ctx.tenantId);
-  if (!canSeeRuns(ctx, settings.get(run.agent_key).config.visibility)) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  if (!canSeeRun(await viewerWithScope(ctx), run, settings.get(run.agent_key).config.visibility)) return NextResponse.json({ error: "Not found" }, { status: 404 });
   return NextResponse.json({ run, steps: await loadSteps(ctx.admin, ctx.tenantId, id) });
 }

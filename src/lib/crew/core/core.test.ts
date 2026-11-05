@@ -194,6 +194,8 @@ describe("the tile's status chip", () => {
     expect(tileStatus({ ...ok, overCap: true }).key).toBe("allowance");
     expect(tileStatus({ ...ok, aiConfigured: false }).key).toBe("no_ai");
     expect(tileStatus({ ...ok, needsTimezone: true }).key).toBe("no_timezone");
+    expect(tileStatus({ ...ok, enabled: false, needsTimezone: true })).toMatchObject({ key: "needs_setup", label: "Needs setup" });
+    expect(tileStatus({ ...ok, enabled: false, needsTimezone: false }).key).toBe("off");
     expect(tileStatus({ ...ok, dbPending: true })).toMatchObject({ key: "needs_db", label: "Needs a database update" });
     expect(tileStatus({ ...ok, engineReady: false, dbPending: true })).toMatchObject({ key: "needs_setup", label: "Needs setup" });
   });

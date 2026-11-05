@@ -50,7 +50,7 @@ export async function planTenant(admin: SupabaseClient, tenant: CrewTenant, now:
     if (entry.engine !== "ready" || !mod) continue;
     const s = settings.get(entry.key);
     if (!s.enabled) continue;
-    if (entry.key === "tender_watch" && !tenant.hasTimezone) { out.notes.push(`${tenant.slug}: set the workspace time zone first`); continue; }
+    if (!tenant.hasTimezone) { out.notes.push(`${tenant.slug}: set the workspace time zone first`); continue; }
 
     if (stoppedFor(ws, s)) {
       // A pause is visible, not silent: the slot is recorded as skipped_paused.

@@ -125,6 +125,25 @@ a.tile:focus-visible { box-shadow: 0 0 0 3px var(--tint), 0 12px 30px rgba(16, 2
 .emptyTitle { font-size: 14.5px; font-weight: 700; color: var(--ink); }
 .more { margin-top: 12px; }
 
+/* Attendance card: the site strip, the three fixed parts, the people a recheck would reach */
+.tag { flex: none; font-size: 11px; font-weight: 600; padding: 3px 9px; border-radius: 99px; border: 1px solid var(--line); color: var(--muted); }
+.strip { margin-top: 10px; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 5px; }
+.stripDot { flex: none; width: 14px; height: 14px; border-radius: 50%; box-sizing: border-box; background: var(--line); }
+.stripNone { background: transparent; border: 1.5px dashed var(--line); }
+.stripFlag { background: var(--amberbg); border: 1.5px solid var(--amberline); }
+.stripOn { background: var(--c1); border: 1.5px solid var(--c2); }
+.stripCaption { flex-basis: 100%; font-size: 11.5px; color: var(--hint); }
+.parts { margin: 10px 0 0; display: grid; gap: 8px; }
+.part { font-size: 13px; line-height: 1.5; color: var(--muted); }
+.partLabel { display: block; font-size: 11px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--hint); }
+.part:first-child { color: var(--ink); }
+.targets { margin: 8px 0 0; padding: 0; list-style: none; display: grid; gap: 2px; }
+.targetRow { display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 0 4px; font-size: 13px; cursor: pointer; }
+.targetRow input { width: 20px; height: 20px; flex: none; accent-color: var(--c1); }
+.sitePick { display: flex; flex-wrap: wrap; gap: 6px; }
+.sitePick button { min-height: 44px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); font: inherit; font-size: 13px; cursor: pointer; }
+.sitePick .pickOn { background: var(--tint); border-color: var(--c1); color: var(--c2); font-weight: 700; }
+
 /* Runs */
 .runs { width: 100%; border-collapse: collapse; font-size: 13px; }
 .runs th { text-align: left; font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase; color: var(--hint); padding: 8px 10px; border-bottom: 1px solid var(--line); }

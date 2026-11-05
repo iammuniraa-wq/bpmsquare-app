@@ -10,6 +10,9 @@ import type { RunRow } from "./store";
 export const NUDGE_CAP_PER_PERSON_PER_DAY = 3;
 export const NUDGE_QUIET_HOURS = 48;
 export const MAX_NUDGE_LIFE_DAYS = 3;
+/** wfm.recheck: a note stays open for a week, and a supervisor never has more than this many waiting (design 3.5). */
+export const RECHECK_LIFE_DAYS = 7;
+export const RECHECK_PENDING_CAP = 10;
 
 export type PersistEnv = {
   tenantId: string;
@@ -36,7 +39,7 @@ export async function persistFindings(admin: SupabaseClient, env: PersistEnv, fi
   const nowIso = env.now.toISOString();
 
   for (const f of findings) {
-    const fp = findingFingerprint(run.agent_key, f.kind, f.subject_id, env.bucketOf(f.kind, f.subject_id));
+    const fp = f.fingerprint ?? findingFingerprint(run.agent_key, f.kind, f.subject_id, env.bucketOf(f.kind, f.subject_id));
 
     const sup = await admin.from("crew_findings").select("id").eq("tenant_id", tenantId).eq("fingerprint", fp).in("status", ["dismissed", "not_an_issue"]).gte("suppress_until", env.today).limit(1);
     if ((sup.data ?? []).length > 0) { out.suppressed++; out.skipped.push({ reason: `suppressed: ${f.kind} was dismissed recently and has not got worse` }); continue; }
@@ -51,7 +54,8 @@ export async function persistFindings(admin: SupabaseClient, env: PersistEnv, fi
     } else {
       const ins = await admin.from("crew_findings").insert({
         tenant_id: tenantId, run_id: run.id, agent_key: run.agent_key, kind: f.kind, severity: f.severity, subject_type: f.subject_type, subject_id: f.subject_id,
-        title: f.title, body: f.body, evidence: f.evidence, gaps: f.gaps, fingerprint: fp, recipient_ids: env.seenBy(f.subject_id), status: "open",
+        site_id: f.site_id ?? null,
+        title: f.title, body: f.body, evidence: f.evidence, gaps: f.gaps, fingerprint: fp, recipient_ids: f.recipient_ids ?? env.seenBy(f.subject_id), status: "open",
         last_seen_at: nowIso, purge_after: purgeAfter(env.today, env.retentionDays),
       }).select("id").single();
       if (ins.error) {
@@ -64,7 +68,7 @@ export async function persistFindings(admin: SupabaseClient, env: PersistEnv, fi
     }
 
     if (f.proposal && findingId) {
-      const made = await createProposal(admin, env, findingId, f);
+      const made = f.proposal.action_key === "wfm.recheck" ? await createRecheckProposal(admin, env, findingId, f) : await createProposal(admin, env, findingId, f);
       if (made === "created") out.proposals++;
       else if (made !== "exists") out.skipped.push({ reason: `note not proposed: ${made}` });
     }
@@ -101,6 +105,36 @@ async function createProposal(admin: SupabaseClient, env: PersistEnv, findingId:
     tenant_id: tenantId, finding_id: findingId, run_id: run.id, agent_key: run.agent_key, action_key: p.action_key, target_type: p.target_type, target_id: p.target_id,
     payload: { recipient_ids: allowed, message: p.message, label: env.labelOf(p.target_id), finding_title: f.title },
     status: "pending", approver_ids: env.seenBy(p.target_id), fingerprint: fp, expires_at: expires.toISOString(),
+  });
+  if (ins.error) return ins.error.code === "23505" ? "exists" : ins.error.message.slice(0, 80);
+  return "created";
+}
+
+/**
+ * A wfm.recheck draft (attendance). It is addressed to the supervisors who may see the finding (approver_ids), the people to recheck and the day are in
+ * the payload, and the supervisor edits and sends it as their own message. Same-fingerprint rejection suppression as every proposal; at most
+ * RECHECK_PENDING_CAP waiting per supervisor.
+ */
+async function createRecheckProposal(admin: SupabaseClient, env: PersistEnv, findingId: string, f: ValidatedFinding): Promise<"created" | "exists" | string> {
+  const p = f.proposal!;
+  const { tenantId, run } = env;
+  const approvers = f.recipient_ids ?? env.seenBy(f.subject_id);
+  if (approvers.length === 0 || !p.fingerprint) return "no supervisor is set for this site";
+
+  const since = new Date(env.now.getTime() - PROPOSAL_SUPPRESS_DAYS * 86_400_000).toISOString();
+  // Rejected, or already sent, within the window: the same note is not drafted again until the situation changes (its fingerprint carries the key fact).
+  const rej = await admin.from("crew_proposals").select("id").eq("tenant_id", tenantId).eq("fingerprint", p.fingerprint).in("status", ["rejected", "approved", "done"]).gte("decided_at", since).limit(1);
+  if ((rej.data ?? []).length > 0) return "the same note was handled recently";
+
+  const waiting = await admin.from("crew_proposals").select("approver_ids").eq("tenant_id", tenantId).eq("action_key", "wfm.recheck").eq("status", "pending").limit(1000);
+  const pending = (waiting.data ?? []) as { approver_ids: string[] }[];
+  const free = approvers.filter((id) => pending.filter((r) => r.approver_ids.includes(id)).length < RECHECK_PENDING_CAP);
+  if (free.length === 0) return `every supervisor already has ${RECHECK_PENDING_CAP} notes waiting`;
+
+  const ins = await admin.from("crew_proposals").insert({
+    tenant_id: tenantId, finding_id: findingId, run_id: run.id, agent_key: run.agent_key, action_key: "wfm.recheck", target_type: p.target_type, target_id: p.target_id,
+    payload: { ...(p.payload ?? {}), message: p.message, label: env.labelOf(p.target_id), finding_title: f.title },
+    status: "pending", approver_ids: free, fingerprint: p.fingerprint, expires_at: new Date(env.now.getTime() + RECHECK_LIFE_DAYS * 86_400_000).toISOString(),
   });
   if (ins.error) return ins.error.code === "23505" ? "exists" : ins.error.message.slice(0, 80);
   return "created";

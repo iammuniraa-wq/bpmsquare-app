@@ -149,6 +149,13 @@ export async function lastDoneRun(admin: SupabaseClient, tenantId: string, agent
   return ((data ?? [])[0] as unknown as RunRow | undefined) ?? null;
 }
 
+/** Has a run (any status) been recorded for this agent for the shift-day that closed on `day`'s eve? Keys look like `attendance|site:<id>|day:<yyyy-mm-dd>` (see attendance/plan.ts dedupeKeyFor). */
+export async function hasRunForDay(admin: SupabaseClient, tenantId: string, agent: AgentKey, today: string): Promise<boolean> {
+  const closed = new Date(Date.parse(`${today}T00:00:00Z`) - 86_400_000).toISOString().slice(0, 10);
+  const { data } = await admin.from("crew_runs").select("id").eq("tenant_id", tenantId).eq("agent_key", agent).like("dedupe_key", `${agent}|%|day:${closed}`).limit(1);
+  return (data ?? []).length > 0;
+}
+
 export async function recentRunCount(admin: SupabaseClient, tenantId: string, agent: AgentKey, trigger: RunTrigger, sinceIso: string): Promise<number> {
   const { count } = await admin.from("crew_runs").select("id", { count: "exact", head: true }).eq("tenant_id", tenantId).eq("agent_key", agent).eq("trigger", trigger).gte("created_at", sinceIso);
   return count ?? 0;

@@ -37,6 +37,8 @@ export type FindingDTO = {
   runId: string | null;
   /** A small visual for the card (tender: priced/unpriced bar and days left), taken from the run's stored facts. */
   visual: { pricedPct: number | null; daysLeft: number | null; unpriced: number | null; lines: number | null } | null;
+  /** Attendance: one dot per shift-day of the run's window (counts per day, and which days the pattern is made of). */
+  strip: { dates: string[]; rostered: number[]; present: number[]; flagged: number[]; marked: boolean[] } | null;
 };
 
 export type ProposalDTO = {
@@ -45,6 +47,8 @@ export type ProposalDTO = {
   actionKey: string;
   message: string;
   toNames: string[];
+  /** wfm.recheck: the people the note would reach, one row each, so a supervisor can leave some out. Empty for a tender note. */
+  targets: { id: string; name: string }[];
   status: ProposalStatus;
   expiresAt: string;
   /** True when the viewer may press Edit and send. */
@@ -76,6 +80,8 @@ export type AgentSettingsDTO = {
   digestOn: boolean;
   /** The workspace has no time zone yet (Tender Watch cannot be switched on). */
   needsTimezone: boolean;
+  /** Attendance: the workspace's active sites, to choose from. Empty for the other agents. */
+  sites: { id: string; name: string }[];
 };
 
 export type CrewView = {

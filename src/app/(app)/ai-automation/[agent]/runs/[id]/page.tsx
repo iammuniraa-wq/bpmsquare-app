@@ -3,8 +3,9 @@ import TraceView, { type TraceData } from "@/components/crew/TraceView";
 import { ROUTES } from "@/lib/constants";
 import { loadActorNames } from "@/lib/actorNames";
 import { percentUsed, effectiveAgentCap } from "@/lib/crew/core/budget";
-import { openCrew } from "@/lib/crew/server/access";
-import { canSeeRuns } from "@/lib/crew/core/visibility";
+import { openCrew, viewerWithScope } from "@/lib/crew/server/access";
+import { aliasRenderers } from "@/lib/crew/server/attendanceNames";
+import { canSeeFinding, canSeeRun } from "@/lib/crew/core/visibility";
 import { findingsOfRun, loadRun, loadSettings, loadSteps, proposalsOfRun } from "@/lib/crew/server/store";
 import { isAgentKey } from "@/lib/crew/registry";
 import { requireWorkcenterView } from "@/lib/permissions";
@@ -25,9 +26,15 @@ export default async function RunTracePage({ params }: { params: Promise<{ agent
   const { ctx, entry } = door;
   const run = await loadRun(ctx.admin, ctx.tenantId, id);
   const settings = await loadSettings(ctx.admin, ctx.tenantId);
-  if (!run || run.agent_key !== agent || !canSeeRuns(ctx, settings.get(agent).config.visibility)) notFound();
+  const viewer = await viewerWithScope(ctx);
+  if (!run || run.agent_key !== agent || !canSeeRun(viewer, run, settings.get(agent).config.visibility)) notFound();
 
-  const [steps, findings, proposals] = await Promise.all([loadSteps(ctx.admin, ctx.tenantId, id), findingsOfRun(ctx.admin, ctx.tenantId, id), proposalsOfRun(ctx.admin, ctx.tenantId, id)]);
+  const [steps, allFindings, allProposals] = await Promise.all([loadSteps(ctx.admin, ctx.tenantId, id), findingsOfRun(ctx.admin, ctx.tenantId, id), proposalsOfRun(ctx.admin, ctx.tenantId, id)]);
+  // A person-level finding of a site the viewer supervises is still hidden when its person is not theirs (and never the viewer themself).
+  const findings = allFindings.filter((f) => canSeeFinding(viewer, f, settings.get(agent).config.visibility));
+  const shown = new Set(findings.map((f) => f.id));
+  const proposals = allProposals.filter((p) => !p.finding_id || shown.has(p.finding_id));
+  const put = (await aliasRenderers(ctx.admin, ctx.tenantId, agent === "attendance" ? [id] : [])).get(id) ?? ((t: string) => t);
   const names = await loadActorNames(ctx.admin, ctx.tenantId, proposals.flatMap((p) => ((p.payload as { recipient_ids?: string[] }).recipient_ids ?? [])));
   const cap = effectiveAgentCap(settings.get(agent).monthly_token_cap, entry!.defaults.monthlyTokenCap);
 
@@ -40,7 +47,7 @@ export default async function RunTracePage({ params }: { params: Promise<{ agent
     if (out?.unavailable) for (const u of out.unavailable) left.push(`Could not read: ${u}`);
     if (st.ok === false) left.push(`${String(st.name)} could not be read: ${String(st.error ?? "")}`);
   }
-  for (const f of findings) for (const g of f.gaps ?? []) left.push(`Could not check: ${g}`);
+  for (const f of findings) for (const g of f.gaps ?? []) left.push(`Could not check: ${put(g)}`);
 
   const trace: TraceData = {
     agent, agentName: entry!.name, accent: entry!.accent, trigger: run.trigger, because: run.trigger_ref ?? "", status: run.status, model: run.model, promptVersion: run.prompt_version,
@@ -51,8 +58,8 @@ export default async function RunTracePage({ params }: { params: Promise<{ agent
       const refs = (asArr(x.refs) as { type: string; id: string; label: string }[]).map((r) => ({ ...r, href: r.type === "opportunity" ? ROUTES.pipelineDetail(r.id) : null }));
       return { seq: Number(x.seq), kind: String(x.kind), name: String(x.name), id: null, ok: x.ok !== false, error: (x.error as string | null) ?? null, ms: Number(x.ms ?? 0), tokensIn: Number(x.tokens_in ?? 0), tokensOut: Number(x.tokens_out ?? 0), refs, input: x.input, output: x.output };
     }),
-    concluded: findings.map((f) => ({ title: f.title, severity: f.severity, evidence: (f.evidence ?? []).map((e) => e.label) })),
-    proposed: proposals.map((p) => ({ text: String((p.payload as { message?: unknown }).message ?? ""), status: p.status, to: (((p.payload as { recipient_ids?: string[] }).recipient_ids) ?? []).map((i) => names.get(i) ?? "A colleague") })),
+    concluded: findings.map((f) => ({ title: put(f.title), severity: f.severity, evidence: (f.evidence ?? []).map((e) => put(e.label)) })),
+    proposed: proposals.map((p) => ({ text: String((p.payload as { message?: unknown }).message ?? ""), status: p.status, to: p.action_key === "wfm.recheck" ? [`${((p.payload as { employee_ids?: string[] }).employee_ids ?? []).length} ${((p.payload as { employee_ids?: string[] }).employee_ids ?? []).length === 1 ? "person" : "people"}`] : (((p.payload as { recipient_ids?: string[] }).recipient_ids) ?? []).map((i) => names.get(i) ?? "A colleague") })),
     left,
   };
   // Citable ids ("s1") follow the order prefetch / tool steps were recorded.

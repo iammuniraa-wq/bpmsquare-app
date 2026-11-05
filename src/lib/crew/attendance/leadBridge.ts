@@ -10,8 +10,6 @@ import type {
   AgentDefinition as LeadDefinition,
   AgentSettings,
   DraftFinding,
-  EvalCase as LeadEvalCase,
-  EvalTag,
   Finding as LeadFinding,
   PlanCtx as LeadPlanCtx,
   Proposal as LeadProposal,
@@ -23,7 +21,7 @@ import type {
   ToolResult as LeadToolResult,
 } from "../types";
 import { ATTENDANCE_AGENT_KEY, ATTENDANCE_TITLE } from "./keys";
-import { addDays, shortDate } from "./dates";
+import { shortDate } from "./dates";
 import { definitionParts } from "./definition";
 import { fingerprintFinding, fingerprintProposal } from "./fingerprint";
 import { planAttendanceDetailed, type AttendanceSettings, type PlanOutcome } from "./plan";
@@ -32,8 +30,6 @@ import { createToolSession, ATTENDANCE_TOOLS } from "./tools";
 import { assignAliases, type AliasMap } from "./alias";
 import type { Submission } from "./submission";
 import type { RenderedFinding, RenderedProposal, ValidationResult } from "./validate";
-import { buildCase, readsFromInput } from "./eval/fixtures";
-import type { EvalCase } from "./eval/types";
 import type { SiteDigest } from "./digest";
 
 // ── settings and time ───────────────────────────────────────────────────────
@@ -267,75 +263,20 @@ export function toPersisted(
     const ids = recheck.target_aliases.map((a) => aliases.persons[a]).filter((x): x is string => !!x);
     const fp = fingerprintProposal("wfm.recheck", fingerprints.get(p.finding_index) as string, recheck.target_aliases, { aliases });
     if (ids.length !== recheck.target_aliases.length || !fp) continue;
+    // The recheck request is filed for one day: the latest day of the pattern (every person in a cluster shares the site's days).
+    const cand = digest.candidates.find((c) => c.id === findings[at].candidate_id);
+    const targetDate = cand?.days.length ? [...cand.days].sort().at(-1) ?? null : null;
+    if (!targetDate) continue;
     proposals.push({
       agent_key: ATTENDANCE_AGENT_KEY,
       action_key: "wfm.recheck",
       // one employee: that employee. A list (missing check-out cluster): the site, with the people in the payload.
       target_type: ids.length === 1 ? "employee" : "site",
       target_id: ids.length === 1 ? ids[0] : (siteId ?? ""),
-      payload: { employee_ids: ids, message: recheck.message },
+      payload: { employee_ids: ids, message: recheck.message, target_date: targetDate },
       fingerprint: fp,
       finding_index: at,
     });
   }
   return { findings, proposals, unmapped };
-}
-
-// ── eval cases in the shared shape ──────────────────────────────────────────
-
-const TAG_MAP: Record<string, EvalTag> = {
-  "site-level": "site_level",
-  "person-level": "person_level",
-  quiet: "quiet",
-  trainee: "trainee",
-  adversarial: "adversarial",
-};
-
-/** Tool results keyed the way the shared harness serves them: tool key -> (args key | "*") -> data. */
-export async function toLeadEvalCase(c: EvalCase): Promise<LeadEvalCase> {
-  const built = await buildCase(c);
-  const siteId = `site-${c.input.site.alias.slice(1).padStart(4, "0")}`;
-  const session = createToolSession({
-    reads: readsFromInput(c.input),
-    run: { siteId, from: c.input.run.from, to: c.input.run.to },
-    aliases: built.aliases,
-    detect: { sensitivity: c.input.run.sensitivity ?? "balanced" },
-  });
-  const tool_results: LeadEvalCase["tool_results"] = { attendance_site_digest: { "*": built.digest as unknown as Record<string, unknown> } };
-  const flags = await session.call("attendance_punch_flags", {});
-  if (flags.ok) tool_results.attendance_punch_flags = { "*": flags.data as Record<string, unknown> };
-  const history: Record<string, Record<string, unknown>> = {};
-  const aliases = new Set(built.candidates.flatMap((x) => x.members));
-  for (const a of aliases) {
-    const h = await session.call("attendance_person_history", { alias: a });
-    if (h.ok) history[a] = h.data as Record<string, unknown>;
-  }
-  if (Object.keys(history).length > 0) tool_results.attendance_person_history = history;
-
-  const indexOfCandidate = (kind: string, level: string, subject?: string) =>
-    built.candidates.findIndex((x) => x.family === kind && x.level === level && (level === "site" || x.person === subject));
-
-  const tags = new Set<EvalTag>(c.tags.map((t) => TAG_MAP[t]).filter(Boolean));
-  if (c.expect.must_flag.length > 0) tags.add("flag_worthy");
-  if (/ban|instruction/i.test(c.id)) tags.add("wording");
-
-  return {
-    id: c.id,
-    tags: [...tags],
-    title: c.description,
-    today: addDays(c.input.run.to, 1),
-    candidates: [c.input.site.alias],
-    tool_results,
-    expect: {
-      must_flag: c.expect.must_flag.map((m) => {
-        const i = indexOfCandidate(m.kind, m.level, m.subject);
-        return { kind: m.kind, subject: m.level === "site" ? c.input.site.alias : (m.subject as string), must_cite: m.must_cite.map((f) => `s1.candidates[${i}].${f}`) };
-      }),
-      must_not_flag: c.expect.must_not_flag.map((n) => ({ ...(n.kind ? { kind: n.kind } : {}), ...(n.subject ? { subject: n.subject } : {}), why: n.reason })),
-      must_gap: c.expect.must_gap,
-      max_findings: c.expect.max_findings,
-      proposal_recipients: { forbidden: c.expect.proposals.forbidden_target_aliases },
-      nothing_to_report: c.expect.must_flag.length === 0,
-    },
-  };
 }

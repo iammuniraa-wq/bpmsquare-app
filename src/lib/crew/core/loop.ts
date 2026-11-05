@@ -75,7 +75,8 @@ export type LoopOptions = {
   limits: AgentLimits;
   steps: StepLog;
   runTool: (name: string, input: unknown) => Promise<ToolResult>;
-  validate: (submit: SubmitFindings) => { accepted: ValidatedFinding[]; rejected: { index: number; reason: string }[] };
+  /** `raw` is the model's untouched submit_findings input: an agent whose submission is richer than SubmitFindings (attendance) reads it. */
+  validate: (submit: SubmitFindings, raw: unknown) => { accepted: ValidatedFinding[]; rejected: { index: number; reason: string }[] };
   /** Checked before every model call and every tool call (pause takes effect between steps; budget before every call). */
   gate: () => Promise<GateVerdict>;
   /** Called with each reply's usage; returns nothing. The caller keeps the running totals for the budget gate. */
@@ -161,7 +162,7 @@ export async function runLoop(o: LoopOptions): Promise<LoopResult> {
       if (u.name === SUBMIT_TOOL) {
         const submit = asSubmit(u.input);
         if (!submit) { results.push({ type: "tool_result", tool_use_id: u.id, content: `Error: ${SUBMIT_TOOL} needs a findings array.`, is_error: true }); continue; }
-        const v = o.validate(submit);
+        const v = o.validate(submit, u.input);
         await o.steps.add({ kind: "validate", name: "validate findings", output: { submitted: submit.findings.length, accepted: v.accepted.length, rejected: v.rejected } });
         res.accepted.push(...v.accepted);
         if (v.rejected.length > 0 && !retried) {

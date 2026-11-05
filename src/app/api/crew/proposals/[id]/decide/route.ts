@@ -12,11 +12,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const door = await openCrew();
   if (!door.ok) return door.res;
   const { ctx } = door;
-  const body = (await request.json().catch(() => null)) as { action?: unknown; message?: unknown; note?: unknown } | null;
+  const body = (await request.json().catch(() => null)) as { action?: unknown; message?: unknown; targets?: unknown; note?: unknown } | null;
   if (body?.action !== "approve" && body?.action !== "reject") return NextResponse.json({ error: "action must be approve or reject" }, { status: 400 });
   const r = await decideProposal({
     admin: ctx.admin, supabase: ctx.supabase, tenantId: ctx.tenantId, userId: ctx.userId, userEmail: ctx.userEmail,
-    proposalId: id, action: body.action, message: body.message, note: typeof body.note === "string" ? body.note : null,
+    proposalId: id, action: body.action, message: body.message, targets: body.targets, note: typeof body.note === "string" ? body.note : null,
   });
   if (!r.ok) return NextResponse.json({ error: r.error }, { status: r.status });
   return NextResponse.json(r);

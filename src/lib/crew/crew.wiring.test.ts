@@ -66,9 +66,21 @@ describe("the agent registry drives the gallery and the runner", () => {
     for (const c of COMING_SOON) expect("href" in c).toBe(false);
   });
 
-  it("Attendance is registered but its engine is pending until the lead wires it", () => {
-    expect(agentEntry("attendance")!.engine).toBe("pending");
+  it("both engines are wired: each agent has a definition and a runtime, and its entry says ready", () => {
+    expect(agentEntry("attendance")!.engine).toBe("ready");
     expect(agentEntry("tender_watch")!.engine).toBe("ready");
+    const defs = read("src/lib/crew/definitions.ts");
+    expect(defs).toContain("tender_watch: { def: tenderWatch, runtime: tenderRuntime }");
+    expect(defs).toContain("attendance: { def: attendanceDefinition, runtime: attendanceRuntime }");
+  });
+});
+
+describe("the production bundle (found by next build, 2026-11-05)", () => {
+  it("nothing the cron, the runner or the screens import reaches the evaluation fixtures, which read files from disk", () => {
+    const prod: string[] = [];
+    const walk = (dir: string) => { for (const e of readdirSync(path.join(root, dir), { withFileTypes: true })) { const rel = `${dir}/${e.name}`; if (e.isDirectory()) { if (e.name !== "eval" && e.name !== "cases") walk(rel); } else if (/\.tsx?$/.test(e.name) && !/\.test\./.test(e.name)) prod.push(rel); } };
+    walk("src/lib/crew");
+    for (const f of prod) expect(strip(read(f)), f).not.toMatch(/from\s+"[^"]*\/eval\/[^"]*"/);
   });
 });
 
@@ -114,7 +126,7 @@ describe("the approval gate and autonomy", () => {
     expect(types).toContain('export type Autonomy = "propose";');
     expect(types).toContain('export type ActionKey = "tender.nudge" | "wfm.recheck";');
     const gate = read("src/lib/crew/server/gate.ts");
-    expect(gate).toMatch(/EXECUTORS: Partial<Record<ActionKey, Executor>> = \{\s*"tender\.nudge": executeNudge,\s*\}/);
+    expect(gate).toMatch(/EXECUTORS: Partial<Record<ActionKey, Executor>> = \{\s*"tender\.nudge": executeNudge,\s*"wfm\.recheck": executeRecheck,\s*\}/);
   });
   it("the press is claimed by compare-and-set and runs inside runVia('crew')", () => {
     const gate = read("src/lib/crew/server/gate.ts");
@@ -211,8 +223,9 @@ describe("who sees what", () => {
     expect(canSeeFinding({ role: "member", userId: "u", pipeline: true }, f("tender_watch", ["u"]), "deal_teams")).toBe(true);
     expect(canSeeFinding({ role: "member", userId: "u", pipeline: true }, f("tender_watch", ["x"]), "deal_teams")).toBe(false);
   });
-  it("attendance findings are admin-only until the supervisor slice defines site scope", () => {
+  it("attendance findings are admin-only in the shadow period, and later by site scope only (see core/visibility.test.ts)", () => {
     expect(canSeeFinding({ role: "member", userId: "u", pipeline: true }, f("attendance", ["u"]), "deal_teams")).toBe(false);
+    expect(canSeeFinding({ role: "member", userId: "u", pipeline: true }, f("attendance", ["u"]), "admins")).toBe(false);
     expect(canSeeFinding({ role: "admin", userId: "a", pipeline: true }, f("attendance", []), "admins")).toBe(true);
   });
   it("runs and traces follow the same shadow rule", () => {

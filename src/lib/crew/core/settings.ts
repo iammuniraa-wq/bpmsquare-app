@@ -7,7 +7,8 @@ const SENSITIVITIES: readonly Sensitivity[] = ["quiet", "balanced", "thorough"];
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export const FAMILIES: Record<AgentKey, readonly string[]> = {
   tender_watch: [],
-  attendance: ["late", "missing_out", "far_punches", "headcount_drop", "ot_pending", "holiday_bridging", "buddy_punch"],
+  // The kinds the engine has detectors for (src/lib/crew/attendance/facts.ts). Headcount, overtime, holiday-bridging and buddy-punch families are not built, so they are not offered.
+  attendance: ["late_cluster", "missing_out_cluster", "far_punches"],
 };
 
 /**
@@ -82,6 +83,8 @@ export function tileStatus(t: TileInput): TileStatus {
   if (!t.engineReady) return { key: "needs_setup", label: "Needs setup", tone: "warn" };
   if (t.dbPending) return { key: "needs_db", label: "Needs a database update", tone: "warn" };
   if (t.platformStopped || t.workspacePaused || t.paused) return { key: "paused", label: "Paused", tone: "warn" };
+  // Off for want of a time zone is a setup step, not a choice: the tile says so (the agent cannot be switched on without one).
+  if (!t.enabled && t.needsTimezone) return { key: "needs_setup", label: "Needs setup", tone: "warn" };
   if (!t.enabled) return { key: "off", label: "Off", tone: "muted" };
   if (t.needsTimezone) return { key: "no_timezone", label: "Set your time zone", tone: "warn" };
   if (!t.aiConfigured) return { key: "no_ai", label: "AI is not set up", tone: "bad" };

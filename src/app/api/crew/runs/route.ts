@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { canSeeRuns } from "@/lib/crew/core/visibility";
-import { openCrew } from "@/lib/crew/server/access";
+import { canSeeRun, canSeeRuns } from "@/lib/crew/core/visibility";
+import { openCrew, viewerWithScope } from "@/lib/crew/server/access";
 import { isAgentKey } from "@/lib/crew/registry";
 import { agentModule } from "@/lib/crew/definitions";
 import { listRuns, loadSettings, recentRunCount } from "@/lib/crew/server/store";
@@ -18,7 +18,8 @@ export async function GET(request: NextRequest) {
   const settings = await loadSettings(ctx.admin, ctx.tenantId);
   if (!canSeeRuns(ctx, agent && isAgentKey(agent) ? settings.get(agent).config.visibility : undefined)) return NextResponse.json({ error: "Not found" }, { status: 404 });
   const { rows, pending } = await listRuns(ctx.admin, ctx.tenantId, agent && isAgentKey(agent) ? agent : null);
-  return NextResponse.json({ pending, runs: rows });
+  const viewer = await viewerWithScope(ctx);
+  return NextResponse.json({ pending, runs: rows.filter((r) => canSeeRun(viewer, r, settings.get(r.agent_key).config.visibility)) });
 }
 
 export async function POST(request: NextRequest) {

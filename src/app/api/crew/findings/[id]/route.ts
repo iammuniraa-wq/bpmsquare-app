@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { logChange } from "@/lib/changeLog";
 import { canSeeFinding } from "@/lib/crew/core/visibility";
-import { openCrew, viewerOf } from "@/lib/crew/server/access";
+import { openCrew, viewerWithScope } from "@/lib/crew/server/access";
 import { setFindingState } from "@/lib/crew/server/persist";
 import { loadFinding, loadSettings } from "@/lib/crew/server/store";
 import { dayKey } from "@/lib/tender/rules";
@@ -25,7 +25,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   const f = await loadFinding(ctx.admin, ctx.tenantId, id);
   if (!f) return NextResponse.json({ error: "Not found" }, { status: 404 });
   const settings = await loadSettings(ctx.admin, ctx.tenantId);
-  if (!ctx.agents.some((a) => a.key === f.agent_key) || !canSeeFinding(viewerOf(ctx), f, settings.get(f.agent_key).config.visibility)) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  if (!ctx.agents.some((a) => a.key === f.agent_key) || !canSeeFinding(await viewerWithScope(ctx), f, settings.get(f.agent_key).config.visibility)) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   const today = dayKey(new Date(), ctx.tenant.timezone);
   const ok = await setFindingState(ctx.admin, ctx.tenantId, id, ctx.userId, status, today, typeof body?.note === "string" ? body.note : null);

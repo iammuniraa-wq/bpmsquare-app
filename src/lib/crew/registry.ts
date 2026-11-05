@@ -54,8 +54,7 @@ export const AGENTS: readonly AgentEntry[] = [
     flag: "crew_attendance",
     requires: ["wfm"],
     href: ROUTES.aiAutomationAgent("attendance"),
-    // Flipped to "ready" by the lead once src/lib/crew/attendance/** is wired into definitions.ts.
-    engine: "pending",
+    engine: "ready",
     defaults: { schedule: { time: "02:00", weeklyDay: 1 }, sensitivity: "balanced", monthlyTokenCap: 500_000, retentionDays: 90 },
     accent: "teal",
   },

@@ -1,4 +1,5 @@
 import "server-only";
+import type { StepOutputs, ValidatedFinding } from "../core/grounding";
 import type { DraftFinding, JSONSchema, Ref, RunContext, ToolAdapter } from "../types";
 import type { RunRow } from "./store";
 
@@ -27,6 +28,17 @@ export type Prepared = {
   snapshot: Record<string, unknown> | null;
   /** Facts that could not be read (a table pending a migration): shown in the trace and given to the model as gaps. */
   unavailable: string[];
+  /** Attendance: alias -> real id, per run. Saved on the run (crew_runs.alias_map, service role only), handed to the tools, never shown to the model. */
+  aliasMap?: { persons: Record<string, string>; sites: Record<string, string> } | null;
+  /** Ids a tool call may name besides the run's candidates (attendance: the aliases of the people in the candidates). */
+  toolIds?: string[];
+  /** Whatever the agent's own submission handler needs again after the model answers (attendance: the digest and who is addressed). Opaque to the runner. */
+  state?: unknown;
+};
+
+/** For an agent whose submission is richer than DraftFinding (attendance): it parses, validates and maps the model's raw submission itself. */
+export type SubmissionHandler = {
+  validate: (raw: unknown, steps: StepOutputs, prepared: Prepared) => { accepted: ValidatedFinding[]; rejected: { index: number; reason: string }[] };
 };
 
 export type AgentRuntime = {
@@ -36,4 +48,6 @@ export type AgentRuntime = {
   findingsSchema: JSONSchema;
   system: () => string;
   prepare: (ctx: RunContext, run: RunRow) => Promise<Prepared>;
+  /** Absent = the generic DraftFinding validation (Tender Watch). */
+  submission?: SubmissionHandler;
 };

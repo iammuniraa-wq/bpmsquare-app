@@ -19,5 +19,11 @@ export const CREW_TIPS = {
   editSend: "Edit the note, then send it as your own. Nothing is sent until you press Send.",
   trace: "Everything this run read, concluded, proposed and could not check. Numbers come from your records, never from the AI.",
   tokens: "Tokens are the units AI use is counted in. Your monthly allowance is shared with other AI features.",
+  reviewSuggestion: "A pattern worth a look, not a verdict. Other explanations are listed with it, and nothing is decided or sent without you.",
+  strip: "One dot per shift-day looked at. Filled dots are the days this pattern is made of; the paler ones had other attendance notes.",
+  sites: "Which sites it looks at. Leave all off to look at every site.",
+  families: "Which kinds of pattern it looks for. Each can be switched off.",
+  recheck: "Asks the person to look at their own punches. You edit it and it goes out as your own message, never as the agent's.",
+  names: "Names are shown only to people who may see this site. Stored text and the AI use short codes instead.",
   comingSoon: "Planned agents. They are not active and no data is read for them.",
 } as const;

@@ -79,10 +79,19 @@ export function bannedHits(text: string, banned: readonly string[]): string[] {
   return banned.filter((term) => new RegExp(`(^|[^a-z])${term.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}([^a-z]|$)`).test(hay));
 }
 
-export type ValidatedProposal = { action_key: ActionKey; target_type: string; target_id: string; recipient_ids: string[]; message: string };
+export type ValidatedProposal = {
+  action_key: ActionKey; target_type: string; target_id: string; recipient_ids: string[]; message: string;
+  /** An agent that builds its own proposals (attendance: who is rechecked, for which day) supplies the stored payload and fingerprint. */
+  payload?: Record<string, unknown>;
+  fingerprint?: string;
+};
 export type ValidatedFinding = {
   kind: string; severity: Severity; subject_type: string; subject_id: string;
   title: string; body: string; evidence: EvidenceView[]; gaps: string[]; proposal: ValidatedProposal | null;
+  /** Set by an agent that fingerprints and addresses its own findings (attendance: real ids behind the run's aliases, the site, the supervisors). */
+  fingerprint?: string;
+  site_id?: string | null;
+  recipient_ids?: string[];
 };
 
 export type ValidateEnv = {

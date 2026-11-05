@@ -3,8 +3,9 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { logChange } from "@/lib/changeLog";
 import { runVia } from "@/lib/actions/via";
 import { PROPOSAL_SUPPRESS_DAYS } from "../core/fingerprint";
-import { cleanNote, executeNudge, type NudgeOutcome } from "../tender/nudge";
+import { cleanNote, executeNudge } from "../tender/nudge";
 import type { ActionKey, Proposal } from "../types";
+import { executeRecheck, recheckWordingProblem } from "./recheck";
 import { loadProposal } from "./store";
 
 // The approval gate (docs/design/nova-crew-agents.md section 3.5). Nothing executes except by a person's press, and the press is checked in
@@ -16,11 +17,21 @@ import { loadProposal } from "./store";
 //  5. the action runs inside runVia("crew"); done / failed + result; the finding becomes actioned.
 // A rejection needs one tap and an optional note, and silences the same note for PROPOSAL_SUPPRESS_DAYS days.
 
-type Executor = (p: Proposal, message: string) => Promise<NudgeOutcome>;
+type ActionOutcome = { ok: true; result: Record<string, unknown> } | { ok: false; status: number; error: string; expire?: boolean };
+type Executor = (p: Proposal, message: string, opts: { targets?: string[] }) => Promise<ActionOutcome>;
 
-/** The closed registry. `wfm.recheck` arrives with the attendance slice; until then the gate refuses it. */
+/**
+ * The closed registry. Both actions reach a person only as a note a human edited and sent. `wfm.recheck` re-checks the employee is in the approver's
+ * scope for that day (the recheck route itself does not), skips anyone who is not, and is sent as the supervisor's own message.
+ */
 const EXECUTORS: Partial<Record<ActionKey, Executor>> = {
   "tender.nudge": executeNudge,
+  "wfm.recheck": executeRecheck,
+};
+
+/** Checks that must pass BEFORE the press is claimed, so a fixable problem does not use up the proposal. Null = fine. */
+const PRECHECKS: Partial<Record<ActionKey, (message: string) => string | null>> = {
+  "wfm.recheck": recheckWordingProblem,
 };
 
 export type DecideInput = {
@@ -32,6 +43,8 @@ export type DecideInput = {
   proposalId: string;
   action: "approve" | "reject";
   message?: unknown;
+  /** wfm.recheck: the employee ids to keep (the approver may leave people out, never add). */
+  targets?: unknown;
   note?: string | null;
 };
 
@@ -63,16 +76,21 @@ export async function decideProposal(i: DecideInput): Promise<DecideResult> {
   const draft = String((p.payload as { message?: unknown }).message ?? "");
   const message = cleanNote(i.message === undefined ? draft : i.message);
   if (!message) return { ok: false, status: 400, error: "Write the note first." };
+  const problem = PRECHECKS[p.action_key]?.(message);
+  if (problem) return { ok: false, status: 422, error: problem };
+  const planned = Array.isArray((p.payload as { employee_ids?: unknown }).employee_ids) ? ((p.payload as { employee_ids: string[] }).employee_ids) : [];
+  const targets = Array.isArray(i.targets) ? i.targets.filter((x): x is string => typeof x === "string" && planned.includes(x)) : undefined;
+  if (Array.isArray(i.targets) && (targets ?? []).length === 0) return { ok: false, status: 400, error: "Pick at least one person." };
 
   // Claim before acting: a second press, or a second tab, finds the row changed and sends nothing.
   const claim = await admin.from("crew_proposals").update({
-    status: "approved", decided_by: userId, decided_at: now.toISOString(), edited_payload: message === draft ? null : { message },
+    status: "approved", decided_by: userId, decided_at: now.toISOString(), edited_payload: message === draft && (!targets || targets.length === planned.length) ? null : { message, ...(targets ? { targets } : {}) },
   }).eq("id", p.id).eq("tenant_id", tenantId).eq("status", "pending").gt("expires_at", now.toISOString()).select("id");
   if ((claim.data ?? []).length === 0) return { ok: false, status: 409, error: "This note was already handled." };
 
-  let out: NudgeOutcome;
+  let out: ActionOutcome;
   try {
-    out = await runVia("crew", () => exec(p, message));
+    out = await runVia("crew", () => exec(p, message, { targets }));
   } catch (e) {
     console.error("[crew] action failed", (e as Error).message);
     out = { ok: false, status: 500, error: "The note could not be sent." };

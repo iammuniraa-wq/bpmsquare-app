@@ -30,7 +30,7 @@ const tile = (over: Partial<TileDTO> = {}): TileDTO => ({
 });
 const view = (over: Partial<CrewView> = {}): CrewView => ({
   pending: false, isAdmin: true, workspacePaused: false, platformStopped: false, tiles: [tile()], findings: [], proposals: [], runs: [], runsVisible: true,
-  settings: { tender_watch: { enabled: true, paused: false, config: {}, cap: 600_000, used: 150_000, percent: 25, digestOn: false, needsTimezone: false } }, ...over,
+  settings: { tender_watch: { enabled: true, paused: false, config: {}, cap: 600_000, used: 150_000, percent: 25, digestOn: false, needsTimezone: false, sites: [] } }, ...over,
 });
 const text = (h: string) => h.replace(/<!-- -->/g, "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ");
 
@@ -110,7 +110,7 @@ describe("an agent's page", () => {
 describe("the Review list and the Runs table", () => {
   const finding = (n: number): FindingDTO => ({
     id: `f${n}`, agent: "tender_watch", kind: "at_risk", severity: n === 0 ? "urgent" : "review", title: `Finding number ${n}`, body: "Body text.", evidence: [{ step: "s1", path: "x", label: "Unpriced lines", href: "/pipeline/d1" }], gaps: [],
-    status: "open", createdAt: "2026-11-04T05:00:00.000Z", subjectId: "d1", href: "/pipeline/d1", runId: "r1", visual: { pricedPct: 40, daysLeft: 4, unpriced: 36, lines: 60 },
+    status: "open", createdAt: "2026-11-04T05:00:00.000Z", subjectId: "d1", href: "/pipeline/d1", runId: "r1", visual: { pricedPct: 40, daysLeft: 4, unpriced: 36, lines: 60 }, strip: null,
   });
   it("shows five, then Show all; the reasoning is collapsed behind Why; a small visual is drawn", () => {
     const html = renderToString(createElement(ReviewList, { findings: Array.from({ length: 7 }, (_, i) => finding(i)), proposals: [], showAgent: false, empty: { title: "Nothing" } }));
@@ -123,7 +123,7 @@ describe("the Review list and the Runs table", () => {
     expect(t).not.toContain("Unpriced lines");
   });
   it("lists a note's editor only to someone who may decide", () => {
-    const p = (canDecide: boolean) => [{ id: "p1", findingId: "f0", actionKey: "tender.nudge", message: "Could you chase the suppliers?", toNames: ["Faisal"], status: "pending" as const, expiresAt: "2026-11-07T00:00:00Z", canDecide }];
+    const p = (canDecide: boolean) => [{ id: "p1", findingId: "f0", actionKey: "tender.nudge", message: "Could you chase the suppliers?", toNames: ["Faisal"], targets: [], status: "pending" as const, expiresAt: "2026-11-07T00:00:00Z", canDecide }];
     expect(text(renderToString(createElement(ReviewList, { findings: [finding(0)], proposals: p(true), showAgent: false, empty: { title: "x" } })))).toContain("Edit and send");
     expect(text(renderToString(createElement(ReviewList, { findings: [finding(0)], proposals: p(false), showAgent: false, empty: { title: "x" } }))).includes("Edit and send")).toBe(false);
   });
@@ -144,5 +144,69 @@ describe("the Review list and the Runs table", () => {
     };
     const t = text(renderToString(createElement(TraceView, { t: trace })));
     for (const s of ["Looked at", "Concluded", "Proposed", "Could not check / left out", "Nothing was read: this was a quiet pass."]) expect(t).toContain(s);
+  });
+});
+
+describe("Attendance Anomalies on the screens", () => {
+  const entry = AGENTS.find((a) => a.key === "attendance")!;
+  const att = (over: Partial<FindingDTO> = {}): FindingDTO => ({
+    id: "a1", agent: "attendance", kind: "late_cluster", severity: "review", title: "Late check-ins cluster on 27 Oct, 28 Oct and 29 Oct at Manuvana",
+    body: "What was observed: 7 of 9 people checked in late on those days.\nWhat else could explain it: The shift start or grace setting.\nWhat you could do: Review the shift start in Settings.\nNote for the site team: Worth a look at the gate routine.",
+    evidence: [{ step: "s1", path: "candidates[0]", label: "Late cluster", href: null }], gaps: [], status: "open", createdAt: "2026-11-02T02:10:00.000Z", subjectId: "site-1", href: "/wfm/live-board", runId: "r9", visual: null,
+    strip: { dates: ["2026-10-26", "2026-10-27", "2026-10-28", "2026-10-29", "2026-10-30"], rostered: [9, 9, 9, 9, 0], present: [9, 9, 9, 9, 0], flagged: [0, 7, 7, 7, 0], marked: [false, true, true, true, false] }, ...over,
+  });
+  const recheck = (canDecide = true) => [{
+    id: "p1", findingId: "a1", actionKey: "wfm.recheck", message: "Your check-out is missing on 27 October. Please look at that day.", toNames: ["Asha N", "Ravi K"],
+    targets: [{ id: "e1", name: "Asha N" }, { id: "e2", name: "Ravi K" }], status: "pending" as const, expiresAt: "2026-11-09T00:00:00Z", canDecide,
+  }];
+
+  it("reads as a Review suggestion with its three fixed parts, the note for the site team, and a strip of dots", () => {
+    const html = renderToString(createElement(ReviewList, { findings: [att()], proposals: [], showAgent: false, empty: { title: "x" } }));
+    const t = text(html);
+    expect(t).toContain("Review suggestion");
+    expect(t).toContain("Worth a look");
+    for (const p of ["What was observed", "What else could explain it", "What you could do", "Note for the site team"]) expect(t).toContain(p);
+    expect(html).toContain('aria-label="5 shift-days from 26 Oct to 30 Oct; the pattern is on 3 of them"');
+    expect((html.match(/stripDot/g) ?? []).length).toBe(5);
+    expect(html).toContain('href="/wfm/live-board"');
+    expect(t).toContain("Open live board");
+    expect(t).not.toContain("Open tender");
+  });
+
+  it("the information severity says For information, not Note", () => {
+    expect(text(renderToString(createElement(ReviewList, { findings: [att({ severity: "info" })], proposals: [], showAgent: false, empty: { title: "x" } })))).toContain("For information");
+  });
+
+  it("a recheck is offered as Ask for a recheck with one row per person, only to someone who may decide", () => {
+    const t = text(renderToString(createElement(ReviewList, { findings: [att()], proposals: recheck(), showAgent: false, empty: { title: "x" } })));
+    expect(t).toContain("Ask for a recheck");
+    expect(t).toContain("Asha N");
+    expect(t).toContain("Ravi K");
+    expect(t).toContain("Edit and send");
+    const html = renderToString(createElement(ReviewList, { findings: [att()], proposals: recheck(), showAgent: false, empty: { title: "x" } }));
+    expect((html.match(/type="checkbox"/g) ?? []).length).toBe(2);
+    expect(text(renderToString(createElement(ReviewList, { findings: [att()], proposals: recheck(false), showAgent: false, empty: { title: "x" } }))).includes("Ask for a recheck")).toBe(false);
+  });
+
+  it("never prints the explanations as running text", () => {
+    const t = text(renderToString(createElement(ReviewList, { findings: [att()], proposals: recheck(), showAgent: false, empty: { title: "x" } })));
+    expect(t).not.toMatch(/One dot per shift-day looked at/);
+    expect(t).not.toMatch(/never as the agent/);
+  });
+
+  it("the settings tab offers the sites to look at and, under More, the kinds of pattern", () => {
+    nav.tab = "settings";
+    const v = view({
+      tiles: [tile({ key: "attendance", name: "Attendance Anomalies", logo: "attendance", accent: "teal", href: "/ai-automation/attendance" })],
+      settings: { attendance: { enabled: true, paused: false, config: {}, cap: 500_000, used: 10_000, percent: 2, digestOn: false, needsTimezone: false, sites: [{ id: "s1", name: "Manuvana" }, { id: "s2", name: "Gowribidnoor" }] } },
+    });
+    const html = renderToString(createElement(AgentClient, { entry, view: v, canDigest: false }));
+    const t = text(html);
+    expect(t).toContain("Where");
+    expect(t).toContain("Manuvana");
+    expect(t).toContain("Gowribidnoor");
+    expect(t).toContain("More options");
+    expect(t).toContain("500,000");
+    expect(t).not.toContain("Watch window");
   });
 });

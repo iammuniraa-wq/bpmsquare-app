@@ -3,8 +3,9 @@ import type { PlanCtx, RunContext } from "../types";
 import { buildCase, loadCases, readsFromInput } from "./eval/fixtures";
 import { referenceSubmission } from "./eval/reference";
 import {
-  buildLeadDefinition, engineSettings, leadPlan, leadToolAdapters, toDraftFindings, toLeadEvalCase, toLeadRunRequests, toPersisted, workspaceToday,
+  buildLeadDefinition, engineSettings, leadPlan, leadToolAdapters, toDraftFindings, toLeadRunRequests, toPersisted, workspaceToday,
 } from "./leadBridge";
+import { toLeadEvalCase } from "./eval/leadCase";
 import { planAttendanceDetailed } from "./plan";
 import { getByPath, validateSubmission, type RunFacts } from "./validate";
 
