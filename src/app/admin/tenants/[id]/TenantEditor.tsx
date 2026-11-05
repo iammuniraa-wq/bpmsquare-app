@@ -1,5 +1,6 @@
 "use client";
 
+import CrewAdminPanel from "./CrewAdminPanel";
 import { useState, useTransition } from "react";
 import Pager from "@/components/Pager";
 import { paginate, clampPage, DEFAULT_PAGE_SIZE } from "@/lib/paginate";
@@ -85,6 +86,9 @@ const FEATURE_LABELS: { key: keyof TenantFeatures; label: string; premium?: bool
   { key: "deal_room", label: "Deal Room (a Room tab on each tender deal where the internal team discusses the bid: messages, questions, decisions, files — needs GCC tender deals)", premium: true, group: "Sales & Service add-ons" },
   { key: "contract_projects", label: "Contract projects (the project a won tender becomes: a cost budget by resource and cost code, numbered revisions with a reason, a manager-approved baseline and an Excel handover — needs GCC tender deals)", premium: true, group: "Sales & Service add-ons" },
   { key: "inbox", label: "Shared Inbox (customer mail on a forwarding address or the company mailbox, read and answered by a team, turned into a Quote, Project, Case, Lead or Estimate with its drawings)", premium: true, group: "Sales & Service add-ons" },
+  { key: "crew", label: "AI automation (the workcenter of pre-built agents: page, runner and the allowance meter; each agent has its own flag)", premium: true, group: "Platform & automation" },
+  { key: "crew_tender_watch", label: "AI automation: Tender Watch (reads tender deals, flags bids at risk and drafts a nudge a person approves — needs AI automation and GCC tender deals)", premium: true, group: "Platform & automation" },
+  { key: "crew_attendance", label: "AI automation: Attendance Anomalies (aliased attendance patterns for supervisors; keep OFF for a real workspace until the owner has the written acceptance — needs AI automation and Workforce)", premium: true, group: "Platform & automation" },
   { key: "next_experience", label: "Nova — the Business OS experience", premium: true, group: "Programs" },
   { key: "enterprise_theme", label: "Enterprise theme (dark rail + light workspace)", premium: true, group: "Programs" },
   { key: "spectacular_theme", label: "Spectacular theme (navy or lilac palette)", premium: true, group: "Programs" },
@@ -357,6 +361,8 @@ export default function TenantEditor({ tenant, users, access, aiTokensUsed = nul
           </div>
         </section>
       )}
+
+      {features.crew === true && <CrewAdminPanel tenantId={tenant.id} />}
 
       {features.newsletter_studio === true && (
         <section style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 12, padding: 20, marginBottom: 16 }}>

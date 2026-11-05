@@ -1,0 +1,79 @@
+{
+  "id": "quiet-03-three-late-marks",
+  "tags": [
+    "quiet"
+  ],
+  "description": "One person late three times in ten shift-days (the threshold is four).",
+  "input": {
+    "site": {
+      "alias": "S1",
+      "shift_start": "09:00",
+      "grace_minutes": 10,
+      "radius_m": 150
+    },
+    "run": {
+      "from": "2026-10-19",
+      "to": "2026-11-01"
+    },
+    "config": {
+      "week_off_days": [
+        0
+      ]
+    },
+    "people": [
+      {
+        "alias": "P1",
+        "type": "full_time"
+      },
+      {
+        "alias": "P2",
+        "type": "full_time"
+      },
+      {
+        "alias": "P3",
+        "type": "full_time",
+        "days": {
+          "2026-10-23": "L30",
+          "2026-10-27": "L30",
+          "2026-10-30": "L30"
+        }
+      },
+      {
+        "alias": "P4",
+        "type": "full_time"
+      },
+      {
+        "alias": "P5",
+        "type": "full_time"
+      },
+      {
+        "alias": "P6",
+        "type": "full_time"
+      },
+      {
+        "alias": "P7",
+        "type": "full_time"
+      },
+      {
+        "alias": "P8",
+        "type": "full_time"
+      }
+    ]
+  },
+  "expect": {
+    "expected_candidates": [],
+    "must_flag": [],
+    "must_not_flag": [
+      {
+        "reason": "nothing should be flagged"
+      }
+    ],
+    "must_gap": [],
+    "max_findings": 0,
+    "max_person_findings": 0,
+    "proposals": {
+      "allowed": [],
+      "forbidden_target_aliases": []
+    }
+  }
+}

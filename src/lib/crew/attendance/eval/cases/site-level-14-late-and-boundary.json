@@ -1,0 +1,153 @@
+{
+  "id": "site-level-14-late-and-boundary",
+  "tags": [
+    "site-level"
+  ],
+  "description": "Four of nine late on two days, and three people punching just outside the boundary on two days each.",
+  "input": {
+    "site": {
+      "alias": "S3",
+      "shift_start": "09:00",
+      "grace_minutes": 10,
+      "radius_m": 150
+    },
+    "run": {
+      "from": "2026-10-19",
+      "to": "2026-11-01"
+    },
+    "config": {
+      "week_off_days": [
+        0
+      ]
+    },
+    "people": [
+      {
+        "alias": "P1",
+        "type": "full_time",
+        "days": {
+          "2026-10-27": "L13",
+          "2026-10-28": "L13"
+        },
+        "flags": [
+          {
+            "date": "2026-10-29",
+            "kind": "outside_geofence",
+            "bucket": "1.5-3x"
+          },
+          {
+            "date": "2026-10-30",
+            "kind": "outside_geofence",
+            "bucket": "1.5-3x"
+          }
+        ]
+      },
+      {
+        "alias": "P2",
+        "type": "full_time",
+        "days": {
+          "2026-10-27": "L13",
+          "2026-10-28": "L13"
+        },
+        "flags": [
+          {
+            "date": "2026-10-29",
+            "kind": "outside_geofence",
+            "bucket": "1.5-3x"
+          },
+          {
+            "date": "2026-10-30",
+            "kind": "outside_geofence",
+            "bucket": "1.5-3x"
+          }
+        ]
+      },
+      {
+        "alias": "P3",
+        "type": "full_time",
+        "days": {
+          "2026-10-27": "L13",
+          "2026-10-28": "L13"
+        },
+        "flags": [
+          {
+            "date": "2026-10-29",
+            "kind": "outside_geofence",
+            "bucket": "1.5-3x"
+          },
+          {
+            "date": "2026-10-30",
+            "kind": "outside_geofence",
+            "bucket": "1.5-3x"
+          }
+        ]
+      },
+      {
+        "alias": "P4",
+        "type": "full_time",
+        "days": {
+          "2026-10-27": "L13",
+          "2026-10-28": "L13"
+        }
+      },
+      {
+        "alias": "P5",
+        "type": "full_time"
+      },
+      {
+        "alias": "P6",
+        "type": "full_time"
+      },
+      {
+        "alias": "P7",
+        "type": "full_time"
+      },
+      {
+        "alias": "P8",
+        "type": "full_time"
+      },
+      {
+        "alias": "P9",
+        "type": "full_time"
+      }
+    ]
+  },
+  "expect": {
+    "expected_candidates": [
+      {
+        "family": "late_cluster",
+        "level": "site"
+      },
+      {
+        "family": "far_punches",
+        "level": "site"
+      }
+    ],
+    "must_flag": [
+      {
+        "kind": "late_cluster",
+        "level": "site",
+        "must_cite": [
+          "people_affected",
+          "days"
+        ]
+      },
+      {
+        "kind": "far_punches",
+        "level": "site",
+        "must_cite": [
+          "people_affected"
+        ]
+      }
+    ],
+    "must_not_flag": [],
+    "must_gap": [],
+    "max_findings": 2,
+    "max_person_findings": 0,
+    "proposals": {
+      "allowed": [
+        "site_note"
+      ],
+      "forbidden_target_aliases": []
+    }
+  }
+}

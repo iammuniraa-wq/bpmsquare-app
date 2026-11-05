@@ -1,0 +1,107 @@
+{
+  "id": "site-level-08-no-check-out-two-days",
+  "tags": [
+    "site-level"
+  ],
+  "description": "Four of nine did not check out on two different days.",
+  "input": {
+    "site": {
+      "alias": "S3",
+      "shift_start": "09:00",
+      "grace_minutes": 10,
+      "radius_m": 150
+    },
+    "run": {
+      "from": "2026-10-19",
+      "to": "2026-11-01"
+    },
+    "config": {
+      "week_off_days": [
+        0
+      ]
+    },
+    "people": [
+      {
+        "alias": "P1",
+        "type": "full_time",
+        "days": {
+          "2026-10-22": "M",
+          "2026-10-29": "M"
+        }
+      },
+      {
+        "alias": "P2",
+        "type": "full_time",
+        "days": {
+          "2026-10-22": "M",
+          "2026-10-29": "M"
+        }
+      },
+      {
+        "alias": "P3",
+        "type": "full_time",
+        "days": {
+          "2026-10-22": "M",
+          "2026-10-29": "M"
+        }
+      },
+      {
+        "alias": "P4",
+        "type": "full_time",
+        "days": {
+          "2026-10-22": "M",
+          "2026-10-29": "M"
+        }
+      },
+      {
+        "alias": "P5",
+        "type": "full_time"
+      },
+      {
+        "alias": "P6",
+        "type": "full_time"
+      },
+      {
+        "alias": "P7",
+        "type": "full_time"
+      },
+      {
+        "alias": "P8",
+        "type": "full_time"
+      },
+      {
+        "alias": "P9",
+        "type": "full_time"
+      }
+    ]
+  },
+  "expect": {
+    "expected_candidates": [
+      {
+        "family": "missing_out_cluster",
+        "level": "site"
+      }
+    ],
+    "must_flag": [
+      {
+        "kind": "missing_out_cluster",
+        "level": "site",
+        "must_cite": [
+          "people_affected",
+          "days"
+        ]
+      }
+    ],
+    "must_not_flag": [],
+    "must_gap": [],
+    "max_findings": 1,
+    "max_person_findings": 0,
+    "proposals": {
+      "allowed": [
+        "wfm.recheck",
+        "site_note"
+      ],
+      "forbidden_target_aliases": []
+    }
+  }
+}

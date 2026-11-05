@@ -338,3 +338,24 @@ export function emitEmailConverted(
     payload: { channel_id: p.channelId, to_object_type: p.objectType, to_object_id: p.objectId, attachments: p.attachments },
   });
 }
+
+/** tender.decision_proposed: a bid / no-bid proposal is waiting for a decision (Tender Watch wakes for that deal). */
+export function emitTenderDecisionProposed(tenantId: string, p: Actor & { opportunityId: string; requestId: string; ref?: string | null; proposed: string; accountId?: string | null }) {
+  return emitEvent(tenantId, {
+    name: EVENTS.TENDER_DECISION_PROPOSED, object_type: "opportunity", object_id: p.opportunityId, actor_id: p.actorId, account_id: p.accountId,
+    key: `${p.opportunityId}:decision:${p.requestId}`,
+    payload: { ref: p.ref ?? null, proposed: p.proposed },
+  });
+}
+
+/** tender.details_changed: the bid end date or the addenda count moved. Numbers only, never names. */
+export function emitTenderDetailsChanged(
+  tenantId: string,
+  p: Actor & { opportunityId: string; ref?: string | null; closingChanged: boolean; addendaFrom: number; addendaTo: number; stamp: string; accountId?: string | null },
+) {
+  return emitEvent(tenantId, {
+    name: EVENTS.TENDER_DETAILS_CHANGED, object_type: "opportunity", object_id: p.opportunityId, actor_id: p.actorId, account_id: p.accountId,
+    key: `${p.opportunityId}:details:${p.stamp}`,
+    payload: { ref: p.ref ?? null, closing_changed: p.closingChanged, addenda_from: p.addendaFrom, addenda_to: p.addendaTo },
+  });
+}

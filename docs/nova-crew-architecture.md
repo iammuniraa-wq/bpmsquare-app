@@ -1,3 +1,5 @@
+> **Superseded for the first two agents (Tender Watch, Attendance Anomalies) by `docs/design/nova-crew-agents.md` (2026-11-04).** The foundation, flags, tables and screens there replace section 3 onward for slice 1; this file stays as the long-range plan.
+
 # BPMSquare Nova Crew — architecture v1.0 (2026-09-11)
 
 > **Who this is for.** The engineer (human or model) implementing the AI

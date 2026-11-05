@@ -259,6 +259,9 @@ export const ROUTES = {
   administration: "/administration",
   administrationChangeHistory: "/administration/change-history",
   administrationOutboundEmails: "/administration/outbound-emails",
+  aiAutomation: "/ai-automation",
+  aiAutomationAgent: (agent: string) => `/ai-automation/${agent}`,
+  aiAutomationRun: (agent: string, runId: string) => `/ai-automation/${agent}/runs/${runId}`,
 } as const;
 
 export type NavItem = {
@@ -431,6 +434,12 @@ export const NAV: NavGroup[] = [
           { label: "Time Summary", href: ROUTES.wfmSummary, icon: "▤", pillar: "amber", featureKey: "wfm", workcenterKey: "wfm", supervisorOnly: true },
         ],
       },
+    ],
+  },
+  {
+    group: "AI AUTOMATION",
+    items: [
+      { label: "AI automation", href: ROUTES.aiAutomation, icon: "✧", pillar: "purple", featureKey: "crew", workcenterKey: "crew" },
     ],
   },
   {
@@ -806,6 +815,13 @@ export type TenantFeatures = {
   // handover stand-in. Not the Workforce "Projects". Platform-admin-only, default OFF; needs gcc_tender. With it off there is no
   // menu item, route, API answer or button on a deal, and the new tables are never queried.
   contract_projects: boolean;
+  // AI automation (docs/design/nova-crew-agents.md, section 3.1): the workcenter of pre-built agents. Three platform-admin-only
+  // flags (set in /admin/tenants, never by a workspace admin), each default OFF, a missing key reads false, and none depends on
+  // Nova or the dock assistant. `crew` = the page and the runner exist; `crew_tender_watch` needs gcc_tender + pipeline;
+  // `crew_attendance` needs wfm. Attendance must stay off for every real workspace until the owner has the written acceptance.
+  crew: boolean;
+  crew_tender_watch: boolean;
+  crew_attendance: boolean;
 };
 
 // WfmConfig — tenant-level WFM (attendance) settings, stored in

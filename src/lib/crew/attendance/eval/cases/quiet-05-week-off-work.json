@@ -1,0 +1,94 @@
+{
+  "id": "quiet-05-week-off-work",
+  "tags": [
+    "quiet"
+  ],
+  "description": "Four full-time people worked their Sunday week-off; they punched in and out normally.",
+  "input": {
+    "site": {
+      "alias": "S4",
+      "shift_start": "09:00",
+      "grace_minutes": 10,
+      "radius_m": 150
+    },
+    "run": {
+      "from": "2026-10-19",
+      "to": "2026-11-01"
+    },
+    "config": {
+      "week_off_days": [
+        0
+      ]
+    },
+    "people": [
+      {
+        "alias": "P1",
+        "type": "full_time",
+        "days": {
+          "2026-10-25": "X",
+          "2026-11-01": "X"
+        }
+      },
+      {
+        "alias": "P2",
+        "type": "full_time",
+        "days": {
+          "2026-10-25": "X",
+          "2026-11-01": "X"
+        }
+      },
+      {
+        "alias": "P3",
+        "type": "full_time",
+        "days": {
+          "2026-10-25": "X",
+          "2026-11-01": "X"
+        }
+      },
+      {
+        "alias": "P4",
+        "type": "full_time",
+        "days": {
+          "2026-10-25": "X",
+          "2026-11-01": "X"
+        }
+      },
+      {
+        "alias": "P5",
+        "type": "full_time"
+      },
+      {
+        "alias": "P6",
+        "type": "full_time"
+      },
+      {
+        "alias": "P7",
+        "type": "full_time"
+      },
+      {
+        "alias": "P8",
+        "type": "full_time"
+      },
+      {
+        "alias": "P9",
+        "type": "full_time"
+      }
+    ]
+  },
+  "expect": {
+    "expected_candidates": [],
+    "must_flag": [],
+    "must_not_flag": [
+      {
+        "reason": "nothing should be flagged"
+      }
+    ],
+    "must_gap": [],
+    "max_findings": 0,
+    "max_person_findings": 0,
+    "proposals": {
+      "allowed": [],
+      "forbidden_target_aliases": []
+    }
+  }
+}
