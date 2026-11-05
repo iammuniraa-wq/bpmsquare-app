@@ -7,7 +7,7 @@ import DashboardLayout from "@/components/DashboardLayout";
 import NovaStream from "@/components/NovaStream";
 import { getNovaRecentWins } from "@/lib/nova/stream";
 import { getNovaRankings } from "@/lib/nova/rankings";
-import { isNovaTenant } from "@/lib/nova/isNovaTenant";
+import { isNovaTenant, isRichTenant } from "@/lib/nova/isNovaTenant";
 import { resolveNovaLayout } from "@/lib/nova/streamLayout";
 import { isAnalyticsId } from "@/lib/analyticsMeta";
 import type { TenantFeatures } from "@/lib/constants";
@@ -68,7 +68,8 @@ export default async function DashboardPage() {
   // dashboard below (still fully correct/safe for that tenant) and logs the
   // real error server-side instead of a redacted "Server Components render"
   // error reaching the browser.
-  if (isNovaTenant(tenant)) {
+  // The Rich look (docs/design/rich-ui.md) draws its own dashboard from the classic data below, with the classic cards behind "More", so it skips the Stream.
+  if (isNovaTenant(tenant) && !isRichTenant(tenant)) {
     try {
       const features = (tenant?.features ?? {}) as TenantFeatures;
       const cur = resolveCurrency(tenant?.config);
