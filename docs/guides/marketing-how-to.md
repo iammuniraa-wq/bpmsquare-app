@@ -1,6 +1,6 @@
 # BPMSquare Marketing: How to set up and run it
 
-Snapshot 2026-10-22
+Snapshot 5 Nov 2026
 
 > Screen names and button words may be refined as we improve the product. If a name in this guide is slightly different on your screen, look for the same idea nearby.
 
@@ -10,9 +10,9 @@ This guide is for the marketing or sales manager. You do not need to be technica
 
 1. Consent and topics
 2. Forms and the preference centre
-3. Newsletter Studio
+3. Email and Newsletter Studio
 4. Email health
-5. Lead scores
+5. Leads and scores
 6. Journeys
 7. Buying signals
 8. ABM programs
@@ -27,17 +27,39 @@ This guide is for the marketing or sales manager. You do not need to be technica
 
 ### Who switches these modules on
 
-The BPMSquare team switches each marketing module on for your workspace. You cannot do it yourself, and nobody else in your company can. Once it is on, your administrator sees it in the menu under **Marketing** (and under **Settings → Marketing**).
+The BPMSquare team switches each marketing module on for your workspace. You cannot do it yourself, and nobody else in your company can. Once it is on, your administrator sees it in the menu under **Marketing** and **Intelligence** (and under **Settings → Marketing**).
 
 If you do not see a menu item this guide talks about, it is not switched on yet. Ask us. Nothing is lost while you wait.
 
 Some screens also need a one-time database update that we run for you. Until it is done, the screen says "waiting for a database update". That is normal. Nothing is broken and nothing is lost.
 
+### Two parts, two Overviews
+
+Marketing is split in two parts in the left menu. Each part starts at an **Overview** screen that shows a short path with a number on each step.
+
+| Part | Menu rows | The job |
+|---|---|---|
+| **Marketing** | Overview, Audiences, Email, Journeys, Forms, WhatsApp, Events | Reach people |
+| **Intelligence** | Overview, Buying signals, Leads, ABM programs, Results | Know who is ready and what worked |
+
+**Marketing Overview** has four steps. Each has a number and one button:
+
+1. **Audience.** How many saved audiences you have. Button: **Audiences**.
+2. **Message.** Drafts waiting to be finished. Button: **Open Email** (or **New email** when there is none).
+3. **Review and send.** The first draft that is ready, with the promise that the count and the reasons are shown before it goes. Button: **Review**.
+4. **What happened.** The last send: how many were sent, how many were left out, how many failed. Button: **Open**.
+
+Under the four steps, an **Always on** row links to **Journeys**, **Forms**, **Events** and **WhatsApp**, each with a small count. Only the modules your workspace has are shown.
+
+**Intelligence Overview** has up to four steps: **Who is in market** (Buying signals), **Who is ready** (Leads), **Where to focus** (ABM programs) and **What worked** (Results). A step appears only for a module your workspace has and you may open. The **Scoring rules** link under the steps opens the scoring settings.
+
+The menu may show fewer rows than this guide lists. If your workspace has no Intelligence module, there is no Intelligence part at all.
+
 ### The golden rules
 
 1. **Consent first.** Nobody is emailed until they have said yes, unless you chose otherwise. Every send checks this again at the moment of sending. The product will not let you skip it.
 2. **Start small.** Your first send goes to a handful of colleagues, not to all your customers. Your first journey goes to one person.
-3. **Use "Try it" first.** Journeys has **Try it on one person**. Newsletters have **See it as this person** and **Check the audience**. None of them sends anything.
+3. **Use "Try it" first.** Journeys has **Try it on one person**. Newsletters have **See it as this person** and **Check the audience**. A plain email shows **Who will receive it** before you send. None of them sends anything.
 4. **Check Content health.** Before you send a newsletter, fix every amber item.
 5. **English is the default language.** Write in English first. Add Arabic (or another language) on top, and review it.
 6. **You can always pause.** A journey has a **Pause** button. Pausing stops all sending at once.
@@ -45,6 +67,7 @@ Some screens also need a one-time database update that we run for you. Until it 
 ### Small things worth knowing
 
 - A little **i** icon beside a setting is being added in many places. Tap the **i** for an explanation.
+- The app keeps up to 20 pages open as tabs. When you open a 21st, the oldest tab closes and a short notice names it. Nothing is lost.
 - Many screens have a **Show me how** button. It is a short walkthrough. It never starts by itself and you can skip it at any step.
 - Anything marked **Coming later** is not built yet. We do not promise it.
 
@@ -60,7 +83,7 @@ A **topic** is a subject people can agree to separately, for example "Offers" or
 
 ### Set it up (once)
 
-Open **Settings → Marketing → Consent and topics**. You need to be an administrator.
+Open **Settings → Marketing → Consent**. You need to be an administrator. This is the only place that sets topics and rules. The email screens show a **Consent** chip and a **Change in Settings** link to it, and nothing more. The page opens in any workspace that has Marketing. **Scoring** and **Hand-over** (see chapter 5) also need the lead scoring program.
 
 1. **Topics.** Check the list. Rename a topic or write a one-line description of what it covers. Choose **+ Add a topic** if you need another. A topic people have already answered can be renamed but not removed.
 2. **When nobody has said yes.** For each country group, choose one of:
@@ -157,7 +180,7 @@ You need a web address for your workspace. If your administrator has not set one
    - The box is never ticked in advance.
 5. **After sending.** Choose **Show a message** (a thank-you on the form) or **Go to a page** (a page on your own domain, starting with https://). Then choose the emails:
    - **Send a thank-you email** is on. Change **Words in the email** if you like. It is a confirmation of what the person just did, so it goes out even if they did not tick the consent box.
-   - **Ask the person to confirm by email** makes a ticked box count only after the person presses a link in that email. It is on for new forms if your workspace is in the European Union and off elsewhere (set this in **Settings → Marketing → Consent topics → Where you are based**). You can change it on each form.
+   - **Ask the person to confirm by email** makes a ticked box count only after the person presses a link in that email. It is on for new forms if your workspace is in the European Union and off elsewhere (set this in **Settings → Marketing → Consent → Based in**). You can change it on each form.
    - **Tell someone about each new answer** sends one person of your team a short email with the answers.
 6. **Share.** Change **Status** to **Live - visitors can send it**. Press **Save**.
 
@@ -213,11 +236,15 @@ Use **Desktop** and **Phone** above the preview to see both layouts.
 
 ---
 
-## 3. Newsletter Studio
+## 3. Email and Newsletter Studio
 
 ### What it is for
 
-Write a newsletter once in English, add Arabic or another language on top, check it, and send each person their own language. The email is built from blocks (header, hero, text, image, button, columns, product card, event, divider, social, footer).
+**Email** is the one place for everything you send by email. Open **Marketing → Email**. The **Sends** chip lists every email that went out or is waiting as a draft, with its type (**Plain** or **Newsletter**). If your workspace has Newsletter Studio, two more chips appear: **Newsletters** (your designs) and **Templates** (designs to start from). There are two buttons at the top: **+ New email** and, with the Studio, **+ New newsletter**.
+
+A **plain email** is a message you type here, for example a festival greeting or a service reminder. A **newsletter** is a designed email you build once in the Studio and send many times. Every send, of either kind, leaves a record under **Sends**.
+
+With the Studio, write a newsletter once in English, add Arabic or another language on top, check it, and send each person their own language. The email is built from blocks (header, hero, text, image, button, columns, product card, event, divider, social, footer).
 
 ### Set it up (once)
 
@@ -227,9 +254,36 @@ Write a newsletter once in English, add Arabic or another language on top, check
 
 ### Do it day to day
 
+**Send a plain email**
+
+The screen follows the order *Audience, Message, Review and send*.
+
+1. Open **Marketing → Email** and press **+ New email**. A new email starts with **Everyone we can email**.
+2. Type a **Campaign name (internal)**. Only your team sees it.
+3. **Audience.** Pick who gets it from the list: **Everyone we can email**, one of your saved audiences, or a **One-off** that you build here. Press **More** to tick account types, search for single accounts to add or remove, or add an email address that is not in the system. Change anything and the list shows **One-off (changed here)**, with **Save as audience** beside it so you can keep it. A saved audience that you have not changed shows **Edit audience** and **Delete**.
+4. **Who will receive it.** This line is the real count, worked out with the same checks as the send: "8 will receive, 105 left out". Under it, each person who is left out has a plain reason and a link that fixes it:
+
+| Reason shown | Link | What it means |
+|---|---|---|
+| This account has no email address. | Open the account | Add an address on the account |
+| This address is not a contact yet, so we cannot check consent. | Create contact | Make the person a contact, then record their consent |
+| This person has not agreed to this topic. | Open the contact, or Open Consent settings | Record their yes on the contact |
+| The account unsubscribed. | Open the account | They asked to stop. Do not email them |
+| This address bounced, or this person reported a message as spam. | Open the contact | The address is blocked until it is fixed |
+
+   The first five are shown, with **Show all** for the rest. A typed address gets a chip: **Ready**, **Not a contact** with **Create contact**, or **No consent**. Only a contact who agreed to the topic is emailed. Any other address is left out. It is never emailed without consent.
+5. **Consent.** A chip under the count shows the topic (**Any topic** for a plain email) and a **Change in Settings** link. Topics and rules are not changed on this screen.
+6. **Message.** Either open **Start from a template** (festival and service designs) and add your words, or write the **Subject** and the **Message** yourself. In the subject, `{{account_name}}` and `{{company_name}}` are replaced for each person.
+7. Press **Save draft**. A short "Draft saved" message appears and the saved draft opens. Pressing again changes the same draft. It never makes a copy.
+8. On the draft, press **Review and send**. A panel opens with the real count, who is left out and why, and the button **Send to N**. Nothing is sent until you press it. Close the panel to go back. Emails go out at once and cannot be recalled.
+
+**After you send.** The campaign page follows the send by itself. It shows **Sending… 4 of 8** and then the final numbers, so you do not need to reload. The four tiles are **Sent**, **Failed**, **Left out** and **Leads**. The **Recipients** list names everyone and the reason for each person left out, with the same fix links.
+
+**If some emails failed.** The email service has a daily limit. If it was reached, the page says "The email service has reached its daily limit. The rest can be sent later." and shows **Send the rest**. Press it later, when the limit has reset. It sends only to people whose email failed or was never tried. Nobody who was already sent is emailed again, and people who were left out stay left out. It works for plain emails. A newsletter is sent again from the Studio.
+
 **Write a newsletter**
 
-1. Open **Marketing → Newsletters** and press **+ New Newsletter**.
+1. Open **Marketing → Email**, choose the **Newsletters** chip and press **+ New Newsletter**.
 2. In **Start**, give it a name, a category and a topic. Then choose how to begin:
    - **Write it for me.** Type one line about the issue, tick whether to use your recent products or campaigns, and press **Write it for me**. AI drafts the blocks in English. It shows what it understood (blue) and what it assumed (amber).
    - **Start from a design.** Pick one of your saved templates or a built-in design.
@@ -255,9 +309,9 @@ Languages in the list: English, Arabic, Hindi, Urdu, French. Arabic is the one w
 **Send it**
 
 1. Press **Send...** (on a phone, the button at the bottom). Your design is saved first, and a copy is kept automatically so editing it later never changes what already went out.
-2. Choose the **Audience**: everyone we can email, or one of your saved audiences from Segmentation. Behind **More** you can narrow a one-off send to some account types or add email addresses. Start with a small group of colleagues. They must already be contacts with a recorded yes for the topic.
+2. Choose the **Audience**: everyone we can email, or one of your saved audiences from **Audiences**. Behind **More** you can narrow a one-off send to some account types or add email addresses. Start with a small group of colleagues. They must already be contacts with a recorded yes for the topic.
 3. The panel shows, for example, "120 of 140 people will receive it", how many get each language, and who is left out and why. Nothing is sent yet. The topic and the languages are the newsletter's own; a language that still has lines to check is not sent.
-4. Press **Send to N**. A message asks you to confirm. Emails go out at once and cannot be recalled. **See what was sent** opens the send record, which is created for you and named after the newsletter and the day.
+4. Press **Send to N**. A message asks you to confirm. Emails go out at once and cannot be recalled. **See what was sent** opens the send record, which is created for you and named after the newsletter and the day. It appears under **Email → Sends** with the type **Newsletter**.
 
 ### What the colours and labels mean
 
@@ -275,7 +329,11 @@ Languages in the list: English, Arabic, Hindi, Urdu, French. Arabic is the one w
 | You see | What to do |
 |---|---|
 | The Send panel says a language is not sent | It still has lines to check. Accept or edit them in the Studio. |
-| The Send panel shows fewer people than expected | Read the list of who is left out. Each reason has an **i** that says what to do. |
+| The Send panel shows fewer people than expected | Read the list of who is left out. Each reason has an **i** or a link that says what to do. |
+| A plain email reached fewer people than the audience | Open **Review and send** (or the **Who will receive it** line). Each person left out has a reason and a link. Only people with consent for the topic are emailed. |
+| The page says the email service reached its daily limit | Wait until the limit resets, then press **Send the rest**. Nobody already sent is emailed again. |
+| **Review and send** says nobody can be emailed yet | Fix a reason in the list (usually a missing contact or consent), or change the audience. |
+| An address you typed is not emailed | It is **Not a contact** or has **No consent**. Use **Create contact**, then record consent on the contact. |
 | Arabic text looks reversed or misaligned | Check the preview with the Arabic tab selected. Report it to us with a screenshot. |
 | **Send** is greyed out | Nobody in the audience can be emailed yet, or the check is still running. |
 
@@ -329,9 +387,11 @@ Nothing to set up. It starts working once Newsletter Studio is on and you have s
 
 ---
 
-## 5. Lead scores
+## 5. Leads and scores
 
 ### What it is for
+
+There is one **Leads** list (**Intelligence → Leads**). In a workspace with the lead scoring program, a switch above the list, **All leads | Scored**, shows the same leads two ways. **All leads** keeps the simple view: status, source and **→ Deal**. **Scored** adds the score and the stage, as described here. In a workspace without scoring there is no switch and you see the plain list.
 
 A lead gets a score from what the person did (clicked an email, opened a quote, filled in a form) and who they are (their company and role). When the score is high enough, the lead becomes **Ready for sales** and goes to a salesperson, who has a deadline to respond.
 
@@ -354,7 +414,7 @@ The score is worked out by fixed rules. It is never a guess by AI.
 
 ### Do it day to day
 
-1. Open **Marketing → Lead scores**. The best score is at the top.
+1. Open **Intelligence → Leads** and choose **Scored**. The best score is at the top. (An older link to Lead scores opens this same view.)
 2. Use the chips to filter: **All**, each stage, and **Overdue**.
 3. Open a lead. The page shows the score and **Why 72?** (your number will differ). It lists each reason with its points, with what they did first, then who they are. It also shows how many points remain to reach the next stage.
 4. On a lead that is **Ready for sales**, press **Pick this up**. It becomes yours and moves to **Working**.
@@ -389,6 +449,7 @@ Scoring moves a lead up through New, Engaged and Ready for sales by itself. It n
 
 | You see | What to do |
 |---|---|
+| No **Scored** switch above the Leads list | Your workspace does not have the lead scoring program. Ask us. |
 | "Not scored yet" | Press **Score again** or wait for the next run |
 | A lead is stuck on "New" | Nothing has added points. The score rises as the person clicks, opens quotes or fills in forms. |
 | Too many leads are Ready | Raise **Hot from** in Scoring (Thresholds tab), or lower the points for small actions |
@@ -396,7 +457,7 @@ Scoring moves a lead up through New, Engaged and Ready for sales by itself. It n
 | Nobody is told about an overdue lead | In **Hand-over → When a lead is overdue**, choose who to tell. The message appears in the Nova inbox, so your workspace needs Nova. Each lead is announced once. |
 | No leads appear by themselves | Check **Make a lead when someone becomes Warm** is on. People who were already Warm before you switched it on are not added. |
 
-**Coming later:** reassigning an overdue lead by a rule, and Score and Stage columns on the existing **Leads** page. The existing **Leads** page is unchanged; **Lead scores** is the new view.
+**Coming later:** reassigning an overdue lead by a rule.
 
 ---
 
@@ -482,7 +543,7 @@ It uses your own data only. It does not use news or tenders yet. It is never an 
 
 ### Set it up (once)
 
-1. Open **Marketing → Buying signals**.
+1. Open **Intelligence → Buying signals**.
 2. An administrator opens **Interests** and adds the subjects you sell, for example Precast or Fire safety.
 3. Press **Rescore now** (administrator) the first time, so scores appear at once.
 
@@ -501,7 +562,7 @@ Scores then refresh by themselves every few hours.
 
 **Reading the reason line.** The reason is built from the two strongest signals in plain words, for example "Comparing: asked for a quote and clicked a link about Precast". It never hides anything: open the company to see every line.
 
-**Use the stage in a target group.** In **Segmentation**, add a rule from the group **Buying signals**: **Buying stage**, **In-market score**, **Days in current stage**, or **Engaged with topic**. For example, "Buying stage is Comparing" and "Engaged with topic contains Precast". Use that group for a campaign.
+**Use the stage in an audience.** In **Audiences**, add a rule from the group **Buying signals**: **Buying stage**, **In-market score**, **Days in current stage**, or **Engaged with topic**. For example, "Buying stage is Comparing" and "Engaged with topic contains Precast". Use that audience for an email.
 
 ### What the colours and labels mean
 
@@ -549,20 +610,20 @@ Nothing to set up in Settings. Decide your list and your goal first. Buying sign
 
 **Create a program**
 
-1. Open **Marketing → ABM programs** and press **+ New Program**.
+1. Open **Intelligence → ABM programs** and press **+ New Program**.
 2. Fill in:
    - **Name**, for example "Riyadh developers 2027".
    - **Kind**: **New business** (companies you do not serve yet) or **Expansion** (companies you already serve).
    - **Owner**, **Goal** (one plain sentence), **Measured in** (Deals won, Deals opened, Accounts engaged, or Revenue), **Target**, and the dates.
    - **Default tier**: 1:1 (its own plan, worked personally), 1:few (a small cluster) or 1:many (the program's standard approach).
    - **Roles every company needs**: decision maker and influencer are the standard.
-   - **Source**: start empty, or copy a marketing target group or a Coverage segment.
+   - **Source**: start empty, or copy an audience or a Coverage segment.
 3. Press **Create program**, then press **Start**. **Pause** and **Resume** are in the same place.
 
 **Add target accounts**
 
 1. In **Target accounts**, press **+ Add accounts**.
-2. Choose **By name**, **From a marketing target group** or **From a Coverage segment**. For a group or segment, press **Preview** first.
+2. Choose **By name**, **From an audience** or **From a Coverage segment**. For an audience or segment, press **Preview** first.
 3. The list is copied once and does not change by itself. Use **Refresh from source** to see what is new and what no longer matches. Nothing changes until you tick it and press **Apply**.
 
 **Build the buying group**
@@ -671,7 +732,7 @@ Ten minutes a day is enough once everything is set up.
 
 | Minutes | Do this |
 |---|---|
-| 2 | **Newsletters** or **Campaigns**: open the last send. Look at clicks and what was skipped. |
+| 2 | **Email → Sends**: open the last send. Look at clicks and who was left out. If some failed, use **Send the rest**. |
 | 2 | **Contacts → Email needs attention**: fix a few addresses. |
 | 2 | **Journeys**: read **What is happening**. Look at **stuck** and the skipped reasons. |
 | 2 | **Forms**: read the newest answers. Reply to anyone who asked a question. |
@@ -681,8 +742,8 @@ Ten minutes a day is enough once everything is set up.
 
 | Minutes | Do this |
 |---|---|
-| 3 | **Lead scores → Overdue** and **Ready for sales**. Press **Pick this up** on yours. Call the best one first. |
-| 3 | **Buying signals → Moved up this week**. Call every company at **Deciding**. |
+| 3 | **Leads → Scored → Overdue** and **Ready for sales**. Press **Pick this up** on yours. Call the best one first. |
+| 3 | **Intelligence → Buying signals → Moved up this week**. Call every company at **Deciding**. |
 | 2 | Open a lead and read **Why** before you call, so you know what they did. |
 | 2 | Update stages and add a note. Mark journey tasks **Done**. |
 
@@ -715,7 +776,9 @@ Ten minutes a day is enough once everything is set up.
 | Journey | Steps that run by themselves after an event |
 | Quiet hours | The hours when no journey email is sent |
 | Buying stage | How close a company looks to buying: Silent, Looking, Comparing or Deciding |
-| Target group | A saved list of companies defined by rules, used for campaigns |
+| Audience | A saved list of companies defined by rules, used for emails, newsletters and ABM programs. It used to be called a target group. |
+| Left out | A person on the audience who is not emailed, with a reason and a link that fixes it |
+| Overview | The first screen of Marketing or of Intelligence: a short path of numbered steps |
 | Buying group | The people at one company who take part in a purchase |
 | Tier | How personally you work a company: 1:1, 1:few or 1:many |
 | Fit report | The Process Design Studio's line-by-line view of how BPMSquare covers your process |
@@ -727,7 +790,7 @@ Ten minutes a day is enough once everything is set up.
 If something looks wrong, send us three things:
 
 1. **A screenshot** of the whole screen, including the menu.
-2. **The name of the page**, as it appears at the top (for example "Lead scores" or "Journeys").
+2. **The name of the page**, as it appears at the top (for example "Leads" or "Journeys").
 3. **The time** it happened, with your time zone. If it is about one person or company, send their name.
 
 Please do not send passwords. Do not send lists of customers by email: tell us the page and we can look.
@@ -736,4 +799,4 @@ Things that are normal, and not a fault:
 
 - "Waiting for a database update": we run it for you. Just tell us.
 - A menu item missing: the module is not switched on yet.
-- A person left out of a send: read **Who is left out, and why**.
+- A person left out of a send: read **Who will receive it** (or the **Recipients** list after the send). Each reason has a link that fixes it.

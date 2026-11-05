@@ -1,6 +1,6 @@
 # Setting up your workspace
 
-Snapshot 4 Nov 2026.
+Snapshot 5 Nov 2026.
 
 > Screen names and button words may be refined as the product improves. If a word on your screen differs slightly, look for the same idea nearby. Items marked "(verify)" were read from the code but not checked on a live screen.
 
@@ -1279,11 +1279,11 @@ Screenshot: settings-coverage-coverage.png | /settings/coverage | The Coverage t
 
 ## B.3 Marketing
 
-The Marketing group holds three pages. Consent and Leads share the marketing program switch. The marketing modules themselves (Forms, Journeys, Newsletters, WhatsApp, ABM, Events, Revenue by source) have no settings pages of their own. Their limits live in Consent > Limits.
+The Marketing group holds three pages. Consent and Leads share the marketing program switch. The marketing modules themselves (Forms, Journeys, Newsletters, WhatsApp, ABM, Events, Results) have no settings pages of their own. Their limits live in Consent > Limits.
 
 ### B16. Marketing consent
 
-**Module:** the platform-admin module **Consent, lead scoring and hand-over (marketing_scoring)**, or **Newsletter Studio**. The "Count newsletter opens" switch appears only with Newsletter Studio.
+**Module:** the platform-admin module **Marketing (marketing)**. The page also opens with **Consent, lead scoring and hand-over (marketing_scoring)** or **Newsletter Studio**. The "Count newsletter opens" switch appears only with Newsletter Studio. The email screens show a **Consent** chip with a **Change in Settings** link to this page, and nothing else about consent.
 
 **What it controls.** What you may email, and the topics people can agree to or refuse.
 
@@ -1392,7 +1392,7 @@ Screenshot: settings-marketing-limits.png | /settings/marketing-consent?tab=limi
 
 **What it affects elsewhere.**
 
-- Scored leads and the Leads list (Cold, Warm, Hot labels and "Why this score").
+- The Scored view of Leads (Cold, Warm, Hot labels and "Why this score").
 - The Marketing card in Account 360.
 
 **Check it worked.** **Try on a sample lead** gives the score you expect, and the Leads list shows Cold, Warm and Hot labels with "Why this score".

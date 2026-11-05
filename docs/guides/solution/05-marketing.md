@@ -1,6 +1,6 @@
 # BPMSquare solution guide: Marketing
 
-Snapshot 4 Nov 2026
+Snapshot 5 Nov 2026
 
 > Screen names and button words may be refined as the product improves. If a name here is slightly different on your screen, look for the same idea nearby. Anything marked "(verify)" could not be confirmed from the product and should be checked with your BPMSquare contact before you rely on it.
 
@@ -10,16 +10,62 @@ This chapter is for marketers and the consultants who set Marketing up. For each
 
 ### How Marketing is laid out
 
-Marketing lives in the left menu under **Marketing**. It has twelve screens: Segmentation, ABM programs, Campaigns, Newsletters, WhatsApp, Events, Forms, Journeys, Buying signals, Leads, Scored leads and Revenue by source. **Partners** sits under **Master data**. Settings that change Marketing behaviour are under **Settings > Marketing**.
+Marketing is in the left menu in two parts, each with its own heading.
+
+| Part | Menu rows | The job |
+|---|---|---|
+| **Marketing** | Overview, Audiences, Email, Journeys, Forms, WhatsApp, Events | Reach people |
+| **Intelligence** | Overview, Buying signals, Leads, ABM programs, Results | Know who is ready and what worked |
+
+**Scoring rules** are not a menu row. A **Scoring rules** link on the Intelligence Overview opens **Settings > Marketing > Leads**. **Partners** sits under **Master data**. Settings that change Marketing behaviour are under **Settings > Marketing**. On a phone, the Intelligence part may sit under **More** in the bottom bar.
+
+Earlier versions of this guide used the words Segmentation, target group, Campaigns, Newsletters as a separate screen, Scored leads and Revenue by source. They map to the new names like this:
+
+| Earlier name | Now |
+|---|---|
+| Segmentation, target group | Audiences, audience |
+| Campaigns and Newsletters (two menu rows) | Email, with chips Sends, Newsletters and Templates |
+| Leads and Scored leads (two menu rows) | Leads, with a switch All leads or Scored |
+| Revenue by source | Results (the page title stays Revenue by source) |
+| "Skipped" on a send | Left out |
+
+### The two Overview screens
+
+Each part opens on an **Overview**: a short path of numbered steps, each with one number and one button. A step is drawn only for a module your workspace has and you may open. An empty module shows its next step instead of a zero.
+
+**Marketing Overview** (**Marketing > Overview**, `/marketing`), subtitle "Reach people":
+
+| Step | What it shows | Button |
+|---|---|---|
+| 1 Audience | The number of saved audiences, or "No saved audience yet" | Audiences |
+| 2 Message | Drafts waiting, or "Write your first email" | Open Email, or New email |
+| 3 Review and send | The first draft that is ready, with the note that the count and the reasons are shown before it goes | Review, or Email |
+| 4 What happened | The last send: sent, left out and failed | Open, or Email |
+
+Below the steps an **Always on** row links to **Journeys** (running), **Forms** (live), **Events** and **WhatsApp** (templates), each with a small count. Only the modules your workspace has appear. Step 1 shows the number of saved audiences, not the number of people who can be emailed, because that count needs the per-person consent check and is shown on the email itself.
+
+**Intelligence Overview** (**Intelligence > Overview**, `/marketing/intelligence`), subtitle "Know who is ready":
+
+| Step | What it shows | Button |
+|---|---|---|
+| 1 Who is in market | Accounts comparing or deciding | Buying signals |
+| 2 Who is ready | Scored leads, best first | Leads |
+| 3 Where to focus | Active ABM programs | ABM programs |
+| 4 What worked | Which emails, forms and events started the deals | Results |
+
+Step 2 shows the number of scored leads when the scoring program is on, and a plain link to Leads otherwise. A **Scoring rules** link under the steps goes to Settings. A workspace with none of these modules has no Intelligence part.
+
+Screenshot: 04-marketing-overview.png | /marketing | The Marketing Overview with the four numbered steps and the Always on row
+Screenshot: 04-intelligence-overview.png | /marketing/intelligence | The Intelligence Overview with its four steps and the Scoring rules link
 
 Each screen is a separate module. The BPMSquare team switches modules on for your workspace in the platform admin console. Your own administrator cannot do it. A module that is off does not appear in the menu, and nothing is lost while it is off. Your administrator can also hide screens for a person through business roles in **Settings > People**. That only hides the screen from their menu. It is not a security lock.
 
 ### Contents
 
 1. [Module switches and settings](#1-module-switches-and-settings)
-2. [Segmentation](#2-segmentation)
+2. [Audiences](#2-audiences)
 3. [ABM programs](#3-abm-programs)
-4. [Campaigns](#4-campaigns)
+4. [Email](#4-email)
 5. [Newsletters](#5-newsletters)
 6. [WhatsApp](#6-whatsapp)
 7. [Events](#7-events)
@@ -28,12 +74,12 @@ Each screen is a separate module. The BPMSquare team switches modules on for you
 10. [Buying signals](#10-buying-signals)
 11. [Leads](#11-leads)
 12. [Scored leads](#12-scored-leads)
-13. [Revenue by source](#13-revenue-by-source)
+13. [Results (Revenue by source)](#13-results-revenue-by-source)
 14. [Consent and unsubscribe](#14-consent-and-unsubscribe)
 15. [Partners](#15-partners)
 16. [Common questions](#common-questions)
 
-The order of sections 2 to 13 follows the order of the **Marketing** menu.
+Sections 2 to 13 are grouped by topic, not by menu order. Each one belongs to a part of the menu: Audiences, Email, Newsletters, WhatsApp, Events, Forms and Journeys are under **Marketing**. ABM programs, Buying signals, Leads, Scored leads and Results are under **Intelligence**.
 
 ### Not in the product
 
@@ -43,9 +89,9 @@ These are not in the product at this snapshot, so this chapter does not describe
 - A Partners screen. The menu item opens a "coming later" placeholder.
 - Branching paths in a journey. Journeys are straight lines of steps.
 - An automatic confirmation or reminder email for event registrants.
-- Sending one WhatsApp template to a whole target group. WhatsApp goes to one person at a time, or from a journey.
+- Sending one WhatsApp template to a whole audience. WhatsApp goes to one person at a time, or from a journey.
 - A screen to edit all journey safety values. Quiet hours, days off, emails a day and the WhatsApp weekly cap are editable. The "company in trouble" days and the 200-person confirmation are not.
-- Marketing records in the REST API. Consents and ABM can be imported and exported through Data Workbench. Newsletters, forms, journeys, events, WhatsApp, signals and Revenue by source are not in Data Workbench or the API.
+- Marketing records in the REST API. Consents and ABM can be imported and exported through Data Workbench. Newsletters, forms, journeys, events, WhatsApp, signals and Results are not in Data Workbench or the API.
 
 ---
 
@@ -57,26 +103,30 @@ Each Marketing screen has a module flag. Some flags need another flag to be on f
 
 | Menu item | Module flag | Also needs | Business role entry |
 |---|---|---|---|
-| Segmentation | `marketing` | | Segmentation |
-| ABM programs | `abm` | `marketing` | ABM programs |
-| Campaigns | `marketing` | | Marketing Campaigns |
-| Newsletters | `newsletter_studio` | `marketing` | Newsletters |
+| Marketing Overview | `marketing` | | Email |
+| Audiences | `marketing` | | Audiences |
+| Email, chip Sends | `marketing` | | Email |
+| Email, chips Newsletters and Templates | `newsletter_studio` | `marketing` | Newsletters |
 | WhatsApp | `whatsapp_marketing` | `marketing` | WhatsApp |
 | Events | `marketing_events` | `marketing` and `marketing_forms`. The follow-up also needs `journeys` | Events |
 | Forms | `marketing_forms` | `marketing` | Forms |
 | Journeys | `journeys` | `marketing`. A newsletter step needs `newsletter_studio`. A WhatsApp step needs `whatsapp_marketing` | Journeys |
+| Intelligence Overview | any of `buying_signals`, `leads`, `abm`, `marketing_attribution` | | any of Buying signals, Leads, ABM programs, Results |
 | Buying signals | `buying_signals` | `marketing` | Buying signals |
 | Leads | `leads` | | Leads |
-| Scored leads | `marketing_scoring` | `marketing` and `leads` | Leads |
-| Revenue by source | `marketing_attribution` | `marketing`. Revenue figures need `pipeline` | Revenue by source |
+| Leads, view Scored | `marketing_scoring` | `marketing` and `leads` | Leads |
+| ABM programs | `abm` | `marketing` | ABM programs |
+| Results | `marketing_attribution` | `marketing`. Revenue figures need `pipeline` | Results |
 | Partners | `partners` | | Partners |
+
+In the business role editor (**Settings > People > Roles**), the entries are grouped under two headings, **Marketing** and **Intelligence**. A button beside each heading reads **Grant all**, or **Clear all** once everything under that heading is ticked. It is shown when you can edit the role (a standard role is read-only). The entries and their saved grants are the same as before. Only the names changed: Email (was Marketing Campaigns), Audiences (was Segmentation) and Results (was Revenue by source).
 
 ### Where to find the settings
 
 | Setting | Menu path | URL path | Needs |
 |---|---|---|---|
-| Consent: topics, rules by country, counting opens | Settings > Marketing > Consent | `/settings/marketing-consent` | `marketing_scoring` or `newsletter_studio` |
-| Limits: quiet hours, days off, emails and WhatsApp per person | Settings > Marketing > Consent, tab **Limits** | `/settings/marketing-consent?tab=limits` | Shown only when `journeys` or `whatsapp_marketing` is on |
+| Consent: topics, rules by country, counting opens | Settings > Marketing > Consent | `/settings/marketing-consent` | `marketing` (also opens with `marketing_scoring` or `newsletter_studio`) |
+| Limits: quiet hours, days off, emails and WhatsApp per person | Settings > Marketing > Consent, tab **Limits** | `/settings/marketing-consent?tab=limits` | `marketing`. Shown only when `journeys` or `whatsapp_marketing` is on |
 | Leads: scoring rules and hand-over | Settings > Marketing > Leads, tabs **Scoring** and **Hand-over** | `/settings/marketing-leads` | `marketing_scoring` |
 | Brand kit: logo, colours, fonts, footer | Settings > Marketing > Brand kit | `/settings/brand-kit` | `newsletter_studio` |
 | Who gets new sales-ready leads | Settings > Coverage, field **Who gets new sales-ready leads** | `/settings/coverage` | Coverage |
@@ -87,58 +137,66 @@ Settings pages are for administrators only.
 
 ### Rules that apply to every screen below
 
-- Campaigns, newsletters, journeys and WhatsApp check the consent record for each person at the moment of sending.
+- Emails, newsletters, journeys and WhatsApp check the consent record for each person at the moment of sending.
+- Before a plain email goes, **Review and send** shows who will receive it and who is left out, with the reason for each. Nothing is sent without it.
 - A demo workspace never reaches a real customer. All email is redirected to one internal inbox, and WhatsApp is only logged.
 - Most explanations on screen sit behind a small **i** icon. Tap it for the reason behind a setting.
+- The app keeps up to 20 pages open as tabs. When you open a 21st, the oldest tab closes and a notice names it ("20 tabs were open, so ... was closed to make room"). Nothing is lost.
 
 ---
 
-## 2. Segmentation
+## 2. Audiences
 
 ### What it is
 
-A target group is a saved audience. You describe it with rules about accounts, for example "Account type is OEM / Vendor and City contains Mumbai". You can reuse it in campaigns, newsletter sends and ABM programs. The menu calls it Segmentation. The saved object is called a target group.
+An audience is a saved list of the people you email, described by rules about accounts, for example "Account type is OEM / Vendor and City contains Mumbai". You can reuse it in emails, newsletter sends and ABM programs. The screen is **Audiences**. The words "Segmentation" and "target group" are no longer used on screen.
 
 ### Where to find it
 
-**Marketing > Segmentation** (`/marketing/segments`). New group: **+ New target group** (`/marketing/segments/new`). A group opens at `/marketing/segments/<id>`.
+**Marketing > Audiences** (`/marketing/segments`). New audience: **+ New audience** (`/marketing/segments/new`). An audience opens at `/marketing/segments/<id>`.
 
 ### Who uses it and which module switches it on
 
-Marketing and sales staff who build audiences. Module: `marketing`. You need edit rights on the Segmentation role entry to create or change a group, and view rights to see the list.
+Marketing and sales staff who build audiences. Module: `marketing`. You need edit rights on the **Audiences** role entry to create or change one, and view rights to see the list.
 
 ### How to use it
 
-**Create a target group**
+**Create an audience**
 
-1. Open **Marketing > Segmentation** and select **+ New target group**.
-2. In **Target group name**, type a name your team will recognise, for example "OEM accounts, Mumbai".
+1. Open **Marketing > Audiences** and select **+ New audience**.
+2. In **Audience name**, type a name your team will recognise, for example "OEM accounts, Mumbai".
 3. On the left, find an attribute. Click it, or drag it onto the canvas. Attributes are grouped as Account info, Location, Business, Engagement and Coverage. Two more groups appear only when their module is on: Lead scoring (`marketing_scoring`) and Buying signals (`buying_signals`). An ABM group is always offered.
 4. For each condition, choose how to compare (is, is not, contains, is greater than, is less than, is before, is after, is set, is not set) and type or pick the value.
 5. With two or more conditions, choose **Match ALL** or **Match ANY**.
 6. Read the line under the canvas. It shows "→ N recipients" and, in brackets, how many are opted out and how many have no email on file.
-7. Select **Create target group**.
+7. Select **Create audience**.
 
 **Add or remove single accounts, or loose addresses**
 
 1. In the card **Manual overrides (optional)**, use **Add or remove specific accounts** to force an account in or keep one out.
-2. Use **Also send to emails not in the system** to add loose email addresses.
+2. Use **Add an email address** to add a loose address. Only a contact who agreed to the topic is emailed. Any other address is left out and listed with a reason when you send.
 
-**Use a group**
+**Use an audience**
 
-1. On the Segmentation list, select **Use in campaign** on a row. New campaign opens with the group loaded.
-2. On any campaign, use **Load a saved target group…** in the Target audience card.
-3. In the newsletter **Send...** panel, pick the group in **Audience**.
-4. When you create an ABM program, choose **A marketing target group** under **Source**.
+1. In a new or draft email, the **Audience** list offers **Everyone we can email**, each saved audience, and **One-off (changed here)** once you change something. See [Email](#4-email).
+2. On the Audiences list, select **Use in campaign** on a row. A new email opens with that audience loaded.
+3. In the newsletter **Send...** panel, pick the audience in **Audience**.
+4. When you create an ABM program, choose **An audience** under **Source**.
 
-**Change or delete a group**
+**Save a one-off as an audience**
+
+1. In an email, change the audience (for example tick other account types or add a typed address). The list switches to **One-off (changed here)**.
+2. Select **Save as audience** beside it and name it. The list then shows the new audience.
+3. A saved audience that you have not changed shows **Edit audience** (opens the builder) and **Delete**.
+
+**Change or delete an audience**
 
 1. Click the name in the list, change the rules and select **Save changes**.
-2. To remove a group, select **Delete** on its row and confirm. Campaigns already built from it are not affected.
+2. To remove an audience, select **Delete** on its row and confirm. Emails already built from it are not affected.
 
 ### Statuses
 
-A target group has no status. The preview line counts three things.
+An audience has no status. The preview line counts three things.
 
 | Count | Meaning |
 |---|---|
@@ -146,26 +204,27 @@ A target group has no status. The preview line counts three things.
 | opted out | Accounts whose marketing opt-out flag is set |
 | no email on file | Accounts with no email address |
 
+The count in the audience builder is a quick count of accounts. The count on an email (**Who will receive it**) is the real one: it also checks each person's contact and consent (see [Email](#4-email)).
+
 ### How it connects
 
 - The rules read the **account**, not the contact. The address used is the account's email, or its second email.
-- Campaigns and newsletter sends use a group as their audience.
-- ABM can copy a group into its target list. The copy does not change when the group changes.
+- Emails and newsletter sends use an audience. ABM can copy an audience into its target list. The copy does not change when the audience changes.
 - Lead score, buying stage and ABM fields let you target by what people did, not only who they are.
 - The field **Marketing opt-out** filters on the company-level opt-out flag.
-- A group does not decide who may be emailed. Consent is checked later, at the moment of sending (see [Consent and unsubscribe](#14-consent-and-unsubscribe)).
+- An audience does not decide who may be emailed. Consent is checked later, at the moment of sending (see [Consent and unsubscribe](#14-consent-and-unsubscribe)).
 
 ### Good to know
 
-- If a group has conditions, the account-type tick boxes on a campaign are ignored. The campaign page says "Type filters below are ignored while this is active."
+- If an audience has conditions, the email form shows it as **Rule-based audience** with **Edit audience** and **Clear**, instead of the account-type boxes.
 - An account you removed by hand is never included. An account you added by hand is always included, even when it does not match the conditions.
 - A typed address that already belongs to a matched account is not added twice.
 - Lead score and lead stage conditions only match accounts that have a scored lead.
 - ABM conditions are offered even in a workspace without ABM, but never match there (verify).
-- Segmentation and Campaigns are the oldest Marketing modules, so they may already be in daily use at your company.
+- Audiences and plain emails are the oldest Marketing modules, so they may already be in daily use at your company.
 
-Screenshot: 04-segmentation-list.png | /marketing/segments | The list of target groups with the Conditions column and the Use in campaign link
-Screenshot: 04-segmentation-builder.png | /marketing/segments/new | The attribute palette on the left, two conditions on the canvas with Match ALL selected, and the recipient count line
+Screenshot: 04-audiences-list.png | /marketing/segments | The list of audiences with the Conditions column, the Use in campaign link and the + New audience button
+Screenshot: 04-audience-builder.png | /marketing/segments/new | The Audience name field, the attribute palette on the left and the conditions canvas
 
 ---
 
@@ -177,7 +236,7 @@ Account-based marketing (ABM) means working a chosen list of companies as a team
 
 ### Where to find it
 
-**Marketing > ABM programs** (`/marketing/abm`). New program: **+ New program** (`/marketing/abm/new`). A program opens at `/marketing/abm/<id>`. A company inside a program opens at `/marketing/abm/<id>/accounts/<targetId>`.
+**Intelligence > ABM programs** (`/marketing/abm`). New program: **+ New program** (`/marketing/abm/new`). A program opens at `/marketing/abm/<id>`. A company inside a program opens at `/marketing/abm/<id>/accounts/<targetId>`.
 
 ### Who uses it and which module switches it on
 
@@ -187,16 +246,16 @@ Account owners and marketers. Module: `abm` (needs `marketing`). Optional: `buyi
 
 **Create a program**
 
-1. Open **Marketing > ABM programs** and select **+ New program**.
+1. Open **Intelligence > ABM programs** and select **+ New program**.
 2. Under **The program**, fill in **Name**, **Kind** (New business or Expansion), **Owner**, **Goal** (one plain sentence), **Measured in** (Deals won, Deals opened, Accounts responding or Revenue), **Target**, **Starts on** and **Ends on**.
 3. Under **How each company is worked**, choose **Default tier**: 1:1 (its own plan, worked personally), 1:few (a small cluster sharing content) or 1:many (the program's standard plays). Under **Roles every company needs**, tick the roles. Decision maker and Influencer are the standard.
-4. Under **Start the target list from**, choose **Start empty**, **A marketing target group** or **A Coverage segment**.
+4. Under **Start the target list from**, choose **Start empty**, **An audience** or **A Coverage segment**.
 5. Save the program, then select **Go live**. **Pause** and **Resume** are in the same place.
 
 **Add target accounts**
 
 1. Open the **Target accounts** tab and select **+ Add accounts**.
-2. Choose **By name**, **From a marketing target group** or **From a Coverage segment**. For a group or segment, select **Preview** first.
+2. Choose **By name**, **From an audience** or **From a Coverage segment**. For an audience or segment, select **Preview** first.
 3. Pick **Tier for these companies** and select **Add accounts**.
 4. The list is a copy. To see what changed in the source, select **Refresh from source**. Nothing changes until you tick the changes and select **Apply**.
 
@@ -245,11 +304,11 @@ Select any progress pill to open **Why this status?**. It names the rule and the
 
 ### How it connects
 
-- Target lists come from Segmentation groups or Coverage segments.
+- Target lists come from audiences or Coverage segments.
 - Progress reads the shared event stream: emails, WhatsApp, quotes, forms and web visits.
 - A linked deal from the Pipeline moves a company to Deal open, then Won or Lost.
 - Buying stage from Buying signals shows beside progress.
-- ABM conditions (in program, progress, tier) can be used in Segmentation.
+- ABM conditions (in program, progress, tier) can be used in Audiences.
 - Programs, targets and members can be imported and exported through Data Workbench.
 
 ### Good to know
@@ -266,55 +325,69 @@ Screenshot: 04-abm-buying-group.png | /marketing/abm/<id>/accounts/<targetId> | 
 
 ---
 
-## 4. Campaigns
+## 4. Email
 
 ### What it is
 
-A campaign is one email sent to an audience. You can write it here, from a festival or service template or in free text. Or you can send a newsletter you designed in Newsletter Studio. Either way, the campaign row is the send record: it lists every recipient and what happened to them.
+Email is the one place for everything you send by email. A **plain email** is one you type here: a festival or service message from a template, or free text. A **newsletter** is a design you built in Newsletter Studio (see [Newsletters](#5-newsletters)). Either way, each send leaves a record that lists every recipient and what happened to them. Some places, such as change history and the web addresses, still call that record a campaign.
 
 ### Where to find it
 
-**Marketing > Campaigns** (`/marketing`). New campaign: **+ New Campaign** (`/marketing/new`). A campaign opens at `/marketing/<id>`.
+**Marketing > Email** (`/marketing/email`). Chips: **Sends** (the history of every email, with a **Type** column showing Plain or Newsletter), and, in a workspace with Newsletter Studio, **Newsletters** and **Templates**. Buttons: **+ New email** (`/marketing/new`) and, with the Studio, **+ New newsletter**. A send opens at `/marketing/<id>`.
+
+The old campaign list and the old Newsletters list redirect to Email. The address `/marketing` is now the Marketing Overview, so a stored link to the old campaign list opens the Overview, one click from Email.
 
 ### Who uses it and which module switches it on
 
-Marketers. Module: `marketing`. You need edit rights on the Marketing Campaigns role entry to create or send.
+Marketers. Module: `marketing`. You need edit rights on the **Email** role entry to create or send. The **Newsletters** and **Templates** chips need `newsletter_studio` and the **Newsletters** role entry.
 
 ### How to use it
 
-**Send a festival or promotion email**
+**Send a plain email**
 
-1. Open **Marketing > Campaigns** and select **+ New Campaign**.
+The screen follows the order Audience, Message, Review and send.
+
+1. Open **Marketing > Email** and select **+ New email**. The page is still titled **New Campaign** at this snapshot (verify).
 2. Type a **Campaign name (internal)**. Only your team sees it.
-3. Either open **Start from a template**, choose a folder and then a design, and write your words in the custom message. The folders are Christmas, Diwali, Eid, Ganesh Chaturthi, Holi, Independence Day, Makar Sankranti and Pongal, Navratri and Dussehra, New Year, Raksha Bandhan, Republic Day and Service Reminder. Or skip templates and write the **Subject** and **Message** yourself.
-4. In the subject you can use `{{account_name}}` and `{{company_name}}`. Each is replaced for every recipient.
-5. In **Target audience**, tick account types, or pick **Load a saved target group…**, or use **Add or remove specific accounts** and **Also send to emails not in the system**.
-6. Read the line "→ N recipients" and select **Save draft**.
-7. On the draft, review it and select **Send now**. Confirm "Send this campaign now?".
+3. Under **Audience**, pick from the list: **Everyone we can email** (the starting choice), a saved audience, or **One-off (changed here)**, which appears once you change something. Select **More** to tick account types, add or remove specific accounts, or **Add an email address**. **Save as audience** keeps a one-off. **Edit audience** and **Delete** appear beside a saved audience you have not changed.
+4. Read **Who will receive it**. It shows, for example, "8 will receive" and "105 left out", then a count by reason ("68 no email address, 24 not a contact, 13 no consent"). The first five people left out are listed with the reason and a link that fixes it. **Show all** lists the rest. This count runs the same checks as the send, without sending.
+5. A typed address shows a chip: **Ready**, **Not a contact** (with **Create contact**) or **No consent**.
+6. Under the count, the **Consent** chip shows the topic (**Any topic**) and a **Change in Settings** link. Topics and rules are not changed on this screen.
+7. Either open **Start from a template**, choose a folder and then a design, and write your words in the custom message, or skip templates and write the **Subject** and **Message** yourself. The folders are Christmas, Diwali, Eid, Ganesh Chaturthi, Holi, Independence Day, Makar Sankranti and Pongal, Navratri and Dussehra, New Year, Raksha Bandhan, Republic Day and Service Reminder. In the subject you can use `{{account_name}}` and `{{company_name}}`. Each is replaced for every recipient.
+8. Select **Save draft**. "Draft saved" appears and the saved draft opens. Selecting **Save draft** again changes the same draft. It does not make a copy.
+9. On the draft, select **Review and send**. A side panel (a bottom sheet on a phone) opens with the real count, who is left out and why, and the button **Send to N**. Nothing is sent until you select **Send to N**. Select **Close** to go back. If nobody can be emailed, the button is off and the panel says so.
+10. After **Send to N**, the panel shows how many were sent, left out and failed. Select **See who it went to** to open the record.
 
 **Change a draft**
 
-1. Open the campaign from the list, edit it and select **Save changes**.
+1. Open the email from **Sends**, edit it and select **Save changes**.
 
 **Read the result**
 
-1. Open the campaign. The facts bar shows **Sent**, **Failed**, **Skipped** and **Leads**.
-2. The **Recipients** tab lists each recipient and the reason for any skip.
-3. For a campaign that sent a newsletter, a card shows results by language and clicks per link.
+1. Open the email. The facts bar shows **Sent**, **Failed**, **Left out** and **Leads**.
+2. While the send is running, the page shows **Sending… 4 of 8** and refreshes by itself every few seconds, so you do not need to reload. It stops when the status is no longer Sending. If it takes longer than about 20 minutes, the page tells you to reload.
+3. The **Recipients** list shows each recipient. A person left out shows a reason and a link to fix it.
+4. For a send of a newsletter, a card shows results by language and clicks per link.
+
+**Send the rest**
+
+1. If some emails failed, the page says so. If the cause was the email service's daily limit, it reads "The email service has reached its daily limit. The rest can be sent later." Select **Send the rest** when the limit has reset.
+2. **Send the rest** goes only to people whose email failed or was never tried. It never emails anyone already sent, and people who were left out stay left out. It runs the same consent check as the first send, updates the failed rows (no duplicates) and does not repeat the "email sent" event. Selecting it twice in a row sends nothing the second time.
+3. It is offered for plain emails only. A newsletter is sent again from the Studio.
 
 **Keep the audience for later**
 
-1. In the Target audience card, select **Save as target group**.
+1. In the Audience card, select **Save as audience** (see [Audiences](#2-audiences)).
 
 ### Statuses
 
-Campaign:
+Email:
 
 | Status | Meaning |
 |---|---|
 | Draft | Not sent. You can edit it |
-| Sending… | The send is running |
-| Sent | The send finished. Failed and skipped counts are on the row |
+| Sending… | The send is running. The page follows it |
+| Sent | The send finished. Failed and left-out counts are on the record |
 | Failed | The label exists, but no step that sets it was found (verify) |
 
 Recipient:
@@ -323,34 +396,47 @@ Recipient:
 |---|---|
 | Sent | Handed to the email service |
 | Failed | The email service refused it. The reason is shown |
-| Skipped (opted out) | The company's marketing opt-out flag is set |
-| Skipped (no email) | The account has no email address |
-| Skipped (no consent) | The person has not agreed to the campaign's topic |
-| Skipped (no contact) | The account has no contact record, or no contact matches the address |
-| Skipped (no language) | No ready language for the person (newsletter sends) |
 | Pending | Waiting |
+| Left out | Not emailed. The reason is one of the rows below |
+
+Reasons a person is left out. Each one has a sentence and, where there is a fix, a link.
+
+| Label | Sentence | Link |
+|---|---|---|
+| No email address | This account has no email address. | Open the account |
+| Not a contact | This address is not a contact yet, so we cannot check consent. | Create contact |
+| No consent | This person has not agreed to this topic. | Open the contact, or Open Consent settings |
+| Unsubscribed | The account unsubscribed. | Open the account |
+| Address bounced | This address bounced, so it is blocked. | Open the contact |
+| Marked as spam | This person reported a message as spam, so the address is blocked. | Open the contact |
+| Blocked | This person is on the do-not-contact list. | Open the contact |
+| Withdrew consent | This person withdrew consent for this topic. | Open the contact |
+| No language version | There is no version in this person's language (newsletter sends). | none |
 
 ### How it connects
 
-- **Accounts.** A plain campaign goes to the email on the account.
-- **Leads.** Each plain campaign email carries an **Interested? Tell us more** button. When the recipient opens the link and presses the button, a lead is created. Its title is "Interest from campaign: <campaign name>" and its source is Campaign. There is one lead per company per campaign. The Leads list shows the campaign name as a link back.
+- **Audiences.** An email picks an audience. See [Audiences](#2-audiences).
+- **Consent.** Every person is checked for the topic at the moment of sending. The count, the Review and send panel and the record all use the same decisions and the same sentences. See [Consent and unsubscribe](#14-consent-and-unsubscribe).
+- **Accounts and contacts.** A plain email goes to the email on the account, and the person must be a contact with consent.
+- **Leads.** Each plain email carries an **Interested? Tell us more** button. When the recipient opens the link and presses the button, a lead is created. Its title is "Interest from campaign: <name>" and its source is Campaign. There is one lead per company per email. The Leads list shows the name as a link back.
 - **Unsubscribe.** The footer has an **Unsubscribe** link (see [Consent and unsubscribe](#14-consent-and-unsubscribe)).
-- **Newsletters.** The **Send...** button in Newsletter Studio creates a campaign named after the newsletter and the date, and sends it.
-- **Email log.** Every send is logged against the campaign.
-- **Revenue by source.** Campaigns are one of the items you can see revenue for.
+- **Newsletters.** The **Send...** button in Newsletter Studio creates a record named after the newsletter and the date, and sends it. It appears in **Sends** with the type Newsletter.
+- **Email log.** Every send is logged against the record.
+- **Results.** Emails are one of the items you can see revenue for.
 
 ### Good to know
 
-- A campaign can be sent only once. To send again, create a new campaign.
-- A plain campaign checks the company's marketing opt-out flag, whether an email address exists, and each person's consent for the campaign's topic, like a newsletter. An account with no contact record is skipped.
-- Typed email addresses that are not accounts get no unsubscribe link and no interest button in a plain campaign.
-- Sending is one email at a time with a short pause. A single send is sized for roughly 150 to 200 recipients, because it must finish within about a minute (verify). Split a larger audience into several target groups.
+- An email is sent once to each person. To send the same message to everyone again, create a new email. **Send the rest** only completes a send that was cut short.
+- A typed address is emailed only if it is a contact who agreed to the topic. Whether such a person gets the unsubscribe link and the interest button was not confirmed (verify).
+- Sending is one email at a time with a short pause. A single send is sized for roughly 150 to 200 recipients, because it must finish within about a minute (verify). Split a larger audience into several audiences.
 - On a demo workspace, every email goes to the internal inbox set in **Settings > Integrations > Email output**. The subject starts with "[Redirected · for …]" and the body names the intended recipient. With no inbox set, nothing is sent and the screen says why. A normal workspace can also choose redirect mode there.
 - Emails are sent from your workspace's address on BPMSquare's sending domain. Replies go to the email in your company information (verify).
+- The email service has a daily limit. When it is reached, the rest of the send fails with that reason, and **Send the rest** finishes it later.
 
-Screenshot: 04-campaigns-list.png | /marketing | The campaign list with Draft, Sent and Failed pills and the Sent, Failed, Skipped counts
-Screenshot: 04-campaign-new.png | /marketing/new | New Campaign with the template folders open and the Target audience card with a recipient count
-Screenshot: 04-campaign-recipients.png | /marketing/<id> | A sent campaign with the facts bar and the Recipients list showing skipped reasons
+Screenshot: 04-email-sends.png | /marketing/email | The Email page with the chips Sends, Newsletters and Templates, the two buttons and the Sent, Failed and Left out counts
+Screenshot: 04-email-compose.png | /marketing/new | The Audience list, the Who will receive it count with reasons and the Consent chip
+Screenshot: 04-email-review-panel.png | /marketing/<id> | The Review and send panel with the count, who is left out and the Send to N button
+Screenshot: 04-email-record.png | /marketing/<id> | A sent email with the four tiles and the Send the rest line
 
 ---
 
@@ -362,7 +448,7 @@ Newsletter Studio is where you design an email once in English, add Arabic or an
 
 ### Where to find it
 
-**Marketing > Newsletters** (`/marketing/newsletters`, chips **Newsletters** and **Templates**). New: **+ New Newsletter** (`/marketing/newsletters/new`). A newsletter opens at `/marketing/newsletters/<id>`. The brand kit is at **Settings > Marketing > Brand kit** (`/settings/brand-kit`).
+**Marketing > Email**, chips **Newsletters** and **Templates** (`/marketing/email?view=designs` and `?view=templates`; the old address `/marketing/newsletters` redirects there). New: **+ New Newsletter** on the Newsletters chip, or **+ New newsletter** on Sends (`/marketing/newsletters/new`). A newsletter opens at `/marketing/newsletters/<id>`. The brand kit is at **Settings > Marketing > Brand kit** (`/settings/brand-kit`).
 
 ### Who uses it and which module switches it on
 
@@ -377,7 +463,7 @@ Marketers write and send. An administrator sets the brand kit. Module: `newslett
 
 **Write a newsletter**
 
-1. Open **Marketing > Newsletters** and select **+ New Newsletter**. The options on the left are in four tabs: **Start**, **Blocks**, **Languages** and **Health**.
+1. Open **Marketing > Email**, choose the **Newsletters** chip and select **+ New Newsletter**. The options on the left are in four tabs: **Start**, **Blocks**, **Languages** and **Health**.
 2. In **Start**, give it a **Name**. Pick a **Category** (Newsletter, Offer, Event, Announcement or Festival) and a **Consent topic**, or **Any consent topic**.
 3. Choose how to begin:
    - **Write it for me.** Answer **What is this newsletter about?** (at least 10 characters). Optionally tick **Use my recent products** and **Use my recent campaigns**. Select **Write it for me**.
@@ -401,10 +487,10 @@ Marketers write and send. An administrator sets the brand kit. Module: `newslett
 **Send it**
 
 1. Select **Send...**. A copy of the design is kept automatically, so editing it later never changes what already went out.
-2. In **Audience**, keep **Everyone we can email** or pick a saved target group. Select **More** for a one-off: tick account types or use **Add email addresses**.
+2. In **Audience**, keep **Everyone we can email** or pick a saved audience. Select **More** for a one-off: tick account types or use **Add email addresses**.
 3. The panel shows "N of M people will receive it", how many get each language, and who is left out and why. Each reason has an **i** with the fix. Nothing is sent yet.
 4. Select **Send to N** and confirm. Emails go out at once and cannot be recalled.
-5. Select **See what was sent** to open the campaign record.
+5. Select **See what was sent** to open the send record. It appears in **Email > Sends** with the type Newsletter.
 
 ### Statuses
 
@@ -424,18 +510,18 @@ Language on a newsletter:
 | N to check | That language still has lines marked Check this |
 | Ready | Every line is checked. It can be sent |
 
-A newsletter send creates a campaign, so it also shows the campaign statuses in [Campaigns](#4-campaigns).
+A newsletter send creates a send record, so it also shows the email statuses in [Email](#4-email).
 
 ### How it connects
 
 - **Consent.** Each recipient is matched to a contact. The consent record is checked for the newsletter's topic at the moment of sending.
 - **Languages.** A person gets the contact's preferred language, else the account's, else the fallback language.
-- **Campaigns.** Every send is a campaign row with the recipient list, results by language and clicks per link.
+- **Email.** Every send is a row in **Sends** with the recipient list, results by language and clicks per link.
 - **Journeys.** The **Send a newsletter** step uses a saved newsletter.
-- **Leads.** Built-in designs such as Monthly update include an **Interested? button**. A click creates a lead, as in plain campaigns (verify).
+- **Leads.** Built-in designs such as Monthly update include an **Interested? button**. A click creates a lead, as in plain emails (verify).
 - **Preference centre.** The footer link **Manage preferences** opens the preference centre when Forms is on. Otherwise it opens the unsubscribe page.
 - **Scoring and signals.** Clicks are always counted and add to lead scores and buying signals.
-- **Revenue by source.** Newsletters are one of the items you can see revenue for.
+- **Results.** Newsletters are one of the items you can see revenue for.
 
 ### Good to know
 
@@ -444,8 +530,8 @@ A newsletter send creates a campaign, so it also shows the campaign statuses in 
 - A person who has not agreed to the topic is left out. A typed address that does not match a contact is left out. A language with lines still to check is not sent, and those people get the fallback language.
 - With **Any consent topic**, a person needs a yes that covers every topic (verify).
 - Opens are not counted unless an administrator turns on **Count newsletter opens**. Clicks are always counted.
-- The same pacing and size limits apply as for campaigns.
-- A demo workspace is redirect-only, as described under Campaigns.
+- The same pacing and size limits apply as for plain emails.
+- A demo workspace is redirect-only, as described under Email.
 
 Screenshot: 04-newsletter-studio.png | /marketing/newsletters/<id> | The Studio with the four option tabs on the left and the phone preview on the right
 Screenshot: 04-newsletter-send-panel.png | /marketing/newsletters/<id> | The Send... panel showing "N of M people will receive it" and the who-is-left-out list
@@ -516,7 +602,7 @@ Template:
 
 - **Consent.** The consent check on the WhatsApp channel and the template's topic comes first, before anything else is looked at.
 - **Journeys.** The step **Send a WhatsApp template** uses an approved template.
-- **Replies.** A reply becomes an event that adds to the lead score and to ABM progress, and counts as a touch in Revenue by source.
+- **Replies.** A reply becomes an event that adds to the lead score and to ABM progress, and counts as a touch in Results.
 - **STOP and START.** A message that is only STOP (or the Arabic words) records a withdrawal. START records the opt-in again. A longer message is treated as a reply.
 - **Contacts.** The contact's Consent card records WhatsApp consent.
 
@@ -605,7 +691,7 @@ Attendee:
 - **Forms.** Registration is a form submission. The form finds or creates the contact, records consent exactly as the form says, files a lead, and then registers the person. An event never records consent itself.
 - **Journeys.** The follow-up puts people into a journey you built. The journey keeps its own consent, quiet-hours and daily-limit rules.
 - **Coverage.** Each attendee row shows the company's owner, for the first 60 companies.
-- **Scoring and revenue.** "Attended" adds to lead scores. Registration and attendance are touches in Revenue by source.
+- **Scoring and revenue.** "Attended" adds to lead scores. Registration and attendance are touches in Results.
 - **Change history.** Each check-in is logged with who did it.
 
 ### Good to know
@@ -693,7 +779,7 @@ Consent from a form, as shown on the contact's Consent card:
 - **Consent.** The exact words shown are stored with the consent. See [Consent and unsubscribe](#14-consent-and-unsubscribe).
 - **Events.** An event registers people through its linked form.
 - **Newsletters.** The **Manage preferences** footer link opens the preference centre when Forms is on.
-- **Scoring, signals and revenue.** A form submission adds to lead scores and counts as a touch in Revenue by source.
+- **Scoring, signals and revenue.** A form submission adds to lead scores and counts as a touch in Results.
 
 ### Good to know
 
@@ -782,7 +868,7 @@ Why a step was skipped or held:
 - **Newsletters and WhatsApp.** The send steps go through the same send path and consent check as a normal send.
 - **Owner.** Tasks and notices go to the company's owner from Coverage. A notice appears in the Nova inbox.
 - **Events.** An event's follow-up starts people in a journey.
-- **Revenue by source.** Journeys are one of the items you can see revenue for.
+- **Results.** Journeys are one of the items you can see revenue for.
 
 ### Good to know
 
@@ -808,7 +894,7 @@ Buying signals shows which companies look close to buying. It adds up what each 
 
 ### Where to find it
 
-**Marketing > Buying signals** (`/marketing/signals`), with tabs **In market**, **Did it work?** and **Interests**.
+**Intelligence > Buying signals** (`/marketing/signals`), with tabs **In market**, **Did it work?** and **Interests**.
 
 ### Who uses it and which module switches it on
 
@@ -833,9 +919,9 @@ Salespeople and account owners read it. An administrator sets interests and sele
 
 1. Open **Did it work?** and pick a sent campaign or newsletter. It compares each recipient's stage in the 14 days before and after.
 
-**Use the stage in a target group**
+**Use the stage in an audience**
 
-1. In Segmentation, add a condition from **Buying signals**: **Buying stage**, **In-market score**, **Days in current stage** or **Engaged with topic**.
+1. In **Audiences**, add a condition from **Buying signals**: **Buying stage**, **In-market score**, **Days in current stage** or **Engaged with topic**.
 
 ### Statuses
 
@@ -851,7 +937,7 @@ Suggested next step: Deciding is Call. Comparing is Follow up or Start a quote. 
 ### How it connects
 
 - **Sources:** quotes, deals, three cases on one asset in 90 days, contracts ending within 60 days, "I am interested" leads, and clicks on campaign and newsletter links.
-- **Segmentation.** Stage, score, days in stage and topic are conditions for target groups.
+- **Audiences.** Stage, score, days in stage and topic are conditions for audiences.
 - **ABM.** The stage shows beside each program company.
 - **Account.** An Account 360 card shows the score and recent signals.
 - **Owner alert.** When a company moves up to Comparing or Deciding, the company's owner gets a note on the account. In a Nova workspace it appears in the inbox.
@@ -874,11 +960,11 @@ Screenshot: 04-signals-did-it-work.png | /marketing/signals?tab=didit | A sent c
 
 ### What it is
 
-A lead is an enquiry or an interested company that has not yet become a deal. The **Leads** page is the simple list. You add leads by hand, and leads also arrive from forms, from campaign interest buttons and from the Inbox.
+A lead is an enquiry or an interested company that has not yet become a deal. There is one **Leads** list. You add leads by hand, and leads also arrive from forms, from email interest buttons and from the Inbox. In a workspace with the lead scoring program, a switch above the list, **All leads | Scored**, shows the same leads two ways. **All leads** is the simple list described in this section. **Scored** is described in the next section. Without the scoring program there is no switch.
 
 ### Where to find it
 
-**Marketing > Leads** (`/leads`).
+**Intelligence > Leads** (`/leads`). The switch **Scored** is at `/leads?view=scored`.
 
 ### Who uses it and which module switches it on
 
@@ -888,7 +974,7 @@ Sales and marketing. Module: `leads`. The **→ Deal** button needs `pipeline`.
 
 **Add a lead**
 
-1. Open **Marketing > Leads** and select **+ New Lead**.
+1. Open **Intelligence > Leads** and select **+ New Lead**.
 2. Search and pick the **Account**. Type a **Title**, for example "Ring-frame motor burnt, rewind enquiry". Pick the **Source**: Direct, OEM Referral or AMC.
 3. Select **Save**.
 
@@ -916,17 +1002,17 @@ Sources shown on the list: OEM Referral, AMC, Direct, Campaign, Form and Inbound
 ### How it connects
 
 - **Accounts.** Every lead belongs to an account.
-- **Campaigns and forms.** An interest click or a form submission creates a lead, with the campaign or form recorded as its source.
+- **Emails and forms.** An interest click or a form submission creates a lead, with the email or form recorded as its source.
 - **Inbox.** In the Inbox, an email can be turned into a Lead (verify the button wording).
 - **Pipeline.** **→ Deal** creates the deal with the lead's title, account and source. If the lead already has a deal, it opens that one.
-- **Scored leads.** The same leads are scored and staged there (see the next section). The two lists are two views of the same leads.
+- **Scored view.** The same leads are scored and staged there (see the next section). **All leads** and **Scored** are two views of the same leads.
 - **Change history.** Creating a lead is logged.
 
 ### Good to know
 
 - Leads added by hand can only have the sources Direct, OEM Referral or AMC. The other sources are set by the product.
-- The Leads page shows the simple statuses. The eight stages are on **Scored leads**.
-- The Leads page is unchanged by lead scoring.
+- **All leads** shows the simple statuses. The eight stages are on the **Scored** view.
+- **New lead** stays on **All leads**.
 
 Screenshot: 04-leads-list.png | /leads | The Leads list with status chips and the → Deal button
 Screenshot: 04-lead-new.png | /leads | The New lead dialog with Account, Title and Source
@@ -937,15 +1023,15 @@ Screenshot: 04-lead-new.png | /leads | The New lead dialog with Account, Title a
 
 ### What it is
 
-Scored leads is a second view of leads that adds a score and eight stages. The score is worked out from what the person did (clicked an email, opened a quote, filled in a form) and who they are (their company and role). When it is high enough, the lead becomes **Ready for sales** and goes to a salesperson, who has a deadline to respond. The score comes from fixed rules. It is never an AI guess.
+The **Scored** view of Leads adds a score and eight stages to the same leads. The score is worked out from what the person did (clicked an email, opened a quote, filled in a form) and who they are (their company and role). When it is high enough, the lead becomes **Ready for sales** and goes to a salesperson, who has a deadline to respond. The score comes from fixed rules. It is never an AI guess.
 
 ### Where to find it
 
-**Marketing > Scored leads** (`/marketing/leads`). A lead opens at `/marketing/leads/<id>`. The rules are at **Settings > Marketing > Leads** (`/settings/marketing-leads`).
+**Intelligence > Leads**, then the switch **Scored** (`/leads?view=scored`). The old address `/marketing/leads` redirects there and keeps the search, stage, sort and page. A lead opens at `/marketing/leads/<id>`. The rules are at **Settings > Marketing > Leads** (`/settings/marketing-leads`).
 
 ### Who uses it and which module switches it on
 
-Salespeople work the leads. Marketing administrators set the rules. Modules: `marketing_scoring` and `leads` (both need `marketing`). Without `marketing_scoring` the page does not exist for your workspace.
+Salespeople work the leads. Marketing administrators set the rules. Modules: `marketing_scoring` and `leads` (both need `marketing`). Without `marketing_scoring` the switch does not appear for your workspace and `?view=scored` shows the plain list.
 
 ### How to use it
 
@@ -958,7 +1044,7 @@ Salespeople work the leads. Marketing administrators set the rules. Modules: `ma
 
 **Work the list (salesperson)**
 
-1. Open **Marketing > Scored leads**. The best score is at the top.
+1. Open **Intelligence > Leads** and select **Scored**. The best score is at the top.
 2. Use the chips: **All**, a stage, or **Overdue**. Search by lead, company or person.
 3. Open a lead. The card **Why 72?** (your number will differ) lists each reason with its points and how many points remain to the next stage.
 4. On a **Ready for sales** lead, select **Pick this up**. It becomes yours and moves to **Working**.
@@ -987,8 +1073,8 @@ Default scoring: Warm from 20 and Hot from 60. Default points include 10 for cli
 - **Events.** Email clicks, quote openings, form submissions, WhatsApp replies and event attendance all add points.
 - **Coverage.** The company's team and its assignment mode decide who gets a Ready lead. If no team covers the company, the **Hand-over** list is used, then the oldest administrator.
 - **Nova inbox.** An owner is told when a lead becomes Ready, and when it is overdue (each lead once).
-- **Leads page.** The same lead appears there with its simple status. A stage move keeps the simple status in step.
-- **Segmentation.** Lead score and lead stage are conditions for target groups.
+- **All leads.** The same lead appears there with its simple status. A stage move keeps the simple status in step.
+- **Audiences.** Lead score and lead stage are conditions for audiences.
 - **Account 360.** A lead card shows on the account.
 
 ### Good to know
@@ -997,32 +1083,32 @@ Default scoring: Warm from 20 and Hot from 60. Default points include 10 for cli
 - Scoring moves a lead up through New, Engaged and Ready for sales by itself. It never moves it down, and never touches a lead a person has taken on.
 - The response clock starts when a lead becomes Ready for sales and stops when it becomes Working.
 - Automatic leads only look at what people did after you switched the setting on.
-- The how-to guide and some older text call this screen "Lead scores". The menu and page title say "Scored leads".
+- Older text calls this screen "Lead scores" or "Scored leads". It is the Scored view of Leads now, and the Intelligence Overview step **Who is ready** counts it.
 
-Screenshot: 04-scored-leads-list.png | /marketing/leads | The list with score meters, Lead stage pills and Respond by chips
+Screenshot: 04-scored-leads-list.png | /leads?view=scored | The list with score meters, Lead stage pills and Respond by chips
 Screenshot: 04-scored-lead-why.png | /marketing/leads/<id> | The Why score card with reasons and the Pick this up button
 Screenshot: 04-settings-leads-scoring.png | /settings/marketing-leads | The Scoring tab with Warm from, Hot from and the rules table
 
 ---
 
-## 13. Revenue by source
+## 13. Results (Revenue by source)
 
 ### What it is
 
-Revenue by source shows how many deals, how much open pipeline, how much won revenue and how much money received each campaign, newsletter, form, journey, WhatsApp template or event started or touched. It shows where deals came from. It does not prove why they were won.
+Results shows how many deals, how much open pipeline, how much won revenue and how much money received each campaign, newsletter, form, journey, WhatsApp template or event started or touched. It shows where deals came from. It does not prove why they were won.
 
 ### Where to find it
 
-**Marketing > Revenue by source** (`/marketing/attribution`).
+**Intelligence > Results** (`/marketing/attribution`). The page is titled **Revenue by source**.
 
 ### Who uses it and which module switches it on
 
-Marketing and sales managers. An administrator can select **Refresh figures**. Module: `marketing_attribution` (needs `marketing`). The revenue figures need `pipeline`.
+Marketing and sales managers. You need the **Results** role entry. An administrator can select **Refresh figures**. Module: `marketing_attribution` (needs `marketing`). The revenue figures need `pipeline`.
 
 ### How to use it
 
-1. Open **Marketing > Revenue by source**.
-2. Under **What to look at**, choose Campaigns, Newsletters, Forms, Journeys, WhatsApp templates or Events.
+1. Open **Intelligence > Results**.
+2. Under **What to look at**, choose Emails, Newsletters, Forms, Journeys, WhatsApp templates or Events.
 3. Under **Who gets the credit**, choose **First touch**, **Last touch** or **Shared evenly**.
 4. Under **What counts as a touch**, choose **The person did something** (a click, reply, form or registration) or **Also people only sent something**.
 5. Read the four figures: **Won, where it started**, **Open, where it started**, **Deals started** and **Deals in all**. Then read the table: Companies, Deals started, Open, Won, Paid, Deals touched and Won touched.
@@ -1052,7 +1138,7 @@ There is no status. The page uses these terms.
 - A company that clicked may have bought anyway. A deal with no touch may have come from a phone call that is not recorded.
 - A WhatsApp dry run reached nobody and is ignored.
 - With fewer than 20 deals, read the table as a list, not a rate.
-- The page title is "Revenue by source".
+- The menu says Results. The page title is "Revenue by source".
 
 Screenshot: 04-revenue-by-source.png | /marketing/attribution | The choices on the left and the four figures and table on the right
 Screenshot: 04-revenue-how-to-read.png | /marketing/attribution | The How to read this card
@@ -1069,14 +1155,14 @@ Consent is a person's recorded "yes, you may contact me about this." Every yes a
 
 ### Where to find it
 
-- Rules and topics: **Settings > Marketing > Consent** (`/settings/marketing-consent`).
+- Rules and topics: **Settings > Marketing > Consent** (`/settings/marketing-consent`). This is the only place that sets them. The email screens show a **Consent** chip and a **Change in Settings** link to it.
 - One person: **Contacts**, open the person, **Marketing** tab, **Consent** card.
 - Bulk: **Data Workbench**, Import or Export, **Consents**.
 - Public pages: the unsubscribe page (`/marketing/unsubscribe/<accountId>/<token>`), the preference centre and the confirm page.
 
 ### Who uses it and which module switches it on
 
-Administrators set the rules. Anyone who edits contacts can record an answer. The settings and the Marketing tab on a contact need `marketing_scoring` or `newsletter_studio`.
+Administrators set the rules. Anyone who edits contacts can record an answer. The Consent page and its Limits tab open for any workspace with `marketing`. **Scoring** and **Hand-over** under Settings > Marketing > Leads still need `marketing_scoring`. The Marketing tab on a contact is unchanged (verify).
 
 ### How to use it
 
@@ -1118,15 +1204,16 @@ Country groups are Saudi Arabia, United Arab Emirates, Qatar, Kuwait, Oman, Bahr
 
 ### How it connects
 
-- **Sending.** Newsletters, journeys and WhatsApp ask "may we contact this person, on this channel, about this topic, right now?" at the moment of sending. The most recent answer wins. On a tie, a withdrawal wins. A "do not contact" mark, a suppressed address (bounced or reported as spam) and the company's opt-out flag all refuse email.
+- **Sending.** Emails, newsletters, journeys and WhatsApp ask "may we contact this person, on this channel, about this topic, right now?" at the moment of sending. The most recent answer wins. On a tie, a withdrawal wins. A "do not contact" mark, a suppressed address (bounced or reported as spam) and the company's opt-out flag all refuse email.
 - **Forms.** A ticked box records consent with the exact words shown. A preference centre change adds a new answer.
 - **WhatsApp.** STOP and START replies update the record.
 - **Email health.** A hard bounce or a spam complaint suppresses the address. It is not emailed again until the address is fixed or consent is recorded again.
 - **Lead scores.** Unsubscribing takes points off.
+- **Email screens.** The count, the Review and send panel and the record show the same plain reasons, with a link to the Consent page or the contact. The pickers for a topic on a form, a WhatsApp template or a journey step stay where they are: they choose a topic for that item. The list of topics, the country rules and the limits are defined only in Settings.
 
 ### Good to know
 
-- **The unsubscribe link opts out the whole company.** In a plain campaign, and in a newsletter sent by a workspace without Forms, the footer **Unsubscribe** opens a page titled "Unsubscribe from marketing emails". Its button sets the company's marketing opt-out. It does not stop quotes, invoices or other account mail. The page waits for the button so that mail scanners cannot unsubscribe someone.
+- **The unsubscribe link opts out the whole company.** In a plain email, and in a newsletter sent by a workspace without Forms, the footer **Unsubscribe** opens a page titled "Unsubscribe from marketing emails". Its button sets the company's marketing opt-out. It does not stop quotes, invoices or other account mail. The page waits for the button so that mail scanners cannot unsubscribe someone.
 - With Forms on, a newsletter's **Manage preferences** link opens the preference centre, where each person chooses topics or **Unsubscribe from all**. Each change is a new record.
 - No screen was found that clears a company's opt-out flag (verify).
 - If someone chose **Unsubscribe from all**, only they can come back. They ask you, and you record their consent on the contact.
@@ -1145,7 +1232,7 @@ The menu has a **Partners** item (**Master data > Partners**, `/partners`, modul
 
 What exists today that relates to partners:
 
-- An account can have the type **OEM / Vendor**, and Segmentation can filter on it.
+- An account can have the type **OEM / Vendor**, and Audiences can filter on it.
 - A lead can have the source **OEM Referral**.
 - A customer account can store **Referred by** (the OEM account's ID) when it is created.
 
@@ -1155,14 +1242,14 @@ Screenshot: 04-partners-placeholder.png | /partners | The placeholder page, to s
 
 ## Common questions
 
-**Why did my campaign or newsletter reach fewer people than the audience showed?**
-The audience counts accounts. The send checks each person. People are left out when they have not agreed to the topic, have opted out, have no matching contact, have a bounced address, or would get a language that is not ready. The Send panel lists each reason with a fix. After sending, open the campaign record to see who was skipped and why.
+**Why did my email or newsletter reach fewer people than the audience showed?**
+The audience builder counts accounts. The email checks each person. People are left out when they have not agreed to the topic, have opted out, have no matching contact, have a bounced address, or would get a language that is not ready. **Who will receive it** and **Review and send** list each reason with a fix before you send. After sending, open the send record to see who was left out and why.
 
 **When someone selects Unsubscribe, does the whole company stop?**
-Yes, for the unsubscribe link used in plain campaigns and in newsletters from a workspace without Forms. It sets the company's marketing opt-out. It does not affect quotes or invoices. With Forms on, a newsletter links to the preference centre, where each person chooses topics.
+Yes, for the unsubscribe link used in plain emails and in newsletters from a workspace without Forms. It sets the company's marketing opt-out. It does not affect quotes or invoices. With Forms on, a newsletter links to the preference centre, where each person chooses topics.
 
-**Why can't I see a Marketing menu item?**
-Either the module is not switched on for your workspace, or your business role hides it. Only the BPMSquare team can switch modules on. Your administrator can change business roles.
+**Why can't I see a Marketing or Intelligence menu item?**
+Either the module is not switched on for your workspace, or your business role hides it. A workspace with none of the Intelligence modules has no Intelligence part. Only the BPMSquare team can switch modules on. Your administrator can change business roles.
 
 **I sent a WhatsApp template and nothing arrived. Is it broken?**
 No. The only WhatsApp provider built in today is a sandbox. It logs the message and sends nothing. A real provider has to be connected first.
@@ -1176,5 +1263,11 @@ The score is below the **Hot from** line (default 60) in **Settings > Marketing 
 **Someone filled in our form but is not in the newsletter audience. Why?**
 They did not tick the consent box, or the form asks for confirmation and they have not pressed the link yet. An unticked box records nothing. Check their Consent card for **Waiting for confirmation**.
 
-**Can I send the same campaign again?**
-No. A campaign is sent once. Create a new campaign. Sending a newsletter again with **Send...** creates a new campaign each time.
+**Can I send the same email again?**
+Not to everyone. An email is sent once to each person. Create a new email to send again. Sending a newsletter again with **Send...** creates a new send record each time.
+
+**Part of my email failed. What do I do?**
+Open the email. If the email service reached its daily limit, the page says so. Select **Send the rest** later: it sends only to people whose email failed or was never tried, never to anyone already sent.
+
+**Where did Segmentation, Campaigns and Scored leads go?**
+Segmentation is **Audiences**. Campaigns and Newsletters are **Email**, with chips. Scored leads is the **Scored** switch on **Leads**. Revenue by source is **Results**. See "How Marketing is laid out".
