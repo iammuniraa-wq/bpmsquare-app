@@ -1,6 +1,6 @@
 # Chapter 4. Workforce (WFM)
 
-Snapshot 4 Nov 2026
+Snapshot 6 Nov 2026
 
 > Screen names and button words may be refined as the product improves. If a name in this guide is slightly different on your screen, look for the same idea nearby. Items marked "(verify)" were read from the product code but not confirmed on a live screen.
 
@@ -254,6 +254,7 @@ Employees punch on the tablet. Administrators register tablets. Supervisors or t
 - **The tablet offers only legal punches.** The sequence rules are the same as on a phone, and are re-checked when you tap.
 - **A repeat tap of the same button within 20 seconds counts as the same punch.** It is not recorded twice.
 - **Tablet punches take the tablet's site.** They are always marked as inside the fence. The selfie stored is the camera frame that was matched.
+- **Tablet punches carry no GPS, by design.** A tablet is a fixed device registered to a site, so there is no phone location to record. In the punch details the punch reads **Recorded at the kiosk at** the site name, with the site address and **Site location (not a GPS fix)** with a **View on map** link. This is not a fault.
 - **Tablets cannot punch overtime, work from home or site visit.** Those are phone-only.
 - **No late-arrival email is sent for tablet punches.** The Live board and the summary still mark lateness, because they work it out when read.
 - **Tablets do not apply the 2nd Saturday rule or the consent check on punch** (verify).
@@ -297,7 +298,7 @@ Supervisors and administrators. A site supervisor sees only their own people. Sw
 1. Open **Live board**. The donut **Right now** shows the headcount split by status. Click a slice to filter.
 2. Use the tiles **Checked in**, **On break**, **Late**, **Absent**, **On leave** and **Geofence flags**. Each tile is also a filter.
 3. Narrow with **Search name, code or shift...**, the **All sites** list or the **All statuses** list. The counter shows "N of M".
-4. Click a row to see that person's punches with selfies and locations.
+4. Click a row to see that person's punches today with selfies and locations (newest first). For an earlier day, use the **Attendance** tab on the person's page (see [Workforce employees](#workforce-employees)). The Live board shows today only.
 5. To question a punch, click **Flag for review** on it. Choose **What needs review?** (**Time and selfie**, **Time only**, **Selfie only**), write a **Message to employee**, and send. The employee sees it on their My Workforce page and can reply.
 6. Use **On login, show me** (top right) to choose whether you land on the Live board or the Dashboard after sign-in.
 
@@ -384,6 +385,14 @@ Supervisors and administrators, within their own people. Switched on by the **Wo
 
 1. Tap **Make obsolete**. To undo it, tap **Make active again**. The list switches to "All statuses" so you can still see the row.
 
+**See a past day's punches, selfie and location**
+
+1. Open the person and go to the **Attendance** tab. **Daily attendance** lists every date up to today. Use the month field above the table for an earlier month.
+2. Tap **Punches ▾** next to **Correct** on the day. A row opens beneath the day. Tap again to close it. One day is open at a time, and changing the month closes it.
+3. Read the punches, newest first. Each shows the selfie (tap it to open it full size), the kind (**Check in**, **Check out**, **Break start**, **Break end**), the time, and chips: a source chip for kiosk, manual or corrected punches, **On site** (or the site name) or **Outside geofence**, and the face chips (**Face ✓**, **Face mismatch**, **Face unreadable**) and **Location unreliable** where they apply.
+4. Under the chips is the location: the street address, the coordinates with their accuracy, and **View on map**. A day without punches reads "No punches on this day."
+5. An employee sees the same **Punch details** for their own past days: on **My Details > Timeline**, tap a day.
+
 **Correct a day's punches (supervisor)**
 
 1. Open the person, go to the **Attendance** tab and tap **Correct** on the day.
@@ -408,6 +417,9 @@ The person page has tabs **Overview**, **Attendance**, **Corrections**, **Leave*
 - **Obsolete is a date, not a delete.** The person is made inactive and the last day is stamped as today. Reports count them up to that date.
 - **Making someone obsolete stops their punching** (only active employees can punch) **but does not by itself remove their login or supervisor access** (verify; the owner is addressing this separately).
 - **Supervisor means administrator.** Saving someone as Supervisor promotes their login to workspace administrator.
+- **Where a punch's location comes from depends on how it was made.** A phone or manual punch shows the GPS address and coordinates. A tablet punch shows the site it was recorded at and the site's own location, labelled **Site location (not a GPS fix)**. A supervisor correction reads **Corrected by a supervisor: no location recorded**. The amber **No location captured** appears only on a phone or manual punch that really has no coordinates.
+- **Selfies are removed after the retention period.** A punch older than **Keep selfies for (days)** (Rules > More, 90 days by default) shows **Selfie removed after N days** in place of the photo. The punch and its location are kept. A punch that never had a selfie reads "no selfie".
+- **Selfies open through short-lived private links,** so a copied link stops working. An employee sees only their own punches. A supervisor sees the punches of people in their own scope (see [Who can do what](#who-can-do-what)).
 - **Supervisor edits are bounded.** A supervisor can change a time only in this month and the previous month. Older dates are refused.
 - **A direct change needs a reason, cannot move a punch by more than a day, cannot be in the future,** and cannot be done to yourself. Overtime punches cannot be changed here. You can add only Check in, Check out, Break start or Break end.
 - **A direct change is logged as an already-approved correction** so the employee sees what changed and why.
@@ -422,9 +434,12 @@ The person page has tabs **Overview**, **Attendance**, **Corrections**, **Leave*
 | Sign in with | Rules > More | Email or User ID logins |
 | Employee self-service | Rules > More | The default for **Punching** |
 | Face punch | Rules > More | Shows the **Face** column |
+| Keep selfies for (days) | Rules > More | After this many days a punch shows **Selfie removed after N days** |
 | Shifts, Sites | Shifts, Places | The lists behind **Shift** and **Home site** |
 
 Screenshot: wfm-employees-list.png | /wfm/employees | The employee table with filters, Punching, Login, Consent and Face columns
+
+Screenshot: wfm-employee-day-punches.png | /wfm/employees/{id}?tab=attendance | A day's row opened with Punches, showing the kind, time, chips, coordinates and View on map
 
 Screenshot: wfm-employee-correct-time.png | /wfm/employees/{id} | The Correct time window with Change and Add a missing punch
 
