@@ -1,4 +1,4 @@
-import { requireFeature } from "@/lib/tenant";
+import { requireFeature, getTenant } from "@/lib/tenant";
 import Link from "next/link";
 import { ACCOUNT_TYPE_LABEL } from "@/lib/data";
 import { listAccountsLive, type AccountSummary } from "@/lib/data/live";
@@ -9,10 +9,15 @@ import ObjectListPage, { type ListColumn } from "@/components/page/ObjectListPag
 import Account360Button from "@/components/Account360Button";
 import { MapPin } from "@/components/Icons";
 import { applyAdvancedFilter } from "@/lib/advancedFilter";
-import { paginate } from "@/lib/paginate";
+import { paginate, DEFAULT_PAGE_SIZE } from "@/lib/paginate";
 import { sortRows, readSortParams, applyColFilters, parseColFilterParams, colFilterQueryParams, type SortExtractor } from "@/lib/listSort";
 import { ROUTES } from "@/lib/constants";
-import { requireWorkcenterView } from "@/lib/permissions";
+import { requireWorkcenterView, resolvePermissions, canCreateWorkcenter } from "@/lib/permissions";
+import { requireTenantUser } from "@/lib/supabase-server";
+import { isRichTenant } from "@/lib/nova/isNovaTenant";
+import { toRichRow, typeChips, listHref } from "@/lib/richAccounts";
+import PagerLink from "@/components/PagerLink";
+import RichAccountsView from "./RichAccountsView";
 import { optionalColumnsMenu, parseOptionalCols, type OptionalColumn } from "@/components/page/optionalColumns";
 
 const ALL_TYPES: Account["type"][] = ["prospect", "oem", "direct", "end_customer"];
@@ -136,6 +141,26 @@ export default async function AccountsPage({
 
   const hasFilter = !!(q || typeFilter || af || Object.keys(cfParams).length > 0);
 
+  // The Rich look (docs/design/rich-ui.md): Rows / Cards / Table over the same filtered, sorted, paged rows. Any other tenant
+  // takes the unchanged path below (wrapBody stays undefined).
+  const tenant = await getTenant();
+  const rich = isRichTenant(tenant);
+  let richRows: ReturnType<typeof toRichRow>[] = [];
+  if (rich) {
+    let canQuote = false;
+    if (tenant?.features?.quotations === true) {
+      const { supabase, tenantId, userId, role } = await requireTenantUser();
+      const perms = await resolvePermissions(supabase, tenantId, userId, role);
+      canQuote = canCreateWorkcenter(perms, "quotations");
+    }
+    richRows = pageRows.map((r) => toRichRow(r, {
+      href: ROUTES.account(r.account.id),
+      typeLabel: ACCOUNT_TYPE_LABEL[r.account.type],
+      typeTone: TYPE_TONE[r.account.type],
+      quoteHref: canQuote ? listHref(ROUTES.quotationNew, { account_id: r.account.id }) : null,
+    }));
+  }
+
   return (
     <ObjectListPage
       title="Accounts"
@@ -164,6 +189,21 @@ export default async function AccountsPage({
       dir={dir}
       linkParams={linkParams}
       filtered={hasFilter}
+      wrapBody={rich && pageRows.length > 0 ? (body) => (
+        <RichAccountsView
+          rows={richRows}
+          typeChips={typeChips({
+            base: ROUTES.accounts,
+            types: ALL_TYPES.map((t) => ({ value: t, label: ACCOUNT_TYPE_LABEL[t] })),
+            current: typeFilter,
+            params: { ...linkParams, sort, dir: sort ? dir : undefined },
+          })}
+          table={body}
+          pager={<PagerLink page={page} total={filtered.length} pageSize={DEFAULT_PAGE_SIZE} baseHref={ROUTES.accounts} hiddenParams={{ ...linkParams, sort, dir: sort ? dir : undefined }} />}
+          total={filtered.length}
+          filtered={hasFilter}
+        />
+      ) : undefined}
       empty={{
         title: "No accounts yet",
         text: "Accounts are the customers and prospects you sell to and service. Add the first one to start.",
