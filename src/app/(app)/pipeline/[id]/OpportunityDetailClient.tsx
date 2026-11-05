@@ -15,6 +15,7 @@ import { documentTotal } from "@/lib/sales/lineTotals";
 import { useUnsavedChangesGuard } from "@/lib/unsavedChanges";
 import DocumentLinesEditor, { newLine, lineAmount, type Line, type StandardQuoteProduct } from "@/components/sales/DocumentLinesEditor";
 import PageHeader from "@/components/PageHeader";
+import WatchPill from "@/components/crew/WatchPill";
 import TabTitle from "@/components/TabTitle";
 import Tabs from "@/components/ui/Tabs";
 import Card from "@/components/ui/Card";
@@ -68,6 +69,8 @@ type Tab = "overview" | "room" | "competitors" | "boq" | "costing" | "lines" | "
 
 /** A tender deal's extras (GCC tender deals): its tender block and what the countdown needs. Absent for every other deal. */
 export type TenderTabData = {
+  /** AI automation (Tender Watch): an open suggestion for this deal that the viewer may see; the header shows a "Watch" pill. Absent when the agent is off. */
+  watch?: { href: string; count: number } | null;
   view: TenderView;
   /** The Deal Room, when the workspace has the deal_room flag: its unread count. null = no room on this workspace. */
   room: { pending: boolean; unread: number; isAdmin: boolean } | null;
@@ -472,6 +475,7 @@ export default function OpportunityDetailClient({ opp, accountName, contacts, in
           <>
             <StatusPill label={stageDefNow?.label ?? opp.stage} tone="blue" />
             {outcomeLabel && <StatusPill label={outcomeLabel} tone={opp.outcome === "won" ? "green" : "red"} />}
+            {tender?.watch && <WatchPill href={tender.watch.href} count={tender.watch.count} />}
           </>
         }
         action={

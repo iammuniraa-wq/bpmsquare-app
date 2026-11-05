@@ -1,0 +1,461 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Agents: Tender Watch and Attendance Anomalies - mock-up</title>
+<style>
+:root{--ink:#1c2733;--muted:#505b6a;--hint:#66707e;--line:#e2e7ee;--panel:#fff;--panel2:#f4f6f9;--accent:#378add;--accentbg:#e6f1fb;--good:#1e7a4d;--goodbg:#e4f4ec;--warn:#9a6200;--warnbg:#fff3dc;--bad:#b3261e;--badbg:#fde8e6}
+*{box-sizing:border-box}body{margin:0;background:#eef1f6;color:var(--ink);font:14px/1.4 "Segoe UI",Arial,sans-serif}
+.wrap{max-width:1180px;margin:0 auto;padding:16px}
+h1{font-size:18px;margin:4px 0 2px}.sub{color:var(--muted);font-size:12.5px;margin-bottom:10px}
+.note{background:#fffbe9;border:1px dashed #d8b84a;border-radius:8px;padding:8px 10px;font-size:12.5px;margin-bottom:10px}
+.ctl{display:flex;gap:14px;flex-wrap:wrap;align-items:center;margin-bottom:10px;font-size:12.5px;color:var(--muted)}
+.ctl label{display:flex;align-items:center;gap:6px}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:#fff}
+.seg button{border:0;background:none;padding:0 12px;min-height:40px;font:inherit;cursor:pointer;color:var(--muted)}
+.seg button.on{background:var(--accent);color:#fff}.seg.sm button{min-height:34px;font-size:12.5px;padding:0 10px}
+.i{display:inline-block;width:15px;height:15px;border:1px solid var(--hint);border-radius:50%;text-align:center;font-size:10px;line-height:13px;color:var(--hint);margin-left:5px;cursor:help;position:relative;vertical-align:middle;font-weight:400;background:none;padding:0}
+.i:hover::after,.i:focus::after{content:attr(data-tip);position:absolute;left:0;top:20px;z-index:60;width:240px;background:#fff;border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:12.5px;line-height:1.4;color:var(--ink);box-shadow:0 8px 24px rgba(16,24,40,.12);text-align:left;white-space:normal;font-weight:400}
+.phone .i:hover::after,.phone .i:focus::after{width:200px}
+
+.app{background:var(--panel2);border:1px solid var(--line);border-radius:12px;overflow:hidden;position:relative;height:780px}
+.app.phone{width:375px;margin:0 auto;height:740px}
+.scroller{height:100%;overflow:auto;padding:18px}.phone .scroller{padding:12px}
+.ph{display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap}.ph h2{font-size:17px;margin:0}.ph .sp{flex:1}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:12px}.phone .card{padding:12px}
+.btn{border:1px solid var(--line);background:#fff;border-radius:8px;padding:0 14px;min-height:44px;font:inherit;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:6px;color:var(--ink)}
+.btn.p{background:var(--accent);color:#fff;border-color:var(--accent)}.btn.sm{min-height:38px;padding:0 10px;font-size:13px}.btn.danger{color:var(--bad);border-color:#f0c8c5}
+.btn:disabled{opacity:.5;cursor:not-allowed}.btn.link{border:0;background:none;color:var(--accent);padding:0;min-height:32px;font-size:12.5px}
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin:0 0 14px;overflow-x:auto}
+.tab{padding:9px 14px 8px;font-size:13px;color:var(--muted);border:0;background:none;font:inherit;cursor:pointer;border-bottom:3px solid transparent;margin-bottom:-1px;white-space:nowrap;border-radius:7px 7px 0 0;min-height:44px}
+.tab[aria-selected=true]{color:var(--accent);font-weight:700;border-bottom-color:var(--accent);background:color-mix(in srgb,var(--accent) 10%,transparent)}
+.tab .n{margin-left:6px;font-size:11px;background:var(--accentbg);color:var(--accent);border-radius:9px;padding:0 6px;font-weight:600}
+.chip{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:3px 10px;font-size:12px;font-weight:600;white-space:nowrap}
+.chip.warn{background:var(--warnbg);color:var(--warn)}.chip.info{background:var(--accentbg);color:var(--accent)}.chip.good{background:var(--goodbg);color:var(--good)}.chip.quiet{background:var(--panel2);color:var(--muted);font-weight:500}.chip.bad{background:var(--badbg);color:var(--bad)}
+.chip.ev{cursor:pointer;border:1px solid var(--line);background:#fff;color:var(--accent);font-weight:500;min-height:30px}.chip.ev:hover{background:var(--accentbg)}
+.tog{width:38px;height:22px;border-radius:11px;background:#cfd6e0;position:relative;border:0;cursor:pointer;flex-shrink:0;padding:0}
+.tog::after{content:"";position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:50%;background:#fff;transition:left .12s}.tog.on{background:var(--accent)}.tog.on::after{left:18px}
+.sw{display:flex;align-items:center;gap:8px;min-height:40px}
+table{width:100%;border-collapse:collapse;font-size:13px}th{text-align:left;color:var(--hint);font-weight:500;padding:8px 10px;border-bottom:1px solid var(--line);font-size:11.5px;white-space:nowrap}
+td{padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:middle}tr.row{cursor:pointer}tr.row:hover td{background:var(--panel2)}
+.meter{height:8px;background:#e5eaf1;border-radius:6px;overflow:hidden;min-width:90px}.meter>i{display:block;height:100%;background:var(--accent)}.meter.hot>i{background:var(--bad)}
+.banner{border-radius:8px;padding:9px 12px;font-size:13px;margin-bottom:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.banner.warn{background:var(--warnbg);color:var(--warn);border:1px solid #ead9a6}.banner.bad{background:var(--badbg);color:var(--bad);border:1px solid #f0c8c5}.banner.info{background:var(--accentbg);color:#1d4f87;border:1px solid #c5ddf3}
+
+/* finding card */
+.f{border-left:4px solid var(--accent)}.f.urgent{border-left-color:var(--bad)}.f.review{border-left-color:#d9a21b}.f.info{border-left-color:#9db3cb}
+.f.done{opacity:.72}
+.f .top{display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap}.f h3{margin:0;font-size:14.5px;line-height:1.35;flex:1;min-width:200px}
+.f .meta{font-size:12px;color:var(--hint);margin:4px 0 8px}
+.vis{display:flex;align-items:center;gap:14px;margin:8px 0;flex-wrap:wrap}
+.ring{--p:60;width:54px;height:54px;border-radius:50%;background:conic-gradient(var(--c,var(--bad)) calc(var(--p)*1%),#e5eaf1 0);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.ring b{width:40px;height:40px;border-radius:50%;background:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:14px;line-height:1}.ring b small{font-size:9px;color:var(--hint);font-weight:500}
+.bar2{flex:1;min-width:150px}.bar2 .t{display:flex;justify-content:space-between;font-size:12px;color:var(--muted);margin-bottom:3px}.bar2 .b{height:10px;background:#f3d3d0;border-radius:6px;overflow:hidden}.bar2 .b i{display:block;height:100%;background:var(--good)}
+.dots{display:flex;gap:5px;align-items:center;flex-wrap:wrap}.dots span{width:14px;height:14px;border-radius:4px;background:#e5eaf1;display:inline-block}.dots span.x{background:#e0a21b}.dots span.y{background:var(--bad)}.dots .l{width:auto;height:auto;background:none;font-size:11.5px;color:var(--hint);margin-left:4px}
+.det{border:0;background:none;color:var(--accent);font:inherit;font-size:12.5px;cursor:pointer;padding:0;min-height:36px;display:inline-flex;align-items:center;gap:4px}
+.det .ch{display:inline-block;transition:transform .12s}.det[aria-expanded=true] .ch{transform:rotate(90deg)}
+.why{background:var(--panel2);border-radius:8px;padding:10px 12px;margin:4px 0 8px;font-size:13px;display:none}.why.on{display:block}.why .evs{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.rs{display:grid;grid-template-columns:150px 1fr;gap:6px 10px;font-size:13px;margin:8px 0}.phone .rs{grid-template-columns:1fr}.rs dt{font-weight:600;color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.3px}.rs dd{margin:0}
+.prop{border:1px dashed #b9c9dc;background:#f8fbff;border-radius:10px;padding:10px 12px;margin-top:8px}
+.prop .h{font-size:11.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px}
+.prop .draft{font-size:13px;white-space:pre-wrap;color:var(--ink);margin:4px 0 8px}.prop .to{font-size:12.5px;color:var(--muted)}
+.acts{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}.phone .acts .btn{flex:1 1 45%}
+.quiet-box{text-align:center;padding:36px 12px;color:var(--muted)}.quiet-box b{display:block;color:var(--ink);font-size:15px;margin-bottom:4px}
+.batch{border:1px solid var(--line);border-radius:8px;margin:6px 0;max-height:220px;overflow:auto}.batch label{display:flex;align-items:center;gap:8px;padding:6px 10px;border-bottom:1px solid var(--line);font-size:13px;min-height:40px}
+.sitestrip{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+
+/* overlays */
+.backdrop{position:absolute;inset:0;background:rgba(20,32,51,.35);display:none;z-index:10}.backdrop.on{display:block}
+.panel{position:absolute;top:0;right:0;bottom:0;width:470px;max-width:100%;background:#fff;box-shadow:-10px 0 30px rgba(0,0,0,.14);display:none;z-index:11;flex-direction:column}.panel.on{display:flex}
+.phone .panel,.sheet-m .panel{top:auto;left:0;right:0;bottom:0;width:auto;max-height:90%;border-radius:14px 14px 0 0;box-shadow:0 -10px 30px rgba(0,0,0,.18)}
+.panel .top{padding:14px 16px 10px;border-bottom:1px solid var(--line);display:flex;align-items:flex-start;gap:8px}.panel .top h3{margin:0;font-size:15px;flex:1}.panel .top .s{font-size:12px;color:var(--muted)}
+.panel .body{padding:10px 16px;overflow:auto;flex:1}.panel .foot{padding:10px 16px;border-top:1px solid var(--line);display:flex;gap:8px;align-items:center;background:#fff}.panel .foot .sp{flex:1}
+.rr{display:grid;grid-template-columns:1fr auto;gap:6px 10px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line)}.rr .l{font-size:13px}.rr .v{display:flex;align-items:center;gap:6px;justify-content:flex-end;flex-wrap:wrap}
+input[type=text],input[type=time],select,textarea{border:1px solid var(--line);border-radius:8px;padding:0 10px;min-height:40px;font:inherit;background:#fff;color:var(--ink)}textarea{padding:8px 10px;width:100%;min-height:150px;resize:vertical}
+.days{display:flex;gap:4px;flex-wrap:wrap}.pick{border:1px solid var(--line);background:#fff;border-radius:8px;min-width:38px;min-height:36px;font:inherit;font-size:12px;cursor:pointer;color:var(--muted)}.pick[aria-pressed=true]{background:var(--accent);color:#fff;border-color:var(--accent)}
+.more>button{display:flex;align-items:center;gap:6px;width:100%;border:0;background:none;text-align:left;padding:0;min-height:40px;font:inherit;font-weight:700;color:var(--ink);cursor:pointer}
+.more .c{display:none}.more.open .c{display:block}
+.dlg{position:absolute;inset:0;display:none;z-index:20;align-items:center;justify-content:center;padding:12px}.dlg.on{display:flex}
+.dlg .box{background:#fff;border-radius:12px;padding:16px;max-width:520px;width:100%;max-height:92%;overflow:auto;box-shadow:0 16px 40px rgba(16,24,40,.22)}.dlg h3{margin:0 0 6px;font-size:15px}
+.phone .dlg{align-items:flex-end;padding:0}.phone .dlg .box{border-radius:14px 14px 0 0;max-height:94%}
+.dlg .acts{justify-content:flex-end}.phone .dlg .acts{position:sticky;bottom:-16px;background:#fff;padding:10px 0 0;margin-top:10px}
+.toast{position:absolute;left:50%;bottom:16px;transform:translateX(-50%);background:var(--ink);color:#fff;border-radius:10px;padding:10px 14px;font-size:13px;display:none;z-index:40;max-width:90%}.toast.on{display:block}
+
+/* trace */
+.tr h4{margin:0}.tsec{border:1px solid var(--line);border-radius:10px;margin-bottom:8px;background:#fff}.tsec>button{display:flex;align-items:center;gap:8px;width:100%;border:0;background:none;padding:10px 12px;min-height:44px;font:inherit;font-weight:700;cursor:pointer;text-align:left;color:var(--ink)}
+.tsec .c{display:none;padding:0 12px 10px}.tsec.open .c{display:block}.tsec .cnt{margin-left:auto;font-size:11.5px;color:var(--accent);background:var(--accentbg);border-radius:9px;padding:0 7px;font-weight:600}
+.st{border-top:1px solid var(--line);padding:8px 0;font-size:13px}.st:first-child{border-top:0}.st.hl{background:#fff8d6;margin:0 -12px;padding:8px 12px}
+.st .id{display:inline-block;min-width:26px;font-weight:700;color:var(--hint);font-size:12px}.st .out{color:var(--muted);font-size:12.5px;margin-top:2px}
+pre.raw{background:#0f1b2a;color:#d8e4f2;border-radius:8px;padding:10px;font-size:11.5px;overflow:auto;max-height:200px}
+.tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px;margin-bottom:12px}.stat{border:1px solid var(--line);border-radius:10px;padding:8px 10px;background:#fff}.stat .k{font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.4px}.stat .v{font-size:17px;font-weight:700}
+.ac{display:grid;grid-template-columns:1fr 1fr;gap:12px}.phone .ac{grid-template-columns:1fr}
+.ac .row{display:flex;justify-content:space-between;gap:10px;font-size:13px;padding:6px 0;border-bottom:1px solid var(--line)}.ac .row span:first-child{color:var(--hint)}
+@media(max-width:900px){.app:not(.phone) .ac{grid-template-columns:1fr}.app:not(.phone) .panel{top:auto;left:0;right:0;width:auto;max-height:90%;border-radius:14px 14px 0 0}.wrap{padding:8px}.app:not(.phone){height:86vh}}
+</style></head><body><div class="wrap">
+<h1>Agents: Tender Watch and Attendance Anomalies - mock-up</h1>
+<div class="sub">Sample data only, nothing is built. Everything here is invented: tenders, sites, people. Use the controls to switch workspace, viewer, viewport and states, then try the cards, the editor, the trace and the settings drawer.</div>
+<div class="note">Agents only propose. A person edits and sends. No agent contacts an employee, a client or a supplier, and no agent computes a price or an attendance total: numbers in every card come from the product's own engines.</div>
+<div class="ctl">
+  <span>Workspace <span class="seg sm" id="ws"><button data-ws="kamco" class="on">KAMCO (tenders)</button><button data-ws="bim">BIM (attendance)</button></span></span>
+  <span>Viewport <span class="seg sm" id="vp"><button data-vp="pc" class="on">PC</button><button data-vp="phone">375 px</button></span></span>
+  <label id="roleWrap" style="display:none">Viewing as <select id="role">
+    <option value="admin">Admin (all sites)</option><option value="mnv">Supervisor of Manuvana</option><option value="vij">Supervisor of Vijayanagar</option><option value="gwb">Supervisor of Gowribidnoor</option><option value="rtn">Supervisor of RT Nagar</option><option value="emp">An employee</option></select></label>
+  <label><input type="checkbox" id="quiet"> Quiet day (nothing to report)</label>
+  <label><input type="checkbox" id="hit"> Allowance reached</label>
+</div>
+
+<div class="app" id="app">
+  <div class="scroller" id="scroller">
+    <div class="ph"><h2>Agents</h2><span class="sp"></span>
+      <span id="meterBox" style="display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--muted)"></span>
+      <span class="sw" id="pauseBox"><span>Pause all agents<button class="i" type="button" data-tip="Stops new runs now and ends a running one at its next step. Approving or rejecting what is already waiting still works.">i</button></span><button class="tog" id="pause" aria-label="Pause all agents" data-guide="agents.pause"></button></span>
+    </div>
+    <div id="banners"></div>
+    <div class="tabs" role="tablist" id="tabs"></div>
+    <div id="view"></div>
+  </div>
+
+  <div class="backdrop" id="bd"></div>
+  <div class="panel" id="panel" role="dialog" aria-modal="true"></div>
+  <div class="dlg" id="dlg"><div class="box" id="dlgBox"></div></div>
+  <div class="toast" id="toast"></div>
+</div>
+</div>
+
+<script>
+(function(){
+"use strict";
+var $=function(s,r){return (r||document).querySelector(s)};
+var S={ws:'kamco',vp:'pc',tab:'review',role:'admin',quiet:false,hit:false,paused:false,showAll:false,trace:null,traceStep:null,raw:false,open:{},
+  agents:{tw:{on:true,time:'07:30',days:[0,1,2,3,4],where:'All tenders',vis:'Admins only',sens:'Balanced',win:'21 days',used:412,cap:600},
+          at:{on:true,time:'02:00',days:[0,1,2,3,4,5,6],where:'All 4 sites',vis:'Supervisors by site',sens:'Balanced',fam:{late:true,miss:true,far:true,drop:true,ot:true,bud:false,brid:false},used:318,cap:500}}};
+
+/* ---------- sample data ---------- */
+var KF=[
+ {id:'k1',sev:'urgent',run:'r1',kind:'At risk',title:'TND-4471 Precast boundary wall, Dammam substation: pricing is unlikely to finish before the bid end date',
+  meta:'Closes Thu 5 Nov 12:00 · Estimating · Owner Khalid A.',vis:{type:'tender',priced:128,lines:340,days:4},
+  why:'212 of 340 BOQ lines are unpriced. 3 of 5 suppliers have not replied after 9 days. No room activity for 3 days. The desk\'s own "closing unpriced" alert only starts at 3 days.',
+  ev:[['BOQ: 212 unpriced of 340','s2'],['RFQ: 3 of 5 not replied, 9 days','s4'],['Room: silent 3 days','s5']],
+  prop:{action:'Nudge',to:['Faisal M. (RFQ buyer)'],ch:'Deal Room mention + e-mail',text:'Faisal, TND-4471 closes on Thursday and 212 BOQ lines are still unpriced. Three suppliers have not answered the RFQ sent on 23 October. Could you chase them today, or tell the team which lines to price from past projects?'}},
+ {id:'k2',sev:'review',run:'r1',kind:'Decision waiting',title:'RCJY-118 Water network pipes, Jubail: the bid decision has waited 5 days',
+  meta:'Closes Tue 10 Nov · Bid / No-bid · Proposed by Sara N.',vis:{type:'tender',priced:0,lines:0,days:9},
+  why:'A go proposal has waited 5 days and 9 days remain. No BOQ has been uploaded. The proposer cannot decide it (self-approval is off), so the note goes to the two approvers.',
+  ev:[['Approval: pending 5 days','s3'],['Who can decide: Omar H., Nasser T.','s3'],['BOQ: not uploaded','s2']],
+  prop:{action:'Nudge',to:['Omar H.','Nasser T.'],ch:'E-mail',text:'Omar, Nasser: the go / no-go proposal for RCJY-118 (Water network pipes, Jubail) has been waiting for 5 days and the bid closes on 10 November. Could one of you decide it today?'}},
+ {id:'k3',sev:'review',run:'r1',kind:'Question may be blocking',title:'ICITY-2204 Industrial city precast package: an open question may be holding up 38 reinforcement lines',
+  meta:'Closes Mon 9 Nov · Estimating · Question owner Hamza R.',vis:{type:'tender',priced:262,lines:300,days:8},
+  why:'The open question (6 days old, due 2 days ago) mentions the rebar grade. 38 unpriced lines are all in the reinforcement cost code; every other code is priced. This link is a judgment: choose Not an issue if it is wrong.',
+  ev:[['Question: "Rebar grade on the retaining walls..." (quoted data)','s6'],['Unpriced by cost code: 38 in reinforcement','s7']],
+  prop:{action:'Nudge',to:['Hamza R. (question owner)'],ch:'Deal Room mention',text:'Hamza, the question on the rebar grade for the retaining walls (ICITY-2204) was due on 30 October and 38 reinforcement lines are waiting on it. Can you answer it, or tell us who should?'}},
+ {id:'k4',sev:'review',run:'r1',kind:'Addendum',title:'MAADEN-0912: an addendum was recorded since yesterday and the BOQ has not been re-uploaded',
+  meta:'Closes Sat 7 Nov · Estimating · Owner Layla S.',vis:{type:'tender',priced:241,lines:320,days:6},
+  why:'Addenda went from 1 to 2 since the last run; the BOQ is still version 1, uploaded 17 days ago. I cannot see what the addendum changes: documents are not read.',
+  ev:[['Addenda 1 to 2','s1'],['BOQ version 1, 17 days old','s2']],gap:'Addendum text is not readable here.',
+  prop:{action:'Nudge',to:['Layla S. (deal owner)'],ch:'Deal Room mention',text:'Layla, an addendum was recorded on MAADEN-0912. Does it change quantities? If so the BOQ needs a new upload before the bid end date.'}},
+ {id:'k5',sev:'info',run:'r1',kind:'Missing information',title:'New tender received 6 days ago: pricing progress cannot be judged, no BOQ has been uploaded',
+  meta:'Closes Mon 16 Nov · Received · Portal Excel · no tender number',vis:{type:'tender',priced:0,lines:0,days:15},
+  why:'No BOQ and no tender number 6 days after receipt. Nothing else can be judged yet. No proposal: this one needs a person to open the e-mail.',
+  ev:[['BOQ: none','s2'],['Tender number: blank','s1']]}
+];
+var BF=[
+ {id:'b1',site:'mnv',sev:'review',run:'r5',kind:'Late check-ins',title:'Late check-ins cluster on three days at Manuvana (7 of 9 people on 3 days)',
+  meta:'Mon 26, Tue 27, Thu 29 Oct · site-level · no names',vis:{type:'dots',days:[0,1,1,0,1,0,0,0,0,0],lab:'last 10 shift-days'},
+  obs:'7 of 9 rostered people checked in 12 to 25 minutes after the grace period on three days. No other site shows this.',
+  oth:'A shift start time or grace that no longer fits; transport or gate procedure that week.',can:'Look at the shift start with an admin, or do nothing.',
+  ev:[['Site digest: 21 late marks, 3 days','s2'],['Other sites: no cluster','s3']]},
+ {id:'b2',site:'gwb',sev:'info',run:'r6',kind:'Boundary',title:'Several people punch just outside the boundary of Gowribidnoor',
+  meta:'11 punches, 3 people, 5 days · site-level · no names in the title',vis:{type:'dots',days:[0,1,1,0,1,1,0,1,0,0],lab:'last 10 shift-days'},
+  obs:'11 punches flagged outside the geofence, all between 1.5 and 3 times the radius, the same three people at the usual hours, selfies matched.',
+  oth:'The site radius or pin is too tight or offset; people park outside the gate.',can:'Ask an admin to check the radius and pin on the Places tab. No recheck is proposed.',
+  ev:[['Punch flags: 11 outside, one distance band','s2'],['Site radius 150 m','s3']]},
+ {id:'b3',site:'vij',sev:'review',run:'r7',kind:'Far from site',title:'Ravi K.: three punches far from Vijayanagar in 8 days',
+  meta:'Person-level, shown to this site\'s supervisor only · Review suggestion',vis:{type:'dots',days:[0,0,1,2,0,1,0,0,0,0],lab:'27, 28, 30 Oct'},
+  obs:'3 punches in the "more than 3 times the radius" band (over 5 km). No approved leave. Rostered at Vijayanagar. Selfie matched on all three.',
+  oth:'Working at another location without a roster entry; a phone location problem (one of the three had low GPS accuracy).',can:'Ask for a recheck, or do nothing.',
+  ev:[['Punch flags: 3 far, 1 low accuracy','s2'],['Roster: Vijayanagar, no leave','s3']],
+  prop:{action:'Recheck',to:['Ravi K. (as a recheck from you)'],ch:'Recheck request',text:'Your punches on 27, 28 and 30 October show a location far from Vijayanagar. Please check them and, if anything needs correcting, send a correction request.'}},
+ {id:'b4',site:'rtn',sev:'info',run:'r8',kind:'Sunday, Trainees',title:'RT Nagar, Sunday 1 Nov: 2 Trainees were absent on a working Sunday',
+  meta:'Info · Trainee rules apply from 1 Nov 2026 · site-level',vis:{type:'dots',days:[0,0,0,0,0,0,0,0,0,2],lab:'Sun 1 Nov'},
+  obs:'6 Trainees punched in on Sunday (a working day for Trainees since 1 November, so this is normal). 2 Trainees were absent with no leave request. 1 Full-time employee worked on their weekly off.',
+  oth:'The only leave offered to Trainees is "Leave on approval"; a request may still arrive.',can:'Wait for a leave request, or ask the two. Any overtime on the weekly off arrives as a request.',
+  ev:[['Day records: is_week_off false for Trainees','s2'],['Roster context: Sunday','s3']]},
+ {id:'b5',site:'mnv',sev:'review',run:'r5',kind:'Missing check-outs',title:'Missing check-outs cluster on one day at Manuvana (9 of 11 present)',
+  meta:'Tue 27 Oct · site-level · the plain alerts would have buzzed nine phones',vis:{type:'dots',days:[0,0,0,0,0,0,0,0,0,0],lab:'Tue 27 Oct',mark:9},
+  obs:'9 of the 11 people present have a check-in and no check-out. The 2 who checked out left before 17:00. No location flags.',
+  oth:'A site-wide device, network or process problem that evening.',can:'Ask the nine to recheck in one go (untick anyone), or ask at the site first.',
+  ev:[['Site digest: 9 missing of 11 present','s2'],['Punch flags: none','s3']],
+  prop:{action:'Recheck',batch:['Anil P.','Bhavya S.','Chetan G.','Divya M.','Eshwar N.','Farah K.','Girish T.','Hema L.','Imran Q.'],to:[],ch:'Recheck request, one each',text:'You have a check-in on 27 October with no check-out. Please check it and, if needed, send a correction request.'}}
+];
+var RUNS=[
+ {id:'r1',ws:'kamco',agent:'tw',when:'Today 07:30',trig:'Schedule: daily',scope:'7 live tenders, 5 candidates',res:'5 findings',tok:'17.4k',st:'done'},
+ {id:'r2',ws:'kamco',agent:'tw',when:'Today 06:12',trig:'Event: bid decision proposed',scope:'RCJY-118',res:'1 finding',tok:'6.1k',st:'done'},
+ {id:'r3',ws:'kamco',agent:'tw',when:'Yesterday 07:30',trig:'Schedule: daily',scope:'7 live tenders, 0 candidates',res:'Nothing to report',tok:'0',st:'done'},
+ {id:'r4',ws:'kamco',agent:'tw',when:'30 Oct 07:30',trig:'Schedule: daily',scope:'7 live tenders',res:'Allowance reached',tok:'0',st:'skipped_budget'},
+ {id:'r5',ws:'bim',agent:'at',when:'Today 02:00',trig:'Schedule: daily',scope:'Manuvana, Tue 27 Oct and week',res:'2 findings',tok:'11.2k',st:'done'},
+ {id:'r6',ws:'bim',agent:'at',when:'Today 02:00',trig:'Schedule: daily',scope:'Gowribidnoor',res:'1 finding',tok:'8.4k',st:'done'},
+ {id:'r7',ws:'bim',agent:'at',when:'Today 02:00',trig:'Schedule: daily',scope:'Vijayanagar',res:'1 finding',tok:'9.0k',st:'done'},
+ {id:'r8',ws:'bim',agent:'at',when:'Today 02:00',trig:'Schedule: daily',scope:'RT Nagar, Sun 1 Nov',res:'1 finding',tok:'7.7k',st:'done'},
+ {id:'r9',ws:'bim',agent:'at',when:'Last Monday 07:00',trig:'Schedule: weekly',scope:'All sites, 7 shift-days',res:'Summary of 6 findings',tok:'4.9k',st:'done'},
+ {id:'r10',ws:'bim',agent:'at',when:'Fri 02:00',trig:'Schedule: daily',scope:'All sites',res:'Paused by admin',tok:'0',st:'skipped_paused'}
+];
+var SITES={mnv:'Manuvana',gwb:'Gowribidnoor',vij:'Vijayanagar',rtn:'RT Nagar'};
+var STLAB={done:['Done','good'],skipped_budget:['Allowance reached','warn'],skipped_paused:['Paused','quiet'],failed:['Failed','bad'],running:['Running','info']};
+var STATE={}; /* per-finding/proposal state */
+
+/* ---------- helpers ---------- */
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
+function tip(t){return '<button class="i" type="button" data-tip="'+esc(t)+'" aria-label="More information">i</button>'}
+function toast(t){var el=$('#toast');el.textContent=t;el.classList.add('on');clearTimeout(toast.t);toast.t=setTimeout(function(){el.classList.remove('on')},2600)}
+function chip(c,t){return '<span class="chip '+c+'">'+esc(t)+'</span>'}
+function sevChip(s,bim){var m=bim?{urgent:['bad','Review soon'],review:['warn','Worth a look'],info:['quiet','For information']}:{urgent:['bad','Urgent'],review:['warn','Needs attention'],info:['quiet','For information']};return chip(m[s][0],m[s][1])}
+function visible(){
+  if(S.ws==='kamco')return KF;
+  if(S.role==='admin')return BF;
+  if(S.role==='emp')return [];
+  return BF.filter(function(f){return f.site===S.role});
+}
+function runsFor(){
+  var r=RUNS.filter(function(x){return x.ws===S.ws});
+  if(S.ws==='bim'&&S.role!=='admin'&&S.role!=='emp'){var nm=SITES[S.role];r=r.filter(function(x){return x.scope.indexOf(nm)>-1||x.scope.indexOf('All')===0})}
+  return r;
+}
+
+/* ---------- top bar ---------- */
+function topbar(){
+  var ag=S.ws==='kamco'?S.agents.tw:S.agents.at;
+  var pct=Math.round(ag.used/ag.cap*100);
+  if(S.hit)pct=100;
+  $('#meterBox').innerHTML='<span>Allowance this month</span><span class="meter'+(pct>=100?' hot':'')+'" style="width:110px"><i style="width:'+pct+'%"></i></span><b>'+pct+'%</b>'+tip('Tokens used by this agent against its monthly cap. When the cap or the workspace allowance is reached the agent stops and says so; the rest of the product keeps working.');
+  $('#pause').classList.toggle('on',S.paused);
+  var admin=S.ws==='kamco'||S.role==='admin';
+  $('#pauseBox').style.display=admin?'flex':'none';
+  var b='';
+  if(S.paused)b+='<div class="banner warn"><b>All agents are paused.</b> Nothing new will start; a running step ends at its next step. Waiting proposals can still be approved or rejected.</div>';
+  if(S.hit)b+='<div class="banner bad"><b>Paused: monthly allowance reached.</b> '+(S.ws==='kamco'?'Tender Watch':'Attendance Anomalies')+' will resume next month, or the BPMSquare team can raise the cap. The Tender Desk and the existing alerts are not affected.</div>';
+  if(S.ws==='bim'&&S.role==='emp')b='';
+  $('#banners').innerHTML=b;
+}
+
+/* ---------- tabs ---------- */
+function tabs(){
+  var emp=S.ws==='bim'&&S.role==='emp';
+  if(emp){$('#tabs').innerHTML='';return}
+  var admin=S.ws==='kamco'||S.role==='admin';
+  var list=[['review','Review',visible().filter(function(f){return !STATE[f.id]||STATE[f.id]==='open'}).length],['runs','Runs',null]];
+  if(admin)list.push(['agents','Agents',null]);
+  if(!admin&&S.tab==='agents')S.tab='review';
+  $('#tabs').innerHTML=list.map(function(t){return '<button class="tab" role="tab" aria-selected="'+(S.tab===t[0])+'" data-tab="'+t[0]+'">'+t[1]+(t[2]&&!S.quiet?'<span class="n">'+t[2]+'</span>':'')+'</button>'}).join('');
+}
+
+/* ---------- Review ---------- */
+function visualHtml(f){
+  var v=f.vis;if(!v)return '';
+  if(v.type==='tender'){
+    var ring='<div class="ring" style="--p:'+Math.max(6,Math.min(100,(30-v.days)/30*100))+';--c:'+(v.days<=4?'var(--bad)':v.days<=9?'#d9a21b':'var(--good)')+'"><b>'+v.days+'<small>days left</small></b></div>';
+    var bar=v.lines?'<div class="bar2"><div class="t"><span>Priced '+v.priced+' of '+v.lines+' lines</span><span>'+(v.lines-v.priced)+' unpriced</span></div><div class="b"><i style="width:'+Math.round(v.priced/v.lines*100)+'%"></i></div></div>':'<div class="bar2"><div class="t"><span>No BOQ lines yet</span></div><div class="b"><i style="width:0"></i></div></div>';
+    return '<div class="vis">'+ring+bar+'</div>';
+  }
+  var d=v.days.map(function(x,i){return '<span class="'+(x===1?'x':x===2?'y':'')+'" title="day '+(i+1)+'"></span>'}).join('');
+  return '<div class="vis"><div class="dots">'+d+'<span class="l">'+esc(v.lab)+(v.mark?' · '+v.mark+' missing':'')+'</span></div></div>';
+}
+function findingCard(f){
+  var bim=S.ws==='bim';var st=STATE[f.id]||'open';var pst=STATE[f.id+':p'];
+  var open=S.open[f.id];
+  var h='<div class="card f '+f.sev+(st!=='open'?' done':'')+'" data-f="'+f.id+'"><div class="top"><h3>'+esc(f.title)+'</h3>'+sevChip(f.sev,bim)+(bim?chip('info','Review suggestion'):chip('quiet',f.kind))+'</div>';
+  h+='<div class="meta">'+esc(f.meta)+'</div>'+visualHtml(f);
+  if(bim){
+    h+='<dl class="rs"><dt>What was observed</dt><dd>'+esc(f.obs)+'</dd><dt>What else could explain it</dt><dd>'+esc(f.oth)+'</dd><dt>What you could do</dt><dd>'+esc(f.can)+'</dd></dl>';
+  }
+  h+='<button class="det" aria-expanded="'+(!!open)+'" data-why="'+f.id+'" data-guide="finding.why"><span class="ch">&#9656;</span> Why</button>'+tip('Every statement cites a step of the run. Click an item to open the run at that step.');
+  h+='<div class="why'+(open?' on':'')+'">'+(bim?'':'<div>'+esc(f.why)+'</div>')+(f.gap?'<div style="margin-top:6px"><b>Could not check:</b> '+esc(f.gap)+'</div>':'')+'<div class="evs">'+f.ev.map(function(e){return '<button class="chip ev" data-ev="'+f.run+'|'+e[1]+'">'+esc(e[0])+' <span style="color:var(--hint)">('+e[1]+')</span></button>'}).join('')+'</div></div>';
+  if(f.prop&&st==='open'){
+    var p=f.prop;
+    if(pst==='sent'){h+='<div class="prop"><div class="h">'+p.action+' · sent</div><div class="to">Sent by you. Recorded in Change history as "via crew".</div></div>'}
+    else if(pst==='rejected'){h+='<div class="prop"><div class="h">'+p.action+' · rejected</div><div class="to">Not proposed again for 14 days.</div></div>'}
+    else{
+      h+='<div class="prop"><div class="h">Proposed: '+(p.batch?'ask '+p.batch.length+' people to recheck':p.action==='Recheck'?'ask for a recheck':'a short note')+' '+tip('Nothing is sent until you press Edit and send. You can change every word.')+'</div>'
+        +(p.batch?'<div class="to">To: '+p.batch.length+' people at Manuvana (you can untick anyone) · '+esc(p.ch)+'</div>':'<div class="to">To: '+esc(p.to.join(', '))+' · '+esc(p.ch)+'</div>')
+        +'<div class="draft">'+esc(p.text)+'</div><div class="acts"><button class="btn p sm" data-edit="'+f.id+'" data-guide="proposal.edit">Edit and send</button><button class="btn danger sm" data-reject="'+f.id+'">Reject</button></div></div>';
+    }
+  }
+  if(st==='open'){
+    h+='<div class="acts"><button class="btn sm" data-dismiss="'+f.id+'">Dismiss</button><button class="btn sm" data-notissue="'+f.id+'">Not an issue</button>'+tip('Hides this for 30 days unless it gets worse.')+'</div>';
+  }else{
+    h+='<div class="meta" style="margin-top:8px">'+(st==='dismissed'?'Dismissed. It comes back tomorrow if it persists.':st==='notissue'?'Marked not an issue. Hidden for 30 days unless it gets worse.':'Done.')+' <button class="btn link" data-undo="'+f.id+'">Undo</button></div>';
+  }
+  return h+'</div>';
+}
+function review(){
+  var emp=S.ws==='bim'&&S.role==='emp';
+  if(emp)return '<div class="card quiet-box"><b>Agents are not available to you</b>Findings are shown to supervisors for their own sites and to admins. Employees never see agent output, and the Agents item is not in their menu.</div>';
+  if(S.quiet)return '<div class="card quiet-box"><b>Nothing to report</b>'+(S.ws==='kamco'?'7 live tenders checked this morning. No tender needs attention. The run cost 0 tokens.':'4 sites checked after the day closed. Nothing above your sensitivity setting.')+'</div>';
+  var fs=visible();
+  if(S.ws==='bim'&&S.role!=='admin'){}
+  var h='';
+  if(S.ws==='kamco')h+='<div class="banner info">Shadow mode: only admins see these findings. <button class="btn link" data-goto="agents">Change who sees them</button></div>';
+  if(S.ws==='bim'&&S.role==='admin')h+='<div class="banner info">You see every site. A supervisor sees only the sites they run; nobody sees findings about themselves; employees see nothing.</div>';
+  if(S.ws==='bim'&&S.role!=='admin')h+='<div class="banner info">Showing '+SITES[S.role]+' only. Other sites are not visible to you.</div>';
+  if(fs.length===0)return h+'<div class="card quiet-box"><b>Nothing to review for '+(S.ws==='bim'?SITES[S.role]:'you')+'</b>Nothing above your sensitivity setting.</div>';
+  var shown=S.showAll?fs:fs.slice(0,3);
+  h+=shown.map(findingCard).join('');
+  if(fs.length>3&&!S.showAll)h+='<button class="btn" data-showall="1">Show all '+fs.length+'</button>';
+  if(S.showAll&&fs.length>3)h+='<button class="btn" data-showall="0">Show fewer</button>';
+  return h;
+}
+
+/* ---------- Runs + Trace ---------- */
+function runs(){
+  var rs=runsFor();var h='<div class="card" style="padding:0"><div style="overflow:auto"><table><thead><tr><th>When</th><th>Because</th><th>Scope</th><th>Result</th><th>Tokens</th></tr></thead><tbody>';
+  h+=rs.map(function(r){var s=STLAB[r.st];return '<tr class="row" data-run="'+r.id+'"><td>'+esc(r.when)+'</td><td>'+esc(r.trig)+'</td><td>'+esc(r.scope)+'</td><td>'+chip(s[1],r.st==='done'?r.res:s[0])+'</td><td>'+esc(r.tok)+'</td></tr>'}).join('');
+  return h+'</tbody></table></div></div><div class="sub">Select a run to see what it looked at, what it concluded and what it proposed.</div>';
+}
+function traceData(id){
+  var r=RUNS.filter(function(x){return x.id===id})[0];
+  if(r.ws==='kamco')return {r:r,looked:[
+    ['s1','Plan (code)','7 live tenders; 5 are candidates (4 within 21 days, 1 with a waiting decision)'],
+    ['s2','tender_brief','BOQ, approvals and RFQ facts for 5 tenders; unpriced 212 of 340 on TND-4471'],
+    ['s3','tender_approvals','RCJY-118: 1 pending, age 5 days; deciders Omar H., Nasser T.'],
+    ['s4','tender_rfq_status','TND-4471: 5 suppliers, 2 replied, 3 sent 9 days ago'],
+    ['s5','tender_open_questions','TND-4471 room: last message 3 days ago'],
+    ['s6','tender_open_questions','ICITY-2204: 1 open question, due 30 Oct (text quoted as data)'],
+    ['s7','tender_unpriced_by_cost_code','ICITY-2204: 38 in reinforcement, 0 elsewhere']],
+    concl:['At risk: TND-4471 (cites s2, s4, s5)','Decision waiting: RCJY-118 (s3, s2)','Question may be blocking: ICITY-2204 (s6, s7)','Addendum: MAADEN-0912 (s1, s2)','Missing information: new tender (s1, s2)'],
+    prop:['Nudge to Faisal M. (pending)','Nudge to Omar H., Nasser T. (pending)','Nudge to Hamza R. (pending)','Nudge to Layla S. (pending)'],
+    gaps:['Addendum text is not readable here.'],dropped:['1 sentence dropped: contained a digit not given by a tool (ungrounded)','2 tenders not shown: no change since the last run (duplicate)'],
+    tin:'14.9k',tout:'2.5k',model:'small tier, low effort',turns:3,tools:7,cap:'3% of the monthly cap'};
+  return {r:r,looked:[
+    ['s1','Plan (code)','Detectors over '+r.scope+': candidate clusters found'],
+    ['s2','attendance_site_digest','Aliased people P1 to P11, day records, punch-flag counts, distance bands (no names, no coordinates)'],
+    ['s3','attendance_roster_context','Shift start, rostered count, week-off by employment type, holidays'],
+    ['s4','attendance_site_baseline','Present-to-rostered over 4 weeks, same weekday']],
+    concl:['Findings cite s2 and s3; every person-level finding includes a non-personal explanation','No ranking or comparison of people (checked)'],
+    prop:['Recheck proposals are created for the supervisor only'],
+    gaps:[],dropped:['1 finding dropped: banned wording ("suspicious")','1 finding dropped: out of scope for this site'],
+    tin:'9.6k',tout:'1.6k',model:'small tier, low effort',turns:2,tools:3,cap:'2% of the monthly cap'};
+}
+function trace(){
+  var t=traceData(S.trace);var r=t.r;var s=STLAB[r.st];
+  var h='<div class="tr"><div class="ph"><button class="btn sm" data-back="1">Back to runs</button><h2 style="font-size:15px">'+(r.agent==='tw'?'Tender Watch':'Attendance Anomalies')+' · '+esc(r.when)+'</h2></div>';
+  h+='<div class="tiles"><div class="stat"><div class="k">Status</div><div class="v" style="font-size:14px">'+chip(s[1],s[0])+'</div></div><div class="stat"><div class="k">Because</div><div class="v" style="font-size:13px">'+esc(r.trig)+'</div></div><div class="stat"><div class="k">Tokens in / out</div><div class="v">'+t.tin+' / '+t.tout+'</div></div><div class="stat"><div class="k">Allowance</div><div class="v" style="font-size:13px">'+t.cap+'</div></div><div class="stat"><div class="k">Model</div><div class="v" style="font-size:13px">'+t.model+'</div></div><div class="stat"><div class="k">Turns / tools</div><div class="v">'+t.turns+' / '+t.tools+'</div></div></div>';
+  if(r.st!=='done')return h+'<div class="card quiet-box"><b>'+esc(s[0])+'</b>This run did not start the agent. '+(r.st==='skipped_budget'?'The monthly cap was reached.':'An admin had paused all agents.')+'</div></div>';
+  function sec(id,title,n,body){var o=S.open['t'+id]!==false;return '<div class="tsec'+(o?' open':'')+'"><button data-tsec="'+id+'" aria-expanded="'+o+'">'+title+'<span class="cnt">'+n+'</span></button><div class="c">'+body+'</div></div>'}
+  h+=sec('a','Looked at',t.looked.length,t.looked.map(function(x){return '<div class="st'+(S.traceStep===x[0]?' hl':'')+'" id="st-'+x[0]+'"><span class="id">'+x[0]+'</span><b>'+esc(x[1])+'</b><div class="out">'+esc(x[2])+'</div></div>'}).join(''));
+  h+=sec('b','Concluded',t.concl.length,t.concl.map(function(x){return '<div class="st">'+esc(x)+'</div>'}).join(''));
+  h+=sec('c','Proposed',t.prop.length,t.prop.map(function(x){return '<div class="st">'+esc(x)+'</div>'}).join(''));
+  h+=sec('d','Could not check, or left out',t.gaps.length+t.dropped.length,t.gaps.concat(t.dropped).map(function(x){return '<div class="st">'+esc(x)+'</div>'}).join('')||'<div class="st">Nothing.</div>');
+  if(S.ws==='kamco'||S.role==='admin')h+='<button class="btn link" data-raw="1">'+(S.raw?'Hide raw steps':'Show raw steps (admin)')+'</button>'+(S.raw?'<pre class="raw">'+esc(JSON.stringify({run:r.id,steps:t.looked.map(function(x){return {id:x[0],tool:x[1],out:x[2]}}),aliases:'P1..P11 (service role only)'},null,1))+'</pre>':'');
+  return h+'</div>';
+}
+
+/* ---------- Agents tab ---------- */
+function agentCard(k){
+  var a=S.agents[k];var tw=k==='tw';var pct=Math.min(100,Math.round(a.used/a.cap*100));if(S.hit)pct=100;
+  var days=a.days.length===7?'every day':a.days.length===5?'Sun to Thu':'selected days';
+  return '<div class="card"><div class="top" style="display:flex;gap:10px;align-items:flex-start;flex-wrap:wrap"><div style="flex:1;min-width:200px"><h3 style="margin:0;font-size:15px">'+(tw?'Tender Watch':'Attendance Anomalies')+'</h3><div class="meta" style="font-size:12.5px;color:var(--hint)">'+(tw?'Which live tenders are at risk, and who is holding them up':'Patterns across days and sites that the daily list hides')+'</div></div>'
+    +'<span class="sw">'+(S.paused?chip('quiet','Paused'):a.on?chip('good','On'):chip('quiet','Off'))+'<button class="tog'+(a.on?' on':'')+'" data-agent-toggle="'+k+'" aria-label="Turn on or off" data-guide="agent.toggle"></button></span></div>'
+    +'<div class="ac" style="margin-top:8px"><div><div class="row"><span>When</span><span>'+a.time+', '+days+(tw?' and on events':'')+'</span></div><div class="row"><span>Who receives</span><span>'+esc(a.vis)+'</span></div><div class="row"><span>Where</span><span>'+esc(a.where)+'</span></div></div>'
+    +'<div><div class="row"><span>Last run</span><span>'+(tw?'Today 07:30, 5 findings':'Today 02:00, 4 site-runs, 5 findings')+'</span></div><div class="row"><span>Sensitivity</span><span>'+a.sens+'</span></div><div class="row"><span>This month</span><span>'+a.used+'k of '+a.cap+'k tokens</span></div></div></div>'
+    +'<div style="display:flex;align-items:center;gap:10px;margin:10px 0"><span class="meter'+(pct>=100?' hot':'')+'" style="flex:1"><i style="width:'+pct+'%"></i></span><b style="font-size:12.5px">'+pct+'%</b></div>'
+    +(S.hit?'<div class="banner bad" style="margin-bottom:8px">Paused: monthly allowance reached.</div>':'')
+    +'<div class="acts"><button class="btn sm p" data-settings="'+k+'" data-guide="agent.settings">Settings</button><button class="btn sm" data-runnow="'+k+'">Run now</button>'+tip('One manual run per agent per hour.')+'</div></div>';
+}
+function agentsTab(){
+  if(S.ws==='kamco')return agentCard('tw')+'<div class="sub">Attendance Anomalies is not available in this workspace: it is switched on per workspace by BPMSquare.</div>';
+  return agentCard('at')+'<div class="sub">Tender Watch is not available in this workspace.</div>';
+}
+
+/* ---------- drawer ---------- */
+function openSettings(k){
+  var a=S.agents[k];var tw=k==='tw';
+  var dn=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  var h='<div class="top"><div style="flex:1"><h3>'+(tw?'Tender Watch':'Attendance Anomalies')+' settings</h3><div class="s">Changes are saved to Change history.</div></div><button class="btn sm" data-close="1" aria-label="Close">Close</button></div><div class="body">'
+   +'<div class="rr"><span class="l">On</span><span class="v"><button class="tog'+(a.on?' on':'')+'" data-d-toggle="on" aria-label="On"></button></span></div>'
+   +'<div class="rr"><span class="l">Runs at '+tip('Workspace time. '+(tw?'Plus a short run when a decision is proposed, a supplier replies, a stage changes or the bid end date or addenda change.':'After the day closes. Night shifts belong to the day they started.'))+'</span><span class="v"><input type="time" id="dTime" value="'+a.time+'"></span></div>'
+   +'<div class="rr"><span class="l">Days</span><span class="v days">'+dn.map(function(d,i){return '<button class="pick" type="button" data-d-day="'+i+'" aria-pressed="'+(a.days.indexOf(i)>-1)+'">'+d+'</button>'}).join('')+'</span></div>'
+   +'<div class="rr"><span class="l">Where</span><span class="v"><select id="dWhere">'+(tw?['All tenders','Mine only','Only some deal types']:['All 4 sites','Only some sites']).map(function(o){return '<option'+(o===a.where?' selected':'')+'>'+o+'</option>'}).join('')+'</select></span></div>'
+   +'<div class="rr"><span class="l">Who sees findings '+tip(tw?'Start with admins only while you check its judgment. Then widen to the deal owner and team.':'Supervisors see their own sites only. Findings about a supervisor go to their manager and admins.')+'</span><span class="v"><select id="dVis">'+(tw?['Admins only','Deal owner, team and admins']:['Admins only','Supervisors by site']).map(function(o){return '<option'+(o===a.vis?' selected':'')+'>'+o+'</option>'}).join('')+'</select></span></div>'
+   +'<div class="rr"><span class="l">How sensitive '+tip('Quiet reports less, Thorough reports more. It sets the thresholds for you.')+'</span><span class="v"><span class="seg sm" id="dSens">'+['Quiet','Balanced','Thorough'].map(function(o){return '<button type="button" data-d-sens="'+o+'" class="'+(a.sens===o?'on':'')+'">'+o+'</button>'}).join('')+'</span></span></div>'
+   +'<div class="more" id="dMore"><button type="button" data-d-more="1" aria-expanded="false"><span>&#9656;</span> More</button><div class="c">'
+   +(tw?'<div class="rr"><span class="l">Watch tenders closing within</span><span class="v"><select id="dWin"><option>14 days</option><option selected>21 days</option><option>30 days</option></select></span></div>'
+       :[['late','Late check-ins'],['miss','Missing check-outs'],['far','Punches far from site'],['drop','Site headcount drop'],['ot','Overtime review aid (pending OT only)'],['bud','Same-device pattern (not an agent job; off)'],['brid','Absences next to holidays (off)']].map(function(f){var on=a.fam[f[0]];return '<div class="rr"><span class="l">'+f[1]+'</span><span class="v"><button class="tog'+(on?' on':'')+'" data-d-fam="'+f[0]+'" aria-label="'+f[1]+'"></button></span></div>'}).join(''))
+   +'</div></div>'
+   +'<div class="rr"><span class="l">Allowance this month</span><span class="v"><b>'+a.used+'k of '+a.cap+'k tokens</b> '+tip('Set by BPMSquare for your workspace. The agent stops when it is reached.')+'</span></div>'
+   +'</div><div class="foot"><span class="sp"></span><button class="btn" data-close="1">Cancel</button><button class="btn p" data-d-save="'+k+'">Save</button></div>';
+  $('#panel').innerHTML=h;$('#panel').classList.add('on');$('#bd').classList.add('on');
+  S.draft={k:k,on:a.on,days:a.days.slice(),sens:a.sens,fam:a.fam?JSON.parse(JSON.stringify(a.fam)):null};
+}
+function closeAll(){$('#panel').classList.remove('on');$('#bd').classList.remove('on');$('#dlg').classList.remove('on')}
+
+/* ---------- editor dialog ---------- */
+function openEditor(id){
+  var f=KF.concat(BF).filter(function(x){return x.id===id})[0];var p=f.prop;
+  var h='<h3>'+(p.action==='Nudge'?'Edit and send a note':'Edit and send a recheck request')+'</h3>';
+  if(p.batch){
+    h+='<div class="sub">One request per person, all with the same message. Untick anyone you do not want to include. The employee sees a recheck from you; it does not mention an agent.</div><div class="batch">'+p.batch.map(function(n,i){return '<label><input type="checkbox" checked data-b="'+i+'"> '+esc(n)+'</label>'}).join('')+'</div>';
+  }else{
+    h+='<div class="sub">To: <b>'+esc(p.to.join(', '))+'</b> · '+esc(p.ch)+(S.ws==='kamco'?' · this demo workspace redirects all e-mail':'')+'</div>';
+  }
+  h+='<textarea id="edTxt" aria-label="Message">'+esc(p.text)+'</textarea>';
+  h+='<div class="sub">Numbers and dates in this draft came from the product\'s own data. If you change them, they are yours.</div><div class="acts"><button class="btn" data-close="1">Cancel</button><button class="btn p" data-send="'+id+'">Send</button></div>';
+  $('#dlgBox').innerHTML=h;$('#dlg').classList.add('on');$('#bd').classList.add('on');
+}
+function openReject(id){
+  $('#dlgBox').innerHTML='<h3>Reject this proposal?</h3><div class="sub">It will not be proposed again for 14 days. A note helps the owner tune the agent (optional).</div><input type="text" id="rejNote" placeholder="Optional note" style="width:100%"><div class="acts"><button class="btn" data-close="1">Cancel</button><button class="btn danger" data-rej-ok="'+id+'">Reject</button></div>';
+  $('#dlg').classList.add('on');$('#bd').classList.add('on');
+}
+
+/* ---------- render ---------- */
+function render(){
+  var app=$('#app');app.classList.toggle('phone',S.vp==='phone');
+  $('#roleWrap').style.display=S.ws==='bim'?'flex':'none';
+  topbar();tabs();
+  var v='';
+  if(S.trace)v=trace();
+  else if(S.tab==='review')v=review();
+  else if(S.tab==='runs')v=runs();
+  else v=agentsTab();
+  $('#view').innerHTML=v;
+  if(S.trace&&S.traceStep){var el=document.getElementById('st-'+S.traceStep);if(el&&el.scrollIntoView)el.scrollIntoView({block:'center'})}
+}
+
+/* ---------- events ---------- */
+document.addEventListener('click',function(e){
+  var t=e.target.closest('button,tr,[data-tab]');if(!t)return;var d=t.dataset;
+  if(t.closest('#ws')&&d.ws){S.ws=d.ws;S.tab='review';S.trace=null;S.role='admin';$('#role').value='admin';[].forEach.call(document.querySelectorAll('#ws button'),function(b){b.classList.toggle('on',b===t)});render();return}
+  if(t.closest('#vp')&&d.vp){S.vp=d.vp;[].forEach.call(document.querySelectorAll('#vp button'),function(b){b.classList.toggle('on',b===t)});render();return}
+  if(t.id==='pause'){S.paused=!S.paused;toast(S.paused?'All agents paused':'Agents resumed');render();return}
+  if(d.tab){S.tab=d.tab;S.trace=null;render();return}
+  if(d.goto){S.tab=d.goto;S.trace=null;render();return}
+  if(d.why){S.open[d.why]=!S.open[d.why];render();return}
+  if(d.ev){var p=d.ev.split('|');S.trace=p[0];S.traceStep=p[1];S.tab='runs';S.open={};render();return}
+  if(d.run){S.trace=d.run;S.traceStep=null;render();return}
+  if(d.back){S.trace=null;S.traceStep=null;render();return}
+  if(d.tsec){S.open['t'+d.tsec]=!(S.open['t'+d.tsec]!==false);render();return}
+  if(d.raw){S.raw=!S.raw;render();return}
+  if(d.showall!==undefined){S.showAll=d.showall==='1';render();return}
+  if(d.dismiss){STATE[d.dismiss]='dismissed';toast('Dismissed');render();return}
+  if(d.notissue){STATE[d.notissue]='notissue';toast('Marked not an issue. Hidden for 30 days unless it gets worse.');render();return}
+  if(d.undo){delete STATE[d.undo];render();return}
+  if(d.edit){openEditor(d.edit);return}
+  if(d.reject){openReject(d.reject);return}
+  if(d.send){STATE[d.send+':p']='sent';closeAll();toast(S.ws==='kamco'?'Sent as a Deal Room mention and e-mail (demo: redirected)':'Recheck request sent from you');render();return}
+  if(d.rejOk){STATE[d.rejOk+':p']='rejected';closeAll();toast('Rejected');render();return}
+  if(d.close){closeAll();return}
+  if(d.agentToggle){var a=S.agents[d.agentToggle];a.on=!a.on;toast(a.on?'Agent turned on':'Agent turned off');render();return}
+  if(d.settings){openSettings(d.settings);return}
+  if(d.runnow){toast('Queued a manual run. It starts within five minutes.');return}
+  if(d.dToggle){S.draft.on=!S.draft.on;t.classList.toggle('on',S.draft.on);return}
+  if(d.dDay!==undefined){var i=+d.dDay,ix=S.draft.days.indexOf(i);if(ix>-1)S.draft.days.splice(ix,1);else S.draft.days.push(i);t.setAttribute('aria-pressed',ix===-1);return}
+  if(d.dSens){S.draft.sens=d.dSens;[].forEach.call(document.querySelectorAll('#dSens button'),function(b){b.classList.toggle('on',b===t)});return}
+  if(d.dFam){S.draft.fam[d.dFam]=!S.draft.fam[d.dFam];t.classList.toggle('on',S.draft.fam[d.dFam]);return}
+  if(d.dMore){var m=$('#dMore');m.classList.toggle('open');t.setAttribute('aria-expanded',m.classList.contains('open'));return}
+  if(d.dSave){var ag=S.agents[d.dSave];ag.on=S.draft.on;ag.days=S.draft.days.slice().sort();ag.sens=S.draft.sens;if(S.draft.fam)ag.fam=S.draft.fam;ag.time=$('#dTime').value||ag.time;ag.where=$('#dWhere').value;ag.vis=$('#dVis').value;closeAll();toast('Saved. Recorded in Change history.');render();return}
+  if(t.id==='bd'){closeAll();return}
+});
+$('#bd').addEventListener('click',closeAll);
+$('#role').addEventListener('change',function(){S.role=this.value;S.tab='review';S.trace=null;render()});
+$('#quiet').addEventListener('change',function(){S.quiet=this.checked;render()});
+$('#hit').addEventListener('change',function(){S.hit=this.checked;if(S.hit){RUNS[3].st='skipped_budget'}render()});
+$('#dlg').addEventListener('click',function(e){if(e.target.id==='dlg')closeAll()});
+document.addEventListener('keydown',function(e){if(e.key==='Escape')closeAll()});
+render();
+})();
+</script></body></html>

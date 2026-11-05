@@ -3,6 +3,7 @@ import { requireTenantUser, createAdminSupabase, getAuthUser } from "@/lib/supab
 import { getTenant, tenantHasFeature } from "@/lib/tenant";
 import { logChange } from "@/lib/changeLog";
 import { loadActorNames } from "@/lib/actorNames";
+import { emitTenderDecisionProposed } from "@/lib/events/emitters";
 import { loadOpportunity } from "@/lib/sales/opportunityServer";
 import { APPROVAL_KIND_TENDER_BID, APPROVAL_OBJECT_TENDER, decidersFor, parseProposal, proposalMessage, proposalProblem } from "@/lib/tender/approval";
 import { buildApprovalView, loadApprovals, loadApprovers } from "@/lib/tender/approvalServer";
@@ -75,6 +76,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     tenantId, objectType: "opportunity_tenders", objectId: id, objectLabel: label, action: "update", actorId: user?.id, actorEmail: user?.email,
     changes: [{ field: "Bid decision proposed", from: null, to: `${parsed.decision === "go" ? "Go" : "No-go"}: ${parsed.reason}` }],
   });
+
+  await emitTenderDecisionProposed(tenantId, { actorId: userId, opportunityId: id, requestId: (made as { id: string }).id, ref: opp.ref, proposed: parsed.decision, accountId: opp.account_id });
 
   // Tell the approvers: an e-mail (resolveOutbound, email log) and an entry in their Nova inbox. Never fails the proposal.
   try {

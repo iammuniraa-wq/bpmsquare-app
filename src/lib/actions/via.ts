@@ -7,7 +7,8 @@ import { AsyncLocalStorage } from "node:async_hooks";
 // from outside, and an audit mark that can be forged is not an audit mark. Kept on globalThis so every bundle that
 // imports this file shares one store.
 
-export type Via = "assistant";
+// "crew" = a person pressed Edit and send on an AI automation proposal (src/lib/crew/server/gate.ts).
+export type Via = "assistant" | "crew";
 
 const KEY = Symbol.for("bpmsquare.actions.via");
 type G = typeof globalThis & { [KEY]?: AsyncLocalStorage<Via> };

@@ -109,6 +109,9 @@ export const EVENTS = {
   EMAIL_RECEIVED: "email.received",
   EMAIL_HANDLED: "email.handled",
   EMAIL_CONVERTED: "email.converted",
+  // Tender deals (docs/design/nova-crew-agents.md section 4.2): the two moments Tender Watch wakes up for. Payloads carry ids and numbers only.
+  TENDER_DECISION_PROPOSED: "tender.decision_proposed",
+  TENDER_DETAILS_CHANGED: "tender.details_changed",
   // WFM (planned; no marketing use)
   WFM_LEAVE_REQUESTED: "wfm.leave_requested",
   WFM_OT_REQUESTED: "wfm.ot_requested",

@@ -1,0 +1,146 @@
+{
+  "id": "site-level-10-boundary-too-tight",
+  "tags": [
+    "site-level"
+  ],
+  "description": "Eleven punches by three people over five days sit just outside the boundary (1.5x-3x of the radius).",
+  "input": {
+    "site": {
+      "alias": "S5",
+      "shift_start": "09:00",
+      "grace_minutes": 10,
+      "radius_m": 150
+    },
+    "run": {
+      "from": "2026-10-19",
+      "to": "2026-11-01"
+    },
+    "config": {
+      "week_off_days": [
+        0
+      ]
+    },
+    "people": [
+      {
+        "alias": "P1",
+        "type": "full_time"
+      },
+      {
+        "alias": "P2",
+        "type": "full_time",
+        "flags": [
+          {
+            "date": "2026-10-26",
+            "kind": "outside_geofence",
+            "bucket": "1.5-3x"
+          },
+          {
+            "date": "2026-10-27",
+            "kind": "outside_geofence",
+            "bucket": "1.5-3x"
+          },
+          {
+            "date": "2026-10-28",
+            "kind": "outside_geofence",
+            "bucket": "1.5-3x"
+          },
+          {
+            "date": "2026-10-29",
+            "kind": "outside_geofence",
+            "bucket": "1.5-3x"
+          },
+          {
+            "date": "2026-10-30",
+            "kind": "outside_geofence",
+            "bucket": "1.5-3x"
+          }
+        ]
+      },
+      {
+        "alias": "P3",
+        "type": "full_time"
+      },
+      {
+        "alias": "P4",
+        "type": "full_time"
+      },
+      {
+        "alias": "P5",
+        "type": "full_time",
+        "flags": [
+          {
+            "date": "2026-10-26",
+            "kind": "outside_geofence",
+            "bucket": "1.5-3x"
+          },
+          {
+            "date": "2026-10-27",
+            "kind": "outside_geofence",
+            "bucket": "1.5-3x"
+          },
+          {
+            "date": "2026-10-28",
+            "kind": "outside_geofence",
+            "bucket": "1.5-3x"
+          },
+          {
+            "date": "2026-10-30",
+            "kind": "outside_geofence",
+            "bucket": "1.5-3x"
+          }
+        ]
+      },
+      {
+        "alias": "P6",
+        "type": "full_time",
+        "flags": [
+          {
+            "date": "2026-10-26",
+            "kind": "outside_geofence",
+            "bucket": "1.5-3x"
+          },
+          {
+            "date": "2026-10-28",
+            "kind": "outside_geofence",
+            "bucket": "1.5-3x"
+          }
+        ]
+      },
+      {
+        "alias": "P7",
+        "type": "full_time"
+      },
+      {
+        "alias": "P8",
+        "type": "full_time"
+      }
+    ]
+  },
+  "expect": {
+    "expected_candidates": [
+      {
+        "family": "far_punches",
+        "level": "site"
+      }
+    ],
+    "must_flag": [
+      {
+        "kind": "far_punches",
+        "level": "site",
+        "must_cite": [
+          "people_affected"
+        ]
+      }
+    ],
+    "must_not_flag": [],
+    "must_gap": [],
+    "max_findings": 1,
+    "max_person_findings": 0,
+    "proposals": {
+      "allowed": [
+        "site_note"
+      ],
+      "forbidden_target_aliases": []
+    }
+  }
+}

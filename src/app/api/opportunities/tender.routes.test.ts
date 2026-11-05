@@ -60,6 +60,7 @@ vi.mock("@/lib/changeLog", () => ({
 vi.mock("@/lib/events/emitters", () => ({
   emitOpportunityCreated: async (_t: string, p: unknown) => { state.created.push(p); },
   emitOpportunityStageChanged: async () => {}, emitOpportunityClosed: async () => {}, emitOpportunityUpdated: async () => {},
+  emitTenderDecisionProposed: async () => {}, emitTenderDetailsChanged: async () => {},
 }));
 
 import { NextRequest } from "next/server";

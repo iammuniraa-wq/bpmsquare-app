@@ -43,6 +43,7 @@ export const NAV_GROUP_LABELS: Record<string, string> = {
   "INTELLIGENCE": "Intelligence",
   "MASTER DATA": "Master data",
   "WORKFORCE": "Workforce",
+  "AI AUTOMATION": "AI automation",
   "INSIGHTS": "Insights",
   "ADMIN": "Admin",
 };

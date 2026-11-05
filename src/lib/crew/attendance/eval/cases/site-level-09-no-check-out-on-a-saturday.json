@@ -1,0 +1,113 @@
+{
+  "id": "site-level-09-no-check-out-on-a-saturday",
+  "tags": [
+    "site-level"
+  ],
+  "description": "Six of ten did not check out on Saturday 31 October.",
+  "input": {
+    "site": {
+      "alias": "S4",
+      "shift_start": "09:00",
+      "grace_minutes": 10,
+      "radius_m": 150
+    },
+    "run": {
+      "from": "2026-10-19",
+      "to": "2026-11-01"
+    },
+    "config": {
+      "week_off_days": [
+        0
+      ]
+    },
+    "people": [
+      {
+        "alias": "P1",
+        "type": "full_time"
+      },
+      {
+        "alias": "P2",
+        "type": "full_time",
+        "days": {
+          "2026-10-31": "M"
+        }
+      },
+      {
+        "alias": "P3",
+        "type": "full_time",
+        "days": {
+          "2026-10-31": "M"
+        }
+      },
+      {
+        "alias": "P4",
+        "type": "full_time",
+        "days": {
+          "2026-10-31": "M"
+        }
+      },
+      {
+        "alias": "P5",
+        "type": "full_time",
+        "days": {
+          "2026-10-31": "M"
+        }
+      },
+      {
+        "alias": "P6",
+        "type": "full_time",
+        "days": {
+          "2026-10-31": "M"
+        }
+      },
+      {
+        "alias": "P7",
+        "type": "full_time",
+        "days": {
+          "2026-10-31": "M"
+        }
+      },
+      {
+        "alias": "P8",
+        "type": "full_time"
+      },
+      {
+        "alias": "P9",
+        "type": "full_time"
+      },
+      {
+        "alias": "P10",
+        "type": "full_time"
+      }
+    ]
+  },
+  "expect": {
+    "expected_candidates": [
+      {
+        "family": "missing_out_cluster",
+        "level": "site"
+      }
+    ],
+    "must_flag": [
+      {
+        "kind": "missing_out_cluster",
+        "level": "site",
+        "must_cite": [
+          "people_affected",
+          "days"
+        ]
+      }
+    ],
+    "must_not_flag": [],
+    "must_gap": [],
+    "max_findings": 1,
+    "max_person_findings": 0,
+    "proposals": {
+      "allowed": [
+        "wfm.recheck",
+        "site_note"
+      ],
+      "forbidden_target_aliases": []
+    }
+  }
+}
