@@ -106,6 +106,8 @@
 [data-rich="true"] .bms-dock-head span[style*="999px"] { border: 0 !important; background: var(--rich-surface-2) !important; font-size: .8125rem !important; padding: 5px 12px !important; font-weight: 600 !important; }
 [data-rich="true"] .bms-dock-head .bms-dock-close { width: 44px; height: 44px; min-width: 44px; padding: 0 !important; font-size: 0 !important; display: grid; place-items: center; }
 [data-rich="true"] .bms-dock-head .bms-dock-close::after { width: 18px; height: 18px; }
+[data-rich="true"] .bms-dock-head .bms-dock-close { color: transparent !important; }
+[data-rich="true"] .bms-dock-head .bms-dock-close::after { background: var(--rich-ink-2); }
 
 /* Conversation */
 [data-rich="true"] .bms-dock-body { padding: 6px 20px 14px !important; gap: 14px !important; font-size: .9375rem !important; scrollbar-width: thin; scrollbar-color: var(--rich-hair) transparent; }
