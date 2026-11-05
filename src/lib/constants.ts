@@ -1447,6 +1447,10 @@ export type TenantConfig = {
     /** Workspace default for the dashboard look of a workspace with `features.gcc_tender` (docs/design/tender-desk.md). A person's own choice
      *  (cookie bpm_tender_desk) wins over it; unset reads as "bold". */
     tender_desk_style?: "bold" | "control";
+    /** The "Rich" look (docs/design/rich-ui.md): a calmer, larger re-skin of Nova. Inert unless ui_theme is "nextgen2" AND
+     *  features.next_experience is on AND this is true -- see isRichTenant(). A workspace admin on a Nova tenant switches it
+     *  in Settings, Appearance; unset reads as off. */
+    rich_ui?: boolean;
     spectacular_colors?: {
       shell_from?: string;
       shell_to?: string;

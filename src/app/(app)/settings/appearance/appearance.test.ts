@@ -31,6 +31,11 @@ describe("the draft", () => {
     expect(draftFromTenant(tenant({ appearance: { tender_desk_style: "control" } })).tenderDeskStyle).toBe("control");
     expect(draftFromTenant(tenant({ appearance: { tender_desk_style: "classic" } })).tenderDeskStyle).toBe("bold");
   });
+  it("reads the Rich look as off unless the workspace stored true", () => {
+    expect(draftFromTenant(tenant({})).rich).toBe(false);
+    expect(draftFromTenant(tenant({ appearance: { ui_theme: "nextgen2" } })).rich).toBe(false);
+    expect(draftFromTenant(tenant({ appearance: { ui_theme: "nextgen2", rich_ui: true } })).rich).toBe(true);
+  });
   it("starts with Nova's chrome switches on, as the hooks do", () => {
     expect(draftFromTenant(tenant({})).chrome).toEqual({ top_bar_identity: true, command_palette: true, navy_sidebar: true });
   });
@@ -72,6 +77,19 @@ describe("one Save over three tabs", () => {
     expect(planAppearanceSave(initial, { ...initial }, stored).config).toBeUndefined();
   });
 
+  it("stores the Rich look only while on, with a reload, and drops the key when it goes off", () => {
+    const stored = { ui_theme: "nextgen2" as const };
+    const start = draftFromTenant(tenant({ appearance: stored }));
+    const on = planAppearanceSave(start, { ...start, rich: true }, stored);
+    expect(on.config?.appearance).toEqual({ ui_theme: "nextgen2", rich_ui: true });
+    expect(on.reload).toBe(true);
+    const richStored = { ui_theme: "nextgen2" as const, rich_ui: true };
+    const was = draftFromTenant(tenant({ appearance: richStored }));
+    const off = planAppearanceSave(was, { ...was, rich: false }, richStored);
+    expect(off.config?.appearance).toEqual({ ui_theme: "nextgen2" });
+    expect(planAppearanceSave(was, was, richStored).config).toBeUndefined();
+  });
+
   it("sends the dashboard blocks together with their topics, capped at four", () => {
     const plan = planAppearanceSave(initial, { ...initial, news: true, topics: "a, b, c, d, e" }, undefined);
     expect(plan.config?.dashboard_extras).toEqual({ business_news: true, product_tips: false, news_topics: ["a", "b", "c", "d"] });
@@ -104,6 +122,13 @@ describe("Theme tab", () => {
     expect(render("spectacular_purple")).toContain("Midnight");
     expect(render("classic")).not.toContain("Midnight");
     expect(render("classic")).not.toContain("Pink");
+  });
+
+  it("offers the Rich look only on Nova, and only to a workspace that has the Nova flag", () => {
+    expect(render("nextgen2")).toContain("Rich look");
+    expect(render("nextgen2", {})).not.toContain("Rich look");
+    expect(render("nextgen")).not.toContain("Rich look");
+    expect(render("classic")).not.toContain("Rich look");
   });
 
   it("keeps layout and custom colours behind one More, only where they apply", () => {

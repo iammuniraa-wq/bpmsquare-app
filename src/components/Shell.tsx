@@ -12,7 +12,10 @@ import TabBar from "./TabBar";
 import GlobalSearchBar from "./GlobalSearchBar";
 import AIDock from "./AIDock";
 import { XIcon, SearchIcon } from "@/components/Icons";
-import { useTenant, useUiTheme, useTenantFeature, useIsNextgen3Layer, useNovaSurfaces, useIsEnterpriseSidebar, useIsSpectacular, useSpectacularVariant, useNavySidebar, useTopBarIdentity, useCommandPalette } from "@/lib/tenant-context";
+import { useTenant, useUiTheme, useTenantFeature, useIsNextgen3Layer, useNovaSurfaces, useIsEnterpriseSidebar, useIsSpectacular, useSpectacularVariant, useNavySidebar, useTopBarIdentity, useCommandPalette, useRichUi } from "@/lib/tenant-context";
+import { RICH_NAV_KEY, parseRichNav, applyRichRoot, type RichNav } from "@/lib/richUi";
+import RichRail from "./RichRail";
+import RichNavToggle from "./RichNavToggle";
 import NovaPalette from "@/components/NovaPalette";
 import NovaDraft from "@/components/NovaDraft";
 import NovaInbox from "@/components/NovaInbox";
@@ -35,6 +38,9 @@ function MobileTopBar() {
   // instead of the classic expandable Sidebar.
   const nova = useIsNextgen3Layer();
   const novaSurfaces = useNovaSurfaces();
+  // The Rich look wants the person's avatar in the phone's top bar (the hamburger is hidden by rich.css; the tab bar's
+  // "More" opens the same drawer).
+  const rich = useRichUi();
 
   // Close the drawer/search overlay whenever the route changes.
   useEffect(() => { setOpen(false); setSearchOpen(false); }, [pathname]);
@@ -54,7 +60,7 @@ function MobileTopBar() {
           nothing did, so the clock and the tenant name were printed on top
           of each other. The bar keeps its full-bleed background and grows
           by the inset instead, so it still reaches the top edge. */}
-      <header style={{
+      <header className="bpm-m-topbar" style={{
         position: "sticky", top: 0, zIndex: 100, flexShrink: 0,
         background: "var(--sb-bar-bg)",
         height: "calc(48px + env(safe-area-inset-top, 0px))",
@@ -81,7 +87,7 @@ function MobileTopBar() {
           ) : (
             <Logo size={26} />
           )}
-          <span style={{
+          <span className="bpm-m-name" style={{
             color: "var(--sb-strong)", fontSize: 15.5, fontWeight: 700, letterSpacing: "-0.01em",
             overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0,
           }}>
@@ -101,13 +107,16 @@ function MobileTopBar() {
             setSearchOpen(v => !v); setOpen(false);
           }}
           aria-label={searchOpen ? "Close search" : "Search"}
+          className="bpm-m-search"
           style={{ ...iconBtn, background: searchOpen ? "var(--sb-hover-strong)" : "transparent" }}
         >
           {searchOpen ? <XIcon size={18} color="var(--sb-strong)" /> : <SearchIcon size={18} color="var(--sb-strong)" />}
         </button>
+        {rich && <IdentityMenu />}
         <button
           onClick={() => { setOpen(v => !v); setSearchOpen(false); }}
           aria-label={open ? "Close menu" : "Open menu"}
+          className="bpm-m-burger"
           style={{ ...iconBtn, flexDirection: "column", gap: 5, background: open ? "var(--sb-hover-strong)" : "transparent" }}
         >
           {open ? (
@@ -253,7 +262,7 @@ function IdentityMenu() {
         }}>
           {initials}
         </span>
-        <span style={{
+        <span className="bpm-id-label" style={{
           fontSize: 12, fontWeight: 600, color: "var(--sb-search-icon)",
           maxWidth: 150, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
         }} title={email}>
@@ -318,6 +327,9 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   // that one is light-only, this one must leave dark mode alone.
   const navyRail = useNavySidebar();
   const aiAllowed = useTenantFeature("ai_assistant") && uiTheme !== "classic";
+  // The Rich look (src/styles/rich.css). Always implies Nova (see isRichTenant), so `nova` is true whenever this is.
+  const rich = useRichUi();
+  const [richNav, setRichNav] = useState<RichNav>("menu");
   const [dark, setDark] = useState(false);
 
   useEffect(() => {
@@ -332,9 +344,17 @@ export default function Shell({ children }: { children: React.ReactNode }) {
     // preference yet) -- an explicit "0" from a past toggle still wins.
     try {
       const stored = localStorage.getItem(DARK_MODE_KEY);
-      setDark(stored === null ? true : stored === "1");
-    } catch { setDark(true); }
+      // Rich opens in light for a first-time visitor; every other nextgen look keeps its dark default.
+      setDark(stored === null ? !rich : stored === "1");
+    } catch { setDark(!rich); }
+  }, [rich]);
+  useEffect(() => {
+    try { setRichNav(parseRichNav(localStorage.getItem(RICH_NAV_KEY))); } catch { /* keep the default */ }
   }, []);
+  const chooseRichNav = (v: RichNav) => {
+    setRichNav(v);
+    try { localStorage.setItem(RICH_NAV_KEY, v); } catch { /* ignore */ }
+  };
   const toggleDark = () => {
     setDark((d) => {
       const next = !d;
@@ -361,13 +381,20 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   // DEFAULTS TO TRUE for a browser with no stored preference -- so without
   // this guard a workspace switching to Spectacular would land in plain
   // nextgen dark and see none of it.
-  const mode = uiTheme === "nextgen" && !isEnterprise && !isSpectacular && (nova || dark) ? "dark" : undefined;
+  // Rich is the one Nova look with a light mode, so it asks the per-browser flag like plain nextgen does.
+  const mode = uiTheme === "nextgen" && !isEnterprise && !isSpectacular && (rich ? dark : (nova || dark)) ? "dark" : undefined;
+  // Toasts, confirm dialogs and the InfoTip popover render outside the wrapper below; mirror the Rich facts onto <html>.
+  useEffect(() => {
+    applyRichRoot(document.documentElement, rich, mode === "dark");
+    return () => applyRichRoot(document.documentElement, false, false);
+  }, [rich, mode]);
+  const richStamp = { "data-rich": rich || undefined, "data-rich-nav": rich ? richNav : undefined } as const;
 
   if (mobile) {
     return (
       <FeelProvider>
       <TabsProvider trackTabs={false}>
-        <div data-theme={uiTheme} data-mode={mode} data-nova={nova || undefined} data-enterprise={isEnterprise || undefined} data-spectacular={isSpectacular || undefined} data-spectacular-variant={spectacularVariant ?? undefined} data-navy-rail={navyRail || undefined} style={{ display: "flex", flexDirection: "column", minHeight: "100vh", background: "var(--app-bg, var(--panel2))" }}>
+        <div data-theme={uiTheme} data-mode={mode} data-nova={nova || undefined} data-enterprise={isEnterprise || undefined} data-spectacular={isSpectacular || undefined} data-spectacular-variant={spectacularVariant ?? undefined} data-navy-rail={navyRail || undefined} {...richStamp} style={{ display: "flex", flexDirection: "column", minHeight: "100vh", background: "var(--app-bg, var(--panel2))" }}>
           <MobileTopBar />
           <main className="bpm-main" style={{
             flex: 1, minWidth: 0, overflowX: "auto",
@@ -381,8 +408,8 @@ export default function Shell({ children }: { children: React.ReactNode }) {
           }}>
             {children}
           </main>
-          {uiTheme === "nextgen" && !isEnterprise && !isSpectacular && !nova && (
-            <div style={{ position: "fixed", left: 16, bottom: "calc(16px + env(safe-area-inset-bottom, 0px))", zIndex: 90 }}>
+          {uiTheme === "nextgen" && !isEnterprise && !isSpectacular && (!nova || rich) && (
+            <div className="bpm-m-darktoggle" style={{ position: "fixed", left: 16, bottom: "calc(16px + env(safe-area-inset-bottom, 0px))", zIndex: 90 }}>
               <DarkToggle dark={dark} onToggle={toggleDark} />
             </div>
           )}
@@ -410,8 +437,12 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   return (
     <FeelProvider>
     <TabsProvider>
-      <div data-theme={uiTheme} data-mode={mode} data-nova={nova || undefined} data-enterprise={isEnterprise || undefined} data-spectacular={isSpectacular || undefined} data-spectacular-variant={spectacularVariant ?? undefined} data-navy-rail={navyRail || undefined} style={{ display: "flex", minHeight: "100vh", background: "var(--app-bg, var(--panel2))" }}>
-        {nova ? <NovaSidebar /> : <Sidebar />}
+      <div data-theme={uiTheme} data-mode={mode} data-nova={nova || undefined} data-enterprise={isEnterprise || undefined} data-spectacular={isSpectacular || undefined} data-spectacular-variant={spectacularVariant ?? undefined} data-navy-rail={navyRail || undefined} {...richStamp} style={{ display: "flex", minHeight: "100vh", background: "var(--app-bg, var(--panel2))" }}>
+        {rich ? (
+          <div className="rich-nav" data-slot={richNav}>
+            {richNav === "rail" ? <RichRail /> : <NovaSidebar />}
+          </div>
+        ) : nova ? <NovaSidebar /> : <Sidebar />}
         <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
           <div className="bpm-topbar" style={{
             display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 10,
@@ -425,7 +456,8 @@ export default function Shell({ children }: { children: React.ReactNode }) {
             {/* The bar stays clickable when the palette is on, but gives up
                 ⌘K to it -- otherwise both answer the same key. */}
             {!nova && <GlobalSearchBar hotkeyDisabled={commandPalette} />}
-            {uiTheme === "nextgen" && !isEnterprise && !isSpectacular && !nova && <DarkToggle dark={dark} onToggle={toggleDark} />}
+            {rich && <RichNavToggle value={richNav} onChange={chooseRichNav} />}
+            {uiTheme === "nextgen" && !isEnterprise && !isSpectacular && (!nova || rich) && <DarkToggle dark={dark} onToggle={toggleDark} />}
             {novaSurfaces && <NovaInbox />}
             {topBarIdentity && <IdentityMenu />}
           </div>

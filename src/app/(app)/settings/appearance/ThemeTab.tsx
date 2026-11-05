@@ -130,6 +130,13 @@ export default function ThemeTab({ draft, features, accent, onChange }: {
         <Toggle on={draft.compact} onChange={(v) => onChange({ compact: v })} accent={accent} label="Compact sidebar" />
       </div>
 
+      {theme === "nextgen2" && features?.next_experience === true && (
+        <div className={s.switchRow}>
+          <span className={s.name}>Rich look<InfoTip label="Rich look">{SETTINGS_TIPS.richLook}</InfoTip></span>
+          <Toggle on={draft.rich} onChange={(v) => onChange({ rich: v })} accent={accent} label="Rich look" />
+        </div>
+      )}
+
       {(theme === "nextgen" || theme === "nextgen2" || theme === "spectacular_purple") && (
         <details className={s.more}>
           <summary>More</summary>

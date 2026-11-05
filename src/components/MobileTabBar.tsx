@@ -68,6 +68,7 @@ export default function MobileTabBar({ onMore }: { onMore: () => void }) {
     <>
       {openG && (
         <div
+          className="bpm-m-scrim"
           onClick={() => setOpenCat(null)}
           style={{ position: "fixed", inset: 0, zIndex: 97, background: "rgba(0,0,0,0.5)" }}
         />
@@ -75,6 +76,7 @@ export default function MobileTabBar({ onMore }: { onMore: () => void }) {
       {openG && (
         <div
           ref={sheetRef}
+          className="bpm-m-sheet"
           role="menu"
           aria-label={openG.label}
           style={{
@@ -114,6 +116,7 @@ export default function MobileTabBar({ onMore }: { onMore: () => void }) {
 
       <nav
         aria-label="Main"
+        className="bpm-m-tabbar"
         style={{
           position: "fixed", left: 0, right: 0, bottom: 0, zIndex: 96,
           display: "flex", alignItems: "stretch",
@@ -138,7 +141,7 @@ export default function MobileTabBar({ onMore }: { onMore: () => void }) {
           const single = g.items.length === 1;
           if (single) {
             return (
-              <Link key={g.key} href={g.items[0].href} style={{ ...cell, color: on ? "var(--nova-pink)" : "var(--nova-ink-faint)" }}>
+              <Link key={g.key} href={g.items[0].href} className="bpm-m-tab" data-on={on || undefined} style={{ ...cell, color: on ? "var(--nova-pink)" : "var(--nova-ink-faint)" }}>
                 <Icon size={21} />
                 <span style={{ ...label, fontWeight: on ? 700 : 600 }}>{g.label}</span>
               </Link>
@@ -150,6 +153,8 @@ export default function MobileTabBar({ onMore }: { onMore: () => void }) {
               type="button"
               onClick={() => setOpenCat((cur) => (cur === g.key ? null : g.key))}
               aria-expanded={openCat === g.key}
+              className="bpm-m-tab"
+              data-on={on || undefined}
               style={{ ...cell, color: on ? "var(--nova-pink)" : "var(--nova-ink-faint)" }}
             >
               <Icon size={21} />
@@ -157,7 +162,7 @@ export default function MobileTabBar({ onMore }: { onMore: () => void }) {
             </button>
           );
         })}
-        <button onClick={onMore} style={{ ...cell, color: "var(--nova-ink-faint)" }} aria-label="More">
+        <button onClick={onMore} className="bpm-m-tab" style={{ ...cell, color: "var(--nova-ink-faint)" }} aria-label="More">
           <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
             <path d="M4 7h16M4 12h16M4 17h16" />
           </svg>
