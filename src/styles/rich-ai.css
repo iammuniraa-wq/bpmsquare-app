@@ -1,0 +1,214 @@
+/* ============================================================================
+   RICH -- the AI assistant slider (orb + panel). Step 2d, 2026-11-05.
+
+   INERT BY DEFAULT. Every selector starts with [data-rich="true"] (the wrapper
+   Shell.tsx stamps; AIDock renders inside it on both the phone and the desktop
+   shell). For any tenant Shell does not stamp, nothing here matches. Colours
+   come only from the --rich-* tokens defined in rich.css (light and dark);
+   there are no hex values in this file. UI only: AIDock's behaviour, requests
+   and answers are untouched; the class hooks it carries are bms-dock-*.
+
+   Inline styles in AIDock need !important to beat; specificity is kept at
+   [data-rich] + class so the dock's own <style> block (single class) loses.
+   ========================================================================== */
+
+/* ---- Icons: SVG masks, so the markup keeps its plain text ---------------- */
+[data-rich="true"] .bms-dock-glyph::after,
+[data-rich="true"] .bms-dock-send::after,
+[data-rich="true"] .bms-dock-close::after,
+[data-rich="true"] .bms-dock-body .bms-dock-row::before {
+  content: ""; display: block; background: currentColor; flex: none;
+  -webkit-mask: var(--rich-ai-icon) center / contain no-repeat; mask: var(--rich-ai-icon) center / contain no-repeat;
+}
+[data-rich="true"] .bms-dock-glyph,
+[data-rich="true"] .bms-dock-body .bms-dock-row {
+  --rich-ai-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 2 L14.2 8.8 L21 11 L14.2 13.2 L12 20 L9.8 13.2 L3 11 L9.8 8.8 Z'/%3E%3C/svg%3E");
+}
+[data-rich="true"] .bms-dock-send {
+  --rich-ai-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12h14M13 6l6 6-6 6'/%3E%3C/svg%3E");
+}
+[data-rich="true"] .bms-dock-close {
+  --rich-ai-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='M6 6l12 12M18 6L6 18'/%3E%3C/svg%3E");
+}
+
+/* ---- The orb ------------------------------------------------------------- */
+[data-rich="true"] .bms-dock-orb {
+  right: 28px !important; bottom: calc(28px + env(safe-area-inset-bottom, 0px)) !important;
+  width: 60px !important; height: 60px !important; border: 0 !important;
+  background:
+    radial-gradient(circle at 30% 24%, color-mix(in srgb, white 55%, transparent) 0, transparent 46%),
+    linear-gradient(135deg, var(--rich-violet-strong) 0%, var(--rich-violet) 48%, var(--rich-warm) 135%) !important;
+  box-shadow: 0 14px 34px color-mix(in srgb, var(--rich-violet) 42%, transparent), 0 2px 6px color-mix(in srgb, var(--rich-violet) 30%, transparent) !important;
+  transition: transform .35s var(--rich-spring), box-shadow .35s var(--rich-ease);
+  animation: rich-ai-breathe 4.8s ease-in-out infinite;
+}
+[data-rich="true"] .bms-dock-orb:hover { transform: translateY(-3px) scale(1.05); box-shadow: 0 20px 44px color-mix(in srgb, var(--rich-violet) 52%, transparent), 0 2px 6px color-mix(in srgb, var(--rich-violet) 30%, transparent) !important; }
+[data-rich="true"] .bms-dock-orb:active { transform: scale(.95); }
+[data-rich="true"] .bms-dock-orb:focus-visible,
+[data-rich="true"] .bms-dock-switch:focus-visible { outline: 3px solid var(--rich-focus); outline-offset: 4px; }
+[data-rich="true"] .bms-dock-orb svg { width: 26px; height: 26px; }
+[data-rich="true"] .bms-dock-orb-ring { border: 2px solid var(--rich-violet) !important; inset: -5px !important; }
+@keyframes rich-ai-breathe {
+  0%, 100% { filter: saturate(1); }
+  50% { filter: saturate(1.18) brightness(1.06); }
+}
+
+/* On/off switch, tucked above the orb. The hit area is larger than the track. */
+[data-rich="true"] .bms-dock-switch {
+  position: fixed; right: 36px !important; bottom: calc(100px + env(safe-area-inset-bottom, 0px)) !important;
+  width: 44px !important; height: 26px !important; border: 0 !important; border-radius: 999px !important; padding: 3px !important;
+  background: var(--rich-surface-2) !important; box-shadow: var(--rich-shadow-1) !important;
+  transition: background .25s var(--rich-ease);
+}
+[data-rich="true"] .bms-dock-switch[data-on="true"] { background: var(--rich-btn) !important; }
+[data-rich="true"] .bms-dock-switch::after { content: ""; position: absolute; inset: -9px -4px; }
+[data-rich="true"] .bms-dock-switch > span { width: 20px !important; height: 20px !important; box-shadow: var(--rich-shadow-1); }
+[data-rich="true"] .bms-dock-switch[data-on="false"] > span { background: var(--rich-ink-3) !important; }
+
+/* ---- The panel: a glass sheet -------------------------------------------- */
+[data-rich="true"] .bms-dock-panel {
+  right: 28px; width: 420px;
+  border: 0 !important; border-radius: 32px !important;
+  background: color-mix(in srgb, var(--rich-surface) 88%, transparent) !important;
+  -webkit-backdrop-filter: blur(28px) saturate(1.5); backdrop-filter: blur(28px) saturate(1.5);
+  box-shadow: var(--rich-shadow-3) !important;
+  color: var(--rich-ink); font-family: var(--rich-font-body);
+  transform-origin: calc(100% - 30px) 100%;
+  animation: rich-ai-in .5s var(--rich-spring) both;
+}
+@keyframes rich-ai-in {
+  from { opacity: 0; transform: translateY(22px) scale(.94); }
+  to { opacity: 1; transform: none; }
+}
+
+/* Header: a big title, one short line. */
+[data-rich="true"] .bms-dock-head {
+  background: transparent !important; color: var(--rich-ink) !important;
+  padding: 22px 16px 10px 22px !important; gap: 8px 6px !important; flex-wrap: wrap; align-items: center !important;
+}
+[data-rich="true"] .bms-dock-title { display: inline-flex; align-items: center; gap: 12px; font: 600 1.5rem/1.2 var(--rich-font-head); letter-spacing: -.01em; }
+[data-rich="true"] .bms-dock-glyph {
+  position: relative; width: 40px; height: 40px; border-radius: 50%; font-size: 0; flex: none; color: var(--rich-on-violet);
+  background: linear-gradient(135deg, var(--rich-violet-strong), var(--rich-violet) 55%, var(--rich-warm) 150%);
+  box-shadow: 0 6px 16px color-mix(in srgb, var(--rich-violet) 35%, transparent);
+}
+[data-rich="true"] .bms-dock-glyph::after { position: absolute; inset: 9px; }
+[data-rich="true"] .bms-dock-sub {
+  display: block; flex-basis: 100%; order: 9; padding-left: 52px; margin-top: -4px;
+  font-size: .9375rem; font-weight: 400; line-height: 1.4; color: var(--rich-ink-2);
+}
+[data-rich="true"] .bms-dock-head button:not(.bpm-tip) {
+  min-height: 36px; border: 0 !important; border-radius: 999px !important; background: var(--rich-surface-2) !important;
+  color: var(--rich-ink-2) !important; font-size: .875rem !important; padding: 6px 14px !important; font-weight: 500;
+  transition: background .2s, transform .25s var(--rich-spring);
+}
+[data-rich="true"] .bms-dock-head button:not(.bpm-tip):hover { background: var(--rich-violet-soft) !important; color: var(--rich-violet-ink) !important; }
+[data-rich="true"] .bms-dock-head span[style*="999px"] { border: 0 !important; background: var(--rich-surface-2) !important; font-size: .8125rem !important; padding: 5px 12px !important; font-weight: 600 !important; }
+[data-rich="true"] .bms-dock-head .bms-dock-close { width: 44px; height: 44px; min-width: 44px; padding: 0 !important; font-size: 0 !important; display: grid; place-items: center; }
+[data-rich="true"] .bms-dock-head .bms-dock-close::after { width: 18px; height: 18px; }
+
+/* Conversation */
+[data-rich="true"] .bms-dock-body { padding: 6px 20px 14px !important; gap: 14px !important; font-size: .9375rem !important; scrollbar-width: thin; scrollbar-color: var(--rich-hair) transparent; }
+[data-rich="true"] .bms-dock-empty { padding: 20px 2px !important; font: 600 1.375rem/1.3 var(--rich-font-head) !important; color: var(--rich-ink) !important; letter-spacing: -.01em; }
+[data-rich="true"] .bms-dock-bubble { padding: 12px 16px !important; line-height: 1.5 !important; box-shadow: none; }
+[data-rich="true"] .bms-dock-bubble[data-from="me"] {
+  background: linear-gradient(135deg, var(--rich-btn), color-mix(in srgb, var(--rich-btn) 86%, var(--rich-warm))) !important;
+  color: var(--rich-on-violet) !important; border-radius: 24px 24px 8px 24px !important;
+  box-shadow: 0 8px 20px color-mix(in srgb, var(--rich-violet) 24%, transparent);
+}
+[data-rich="true"] .bms-dock-bubble[data-from="bot"] { background: var(--rich-surface-2) !important; color: var(--rich-ink) !important; border-radius: 24px 24px 24px 8px !important; }
+[data-rich="true"] .bms-dock-msg { animation: rich-ai-msg .38s var(--rich-ease) both; }
+@keyframes rich-ai-msg { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+
+/* Answer buttons that open a screen or record: cards with an icon. */
+[data-rich="true"] .bms-dock-body .bms-dock-row {
+  display: inline-flex; align-items: center; gap: 12px; min-height: 52px;
+  border: 0 !important; border-radius: 20px !important; padding: 12px 18px !important;
+  background: var(--rich-violet-soft) !important; color: var(--rich-violet-ink) !important;
+  font-size: .9375rem !important; font-weight: 600 !important; box-shadow: var(--rich-shadow-1);
+  transition: transform .3s var(--rich-spring), box-shadow .3s var(--rich-ease);
+}
+[data-rich="true"] .bms-dock-body .bms-dock-row::before { width: 20px; height: 20px; }
+[data-rich="true"] .bms-dock-body .bms-dock-row:hover { transform: translateY(-2px); box-shadow: var(--rich-shadow-2); }
+[data-rich="true"] .bms-dock-body .bms-dock-row:active { transform: scale(.98); }
+
+/* Guide and choice buttons: pills. */
+[data-rich="true"] .bms-dock-chip { border: 0 !important; border-radius: 999px !important; font-size: .9375rem !important; padding: 10px 20px !important; background: var(--rich-surface-2) !important; color: var(--rich-ink) !important; transition: transform .25s var(--rich-spring), background .2s; }
+[data-rich="true"] .bms-dock-chip[style*="background: var(--tenant-accent"] { background: var(--rich-btn) !important; color: var(--rich-on-violet) !important; }
+[data-rich="true"] .bms-dock-chip:active { transform: scale(.96); }
+
+/* Typing: three soft dots. The words stay for screen readers. */
+[data-rich="true"] .bms-dock-typing { display: inline-flex; align-items: center; padding: 15px 18px; border-radius: 24px 24px 24px 8px; background: var(--rich-surface-2); }
+[data-rich="true"] .bms-dock-typing-text { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+[data-rich="true"] .bms-dock-dots { display: inline-flex; gap: 6px; }
+[data-rich="true"] .bms-dock-dots i { width: 8px; height: 8px; border-radius: 50%; background: var(--rich-violet); opacity: .45; animation: rich-ai-dot 1.3s ease-in-out infinite; }
+[data-rich="true"] .bms-dock-dots i:nth-child(2) { animation-delay: .16s; }
+[data-rich="true"] .bms-dock-dots i:nth-child(3) { animation-delay: .32s; }
+@keyframes rich-ai-dot { 0%, 70%, 100% { transform: translateY(0); opacity: .35; } 35% { transform: translateY(-5px); opacity: 1; } }
+
+/* Composer: a pill with a round send button. */
+[data-rich="true"] .bms-dock-input {
+  align-items: center; gap: 6px !important; margin: 4px 16px 16px; padding: 6px 6px 6px 20px !important;
+  border: 0 !important; border-top: 0 !important; border-radius: 999px; background: var(--rich-surface-2) !important;
+  transition: box-shadow .2s var(--rich-ease);
+}
+[data-rich="true"] .bms-dock-input:focus-within { box-shadow: 0 0 0 2px var(--rich-focus); }
+[data-rich="true"] .bms-dock-field { border: 0 !important; background: transparent !important; border-radius: 0 !important; padding: 10px 0 !important; min-height: 44px; font-size: 1rem !important; color: var(--rich-ink); }
+[data-rich="true"] .bms-dock-field::placeholder { color: var(--rich-ink-3); }
+[data-rich="true"] .bms-dock-send {
+  display: grid; place-items: center; width: 48px; height: 48px; min-width: 48px; padding: 0 !important; flex: none;
+  border-radius: 50% !important; font-size: 0 !important; background: var(--rich-btn) !important; color: var(--rich-on-violet) !important;
+  box-shadow: 0 6px 16px color-mix(in srgb, var(--rich-violet) 34%, transparent);
+  transition: transform .3s var(--rich-spring), opacity .2s;
+}
+[data-rich="true"] .bms-dock-send::after { width: 22px; height: 22px; }
+[data-rich="true"] .bms-dock-send:hover:not(:disabled) { transform: scale(1.06); }
+[data-rich="true"] .bms-dock-send:active:not(:disabled) { transform: scale(.94); }
+[data-rich="true"] .bms-dock-send:disabled { opacity: .5; box-shadow: none; }
+
+/* Guide mode's bottom bar follows the same glass. */
+[data-rich="true"] .bms-guide-bar {
+  left: 12px !important; right: 12px !important; bottom: calc(12px + env(safe-area-inset-bottom, 0px)) !important;
+  border: 0 !important; border-radius: 28px; background: var(--rich-glass) !important; box-shadow: var(--rich-shadow-3) !important;
+  -webkit-backdrop-filter: blur(22px) saturate(1.4); backdrop-filter: blur(22px) saturate(1.4);
+}
+
+/* ---- Tablet and phone (under 900px): a full-height bottom sheet ---------- */
+@media (max-width: 899px) {
+  [data-rich="true"] .bms-dock-panel {
+    inset: calc(10px + env(safe-area-inset-top, 0px)) 8px calc(8px + env(safe-area-inset-bottom, 0px)) 8px !important;
+    width: auto !important; max-width: none !important; height: auto !important; min-height: 0 !important;
+    border-radius: 32px !important; padding-top: 0 !important;
+    transform-origin: 50% 100%; animation-name: rich-ai-sheet;
+  }
+  [data-rich="true"] .bms-dock-panel::before {
+    content: ""; position: absolute; top: 9px; left: 50%; z-index: 1; width: 40px; height: 5px; margin-left: -20px; border-radius: 3px; background: var(--rich-hair);
+  }
+  [data-rich="true"] .bms-dock-head { padding: 28px 12px 8px 20px !important; }
+  [data-rich="true"] .bms-dock-input { margin: 4px 12px 12px; padding: 6px 6px 6px 18px !important; }
+  [data-rich="true"] .bms-dock-orb { right: 20px !important; bottom: calc(24px + env(safe-area-inset-bottom, 0px)) !important; width: 56px !important; height: 56px !important; }
+  [data-rich="true"] .bms-dock-switch { right: 26px !important; bottom: calc(92px + env(safe-area-inset-bottom, 0px)) !important; }
+}
+@keyframes rich-ai-sheet {
+  from { opacity: 0; transform: translateY(48px) scale(.98); }
+  to { opacity: 1; transform: none; }
+}
+
+/* Under 781px the floating tab bar exists (64px + 12px gap): the sheet and the orb sit above it. */
+@media (max-width: 780px) {
+  [data-rich="true"] .bms-dock-panel { bottom: calc(88px + env(safe-area-inset-bottom, 0px)) !important; }
+  [data-rich="true"] .bms-dock-orb { right: 16px !important; bottom: calc(92px + env(safe-area-inset-bottom, 0px)) !important; }
+  [data-rich="true"] .bms-dock-switch { right: 22px !important; bottom: calc(158px + env(safe-area-inset-bottom, 0px)) !important; }
+  [data-rich="true"] .bms-guide-bar { bottom: calc(88px + env(safe-area-inset-bottom, 0px)) !important; }
+  /* The dark-mode button used this corner; it moves to the left so the orb has it. */
+  [data-rich="true"] .bpm-m-darktoggle.bpm-m-darktoggle { right: auto !important; left: 16px !important; }
+}
+
+/* ---- Reduced motion: still, not broken ----------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  [data-rich="true"] .bms-dock-orb, [data-rich="true"] .bms-dock-panel, [data-rich="true"] .bms-dock-msg,
+  [data-rich="true"] .bms-dock-dots i, [data-rich="true"] .bms-dock-orb-ring { animation: none !important; }
+  [data-rich="true"] .bms-dock-dots i { opacity: .8; transform: none; }
+  [data-rich="true"] .bms-dock-orb, [data-rich="true"] .bms-dock-orb:hover, [data-rich="true"] .bms-dock-body .bms-dock-row:hover,
+  [data-rich="true"] .bms-dock-send:hover, [data-rich="true"] .bms-dock-send:active, [data-rich="true"] .bms-dock-chip:active { transform: none !important; }
+}
