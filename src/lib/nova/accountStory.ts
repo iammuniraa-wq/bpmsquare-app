@@ -26,7 +26,7 @@ export type AccountStoryEvent = {
 // Mirrors account360/server.ts's own OPEN_CASE_STATUSES -- duplicated
 // rather than imported since that module doesn't export it and this stays
 // a small, stable list unlikely to drift silently out of sync.
-const OPEN_CASE_STATUSES = new Set([
+export const OPEN_CASE_STATUSES = new Set([
   "intake", "inspection", "report_sent", "report_approved",
   "quote_sent", "quote_approved", "in_repair", "qa", "ready",
 ]);

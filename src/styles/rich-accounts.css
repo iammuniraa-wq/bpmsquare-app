@@ -1,0 +1,179 @@
+/* ============================================================================
+   RICH -- the Accounts list (docs/design/rich-ui.md). Loaded with RichAccountsView.
+
+   INERT BY DEFAULT: every selector starts with [data-rich="true"], the wrapper
+   Shell.tsx stamps only when isRichTenant() is true. Colours come from the
+   --rich-* tokens in rich.css (light and dark); no hex lives here.
+   ========================================================================== */
+
+/* The standard page wrapper clips with overflow-x:auto, which also makes <main> a scroll container and stops position:sticky
+   from following the page. clip keeps the no-sideways-scroll guarantee without that side effect. */
+[data-rich="true"] .bpm-main:has(.rich-acc) { overflow-x: clip !important; }
+[data-rich="true"] .bpm-page-header:has(~ .rich-acc) { margin-bottom: 8px !important; }
+[data-rich="true"] .bpm-page-header:has(~ .rich-acc) .bpm-page-header-sub { color: var(--rich-ink-3); font-size: 1rem; font-variant-numeric: tabular-nums; margin-top: 4px; }
+
+/* ---- Search: the standard GET form, restyled as one big sticky pill ------------------------------------------------------ */
+[data-rich="true"] form:has(~ .rich-acc) {
+  position: sticky; top: 0; z-index: 20; flex-wrap: nowrap !important; gap: 12px !important;
+  margin: 0 -24px 8px !important; padding: 12px 24px;
+  background: var(--rich-canvas-glass); backdrop-filter: blur(20px) saturate(1.3); -webkit-backdrop-filter: blur(20px) saturate(1.3);
+}
+[data-rich="true"] form:has(~ .rich-acc)::before {
+  content: ""; position: absolute; left: 48px; top: 50%; width: 22px; height: 22px; transform: translateY(-50%); pointer-events: none; z-index: 1;
+  background: var(--rich-ink-3);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round'%3E%3Ccircle cx='11' cy='11' r='7.5'/%3E%3Cpath d='M21 21l-4.6-4.6'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round'%3E%3Ccircle cx='11' cy='11' r='7.5'/%3E%3Cpath d='M21 21l-4.6-4.6'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+[data-rich="true"] form:has(~ .rich-acc) input[name="q"] {
+  flex: 1 1 0 !important; min-width: 0 !important; height: 56px; padding: 0 24px 0 52px !important; border: 0 !important; border-radius: 999px !important;
+  background: var(--rich-surface) !important; color: var(--rich-ink) !important; font-size: 1.0625rem !important;
+  box-shadow: var(--rich-shadow-1); transition: box-shadow .3s var(--rich-ease);
+}
+[data-rich="true"] form:has(~ .rich-acc) input[name="q"]::placeholder { color: var(--rich-ink-3); }
+[data-rich="true"] form:has(~ .rich-acc) input[name="q"]:focus { box-shadow: var(--rich-shadow-2); }
+[data-rich="true"] form:has(~ .rich-acc) input[name="q"]:focus-visible { outline: 3px solid var(--rich-focus) !important; outline-offset: 2px; }
+/* The type select is replaced by the type chips below; it stays in the form so a search keeps the chosen type. */
+[data-rich="true"] form:has(~ .rich-acc) select { display: none !important; }
+[data-rich="true"] form:has(~ .rich-acc) button[type="submit"] {
+  flex: none; min-height: 56px; padding: 0 28px !important; border: 0 !important; border-radius: 999px !important;
+  background: var(--rich-btn) !important; color: var(--rich-on-violet) !important; font-size: .9375rem !important; font-weight: 600 !important;
+  transition: transform .3s var(--rich-spring), box-shadow .3s var(--rich-ease);
+}
+[data-rich="true"] form:has(~ .rich-acc) button[type="submit"]:hover { transform: translateY(-2px); box-shadow: var(--rich-shadow-2); }
+[data-rich="true"] form:has(~ .rich-acc) button[type="submit"]:active { transform: scale(.97); }
+[data-rich="true"] form:has(~ .rich-acc) > a {
+  flex: none; display: inline-flex; align-items: center; min-height: 44px; padding: 0 8px; font-size: .9375rem !important; color: var(--rich-ink-2) !important;
+}
+
+/* ---- Bar: type chips and the view switch ------------------------------------------------------------------------------- */
+[data-rich="true"] .rich-acc__bar { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin: 8px 0 20px; }
+[data-rich="true"] .rich-acc__chips { display: flex; gap: 8px; min-width: 0; overflow-x: auto; scrollbar-width: none; scroll-snap-type: x proximity; padding: 4px 2px 8px; margin-bottom: -4px; }
+[data-rich="true"] .rich-acc__chips::-webkit-scrollbar { display: none; }
+[data-rich="true"] .rich-pillink {
+  flex: none; display: inline-flex; align-items: center; min-height: 44px; padding: 0 18px; border-radius: 999px; scroll-snap-align: start;
+  background: var(--rich-surface); box-shadow: var(--rich-shadow-1); color: var(--rich-ink-2); font-size: .9375rem; font-weight: 500; text-decoration: none; white-space: nowrap;
+  transition: background .2s, color .2s, transform .3s var(--rich-spring), box-shadow .3s var(--rich-ease);
+}
+[data-rich="true"] .rich-pillink:hover { transform: translateY(-2px); box-shadow: var(--rich-shadow-2); }
+[data-rich="true"] .rich-pillink:active { transform: scale(.97); }
+[data-rich="true"] .rich-pillink[aria-current="true"] { background: var(--rich-btn); color: var(--rich-on-violet); }
+
+[data-rich="true"] .rich-acc__switch { flex: none; display: flex; padding: 5px; border-radius: 999px; background: var(--rich-surface); box-shadow: var(--rich-shadow-1); }
+[data-rich="true"] .rich-acc__switch button {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; min-width: 44px; padding: 0 16px; border: 0; border-radius: 999px;
+  background: transparent; color: var(--rich-ink-2); font: inherit; font-size: .9375rem; font-weight: 500; cursor: pointer;
+  transition: background .25s, color .25s, transform .3s var(--rich-spring);
+}
+[data-rich="true"] .rich-acc__switch button:hover { background: var(--rich-surface-2); }
+[data-rich="true"] .rich-acc__switch button:active { transform: scale(.97); }
+[data-rich="true"] .rich-acc__switch button[aria-checked="true"] { background: var(--rich-btn); color: var(--rich-on-violet); }
+[data-rich="true"] .rich-acc__count { margin: -8px 0 16px; color: var(--rich-ink-3); font-size: .9375rem; font-variant-numeric: tabular-nums; }
+
+/* ---- Shared pieces -------------------------------------------------------------------------------------------------------- */
+[data-rich="true"] .rich-rows, [data-rich="true"] .rich-cards { list-style: none; margin: 0; padding: 0; }
+[data-rich="true"] .rich-tile {
+  display: grid; place-items: center; width: 56px; height: 56px; border-radius: 18px; flex: none;
+  color: var(--rich-ink); font: 600 1.0625rem var(--rich-font-head); letter-spacing: 0; box-shadow: var(--rich-shadow-1);
+}
+[data-rich="true"] .rich-name { margin: 0; font-size: 1.25rem; line-height: 1.2; overflow-wrap: anywhere; }
+[data-rich="true"] .rich-line { margin: 4px 0 0; color: var(--rich-ink-2); font-size: .9375rem; overflow-wrap: anywhere; }
+[data-rich="true"] .rich-open { color: var(--rich-ink); text-decoration: none; }
+/* The whole row or card opens the record: the name link stretches over it, the quick actions sit above. */
+[data-rich="true"] .rich-open::after { content: ""; position: absolute; inset: 0; z-index: 1; border-radius: inherit; }
+[data-rich="true"] .rich-open:focus-visible { outline: 0; }
+[data-rich="true"] :is(.rich-row, .rich-card):has(.rich-open:focus-visible) { outline: 3px solid var(--rich-focus); outline-offset: 3px; }
+[data-rich="true"] .rich-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; min-width: 0; }
+[data-rich="true"] .rich-chip { display: inline-flex; align-items: center; min-height: 28px; padding: 0 12px; border-radius: 999px; background: var(--rich-surface-2); color: var(--rich-ink-2); font-size: .875rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+[data-rich="true"] .rich-acts { display: flex; justify-content: flex-end; gap: 8px; position: relative; z-index: 2; }
+[data-rich="true"] .rich-act {
+  display: inline-grid; place-items: center; width: 44px; height: 44px; border-radius: 50%; border: 0; padding: 0;
+  background: var(--rich-glass); color: var(--rich-ink); box-shadow: var(--rich-shadow-1); text-decoration: none; cursor: pointer;
+  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); transition: transform .3s var(--rich-spring), box-shadow .3s var(--rich-ease), background .2s;
+}
+[data-rich="true"] .rich-act:hover { transform: translateY(-2px); box-shadow: var(--rich-shadow-2); background: var(--rich-violet-soft); color: var(--rich-violet-ink); }
+[data-rich="true"] .rich-act:active { transform: scale(.94); }
+[data-rich="true"] .rich-act > button { width: 100%; height: 100%; display: grid; place-items: center; border-radius: 50%; }
+[data-rich="true"] .rich-act:empty { display: none; }
+
+/* ---- Rows --------------------------------------------------------------------------------------------------------------------- */
+[data-rich="true"] .rich-rows { display: flex; flex-direction: column; gap: 12px; }
+[data-rich="true"] .rich-row {
+  position: relative; display: grid; grid-template-columns: 56px minmax(0, 1.3fr) minmax(0, 1fr) 184px; align-items: center; column-gap: 20px; min-height: 92px; padding: 12px 20px 12px 16px;
+  border-radius: 24px; background: var(--rich-surface); box-shadow: var(--rich-shadow-1);
+  animation: rich-rise .6s var(--rich-ease) backwards; animation-delay: calc(var(--i, 0) * 40ms);
+  transition: transform .35s var(--rich-ease), box-shadow .35s var(--rich-ease);
+}
+[data-rich="true"] .rich-row:hover { transform: translateY(-2px); box-shadow: var(--rich-shadow-2); }
+[data-rich="true"] .rich-row .rich-acts { opacity: 0; transform: translateX(10px); transition: opacity .25s, transform .3s var(--rich-ease); }
+[data-rich="true"] .rich-row:hover .rich-acts, [data-rich="true"] .rich-row:focus-within .rich-acts { opacity: 1; transform: none; }
+
+/* ---- Cards -------------------------------------------------------------------------------------------------------------------- */
+[data-rich="true"] .rich-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px; }
+[data-rich="true"] .rich-card {
+  position: relative; overflow: hidden; border-radius: 24px; background: var(--rich-surface); box-shadow: var(--rich-shadow-1);
+  animation: rich-rise .6s var(--rich-ease) backwards; animation-delay: calc(var(--i, 0) * 40ms);
+  transition: transform .35s var(--rich-ease), box-shadow .35s var(--rich-ease);
+}
+[data-rich="true"] .rich-card:hover { transform: translateY(-3px); box-shadow: var(--rich-shadow-2); }
+[data-rich="true"] .rich-card > .rich-tile { position: absolute; left: 20px; top: 72px; width: 64px; height: 64px; border-radius: 20px; z-index: 1; }
+[data-rich="true"] .rich-card__body { display: flex; flex-direction: column; gap: 12px; padding: 44px 20px 20px; }
+[data-rich="true"] .rich-card__body .rich-line { margin: -6px 0 0; }
+[data-rich="true"] .rich-card .rich-acts { justify-content: flex-start; margin-top: 4px; opacity: 0; transform: translateY(6px); transition: opacity .25s, transform .3s var(--rich-ease); }
+[data-rich="true"] .rich-card:hover .rich-acts, [data-rich="true"] .rich-card:focus-within .rich-acts { opacity: 1; transform: none; }
+
+/* ---- Table view: the standard table, on the token layer -------------------------------------------------------------------- */
+[data-rich="true"] .rich-acc__table .bpm-card { border-radius: 24px; box-shadow: var(--rich-shadow-1) !important; padding: 0 !important; }
+[data-rich="true"] .rich-acc__table table td { padding-top: 14px !important; padding-bottom: 14px !important; }
+[data-rich="true"] .rich-acc__table tbody tr { cursor: pointer; }
+[data-rich="true"] .rich-acc__table .bpm-list-card { padding: 18px; border: 0; border-radius: 24px; box-shadow: var(--rich-shadow-1); }
+
+/* Touch screens have no hover: the quick actions are simply there. */
+@media (hover: none) {
+  [data-rich="true"] :is(.rich-row, .rich-card) .rich-acts { opacity: 1; transform: none; }
+}
+
+/* ---- Tablet and phone (under 900px): one column, 16px gutters, 44px targets ------------------------------------------------- */
+@media (max-width: 899px) {
+  [data-rich="true"] form:has(~ .rich-acc) { top: calc(64px + env(safe-area-inset-top, 0px)); margin: 0 -16px 4px !important; padding: 10px 16px; gap: 8px !important; }
+  [data-rich="true"] form:has(~ .rich-acc)::before { left: 40px; }
+  [data-rich="true"] form:has(~ .rich-acc) input[name="q"] { padding-left: 48px !important; }
+  /* Filter becomes a round arrow button: same submit, no wording to squeeze the search. */
+  [data-rich="true"] form:has(~ .rich-acc) button[type="submit"] { position: relative; width: 56px; padding: 0 !important; font-size: 0 !important; }
+  [data-rich="true"] form:has(~ .rich-acc) button[type="submit"]::after {
+    content: ""; position: absolute; inset: 0; margin: auto; width: 22px; height: 22px; background: var(--rich-on-violet);
+    -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12h14M13 6l6 6-6 6'/%3E%3C/svg%3E") center / contain no-repeat;
+    mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12h14M13 6l6 6-6 6'/%3E%3C/svg%3E") center / contain no-repeat;
+  }
+
+  /* Chips swipe edge to edge; the view switch takes its own full-width row beneath. */
+  [data-rich="true"] .rich-acc__bar { flex-direction: column-reverse; align-items: stretch; gap: 12px; margin: 4px 0 16px; }
+  [data-rich="true"] .rich-acc__chips { margin: 0 -16px; padding: 4px 16px 8px; }
+  [data-rich="true"] .rich-acc__switch { width: 100%; }
+  [data-rich="true"] .rich-acc__switch button { flex: 1; padding: 0 8px; }
+
+  [data-rich="true"] .rich-rows { gap: 10px; }
+  [data-rich="true"] .rich-row {
+    grid-template-columns: 52px minmax(0, 1fr) auto; grid-template-areas: "tile main acts" "tile meta acts"; row-gap: 8px; column-gap: 14px; align-items: start; min-height: 88px; padding: 14px 12px 14px 14px;
+  }
+  [data-rich="true"] .rich-row > .rich-tile { grid-area: tile; width: 52px; height: 52px; border-radius: 16px; }
+  [data-rich="true"] .rich-row__main { grid-area: main; }
+  [data-rich="true"] .rich-row > .rich-meta { grid-area: meta; }
+  [data-rich="true"] .rich-row > .rich-acts { grid-area: acts; align-self: center; opacity: 1; transform: none; }
+  [data-rich="true"] .rich-row .rich-name { font-size: 1.125rem; }
+  /* Rows keep one action on a phone, the call; the rest is one tap away on the record or in Cards. */
+  [data-rich="true"] .rich-row .rich-act:not(.rich-act--call) { display: none; }
+  [data-rich="true"] .rich-row .rich-chip:nth-child(n+4) { display: none; }
+
+  [data-rich="true"] .rich-cards { grid-template-columns: 1fr; gap: 16px; }
+  [data-rich="true"] .rich-card .rich-acts { opacity: 1; transform: none; }
+  [data-rich="true"] .rich-card .rich-act--360 { display: none; }
+}
+
+@media (max-width: 380px) {
+  [data-rich="true"] .rich-acc__switch button span { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-rich="true"] :is(.rich-row, .rich-card, .rich-act, .rich-pillink):hover { transform: none; }
+}

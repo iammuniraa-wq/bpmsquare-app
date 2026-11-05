@@ -4,6 +4,7 @@ import { createContext, useContext } from "react";
 import type { Tenant } from "./tenant";
 import type { ViewableWorkcenters } from "./workcenters";
 import { resolveCurrency, type CurrencyDef } from "./currency";
+import { isRichTenant } from "./nova/isNovaTenant";
 
 type TenantCtx = {
   tenant: Tenant | null;
@@ -290,4 +291,11 @@ export function useIsNextgen3Layer(): boolean {
   const { tenant } = useContext(TenantContext);
   return tenant?.config?.appearance?.ui_theme === "nextgen2"
     && tenant?.features?.next_experience === true;
+}
+
+/** True when the "Rich" look is on for this workspace: Nova (theme "nextgen2" + the platform-admin `next_experience` flag) AND
+ * the workspace's own appearance.rich_ui switch. Shell stamps data-rich="true" from this; every rule in src/styles/rich.css is
+ * scoped under it, so a tenant for which this is false renders byte-identically to before. */
+export function useRichUi(): boolean {
+  return isRichTenant(useContext(TenantContext).tenant);
 }

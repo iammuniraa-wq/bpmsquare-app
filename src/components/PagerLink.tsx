@@ -40,7 +40,7 @@ export default function PagerLink({
   });
 
   return (
-    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginTop: 12, flexWrap: "wrap" }}>
+    <div className="bpm-pager" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginTop: 12, flexWrap: "wrap" }}>
       <div style={{ fontSize: 12, color: c.muted }}>
         Showing {start}–{end} of {total}
       </div>

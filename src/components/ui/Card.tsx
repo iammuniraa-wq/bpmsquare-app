@@ -34,7 +34,7 @@ export default function Card({
   const t = tone && tone !== "neutral" ? toneTokens(tone) : null;
   const titleStyle = t ? { color: t.ink } : undefined;
   return (
-    <section style={{ ...CARD_SURFACE, ...(t ? { borderLeft: `3px solid ${t.edge}`, overflow: "hidden" } : null), padding, minWidth: 0, ...style }}>
+    <section className="bpm-card" style={{ ...CARD_SURFACE, ...(t ? { borderLeft: `3px solid ${t.edge}`, overflow: "hidden" } : null), padding, minWidth: 0, ...style }}>
       {(title || action) && (
         <div style={{
           display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 12,

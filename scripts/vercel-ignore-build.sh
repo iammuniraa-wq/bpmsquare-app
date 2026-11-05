@@ -21,6 +21,10 @@ if [[ "$BRANCH" != "main" && "$BRANCH" != "develop" ]]; then
   exit 0
 fi
 
+# Commits here are authored as the Vercel team owner's GitHub account (its noreply address), so
+# pushing never makes Vercel add a second paid seat for a different committer. Verified on
+# 2026-11-06 with the extra seat removed and "add private repository committers" switched off.
+#
 # Rule 2 -- skip when the push touches only docs (*.md, docs/**), even on
 # main/develop. PROJECT.md's "migration applied" commits are the common case;
 # none of it reaches the deployed app. Diff against the last deployed commit

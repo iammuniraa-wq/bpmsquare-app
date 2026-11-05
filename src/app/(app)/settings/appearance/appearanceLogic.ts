@@ -23,6 +23,8 @@ export type AppearanceDraft = {
   /** The workspace default for the dashboard look (only offered, and only written, for a workspace with the tender edition). */
   tenderDeskStyle: TenderDeskStyle;
   compact: boolean;
+  /** The Rich look over Nova (appearance.rich_ui). Only offered, and only meaningful, on a Nova workspace; see isRichTenant(). */
+  rich: boolean;
   chrome: Chrome;
   navHidden: string[];
   news: boolean;
@@ -54,6 +56,7 @@ export function draftFromTenant(t: TenantLike): AppearanceDraft {
     dashboardMode: ap?.dashboard_mode ?? (ap?.ui_theme === "spectacular_purple" || ap?.ui_theme === "spectacular" ? "curated" : "adaptive"),
     tenderDeskStyle: resolveTenderDeskStyle({ tenantDefault: ap?.tender_desk_style, flagOn: true }) ?? "bold",
     compact: ap?.compact_sidebar ?? false,
+    rich: ap?.rich_ui === true,
     chrome: {
       top_bar_identity: ap?.top_bar_identity !== false,
       command_palette: ap?.command_palette !== false,
@@ -102,6 +105,8 @@ export function planAppearanceSave(initial: AppearanceDraft, draft: AppearanceDr
   if (draft.dashboardMode !== initial.dashboardMode) set("dashboard_mode", draft.dashboardMode);
   if (draft.tenderDeskStyle !== initial.tenderDeskStyle) set("tender_desk_style", draft.tenderDeskStyle);
   if (draft.compact !== initial.compact) set("compact_sidebar", draft.compact);
+  // Stored only when on, so an off workspace carries no key. Rich swaps the shell's chrome, so the page reloads.
+  if (draft.rich !== initial.rich) { set("rich_ui", draft.rich ? true : undefined); out.reload = true; }
   for (const k of Object.keys(draft.chrome) as (keyof Chrome)[]) {
     if (draft.chrome[k] !== initial.chrome[k]) { set(k, draft.chrome[k]); out.reload = true; }
   }

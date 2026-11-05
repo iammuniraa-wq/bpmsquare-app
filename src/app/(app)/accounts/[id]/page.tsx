@@ -35,7 +35,10 @@ import AnalyseButton from "@/components/analysis/AnalyseButton";
 import { recordButtonWebhookId, sendToWebhookAction } from "./sendAction";
 import { buildAccountStoryEvents, computeAccountHealth } from "@/lib/nova/accountStory";
 import { buildAccountCanvas } from "@/lib/nova/accountCanvas";
-import { isNovaTenant } from "@/lib/nova/isNovaTenant";
+import { isNovaTenant, isRichTenant } from "@/lib/nova/isNovaTenant";
+import RichAccountRecord, { type RichAction } from "@/components/rich/RichAccountRecord";
+import RichSection from "@/components/rich/RichSection";
+import { buildRichSummary, gateByModules, latestTouches, nextBestStep, type RichModules } from "@/lib/rich/accountRecord";
 import { formatMoney, resolveCurrency } from "@/lib/currency";
 
 // ── Tone maps ──────────────────────────────────────────────────────────────────
@@ -191,7 +194,10 @@ export default async function AccountHubPage({
   // means details -- so a bookmarked/shared tab link still opens directly
   // into the right tab instead of bouncing through the landing view.
   const isNova = isNovaTenant(tenant);
-  const showNovaLanding = isNova && !rawTab;
+  // The Rich look (docs/design/rich-ui.md) replaces the story landing with its own record page, whose Overview carries the same
+  // story and constellation as sections, so nothing the landing offered is lost.
+  const rich = isRichTenant(tenant);
+  const showNovaLanding = isNova && !rawTab && !rich;
 
   if (showNovaLanding) {
     return (
@@ -443,6 +449,91 @@ export default async function AccountHubPage({
     quotations: hub.quotes.length, invoices: hub.invoices.length, estimates: estimateRows.length,
   };
 
+  const menuNode = (
+    <RecordMoreMenu
+      inlineEdit={{ overviewHref: tabHref("overview") }}
+      extraItems={isNova && !rich ? [{ label: "Back to story", href: basePath }] : []}
+      actions={sendActions}
+      adapt={{ objectType: "account", objectLabel: "Account", isAdmin: role === "admin" }}
+    />
+  );
+  const primaryNode = <span style={{ display: "inline-flex", gap: 8, flexWrap: "wrap" }}><Account360Button accountId={account.id} /><AnalyseButton name={account.name} accountId={account.id} /></span>;
+
+  if (rich) {
+    const modules: RichModules = {
+      quotations: features?.quotations === true, cases: features?.cases === true, invoices: features?.invoices === true,
+      contacts: features?.contacts === true, amc: features?.amc === true,
+    };
+    const gated = gateByModules({ quotes: hub.quotes, cases: hub.cases, invoices: hub.invoices, contacts: hub.contacts, contracts: hub.contracts }, modules);
+    const richEvents = buildAccountStoryEvents({ accountId: id, accountCreatedAt: account.created_at, ...gated, cur });
+    const touches = latestTouches(richEvents, 5);
+    const summary = buildRichSummary(gated, touches);
+    const nextStep = nextBestStep(id, gated, cur, modules);
+    const actions: RichAction[] = [
+      ...(account.phone ? [{ key: "call", label: "Call", href: `tel:${account.phone}`, kind: "call" as const }] : []),
+      ...(account.email ? [{ key: "mail", label: "Email", href: `mailto:${account.email}`, kind: "mail" as const }] : []),
+      ...(features?.quotations ? [{ key: "quotation", label: "Quote", href: `${ROUTES.quotationNew}?account_id=${id}`, kind: "quotation" as const }] : []),
+      ...(features?.cases ? [{ key: "case", label: "Case", href: `${ROUTES.caseNew}?account_id=${id}`, kind: "case" as const }] : []),
+      ...(features?.contacts ? [{ key: "contact", label: "Contact", href: `${ROUTES.contactNew}?account_id=${id}`, kind: "contact" as const }] : []),
+      ...(features?.invoices ? [{ key: "invoice", label: "Invoice", href: `${ROUTES.invoiceNew}?account_id=${id}`, kind: "invoice" as const }] : []),
+      ...(features?.assets ? [{ key: "asset", label: "Asset", href: `${ROUTES.assetNew}?account_id=${id}`, kind: "asset" as const }] : []),
+      ...(features?.wfm_projects ? [{ key: "project", label: "Project", href: `${ROUTES.wfmProjectNew}?account=${id}`, kind: "project" as const }] : []),
+    ];
+
+    const overviewDetail = (
+      <>
+        <RichSection id="account-contact" title="Contact and place" hint={account.city ?? undefined} defaultOpen info="How to reach this account and since when. Change them from the menu, Edit.">
+          <dl className="rich-sec__kv">
+            <div><dt>City</dt><dd>{account.city ?? "—"}</dd></div>
+            <div><dt>Phone</dt><dd>{account.phone ? <a href={`tel:${account.phone}`}>{account.phone}</a> : "—"}</dd></div>
+            <div><dt>Email</dt><dd>{account.email ? <a href={`mailto:${account.email}`}>{account.email}</a> : "—"}</dd></div>
+            <div><dt>Customer since</dt><dd>{fmtDate(account.created_at)}</dd></div>
+            {referredBy && <div><dt>Referred by</dt><dd><Link href={ROUTES.account(referredBy.id)}>{referredBy.name}</Link></dd></div>}
+          </dl>
+        </RichSection>
+        <RichSection id="account-details" title="Details" hint="All fields" openOnEdit info="Every standard and custom field of this account. The menu, Edit, opens them for changing.">
+          {tabContent.overview}
+        </RichSection>
+        <RichSection id="account-story" title="Account story" info="Quotations, cases, invoices and contracts in the order they happened, with the health reading.">
+          <NovaAccountStorySlot accountName={account.name} events={richEvents} health={summary.health} />
+        </RichSection>
+        <RichSection id="account-constellation" title="Constellation" info="The people and deals around this account, drawn as a map.">
+          <NovaAccountCanvasSlot accountName={account.name} accountMeta={canvasMeta} contactNodes={contactNodes} dealNodes={dealNodes} />
+        </RichSection>
+        {quickCreate.length > 0 && (
+          <RichSection id="account-create" title="Create new" hint={`${quickCreate.length} options`} info="Start a related record with this account already filled in.">
+            <div className="rich-sec__create">
+              {quickCreate.map((q) => <Link key={q.href + q.label} href={q.href} className="rich-sec__pill">{q.label}</Link>)}
+            </div>
+          </RichSection>
+        )}
+      </>
+    );
+
+    return (
+      <RichAccountRecord
+        backHref={ROUTES.accounts}
+        backLabel="All accounts"
+        name={account.name}
+        reference={account.ref}
+        city={account.city}
+        status={<StatusPill label={ACCOUNT_TYPE_LABEL[account.type]} tone={TYPE_TONE[account.type]} />}
+        summary={summary}
+        cur={cur}
+        nextStep={nextStep}
+        touches={touches}
+        actions={actions}
+        primaryAction={primaryNode}
+        menu={menuNode}
+        externalLine={<ExternalRecordSlot objectType="accounts" objectId={account.id} />}
+        tabs={visibleTabs.map((t) => ({ id: t.id, label: t.label, count: counts[t.id], content: tabContent[t.id] }))}
+        activeTab={rawTab}
+        basePath={basePath}
+        overviewDetail={overviewDetail}
+      />
+    );
+  }
+
   return (
     <ObjectRecordPage
       backHref={ROUTES.accounts}
@@ -450,15 +541,8 @@ export default async function AccountHubPage({
       title={account.name}
       reference={account.ref}
       status={<StatusPill label={ACCOUNT_TYPE_LABEL[account.type]} tone={TYPE_TONE[account.type]} />}
-      primaryAction={<span style={{ display: "inline-flex", gap: 8, flexWrap: "wrap" }}><Account360Button accountId={account.id} /><AnalyseButton name={account.name} accountId={account.id} /></span>}
-      menu={
-        <RecordMoreMenu
-          inlineEdit={{ overviewHref: tabHref("overview") }}
-          extraItems={isNova ? [{ label: "Back to story", href: basePath }] : []}
-          actions={sendActions}
-          adapt={{ objectType: "account", objectLabel: "Account", isAdmin: role === "admin" }}
-        />
-      }
+      primaryAction={primaryNode}
+      menu={menuNode}
       facts={[
         { label: "City", value: account.city ?? "—" },
         { label: "Phone", value: account.phone ? <a href={`tel:${account.phone}`} style={{ color: "inherit", textDecoration: "none" }}>{account.phone}</a> : "—" },

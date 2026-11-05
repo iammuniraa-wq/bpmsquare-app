@@ -10,6 +10,7 @@ export default function Pill({
   const t = pillar[tone];
   return (
     <span
+      className="bpm-pill"
       style={{
         display: "inline-block",
         fontSize: 11,

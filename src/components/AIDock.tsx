@@ -405,6 +405,8 @@ export default function AIDock({ liftForTabBar = false }: {
   return (
     <>
       <button
+        className="bms-dock-switch"
+        data-on={enabled}
         data-dock-open={open}
         onClick={toggleEnabled}
         aria-label={enabled ? "Turn off AI assistant" : "Turn on AI assistant"}
@@ -426,6 +428,7 @@ export default function AIDock({ liftForTabBar = false }: {
 
       {enabled && (
         <button
+          className="bms-dock-orb"
           data-dock-open={open}
           onClick={() => setOpen((v) => !v)}
           aria-label={open ? "Close assistant" : "Open assistant"}
@@ -438,7 +441,7 @@ export default function AIDock({ liftForTabBar = false }: {
           }}
         >
           {!open && (
-            <span style={{
+            <span className="bms-dock-orb-ring" style={{
               position: "absolute", inset: -4, borderRadius: "50%",
               border: "2px solid var(--tenant-accent, #1e3a6e)", opacity: 0.35,
               animation: "vvcrm-pulse-ring 2.2s ease-out infinite",
@@ -478,8 +481,8 @@ export default function AIDock({ liftForTabBar = false }: {
         // Size, position and the phone sheet live in dockLayout.ts (a stylesheet, so a media query can override them);
         // only the lift under the panel (safe area, tab bar) is known here.
         <div className="bms-dock-panel" style={{ ["--dock-floor" as string]: FLOOR }}>
-          <div style={{ padding: "10px 12px 10px 16px", background: "var(--accentbg)", color: c.accent, fontWeight: 700, fontSize: 13, display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
-            <span>✦ Assistant</span>
+          <div className="bms-dock-head" style={{ padding: "10px 12px 10px 16px", background: "var(--accentbg)", color: c.accent, fontWeight: 700, fontSize: 13, display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
+            <span className="bms-dock-title"><span className="bms-dock-glyph" aria-hidden="true">✦</span> Assistant</span>
             <InfoTip label="the assistant">{ASSISTANT_TIPS.header}</InfoTip>
             <span style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 6 }}>
               {pill}
@@ -502,15 +505,18 @@ export default function AIDock({ liftForTabBar = false }: {
                 ×
               </button>
             </span>
+            <span className="bms-dock-sub">Ask a question, or say where to go.</span>
           </div>
 
-          <div ref={scrollRef} style={{ padding: "14px 16px", display: "flex", flexDirection: "column", gap: 10, fontSize: 12.5, flex: 1, overflowY: "auto", minHeight: 0 }}>
+          <div ref={scrollRef} className="bms-dock-body" style={{ padding: "14px 16px", display: "flex", flexDirection: "column", gap: 10, fontSize: 12.5, flex: 1, overflowY: "auto", minHeight: 0 }}>
             {messages.length === 0 && (
-              <div style={{ color: c.hint, fontSize: 13.5, padding: "6px 2px" }}>How can I help you today?</div>
+              <div className="bms-dock-empty" style={{ color: c.hint, fontSize: 13.5, padding: "6px 2px" }}>How can I help you today?</div>
             )}
             {messages.map((m, i) => (
-              <div key={i} style={{ display: "flex", flexDirection: "column", gap: 8, alignSelf: m.from === "me" ? "flex-end" : "stretch", maxWidth: m.from === "me" ? "88%" : undefined }}>
+              <div key={i} className="bms-dock-msg" data-from={m.from} style={{ display: "flex", flexDirection: "column", gap: 8, alignSelf: m.from === "me" ? "flex-end" : "stretch", maxWidth: m.from === "me" ? "88%" : undefined }}>
                 <div
+                  className="bms-dock-bubble"
+                  data-from={m.from}
                   style={{
                     alignSelf: m.from === "me" ? "flex-end" : "flex-start",
                     maxWidth: m.from === "me" ? "100%" : "88%",
@@ -570,10 +576,16 @@ export default function AIDock({ liftForTabBar = false }: {
                 )}
               </div>
             ))}
-            {busy && <div style={{ alignSelf: "flex-start", color: c.hint }}>{searching ? "Searching the web…" : "Looking that up…"}</div>}
+            {busy && (
+              <div className="bms-dock-typing" style={{ alignSelf: "flex-start", color: c.hint }}>
+                <span className="bms-dock-typing-text">{searching ? "Searching the web…" : "Looking that up…"}</span>
+                <span className="bms-dock-dots" aria-hidden="true"><i /><i /><i /></span>
+              </div>
+            )}
           </div>
           <div className="bms-dock-input" style={{ padding: "8px 16px 14px", display: "flex", gap: 8, flexShrink: 0, background: "var(--card-bg, #fff)" }}>
             <input
+              className="bms-dock-field"
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter") sendMessage(); }}
@@ -603,6 +615,7 @@ export default function AIDock({ liftForTabBar = false }: {
         }
         @keyframes bms-guide-pulse { 50% { box-shadow: 0 0 0 12px color-mix(in srgb, var(--tenant-accent, #1e3a6e) 10%, transparent); } }
         @media (prefers-reduced-motion: reduce) { .bms-guide-hl { animation: none; } }
+        .bms-dock-sub, .bms-dock-dots { display: none; }
         @keyframes vvcrm-pulse-ring {
           0% { transform: scale(.92); opacity: .5; }
           100% { transform: scale(1.35); opacity: 0; }

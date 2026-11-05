@@ -1,6 +1,9 @@
 import type { Metadata, Viewport } from "next";
 import { headers } from "next/headers";
 import "./globals.css";
+// Rich look (docs/design/rich-ui.md): every rule is scoped under [data-rich], so it is inert for any tenant Shell does not stamp.
+import "../styles/rich.css";
+import "../styles/rich-ai.css";
 import ThemeApplier from "@/components/ThemeApplier";
 import ServiceWorkerRegister from "@/components/ServiceWorkerRegister";
 import { isPrimaryOrDevHost } from "@/lib/constants";

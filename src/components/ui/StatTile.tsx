@@ -31,7 +31,7 @@ export default function StatTile({ label, value, sub, info, tone = "neutral", ic
 }) {
   const t = toneTokens(tone);
   return (
-    <div data-tone={tone} style={statTileStyle(tone)}>
+    <div data-tone={tone} className="bpm-stat" style={statTileStyle(tone)}>
       <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11.5, fontWeight: 600, color: tone === "neutral" ? c.muted : t.ink, textTransform: "uppercase", letterSpacing: 0.4 }}>
         <span style={{ minWidth: 0, overflowWrap: "anywhere" }}>{label}</span>
         {info && <InfoTip label={label}>{info}</InfoTip>}

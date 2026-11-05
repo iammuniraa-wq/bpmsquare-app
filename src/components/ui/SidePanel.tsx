@@ -26,9 +26,9 @@ export default function SidePanel({ title, subtitle, onClose, children, footer, 
 
   return (
     <>
-      <div className={s.backdrop} onClick={onClose} />
-      <aside className={s.panel} role="dialog" aria-modal="true" aria-label={label ?? title}>
-        <div className={s.head}>
+      <div className={s.backdrop} data-side-backdrop="" onClick={onClose} />
+      <aside className={s.panel} data-side-panel="" role="dialog" aria-modal="true" aria-label={label ?? title}>
+        <div className={s.head} data-side-head="">
           <div className={s.headText}>
             <div className={`bpm-t-section ${s.title}`}>{title}</div>
             {subtitle ? <div className={s.sub}>{subtitle}</div> : null}

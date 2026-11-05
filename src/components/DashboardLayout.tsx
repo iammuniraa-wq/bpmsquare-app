@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import type { ServiceCase, Account, WorkOrder, Activity as ActivityRec } from "@/lib/types";
 import { c, pillar, type PillarKey } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
-import { useUiTheme, useIsNextgen3Layer, useIsSpectacular, useSpectacularVariant, useCurrency, useTenant } from "@/lib/tenant-context";
+import { useUiTheme, useIsNextgen3Layer, useIsSpectacular, useSpectacularVariant, useCurrency, useTenant, useRichUi } from "@/lib/tenant-context";
 import { tipsFor, type DashboardTip } from "@/lib/dashboardTips";
 import { moneyFormatter, type CurrencyDef } from "@/lib/currency";
 import SilenceDetector from "@/components/SilenceDetector";
@@ -29,6 +29,8 @@ import type { TenderDeskStyle } from "@/lib/tenderDesk/types";
 import { isTenderBlockId } from "@/lib/dashboardBlocks";
 import { tenderBlockSpec } from "@/components/tenderDesk/TenderBlocks";
 import { DashLookScope, LookSwitch } from "@/components/tenderDesk/DashLook";
+import RichDashboard from "@/components/RichDashboard";
+import { buildRichDashboard } from "@/lib/richDashboard";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -1150,6 +1152,8 @@ export default function DashboardLayout({ kpis, attention, workOrderRows, overdu
   const modern = uiTheme !== "classic";
   const nextgen = uiTheme === "nextgen";
   const threeLayer = useIsNextgen3Layer();
+  // The Rich look (docs/design/rich-ui.md): a new opening above the same dashboard, which then sits behind "More". False for every other tenant.
+  const rich = useRichUi();
   // The PURPLE palette only. The Lilac board is what this opening was drawn
   // for, and the navy palette paints a 104px band across the top of <main>
   // that the statement would run straight into with dark ink on it.
@@ -1794,7 +1798,7 @@ export default function DashboardLayout({ kpis, attention, workOrderRows, overdu
     }
   }
 
-  return (
+  const classic = (
     <div>
       <DashLookScope look={look} />
       {/* Header. Carries .bpm-page-header like PageHeader does even though it
@@ -1986,5 +1990,17 @@ export default function DashboardLayout({ kpis, attention, workOrderRows, overdu
         }
       `}</style>
     </div>
+  );
+
+  if (!rich) return classic;
+  return (
+    <RichDashboard
+      greeting={greet()}
+      userName={userName ?? null}
+      dateLabel={todayStr()}
+      cur={cur}
+      model={buildRichDashboard({ features, analytics, kpis, attention, workOrderRows, overdueInvoices, quoteStatuses: tenant?.config?.quote_statuses })}
+      more={classic}
+    />
   );
 }
