@@ -102,7 +102,7 @@ describe("one Save over three tabs", () => {
 
 describe("Theme tab", () => {
   const features = { next_experience: true, spectacular_theme: true };
-  const render = (theme: string, f = features) => html(createElement(ThemeTab, { draft: { ...draftFromTenant(tenant({})), theme: theme as never }, features: f, accent: "#378ADD", onChange: () => {} }));
+  const render = (theme: string, f: Record<string, boolean> = features) => html(createElement(ThemeTab, { draft: { ...draftFromTenant(tenant({})), theme: theme as never }, features: f, accent: "#378ADD", onChange: () => {} }));
 
   it("offers only the themes this workspace was given", () => {
     expect(themeTiles({}).map((t) => t.value)).toEqual(["classic", "modern", "nextgen"]);
