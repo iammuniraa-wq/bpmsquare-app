@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { c, pillar } from "@/lib/theme";
+import PunchAudit from "@/components/wfm/PunchAudit";
 
 // ── Types (structurally matching EmployeeDayRecord, kept local so this stays
 // a pure presentational component usable from any WFM screen) ───────────────
@@ -125,10 +126,12 @@ function dayState(day: TimelineDay): { label: string; tone: string } | null {
  * the detail popup, where a correction can be raised for that date.
  */
 export default function MonthTimeline({
-  days, month, pendingCorrectionDates = [], onRequestCorrection,
+  days, month, pendingCorrectionDates = [], onRequestCorrection, employeeId,
 }: {
   days: TimelineDay[];
   month: string; // YYYY-MM
+  /** Whose month this is. When given, the day pop-up shows that day's punches (selfie, location). */
+  employeeId?: string;
   /** Dates with an open correction request -- rendered faded, like pending OT. */
   pendingCorrectionDates?: string[];
   onRequestCorrection?: (date: string) => void;
@@ -279,6 +282,7 @@ export default function MonthTimeline({
       {openDay && (
         <DayDetail
           day={openDay}
+          employeeId={employeeId}
           hasPendingCorrection={pendingSet.has(openDay.date)}
           onClose={() => setOpenDate(null)}
           onRequestCorrection={onRequestCorrection}
@@ -293,8 +297,10 @@ export default function MonthTimeline({
   );
 }
 
-function DayDetail({ day, hasPendingCorrection, onClose, onRequestCorrection }: {
+export function DayDetail({ day, employeeId, hasPendingCorrection, onClose, onRequestCorrection }: {
   day: TimelineDay;
+  /** When set, the pop-up also lists the day's punches with selfie and location. */
+  employeeId?: string;
   hasPendingCorrection: boolean;
   onClose: () => void;
   onRequestCorrection?: (date: string) => void;
@@ -360,6 +366,15 @@ function DayDetail({ day, hasPendingCorrection, onClose, onRequestCorrection }: 
                 badge={o.status === "approved" ? undefined : o.status === "pending" ? "awaiting approval" : "rejected"}
                 faded={o.status !== "approved"} />
             ))}
+          </div>
+        )}
+
+        {employeeId && day.date <= new Date().toISOString().slice(0, 10) && (
+          <div style={{ marginBottom: 14 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: c.hint, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>
+              Punch details
+            </div>
+            <PunchAudit employeeId={employeeId} date={day.date} />
           </div>
         )}
 

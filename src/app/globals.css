@@ -2291,3 +2291,8 @@ textarea.bpm-input { min-height: 72px; resize: vertical; }
 @media (pointer: coarse) {
   .bpm-ext-open { display: inline-flex; align-items: center; min-height: 44px; }
 }
+
+/* WFM day punches toggle (employee Attendance tab and month day pop-up): 44px tap target on touch screens. */
+@media (pointer: coarse) {
+  .wfm-punch-toggle { min-height: 44px; min-width: 44px; }
+}
