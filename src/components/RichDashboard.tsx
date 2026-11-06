@@ -74,6 +74,10 @@ function Pipeline({ p, cur }: { p: RichPipeline; cur: CurrencyDef }) {
             <Link href={p.emptyHref} className="rd-btn">{p.emptyAction}</Link>
           </div>
         ) : (
+          <>
+          <div className="rd-bar" aria-hidden="true">
+            {p.stages.map((s, i) => <span key={s.key} className={`rd-bar__s rd-seg--${(i % 4) + 1}`} style={{ flexGrow: s.weight }} />)}
+          </div>
           <div className="rd-flow" role="group" aria-label={p.title} onMouseLeave={() => setActive(null)} onBlur={() => setActive(null)}>
             {p.stages.map((s, i) => (
               <Link
@@ -87,6 +91,7 @@ function Pipeline({ p, cur }: { p: RichPipeline; cur: CurrencyDef }) {
               </Link>
             ))}
           </div>
+          </>
         )}
       </section>
     </PhotoFrame>

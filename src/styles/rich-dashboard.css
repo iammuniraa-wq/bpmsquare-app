@@ -73,6 +73,7 @@
 [data-rich="true"] .rd-pipe__empty { display: flex; flex-direction: column; align-items: flex-start; gap: 16px; padding: 8px 0 12px; }
 [data-rich="true"] .rd-pipe__empty p { margin: 0; font-size: 1.125rem; color: var(--rich-ink-2); }
 
+[data-rich="true"] .rd-bar { display: none; }
 [data-rich="true"] .rd-flow { display: flex; flex-direction: column; gap: 10px; }
 [data-rich="true"] .rd-seg {
   display: grid; grid-template-columns: 1fr auto; grid-template-areas: "l c" "l v"; align-items: center; column-gap: 12px; row-gap: 0;
@@ -174,6 +175,41 @@
   [data-rich="true"] .rd-bid:hover .rich-photo { transform: none; }
   [data-rich="true"] .rd-flow:hover .rd-seg:not(:hover):not(:focus-visible) { opacity: .5; }
   [data-rich="true"] .rd-seg:hover, [data-rich="true"] .rd-seg:focus-visible { transform: translateY(-6px); box-shadow: var(--rich-shadow-2); }
+}
+
+/* ---- Phone home: four numbers at once, the pipeline as one bar and a short list ---- */
+@media (max-width: 899px) {
+  [data-rich="true"] .rd { gap: 24px; }
+  [data-rich="true"] .rd-kpis { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; overflow: visible; margin-inline: 0; padding: 0; scroll-snap-type: none; }
+  [data-rich="true"] .rd-kpis > * { flex: initial; }
+  [data-rich="true"] .rd-kpis[data-count="1"] { grid-template-columns: minmax(0, 1fr); }
+  [data-rich="true"] .rd-kpis[data-count="3"] > :last-child { grid-column: 1 / -1; }
+  [data-rich="true"] .rd-kpi { min-height: 112px; padding: 16px 18px; justify-content: flex-start; gap: 2px; border-radius: 24px; }
+  [data-rich="true"] .rd-kpi__n { font-size: clamp(1.625rem, 8vw, 2rem); }
+  [data-rich="true"] .rd-kpi__l { font-size: .9375rem; margin-top: auto; }
+  [data-rich="true"] .rd-kpi__s { font-size: .8125rem; }
+
+  [data-rich="true"] .rd-pipe { padding: 22px 20px 12px; }
+  [data-rich="true"] .rd-pipe__head { margin-bottom: 16px; }
+  [data-rich="true"] .rd-pipe__head h2 { font-size: 1.25rem; }
+  [data-rich="true"] .rd-readout strong { font-size: clamp(1.5rem, 7vw, 1.875rem); }
+  [data-rich="true"] .rd-bar { display: flex; gap: 4px; height: 14px; margin: 0 0 8px; border-radius: 999px; overflow: hidden; }
+  [data-rich="true"] .rd-bar__s { min-width: 6px; animation: rd-grow .8s var(--rich-ease) backwards; }
+  [data-rich="true"] .rd-flow { gap: 0; }
+  [data-rich="true"] .rd-seg {
+    grid-template-columns: 14px minmax(0, 1fr) auto auto; grid-template-areas: "d l c v"; column-gap: 12px; min-height: 52px; padding: 8px 2px;
+    border-radius: 0; background: transparent !important; color: var(--rich-ink); box-shadow: none; border-bottom: 1px solid var(--rich-hair); animation: none;
+  }
+  [data-rich="true"] .rd-seg:last-child { border-bottom: 0; }
+  [data-rich="true"] .rd-seg::before { content: ""; grid-area: d; width: 14px; height: 14px; border-radius: 50%; background: var(--rich-st3); }
+  [data-rich="true"] .rd-seg--1::before { background: var(--rich-st1); }
+  [data-rich="true"] .rd-seg--2::before { background: var(--rich-st2); }
+  [data-rich="true"] .rd-seg--4::before { background: var(--rich-st4); }
+  [data-rich="true"] .rd-seg b { font-size: 1rem; font-weight: 500; white-space: normal; }
+  [data-rich="true"] .rd-seg span { font-size: .9375rem; color: var(--rich-ink-2); min-width: 1.5em; }
+  [data-rich="true"] .rd-seg .rd-seg__val { grid-area: v; font-weight: 600; color: var(--rich-ink); text-align: right; min-width: 4.5em; }
+
+  [data-rich="true"] .rd-attn__item { min-height: 64px; }
 }
 
 /* ---- from 900 px: numbers without boxes, flow in a row, three across ----- */
