@@ -101,3 +101,19 @@
   [data-rich="true"] main form[style*="display:flex"], [data-rich="true"] main form[style*="display: flex"] { flex-wrap: wrap; }
   [data-rich="true"] main form[style*="display:flex"] :is(input, select), [data-rich="true"] main form[style*="display: flex"] :is(input, select) { flex: 1 1 100%; min-width: 0; }
 }
+
+/* ---- Open-tabs strip: one line per tab, calm capsules -------------------- */
+@media (min-width: 781px) {
+  [data-rich="true"] .bpm-tabbar { height: 56px !important; min-height: 56px !important; }
+  [data-rich="true"] .bpm-tabbar [data-active] {
+    height: 40px !important; min-width: 0 !important; max-width: 200px !important; padding: 0 8px 0 16px !important; gap: 8px !important;
+    border: 0 !important; border-radius: 999px !important;
+  }
+  [data-rich="true"] .bpm-tabbar [data-active] > span:first-child { display: none; }
+  [data-rich="true"] .bpm-tabbar [data-active] > span:nth-child(2) > span:nth-child(2) { display: none; }
+  [data-rich="true"] .bpm-tabbar [data-active] > span:nth-child(2) > span:first-child { font-size: .9375rem !important; font-weight: 500 !important; color: var(--rich-ink-2) !important; }
+  [data-rich="true"] .bpm-tabbar [data-active="true"] > span:nth-child(2) > span:first-child { font-weight: 600 !important; color: var(--rich-ink) !important; }
+  [data-rich="true"] .bpm-tabbar [data-active] > button { width: 24px !important; height: 24px !important; border-radius: 50% !important; font-size: 1rem !important; opacity: 0; transition: opacity .2s; }
+  [data-rich="true"] .bpm-tabbar [data-active]:hover > button, [data-rich="true"] .bpm-tabbar [data-active="true"] > button { opacity: 1; }
+  [data-rich="true"] .bpm-tabbar > button { width: 32px !important; height: 32px !important; border-radius: 50% !important; font-size: 1rem !important; }
+}

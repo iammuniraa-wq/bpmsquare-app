@@ -1780,7 +1780,7 @@ export default function DashboardLayout({ kpis, attention, workOrderRows, overdu
 
   function renderMainBlock(block: DashLayoutItem) {
     if (isAnalyticsId(block.id)) {
-      return <div key={block.id}>{renderWidget(block.id, analytics, blockSize(block), cur, look ?? "bold")}</div>;
+      return <div key={block.id}>{renderWidget(block.id, analytics, blockSize(block), cur, rich ? "bold" : (look ?? "bold"))}</div>;
     }
     switch (block.id) {
       case "overview_strip": return <div key={block.id}>{renderOverviewStrip()}</div>;
@@ -1829,7 +1829,8 @@ export default function DashboardLayout({ kpis, attention, workOrderRows, overdu
           </button>
         ))}
       </div>
-      {look !== null && <LookSwitch look={look} busy={lookBusy} onChange={(next) => { void chooseLook(next); }} />}
+      {/* Rich has its own light and dark; the tender "Control room" look would paint the whole page navy over it. */}
+      {look !== null && !rich && <LookSwitch look={look} busy={lookBusy} onChange={(next) => { void chooseLook(next); }} />}
       {isAdmin && dashMode === "adaptive" && (
         <button
           onClick={() => setAdaptOpen(true)}
@@ -1862,7 +1863,6 @@ export default function DashboardLayout({ kpis, attention, workOrderRows, overdu
 
   const bodyEl = (
     <>
-      {rich && <DashLookScope look={look} />}
       {!rich && spectacular && renderSpectacularOpening()}
       {!rich && nextgen && renderNextgenBrief()}
 
