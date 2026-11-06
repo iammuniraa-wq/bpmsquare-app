@@ -56,7 +56,7 @@ html[data-rich-root="true"] {
   --rich-ring-track: rgba(23, 19, 28, .08);
 
   --rich-glass: rgba(255, 255, 255, .74);
-  --rich-canvas-glass: rgba(246, 244, 250, .82);
+  --rich-canvas-glass: rgba(246, 244, 250, .93);
   --rich-scrim: rgba(23, 19, 28, .4);
   --rich-shadow-1: 0 1px 2px rgba(23, 19, 28, .04), 0 10px 30px rgba(23, 19, 28, .06);
   --rich-shadow-2: 0 2px 4px rgba(23, 19, 28, .05), 0 22px 52px color-mix(in srgb, var(--rich-violet) 18%, transparent);
@@ -187,7 +187,7 @@ html[data-rich-root="true"][data-rich-dark="true"] {
   --rich-good-ink: #72e0b5;
   --rich-ring-track: rgba(245, 242, 250, .1);
   --rich-glass: rgba(34, 28, 43, .76);
-  --rich-canvas-glass: rgba(23, 19, 28, .82);
+  --rich-canvas-glass: rgba(23, 19, 28, .93);
   --rich-scrim: rgba(0, 0, 0, .6);
   --rich-shadow-1: 0 1px 2px rgba(0, 0, 0, .3), 0 10px 30px rgba(0, 0, 0, .28);
   --rich-shadow-2: 0 2px 4px rgba(0, 0, 0, .3), 0 22px 52px color-mix(in srgb, var(--rich-violet) 24%, transparent);
@@ -398,8 +398,8 @@ html[data-rich-root="true"] .feel__undo { font-size: .875rem; min-height: 36px; 
 /* ---- 6. Navigation, "menu": the current sidebar, glass and rounded ------ */
 [data-rich="true"] .rich-nav[data-slot="menu"] { display: flex; padding: 16px 0 16px 16px; flex: none; }
 [data-rich="true"] .rich-nav[data-slot="menu"] > div {
-  border: 0 !important; border-radius: 32px !important; background: var(--rich-glass) !important; box-shadow: var(--rich-shadow-1);
-  backdrop-filter: blur(22px) saturate(1.4); -webkit-backdrop-filter: blur(22px) saturate(1.4);
+  border: 0 !important; border-radius: 32px !important; background: color-mix(in srgb, var(--rich-surface) 94%, transparent) !important; box-shadow: var(--rich-shadow-1);
+  /* No backdrop-filter here: it would make this box the containing block of the fixed flyout, which then opens in the wrong place and under the tab strip. */
   top: 16px !important; height: calc(100vh - 32px) !important; max-height: calc(100vh - 32px);
 }
 [data-rich="true"] .rich-nav[data-slot="menu"] > div[style*="width: 44px"], [data-rich="true"] .rich-nav[data-slot="menu"] > div[style*="width:44px"] { width: 64px !important; align-items: center; }
@@ -413,6 +413,10 @@ html[data-rich-root="true"] .feel__undo { font-size: .875rem; min-height: 36px; 
   left: 292px !important; background: var(--rich-surface) !important; border: 0 !important; border-radius: 24px !important; box-shadow: var(--rich-shadow-3) !important; backdrop-filter: none !important; padding: 8px !important;
 }
 [data-rich="true"] .rich-nav .nova-sb-fly-row { border-radius: 14px !important; min-height: 44px; }
+[data-rich="true"] .rich-nav [role="menu"] { max-height: calc(100vh - 24px) !important; min-width: 248px !important; }
+[data-rich="true"] .rich-nav [role="menu"] > div:first-child { font-size: .9375rem !important; font-weight: 600; text-transform: none !important; letter-spacing: 0 !important; color: var(--rich-ink-2) !important; padding: 10px 14px 6px !important; font-family: var(--rich-font-head); }
+[data-rich="true"] .rich-nav [role="menu"] .nova-sb-fly-row span { font-size: 1rem !important; }
+[data-rich="true"] .rich-nav [role="menu"] .nova-sb-fly-row svg { width: 18px; height: 18px; }
 
 /* ---- 7. Navigation, "rail": the floating icon rail ----------------------- */
 [data-rich="true"] .rich-nav[data-slot="rail"] { flex: none; width: 112px; }
@@ -535,7 +539,7 @@ html[data-rich-root="true"] .feel__undo { font-size: .875rem; min-height: 36px; 
   /* Floating glass pill tab bar. */
   [data-rich="true"] .bpm-m-tabbar {
     left: 16px !important; right: 16px !important; bottom: calc(12px + env(safe-area-inset-bottom, 0px)) !important; padding: 6px !important; gap: 2px; min-height: 64px;
-    border: 0 !important; border-radius: 28px; background: var(--rich-glass) !important; box-shadow: var(--rich-shadow-3) !important;
+    border: 0 !important; border-radius: 28px; background: color-mix(in srgb, var(--rich-surface) 95%, transparent) !important; box-shadow: var(--rich-shadow-3) !important;
     backdrop-filter: blur(22px) saturate(1.4); -webkit-backdrop-filter: blur(22px) saturate(1.4);
   }
   [data-rich="true"] .bpm-m-tab { position: relative; min-width: 44px; min-height: 52px; border-radius: 22px !important; padding: 8px 2px 10px !important; }

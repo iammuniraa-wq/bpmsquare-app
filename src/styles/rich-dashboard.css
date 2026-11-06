@@ -150,6 +150,12 @@
 [data-rich="true"] .rd-rest .bpm-stile-ic { width: 36px !important; height: 36px !important; border-radius: 50% !important; background: var(--rich-violet-soft) !important; }
 [data-rich="true"] .rd-rest .bpm-stile-n { font-family: var(--rich-font-head) !important; font-weight: 600 !important; letter-spacing: -.025em !important; color: var(--rich-ink) !important; }
 
+/* Cards in one row share a height, so a note that wraps does not leave one tile taller than its neighbours. */
+[data-rich="true"] .rd-rest .dash-outer > div:first-child { align-items: stretch; }
+[data-rich="true"] .rd-rest .dash-outer > div:first-child > div > div { height: 100%; }
+[data-rich="true"] .rd-rest .dash-outer > div:first-child > div > div > [data-look] { height: 100%; }
+[data-rich="true"] .rd-rest .bpm-acard { height: 100%; }
+
 /* The tender tiles: the same card, the number in the display face, no saturated block. */
 [data-rich="true"] .rd-rest [data-guide^="tender.dash.tile"] {
   --td-tile-ink: var(--rich-ink); --td-tile-ink-soft: var(--rich-ink-3); --td-tile-glow: transparent; --td-tile-shadow: var(--rich-violet-soft);

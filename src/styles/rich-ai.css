@@ -196,14 +196,16 @@
   to { opacity: 1; transform: none; }
 }
 
+/* One floating thing: the orb. On/off folds into the panel ("Turn off"); when it is off, the switch is a small pill that brings it back. */
+[data-rich="true"] .bms-dock-switch[data-on="true"] { display: none !important; }
+[data-rich="true"] .bms-dock-switch[data-on="false"] { opacity: .85; }
+[data-rich="true"] .bms-dock-off { display: inline-flex !important; align-items: center; min-height: 32px; padding: 0 12px; border: 0; border-radius: 999px; background: var(--rich-surface-2); color: var(--rich-ink-2); font: 500 .8125rem var(--rich-font-body); cursor: pointer; }
+
 /* Under 781px the floating tab bar exists (64px + 12px gap): the sheet and the orb sit above it. */
 @media (max-width: 780px) {
   [data-rich="true"] .bms-dock-panel { bottom: calc(88px + env(safe-area-inset-bottom, 0px)) !important; }
   [data-rich="true"] .bms-dock-orb { right: 16px !important; bottom: calc(92px + env(safe-area-inset-bottom, 0px)) !important; }
-  /* One floating thing on a phone: the orb. On/off folds into the panel ("Turn off"); when it is off, a small pill brings it back. */
-  [data-rich="true"] .bms-dock-switch[data-on="true"] { display: none !important; }
-  [data-rich="true"] .bms-dock-switch[data-on="false"] { right: 16px !important; bottom: calc(92px + env(safe-area-inset-bottom, 0px)) !important; opacity: .85; }
-  [data-rich="true"] .bms-dock-off { display: inline-flex !important; align-items: center; min-height: 32px; padding: 0 12px; border: 0; border-radius: 999px; background: var(--rich-surface-2); color: var(--rich-ink-2); font: 500 .8125rem var(--rich-font-body); cursor: pointer; }
+  [data-rich="true"] .bms-dock-switch[data-on="false"] { right: 16px !important; bottom: calc(92px + env(safe-area-inset-bottom, 0px)) !important; }
   [data-rich="true"] .bms-guide-bar { bottom: calc(88px + env(safe-area-inset-bottom, 0px)) !important; }
   /* The dark-mode switch moved into the avatar menu. */
   [data-rich="true"] .bpm-m-darktoggle { display: none !important; }
