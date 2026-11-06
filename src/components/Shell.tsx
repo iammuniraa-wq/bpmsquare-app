@@ -15,6 +15,7 @@ import { XIcon, SearchIcon } from "@/components/Icons";
 import { useTenant, useUiTheme, useTenantFeature, useIsNextgen3Layer, useNovaSurfaces, useIsEnterpriseSidebar, useIsSpectacular, useSpectacularVariant, useNavySidebar, useTopBarIdentity, useCommandPalette, useRichUi } from "@/lib/tenant-context";
 import { RICH_NAV_KEY, parseRichNav, applyRichRoot, type RichNav } from "@/lib/richUi";
 import RichRail from "./RichRail";
+import RichMobileTables from "./RichMobileTables";
 import RichNavToggle from "./RichNavToggle";
 import NovaPalette from "@/components/NovaPalette";
 import NovaDraft from "@/components/NovaDraft";
@@ -435,6 +436,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
               <DarkToggle dark={dark} onToggle={toggleDark} />
             </div>
           )}
+          {rich && <RichMobileTables />}
           {commandPalette && <NovaPalette />}
           {/* NovaDraft is the ONLY listener for "nova:open-draft", which
               NovaPalette dispatches before closing itself. Spectacular gets

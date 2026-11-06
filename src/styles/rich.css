@@ -409,14 +409,14 @@ html[data-rich-root="true"] .feel__undo { font-size: .875rem; min-height: 36px; 
 [data-rich="true"] .rich-nav .nova-sb-cmd { animation: none !important; border-radius: 999px !important; border-color: transparent !important; background: var(--rich-surface) !important; box-shadow: var(--rich-shadow-1); padding: 12px 16px !important; font-size: .9375rem !important; }
 [data-rich="true"] .rich-nav .nova-sb-cmd::after { display: none; }
 [data-rich="true"] .rich-nav .nova-sb-live-dot { animation: none !important; }
-[data-rich="true"] .rich-nav [role="menu"] {
+[data-rich="true"] .rich-nav[data-slot="menu"] [role="menu"] {
   left: 292px !important; background: var(--rich-surface) !important; border: 0 !important; border-radius: 24px !important; box-shadow: var(--rich-shadow-3) !important; backdrop-filter: none !important; padding: 8px !important;
 }
 [data-rich="true"] .rich-nav .nova-sb-fly-row { border-radius: 14px !important; min-height: 44px; }
-[data-rich="true"] .rich-nav [role="menu"] { max-height: calc(100vh - 24px) !important; min-width: 248px !important; }
-[data-rich="true"] .rich-nav [role="menu"] > div:first-child { font-size: .9375rem !important; font-weight: 600; text-transform: none !important; letter-spacing: 0 !important; color: var(--rich-ink-2) !important; padding: 10px 14px 6px !important; font-family: var(--rich-font-head); }
-[data-rich="true"] .rich-nav [role="menu"] .nova-sb-fly-row span { font-size: 1rem !important; }
-[data-rich="true"] .rich-nav [role="menu"] .nova-sb-fly-row svg { width: 18px; height: 18px; }
+[data-rich="true"] .rich-nav[data-slot="menu"] [role="menu"] { max-height: calc(100vh - 24px) !important; min-width: 248px !important; }
+[data-rich="true"] .rich-nav[data-slot="menu"] [role="menu"] > div:first-child { font-size: .9375rem !important; font-weight: 600; text-transform: none !important; letter-spacing: 0 !important; color: var(--rich-ink-2) !important; padding: 10px 14px 6px !important; font-family: var(--rich-font-head); }
+[data-rich="true"] .rich-nav[data-slot="menu"] [role="menu"] .nova-sb-fly-row span { font-size: 1rem !important; }
+[data-rich="true"] .rich-nav[data-slot="menu"] [role="menu"] .nova-sb-fly-row svg { width: 18px; height: 18px; }
 
 /* ---- 7. Navigation, "rail": the floating icon rail ----------------------- */
 [data-rich="true"] .rich-nav[data-slot="rail"] { flex: none; width: 112px; }

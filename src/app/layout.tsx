@@ -5,6 +5,7 @@ import "./globals.css";
 import "../styles/rich.css";
 import "../styles/rich-ai.css";
 import "../styles/rich-native.css";
+import "../styles/rich-mobile.css";
 import ThemeApplier from "@/components/ThemeApplier";
 import ServiceWorkerRegister from "@/components/ServiceWorkerRegister";
 import { isPrimaryOrDevHost } from "@/lib/constants";
