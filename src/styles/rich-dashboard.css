@@ -21,9 +21,9 @@
 [data-rich="true"] .rd-date { margin: 0 0 8px; font-size: .9375rem; color: var(--rich-ink-3); }
 [data-rich="true"] .rd-hello h1 {
   margin: 0; font-family: var(--rich-font-head); font-weight: 600; letter-spacing: -.03em; line-height: 1.05;
-  font-size: clamp(2.25rem, 10vw, 3.75rem); overflow-wrap: anywhere;
+  font-size: clamp(1.75rem, 8vw, 2.25rem); overflow-wrap: anywhere;
 }
-[data-rich="true"] .rd-line { margin: 12px 0 0; font-size: 1.125rem; color: var(--rich-ink-2); }
+[data-rich="true"] .rd-line { margin: 8px 0 0; font-size: 1rem; color: var(--rich-ink-2); }
 
 [data-rich="true"] .rd-pill {
   display: inline-flex; align-items: center; gap: 8px; align-self: flex-start; min-height: 44px; padding: 0 20px;
@@ -126,17 +126,44 @@
 [data-rich="true"] .rd-bid__t { font: 600 1.125rem/1.25 var(--rich-font-head); letter-spacing: -.01em; overflow-wrap: anywhere; }
 [data-rich="true"] .rd-bid__m { color: var(--rich-ink-2); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 
-/* ---- More: the classic dashboard, kept whole behind one expander --------- */
-[data-rich="true"] .rd-morebar { display: flex; align-items: center; gap: 6px; scroll-margin-top: 16px; }
-[data-rich="true"] .rd-more { min-width: 0; animation: rd-rise .5s var(--rich-ease) backwards; }
-/* Its own greeting would repeat the one above; its switches and Adapt buttons stay. */
-[data-rich="true"] .rd-more .bpm-page-header > div:first-child { display: none; }
-[data-rich="true"] .rd-more .bpm-page-header { justify-content: flex-start !important; margin-bottom: 20px !important; }
+/* ---- Customise tray: the classic switches and Adapt buttons, opened in place ------ */
+[data-rich="true"] .rd-tray {
+  margin-top: -16px; padding: 14px 16px; border-radius: 24px; background: var(--rich-surface); box-shadow: var(--rich-shadow-1);
+  animation: rd-rise .4s var(--rich-ease) backwards;
+}
+[data-rich="true"] .rd-tray > div { justify-content: flex-start !important; margin-top: 0 !important; gap: 10px !important; }
+[data-rich="true"] .rd-tray button { min-height: 40px; border-radius: 999px !important; font-size: .875rem !important; }
 @keyframes rd-rise { from { opacity: 0; transform: translateY(12px); } }
+
+/* ---- the rest of the dashboard's cards, in the same skin as the opening ------------ */
+[data-rich="true"] .rd-rest { min-width: 0; display: flex; flex-direction: column; gap: 24px; }
+[data-rich="true"] .rd-rest .dash-outer { gap: 24px !important; }
+[data-rich="true"] .rd-rest .dash-outer > div:first-child { gap: 24px !important; }
+[data-rich="true"] .rd-rest .bpm-acard {
+  border: 0 !important; border-radius: 28px !important; background: var(--rich-surface) !important; box-shadow: var(--rich-shadow-1) !important;
+  transition: transform .35s var(--rich-ease), box-shadow .35s var(--rich-ease);
+}
+[data-rich="true"] .rd-rest .bpm-acard-h { padding: 22px 24px 0 !important; border-bottom: 0 !important; gap: 12px; }
+[data-rich="true"] .rd-rest .bpm-acard-t { font: 600 1.125rem/1.25 var(--rich-font-head) !important; letter-spacing: -.01em !important; text-transform: none !important; color: var(--rich-ink) !important; }
+[data-rich="true"] .rd-rest .bpm-acard-l { font-size: .875rem !important; font-weight: 500 !important; color: var(--rich-violet-ink) !important; white-space: nowrap; }
+[data-rich="true"] .rd-rest .bpm-acard-b { padding: 16px 24px 24px !important; zoom: 1.1; }
+[data-rich="true"] .rd-rest .bpm-stile-ic { width: 36px !important; height: 36px !important; border-radius: 50% !important; background: var(--rich-violet-soft) !important; }
+[data-rich="true"] .rd-rest .bpm-stile-n { font-family: var(--rich-font-head) !important; font-weight: 600 !important; letter-spacing: -.025em !important; color: var(--rich-ink) !important; }
+
+/* The tender tiles: the same card, the number in the display face, no saturated block. */
+[data-rich="true"] .rd-rest [data-guide^="tender.dash.tile"] {
+  --td-tile-ink: var(--rich-ink); --td-tile-ink-soft: var(--rich-ink-3); --td-tile-glow: transparent; --td-tile-shadow: var(--rich-violet-soft);
+  background: var(--rich-surface) !important; color: var(--rich-ink) !important; border-radius: 28px !important; box-shadow: var(--rich-shadow-1); padding: 22px 24px !important; min-height: 148px !important; gap: 8px !important;
+}
+[data-rich="true"] .rd-rest [data-guide^="tender.dash.tile"]::after { display: none !important; }
+[data-rich="true"] .rd-rest [data-guide^="tender.dash.tile"] [class*="tileLabel"] { text-transform: none !important; letter-spacing: 0 !important; font: 500 .9375rem var(--rich-font-body) !important; color: var(--rich-ink-2); }
+[data-rich="true"] .rd-rest [data-guide^="tender.dash.tile"] [class*="tileValue"] { font: 600 clamp(1.75rem, 2.4vw, 2.25rem)/1.1 var(--rich-font-head) !important; letter-spacing: -.025em !important; }
+[data-rich="true"] .rd-rest [data-guide^="tender.dash.tile"] [class*="tileNote"] { font-size: .9375rem !important; color: var(--rich-ink-3); }
 
 /* ---- hover (only where there is a hover) --------------------------------- */
 @media (hover: hover) {
   [data-rich="true"] .rd-pill:not(.rd-pill--quiet):hover { box-shadow: var(--rich-shadow-2); transform: translateY(-2px); }
+  [data-rich="true"] .rd-rest .bpm-acard:hover { transform: translateY(-2px); box-shadow: var(--rich-shadow-2) !important; }
   [data-rich="true"] .rd-attn__item:hover, [data-rich="true"] .rd-bid:hover { transform: translateY(-3px); box-shadow: var(--rich-shadow-2); }
   [data-rich="true"] .rd-bid:hover .rich-photo { transform: none; }
   [data-rich="true"] .rd-flow:hover .rd-seg:not(:hover):not(:focus-visible) { opacity: .5; }
@@ -147,8 +174,8 @@
 @media (min-width: 900px) {
   [data-rich="true"] .rd { gap: 48px; padding-bottom: 24px; }
   [data-rich="true"] .rd-hello { flex-direction: row; justify-content: space-between; align-items: flex-end; gap: 32px; }
-  [data-rich="true"] .rd-hello h1 { font-size: clamp(3rem, 4.4vw, 3.75rem); }
-  [data-rich="true"] .rd-line { font-size: 1.25rem; }
+  [data-rich="true"] .rd-hello h1 { font-size: clamp(2rem, 2.6vw, 2.5rem); }
+  [data-rich="true"] .rd-line { font-size: 1.0625rem; }
   [data-rich="true"] .rd-pill { align-self: auto; }
 
   [data-rich="true"] .rd-snap { display: grid; overflow: visible; margin-inline: 0; padding: 0; gap: 32px; scroll-snap-type: none; }

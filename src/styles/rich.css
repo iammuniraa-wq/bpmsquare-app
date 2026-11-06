@@ -417,30 +417,33 @@ html[data-rich-root="true"] .feel__undo { font-size: .875rem; min-height: 36px; 
 /* ---- 7. Navigation, "rail": the floating icon rail ----------------------- */
 [data-rich="true"] .rich-nav[data-slot="rail"] { flex: none; width: 112px; }
 [data-rich="true"] .rich-rail {
-  position: fixed; z-index: 30; left: 20px; top: 20px; bottom: 20px; width: 72px; display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 24px 0;
+  position: fixed; z-index: 30; left: 20px; top: 20px; bottom: 20px; width: 72px; display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 20px 0;
   border-radius: 32px; background: var(--rich-glass); box-shadow: var(--rich-shadow-1);
   backdrop-filter: blur(22px) saturate(1.4); -webkit-backdrop-filter: blur(22px) saturate(1.4);
 }
-/* Names float outside the rail, so it cannot clip them; on a short screen it scrolls instead and the names give way. */
-@media (max-height: 720px) { [data-rich="true"] .rich-rail { overflow-y: auto; scrollbar-width: none; } [data-rich="true"] .rich-rail__btn::after { display: none; } }
+/* The icon list scrolls inside the rail on a short screen (brand and search stay put); names are a fixed tip, so nothing clips them. */
+[data-rich="true"] .rich-rail__list {
+  flex: 1; min-height: 0; width: 100%; display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 4px 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: none;
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 10px, #000 calc(100% - 14px), transparent 100%); mask-image: linear-gradient(to bottom, transparent 0, #000 10px, #000 calc(100% - 14px), transparent 100%);
+}
+[data-rich="true"] .rich-rail__list::-webkit-scrollbar { display: none; }
 [data-rich="true"] .rich-rail__brand { display: grid; place-items: center; width: 44px; height: 44px; margin-bottom: 16px; flex: none; }
 [data-rich="true"] .rich-rail__brand img { width: 40px; height: 40px; object-fit: contain; border-radius: 12px; }
 [data-rich="true"] .rich-rail__btn {
-  position: relative; flex: none; width: 48px; height: 48px; border: 0; border-radius: 16px; display: grid; place-items: center; background: transparent; color: var(--rich-ink-2); cursor: pointer;
+  position: relative; flex: none; width: 46px; height: 46px; border: 0; border-radius: 16px; display: grid; place-items: center; background: transparent; color: var(--rich-ink-2); cursor: pointer;
   transition: background .25s var(--rich-ease), color .25s var(--rich-ease), transform .3s var(--rich-spring);
 }
 [data-rich="true"] .rich-rail__btn svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 [data-rich="true"] .rich-rail__btn:hover { background: var(--rich-surface-2); color: var(--rich-ink); transform: translateY(-2px); }
 [data-rich="true"] .rich-rail__btn:active { transform: scale(.97); }
 [data-rich="true"] .rich-rail__btn[aria-current="page"], [data-rich="true"] .rich-rail__btn[aria-expanded="true"] { background: var(--rich-violet-soft); color: var(--rich-violet-ink); }
-[data-rich="true"] .rich-rail__btn::after {
-  content: attr(data-tip); position: absolute; left: 62px; top: 50%; transform: translate(-6px, -50%); background: var(--rich-ink); color: var(--rich-canvas); font-size: .875rem; padding: 6px 14px; border-radius: 999px;
-  white-space: nowrap; opacity: 0; pointer-events: none; transition: opacity .2s, transform .25s var(--rich-ease); z-index: 140;
+[data-rich="true"] .rich-rail__tip {
+  position: fixed; z-index: 140; left: 104px; transform: translateY(-50%); background: var(--rich-ink); color: var(--rich-canvas); font-size: .875rem; line-height: 1; padding: 9px 14px; border-radius: 999px;
+  white-space: nowrap; pointer-events: none; box-shadow: var(--rich-shadow-2, var(--rich-shadow-1)); animation: rich-tip-in .18s var(--rich-ease) both;
 }
-[data-rich="true"] .rich-rail__btn:hover::after, [data-rich="true"] .rich-rail__btn:focus-visible::after { opacity: 1; transform: translate(0, -50%); }
-[data-rich="true"] .rich-rail__btn[aria-expanded="true"]::after { opacity: 0; }
+@keyframes rich-tip-in { from { opacity: 0; margin-left: -6px; } to { opacity: 1; margin-left: 0; } }
 [data-rich="true"] .rich-rail__fly {
-  position: fixed; z-index: 130; left: 104px; min-width: 248px; max-width: calc(100vw - 128px); max-height: min(480px, 80vh); overflow-y: auto; padding: 10px;
+  position: fixed; z-index: 130; left: 104px; min-width: 248px; max-width: calc(100vw - 128px); max-height: calc(100vh - 32px); overflow-y: auto; padding: 10px; scrollbar-width: thin; scrollbar-color: var(--rich-hair) transparent;
   background: var(--rich-surface); border-radius: 28px; box-shadow: var(--rich-shadow-3); animation: rich-fly-in .35s var(--rich-ease) both;
 }
 [data-rich="true"] .rich-rail__flyhead { padding: 10px 14px 6px; font: 600 .9375rem var(--rich-font-head); color: var(--rich-ink-2); }
@@ -567,3 +570,6 @@ html[data-rich-root="true"] .feel__undo { font-size: .875rem; min-height: 36px; 
 
 /* Menu mode: the sidebar's sections must keep their own height and let the column scroll, otherwise a long list is squeezed and runs over the next section. */
 [data-rich="true"] .nova-sb-scroll > * { flex-shrink: 0; }
+
+/* Quiet scrollbars: thin and tinted, no arrow buttons (the sidebar and flyout lists showed the browser's grey ones). */
+html[data-rich-root="true"], [data-rich="true"] * { scrollbar-width: thin; scrollbar-color: var(--rich-hair) transparent; }

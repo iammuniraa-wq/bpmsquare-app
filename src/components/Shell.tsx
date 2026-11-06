@@ -112,7 +112,7 @@ function MobileTopBar() {
         >
           {searchOpen ? <XIcon size={18} color="var(--sb-strong)" /> : <SearchIcon size={18} color="var(--sb-strong)" />}
         </button>
-        {rich && <IdentityMenu />}
+        {rich && <IdentityMenu appearance />}
         <button
           onClick={() => { setOpen(v => !v); setSearchOpen(false); }}
           aria-label={open ? "Close menu" : "Open menu"}
@@ -214,9 +214,15 @@ function DarkToggle({ dark, onToggle }: { dark: boolean; onToggle: () => void })
 // lookup as Sidebar.tsx's UserFooter, kept separate rather than shared since
 // the two never render at once (Sidebar hides its footer when this is on).
 
-function IdentityMenu() {
+function IdentityMenu({ appearance = false }: { appearance?: boolean }) {
   const router = useRouter();
   const [email, setEmail] = useState<string | null>(null);
+  // Phone only: the dark-mode switch lives here instead of floating over the page. The Shell owns the state; this asks it to flip.
+  const [isDark, setIsDark] = useState(false);
+  useEffect(() => {
+    if (!appearance) return;
+    try { setIsDark(localStorage.getItem(DARK_MODE_KEY) === "1"); } catch { /* keep light */ }
+  }, [appearance]);
 
   useEffect(() => {
     let cancelled = false;
@@ -280,6 +286,18 @@ function IdentityMenu() {
         }}>
           {email}
         </div>
+        {appearance && (
+          <button
+            onClick={() => { window.dispatchEvent(new Event("bpm:toggle-dark")); setIsDark((d) => !d); }}
+            style={{
+              width: "100%", textAlign: "left", padding: "8px", border: "none", borderRadius: 7,
+              background: "transparent", color: "var(--sb-panel-text)", fontSize: 12.5, cursor: "pointer",
+              display: "flex", alignItems: "center", gap: 8,
+            }}
+          >
+            {isDark ? "☀ Light mode" : "☾ Dark mode"}
+          </button>
+        )}
         <button
           onClick={signOut}
           style={{
@@ -362,6 +380,10 @@ export default function Shell({ children }: { children: React.ReactNode }) {
       return next;
     });
   };
+  useEffect(() => {
+    window.addEventListener("bpm:toggle-dark", toggleDark);
+    return () => window.removeEventListener("bpm:toggle-dark", toggleDark);
+  }, []);
 
   // Enterprise is deliberately light-only for now (the reference it's
   // styled after has no dark variant) -- guarding `mode` itself, not just

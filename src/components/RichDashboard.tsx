@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import "@/styles/rich-dashboard.css";
 import { formatMoney, formatMoneyCompact, type CurrencyDef } from "@/lib/currency";
@@ -148,25 +148,18 @@ function Bids({ bids, cur }: { bids: RichBid[]; cur: CurrencyDef }) {
   );
 }
 
-export default function RichDashboard({ greeting, userName, dateLabel, model, cur, more }: {
+export default function RichDashboard({ greeting, userName, dateLabel, model, cur, toolbar, body }: {
   greeting: string;
   userName: string | null;
   dateLabel: string;
   model: RichDashModel;
   cur: CurrencyDef;
-  /** The classic dashboard body (cards, Curated | My layout, look switch, Adapt). Mounted only when opened. */
-  more: React.ReactNode;
+  /** The classic dashboard's switches and Adapt buttons; they open from "Customise" and nothing else is hidden. */
+  toolbar: React.ReactNode;
+  /** The rest of the dashboard's cards, drawn in the Rich skin below the opening (cards the opening already shows are left out upstream). */
+  body: React.ReactNode;
 }) {
-  const [moreOpen, setMoreOpen] = useState(false);
-  const [jump, setJump] = useState(0);
-
-  // "Customise" opens the same expander as "More" and brings it into view. Reduced motion jumps instead of gliding.
-  useEffect(() => {
-    if (jump === 0) return;
-    const reduced = typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    const id = requestAnimationFrame(() => document.getElementById("rd-more")?.scrollIntoView({ behavior: reduced ? "auto" : "smooth", block: "start" }));
-    return () => cancelAnimationFrame(id);
-  }, [jump]);
+  const [trayOpen, setTrayOpen] = useState(false);
 
   const total = model.attentionTotal;
   const line = total === 0 ? "You are all caught up." : total === 1 ? "One thing needs you today." : `${total} things need you today.`;
@@ -179,25 +172,19 @@ export default function RichDashboard({ greeting, userName, dateLabel, model, cu
           <h1>{greeting}{userName ? `, ${userName}` : ""}</h1>
           <p className="rd-line">{line}</p>
         </div>
-        <button type="button" className="rd-pill" aria-controls="rd-more" onClick={() => { setMoreOpen(true); setJump((j) => j + 1); }} data-guide="dashboard.rich.customise">
+        <button type="button" className="rd-pill" aria-expanded={trayOpen} aria-controls="rd-tray" onClick={() => setTrayOpen((o) => !o)} data-guide="dashboard.rich.customise">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h2M10 17h10" /><circle cx="16" cy="7" r="2" /><circle cx="8" cy="17" r="2" /></svg>
           Customise
         </button>
       </header>
+      {trayOpen && <div id="rd-tray" className="rd-tray">{toolbar}</div>}
 
       <Kpis kpis={model.kpis} cur={cur} />
       {model.pipeline && <Pipeline p={model.pipeline} cur={cur} />}
       <Attention items={model.attention} total={total} />
       {model.bids && <Bids bids={model.bids} cur={cur} />}
 
-      <div className="rd-morebar" id="rd-more">
-        <button type="button" className="rd-pill rd-pill--quiet" aria-expanded={moreOpen} aria-controls="rd-more-body" onClick={() => setMoreOpen((o) => !o)} data-guide="dashboard.rich.more">
-          More
-          <svg className="rd-chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg>
-        </button>
-        <InfoTip label="More">Every other dashboard card, the Curated and My layout views and the dashboard look, all as before.</InfoTip>
-      </div>
-      {moreOpen && <div id="rd-more-body" className="rd-more">{more}</div>}
+      <div className="rd-rest">{body}</div>
     </div>
   );
 }

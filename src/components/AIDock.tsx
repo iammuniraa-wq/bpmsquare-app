@@ -496,6 +496,8 @@ export default function AIDock({ liftForTabBar = false }: {
                   New chat
                 </button>
               )}
+              {/* Only shown by the Rich phone layout, where the floating on/off switch is folded into the panel. */}
+              <button className="bms-dock-off" onClick={toggleEnabled} style={{ display: "none" }}>Turn off</button>
               <button
                 className="bms-dock-close"
                 onClick={closePanel}

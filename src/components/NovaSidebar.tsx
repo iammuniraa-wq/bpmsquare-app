@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useTenant, useViewableWorkcenters, useIsWfmSupervisor } from "@/lib/tenant-context";
@@ -171,6 +171,14 @@ export default function NovaSidebar({ onNavigate }: { onNavigate?: () => void })
     window.addEventListener("resize", check);
     return () => window.removeEventListener("resize", check);
   }, []);
+
+  // A tall category list is pulled up just far enough to end on screen, instead of running under the bottom edge.
+  useLayoutEffect(() => {
+    const el = panelRef.current;
+    if (!openGroup || !el) return;
+    const over = anchorTop + el.offsetHeight - (window.innerHeight - 12);
+    if (over > 0) el.style.top = `${Math.max(8, anchorTop - over)}px`;
+  }, [openGroup, anchorTop]);
 
   // Close the flyout on route change, outside click, and Escape.
   useEffect(() => { setOpenGroup(null); }, [pathname]);
