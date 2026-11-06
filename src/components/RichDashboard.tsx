@@ -221,11 +221,15 @@ export default function RichDashboard({ greeting, userName, dateLabel, model, cu
       setSkipped(localStorage.getItem(WELCOME_SKIP_KEY) === "1");
     } catch { /* keep the dashboard */ }
   }, []);
-  const showWelcome = !!welcome && (preview || (welcome.fresh && !skipped));
+  // The preview shows a brand-new client: every step open, whatever this workspace already has.
+  const shown: WelcomeModel | null = welcome && preview && !welcome.fresh
+    ? { ...welcome, steps: welcome.steps.map((st) => ({ ...st, done: false })), doneCount: 0 }
+    : welcome ?? null;
+  const showWelcome = !!shown && (preview || (shown.fresh && !skipped));
   const skip = () => { setSkipped(true); try { localStorage.setItem(WELCOME_SKIP_KEY, "1"); } catch { /* ignore */ } };
 
   const total = model.attentionTotal;
-  const line = showWelcome && welcome ? (welcome.steps.length - welcome.doneCount === 1 ? "One step left and you are running." : `${welcome.steps.length - welcome.doneCount} quick steps and you are running.`) : total === 0 ? "You are all caught up." : total === 1 ? "One thing needs you today." : `${total} things need you today.`;
+  const line = showWelcome && shown ? (shown.steps.length === shown.doneCount ? "You are all set." : shown.steps.length - shown.doneCount === 1 ? "One step left and you are running." : `${shown.steps.length - shown.doneCount} quick steps and you are running.`) : total === 0 ? "You are all caught up." : total === 1 ? "One thing needs you today." : `${total} things need you today.`;
 
   return (
     <div className="rd" data-guide="dashboard.rich">
@@ -242,7 +246,7 @@ export default function RichDashboard({ greeting, userName, dateLabel, model, cu
           </button>
         )}
       </header>
-      {showWelcome && welcome ? <Welcome w={welcome} onSkip={skip} /> : (
+      {showWelcome && shown ? <Welcome w={shown} onSkip={skip} /> : (
         <>
           {trayOpen && <div id="rd-tray" className="rd-tray">{toolbar}</div>}
 
