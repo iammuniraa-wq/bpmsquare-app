@@ -226,10 +226,10 @@ html[data-rich-root="true"] body { background: var(--rich-canvas); color: var(--
 [data-rich="true"] :is(.bpm-t-title, .bpm-t-section) { font-family: var(--rich-font-head); letter-spacing: -.015em; }
 [data-rich="true"] .bpm-page-header-title {
   font-family: var(--rich-font-head); font-weight: 600; letter-spacing: -.02em; line-height: 1.1;
-  font-size: clamp(2rem, 3.6vw, 3rem); color: var(--rich-ink); border: 0; padding: 0;
+  font-size: clamp(1.75rem, 2.6vw, 2.5rem); color: var(--rich-ink); border: 0; padding: 0;
 }
-[data-rich="true"] .bpm-page-header-sub { font-size: 1.125rem; color: var(--rich-ink-2); margin-top: 8px; }
-[data-rich="true"] .bpm-page-header { margin-bottom: 32px !important; padding: 0 !important; border: 0 !important; background: transparent !important; box-shadow: none !important; }
+[data-rich="true"] .bpm-page-header-sub { font-size: 1rem; color: var(--rich-ink-2); margin-top: 6px; padding-left: 0; }
+[data-rich="true"] .bpm-page-header { margin-bottom: 28px !important; padding: 0 !important; border: 0 !important; background: transparent !important; box-shadow: none !important; }
 [data-rich="true"] [style*="uppercase"] { text-transform: none !important; letter-spacing: 0 !important; font-size: .875rem !important; }
 [data-rich="true"] .bpm-backlink { font-size: .9375rem; }
 
@@ -481,7 +481,7 @@ html[data-rich-root="true"] .feel__undo { font-size: .875rem; min-height: 36px; 
   [data-rich="true"] .bpm-main > * { min-width: 0; max-width: 100%; }
   [data-rich="true"] .bpm-main img, [data-rich="true"] .bpm-main svg { max-width: 100%; }
   [data-rich="true"] .bpm-page-header { margin-bottom: 20px !important; }
-  [data-rich="true"] .bpm-page-header-title { font-size: clamp(2rem, 9vw, 2.5rem); }
+  [data-rich="true"] .bpm-page-header-title { font-size: clamp(1.75rem, 8vw, 2.25rem); }
   [data-rich="true"] .bpm-page-header-sub { font-size: 1rem; }
   [data-rich="true"] :is(.card-grid, .kpi-grid, .hub-grid, .fg2, .fg3, .dash-outer, .auto-grid) { grid-template-columns: 1fr !important; gap: 16px !important; }
   [data-rich="true"] .bpm-card { padding: 20px !important; }
