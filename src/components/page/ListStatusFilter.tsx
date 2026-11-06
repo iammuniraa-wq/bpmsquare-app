@@ -40,34 +40,66 @@ export function splitChips(chips: ListChip[]): { slices: Item[]; also: Item[]; t
   return { slices, also, total };
 }
 
-function Donut({ slices, activeId, size, stroke, total, label }: { slices: Item[]; activeId: string | null; size: number; stroke: number; total?: number; label?: string }) {
-  const r = 18 - stroke / 2 - 1;
+const short = (s: string, n: number): string => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
+
+/**
+ * The donut. With `hoverId` / `onHover` it is interactive: a slice is a link (tap or click filters), hovering or focusing one lifts it, dims the
+ * rest and reads its name, count and share in the centre; the same state is shared with the legend rows beside it.
+ */
+function Donut({ slices, activeId, size, stroke, total, label, hoverId = null, onHover }: {
+  slices: Item[]; activeId: string | null; size: number; stroke: number; total?: number; label?: string;
+  hoverId?: string | null; onHover?: (id: string | null) => void;
+}) {
+  const r = 18 - stroke / 2 - 1.2;
   const sum = slices.reduce((s, i) => s + (i.count ?? 0), 0);
-  const dimOthers = activeId !== null && slices.some((i) => i.chip.id === activeId);
+  const focusId = hoverId ?? activeId;
+  const dimOthers = focusId !== null && slices.some((i) => i.chip.id === focusId);
   const drawn = slices.filter((x) => (x.count ?? 0) > 0).length;
+  const lifted = slices.find((i) => i.chip.id === hoverId) ?? null;
+  const interactive = !!onHover;
   let offset = 0;
   return (
-    <svg width={size} height={size} viewBox="0 0 36 36" role="img" aria-label={label ?? "Status split"} style={{ flex: "none" }}>
+    <svg width={size} height={size} viewBox="0 0 36 36" role={interactive ? "group" : "img"} aria-label={label ?? "Status split"} style={{ flex: "none", overflow: "visible" }}>
       <circle cx="18" cy="18" r={r} fill="none" stroke="var(--panel2)" strokeWidth={stroke} />
       {sum > 0 && slices.map((s, i) => {
         const len = ((s.count ?? 0) / sum) * 100;
         if (len <= 0) return null;
         const arc = Math.max(0, len - (drawn > 1 ? 1.2 : 0));
-        const el = (
+        const on = focusId === s.chip.id;
+        const mark = (
           <circle
-            key={s.chip.id} cx="18" cy="18" r={r} fill="none" stroke={PALETTE[i % PALETTE.length]} strokeWidth={stroke}
+            cx="18" cy="18" r={r} fill="none" stroke={PALETTE[i % PALETTE.length]} strokeWidth={interactive && on ? stroke + 1.6 : stroke}
             pathLength={100} strokeDasharray={`${arc} ${100 - arc}`} strokeDashoffset={25 - offset}
-            opacity={dimOthers && s.chip.id !== activeId ? 0.25 : 1}
+            opacity={dimOthers && !on ? 0.25 : 1} style={{ transition: "opacity .2s, stroke-width .2s", cursor: interactive ? "pointer" : undefined }}
           />
         );
         offset += len;
-        return el;
+        if (!interactive) return <g key={s.chip.id}>{mark}</g>;
+        const pct = Math.round(((s.count ?? 0) / sum) * 100);
+        return (
+          <Link
+            key={s.chip.id} href={s.chip.href} aria-label={`${s.name}: ${s.count}, ${pct} percent. Filter the list`}
+            onMouseEnter={() => onHover?.(s.chip.id)} onMouseLeave={() => onHover?.(null)} onFocus={() => onHover?.(s.chip.id)} onBlur={() => onHover?.(null)}
+            style={{ outline: "none" }}
+          >
+            <title>{`${s.name}: ${s.count} (${pct}%)`}</title>
+            {mark}
+          </Link>
+        );
       })}
       {total !== undefined && (
-        <>
-          <text x="18" y="18.5" textAnchor="middle" fontSize="7.5" fontWeight="700" fill="var(--ink)">{total}</text>
-          <text x="18" y="24" textAnchor="middle" fontSize="3.2" fill="var(--hint)">total</text>
-        </>
+        lifted ? (
+          <>
+            <text x="18" y="17.5" textAnchor="middle" fontSize="7.5" fontWeight="700" fill="var(--ink)" pointerEvents="none">{lifted.count}</text>
+            <text x="18" y="22.2" textAnchor="middle" fontSize="2.9" fill="var(--ink)" pointerEvents="none">{short(lifted.name, 15)}</text>
+            <text x="18" y="26" textAnchor="middle" fontSize="2.9" fill="var(--hint)" pointerEvents="none">{sum > 0 ? Math.round(((lifted.count ?? 0) / sum) * 100) : 0}%</text>
+          </>
+        ) : (
+          <>
+            <text x="18" y="18.5" textAnchor="middle" fontSize="7.5" fontWeight="700" fill="var(--ink)" pointerEvents="none">{total}</text>
+            <text x="18" y="24" textAnchor="middle" fontSize="3.2" fill="var(--hint)" pointerEvents="none">total</text>
+          </>
+        )
       )}
     </svg>
   );
@@ -101,6 +133,7 @@ export default function ListStatusFilter({ chips, enabled }: { chips: ListChip[]
 
 function DonutFilter({ chips }: { chips: ListChip[] }) {
   const [open, setOpen] = useState(false);
+  const [hover, setHover] = useState<string | null>(null);
   const panelId = useId();
   const { slices, also, total } = splitChips(chips);
   const active = chips.find((x) => x.active) ?? chips[0];
@@ -141,14 +174,15 @@ function DonutFilter({ chips }: { chips: ListChip[] }) {
         <div id={panelId} className="bpm-sf__panel" style={{ marginTop: 10, padding: 14, borderRadius: 16, border: `1px solid ${c.line}`, background: c.panel }}>
           {hasDonut ? (
             <div style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
-              <Donut slices={slices} activeId={activeSlice} size={132} stroke={5} total={total} label="Records by status" />
+              <Donut slices={slices} activeId={activeSlice} size={132} stroke={5} total={total} label="Records by status" hoverId={hover} onHover={setHover} />
               <div style={{ flex: "1 1 200px", display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
                 {slices.map((s, i) => (
                   <Link
                     key={s.chip.id} href={s.chip.href} aria-current={s.chip.active ? "true" : undefined}
+                    onMouseEnter={() => setHover(s.chip.id)} onMouseLeave={() => setHover(null)} onFocus={() => setHover(s.chip.id)} onBlur={() => setHover(null)}
                     style={{
                       display: "flex", alignItems: "center", gap: 10, minHeight: 40, padding: "4px 10px", borderRadius: 10, textDecoration: "none", color: c.ink, fontSize: 14,
-                      background: s.chip.active ? c.accentbg : "transparent", fontWeight: s.chip.active ? 700 : 500,
+                      background: s.chip.active || hover === s.chip.id ? c.accentbg : "transparent", fontWeight: s.chip.active ? 700 : 500, transition: "background .15s",
                     }}
                   >
                     <span aria-hidden="true" style={{ width: 10, height: 10, borderRadius: "50%", background: PALETTE[i % PALETTE.length], flex: "none" }} />
