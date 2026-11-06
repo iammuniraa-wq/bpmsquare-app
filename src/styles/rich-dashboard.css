@@ -167,6 +167,44 @@
 [data-rich="true"] .rd-rest [data-guide^="tender.dash.tile"] [class*="tileValue"] { font: 600 clamp(1.75rem, 2.4vw, 2.25rem)/1.1 var(--rich-font-head) !important; letter-spacing: -.025em !important; }
 [data-rich="true"] .rd-rest [data-guide^="tender.dash.tile"] [class*="tileNote"] { font-size: .9375rem !important; color: var(--rich-ink-3); }
 
+/* The main button of a card or step. */
+[data-rich="true"] .rd-btn {
+  display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 0 22px; border-radius: 999px; background: var(--rich-btn); color: var(--rich-on-violet);
+  font: 600 .9375rem var(--rich-font-body); text-decoration: none; white-space: nowrap; transition: transform .3s var(--rich-spring), box-shadow .3s var(--rich-ease);
+}
+[data-rich="true"] .rd-btn:active { transform: scale(.97); }
+@media (hover: hover) { [data-rich="true"] .rd-btn:hover { transform: translateY(-2px); box-shadow: var(--rich-shadow-2); } }
+
+/* ---- Get started: the first screen of a workspace with no data ---------------------------------- */
+[data-rich="true"] .rd-rest[hidden] { display: none; }
+[data-rich="true"] .rd-welcome { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
+[data-rich="true"] .rd-welcome__head { display: flex; align-items: center; gap: 20px; padding: 28px 24px; }
+[data-rich="true"] .rd-welcome__head h2 { margin: 0; font-size: 1.375rem; }
+[data-rich="true"] .rd-welcome__head p { margin: 4px 0 0; color: var(--rich-ink-2); font-size: 1rem; }
+[data-rich="true"] .rd-welcome__n { font: 600 1rem var(--rich-font-head); }
+[data-rich="true"] .rd-steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
+[data-rich="true"] .rd-step {
+  display: flex; align-items: center; gap: 16px; min-height: 76px; padding: 14px 20px 14px 16px; border-radius: 24px; background: var(--rich-surface); box-shadow: var(--rich-shadow-1);
+  transition: transform .3s var(--rich-ease), box-shadow .3s var(--rich-ease);
+}
+[data-rich="true"] .rd-step--next { box-shadow: var(--rich-shadow-2); }
+[data-rich="true"] .rd-step__mark { display: grid; place-items: center; flex: none; width: 44px; height: 44px; border-radius: 50%; background: var(--rich-surface-2); color: var(--rich-ink-2); font: 600 1rem var(--rich-font-head); }
+[data-rich="true"] .rd-step--next .rd-step__mark { background: var(--rich-btn); color: var(--rich-on-violet); }
+[data-rich="true"] .rd-step--done .rd-step__mark { background: var(--rich-good); color: var(--rich-on-violet); }
+[data-rich="true"] .rd-step__t { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+[data-rich="true"] .rd-step__t b { font: 600 1.0625rem/1.3 var(--rich-font-head); letter-spacing: -.01em; }
+[data-rich="true"] .rd-step__t span { color: var(--rich-ink-2); font-size: .9375rem; }
+[data-rich="true"] .rd-step--done .rd-step__t b { color: var(--rich-ink-2); text-decoration: line-through; text-decoration-color: var(--rich-hair); }
+[data-rich="true"] .rd-step__ok { color: var(--rich-good-ink); font-weight: 500; font-size: .9375rem; }
+[data-rich="true"] .rd-step__go { display: grid; place-items: center; flex: none; width: 44px; height: 44px; border-radius: 50%; color: var(--rich-ink-2); }
+[data-rich="true"] .rd-step__go:hover { background: var(--rich-violet-soft); color: var(--rich-violet-ink); }
+[data-rich="true"] .rd-welcome > .rd-pill { align-self: center; }
+@media (max-width: 899px) {
+  [data-rich="true"] .rd-step { flex-wrap: wrap; row-gap: 12px; }
+  [data-rich="true"] .rd-step .rd-btn { margin-left: 60px; }
+  [data-rich="true"] .rd-welcome__head { padding: 22px 20px; gap: 16px; }
+}
+
 /* ---- hover (only where there is a hover) --------------------------------- */
 @media (hover: hover) {
   [data-rich="true"] .rd-pill:not(.rd-pill--quiet):hover { box-shadow: var(--rich-shadow-2); transform: translateY(-2px); }

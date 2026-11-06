@@ -16,6 +16,7 @@ import { useTenant, useUiTheme, useTenantFeature, useIsNextgen3Layer, useNovaSur
 import { RICH_NAV_KEY, parseRichNav, applyRichRoot, type RichNav } from "@/lib/richUi";
 import RichRail from "./RichRail";
 import RichMobileTables from "./RichMobileTables";
+import RichMoreSheet from "./RichMoreSheet";
 import RichNavToggle from "./RichNavToggle";
 import NovaPalette from "@/components/NovaPalette";
 import NovaDraft from "@/components/NovaDraft";
@@ -146,8 +147,11 @@ function MobileTopBar() {
         </div>
       )}
 
+      {/* Rich: "More" is the rail's way (every category and its modules), not the sidebar drawer below. */}
+      {rich && <RichMoreSheet open={open} onClose={() => setOpen(false)} />}
+
       {/* Backdrop */}
-      {open && (
+      {!rich && open && (
         <div
           onClick={() => setOpen(false)}
           style={{
@@ -158,7 +162,7 @@ function MobileTopBar() {
       )}
 
       {/* Drawer — hosts the shared Sidebar */}
-      <div style={{
+      {!rich && <div style={{
         position: "fixed", top: "calc(48px + env(safe-area-inset-top, 0px))", left: 0,
         height: "calc(100vh - 48px)",
         zIndex: 95,
@@ -168,7 +172,7 @@ function MobileTopBar() {
         boxShadow: open ? "2px 0 14px rgba(0,0,0,.45)" : "none",
       }}>
         {nova ? <NovaSidebar onNavigate={() => setOpen(false)} /> : <Sidebar onNavigate={() => setOpen(false)} />}
-      </div>
+      </div>}
 
       {/* Bottom tabs (Nova only). Renders nothing for every other tenant, so
           their phones keep the hamburger they have today. */}

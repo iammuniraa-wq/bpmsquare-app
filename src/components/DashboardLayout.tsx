@@ -31,6 +31,7 @@ import { tenderBlockSpec } from "@/components/tenderDesk/TenderBlocks";
 import { DashLookScope, LookSwitch } from "@/components/tenderDesk/DashLook";
 import RichDashboard from "@/components/RichDashboard";
 import { buildRichDashboard } from "@/lib/richDashboard";
+import { buildWelcome } from "@/lib/richWelcome";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -63,6 +64,8 @@ interface Props {
   /** The dashboard look of a workspace with the tender edition ("bold" light, "control" dark); null or absent for every other workspace, which
    * then renders exactly what it always did (no switch, no style, no marker). */
   tenderLook?: TenderDeskStyle | null;
+  /** Members of the workspace (Rich first-steps screen only); null when not counted. */
+  teamCount?: number | null;
 }
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -1144,7 +1147,7 @@ export function AdaptDrawer({
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export default function DashboardLayout({ kpis, attention, workOrderRows, overdueInvoices, analytics, features, dashLayout, isAdmin, hasPersonalOverride, userName, tenderLook }: Props) {
+export default function DashboardLayout({ kpis, attention, workOrderRows, overdueInvoices, analytics, features, dashLayout, isAdmin, hasPersonalOverride, userName, tenderLook, teamCount }: Props) {
   const router = useRouter();
   const cur = useCurrency();
   const inr = moneyFormatter(cur, { maximumFractionDigits: 0 });
@@ -2017,6 +2020,7 @@ export default function DashboardLayout({ kpis, attention, workOrderRows, overdu
       model={richModel}
       toolbar={toolbarEl}
       body={bodyEl}
+      welcome={buildWelcome({ features, analytics, hasLogo: !!tenant?.logo_url, teamCount: teamCount ?? null })}
     />
   );
 }

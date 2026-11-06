@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import "@/styles/rich-dashboard.css";
 import { formatMoney, formatMoneyCompact, type CurrencyDef } from "@/lib/currency";
@@ -9,6 +9,7 @@ import CountUp from "@/components/ui/CountUp";
 import InfoTip from "@/components/ui/InfoTip";
 import PhotoFrame, { type PhotoMesh } from "@/components/ui/PhotoFrame";
 import Ring from "@/components/ui/Ring";
+import type { WelcomeModel } from "@/lib/richWelcome";
 import { bidDaysText, type RichAttention, type RichBid, type RichDashModel, type RichKpi, type RichPipeline } from "@/lib/richDashboard";
 
 // The Rich dashboard (docs/design/rich-ui.md, step 2a): greeting, four big numbers, one pipeline flow, what needs you, the bids closing soonest.
@@ -153,7 +154,51 @@ function Bids({ bids, cur }: { bids: RichBid[]; cur: CurrencyDef }) {
   );
 }
 
-export default function RichDashboard({ greeting, userName, dateLabel, model, cur, toolbar, body }: {
+
+const WELCOME_SKIP_KEY = "bpm_rich_welcome_skip";
+
+function Check() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>
+  );
+}
+
+// A workspace with no data: a short list of first steps in place of zeros. Each step ticks itself; the first open one carries the button.
+function Welcome({ w, onSkip }: { w: WelcomeModel; onSkip: () => void }) {
+  const total = w.steps.length;
+  const nextKey = w.steps.find((s) => !s.done)?.key;
+  return (
+    <section className="rd-welcome" aria-labelledby="rd-h-welcome" data-guide="dashboard.rich.welcome">
+      <PhotoFrame mesh="a" radius={32} height="auto" style={{ padding: 0 }}>
+        <div className="rd-welcome__head">
+          <Ring value={(w.doneCount / Math.max(1, total)) * 100} size={72} stroke={9} label="Setup progress">
+            <b className="rd-welcome__n">{w.doneCount}/{total}</b>
+          </Ring>
+          <div>
+            <h2 id="rd-h-welcome">Let&rsquo;s set up your workspace</h2>
+            <p>Your numbers appear here as soon as you add data.</p>
+          </div>
+        </div>
+      </PhotoFrame>
+      <ol className="rd-steps">
+        {w.steps.map((s, i) => (
+          <li key={s.key} className={`rd-step${s.done ? " rd-step--done" : ""}${s.key === nextKey ? " rd-step--next" : ""}`}>
+            <span className="rd-step__mark" aria-hidden="true">{s.done ? <Check /> : i + 1}</span>
+            <span className="rd-step__t"><b>{s.title}</b><span>{s.sub}</span></span>
+            {s.done
+              ? <span className="rd-step__ok">Done</span>
+              : s.key === nextKey
+                ? <Link href={s.href} className="rd-btn">{s.cta}</Link>
+                : <Link href={s.href} className="rd-step__go" aria-label={s.title}><Arrow /></Link>}
+          </li>
+        ))}
+      </ol>
+      <button type="button" className="rd-pill rd-pill--quiet" onClick={onSkip}>Skip for now, show my dashboard</button>
+    </section>
+  );
+}
+
+export default function RichDashboard({ greeting, userName, dateLabel, model, cur, toolbar, body, welcome }: {
   greeting: string;
   userName: string | null;
   dateLabel: string;
@@ -163,11 +208,24 @@ export default function RichDashboard({ greeting, userName, dateLabel, model, cu
   toolbar: React.ReactNode;
   /** The rest of the dashboard's cards, drawn in the Rich skin below the opening (cards the opening already shows are left out upstream). */
   body: React.ReactNode;
+  /** The first-steps list for a workspace with no data yet; null when it does not apply. */
+  welcome?: WelcomeModel | null;
 }) {
   const [trayOpen, setTrayOpen] = useState(false);
+  // "?welcome=1" shows the first-steps screen on any workspace, so it can be reviewed without emptying one. A person can also skip it (per browser).
+  const [preview, setPreview] = useState(false);
+  const [skipped, setSkipped] = useState(false);
+  useEffect(() => {
+    try {
+      setPreview(new URLSearchParams(window.location.search).get("welcome") === "1");
+      setSkipped(localStorage.getItem(WELCOME_SKIP_KEY) === "1");
+    } catch { /* keep the dashboard */ }
+  }, []);
+  const showWelcome = !!welcome && (preview || (welcome.fresh && !skipped));
+  const skip = () => { setSkipped(true); try { localStorage.setItem(WELCOME_SKIP_KEY, "1"); } catch { /* ignore */ } };
 
   const total = model.attentionTotal;
-  const line = total === 0 ? "You are all caught up." : total === 1 ? "One thing needs you today." : `${total} things need you today.`;
+  const line = showWelcome && welcome ? (welcome.steps.length - welcome.doneCount === 1 ? "One step left and you are running." : `${welcome.steps.length - welcome.doneCount} quick steps and you are running.`) : total === 0 ? "You are all caught up." : total === 1 ? "One thing needs you today." : `${total} things need you today.`;
 
   return (
     <div className="rd" data-guide="dashboard.rich">
@@ -177,19 +235,25 @@ export default function RichDashboard({ greeting, userName, dateLabel, model, cu
           <h1>{greeting}{userName ? `, ${userName}` : ""}</h1>
           <p className="rd-line">{line}</p>
         </div>
-        <button type="button" className="rd-pill" aria-expanded={trayOpen} aria-controls="rd-tray" onClick={() => setTrayOpen((o) => !o)} data-guide="dashboard.rich.customise">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h2M10 17h10" /><circle cx="16" cy="7" r="2" /><circle cx="8" cy="17" r="2" /></svg>
-          Customise
-        </button>
+        {!showWelcome && (
+          <button type="button" className="rd-pill" aria-expanded={trayOpen} aria-controls="rd-tray" onClick={() => setTrayOpen((o) => !o)} data-guide="dashboard.rich.customise">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h2M10 17h10" /><circle cx="16" cy="7" r="2" /><circle cx="8" cy="17" r="2" /></svg>
+            Customise
+          </button>
+        )}
       </header>
-      {trayOpen && <div id="rd-tray" className="rd-tray">{toolbar}</div>}
+      {showWelcome && welcome ? <Welcome w={welcome} onSkip={skip} /> : (
+        <>
+          {trayOpen && <div id="rd-tray" className="rd-tray">{toolbar}</div>}
 
-      <Kpis kpis={model.kpis} cur={cur} />
-      {model.pipeline && <Pipeline p={model.pipeline} cur={cur} />}
-      <Attention items={model.attention} total={total} />
-      {model.bids && <Bids bids={model.bids} cur={cur} />}
+          <Kpis kpis={model.kpis} cur={cur} />
+          {model.pipeline && <Pipeline p={model.pipeline} cur={cur} />}
+          <Attention items={model.attention} total={total} />
+          {model.bids && <Bids bids={model.bids} cur={cur} />}
+        </>
+      )}
 
-      <div className="rd-rest">{body}</div>
+      <div className="rd-rest" hidden={showWelcome}>{body}</div>
     </div>
   );
 }
