@@ -3,6 +3,7 @@
 import { useId, useState } from "react";
 import Link from "next/link";
 import { c, pillar } from "@/lib/theme";
+import { useRichUi } from "@/lib/tenant-context";
 import type { ListChip } from "./ObjectListPage";
 
 // The status filter of every list, collapsed by default: one pill that shows the current filter, and, opened, a donut of the statuses with a
@@ -72,7 +73,33 @@ function Donut({ slices, activeId, size, stroke, total, label }: { slices: Item[
   );
 }
 
-export default function ListStatusFilter({ chips }: { chips: ListChip[] }) {
+/** The chip row every list drew before the donut, kept for any workspace the donut has not been switched on for. */
+function PlainChips({ chips }: { chips: ListChip[] }) {
+  return (
+    <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
+      {chips.map((chip) => (
+        <Link key={chip.id} href={chip.href} aria-current={chip.active ? "true" : undefined} style={{
+          fontSize: 12.5, fontWeight: chip.active ? 700 : 500,
+          color: chip.active ? c.accent : c.muted,
+          background: chip.active ? c.accentbg : c.panel2,
+          border: `1px solid ${chip.active ? c.accent + "60" : c.line}`,
+          borderRadius: 6, padding: "5px 12px", textDecoration: "none",
+        }}>
+          {chip.label}
+        </Link>
+      ))}
+    </div>
+  );
+}
+
+// `enabled` is the switch: today the donut is on for the Rich look only (owner review on the demo first); every other workspace keeps PlainChips.
+export default function ListStatusFilter({ chips, enabled }: { chips: ListChip[]; enabled?: boolean }) {
+  const rich = useRichUi();
+  const on = enabled ?? rich;
+  return on ? <DonutFilter chips={chips} /> : <PlainChips chips={chips} />;
+}
+
+function DonutFilter({ chips }: { chips: ListChip[] }) {
   const [open, setOpen] = useState(false);
   const panelId = useId();
   const { slices, also, total } = splitChips(chips);

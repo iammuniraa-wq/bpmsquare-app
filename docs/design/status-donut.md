@@ -12,3 +12,5 @@ Owner, 2026-11-06: the status chips on almost every list take a lot of room (on 
 
 **Not covered:** lists that draw their own filter UI instead of `ObjectListPage` chips (the Accounts Rich view, Invoices' "Credit notes" switch).
 **Live-client screens that change:** every list with chips (Vikas, BIM, KAMCO workspaces included): the chips are one pill until opened.
+
+**Rollout (2026-11-06):** on for the Rich look only, so the owner reviews it on the demo workspace first. Every other workspace (Vikas, BIM, KAMCO, all themes) still draws the old chip row (`PlainChips`) until the owner says to widen it; widening is one line in `ListStatusFilter` (`enabled`).

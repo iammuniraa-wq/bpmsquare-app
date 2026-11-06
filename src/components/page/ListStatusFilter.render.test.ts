@@ -32,12 +32,18 @@ describe("the collapsible status filter", () => {
   });
 
   it("is collapsed on first paint: one pill with the current filter, no panel", () => {
-    const out = html(createElement(ListStatusFilter, { chips: estimates }));
+    const out = html(createElement(ListStatusFilter, { chips: estimates, enabled: true }));
     expect(out).toContain('aria-expanded="false"');
     expect(out).toContain("All (18)");
     expect(out).toContain("<svg");
     expect(out).not.toContain("bpm-sf__panel");
     expect(out).not.toContain("Quoted (11)");
+  });
+
+  it("keeps the old chip row where the donut is not switched on", () => {
+    const out = html(createElement(ListStatusFilter, { chips: estimates, enabled: false }));
+    expect(out).toContain("Quoted (11)");
+    expect(out).not.toContain("aria-expanded");
   });
 
   it("copes with labels that carry no count", () => {
