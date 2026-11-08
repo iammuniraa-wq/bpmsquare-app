@@ -13,11 +13,10 @@ import GlobalSearchBar from "./GlobalSearchBar";
 import AIDock from "./AIDock";
 import { XIcon, SearchIcon } from "@/components/Icons";
 import { useTenant, useUiTheme, useTenantFeature, useIsNextgen3Layer, useNovaSurfaces, useIsEnterpriseSidebar, useIsSpectacular, useSpectacularVariant, useNavySidebar, useTopBarIdentity, useCommandPalette, useRichUi } from "@/lib/tenant-context";
-import { RICH_NAV_KEY, parseRichNav, applyRichRoot, type RichNav } from "@/lib/richUi";
+import { applyRichRoot } from "@/lib/richUi";
 import RichRail from "./RichRail";
 import RichMobileTables from "./RichMobileTables";
 import RichMoreSheet from "./RichMoreSheet";
-import RichNavToggle from "./RichNavToggle";
 import NovaPalette from "@/components/NovaPalette";
 import NovaDraft from "@/components/NovaDraft";
 import NovaInbox from "@/components/NovaInbox";
@@ -352,7 +351,6 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   const aiAllowed = useTenantFeature("ai_assistant") && uiTheme !== "classic";
   // The Rich look (src/styles/rich.css). Always implies Nova (see isRichTenant), so `nova` is true whenever this is.
   const rich = useRichUi();
-  const [richNav, setRichNav] = useState<RichNav>("menu");
   const [dark, setDark] = useState(false);
 
   useEffect(() => {
@@ -371,13 +369,6 @@ export default function Shell({ children }: { children: React.ReactNode }) {
       setDark(stored === null ? !rich : stored === "1");
     } catch { setDark(!rich); }
   }, [rich]);
-  useEffect(() => {
-    try { setRichNav(parseRichNav(localStorage.getItem(RICH_NAV_KEY))); } catch { /* keep the default */ }
-  }, []);
-  const chooseRichNav = (v: RichNav) => {
-    setRichNav(v);
-    try { localStorage.setItem(RICH_NAV_KEY, v); } catch { /* ignore */ }
-  };
   const toggleDark = () => {
     setDark((d) => {
       const next = !d;
@@ -415,7 +406,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
     applyRichRoot(document.documentElement, rich, mode === "dark");
     return () => applyRichRoot(document.documentElement, false, false);
   }, [rich, mode]);
-  const richStamp = { "data-rich": rich || undefined, "data-rich-nav": rich ? richNav : undefined } as const;
+  const richStamp = { "data-rich": rich || undefined, "data-rich-nav": rich ? "rail" : undefined } as const;
 
   if (mobile) {
     return (
@@ -467,8 +458,8 @@ export default function Shell({ children }: { children: React.ReactNode }) {
     <TabsProvider>
       <div data-theme={uiTheme} data-mode={mode} data-nova={nova || undefined} data-enterprise={isEnterprise || undefined} data-spectacular={isSpectacular || undefined} data-spectacular-variant={spectacularVariant ?? undefined} data-navy-rail={navyRail || undefined} {...richStamp} style={{ display: "flex", minHeight: "100vh", background: "var(--app-bg, var(--panel2))" }}>
         {rich ? (
-          <div className="rich-nav" data-slot={richNav}>
-            {richNav === "rail" ? <RichRail /> : <NovaSidebar />}
+          <div className="rich-nav" data-slot="rail">
+            <RichRail />
           </div>
         ) : nova ? <NovaSidebar /> : <Sidebar />}
         <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
@@ -484,7 +475,6 @@ export default function Shell({ children }: { children: React.ReactNode }) {
             {/* The bar stays clickable when the palette is on, but gives up
                 ⌘K to it -- otherwise both answer the same key. */}
             {!nova && <GlobalSearchBar hotkeyDisabled={commandPalette} />}
-            {rich && <RichNavToggle value={richNav} onChange={chooseRichNav} />}
             {uiTheme === "nextgen" && !isEnterprise && !isSpectacular && (!nova || rich) && <DarkToggle dark={dark} onToggle={toggleDark} />}
             {novaSurfaces && <NovaInbox />}
             {topBarIdentity && <IdentityMenu />}

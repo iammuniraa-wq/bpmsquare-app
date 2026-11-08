@@ -1,15 +1,5 @@
 // Pure helpers for the "Rich" look (docs/design/rich-ui.md). Kept free of React so the rules are unit-testable.
 
-export type RichNav = "menu" | "rail";
-
-/** Per-browser preference, like the dark-mode flag: each person picks how they navigate. */
-export const RICH_NAV_KEY = "bpm-rich-nav";
-
-/** Anything but a stored "rail" reads as "menu", the default. */
-export function parseRichNav(raw: string | null | undefined): RichNav {
-  return raw === "rail" ? "rail" : "menu";
-}
-
 type Root = Pick<Element, "setAttribute" | "removeAttribute">;
 
 /**

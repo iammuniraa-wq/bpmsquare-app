@@ -126,7 +126,7 @@
   }
   [data-rich="true"] .bpm-topbar > * { pointer-events: auto; }
   [data-rich="true"] .bpm-tabbar {
-    position: sticky !important; top: 0; z-index: 40; height: 64px !important; min-height: 64px !important; margin-bottom: 0 !important; padding: 0 560px 0 40px !important;
+    position: sticky !important; top: 0; z-index: 40; height: 64px !important; min-height: 64px !important; margin-bottom: 0 !important; padding: 0 340px 0 40px !important;
     background: var(--rich-canvas-glass) !important; -webkit-backdrop-filter: blur(20px) saturate(1.3); backdrop-filter: blur(20px) saturate(1.3);
   }
   [data-rich="true"] .bpm-tabbar [data-active="false"] { background: color-mix(in srgb, var(--rich-ink) 6%, transparent) !important; opacity: 1 !important; }

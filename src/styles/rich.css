@@ -378,16 +378,6 @@ html[data-rich-root="true"] .feel__undo { font-size: .875rem; min-height: 36px; 
 [data-rich="true"] .bpm-topbar details > div, [data-rich="true"] .bpm-m-topbar details > div { border: 0 !important; border-radius: 24px !important; box-shadow: var(--rich-shadow-3) !important; padding: 12px !important; width: 260px !important; }
 [data-rich="true"] .sb-search-input { font-size: 1rem !important; }
 
-/* Segmented switch (Menu / Rail). */
-[data-rich="true"] .rich-seg { display: inline-flex; padding: 4px; border-radius: 999px; background: var(--rich-surface); box-shadow: var(--rich-shadow-1); }
-[data-rich="true"] .rich-seg button {
-  min-height: 36px; min-width: 56px; padding: 0 16px; border: 0; border-radius: 999px; background: transparent; color: var(--rich-ink-2); font: 500 .9375rem var(--rich-font-body); cursor: pointer;
-  transition: background .25s, color .25s, transform .3s var(--rich-spring);
-}
-[data-rich="true"] .rich-seg button[aria-pressed="true"] { background: var(--rich-btn); color: var(--rich-on-violet); }
-[data-rich="true"] .rich-seg button[aria-pressed="false"]:hover { background: var(--rich-surface-2); }
-[data-rich="true"] .rich-seg button:active { transform: scale(.97); }
-
 /* Open-tabs strip: quieter and calmer, not removed. */
 [data-rich="true"] .bpm-tabbar { background: transparent !important; border-bottom: 0 !important; padding: 0 40px; margin-bottom: 4px; gap: 6px !important; height: 52px !important; min-height: 52px !important; }
 [data-rich="true"] .bpm-tabbar [data-active] { border-radius: 16px !important; height: 38px !important; transition: background .25s, opacity .25s, transform .3s var(--rich-spring); }
@@ -395,30 +385,7 @@ html[data-rich-root="true"] .feel__undo { font-size: .875rem; min-height: 36px; 
 [data-rich="true"] .bpm-tabbar [data-active="false"]:hover { opacity: 1; background: var(--rich-surface) !important; }
 [data-rich="true"] .bpm-tabbar [data-active="true"] { background: var(--rich-surface) !important; box-shadow: var(--rich-shadow-1); }
 
-/* ---- 6. Navigation, "menu": the current sidebar, glass and rounded ------ */
-[data-rich="true"] .rich-nav[data-slot="menu"] { display: flex; padding: 16px 0 16px 16px; flex: none; }
-[data-rich="true"] .rich-nav[data-slot="menu"] > div {
-  border: 0 !important; border-radius: 32px !important; background: color-mix(in srgb, var(--rich-surface) 94%, transparent) !important; box-shadow: var(--rich-shadow-1);
-  /* No backdrop-filter here: it would make this box the containing block of the fixed flyout, which then opens in the wrong place and under the tab strip. */
-  top: 16px !important; height: calc(100vh - 32px) !important; max-height: calc(100vh - 32px);
-}
-[data-rich="true"] .rich-nav[data-slot="menu"] > div[style*="width: 44px"], [data-rich="true"] .rich-nav[data-slot="menu"] > div[style*="width:44px"] { width: 64px !important; align-items: center; }
-[data-rich="true"] .rich-nav .nova-sb-space { border-radius: 16px !important; border-color: transparent !important; }
-[data-rich="true"] .rich-nav .nova-sb-space:hover, [data-rich="true"] .rich-nav .nova-sb-row:hover, [data-rich="true"] .rich-nav .nova-sb-fly-row:hover, [data-rich="true"] .rich-nav .nova-sb-expand:hover, [data-rich="true"] .rich-nav .nova-sb-narrow-btn:hover { background: var(--rich-violet-soft) !important; }
-[data-rich="true"] .rich-nav .nova-sb-narrow-btn { border-radius: 14px !important; font-size: .875rem !important; }
-[data-rich="true"] .rich-nav .nova-sb-cmd { animation: none !important; border-radius: 999px !important; border-color: transparent !important; background: var(--rich-surface) !important; box-shadow: var(--rich-shadow-1); padding: 12px 16px !important; font-size: .9375rem !important; }
-[data-rich="true"] .rich-nav .nova-sb-cmd::after { display: none; }
-[data-rich="true"] .rich-nav .nova-sb-live-dot { animation: none !important; }
-[data-rich="true"] .rich-nav[data-slot="menu"] [role="menu"] {
-  left: 292px !important; background: var(--rich-surface) !important; border: 0 !important; border-radius: 24px !important; box-shadow: var(--rich-shadow-3) !important; backdrop-filter: none !important; padding: 8px !important;
-}
-[data-rich="true"] .rich-nav .nova-sb-fly-row { border-radius: 14px !important; min-height: 44px; }
-[data-rich="true"] .rich-nav[data-slot="menu"] [role="menu"] { max-height: calc(100vh - 24px) !important; min-width: 248px !important; }
-[data-rich="true"] .rich-nav[data-slot="menu"] [role="menu"] > div:first-child { font-size: .9375rem !important; font-weight: 600; text-transform: none !important; letter-spacing: 0 !important; color: var(--rich-ink-2) !important; padding: 10px 14px 6px !important; font-family: var(--rich-font-head); }
-[data-rich="true"] .rich-nav[data-slot="menu"] [role="menu"] .nova-sb-fly-row span { font-size: 1rem !important; }
-[data-rich="true"] .rich-nav[data-slot="menu"] [role="menu"] .nova-sb-fly-row svg { width: 18px; height: 18px; }
-
-/* ---- 7. Navigation, "rail": the floating icon rail ----------------------- */
+/* ---- 6. Navigation: the floating icon rail (the only navigation of the Rich look) ----------------------- */
 [data-rich="true"] .rich-nav[data-slot="rail"] { flex: none; width: 112px; }
 [data-rich="true"] .rich-rail {
   position: fixed; z-index: 30; left: 20px; top: 20px; bottom: 20px; width: 72px; display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 20px 0;
@@ -476,7 +443,6 @@ html[data-rich-root="true"] .feel__undo { font-size: .875rem; min-height: 36px; 
 
 /* ---- 9. Phone and tablet (under 900px): first-class, not a shrink ------- */
 @media (max-width: 899px) {
-  [data-rich="true"] .rich-nav-toggle { display: none !important; }
   [data-rich="true"] .bpm-main { padding: 16px 16px calc(120px + env(safe-area-inset-bottom, 0px)) !important; }
   [data-rich="true"] .bpm-main > * { min-width: 0; max-width: 100%; }
   [data-rich="true"] .bpm-main img, [data-rich="true"] .bpm-main svg { max-width: 100%; }
@@ -572,8 +538,6 @@ html[data-rich-root="true"] .feel__undo { font-size: .875rem; min-height: 36px; 
   [data-rich="true"] :is(.bpm-stat, .rich-rail__btn, .bpm-btn):hover { transform: none !important; }
 }
 
-/* Menu mode: the sidebar's sections must keep their own height and let the column scroll, otherwise a long list is squeezed and runs over the next section. */
-[data-rich="true"] .nova-sb-scroll > * { flex-shrink: 0; }
 
 /* Quiet scrollbars: thin and tinted, no arrow buttons (the sidebar and flyout lists showed the browser's grey ones). */
 html[data-rich-root="true"], [data-rich="true"] * { scrollbar-width: thin; scrollbar-color: var(--rich-hair) transparent; }
