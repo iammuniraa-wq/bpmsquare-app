@@ -1,16 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { RICH_NAV_KEY, applyRichRoot, parseRichNav } from "./richUi";
-
-describe("navigation style", () => {
-  it("defaults to the menu and only a stored 'rail' selects the rail", () => {
-    expect(parseRichNav(null)).toBe("menu");
-    expect(parseRichNav(undefined)).toBe("menu");
-    expect(parseRichNav("garbage")).toBe("menu");
-    expect(parseRichNav("rail")).toBe("rail");
-    expect(parseRichNav("menu")).toBe("menu");
-    expect(RICH_NAV_KEY).toBe("bpm-rich-nav");
-  });
-});
+import { applyRichRoot } from "./richUi";
 
 describe("applyRichRoot", () => {
   const fake = () => {

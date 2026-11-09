@@ -21,7 +21,7 @@ import type { AnalyticsData } from "@/lib/data/labels";
 import type { TenantFeatures } from "@/lib/constants";
 
 // The Rich dashboard (step 2a): what it draws from the same data the classic dashboard gets, that it is only ever drawn for a Rich tenant, and
-// that the classic dashboard (switches, Adapt, every card) stays reachable behind More.
+// that the classic dashboard (every card in the Rich skin, switches and Adapt behind Customise) stays reachable.
 
 const NOW = Date.parse("2026-11-05T10:00:00Z");
 const day = (n: number) => new Date(NOW - n * 86_400_000).toISOString();
@@ -129,7 +129,7 @@ const html = (el: unknown) => renderToString(el as never).replace(/<!-- -->/g, "
 const cur = CURRENCIES.INR;
 const model: RichDashModel = buildRichDashboard(input({ features: TENDER, analytics: analytics({ tender: FULL }), attention: [caseRow("c1", "C-1187", 6)] }));
 const rich = (over: Record<string, unknown> = {}) =>
-  html(createElement(RichDashboard, { greeting: "Good evening", userName: "Abdul", dateLabel: "Thursday", model, cur, more: createElement("p", null, "CLASSIC-BODY"), ...over }));
+  html(createElement(RichDashboard, { greeting: "Good evening", userName: "Abdul", dateLabel: "Thursday", model, cur, toolbar: createElement("p", null, "CLASSIC-TOOLBAR"), body: createElement("p", null, "CLASSIC-BODY"), ...over }));
 
 describe("the Rich dashboard screen", () => {
   const out = rich();
@@ -158,15 +158,21 @@ describe("the Rich dashboard screen", () => {
     expect(out).toContain("About Bids closing soonest");
   });
 
-  it("keeps the classic dashboard behind More: closed on first paint, not mounted, reachable by Customise", () => {
+  it("draws the other cards in the page itself and keeps the switches behind Customise, closed on first paint", () => {
+    expect(out).toContain("CLASSIC-BODY");
+    expect(out).toContain('class="rd-rest"');
     expect(out).toContain('aria-expanded="false"');
-    expect(out).toContain('aria-controls="rd-more-body"');
-    expect(out).toContain('aria-controls="rd-more"');
-    expect(out).not.toContain("CLASSIC-BODY");
+    expect(out).toContain('aria-controls="rd-tray"');
+    expect(out).not.toContain("CLASSIC-TOOLBAR");
+    expect(out).not.toContain("rd-more");
+  });
+
+  it("leaves out the cards the opening already shows", () => {
+    expect(model.covers).toEqual(expect.arrayContaining(["overview_strip", "tender_by_stage", "tender_closing_list", "tender_attention"]));
   });
 
   it("has a calm empty state for each part instead of a blank", () => {
-    const empty = rich({ model: { kpis: [], pipeline: { title: "Pipeline", noun: "tender", total: 0, count: 0, stages: [], emptyText: "No open tenders yet.", emptyAction: "Open the pipeline", emptyHref: "/pipeline" }, attention: [], attentionTotal: 0, bids: [] } });
+    const empty = rich({ model: { kpis: [], pipeline: { title: "Pipeline", noun: "tender", total: 0, count: 0, stages: [], emptyText: "No open tenders yet.", emptyAction: "Open the pipeline", emptyHref: "/pipeline" }, attention: [], attentionTotal: 0, bids: [], covers: [] } });
     expect(empty).toContain("You are all caught up.");
     expect(empty).toContain("No open tenders yet.");
     expect(empty).toContain("Nothing is waiting on you.");

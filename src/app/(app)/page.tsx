@@ -173,8 +173,16 @@ export default async function DashboardPage() {
     firstName = emp?.first_name?.trim() || null;
   }
 
+  // The Rich first-steps screen counts the people in the workspace (tenant-scoped; RLS also limits it to this tenant). Other tenants skip the query.
+  let teamCount: number | null = null;
+  if (isRichTenant(tenant)) {
+    const { count } = await supabase.from("tenant_users").select("user_id", { count: "exact", head: true }).eq("tenant_id", tenantId);
+    teamCount = count ?? null;
+  }
+
   return (
     <DashboardLayout
+      teamCount={teamCount}
       kpis={kpis}
       attention={attention}
       readyCases={readyCases}

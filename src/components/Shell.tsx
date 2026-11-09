@@ -13,9 +13,10 @@ import GlobalSearchBar from "./GlobalSearchBar";
 import AIDock from "./AIDock";
 import { XIcon, SearchIcon } from "@/components/Icons";
 import { useTenant, useUiTheme, useTenantFeature, useIsNextgen3Layer, useNovaSurfaces, useIsEnterpriseSidebar, useIsSpectacular, useSpectacularVariant, useNavySidebar, useTopBarIdentity, useCommandPalette, useRichUi } from "@/lib/tenant-context";
-import { RICH_NAV_KEY, parseRichNav, applyRichRoot, type RichNav } from "@/lib/richUi";
+import { applyRichRoot } from "@/lib/richUi";
 import RichRail from "./RichRail";
-import RichNavToggle from "./RichNavToggle";
+import RichMobileTables from "./RichMobileTables";
+import RichMoreSheet from "./RichMoreSheet";
 import NovaPalette from "@/components/NovaPalette";
 import NovaDraft from "@/components/NovaDraft";
 import NovaInbox from "@/components/NovaInbox";
@@ -112,7 +113,7 @@ function MobileTopBar() {
         >
           {searchOpen ? <XIcon size={18} color="var(--sb-strong)" /> : <SearchIcon size={18} color="var(--sb-strong)" />}
         </button>
-        {rich && <IdentityMenu />}
+        {rich && <IdentityMenu appearance />}
         <button
           onClick={() => { setOpen(v => !v); setSearchOpen(false); }}
           aria-label={open ? "Close menu" : "Open menu"}
@@ -145,8 +146,11 @@ function MobileTopBar() {
         </div>
       )}
 
+      {/* Rich: "More" is the rail's way (every category and its modules), not the sidebar drawer below. */}
+      {rich && <RichMoreSheet open={open} onClose={() => setOpen(false)} />}
+
       {/* Backdrop */}
-      {open && (
+      {!rich && open && (
         <div
           onClick={() => setOpen(false)}
           style={{
@@ -157,7 +161,7 @@ function MobileTopBar() {
       )}
 
       {/* Drawer — hosts the shared Sidebar */}
-      <div style={{
+      {!rich && <div style={{
         position: "fixed", top: "calc(48px + env(safe-area-inset-top, 0px))", left: 0,
         height: "calc(100vh - 48px)",
         zIndex: 95,
@@ -167,7 +171,7 @@ function MobileTopBar() {
         boxShadow: open ? "2px 0 14px rgba(0,0,0,.45)" : "none",
       }}>
         {nova ? <NovaSidebar onNavigate={() => setOpen(false)} /> : <Sidebar onNavigate={() => setOpen(false)} />}
-      </div>
+      </div>}
 
       {/* Bottom tabs (Nova only). Renders nothing for every other tenant, so
           their phones keep the hamburger they have today. */}
@@ -214,9 +218,15 @@ function DarkToggle({ dark, onToggle }: { dark: boolean; onToggle: () => void })
 // lookup as Sidebar.tsx's UserFooter, kept separate rather than shared since
 // the two never render at once (Sidebar hides its footer when this is on).
 
-function IdentityMenu() {
+function IdentityMenu({ appearance = false }: { appearance?: boolean }) {
   const router = useRouter();
   const [email, setEmail] = useState<string | null>(null);
+  // Phone only: the dark-mode switch lives here instead of floating over the page. The Shell owns the state; this asks it to flip.
+  const [isDark, setIsDark] = useState(false);
+  useEffect(() => {
+    if (!appearance) return;
+    try { setIsDark(localStorage.getItem(DARK_MODE_KEY) === "1"); } catch { /* keep light */ }
+  }, [appearance]);
 
   useEffect(() => {
     let cancelled = false;
@@ -280,6 +290,18 @@ function IdentityMenu() {
         }}>
           {email}
         </div>
+        {appearance && (
+          <button
+            onClick={() => { window.dispatchEvent(new Event("bpm:toggle-dark")); setIsDark((d) => !d); }}
+            style={{
+              width: "100%", textAlign: "left", padding: "8px", border: "none", borderRadius: 7,
+              background: "transparent", color: "var(--sb-panel-text)", fontSize: 12.5, cursor: "pointer",
+              display: "flex", alignItems: "center", gap: 8,
+            }}
+          >
+            {isDark ? "☀ Light mode" : "☾ Dark mode"}
+          </button>
+        )}
         <button
           onClick={signOut}
           style={{
@@ -329,7 +351,6 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   const aiAllowed = useTenantFeature("ai_assistant") && uiTheme !== "classic";
   // The Rich look (src/styles/rich.css). Always implies Nova (see isRichTenant), so `nova` is true whenever this is.
   const rich = useRichUi();
-  const [richNav, setRichNav] = useState<RichNav>("menu");
   const [dark, setDark] = useState(false);
 
   useEffect(() => {
@@ -348,13 +369,6 @@ export default function Shell({ children }: { children: React.ReactNode }) {
       setDark(stored === null ? !rich : stored === "1");
     } catch { setDark(!rich); }
   }, [rich]);
-  useEffect(() => {
-    try { setRichNav(parseRichNav(localStorage.getItem(RICH_NAV_KEY))); } catch { /* keep the default */ }
-  }, []);
-  const chooseRichNav = (v: RichNav) => {
-    setRichNav(v);
-    try { localStorage.setItem(RICH_NAV_KEY, v); } catch { /* ignore */ }
-  };
   const toggleDark = () => {
     setDark((d) => {
       const next = !d;
@@ -362,6 +376,10 @@ export default function Shell({ children }: { children: React.ReactNode }) {
       return next;
     });
   };
+  useEffect(() => {
+    window.addEventListener("bpm:toggle-dark", toggleDark);
+    return () => window.removeEventListener("bpm:toggle-dark", toggleDark);
+  }, []);
 
   // Enterprise is deliberately light-only for now (the reference it's
   // styled after has no dark variant) -- guarding `mode` itself, not just
@@ -388,7 +406,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
     applyRichRoot(document.documentElement, rich, mode === "dark");
     return () => applyRichRoot(document.documentElement, false, false);
   }, [rich, mode]);
-  const richStamp = { "data-rich": rich || undefined, "data-rich-nav": rich ? richNav : undefined } as const;
+  const richStamp = { "data-rich": rich || undefined, "data-rich-nav": rich ? "rail" : undefined } as const;
 
   if (mobile) {
     return (
@@ -413,6 +431,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
               <DarkToggle dark={dark} onToggle={toggleDark} />
             </div>
           )}
+          {rich && <RichMobileTables />}
           {commandPalette && <NovaPalette />}
           {/* NovaDraft is the ONLY listener for "nova:open-draft", which
               NovaPalette dispatches before closing itself. Spectacular gets
@@ -439,8 +458,8 @@ export default function Shell({ children }: { children: React.ReactNode }) {
     <TabsProvider>
       <div data-theme={uiTheme} data-mode={mode} data-nova={nova || undefined} data-enterprise={isEnterprise || undefined} data-spectacular={isSpectacular || undefined} data-spectacular-variant={spectacularVariant ?? undefined} data-navy-rail={navyRail || undefined} {...richStamp} style={{ display: "flex", minHeight: "100vh", background: "var(--app-bg, var(--panel2))" }}>
         {rich ? (
-          <div className="rich-nav" data-slot={richNav}>
-            {richNav === "rail" ? <RichRail /> : <NovaSidebar />}
+          <div className="rich-nav" data-slot="rail">
+            <RichRail />
           </div>
         ) : nova ? <NovaSidebar /> : <Sidebar />}
         <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
@@ -456,7 +475,6 @@ export default function Shell({ children }: { children: React.ReactNode }) {
             {/* The bar stays clickable when the palette is on, but gives up
                 ⌘K to it -- otherwise both answer the same key. */}
             {!nova && <GlobalSearchBar hotkeyDisabled={commandPalette} />}
-            {rich && <RichNavToggle value={richNav} onChange={chooseRichNav} />}
             {uiTheme === "nextgen" && !isEnterprise && !isSpectacular && (!nova || rich) && <DarkToggle dark={dark} onToggle={toggleDark} />}
             {novaSurfaces && <NovaInbox />}
             {topBarIdentity && <IdentityMenu />}

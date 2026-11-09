@@ -102,6 +102,7 @@ export default async function RfqsPage({ searchParams }: { searchParams: Promise
     label: `${x.label} (${rows.filter((r) => x.match(r)).length})`,
     href: `${ROUTES.rfqs}?view=${x.id}${q ? `&q=${encodeURIComponent(q)}` : ""}`,
     active: x.id === view.id,
+    kind: (["awaiting", "to_award", "awarded"].includes(x.id) ? "slice" : "also") as "slice" | "also",
   }));
 
   const columns: ListColumn<Row>[] = [

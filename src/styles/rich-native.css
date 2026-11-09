@@ -1,0 +1,136 @@
+/* ============================================================================
+   RICH -- the shared pieces, so every screen feels native (owner, 2026-11-06: "some screens look native, some look forced").
+   Most screens draw their tables, filter bars, chips and row links with inline styles (11.5-13.5 px type, 6-8 px corners, a hard blue),
+   so these rules reach them by element and by the inline style they carry. Every selector starts at [data-rich="true"]: inert for any
+   other tenant. Colour comes only from the --rich-* tokens; nothing here changes what a control does.
+   Written to the owner's audit (docs/design/rich-ui.md, "Native pass").
+   ========================================================================== */
+
+/* ---- Type floor: nothing under 13 px (rule 6b) ----------------------------- */
+[data-rich="true"] main :is(
+  [style*="font-size:9"], [style*="font-size: 9"], [style*="font-size:10"], [style*="font-size: 10"],
+  [style*="font-size:11"], [style*="font-size: 11"], [style*="font-size:12"], [style*="font-size: 12"]
+):not(svg *):not(svg) { font-size: .8125rem !important; }
+
+/* ---- Tables: no grey bar, no hairline cage, room to breathe ---------------- */
+[data-rich="true"] main table { border-collapse: separate; border-spacing: 0; width: 100%; }
+[data-rich="true"] main table thead th {
+  background: transparent !important; text-transform: none !important; letter-spacing: 0 !important;
+  font-size: .875rem !important; font-weight: 500 !important; color: var(--rich-ink-3) !important; padding: 10px 16px !important;
+  border-bottom: 1px solid var(--rich-hair) !important; white-space: nowrap;
+}
+[data-rich="true"] main table tbody td {
+  font-size: .9375rem !important; padding: 14px 16px !important; border-bottom: 1px solid var(--rich-hair); color: var(--rich-ink);
+}
+[data-rich="true"] main table tbody tr:last-child td { border-bottom: 0; }
+[data-rich="true"] main table tbody tr:hover td { background: var(--rich-violet-soft); }
+[data-rich="true"] main table tbody tr:hover td:first-child { border-radius: 16px 0 0 16px; }
+[data-rich="true"] main table tbody tr:hover td:last-child { border-radius: 0 16px 16px 0; }
+[data-rich="true"] main table tbody td a { font-weight: 500; }
+
+/* ---- Fields: one look for every input, select and textarea ----------------- */
+[data-rich="true"] main :is(
+  input:not([type]), input[type="text"], input[type="search"], input[type="email"], input[type="number"],
+  input[type="date"], input[type="datetime-local"], input[type="time"], input[type="tel"], input[type="url"], input[type="password"], select, textarea
+):not(.bpm-input):not(td *):not(th *) {
+  min-height: 44px; padding: 8px 16px !important; border: 0 !important; border-radius: 16px !important; background: var(--rich-surface-2) !important;
+  font-size: .9375rem !important; color: var(--rich-ink); transition: box-shadow .25s var(--rich-ease), background .2s;
+}
+[data-rich="true"] main :is(input, select, textarea):not(.bpm-input):not(td *):not(th *):focus { background: var(--rich-surface) !important; box-shadow: var(--rich-shadow-1); }
+[data-rich="true"] main textarea:not(.bpm-input) { min-height: 96px; padding-top: 12px !important; }
+
+/* ---- Buttons and chips that were drawn by hand ----------------------------- */
+/* Small controls with a 6-8 px corner become capsules; 36 px minimum, 44 px when it is the main button of a bar. */
+[data-rich="true"] main :is(button, a, span)[style*="border-radius:6px"], [data-rich="true"] main :is(button, a, span)[style*="border-radius: 6px"],
+[data-rich="true"] main :is(button, a)[style*="border-radius:7px"], [data-rich="true"] main :is(button, a)[style*="border-radius: 7px"],
+[data-rich="true"] main :is(button, a)[style*="border-radius:9px"], [data-rich="true"] main :is(button, a)[style*="border-radius: 9px"],
+[data-rich="true"] main :is(button, a)[style*="border-radius:8px"], [data-rich="true"] main :is(button, a)[style*="border-radius: 8px"] {
+  border-radius: 999px !important; border-color: transparent !important; font-size: .875rem !important;
+}
+/* A plain chip (status filter, tab-like link): white capsule. */
+[data-rich="true"] main a[style*="border-radius:6px"][style*="var(--panel2)"], [data-rich="true"] main a[style*="border-radius: 6px"][style*="var(--panel2)"] {
+  background: var(--rich-surface) !important; box-shadow: var(--rich-shadow-1); padding: 8px 16px !important; color: var(--rich-ink-2) !important;
+}
+/* The same chip when it is the chosen one, and the "Open ->" row link: soft violet. */
+[data-rich="true"] main :is(a, button)[style*="background:var(--accentbg)"], [data-rich="true"] main :is(a, button)[style*="background: var(--accentbg)"],
+[data-rich="true"] main :is(a, button)[style*="background:var(--modern-accent-bg)"], [data-rich="true"] main :is(a, button)[style*="background: var(--modern-accent-bg)"] {
+  background: var(--rich-violet-soft) !important; color: var(--rich-violet-ink) !important; border-radius: 999px !important; border-color: transparent !important;
+  padding: 8px 16px !important; font-size: .875rem !important; font-weight: 600 !important; box-shadow: none;
+}
+/* A filled button drawn by hand (Filter, New audience, Ask): the rich primary. */
+[data-rich="true"] main :is(button, a)[style*="background:var(--modern-accent,"], [data-rich="true"] main :is(button, a)[style*="background: var(--modern-accent,"],
+[data-rich="true"] main :is(button, a)[style*="background:#378add"], [data-rich="true"] main :is(button, a)[style*="background: #378add"],
+[data-rich="true"] main :is(button, a)[style*="background: rgb(55, 138, 221)"], [data-rich="true"] main :is(button, a)[style*="background:rgb(55,138,221)"],
+[data-rich="true"] main :is(button, a)[style*="background: rgb(3, 97, 173)"], [data-rich="true"] main :is(button, a)[style*="background:#0361ad"], [data-rich="true"] main :is(button, a)[style*="background: #0361AD"] {
+  background: var(--rich-btn) !important; color: var(--rich-on-violet) !important; border: 0 !important; border-radius: 999px !important;
+  min-height: 44px; padding: 0 22px !important; font-size: .9375rem !important; font-weight: 600 !important;
+  transition: transform .3s var(--rich-spring), box-shadow .3s var(--rich-ease);
+}
+[data-rich="true"] main :is(button, a)[style*="378add"]:hover, [data-rich="true"] main :is(button, a)[style*="55, 138, 221"]:hover { transform: translateY(-2px); box-shadow: var(--rich-shadow-2); }
+/* Text links that kept the old blue. */
+[data-rich="true"] main a[style*="color:#378add"], [data-rich="true"] main a[style*="color: #378add"], [data-rich="true"] main a[style*="color: rgb(55, 138, 221)"] { color: var(--rich-violet-ink) !important; }
+
+/* Cards drawn as buttons (the quote type picker): the card corner, no hard border. */
+[data-rich="true"] main button[style*="border-radius:12px"], [data-rich="true"] main button[style*="border-radius: 12px"] { border-radius: 24px !important; border-color: transparent !important; box-shadow: var(--rich-shadow-1); background: var(--rich-surface) !important; }
+/* Stat tiles with the old pastel fills. */
+[data-rich="true"] .bpm-stat { background: var(--rich-surface) !important; }
+/* A table that sits straight on the page (Dispatch) gets the card it was missing; none may be wider than its card. */
+[data-rich="true"] main > table, [data-rich="true"] main > div > table:only-child { background: var(--rich-surface); border-radius: 24px; box-shadow: var(--rich-shadow-1); }
+[data-rich="true"] main table { max-width: 100%; }
+
+/* ---- Cards inside cards ---------------------------------------------------- */
+[data-rich="true"] main :is(div, section, li)[style*="border-radius:10px"], [data-rich="true"] main :is(div, section, li)[style*="border-radius: 10px"],
+[data-rich="true"] main :is(div, section, li)[style*="border-radius:12px"], [data-rich="true"] main :is(div, section, li)[style*="border-radius: 12px"] {
+  border-radius: 20px !important;
+}
+
+/* ---- Tabs, settings lists, admin cards ------------------------------------ */
+[data-rich="true"] .bpm-tabs { scrollbar-width: none; }
+[data-rich="true"] .bpm-tabs::-webkit-scrollbar { display: none; }
+[data-rich="true"] .bpm-settings-item { font-size: .9375rem; min-height: 48px; }
+[data-rich="true"] .bpm-settings-item-desc { font-size: .8125rem; }
+[data-rich="true"] .bpm-settings-group-label { font-size: .8125rem; font-weight: 600; text-transform: none; letter-spacing: 0; }
+[data-rich="true"] main a.modern-lift { border-radius: 24px !important; border: 0 !important; background: var(--rich-surface); box-shadow: var(--rich-shadow-1) !important; padding: 20px !important; }
+[data-rich="true"] main a.modern-lift:hover { transform: translateY(-3px); box-shadow: var(--rich-shadow-2) !important; }
+[data-rich="true"] main a.modern-lift > span:first-child { border-radius: 14px !important; }
+
+/* ---- Phone ----------------------------------------------------------------- */
+@media (max-width: 899px) {
+  [data-rich="true"] main :is(input, select, textarea):not(.bpm-input):not(td *):not(th *) { font-size: 1rem !important; }
+  [data-rich="true"] main .bpm-list-card :is(dt, dd) { font-size: .9375rem !important; }
+  [data-rich="true"] main form[style*="display:flex"], [data-rich="true"] main form[style*="display: flex"] { flex-wrap: wrap; }
+  [data-rich="true"] main form[style*="display:flex"] :is(input, select), [data-rich="true"] main form[style*="display: flex"] :is(input, select) { flex: 1 1 100%; min-width: 0; }
+}
+
+/* ---- Open-tabs strip: one line per tab, calm capsules -------------------- */
+@media (min-width: 781px) {
+  [data-rich="true"] .bpm-tabbar { height: 56px !important; min-height: 56px !important; }
+  [data-rich="true"] .bpm-tabbar [data-active] {
+    height: 40px !important; min-width: 0 !important; max-width: 200px !important; padding: 0 8px 0 16px !important; gap: 8px !important;
+    border: 0 !important; border-radius: 999px !important;
+  }
+  [data-rich="true"] .bpm-tabbar [data-active] > span:first-child { display: none; }
+  [data-rich="true"] .bpm-tabbar [data-active] > span:nth-child(2) > span:nth-child(2) { display: none; }
+  [data-rich="true"] .bpm-tabbar [data-active] > span:nth-child(2) > span:first-child { font-size: .9375rem !important; font-weight: 500 !important; color: var(--rich-ink-2) !important; }
+  [data-rich="true"] .bpm-tabbar [data-active="true"] > span:nth-child(2) > span:first-child { font-weight: 600 !important; color: var(--rich-ink) !important; }
+  [data-rich="true"] .bpm-tabbar [data-active] > button { width: 24px !important; height: 24px !important; border-radius: 50% !important; font-size: 1rem !important; opacity: 0; transition: opacity .2s; }
+  [data-rich="true"] .bpm-tabbar [data-active]:hover > button, [data-rich="true"] .bpm-tabbar [data-active="true"] > button { opacity: 1; }
+  [data-rich="true"] .bpm-tabbar > button { width: 32px !important; height: 32px !important; border-radius: 50% !important; font-size: 1rem !important; }
+}
+
+/* ---- One header row: the open tabs on the left, the controls on the right ------ */
+@media (min-width: 781px) {
+  [data-rich="true"] .bpm-topbar {
+    position: sticky; top: 0; z-index: 45; height: 64px !important; min-height: 64px !important; margin-bottom: -64px; padding: 0 40px !important;
+    background: transparent !important; -webkit-backdrop-filter: none !important; backdrop-filter: none !important; pointer-events: none;
+  }
+  [data-rich="true"] .bpm-topbar > * { pointer-events: auto; }
+  [data-rich="true"] .bpm-tabbar {
+    position: sticky !important; top: 0; z-index: 40; height: 64px !important; min-height: 64px !important; margin-bottom: 0 !important; padding: 0 340px 0 40px !important;
+    background: var(--rich-canvas-glass) !important; -webkit-backdrop-filter: blur(20px) saturate(1.3); backdrop-filter: blur(20px) saturate(1.3);
+  }
+  [data-rich="true"] .bpm-tabbar [data-active="false"] { background: color-mix(in srgb, var(--rich-ink) 6%, transparent) !important; opacity: 1 !important; }
+  [data-rich="true"] .bpm-tabbar [data-active="false"]:hover { background: var(--rich-surface) !important; }
+  [data-rich="true"] .bpm-tabbar [data-active="true"] { background: var(--rich-surface) !important; box-shadow: var(--rich-shadow-1); }
+  [data-rich="true"] .bpm-main { padding-top: 16px !important; }
+}

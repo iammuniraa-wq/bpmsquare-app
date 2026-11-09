@@ -2,6 +2,7 @@ import Link from "next/link";
 import { c } from "@/lib/theme";
 import PageHeader from "@/components/PageHeader";
 import TabTitle from "@/components/TabTitle";
+import ListStatusFilter from "./ListStatusFilter";
 import ListFilterBar, { type DateFilter, type SelectFilter } from "@/components/ListFilterBar";
 import AdvancedFilterPanel from "@/components/AdvancedFilterPanel";
 import SortableTh from "@/components/SortableTh";
@@ -31,7 +32,11 @@ export type ListColumn<T> = {
   info?: string;
 };
 
-export type ListChip = { id: string; label: string; href: string; active: boolean };
+export type ListChip = {
+  id: string; label: string; href: string; active: boolean;
+  /** "slice": an exclusive status, drawn in the donut. "also": a rollup or cross-cutting view, kept as a small pill. Absent: worked out from the counts in the labels. */
+  kind?: "slice" | "also";
+};
 
 const th: React.CSSProperties = {
   textAlign: "left", color: c.hint, fontWeight: 600,
@@ -211,21 +216,7 @@ export default function ObjectListPage<T>({
         ) : undefined}
       />
 
-      {chips && chips.length > 0 && (
-        <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
-          {chips.map((chip) => (
-            <Link key={chip.id} href={chip.href} aria-current={chip.active ? "true" : undefined} style={{
-              fontSize: 12.5, fontWeight: chip.active ? 700 : 500,
-              color: chip.active ? c.accent : c.muted,
-              background: chip.active ? c.accentbg : c.panel2,
-              border: `1px solid ${chip.active ? c.accent + "60" : c.line}`,
-              borderRadius: 6, padding: "5px 12px", textDecoration: "none",
-            }}>
-              {chip.label}
-            </Link>
-          ))}
-        </div>
-      )}
+      {chips && chips.length > 0 && <ListStatusFilter chips={chips} />}
 
       <ListFilterBar
         searchValue={search.value}

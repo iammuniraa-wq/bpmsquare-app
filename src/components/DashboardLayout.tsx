@@ -31,6 +31,7 @@ import { tenderBlockSpec } from "@/components/tenderDesk/TenderBlocks";
 import { DashLookScope, LookSwitch } from "@/components/tenderDesk/DashLook";
 import RichDashboard from "@/components/RichDashboard";
 import { buildRichDashboard } from "@/lib/richDashboard";
+import { buildWelcome } from "@/lib/richWelcome";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -63,6 +64,8 @@ interface Props {
   /** The dashboard look of a workspace with the tender edition ("bold" light, "control" dark); null or absent for every other workspace, which
    * then renders exactly what it always did (no switch, no style, no marker). */
   tenderLook?: TenderDeskStyle | null;
+  /** Members of the workspace (Rich first-steps screen only); null when not counted. */
+  teamCount?: number | null;
 }
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -432,14 +435,14 @@ function StatTile({ value, label, icon, href, tone, info }: { value: number | st
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: 12, flex: 1, padding: "14px 16px", minWidth: 0 }}>
         <Link href={href} style={{ textDecoration: "none", display: "flex", flexDirection: "column", gap: 12 }}>
-          <div style={{
+          <div className="bpm-stile-ic" style={{
             width: 28, height: 28, borderRadius: modern ? 8 : 7,
             background: tone ? pillar[tone].bg : (modern ? "var(--modern-accent-bg)" : ledger.accentSoft),
             display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
           }}>
             {icon}
           </div>
-          <div style={{
+          <div className="bpm-stile-n" style={{
             ...(modern ? {} : serifNum),
             fontSize: kpiNumFontSize(String(value)) + 2, fontWeight: modern ? 800 : 700,
             color: tone ? pillar[tone].fg : (modern ? "var(--modern-accent)" : ledger.accent),
@@ -463,7 +466,7 @@ function StatTile({ value, label, icon, href, tone, info }: { value: number | st
         {icon}
       </div>
       <div>
-        <div style={{
+        <div className="bpm-stile-n" style={{
           ...(modern ? {} : serifNum),
           fontSize: kpiNumFontSize(String(value)) + 2, fontWeight: modern ? 800 : 700,
           color: tone ? pillar[tone].fg : (modern ? "var(--modern-accent)" : ledger.accent),
@@ -493,7 +496,7 @@ function AnalyticsCard({ title, href, children, fill, info }: { title: string; h
   const accent = useIsSpectacular() && fill ? `var(--spec-fill-${fill})` : null;
   return (
     <div
-      className={modern ? "modern-lift-gold" : undefined}
+      className={modern ? "bpm-acard modern-lift-gold" : "bpm-acard"}
       style={{
         ...cardStyle, padding: 0, overflow: "hidden",
         ...(accent ? { borderLeft: `4px solid ${accent}` } : null),
@@ -504,18 +507,18 @@ function AnalyticsCard({ title, href, children, fill, info }: { title: string; h
         boxShadow: modern ? undefined : "0 1px 2px rgba(16,24,40,.04), 0 1px 6px rgba(16,24,40,.03)",
       }}
     >
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: modern ? "12px 16px 10px" : "11px 14px 9px", borderBottom: `1px solid ${modern ? "var(--line)" : ledger.line}` }}>
+      <div className="bpm-acard-h" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: modern ? "12px 16px 10px" : "11px 14px 9px", borderBottom: `1px solid ${modern ? "var(--line)" : ledger.line}` }}>
         {(() => {
-          const titleEl = <span style={{ fontSize: 10.5, fontWeight: 700, color: accent ?? (modern ? "var(--modern-accent)" : c.hint), textTransform: "uppercase", letterSpacing: 0.6 }}>{title}</span>;
+          const titleEl = <span className="bpm-acard-t" style={{ fontSize: 10.5, fontWeight: 700, color: accent ?? (modern ? "var(--modern-accent)" : c.hint), textTransform: "uppercase", letterSpacing: 0.6 }}>{title}</span>;
           // The explanation sits behind an "i" after the title (6b); a card without one is drawn exactly as before.
           return info ? <span style={{ display: "inline-flex", alignItems: "center", gap: 2 }}>{titleEl}<InfoTip label={title}>{info}</InfoTip></span> : titleEl;
         })()}
         {/* Optional: a content block (business news, tips) has nowhere of its
             own to go, and a "Full view" that lands back on the dashboard is
             worse than no link. */}
-        {href && <Link href={href} style={{ fontSize: 10.5, color: accent ?? (modern ? "var(--modern-accent)" : ledger.accent), textDecoration: "none", fontWeight: 600 }}>Full view →</Link>}
+        {href && <Link href={href} className="bpm-acard-l" style={{ fontSize: 10.5, color: accent ?? (modern ? "var(--modern-accent)" : ledger.accent), textDecoration: "none", fontWeight: 600 }}>Full view →</Link>}
       </div>
-      <div style={{ padding: modern ? "14px 16px" : "12px 14px" }}>{children}</div>
+      <div className="bpm-acard-b" style={{ padding: modern ? "14px 16px" : "12px 14px" }}>{children}</div>
     </div>
   );
 }
@@ -1144,7 +1147,7 @@ export function AdaptDrawer({
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export default function DashboardLayout({ kpis, attention, workOrderRows, overdueInvoices, analytics, features, dashLayout, isAdmin, hasPersonalOverride, userName, tenderLook }: Props) {
+export default function DashboardLayout({ kpis, attention, workOrderRows, overdueInvoices, analytics, features, dashLayout, isAdmin, hasPersonalOverride, userName, tenderLook, teamCount }: Props) {
   const router = useRouter();
   const cur = useCurrency();
   const inr = moneyFormatter(cur, { maximumFractionDigits: 0 });
@@ -1282,7 +1285,11 @@ export default function DashboardLayout({ kpis, attention, workOrderRows, overdu
   const effectiveBlocks: DashLayoutItem[] = dashMode === "curated"
     ? curatedLayoutFor(features).filter((b) => b.id !== "business_news" || extras?.business_news === true)
     : layout;
-  const visibleBlocks = effectiveBlocks.filter((b) => !b.hidden && blockAllowed(b.id, features));
+  const richModel = rich
+    ? buildRichDashboard({ features, analytics, kpis, attention, workOrderRows, overdueInvoices, quoteStatuses: tenant?.config?.quote_statuses })
+    : null;
+  const richCovers = new Set(richModel?.covers ?? []);
+  const visibleBlocks = effectiveBlocks.filter((b) => !b.hidden && blockAllowed(b.id, features) && !richCovers.has(b.id));
   const mainBlocks = visibleBlocks.filter((b) => !SIDEBAR_IDS.has(b.id));
   const sidebarBlocks = visibleBlocks.filter((b) => SIDEBAR_IDS.has(b.id));
 
@@ -1776,7 +1783,7 @@ export default function DashboardLayout({ kpis, attention, workOrderRows, overdu
 
   function renderMainBlock(block: DashLayoutItem) {
     if (isAnalyticsId(block.id)) {
-      return <div key={block.id}>{renderWidget(block.id, analytics, blockSize(block), cur, look ?? "bold")}</div>;
+      return <div key={block.id}>{renderWidget(block.id, analytics, blockSize(block), cur, rich ? "bold" : (look ?? "bold"))}</div>;
     }
     switch (block.id) {
       case "overview_strip": return <div key={block.id}>{renderOverviewStrip()}</div>;
@@ -1798,81 +1805,69 @@ export default function DashboardLayout({ kpis, attention, workOrderRows, overdu
     }
   }
 
-  const classic = (
-    <div>
-      <DashLookScope look={look} />
-      {/* Header. Carries .bpm-page-header like PageHeader does even though it
-          builds its own greeting layout -- that class is what Spectacular's
-          navy band keys off (globals.css), and the ink inside re-points
-          through --ink/--hint there, so no theme branch is needed here. */}
-      <div className="bpm-page-header" style={{ marginBottom: 22, display: "flex", alignItems: "flex-start", justifyContent: "space-between", ...(look !== null ? { flexWrap: "wrap", gap: 10 } : null) }}>
-        <div>
-          <div style={{ fontSize: 11, color: c.hint, fontWeight: 500, marginBottom: 3 }}>{todayStr()}</div>
-          <h1 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: c.ink, lineHeight: 1.2 }}>{greet()}{userName ? `, ${userName}` : ""}</h1>
-        </div>
-        {/* A tender workspace has one more control here (the look switch), so on a phone the toolbar wraps under the greeting instead of running off the screen. */}
-        {/* Not desk-only: on a phone the only way into the layout drawers used
-            to be the empty-state button -- so a mobile user could ADD their
-            first card but never manage the layout again after that. */}
-        <div style={{ display: "flex", gap: 8, flexShrink: 0, marginTop: 4, flexWrap: "wrap", justifyContent: "flex-end", ...(look !== null ? { maxWidth: "100%" } : null) }}>
-          {/* Two dashboards, one switch. Curated is a fixed composition;
-              My layout is the arrangement you built. Nothing is saved or lost
-              by moving between them, which is why this is a view toggle and
-              not a setting buried in Settings (there IS one there, for the
-              workspace default). */}
-          <div style={{ display: "flex", gap: 2, padding: 2, borderRadius: 9, border: `1px solid ${c.line}`, background: "var(--panel2, transparent)" }}>
-            {([["Curated", "curated"], ["My layout", "adaptive"]] as const).map(([label, m]) => (
-              <button
-                key={m}
-                onClick={() => chooseMode(m)}
-                title={m === "curated"
-                  ? "A fixed set of cards, in a set order — nothing to configure"
-                  : "The cards you chose, in your order — Adapt and My layout apply here"}
-                style={{
-                  padding: "5px 12px", borderRadius: 7, cursor: "pointer", font: "inherit",
-                  fontSize: 11.5, fontWeight: 650, border: "none",
-                  background: dashMode === m ? "var(--card-bg, #fff)" : "transparent",
-                  color: dashMode === m ? c.ink : c.hint,
-                  boxShadow: dashMode === m ? "0 1px 3px rgba(0,0,0,.10)" : "none",
-                }}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-          {look !== null && <LookSwitch look={look} busy={lookBusy} onChange={(next) => { void chooseLook(next); }} />}
-          {isAdmin && dashMode === "adaptive" && (
-            <button
-              onClick={() => setAdaptOpen(true)}
-              style={{
-                // c.accent as a literal would read at 2.8:1 on Spectacular's
-                // navy header band; the variable is unset in every other
-                // theme, so they keep the exact hex they had.
-                fontSize: 11.5, fontWeight: 600, color: "var(--page-head-cta, #378add)",
-                background: "transparent", border: "1px solid var(--page-head-cta, #378add)",
-                borderRadius: 7, padding: "6px 14px", cursor: "pointer",
-              }}
-            >
-              ⚙ Adapt dashboard
-            </button>
-          )}
-          {dashMode === "adaptive" && (
-            <button
-              onClick={() => setPersonalizeOpen(true)}
-              style={{
-                fontSize: 11.5, fontWeight: 600, color: c.hint,
-                background: "transparent", border: `1px solid ${c.line}`,
-                borderRadius: 7, padding: "6px 14px", cursor: "pointer",
-              }}
-            >
-              🧑 My layout
-            </button>
-          )}
-        </div>
+  const toolbarEl = (
+    <div style={{ display: "flex", gap: 8, flexShrink: 0, marginTop: 4, flexWrap: "wrap", justifyContent: "flex-end", ...(look !== null ? { maxWidth: "100%" } : null) }}>
+      {/* Two dashboards, one switch. Curated is a fixed composition;
+          My layout is the arrangement you built. Nothing is saved or lost
+          by moving between them, which is why this is a view toggle and
+          not a setting buried in Settings (there IS one there, for the
+          workspace default). */}
+      <div style={{ display: "flex", gap: 2, padding: 2, borderRadius: 9, border: `1px solid ${c.line}`, background: "var(--panel2, transparent)" }}>
+        {([["Curated", "curated"], ["My layout", "adaptive"]] as const).map(([label, m]) => (
+          <button
+            key={m}
+            onClick={() => chooseMode(m)}
+            title={m === "curated"
+              ? "A fixed set of cards, in a set order — nothing to configure"
+              : "The cards you chose, in your order — Adapt and My layout apply here"}
+            style={{
+              padding: "5px 12px", borderRadius: 7, cursor: "pointer", font: "inherit",
+              fontSize: 11.5, fontWeight: 650, border: "none",
+              background: dashMode === m ? "var(--card-bg, #fff)" : "transparent",
+              color: dashMode === m ? c.ink : c.hint,
+              boxShadow: dashMode === m ? "0 1px 3px rgba(0,0,0,.10)" : "none",
+            }}
+          >
+            {label}
+          </button>
+        ))}
       </div>
+      {/* Rich has its own light and dark; the tender "Control room" look would paint the whole page navy over it. */}
+      {look !== null && !rich && <LookSwitch look={look} busy={lookBusy} onChange={(next) => { void chooseLook(next); }} />}
+      {isAdmin && dashMode === "adaptive" && (
+        <button
+          onClick={() => setAdaptOpen(true)}
+          style={{
+            // c.accent as a literal would read at 2.8:1 on Spectacular's
+            // navy header band; the variable is unset in every other
+            // theme, so they keep the exact hex they had.
+            fontSize: 11.5, fontWeight: 600, color: "var(--page-head-cta, #378add)",
+            background: "transparent", border: "1px solid var(--page-head-cta, #378add)",
+            borderRadius: 7, padding: "6px 14px", cursor: "pointer",
+          }}
+        >
+          ⚙ Adapt dashboard
+        </button>
+      )}
+      {dashMode === "adaptive" && (
+        <button
+          onClick={() => setPersonalizeOpen(true)}
+          style={{
+            fontSize: 11.5, fontWeight: 600, color: c.hint,
+            background: "transparent", border: `1px solid ${c.line}`,
+            borderRadius: 7, padding: "6px 14px", cursor: "pointer",
+          }}
+        >
+          🧑 My layout
+        </button>
+      )}
+    </div>
+  );
 
-      {spectacular && renderSpectacularOpening()}
-      {nextgen && renderNextgenBrief()}
+  const bodyEl = (
+    <>
+      {!rich && spectacular && renderSpectacularOpening()}
+      {!rich && nextgen && renderNextgenBrief()}
 
       {/* Engagement layer (3-layer theme): accounts drifting past their own
           ordering rhythm, and what the lost quotes are saying. Both render
@@ -1887,7 +1882,7 @@ export default function DashboardLayout({ kpis, attention, workOrderRows, overdu
       {/* A dashboard with nothing on it reads as broken, not as empty. This
           is reachable honestly -- every block hidden by choice -- so it says
           what happened and how to undo it, rather than leaving a void. */}
-      {visibleBlocks.length === 0 && (
+      {visibleBlocks.length === 0 && !rich && (
         <div style={{ ...cardStyle, textAlign: "center", padding: "34px 20px" }}>
           <div style={{ fontSize: 14.5, fontWeight: 700, color: c.ink }}>Your dashboard is empty</div>
           <div style={{ fontSize: 12.5, color: c.muted, marginTop: 6, lineHeight: 1.6, maxWidth: 420, margin: "6px auto 0" }}>
@@ -1989,18 +1984,43 @@ export default function DashboardLayout({ kpis, attention, workOrderRows, overdu
           .dash-outer { grid-template-columns: 1fr !important; }
         }
       `}</style>
+    </>
+  );
+
+  const classic = (
+    <div>
+      <DashLookScope look={look} />
+      {/* Header. Carries .bpm-page-header like PageHeader does even though it
+          builds its own greeting layout -- that class is what Spectacular's
+          navy band keys off (globals.css), and the ink inside re-points
+          through --ink/--hint there, so no theme branch is needed here. */}
+      <div className="bpm-page-header" style={{ marginBottom: 22, display: "flex", alignItems: "flex-start", justifyContent: "space-between", ...(look !== null ? { flexWrap: "wrap", gap: 10 } : null) }}>
+        <div>
+          <div style={{ fontSize: 11, color: c.hint, fontWeight: 500, marginBottom: 3 }}>{todayStr()}</div>
+          <h1 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: c.ink, lineHeight: 1.2 }}>{greet()}{userName ? `, ${userName}` : ""}</h1>
+        </div>
+        {/* A tender workspace has one more control here (the look switch), so on a phone the toolbar wraps under the greeting instead of running off the screen. */}
+        {/* Not desk-only: on a phone the only way into the layout drawers used
+            to be the empty-state button -- so a mobile user could ADD their
+            first card but never manage the layout again after that. */}
+        {toolbarEl}
+      </div>
+
+      {bodyEl}
     </div>
   );
 
-  if (!rich) return classic;
+  if (!rich || !richModel) return classic;
   return (
     <RichDashboard
       greeting={greet()}
       userName={userName ?? null}
       dateLabel={todayStr()}
       cur={cur}
-      model={buildRichDashboard({ features, analytics, kpis, attention, workOrderRows, overdueInvoices, quoteStatuses: tenant?.config?.quote_statuses })}
-      more={classic}
+      model={richModel}
+      toolbar={toolbarEl}
+      body={bodyEl}
+      welcome={buildWelcome({ features, analytics, hasLogo: !!tenant?.logo_url, teamCount: teamCount ?? null })}
     />
   );
 }

@@ -45,6 +45,8 @@ export type RichDashModel = {
   attentionTotal: number;
   /** null: not a tender workspace, the section is not drawn. [] : a tender workspace with nothing closing. */
   bids: RichBid[] | null;
+  /** Dashboard card ids the opening already shows in its own way, so the cards below do not repeat them. */
+  covers: string[];
 };
 
 export type RichDashInput = {
@@ -186,7 +188,13 @@ export function buildRichDashboard(input: RichDashInput): RichDashModel {
     }));
   }
 
+  const covers: string[] = ["overview_strip"];
+  if (tenderOk) covers.push("tender_open_pipeline", "tender_by_stage", "tender_attention");
+  if (tenderOk && winKpi) covers.push("tender_win_rate");
+  if (bids && bids.length > 0) covers.push("tender_closing_list");
+
   return {
+    covers,
     kpis: [pipelineKpi, winKpi, unpaidKpi, casesKpi].filter((k): k is RichKpi => !!k),
     pipeline,
     attention: ranked.slice(0, 3).map(({ key, text, href, icon }) => ({ key, text, href, icon })),

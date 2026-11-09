@@ -63,3 +63,18 @@ Branch `rich-ui`. UI only: no data, API or SQL. Dashboard, Accounts and Account 
 **Phone (under 900 px).** One column, 16 px gutters, 44 px minimum targets, no sideways page scroll. Floating glass pill tab bar (28 px radius, safe-area aware, violet dot on the active item); the top bar is logo, search, bell and avatar (hamburger hidden, the tab bar's More opens the drawer); the side panel is a bottom sheet with a grab handle and 32 px top corners; the Ctrl K palette is a full-screen pill overlay; press states scale to .97 with soft spring transitions. Everything animated stops under `prefers-reduced-motion`.
 
 **Not done in step 1.** Screen layouts (Dashboard, Accounts rows/cards, Account record), per-screen fixes for components that hard-code dark colours, and the Drive guide (no user-visible change for any tenant until the flag is on). Needs a live look on the demo tenant at 375 px and PC, light and dark.
+
+## Native pass (2026-11-06)
+
+Owner feedback after the first demo: the dashboard looked like a cover over the old one, the Menu was distorted, rail icons showed no names, the greeting was too big, some screens looked forced, and the phone should be fitted rather than mirror the PC.
+
+What changed, and where:
+- **Dashboard** (`RichDashboard.tsx`, `DashboardLayout.tsx`, `rich-dashboard.css`): one page. The opening and the cards below share one skin; there is no "More" fold. Cards the opening already shows (`covers` in `richDashboard.ts`) are left out of the lower cards. The Curated / My layout / look switches and Adapt sit behind Customise.
+- **Rail** (`RichRail.tsx`): one fixed name tip driven from state (a scroll container clips pseudo-element tips), the icon list scrolls inside the rail, the flyout opens level with its icon and stays on screen. **Menu** (`NovaSidebar.tsx`, `rich.css`): the sidebar no longer uses `backdrop-filter`, because that made it the containing block of the fixed flyout.
+- **Shared pieces** (`rich-native.css`): tables, fields, hand-drawn chips and buttons, type floor of 13 px, settings lists, admin cards. They reach the inline-styled legacy markup by element and inline-style substring, all under `[data-rich="true"]`. New screens should use `.bpm-btn`, `.bpm-input`, `.bpm-pill` and the shared table, not inline styles, so these rules stay a safety net.
+- **Phone**: one floating control (the orb). AI on/off is "Turn off" in the panel (all sizes); dark mode is in the avatar menu on phones; the top and tab bars are near-solid.
+
+Known gaps: the Pricing tabs sit above the page title; chart labels inside SVGs stay small; the workspace tab strip's "20 tabs were open" notice is the tabs feature, not styling.
+
+## Rich as a theme tile (2026-11-09)
+Owner: "I want to select it as a theme like other themes", provisioned and activated the way the other themes are. Settings > Appearance now lists **Rich** beside Nova, Enterprise and Spectacular, offered to a workspace whose platform-admin Programs flag is on (Rich is a skin over Nova, so it uses the Nova flag, `next_experience`; the admin screen labels it). Choosing the tile stores Nova (`ui_theme: "nextgen2"`) plus `appearance.rich_ui: true`; choosing any other theme removes the key. Nothing else reads a new value, so every existing gate (`isRichTenant`, the demo workspace) is unchanged. The separate "Rich look" switch under Nova is gone. Colour: Rich uses the workspace accent row (its violet is the tenant accent). Tightening the provisioning (a flag of its own) is deferred by the owner. **Interim (2026-11-09): the tile is shown only to demo workspaces (`tenants.is_demo`) that also have the Nova flag**, so bigblue and sna admins do not see it; widen by dropping `demoOnly` on the tile in `ThemeTab.tsx`.

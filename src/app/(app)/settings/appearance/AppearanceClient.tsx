@@ -68,7 +68,7 @@ export default function AppearanceClient() {
       <SettingsSave dirty={dirty} saving={saving} saved={saved} error={error} onSave={save} />
       <Tabs label="Appearance" tabs={TABS.map((id) => ({ id, label: LABEL[id] }))} value={tab} onChange={(id) => setTab(id)} />
       <div role="tabpanel" aria-label={LABEL[tab as AppearanceTab]}>
-        {tab === "theme" && <ThemeTab draft={draft} features={tenant?.features} accent={accent} onChange={edit} />}
+        {tab === "theme" && <ThemeTab draft={draft} features={tenant?.features} demo={tenant?.is_demo === true} accent={accent} onChange={edit} />}
         {tab === "menu" && (
           <MenuTab
             hidden={draft.navHidden} features={tenant?.features} accent={accent}
