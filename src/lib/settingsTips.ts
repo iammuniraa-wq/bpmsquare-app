@@ -12,7 +12,6 @@ export const SETTINGS_TIPS = {
   layout: "These come with Next-gen and are on already. Changing one reloads the page.",
   layoutIdentity: "Moves your name and sign-out from the sidebar footer into the top bar, and frees up the bottom of the rail.",
   layoutPalette: "Ctrl + K opens a search-and-jump box over the page: records, screens and new-record actions. Top bar search keeps working.",
-  richLook: "A calmer, larger look for Nova, in light or dark. Each person can switch between a side menu and a slim rail.",
   layoutNavy: "A dark navy left rail against the light workspace, with a clearly marked selected item. Dark mode is unaffected.",
   compactSidebar: "Reduces the padding between navigation items.",
   developer: "A REST API with filter, select, sort, aggregate and search, an OpenAPI spec and a change feed. Send your key as Authorization: Bearer followed by the key.",

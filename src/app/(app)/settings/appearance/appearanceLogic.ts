@@ -6,7 +6,8 @@ import type { TenderDeskStyle } from "@/lib/tenderDesk/types";
 // Pure rules behind the Appearance screen. Three tabs (Theme, Menu, Dashboard) edit one draft with one Save; this
 // file turns the draft into the writes the existing routes expect.
 
-export type ThemeId = "classic" | "modern" | "nextgen" | "nextgen2" | "enterprise" | "spectacular" | "spectacular_purple";
+/** What the Theme tab offers. "rich" is a tile of its own, like the others; it is stored as Nova ("nextgen2") with appearance.rich_ui on, so no other code changes. */
+export type ThemeId = "classic" | "modern" | "nextgen" | "nextgen2" | "rich" | "enterprise" | "spectacular" | "spectacular_purple";
 export type DashboardMode = "curated" | "adaptive";
 export type Chrome = { top_bar_identity: boolean; command_palette: boolean; navy_sidebar: boolean };
 export type SpecColors = { shell_from?: string; shell_to?: string; accent?: string };
@@ -23,8 +24,6 @@ export type AppearanceDraft = {
   /** The workspace default for the dashboard look (only offered, and only written, for a workspace with the tender edition). */
   tenderDeskStyle: TenderDeskStyle;
   compact: boolean;
-  /** The Rich look over Nova (appearance.rich_ui). Only offered, and only meaningful, on a Nova workspace; see isRichTenant(). */
-  rich: boolean;
   chrome: Chrome;
   navHidden: string[];
   news: boolean;
@@ -37,8 +36,9 @@ type TenantLike = {
   config?: Partial<TenantConfig> | null;
 };
 
-/** The stored theme. A retired "modern2"/"modern3" value is plain modern; "nextgen2" is kept apart from "nextgen" (Nova). */
-export function themeOf(raw: string | undefined): ThemeId {
+/** The stored theme. A retired "modern2"/"modern3" value is plain modern; "nextgen2" is kept apart from "nextgen" (Nova); Nova with appearance.rich_ui on is the Rich theme. */
+export function themeOf(raw: string | undefined, rich = false): ThemeId {
+  if (raw === "nextgen2" && rich) return "rich";
   if (raw === "nextgen" || raw === "nextgen2" || raw === "enterprise" || raw === "spectacular" || raw === "spectacular_purple") return raw;
   if (raw === "modern" || raw === "modern2" || raw === "modern3") return "modern";
   return "classic";
@@ -48,7 +48,7 @@ export function draftFromTenant(t: TenantLike): AppearanceDraft {
   const ap = t.config?.appearance;
   const extras = (t.config?.dashboard_extras ?? {}) as { business_news?: boolean; product_tips?: boolean; news_topics?: string[] };
   return {
-    theme: themeOf(ap?.ui_theme as string | undefined),
+    theme: themeOf(ap?.ui_theme as string | undefined, ap?.rich_ui === true),
     accent: t.accent_color || ACCENT_PRESETS.blue.color,
     novaAccent: ap?.nova_accent_color ?? "",
     spec: ap?.spectacular_colors ?? null,
@@ -56,7 +56,6 @@ export function draftFromTenant(t: TenantLike): AppearanceDraft {
     dashboardMode: ap?.dashboard_mode ?? (ap?.ui_theme === "spectacular_purple" || ap?.ui_theme === "spectacular" ? "curated" : "adaptive"),
     tenderDeskStyle: resolveTenderDeskStyle({ tenantDefault: ap?.tender_desk_style, flagOn: true }) ?? "bold",
     compact: ap?.compact_sidebar ?? false,
-    rich: ap?.rich_ui === true,
     chrome: {
       top_bar_identity: ap?.top_bar_identity !== false,
       command_palette: ap?.command_palette !== false,
@@ -99,14 +98,17 @@ export function planAppearanceSave(initial: AppearanceDraft, draft: AppearanceDr
   const ap: Record<string, unknown> = { ...(stored ?? {}) };
   let appearanceChanged = false;
   const set = (key: string, value: unknown) => { if (value === undefined) delete ap[key]; else ap[key] = value; appearanceChanged = true; };
-  if (draft.theme !== initial.theme) { set("ui_theme", draft.theme); out.reload = true; }
+  // Rich is stored as Nova plus its own key, which is kept only while Rich is the theme, so any other workspace carries no extra key.
+  if (draft.theme !== initial.theme) {
+    set("ui_theme", draft.theme === "rich" ? "nextgen2" : draft.theme);
+    set("rich_ui", draft.theme === "rich" ? true : undefined);
+    out.reload = true;
+  }
   if (draft.novaAccent !== initial.novaAccent) set("nova_accent_color", draft.novaAccent || undefined);
   if (!same(draft.spec, initial.spec)) set("spectacular_colors", draft.spec ?? undefined);
   if (draft.dashboardMode !== initial.dashboardMode) set("dashboard_mode", draft.dashboardMode);
   if (draft.tenderDeskStyle !== initial.tenderDeskStyle) set("tender_desk_style", draft.tenderDeskStyle);
   if (draft.compact !== initial.compact) set("compact_sidebar", draft.compact);
-  // Stored only when on, so an off workspace carries no key. Rich swaps the shell's chrome, so the page reloads.
-  if (draft.rich !== initial.rich) { set("rich_ui", draft.rich ? true : undefined); out.reload = true; }
   for (const k of Object.keys(draft.chrome) as (keyof Chrome)[]) {
     if (draft.chrome[k] !== initial.chrome[k]) { set(k, draft.chrome[k]); out.reload = true; }
   }

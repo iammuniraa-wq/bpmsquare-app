@@ -38,6 +38,7 @@ const THEMES: ThemeTile[] = [
   { value: "modern", label: "Modern", swatch: "linear-gradient(135deg, #14294b, #0a1830)" },
   { value: "nextgen", label: "Next-gen", swatch: "linear-gradient(135deg, #ffffff, #eef3fe)" },
   { value: "nextgen2", label: "Nova", swatch: "linear-gradient(135deg, #eef3fe, #dbe7fd)", gate: "next_experience" },
+  { value: "rich", label: "Rich", swatch: "linear-gradient(135deg, #f6f4fa 0%, #c4b2ff 62%, #6d4cf5 100%)", gate: "next_experience" },
   { value: "enterprise", label: "Enterprise", swatch: "linear-gradient(135deg, #152233 0%, #152233 42%, #ffffff 42%, #ffffff 100%)", gate: "enterprise_theme" },
   { value: "spectacular", label: "Spectacular", swatch: "linear-gradient(135deg, #ffffff 0%, #edf3ff 55%, #1e3a6e 100%)", gate: "spectacular_theme" },
   { value: "spectacular_purple", label: "Spectacular Purple", swatch: "linear-gradient(135deg, #ffffff 0%, #efe9fd 55%, #4a2596 100%)", gate: "spectacular_theme" },
@@ -129,13 +130,6 @@ export default function ThemeTab({ draft, features, accent, onChange }: {
         <span className={s.name}>Compact sidebar<InfoTip label="Compact sidebar">{SETTINGS_TIPS.compactSidebar}</InfoTip></span>
         <Toggle on={draft.compact} onChange={(v) => onChange({ compact: v })} accent={accent} label="Compact sidebar" />
       </div>
-
-      {theme === "nextgen2" && features?.next_experience === true && (
-        <div className={s.switchRow}>
-          <span className={s.name}>Rich look<InfoTip label="Rich look">{SETTINGS_TIPS.richLook}</InfoTip></span>
-          <Toggle on={draft.rich} onChange={(v) => onChange({ rich: v })} accent={accent} label="Rich look" />
-        </div>
-      )}
 
       {(theme === "nextgen" || theme === "nextgen2" || theme === "spectacular_purple") && (
         <details className={s.more}>

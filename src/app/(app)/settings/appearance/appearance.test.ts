@@ -31,10 +31,10 @@ describe("the draft", () => {
     expect(draftFromTenant(tenant({ appearance: { tender_desk_style: "control" } })).tenderDeskStyle).toBe("control");
     expect(draftFromTenant(tenant({ appearance: { tender_desk_style: "classic" } })).tenderDeskStyle).toBe("bold");
   });
-  it("reads the Rich look as off unless the workspace stored true", () => {
-    expect(draftFromTenant(tenant({})).rich).toBe(false);
-    expect(draftFromTenant(tenant({ appearance: { ui_theme: "nextgen2" } })).rich).toBe(false);
-    expect(draftFromTenant(tenant({ appearance: { ui_theme: "nextgen2", rich_ui: true } })).rich).toBe(true);
+  it("reads Nova as the Rich theme only when the workspace stored rich_ui", () => {
+    expect(draftFromTenant(tenant({})).theme).toBe("classic");
+    expect(draftFromTenant(tenant({ appearance: { ui_theme: "nextgen2" } })).theme).toBe("nextgen2");
+    expect(draftFromTenant(tenant({ appearance: { ui_theme: "nextgen2", rich_ui: true } })).theme).toBe("rich");
   });
   it("starts with Nova's chrome switches on, as the hooks do", () => {
     expect(draftFromTenant(tenant({})).chrome).toEqual({ top_bar_identity: true, command_palette: true, navy_sidebar: true });
@@ -77,16 +77,18 @@ describe("one Save over three tabs", () => {
     expect(planAppearanceSave(initial, { ...initial }, stored).config).toBeUndefined();
   });
 
-  it("stores the Rich look only while on, with a reload, and drops the key when it goes off", () => {
+  it("stores the Rich theme as Nova plus rich_ui, with a reload, and drops the key when another theme is chosen", () => {
     const stored = { ui_theme: "nextgen2" as const };
     const start = draftFromTenant(tenant({ appearance: stored }));
-    const on = planAppearanceSave(start, { ...start, rich: true }, stored);
+    const on = planAppearanceSave(start, { ...start, theme: "rich" }, stored);
     expect(on.config?.appearance).toEqual({ ui_theme: "nextgen2", rich_ui: true });
     expect(on.reload).toBe(true);
     const richStored = { ui_theme: "nextgen2" as const, rich_ui: true };
     const was = draftFromTenant(tenant({ appearance: richStored }));
-    const off = planAppearanceSave(was, { ...was, rich: false }, richStored);
+    const off = planAppearanceSave(was, { ...was, theme: "nextgen2" }, richStored);
     expect(off.config?.appearance).toEqual({ ui_theme: "nextgen2" });
+    const away = planAppearanceSave(was, { ...was, theme: "modern" }, richStored);
+    expect(away.config?.appearance).toEqual({ ui_theme: "modern" });
     expect(planAppearanceSave(was, was, richStored).config).toBeUndefined();
   });
 
@@ -106,11 +108,11 @@ describe("Theme tab", () => {
 
   it("offers only the themes this workspace was given", () => {
     expect(themeTiles({}).map((t) => t.value)).toEqual(["classic", "modern", "nextgen"]);
-    expect(themeTiles(features).map((t) => t.value)).toEqual(["classic", "modern", "nextgen", "nextgen2", "spectacular", "spectacular_purple"]);
+    expect(themeTiles(features).map((t) => t.value)).toEqual(["classic", "modern", "nextgen", "nextgen2", "rich", "spectacular", "spectacular_purple"]);
   });
 
   it("has one colour row, whichever theme is chosen, and no descriptions under the tiles", () => {
-    for (const theme of ["classic", "nextgen2", "spectacular_purple"]) {
+    for (const theme of ["classic", "nextgen2", "rich", "spectacular_purple"]) {
       const out = render(theme);
       expect(out.match(/>Colour</g), theme).toHaveLength(1);
       expect(out).not.toContain("Dark navy sidebar, the original look");
@@ -124,11 +126,17 @@ describe("Theme tab", () => {
     expect(render("classic")).not.toContain("Pink");
   });
 
-  it("offers the Rich look only on Nova, and only to a workspace that has the Nova flag", () => {
-    expect(render("nextgen2")).toContain("Rich look");
-    expect(render("nextgen2", {})).not.toContain("Rich look");
-    expect(render("nextgen")).not.toContain("Rich look");
-    expect(render("classic")).not.toContain("Rich look");
+  it("offers Rich as a theme tile, like the others, to a workspace that has the Nova flag", () => {
+    expect(themeTiles({ next_experience: true }).map((t) => t.value)).toContain("rich");
+    expect(themeTiles({}).map((t) => t.value)).not.toContain("rich");
+    expect(render("classic")).toContain(">Rich<");
+    expect(render("classic", {})).not.toContain(">Rich<");
+    expect(render("rich")).not.toContain("Rich look");
+  });
+
+  it("gives Rich the accent colour row, not Nova's presets", () => {
+    expect(render("rich")).not.toContain("Pink");
+    expect(render("rich").match(/>Colour</g)).toHaveLength(1);
   });
 
   it("keeps layout and custom colours behind one More, only where they apply", () => {

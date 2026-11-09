@@ -89,7 +89,7 @@ const FEATURE_LABELS: { key: keyof TenantFeatures; label: string; premium?: bool
   { key: "crew", label: "AI automation (the workcenter of pre-built agents: page, runner and the allowance meter; each agent has its own flag)", premium: true, group: "Platform & automation" },
   { key: "crew_tender_watch", label: "AI automation: Tender Watch (reads tender deals, flags bids at risk and drafts a nudge a person approves — needs AI automation and GCC tender deals)", premium: true, group: "Platform & automation" },
   { key: "crew_attendance", label: "AI automation: Attendance Anomalies (aliased attendance patterns for supervisors; keep OFF for a real workspace until the owner has the written acceptance — needs AI automation and Workforce)", premium: true, group: "Platform & automation" },
-  { key: "next_experience", label: "Nova — the Business OS experience", premium: true, group: "Programs" },
+  { key: "next_experience", label: "Nova — the Business OS experience (also offers the Rich theme)", premium: true, group: "Programs" },
   { key: "enterprise_theme", label: "Enterprise theme (dark rail + light workspace)", premium: true, group: "Programs" },
   { key: "spectacular_theme", label: "Spectacular theme (navy or lilac palette)", premium: true, group: "Programs" },
 ];

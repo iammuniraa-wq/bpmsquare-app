@@ -75,3 +75,6 @@ What changed, and where:
 - **Phone**: one floating control (the orb). AI on/off is "Turn off" in the panel (all sizes); dark mode is in the avatar menu on phones; the top and tab bars are near-solid.
 
 Known gaps: the Pricing tabs sit above the page title; chart labels inside SVGs stay small; the workspace tab strip's "20 tabs were open" notice is the tabs feature, not styling.
+
+## Rich as a theme tile (2026-11-09)
+Owner: "I want to select it as a theme like other themes", provisioned and activated the way the other themes are. Settings > Appearance now lists **Rich** beside Nova, Enterprise and Spectacular, offered to a workspace whose platform-admin Programs flag is on (Rich is a skin over Nova, so it uses the Nova flag, `next_experience`; the admin screen labels it). Choosing the tile stores Nova (`ui_theme: "nextgen2"`) plus `appearance.rich_ui: true`; choosing any other theme removes the key. Nothing else reads a new value, so every existing gate (`isRichTenant`, the demo workspace) is unchanged. The separate "Rich look" switch under Nova is gone. Colour: Rich uses the workspace accent row (its violet is the tenant accent). Tightening the provisioning (a flag of its own) is deferred by the owner.
