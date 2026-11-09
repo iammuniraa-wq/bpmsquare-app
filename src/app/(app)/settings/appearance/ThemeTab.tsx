@@ -30,7 +30,7 @@ const SPECTACULAR_MIXES: { label: string; from: string; to: string; accent: stri
 ];
 const SPEC_DEFAULT = { shell_from: "#211046", shell_to: "#14072E", accent: "#5129C4" };
 
-type ThemeTile = { value: ThemeId; label: string; swatch: string; gate?: keyof TenantFeatures };
+type ThemeTile = { value: ThemeId; label: string; swatch: string; gate?: keyof TenantFeatures; demoOnly?: boolean };
 
 /** Themes behind a platform-admin flag are offered only to the workspaces it was switched on for. */
 const THEMES: ThemeTile[] = [
@@ -38,13 +38,15 @@ const THEMES: ThemeTile[] = [
   { value: "modern", label: "Modern", swatch: "linear-gradient(135deg, #14294b, #0a1830)" },
   { value: "nextgen", label: "Next-gen", swatch: "linear-gradient(135deg, #ffffff, #eef3fe)" },
   { value: "nextgen2", label: "Nova", swatch: "linear-gradient(135deg, #eef3fe, #dbe7fd)", gate: "next_experience" },
-  { value: "rich", label: "Rich", swatch: "linear-gradient(135deg, #f6f4fa 0%, #c4b2ff 62%, #6d4cf5 100%)", gate: "next_experience" },
+  { value: "rich", label: "Rich", swatch: "linear-gradient(135deg, #f6f4fa 0%, #c4b2ff 62%, #6d4cf5 100%)", gate: "next_experience", demoOnly: true },
   { value: "enterprise", label: "Enterprise", swatch: "linear-gradient(135deg, #152233 0%, #152233 42%, #ffffff 42%, #ffffff 100%)", gate: "enterprise_theme" },
   { value: "spectacular", label: "Spectacular", swatch: "linear-gradient(135deg, #ffffff 0%, #edf3ff 55%, #1e3a6e 100%)", gate: "spectacular_theme" },
   { value: "spectacular_purple", label: "Spectacular Purple", swatch: "linear-gradient(135deg, #ffffff 0%, #efe9fd 55%, #4a2596 100%)", gate: "spectacular_theme" },
 ];
 
-export const themeTiles = (features: Partial<TenantFeatures> | undefined) => THEMES.filter((t) => !t.gate || features?.[t.gate] === true);
+/** Rich is under owner review, so it is offered to demo workspaces (tenants.is_demo) only until he widens it. */
+export const themeTiles = (features: Partial<TenantFeatures> | undefined, demo = false) =>
+  THEMES.filter((t) => (!t.gate || features?.[t.gate] === true) && (!t.demoOnly || demo));
 
 const lower = (v: string) => v.toLowerCase();
 
@@ -67,9 +69,10 @@ function AccentRow({ value, onChange }: { value: string; onChange: (hex: string)
 }
 
 /** Theme tiles, the ONE colour row for the chosen theme, and the compact sidebar. Rare choices sit behind "More". */
-export default function ThemeTab({ draft, features, accent, onChange }: {
+export default function ThemeTab({ draft, features, demo = false, accent, onChange }: {
   draft: AppearanceDraft;
   features: Partial<TenantFeatures> | undefined;
+  demo?: boolean;
   accent: string;
   onChange: (patch: Partial<AppearanceDraft>) => void;
 }) {
@@ -84,7 +87,7 @@ export default function ThemeTab({ draft, features, accent, onChange }: {
       <div>
         <div className={s.label}><span className="bpm-t-label">Theme</span></div>
         <div className={s.tiles}>
-          {themeTiles(features).map((t) => (
+          {themeTiles(features, demo).map((t) => (
             <button key={t.value} type="button" className={s.tile} aria-pressed={theme === t.value} onClick={() => onChange({ theme: t.value })}>
               <span className={s.swatch} style={{ background: t.swatch }} />
               <span className={s.tileName}>{t.label}</span>
