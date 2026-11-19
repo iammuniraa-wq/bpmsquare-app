@@ -11,28 +11,26 @@ import type { ShownData } from "./types";
 
 type Fold = { open: boolean; onToggle: (open: boolean) => void };
 
-/** "How the price is built": the old Costing, plus the AI review when the estimate is saved. */
+/** "How the price is built", closed under the price: cost by component, cost and margin, plus the AI review when the estimate is saved. */
 export function PriceBuiltFold({ shown, fold, estimateId, canReview }: { shown: ShownData; fold: Fold; estimateId?: string; canReview?: boolean }) {
   const cur = useCurrency();
   const money = useMemo(() => moneyFormatter(cur, { maximumFractionDigits: 2 }), [cur]);
   return (
-    <Collapsible id="price" title="How the price is built" hint="for your team" {...fold}>
+    <Collapsible id="price" title="How the price is built" hint="cost and margin, for your team" {...fold}>
       <PriceBuilt totals={shown.totals} money={money} estimateId={estimateId} canReview={canReview && shown.lines.length > 0} />
     </Collapsible>
   );
 }
 
-/** "Build schedule and risk": the old Simulation tab's schedule and risk panels. */
-export function ScheduleRiskFold({ shown, rules, rates, fold }: { shown: ShownData; rules: TemplateRule[]; rates: TemplateRate[]; fold: Fold }) {
+/** The "Schedule & risk" tab: how long the build takes and how the cost could move (the old Simulation tab's panels). */
+export function ScheduleRiskPanel({ shown, rules, rates }: { shown: ShownData; rules: TemplateRule[]; rates: TemplateRate[] }) {
   const cur = useCurrency();
   const t = shown.totals;
   return (
-    <Collapsible id="schedule" title="Build schedule and risk" hint="how long it takes, and how the cost could move" {...fold}>
-      <ScheduleRiskSection
-        key={t?.margin_pct ?? 0}
-        model={shown.model} lines={shown.lines} rules={rules} rates={rates}
-        price={t?.price ?? 0} marginPct={t?.margin_pct ?? 0} vatPct={t?.vat_pct ?? 0} currency={cur}
-      />
-    </Collapsible>
+    <ScheduleRiskSection
+      key={t?.margin_pct ?? 0}
+      model={shown.model} lines={shown.lines} rules={rules} rates={rates}
+      price={t?.price ?? 0} marginPct={t?.margin_pct ?? 0} vatPct={t?.vat_pct ?? 0} currency={cur}
+    />
   );
 }

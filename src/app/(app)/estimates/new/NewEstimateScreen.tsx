@@ -1,34 +1,40 @@
 "use client";
 
 import { useState } from "react";
+import Tabs from "@/components/ui/Tabs";
+import { useUrlTab } from "@/components/ui/useUrlTab";
 import EstimateWorkspace from "@/components/estimator/workspace/EstimateWorkspace";
 import type { WorkspaceProps } from "@/components/estimator/workspace/EstimateWorkspace";
-import { PriceBuiltFold, ScheduleRiskFold } from "@/components/estimator/workspace/InternalFolds";
+import { PriceBuiltFold, ScheduleRiskPanel } from "@/components/estimator/workspace/InternalFolds";
 import { hasBuildSchedule } from "@/components/estimator/workspace/layoutKind";
-
-type Open = { price: boolean; schedule: boolean };
+import { ESTIMATE_TAB_IDS, estimateTabs, newEstimateTab } from "@/components/estimator/workspace/tabTargets";
+import { ESTIMATE_TIPS } from "@/lib/estimator/tips";
 
 /**
- * /estimates/new: the working page with nothing saved yet. The internal sections
- * that only need the figures (how the price is built, the build schedule and
- * risk) work from the live preview; the bill of materials, the ERP files and the
- * details belong to a saved estimate and are one click away after "Save as draft".
+ * /estimates/new: the working page with nothing saved yet, on the same tabs as a saved estimate. "How the price is built" and the
+ * schedule work from the live preview; the materials and the details belong to a saved estimate, so their tabs are shown but cannot
+ * be chosen until the first save (the reason is behind their "i").
  */
-export default function NewEstimateScreen(props: Omit<WorkspaceProps, "renderInternal" | "saved">) {
-  const [open, setOpen] = useState<Open>({ price: false, schedule: false });
-  const fold = (id: keyof Open) => ({ open: open[id], onToggle: (v: boolean) => setOpen((o) => ({ ...o, [id]: v })) });
+export default function NewEstimateScreen(props: Omit<WorkspaceProps, "renderInternal" | "saved" | "tabs" | "onShowMain">) {
+  const [priceOpen, setPriceOpen] = useState(false);
+  const [tab, setTab] = useUrlTab(ESTIMATE_TAB_IDS);
   return (
     <EstimateWorkspace
       {...props}
-      renderInternal={(shown, tpl) => (shown.totals && tpl ? (
-        <>
-          <PriceBuiltFold shown={shown} fold={fold("price")} />
-          {hasBuildSchedule(tpl.geometry) && <ScheduleRiskFold shown={shown} rules={tpl.rules} rates={tpl.rates} fold={fold("schedule")} />}
-          <p className="bpm-t-help" style={{ margin: 0 }}>
-            The bill of materials, the files for your ERP and the details appear once the estimate is saved: press Save as draft or Create quote.
-          </p>
-        </>
-      ) : null)}
+      tabs={(tpl) => {
+        const schedule = hasBuildSchedule(tpl?.geometry);
+        const active = newEstimateTab(tab, schedule);
+        return {
+          strip: <Tabs tabs={estimateTabs({ schedule, saved: false, needsSaveTip: ESTIMATE_TIPS.needsSave })} value={active} onChange={setTab} label="Estimate sections" />,
+          main: active === "estimate",
+        };
+      }}
+      renderInternal={(shown, tpl) => {
+        if (!tpl) return null;
+        const active = newEstimateTab(tab, hasBuildSchedule(tpl.geometry));
+        if (active === "schedule") return <ScheduleRiskPanel shown={shown} rules={tpl.rules} rates={tpl.rates} />;
+        return shown.totals ? <PriceBuiltFold shown={shown} fold={{ open: priceOpen, onToggle: setPriceOpen }} /> : null;
+      }}
     />
   );
 }

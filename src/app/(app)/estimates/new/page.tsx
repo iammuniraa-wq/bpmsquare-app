@@ -19,6 +19,7 @@ import NewEstimateScreen from "./NewEstimateScreen";
 import StarterButton from "./StarterButton";
 import TemplateCards from "./TemplateCards";
 import { aiConfigured } from "@/lib/estimator/aiServer";
+import { ESTIMATE_TIPS } from "@/lib/estimator/tips";
 
 type TemplateRow = Pick<EstimateTemplate, "id" | "name" | "description" | "geometry" | "inputs" | "rates" | "rules" | "quote_granularity" | "icon" | "keywords" | "locked" | "visual" | "customer_visible">;
 
@@ -117,10 +118,20 @@ export default async function NewEstimatePage({ searchParams }: { searchParams: 
     );
   }
 
+  // An estimate made for a tender is for the tender's own customer: the deal's account (and its contact, when it is one of that account's)
+  // is filled in, so the person does not choose it again. Both ids come from this workspace's deal row and are checked against this
+  // workspace's own lists here; POST /api/estimates verifies them again on save.
+  const accountList = (accounts.data ?? []) as { id: string; name: string }[];
+  const contactList = (contacts.data ?? []) as { id: string; name: string; account_id: string | null }[];
+  const fromUrl = account_id && accountList.some((a) => a.id === account_id) ? account_id : undefined;
+  const dealAccount = dealCtx?.account_id && accountList.some((a) => a.id === dealCtx.account_id) ? dealCtx.account_id : undefined;
+  const dealContact = dealAccount && dealCtx?.contact_id && contactList.some((ct) => ct.id === dealCtx.contact_id && ct.account_id === dealAccount) ? dealCtx.contact_id : undefined;
+
   // Duplicate: start from another estimate's template, inputs, margin and account.
   let init: DraftInit = {
     templateId: chosen ?? templates[0].id,
-    accountId: account_id && (accounts.data ?? []).some((a) => a.id === account_id) ? account_id : undefined,
+    accountId: dealAccount ?? fromUrl,
+    ...(dealContact ? { contactId: dealContact } : {}),
     ...(dealCtx ? { opportunityId: dealCtx.id } : {}),
   };
   if (from && /^[0-9a-f-]{36}$/i.test(from)) {
@@ -165,13 +176,13 @@ export default async function NewEstimatePage({ searchParams }: { searchParams: 
           For tender <b>{dealCtx.ref ?? dealCtx.title}</b> · <Link href={`/pipeline/${dealCtx.id}?tab=estimates`} className="bpm-backlink">Back to the tender</Link>
         </div>
       )}
-      <PageHeader title={templates.length > 1 ? `New estimate: ${templates.find((t) => t.id === init.templateId)?.name ?? ""}` : "New estimate"} subtitle="Start from the customer's email or fill in the details. Nothing is saved until you create the quote or save a draft." action={templates.length > 1 ? <Button href={dealCtx ? `${ROUTES.estimateNew}?opportunity=${dealCtx.id}` : ROUTES.estimateNew} variant="secondary" size="sm">Change template</Button> : undefined} />
+      <PageHeader title={templates.length > 1 ? `New estimate: ${templates.find((t) => t.id === init.templateId)?.name ?? ""}` : "New estimate"} info={dealCtx ? ESTIMATE_TIPS.pageTender : ESTIMATE_TIPS.page} action={templates.length > 1 ? <Button href={dealCtx ? `${ROUTES.estimateNew}?opportunity=${dealCtx.id}` : ROUTES.estimateNew} variant="secondary" size="sm">Change template</Button> : undefined} />
       <NewEstimateScreen
         templates={templates}
         init={init}
         vatPct={meta.vat_pct}
-        accounts={(accounts.data ?? []) as { id: string; name: string }[]}
-        contacts={(contacts.data ?? []) as { id: string; name: string; account_id: string | null }[]}
+        accounts={accountList}
+        contacts={contactList}
         canEdit
         canQuote={canQuote}
         quoteUnavailable={quoteUnavailable}

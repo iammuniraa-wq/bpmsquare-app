@@ -8,7 +8,7 @@ const lbl: React.CSSProperties = { display: "flex", flexDirection: "column", gap
 /** Erection play / step controls, explode slider and colour mode. Every control has a text label. */
 export default function ViewerControls({
   step, steps, stepName, playing, reducedMotion, explode, mode,
-  onStep, onPlay, onExplode, onMode, inside, onInside, closeUp, onCloseUp,
+  onStep, onPlay, onExplode, onMode, onZoom, inside, onInside, closeUp, onCloseUp,
 }: {
   step: number;
   steps: number;
@@ -21,6 +21,8 @@ export default function ViewerControls({
   onPlay: () => void;
   onExplode: (v: number) => void;
   onMode: (m: ColourMode) => void;
+  /** The zoom buttons (a plain mouse wheel scrolls the page, so zoom needs a control of its own). factor < 1 = closer. */
+  onZoom?: (factor: number) => void;
   /** A cabin: whether the roof and front wall are cut away to show the rooms. Absent = no such control. */
   inside?: boolean;
   onInside?: (on: boolean) => void;
@@ -39,6 +41,12 @@ export default function ViewerControls({
         )}
         {closeUp !== undefined && onCloseUp && (
           <Button size="sm" variant="secondary" onClick={() => onCloseUp(!closeUp)} aria-pressed={!closeUp}>{closeUp ? "See the whole fence" : "Close up at a gate"}</Button>
+        )}
+        {onZoom && (
+          <>
+            <Button size="sm" variant="secondary" onClick={() => onZoom(0.8)} aria-label="Zoom in" title="Zoom in (Ctrl + scroll, or pinch)">+</Button>
+            <Button size="sm" variant="secondary" onClick={() => onZoom(1.25)} aria-label="Zoom out" title="Zoom out (Ctrl + scroll, or pinch)">−</Button>
+          </>
         )}
         <Button size="sm" variant="secondary" onClick={() => onStep(step - 1)} disabled={step <= 0}>Previous step</Button>
         <Button size="sm" variant="secondary" onClick={() => onStep(step + 1)} disabled={step >= steps - 1}>Next step</Button>

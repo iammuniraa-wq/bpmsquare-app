@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
+import InfoTip from "@/components/ui/InfoTip";
+import { ESTIMATE_TIPS } from "@/lib/estimator/tips";
 import { useCurrency } from "@/lib/tenant-context";
 import { moneyFormatter } from "@/lib/currency";
 import { alternativesInput } from "@/lib/estimator/quoteLines";
@@ -25,7 +27,7 @@ import SenderCard from "./SenderCard";
 import VisualStack from "./VisualStack";
 import { fenceViewOf } from "@/lib/estimator/fenceView";
 import { buildStrip, customerStrip } from "@/lib/estimator/visualStrip";
-import { wordsFor, opensWithDefaults } from "./layoutKind";
+import { opensWithDefaults } from "./layoutKind";
 import { pictureFor } from "./picture";
 import { EstimateFocusContext } from "./focus";
 import { carriedUnitCosts, isDirty, shownBlank, shownFromPreview } from "./shown";
@@ -72,11 +74,19 @@ export type WorkspaceProps = {
   emailFirst?: boolean;
   /** The internal sections under the page, given the figures being shown. */
   renderInternal?: (shown: ShownData, template: WorkspaceTemplate | null) => React.ReactNode;
+  /**
+   * The record's tabs: the strip to draw above the page, and whether the working page itself (inputs, model, price) is the tab on show.
+   * While another tab is open the working page is hidden, not unmounted, so nothing typed or pasted is lost by looking at another tab.
+   */
+  tabs?: (template: WorkspaceTemplate | null) => { strip: React.ReactNode; main: boolean };
+  /** Something on another tab points at the working page ("Show in 3D"): bring its tab back. */
+  onShowMain?: () => void;
 };
 
 /**
  * The one working page for a new and a saved estimate: the customer's email, the
- * plain inputs, the exact model and the price side by side, and one action. It
+ * plain inputs, the exact model and the price (with the one cost breakdown) side by
+ * side, and one action. The secondary sections are the record's other tabs. It
  * recomputes as the person types (pure code in the browser, or the debounced
  * preview route for catalogue-priced templates) and saves nothing until a button
  * is pressed. A saved estimate shows its stored figures until it is edited.
@@ -89,7 +99,8 @@ export default function EstimateWorkspace(p: WorkspaceProps) {
   const t = draft.template;
   const [accounts, setAccounts] = useState(p.accounts);
   const [contacts, setContacts] = useState(p.contacts);
-  const [customerOpen, setCustomerOpen] = useState(true);
+  // A customer that is already known (the tender's own account, a copy, the sender of an Inbox email) is not asked for again: the block starts closed.
+  const [customerOpen, setCustomerOpen] = useState(!p.init.accountId);
   const customerSummary = [accounts.find((a) => a.id === draft.accountId)?.name, contacts.find((c) => c.id === draft.contactId)?.name].filter(Boolean).join(" · ");
   const [highlightCode, setHighlightCode] = useState<string | null>(p.initialHighlight ?? null);
   const locked = !!saved?.locked;
@@ -140,10 +151,13 @@ export default function EstimateWorkspace(p: WorkspaceProps) {
     const line = highlightCode ? picture.lines.find((l) => l.code === highlightCode) : null;
     return line && picture.model ? marksForRef(line.element_ref, picture.model.pieces) : undefined;
   }, [highlightCode, picture]);
+  const { onShowMain } = p;
   const show = useCallback((code: string) => {
     setHighlightCode(code);
-    document.getElementById("villa")?.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
-  }, []);
+    onShowMain?.();
+    // After the tab is back on show, so there is something to scroll to.
+    requestAnimationFrame(() => document.getElementById("villa")?.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" }));
+  }, [onShowMain]);
 
   const blocked = !view ? "Fill in the details to see a price."
     : preview && !preview.complete && !showStored
@@ -152,25 +166,30 @@ export default function EstimateWorkspace(p: WorkspaceProps) {
         : "Some items have no cost in the catalogue yet, so this cannot be quoted.")
       : view.problems[0] ?? null;
   const issue = live.issues[0]?.message ?? act.issues[0]?.message;
+  const tabs = p.tabs?.(t);
+  const mainHidden = !!tabs && !tabs.main;
 
   return (
     <EstimateFocusContext.Provider value={{ highlightCode, show }}>
       <div className="est-stack">
+        {tabs?.strip}
+        <div className="est-stack" hidden={mainHidden}>
         {!saved && (
           <Card padding={16}>
-            <button type="button" aria-expanded={customerOpen} aria-controls="est-customer-body" onClick={() => setCustomerOpen((o) => !o)}
-              style={{ all: "unset", cursor: "pointer", display: "flex", alignItems: "center", gap: 8, width: "100%", boxSizing: "border-box" }}>
-              <span className="bpm-t-label">Customer</span>
-              <span className="bpm-t-help" style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                {customerSummary || "Not chosen yet"}
-              </span>
-              <span aria-hidden style={{ transition: "transform .15s", transform: customerOpen ? "rotate(180deg)" : "none" }}>▾</span>
-            </button>
+            {/* The "i" is a button, so it sits beside the toggle, never inside it. */}
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <button type="button" aria-expanded={customerOpen} aria-controls="est-customer-body" onClick={() => setCustomerOpen((o) => !o)} data-guide="estimate.customer"
+                style={{ all: "unset", cursor: "pointer", display: "flex", alignItems: "center", gap: 8, flex: 1, minWidth: 0, minHeight: 28, boxSizing: "border-box" }}>
+                <span className="bpm-t-label">Customer</span>
+                <span className="bpm-t-help" style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {customerSummary || "Not chosen yet"}
+                </span>
+                <span aria-hidden style={{ transition: "transform .15s", transform: customerOpen ? "rotate(180deg)" : "none" }}>▾</span>
+              </button>
+              <InfoTip label="Customer">{p.fromTender && p.init.accountId ? ESTIMATE_TIPS.customerTender : ESTIMATE_TIPS.customer}</InfoTip>
+            </div>
             {customerOpen && (
               <div id="est-customer-body" style={{ marginTop: 10 }}>
-                <p className="bpm-t-help" style={{ margin: "0 0 10px" }}>
-                  Start here: who is this quote for? Choose an account and contact, or read them from the customer&apos;s email below.
-                </p>
                 <AccountPicker accounts={accounts} contacts={contacts} accountId={draft.accountId} contactId={draft.contactId}
                   onAccount={draft.setAccountId} onContact={draft.setContactId} disabled={!editable || act.busy !== null} />
                 {editable && draft.sender && !draft.accountId && (
@@ -188,16 +207,8 @@ export default function EstimateWorkspace(p: WorkspaceProps) {
             <EmailIntake templates={p.templates} template={t} autoPick={!!p.emailFirst} onTemplate={draft.pickTemplate} onApply={draft.applyProposal} initialText={draft.brief} emailId={draft.sourceEmailId} />
           </Collapsible>
         )}
-        {locked && <div className="est-note" role="status">This estimate has a quote, so it is locked. Everything below is as it was quoted.</div>}
+        {locked && <div className="est-note" role="status">This estimate has a quote, so it is locked. To revise it, make a copy from the ⋯ menu.</div>}
         {!t && <Card padding={16}><div className="bpm-t-help">This estimate&apos;s template was deleted, so its inputs can&apos;t be shown or recalculated. Its lines and totals are kept as they were.</div></Card>}
-
-        {blank && editable && (
-          <div className="est-note" role="status">
-            {picture.model
-              ? `The 3D ${wordsFor(t?.geometry).subject} below uses starting sizes and nothing is saved yet. Paste the customer's email above, or change any detail, and it follows, with the price.`
-              : `Paste the customer's email above, or fill in any detail, and the ${wordsFor(t?.geometry).subject} and the price appear here.`}
-          </div>
-        )}
 
         <div className="est-grid">
           {t && (
@@ -220,11 +231,11 @@ export default function EstimateWorkspace(p: WorkspaceProps) {
             </div>
           )}
           <div className="est-stack" style={{ gridColumn: t ? undefined : "1 / -1" }}>
-            <VisualStack picture={picture} fenceView={fenceView} strip={strip} rates={t?.rates ?? []} money={money} highlightMarks={marks} visuals={visuals}
+            <VisualStack picture={picture} fenceView={fenceView} rates={t?.rates ?? []} money={money} highlightMarks={marks} visuals={visuals}
               note={highlightCode && marks && marks.length > 0 ? `Lighting up the ${marks.length} pieces of the line "${highlightCode}".` : undefined}
               onUsePattern={editable && t ? (n) => { const o = t.inputs.find((i) => i.key === "pattern")?.options?.find((x) => x.value === n); if (o) draft.setValue("pattern", o.key); } : undefined} />
             <div id="price-card" style={{ scrollMarginTop: 80, minWidth: 0 }}>
-            <PriceCard view={view} options={options} money={money}
+            <PriceCard view={view} options={options} money={money} unpriced={strip?.unpriced}
               onPickOption={editable && altKey ? (k) => draft.setValue(altKey, k) : undefined}
               state={{ status: showStored ? "ready" : live.status, catalogue: live.catalogue, unsaved: !!saved && dirty, issue, notes: showStored ? [] : live.notes }}>
               {act.needAccount && !saved?.quote && (
@@ -234,7 +245,7 @@ export default function EstimateWorkspace(p: WorkspaceProps) {
                     onContinue={(id) => { draft.setAccountId(id); void act.createQuote(id); }} onCancel={() => act.setNeedAccount(false)} />
                 </div>
               )}
-              <QuoteActions quote={saved?.quote ?? null} canQuote={p.canQuote && p.canEdit} quoteUnavailable={p.quoteUnavailable} forTender={!!p.fromTender} blocked={blocked}
+              <QuoteActions quote={saved?.quote ?? null} canQuote={p.canQuote && p.canEdit} quoteUnavailable={p.quoteUnavailable} forTender={!!p.fromTender} blocked={blocked} blockedShown={!view}
                 busy={act.busy} isNew={!saved} error={act.error} onCreate={() => void act.createQuote()} onSaveDraft={() => void act.saveDraft()} />
             </PriceCard>
             </div>
@@ -244,6 +255,7 @@ export default function EstimateWorkspace(p: WorkspaceProps) {
         {saved?.quote && view && view.sections.length > 0 && (
           <CustomerPreview view={saved.view} options={options} money={money} customer={draft.customer || ""} quote={saved.quote} strip={t?.customer_visible ? customerStrip(strip) : null} />
         )}
+        </div>
         {p.renderInternal?.(shown, t)}
       </div>
     </EstimateFocusContext.Provider>

@@ -346,7 +346,7 @@ export default function EmailIntake({
               {rows.length > 8 && (
                 <Button variant="quiet" size="sm" onClick={() => setShowAll((v) => !v)}>{showAll ? "Show fewer" : `Show all ${rows.length}`}</Button>
               )}
-              <div className="bpm-t-help" style={{ marginTop: 6 }}>Nothing is saved yet. Check the details below, then press Create quote or Save as draft.</div>
+              <div className="bpm-t-help" style={{ marginTop: 6 }}>Nothing is saved yet. Check the details below.</div>
             </div>
           )}
         </>

@@ -2218,6 +2218,7 @@ textarea.bpm-input { min-height: 72px; resize: vertical; }
    come from the theme tokens only. */
 .est-grid { display: grid; grid-template-columns: 330px minmax(0, 1fr); gap: 14px; align-items: start; }
 .est-stack { display: grid; gap: 14px; min-width: 0; }
+.est-stack[hidden] { display: none; }
 .est-fields > * + * { margin-top: 2px; }
 .est-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
 .est-row { display: flex; justify-content: space-between; gap: 10px; padding: 7px 0; border-bottom: 1px solid var(--line); font-size: 13px; font-variant-numeric: tabular-nums; }

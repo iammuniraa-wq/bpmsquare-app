@@ -43,7 +43,17 @@ export type OrbitHandlers = {
   onEscape?: () => void;
 };
 
-/** Mouse drag / wheel, one-finger rotate, two-finger pinch, arrow keys and + / -. Returns its own cleanup. */
+/**
+ * How far a wheel event zooms, or null when the wheel belongs to the page. A plain wheel scrolls the page (the model must never trap
+ * the scroll); Ctrl or Cmd + wheel zooms, which is also what a trackpad pinch sends (small deltas, so they count for more).
+ */
+export function wheelZoomFactor(e: { deltaY: number; ctrlKey: boolean; metaKey: boolean }): number | null {
+  if (!e.ctrlKey && !e.metaKey) return null;
+  const step = Math.abs(e.deltaY) < 40 ? e.deltaY * 0.01 : e.deltaY * 0.001;
+  return 1 + Math.max(-0.5, Math.min(0.5, step));
+}
+
+/** Mouse drag, Ctrl / Cmd + wheel, one-finger rotate, two-finger pinch, arrow keys and + / -. Returns its own cleanup. */
 export function attachOrbit(el: HTMLElement, h: OrbitHandlers): () => void {
   const pointers = new Map<number, { x: number; y: number }>();
   let moved = 0;
@@ -85,8 +95,10 @@ export function attachOrbit(el: HTMLElement, h: OrbitHandlers): () => void {
     if (wasOnly && moved < 6 && e.timeStamp - downAt < 700 && e.type === "pointerup") h.onTap(e.clientX, e.clientY);
   };
   const wheel = (e: WheelEvent) => {
+    const factor = wheelZoomFactor(e);
+    if (factor === null) return;
     e.preventDefault();
-    h.set(applyZoom(h.get(), 1 + e.deltaY * 0.001));
+    h.set(applyZoom(h.get(), factor));
   };
   const key = (e: KeyboardEvent) => {
     const s = h.get();

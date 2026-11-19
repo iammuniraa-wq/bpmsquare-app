@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applyDrag, applyZoom, cameraPosition, PITCH_MAX, PITCH_MIN } from "./orbit";
+import { applyDrag, applyZoom, cameraPosition, wheelZoomFactor, PITCH_MAX, PITCH_MIN } from "./orbit";
 import type { OrbitState } from "./orbit";
 
 const s: OrbitState = { yaw: 0.7, pitch: 0.5, dist: 40, minDist: 10, maxDist: 100 };
@@ -17,6 +17,13 @@ describe("orbit maths", () => {
     expect(applyZoom(s, Number.NaN)).toBe(s);
     expect(applyZoom(s, -1)).toBe(s);
     expect(applyZoom(s, 0.5).dist).toBe(20);
+  });
+  it("a plain wheel is left to the page; Ctrl or Cmd + wheel (and a trackpad pinch) zooms", () => {
+    expect(wheelZoomFactor({ deltaY: 100, ctrlKey: false, metaKey: false })).toBeNull();
+    expect(wheelZoomFactor({ deltaY: 100, ctrlKey: true, metaKey: false })).toBeCloseTo(1.1, 9);
+    expect(wheelZoomFactor({ deltaY: -100, ctrlKey: false, metaKey: true })).toBeCloseTo(0.9, 9);
+    expect(wheelZoomFactor({ deltaY: 4, ctrlKey: true, metaKey: false })).toBeCloseTo(1.04, 9);
+    expect(wheelZoomFactor({ deltaY: 1e6, ctrlKey: true, metaKey: false })).toBe(1.5);
   });
   it("the camera sits at the orbit distance from its target", () => {
     const t: [number, number, number] = [1, 2, 3];

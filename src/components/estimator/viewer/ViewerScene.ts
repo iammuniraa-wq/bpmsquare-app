@@ -20,7 +20,7 @@ import { getGeometry } from "@/lib/estimator/geometry";
 import type { DesignSlot } from "@/lib/estimator/geometry/types";
 import { CHAINLINK_FENCE_KEY } from "@/lib/estimator/geometry/chainlinkFence";
 import { slotValue } from "@/lib/estimator/geometry/pieceSlots";
-import { attachOrbit, cameraPosition } from "./orbit";
+import { applyZoom, attachOrbit, cameraPosition } from "./orbit";
 import type { OrbitState } from "./orbit";
 import { createMaterialLibrary } from "./materialLibrary";
 import type { MaterialLibrary } from "./materialLibrary";
@@ -459,6 +459,12 @@ export class ViewerScene {
   }
 
   /** A long fence: look at one gate from close by, or at the whole run. */
+  /** The zoom buttons: factor < 1 moves the camera in. */
+  zoomBy(factor: number): void {
+    this.orbit = applyZoom(this.orbit, factor);
+    this.dirty = true;
+  }
+
   setFraming(closeUp: boolean): void {
     const v = closeUp && this.closeView ? this.closeView : this.wholeView;
     this.target = [...v.target] as [number, number, number];
