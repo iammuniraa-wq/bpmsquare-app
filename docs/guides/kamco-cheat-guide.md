@@ -78,10 +78,10 @@ Each tender shows one path: **Received, Decision, BOQ, Costing, Bid, Submitted, 
 
 The project appears once the tender is **Won** (**Create contract project**). It carries the contract value and the client's lines; **no cost is guessed**.
 
-- **Budget:** choose **Allocate by** **BOQ line** or **Work package**, then type costs. **Margin so far** is the contract value less what you allocated, and reads **Not allocated yet** until you allocate. **Fill from tender costs** copies the recorded costs once.
+- **Budget:** choose **Allocate by** **BOQ line** or **Work package**, then type costs. **Margin so far** is the contract value less what you allocated, and reads **Not allocated yet** until you allocate. A project from a tender starts with the costs the tender recorded; **Fill from tender costs** copies them again. While lines have no cost the margin says what it covers (**on 2 of 12 lines**). **Ask for approval** is also here, beside **Revision**.
 - **Work breakdown (WBS):** group BOQ lines into work packages, each with an owner. The owner must be an employee with a login.
 - **Tabs:** **Budget, Buy-out, Client changes, Client billing, Revisions, ERP handover** (two parts: **Budget** and **Packages**). **Ordered** and **Spent** replace Committed and Actual.
-- **Client billing:** **+ Add milestone**, or **Copy the tender's payment terms** when the bid carried a template.
+- **Client billing:** **+ Add milestone**, or **Create milestones from payment terms** on an empty schedule (the bid's terms, or one of your templates). A draft invoice is not counted as **Invoiced**.
 
 ## 7. Settings added or changed
 

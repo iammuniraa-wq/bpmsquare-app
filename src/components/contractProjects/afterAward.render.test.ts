@@ -304,17 +304,62 @@ describe("the Invoicing tab", () => {
   });
 });
 
+describe("a draft invoice is not counted as invoiced", () => {
+  const draft = milestone({ id: "m3", title: "Advance", status: "invoiced", display_status: "invoiced", invoice_id: "i3", invoice_ref: "INV-2026-0002", invoice_status: "draft" });
+  const sent = milestone({ id: "m2", title: "Mobilisation", basis: "fixed", percent: null, fixed_amount: 10000, amount: 10000, status: "invoiced", display_status: "invoiced", invoice_id: "i2", invoice_ref: "INV-0002", invoice_status: "sent" });
+
+  it("the Invoiced tile leaves the draft out and says '1 draft (SAR ...)' in its sub line; Still to invoice keeps it", () => {
+    const out = itab(mdata([draft, sent]));
+    expect(out).toContain('data-guide="cp.invoicing.drafts"');
+    expect(out).toContain("1 draft (SAR 31,500)");
+    expect(out).toContain("SAR 10,000"); // invoiced: the sent one only
+    expect(out).toContain("SAR 95,000"); // 105,000 - 10,000
+  });
+
+  it("its row says Draft invoice, and still links to the invoice", () => {
+    const out = itab(mdata([draft]));
+    expect(out).toContain("Draft invoice");
+    expect(out).toContain("INV-2026-0002");
+    expect(out).toContain("2 drafts".slice(0, 0) + "1 draft (SAR 31,500)");
+  });
+
+  it("with no draft the tile says nothing about drafts", () => {
+    expect(itab(mdata([sent]))).not.toContain("cp.invoicing.drafts");
+  });
+});
+
 describe("copying the tender's payment terms into the billing schedule", () => {
   const terms = { name: "30 / 60 / 10", count: 3 };
 
-  it("offers Copy the tender's payment terms (secondary, with an i) only while the schedule is empty, the person may edit and terms exist", () => {
+  it("an empty schedule offers Create milestones from payment terms in the empty state itself (one press, with an i), naming the winning bid's terms", () => {
     const out = itab(mdata([], { termsOffer: terms }));
     expect(out).toContain('data-guide="cp.milestone.copy_terms"');
-    expect(out).toContain("Copy the tender&#x27;s payment terms");
-    expect(out).toContain("About Copy the tender&#x27;s payment terms");
+    expect(out).toContain("Create milestones from payment terms");
+    expect(out).toContain("About Create milestones from payment terms");
+    expect(out).toContain("The winning bid&#x27;s payment terms: 30 / 60 / 10, 3 milestones.");
     expect(out).not.toContain(PROJECT_TIPS.copyTerms);
-    expect(out).toContain('data-guide="cp.milestone.add"'); // + Add milestone stays the primary action
-    expect(out.indexOf("cp.milestone.copy_terms")).toBeLessThan(out.indexOf("cp.milestone.add"));
+    expect(out).toContain('data-guide="cp.milestone.add"'); // + Add milestone stays, in the card header
+    expect(out.indexOf("No milestones yet")).toBeLessThan(out.indexOf("cp.milestone.copy_terms")); // inside the empty state, where the eye lands
+    expect(out).not.toContain("cp.milestone.template");
+  });
+
+  it("when the tender chose no terms, the empty state offers the workspace's payment-term templates: pick one, then Create milestones", () => {
+    const templates = [{ id: "t1", name: "TEST 30 / 70", count: 2 }, { id: "t2", name: "Monthly", count: 6 }];
+    const out = itab(mdata([], { termsOffer: null, termTemplates: templates }));
+    expect(out).toContain('data-guide="cp.milestone.template"');
+    expect(out).toContain("TEST 30 / 70 (2)");
+    expect(out).toContain("Monthly (6)");
+    expect(out).toContain('data-guide="cp.milestone.from_template"');
+    expect(out).toMatch(/<button[^>]*disabled=""[^>]*data-guide="cp\.milestone\.from_template"|data-guide="cp\.milestone\.from_template"[^>]*disabled=""/); // nothing chosen yet
+    expect(out).not.toContain(PROJECT_TIPS.termTemplates);
+    expect(out).not.toContain("cp.milestone.copy_terms");
+    // Never both, never on a schedule that has milestones, never to a person who cannot edit, never on a closed project.
+    expect(itab(mdata([], { termsOffer: terms, termTemplates: templates }))).not.toContain("cp.milestone.template");
+    expect(itab(mdata([milestone()], { termTemplates: templates }))).not.toContain("cp.milestone.template");
+    expect(itab(mdata([], { termTemplates: templates, canEdit: false }))).not.toContain("cp.milestone.template");
+    expect(itab(mdata([], { termTemplates: templates }), undefined, true)).not.toContain("cp.milestone.template");
+    expect(itab(mdata([], { termTemplates: [] }))).not.toContain("cp.milestone.template");
+    expect(src("InvoicingTab.tsx")).toContain("JSON.stringify(template ? { template_id: template } : {})");
   });
 
   it("is not offered with a schedule already made, to someone who cannot edit, on a closed project, or without terms", () => {

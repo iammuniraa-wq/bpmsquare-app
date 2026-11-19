@@ -14,6 +14,7 @@ import { day, money, pct } from "@/lib/contractProjects/format";
 import { PROJECT_TIPS } from "@/lib/contractProjects/tips";
 import { JUSTIFICATION_NEEDS_NOTE, REVISION_STATUS_LABEL } from "@/lib/contractProjects/types";
 import type { ProjectView } from "@/lib/contractProjects/view";
+import ApprovalControls from "./ApprovalControls";
 
 const tone = (s: string) => (s === "approved" ? "green" : s === "pending" ? "amber" : s === "superseded" ? "teal" : "blue") as "green" | "amber" | "teal" | "blue";
 const MAX_SHOWN = 40;
@@ -64,6 +65,12 @@ export default function RevisionsPanel({ view }: { view: ProjectView }) {
                   <td style={{ padding: "6px 12px", whiteSpace: "nowrap" }}>
                     <Link href={`${ROUTES.contractProject(p.id)}?tab=revisions&revision=${r.id}`} data-guide="cp.revisions.compare" style={{ display: "inline-flex", alignItems: "center", minHeight: 44, padding: "0 8px", color: c.accent, fontSize: 13 }}>Changes</Link>
                     <Link href={`${ROUTES.contractProject(p.id)}?tab=budget&revision=${r.id}`} data-guide="cp.revisions.open" style={{ display: "inline-flex", alignItems: "center", minHeight: 44, padding: "0 8px", color: c.accent, fontSize: 13 }}>Open</Link>
+                    {r.status === "draft" && revision?.id === r.id && (
+                      // The approval state is read for the revision being looked at, so the button sits on that row only.
+                      <span data-guide="cp.revisions.ask" style={{ display: "inline-flex", verticalAlign: "middle", whiteSpace: "normal", maxWidth: 260 }}>
+                        <ApprovalControls mode="ask" projectId={p.id} revisionId={r.id} revisionStatus={r.status} canEdit={view.canEdit} approval={view.approval} closed={p.status === "closed"} />
+                      </span>
+                    )}
                   </td>
                 </tr>
               ))}

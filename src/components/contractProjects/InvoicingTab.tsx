@@ -10,7 +10,8 @@ import StatTile, { StatStrip } from "@/components/ui/StatTile";
 import StatusPill from "@/components/ui/StatusPill";
 import { ROUTES } from "@/lib/constants";
 import { day, money } from "@/lib/contractProjects/format";
-import { MILESTONE_STATUS_LABEL, MILESTONE_TONE } from "@/lib/contractProjects/milestones";
+import { MILESTONE_STATUS_LABEL, MILESTONE_TONE, hasDraftInvoice } from "@/lib/contractProjects/milestones";
+import { Select } from "@/components/ui/Input";
 import type { MilestonesData, MilestoneView } from "@/lib/contractProjects/milestonesServer";
 import { PROJECT_TIPS } from "@/lib/contractProjects/tips";
 import InfoTip from "@/components/ui/InfoTip";
@@ -20,9 +21,15 @@ import { useReloaded } from "./useReloaded";
 
 // The Invoicing tab of a contract project (migration 0232): the billing schedule. Three tiles, a warning that stays visible when the
 // schedule is out of step with the contract, one table, and the side panel to add or edit a milestone. "Create invoice" on a row makes
-// the draft invoice through the invoices object; the invoice's reference then links to it.
+// the draft invoice through the invoices object; the invoice's reference then links to it. A draft invoice is not counted as invoiced:
+// the tile says "1 draft (SAR ...)" and the row says "Draft invoice" until it is issued. An empty schedule offers the payment terms of
+// the winning bid in one press, or, when the tender chose none, the workspace's payment-term templates.
 
 const PAGE = 10;
+/** The row's status in words: a milestone whose invoice is still a draft says so, whatever its stored status. */
+const statusLabel = (m: MilestoneView): string => (hasDraftInvoice(m, m.invoice_status) ? "Draft invoice" : MILESTONE_STATUS_LABEL[m.display_status]);
+const statusTone = (m: MilestoneView) => (hasDraftInvoice(m, m.invoice_status) ? "amber" as const : MILESTONE_TONE[m.display_status]);
+
 const th: React.CSSProperties = { textAlign: "left", fontSize: 11, color: c.hint, textTransform: "uppercase", letterSpacing: 0.4, padding: "9px 12px", background: c.panel2, fontWeight: 600 };
 
 export default function InvoicingTab({ projectId, data: fromServer, projectClosed = false, initialPanel }: {
@@ -40,6 +47,7 @@ export default function InvoicingTab({ projectId, data: fromServer, projectClose
   const [copying, setCopying] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [templateId, setTemplateId] = useState("");
   const cur = data.currency;
   const t = data.totals;
 
@@ -62,23 +70,42 @@ export default function InvoicingTab({ projectId, data: fromServer, projectClose
     } finally { setBusyId(""); }
   }
 
-  async function copyTerms() {
+  async function copyTerms(template?: string) {
     setError(""); setNotice(""); setCopying(true);
     try {
-      const res = await fetch(`/api/contract-projects/${projectId}/milestones/copy-terms`, { method: "POST" });
+      const res = await fetch(`/api/contract-projects/${projectId}/milestones/copy-terms`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(template ? { template_id: template } : {}) });
       const j = await res.json().catch(() => ({}));
       if (!res.ok) { setError(j.error ?? "Could not copy the payment terms"); await reload(); return; }
       setNotice(`${j.created} milestone${j.created === 1 ? "" : "s"} made from ${j.template}.`);
       await reload();
     } finally { setCopying(false); }
   }
-  const offerTerms = data.canEdit && !projectClosed && data.milestones.length === 0 ? data.termsOffer : null;
+  const emptyAndMine = data.canEdit && !projectClosed && data.milestones.length === 0;
+  const offerTerms = emptyAndMine ? data.termsOffer : null;
+  const templates = emptyAndMine && !offerTerms ? data.termTemplates ?? [] : [];
+  const drafts = t.draftCount > 0 ? `${t.draftCount} draft${t.draftCount === 1 ? "" : "s"} (${money(t.draftAmount, cur)})` : "";
+  // What an empty schedule offers, in the empty state itself: the winning bid's terms in one press, else a template to pick.
+  const emptyAction = offerTerms ? (
+    <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+      <Button variant="primary" size="sm" loading={copying} data-guide="cp.milestone.copy_terms" style={{ minHeight: 44 }} onClick={() => { void copyTerms(); }}>Create milestones from payment terms</Button>
+      <InfoTip label="Create milestones from payment terms">{PROJECT_TIPS.copyTerms}</InfoTip>
+    </span>
+  ) : templates.length > 0 ? (
+    <span data-guide="cp.milestone.templates" style={{ display: "inline-flex", alignItems: "center", gap: 8, flexWrap: "wrap", justifyContent: "center" }}>
+      <Select aria-label="Payment terms" data-guide="cp.milestone.template" value={templateId} style={{ minHeight: 44, width: "auto", minWidth: 200 }} onChange={(e) => setTemplateId(e.target.value)}>
+        <option value="">Choose payment terms</option>
+        {templates.map((x) => <option key={x.id} value={x.id}>{x.name} ({x.count})</option>)}
+      </Select>
+      <Button variant="primary" size="sm" loading={copying} disabled={!templateId} data-guide="cp.milestone.from_template" style={{ minHeight: 44 }} onClick={() => { void copyTerms(templateId); }}>Create milestones</Button>
+      <InfoTip label="Create milestones from payment terms">{PROJECT_TIPS.termTemplates}</InfoTip>
+    </span>
+  ) : undefined;
 
   return (
     <div data-guide="cp.invoicing" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
       <StatStrip guide="cp.invoicing.kpis">
         <StatTile tone="info" label="Contracted" info={PROJECT_TIPS.milestones} value={money(t.contracted, cur)} sub={t.scheduled > 0 ? `${money(t.scheduled, cur)} scheduled` : "nothing scheduled"} />
-        <StatTile tone="good" label="Invoiced" value={money(t.invoiced, cur)} sub={t.paid > 0 ? `${money(t.paid, cur)} paid` : "none paid yet"} />
+        <StatTile tone="good" label="Invoiced" value={money(t.invoiced, cur)} sub={<>{t.paid > 0 ? `${money(t.paid, cur)} paid` : "none paid yet"}{drafts && <span data-guide="cp.invoicing.drafts" style={{ display: "block" }}>{drafts}</span>}</>} />
         <StatTile tone={t.toInvoice > 0 ? "warn" : "neutral"} label="Still to invoice" info={PROJECT_TIPS.stillToInvoice} value={money(t.toInvoice, cur)} sub={t.contracted > 0 ? `${Math.round((t.toInvoice / t.contracted) * 100)}% of the contract` : "no contract value"} />
       </StatStrip>
 
@@ -92,19 +119,15 @@ export default function InvoicingTab({ projectId, data: fromServer, projectClose
       <Card
         title="Billing schedule" padding={0}
         action={data.canEdit && !projectClosed ? (
-          <span style={{ display: "inline-flex", alignItems: "center", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
-            {offerTerms && (
-              <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
-                <Button variant="secondary" size="sm" loading={copying} data-guide="cp.milestone.copy_terms" style={{ minHeight: 44 }} onClick={copyTerms}>Copy the tender&apos;s payment terms</Button>
-                <InfoTip label="Copy the tender's payment terms">{PROJECT_TIPS.copyTerms}</InfoTip>
-              </span>
-            )}
-            <Button variant="primary" size="sm" data-guide="cp.milestone.add" style={{ minHeight: 44 }} onClick={() => { setError(""); setPanel({}); }}>+ Add milestone</Button>
-          </span>
+          <Button variant={emptyAction ? "secondary" : "primary"} size="sm" data-guide="cp.milestone.add" style={{ minHeight: 44 }} onClick={() => { setError(""); setPanel({}); }}>+ Add milestone</Button>
         ) : undefined}
       >
         {data.milestones.length === 0 ? (
-          <EmptyState title="No milestones yet" text={data.canEdit ? "Add the amounts you will bill and when, as a percent of the contract value or a fixed amount." : undefined} />
+          <EmptyState
+            title="No milestones yet"
+            text={offerTerms ? `The winning bid's payment terms: ${offerTerms.name}, ${offerTerms.count} milestone${offerTerms.count === 1 ? "" : "s"}.` : data.canEdit ? "Add the amounts you will bill and when, as a percent of the contract value or a fixed amount." : undefined}
+            action={emptyAction}
+          />
         ) : (
           <>
           <div className="bpm-rows-table" style={{ overflowX: "auto" }}>
@@ -131,7 +154,7 @@ export default function InvoicingTab({ projectId, data: fromServer, projectClose
                         {data.tax.kind === "added" ? `${taxBasisText(data.tax)}: ${money(taxOn(m.amount, data.tax).gross, cur)} with ${data.tax.label}` : taxBasisText(data.tax)}
                       </span>
                     </td>
-                    <td style={{ padding: "8px 12px" }}><StatusPill label={MILESTONE_STATUS_LABEL[m.display_status]} tone={MILESTONE_TONE[m.display_status]} /></td>
+                    <td style={{ padding: "8px 12px" }}><StatusPill label={statusLabel(m)} tone={statusTone(m)} /></td>
                     <td style={{ padding: "4px 12px", whiteSpace: "nowrap" }}>
                       {m.invoice_id && (m.display_status === "invoiced" || m.display_status === "paid") ? (
                         <Link href={ROUTES.invoice(m.invoice_id)} data-guide="cp.milestone.invoice_link" style={{ display: "inline-flex", alignItems: "center", minHeight: 44, color: c.accent, fontSize: 13 }}>{m.invoice_ref ?? "Invoice"}</Link>
@@ -151,7 +174,7 @@ export default function InvoicingTab({ projectId, data: fromServer, projectClose
                 <div key={m.id} data-guide="cp.milestone.card" style={{ boxSizing: "border-box", width: "100%", padding: 12, border: `1px solid ${c.line}`, borderRadius: 12, background: "var(--card-bg)" }}>
                   <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "flex-start" }}>
                     <span style={{ minWidth: 0, fontSize: 14, fontWeight: 600, color: c.ink, overflowWrap: "anywhere" }}>{m.title}</span>
-                    <StatusPill label={MILESTONE_STATUS_LABEL[m.display_status]} tone={MILESTONE_TONE[m.display_status]} />
+                    <StatusPill label={statusLabel(m)} tone={statusTone(m)} />
                   </div>
                   <MilestoneCardRow label="Amount before tax" value={m.basis === "percent" ? `${money(m.amount, cur)} (${m.percent}%)` : money(m.amount, cur)} />
                   <MilestoneCardRow label="Tax"value={taxText} ink={data.tax.kind === "none" ? "var(--amberink)" : undefined} />

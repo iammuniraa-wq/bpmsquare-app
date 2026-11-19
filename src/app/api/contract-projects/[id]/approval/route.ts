@@ -16,7 +16,8 @@ import { currentRevision, loadLines, loadMasters, loadProject, loadRevision, loa
 //   Asks the approvers to approve a DRAFT revision (default: the one being worked on). The revision becomes `pending` and locked against
 //   edits until it is decided; for the baseline the project becomes `baseline_pending`. Who asked and when are the session's and the
 //   server clock's. Refused (409) when the revision has no lines or a line has no resource type, when a later revision has no reason,
-//   or when nobody else could approve it. Approval rows are the same table as the bid decision (kind project_baseline); the people who
+//   or when nobody else could approve it. Lines without a cost do not refuse it (the screen confirms first); the request text and the
+//   approver's e-mail then say "2 of 12 lines costed". Approval rows are the same table as the bid decision (kind project_baseline); the people who
 //   may decide are the tender approvers chosen in Settings > Tenders (workspace admins by default).
 //   503 while approval_requests (migration 0221) is pending. Decided on ./[requestId].
 
@@ -53,7 +54,7 @@ export async function POST(request: NextRequest, { params }: Ctx) {
   if (problem) return NextResponse.json({ error: problem }, { status: 409 });
 
   const justification = revision.justification_code ? (await loadMasters(admin, tenantId, "justification")).find((m) => m.code === revision.justification_code)?.name ?? null : null;
-  const reason = requestReason(revision, justification, totals.total, project.currency);
+  const reason = requestReason(revision, justification, totals.total, project.currency, { costed: totals.costedCount, of: totals.lineCount });
 
   const made = await admin.from("approval_requests").insert({
     tenant_id: tenantId, object_type: PROJECT_APPROVAL_OBJECT, object_id: id, kind: PROJECT_APPROVAL_KIND,

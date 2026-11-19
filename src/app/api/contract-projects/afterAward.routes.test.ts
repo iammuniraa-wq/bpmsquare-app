@@ -181,6 +181,11 @@ async function fromTender() {
   const j = await res.json();
   return { res, ...j } as { res: Response; id: string; ref: string; revision_id: string; budget_note: string; unmapped_codes: string[] };
 }
+/** A project from a tender that recorded no cost at all: every line starts not allocated. */
+async function fromTenderNoCosts() {
+  for (const b of rows("tender_boq_lines")) b.unit_cost = null;
+  return fromTender();
+}
 const goodLines = () => [
   { description: "Fence", resource_code: "11", cost_code: "32 31 13", qty: 100, unit: "m", unit_cost: 120 },
   { description: "Labour", resource_code: "31", cost_code: null, qty: 40, unit: "day", unit_cost: 250 },
@@ -254,17 +259,34 @@ describe("the project starts as the contract, and Fill from tender costs reads t
   }
   const fill = (id: string, body: Record<string, unknown> = {}) => fillPost(json("POST", body), ctx(id));
 
-  it("creating from the tender copies the contract (quantity, the client's rate and amount) and NO cost, whichever bid was submitted", async () => {
+  it("creating from the tender copies the contract (quantity, the client's rate and amount) and the costs RECORDED on the winning bid, never a guess", async () => {
     bidVersions(true);
     const p = await fromTender();
     expect(p.res.status).toBe(201);
     expect(p.budget_note).toBe("Contract lines from the tender; costs to be allocated.");
+    expect((p as unknown as { filled: unknown }).filled).toEqual({ lines: 1, total: 13000 });
     const lines = mine("project_budget_lines");
     expect(lines).toHaveLength(2);
-    expect(lines.every((l) => l.unit_cost === 0 && l.amount === 0 && l.allocated === false)).toBe(true);
-    expect(lines.find((l) => String(l.description).startsWith("Chain link"))).toMatchObject({ client_rate: 200, client_amount: 20000, source_line_id: "l1", cost_code: "32 31 13" });
+    // The line the winning bid recorded a cost for starts with it; the one it did not stays not allocated, at 0.
+    expect(lines.find((l) => String(l.description).startsWith("Chain link"))).toMatchObject({ client_rate: 200, client_amount: 20000, source_line_id: "l1", cost_code: "32 31 13", amount: 13000, unit_cost: 130, allocated: true, source_ref: "Cost from bid v2 (RFQ-0004)" });
+    expect(lines.find((l) => l.description === "Excavation")).toMatchObject({ amount: 0, unit_cost: 0, allocated: false, client_amount: 2000 });
     expect(p.unmapped_codes).toEqual(["99 99 99"]);
+    expect(mine("project_budget_revisions")[0]).toMatchObject({ rev_no: 0, status: "draft", total: 13000 });
+    expect(state.changes.some((c) => c.changes?.some((x) => x.field === "Fill from tender costs" && x.from === 0 && x.to === 13000))).toBe(true);
+  });
+
+  it("a tender that recorded no cost gives a project with nothing allocated: no cost is made up, and the answer says nothing was filled", async () => {
+    const p = await fromTenderNoCosts();
+    expect(p.res.status).toBe(201);
+    expect(p).not.toHaveProperty("filled");
+    expect(mine("project_budget_lines").every((l) => l.unit_cost === 0 && l.amount === 0 && l.allocated === false)).toBe(true);
     expect(mine("project_budget_revisions")[0]).toMatchObject({ rev_no: 0, total: 0 });
+  });
+
+  it("a project made by hand is not filled from anything", async () => {
+    const res = await createPost(json("POST", { name: "By hand", contract_value: 100 }));
+    expect(res.status).toBe(201);
+    expect(await res.json()).not.toHaveProperty("filled");
   });
 
   it("Fill uses the LAST version's recorded cost; a line with none is listed, never filled with a guess", async () => {
@@ -272,7 +294,9 @@ describe("the project starts as the contract, and Fill from tender costs reads t
     // An earlier version's cost must not be the one used.
     rows("tender_bid_version_costs").push({ id: "bc1", tenant_id: T1, opportunity_id: OPP, version_no: 1, total_cost: 1, line_count: 1, snapshot: { v: 1, warnings: [], lines: [] } });
     const p = await fromTender();
-    const res = await fill(p.id);
+    // The project was filled when it was made; pressing the button again without replace keeps what is there.
+    expect(await (await fill(p.id)).json()).toMatchObject({ filled: 0, total: 13000 });
+    const res = await fill(p.id, { replace: true });
     expect(res.status).toBe(200);
     const j = await res.json();
     expect(j).toMatchObject({ filled: 1, total: 13000 });
@@ -287,7 +311,7 @@ describe("the project starts as the contract, and Fill from tender costs reads t
   it("without a stored bid cost it reads the tender's BOQ rows, only a cost above zero", async () => {
     bidVersions(false);
     const p = await fromTender();
-    const j = await (await fill(p.id)).json();
+    const j = await (await fill(p.id, { replace: true })).json();
     expect(j.filled).toBe(1);
     expect(mine("project_budget_lines").find((l) => String(l.description).startsWith("Chain link"))).toMatchObject({ amount: 12000, unit_cost: 120, allocated: true });
     expect(j.skipped).toEqual([{ item: "1.2", reason: "no recorded cost on the tender" }]);
@@ -322,7 +346,8 @@ describe("the project starts as the contract, and Fill from tender costs reads t
     rows("tender_bid_versions").push({ id: "bvx", tenant_id: T2, opportunity_id: OPP, version_no: 5, submitted_at: "2026-10-12T08:00:00Z", currency: "SAR", total: 1, line_count: 1 });
     rows("tender_bid_version_costs").push({ id: "bcx", tenant_id: T2, opportunity_id: OPP, version_no: 5, total_cost: 1, line_count: 1, snapshot: WINNING_COST });
     const p = await fromTender();
-    const j = await (await fill(p.id)).json();
+    expect(mine("project_budget_revisions")[0].total).toBe(12000); // filled on create from THIS workspace's BOQ rows
+    const j = await (await fill(p.id, { replace: true })).json();
     expect(j.filled).toBe(1); // the BOQ rows of THIS workspace, not the other workspace's 13000
     expect(mine("project_budget_lines").find((l) => String(l.description).startsWith("Chain link"))!.amount).toBe(12000);
   });
@@ -670,9 +695,13 @@ describe("invoicing milestones", () => {
     expect(invoice.custom_data).toEqual({ source_contract_project_id: p.id, source_contract_project_milestone_id: id });
     expect(state.changes.some((c) => c.objectType === "contract_projects" && String(c.changes?.[0]?.field).includes("invoiced"))).toBe(true);
     // The tiles and the amount now locked.
+    // The invoice is a DRAFT: it is not counted as invoiced until it is issued.
     const data = await (await milestonesGet(get(), ctx(p.id))).json();
-    expect(data.totals).toMatchObject({ invoiced: 30000, toInvoice: 70000 });
-    expect(data.milestones[0]).toMatchObject({ display_status: "invoiced", invoice_ref: "INV-0001" });
+    expect(data.totals).toMatchObject({ invoiced: 0, draftCount: 1, draftAmount: 30000, toInvoice: 100000 });
+    expect(data.milestones[0]).toMatchObject({ display_status: "invoiced", invoice_ref: "INV-0001", invoice_status: "draft" });
+    invoice.status = "sent";
+    const issued = await (await milestonesGet(get(), ctx(p.id))).json();
+    expect(issued.totals).toMatchObject({ invoiced: 30000, draftCount: 0, draftAmount: 0, toInvoice: 70000 });
     expect((await milestonePatch(json("PATCH", { percent: 50 }), mctx(p.id, id))).status).toBe(409);
     expect((await milestoneDelete(json("DELETE"), mctx(p.id, id))).status).toBe(409);
   });
@@ -823,11 +852,11 @@ describe("allocating the budget by BOQ line", () => {
     const view = await (await oneGet(get(), ctx(p.id))).json();
     expect(view.margin).toMatchObject({ amount: 83499.44, state: "ok" });
     expect(view.allocation.totals).toMatchObject({ allocatedCount: 2, unallocatedCount: 0 });
-    expect(state.changes.some((c) => c.changes?.some((x) => x.field === "Allocated" && x.from === 0 && x.to === 16500.56))).toBe(true);
+    expect(state.changes.some((c) => c.changes?.some((x) => x.field === "Allocated" && x.from === 12000 && x.to === 16500.56))).toBe(true);
   });
 
   it("nothing allocated reads as 'none', never 100 percent; null clears a line", async () => {
-    const p = await fromTender();
+    const p = await fromTenderNoCosts();
     const before = await (await oneGet(get(), ctx(p.id))).json();
     expect(before.margin.state).toBe("none");
     expect(before.allocation.totals).toMatchObject({ allocatedCount: 0, unallocatedCount: 2 });
@@ -838,7 +867,7 @@ describe("allocating the budget by BOQ line", () => {
   });
 
   it("refuses what cannot be an allocation, and writes nothing", async () => {
-    const p = await fromTender();
+    const p = await fromTenderNoCosts();
     for (const bad of [[{ line_key: keyOf("Chain link"), amount: -1 }], [{ line_key: keyOf("Chain link"), amount: "abc" }], [{ line_key: "ffffffff-ffff-4fff-8fff-fffffffffffe", amount: 5 }], "x", [{ line_key: keyOf("Chain link"), amount: 1 }, { line_key: keyOf("Chain link"), amount: 2 }]]) {
       expect((await alloc(p.id, p.revision_id, bad)).status, JSON.stringify(bad)).toBe(422);
     }

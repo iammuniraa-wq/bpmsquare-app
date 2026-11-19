@@ -105,6 +105,13 @@ export function effectiveStatus(m: Pick<MilestoneRow, "status" | "invoice_id">, 
   return m.status;
 }
 
+/**
+ * "Create invoice" makes a DRAFT invoice and marks the milestone invoiced at once (so two people cannot make two). Until that invoice is
+ * issued it is not money asked of the client: the Invoiced figure leaves it out and the row says "Draft invoice" (KAMCO run, 2026-11-19).
+ */
+export const hasDraftInvoice = (m: Pick<MilestoneRow, "status" | "invoice_id">, invoiceStatus: string | null | undefined): boolean =>
+  m.status === "invoiced" && !!m.invoice_id && invoiceStatus === "draft";
+
 /** The amount and dates may change until an invoice has been raised; the title, date and note may always change. */
 export const amountEditable = (status: MilestoneStatus): boolean => status === "planned" || status === "ready";
 export const isRemovable = (m: Pick<MilestoneRow, "status" | "invoice_id">): boolean => !m.invoice_id && (m.status === "planned" || m.status === "ready");
@@ -124,8 +131,12 @@ export type MilestoneTotals = {
   contracted: number;
   /** What the schedule adds up to. */
   scheduled: number;
+  /** Milestones whose invoice has been issued (sent, part paid, paid, overdue). A draft invoice is not invoiced yet. */
   invoiced: number;
   paid: number;
+  /** Milestones whose invoice is still a draft: how many, and what they add up to. */
+  draftCount: number;
+  draftAmount: number;
   /** contracted less invoiced. */
   toInvoice: number;
   percentTotal: number;
@@ -137,17 +148,19 @@ export function milestoneTotals(
   rows: readonly (Pick<MilestoneRow, "basis" | "percent" | "fixed_amount" | "status" | "invoice_id"> & { invoice_status?: string | null })[],
   contractValue: number,
 ): MilestoneTotals {
-  let scheduled = 0, invoiced = 0, paid = 0, percentTotal = 0;
+  let scheduled = 0, invoiced = 0, paid = 0, percentTotal = 0, draftCount = 0, draftAmount = 0;
   for (const r of rows) {
     const amount = milestoneAmount(r, contractValue);
     const st = effectiveStatus(r, r.invoice_status);
     scheduled += amount;
     if (r.basis === "percent") percentTotal += Number(r.percent) || 0;
-    if (st === "invoiced" || st === "paid") invoiced += amount;
+    if (hasDraftInvoice(r, r.invoice_status)) { draftCount++; draftAmount += amount; }
+    else if (st === "invoiced" || st === "paid") invoiced += amount;
     if (st === "paid") paid += amount;
   }
   const t: MilestoneTotals = {
     count: rows.length, contracted: round2(contractValue), scheduled: round2(scheduled), invoiced: round2(invoiced), paid: round2(paid),
+    draftCount, draftAmount: round2(draftAmount),
     toInvoice: round2(contractValue - invoiced), percentTotal: round2(percentTotal), warning: null,
   };
   t.warning = scheduleWarning(t);

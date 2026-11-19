@@ -6,6 +6,8 @@ import StatusPill from "@/components/ui/StatusPill";
 import SettingsSection from "@/components/settings/SettingsSection";
 import { ROUTES } from "@/lib/constants";
 import type { ProjectView } from "@/lib/contractProjects/view";
+import { unclassifiedAmount } from "@/lib/contractProjects/budget";
+import { DEFAULT_RESOURCE_CODE } from "@/lib/contractProjects/types";
 import { day, money, pct } from "@/lib/contractProjects/format";
 import { PROJECT_TIPS } from "@/lib/contractProjects/tips";
 import ApprovalControls from "./ApprovalControls";
@@ -32,6 +34,9 @@ export default function ProjectOverview({ view, editor, buyoutOn = false }: { vi
   const cur = p.currency;
   const tab = (t: string) => `${ROUTES.contractProject(p.id)}?tab=${t}`;
   const attention: { key: string; text: string; link: string; href: string }[] = [];
+  // A project made from a tender whose budget is still 0: the tender's recorded costs are one press away, so that comes first.
+  const fromTender = !!p.source_opportunity_id && view.lines.some((l) => !!l.source_line_id);
+  if (fromTender && totals.total <= 0 && revision?.status === "draft" && view.canEdit && p.status !== "closed") attention.push({ key: "fill", text: "The budget is 0", link: "Fill from tender costs", href: tab("budget") });
   if (totals.unallocatedCount > 0) attention.push({ key: "alloc", text: `${totals.unallocatedCount} line${totals.unallocatedCount === 1 ? "" : "s"} not allocated`, link: "Allocate", href: tab("budget") });
   if (totals.noResourceCount > 0) attention.push({ key: "res", text: `${totals.noResourceCount} line${totals.noResourceCount === 1 ? "" : "s"} without a resource type`, link: "Fix", href: tab("budget") });
   if (totals.noCostCodeCount > 0) attention.push({ key: "code", text: `${totals.noCostCodeCount} line${totals.noCostCodeCount === 1 ? "" : "s"} without a cost code`, link: "Fix", href: tab("budget") });
@@ -48,9 +53,14 @@ export default function ProjectOverview({ view, editor, buyoutOn = false }: { vi
   const over = contract > 0 && totals.total > contract ? totals.total - contract : 0;
   // The bar is the contract value; when the budget is larger than it the bar is the budget and a red line says by how much.
   const scale = Math.max(contract, totals.total, 1);
-  const parts = totals.byResource.filter((r) => r.amount > 0).map((r, i) => ({
-    key: r.code, name: resourceName.get(r.code) ?? (r.code ? r.code : "No resource"), amount: r.amount, color: SEGMENTS[i % SEGMENTS.length],
-  }));
+  // Costs copied from a tender sit on the default resource type until a person chooses one: say "Not classified", not Material.
+  const unclassified = unclassifiedAmount(view.lines);
+  const parts = totals.byResource
+    .flatMap((r) => (r.code === DEFAULT_RESOURCE_CODE && unclassified > 0
+      ? [{ key: "unclassified", name: "Not classified", amount: unclassified, info: true }, { key: r.code, name: resourceName.get(r.code) ?? r.code, amount: Math.round((r.amount - unclassified) * 100) / 100, info: false }]
+      : [{ key: r.code, name: resourceName.get(r.code) ?? (r.code ? r.code : "No resource"), amount: r.amount, info: false }]))
+    .filter((r) => r.amount > 0)
+    .map((r, i) => ({ ...r, color: r.info ? c.hint : SEGMENTS[i % SEGMENTS.length] }));
   const margin = contract > 0 ? Math.max(0, contract - totals.total) : 0;
   const share = (n: number) => pct(Math.round((n / scale) * 1000) / 10);
 
@@ -94,6 +104,7 @@ export default function ProjectOverview({ view, editor, buyoutOn = false }: { vi
                 <li key={r.key} style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
                   <span aria-hidden="true" style={{ width: 10, height: 10, borderRadius: 3, background: r.color, flexShrink: 0 }} />
                   {r.name} {share(r.amount)}
+                  {r.info && <InfoTip label="Not classified">{PROJECT_TIPS.notClassified}</InfoTip>}
                 </li>
               ))}
               {margin > 0 && (
