@@ -19,6 +19,7 @@ import { awardWithDecision, loadCurrentAwards, AwardError, type AwardTarget, typ
 import { isMissingRelation, loadRfqBundle, rfqLineStatuses } from "@/lib/rfq/server";
 import { lowestByLine, responseValidity, type CompareResponse } from "@/lib/rfq/comparison";
 import { loadActorNames } from "@/lib/actorNames";
+import { personLabel } from "@/lib/personName";
 import type { DocLineForRfq } from "@/components/rfq/prefill";
 import {
   awardMarkup, awardedFields, awardSourceRef, estimateState, lineAmount, parseMarkup, rfqIsOut, rfqState, roundMoney, rowsRef, tenderMarkupDefault,
@@ -285,6 +286,24 @@ export async function loadDealRfq(r: Pick<CostingRequest, "admin" | "tenantId" |
   return null;
 }
 
+/**
+ * Who awarded, by name: the name the workspace knows (the linked employee, else the business user's label), else a readable name from
+ * the person's own login (its profile name, else the part of the address before the @). The ids come from THIS workspace's award rows;
+ * only a name leaves here, never an e-mail address. A person who cannot be named at all stays absent.
+ */
+export async function awarderNames(admin: SupabaseClient, tenantId: string, ids: readonly (string | null)[]): Promise<Map<string, string>> {
+  const names = await loadActorNames(admin, tenantId, ids);
+  const unnamed = [...new Set(ids.filter((x): x is string => !!x && !names.has(x)))];
+  await Promise.all(unnamed.map(async (id) => {
+    try {
+      const { data } = await admin.auth.admin.getUserById(id);
+      const name = personLabel(null, data?.user ?? null, "");
+      if (name) names.set(id, name);
+    } catch { /* the line then says "a team member" */ }
+  }));
+  return names;
+}
+
 export async function buildCompareView(r: CostingRequest, rfqId: string): Promise<CompareView | null> {
   const { admin, tenantId, opp } = r;
   const found = await loadDealRfq(r, rfqId);
@@ -303,7 +322,7 @@ export async function buildCompareView(r: CostingRequest, rfqId: string): Promis
     if (rl) askedBy.set(rl, [...(askedBy.get(rl) ?? []), itemOfLine.get(l.id) ?? l.sl_no ?? ""]);
   }
   const awardState = await loadCurrentAwards(admin, tenantId, rfqId).catch(() => ({ rows: [], pending: true }));
-  const names = await loadActorNames(admin, tenantId, awardState.rows.map((a) => a.chosen_by));
+  const names = await awarderNames(admin, tenantId, awardState.rows.map((a) => a.chosen_by));
   const status = found.rfq.status;
   return {
     rfq: { id: found.rfq.id, ref: found.rfq.ref, title: found.rfq.title, status, respond_by: found.rfq.respond_by, origin: found.origin },

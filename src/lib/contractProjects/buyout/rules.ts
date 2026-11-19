@@ -4,6 +4,7 @@
 
 import { responseValidity, type CompareResponse } from "@/lib/rfq/comparison";
 import { landedUnit } from "@/lib/rfq/rules";
+import { itemNoSpec } from "@/lib/rfq/itemNo";
 import { RFQ_LIMITS } from "@/lib/rfq/types";
 
 export const PACKAGE_KINDS = ["supplier", "subcontract"] as const;
@@ -436,6 +437,14 @@ export function roundProblem(p: { status: PackageStatus; line_count: number; rou
   if (p.line_count === 0) return { status: 409, error: "This package has no lines.", code: "no_lines" };
   if (p.rounds >= PACKAGE_LIMITS.maxRounds) return { status: 409, error: `A package holds up to ${PACKAGE_LIMITS.maxRounds} rounds.`, code: "too_many_rounds" };
   return null;
+}
+
+/**
+ * The lines of a round's RFQ, in the package's order. The client's item number (the budget line's `wbs`) rides in the specification as
+ * "Item no. 1.1", exactly as a tender RFQ carries it, so a supplier's answer can be matched back to the schedule. Nothing of the cost.
+ */
+export function roundRfqLines(lines: readonly Pick<BudgetLineRow, "wbs" | "description" | "unit" | "qty">[]): { description: string; spec: string | null; uom: string | null; qty: number }[] {
+  return lines.map((l) => ({ description: l.description, spec: itemNoSpec(l.wbs), uom: l.unit, qty: l.qty }));
 }
 
 export function roundTitle(pkg: { ref: string | null; name: string }, round: number): string {

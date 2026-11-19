@@ -29,6 +29,21 @@ describe("New RFQ form: lines from a record", () => {
     expect(out).toContain("(1 of 12 chosen)");
   });
 
+  it("a line from a numbered schedule shows its own item number, not its place in the list", () => {
+    const out = render([{ ...boq(1, true), item_no: "1.1", spec: "Item no. 1.1" }, { ...boq(2, true), spec: "Item no. 1.2. Grade 316" }, boq(3, true)]);
+    expect(out).toMatch(/data-guide="rfq.line.no"[^>]*>1\.1</);
+    expect(out).toMatch(/data-guide="rfq.line.no"[^>]*>1\.2</);
+    expect(out).toContain('aria-label="Ask suppliers about line 1.1"');
+    expect(out).toContain('aria-label="Edit line 1.2"');
+    // A line with no number of its own falls back to its place in the list.
+    expect(out).toMatch(/data-guide="rfq.line.no"[^>]*>3</);
+  });
+
+  it("the item number is shown only: it is not sent as a field of the line", () => {
+    const code = readFileSync(resolve(__dirname, "RfqComposer.tsx"), "utf8");
+    expect(code).toContain("item_no: _n");
+  });
+
   it("offers Edit only on a ticked line", () => {
     const out = render([boq(1, true), boq(2, false)]);
     expect(out).toContain('aria-label="Edit line 1"');

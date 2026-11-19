@@ -18,8 +18,9 @@ import { parseMarkup } from "@/lib/tender/costing/rules";
 // .../estimates/links writes), in the shared side panel. Nothing here sends a cost: it sends which row, which part of the estimate and
 // what share, and the server works the cost out again and refuses more than 100 percent of any part.
 //
-// Applying to a row REPLACES the price it carries. So the panel opens with only the unpriced rows ticked; a row priced from an RFQ award,
-// another estimate or by hand shows that price, is never pre-ticked, and is named in the confirm step if the person ticks it.
+// Applying to a row REPLACES the price it carries. So a matched list opens with only the unpriced rows ticked; a row priced from an RFQ
+// award, another estimate or by hand shows that price, is never pre-ticked, and is named in the confirm step if the person ticks it.
+// "Spread one part over the rows" offers every row of the BOQ, so it opens with NOTHING ticked: the person says which rows the part covers.
 // A failure is shown inside the panel: the page's own banner is behind it.
 
 const money = (n: number | null | undefined) => (n == null ? "—" : n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
@@ -74,7 +75,7 @@ export default function PriceRowsPanel({ opportunityId, estimate, markupDefault,
         if (!live) return;
         if (!ok) { setError(j.error ?? "Could not work out the allocation"); return; }
         const d = j as Allocation;
-        const first = defaultTicks(d.rows);
+        const first = defaultTicks(d.rows, mode);
         setError("");
         setData(d);
         setTicked(first);
@@ -184,6 +185,10 @@ export default function PriceRowsPanel({ opportunityId, estimate, markupDefault,
         {!data && !error && <div role="status" style={{ fontSize: 12.5, color: c.hint }}>Looking…</div>}
         {data && rows.length === 0 && (
           <div style={{ fontSize: 12.5, color: c.hint }}>{mode === "match" ? "No BOQ row reads like a line of this estimate. Try spreading a part over the rows instead." : "Nothing left to give out: this part is fully allocated."}</div>
+        )}
+
+        {data && mode === "spread" && rows.length > 0 && ticked.size === 0 && (
+          <div role="status" data-guide="costing.price_rows.pick" style={{ fontSize: 12.5, color: c.ink }}>Tick the rows this part of the estimate covers.</div>
         )}
 
         {shown.map((r) => {

@@ -8,7 +8,7 @@ import {
 } from "@/lib/supplierGroups/rules";
 import {
   PACKAGE_LIMITS, againstBudget, awardProblem, buyoutTiles, canDownloadHandover, cleanPackageReason, deleteProblem, effectiveStatus, handoverState,
-  linesLocked, lineQty, lowestValidTotal, markSentProblem, overBudget, packageAwardDecision, parsePackage, parseRound, roundProblem, roundQuotes, roundTitle, unawardProblem,
+  linesLocked, lineQty, lowestValidTotal, markSentProblem, overBudget, packageAwardDecision, parsePackage, parseRound, roundProblem, roundQuotes, roundRfqLines, roundTitle, unawardProblem,
   type RoundQuote, type RoundResponseInput,
 } from "./rules";
 import { buildPackageHandoverWorkbook, handoverFileName, handoverTotal } from "./handover";
@@ -205,6 +205,12 @@ describe("status, tiles and the locks", () => {
     expect(roundProblem({ status: "draft", line_count: 0, rounds: 0 })).toMatchObject({ code: "no_lines" });
     expect(roundProblem({ status: "out", line_count: 1, rounds: PACKAGE_LIMITS.maxRounds })).toMatchObject({ code: "too_many_rounds" });
     expect(roundTitle({ ref: "PKG-0003", name: "Valves" }, 2)).toBe("PKG-0003 Valves · round 2");
+    // A round's RFQ lines carry the client's item number in the specification; a line without one has no specification.
+    expect(roundRfqLines([{ wbs: "1.1", description: "HDPE pipe 600 mm", unit: "m", qty: 420 }, { wbs: null, description: "Site labour", unit: "day", qty: 40 }, { wbs: "  ", description: "Sundries", unit: null, qty: 1 }])).toEqual([
+      { description: "HDPE pipe 600 mm", spec: "Item no. 1.1", uom: "m", qty: 420 },
+      { description: "Site labour", spec: null, uom: "day", qty: 40 },
+      { description: "Sundries", spec: null, uom: null, qty: 1 },
+    ]);
   });
 
   it("against budget is budget less what we pay (committed first, else the best quote); positive is a saving; over budget warns", () => {
