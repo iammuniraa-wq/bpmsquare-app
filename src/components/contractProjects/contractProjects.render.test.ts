@@ -490,14 +490,17 @@ describe("Revisions", () => {
 });
 
 describe("Handover", () => {
-  it("offers the Excel download and a disabled Send to ePROMIS with its explanation behind an i", () => {
+  it("offers the Excel download and a disabled Send to ePROMIS that says why in plain sight", () => {
     const out = strip(renderToString(createElement(HandoverPanel, { projectId: "p1", revisionId: "r0", revLabel: "Baseline", hasBudget: true })));
-    expect(out).toContain("Hand over to the ERP");
+    expect(out).toContain(">Budget</h2>");
     expect(out).toContain("/api/contract-projects/p1/handover?revision=r0");
     expect(out).toContain("Download Excel");
     expect(out).toMatch(/<button[^>]*disabled[^>]*data-guide="cp.handover.send"|<button[^>]*data-guide="cp.handover.send"[^>]*disabled/);
-    expect(out).toContain("About Send to ePROMIS");
-    expect(out).not.toContain(PROJECT_TIPS.sendToErp);
+    expect(out).toContain('data-guide="cp.handover.send_why"');
+    expect(out).toContain("Sending from here is not available yet. Download the Excel file for now.");
+    expect(out).toMatch(/aria-describedby="cp-handover-send-why"/);
+    expect(out).not.toContain("About Send to ePROMIS");
+    expect(out).not.toContain(PROJECT_TIPS.handover);
   });
 
   it("with no budget the download is off", () => {

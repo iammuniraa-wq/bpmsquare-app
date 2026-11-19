@@ -5,11 +5,14 @@ import { c } from "@/lib/theme";
 import Button from "@/components/ui/Button";
 import Field from "@/components/ui/Field";
 import { Input, Textarea } from "@/components/ui/Input";
+import { hasValidEmail, unreachableMessage } from "@/lib/rfq/reach";
 import { loadPackageSuppliers, type ApiResult } from "./api";
 import type { PickerList, PickerSupplier } from "./types";
 
 // "Send request" for a package: the suppliers the client's approved list allows (the picker shows only those; the server refuses the rest
 // and names them), a reply-by date and a note. One request goes to every ticked supplier and becomes a new round; earlier rounds stay.
+// The request is an e-mail: a supplier without an address says so on its row, a ticked one is named before sending (it gets the reply link on
+// WhatsApp from the RFQ, as in the tender's RFQ form), and when nobody ticked can be e-mailed the button is off, as the route would refuse.
 
 const PAGE = 8;
 
@@ -20,7 +23,7 @@ export function readPicker(json: unknown): PickerList {
   return { restricted: j.restricted === true, suppliers: Array.isArray(j.suppliers) ? j.suppliers : [], group: j.group ?? null };
 }
 
-export default function SendRequestForm({ projectId, packageId, groupName, nextRound, busy, error, onSend, onCancel, initialPicker }: {
+export default function SendRequestForm({ projectId, packageId, groupName, nextRound, busy, error, onSend, onCancel, initialPicker, initialChosen }: {
   projectId: string;
   packageId: string;
   /** The project's approved group, for the note when the picker says it is restricted. */
@@ -33,10 +36,11 @@ export default function SendRequestForm({ projectId, packageId, groupName, nextR
   onCancel: () => void;
   /** Lets a server render (and its test) show the loaded picker. The page never passes it. */
   initialPicker?: PickerList;
+  initialChosen?: readonly string[];
 }) {
   const [picker, setPicker] = useState<PickerList | null>(initialPicker ?? null);
   const [loadError, setLoadError] = useState("");
-  const [chosen, setChosen] = useState<string[]>([]);
+  const [chosen, setChosen] = useState<string[]>(() => [...(initialChosen ?? [])]);
   const [filter, setFilter] = useState("");
   const [showAll, setShowAll] = useState(false);
   const [replyBy, setReplyBy] = useState("");
@@ -60,7 +64,9 @@ export default function SendRequestForm({ projectId, packageId, groupName, nextR
   }, [list, filter]);
   const visible = showAll || filter ? shown : shown.slice(0, PAGE);
   const toggle = (id: string) => setChosen((cs) => (cs.includes(id) ? cs.filter((x) => x !== id) : [...cs, id]));
-  const noEmail = chosen.filter((id) => !list.find((s) => s.id === id)?.email).length;
+  const picked = list.filter((s) => chosen.includes(s.id));
+  const unreachable = picked.filter((s) => !hasValidEmail(s.email)).map((s) => ({ id: s.id, name: s.name, email: s.email, phone: s.phone ?? null }));
+  const nobody = picked.length > 0 && unreachable.length === picked.length;
   const name = picker?.group?.name ?? groupName;
 
   return (
@@ -83,7 +89,9 @@ export default function SendRequestForm({ projectId, packageId, groupName, nextR
                 <input type="checkbox" checked={chosen.includes(s.id)} onChange={() => toggle(s.id)} style={{ width: 20, height: 20, flexShrink: 0 }} />
                 <span style={{ flex: 1, minWidth: 0 }}>
                   <span style={{ fontWeight: 600, overflowWrap: "anywhere" }}>{s.name}</span>
-                  <span style={{ display: "block", fontSize: 12, color: c.hint }}>{[s.city, s.email ?? "no email"].filter(Boolean).join(" · ")}</span>
+                  <span style={{ display: "block", fontSize: 12, color: c.hint }}>
+                    {hasValidEmail(s.email) ? [s.city, s.email].filter(Boolean).join(" · ") : <>{s.city ? `${s.city} · ` : ""}<span data-guide="buyout.send.no_email" style={{ color: "var(--amberink)" }}>no email: add one on the supplier</span></>}
+                  </span>
                 </span>
               </label>
             ))}
@@ -94,14 +102,18 @@ export default function SendRequestForm({ projectId, packageId, groupName, nextR
           {!filter && shown.length > PAGE && (
             <div><Button variant="quiet" size="sm" style={{ minHeight: 44 }} data-guide="buyout.send.show_all" onClick={() => setShowAll((s) => !s)}>{showAll ? "Show fewer" : `Show all ${shown.length}`}</Button></div>
           )}
-          {noEmail > 0 && <div role="status" style={{ fontSize: 12, color: "var(--amberink)" }}>{noEmail} chosen supplier{noEmail === 1 ? " has" : "s have"} no email. Send the reply link on WhatsApp from the RFQ.</div>}
+          {unreachable.length > 0 && (
+            <div role="alert" data-guide="buyout.send.unreachable" style={{ fontSize: 12.5, color: "var(--amberink)" }}>
+              {nobody ? "Nothing can be sent: " : "Will not get the email: "}{unreachableMessage(unreachable, false)}
+            </div>
+          )}
           <Field label="Reply by" guide="buyout.send.field.reply_by" style={{ marginBottom: 0 }}><Input type="date" value={replyBy} onChange={(e) => setReplyBy(e.target.value)} /></Field>
           <Field label="Note to suppliers" guide="buyout.send.field.note" style={{ marginBottom: 0 }}><Textarea rows={2} value={note} onChange={(e) => setNote(e.target.value)} maxLength={1000} /></Field>
         </>
       )}
       {error && <div role="alert" data-guide="buyout.send.error" style={{ fontSize: 12.5, color: "var(--err-ink)" }}>{error}</div>}
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-        <Button variant="primary" loading={busy} disabled={busy || chosen.length === 0} style={{ minHeight: 44 }} data-guide="buyout.send.submit"
+        <Button variant="primary" loading={busy} disabled={busy || chosen.length === 0 || nobody} style={{ minHeight: 44 }} data-guide="buyout.send.submit"
           onClick={() => onSend({ supplier_ids: chosen, ...(replyBy ? { reply_by: replyBy } : {}), ...(note.trim() ? { note: note.trim() } : {}) })}>
           Send request to {chosen.length || ""} supplier{chosen.length === 1 ? "" : "s"}
         </Button>

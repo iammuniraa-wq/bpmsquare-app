@@ -23,7 +23,6 @@ export const PROJECT_TIPS = {
   locked: "An approved budget cannot be edited. Start a new revision to change it.",
   diff: "Compares this revision with the approved one: lines added, removed or changed, and the change in total.",
   handover: "An Excel file with the project, its budget lines by resource and cost code, and the material list. Use it until the ERP connection is ready.",
-  sendToErp: "Sending the project and budget to ePROMIS needs the connection, which is not set up yet. Download the Excel file for now.",
   masters: "The lists a budget line points at. Import a file with a code, a name and optionally a parent code.",
   mastersDefaults: "These are starter lists, not your client's own. Import a file to replace or extend them; entries are matched on list and code.",
   mastersFile: "A CSV or Excel file with a header row: Code, Name and optionally Parent. Format the code column as text so leading zeros stay.",

@@ -47,7 +47,7 @@ These are not in the product at this snapshot, so this chapter does not describe
 
 - A settings page for deal stages or tender stages. Tender stages are fixed. Deal stages are the five standard ones unless BPMSquare loaded others for your workspace (verify).
 - Sending a bid to a tender portal such as Ariba. **Submit bid** saves a numbered version inside BPMSquare. You upload the priced Excel or copy the answer sheet yourself.
-- Raising a purchase order from a buy-out package. The package gives you an Excel. The purchase order is raised in ePROMIS or your ERP. The **Send to ePROMIS** button on the project Handover tab is switched off.
+- Raising a purchase order from a buy-out package. The package gives you an Excel. The purchase order is raised in ePROMIS or your ERP. The **Send to ePROMIS** button on the project **ERP handover** tab is switched off and says so beside it.
 - Email, PDF or WhatsApp for a Purchase Order. A Purchase Order can only be marked as sent.
 - A "Create sales order" button on a deal or in the Inbox. The button exists on an accepted Standard Quote and on a won Quotation only.
 - An internal or external pricing switch on a quote. That choice lives on the order type (Sales Orders).
@@ -1183,10 +1183,10 @@ Project managers, finance and the people who approve budgets. Module: **Contract
 
 1. Open the **WBS** tab, next to **Budget**. The number on it is how many items the project has.
 2. A project made from a tender that has a WBS starts with a copy of it. When the tender had none, the tab reads "No WBS was copied from the tender. Add the first item."
-3. Select **New WBS item**. The **Name** is required. Leave **Code** empty and it numbers itself (1, 1.1, 1.1.1), or type your ERP's code and it is kept. **Parent** nests the item, up to three levels. **Renumber** sits next to the button once the project has items.
+3. Select **New WBS item**. Lines ticked under **Unassigned** come ticked in the panel. The **Name** is required. Leave **Code** empty and it numbers itself (1, 1.1, 1.1.1), or type your ERP's code and it is kept. **Parent** nests the item, up to three levels. **Renumber** sits next to the button once the project has items.
 4. Choose an **Owner**. The owner runs this part of the work, and only an employee with a login can own an item. Employees without one are listed under **No login yet**. Pick one and the panel offers **Create login**. The item cannot be saved until the login exists. Items with no owner are counted in an amber line, and the Overview lists "n WBS items without an owner".
 5. Tick the **Lines** the item holds. A line already in another item is greyed and shows which one. A line sits in one item, or you can split it across items with **Split**, in the same panel as on the tender.
-6. **Unassigned** lists the lines in no item, in amber. Tick lines, choose an item in the bar that appears and select **Group into WBS**.
+6. **Unassigned** lists the lines in no item, in amber. Tick lines, choose an item in the bar that appears and select **Group into WBS**, or choose **+ New WBS item…** to make one that starts with the ticked lines. In the tree, **Allocated** is the budget cost on the item's lines, sub-items included.
 7. The tree shows **Owner**, **Lines**, **Client amount**, **Allocated** and what is left. When several people own items, owner buttons above the tree show one person's items.
 8. After the baseline is approved the WBS tab says "Allocation locked: baseline approved. Structure and owners can still change." Names, codes, parents, owners and new items can still change. The typed costs are fixed, and when you allocate by WBS the lines also stay where they are.
 9. To move lines or costs after approval, start a revision on the **Revisions** tab (below). The new revision is a draft, so costs and line moves open up again.
@@ -1213,7 +1213,7 @@ Project managers, finance and the people who approve budgets. Module: **Contract
 
 **Hand over and close**
 
-1. The **Handover** tab gives **Download Excel**: the project, its budget lines by resource and cost code, the WBS, and the material list. On the **Budget** sheet, **Item no.** is the client's item number and **WBS item** is where the line sits in the project's WBS: the item code, a list such as `1.1 60 % · 1.2 15 % · 2 25 %` for a split line, or empty. When the project has WBS items a **WBS** sheet comes with the file: one row for each item in tree order (**WBS**, **Name**, **Parent**, **Owner**, **Client amount**, **Allocated**, **Lines**, sub-items rolled up) and, under an item, one row for each part of a split line with its **Share %**, **Qty**, **Unit** and client amount. Whole lines are not repeated there. The file is internal and carries cost.
+1. The **ERP handover** tab has two parts. **Packages** lists each awarded buy-out package with its **Download Excel** and whether it was sent (a package is marked as sent on the package, in Buy-out). **Budget** gives **Download Excel**: the project, its budget lines by resource and cost code, the WBS, and the material list. On the **Budget** sheet, **Item no.** is the client's item number and **WBS item** is where the line sits in the project's WBS: the item code, a list such as `1.1 60 % · 1.2 15 % · 2 25 %` for a split line, or empty. When the project has WBS items a **WBS** sheet comes with the file: one row for each item in tree order (**WBS**, **Name**, **Parent**, **Owner**, **Client amount**, **Allocated**, **Lines**, sub-items rolled up) and, under an item, one row for each part of a split line with its **Share %**, **Qty**, **Unit** and client amount. Whole lines are not repeated there. The file is internal and carries cost.
 2. **More > Close project** closes an Active project. **Reopen project** opens it again. **Delete** works on a Draft project whose budgets are all drafts.
 
 ### Statuses
@@ -1286,13 +1286,13 @@ Buyers and project managers. Module: **Contract projects** plus **GCC tender dea
 
 1. Four tiles: **Budget in packages**, **Committed**, **Best quotes vs budget** and **Needs a decision**.
 2. Filter buttons: **All**, **Not sent**, **Out**, **Ready to award**, **Awarded**, **Handed over**.
-3. The table shows each package with its budget, best quote, committed amount, position against budget, status and an ePROMIS state. On a phone it becomes cards.
+3. The table shows each package with its budget, best quote, committed amount, position against budget, status and a **Sent to ERP** state. On a phone it becomes cards.
 
 **Make a package**
 
 1. Select **+ New package**.
 2. Enter a **Name** (required) and a **Kind**: Supplier (goods) or Subcontract (work). The kind is only a label for now.
-3. Tick the budget lines to include. A line sits in one package at most. Lines already used are not offered. The panel shows how many lines are chosen and what they add up to.
+3. Tick the budget lines to include, or choose an item under **Pick by WBS item** to tick its lines, sub-items included. **All** and **None** tick or clear the list. A line sits in one package at most. Lines already used are not offered. The panel shows how many lines are chosen and what they add up to.
 4. Select **Create package**.
 
 **Make a package from a WBS item**
@@ -1305,13 +1305,13 @@ Buyers and project managers. Module: **Contract projects** plus **GCC tender dea
 **Ask for prices**
 
 1. Open the package. Select **Send request**.
-2. Tick the suppliers (only the client's approved group is shown). Set **Reply by** and a **Note to suppliers**.
+2. Tick the suppliers (only the client's approved group is shown). A supplier without an email says "no email: add one on the supplier"; if you tick one, the form names who will not get the email before you send, and when nobody ticked has an email the request cannot be sent. Set **Reply by** and a **Note to suppliers**.
 3. Select **Send request to N suppliers**. Each supplier gets an email with a link and answers on a page without logging in: a price and a lead time per line, with room for an alternative or a refusal.
 
 **Compare and award**
 
 1. Under **Quotes in the current round** the replies sit side by side. The lowest valid price is marked.
-2. Select **Award package** on a quote. Confirm with **Confirm award**. A reason is asked for when the quote is not the lowest valid one or has expired. A package over its budget shows a warning. It is never blocked.
+2. Select **Award package** on a quote. Confirm with **Confirm award**. A reason is asked for when the quote is not the lowest valid one, has expired, or is over the package budget. The reason is kept with the award and in the change history. An award over budget is never blocked.
 3. **Against the budget** draws budget, best quote and committed as bars.
 
 **Run another round**
@@ -1355,7 +1355,7 @@ The handover state is Not ready, Ready or Sent.
 
 - Packages can be made only from an approved baseline budget. Reserve lines are left out.
 - Awarding is per package. One supplier takes the whole package.
-- The cost shown beside each line ("Cost in bid") is internal. Nothing on these screens and nothing in the handover Excel shows the bid price or markup.
+- The **Budget** shown beside each line is the line's amount in the approved budget. It is internal. Nothing on these screens and nothing in the handover Excel shows the bid price or markup.
 - Purchase orders are not raised here. They come from the Excel.
 - The Overview card **Buy-out progress** shows packages awarded and handed over, and committed against the amount in packages.
 - Whether a re-tender should reuse the bid-time suppliers is not decided (verify with your BPMSquare contact).
@@ -1363,7 +1363,7 @@ The handover state is Not ready, Ready or Sent.
 Screenshot: sales-buyout-tab.png | /contract-projects/<id>?tab=buyout | The four tiles, the filter buttons and two packages.
 Screenshot: sales-buyout-new-package.png | /contract-projects/<id>?tab=buyout (select + New package) | The new package panel with lines ticked.
 Screenshot: sales-buyout-quotes.png | /contract-projects/<id>?tab=buyout (open a package) | Two quotes side by side with Lowest valid marked.
-Screenshot: sales-buyout-handover.png | /contract-projects/<id>?tab=buyout (open an awarded package) | The Handover block with Download Excel and Mark as sent.
+Screenshot: sales-buyout-handover.png | /contract-projects/<id>?tab=buyout (open an awarded package) | The **Send this package to the ERP** block with Download Excel and Mark as sent.
 
 ---
 

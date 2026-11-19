@@ -31,7 +31,9 @@ import WbsItemPanel from "./WbsItemPanel";
 // what it holds and what is allocated, the lines in no item, and the split of a line across items. The project owns its own copy: a change here
 // never touches the tender. Structure and owners stay editable after the baseline is approved; the money does not (the amber line says so).
 
-type Panel = { pkg: WorkPackageRow | null; parentId?: string | null } | null;
+type Panel = { pkg: WorkPackageRow | null; parentId?: string | null; lineKeys?: string[] } | null;
+/** The first choice of the group bar: a new item that starts with the ticked lines. */
+const NEW_ITEM = "__new__";
 const foldKey = (projectId: string) => `cpwbs-fold:${projectId}`;
 type Fold = { closed: string[]; open: string[] };
 function readFold(projectId: string): Fold {
@@ -96,6 +98,8 @@ export default function WbsTab({ projectId, basis, revisionStatus, projectClosed
   const editable = canEdit && !projectClosed;
   const linesLocked = basis === "package" && revisionStatus !== null && revisionStatus !== "draft" ? "Allocation locked: baseline approved. Structure and owners can still change." : null;
   const lockWords = projectClosed ? "This project is closed" : !canEdit ? "You can view this project but not change it" : null;
+  // A new item starts with the lines ticked in the Unassigned list (nothing is ticked while lines cannot move).
+  const newItem = (): Panel => ({ pkg: null, lineKeys: [...picked] });
   const withoutOwner = packages.filter((p) => !p.owner_employee_id && !packages.some((k) => k.parent_id === p.id)).length;
 
   const entries: UnassignedEntry[] = unassigned.map((u) => {
@@ -172,7 +176,7 @@ export default function WbsTab({ projectId, basis, revisionStatus, projectClosed
           {linesLocked && <div role="status" data-guide="cp.wbs.locked" style={{ fontSize: 13, color: "var(--amberink)" }}>{linesLocked}<InfoTip label="Locked">{WBS_TIPS.locked}</InfoTip></div>}
           {lockWords && <div role="status" style={{ fontSize: 13, color: c.muted }}>{lockWords}</div>}
           <div className={s.tools} data-guide="cp.wbs.tools">
-            {editable && <Button variant="primary" data-guide="cp.wbs.add" disabled={busy} style={{ minHeight: 44 }} onClick={() => setPanel({ pkg: null })}>New WBS item</Button>}
+            {editable && <Button variant="primary" data-guide="cp.wbs.add" disabled={busy} style={{ minHeight: 44 }} onClick={() => setPanel(newItem())}>New WBS item</Button>}
             {editable && packages.length > 0 && !treePending && <Button variant="secondary" data-guide="cp.wbs.renumber" disabled={busy} style={{ minHeight: 44 }} onClick={() => void renumber()}>Renumber</Button>}
             <InfoTip label="WBS codes">{WBS_TIPS.code}</InfoTip>
             {owners.length > 1 && (
@@ -245,8 +249,9 @@ export default function WbsTab({ projectId, basis, revisionStatus, projectClosed
           {picked.size > 0 && editable && (
             <div className={s.bar} data-guide="cp.wbs.group_bar" data-sticky="1" role="region" aria-label="Selected lines">
               <span className={s.barCount}>{picked.size} selected</span>
-              <Select aria-label="Put the selected lines in" value={target} onChange={(e) => setTarget(e.target.value)} style={{ minHeight: 44, width: "auto", maxWidth: "100%" }} data-guide="cp.wbs.group_target">
+              <Select aria-label="Put the selected lines in" value={target} onChange={(e) => { if (e.target.value === NEW_ITEM) { setTarget(""); setPanel(newItem()); } else setTarget(e.target.value); }} style={{ minHeight: 44, width: "auto", maxWidth: "100%" }} data-guide="cp.wbs.group_target">
                 <option value="">Choose a WBS item</option>
+                <option value={NEW_ITEM} data-guide="cp.wbs.group_new">+ New WBS item…</option>
                 {leafItems(items).map((l) => <option key={l.id} value={l.id}>{l.code} {l.name}</option>)}
               </Select>
               <Button variant="primary" loading={busy} disabled={!target} onClick={() => void group()} style={{ minHeight: 44 }} data-guide="cp.wbs.group">Group into WBS</Button>
@@ -263,15 +268,15 @@ export default function WbsTab({ projectId, basis, revisionStatus, projectClosed
 
       {panel && (
         <WbsItemPanel
-          key={panel.pkg?.id ?? `new-${panel.parentId ?? "root"}`} projectId={projectId} pkg={panel.pkg} parentId={panel.parentId} packages={packages} lines={lines} employees={employees}
+          key={panel.pkg?.id ?? `new-${panel.parentId ?? "root"}`} projectId={projectId} pkg={panel.pkg} parentId={panel.parentId} initialLineKeys={panel.lineKeys} packages={packages} lines={lines} employees={employees}
           locked={lockWords} linesLocked={linesLocked ?? (treePending ? WBS_PENDING : null)} basis={basis} onClose={() => setPanel(null)}
-          onSaved={() => { setPanel(null); router.refresh(); }} onEditSplit={treePending ? undefined : (k) => { setPanel(null); setSplitFor(k); }}
+          onSaved={() => { if (!panel.pkg) setPicked(new Set()); setPanel(null); router.refresh(); }} onEditSplit={treePending ? undefined : (k) => { setPanel(null); setSplitFor(k); }}
           onMakeBuyout={buyoutOn && editable ? (p) => void makeBuyout(p) : undefined}
         />
       )}
       {buyout && (
         <NewPackagePanel
-          projectId={projectId} lines={buyout.data.unassigned_lines} currency={currency} initial={buyout.initial} onClose={() => setBuyout(null)}
+          projectId={projectId} lines={buyout.data.unassigned_lines} wbsItems={buyout.data.wbs_items} currency={currency} initial={buyout.initial} onClose={() => setBuyout(null)}
           onCreated={() => { setBuyout(null); router.push(`${ROUTES.contractProject(projectId)}?tab=buyout`); }}
         />
       )}

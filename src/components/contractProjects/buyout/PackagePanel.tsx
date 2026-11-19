@@ -18,8 +18,8 @@ import SendRequestForm from "./SendRequestForm";
 import { BUYOUT_TIPS } from "./tips";
 import { KIND_LABEL, type PackageDetail, type PackageRow, type PickerList, type Quote, type Round } from "./types";
 
-// One package, in the shared SidePanel (a drawer on a desktop, a bottom sheet under 780 px): the lines with their cost in the bid, the quotes
-// of the current round side by side, the rounds kept for audit, the budget bars and the handover. Every action goes through one runner that,
+// One package, in the shared SidePanel (a drawer on a desktop, a bottom sheet under 780 px): the lines with their budget, the quotes
+// of the current round side by side, the rounds kept for audit, the budget bars and sending the package to the ERP. Every action goes through one runner that,
 // after a success, re-reads this package and then tells the tab (which re-reads the list and refreshes the page), so the tiles, the chips
 // and the table never go stale. The server decides again on every call.
 
@@ -134,7 +134,7 @@ export default function PackagePanel({ projectId, row, currency, canEdit, groupN
                   <div data-guide="buyout.awarded" style={{ fontSize: 12.5, color: c.muted, display: "flex", flexDirection: "column", gap: 2 }}>
                     <span>Awarded to <b style={{ color: c.ink }}>{head.awarded_supplier_name ?? cur?.quotes.find((q) => q.supplier_id === head.awarded_supplier_id)?.supplier_name ?? "the supplier"}</b>{head.committed_amount != null ? ` for ${money(head.committed_amount, currency)}` : ""}</span>
                     <span>{[head.awarded_by_name, head.awarded_at ? day(head.awarded_at) : null].filter(Boolean).join(" · ")}</span>
-                    {head.award_reason && <span style={{ color: "var(--amberink)" }}>Not the lowest valid price: {head.award_reason}</span>}
+                    {head.award_reason && <span data-guide="buyout.awarded.reason" style={{ color: "var(--amberink)" }}>Award reason: {head.award_reason}</span>}
                   </div>
                 )}
 
@@ -185,7 +185,7 @@ export default function PackagePanel({ projectId, row, currency, canEdit, groupN
               </div>
             </SettingsSection>
 
-            <SettingsSection id="buyout.panel.handover" title="Handover" info={BUYOUT_TIPS.handover} summary={HANDOVER_LABEL[detail.handover.state]} defaultOpen>
+            <SettingsSection id="buyout.panel.handover" title="Send this package to the ERP" info={BUYOUT_TIPS.handover} summary={HANDOVER_LABEL[detail.handover.state]} defaultOpen>
               <div data-guide="buyout.handover" style={card}>
                 {!awarded ? (
                   <>
@@ -195,8 +195,8 @@ export default function PackagePanel({ projectId, row, currency, canEdit, groupN
                 ) : (
                   <>
                     <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                      <b style={{ fontSize: 13, color: c.ink, overflowWrap: "anywhere" }}>Handover for {head?.awarded_supplier_name ?? cur?.quotes.find((q) => q.supplier_id === head?.awarded_supplier_id)?.supplier_name ?? "the supplier"}</b>
-                      <StatusPill label={detail.handover.state === "sent" ? "Marked as sent to ePROMIS" : "Ready to hand over"} tone={HANDOVER_TONE[detail.handover.state]} />
+                      <b style={{ fontSize: 13, color: c.ink, overflowWrap: "anywhere" }}>Order file for {head?.awarded_supplier_name ?? cur?.quotes.find((q) => q.supplier_id === head?.awarded_supplier_id)?.supplier_name ?? "the supplier"}</b>
+                      <StatusPill label={detail.handover.state === "sent" ? "Marked as sent to ePROMIS" : "Ready to send"} tone={HANDOVER_TONE[detail.handover.state]} />
                     </div>
                     {detail.handover.state === "sent" && (
                       <div data-guide="buyout.handover.sent" style={{ fontSize: 12.5, color: c.muted }}>{[detail.handover.sent_at ? day(detail.handover.sent_at) : null, detail.handover.sent_by_name, detail.handover.erp_ref ? `ERP ${detail.handover.erp_ref}` : null].filter(Boolean).join(" · ")}</div>
@@ -244,7 +244,9 @@ export default function PackagePanel({ projectId, row, currency, canEdit, groupN
 // ── Pieces ───────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
 export function LinesTable({ lines, currency }: { lines: PackageDetail["lines"]; currency: string | null }) {
-  const total = lines.reduce((s, l) => s + (l.cost_in_bid ?? 0), 0);
+  // The line's amount in the approved budget: what the package budget (the tab's "Package budget", the bars below) adds up from.
+  const budgetOf = (l: PackageDetail["lines"][number]) => l.budget ?? l.cost_in_bid;
+  const total = lines.reduce((s, l) => s + (budgetOf(l) ?? 0), 0);
   const qty = (l: PackageDetail["lines"][number]) => (l.qty == null ? "" : `${l.qty}${l.uom ? ` ${l.uom}` : ""}`);
   return (
     <div data-guide="buyout.lines">
@@ -253,7 +255,7 @@ export function LinesTable({ lines, currency }: { lines: PackageDetail["lines"];
           <thead>
             <tr>
               <th style={th}>Item</th><th style={th}>Description</th><th style={{ ...th, textAlign: "right" }}>Qty</th>
-              <th style={{ ...th, textAlign: "right" }}><span style={{ display: "inline-flex", alignItems: "center", gap: 3 }}>Cost in bid <InfoTip label="Cost in bid">{BUYOUT_TIPS.costInBid}</InfoTip></span></th>
+              <th style={{ ...th, textAlign: "right" }}><span style={{ display: "inline-flex", alignItems: "center", gap: 3 }}>Budget <InfoTip label="Budget">{BUYOUT_TIPS.lineBudget}</InfoTip></span></th>
             </tr>
           </thead>
           <tbody>
@@ -262,7 +264,7 @@ export function LinesTable({ lines, currency }: { lines: PackageDetail["lines"];
                 <td style={{ ...td, whiteSpace: "nowrap", color: c.muted }}>{l.item_no ?? "—"}</td>
                 <td style={{ ...td, overflowWrap: "anywhere" }}>{l.description}</td>
                 <td style={{ ...td, textAlign: "right", whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }}>{qty(l) || "—"}</td>
-                <td style={{ ...td, textAlign: "right", whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }}>{money(l.cost_in_bid, currency)}</td>
+                <td style={{ ...td, textAlign: "right", whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }}>{money(budgetOf(l), currency)}</td>
               </tr>
             ))}
             <tr><td style={td} /><td style={{ ...td, fontWeight: 600 }}>Total</td><td style={td} /><td style={{ ...td, textAlign: "right", fontWeight: 600, fontVariantNumeric: "tabular-nums" }}>{money(total, currency)}</td></tr>
@@ -275,7 +277,7 @@ export function LinesTable({ lines, currency }: { lines: PackageDetail["lines"];
             <span style={{ fontSize: 13, fontWeight: 600, color: c.ink, overflowWrap: "anywhere" }}>{l.item_no ? `${l.item_no} · ` : ""}{l.description}</span>
             <span style={{ display: "flex", justifyContent: "space-between", gap: 8, fontSize: 12.5, color: c.muted }}>
               <span>{qty(l) || "—"}</span>
-              <span style={{ fontVariantNumeric: "tabular-nums" }}>Cost in bid {money(l.cost_in_bid, currency)}</span>
+              <span style={{ fontVariantNumeric: "tabular-nums" }}>Budget {money(budgetOf(l), currency)}</span>
             </span>
           </div>
         ))}
@@ -308,15 +310,17 @@ export function QuoteCard({ quote: q, currency, won, canAward, onAward }: { quot
 function AwardConfirm({ quote, currency, budget, busy, reason, onReason, onConfirm, onCancel }: {
   quote: Quote; currency: string | null; budget: number; busy: boolean; reason: string; onReason: (v: string) => void; onConfirm: () => void; onCancel: () => void;
 }) {
-  const needReason = awardNeedsReason(quote);
+  // One reason box, one confirm: a price that is not the lowest valid one, or one over the package budget, must say why (kept with the award).
+  const notLowest = awardNeedsReason(quote);
   const over = overBudget(quote.total, budget);
+  const needReason = notLowest || over > 0;
   return (
     <div data-guide="buyout.award" role="group" aria-label="Confirm award" style={card}>
       <b style={{ fontSize: 13, color: c.ink, overflowWrap: "anywhere" }}>Award the package to {quote.supplier_name} for {money(quote.total, currency)}</b>
-      {needReason && <div role="status" data-guide="buyout.award.not_lowest" style={{ fontSize: 12.5, color: "var(--amberink)" }}>{quote.valid ? "Not the lowest valid price." : "This answer has expired or is stale."} A reason is needed.</div>}
-      {over > 0 && <div role="status" data-guide="buyout.award.over" style={{ fontSize: 12.5, color: "var(--amberink)" }}>This is over the package budget by {money(over, currency)}. You can still award it.</div>}
+      {notLowest && <div role="status" data-guide="buyout.award.not_lowest" style={{ fontSize: 12.5, color: "var(--amberink)" }}>{quote.valid ? "Not the lowest valid price." : "This answer has expired or is stale."} A reason is needed.</div>}
+      {over > 0 && <div role="status" data-guide="buyout.award.over" style={{ fontSize: 12.5, color: "var(--amberink)" }}>This is over the package budget by {money(over, currency)}. A reason is needed.</div>}
       {needReason && (
-        <Field label="Why this supplier?" required info={BUYOUT_TIPS.award} guide="buyout.award.reason" style={{ marginBottom: 0 }}>
+        <Field label={notLowest ? "Why this supplier?" : "Why over the budget?"} required info={BUYOUT_TIPS.award} guide="buyout.award.reason" style={{ marginBottom: 0 }}>
           <Textarea rows={2} value={reason} onChange={(e) => onReason(e.target.value)} maxLength={1000} />
         </Field>
       )}
