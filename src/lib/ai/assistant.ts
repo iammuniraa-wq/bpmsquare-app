@@ -12,7 +12,7 @@ import { compileAndRun, type ReportResult } from "@/lib/ai/reportCompile";
 import { OVER_BUDGET_MESSAGE } from "@/lib/ai/usageCap";
 import { OBJECT_FEATURE } from "@/lib/objectFeatures";
 import type { CurrencyDef } from "@/lib/currency";
-import { answerUnavailableAsk, judgeNavigation, NAV_NONE } from "@/lib/assistant/navGuard";
+import { isPushback, judgeNavigation, NAV_NONE, notTheSameAgain, saidBefore, unavailableAsk, unavailableFollowUp } from "@/lib/assistant/navGuard";
 import { buildNavTargets, isInternalPath, navigationPromptBlock, isNavigationRequest, matchNavigation, matchRecordOpen, recordHref, tenderBoqTarget, type NavGateCtx, type NavTarget } from "@/lib/assistant/navTargets";
 import { boqHelpAnswer, boqUploadRule } from "@/lib/assistant/boqHelp";
 import { navigateTool, openRecordTool } from "@/lib/assistant/navTools";
@@ -544,6 +544,13 @@ async function runOpenRecord(
 }
 
 export async function askAssistant(history: ChatTurn[], ctx: AssistantAskCtx): Promise<AssistantReply> {
+  const reply = await answerAsk(history, ctx);
+  // Whatever path answered, the same words are never sent twice in a row. A repeated "Opening ..." is the person asking twice.
+  if (reply.autoFollow || reply.overBudget || reply.guide || reply.card || reply.consent) return reply;
+  return { ...reply, answer: notTheSameAgain(history.slice(0, -1), reply.answer) };
+}
+
+async function answerAsk(history: ChatTurn[], ctx: AssistantAskCtx): Promise<AssistantReply> {
   const { meter } = ctx;
   const toolCtx: ToolCtx = { supabase: ctx.supabase, tenantId: ctx.tenantId, perms: ctx.perms, features: ctx.features };
   const question = history[history.length - 1]?.text ?? "";
@@ -551,6 +558,7 @@ export async function askAssistant(history: ChatTurn[], ctx: AssistantAskCtx): P
   const navCtx: NavGateCtx = {
     features: ctx.features,
     isAdmin: ctx.isAdmin,
+    isWorkspaceAdmin: ctx.isWorkspaceAdmin === true,
     // Admins and anyone who may edit Workforce. A supervisor made only by an employee record is not counted: the safe direction.
     isWfmSupervisor: ctx.isAdmin || canEditWorkcenter(ctx.perms, "wfm"),
     canView: (wc) => canViewWorkcenter(ctx.perms, wc),
@@ -605,8 +613,13 @@ export async function askAssistant(history: ChatTurn[], ctx: AssistantAskCtx): P
   const direct = matchNavigation(question, targets);
   if (direct) return { answer: `Opening ${direct.label.replace(/^Settings: /, "Settings · ")}.`, cards: [cardFor(direct)], autoFollow: true };
   // 1b. "where is X" for a screen this person cannot reach: the reason, with no button and no model. Never the nearest other screen.
-  const missingAnswer = answerUnavailableAsk(question, targets, navCtx);
-  if (missingAnswer) return { answer: missingAnswer };
+  // Said once. A second ask or a pushback ("but I am the admin") goes to the model with the facts instead (see followUp below).
+  const prior = history.slice(0, -1);
+  const missingAnswer = unavailableAsk(question, targets, navCtx);
+  if (missingAnswer && !isPushback(question) && !saidBefore(prior, missingAnswer.message)) {
+    const related = missingAnswer.related.filter((t) => isInternalPath(t.href)).map(cardFor);
+    return { answer: missingAnswer.message, cards: related.length ? related : undefined };
+  }
   const recordAsk = matchRecordOpen(question);
   if (recordAsk && usableObjects(toolCtx).some((d) => d.type === recordAsk.objectType)) {
     const hits = await findRecords(toolCtx, recordAsk.objectType, recordAsk.ref);
@@ -691,9 +704,11 @@ export async function askAssistant(history: ChatTurn[], ctx: AssistantAskCtx): P
 
   const route = routeAsk({ question, history });
   const model = modelFor(route.tier);
+  // The person is replying to "that screen is not available": the model answers in its own words from the server's facts.
+  const followUp = unavailableFollowUp(history, targets, navCtx);
   const system: Anthropic.TextBlockParam[] = [
     { type: "text", text: stable, cache_control: { type: "ephemeral", ttl: "1h" } },
-    { type: "text", text: volatile },
+    { type: "text", text: followUp ? `${volatile}\n\n${followUp.fact}` : volatile },
   ];
 
   const anthropic = ctx.anthropic ?? new Anthropic();
@@ -706,6 +721,8 @@ export async function askAssistant(history: ChatTurn[], ctx: AssistantAskCtx): P
   let lastAnalysis: DockAnalysis | undefined;
   const addCards = (c: NavCard[]) => { for (const x of c) if (!cards.some((y) => y.href === x.href)) cards.push(x); };
   const byId = new Map(targets.map((t) => [t.id, t]));
+  if (followUp && !webHistory) addCards(followUp.related.filter((t) => isInternalPath(t.href)).map(cardFor));
+  let explainedMissing = false;
   const routed = { tier: route.tier, model, reason: route.reason };
 
   // --- web research (docs/design/assistant-smarter.md section 2) -------------------------------------------------
@@ -788,7 +805,7 @@ export async function askAssistant(history: ChatTurn[], ctx: AssistantAskCtx): P
     card: confirmCard,
     cards: cards.length ? cards : undefined,
     guide: lastGuide,
-    autoFollow: cards.length === 1 && isNavigationRequest(question) ? true : undefined,
+    autoFollow: !followUp && cards.length === 1 && isNavigationRequest(question) ? true : undefined,
     routed,
     web: webSources.length ? { sources: webSources } : undefined,
   });
@@ -896,9 +913,15 @@ export async function askAssistant(history: ChatTurn[], ctx: AssistantAskCtx): P
               const shown = verdict.targets.filter((t) => isInternalPath(t.href));
               addCards(shown.map(cardFor));
               out = `Button shown: ${shown.map((t) => cardFor(t).label).join(", ")}. Reply with one short line.`;
+            } else if (verdict.kind === "unavailable" && !explainedMissing && (followUp || isPushback(question) || saidBefore(prior, verdict.message))) {
+              // Already said once in this chat. The fixed sentence again would be a wall, so the model explains from the facts; no button to that screen exists either way.
+              explainedMissing = true;
+              addCards(verdict.related.filter((t) => isInternalPath(t.href)).map(cardFor));
+              out = `No button: the person cannot open that. ${verdict.fact}`;
             } else {
               // The answer is the server's own words, not the model's: it is final, so nothing can dress it up as a button.
               if (verdict.kind === "unknown") addCards(verdict.suggestions.filter((t) => isInternalPath(t.href)).map(cardFor));
+              if (verdict.kind === "unavailable") addCards(verdict.related.filter((t) => isInternalPath(t.href)).map(cardFor));
               // Suggestions are offered, never followed on their own.
               return { ...finish(verdict.message), autoFollow: undefined };
             }

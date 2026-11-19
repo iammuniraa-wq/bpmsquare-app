@@ -110,6 +110,66 @@ const ask = (q: string) => [{ role: "user" as const, text: q }];
 
 beforeEach(() => { vi.clearAllMocks(); });
 
+describe("a screen the workspace lacks, asked about by its administrator (owner, KAMCO 2026-11-19)", () => {
+  const FIRST = "Email is not part of your workspace yet. Modules are added by BPMSquare, not in Settings, so ask your BPMSquare contact to switch it on. If this is about the mailbox your emails go out from, you can set that up here.";
+  const MAIL_CARDS = [
+    { id: "settings:connectors", label: "Open Settings · Connectors", href: "/settings/connectors" },
+    { id: "settings:email-output", label: "Open Settings · Email output", href: "/settings/email-output" },
+  ];
+  const admin = (replies?: Reply[]) => { const s = setup({ replies }); s.ctx.isWorkspaceAdmin = true; return s; };
+
+  it("first ask: the honest reason in admin words, the mail settings as buttons, no model", async () => {
+    const s = admin();
+    const r = await askAssistant(ask("where is email"), s.ctx);
+    expect(r.answer).toBe(FIRST);
+    expect(r.cards).toEqual(MAIL_CARDS);
+    expect(r.autoFollow).toBeUndefined();
+    expect(s.create).not.toHaveBeenCalled();
+  });
+
+  it("'i am admin' and 'I understand but' are answered by the model from the server's facts, not by the same sentence", async () => {
+    let history: { role: "user" | "assistant"; text: string }[] = [{ role: "user", text: "where is email" }, { role: "assistant", text: FIRST }];
+    for (const [say, modelSays] of [
+      ["where to switch it on? i am admin", "There's no switch for it on your side, even as admin. BPMSquare adds the Email module, so a note to your BPMSquare contact will do it."],
+      ["I understand but i am an admin", "You're right that you run this workspace. Modules are the one thing BPMSquare switches on for you."],
+    ]) {
+      const s = admin([text(modelSays)]);
+      history = [...history, { role: "user", text: say }];
+      const r = await askAssistant(history, s.ctx);
+      expect(s.create).toHaveBeenCalledTimes(1);
+      expect(r.answer).toBe(modelSays);
+      expect(r.answer).not.toBe(FIRST);
+      expect(r.cards).toEqual(MAIL_CARDS);
+      const system = JSON.stringify(s.params[0].system);
+      expect(system).toContain("SCREENS THIS PERSON CANNOT OPEN");
+      expect(system).toContain("IS a workspace administrator");
+      expect(system).toContain("Only BPMSquare");
+      history = [...history, { role: "assistant", text: r.answer }];
+    }
+  });
+
+  it("asking the same thing twice does not get the same text twice, even when the model only calls navigate again", async () => {
+    const history = [{ role: "user" as const, text: "where is email" }, { role: "assistant" as const, text: FIRST }, { role: "user" as const, text: "where is email" }];
+    const s = admin([toolUse("navigate", { target: "none", asked_for: "email" }), text("Email isn't in your workspace yet; BPMSquare can add it for you.")]);
+    const r = await askAssistant(history, s.ctx);
+    expect(r.answer).toBe("Email isn't in your workspace yet; BPMSquare can add it for you.");
+    expect(JSON.stringify(s.params[1].messages)).toContain("No button: the person cannot open that.");
+
+    // The model insists on navigate twice: the fixed sentence comes back, but never word for word.
+    const stuck = admin([toolUse("navigate", { target: "none", asked_for: "email" }), toolUse("navigate", { target: "none", asked_for: "email" })]);
+    const r2 = await askAssistant(history, stuck.ctx);
+    expect(r2.answer).not.toBe(FIRST);
+    expect(r2.answer).toContain("BPMSquare contact");
+  });
+
+  it("a member still hears 'ask your administrator', and gets no settings buttons they could not open", async () => {
+    const s = setup({ perms: ONLY_ACCOUNTS });
+    const r = await askAssistant(ask("where is email"), s.ctx);
+    expect(r.answer).toBe("Email is not switched on in your workspace. Ask your administrator to enable it.");
+    expect(r.cards).toBeUndefined();
+  });
+});
+
 describe("the meter around the loop", () => {
   it("reads the allowance before the first model call and logs every call after it", async () => {
     const s = setup({ replies: [toolUse("query_data", { object: "quotations", count_only: true }), text("There is 1.")] });

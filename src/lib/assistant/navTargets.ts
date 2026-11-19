@@ -26,6 +26,8 @@ export type NavGateCtx = {
   features: Record<string, boolean | undefined>;
   /** Admin, or a member with no Business Role (unrestricted access). */
   isAdmin: boolean;
+  /** The workspace role is admin. Only wording depends on it ("ask your administrator" is no help to the administrator). */
+  isWorkspaceAdmin?: boolean;
   isWfmSupervisor: boolean;
   canView: (wc: WorkcenterKey) => boolean;
   canCreate: (wc: WorkcenterKey) => boolean;
