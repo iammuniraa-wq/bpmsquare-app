@@ -272,6 +272,8 @@ describe("approval rules", () => {
     expect(askProblem({ revision: draft, lineCount: 3, linesWithoutResource: 2, deciders: ["boss"], projectClosed: false })).toContain("no resource");
     expect(askProblem({ revision: draft, lineCount: 3, linesWithoutResource: 0, deciders: [], projectClosed: false })).toContain("No one else");
     expect(askProblem({ revision: draft, lineCount: 3, linesWithoutResource: 0, deciders: ["boss"], projectClosed: false })).toBeNull();
+    expect(askProblem({ revision: draft, lineCount: 3, linesWithoutResource: 0, deciders: ["boss"], projectClosed: false, total: 0 })).toContain("budget is 0");
+    expect(askProblem({ revision: draft, lineCount: 3, linesWithoutResource: 0, deciders: ["boss"], projectClosed: false, total: 120 })).toBeNull();
     expect(askProblem({ revision: draft, lineCount: 3, linesWithoutResource: 0, deciders: ["boss"], projectClosed: true })).toContain("closed");
     expect(askProblem({ revision: { ...draft, status: "pending" }, lineCount: 3, linesWithoutResource: 0, deciders: ["boss"], projectClosed: false })).toContain("already waiting");
     expect(askProblem({ revision: { ...draft, status: "approved" }, lineCount: 3, linesWithoutResource: 0, deciders: ["boss"], projectClosed: false })).toContain("Only a draft");

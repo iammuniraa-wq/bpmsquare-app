@@ -83,7 +83,7 @@ export default function BidDocuments({ opportunityId, versions, quotes, canMakeQ
               <span style={{ fontSize: 12.5, color: c.hint }}>Submit a bid first. A quote is made from a saved version.</span>
             ) : (
               <>
-                <Field label="Version" guide="tender.bid.quote_version">
+                <Field label="Version" guide="tender.bid.quote_version" style={{ marginBottom: 0 }}>
                   <Select value={version} onChange={(e) => setVersion(e.target.value)} style={{ minHeight: 44 }}>
                     {versions.map((v) => <option key={v.id} value={v.version_no}>Version {v.version_no} · {fmt(v.total)}</option>)}
                   </Select>

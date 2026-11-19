@@ -66,7 +66,7 @@ export async function buildProjectApprovalView(
   admin: SupabaseClient,
   args: {
     tenantId: string; userId: string; projectId: string; config: Pick<TenantConfig, "tender"> | null | undefined;
-    revisions: readonly RevisionRow[]; shown: RevisionRow | null; lineCount: number; linesWithoutResource: number; projectClosed: boolean;
+    revisions: readonly RevisionRow[]; shown: RevisionRow | null; lineCount: number; linesWithoutResource: number; projectClosed: boolean; total?: number;
   },
 ): Promise<ProjectApprovalView | null> {
   const { rows, pending } = await loadProjectApprovals(admin, args.tenantId, args.projectId);
@@ -84,7 +84,7 @@ export async function buildProjectApprovalView(
   return {
     pending: open ? { ...entry(open), mine: open.requested_by === args.userId } : null,
     canDecide: open ? canDecide(args.userId, approvers, open.requested_by, allowSelfApproval) : false,
-    askBlocked: args.shown ? askProblem({ revision: args.shown, lineCount: args.lineCount, linesWithoutResource: args.linesWithoutResource, deciders, projectClosed: args.projectClosed }) : "No revision yet",
+    askBlocked: args.shown ? askProblem({ revision: args.shown, lineCount: args.lineCount, linesWithoutResource: args.linesWithoutResource, deciders, projectClosed: args.projectClosed, total: args.total }) : "No revision yet",
     history: rows.filter((r) => r.status !== "pending").slice(0, APPROVAL_HISTORY_SHOWN).map(entry),
   };
 }

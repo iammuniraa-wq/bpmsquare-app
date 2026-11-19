@@ -269,7 +269,10 @@ export default function BidsTab({ opportunityId, data: pageData, stage, outcome,
         </SettingsSection>
       )}
 
-      <PaymentTermsPicker opportunityId={opportunityId} canEdit={data.canEdit} />
+      {/* In a card like its neighbours: loose on the page it read as floating between two sections. */}
+      <div data-guide="tender.payment_terms.card" style={{ background: "var(--panel)", border: `1px solid ${c.line}`, borderRadius: 12, padding: "10px 16px" }}>
+        <PaymentTermsPicker opportunityId={opportunityId} canEdit={data.canEdit} />
+      </div>
       <BidDocuments opportunityId={opportunityId} versions={versions} quotes={quotes} canMakeQuote={canMakeQuote} canSend={data.canEdit && !sends.pending} fmt={fmt} onError={onError} onNotice={onNotice} onChanged={onChanged} onSent={() => void reloadSends()} />
       <SentToClient opportunityId={opportunityId} sends={sends} versions={versions} canEdit={data.canEdit} onRecorded={() => { void reloadSends(); onChanged?.(); }} onError={onError} onNotice={onNotice} />
     </div>

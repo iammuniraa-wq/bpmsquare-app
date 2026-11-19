@@ -104,7 +104,7 @@ export default function BoqDownloads({ opportunityId, footer, hasWbs }: { opport
         <span style={name}>Answer sheet<InfoTip label="Answer sheet">{TENDER_TIPS.boqAnswerSheet}</InfoTip><span style={tag}>Excel</span></span>
         <span style={actions}><AnswerSheetButton opportunityId={opportunityId} label="Download" tip={false} /></span>
       </div>
-      {footer && <div data-guide="boq.downloads.actions" style={{ ...row, justifyContent: "flex-end" }}>{footer}</div>}
+      {footer && <div data-guide="boq.downloads.actions" style={{ ...row, justifyContent: "flex-end", background: "var(--panel2)" }}>{footer}</div>}
     </div>
   );
 }

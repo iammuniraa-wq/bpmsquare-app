@@ -48,7 +48,7 @@ export default function CostingRow({ item, opportunityId, today, canEdit, canAwa
       <div style={{ display: "flex", flexWrap: "wrap", gap: "2px 14px", alignItems: "center", fontSize: 12.5, color: c.ink }}>
         <span data-guide="costing.rows" style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
           <span style={{ color: c.muted }}>Prices</span> <b>{rowsText(item.rows)}</b>
-          {item.rows.count > 0 && onOpenBoq && <Button variant="quiet" size="sm" onClick={onOpenBoq} style={{ minHeight: 44 }} data-guide="costing.rows.open">open</Button>}
+          {item.rows.count > 0 && onOpenBoq && <Button variant="quiet" size="sm" onClick={onOpenBoq} style={{ minHeight: 44 }} data-guide="costing.rows.open">Show rows</Button>}
         </span>
         <span data-guide="costing.total" style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
           <span style={{ color: c.muted }}>{isEstimate ? "Cost" : item.total_is_awarded ? "Awarded" : "Best"}</span>
@@ -93,8 +93,8 @@ export default function CostingRow({ item, opportunityId, today, canEdit, canAwa
         ) : (
           <>
             {canCompareRfq(item.status, item.suppliers_replied) && (
-              <Button variant={canAward ? "primary" : "secondary"} size="sm" onClick={() => onCompare(item.id)} style={{ minHeight: 44 }} data-guide="costing.rfq.compare">
-                {canAward ? "Compare and award" : "Compare"}
+              <Button variant={canAward && item.status !== "awarded" ? "primary" : "secondary"} size="sm" onClick={() => onCompare(item.id)} style={{ minHeight: 44 }} data-guide="costing.rfq.compare">
+                {!canAward ? "Compare" : item.status === "awarded" ? "Review award" : "Compare and award"}
               </Button>
             )}
             <Button variant="secondary" size="sm" href={href} style={{ minHeight: 44 }} data-guide="costing.rfq.open">Open RFQ</Button>

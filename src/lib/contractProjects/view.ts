@@ -81,7 +81,7 @@ export async function buildProjectView(req: ProjectCtx, project: ProjectRow, opt
     loadActorNames(admin, tenantId, [project.manager_id, ...revs.flatMap((r) => [r.created_by, r.approved_by])]),
     buildProjectApprovalView(admin, {
       tenantId, userId, projectId: project.id, config: tenant?.config, revisions: revs, shown, lineCount: lines.length,
-      linesWithoutResource: totals.noResourceCount, projectClosed: project.status === "closed",
+      linesWithoutResource: totals.noResourceCount, projectClosed: project.status === "closed", total: totals.total,
     }),
   ]);
 

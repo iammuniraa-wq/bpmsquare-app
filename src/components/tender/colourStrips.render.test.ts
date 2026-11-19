@@ -104,7 +104,7 @@ describe("the strip on the Bill of quantities", () => {
     expect(out).toContain("100%");
     expect(tileOf(out, "Total")).toContain('data-tone="info"');
     expect(out).toContain("1,250.50");
-    expect(out).toContain("at cost + markup");
+    expect(out).toContain("at selling rates (no known cost)"); // no row here carries a cost
   });
 
   it("lines still to price are amber, and the words say how many", () => {

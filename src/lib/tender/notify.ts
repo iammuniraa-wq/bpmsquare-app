@@ -4,6 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { ROUTES, tenantOrigin, type TenantConfig } from "@/lib/constants";
 import { emailOutputFor, resolveOutbound } from "@/lib/emailOutputRules";
 import { logEmail } from "@/lib/emailLog";
+import { plainTextToHtml } from "@/lib/email/plainTextHtml";
 
 // One way for the tender edition to tell a person something (docs/design/gcc-tender-deals.md sections 10 and 4):
 //   - an e-mail, through resolveOutbound (a demo workspace is redirect-only) and recorded in email_log (kind tender);
@@ -15,7 +16,7 @@ import { logEmail } from "@/lib/emailLog";
 export type TenderMailAttachment = { filename: string; content: Buffer };
 
 export type TenderMailer = {
-  send(p: { from: string; to: string[]; subject: string; text: string; attachments?: TenderMailAttachment[] }): Promise<{ error?: string | null }>;
+  send(p: { from: string; to: string[]; subject: string; text: string; html?: string; attachments?: TenderMailAttachment[] }): Promise<{ error?: string | null }>;
 };
 
 export function defaultMailer(): TenderMailer | null {
@@ -23,7 +24,8 @@ export function defaultMailer(): TenderMailer | null {
   const resend = new Resend(process.env.RESEND_API_KEY);
   return {
     async send(p) {
-      const r = await resend.emails.send({ from: p.from, to: p.to, subject: p.subject, text: p.text, ...(p.attachments?.length ? { attachments: p.attachments } : {}) });
+      // Always an HTML part as well, so a link is a real link in every mail client (see plainTextHtml.ts).
+      const r = await resend.emails.send({ from: p.from, to: p.to, subject: p.subject, text: p.text, html: p.html ?? plainTextToHtml(p.text), ...(p.attachments?.length ? { attachments: p.attachments } : {}) });
       return { error: r.error?.message ?? null };
     },
   };

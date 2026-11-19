@@ -74,7 +74,7 @@ export default function CostSourcesTable({ items, opportunityId, today, canEdit,
                 <td data-guide="costing.rows">
                   <span style={{ display: "inline-flex", alignItems: "center", gap: 4, flexWrap: "wrap" }}>
                     <b>{rowsText(item.rows)}</b>
-                    {item.rows.count > 0 && onOpenBoq && <Button variant="quiet" size="sm" onClick={onOpenBoq} style={{ minHeight: 44 }} data-guide="costing.rows.open">open</Button>}
+                    {item.rows.count > 0 && onOpenBoq && <Button variant="quiet" size="sm" onClick={onOpenBoq} style={{ minHeight: 44 }} data-guide="costing.rows.open">Show rows</Button>}
                   </span>
                 </td>
                 <td data-guide="costing.state"><StatusPill label={item.state.label} tone={item.state.tone} /></td>
@@ -104,8 +104,8 @@ export default function CostSourcesTable({ items, opportunityId, today, canEdit,
                     ) : (
                       <>
                         {canCompareRfq(item.status, item.suppliers_replied) && (
-                          <Button variant={canAward ? "primary" : "secondary"} size="sm" onClick={() => onCompare(item.id)} style={{ minHeight: 44 }} data-guide="costing.rfq.compare">
-                            {canAward ? "Compare and award" : "Compare"}
+                          <Button variant={canAward && item.status !== "awarded" ? "primary" : "secondary"} size="sm" onClick={() => onCompare(item.id)} style={{ minHeight: 44 }} data-guide="costing.rfq.compare">
+                            {!canAward ? "Compare" : item.status === "awarded" ? "Review award" : "Compare and award"}
                           </Button>
                         )}
                         <Button variant="secondary" size="sm" href={href} style={{ minHeight: 44 }} data-guide="costing.rfq.open">Open RFQ</Button>

@@ -77,7 +77,7 @@ describe("the Costing tab", () => {
     const out = tab(data());
     expect(out).toContain('data-guide="costing.table"');
     for (const h of [">Type<", ">Reference<", ">Prices BOQ rows<", ">State<", ">Cost<", ">Age<"]) expect(out, h).toContain(h);
-    expect(out).toContain("Each BOQ row takes its cost from one source.");
+    expect(out).not.toContain("Each BOQ row takes its cost from one source."); // behind the tab "i" (6b)
     expect(out).toContain("EST-0016 · Floor tiles");
     expect(out).toContain("RFQ-0012 · Skirting, membrane");
     expect(out).toContain("1.1 · 1.3 · 1.4");

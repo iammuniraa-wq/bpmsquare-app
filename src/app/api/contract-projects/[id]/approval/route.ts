@@ -48,7 +48,7 @@ export async function POST(request: NextRequest, { params }: Ctx) {
   const deciders = decidersFor(approvers, userId, allowSelfApproval);
   const problem = approvals.some((a) => a.status === "pending")
     ? "A budget is already waiting for approval"
-    : askProblem({ revision, lineCount: lines.length, linesWithoutResource: totals.noResourceCount, deciders, projectClosed: project.status === "closed" });
+    : askProblem({ revision, lineCount: lines.length, linesWithoutResource: totals.noResourceCount, deciders, projectClosed: project.status === "closed", total: totals.total });
   if (problem) return NextResponse.json({ error: problem }, { status: 409 });
 
   const justification = revision.justification_code ? (await loadMasters(admin, tenantId, "justification")).find((m) => m.code === revision.justification_code)?.name ?? null : null;

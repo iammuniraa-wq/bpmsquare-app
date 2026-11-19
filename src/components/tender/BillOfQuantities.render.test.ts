@@ -59,7 +59,7 @@ describe("the table (desktop)", () => {
     const out = html();
     expect(out).toContain("<table");
     expect(out).toContain(">Item</th>");
-    for (const th of ["Cost from", "Cost / unit", "Markup %", "Rate / unit", "Product"]) expect(out, th).toMatch(new RegExp(`<th[^>]*><span[^>]*>${th.replace("/", "\/")}<button[^>]*aria-label="About ${th.replace("/", "\/")}"`));
+    for (const th of ["Cost from", "Cost / unit", "Markup %", "Rate / unit", "Linked to"]) expect(out, th).toMatch(new RegExp(`<th[^>]*><span[^>]*>${th.replace("/", "\/")}<button[^>]*aria-label="About ${th.replace("/", "\/")}"`));
     for (const th of ["Description", "Qty", "Unit", "Amount"]) expect(out, th).toContain(`>${th}</th>`);
     for (const old of [">Source<", ">Mk<", ">Linked<"]) expect(out, old).not.toContain(old);
     for (const item of ["A.1", "A.2", "A.3", "A.4", "#12"]) expect(out, item).toContain(`aria-label="Open item ${item}"`);
@@ -127,7 +127,7 @@ describe("the toolbar, the strip and the filters", () => {
     expect(bar).toContain("Price all lines");
     expect(bar).toMatch(/<label data-guide="boq\.markup"[^>]*>Markup on cost<input[^>]*value="15"[^>]*\/>%<button[^>]*aria-label="About Markup"/);
     expect(bar).toContain("align-items:center");
-    expect(bar).toContain("Price all uses supplier, then BOM, then past project. Fresh prices only.");
+    expect(bar).not.toContain("Price all uses supplier"); // the order lives behind the Price all "i" (6b)
     expect(out).toContain('data-guide="boq.match.chip"');
     for (const w of ["Download priced BOQ", "Export answer sheet", "boq.download", "boq.answer_sheet"]) expect(out, w).not.toContain(w);
   });
