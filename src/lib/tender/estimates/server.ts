@@ -629,6 +629,7 @@ export async function proposeAllocationFor(
   const boq: BoqInput[] = b.items.map(({ boq: x, line }) => ({
     id: x.id, item_no: x.item_no, row_no: x.row_no, description: line.description, uom: x.file_uom ?? line.uom ?? null,
     qty: Number(line.qty), cost_code: x.cost_code, amount: Number(line.amount),
+    rate: Number(line.rate), price_source: x.price_source, price_source_ref: x.price_source_ref, unit_cost: x.unit_cost,
   }));
   const links = await loadLinks(r.admin, r.tenantId, r.opp.id);
   const existing: AllocationLink[] = links.rows.filter((l) => l.estimate_id === est.id).map((l) => ({ boq_line_id: l.boq_line_id, output: l.output, basis: l.basis, share_pct: l.share_pct }));

@@ -7,7 +7,8 @@ import type { RfqOriginType } from "@/lib/rfq/types";
 import { inp, lbl, btnPrimary, btnGhost } from "./rfqUi";
 import SupplierPicker from "./SupplierPicker";
 import { useRfqSuppliers } from "./useRfqSuppliers";
-import { submitRfq } from "./submitRfq";
+import { submitRfq, type RfqCreated } from "./submitRfq";
+import { RfqSendBlocker, useRfqSendBlocker } from "./RfqSendNotices";
 
 // The one RFQ create form -- the New RFQ page and every "Request quotation"
 // dialog (quotes, deals, cases, inspections, work orders, fence projects)
@@ -44,7 +45,7 @@ export default function RfqComposer({
   originLabel?: string | null;
   initialLines?: ComposerLine[];
   initialTitle?: string;
-  onCreated: (r: { id: string; ref: string; line_ids: string[]; line_keys: (string | null)[]; sent?: { supplier: string; ok: boolean; reason?: string }[] }) => void;
+  onCreated: (r: RfqCreated) => void;
   onCancel?: () => void;
   compact?: boolean;
   /** Offer the vendors / subcontractors filter in the supplier list (tender deals). */
@@ -63,6 +64,10 @@ export default function RfqComposer({
   const [internal, setInternal] = useState("");
   const [busy, setBusy] = useState<null | "draft" | "send">(null);
   const [error, setError] = useState<string | null>(null);
+  // A line that came from a record is one compact row; its edit fields open on demand. Kept by position in `lines`.
+  // A line that arrives with nothing to send yet starts open.
+  const [editing, setEditing] = useState<Set<number>>(() => new Set((initialLines ?? []).flatMap((l, i) => (l.description.trim() ? [] : [i]))));
+  const blocker = useRfqSendBlocker();
 
   useEffect(() => {
     fetch("/api/products").then((r) => (r.ok ? r.json() : null)).then((d) => setProducts(Array.isArray(d) ? d : null)).catch(() => {});
@@ -78,6 +83,11 @@ export default function RfqComposer({
   }, [suggested]);
 
   const setLine = (i: number, p: Partial<ComposerLine>) => setLines((ls) => ls.map((l, j) => (j === i ? { ...l, ...p } : l)));
+  const toggleEdit = (i: number) => setEditing((s) => { const n = new Set(s); if (n.has(i)) n.delete(i); else n.add(i); return n; });
+  const removeLine = (i: number) => {
+    setLines((ls) => ls.filter((_, j) => j !== i));
+    setEditing((s) => new Set([...s].filter((j) => j !== i).map((j) => (j > i ? j - 1 : j))));
+  };
   const toggle = (id: string) => setChosen((cs) => (cs.includes(id) ? cs.filter((x) => x !== id) : [...cs, id]));
 
   async function save(send: boolean) {
@@ -101,7 +111,7 @@ export default function RfqComposer({
       if (!body.lines.length) throw new Error("Add at least one line.");
       if (send && !chosen.length) throw new Error("Choose at least one supplier to send to.");
       const j = await submitRfq(body);
-      onCreated({ ...j, line_keys: chosenLines.map((l) => l.key ?? null) });
+      onCreated({ ...j, line_keys: chosenLines.map((l) => l.key ?? null), sendRequested: send });
     } catch (e) {
       setError((e as Error).message);
       setBusy(null);
@@ -134,44 +144,64 @@ export default function RfqComposer({
           </span>
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          {lines.map((l, i) => (
-            <div key={i} style={{ border: `1px solid ${l.include === false ? c.line : l.source_line_id ? c.accent + "55" : c.line}`, borderRadius: 8, padding: 10, display: "grid", gap: 8, opacity: l.include === false ? 0.55 : 1, gridTemplateColumns: compact ? "1fr" : "minmax(0,3fr) minmax(0,1fr) minmax(0,1fr) auto" }}>
-              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                {(l.source_line_id || l.include !== undefined) && (
-                  <label style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 12.5, color: c.ink, cursor: "pointer" }}>
-                    <input type="checkbox" checked={l.include !== false} onChange={(e) => setLine(i, { include: e.target.checked })} />
-                    <span>Ask suppliers about this line</span>
-                    {l.hint && <span style={{ fontSize: 11.5, color: "var(--amberink)" }}>· {l.hint}</span>}
-                    {l.linked_ref && <span style={{ fontSize: 11.5, color: c.hint }}>· already on {l.linked_ref}</span>}
-                  </label>
+          {lines.map((l, i) => {
+            const fromRecord = !!l.source_line_id || l.include !== undefined;
+            const ticked = l.include !== false;
+            // A line chosen from a record is one row; its fields open with "Edit". A line typed here has no row to fall back to, so it is always open.
+            const showFields = !fromRecord || (ticked && editing.has(i));
+            const qtyText = [l.qty === null || l.qty === undefined || l.qty === "" ? null : String(l.qty), l.uom].filter(Boolean).join(" ");
+            return (
+              <div key={i} data-guide="rfq.line" style={{ border: `1px solid ${fromRecord && ticked ? c.accent + "55" : c.line}`, borderRadius: 8, padding: fromRecord ? "0 10px" : 10, display: "flex", flexDirection: "column", gap: 8 }}>
+                {fromRecord && (
+                  <div style={{ display: "flex", gap: 8, alignItems: "center", minHeight: 44 }}>
+                    <label style={{ display: "flex", gap: 10, alignItems: "center", flex: 1, minWidth: 0, minHeight: 44, cursor: "pointer", fontSize: 13, color: ticked ? c.ink : c.muted }}>
+                      <input type="checkbox" aria-label={`Ask suppliers about line ${i + 1}`} checked={ticked} onChange={(e) => setLine(i, { include: e.target.checked })} style={{ flexShrink: 0 }} />
+                      <span style={{ color: c.hint, fontVariantNumeric: "tabular-nums", flexShrink: 0 }}>{i + 1}</span>
+                      <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontWeight: ticked ? 600 : 400 }} title={l.description}>
+                        {l.description.trim() || "No description yet"}
+                        {l.hint && <span style={{ fontSize: 11.5, fontWeight: 400, color: "var(--amberink)" }}> · {l.hint}</span>}
+                        {l.linked_ref && <span style={{ fontSize: 11.5, fontWeight: 400, color: c.hint }}> · already on {l.linked_ref}</span>}
+                      </span>
+                      {qtyText && <span style={{ flexShrink: 0, fontVariantNumeric: "tabular-nums", color: c.muted, whiteSpace: "nowrap" }}>{qtyText}</span>}
+                    </label>
+                    {ticked && (
+                      <button type="button" aria-expanded={showFields} aria-label={`${showFields ? "Close the fields of" : "Edit"} line ${i + 1}`} onClick={() => toggleEdit(i)} style={{ ...btnGhost, padding: "4px 10px", fontSize: 12, minHeight: 32, flexShrink: 0 }}>{showFields ? "Done" : "Edit"}</button>
+                    )}
+                  </div>
                 )}
-                {products && products.length > 0 && (
-                  <select aria-label={`Line ${i + 1} product`} style={inp} value={l.product_id ?? ""} onChange={(e) => {
-                    const p = products.find((x) => x.id === e.target.value);
-                    setLine(i, { product_id: p?.id ?? null, description: p ? p.name : l.description, uom: p?.uom ?? l.uom });
-                  }}>
-                    <option value="">Free-text item (not in the catalog)</option>
-                    {products.map((p) => <option key={p.id} value={p.id}>{p.ref ? `${p.ref} · ` : ""}{p.name}</option>)}
-                  </select>
+                {showFields && (
+                  <div style={{ display: "grid", gap: 8, paddingBottom: fromRecord ? 10 : 0, gridTemplateColumns: compact ? "1fr" : "minmax(0,3fr) minmax(0,1fr) minmax(0,1fr) auto" }}>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                      {products && products.length > 0 && (
+                        <select aria-label={`Line ${i + 1} product`} style={inp} value={l.product_id ?? ""} onChange={(e) => {
+                          const p = products.find((x) => x.id === e.target.value);
+                          setLine(i, { product_id: p?.id ?? null, description: p ? p.name : l.description, uom: p?.uom ?? l.uom });
+                        }}>
+                          <option value="">Free-text item (not in the catalog)</option>
+                          {products.map((p) => <option key={p.id} value={p.id}>{p.ref ? `${p.ref} · ` : ""}{p.name}</option>)}
+                        </select>
+                      )}
+                      <input aria-label={`Line ${i + 1} description`} style={inp} value={l.description} onChange={(e) => setLine(i, { description: e.target.value })} placeholder="Description" />
+                      <input aria-label={`Line ${i + 1} specification`} style={inp} value={l.spec ?? ""} onChange={(e) => setLine(i, { spec: e.target.value })} placeholder="Specification, drawing no., grade (optional)" />
+                    </div>
+                    <div>
+                      <label style={lbl}>Qty</label>
+                      <input aria-label={`Line ${i + 1} quantity`} style={inp} inputMode="decimal" value={l.qty ?? ""} onChange={(e) => setLine(i, { qty: e.target.value })} />
+                    </div>
+                    <div>
+                      <label style={lbl}>UOM</label>
+                      <select aria-label={`Line ${i + 1} unit`} style={inp} value={l.uom ?? ""} onChange={(e) => setLine(i, { uom: e.target.value })}>
+                        {[...new Set([...(l.uom ? [l.uom] : []), ...UOM_OPTIONS])].map((u) => <option key={u} value={u}>{u}</option>)}
+                      </select>
+                    </div>
+                    <div style={{ display: "flex", alignItems: "flex-end" }}>
+                      <button type="button" aria-label={`Remove line ${i + 1}`} disabled={lines.length === 1} onClick={() => removeLine(i)} style={{ ...btnGhost, padding: "7px 10px", opacity: lines.length === 1 ? 0.4 : 1 }}>✕</button>
+                    </div>
+                  </div>
                 )}
-                <input aria-label={`Line ${i + 1} description`} style={inp} value={l.description} onChange={(e) => setLine(i, { description: e.target.value })} placeholder="Description" />
-                <input aria-label={`Line ${i + 1} specification`} style={inp} value={l.spec ?? ""} onChange={(e) => setLine(i, { spec: e.target.value })} placeholder="Specification, drawing no., grade (optional)" />
               </div>
-              <div>
-                <label style={lbl}>Qty</label>
-                <input aria-label={`Line ${i + 1} quantity`} style={inp} inputMode="decimal" value={l.qty ?? ""} onChange={(e) => setLine(i, { qty: e.target.value })} />
-              </div>
-              <div>
-                <label style={lbl}>UOM</label>
-                <select aria-label={`Line ${i + 1} unit`} style={inp} value={l.uom ?? ""} onChange={(e) => setLine(i, { uom: e.target.value })}>
-                  {[...new Set([...(l.uom ? [l.uom] : []), ...UOM_OPTIONS])].map((u) => <option key={u} value={u}>{u}</option>)}
-                </select>
-              </div>
-              <div style={{ display: "flex", alignItems: "flex-end" }}>
-                <button type="button" aria-label={`Remove line ${i + 1}`} disabled={lines.length === 1} onClick={() => setLines((ls) => ls.filter((_, j) => j !== i))} style={{ ...btnGhost, padding: "7px 10px", opacity: lines.length === 1 ? 0.4 : 1 }}>✕</button>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 
@@ -192,11 +222,13 @@ export default function RfqComposer({
         <div><label style={lbl} htmlFor="rfq-ni">Internal note</label><textarea id="rfq-ni" rows={2} style={{ ...inp, resize: "vertical" }} value={internal} onChange={(e) => setInternal(e.target.value)} placeholder="Never sent to suppliers" /></div>
       </div>
 
+      {blocker && <RfqSendBlocker reason={blocker} />}
       {error && <div role="alert" style={{ fontSize: 13, color: "var(--redink)", background: "var(--redbg)", padding: "8px 12px", borderRadius: 7 }}>{error}</div>}
       <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", flexWrap: "wrap" }}>
         {onCancel && <button type="button" style={btnGhost} onClick={onCancel} disabled={!!busy}>Cancel</button>}
-        <button type="button" style={btnGhost} onClick={() => save(false)} disabled={!!busy}>{busy === "draft" ? "Saving…" : "Save as draft"}</button>
-        <button type="button" style={{ ...btnPrimary, opacity: chosen.length ? 1 : 0.6 }} onClick={() => save(true)} disabled={!!busy}>{busy === "send" ? "Sending…" : `Send to ${chosen.length || ""} supplier${chosen.length === 1 ? "" : "s"}`}</button>
+        {/* When the mail channel cannot send, saving the draft is the one thing that works: it is the primary action and "Send" is not offered. */}
+        <button type="button" style={blocker ? btnPrimary : btnGhost} onClick={() => save(false)} disabled={!!busy}>{busy === "draft" ? "Saving…" : "Save as draft"}</button>
+        {!blocker && <button type="button" style={{ ...btnPrimary, opacity: chosen.length ? 1 : 0.6 }} onClick={() => save(true)} disabled={!!busy}>{busy === "send" ? "Sending…" : `Send to ${chosen.length || ""} supplier${chosen.length === 1 ? "" : "s"}`}</button>}
       </div>
     </div>
   );

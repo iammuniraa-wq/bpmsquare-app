@@ -28,12 +28,14 @@ const money = (n: number | null | undefined, cur?: string | null) =>
 const day = (s: string | null | undefined) => (s ? new Date(s.length === 10 ? `${s}T00:00:00` : s).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "—");
 const J = { "Content-Type": "application/json" };
 
-export default function CompareAward({ opportunityId, rfqId, onClose, onChanged, onError, onNotice, initialView, initialPanel }: {
+export default function CompareAward({ opportunityId, rfqId, onClose, onChanged, onLoaded, onError, onNotice, initialView, initialPanel }: {
   opportunityId: string;
   rfqId: string;
   onClose: () => void;
   /** After an award the page and the list read the new prices. */
   onChanged: () => void;
+  /** The answers are on screen (the first time only), so the tab can bring the now full-height screen into view. */
+  onLoaded?: () => void;
   onError: (message: string) => void;
   onNotice: (message: string) => void;
   /** Lets a server render (and its test) show the loaded screen. The page never passes it. */
@@ -55,6 +57,8 @@ export default function CompareAward({ opportunityId, rfqId, onClose, onChanged,
     } catch { setError("Could not load the RFQ"); }
   }, [base, rfqId]);
   useEffect(() => { if (!initialView) void load(); }, [initialView, load]);
+  const loaded = !!view;
+  useEffect(() => { if (loaded && !initialView) onLoaded?.(); }, [loaded]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const cmp = useMemo(() => {
     if (!view) return null;

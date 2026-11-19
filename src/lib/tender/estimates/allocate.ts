@@ -1,4 +1,6 @@
 import { createMatcher, MIN_SCORE, type MatchBand } from "@/lib/tender/boq/match";
+import { sourceChip } from "@/lib/tender/boq/origin";
+import type { PriceSource } from "@/lib/tender/boq/price";
 import { listOutputs, outputKey, splitShares, type AllocationLink, type EstLine, type OutputCost } from "./rules";
 
 // "Allocate to BOQ" (slice 3c-1): a whole-scope estimate (a precast building, a pipeline run) is spread over the BOQ lines it covers.
@@ -10,12 +12,48 @@ import { listOutputs, outputKey, splitShares, type AllocationLink, type EstLine,
 // The panel lets a person untick a row or change a share; the server checks the final set again and gives out no more than 100 percent
 // of any output. Shares are percentages of the output and add up to 100 per output at most.
 
-export type BoqInput = { id: string; item_no: string | null; row_no: number; description: string; uom: string | null; qty: number; cost_code: string | null; amount: number };
+export type BoqInput = {
+  id: string; item_no: string | null; row_no: number; description: string; uom: string | null; qty: number; cost_code: string | null; amount: number;
+  /** What the row carries today (absent in a caller that does not know: the row is then treated as unpriced). */
+  rate?: number | null; price_source?: PriceSource | null; price_source_ref?: string | null; unit_cost?: number | null;
+};
+/** The price a BOQ row already carries: "Supplier · RFQ-0011", and whether it is a cost or a selling rate only. */
+export type CurrentPrice = { text: string; kind: "cost" | "sell" };
 export type ProposalBy = "amount" | "quantity";
 export type Proposal = {
   boq_id: string; item_no: string | null; row_no: number; description: string; qty: number; uom: string | null; amount: number;
   output: string; output_label: string; output_cost: number; band: MatchBand | "spread"; score: number | null; share_pct: number;
+  /** Null when the row has no price yet. Applying to a row that has one REPLACES it, so the panel shows it and does not pre-tick the row. */
+  current?: CurrentPrice | null;
 };
+
+export function currentPriceOf(b: Pick<BoqInput, "rate" | "price_source" | "price_source_ref" | "unit_cost">): CurrentPrice | null {
+  const chip = sourceChip({ price_source: b.price_source ?? null, price_source_ref: b.price_source_ref ?? null, unit_cost: b.unit_cost ?? null });
+  if (chip) return { text: chip.text, kind: chip.kind };
+  return Number(b.rate) > 0 ? { text: "Typed", kind: "sell" } : null;
+}
+
+/** The rows a panel ticks when it opens: only rows with no price at all. A row priced from an RFQ, an estimate or by hand is never pre-ticked. */
+export const defaultTicks = (rows: readonly Pick<Proposal, "boq_id" | "current">[]): Set<string> => new Set(rows.filter((r) => !r.current).map((r) => r.boq_id));
+
+/** One line per chosen row that already has a price: "Replaces the Supplier · RFQ-0011 cost on 1.1." */
+export function replacedPrices(chosen: readonly Pick<Proposal, "item_no" | "row_no" | "current">[]): string[] {
+  return chosen.filter((r) => !!r.current).map((r) => `Replaces the ${r.current!.text} ${r.current!.kind === "cost" ? "cost" : "rate"} on ${r.item_no ?? `row ${r.row_no}`}.`);
+}
+
+/** The confirm text for those lines: the first few, then how many more. Empty when nothing is replaced. */
+export function replacedText(chosen: readonly Pick<Proposal, "item_no" | "row_no" | "current">[], max = 5): string {
+  const all = replacedPrices(chosen);
+  if (all.length === 0) return "";
+  return `${all.slice(0, max).join(" ")}${all.length > max ? ` And ${all.length - max} more.` : ""}`;
+}
+
+/** "2.1 priced from EST-0004", "2.1, 2.2, 2.3 and 3 more priced from EST-0004". */
+export function pricedNotice(items: readonly (string | null)[], count: number, from: string): string {
+  const names = items.filter((x): x is string => !!x);
+  if (names.length === 0 || names.length !== count) return `${count} row${count === 1 ? "" : "s"} priced from ${from}`;
+  return `${names.slice(0, 3).join(", ")}${names.length > 3 ? ` and ${names.length - 3} more` : ""} priced from ${from}`;
+}
 
 const weightOf = (b: BoqInput, by: ProposalBy): number => (by === "quantity" ? b.qty : b.amount > 0 ? b.amount : b.qty);
 
@@ -38,7 +76,7 @@ export function sharesWithin(weights: readonly number[], free: number): number[]
 function pack(b: BoqInput, out: OutputCost, share: number, band: Proposal["band"], score: number | null): Proposal {
   return {
     boq_id: b.id, item_no: b.item_no, row_no: b.row_no, description: b.description, qty: b.qty, uom: b.uom, amount: b.amount,
-    output: out.key, output_label: out.label, output_cost: out.cost, band, score, share_pct: share,
+    output: out.key, output_label: out.label, output_cost: out.cost, band, score, share_pct: share, current: currentPriceOf(b),
   };
 }
 
@@ -76,10 +114,12 @@ export function proposeSpread(args: { boq: readonly BoqInput[]; output: OutputCo
 
 /**
  * The shares after a row is ticked or unticked: for each output the ticked rows share what is free, in proportion to amount or
- * quantity. An unticked row gets 0. `existing` is every link the estimate already has; the rows' own lines are being replaced.
+ * quantity. An unticked row gets 0. `existing` is every link the estimate already has. Only a TICKED row's link to the same output is
+ * replaced (what the server does on apply); an unticked row keeps its link, so its share is not free to give out again.
  */
 export function reshare(rows: readonly Pick<Proposal, "boq_id" | "output" | "amount" | "qty">[], ticked: ReadonlySet<string>, by: ProposalBy, existing: readonly AllocationLink[]): Map<string, number> {
-  const free = freePct(existing, new Set(rows.map((r) => r.boq_id)));
+  const replaced = new Set(rows.filter((r) => ticked.has(r.boq_id)).map((r) => `${r.boq_id}|${r.output}`));
+  const free = freePct(existing.filter((l) => !replaced.has(`${l.boq_line_id}|${l.output}`)), new Set());
   const out = new Map<string, number>(rows.map((r) => [r.boq_id, 0]));
   const groups = new Map<string, typeof rows[number][]>();
   for (const r of rows) if (ticked.has(r.boq_id)) groups.set(r.output, [...(groups.get(r.output) ?? []), r]);

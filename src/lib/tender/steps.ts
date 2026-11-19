@@ -109,7 +109,8 @@ export function tenderSteps(f: StepFacts, fmt: (n: number) => string = (n) => St
       checklist = [{ label: "Every line has a cost", done: f.unpriced === 0 }, { label: "No stale price", done: f.stale === 0 }];
       break;
     case "bid":
-      next = { title: "Next: submit the bid", detail: `${f.boqLines} ${plural(f.boqLines, "line", "lines")} priced, total ${fmt(f.boqAmount ?? 0)}.`, tipKey: "bidSubmit", primary: headerPrimary };
+      // Submitting happens on the Bid tab only: the button here opens that tab at its Submit button.
+      next = { title: "Next: submit the bid", detail: `${f.boqLines} ${plural(f.boqLines, "line", "lines")} priced, total ${fmt(f.boqAmount ?? 0)}.`, tipKey: "bidSubmit", primary: { kind: "tab", tab: "bid", label: "Open the Bid tab", guide: "tender.next.bid" } };
       checklist = [{ label: "Approved go decision", done: approved }, { label: "Bid guarantee submitted", done: f.guaranteeSubmitted === true }, { label: "Every line priced", done: f.hasBoq && f.unpriced === 0 }];
       break;
     case "submitted":

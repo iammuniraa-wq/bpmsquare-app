@@ -169,18 +169,20 @@ export const APPROVAL_HISTORY_SHOWN = 10;
 
 // ── Words ──────────────────────────────────────────────────────────────────────────────────────────────────────────
 
-const decisionWord = (d: TenderDecision) => (d === "go" ? "bid (go)" : "no-go");
+// The label of a decision, and the same decision as a phrase in a sentence ("proposes to bid on", "your proposal not to bid on").
+const decisionWord = (d: TenderDecision) => (d === "go" ? "Go (bid)" : "No-go (no bid)");
+const decisionPhrase = (d: TenderDecision) => (d === "go" ? "to bid on" : "not to bid on");
 
 /** The note the approver receives. Plain text: the reason is a colleague's own words, never HTML. */
 export function proposalMessage(args: { title: string; proposer: string; decision: TenderDecision; reason: string; link: string | null }): { subject: string; text: string; comment: string } {
   const subject = `Approval needed: ${decisionWord(args.decision)} for ${args.title}`.slice(0, 200);
   const text = [
-    `${args.proposer} proposes ${decisionWord(args.decision)} for the tender "${args.title}".`,
+    `${args.proposer} proposes ${decisionPhrase(args.decision)} the tender "${args.title}".`,
     `Reason: ${args.reason}`,
     args.link ? `Review and decide: ${args.link}` : "",
     "You are receiving this because you can approve bid decisions in this workspace.",
   ].filter(Boolean).join("\n");
-  return { subject, text, comment: `Asks you to approve ${decisionWord(args.decision)}: ${args.reason}`.slice(0, 600) };
+  return { subject, text, comment: `Asks you to approve: ${decisionWord(args.decision)}. ${args.reason}`.slice(0, 600) };
 }
 
 /** The note the proposer receives about the outcome. */
@@ -188,10 +190,10 @@ export function outcomeMessage(args: { title: string; decider: string; decision:
   const verdict = args.approved ? "approved" : "rejected";
   const subject = `${args.approved ? "Approved" : "Rejected"}: ${decisionWord(args.decision)} for ${args.title}`.slice(0, 200);
   const text = [
-    `${args.decider} ${verdict} your proposal of ${decisionWord(args.decision)} for the tender "${args.title}".`,
+    `${args.decider} ${verdict} your proposal ${decisionPhrase(args.decision)} the tender "${args.title}".`,
     args.comment ? `Comment: ${args.comment}` : "",
     args.approved ? (args.movedTo ? `The deal moved to ${args.movedTo}.` : "") : "The tender is back in Bid/No-bid.",
     args.link ? `Open the deal: ${args.link}` : "",
   ].filter(Boolean).join("\n");
-  return { subject, text, comment: `${args.approved ? "Approved" : "Rejected"} ${decisionWord(args.decision)}${args.comment ? `: ${args.comment}` : ""}`.slice(0, 600) };
+  return { subject, text, comment: `${args.approved ? "Approved" : "Rejected"}: ${decisionWord(args.decision)}${args.comment ? `: ${args.comment}` : ""}`.slice(0, 600) };
 }

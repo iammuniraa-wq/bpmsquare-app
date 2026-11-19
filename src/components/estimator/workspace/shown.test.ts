@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { ESTIMATE_TIPS } from "@/lib/estimator/tips";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { isDirty, shownBlank, shownFromPreview } from "./shown";
@@ -31,10 +32,13 @@ describe("shownBlank (a new precast villa shows its 3D model before anything is 
     expect(s.lines).toEqual([]);
     expect(s.totals).toBeNull();
   });
-  it("the working page draws the model of a blank estimate and says nothing is saved", () => {
+  it("the working page draws the model of a blank estimate; that nothing is saved yet is behind the page's i, in words that match the buttons", () => {
     const src = readFileSync(path.join(__dirname, "EstimateWorkspace.tsx"), "utf8");
     expect(src).toContain("blank ? shownBlank(preview)");
-    expect(src).toContain("nothing is saved yet");
+    expect(src).not.toContain("nothing is saved yet");
+    expect(ESTIMATE_TIPS.page).toContain("Nothing is saved until you press Create quote or Save as draft");
+    expect(ESTIMATE_TIPS.pageTender).toContain("Nothing is saved until you press Save as draft");
+    expect(ESTIMATE_TIPS.pageTender).not.toMatch(/quote/i);
   });
 });
 

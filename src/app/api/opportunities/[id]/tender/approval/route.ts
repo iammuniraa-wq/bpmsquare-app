@@ -3,6 +3,7 @@ import { requireTenantUser, createAdminSupabase, getAuthUser } from "@/lib/supab
 import { getTenant, tenantHasFeature } from "@/lib/tenant";
 import { logChange } from "@/lib/changeLog";
 import { loadActorNames } from "@/lib/actorNames";
+import { personLabel } from "@/lib/personName";
 import { emitTenderDecisionProposed } from "@/lib/events/emitters";
 import { loadOpportunity } from "@/lib/sales/opportunityServer";
 import { APPROVAL_KIND_TENDER_BID, APPROVAL_OBJECT_TENDER, decidersFor, parseProposal, proposalMessage, proposalProblem } from "@/lib/tender/approval";
@@ -85,7 +86,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const names = await loadActorNames(admin, tenantId, [userId]);
     const to = await memberEmails(admin, tenantId, deciders);
     if (tenant && to.length > 0) {
-      const msg = proposalMessage({ title: opp.title, proposer: names.get(userId) ?? user?.email ?? "A colleague", decision: parsed.decision, reason: parsed.reason, link: dealLink(tenant, id) });
+      const msg = proposalMessage({ title: opp.title, proposer: personLabel(names.get(userId), user, "A colleague"), decision: parsed.decision, reason: parsed.reason, link: dealLink(tenant, id) });
       await inboxNote(admin, { tenantId, dealId: id, authorId: userId, authorEmail: user?.email ?? null, body: msg.comment, mentionEmails: to.map((t) => t.email) });
       await sendTenderMail(admin, tenant, { to: to.map((t) => t.email), subject: msg.subject, text: msg.text, dealId: id, dealLabel: label, actorId: userId, actorEmail: user?.email ?? null });
     }

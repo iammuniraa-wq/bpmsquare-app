@@ -1,6 +1,7 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { loadActorNames } from "@/lib/actorNames";
+import { personLabel } from "@/lib/personName";
 import { logChange } from "@/lib/changeLog";
 import { getAuthUser } from "@/lib/supabase-server";
 import { getTenant } from "@/lib/tenant";
@@ -161,7 +162,7 @@ async function notify(req: ProjectCtx, project: ProjectRow, to: string[], build:
 
 async function displayName(req: ProjectCtx): Promise<string> {
   const user = await getAuthUser();
-  return (await loadActorNames(req.admin, req.tenantId, [req.userId])).get(req.userId) ?? user?.email ?? "A colleague";
+  return personLabel((await loadActorNames(req.admin, req.tenantId, [req.userId])).get(req.userId), user, "A colleague");
 }
 
 /** Ask the people who approve project budgets to approve this variation. */

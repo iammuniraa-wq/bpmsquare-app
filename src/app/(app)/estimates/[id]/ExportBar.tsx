@@ -6,6 +6,7 @@ import Button from "@/components/ui/Button";
 import Field from "@/components/ui/Field";
 import { Select } from "@/components/ui/Input";
 import { ERP_EXPORT_PROFILES, DEFAULT_ERP_PROFILE } from "@/lib/estimator/exports";
+import { ESTIMATE_TIPS } from "@/lib/estimator/tips";
 
 /** Bill of materials and work breakdown downloads with the ERP layout choice. Internal: the files carry costs. */
 export default function ExportBar({ estimateId }: { estimateId: string }) {
@@ -18,12 +19,12 @@ export default function ExportBar({ estimateId }: { estimateId: string }) {
   return (
     <Card padding={16}>
       <div id="export" className="fg2">
-        <Field label="ERP layout" hint={p?.note}>
+        <Field label="ERP layout" info={p?.note}>
           <Select value={profile} onChange={(e) => setProfile(e.target.value)}>
             {Object.values(ERP_EXPORT_PROFILES).map((x) => <option key={x.key} value={x.key}>{x.label}</option>)}
           </Select>
         </Field>
-        <Field label="Lines to include" hint="Physical items only, or every line including labour, transport and overhead.">
+        <Field label="Lines to include" info={ESTIMATE_TIPS.exportScope}>
           <Select value={scope} onChange={(e) => setScope(e.target.value as "items" | "all")}>
             <option value="items">Items only</option>
             <option value="all">All lines</option>

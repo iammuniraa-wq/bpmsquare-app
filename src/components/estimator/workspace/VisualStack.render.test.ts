@@ -6,7 +6,9 @@ vi.mock("next/dynamic", () => ({ default: () => () => null }));
 
 import VisualStack from "./VisualStack";
 import CustomerPreview from "./CustomerPreview";
-import EstimateVisualStrip, { CustomerVisualStrip } from "@/components/estimator/EstimateVisualStrip";
+import PriceCard from "./PriceCard";
+import PriceBuilt from "./PriceBuilt";
+import { CustomerVisualStrip } from "@/components/estimator/EstimateVisualStrip";
 import { pictureFor } from "./picture";
 import { previewKindFor } from "./layoutKind";
 import { shownFromPreview } from "./shown";
@@ -26,7 +28,9 @@ function wt(b: Body, over: Partial<WorkspaceTemplate> = {}): WorkspaceTemplate {
   return { id: "t", name: "T", description: null, geometry: b.geometry ?? null, inputs: b.inputs, rates: b.rates, rules: b.rules, quote_granularity: "group", visual: b.visual ?? null, ...over };
 }
 
-/** What the workspace does with a template: preview it, take the picture, take the strip. */
+const ready = { status: "ready" as const, catalogue: false, unsaved: false, notes: [] };
+
+/** What the workspace does with a template: preview it, take the picture, and show the price with its one breakdown. */
 function stack(t: WorkspaceTemplate, values: Record<string, number | string | boolean> = {}) {
   const params = toParams(t.inputs, initialValues(t.inputs, values));
   const p = previewEstimate({ template: { ...(t.geometry ? { geometry: t.geometry } : {}), inputs: t.inputs, rates: t.rates, rules: t.rules }, params, margin_pct: 10, vat_pct: 15 });
@@ -34,8 +38,10 @@ function stack(t: WorkspaceTemplate, values: Record<string, number | string | bo
   const shown = shownFromPreview(p);
   const picture = pictureFor(t, shown.model, params, shown.lines);
   const strip = buildStrip(shown.totals, shown.lines);
-  const html = clean(renderToString(createElement(VisualStack, { picture, fenceView: null, strip, rates: t.rates, money })));
-  return { html, picture, strip, shown };
+  const html = clean(renderToString(createElement(VisualStack, { picture, fenceView: null, rates: t.rates, money })));
+  const price = clean(renderToString(createElement(PriceCard, { view: p.view, options: null, money, state: ready, unpriced: strip?.unpriced })));
+  const built = clean(renderToString(createElement(PriceBuilt, { totals: shown.totals, money })));
+  return { html, price, built, picture, strip, shown };
 }
 
 const formulaOnly: Body = {
@@ -60,35 +66,50 @@ const dimensioned: Body = {
 };
 
 describe("a formula-only template (no dimensions, no module)", () => {
-  const { html, picture, strip } = stack(wt(formulaOnly));
-  it("has no picture but always has the composition strip", () => {
+  const { html, price, built, picture } = stack(wt(formulaOnly));
+  it("has no picture, and the breakdown is the Price card's own list", () => {
     expect(picture.kind).toBe("none");
-    expect(strip).not.toBeNull();
-    expect(html).toContain("Where the cost goes");
-    expect(html).toContain("Labour");
-    expect(html).toContain("Set-up");
-    expect(html).not.toContain("The layout");
+    expect(html).toBe("");
+    expect(price).toContain("3. Price");
+    expect(price).toContain("Labour");
+    expect(price).toContain("Set-up");
+    expect(price).not.toContain("The layout");
   });
-  it("shows the amount and the share of each group, and the components", () => {
-    expect(html).toContain("SAR 3200");
-    expect(html).toContain("SAR 500");
-    expect(html).toContain("86%");
-    expect(html).toContain("Production labour");
-    expect(html).toContain("data-guide=\"estimate.strip\"");
+  it("shows the amount and the share of each quote line, then the total before VAT and the VAT", () => {
+    expect(price).toContain("SAR 3520 · 86%");
+    expect(price).toContain("SAR 550 · 14%");
+    expect(price).toContain("Total before VAT");
+    expect(price).toContain("SAR 4070");
+    expect(price).toContain("VAT 15%");
+    expect(price).toContain("data-guide=\"estimate.strip\"");
+  });
+  it("shows the breakdown once: no second list of the groups on the page or under How the price is built", () => {
+    expect(html + price + built).not.toContain("Where the cost goes");
+    expect(price.match(/class="est-strip-label">Labour</g)).toHaveLength(1);
+    expect(built).not.toContain("By section");
+    expect(built).not.toContain("Set-up");
+    expect(built).toContain("Production labour");
+    expect(built).toContain("Margin (10% on cost)");
+    expect(built).not.toContain("Total incl. VAT");
   });
   it("is a small card at 375 px: the rows wrap and nothing has a fixed width", () => {
-    expect(html).toContain("est-strip-head");
-    expect(html).not.toMatch(/width:\s*\d{3,}px/);
+    expect(price).toContain("est-strip-head");
+    expect(price).not.toMatch(/width:\s*\d{3,}px/);
+  });
+  it("keeps its explanation behind the i, not as running text", () => {
+    expect(price).toContain("About 3. Price");
+    expect(price).not.toContain("Each bar is one line");
   });
 });
 
 describe("a template with dimensions", () => {
   const { html, picture, shown } = stack(wt(dimensioned));
-  it("is drawn from its inputs: the layout card and the strip", () => {
+  it("is drawn from its inputs: the layout card, with the breakdown on the Price card", () => {
     expect(picture.kind).toBe("generic");
     expect(picture.model?.pieces.length).toBeGreaterThan(5);
     expect(html).toContain("The layout");
-    expect(html).toContain("Where the cost goes");
+    expect(html).not.toContain("Where the cost goes");
+    expect(stack(wt(dimensioned)).price).toContain("Pipework");
   });
   it("lights up a line's pieces through the marks given to the line", () => {
     const pipe = picture.lines.find((l) => l.code === "pipe")!;
@@ -110,7 +131,7 @@ describe("a template with dimensions", () => {
     const p = previewEstimate({ template: { inputs: t.inputs, rates: t.rates, rules: t.rules }, params: toParams(t.inputs, {}), margin_pct: 0, vat_pct: 0 });
     if (!p.ok) throw new Error("no preview");
     const shownP = shownFromPreview(p);
-    const html2 = clean(renderToString(createElement(EstimateVisualStrip, { strip: buildStrip(shownP.totals, shownP.lines)!, money })));
+    const html2 = clean(renderToString(createElement(PriceCard, { view: p.view, options: null, money, state: ready, unpriced: buildStrip(shownP.totals, shownP.lines)!.unpriced })));
     expect(html2).toContain("No price yet: Gate valves");
   });
 });
@@ -125,8 +146,9 @@ describe("the villa (bespoke 3D)", () => {
     expect(html).toContain("The villa");
     expect(html).not.toContain("The layout");
   });
-  it("and still has the strip", () => {
-    expect(html).toContain("Where the cost goes");
+  it("and its price card carries the breakdown", () => {
+    expect(html).not.toContain("Where the cost goes");
+    expect(stack(t).price).toContain("est-strip-rows");
   });
   it("is never overridden by a visual mapping", () => {
     expect(stack({ ...t, visual: { picture: "none" } }).picture.kind).toBe("pieces");

@@ -20,7 +20,7 @@ function Row({ label, value, strong = false }: { label: string; value: string; s
   );
 }
 
-/** "How the price is built": cost by component (stacked bar), margin, price and VAT, cost by section, the AI review. Internal: it shows costs. */
+/** "How the price is built": what the Price card does not show. Cost by component (stacked bar), then cost, margin and the price before VAT, and the AI review. The price by section, VAT and the total are on the Price card only; the cost of each group is the heading of its bill-of-materials table. Internal: it shows costs. */
 export default function PriceBuilt({ totals, money, estimateId, canReview = false }: { totals: EstimateTotals | null; money: (n: number) => string; estimateId?: string; canReview?: boolean }) {
   if (!totals) {
     return <Card padding={0}><EmptyState title="Not priced yet" text="Fill in the details above to see how the price is built." /></Card>;
@@ -46,7 +46,7 @@ export default function PriceBuilt({ totals, money, estimateId, canReview = fals
         </Card>
       )}
 
-      <Card title="Cost build-up" padding={18}>
+      <Card title="Cost and margin" padding={18}>
         {parts.length === 0 ? (
           <div className="bpm-t-help">No cost lines yet.</div>
         ) : (
@@ -68,26 +68,12 @@ export default function PriceBuilt({ totals, money, estimateId, canReview = fals
             ))}
           </>
         )}
+        <div style={{ marginTop: parts.length > 0 ? 8 : 0 }}>
+          <Row label="Cost" value={money(totals.cost_total)} />
+          <Row label={`Margin (${totals.margin_pct}% on cost)`} value={money(totals.margin_amount)} />
+          <Row label="Price before VAT" value={money(totals.price)} strong />
+        </div>
       </Card>
-
-      <Card title="Price" padding={18}>
-        <Row label="Cost" value={money(totals.cost_total)} />
-        <Row label={`Margin (${totals.margin_pct}% on cost)`} value={money(totals.margin_amount)} />
-        <Row label="Price before VAT" value={money(totals.price)} />
-        <Row label={`VAT (${totals.vat_pct}%)`} value={money(totals.vat)} />
-        <Row label="Total incl. VAT" value={money(totals.price_incl_vat)} strong />
-      </Card>
-
-      {totals.by_group.length > 0 && (
-        <Card title="By section" padding={18}>
-          {totals.by_group.map((g) => (
-            <div key={g.key} style={{ display: "flex", justifyContent: "space-between", gap: 12, padding: "7px 0", borderTop: `1px solid ${c.line}`, fontSize: 13 }}>
-              <span style={{ color: c.ink }}>{g.name}</span>
-              <span style={{ fontWeight: 600, color: c.ink }}>{money(g.cost)}</span>
-            </div>
-          ))}
-        </Card>
-      )}
 
       {canReview && estimateId && <AiReviewCard estimateId={estimateId} />}
 

@@ -128,10 +128,11 @@ describe("Tender deal, Costing: new RFQ, award and price, price rows, re-price, 
   const compare = read("src/components/tender/costing/CompareAward.tsx");
 
   it("one afterChange reloads the tab and tells the page, and every action calls it", () => {
-    expect(tab).toContain("const afterChange = useCallback(() => { void load(); onChanged?.(); }, [load, onChanged]);");
-    expect(tab).toMatch(/onCreated=\{\(\) => \{ onNotice\?\.\("RFQ created"\); afterChange\(\); \}\}/);
-    expect(tab).toMatch(/onChanged=\{afterChange\}/);
-    expect(tab).toMatch(/onDone=\{\(m\) => \{ setPriceRowsFor\(null\); onNotice\?\.\(m\); afterChange\(\); \}\}/);
+    // afterChange awaits the tab's own reload, then tells the page (2026-11-19: the result is shown where the person is).
+    expect(tab).toContain("const afterChange = useCallback(async () => { try { await load(); } finally { setVersion((n) => n + 1); onChanged?.(); } }, [load, onChanged]);");
+    expect(tab).toMatch(/onCreated=\{\(\) => \{ onNotice\?\.\("RFQ created"\); void afterChange\(\); \}\}/);
+    expect(tab).toMatch(/onChanged=\{\(\) => void afterChange\(\)\}/);
+    expect(tab).toMatch(/onDone=\{\(m\) => \{ setPriceRowsFor\(null\); setDone\(m\); void afterChange\(\); \}\}/);
     const reprice = tab.slice(tab.indexOf("async function reprice"), tab.indexOf("const empty"));
     expect(reprice).toContain("afterChange();");
   });
@@ -141,7 +142,7 @@ describe("Tender deal, Costing: new RFQ, award and price, price rows, re-price, 
   it("Raise RFQ for missing costs keeps the person on Costing and reloads, like New RFQ", () => {
     expect(missing).toContain("onCreated={onCreated ? () => onCreated() : undefined}");
     expect(row).toContain("guideId=\"costing.estimate.rfq\" onCreated={onRfqCreated}");
-    expect(tab).toMatch(/onRfqCreated=\{\(\) => \{ onNotice\?\.\("RFQ created"\); afterChange\(\); \}\}/);
+    expect(tab).toMatch(/onRfqCreated=\{\(\) => \{ onNotice\?\.\("RFQ created"\); void afterChange\(\); \}\}/);
   });
   it("the list is read uncached", () => {
     expect(tab).toContain("fetch(url, { cache: \"no-store\" })");

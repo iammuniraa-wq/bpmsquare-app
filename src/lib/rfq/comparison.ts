@@ -2,6 +2,7 @@
 // imports: the screen, the route and the tests all use these functions, so the cell the buyer sees highlighted as the lowest
 // valid price is exactly the price the award route holds the "why not the lowest?" question against.
 
+import { ageWords } from "@/lib/ageWords";
 import { landedUnit } from "./rules";
 import type { RfqResponseStatus, RfqSupplierStatus } from "./types";
 
@@ -160,13 +161,9 @@ export function needsFx(r: Pick<CompareResponse, "currency" | "fx_rate">, tenant
   return r.fx_rate === null || Number(r.fx_rate) === 1;
 }
 
-/** "today", "3 d ago", "5 wk ago", "7 mo ago": how old an answer is. */
-export function answerAge(submittedAt: string, today: string): string {
-  const d = daysBetween(submittedAt, today);
-  if (d <= 0) return "today";
-  if (d < 14) return `${d} d ago`;
-  if (d < 60) return `${Math.floor(d / 7)} wk ago`;
-  return `${Math.floor(d / 30)} mo ago`;
+/** "just now", "3 h ago", "3 d ago", "5 wk ago", "7 mo ago": how old an answer is (see ageWords). */
+export function answerAge(submittedAt: string, today: string, now?: number): string {
+  return ageWords(submittedAt, today, now);
 }
 
 export type ChaseInfo = { date: string | null; overdue: boolean };

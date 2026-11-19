@@ -3,6 +3,7 @@ import { requireTenantUser, createAdminSupabase, getAuthUser } from "@/lib/supab
 import { getTenant, tenantHasFeature } from "@/lib/tenant";
 import { diffForLog, logChange } from "@/lib/changeLog";
 import { loadActorNames } from "@/lib/actorNames";
+import { personLabel } from "@/lib/personName";
 import { probabilityFor, stageDef } from "@/lib/sales/opportunity";
 import { loadOpportunity } from "@/lib/sales/opportunityServer";
 import { emitOpportunityStageChanged } from "@/lib/events/emitters";
@@ -120,7 +121,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       const to = await memberEmails(admin, tenantId, [req.requested_by]);
       const names = await loadActorNames(admin, tenantId, [userId]);
       if (tenant && to.length > 0) {
-        const msg = outcomeMessage({ title: opp.title, decider: names.get(userId) ?? user?.email ?? "A manager", decision: req.proposed_value, approved: parsed.action === "approve", comment: parsed.comment, link: dealLink(tenant, id), movedTo: movedTo ? (stageDef(tenderStages(), movedTo)?.label ?? movedTo) : null });
+        const msg = outcomeMessage({ title: opp.title, decider: personLabel(names.get(userId), user, "A manager"), decision: req.proposed_value, approved: parsed.action === "approve", comment: parsed.comment, link: dealLink(tenant, id), movedTo: movedTo ? (stageDef(tenderStages(), movedTo)?.label ?? movedTo) : null });
         await inboxNote(admin, { tenantId, dealId: id, authorId: userId, authorEmail: user?.email ?? null, body: msg.comment, mentionEmails: to.map((t) => t.email) });
         await sendTenderMail(admin, tenant, { to: to.map((t) => t.email), subject: msg.subject, text: msg.text, dealId: id, dealLabel: label, actorId: userId, actorEmail: user?.email ?? null });
       }
