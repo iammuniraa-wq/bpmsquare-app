@@ -124,7 +124,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       // A lost tender names who won (slice 4): the competitor is on the body or already on the deal.
       const who = "competitor" in patch ? patch.competitor : before.competitor;
       // A competitor marked as the winner on the Competitors tab counts as much as a typed name.
-      if (stage === "bid_lost" && !who && !(await standingWinnerName(admin, tenantId, id))) return NextResponse.json({ error: "Say who won (the competitor) before closing the tender as Lost" }, { status: 422 });
+      // A tender closed as dropped (cancelled by the issuer, withdrawn) has no winner to name.
+      if (stage === "bid_lost" && body.outcome !== "dropped" && !who && !(await standingWinnerName(admin, tenantId, id))) return NextResponse.json({ error: "Say who won (the competitor) before closing the tender as Lost" }, { status: 422 });
     }
   }
   let outcome = before.outcome;

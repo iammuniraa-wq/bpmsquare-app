@@ -36,6 +36,12 @@ export default function OutcomeSection({ opportunityId, data: serverData, fmt, o
     award_value: data.award_value != null ? String(data.award_value) : "", award_date: data.award_date ?? "",
     winning_bidder: data.winning_bidder ?? data.competitor ?? "", loss_reason: data.loss_reason ?? "", outcome_note: data.outcome_note ?? "",
   });
+  // The close dialog saves the awarded value / winning price just after this section first appears: the form follows the saved facts,
+  // or the next "Save outcome" would write the empty box over them.
+  const { award_value: sValue, award_date: sDate, winning_bidder: sWinner, competitor: sCompetitor, loss_reason: sReason, outcome_note: sNote } = serverData;
+  useEffect(() => {
+    setForm({ award_value: sValue != null ? String(sValue) : "", award_date: sDate ?? "", winning_bidder: sWinner ?? sCompetitor ?? "", loss_reason: sReason ?? "", outcome_note: sNote ?? "" });
+  }, [sValue, sDate, sWinner, sCompetitor, sReason, sNote]);
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => setForm((f) => ({ ...f, [k]: e.target.value }));
   const lost = data.stage === "bid_lost";
   const awarded = data.stage === "awarded";

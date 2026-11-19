@@ -7,7 +7,7 @@
 import { selectedLines, type SelectableLine } from "@/lib/sales/lineTotals";
 
 export const BID_LIMITS = { reasonMin: 3, reasonMax: 1000, noteMax: 1000 } as const;
-/** Stages a bid can be submitted from; Revise bid goes back to Estimating from the other two. */
+/** Stages a bid can be submitted from; Revise bid opens the next version from the other two (a Submitted tender goes back to Estimating when that version is submitted). */
 export const BID_SUBMIT_STAGES: readonly string[] = ["estimating", "clarifications"];
 export const BID_REVISE_STAGES: readonly string[] = ["submitted", "clarifications"];
 

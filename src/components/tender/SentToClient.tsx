@@ -6,76 +6,53 @@ import Button from "@/components/ui/Button";
 import Field from "@/components/ui/Field";
 import { Input, Select, Textarea } from "@/components/ui/Input";
 import SidePanel from "@/components/ui/SidePanel";
-import SettingsSection from "@/components/settings/SettingsSection";
+import InfoTip from "@/components/ui/InfoTip";
 import { SEND_CHANNELS, SEND_CHANNEL_LABEL, SEND_DOCUMENTS, SEND_DOCUMENT_LABEL, SEND_LIMITS, type BidVersionSummary, type SendChannel, type SendDocument, type SendsData } from "@/lib/tender/bids/rules";
 import { TENDER_TIPS } from "@/lib/tender/tips";
-import s from "./SentToClient.module.css";
 
-// "Sent to client" on the Bid tab (KAMCO feedback slice 5): every time the priced BOQ or the answer sheet went to the client. An email
-// sent from the tender lands here by itself; a portal upload or a letter is recorded by hand. A table on a PC, cards under 780 px.
+// "Sent to client" on the Bid tab: ONE line (gap 26, 2026-11-19). The list itself lives on the Interactions tab, which already draws
+// every send (an email from the tender, a recorded portal upload or letter) on the client timeline; two lists of the same rows was one
+// too many. What stays here: how many went and when the last one did, the way to the timeline, and "Record a send" for a portal upload.
 
-const SHOWN = 5;
-const fmtStamp = (iso: string) => new Date(iso).toLocaleString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
+const fmtDay = (iso: string) => new Date(iso).toLocaleDateString("en-GB", { day: "2-digit", month: "short" });
 
-export default function SentToClient({ opportunityId, sends, versions, canEdit, onRecorded, onError, onNotice }: {
+/** "2 sends · last 19 Nov", or "Nothing sent yet". */
+export function sendsSummary(rows: readonly { sent_at: string }[]): string {
+  if (rows.length === 0) return "Nothing sent yet";
+  const last = rows.reduce((a, r) => (r.sent_at > a ? r.sent_at : a), rows[0].sent_at);
+  return `${rows.length} ${rows.length === 1 ? "send" : "sends"} · last ${fmtDay(last)}`;
+}
+
+export default function SentToClient({ opportunityId, sends, versions, canEdit, onRecorded, onError, onNotice, onOpenInteractions }: {
   opportunityId: string;
   sends: SendsData;
   versions: readonly BidVersionSummary[];
   canEdit: boolean;
-  /** Called after a send was recorded, so the list is read again. */
+  /** Called after a send was recorded, so the count is read again. */
   onRecorded: () => void;
   onError: (message: string) => void;
   onNotice: (message: string) => void;
+  /** Opens the Interactions tab, where every send is listed. Absent: no link. */
+  onOpenInteractions?: () => void;
 }) {
-  const [showAll, setShowAll] = useState(false);
   const [open, setOpen] = useState(false);
-  const rows = showAll ? sends.rows : sends.rows.slice(0, SHOWN);
 
   return (
-    <SettingsSection id="tender.bids.sent" title="Sent to client" info={TENDER_TIPS.sentToClient} summary={sends.pending ? "Needs a database update" : sends.rows.length === 0 ? "Nothing sent yet" : `${sends.rows.length} sent`} defaultOpen={sends.rows.length > 0 || sends.pending}>
-      <div data-guide="tender.bid.sent" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-        {sends.pending && <div role="alert" data-guide="tender.bid.sent_pending" style={{ fontSize: 13, color: "var(--amberink)" }}>Sent-to-client records need a database update (migration 0237). Ask your administrator to apply it.</div>}
-        {!sends.pending && sends.rows.length === 0 && <div style={{ fontSize: 13, color: c.hint }}>Nothing has gone to the client yet. Send a file by email above, or record a portal upload.</div>}
-        {rows.length > 0 && (
-          <>
-            <div className={s.tableWrap}>
-              <table className={s.table} data-guide="tender.bid.sent_table">
-                <thead><tr><th>When</th><th>Who</th><th>Document</th><th>How</th><th>To</th><th>Version</th></tr></thead>
-                <tbody>
-                  {rows.map((r) => (
-                    <tr key={r.id} data-guide="tender.bid.sent_row">
-                      <td>{fmtStamp(r.sent_at)}</td>
-                      <td>{r.sent_by_name ?? "—"}</td>
-                      <td>{SEND_DOCUMENT_LABEL[r.document]}</td>
-                      <td>{SEND_CHANNEL_LABEL[r.channel]}</td>
-                      <td className={s.wrap}>{r.to_text ?? "—"}{r.note ? <div className={s.note}>{r.note}</div> : null}</td>
-                      <td>{r.version_no ? `v${r.version_no}` : "—"}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            <div className={s.cards}>
-              {rows.map((r) => (
-                <div key={r.id} className={s.card} data-guide="tender.bid.sent_card">
-                  <div className={s.cardTitle}>{SEND_DOCUMENT_LABEL[r.document]} · {SEND_CHANNEL_LABEL[r.channel].toLowerCase()}</div>
-                  <div className={s.cardLine}>{fmtStamp(r.sent_at)}{r.sent_by_name ? ` · ${r.sent_by_name}` : ""}</div>
-                  <div className={s.cardLine}>To {r.to_text ?? "—"}{r.version_no ? ` · version ${r.version_no}` : ""}</div>
-                  {r.note ? <div className={s.note}>{r.note}</div> : null}
-                </div>
-              ))}
-            </div>
-          </>
-        )}
-        {!showAll && sends.rows.length > SHOWN && (
-          <div><Button variant="quiet" size="sm" style={{ minHeight: 44 }} data-guide="tender.bid.sent_show_all" onClick={() => setShowAll(true)}>Show all {sends.rows.length}</Button></div>
+    <div data-guide="tender.bid.sent" style={{ background: "var(--panel)", border: `1px solid ${c.line}`, borderRadius: 12, padding: "10px 16px", display: "flex", flexDirection: "column", gap: 8 }}>
+      {sends.pending && <div role="alert" data-guide="tender.bid.sent_pending" style={{ fontSize: 13, color: "var(--amberink)" }}>Sent-to-client records need a database update (migration 0237). Ask your administrator to apply it.</div>}
+      <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 13.5, fontWeight: 700, color: c.ink }}>Sent to client<InfoTip label="Sent to client">{TENDER_TIPS.sentToClient}</InfoTip></span>
+        {!sends.pending && <span data-guide="tender.bid.sent_summary" style={{ fontSize: 13, color: c.muted }}>{sendsSummary(sends.rows)}</span>}
+        <span style={{ flex: "1 1 0" }} />
+        {onOpenInteractions && !sends.pending && sends.rows.length > 0 && (
+          <Button variant="quiet" size="sm" style={{ minHeight: 44 }} data-guide="tender.bid.sent_open" onClick={onOpenInteractions}>See in Interactions</Button>
         )}
         {canEdit && !sends.pending && (
-          <div><Button variant="secondary" style={{ minHeight: 44 }} data-guide="tender.bid.record_send" onClick={() => setOpen(true)}>+ Record a send</Button></div>
+          <Button variant="secondary" size="sm" style={{ minHeight: 44 }} data-guide="tender.bid.record_send" onClick={() => setOpen(true)}>+ Record a send</Button>
         )}
       </div>
-      {open && <RecordSend opportunityId={opportunityId} versions={versions} onClose={() => setOpen(false)} onDone={() => { setOpen(false); onNotice("Recorded under Sent to client"); onRecorded(); }} onError={onError} />}
-    </SettingsSection>
+      {open && <RecordSend opportunityId={opportunityId} versions={versions} onClose={() => setOpen(false)} onDone={() => { setOpen(false); onNotice("Recorded. It is listed on the Interactions tab"); onRecorded(); }} onError={onError} />}
+    </div>
   );
 }
 

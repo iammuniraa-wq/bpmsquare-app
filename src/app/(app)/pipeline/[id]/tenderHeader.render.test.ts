@@ -123,7 +123,7 @@ describe("the primary header button of a tender follows the stage", () => {
     expect(primaryGuides(out)).toEqual([]);
   });
 
-  it("the Close this deal dialog has one footer: Cancel, Confirm and (Won on a tender only) Create contract project now, same size, 44 px, one column at 375 px", () => {
+  it("the Close this deal dialog has one footer: Cancel, a button that says what it does and (Won on a tender only) Mark won and create contract project, same size, 44 px, one column at 375 px", () => {
     const src = read("src/app/(app)/pipeline/[id]/OpportunityDetailClient.tsx");
     const dialog = src.slice(src.indexOf("Close this deal as"));
     const footer = dialog.slice(dialog.indexOf('data-guide="deal.close.footer"'));
@@ -132,8 +132,11 @@ describe("the primary header button of a tender follows the stage", () => {
     expect(buttons).toHaveLength(3);
     for (const b of buttons) { expect(b).toContain('flex: "1 1 160px"'); expect(b).toContain("minHeight: 44"); }
     expect(footer).toContain("{offerProject && (");
-    expect(footer.indexOf("Cancel")).toBeLessThan(footer.indexOf("Confirm"));
-    expect(footer.indexOf("Confirm")).toBeLessThan(footer.indexOf("Create contract project now"));
+    expect(footer.indexOf("Cancel")).toBeLessThan(footer.indexOf("{closeLabel}"));
+    expect(footer.indexOf("{closeLabel}")).toBeLessThan(footer.indexOf("Mark won and create contract project"));
+    // No bare "Confirm": the plain button names the outcome, and says "only" when the project is offered beside it.
+    expect(footer).not.toContain(">Confirm<");
+    expect(src).toContain('closing.outcome === "won" ? (offerProject ? "Mark won only" : "Mark won") : closing.outcome === "lost" ? "Mark lost" : "Mark dropped"');
     // The outcome row is 44 px too, and the dialog is wide enough for a row of three on a PC.
     expect(dialog.slice(0, dialog.indexOf('data-guide="deal.close.footer"'))).toContain("minHeight: 44");
     expect(src).toContain('width: 560, maxWidth: "calc(100vw - 32px)"');
@@ -199,16 +202,49 @@ describe("the close dialog on a tender", () => {
   const src = read("src/app/(app)/pipeline/[id]/OpportunityDetailClient.tsx");
   const dialog = src.slice(src.indexOf("{closing && ("));
 
-  it("offers Create contract project now when Won and the person may create one, and never makes a Standard Quote", () => {
+  it("offers Mark won and create contract project when Won and the person may create one, and never makes a Standard Quote", () => {
     expect(src).toMatch(/const offerProject = !!tender && !!contractProject && !contractProject\.existing && canStartContractProject && closing\?\.outcome === "won"/);
-    expect(dialog).toContain("Create contract project now");
+    expect(dialog).toContain("Mark won and create contract project");
     expect(dialog).toContain("confirmClose(true)");
     expect(dialog).not.toMatch(/Standard Quote|convert\(/);
-    expect(src).toMatch(/if \(ok && thenProject\) await postContractProject\(\)/);
+    expect(src).toMatch(/if \(!ok\) return;[\s\S]*if \(thenProject\) await postContractProject\(\)/);
+  });
+
+  it("asks what the path across the top says it will (gap 24): Won the awarded value, Lost who won and their price, Dropped a reason", () => {
+    // Won on a tender: the awarded value, starting at the last submitted bid total.
+    expect(dialog).toMatch(/tender && closing\.outcome === "won" && \([\s\S]*label="Awarded value"[\s\S]*value=\{closePrice\(closing\) \?\? ""\}/);
+    expect(src).toContain("const lastBidTotal = tender?.bids?.versions[0]?.total ?? null;");
+    expect(src).toMatch(/return cl\.outcome === "won" && lastBidTotal != null \? String\(lastBidTotal\) : undefined;/);
+    // Lost on a tender: who won (the server requires it) and the winning price (optional).
+    expect(dialog).toMatch(/closing\.outcome === "lost" && \(\s*<Field label="Won by" required[\s\S]*<WhoWonPicker/);
+    expect(dialog).toMatch(/closing\.outcome === "lost" && \(\s*<Field label="Winning price"/);
+    // Lost and Dropped: a reason and a note, labelled.
+    expect(dialog).toContain('<Field label="Reason" guide="deal.close.reason">');
+    expect(dialog).toContain('<Field label="Note" guide="deal.close.note">');
+    // The price is an outcome fact: saved through the existing outcome route (opportunity_tenders.award_value), after the stage is closed.
+    const confirm = src.slice(src.indexOf("function confirmClose("), src.indexOf("function changeStage("));
+    expect(confirm.indexOf("await patch({ stage: cl.stage")).toBeLessThan(confirm.indexOf("/tender/outcome"));
+    expect(confirm).toMatch(/tender && cl\.outcome !== "dropped" && price !== undefined/);
+    expect(confirm).toContain("JSON.stringify({ award_value: price === \"\" ? null : price })");
+    expect(confirm).toMatch(/was not saved/);
+    // Switching the outcome forgets a typed price, so a winning price never becomes an awarded value.
+    expect(dialog).toContain("setClosing({ ...closing, outcome: o, price: undefined, stage: closedStageFor(o, closing.stage) })");
+  });
+
+  it("the path across the top no longer promises more than the dialog asks; the detail sits behind the i", () => {
+    const steps = read("src/lib/tender/steps.ts");
+    expect(steps).not.toContain("record who won and the awarded value");
+    expect(steps).toContain('detail: "When the issuer answers, record how the tender ended.", tipKey: "outcomeRecord"');
+    expect(page({ stage: "submitted" })).toContain("When the issuer answers, record how the tender ended.");
+  });
+
+  it("a tender closed as dropped needs no winner (the server asks who won only for a lost tender)", () => {
+    const route = read("src/app/api/opportunities/[id]/route.ts");
+    expect(route).toContain('stage === "bid_lost" && body.outcome !== "dropped" && !who');
   });
 
   it("the project is created only after the deal has been saved as won (the server needs an awarded, won tender)", () => {
-    expect(src).toMatch(/const ok = await patch\(\{ stage: cl\.stage, outcome: cl\.outcome[\s\S]*if \(ok && thenProject\)/);
+    expect(src).toMatch(/const ok = await patch\(\{ stage: cl\.stage, outcome: cl\.outcome[\s\S]*if \(!ok\) return;[\s\S]*if \(thenProject\)/);
   });
 
   it("the page tells the client whether the caller may create a project", () => {

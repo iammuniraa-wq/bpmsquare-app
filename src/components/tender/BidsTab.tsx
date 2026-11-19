@@ -21,8 +21,8 @@ import SentToClient from "./SentToClient";
 import PaymentTermsPicker from "@/components/contractProjects/PaymentTermsPicker";
 
 // The Bid tab of a tender deal (docs/design/gcc-tender-deals.md sections 15 and 26): a readiness line that warns and never blocks,
-// Submit bid / Revise bid, the numbered versions that never change, a comparison of any two, and "Documents we send" (the priced BOQ,
-// the answer sheet and the Standard Quotes made from a version). A version holds the deal's lines and total as they were; it never
+// Submit bid / Revise bid, the numbered versions that never change, a comparison of any two, "Documents we send" (the priced BOQ,
+// the answer sheet and the Standard Quotes made from a version) and one line of how often they went (the list is on Interactions). A version holds the deal's lines and total as they were; it never
 // holds a cost or a markup. The rules (which stage may submit, whether a reason is needed) are the server's; this only draws them.
 
 const fmtStamp = (s: string) => new Date(s).toLocaleString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
@@ -31,14 +31,18 @@ const SUBMIT_FOCUS = '[data-guide="tender.bid.form"] textarea, [data-guide="tend
 const SHOWN_VERSIONS = 5;
 const SHOWN_LINES = 8;
 
-export default function BidsTab({ opportunityId, data: pageData, stage, outcome, fmt, onError, onNotice, onChanged, checks, quotes = [], canMakeQuote = false, startSignal = 0, initialCompare = null, initialSubmitOpen = false }: {
+export default function BidsTab({ opportunityId, data: pageData, stage, outcome, fmt, fmtRate = fmt, onError, onNotice, onChanged, onOpenInteractions, checks, quotes = [], canMakeQuote = false, startSignal = 0, initialCompare = null, initialSubmitOpen = false }: {
   opportunityId: string;
   data: BidsData;
   stage: string;
   outcome: string;
   fmt: (n: number) => string;
+  /** A unit rate, to 2 decimals (amounts stay whole): "66.70" must not read "67" in a comparison. Absent: the same as `fmt`. */
+  fmtRate?: (n: number) => string;
   onError: (message: string) => void;
   onNotice: (message: string) => void;
+  /** Opens the Interactions tab, where every send to the client is listed. */
+  onOpenInteractions?: () => void;
   /** Called after a submit or a reopen is saved (and, for a submit, the versions reloaded), so the page's stage and header facts refresh. */
   onChanged?: () => void;
   /**
@@ -80,7 +84,10 @@ export default function BidsTab({ opportunityId, data: pageData, stage, outcome,
   const nextNo = (latest?.version_no ?? 0) + 1;
   const open = outcome === "open";
   const canSubmit = data.canEdit && !data.pending && open && BID_SUBMIT_STAGES.includes(stage);
-  const canRevise = data.canEdit && !data.pending && open && BID_REVISE_STAGES.includes(stage);
+  // Revise bid is ONE action (gap 22, 2026-11-19): it opens the next version's form at once. A Submitted tender goes back to
+  // Estimating only when that form is submitted (the deal's own stage rules decide), so there is no extra press and no half-way state.
+  const canRevise = data.canEdit && !data.pending && open && !!latest && BID_REVISE_STAGES.includes(stage);
+  const canOpenForm = canSubmit || canRevise;
 
   const [from, setFrom] = useState(String(versions[1]?.version_no ?? ""));
   const [to, setTo] = useState(String(versions[0]?.version_no ?? ""));
@@ -123,14 +130,24 @@ export default function BidsTab({ opportunityId, data: pageData, stage, outcome,
     proceed();
   }
 
+  // The tender was moved back to Estimating for a revision whose submit then failed: the next try must not move it again.
+  const reopened = useRef(false);
+
   async function submit() {
     onError(""); onNotice("");
     if (nextNo > 1 && reason.trim().length < BID_LIMITS.reasonMin) { onError("Say why the bid is revised"); return; }
     setBusy(true);
     try {
+      if (!BID_SUBMIT_STAGES.includes(stage) && !reopened.current) {
+        const back = await fetch(`/api/opportunities/${opportunityId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ stage: "estimating", outcome: "open" }) });
+        if (!back.ok) { onError(((await back.json().catch(() => ({}))) as { error?: string }).error ?? "Could not reopen the bid"); return; }
+        reopened.current = true;
+      }
       const res = await fetch(`/api/opportunities/${opportunityId}/tender/bids`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ revision_reason: reason, note }) });
       const j = await res.json().catch(() => ({}));
-      if (!res.ok) { onError(j.error ?? "Could not submit the bid"); return; }
+      // A revision that reopened the tender and then failed: the page shows the stage it is in now; the form stays open to try again.
+      if (!res.ok) { onError(j.error ?? "Could not submit the bid"); if (reopened.current) onChanged?.(); return; }
+      reopened.current = false;
       setAskSubmit(false); setReason(""); setNote("");
       if (j.stage_error) onError(`Version ${j.version_no} was saved, but the tender could not be moved to Submitted: ${j.stage_error}`);
       else onNotice(`Bid version ${j.version_no} submitted`);
@@ -139,18 +156,6 @@ export default function BidsTab({ opportunityId, data: pageData, stage, outcome,
         setLoaded({ versions: next.versions, pending: next.pending });
         setFrom(String(next.versions[1]?.version_no ?? "")); setTo(String(next.versions[0]?.version_no ?? "")); setCmp(null);
       }, onChanged);
-    } finally { setBusy(false); }
-  }
-
-  async function revise() {
-    onError(""); onNotice("");
-    setBusy(true);
-    try {
-      const res = await fetch(`/api/opportunities/${opportunityId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ stage: "estimating", outcome: "open" }) });
-      const j = await res.json().catch(() => ({}));
-      if (!res.ok) { onError(j.error ?? "Could not reopen the bid"); return; }
-      onNotice("Back in Estimating. Change the lines, then submit the next version");
-      onChanged?.();
     } finally { setBusy(false); }
   }
 
@@ -203,25 +208,26 @@ export default function BidsTab({ opportunityId, data: pageData, stage, outcome,
           {versions.length >= 2 && <StatTile tone={toneForDelta(vsPrevious, "warn")} label="Vs previous bid" value={deltaText(vsPrevious ?? 0, null, fmt)} sub={vsPrevious === 0 ? "unchanged" : (vsPrevious ?? 0) > 0 ? "higher than version " + versions[1].version_no : "lower than version " + versions[1].version_no} />}
         </StatStrip>
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
-          {canSubmit && !askSubmit && (
+          {canSubmit && !canRevise && !askSubmit && (
             <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
               <Button variant="primary" loading={busy} data-guide="tender.bid.submit" style={{ minHeight: 44 }} onClick={() => void warnThen(() => setAskSubmit(true))}>Submit bid</Button>
               <InfoTip label="Submit bid">{TENDER_TIPS.bidSubmit}</InfoTip>
             </span>
           )}
-          {canRevise && (
+          {canRevise && !askSubmit && (
             <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
-              <Button variant="secondary" loading={busy} data-guide="tender.bid.revise" style={{ minHeight: 44 }} onClick={() => void warnThen(revise)}>Revise bid</Button>
+              <Button variant="secondary" loading={busy} data-guide="tender.bid.revise" style={{ minHeight: 44 }} onClick={() => void warnThen(() => setAskSubmit(true))}>Revise bid</Button>
               <InfoTip label="Revise bid">{TENDER_TIPS.bidRevise}</InfoTip>
             </span>
           )}
-          {!canSubmit && !canRevise && !data.pending && data.canEdit && open && (
+          {!canOpenForm && !data.pending && data.canEdit && open && (
             <span style={{ fontSize: 12.5, color: c.hint }}>A bid is submitted from Estimating or Clarifications.</span>
           )}
         </div>
-        {canSubmit && askSubmit && (
+        {canOpenForm && askSubmit && (
           <div role="group" aria-label={`Submit version ${nextNo}`} data-guide="tender.bid.form" style={{ display: "flex", flexDirection: "column", gap: 10, border: `1px solid ${c.line}`, borderRadius: 10, padding: 12 }}>
             <div style={{ fontWeight: 700, fontSize: 13.5, color: c.ink, display: "flex", alignItems: "center", gap: 4 }}>Submit version {nextNo} · {fmt(data.working_total)}<InfoTip label="Submit bid">{TENDER_TIPS.bidSubmit}</InfoTip></div>
+            {nextNo > 1 && !toSubmit && <div role="status" data-guide="tender.bid.same_total" style={{ fontSize: 12.5, color: "var(--amberink)" }}>Same total as version {latest?.version_no}. Change the lines first if the price moved.</div>}
             {nextNo > 1 && (
               <Field label="Why is the bid revised?" required info={TENDER_TIPS.bidReason} guide="tender.bid.reason">
                 <Textarea value={reason} onChange={(e) => setReason(e.target.value)} maxLength={BID_LIMITS.reasonMax} style={{ minHeight: 64 }} />
@@ -276,7 +282,7 @@ export default function BidsTab({ opportunityId, data: pageData, stage, outcome,
             </Field>
           </div>
           <div><Button variant="secondary" loading={cmpBusy} data-guide="tender.bid.compare" style={{ minHeight: 44 }} onClick={compare}>Compare</Button></div>
-          {cmp && <DiffView diff={cmp.diff} fmt={fmt} more={more} onMore={(k) => setMore((m) => ({ ...m, [k]: true }))} />}
+          {cmp && <DiffView diff={cmp.diff} fmt={fmt} fmtRate={fmtRate} more={more} onMore={(k) => setMore((m) => ({ ...m, [k]: true }))} />}
         </SettingsSection>
       )}
 
@@ -285,7 +291,7 @@ export default function BidsTab({ opportunityId, data: pageData, stage, outcome,
         <PaymentTermsPicker opportunityId={opportunityId} canEdit={data.canEdit} />
       </div>
       <BidDocuments opportunityId={opportunityId} versions={versions} quotes={quotes} canMakeQuote={canMakeQuote} canSend={data.canEdit && !sends.pending} fmt={fmt} onError={onError} onNotice={onNotice} onChanged={onChanged} onSent={() => void reloadSends()} />
-      <SentToClient opportunityId={opportunityId} sends={sends} versions={versions} canEdit={data.canEdit} onRecorded={() => { void reloadSends(); onChanged?.(); }} onError={onError} onNotice={onNotice} />
+      <SentToClient opportunityId={opportunityId} sends={sends} versions={versions} canEdit={data.canEdit} onRecorded={() => { void reloadSends(); onChanged?.(); }} onError={onError} onNotice={onNotice} onOpenInteractions={onOpenInteractions} />
     </div>
   );
 }
@@ -314,7 +320,7 @@ function SubmittedLine({ versionNo }: { versionNo: number }) {
   );
 }
 
-function DiffView({ diff, fmt, more, onMore }: { diff: BidDiff; fmt: (n: number) => string; more: Record<string, boolean>; onMore: (k: string) => void }) {
+function DiffView({ diff, fmt, fmtRate, more, onMore }: { diff: BidDiff; fmt: (n: number) => string; fmtRate: (n: number) => string; more: Record<string, boolean>; onMore: (k: string) => void }) {
   return (
     <div data-guide="tender.bid.diff" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
       <StatStrip>
@@ -324,8 +330,8 @@ function DiffView({ diff, fmt, more, onMore }: { diff: BidDiff; fmt: (n: number)
         <StatTile label="Removed" value={String(diff.removed.length)} />
         <StatTile label="Changed" value={String(diff.changed.length)} sub={`${diff.unchanged} unchanged`} />
       </StatStrip>
-      <LineList id="added" title="Lines added" lines={diff.added} fmt={fmt} more={more} onMore={onMore} />
-      <LineList id="removed" title="Lines removed" lines={diff.removed} fmt={fmt} more={more} onMore={onMore} />
+      <LineList id="added" title="Lines added" lines={diff.added} fmt={fmt} fmtRate={fmtRate} more={more} onMore={onMore} />
+      <LineList id="removed" title="Lines removed" lines={diff.removed} fmt={fmt} fmtRate={fmtRate} more={more} onMore={onMore} />
       {diff.changed.length > 0 && (
         <div>
           <div style={{ fontSize: 12.5, fontWeight: 700, color: c.ink, marginBottom: 4 }}>Lines changed</div>
@@ -334,7 +340,7 @@ function DiffView({ diff, fmt, more, onMore }: { diff: BidDiff; fmt: (n: number)
               <div style={{ wordBreak: "break-word" }}><b>{l.item_no ? `${l.item_no} · ` : ""}</b>{l.after.description}</div>
               <div style={{ fontSize: 12, color: c.muted, fontVariantNumeric: "tabular-nums" }}>
                 {l.fields.includes("qty") && <>Qty {l.before.qty} to {l.after.qty}. </>}
-                {l.fields.includes("rate") && <>Rate {fmt(l.before.rate)} to {fmt(l.after.rate)}. </>}
+                {l.fields.includes("rate") && <>Rate {fmtRate(l.before.rate)} to {fmtRate(l.after.rate)}. </>}
                 {l.fields.includes("unit") && <>Unit {l.before.unit ?? "—"} to {l.after.unit ?? "—"}. </>}
                 {l.fields.includes("description") && <>Wording changed. </>}
                 Amount {l.amount_delta > 0 ? "+" : l.amount_delta < 0 ? "-" : ""}{fmt(Math.abs(l.amount_delta))}
@@ -348,7 +354,7 @@ function DiffView({ diff, fmt, more, onMore }: { diff: BidDiff; fmt: (n: number)
   );
 }
 
-function LineList({ id, title, lines, fmt, more, onMore }: { id: string; title: string; lines: BidLine[]; fmt: (n: number) => string; more: Record<string, boolean>; onMore: (k: string) => void }) {
+function LineList({ id, title, lines, fmt, fmtRate, more, onMore }: { id: string; title: string; lines: BidLine[]; fmt: (n: number) => string; fmtRate: (n: number) => string; more: Record<string, boolean>; onMore: (k: string) => void }) {
   if (lines.length === 0) return null;
   const rows = more[id] ? lines : lines.slice(0, SHOWN_LINES);
   return (
@@ -357,7 +363,7 @@ function LineList({ id, title, lines, fmt, more, onMore }: { id: string; title: 
       {rows.map((l) => (
         <div key={l.key} style={{ borderTop: `1px solid ${c.line}`, padding: "6px 0", fontSize: 13, display: "flex", gap: 10, flexWrap: "wrap" }}>
           <span style={{ flex: "1 1 220px", wordBreak: "break-word" }}><b>{l.item_no ? `${l.item_no} · ` : ""}</b>{l.description}</span>
-          <span style={{ fontVariantNumeric: "tabular-nums", color: c.muted }}>{l.qty} {l.unit ?? ""} × {fmt(l.rate)} = {fmt(l.amount)}</span>
+          <span style={{ fontVariantNumeric: "tabular-nums", color: c.muted }}>{l.qty} {l.unit ?? ""} × {fmtRate(l.rate)} = {fmt(l.amount)}</span>
         </div>
       ))}
       {!more[id] && lines.length > SHOWN_LINES && <Button variant="quiet" size="sm" style={{ minHeight: 44 }} onClick={() => onMore(id)}>Show all {lines.length}</Button>}
