@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { rfqAccess, errorResponse, loadRfqBundle, originHref, refreshRfqStatus, replyLink, documentLinesFor } from "@/lib/rfq/server";
+import { rfqAccess, errorResponse, loadRfqBundle, originHref, refreshRfqStatus, replyLink, documentLinesFor, markRfqSent, tenderCostingLink } from "@/lib/rfq/server";
 import { logChange, diffForLog } from "@/lib/changeLog";
 import { RFQ_LIMITS, rfqConfig } from "@/lib/rfq/types";
 import { linkExpiry } from "@/lib/rfq/rules";
@@ -8,14 +8,13 @@ import { whatsappText } from "@/lib/rfq/compose";
 import { loadCurrentAwards } from "@/lib/rfq/awards";
 import { loadActorNames } from "@/lib/actorNames";
 import { tenantToday } from "@/lib/tenantClock";
-import { tenderForDeal } from "@/lib/tender/server";
 
 // One RFQ. GET is the whole bundle the detail screen needs; PATCH edits the
 // header (explicit allowlist) or runs an action; DELETE removes a draft.
 //
 // PATCH { title?, respond_by?, required_by?, delivery_terms?, currency?,
 //         notes_to_supplier?, notes_internal?, custom_data? }
-// PATCH { action: "cancel" | "close" | "reopen" }
+// PATCH { action: "cancel" | "close" | "reopen" | "mark_sent" }   mark_sent: a draft leaves draft without any email
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -55,16 +54,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     const awardState = await loadCurrentAwards(admin, tenantId, id).catch(() => ({ rows: [], pending: true }));
     const names = await loadActorNames(admin, tenantId, awardState.rows.map((a) => a.chosen_by));
     // A tender's RFQ is awarded on the deal's Costing tab (it also prices the BOQ row), so this screen points there. Tender workspaces only.
-    let costingHref: string | null = null;
-    if (tenant?.features?.gcc_tender === true && b.rfq.origin_id && (b.rfq.origin_type === "opportunity" || b.rfq.origin_type === "estimate")) {
-      let dealId: string | null = null;
-      if (b.rfq.origin_type === "opportunity") dealId = b.rfq.origin_id;
-      else {
-        const { data: est } = await admin.from("estimates").select("opportunity_id").eq("id", b.rfq.origin_id).eq("tenant_id", tenantId).maybeSingle();
-        dealId = (est as { opportunity_id?: string | null } | null)?.opportunity_id ?? null;
-      }
-      if (dealId && (await tenderForDeal(admin, tenantId, tenant.features, dealId))) costingHref = `/pipeline/${dealId}?tab=costing`;
-    }
+    const costingHref = (await tenderCostingLink(admin, tenantId, tenant?.features, b.rfq))?.href ?? null;
     return NextResponse.json({
       ...b,
       suppliers,
@@ -94,6 +84,19 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     if (!before) return NextResponse.json({ error: "RFQ not found" }, { status: 404 });
     const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
     const now = new Date().toISOString();
+
+    if (body.action === "mark_sent") {
+      if (before.status !== "draft") return NextResponse.json({ error: "Only a draft RFQ can be marked as sent." }, { status: 409 });
+      const { count } = await admin.from("rfq_suppliers").select("id", { count: "exact", head: true }).eq("tenant_id", tenantId).eq("rfq_id", id).neq("status", "cancelled");
+      if (!count) return NextResponse.json({ error: "Add a supplier first." }, { status: 422 });
+      const status = await markRfqSent(admin, tenantId, id);
+      if (!status) return NextResponse.json({ error: "Only a draft RFQ can be marked as sent." }, { status: 409 });
+      await logChange(admin, {
+        tenantId, objectType: "rfqs", objectId: id, objectLabel: before.ref as string, action: "update", actorId: userId, actorEmail: email,
+        changes: [{ field: "status", from: before.status, to: `${status} (marked as sent, no email)` }],
+      });
+      return NextResponse.json({ ok: true, status });
+    }
 
     if (typeof body.action === "string") {
       const next = body.action === "cancel" ? "cancelled" : body.action === "close" ? "closed" : body.action === "reopen" ? "sent" : null;

@@ -137,6 +137,12 @@ function RfqDetail({ id, canEdit, isAdmin, externalLine }: { id: string; canEdit
     return a === "cancel" ? "RFQ cancelled." : a === "close" ? "RFQ closed." : "RFQ reopened.";
   });
 
+  const markSent = () => run(async () => {
+    if (!confirm("Mark this RFQ as sent? No email goes out: use this when the suppliers were asked another way.")) return;
+    await call(`/api/rfqs/${id}`, json("PATCH", { action: "mark_sent" }));
+    return "RFQ marked as sent.";
+  });
+
   const del = () => run(async () => {
     if (!confirm("Delete this draft RFQ?")) return;
     await call(`/api/rfqs/${id}`, { method: "DELETE" });
@@ -167,6 +173,7 @@ function RfqDetail({ id, canEdit, isAdmin, externalLine }: { id: string; canEdit
               { label: "Edit", hidden: !canEdit || closed, onSelect: () => { setTab("details"); recordEdit?.request(); } },
               { label: "Print / PDF", href: `/api/rfqs/${id}/pdf`, newTab: true },
               { label: `Remind ${waiting}`, hidden: !canEdit || closed || waiting === 0, onSelect: () => { if (!busy) sendAll("reminder"); } },
+              { label: "Mark as sent (without emailing)", hidden: !canEdit || rfq.status !== "draft" || live.length === 0, onSelect: () => { if (!busy) markSent(); } },
               { label: "Close", hidden: !canEdit || rfq.status !== "awarded", onSelect: () => { if (!busy) action("close"); } },
               { label: "Reopen", hidden: !canEdit || !closed, onSelect: () => { if (!busy) action("reopen"); } },
               { label: "Cancel RFQ", danger: true, hidden: !canEdit || closed || rfq.status === "draft", onSelect: () => { if (!busy) action("cancel"); } },
