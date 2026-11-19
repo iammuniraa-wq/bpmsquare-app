@@ -11,7 +11,7 @@ import { Select } from "@/components/ui/Input";
 import InfoTip from "@/components/ui/InfoTip";
 import SettingsSection from "@/components/settings/SettingsSection";
 import { TENDER_TIPS } from "@/lib/tender/tips";
-import { defaultQuoteVersion, type BidVersionSummary, type EmailDocument } from "@/lib/tender/bids/rules";
+import { EMAIL_DOCUMENTS, defaultQuoteVersion, type BidVersionSummary } from "@/lib/tender/bids/rules";
 import type { LinkedQuote } from "@/lib/sales/opportunityServer";
 import BoqDownloads from "./BoqDownloads";
 import SendByEmail from "./SendByEmail";
@@ -30,7 +30,7 @@ export default function BidDocuments({ opportunityId, versions, quotes, canMakeQ
   quotes: readonly LinkedQuote[];
   /** Standard Quotes are on in this workspace and the caller may change the deal. */
   canMakeQuote: boolean;
-  /** The caller may change the deal: "Send by email" is offered next to each file. */
+  /** The caller may change the deal: one "Send by email" for the card, with a tick per file. */
   canSend?: boolean;
   fmt: (n: number) => string;
   onError: (message: string) => void;
@@ -45,7 +45,7 @@ export default function BidDocuments({ opportunityId, versions, quotes, canMakeQ
   const version = defaultQuoteVersion(versions, picked);
   const [busy, setBusy] = useState(false);
   const [showAll, setShowAll] = useState(false);
-  const [emailing, setEmailing] = useState<EmailDocument | null>(null);
+  const [emailing, setEmailing] = useState(false);
   const shown = showAll ? quotes : quotes.slice(0, SHOWN_QUOTES);
 
   async function makeQuote() {
@@ -67,13 +67,13 @@ export default function BidDocuments({ opportunityId, versions, quotes, canMakeQ
       <div data-guide="tender.bid.documents" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
         <BoqDownloads
           opportunityId={opportunityId}
-          afterPriced={canSend ? <Button variant="secondary" style={{ minHeight: 44 }} data-guide="tender.bid.email_priced" onClick={() => setEmailing("priced_boq")}>Send by email</Button> : undefined}
-          afterAnswer={canSend ? <Button variant="secondary" style={{ minHeight: 44 }} data-guide="tender.bid.email_answer" onClick={() => setEmailing("answer_sheet")}>Send by email</Button> : undefined}
+          footer={canSend ? <Button variant="secondary" style={{ minHeight: 44 }} data-guide="tender.bid.documents.send" onClick={() => setEmailing(true)}>Send by email</Button> : undefined}
         />
         {emailing && (
           <SendByEmail
-            opportunityId={opportunityId} document={emailing} onClose={() => setEmailing(null)}
-            onSent={(message) => { setEmailing(null); onError(""); onNotice(message); onSent?.(); onChanged?.(); }}
+            opportunityId={opportunityId} documents={EMAIL_DOCUMENTS} onClose={() => setEmailing(false)}
+            onSent={(message) => { setEmailing(false); onError(""); onNotice(message); onSent?.(); onChanged?.(); }}
+            onPartlySent={() => { onSent?.(); onChanged?.(); }}
           />
         )}
 
