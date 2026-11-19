@@ -8,10 +8,10 @@ import Button from "@/components/ui/Button";
 import Field from "@/components/ui/Field";
 import { Input, Textarea } from "@/components/ui/Input";
 import type { ComposerLine } from "./RfqComposer";
-import type { RfqCreated } from "./RfqDialog";
 import SupplierPicker from "./SupplierPicker";
 import { useRfqSuppliers } from "./useRfqSuppliers";
-import { submitRfq } from "./submitRfq";
+import { submitRfq, type RfqCreated } from "./submitRfq";
+import { RfqSendBlocker, useRfqSendBlocker } from "./RfqSendNotices";
 
 // The simple RFQ form for ONE item, opened from a document line: the item is
 // already picked (read-only), only the quantity is editable; the current
@@ -38,6 +38,7 @@ export default function RfqSingleForm({
   const [internal, setInternal] = useState("");
   const [busy, setBusy] = useState<null | "draft" | "send">(null);
   const [error, setError] = useState<string | null>(null);
+  const blocker = useRfqSendBlocker();
 
   const { suppliers, suggested, current, loading } = useRfqSuppliers(line.product_id ? [line.product_id] : []);
 
@@ -71,7 +72,7 @@ export default function RfqSingleForm({
         supplier_ids: chosen,
         send,
       });
-      onCreated({ ...r, line_keys: [line.key ?? null] });
+      onCreated({ ...r, line_keys: [line.key ?? null], sendRequested: send });
     } catch (e) {
       setError((e as Error).message);
       setBusy(null);
@@ -120,15 +121,19 @@ export default function RfqSingleForm({
         </div>
       </details>
 
+      {blocker && <RfqSendBlocker reason={blocker} />}
       {error && <div role="alert" style={{ fontSize: 13, color: "var(--redink)", background: "var(--redbg)", padding: "8px 12px", borderRadius: 7 }}>{error}</div>}
       <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", flexWrap: "wrap" }}>
         {onCancel && <Button variant="quiet" onClick={onCancel} disabled={!!busy}>Cancel</Button>}
-        <Button variant="secondary" onClick={() => save(false)} loading={busy === "draft"} disabled={!!busy}>Save as draft</Button>
-        <Button variant="primary" onClick={() => save(true)} loading={busy === "send"} disabled={!!busy || !chosen.length}>
-          {busy === "send" ? "Sending…" : "Send now"}
-        </Button>
+        {/* When the mail channel cannot send, saving the draft is the primary action and "Send now" is not offered. */}
+        <Button variant={blocker ? "primary" : "secondary"} onClick={() => save(false)} loading={busy === "draft"} disabled={!!busy}>Save as draft</Button>
+        {!blocker && (
+          <Button variant="primary" onClick={() => save(true)} loading={busy === "send"} disabled={!!busy || !chosen.length}>
+            {busy === "send" ? "Sending…" : "Send now"}
+          </Button>
+        )}
       </div>
-      {!chosen.length && <div style={{ fontSize: 12, color: c.hint, textAlign: "right", marginTop: -8 }}>Tick a supplier to send now, or save as a draft and send later.</div>}
+      {!blocker && !chosen.length && <div style={{ fontSize: 12, color: c.hint, textAlign: "right", marginTop: -8 }}>Tick a supplier to send now, or save as a draft and send later.</div>}
     </div>
   );
 }

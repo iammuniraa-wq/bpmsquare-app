@@ -5,6 +5,7 @@
 // 15 percent is a rate of 115, and the price source reads "RFQ-0012, awarded". Awarding happens only on the Costing compare screen.
 // The cost and the markup are internal: nothing in this folder is read by the priced Excel, the answer sheet or a bid version.
 
+import { ageWords } from "@/lib/ageWords";
 import type { ComposerLine } from "@/components/rfq/RfqComposer";
 import type { PillarKey } from "@/lib/theme";
 import type { Tone } from "@/lib/ui/tone";
@@ -142,14 +143,9 @@ export function rfqState(r: { status: string; suppliers_total: number; suppliers
 /** An RFQ counts as out while suppliers can still answer it. */
 export const rfqIsOut = (status: string): boolean => status === "sent" || status === "partially_replied" || status === "replied";
 
-/** "today", "3 d ago", "5 wk ago", "7 mo ago": how old a record is, from a date or a timestamp. */
-export function ageText(fromKey: string | null | undefined, todayKey: string): string {
-  const d = daysSince(fromKey, todayKey);
-  if (d == null) return "";
-  if (d <= 0) return "today";
-  if (d < 14) return `${d} d ago`;
-  if (d < 60) return `${Math.floor(d / 7)} wk ago`;
-  return `${Math.floor(d / 30)} mo ago`;
+/** "just now", "3 h ago", "today", "3 d ago", "5 wk ago", "7 mo ago": how old a record is, from a date or a timestamp (see ageWords). */
+export function ageText(fromKey: string | null | undefined, todayKey: string, now?: number): string {
+  return ageWords(fromKey, todayKey, now);
 }
 
 export type CostingTiles = { priced: number; unpriced: number; rfqs_out: number; replies_in: number };
