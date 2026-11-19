@@ -8,7 +8,7 @@ import { Input, Select } from "@/components/ui/Input";
 import InfoTip from "@/components/ui/InfoTip";
 import SidePanel from "@/components/ui/SidePanel";
 import { useFeel } from "@/components/FeelProvider";
-import { reshare, type Proposal, type ProposalBy } from "@/lib/tender/estimates/allocate";
+import { defaultTicks, pricedNotice, replacedText, reshare, type Proposal, type ProposalBy } from "@/lib/tender/estimates/allocate";
 import { allocationSummary, round2, type AllocationLink } from "@/lib/tender/estimates/rules";
 import { ESTIMATE_TIPS } from "@/lib/tender/estimates/tips";
 import { COSTING_TIPS } from "@/lib/tender/costing/tips";
@@ -17,6 +17,10 @@ import { parseMarkup } from "@/lib/tender/costing/rules";
 // "Price the BOQ rows from this estimate" in the Costing tab: the existing allocation (GET .../estimates/allocate proposes, POST
 // .../estimates/links writes), in the shared side panel. Nothing here sends a cost: it sends which row, which part of the estimate and
 // what share, and the server works the cost out again and refuses more than 100 percent of any part.
+//
+// Applying to a row REPLACES the price it carries. So the panel opens with only the unpriced rows ticked; a row priced from an RFQ award,
+// another estimate or by hand shows that price, is never pre-ticked, and is named in the confirm step if the person ticks it.
+// A failure is shown inside the panel: the page's own banner is behind it.
 
 const money = (n: number | null | undefined) => (n == null ? "—" : n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
 const J = { "Content-Type": "application/json" };
@@ -29,7 +33,12 @@ type Allocation = {
   existing: AllocationLink[];
 };
 
-export default function PriceRowsPanel({ opportunityId, estimate, markupDefault, bidLocked, onClose, onDone, onError, initialData }: {
+const sharesFor = (d: Allocation, ticked: ReadonlySet<string>, by: ProposalBy): Record<string, string> => {
+  const re = reshare(d.rows, ticked, by, d.existing);
+  return Object.fromEntries(d.rows.map((r) => [r.boq_id, String(re.get(r.boq_id) ?? 0)]));
+};
+
+export default function PriceRowsPanel({ opportunityId, estimate, markupDefault, bidLocked, onClose, onDone, onError, onWritten, initialData }: {
   opportunityId: string;
   estimate: { id: string; ref: string | null; name: string };
   markupDefault: number;
@@ -37,6 +46,8 @@ export default function PriceRowsPanel({ opportunityId, estimate, markupDefault,
   onClose: () => void;
   onDone: (message: string) => void;
   onError: (message: string) => void;
+  /** The request reached the server but did not answer cleanly: some rows may have been priced, so the tab reads its figures again. */
+  onWritten?: () => void;
   /** Lets a server render (and its test) show the loaded panel. The page never passes it. */
   initialData?: Allocation;
 }) {
@@ -47,9 +58,10 @@ export default function PriceRowsPanel({ opportunityId, estimate, markupDefault,
   const [output, setOutput] = useState("total");
   const [markup, setMarkup] = useState(String(markupDefault));
   const [data, setData] = useState<Allocation | null>(initialData ?? null);
-  const [ticked, setTicked] = useState<Set<string>>(new Set((initialData?.rows ?? []).map((r) => r.boq_id)));
-  const [shares, setShares] = useState<Record<string, string>>(Object.fromEntries((initialData?.rows ?? []).map((r) => [r.boq_id, String(r.share_pct)])));
+  const [ticked, setTicked] = useState<Set<string>>(() => defaultTicks(initialData?.rows ?? []));
+  const [shares, setShares] = useState<Record<string, string>>(() => (initialData ? sharesFor(initialData, defaultTicks(initialData.rows), "amount") : {}));
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
   const [showAll, setShowAll] = useState(false);
 
   useEffect(() => {
@@ -60,58 +72,71 @@ export default function PriceRowsPanel({ opportunityId, estimate, markupDefault,
       .then(async (r) => ({ ok: r.ok, j: await r.json().catch(() => ({})) }))
       .then(({ ok, j }) => {
         if (!live) return;
-        if (!ok) { onError(j.error ?? "Could not work out the allocation"); return; }
+        if (!ok) { setError(j.error ?? "Could not work out the allocation"); return; }
         const d = j as Allocation;
+        const first = defaultTicks(d.rows);
+        setError("");
         setData(d);
-        setTicked(new Set(d.rows.map((r) => r.boq_id)));
-        setShares(Object.fromEntries(d.rows.map((r) => [r.boq_id, String(r.share_pct)])));
+        setTicked(first);
+        setShares(sharesFor(d, first, by));
       })
-      .catch(() => {});
+      .catch(() => { if (live) setError("Network error. Try again."); });
     return () => { live = false; };
-  }, [base, estimate.id, mode, by, output, onError, initialData]);
+  }, [base, estimate.id, mode, by, output, initialData]);
 
   function toggle(id: string) {
     if (!data) return;
     const next = new Set(ticked);
     if (next.has(id)) next.delete(id); else next.add(id);
-    const re = reshare(data.rows, next, by, data.existing);
     setTicked(next);
-    setShares(Object.fromEntries(data.rows.map((r) => [r.boq_id, String(re.get(r.boq_id) ?? 0)])));
+    setShares(sharesFor(data, next, by));
   }
 
   const chosen = useMemo(() => (data?.rows ?? []).filter((r) => ticked.has(r.boq_id) && Number(shares[r.boq_id]) > 0), [data, ticked, shares]);
   const summary = useMemo(() => {
     if (!data) return null;
-    const replacing = new Set(data.rows.map((r) => r.boq_id));
+    // Only a chosen row's link to the same part is replaced; every other link of the estimate stays (what the server does).
+    const replacing = new Set(chosen.map((r) => `${r.boq_id}|${r.output}`));
     const links: AllocationLink[] = [
-      ...data.existing.filter((l) => !replacing.has(l.boq_line_id)),
+      ...data.existing.filter((l) => !replacing.has(`${l.boq_line_id}|${l.output}`)),
       ...chosen.map((r) => ({ boq_line_id: r.boq_id, output: r.output, basis: "total" as const, share_pct: Number(shares[r.boq_id]) })),
     ];
     return allocationSummary(data.outputs, links);
   }, [data, chosen, shares]);
   const markupN = parseMarkup(markup);
+  const replaces = chosen.filter((r) => !!r.current).length;
 
   async function apply() {
     if (!data || chosen.length === 0 || markupN === null) return;
     const ok = await confirm({
       title: `Price ${chosen.length} BOQ row${chosen.length === 1 ? "" : "s"} from ${estimate.ref ?? "the estimate"}?`,
-      body: `This sets the cost of those rows and adds ${markupN}% to give the rate. ${bidLocked ? "The bid is already in; the submitted version is kept as it was." : ""}`.trim(),
-      confirmLabel: "Apply",
+      body: [replacedText(chosen), `This sets the cost of those rows and adds ${markupN}% to give the rate.`, bidLocked ? "The bid is already in; the submitted version is kept as it was." : ""].filter(Boolean).join(" "),
+      confirmLabel: replaces > 0 ? "Replace and apply" : "Apply", tone: replaces > 0 ? "danger" : "default",
     });
     if (!ok) return;
-    setBusy(true); onError("");
+    setBusy(true); setError(""); onError("");
     try {
       const res = await fetch(`${base}/links`, {
         method: "POST", headers: J,
         body: JSON.stringify({ items: chosen.map((r) => ({ boq_id: r.boq_id, estimate_id: data.estimate.id, output: r.output, basis: "total", share_pct: Number(shares[r.boq_id]) })), markup_pct: markupN }),
       });
       const j = await res.json().catch(() => ({}));
-      if (!res.ok) { onError(j.error ?? "Could not apply the allocation"); return; }
-      const failed = (j.failed ?? []) as { item: string; reason: string }[];
-      const n = j.repriced?.length ?? chosen.length;
-      onDone(`${n} row${n === 1 ? "" : "s"} priced from the estimate${failed.length ? `, ${failed.length} could not be priced` : ""}`);
+      if (!res.ok) {
+        setError(j.error ?? "Could not apply. Some rows may have been priced; check the list behind this panel.");
+        // 4xx is refused before the first write. Anything else may have stopped half way.
+        if (res.status >= 500) onWritten?.();
+        return;
+      }
+      const failed = (j.failed ?? []) as { boq_id?: string; item: string; reason: string }[];
+      const done = new Set(((j.repriced ?? []) as { boq_id: string }[]).map((x) => x.boq_id));
+      const n = j.repriced ? done.size : chosen.length;
+      const names = chosen.filter((r) => !j.repriced || done.has(r.boq_id)).map((r) => r.item_no);
+      onDone(`${pricedNotice(names, n, estimate.ref ?? "the estimate")}${failed.length ? `, ${failed.length} could not be priced` : ""}`);
       if (failed.length) onError(`${failed[0].item}: ${failed[0].reason}`);
-    } catch { onError("Network error. Try again."); } finally { setBusy(false); }
+    } catch {
+      setError("Network error. Some rows may have been priced; check the list behind this panel.");
+      onWritten?.();
+    } finally { setBusy(false); }
   }
 
   const rows = data?.rows ?? [];
@@ -155,7 +180,8 @@ export default function PriceRowsPanel({ opportunityId, estimate, markupDefault,
           </Field>
         </div>
 
-        {!data && <div role="status" style={{ fontSize: 12.5, color: c.hint }}>Looking…</div>}
+        {error && <div role="alert" data-guide="costing.price_rows.error" style={{ fontSize: 13, color: "var(--redink)" }}>{error}</div>}
+        {!data && !error && <div role="status" style={{ fontSize: 12.5, color: c.hint }}>Looking…</div>}
         {data && rows.length === 0 && (
           <div style={{ fontSize: 12.5, color: c.hint }}>{mode === "match" ? "No BOQ row reads like a line of this estimate. Try spreading a part over the rows instead." : "Nothing left to give out: this part is fully allocated."}</div>
         )}
@@ -174,6 +200,11 @@ export default function PriceRowsPanel({ opportunityId, estimate, markupDefault,
               <span style={{ flex: "1 1 140px", fontSize: 12, color: c.muted, overflowWrap: "anywhere" }}>
                 {r.output_label}{r.band !== "spread" ? ` · ${r.band === "strong" ? "strong" : "possible"} match` : ""}
               </span>
+              {r.current && (
+                <span data-guide="costing.price_rows.current" style={{ fontSize: 12, fontWeight: 600, color: on ? "var(--redink)" : "var(--amberink)", overflowWrap: "anywhere" }}>
+                  {on ? "Replaces" : "Has"} {r.current.text} {r.current.kind === "cost" ? "cost" : "rate"}
+                </span>
+              )}
               <span style={{ fontVariantNumeric: "tabular-nums", fontSize: 12.5, color: c.ink }}>{on ? `${sh}% · ${money(perUnit)} / ${r.uom ?? "unit"}` : "—"}</span>
             </div>
           );
@@ -187,6 +218,7 @@ export default function PriceRowsPanel({ opportunityId, estimate, markupDefault,
               Unallocated <b style={{ fontVariantNumeric: "tabular-nums" }}>{money(round2(summary.unallocated_cost))}</b> <InfoTip label="Unallocated">{ESTIMATE_TIPS.unallocated}</InfoTip>
             </span>
             {summary.over.length > 0 && <b role="alert" style={{ color: "var(--redink)" }}>More than 100 percent is given out. Untick a row.</b>}
+            {replaces > 0 && <b role="alert" data-guide="costing.price_rows.replaces" style={{ color: "var(--redink)" }}>{replaces} ticked row{replaces === 1 ? " already has" : "s already have"} a price that will be replaced.</b>}
           </div>
         )}
       </div>

@@ -170,17 +170,22 @@ export function allocationSummary(outputs: readonly { key: string; label: string
       unallocated_pct: round2(freePct), unallocated_cost: round2(o.cost * freePct / 100), over,
     };
   });
-  // The estimate's cost lives in its lines: a "total" output and the lines inside it are the same money, so the unallocated figure
-  // reported for the estimate is that of the whole-estimate output when it is in use, else the sum over its line outputs.
+  // The outputs overlap: "total", a WBS group and a line inside that group are the SAME money seen three ways. The estimate's cost is
+  // counted once: the whole-estimate output; without one, its lines; without lines, its top WBS groups. Summing every output that was
+  // not "total" counted each line twice, as itself and inside its group (EST-0004, 2026-11-19: 1,188,574.40 shown for 594,287.20).
+  // What is given out is real money per link, so it adds up across the outputs and is capped at the estimate's cost.
   const total = rows.find((r) => r.key === "total");
-  const lineRows = rows.filter((r) => r.key !== "total");
-  const useTotal = !!total && total.allocated_pct > 0;
-  const basisRows = useTotal ? [total!] : lineRows.length > 0 ? lineRows : total ? [total] : [];
+  const lineRows = rows.filter((r) => r.key.startsWith("line:"));
+  const groupRows = rows.filter((r) => r.key.startsWith("wbs:"));
+  const topGroups = groupRows.filter((r) => !groupRows.some((g) => g !== r && r.key.startsWith(`${g.key}.`)));
+  const basisRows = total ? [total] : lineRows.length > 0 ? lineRows : topGroups.length > 0 ? topGroups : rows;
+  const totalCost = round2(basisRows.reduce((s, r) => s + r.cost, 0));
+  const allocated = Math.min(totalCost, round2(rows.reduce((s, r) => s + r.allocated_cost, 0)));
   return {
     outputs: rows,
-    total_cost: round2(basisRows.reduce((s, r) => s + r.cost, 0)),
-    allocated_cost: round2(basisRows.reduce((s, r) => s + r.allocated_cost, 0)),
-    unallocated_cost: round2(basisRows.reduce((s, r) => s + r.unallocated_cost, 0)),
+    total_cost: totalCost,
+    allocated_cost: allocated,
+    unallocated_cost: round2(Math.max(0, totalCost - allocated)),
     over: rows.filter((r) => r.over).map((r) => r.key),
   };
 }

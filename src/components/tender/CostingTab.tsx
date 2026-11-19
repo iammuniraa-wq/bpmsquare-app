@@ -58,7 +58,11 @@ export default function CostingTab({ opportunityId, canEdit, onError, onNotice, 
   const [newEstimate, setNewEstimate] = useState(false);
   const [template, setTemplate] = useState("");
   const [busy, setBusy] = useState(false);
+  const [done, setDone] = useState("");
+  const [compareAsk, setCompareAsk] = useState(0);
+  const [version, setVersion] = useState(0);
   const compareRef = useRef<HTMLDivElement>(null);
+  const doneRef = useRef<HTMLDivElement>(null);
   const cards = useCards(layout);
 
   const load = useCallback(async () => {
@@ -71,9 +75,20 @@ export default function CostingTab({ opportunityId, canEdit, onError, onNotice, 
     } catch { setLoadError("Could not load Costing"); }
   }, [url]);
   useEffect(() => { if (!initialData) void load(); }, [initialData, load]);
-  useEffect(() => { if (compareId) compareRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" }); }, [compareId]);
+  // The compare screen opens under the list the person pressed in, is scrolled to and takes the focus. `compareAsk` moves on every
+  // press and again when the answers have loaded (the screen is short while it loads, so the first scroll cannot place it).
+  const showCompare = useCallback(() => {
+    const el = compareRef.current;
+    if (!el) return;
+    el.focus?.({ preventScroll: true });
+    el.scrollIntoView?.({ behavior: "smooth", block: "start" });
+  }, []);
+  useEffect(() => { if (compareId) showCompare(); }, [compareId, compareAsk, showCompare]);
+  const openCompare = useCallback((id: string) => { setCompareId(id); setCompareAsk((n) => n + 1); }, []);
+  useEffect(() => { if (done) doneRef.current?.scrollIntoView?.({ behavior: "smooth", block: "nearest" }); }, [done]);
 
-  const afterChange = useCallback(() => { void load(); onChanged?.(); }, [load, onChanged]);
+  // The tab's own figures first (list, tiles), then the page (header, the Bill of quantities). A failed reload still tells the page.
+  const afterChange = useCallback(async () => { try { await load(); } finally { setVersion((n) => n + 1); onChanged?.(); } }, [load, onChanged]);
 
   if (!data) {
     return loadError
@@ -97,7 +112,7 @@ export default function CostingTab({ opportunityId, canEdit, onError, onNotice, 
         origin={{ type: "opportunity", id: opportunityId }} originLabel={data.rfq_origin_label} lines={data.rfq_lines} title="Supplier prices for the tender"
         label={label} supplierTypeFilter supplierSource={tenderSupplierSource(opportunityId)} disabled={data.rfq_lines.length === 0} guideId={guide}
         buttonStyle={{ minHeight: 44, color: c.ink }}
-        onCreated={() => { onNotice?.("RFQ created"); afterChange(); }}
+        onCreated={() => { onNotice?.("RFQ created"); void afterChange(); }}
       />
       {guide === "costing.rfq.new" && <InfoTip label="New RFQ">{COSTING_TIPS.newRfq}</InfoTip>}
     </span>
@@ -116,7 +131,7 @@ export default function CostingTab({ opportunityId, canEdit, onError, onNotice, 
       const n = out.json.repriced?.length ?? 0;
       onNotice?.(`${n} row${n === 1 ? "" : "s"} re-priced${failed.length ? `, ${failed.length} could not be` : ""}`);
       if (failed.length) onError(`${failed[0].item}: ${failed[0].reason}`);
-      afterChange();
+      void afterChange();
     } catch { onError("Network error. Try again."); } finally { setBusy(false); }
   }
 
@@ -147,6 +162,13 @@ export default function CostingTab({ opportunityId, canEdit, onError, onNotice, 
           {t.unpriced > 0 && onOpenBoq && <Button variant="secondary" size="sm" onClick={() => onOpenBoq("unpriced")} style={{ minHeight: 44 }} data-guide="costing.unpriced.open">Show them in the Bill of quantities</Button>}
           {data.boq.stale > 0 && <span style={{ color: "var(--amberink)" }}>{data.boq.stale} price{data.boq.stale === 1 ? " is" : "s are"} out of date</span>}
           {data.boq.stale > 0 && onOpenBoq && <Button variant="quiet" size="sm" onClick={() => onOpenBoq("stale")} style={{ minHeight: 44 }} data-guide="costing.stale.open">Show them</Button>}
+        </div>
+      )}
+
+      {done && (
+        <div ref={doneRef} role="status" data-guide="costing.done" style={{ display: "flex", alignItems: "center", gap: 8, background: "var(--tealbg)", color: "var(--tealink)", borderRadius: 8, padding: "4px 4px 4px 12px", fontSize: 13, fontWeight: 600 }}>
+          <span style={{ flex: 1, overflowWrap: "anywhere" }}>{done}</span>
+          <Button variant="quiet" size="sm" onClick={() => setDone("")} style={{ minHeight: 44 }} aria-label="Dismiss">Dismiss</Button>
         </div>
       )}
 
@@ -185,8 +207,8 @@ export default function CostingTab({ opportunityId, canEdit, onError, onNotice, 
                   key={`${item.kind}:${item.id}`} item={item} opportunityId={opportunityId} today={data.today}
                   canEdit={canEdit && data.can_edit} canAward={canEdit && data.can_award} rfqsOn={data.rfqs_on && !data.pending_rfqs}
                   onOpenBoq={onOpenBoq ? () => onOpenBoq() : undefined}
-                  onCompare={setCompareId} onPriceAwarded={setCompareId} onPriceRows={setPriceRowsFor} onReprice={(id) => void reprice(id)}
-                  onRfqCreated={() => { onNotice?.("RFQ created"); afterChange(); }}
+                  onCompare={openCompare} onPriceAwarded={openCompare} onPriceRows={setPriceRowsFor} onReprice={(id) => void reprice(id)}
+                  onRfqCreated={() => { onNotice?.("RFQ created"); void afterChange(); }}
                   busy={busy} comparing={compareId === item.id}
                 />
               ))}
@@ -196,8 +218,8 @@ export default function CostingTab({ opportunityId, canEdit, onError, onNotice, 
               items={shown} opportunityId={opportunityId} today={data.today}
               canEdit={canEdit && data.can_edit} canAward={canEdit && data.can_award} rfqsOn={data.rfqs_on && !data.pending_rfqs}
               onOpenBoq={onOpenBoq ? () => onOpenBoq() : undefined}
-              onCompare={setCompareId} onPriceAwarded={setCompareId} onPriceRows={setPriceRowsFor} onReprice={(id) => void reprice(id)}
-              onRfqCreated={() => { onNotice?.("RFQ created"); afterChange(); }}
+              onCompare={openCompare} onPriceAwarded={openCompare} onPriceRows={setPriceRowsFor} onReprice={(id) => void reprice(id)}
+              onRfqCreated={() => { onNotice?.("RFQ created"); void afterChange(); }}
               busy={busy} comparingId={compareId}
             />
           )}
@@ -207,26 +229,27 @@ export default function CostingTab({ opportunityId, canEdit, onError, onNotice, 
         </Card>
       )}
 
-      <div data-guide="costing.wbs.section">
-        <SettingsSection id="costing.wbs" title="Totals by WBS" info={COSTING_TIPS.wbs} summary="Bid amount, cost and margin per WBS item">
-          <WbsTotals opportunityId={opportunityId} currency={data.currency} onOpenBoq={onOpenBoq ? () => onOpenBoq() : undefined} layout={layout} />
-        </SettingsSection>
-      </div>
-
       {compareId && (
-        <div ref={compareRef} data-guide="costing.compare.wrap">
+        <div ref={compareRef} tabIndex={-1} role="region" aria-label="Compare and award" data-guide="costing.compare.wrap" style={{ scrollMarginTop: 72, outline: "none" }}>
           <CompareAward
             key={compareId} opportunityId={opportunityId} rfqId={compareId} onClose={() => setCompareId(null)}
-            onChanged={afterChange} onError={onError} onNotice={(m) => onNotice?.(m)}
+            onChanged={() => void afterChange()} onLoaded={() => setCompareAsk((n) => n + 1)} onError={onError} onNotice={(m) => onNotice?.(m)}
           />
         </div>
       )}
+
+      <div data-guide="costing.wbs.section">
+        <SettingsSection id="costing.wbs" title="Totals by WBS" info={COSTING_TIPS.wbs} summary="Bid amount, cost and margin per WBS item">
+          <WbsTotals key={version} opportunityId={opportunityId} currency={data.currency} onOpenBoq={onOpenBoq ? () => onOpenBoq() : undefined} layout={layout} />
+        </SettingsSection>
+      </div>
 
       {priceRowsEstimate && (
         <PriceRowsPanel
           opportunityId={opportunityId} estimate={{ id: priceRowsEstimate.id, ref: priceRowsEstimate.kind === "estimate" ? priceRowsEstimate.ref : null, name: priceRowsEstimate.kind === "estimate" ? priceRowsEstimate.name : "" }}
           markupDefault={data.markup_default} bidLocked={data.bid_locked} onClose={() => setPriceRowsFor(null)} onError={onError}
-          onDone={(m) => { setPriceRowsFor(null); onNotice?.(m); afterChange(); }}
+          onWritten={() => void afterChange()}
+          onDone={(m) => { setPriceRowsFor(null); setDone(m); void afterChange(); }}
         />
       )}
 
