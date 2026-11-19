@@ -105,7 +105,7 @@ export default function BuyoutTab({ projectId, data: fromServer, currency, canEd
                   <tr>
                     <th style={th}>Package</th>
                     <th style={{ ...th, textAlign: "right" }}>Package budget</th><th style={{ ...th, textAlign: "right" }}>Best quote</th><th style={{ ...th, textAlign: "right" }}>Ordered</th><th style={{ ...th, textAlign: "right" }}>Against budget</th>
-                    <th style={th}>Status</th><th style={th}>ePROMIS</th>
+                    <th style={th}>Status</th><th style={th}>Sent to ERP</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -164,7 +164,7 @@ export default function BuyoutTab({ projectId, data: fromServer, currency, canEd
 
       {panel === "new" && (
         <NewPackagePanel
-          projectId={projectId} lines={data.unassigned_lines} currency={currency} onClose={() => setPanel(null)}
+          projectId={projectId} lines={data.unassigned_lines} wbsItems={data.wbs_items} currency={currency} onClose={() => setPanel(null)}
           onCreated={(created) => { setPanel(created?.id ? { id: created.id } : null); changed(); }}
         />
       )}

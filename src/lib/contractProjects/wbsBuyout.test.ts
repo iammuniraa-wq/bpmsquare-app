@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { tipTextProblems } from "@/lib/infoTip";
 import { WBS_TIPS } from "@/lib/wbs/tips";
 import type { BudgetLine, WorkPackageRow } from "./types";
-import { wbsBuyoutPrefill } from "./wbsBuyout";
+import { wbsBuyoutPrefill, wbsLineChoices } from "./wbsBuyout";
 
 // "Make buy-out package" on a WBS item (docs/design/wbs.md section 4): which approved budget lines the panel ticks, which it shows as taken,
 // and how a split line is offered.
@@ -60,6 +60,16 @@ describe("the prefill for a buy-out package", () => {
   it("an item with nothing in it gives a name and nothing to tick", () => {
     const p = wbsBuyoutPrefill(item("empty", "9", null), [...ITEMS, item("empty", "9", null)], LINES, { unassigned_lines: free(1, 2, 3) });
     expect(p).toMatchObject({ name: "Name 9", budget_line_ids: [], taken: [], skipped: 0 });
+  });
+
+  it("Pick by WBS item: every item in tree order with the lines it and its sub-items hold, a split line once", () => {
+    expect(wbsLineChoices(ITEMS).map((c) => [c.code, c.depth, c.line_keys])).toEqual([
+      ["1", 1, [K(2), K(1), K(3)]],
+      ["1.1", 2, [K(2), K(1)]],
+      ["1.2", 2, [K(3), K(1)]],
+      ["2", 1, [K(4)]],
+    ]);
+    expect(wbsLineChoices([])).toEqual([]);
   });
 
   it("the tip fits behind an i", () => {

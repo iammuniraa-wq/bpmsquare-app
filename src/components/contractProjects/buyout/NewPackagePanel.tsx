@@ -10,9 +10,9 @@ import { money } from "@/lib/contractProjects/format";
 import { trimPct } from "@/lib/wbs/screen";
 import { createPackage } from "./api";
 import { BUYOUT_TIPS } from "./tips";
-import { KIND_LABEL, PACKAGE_KINDS, type BudgetLineRow, type PackageKind, type PackageRow } from "./types";
+import { KIND_LABEL, PACKAGE_KINDS, type BudgetLineRow, type PackageKind, type PackageRow, type WbsChoice } from "./types";
 
-// New package: a name, a kind, and the budget lines not yet in any package. A side panel on a desktop, a bottom sheet on a phone (the shared
+// New package: a name, a kind, and the budget lines not yet in any package ("Pick by WBS item" ticks the free lines of an item and its sub-items). A side panel on a desktop, a bottom sheet on a phone (the shared
 // SidePanel). The server checks again that every line is on this project and free, so nothing here is trusted.
 
 const PAGE = 12;
@@ -27,7 +27,13 @@ export type NewPackageInitial = {
   taken?: readonly { line_key: string; label: string; package_ref: string | null; package_name: string }[];
 };
 
-export default function NewPackagePanel({ projectId, lines, currency, onClose, onCreated, initial }: {
+/** The WBS items that still hold a free line, with those lines' ids: what "Pick by WBS item" offers. */
+export function wbsPicks(wbsItems: readonly WbsChoice[] | undefined, lines: readonly Pick<BudgetLineRow, "id" | "line_key">[]): { item: WbsChoice; ids: string[] }[] {
+  const idOf = new Map(lines.filter((l) => l.line_key).map((l) => [l.line_key as string, l.id]));
+  return (wbsItems ?? []).map((item) => ({ item, ids: item.line_keys.flatMap((k) => idOf.get(k) ?? []) })).filter((x) => x.ids.length > 0);
+}
+
+export default function NewPackagePanel({ projectId, lines, currency, onClose, onCreated, initial, wbsItems }: {
   projectId: string;
   lines: BudgetLineRow[];
   currency: string | null;
@@ -35,6 +41,8 @@ export default function NewPackagePanel({ projectId, lines, currency, onClose, o
   /** After a package is made: the tab re-reads, then opens it. */
   onCreated: (created: PackageRow | null) => void;
   initial?: NewPackageInitial;
+  /** The project's WBS (the buy-out summary's `wbs_items`). Absent or empty = no chooser. */
+  wbsItems?: readonly WbsChoice[];
 }) {
   const [name, setName] = useState(initial?.name ?? "");
   const [kind, setKind] = useState<PackageKind>("supplier");
@@ -55,6 +63,11 @@ export default function NewPackagePanel({ projectId, lines, currency, onClose, o
     return t ? ordered.filter((l) => `${l.description} ${l.wbs ?? ""} ${l.cost_code ?? ""}`.toLowerCase().includes(t)) : ordered;
   }, [ordered, filter]);
   const visible = showAll || filter ? shown : shown.slice(0, PAGE);
+  const picks = useMemo(() => wbsPicks(wbsItems, lines), [wbsItems, lines]);
+  const pickItem = (id: string) => {
+    const ids = picks.find((x) => x.item.id === id)?.ids ?? [];
+    setChosen((cs) => [...cs, ...ids.filter((x) => !cs.includes(x))]);
+  };
   const toggle = (id: string) => setChosen((cs) => (cs.includes(id) ? cs.filter((x) => x !== id) : [...cs, id]));
   const chosenTotal = lines.filter((l) => chosen.includes(l.id)).reduce((s, l) => s + (l.amount ?? 0), 0);
   const ready = !busy && name.trim().length > 0 && chosen.length > 0;
@@ -103,6 +116,12 @@ export default function NewPackagePanel({ projectId, lines, currency, onClose, o
             <div role="status" data-guide="buyout.new.empty" style={{ fontSize: 13, color: c.muted }}>Every budget line is already in a package. Add lines on the Budget tab first.</div>
           ) : (
             <>
+              {picks.length > 0 && (
+                <Select aria-label="Pick by WBS item" value="" onChange={(e) => pickItem(e.target.value)} data-guide="buyout.new.by_wbs" style={{ minHeight: 44, marginBottom: 6 }}>
+                  <option value="">Pick by WBS item…</option>
+                  {picks.map(({ item, ids }) => <option key={item.id} value={item.id}>{"\u00a0\u00a0".repeat(item.depth - 1)}{item.code} {item.name} ({ids.length} line{ids.length === 1 ? "" : "s"})</option>)}
+                </Select>
+              )}
               {lines.length > PAGE && <Input aria-label="Search budget lines" type="search" value={filter} onChange={(e) => setFilter(e.target.value)} placeholder="Search lines…" style={{ marginBottom: 6 }} />}
               <div style={{ border: `1px solid ${c.line}`, borderRadius: 8 }}>
                 {visible.map((l) => (

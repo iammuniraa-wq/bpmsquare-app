@@ -243,6 +243,41 @@ describe("the item panel", () => {
     expect(out).toContain("1.1 holds lines. They move into this new item.");
   });
 
+  it("a new item opened with lines ticked in the Unassigned list starts with them ticked, first in the list", () => {
+    const out = panel({ pkg: null, initialLineKeys: [K(3)] });
+    const boxes = [...out.matchAll(/<label[^>]*>(<input type="checkbox"[^>]*>)<span[^>]*>([^<]*)/g)].map((m) => [m[2], /checked=""/.test(m[1])]);
+    expect(boxes[0]).toEqual(["2.3 Gate", true]);
+    expect(boxes.filter((b) => b[1])).toHaveLength(1);
+    expect(panel({ pkg: null }).match(/<input type="checkbox"[^>]*checked=""/g) ?? []).toHaveLength(0);
+    // an existing item keeps its own lines: the ticks of the list are not laid over it
+    expect(panel({ initialLineKeys: [K(3)] })).toContain("1.1 Fabrication");
+  });
+
+  it("the group bar offers a new item first, and both ways of opening New WBS item carry the ticked lines", () => {
+    const tabSrc = read("src/components/contractProjects/WbsTab.tsx");
+    expect(tabSrc).toContain('<option value={NEW_ITEM} data-guide="cp.wbs.group_new">+ New WBS item…</option>');
+    expect(tabSrc.indexOf("cp.wbs.group_new")).toBeLessThan(tabSrc.indexOf("leafItems(items).map"));
+    expect(tabSrc).toContain("const newItem = (): Panel => ({ pkg: null, lineKeys: [...picked] });");
+    expect(tabSrc).toContain('data-guide="cp.wbs.add" disabled={busy} style={{ minHeight: 44 }} onClick={() => setPanel(newItem())}');
+    expect(tabSrc).toContain("if (e.target.value === NEW_ITEM) { setTarget(\"\"); setPanel(newItem()); }");
+    expect(tabSrc).toContain("initialLineKeys={panel.lineKeys}");
+  });
+
+  it("Allocated in the tree is the budget cost on the item's lines when the budget is allocated by BOQ line", () => {
+    const costed = [{ ...LINES[0], allocated: true, amount: 90650 }, { ...LINES[1], allocated: true, amount: 4000 }, LINES[2]];
+    const packages = PACKAGES.map((p) => ({ ...p, allocated_cost: null }));
+    const v = allocationView({ allocation_basis: "line", contract_value: 200000 }, costed, packages, null);
+    const out = strip(renderToString(createElement(WbsTab, {
+      projectId: "p1", basis: "line", revisionStatus: "draft", projectClosed: false, packages, rows: v.wbsRows, unassigned: v.unassigned, lines: costed, employees: EMPLOYEES, currency: "SAR",
+      canEdit: true, pending: false, treePending: false, fromTender: true,
+    } as never)));
+    // 1.1 holds the handrail (4,000) and 60 % of the stair (54,390); 1.2 holds 15 % (13,597.50); the parent adds them up
+    expect(out).toContain("58,390.00");
+    expect(out).toContain("13,597.50");
+    expect(out).toContain("71,987.50");
+    expect(out).toContain("22,662.50");
+  });
+
   it("an item of the same split line shows the line as split across items", () => {
     expect(panel({ pkg: PACKAGES[3] })).toContain("2 · 25 %");
     expect(panel({ pkg: PACKAGES[1], lines: [...LINES] })).not.toContain("Line 4");

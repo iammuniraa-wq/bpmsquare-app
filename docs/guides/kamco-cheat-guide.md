@@ -80,7 +80,7 @@ The project appears once the tender is **Won** (**Create contract project**). It
 
 - **Budget:** choose **Allocate by** **BOQ line** or **Work package**, then type costs. **Margin so far** is the contract value less what you allocated, and reads **Not allocated yet** until you allocate. **Fill from tender costs** copies the recorded costs once.
 - **Work breakdown (WBS):** group BOQ lines into work packages, each with an owner. The owner must be an employee with a login.
-- **Tabs:** **Budget, Buy-out, Client changes, Client billing, Revisions, Hand over to the ERP** (the Handover tab). **Ordered** and **Spent** replace Committed and Actual.
+- **Tabs:** **Budget, Buy-out, Client changes, Client billing, Revisions, ERP handover** (two parts: **Budget** and **Packages**). **Ordered** and **Spent** replace Committed and Actual.
 - **Client billing:** **+ Add milestone**, or **Copy the tender's payment terms** when the bid carried a template.
 
 ## 7. Settings added or changed

@@ -103,7 +103,7 @@ export default async function ContractProjectPage({ params, searchParams }: { pa
         { id: "variations", label: "Client changes", content: <VariationsSection req={req} project={p} /> },
         { id: "invoicing", label: "Client billing", content: <InvoicingSection req={req} project={p} /> },
         { id: "revisions", label: "Revisions", count: view.revisions.length, content: <RevisionsPanel view={view} /> },
-        { id: "handover", label: "Handover", content: <HandoverPanel projectId={p.id} revisionId={rev?.id ?? null} revLabel={revLabel} hasBudget={!!rev && view.lines.length > 0} /> },
+        { id: "handover", label: "ERP handover", content: <HandoverPanel projectId={p.id} revisionId={rev?.id ?? null} revLabel={revLabel} hasBudget={!!rev && view.lines.length > 0} buyoutOn={buyoutOn} /> },
         { id: "activity", label: "Activity", content: <RecordActivity objectType="contract_projects" objectId={p.id} isAdmin={role === "admin"} /> },
       ]}
     />
