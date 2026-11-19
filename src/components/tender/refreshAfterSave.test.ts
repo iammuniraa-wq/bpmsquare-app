@@ -4,6 +4,8 @@ import path from "node:path";
 import type { CallsData, CallView } from "@/lib/tender/calls";
 import type { BidsData } from "@/lib/tender/bids/rules";
 import type { OutcomeData } from "@/lib/tender/outcome";
+import { boqStepFacts } from "./BoqTab";
+import { tenderSteps } from "@/lib/tender/steps";
 import { bidsUrl, callsUrl, mergeBids, mergeCalls, mergeOutcome, reloadAfterSave, type Fetcher } from "./refreshAfterSave";
 
 // After a save, the calls list, the Outcome section and the Bids tab show what was saved without a page reload: each reloads what it
@@ -16,6 +18,31 @@ const json = (body: unknown, ok = true): Fetcher => async () => ({ ok, json: asy
 
 const call = (id: string): CallView => ({ id, kind: "call", occurred_at: "2026-10-20T09:00:00Z", with_whom: null, summary: `call ${id}`, outcome: null, next_step: null, next_step_due: null, next_step_done_at: null, logged_by_name: "S. Khan", can_change: true });
 const calls = (list: CallView[]): CallsData => ({ calls: list, pending: false, canEdit: true });
+
+describe("the step tracker after a BOQ upload", () => {
+  it("the BOQ tab hands the page the facts it just re-read, so the Next row moves without waiting for the server render", () => {
+    const totals = { lines: 12, priced: 3, unpriced: 9, stale: 1, amount: 4500, no_product: 2 };
+    expect(boqStepFacts({ source: { file_name: "boq.xlsx", sheet_name: "BOQ", version: 1, uploaded_at: "2026-11-19T09:00:00Z", line_count: 12, added_columns: false }, totals }))
+      .toEqual({ hasBoq: true, lines: 12, unpriced: 9, stale: 1, noProduct: 2, amount: 4500 });
+    expect(boqStepFacts({ source: null, totals })).toEqual({ hasBoq: false, lines: 0, unpriced: 0, stale: 0, noProduct: 0, amount: 0 });
+    // With those facts the path leaves "upload the client's BOQ".
+    const base = { stage: "estimating", outcome: "open", bids: 0, canEdit: true, approvedGo: true, proposalPending: false, canDecide: false, project: null, decisionStanding: "go" as const, closingAt: null, projectId: null };
+    const f = boqStepFacts({ source: { file_name: "boq.xlsx", sheet_name: "BOQ", version: 1, uploaded_at: "2026-11-19T09:00:00Z", line_count: 12, added_columns: false }, totals });
+    const before = tenderSteps({ ...base, hasBoq: false, boqLines: 0, unpriced: 0, stale: 0 } as Parameters<typeof tenderSteps>[0]);
+    const after = tenderSteps({ ...base, hasBoq: f.hasBoq, boqLines: f.lines, unpriced: f.unpriced, stale: f.stale, noProduct: f.noProduct, boqAmount: f.amount } as Parameters<typeof tenderSteps>[0]);
+    expect(before.next.title).toBe("Next: upload the client's BOQ");
+    expect(after.next.title).toBe("Next: price every BOQ line");
+  });
+
+  it("is wired: the tab reports after its reload, the page keeps the facts in state and the server render replaces them", () => {
+    const tab = read("src/components/tender/BoqTab.tsx");
+    expect(tab).toContain("reloadAfterSave<State>(base, (fresh) => { setData(fresh); onFacts?.(boqStepFacts(fresh)); }, onLinesChanged)");
+    const page = read("src/app/(app)/pipeline/[id]/OpportunityDetailClient.tsx");
+    expect(page).toContain("onFacts={setBoqFacts}");
+    expect(page).toContain("useEffect(() => { setBoqFacts(tender?.boq ?? null); }, [tender?.boq]);");
+    expect(page).toContain("onLinesChanged={() => router.refresh()}");
+  });
+});
 
 describe("reloadAfterSave", () => {
   it("applies what the endpoint answers, then calls onChanged", async () => {

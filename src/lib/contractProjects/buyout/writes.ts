@@ -10,7 +10,7 @@ import { rfqConfig, type Rfq } from "@/lib/rfq/types";
 import { assertTenderSuppliersAllowed } from "@/lib/supplierGroups/server";
 import {
   PACKAGE_LIMITS, PACKAGE_LINE_REASON, overBudgetBy, awardProblem, canDownloadHandover, cleanPackageReason, deleteProblem, isUuid, lineQty, linesLocked, markSentProblem,
-  packageAwardDecision, roundMoney, roundOriginLabel, roundProblem, roundTitle, unawardProblem,
+  packageAwardDecision, roundMoney, roundOriginLabel, roundProblem, roundRfqLines, roundTitle, unawardProblem,
   type PackageInput, type PackageRow, type RoundInput,
 } from "./rules";
 import {
@@ -203,7 +203,7 @@ export async function createRound(req: BuyoutCtx, pkg: PackageDbRow, input: Roun
     rfq = await createRfq({ admin, tenantId, userId, email: user?.email ?? null }, {
       title: roundTitle(pkg, roundNo), origin_type: "manual", respond_by: input.reply_by, currency: project.currency,
       notes_to_supplier: input.note, notes_internal: `Contract buy-out ${pkg.ref ?? ""} for ${labelOf(project)}`.trim(),
-      lines: lines.map((l) => ({ description: l!.description, uom: l!.unit, qty: l!.qty })),
+      lines: roundRfqLines(lines.map((l) => l!)),
       supplier_ids: input.supplier_ids,
     }, cfg);
   } catch (e) {

@@ -4,9 +4,8 @@ import Link from "next/link";
 import Button from "@/components/ui/Button";
 import InfoTip from "@/components/ui/InfoTip";
 import StatusPill from "@/components/ui/StatusPill";
-import { ageText, rowsText, type CostingItem } from "@/lib/tender/costing/rules";
+import { ageText, rfqCompareButton, rowsText, type CostingItem } from "@/lib/tender/costing/rules";
 import { COSTING_TIPS, type CostingTipKey } from "@/lib/tender/costing/tips";
-import { canCompareRfq } from "@/lib/rfq/rules";
 import MissingRfqButton from "../MissingRfqButton";
 import s from "../BoqRows.module.css";
 
@@ -54,6 +53,7 @@ export default function CostSourcesTable({ items, opportunityId, today, canEdit,
             const name = isEstimate ? `${item.ref ? `${item.ref} · ` : ""}${item.name}` : `${item.ref ? `${item.ref} · ` : ""}${item.title}`;
             const href = isEstimate ? `/estimates/${item.id}` : `/rfqs/${item.id}`;
             const when = isEstimate ? `Changed ${ageText(item.updated_at, today)}` : `Raised ${ageText(item.created_at, today)}`;
+            const compare = isEstimate ? null : rfqCompareButton(item, canAward);
             return (
               <tr key={`${item.kind}:${item.id}`} data-guide={isEstimate ? "costing.estimate" : "costing.rfq"} aria-selected={comparingId === item.id}>
                 <td><StatusPill label={isEstimate ? "Estimate" : "RFQ"} tone={isEstimate ? "blue" : "purple"} /></td>
@@ -103,10 +103,8 @@ export default function CostSourcesTable({ items, opportunityId, today, canEdit,
                       </>
                     ) : (
                       <>
-                        {canCompareRfq(item.status, item.suppliers_replied) && (
-                          <Button variant={canAward && item.status !== "awarded" ? "primary" : "secondary"} size="sm" onClick={() => onCompare(item.id)} style={{ minHeight: 44 }} data-guide="costing.rfq.compare">
-                            {!canAward ? "Compare" : item.status === "awarded" ? "Review award" : "Compare and award"}
-                          </Button>
+                        {compare && (
+                          <Button variant={compare.variant} size="sm" onClick={() => onCompare(item.id)} style={{ minHeight: 44 }} data-guide="costing.rfq.compare">{compare.label}</Button>
                         )}
                         <Button variant="secondary" size="sm" href={href} style={{ minHeight: 44 }} data-guide="costing.rfq.open">Open RFQ</Button>
                         {canAward && item.awarded_unpriced > 0 && (

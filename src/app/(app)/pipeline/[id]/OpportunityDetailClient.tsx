@@ -50,7 +50,7 @@ import { overdueSummary, type CallsData } from "@/lib/tender/calls";
 import type { BidsData } from "@/lib/tender/bids/rules";
 import type { OutcomeData } from "@/lib/tender/outcome";
 import DealRoom from "@/components/tender/DealRoom";
-import BoqTab from "@/components/tender/BoqTab";
+import BoqTab, { type BoqStepFacts } from "@/components/tender/BoqTab";
 import CompetitorsTab from "@/components/tender/competitors/CompetitorsTab";
 import WhoWonPicker from "@/components/tender/competitors/WhoWonPicker";
 import CostingTab from "@/components/tender/CostingTab";
@@ -167,6 +167,11 @@ export default function OpportunityDetailClient({ opp, accountName, contacts, in
     } catch { /* the refresh below brings the same facts */ }
     router.refresh();
   }
+  // The BOQ's facts for the path across the top, as the page last knew them. An upload or a price re-reads them at once (the Next row
+  // must not keep saying "upload the client's BOQ" until a reload) and the server render then replaces them.
+  const [boqFacts, setBoqFacts] = useState<BoqStepFacts | null>(tender?.boq ?? null);
+  useEffect(() => { setBoqFacts(tender?.boq ?? null); }, [tender?.boq]);
+  const boqNow = boqFacts ?? { hasBoq: false, lines: 0, unpriced: 0, stale: 0, noProduct: 0, amount: 0 };
   const [bidStart, setBidStart] = useState(0);
   const [boqRequest, setBoqRequest] = useState<{ filter: BoqFilter; n: number } | undefined>(undefined);
   const boqAsks = useRef(0);
@@ -384,7 +389,6 @@ export default function OpportunityDetailClient({ opp, accountName, contacts, in
     else if (key === "create_project") createContractProject();
   }
   // The path across the top (lib/tender/steps.ts) decides whether the stage's button leads the Next row or follows a jump to a tab.
-  const boqNow = tender?.boq ?? { hasBoq: false, lines: 0, unpriced: 0, stale: 0, noProduct: 0, amount: 0 };
   const stepsNow = tender
     ? tenderSteps({
         stage: opp.stage, outcome: opp.outcome, bids: tender.bids?.versions.length ?? 0, canEdit: tender.boqEdit !== false,
@@ -557,7 +561,7 @@ export default function OpportunityDetailClient({ opp, accountName, contacts, in
         )
       )}
       {tab === "competitors" && tender && <CompetitorsTab opportunityId={opp.id} canEdit={tender.boqEdit !== false} onError={setError} onNotice={setNotice} onChanged={() => router.refresh()} />}
-      {tab === "boq" && tender && <BoqTab opportunityId={opp.id} canEdit={tender.boqEdit !== false} onError={setError} onNotice={setNotice} onLinesChanged={() => router.refresh()} onOpenCosting={tender.costing ? () => openTab("costing") : undefined} dealLines={initialLines} dealLinesVersion={linesVersion} filterRequest={boqRequest} initialOpenRow={initialOpenRow} />}
+      {tab === "boq" && tender && <BoqTab opportunityId={opp.id} canEdit={tender.boqEdit !== false} onError={setError} onNotice={setNotice} onLinesChanged={() => router.refresh()} onFacts={setBoqFacts} onOpenCosting={tender.costing ? () => openTab("costing") : undefined} dealLines={initialLines} dealLinesVersion={linesVersion} filterRequest={boqRequest} initialOpenRow={initialOpenRow} />}
       {tab === "costing" && tender?.costing && <CostingTab opportunityId={opp.id} canEdit={tender.costing.canEdit} onError={setError} onNotice={setNotice} onChanged={() => router.refresh()} onOpenBoq={(filter) => { boqAsks.current += 1; setBoqRequest(filter ? { filter, n: boqAsks.current } : undefined); setTab("boq"); }} />}
       {tab === "overview" && tender && (
         <TenderOverview

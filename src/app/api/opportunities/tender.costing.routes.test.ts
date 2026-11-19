@@ -286,6 +286,21 @@ describe("the list", () => {
 });
 
 describe("the compare screen", () => {
+  it("names the person who awarded: the workspace's name for them, else a readable name from their login, never an address", async () => {
+    const stand = (n: number, lineId: string, by: string) => awards().push({ id: id(n), tenant_id: T1, rfq_id: RFQ, rfq_line_id: lineId, rfq_supplier_id: RS_B, supplier_id: SB, response_id: lineId === L1 ? rB1 : rB2, chosen_by: by, chosen_at: "2026-10-22T08:00:00Z", reason: null, not_lowest: false, landed_unit: 35, lowest_valid_unit: 35, superseded_at: null, applied_to_deal_at: null, applied_rate: null });
+    const NOBODY = "99999999-9999-4999-8999-999999999999";
+    stand(210, L1, ME);
+    stand(211, L2, NOBODY);
+    state.db.users.set(ME, { email: "sap.rashid@example.test" });
+    const names = async () => ((await compare(RFQ)).json.awards as { rfq_line_id: string; chosen_by_name: string | null }[]).sort((a, b) => a.rfq_line_id.localeCompare(b.rfq_line_id)).map((a) => a.chosen_by_name);
+    const got = await names();
+    // No name in the workspace: the login gives one. A login that cannot be read stays unnamed.
+    expect(got).toContain("Sap Rashid");
+    expect(got).toContain(null);
+    expect(JSON.stringify(got)).not.toContain("@");
+  });
+
+
   it("returns suppliers side by side with their answers, and no token, link or email address", async () => {
     const r = await compare(RFQ);
     expect(r.status).toBe(200);

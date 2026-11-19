@@ -391,6 +391,8 @@ describe("rounds and the client's approved supplier list", () => {
     expect(String(rfq.origin_label)).toContain("CPR-0001");
     const lines = rows("rfq_lines").filter((l) => l.rfq_id === rfq.id).sort((a, b) => Number(a.sl_no) - Number(b.sl_no));
     expect(lines.map((l) => [l.description, l.uom, Number(l.qty)])).toEqual([["HDPE pipe 110mm", "m", 100], ["Gate valve DN100", "no", 4]]);
+    // The client's item numbers travel with the lines, as on a tender RFQ.
+    expect(lines.map((l) => l.spec)).toEqual(["Item no. 1.1", "Item no. 1.2"]);
     const pkgLines = rows("project_buyout_package_lines").sort((a, b) => Number(a.sort_order) - Number(b.sort_order));
     expect(lines.map((l) => l.package_line_id)).toEqual(pkgLines.map((p) => p.id));
     expect(rows("rfq_suppliers").filter((s) => s.rfq_id === rfq.id).map((s) => s.supplier_id).sort()).toEqual([S1, S2].sort());

@@ -5,7 +5,7 @@ import { readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 import type { Opportunity, OpportunityLine } from "@/lib/types";
 import type { OpportunityStageDef } from "@/lib/constants";
-import type { CompareView, CostingData, CostingEstimateItem, CostingRfqItem } from "@/lib/tender/costing/rules";
+import { rfqCompareButton, type CompareView, type CostingData, type CostingEstimateItem, type CostingRfqItem } from "@/lib/tender/costing/rules";
 import type { TenderView } from "@/lib/tender/views";
 
 // The Costing tab, rendered on the server (docs/design/gcc-tender-deals.md section 25): the four figures, the list of estimates and RFQs,
@@ -139,6 +139,20 @@ describe("the Costing tab", () => {
     expect(out).toContain('data-guide="costing.rfq.compare"');
     expect(out).toContain("Compare and award");
     expect(out).toContain('data-guide="costing.rfq.open"');
+  });
+
+  it("an RFQ nobody has answered yet offers a quiet Compare, never the primary Compare and award", () => {
+    expect(rfqCompareButton({ status: "sent", suppliers_replied: 0 }, true)).toEqual({ label: "Compare", variant: "secondary" });
+    expect(rfqCompareButton({ status: "partially_replied", suppliers_replied: 1 }, true)).toEqual({ label: "Compare and award", variant: "primary" });
+    expect(rfqCompareButton({ status: "partially_replied", suppliers_replied: 1 }, false)).toEqual({ label: "Compare", variant: "secondary" });
+    expect(rfqCompareButton({ status: "awarded", suppliers_replied: 2 }, true)).toEqual({ label: "Review award", variant: "secondary" });
+    expect(rfqCompareButton({ status: "draft", suppliers_replied: 0 }, true)).toBeNull();
+    expect(rfqCompareButton({ status: "cancelled", suppliers_replied: 2 }, true)).toBeNull();
+    const out = tab(data({ items: [rfq({ status: "sent", suppliers_replied: 0, state: { label: "Waiting for 3 replies", tone: "blue" } })] }));
+    expect(out).toContain('data-guide="costing.rfq.compare"');
+    expect(out).toContain(">Compare<");
+    expect(out).not.toContain("Compare and award<");
+    for (const f of ["CostSourcesTable.tsx", "CostingRow.tsx"]) expect(read(`src/components/tender/costing/${f}`)).toContain("rfqCompareButton(item, canAward)");
   });
 
   it("a quoted estimate cannot be re-priced and a draft RFQ has nothing to compare", () => {
@@ -399,7 +413,9 @@ describe("price the BOQ rows from an estimate", () => {
   it("the panel names what a ticked row would lose, shows its own errors, and reloads the tab when a write may have happened", () => {
     const code = readFileSync(path.join(ROOT, "src/components/tender/costing/PriceRowsPanel.tsx"), "utf8");
     expect(code).toContain("replacedText(chosen)");
-    expect(code).toContain("defaultTicks(d.rows)");
+    expect(code).toContain("defaultTicks(d.rows, mode)");
+    expect(code).toContain('data-guide="costing.price_rows.pick"');
+    expect(read("src/components/tender/BoqEstimatePanels.tsx")).toContain("defaultTicks(d.rows, mode)");
     expect(code).not.toMatch(/setTicked\(new Set\(d\.rows\.map/);
     expect(code).toContain('data-guide="costing.price_rows.error"');
     expect(code).toContain("onWritten?.()");

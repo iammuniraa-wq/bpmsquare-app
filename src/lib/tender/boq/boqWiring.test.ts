@@ -224,7 +224,7 @@ describe("the Bill of quantities screen (the rows, chips and panel are tested in
     const src = read("src/components/tender/BoqTab.tsx");
     expect(src).toMatch(/onLinesChanged\?: \(\) => void/);
     // One reload path: the table, the estimates and the page. Every place the lines change (upload, price all, match, the row panel) goes through it.
-    expect(src).toMatch(/reloadAfterSave<State>\(base, setData, onLinesChanged\)/);
+    expect(src).toContain("reloadAfterSave<State>(base, (fresh) => { setData(fresh); onFacts?.(boqStepFacts(fresh)); }, onLinesChanged)");
     expect(src.match(/onChanged=\{changed\}/g)?.length ?? 0).toBe(3); // the match strip, the WBS tree, the row panel
     // Lines typed by hand (no client file) save through the same reload path.
     expect(src).toMatch(/<DealLinesBoq[\s\S]*onChanged=\{\(\) => onLinesChanged\?\.\(\)\}/);

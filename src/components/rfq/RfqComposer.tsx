@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { c } from "@/lib/theme";
 import { UOM_OPTIONS } from "@/lib/constants";
 import type { RfqOriginType } from "@/lib/rfq/types";
+import { itemNoOfSpec } from "@/lib/rfq/itemNo";
 import { inp, lbl, btnPrimary, btnGhost } from "./rfqUi";
 import SupplierPicker from "./SupplierPicker";
 import { useRfqSuppliers } from "./useRfqSuppliers";
@@ -29,6 +30,8 @@ export type ComposerLine = {
   linked_ref?: string | null;
   /** Context for the buyer, e.g. "rate 0" or "Needs a cost". Not sent. */
   hint?: string | null;
+  /** The item number the line carries on its own record (a BOQ's "1.1"), shown instead of the position in this list. Not sent. */
+  item_no?: string | null;
   /** The product's SKU, shown read-only in the one-item form. Not sent. */
   product_ref?: string | null;
   /** The caller's own handle for this line (an editor's local line id),
@@ -104,7 +107,7 @@ export default function RfqComposer({
         delivery_terms: delivery || null,
         notes_to_supplier: notes || null,
         notes_internal: internal || null,
-        lines: chosenLines.map(({ include: _i, linked_ref: _l, hint: _h, key: _k, product_ref: _p, ...l }) => ({ ...l, qty: l.qty === "" ? null : l.qty })),
+        lines: chosenLines.map(({ include: _i, linked_ref: _l, hint: _h, key: _k, product_ref: _p, item_no: _n, ...l }) => ({ ...l, qty: l.qty === "" ? null : l.qty })),
         supplier_ids: chosen,
         send,
       };
@@ -149,14 +152,16 @@ export default function RfqComposer({
             const ticked = l.include !== false;
             // A line chosen from a record is one row; its fields open with "Edit". A line typed here has no row to fall back to, so it is always open.
             const showFields = !fromRecord || (ticked && editing.has(i));
+            // A line from a numbered schedule keeps its own number ("1.1"); a line typed here has only its place in the list.
+            const no = l.item_no?.trim() || itemNoOfSpec(l.spec) || String(i + 1);
             const qtyText = [l.qty === null || l.qty === undefined || l.qty === "" ? null : String(l.qty), l.uom].filter(Boolean).join(" ");
             return (
               <div key={i} data-guide="rfq.line" style={{ border: `1px solid ${fromRecord && ticked ? c.accent + "55" : c.line}`, borderRadius: 8, padding: fromRecord ? "0 10px" : 10, display: "flex", flexDirection: "column", gap: 8 }}>
                 {fromRecord && (
                   <div style={{ display: "flex", gap: 8, alignItems: "center", minHeight: 44 }}>
                     <label style={{ display: "flex", gap: 10, alignItems: "center", flex: 1, minWidth: 0, minHeight: 44, cursor: "pointer", fontSize: 13, color: ticked ? c.ink : c.muted }}>
-                      <input type="checkbox" aria-label={`Ask suppliers about line ${i + 1}`} checked={ticked} onChange={(e) => setLine(i, { include: e.target.checked })} style={{ flexShrink: 0 }} />
-                      <span style={{ color: c.hint, fontVariantNumeric: "tabular-nums", flexShrink: 0 }}>{i + 1}</span>
+                      <input type="checkbox" aria-label={`Ask suppliers about line ${no}`} checked={ticked} onChange={(e) => setLine(i, { include: e.target.checked })} style={{ flexShrink: 0 }} />
+                      <span data-guide="rfq.line.no" style={{ color: c.hint, fontVariantNumeric: "tabular-nums", flexShrink: 0 }}>{no}</span>
                       <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontWeight: ticked ? 600 : 400 }} title={l.description}>
                         {l.description.trim() || "No description yet"}
                         {l.hint && <span style={{ fontSize: 11.5, fontWeight: 400, color: "var(--amberink)" }}> · {l.hint}</span>}
@@ -165,7 +170,7 @@ export default function RfqComposer({
                       {qtyText && <span style={{ flexShrink: 0, fontVariantNumeric: "tabular-nums", color: c.muted, whiteSpace: "nowrap" }}>{qtyText}</span>}
                     </label>
                     {ticked && (
-                      <button type="button" aria-expanded={showFields} aria-label={`${showFields ? "Close the fields of" : "Edit"} line ${i + 1}`} onClick={() => toggleEdit(i)} style={{ ...btnGhost, padding: "4px 10px", fontSize: 12, minHeight: 32, flexShrink: 0 }}>{showFields ? "Done" : "Edit"}</button>
+                      <button type="button" aria-expanded={showFields} aria-label={`${showFields ? "Close the fields of" : "Edit"} line ${no}`} onClick={() => toggleEdit(i)} style={{ ...btnGhost, padding: "4px 10px", fontSize: 12, minHeight: 32, flexShrink: 0 }}>{showFields ? "Done" : "Edit"}</button>
                     )}
                   </div>
                 )}

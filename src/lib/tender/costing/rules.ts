@@ -10,6 +10,7 @@ import type { ComposerLine } from "@/components/rfq/RfqComposer";
 import type { PillarKey } from "@/lib/theme";
 import type { Tone } from "@/lib/ui/tone";
 import type { ValidityState } from "@/lib/rfq/comparison";
+import { canCompareRfq } from "@/lib/rfq/rules";
 
 // ── The markup ───────────────────────────────────────────────────────────────────────────────────────────────────────────
 
@@ -183,6 +184,17 @@ export type CostingRfqItem = {
 };
 
 export type CostingItem = CostingEstimateItem | CostingRfqItem;
+
+/**
+ * The compare button of an RFQ line in the Costing list, or null when there is nothing to open. It leads the row (primary, "Compare and
+ * award") only once a supplier has replied: while everyone is still silent it is a quiet "Compare" that shows who was asked.
+ */
+export function rfqCompareButton(item: Pick<CostingRfqItem, "status" | "suppliers_replied">, canAward: boolean): { label: string; variant: "primary" | "secondary" } | null {
+  if (!canCompareRfq(item.status, item.suppliers_replied)) return null;
+  if (item.status === "awarded") return { label: canAward ? "Review award" : "Compare", variant: "secondary" };
+  if (!canAward || item.suppliers_replied <= 0) return { label: "Compare", variant: "secondary" };
+  return { label: "Compare and award", variant: "primary" };
+}
 
 export type CostingData = {
   /** 0227 (estimates in a tender) or 0128 (RFQ) has not been applied: the part that needs it says so, the rest works. */

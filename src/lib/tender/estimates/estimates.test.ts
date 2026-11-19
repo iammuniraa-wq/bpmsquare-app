@@ -236,6 +236,20 @@ describe("a row that already has a price is shown and never pre-ticked", () => {
     expect(rows.map((r) => re.get(r.boq_id))).toEqual([0, 100, 0, 0, 0]);
   });
 
+  it("a spread opens with nothing ticked, so nothing is given out until the person ticks rows", () => {
+    const ticks = defaultTicks(rows, "spread");
+    expect(ticks.size).toBe(0);
+    const re = reshare(rows, ticks, "amount", []);
+    expect(rows.map((r) => re.get(r.boq_id))).toEqual([0, 0, 0, 0, 0]);
+    // Ticking two rows shares the part between those two only.
+    const two = reshare(rows, new Set(["b2", "b3"]), "amount", []);
+    expect(rows.filter((r) => (two.get(r.boq_id) ?? 0) > 0).map((r) => r.boq_id)).toEqual(["b2", "b3"]);
+  });
+
+  it("a matched list still ticks its unpriced rows and never a priced one", () => {
+    expect([...defaultTicks(rows, "match")]).toEqual(["b2"]);
+  });
+
   it("a ticked row with a price is named in the confirm step", () => {
     const chosen = rows.filter((r) => ["b1", "b2", "b3"].includes(r.boq_id));
     expect(replacedPrices(chosen)).toEqual(["Replaces the Supplier · RFQ-0011 cost on 1.1.", "Replaces the Client rate rate on 2.2."]);

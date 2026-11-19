@@ -48,7 +48,8 @@ export function AllocatePanel({ base, state, canEdit, markup, onChanged, onError
   const [by, setBy] = useState<ProposalBy>("amount");
   const [output, setOutput] = useState("total");
   const [data, setData] = useState<Allocation | null>(initialData ?? null);
-  // Applying replaces the price a line carries, so only unpriced lines are ticked when the panel opens (same rule as the Costing tab).
+  // Applying replaces the price a line carries, so only unpriced lines are ticked when the panel opens, and a spread opens with none
+  // ticked (same rule as the Costing tab).
   const [ticked, setTicked] = useState<Set<string>>(() => defaultTicks(initialData?.rows ?? []));
   const [shares, setShares] = useState<Record<string, string>>(() => (initialData ? sharesFor(initialData, defaultTicks(initialData.rows), "amount") : {}));
   const [busy, setBusy] = useState(false);
@@ -64,7 +65,7 @@ export function AllocatePanel({ base, state, canEdit, markup, onChanged, onError
         if (!live) return;
         if (!ok) { onError(j.error ?? "Could not work out the allocation"); return; }
         const d = j as Allocation;
-        const first = defaultTicks(d.rows);
+        const first = defaultTicks(d.rows, mode);
         setData(d);
         setTicked(first);
         setShares(sharesFor(d, first, by));
@@ -155,6 +156,10 @@ export function AllocatePanel({ base, state, canEdit, markup, onChanged, onError
 
           {!data && <div style={{ fontSize: 12.5, color: c.hint }}>Looking…</div>}
           {data && rows.length === 0 && <div style={{ fontSize: 12.5, color: c.hint }}>{mode === "match" ? "No BOQ line reads like a line of this estimate. Try spreading a part over the lines instead." : "Nothing left to give out: this part is fully allocated."}</div>}
+
+          {data && mode === "spread" && rows.length > 0 && ticked.size === 0 && (
+            <div role="status" data-guide="boq.allocate.pick" style={{ fontSize: 12.5, color: c.ink }}>Tick the lines this part of the estimate covers.</div>
+          )}
 
           {shown.map((r) => {
             const on = ticked.has(r.boq_id);
