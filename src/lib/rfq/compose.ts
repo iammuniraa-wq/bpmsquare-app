@@ -40,6 +40,13 @@ function fmtQty(q: number | null, uom: string | null): string {
   return uom ? `${n} ${uom}` : n;
 }
 
+/** Who signs: the buyer when one is known, then the company. With no buyer name the company is printed once, not twice. */
+export function signatureLines(v: Pick<SupplierView, "tenantName" | "buyerName"> & { buyerEmail?: string | null }): string[] {
+  const buyer = v.buyerName?.trim() || null;
+  const isCompany = !!buyer && buyer.toLowerCase() === v.tenantName.trim().toLowerCase();
+  return [...(buyer && !isCompany ? [buyer] : []), v.tenantName, ...(v.buyerEmail?.trim() ? [v.buyerEmail.trim()] : [])];
+}
+
 export function rfqSubject(v: Pick<SupplierView, "ref" | "title" | "tenantName">, code: string | null, kind: "request" | "reminder" | "message" = "request"): string {
   const lead = kind === "reminder" ? "Reminder: request for quotation" : kind === "message" ? "Request for quotation" : "Request for quotation";
   return `${subjectTag(v.ref, code)} ${lead} — ${v.title} (${v.tenantName})`.slice(0, 240);
@@ -87,9 +94,7 @@ export function buildRequestEmail(v: SupplierView, opts: { link: string | null; 
     ...(v.terms ? ["", v.terms] : []),
     "",
     "Regards,",
-    v.buyerName ?? v.tenantName,
-    v.tenantName,
-    ...(v.buyerEmail ? [v.buyerEmail] : []),
+    ...signatureLines(v),
   ].join("\n");
 
   const row = (l: SupplierViewLine) => `
@@ -124,7 +129,7 @@ export function buildRequestEmail(v: SupplierView, opts: { link: string | null; 
     : `<p style="color:#6b7280;font-size:12px;">Reply to this email with your quotation attached — keep <strong>${escapeHtml(v.ref)}</strong> in the subject.</p>`}
   <p style="color:#4b5563;font-size:13px;">Please include unit price, currency, lead time, minimum order quantity and how long your price is valid.</p>
   ${v.terms ? `<p style="color:#6b7280;font-size:12px;white-space:pre-wrap;">${escapeHtml(v.terms)}</p>` : ""}
-  <p>Regards,<br>${escapeHtml(v.buyerName ?? v.tenantName)}<br>${escapeHtml(v.tenantName)}${v.buyerEmail ? `<br>${escapeHtml(v.buyerEmail)}` : ""}</p>
+  <p>Regards,<br>${signatureLines(v).map(escapeHtml).join("<br>")}</p>
 </div>`;
 
   return { subject, text, html };
@@ -133,13 +138,13 @@ export function buildRequestEmail(v: SupplierView, opts: { link: string | null; 
 /** A free-form message in an existing RFQ conversation. */
 export function buildMessageEmail(v: Pick<SupplierView, "ref" | "title" | "tenantName" | "supplierName" | "buyerName">, code: string | null, body: string, link: string | null): { subject: string; text: string; html: string } {
   const subject = `Re: ${rfqSubject(v, code, "message")}`.slice(0, 240);
-  const sig = `${v.buyerName ?? v.tenantName}\n${v.tenantName}`;
-  const text = [`Dear ${v.supplierName},`, "", body.trim(), "", ...(link ? [`Your reply page: ${link}`, ""] : []), "Regards,", sig].join("\n");
+  const sig = signatureLines({ tenantName: v.tenantName, buyerName: v.buyerName });
+  const text = [`Dear ${v.supplierName},`, "", body.trim(), "", ...(link ? [`Your reply page: ${link}`, ""] : []), "Regards,", ...sig].join("\n");
   const html = `<div style="font:14px/1.55 -apple-system,Segoe UI,Roboto,Arial,sans-serif;color:#1f2937;max-width:640px;">
   <p>Dear ${escapeHtml(v.supplierName)},</p>
   <p style="white-space:pre-wrap;">${escapeHtml(body.trim())}</p>
   ${link ? `<p><a href="${escapeHtml(link)}">Open your reply page</a></p>` : ""}
-  <p>Regards,<br>${escapeHtml(v.buyerName ?? v.tenantName)}<br>${escapeHtml(v.tenantName)}</p>
+  <p>Regards,<br>${sig.map(escapeHtml).join("<br>")}</p>
 </div>`;
   return { subject, text, html };
 }
@@ -212,6 +217,6 @@ export function buildRfqDocumentHtml(v: Omit<SupplierView, "supplierName">, opts
 ${v.notesToSupplier ? `<div class="note">${escapeHtml(v.notesToSupplier)}</div>` : ""}
 <div class="ask">Please quote unit price, currency, lead time, minimum order quantity and how long your price is valid${v.respondBy ? `, by <strong>${escapeHtml(v.respondBy)}</strong>` : ""}. Reply through the link in our email, return the attached Excel sheet, or reply to the email with your quotation — keep <strong>${escapeHtml(v.ref)}</strong> in the subject.</div>
 ${v.terms ? `<div class="terms">${escapeHtml(v.terms)}</div>` : ""}
-<footer>${escapeHtml(v.buyerName ?? v.tenantName)}${v.buyerEmail ? ` · ${escapeHtml(v.buyerEmail)}` : ""}</footer>
+<footer>${signatureLines(v).map(escapeHtml).join(" · ")}</footer>
 </body></html>`;
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { SupplierView } from "@/lib/rfq/compose";
 
 type Row = {
@@ -70,6 +70,13 @@ export default function ReplyForm({ sid, token, view, logoUrl, open, initialResp
   const [msgState, setMsgState] = useState<string | null>(null);
   const [file, setFile] = useState<File | null>(null);
   const [fileState, setFileState] = useState<string | null>(null);
+  // Shown beside the button as well as at the top of the page, so one click always has a visible answer where the supplier is looking.
+  const [sentNote, setSentNote] = useState<string | null>(null);
+  const noticeRef = useRef<HTMLDivElement | null>(null);
+  // A click sends what is on screen at that moment, and a second click while the first is still on its way is ignored.
+  const latest = useRef({ rows, header });
+  latest.current = { rows, header };
+  const sending = useRef(false);
 
   useEffect(() => {
     fetch(api, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "viewed" }) }).catch(() => {});
@@ -80,8 +87,12 @@ export default function ReplyForm({ sid, token, view, logoUrl, open, initialResp
   const setRow = (i: number, patch: Partial<Row>) => setRows((rs) => rs.map((r, j) => (j === i ? { ...r, ...patch } : r)));
 
   async function submit(declined: boolean) {
+    if (sending.current) return;
+    sending.current = true;
     setBusy(true);
     setError(null);
+    setSentNote(null);
+    const { rows, header } = latest.current;
     try {
       const res = await fetch(api, {
         method: "POST",
@@ -96,10 +107,16 @@ export default function ReplyForm({ sid, token, view, logoUrl, open, initialResp
       const j = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(j.error ?? "Couldn't send your reply. Please try again.");
       setDone(declined ? "Thank you — we've noted that you can't quote this request." : `Thank you — ${j.saved} line${j.saved === 1 ? "" : "s"} received. You can update your prices here until the deadline.`);
-      window.scrollTo({ top: 0, behavior: "smooth" });
+      setSentNote(declined ? "Noted. Thank you." : `Sent. ${j.saved} line${j.saved === 1 ? "" : "s"} received. Thank you.`);
+      // Scrolls inside whatever scrolls the page; window.scrollTo alone does nothing in a nested or embedded scroller.
+      requestAnimationFrame(() => {
+        if (noticeRef.current?.scrollIntoView) noticeRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+        else window.scrollTo({ top: 0, behavior: "smooth" });
+      });
     } catch (e) {
       setError((e as Error).message);
     } finally {
+      sending.current = false;
       setBusy(false);
     }
   }
@@ -143,7 +160,7 @@ export default function ReplyForm({ sid, token, view, logoUrl, open, initialResp
         </div>
       </header>
 
-      {done && <div role="status" style={{ ...card, padding: "14px 18px", background: "#eef8f1", borderColor: "#b9e2c6", color: "#1d5b33", fontSize: 14 }}>{done}</div>}
+      {done && <div ref={noticeRef} role="status" style={{ ...card, padding: "14px 18px", background: "#eef8f1", borderColor: "#b9e2c6", color: "#1d5b33", fontSize: 14 }}>{done}</div>}
       {!open && <div role="status" style={{ ...card, padding: "14px 18px", background: "#fff8e6", borderColor: "#f3d48a", color: "#5a4300", fontSize: 14 }}>This request is closed. Your earlier reply is shown below.</div>}
       {view.notesToSupplier && <div style={{ ...card, padding: "14px 18px", fontSize: 14, whiteSpace: "pre-wrap", color: ink }}>{view.notesToSupplier}</div>}
 
@@ -246,6 +263,8 @@ export default function ReplyForm({ sid, token, view, logoUrl, open, initialResp
           <button type="button" disabled={busy || priced === 0} onClick={() => submit(false)} style={{ padding: "11px 22px", borderRadius: 9, border: "none", background: priced === 0 ? "#9fb3cc" : accent, color: "#fff", fontWeight: 700, fontSize: 14, cursor: priced === 0 ? "not-allowed" : "pointer" }}>
             {busy ? "Sending…" : "Send prices"}
           </button>
+          {/* Always rendered, so the answer appears without moving the buttons. */}
+          <div role="status" aria-live="polite" style={{ flexBasis: "100%", minHeight: 20, textAlign: "right", fontSize: 13.5, fontWeight: 600, color: "#1d5b33" }}>{sentNote ?? ""}</div>
         </div>
       )}
 

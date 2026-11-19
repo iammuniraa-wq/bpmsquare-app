@@ -22,6 +22,7 @@ import { signReplyToken, mailCode, replyToAddress } from "./token";
 import { buildRequestEmail, buildMessageEmail, buildRfqDocumentHtml, type SupplierView } from "./compose";
 import { htmlToPdf } from "@/lib/pdf/htmlToPdf";
 import { buildReplySheet } from "./sheet";
+import { mailboxNotConnected } from "./sendOutcome";
 import { DOC_LINE_TABLE, originHref, validateOriginInput } from "./linking";
 import { verifySourceLines } from "./linkingServer";
 import { tenderForDeal } from "@/lib/tender/server";
@@ -512,6 +513,17 @@ export async function renderRfqPdf(admin: SupabaseClient, tenant: Tenant, bundle
 
 // ── Sending ─────────────────────────────────────────────────────────────────
 
+/** Why the workspace's RFQ mail channel cannot send right now, in the words sendToSupplier would use, or null when it can.
+ *  The create forms ask this before offering "Send" (GET /api/rfqs/send-check). Tenant-scoped: loadMailbox reads this tenant's connector only. */
+export async function mailChannelBlocker(admin: SupabaseClient, tenantId: string, cfg: Pick<ReturnType<typeof rfqConfig>, "mail_mode" | "mailbox_connector">): Promise<string | null> {
+  if (cfg.mail_mode === "mailbox") {
+    return (await loadMailbox(admin, tenantId, cfg.mailbox_connector)) ? null : mailboxNotConnected(cfg.mailbox_connector);
+  }
+  return process.env.RESEND_API_KEY ? null : PLATFORM_NOT_CONFIGURED;
+}
+
+const PLATFORM_NOT_CONFIGURED = "Email sending isn't configured (missing RESEND_API_KEY).";
+
 export type SendKind = "request" | "reminder" | "message";
 
 export type SendResult = { ok: true; to: string[]; redirected: boolean; via: "platform" | "mailbox" } | { ok: false; reason: string };
@@ -568,7 +580,7 @@ export async function sendToSupplier(admin: SupabaseClient, args: {
 
   if (cfg.mail_mode === "mailbox") {
     const mb = await loadMailbox(admin, tenantId, cfg.mailbox_connector);
-    if (!mb) return { ok: false, reason: `RFQ email is set to go from your own mailbox, but the ${cfg.mailbox_connector === "gmail" ? "Gmail" : "Mail server"} connector isn't connected (Settings → Connectors).` };
+    if (!mb) return { ok: false, reason: mailboxNotConnected(cfg.mailbox_connector) };
     fromAddress = mb.address;
     const res = await sendViaMailbox(mb, {
       fromName, to: mail.to, subject: mail.subject, text: mail.text, html: mail.html, messageId,
@@ -577,7 +589,7 @@ export async function sendToSupplier(admin: SupabaseClient, args: {
     if (!res.ok) sendError = res.error;
   } else {
     via = "platform";
-    if (!process.env.RESEND_API_KEY) return { ok: false, reason: "Email sending isn't configured (missing RESEND_API_KEY)." };
+    if (!process.env.RESEND_API_KEY) return { ok: false, reason: PLATFORM_NOT_CONFIGURED };
     const sendingDomain = process.env.RESEND_SENDING_DOMAIN || "bpmsquare.com";
     const local = (tenant.slug || "rfq").toLowerCase().replace(/[^a-z0-9._-]/g, "");
     fromAddress = `${local}@${sendingDomain}`;
