@@ -14,7 +14,11 @@ import { rfqConfig } from "@/lib/rfq/types";
 // start from the platform flag and answer null without a query for a workspace that does not have it, so a standard estimate page costs
 // nothing extra. Every read is tenant-scoped; a deal id that is not this workspace's tender deal reads as "no deal".
 
-export type DealContext = { id: string; ref: string | null; title: string; stage: string };
+export type DealContext = {
+  id: string; ref: string | null; title: string; stage: string;
+  /** The deal's own customer, so an estimate made for the tender does not ask for it again. Read from this workspace's deal row only. */
+  account_id?: string | null; contact_id?: string | null;
+};
 
 /** The tender deal of this workspace with this id, or null (flag off, not a tender, another workspace's deal, migration pending). */
 export async function tenderDealContext(admin: SupabaseClient, tenantId: string, features: Partial<TenantFeatures> | null | undefined, oppId: string | null | undefined): Promise<DealContext | null> {
@@ -22,7 +26,7 @@ export async function tenderDealContext(admin: SupabaseClient, tenantId: string,
   const tender = await tenderForDeal(admin, tenantId, features, oppId);
   if (!tender) return null;
   const opp = await loadOpportunity(admin, tenantId, oppId);
-  return opp ? { id: opp.id, ref: opp.ref ?? null, title: opp.title, stage: opp.stage } : null;
+  return opp ? { id: opp.id, ref: opp.ref ?? null, title: opp.title, stage: opp.stage, account_id: opp.account_id ?? null, contact_id: opp.contact_id ?? null } : null;
 }
 
 export type EstimateBoqLink = {

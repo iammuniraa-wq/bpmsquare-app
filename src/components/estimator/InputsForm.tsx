@@ -46,13 +46,10 @@ export function groupInputs(inputs: readonly TemplateInput[]): { section: string
   return order.map((section) => ({ section, items: map.get(section)! }));
 }
 
+/** The constraint of a few words that stays under a number field; the explanation (`help`) goes behind the "i". */
 function hintFor(i: TemplateInput): string | undefined {
-  const parts: string[] = [];
-  if (i.help) parts.push(i.help);
-  if (i.type === "number" && (i.min !== undefined || i.max !== undefined)) {
-    parts.push(i.min !== undefined && i.max !== undefined ? `Between ${i.min} and ${i.max}.` : i.min !== undefined ? `At least ${i.min}.` : `At most ${i.max}.`);
-  }
-  return parts.length ? parts.join(" ") : undefined;
+  if (i.type !== "number" || (i.min === undefined && i.max === undefined)) return undefined;
+  return i.min !== undefined && i.max !== undefined ? `Between ${i.min} and ${i.max}.` : i.min !== undefined ? `At least ${i.min}.` : `At most ${i.max}.`;
 }
 
 function InputControl({
@@ -62,13 +59,13 @@ function InputControl({
   value: string | boolean | undefined;
   onChange: (key: string, value: string | boolean) => void;
   error?: string;
-  /** What the email reading says about this input (missing or likely); shown in place of the usual hint. */
+  /** What the email reading says about this input (missing or likely): something to act on, so it stays visible under the field. */
   note?: string;
   disabled: boolean;
 }) {
   if (i.type === "boolean") {
     return (
-      <Field label={i.label} hint={note ?? hintFor(i)} error={error}>
+      <Field label={i.label} hint={note ?? hintFor(i)} info={i.help || undefined} error={error}>
         <Select value={value === true ? "yes" : "no"} onChange={(e) => onChange(i.key, e.target.value === "yes")} disabled={disabled} invalid={!!error}>
           <option value="no">No</option>
           <option value="yes">Yes</option>
@@ -79,14 +76,14 @@ function InputControl({
   if (i.type === "select" && i.paints && (i.options ?? []).some((o) => o.visual)) {
     return (
       // htmlFor keeps the label a sibling: a label that wrapped the chips would nest labels and forward clicks to the first one.
-      <Field label={i.label} htmlFor={`swatch-${i.key}`} hint={note ?? hintFor(i)} error={error}>
+      <Field label={i.label} htmlFor={`swatch-${i.key}`} hint={note ?? hintFor(i)} info={i.help || undefined} error={error}>
         <SwatchChoice label={i.label} options={i.options ?? []} value={String(value ?? "")} onChange={(k) => onChange(i.key, k)} disabled={disabled} />
       </Field>
     );
   }
   if (i.type === "select") {
     return (
-      <Field label={i.label} hint={note ?? hintFor(i)} error={error}>
+      <Field label={i.label} hint={note ?? hintFor(i)} info={i.help || undefined} error={error}>
         <Select value={String(value ?? "")} onChange={(e) => onChange(i.key, e.target.value)} disabled={disabled} invalid={!!error}>
           {(i.options ?? []).map((o) => <option key={o.key} value={o.key}>{o.label}</option>)}
         </Select>
@@ -94,7 +91,7 @@ function InputControl({
     );
   }
   return (
-    <Field label={i.unit ? `${i.label} (${i.unit})` : i.label} hint={note ?? hintFor(i)} error={error}>
+    <Field label={i.unit ? `${i.label} (${i.unit})` : i.label} hint={note ?? hintFor(i)} info={i.help || undefined} error={error}>
       <Input
         type="number" inputMode="decimal" step="any" min={i.min} max={i.max}
         value={String(value ?? "")} onChange={(e) => onChange(i.key, e.target.value)}

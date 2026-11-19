@@ -814,20 +814,35 @@ One page, `/estimates/new` and `/estimates/[id]` alike:
    to use or, on a clear click, creates one from the customer's name; it never
    invents one. A confirm stays in front of the lock (one extra click, deliberately).
    **Save as draft** (new estimates) saves without quoting.
-5. Closed sections for the team, in order: **How the price is built** (the old
-   Costing, with the AI review), **Build schedule and risk** (the old Simulation
-   panels; the 3D model moved into the villa card), **Bill of materials** (edits,
-   schedule import, "Show in 3D" now lights the villa card), **Send to your ERP**
-   (layout choice, downloads), **Details** (status, notes, custom fields via
-   `ObjectSections`, margin); **Activity** (`RecordActivity`) at the bottom.
-   `/estimates/new` shows the first two from the live preview and says the rest
-   appear once the estimate is saved.
+5. **Tabs on the record (2026-11-19, after the KAMCO walkthrough: "so many details at the
+   bottom are not needed; why three versions of the cost?").** The page no longer stacks
+   every section under the price. `?tab=` (`useUrlTab` + the kit `Tabs`, state mode, so
+   unsaved edits survive a switch; the working page is hidden, not unmounted):
+   **Estimate** (inputs, the model, the price) | **Materials** (bill of materials with
+   edits, schedule import and "Show in 3D", which switches back to Estimate; **Send to
+   your ERP** closed under it) | **Schedule & risk** (only for a template with a build
+   schedule) | **Details & activity** (status, notes, custom fields via `ObjectSections`,
+   `RecordActivity`). `/estimates/new` shows the same strip with Materials and Details &
+   activity disabled until the first save (the reason behind their "i").
+   **The cost breakdown is shown once**: the Price card lists one row per quote line with
+   its amount, its share as a bar, then total before VAT and VAT. The separate "Where the
+   cost goes" card is gone. **How the price is built** stays, closed under the price, and
+   holds only what the Price card does not: cost by component, cost, margin, price before
+   VAT and the AI review (no second list of the groups; the cost of a group is the heading
+   of its bill-of-materials table).
+   Explanations are behind the shared InfoTip (`src/lib/estimator/tips.ts`, held to the
+   limit by `tips.test.ts`); a template input's `help` is its field's "i", only the range
+   stays under a number field.
 6. The header keeps title, status badge, reference and the ⋯ menu: Duplicate,
    Download bill of materials, Download work breakdown, Adapt fields, Delete.
-   Old `?tab=` links still work (`tabTargets.ts`): `bom`, `costing`, `simulation`
-   and `overview` open the section their tab became; `inputs`, `quote` and
-   `activity` scroll to it; `?line=<code>` scrolls to the villa and lights that
+   Old `?tab=` links still work (`tabTargets.ts`): `bom`, `simulation` and `overview`
+   land on the tab their content moved to; `costing`, `inputs` and `quote` land on
+   Estimate and scroll to their part; `?line=<code>` scrolls to the villa and lights that
    line; anything else is ignored.
+7. **Made for a tender** (`?opportunity=`): the deal's account, and its contact when it is
+   one of that account's, are filled in and the Customer block starts closed. There is no
+   Create quote, so the page's "i" says "Save as draft" only. In the 3D view a plain mouse
+   wheel scrolls the page; Ctrl / Cmd + wheel, a pinch or the + and − buttons zoom.
 
 ### 16.2 Live preview
 

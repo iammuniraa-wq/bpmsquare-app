@@ -2,6 +2,8 @@
 
 import { ROUTES } from "@/lib/constants";
 import Button from "@/components/ui/Button";
+import InfoTip from "@/components/ui/InfoTip";
+import { ESTIMATE_TIPS } from "@/lib/estimator/tips";
 
 /**
  * Create quote, the one action of the page, and what it does in plain words.
@@ -9,7 +11,7 @@ import Button from "@/components/ui/Button";
  * is locked. Save as draft is for a new estimate that is not ready to quote.
  */
 export default function QuoteActions({
-  quote, canQuote, quoteUnavailable, forTender, blocked, busy, isNew, error, onCreate, onSaveDraft,
+  quote, canQuote, quoteUnavailable, forTender, blocked, blockedShown = false, busy, isNew, error, onCreate, onSaveDraft,
 }: {
   quote: { id: string; ref: string; status: string } | null;
   canQuote: boolean;
@@ -18,6 +20,8 @@ export default function QuoteActions({
   forTender?: boolean;
   /** Why Create quote cannot be pressed yet, in plain words. */
   blocked: string | null;
+  /** The reason is already on the card above (the empty price), so it is not printed a second time here. */
+  blockedShown?: boolean;
   busy: null | "draft" | "save" | "quote" | "recalc";
   isNew: boolean;
   error: string;
@@ -26,10 +30,7 @@ export default function QuoteActions({
 }) {
   if (quote) {
     return (
-      <div style={{ display: "grid", gap: 8 }}>
-        <Button href={ROUTES.standardQuote(quote.id)} variant="primary" style={{ width: "100%", justifyContent: "center" }}>Open quote {quote.ref}</Button>
-        <p className="bpm-t-help" style={{ margin: 0 }}>The quote has been made from this estimate, so the estimate is locked. To revise it, make a copy from the ⋯ menu.</p>
-      </div>
+      <Button href={ROUTES.standardQuote(quote.id)} variant="primary" style={{ width: "100%", justifyContent: "center" }}>Open quote {quote.ref}</Button>
     );
   }
   if (forTender) {
@@ -45,17 +46,17 @@ export default function QuoteActions({
     <div style={{ display: "grid", gap: 8 }}>
       {error && <div role="alert" className="est-warn">{error}</div>}
       {canQuote ? (
-        <Button variant="primary" loading={busy === "quote"} disabled={!!blocked || busy !== null} onClick={onCreate} style={{ width: "100%", justifyContent: "center" }}>Create quote</Button>
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <Button variant="primary" loading={busy === "quote"} disabled={!!blocked || busy !== null} onClick={onCreate} style={{ flex: 1, justifyContent: "center" }}>Create quote</Button>
+          <InfoTip label="Create quote">{ESTIMATE_TIPS.createQuote}</InfoTip>
+        </div>
       ) : (
         quoteUnavailable && <div className="bpm-t-help">{quoteUnavailable}</div>
       )}
-      {canQuote && blocked && <div className="bpm-t-help" role="status">{blocked}</div>}
+      {canQuote && blocked && !blockedShown && <div className="bpm-t-help" role="status">{blocked}</div>}
       {isNew && (
         <Button variant="secondary" loading={busy === "draft"} disabled={busy !== null} onClick={onSaveDraft} style={{ width: "100%", justifyContent: "center" }}>Save as draft</Button>
       )}
-      <p className="bpm-t-help" style={{ margin: 0 }}>
-        Creates a quote for the customer with one line per section. Unit costs and margin are never shown to the customer.
-      </p>
     </div>
   );
 }

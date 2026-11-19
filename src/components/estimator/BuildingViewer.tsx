@@ -8,6 +8,7 @@ import EmptyState from "@/components/ui/EmptyState";
 import { ViewerScene } from "./viewer/ViewerScene";
 import type { ColourMode } from "./viewer/ViewerScene";
 import ViewerControls from "./viewer/ViewerControls";
+import InfoTip from "@/components/ui/InfoTip";
 import PieceInspector from "./viewer/PieceInspector";
 
 const PLAY_INTERVAL_MS = 1200;
@@ -152,12 +153,16 @@ export default function BuildingViewer({
 
   return (
     <div>
-      <div className="bpm-t-help" style={{ marginBottom: 8 }}>
-        <b style={{ color: "var(--ink)" }}>{model.pieces.length} pieces</b>{model.illustrative ? "" : ", each one a bill-of-materials item"}
-        {families.length > 0 ? `: ${families.map((f) => `${f.n} × ${f.label.toLowerCase()}`).join(", ")}` : ""}.
-        {model.illustrative
-          ? " A sketch drawn to scale from the sizes you entered; it shows the shape of the job, not exact pieces."
-          : " The model is generated from the inputs and stands in for the client’s own BIM model."}
+      <div className="bpm-t-help" style={{ marginBottom: 8, display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap" }}>
+        <span>
+          <b style={{ color: "var(--ink)" }}>{model.pieces.length} pieces</b>
+          {families.length > 0 ? `: ${families.map((f) => `${f.n} × ${f.label.toLowerCase()}`).join(", ")}` : ""}
+        </span>
+        <InfoTip label="the model">
+          {model.illustrative
+            ? "A sketch drawn to scale from the sizes you entered. It shows the shape of the job, not exact pieces."
+            : "Each piece is a bill-of-materials item, generated from the inputs. Drag to turn it; Ctrl + scroll, pinch or the + and − buttons zoom."}
+        </InfoTip>
       </div>
       {!webgl ? (
         <div role="alert" style={{ padding: 16, border: "1px dashed var(--line)", borderRadius: 10, color: "var(--muted)", fontSize: 13 }}>
@@ -168,7 +173,7 @@ export default function BuildingViewer({
           ref={hostRef}
           tabIndex={0}
           role="group"
-          aria-label={`3D model of the building, ${model.pieces.length} pieces. Drag or use the arrow keys to rotate, scroll or plus and minus to zoom, click a piece to inspect it.`}
+          aria-label={`3D model of the building, ${model.pieces.length} pieces. Drag or use the arrow keys to rotate, hold Ctrl and scroll, pinch, or press plus and minus to zoom, click a piece to inspect it.`}
           style={{ height: "clamp(300px, 52vw, 520px)", width: "100%", touchAction: "none", cursor: "grab", borderRadius: 10, border: "1px solid var(--line)", background: "var(--panel2)", overflow: "hidden", outlineOffset: 2 }}
         />
       )}
@@ -176,7 +181,7 @@ export default function BuildingViewer({
         <ViewerControls
           step={step} steps={steps} stepName={model.step_names[step] ?? ""} playing={playing} reducedMotion={reduced}
           explode={explode} mode={mode} onStep={(n) => { setPlaying(false); goStep(n); }} onPlay={onPlay}
-          onExplode={setExplode} onMode={setMode}
+          onExplode={setExplode} onMode={setMode} onZoom={(f) => sceneRef.current?.zoomBy(f)}
           inside={model.geometry === "porta_cabin" ? inside : undefined} onInside={setInside}
           closeUp={canFrame ? closeUp : undefined} onCloseUp={setCloseUp}
         />
