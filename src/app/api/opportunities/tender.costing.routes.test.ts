@@ -451,11 +451,25 @@ describe("Award and price", () => {
     expect(snapshot()).toBe(before);
   });
 
-  it("a draft or closed RFQ cannot be awarded", async () => {
-    state.db.rows("rfqs").find((x) => x.id === RFQ)!.status = "draft";
+  it("a draft with no reply or a closed RFQ cannot be awarded", async () => {
+    const rfq = state.db.rows("rfqs").find((x) => x.id === RFQ)!;
+    const sups = state.db.rows("rfq_suppliers").filter((x) => x.rfq_id === RFQ);
+    const saved = sups.map((x) => x.status);
+    rfq.status = "draft";
+    for (const x of sups) x.status = "sent";
     expect((await award({ line_id: L1, response_id: rA1 })).status).toBe(409);
-    state.db.rows("rfqs").find((x) => x.id === RFQ)!.status = "closed";
+    sups.forEach((x, i) => { x.status = saved[i]; });
+    rfq.status = "closed";
     expect((await award({ line_id: L1, response_id: rA1 })).status).toBe(409);
+  });
+
+  it("a draft that already holds a reply can be awarded, and leaves draft", async () => {
+    const rfq = state.db.rows("rfqs").find((x) => x.id === RFQ)!;
+    rfq.status = "draft";
+    const sup = state.db.rows("rfq_suppliers").find((x) => x.rfq_id === RFQ)!;
+    sup.status = "replied";
+    expect((await award({ line_id: L1, response_id: rA1 })).status).toBe(200);
+    expect(rfq.status).not.toBe("draft");
   });
 
   it("while migration 0224 is pending the award says so and changes nothing", async () => {
