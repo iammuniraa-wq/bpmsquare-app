@@ -10,7 +10,7 @@ import { loadOpportunityLines, refreshOpportunityDerived } from "@/lib/sales/opp
 import { openTenderDealRequest, type TenderDealRequest } from "@/lib/tender/dealAccess";
 import { isMissingSchema } from "@/lib/tender/server";
 import { tenderRfqLines } from "@/lib/tender/rfqLines";
-import { isStale, priceValidityDays } from "@/lib/tender/boq/price";
+import { isStale, priceKind, priceValidityDays, type PriceSource } from "@/lib/tender/boq/price";
 import { buildEstimatesState, loadDealEstimate, type EstimatesState } from "@/lib/tender/estimates/server";
 import { bidIsLocked, isUuid } from "@/lib/tender/estimates/rules";
 import { rfqConfig, RFQ_STATUS_LABEL, type Rfq, type RfqStatus } from "@/lib/rfq/types";
@@ -69,13 +69,13 @@ async function loadConfig(admin: SupabaseClient, tenantId: string): Promise<Reco
 
 // ── The BOQ rows, as the Costing tab needs them ──────────────────────────────────────────────────────────────────────────
 
-type BoqRowLite = { boq_id: string | null; line_id: string; item: string; priced: boolean; stale: boolean; row_no: number };
+type BoqRowLite = { boq_id: string | null; line_id: string; item: string; priced: boolean; costed: boolean; stale: boolean; row_no: number };
 
 /** The deal's rows: every selected deal line, with its BOQ item number where it has one. Removed rows are left out. */
 async function loadRows(admin: SupabaseClient, tenantId: string, oppId: string, validityDays: number, today: string): Promise<{ rows: BoqRowLite[]; lines: (DocLineForRfq & { is_selected?: boolean | null })[] }> {
   const dealLines = await loadOpportunityLines(admin, tenantId, oppId);
   const { data, error } = await readAllPages((lo, hi) => admin.from("tender_boq_lines")
-    .select("id, line_id, item_no, row_no, removed_in_revision, price_source, price_as_of, stale_accepted").eq("tenant_id", tenantId).eq("opportunity_id", oppId).order("id", { ascending: true }).range(lo, hi));
+    .select("id, line_id, item_no, row_no, removed_in_revision, price_source, price_as_of, stale_accepted, unit_cost").eq("tenant_id", tenantId).eq("opportunity_id", oppId).order("id", { ascending: true }).range(lo, hi));
   const boqByLine = new Map<string, Record<string, unknown>>();
   if (!error) for (const b of (data ?? []) as Record<string, unknown>[]) if (b.line_id) boqByLine.set(String(b.line_id), b);
   const rows: BoqRowLite[] = [];
@@ -89,6 +89,8 @@ async function loadRows(admin: SupabaseClient, tenantId: string, oppId: string, 
     const stale = priced && !!src && isStale(src as Parameters<typeof isStale>[0], (b?.price_as_of as string | null) ?? null, today, validityDays) && b?.stale_accepted !== true;
     rows.push({
       boq_id: b ? String(b.id) : null, line_id: l.id, priced, stale,
+      // Priced is not costed: a rate copied from a past project or the client's file carries no cost.
+      costed: priced && priceKind(src as PriceSource | null, num(b?.unit_cost)) === "cost",
       item: String((b?.item_no as string | null) ?? l.sl_no ?? b?.row_no ?? "").trim() || "—", row_no: Number(b?.row_no ?? 0),
     });
   }
@@ -98,7 +100,7 @@ async function loadRows(admin: SupabaseClient, tenantId: string, oppId: string, 
 }
 
 function summarise(rows: readonly BoqRowLite[]): BoqSummary {
-  return { rows: rows.length, priced: rows.filter((x) => x.priced).length, unpriced: rows.filter((x) => !x.priced).length, stale: rows.filter((x) => x.stale).length };
+  return { rows: rows.length, priced: rows.filter((x) => x.priced).length, unpriced: rows.filter((x) => !x.priced).length, stale: rows.filter((x) => x.stale).length, costed: rows.filter((x) => x.costed).length };
 }
 
 // ── The list ─────────────────────────────────────────────────────────────────────────────────────────────────────────────

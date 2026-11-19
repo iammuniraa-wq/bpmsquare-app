@@ -213,10 +213,24 @@ describe("the toolbar, the strip and the filters", () => {
     for (const w of ["Upload revised BOQ", "Price all lines", 'data-guide="boq.markup"']) expect(out, w).not.toContain(w);
   });
 
-  it("before any upload: the next step in words and the upload button; a pending migration says so", () => {
-    const empty = html({ initialData: state({ source: null, lines: [], totals: { lines: 0, priced: 0, unpriced: 0, stale: 0, amount: 0 } }) });
-    expect(empty).toContain("Upload the client&#x27;s Excel");
-    expect(empty).toContain("Upload BOQ (.xlsx)");
+  it("before any upload: ONE Add menu (upload, template, a line by hand) and one short note; a pending migration says so", () => {
+    const none = state({ source: null, lines: [], totals: { lines: 0, priced: 0, unpriced: 0, stale: 0, amount: 0 } });
+    const empty = html({ initialData: none, dealLines: [], dealLinesVersion: "v1" });
+    expect(empty).toContain("No lines yet. Use Add to upload the client&#x27;s Excel or type a line.");
+    expect(empty).toMatch(/<button[^>]*aria-haspopup="menu"[^>]*data-guide="boq\.add"|<button[^>]*data-guide="boq\.add"[^>]*aria-haspopup="menu"/);
+    expect(empty.split('data-guide="boq.empty"').length - 1).toBe(1);
+    // Closed, the menu's entries are not on the page, and the old scattered controls are gone.
+    for (const w of ["Upload BOQ (.xlsx)", "Download BOQ template", "Lines typed by hand", 'data-guide="boq.hand.add"', 'data-guide="boq.hand.empty"', 'data-guide="boq.upload"', 'data-guide="boq.template"']) expect(empty, w).not.toContain(w);
+    const menu = html({ initialData: none, dealLines: [], dealLinesVersion: "v1", initialAddOpen: true });
+    expect(menu).toContain('role="menu"');
+    for (const [id, text] of [["boq.add.upload", "Upload BOQ (.xlsx)"], ["boq.add.template", "Download BOQ template"], ["boq.add.line", "Add a line by hand"]]) {
+      expect(menu, id).toMatch(new RegExp(`role="menuitem"[^>]*data-guide="${id.replace(/\./g, "\\.")}"[^>]*>${text.replace(/[().]/g, "\\$&")}<`));
+    }
+    expect(menu).toMatch(/<a [^>]*download="BPMSquare-BOQ-template\.xlsx"[^>]*data-guide="boq\.add\.template"/);
+    for (const b of [...menu.matchAll(/<(?:button|a)\b[^>]*data-guide="boq\.add[a-z.]*"[^>]*>/g)].map((m) => m[0])) expect(b).toContain("min-height:44px");
+    // The file input the menu drives is still there; a view-only person gets no Add at all.
+    expect(empty).toContain('data-guide="boq.file"');
+    expect(html({ initialData: none, canEdit: false })).not.toContain('data-guide="boq.add"');
     expect(empty).not.toContain('data-guide="boq.summary"');
     expect(html({ initialData: state({ pending: true }) })).toContain("migration 0223");
   });

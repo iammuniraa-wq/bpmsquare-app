@@ -6,6 +6,7 @@ import InfoTip from "@/components/ui/InfoTip";
 import StatusPill from "@/components/ui/StatusPill";
 import { ageText, rowsText, type CostingItem } from "@/lib/tender/costing/rules";
 import { COSTING_TIPS, type CostingTipKey } from "@/lib/tender/costing/tips";
+import { canCompareRfq } from "@/lib/rfq/rules";
 import MissingRfqButton from "../MissingRfqButton";
 import s from "../BoqRows.module.css";
 
@@ -102,7 +103,7 @@ export default function CostSourcesTable({ items, opportunityId, today, canEdit,
                       </>
                     ) : (
                       <>
-                        {item.status !== "draft" && item.status !== "cancelled" && (
+                        {canCompareRfq(item.status, item.suppliers_replied) && (
                           <Button variant={canAward ? "primary" : "secondary"} size="sm" onClick={() => onCompare(item.id)} style={{ minHeight: 44 }} data-guide="costing.rfq.compare">
                             {canAward ? "Compare and award" : "Compare"}
                           </Button>

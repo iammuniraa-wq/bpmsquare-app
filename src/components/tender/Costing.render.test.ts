@@ -142,7 +142,7 @@ describe("the Costing tab", () => {
   });
 
   it("a quoted estimate cannot be re-priced and a draft RFQ has nothing to compare", () => {
-    const out = tab(data({ items: [est({ locked: true }), rfq({ status: "draft", state: { label: "Draft", tone: "purple" } })] }));
+    const out = tab(data({ items: [est({ locked: true }), rfq({ status: "draft", suppliers_replied: 0, state: { label: "Draft", tone: "purple" } })] }));
     expect(out).not.toContain('data-guide="costing.estimate.price_rows"');
     expect(out).not.toContain('data-guide="costing.rfq.compare"');
   });
@@ -206,6 +206,11 @@ describe("the Costing tab", () => {
       "src/components/tender/CostingTab.tsx", ...readdirSync(path.join(ROOT, "src/components/tender/costing")).filter((f) => f.endsWith(".tsx")).map((f) => `src/components/tender/costing/${f}`),
     ];
     for (const f of files) expect(read(f), f).not.toMatch(/#[0-9a-fA-F]{3,8}\b|rgba?\(|hsl\(/);
+  });
+
+  it("a draft RFQ that already holds a reply can be compared (it was never emailed)", () => {
+    const out = tab(data({ items: [rfq({ status: "draft", suppliers_replied: 1, state: { label: "Draft", tone: "purple" } })] }));
+    expect(out).toContain('data-guide="costing.rfq.compare"');
   });
 
   it("the row component alone: an RFQ opens its compare screen and an estimate its page", () => {
@@ -427,8 +432,10 @@ describe("the RFQ page for a tender RFQ", () => {
     expect(cmp).toContain("costing_href");
     expect(cmp).toMatch(/!b\.awards_pending && !b\.costing_href/);
     const route = read("src/app/api/rfqs/[id]/route.ts");
-    expect(route).toMatch(/tenant\?\.features\?\.gcc_tender === true/);
-    expect(route).toContain("?tab=costing");
+    expect(route).toContain("tenderCostingLink(admin, tenantId, tenant?.features, b.rfq)");
+    const link = read("src/lib/rfq/server.ts");
+    expect(link).toMatch(/features\?\.gcc_tender !== true/);
+    expect(link).toContain("?tab=costing");
   });
 });
 

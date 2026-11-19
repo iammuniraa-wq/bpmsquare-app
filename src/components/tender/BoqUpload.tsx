@@ -15,7 +15,7 @@ import { BOQ_FIELDS, BOQ_LIMITS, FIELD_LABEL, colLetter, type BoqField, type Col
 // Writes go to /api/opportunities/[id]/boq; the workspace and the deal are the server's, not this component's.
 
 /** Static file in public/templates; the proxy session gate covers it, so it is only served to signed-in users. */
-const BOQ_TEMPLATE_PATH = "/templates/BPMSquare-BOQ-template.xlsx";
+export const BOQ_TEMPLATE_PATH = "/templates/BPMSquare-BOQ-template.xlsx";
 
 type Preview = {
   sheets: string[]; sheet: string; header_row: number | null; map: ColumnMap; headers: { col: number; label: string }[]; preview: string[][];
@@ -99,9 +99,12 @@ export function useBoqUpload({ base, hasBoq, onError, onNotice, onApplied }: {
     onApplied({ respread, respread_ids: Array.isArray(j.respread_ids) ? j.respread_ids : [] });
   }
 
+  const input = (
+    <input ref={fileInput} type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden data-guide="boq.file" onChange={(e) => void pick(e.target.files?.[0] ?? null)} />
+  );
   const button = (
     <>
-      <input ref={fileInput} type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden data-guide="boq.file" onChange={(e) => void pick(e.target.files?.[0] ?? null)} />
+      {input}
       <Button variant={hasBoq ? "secondary" : "primary"} loading={busy && !preview} onClick={() => fileInput.current?.click()} style={{ minHeight: 44 }} data-guide="boq.upload">{hasBoq ? "Upload revised BOQ" : "Upload BOQ (.xlsx)"}</Button>
       <InfoTip label="Upload">{hasBoq ? TENDER_TIPS.boqReupload : TENDER_TIPS.boqUpload}</InfoTip>
       <Button variant="secondary" href={BOQ_TEMPLATE_PATH} download="BPMSquare-BOQ-template.xlsx" style={{ minHeight: 44 }} data-guide="boq.template">Download BOQ template</Button>
@@ -192,5 +195,6 @@ export function useBoqUpload({ base, hasBoq, onError, onNotice, onApplied }: {
     </Card>
   ) : null;
 
-  return { button, panel, open: !!preview };
+  // `input`, `pickFile` and `reading` serve the empty tab, where one Add menu stands in for the two buttons.
+  return { button, input, pickFile: () => fileInput.current?.click(), reading: busy && !preview, panel, open: !!preview };
 }

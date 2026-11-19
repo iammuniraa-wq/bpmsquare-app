@@ -12,7 +12,7 @@
    ========================================================================== */
 
 [data-rich="true"] .rd {
-  display: flex; flex-direction: column; gap: 32px; min-width: 0; max-width: 1240px; margin-inline: auto;
+  display: flex; flex-direction: column; gap: 32px; min-width: 0;
   padding-bottom: calc(24px + env(safe-area-inset-bottom, 0px));
 }
 
@@ -285,6 +285,16 @@
   [data-rich="true"] .rd-bids { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; }
   [data-rich="true"] .rd-title { margin-bottom: 20px; }
   [data-rich="true"] .rd-title h2 { font-size: 1.75rem; }
+}
+
+/* ---- big screens: the home page fills the window instead of sitting in a fixed column ---- */
+@media (min-width: 1700px) {
+  [data-rich="true"] .rd { gap: 56px; }
+  [data-rich="true"] .rd-kpi__n { font-size: clamp(3rem, 2.2vw, 4rem); }
+  [data-rich="true"] .rd-pipe { min-height: 400px; }
+  [data-rich="true"] .rd-flow { height: 168px; }
+  [data-rich="true"] .rd-attn { grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); }
+  [data-rich="true"] .rd-bids { grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); }
 }
 
 @media (prefers-reduced-motion: reduce) {
