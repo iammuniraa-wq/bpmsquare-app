@@ -22,6 +22,8 @@ import BoqMatch from "./BoqMatch";
 import { BOQ_TEMPLATE_PATH, useBoqUpload } from "./BoqUpload";
 import { BoqCards, BoqTable, type BoqRow, type WbsColumn } from "./BoqRows";
 import BoqRowPanel from "./BoqRowPanel";
+import { SourceBar } from "./boq/SourceChip";
+import { SOURCE_GROUPS, SOURCE_GROUP_LABEL, parseSourceGroup, sourceGroupOf } from "@/lib/tender/boq/origin";
 import GroupIntoWbs from "./wbs/GroupIntoWbs";
 import SplitPanel from "./wbs/SplitPanel";
 import WbsTree from "./wbs/WbsTree";
@@ -135,6 +137,9 @@ export default function BoqTab({ opportunityId, canEdit, onError, onNotice, onLi
   const [busy, setBusy] = useState(false);
   const [filterRaw, setFilter] = useUrlTab(BOQ_FILTERS, "boqfilter", "all");
   const filter = parseFilter(filterRaw);
+  // The price-source bar filters too. One filter is active at a time: picking a source clears All / Unpriced / Stale, and the reverse.
+  const [sourceRaw, setSourceRaw] = useUrlTab(["none", ...SOURCE_GROUPS] as const, "boqsource", "none");
+  const sourceFilter = parseSourceGroup(sourceRaw);
   const [shown, setShown] = useState(0);
   const [openId, setOpenId] = useState<string | null>(initialOpenRow ?? null);
   const [markup, setMarkup] = useState(String(initialData?.default_markup_pct ?? DEFAULT_MARKUP_PCT));
@@ -152,8 +157,8 @@ export default function BoqTab({ opportunityId, canEdit, onError, onNotice, onLi
   useEffect(() => {
     if (!filterRequest || filterRequest.n <= askedFilter.current) return;
     askedFilter.current = filterRequest.n;
-    setFilter(filterRequest.filter); setShown(0);
-  }, [filterRequest, setFilter]);
+    setFilter(filterRequest.filter); setShown(0); setSourceRaw("none");
+  }, [filterRequest, setFilter, setSourceRaw]);
 
   // Estimates that price the lines. A 404 (no estimator, no view of it, migration pending) means the rows simply show no estimate chip.
   const [est, setEst] = useState<EstimatesWithRfq | null>(initialEstimates ?? null);
@@ -232,7 +237,7 @@ export default function BoqTab({ opportunityId, canEdit, onError, onNotice, onLi
 
   const hasBoq = !!data.source;
   const counts = filterCounts(data.lines);
-  const rows = filterRows(data.lines, filter);
+  const rows = sourceFilter ? filterRows(data.lines, "all").filter((l) => sourceGroupOf(l) === sourceFilter) : filterRows(data.lines, filter);
   const page = pageOf(rows, shown);
   const flagged = data.lines.filter((l) => l.removed);
   const links = est?.links ?? [];
@@ -308,6 +313,10 @@ export default function BoqTab({ opportunityId, canEdit, onError, onNotice, onLi
             <StatTile tone="info" label="Total" info={BOQ_TABLE_TIPS.total} value={formatMoney(total.amount, cur, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} sub="at cost + markup" />
           </StatStrip>
 
+          {view === "boq" && (
+            <SourceBar lines={data.lines} active={sourceFilter} onPick={(g) => { setSourceRaw(g ?? "none"); if (g) setFilter("all"); setShown(0); }} />
+          )}
+
           <BoqMatch base={base} count={total.no_product ?? 0} canEdit={canEdit} onError={onError} onNotice={onNotice} onChanged={changed} />
 
           {wbsPending && <div role="note" data-guide="boq.wbs_pending" className={w.pending}>{WBS_PENDING}</div>}
@@ -323,7 +332,7 @@ export default function BoqTab({ opportunityId, canEdit, onError, onNotice, onLi
               </>
             )}
             {view === "boq" && BOQ_FILTERS.map((f) => (
-              <Button key={f} variant={filter === f ? "primary" : "secondary"} aria-pressed={filter === f} onClick={() => { setFilter(f); setShown(0); }} style={{ minHeight: 44 }} data-guide={`boq.filter.${f}`}>
+              <Button key={f} variant={!sourceFilter && filter === f ? "primary" : "secondary"} aria-pressed={!sourceFilter && filter === f} onClick={() => { setFilter(f); setSourceRaw("none"); setShown(0); }} style={{ minHeight: 44 }} data-guide={`boq.filter.${f}`}>
                 {FILTER_LABEL[f]} {counts[f]}
               </Button>
             ))}
@@ -349,11 +358,11 @@ export default function BoqTab({ opportunityId, canEdit, onError, onNotice, onLi
               onSplit={setSplitFor} onOpenLine={setOpenId}
             />
           ) : rows.length === 0 ? (
-            <Card><div data-guide="boq.no_rows" style={{ fontSize: 13, color: c.ink }}>{filter === "all" ? "There are no rows." : `No ${FILTER_LABEL[filter].toLowerCase()} rows.`}</div></Card>
+            <Card><div data-guide="boq.no_rows" style={{ fontSize: 13, color: c.ink }}>{sourceFilter ? `No ${SOURCE_GROUP_LABEL[sourceFilter].toLowerCase()} rows.` : filter === "all" ? "There are no rows." : `No ${FILTER_LABEL[filter].toLowerCase()} rows.`}</div></Card>
           ) : cards ? (
             <BoqCards rows={page.rows} links={links} openId={openId} onOpen={setOpenId} wbs={wbsCol} />
           ) : (
-            <BoqTable rows={page.rows} links={links} openId={openId} onOpen={setOpenId} wbs={wbsCol} />
+            <BoqTable rows={page.rows} links={links} openId={openId} onOpen={setOpenId} wbs={wbsCol} base={base} />
           )}
           {view === "boq" && page.hidden > 0 && (
             <div>

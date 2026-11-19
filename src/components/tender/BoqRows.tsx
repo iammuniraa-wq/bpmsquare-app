@@ -6,8 +6,9 @@ import Button from "@/components/ui/Button";
 import InfoTip from "@/components/ui/InfoTip";
 import { BOQ_TABLE_TIPS, type BoqTableTipKey } from "@/lib/tender/boq/tips";
 import type { PillarKey } from "@/lib/theme";
-import { itemLabel, rfqRefOf, rowChips, sourceView, type Chip, type EstimateLinkLike } from "@/lib/tender/boq/table";
-import { PRICE_KIND_LABEL, PRICE_KIND_TIP, priceKind, type PriceSource } from "@/lib/tender/boq/price";
+import { itemLabel, rowChips, sourceView, type Chip, type EstimateLinkLike } from "@/lib/tender/boq/table";
+import type { PriceSource } from "@/lib/tender/boq/price";
+import { SourceChip, type SourceLink } from "./boq/SourceChip";
 import { partText, partViews, trimPct, wbsCell } from "@/lib/wbs/screen";
 import type { Share } from "@/lib/wbs/tree";
 import s from "./BoqRows.module.css";
@@ -64,47 +65,11 @@ export function RowChips({ row, links, tips = true }: { row: BoqRow; links: read
   );
 }
 
-/** A link in the row carries the estimate's id, so the Cost from cell can open the estimate. */
-export type SourceLink = EstimateLinkLike & { estimate_id?: string };
+export { sourceHref, type SourceLink } from "./boq/SourceChip";
 
-const dateText = (d: string | null) => (d ? new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : null);
-
-/** Where the reference of a price leads: the RFQ a supplier price was awarded under, the estimate that priced the row. Null = no record id is stored. */
-export function sourceHref(row: Pick<BoqRow, "id" | "price_source" | "price_source_ref">, links: readonly SourceLink[]): string | null {
-  const rfq = rfqRefOf(row);
-  if (rfq) return `/rfqs?q=${encodeURIComponent(rfq)}`;
-  if (row.price_source === "estimate") {
-    const k = links.find((x) => x.boq_id === row.id && !x.broken && x.estimate_id);
-    if (k?.estimate_id) return `/estimates/${k.estimate_id}`;
-  }
-  return null;
-}
-
-/** The Cost from cell: the source, a Cost / Selling price tag, the reference (a link where the record is known), and the date behind an "i". */
-export function SourceCell({ row, links = [] }: { row: BoqRow; links?: readonly SourceLink[] }) {
-  const v = sourceView(row);
-  const kind = priceKind(row.price_source, row.unit_cost);
-  const href = sourceHref(row, links);
-  const date = dateText(row.price_as_of);
-  return (
-    <>
-      <span style={{ display: "inline-flex", alignItems: "center", gap: 4, flexWrap: "wrap" }}>
-        <span data-guide="boq.source">{v.label}</span>
-        {kind && <span data-price-kind={kind}><Pill label={PRICE_KIND_LABEL[kind]} tone={kind === "cost" ? "blue" : "amber"} /></span>}
-        {kind && (
-          <span onClick={(e) => e.stopPropagation()}>
-            <InfoTip label="Where this price came from">{PRICE_KIND_TIP[kind]}{date ? ` Price dated ${date}.` : " The source gave no date."}</InfoTip>
-          </span>
-        )}
-      </span>
-      {v.detail && (
-        <div className={s.muted}>
-          {href ? <a href={href} onClick={(e) => e.stopPropagation()} data-guide="boq.source_link" style={{ color: "inherit", textDecoration: "underline" }}>{v.detail}</a> : v.detail}
-        </div>
-      )}
-      {v.was && <div className={s.muted}>was {v.was}</div>}
-    </>
-  );
+/** The Cost from cell: one chip (source, short reference, a tone for cost or rate only). The detail opens from the chip. */
+export function SourceCell({ row, links = [], base, onChoose }: { row: BoqRow; links?: readonly SourceLink[]; base?: string; onChoose?: () => void }) {
+  return <span data-guide="boq.source"><SourceChip row={row} links={links} base={base} onChoose={onChoose} /></span>;
 }
 
 /** The WBS cell of a row: the item's code, a "Split n" chip that opens the parts, and the amber flags. */
@@ -153,7 +118,7 @@ function Head({ label, tip, num }: { label: string; tip: BoqTableTipKey; num?: b
 }
 
 /** Desktop: one table. The first cell is a button, so the keyboard and a screen reader reach every row; a click anywhere on the row opens it too. */
-export function BoqTable({ rows, links, openId, onOpen, wbs }: { rows: readonly BoqRow[]; links: readonly SourceLink[]; openId: string | null; onOpen: (id: string) => void; wbs?: WbsColumn }) {
+export function BoqTable({ rows, links, openId, onOpen, wbs, base }: { rows: readonly BoqRow[]; links: readonly SourceLink[]; openId: string | null; onOpen: (id: string) => void; wbs?: WbsColumn; /** The deal's BOQ API: lets a source card read the line's other candidate prices when it is opened. */ base?: string }) {
   const tick = !!wbs?.canEdit;
   const ids = rows.map((r) => r.id);
   const allOn = ids.length > 0 && ids.every((i) => wbs?.selected.has(i));
@@ -188,7 +153,7 @@ export function BoqTable({ rows, links, openId, onOpen, wbs }: { rows: readonly 
               <td className={s.desc}>{l.description}{l.cost_code ? <div className={s.muted}>{l.cost_code}</div> : null}</td>
               <td className={s.num}>{qtyText(l.qty)}</td>
               <td>{l.uom ?? ""}</td>
-              <td><SourceCell row={l} links={links} /></td>
+              <td className={s.source}><SourceCell row={l} links={links} base={base} onChoose={() => onOpen(l.id)} /></td>
               <td className={s.num}>{l.unit_cost != null ? money(l.unit_cost) : "–"}</td>
               <td className={s.num}>{l.unit_cost != null && l.markup_pct != null ? `${l.markup_pct}%` : "–"}</td>
               <td className={s.num}><b>{l.priced ? money(l.rate) : "–"}</b></td>
@@ -217,7 +182,6 @@ export function BoqCards({ rows, links, openId, onOpen, wbs }: { rows: readonly 
     <div className={s.cards} data-guide="boq.cards">
       {rows.map((l) => {
         const v = sourceView(l);
-        const kind = priceKind(l.price_source, l.unit_cost);
         const card = (
           <button key={wbs ? undefined : l.id} type="button" className={s.card} data-guide="boq.line" aria-selected={openId === l.id} aria-label={`Open item ${itemLabel(l)}`} onClick={() => onOpen(l.id)} style={{ minHeight: 44 }}>
             <span className={s.cardTop}>
@@ -226,7 +190,7 @@ export function BoqCards({ rows, links, openId, onOpen, wbs }: { rows: readonly 
             </span>
             <span className={s.cardMid}>
               <span>{qtyText(l.qty)} {l.uom ?? ""}</span>
-              <span>{v.label}{kind ? ` (${PRICE_KIND_LABEL[kind].toLowerCase()})` : ""}{v.detail ? ` · ${v.detail}` : ""}{v.was ? ` (was ${v.was})` : ""}</span>
+              <span className={s.cardSource} data-guide="boq.source"><SourceChip row={l} interactive={false} />{v.was ? <span>was {v.was}</span> : null}</span>
             </span>
             <RowChips row={l} links={links} tips={false} />
             <span className={s.cardEnd}>

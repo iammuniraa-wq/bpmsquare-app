@@ -1,0 +1,51 @@
+/* Where a BOQ price came from: the chip on a row, its card, and the bar above the table. Theme variables only. */
+.chip {
+  display: inline-flex; align-items: center; gap: 5px; max-width: 190px; box-sizing: border-box; padding: 2px 8px; border-radius: 7px;
+  border: 1px solid transparent; font: inherit; font-size: 12px; line-height: 18px; white-space: nowrap; vertical-align: middle;
+}
+.chip[data-kind="cost"] { background: var(--bluebg); color: var(--blueink); }
+.chip[data-kind="sell"] { background: var(--amberbg); color: var(--amberink); }
+.icon { display: inline-flex; flex: none; }
+.text { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.none { color: var(--muted); font-size: 12px; }
+
+/* The chip stays 24 px tall so the row keeps its height; the tap target around it is 44 px. */
+.chipBtn { position: relative; cursor: pointer; }
+.chipBtn::before { content: ""; position: absolute; left: 0; right: 0; top: 50%; height: 44px; transform: translateY(-50%); }
+.chipBtn:hover, .chipBtn[aria-expanded="true"] { border-color: currentColor; }
+.chipBtn:focus-visible, .seg:focus-visible, .legendBtn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.pop { width: 300px; max-width: min(300px, calc(100vw - 16px)); }
+.card { display: flex; flex-direction: column; gap: 8px; font-size: 13px; color: var(--ink); }
+.cardHead { display: flex; align-items: center; gap: 8px; font-size: 14px; }
+.tag { padding: 1px 8px; border-radius: 7px; font-size: 11px; }
+.tag[data-kind="cost"] { background: var(--bluebg); color: var(--blueink); }
+.tag[data-kind="sell"] { background: var(--amberbg); color: var(--amberink); }
+.facts { display: grid; grid-template-columns: auto 1fr; gap: 3px 12px; margin: 0; }
+.facts dt { color: var(--muted); font-size: 12px; white-space: nowrap; }
+.facts dd { margin: 0; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.facts a { color: inherit; text-decoration: underline; }
+.note { font-size: 12px; color: var(--muted); }
+.note[data-kind="sell"] { color: var(--amberink); }
+.sub { font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+.others { list-style: none; margin: 4px 0 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.others li { display: grid; grid-template-columns: 1fr auto auto; gap: 10px; font-size: 12.5px; font-variant-numeric: tabular-nums; }
+.others li span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.mix { display: flex; flex-direction: column; gap: 2px; }
+.bar { display: flex; gap: 2px; height: 10px; border-radius: 999px; overflow: hidden; background: var(--panel2); }
+.seg { flex: 1 1 0; min-width: 6px; height: 100%; padding: 0; border: 0; cursor: pointer; background: var(--muted); }
+.seg[data-dim="true"] { opacity: 0.35; }
+.legend { display: flex; flex-wrap: wrap; gap: 0 4px; }
+.legendBtn {
+  display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 8px; border: 0; border-radius: 8px; background: transparent;
+  color: var(--ink); font: inherit; font-size: 12.5px; cursor: pointer; font-variant-numeric: tabular-nums;
+}
+.legendBtn[aria-pressed="true"] { background: var(--panel2); font-weight: 700; }
+.dot { width: 9px; height: 9px; border-radius: 3px; flex: none; background: var(--muted); }
+.seg[data-group="supplier"], .dot[data-group="supplier"] { background: var(--blue); }
+.seg[data-group="estimate"], .dot[data-group="estimate"] { background: var(--purple); }
+.seg[data-group="past"], .dot[data-group="past"] { background: var(--amberc); }
+.seg[data-group="client"], .dot[data-group="client"] { background: var(--teal); }
+.seg[data-group="typed"], .dot[data-group="typed"] { background: var(--muted); }
+.dot[data-group="unpriced"] { background: var(--red); }
