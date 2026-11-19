@@ -12,6 +12,8 @@
 .item { font-weight: 700; white-space: nowrap; }
 .desc { min-width: 220px; overflow-wrap: anywhere; }
 .muted { color: var(--muted); font-size: 11.5px; }
+.table td.source { vertical-align: middle; white-space: nowrap; }
+.cardSource { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; min-width: 0; }
 .chips { display: flex; flex-wrap: wrap; gap: 4px; }
 
 /* The row's own button: the whole item cell is the target, never smaller than 44 px. */

@@ -72,10 +72,11 @@ describe("the table (desktop)", () => {
 
   it("the Source cell keeps its source: supplier with its reference, estimate, and a manual rate that remembers what it replaced", () => {
     const out = html();
-    expect(out).toContain("Supplier");
-    expect(out).toContain("RFQ-0012 · Gulf Pipes");
-    expect(out).toContain("Tender estimate");
-    expect(out).toContain("Manual");
+    // One chip per row: the short reference on the row, the whole of it in the chip's name.
+    expect(out).toContain("Supplier · RFQ-0012</span>");
+    expect(out).toContain('title="Supplier · RFQ-0012 · Gulf Pipes, a cost"');
+    expect(out).toContain("Estimate · EST-0016");
+    expect(out).toContain("Typed</span>");
     expect(out).toContain("was Supplier · RFQ-0012 · Gulf Pipes");
   });
 
