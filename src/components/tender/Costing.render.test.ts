@@ -368,6 +368,64 @@ describe("price the BOQ rows from an estimate", () => {
     expect(html).toContain("Unallocated");
     expect(html.toLowerCase()).not.toContain("commission");
   });
+
+  // Live walkthrough 2026-11-19: spreading a part ticked every row, one of them carrying an awarded RFQ cost, and the total was doubled.
+  it("a row that already has a price shows it and is not ticked; the total is the estimate's, counted once", () => {
+    const row = (id: string, item: string, current: { text: string; kind: "cost" | "sell" } | null) =>
+      ({ boq_id: id, item_no: item, row_no: 8, description: `Row ${item}`, qty: 100, uom: "m2", amount: 500, output: "total", output_label: "Whole estimate", output_cost: 594287.2, band: "spread", score: null, share_pct: 50, current });
+    const html = clean(renderToString(createElement(PriceRowsPanel, {
+      opportunityId: OPP, estimate: { id: "e1", ref: "EST-0004", name: "Precast" }, markupDefault: 15, bidLocked: false, onClose: noop, onDone: noop, onError: noop,
+      initialData: {
+        estimate: { id: "e1", ref: "EST-0004", name: "Precast" }, existing: [],
+        outputs: [{ key: "total", label: "Whole estimate", cost: 594287.2 }, { key: "wbs:1", label: "1 · Supply", cost: 594287.2 }, { key: "line:aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1", label: "Panels", cost: 594287.2 }],
+        rows: [row("b1", "1.1", { text: "Supplier · RFQ-0011", kind: "cost" }), row("b2", "2.1", null)],
+      },
+    } as never)));
+    const ticks = [...html.matchAll(/<input[^>]*type="checkbox"[^>]*>/g)].map((m) => m[0]);
+    expect(ticks).toHaveLength(2);
+    expect(ticks[0]).not.toMatch(/checked=""/);
+    expect(ticks[1]).toMatch(/checked=""/);
+    expect(html).toContain('data-guide="costing.price_rows.current"');
+    expect(html).toContain("Has Supplier · RFQ-0011 cost");
+    expect(html).toContain("Apply to 1 row");
+    expect(html).not.toContain('data-guide="costing.price_rows.replaces"');
+    // The unpriced row takes the whole part; the priced one takes nothing until it is ticked.
+    expect(html).toContain("100% · 5,942.87 / m2");
+    expect(html).toContain("594,287.20");
+    expect(html).not.toContain("1,188,574.40");
+    expect(html).not.toContain("1,782,861.60");
+  });
+
+  it("the panel names what a ticked row would lose, shows its own errors, and reloads the tab when a write may have happened", () => {
+    const code = readFileSync(path.join(ROOT, "src/components/tender/costing/PriceRowsPanel.tsx"), "utf8");
+    expect(code).toContain("replacedText(chosen)");
+    expect(code).toContain("defaultTicks(d.rows)");
+    expect(code).not.toMatch(/setTicked\(new Set\(d\.rows\.map/);
+    expect(code).toContain('data-guide="costing.price_rows.error"');
+    expect(code).toContain("onWritten?.()");
+    expect(code).toContain("pricedNotice(");
+  });
+});
+
+describe("after a change the tab shows it where the person is", () => {
+  const code = readFileSync(path.join(ROOT, "src/components/tender/CostingTab.tsx"), "utf8");
+
+  it("an applied estimate closes the panel, says which rows were priced in the tab, and reads the list and tiles again before the page", () => {
+    expect(code).toMatch(/onDone=\{\(m\) => \{ setPriceRowsFor\(null\); setDone\(m\); void afterChange\(\); \}\}/);
+    expect(code).toContain('data-guide="costing.done"');
+    expect(code).toContain("const afterChange = useCallback(async () => { try { await load(); } finally { setVersion((n) => n + 1); onChanged?.(); } }");
+    expect(code).toContain("<WbsTotals key={version}");
+  });
+
+  it("the compare screen sits under the list, above Totals by WBS, and is scrolled to and focused on every press", () => {
+    expect(code.indexOf('data-guide="costing.compare.wrap"')).toBeGreaterThan(code.indexOf("<CostSourcesTable"));
+    expect(code.indexOf('data-guide="costing.compare.wrap"')).toBeLessThan(code.indexOf('data-guide="costing.wbs.section"'));
+    expect(code).toMatch(/tabIndex=\{-1\} role="region" aria-label="Compare and award"/);
+    expect(code).toContain("el.focus?.({ preventScroll: true })");
+    expect(code).toMatch(/onCompare=\{openCompare\}/);
+    expect(code).not.toMatch(/onCompare=\{setCompareId\}/);
+    expect(code).toContain("onLoaded={() => setCompareAsk((n) => n + 1)}");
+  });
 });
 
 // ── The tab on the deal page ────────────────────────────────────────────────────────────────────────────────────────────────

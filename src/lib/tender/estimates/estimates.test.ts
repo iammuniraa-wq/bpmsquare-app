@@ -6,7 +6,7 @@ import { buildSnapshot } from "@/lib/tender/bids/rules";
 import { PRICE_SOURCE_LABEL } from "@/lib/tender/boq/price";
 import { ESTIMATE_TIPS } from "./tips";
 import { budgetPartsForBoqLine } from "./budgetParts";
-import { proposeByMatch, proposeSpread, reshare, sharesWithin } from "./allocate";
+import { currentPriceOf, defaultTicks, pricedNotice, proposeByMatch, proposeSpread, replacedPrices, replacedText, reshare, sharesWithin } from "./allocate";
 import { missingRfqLines, missingReasonText } from "./rfqLines";
 import {
   allocationSummary, bidIsLocked, buildUpName, cleanShare, costMetaOf, costPerUnit, isLinkStale, listOutputs, lineCostAsOf, missingCosts, outputCost,
@@ -159,6 +159,102 @@ describe("shares and the unallocated remainder", () => {
     const s = allocationSummary(outs, [{ boq_line_id: "a", output: "total", basis: "total", share_pct: 80 }]);
     expect(s.total_cost).toBe(5006);
     expect(s.unallocated_cost).toBe(1001.2);
+  });
+});
+
+// Live walkthrough 2026-11-19 (KAMCO): "Allocated 0.00 of 1,188,574.40" for EST-0004, whose total is 594,287.20.
+describe("the estimate total in the allocation summary is counted once", () => {
+  const L = (id: string, wbs: string, cost: number): EstLine => ({
+    id, code: null, description: `Line ${id}`, uom: "ea", qty: 1, waste_pct: 0, unit_cost: cost, cost_total: cost, component: "material", wbs_code: wbs,
+    product_id: null, custom_data: { group: wbs.split(".")[0] === "1" ? "Supply" : "Install" }, updated_at: null,
+  });
+  const est = [
+    L("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1", "1.1", 300000), L("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2", "1.2", 194287.2), L("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa3", "2.1", 100000),
+  ];
+  const outs = listOutputs(est).map((o) => ({ key: o.key, label: o.label, cost: o.cost }));
+
+  it("the outputs hold the whole estimate, its WBS groups and its lines: the same money three ways", () => {
+    expect(outs.map((o) => o.key.split(":")[0])).toEqual(["total", "wbs", "wbs", "line", "line", "line"]);
+    expect(outs.reduce((s, o) => s + o.cost, 0)).toBeCloseTo(594287.2 * 3, 2);
+  });
+
+  it("with nothing given out the total is the estimate's cost, not groups plus lines", () => {
+    const s = allocationSummary(outs, []);
+    expect(s.total_cost).toBe(594287.2);
+    expect(s.allocated_cost).toBe(0);
+    expect(s.unallocated_cost).toBe(594287.2);
+  });
+
+  it("a line, a group or the whole given out is taken off the one total", () => {
+    const line = allocationSummary(outs, [{ boq_line_id: "b1", output: outs[3].key, basis: "total", share_pct: 100 }]);
+    expect(line).toMatchObject({ total_cost: 594287.2, allocated_cost: 300000, unallocated_cost: 294287.2 });
+    const group = allocationSummary(outs, [{ boq_line_id: "b1", output: "wbs:2", basis: "total", share_pct: 50 }]);
+    expect(group).toMatchObject({ total_cost: 594287.2, allocated_cost: 50000, unallocated_cost: 544287.2 });
+    const whole = allocationSummary(outs, [{ boq_line_id: "b1", output: "total", basis: "total", share_pct: 100 }]);
+    expect(whole).toMatchObject({ total_cost: 594287.2, allocated_cost: 594287.2, unallocated_cost: 0 });
+  });
+
+  it("overlapping parts never show more given out than the estimate holds", () => {
+    const s = allocationSummary(outs, [
+      { boq_line_id: "b1", output: "total", basis: "total", share_pct: 100 }, { boq_line_id: "b2", output: "wbs:1", basis: "total", share_pct: 100 },
+    ]);
+    expect(s.allocated_cost).toBe(594287.2);
+    expect(s.unallocated_cost).toBe(0);
+  });
+
+  it("without a whole-estimate output the lines are the total; without lines, the top groups", () => {
+    expect(allocationSummary(outs.filter((o) => o.key !== "total"), []).total_cost).toBe(594287.2);
+    const groups = [{ key: "wbs:1", label: "1", cost: 500 }, { key: "wbs:1.2", label: "1.2", cost: 200 }, { key: "wbs:2", label: "2", cost: 100 }];
+    expect(allocationSummary(groups, []).total_cost).toBe(600);
+  });
+});
+
+// Same walkthrough: "Spread one part over the rows" ticked all 10 rows, one of them carrying an awarded RFQ cost.
+describe("a row that already has a price is shown and never pre-ticked", () => {
+  const B = (id: string, item: string, over: Partial<Parameters<typeof proposeSpread>[0]["boq"][number]> = {}) =>
+    ({ id, item_no: item, row_no: 1, description: `Row ${item}`, uom: "m", qty: 10, cost_code: null, amount: 100, ...over });
+  const whole = { key: "total", kind: "total" as const, label: "Whole estimate", cost: 1000, qty: null, unit: null, lines: 1, unpriced: 0 };
+  const boqRows = [
+    B("b1", "1.1", { rate: 55, price_source: "supplier", price_source_ref: "RFQ-0011 · Gulf Pipes", unit_cost: 48 }),
+    B("b2", "2.1"),
+    B("b3", "2.2", { rate: 12, price_source: "boq_rate", price_source_ref: "boq.xlsx" }),
+    B("b4", "2.3", { rate: 9 }),
+    B("b5", "2.4", { rate: 30, price_source: "estimate", price_source_ref: "EST-0002", unit_cost: 25 }),
+  ];
+  const rows = proposeSpread({ boq: boqRows, output: whole, by: "amount", existing: [] });
+
+  it("each proposal carries the price the row has today", () => {
+    expect(rows.map((r) => r.current?.text ?? null)).toEqual(["Supplier · RFQ-0011", null, "Client rate", "Typed", "Estimate · EST-0002"]);
+    expect(rows.map((r) => r.current?.kind ?? null)).toEqual(["cost", null, "sell", "sell", "cost"]);
+    expect(currentPriceOf({ rate: 0 })).toBeNull();
+  });
+
+  it("only the unpriced row is ticked when the panel opens, and it takes the whole free share", () => {
+    const ticks = defaultTicks(rows);
+    expect([...ticks]).toEqual(["b2"]);
+    const re = reshare(rows, ticks, "amount", []);
+    expect(rows.map((r) => re.get(r.boq_id))).toEqual([0, 100, 0, 0, 0]);
+  });
+
+  it("a ticked row with a price is named in the confirm step", () => {
+    const chosen = rows.filter((r) => ["b1", "b2", "b3"].includes(r.boq_id));
+    expect(replacedPrices(chosen)).toEqual(["Replaces the Supplier · RFQ-0011 cost on 1.1.", "Replaces the Client rate rate on 2.2."]);
+    expect(replacedText(rows.filter((r) => r.boq_id === "b2"))).toBe("");
+    expect(replacedText(rows.filter((r) => r.current), 2)).toBe("Replaces the Supplier · RFQ-0011 cost on 1.1. Replaces the Client rate rate on 2.2. And 2 more.");
+  });
+
+  it("an unticked row keeps its link, so its share is not given out twice", () => {
+    const existing = [{ boq_line_id: "b5", output: "total", basis: "total" as const, share_pct: 40 }];
+    const kept = reshare(rows, new Set(["b2"]), "amount", existing);
+    expect(kept.get("b2")).toBe(60);
+    const replaced = reshare(rows, new Set(["b2", "b5"]), "amount", existing);
+    expect((replaced.get("b2") ?? 0) + (replaced.get("b5") ?? 0)).toBe(100);
+  });
+
+  it("the success notice names the rows", () => {
+    expect(pricedNotice(["2.1"], 1, "EST-0004")).toBe("2.1 priced from EST-0004");
+    expect(pricedNotice(["2.1", "2.2", "2.3", "2.4", "2.5"], 5, "EST-0004")).toBe("2.1, 2.2, 2.3 and 2 more priced from EST-0004");
+    expect(pricedNotice([null, "2.2"], 2, "EST-0004")).toBe("2 rows priced from EST-0004");
   });
 });
 

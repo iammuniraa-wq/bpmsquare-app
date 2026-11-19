@@ -8,7 +8,7 @@ import { Input, Select } from "@/components/ui/Input";
 import InfoTip from "@/components/ui/InfoTip";
 import { useFeel } from "@/components/FeelProvider";
 import { ESTIMATE_TIPS } from "@/lib/tender/estimates/tips";
-import { reshare, type Proposal, type ProposalBy } from "@/lib/tender/estimates/allocate";
+import { defaultTicks, replacedText, reshare, type Proposal, type ProposalBy } from "@/lib/tender/estimates/allocate";
 import { allocationSummary, round2, type AllocationLink } from "@/lib/tender/estimates/rules";
 import type { EstimatesState } from "@/lib/tender/estimates/server";
 import MissingRfqButton from "./MissingRfqButton";
@@ -30,6 +30,11 @@ type Allocation = {
   existing: AllocationLink[];
 };
 
+const sharesFor = (d: Allocation, ticked: ReadonlySet<string>, by: ProposalBy): Record<string, string> => {
+  const re = reshare(d.rows, ticked, by, d.existing);
+  return Object.fromEntries(d.rows.map((r) => [r.boq_id, String(re.get(r.boq_id) ?? 0)]));
+};
+
 export function AllocatePanel({ base, state, canEdit, markup, onChanged, onError, onNotice, initialData, initialOpen }: {
   /** /api/opportunities/[id]/tender/estimates */
   base: string; state: EstimatesState; canEdit: boolean; markup: number;
@@ -43,8 +48,9 @@ export function AllocatePanel({ base, state, canEdit, markup, onChanged, onError
   const [by, setBy] = useState<ProposalBy>("amount");
   const [output, setOutput] = useState("total");
   const [data, setData] = useState<Allocation | null>(initialData ?? null);
-  const [ticked, setTicked] = useState<Set<string>>(new Set((initialData?.rows ?? []).map((r) => r.boq_id)));
-  const [shares, setShares] = useState<Record<string, string>>(Object.fromEntries((initialData?.rows ?? []).map((r) => [r.boq_id, String(r.share_pct)])));
+  // Applying replaces the price a line carries, so only unpriced lines are ticked when the panel opens (same rule as the Costing tab).
+  const [ticked, setTicked] = useState<Set<string>>(() => defaultTicks(initialData?.rows ?? []));
+  const [shares, setShares] = useState<Record<string, string>>(() => (initialData ? sharesFor(initialData, defaultTicks(initialData.rows), "amount") : {}));
   const [busy, setBusy] = useState(false);
   const [showAll, setShowAll] = useState(false);
 
@@ -58,9 +64,10 @@ export function AllocatePanel({ base, state, canEdit, markup, onChanged, onError
         if (!live) return;
         if (!ok) { onError(j.error ?? "Could not work out the allocation"); return; }
         const d = j as Allocation;
+        const first = defaultTicks(d.rows);
         setData(d);
-        setTicked(new Set(d.rows.map((r) => r.boq_id)));
-        setShares(Object.fromEntries(d.rows.map((r) => [r.boq_id, String(r.share_pct)])));
+        setTicked(first);
+        setShares(sharesFor(d, first, by));
       })
       .catch(() => {});
     return () => { live = false; };
@@ -70,17 +77,16 @@ export function AllocatePanel({ base, state, canEdit, markup, onChanged, onError
     if (!data) return;
     const next = new Set(ticked);
     if (next.has(id)) next.delete(id); else next.add(id);
-    const re = reshare(data.rows, next, by, data.existing);
     setTicked(next);
-    setShares(Object.fromEntries(data.rows.map((r) => [r.boq_id, String(re.get(r.boq_id) ?? 0)])));
+    setShares(sharesFor(data, next, by));
   }
 
   const chosen = useMemo(() => (data?.rows ?? []).filter((r) => ticked.has(r.boq_id) && Number(shares[r.boq_id]) > 0), [data, ticked, shares]);
   const summary = useMemo(() => {
     if (!data) return null;
-    const replacing = new Set(data.rows.map((r) => r.boq_id));
+    const replacing = new Set(chosen.map((r) => `${r.boq_id}|${r.output}`));
     const links: AllocationLink[] = [
-      ...data.existing.filter((l) => !replacing.has(l.boq_line_id)),
+      ...data.existing.filter((l) => !replacing.has(`${l.boq_line_id}|${l.output}`)),
       ...chosen.map((r) => ({ boq_line_id: r.boq_id, output: r.output, basis: "total" as const, share_pct: Number(shares[r.boq_id]) })),
     ];
     return allocationSummary(data.outputs, links);
@@ -88,7 +94,7 @@ export function AllocatePanel({ base, state, canEdit, markup, onChanged, onError
 
   async function apply() {
     if (!data || chosen.length === 0) return;
-    if (!(await confirm({ title: `Price ${chosen.length} BOQ line${chosen.length === 1 ? "" : "s"} from ${data.estimate.ref ?? "the estimate"}?`, body: `This sets the cost and the rate of those lines${markup === 0 ? " (markup 0%: at cost)" : ""}. ${state.bid_locked ? "The bid is already in; the submitted version is kept as it was." : ""}`.trim(), confirmLabel: "Apply" }))) return;
+    if (!(await confirm({ title: `Price ${chosen.length} BOQ line${chosen.length === 1 ? "" : "s"} from ${data.estimate.ref ?? "the estimate"}?`, body: [replacedText(chosen), `This sets the cost and the rate of those lines${markup === 0 ? " (markup 0%: at cost)" : ""}.`, state.bid_locked ? "The bid is already in; the submitted version is kept as it was." : ""].filter(Boolean).join(" "), confirmLabel: chosen.some((r) => r.current) ? "Replace and apply" : "Apply", tone: chosen.some((r) => r.current) ? "danger" : "default" }))) return;
     setBusy(true); onError("");
     try {
       const res = await fetch(`${base}/links`, {
@@ -164,6 +170,11 @@ export function AllocatePanel({ base, state, canEdit, markup, onChanged, onError
                 <span style={{ flex: "1 1 160px", fontSize: 12, color: c.muted, overflowWrap: "anywhere" }}>
                   {r.output_label}{r.band !== "spread" ? ` · ${r.band === "strong" ? "strong" : "possible"} match` : ""}
                 </span>
+                {r.current && (
+                  <span data-guide="boq.allocate.current" style={{ fontSize: 12, fontWeight: 600, color: on ? "var(--redink)" : "var(--amberink)", overflowWrap: "anywhere" }}>
+                    {on ? "Replaces" : "Has"} {r.current.text} {r.current.kind === "cost" ? "cost" : "rate"}
+                  </span>
+                )}
                 <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
                   <Input type="number" min={0} max={100} step="0.01" inputMode="decimal" aria-label={`Share of ${r.output_label} for ${r.item_no ?? r.description}`} data-guide="boq.allocate.share"
                     value={shares[r.boq_id] ?? ""} onChange={(e) => setShares({ ...shares, [r.boq_id]: e.target.value })} style={{ width: 96, minHeight: 44 }} disabled={!on} />
