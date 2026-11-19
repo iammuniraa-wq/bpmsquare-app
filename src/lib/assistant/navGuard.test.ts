@@ -3,7 +3,7 @@ import { NAV } from "@/lib/constants";
 import { CREATE_ACTIONS } from "@/lib/createActions";
 import { SETTINGS_MENU, visibleSettingsMenu } from "@/lib/settingsMenu";
 import type { WorkcenterKey } from "@/lib/workcenters";
-import { answerUnavailableAsk, judgeNavigation, NAV_NONE, namedGroups } from "./navGuard";
+import { answerUnavailableAsk, isPushback, judgeNavigation, NAV_NONE, namedGroups, notTheSameAgain, saidBefore, unavailableAsk, unavailableFollowUp, type GuardTurn } from "./navGuard";
 import { buildNavTargets, dataWorkbenchTarget, matchNavigation, screenCatalog, tenderBoqTarget, TENDER_BOQ_LIST_TARGET, type NavGateCtx } from "./navTargets";
 import { navigateTool } from "./navTools";
 
@@ -230,5 +230,70 @@ describe("the navigate tool can decline", () => {
     expect(props.asked_for.type).toBe("string");
     expect(tool.input_schema.required).toEqual(["asked_for", "target"]);
     expect(tool.description).toContain("never pick a different screen");
+  });
+});
+
+// Owner, KAMCO 2026-11-19, a workspace admin: "Email is not switched on in your workspace. Ask your administrator to
+// enable it." three times in a row, the last two in reply to "i am admin".
+describe("an unavailable screen is explained to a person, not recited", () => {
+  const ADMIN = () => ({ ...KAMCO(), isWorkspaceAdmin: true });
+  const NOT_ADMIN = () => ({ ...KAMCO(), isAdmin: false, isWorkspaceAdmin: false });
+  const said = (ctx: NavGateCtx) => unavailableAsk("where is email", buildNavTargets(ctx), ctx)!;
+
+  it("a workspace admin is told BPMSquare adds the module; a member is told to ask their administrator", () => {
+    expect(said(ADMIN()).message).toContain("Email is not part of your workspace yet. Modules are added by BPMSquare, not in Settings, so ask your BPMSquare contact to switch it on.");
+    expect(said(ADMIN()).message).not.toContain("Ask your administrator");
+    expect(said(NOT_ADMIN()).message).toBe("Email is not switched on in your workspace. Ask your administrator to enable it.");
+    // Only "module off" changes with the role: the other reasons were already right.
+    const m = { ...MEMBER(), isWorkspaceAdmin: false };
+    expect(answerUnavailableAsk("where is data workbench", buildNavTargets(m), m)).toBe("You do not have access to Data Workbench.");
+  });
+
+  it("offers the mail settings the caller can reach, and nothing to a caller who cannot reach them", () => {
+    const a = said(ADMIN());
+    expect(a.related.map((t) => t.id)).toEqual(["settings:connectors", "settings:email-output"]);
+    expect(a.message).toContain("mailbox your emails go out from");
+    expect(said(NOT_ADMIN()).related).toEqual([]);
+    // A screen that is not about mail gets no mail buttons.
+    expect(unavailableAsk("where is data workbench", buildNavTargets(ADMIN()), ADMIN())!.related).toEqual([]);
+    const v = judgeNavigation({ pick: NAV_NONE, askedFor: "email", message: "I need email here", targets: buildNavTargets(ADMIN()), ctx: ADMIN() });
+    expect(v.kind === "unavailable" && v.related.map((t) => t.id)).toEqual(["settings:connectors", "settings:email-output"]);
+  });
+
+  it("the owner's two replies are follow-ups: they carry the facts for the model, never the fixed sentence", () => {
+    const ctx = ADMIN(); const targets = buildNavTargets(ctx);
+    const first: GuardTurn[] = [{ role: "user", text: "where is email" }, { role: "assistant", text: said(ctx).message }];
+    for (const reply of ["where to switch it on? i am admin", "I understand but i am an admin"]) {
+      expect(isPushback(reply)).toBe(true);
+      expect(answerUnavailableAsk(reply, targets, ctx)).toBeNull();
+      const f = unavailableFollowUp([...first, { role: "user", text: reply }], targets, ctx)!;
+      expect(f.fact).toContain('"Email"');
+      expect(f.fact).toContain("Only BPMSquare");
+      expect(f.fact).toContain("IS a workspace administrator");
+      expect(f.fact).toContain("Settings: Connectors");
+      expect(f.related.map((t) => t.id)).toEqual(["settings:connectors", "settings:email-output"]);
+    }
+    // Two turns later the model's own wording sits between, and the reply is still understood.
+    const later: GuardTurn[] = [...first, { role: "user", text: "where to switch it on? i am admin" }, { role: "assistant", text: "You can't switch it on yourself; BPMSquare adds modules." }, { role: "user", text: "I understand but i am an admin" }];
+    expect(unavailableFollowUp(later, targets, ctx)).not.toBeNull();
+  });
+
+  it("is not a follow-up without an unavailable answer before it, or when the next question is about something else", () => {
+    const ctx = ADMIN(); const targets = buildNavTargets(ctx);
+    expect(unavailableFollowUp([{ role: "user", text: "but i am an admin" }], targets, ctx)).toBeNull();
+    const first: GuardTurn[] = [{ role: "user", text: "where is email" }, { role: "assistant", text: said(ctx).message }];
+    expect(unavailableFollowUp([...first, { role: "user", text: "how many tenders are open" }], targets, ctx)).toBeNull();
+    // Asking the very same thing again is one: the second answer is the model's.
+    expect(unavailableFollowUp([...first, { role: "user", text: "where is email" }], targets, ctx)).not.toBeNull();
+    expect(saidBefore(first, said(ctx).message)).toBe(true);
+  });
+
+  it("the last guard never lets the same words go out twice in a row", () => {
+    const h: GuardTurn[] = [{ role: "user", text: "x" }, { role: "assistant", text: "You do not have access to Analytics." }];
+    const again = notTheSameAgain(h, "You do not have access to  analytics.");
+    expect(again).not.toBe("You do not have access to Analytics.");
+    expect(again).toContain("You do not have access to");
+    expect(notTheSameAgain(h, "There are 4.")).toBe("There are 4.");
+    expect(notTheSameAgain([], "There are 4.")).toBe("There are 4.");
   });
 });
