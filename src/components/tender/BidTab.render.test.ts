@@ -135,15 +135,30 @@ describe("Documents we send", () => {
 describe("Send by email and Sent to client (KAMCO feedback slice 5)", () => {
   const send = (i: number, over: Partial<SendView> = {}): SendView => ({ id: `s${i}`, version_no: i === 1 ? 2 : null, sent_at: `2026-10-2${i}T09:00:00Z`, sent_by_name: "S. Khan", channel: i === 1 ? "email" : "portal", document: i === 1 ? "priced_boq" : "answer_sheet", to_text: i === 1 ? "buyer@ministry.gov.sa" : "Ariba", note: null, ...over });
 
-  it("offers Send by email next to each of the two files, 44 px, to a person who may change the deal", () => {
+  it("lists the two files one per row and offers ONE Send by email for the card, 44 px, to a person who may change the deal", () => {
     const out = bid();
-    for (const g of ["tender.bid.email_priced", "tender.bid.email_answer"]) {
-      const b = out.match(new RegExp(`<button\\b[^>]*data-guide="${g}"[^>]*>[^<]*`))?.[0] ?? "";
-      expect(b, g).toContain("Send by email");
-      expect(b, g).toContain("min-height:44px");
-    }
-    expect(out.indexOf('data-guide="tender.bid.email_priced"')).toBeGreaterThan(out.indexOf('data-guide="boq.download"'));
-    expect(out.indexOf('data-guide="tender.bid.email_answer"')).toBeGreaterThan(out.indexOf('data-guide="boq.answer_sheet"'));
+    expect(out.match(/Send by email/g)).toHaveLength(1);
+    const b = out.match(/<button\b[^>]*data-guide="tender\.bid\.documents\.send"[^>]*>[^<]*/)?.[0] ?? "";
+    expect(b).toContain("Send by email");
+    expect(b).toContain("min-height:44px");
+    const priced = out.indexOf('data-guide="boq.downloads.priced"');
+    const answer = out.indexOf('data-guide="boq.downloads.answer"');
+    expect(priced).toBeGreaterThan(-1);
+    expect(answer).toBeGreaterThan(priced);
+    expect(out.indexOf('data-guide="tender.bid.documents.send"')).toBeGreaterThan(out.indexOf('data-guide="boq.answer_sheet"'));
+    expect(out.slice(priced, answer)).toContain('aria-label="About Download"');
+    expect(out.slice(answer)).toContain('aria-label="About Answer sheet"');
+    expect(out.match(/>Excel</g)).toHaveLength(2);
+    expect(out).not.toContain(TENDER_TIPS.boqDownload);
+  });
+
+  it("the send panel ticks every file to start with and sends one email per ticked file through the unchanged route", () => {
+    const src = read("src/components/tender/SendByEmail.tsx");
+    expect(src).toContain("useState<readonly EmailDocument[]>(documents)");
+    expect(src).toMatch(/for \(const document of chosen\)[\s\S]*\/tender\/bids\/send-email/);
+    expect(src).toContain("Tick at least one document");
+    for (const g of ["tender.bid.email_priced", "tender.bid.email_answer", "tender.bid.email_documents"]) expect(src).toContain(`"${g}"`);
+    expect(read("src/components/tender/BidDocuments.tsx")).toContain("documents={EMAIL_DOCUMENTS}");
   });
 
   it("a view-only person gets no Send by email and no Record a send", () => {

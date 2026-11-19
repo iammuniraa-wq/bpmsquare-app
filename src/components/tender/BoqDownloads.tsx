@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { c } from "@/lib/theme";
 import Button from "@/components/ui/Button";
 import InfoTip from "@/components/ui/InfoTip";
 import { useFeel } from "@/components/FeelProvider";
@@ -36,34 +37,43 @@ async function download(opportunityId: string, kind: Kind, confirm: ReturnType<t
   window.location.assign(`${base}/export?kind=${kind}${kind === "priced" && withWbs ? "&wbs=1" : ""}`);
 }
 
-/** "Download priced BOQ": the client's file with the rates in it. `withWbs` adds the optional WBS column. */
-export function PricedBoqButton({ opportunityId, variant = "primary", withWbs = false }: { opportunityId: string; variant?: "primary" | "secondary"; withWbs?: boolean }) {
+/**
+ * "Download priced BOQ": the client's file with the rates in it. `withWbs` adds the optional WBS column. In a list row the visible word
+ * is `label` (the full name stays the accessible name) and the i sits by the row's name (`tip={false}`).
+ */
+export function PricedBoqButton({ opportunityId, variant = "primary", withWbs = false, label, tip = true }: { opportunityId: string; variant?: "primary" | "secondary"; withWbs?: boolean; label?: string; tip?: boolean }) {
   const { confirm } = useFeel();
   const [busy, setBusy] = useState(false);
   return (
     <>
-      <Button variant={variant} loading={busy} onClick={async () => { setBusy(true); try { await download(opportunityId, "priced", confirm, withWbs); } finally { setBusy(false); } }} style={{ minHeight: 44 }} data-guide="boq.download">Download priced BOQ</Button>
-      <InfoTip label="Download">{TENDER_TIPS.boqDownload}</InfoTip>
+      <Button variant={variant} loading={busy} aria-label={label ? "Download priced BOQ" : undefined} onClick={async () => { setBusy(true); try { await download(opportunityId, "priced", confirm, withWbs); } finally { setBusy(false); } }} style={{ minHeight: 44 }} data-guide="boq.download">{label ?? "Download priced BOQ"}</Button>
+      {tip && <InfoTip label="Download">{TENDER_TIPS.boqDownload}</InfoTip>}
     </>
   );
 }
 
-/** "Export answer sheet": a plain list of the lines with our rates, for a portal form. */
-export function AnswerSheetButton({ opportunityId, variant = "secondary" }: { opportunityId: string; variant?: "primary" | "secondary" }) {
+/** "Export answer sheet": a plain list of the lines with our rates, for a portal form. `label` and `tip` as on the priced button. */
+export function AnswerSheetButton({ opportunityId, variant = "secondary", label, tip = true }: { opportunityId: string; variant?: "primary" | "secondary"; label?: string; tip?: boolean }) {
   const { confirm } = useFeel();
   return (
     <>
-      <Button variant={variant} onClick={() => void download(opportunityId, "answer", confirm)} style={{ minHeight: 44 }} data-guide="boq.answer_sheet">Export answer sheet</Button>
-      <InfoTip label="Answer sheet">{TENDER_TIPS.boqAnswerSheet}</InfoTip>
+      <Button variant={variant} aria-label={label ? "Export answer sheet" : undefined} onClick={() => void download(opportunityId, "answer", confirm)} style={{ minHeight: 44 }} data-guide="boq.answer_sheet">{label ?? "Export answer sheet"}</Button>
+      {tip && <InfoTip label="Answer sheet">{TENDER_TIPS.boqAnswerSheet}</InfoTip>}
     </>
   );
 }
 
+const row: React.CSSProperties = { display: "flex", flexWrap: "wrap", alignItems: "center", gap: "4px 12px", padding: "6px 12px", minHeight: 56 };
+const name: React.CSSProperties = { display: "inline-flex", alignItems: "center", gap: 6, flex: "1 1 180px", minWidth: 0, fontSize: 13.5, fontWeight: 600, color: c.ink };
+const tag: React.CSSProperties = { fontSize: 11, fontWeight: 600, color: c.muted, border: `1px solid ${c.line}`, borderRadius: 999, padding: "1px 8px" };
+const actions: React.CSSProperties = { display: "inline-flex", flexWrap: "wrap", alignItems: "center", gap: "4px 12px", marginLeft: "auto" };
+
 /**
- * Both, side by side, for the Bid tab's "Documents we send". When the tender has a WBS a checkbox offers its optional column in the priced file;
- * it is off by default (the file is the client's own layout) and the choice is not remembered.
+ * Both, as one list for the Bid tab's "Documents we send": a row per document (name, its i, the format, its download). When the tender has
+ * a WBS a checkbox offers its optional column in the priced file; it is off by default (the file is the client's own layout) and the choice
+ * is not remembered. `footer` is the one action for the whole list (Send by email), so it is never repeated per row.
  */
-export default function BoqDownloads({ opportunityId, afterPriced, afterAnswer, hasWbs }: { opportunityId: string; afterPriced?: React.ReactNode; afterAnswer?: React.ReactNode; hasWbs?: boolean }) {
+export default function BoqDownloads({ opportunityId, footer, hasWbs }: { opportunityId: string; footer?: React.ReactNode; hasWbs?: boolean }) {
   const [wbs, setWbs] = useState(hasWbs ?? false);
   const [withWbs, setWithWbs] = useState(false);
   useEffect(() => {
@@ -76,22 +86,25 @@ export default function BoqDownloads({ opportunityId, afterPriced, afterAnswer, 
     return () => { live = false; };
   }, [opportunityId, hasWbs]);
   return (
-    <div data-guide="boq.downloads" style={{ display: "flex", flexWrap: "wrap", gap: "8px 16px", alignItems: "center" }}>
-      <span style={{ display: "inline-flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
-        <PricedBoqButton opportunityId={opportunityId} withWbs={wbs && withWbs} />
-        {wbs && (
-          <label data-guide="boq.download_wbs" style={{ display: "inline-flex", alignItems: "center", gap: 6, minHeight: 44, fontSize: 13, cursor: "pointer" }}>
-            <input type="checkbox" checked={withWbs} onChange={(e) => setWithWbs(e.target.checked)} style={{ width: 20, height: 20 }} />
-            Add a WBS column
-            <InfoTip label="WBS column">{TENDER_TIPS.boqWbsColumn}</InfoTip>
-          </label>
-        )}
-        {afterPriced}
-      </span>
-      <span style={{ display: "inline-flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
-        <AnswerSheetButton opportunityId={opportunityId} />
-        {afterAnswer}
-      </span>
+    <div data-guide="boq.downloads" role="list" style={{ border: `1px solid ${c.line}`, borderRadius: 8, overflow: "hidden" }}>
+      <div role="listitem" data-guide="boq.downloads.priced" style={{ ...row, borderBottom: `1px solid ${c.line}` }}>
+        <span style={name}>Priced BOQ<InfoTip label="Download">{TENDER_TIPS.boqDownload}</InfoTip><span style={tag}>Excel</span></span>
+        <span style={actions}>
+          {wbs && (
+            <label data-guide="boq.download_wbs" style={{ display: "inline-flex", alignItems: "center", gap: 6, minHeight: 44, fontSize: 13, cursor: "pointer" }}>
+              <input type="checkbox" checked={withWbs} onChange={(e) => setWithWbs(e.target.checked)} style={{ width: 20, height: 20 }} />
+              Add a WBS column
+              <InfoTip label="WBS column">{TENDER_TIPS.boqWbsColumn}</InfoTip>
+            </label>
+          )}
+          <PricedBoqButton opportunityId={opportunityId} variant="secondary" withWbs={wbs && withWbs} label="Download" tip={false} />
+        </span>
+      </div>
+      <div role="listitem" data-guide="boq.downloads.answer" style={{ ...row, borderBottom: footer ? `1px solid ${c.line}` : undefined }}>
+        <span style={name}>Answer sheet<InfoTip label="Answer sheet">{TENDER_TIPS.boqAnswerSheet}</InfoTip><span style={tag}>Excel</span></span>
+        <span style={actions}><AnswerSheetButton opportunityId={opportunityId} label="Download" tip={false} /></span>
+      </div>
+      {footer && <div data-guide="boq.downloads.actions" style={{ ...row, justifyContent: "flex-end" }}>{footer}</div>}
     </div>
   );
 }
