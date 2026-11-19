@@ -154,7 +154,8 @@ export function ageText(fromKey: string | null | undefined, todayKey: string): s
 
 export type CostingTiles = { priced: number; unpriced: number; rfqs_out: number; replies_in: number };
 
-export type BoqSummary = { rows: number; priced: number; unpriced: number; stale: number };
+/** `costed`: priced rows with a known cost (supplier, estimate, BOM or a typed cost). A rate from a past project or the client is priced, not costed. */
+export type BoqSummary = { rows: number; priced: number; unpriced: number; stale: number; costed?: number };
 
 // ── The data the tab reads ───────────────────────────────────────────────────────────────────────────────────────────────
 
