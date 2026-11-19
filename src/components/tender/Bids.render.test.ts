@@ -53,15 +53,41 @@ describe("the Bids tab", () => {
     expect(out).toContain("same as the last version");
   });
 
-  it("offers Submit bid from Estimating and Revise bid from Submitted, never both, never when closed or view-only", () => {
+  it("offers Submit bid from Estimating and Revise bid once a version is in (Submitted or Clarifications), never both, never when closed or view-only", () => {
     expect(html()).toContain('data-guide="tender.bid.submit"');
     expect(html()).not.toContain('data-guide="tender.bid.revise"');
     expect(html({ stage: "submitted" })).toContain('data-guide="tender.bid.revise"');
     expect(html({ stage: "submitted" })).not.toContain('data-guide="tender.bid.submit"');
     expect(html({ stage: "clarifications" })).toContain('data-guide="tender.bid.revise"');
-    expect(html({ stage: "clarifications" })).toContain('data-guide="tender.bid.submit"');
+    expect(html({ stage: "clarifications" })).not.toContain('data-guide="tender.bid.submit"');
+    // Clarifications before any version: there is nothing to revise, so it is a first submit.
+    expect(html({ stage: "clarifications", data: bids({ versions: [] }) })).toContain('data-guide="tender.bid.submit"');
+    expect(html({ stage: "clarifications", data: bids({ versions: [] }) })).not.toContain('data-guide="tender.bid.revise"');
     expect(html({ stage: "awarded", outcome: "won" })).not.toMatch(/tender\.bid\.(submit|revise)/);
     expect(html({ data: bids({ canEdit: false }) })).not.toMatch(/tender\.bid\.(submit|revise)/);
+  });
+
+  it("Revise bid is one action: on a Submitted tender it opens the next version's form with the required reason (gap 22)", () => {
+    const out = html({ stage: "submitted", initialSubmitOpen: true });
+    expect(out).toContain('data-guide="tender.bid.form"');
+    expect(out).toContain("Submit version 3");
+    expect(out).toContain("Why is the bid revised?");
+    // The form replaces the button; nothing says "Back in Estimating".
+    expect(out).not.toContain('data-guide="tender.bid.revise"');
+    const src = readFileSync(path.resolve(__dirname, "BidsTab.tsx"), "utf8");
+    expect(src).not.toContain("Back in Estimating");
+    expect(src).not.toMatch(/async function revise\(/);
+    expect(src).toMatch(/data-guide="tender\.bid\.revise"[^\n]*warnThen\(\(\) => setAskSubmit\(true\)\)/);
+    // The stage goes back through the deal's own route, inside the one submit, before the version is posted; never twice.
+    const submit = src.slice(src.indexOf("async function submit()"), src.indexOf("// \"Open the Bid tab\""));
+    expect(submit).toMatch(/!BID_SUBMIT_STAGES\.includes\(stage\) && !reopened\.current/);
+    expect(submit.indexOf('stage: "estimating", outcome: "open"')).toBeGreaterThan(-1);
+    expect(submit.indexOf('stage: "estimating", outcome: "open"')).toBeLessThan(submit.indexOf("/tender/bids`"));
+  });
+
+  it("the revise form says so when the lines total has not moved since the last version", () => {
+    expect(html({ stage: "submitted", initialSubmitOpen: true })).toContain("Same total as version 2");
+    expect(html({ stage: "submitted", initialSubmitOpen: true, data: bids({ working_total: 6400 }) })).not.toContain('data-guide="tender.bid.same_total"');
   });
 
   it("the submit form asks for a reason from the second version and not for the first", () => {
@@ -88,6 +114,21 @@ describe("the Bids tab", () => {
     expect(out).toContain("Mobilisation");
     expect(out).toContain("Lines changed");
     expect(out).toContain("Rate SAR 100 to SAR 90");
+  });
+
+  it("a compared rate keeps its 2 decimals while amounts stay whole (gap 23: 66.70 read as 67)", () => {
+    const line = (rate: number): BidLine => ({ key: "no:1", item_no: "1", description: "Cable tray", unit: "m", qty: 10, rate, amount: Math.round(10 * rate), product_ref: null, price_source: null });
+    const added: BidLine = { key: "no:2", item_no: "2", description: "Gland", unit: "Nos", qty: 3, rate: 12.5, amount: 38, product_ref: null, price_source: null };
+    const diff = diffBids({ lines: [line(66.7)], total: 667 }, { lines: [line(62), added], total: 658 });
+    const fmtRate = (n: number) => `SAR ${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    const out = html({ initialCompare: { from: 1, to: 2, diff }, fmtRate });
+    expect(out).toContain("Rate SAR 66.70 to SAR 62.00");
+    expect(out).toContain("× SAR 12.50 = SAR 38");
+    expect(out).toContain("Amount -SAR 47");
+    // The page hands the Bid tab a 2-decimal rate formatter.
+    const page = readFileSync(path.resolve(__dirname, "../../app/(app)/pipeline/[id]/OpportunityDetailClient.tsx"), "utf8");
+    expect(page).toMatch(/const rate2 = \(n: number\) => formatMoney\(n, cur, \{ minimumFractionDigits: 2, maximumFractionDigits: 2 \}\)/);
+    expect(page).toContain("fmtRate={rate2}");
   });
 
   it("needs two versions to compare, and says a database update is needed while the migration is pending", () => {

@@ -114,7 +114,7 @@ export function tenderSteps(f: StepFacts, fmt: (n: number) => string = (n) => St
       checklist = [{ label: "Approved go decision", done: approved }, { label: "Bid guarantee submitted", done: f.guaranteeSubmitted === true }, { label: "Every line priced", done: f.hasBoq && f.unpriced === 0 }];
       break;
     case "submitted":
-      next = { title: "Next: record the outcome", detail: "When the issuer answers, record who won and the awarded value.", tipKey: "outcome", primary: headerPrimary };
+      next = { title: "Next: record the outcome", detail: "When the issuer answers, record how the tender ended.", tipKey: "outcomeRecord", primary: headerPrimary };
       checklist = [{ label: "Outcome recorded", done: false }];
       break;
     default: {

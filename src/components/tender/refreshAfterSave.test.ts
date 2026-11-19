@@ -106,9 +106,11 @@ describe("the wiring", () => {
     expect(outcome).not.toContain("router.refresh");
   });
 
-  it("the Bids tab reloads the versions after Submit and tells the page after Submit and Revise", () => {
+  it("the Bids tab reloads the versions after Submit (a revision included) and tells the page", () => {
     expect(bidsTab).toContain("bidsUrl(opportunityId)");
-    expect(bidsTab).toMatch(/onNotice\("Back in Estimating[^"]*"\);\s*onChanged\?\.\(\);/);
+    expect(bidsTab).toMatch(/await reloadAfterSave<[\s\S]*?\}, onChanged\);/);
+    // A revision that reopened the tender and then failed still tells the page, so the stage shown is the one it is in.
+    expect(bidsTab).toMatch(/if \(reopened\.current\) onChanged\?\.\(\); return;/);
     expect(bidsTab).not.toContain("router.refresh");
   });
 
