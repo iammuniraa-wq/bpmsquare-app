@@ -106,8 +106,12 @@ describe("the decision that stands, and the stage guard", () => {
 describe("the notes", () => {
   it("the approver's note names the proposer, the decision and the reason, as plain text", () => {
     const m = proposalMessage({ title: "Pipes <b>2026</b>", proposer: "A. Nasser", decision: "go", reason: "Good margin", link: "https://kamco.test/pipeline/1" });
-    expect(m.subject).toBe("Approval needed: bid (go) for Pipes <b>2026</b>");
-    expect(m.text).toContain("A. Nasser proposes bid (go)");
+    expect(m.subject).toBe("Approval needed: Go (bid) for Pipes <b>2026</b>");
+    expect(m.text).toContain('A. Nasser proposes to bid on the tender "Pipes <b>2026</b>".');
+    expect(m.comment).toBe("Asks you to approve: Go (bid). Good margin");
+    const no = proposalMessage({ title: "T", proposer: "A. Nasser", decision: "no_go", reason: "Too far", link: null });
+    expect(no.subject).toBe("Approval needed: No-go (no bid) for T");
+    expect(no.text).toContain('A. Nasser proposes not to bid on the tender "T".');
     expect(m.text).toContain("Reason: Good margin");
     expect(m.text).toContain("https://kamco.test/pipeline/1");
     expect(m.comment.length).toBeLessThanOrEqual(600);
@@ -115,7 +119,8 @@ describe("the notes", () => {
 
   it("the proposer's note says how it went, and a rejection says the tender is back in Bid/No-bid", () => {
     const no = outcomeMessage({ title: "T", decider: "Boss", decision: "no_go", approved: false, comment: "Not now", link: null });
-    expect(no.subject).toBe("Rejected: no-go for T");
+    expect(no.subject).toBe("Rejected: No-go (no bid) for T");
+    expect(no.text).toContain('Boss rejected your proposal not to bid on the tender "T".');
     expect(no.text).toContain("Comment: Not now");
     expect(no.text).toContain("back in Bid/No-bid");
     const yes = outcomeMessage({ title: "T", decider: "Boss", decision: "go", approved: true, comment: null, link: null });

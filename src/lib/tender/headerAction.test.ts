@@ -14,10 +14,10 @@ describe("the primary header button of a tender, by stage", () => {
     expect(tenderPrimary(facts({ stage: "received" }))?.key).toBe("propose_decision");
   });
 
-  it("Bid/No-bid proposes until a go is approved, then it is Submit bid", () => {
+  it("Bid/No-bid proposes until a go is approved; after that the header has no button (the bid is submitted on the Bid tab)", () => {
     expect(label({ stage: "bid_no_bid", approvedGo: false })).toBe("Propose bid decision");
     expect(label({ stage: "bid_no_bid", approvedGo: null })).toBe("Propose bid decision");
-    expect(label({ stage: "bid_no_bid", approvedGo: true })).toBe("Submit bid");
+    expect(label({ stage: "bid_no_bid", approvedGo: true })).toBeNull();
   });
 
   it("a waiting proposal turns the button into Review bid decision, in Received and in Bid/No-bid (live bug 2026-10-27)", () => {
@@ -35,15 +35,17 @@ describe("the primary header button of a tender, by stage", () => {
   });
 
   it("a waiting proposal changes nothing once the bid is being worked or the deal is closed", () => {
-    expect(label({ stage: "estimating", proposalPending: true })).toBe("Submit bid");
+    expect(label({ stage: "estimating", proposalPending: true })).toBeNull();
     expect(label({ stage: "submitted", bids: 1, proposalPending: true })).toBe("Record the outcome");
     expect(label({ stage: "no_bid", outcome: "dropped", proposalPending: true })).toBeNull();
   });
 
-  it("Estimating is Submit bid, and Revise bid once a version has been submitted (the bid was reopened)", () => {
-    expect(label({ stage: "estimating" })).toBe("Submit bid");
-    expect(label({ stage: "estimating", bids: 2 })).toBe("Revise bid");
-    expect(tenderPrimary(facts({ stage: "estimating", bids: 2 }))?.key).toBe("revise_bid");
+  it("no stage offers Submit bid or Revise bid in the header: submitting happens on the Bid tab only (owner decision 2026-11-19)", () => {
+    expect(label({ stage: "estimating" })).toBeNull();
+    expect(label({ stage: "estimating", bids: 2 })).toBeNull();
+    for (const stage of ["received", "bid_no_bid", "estimating", "submitted", "clarifications", "awarded", "bid_lost", "no_bid"]) {
+      for (const bids of [0, 2]) for (const approvedGo of [true, false]) expect(label({ stage, bids, approvedGo }) ?? "", stage).not.toMatch(/submit bid|revise bid/i);
+    }
   });
 
   it("Submitted and Clarifications record the outcome", () => {
@@ -77,7 +79,7 @@ describe("the primary header button of a tender, by stage", () => {
   });
 
   it("every button carries a guide id for the assistant", () => {
-    for (const stage of ["received", "estimating", "submitted"]) expect(tenderPrimary(facts({ stage }))?.guide).toMatch(/^tender\.primary\./);
+    for (const stage of ["received", "submitted"]) expect(tenderPrimary(facts({ stage }))?.guide).toMatch(/^tender\.primary\./);
   });
 });
 

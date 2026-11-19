@@ -137,7 +137,7 @@ describe("proposing the decision", () => {
     await propose();
     expect(state.sent).toHaveLength(1);
     expect(state.sent[0].to.sort()).toEqual(["boss2@kamco.test", "boss@kamco.test"]);
-    expect(state.sent[0].subject).toContain("Approval needed: bid (go)");
+    expect(state.sent[0].subject).toContain("Approval needed: Go (bid)");
     expect(state.sent[0].text).toContain("https://kamco.example.com/pipeline/");
     const log = state.db.rows("email_log")[0];
     expect(log).toMatchObject({ tenant_id: T1, kind: "tender", status: "sent", related_object_id: OPP });
@@ -296,7 +296,7 @@ describe("who may decide", () => {
     await decide(req("PATCH", { action: "approve", comment: "Go ahead" }), dctx(OPP, AR1));
     expect(state.sent).toHaveLength(1);
     expect(state.sent[0].to).toEqual(["proposer@kamco.test"]);
-    expect(state.sent[0].subject).toContain("Approved: bid (go)");
+    expect(state.sent[0].subject).toContain("Approved: Go (bid)");
     expect(state.db.rows("record_comments").at(-1)).toMatchObject({ author_id: BOSS, mentions: ["proposer@kamco.test"] });
   });
 

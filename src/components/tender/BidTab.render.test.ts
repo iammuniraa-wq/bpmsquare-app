@@ -39,7 +39,7 @@ const bid = (props: Record<string, unknown> = {}) => clean(renderToString(create
 
 describe("the readiness line on the Bid tab", () => {
   it("warns with what is still open, uses the warning tone, and never takes the Submit button away", () => {
-    const out = bid({ checks: checks({ unpricedFromLines: 12, approvedGo: false, guarantee: { amount: 96000, expiry: "2027-06-30", status: "issued" } }) });
+    const out = bid({ data: bids({ working_total: 6800 }), checks: checks({ unpricedFromLines: 12, approvedGo: false, guarantee: { amount: 96000, expiry: "2027-06-30", status: "issued" } }) });
     expect(out).toContain('data-guide="tender.bid.readiness"');
     expect(out).toContain('data-state="open"');
     expect(out).toContain("Before you submit");
@@ -49,26 +49,50 @@ describe("the readiness line on the Bid tab", () => {
     expect(out).toContain('data-guide="tender.bid.submit"');
   });
 
-  it("says Ready to submit when nothing is open, and shows nothing once the tender has ended", () => {
-    expect(bid({ checks: checks() })).toContain("Ready to submit");
+  it("says Ready to submit only when there is something to submit: no version yet, or the lines total moved since the last one", () => {
+    expect(bid({ data: bids({ versions: [] }), checks: checks() })).toContain("Ready to submit");
+    expect(bid({ data: bids({ working_total: 6800 }), checks: checks() })).toContain("Ready to submit");
+  });
+
+  it("with nothing changed since the last version it says Version N submitted, never Ready to submit or a warning (live walkthrough 2026-11-19)", () => {
+    for (const stage of ["estimating", "submitted", "clarifications"]) {
+      const out = bid({ stage, checks: checks({ unpricedFromLines: 4 }) });
+      expect(out, stage).not.toContain("Ready to submit");
+      expect(out, stage).not.toContain("Before you submit");
+      expect(out, stage).toContain('data-state="submitted"');
+      expect(out, stage).toContain("Version 2 submitted");
+    }
+  });
+
+  it("the line and the figures under it are spaced, not touching", () => {
+    const out = bid({ checks: checks() });
+    const before = out.slice(0, out.indexOf('<div role="status" data-guide="tender.bid.readiness"'));
+    expect(before.slice(before.lastIndexOf("<div"))).toContain("gap:12px");
+    expect(read("src/components/tender/BidsTab.tsx")).toMatch(/<div style=\{\{ display: "flex", flexDirection: "column", gap: 12 \}\}>\s*\{checks && open/);
+  });
+
+  it("shows nothing once the tender has ended, or when the page gives no checks", () => {
     expect(bid({ checks: checks(), stage: "awarded", outcome: "won" })).not.toContain('data-guide="tender.bid.readiness"');
     expect(bid()).not.toContain('data-guide="tender.bid.readiness"');
   });
 
   it("sits above the figures and the buttons, with its explanation behind an i", () => {
-    const out = bid({ checks: checks({ unpricedFromLines: 3 }) });
+    const out = bid({ data: bids({ working_total: 6800 }), checks: checks({ unpricedFromLines: 3 }) });
     expect(out.indexOf('data-guide="tender.bid.readiness"')).toBeLessThan(out.indexOf('data-guide="tender.bids.summary"'));
     expect(out.indexOf('data-guide="tender.bids.summary"')).toBeLessThan(out.indexOf('data-guide="tender.bid.submit"'));
     expect(out).toContain('aria-label="About Before you submit"');
     expect(out).not.toContain(TENDER_TIPS.submitWarnings);
   });
 
-  it("the header's Submit bid starts the same flow as the button on the tab, once per press", () => {
+  it("Open the Bid tab (the path across the top) brings the Submit button into view and focuses it, once per press, and starts nothing by itself", () => {
     const src = read("src/components/tender/BidsTab.tsx");
     expect(src).toMatch(/if \(startSignal <= handledSignal\.current\) return;/);
-    expect(src).toMatch(/if \(canSubmit\) void warnThen\(\(\) => setAskSubmit\(true\)\);\s*else if \(canRevise\) void warnThen\(revise\)/);
-    // A stage the server would refuse (a legacy approved go still on Bid/No-bid) says so instead of doing nothing.
-    expect(src).toContain('onError("A bid is submitted from Estimating or Clarifications")');
+    const effect = src.slice(src.indexOf("const handledSignal"), src.indexOf("async function compare"));
+    expect(effect).toContain("querySelector<HTMLElement>(SUBMIT_FOCUS)");
+    expect(effect).toContain("scrollIntoView");
+    expect(effect).toContain("focus({ preventScroll: true })");
+    expect(effect).not.toMatch(/warnThen|setAskSubmit|revise\(/);
+    expect(src).toMatch(/const SUBMIT_FOCUS = '[^']*\[data-guide="tender\.bid\.submit"\][^']*'/);
   });
 });
 

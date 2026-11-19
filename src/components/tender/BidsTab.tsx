@@ -26,6 +26,8 @@ import PaymentTermsPicker from "@/components/contractProjects/PaymentTermsPicker
 // holds a cost or a markup. The rules (which stage may submit, whether a reason is needed) are the server's; this only draws them.
 
 const fmtStamp = (s: string) => new Date(s).toLocaleString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
+// Where "Open the Bid tab" lands: the open submit form, else the Submit button, else Revise.
+const SUBMIT_FOCUS = '[data-guide="tender.bid.form"] textarea, [data-guide="tender.bid.form"] input, [data-guide="tender.bid.submit"], [data-guide="tender.bid.revise"]';
 const SHOWN_VERSIONS = 5;
 const SHOWN_LINES = 8;
 
@@ -48,7 +50,7 @@ export default function BidsTab({ opportunityId, data: pageData, stage, outcome,
   quotes?: LinkedQuote[];
   /** Standard Quotes are on in this workspace and the caller may change the deal: "Make a Standard Quote from this version" is offered. */
   canMakeQuote?: boolean;
-  /** The header's Submit bid / Revise bid button counts this up; each increase starts the same flow as the button on this tab. */
+  /** "Open the Bid tab" in the path across the top counts this up; each increase brings the Submit (or Revise) button into view and focuses it. */
   startSignal?: number;
   /** Lets a server render (and its test) show a finished comparison. The page never passes it. */
   initialCompare?: { from: number; to: number; diff: BidDiff } | null;
@@ -152,16 +154,21 @@ export default function BidsTab({ opportunityId, data: pageData, stage, outcome,
     } finally { setBusy(false); }
   }
 
-  // The header's Submit bid / Revise bid opens this tab and counts startSignal up; this starts the same flow as the buttons below.
+  // "Open the Bid tab" (the path across the top) opens this tab and counts startSignal up: the place where a bid is submitted comes
+  // into view and takes the focus. Nothing is started for the person; submitting is their press on this tab.
+  const rootRef = useRef<HTMLDivElement>(null);
   const handledSignal = useRef(0);
   useEffect(() => {
     if (startSignal <= handledSignal.current) return;
     handledSignal.current = startSignal;
-    if (canSubmit) void warnThen(() => setAskSubmit(true));
-    else if (canRevise) void warnThen(revise);
-    else if (data.canEdit && !data.pending && open) onError("A bid is submitted from Estimating or Clarifications");
-    // Runs when the header asks, not on every render.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // After the page's own scroll to the tab strip on a phone.
+    const frame = requestAnimationFrame(() => {
+      const root = rootRef.current;
+      const target = root?.querySelector<HTMLElement>(SUBMIT_FOCUS) ?? root;
+      target?.scrollIntoView({ block: "center" });
+      if (target && target !== root) target.focus({ preventScroll: true });
+    });
+    return () => cancelAnimationFrame(frame);
   }, [startSignal]);
 
   async function compare() {
@@ -178,14 +185,17 @@ export default function BidsTab({ opportunityId, data: pageData, stage, outcome,
 
   const summary = data.pending ? "Needs a database update" : latest ? `Version ${latest.version_no} · ${fmt(latest.total)} · ${fmtStamp(latest.submitted_at)}` : "No bid submitted yet";
   const workingVsLast = latest ? data.working_total - latest.total : null;
+  // Something to submit: no version yet, or the lines total moved since the last one. Otherwise "Ready to submit" would be misleading.
+  const toSubmit = !latest || Math.abs(data.working_total - latest.total) >= 0.005;
   const vsPrevious = versions.length >= 2 ? versions[0].total - versions[1].total : null;
   const shown = showAll ? versions : versions.slice(0, SHOWN_VERSIONS);
 
   return (
-    <div data-guide="tender.bids" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+    <div ref={rootRef} data-guide="tender.bids" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
       <SettingsSection id="tender.bids.current" title="Bid" info={TENDER_TIPS.bidsTab} summary={summary} defaultOpen>
         {data.pending && <div role="alert" data-guide="tender.bids.pending" style={{ fontSize: 13, color: "var(--amberink)" }}>Bid versions need a database update (migration 0225). Ask your administrator to apply it.</div>}
-        {checks && open && !data.pending && <ReadinessLine warnings={readiness} />}
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        {checks && open && !data.pending && (toSubmit ? <ReadinessLine warnings={readiness} /> : latest && <SubmittedLine versionNo={latest.version_no} />)}
         <StatStrip guide="tender.bids.summary">
           <StatTile tone="info" label="Lines total now" info={TENDER_TIPS.bidWorking} value={fmt(data.working_total)} sub={workingVsLast === null ? null : workingVsLast === 0 ? "same as the last version" : `${workingVsLast > 0 ? "+" : "-"}${fmt(Math.abs(workingVsLast))} since version ${latest?.version_no}`} />
           <StatTile tone="info" label="Last submitted" value={latest ? fmt(latest.total) : "—"} sub={latest ? `Version ${latest.version_no} · ${latest.line_count} line${latest.line_count === 1 ? "" : "s"}` : "Nothing submitted"} />
@@ -224,6 +234,7 @@ export default function BidsTab({ opportunityId, data: pageData, stage, outcome,
             </div>
           </div>
         )}
+        </div>
       </SettingsSection>
 
       <SettingsSection id="tender.bids.versions" title="Versions" summary={versions.length === 0 ? "None yet" : `${versions.length} submitted`} defaultOpen={versions.length > 0}>
@@ -288,6 +299,17 @@ function ReadinessLine({ warnings }: { warnings: string[] }) {
       <b>{open ? "Before you submit" : "Ready to submit"}</b>
       {open && <span>{warnings.join(" ")}</span>}
       {open && <InfoTip label="Before you submit">{TENDER_TIPS.submitWarnings}</InfoTip>}
+    </div>
+  );
+}
+
+/** Nothing has changed since the last version: a quiet statement of where the bid stands, in place of "Ready to submit". */
+function SubmittedLine({ versionNo }: { versionNo: number }) {
+  const t = toneTokens("neutral");
+  return (
+    <div role="status" data-guide="tender.bid.readiness" data-state="submitted" style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", background: t.bg, color: t.ink, border: `1px solid ${t.edge}`, borderRadius: 10, padding: "8px 12px", fontSize: 13 }}>
+      <b>Version {versionNo} submitted</b>
+      <span style={{ color: t.quiet }}>No change since.</span>
     </div>
   );
 }

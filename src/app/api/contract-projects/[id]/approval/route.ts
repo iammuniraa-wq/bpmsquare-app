@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { logChange } from "@/lib/changeLog";
 import { loadActorNames } from "@/lib/actorNames";
+import { personLabel } from "@/lib/personName";
 import { getAuthUser } from "@/lib/supabase-server";
 import { getTenant } from "@/lib/tenant";
 import { loadApprovers } from "@/lib/tender/approvalServer";
@@ -84,7 +85,7 @@ export async function POST(request: NextRequest, { params }: Ctx) {
     const names = await loadActorNames(admin, tenantId, [userId]);
     const to = await memberEmails(admin, tenantId, deciders);
     if (tenant && to.length > 0) {
-      const msg = askMessage({ project: project.name, ref: project.ref, proposer: names.get(userId) ?? user?.email ?? "A colleague", revNo: revision.rev_no, reason, link: projectLink(tenant, id) });
+      const msg = askMessage({ project: project.name, ref: project.ref, proposer: personLabel(names.get(userId), user, "A colleague"), revNo: revision.rev_no, reason, link: projectLink(tenant, id) });
       await projectInboxNote(admin, { tenantId, projectId: id, authorId: userId, authorEmail: user?.email ?? null, body: msg.comment, mentionEmails: to.map((t) => t.email) });
       await sendProjectMail(admin, tenant, { to: to.map((t) => t.email), subject: msg.subject, text: msg.text, projectId: id, projectLabel: label, actorId: userId, actorEmail: user?.email ?? null });
     }

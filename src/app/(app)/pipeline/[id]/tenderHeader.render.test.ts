@@ -67,11 +67,20 @@ describe("the primary header button of a tender follows the stage", () => {
     expect(out).not.toContain("no proposal yet");
   });
 
-  it("Estimating: Submit bid, and Revise bid once a version is in", () => {
-    expect(buttonFor(page({ stage: "estimating" }), "tender.primary.submit")).toContain("Submit bid");
-    const revised = page({ stage: "estimating", tender: { bids: { versions: [ver(1, 200)], pending: false, working_total: 0, canEdit: true } } });
-    expect(buttonFor(revised, "tender.primary.revise")).toContain("Revise bid");
-    expect(primaryGuides(revised)).toEqual(["tender.primary.revise"]);
+  it("Estimating: no Submit bid or Revise bid at the top, at the BOQ, Costing or Bid step (owner decision 2026-11-19: submitting is on the Bid tab)", () => {
+    const boq = (unpriced: number) => ({ hasBoq: true, lines: 4, unpriced, stale: 0, noProduct: 0, amount: 400 });
+    const pages = [
+      page({ stage: "estimating" }),
+      page({ stage: "estimating", tender: { boq: boq(2) } }),
+      page({ stage: "estimating", tender: { boq: boq(0) } }),
+      page({ stage: "estimating", tender: { boq: boq(0), bids: { versions: [ver(1, 200)], pending: false, working_total: 0, canEdit: true } } }),
+    ];
+    for (const out of pages) {
+      expect(primaryGuides(out)).toEqual([]);
+      const top = out.slice(0, out.indexOf('role="tablist"') > 0 ? out.indexOf('role="tablist"') : out.indexOf('data-guide="tender.checklist"'));
+      expect(top).not.toContain("Submit bid");
+      expect(top).not.toContain("Revise bid");
+    }
   });
 
   it("Submitted and Clarifications: Record the outcome", () => {
@@ -105,7 +114,7 @@ describe("the primary header button of a tender follows the stage", () => {
   });
 
   it("every primary button is a 44 px target", () => {
-    for (const stage of ["received", "estimating", "submitted"]) expect(buttonFor(page({ stage }), `tender.primary.${stage === "received" ? "propose" : stage === "estimating" ? "submit" : "outcome"}`), stage).toContain("min-height:44px");
+    for (const stage of ["received", "submitted"]) expect(buttonFor(page({ stage }), `tender.primary.${stage === "received" ? "propose" : "outcome"}`), stage).toContain("min-height:44px");
   });
 
   it("a standard deal keeps Convert to Standard Quote as its primary step, and no tender button", () => {
@@ -132,14 +141,15 @@ describe("the primary header button of a tender follows the stage", () => {
     expect(footer).toContain('variant={offerProject ? "secondary" : "primary"}');
   });
 
-  it("the buttons are wired: propose opens the decision panel, submit and revise open the Bid tab and start its flow, the outcome opens the close dialog, create makes the project", () => {
+  it("the buttons are wired: propose opens the decision panel, Open the Bid tab opens that tab at its Submit button, the outcome opens the close dialog, create makes the project", () => {
     const src = read("src/app/(app)/pipeline/[id]/OpportunityDetailClient.tsx");
     expect(src).toMatch(/key === "propose_decision" \|\| key === "review_decision"\) setDecisionOpen\(true\)/);
     // A proposal re-reads the decision at once, so the marker and the header button do not wait for a reload.
     expect(src).toContain("proposalPending: !!approvalNow?.pending");
     expect(src).toMatch(/onSaved=\{\(\) => void reloadApproval\(\)\}/);
     expect(src).toContain("/tender/approval");
-    expect(src).toMatch(/key === "submit_bid" \|\| key === "revise_bid"\) \{ openTab\("bid"\); setBidStart\(\(n\) => n \+ 1\); \}/);
+    expect(src).not.toMatch(/submit_bid|revise_bid/);
+    expect(src).toMatch(/openTab\(to\.tab as Tab\); if \(to\.tab === "bid"\) setBidStart\(\(n\) => n \+ 1\);/);
     expect(src).toMatch(/key === "record_outcome"\) markWon\(\)/);
     expect(src).toMatch(/key === "create_project"\) createContractProject\(\)/);
     expect(src).toContain("startSignal={bidStart}");
@@ -161,7 +171,7 @@ describe("the path across the top of a tender", () => {
     expect(page({ stage: "received" }).match(/data-step="/g)).toHaveLength(7);
   });
 
-  it("Costing offers the unpriced lines and Costing; the BOQ step offers the BOQ; Bid keeps the one Submit button as the lead", () => {
+  it("Costing offers the unpriced lines and Costing; the BOQ step offers the BOQ; Bid offers Open the Bid tab, never Submit bid", () => {
     const costing = page({ stage: "estimating", tender: withBoq({ boq: { hasBoq: true, lines: 4, unpriced: 2, stale: 0, noProduct: 0, amount: 0 }, costing: { canEdit: true } }) });
     expect(costing).toContain('data-guide="tender.next.unpriced"');
     expect(costing).toContain("Open the 2 lines");
@@ -169,7 +179,10 @@ describe("the path across the top of a tender", () => {
     expect(page({ stage: "estimating" })).toContain('data-guide="tender.next.boq"');
     const bid = page({ stage: "estimating", tender: withBoq({}) });
     expect(bid).toContain("Next: submit the bid");
-    expect(buttonFor(bid, "tender.primary.submit")).toContain("bpm-btn-primary");
+    expect(buttonFor(bid, "tender.next.bid")).toContain("Open the Bid tab");
+    expect(buttonFor(bid, "tender.next.bid")).toContain("bpm-btn-primary");
+    expect(buttonFor(bid, "tender.next.bid")).toContain("min-height:44px");
+    expect(bid).not.toContain('data-guide="tender.primary.submit"');
     expect(bid).not.toContain('data-guide="tender.next.boq"');
   });
 
@@ -284,9 +297,9 @@ describe("on a phone (under 780 px)", () => {
     expect(out).toContain("Valves for Plant 4");
     expect(out).toContain('data-guide="record.more"');
     const next = out.slice(out.indexOf('data-guide="tender.next"'), out.indexOf('data-guide="tender.checklist"'));
-    expect(next).toMatch(/data-guide="tender\.primary\.submit"/);
-    expect(out.indexOf('data-guide="tender.primary.submit"')).toBeGreaterThan(out.indexOf('data-guide="tender.next"'));
-    expect(out.match(/data-guide="tender\.primary\.submit"/g)).toHaveLength(1);
+    expect(next).toMatch(/data-guide="tender\.next\.boq"/);
+    expect(next).not.toContain("Submit bid");
+    expect(out).not.toContain('data-guide="tender.primary.submit"');
   });
 
   it("the bid decision panel is mounted by the page, so the primary button can open it while the facts are folded", () => {

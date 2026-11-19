@@ -356,7 +356,6 @@ export default function OpportunityDetailClient({ opp, accountName, contacts, in
     : null;
   function runPrimary(key: TenderPrimaryKey) {
     if (key === "propose_decision" || key === "review_decision") setDecisionOpen(true);
-    else if (key === "submit_bid" || key === "revise_bid") { openTab("bid"); setBidStart((n) => n + 1); }
     else if (key === "record_outcome") markWon();
     else if (key === "create_project") createContractProject();
   }
@@ -498,7 +497,7 @@ export default function OpportunityDetailClient({ opp, accountName, contacts, in
         <>
           <TenderStepper
             steps={stepsNow.steps} current={stepsNow.current} next={stepsNow.next} checklist={stepsNow.checklist} primaryButton={primary}
-            onJump={(to) => { if (to.tab === "boq" && to.filter) { boqAsks.current += 1; setBoqRequest({ filter: to.filter, n: boqAsks.current }); setTab("boq"); } else openTab(to.tab as Tab); }}
+            onJump={(to) => { if (to.tab === "boq" && to.filter) { boqAsks.current += 1; setBoqRequest({ filter: to.filter, n: boqAsks.current }); setTab("boq"); } else { openTab(to.tab as Tab); if (to.tab === "bid") setBidStart((n) => n + 1); } }}
           />
           <div style={{ marginBottom: 14 }}>
             <SettingsSection id="tender.header_facts" title="Details" info={TENDER_TIPS.details} summary={detailsSummary} defaultOpen={false} defaultOpenNarrow={false}>{factsRow}</SettingsSection>

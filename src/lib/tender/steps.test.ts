@@ -74,12 +74,12 @@ describe("the next step", () => {
     expect(out({ boqLines: 4, unpriced: 1 }).next.detail).toBe("3 of 4 lines have a cost. 1 still needs one.");
   });
 
-  it("Bid submits (or revises) through the header button and shows the total", () => {
+  it("Bid opens the Bid tab (never a Submit button in the Next row) and shows the total", () => {
     const n = tenderSteps(facts({ boqLines: 12, boqAmount: 5000 }), (v) => `SAR ${v}`).next;
     expect(n.title).toBe("Next: submit the bid");
     expect(n.detail).toBe("12 lines priced, total SAR 5000.");
-    expect(n.primary).toEqual({ kind: "header", key: "submit_bid" });
-    expect(out({ bids: 1 }).next.primary).toEqual({ kind: "header", key: "revise_bid" });
+    expect(n.primary).toEqual({ kind: "tab", tab: "bid", label: "Open the Bid tab", guide: "tender.next.bid" });
+    expect(out({ bids: 1 }).next.primary).toEqual({ kind: "tab", tab: "bid", label: "Open the Bid tab", guide: "tender.next.bid" });
   });
 
   it("Submitted records the outcome", () => {
