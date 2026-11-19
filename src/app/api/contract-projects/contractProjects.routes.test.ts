@@ -155,6 +155,11 @@ async function withBaseline() {
   await budgetPut(json("PUT", { revision_id: p.revision_id, lines: goodLines() }), ctx(p.id));
   return p;
 }
+/** Replaces the lines of a project's draft with fully costed ones and answers the view. */
+async function withBaselineOn(p: { id: string; revision_id: string }) {
+  await budgetPut(json("PUT", { revision_id: p.revision_id, lines: goodLines() }), ctx(p.id));
+  return (await oneGet(get(), ctx(p.id))).json();
+}
 async function askAndApprove(p: { id: string }, comment?: string) {
   as(ASKER);
   const ask = await askPost(json("POST", {}), ctx(p.id));
@@ -209,15 +214,17 @@ describe("creating from a won tender", () => {
     const lines = mine("project_budget_lines");
     expect(lines).toHaveLength(2);
     expect(p.skipped).toBe(1);
-    // The contract, not a budget: the client's rate and amount, the line it came from, NO cost and not allocated.
+    // The contract (the client's rate and amount, the line it came from) with the cost the tender RECORDED for it: RFQ-0004 priced the fence at 120.
     const fence = lines.find((l) => String(l.description).startsWith("Chain link"))!;
-    expect(fence).toMatchObject({ resource_code: "11", cost_code: "32 31 13", unit_cost: 0, amount: 0, allocated: false, cost_known: true, wbs: "1.1", client_rate: 200, client_amount: 20000, source_line_id: "l1", qty: 100 });
+    expect(fence).toMatchObject({ resource_code: "11", cost_code: "32 31 13", unit_cost: 120, amount: 12000, allocated: true, cost_known: true, wbs: "1.1", client_rate: 200, client_amount: 20000, source_line_id: "l1", qty: 100, source_ref: "Cost from RFQ-0004" });
+    expect((p as unknown as { filled: unknown }).filled).toEqual({ lines: 1, total: 12000 });
+    // A line the tender recorded no cost for carries none: nothing is guessed.
     const dig = lines.find((l) => l.description === "Excavation")!;
     expect(dig).toMatchObject({ cost_code: null, unit_cost: 0, amount: 0, allocated: false, client_rate: 40, client_amount: 2000, source_line_id: "l2" });
     expect(dig.source_ref).toBeNull();
     expect(p.unmapped_codes).toEqual(["99 99 99"]);
     expect(p.budget_note).toBe("Contract lines from the tender; costs to be allocated.");
-    expect(revs[0].total).toBe(0);
+    expect(revs[0].total).toBe(12000);
   });
 
   it("while migration 0240 is pending a project from a tender is refused with a plain message (it could not say 'not allocated'), and nothing is left behind", async () => {
@@ -416,6 +423,37 @@ describe("the budget lines", () => {
     const approved = await budgetPut(json("PUT", { revision_id: p.revision_id, lines: [{ description: "change", resource_code: "11" }] }), ctx(p.id));
     expect(approved.status).toBe(409);
     expect(JSON.stringify(mine("project_budget_lines"))).toBe(snapshot);
+  });
+});
+
+describe("asking for approval with lines that have no cost", () => {
+  it("is not refused, and the request and the approver's e-mail say how many lines are costed", async () => {
+    const p = await fromTender(); // the fence costed from the tender, the excavation not
+    const res = await askPost(json("POST", {}), ctx(p.id));
+    expect(res.status).toBe(201);
+    expect(String(rows("approval_requests")[0].reason)).toBe("Baseline budget, SAR 12,000 (1 of 2 lines costed)");
+    expect(state.sent[0].text).toContain("1 of 2 lines costed");
+    // The screen is told, so it can ask "Send anyway?" before it posts.
+    as(BOSS, "admin");
+    expect((await (await oneGet(get(), ctx(p.id))).json()).approval.pending.reason).toContain("1 of 2 lines costed");
+  });
+
+  it("the view carries the warning while a draft has lines without a cost, and none once every line is costed", async () => {
+    const p = await fromTender();
+    const v = await (await oneGet(get(), ctx(p.id))).json();
+    expect(v.approval.askBlocked).toBeNull();
+    expect(v.approval.askWarning).toBe("1 of 2 lines has no cost yet");
+    expect(v.totals).toMatchObject({ lineCount: 2, costedCount: 1 });
+    const full = await withBaselineOn(p);
+    expect(full.approval.askWarning).toBeNull();
+  });
+
+  it("a budget with no costed line at all is still refused outright", async () => {
+    for (const b of rows("tender_boq_lines")) b.unit_cost = null;
+    const p = await fromTender();
+    const res = await askPost(json("POST", {}), ctx(p.id));
+    expect(res.status).toBe(409);
+    expect((await res.json()).error).toContain("The budget is 0");
   });
 });
 

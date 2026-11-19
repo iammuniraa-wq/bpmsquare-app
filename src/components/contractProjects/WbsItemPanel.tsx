@@ -24,12 +24,14 @@ import type { Employee } from "@/lib/types";
  * task, so no login means no assignment). A line sits in one item or is split across several; lines are only held by bottom-level items. After the
  * baseline is approved the money is fixed: names, codes, parents and owners still save, the lines checklist does not (in the WBS basis).
  */
-export default function WbsItemPanel({ projectId, pkg, parentId, packages, lines, employees, locked, linesLocked, basis, onClose, onSaved, onEditSplit, onMakeBuyout }: {
+export default function WbsItemPanel({ projectId, pkg, parentId, initialLineKeys, packages, lines, employees, locked, linesLocked, basis, onClose, onSaved, onEditSplit, onMakeBuyout }: {
   projectId: string;
   /** null = a new item. */
   pkg: WorkPackageRow | null;
   /** A new item starts under this parent (Add sub-item). */
   parentId?: string | null;
+  /** A new item starts with these lines ticked (the ones ticked in the Unassigned list). */
+  initialLineKeys?: readonly string[];
   packages: WorkPackageRow[];
   lines: BudgetLine[];
   employees: EmployeeChoice[];
@@ -51,7 +53,7 @@ export default function WbsItemPanel({ projectId, pkg, parentId, packages, lines
   const [parent, setParent] = useState(pkg ? pkg.parent_id ?? "" : parentId ?? "");
   const [owner, setOwner] = useState(pkg?.owner_employee_id ?? "");
   const [note, setNote] = useState(pkg?.note ?? "");
-  const [picked, setPicked] = useState<Set<string>>(new Set(pkg?.line_keys ?? []));
+  const [picked, setPicked] = useState<Set<string>>(new Set(pkg?.line_keys ?? initialLineKeys ?? []));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
@@ -62,7 +64,12 @@ export default function WbsItemPanel({ projectId, pkg, parentId, packages, lines
   const isBranch = !!pkg && packages.some((p) => p.parent_id === pkg.id);
   const holder = useMemo(() => new Map(packages.filter((p) => p.id !== pkg?.id).flatMap((p) => p.line_keys.map((k) => [k, p.code] as const))), [packages, pkg?.id]);
   const splitKeys = useMemo(() => new Set(packages.flatMap((p) => (p.line_parts ?? []).map((x) => x.line_key))), [packages]);
-  const ordered = useMemo(() => [...lines].sort((a, b) => Number(holder.has(a.line_key) || splitKeys.has(a.line_key)) - Number(holder.has(b.line_key) || splitKeys.has(b.line_key)) || a.line_no - b.line_no), [lines, holder, splitKeys]);
+  // The lines a new item was opened with come first, so the ticks are in view; then the free lines; the taken ones last.
+  const ordered = useMemo(() => {
+    const brought = new Set(pkg ? [] : initialLineKeys ?? []);
+    const rank = (l: BudgetLine) => (brought.has(l.line_key) ? 0 : holder.has(l.line_key) || splitKeys.has(l.line_key) ? 2 : 1);
+    return [...lines].sort((a, b) => rank(a) - rank(b) || a.line_no - b.line_no);
+  }, [lines, holder, splitKeys, pkg, initialLineKeys]);
   const chosen = employees.find((e) => e.id === owner) ?? null;
   const needsLogin = !!chosen && !chosen.has_login && chosen.id !== pkg?.owner_employee_id;
   const disabled = !!locked;

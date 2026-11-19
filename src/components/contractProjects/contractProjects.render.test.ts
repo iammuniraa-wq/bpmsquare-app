@@ -23,6 +23,9 @@ import { budgetTotals, diffRevisions, marginView } from "@/lib/contractProjects/
 import { allocationView } from "@/lib/contractProjects/allocation";
 import { projectPath } from "@/lib/contractProjects/path";
 import ProjectPathBar from "./ProjectPathBar";
+import BudgetOrdered from "./BudgetOrdered";
+import { costText, costTyped } from "./AllocationTable";
+import type { BuyoutData } from "./buyout/types";
 import { PROJECT_TIPS } from "@/lib/contractProjects/tips";
 import type { ProjectView } from "@/lib/contractProjects/view";
 import type { BudgetLine } from "@/lib/contractProjects/types";
@@ -130,6 +133,40 @@ describe("Overview", () => {
     expect(page).toContain("from bid v${origin.bid.version_no}");
   });
 
+  it("a project from a tender whose budget is still 0 puts Fill from tender costs first in Needs you", () => {
+    const fromTender = lines.map((l, i) => ({ ...l, source_line_id: `d${i}`, allocated: false, amount: 0, unit_cost: 0 }));
+    const zero = budgetTotals(fromTender);
+    const o = strip(renderToString(createElement(ProjectOverview, { view: view({ lines: fromTender, totals: zero, margin: marginView(30000, zero, null) }) })));
+    expect(o).toContain("The budget is 0");
+    expect(o).toContain(">Fill from tender costs<");
+    expect(o.indexOf("Fill from tender costs")).toBeLessThan(o.indexOf("lines not allocated"));
+    expect(readFileSync(path.join(ROOT, "src/components/contractProjects/ProjectOverview.tsx"), "utf8")).toContain('key: "fill"');
+    // Not once a cost is in, not for a person who cannot edit, not on a project made by hand.
+    expect(out).not.toContain("Fill from tender costs");
+    expect(strip(renderToString(createElement(ProjectOverview, { view: view({ lines: fromTender, totals: zero, canEdit: false }) })))).not.toContain("Fill from tender costs");
+    const byHand = fromTender.map((l) => ({ ...l, source_line_id: null }));
+    expect(strip(renderToString(createElement(ProjectOverview, { view: view({ lines: byHand, totals: budgetTotals(byHand) }) })))).not.toContain("Fill from tender costs");
+  });
+
+  it("costs copied from a tender whose resource type nobody chose read as Not classified, never silently as Material", () => {
+    const filled = [
+      line({ id: "t1", line_key: "k1", source_line_id: "d1", resource_code: "11", amount: 9000, client_amount: 20000 }),
+      line({ id: "t2", line_key: "k2", source_line_id: "d2", resource_code: "11", amount: 5000, client_amount: 5000 }),
+    ];
+    const o = strip(renderToString(createElement(ProjectOverview, { view: view({ lines: filled, totals: budgetTotals(filled) }) })));
+    expect(o).toContain("Not classified 46.7%"); // 14,000 of 30,000
+    expect(o).toContain("Not classified: SAR 14,000");
+    expect(o).not.toContain("Material");
+    expect(o).toContain("About Not classified");
+    expect(o).not.toContain(PROJECT_TIPS.notClassified);
+    // Once a person has set another resource type on a line, the breakdown is theirs.
+    const sorted = [filled[0], { ...filled[1], resource_code: "31" }];
+    const chosen = strip(renderToString(createElement(ProjectOverview, { view: view({ lines: sorted, totals: budgetTotals(sorted) }) })));
+    expect(chosen).toContain("Material 30%");
+    expect(chosen).toContain("Man Power 16.7%");
+    expect(chosen).not.toContain("Not classified");
+  });
+
   it("a project with no lines says where to add them", () => {
     const empty = strip(renderToString(createElement(ProjectOverview, { view: view({ lines: [], totals: budgetTotals([]), margin: marginView(30000, budgetTotals([]), null) }) })));
     expect(empty).toContain("Add budget lines on the Budget tab");
@@ -198,6 +235,46 @@ describe("Project path", () => {
     expect(out).toContain("overflow-x:auto"); // scrolls sideways on a phone
   });
 
+  it("while lines still wait for a cost, the margin is the allocated lines' only and says so: never a bare percentage", () => {
+    const some = [
+      line({ id: "t1", line_key: "k1", amount: 9000, client_amount: 20000 }),
+      line({ id: "t2", line_key: "k2", amount: 0, unit_cost: 0, allocated: false, client_amount: 5000 }),
+      line({ id: "t3", line_key: "k3", amount: 0, unit_cost: 0, allocated: false, client_amount: 5000 }),
+    ];
+    const t = budgetTotals(some);
+    const o = strip(renderToString(createElement(ProjectKpiStrip, { view: view({ lines: some, totals: t, margin: marginView(30000, t, null) }) })));
+    expect(o).toContain("55%"); // (20,000 - 9,000) / 20,000 on the one allocated line
+    expect(o).toContain("on 1 of 3 lines · not complete");
+    expect(o).not.toContain("70%"); // (30,000 - 9,000) / 30,000 would read as the project's margin
+    expect(o.match(/data-tone="good"/g)).toBeNull();
+    // No client amount on the allocated lines: nothing to work a margin from, so it says Not complete.
+    const hand = [line(), line({ id: "i2", line_key: "k2", amount: 0, unit_cost: 0, allocated: false })];
+    const th = budgetTotals(hand);
+    const oh = strip(renderToString(createElement(ProjectKpiStrip, { view: view({ lines: hand, totals: th, margin: marginView(30000, th, null) }) })));
+    expect(oh).toContain("Not complete");
+    expect(oh).toContain("1 of 2 lines allocated");
+  });
+
+  it("on a project with Buy-out the Budget tile says what has been ordered, and by how much it is over", () => {
+    const tiles = { budget: 20000, committed: 30000, best_vs_budget: 0, needs_decision: 0, packages: 1 };
+    const buyout = { group: null, tiles, packages: [], unassigned_lines: [] } as BuyoutData;
+    const o = strip(renderToString(createElement(ProjectKpiStrip, { view: view(), buyoutOn: true, initialBuyout: buyout })));
+    expect(o).toContain('data-guide="cp.kpis.ordered"');
+    expect(o).toContain("Ordered SAR 30,000 · over by SAR 7,200"); // against the budget of SAR 22,800 in the same tile
+    expect(o.match(/data-tone=/g)).toHaveLength(3); // still three tiles
+    const under = strip(renderToString(createElement(BudgetOrdered, { projectId: "p1", budget: 22800, currency: "SAR", initial: { ...buyout, tiles: { ...tiles, committed: 12000 } } })));
+    expect(under).toContain("Ordered SAR 12,000");
+    expect(under).not.toContain("over by");
+    // Nothing ordered, or no Buy-out: the line is left out.
+    expect(renderToString(createElement(BudgetOrdered, { projectId: "p1", budget: 22800, currency: "SAR", initial: { ...buyout, tiles: { ...tiles, committed: 0 } } }))).toBe("");
+    expect(strip(renderToString(createElement(ProjectKpiStrip, { view: view() })))).not.toContain("cp.kpis.ordered");
+    // It reads the Buy-out summary's own total: nothing is summed again.
+    const src = readFileSync(path.join(ROOT, "src/components/contractProjects/BudgetOrdered.tsx"), "utf8");
+    expect(src).toContain("useBuyoutSummary(projectId, true, initial)");
+    expect(src).toContain("data?.tiles.committed");
+    expect(src).not.toMatch(/reduce\(/);
+  });
+
   it("scrolls inside its own row: a positioned, shrinkable list, so the page never scrolls sideways (phone fix)", () => {
     const out = strip(renderToString(createElement(ProjectPathBar, { path: projectPath({ status: "active", handover_sent_at: null }, false) })));
     const list = out.match(/<ol[^>]*>/)?.[0] ?? "";
@@ -262,6 +339,20 @@ describe("Approval controls", () => {
     expect(other).toContain("An approver will decide it");
   });
 
+  it("mode ask is only the button (or why not): the Budget tab and the draft's row on the Revisions tab use it", () => {
+    const ask = r({ mode: "ask" });
+    expect(ask).toContain('data-guide="cp.approval.ask"');
+    expect(ask).not.toContain("Nothing is waiting");
+    expect(r({ mode: "ask", blockedReason: "Save the allocation, then ask for approval" })).toContain("Save the allocation, then ask for approval");
+    expect(r({ mode: "ask", blockedReason: "Save the allocation, then ask for approval" })).not.toContain("cp.approval.ask");
+    expect(r({ mode: "ask", approval: { pending: null, canDecide: false, askBlocked: "The budget is 0. Allocate a cost to the lines on the Budget tab first", history: [] } })).toContain("The budget is 0");
+    // Nothing at all when there is nothing to ask: a waiting revision, a viewer, a closed project, a pending migration.
+    expect(r({ mode: "ask", revisionStatus: "pending", approval: { pending, canDecide: true, askBlocked: null, history: [] } })).toBe("");
+    expect(r({ mode: "ask", canEdit: false })).toBe("");
+    expect(r({ mode: "ask", closed: true })).toBe("");
+    expect(r({ mode: "ask", approval: null })).toBe("");
+  });
+
   it("an approved budget says it is locked; a pending 0221 migration is stated", () => {
     expect(r({ revisionStatus: "approved" })).toContain("approved and locked");
     expect(r({ approval: null })).toContain("migration 0221");
@@ -315,8 +406,42 @@ describe("Budget (the allocation screen)", () => {
     expect(out).not.toContain("Reserve");
     const inputs = out.match(/<input[^>]*data-guide="cp.alloc.input"[^>]*>/g) ?? [];
     expect(inputs.length).toBe(6); // the table and the cards of 375 px
-    for (const i of inputs) { expect(i).toMatch(/min-height:44px/); expect(i).toMatch(/type="number"/); }
+    for (const i of inputs) { expect(i).toMatch(/min-height:44px/); expect(i).toMatch(/type="text" inputMode="decimal"/i); }
     expect(out).toContain('data-guide="cp.alloc.open_line"');
+  });
+
+  it("a cost reads as money while it is not being edited (1,234.50), and is the plain number on focus", () => {
+    const o = draw({ lines: [{ ...tenderLines[0], allocated: true, amount: 90650 }, { ...tenderLines[1], allocated: true, amount: 594287.2 }, tenderLines[2]] });
+    expect(o).toContain('value="90,650.00"');
+    expect(o).toContain('value="594,287.20"');
+    expect(o).not.toContain('value="90650"');
+    expect(costText("90650")).toBe("90,650.00");
+    expect(costText("594287.2")).toBe("594,287.20");
+    expect(costText("")).toBe("");
+    expect(costText("0")).toBe("0.00");
+    // What is typed stays a plain number: separators are dropped, anything else is refused.
+    expect(costTyped("1,234.5")).toBe("1234.5");
+    expect(costTyped("12.")).toBe("12.");
+    expect(costTyped("")).toBe("");
+    for (const bad of ["-5", "1e3", "1.2.3", "abc"]) expect(costTyped(bad), bad).toBeNull();
+    const src = readFileSync(path.join(ROOT, "src/components/contractProjects/AllocationTable.tsx"), "utf8");
+    expect(src).toContain("value={editing ? value : costText(value)}");
+    expect(src).toContain("onFocus={() => setEditing(true)} onBlur={() => setEditing(false)}");
+  });
+
+  it("Ask for approval sits beside the revision selector, with the banner's blockers", () => {
+    const filled = tenderLines.map((l) => ({ ...l, allocated: true, amount: 1000 }));
+    const o = draw({ lines: filled, approval: { pending: null, canDecide: false, askBlocked: null, history: [] } });
+    expect(o).toContain('data-guide="cp.approval.ask"');
+    expect(o.indexOf('data-guide="cp.budget.revision"')).toBeLessThan(o.indexOf('data-guide="cp.approval.ask"'));
+    expect(o.indexOf('data-guide="cp.approval.ask"')).toBeLessThan(o.indexOf('data-guide="cp.alloc.tiles"'));
+    const blocked = draw({ approval: { pending: null, canDecide: false, askBlocked: "The budget is 0. Allocate a cost to the lines on the Budget tab first", history: [] } });
+    expect(blocked).toContain("The budget is 0. Allocate a cost");
+    expect(blocked).not.toContain("cp.approval.ask");
+    expect(out).not.toContain("cp.approval.ask"); // not passed: not offered
+    expect(draw({ lines: filled, canEdit: false, approval: { pending: null, canDecide: false, askBlocked: null, history: [] } })).not.toContain("cp.approval.ask");
+    const src = readFileSync(path.join(ROOT, "src/components/contractProjects/BudgetGrid.tsx"), "utf8");
+    expect(src).toContain('blockedReason={dirty ? "Save the allocation, then ask for approval" : null}');
   });
 
   it("under 780 px the lines are cards (the table is hidden by CSS), with the same facts", () => {
@@ -331,20 +456,33 @@ describe("Budget (the allocation screen)", () => {
   it("what is allocated shows in the tiles, the row and the bar", () => {
     const some = [{ ...tenderLines[0], allocated: true, amount: 15000, unit_cost: 150 }, tenderLines[1], tenderLines[2]];
     const o = draw({ lines: some });
-    expect(o).toContain('value="15000"');
+    expect(o).toContain('value="15,000.00"');
     expect(o).toContain("1 of 3 lines");
-    expect(o).toContain("50%"); // (30000 - 15000) / 30000
-    expect(o).toContain("SAR 15,000 left of SAR 30,000");
-    expect(o).toContain('data-tone="good"');
+    // Two lines still wait for a cost: the margin is the allocated line's only, and says so.
+    expect(o).toContain("25%"); // (20,000 - 15,000) / 20,000
+    expect(o).toContain("on 1 of 3 lines · not complete");
+    expect(o).not.toContain("SAR 15,000 left of SAR 30,000"); // that reads as the project's margin
+    expect(o).not.toContain('data-tone="good"');
     expect(o).toContain("SAR 5,000.00"); // left on that row: 20,000 - 15,000
     expect(o).toContain("width:50%");
   });
 
+  it("once every line has a cost the margin is the project's: contract value less the budget", () => {
+    const all = [{ ...tenderLines[0], allocated: true, amount: 15000, unit_cost: 150 }, { ...tenderLines[1], allocated: true, amount: 0 }, { ...tenderLines[2], allocated: true, amount: 0 }];
+    const o = draw({ lines: all });
+    expect(o).toContain("3 of 3 lines");
+    expect(o).toContain("50%"); // (30000 - 15000) / 30000
+    expect(o).toContain("SAR 15,000 left of SAR 30,000");
+    expect(o).toContain('data-tone="good"');
+    expect(o).not.toContain("not complete");
+  });
+
   it("the margin goes amber under the workspace floor, red when over-allocated", () => {
-    const heavy = [{ ...tenderLines[0], allocated: true, amount: 28000 }, tenderLines[1], tenderLines[2]];
+    const zero = (l: BudgetLine) => ({ ...l, allocated: true, amount: 0 });
+    const heavy = [{ ...tenderLines[0], allocated: true, amount: 28000 }, zero(tenderLines[1]), zero(tenderLines[2])];
     expect(draw({ lines: heavy, marginFloor: 10 })).toContain('data-tone="warn"'); // 6.7% under a 10% floor
     expect(draw({ lines: heavy, marginFloor: null })).not.toContain('data-tone="warn"');
-    const over = draw({ lines: [{ ...tenderLines[0], allocated: true, amount: 31000 }, tenderLines[1], tenderLines[2]] });
+    const over = draw({ lines: [{ ...tenderLines[0], allocated: true, amount: 31000 }, zero(tenderLines[1]), zero(tenderLines[2])] });
     expect(over).toContain('data-tone="bad"');
     expect(over).toContain("-3.3%");
   });
@@ -374,7 +512,8 @@ describe("Budget (the allocation screen)", () => {
     expect(o).toMatch(/role="radio" aria-checked="true"[^>]*>WBS</);
     expect(o).toContain("1 of 2 WBS items");
     expect(o.match(/<input[^>]*data-guide="cp.alloc.input"/g)).toHaveLength(4);
-    expect(o).toContain('value="12000"');
+    expect(o).toContain('value="12,000.00"');
+    expect(o).toContain("on 1 of 2 WBS items · not complete");
     expect(o).toContain("1 line is not in a WBS item");
     for (const w of ["New work package", "Work package", "work package"]) expect(o, w).not.toContain(w);
   });
@@ -427,7 +566,7 @@ describe("Budget (the allocation screen)", () => {
     const old = [line(), line({ id: "i2", line_key: "k2", line_no: 2, description: "Labour", unit_cost: 250, qty: 40, amount: 10000 })];
     const o = draw({ lines: old, fillAvailable: false });
     expect(o).toContain("2 of 2 lines");
-    expect(o).toContain('value="12000"');
+    expect(o).toContain('value="12,000.00"');
     expect(o).toContain("—"); // no client amount, no left
     expect(o).not.toContain("cp.alloc.fill");
   });
@@ -456,6 +595,18 @@ describe("Revisions", () => {
   const approved = rev({ id: "r0", status: "approved", approved_at: "2026-10-27T00:00:00Z", approved_by_name: "A. Nasser", locked_at: "2026-10-27T00:00:00Z" });
   const draft1 = rev({ id: "r1", rev_no: 1, status: "draft", justification_code: "scope_change", justification_text: "More fence", total: 23300 });
   const base = view({ revisions: [approved, draft1] as ProjectView["revisions"], revision: draft1 as ProjectView["revision"] });
+
+  it("the draft being looked at has Ask for approval on its own row; an approved row, and a viewer, do not", () => {
+    const out = strip(renderToString(createElement(RevisionsPanel, { view: base })));
+    expect(out.match(/data-guide="cp\.revisions\.ask"/g)).toHaveLength(1);
+    expect(out).toContain('data-guide="cp.approval.ask"');
+    const blocked = strip(renderToString(createElement(RevisionsPanel, { view: { ...base, approval: { pending: null, canDecide: false, askBlocked: "Choose why this revision is being made", history: [] } } })));
+    expect(blocked).toContain("Choose why this revision is being made");
+    expect(blocked).not.toContain("cp.approval.ask");
+    expect(strip(renderToString(createElement(RevisionsPanel, { view: { ...base, canEdit: false } })))).not.toContain("cp.approval.ask");
+    const lookingAtApproved = view({ revisions: [approved, draft1] as ProjectView["revisions"], revision: approved as ProjectView["revision"] });
+    expect(strip(renderToString(createElement(RevisionsPanel, { view: lookingAtApproved })))).not.toContain("cp.revisions.ask");
+  });
 
   it("lists every revision newest first with its status, reason, total and who approved it", () => {
     const out = strip(renderToString(createElement(RevisionsPanel, { view: base })));
@@ -490,14 +641,17 @@ describe("Revisions", () => {
 });
 
 describe("Handover", () => {
-  it("offers the Excel download and a disabled Send to ePROMIS with its explanation behind an i", () => {
+  it("offers the Excel download and a disabled Send to ePROMIS that says why in plain sight", () => {
     const out = strip(renderToString(createElement(HandoverPanel, { projectId: "p1", revisionId: "r0", revLabel: "Baseline", hasBudget: true })));
-    expect(out).toContain("Hand over to the ERP");
+    expect(out).toContain(">Budget</h2>");
     expect(out).toContain("/api/contract-projects/p1/handover?revision=r0");
     expect(out).toContain("Download Excel");
     expect(out).toMatch(/<button[^>]*disabled[^>]*data-guide="cp.handover.send"|<button[^>]*data-guide="cp.handover.send"[^>]*disabled/);
-    expect(out).toContain("About Send to ePROMIS");
-    expect(out).not.toContain(PROJECT_TIPS.sendToErp);
+    expect(out).toContain('data-guide="cp.handover.send_why"');
+    expect(out).toContain("Sending from here is not available yet. Download the Excel file for now.");
+    expect(out).toMatch(/aria-describedby="cp-handover-send-why"/);
+    expect(out).not.toContain("About Send to ePROMIS");
+    expect(out).not.toContain(PROJECT_TIPS.handover);
   });
 
   it("with no budget the download is off", () => {

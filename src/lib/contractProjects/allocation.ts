@@ -144,7 +144,7 @@ export type WbsRow = {
   allocated_cost: number | null;
   allocated: boolean;
   left: number | null;
-  /** This item's figures plus every sub-item's. Parents show these; nothing is counted twice. */
+  /** This item's figures plus every sub-item's. Parents show these; nothing is counted twice. `allocated` is the budget cost of what the item holds: typed on the item (by WBS) or on its lines (by BOQ line). */
   rolled: { line_count: number; client_amount: number | null; allocated: number; left: number | null };
 };
 
@@ -186,17 +186,22 @@ export function allocationView(
   // What each item holds directly, then rolled up the tree.
   const own = new Map<string, Own>();
   const labels = new Map<string, string[]>();
-  for (const p of packages) own.set(p.id, { line_count: 0, shared_count: 0, client: null, allocated: p.allocated_cost ?? 0 });
+  // Allocated = the budget cost on what the item holds. By WBS that is the cost typed on the item; by BOQ line the cost sits on the lines, so
+  // the item shows its lines' allocated cost (a split line gives each item its share).
+  const byLine = project.allocation_basis === "line";
+  for (const p of packages) own.set(p.id, { line_count: 0, shared_count: 0, client: null, allocated: byLine ? 0 : p.allocated_cost ?? 0 });
   for (const l of lines) {
     const shares = partsOf(memberships.get(l.line_key) ?? emptyMembership);
     if (shares.length === 0) continue;
     const parts = l.client_amount === null ? null : divideByShares(l.client_amount, shares.map((s) => s.share_pct));
+    const costs = byLine && l.allocated ? divideByShares(l.amount, shares.map((s) => s.share_pct)) : null;
     shares.forEach((s, i) => {
       const o = own.get(s.wbs_item_id);
       if (!o) return;
       o.line_count += 1;
       if (s.share_pct < 100 - 0.01) o.shared_count += 1;
       if (parts) o.client = addN(o.client, parts[i]);
+      if (costs) o.allocated = round2(o.allocated + costs[i]);
       labels.set(s.wbs_item_id, [...(labels.get(s.wbs_item_id) ?? []), l.wbs ?? l.description]);
     });
   }

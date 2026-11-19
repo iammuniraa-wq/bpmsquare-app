@@ -8,6 +8,8 @@ import { rfqConfig } from "@/lib/rfq/types";
 import { allowedSuppliersForAccount } from "@/lib/supplierGroups/server";
 import { currentRevision, loadLines, loadProject, loadRevisions, needsUpdate, openProjectRequest, type Failure, type ProjectCtx } from "../server";
 import type { BudgetLine, ProjectRow } from "../types";
+import { wbsLineChoices } from "../wbsBuyout";
+import { loadPackages as loadWbsItems } from "../workPackagesServer";
 import {
   BUYOUT_BUNDLE, againstBudget, buyoutTiles, effectiveStatus, handoverState, lineQty, linesLocked, lowestValidTotal, roundMoney, roundQuotes,
   type BudgetLineRow, type BuyoutSummary, type PackageDetail, type PackageKind, type PackageLineView, type PackageRow, type PackageStatus, type RoundView,
@@ -294,6 +296,8 @@ export async function buildSummary(req: BuyoutCtx): Promise<(BuyoutSummary & { p
     if (p) packaged_lines[l.line_key] = { ref: p.ref, name: p.name };
   }
   const restriction = await allowedSuppliersForAccount(req.tenantId, req.project.account_id, req.admin);
+  // The WBS is a convenience for picking lines: a pending WBS migration reads as no items, and the chooser is simply not offered.
+  const wbs = await loadWbsItems(req.admin, req.tenantId, req.project.id);
   const committed_by_line: Record<string, number> = {};
   for (const p of w.packages) {
     if ((p.status !== "awarded" && p.status !== "handed_over") || !p.awarded_rfq_id) continue;
@@ -309,7 +313,7 @@ export async function buildSummary(req: BuyoutCtx): Promise<(BuyoutSummary & { p
     baseline: w.baseline.approved ? { revision_id: w.baseline.approved.id, rev_no: w.baseline.approved.rev_no } : null,
     group: restriction.group, restricted: restriction.restricted, currency: req.project.currency,
     tiles: buyoutTiles(rows, projectBudget),
-    packages: rows, unassigned_lines: unassigned, packaged_lines, committed_by_line, can_edit: req.canEdit, can_send_rounds: req.canEdit && req.rfqEdit,
+    packages: rows, unassigned_lines: unassigned, packaged_lines, wbs_items: wbsLineChoices(wbs.packages), committed_by_line, can_edit: req.canEdit, can_send_rounds: req.canEdit && req.rfqEdit,
   };
 }
 

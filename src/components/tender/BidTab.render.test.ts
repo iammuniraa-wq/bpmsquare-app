@@ -21,6 +21,7 @@ vi.mock("next/navigation", () => ({
 vi.mock("next/link", () => ({ default: (p: { href: string; children: unknown }) => createElement("a", { href: p.href }, p.children as never) }));
 
 import BidsTab from "./BidsTab";
+import { sendsSummary } from "./SentToClient";
 import BoqTab, { type BoqScreenState } from "./BoqTab";
 import DealLinesBoq, { HAND_LINE_LIMIT, linesPayload, toRows } from "./DealLinesBoq";
 
@@ -185,30 +186,39 @@ describe("Send by email and Sent to client (KAMCO feedback slice 5)", () => {
     expect(read("src/components/tender/BidDocuments.tsx")).toContain("documents={EMAIL_DOCUMENTS}");
   });
 
-  it("a view-only person gets no Send by email and no Record a send", () => {
+  it("a view-only person gets no Send by email and no Record a send, and still sees how often it went", () => {
     const out = bid({ data: bids({ canEdit: false, sends: { rows: [send(1)], pending: false } }) });
     expect(out).not.toContain("Send by email");
     expect(out).not.toContain('data-guide="tender.bid.record_send"');
-    expect(out).toContain("buyer@ministry.gov.sa");
+    expect(out).toContain("1 send · last 21 Oct");
   });
 
-  it("lists what went to the client (a table on a PC, cards under 780 px) after Documents we send", () => {
-    const out = bid({ data: bids({ sends: { rows: [send(2), send(1)], pending: false } }) });
+  it("Sent to client is ONE line after Documents we send: the count and the last day, a way to Interactions, Record a send (gap 26)", () => {
+    const out = bid({ data: bids({ sends: { rows: [send(2), send(1)], pending: false } }), onOpenInteractions: noop });
     expect(out).toContain("Sent to client");
-    expect(out).toContain('data-guide="tender.bid.sent_table"');
-    for (const w of ["When", "Who", "Document", "How", "To", "Version", "buyer@ministry.gov.sa", "Ariba", "Priced BOQ", "Answer sheet", "v2"]) expect(out, w).toContain(w);
-    expect(out.match(/data-guide="tender\.bid\.sent_card"/g)).toHaveLength(2);
+    expect(out).toMatch(/data-guide="tender\.bid\.sent_summary"[^>]*>2 sends · last 22 Oct</);
+    const open = out.match(/<button\b[^>]*data-guide="tender\.bid\.sent_open"[^>]*>[^<]*/)?.[0] ?? "";
+    expect(open).toContain("See in Interactions");
+    expect(open).toContain("min-height:44px");
     expect(out).toContain('data-guide="tender.bid.record_send"');
     expect(out.indexOf("Sent to client")).toBeGreaterThan(out.indexOf("Documents we send"));
-    expect(read("src/components/tender/SentToClient.module.css")).toMatch(/@media \(max-width: 780px\)[\s\S]*\.tableWrap \{ display: none; \}[\s\S]*\.cards \{ display: flex; \}/);
+    // The list is the Interactions timeline's, never a second copy here: no table, no rows, no addresses.
+    for (const gone of ["tender.bid.sent_table", "tender.bid.sent_row", "tender.bid.sent_card"]) expect(out, gone).not.toContain(gone);
+    for (const gone of ["buyer@ministry.gov.sa", "Ariba"]) expect(out, gone).not.toContain(gone);
+    const src = read("src/components/tender/SentToClient.tsx");
+    expect(src).not.toMatch(/<table|SettingsSection|module\.css/);
+    // Every send (email, portal upload, other) is drawn on the Interactions timeline from the same rows.
+    const timeline = read("src/lib/tender/interactions/server.ts");
+    expect(timeline).toContain("listSends(admin, tenantId, opp.id)");
+    expect(timeline).toMatch(/for \(const s of sends\.rows\)[\s\S]*kind: "document"/);
+    expect(read("src/app/(app)/pipeline/[id]/OpportunityDetailClient.tsx")).toContain('onOpenInteractions={tender.interactions ? () => openTab("interactions") : undefined}');
   });
 
-  it("says so when nothing has been sent, and pages a long list", () => {
-    expect(bid()).toContain("Nothing sent yet");
-    expect(read("src/components/tender/SentToClient.tsx")).toContain("Nothing has gone to the client yet");
-    const many = bid({ data: bids({ sends: { rows: Array.from({ length: 7 }, (_, i) => send(i + 1, { id: `m${i}` })), pending: false } }) });
-    expect(many).toContain("Show all 7");
-    expect(many.match(/data-guide="tender\.bid\.sent_row"/g)).toHaveLength(5);
+  it("says so when nothing has been sent, and offers no link to an empty list", () => {
+    const out = bid({ onOpenInteractions: noop });
+    expect(out).toContain("Nothing sent yet");
+    expect(out).not.toContain('data-guide="tender.bid.sent_open"');
+    expect(sendsSummary([{ sent_at: "2026-11-19T08:00:00Z" }, { sent_at: "2026-11-02T08:00:00Z" }])).toBe("2 sends · last 19 Nov");
   });
 
   it("while migration 0237 is pending it says a database update is needed and offers no sending", () => {
@@ -237,7 +247,7 @@ describe("Send by email and Sent to client (KAMCO feedback slice 5)", () => {
     for (const g of ["tender.bid.record_document", "tender.bid.record_channel", "tender.bid.record_to", "tender.bid.record_version", "tender.bid.record_note", "tender.bid.record_save"]) expect(record).toContain(`"${g}"`);
     expect(email).toContain("/tender/bids/send-email");
     expect(record).toContain("/tender/bids/sends");
-    for (const f of ["src/components/tender/SendByEmail.tsx", "src/components/tender/SentToClient.tsx", "src/components/tender/SentToClient.module.css"]) expect(read(f).replace(/\/\/[^\n]*|\/\*[\s\S]*?\*\//g, ""), f).not.toMatch(/#[0-9a-fA-F]{3,8}\b|rgba?\(/);
+    for (const f of ["src/components/tender/SendByEmail.tsx", "src/components/tender/SentToClient.tsx"]) expect(read(f).replace(/\/\/[^\n]*|\/\*[\s\S]*?\*\//g, ""), f).not.toMatch(/#[0-9a-fA-F]{3,8}\b|rgba?\(/);
   });
 });
 

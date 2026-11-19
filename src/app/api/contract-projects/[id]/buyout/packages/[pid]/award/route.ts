@@ -5,9 +5,10 @@ import { awardPackage } from "@/lib/contractProjects/buyout/writes";
 // POST /api/contract-projects/[id]/buyout/packages/[pid]/award  { rfq_id, supplier_id, reason? }
 //   Awards the WHOLE package to one supplier from one round. The supplier must have quoted every line (422 { code: "incomplete_quote" }). When the
 //   chosen total is not the lowest valid total of the CURRENT round (or the chosen answer is itself expired or stale while a valid one exists) a
-//   reason is required: 422 { code: "reason_required", why: "higher"|"expired", lowest_valid, chosen_total }. The award is written to every line of
+//   reason is required: 422 { code: "reason_required", why: "higher"|"expired", lowest_valid, chosen_total }. A total over the package budget
+//   needs the same reason: 422 { code: "reason_required", why: "over_budget", budget, over, chosen_total }. The award is written to every line of
 //   the round through the RFQ module's own award code (rfq_line_awards), then the package records the round, supplier, committed amount, reason,
-//   who and when. Warns, never blocks, when the committed amount is over budget (the row's against_budget is negative).
+//   who and when. Over budget never blocks: the reason is kept on the award and the change log says by how much.
 //   -> { row: PackageRow, warnings: string[] }.  409 when already awarded ({ code: "already_awarded" }) or handed over.
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string; pid: string }> }) {

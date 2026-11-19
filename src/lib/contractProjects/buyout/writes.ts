@@ -9,8 +9,8 @@ import { splitReachable, unreachableMessage } from "@/lib/rfq/reach";
 import { rfqConfig, type Rfq } from "@/lib/rfq/types";
 import { assertTenderSuppliersAllowed } from "@/lib/supplierGroups/server";
 import {
-  PACKAGE_LIMITS, PACKAGE_LINE_REASON, awardProblem, canDownloadHandover, cleanPackageReason, deleteProblem, isUuid, lineQty, linesLocked, markSentProblem,
-  packageAwardDecision, roundMoney, roundOriginLabel, roundProblem, roundTitle, unawardProblem,
+  PACKAGE_LIMITS, PACKAGE_LINE_REASON, overBudgetBy, awardProblem, canDownloadHandover, cleanPackageReason, deleteProblem, isUuid, lineQty, linesLocked, markSentProblem,
+  packageAwardDecision, roundMoney, roundOriginLabel, roundProblem, roundRfqLines, roundTitle, unawardProblem,
   type PackageInput, type PackageRow, type RoundInput,
 } from "./rules";
 import {
@@ -203,7 +203,7 @@ export async function createRound(req: BuyoutCtx, pkg: PackageDbRow, input: Roun
     rfq = await createRfq({ admin, tenantId, userId, email: user?.email ?? null }, {
       title: roundTitle(pkg, roundNo), origin_type: "manual", respond_by: input.reply_by, currency: project.currency,
       notes_to_supplier: input.note, notes_internal: `Contract buy-out ${pkg.ref ?? ""} for ${labelOf(project)}`.trim(),
-      lines: lines.map((l) => ({ description: l!.description, uom: l!.unit, qty: l!.qty })),
+      lines: roundRfqLines(lines.map((l) => l!)),
       supplier_ids: input.supplier_ids,
     }, cfg);
   } catch (e) {
@@ -281,6 +281,12 @@ export async function awardPackage(req: BuyoutCtx, pkg: PackageDbRow, body: Awar
   const current = currentRound(work) ?? chosenRound;
   const decision = packageAwardDecision({ chosen: quote, chosenRound: chosenRound.view.quotes, currentRound: current.view.quotes });
   const reason = cleanPackageReason(body.reason);
+  // Over the package budget is allowed, never silently: the same single reason box says why, and it is kept with the award.
+  const budget = packageRowFor(world, pkg, work).budget;
+  const over = overBudgetBy(budget, quote.total);
+  if (over > 0 && !decision.needsReason && !reason) {
+    return fail(422, `That price is over the package budget by ${over.toFixed(2)}${project.currency ? ` ${project.currency}` : ""}. Say why you are awarding it (at least 3 characters).`, { code: "reason_required", why: "over_budget", budget, over, chosen_total: quote.total });
+  }
   if (decision.needsReason && !reason) {
     return fail(422, decision.why === "expired"
       ? "That answer has expired or is out of date while a valid one exists. Say why you are awarding it (at least 3 characters)."
@@ -329,6 +335,7 @@ export async function awardPackage(req: BuyoutCtx, pkg: PackageDbRow, body: Awar
 
   await logProject(req, [
     { field: `Package ${pkg.ref ?? ""} awarded`.replace("  ", " "), from: null, to: `${quote.supplier_name}, ${committed.toFixed(2)}${project.currency ? ` ${project.currency}` : ""}, round ${chosenRound.view.round} (${rfq.ref ?? "RFQ"})` },
+    ...(overBudgetBy(budget, committed) > 0 ? [{ field: `Package ${pkg.ref ?? ""} awarded over budget`.replace("  ", " "), from: budget.toFixed(2), to: `${committed.toFixed(2)} (over by ${overBudgetBy(budget, committed).toFixed(2)})` }] : []),
     ...(reason ? [{ field: `Package ${pkg.ref ?? ""} award reason`.replace("  ", " "), from: null, to: reason }] : []),
   ]);
   const row = await packageRowAfter(req, pkg.id);

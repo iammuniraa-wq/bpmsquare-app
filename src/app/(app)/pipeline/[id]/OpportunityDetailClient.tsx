@@ -50,7 +50,7 @@ import { overdueSummary, type CallsData } from "@/lib/tender/calls";
 import type { BidsData } from "@/lib/tender/bids/rules";
 import type { OutcomeData } from "@/lib/tender/outcome";
 import DealRoom from "@/components/tender/DealRoom";
-import BoqTab from "@/components/tender/BoqTab";
+import BoqTab, { type BoqStepFacts } from "@/components/tender/BoqTab";
 import CompetitorsTab from "@/components/tender/competitors/CompetitorsTab";
 import WhoWonPicker from "@/components/tender/competitors/WhoWonPicker";
 import CostingTab from "@/components/tender/CostingTab";
@@ -142,6 +142,7 @@ export default function OpportunityDetailClient({ opp, accountName, contacts, in
 }) {
   const cur = useCurrency();
   const inr = (n: number) => formatMoney(Math.round(n), cur, {});
+  const rate2 = (n: number) => formatMoney(n, cur, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const router = useRouter();
   const { confirm } = useFeel();
   const [pending, startTransition] = useTransition();
@@ -166,6 +167,11 @@ export default function OpportunityDetailClient({ opp, accountName, contacts, in
     } catch { /* the refresh below brings the same facts */ }
     router.refresh();
   }
+  // The BOQ's facts for the path across the top, as the page last knew them. An upload or a price re-reads them at once (the Next row
+  // must not keep saying "upload the client's BOQ" until a reload) and the server render then replaces them.
+  const [boqFacts, setBoqFacts] = useState<BoqStepFacts | null>(tender?.boq ?? null);
+  useEffect(() => { setBoqFacts(tender?.boq ?? null); }, [tender?.boq]);
+  const boqNow = boqFacts ?? { hasBoq: false, lines: 0, unpriced: 0, stale: 0, noProduct: 0, amount: 0 };
   const [bidStart, setBidStart] = useState(0);
   const [boqRequest, setBoqRequest] = useState<{ filter: BoqFilter; n: number } | undefined>(undefined);
   const boqAsks = useRef(0);
@@ -203,7 +209,7 @@ export default function OpportunityDetailClient({ opp, accountName, contacts, in
     probability_override: opp.probability_override != null ? String(opp.probability_override) : "", probability_override_reason: opp.probability_override_reason ?? "",
     team: (opp.team ?? []) as { user_id: string; role: string }[],
   });
-  const [closing, setClosing] = useState<{ stage: string; outcome: "won" | "lost" | "dropped"; loss_reason: string; loss_note: string; competitor?: string } | null>(null);
+  const [closing, setClosing] = useState<{ stage: string; outcome: "won" | "lost" | "dropped"; loss_reason: string; loss_note: string; competitor?: string; price?: string } | null>(null);
 
   // Lines tab: the shared editor, saved as one PUT.
   const [lines, setLines] = useState<Line[]>(initialLines.length > 0 ? toEditorLines(initialLines) : [newLine()]);
@@ -272,9 +278,30 @@ export default function OpportunityDetailClient({ opp, accountName, contacts, in
     setClosing(null);
     startTransition(async () => {
       const ok = await patch({ stage: cl.stage, outcome: cl.outcome, ...(cl.outcome !== "won" ? { loss_reason: cl.loss_reason, loss_note: cl.loss_note || null } : {}), ...(tender && cl.outcome === "lost" ? { competitor: cl.competitor ?? opp.competitor ?? "" } : {}) });
-      if (ok && thenProject) await postContractProject();
+      if (!ok) return;
+      // A tender's price (the awarded value, or the winner's price) is an outcome fact: saved by the outcome route once the stage is closed.
+      const price = closePrice(cl);
+      if (tender && cl.outcome !== "dropped" && price !== undefined) {
+        const res = await fetch(`/api/opportunities/${opp.id}/tender/outcome`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ award_value: price === "" ? null : price }) });
+        if (!res.ok) {
+          const j = await res.json().catch(() => ({}));
+          setError(`The tender is closed, but the ${cl.outcome === "won" ? "awarded value" : "winning price"} was not saved: ${j.error ?? "try again in the Outcome section"}`);
+        }
+        router.refresh();
+      }
+      if (thenProject) await postContractProject();
     });
   }
+
+  // The price the close dialog shows: what was typed, else (Won on a tender) our last submitted bid total. Undefined: nothing to save.
+  const lastBidTotal = tender?.bids?.versions[0]?.total ?? null;
+  function closePrice(cl: { outcome: string; price?: string }): string | undefined {
+    if (cl.price !== undefined) return cl.price.trim();
+    return cl.outcome === "won" && lastBidTotal != null ? String(lastBidTotal) : undefined;
+  }
+  // Dropped closes on the Lost stage with the outcome "dropped" (a tender's No-bid stage is reached only through an approved no-go).
+  const closedStageFor = (o: "won" | "lost" | "dropped", fallback: string) =>
+    stages.find((s) => s.is_closed && (s.outcome ?? "won") === (o === "dropped" ? "lost" : o))?.value ?? fallback;
 
   function changeStage(stage: string) {
     if (stage === opp.stage) return;
@@ -342,6 +369,8 @@ export default function OpportunityDetailClient({ opp, accountName, contacts, in
   const canConvert = !closed && standardQuotesEnabled;
   // Won on a tender: the dialog offers the contract project, never a Standard Quote (a quote is made from a bid version on the Bid tab).
   const offerProject = !!tender && !!contractProject && !contractProject.existing && canStartContractProject && closing?.outcome === "won";
+  // The button says what it does: with the project offered beside it, the plain one closes the tender and nothing more.
+  const closeLabel = !closing ? "" : closing.outcome === "won" ? (offerProject ? "Mark won only" : "Mark won") : closing.outcome === "lost" ? "Mark lost" : "Mark dropped";
 
   // A tender's one primary step follows its stage (lib/tender/headerAction.ts); "Convert to Standard Quote" is not in its header: it is
   // "Make a Standard Quote from this version" on the Bid tab. A standard deal: convert to a quote when that module is on, else close the
@@ -360,7 +389,6 @@ export default function OpportunityDetailClient({ opp, accountName, contacts, in
     else if (key === "create_project") createContractProject();
   }
   // The path across the top (lib/tender/steps.ts) decides whether the stage's button leads the Next row or follows a jump to a tab.
-  const boqNow = tender?.boq ?? { hasBoq: false, lines: 0, unpriced: 0, stale: 0, noProduct: 0, amount: 0 };
   const stepsNow = tender
     ? tenderSteps({
         stage: opp.stage, outcome: opp.outcome, bids: tender.bids?.versions.length ?? 0, canEdit: tender.boqEdit !== false,
@@ -533,7 +561,7 @@ export default function OpportunityDetailClient({ opp, accountName, contacts, in
         )
       )}
       {tab === "competitors" && tender && <CompetitorsTab opportunityId={opp.id} canEdit={tender.boqEdit !== false} onError={setError} onNotice={setNotice} onChanged={() => router.refresh()} />}
-      {tab === "boq" && tender && <BoqTab opportunityId={opp.id} canEdit={tender.boqEdit !== false} onError={setError} onNotice={setNotice} onLinesChanged={() => router.refresh()} onOpenCosting={tender.costing ? () => openTab("costing") : undefined} dealLines={initialLines} dealLinesVersion={linesVersion} filterRequest={boqRequest} initialOpenRow={initialOpenRow} />}
+      {tab === "boq" && tender && <BoqTab opportunityId={opp.id} canEdit={tender.boqEdit !== false} onError={setError} onNotice={setNotice} onLinesChanged={() => router.refresh()} onFacts={setBoqFacts} onOpenCosting={tender.costing ? () => openTab("costing") : undefined} dealLines={initialLines} dealLinesVersion={linesVersion} filterRequest={boqRequest} initialOpenRow={initialOpenRow} />}
       {tab === "costing" && tender?.costing && <CostingTab opportunityId={opp.id} canEdit={tender.costing.canEdit} onError={setError} onNotice={setNotice} onChanged={() => router.refresh()} onOpenBoq={(filter) => { boqAsks.current += 1; setBoqRequest(filter ? { filter, n: boqAsks.current } : undefined); setTab("boq"); }} />}
       {tab === "overview" && tender && (
         <TenderOverview
@@ -616,7 +644,8 @@ export default function OpportunityDetailClient({ opp, accountName, contacts, in
       )}
 
       {tab === "bid" && tender?.bids && (
-        <BidsTab opportunityId={opp.id} data={{ ...tender.bids, working_total: linesTotal }} stage={opp.stage} outcome={opp.outcome} fmt={inr} onError={setError} onNotice={setNotice} onChanged={() => router.refresh()}
+        <BidsTab opportunityId={opp.id} data={{ ...tender.bids, working_total: linesTotal }} stage={opp.stage} outcome={opp.outcome} fmt={inr} fmtRate={rate2} onError={setError} onNotice={setNotice} onChanged={() => router.refresh()}
+          onOpenInteractions={tender.interactions ? () => openTab("interactions") : undefined}
           quotes={quotes} canMakeQuote={standardQuotesEnabled && tender.boqEdit !== false} startSignal={bidStart}
           checks={{
             priceValidityDays: priceValidityDays ?? 180, unpricedFromLines: unpricedLines,
@@ -677,26 +706,44 @@ export default function OpportunityDetailClient({ opp, accountName, contacts, in
               <div role="group" aria-label="Outcome" data-guide="deal.close.outcome" style={{ display: "flex", gap: 8, marginBottom: 12 }}>
                 {(["won", "lost", "dropped"] as const).map((o) => (
                   <Button key={o} variant={closing.outcome === o ? "primary" : "secondary"} size="sm" aria-pressed={closing.outcome === o} style={{ flex: "1 1 0", minHeight: 44, textTransform: "capitalize" }}
-                    onClick={() => setClosing({ ...closing, outcome: o, stage: stages.find((s) => s.is_closed && (s.outcome ?? "won") === (o === "dropped" ? "lost" : o))?.value ?? closing.stage })}>{o}</Button>
+                    onClick={() => setClosing({ ...closing, outcome: o, price: undefined, stage: closedStageFor(o, closing.stage) })}>{o}</Button>
                 ))}
               </div>
+              {tender && closing.outcome === "won" && (
+                <div style={{ marginBottom: 12 }}>
+                  <Field label="Awarded value" info={lastBidTotal != null ? "Starts at your last submitted bid total. Change it if the award differs." : "The value the tender was awarded at. You can add it later on the Overview."} guide="tender.close.award_value">
+                    <Input type="number" min="0" step="0.01" inputMode="decimal" value={closePrice(closing) ?? ""} onChange={(e) => setClosing({ ...closing, price: e.target.value })} style={{ minHeight: 44 }} />
+                  </Field>
+                </div>
+              )}
               {closing.outcome !== "won" && (
-                <>
-                  <Select value={closing.loss_reason} onChange={(e) => setClosing({ ...closing, loss_reason: e.target.value })} aria-label="Loss reason" style={{ marginBottom: 8 }}>
-                    {LOSS_REASONS.map((r) => <option key={r} value={r}>{LOSS_REASON_LABEL[r]}</option>)}
-                  </Select>
+                <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 12 }}>
                   {tender && closing.outcome === "lost" && (
-                    <div style={{ marginBottom: 8 }}><WhoWonPicker opportunityId={opp.id} value={closing.competitor ?? opp.competitor ?? ""} onChange={(name) => setClosing({ ...closing, competitor: name })} guide="tender.close.competitor" /></div>
+                    <Field label="Won by" required guide="tender.close.won_by">
+                      <WhoWonPicker opportunityId={opp.id} value={closing.competitor ?? opp.competitor ?? ""} onChange={(name) => setClosing({ ...closing, competitor: name })} guide="tender.close.competitor" />
+                    </Field>
                   )}
-                  <Input value={closing.loss_note} onChange={(e) => setClosing({ ...closing, loss_note: e.target.value })} placeholder="What happened (optional)" style={{ marginBottom: 8 }} />
-                </>
+                  {tender && closing.outcome === "lost" && (
+                    <Field label="Winning price" guide="tender.close.winning_price">
+                      <Input type="number" min="0" step="0.01" inputMode="decimal" value={closing.price ?? ""} onChange={(e) => setClosing({ ...closing, price: e.target.value })} style={{ minHeight: 44 }} />
+                    </Field>
+                  )}
+                  <Field label="Reason" guide="deal.close.reason">
+                    <Select value={closing.loss_reason} onChange={(e) => setClosing({ ...closing, loss_reason: e.target.value })} aria-label="Loss reason" style={{ minHeight: 44 }}>
+                      {LOSS_REASONS.map((r) => <option key={r} value={r}>{LOSS_REASON_LABEL[r]}</option>)}
+                    </Select>
+                  </Field>
+                  <Field label="Note" guide="deal.close.note">
+                    <Input value={closing.loss_note} onChange={(e) => setClosing({ ...closing, loss_note: e.target.value })} style={{ minHeight: 44 }} />
+                  </Field>
+                </div>
               )}
               {/* One footer: every button the same width and height (a row on a PC, a single column at 375 px, where 160 px twice no longer fits). */}
               <div data-guide="deal.close.footer" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                 <Button variant="secondary" data-guide="deal.close.cancel" style={{ flex: "1 1 160px", minHeight: 44 }} onClick={() => setClosing(null)}>Cancel</Button>
-                <Button variant={offerProject ? "secondary" : "primary"} loading={pending} data-guide="tender.close.confirm" style={{ flex: "1 1 160px", minHeight: 44 }} onClick={() => confirmClose(false)}>Confirm</Button>
+                <Button variant={offerProject ? "secondary" : "primary"} loading={pending} data-guide="tender.close.confirm" style={{ flex: "1 1 160px", minHeight: 44 }} onClick={() => confirmClose(false)}>{closeLabel}</Button>
                 {offerProject && (
-                  <Button variant="primary" loading={pending} data-guide="tender.close.create_project" style={{ flex: "1 1 160px", minHeight: 44 }} onClick={() => confirmClose(true)}>Create contract project now</Button>
+                  <Button variant="primary" loading={pending} data-guide="tender.close.create_project" style={{ flex: "1 1 160px", minHeight: 44 }} onClick={() => confirmClose(true)}>Mark won and create contract project</Button>
                 )}
               </div>
             </Card>

@@ -4,6 +4,7 @@
 
 import { responseValidity, type CompareResponse } from "@/lib/rfq/comparison";
 import { landedUnit } from "@/lib/rfq/rules";
+import { itemNoSpec } from "@/lib/rfq/itemNo";
 import { RFQ_LIMITS } from "@/lib/rfq/types";
 
 export const PACKAGE_KINDS = ["supplier", "subcontract"] as const;
@@ -116,6 +117,8 @@ export type BuyoutSummary = {
   unassigned_lines: BudgetLineRow[];
   /** The package each packaged budget line (by line_key) is in, so a WBS item can say which of its lines are taken. */
   packaged_lines: Record<string, { ref: string | null; name: string }>;
+  /** The project's WBS in tree order, each item with the budget lines (by line_key) it and its sub-items hold: "Pick by WBS item" in the New package panel. */
+  wbs_items: { id: string; code: string; name: string; depth: number; line_keys: string[] }[];
   /** For the Budget tab's Committed column: the awarded amount of each budget line (by line_key) of an awarded or handed-over package. */
   committed_by_line: Record<string, number>;
   can_edit: boolean;
@@ -409,6 +412,9 @@ export function buyoutTiles(rows: readonly Pick<PackageRow, "status" | "budget" 
 /** Warn, never block: the committed amount of a package is over its budget. */
 export const overBudget = (budget: number, committed: number | null): boolean => committed !== null && committed > budget + 0.005;
 
+/** How far a price is over a package's budget, to the cent; 0 when it is not. An award over the budget needs a reason (it is recorded, never blocked). */
+export const overBudgetBy = (budget: number, price: number | null): number => (price === null || !(price > budget) ? 0 : Math.round((price - budget) * 100) / 100);
+
 /** The Excel handover can be made for an awarded (or already handed-over) package only. */
 export const canDownloadHandover = (status: PackageStatus): boolean => status === "awarded" || status === "handed_over";
 
@@ -436,6 +442,14 @@ export function roundProblem(p: { status: PackageStatus; line_count: number; rou
   if (p.line_count === 0) return { status: 409, error: "This package has no lines.", code: "no_lines" };
   if (p.rounds >= PACKAGE_LIMITS.maxRounds) return { status: 409, error: `A package holds up to ${PACKAGE_LIMITS.maxRounds} rounds.`, code: "too_many_rounds" };
   return null;
+}
+
+/**
+ * The lines of a round's RFQ, in the package's order. The client's item number (the budget line's `wbs`) rides in the specification as
+ * "Item no. 1.1", exactly as a tender RFQ carries it, so a supplier's answer can be matched back to the schedule. Nothing of the cost.
+ */
+export function roundRfqLines(lines: readonly Pick<BudgetLineRow, "wbs" | "description" | "unit" | "qty">[]): { description: string; spec: string | null; uom: string | null; qty: number }[] {
+  return lines.map((l) => ({ description: l.description, spec: itemNoSpec(l.wbs), uom: l.unit, qty: l.qty }));
 }
 
 export function roundTitle(pkg: { ref: string | null; name: string }, round: number): string {

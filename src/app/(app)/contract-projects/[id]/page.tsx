@@ -70,7 +70,7 @@ export default async function ContractProjectPage({ params, searchParams }: { pa
       meta={originMeta || undefined}
       status={<StatusPill label={PROJECT_STATUS_LABEL[p.status]} tone={projectTone(p.status)} />}
       menu={<ProjectMenu projectId={p.id} status={p.status} canEdit={view.canEdit} deletable={deletable} />}
-      externalLine={<><ProjectPathBar path={view.path} /><ProjectKpiStrip view={view} /></>}
+      externalLine={<><ProjectPathBar path={view.path} /><ProjectKpiStrip view={view} buyoutOn={buyoutOn} /></>}
       basePath={ROUTES.contractProject(p.id)}
       activeTab={tab}
       tabs={[
@@ -85,7 +85,7 @@ export default async function ContractProjectPage({ params, searchParams }: { pa
               key={rev.id} projectId={p.id} revision={rev} revisions={view.revisions} lines={view.lines} resources={view.resources}
               canEdit={view.canEdit} projectClosed={p.status === "closed"} currency={p.currency} buyoutOn={buyoutOn}
               contractValue={p.contract_value} marginFloor={view.marginFloor} basis={p.allocation_basis} allocation={view.allocation} packages={view.packages}
-              packagesPending={view.packagesPending} employees={employees} fillAvailable={fillAvailable(p, view.lines)}
+              packagesPending={view.packagesPending} employees={employees} fillAvailable={fillAvailable(p, view.lines)} approval={view.approval}
             />
           ) : <div style={{ fontSize: 13, color: "var(--hint)" }}>There is no budget yet.</div>,
         },
@@ -103,7 +103,7 @@ export default async function ContractProjectPage({ params, searchParams }: { pa
         { id: "variations", label: "Client changes", content: <VariationsSection req={req} project={p} /> },
         { id: "invoicing", label: "Client billing", content: <InvoicingSection req={req} project={p} /> },
         { id: "revisions", label: "Revisions", count: view.revisions.length, content: <RevisionsPanel view={view} /> },
-        { id: "handover", label: "Handover", content: <HandoverPanel projectId={p.id} revisionId={rev?.id ?? null} revLabel={revLabel} hasBudget={!!rev && view.lines.length > 0} /> },
+        { id: "handover", label: "ERP handover", content: <HandoverPanel projectId={p.id} revisionId={rev?.id ?? null} revLabel={revLabel} hasBudget={!!rev && view.lines.length > 0} buyoutOn={buyoutOn} /> },
         { id: "activity", label: "Activity", content: <RecordActivity objectType="contract_projects" objectId={p.id} isAdmin={role === "admin"} /> },
       ]}
     />

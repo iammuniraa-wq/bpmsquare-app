@@ -27,6 +27,7 @@ export type PackageRow = {
   current_round: number | null;
   rounds: number;
   handover: Handover;
+  awarded_supplier_name?: string | null;
   /** Optional: how many suppliers were asked and answered in the current round, for the "Out, 2 of 3 replied" chip. */
   asked?: number;
   replied?: number;
@@ -49,6 +50,8 @@ export type BudgetLineRow = {
   cost_code?: string | null;
 };
 
+export type WbsChoice = { id: string; code: string; name: string; depth: number; line_keys: string[] };
+
 export type BuyoutData = {
   /** The approved budget revision packages are made from; null (or absent) while the baseline is not approved. */
   baseline?: { revision_id: string; rev_no: number } | null;
@@ -58,13 +61,16 @@ export type BuyoutData = {
   unassigned_lines: BudgetLineRow[];
   /** Optional: the package each packaged budget line (by line_key) is in. */
   packaged_lines?: Record<string, { ref: string | null; name: string }>;
+  /** Optional: the project's WBS in tree order, each item with the line_keys it and its sub-items hold ("Pick by WBS item"). */
+  wbs_items?: WbsChoice[];
   /** Optional: the committed amount of each budget line whose package is awarded, keyed by the budget line id or its line key. Read by the Budget tab. */
   committed_by_line?: Record<string, number>;
   /** The database update that adds Buy-out has not been applied. */
   pending?: boolean;
 };
 
-export type PackageLine = { item_no: string | null; description: string; qty: number | null; uom: string | null; cost_in_bid: number | null };
+/** `budget` is the line's amount in the approved budget (what the package budget adds up from); `cost_in_bid` is the same line in the baseline. */
+export type PackageLine = { item_no: string | null; description: string; qty: number | null; uom: string | null; cost_in_bid: number | null; budget?: number | null };
 
 export type Quote = {
   supplier_id: string;

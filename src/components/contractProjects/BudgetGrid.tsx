@@ -11,13 +11,15 @@ import SettingsSection from "@/components/settings/SettingsSection";
 import { useFeel } from "@/components/FeelProvider";
 import { useUnsavedChangesGuard } from "@/lib/unsavedChanges";
 import { ROUTES } from "@/lib/constants";
-import { marginState, marginView, round2 } from "@/lib/contractProjects/budget";
+import { coverageOf, marginState, marginView, round2 } from "@/lib/contractProjects/budget";
 import type { AllocationView } from "@/lib/contractProjects/allocation";
-import { marginTone, money, pct } from "@/lib/contractProjects/format";
+import type { ProjectApprovalView } from "@/lib/contractProjects/approvalServer";
+import { marginTone, marginWords, money } from "@/lib/contractProjects/format";
 import { PROJECT_TIPS } from "@/lib/contractProjects/tips";
 import { REVISION_STATUS_LABEL, type AllocationBasis, type BudgetLine, type RevisionRow, type WorkPackageRow } from "@/lib/contractProjects/types";
 import type { EmployeeChoice } from "@/lib/contractProjects/workPackagesServer";
 import { LinesTable, WbsTable, type ErpCols } from "./AllocationTable";
+import ApprovalControls from "./ApprovalControls";
 import LineDetailsPanel from "./LineDetailsPanel";
 import WbsItemPanel from "./WbsItemPanel";
 import { committedFor } from "./buyout/rules";
@@ -35,7 +37,7 @@ const num = (v: string | undefined): number | null => (v === undefined || v.trim
  */
 export default function BudgetGrid({
   projectId, revision, revisions, lines, resources, canEdit, projectClosed, currency, buyoutOn = false, initialBuyout,
-  contractValue = 0, marginFloor = null, basis = "line", allocation, packages = [], packagesPending = false, employees = [], fillAvailable = false,
+  contractValue = 0, marginFloor = null, basis = "line", allocation, packages = [], packagesPending = false, employees = [], fillAvailable = false, approval,
 }: {
   projectId: string;
   revision: Pick<RevisionRow, "id" | "rev_no" | "status">;
@@ -57,6 +59,8 @@ export default function BudgetGrid({
   packagesPending?: boolean;
   employees?: EmployeeChoice[];
   fillAvailable?: boolean;
+  /** The approval state of this revision: "Ask for approval" then sits beside the revision selector. Absent = not offered here. */
+  approval?: ProjectApprovalView | null;
 }) {
   const router = useRouter();
   const { confirm } = useFeel();
@@ -89,6 +93,14 @@ export default function BudgetGrid({
     const total = round2(values.reduce((s, v) => s + v, 0));
     return { total, count: values.length, of: Object.keys(typed).length, margin: marginView(contractValue, { total, allocatedCount: values.length }, marginFloor) };
   }, [typed, contractValue, marginFloor]);
+  // What the margin covers: while rows still wait for a cost it is the allocated rows' margin, and says so.
+  const noun = basis === "package" ? "WBS items" : "lines";
+  const words = useMemo(() => {
+    const rows = basis === "package"
+      ? allocation.wbsRows.filter((r) => r.is_leaf).map((r) => ({ client: r.rolled.client_amount, cost: num(typed[r.id]) }))
+      : allocation.lineRows.map((l) => ({ client: l.client_amount, cost: num(typed[l.line_key]) }));
+    return marginWords(live.margin, coverageOf(rows), noun);
+  }, [allocation, basis, typed, live.margin, noun]);
   const over = contractValue > 0 && live.total > contractValue;
   const state = marginState(live.margin.pct, marginFloor);
 
@@ -184,6 +196,12 @@ export default function BudgetGrid({
             {revisions.map((r) => <option key={r.id} value={r.id}>{r.rev_no === 0 ? "Baseline" : `Revision ${r.rev_no}`} · {REVISION_STATUS_LABEL[r.status]}</option>)}
           </Select>
         </label>
+        {approval && (
+          <ApprovalControls
+            mode="ask" projectId={projectId} revisionId={revision.id} revisionStatus={revision.status} canEdit={canEdit} approval={approval} closed={projectClosed}
+            blockedReason={dirty ? "Save the allocation, then ask for approval" : null}
+          />
+        )}
         {editable && basis === "line" && <Button variant="secondary" data-guide="cp.budget.add" style={{ minHeight: 44 }} onClick={() => setDetail("new")}>+ Add line</Button>}
         {!editable && !projectClosed && (
           <span data-guide="cp.budget.locked" role="status" style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 13, color: "var(--amberink)" }}>
@@ -202,11 +220,11 @@ export default function BudgetGrid({
 
       <StatStrip guide="cp.alloc.tiles">
         <StatTile tone="info" label="Contract value" info={PROJECT_TIPS.contractValue} value={money(contractValue, currency)} sub="from the awarded tender" />
-        <StatTile tone="neutral" label="Allocated" info={PROJECT_TIPS.allocated} value={money(live.total, currency)} sub={`${live.count} of ${live.of} ${basis === "package" ? "WBS items" : "lines"}`} />
+        <StatTile tone="neutral" label="Allocated" info={PROJECT_TIPS.allocated} value={money(live.total, currency)} sub={`${live.count} of ${live.of} ${noun}`} />
         <StatTile
-          tone={marginTone(live.margin.state)} label="Margin so far" info={PROJECT_TIPS.plannedMargin}
-          value={live.margin.state === "none" ? "Not allocated yet" : pct(live.margin.pct)}
-          sub={live.margin.state === "none" ? "type a cost" : `${money(live.margin.amount, currency)} left of ${money(contractValue, currency)}`}
+          tone={words.partial ? "neutral" : marginTone(live.margin.state)} label="Margin so far" info={words.partial ? PROJECT_TIPS.marginPartial : PROJECT_TIPS.plannedMargin}
+          value={live.margin.state === "none" ? "Not allocated yet" : words.value}
+          sub={live.margin.state === "none" ? "type a cost" : words.sub ?? `${money(live.margin.amount, currency)} left of ${money(contractValue, currency)}`}
         />
       </StatStrip>
       <div role="img" data-guide="cp.alloc.bar" aria-label={`Allocated ${money(live.total, currency)} of contract value ${money(contractValue, currency)}`} style={{ height: 14, borderRadius: 7, background: c.panel2, overflow: "hidden" }}>

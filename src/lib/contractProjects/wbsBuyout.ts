@@ -1,4 +1,4 @@
-import { isDescendant, partsOf, SHARE_TOLERANCE } from "@/lib/wbs/tree";
+import { isDescendant, partsOf, SHARE_TOLERANCE, treeOrder } from "@/lib/wbs/tree";
 import { asTreeItem, lineMemberships } from "./allocation";
 import type { BudgetLine, WorkPackageRow } from "./types";
 
@@ -55,4 +55,18 @@ export function wbsBuyoutPrefill(item: Pick<WorkPackageRow, "id" | "name" | "cod
     else out.skipped += 1;
   }
   return out;
+}
+
+// "Pick by WBS item" in the New package panel: every WBS item with the budget lines (by line_key) it holds, its sub-items' included. A split line
+// counts for every item it has a share in, because a package takes the line whole.
+
+export type WbsLineChoice = { id: string; code: string; name: string; depth: number; line_keys: string[] };
+
+export function wbsLineChoices(packages: readonly Pick<WorkPackageRow, "id" | "code" | "name" | "sort_order" | "owner_employee_id" | "parent_id" | "code_is_manual" | "line_keys" | "line_parts">[]): WbsLineChoice[] {
+  const items = packages.map(asTreeItem);
+  const own = new Map(packages.map((p) => [p.id, [...p.line_keys, ...(p.line_parts ?? []).map((x) => x.line_key)]]));
+  return treeOrder(items).map((it) => {
+    const inItem = [it.id, ...items.filter((i) => isDescendant(items, it.id, i.id)).map((i) => i.id)];
+    return { id: it.id, code: it.code, name: it.name, depth: it.depth, line_keys: [...new Set(inItem.flatMap((id) => own.get(id) ?? []))] };
+  });
 }

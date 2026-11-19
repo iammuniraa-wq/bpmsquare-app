@@ -12,7 +12,9 @@ vi.mock("next/navigation", () => ({
 vi.mock("next/link", () => ({ default: (p: { href: string; children: unknown }) => createElement("a", { href: p.href }, p.children as never) }));
 
 import BuyoutTab from "./BuyoutTab";
-import NewPackagePanel from "./NewPackagePanel";
+import NewPackagePanel, { wbsPicks } from "./NewPackagePanel";
+import HandoverPackages from "./HandoverPackages";
+import HandoverPanel from "../HandoverPanel";
 import PackagePanel, { QuoteCard, RoundsTable, type Action } from "./PackagePanel";
 import BuyoutProgressCard from "./BuyoutProgressCard";
 import SendRequestForm from "./SendRequestForm";
@@ -78,9 +80,9 @@ describe("the Buy-out tab", () => {
     expect(ready).not.toContain("Earthworks and backfill");
   });
 
-  it("is one table: package with its lines, kind and ref, the figures, the status chip and the ePROMIS chip", () => {
+  it("is one table: package with its lines, kind and ref, the figures, the status chip and the sent-to-ERP chip", () => {
     expect(out).toContain('data-guide="buyout.table"');
-    for (const h of ["Package", "Package budget", "Best quote", "Ordered", "Against budget", "Status", "ePROMIS"]) expect(out, h).toContain(`>${h}</th>`);
+    for (const h of ["Package", "Package budget", "Best quote", "Ordered", "Against budget", "Status", "Sent to ERP"]) expect(out, h).toContain(`>${h}</th>`);
     expect(out).toContain("HDPE pipe supply");
     expect(out).toContain("2 lines · Supplier · PKG-0002");
     expect(out).toContain("2 lines · Subcontract · PKG-0005");
@@ -185,13 +187,20 @@ describe("the package panel", () => {
     expect(out).toContain(">Out<");
   });
 
-  it("lists the lines with item numbers and cost in the bid, as a table and as cards", () => {
+  it("lists the lines with item numbers and their budget, as a table and as cards", () => {
     expect(out).toContain('data-guide="buyout.lines"');
     for (const w of ["2.1", "HDPE pipe 600 mm", "420 m", "INR 178,500", "2.2", "HDPE pipe 900 mm", "INR 241,500", "INR 420,000"]) expect(out, w).toContain(w);
     expect(out).toContain(">Item</th>");
-    expect(out).toContain("Cost in bid");
+    expect(out).toContain("Budget <");
+    expect(out).toContain('aria-label="About Budget"');
+    expect(out).not.toContain("Cost in bid"); // the column holds budget figures, so it is called Budget (one meaning per word)
     expect(out).toContain('class="bpm-rows-cards"');
-    expect(out).not.toContain(BUYOUT_TIPS.costInBid);
+    expect(out).not.toContain(BUYOUT_TIPS.lineBudget);
+    // the approved budget of the line is what is shown when the route sends it
+    const d = detail();
+    const revised = panel({ initialDetail: { ...d, lines: [{ ...d.lines[0], budget: 190000 }, d.lines[1]] } });
+    expect(revised).toContain("INR 190,000");
+    expect(revised).toContain("INR 431,500");
   });
 
   it("puts the quotes of the current round side by side: lowest valid marked, expired or stale in amber, no reply stated", () => {
@@ -276,17 +285,21 @@ describe("awarding", () => {
   const stale = rounds[0].quotes[3];
   const award = (q: typeof lowest): Action => ({ kind: "award", quote: q, rfqId: "rfq12" });
 
-  it("the lowest valid price is two taps: Award package, then Confirm award; no reason is asked", () => {
-    const out = panel({ initialAction: award(lowest) });
+  const roomy = { ...detail(), budget_bars: { budget: 450000, best_quote: 431000, committed: null } };
+
+  it("the lowest valid price within the budget is two taps: Award package, then Confirm award; no reason is asked", () => {
+    const out = panel({ initialDetail: roomy, initialAction: award(lowest) });
     expect(out).toContain('data-guide="buyout.award"');
     expect(out).toContain("Award the package to SAMPLE Gulf Pipes LLC for INR 431,000");
     expect(out).toContain('data-guide="buyout.award.confirm"');
     expect(out).toContain('data-guide="buyout.award.cancel"');
     expect(out).not.toContain('data-guide="buyout.award.reason"');
+    expect(out).not.toContain('data-guide="buyout.award.over"');
+    expect(out).not.toMatch(/<button[^>]*data-guide="buyout.award.confirm"[^>]*disabled/);
   });
 
   it("a price that is not the lowest valid one needs a reason, and the confirm is held until it is typed", () => {
-    const out = panel({ initialAction: award(dearer) });
+    const out = panel({ initialDetail: roomy, initialAction: award(dearer) });
     expect(out).toContain('data-guide="buyout.award.reason"');
     expect(out).toContain("Not the lowest valid price. A reason is needed.");
     expect(out).toMatch(/<button[^>]*data-guide="buyout.award.confirm"[^>]*disabled/);
@@ -299,11 +312,19 @@ describe("awarding", () => {
     expect(out).toContain('data-guide="buyout.award.reason"');
   });
 
-  it("an award over the package budget warns and can still go ahead", () => {
+  it("an award over the package budget needs a reason in the same confirm, even for the lowest valid price", () => {
     const out = panel({ initialAction: award(lowest) });
     expect(out).toContain('data-guide="buyout.award.over"');
-    expect(out).toContain("over the package budget by INR 11,000. You can still award it.");
-    expect(out).not.toMatch(/<button[^>]*data-guide="buyout.award.confirm"[^>]*disabled/);
+    expect(out).toContain("over the package budget by INR 11,000. A reason is needed.");
+    expect(out).not.toContain('data-guide="buyout.award.not_lowest"');
+    expect(out.match(/data-guide="buyout.award.reason"/g)).toHaveLength(1);
+    expect(out).toContain("Why over the budget?");
+    expect(out).toMatch(/<button[^>]*data-guide="buyout.award.confirm"[^>]*disabled/);
+    expect(out.match(/data-guide="buyout.award.confirm"/g)).toHaveLength(1); // one confirm, no approval step
+    // not the lowest AND over budget: still one reason box
+    const both = panel({ initialAction: award(dearer) });
+    expect(both.match(/data-guide="buyout.award.reason"/g)).toHaveLength(1);
+    expect(both).toContain("Why this supplier?");
   });
 
   it("after the award the winner is marked, the reason and who are shown, and Un-award is offered with a reason box", () => {
@@ -313,7 +334,7 @@ describe("awarding", () => {
     expect(out).toContain("Awarded to");
     expect(out).toContain("Precast Arabia Pipes");
     expect(out).toContain("for INR 438,500");
-    expect(out).toContain("Not the lowest valid price: Better lead time");
+    expect(out).toContain("Award reason: Better lead time");
     expect(out).toContain('data-guide="buyout.unaward.open"');
     expect(out).not.toContain('data-guide="buyout.award.open"');
     expect(out).not.toContain('data-guide="buyout.send.open"');
@@ -342,8 +363,9 @@ describe("the handover", () => {
 
   it("an awarded package offers Download Excel, an optional ERP reference and Mark as sent to ePROMIS", () => {
     const out = awarded({ state: "ready", sent_at: null });
-    expect(out).toContain("Handover for Precast Arabia Pipes");
-    expect(out).toContain("Ready to hand over");
+    expect(out).toContain("Send this package to the ERP");
+    expect(out).toContain("Order file for Precast Arabia Pipes");
+    expect(out).toContain("Ready to send");
     expect(out).toContain('href="/api/contract-projects/p1/buyout/packages/pk1/handover"');
     expect(out).toContain("download");
     expect(out).toContain('data-guide="buyout.handover.mark_sent"');
@@ -388,6 +410,24 @@ describe("sending a request", () => {
     const out = form(picker({ restricted: false, group: null }));
     expect(out).toContain("No approved list for this client");
     expect(out).not.toContain("Suppliers from:");
+  });
+
+  it("a supplier without an email says so on its row; ticked, it is named before sending", () => {
+    const row2 = form(picker()).split('data-guide="buyout.send.supplier"')[2];
+    expect(row2).toContain('data-guide="buyout.send.no_email"');
+    expect(row2).toContain("no email: add one on the supplier");
+    expect(form(picker())).not.toContain('data-guide="buyout.send.unreachable"');
+    const mixed = form(picker(), { initialChosen: ["s1", "s2"] });
+    expect(mixed).toContain('data-guide="buyout.send.unreachable"');
+    expect(mixed).toContain("Will not get the email: No Email Co. (no phone either) has no email address.");
+    expect(mixed).not.toMatch(/<button[^>]*data-guide="buyout.send.submit"[^>]*disabled/);
+    expect(form(picker(), { initialChosen: ["s1"] })).not.toContain('data-guide="buyout.send.unreachable"');
+  });
+
+  it("when nobody ticked can be e-mailed the request cannot be sent, and it says why", () => {
+    const out = form(picker(), { initialChosen: ["s2"] });
+    expect(out).toContain("Nothing can be sent: No Email Co.");
+    expect(out).toMatch(/<button[^>]*data-guide="buyout.send.submit"[^>]*disabled/);
   });
 
   it("names the round and shows the server's refusal", () => {
@@ -544,10 +584,32 @@ describe("the new package panel started from a WBS item", () => {
     expect(out).toContain('value="Galvanising"');
   });
 
+  it("Pick by WBS item offers the items that still hold a free line, sub-items included, above the list; All and None stay", () => {
+    const wbs = [
+      { id: "steel", code: "1", name: "Steel", depth: 1, line_keys: [K(1), K(2), K(3)] },
+      { id: "fab", code: "1.1", name: "Fabrication", depth: 2, line_keys: [K(1), K(2), K(3)] },
+      { id: "gates", code: "2", name: "Gates", depth: 1, line_keys: [K(3)] }, // its only line is already in a package
+    ];
+    expect(wbsPicks(wbs, free).map((x) => [x.item.code, x.ids])).toEqual([["1", ["ap-1", "ap-2"]], ["1.1", ["ap-1", "ap-2"]]]);
+    expect(wbsPicks(undefined, free)).toEqual([]);
+    const o = clean(renderToString(createElement(NewPackagePanel, { projectId: "p1", lines: free, wbsItems: wbs, currency: "INR", onClose: noop, onCreated: noop })));
+    expect(o).toContain('data-guide="buyout.new.by_wbs"');
+    expect(o).toContain('aria-label="Pick by WBS item"');
+    expect(o).toContain("1 Steel (2 lines)");
+    expect(o).toContain("1.1 Fabrication (2 lines)");
+    expect(o).not.toContain("2 Gates");
+    expect(o.indexOf('data-guide="buyout.new.by_wbs"')).toBeLessThan(o.indexOf('data-guide="buyout.new.line"'));
+    for (const g of ["buyout.new.all", "buyout.new.none"]) expect(o, g).toContain(`data-guide="${g}"`);
+    const panelSrc = src("src/components/contractProjects/buyout/NewPackagePanel.tsx");
+    expect(panelSrc).toContain("setChosen((cs) => [...cs, ...ids.filter((x) => !cs.includes(x))])");
+    expect(src("src/components/contractProjects/buyout/BuyoutTab.tsx")).toContain("wbsItems={data.wbs_items}");
+  });
+
   it("the panel without a WBS item is as it was: nothing ticked, no taken lines", () => {
     const o = clean(renderToString(createElement(NewPackagePanel, { projectId: "p1", lines: free, currency: "INR", onClose: noop, onCreated: noop })));
     expect(o).not.toContain("buyout.new.line_taken");
     expect(o).not.toContain("in this WBS item");
+    expect(o).not.toContain("buyout.new.by_wbs");
     expect(o.match(/<input type="checkbox"[^>]*checked=""/g) ?? []).toHaveLength(0);
   });
 
@@ -557,5 +619,50 @@ describe("the new package panel started from a WBS item", () => {
     expect(tabSrc).toContain("Packages are made from the approved baseline. Approve the baseline first.");
     expect(tabSrc).toMatch(/\?tab=buyout/);
     expect(tabSrc).toContain("onMakeBuyout={buyoutOn && editable ?");
+  });
+});
+
+describe("the ERP handover tab: two named parts, and the package action has one home", () => {
+  const hand = (props: Partial<Parameters<typeof HandoverPanel>[0]> = {}) =>
+    clean(renderToString(createElement(HandoverPanel, { projectId: "p1", revisionId: "r0", revLabel: "Baseline", hasBudget: true, buyoutOn: true, initialBuyout: data(), ...props })));
+
+  it("has a Budget part and a Packages part; a project without Buy-out has only the budget", () => {
+    const out = hand();
+    expect(out).toContain(">Budget</h2>");
+    expect(out).toContain(">Packages</h2>");
+    expect(out).not.toContain("Hand over to the ERP");
+    const plain = hand({ buyoutOn: false });
+    expect(plain).toContain(">Budget</h2>");
+    expect(plain).not.toContain(">Packages</h2>");
+    expect(plain).not.toContain("cp.handover.packages");
+  });
+
+  it("lists each awarded package with its order file and whether it was sent, and sends the person to Buy-out to mark it", () => {
+    const out = hand();
+    const awarded = data().packages.filter((p) => p.status === "awarded" || p.status === "handed_over");
+    expect(out.match(/data-guide="cp.handover.package"/g)).toHaveLength(awarded.length);
+    for (const p of awarded) {
+      expect(out, p.name).toContain(p.name);
+      expect(out, p.name).toContain(`href="/api/contract-projects/p1/buyout/packages/${p.id}/handover"`);
+    }
+    for (const p of data().packages.filter((x) => !awarded.includes(x))) expect(out, p.name).not.toContain(`/buyout/packages/${p.id}/handover`);
+    expect(out).toContain("Mark as sent in Buy-out");
+    expect(out).toContain('href="/contract-projects/p1?tab=buyout"');
+    expect(out).not.toContain("cp.handover.package.mark_sent");
+    expect(out).not.toContain(BUYOUT_TIPS.erpPackages);
+  });
+
+  it("with nothing awarded it says so and points at Buy-out", () => {
+    const none = clean(renderToString(createElement(HandoverPackages, { projectId: "p1", initial: data({ packages: data().packages.filter((p) => p.status === "draft") }) })));
+    expect(none).toContain("No awarded packages yet.");
+    expect(none).toContain("Open Buy-out");
+  });
+
+  it("the names tell the three places apart: the tab, the package section and the table column", () => {
+    expect(src("src/app/(app)/contract-projects/[id]/page.tsx")).toContain('id: "handover", label: "ERP handover"');
+    const p = src("src/components/contractProjects/buyout/PackagePanel.tsx");
+    expect(p).toContain('title="Send this package to the ERP"');
+    expect(p).not.toContain('title="Handover"');
+    expect(src("src/components/contractProjects/buyout/BuyoutTab.tsx")).not.toContain(">ePROMIS</th>");
   });
 });

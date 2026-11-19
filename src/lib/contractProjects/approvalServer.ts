@@ -3,7 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { TenantConfig } from "@/lib/constants";
 import { loadActorNames } from "@/lib/actorNames";
 import { loadApprovers } from "@/lib/tender/approvalServer";
-import { askProblem, canDecide, decidersFor, PROJECT_APPROVAL_KIND, PROJECT_APPROVAL_OBJECT } from "./approval";
+import { askProblem, askWarning, canDecide, decidersFor, PROJECT_APPROVAL_KIND, PROJECT_APPROVAL_OBJECT } from "./approval";
 import { isMissingSchema } from "./server";
 import type { RevisionRow } from "./types";
 
@@ -57,6 +57,8 @@ export type ProjectApprovalView = {
   canDecide: boolean;
   /** Why the shown revision cannot be sent for approval now (shown in place of the button), or null when it can. */
   askBlocked: string | null;
+  /** Asking is allowed but some lines have no cost ("10 of 12 lines have no cost yet"): the screen confirms before it sends. */
+  askWarning?: string | null;
   history: ApprovalEntry[];
 };
 
@@ -66,7 +68,7 @@ export async function buildProjectApprovalView(
   admin: SupabaseClient,
   args: {
     tenantId: string; userId: string; projectId: string; config: Pick<TenantConfig, "tender"> | null | undefined;
-    revisions: readonly RevisionRow[]; shown: RevisionRow | null; lineCount: number; linesWithoutResource: number; projectClosed: boolean; total?: number;
+    revisions: readonly RevisionRow[]; shown: RevisionRow | null; lineCount: number; linesWithoutResource: number; projectClosed: boolean; total?: number; costedCount?: number;
   },
 ): Promise<ProjectApprovalView | null> {
   const { rows, pending } = await loadProjectApprovals(admin, args.tenantId, args.projectId);
@@ -85,6 +87,7 @@ export async function buildProjectApprovalView(
     pending: open ? { ...entry(open), mine: open.requested_by === args.userId } : null,
     canDecide: open ? canDecide(args.userId, approvers, open.requested_by, allowSelfApproval) : false,
     askBlocked: args.shown ? askProblem({ revision: args.shown, lineCount: args.lineCount, linesWithoutResource: args.linesWithoutResource, deciders, projectClosed: args.projectClosed, total: args.total }) : "No revision yet",
+    askWarning: args.costedCount === undefined ? null : askWarning({ lineCount: args.lineCount, costedCount: args.costedCount }),
     history: rows.filter((r) => r.status !== "pending").slice(0, APPROVAL_HISTORY_SHOWN).map(entry),
   };
 }

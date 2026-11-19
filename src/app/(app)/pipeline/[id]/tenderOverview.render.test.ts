@@ -292,7 +292,7 @@ describe("the warnings before a bid is submitted or revised", () => {
 
   it("both Submit bid and Revise bid go through the warning step, which asks the BOQ for its totals and then lets the person continue", () => {
     expect(bids).toMatch(/data-guide="tender\.bid\.submit"[^\n]*warnThen\(\(\) => setAskSubmit\(true\)\)/);
-    expect(bids).toMatch(/data-guide="tender\.bid\.revise"[^\n]*warnThen\(revise\)/);
+    expect(bids).toMatch(/data-guide="tender\.bid\.revise"[^\n]*warnThen\(\(\) => setAskSubmit\(true\)\)/);
     expect(bids).toContain("/boq`");
     expect(bids).toContain("Go on");
   });

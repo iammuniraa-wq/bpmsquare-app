@@ -237,6 +237,7 @@ describe("packages", () => {
     expect(r.json.tiles).toMatchObject({ budget: 0, committed: 0, needs_decision: 0, packages: 0, project_budget: 20000, unassigned_budget: 20000 });
     expect(r.json.can_edit).toBe(true);
     expect(r.json.can_send_rounds).toBe(true);
+    expect(r.json.wbs_items).toEqual([]); // no WBS on this project: the chooser is not offered
   });
 
   it("makes a package: PKG ref, budget from the approved lines, the cost the bid started from, and the lines leave the unassigned list", async () => {
@@ -390,6 +391,8 @@ describe("rounds and the client's approved supplier list", () => {
     expect(String(rfq.origin_label)).toContain("CPR-0001");
     const lines = rows("rfq_lines").filter((l) => l.rfq_id === rfq.id).sort((a, b) => Number(a.sl_no) - Number(b.sl_no));
     expect(lines.map((l) => [l.description, l.uom, Number(l.qty)])).toEqual([["HDPE pipe 110mm", "m", 100], ["Gate valve DN100", "no", 4]]);
+    // The client's item numbers travel with the lines, as on a tender RFQ.
+    expect(lines.map((l) => l.spec)).toEqual(["Item no. 1.1", "Item no. 1.2"]);
     const pkgLines = rows("project_buyout_package_lines").sort((a, b) => Number(a.sort_order) - Number(b.sort_order));
     expect(lines.map((l) => l.package_line_id)).toEqual(pkgLines.map((p) => p.id));
     expect(rows("rfq_suppliers").filter((s) => s.rfq_id === rfq.id).map((s) => s.supplier_id).sort()).toEqual([S1, S2].sort());
@@ -482,9 +485,31 @@ describe("award, un-award and the handover", () => {
     await unaward(pkg, { reason: "checking the column" });
     expect((await summary()).json.committed_by_line).toEqual({});
     expect(logged().some((l) => l.includes("Package PKG-0001 awarded"))).toBe(true);
+    expect(logged().some((l) => l.includes("over budget"))).toBe(false); // within the budget: nothing about an overspend
   });
 
-  it("a supplier that is not the lowest valid total needs a reason; with one the award stands and an overspend only warns", async () => {
+  it("the lowest valid total over the package budget needs a reason too: one confirm, the reason kept on the award and in the change log", async () => {
+    const pkg = (await newPackage()).json.id as string;
+    const rfq = (await round(pkg, [S1, S2])).json.rfq_id as string;
+    reply(rfq, S1, [130, 500]); // 15,000
+    reply(rfq, S2, [125, 450]); // 14,300: the lowest valid, and 2,300 over the 12,000 budget
+    const noReason = await award(pkg, { rfq_id: rfq, supplier_id: S2 });
+    expect(noReason.status).toBe(422);
+    expect(noReason.json).toMatchObject({ code: "reason_required", why: "over_budget", budget: 12000, over: 2300, chosen_total: 14300 });
+    expect(noReason.json.error).toContain("over the package budget by 2300.00");
+    expect(currentAwards()).toHaveLength(0);
+    expect(rows("project_buyout_packages").find((p) => p.id === pkg)).toMatchObject({ status: "out" });
+    expect((await award(pkg, { rfq_id: rfq, supplier_id: S2, reason: "no" })).status).toBe(422);
+    const done = await award(pkg, { rfq_id: rfq, supplier_id: S2, reason: "Steel prices rose after the bid" });
+    expect(done.status).toBe(200);
+    expect(done.json.row).toMatchObject({ status: "awarded", committed: 14300, against_budget: -2300 });
+    expect(rows("project_buyout_packages").find((p) => p.id === pkg)).toMatchObject({ award_reason: "Steel prices rose after the bid", committed_amount: 14300 });
+    const changes = state.changes.flatMap((c) => c.changes ?? []) as { field: string; from: unknown; to: unknown }[];
+    expect(changes.find((x) => x.field.includes("awarded over budget"))).toMatchObject({ from: "12000.00", to: "14300.00 (over by 2300.00)" });
+    expect(changes.find((x) => x.field.includes("award reason"))).toMatchObject({ to: "Steel prices rose after the bid" });
+  });
+
+  it("a supplier that is not the lowest valid total needs a reason; with one the award stands and an overspend is recorded", async () => {
     const { pkg, rfq } = await quoted();
     const noReason = await award(pkg, { rfq_id: rfq, supplier_id: S1 });
     expect(noReason.status).toBe(422);
@@ -497,6 +522,7 @@ describe("award, un-award and the handover", () => {
     expect(rows("project_buyout_packages").find((p) => p.id === pkg)).toMatchObject({ award_reason: "Only one with local stock", committed_amount: 12500 });
     expect(currentAwards().every((a) => a.reason === "Only one with local stock")).toBe(true);
     expect(logged().some((l) => l.includes("award reason"))).toBe(true);
+    expect(logged().some((l) => l.includes("awarded over budget"))).toBe(true);
   });
 
   it("refuses a supplier that did not quote every line, a round or supplier that is not this package's, a second award, and a person without the RFQ grant", async () => {

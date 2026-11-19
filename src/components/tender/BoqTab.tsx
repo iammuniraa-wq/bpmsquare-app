@@ -54,6 +54,12 @@ type State = {
 };
 
 export type BoqScreenState = State;
+
+/** What the path across the top of the deal reads from the BOQ: the same six facts the page works out on the server. */
+export type BoqStepFacts = { hasBoq: boolean; lines: number; unpriced: number; stale: number; noProduct: number; amount: number };
+export const boqStepFacts = (s: Pick<State, "source" | "totals">): BoqStepFacts => s.source
+  ? { hasBoq: true, lines: s.totals.lines, unpriced: s.totals.unpriced, stale: s.totals.stale, noProduct: s.totals.no_product ?? 0, amount: s.totals.amount }
+  : { hasBoq: false, lines: 0, unpriced: 0, stale: 0, noProduct: 0, amount: 0 };
 type EstimatesWithRfq = EstimatesState & { rfq_enabled?: boolean };
 
 const fmtDate = (s: string | null) => (s ? new Date(s).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "");
@@ -111,7 +117,7 @@ function AddMenu({ onUpload, onAddLine, loading, initialOpen }: { onUpload: () =
   );
 }
 
-export default function BoqTab({ opportunityId, canEdit, onError, onNotice, onLinesChanged, onOpenCosting, initialData, initialEstimates, layout, initialOpenRow, dealLines, dealLinesVersion, filterRequest, initialAddOpen }: {
+export default function BoqTab({ opportunityId, canEdit, onError, onNotice, onLinesChanged, onFacts, onOpenCosting, initialData, initialEstimates, layout, initialOpenRow, dealLines, dealLinesVersion, filterRequest, initialAddOpen }: {
   opportunityId: string; canEdit: boolean; onError: (m: string) => void; onNotice: (m: string) => void;
   /** The deal's own lines and their version. Shown (and editable) as rows only while no client file has been uploaded. */
   dealLines?: OpportunityLine[]; dealLinesVersion?: string;
@@ -119,6 +125,8 @@ export default function BoqTab({ opportunityId, canEdit, onError, onNotice, onLi
   filterRequest?: { filter: BoqFilter; n: number };
   /** Called after anything that changed the deal's lines (create, re-upload, a price, a quantity), so the page can reload its header and totals. */
   onLinesChanged?: () => void;
+  /** The BOQ as just re-read after a change, so the page's step tracker moves at once and does not wait for the server render. */
+  onFacts?: (facts: BoqStepFacts) => void;
   /** Opens the Costing tab for a row (the panel's "Open in Costing"). Absent = the button is not drawn. */
   onOpenCosting?: (rowId: string) => void;
   /** Lets a server render (and its test) show the loaded screen without a fetch. The page never passes these. */
@@ -195,9 +203,9 @@ export default function BoqTab({ opportunityId, canEdit, onError, onNotice, onLi
   const markupPct = parseMarkup(markup, DEFAULT_MARKUP_PCT);
 
   const changed = useCallback(() => {
-    void reloadAfterSave<State>(base, setData, onLinesChanged);
+    void reloadAfterSave<State>(base, (fresh) => { setData(fresh); onFacts?.(boqStepFacts(fresh)); }, onLinesChanged);
     void loadEstimates();
-  }, [base, loadEstimates, onLinesChanged]);
+  }, [base, loadEstimates, onLinesChanged, onFacts]);
 
   const upload = useBoqUpload({ base, hasBoq: !!data?.source, onError, onNotice, onApplied: (r) => { setShown(0); setRespread(new Set(r.respread_ids)); changed(); } });
 

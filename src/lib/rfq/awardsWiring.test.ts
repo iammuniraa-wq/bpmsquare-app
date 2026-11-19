@@ -6,6 +6,7 @@ import { tipTextProblems } from "@/lib/infoTip";
 import { RFQ_TIPS } from "./tips";
 import { rfqConfig } from "./types";
 import { tenderRfqLines } from "@/lib/tender/rfqLines";
+import { itemNoOfSpec, itemNoSpec } from "./itemNo";
 
 // GCC tender deals, slice 3b: the shape of migration 0224, the bundle that carries it, the ledger, the gating map, the
 // explanations behind the "i", the controls the assistant can point at, and the tender-only entry point.
@@ -120,5 +121,21 @@ describe("the tender RFQ lines", () => {
     expect(out[2].spec ?? null).toBeNull(); // no item number to carry
     expect(out[2].include).toBe(false); // priced while others are not
     expect(out[3]).toMatchObject({ include: false, linked_ref: "RFQ-0002" });
+  });
+
+  it("hands the form the item number to show beside each line, and none for a line that has no number", () => {
+    expect(out.map((l) => l.item_no ?? null)).toEqual(["3.1.2", "3.1.3", null, "4"]);
+  });
+
+  it("reads and writes the item number at the start of a specification", () => {
+    expect(itemNoSpec("1.1")).toBe("Item no. 1.1");
+    expect(itemNoSpec(" 1.1 ", "Grade 316")).toBe("Item no. 1.1. Grade 316");
+    expect(itemNoSpec(null, "Grade 316")).toBe("Grade 316");
+    expect(itemNoSpec("", null)).toBeNull();
+    expect(itemNoOfSpec("Item no. 1.1")).toBe("1.1");
+    expect(itemNoOfSpec("Item no. 1.1. Grade 316")).toBe("1.1");
+    expect(itemNoOfSpec("Item no. A-3")).toBe("A-3");
+    expect(itemNoOfSpec("Grade 316")).toBeNull();
+    expect(itemNoOfSpec(null)).toBeNull();
   });
 });

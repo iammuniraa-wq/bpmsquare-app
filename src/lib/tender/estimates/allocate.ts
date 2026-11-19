@@ -33,8 +33,14 @@ export function currentPriceOf(b: Pick<BoqInput, "rate" | "price_source" | "pric
   return Number(b.rate) > 0 ? { text: "Typed", kind: "sell" } : null;
 }
 
-/** The rows a panel ticks when it opens: only rows with no price at all. A row priced from an RFQ, an estimate or by hand is never pre-ticked. */
-export const defaultTicks = (rows: readonly Pick<Proposal, "boq_id" | "current">[]): Set<string> => new Set(rows.filter((r) => !r.current).map((r) => r.boq_id));
+/**
+ * The rows a panel ticks when it opens. A row that already has a price (from an RFQ, an estimate or by hand) is never pre-ticked.
+ *   match   the unpriced rows that read like a line of the estimate (cost code or wording)
+ *   spread  nothing: every row of the BOQ is offered, so the person says which rows the part covers. One click must not spread a
+ *           pipe estimate over the manholes and the asphalt.
+ */
+export const defaultTicks = (rows: readonly Pick<Proposal, "boq_id" | "current">[], mode: "match" | "spread" = "match"): Set<string> =>
+  mode === "spread" ? new Set() : new Set(rows.filter((r) => !r.current).map((r) => r.boq_id));
 
 /** One line per chosen row that already has a price: "Replaces the Supplier · RFQ-0011 cost on 1.1." */
 export function replacedPrices(chosen: readonly Pick<Proposal, "item_no" | "row_no" | "current">[]): string[] {

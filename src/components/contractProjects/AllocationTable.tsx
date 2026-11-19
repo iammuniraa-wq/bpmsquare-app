@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { c, pillar } from "@/lib/theme";
 import Button from "@/components/ui/Button";
 import InfoTip from "@/components/ui/InfoTip";
@@ -12,7 +13,8 @@ import { PROJECT_TIPS } from "@/lib/contractProjects/tips";
 // person allocates (one input, 44 px) and what is left. The detail of a line (resource type, cost code, reserve, unit) sits behind its item
 // number, in a side panel. Under 780 px the table is a list of cards (the shared .bpm-rows-table / .bpm-rows-cards rules). Labels, values and
 // inputs only: the explanations are behind the "i". In the WBS table a cost is typed on a bottom-level item only; a parent shows what its
-// sub-items add up to, in muted figures, and is never typed.
+// sub-items add up to, in muted figures, and is never typed. A typed cost reads as money (1,234.50) until its input has the focus, where it
+// is the plain number being edited.
 
 const th: React.CSSProperties = { textAlign: "left", fontSize: 11, color: c.hint, textTransform: "uppercase", letterSpacing: 0.4, padding: "9px 12px", background: c.panel2, fontWeight: 600, whiteSpace: "nowrap" };
 const thR: React.CSSProperties = { ...th, textAlign: "right" };
@@ -36,6 +38,29 @@ type Common = {
   erp?: { rows: Record<string, ErpCols>; ordered: boolean; spent: boolean };
 };
 
+/** What a cost input shows while it is not being edited: thousands separators and 2 decimals, like the money beside it. */
+export const costText = (v: string | undefined): string => {
+  const n = v === undefined || v.trim() === "" ? Number.NaN : Number(v);
+  return Number.isFinite(n) ? n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : v ?? "";
+};
+/** A keystroke in a cost input: separators dropped, and anything that is not a plain number of 0 or more is refused (null). */
+export const costTyped = (raw: string): string | null => {
+  const v = raw.replace(/[,\s]/g, "");
+  return /^\d*\.?\d*$/.test(v) ? v : null;
+};
+
+function CostInput({ value, label, disabled, onChange }: { value: string; label: string; disabled: boolean; onChange: (v: string) => void }) {
+  const [editing, setEditing] = useState(false);
+  return (
+    <input
+      className="bpm-input" type="text" inputMode="decimal" autoComplete="off" data-guide="cp.alloc.input" aria-label={label}
+      value={editing ? value : costText(value)} disabled={disabled} placeholder="0" style={inputStyle}
+      onFocus={() => setEditing(true)} onBlur={() => setEditing(false)}
+      onChange={(e) => { const v = costTyped(e.target.value); if (v !== null) onChange(v); }}
+    />
+  );
+}
+
 const amountOf = (v: string | undefined): number | null => (v === undefined || v.trim() === "" || !Number.isFinite(Number(v)) ? null : Number(v));
 const leftOf = (client: number | null, v: string | undefined): number | null => (client === null ? null : Math.round((client - (amountOf(v) ?? 0)) * 100) / 100);
 
@@ -47,10 +72,7 @@ export function LinesTable({ rows, onOpen, ...p }: Common & { rows: LineRow[]; o
   // The WBS column appears once the project has a WBS (any line sits in an item).
   const showWbs = rows.some((r) => r.wbs.length > 0);
   const cell = (r: LineRow) => (
-    <input
-      className="bpm-input" type="number" min="0" step="any" inputMode="decimal" data-guide="cp.alloc.input" aria-label={`Allocated cost for ${r.item ?? r.description}`}
-      value={p.typed[r.line_key] ?? ""} disabled={!p.editable} placeholder="0" style={inputStyle} onChange={(e) => p.onType(r.line_key, e.target.value)}
-    />
+    <CostInput label={`Allocated cost for ${r.item ?? r.description}`} value={p.typed[r.line_key] ?? ""} disabled={!p.editable} onChange={(v) => p.onType(r.line_key, v)} />
   );
   const opener = (r: LineRow) => (
     <button
@@ -122,10 +144,7 @@ export function WbsTable({ rows, onOpen, ...p }: Common & { rows: WbsRow[]; onOp
   const live = rollTyped(rows, p.typed);
   const indent = (r: WbsRow) => (r.depth - 1) * 18;
   const cell = (r: WbsRow) => (
-    <input
-      className="bpm-input" type="number" min="0" step="any" inputMode="decimal" data-guide="cp.alloc.input" aria-label={`Allocated cost for ${r.code} ${r.name}`}
-      value={p.typed[r.id] ?? ""} disabled={!p.editable} placeholder="0" style={inputStyle} onChange={(e) => p.onType(r.id, e.target.value)}
-    />
+    <CostInput label={`Allocated cost for ${r.code} ${r.name}`} value={p.typed[r.id] ?? ""} disabled={!p.editable} onChange={(v) => p.onType(r.id, v)} />
   );
   const shown = (r: WbsRow) => live.get(r.id) ?? { allocated: 0, left: r.rolled.left };
   const opener = (r: WbsRow) => (

@@ -213,6 +213,25 @@ describe("the WBS tree with a split line (docs/design/wbs.md)", () => {
     expect(v.wbsRows.filter((r) => r.depth === 1).reduce((s, r) => s + (r.rolled.client_amount ?? 0), 0)).toBe(141582 + 8000);
   });
 
+  it("by BOQ line an item's Allocated is the budget cost on its lines: sub-items rolled up, a split line by its shares, to the cent", () => {
+    const costed = [{ ...stair, allocated: true, amount: 90650 }, { ...rail, allocated: true, amount: 4000.01 }, { ...free, allocated: true, amount: 300 }];
+    const v = allocationView({ allocation_basis: "line", contract_value: 200000 }, costed, tree(), null);
+    const [root, fab, gal, ere] = v.wbsRows;
+    expect(fab.rolled.allocated).toBe(54390 + 4000.01);
+    expect(gal.rolled.allocated).toBe(13597.5);
+    expect(ere.rolled.allocated).toBe(22662.5);
+    expect(root.rolled.allocated).toBe(round(54390 + 4000.01 + 13597.5));
+    expect(root.rolled.left).toBe(round(84949.2 + 8000 + 21237.3 - (54390 + 4000.01 + 13597.5)));
+    // the whole stair is counted once across the tree, and the unassigned gate in no item
+    expect(round(v.wbsRows.filter((r) => r.depth === 1).reduce((s, r) => s + r.rolled.allocated, 0))).toBe(round(90650 + 4000.01));
+    // a line that is not allocated adds nothing; a cost typed on an item is not read in this basis
+    const none = allocationView({ allocation_basis: "line", contract_value: 1 }, lines2, tree({ fab: 70000 }), null);
+    expect(none.wbsRows.every((r) => r.rolled.allocated === 0)).toBe(true);
+    // by WBS the item's own typed cost is still what shows, whatever the lines carry
+    const byWbs = allocationView({ allocation_basis: "package", contract_value: 1 }, costed, tree({ fab: 70000 }), null);
+    expect(byWbs.wbsRows[1].rolled.allocated).toBe(70000);
+  });
+
   it("the unassigned list names a line in no item, and a split line's remainder after an item was removed", () => {
     const v = allocationView({ allocation_basis: "package", contract_value: 1 }, lines2, tree().filter((p) => p.id !== "gal"), null);
     expect(v.unassigned.map((u) => [u.item, u.remainder_pct, u.split])).toEqual([["2.4", 15, true], ["2.6", 100, false]]);

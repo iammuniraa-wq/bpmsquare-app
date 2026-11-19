@@ -6,6 +6,7 @@ import { resolvePermissions, canViewWorkcenter, canEditWorkcenter } from "@/lib/
 import type { Tenant } from "@/lib/tenant";
 import { tenantOrigin, type TenantFeatures } from "@/lib/constants";
 import { plainTextToHtml } from "@/lib/email/plainTextHtml";
+import { displayName } from "@/lib/tender/notify";
 import { nextSeqFromRefs } from "@/lib/refSeq";
 import { emailOutputFor, resolveOutbound } from "@/lib/emailOutput";
 import { logEmail } from "@/lib/emailLog";
@@ -829,7 +830,8 @@ export async function notifyRfqTeam(admin: SupabaseClient, tenant: Tenant, rfq: 
     if (!routed.ok) return;
     const sendingDomain = process.env.RESEND_SENDING_DOMAIN || "bpmsquare.com";
     await new Resend(process.env.RESEND_API_KEY).emails.send({
-      from: `BPMSquare <notifications@${sendingDomain}>`, to: routed.email.to, subject: routed.email.subject, text: routed.email.text, html: plainTextToHtml(routed.email.text),
+      // The workspace's own name and address, like every other mail it sends (owner 2026-11-19: "keep it consistent").
+      from: `${displayName(tenant.name)} <${(tenant.slug || "rfq").toLowerCase().replace(/[^a-z0-9._-]/g, "") || "rfq"}@${sendingDomain}>`, to: routed.email.to, subject: routed.email.subject, text: routed.email.text, html: plainTextToHtml(routed.email.text),
     });
   } catch (e) {
     console.error("[rfq] team notification failed", e);
