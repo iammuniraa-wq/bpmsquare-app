@@ -14,6 +14,22 @@ export const PRICE_SOURCE_LABEL: Record<PriceSource, string> = {
   boq_rate: "Client's rate", bom: "BOM / estimate", past_project: "Past project", supplier: "Supplier", manual: "Manual", estimate: "Tender estimate",
 };
 
+/** What the figure behind a rate is: our cost, or only a selling rate (a past bid, the client's own rate, a typed rate). */
+export type PriceKind = "cost" | "sell";
+export const PRICE_KIND_LABEL: Record<PriceKind, string> = { cost: "Cost", sell: "Selling price" };
+export const PRICE_KIND_TIP: Record<PriceKind, string> = {
+  cost: "This figure is your cost. The rate is the cost plus the markup.",
+  sell: "This figure is a selling rate, not your cost. The row has no known cost yet.",
+};
+const COST_SOURCES: readonly PriceSource[] = ["supplier", "bom", "estimate"];
+
+/** A row has a known cost when one is stored on it, or its source gives costs. A rate copied from a past project is never a cost. */
+export function priceKind(source: PriceSource | null | undefined, unitCost: number | null | undefined): PriceKind | null {
+  if (!source) return null;
+  if (unitCost != null && unitCost > 0) return "cost";
+  return COST_SOURCES.includes(source) ? "cost" : "sell";
+}
+
 export const DEFAULT_PRICE_VALIDITY_DAYS = 180;
 /** The markup on cost a tender deal starts with (owner decision 2026-10-27); a workspace may set another in config.tender.default_markup_pct. */
 export const DEFAULT_MARKUP_PCT = 15;
