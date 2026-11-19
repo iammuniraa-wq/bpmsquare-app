@@ -25,12 +25,15 @@ export function askProblem(args: {
   linesWithoutResource: number;
   deciders: readonly string[];
   projectClosed: boolean;
+  /** The revision's budget total; absent on a caller that does not know it. A budget of 0 is never worth approving (KAMCO demo, 2026-11-19). */
+  total?: number;
 }): string | null {
   if (args.projectClosed) return "This project is closed";
   if (args.revision.status === "pending") return "This revision is already waiting for approval";
   if (args.revision.status !== "draft") return "Only a draft revision can be sent for approval";
   if (args.lineCount === 0) return "Add at least one budget line first";
   if (args.linesWithoutResource > 0) return `${args.linesWithoutResource} line${args.linesWithoutResource === 1 ? " has" : "s have"} no resource type. Choose one for each`;
+  if (args.total !== undefined && !(args.total > 0)) return "The budget is 0. Allocate a cost to the lines on the Budget tab first";
   const j = justificationProblem(args.revision);
   if (j) return j;
   if (args.deciders.length === 0) return "No one else can approve it. Choose approvers in Settings > Tenders, or allow self-approval there";

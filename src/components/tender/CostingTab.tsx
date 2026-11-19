@@ -136,8 +136,8 @@ export default function CostingTab({ opportunityId, canEdit, onError, onNotice, 
           <StatTile tone={noCost > 0 ? "warn" : "good"} label="Still need a cost" info={COSTING_TIPS.knownCost} value={String(noCost)}
             sub={noCost === 0 ? "every row has a known cost" : [rateOnly > 0 ? `${rateOnly} with a rate only` : "", t.unpriced > 0 ? `${t.unpriced} without a rate` : ""].filter(Boolean).join(" · ")} />
         )}
-        <StatTile tone="info" label="RFQs out" info={COSTING_TIPS.rfqsOut} value={String(t.rfqs_out)} sub={t.rfqs_out > 0 ? "with suppliers" : "none waiting"} />
-        <StatTile tone={t.replies_in > 0 ? "good" : "neutral"} label="Replies in" info={COSTING_TIPS.repliesIn} value={String(t.replies_in)} sub={t.replies_in > 0 ? "from suppliers" : "no reply yet"} />
+        <StatTile tone="info" label="RFQs out" info={COSTING_TIPS.rfqsOut} value={String(t.rfqs_out)} sub={t.rfqs_out > 0 ? "with suppliers" : "none open"} />
+        <StatTile tone={t.replies_in > 0 ? "good" : "neutral"} label="Replies in" info={COSTING_TIPS.repliesIn} value={String(t.replies_in)} sub={t.replies_in > 0 ? "from suppliers" : "none to compare"} />
       </StatStrip>
 
       {(t.unpriced > 0 || data.boq.stale > 0 || rateOnly > 0) && (
@@ -201,7 +201,6 @@ export default function CostingTab({ opportunityId, canEdit, onError, onNotice, 
               busy={busy} comparingId={compareId}
             />
           )}
-          {!cards && <div style={{ padding: "6px 12px", fontSize: 12, color: c.muted }}>Each BOQ row takes its cost from one source.</div>}
           {data.items.length > PAGE && (
             <Button variant="quiet" onClick={() => setShowAll(!showAll)} style={{ minHeight: 44 }} data-guide="costing.show_all">{showAll ? "Show fewer" : `Show all ${data.items.length}`}</Button>
           )}

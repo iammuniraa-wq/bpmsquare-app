@@ -134,7 +134,7 @@ export function BoqTable({ rows, links, openId, onOpen, wbs, base }: { rows: rea
               </th>
             )}
             <th scope="col">Item</th>{wbs && <Head label="WBS" tip="wbs" />}<th scope="col">Description</th><th scope="col" className={s.num}>Qty</th><th scope="col">Unit</th><Head label="Cost from" tip="source" />
-            <Head label="Cost / unit" tip="cost" num /><Head label="Markup %" tip="markup" num /><Head label="Rate / unit" tip="rate" num /><th scope="col" className={s.num}>Amount</th><Head label="Product" tip="product" />{wbs && <th scope="col" aria-label="Split" />}
+            <Head label="Cost / unit" tip="cost" num /><Head label="Markup %" tip="markup" num /><Head label="Rate / unit" tip="rate" num /><th scope="col" className={s.num}>Amount</th><Head label="Linked to" tip="product" />{wbs && <th scope="col" aria-label="Split" />}
           </tr>
         </thead>
         <tbody>

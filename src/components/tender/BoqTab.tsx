@@ -244,6 +244,8 @@ export default function BoqTab({ opportunityId, canEdit, onError, onNotice, onLi
   const openRow = openId ? data.lines.find((l) => l.id === openId && !l.removed) ?? null : null;
   const total = data.totals;
   const pct = pricedPercent(total.priced, total.lines);
+  // A rate copied from a past bid or the client's file is a selling price, not a cost: the tiles say how many rows have a real cost.
+  const costed = data.lines.filter((l) => !l.removed && l.priced && l.unit_cost != null).length;
 
   // The WBS (0243): a view switch, a tick box and a WBS column on the table, the tree. Off while the database has no WBS tables yet, and for an older answer.
   const wbsOn = hasBoq && !!data.wbs && !data.wbs.pending;
@@ -284,9 +286,6 @@ export default function BoqTab({ opportunityId, canEdit, onError, onNotice, onLi
             <InfoTip label="Price all">{TENDER_TIPS.boqPriceAll}</InfoTip>
           </>
         )}
-        {canEdit && hasBoq && (
-          <span data-guide="boq.price_all_note" style={{ marginLeft: "auto", fontSize: 12, color: c.muted }}>Price all uses supplier, then BOM, then past project. Fresh prices only.</span>
-        )}
       </div>
       {upload.panel}
 
@@ -309,8 +308,8 @@ export default function BoqTab({ opportunityId, canEdit, onError, onNotice, onLi
         <>
           <StatStrip guide="boq.summary">
             <StatTile tone="context" label="Lines" value={String(total.lines)} sub={view === "wbs" ? `${wbsItems.length} WBS item${wbsItems.length === 1 ? "" : "s"} · ${unassignedCount} unassigned` : data.source ? `${data.source.file_name} · v${data.source.version}` : undefined} />
-            <StatTile tone={total.unpriced > 0 ? "warn" : "good"} label="Priced" value={`${pct}%`} info={BOQ_TABLE_TIPS.priced} sub={total.unpriced > 0 ? `${total.priced} of ${total.lines} · ${total.unpriced} to price` : "all lines priced"} />
-            <StatTile tone="info" label="Total" info={BOQ_TABLE_TIPS.total} value={formatMoney(total.amount, cur, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} sub="at cost + markup" />
+            <StatTile tone={total.unpriced > 0 ? "warn" : "good"} label="Priced" value={`${pct}%`} info={BOQ_TABLE_TIPS.priced} sub={`${total.unpriced > 0 ? `${total.priced} of ${total.lines} · ${total.unpriced} to price` : "all lines priced"}${total.priced > 0 ? ` · ${costed} with a known cost` : ""}`} />
+            <StatTile tone="info" label="Total" info={BOQ_TABLE_TIPS.total} value={formatMoney(total.amount, cur, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} sub={costed === total.priced ? "at cost + markup" : costed === 0 ? "at selling rates (no known cost)" : `${costed} of ${total.priced} lines at cost + markup`} />
           </StatStrip>
 
           {view === "boq" && (
