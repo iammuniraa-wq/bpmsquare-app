@@ -327,7 +327,9 @@ export async function buildCompareView(r: CostingRequest, rfqId: string): Promis
     awards_pending: awardState.pending, today, stale_days: cfg.price_valid_days, max_reminders: cfg.max_reminders,
     tenant_currency: String((config as { currency?: unknown }).currency ?? opp.currency ?? "INR"),
     markup_default: tenderMarkupDefault(config as Parameters<typeof tenderMarkupDefault>[0]),
-    can_award: !!r.rfqs?.canEdit && r.canEditDeal && !["draft", "cancelled", "closed"].includes(status) && !awardState.pending,
+    // A draft that already holds a reply went out some other way (phone, WhatsApp, a reply typed in): it can be awarded.
+    can_award: !!r.rfqs?.canEdit && r.canEditDeal && !["cancelled", "closed"].includes(status)
+      && (status !== "draft" || b.suppliers.some((s) => s.status === "replied")) && !awardState.pending,
     bid_locked: bidIsLocked(opp.stage), prices_rows: found.origin === "deal",
   };
 }
@@ -353,7 +355,13 @@ export async function awardAndPrice(r: CostingRequest, body: AwardBody): Promise
   const found = await loadDealRfq(r, body.rfq_id);
   if (!found) return { ok: false, status: 404, error: "RFQ not found" };
   const { rfq } = found;
-  if (["cancelled", "closed", "draft"].includes(rfq.status)) return { ok: false, status: 409, error: rfq.status === "draft" ? "Send the RFQ before awarding." : "This RFQ is closed." };
+  if (["cancelled", "closed"].includes(rfq.status)) return { ok: false, status: 409, error: "This RFQ is closed." };
+  if (rfq.status === "draft") {
+    // A reply on a draft (entered by hand before the request was ever emailed) is enough to award; the RFQ leaves draft first.
+    const { data: replied } = await admin.from("rfq_suppliers").select("id").eq("tenant_id", tenantId).eq("rfq_id", rfq.id).eq("status", "replied").limit(1);
+    if (!replied || replied.length === 0) return { ok: false, status: 409, error: "Send the RFQ before awarding." };
+    await admin.from("rfqs").update({ status: "sent", updated_at: new Date().toISOString() }).eq("id", rfq.id).eq("tenant_id", tenantId).eq("status", "draft");
+  }
 
   const config = await loadConfig(admin, tenantId);
   const cfg = rfqConfig((config as { rfq?: Parameters<typeof rfqConfig>[0] }).rfq);
