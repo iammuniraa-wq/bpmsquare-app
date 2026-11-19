@@ -85,6 +85,10 @@ export default function CostingTab({ opportunityId, canEdit, onError, onNotice, 
   const estimates = data.items.filter((x) => x.kind === "estimate");
   const priceRowsEstimate = priceRowsFor ? estimates.find((x) => x.id === priceRowsFor) : null;
   const t = data.tiles;
+  // Priced is not costed: a rate copied from a past project or the client's file is a selling price. Absent on an older payload.
+  const costed = data.boq.costed ?? null;
+  const rateOnly = costed == null ? 0 : Math.max(0, t.priced - costed);
+  const noCost = rateOnly + t.unpriced;
   const chosenTemplate = template || data.templates[0]?.id || "";
   const showNewRfq = data.rfqs_on && !data.pending_rfqs && data.can_edit && canEdit;
   const newRfq = (label = "New RFQ", guide = "costing.rfq.new") => (
@@ -124,14 +128,21 @@ export default function CostingTab({ opportunityId, canEdit, onError, onNotice, 
       {loadError && <div role="alert" style={{ fontSize: 13, color: "var(--redink)" }}>{loadError}</div>}
 
       <StatStrip guide="costing.strip">
-        <StatTile tone={t.unpriced === 0 && data.boq.rows > 0 ? "good" : "info"} label="Rows priced" info={COSTING_TIPS.rowsPriced} value={String(t.priced)} sub={`of ${data.boq.rows} BOQ row${data.boq.rows === 1 ? "" : "s"}`} />
-        <StatTile tone={t.unpriced > 0 ? "warn" : "neutral"} label="Still need a cost" info={COSTING_TIPS.needCost} value={String(t.unpriced)} sub={t.unpriced > 0 ? "rows without a rate" : "every row has a rate"} />
+        <StatTile tone={t.unpriced === 0 && data.boq.rows > 0 && rateOnly === 0 ? "good" : "info"} label="Rows priced" info={COSTING_TIPS.rowsPriced} value={String(t.priced)}
+          sub={`of ${data.boq.rows} BOQ row${data.boq.rows === 1 ? "" : "s"}${costed == null ? "" : ` · ${costed} with a known cost`}`} />
+        {costed == null ? (
+          <StatTile tone={t.unpriced > 0 ? "warn" : "neutral"} label="Still need a cost" info={COSTING_TIPS.needCost} value={String(t.unpriced)} sub={t.unpriced > 0 ? "rows without a rate" : "every row has a rate"} />
+        ) : (
+          <StatTile tone={noCost > 0 ? "warn" : "good"} label="Still need a cost" info={COSTING_TIPS.knownCost} value={String(noCost)}
+            sub={noCost === 0 ? "every row has a known cost" : [rateOnly > 0 ? `${rateOnly} with a rate only` : "", t.unpriced > 0 ? `${t.unpriced} without a rate` : ""].filter(Boolean).join(" · ")} />
+        )}
         <StatTile tone="info" label="RFQs out" info={COSTING_TIPS.rfqsOut} value={String(t.rfqs_out)} sub={t.rfqs_out > 0 ? "with suppliers" : "none waiting"} />
         <StatTile tone={t.replies_in > 0 ? "good" : "neutral"} label="Replies in" info={COSTING_TIPS.repliesIn} value={String(t.replies_in)} sub={t.replies_in > 0 ? "from suppliers" : "no reply yet"} />
       </StatStrip>
 
-      {(t.unpriced > 0 || data.boq.stale > 0) && (
+      {(t.unpriced > 0 || data.boq.stale > 0 || rateOnly > 0) && (
         <div data-guide="costing.unpriced" style={{ display: "flex", flexWrap: "wrap", gap: "2px 12px", alignItems: "center", fontSize: 13, color: c.ink }}>
+          {rateOnly > 0 && <span data-guide="costing.rate_only" style={{ color: "var(--amberink)", fontWeight: 600 }}>{rateOnly} priced row{rateOnly === 1 ? " has" : "s have"} a selling rate only, no known cost</span>}
           {t.unpriced > 0 && <b>{t.unpriced} row{t.unpriced === 1 ? "" : "s"} still need a cost</b>}
           {t.unpriced > 0 && onOpenBoq && <Button variant="secondary" size="sm" onClick={() => onOpenBoq("unpriced")} style={{ minHeight: 44 }} data-guide="costing.unpriced.open">Show them in the Bill of quantities</Button>}
           {data.boq.stale > 0 && <span style={{ color: "var(--amberink)" }}>{data.boq.stale} price{data.boq.stale === 1 ? " is" : "s are"} out of date</span>}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { c } from "@/lib/theme";
 import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
@@ -52,7 +52,7 @@ export function linesPayload(lines: readonly OpportunityLine[], change: { replac
   return out;
 }
 
-export default function DealLinesBoq({ opportunityId, lines, version, canEdit, cards, onError, onNotice, onChanged, initialDraft }: {
+export default function DealLinesBoq({ opportunityId, lines, version, canEdit, cards, onError, onNotice, onChanged, initialDraft, addRequest }: {
   opportunityId: string;
   lines: readonly OpportunityLine[];
   /** The fingerprint of the saved lines (linesVersion), sent back so the server can refuse a stale copy. */
@@ -65,6 +65,8 @@ export default function DealLinesBoq({ opportunityId, lines, version, canEdit, c
   onChanged: () => void;
   /** Lets a server render (and its test) show the open panel. The page never passes it. */
   initialDraft?: Draft;
+  /** The tab's one Add menu owns "Add a line by hand": each new number opens a new line, and this screen draws no Add button or empty note of its own. */
+  addRequest?: number;
 }) {
   const { confirm } = useFeel();
   const [draft, setDraft] = useState<Draft | null>(initialDraft ?? null);
@@ -76,6 +78,14 @@ export default function DealLinesBoq({ opportunityId, lines, version, canEdit, c
   const full = lines.length >= HAND_LINE_LIMIT;
   const editable = canEdit && !tooMany;
   useEffect(() => { setError(""); }, [draft?.id]);
+  const external = addRequest !== undefined;
+  const bare = external && rows.length === 0;
+  const asked = useRef(addRequest ?? 0);
+  useEffect(() => {
+    if (addRequest === undefined || addRequest <= asked.current) return;
+    asked.current = addRequest;
+    if (editable && !full) setDraft({ id: null, sl_no: "", description: "", uom: "", qty: "1", rate: "" });
+  }, [addRequest, editable, full]);
 
   const open = (id: string) => {
     const l = lines.find((x) => x.id === id);
@@ -113,14 +123,14 @@ export default function DealLinesBoq({ opportunityId, lines, version, canEdit, c
 
   const page = rows.slice(0, shown);
   return (
-    <div data-guide="boq.hand" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+    <div data-guide="boq.hand" style={bare ? { display: "contents" } : { display: "flex", flexDirection: "column", gap: 10 }}>
+      {!bare && <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
         <b style={{ fontSize: 13.5, color: c.ink }}>Lines typed by hand · {rows.length}</b>
-        {editable && <Button variant="secondary" disabled={full} onClick={() => setDraft({ id: null, sl_no: "", description: "", uom: "", qty: "1", rate: "" })} style={{ minHeight: 44 }} data-guide="boq.hand.add">Add line</Button>}
-      </div>
+        {editable && !external && <Button variant="secondary" disabled={full} onClick={() => setDraft({ id: null, sl_no: "", description: "", uom: "", qty: "1", rate: "" })} style={{ minHeight: 44 }} data-guide="boq.hand.add">Add line</Button>}
+      </div>}
       {tooMany && <div role="status" data-guide="boq.hand.too_many" style={{ fontSize: 12.5, color: "var(--amberink)" }}>This tender has {lines.length} lines, more than can be edited here ({HAND_LINE_LIMIT}). Upload the client&apos;s Excel to manage them as a Bill of quantities.</div>}
       {full && !tooMany && editable && <div role="status" style={{ fontSize: 12.5, color: "var(--amberink)" }}>{HAND_LINE_LIMIT} lines is the most that can be kept here.</div>}
-      {rows.length === 0 ? (
+      {rows.length === 0 ? external ? null : (
         <Card><div data-guide="boq.hand.empty" style={{ fontSize: 13, color: c.ink }}>{editable ? "No lines yet. Add one, or upload the client's Excel." : "This tender has no lines yet."}</div></Card>
       ) : cards ? (
         <BoqCards rows={page} links={[]} openId={draft?.id ?? null} onOpen={open} />

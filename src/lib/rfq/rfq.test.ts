@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll } from "vitest";
-import { deriveRfqStatus, bestByLine, landedUnit, cleanResponse, addDays, linkExpiry, htmlToText, stripQuotedReply, refFromSubject } from "./rules";
+import { deriveRfqStatus, statusOnReply, canCompareRfq, bestByLine, landedUnit, cleanResponse, addDays, linkExpiry, htmlToText, stripQuotedReply, refFromSubject } from "./rules";
 import {
   signReplyToken, verifyReplyToken, mailCode, mailCodeMatches, subjectTag, parseSubjectTag,
   replyToAddress, parseReplyToAddress,
@@ -31,6 +31,21 @@ describe("deriveRfqStatus", () => {
     expect(deriveRfqStatus("replied", [{ status: "replied" }], [{ status: "awarded" }, { status: "no_award" }, { status: "cancelled" }])).toBe("awarded");
     expect(deriveRfqStatus("replied", [{ status: "replied" }], [{ status: "no_award" }])).toBe("replied");
     expect(deriveRfqStatus("replied", [{ status: "replied" }], [{ status: "awarded" }, { status: "open" }])).toBe("replied");
+  });
+});
+
+describe("an RFQ that was never emailed", () => {
+  it("a reply moves a draft to sent, so the header then follows its suppliers", () => {
+    expect(statusOnReply("draft")).toBe("sent");
+    for (const s of ["sent", "replied", "awarded", "closed", "cancelled"] as const) expect(statusOnReply(s)).toBe(s);
+    expect(deriveRfqStatus(statusOnReply("draft"), [{ status: "replied" }, { status: "pending" }], [{ status: "open" }])).toBe("replied");
+    expect(deriveRfqStatus(statusOnReply("draft"), [{ status: "replied" }, { status: "sent" }], [{ status: "open" }])).toBe("partially_replied");
+  });
+  it("can be compared once it has left draft or holds a reply", () => {
+    expect(canCompareRfq("draft", 0)).toBe(false);
+    expect(canCompareRfq("draft", 1)).toBe(true);
+    expect(canCompareRfq("sent", 0)).toBe(true);
+    expect(canCompareRfq("cancelled", 2)).toBe(false);
   });
 });
 

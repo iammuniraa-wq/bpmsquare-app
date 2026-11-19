@@ -9,10 +9,10 @@ import InfoTip from "@/components/ui/InfoTip";
 import SidePanel from "@/components/ui/SidePanel";
 import { useFeel } from "@/components/FeelProvider";
 import { BOQ_TABLE_TIPS } from "@/lib/tender/boq/tips";
-import { PRICE_SOURCE_LABEL, rateFor, type PriceSource } from "@/lib/tender/boq/price";
+import { PRICE_KIND_TIP, PRICE_SOURCE_LABEL, priceKind, rateFor, type PriceSource } from "@/lib/tender/boq/price";
 import { costBreakdown, itemLabel, rfqRefOf, sourceView } from "@/lib/tender/boq/table";
 import type { EstimatesState, LinkView } from "@/lib/tender/estimates/server";
-import { RowChips, money, type BoqRow } from "./BoqRows";
+import { RowChips, money, sourceHref, type BoqRow } from "./BoqRows";
 import { call as wbsCall } from "./wbs/api";
 import { leafItems, wbsCell } from "@/lib/wbs/screen";
 import { WBS_PENDING } from "@/lib/wbs/tips";
@@ -96,6 +96,8 @@ export default function BoqRowPanel({ base, row, links, canEdit, markup, validit
   const mine = links.filter((l) => l.boq_id === row.id);
   const src = sourceView(row);
   const rfq = rfqRefOf(row);
+  const kind = priceKind(row.price_source, row.unit_cost);
+  const srcHref = sourceHref(row, mine);
   const breakdown = costBreakdown(row);
   const qtyChanged = qty.trim() !== "" && Number(qty) !== row.qty;
   const descChanged = description.trim() !== row.description;
@@ -246,7 +248,14 @@ export default function BoqRowPanel({ base, row, links, canEdit, markup, validit
         <div data-guide="boq.row.cost" style={{ display: "flex", flexDirection: "column", gap: 6 }}>
           <div style={h}>Where the cost came from <InfoTip label="Costing">{BOQ_TABLE_TIPS.costing}</InfoTip></div>
           <div style={small}>
-            Source: <b style={{ color: c.ink }}>{src.label}</b>{src.detail ? ` · ${src.detail}` : ""}{row.price_source ? ` · ${fmtDate(row.price_as_of)}` : ""}
+            Source: <b style={{ color: c.ink }}>{src.label}</b>
+            {src.detail ? <> · {srcHref ? <a href={srcHref} data-guide="boq.row.source_link" style={{ color: "inherit", textDecoration: "underline" }}>{src.detail}</a> : src.detail}</> : null}
+            {row.price_source ? ` · ${fmtDate(row.price_as_of)}` : ""}
+            {kind && (
+              <div data-guide="boq.row.price_kind" style={{ display: "flex", alignItems: "center", gap: 4, color: kind === "sell" ? "var(--amberink)" : c.ink, fontWeight: 600 }}>
+                {kind === "sell" ? "Selling price, not a cost" : "Cost"} <InfoTip label="Where this price came from">{PRICE_KIND_TIP[kind]}</InfoTip>
+              </div>
+            )}
             {src.was ? <div>Replaced: {src.was}</div> : null}
             {row.stale && <div style={{ color: "var(--amberink)", fontWeight: 600 }}>{row.stale_text}{row.stale_accepted ? ", accepted knowingly" : ""}</div>}
           </div>

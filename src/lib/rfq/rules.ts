@@ -26,6 +26,17 @@ export function deriveRfqStatus(current: RfqStatus, suppliers: { status: RfqSupp
   return "sent";
 }
 
+/** A draft RFQ with an answer on file was sent some other way (phone, WhatsApp, the buyer's own mail): the reply moves it to sent. */
+export function statusOnReply(current: RfqStatus): RfqStatus {
+  return current === "draft" ? "sent" : current;
+}
+
+/** Whether there is something to compare: any live RFQ that has left draft, or a draft that already holds a reply. */
+export function canCompareRfq(status: string, suppliersReplied: number): boolean {
+  if (status === "cancelled") return false;
+  return status !== "draft" || suppliersReplied > 0;
+}
+
 export type ComparableResponse = {
   id: string;
   rfq_supplier_id: string;

@@ -213,8 +213,8 @@ describe("the Bill of quantities screen (the rows, chips and panel are tested in
 
   it("before any upload it offers the upload and nothing else, and a pending migration says so", () => {
     const out = html(empty());
-    expect(out).toContain("Upload BOQ (.xlsx)");
-    expect(out).toContain("No Bill of quantities yet");
+    expect(out).toContain('data-guide="boq.add"');
+    expect(out).toContain("No lines yet. Use Add to upload");
     expect(out).not.toContain("Price all lines");
     expect(out).not.toContain("<table");
     expect(html(empty({ pending: true }))).toContain("migration 0223");

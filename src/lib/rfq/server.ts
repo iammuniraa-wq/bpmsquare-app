@@ -16,13 +16,14 @@ import {
   RFQ_LIMITS, RFQ_ATTACHMENT_TYPES, rfqConfig,
   type Rfq, type RfqLine, type RfqSupplier, type RfqResponse, type RfqMessage, type RfqOriginType, type RfqStatus, type RfqAttachment,
 } from "./types";
-import { deriveRfqStatus, addDays, linkExpiry, type CleanResponse } from "./rules";
+import { deriveRfqStatus, statusOnReply, addDays, linkExpiry, type CleanResponse } from "./rules";
 import { signReplyToken, mailCode, replyToAddress } from "./token";
 import { buildRequestEmail, buildMessageEmail, buildRfqDocumentHtml, type SupplierView } from "./compose";
 import { htmlToPdf } from "@/lib/pdf/htmlToPdf";
 import { buildReplySheet } from "./sheet";
 import { DOC_LINE_TABLE, originHref, validateOriginInput } from "./linking";
 import { verifySourceLines } from "./linkingServer";
+import { tenderForDeal } from "@/lib/tender/server";
 
 export { originHref };
 
@@ -422,6 +423,30 @@ export async function refreshRfqStatus(admin: SupabaseClient, tenantId: string, 
   return next;
 }
 
+/** Mark a draft RFQ as sent without emailing anyone (it went out by phone, WhatsApp or the buyer's own mail): the header and every
+ *  not-yet-sent supplier move to sent, then the header follows its suppliers as usual. Returns null when the RFQ is not a draft. */
+export async function markRfqSent(admin: SupabaseClient, tenantId: string, rfqId: string): Promise<RfqStatus | null> {
+  const now = new Date().toISOString();
+  const { data: moved } = await admin.from("rfqs").update({ status: "sent", updated_at: now }).eq("id", rfqId).eq("tenant_id", tenantId).eq("status", "draft").select("id");
+  if (!moved?.length) return null;
+  await admin.from("rfq_suppliers").update({ status: "sent", updated_at: now }).eq("tenant_id", tenantId).eq("rfq_id", rfqId).eq("status", "pending");
+  return refreshRfqStatus(admin, tenantId, rfqId);
+}
+
+/** Where a tender's RFQ is awarded: the deal's Costing tab, with the deal's ref for the back link. Null outside a tender workspace. */
+export async function tenderCostingLink(admin: SupabaseClient, tenantId: string, features: Partial<TenantFeatures> | null | undefined, rfq: Pick<Rfq, "origin_type" | "origin_id">): Promise<{ href: string; dealRef: string | null } | null> {
+  if (features?.gcc_tender !== true || !rfq.origin_id || (rfq.origin_type !== "opportunity" && rfq.origin_type !== "estimate")) return null;
+  let dealId: string | null = null;
+  if (rfq.origin_type === "opportunity") dealId = rfq.origin_id;
+  else {
+    const { data: est } = await admin.from("estimates").select("opportunity_id").eq("id", rfq.origin_id).eq("tenant_id", tenantId).maybeSingle();
+    dealId = (est as { opportunity_id?: string | null } | null)?.opportunity_id ?? null;
+  }
+  if (!dealId || !(await tenderForDeal(admin, tenantId, features, dealId))) return null;
+  const { data: opp } = await admin.from("opportunities").select("ref").eq("id", dealId).eq("tenant_id", tenantId).maybeSingle();
+  return { href: `/pipeline/${dealId}?tab=costing`, dealRef: (opp as { ref?: string | null } | null)?.ref ?? null };
+}
+
 // ── What a supplier may see ────────────────────────────────────────────────
 
 /** The ONE projection every supplier-facing surface reads (email, sheet,
@@ -652,6 +677,10 @@ export async function saveResponses(admin: SupabaseClient, args: {
     patch.reply_source = args.source;
   }
   await admin.from("rfq_suppliers").update(patch).eq("id", rs.id).eq("tenant_id", tenantId);
+  // An answer on a draft means the request went out some other way (phone, WhatsApp, own mail): the RFQ leaves draft so it can be compared and awarded.
+  if (patch.status === "replied" || patch.status === "declined") {
+    await admin.from("rfqs").update({ status: statusOnReply("draft"), updated_at: now }).eq("id", rfqId).eq("tenant_id", tenantId).eq("status", "draft");
+  }
   await refreshRfqStatus(admin, tenantId, rfqId);
   // The first answer from this supplier is the event; a later edit of the same answers is not a second reply.
   if ((patch.status === "replied" || patch.status === "declined") && rs.status !== "replied" && rs.status !== "declined") {

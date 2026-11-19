@@ -7,6 +7,7 @@ import InfoTip from "@/components/ui/InfoTip";
 import StatusPill from "@/components/ui/StatusPill";
 import { ageText, rowsText, type CostingItem } from "@/lib/tender/costing/rules";
 import { COSTING_TIPS } from "@/lib/tender/costing/tips";
+import { canCompareRfq } from "@/lib/rfq/rules";
 import MissingRfqButton from "../MissingRfqButton";
 
 // One line of the Costing list: an estimate or an RFQ, with the BOQ rows it prices, its state, its total and its age. Wrapping flex rows,
@@ -91,7 +92,7 @@ export default function CostingRow({ item, opportunityId, today, canEdit, canAwa
           </>
         ) : (
           <>
-            {item.status !== "draft" && item.status !== "cancelled" && (
+            {canCompareRfq(item.status, item.suppliers_replied) && (
               <Button variant={canAward ? "primary" : "secondary"} size="sm" onClick={() => onCompare(item.id)} style={{ minHeight: 44 }} data-guide="costing.rfq.compare">
                 {canAward ? "Compare and award" : "Compare"}
               </Button>

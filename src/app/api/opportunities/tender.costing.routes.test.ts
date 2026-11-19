@@ -241,7 +241,7 @@ describe("the list", () => {
 
   it("the four figures: rows priced, rows that still need a cost, RFQs out and replies in", async () => {
     const j = (await list()).json;
-    expect(j.boq).toEqual({ rows: 3, priced: 1, unpriced: 2, stale: 0 });
+    expect(j.boq).toEqual({ rows: 3, priced: 1, unpriced: 2, stale: 0, costed: 0 });
     expect(j.tiles).toEqual({ priced: 1, unpriced: 2, rfqs_out: 2, replies_in: 2 });
   });
 
