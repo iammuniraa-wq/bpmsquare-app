@@ -40,9 +40,21 @@ export function askProblem(args: {
   return null;
 }
 
-/** The text of the request, kept on the approval row (what the approver reads first). */
-export function requestReason(rev: Pick<RevisionRow, "rev_no" | "justification_code" | "justification_text">, justificationName: string | null, total: number, currency: string | null): string {
-  const money = `${currency ?? ""} ${total.toLocaleString("en-US", { maximumFractionDigits: 2 })}`.trim();
+/**
+ * Asking is allowed, but worth a second look: some lines carry no cost, so the approved budget would understate it. Never a block (a line
+ * may rightly cost nothing); a budget with no costed line at all is already refused by askProblem. The screen asks "Send anyway?".
+ */
+export function askWarning(args: { lineCount: number; costedCount: number }): string | null {
+  const without = args.lineCount - args.costedCount;
+  if (args.costedCount <= 0 || without <= 0) return null;
+  return `${without} of ${args.lineCount} line${args.lineCount === 1 ? "" : "s"} ${without === 1 ? "has" : "have"} no cost yet`;
+}
+export const ASK_WARNING_BODY = "The approved budget will understate the cost. Send anyway?";
+
+/** The text of the request, kept on the approval row (what the approver reads first). `costed` adds "2 of 12 lines costed" while some lines have no cost. */
+export function requestReason(rev: Pick<RevisionRow, "rev_no" | "justification_code" | "justification_text">, justificationName: string | null, total: number, currency: string | null, costed?: { costed: number; of: number }): string {
+  const partial = costed && costed.costed < costed.of ? ` (${costed.costed} of ${costed.of} lines costed)` : "";
+  const money = `${`${currency ?? ""} ${total.toLocaleString("en-US", { maximumFractionDigits: 2 })}`.trim()}${partial}`;
   if (rev.rev_no === 0) return `Baseline budget, ${money}`.slice(0, 1000);
   return [`Revision ${rev.rev_no}, ${money}`, justificationName ?? rev.justification_code, rev.justification_text].filter(Boolean).join(": ").slice(0, 1000);
 }

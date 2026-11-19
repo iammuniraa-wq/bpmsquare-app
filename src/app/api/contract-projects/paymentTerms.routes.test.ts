@@ -181,6 +181,24 @@ describe("Copy the tender's payment terms (billing schedule)", () => {
     expect(state.changes[0].changes![0].field).toBe("Payment terms copied from the tender");
   });
 
+  it("with a template_id it makes the milestones from that template of THIS workspace, tender terms or not, and logs it as such", async () => {
+    const res = await copyPost(req("POST", { template_id: TPL_B }), ctx(PROJECT)); // the tender chose nothing
+    expect(res.status).toBe(201);
+    expect(await res.json()).toEqual({ created: 2, template: "50 / 50" });
+    expect(milestones().map((m) => [m.basis, m.percent, m.fixed_amount, m.status, m.tenant_id, m.project_id])).toEqual([["percent", 50, null, "planned", T1, PROJECT], ["fixed", null, 25000, "planned", T1, PROJECT]]);
+    expect(state.changes[0].changes![0].field).toBe("Milestones made from a payment-term template");
+  });
+
+  it("a template id that is not one of this workspace's is a 404 and writes nothing; a schedule with milestones is still refused", async () => {
+    expect((await copyPost(req("POST", { template_id: TPL_T2 }), ctx(PROJECT))).status).toBe(404);
+    expect((await copyPost(req("POST", { template_id: "nope" }), ctx(PROJECT))).status).toBe(404);
+    expect(milestones()).toHaveLength(0);
+    expect((await copyPost(req("POST", { template_id: TPL_A }), ctx(PROJECT_T2))).status).toBe(404); // another workspace's project
+    await copyPost(req("POST", { template_id: TPL_A }), ctx(PROJECT));
+    expect((await copyPost(req("POST", { template_id: TPL_B }), ctx(PROJECT))).status).toBe(409);
+    expect(milestones()).toHaveLength(3);
+  });
+
   it("a fixed amount stays a fixed amount", async () => {
     bidWith(1, choice(TEMPLATES[1]));
     await copyPost(req("POST"), ctx(PROJECT));

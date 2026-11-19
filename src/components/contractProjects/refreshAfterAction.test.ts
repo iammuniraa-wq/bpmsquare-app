@@ -91,7 +91,10 @@ describe("Baseline approval: ask, approve, reject, withdraw", () => {
   });
   it("all four actions go through that one call()", () => {
     for (const action of ['"POST", { revision_id: revisionId }', '{ action: "approve" }', '{ action: "reject", comment }', '{ action: "cancel" }']) expect(src).toContain(action);
-    expect(src.match(/onClick=\{\(\) => call\(/g)?.length).toBe(4);
+    // Approve, Reject and Withdraw call it from their buttons; Ask goes through askForApproval, which confirms first when lines have no cost.
+    expect(src.match(/onClick=\{\(\) => call\(/g)?.length).toBe(3);
+    expect(src).toContain("onClick={() => { void askForApproval(); }}");
+    expect(src).toMatch(/async function askForApproval\(\) \{[\s\S]*?confirm\(\{ title: warning, body: ASK_WARNING_BODY, confirmLabel: "Send anyway" \}\)[\s\S]*?call\(`\/api\/contract-projects\/\$\{projectId\}\/approval`, "POST", \{ revision_id: revisionId \}\);/);
   });
 });
 
@@ -115,7 +118,7 @@ describe("The other project actions refresh the page", () => {
   });
   it("the page feeds the tabs from the server, so a refresh brings every tile", () => {
     const page = read("src/app/(app)/contract-projects/[id]/page.tsx");
-    expect(page).toContain("externalLine={<><ProjectPathBar path={view.path} /><ProjectKpiStrip view={view} /></>}");
+    expect(page).toContain("externalLine={<><ProjectPathBar path={view.path} /><ProjectKpiStrip view={view} buyoutOn={buyoutOn} /></>}");
     expect(page).toContain("<VariationsSection req={req} project={p} />");
     expect(page).toContain("<InvoicingSection req={req} project={p} />");
   });

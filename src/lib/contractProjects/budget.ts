@@ -1,4 +1,4 @@
-import { LINE_LIMITS, type BudgetLine, type DraftLine } from "./types";
+import { DEFAULT_RESOURCE_CODE, LINE_LIMITS, type BudgetLine, type DraftLine } from "./types";
 
 // The budget rules of a contract project (slice 5a), pure: the amount of a line, the totals, the planned margin, the shape check of
 // a saved set of lines, and the difference between two revisions. The routes, the screens and the tests share them.
@@ -97,6 +97,8 @@ export type BudgetTotals = {
   /** Lines a cost has been allocated to, and lines that are still waiting for one. */
   allocatedCount: number;
   unallocatedCount: number;
+  /** Lines that carry a cost above zero. A line allocated at 0 is not costed: the margin and the approval say so (KAMCO run, 2026-11-19). */
+  costedCount: number;
   /** What the client pays across the lines that know it (the tender's amounts); 0 on a project made by hand. */
   clientTotal: number;
   /** Lines with no cost code, or no resource. */
@@ -105,11 +107,11 @@ export type BudgetTotals = {
 };
 
 /** The fields a line's totals read. `allocated` absent means allocated, as every line was before the allocation existed. */
-export type TotalsLine = Pick<BudgetLine, "amount" | "resource_code" | "cost_code" | "reserve"> & { allocated?: boolean; client_amount?: number | null };
+export type TotalsLine = Pick<BudgetLine, "amount" | "resource_code" | "cost_code" | "reserve"> & { allocated?: boolean; client_amount?: number | null; source_line_id?: string | null };
 
 export function budgetTotals(lines: readonly TotalsLine[]): BudgetTotals {
   const by = new Map<string, number>();
-  let total = 0, reserve = 0, allocatedCount = 0, unallocatedCount = 0, clientTotal = 0, noCostCodeCount = 0, noResourceCount = 0;
+  let total = 0, reserve = 0, allocatedCount = 0, unallocatedCount = 0, costedCount = 0, clientTotal = 0, noCostCodeCount = 0, noResourceCount = 0;
   for (const l of lines) {
     const isAllocated = l.allocated !== false;
     // A line nobody has allocated a cost to adds nothing, whatever its stored amount says.
@@ -117,6 +119,7 @@ export function budgetTotals(lines: readonly TotalsLine[]): BudgetTotals {
     total += a;
     if (l.reserve) reserve += a;
     if (isAllocated) allocatedCount++; else unallocatedCount++;
+    if (a > 0) costedCount++;
     clientTotal += Number(l.client_amount) || 0;
     if (!l.cost_code) noCostCodeCount++;
     if (!l.resource_code) noResourceCount++;
@@ -126,8 +129,50 @@ export function budgetTotals(lines: readonly TotalsLine[]): BudgetTotals {
   return {
     lineCount: lines.length, total: round2(total), reserve: round2(reserve),
     byResource: [...by.entries()].map(([code, amount]) => ({ code, amount: round2(amount) })).sort((a, b) => a.code.localeCompare(b.code, undefined, { numeric: true })),
-    allocatedCount, unallocatedCount, clientTotal: round2(clientTotal), noCostCodeCount, noResourceCount,
+    allocatedCount, unallocatedCount, costedCount, clientTotal: round2(clientTotal), noCostCodeCount, noResourceCount,
   };
+}
+
+/**
+ * How much of the budget a margin can honestly speak for (KAMCO run, 2026-11-19: "53.1%" was shown while 10 of 12 lines had no cost).
+ * A row is `allocated` once a person (or Fill) gave it a cost, a deliberate 0 included; `cost: null` is a row still waiting for one.
+ * While some wait, the contract value less the budget is not a margin: the screens show the margin of the allocated rows only (what the
+ * client pays for them less their cost) with "on 2 of 12 lines", or "Not complete" when an allocated row does not know what the client pays.
+ */
+export type MarginCoverage = { allocated: number; of: number; complete: boolean; pct: number | null; amount: number | null };
+
+export function coverageOf(rows: readonly { client: number | null | undefined; cost: number | null | undefined }[]): MarginCoverage {
+  let allocated = 0, client = 0, cost = 0, known = true;
+  for (const r of rows) {
+    if (r.cost === null || r.cost === undefined) continue;
+    allocated++;
+    cost += Number(r.cost) || 0;
+    if (r.client === null || r.client === undefined) known = false;
+    else client += Number(r.client) || 0;
+  }
+  const ok = allocated > 0 && known && client > 0;
+  return {
+    allocated, of: rows.length, complete: allocated === rows.length,
+    pct: ok ? Math.round(((client - cost) / client) * 1000) / 10 : null, amount: ok ? round2(client - cost) : null,
+  };
+}
+
+export const marginCoverage = (lines: readonly TotalsLine[]): MarginCoverage =>
+  coverageOf(lines.map((l) => ({ client: l.client_amount, cost: l.allocated === false ? null : Number(l.amount) || 0 })));
+
+/** "on 2 of 12 lines": the words that go with a margin that does not cover the whole budget. */
+export const coverageText = (cov: Pick<MarginCoverage, "allocated" | "of">, noun = "lines"): string => `on ${cov.allocated} of ${cov.of} ${noun}`;
+
+/**
+ * The part of the budget whose resource type nobody has chosen. A line copied from a tender starts as Material (DEFAULT_RESOURCE_CODE)
+ * and the tender does not record whether a cost is material or subcontract: its BOQ row carries a price source and a free-text
+ * reference, never the supplier or its kind. So while EVERY tender line still carries that default, their cost is "Not classified"
+ * rather than Material; once a person sets another resource type on any of them the breakdown is taken as theirs.
+ */
+export function unclassifiedAmount(lines: readonly TotalsLine[]): number {
+  const fromTender = lines.filter((l) => !!l.source_line_id);
+  if (fromTender.length === 0 || fromTender.some((l) => l.resource_code !== DEFAULT_RESOURCE_CODE)) return 0;
+  return round2(fromTender.reduce((s, l) => s + (l.allocated === false ? 0 : Number(l.amount) || 0), 0));
 }
 
 /** Contract value less the budget. `pct` is of the contract value, or null while there is no contract value to compare with. */

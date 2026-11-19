@@ -164,7 +164,7 @@ describe("the allocation table by WBS", () => {
     expect(out).toMatch(/data-leaf="0"/);
     const inputs = out.match(/<input[^>]*data-guide="cp\.alloc\.input"[^>]*>/g) ?? [];
     expect(inputs).toHaveLength(6); // three leaves, in the table and in the cards of 375 px
-    for (const i of inputs) { expect(i).toMatch(/min-height:44px/); expect(i).toMatch(/type="number"/); }
+    for (const i of inputs) { expect(i).toMatch(/min-height:44px/); expect(i).toMatch(/type="text" inputMode="decimal"/i); }
     expect(inputs.some((i) => /for 1 Steel|for 1 Item/.test(i))).toBe(false);
     expect(out).toContain('data-guide="cp.alloc.rolled"');
     expect(out).toContain("5,000.00");

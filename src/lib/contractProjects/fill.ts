@@ -2,8 +2,8 @@ import { round2 } from "./budget";
 import type { CostSnapshot } from "@/lib/tender/bids/costSnapshot";
 import type { BudgetLine } from "./types";
 
-// "Fill from tender costs" (KAMCO feedback, 2026-10-29), pure: copy the costs RECORDED on the tender into the allocation, once, by button,
-// never automatically and never an estimated figure. A line with no recorded cost is listed, not filled. Two sources, in this order: the cost
+// "Fill from tender costs" (KAMCO feedback, 2026-10-29), pure: copy the costs RECORDED on the tender into the allocation, never an estimated
+// figure. It runs once when a project is made from a tender (owner decision 2026-11-19) and again by button, whenever a person asks. A line with no recorded cost is listed, not filled. Two sources, in this order: the cost
 // frozen with the winning bid version (matched on the item number the bid line and the budget line both carry), else the tender's BOQ rows
 // (matched on the deal line the budget line came from).
 

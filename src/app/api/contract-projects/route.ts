@@ -1,7 +1,9 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { cleanCurrency, cleanDate, cleanMoney, cleanName, createProject, loadTenderSource, projectNameFromDeal } from "@/lib/contractProjects/create";
 import { listProjects } from "@/lib/contractProjects/list";
-import { openProjectRequest } from "@/lib/contractProjects/server";
+import { loadRevision, openProjectRequest, type ProjectCtx } from "@/lib/contractProjects/server";
+import { fillFromTender } from "@/lib/contractProjects/allocationServer";
+import type { ProjectRow } from "@/lib/contractProjects/types";
 import { getTenant } from "@/lib/tenant";
 import { resolveCurrency } from "@/lib/currency";
 
@@ -15,7 +17,26 @@ import { resolveCurrency } from "@/lib/currency";
 // POST /api/contract-projects
 //        { opportunity_id }                                  from an AWARDED tender of this workspace: one project per tender (409 otherwise)
 //        { name, account_id?, contract_value?, currency?, planned_start?, planned_end?, manager_id? }   by hand
-//      Every foreign id is verified against this workspace. -> 201 { id, ref, revision_id, unmapped_codes?, skipped?, budget_note?, wbs?: { items, lines, split, unassigned, pending, text } }  (a tender gives the contract lines with an empty allocation; no cost is guessed)
+//      Every foreign id is verified against this workspace. -> 201 { id, ref, revision_id, unmapped_codes?, skipped?, budget_note?, filled?: { lines, total }, wbs?: { items, lines, split, unassigned, pending, text } }
+//      A tender gives the contract lines, and the draft baseline then takes the costs RECORDED on that tender (the same copy as "Fill from
+//      tender costs": the winning bid's cost, else the BOQ rows). No cost is guessed: a line with no recorded cost stays not allocated.
+
+/**
+ * The costs recorded on the tender, copied into the new draft baseline (KAMCO run, 2026-11-19: a project from a costed tender opened with a
+ * budget of 0 and nothing pointed at the button). Best effort: the project is already made, so a failure here leaves it as it was (lines
+ * not allocated, the button on the Budget tab still there) and is never the request's failure.
+ */
+async function fillNewProject(req: ProjectCtx, project: ProjectRow, revisionId: string): Promise<{ lines: number; total: number } | null> {
+  try {
+    const revision = await loadRevision(req.admin, req.tenantId, project.id, revisionId);
+    if (!revision || revision.status !== "draft") return null;
+    const done = await fillFromTender({ req, project }, revision, false);
+    return done.ok && done.filled > 0 ? { lines: done.filled, total: done.total } : null;
+  } catch (e) {
+    console.error("[contract-projects] tender costs not copied on create", (e as Error).message);
+    return null;
+  }
+}
 
 export async function GET(request: NextRequest) {
   const gate = await openProjectRequest();
@@ -47,9 +68,11 @@ export async function POST(request: NextRequest) {
       contract_value: s.contractValue, currency: s.currency, planned_start: null, planned_end: null, manager_id: null, lines: s.lines, budget_note: s.budgetNote,
     });
     if (!made.ok) return NextResponse.json({ error: made.error, ...(made.extra ?? {}) }, { status: made.status });
+    const filled = await fillNewProject(req, made.project, made.revisionId);
     return NextResponse.json(
       {
         id: made.project.id, ref: made.project.ref, revision_id: made.revisionId, unmapped_codes: s.unmappedCodes, skipped: s.skipped, budget_note: s.budgetNote,
+        ...(filled ? { filled } : {}),
         // The tender's WBS copied to the project; `pending` while migration 0243 is not applied (the project is made without one).
         wbs: made.wbs ? { items: made.wbs.items, lines: made.wbs.lines, split: made.wbs.split, unassigned: made.wbs.unassigned, pending: made.wbs.pending || made.wbs.failed, text: made.wbs.text } : null,
       },

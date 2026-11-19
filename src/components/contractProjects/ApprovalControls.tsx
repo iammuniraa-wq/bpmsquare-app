@@ -6,6 +6,8 @@ import { c } from "@/lib/theme";
 import Button from "@/components/ui/Button";
 import InfoTip from "@/components/ui/InfoTip";
 import { Textarea } from "@/components/ui/Input";
+import { useFeel } from "@/components/FeelProvider";
+import { ASK_WARNING_BODY } from "@/lib/contractProjects/approval";
 import type { ProjectApprovalView } from "@/lib/contractProjects/approvalServer";
 import { PROJECT_TIPS } from "@/lib/contractProjects/tips";
 import { reloadAfterSave } from "@/components/tender/refreshAfterSave";
@@ -14,8 +16,9 @@ import { day } from "@/lib/contractProjects/format";
 /**
  * The approval of the revision being looked at: ask (a draft with lines), decide (an approver), withdraw (the person who asked).
  * A blocker that stops a mistake is printed, not hidden behind an "i". Every action goes to /api/contract-projects/[id]/approval.
+ * Asking while some lines have no cost is allowed, after a confirm that says how many.
  */
-export default function ApprovalControls({ projectId, revisionId, revisionStatus: statusFromServer, canEdit, approval: approvalFromServer, closed, mode = "full" }: {
+export default function ApprovalControls({ projectId, revisionId, revisionStatus: statusFromServer, canEdit, approval: approvalFromServer, closed, mode = "full", blockedReason = null }: {
   projectId: string;
   revisionId: string | null;
   revisionStatus: string | null;
@@ -26,11 +29,15 @@ export default function ApprovalControls({ projectId, revisionId, revisionStatus
   /**
    * "full" is the whole control. "action" is only what a person can DO now (ask, approve, reject, withdraw), one compact row, and
    * nothing at all when there is nothing to do: the Needs-you banner uses it. "status" is the read-only state and history, no buttons:
-   * the project details use it.
+   * the project details use it. "ask" is only Ask for approval (or why it cannot be asked), for the Budget tab and the draft's row on the
+   * Revisions tab: the same button, route and blockers as the banner.
    */
-  mode?: "full" | "action" | "status";
+  mode?: "full" | "action" | "status" | "ask";
+  /** A reason from the screen itself that asking must wait (unsaved edits on the Budget tab). Shown in place of the button. */
+  blockedReason?: string | null;
 }) {
   const router = useRouter();
+  const { confirm } = useFeel();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState("");
   const [rejecting, setRejecting] = useState(false);
@@ -61,7 +68,14 @@ export default function ApprovalControls({ projectId, revisionId, revisionStatus
     });
   }
 
+  async function askForApproval() {
+    const warning = approval?.askWarning;
+    if (warning && !(await confirm({ title: warning, body: ASK_WARNING_BODY, confirmLabel: "Send anyway" }))) return;
+    call(`/api/contract-projects/${projectId}/approval`, "POST", { revision_id: revisionId });
+  }
+
   if (approval === null) {
+    if (mode === "ask") return null;
     return <div role="alert" data-guide="cp.approval.pending_migration" style={{ fontSize: 13, color: "var(--amberink)" }}>Approval needs a database update (migration 0221). Ask your administrator to apply it.</div>;
   }
   const open = approval.pending;
@@ -85,7 +99,8 @@ export default function ApprovalControls({ projectId, revisionId, revisionStatus
   }
 
   // The four things a person can do, built once and laid out by mode: the whole control, or one compact row for the Needs-you banner.
-  const size = mode === "action" ? "sm" : "md";
+  const size = mode === "action" || mode === "ask" ? "sm" : "md";
+  const blocked = blockedReason ?? approval.askBlocked;
   const decideUrl = open ? `/api/contract-projects/${projectId}/approval/${open.id}` : "";
   const decide = open && approval.canDecide && !rejecting ? (
     <>
@@ -106,12 +121,22 @@ export default function ApprovalControls({ projectId, revisionId, revisionStatus
     <Button variant="quiet" size={size} loading={pending} data-guide="cp.approval.withdraw" style={{ minHeight: 44 }} onClick={() => call(decideUrl, "PATCH", { action: "cancel" })}>Withdraw the request</Button>
   ) : null;
   const ask = !open && revisionStatus === "draft" && canEdit && !closed ? (
-    approval.askBlocked ? (
-      <div role="status" data-guide="cp.approval.blocked" style={{ fontSize: 13, color: "var(--amberink)" }}>{approval.askBlocked}</div>
+    blocked ? (
+      <div role="status" data-guide="cp.approval.blocked" style={{ fontSize: 13, color: "var(--amberink)" }}>{blocked}</div>
     ) : (
-      <Button variant="primary" size={size} loading={pending} data-guide="cp.approval.ask" style={{ minHeight: 44 }} onClick={() => call(`/api/contract-projects/${projectId}/approval`, "POST", { revision_id: revisionId })}>Ask for approval</Button>
+      <Button variant="primary" size={size} loading={pending} data-guide="cp.approval.ask" style={{ minHeight: 44 }} onClick={() => { void askForApproval(); }}>Ask for approval</Button>
     )
   ) : null;
+
+  if (mode === "ask") {
+    if (!ask) return null;
+    return (
+      <span data-guide="cp.approval" style={{ display: "inline-flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+        {ask}
+        {error && <span role="alert" style={{ fontSize: 12.5, color: "var(--err-ink)" }}>{error}</span>}
+      </span>
+    );
+  }
 
   if (mode === "action") {
     if (!decide && !rejectForm && !withdraw && !ask) return null;

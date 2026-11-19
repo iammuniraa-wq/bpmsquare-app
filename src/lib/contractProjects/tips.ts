@@ -44,6 +44,7 @@ export const PROJECT_TIPS = {
   whereBudgetGoes: "One bar for the contract value: the budget by cost type, and what is left as margin. Over-allocation shows in red.",
   path: "Draft, Baseline waiting, Active, Handed over, Closed. Handed over means a buy-out package was handed over or the budget file was downloaded.",
   copyTerms: "Makes one milestone per payment term of the template chosen on the winning bid. Edit them afterwards as you like.",
+  termTemplates: "The tender chose no payment terms. Pick one of your templates to make its milestones as Planned; edit them afterwards as you like.",
   allocateBy: "By BOQ line you type a cost on each line. By WBS you type one cost per bottom-level item and its lines follow.",
   fill: "Copies the costs recorded on the tender once: an awarded supplier price, an estimate or a manual cost. Lines without one are listed.",
   workBreakdown: "Group BOQ lines into WBS items and give each an owner. A line sits in one item unless you split it; unassigned lines are listed.",
@@ -52,6 +53,8 @@ export const PROJECT_TIPS = {
   packageOwner: "The employee who runs this part of the work. Only an employee with a login can own an item, so create the login first.",
   paymentTerms: "How the client pays, from your templates. It prints on the bid documents, is saved with the submitted bid and copies into the billing schedule if you win.",
   paymentTemplates: "A few named payment schedules: each milestone is a percent of the contract or a fixed amount, with a due-when text. Pick one on a tender's Bid tab.",
+  notClassified: "Lines copied from the tender start as Material. Until a line gets another resource type on the Budget tab, their cost is not split by type.",
+  marginPartial: "Some lines have no cost yet, so this is the margin of the allocated lines only: what the client pays for them less their cost.",
   marginFloor: "Planned margin under this percent turns amber, and below zero it turns red. Planned margin is the contract value less what you have allocated.",
 } as const;
 
