@@ -5,6 +5,7 @@ import { requireTenantUser, createAdminSupabase, getAuthUser } from "@/lib/supab
 import { resolvePermissions, canViewWorkcenter, canEditWorkcenter } from "@/lib/permissions";
 import type { Tenant } from "@/lib/tenant";
 import { tenantOrigin, type TenantFeatures } from "@/lib/constants";
+import { plainTextToHtml } from "@/lib/email/plainTextHtml";
 import { nextSeqFromRefs } from "@/lib/refSeq";
 import { emailOutputFor, resolveOutbound } from "@/lib/emailOutput";
 import { logEmail } from "@/lib/emailLog";
@@ -816,7 +817,7 @@ export async function notifyRfqTeam(admin: SupabaseClient, tenant: Tenant, rfq: 
     if (!routed.ok) return;
     const sendingDomain = process.env.RESEND_SENDING_DOMAIN || "bpmsquare.com";
     await new Resend(process.env.RESEND_API_KEY).emails.send({
-      from: `BPMSquare <notifications@${sendingDomain}>`, to: routed.email.to, subject: routed.email.subject, text: routed.email.text,
+      from: `BPMSquare <notifications@${sendingDomain}>`, to: routed.email.to, subject: routed.email.subject, text: routed.email.text, html: plainTextToHtml(routed.email.text),
     });
   } catch (e) {
     console.error("[rfq] team notification failed", e);
