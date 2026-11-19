@@ -13,7 +13,7 @@ export const NAV_NONE = "none";
 
 export type NavDecision =
   | { kind: "open"; targets: NavTarget[] }
-  | { kind: "unavailable"; message: string }
+  | ({ kind: "unavailable" } & UnavailableAnswer)
   | { kind: "unknown"; message: string; suggestions: NavTarget[] };
 
 const KIND_ORDER: Record<NavTarget["kind"], number> = { nav: 0, create: 1, settings: 2 };
@@ -76,14 +76,75 @@ export function namedGroups(phrase: string, catalog: readonly CatalogEntry[] = s
 
 const shownName = (e: CatalogEntry): string => (e.kind === "settings" ? `${e.label.replace(/^Settings:\s*/, "")} settings` : e.label);
 
-export function missingMessage(e: CatalogEntry, reason: MissingReason): string {
+/**
+ * "not_enabled" is a module flag that only BPMSquare switches on (platform admin), so a workspace administrator is
+ * never told to "ask your administrator": that was the owner's own experience on KAMCO, 2026-11-19.
+ */
+export function missingMessage(e: CatalogEntry, reason: MissingReason, ctx?: Pick<NavGateCtx, "isWorkspaceAdmin">): string {
   const name = shownName(e);
   switch (reason) {
-    case "not_enabled": return `${name} is not switched on in your workspace. Ask your administrator to enable it.`;
+    case "not_enabled":
+      return ctx?.isWorkspaceAdmin === true
+        ? `${name} is not part of your workspace yet. Modules are added by BPMSquare, not in Settings, so ask your BPMSquare contact to switch it on.`
+        : `${name} is not switched on in your workspace. Ask your administrator to enable it.`;
     case "admin_only": return `${name} is only for workspace administrators.`;
     case "no_access": return `You do not have access to ${name}.`;
     default: return `${name} is not available in your workspace.`;
   }
+}
+
+// ── What the person CAN do instead, and the facts a model needs to explain it ──────────────────────────────
+
+type Missing = { entry: CatalogEntry; reason: MissingReason };
+
+export type UnavailableAnswer = {
+  /** The fixed sentence, used the first time. */
+  message: string;
+  /** Places the caller reaches that are about the same subject; shown as buttons. */
+  related: NavTarget[];
+  /** The same content as facts for the model, for when the fixed sentence was already said. */
+  fact: string;
+};
+
+/** A subject, and the settings pages that are really about it. Offered only when the caller reaches them. */
+const RELATED_TOPICS: { words: RegExp; ids: string[]; lead: string }[] = [
+  { words: /\b(?:e ?mail|mail|gmail|mailbox|smtp|outlook)\b/, ids: ["settings:connectors", "settings:email-output"], lead: "If this is about the mailbox your emails go out from, you can set that up here." },
+];
+
+function relatedFor(text: string, missing: readonly Missing[], targets: readonly NavTarget[]): { related: NavTarget[]; lead: string } {
+  const hay = norm([text, ...missing.map((m) => m.entry.label)].join(" "));
+  const related: NavTarget[] = [];
+  let lead = "";
+  for (const topic of RELATED_TOPICS) {
+    if (!topic.words.test(hay)) continue;
+    const found = topic.ids.map((id) => targets.find((t) => t.id === id)).filter((t): t is NavTarget => !!t && !related.includes(t));
+    if (found.length && !lead) lead = topic.lead;
+    related.push(...found);
+  }
+  return { related: related.slice(0, 2), lead };
+}
+
+const WHY: Record<MissingReason, string> = {
+  not_enabled: "its module is not part of this workspace. Only BPMSquare (the vendor) can switch a module on; a workspace administrator cannot, and there is no switch for it anywhere in Settings. The person should ask their BPMSquare contact",
+  admin_only: "only workspace administrators may open it",
+  no_access: "this person's access does not include it; a workspace administrator decides that",
+  unavailable: "it is not available in this workspace",
+};
+
+function factFor(missing: readonly Missing[], related: readonly NavTarget[], ctx: NavGateCtx): string {
+  return (
+    "SCREENS THIS PERSON CANNOT OPEN (trusted facts from the server): " +
+    missing.map((m) => `"${shownName(m.entry)}" (${m.entry.section}): ${WHY[m.reason]}.`).join(" ") +
+    ` The person ${ctx.isWorkspaceAdmin === true ? "IS a workspace administrator" : "is not a workspace administrator"}.` +
+    (related.length ? ` Related places they CAN open, whose buttons the app is already showing under your reply: ${related.map((t) => t.label).join(", ")}.` : "") +
+    " Answer what they actually asked, in one or two short, warm, plain sentences of your own. Do not repeat a sentence already said in this chat, do not call navigate for these screens, and never say such a screen can be opened or switched on from inside the workspace."
+  );
+}
+
+function describeMissing(text: string, missing: readonly Missing[], targets: readonly NavTarget[], ctx: NavGateCtx): UnavailableAnswer {
+  const { related, lead } = relatedFor(text, missing, targets);
+  const lines = [...new Set(missing.map((m) => missingMessage(m.entry, m.reason, ctx)))].slice(0, 2);
+  return { message: [...lines, ...(lead ? [lead] : [])].join(" "), related, fact: factFor(missing.slice(0, 2), related, ctx) };
 }
 
 const bestOf = <T extends { kind: NavTarget["kind"] }>(xs: T[]): T | undefined => [...xs].sort((a, b) => KIND_ORDER[a.kind] - KIND_ORDER[b.kind])[0];
@@ -146,15 +207,15 @@ export function judgeNavigation(i: NavJudgeInput): NavDecision {
     if (pick && groups.some((g) => g.entries.some((e) => e.id === pickCanon))) return { kind: "open", targets: [pick] };
 
     const opens: NavTarget[] = [];
-    const missing: string[] = [];
+    const missing: Missing[] = [];
     for (const g of groups) {
       const open = bestOf(g.entries.flatMap(reachable));
       if (open) { if (!opens.some((o) => o.id === open.id)) opens.push(open); continue; }
       const entry = bestOf(g.entries);
-      if (entry) missing.push(missingMessage(entry, entry.gate(i.ctx) ?? "unavailable"));
+      if (entry) missing.push({ entry, reason: entry.gate(i.ctx) ?? "unavailable" });
     }
     if (opens.length > 0) return { kind: "open", targets: opens.slice(0, 3) };
-    if (missing.length > 0) return { kind: "unavailable", message: [...new Set(missing)].slice(0, 2).join(" ") };
+    if (missing.length > 0) return { kind: "unavailable", ...describeMissing(i.message, missing, i.targets, i.ctx) };
   }
 
   // Nothing the product knows by name. A pick has to be justified by what was asked for, in the person's words or the model's.
@@ -177,17 +238,81 @@ const WHERE_RE = /^\s*(?:please\s+|can you\s+|could you\s+)?(?:where(?:'s|\s+is|
  * caller cannot reach. The honest reason comes back with no model call. Anything else (a place that IS reachable,
  * a question about data, a name the product does not know) returns null and is left to the model and the check above.
  */
-export function answerUnavailableAsk(message: string, targets: readonly NavTarget[], ctx: NavGateCtx): string | null {
+export function unavailableAsk(message: string, targets: readonly NavTarget[], ctx: NavGateCtx): UnavailableAnswer | null {
   const text = message.trim();
   if (!text || text.length > 120 || !WHERE_RE.test(text)) return null;
+  const missing = missingNamed(text, targets, ctx);
+  return missing ? describeMissing(text, missing, targets, ctx) : null;
+}
+
+/** The fixed sentence alone; see unavailableAsk. */
+export const answerUnavailableAsk = (message: string, targets: readonly NavTarget[], ctx: NavGateCtx): string | null =>
+  unavailableAsk(message, targets, ctx)?.message ?? null;
+
+/** The screens `text` names, when every one of them is out of this caller's reach; otherwise null. */
+function missingNamed(text: string, targets: readonly NavTarget[], ctx: NavGateCtx): Missing[] | null {
   const allowed = new Set(targets.map((t) => canonicalId(t.id)));
   const groups = namedGroups(text);
   if (groups.length === 0) return null;
-  const missing: string[] = [];
+  const missing: Missing[] = [];
   for (const g of groups) {
     if (g.entries.some((e) => allowed.has(e.id))) return null;
     const entry = bestOf(g.entries);
-    if (entry) missing.push(missingMessage(entry, entry.gate(ctx) ?? "unavailable"));
+    if (entry) missing.push({ entry, reason: entry.gate(ctx) ?? "unavailable" });
   }
-  return missing.length ? [...new Set(missing)].slice(0, 2).join(" ") : null;
+  return missing.length ? missing : null;
+}
+
+// ── The follow-up: "but I am the admin", "where do I switch it on" ──────────────────────────────────────────
+// The fixed sentence is right once. Said again to someone pushing back it reads like a machine (owner, KAMCO
+// 2026-11-19: three identical answers in a row), so a follow-up goes to the model with the facts above.
+
+export type GuardTurn = { role: "user" | "assistant"; text: string };
+
+const UNAVAILABLE_TEXT_RE = /is not (?:switched on in|part of|available in) your workspace|is only for workspace administrators|You do not have access to/;
+/** Words of a reply to "that is not available". Loose on purpose: it only counts next to a recent unavailable answer. */
+const REPLY_RE = /\b(?:admin|administrator|owner|why|but|understand|understood|already|again|still|enable|activate|switch|turn|contact|who)\b/i;
+const PUSHBACK_RE = /\b(?:i am|i'm|im)\b.*\badmin|\bbut\b|\bunderstand|\bwhy\b|\balready\b|\b(?:switch|turn)\s+(?:it|this|that)\s+on\b|\benable (?:it|this|that)\b|\bwho can\b/i;
+
+/** The message reads like a reply to an answer already given, not a first request. */
+export const isPushback = (message: string): boolean => message.trim().length <= 200 && PUSHBACK_RE.test(message);
+
+const sameText = (a: string, b: string): boolean => a.trim().replace(/\s+/g, " ").toLowerCase() === b.trim().replace(/\s+/g, " ").toLowerCase();
+
+/** `answer` is word for word what the assistant said in one of its recent turns. */
+export function saidBefore(history: readonly GuardTurn[], answer: string, window = 6): boolean {
+  return history.slice(-window).some((t) => t.role === "assistant" && sameText(t.text, answer));
+}
+
+/**
+ * The facts for a follow-up about a screen this caller cannot reach, or null when this turn is not one. It is one
+ * when the message itself names such a screen while pushing back or after being told already, or when it reads like
+ * a reply and a recent answer of ours said a screen was unavailable. `history` ends with the person's new message.
+ */
+export function unavailableFollowUp(history: readonly GuardTurn[], targets: readonly NavTarget[], ctx: NavGateCtx): UnavailableAnswer | null {
+  const lastTurn = history[history.length - 1];
+  const question = lastTurn?.role === "user" ? lastTurn.text.trim() : "";
+  if (!question || question.length > 200) return null;
+  const prior = history.slice(0, -1).slice(-8);
+  const told = prior.filter((t) => t.role === "assistant" && UNAVAILABLE_TEXT_RE.test(t.text)).map((t) => t.text);
+
+  const own = missingNamed(question, targets, ctx);
+  if (own && (isPushback(question) || (WHERE_RE.test(question) && told.length > 0))) return describeMissing(question, own, targets, ctx);
+  if (told.length === 0 || !REPLY_RE.test(question)) return null;
+
+  const missing: Missing[] = [];
+  const asked = prior.filter((t) => t.role === "user" && t.text.length <= 200).map((t) => t.text).reverse();
+  for (const text of asked) {
+    for (const m of missingNamed(text, targets, ctx) ?? []) {
+      if (told.some((t) => t.includes(shownName(m.entry))) && !missing.some((x) => x.entry.id === m.entry.id)) missing.push(m);
+    }
+  }
+  return missing.length ? describeMissing([question, ...asked].join(" "), missing, targets, ctx) : null;
+}
+
+/** A last guard for any path: the same words twice in a row are never sent. */
+export function notTheSameAgain(history: readonly GuardTurn[], answer: string): string {
+  const last = [...history].reverse().find((t) => t.role === "assistant");
+  if (!last || !answer.trim() || !sameText(last.text, answer)) return answer;
+  return `I know that is the same answer as before, sorry. ${answer.trim()} Tell me what you are trying to get done and I will look for another way.`;
 }
