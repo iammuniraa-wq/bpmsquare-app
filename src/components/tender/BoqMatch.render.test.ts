@@ -33,6 +33,8 @@ describe("the Match to products chip and panel", () => {
     expect(closed).toContain("2 lines without a product");
     expect(closed).toContain('data-guide="boq.match.chip"');
     expect(closed).not.toContain('data-guide="boq.match.panel"');
+    expect(closed).not.toContain('role="dialog"');
+    expect(closed).toMatch(/aria-haspopup="dialog"/);
     expect(html({ count: 1, initialOpen: false })).toContain("1 line without a product");
     expect(html({ count: 0, initialOpen: false })).toBe("");
   });
@@ -40,6 +42,10 @@ describe("the Match to products chip and panel", () => {
   it("open, lists each line with its ranked suggestions, their band, SKU and unit", () => {
     const out = html();
     expect(out).toContain('data-guide="boq.match.panel"');
+    // A pop-up (the shared side panel, a bottom sheet on a phone), not a block that pushes the table down.
+    expect(out).toMatch(/<aside[^>]*role="dialog"[^>]*aria-modal="true"[^>]*aria-label="Match to products"/);
+    expect(out).toContain(">Close</button>");
+    expect(out.indexOf('role="dialog"')).toBeLessThan(out.indexOf('data-guide="boq.match.panel"'));
     expect(out).toContain("Supply and install gate valve 100mm DN100");
     expect(out).toContain("Gate valve 100mm DN100");
     expect(out).toContain("GV-100 · Nos");

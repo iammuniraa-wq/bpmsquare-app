@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { c } from "@/lib/theme";
 import Button from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -19,7 +19,7 @@ import { WBS_PENDING, WBS_TIPS } from "@/lib/wbs/tips";
 import { unassignedOf } from "@/lib/wbs/tree";
 import type { WbsState } from "@/lib/tender/wbs/types";
 import BoqMatch from "./BoqMatch";
-import { useBoqUpload } from "./BoqUpload";
+import { BOQ_TEMPLATE_PATH, useBoqUpload } from "./BoqUpload";
 import { BoqCards, BoqTable, type BoqRow, type WbsColumn } from "./BoqRows";
 import BoqRowPanel from "./BoqRowPanel";
 import GroupIntoWbs from "./wbs/GroupIntoWbs";
@@ -30,7 +30,7 @@ import w from "./wbs/Wbs.module.css";
 import { reloadAfterSave } from "./refreshAfterSave";
 import type { EstimatesState } from "@/lib/tender/estimates/server";
 import type { OpportunityLine } from "@/lib/types";
-import DealLinesBoq from "./DealLinesBoq";
+import DealLinesBoq, { HAND_LINE_LIMIT } from "./DealLinesBoq";
 import { useCards } from "./useCards";
 
 // The Bill of quantities of a tender deal (GCC tender deals, redesign 2026-10-27): ONE table, one row per line of the client's BOQ, that
@@ -67,7 +67,49 @@ export function leftText(left: { item: string; reason: string }[] | undefined): 
   return list.length > 3 ? `${head}; +${list.length - 3}` : head;
 }
 
-export default function BoqTab({ opportunityId, canEdit, onError, onNotice, onLinesChanged, onOpenCosting, initialData, initialEstimates, layout, initialOpenRow, dealLines, dealLinesVersion, filterRequest }: {
+/**
+ * The one "Add" control of a tender with no client file yet: upload the Excel, download the template, or type a line. The same menu
+ * markup and keys as the kit's MoreMenu (Esc, outside click, Tab or a choice close it; arrows move), with a labelled trigger.
+ */
+function AddMenu({ onUpload, onAddLine, loading, initialOpen }: { onUpload: () => void; onAddLine?: () => void; loading: boolean; initialOpen?: boolean }) {
+  const [open, setOpen] = useState(initialOpen ?? false);
+  const wrap = useRef<HTMLDivElement>(null);
+  const menuId = useId();
+  const items = () => Array.from(wrap.current?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? []);
+  useEffect(() => {
+    if (!open) return;
+    items()[0]?.focus();
+    const away = (e: PointerEvent) => { if (!wrap.current?.contains(e.target as Node)) setOpen(false); };
+    document.addEventListener("pointerdown", away);
+    return () => document.removeEventListener("pointerdown", away);
+  }, [open]);
+  function onKey(e: React.KeyboardEvent) {
+    const nodes = items();
+    const at = nodes.indexOf(document.activeElement as HTMLElement);
+    const go = (i: number) => { e.preventDefault(); nodes[(i + nodes.length) % nodes.length]?.focus(); };
+    if (e.key === "Escape") { e.preventDefault(); setOpen(false); wrap.current?.querySelector<HTMLElement>('[data-guide="boq.add"]')?.focus(); }
+    else if (e.key === "ArrowDown") go(at + 1);
+    else if (e.key === "ArrowUp") go(at - 1);
+    else if (e.key === "Home") go(0);
+    else if (e.key === "End") go(nodes.length - 1);
+    else if (e.key === "Tab") setOpen(false);
+  }
+  const item = { role: "menuitem" as const, className: "bpm-menu-item", tabIndex: -1, style: { minHeight: 44 } };
+  return (
+    <div className="bpm-menu-wrap" ref={wrap} onKeyDown={open ? onKey : undefined}>
+      <Button variant="primary" loading={loading} aria-haspopup="menu" aria-expanded={open} aria-controls={open ? menuId : undefined} onClick={() => setOpen((o) => !o)} style={{ minHeight: 44 }} data-guide="boq.add">Add ▾</Button>
+      {open && (
+        <div id={menuId} role="menu" aria-label="Add" className="bpm-menu" style={{ left: 0, right: "auto", minWidth: 220 }}>
+          <button type="button" {...item} data-guide="boq.add.upload" onClick={() => { setOpen(false); onUpload(); }}>Upload BOQ (.xlsx)</button>
+          <a {...item} href={BOQ_TEMPLATE_PATH} download="BPMSquare-BOQ-template.xlsx" data-guide="boq.add.template" onClick={() => setOpen(false)}>Download BOQ template</a>
+          {onAddLine && <button type="button" {...item} data-guide="boq.add.line" onClick={() => { setOpen(false); onAddLine(); }}>Add a line by hand</button>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default function BoqTab({ opportunityId, canEdit, onError, onNotice, onLinesChanged, onOpenCosting, initialData, initialEstimates, layout, initialOpenRow, dealLines, dealLinesVersion, filterRequest, initialAddOpen }: {
   opportunityId: string; canEdit: boolean; onError: (m: string) => void; onNotice: (m: string) => void;
   /** The deal's own lines and their version. Shown (and editable) as rows only while no client file has been uploaded. */
   dealLines?: OpportunityLine[]; dealLinesVersion?: string;
@@ -82,6 +124,8 @@ export default function BoqTab({ opportunityId, canEdit, onError, onNotice, onLi
   initialEstimates?: EstimatesWithRfq;
   layout?: "table" | "cards";
   initialOpenRow?: string;
+  /** Lets a server render (and its test) show the Add menu open. The page never passes it. */
+  initialAddOpen?: boolean;
 }) {
   const base = `/api/opportunities/${opportunityId}/boq`;
   // The estimate tools have their own folder (they are gated by the estimator as well as the tender BOQ).
@@ -103,6 +147,7 @@ export default function BoqTab({ opportunityId, canEdit, onError, onNotice, onLi
   const [splitFor, setSplitFor] = useState<string | null>(null);
   const [respread, setRespread] = useState<Set<string>>(new Set());
   const wbsBase = `/api/opportunities/${opportunityId}/tender/wbs`;
+  const [addLine, setAddLine] = useState(0);
   const askedFilter = useRef(0);
   useEffect(() => {
     if (!filterRequest || filterRequest.n <= askedFilter.current) return;
@@ -211,7 +256,17 @@ export default function BoqTab({ opportunityId, canEdit, onError, onNotice, onLi
   return (
     <div data-guide="boq.tab" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
       <div data-guide="boq.toolbar" style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
-        {canEdit && upload.button}
+        {canEdit && hasBoq && upload.button}
+        {canEdit && !hasBoq && (
+          <>
+            {upload.input}
+            <AddMenu
+              onUpload={upload.pickFile} loading={upload.reading} initialOpen={initialAddOpen}
+              onAddLine={dealLines && !upload.open && dealLines.length < HAND_LINE_LIMIT ? () => setAddLine((n) => n + 1) : undefined}
+            />
+            <InfoTip label="Add">{TENDER_TIPS.boqUpload}</InfoTip>
+          </>
+        )}
         {canEdit && hasBoq && (
           <>
             <label data-guide="boq.markup" style={{ display: "inline-flex", alignItems: "center", gap: 6, minHeight: 44, fontSize: 13, color: c.ink }}>
@@ -233,7 +288,7 @@ export default function BoqTab({ opportunityId, canEdit, onError, onNotice, onLi
       {!hasBoq && !upload.open && (dealLines?.length ?? 0) === 0 && (
         <Card>
           <div data-guide="boq.empty" style={{ fontSize: 13, color: c.ink }}>
-            {canEdit ? "No Bill of quantities yet. Upload the client's Excel to create the deal's lines, or add them by hand below." : "No Bill of quantities has been uploaded for this tender yet."}
+            {canEdit ? "No lines yet. Use Add to upload the client's Excel or type a line." : "No Bill of quantities has been uploaded for this tender yet."}
           </div>
         </Card>
       )}
@@ -241,7 +296,7 @@ export default function BoqTab({ opportunityId, canEdit, onError, onNotice, onLi
       {!hasBoq && !upload.open && dealLines && (
         <DealLinesBoq
           opportunityId={opportunityId} lines={dealLines} version={dealLinesVersion ?? ""} canEdit={canEdit} cards={cards}
-          onError={onError} onNotice={onNotice} onChanged={() => onLinesChanged?.()}
+          onError={onError} onNotice={onNotice} onChanged={() => onLinesChanged?.()} addRequest={addLine}
         />
       )}
 

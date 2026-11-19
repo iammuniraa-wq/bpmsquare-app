@@ -5,13 +5,14 @@ import { c } from "@/lib/theme";
 import Button from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import InfoTip from "@/components/ui/InfoTip";
+import SidePanel from "@/components/ui/SidePanel";
 import { useFeel } from "@/components/FeelProvider";
 import { TENDER_TIPS } from "@/lib/tender/tips";
 import type { MatchState, ProductHit } from "@/lib/tender/boq/matchServer";
 
 // "Match to products" on the BOQ Prices tab (GCC tender deals). A BOQ line is free text; linking it to a catalog product lets the
 // BOM and supplier price sources find it. The chip says how many lines have no product; opening it lists each with up to three
-// ranked suggestions. A person accepts one, searches for another product, or leaves the line as free text. "Accept strong matches"
+// ranked suggestions in the shared side panel (a bottom sheet on a phone), so the table below never moves. A person accepts one, searches for another product, or leaves the line as free text. "Accept strong matches"
 // links only unambiguous strong ones (the server decides, not this screen). Only name, SKU and unit are shown -- never a cost.
 
 const PAGE = 10;
@@ -95,7 +96,7 @@ export default function BoqMatch({ base, count, canEdit, onChanged, onError, onN
   return (
     <div data-guide="boq.match" style={{ marginBottom: 10 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-        <button type="button" data-guide="boq.match.chip" aria-expanded={open} onClick={() => setOpen(!open)}
+        <button type="button" data-guide="boq.match.chip" aria-haspopup="dialog" aria-expanded={open} onClick={() => setOpen(true)}
           style={{ minHeight: 44, padding: "0 12px", borderRadius: 999, border: `1px solid ${c.line}`, background: "var(--amberbg)", color: "var(--amberink)", fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}>
           {count} line{count === 1 ? "" : "s"} without a product
         </button>
@@ -103,15 +104,17 @@ export default function BoqMatch({ base, count, canEdit, onChanged, onError, onN
       </div>
 
       {open && (
-        <div data-guide="boq.match.panel" style={{ marginTop: 8, background: "var(--panel2)", borderRadius: 8, padding: 10, display: "flex", flexDirection: "column", gap: 8 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-            <b style={{ fontSize: 13, color: c.ink }}>Match to products</b>
-            <InfoTip label="Strong and possible">{TENDER_TIPS.boqMatchBands}</InfoTip>
-            {canEdit && data && data.strong > 0 && (
-              <Button variant="primary" size="sm" loading={busy} onClick={() => void acceptStrong()} style={{ minHeight: 44, marginLeft: "auto" }} data-guide="boq.match.accept_strong">
-                Accept {data.strong} strong match{data.strong === 1 ? "" : "es"}
-              </Button>
-            )}
+        <SidePanel
+          title="Match to products" subtitle={`${count} line${count === 1 ? "" : "s"} without a product`} onClose={() => setOpen(false)}
+          footer={canEdit && data && data.strong > 0 ? (
+            <Button variant="primary" loading={busy} onClick={() => void acceptStrong()} style={{ minHeight: 44 }} data-guide="boq.match.accept_strong">
+              Accept {data.strong} strong match{data.strong === 1 ? "" : "es"}
+            </Button>
+          ) : undefined}
+        >
+        <div className="bpm-tap" data-guide="boq.match.panel" style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12.5, color: c.muted }}>
+            Strong and possible <InfoTip label="Strong and possible">{TENDER_TIPS.boqMatchBands}</InfoTip>
           </div>
 
           {!data && <div style={{ fontSize: 12.5, color: c.hint }}>Looking…</div>}
@@ -159,6 +162,7 @@ export default function BoqMatch({ base, count, canEdit, onChanged, onError, onN
             <Button variant="quiet" onClick={() => setShowAll(!showAll)} style={{ minHeight: 44 }} data-guide="boq.match.show_all">{showAll ? "Show fewer" : `Show all ${rows.length} lines`}</Button>
           )}
         </div>
+        </SidePanel>
       )}
     </div>
   );
