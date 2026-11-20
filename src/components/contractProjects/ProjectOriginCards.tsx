@@ -2,6 +2,7 @@ import { c } from "@/lib/theme";
 import Card from "@/components/ui/Card";
 import StatusPill from "@/components/ui/StatusPill";
 import { money, pct, signedMoney } from "@/lib/contractProjects/format";
+import { coverageText, type MarginCoverage } from "@/lib/contractProjects/budget";
 import type { BidAgainstBudget } from "@/lib/contractProjects/originServer";
 import { PROJECT_TIPS } from "@/lib/contractProjects/tips";
 
@@ -11,7 +12,8 @@ import { PROJECT_TIPS } from "@/lib/contractProjects/tips";
 
 const row: React.CSSProperties = { display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, fontSize: 13, minHeight: 28, flexWrap: "wrap" };
 
-export function BidAgainstBudgetCard({ bid, currency }: { bid: BidAgainstBudget; currency: string | null }) {
+/** `coverage` is given while lines still wait for a cost: the bid and planned margins are then not comparable, so none is shown. */
+export function BidAgainstBudgetCard({ bid, currency, coverage = null }: { bid: BidAgainstBudget; currency: string | null; coverage?: MarginCoverage | null }) {
   if (!bid.available) {
     return (
       <Card title="Bid against budget" info={PROJECT_TIPS.bidAgainstBudget} padding={16} style={{ minWidth: 0 }}>
@@ -34,7 +36,7 @@ export function BidAgainstBudgetCard({ bid, currency }: { bid: BidAgainstBudget;
             <StatusPill label={f.delta === 0 ? "On the bid" : grew ? "Over the bid" : "Under the bid"} tone={tone} />
           </dd>
         </div>
-        <div style={row}><dt style={{ color: c.muted }}>Margin at bid → planned now</dt><dd style={{ margin: 0, color: c.ink, fontVariantNumeric: "tabular-nums" }}>{pct(f.bid_margin_pct)} → {pct(f.planned_margin_pct)}</dd></div>
+        <div style={row}><dt style={{ color: c.muted }}>Margin at bid → planned now</dt><dd style={{ margin: 0, color: c.ink, fontVariantNumeric: "tabular-nums" }}>{coverage ? `Not complete · ${coverageText(coverage)}` : `${pct(f.bid_margin_pct)} → ${pct(f.planned_margin_pct)}`}</dd></div>
       </dl>
     </Card>
   );
