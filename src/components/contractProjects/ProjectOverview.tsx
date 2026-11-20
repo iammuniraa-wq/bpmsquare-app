@@ -6,7 +6,7 @@ import StatusPill from "@/components/ui/StatusPill";
 import SettingsSection from "@/components/settings/SettingsSection";
 import { ROUTES } from "@/lib/constants";
 import type { ProjectView } from "@/lib/contractProjects/view";
-import { unclassifiedAmount } from "@/lib/contractProjects/budget";
+import { marginCoverage, unclassifiedAmount } from "@/lib/contractProjects/budget";
 import { DEFAULT_RESOURCE_CODE } from "@/lib/contractProjects/types";
 import { day, money, pct } from "@/lib/contractProjects/format";
 import { PROJECT_TIPS } from "@/lib/contractProjects/tips";
@@ -62,6 +62,9 @@ export default function ProjectOverview({ view, editor, buyoutOn = false }: { vi
     .filter((r) => r.amount > 0)
     .map((r, i) => ({ ...r, color: r.info ? c.hint : SEGMENTS[i % SEGMENTS.length] }));
   const margin = contract > 0 ? Math.max(0, contract - totals.total) : 0;
+  // While lines wait for a cost, contract value less budget is margin PLUS the cost of those lines: it is not called a margin.
+  const cov = marginCoverage(view.lines);
+  const partialBudget = cov.allocated > 0 && !cov.complete;
   const share = (n: number) => pct(Math.round((n / scale) * 1000) / 10);
 
   return (
@@ -92,7 +95,7 @@ export default function ProjectOverview({ view, editor, buyoutOn = false }: { vi
           <div style={{ fontSize: 13, color: c.hint }}>Add budget lines on the Budget tab.</div>
         ) : (
           <div data-guide="cp.bar" style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            <div style={{ fontSize: 12.5, color: c.muted }}>Budget {money(totals.total, cur)} of contract value {money(contract, cur)}. The rest is your margin.</div>
+            <div style={{ fontSize: 12.5, color: c.muted }}>Budget {money(totals.total, cur)} of contract value {money(contract, cur)}. {partialBudget ? "The rest is margin plus the cost of lines not allocated yet." : "The rest is your margin."}</div>
             <div role="img" aria-label={`Budget ${money(totals.total, cur)} of contract value ${money(contract, cur)}`} style={{ display: "flex", height: 18, borderRadius: 9, overflow: "hidden", background: c.panel2 }}>
               {parts.map((r) => (
                 <div key={r.key} title={`${r.name}: ${money(r.amount, cur)}`} style={{ width: `${(r.amount / scale) * 100}%`, background: r.color }} />
@@ -110,7 +113,7 @@ export default function ProjectOverview({ view, editor, buyoutOn = false }: { vi
               {margin > 0 && (
                 <li style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
                   <span aria-hidden="true" style={{ width: 10, height: 10, borderRadius: 3, background: c.line, flexShrink: 0 }} />
-                  Margin {share(margin)}
+                  {partialBudget ? "Not costed yet, and margin" : "Margin"} {share(margin)}
                 </li>
               )}
             </ul>
@@ -121,7 +124,7 @@ export default function ProjectOverview({ view, editor, buyoutOn = false }: { vi
 
       {buyoutOn && <BuyoutProgressCard projectId={p.id} currency={cur} />}
 
-      {view.bidAgainstBudget && <BidAgainstBudgetCard bid={view.bidAgainstBudget} currency={cur} />}
+      {view.bidAgainstBudget && <BidAgainstBudgetCard bid={view.bidAgainstBudget} currency={cur} coverage={partialBudget ? cov : null} />}
 
       <SettingsSection id="cp.details" title="Project details" defaultOpen={false} summary={`${view.manager_name ?? "no manager"} · ${p.planned_start ? day(p.planned_start) : "no dates"}`}>
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>

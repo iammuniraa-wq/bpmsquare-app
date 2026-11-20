@@ -712,7 +712,7 @@ export default function OpportunityDetailClient({ opp, accountName, contacts, in
               {tender && closing.outcome === "won" && (
                 <div style={{ marginBottom: 12 }}>
                   <Field label="Awarded value" info={lastBidTotal != null ? "Starts at your last submitted bid total. Change it if the award differs." : "The value the tender was awarded at. You can add it later on the Overview."} guide="tender.close.award_value">
-                    <Input type="number" min="0" step="0.01" inputMode="decimal" value={closePrice(closing) ?? ""} onChange={(e) => setClosing({ ...closing, price: e.target.value })} style={{ minHeight: 44 }} />
+                    <GroupedNumberInput value={closePrice(closing) ?? ""} onChange={(v) => setClosing({ ...closing, price: v })} />
                   </Field>
                 </div>
               )}
@@ -725,7 +725,7 @@ export default function OpportunityDetailClient({ opp, accountName, contacts, in
                   )}
                   {tender && closing.outcome === "lost" && (
                     <Field label="Winning price" guide="tender.close.winning_price">
-                      <Input type="number" min="0" step="0.01" inputMode="decimal" value={closing.price ?? ""} onChange={(e) => setClosing({ ...closing, price: e.target.value })} style={{ minHeight: 44 }} />
+                      <GroupedNumberInput value={closing.price ?? ""} onChange={(v) => setClosing({ ...closing, price: v })} />
                     </Field>
                   )}
                   <Field label="Reason" guide="deal.close.reason">
@@ -751,5 +751,19 @@ export default function OpportunityDetailClient({ opp, accountName, contacts, in
         </div>
       )}
     </div>
+  );
+}
+
+/** An amount that reads with thousands separators until it is edited (1,232,133.00), and is the plain number while it has focus. */
+function GroupedNumberInput({ value, onChange }: { value: string; onChange: (plain: string) => void }) {
+  const [focused, setFocused] = useState(false);
+  const n = Number(value);
+  const shown = focused || value.trim() === "" || !Number.isFinite(n) ? value : n.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+  return (
+    <Input
+      type="text" inputMode="decimal" value={shown} style={{ minHeight: 44 }}
+      onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}
+      onChange={(e) => { const v = e.target.value.replace(/,/g, ""); if (v === "" || /^\d*\.?\d{0,2}$/.test(v)) onChange(v); }}
+    />
   );
 }
