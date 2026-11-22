@@ -80,6 +80,18 @@ describe("parseConnectionInput: the few fields each type needs", () => {
     expect(parseConnectionInput({ ...base, config: { ...base.config, test_path: "/health" } }).ok).toBe(true);
   });
 
+  it("a key can not be sent under a header the connection owns, and no credential may hold a line break", () => {
+    const withKey = (key_name: string, key_in = "header", api_key = SECRET) => parseConnectionInput({ ...base, config: { ...base.config, auth: "api_key", key_name, key_in }, secrets: { api_key } });
+    for (const h of ["Host", "content-length", "Transfer-Encoding", "Connection", "Cookie", "Content-Type", "Proxy-Authorization", "X-BPMSquare-Signature"]) expect(withKey(h).ok, h).toBe(false);
+    expect(withKey("Host", "query").ok).toBe(true);
+    expect(withKey("Authorization").ok).toBe(true);
+    expect(withKey("X-Key", "header", "abc\r\nX-Evil: 1").ok).toBe(false);
+    const basic = (username: string, password = "p") => parseConnectionInput({ ...base, config: { ...base.config, auth: "basic", username }, secrets: { password } });
+    expect(basic("a:b").ok).toBe(false);
+    expect(basic("svc", "pw\nx").ok).toBe(false);
+    expect(basic("svc").ok).toBe(true);
+  });
+
   it("the Microsoft directory must look like a directory id", () => {
     const r = parseConnectionInput({ ...base, config: { ...base.config, auth: "oauth2_cc", oauth_provider: "entra", directory_id: "nope", client_id: "c" }, secrets: { client_secret: SECRET } });
     expect(r.ok).toBe(false);

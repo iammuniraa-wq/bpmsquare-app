@@ -66,6 +66,10 @@ const str = (v: unknown, max = 500): string => (typeof v === "string" ? v.trim()
 const GUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const DOMAIN = /^(?=.{3,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/i;
 const KEY_NAME = /^[A-Za-z0-9_.-]{1,64}$/;
+/** Headers the request line or the network layer owns: a key can not be sent under these names. */
+const RESERVED_HEADER = /^(host|content-length|content-type|transfer-encoding|connection|upgrade|te|trailer|expect|cookie|proxy-.*|x-bpmsquare-.*)$/i;
+/** A line break or a control character in a credential would split a header; it is never a real credential. */
+const CONTROL = /[\u0000-\u001f\u007f]/;
 
 /** Is it an https address with no credentials and no query? The public-address check is a server job (assertSafeHttpsUrl). */
 export function checkHttpsAddress(raw: string, what: string, opts: { allowQuery?: boolean } = {}): string | null {
@@ -134,11 +138,13 @@ export function parseConnectionInput(
   if (auth === "api_key") {
     const keyName = str(c.key_name, 64) || "X-API-Key";
     if (!KEY_NAME.test(keyName)) err("key_name", "The key name can use letters, numbers, dash, dot and underscore.");
+    else if (c.key_in !== "query" && RESERVED_HEADER.test(keyName)) err("key_name", "That header name is used by the connection itself. Choose another name for the key.");
     config.key_name = keyName;
     config.key_in = c.key_in === "query" ? "query" : "header";
   } else if (auth === "basic") {
     const user = str(c.username, 200);
     if (!user) err("username", "Enter the user name.");
+    else if (user.includes(":") || CONTROL.test(user)) err("username", "A user name for Basic sign-in can not contain a colon or a line break.");
     config.username = user;
   } else if (auth === "oauth2_cc") {
     const provider: OAuthProvider = c.oauth_provider === "custom" ? "custom" : "entra";
@@ -162,7 +168,8 @@ export function parseConnectionInput(
 
   if (need) {
     const v = typeof given[need] === "string" ? (given[need] as string).trim() : "";
-    if (v) secrets[need] = v;
+    if (v && CONTROL.test(v)) err(need, `The ${SECRET_WORD[need]} contains a line break. Paste it again without one.`);
+    else if (v) secrets[need] = v;
     else if (!(sameAuth && stored?.has[need])) err(need, `Enter the ${SECRET_WORD[need]}.`);
   }
 

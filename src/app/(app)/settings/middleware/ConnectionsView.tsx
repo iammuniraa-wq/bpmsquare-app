@@ -93,7 +93,7 @@ export default function ConnectionsView({ existing, list, onOpenExisting }: {
                       : <span className={s.fieldName}>{r.name}</span>}
                     {r.detail && r.status !== "ok" && r.status !== "connected" ? <span className={s.connDetail}>{r.detail}</span> : null}
                   </td>
-                  <td data-label="Type">{r.type}{r.endpoints !== null ? ` · ${r.endpoints} endpoint${r.endpoints === 1 ? "" : "s"}` : ""}</td>
+                  <td data-label="Type">{`${r.type}${r.endpoints !== null ? ` · ${r.endpoints} endpoint${r.endpoints === 1 ? "" : "s"}` : ""}`}</td>
                   <td className={s.connStatus} data-label="Status">
                     <span className={`${s.statusChip} ${r.status === "ok" || r.status === "connected" ? s.statusOk : r.status === "failed" || r.status === "attention" ? s.statusBad : ""}`}>
                       <span className={`${s.dot} ${r.status === "ok" || r.status === "connected" ? s.dotOn : r.status === "failed" || r.status === "attention" ? s.dotWarn : ""}`} aria-hidden="true" />

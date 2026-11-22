@@ -122,7 +122,7 @@ export default function EndpointsPanel({ connection, onClose, onChanged }: { con
 
 // ── Add and edit ────────────────────────────────────────────────────────────
 
-function EndpointForm({ connection, editing, onBack, onDone }: { connection: PublicConnection; editing: PublicEndpoint | null; onBack: () => void; onDone: () => Promise<void> }) {
+export function EndpointForm({ connection, editing, onBack, onDone }: { connection: PublicConnection; editing: PublicEndpoint | null; onBack: () => void; onDone: () => Promise<void> }) {
   const [way, setWay] = useState<Way>("hand");
   return (
     <div className={s.stack}>
