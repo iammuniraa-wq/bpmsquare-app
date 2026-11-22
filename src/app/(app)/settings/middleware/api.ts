@@ -9,6 +9,7 @@ import type { D365Config, D365EntityConfig, D365EntityKey, D365PublicState, Scop
 import type { ScopeAttribute } from "@/lib/connectors/d365/scope";
 import type { SapAuthMode, SapPublicState } from "@/lib/connectors/sap_s4/types";
 import type { ConnectionConfig as CustomConfig, ConnectionFamily, PublicConnection, SecretKey, TestResult } from "@/lib/connections/spec";
+import type { Direction, EndpointObject, Method, Origin, PublicEndpoint, RunMode, Schedule } from "@/lib/connections/endpointSpec";
 import type { Converter, EngineMappingExtras, MapRow as MapRowT, TryResult, ValueListRow } from "@/lib/middleware/mapping/types";
 
 export type ScopeEntityKey = Exclude<D365EntityKey, "fence_projects" | "sales_orders">;
@@ -818,3 +819,26 @@ export const deleteCustomConnection = (id: string) => del<{ ok: boolean }>(`/api
 export const testCustomConnection = (id: string) => post<{ result: TestResult; connection: CustomConnection | null }>(`/api/middleware/custom/connections/${id}/test`);
 /** Test what is on screen before it is saved. With `id`, a blank secret is filled from the stored one. */
 export const testDraftConnection = (input: CustomConnectionInput, id?: string) => post<{ result: TestResult }>("/api/middleware/custom/connections/test", { ...input, ...(id ? { id } : {}) });
+
+// ── Endpoints of a connection (they start empty) ────────────────────────────
+
+export type CustomEndpoint = PublicEndpoint;
+export type EndpointDraft = {
+  name: string; path: string; direction: Direction; object_type: EndpointObject; method?: Method;
+  run_mode?: RunMode; schedule?: Schedule | null; enabled?: boolean; origin?: Origin; template_key?: string | null;
+};
+export type EndpointCandidate = { name: string; path: string; method: Method; summary: string; object_type: EndpointObject | null };
+export type EndpointTemplateView = { key: string; label: string; family: "odata"; addressHint: string; endpoints: { name: string; path: string; method: Method; direction: Direction; object_type: EndpointObject }[] };
+
+export async function getCustomEndpoints(connectionId: string): Promise<{ endpoints: CustomEndpoint[]; needsDatabaseUpdate: boolean }> {
+  const r = await get<{ endpoints?: CustomEndpoint[]; needsDatabaseUpdate?: boolean }>(`/api/middleware/custom/endpoints?connection_id=${encodeURIComponent(connectionId)}`);
+  return { endpoints: r.endpoints ?? [], needsDatabaseUpdate: r.needsDatabaseUpdate === true };
+}
+export const addCustomEndpoints = (connectionId: string, items: EndpointDraft[]) =>
+  post<{ endpoints: CustomEndpoint[]; created: number; skipped: number }>("/api/middleware/custom/endpoints", { connection_id: connectionId, items });
+export const updateCustomEndpoint = (id: string, patch: Partial<EndpointDraft>) => put<{ endpoint: CustomEndpoint }>(`/api/middleware/custom/endpoints/${id}`, patch);
+export const deleteCustomEndpoint = (id: string) => del<{ ok: boolean }>(`/api/middleware/custom/endpoints/${id}`);
+export const discoverEndpoints = (connectionId: string, specPath?: string) =>
+  post<{ source: "odata" | "openapi"; items: EndpointCandidate[] }>("/api/middleware/custom/endpoints/discover", { connection_id: connectionId, ...(specPath ? { spec_path: specPath } : {}) });
+export const getEndpointTemplates = () => get<{ templates: EndpointTemplateView[] }>("/api/middleware/custom/endpoints/templates");
+export const tryCustomEndpoint = (id: string) => post<{ result: { ok: boolean; message: string; fix: string | null; rows: number | null; fields: string[] } }>(`/api/middleware/custom/endpoints/${id}/try`);

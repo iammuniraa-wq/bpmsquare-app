@@ -22,10 +22,24 @@ vi.mock("@/lib/connections/ops", () => {
   return { list: record("list"), create: record("create"), get: record("get"), update: record("update"), remove: record("remove"), testSaved: record("testSaved"), testDraft: record("testDraft") };
 });
 
+vi.mock("@/lib/connections/endpointOps", () => {
+  const record = (name: string) => async (ctx: { tenantId: string }) => { state.calls.push(`${name}:${ctx.tenantId}`); return { status: 200, body: { ok: true } }; };
+  return {
+    listEndpoints: record("listEndpoints"), createEndpoints: record("createEndpoints"), updateEndpoint: record("updateEndpoint"), removeEndpoint: record("removeEndpoint"),
+    discover: record("discover"), tryEndpoint: record("tryEndpoint"), templates: () => { state.calls.push("templates:tenant-1"); return { status: 200, body: { templates: [] } }; },
+  };
+});
+
+import { NextRequest } from "next/server";
 import * as connections from "./connections/route";
 import * as connection from "./connections/[id]/route";
 import * as connectionTest from "./connections/[id]/test/route";
 import * as draftTest from "./connections/test/route";
+import * as endpoints from "./endpoints/route";
+import * as endpoint from "./endpoints/[id]/route";
+import * as endpointTry from "./endpoints/[id]/try/route";
+import * as discover from "./endpoints/discover/route";
+import * as templates from "./endpoints/templates/route";
 
 const id = { params: Promise.resolve({ id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb" }) };
 const req = (method = "POST") => new Request("https://acme.example.com/api/x", { method, headers: { "content-type": "application/json" }, body: method === "GET" || method === "DELETE" ? undefined : "{}" });
@@ -38,6 +52,13 @@ const handlers: [string, () => Promise<Response>][] = [
   ["DELETE connection", () => connection.DELETE(req("DELETE"), id)],
   ["POST connection test", () => connectionTest.POST(req(), id)],
   ["POST draft test", () => draftTest.POST(req() as never)],
+  ["GET endpoints", () => endpoints.GET(new NextRequest("https://acme.example.com/api/x?connection_id=bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"))],
+  ["POST endpoints", () => endpoints.POST(req() as never)],
+  ["PUT endpoint", () => endpoint.PUT(req("PUT") as never, id)],
+  ["DELETE endpoint", () => endpoint.DELETE(req("DELETE"), id)],
+  ["POST endpoint try", () => endpointTry.POST(req(), id)],
+  ["POST discover", () => discover.POST(req() as never)],
+  ["GET templates", () => templates.GET(req("GET"))],
 ];
 
 beforeEach(() => { state.user = { role: "admin", tenantId: "tenant-1" }; state.flag = true; state.calls.length = 0; });
