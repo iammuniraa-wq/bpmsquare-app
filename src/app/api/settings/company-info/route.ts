@@ -41,11 +41,18 @@ export async function PATCH(request: NextRequest) {
     .single();
   if (readErr) return NextResponse.json({ error: readErr.message }, { status: 500 });
 
-  const merged: CompanyInfo = { ...(current?.company_info ?? {}), ...body };
+  const previous = (current?.company_info ?? {}) as CompanyInfo;
+  const merged: CompanyInfo = { ...previous, ...body };
+
+  // One logo for the workspace: the app sidebar, sign-in page and prints read tenants.logo_url, the letterhead reads
+  // company_info.logo_url. Sync only when this save actually changed the logo, so a save of other company details never
+  // overwrites a sidebar logo a platform admin set separately.
+  const patch: { company_info: CompanyInfo; logo_url?: string | null } = { company_info: merged };
+  if (typeof body.logo_url === "string" && body.logo_url !== (previous.logo_url ?? "")) patch.logo_url = body.logo_url || null;
 
   const { error } = await admin
     .from("tenants")
-    .update({ company_info: merged })
+    .update(patch)
     .eq("id", tenantId);
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });

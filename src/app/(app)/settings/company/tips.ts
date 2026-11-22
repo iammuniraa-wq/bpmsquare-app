@@ -5,7 +5,7 @@ export const COMPANY_TIPS = {
   page: "Your company details, legal entities, tax and currency, and how IDs are numbered. Changes apply to new documents; existing ones keep what they were made with.",
   name: "Shown in the sidebar header and printed on quotations and invoices.",
   printName: "This letterhead already used a different name. Clear the box to print the company name instead.",
-  logo: "Printed on quotations and invoices. PNG, JPG or WebP, up to 2 MB.",
+  logo: "Shown in the app, on the sign-in page and on printed documents. PNG, JPG or WebP, up to 2 MB.",
   taxId: "Your GSTIN or VAT number, printed on documents.",
   tagline: "A short line under the company name on the letterhead.",
   logoBg: "Used when no logo is uploaded: the company's initials appear on this colour.",
