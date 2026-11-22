@@ -104,11 +104,11 @@ describe("one Save over three tabs", () => {
 
 describe("Theme tab", () => {
   const features = { next_experience: true, spectacular_theme: true };
-  const render = (theme: string, f: Record<string, boolean> = features, demo = true) => html(createElement(ThemeTab, { draft: { ...draftFromTenant(tenant({})), theme: theme as never }, features: f, demo, accent: "#378ADD", onChange: () => {} }));
+  const render = (theme: string, f: Record<string, boolean> = features) => html(createElement(ThemeTab, { draft: { ...draftFromTenant(tenant({})), theme: theme as never }, features: f, accent: "#378ADD", onChange: () => {} }));
 
   it("offers only the themes this workspace was given", () => {
     expect(themeTiles({}).map((t) => t.value)).toEqual(["classic", "modern", "nextgen"]);
-    expect(themeTiles(features, true).map((t) => t.value)).toEqual(["classic", "modern", "nextgen", "nextgen2", "rich", "spectacular", "spectacular_purple"]);
+    expect(themeTiles(features).map((t) => t.value)).toEqual(["classic", "modern", "nextgen", "nextgen2", "rich", "spectacular", "spectacular_purple"]);
   });
 
   it("has one colour row, whichever theme is chosen, and no descriptions under the tiles", () => {
@@ -126,13 +126,10 @@ describe("Theme tab", () => {
     expect(render("classic")).not.toContain("Pink");
   });
 
-  it("offers Rich as a theme tile only to a demo workspace that has the Nova flag", () => {
-    expect(themeTiles({ next_experience: true }, true).map((t) => t.value)).toContain("rich");
+  it("offers Rich as a theme tile to any workspace that has the Nova flag, demo or not", () => {
     expect(themeTiles({ next_experience: true }).map((t) => t.value)).toContain("rich");
-    expect(themeTiles({}, true).map((t) => t.value)).not.toContain("rich");
+    expect(themeTiles({}).map((t) => t.value)).not.toContain("rich");
     expect(render("classic")).toContain(">Rich<");
-    // KAMCO instance: the tile is not demo-only on this branch (docs/instances/kamco.md), so it shows without the demo marker.
-    expect(render("classic", features, false)).toContain(">Rich<");
     expect(render("classic", {})).not.toContain(">Rich<");
     expect(render("rich")).not.toContain("Rich look");
   });
