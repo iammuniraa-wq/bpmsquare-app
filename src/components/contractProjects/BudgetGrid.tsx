@@ -37,7 +37,7 @@ const num = (v: string | undefined): number | null => (v === undefined || v.trim
  */
 export default function BudgetGrid({
   projectId, revision, revisions, lines, resources, canEdit, projectClosed, currency, buyoutOn = false, initialBuyout,
-  contractValue = 0, marginFloor = null, basis = "line", allocation, packages = [], packagesPending = false, employees = [], fillAvailable = false, approval,
+  contractValue = 0, valueNote = "from the awarded tender", marginFloor = null, basis = "line", allocation, packages = [], packagesPending = false, employees = [], fillAvailable = false, approval,
 }: {
   projectId: string;
   revision: Pick<RevisionRow, "id" | "rev_no" | "status">;
@@ -52,6 +52,8 @@ export default function BudgetGrid({
   /** Lets a server render (and its test) show the column. The page never passes it. */
   initialBuyout?: BuyoutData | null;
   contractValue?: number;
+  /** The note under the contract value: where it came from ("from the awarded tender", "from standard quote SQ-0041"). */
+  valueNote?: string;
   marginFloor?: number | null;
   basis?: AllocationBasis;
   allocation: AllocationView;
@@ -219,7 +221,7 @@ export default function BudgetGrid({
       </div>
 
       <StatStrip guide="cp.alloc.tiles">
-        <StatTile tone="info" label="Contract value" info={PROJECT_TIPS.contractValue} value={money(contractValue, currency)} sub="from the awarded tender" />
+        <StatTile tone="info" label="Contract value" info={PROJECT_TIPS.contractValue} value={money(contractValue, currency)} sub={valueNote} />
         <StatTile tone="neutral" label="Allocated" info={PROJECT_TIPS.allocated} value={money(live.total, currency)} sub={`${live.count} of ${live.of} ${noun}`} />
         <StatTile
           tone={words.partial ? "neutral" : marginTone(live.margin.state)} label="Margin so far" info={words.partial ? PROJECT_TIPS.marginPartial : PROJECT_TIPS.plannedMargin}

@@ -32,6 +32,7 @@ import { linesVersion } from "@/lib/sales/dealLines";
 import { rfqLineStatuses } from "@/lib/rfq/server";
 import { loadProjectBySource } from "@/lib/contractProjects/server";
 import { buildBoqState } from "@/lib/tender/boq/server";
+import QuoteProjectAction from "@/components/contractProjects/QuoteProjectAction";
 
 export default async function OpportunityDetailPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams?: Promise<{ tab?: string; boqfilter?: string; row?: string }> }) {
   await requireWorkcenterView("pipeline");
@@ -118,6 +119,11 @@ export default async function OpportunityDetailPage({ params, searchParams }: { 
     };
   }
 
+  // A deal that is not a tender can go on to a contract project through the standard quote the customer accepted (one project per quote).
+  const acceptedQuotes = !tender && tenant?.features?.contract_projects === true && tenant?.features?.standard_quotes === true
+    ? quotes.filter((q) => q.object === "standard_quote" && q.status === "accepted").slice(0, 3)
+    : [];
+
   // RFQ (0128): ask suppliers about this deal's lines; only with the module.
   const rfqOn = tenant?.features?.rfq === true;
   const rfqStatus = rfqOn && !tender
@@ -139,7 +145,12 @@ export default async function OpportunityDetailPage({ params, searchParams }: { 
       standardQuotesEnabled={tenant?.features?.standard_quotes === true}
       todayKey={todayKey}
       currentUserId={userId}
-      externalLine={<ExternalRecordSlot objectType="opportunities" objectId={id} />}
+      externalLine={
+        <>
+          <ExternalRecordSlot objectType="opportunities" objectId={id} />
+          {acceptedQuotes.map((q) => <QuoteProjectAction key={q.id} sourceType="standard_quote" sourceId={q.id} ready strip />)}
+        </>
+      }
       related={rfqOn && !tender ? (
         <RecordRfqsCard
           origin={{ type: "opportunity", id }}
