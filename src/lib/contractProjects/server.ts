@@ -8,17 +8,19 @@ import { isMissingSchema } from "@/lib/tender/server";
 import { budgetTotals, lineAmount, round2, type TotalsLine } from "./budget";
 import {
   JUSTIFICATION_SEEDS, MASTERFORMAT_DIVISIONS, MASTERFORMAT_SECTIONS, MATERIAL_GROUP_SEEDS, RESOURCE_SEEDS, isMasterKind,
-  type BudgetLine, type DraftLine, type MasterKind, type MasterRow, type ProjectRow, type RevisionRow,
+  sourceTypeOf, type BudgetLine, type DraftLine, type MasterKind, type MasterRow, type ProjectRow, type ProjectSourceType, type RevisionRow,
 } from "./types";
 
 import { readAllPages } from "@/lib/pagedRead";
 // Shared plumbing of the /api/contract-projects* routes and the pages (migration 0226). Every query is tenant-scoped on the admin
 // client (MULTI_TENANT_GUARDRAILS.md) and every one tolerates the migration being pending: a missing table or column reads as
 // "database update needed", never as a crash. Nothing here runs for a workspace without the platform-admin flag
-// `contract_projects` (plus `gcc_tender`): the gate answers 404 first.
+// `contract_projects`: the gate answers 404 first. The tender edition (`gcc_tender`) is needed only by what is tender-only: making a
+// project from a tender, Buy-out, the tender's costs and WBS, the winning bid's payment terms (docs/design/won-quote-to-project.md).
 
 export const CONTRACT_PROJECTS_BUNDLE = "scripts/run-bundle-36-contract-projects-2026-10-26.sql";
 export const ALLOCATION_BUNDLE = "scripts/run-bundle-48-project-allocation-wbs-2026-10-29.sql";
+export const SOURCE_BUNDLE = "scripts/run-bundle-52-contract-project-source-2026-11-22.sql";
 export const APPROVAL_BUNDLE = "scripts/run-bundle-32-tender-approval-and-room-2026-10-25.sql";
 export { isMissingSchema };
 
@@ -39,6 +41,12 @@ export const needsUpdate = (): Failure => ({
   extra: { needsDatabaseUpdate: true, bundle: CONTRACT_PROJECTS_BUNDLE },
 });
 
+/** A project made from a quote records which quote (0248); until that is applied nothing is made, so no project loses where it came from. */
+export const needsSourceUpdate = (): Failure => ({
+  status: 503, error: "Making a project from a quote needs a database update (migration 0248). Ask your administrator to apply it.",
+  extra: { needsDatabaseUpdate: true, bundle: SOURCE_BUNDLE },
+});
+
 /** Allocating a budget and work packages need migration 0240; until it is applied the screens and routes say so instead of failing. */
 export const needsAllocationUpdate = (): Failure => ({
   status: 503, error: "The WBS and budget allocation need a database update (migration 0240). Ask your administrator to apply it.",
@@ -46,11 +54,11 @@ export const needsAllocationUpdate = (): Failure => ({
 });
 
 /**
- * The gate every route starts with: a signed-in member of a workspace that owns the module (and the tender edition it needs), who
- * may open Contract Projects. `write` also needs the edit grant and `admin` the workspace admin. Any miss on the module is a plain
- * 404, so a workspace without it cannot tell the module exists.
+ * The gate every route starts with: a signed-in member of a workspace that owns the module, who may open Contract Projects. `write`
+ * also needs the edit grant and `admin` the workspace admin. `tender` also needs the tender edition (a route that only makes sense for
+ * a project made from a tender). Any miss on the module is a plain 404, so a workspace without it cannot tell the module exists.
  */
-export async function openProjectRequest(opts: { write?: boolean; admin?: boolean } = {}): Promise<{ ok: true; req: ProjectCtx } | ({ ok: false } & Failure)> {
+export async function openProjectRequest(opts: { write?: boolean; admin?: boolean; tender?: boolean } = {}): Promise<{ ok: true; req: ProjectCtx } | ({ ok: false } & Failure)> {
   let ctx;
   try {
     ctx = await requireTenantUser();
@@ -60,7 +68,7 @@ export async function openProjectRequest(opts: { write?: boolean; admin?: boolea
   }
   const { supabase, tenantId, userId, role } = ctx;
   const notFound = { ok: false as const, status: 404, error: "Not found" };
-  for (const key of ["contract_projects", "gcc_tender"] as const) {
+  for (const key of opts.tender ? (["contract_projects", "gcc_tender"] as const) : (["contract_projects"] as const)) {
     if (!(await tenantHasFeature(supabase, tenantId, key))) return notFound;
   }
   const perms = await resolvePermissions(supabase, tenantId, userId, role);
@@ -75,7 +83,10 @@ export async function openProjectRequest(opts: { write?: boolean; admin?: boolea
 
 const PROJECT_COLS_BASE = "id, tenant_id, ref, name, account_id, source_opportunity_id, status, contract_value, currency, planned_start, planned_end, manager_id, erp_system, erp_id, custom_data, created_by, created_at, updated_at";
 // Migration 0240 adds columns to the project; a database that has not had it yet is read with the base list.
-const PROJECT_COLS = `${PROJECT_COLS_BASE}, handover_sent_at, allocation_basis`;
+const PROJECT_COLS_0240 = `${PROJECT_COLS_BASE}, handover_sent_at, allocation_basis`;
+// Migration 0248 adds the source; a database that has not had it yet is read with the narrower lists, newest first.
+const PROJECT_COLS = `${PROJECT_COLS_0240}, source_type, source_id`;
+const PROJECT_COL_TIERS = [PROJECT_COLS, PROJECT_COLS_0240, PROJECT_COLS_BASE] as const;
 const REVISION_COLS = "id, project_id, rev_no, status, justification_code, justification_text, created_by, created_at, approved_by, approved_at, locked_at, total";
 const LINE_COLS_BASE = "id, line_no, line_key, resource_code, cost_code, wbs, description, qty, unit, unit_cost, amount, cost_known, source_ref, reserve, committed, actual";
 // The allocation columns of migration 0240; a database that has not had it yet is read with the base list.
@@ -84,6 +95,8 @@ const LINE_COLS = `${LINE_COLS_BASE}, ${ALLOCATION_LINE_COLS}`;
 
 export const normaliseProject = (r: Record<string, unknown>): ProjectRow => ({
   ...(r as unknown as ProjectRow), contract_value: Number(r.contract_value ?? 0),
+  source_type: sourceTypeOf(r as { source_type?: string | null; source_opportunity_id?: string | null }),
+  source_id: typeof r.source_id === "string" ? r.source_id : null,
   handover_sent_at: typeof r.handover_sent_at === "string" ? r.handover_sent_at : null,
   allocation_basis: r.allocation_basis === "package" ? "package" : "line",
 });
@@ -110,15 +123,39 @@ export async function allocationSchemaReady(admin: SupabaseClient): Promise<bool
 
 export async function loadProject(admin: SupabaseClient, tenantId: string, id: string): Promise<{ kind: "ok"; project: ProjectRow } | { kind: "missing" } | { kind: "pending" }> {
   if (!UUID_RE.test(id)) return { kind: "missing" };
-  let { data, error } = await admin.from("contract_projects").select(PROJECT_COLS).eq("id", id).eq("tenant_id", tenantId).maybeSingle();
-  if (error && isMissingSchema(error)) ({ data, error } = await admin.from("contract_projects").select(PROJECT_COLS_BASE).eq("id", id).eq("tenant_id", tenantId).maybeSingle());
+  let data: unknown = null;
+  let error: { code?: string; message?: string } | null = null;
+  for (const cols of PROJECT_COL_TIERS) {
+    ({ data, error } = await admin.from("contract_projects").select(cols).eq("id", id).eq("tenant_id", tenantId).maybeSingle());
+    if (!error || !isMissingSchema(error)) break;
+  }
   if (error) return isMissingSchema(error) ? { kind: "pending" } : { kind: "missing" };
   return data ? { kind: "ok", project: normaliseProject(data as Record<string, unknown>) } : { kind: "missing" };
 }
 
-export async function loadProjectBySource(admin: SupabaseClient, tenantId: string, opportunityId: string): Promise<{ id: string; ref: string | null } | null> {
-  const { data } = await admin.from("contract_projects").select("id, ref").eq("tenant_id", tenantId).eq("source_opportunity_id", opportunityId).maybeSingle();
-  return (data as { id: string; ref: string | null } | null) ?? null;
+/** Is the source schema (migration 0248) in the database? One cheap probe. */
+export async function sourceSchemaReady(admin: SupabaseClient): Promise<boolean> {
+  const { error } = await admin.from("contract_projects").select("source_type").limit(1);
+  return !isMissingSchema(error);
+}
+
+/**
+ * The project already made from this source, or null. A tender is found by its deal (a deal id read before 0248 has no source_type);
+ * anything else by source_type + source_id, which a database without 0248 cannot hold, so it has none.
+ */
+export async function loadProjectBySource(admin: SupabaseClient, tenantId: string, source: string | { type: ProjectSourceType; id: string }): Promise<{ id: string; ref: string | null } | null> {
+  const s = typeof source === "string" ? { type: "tender" as const, id: source } : source;
+  if (s.type === "tender") {
+    // A quote project keeps its deal id as a back link: only the rows that are tender projects count.
+    const read = (cols: string) => admin.from("contract_projects").select(cols).eq("tenant_id", tenantId).eq("source_opportunity_id", s.id).limit(20);
+    let res = await read("id, ref, source_type");
+    if (res.error && isMissingSchema(res.error)) res = await read("id, ref");
+    const row = ((res.data ?? []) as unknown as { id: string; ref: string | null; source_type?: string | null }[]).find((r) => sourceTypeOf({ source_type: r.source_type, source_opportunity_id: s.id }) === "tender");
+    return row ? { id: row.id, ref: row.ref } : null;
+  }
+  const { data, error } = await admin.from("contract_projects").select("id, ref").eq("tenant_id", tenantId).eq("source_type", s.type).eq("source_id", s.id).limit(1);
+  if (error) return null;
+  return ((data ?? []) as { id: string; ref: string | null }[])[0] ?? null;
 }
 
 export async function loadRevisions(admin: SupabaseClient, tenantId: string, projectId: string): Promise<{ rows: RevisionRow[]; pending: boolean }> {

@@ -7,7 +7,7 @@ import { tenantToday } from "@/lib/tenantClock";
 import { rfqConfig } from "@/lib/rfq/types";
 import { allowedSuppliersForAccount } from "@/lib/supplierGroups/server";
 import { currentRevision, loadLines, loadProject, loadRevisions, needsUpdate, openProjectRequest, type Failure, type ProjectCtx } from "../server";
-import type { BudgetLine, ProjectRow } from "../types";
+import { isTenderProject, type BudgetLine, type ProjectRow } from "../types";
 import { wbsLineChoices } from "../wbsBuyout";
 import { loadPackages as loadWbsItems } from "../workPackagesServer";
 import {
@@ -42,14 +42,14 @@ export type BuyoutCtx = ProjectCtx & {
  * project cannot tell buy-out exists. `rfq: true` is for the routes that raise an RFQ round: they also need the RFQ module and the RFQ edit grant.
  */
 export async function openBuyoutRequest(projectId: string, opts: { write?: boolean; rfq?: boolean } = {}): Promise<{ ok: true; req: BuyoutCtx } | ({ ok: false } & Failure)> {
-  const gate = await openProjectRequest({ write: opts.write });
+  const gate = await openProjectRequest({ write: opts.write, tender: true });
   if (!gate.ok) return gate;
   const base = gate.req;
   const found = await loadProject(base.admin, base.tenantId, projectId);
   if (found.kind === "pending") return { ok: false, ...needsUpdate() };
   if (found.kind !== "ok") return { ok: false, status: 404, error: "Not found" };
   const project = found.project;
-  if (!project.source_opportunity_id) return { ok: false, status: 404, error: "Not found" };
+  if (!isTenderProject(project) || !project.source_opportunity_id) return { ok: false, status: 404, error: "Not found" };
   const tender = await base.admin.from("opportunity_tenders").select("opportunity_id").eq("tenant_id", base.tenantId).eq("opportunity_id", project.source_opportunity_id).maybeSingle();
   if (tender.error || !tender.data) return { ok: false, status: 404, error: "Not found" };
 

@@ -14,7 +14,7 @@ import {
   refreshRevisionTotal, UUID_RE, type Failure, type ProjectCtx,
 } from "./server";
 import { checkOwner, loadPackages } from "./workPackagesServer";
-import type { AllocationBasis, BudgetLine, ProjectRow, RevisionRow, WorkPackageRow } from "./types";
+import { isTenderProject, type AllocationBasis, type BudgetLine, type ProjectRow, type RevisionRow, type WorkPackageRow } from "./types";
 
 import { readAllPages } from "@/lib/pagedRead";
 // The writes of the budget allocation and the WBS (migrations 0240 and 0243). Every route opens with openAllocation (the contract-projects
@@ -173,9 +173,9 @@ export async function changeBasis(ctx: AllocationCtx, basis: AllocationBasis): P
 
 // ── POST allocation/fill ────────────────────────────────────────────────────────────────────────────────────────────
 
-/** Is there a tender to copy the recorded costs from? */
-export function fillAvailable(project: Pick<ProjectRow, "source_opportunity_id">, lines: readonly Pick<BudgetLine, "source_line_id">[]): boolean {
-  return !!project.source_opportunity_id && lines.some((l) => !!l.source_line_id);
+/** Is there a tender to copy the recorded costs from? Only a project made from a tender has one: a quote project keeps its deal as a back link. */
+export function fillAvailable(project: Pick<ProjectRow, "source_opportunity_id" | "source_type">, lines: readonly Pick<BudgetLine, "source_line_id">[]): boolean {
+  return isTenderProject(project) && !!project.source_opportunity_id && lines.some((l) => !!l.source_line_id);
 }
 
 async function recordedCosts(ctx: AllocationCtx, lines: readonly BudgetLine[]): Promise<Map<string, Found>> {

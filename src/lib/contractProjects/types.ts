@@ -124,13 +124,41 @@ export const DEFAULT_RESOURCE_CODE = "11";
 export const ALLOCATION_BASES = ["line", "package"] as const;
 export type AllocationBasis = (typeof ALLOCATION_BASES)[number];
 
+/** Where a project came from (0248). Only a tender project has a Buy-out, tender costs to copy, a tender WBS and winning-bid payment terms. */
+export const PROJECT_SOURCE_TYPES = ["tender", "standard_quote", "quotation", "estimate", "manual"] as const;
+export type ProjectSourceType = (typeof PROJECT_SOURCE_TYPES)[number];
+export const PROJECT_SOURCE_LABEL: Record<ProjectSourceType, string> = {
+  tender: "awarded tender", standard_quote: "standard quote", quotation: "quotation", estimate: "estimate", manual: "entered by hand",
+};
+
+/**
+ * The source of a project row, also for a row saved before 0248 (no source_type): a deal link with no type is a tender, nothing is by hand.
+ * Every tender-only check reads this, never source_opportunity_id: a quote-sourced project keeps the deal id for its back link.
+ */
+export function sourceTypeOf(p: { source_type?: string | null; source_opportunity_id?: string | null }): ProjectSourceType {
+  if (p.source_type && (PROJECT_SOURCE_TYPES as readonly string[]).includes(p.source_type)) return p.source_type as ProjectSourceType;
+  return p.source_opportunity_id ? "tender" : "manual";
+}
+/** "from the awarded tender", "from standard quote SQ-0041", "entered by hand": the note under the contract value and the line on the origin card. */
+export function projectSourceNote(type: ProjectSourceType, ref?: string | null): string {
+  if (type === "manual") return PROJECT_SOURCE_LABEL.manual;
+  if (type === "tender") return "from the awarded tender";
+  return `from ${PROJECT_SOURCE_LABEL[type]}${ref ? ` ${ref}` : ""}`;
+}
+export const isTenderProject =(p: { source_type?: string | null; source_opportunity_id?: string | null }): boolean => sourceTypeOf(p) === "tender";
+
 export type ProjectRow = {
   id: string;
   tenant_id: string;
   ref: string | null;
   name: string;
   account_id: string | null;
+  /** The deal. For a tender project this is the tender; for a quote project it is only the back link. */
   source_opportunity_id: string | null;
+  /** 0248. Absent on a row read before that migration: use sourceTypeOf(). */
+  source_type?: ProjectSourceType | null;
+  /** 0248. The quote the project was made from (a tender project keeps the deal id here too). */
+  source_id?: string | null;
   status: ProjectStatus;
   contract_value: number;
   currency: string | null;

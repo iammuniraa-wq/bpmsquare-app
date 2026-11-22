@@ -5,6 +5,8 @@ export const PROJECT_TIPS = {
   list: "The projects your won tenders became. Each has a cost budget that a manager approves before it is the baseline.",
   create: "Starts a project and its first budget from a won tender's lines. You can also make one by hand and add the lines yourself.",
   fromTender: "Copies the tender's lines with the client's rates as the contract. Costs are not guessed: you allocate them, by line or by WBS item.",
+  fromQuote: "Copies the quote's lines with their rates as the contract, at the quote subtotal before tax. Costs are not guessed: you allocate them on the project.",
+  quoteOrigin: "The quote this project was made from. Its lines and rates are the contract; later changes to the quote do not change the project.",
   contractValue: "What the client pays under the contract. It starts as the awarded value, or the final bid total if no award value was recorded.",
   budgetVsContract: "The bar compares the budget with the contract value. What is left is the planned margin before any cost has been spent.",
   plannedMargin: "Contract value less what you have allocated to the budget, as money and as a percent of the contract value. It updates on every change.",

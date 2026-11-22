@@ -68,13 +68,50 @@ describe("migration 0226", () => {
   });
 });
 
+describe("migration 0248", () => {
+  const src = lf(read("supabase/migrations/0248_contract_project_source.sql"));
+  const body = src.replace(/--[^\n]*/g, "").replace(/\s+/g, " ");
+
+  it("is idempotent and adds the two columns, the check, the backfill and the one-per-source index", () => {
+    expect(body).toMatch(/add column if not exists source_type text/);
+    expect(body).toMatch(/add column if not exists source_id uuid/);
+    expect(body).toMatch(/drop constraint if exists contract_projects_source_type_check/);
+    expect(body).toMatch(/source_type in \('tender', 'standard_quote', 'quotation', 'estimate', 'manual'\)/);
+    expect(body).toMatch(/update contract_projects set source_type = 'tender'[^;]*where source_type is null and source_opportunity_id is not null/);
+    expect(body).toMatch(/create unique index if not exists contract_projects_one_per_source on contract_projects \(tenant_id, source_type, source_id\) where source_id is not null/);
+    for (const m of body.matchAll(/create (unique )?index (if not exists )?(\w+)/gi)) expect(m[2], `index ${m[3]}`).toBeTruthy();
+  });
+
+  it("the one-per-deal index covers tender projects only, so several quotes of one deal can each have a project", () => {
+    expect(body).toMatch(/drop index if exists contract_projects_one_per_tender/);
+    expect(body).toMatch(/contract_projects_one_per_tender on contract_projects \(tenant_id, source_opportunity_id\) where source_opportunity_id is not null and \(source_type is null or source_type = 'tender'\)/);
+  });
+
+  it("changes no policy: the table keeps the tenant SELECT policy of 0226 and nothing that writes", () => {
+    expect(body).not.toMatch(/policy|row level security|grant /i);
+  });
+
+  it("the bundle is one transaction that carries the migration verbatim, after 0226", () => {
+    const bundle = lf(read("scripts/run-bundle-52-contract-project-source-2026-11-22.sql"));
+    expect(bundle).toContain(src.trim());
+    expect(bundle).toMatch(/^begin;$/m);
+    expect(bundle.trimEnd().endsWith("commit;")).toBe(true);
+    expect(bundle).toMatch(/Run AFTER 0226 \(bundle 36/);
+  });
+
+  it("the app names the bundle the owner must run", () => {
+    expect(read("src/lib/contractProjects/server.ts")).toContain('SOURCE_BUNDLE = "scripts/run-bundle-52-contract-project-source-2026-11-22.sql"');
+  });
+});
+
 describe("gating and wiring", () => {
   it("every spelling of the object is owned by the contract_projects module", () => {
     for (const n of ["contract_projects", "contract-projects", "project_budget_revisions", "project_budget_lines", "erp_masters"]) expect(featureForObject(n), n).toBe("contract_projects");
   });
 
-  it("the module needs the tender edition", () => {
-    expect(FEATURE_DEPENDENCIES.some((d) => d.key === "contract_projects" && d.needs === "gcc_tender" && d.strength === "hard")).toBe(true);
+  it("the module only partly needs the tender edition: a project made from a quote works without it", () => {
+    expect(FEATURE_DEPENDENCIES.some((d) => d.key === "contract_projects" && d.needs === "gcc_tender" && d.strength === "partial")).toBe(true);
+    expect(FEATURE_DEPENDENCIES.some((d) => d.key === "contract_projects" && d.needs === "gcc_tender" && d.strength === "hard")).toBe(false);
   });
 
   it("is a nav item under Sales with its module flag and workcenter, a settings entry, a palette entry, a search object and a timeline object", () => {
@@ -157,9 +194,9 @@ describe("a workspace without the module", () => {
     expect(routes.length).toBeGreaterThanOrEqual(10);
     // The buy-out routes open through their own door, which is the same gate plus the tender-project check.
     for (const f of routes) expect(readFileSync(f, "utf8"), f).toMatch(/openProjectRequest\(|openBuyoutRequest\(|openPackageRequest\(|openAllocation\(/);
-    expect(read("src/lib/contractProjects/buyout/server.ts")).toMatch(/const gate = await openProjectRequest\(\{ write: opts\.write \}\);/);
+    expect(read("src/lib/contractProjects/buyout/server.ts")).toMatch(/const gate = await openProjectRequest\(\{ write: opts\.write, tender: true \}\);/);
     const gate = read("src/lib/contractProjects/server.ts");
-    expect(gate).toMatch(/for \(const key of \["contract_projects", "gcc_tender"\] as const\)/);
+    expect(gate).toMatch(/for \(const key of opts\.tender \? \(\["contract_projects", "gcc_tender"\] as const\) : \(\["contract_projects"\] as const\)\)/);
     expect(gate).toContain('error: "Not found"');
   });
 

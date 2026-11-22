@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { TenantConfig } from "@/lib/constants";
 import { normaliseProject } from "@/lib/contractProjects/server";
 import { buildSummary, type BuyoutCtx } from "@/lib/contractProjects/buyout/server";
+import { isTenderProject } from "@/lib/contractProjects/types";
 import { resolveCurrency } from "@/lib/currency";
 import { createAdminSupabase } from "@/lib/supabase-server";
 import { APPROVAL_KIND_TENDER_BID, APPROVAL_OBJECT_TENDER } from "@/lib/tender/approval";
@@ -189,7 +190,7 @@ async function loadProjects(admin: SupabaseClient, tenantId: string, tenderIds: 
   if (tenderIds.length === 0) return [];
   const found = await readIn(admin, tenantId, "contract_projects", "*", "source_opportunity_id", tenderIds);
   if (!found.ok) return [];
-  const projects = found.rows.map(normaliseProject).sort((a, b) => b.created_at.localeCompare(a.created_at)).slice(0, PROJECTS_SHOWN);
+  const projects = found.rows.map(normaliseProject).filter((p) => isTenderProject(p)).sort((a, b) => b.created_at.localeCompare(a.created_at)).slice(0, PROJECTS_SHOWN);
   const out: DeskProject[] = [];
   for (const project of projects) {
     try {

@@ -8,7 +8,7 @@ import { buildVariationsData, createVariation } from "@/lib/contractProjects/var
 //             pendingCount, revised, original, count }, currency, pending, canEdit }
 // POST /api/contract-projects/[id]/variations  { title, description?, amount?, cost_amount?, change_request_ref?, note? }
 //        A new DRAFT variation (ref VAR-####). The status, the ref and the author are the server's, never the body's. 201 { id, ref }.
-// Behind the platform-admin flag `contract_projects` (and gcc_tender): a workspace without them gets a 404 and no table is read.
+// Behind the platform-admin flag `contract_projects`: a workspace without it gets a 404 and no table is read.
 // While migration 0231 is pending the answer is 503 with needsDatabaseUpdate.
 
 type Ctx = { params: Promise<{ id: string }> };

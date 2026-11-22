@@ -9,7 +9,9 @@ import { parseMasterGrid } from "./masters";
 import { askMessage, askProblem, canDecide, decidersFor, justificationProblem, outcomeMessage, requestReason, tenderSettings, approverIds } from "./approval";
 import { buildHandoverWorkbook } from "./handover";
 import { PROJECT_TIPS } from "./tips";
-import { JUSTIFICATION_SEEDS, MASTERFORMAT_DIVISIONS, MASTERFORMAT_SECTIONS, MATERIAL_GROUP_SEEDS, RESOURCE_SEEDS, type BudgetLine, type ProjectRow, type RevisionRow } from "./types";
+import { JUSTIFICATION_SEEDS, MASTERFORMAT_DIVISIONS, MASTERFORMAT_SECTIONS, MATERIAL_GROUP_SEEDS, RESOURCE_SEEDS, isTenderProject, projectSourceNote, sourceTypeOf, type BudgetLine, type ProjectRow, type RevisionRow } from "./types";
+import { fillAvailable } from "./allocationServer";
+import { quoteLinesToBudget } from "./fromQuote";
 
 const line = (over: Partial<BudgetLine> = {}): BudgetLine => ({
   id: "i", line_key: "k1", line_no: 1, resource_code: "11", cost_code: "03", wbs: null, description: "Concrete", qty: 10, unit: "m3", unit_cost: 100, amount: 1000,
@@ -305,6 +307,58 @@ describe("approval rules", () => {
     expect(m.subject).toContain("the baseline budget for CPR-0001 Fence");
     expect(m.text).toContain("https://x.test/p");
     expect(outcomeMessage({ project: "Fence", ref: null, decider: "Boss", revNo: 1, approved: false, comment: "Too high", link: null }).text).toContain("back in draft");
+  });
+});
+
+describe("where a project came from", () => {
+  it("a row saved before 0248 is a tender when it has a deal and by hand when it has none; a stored type wins", () => {
+    expect(sourceTypeOf({ source_opportunity_id: "o1" })).toBe("tender");
+    expect(sourceTypeOf({ source_opportunity_id: null })).toBe("manual");
+    expect(sourceTypeOf({ source_type: "standard_quote", source_opportunity_id: "o1" })).toBe("standard_quote");
+    expect(sourceTypeOf({ source_type: "nonsense", source_opportunity_id: "o1" })).toBe("tender");
+    expect(isTenderProject({ source_type: "quotation", source_opportunity_id: "o1" })).toBe(false);
+  });
+
+  it("the note under the contract value names the source", () => {
+    expect(projectSourceNote("tender")).toBe("from the awarded tender");
+    expect(projectSourceNote("standard_quote", "SQ-0041")).toBe("from standard quote SQ-0041");
+    expect(projectSourceNote("quotation")).toBe("from quotation");
+    expect(projectSourceNote("manual")).toBe("entered by hand");
+  });
+
+  it("only a tender project has tender costs to copy", () => {
+    const lines = [{ source_line_id: "l1" }];
+    expect(fillAvailable({ source_opportunity_id: "o1", source_type: "tender" }, lines)).toBe(true);
+    expect(fillAvailable({ source_opportunity_id: "o1" }, lines)).toBe(true);
+    expect(fillAvailable({ source_opportunity_id: "o1", source_type: "standard_quote" }, lines)).toBe(false);
+    expect(fillAvailable({ source_opportunity_id: "o1", source_type: "tender" }, [{ source_line_id: null }])).toBe(false);
+  });
+});
+
+describe("a quote's lines as the contract", () => {
+  const row = (over: Record<string, unknown>) => ({ id: "x", sl_no: "1", description: "Panel", uom: "ea", qty: 2, rate: 100, discount_pct: 0, amount: 200, is_selected: true, group_id: null, group_type: null, break_of: null, ...over });
+
+  it("takes the charged lines at the client's rate after the line's discount, with no cost and not allocated", () => {
+    const out = quoteLinesToBudget([row({ id: "a", discount_pct: 10, amount: 180 })]);
+    expect(out.lines[0]).toMatchObject({ description: "Panel", qty: 2, unit: "ea", unit_cost: 0, amount: 0, allocated: false, client_rate: 90, client_amount: 180, source_line_id: "a", wbs: "1", resource_code: "11" });
+    expect(out.subtotal).toBe(180);
+  });
+
+  it("leaves out an option that was not chosen, a quantity break and a deselected line, and says how many", () => {
+    const out = quoteLinesToBudget([
+      row({ id: "a" }),
+      row({ id: "b", group_id: "g1", group_type: "alternative", is_selected: true }),
+      row({ id: "c", group_id: "g2", group_type: "alternative", is_selected: false }),
+      row({ id: "d", break_of: "a", is_selected: true }),
+      row({ id: "e", is_selected: false }),
+    ]);
+    expect(out.lines.map((l) => l.source_line_id)).toEqual(["a", "b"]);
+    expect(out.skipped).toBe(3);
+  });
+
+  it("a quotation's chosen option is the header's, not a flag on the lines", () => {
+    const rows = [row({ id: "a", group_id: "g1", group_type: "alternative", is_selected: null }), row({ id: "b", group_id: "g2", group_type: "alternative", is_selected: null, amount: 50 })];
+    expect(quoteLinesToBudget(rows, { selectedOptionId: "g2" }).lines.map((l) => l.source_line_id)).toEqual(["b"]);
   });
 });
 
