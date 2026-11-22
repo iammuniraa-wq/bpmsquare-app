@@ -160,7 +160,12 @@ export async function proxy(request: NextRequest) {
     // Resend delivery events (delivered / bounced / complained): the Svix signature is the
     // credential, verified before the body is read; the tenant comes from the stored
     // recipient row, never the payload. Exact path, nothing deeper rides along.
-    pathname === "/api/webhooks/resend"
+    pathname === "/api/webhooks/resend" ||
+    // Control plane (lib/controlPlane): an Ed25519 signature (summary pull) or a signed single-use token (handoff) is the
+    // credential, verified inside the route before the database is read. Both answer 404 unless CONTROL_PLANE_PUBLIC_KEYS is set.
+    // Exact paths, nothing deeper rides along.
+    pathname === "/api/platform/summary" ||
+    pathname === "/api/platform/handoff"
   ) {
     return NextResponse.next({ request: { headers: requestHeaders } });
   }

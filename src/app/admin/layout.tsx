@@ -9,9 +9,20 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   if (!isAdmin) redirect("/");
 
   return (
-    <div style={{ display: "flex", minHeight: "100vh", fontFamily: "system-ui, sans-serif" }}>
+    <div className="adm-shell" style={{ display: "flex", minHeight: "100vh", fontFamily: "system-ui, sans-serif" }}>
+      {/* Under 900 px the sidebar becomes a wrapped bar above the page, so the content keeps the full width on a phone. */}
+      <style>{`
+        @media (max-width: 899px) {
+          .adm-shell { flex-direction: column; }
+          .adm-side { width: auto !important; flex-direction: row !important; flex-wrap: wrap; align-items: center; gap: 4px; padding: 10px 12px !important; border-right: 0 !important; border-bottom: 1px solid #1e2a3a; }
+          .adm-side > div:first-child { margin-bottom: 0 !important; margin-right: 8px; }
+          .adm-side a { min-height: 44px; box-sizing: border-box; }
+          .adm-side > div:last-child { margin-top: 0 !important; padding-top: 0 !important; border-top: 0 !important; margin-left: auto; }
+          .adm-main { padding: 20px 16px !important; min-width: 0; }
+        }
+      `}</style>
       {/* Admin sidebar */}
-      <aside style={{
+      <aside className="adm-side" style={{
         width: 220, flexShrink: 0,
         background: "#0a0f1a",
         borderRight: "1px solid #1e2a3a",
@@ -34,6 +45,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           { href: "/admin", label: "Tenants", icon: "▣" },
           { href: "/admin/tenants/new", label: "Add tenant", icon: "＋" },
           { href: "/admin/studies", label: "Studies", icon: "◇" },
+          { href: "/admin/instances", label: "Instances", icon: "◫" },
         ] as const).map((item) => (
           <Link
             key={item.href}
@@ -64,7 +76,8 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       </aside>
 
       {/* Main content */}
-      <main style={{
+      <main className="adm-main" style={{
+        minWidth: 0,
         flex: 1,
         background: "#f8fafc",
         padding: "28px 32px",
