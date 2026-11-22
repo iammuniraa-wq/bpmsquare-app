@@ -778,7 +778,8 @@ export type TenantFeatures = {
   ai_assistant_actions: boolean;
   // Assistant web research (docs/design/assistant-smarter.md section 2): the dock may ask "Do you want me to search the
   // web for this?" and, on a yes, run one isolated search on our key and answer with sources. A platform-admin-only
-  // flag: default OFF, missing key reads false; needs ai_assistant. With it off the search tool is not offered.
+  // flag: a missing key reads false and an existing workspace is never changed; needs ai_assistant. A NEW workspace gets it on
+  // together with ai_assistant (see moduleDependencies.ts). With it off the search, analysis and report tools are not offered.
   ai_assistant_web: boolean;
   // Shared Inbox (0214, docs/design/estimator-unification-and-inbox.md): customer mail arrives on a forwarding address (or
   // is read from the company's own mailbox), is read and answered by a team, and is turned into a Quote, Project, Case,

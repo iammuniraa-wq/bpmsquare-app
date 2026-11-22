@@ -3,6 +3,7 @@ import "server-only";
 import { WORKCENTERS, type WorkcenterKey } from "@/lib/workcenters";
 import { NAV, type TenantFeatures } from "@/lib/constants";
 import { isCurrencyCode, DEFAULT_CURRENCY, type CurrencyCode } from "@/lib/currency";
+import { withNewWorkspaceDefaults } from "@/lib/moduleDependencies";
 
 /**
  * TENANT CREATION STUDIO — the plan, and the rules a plan must obey.
@@ -185,7 +186,11 @@ export function normalisePlan(raw: unknown): NormalisedPlan {
   const pkg = (pkgRaw === "wfm_only" || pkgRaw === "full_crm") ? pkgRaw : "custom";
   const features: Partial<TenantFeatures> = {};
   const featIn = (r.features ?? {}) as Record<string, unknown>;
+  // Web research is the one flag that comes on by itself, and only together with the AI assistant (owner decision 2026-11-22).
+  // A plan that says it is off on purpose keeps it off; saying it is on adds nothing, since it is on whenever the assistant is.
+  const webOptOut = featIn.ai_assistant_web === false;
   for (const [key, value] of Object.entries(featIn)) {
+    if (key === "ai_assistant_web") continue;
     if (EXPERIMENTAL_FEATURE_KEYS.includes(key)) {
       if (value === true) warnings.push(`Ignored "${key}" — experimental flags are set by hand in /admin/tenants, never from a description.`);
       continue;
@@ -201,6 +206,10 @@ export function normalisePlan(raw: unknown): NormalisedPlan {
   if (features.wfm === true && features.business_roles !== true) {
     features.business_roles = true;
     warnings.push("Turned on Business Roles — Workforce requires it (runbook §0).");
+  }
+  Object.assign(features, withNewWorkspaceDefaults(features, webOptOut));
+  if (features.ai_assistant_web === true) {
+    warnings.push("Web research is on by default with the AI Assistant for a new workspace. Switch it off in /admin/tenants if this client should not have it.");
   }
 
   // ── nav visibility ──

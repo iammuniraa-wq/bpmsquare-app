@@ -42,6 +42,10 @@ import { analysisAccess } from "@/lib/analysis/service";
 import { ANALYSE_TOOL_NAME, analyseCompanyTool, analysisToolResult, introSentence, parseToolInput, type DockAnalysis } from "@/lib/assistant/analysisTool";
 import { runDirectAnalysis, stepAnalysis, type AnalysisSetup, type StepCtx } from "@/lib/assistant/analysisRun";
 import {
+  REPORT_PROMPT_RULE, REPORT_TOOL_NAME, parseReportInput, reportTool, reportToolResult, webOffPromptLine, type DockReport, type WEB_OFF_REASON_TEXT,
+} from "@/lib/assistant/reportTool";
+import { runDirectReport, stepReport, type ReportSetup, type ReportStepCtx } from "@/lib/assistant/reportRun";
+import {
   clarifyOffer, clarifyQuestion, runCreateFlow, type ClarifyOffer, type CreateFlowInput, type CreateFlowIo, type CreateFlowReply,
 } from "@/lib/assistant/createResearch";
 
@@ -129,6 +133,7 @@ export type AssistantReply = {
   consent?:
     | { id: string; kind: "web_search"; query: string; why?: string; token: string }
     | { id: string; kind: "analyse_company"; query: string; subject: string; token: string }
+    | { id: string; kind: "research_report"; query: string; subject: string; searches: number; token: string }
     | NonNullable<CreateFlowReply["consent"]>;
   /** The person gave only a company name: one question with two chips (type the details / look them up). */
   clarify?: ClarifyOffer;
@@ -136,6 +141,8 @@ export type AssistantReply = {
   fromWeb?: boolean;
   /** A company analysis: the dock draws it as a card from these fields. The model's text beside it is one sentence. */
   analysis?: DockAnalysis;
+  /** A company report (docs/design/company-report.md): the dock draws it as a card from these fields. The model's text beside it is one sentence. */
+  companyReport?: DockReport;
   /** The answer used the web: where it came from. The dock labels the message "From the web" and lists these. */
   web?: { sources: WebSource[] };
 };
@@ -177,6 +184,10 @@ export type AssistantAskCtx = {
   web?: AssistantWebCtx;
   /** Company analysis (docs/design/account-analysis.md section 3). Absent: the tool does not exist for this ask. */
   analysis?: AnalysisSetup;
+  /** Company report (docs/design/company-report.md). Absent: the tool does not exist for this ask. */
+  companyReport?: ReportSetup;
+  /** Why web research is off for this workspace, when it is: the prompt then says so instead of a generic decline. */
+  webOff?: keyof typeof WEB_OFF_REASON_TEXT;
   /**
    * "Create with web research" (docs/design/assistant-smarter.md section 3). Set by the route when the request is one of the
    * two chips or a Yes on the lookup chip: answered with no model. `consentId` comes from a verified, single-use consent.
@@ -459,6 +470,10 @@ export function promptParts(args: {
   webHistory?: boolean;
   /** analyse_company is offered: adds its rule to the cached block. */
   analysis?: boolean;
+  /** research_company_report is offered: adds its rule to the cached block. */
+  report?: boolean;
+  /** Web research is off for this workspace, and why: one line tells the assistant to say so. */
+  webOff?: keyof typeof WEB_OFF_REASON_TEXT | null;
 }): { stable: string; volatile: string } {
   const { sources, lookups, targets, currency, today, openRecord, screen, actionCatalog } = args;
   const stable =
@@ -501,7 +516,9 @@ export function promptParts(args: {
       ? "\n13. COMPANY ANALYSIS: when the person asks you to analyse a company, what a company is doing, or whether it is worth following up, call analyse_company, not propose_web_search. " +
         "Pass account_id for an account on their screen or found with query_data; otherwise the name, domain and country exactly as they wrote them. The app draws the analysis as a card, so after it write ONE short sentence and nothing more. Before calling it write nothing, and never name a tool or say how you will do it. " +
         "A <web_result> holding an analysis can answer follow-ups such as who to contact or what is missing: state only what is in it."
-      : "");
+      : "") +
+    (args.report ? REPORT_PROMPT_RULE : "") +
+    (!args.web && args.webOff ? webOffPromptLine(args.webOff) : "");
 
   const volatile =
     `Today is ${today}.` +
@@ -598,6 +615,23 @@ async function answerAsk(history: ChatTurn[], ctx: AssistantAskCtx): Promise<Ass
     return runDirectAnalysis(step, ctx.analysis.direct);
   }
 
+  // The same for a company report: the open record gives the subject when the person named none, and the deal it may be saved to.
+  const reportStepCtx = (open: ResolvedPage | null): ReportStepCtx | null => {
+    if (!ctx.companyReport || !analysisUserId) return null;
+    const type = open?.record.def.type;
+    return {
+      supabase: ctx.supabase, tenantId: ctx.tenantId, userId: analysisUserId, perms: ctx.perms, features: ctx.features, route: ctx.route ?? null,
+      now: ctx.now ?? new Date(), setup: ctx.companyReport, userTurns: history.filter((t) => t.role === "user").map((t) => t.text),
+      openCompany: open && RESEARCHABLE_OPEN_TYPES.includes(open.record.def.type) ? open.record.title : null,
+      open: open && (type === "account" || type === "lead" || type === "opportunity") ? { type, id: String(open.record.row.id ?? "") } : null,
+    };
+  };
+  if (ctx.companyReport?.direct) {
+    const step = ctx.web?.enabled ? reportStepCtx(await resolvePageRecord(toolCtx, ctx.route).catch(() => null)) : null;
+    if (!step) return { answer: "Company reports are not switched on for this workspace." };
+    return runDirectReport(step, ctx.companyReport.direct);
+  }
+
   // 0c. The two chips under "how do you want to fill in the details?" and the Yes on the lookup chip: no model either.
   if (ctx.createFlow) {
     if (!ctx.userId) return { answer: "I can't create that from here." };
@@ -673,8 +707,11 @@ async function answerAsk(history: ChatTurn[], ctx: AssistantAskCtx): Promise<Ass
   // Offered only when every gate holds: the flags and the workspace policy, the Accounts view, the module, and a signed-in person.
   const stepCtx = analysisStepCtx(open);
   const analysisOn = !!(stepCtx && web && analysisAccess({ features: ctx.features, config: ctx.analysis!.config, perms: ctx.perms }).ok && featureOn(ctx.features, "accounts"));
+  // The report has the same gates as the analysis, so a workspace or a person the analysis is closed to never sees it either.
+  const reportCtx = reportStepCtx(open);
+  const reportOn = !!(reportCtx && web && analysisAccess({ features: ctx.features, config: ctx.companyReport!.config, perms: ctx.perms }).ok && featureOn(ctx.features, "accounts"));
   const { stable, volatile } = promptParts({
-    sources, lookups, targets, currency: ctx.currency, today, web: !!web, analysis: analysisOn,
+    sources, lookups, targets, currency: ctx.currency, today, web: !!web, analysis: analysisOn, report: reportOn, webOff: ctx.webOff ?? null,
     openRecord: open ? { noun: open.record.def.noun, title: open.record.title, summary: open.record.summary } : null,
     actionCatalog,
     screen,
@@ -693,6 +730,7 @@ async function answerAsk(history: ChatTurn[], ctx: AssistantAskCtx): Promise<Ass
   if (web) tools.push(proposeWebSearchTool());
   // Read-only: it returns a card to the dock, and any web research behind it waits for the person's signed yes.
   if (analysisOn) tools.push(analyseCompanyTool());
+  if (reportOn) tools.push(reportTool());
   // Offered only where the screen has something to point at. Read-only by construction: it returns data to the dock.
   const gt = webHistory ? null : guideTool(screen);
   if (gt) tools.push(gt);
@@ -719,6 +757,7 @@ async function answerAsk(history: ChatTurn[], ctx: AssistantAskCtx): Promise<Ass
   const cards: NavCard[] = [];
   let lastGuide: GuideReply | undefined;
   let lastAnalysis: DockAnalysis | undefined;
+  let lastCompanyReport: DockReport | undefined;
   const addCards = (c: NavCard[]) => { for (const x of c) if (!cards.some((y) => y.href === x.href)) cards.push(x); };
   const byId = new Map(targets.map((t) => [t.id, t]));
   if (followUp && !webHistory) addCards(followUp.related.filter((t) => isInternalPath(t.href)).map(cardFor));
@@ -799,8 +838,10 @@ async function answerAsk(history: ChatTurn[], ctx: AssistantAskCtx): Promise<Ass
 
   const finish = (answer: string): AssistantReply => ({
     // The card carries the analysis; whatever the model wrote beside it is cut to its first sentence.
-    answer: lastAnalysis ? introSentence(answer, `Here is the analysis of ${lastAnalysis.card.name.replace(/\.+$/, "")}.`) : answer,
+    answer: lastAnalysis ? introSentence(answer, `Here is the analysis of ${lastAnalysis.card.name.replace(/\.+$/, "")}.`)
+      : lastCompanyReport ? introSentence(answer, `Here is the report on ${lastCompanyReport.report.name.replace(/\.+$/, "")}.`) : answer,
     analysis: lastAnalysis,
+    companyReport: lastCompanyReport,
     report: lastReport,
     card: confirmCard,
     cards: cards.length ? cards : undefined,
@@ -892,6 +933,26 @@ async function answerAsk(history: ChatTurn[], ctx: AssistantAskCtx): Promise<Ass
               // Text found on the web is now in the model's context: every tool is off for the rest of the question.
               if (o.analysis.webDerived) tainted = true;
               out = analysisToolResult(o.analysis);
+            }
+          }
+        } else if (tu.name === REPORT_TOOL_NAME && reportOn && reportCtx) {
+          if (lastCompanyReport || lastAnalysis) out = "Error: one analysis or report at a time. Tell the person to ask for the next one separately.";
+          else {
+            const o = await stepReport(reportCtx, parseReportInput(tu.input), null);
+            if (o.kind === "ask") {
+              const said = response.content.filter((b): b is Anthropic.TextBlock => b.type === "text").map((b) => b.text).join("").trim();
+              return {
+                answer: said ? introSentence(said, "") : `A report on ${o.consent.subject} needs web research first.`,
+                consent: { ...o.consent, kind: "research_report" as const },
+                report: lastReport, cards: cards.length ? cards : undefined, routed,
+              };
+            }
+            if (o.kind === "error") out = `${o.message} Tell the person in one short line.`;
+            else {
+              lastCompanyReport = o.report;
+              // Text found on the web is now in the model's context: every tool is off for the rest of the question.
+              tainted = true;
+              out = reportToolResult(o.report);
             }
           }
         } else if (tu.name === "query_data") {
