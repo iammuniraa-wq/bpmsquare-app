@@ -104,11 +104,11 @@ export default function ProfileTab({ draft, letterhead, onName, onPrintName, onP
         <Field label="Company name" info={COMPANY_TIPS.name} style={{ gridColumn: "1 / -1" }}>
           <Input value={draft.name} onChange={(e) => onName(e.target.value)} placeholder="Acme Corporation" />
         </Field>
+        <Field label="Logo" info={COMPANY_TIPS.logo} style={{ gridColumn: "1 / -1" }}>
+          <LogoPicker url={p.logo_url ?? ""} onChange={(u) => onProfile({ logo_url: u })} max={LOGO_MAX.main} label="Company logo" />
+        </Field>
         {letterhead && (
           <>
-            <Field label="Logo" info={COMPANY_TIPS.logo} style={{ gridColumn: "1 / -1" }}>
-              <LogoPicker url={p.logo_url ?? ""} onChange={(u) => onProfile({ logo_url: u })} max={LOGO_MAX.main} label="Company logo" />
-            </Field>
             <Field label="Address" style={{ gridColumn: "1 / -1" }}><Input {...text("address")} placeholder="Street, City, State, PIN" /></Field>
             <Field label="Email"><Input type="email" {...text("email")} placeholder="info@company.com" /></Field>
             <Field label="Website"><Input {...text("web")} placeholder="www.company.com" /></Field>

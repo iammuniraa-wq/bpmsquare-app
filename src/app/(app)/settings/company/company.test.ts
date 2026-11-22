@@ -99,10 +99,10 @@ describe("the explanations sit behind the i", () => {
 describe("Profile tab", () => {
   const props = (over = {}) => ({ draft: draftFrom("Acme", { name: "Acme", address: "Road 1", phones: [{ label: "Work", number: "1" }] }, {}, "INR"), letterhead: true, onName: () => {}, onPrintName: () => {}, onProfile: () => {}, ...over });
 
-  it("asks a workspace that prints nothing for the name alone", () => {
+  it("asks a workspace that prints nothing for the name and the logo, which is also its app logo, and no letterhead details", () => {
     const out = html(createElement(ProfileTab, props({ letterhead: false })));
     expect(out).toContain("Company name");
-    expect(out).not.toContain("Logo");
+    expect(out).toContain("Upload Company logo");
     expect(out).not.toContain("Address");
   });
 
