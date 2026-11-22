@@ -36,3 +36,12 @@ export function dayStartIso(now: Date): string {
 
 /** Companies that are not accounts are forgotten after 90 days unused. */
 export const RETENTION_DAYS = 90;
+
+// The company report (docs/design/company-report.md): a report is far dearer than a verdict card (up to seven searches), so
+// it has its own small daily ceiling per person on top of the search ceiling every web research shares. The cached report
+// lives in the same table under a key of its own, so the verdict card's row is never touched.
+export const DEFAULT_REPORT_DAILY_LIMIT = 10;
+export const REPORT_KEY_PREFIX = "report:";
+
+/** The cache key of a company's report, or "" when the company has no usable key. */
+export const reportCacheKey = (companyKey: string): string => (companyKey ? `${REPORT_KEY_PREFIX}${companyKey}` : "");
