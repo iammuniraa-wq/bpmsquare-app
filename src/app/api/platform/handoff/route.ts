@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
   const outcome = await acceptHandoff(admin, searchParams.get("t"), keys, instanceSlug());
   if (!outcome.ok) return refuse(outcome.status, outcome.reason);
 
-  const next = safeInternalPath(searchParams.get("next"), "/admin");
+  const next = safeInternalPath(searchParams.get("next"), "/admin/tenants");
 
   const { data: link, error: linkError } = await admin.auth.admin.generateLink({ type: "magiclink", email: outcome.email });
   const hashed = link?.properties?.hashed_token;

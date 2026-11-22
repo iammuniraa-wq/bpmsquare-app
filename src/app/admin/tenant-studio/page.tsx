@@ -11,7 +11,7 @@ export default function TenantStudioPage() {
   return (
     <div>
       <div style={{ marginBottom: 20 }}>
-        <Link href="/admin" style={{ fontSize: 12.5, color: "#6b7280", textDecoration: "none" }}>← Tenants</Link>
+        <Link href="/admin/tenants" style={{ fontSize: 12.5, color: "#6b7280", textDecoration: "none" }}>← Tenants</Link>
         <h1 style={{ margin: "6px 0 0", fontSize: 22, fontWeight: 700, color: "#111827" }}>Tenant Creation Studio</h1>
         <p style={{ margin: "5px 0 0", fontSize: 13, color: "#6b7280", maxWidth: 680, lineHeight: 1.65 }}>
           Describe the client and the studio drafts the whole provisioning plan — modules, Business
