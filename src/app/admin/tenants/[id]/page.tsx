@@ -14,7 +14,7 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
     .eq("id", id)
     .single();
 
-  if (!tenant) redirect("/admin");
+  if (!tenant) redirect("/admin/tenants");
 
   const admin = createAdminSupabase();
   const { data: rows } = await admin

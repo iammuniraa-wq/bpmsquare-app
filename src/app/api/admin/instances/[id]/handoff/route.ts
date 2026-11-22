@@ -27,7 +27,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   if (row.status !== "active") return NextResponse.json({ error: "Only an active instance can be opened." }, { status: 409 });
 
   const body = (await request.json().catch(() => null)) as { next?: unknown } | null;
-  const next = safeInternalPath(typeof body?.next === "string" ? body.next : null, "/admin");
+  const next = safeInternalPath(typeof body?.next === "string" ? body.next : null, "/admin/tenants");
   const { token, claims } = mintHandoffToken(priv, { sub: user.email.toLowerCase(), inst: row.slug });
   await recordEvent(admin, row.id, "open_admin", user.email, { slug: row.slug, next, jti: claims.jti });
 

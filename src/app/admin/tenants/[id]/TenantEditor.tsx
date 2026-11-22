@@ -266,7 +266,7 @@ export default function TenantEditor({ tenant, users, access, aiTokensUsed = nul
     <div style={{ maxWidth: 640 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 24 }}>
         <button
-          onClick={() => router.push("/admin")}
+          onClick={() => router.push("/admin/tenants")}
           style={{ background: "none", border: "none", cursor: "pointer", color: "#6b7280", fontSize: 13 }}
         >
           ← Tenants

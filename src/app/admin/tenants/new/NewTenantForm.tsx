@@ -120,7 +120,7 @@ export default function NewTenantForm() {
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 24 }}>
         <button
           type="button"
-          onClick={() => router.push("/admin")}
+          onClick={() => router.push("/admin/tenants")}
           style={{ background: "none", border: "none", cursor: "pointer", color: "#6b7280", fontSize: 13 }}
         >
           ← Tenants
@@ -294,7 +294,7 @@ export default function NewTenantForm() {
         </button>
         <button
           type="button"
-          onClick={() => router.push("/admin")}
+          onClick={() => router.push("/admin/tenants")}
           style={{
             height: 40, padding: "0 20px",
             background: "#f1f5f9", color: "#475569",

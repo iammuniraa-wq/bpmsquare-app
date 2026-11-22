@@ -173,7 +173,7 @@ export default function InstancesClient({ cards, tenants, registryPending, signi
               <div style={{ fontSize: 11, color: "#9ca3af", marginBottom: 10 }}>Checked {when(c.lastSeen)}</div>
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                 {c.id === null ? (
-                  <Button variant="primary" style={TAP} href="/admin">Open admin</Button>
+                  <Button variant="primary" style={TAP} href="/admin/tenants">Open admin</Button>
                 ) : (
                   <>
                     <Button

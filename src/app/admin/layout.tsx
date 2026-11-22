@@ -17,6 +17,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           .adm-side { width: auto !important; flex-direction: row !important; flex-wrap: wrap; align-items: center; gap: 4px; padding: 10px 12px !important; border-right: 0 !important; border-bottom: 1px solid #1e2a3a; }
           .adm-side > div:first-child { margin-bottom: 0 !important; margin-right: 8px; }
           .adm-side a { min-height: 44px; box-sizing: border-box; }
+          .adm-heading { display: none; }
           .adm-side > div:last-child { margin-top: 0 !important; padding-top: 0 !important; border-top: 0 !important; margin-left: auto; }
           .adm-main { padding: 20px 16px !important; min-width: 0; }
         }
@@ -42,23 +43,32 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         </div>
 
         {([
-          { href: "/admin", label: "Tenants", icon: "▣" },
-          { href: "/admin/tenants/new", label: "Add tenant", icon: "＋" },
-          { href: "/admin/studies", label: "Studies", icon: "◇" },
-          { href: "/admin/instances", label: "Instances", icon: "◫" },
-        ] as const).map((item) => (
-          <Link
-            key={item.href}
-            href={item.href}
-            style={{
-              display: "flex", alignItems: "center", gap: 9,
-              padding: "9px 10px", borderRadius: 8, marginBottom: 2,
-              color: "#9db3c4", textDecoration: "none", fontSize: 13,
-            }}
-          >
-            <span style={{ fontSize: 13, width: 18, textAlign: "center" }}>{item.icon}</span>
-            {item.label}
-          </Link>
+          { heading: "Platform", items: [
+            { href: "/admin/instances", label: "Instances", icon: "◫" },
+            { href: "/admin/tenants", label: "Tenants", icon: "▣" },
+            { href: "/admin/tenant-studio", label: "Add tenant", icon: "＋" },
+          ] },
+          { heading: "Reviews", items: [
+            { href: "/admin/studies", label: "Studies", icon: "◇" },
+          ] },
+        ] as const).map((group) => (
+          <div key={group.heading} className="adm-group" style={{ display: "contents" }}>
+            <div className="adm-heading" style={{ color: "#5b6b7c", fontSize: 10, fontWeight: 600, letterSpacing: 1, textTransform: "uppercase", padding: "14px 10px 6px" }}>{group.heading}</div>
+            {group.items.map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                style={{
+                  display: "flex", alignItems: "center", gap: 9,
+                  padding: "9px 10px", borderRadius: 8, marginBottom: 2,
+                  color: "#9db3c4", textDecoration: "none", fontSize: 13,
+                }}
+              >
+                <span style={{ fontSize: 13, width: 18, textAlign: "center" }}>{item.icon}</span>
+                {item.label}
+              </Link>
+            ))}
+          </div>
         ))}
 
         <div style={{ marginTop: "auto", paddingTop: 16, borderTop: "1px solid #1e2a3a" }}>
