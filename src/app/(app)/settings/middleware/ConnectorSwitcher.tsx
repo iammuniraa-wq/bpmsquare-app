@@ -1,20 +1,18 @@
 "use client";
 
-import { useState } from "react";
-import Button from "@/components/ui/Button";
 import InfoTip from "@/components/ui/InfoTip";
 import s from "./middleware.module.css";
 import type { MiddlewareConnector } from "./connectors";
 import { MIDDLEWARE_TIPS } from "./tips";
-import { PlusIcon } from "./ui";
 
 /**
- * One chip per connector from the registry, then "Add connector". The chip IS the connection:
+ * One chip per connector from the registry, then "Connections". The chip IS the connection:
  * its dot shows the state, a small warning shows only when the secret ends within 30 days, and
  * clicking the open chip shows the connection panel. Everything under the chips is the same four
- * tabs for whichever connector is chosen.
+ * tabs for whichever connector is chosen. "Connections" lists every connection in one table and is where
+ * a REST API or an OData service is added; while it is open no connector chip is pressed.
  */
-export default function ConnectorSwitcher({ connectors, value, connected, expiry, onChange, onManage }: {
+export default function ConnectorSwitcher({ connectors, value, connected, expiry, onChange, onManage, connectionsOpen, connectionsCount, onConnections }: {
   connectors: MiddlewareConnector[];
   value: string;
   /** Which connectors are connected, by id, for the dot on the chip. */
@@ -23,13 +21,16 @@ export default function ConnectorSwitcher({ connectors, value, connected, expiry
   expiry: string | null;
   onChange: (id: string) => void;
   onManage: () => void;
+  connectionsOpen: boolean;
+  /** How many connections the workspace added itself; nothing is shown when there are none. */
+  connectionsCount: number;
+  onConnections: () => void;
 }) {
-  const [adding, setAdding] = useState(false);
   return (
     <div className={s.stack} style={{ gap: 8 }}>
       <div className={s.chips} role="group" aria-label="Connector" data-guide="middleware.connector">
         {connectors.map((c) => {
-          const open = c.id === value;
+          const open = !connectionsOpen && c.id === value;
           return (
             <button
               key={c.id} type="button" className={s.chip} aria-pressed={open} aria-haspopup={open ? "dialog" : undefined}
@@ -45,17 +46,11 @@ export default function ConnectorSwitcher({ connectors, value, connected, expiry
             </button>
           );
         })}
-        <button type="button" className={`${s.chip} ${s.chipDash}`} aria-expanded={adding} onClick={() => setAdding((a) => !a)}>
-          <PlusIcon /> Add connector
+        <button type="button" className={`${s.chip} ${s.chipDash}`} aria-pressed={connectionsOpen} data-guide="middleware.connections" onClick={onConnections}>
+          Connections{connectionsCount > 0 ? ` (${connectionsCount})` : ""}
         </button>
         <InfoTip label="Connector">{MIDDLEWARE_TIPS.switcher}</InfoTip>
       </div>
-      {adding && (
-        <div className={s.addPanel} role="status">
-          <span>ePROMIS is coming. It will appear here with the same four tabs.</span>
-          <Button size="sm" onClick={() => setAdding(false)}>Close</Button>
-        </div>
-      )}
     </div>
   );
 }

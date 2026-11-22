@@ -8,6 +8,7 @@
 import type { D365Config, D365EntityConfig, D365EntityKey, D365PublicState, ScopeCondition } from "@/lib/connectors/d365/types";
 import type { ScopeAttribute } from "@/lib/connectors/d365/scope";
 import type { SapAuthMode, SapPublicState } from "@/lib/connectors/sap_s4/types";
+import type { ConnectionConfig as CustomConfig, ConnectionFamily, PublicConnection, SecretKey, TestResult } from "@/lib/connections/spec";
 import type { Converter, EngineMappingExtras, MapRow as MapRowT, TryResult, ValueListRow } from "@/lib/middleware/mapping/types";
 
 export type ScopeEntityKey = Exclude<D365EntityKey, "fence_projects" | "sales_orders">;
@@ -792,3 +793,28 @@ export async function listAccountChoices(): Promise<AccountChoice[]> {
   const rows = await get<unknown>("/api/accounts");
   return (Array.isArray(rows) ? rows : []).map((r: Json) => ({ id: String(r.id), name: String(r.name ?? "") }));
 }
+
+// ── Connections you add yourself (REST API, OData service) ──────────────────
+// /api/middleware/custom/connections. A secret is write-only: a blank or missing one means "unchanged", and nothing that comes back
+// holds one (`secretsSet` says which are stored). While the database update is pending the list answers needsDatabaseUpdate.
+
+export type CustomConnection = PublicConnection;
+export type CustomConnectionInput = {
+  name: string;
+  family: ConnectionFamily;
+  config: Partial<CustomConfig>;
+  secrets?: Partial<Record<SecretKey, string>>;
+};
+export type CustomConnectionList = { connections: CustomConnection[]; needsDatabaseUpdate: boolean };
+
+export async function getCustomConnections(): Promise<CustomConnectionList> {
+  const r = await get<{ connections?: CustomConnection[]; needsDatabaseUpdate?: boolean }>("/api/middleware/custom/connections");
+  return { connections: r.connections ?? [], needsDatabaseUpdate: r.needsDatabaseUpdate === true };
+}
+export const createCustomConnection = (input: CustomConnectionInput) => post<{ connection: CustomConnection }>("/api/middleware/custom/connections", input);
+export const updateCustomConnection = (id: string, input: CustomConnectionInput) => put<{ connection: CustomConnection }>(`/api/middleware/custom/connections/${id}`, input);
+export const deleteCustomConnection = (id: string) => del<{ ok: boolean }>(`/api/middleware/custom/connections/${id}`);
+/** Test a saved connection; the result is kept on it. */
+export const testCustomConnection = (id: string) => post<{ result: TestResult; connection: CustomConnection | null }>(`/api/middleware/custom/connections/${id}/test`);
+/** Test what is on screen before it is saved. With `id`, a blank secret is filled from the stored one. */
+export const testDraftConnection = (input: CustomConnectionInput, id?: string) => post<{ result: TestResult }>("/api/middleware/custom/connections/test", { ...input, ...(id ? { id } : {}) });

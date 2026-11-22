@@ -373,3 +373,29 @@
   .vlTbl .inLabel { display: inline; font-size: 12.5px; color: var(--muted); }
   .vlTbl td:nth-child(n) { width: auto; }
 }
+
+/* Connections you add yourself, and their endpoints (docs: owner request 2026-11-22). Same table-to-cards behaviour as the links. */
+.typeGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.typeGrid > * { text-decoration: none; min-height: 64px; justify-content: center; }
+.statusChip { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 600; padding: 3px 10px; border-radius: 999px; background: var(--panel2); color: var(--muted); white-space: nowrap; }
+.statusOk { background: var(--greenbg); color: var(--greenink); }
+.statusBad { background: var(--err-bg); color: var(--err-ink); }
+.connTable td.connActions { text-align: end; white-space: nowrap; width: 1%; }
+.connTable td.connName { min-width: 0; overflow-wrap: anywhere; }
+.connStatus { white-space: nowrap; }
+.connDetail { display: block; font-size: 12px; color: var(--muted); margin-top: 2px; overflow-wrap: anywhere; }
+.epTable td.epOn { width: 64px; }
+@media (max-width: 780px) {
+  .typeGrid { grid-template-columns: minmax(0, 1fr); }
+  .connTable thead, .epTable thead { display: none; }
+  .connTable, .connTable tbody, .epTable, .epTable tbody { display: block; }
+  .connTable tr.docRow, .epTable tr.docRow { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 10px; align-items: center; padding: 10px 14px; border-top: 1px solid var(--line); }
+  .connTable tbody tr.docRow:first-child, .epTable tbody tr.docRow:first-child { border-top: 0; }
+  .connTable tr.docRow td, .epTable tr.docRow td { display: block; padding: 0; border: 0; width: auto; }
+  .connTable tr.docRow td.connName, .epTable tr.docRow td.connName { grid-column: 1; grid-row: 1; }
+  .connTable tr.docRow td.connStatus { grid-column: 2; grid-row: 1; }
+  .connTable tr.docRow td[data-label="Type"], .connTable tr.docRow td[data-label="Last test"], .epTable tr.docRow td[data-label="Operation"], .epTable tr.docRow td[data-label="Serves"] { grid-column: 1 / -1; font-size: 12.5px; color: var(--muted); }
+  .connTable tr.docRow td[data-label="Type"]::before, .connTable tr.docRow td[data-label="Last test"]::before, .epTable tr.docRow td[data-label="Operation"]::before, .epTable tr.docRow td[data-label="Serves"]::before { content: attr(data-label) ": "; color: var(--hint); }
+  .connTable tr.docRow td.connActions, .epTable tr.docRow td.epOn { grid-column: 1 / -1; text-align: start; margin-top: 4px; }
+  .epTable tr.docRow td.epOn { grid-column: 2; grid-row: 1; margin-top: 0; }
+}
