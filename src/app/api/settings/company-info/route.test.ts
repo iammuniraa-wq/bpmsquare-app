@@ -4,7 +4,8 @@ import { fakeDb } from "@/lib/marketing/testFakeDb";
 // One logo per workspace: the Company screen's logo drives the letterhead (company_info.logo_url) AND the app sidebar,
 // sign-in page and prints (tenants.logo_url). It must only touch tenants.logo_url when the logo really changed.
 
-const state = vi.hoisted(() => ({ db: null as unknown, role: "admin" }));
+const state = vi.hoisted(() => ({ db: null as unknown, role: "admin", busted: [] as string[] }));
+vi.mock("next/cache", () => ({ revalidateTag: (tag: string) => { state.busted.push(tag); } }));
 vi.mock("@/lib/supabase-server", () => ({
   requireTenantUser: async () => ({ tenantId: "t1", role: state.role }),
   createAdminSupabase: () => state.db,
@@ -22,7 +23,7 @@ function seed(logo: string | null, infoLogo?: string) {
   return db.tables.tenants[0];
 }
 
-beforeEach(() => { state.role = "admin"; });
+beforeEach(() => { state.role = "admin"; state.busted = []; });
 
 describe("PATCH /api/settings/company-info (logo)", () => {
   it("a new logo updates the letterhead logo and the app logo together", async () => {
@@ -31,6 +32,7 @@ describe("PATCH /api/settings/company-info (logo)", () => {
     expect(res.status).toBe(200);
     expect(row.logo_url).toBe("https://s.example/pcbs.png");
     expect(row.company_info).toMatchObject({ logo_url: "https://s.example/pcbs.png" });
+    expect(state.busted).toEqual(["tenant-branding"]);
   });
 
   it("saving other details with the logo unchanged leaves a separately set app logo alone", async () => {
@@ -38,6 +40,7 @@ describe("PATCH /api/settings/company-info (logo)", () => {
     await patch({ logo_url: "https://s.example/letterhead.png", address: "Riyadh" });
     expect(row.logo_url).toBe("https://s.example/sidebar.png");
     expect(row.company_info).toMatchObject({ address: "Riyadh" });
+    expect(state.busted).toEqual([]);
   });
 
   it("a save that does not mention the logo never touches the app logo", async () => {
