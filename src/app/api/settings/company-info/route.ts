@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { revalidateTag } from "next/cache";
 import { requireTenantUser, createAdminSupabase } from "@/lib/supabase-server";
 import type { CompanyInfo } from "@/lib/tenant";
 
@@ -56,5 +57,7 @@ export async function PATCH(request: NextRequest) {
     .eq("id", tenantId);
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  // The pre-auth sign-in page reads the logo through a 5-minute branding cache; clear it so the new logo shows at once.
+  if (patch.logo_url !== undefined) revalidateTag("tenant-branding", { expire: 0 });
   return NextResponse.json(merged);
 }
