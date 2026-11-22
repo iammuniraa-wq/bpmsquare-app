@@ -5,6 +5,7 @@ import { CURRENCIES, DEFAULT_CURRENCY, type CurrencyCode } from "@/lib/currency"
 import { useRouter } from "next/navigation";
 import { c } from "@/lib/theme";
 import type { TenantFeatures } from "@/lib/tenant";
+import { withNewWorkspaceDefaults } from "@/lib/moduleDependencies";
 
 const FEATURE_LABELS: { key: keyof TenantFeatures; label: string; premium?: boolean }[] = [
   { key: "leads",        label: "Leads" },
@@ -45,7 +46,8 @@ const FEATURE_LABELS: { key: keyof TenantFeatures; label: string; premium?: bool
 
 const DEFAULT_FEATURES: TenantFeatures = {
   leads: false, pipeline: false, amc: false, dispatch: false,
-  invoices: false, partners: false, ai_assistant: false, ai_assistant_web: false, db_export: false,
+  // Web research starts on and takes effect only when the AI Assistant is ticked (withNewWorkspaceDefaults on submit).
+  invoices: false, partners: false, ai_assistant: false, ai_assistant_web: true, db_export: false,
   purchasing: false, marketing: false, products: false,
   change_history: false, outbound_email: false, business_roles: false,
   standard_quotes: false, gmail_reply_threading: false, quote_lines_dw: false,
@@ -102,7 +104,7 @@ export default function NewTenantForm() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name, slug, accent_color: accentColor,
-          logo_url: logoUrl || null, plan, features,
+          logo_url: logoUrl || null, plan, features: withNewWorkspaceDefaults(features),
           admin_email: adminEmail || null,
           admin_password: adminPassword || null,
           custom_domain: customDomain || null,

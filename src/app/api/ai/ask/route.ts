@@ -17,6 +17,8 @@ import { offeredTasks } from "@/lib/assistant/guide";
 import { screenAccessFor } from "@/lib/assistant/screenAccess";
 import { ANALYSIS_CONSENT_PREFIX, decodeAnalysisQuery, parseToolInput } from "@/lib/assistant/analysisTool";
 import type { AnalysisSetup } from "@/lib/assistant/analysisRun";
+import { REPORT_CONSENT_PREFIX, decodeReportQuery, parseReportInput } from "@/lib/assistant/reportTool";
+import type { ReportSetup } from "@/lib/assistant/reportRun";
 import { analysisAccess } from "@/lib/analysis/service";
 import { CREATE_CONSENT_PREFIX, decodeCreateConsent, parseCreateFlow } from "@/lib/assistant/createResearch";
 
@@ -36,6 +38,8 @@ type Access = {
   isAdmin: boolean;
   /** Platform flag, the assistant it hangs off and the workspace's own external-calls policy, folded into one answer. */
   webEnabled: boolean;
+  /** Why it is off, when it is: the assistant then says so instead of a generic decline. */
+  webOff: Extract<ReturnType<typeof webAvailability>, { enabled: false }>["reason"] | undefined;
   config: Partial<TenantConfig>;
 };
 
@@ -56,10 +60,11 @@ async function resolveAccess(): Promise<Access | NextResponse> {
   const features = (tenant?.features ?? {}) as Record<string, boolean | undefined>;
   if (features.ai_assistant !== true) return NextResponse.json({ error: "The assistant is not enabled for this workspace." }, { status: 403 });
   const config = (tenant?.config ?? {}) as Partial<TenantConfig>;
+  const availability = webAvailability(features, config);
   return {
     supabase, tenantId, userId, perms, features, budget: resolveMonthlyBudget(config.ai_assistant?.monthly_token_budget),
     isAdmin: role === "admin",
-    webEnabled: webAvailability(features, config).enabled,
+    webEnabled: availability.enabled, webOff: availability.enabled ? undefined : availability.reason,
     config,
   };
 }
@@ -98,7 +103,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const access = await resolveAccess();
   if (access instanceof NextResponse) return access;
-  const { supabase, tenantId, userId, perms, features, budget, isAdmin, webEnabled, config } = access;
+  const { supabase, tenantId, userId, perms, features, budget, isAdmin, webEnabled, webOff, config } = access;
 
   const body = await request.json().catch(() => null);
   const guideTask = typeof body?.guideTask === "string" && /^[a-z0-9_]{1,40}$/.test(body.guideTask) ? body.guideTask : null;
@@ -150,6 +155,19 @@ export async function POST(request: NextRequest) {
         ...(directInput ? { direct: { input: directInput, consentId: yesToAnalysis ? consent.consentId : null } } : {}),
       }
     : undefined;
+  // Company report: the same shape. A Yes on a report chip carries that chip's signed subject, and Refresh sends the subject with no consent.
+  // The report path never reads the web-search permission below, and the web-search path never sees a report subject.
+  const yesToReport = allowWeb !== null && !!claimedQuery?.startsWith(REPORT_CONSENT_PREFIX);
+  const reportBody = body?.report && typeof body.report === "object" ? body.report : null;
+  if ((yesToReport || reportBody) && !webEnabled) return NextResponse.json({ error: "Web research is not enabled for this workspace." }, { status: 404 });
+  const reportInput = yesToReport ? decodeReportQuery(claimedQuery) : reportBody ? parseReportInput(reportBody) : null;
+  if ((yesToReport || reportBody) && !reportInput) return NextResponse.json({ error: "That report request is not valid." }, { status: 400 });
+  const companyReport: ReportSetup | undefined = webEnabled
+    ? {
+        admin: createAdminSupabase(), config, budget,
+        ...(reportInput ? { direct: { input: reportInput, consentId: yesToReport ? consent.consentId : null } } : {}),
+      }
+    : undefined;
   // Create with web research: the two chips under the "how do you want to fill in the details?" question send `create_flow`;
   // a Yes on the lookup chip carries that chip's signed company. No model runs for either, and a token that does not verify
   // leaves `consentId` empty, so the person is asked again. Like the analysis, it never reads the web-search permission.
@@ -159,7 +177,7 @@ export async function POST(request: NextRequest) {
   if ((yesToCreate || createBody) && !createInput) return NextResponse.json({ error: "That request is not valid." }, { status: 400 });
   if (createInput?.mode === "web" && !webEnabled) return NextResponse.json({ error: "Web research is not enabled for this workspace." }, { status: 404 });
   const createFlow = createInput ? { input: createInput, consentId: yesToCreate ? consent.consentId : null } : undefined;
-  const webAllow = yesToAnalysis || yesToCreate ? { allow: null, consentQuery: null, consentId: null } : consent;
+  const webAllow = yesToAnalysis || yesToCreate || yesToReport ? { allow: null, consentQuery: null, consentId: null } : consent;
 
   const currency = await getTenantCurrency();
   const meter = new AssistantMeter({ tenantId, userId, budget });
@@ -168,7 +186,7 @@ export async function POST(request: NextRequest) {
     const reply = await askAssistant(history, {
       supabase, tenantId, userId, perms, currency, features, isAdmin: perms.unrestricted, isWorkspaceAdmin: isAdmin, route, meter, guideTask,
       web: webEnabled ? { enabled: true, userId, allow: webAllow.allow, consentQuery: webAllow.consentQuery, consentId: webAllow.consentId } : undefined,
-      analysis, createFlow,
+      analysis, companyReport, webOff, createFlow,
     });
     return NextResponse.json({
       ...reply,

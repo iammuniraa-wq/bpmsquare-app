@@ -18,7 +18,9 @@ import type { ConfirmCard } from "@/lib/assistant/cards";
 import ConfirmCardView from "@/components/assistant/ConfirmCardView";
 import { AnalysisConsentRow, CreateDetailsRow, WebConsentRow, WebSources, type CreateDetailsMode, type CreateDetailsState } from "@/components/assistant/WebResearch";
 import AnalysisCardView from "@/components/analysis/AnalysisCardView";
+import ReportCardView, { ReportConsentRow } from "@/components/analysis/ReportCardView";
 import type { DockAnalysis } from "@/lib/assistant/analysisTool";
+import type { DockReport, ReportSaveTarget } from "@/lib/assistant/reportTool";
 import { WEB_TAINT_WINDOW, applyChoice, settleOnNewAsk, type ConsentState, type WebAllow, type WebChoice } from "@/lib/assistant/webConsent";
 import { Markdown, InlineMarkdown } from "@/components/assistant/Markdown";
 import { plainText } from "@/lib/assistant/markdown";
@@ -34,7 +36,9 @@ type Msg = {
   confirm?: ConfirmCard;
   /** The assistant asked to search the web, or to analyse a company with web research; answered with the chips. */
   consent?: {
-    kind: "web_search" | "analyse_company" | "create_research"; query: string; subject?: string; state: ConsentState; token: string;
+    kind: "web_search" | "analyse_company" | "create_research" | "research_report"; query: string; subject?: string; state: ConsentState; token: string;
+    /** research_report: the most searches the report may run, quoted on the chip. */
+    searches?: number;
     /** create_research: what the chip shows (the search words); `query` is the signed string sent back with the Yes. */
     shown?: string; object?: string;
   };
@@ -45,9 +49,13 @@ type Msg = {
   fromWeb?: boolean;
   /** A company analysis, drawn as a card from its fields. */
   analysis?: DockAnalysis;
+  /** A company report, drawn as a card from its fields. */
+  companyReport?: DockReport;
 };
 /** What an Analyse or Refresh press sends: the company, never record content. */
 type AnalyseRequest = { account_id?: string; name?: string; domain?: string; country?: string; refresh?: boolean };
+/** What a report Refresh sends: the company, never record content. */
+type ReportRequest = AnalyseRequest & { lead_id?: string };
 type GuideOffer = { id: string; label: string };
 type Usage = { percent: number; off: boolean };
 
@@ -274,6 +282,7 @@ export default function AIDock({ liftForTabBar = false }: {
     question: string, guideTask?: string,
     resume?: { base: Msg[]; allow?: WebAllow; query?: string; token?: string; createFlow?: { object: string; name: string; mode: CreateDetailsMode } },
     analyse?: AnalyseRequest,
+    report?: ReportRequest,
   ) {
     const text = question.trim();
     if (!text || busy) return;
@@ -294,8 +303,8 @@ export default function AIDock({ liftForTabBar = false }: {
       .slice(-12)
       .map((m) => ({
         role: m.from === "me" ? "user" : "assistant",
-        text: m.analysis ? `${m.text}\n${m.analysis.digest}` : m.text,
-        ...(m.from === "bot" && (m.web || m.analysis?.webDerived || m.fromWeb) ? { web: true } : {}),
+        text: m.analysis ? `${m.text}\n${m.analysis.digest}` : m.companyReport ? `${m.text}\n${m.companyReport.digest}` : m.text,
+        ...(m.from === "bot" && (m.web || m.analysis?.webDerived || m.companyReport || m.fromWeb) ? { web: true } : {}),
       }));
     if (!resume) {
       setMessages((prev) => [
@@ -325,27 +334,30 @@ export default function AIDock({ liftForTabBar = false }: {
           create_flow: resume?.createFlow,
           guideTask: guideTask ?? undefined,
           analyse,
+          report,
         }),
       });
       const json = await res.json().catch(() => ({}));
       if (res.ok) {
         if (json.usage) setUsage(json.usage);
         const cards: Card[] | undefined = Array.isArray(json.cards) ? json.cards : undefined;
-        const kind = json.consent?.kind === "web_search" || json.consent?.kind === "analyse_company" || json.consent?.kind === "create_research"
-          ? (json.consent.kind as "web_search" | "analyse_company" | "create_research") : null;
+        const kind = json.consent?.kind === "web_search" || json.consent?.kind === "analyse_company" || json.consent?.kind === "create_research" || json.consent?.kind === "research_report"
+          ? (json.consent.kind as "web_search" | "analyse_company" | "create_research" | "research_report") : null;
         const consent = kind && typeof json.consent.query === "string" && typeof json.consent.token === "string"
           ? {
               kind, query: json.consent.query as string, subject: typeof json.consent.subject === "string" ? (json.consent.subject as string) : undefined,
               state: "pending" as const, token: json.consent.token as string,
               shown: typeof json.consent.shown === "string" ? (json.consent.shown as string) : undefined,
               object: typeof json.consent.object === "string" ? (json.consent.object as string) : undefined,
+              searches: typeof json.consent.searches === "number" ? (json.consent.searches as number) : undefined,
             } : undefined;
         const clarify = json.clarify?.kind === "create_details" && typeof json.clarify.object === "string" && typeof json.clarify.name === "string"
           ? { object: json.clarify.object as string, name: json.clarify.name as string, state: "pending" as const } : undefined;
         const analysis: DockAnalysis | undefined = json.analysis?.card && typeof json.analysis.digest === "string" ? json.analysis : undefined;
+        const companyReport: DockReport | undefined = json.companyReport?.report && typeof json.companyReport.digest === "string" && Array.isArray(json.companyReport.targets) ? json.companyReport : undefined;
         const web: WebSource[] | undefined = Array.isArray(json.web?.sources) && json.web.sources.length ? json.web.sources : undefined;
         const reply: GuideReply | undefined = json.guide && Array.isArray(json.guide.steps) ? json.guide : undefined;
-        setMessages((prev) => [...prev, { from: "bot", text: json.answer, report: json.report as ReportPayload | undefined, cards, guide: reply, consent, web, analysis, clarify, fromWeb: json.fromWeb === true, confirm: json.card as ConfirmCard | undefined }]);
+        setMessages((prev) => [...prev, { from: "bot", text: json.answer, report: json.report as ReportPayload | undefined, cards, guide: reply, consent, web, analysis, companyReport, clarify, fromWeb: json.fromWeb === true, confirm: json.card as ConfirmCard | undefined }]);
         if (reply) startGuide(reply);
         if (json.autoFollow && cards?.length === 1) go(cards[0].href);
       } else {
@@ -367,6 +379,22 @@ export default function AIDock({ liftForTabBar = false }: {
     void ask(`Refresh the analysis of ${s.name}`, undefined, undefined, s.accountId
       ? { account_id: s.accountId, refresh: true }
       : { name: s.name, domain: s.domain ?? undefined, country: s.country ?? undefined, refresh: true });
+  }
+  // The same for a report: Refresh is a request of its own, and Save posts to the record the person picked.
+  function refreshReport(d: DockReport) {
+    const s = d.subject;
+    void ask(`Refresh the report on ${s.name}`, undefined, undefined, undefined, s.accountId
+      ? { account_id: s.accountId, refresh: true }
+      : s.leadId ? { lead_id: s.leadId, refresh: true }
+      : { name: s.name, domain: s.domain ?? undefined, country: s.country ?? undefined, refresh: true });
+  }
+  async function saveReport(d: DockReport, t: ReportSaveTarget): Promise<{ ok: boolean; message: string }> {
+    const res = await fetch("/api/ai/report/save", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ kind: t.kind, id: t.id, competitor_id: t.competitorId, key: d.key }),
+    });
+    const json = await res.json().catch(() => ({}));
+    return res.ok ? { ok: true, message: typeof json.message === "string" ? json.message : "Saved." } : { ok: false, message: typeof json.error === "string" ? json.error : "Could not save just now." };
   }
   const here = parsePageContext(pathname);
   const analyseHere = canAnalyse && here?.objectType === "account" && here.recordId && context ? { id: here.recordId, name: context } : null;
@@ -551,6 +579,12 @@ export default function AIDock({ liftForTabBar = false }: {
                 {m.confirm && <ConfirmCardView card={m.confirm} onOpen={go} onAsk={ask} modelLocked={!!m.fromWeb && messages.length - 1 - i < WEB_TAINT_WINDOW} />}
                 {m.analysis && (
                   <AnalysisCardView data={m.analysis} busy={busy} onOpen={go} onRefresh={() => refreshAnalysis(m.analysis!)} onAsk={(q) => ask(q)} />
+                )}
+                {m.companyReport && (
+                  <ReportCardView data={m.companyReport} busy={busy} onRefresh={() => refreshReport(m.companyReport!)} onSave={(t) => saveReport(m.companyReport!, t)} />
+                )}
+                {m.consent?.kind === "research_report" && (
+                  <ReportConsentRow subject={m.consent.subject ?? "this company"} searches={m.consent.searches} state={m.consent.state} disabled={busy} onChoice={(choice) => answerConsent(i, choice)} />
                 )}
                 {m.consent?.kind === "analyse_company" && (
                   <AnalysisConsentRow subject={m.consent.subject ?? "this company"} state={m.consent.state} disabled={busy} onChoice={(choice) => answerConsent(i, choice)} />

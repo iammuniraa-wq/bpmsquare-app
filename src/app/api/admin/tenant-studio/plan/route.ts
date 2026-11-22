@@ -77,6 +77,7 @@ RULES, all of which the server enforces anyway — following them just avoids wa
 - package "wfm_only" means ${PACKAGES.wfm_only.features.join(", ")}. "full_crm" means ${PACKAGES.full_crm.features.join(", ")} plus whatever else was sold. Use "custom" if it is neither.
 - Workforce (wfm) always needs business_roles on as well.
 - Never set next_experience, enterprise_theme or spectacular_theme. They are unreleased and are switched on by hand.
+- Web research needs no entry of its own: a new client with ai_assistant gets it on automatically. Only if the admin says the client must NOT have web research, add "ai_assistant_web": false to features.
 - nav_hidden_hrefs: only for a screen the client should not SEE even though its module is on. A module that wasn't bought is handled by leaving its feature off, not by hiding nav. Valid hrefs:
 ${navList}
 - roles: Business Roles. A role grants access per workcenter, and a workcenter NOT listed is not accessible — grants are opt-in. Valid workcenter keys: ${WORKCENTERS.map((w) => w.key).join(", ")}. can_edit true means they can change things, false means read-only. Only create roles the admin asked for or that the description clearly implies (e.g. "two supervisors and 30 workers" implies a supervisor role and a worker role).

@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminSupabase } from "@/lib/supabase-server";
 import { featureForObject } from "@/lib/objectFeatures";
-import { resolvePermissions, canViewWorkcenter } from "@/lib/permissions";
+import { resolvePermissions, canViewWorkcenter, type PermissionSet } from "@/lib/permissions";
 import type { WorkcenterKey } from "@/lib/workcenters";
 import type { TenantFeatures } from "@/lib/constants";
 
@@ -66,12 +66,15 @@ export async function allowedNovaTypes(args: {
   const features = (tenant?.features ?? {}) as TenantFeatures;
 
   const allowed = new Set<string>();
-  for (const t of wanted) {
-    const def = NOVA_OBJECTS[t];
-    const key = featureForObject(def.feature);
-    if (key !== null && !features[key]) continue;
-    if (!def.workcenters.some((w) => canViewWorkcenter(perms, w))) continue;
-    allowed.add(t);
-  }
+  for (const t of wanted) if (novaTypeAllowed(features, perms, t)) allowed.add(t);
   return allowed;
+}
+
+/** The same rule for one type with the features and grants already in hand (no read), so a card can ask before offering a button. */
+export function novaTypeAllowed(features: Partial<TenantFeatures> | null | undefined, perms: PermissionSet, type: string): boolean {
+  const def = NOVA_OBJECTS[type];
+  if (!def) return false;
+  const key = featureForObject(def.feature);
+  if (key !== null && !features?.[key]) return false;
+  return def.workcenters.some((w) => canViewWorkcenter(perms, w));
 }

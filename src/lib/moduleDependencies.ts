@@ -192,3 +192,21 @@ export function featureUnlocks(key: Key): { nav: string[]; settings: string[] } 
   const settings = SETTINGS_MENU.filter((m) => m.featureKey === key).map((m) => m.label);
   return { nav: [...new Set(nav)], settings };
 }
+
+/**
+ * What a NEW workspace starts with (owner decision 2026-11-22): web research comes on together with the AI assistant it hangs
+ * off, so the assistant can research a company from the day it is switched on. A platform admin can still switch it off.
+ *
+ * Only the two ways of creating a workspace call this (the new-tenant form and the tenant studio's plan). Nothing reads an
+ * existing workspace through it, so no stored feature is ever changed by it. `webOptOut` is a plan that said no on purpose.
+ */
+export function withNewWorkspaceDefaults<T extends Partial<TenantFeatures>>(features: T, webOptOut = false): T & Pick<Partial<TenantFeatures>, "ai_assistant_web"> {
+  const out: T & Pick<Partial<TenantFeatures>, "ai_assistant_web"> = { ...features };
+  if (out.ai_assistant === true) {
+    out.ai_assistant_web = webOptOut ? false : out.ai_assistant_web !== false;
+  } else if (out.ai_assistant_web !== undefined) {
+    // The dependency is hard: a workspace without the assistant cannot have its web research.
+    out.ai_assistant_web = false;
+  }
+  return out;
+}

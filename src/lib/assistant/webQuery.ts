@@ -32,6 +32,10 @@ const GENERIC = new Set([
   "location", "locations", "offices", "customers", "partners", "acquisition", "acquisitions", "press", "announcement",
   "certifications", "size", "sector", "business", "group", "subsidiaries", "parent", "stock", "listed", "ownership",
   "address", "country", "city", "established", "details", "key", "facts",
+  // The company report's vocabulary (docs/design/company-report.md): what a person asks for, never who. A person's name is
+  // not on this list, so it still has to come from the person's own words.
+  "background", "analysis", "analyse", "analyze", "research", "swot", "financials", "projects", "clients", "strengths",
+  "weaknesses", "management", "executives", "competition", "portfolio", "capabilities", "compete", "competes",
 ]);
 
 // A person, or a way to reach one. The assistant researches organisations only.
