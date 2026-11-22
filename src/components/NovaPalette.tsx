@@ -9,6 +9,8 @@ import type { NavItem } from "@/lib/constants";
 import type { SearchResult } from "@/lib/globalSearch";
 import { getSearchObject } from "@/lib/globalSearch";
 import { useTenant, useViewableWorkcenters, useIsWfmSupervisor } from "@/lib/tenant-context";
+import { askDock } from "@/lib/analysis/dockAsk";
+import { canOfferReportRow, reportPhrase } from "@/lib/analysis/report/ask";
 
 /**
  * The Nova command palette — pillar one of BPMSquare Nova, the Business OS
@@ -30,10 +32,13 @@ type Item =
   // A record CATEGORY header (client request 2026-08-22): results group by
   // object type instead of one long mixed list; the arrow expands that
   // category, newest-first. Enter/click toggles -- it never closes the palette.
-  | { kind: "group"; label: string; sub: string; href: string; type: string; expanded: boolean; event?: undefined; eventDetail?: undefined };
+  | { kind: "group"; label: string; sub: string; href: string; type: string; expanded: boolean; event?: undefined; eventDetail?: undefined }
+  // "analyse / research / competitor / company report / background on <company>": handed to the AI slider, which owns the
+  // consent chip and the report card (docs/design/company-report.md). The palette only launches it.
+  | { kind: "ask"; label: string; sub: string; href: string; question: string; event?: undefined; eventDetail?: undefined };
 
 const SECTION_LABEL: Record<Item["kind"], string> = {
-  nav: "Go to", create: "Create", record: "Records", group: "Records",
+  nav: "Go to", create: "Create", record: "Records", group: "Records", ask: "Ask the assistant",
 };
 
 const DEBOUNCE_MS = 250;
@@ -49,6 +54,7 @@ function Icon({ d, fill }: { d: string; fill?: boolean }) {
 const ICON_NAV = "M6.5 3.5 12.5 8 6.5 12.5";                                   // chevron: navigate
 const ICON_ADD = "M8 3.5v9M3.5 8h9";                                           // plus: create
 const ICON_DOC = "M4.5 2h5L12 4.5V14h-7.5zM9.5 2v3H12";                        // record
+const ICON_ASK = "M8 2.5 9.4 6.6 13.5 8 9.4 9.4 8 13.5 6.6 9.4 2.5 8 6.6 6.6z";  // sparkle: ask the assistant
 
 // A single sentence directed AT Nova ("prep me for my call with X") is not
 // pasted correspondence to extract a record from -- it was misclassified as
@@ -284,8 +290,12 @@ export default function NovaPalette() {
           href: callPrepAccount.href, event: "nova:open-account-360", eventDetail: { id: callPrepAccount.id },
         }]
       : [];
-    return [...callPrepOffer, ...draftOffer, ...statics.slice(0, 10), ...recs.slice(0, 40)];
-  }, [query, universe, records, pastedContent, features?.accounts, expandedTypes, callPrepAccount, callPrepKind]);
+    const phrase = canOfferReportRow({ features, config: tenant?.config, viewable }) ? reportPhrase(query) : null;
+    const askOffer: Item[] = phrase
+      ? [{ kind: "ask", label: `Ask the assistant: company report on ${phrase.subject}`, sub: "Nova AI", href: "@ask-assistant", question: phrase.question }]
+      : [];
+    return [...askOffer, ...callPrepOffer, ...draftOffer, ...statics.slice(0, 10), ...recs.slice(0, 40)];
+  }, [query, universe, records, pastedContent, features, tenant?.config, viewable, expandedTypes, callPrepAccount, callPrepKind]);
 
   // New query -> highlight back to the top; a mere expand/collapse only
   // clamps, so the cursor stays where the user was.
@@ -299,6 +309,11 @@ export default function NovaPalette() {
         if (next.has(item.type)) next.delete(item.type); else next.add(item.type);
         return next;
       });
+      return;
+    }
+    if (item.kind === "ask") {
+      setOpen(false);
+      askDock(item.question, null);
       return;
     }
     setOpen(false);
@@ -415,7 +430,7 @@ export default function NovaPalette() {
                     marginLeft: item.kind === "record" ? 14 : 0,
                     transform: isGroup && item.expanded ? "rotate(90deg)" : undefined, transition: "transform .12s",
                   }}>
-                    <Icon d={item.kind === "create" ? ICON_ADD : item.kind === "record" ? ICON_DOC : ICON_NAV} />
+                    <Icon d={item.kind === "create" ? ICON_ADD : item.kind === "record" ? ICON_DOC : item.kind === "ask" ? ICON_ASK : ICON_NAV} />
                   </span>
                   <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 13, fontWeight: isGroup ? 700 : 550 }}>
                     {item.label}
