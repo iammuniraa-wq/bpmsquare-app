@@ -17,7 +17,7 @@ import ProjectDetailsForm from "@/components/contractProjects/ProjectDetailsForm
 import { listMembersForPicker } from "@/lib/sales/opportunityServer";
 import { loadProject, UUID_RE, type ProjectCtx } from "@/lib/contractProjects/server";
 import { buildProjectView } from "@/lib/contractProjects/view";
-import { fillAvailable } from "@/lib/contractProjects/allocationServer";
+import { estimateFillAvailable, estimateOfProject, fillAvailable } from "@/lib/contractProjects/allocationServer";
 import { loadEmployeeChoices } from "@/lib/contractProjects/workPackagesServer";
 import ProjectKpiStrip from "@/components/contractProjects/ProjectKpiStrip";
 import ProjectPathBar from "@/components/contractProjects/ProjectPathBar";
@@ -53,6 +53,7 @@ export default async function ContractProjectPage({ params, searchParams }: { pa
   const revLabel = rev ? (rev.rev_no === 0 ? "Baseline" : `Revision ${rev.rev_no}`) : null;
   const members = view.canEdit && p.status !== "closed" ? await listMembersForPicker(req.admin, tenantId) : [];
   const buyoutOn = buyoutVisible(p, tenant?.features);
+  const fromEstimate = estimateFillAvailable(p, !!(await estimateOfProject(req.admin, tenantId, p)));
   const deletable =p.status === "draft" && view.revisions.every((r) => r.status === "draft");
   // A project made from a tender goes back to that tender, and says which bid and which BOQ file it came from, in the header.
   const origin = view.origin;
@@ -96,7 +97,7 @@ export default async function ContractProjectPage({ params, searchParams }: { pa
               key={rev.id} projectId={p.id} revision={rev} revisions={view.revisions} lines={view.lines} resources={view.resources}
               canEdit={view.canEdit} projectClosed={p.status === "closed"} currency={p.currency} buyoutOn={buyoutOn}
               contractValue={p.contract_value} valueNote={projectSourceNote(sourceType, qo?.ref)} marginFloor={view.marginFloor} basis={p.allocation_basis} allocation={view.allocation} packages={view.packages}
-              packagesPending={view.packagesPending} employees={employees} fillAvailable={fillAvailable(p, view.lines)} approval={view.approval}
+              packagesPending={view.packagesPending} employees={employees} fillAvailable={fillAvailable(p, view.lines)} estimateFillAvailable={fromEstimate} approval={view.approval}
             />
           ) : <div style={{ fontSize: 13, color: "var(--hint)" }}>There is no budget yet.</div>,
         },

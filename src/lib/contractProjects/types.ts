@@ -222,6 +222,13 @@ export type BudgetLine = {
   source_line_id: string | null;
 };
 
+/**
+ * A cost-only category line of a contract line (made by "Fill from estimate costs"): it has its contract line's source_line_id, no client rate
+ * and a client amount of 0. A line made by hand has neither, so it is never taken for one.
+ */
+export const isCategoryLine = (l: Pick<BudgetLine, "source_line_id" | "client_rate" | "client_amount">): boolean =>
+  !!l.source_line_id && l.client_rate === null && l.client_amount === 0;
+
 /** A line a person or the tender copy is about to save: no id, no committed / actual. */
 export type DraftLine = {
   line_key?: string | null;

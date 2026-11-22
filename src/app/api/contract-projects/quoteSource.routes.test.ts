@@ -71,6 +71,7 @@ import { GET as oneGet } from "./[id]/route";
 import { GET as buyoutGet } from "./[id]/buyout/route";
 import { POST as fillPost } from "./[id]/allocation/fill/route";
 import { POST as copyTerms } from "./[id]/milestones/copy-terms/route";
+import { POST as estimateFill } from "./[id]/allocation/fill-estimate/route";
 
 const json = (method: string, body?: unknown) => new NextRequest(new URL("http://internal.invalid/x"), { method, headers: { "content-type": "application/json" }, body: body === undefined ? undefined : JSON.stringify(body) });
 const get = () => new NextRequest(new URL("http://internal.invalid/x"));
@@ -104,6 +105,7 @@ function seed() {
       { id: "sl3", tenant_id: T1, standard_quote_id: SQ, sl_no: "3", description: "Option B not chosen", uom: "ea", qty: 1, rate: 99, discount_pct: 0, amount: 99, is_selected: false, group_id: "g2", group_type: "alternative", break_of: null },
       { id: "sl4", tenant_id: T1, standard_quote_id: SQ, sl_no: "4", description: "Option A chosen", uom: "ea", qty: 1, rate: 0, discount_pct: 0, amount: 0, is_selected: true, group_id: "g1", group_type: "alternative", break_of: null },
       { id: "sl5", tenant_id: T1, standard_quote_id: SQ_FROM_EST, sl_no: "1", description: "Beams", uom: "ea", qty: 3, rate: 100, discount_pct: 0, amount: 300, is_selected: true, group_id: null, group_type: null, break_of: null },
+      { id: "sl6", tenant_id: T1, standard_quote_id: SQ_FROM_EST, sl_no: "2", description: "Mystery item", uom: "ea", qty: 1, rate: 50, discount_pct: 0, amount: 50, is_selected: true, group_id: null, group_type: null, break_of: null },
       { id: "sl9", tenant_id: T2, standard_quote_id: SQ_T2, sl_no: "1", description: "Secret", uom: "ea", qty: 1, rate: 1, discount_pct: 0, amount: 1, is_selected: true, group_id: null, group_type: null, break_of: null },
     ],
     quotes: [
@@ -115,8 +117,15 @@ function seed() {
       { id: "ql1", tenant_id: T1, quote_id: QN, sl_no: "1", description: "Pipe supports", uom: "ea", qty: 5, rate: 100, discount_pct: 10, amount: 450, is_selected: true, group_id: null, group_type: null, break_of: null },
       { id: "ql2", tenant_id: T1, quote_id: QN, sl_no: "2", description: "Freight", uom: "lot", qty: 1, rate: 140, discount_pct: 0, amount: 140, is_selected: true, group_id: null, group_type: null, break_of: null },
     ],
+    estimate_lines: [
+      { id: "el1", tenant_id: T1, estimate_id: EST, sort_order: 1, description: "Beam concrete", uom: "m3", qty: 5, waste_pct: 0, group_key: "beams", custom_data: { group: "Beams" }, component: "materials", cost_total: 120.5 },
+      { id: "el2", tenant_id: T1, estimate_id: EST, sort_order: 2, description: "Crew", uom: "day", qty: 2, waste_pct: 0, group_key: "beams", custom_data: { group: "Beams" }, component: "labour", cost_total: 60 },
+      { id: "el3", tenant_id: T1, estimate_id: EST, sort_order: 3, description: "Crane", uom: "day", qty: 1, waste_pct: 0, group_key: "beams", custom_data: { group: "Beams" }, component: "erection", cost_total: 20 },
+      { id: "el4", tenant_id: T1, estimate_id: EST, sort_order: 4, description: "Delivery", uom: "trip", qty: 1, waste_pct: 0, group_key: "beams", custom_data: { group: "Beams" }, component: "transport", cost_total: 10 },
+      { id: "el9", tenant_id: T2, estimate_id: EST_T2, sort_order: 1, description: "Theirs", uom: "m3", qty: 1, waste_pct: 0, group_key: "beams", custom_data: { group: "Beams" }, component: "materials", cost_total: 99999 },
+    ],
     estimates: [
-      { id: EST, tenant_id: T1, ref: "EST-1", name: "Beams", standard_quote_id: SQ_FROM_EST, status: "won" },
+      { id: EST, tenant_id: T1, ref: "EST-1", name: "Beams", standard_quote_id: SQ_FROM_EST, status: "won", template_id: null },
       { id: EST_NO_QUOTE, tenant_id: T1, ref: "EST-2", name: "No quote yet", standard_quote_id: null, status: "draft" },
       { id: EST_T2, tenant_id: T2, ref: "EST-9", name: "Theirs", standard_quote_id: SQ_T2, status: "won" },
     ],
@@ -366,5 +375,149 @@ describe("the tender-only screens are keyed on the source type, not on the deal 
     const view = await oneGet(get(), ctx(id));
     expect(view.status).toBe(200);
     expect((await view.json()).project).toMatchObject({ source_type: "standard_quote", source_id: SQ });
+  });
+});
+
+describe("Fill from estimate costs", () => {
+  const post = (id: string) => estimateFill(json("POST", {}), ctx(id));
+  const lines = () => mine("project_budget_lines");
+  const money = (n: unknown) => Math.round(Number(n) * 100) / 100;
+  async function project() {
+    const made = await (await make({ estimate_id: EST })).json();
+    return made.id as string;
+  }
+  const clientTotal = () => money(lines().reduce((t, l) => t + Number(l.client_amount ?? 0), 0));
+  const costTotal = () => money(lines().filter((l) => l.allocated !== false).reduce((t, l) => t + Number(l.amount), 0));
+
+  it("splits a quote line's cost by category: one contract line, cost-only lines under it, the client total unchanged, the cost equal to the estimate's", async () => {
+    const id = await project();
+    const clientBefore = clientTotal();
+    const res = await post(id);
+    expect(res.status).toBe(200);
+    const j = await res.json();
+    expect(j).toMatchObject({ filled: 1, categories: 4, total: 210.5 });
+    const beams = lines().filter((l) => l.source_line_id === "sl5");
+    expect(beams.map((l) => [l.resource_code, l.amount])).toEqual([["11", 120.5], ["31", 60], ["41", 20], ["51", 10]]);
+    // The contract line keeps the client's rate and amount; the others carry cost only.
+    expect(beams[0]).toMatchObject({ client_rate: 100, client_amount: 300, allocated: true, wbs: "1" });
+    for (const extra of beams.slice(1)) expect(extra).toMatchObject({ client_rate: null, client_amount: 0, allocated: true, wbs: "1", qty: 3 });
+    expect(beams[1].description).toBe("Beams · Labour");
+    expect(clientTotal()).toBe(clientBefore);
+    expect(costTotal()).toBe(210.5);
+    expect(mine("project_budget_revisions")[0].total).toBe(210.5);
+  });
+
+  it("lists the quote lines it could not match and leaves them as they were", async () => {
+    const id = await project();
+    const j = await (await post(id)).json();
+    expect(j.skipped).toEqual([{ item: "2", reason: "matches nothing in the estimate" }]);
+    const mystery = lines().find((l) => l.description === "Mystery item")!;
+    expect(mystery).toMatchObject({ allocated: false, amount: 0 });
+  });
+
+  it("is idempotent: pressing again replaces its own lines, keeps their keys, and changes no total", async () => {
+    const id = await project();
+    await post(id);
+    const keys = lines().filter((l) => l.source_line_id === "sl5").map((l) => l.line_key);
+    const again = await post(id);
+    expect(again.status).toBe(200);
+    expect(lines().filter((l) => l.source_line_id === "sl5").map((l) => l.line_key)).toEqual(keys);
+    expect(lines()).toHaveLength(5);
+    expect(costTotal()).toBe(210.5);
+  });
+
+  it("follows the estimate when it changed, and drops a category that is no longer there", async () => {
+    const id = await project();
+    await post(id);
+    rows("estimate_lines").find((l) => l.id === "el2")!.cost_total = 80;
+    rows("estimate_lines").find((l) => l.id === "el3")!.qty = 0;
+    await post(id);
+    expect(lines().filter((l) => l.source_line_id === "sl5").map((l) => [l.resource_code, l.amount])).toEqual([["11", 120.5], ["31", 80], ["51", 10]]);
+    expect(costTotal()).toBe(210.5);
+  });
+
+  it("never touches a line a person changed: a cost typed on a contract line, or an edited category line, keeps its line quiet", async () => {
+    const typed = await project();
+    lines().find((l) => l.source_line_id === "sl5")!.allocated = true;
+    lines().find((l) => l.source_line_id === "sl5")!.amount = 500;
+    const first = await (await post(typed)).json();
+    expect(first.filled).toBe(0);
+    expect(first.skipped).toContainEqual({ item: "1", reason: "already has a cost you entered" });
+    expect(lines().find((l) => l.source_line_id === "sl5")!.amount).toBe(500);
+  });
+
+  it("an edited category line is noticed by its cost no longer matching what the fill wrote, and the whole group is left", async () => {
+    const id = await project();
+    await post(id);
+    const labour = lines().find((l) => l.description === "Beams · Labour")!;
+    labour.amount = 65;
+    const again = await (await post(id)).json();
+    expect(again.filled).toBe(0);
+    expect(again.skipped).toContainEqual({ item: "1", reason: "has cost lines you edited" });
+    expect(lines().find((l) => l.description === "Beams · Labour")!.amount).toBe(65);
+  });
+
+  it("gives a new category line the WBS item of its contract line", async () => {
+    const id = await project();
+    const base = lines().find((l) => l.source_line_id === "sl5")!;
+    rows("project_work_packages").push({ id: "pk1", tenant_id: T1, project_id: id, code: "1", name: "Beams", sort_order: 0, allocated_cost: null });
+    rows("project_work_package_lines").push({ id: "pl1", tenant_id: T1, project_id: id, package_id: "pk1", line_key: base.line_key, sort_order: 0 });
+    await post(id);
+    const extraKeys = lines().filter((l) => l.source_line_id === "sl5" && l.client_amount === 0).map((l) => l.line_key);
+    expect(extraKeys).toHaveLength(3);
+    const held = mine("project_work_package_lines").filter((r) => r.package_id === "pk1").map((r) => r.line_key);
+    expect(held).toEqual(expect.arrayContaining([base.line_key, ...extraKeys]));
+  });
+
+  it("is refused once the baseline is waiting for approval or approved", async () => {
+    const id = await project();
+    mine("project_budget_revisions")[0].status = "pending";
+    const res = await post(id);
+    expect(res.status).toBe(409);
+    expect(lines().every((l) => l.allocated === false)).toBe(true);
+  });
+
+  it("reads only this workspace's estimate: another workspace's estimate on the same quote is never used", async () => {
+    rows("estimates").push({ id: "53000000-0000-4000-8000-0000000000ff", tenant_id: T2, ref: "EST-X", name: "Planted", standard_quote_id: SQ_FROM_EST, status: "won", template_id: null, created_at: "2099-01-01T00:00:00Z" });
+    rows("estimate_lines").push({ id: "elx", tenant_id: T2, estimate_id: "53000000-0000-4000-8000-0000000000ff", sort_order: 1, description: "Planted", uom: "m3", qty: 1, waste_pct: 0, group_key: "beams", custom_data: { group: "Beams" }, component: "materials", cost_total: 88888 });
+    const id = await project();
+    await post(id);
+    expect(costTotal()).toBe(210.5);
+    expect(state.changes.at(-1)?.changes?.[0].to).toContain("EST-1");
+  });
+
+  it("is logged in the change history by name", async () => {
+    const id = await project();
+    await post(id);
+    const entry = state.changes.flatMap((c) => c.changes ?? []).find((c) => c.field === "Costs copied from estimate");
+    expect(entry?.to).toBe("EST-1: 1 line, 1 not matched");
+  });
+
+  it("is only for a project whose quote came from an estimate; a quotation project, a tender project and a quote with no estimate get a 409", async () => {
+    const q = await (await make({ quotation_id: QN })).json();
+    expect((await post(q.id)).status).toBe(409);
+    const plain = await (await make({ standard_quote_id: SQ })).json();
+    expect((await post(plain.id)).status).toBe(409);
+    state.features = { contract_projects: true, gcc_tender: true };
+    const t = await (await make({ opportunity_id: TENDER })).json();
+    const res = await post(t.id);
+    expect(res.status).toBe(409);
+    expect(lines().filter((l) => l.project_id === t.id).every((l) => l.source_ref === null || !String(l.source_ref).startsWith("Estimate"))).toBe(true);
+  });
+
+  it("needs the right to change projects, and another workspace's project is a 404", async () => {
+    const id = await project();
+    state.edit = false;
+    expect((await post(id)).status).toBe(403);
+    state.edit = true;
+    expect((await post("dddddddd-dddd-4ddd-8ddd-ddddddddddd9")).status).toBe(404);
+  });
+
+  it("a project made by allocating by WBS is refused: its cost follows the WBS items, not the lines", async () => {
+    const id = await project();
+    mine("contract_projects")[0].allocation_basis = "package";
+    const res = await post(id);
+    expect(res.status).toBe(409);
+    expect((await res.json()).error).toContain("BOQ line");
   });
 });

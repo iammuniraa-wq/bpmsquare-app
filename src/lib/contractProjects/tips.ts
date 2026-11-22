@@ -48,6 +48,8 @@ export const PROJECT_TIPS = {
   termTemplates: "The tender chose no payment terms. Pick one of your templates to make its milestones as Planned; edit them afterwards as you like.",
   allocateBy: "By BOQ line you type a cost on each line. By WBS you type one cost per bottom-level item and its lines follow.",
   fill: "Copies the costs recorded on the tender once: an awarded supplier price, an estimate or a manual cost. Lines without one are listed.",
+  fillEstimate: "Copies the estimate's cost onto the draft budget by cost category. Quote lines that cannot be matched by name are listed and left as they are.",
+  costByCategory: "Each quote line is one contract line. Its cost comes from the estimate, split by category: materials, moulds, labour, erection and other.",
   workBreakdown: "Group BOQ lines into WBS items and give each an owner. A line sits in one item unless you split it; unassigned lines are listed.",
   allocated: "What you have allocated so far. The bar fills as costs are typed; the margin is what is left of the contract value.",
   left: "Client amount less the allocated cost for this row. Negative means you plan to spend more than the client pays for it.",
