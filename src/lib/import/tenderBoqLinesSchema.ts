@@ -30,6 +30,12 @@ export const TENDER_BOQ_LINES_SPEC: ObjectSpec = {
     // Unassigned. The same text the v1 API returns. Export writes it and Update sets it; Import never reads it, so a revised file can add or
     // revise lines without regrouping the ones already there.
     { key: "wbs_code", label: "WBS code", type: "text", updateOnly: true, hint: "WBS item code, or code:percent joined by ; for a split line (2.1:60;2.2:40). Empty = Unassigned. Shares must add up to 100" },
+    // Buildings and element codes (0253). The element type and code and the model's quantity are written by Import and Update (the workspace needs the
+    // Buildings add-on); the building is Import (put the new line in that building) and Export. Update moves a line with the WBS code, never with this.
+    { key: "element_type", label: "Element type", type: "text", hint: "A code from your Element types list (HCS, WAL...)", aliases: ["element type", "piece type", "element class"] },
+    { key: "element_code", label: "Element code", type: "text", hint: "One unique code for this line. Empty = none, or issue it on the screen", aliases: ["element code", "element id", "element no", "mark", "piece mark"] },
+    { key: "model_qty", label: "Model quantity", type: "number", hint: "What the model or the drawings say, beside the client's quantity", aliases: ["model qty", "model quantity", "drawing qty", "drawing quantity"] },
+    { key: "building_code", label: "Building", type: "text", hint: "Code of a building of this tender. Import puts a new line in it; the building must exist (add it in Tender WBS items first)", aliases: ["building", "building code", "bldg", "bldg code"] },
     // Export-only: computed, or answered by the pricing on the Bill of quantities.
     { key: "amount", label: "Amount", type: "number", exportOnly: true, hint: "Computed quantity × rate" },
     { key: "rate_source", label: "Rate source", type: "text", exportOnly: true, hint: "boq_rate · bom · past_project · supplier · manual · estimate" },
@@ -44,4 +50,4 @@ export const TENDER_BOQ_LINES_SPEC: ObjectSpec = {
 };
 
 /** What an Update file may change on a line. The rate is deliberately not here (see above). */
-export const TENDER_BOQ_UPDATE_KEYS = ["quantity", "description", "details", "cost_code", "wbs_code"] as const;
+export const TENDER_BOQ_UPDATE_KEYS = ["quantity", "description", "details", "cost_code", "wbs_code", "element_type", "element_code", "model_qty"] as const;

@@ -14,6 +14,7 @@ import { PROJECT_TIPS } from "@/lib/contractProjects/tips";
 import type { MasterKind, MasterRow } from "@/lib/contractProjects/types";
 import type { PaymentTermTemplate } from "@/lib/constants";
 import PaymentTermsSection from "./PaymentTermsSection";
+import ElementsSettingsSection from "./ElementsSettingsSection";
 
 type KindRow = { kind: MasterKind; label: string; total: number; active: number; files: number; defaults: number; manual: number };
 type ImportResult = { added: number; updated: number; refused: number; problems: { row: number; message: string }[]; warnings: { row: number; message: string }[]; preview: boolean; error?: string };
@@ -87,6 +88,8 @@ export default function ContractProjectsSettingsClient() {
       </section>
 
       <PaymentTermsSection templates={templates} onSave={saveTemplates} />
+
+      <ElementsSettingsSection />
 
       <section style={{ ...cardStyle }}>
         <label data-guide="cp.settings.margin_floor" style={{ display: "flex", alignItems: "center", gap: 10, minHeight: 44, fontSize: 13, color: c.ink, flexWrap: "wrap" }}>

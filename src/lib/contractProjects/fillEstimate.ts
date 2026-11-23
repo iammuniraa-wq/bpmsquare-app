@@ -4,6 +4,7 @@ import { isCategoryLine, type BudgetLine, type DraftLine } from "./types";
 import { resourceForComponent } from "@/lib/tender/estimates/rules";
 import { groupNameOf } from "@/lib/estimator/lines";
 import { roundQty } from "@/lib/estimator/compute";
+import { elementCarryOf } from "@/lib/elements/lines";
 
 // "Fill from estimate costs", pure (docs/design/won-quote-to-project.md, slice 2). A project made from a quote that was assembled from an
 // estimate starts with the contract and no cost. This reads the estimate's cost lines and, for each quote line it can match BY NAME, puts the cost
@@ -116,6 +117,7 @@ const unitCostOf = (qty: number, amount: number) => (qty > 0 ? round4(amount / q
 const draftOf = (l: BudgetLine): DraftLine => ({
   line_key: l.line_key, resource_code: l.resource_code, cost_code: l.cost_code, wbs: l.wbs, description: l.description, qty: l.qty, unit: l.unit, unit_cost: l.unit_cost,
   cost_known: l.cost_known, source_ref: l.source_ref, reserve: l.reserve, amount: l.amount, allocated: l.allocated, client_rate: l.client_rate, client_amount: l.client_amount, source_line_id: l.source_line_id,
+  ...elementCarryOf(l),
 });
 
 /**

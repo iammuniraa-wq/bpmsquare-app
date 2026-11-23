@@ -4,6 +4,8 @@ import { getAuthUser } from "@/lib/supabase-server";
 import { ensureMasterSeeds, isMissingSchema, MASTER_COLS, needsUpdate, openProjectRequest } from "@/lib/contractProjects/server";
 import { MASTER_KINDS, MASTER_KIND_LABEL, isMasterKind, type MasterFlags, type MasterRow } from "@/lib/contractProjects/types";
 import { MASTER_IMPORT_LIMITS } from "@/lib/contractProjects/masters";
+import { TYPE_CODE_RE } from "@/lib/elements/types";
+import { buildingsOn } from "@/lib/elements/server";
 
 import { readAllPages } from "@/lib/pagedRead";
 // The ERP code lists a budget line points at (migration 0226, erp_masters): resource levels, cost codes, justification reasons, reserve
@@ -23,13 +25,16 @@ const CODE = /^[^\s,;"'<>][^,;"'<>]{0,39}$/;
 export async function GET(request: NextRequest) {
   const gate = await openProjectRequest();
   if (!gate.ok) return NextResponse.json({ error: gate.error }, { status: gate.status });
-  const { admin, tenantId, role } = gate.req;
+  const { admin, supabase: sb, tenantId, role } = gate.req;
   const sp = new URL(request.url).searchParams;
+  // The Element types list belongs to the Buildings add-on: a workspace without it does not see the list (0253).
+  const elementsOn = await buildingsOn(sb, tenantId);
   await ensureMasterSeeds(admin, tenantId);
 
   if (sp.get("summary") === "1") {
     const kinds = [];
     for (const kind of MASTER_KINDS) {
+      if (kind === "element_type" && !elementsOn) continue;
       const { data, error } = await readAllPages((lo, hi) => admin.from("erp_masters").select("active, source").eq("tenant_id", tenantId).eq("kind", kind).order("id", { ascending: true }).range(lo, hi));
       if (error) return isMissingSchema(error) ? NextResponse.json({ ...needsUpdate().extra, error: needsUpdate().error }, { status: 503 }) : NextResponse.json({ error: error.message }, { status: 500 });
       const rows = (data ?? []) as { active: boolean; source: string }[];
@@ -40,6 +45,7 @@ export async function GET(request: NextRequest) {
 
   const kind = sp.get("kind");
   if (!isMasterKind(kind)) return NextResponse.json({ error: "kind is required" }, { status: 400 });
+  if (kind === "element_type" && !elementsOn) return NextResponse.json({ error: "Not found" }, { status: 404 });
   const pageSize = Math.max(1, Math.min(100, Number(sp.get("page_size")) || 50));
   const page = Math.max(1, Number(sp.get("page")) || 1);
   let q = admin.from("erp_masters").select(MASTER_COLS, { count: "exact" }).eq("tenant_id", tenantId).eq("kind", kind);
@@ -59,7 +65,10 @@ export async function POST(request: NextRequest) {
   const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
   if (!body || typeof body !== "object") return NextResponse.json({ error: "Invalid body" }, { status: 400 });
   if (!isMasterKind(body.kind)) return NextResponse.json({ error: "Unknown list" }, { status: 400 });
-  const code = typeof body.code === "string" ? body.code.trim() : "";
+  if (body.kind === "element_type" && !(await buildingsOn(supabase, tenantId))) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  // An element type code is what element codes are built from: 2 to 5 letters or digits, upper-case (0253).
+  const code = typeof body.code === "string" ? (body.kind === "element_type" ? body.code.trim().toUpperCase() : body.code.trim()) : "";
+  if (body.kind === "element_type" && !TYPE_CODE_RE.test(code)) return NextResponse.json({ error: "An element type code is 2 to 5 letters or digits" }, { status: 422 });
   const name = typeof body.name === "string" ? body.name.trim().slice(0, MASTER_IMPORT_LIMITS.nameLength) : "";
   if (!CODE.test(code)) return NextResponse.json({ error: "Give a code of up to 40 characters, without commas, quotes or semicolons" }, { status: 422 });
   if (!name) return NextResponse.json({ error: "Give it a name" }, { status: 422 });

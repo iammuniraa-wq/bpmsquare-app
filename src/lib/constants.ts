@@ -4,6 +4,7 @@
 import type { PillarKey } from "./theme";
 import type { CurrencyCode } from "./currency";
 import type { ScoringRubric } from "./marketing/scoring";
+import type { ContractElementsConfig } from "./elements/types";
 
 // The single shared app URL — every tenant without a `custom_domain` is reached here.
 // Hostnames other than this (and localhost, for dev) are resolved to a tenant via
@@ -839,6 +840,10 @@ export type TenantFeatures = {
   // handover stand-in. Not the Workforce "Projects". Platform-admin-only, default OFF; needs gcc_tender. With it off there is no
   // menu item, route, API answer or button on a deal, and the new tables are never queried.
   contract_projects: boolean;
+  // Buildings and element codes of contract projects (migration 0253, docs/design/pcbs-buildings-elements.md): a building is a level-1 WBS item with a code,
+  // an element is a contract line with a type, a unique code and a second (model) quantity, and a model comparison sets the drawings beside the budget.
+  // Platform-admin-only, default OFF; needs contract_projects. With it off no screen, route or API answer shows any of it.
+  contract_buildings: boolean;
   // AI automation (docs/design/nova-crew-agents.md, section 3.1): the workcenter of pre-built agents. Three platform-admin-only
   // flags (set in /admin/tenants, never by a workspace admin), each default OFF, a missing key reads false, and none depends on
   // Nova or the dock assistant. `crew` = the page and the runner exist; `crew_tender_watch` needs gcc_tender + pipeline;
@@ -1519,6 +1524,9 @@ export type TenantConfig = {
   // tenant's own external source cards. Absent = every built-in card, default
   // order, no external sources.
   account_360?: Account360Config;
+  // Buildings and element codes of contract projects (migration 0253): the element-code pattern, the code length, the quantity tolerance and
+  // the words for the WBS levels. Read through resolveElementsSettings() in src/lib/elements/types.ts, never directly.
+  contract_elements?: ContractElementsConfig;
   /** Dashboard blocks that carry their own content rather than the tenant's
    * data (owner request 2026-09-20: "if the client is not using the system
    * there is no data to represent"). Both default OFF and are set by a

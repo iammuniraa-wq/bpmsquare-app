@@ -190,6 +190,9 @@ export const actionFor = (object: string): CreateActionDef | undefined => ACTION
  * decision, not an oversight) and when an entry here no longer has a POST (so the list cannot rot).
  */
 export const DEFERRED: Record<string, string> = {
+  // Buildings and element codes (0253) have no create_record card, by decision: a building is made on the project's or the tender's WBS tab (Add building) and an
+  // element is two fields and a code on a line that already exists (Issue codes previews first), so there is nothing to create from a sentence. Its routes are
+  // nested under contract-projects and opportunities, which is why it has no entry of its own here.
   // Business objects: next in line, each needs its own required links or lines worked out first.
   assets: "needs an owning account and technical fields; next in line",
   cases: "needs an account and assets; next in line after accounts and contacts",

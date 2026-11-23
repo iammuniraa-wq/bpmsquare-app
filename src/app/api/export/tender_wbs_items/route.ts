@@ -55,6 +55,7 @@ export async function POST(request: NextRequest) {
           code: item.code,
           name: item.name,
           parent_code: s(item.parent_code),
+          building_code: s(item.building_code),
           owner_email: owner ? s(emails.emailOf.get(owner)) : "",
           note: s(item.note),
           lines: s(item.line_count),

@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { round2 } from "./budget";
 import { draftAmount, insertLines, isMissingSchema, lineRows, loadLines, loadRevisions, needsUpdate } from "./server";
 import type { DraftLine } from "./types";
+import { elementCarryOf } from "@/lib/elements/lines";
 
 // Starting the next budget revision of a project: a DRAFT copy of the approved one (same lines, same line_key so a change can be shown)
 // with a reason, optionally with extra lines on the end. The one place this is done: the Revisions route and the approval of a variation
@@ -41,6 +42,8 @@ export async function startDraftRevision(
     unit_cost: l.unit_cost, cost_known: true, source_ref: l.source_ref, reserve: l.reserve,
     // The allocation travels with the line, amount as allocated (an allocation typed as an amount is not always qty times unit cost).
     amount: l.amount, allocated: l.allocated, client_rate: l.client_rate, client_amount: l.client_amount, source_line_id: l.source_line_id,
+    // The element (type, code, quantities) travels with the line: the same code in two revisions is the same element.
+    ...elementCarryOf(l),
   }));
   const all = [...copy, ...extra];
   if (all.length > 0) {

@@ -53,6 +53,10 @@ const ID_FIELD: FieldSpec = {
   aliases: ["record id", "recordid", "id"],
 };
 
+// Modes left out ON PURPOSE (the catalog's modeNote says it to the person): project_budget_lines has no Import. A contract project's budget lines are born from
+// the tender, a quote or a revision (a copy of the approved lines under a reason), so a file never creates one; it only adds element codes and model
+// quantities to lines that exist, through Update by the real Record ID. Cost, unit cost and amount are on no column of any mode.
+
 // Extraction calls a paid, non-instant AI request -- losing that work because
 // the user clicked to another screen (or hit back) would mean redoing it.
 // sessionStorage survives a route change within the tab; it does not survive

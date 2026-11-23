@@ -3,6 +3,7 @@ import { divideByShares, SHARE_TOLERANCE } from "@/lib/wbs/tree";
 import { splitListText } from "@/lib/wbs/screen";
 import { allocationView, type AllocationView } from "./allocation";
 import { budgetTotals, plannedMargin } from "./budget";
+import { HANDOVER_BUILDINGS_HEADERS, HANDOVER_ELEMENT_HEADERS, handoverElements } from "@/lib/elements/handover";
 import { REVISION_STATUS_LABEL, PROJECT_STATUS_LABEL, type BudgetLine, type ProjectRow, type RevisionRow, type WorkPackageRow } from "./types";
 
 // The handover workbook (slice 5a): the stand-in for "send the project and budget to ePROMIS" until the connection exists (5b). It is
@@ -22,6 +23,8 @@ export type HandoverInput = {
   costCodeNames: ReadonlyMap<string, string>;
   /** The project's WBS items (with their lines and the parts of split lines). Absent or empty: no WBS column content and no WBS sheet. */
   packages?: readonly WorkPackageRow[];
+  /** The workspace has the Buildings add-on (0253): the Budget sheet gains the building and element columns and a Buildings sheet is added. Absent = exactly as before. */
+  elements?: { tolerancePct: number };
 };
 
 const MATERIAL = "11";
@@ -54,6 +57,12 @@ export async function buildHandoverWorkbook(input: HandoverInput): Promise<Buffe
     { header: "Item no.", width: 14 }, { header: "Description", width: 48 }, { header: "Qty", width: 12 }, { header: "Unit", width: 10 },
     { header: "Unit cost", width: 14 }, { header: "Amount", width: 16 }, { header: "Allocated", width: 12 }, { header: "WBS item", width: 30 }, { header: "Reserve", width: 10 }, { header: "Source", width: 40 },
   ];
+  // The element columns go at the END of the sheet, so every column a reader or a script already knows keeps its place.
+  const extra = input.elements ? handoverElements(lines, input.packages ?? [], input.elements.tolerancePct) : null;
+  if (extra) {
+    const first = sb.columns.length;
+    HANDOVER_ELEMENT_HEADERS.forEach((h, i) => { sb.getColumn(first + i + 1).header = h; sb.getColumn(first + i + 1).width = i === 1 ? 24 : 14; });
+  }
   sb.getRow(1).font = bold;
   sb.views = [{ state: "frozen", ySplit: 1 }];
 
@@ -66,6 +75,7 @@ export async function buildHandoverWorkbook(input: HandoverInput): Promise<Buffe
       l.line_no, l.resource_code ?? "", l.resource_code ? input.resourceNames.get(l.resource_code) ?? "" : "", l.cost_code ?? "",
       l.cost_code ? input.costCodeNames.get(l.cost_code) ?? "" : "", l.wbs ?? "", l.description, l.qty, l.unit ?? "", l.unit_cost, l.amount,
       l.allocated ? "Yes" : "No", wbsOf.get(l.line_key) ?? "", l.reserve ? "Yes" : "", l.source_ref ?? "",
+      ...(extra ? extra.byKey.get(l.line_key) ?? [] : []),
     ]);
   }
   const total = sb.addRow(["", "", "", "", "", "", "Total", "", "", "", totals.total]);
@@ -73,6 +83,15 @@ export async function buildHandoverWorkbook(input: HandoverInput): Promise<Buffe
   for (const col of [8, 10, 11]) sb.getColumn(col).numFmt = "#,##0.00";
 
   if (view) addWbsSheet(wb, view.wbsRows, view.lineRows, lines, packages);
+
+  if (extra) {
+    const sbd = wb.addWorksheet("Buildings");
+    sbd.columns = HANDOVER_BUILDINGS_HEADERS.map((h, i) => ({ header: h, width: i === 1 ? 32 : 16 }));
+    sbd.getRow(1).font = bold;
+    sbd.views = [{ state: "frozen", ySplit: 1 }];
+    for (const r of extra.buildings) sbd.addRow(r);
+    for (const col of [5, 6, 7]) sbd.getColumn(col).numFmt = "#,##0.00";
+  }
 
   const sm = wb.addWorksheet("Materials (BOM)");
   sm.columns = [{ header: "#", width: 6 }, { header: "Cost code", width: 14 }, { header: "Description", width: 52 }, { header: "Qty", width: 12 }, { header: "Unit", width: 10 }, { header: "Item no.", width: 14 }];

@@ -16,6 +16,7 @@ import {
   refreshRevisionTotal, replaceLines, UUID_RE, type Failure, type ProjectCtx,
 } from "./server";
 import { checkOwner, loadPackages } from "./workPackagesServer";
+import { elementSplitProblem } from "@/lib/elements/buildings";
 import { isTenderProject, type AllocationBasis, type BudgetLine, type ProjectRow, type RevisionRow, type WorkPackageRow } from "./types";
 
 import { readAllPages } from "@/lib/pagedRead";
@@ -501,6 +502,7 @@ export async function updatePackage(ctx: AllocationCtx, work: WbsWork, current: 
     if (parentId !== null && !have.packages.some((p) => p.id === parentId)) return { ok: false, status: 404, error: "WBS item not found" };
     const problem = moveProblem(items, current.id, parentId, holdersIn(have.packages));
     if (problem) return { ok: false, status: 422, error: problem };
+    if (current.building_code && parentId !== null) return { ok: false, status: 422, error: "A building is a top-level item. Clear its building code first" };
     patch.parent_id = parentId;
     patch.sort_order = nextSort(have.packages, parentId, current.id);
     tree = tree.map((p) => (p.id === current.id ? { ...p, parent_id: parentId, sort_order: patch.sort_order as number } : p));
@@ -581,6 +583,8 @@ export async function deletePackage(ctx: AllocationCtx, work: WbsWork, current: 
   const have = await loadPackages(admin, tenantId, ctx.project.id);
   if (have.pending) return { ok: false, ...needsAllocationUpdate() };
   const parts = (current.line_parts ?? []).length;
+  // A building (0253) is only removed when it holds no lines: the screen's Remove moves nothing on its behalf.
+  if (current.building_code && current.line_keys.length + parts > 0) return { ok: false, status: 409, error: `${current.building_code} still holds ${current.line_keys.length + parts} line${current.line_keys.length + parts === 1 ? "" : "s"}. Move them out first` };
   if (!work.draft && (current.allocated_cost !== null || current.line_keys.length > 0 || parts > 0)) {
     return { ok: false, status: 409, error: `${current.code} holds ${current.allocated_cost !== null ? "an allocation" : "lines"}. Start a revision to remove it`, extra: { locked: true } };
   }
@@ -655,6 +659,11 @@ export async function setLineSplit(ctx: AllocationCtx, work: WbsWork, lineKey: s
   const lines = await loadLines(admin, tenantId, work.revision.id);
   const line = lines.find((l) => l.line_key === lineKey);
   if (!line) return { ok: false, status: 404, error: "Line not found" };
+  // An element belongs to one building (0253): a line that carries an element code may be split across the activities of one building, never across two.
+  if (verdict.kind === "parts" && line.element_code) {
+    const problem = elementSplitProblem(have.packages.map((p) => ({ ...asTreeItem(p), building_code: p.building_code ?? null })), { wbs_item_id: null, parts: verdict.parts }, true);
+    if (problem) return { ok: false, status: 422, error: problem };
+  }
   const old = lineMemberships(have.packages).get(lineKey);
 
   const clearWhole = await admin.from("project_work_package_lines").delete().eq("tenant_id", tenantId).eq("project_id", ctx.project.id).eq("line_key", lineKey);

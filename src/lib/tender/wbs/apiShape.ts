@@ -120,6 +120,8 @@ export type ApiWbsItem = {
   name: string;
   parent_id: string | null;
   parent_code: string | null;
+  /** 0253: the building code of a level-1 item that is a building; null for every other item. */
+  building_code: string | null;
   level: number;
   owner_name: string | null;
   note: string | null;
@@ -133,7 +135,7 @@ export type ApiWbsItem = {
 /** What the WBS endpoint may name. A test holds this list against the loader's output and against any cost word. */
 export const TENDER_WBS_FIELDS: QueryableField[] = [
   { path: "id", type: "string" }, { path: "tender_id", type: "string" }, { path: "code", type: "string", searchable: true }, { path: "name", type: "string", searchable: true },
-  { path: "parent_id", type: "string" }, { path: "parent_code", type: "string" }, { path: "level", type: "number" }, { path: "owner_name", type: "string" },
+  { path: "parent_id", type: "string" }, { path: "parent_code", type: "string" }, { path: "building_code", type: "string", searchable: true }, { path: "level", type: "number" }, { path: "owner_name", type: "string" },
   { path: "note", type: "string" }, { path: "line_count", type: "number" }, { path: "shared_count", type: "number" }, { path: "priced_count", type: "number" },
   { path: "client_amount", type: "number" }, { path: "parts", type: "string" },
 ];
@@ -184,7 +186,7 @@ export function buildWbsApi(opportunityId: string, items: readonly WbsItemRow[],
     ownerIds.set(i.id, i.owner_employee_id);
     return {
       id: i.id, tender_id: opportunityId, code: i.code, name: i.name, parent_id: i.parent_id, parent_code: i.parent_id ? codeById.get(i.parent_id) ?? null : null,
-      level: i.depth, owner_name: i.owner_employee_id ? names.get(i.owner_employee_id) ?? null : null, note: i.note,
+      building_code: i.building_code ?? null, level: i.depth, owner_name: i.owner_employee_id ? names.get(i.owner_employee_id) ?? null : null, note: i.note,
       line_count: f?.part_count ?? 0, shared_count: f?.shared_count ?? 0, priced_count: f?.priced_count ?? 0, client_amount: round2(f?.client_amount ?? 0),
       parts: ownParts.get(i.id) ?? [],
     };

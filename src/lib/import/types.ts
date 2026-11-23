@@ -5,7 +5,8 @@ export type ImportObjectId =
   | "product_bom_lines" | "consents" | "abm_programs" | "abm_targets" | "abm_members"
   | "standard_quotes" | "standard_quote_lines"
   | "sales_orders" | "sales_order_lines"
-  | "tender_boq_lines" | "tender_wbs_items";
+  | "tender_boq_lines" | "tender_wbs_items"
+  | "project_budget_lines" | "project_wbs_items";
 
 /**
  * Which objects have an Export or an Update is decided by the route folders under src/app/api/{export,update} and

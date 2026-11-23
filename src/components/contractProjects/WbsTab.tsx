@@ -26,6 +26,8 @@ import { isPending, loadBuyout } from "./buyout/api";
 import NewPackagePanel, { type NewPackageInitial } from "./buyout/NewPackagePanel";
 import type { BuyoutData } from "./buyout/types";
 import WbsItemPanel from "./WbsItemPanel";
+import BuildingsPanel from "@/components/elements/BuildingsPanel";
+import ModelComparison from "@/components/elements/ModelComparison";
 
 // The WBS tab of a contract project (docs/design/wbs.md section 3c): the tree the project took over from the tender, with who owns each item,
 // what it holds and what is allocated, the lines in no item, and the split of a line across items. The project owns its own copy: a change here
@@ -187,6 +189,10 @@ export default function WbsTab({ projectId, basis, revisionStatus, projectClosed
             )}
           </div>
           {withoutOwner > 0 && packages.length > 0 && <div role="status" data-guide="cp.wbs.no_owners" style={{ fontSize: 13, color: "var(--amberink)" }}>{withoutOwner} WBS item{withoutOwner === 1 ? "" : "s"} without an owner</div>}
+
+          {/* Buildings and element codes: renders nothing in a workspace without the add-on (contract_buildings). */}
+          {!treePending && <BuildingsPanel root={`/api/contract-projects/${projectId}`} canEdit={editable} onChanged={() => router.refresh()} />}
+          {!treePending && <ModelComparison projectId={projectId} canEdit={editable} onChanged={() => router.refresh()} />}
 
           {packages.length === 0 ? (
             <Card>

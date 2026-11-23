@@ -241,6 +241,10 @@
       "comment": "Contract projects, slice 5a of the same design (docs/design/gcc-tender-deals.md section 15): the project a won tender becomes, with its cost budget by resource type and cost code, numbered revisions with a reason, a mana"
     },
     {
+      "key": "contract_buildings",
+      "comment": "Buildings and element codes of contract projects (migration 0253, docs/design/pcbs-buildings-elements.md): a building is a level-1 WBS item with a code, an element is a contract line with a type, a unique code and a seco"
+    },
+    {
       "key": "crew",
       "comment": "AI automation (docs/design/nova-crew-agents.md, section 3.1): the workcenter of pre-built agents."
     },
@@ -284,7 +288,7 @@
     }
   ],
   "mcp": {
-    "version": "1.21.0",
+    "version": "1.22.0",
     "tools": [
       {
         "name": "list_accounts",
@@ -436,7 +440,15 @@
       },
       {
         "name": "get_tender_wbs",
-        "description": "The WBS (work breakdown structure) of one tender, one row per item in tree order and paged: code, name, parent, level (up to three), the owner's name, the number of BOQ lines, shared (split) lines and priced lines and th"
+        "description": "The WBS (work breakdown structure) of one tender, one row per item in tree order and paged: code, name, parent, level (up to three), the owner's name, building_code (set on a top-level item that is a building), the numbe"
+      },
+      {
+        "name": "list_contract_projects",
+        "description": "List the tenant's contract projects, header only and paged: reference, name, status, source (tender, standard_quote, quotation, estimate, manual), customer, contract value, currency, planned end, and a link to the projec"
+      },
+      {
+        "name": "get_project_elements",
+        "description": "The elements of one contract project, one row per budget line of its current revision (the open draft, else the approved one) that is an element or sits in a building, paged: building_code, element_type, element_code (un"
       }
     ]
   },
@@ -545,6 +557,21 @@
       "plain": "The people at your customers, each linked to an account.",
       "rules": [
         "A contact belongs to an account and can be chosen on a quote or a case."
+      ]
+    },
+    "contract_buildings": {
+      "status": "experimental",
+      "plain": "Buildings and element codes. Buildings as top-level WBS items, an element type and a unique element code on each contract line, the client's quantity beside the model's, and a model comparison that never overwrites an approved budget. An add-on of Contract projects.",
+      "rules": [
+        "A building is a top-level WBS item with a code of 1 to 6 letters or digits, unique on the tender or project; its activities sit under it and its lines roll up into it. A line's building is the building of the WBS item it sits in, never stored a second time.",
+        "An element is a contract line with an element type from the workspace's Element types list (Settings, Contract projects) and a unique element code. The code is issued from a pattern (default building, type and a four-digit running number), by one button that previews first, skips lines that already have a code and never reuses a number; a code the client typed is kept as typed and only flagged when it falls outside the pattern.",
+        "A project freezes the pattern with its first issued code, so changing the workspace pattern changes only new projects. Renaming a building changes nothing issued; changing a building code under issued codes is refused unless the codes are reissued, which is allowed only before the baseline is approved and before anything reaches the ERP.",
+        "A line that carries an element code cannot be split across buildings, and a cost-only category line never carries a code of its own.",
+        "The client quantity is the contracted number, copied from the tender when the project is made and then frozen; the model quantity sits beside it. The budget uses the model quantity only once a person accepts it into the line, and the contract side (client rate and amount) never moves with it.",
+        "A model comparison arrives as an Excel or CSV file, or from a connector, and is matched against the budget: Same, Quantity changed, New element, New building, and what the budget has that the model does not mention (flagged, never deleted or zeroed). Nothing changes until rows are ticked and applied, and then only a draft revision is written: revision 0 before the baseline is approved, otherwise a new draft revision with a reason from the list.",
+        "Element codes can be issued on a tender and travel to the project with the lines; a quote's lines may carry an element type and a free building label that become buildings when the project is made.",
+        "The handover Excel gains the building and element columns and a Buildings sheet; Data Workbench has Project WBS items and Project budget lines; the v1 API has the contract projects list and each project's elements, with no cost or margin.",
+        "The flag is set by a platform admin and needs Contract projects; a workspace without it sees no Buildings section, no Model comparison, no Element types list and no new column anywhere."
       ]
     },
     "contract_projects": {
