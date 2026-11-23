@@ -9,7 +9,7 @@ import { buildMilestonesData, createMilestone } from "@/lib/contractProjects/mil
 // POST /api/contract-projects/[id]/milestones  { title, due_date?, basis: "percent" | "fixed", percent? | fixed_amount?, note? }
 //        A new PLANNED milestone at the end of the schedule. Percent milestones totalling over 100 percent are a warning on the answer
 //        (totals.warning), never a refusal. The status, the invoice and the author are the server's. 201 { id }.
-// Behind the platform-admin flag `contract_projects` (and gcc_tender); a workspace without them gets a 404 and no table is read.
+// Behind the platform-admin flag `contract_projects`; a workspace without it gets a 404 and no table is read.
 
 type Ctx = { params: Promise<{ id: string }> };
 

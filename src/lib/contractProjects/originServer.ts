@@ -2,7 +2,7 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { loadWinningBid } from "@/lib/tender/bids/costServer";
 import { bidVsBudget, snapshotCostTotal, type BidVsBudget } from "@/lib/tender/bids/costSnapshot";
-import type { ProjectRow } from "./types";
+import { isTenderProject, type ProjectRow } from "./types";
 
 import { readAllPages } from "@/lib/pagedRead";
 // Where a contract project came from, read-only: the deal, the bid version that won, the BOQ file and the estimates that priced it, and
@@ -23,11 +23,36 @@ export type BidAgainstBudget =
 
 export type AfterAwardView = { origin: ProjectOrigin | null; bidAgainstBudget: BidAgainstBudget | null };
 
+/** Where a quote project came from: the quote, the estimate it was made from (when it was), and the deal. Tenant-scoped, from the project's own ids. */
+export type QuoteOrigin = {
+  type: "standard_quote" | "quotation";
+  id: string;
+  ref: string | null;
+  total: number | null;
+  estimate: { id: string; ref: string | null; name: string } | null;
+  deal: { id: string; ref: string | null; title: string } | null;
+};
+
+export async function loadQuoteOrigin(admin: SupabaseClient, tenantId: string, project: ProjectRow, deal: QuoteOrigin["deal"]): Promise<QuoteOrigin | null> {
+  const type = project.source_type;
+  if ((type !== "standard_quote" && type !== "quotation") || !project.source_id) return null;
+  const table = type === "standard_quote" ? "standard_quotes" : "quotes";
+  const { data } = await admin.from(table).select("id, ref, total").eq("id", project.source_id).eq("tenant_id", tenantId).maybeSingle();
+  const quote = data as { id: string; ref: string | null; total: number | string | null } | null;
+  if (!quote) return null;
+  let estimate: QuoteOrigin["estimate"] = null;
+  if (type === "standard_quote") {
+    const e = await admin.from("estimates").select("id, ref, name").eq("tenant_id", tenantId).eq("standard_quote_id", quote.id).order("created_at", { ascending: false }).limit(1);
+    estimate = e.error ? null : ((e.data ?? []) as { id: string; ref: string | null; name: string }[])[0] ?? null;
+  }
+  return { type, id: quote.id, ref: quote.ref, total: quote.total == null ? null : Number(quote.total), estimate, deal };
+}
+
 export async function loadAfterAwardView(
   admin: SupabaseClient, tenantId: string, project: ProjectRow, args: { budgetTotal: number; source: { id: string; ref: string | null; title: string } | null },
 ): Promise<AfterAwardView> {
   const oppId = project.source_opportunity_id;
-  if (!oppId || !args.source) return { origin: null, bidAgainstBudget: null };
+  if (!oppId || !args.source || !isTenderProject(project)) return { origin: null, bidAgainstBudget: null };
 
   const [winning, boqRes, linkRes] = await Promise.all([
     loadWinningBid(admin, tenantId, oppId),

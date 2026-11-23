@@ -128,7 +128,8 @@ describe("Overview", () => {
     expect(out).not.toContain("Came from");
     expect(out).not.toContain("/pipeline/o1");
     const page = readFileSync(path.join(ROOT, "src/app/(app)/contract-projects/[id]/page.tsx"), "utf8");
-    expect(page).toContain("backHref={view.source ? ROUTES.pipelineDetail(view.source.id) : ROUTES.contractProjects}");
+    expect(page).toContain("sourceType === \"tender\" && view.source ? { href: ROUTES.pipelineDetail(view.source.id)");
+    expect(page).toContain("backHref={back.href}");
     expect(page).toContain("`Tender ${view.source.ref ?? view.source.title}`");
     expect(page).toContain("from bid v${origin.bid.version_no}");
   });
@@ -681,5 +682,49 @@ describe("the record page", () => {
     expect(page).toContain('id: "variations", label: "Client changes"');
     expect(page).toContain('id: "invoicing", label: "Client billing"');
     expect(page).toContain('<RecordActivity objectType="contract_projects"');
+  });
+});
+
+describe("a project made from a quote", () => {
+  const quoteProject = (): ProjectView["project"] => ({ ...view().project, source_type: "standard_quote", source_id: "q1" });
+  const quoteOrigin = { type: "standard_quote" as const, id: "q1", ref: "SQ-0041", total: 1205, estimate: { id: "e1", ref: "EST-1", name: "Beams" }, deal: { id: "o1", ref: "OPP-1", title: "Acme walls" } };
+  const quoteLines = lines.map((l, i) => ({ ...l, source_line_id: `s${i}`, allocated: false, amount: 0, unit_cost: 0 }));
+  const zero = budgetTotals(quoteLines);
+  const v = () => view({ project: quoteProject(), quoteOrigin, lines: quoteLines, totals: zero, margin: marginView(30000, zero, null), source: { id: "o1", ref: "OPP-1", title: "Acme walls" } });
+
+  it("says where the contract value came from, in the key figures", () => {
+    const out = strip(renderToString(createElement(ProjectKpiStrip, { view: v() })));
+    expect(out).toContain("from standard quote SQ-0041");
+    expect(out).not.toContain("from the awarded tender");
+  });
+
+  it("the Overview has a Made from card with the quote, the estimate and the deal as links when the caller may open them", () => {
+    const out = strip(renderToString(createElement(ProjectOverview, { view: v(), originLinks: { quote: true, estimate: true, deal: true } })));
+    expect(out).toContain("Made from");
+    expect(out).toContain('href="/standard-quotes/q1"');
+    expect(out).toContain('href="/estimates/e1"');
+    expect(out).toContain('href="/pipeline/o1"');
+    expect(out).toContain("EST-1");
+  });
+
+  it("without the right to open them the references are plain text, not links", () => {
+    const out = strip(renderToString(createElement(ProjectOverview, { view: v(), originLinks: { quote: false, estimate: false, deal: false } })));
+    expect(out).toContain("SQ-0041");
+    expect(out).not.toContain('href="/standard-quotes/q1"');
+    expect(out).not.toContain('href="/pipeline/o1"');
+  });
+
+  it("a budget of 0 does not offer Fill from tender costs: the project has no tender", () => {
+    const out = strip(renderToString(createElement(ProjectOverview, { view: v() })));
+    expect(out).not.toContain("Fill from tender costs");
+    expect(out).toContain("not allocated");
+  });
+
+  it("the page carries the quote's back link and no tender-only gate", () => {
+    const page = readFileSync(path.join(ROOT, "src/app/(app)/contract-projects/[id]/page.tsx"), "utf8");
+    expect(page).not.toContain("gcc_tender");
+    expect(page).toContain("ROUTES.standardQuote(qo.id)");
+    expect(page).toContain("fromTender={isTenderProject(p)}");
+    expect(page).toContain("valueNote={projectSourceNote(sourceType, qo?.ref)}");
   });
 });

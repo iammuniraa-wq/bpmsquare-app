@@ -7,7 +7,7 @@ import { loadPackages, type PackagesData } from "./workPackagesServer";
 import { projectPath, type ProjectPath } from "./path";
 import { buildProjectApprovalView, type ProjectApprovalView } from "./approvalServer";
 import { currentRevision, ensureMasterSeeds, loadLines, loadMasters, loadRevisions, type ProjectCtx } from "./server";
-import { loadAfterAwardView, type BidAgainstBudget, type ProjectOrigin } from "./originServer";
+import { loadAfterAwardView, loadQuoteOrigin, type BidAgainstBudget, type ProjectOrigin, type QuoteOrigin } from "./originServer";
 import type { BudgetLine, ProjectRow, RevisionRow, WorkPackageRow } from "./types";
 
 // Everything the project screen (and GET /api/contract-projects/[id]) is given, assembled once: the header with the names behind its
@@ -48,6 +48,8 @@ export type ProjectView = {
   /** Where the project came from (the deal, the winning bid version, the BOQ file, the estimates) and how its budget stands against that bid's cost. */
   origin?: ProjectOrigin | null;
   bidAgainstBudget?: BidAgainstBudget | null;
+  /** A project made from a quote: the quote, the estimate it came from and the deal. Null for a tender project and one made by hand. */
+  quoteOrigin?: QuoteOrigin | null;
 };
 
 export async function buildProjectView(req: ProjectCtx, project: ProjectRow, opts: { revisionId?: string | null; withPackages?: boolean } = {}): Promise<ProjectView> {
@@ -85,10 +87,12 @@ export async function buildProjectView(req: ProjectCtx, project: ProjectRow, opt
     }),
   ]);
 
+  const dealRow = (sourceRow.data as { id: string; ref: string | null; title: string } | null) ?? null;
   const after = await loadAfterAwardView(admin, tenantId, project, {
     budgetTotal: revs.find((r) => r.status === "approved")?.total ?? totals.total,
-    source: (sourceRow.data as { id: string; ref: string | null; title: string } | null) ?? null,
+    source: dealRow,
   });
+  const quoteOrigin = await loadQuoteOrigin(admin, tenantId, project, dealRow);
 
   // "Handed over" also means a buy-out package was handed over; a missing buy-out table reads as none.
   const handed = await admin.from("project_buyout_packages").select("id").eq("tenant_id", tenantId).eq("project_id", project.id).eq("status", "handed_over").limit(1);
@@ -107,6 +111,6 @@ export async function buildProjectView(req: ProjectCtx, project: ProjectRow, opt
     justifications: justificationRows.map((r) => ({ code: r.code, name: r.name })),
     approval, canEdit: req.canEdit, needsApprovalUpdate: approval === null,
     marginFloor, path: projectPath(project, anyHandedOver),
-    origin: after.origin, bidAgainstBudget: after.bidAgainstBudget,
+    origin: after.origin, bidAgainstBudget: after.bidAgainstBudget, quoteOrigin,
   };
 }

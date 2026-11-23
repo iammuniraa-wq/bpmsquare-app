@@ -4,7 +4,7 @@ import type { ProjectView } from "@/lib/contractProjects/view";
 import { marginCoverage } from "@/lib/contractProjects/budget";
 import { marginTone, marginWords, money } from "@/lib/contractProjects/format";
 import { PROJECT_TIPS } from "@/lib/contractProjects/tips";
-import { REVISION_STATUS_LABEL } from "@/lib/contractProjects/types";
+import { REVISION_STATUS_LABEL, projectSourceNote, sourceTypeOf } from "@/lib/contractProjects/types";
 import BudgetOrdered from "./BudgetOrdered";
 import type { BuyoutData } from "./buyout/types";
 
@@ -27,7 +27,7 @@ export default function ProjectKpiStrip({ view, buyoutOn = false, initialBuyout 
     <div style={{ marginBottom: 14 }}>
       <SettingsSection id="cp.key_figures" title="Key figures" defaultOpen defaultOpenNarrow={false} summary={`${money(p.contract_value, cur)} · margin ${words.partial ? "not complete" : words.value === "Not allocated yet" ? "not allocated yet" : words.value}`}>
         <StatStrip guide="cp.kpis">
-          <StatTile tone="info" label="Contract value" info={PROJECT_TIPS.contractValue} value={money(p.contract_value, cur)} sub={p.source_opportunity_id ? "from the awarded tender" : "entered by hand"} />
+          <StatTile tone="info" label="Contract value" info={PROJECT_TIPS.contractValue} value={money(p.contract_value, cur)} sub={projectSourceNote(sourceTypeOf(p), view.quoteOrigin?.ref)} />
           <StatTile
             tone="info" label="Budget" info={PROJECT_TIPS.allocated} value={money(totals.total, cur)}
             sub={<>

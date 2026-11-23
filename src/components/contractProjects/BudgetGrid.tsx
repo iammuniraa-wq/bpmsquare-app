@@ -37,7 +37,7 @@ const num = (v: string | undefined): number | null => (v === undefined || v.trim
  */
 export default function BudgetGrid({
   projectId, revision, revisions, lines, resources, canEdit, projectClosed, currency, buyoutOn = false, initialBuyout,
-  contractValue = 0, marginFloor = null, basis = "line", allocation, packages = [], packagesPending = false, employees = [], fillAvailable = false, approval,
+  contractValue = 0, valueNote = "from the awarded tender", marginFloor = null, basis = "line", allocation, packages = [], packagesPending = false, employees = [], fillAvailable = false, estimateFillAvailable = false, approval,
 }: {
   projectId: string;
   revision: Pick<RevisionRow, "id" | "rev_no" | "status">;
@@ -52,6 +52,8 @@ export default function BudgetGrid({
   /** Lets a server render (and its test) show the column. The page never passes it. */
   initialBuyout?: BuyoutData | null;
   contractValue?: number;
+  /** The note under the contract value: where it came from ("from the awarded tender", "from standard quote SQ-0041"). */
+  valueNote?: string;
   marginFloor?: number | null;
   basis?: AllocationBasis;
   allocation: AllocationView;
@@ -59,6 +61,8 @@ export default function BudgetGrid({
   packagesPending?: boolean;
   employees?: EmployeeChoice[];
   fillAvailable?: boolean;
+  /** The project was made from a quote that came from an estimate: its costs can be copied onto the draft budget by cost category. */
+  estimateFillAvailable?: boolean;
   /** The approval state of this revision: "Ask for approval" then sits beside the revision selector. Absent = not offered here. */
   approval?: ProjectApprovalView | null;
 }) {
@@ -159,6 +163,21 @@ export default function BudgetGrid({
     });
   }
 
+  async function fillEstimate() {
+    if (dirty) { setError("Save the allocation first, then fill from the estimate."); return; }
+    setError(""); setNotice("");
+    startTransition(async () => {
+      const res = await fetch(`/api/contract-projects/${projectId}/allocation/fill-estimate`, { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) { setError(j.error ?? "Could not fill from the estimate"); return; }
+      const skipped = (j.skipped ?? []) as { item: string; reason: string }[];
+      const list = skipped.slice(0, LEFT_SHOWN).map((s) => `${s.item} ${s.reason}`).join("; ");
+      setNotice(`${j.filled} filled${skipped.length > 0 ? `, ${skipped.length} line${skipped.length === 1 ? "" : "s"} not matched: ${list}${skipped.length > LEFT_SHOWN ? `; +${skipped.length - LEFT_SHOWN}` : ""}` : ""}`);
+      router.refresh();
+    });
+  }
+
+  const resourceNames = Object.fromEntries(resources.map((r) => [r.code, r.name]));
   const rowsCount = basis === "package" ? allocation.wbsRows.length : allocation.lineRows.length;
   const lockedWords = revision.status === "draft" ? "You can view this budget but not change it" : revision.status === "pending" ? "Locked while it waits for approval" : "Locked";
 
@@ -210,6 +229,12 @@ export default function BudgetGrid({
           </span>
         )}
         {projectClosed && <span role="status" style={{ fontSize: 13, color: c.muted }}>This project is closed.</span>}
+        {estimateFillAvailable && editable && (
+          <span style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 4 }}>
+            <Button variant="secondary" loading={pending} data-guide="cp.alloc.fill_estimate" style={{ minHeight: 44 }} onClick={() => { void fillEstimate(); }}>Fill from estimate costs</Button>
+            <InfoTip label="Fill from estimate costs">{PROJECT_TIPS.fillEstimate}</InfoTip>
+          </span>
+        )}
         {fillAvailable && editable && (
           <span style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 4 }}>
             <Button variant="secondary" loading={pending} data-guide="cp.alloc.fill" style={{ minHeight: 44 }} onClick={() => { void fill(); }}>Fill from tender costs</Button>
@@ -219,7 +244,7 @@ export default function BudgetGrid({
       </div>
 
       <StatStrip guide="cp.alloc.tiles">
-        <StatTile tone="info" label="Contract value" info={PROJECT_TIPS.contractValue} value={money(contractValue, currency)} sub="from the awarded tender" />
+        <StatTile tone="info" label="Contract value" info={PROJECT_TIPS.contractValue} value={money(contractValue, currency)} sub={valueNote} />
         <StatTile tone="neutral" label="Allocated" info={PROJECT_TIPS.allocated} value={money(live.total, currency)} sub={`${live.count} of ${live.of} ${noun}`} />
         <StatTile
           tone={words.partial ? "neutral" : marginTone(live.margin.state)} label="Margin so far" info={words.partial ? PROJECT_TIPS.marginPartial : PROJECT_TIPS.plannedMargin}
@@ -237,7 +262,7 @@ export default function BudgetGrid({
         <div style={{ background: "var(--card-bg)", border: "1px solid var(--line)", borderRadius: "var(--card-radius)", overflow: "hidden" }}>
           {basis === "package"
             ? <WbsTable rows={allocation.wbsRows} typed={typed} onType={type} editable={editable} currency={currency} onOpen={(id) => setPkgOpen(packages.find((p) => p.id === id) ?? null)} />
-            : <LinesTable rows={allocation.lineRows} typed={typed} onType={type} editable={editable} currency={currency} erp={erp} onOpen={(k) => setDetail(k)} />}
+            : <LinesTable rows={allocation.lineRows} typed={typed} onType={type} editable={editable} currency={currency} erp={erp} onOpen={(k) => setDetail(k)} resourceNames={resourceNames} />}
         </div>
       )}
 
@@ -246,7 +271,7 @@ export default function BudgetGrid({
         <SettingsSection id="cp.alloc.lines" title="Lines" summary={`${allocation.lineRows.length} line${allocation.lineRows.length === 1 ? "" : "s"} · costs follow the WBS`}>
           <LinesTable
             rows={allocation.lineRows} typed={Object.fromEntries(allocation.lineRows.map((l) => [l.line_key, l.allocated ? String(l.amount) : ""]))} onType={() => undefined}
-            editable={false} currency={currency} erp={erp} onOpen={(k) => setDetail(k)}
+            editable={false} currency={currency} erp={erp} onOpen={(k) => setDetail(k)} resourceNames={resourceNames}
           />
         </SettingsSection>
       )}

@@ -5,6 +5,7 @@ import { OFFER_TYPE_LABEL, DEFAULT_QUOTE_STATUSES, type QuoteStatusDef } from "@
 import PageHeader from "@/components/PageHeader";
 import ExternalRecordSlot from "@/components/ExternalRecordSlot";
 import QuoteSalesOrder from "@/components/salesOrders/QuoteSalesOrder";
+import QuoteProjectAction from "@/components/contractProjects/QuoteProjectAction";
 import TabTitle from "@/components/TabTitle";
 import QuoteDetailLayout from "@/components/QuoteDetailLayout";
 import { signQuotePublicToken, buildAbsoluteUrl } from "@/lib/quotePublicLink";
@@ -48,6 +49,7 @@ export default async function QuotationDetailPage({
       />
       <ExternalRecordSlot objectType="quotes" objectId={quote.id} />
       <QuoteSalesOrder sourceType="quotation" sourceId={quote.id} ready={quote.outcome === "won" && !quote.superseded_by} />
+      <QuoteProjectAction sourceType="quotation" sourceId={quote.id} ready={quote.outcome === "won" && !quote.superseded_by} strip />
       <QuoteDetailLayout
         quote={quote as Parameters<typeof QuoteDetailLayout>[0]["quote"]}
         account={account}

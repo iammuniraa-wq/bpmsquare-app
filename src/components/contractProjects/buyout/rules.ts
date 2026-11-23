@@ -1,6 +1,7 @@
 import type { PillarKey } from "@/lib/theme";
 import { MIN_REASON_CHARS } from "@/lib/rfq/comparison";
 import { money, signedMoney } from "@/lib/contractProjects/format";
+import { isTenderProject } from "@/lib/contractProjects/types";
 import type { BuyoutData, Handover, PackageRow, PackageStatus, Quote, Round } from "./types";
 
 // Small, pure display rules for the Buy-out screens: the words and tones of a status, the filter counts, what the tiles say under their
@@ -94,9 +95,9 @@ export function overBudget(committed: number | null | undefined, budget: number 
   return committed > budget ? Math.round((committed - budget) * 100) / 100 : 0;
 }
 
-/** Whether Buy-out belongs on a contract project: it came from a tender, and the tender and contract project modules are on. */
-export function buyoutVisible(project: { source_opportunity_id: string | null }, features: { gcc_tender?: boolean; contract_projects?: boolean } | null | undefined): boolean {
-  return !!project.source_opportunity_id && features?.gcc_tender === true && features?.contract_projects === true;
+/** Whether Buy-out belongs on a contract project: it came from a tender (a quote project keeps its deal only as a back link), and the tender and contract project modules are on. */
+export function buyoutVisible(project: { source_opportunity_id: string | null; source_type?: string | null }, features: { gcc_tender?: boolean; contract_projects?: boolean } | null | undefined): boolean {
+  return isTenderProject(project) && !!project.source_opportunity_id && features?.gcc_tender === true && features?.contract_projects === true;
 }
 
 /** A budget line's committed amount from the buy-out map, by its stable key first and its id second. */

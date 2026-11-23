@@ -162,6 +162,7 @@ const CONTRACT_PROJECT_FIELDS: QueryableField[] = [
   { path: "ref", type: "string", searchable: true },
   { path: "name", type: "string", searchable: true },
   { path: "status", type: "string" },
+  { path: "source_type", type: "string" },
   { path: "account_name", type: "string", searchable: true },
   { path: "contract_value", type: "number" },
   { path: "currency", type: "string" },
@@ -596,8 +597,8 @@ export const LIST_SOURCES: Record<string, ListSource> = {
     },
   },
   contract_projects: {
-    label: "Contract projects (GCC tender deals)",
-    description: "Contract projects made from won tenders: status, customer, contract value, the budget total and planned margin of the approved (else draft) budget, planned end.",
+    label: "Contract projects",
+    description: "Contract projects made from won tenders or accepted quotes: status, source type (tender, standard_quote, quotation, estimate, manual), customer, contract value, the budget total and planned margin of the approved (else draft) budget, planned end.",
     relatedWorkcenter: "contract_projects",
     fields: CONTRACT_PROJECT_FIELDS,
     // Header fields and totals ONLY. The budget lines (unit costs, cost codes, reserve), the revisions' reasons and the approvals are

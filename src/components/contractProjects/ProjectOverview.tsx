@@ -7,12 +7,12 @@ import SettingsSection from "@/components/settings/SettingsSection";
 import { ROUTES } from "@/lib/constants";
 import type { ProjectView } from "@/lib/contractProjects/view";
 import { marginCoverage, unclassifiedAmount } from "@/lib/contractProjects/budget";
-import { DEFAULT_RESOURCE_CODE } from "@/lib/contractProjects/types";
+import { DEFAULT_RESOURCE_CODE, isTenderProject } from "@/lib/contractProjects/types";
 import { day, money, pct } from "@/lib/contractProjects/format";
 import { PROJECT_TIPS } from "@/lib/contractProjects/tips";
 import ApprovalControls from "./ApprovalControls";
 import BuyoutProgressCard from "./buyout/BuyoutProgressCard";
-import { BidAgainstBudgetCard } from "./ProjectOriginCards";
+import { BidAgainstBudgetCard, QuoteOriginCard, type QuoteOriginLinks } from "./ProjectOriginCards";
 
 const SEGMENTS = [pillar.blue.base, pillar.purple.base, pillar.teal.base, pillar.amber.base, pillar.green.base, pillar.red.base];
 
@@ -29,13 +29,13 @@ export function approvalActionDue(view: ProjectView): boolean {
  * the budget goes against the contract value, the buy-out progress, how the budget stands against the winning bid, and the project
  * details folded away. The headline figures sit once under the title; the origin sits in the page header.
  */
-export default function ProjectOverview({ view, editor, buyoutOn = false }: { view: ProjectView; editor?: React.ReactNode; buyoutOn?: boolean }) {
+export default function ProjectOverview({ view, editor, buyoutOn = false, originLinks = { quote: false, estimate: false, deal: false } }: { view: ProjectView; editor?: React.ReactNode; buyoutOn?: boolean; originLinks?: QuoteOriginLinks }) {
   const { project: p, totals, revision } = view;
   const cur = p.currency;
   const tab = (t: string) => `${ROUTES.contractProject(p.id)}?tab=${t}`;
   const attention: { key: string; text: string; link: string; href: string }[] = [];
   // A project made from a tender whose budget is still 0: the tender's recorded costs are one press away, so that comes first.
-  const fromTender = !!p.source_opportunity_id && view.lines.some((l) => !!l.source_line_id);
+  const fromTender = isTenderProject(p) && !!p.source_opportunity_id && view.lines.some((l) => !!l.source_line_id);
   if (fromTender && totals.total <= 0 && revision?.status === "draft" && view.canEdit && p.status !== "closed") attention.push({ key: "fill", text: "The budget is 0", link: "Fill from tender costs", href: tab("budget") });
   if (totals.unallocatedCount > 0) attention.push({ key: "alloc", text: `${totals.unallocatedCount} line${totals.unallocatedCount === 1 ? "" : "s"} not allocated`, link: "Allocate", href: tab("budget") });
   if (totals.noResourceCount > 0) attention.push({ key: "res", text: `${totals.noResourceCount} line${totals.noResourceCount === 1 ? "" : "s"} without a resource type`, link: "Fix", href: tab("budget") });
@@ -45,7 +45,7 @@ export default function ProjectOverview({ view, editor, buyoutOn = false }: { vi
   const leafIds = new Set(packages.filter((x) => !packages.some((k) => k.parent_id === x.id)).map((x) => x.id));
   const noOwner = packages.filter((x) => leafIds.has(x.id) && !x.owner_employee_id).length;
   if (noOwner > 0) attention.push({ key: "wbs_owner", text: `${noOwner} WBS item${noOwner === 1 ? "" : "s"} without an owner`, link: "Assign", href: tab("wbs") });
-  if (view.packagesTreePending && p.source_opportunity_id) attention.push({ key: "wbs_pending", text: "The WBS needs a database update (migration 0243)", link: "Open", href: tab("wbs") });
+  if (view.packagesTreePending && isTenderProject(p) && p.source_opportunity_id) attention.push({ key: "wbs_pending", text: "The WBS needs a database update (migration 0243)", link: "Open", href: tab("wbs") });
   const approvalDue = approvalActionDue(view);
 
   const resourceName = new Map(view.resources.map((r) => [r.code, r.name]));
@@ -124,6 +124,7 @@ export default function ProjectOverview({ view, editor, buyoutOn = false }: { vi
 
       {buyoutOn && <BuyoutProgressCard projectId={p.id} currency={cur} />}
 
+      {view.quoteOrigin && <QuoteOriginCard origin={view.quoteOrigin} links={originLinks} currency={cur} />}
       {view.bidAgainstBudget && <BidAgainstBudgetCard bid={view.bidAgainstBudget} currency={cur} coverage={partialBudget ? cov : null} />}
 
       <SettingsSection id="cp.details" title="Project details" defaultOpen={false} summary={`${view.manager_name ?? "no manager"} · ${p.planned_start ? day(p.planned_start) : "no dates"}`}>

@@ -15,7 +15,7 @@ export default async function ContractProjectsSettingsPage() {
   }
   if (role !== "admin") redirect(ROUTES.settings);
   const { data } = await createAdminSupabase().from("tenants").select("features").eq("id", tenantId!).single();
-  if (!data?.features?.contract_projects || !data?.features?.gcc_tender) redirect(ROUTES.settings);
+  if (!data?.features?.contract_projects) redirect(ROUTES.settings);
   return (
     <>
       <SettingsPageHeader title="Contract projects" subtitle="The lists a project budget uses, the payment-term templates and the margin floor." icon={<IconChip tone="info"><Clipboard size={18} /></IconChip>} />

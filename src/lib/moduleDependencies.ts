@@ -118,8 +118,8 @@ export const FEATURE_DEPENDENCIES: FeatureDependency[] = [
     why: "A room belongs to one tender deal, so it exists only inside GCC tender deals.",
   },
   {
-    key: "contract_projects", needs: "gcc_tender", strength: "hard",
-    why: "A contract project is made from a won tender, and its approvals reuse the tender's approvers.",
+    key: "contract_projects", needs: "gcc_tender", strength: "partial",
+    why: "A project made from an accepted quote needs nothing else. Buy-out, the tender's costs and WBS, and the approvers chosen for tenders need the tender edition.",
   },
   {
     key: "crew_tender_watch", needs: "crew", strength: "hard",
