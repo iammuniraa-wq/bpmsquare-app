@@ -50,6 +50,8 @@ export type ProjectView = {
   bidAgainstBudget?: BidAgainstBudget | null;
   /** A project made from a quote: the quote, the estimate it came from and the deal. Null for a tender project and one made by hand. */
   quoteOrigin?: QuoteOrigin | null;
+  /** Set by the page for a person who may not see cost and margin (project_dashboards, finance_visibility "granted"): the key figures draw no margin. */
+  hideMargin?: boolean;
 };
 
 export async function buildProjectView(req: ProjectCtx, project: ProjectRow, opts: { revisionId?: string | null; withPackages?: boolean } = {}): Promise<ProjectView> {

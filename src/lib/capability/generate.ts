@@ -77,6 +77,7 @@ export const MODULE_LABEL: Record<Key, string> = {
   marketing_scoring: "Consent, lead scoring and hand-over", newsletter_studio: "Newsletter Studio", buying_signals: "Buying signals", marketing_forms: "Forms and preference centre", abm: "ABM programs", journeys: "Journeys", whatsapp_marketing: "WhatsApp marketing", marketing_attribution: "Revenue by source", marketing_events: "Marketing events", integration_middleware: "Integration middleware", webhooks_library: "Webhooks library", ai_assistant_actions: "Assistant actions", inbox: "Shared Inbox", sales_orders: "Sales Orders", einvoicing_ksa: "Saudi e-invoicing", gcc_tender: "GCC tender deals", deal_room: "Deal Room", contract_projects: "Contract projects",
   drawing_register: "Drawing register",
   site_receipts: "Site receipts", site_expenses: "Site expenses",
+  project_dashboards: "Project cost and profitability dashboards",
   crew: "AI automation", crew_tender_watch: "AI automation: Tender Watch", crew_attendance: "AI automation: Attendance Anomalies",
 };
 

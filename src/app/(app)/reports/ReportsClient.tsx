@@ -19,6 +19,7 @@ import { paginate, clampPage, DEFAULT_PAGE_SIZE } from "@/lib/paginate";
 import { useCurrency } from "@/lib/tenant-context";
 import { moneyFormatter } from "@/lib/currency";
 import { csvCell } from "@/lib/import/template";
+import ProjectProfitability from "@/components/projectFinance/ProjectProfitability";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -395,6 +396,14 @@ const METRIC_META: Record<AnalyticsMetricId, { label: string; feature?: keyof Te
   tender_trend:             { label: "Tenders: open pipeline trend",   feature: "gcc_tender", workcenter: "pipeline" },
   tender_deadlines:         { label: "Tenders: bid deadlines",         feature: "gcc_tender", workcenter: "pipeline" },
   tender_buyout:            { label: "Tenders: buy-out against budget", feature: "gcc_tender", workcenter: "pipeline" },
+  // Project cost and profitability (docs/design/pcbs-project-dashboards.md): the KPI tiles and blocks are dashboard-only; pf_portfolio is the
+  // "Project profitability" table of this page. The loader decides who may see cost and margin (workspace setting), so the workcenter is Contract projects.
+  pf_margin_at_risk:        { label: "Projects: margin at risk",       feature: "project_dashboards", workcenter: "contract_projects" },
+  pf_forecast_margin:       { label: "Projects: forecast margin",      feature: "project_dashboards", workcenter: "contract_projects" },
+  pf_cost_to_complete:      { label: "Projects: cost to complete",     feature: "project_dashboards", workcenter: "contract_projects" },
+  pf_billing_behind:        { label: "Projects: behind on billing",    feature: "project_dashboards", workcenter: "contract_projects" },
+  pf_portfolio:             { label: "Project profitability",          feature: "project_dashboards", workcenter: "contract_projects" },
+  pf_cash:                  { label: "Projects: billing plan and cash", feature: "project_dashboards", workcenter: "contract_projects" },
   // Core-module metrics also carry their 0067 feature flag: workcenter
   // visibility alone doesn't stop a tenant ADMIN (who sees every
   // workcenter) from getting CRM widgets in a module the tenant never
@@ -601,7 +610,7 @@ export default function ReportsClient({
           <div style={{ gridColumn: "1 / -1", fontSize: 12, fontWeight: 600, color: c.muted, textTransform: "uppercase", letterSpacing: ".04em", marginBottom: 4 }}>
             Show / hide metrics
           </div>
-          {(Object.entries(METRIC_META) as [AnalyticsMetricId, typeof METRIC_META[AnalyticsMetricId]][]).filter(([id]) => id !== "my_briefing" && !id.startsWith("tender_")).map(([id, meta]) => {
+          {(Object.entries(METRIC_META) as [AnalyticsMetricId, typeof METRIC_META[AnalyticsMetricId]][]).filter(([id]) => id !== "my_briefing" && !id.startsWith("tender_") && !(id.startsWith("pf_") && id !== "pf_portfolio")).map(([id, meta]) => {
             const featureOff = meta.feature && !features[meta.feature];
             const isHidden   = hidden.has(id);
             return (
@@ -910,6 +919,9 @@ export default function ReportsClient({
         </ChartCard>}
       </div>
       )}
+
+      {/* ── Row 3f: Project profitability (contract projects: planned margin, buy-out, bridge, lights). Null when this person may not see cost and margin. ── */}
+      {isVisible("pf_portfolio") && a.projectFinance?.status === "ok" && <ProjectProfitability data={a.projectFinance} />}
 
       {/* ── Row 3e: Project costing -- hours by project · budget burn · billing ── */}
       {(isVisible("wfm_project_hours") || isVisible("wfm_project_budget") || isVisible("wfm_project_billing")) && (

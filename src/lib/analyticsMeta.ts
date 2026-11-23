@@ -78,6 +78,13 @@ export const ANALYTICS_META: Record<AnalyticsMetricId, { label: string; feature?
   tender_trend:             { label: "Tenders: open pipeline trend", feature: "gcc_tender" },
   tender_deadlines:         { label: "Tenders: bid deadlines",       feature: "gcc_tender" },
   tender_buyout:            { label: "Tenders: buy-out against budget", feature: "gcc_tender" },
+  // Project cost-to-complete and profitability (docs/design/pcbs-project-dashboards.md): in no default layout; a workspace adds them in Adapt.
+  pf_margin_at_risk:        { label: "Projects: margin at risk",     feature: "project_dashboards" },
+  pf_forecast_margin:       { label: "Projects: forecast margin",    feature: "project_dashboards" },
+  pf_cost_to_complete:      { label: "Projects: cost to complete",   feature: "project_dashboards" },
+  pf_billing_behind:        { label: "Projects: behind on billing",  feature: "project_dashboards" },
+  pf_portfolio:             { label: "Projects: health and margin",  feature: "project_dashboards" },
+  pf_cash:                  { label: "Projects: billing plan and cash", feature: "project_dashboards" },
   // In no default layout: a platform admin adds it to the demo workspace first (rule 10).
   my_briefing:              { label: "My day (daily briefing)",       feature: "ai_assistant" },
 };
@@ -96,6 +103,8 @@ export const ANALYTICS_REQUIRES: Partial<Record<AnalyticsMetricId, (keyof Tenant
   tender_by_stage: TENDER_NEEDS, tender_closing_list: TENDER_NEEDS, tender_won_lost: TENDER_NEEDS, tender_by_client: TENDER_NEEDS,
   tender_attention: TENDER_NEEDS, tender_trend: TENDER_NEEDS, tender_deadlines: TENDER_NEEDS,
   tender_buyout_committed: [...TENDER_NEEDS, "contract_projects"], tender_buyout: [...TENDER_NEEDS, "contract_projects"],
+  pf_margin_at_risk: ["contract_projects"], pf_forecast_margin: ["contract_projects"], pf_cost_to_complete: ["contract_projects"],
+  pf_billing_behind: ["contract_projects"], pf_portfolio: ["contract_projects"], pf_cash: ["contract_projects"],
 };
 
 /** Whether the workspace owns every module this analytics block depends on: its own flag and the ones it also needs. */

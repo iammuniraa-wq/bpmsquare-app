@@ -94,6 +94,8 @@ function clearExtractSnapshot(objectId: string) {
 }
 
 /** An object the catalog knows that this workspace has not switched on: named only in reply to a link or a search. */
+// Deliberately not here: project cost and profitability (project_forecast_etg, project_erp_*). Cost and margin are internal; no import, export or
+// update mode exists for them (docs/design/pcbs-project-dashboards.md section 8).
 export type DwUnowned = { id: ImportObjectId; label: string };
 
 const PHONE_QUERY = "(max-width: 899px)";

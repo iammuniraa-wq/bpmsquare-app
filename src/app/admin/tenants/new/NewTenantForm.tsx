@@ -31,6 +31,7 @@ const FEATURE_LABELS: { key: keyof TenantFeatures; label: string; premium?: bool
   { key: "drawing_register",       label: "Drawing register" },
   { key: "site_receipts",          label: "Site receipts" },
   { key: "site_expenses",          label: "Site expenses" },
+  { key: "project_dashboards",     label: "Project cost and profitability dashboards (needs Contract projects)" },
   { key: "gmail_reply_threading",  label: "Gmail reply-threading" },
   { key: "quote_lines_dw",         label: "Quote Lines (Data Workbench)" },
   { key: "wfm",                    label: "Workforce (Attendance & Leave)" },
@@ -53,6 +54,7 @@ const DEFAULT_FEATURES: TenantFeatures = {
   // Web research starts on and takes effect only when the AI Assistant is ticked (withNewWorkspaceDefaults on submit).
   invoices: false, partners: false, ai_assistant: false, ai_assistant_web: true, db_export: false,
   purchasing: false, marketing: false, products: false,
+  project_dashboards: false,
   change_history: false, outbound_email: false, business_roles: false,
   standard_quotes: false, gmail_reply_threading: false, quote_lines_dw: false,
   wfm: false, wfm_projects: false, pricing_engine: false, pricing_engine_quotes: false, next_experience: false, enterprise_theme: false, spectacular_theme: false,

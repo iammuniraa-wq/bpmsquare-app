@@ -61,6 +61,8 @@ const INTERNAL_FIELDS: Record<string, ReadonlySet<string>> = {
 /** Fields of a type that are internal by their NAME: a BOQ row's typed unit cost is logged as "BOQ cost <item>", and "BOQ price all" carries the markup. */
 const INTERNAL_FIELD_PREFIXES: Record<string, readonly string[]> = {
   opportunity_tenders: ["BOQ cost ", "BOQ price all"],
+  // A project manager's typed estimate to go ("Forecast estimate to go (Material, 1.2)") is internal cost: never in the outbound feed.
+  contract_projects: ["Forecast "],
 };
 
 export function scopeForChangeType(objectType: string): string | null {

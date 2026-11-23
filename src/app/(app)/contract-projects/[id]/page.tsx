@@ -27,6 +27,10 @@ import BuyoutSection from "@/components/contractProjects/buyout/BuyoutSection";
 import { buyoutVisible } from "@/components/contractProjects/buyout/rules";
 import { wbsSummary } from "@/lib/contractProjects/wbsSummary";
 import { ProjectSiteExpenses, ProjectSiteReceipts } from "@/components/site/ProjectSiteTabs";
+import { canSeeProjectFinance } from "@/lib/projectFinance/access";
+import { getProjectFinance, resolveFinanceAccess } from "@/lib/projectFinance/server";
+import ForecastSection from "@/components/projectFinance/ForecastSection";
+import HealthCard from "@/components/projectFinance/HealthCard";
 
 /** The record page of a contract project: Overview (the visual summary), Budget, WBS, Buy-out (tender-made projects), Variations, Invoicing, Revisions, Handover, Activity. */
 export default async function ContractProjectPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ tab?: string; revision?: string }> }) {
@@ -58,6 +62,16 @@ export default async function ContractProjectPage({ params, searchParams }: { pa
   const deletable =p.status === "draft" && view.revisions.every((r) => r.status === "draft");
   // A project made from a tender goes back to that tender, and says which bid and which BOQ file it came from, in the header.
   const origin = view.origin;
+  // Cost and margin (feature project_dashboards): the access is decided here, where the data is made. A caller who may not see it gets no tab,
+  // no card and no figure in the page.
+  const financeAccess = tenant?.features?.project_dashboards === true
+    ? await resolveFinanceAccess({ supabase, tenantId, userId, role, features: tenant.features, config: tenant.config })
+    : null;
+  const financeVisible = !!financeAccess && canSeeProjectFinance(financeAccess.caller, p, userId);
+  if (financeAccess?.caller.visibility === "granted" && !financeVisible) view.hideMargin = true;
+  const health = financeAccess && financeVisible && (!tab || tab === "overview")
+    ? await getProjectFinance({ admin: req.admin, tenantId, userId, access: financeAccess, features: tenant?.features, project: p })
+    : null;
   // What the WBS holds, one line: "WBS 6 items · 14 lines · 2 unassigned" (a project made from a tender took it over).
   const wbsLine = view.packages.length > 0 ? `WBS ${wbsSummary(view)}` : null;
   const qo = view.quoteOrigin;
@@ -89,7 +103,7 @@ export default async function ContractProjectPage({ params, searchParams }: { pa
       tabs={[
         {
           id: "overview", label: "Overview",
-          content: <ProjectOverview view={view} buyoutOn={buyoutOn} originLinks={links} editor={view.canEdit && p.status !== "closed" ? <ProjectDetailsForm projectId={p.id} initial={{ name: p.name, contract_value: p.contract_value, planned_start: p.planned_start, planned_end: p.planned_end, manager_id: p.manager_id }} members={members} /> : undefined} />,
+          content: <ProjectOverview view={view} buyoutOn={buyoutOn} originLinks={links} health={health ? <HealthCard finance={health.finance} isAdmin={role === "admin"} floor={financeAccess?.settings.marginFloor ?? null} forecastTab /> : undefined} editor={view.canEdit && p.status !== "closed" ? <ProjectDetailsForm projectId={p.id} initial={{ name: p.name, contract_value: p.contract_value, planned_start: p.planned_start, planned_end: p.planned_end, manager_id: p.manager_id }} members={members} /> : undefined} />,
         },
         {
           id: "budget", label: "Budget", count: view.totals.lineCount,
@@ -118,6 +132,7 @@ export default async function ContractProjectPage({ params, searchParams }: { pa
         ...(features?.site_expenses === true ? [{ id: "site-expenses", label: "Expenses", content: <ProjectSiteExpenses projectId={p.id} /> }] : []),
         { id: "variations", label: "Client changes", content: <VariationsSection req={req} project={p} /> },
         { id: "invoicing", label: "Client billing", content: <InvoicingSection req={req} project={p} /> },
+        ...(financeVisible ? [{ id: "forecast", label: "Forecast", content: <ForecastSection req={req} project={p} /> }] : []),
         { id: "revisions", label: "Revisions", count: view.revisions.length, content: <RevisionsPanel view={view} /> },
         { id: "handover", label: "ERP handover", content: <HandoverPanel projectId={p.id} revisionId={rev?.id ?? null} revLabel={revLabel} hasBudget={!!rev && view.lines.length > 0} buyoutOn={buyoutOn} /> },
         { id: "activity", label: "Activity", content: <RecordActivity objectType="contract_projects" objectId={p.id} isAdmin={role === "admin"} /> },

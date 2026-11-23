@@ -8,7 +8,7 @@ export type WorkcenterKey =
   | "drawing_register"
   | "marketing" | "marketing_segments" | "leads" | "partners"
   | "assets" | "suppliers" | "inventory" | "purchase_orders" | "employees"
-  | "reports" | "data_workbench" | "administration" | "wfm" | "products" | "pricing" | "fence_projects" | "rfqs" | "estimates" | "process_studio" | "marketing_newsletters" | "signals" | "marketing_forms" | "abm" | "marketing_journeys" | "marketing_whatsapp" | "marketing_attribution" | "marketing_events" | "inbox" | "crew" | "site_receipts" | "site_expenses";
+  | "reports" | "data_workbench" | "administration" | "wfm" | "products" | "pricing" | "fence_projects" | "rfqs" | "estimates" | "process_studio" | "marketing_newsletters" | "signals" | "marketing_forms" | "abm" | "marketing_journeys" | "marketing_whatsapp" | "marketing_attribution" | "marketing_events" | "inbox" | "crew" | "site_receipts" | "site_expenses" | "project_finance";
 
 export const WORKCENTERS: { key: WorkcenterKey; label: string }[] = [
   { key: "dashboard", label: "Dashboard" },
@@ -57,6 +57,7 @@ export const WORKCENTERS: { key: WorkcenterKey; label: string }[] = [
   { key: "estimates", label: "Estimates" },
   { key: "process_studio", label: "Process Design Studio" },
   { key: "crew", label: "AI automation" },
+  { key: "project_finance", label: "Project cost and margin" },
 ];
 
 /**
