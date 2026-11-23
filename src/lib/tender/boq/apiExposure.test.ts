@@ -103,8 +103,8 @@ describe("part 3: the MCP manifest", () => {
   const mcp = JSON.parse(read("mcp-server/mcp.json")) as { version: string; tools: { name: string; description: string; method: string; path: string; inputSchema: { properties?: Record<string, unknown>; required?: string[] } }[] };
   const tools = ["list_tenders", "get_tender", "get_tender_boq", "get_tender_wbs"].map((n) => mcp.tools.find((t) => t.name === n));
 
-  it("is version 1.21.0 with the four tender tools, each a GET on the v1 endpoint it names", () => {
-    expect(mcp.version).toBe("1.21.0");
+  it("is version 1.22.0 with the four tender tools, each a GET on the v1 endpoint it names", () => {
+    expect(mcp.version).toBe("1.22.0");
     expect(tools.every(Boolean)).toBe(true);
     expect(tools.map((t) => `${t!.method} ${t!.path}`)).toEqual(["GET /api/v1/tenders", "GET /api/v1/tenders/{id}", "GET /api/v1/tenders/{id}/boq", "GET /api/v1/tenders/{id}/wbs"]);
     expect(tools[3]!.inputSchema.required).toEqual(["id"]);
