@@ -23,7 +23,7 @@ export default function RevisionsPanel({ quoteId, rows, money, workingRevision, 
         <span className="bpm-t-label">Revisions</span>
         <InfoTip label="Revisions">{REVISION_TIPS.tab}</InfoTip>
       </div>
-      {inPreparation && <div style={{ fontSize: 13, color: c.amberink, fontWeight: 600, marginBottom: 8 }}>{label(workingRevision)} in preparation</div>}
+      {inPreparation && <div style={{ fontSize: 13, color: "var(--amberink)", fontWeight: 600, marginBottom: 8 }}>{label(workingRevision)} in preparation</div>}
       {rows.length === 0 ? (
         <div className="bpm-t-help">Nothing has been issued yet. Issue the quotation to keep it as Rev. 00.</div>
       ) : (
