@@ -29,7 +29,11 @@ export default function NewDrawingForm() {
     let live = true;
     call<Options>(`/api/drawings/options${form.opportunity_id ? `?opportunity_id=${form.opportunity_id}` : ""}`, "GET").then((r) => {
       if (!live) return;
-      if (r.ok) setOpts(r.data); else setError(r.error);
+      if (!r.ok) { setError(r.error); return; }
+      setOpts(r.data);
+      // Show the type the server would pick (the one called Drawing, else the first), so what the person sees is what is saved.
+      const def = r.data.types.find((t) => t.name.trim().toLowerCase() === "drawing") ?? r.data.types[0];
+      if (def) setForm((f) => (f.type_id ? f : { ...f, type_id: def.id }));
     });
     return () => { live = false; };
   }, [form.opportunity_id]);
