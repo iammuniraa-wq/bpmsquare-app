@@ -98,7 +98,7 @@ export type PilotObjectType =
   | "account" | "contact" | "asset" | "supplier"
   | "case" | "work_order" | "quote" | "invoice" | "purchase_order" | "inventory"
   | "employee" | "product" | "project" | "opportunity" | "rfq" | "estimate" | "process_study" | "newsletter" | "abm_program" | "abm_target" | "abm_member"
-  | "standard_quote" | "sales_order";
+  | "standard_quote" | "sales_order" | "site_expense" | "site_receipt";
 
 // ISO 639-1 codes the Newsletter Studio can write in (src/lib/newsletter/types.ts LANGUAGES); duplicated as data
 // here because this registry is imported by client code and must not pull the studio in.
@@ -688,6 +688,54 @@ export const FIELD_REGISTRY: Record<PilotObjectType, ObjectFieldRegistry> = {
     ],
   },
 
+  // Site expenses (0258): created only through the phone flow (photo, approval), so every field here is Data Workbench Export only.
+  // project_id/category_id/line_key/supplier_id/submitted_by/photo_hash/ai_read (pointers and evidence) are excluded; the export route adds the names.
+  site_expense: {
+    sections: ["Expense", "Money", "ERP"],
+    fields: [
+      { key: "ref",          defaultLabel: "Expense ID",   widget: "text", defaultSection: "Expense", locked: true, editable: false, exportOnly: true },
+      { key: "project_name",      defaultLabel: "Project",     widget: "text", defaultSection: "Expense", locked: true, editable: false, exportOnly: true },
+      { key: "category_name",     defaultLabel: "Category",    widget: "text", defaultSection: "Expense", locked: true, editable: false, exportOnly: true },
+      { key: "submitted_by_name", defaultLabel: "Entered by",  widget: "text", defaultSection: "Expense", locked: true, editable: false, exportOnly: true },
+      { key: "status",       defaultLabel: "Status",       widget: "text", defaultSection: "Expense", locked: true, editable: false, exportOnly: true },
+      { key: "expense_date", defaultLabel: "Expense date", widget: "date", defaultSection: "Expense", locked: true, editable: false, exportOnly: true },
+      { key: "vendor_text",  defaultLabel: "Vendor",       widget: "text", defaultSection: "Expense", locked: true, editable: false, exportOnly: true },
+      { key: "invoice_ref",  defaultLabel: "Invoice number", widget: "text", defaultSection: "Expense", locked: true, editable: false, exportOnly: true },
+      { key: "paid_by",      defaultLabel: "Paid by",      widget: "text", defaultSection: "Expense", locked: true, editable: false, exportOnly: true },
+      { key: "note",         defaultLabel: "Note",         widget: "textarea", defaultSection: "Expense", locked: true, editable: false, exportOnly: true },
+
+      { key: "amount",             defaultLabel: "Amount",              widget: "number", defaultSection: "Money", locked: true, editable: false, exportOnly: true },
+      { key: "currency",           defaultLabel: "Currency",            widget: "text",   defaultSection: "Money", locked: true, editable: false, exportOnly: true },
+      { key: "amount_project_ccy", defaultLabel: "Amount in project currency", widget: "number", defaultSection: "Money", locked: true, editable: false, exportOnly: true },
+      { key: "vat_amount",         defaultLabel: "VAT amount",          widget: "number", defaultSection: "Money", locked: true, editable: false, exportOnly: true },
+
+      { key: "erp_state",     defaultLabel: "ERP state",     widget: "text",   defaultSection: "ERP", locked: true, editable: false, exportOnly: true },
+      { key: "erp_ref",       defaultLabel: "ERP reference", widget: "text",   defaultSection: "ERP", locked: true, editable: false, exportOnly: true },
+      { key: "posted_amount", defaultLabel: "Posted amount", widget: "number", defaultSection: "ERP", locked: true, editable: false, exportOnly: true },
+    ],
+  },
+
+  // Site receipts (0259): created only through the phone flow, so every field here is Data Workbench Export only. The lines, photos and
+  // signature are not columns; project_id/package_id/received_by (pointers) are excluded and the export route adds the names.
+  site_receipt: {
+    sections: ["Receipt", "ERP"],
+    fields: [
+      { key: "ref",               defaultLabel: "Receipt ID",       widget: "text", defaultSection: "Receipt", locked: true, editable: false, exportOnly: true },
+      { key: "project_name",      defaultLabel: "Project",          widget: "text", defaultSection: "Receipt", locked: true, editable: false, exportOnly: true },
+      { key: "received_by_name",  defaultLabel: "Received by",      widget: "text", defaultSection: "Receipt", locked: true, editable: false, exportOnly: true },
+      { key: "status",            defaultLabel: "Status",           widget: "text", defaultSection: "Receipt", locked: true, editable: false, exportOnly: true },
+      { key: "outcome",           defaultLabel: "Outcome",          widget: "text", defaultSection: "Receipt", locked: true, editable: false, exportOnly: true },
+      { key: "received_at",       defaultLabel: "Received",         widget: "text", defaultSection: "Receipt", locked: true, editable: false, exportOnly: true },
+      { key: "delivery_note_ref", defaultLabel: "Delivery note",    widget: "text", defaultSection: "Receipt", locked: true, editable: false, exportOnly: true },
+      { key: "handed_by",         defaultLabel: "Driver",           widget: "text", defaultSection: "Receipt", locked: true, editable: false, exportOnly: true },
+      { key: "vehicle",           defaultLabel: "Vehicle",          widget: "text", defaultSection: "Receipt", locked: true, editable: false, exportOnly: true },
+      { key: "note",              defaultLabel: "Note",             widget: "textarea", defaultSection: "Receipt", locked: true, editable: false, exportOnly: true },
+
+      { key: "erp_state", defaultLabel: "ERP state",     widget: "text", defaultSection: "ERP", locked: true, editable: false, exportOnly: true },
+      { key: "erp_ref",   defaultLabel: "ERP reference", widget: "text", defaultSection: "ERP", locked: true, editable: false, exportOnly: true },
+    ],
+  },
+
   invoice: {
     sections: ["Identity", "Commercial", "Saudi e-invoice", "Notes"],
     fields: [
@@ -822,7 +870,7 @@ const PILOT_OBJECT_TYPES: readonly PilotObjectType[] = [
   "account", "contact", "asset", "supplier",
   "case", "work_order", "quote", "invoice", "purchase_order", "inventory",
   "employee", "product", "project", "opportunity", "rfq", "estimate", "process_study", "newsletter", "abm_program", "abm_target", "abm_member",
-  "standard_quote", "sales_order",
+  "standard_quote", "sales_order", "site_expense", "site_receipt",
 ];
 
 export function isPilotObjectType(objectType: string): objectType is PilotObjectType {

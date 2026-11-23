@@ -26,6 +26,7 @@ import { PROJECT_STATUS_LABEL, isTenderProject, projectSourceNote, sourceTypeOf 
 import BuyoutSection from "@/components/contractProjects/buyout/BuyoutSection";
 import { buyoutVisible } from "@/components/contractProjects/buyout/rules";
 import { wbsSummary } from "@/lib/contractProjects/wbsSummary";
+import { ProjectSiteExpenses, ProjectSiteReceipts } from "@/components/site/ProjectSiteTabs";
 
 /** The record page of a contract project: Overview (the visual summary), Budget, WBS, Buy-out (tender-made projects), Variations, Invoicing, Revisions, Handover, Activity. */
 export default async function ContractProjectPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ tab?: string; revision?: string }> }) {
@@ -112,6 +113,9 @@ export default async function ContractProjectPage({ params, searchParams }: { pa
           ) : <div style={{ fontSize: 13, color: "var(--hint)" }}>There is no budget yet, so there are no lines to group.</div>,
         },
         ...(buyoutOn ? [{ id: "buyout", label: "Buy-out", content: <BuyoutSection projectId={p.id} currency={p.currency} canEdit={view.canEdit && p.status !== "closed"} /> }] : []),
+        // Site receipt and Site expenses (0258, 0259): behind their own platform-admin flags, so a workspace without them sees no tab.
+        ...(features?.site_receipts === true ? [{ id: "site-receipts", label: "Receipts", content: <ProjectSiteReceipts projectId={p.id} /> }] : []),
+        ...(features?.site_expenses === true ? [{ id: "site-expenses", label: "Expenses", content: <ProjectSiteExpenses projectId={p.id} /> }] : []),
         { id: "variations", label: "Client changes", content: <VariationsSection req={req} project={p} /> },
         { id: "invoicing", label: "Client billing", content: <InvoicingSection req={req} project={p} /> },
         { id: "revisions", label: "Revisions", count: view.revisions.length, content: <RevisionsPanel view={view} /> },

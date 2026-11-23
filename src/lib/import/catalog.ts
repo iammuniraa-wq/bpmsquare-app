@@ -106,6 +106,14 @@ export const DW_CATALOG: Record<ImportObjectId, DwCatalogEntry> = {
   },
   invoices: { label: "Invoices", group: "sales", modes: ALL, keywords: ["billing", "bills"] },
   purchase_orders: { label: "Purchase Orders", group: "sales", modes: ALL, keywords: ["po", "purchasing", "buying"] },
+  site_expenses: {
+    label: "Site expenses", group: "sales", modes: ["export"], keywords: ["site", "claims", "receipts", "petty cash"],
+    modeNote: { import: "A site expense needs its photo and an approval, so it is made on a phone, never by a file.", update: "Corrections go through return, cancel and enter again, so the approval stays true." },
+  },
+  site_receipts: {
+    label: "Site receipts", group: "sales", modes: ["export"], keywords: ["site", "delivery", "goods received", "grn"],
+    modeNote: { import: "A site receipt needs its count, photos and the receiver's name, so it is made on a phone, never by a file.", update: "A confirmed receipt is evidence and is never edited. A manager cancels it and the site person enters it again." },
+  },
 
   // ── Service ──
   cases: { label: "Cases", group: "service", modes: ALL, keywords: ["tickets", "repairs", "service cases"] },

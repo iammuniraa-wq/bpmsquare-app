@@ -7,7 +7,7 @@ export type WorkcenterKey =
   | "cases" | "amc" | "work_orders" | "dispatch" | "technicians"
   | "marketing" | "marketing_segments" | "leads" | "partners"
   | "assets" | "suppliers" | "inventory" | "purchase_orders" | "employees"
-  | "reports" | "data_workbench" | "administration" | "wfm" | "products" | "pricing" | "fence_projects" | "rfqs" | "estimates" | "process_studio" | "marketing_newsletters" | "signals" | "marketing_forms" | "abm" | "marketing_journeys" | "marketing_whatsapp" | "marketing_attribution" | "marketing_events" | "inbox" | "crew";
+  | "reports" | "data_workbench" | "administration" | "wfm" | "products" | "pricing" | "fence_projects" | "rfqs" | "estimates" | "process_studio" | "marketing_newsletters" | "signals" | "marketing_forms" | "abm" | "marketing_journeys" | "marketing_whatsapp" | "marketing_attribution" | "marketing_events" | "inbox" | "crew" | "site_receipts" | "site_expenses";
 
 export const WORKCENTERS: { key: WorkcenterKey; label: string }[] = [
   { key: "dashboard", label: "Dashboard" },
@@ -19,6 +19,8 @@ export const WORKCENTERS: { key: WorkcenterKey; label: string }[] = [
   { key: "sales_orders", label: "Sales Orders" },
   { key: "pipeline", label: "Pipeline" },
   { key: "contract_projects", label: "Contract Projects" },
+  { key: "site_receipts", label: "Site receipts" },
+  { key: "site_expenses", label: "Site expenses" },
   { key: "invoices", label: "Invoices" },
   { key: "cases", label: "Cases" },
   { key: "amc", label: "AMC Contracts" },

@@ -31,6 +31,9 @@ export const NOVA_OBJECTS: Record<string, { table: string; feature: string; work
   products: { table: "products", feature: "products", workcenters: ["products"] },
   opportunities: { table: "opportunities", feature: "opportunities", workcenters: ["pipeline"] },
   contract_projects: { table: "contract_projects", feature: "contract_projects", workcenters: ["contract_projects"] },
+  // Site receipt and Site expenses (0258, 0259): a thread on the record, for a member of a workspace that owns the module.
+  site_expenses: { table: "site_expenses", feature: "site_expenses", workcenters: ["site_expenses"] },
+  site_receipts: { table: "site_receipts", feature: "site_receipts", workcenters: ["site_receipts"] },
   inventory: { table: "inventory_items", feature: "inventory", workcenters: ["inventory"] },
   purchase_orders: { table: "purchase_orders", feature: "purchase_orders", workcenters: ["purchase_orders"] },
   // Workforce supervisors reach employees through the WFM hub, not an "employees" grant.

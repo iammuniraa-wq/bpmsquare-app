@@ -122,6 +122,14 @@ export const FEATURE_DEPENDENCIES: FeatureDependency[] = [
     why: "A project made from an accepted quote needs nothing else. Buy-out, the tender's costs and WBS, and the approvers chosen for tenders need the tender edition.",
   },
   {
+    key: "site_receipts", needs: "contract_projects", strength: "hard",
+    why: "A site receipt is recorded against a contract project and its buy-out packages, and it sits on the project's Receipts tab.",
+  },
+  {
+    key: "site_expenses", needs: "contract_projects", strength: "hard",
+    why: "A site expense is recorded against a contract project and one of its budget lines, and it sits on the project's Expenses tab.",
+  },
+  {
     key: "crew_tender_watch", needs: "crew", strength: "hard",
     why: "Tender Watch is an agent of the AI automation workcenter, which exists only while that flag is on.",
   },
@@ -146,7 +154,7 @@ export const FEATURE_DEPENDENCIES: FeatureDependency[] = [
 /** The settings-menu group each module reads under in the tenant editor. */
 export const FEATURE_GROUP: Partial<Record<Key, SettingsGroupId>> = {
   // Sales
-  accounts: "sales", contacts: "sales", quotations: "sales", standard_quotes: "sales", sales_orders: "sales", einvoicing_ksa: "sales", gcc_tender: "sales", deal_room: "sales", contract_projects: "sales", quote_lines_dw: "sales",
+  accounts: "sales", contacts: "sales", quotations: "sales", standard_quotes: "sales", sales_orders: "sales", einvoicing_ksa: "sales", gcc_tender: "sales", deal_room: "sales", contract_projects: "sales", site_receipts: "sales", site_expenses: "sales", quote_lines_dw: "sales",
   pipeline: "sales", leads: "sales", invoices: "sales", partners: "sales", marketing: "sales", rfq: "sales", inbox: "sales",
   products: "sales", suppliers: "sales", purchasing: "sales", pricing_engine: "sales", pricing_engine_quotes: "sales",
   coverage_model: "sales", fence_projects: "sales", estimator: "sales", marketing_scoring: "marketing", process_studio: "sales", newsletter_studio: "marketing", buying_signals: "marketing", marketing_forms: "marketing", abm: "marketing", journeys: "marketing", whatsapp_marketing: "marketing", marketing_attribution: "marketing", marketing_events: "marketing",

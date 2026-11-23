@@ -194,6 +194,8 @@ export const DEFERRED: Record<string, string> = {
   assets: "needs an owning account and technical fields; next in line",
   cases: "needs an account and assets; next in line after accounts and contacts",
   estimates: "born from a template; the Estimator stays the way in",
+  "site-expenses": "a cost claim needs the receipt photo and an approval by a project manager; the phone flow stays the way in, and the assistant reads expenses through Talk to data",
+  "site-receipts": "a delivery confirmation is evidence with a count, photos and the receiver's name; the phone flow stays the way in, and the assistant reads receipts through Talk to data",
   "fence-projects": "has a site, lines and pricing; the project screens stay the way in",
   inventory: "unique SKU and stock rules; next in line",
   "work-orders": "created from a case with its authorisation (quote or contract); the Create work order action on the case stays the way in",

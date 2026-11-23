@@ -115,6 +115,37 @@ const PRODUCT_FIELDS: QueryableField[] = [
   { path: "status", type: "string" },
 ];
 
+const SITE_EXPENSE_FIELDS: QueryableField[] = [
+  { path: "id", type: "string" },
+  { path: "ref", type: "string", searchable: true },
+  { path: "project_id", type: "string" },
+  { path: "status", type: "string" },
+  { path: "expense_date", type: "string" },
+  { path: "amount", type: "number" },
+  { path: "currency", type: "string" },
+  { path: "amount_project_ccy", type: "number" },
+  { path: "vat_amount", type: "number" },
+  { path: "vendor_text", type: "string", searchable: true },
+  { path: "invoice_ref", type: "string", searchable: true },
+  { path: "paid_by", type: "string" },
+  { path: "document_state", type: "string" },
+  { path: "erp_state", type: "string" },
+  { path: "posted_amount", type: "number" },
+];
+
+const SITE_RECEIPT_FIELDS: QueryableField[] = [
+  { path: "id", type: "string" },
+  { path: "ref", type: "string", searchable: true },
+  { path: "project_id", type: "string" },
+  { path: "status", type: "string" },
+  { path: "outcome", type: "string" },
+  { path: "received_at", type: "string" },
+  { path: "delivery_note_ref", type: "string", searchable: true },
+  { path: "handed_by", type: "string", searchable: true },
+  { path: "vehicle", type: "string", searchable: true },
+  { path: "erp_state", type: "string" },
+];
+
 const OPPORTUNITY_FIELDS: QueryableField[] = [
   { path: "id", type: "string" },
   { path: "ref", type: "string", searchable: true },
@@ -515,6 +546,38 @@ export const LIST_SOURCES: Record<string, ListSource> = {
         supplier_id: i.supplier_id, status: i.status, custom_data: i.custom_data,
         _links: { self: `/api/v1/inventory/${i.id}` },
       }));
+    },
+  },
+  site_expenses: {
+    label: "Site expenses",
+    description: "Cost claims recorded on site and approved by a project manager: project, date, amount, currency, vendor, status, ERP state. A key reaches them only by naming \"site_expenses\".",
+    relatedWorkcenter: "site_expenses",
+    fields: SITE_EXPENSE_FIELDS,
+    // Header fields only: no photo, no AI reading, no person (who entered it is staff data) and no budget line figure. Internal cost.
+    load: async (tenantId) => {
+      const { data } = await createAdminSupabase()
+        .from("site_expenses")
+        .select("id, ref, project_id, status, expense_date, amount, currency, amount_project_ccy, vat_amount, vendor_text, invoice_ref, paid_by, document_state, erp_state, posted_amount, custom_data, created_at")
+        .eq("tenant_id", tenantId)
+        .order("created_at", { ascending: false })
+        .limit(5000);
+      return (data ?? []).map((r) => ({ ...r, _links: { self: `/api/v1/site-expenses/${r.id}` } }));
+    },
+  },
+  site_receipts: {
+    label: "Site receipts",
+    description: "Deliveries confirmed on site: project, delivery note, outcome (complete, partial, rejected), received time, ERP state. Items are on /api/v1/site-receipts/:id. A key reaches them only by naming \"site_receipts\".",
+    relatedWorkcenter: "site_receipts",
+    fields: SITE_RECEIPT_FIELDS,
+    // Header fields only: no photo, signature or person. Items are on the detail endpoint.
+    load: async (tenantId) => {
+      const { data } = await createAdminSupabase()
+        .from("site_receipts")
+        .select("id, ref, project_id, status, outcome, received_at, delivery_note_ref, handed_by, vehicle, erp_state, custom_data, created_at")
+        .eq("tenant_id", tenantId)
+        .order("received_at", { ascending: false })
+        .limit(5000);
+      return (data ?? []).map((r) => ({ ...r, _links: { self: `/api/v1/site-receipts/${r.id}` } }));
     },
   },
   products: {

@@ -2393,6 +2393,13 @@ const SEARCH_SPECS: SearchSpec[] = [
     featureKeys: ["contract_projects"],
   },
   {
+    // Number, delivery note and outcome only: no quantity, photo or person.
+    type: "site_receipt", table: "site_receipts", columns: "id, ref, delivery_note_ref, outcome, status",
+    textCols: ["ref", "delivery_note_ref"],
+    toResult: (r) => ({ id: r.id, title: r.ref ?? "Site receipt", subtitle: [r.delivery_note_ref, r.outcome, r.status === "cancelled" ? "cancelled" : null].filter(Boolean).join(" · ") || "Site receipt", href: ROUTES.siteReceipt(r.id), matched: "ref" }),
+    featureKeys: ["site_receipts"],
+  },
+  {
     type: "rfq", table: "rfqs", columns: "id, ref, title, status, origin_label",
     textCols: ["title", "ref", "origin_label"],
     toResult: (r) => ({ id: r.id, title: r.title, subtitle: [r.ref, r.origin_label, r.status].filter(Boolean).join(" · ") || "RFQ", href: ROUTES.rfq(r.id), matched: "title" }),
