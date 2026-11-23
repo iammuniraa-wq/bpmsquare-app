@@ -3,6 +3,7 @@ import { logChange } from "@/lib/changeLog";
 import { loadActorNames } from "@/lib/actorNames";
 import { personLabel } from "@/lib/personName";
 import { getAuthUser } from "@/lib/supabase-server";
+import { drawingBaselineBlocker } from "@/lib/drawings/boqPins";
 import { getTenant } from "@/lib/tenant";
 import { loadApprovers } from "@/lib/tender/approvalServer";
 import { loadNotifyTenant, memberEmails } from "@/lib/tender/notify";
@@ -52,6 +53,9 @@ export async function POST(request: NextRequest, { params }: Ctx) {
     ? "A budget is already waiting for approval"
     : askProblem({ revision, lineCount: lines.length, linesWithoutResource: totals.noResourceCount, deciders, projectClosed: project.status === "closed", total: totals.total });
   if (problem) return NextResponse.json({ error: problem }, { status: 409 });
+  // The baseline cannot be asked for while a tender BOQ line still carries a quantity from an older drawing revision (drawing register; nothing here when it is off).
+  const drawingBlock = revision.rev_no === 0 ? await drawingBaselineBlocker(admin, tenantId, project.source_opportunity_id ?? null) : null;
+  if (drawingBlock) return NextResponse.json({ error: drawingBlock }, { status: 409 });
 
   const justification = revision.justification_code ? (await loadMasters(admin, tenantId, "justification")).find((m) => m.code === revision.justification_code)?.name ?? null : null;
   const reason = requestReason(revision, justification, totals.total, project.currency, { costed: totals.costedCount, of: totals.lineCount });

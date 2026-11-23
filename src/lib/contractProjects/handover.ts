@@ -22,6 +22,8 @@ export type HandoverInput = {
   costCodeNames: ReadonlyMap<string, string>;
   /** The project's WBS items (with their lines and the parts of split lines). Absent or empty: no WBS column content and no WBS sheet. */
   packages?: readonly WorkPackageRow[];
+  /** The drawing register's RELEASED elements for this project (src/lib/drawings/handover.ts). Absent or empty: no Drawings sheet. */
+  drawings?: readonly HandoverDrawingRow[];
 };
 
 const MATERIAL = "11";
@@ -81,7 +83,27 @@ export async function buildHandoverWorkbook(input: HandoverInput): Promise<Buffe
   let n = 0;
   for (const l of lines.filter((x) => x.resource_code === MATERIAL)) sm.addRow([++n, l.cost_code ?? "", l.description, l.qty, l.unit ?? "", l.wbs ?? ""]);
 
+  if (input.drawings && input.drawings.length > 0) addDrawingsSheet(wb, input.drawings);
+
   return Buffer.from(await wb.xlsx.writeBuffer());
+}
+
+/** One released element of a drawing, as the handover carries it: the drawing number and revision it was released under, then the element. */
+export type HandoverDrawingRow = {
+  drawing_no: string; rev_label: string; released_at: string | null; building: string | null; element_code: string | null; element_type: string | null;
+  level: string | null; qty: number; volume_m3: number | null; weight_t: number | null;
+};
+
+/** The Drawings sheet: only elements of RELEASED revisions, each with the drawing number and revision label so the ERP side knows which issue they are. */
+function addDrawingsSheet(wb: ExcelJS.Workbook, rows: readonly HandoverDrawingRow[]) {
+  const sd = wb.addWorksheet("Drawings");
+  sd.columns = [
+    { header: "Drawing no.", width: 22 }, { header: "Revision", width: 10 }, { header: "Released", width: 14 }, { header: "Building", width: 16 }, { header: "Element code", width: 18 },
+    { header: "Type", width: 24 }, { header: "Level", width: 10 }, { header: "Pieces", width: 10 }, { header: "Volume per piece m3", width: 18 }, { header: "Weight per piece t", width: 18 },
+  ];
+  sd.getRow(1).font = { bold: true };
+  sd.views = [{ state: "frozen", ySplit: 1 }];
+  for (const r of rows) sd.addRow([r.drawing_no, r.rev_label, r.released_at ? r.released_at.slice(0, 10) : "", r.building ?? "", r.element_code ?? "", r.element_type ?? "", r.level ?? "", r.qty, r.volume_m3 ?? "", r.weight_t ?? ""]);
 }
 
 /**

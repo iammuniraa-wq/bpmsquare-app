@@ -3,6 +3,7 @@ import { logChange } from "@/lib/changeLog";
 import { loadActorNames } from "@/lib/actorNames";
 import { getAuthUser } from "@/lib/supabase-server";
 import { buildHandoverWorkbook } from "@/lib/contractProjects/handover";
+import { loadDrawingsForHandover } from "@/lib/drawings/handover";
 import { loadPackages } from "@/lib/contractProjects/workPackagesServer";
 import { currentRevision, loadLines, loadMasters, loadProject, loadRevision, loadRevisions, needsUpdate, openProjectRequest, UUID_RE } from "@/lib/contractProjects/server";
 
@@ -39,8 +40,9 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     loadActorNames(admin, tenantId, [project.manager_id]),
   ]);
   const { packages } = await loadPackages(admin, tenantId, id);
+  const drawings = await loadDrawingsForHandover(admin, tenantId, project);
   const buffer = await buildHandoverWorkbook({
-    packages, project, accountName: (accountRow.data as { name?: string } | null)?.name ?? null, managerName: project.manager_id ? names.get(project.manager_id) ?? null : null,
+    packages, drawings, project, accountName: (accountRow.data as { name?: string } | null)?.name ?? null, managerName: project.manager_id ? names.get(project.manager_id) ?? null : null,
     revision, lines, resourceNames, costCodeNames,
   });
 
