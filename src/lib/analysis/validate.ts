@@ -13,7 +13,11 @@ export const MAX_CHECK = 6;
 export const MAX_PEOPLE = 5;
 
 /** A page the research call actually cited (from the response's own citation blocks), or the company page we fetched. */
-export type Citation = { url: string; title?: string; snippet?: string };
+export type Citation = {
+  url: string; title?: string; snippet?: string;
+  /** Up to three snippets the provider cited for this page (the company brief checks a figure's digits against them). */
+  snippets?: string[];
+};
 
 export type Subject = { name: string; domain: string | null; city?: string | null; country?: string | null };
 

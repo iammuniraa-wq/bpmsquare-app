@@ -7,7 +7,8 @@ import { isMissingSchema } from "@/lib/tender/server";
 import { PENDING_RESEARCH, loadCompetitor } from "@/lib/tender/competitors/server";
 import type { CompetitorEvidence, SourcedFact } from "@/lib/tender/competitors/rules";
 import { readReport } from "./cache";
-import { REPORT_SECTION_LABEL, type CompanyReport, type ReportItem, type ReportSectionId } from "./types";
+import { formatEmployees, formatMoney, formatPercent, growthOf, latest } from "./figures";
+import { OWNERSHIP_LABEL, REPORT_BLOCK_LABEL, REPORT_PART_LABEL, ROLE_FUNCTION_LABEL, type CompanyReport, type ReportItem } from "./types";
 
 // Saving a report: "Save" writes nothing new of its own. The report is already in the cache; saving posts a readable copy
 // on the record's timeline (the Nova comment thread, written with the service role after the same module and workcenter
@@ -28,26 +29,60 @@ const MAX_COMMENT = 4000;
 
 const dateText = (on?: string): string => (on ? ` (${on})` : "");
 
-/** The report as a plain-text comment: sections with their statements, then the numbered sources. Limited to MAX_COMMENT characters. */
+/**
+ * The brief as a plain-text comment on the timeline: the tiles, Why now, Who to talk to, Where we fit (labelled as the
+ * assistant's reading), Performance, Watch-outs, then the numbered sources. Never "Your history": that is read live for the
+ * person who opens the card and is not part of the brief. Limited to MAX_COMMENT characters; the body is shortened before the sources are.
+ */
 export function reportToComment(r: CompanyReport): string {
-  const out: string[] = [`Company report: ${r.name}${r.country ? ` (${r.country})` : ""}`, "From public web pages, written by the AI assistant and saved by a person. Check before relying on it."];
   const ref = (n: number) => `[${n}]`;
-  const items = (id: Exclude<ReportSectionId, "leadership" | "compete">) => {
-    const rows = r[id] as ReportItem[];
-    if (!rows.length) return;
-    out.push("", REPORT_SECTION_LABEL[id]);
-    for (const i of rows) out.push(`- ${i.text}${dateText(i.on)} ${ref(i.src)}`);
-  };
-  items("overview"); items("products"); items("size");
-  if (r.leadership.length) {
-    out.push("", REPORT_SECTION_LABEL.leadership);
-    for (const l of r.leadership) out.push(`- ${l.name}, ${l.title} ${ref(l.src)}`);
+  const out: string[] = [`Company brief: ${r.name}${r.country ? ` (${r.country})` : ""}`, "From public web pages, written by the AI assistant and saved by a person. Check before relying on it."];
+  const tiles: string[] = [];
+  if (r.oneLiner) tiles.push(`${r.oneLiner.text} ${ref(r.oneLiner.src)}`);
+  const rev = latest(r.money.revenue);
+  if (rev) tiles.push(`Revenue FY${rev.fiscalYear}: ${formatMoney(rev.amount, rev.currency)}${rev.matched ? "" : " (check the source)"} ${ref(rev.src)}`);
+  const profit = latest(r.money.profit);
+  if (profit) tiles.push(`Net profit FY${profit.fiscalYear}: ${formatMoney(profit.amount, profit.currency)}${profit.matched ? "" : " (check the source)"} ${ref(profit.src)}`);
+  const g = growthOf(r.money.revenue);
+  if (g) tiles.push(`Growth vs FY${g.previous.fiscalYear}: ${formatPercent(g.percent, true)}`);
+  if (r.money.status === "not_published") tiles.push("Revenue and profit: not published");
+  if (r.facts.employees) tiles.push(`Employees: ${formatEmployees(r.facts.employees)} ${ref(r.facts.employees.src)}`);
+  if (r.facts.hq) tiles.push(`Head office: ${r.facts.hq.value} ${ref(r.facts.hq.src)}`);
+  if (r.facts.ownership) tiles.push(`Ownership: ${OWNERSHIP_LABEL[r.facts.ownership.value.kind]}${r.facts.ownership.value.detail ? `, ${r.facts.ownership.value.detail}` : ""} ${ref(r.facts.ownership.src)}`);
+  for (const p of r.money.proxies) tiles.push(`Found instead (not turnover): ${p.text} ${ref(p.src)}`);
+  if (tiles.length) out.push("", ...tiles);
+  if (r.signals.length) {
+    out.push("", REPORT_BLOCK_LABEL.why_now);
+    for (const s of r.signals) out.push(`- ${s.text}${dateText(s.on)} ${ref(s.src)}${s.why ? ` Why it matters (the assistant's reading): ${s.why}` : ""}`);
   }
-  items("news"); items("projects"); items("strengths"); items("weaknesses");
+  if (r.roles.length) {
+    out.push("", REPORT_BLOCK_LABEL.who);
+    for (const x of r.roles) {
+      const names = x.named.map((p) => `${p.name}, ${p.title} ${ref(p.src)}`).join("; ");
+      out.push(`- ${ROLE_FUNCTION_LABEL[x.fn]}: ${names || "no name published"}${x.talkAbout ? ` Talk about (the assistant's reading): ${x.talkAbout}` : ""}`);
+    }
+  }
+  if (r.fit) {
+    out.push("", `${REPORT_BLOCK_LABEL.fit} (the assistant's own reading, not from a source)`);
+    if (r.fit.angle) out.push(`Opening angle: ${r.fit.angle}`);
+    for (const p of r.fit.priorities) out.push(`- ${p.offering}: ${p.why}`);
+    for (const q of r.fit.questions) out.push(`? ${q}`);
+  }
   if (r.compete.length) {
-    out.push("", `${REPORT_SECTION_LABEL.compete} (the assistant's own inference, not from a source)`);
+    out.push("", "How they compete with us (the assistant's own inference, not from a source)");
     for (const c of r.compete) out.push(`- ${c.offering}: ${c.text}`);
   }
+  const perf: string[] = [];
+  for (const m of r.money.revenue) perf.push(`Revenue FY${m.fiscalYear}: ${formatMoney(m.amount, m.currency)} ${ref(m.src)}`);
+  for (const m of r.money.profit) perf.push(`Net profit FY${m.fiscalYear}: ${formatMoney(m.amount, m.currency)} ${ref(m.src)}`);
+  const items = (label: string, rows: ReportItem[]) => { for (const i of rows) perf.push(`${label}${i.text}${dateText(i.on)} ${ref(i.src)}`); };
+  items("", r.performance.market); items("", r.performance.highlights); items("Tailwind: ", r.performance.tailwinds); items("Headwind: ", r.performance.headwinds);
+  if (perf.length) out.push("", REPORT_BLOCK_LABEL.performance, ...perf.map((x) => `- ${x}`));
+  if (r.watchouts.length) {
+    out.push("", REPORT_BLOCK_LABEL.watchouts);
+    for (const w of r.watchouts) out.push(`- ${w.text}${dateText(w.on)} ${ref(w.src)}`);
+  }
+  if (r.missing.length) out.push("", `Not researched: ${r.missing.map((p) => REPORT_PART_LABEL[p]).join(", ")}.`);
   const head = out.join("\n");
   const tail = ["", "Sources", ...r.sources.map((s) => `${ref(s.n)} ${s.title} ${s.url}`)].join("\n");
   if (head.length + tail.length <= MAX_COMMENT) return `${head}\n${tail}`;
@@ -68,7 +103,8 @@ export type CommentSaveCtx = {
 /** The report for this company key, from this workspace's cache, or a plain failure. */
 async function loadReport(admin: SupabaseClient, tenantId: string, key: string): Promise<{ ok: true; report: CompanyReport } | SaveFail> {
   const { row } = await readReport(admin, tenantId, key);
-  return row ? { ok: true, report: row.report } : { ok: false, status: 404, error: "That report is no longer saved. Run it again, then save it." };
+  if (row?.legacy && !row.report) return { ok: false, status: 404, error: "That report is in an older format. Refresh it to get the new brief, then save it." };
+  return row?.report ? { ok: true, report: row.report } : { ok: false, status: 404, error: "That report is no longer saved. Run it again, then save it." };
 }
 
 export async function saveReportComment(c: CommentSaveCtx, kind: SaveKind, recordId: string, key: string): Promise<{ ok: true; message: string } | SaveFail> {
@@ -88,27 +124,23 @@ export async function saveReportComment(c: CommentSaveCtx, kind: SaveKind, recor
   return { ok: true, message: `Saved to the ${kind === "deal" ? "deal" : kind}'s timeline.` };
 }
 
-const FACT_KIND: Record<string, SourcedFact["kind"]> = { award: "award", tender: "tender", project: "project", client: "project" };
+const SIGNAL_FACT: Record<string, SourcedFact["kind"]> = { award: "award", tender: "tender", expansion: "project", plant: "project" };
 const MAX_FACTS = 12;
 
-/** The report's sourced statements as a competitor's evidence. Only statements with an https page are kept (every statement has one). */
+/** The brief's sourced statements as a competitor's evidence. Only statements with an https page are kept (every statement has one). */
 export function reportToEvidence(r: CompanyReport, previous: CompetitorEvidence | null): CompetitorEvidence {
   const facts: SourcedFact[] = [];
-  const add = (rows: ReportItem[], kind: (i: ReportItem) => SourcedFact["kind"]) => {
-    for (const i of rows) {
-      const s = r.sources.find((x) => x.n === i.src);
-      if (!s || facts.length >= MAX_FACTS) continue;
-      facts.push({
-        text: i.text.slice(0, 400), kind: kind(i), source_url: s.url, source_title: s.title || null,
-        published_on: i.on && /^\d{4}-\d{2}-\d{2}$/.test(i.on) ? i.on : null,
-      });
-    }
+  const push = (text: string, kind: SourcedFact["kind"], src: number, on?: string) => {
+    const s = r.sources.find((x) => x.n === src);
+    if (!s || facts.length >= MAX_FACTS) return;
+    facts.push({ text: text.slice(0, 400), kind, source_url: s.url, source_title: s.title || null, published_on: on && /^\d{4}-\d{2}-\d{2}$/.test(on) ? on : null });
   };
-  add(r.overview.slice(0, 1), () => "profile");
-  add(r.projects, (i) => FACT_KIND[i.kind ?? "project"] ?? "project");
-  add(r.strengths, () => "strength");
-  add(r.products, () => "profile");
-  add(r.news, () => "other");
+  if (r.oneLiner) push(r.oneLiner.text, "profile", r.oneLiner.src);
+  for (const s of r.signals) push(s.text, SIGNAL_FACT[s.kind] ?? "other", s.src, s.on);
+  for (const i of r.profile.projects) push(i.text, "project", i.src, i.on);
+  for (const i of r.profile.clients) push(i.text, "project", i.src, i.on);
+  for (const i of [...r.performance.tailwinds, ...r.performance.highlights, ...r.performance.market]) push(i.text, "strength", i.src, i.on);
+  for (const i of r.profile.what) push(i.text, "profile", i.src, i.on);
   return { v: 1, facts, price: previous?.price ?? null, wins: previous?.wins ?? null, researched_at: r.generatedAt, model: "company_report" };
 }
 

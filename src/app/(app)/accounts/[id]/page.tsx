@@ -32,6 +32,8 @@ import NovaAccountStorySlot from "@/components/NovaAccountStorySlot";
 import NovaAccountCanvasSlot from "@/components/NovaAccountCanvasSlot";
 import Account360Button from "@/components/Account360Button";
 import AnalyseButton from "@/components/analysis/AnalyseButton";
+import CompanyBriefTab from "@/components/analysis/CompanyBriefTab";
+import { webAvailability } from "@/lib/assistant/webConsent";
 import { recordButtonWebhookId, sendToWebhookAction } from "./sendAction";
 import { buildAccountStoryEvents, computeAccountHealth } from "@/lib/nova/accountStory";
 import { buildAccountCanvas } from "@/lib/nova/accountCanvas";
@@ -73,7 +75,7 @@ const fmtDate = (s: string) =>
 
 // ── Tabs ───────────────────────────────────────────────────────────────────────
 
-type Tab = "overview" | "cases" | "contacts" | "assets" | "quotations" | "projects" | "invoices" | "estimates" | "activity";
+type Tab = "overview" | "cases" | "contacts" | "assets" | "quotations" | "projects" | "invoices" | "estimates" | "brief" | "activity";
 // featureKey mirrors Sidebar.tsx's NAV gating — a tab only shows if the
 // tenant has that module enabled (tenant.features), same source of truth
 // used everywhere else in the app.
@@ -90,6 +92,8 @@ const TABS: { id: Tab; label: string; featureKey?: keyof TenantFeatures }[] = [
   { id: "projects",   label: "Projects",  featureKey: "wfm_projects" },
   { id: "invoices",   label: "Invoices",  featureKey: "invoices" },
   { id: "estimates",  label: "Estimates", featureKey: "estimator" },
+  // The saved company brief (read from the workspace cache, no web). Shown only where web research is on; the server decides again on every call.
+  { id: "brief",      label: "Company brief" },
   { id: "activity",   label: "Activity"   },
 ];
 
@@ -118,7 +122,8 @@ export default async function AccountHubPage({
   const features = tenant?.features as TenantFeatures | undefined;
   const quoteStatuses: QuoteStatusDef[] =
     (tenant?.config as { quote_statuses?: QuoteStatusDef[] })?.quote_statuses ?? DEFAULT_QUOTE_STATUSES;
-  const visibleTabs = TABS.filter((t) => !t.featureKey || features?.[t.featureKey] === true);
+  const briefOn = !!features && webAvailability(features as unknown as Record<string, boolean | undefined>, tenant?.config as { ai_assistant?: { block_external_calls?: boolean } } | undefined).enabled;
+  const visibleTabs = TABS.filter((t) => (t.id === "brief" ? briefOn : !t.featureKey || features?.[t.featureKey] === true));
 
   // Workforce projects for this account, with this month's hours -- the
   // hours come from the same report the Projects screen and the v1 API use.
@@ -402,6 +407,7 @@ export default async function AccountHubPage({
         ]}
       />
     ),
+    brief: <CompanyBriefTab accountId={account.id} accountName={account.name} />,
     activity: (
       <>
         <Card title={`Activity timeline${hub.activities.length ? ` (${hub.activities.length})` : ""}`}>
