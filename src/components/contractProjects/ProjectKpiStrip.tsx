@@ -14,20 +14,20 @@ import type { BuyoutData } from "./buyout/types";
  * margin floor (amber under it, red when negative). While lines still wait for a cost the margin is the allocated lines' only and says
  * so ("on 2 of 12 lines"), in a plain tile. On a project with Buy-out, the Budget tile also says what has been ordered against it.
  */
-export default function ProjectKpiStrip({ view, buyoutOn = false, initialBuyout, hideMargin = false }: {
+export default function ProjectKpiStrip({ view, buyoutOn = false, initialBuyout }: {
   view: ProjectView;
-  /** Cost and margin are granted (project_dashboards, finance_visibility "granted") and this person does not hold the grant: no margin figure here. */
-  hideMargin?: boolean;
   buyoutOn?: boolean;
   /** Lets a server render (and its test) show the Ordered line. The page never passes it. */
   initialBuyout?: BuyoutData | null;
 }) {
   const { project: p, totals, margin, revision } = view;
   const cur = p.currency;
-  const words = marginWords(margin, marginCoverage(view.lines));
+  // Cost and margin are granted (project_dashboards, finance_visibility "granted") and this person does not hold the grant: no margin figure here.
+  const hideMargin = view.hideMargin === true;
+  const words = hideMargin ? { value: "not shared with you", sub: null, partial: false } : marginWords(margin, marginCoverage(view.lines));
   return (
     <div style={{ marginBottom: 14 }}>
-      <SettingsSection id="cp.key_figures" title="Key figures" defaultOpen defaultOpenNarrow={false} summary={hideMargin ? money(p.contract_value, cur) : `${money(p.contract_value, cur)} · margin ${words.partial ? "not complete" : words.value === "Not allocated yet" ? "not allocated yet" : words.value}`}>
+      <SettingsSection id="cp.key_figures" title="Key figures" defaultOpen defaultOpenNarrow={false} summary={`${money(p.contract_value, cur)} · margin ${words.partial ? "not complete" : words.value === "Not allocated yet" ? "not allocated yet" : words.value}`}>
         <StatStrip guide="cp.kpis">
           <StatTile tone="info" label="Contract value" info={PROJECT_TIPS.contractValue} value={money(p.contract_value, cur)} sub={projectSourceNote(sourceTypeOf(p), view.quoteOrigin?.ref)} />
           <StatTile

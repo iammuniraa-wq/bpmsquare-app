@@ -67,6 +67,7 @@ export default async function ContractProjectPage({ params, searchParams }: { pa
     ? await resolveFinanceAccess({ supabase, tenantId, userId, role, features: tenant.features, config: tenant.config })
     : null;
   const financeVisible = !!financeAccess && canSeeProjectFinance(financeAccess.caller, p, userId);
+  if (financeAccess?.caller.visibility === "granted" && !financeVisible) view.hideMargin = true;
   const health = financeAccess && financeVisible && (!tab || tab === "overview")
     ? await getProjectFinance({ admin: req.admin, tenantId, userId, access: financeAccess, features: tenant?.features, project: p })
     : null;
@@ -95,7 +96,7 @@ export default async function ContractProjectPage({ params, searchParams }: { pa
       meta={originMeta || undefined}
       status={<StatusPill label={PROJECT_STATUS_LABEL[p.status]} tone={projectTone(p.status)} />}
       menu={<ProjectMenu projectId={p.id} status={p.status} canEdit={view.canEdit} deletable={deletable} />}
-      externalLine={<><ProjectPathBar path={view.path} /><ProjectKpiStrip view={view} buyoutOn={buyoutOn} hideMargin={financeAccess?.caller.visibility === "granted" && !financeVisible} /></>}
+      externalLine={<><ProjectPathBar path={view.path} /><ProjectKpiStrip view={view} buyoutOn={buyoutOn} /></>}
       basePath={ROUTES.contractProject(p.id)}
       activeTab={tab}
       tabs={[
