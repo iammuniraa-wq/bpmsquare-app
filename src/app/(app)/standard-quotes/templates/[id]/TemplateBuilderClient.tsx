@@ -12,6 +12,12 @@ import type {
 import { STANDARD_QUOTE_REQUIRED_BLOCKS } from "@/lib/types";
 import StandardQuotePrintDocument from "@/components/StandardQuotePrintDocument";
 import { useCurrency } from "@/lib/tenant-context";
+import BlockEditor, { hasEditor, newClauseSection, newScopeMatrix } from "./LayoutBlockEditors";
+import StandardQuoteFramedBody from "@/components/StandardQuoteFramedBody";
+import { resolvePdfFrame } from "@/lib/pdf/frame";
+import { frameTitleParts } from "@/lib/pdf/framedQuote";
+import type { PdfDesign, TenantEntity } from "@/lib/constants";
+import type { ClauseSectionData, ScopeMatrixData, StandardQuoteBlockData } from "@/lib/types";
 
 const BLOCK_LABELS: Record<StandardQuoteTemplateBlockType, string> = {
   letterhead: "Letterhead (logo + company)",
@@ -61,15 +67,20 @@ function mockQuote(): StandardQuote {
     subtotal: 43000, total: 43000, created_by: null,
     created_at: new Date().toISOString(), updated_at: new Date().toISOString(), sent_at: null, template_id: null,
     header_discount_pct: 5, tax_pct: 18, shipping_amount: 500, intro_text: null, inquiry_date: null, closed_at: null,
+    project_title: "Sample project", subject: "Sample subject",
   };
 }
 
 export default function TemplateBuilderClient({
-  template, companyInfo, logoUrl,
+  template, companyInfo, logoUrl, design = null, entity = null, tenantName = "",
 }: {
   template: StandardQuoteTemplate;
   companyInfo: CompanyInfo;
   logoUrl: string | null;
+  /** The workspace's page frame (config.pdf_design). With one, the preview shows the framed document. */
+  design?: PdfDesign | null;
+  entity?: TenantEntity | null;
+  tenantName?: string;
 }) {
   const router = useRouter();
   const cur = useCurrency();
@@ -121,6 +132,16 @@ export default function TemplateBuilderClient({
   function toggleVisible(idx: number) {
     setBlocks((bs) => bs.map((b, i) => (i === idx ? { ...b, visible: !b.visible } : b)));
   }
+  function setData(idx: number, data: StandardQuoteBlockData) {
+    setBlocks((bs) => bs.map((b, i) => (i === idx ? { ...b, data } : b)));
+  }
+  function removeBlock(idx: number) {
+    setBlocks((bs) => bs.filter((_, i) => i !== idx));
+  }
+  function addBlock(b: StandardQuoteTemplateBlock) {
+    setBlocks((bs) => [...bs, b]);
+    setExpanded(b.id);
+  }
   function setContent(idx: number, content: string) {
     setBlocks((bs) => bs.map((b, i) => (i === idx ? { ...b, content } : b)));
   }
@@ -161,6 +182,13 @@ export default function TemplateBuilderClient({
   }
 
   const previewTemplate: StandardQuoteTemplate = { ...template, accent_color: accentColor, logo_position: logoPosition, blocks };
+  // With a page frame the preview is the framed document, from the same resolver the PDF uses.
+  const frame = design
+    ? resolvePdfFrame({
+        design, entity, companyInfo, tenantName, logoDataUri: logoUrl, printIds: (entity?.extra_ids ?? []).map((x) => x.id),
+        ...frameTitleParts(blocks), reference: "SQ-2026-0001", revision: null, fonts: null,
+      })
+    : null;
 
   return (
     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, alignItems: "start" }}>
@@ -239,7 +267,9 @@ export default function TemplateBuilderClient({
           <div onDragOver={(e) => e.preventDefault()} onDrop={onDrop}>
             {blocks.map((block, idx) => {
               const required = STANDARD_QUOTE_REQUIRED_BLOCKS.includes(block.type);
-              const editable = block.type in HAS_CONTENT;
+              const editable = block.type in HAS_CONTENT || hasEditor(block);
+              const repeatable = block.type === "clause_section" || block.type === "scope_matrix";
+              const heading = (block.data as ClauseSectionData | ScopeMatrixData | undefined)?.title;
               const isOpen = expanded === block.id;
               return (
                 <div key={block.id}>
@@ -252,7 +282,7 @@ export default function TemplateBuilderClient({
                     style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 10px", border: `1px solid ${c.line}`, borderRadius: 8, marginBottom: 6, background: c.panel, cursor: "grab" }}
                   >
                     <span style={{ color: c.hint, fontSize: 14, userSelect: "none" }}>⠿</span>
-                    <span style={{ flex: 1, fontSize: 13, color: c.ink }}>{BLOCK_LABELS[block.type]}</span>
+                    <span style={{ flex: 1, fontSize: 13, color: c.ink }}>{BLOCK_LABELS[block.type]}{repeatable && heading ? `: ${heading}` : ""}</span>
                     {required ? (
                       <span style={{ fontSize: 11, color: c.hint, fontStyle: "italic" }}>always shown</span>
                     ) : (
@@ -267,11 +297,19 @@ export default function TemplateBuilderClient({
                         onClick={() => setExpanded(isOpen ? null : block.id)}
                         style={{ fontSize: 11.5, fontWeight: 600, color: c.accent, background: "none", border: "none", cursor: "pointer" }}
                       >
-                        {isOpen ? "Close" : "Edit text"}
+                        {isOpen ? "Close" : hasEditor(block) ? "Edit" : "Edit text"}
                       </button>
                     )}
+                    {repeatable && (
+                      <button type="button" onClick={() => removeBlock(idx)} style={{ fontSize: 11.5, fontWeight: 600, color: "var(--red)", background: "none", border: "none", cursor: "pointer" }}>Remove</button>
+                    )}
                   </div>
-                  {editable && isOpen && (
+                  {editable && isOpen && hasEditor(block) && (
+                    <div style={{ marginBottom: 8, marginLeft: 24 }}>
+                      <BlockEditor block={block} onData={(d) => setData(idx, d)} />
+                    </div>
+                  )}
+                  {editable && isOpen && !hasEditor(block) && (
                     <div style={{ marginBottom: 8, marginLeft: 24 }}>
                       <textarea
                         style={{ ...fieldInput, minHeight: 70, resize: "vertical" }}
@@ -285,6 +323,10 @@ export default function TemplateBuilderClient({
               );
             })}
             {dropAt === blocks.length && <div style={{ height: 2, background: c.accent, margin: "0 4px" }} />}
+          </div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 8 }}>
+            <button type="button" onClick={() => addBlock(newClauseSection())} style={addBtn}>+ Clause section</button>
+            <button type="button" onClick={() => addBlock(newScopeMatrix())} style={addBtn}>+ Scope matrix</button>
           </div>
         </section>
 
@@ -304,6 +346,19 @@ export default function TemplateBuilderClient({
         </div>
         <div style={{ border: `1px solid ${c.line}`, borderRadius: 10, overflow: "hidden", background: "#e8ecf0" }}>
           <div style={{ transform: "scale(0.78)", transformOrigin: "top left", width: "128.2%", height: 900, overflowY: "auto" }}>
+            {frame ? (
+              <div style={{ background: "white", color: "black", width: "210mm", margin: "16px auto", boxSizing: "border-box" }}>
+                <style>{frame.bodyCss}</style>
+                <div dangerouslySetInnerHTML={{ __html: frame.previewHeaderHtml }} />
+                <div style={{ padding: `4mm ${design!.page.margins_mm.right}mm 6mm ${design!.page.margins_mm.left}mm` }}>
+                  <StandardQuoteFramedBody
+                    quote={mockQuote()} lines={MOCK_LINES} account={MOCK_ACCOUNT} contact={MOCK_CONTACT}
+                    blocks={blocks} docSections={null} currency={cur.code}
+                  />
+                </div>
+                <div dangerouslySetInnerHTML={{ __html: frame.previewFooterHtml }} />
+              </div>
+            ) : (
             <div style={{ background: "#fff", maxWidth: 800, margin: "16px auto" }}>
               <StandardQuotePrintDocument
                 quote={mockQuote()}
@@ -316,6 +371,7 @@ export default function TemplateBuilderClient({
                 currency={cur.code}
               />
             </div>
+            )}
           </div>
         </div>
       </div>
@@ -323,6 +379,9 @@ export default function TemplateBuilderClient({
   );
 }
 
+const addBtn: React.CSSProperties = {
+  minHeight: 44, padding: "0 14px", fontSize: 12.5, fontWeight: 600, color: c.accent, background: c.accentbg, border: "none", borderRadius: 8, cursor: "pointer",
+};
 const fieldLabel: React.CSSProperties = {
   display: "block", fontSize: 11.5, fontWeight: 600,
   color: c.muted, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 5,

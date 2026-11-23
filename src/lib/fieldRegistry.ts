@@ -633,6 +633,8 @@ export const FIELD_REGISTRY: Record<PilotObjectType, ObjectFieldRegistry> = {
         { value: "draft", label: "Draft" }, { value: "sent", label: "Sent" }, { value: "accepted", label: "Accepted" },
         { value: "rejected", label: "Rejected" }, { value: "expired", label: "Expired" },
       ] },
+      { key: "project_title", defaultLabel: "Project title", widget: "text", defaultSection: "Quote" },
+      { key: "subject",       defaultLabel: "Subject",       widget: "text", defaultSection: "Quote" },
       { key: "inquiry_date", defaultLabel: "Inquiry date", widget: "date", defaultSection: "Quote" },
       { key: "valid_until",  defaultLabel: "Valid until",  widget: "date", defaultSection: "Quote" },
       { key: "sent_at",   defaultLabel: "Sent",   widget: "date", defaultSection: "Quote", locked: true, editable: false, exportOnly: true },
@@ -648,7 +650,9 @@ export const FIELD_REGISTRY: Record<PilotObjectType, ObjectFieldRegistry> = {
       { key: "notes",      defaultLabel: "Notes",        widget: "textarea", defaultSection: "Notes" },
       { key: "terms",      defaultLabel: "Terms",        widget: "textarea", defaultSection: "Notes" },
       // account_id/contact_id/template_id/opportunity_id/created_by (pointers), print_options
-      // (presentation) and the pricing flags on lines (guardrail state) are excluded.
+      // (presentation) and the pricing flags on lines (guardrail state) are excluded. entity_id, doc_sections,
+      // source_type/source_id (0251) and the revision state (0252) are excluded too: the entity is a settings pointer, the
+      // per-quotation sections and revisions are edited and kept on the record itself, never in a bulk file.
     ],
   },
 

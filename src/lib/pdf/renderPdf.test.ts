@@ -85,6 +85,24 @@ describe("renderPdf: one document, the options the callers always used", () => {
     expect(log.pdfOptions[0]).toMatchObject({ margin: { top: "12mm", bottom: "34mm", left: "15mm", right: "15mm" } });
   });
 
+  it("with a page frame: the frame's paper, margins and running header and footer replace the caller's, and nothing else changes", async () => {
+    const frame = { pageFormat: "Letter" as const, marginsMm: { top: 38, right: 12, bottom: 24, left: 19 }, headerHtml: "<div>H</div>", footerHtml: "<div>F</div>" };
+    await renderPdf({ source: { kind: "url", url: "https://app.test/q?pdf=1" }, margin, settle: true, frame });
+    expect(log.pdfOptions).toEqual([{
+      format: "Letter", printBackground: true, margin: { top: "38mm", bottom: "24mm", left: "19mm", right: "12mm" },
+      displayHeaderFooter: true, headerTemplate: "<div>H</div>", footerTemplate: "<div>F</div>",
+    }]);
+    expect(log.pagesOpened).toBe(1);
+    expect(log.closed).toBe(1);
+  });
+
+  it("without a frame (null or absent) the options are exactly the ones every caller always had", async () => {
+    await renderPdf({ source: { kind: "url", url: "https://app.test/q" }, margin, settle: true, frame: null });
+    await renderPdf({ source: { kind: "url", url: "https://app.test/q" }, margin, settle: true });
+    const always = { format: "A4", printBackground: true, margin: { top: "12mm", bottom: "12mm", left: "15mm", right: "15mm" }, displayHeaderFooter: false };
+    expect(log.pdfOptions).toEqual([always, always]);
+  });
+
   it("does not look for a footer band unless asked", async () => {
     await renderPdf({ source: { kind: "url", url: "https://app.test/q" }, margin, settle: true });
     expect(log.page).not.toContain("waitForFunction");

@@ -7,7 +7,8 @@ import { Input } from "@/components/ui/Input";
 import SidePanel from "@/components/ui/SidePanel";
 import InfoTip from "@/components/ui/InfoTip";
 import SettingsList, { ListBar } from "@/components/settings/SettingsList";
-import type { TenantEntity } from "@/lib/constants";
+import type { EntityExtraId, TenantEntity } from "@/lib/constants";
+import { Select } from "@/components/ui/Input";
 import { blankEntity } from "./companyLogic";
 import EinvoiceSellerFields from "./EinvoiceSellerFields";
 import { COMPANY_TIPS } from "./tips";
@@ -76,6 +77,22 @@ export default function EntitiesTab({ entities, onChange, einvoicing = false }: 
             <summary>More</summary>
             <div className={s.moreBody}>
               <Field label="Tagline" info={COMPANY_TIPS.tagline}><Input value={open.tagline ?? ""} onChange={(e) => patch(open.id, { tagline: e.target.value })} /></Field>
+              <div className="bpm-label-row" style={{ marginTop: 6 }}><span className="bpm-t-label">Extra ids</span><InfoTip label="Extra ids">{COMPANY_TIPS.extraIds}</InfoTip></div>
+              {(open.extra_ids ?? []).map((x) => {
+                const upd = (p2: Partial<EntityExtraId>) => patch(open.id, { extra_ids: (open.extra_ids ?? []).map((y) => (y.id === x.id ? { ...y, ...p2 } : y)) });
+                return (
+                  <div key={x.id} className={s.itemRow} style={{ gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)" }}>
+                    <Input value={x.label} onChange={(e) => upd({ label: e.target.value })} placeholder="Label, for example Vendor no." aria-label="Id label" maxLength={60} />
+                    <Input className={s.mono} value={x.value} onChange={(e) => upd({ value: e.target.value })} placeholder="Value" aria-label="Id value" maxLength={60} />
+                    <Select value={x.print} onChange={(e) => upd({ print: e.target.value as EntityExtraId["print"] })} aria-label="Print">
+                      <option value="always">Print on every document</option>
+                      <option value="selected_customers">Print for selected customers</option>
+                    </Select>
+                    <Button variant="quiet" onClick={() => patch(open.id, { extra_ids: (open.extra_ids ?? []).filter((y) => y.id !== x.id) })}>Remove</Button>
+                  </div>
+                );
+              })}
+              <Button onClick={() => patch(open.id, { extra_ids: [...(open.extra_ids ?? []), { id: crypto.randomUUID(), label: "", value: "", print: "selected_customers" }] })}>+ Add id</Button>
             </div>
           </details>
         </SidePanel>

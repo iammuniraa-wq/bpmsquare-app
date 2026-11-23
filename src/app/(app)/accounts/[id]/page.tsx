@@ -20,6 +20,7 @@ import ObjectSections from "@/components/fields/ObjectSections";
 import QuickCreateDeck from "@/components/QuickCreateDeck";
 import { Gear, Activity as ActivityIcon, Package, FileText, Phone } from "@/components/Icons";
 import ObjectRecordPage from "@/components/page/ObjectRecordPage";
+import AccountPrintIds from "./AccountPrintIds";
 import ExternalRecordSlot from "@/components/ExternalRecordSlot";
 import RecordMoreMenu from "@/components/page/RecordMoreMenu";
 import type { RecordAction } from "@/components/page/recordActions";
@@ -534,6 +535,11 @@ export default async function AccountHubPage({
     );
   }
 
+  // "Print on documents" (0251): offered only when the workspace has extra ids marked for selected customers and the column exists.
+  const printIdOptions = features?.standard_quotes === true && "print_ids" in account
+    ? (tenant?.config?.entities ?? []).flatMap((e) => (e.extra_ids ?? []).filter((x) => x.print === "selected_customers" && x.value.trim()).map((x) => ({ id: x.id, label: x.label, value: x.value, entity: (tenant?.config?.entities ?? []).length > 1 ? e.short_name || e.name : "" })))
+    : [];
+
   return (
     <ObjectRecordPage
       backHref={ROUTES.accounts}
@@ -554,8 +560,9 @@ export default async function AccountHubPage({
       explicitFirstTab
       activeTab={rawTab}
       tabs={visibleTabs.map((t) => ({ id: t.id, label: t.label, count: counts[t.id], content: tabContent[t.id] }))}
-      rail={(quickCreate.length > 0 || referredBy) ? (
+      rail={(quickCreate.length > 0 || referredBy || printIdOptions.length > 0) ? (
         <>
+          {printIdOptions.length > 0 && <AccountPrintIds accountId={account.id} options={printIdOptions} selected={account.print_ids ?? []} />}
           {referredBy && (
             <Card title="Referred by" padding={14}>
               <Link href={ROUTES.account(referredBy.id)} style={{ color: c.accent, textDecoration: "none", fontSize: 13.5, fontWeight: 600 }}>{referredBy.name}</Link>

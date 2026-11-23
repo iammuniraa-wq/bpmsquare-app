@@ -89,6 +89,17 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     }
   }
 
+  // Print on documents (0251): which of the company's extra ids this customer sees on printed documents. A foreign list from the
+  // body: only ids that exist on this tenant's legal entities are kept.
+  if ("print_ids" in body) {
+    const wanted: string[] = Array.isArray(body.print_ids) ? body.print_ids.filter((x: unknown): x is string => typeof x === "string").slice(0, 12) : [];
+    const { data: t } = await createAdminSupabase().from("tenants").select("config").eq("id", tenantId).maybeSingle();
+    const known = new Set(((t?.config as { entities?: { extra_ids?: { id: string }[] }[] } | null)?.entities ?? []).flatMap((e) => (e.extra_ids ?? []).map((x) => x.id)));
+    const ids = [...new Set(wanted.filter((x) => known.has(x)))];
+    patch.print_ids = ids;
+    patchPlaintext.print_ids = ids.join(", ");
+  }
+
   // referred_by_account_id comes straight from the request body -- verify it
   // belongs to this tenant before linking it (same reasoning as the POST route).
   if (patch.referred_by_account_id) {
@@ -114,6 +125,9 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     .select("*")
     .single();
 
+  if (error && "print_ids" in patch && /print_ids/.test(error.message)) {
+    return NextResponse.json({ error: "Saving this needs a database update (migration 0251)" }, { status: 409 });
+  }
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   const decrypted = decryptAccount(data as import("@/lib/types").Account);

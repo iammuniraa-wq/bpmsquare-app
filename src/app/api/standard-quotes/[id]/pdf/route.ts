@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { requireTenantUser, createAdminSupabase } from "@/lib/supabase-server";
-import { getTenant, tenantHasFeature } from "@/lib/tenant";
+import { tenantHasFeature, type Tenant } from "@/lib/tenant";
 import { PdfNavigationError, renderPdf } from "@/lib/pdf/renderPdf";
 import { loadStandardQuoteForFrame, standardQuoteFrame } from "@/lib/pdf/standardQuoteFrame";
 
@@ -32,7 +32,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   if (!quoteRow) return NextResponse.json({ error: "Quote not found" }, { status: 404 });
 
   const cookieHeader = request.headers.get("cookie") ?? "";
-  const tenant = await getTenant();
+  const { data: tenantRow } = await supabase.from("tenants").select("name, logo_url, company_info, config").eq("id", tenantId).maybeSingle();
+  const tenant = tenantRow as Pick<Tenant, "name" | "logo_url" | "company_info" | "config"> | null;
   const loaded = tenant?.config?.pdf_design ? await loadStandardQuoteForFrame(createAdminSupabase(), tenantId, id) : null;
   const frame = loaded && tenant ? await standardQuoteFrame(tenant, loaded.quote, loaded.account, loaded.blocks, null) : null;
   const printUrl = new URL(`/standard-quotes/${id}/print${frame ? "?pdf=1" : ""}`, request.nextUrl.origin).toString();
@@ -42,7 +43,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       source: { kind: "url", url: printUrl, cookie: cookieHeader },
       margin: { top: "12mm", bottom: "12mm", left: "15mm", right: "15mm" },
       settle: true,
-      frame,
+      // Only a workspace with a page frame passes one; every other call is the call it always was.
+      ...(frame ? { frame } : {}),
     });
 
     return new NextResponse(pdf, {

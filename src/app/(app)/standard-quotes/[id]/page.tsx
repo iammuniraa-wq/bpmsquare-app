@@ -34,6 +34,13 @@ import RecordActionButton, { type RecordAction } from "@/components/page/recordA
 import ObjectSections from "@/components/fields/ObjectSections";
 import SourceEmailSlot from "@/components/inbox/SourceEmailSlot";
 import { FIELD_REGISTRY } from "@/lib/fieldRegistry";
+import StandardQuoteDocumentTab, { type DocSectionDef } from "./StandardQuoteDocumentTab";
+import { madeFromChips } from "@/lib/sales/quoteSource";
+import { editableSections } from "@/lib/pdf/framedQuote";
+import { quoteBlocks } from "@/lib/pdf/standardQuoteFrame";
+import { docColumnsReady } from "../formData";
+import { canEditContent, revisionsActive } from "@/lib/revisions/state";
+import type { ClauseSectionData, ScopeMatrixData } from "@/lib/types";
 
 // The page hand-renders every standard field; only the tenant's own (cf_) fields come from ObjectSections.
 const STANDARD_FIELD_KEYS = FIELD_REGISTRY.standard_quote.fields.map((f) => f.key);
@@ -77,7 +84,7 @@ export default async function StandardQuoteDetailPage({
   const { tab } = await searchParams;
   const data = await getStandardQuoteLive(id);
   if (!data) notFound();
-  const { quote, lines, account, contact } = data;
+  const { quote, lines, account, contact, template } = data;
   const role = await getUserRole();
   const isAdmin = role === "admin";
   const basePath = ROUTES.standardQuote(quote.id);
@@ -99,8 +106,19 @@ export default async function StandardQuoteDetailPage({
   const clientNumbers = hasClientItemNumbers(lines);
   const chosenGroupIds = new Set(selectedLines(lines).filter((l) => l.group_type === "alternative" && l.group_id).map((l) => l.group_id as string));
 
+  // Revision history (0252, off unless the workspace turned it on): an issued quote is locked, so "can it be edited" is not only "is it a draft".
+  const revActive = revisionsActive(tenant?.config, quote);
   const isDraft = quote.status === "draft";
   const isSent = quote.status === "sent";
+  const contentEditable = canEditContent(quote, revActive);
+  // "Made from" (0251) and the per-quotation sections of a framed layout (the "Document" tab).
+  const madeFrom = await madeFromChips(createAdminSupabase(), quote.tenant_id, quote);
+  const framed = Boolean(tenant?.config?.pdf_design) && docColumnsReady(quote);
+  const docSections: DocSectionDef[] = framed
+    ? editableSections(quoteBlocks(template)).map(({ block, kind }) => (kind === "clause"
+        ? { id: block.id, kind: "clause" as const, data: block.data as ClauseSectionData }
+        : { id: block.id, kind: "matrix" as const, data: block.data as ScopeMatrixData }))
+    : [];
   // An accepted quote can be billed once (Invoices on): the invoice it already has, or the button to raise it.
   const invoicesOn = tenant?.features?.invoices === true;
   const isAccepted = quote.status === "accepted";
@@ -140,7 +158,7 @@ export default async function StandardQuoteDetailPage({
       })()}
       menu={
         <RecordMoreMenu
-          editHref={isDraft ? ROUTES.standardQuoteEdit(quote.id) : undefined}
+          editHref={contentEditable ? ROUTES.standardQuoteEdit(quote.id) : undefined}
           printHref={`${base}/pdf`}
           actions={actions}
           remove={isDraft ? { endpoint: base, recordName: quote.ref, entityLabel: "draft quote", afterHref: ROUTES.standardQuotes } : undefined}
@@ -164,7 +182,22 @@ export default async function StandardQuoteDetailPage({
           label: "Overview",
           content: (
             <>
+            {madeFrom.length > 1 && (
+              <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 6, marginBottom: 10 }} data-guide="sq-made-from" aria-label="Made from">
+                <span style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.6, color: c.hint }}>Made from</span>
+                {madeFrom.map((chip, i) => (
+                  <span key={chip.key} style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                    {i > 0 && <span aria-hidden="true" style={{ color: c.hint }}>›</span>}
+                    {chip.href
+                      ? <Link href={chip.href} style={{ color: c.accent, textDecoration: "none", fontSize: 12.5, minHeight: 44, display: "inline-flex", alignItems: "center" }}>{chip.label}: {chip.text}</Link>
+                      : <span style={{ fontSize: 12.5, color: c.muted }}>{chip.label}: {chip.text}</span>}
+                  </span>
+                ))}
+              </div>
+            )}
             <Card title="Quote details">
+              {framed && quote.project_title && <CtxRow label="Project title" value={quote.project_title} />}
+              {framed && quote.subject && <CtxRow label="Subject" value={quote.subject} />}
               <CtxRow label="Account" value={account ? <Link href={ROUTES.account(account.id)} style={{ color: c.accent, textDecoration: "none" }}>{account.name}</Link> : "—"} />
               <CtxRow label="Contact" value={contact?.name ?? "—"} />
               <CtxRow label="Total" value={inr(quote.total)} />
@@ -263,6 +296,11 @@ export default async function StandardQuoteDetailPage({
             />
           ),
         },
+        ...(docSections.length > 0 ? [{
+          id: "document",
+          label: "Document",
+          content: <StandardQuoteDocumentTab quoteId={quote.id} sections={docSections} initial={quote.doc_sections ?? {}} canEdit={contentEditable} />,
+        }] : []),
         {
           id: "related",
           label: "Related",

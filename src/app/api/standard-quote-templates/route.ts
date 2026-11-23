@@ -1,8 +1,10 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { requireTenantUser } from "@/lib/supabase-server";
 import { tenantHasFeature } from "@/lib/tenant";
+import { getAuthUser } from "@/lib/supabase-server";
+import { logChange } from "@/lib/changeLog";
 import {
-  defaultStandardQuoteBlocks, sanitizeStandardQuoteBlocks, HEX_COLOR_RE, LOGO_POSITIONS,
+  defaultStandardQuoteBlocks, sanitizeStandardQuoteBlocks, layoutTooLarge, HEX_COLOR_RE, LOGO_POSITIONS,
 } from "@/lib/standardQuoteTemplateBlocks";
 
 export async function GET() {
@@ -49,6 +51,7 @@ export async function POST(request: NextRequest) {
   const accentColor = typeof body.accent_color === "string" && HEX_COLOR_RE.test(body.accent_color) ? body.accent_color : null;
   const logoPosition = LOGO_POSITIONS.has(body.logo_position) ? body.logo_position : "left";
   const blocks = Array.isArray(body.blocks) ? sanitizeStandardQuoteBlocks(body.blocks) : defaultStandardQuoteBlocks();
+  if (layoutTooLarge(blocks)) return NextResponse.json({ error: "This layout is too large. Shorten some sections." }, { status: 413 });
   const isDefault = !!body.is_default;
 
   if (isDefault) {
@@ -68,5 +71,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
+  const user = await getAuthUser();
+  await logChange(supabase, { tenantId, objectType: "standard_quote_templates", objectId: data.id, objectLabel: data.name, action: "create", actorId: user?.id, actorEmail: user?.email });
   return NextResponse.json(data, { status: 201 });
 }

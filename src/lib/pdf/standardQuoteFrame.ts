@@ -2,6 +2,8 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { StandardQuote, StandardQuoteTemplate, StandardQuoteTemplateBlock } from "@/lib/types";
 import type { Tenant } from "@/lib/tenant";
+
+export type FrameTenant = Pick<Tenant, "name" | "logo_url" | "company_info" | "config">;
 import { defaultStandardQuoteBlocks } from "@/lib/standardQuoteTemplateBlocks";
 import { frameTitleParts } from "./framedQuote";
 import { buildDocFrame, readPdfDesign } from "./frameServer";
@@ -17,7 +19,7 @@ export function quoteBlocks(template: Pick<StandardQuoteTemplate, "blocks"> | nu
 }
 
 export async function standardQuoteFrame(
-  tenant: Tenant,
+  tenant: FrameTenant,
   quote: Pick<StandardQuote, "ref" | "entity_id">,
   account: { print_ids?: string[] | null } | null,
   blocks: StandardQuoteTemplateBlock[],

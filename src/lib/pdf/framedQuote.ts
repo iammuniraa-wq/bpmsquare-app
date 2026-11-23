@@ -159,7 +159,13 @@ export function cleanDocSections(input: unknown, blocks: StandardQuoteTemplateBl
       if (Object.keys(items).length > 0) entry.items = items;
     } else {
       const d = block.data as ScopeMatrixData;
-      const extra = (Array.isArray(r.extra_rows) ? r.extra_rows : []).slice(0, 20).map((x, i) => ({ id: `x${i + 1}`, text: s((x as { text?: unknown })?.text, 300).trim() })).filter((x) => x.text);
+      const taken = new Set<string>();
+      const extra = (Array.isArray(r.extra_rows) ? r.extra_rows : []).slice(0, 20).map((x, i) => {
+        const rawId = (x as { id?: unknown })?.id;
+        const id = typeof rawId === "string" && /^x\d{1,2}$/.test(rawId) && !taken.has(rawId) ? rawId : `x${i + 1}`;
+        taken.add(id);
+        return { id, text: s((x as { text?: unknown })?.text, 300).trim() };
+      }).filter((x) => x.text);
       const rowIds = new Set([...d.rows.map((x) => x.id), ...extra.map((x) => x.id)]);
       const ticks: Record<string, 0 | 1 | 2> = {};
       for (const [id, v] of Object.entries((r.ticks ?? {}) as Record<string, unknown>)) if (rowIds.has(id) && NUMERIC(v, 2) && Number.isInteger(v)) ticks[id] = v as 0 | 1 | 2;
