@@ -64,6 +64,8 @@ export type ProjectBuildingsData = BuildingsPayload & {
   revision: { id: string; rev_no: number; status: RevisionRow["status"] } | null;
   /** Why nothing can be changed right now, in words; null when the budget is a draft of an open project. */
   lock: string | null;
+  /** The structure (buildings: add, rename, remove) can change: it can on any revision of an open project, unlike an element, which needs a draft. */
+  structure_open: boolean;
   /** Reissuing codes after a building code change is allowed only before a baseline is approved and before anything reaches the ERP. */
   can_reissue: boolean;
   allocation_basis: "line" | "package";
@@ -100,7 +102,7 @@ export async function projectBuildings(ctx: AllocationCtx): Promise<Result<{ dat
       settings: { pattern: settings.pattern, code_max: settings.code_max, qty_tolerance_pct: settings.qty_tolerance_pct, level_names: settings.level_names },
       pattern, pattern_frozen: !!frozen, types,
       revision: revision ? { id: revision.id, rev_no: revision.rev_no, status: revision.status } : null,
-      lock: LOCK_WORDS(ctx.project, revision),
+      lock: LOCK_WORDS(ctx.project, revision), structure_open: ctx.project.status !== "closed",
       can_reissue: !baseline && revision?.status === "draft" && !ctx.project.handover_sent_at && !ctx.project.erp_id,
       allocation_basis: ctx.project.allocation_basis, currency: ctx.project.currency,
     },

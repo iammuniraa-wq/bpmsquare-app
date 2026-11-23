@@ -101,6 +101,7 @@ export default function ElementPanel({ root, data, row, canEdit, onClose, onSave
           </Field>
         </div>
         {!known && <div className={s.warn}>That type is not in your Element types list.</div>}
+        {data.types.length === 0 && <div role="status" className={s.warn} data-guide="elements.panel.no_types">No element types yet. An admin adds them in Settings, Contract projects.</div>}
         {row.outside_pattern && <div className={s.warn} data-guide="elements.panel.outside"><span className={`${s.pill} ${s.amberPill}`}>Outside pattern</span> <InfoTip label="Outside pattern">{ELEMENT_TIPS.outsidePattern}</InfoTip></div>}
         {!disabled && !row.is_category && !row.mixed && !row.element_code && (
           <div style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>

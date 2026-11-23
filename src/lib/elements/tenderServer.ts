@@ -50,6 +50,7 @@ export type TenderBuildingsData = BuildingsPayload & {
   types: ElementTypeChoice[];
   revision: null;
   lock: string | null;
+  structure_open: boolean;
   can_reissue: boolean;
   allocation_basis: "line";
   currency: string | null;
@@ -85,7 +86,7 @@ export async function tenderBuildings(req: BoqRequest): Promise<Result<{ data: T
     data: {
       ...payload, enabled: true, scope: "tender", pending,
       settings: { pattern: settings.pattern, code_max: settings.code_max, qty_tolerance_pct: settings.qty_tolerance_pct, level_names: settings.level_names },
-      pattern: settings.pattern, pattern_frozen: false, types: pending ? [] : await loadElementTypes(admin, tenantId), revision: null, lock: null,
+      pattern: settings.pattern, pattern_frozen: false, types: pending ? [] : await loadElementTypes(admin, tenantId), revision: null, lock: null, structure_open: true,
       can_reissue: !project, allocation_basis: "line", currency: opp.currency ?? null, has_project: !!project,
     },
   };

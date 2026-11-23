@@ -32,7 +32,7 @@ const data = (over: Partial<BuildingsData> = {}): BuildingsData => ({
   view: buildingsView([], [], 5), rows: [row()], issuable: 0, untyped: 0, enabled: true, scope: "project", pending: false,
   settings: { pattern: "{building}-{type}-{seq:4}", code_max: 20, qty_tolerance_pct: 5, level_names: { building: "Building", activity: "Activity", cost_element: "Cost element" } },
   pattern: "{building}-{type}-{seq:4}", pattern_frozen: false, types: [{ code: "HCS", name: "Hollow core slab" }, { code: "WAL", name: "Wall panel" }],
-  revision: { id: "r1", rev_no: 0, status: "draft" }, lock: null, can_reissue: true, allocation_basis: "line", currency: "SAR", ...over,
+  revision: { id: "r1", rev_no: 0, status: "draft" }, lock: null, structure_open: true, can_reissue: true, allocation_basis: "line", currency: "SAR", ...over,
 });
 const panel = (d: BuildingsData, r: ElementLineRow, canEdit = true) => strip(renderToString(createElement(ElementPanel, { root: "/api/contract-projects/p1", data: d, row: r, canEdit, onClose: () => {}, onSaved: () => {} })));
 

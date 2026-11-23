@@ -81,7 +81,9 @@ export default function BuildingsPanel({ root, canEdit, onChanged }: {
   if (d.pending) return <div role="alert" data-guide="buildings.pending" className={s.warn}>{ELEMENTS_PENDING}</div>;
 
   const names = d.settings.level_names;
+  // Elements need a draft budget; buildings (the structure) can change on any revision of an open project.
   const editable = canEdit && !d.lock;
+  const structural = canEdit && d.structure_open;
   const hasCommon = d.view.buildings.some((b) => b.code === COMMON_BUILDING.code);
   const view = d.view;
   const currency = d.currency;
@@ -116,7 +118,7 @@ export default function BuildingsPanel({ root, canEdit, onChanged }: {
         </div>
         <span className={s.grow} />
         <div className={s.tools}>
-          {editable && <Button variant="primary" style={{ minHeight: 44 }} data-guide="buildings.add" onClick={() => setAdding(true)}>Add {names.building.toLowerCase()}</Button>}
+          {structural && <Button variant="primary" style={{ minHeight: 44 }} data-guide="buildings.add" onClick={() => setAdding(true)}>Add {names.building.toLowerCase()}</Button>}
           {editable && d.issuable > 0 && <Button variant="secondary" style={{ minHeight: 44 }} data-guide="buildings.issue" onClick={() => setIssuing(true)}>Issue codes ({d.issuable})</Button>}
         </div>
       </div>
@@ -124,10 +126,10 @@ export default function BuildingsPanel({ root, canEdit, onChanged }: {
       {d.lock && <div role="status" className={s.warn} data-guide="buildings.lock">{d.lock}<InfoTip label="Locked">{ELEMENT_TIPS.locked}</InfoTip></div>}
       {d.scope === "tender" && d.has_project && <div role="status" className={s.note}>This tender became a project. Its codes were copied; the project owns them now.</div>}
 
-      {adding && <AddBuilding root={root} names={names} onClose={() => setAdding(false)} onDone={(m) => { setAdding(false); setNotice(m); changed(); }} />}
+      {adding && structural && <AddBuilding root={root} names={names} onClose={() => setAdding(false)} onDone={(m) => { setAdding(false); setNotice(m); changed(); }} />}
 
       {view.buildings.length === 0 && !adding ? (
-        <div className={s.note} data-guide="buildings.empty">{editable ? `No ${names.building.toLowerCase()}s yet. Add the first one, then put lines in it with Group into WBS.` : `No ${names.building.toLowerCase()}s yet.`}</div>
+        <div className={s.note} data-guide="buildings.empty">{structural ? `No ${names.building.toLowerCase()}s yet. Add the first one, then put lines in it with Group into WBS.` : `No ${names.building.toLowerCase()}s yet.`}</div>
       ) : view.buildings.length > 0 && (
         <ul className={s.list} aria-label={`${names.building}s`}>
           <li className={`${s.row} ${s.headRow}`} aria-hidden="true"><span>{names.building}</span><span className={s.num}>Lines</span><span className={s.num}>Elements</span><span className={s.num}>Contract value</span><span className={s.num}>Variance</span><span /></li>
@@ -162,8 +164,8 @@ export default function BuildingsPanel({ root, canEdit, onChanged }: {
                     )}
                     {b.is_common && <div className={s.note}>{ELEMENT_TIPS.common}</div>}
                     <div className={s.detailActions}>
-                      {editable && <Button variant="secondary" size="sm" style={{ minHeight: 44 }} data-guide="buildings.edit" onClick={() => setEditing(b)}>Edit</Button>}
-                      {editable && b.line_count === 0 && <Button variant="quiet" size="sm" style={{ minHeight: 44 }} disabled={busy} data-guide="buildings.remove" onClick={() => void remove(b)}>Remove</Button>}
+                      {structural && <Button variant="secondary" size="sm" style={{ minHeight: 44 }} data-guide="buildings.edit" onClick={() => setEditing(b)}>Edit</Button>}
+                      {structural && b.line_count === 0 && <Button variant="quiet" size="sm" style={{ minHeight: 44 }} disabled={busy} data-guide="buildings.remove" onClick={() => void remove(b)}>Remove</Button>}
                       <Button variant="quiet" size="sm" style={{ minHeight: 44 }} onClick={() => { setShowElements(true); setFilter(b.code); }}>Show its elements</Button>
                     </div>
                   </div>
@@ -178,7 +180,7 @@ export default function BuildingsPanel({ root, canEdit, onChanged }: {
         <div className={s.note} data-guide="buildings.none" style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8 }}>
           <span>No {names.building.toLowerCase()}: {view.no_building.line_count} line{view.no_building.line_count === 1 ? "" : "s"}{view.no_building.client_amount ? `, ${money(view.no_building.client_amount, currency, 0)}` : ""}</span>
           <InfoTip label="No building">{ELEMENT_TIPS.noBuilding}</InfoTip>
-          {editable && !hasCommon && <Button variant="quiet" size="sm" style={{ minHeight: 44 }} disabled={busy} data-guide="buildings.common" onClick={() => void makeCommon()}>Add {COMMON_BUILDING.name}<InfoTip label="Common">{ELEMENT_TIPS.common}</InfoTip></Button>}
+          {structural && !hasCommon && <Button variant="quiet" size="sm" style={{ minHeight: 44 }} disabled={busy} data-guide="buildings.common" onClick={() => void makeCommon()}>Add {COMMON_BUILDING.name}<InfoTip label="Common">{ELEMENT_TIPS.common}</InfoTip></Button>}
         </div>
       )}
 

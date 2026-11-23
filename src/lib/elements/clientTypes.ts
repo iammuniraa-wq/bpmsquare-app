@@ -17,6 +17,8 @@ export type BuildingsData = BuildingsPayload & {
   revision: { id: string; rev_no: number; status: string } | null;
   /** Why nothing can change right now, in words; null when it can. */
   lock: string | null;
+  /** Buildings can be added, renamed and removed (any revision of an open project; always on a tender). Elements follow `lock`. */
+  structure_open: boolean;
   can_reissue: boolean;
   allocation_basis: "line" | "package";
   currency: string | null;
