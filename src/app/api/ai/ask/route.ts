@@ -23,7 +23,8 @@ import { CREATE_CONSENT_PREFIX, decodeCreateConsent, parseCreateFlow } from "@/l
 // The chart tool makes a nested model call inside a turn (compileAndRun),
 // so a turn that uses it costs two sequential calls, not one -- same
 // reasoning as reports/ask's bump to 75.
-export const maxDuration = 120;
+// 300 s: a Yes on a brief chip can still be answered here (the dock streams it from /api/ai/report/run), and that run may take up to 240 s.
+export const maxDuration = 300;
 
 // GET /api/ai/ask?route=/quotations/<id> -- what the dock shows when it opens: example questions, the usage pill, the
 // one-line context fact for the record on screen and the suggestions strip. Scoped to this caller's Business Roles.

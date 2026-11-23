@@ -123,7 +123,7 @@ describe("the stream", () => {
   });
 
   it("a reply that needs a fresh yes carries its chip, not a card", async () => {
-    state.behave = async () => ({ answer: "A brief on Tesla Germany needs web research first.", consent: { id: "c2", kind: "research_report", query: Q, subject: "Tesla Germany", searches: 12, token: "t", mode: "brief" } });
+    state.behave = async () => ({ answer: "A brief on Tesla Germany needs web research first.", consent: { id: "c2", kind: "research_report", query: Q, subject: "Tesla Germany", searches: 8, token: "t", mode: "brief" } });
     const out = await lines(await post(yes({ consent_token: "garbage" })));
     expect(out.at(-1)).toMatchObject({ type: "done", consent: { kind: "research_report", id: "c2" } });
     expect(out.at(-1)).not.toHaveProperty("companyReport");
@@ -141,6 +141,6 @@ describe("the stream", () => {
     const pending = post(yes()).then(lines);
     await vi.advanceTimersByTimeAsync(RUN_BUDGET_MS + 10);
     expect(await pending).toEqual([{ type: "error", message: RUN_STOPPED }]);
-    expect(RUN_BUDGET_MS).toBeLessThan(120_000);
+    expect(RUN_BUDGET_MS).toBeLessThan(300_000);
   });
 });

@@ -18,9 +18,10 @@ import { RUN_BUDGET_MS } from "@/lib/analysis/report/research";
 //   {"type":"error","message":"..."}                                          nothing was made
 // The session, the permissions, the signed one-use consent and every gate are the ask route's own (resolveAskAccess and the same
 // loop); this route only changes how the answer is delivered. A part is stopped by its own deadline; this route stops waiting at
-// RUN_BUDGET_MS (105 s) and answers, so the browser never sees a platform timeout (the route's limit is 120 s).
+// RUN_BUDGET_MS (240 s) and answers, so the browser never sees a platform timeout. The limit is 300 s: live testing showed that
+// 80 s per part was too short, and other routes of this app already declare 300 s (the connector syncs).
 
-export const maxDuration = 120;
+export const maxDuration = 300;
 
 export const RUN_STOPPED = "The brief took longer than expected. Whatever finished is saved: open the company again in a minute, or try the missing parts.";
 

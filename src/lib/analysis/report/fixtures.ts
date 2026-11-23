@@ -78,7 +78,7 @@ export function goodParts(): PartsRaw {
 }
 
 export const ctx = (over: Partial<ReportValidateCtx> = {}): ReportValidateCtx => ({
-  subject: SUBJECT, citations: CITATIONS, now: NOW, searches: 12, ...over,
+  subject: SUBJECT, citations: CITATIONS, now: NOW, searches: 8, ...over,
 });
 
 /** The Fit call's answer for the fixture, as the model could write it. */

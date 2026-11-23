@@ -90,8 +90,8 @@ const goodRaw = (): PartsRaw => ({
 const CITES = [{ url: SITE, title: "About Najd Precast" }, { url: NEWS, title: "Najd Precast wins package", snippets: ["Najd Precast won a SAR 120 m housing package. Revenue was SAR 120 million."] }, { url: TEAM, title: "Our team" }];
 const partResults = (raw: PartsRaw, failed: readonly ReportPartId[] = [], which: readonly ReportPartId[] = REPORT_PARTS, error = "The research took too long."): PartResult[] => which.map((part) =>
   failed.includes(part) || raw[part] === undefined
-    ? { part, ok: false as const, error, searches: 0, tokens: { input: 0, output: 0 }, queries: [] }
-    : { part, ok: true as const, raw: raw[part], citations: CITES, searches: 3, usage: {}, model: "claude-opus-5", tokens: { input: 10_000, output: 750 }, queries: ["Najd Precast annual report"] });
+    ? { part, ok: false as const, reason: "timeout" as const, error, searches: 0, tokens: { input: 0, output: 0 }, queries: [] }
+    : { part, ok: true as const, raw: raw[part], citations: CITES, searches: 2, usage: {}, model: "claude-opus-5", tokens: { input: 10_000, output: 750 }, queries: ["Najd Precast annual report"] });
 const goodFit = () => ({
   angle: "Offer precast concrete for the housing package.",
   priorities: [{ based_on: "S1", offering: "Precast concrete", why: "The housing package needs precast concrete elements." }],
@@ -335,7 +335,7 @@ describe("the yes", () => {
     expect(r.sources.map((x) => x.url).sort()).toEqual([NEWS, SITE, TEAM].sort());
     expect(reply.companyReport!.digest).toContain("Najd Precast makes precast concrete elements");
     expect(reply.companyReport!.digest).toContain("the assistant's own inference");
-    expect(s.audits).toMatchObject([{ kind: "research_company_report", status: "done", result: { cached: false, searches: 12, parts: { financials: "done", signals: "done", people: "done", market: "done" } } }]);
+    expect(s.audits).toMatchObject([{ kind: "research_company_report", status: "done", result: { cached: false, searches: 8, parts: { financials: "done", signals: "done", people: "done", market: "done" } } }]);
     expect((s.audits[0].result as { queries: string[] }).queries).toHaveLength(4);
   });
 
@@ -608,7 +608,7 @@ describe("a part that fails is named and the others are kept", () => {
     expect(reports(s)).toHaveLength(1);
     expect(Object.keys((reports(s)[0].data as { parts: object }).parts).sort()).toEqual(["financials", "market", "signals"]);
     expect(s.db.tables.ai_usage_log.filter((x) => x.surface === REPORT_SURFACE)).toHaveLength(1);
-    expect(s.audits.at(-1)).toMatchObject({ status: "done", result: { missing: ["people"], parts: { people: "missing" }, errors: { people: "The research took too long." } } });
+    expect(s.audits.at(-1)).toMatchObject({ status: "done", result: { missing: ["people"], parts: { people: "missing" }, reasons: { people: "timeout" } } });
   });
 
   it("asking again shows the partial brief at once, with no chip and no search", async () => {
@@ -650,6 +650,62 @@ describe("a part that fails is named and the others are kept", () => {
     expect(s.db.tables.ai_usage_log.filter((x) => x.surface === "company_report_retry")).toHaveLength(1);
     expect(Object.keys((reports(s)[0].data as { parts: object }).parts).sort()).toEqual(["financials", "market", "people", "signals"]);
     expect(reports(s)[0].version).toBe(2);
+  });
+
+  it("the reason each part failed is saved with the partial brief and written to the audit row, as codes only", async () => {
+    const s = setup({ replies: [report({ name: "Najd Precast", country: "Saudi Arabia" })], failParts: ["people"] });
+    const reply = await runYes(s);
+    expect((reply.companyReport!.report as CompanyReport).reasons).toEqual({ people: "timeout" });
+    const data = reports(s)[0].data as { report: { reasons: unknown } };
+    expect(data.report.reasons).toEqual({ people: "timeout" });
+    expect(s.audits.at(-1)).toMatchObject({ result: { reasons: { people: "timeout" } } });
+    expect(JSON.stringify(s.audits.at(-1))).not.toMatch(/The research took too long/);
+  });
+
+  it("Refresh on a PARTIAL brief is Try the missing parts: a retry chip, only the missing part runs, no extra daily slot, even hours later", async () => {
+    const s = setup({ replies: [report({ name: "Najd Precast", country: "Saudi Arabia" })], failParts: ["people"] });
+    await runYes(s);
+    const slots = () => s.db.tables.ai_usage_log.filter((x) => x.surface === REPORT_SURFACE).length;
+    const before = slots();
+    const later = new Date(T0.getTime() + 5 * 3_600_000);
+    s.ctx.now = later;
+    s.ctx.companyReport = { ...s.ctx.companyReport!, deps: { ...s.ctx.companyReport!.deps!, now: () => later }, direct: { input: toolInput({ name: "Najd Precast", country: "Saudi Arabia", refresh: true }), consentId: null } };
+    const asked = await askAssistant(ask("refresh the report on Najd Precast", EARLIER), s.ctx);
+    expect(asked.consent).toMatchObject({ kind: "research_report", mode: "retry" });
+    const input = decodeReportQuery(asked.consent!.query)!;
+    expect(input).toMatchObject({ retry: true, refresh: false });
+    expect(s.runParts).toHaveBeenCalledTimes(1);
+
+    s.runParts.mockImplementationOnce(async (_subject: unknown, which: readonly ReportPartId[]) => partResults(goodRaw(), [], which));
+    const v = verifyConsent(asked.consent!.token, { tenantId: T1, userId: "user-1", query: asked.consent!.query });
+    s.ctx.companyReport = { ...s.ctx.companyReport!, direct: { input, consentId: v.ok ? v.id : null } };
+    const done = await askAssistant(ask("refresh the report on Najd Precast", EARLIER), s.ctx);
+    expect(s.runParts).toHaveBeenCalledTimes(2);
+    expect(s.runParts.mock.calls[1][1]).toEqual(["people"]);
+    expect((done.companyReport!.report as CompanyReport).missing).toEqual([]);
+    expect(slots()).toBe(before);
+  });
+
+  it("a refresh that fails everywhere falls back to the saved partial brief with its message, and nothing is overwritten", async () => {
+    const s = setup({ replies: [report({ name: "Najd Precast", country: "Saudi Arabia" })], failParts: ["people"] });
+    await runYes(s);
+    const saved = JSON.stringify(reports(s)[0].data);
+    s.runParts.mockImplementationOnce(async (_subject: unknown, which: readonly ReportPartId[]) => partResults({}, [], which, "The research took too long."));
+    s.ctx.companyReport = { ...s.ctx.companyReport!, direct: { input: toolInput({ name: "Najd Precast", country: "Saudi Arabia", retry: true }), consentId: "c-fresh" } };
+    const reply = await askAssistant(ask("refresh the report on Najd Precast", EARLIER), s.ctx);
+    expect(reply.companyReport?.cached).toBe(true);
+    expect(reply.companyReport?.notice).toMatch(/This is the saved brief/);
+    expect((reply.companyReport!.report as CompanyReport).missing).toEqual(["people"]);
+    expect(JSON.stringify(reports(s)[0].data)).toBe(saved);
+  });
+
+  it("a COMPLETE brief keeps the one-hour rule and its message", async () => {
+    const s = setup({ replies: [report({ name: "Najd Precast", country: "Saudi Arabia" })] });
+    await runYes(s);
+    s.ctx.companyReport = { ...s.ctx.companyReport!, direct: { input: toolInput({ name: "Najd Precast", country: "Saudi Arabia", refresh: true }), consentId: null } };
+    const reply = await askAssistant(ask("refresh the report on Najd Precast", EARLIER), s.ctx);
+    expect(reply.companyReport?.notice).toMatch(/can only be refreshed once an hour has passed/);
+    expect(reply.consent).toBeUndefined();
   });
 
   it("with nothing missing there is nothing to try again", async () => {

@@ -37,10 +37,17 @@ export type Tile = {
   label: string;
   value: string;
   sub: string;
-  /** The source number to link, when the figure came from a page. */
+  /** The source number of a STATED figure, when it came from a page and its digits were confirmed there. */
   src?: number;
-  /** Shown muted: the figure's digits were not found in the cited snippet, so the reader is asked to check the page. */
+  /**
+   * A STATED figure whose digits were not found in the snippet the provider cited for its page: it is drawn muted as "not confirmed on
+   * the page, check [n]" and is never shown as if that page said it. Calculated figures never carry this; they carry `calc`.
+   */
   check?: boolean;
+  /** The earlier figure a growth is worked from, stated with its own page. */
+  prior?: { text: string; src: number; check: boolean };
+  /** A figure our code worked out from stated ones: "margin 6.5%, calculated from [4] and [2]". It has no citation of its own. */
+  calc?: { text: string; from: number[]; unconfirmed: boolean };
   /** "Not published" or "n/a": drawn smaller and muted, never as a figure. */
   nopub?: boolean;
   tone?: "up" | "down";
@@ -62,10 +69,19 @@ export function tilesOf(r: CompanyReport): Tile[] {
     ? { key: "revenue", label: "Revenue", value: formatMoney(rev.amount, rev.currency), sub: `FY${rev.fiscalYear}`, src: rev.src, check: !rev.matched }
     : { key: "revenue", label: "Revenue", value: notFin ?? "Not published", nopub: true, sub: notFin ? "" : "Looked for accounts, filings, press" });
   out.push(profit
-    ? { key: "profit", label: "Net profit", value: formatMoney(profit.amount, profit.currency), sub: `FY${profit.fiscalYear}${m && m.fiscalYear === profit.fiscalYear ? ` · margin ${formatPercent(m.percent)}` : ""}`, src: profit.src, check: !profit.matched }
+    ? {
+      key: "profit", label: "Net profit", value: formatMoney(profit.amount, profit.currency), sub: `FY${profit.fiscalYear}`, src: profit.src, check: !profit.matched,
+      ...(m && m.fiscalYear === profit.fiscalYear
+        ? { calc: { text: `margin ${formatPercent(m.percent)}`, from: [...new Set([m.profit.src, m.revenue.src])], unconfirmed: !m.profit.matched || !m.revenue.matched } }
+        : {}),
+    }
     : { key: "profit", label: "Net profit", value: notFin ?? "Not published", nopub: true, sub: notFin ? "" : privateCo ? "Private company" : "Not in the pages found" });
   out.push(g
-    ? { key: "growth", label: "Growth", value: formatPercent(g.percent, true), sub: `vs FY${g.previous.fiscalYear}, ${formatMoney(g.previous.amount, g.previous.currency)}`, tone: g.percent >= 0 ? "up" : "down", check: !g.current.matched || !g.previous.matched }
+    ? {
+      key: "growth", label: "Growth", value: formatPercent(g.percent, true), sub: `vs FY${g.previous.fiscalYear}`, tone: g.percent >= 0 ? "up" : "down",
+      prior: { text: formatMoney(g.previous.amount, g.previous.currency), src: g.previous.src, check: !g.previous.matched },
+      calc: { text: "", from: [...new Set([g.current.src, g.previous.src])], unconfirmed: !g.current.matched || !g.previous.matched },
+    }
     : { key: "growth", label: "Growth", value: "n/a", nopub: true, sub: "Needs two published years" });
   const e = r.facts.employees;
   out.push(e

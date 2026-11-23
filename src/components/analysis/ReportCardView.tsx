@@ -8,7 +8,7 @@ import type { BriefHistory } from "@/lib/analysis/report/history";
 import { LEGACY_NOTICE, LEGACY_SECTIONS, LEGACY_SECTION_LABEL, legacySectionCount, type LegacyReport, type LegacySectionId } from "@/lib/analysis/report/legacy";
 import { REPORT_TIPS } from "@/lib/analysis/report/tips";
 import {
-  blockCount, MAX_REPORT_SEARCHES, REPORT_BLOCK_LABEL, REPORT_PARTS, REPORT_PART_LABEL, REPORT_PART_MISSING_TEXT, ROLE_FUNCTION_LABEL, SIGNAL_KIND_LABEL, WATCHOUT_KIND_LABEL,
+  blockCount, FAIL_REASON_TEXT, MAX_REPORT_SEARCHES, REPORT_BLOCK_LABEL, REPORT_PARTS, REPORT_PART_LABEL, REPORT_PART_MISSING_TEXT, ROLE_FUNCTION_LABEL, SIGNAL_KIND_LABEL, WATCHOUT_KIND_LABEL,
   type CompanyReport, type ReportBlockId, type ReportItem, type ReportPartId,
 } from "@/lib/analysis/report/types";
 import { REPORT_CHIP_TEXT, REPORT_RETRY_CHIP_TEXT, type DockReport, type ReportSaveTarget } from "@/lib/assistant/reportTool";
@@ -94,7 +94,13 @@ function Rows<T>({ rows, render }: { rows: T[]; render: (row: T, i: number) => R
 function MissingNote({ report, id }: { report: CompanyReport; id: ReportBlockId | "money" }) {
   const parts = missingForBlock(report, id);
   if (parts.length === 0) return null;
-  return <div className="note" role="status">{parts.map((p) => REPORT_PART_MISSING_TEXT[p]).join(" ")}</div>;
+  return <div className="note" role="status">{parts.map((p) => <span key={p}>{REPORT_PART_MISSING_TEXT[p]}<WhyMissing r={report} part={p} />{" "}</span>)}</div>;
+}
+
+/** The short plain reason a part failed, behind an "i": from a fixed list of codes, never the provider's own error text. */
+function WhyMissing({ r, part }: { r: CompanyReport; part: ReportPartId }) {
+  const why = r.reasons?.[part];
+  return why ? <InfoTip label={`why ${REPORT_PART_LABEL[part].toLowerCase()} failed`}>{FAIL_REASON_TEXT[why]}</InfoTip> : null;
 }
 
 // ── The blocks ─────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -106,11 +112,24 @@ function Tiles({ r }: { r: CompanyReport }) {
         {tilesOf(r).map((t) => (
           <div className="tile" key={t.key}>
             <div className="tl">{t.label}</div>
-            <div className={`tv${t.nopub ? " nopub" : ""}${t.tone ? ` ${t.tone}` : ""}`}>{t.value}</div>
+            <div className={`tv${t.nopub ? " nopub" : ""}${t.tone ? ` ${t.tone}` : ""}${t.check ? " unv" : ""}`}>{t.value}</div>
             <div className="ts">
-              {t.sub}{t.sub && t.src ? " " : ""}{t.src ? <Ref report={r} n={t.src} /> : null}
-              {t.check && <span className="chk">{`${t.sub || t.src ? " · " : ""}check${t.src ? ` [${t.src}]` : ""}`}</span>}
+              {t.sub}{t.sub && t.src ? " " : ""}{t.src && !t.check ? <Ref report={r} n={t.src} /> : null}
+              {t.check && t.src ? <span className="chk">{`${t.sub ? " · " : ""}not confirmed on the page, check `}<Ref report={r} n={t.src} /></span> : null}
             </div>
+            {t.prior && (
+              <div className="ts">
+                {t.prior.text}{" "}
+                {t.prior.check ? <span className="chk">{"not confirmed, check "}<Ref report={r} n={t.prior.src} /></span> : <Ref report={r} n={t.prior.src} />}
+              </div>
+            )}
+            {t.calc && (
+              <div className="ts" data-guide="brief.calculated">
+                {t.calc.text ? `${t.calc.text}, calculated from ` : "Calculated from "}
+                {t.calc.from.map((n, i) => <span key={n}>{i > 0 ? " and " : ""}<Ref report={r} n={n} /></span>)}
+                {t.calc.unconfirmed ? <span className="chk">{" · a figure behind it is not confirmed"}</span> : null}
+              </div>
+            )}
           </div>
         ))}
       </div>
@@ -267,7 +286,7 @@ function Performance({ r }: { r: CompanyReport }) {
           <div className="barn">
             {`Revenue, ${cur ?? ""}${unit.word ? ` ${unit.word}` : ""}. `}{years.some((y) => !y.matched) && <span className="chk">Some figures: check the source. </span>}
             {profits.length > 0 && `Net profit: ${profits.map((x) => formatMoney(x.amount, x.currency).replace(`${x.currency} `, "")).join(", ")}.`}
-            {" "}{latest(r.money.revenue) ? <Ref report={r} n={latest(r.money.revenue)!.src} /> : null}
+            {" "}{latest(r.money.revenue) ? (latest(r.money.revenue)!.matched ? <Ref report={r} n={latest(r.money.revenue)!.src} /> : <span className="chk">{"check "}<Ref report={r} n={latest(r.money.revenue)!.src} /></span>) : null}
           </div>
         </div>
       )}
@@ -494,7 +513,7 @@ export default function ReportCardView({ data, busy = false, now = new Date(), h
       {!data.saved && <div role="status" className="status">Not saved: a database update is pending, so this brief is not kept and cannot be saved to a record.</div>}
       {r.missing.length > 0 && (
         <div className="miss" role="status" data-guide="brief.missing">
-          <b>{r.missing.map((p) => REPORT_PART_MISSING_TEXT[p]).join(" ")}</b>
+          <b>{r.missing.map((p) => <span key={p}>{REPORT_PART_MISSING_TEXT[p]}<WhyMissing r={r} part={p} />{" "}</span>)}</b>
           <span>The rest of the brief is below.</span>
           {onRetry && <button type="button" className="chipb" disabled={busy} onClick={onRetry} data-guide="brief.retry">Try the missing parts</button>}
         </div>
