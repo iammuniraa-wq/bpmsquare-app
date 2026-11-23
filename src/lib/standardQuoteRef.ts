@@ -1,18 +1,27 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { TenantConfig } from "./constants";
 import { firstFreeRef, nextSeqFromRefs } from "./refSeq";
+import { generateNextQuoteRef } from "./quoteRef";
+import { sanitizeIdFormat } from "./quoteRefFormat";
 
 /**
- * Computes the next sequential Standard Quote ref for a tenant:
- * SQ-{YYYY}-{NNNN}, yearly-reset. Fixed format, not the configurable
- * quote_id_format system the (separate) Quotation object uses -- see
- * src/lib/invoiceRef.ts for the identical pattern this mirrors.
+ * Computes the next sequential Standard Quote ref for a tenant.
+ *
+ * A workspace that set a number pattern (config.standard_quote_id_format, Settings > Company > Numbering) gets its own
+ * series in that pattern, for example "167 / 2026". Without one the format is the fixed SQ-{YYYY}-{NNNN}, yearly reset,
+ * exactly as before. Tender bids and project quotations are separate series: the pattern here counts only Standard Quote
+ * refs, and a tender bid never draws from it. The revision of a quotation is NOT part of the number (src/lib/revisions).
  */
 export async function generateNextStandardQuoteRef(
   supabase: SupabaseClient,
   tenantId: string,
   date: Date = new Date()
 ): Promise<string> {
+  const { data: tenantRow } = await supabase.from("tenants").select("config").eq("id", tenantId).maybeSingle();
+  const fmt = sanitizeIdFormat((tenantRow?.config as Partial<TenantConfig> | null | undefined)?.standard_quote_id_format);
+  if (fmt) return generateNextQuoteRef(supabase, tenantId, fmt, date, "standard_quotes");
+
   const yearStart = new Date(date.getFullYear(), 0, 1).toISOString();
   const yearEnd = new Date(date.getFullYear() + 1, 0, 1).toISOString();
 

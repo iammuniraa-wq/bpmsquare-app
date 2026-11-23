@@ -11,6 +11,7 @@ import { derivePricingFlags, withPricingColumns, insertLinesTolerant, verifiedPr
 import { parsePrintOptions, isDefaultPrintOptions } from "@/lib/sales/printOptions";
 import { emitQuoteCreated } from "@/lib/events/emitters";
 import { cfOnly } from "@/lib/customData";
+import { readDocFields } from "@/lib/sales/standardQuoteDocFields";
 
 export async function GET(request: NextRequest) {
   let supabase, tenantId;
@@ -131,7 +132,13 @@ export async function POST(request: NextRequest) {
     opportunityId = opp.id;
   }
 
+  // Framed-document fields (0251): project title, subject, issuing entity, per-quotation sections, source. Verified against
+  // the tenant; a database without 0251 simply drops the columns (writeHeaderTolerant).
+  const docs = await readDocFields(supabase, tenantId, body, { templateId, allowSource: true });
+  if (!docs.ok) return NextResponse.json({ error: docs.error }, { status: docs.status });
+
   const baseInsert = {
+    ...docs.fields,
     print_options: isDefaultPrintOptions(printOptions) ? null : printOptions,
     opportunity_id: opportunityId,
     tenant_id: tenantId,

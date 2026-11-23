@@ -3,6 +3,8 @@ import { requireTenantUser } from "@/lib/supabase-server";
 import { createAdminSupabase } from "@/lib/supabase-server";
 import type { TenantConfig } from "@/lib/constants";
 import { HEX_COLOR_RE } from "@/lib/standardQuoteTemplateBlocks";
+import { sanitizeIdFormat } from "@/lib/quoteRefFormat";
+import { cleanExtraIds } from "@/lib/pdf/extraIds";
 
 export async function GET() {
   let tenantId;
@@ -64,6 +66,21 @@ export async function PATCH(request: NextRequest) {
         );
       }
     }
+  }
+
+  // Extra ids on a legal entity (vendor numbers and the like) print in the page frame: clean text, a known print rule.
+  if (Array.isArray(body.entities)) {
+    body.entities = body.entities.map((e) => (e && typeof e === "object" && "extra_ids" in e ? { ...e, extra_ids: cleanExtraIds((e as { extra_ids?: unknown }).extra_ids) } : e));
+  }
+  // The Standard Quote number pattern is its own series (PDF design, slice 1): a bad pattern is refused, not silently ignored.
+  if ("standard_quote_id_format" in body && body.standard_quote_id_format !== null) {
+    const fmt = sanitizeIdFormat(body.standard_quote_id_format);
+    if (!fmt) return NextResponse.json({ error: "The number pattern needs {SEQ} and only the tokens {PREFIX} {YYYY} {YY} {MM} {SEQ}" }, { status: 422 });
+    body.standard_quote_id_format = fmt;
+  }
+  if ("revisions" in body) {
+    const r = body.revisions as { standard_quote?: unknown } | null;
+    body.revisions = { standard_quote: r?.standard_quote === true };
   }
 
   const admin = createAdminSupabase();

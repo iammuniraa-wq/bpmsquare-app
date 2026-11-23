@@ -107,7 +107,7 @@ export default async function StandardQuotesPage({
   );
 
   const menuItems: MenuItem[] = [
-    { label: "Manage Templates", href: ROUTES.standardQuoteTemplates, hidden: role !== "admin" },
+    { label: "Manage Templates", href: ROUTES.settingsPdfDocuments + "?tab=layouts", hidden: role !== "admin" },
   ];
 
   return (

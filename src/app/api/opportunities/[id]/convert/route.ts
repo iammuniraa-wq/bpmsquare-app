@@ -109,6 +109,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     valid_until: null, inquiry_date: null, terms: null, notes: null, intro_text: null,
     header_discount_pct: 0, tax_pct: taxPct, shipping_amount: 0, subtotal, total: totals.total,
     created_by: userId, template_id: templateId, opportunity_id: id,
+    // Where it was made from (0251); dropped by writeHeaderTolerant while that migration is pending.
+    source_type: "opportunity", source_id: id,
   };
   let quote: { id: string; ref: string } | null = null;
   let qErr: { message: string; code?: string } | null = null;

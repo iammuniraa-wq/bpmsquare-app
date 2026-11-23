@@ -11,6 +11,7 @@ import { getStandardQuoteLive } from "@/lib/data/live";
 import { c, type PillarKey } from "@/lib/theme";
 import StatusPill from "@/components/ui/StatusPill";
 import Card from "@/components/ui/Card";
+import InfoTip from "@/components/ui/InfoTip";
 import { ROUTES } from "@/lib/constants";
 import type { StandardQuoteStatus } from "@/lib/types";
 import StandardQuoteAttachments from "./StandardQuoteAttachments";
@@ -34,6 +35,17 @@ import RecordActionButton, { type RecordAction } from "@/components/page/recordA
 import ObjectSections from "@/components/fields/ObjectSections";
 import SourceEmailSlot from "@/components/inbox/SourceEmailSlot";
 import { FIELD_REGISTRY } from "@/lib/fieldRegistry";
+import StandardQuoteDocumentTab, { type DocSectionDef } from "./StandardQuoteDocumentTab";
+import { madeFromChips } from "@/lib/sales/quoteSource";
+import { editableSections } from "@/lib/pdf/framedQuote";
+import { quoteBlocks } from "@/lib/pdf/standardQuoteFrame";
+import { docColumnsReady } from "../formData";
+import { canEditContent, isLockedByIssue, printedRevisionNo, revisionsActive, workingRevisionNo } from "@/lib/revisions/state";
+import { listRevisions } from "@/lib/revisions/server";
+import RevisionActions from "./RevisionActions";
+import RevisionsPanel from "./RevisionsPanel";
+import { REVISION_TIPS } from "@/lib/revisions/tips";
+import type { ClauseSectionData, ScopeMatrixData } from "@/lib/types";
 
 // The page hand-renders every standard field; only the tenant's own (cf_) fields come from ObjectSections.
 const STANDARD_FIELD_KEYS = FIELD_REGISTRY.standard_quote.fields.map((f) => f.key);
@@ -77,7 +89,7 @@ export default async function StandardQuoteDetailPage({
   const { tab } = await searchParams;
   const data = await getStandardQuoteLive(id);
   if (!data) notFound();
-  const { quote, lines, account, contact } = data;
+  const { quote, lines, account, contact, template } = data;
   const role = await getUserRole();
   const isAdmin = role === "admin";
   const basePath = ROUTES.standardQuote(quote.id);
@@ -99,8 +111,23 @@ export default async function StandardQuoteDetailPage({
   const clientNumbers = hasClientItemNumbers(lines);
   const chosenGroupIds = new Set(selectedLines(lines).filter((l) => l.group_type === "alternative" && l.group_id).map((l) => l.group_id as string));
 
+  // Revision history (0252, off unless the workspace turned it on): an issued quote is locked, so "can it be edited" is not only "is it a draft".
+  const revActive = revisionsActive(tenant?.config, quote);
   const isDraft = quote.status === "draft";
   const isSent = quote.status === "sent";
+  const contentEditable = canEditContent(quote, revActive);
+  const locked = isLockedByIssue(quote, revActive);
+  const revisions = revActive ? await listRevisions(createAdminSupabase(), quote.tenant_id, quote.id) : [];
+  const workingRev = workingRevisionNo(quote);
+  const revLabel = (n: number) => `Rev. ${String(n).padStart(2, "0")}`;
+  // "Made from" (0251) and the per-quotation sections of a framed layout (the "Document" tab).
+  const madeFrom = await madeFromChips(createAdminSupabase(), quote.tenant_id, quote);
+  const framed = Boolean(tenant?.config?.pdf_design) && docColumnsReady(quote);
+  const docSections: DocSectionDef[] = framed
+    ? editableSections(quoteBlocks(template)).map(({ block, kind }) => (kind === "clause"
+        ? { id: block.id, kind: "clause" as const, data: block.data as ClauseSectionData }
+        : { id: block.id, kind: "matrix" as const, data: block.data as ScopeMatrixData }))
+    : [];
   // An accepted quote can be billed once (Invoices on): the invoice it already has, or the button to raise it.
   const invoicesOn = tenant?.features?.invoices === true;
   const isAccepted = quote.status === "accepted";
@@ -121,7 +148,8 @@ export default async function StandardQuoteDetailPage({
   const emailAction: RecordAction = { label: isDraft ? "Email to customer" : "Resend email", endpoint: `${base}/email`, method: "POST", successText: "Sent to {sentTo}", errorText: "Failed to send email" };
   const accept: RecordAction = { label: "Mark accepted", endpoint: base, body: { status: "accepted" }, errorText: "Failed to update status" };
   const actions: RecordAction[] = [
-    { label: "Mark as sent", endpoint: base, body: { status: "sent" }, hidden: !isDraft, errorText: "Failed to update status" },
+    { label: "Mark as sent", endpoint: base, body: { status: "sent" }, hidden: !isDraft || (revActive && !locked), errorText: "Failed to update status" },
+    { label: "Copy to a new quotation", endpoint: `${base}/copy`, method: "POST", redirectTo: ROUTES.standardQuote("{id}"), successText: "Copied as {ref}", errorText: "Failed to copy the quotation" },
     { ...emailAction, hidden: !isSent },
     { label: "Mark rejected", endpoint: base, body: { status: "rejected" }, danger: true, hidden: !isSent, errorText: "Failed to update status" },
   ];
@@ -131,16 +159,18 @@ export default async function StandardQuoteDetailPage({
       backHref={ROUTES.standardQuotes}
       backLabel="All standard quotes"
       title={quote.ref}
-      meta={`Standard Quote${account?.name ? ` · ${account.name}` : ""}`}
+      meta={`Standard Quote${account?.name ? ` · ${account.name}` : ""}${revActive ? ` · ${locked ? `${revLabel(printedRevisionNo(quote))} issued` : `${revLabel(workingRev)} in preparation`}` : ""}`}
       status={<StatusPill label={STATUS_LABEL[quote.status]} tone={STATUS_TONE[quote.status]} />}
       primaryAction={(() => {
+        // With revisions on, a working copy is issued before it is sent: Issue replaces the send step until then.
+        if (revActive && !locked) return <RevisionActions quoteId={quote.id} mode="issue" workingRevision={workingRev} pendingReason={quote.pending_revision_reason ?? null} />;
         const main = isDraft ? <RecordActionButton action={emailAction} /> : isSent ? <RecordActionButton action={accept} /> : invoicesOn && isAccepted && !invoice ? <RecordActionButton action={createInvoice} /> : undefined;
         const extras = createSalesOrder || projectAction ? <>{createSalesOrder}{projectAction}</> : null;
         return main && extras ? <>{main}{extras}</> : main ?? extras ?? undefined;
       })()}
       menu={
         <RecordMoreMenu
-          editHref={isDraft ? ROUTES.standardQuoteEdit(quote.id) : undefined}
+          editHref={contentEditable ? ROUTES.standardQuoteEdit(quote.id) : undefined}
           printHref={`${base}/pdf`}
           actions={actions}
           remove={isDraft ? { endpoint: base, recordName: quote.ref, entityLabel: "draft quote", afterHref: ROUTES.standardQuotes } : undefined}
@@ -164,7 +194,22 @@ export default async function StandardQuoteDetailPage({
           label: "Overview",
           content: (
             <>
+            {madeFrom.length > 1 && (
+              <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 6, marginBottom: 10 }} data-guide="sq-made-from" aria-label="Made from">
+                <span style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.6, color: c.hint }}>Made from</span>
+                {madeFrom.map((chip, i) => (
+                  <span key={chip.key} style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                    {i > 0 && <span aria-hidden="true" style={{ color: c.hint }}>›</span>}
+                    {chip.href
+                      ? <Link href={chip.href} style={{ color: c.accent, textDecoration: "none", fontSize: 12.5, minHeight: 44, display: "inline-flex", alignItems: "center" }}>{chip.label}: {chip.text}</Link>
+                      : <span style={{ fontSize: 12.5, color: c.muted }}>{chip.label}: {chip.text}</span>}
+                  </span>
+                ))}
+              </div>
+            )}
             <Card title="Quote details">
+              {framed && quote.project_title && <CtxRow label="Project title" value={quote.project_title} />}
+              {framed && quote.subject && <CtxRow label="Subject" value={quote.subject} />}
               <CtxRow label="Account" value={account ? <Link href={ROUTES.account(account.id)} style={{ color: c.accent, textDecoration: "none" }}>{account.name}</Link> : "—"} />
               <CtxRow label="Contact" value={contact?.name ?? "—"} />
               <CtxRow label="Total" value={inr(quote.total)} />
@@ -263,6 +308,27 @@ export default async function StandardQuoteDetailPage({
             />
           ),
         },
+        ...(docSections.length > 0 ? [{
+          id: "document",
+          label: "Document",
+          content: <StandardQuoteDocumentTab quoteId={quote.id} sections={docSections} initial={quote.doc_sections ?? {}} canEdit={contentEditable} />,
+        }] : []),
+        ...(revActive ? [{
+          id: "revisions",
+          label: "Revisions",
+          count: revisions.length,
+          content: (
+            <>
+              <RevisionsPanel quoteId={quote.id} rows={revisions} money={inr} workingRevision={workingRev} inPreparation={!locked} />
+              {locked && quote.status !== "accepted" && (
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10 }}>
+                  <RevisionActions quoteId={quote.id} mode="revise" workingRevision={workingRev + 1} pendingReason={null} />
+                  <span className="bpm-label-row"><InfoTip label="Revise">{REVISION_TIPS.copy}</InfoTip></span>
+                </div>
+              )}
+            </>
+          ),
+        }] : []),
         {
           id: "related",
           label: "Related",
