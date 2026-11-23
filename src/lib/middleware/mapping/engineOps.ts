@@ -313,11 +313,11 @@ export async function resetEngine(ctx: OpsCtx, body: Record<string, unknown>): P
   if (s.pending) return needsUpdate();
   if (s.active) {
     if (s.conn.kind === "webhook") await detachWebhooks(ctx.admin, ctx.tenantId, s.active.id);
-    const done = await resetAll(ctx.admin, ctx.tenantId, s.conn.id, document, { keepDraft: s.conn.kind === "webhook" });
+    const done = await resetAll(ctx.admin, ctx.tenantId, s.conn.id, document, { keepDraft: s.conn.kind !== "adapter" });
     if (!done.ok) return fail(500, done.error);
     await logChange(ctx.supabase, { tenantId: ctx.tenantId, objectType: "integration_mapping", objectId: s.active.id, objectLabel: `${s.conn.label} · ${document}`, action: "delete", actorId: ctx.userId, changes: [{ field: "mapping", from: `version ${s.active.version}`, to: "standard" }] });
   } else if (s.draft) {
-    await resetAll(ctx.admin, ctx.tenantId, s.conn.id, document, { keepDraft: s.conn.kind === "webhook" });
+    await resetAll(ctx.admin, ctx.tenantId, s.conn.id, document, { keepDraft: s.conn.kind !== "adapter" });
   }
   const after = await loadState(ctx, r.conn, document);
   return typeof after === "string" ? ok({ reset: true }) : ok(await assembleView(ctx, after));
@@ -513,8 +513,8 @@ export async function tryOp(ctx: OpsCtx, body: Record<string, unknown>): Promise
     recordId = body.record_id;
   }
 
-  if (s.conn.kind === "adapter") {
-    if (s.conn.id !== "dynamics365") return fail(422, "This connection has no sender yet.");
+  if (s.conn.kind !== "webhook") {
+    if (s.conn.kind !== "adapter" || s.conn.id !== "dynamics365") return fail(422, "This connection has no sender yet.");
     const p = await previewMappedQuote(ctx.admin, ctx.tenantId, { quoteId: recordId });
     if (!p.ok) return fail(p.status, p.message);
     const problems: MappingProblem[] = p.problems.map((x) => ({ code: x.code as MappingProblem["code"], message: x.message, fix: x.fix }));

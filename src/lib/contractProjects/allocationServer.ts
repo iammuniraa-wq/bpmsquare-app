@@ -9,12 +9,14 @@ import { PACKAGE_LIMITS, asTreeItem, lineMemberships, respreadTargets, type Line
 import { WBS_LIMITS, addProblem, autoCodes, cleanText, codeChanges, holdersOf, isLeaf, moveProblem, partsOf, pctText, renumberAll, setSplit, type Membership } from "@/lib/wbs/tree";
 import { WBS_PENDING } from "@/lib/wbs/tips";
 import { costsFromBoq, costsFromSnapshot, planFill, type BoqCostRow, type FillSkip, type Found } from "./fill";
+import { applyEstimateFill, estimateGroups, planEstimateFill, type EstimateLineIn } from "./fillEstimate";
+import { templateGroupNames } from "@/lib/estimator/lines";
 import {
   ALLOCATION_BUNDLE, allocationSchemaReady, currentRevision, isMissingSchema, loadLines, loadProject, loadRevision, loadRevisions, needsAllocationUpdate, needsUpdate, openProjectRequest,
-  refreshRevisionTotal, UUID_RE, type Failure, type ProjectCtx,
+  refreshRevisionTotal, replaceLines, UUID_RE, type Failure, type ProjectCtx,
 } from "./server";
 import { checkOwner, loadPackages } from "./workPackagesServer";
-import type { AllocationBasis, BudgetLine, ProjectRow, RevisionRow, WorkPackageRow } from "./types";
+import { isTenderProject, type AllocationBasis, type BudgetLine, type ProjectRow, type RevisionRow, type WorkPackageRow } from "./types";
 
 import { readAllPages } from "@/lib/pagedRead";
 // The writes of the budget allocation and the WBS (migrations 0240 and 0243). Every route opens with openAllocation (the contract-projects
@@ -173,9 +175,9 @@ export async function changeBasis(ctx: AllocationCtx, basis: AllocationBasis): P
 
 // ── POST allocation/fill ────────────────────────────────────────────────────────────────────────────────────────────
 
-/** Is there a tender to copy the recorded costs from? */
-export function fillAvailable(project: Pick<ProjectRow, "source_opportunity_id">, lines: readonly Pick<BudgetLine, "source_line_id">[]): boolean {
-  return !!project.source_opportunity_id && lines.some((l) => !!l.source_line_id);
+/** Is there a tender to copy the recorded costs from? Only a project made from a tender has one: a quote project keeps its deal as a back link. */
+export function fillAvailable(project: Pick<ProjectRow, "source_opportunity_id" | "source_type">, lines: readonly Pick<BudgetLine, "source_line_id">[]): boolean {
+  return isTenderProject(project) && !!project.source_opportunity_id && lines.some((l) => !!l.source_line_id);
 }
 
 async function recordedCosts(ctx: AllocationCtx, lines: readonly BudgetLine[]): Promise<Map<string, Found>> {
@@ -237,6 +239,80 @@ export async function fillFromTender(ctx: AllocationCtx, revision: RevisionRow, 
   return { ok: true, filled, skipped: skipped.slice(0, 200), total };
 }
 
+
+// ── POST allocation/fill-estimate ───────────────────────────────────────────────────────────────────────────────────
+
+/** The estimate a quote project's quote was made from (tenant-scoped, from the project's own source, never from a request), or null. */
+export async function estimateOfProject(admin: SupabaseClient, tenantId: string, project: Pick<ProjectRow, "source_type" | "source_id">): Promise<{ id: string; ref: string | null; template_id: string | null } | null> {
+  if (project.source_type !== "standard_quote" || !project.source_id) return null;
+  const { data, error } = await admin.from("estimates").select("id, ref, template_id").eq("tenant_id", tenantId).eq("standard_quote_id", project.source_id).order("created_at", { ascending: false }).limit(1);
+  return error ? null : ((data ?? []) as { id: string; ref: string | null; template_id: string | null }[])[0] ?? null;
+}
+
+/** Is there an estimate to copy costs from, here? A tender project has the tender's costs instead, and a quote that came from nowhere has none. */
+export const estimateFillAvailable = (project: Pick<ProjectRow, "source_type" | "allocation_basis">, hasEstimate: boolean): boolean =>
+  project.source_type === "standard_quote" && hasEstimate && project.allocation_basis === "line";
+
+/**
+ * Copies the estimate's costs onto the draft budget by cost category (see fillEstimate.ts). A line it cannot match by name stays as it was and is
+ * listed. A second press replaces what the first one wrote and leaves every line a person changed alone. The WBS item of a contract line is
+ * given to its category lines, so the grouping and the client total stay as they were.
+ */
+export async function fillFromEstimate(ctx: AllocationCtx, revision: RevisionRow): Promise<Result<{ filled: number; categories: number; skipped: FillSkip[]; total: number }>> {
+  const { admin, tenantId } = ctx.req;
+  const project = ctx.project;
+  if (project.source_type !== "standard_quote") return { ok: false, status: 409, error: "There is no estimate to copy costs from" };
+  if (project.allocation_basis !== "line") return { ok: false, status: 409, error: "Allocate by BOQ line to fill from the estimate" };
+  if (!(await allocationSchemaReady(admin))) return { ok: false, ...needsAllocationUpdate() };
+  const estimate = await estimateOfProject(admin, tenantId, project);
+  if (!estimate) return { ok: false, status: 409, error: "There is no estimate to copy costs from" };
+
+  const [lineRes, tplRes, quoteLines] = await Promise.all([
+    readAllPages((lo, hi) => admin.from("estimate_lines").select("description, uom, qty, waste_pct, group_key, custom_data, component, cost_total").eq("tenant_id", tenantId).eq("estimate_id", estimate.id).order("sort_order").order("id", { ascending: true }).range(lo, hi)),
+    estimate.template_id ? admin.from("estimate_templates").select("rules, quote_granularity").eq("id", estimate.template_id).eq("tenant_id", tenantId).maybeSingle() : Promise.resolve({ data: null, error: null }),
+    readAllPages((lo, hi) => admin.from("standard_quote_lines").select("id, group_type").eq("standard_quote_id", project.source_id as string).eq("tenant_id", tenantId).order("id", { ascending: true }).range(lo, hi)),
+  ]);
+  if (lineRes.error) return { ok: false, status: 500, error: lineRes.error.message };
+  const tpl = (tplRes.data as { rules?: { group: string }[]; quote_granularity?: string } | null) ?? null;
+  const groups = estimateGroups(
+    (lineRes.data ?? []) as EstimateLineIn[], templateGroupNames(Array.isArray(tpl?.rules) ? (tpl?.rules as { group: string }[]) : []), tpl?.quote_granularity === "line" ? "line" : "group",
+  );
+  const optionLineIds = new Set(((quoteLines.error ? [] : quoteLines.data ?? []) as { id: string; group_type: string | null }[]).filter((q) => q.group_type === "alternative").map((q) => q.id));
+
+  const lines = await loadLines(admin, tenantId, revision.id);
+  const before = budgetTotals(lines).total;
+  const plan = planEstimateFill({ lines, groups, optionLineIds });
+  if (plan.fills.length === 0) return { ok: true, filled: 0, categories: 0, skipped: plan.skipped.slice(0, 200), total: before };
+
+  const applied = applyEstimateFill(lines, plan.fills, estimate.ref ?? "estimate", randomUUID);
+  const written = await replaceLines(admin, tenantId, project.id, revision.id, applied.lines);
+  if (!written.ok) return { ok: false, status: 500, error: written.error };
+
+  // The WBS follows: a category line sits in the item of its contract line, and a category that went takes its place out of the WBS.
+  const have = await loadPackages(admin, tenantId, project.id);
+  if (!have.pending && have.packages.length > 0) {
+    const memberships = lineMemberships(have.packages);
+    const gone = applied.dropped;
+    if (gone.length > 0) {
+      await admin.from("project_work_package_lines").delete().eq("tenant_id", tenantId).eq("project_id", project.id).in("line_key", gone);
+      await admin.from("project_work_package_line_parts").delete().eq("tenant_id", tenantId).eq("project_id", project.id).in("line_key", gone);
+    }
+    const whole: Record<string, unknown>[] = [];
+    const parts: Record<string, unknown>[] = [];
+    for (const m of applied.made) {
+      const home = memberships.get(m.of);
+      if (!home) continue;
+      if (home.wbs_item_id) whole.push({ tenant_id: tenantId, project_id: project.id, package_id: home.wbs_item_id, line_key: m.line_key, sort_order: 0 });
+      home.parts.forEach((p, i) => parts.push({ tenant_id: tenantId, project_id: project.id, package_id: p.wbs_item_id, line_key: m.line_key, share_pct: p.share_pct, sort_order: i }));
+    }
+    if (whole.length > 0) await admin.from("project_work_package_lines").insert(whole);
+    if (parts.length > 0) await admin.from("project_work_package_line_parts").insert(parts);
+  }
+
+  const total = await finish(ctx, revision, before, "Fill from estimate costs");
+  await logProject(ctx, [{ field: "Costs copied from estimate", from: null, to: `${estimate.ref ?? "estimate"}: ${plan.fills.length} line${plan.fills.length === 1 ? "" : "s"}, ${plan.skipped.length} not matched` }]);
+  return { ok: true, filled: plan.fills.length, categories: plan.fills.reduce((s, f) => s + f.buckets.length, 0), skipped: plan.skipped.slice(0, 200), total };
+}
 
 // ── The WBS: items, where lines sit, splits ─────────────────────────────────────────────────────────────────────────
 

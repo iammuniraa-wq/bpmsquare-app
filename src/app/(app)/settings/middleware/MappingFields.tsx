@@ -129,6 +129,8 @@ export default function MappingFields({ choice, onDirty }: { choice: MapChoice; 
   const document = choice.document as MapDocumentKey;
   const inbound = isInboundDocument(document);
   const webhook = choice.connection.startsWith("webhook:");
+  // A webhook and a connection you added yourself have no shipped mapping: Reset shows the proposal again, and the field list is fetched by hand.
+  const noPreset = webhook || choice.connection.startsWith("conn:");
   const view = useLoad(() => getMappingDoc(document, choice.connection), [choice.key, mw.connector.id]);
   const v = view.data;
   const eng = v ? legacyEngine(v) : null;
@@ -243,9 +245,9 @@ export default function MappingFields({ choice, onDirty }: { choice: MapChoice; 
   };
 
   const reset = async () => {
-    if (!(await confirm({ title: "Reset to standard?", body: webhook ? "The saved mapping is removed and the proposal is shown again." : "Your changes to this mapping are replaced by the standard one.", confirmLabel: "Reset", tone: "danger" }))) return;
+    if (!(await confirm({ title: "Reset to standard?", body: noPreset ? "The saved mapping is removed and the proposal is shown again." : "Your changes to this mapping are replaced by the standard one.", confirmLabel: "Reset", tone: "danger" }))) return;
     setBusy("reset"); setProblem(null);
-    try { await resetMapping(document, choice.connection); await view.reload(); show(true, webhook ? "Back to the proposal." : "Back to the standard mapping."); } catch (e) { setProblem(e); } finally { setBusy(null); }
+    try { await resetMapping(document, choice.connection); await view.reload(); show(true, noPreset ? "Back to the proposal." : "Back to the standard mapping."); } catch (e) { setProblem(e); } finally { setBusy(null); }
   };
 
   const showSample = async () => {
@@ -267,7 +269,7 @@ export default function MappingFields({ choice, onDirty }: { choice: MapChoice; 
   const mineRow = mine ? rows[mine.block].find((x) => x.id === mine.rowId) ?? null : null;
   const label = (block: Block, key: string) => (block === "lines" ? sources.lines : sources.header).find((f) => f.key === key)?.label ?? key;
   const tlabel = (block: Block, path: string) => (block === "lines" ? targetFields.lines : targetFields.header).find((f) => f.path === path)?.label ?? path;
-  const canReset = eng.engine.active || (!v.usingStandard && !webhook);
+  const canReset = eng.engine.active || (!v.usingStandard && !noPreset);
   const plainOnly = !!pending || legacy;
 
   const blocks: { block: Block; title: string; fields: readonly SourceField[] }[] = [
@@ -279,7 +281,7 @@ export default function MappingFields({ choice, onDirty }: { choice: MapChoice; 
     <>
       <SettingsSave dirty={dirty} saving={busy === "save"} onSave={() => void save()} label="Save mapping" />
       {pending && <Notice tone="info">{`Database update needed: run ${pending.bundle ?? "the mapping update"} once. Until then only plain field changes save; converters, value lists and fetched field lists wait.`}</Notice>}
-      <SchemaBar bar={bar} automatic={target?.kind === "adapter"} busy={busy === "fetch"} onFetch={legacy ? undefined : () => (webhook || !target || target.kind !== "adapter" ? setPanel("fetch") : void fetchNow({ source: "adapter" }))} />
+      <SchemaBar bar={bar} automatic={target?.kind === "adapter"} busy={busy === "fetch"} onFetch={legacy ? undefined : () => (noPreset || !target || target.kind !== "adapter" ? setPanel("fetch") : void fetchNow({ source: "adapter" }))} />
       {needLine && <Notice tone="warn">{needLine}</Notice>}
       {flash && <Notice tone={flash.ok ? "ok" : "err"}>{flash.text}</Notice>}
       {general.map((g) => <Notice key={g} tone="err">{g}</Notice>)}

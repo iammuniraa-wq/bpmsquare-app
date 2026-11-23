@@ -1,5 +1,5 @@
 import { budgetTotals, isUuid, marginView, round2, round4, type BudgetTotals, type MarginView } from "./budget";
-import { LINE_LIMITS, type AllocationBasis, type BudgetLine, type WorkPackageRow } from "./types";
+import { LINE_LIMITS, isCategoryLine, type AllocationBasis, type BudgetLine, type WorkPackageRow } from "./types";
 import { WBS_LIMITS, divideByShares, partsOf, remainderOf, rollUp, treeOrder, type Membership, type TreeItem } from "@/lib/wbs/tree";
 
 // Allocating a project's budget (KAMCO feedback, decided 2026-10-29): the system never makes the budget, the person allocates it, by BOQ line
@@ -106,6 +106,9 @@ export function respreadTargets(packages: readonly WorkPackageRow[], lines: read
 
 export type LineRow = {
   line_key: string;
+  resource_code: string | null;
+  /** On a cost-only category line (made by Fill from estimate costs): the key of the contract line it belongs to. Null on every other line. */
+  extra_of: string | null;
   /** The client's item number (the line's reference). */
   item: string | null;
   description: string;
@@ -176,11 +179,23 @@ export function allocationView(
   const codeOf = new Map(packages.map((p) => [p.id, p.code]));
   const memberships = lineMemberships(packages);
 
+  // A contract line with cost-only category lines under it counts them in what is left: the client pays once for the group.
+  const baseOf = new Map<string, string>();
+  for (const l of lines) if (l.source_line_id && !isCategoryLine(l) && !baseOf.has(l.source_line_id)) baseOf.set(l.source_line_id, l.line_key);
+  const groupCost = new Map<string, number>();
+  for (const l of lines) {
+    const base = isCategoryLine(l) ? baseOf.get(l.source_line_id as string) : l.line_key;
+    if (base && l.allocated) groupCost.set(base, round2((groupCost.get(base) ?? 0) + l.amount));
+  }
   const lineRows: LineRow[] = lines.map((l) => {
     const amount = l.allocated ? l.amount : 0;
     const missing: LineRow["missing"] = [...(l.resource_code ? [] : ["resource type" as const]), ...(l.cost_code ? [] : ["cost code" as const])];
     const wbs = partsOf(memberships.get(l.line_key) ?? emptyMembership).map((s) => ({ code: codeOf.get(s.wbs_item_id) ?? "?", share_pct: s.share_pct }));
-    return { line_key: l.line_key, item: l.wbs, description: l.description, missing, qty: l.qty, unit: l.unit, client_amount: l.client_amount, amount, allocated: l.allocated, left: leftOf(l.client_amount, amount), wbs };
+    const extraOf = isCategoryLine(l) ? baseOf.get(l.source_line_id as string) ?? null : null;
+    return {
+      line_key: l.line_key, resource_code: l.resource_code, extra_of: extraOf, item: l.wbs, description: l.description, missing, qty: l.qty, unit: l.unit, client_amount: l.client_amount, amount, allocated: l.allocated,
+      left: extraOf ? null : leftOf(l.client_amount, groupCost.get(l.line_key) ?? amount), wbs,
+    };
   });
 
   // What each item holds directly, then rolled up the tree.

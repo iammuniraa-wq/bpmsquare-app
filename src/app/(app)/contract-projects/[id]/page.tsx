@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { getTenant, requireFeature } from "@/lib/tenant";
-import { canEditWorkcenter, requireWorkcenterView, resolvePermissions } from "@/lib/permissions";
+import { canEditWorkcenter, canViewWorkcenter, requireWorkcenterView, resolvePermissions } from "@/lib/permissions";
 import { createAdminSupabase, requireTenantUser } from "@/lib/supabase-server";
 import { ROUTES } from "@/lib/constants";
 import StatusPill from "@/components/ui/StatusPill";
@@ -17,12 +17,12 @@ import ProjectDetailsForm from "@/components/contractProjects/ProjectDetailsForm
 import { listMembersForPicker } from "@/lib/sales/opportunityServer";
 import { loadProject, UUID_RE, type ProjectCtx } from "@/lib/contractProjects/server";
 import { buildProjectView } from "@/lib/contractProjects/view";
-import { fillAvailable } from "@/lib/contractProjects/allocationServer";
+import { estimateFillAvailable, estimateOfProject, fillAvailable } from "@/lib/contractProjects/allocationServer";
 import { loadEmployeeChoices } from "@/lib/contractProjects/workPackagesServer";
 import ProjectKpiStrip from "@/components/contractProjects/ProjectKpiStrip";
 import ProjectPathBar from "@/components/contractProjects/ProjectPathBar";
 import { projectTone } from "@/lib/contractProjects/format";
-import { PROJECT_STATUS_LABEL } from "@/lib/contractProjects/types";
+import { PROJECT_STATUS_LABEL, isTenderProject, projectSourceNote, sourceTypeOf } from "@/lib/contractProjects/types";
 import BuyoutSection from "@/components/contractProjects/buyout/BuyoutSection";
 import { buyoutVisible } from "@/components/contractProjects/buyout/rules";
 import { wbsSummary } from "@/lib/contractProjects/wbsSummary";
@@ -35,7 +35,6 @@ export default async function ContractProjectPage({ params, searchParams }: { pa
   const { tab, revision } = await searchParams;
   const { supabase, tenantId, userId, role } = await requireTenantUser();
   const tenant = await getTenant();
-  if (tenant?.features?.gcc_tender !== true) notFound();
   const perms = await resolvePermissions(supabase, tenantId, userId, role);
   const req: ProjectCtx = { admin: createAdminSupabase(), supabase, tenantId, userId, role, canEdit: canEditWorkcenter(perms, "contract_projects") };
   const found = await loadProject(req.admin, tenantId, id);
@@ -54,17 +53,30 @@ export default async function ContractProjectPage({ params, searchParams }: { pa
   const revLabel = rev ? (rev.rev_no === 0 ? "Baseline" : `Revision ${rev.rev_no}`) : null;
   const members = view.canEdit && p.status !== "closed" ? await listMembersForPicker(req.admin, tenantId) : [];
   const buyoutOn = buyoutVisible(p, tenant?.features);
+  const fromEstimate = estimateFillAvailable(p, !!(await estimateOfProject(req.admin, tenantId, p)));
   const deletable =p.status === "draft" && view.revisions.every((r) => r.status === "draft");
   // A project made from a tender goes back to that tender, and says which bid and which BOQ file it came from, in the header.
   const origin = view.origin;
   // What the WBS holds, one line: "WBS 6 items · 14 lines · 2 unassigned" (a project made from a tender took it over).
   const wbsLine = view.packages.length > 0 ? `WBS ${wbsSummary(view)}` : null;
-  const originMeta = [view.account_name, origin?.bid ? `from bid v${origin.bid.version_no}` : null, origin?.boq?.file_name, wbsLine].filter(Boolean).join(" · ");
+  const qo = view.quoteOrigin;
+  const sourceType = sourceTypeOf(p);
+  // A quote project goes back to the quote it was made from (when the caller may open it), a tender project to its tender, a project by hand to the list.
+  const features = tenant?.features;
+  const links = {
+    quote: !!qo && (qo.type === "standard_quote" ? features?.standard_quotes === true && canViewWorkcenter(perms, "standard_quotes") : features?.quotations === true && canViewWorkcenter(perms, "quotations")),
+    estimate: features?.estimator === true && canViewWorkcenter(perms, "estimates"),
+    deal: features?.pipeline === true && canViewWorkcenter(perms, "pipeline"),
+  };
+  const back = sourceType === "tender" && view.source ? { href: ROUTES.pipelineDetail(view.source.id), label: `Tender ${view.source.ref ?? view.source.title}` }
+    : qo && links.quote ? { href: qo.type === "standard_quote" ? ROUTES.standardQuote(qo.id) : ROUTES.quotation(qo.id), label: `${qo.type === "standard_quote" ? "Standard quote" : "Quotation"} ${qo.ref ?? ""}`.trim() }
+    : { href: ROUTES.contractProjects, label: "All contract projects" };
+  const originMeta = [view.account_name, qo ? projectSourceNote(sourceType, qo.ref) : null, origin?.bid ? `from bid v${origin.bid.version_no}` : null, origin?.boq?.file_name, wbsLine].filter(Boolean).join(" · ");
 
   return (
     <ObjectRecordPage
-      backHref={view.source ? ROUTES.pipelineDetail(view.source.id) : ROUTES.contractProjects}
-      backLabel={view.source ? `Tender ${view.source.ref ?? view.source.title}` : "All contract projects"}
+      backHref={back.href}
+      backLabel={back.label}
       title={p.name}
       reference={p.ref}
       meta={originMeta || undefined}
@@ -76,7 +88,7 @@ export default async function ContractProjectPage({ params, searchParams }: { pa
       tabs={[
         {
           id: "overview", label: "Overview",
-          content: <ProjectOverview view={view} buyoutOn={buyoutOn} editor={view.canEdit && p.status !== "closed" ? <ProjectDetailsForm projectId={p.id} initial={{ name: p.name, contract_value: p.contract_value, planned_start: p.planned_start, planned_end: p.planned_end, manager_id: p.manager_id }} members={members} /> : undefined} />,
+          content: <ProjectOverview view={view} buyoutOn={buyoutOn} originLinks={links} editor={view.canEdit && p.status !== "closed" ? <ProjectDetailsForm projectId={p.id} initial={{ name: p.name, contract_value: p.contract_value, planned_start: p.planned_start, planned_end: p.planned_end, manager_id: p.manager_id }} members={members} /> : undefined} />,
         },
         {
           id: "budget", label: "Budget", count: view.totals.lineCount,
@@ -84,8 +96,8 @@ export default async function ContractProjectPage({ params, searchParams }: { pa
             <BudgetGrid
               key={rev.id} projectId={p.id} revision={rev} revisions={view.revisions} lines={view.lines} resources={view.resources}
               canEdit={view.canEdit} projectClosed={p.status === "closed"} currency={p.currency} buyoutOn={buyoutOn}
-              contractValue={p.contract_value} marginFloor={view.marginFloor} basis={p.allocation_basis} allocation={view.allocation} packages={view.packages}
-              packagesPending={view.packagesPending} employees={employees} fillAvailable={fillAvailable(p, view.lines)} approval={view.approval}
+              contractValue={p.contract_value} valueNote={projectSourceNote(sourceType, qo?.ref)} marginFloor={view.marginFloor} basis={p.allocation_basis} allocation={view.allocation} packages={view.packages}
+              packagesPending={view.packagesPending} employees={employees} fillAvailable={fillAvailable(p, view.lines)} estimateFillAvailable={fromEstimate} approval={view.approval}
             />
           ) : <div style={{ fontSize: 13, color: "var(--hint)" }}>There is no budget yet.</div>,
         },
@@ -95,7 +107,7 @@ export default async function ContractProjectPage({ params, searchParams }: { pa
             <WbsTab
               projectId={p.id} basis={p.allocation_basis} revisionStatus={rev.status} projectClosed={p.status === "closed"} packages={view.packages} rows={view.allocation.wbsRows}
               unassigned={view.allocation.unassigned} lines={view.lines} employees={employees} currency={p.currency} canEdit={view.canEdit} pending={view.packagesPending}
-              treePending={view.packagesTreePending} fromTender={!!p.source_opportunity_id} buyoutOn={buyoutOn}
+              treePending={view.packagesTreePending} fromTender={isTenderProject(p)} buyoutOn={buyoutOn}
             />
           ) : <div style={{ fontSize: 13, color: "var(--hint)" }}>There is no budget yet, so there are no lines to group.</div>,
         },

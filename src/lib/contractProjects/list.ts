@@ -3,7 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { plannedMargin } from "./budget";
 import { summariseProjects, type ProjectsSummary } from "./summary";
 import { isMissingSchema, normaliseProject, normaliseRevision } from "./server";
-import { PROJECT_STATUSES, type ProjectRow, type ProjectStatus, type RevisionRow } from "./types";
+import { PROJECT_STATUSES, sourceTypeOf, type ProjectRow, type ProjectSourceType, type ProjectStatus, type RevisionRow } from "./types";
 
 import { readAllPages } from "@/lib/pagedRead";
 // The list of contract projects, shared by the list page and GET /api/contract-projects. Header fields and totals only: a project's
@@ -14,6 +14,8 @@ export type ProjectListRow = {
   ref: string | null;
   name: string;
   status: ProjectStatus;
+  /** tender, standard_quote, quotation, estimate or manual (a project read before migration 0248 is a tender when it has a deal, else manual). */
+  source_type: ProjectSourceType;
   account_id: string | null;
   account_name: string | null;
   contract_value: number;
@@ -56,7 +58,7 @@ export async function listProjects(admin: SupabaseClient, tenantId: string, para
     // Nothing allocated yet (a total of 0) has no margin to show, rather than a flattering 100 percent.
     const margin = shown && shown.total > 0 ? plannedMargin(p.contract_value, shown.total) : null;
     return {
-      id: p.id, ref: p.ref, name: p.name, status: p.status, account_id: p.account_id, account_name: p.account_id ? names.get(p.account_id) ?? null : null,
+      id: p.id, ref: p.ref, name: p.name, status: p.status, source_type: sourceTypeOf(p), account_id: p.account_id, account_name: p.account_id ? names.get(p.account_id) ?? null : null,
       contract_value: p.contract_value, currency: p.currency, budget_total: shown ? shown.total : null,
       budget_state: shown ? (shown.status as "approved" | "draft" | "pending") : null, margin_pct: margin?.pct ?? null,
       planned_end: p.planned_end, updated_at: p.updated_at,

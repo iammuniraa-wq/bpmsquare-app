@@ -10,21 +10,27 @@ import { loadTender, accountInTenant } from "@/lib/tender/server";
 import { budgetTotals, round2 } from "./budget";
 import { contractValueFor, mapTenderToBudget, projectNameFromDeal, type BoqInfo, type DealLine } from "./fromTender";
 import {
-  allocationSchemaReady, draftAmount, ensureMasterSeeds, existingCodes, insertLines, isMissingSchema, lineRows, loadProjectBySource, memberInTenant, needsAllocationUpdate, needsUpdate, normaliseProject,
-  UUID_RE, type Failure, type ProjectCtx,
+  allocationSchemaReady, draftAmount, ensureMasterSeeds, existingCodes, insertLines, isMissingSchema, lineRows, loadProjectBySource, memberInTenant, needsAllocationUpdate, needsSourceUpdate, needsUpdate, normaliseProject,
+  sourceSchemaReady, UUID_RE, type Failure, type ProjectCtx,
 } from "./server";
-import type { DraftLine, ProjectRow } from "./types";
+import { PROJECT_SOURCE_LABEL, type DraftLine, type ProjectRow, type ProjectSourceType } from "./types";
 import { copyTenderWbs, type WbsCopyResult } from "./copyWbs";
 
 import { readAllPages } from "@/lib/pagedRead";
-// Making a contract project (slice 5a): from an awarded tender in one step, or by hand. Both paths end the same way: a project, its
+// Making a contract project (slice 5a): from an awarded tender or an accepted quote in one step, or by hand. Both paths end the same way: a project, its
 // revision 0 (draft, the baseline to be approved) and its lines, with every foreign id checked against THIS workspace first. From a tender
 // the lines are the CONTRACT (quantity, unit, the client's rate and amount) with an empty allocation: no cost is guessed.
+
+/** The thing a project is made from: the id of a tender deal, or of the accepted quote. `label` is the quote's reference, for the log and the message. */
+export type ProjectSource = { type: Exclude<ProjectSourceType, "manual" | "estimate">; id: string; label?: string | null };
 
 export type CreateInput = {
   name: string;
   account_id: string | null;
+  /** The tender deal; for a quote project, the deal the quote belongs to (a back link only, never read as "this is a tender"). */
   source_opportunity_id: string | null;
+  /** Absent: a tender when source_opportunity_id is set, else by hand. */
+  source?: ProjectSource | null;
   contract_value: number;
   currency: string | null;
   planned_start: string | null;
@@ -94,27 +100,40 @@ export async function loadTenderSource(admin: SupabaseClient, tenantId: string, 
   };
 }
 
+const sourceWords = (src: ProjectSource) => (src.type === "tender" ? "tender" : `${PROJECT_SOURCE_LABEL[src.type]}${src.label ? ` ${src.label}` : ""}`);
+
 /** Checks every foreign id, then writes the project, revision 0 and the lines. A failure after the project row takes it back out. */
 export async function createProject(req: ProjectCtx, input: CreateInput): Promise<{ ok: true; project: ProjectRow; revisionId: string; wbs: WbsCopyResult | null } | ({ ok: false } & Failure)> {
   const { admin, supabase, tenantId, userId } = req;
+  const source: ProjectSource | null = input.source ?? (input.source_opportunity_id ? { type: "tender", id: input.source_opportunity_id } : null);
+  const isTender = source?.type === "tender";
   if (input.account_id && !(await accountInTenant(admin, tenantId, input.account_id))) return { ok: false, status: 404, error: "Account not found" };
   if (input.manager_id && !(await memberInTenant(admin, tenantId, input.manager_id))) return { ok: false, status: 404, error: "Manager not found" };
-  if (input.source_opportunity_id) {
-    const existing = await loadProjectBySource(admin, tenantId, input.source_opportunity_id);
-    if (existing) return { ok: false, status: 409, error: `This tender already has a contract project${existing.ref ? `: ${existing.ref}` : ""}`, extra: { already_exists: true, project_id: existing.id } };
+  // A quote project records which quote (0248); without that column nothing is made, so a project never loses where it came from.
+  if (source && !isTender && !(await sourceSchemaReady(admin))) return { ok: false, ...needsSourceUpdate() };
+  if (source) {
+    const existing = await loadProjectBySource(admin, tenantId, { type: source.type, id: source.id });
+    if (existing) return { ok: false, status: 409, error: `This ${sourceWords(source)} already has a contract project${existing.ref ? `: ${existing.ref}` : ""}`, extra: { already_exists: true, project_id: existing.id } };
   }
   await ensureMasterSeeds(admin, tenantId);
-  // A project made from a tender is an empty allocation: it needs the allocation columns (0240). Say so rather than make a budget that cannot say "not allocated".
+  // A project made from a tender or a quote is an empty allocation: it needs the allocation columns (0240). Say so rather than make a budget that cannot say "not allocated".
   if (input.lines.some((l) => l.allocated === false) && !(await allocationSchemaReady(admin))) return { ok: false, ...needsAllocationUpdate() };
 
-  const made = await insertWithMasterRef<{ id: string; ref: string | null }>(admin, "contract_projects", tenantId, {
+  const row: Record<string, unknown> = {
     tenant_id: tenantId, name: input.name, account_id: input.account_id, source_opportunity_id: input.source_opportunity_id, status: "draft",
     contract_value: input.contract_value, currency: input.currency, planned_start: input.planned_start, planned_end: input.planned_end,
     manager_id: input.manager_id, created_by: userId,
-  }, "id, ref");
+  };
+  type Made = { id: string; ref: string | null };
+  let made = await insertWithMasterRef<Made>(admin, "contract_projects", tenantId, source ? { ...row, source_type: source.type, source_id: source.id } : row, "id, ref");
+  // A tender project is still made before 0248: the same row, without the two columns it cannot hold yet.
+  if (made.error && isTender && isMissingSchema(made.error)) made = await insertWithMasterRef<Made>(admin, "contract_projects", tenantId, row, "id, ref");
   if (made.error || !made.data) {
-    if (isMissingSchema(made.error)) return { ok: false, ...needsUpdate() };
-    if (made.error?.code === "23505") return { ok: false, status: 409, error: "This tender already has a contract project", extra: { already_exists: true } };
+    if (isMissingSchema(made.error)) return { ok: false, ...(source && !isTender ? needsSourceUpdate() : needsUpdate()) };
+    if (made.error?.code === "23505") {
+      const again = source ? await loadProjectBySource(admin, tenantId, { type: source.type, id: source.id }) : null;
+      return { ok: false, status: 409, error: `This ${source ? sourceWords(source) : "tender"} already has a contract project${again?.ref ? `: ${again.ref}` : ""}`, extra: { already_exists: true, ...(again ? { project_id: again.id } : {}) } };
+    }
     return { ok: false, status: 500, error: made.error?.message ?? "Could not create the project" };
   }
   const projectId = made.data.id;
@@ -130,7 +149,7 @@ export async function createProject(req: ProjectCtx, input: CreateInput): Promis
   }
 
   // The tender's WBS becomes the project's own copy (docs/design/wbs.md 2.5). While 0243 is pending, or if the copy fails, the project is made without one and says so.
-  const wbs = input.source_opportunity_id ? await copyTenderWbs(admin, tenantId, projectId, userId, input.source_opportunity_id, revisionId) : null;
+  const wbs = isTender && input.source_opportunity_id ? await copyTenderWbs(admin, tenantId, projectId, userId, input.source_opportunity_id, revisionId) : null;
 
   const user = await getAuthUser();
   const full = await admin.from("contract_projects").select("*").eq("id", projectId).eq("tenant_id", tenantId).maybeSingle();
@@ -138,7 +157,7 @@ export async function createProject(req: ProjectCtx, input: CreateInput): Promis
   await logChange(supabase, {
     tenantId, objectType: "contract_projects", objectId: projectId, objectLabel: `${project.ref ?? ""} ${project.name}`.trim(), action: "create", actorId: user?.id, actorEmail: user?.email,
     changes: [
-      ...(input.source_opportunity_id ? [{ field: "Created from tender", from: null, to: input.name }] : []),
+      ...(source ? [{ field: `Created from ${isTender ? "tender" : PROJECT_SOURCE_LABEL[source.type]}`, from: null, to: isTender ? input.name : source.label ?? input.name }] : []),
       ...(wbs?.text ? [{ field: "WBS copied from tender", from: null, to: wbs.text }] : []),
       ...(wbs?.failed ? [{ field: "WBS copied from tender", from: null, to: "could not be copied" }] : []),
       ...diffForLog("contract_projects", {}, { name: project.name, contract_value: project.contract_value, budget_lines: input.lines.length, baseline_budget: total }),
@@ -148,3 +167,4 @@ export async function createProject(req: ProjectCtx, input: CreateInput): Promis
 }
 
 export { projectNameFromDeal };
+export { loadQuoteSource } from "./fromQuote";
