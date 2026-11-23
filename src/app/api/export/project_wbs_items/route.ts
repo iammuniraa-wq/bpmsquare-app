@@ -1,3 +1,4 @@
+import { assertObjectFeature } from "@/lib/objectFeatures";
 import { NextResponse, type NextRequest } from "next/server";
 import { applyFilters } from "@/lib/import/exportServer";
 import { projectDwGate, projectsByRef } from "@/lib/import/projectElementsServer";
@@ -8,9 +9,13 @@ import type { ExportFilter, ExportResponse } from "@/lib/import/types";
 // Every WBS item (building, activity, cost element) of every contract project of the workspace, with its own real id (the Update key) and its project's
 // reference. A workspace whose migration 0243 or 0253 is pending exports what it has (no building codes).
 export async function POST(request: NextRequest) {
-  const gate = await projectDwGate("project_wbs_items", false);
+  const gate = await projectDwGate(false);
   if (!gate.ok) return gate.response;
-  const { admin, tenantId } = gate.req;
+  const { tenantId } = gate.req;
+  // A tenant without the module cannot read or write its data in bulk either.
+  const off = await assertObjectFeature(tenantId, "project_wbs_items");
+  if (off) return off;
+  const { admin } = gate.req;
   const { filters = [] } = (await request.json().catch(() => ({}))) as { filters?: ExportFilter[] };
   const projects = await projectsByRef(admin, tenantId);
   const rows: Record<string, string>[] = [];

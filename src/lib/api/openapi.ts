@@ -135,6 +135,13 @@ export function buildOpenApiSpec(): Record<string, unknown> {
     },
   };
 
+  // The contract projects of a workspace with the Buildings add-on, header only: what a model connector needs to find the project it reads and posts to.
+  paths["/contract-projects"] = {
+    get: {
+      summary: "Contract projects, header only (no budget, no margin), each with the link to its elements", tags: ["contract_projects"], parameters: QUERY_PARAMS, responses: { ...listResponse(), "404": { description: "The Buildings add-on is off" } },
+    },
+  };
+
   // The elements of a contract project: buildings, element types and codes, client and model quantities. Never a cost.
   paths["/contract-projects/{id}/elements"] = {
     parameters: [{ in: "path", name: "id", required: true, schema: { type: "string", format: "uuid" } }],

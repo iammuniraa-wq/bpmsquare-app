@@ -342,3 +342,17 @@ describe("the payload", () => {
     expect(linesUnder(items, [{ wbs_item_id: null, parts: [] }], "b1")).toBe(0);
   });
 });
+
+describe("buildings from a quote's labels", async () => {
+  const { planBuildings, quoteElementType, cleanLabel } = await import("./fromQuote");
+  it("a label of 1 to 6 letters or digits is its own code, any other gets B01, B02 in order, and one building is one label however it is typed", () => {
+    expect(planBuildings(["B1", "Main hall", null, "b1", "Block two", "MAIN HALL", "A"]).map((b) => [b.name, b.code])).toEqual([["B1", "B1"], ["Main hall", "B01"], ["Block two", "B02"], ["A", "A"]]);
+  });
+  it("a code taken by a label is stepped over, and a label is cleaned", () => {
+    expect(planBuildings(["B01", "North wing", "South wing"]).map((b) => b.code)).toEqual(["B01", "B02", "B03"]);
+    expect(cleanLabel("  Block   A  ")).toBe("Block A");
+    expect(cleanLabel("   ")).toBeNull();
+    expect(quoteElementType(" hcs ")).toBe("HCS");
+    expect(quoteElementType("slab-1")).toBeNull();
+  });
+});

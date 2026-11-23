@@ -232,5 +232,36 @@ describe("the codes travel to the project with the lines", () => {
     expect(rows("contract_projects").find((p) => p.id === id)?.element_pattern).toBe("{building}-{type}-{seq:4}");
     const other = rows("project_budget_lines").find((l) => l.project_id === id && l.wbs === "1.2")!;
     expect(other).toMatchObject({ client_qty: 50 });
+    // the tender's codes are the project's now: a reissue on the tender is refused
+    const refused = await buildingPatch(json("PATCH", { code: "B10", reissue: true }), ictx(b.id));
+    expect(refused.status).toBe(409);
+    expect(boq(1).element_code).toBe("B01-HCS-0001");
+  });
+});
+
+describe("the client's own Excel carries Building and Element columns", () => {
+  it("reads them into the element fields and the building, lists an unknown building without creating it, and never overwrites a line's own value", async () => {
+    const { openBoqRequest } = await import("@/lib/tender/boq/server");
+    const { applyFileElementColumns, elementColumnsOf } = await import("@/lib/elements/fileColumns");
+    expect(elementColumnsOf({ "Building / Area": "B01", "Element Type": "hcs", "Element code": "pc-1", Remarks: "x" })).toEqual({ building: "B01", type: "hcs", code: "pc-1" });
+    const b = await building("B01", "Block one");
+    const opened = await openBoqRequest(OPP, true);
+    if (!opened.ok) throw new Error("the tender did not open");
+    const r = await applyFileElementColumns(opened.req, [
+      { key: "n:1.1", client_data: { "Building / Area": "block one", "Element Type": "hcs", "Element Code": "pc-1" } },
+      { key: "n:1.2", client_data: { Building: "Block 9", "Element Type": "zzz" } },
+    ]);
+    expect(boq(1)).toMatchObject({ element_type: "HCS", element_code: "PC-1", wbs_item_id: b.id });
+    expect(boq(2).element_type ?? null).toBeNull();
+    expect(r.notes.some((n) => /zzz/i.test(n) && /Element types list/.test(n))).toBe(true);
+    expect(r.notes.some((n) => /Block 9/.test(n) && /not on this tender/.test(n))).toBe(true);
+    expect(rows("tender_wbs_items").filter((i) => i.tenant_id === T1)).toHaveLength(1);
+    // a second read with other values changes nothing the line already has
+    await applyFileElementColumns(opened.req, [{ key: "n:1.1", client_data: { "Element Type": "wal", "Element Code": "other-9" } }]);
+    expect(boq(1)).toMatchObject({ element_type: "HCS", element_code: "PC-1" });
+    state.features = { pipeline: true, gcc_tender: true, contract_projects: true, contract_buildings: false };
+    const off = await applyFileElementColumns(opened.req, [{ key: "n:1.2", client_data: { "Element Type": "wal" } }]);
+    expect(off).toEqual({ applied: 0, notes: [] });
+    expect(boq(2).element_type ?? null).toBeNull();
   });
 });

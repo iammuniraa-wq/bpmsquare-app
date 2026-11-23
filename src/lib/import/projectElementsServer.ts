@@ -1,7 +1,6 @@
 import "server-only";
 import { NextResponse } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { assertObjectFeature } from "@/lib/objectFeatures";
 import { fetchAllRows, nameKey } from "@/lib/import/server";
 import { openProjectRequest, currentRevision, loadLines, loadProject, loadRevisions, type ProjectCtx } from "@/lib/contractProjects/server";
 import { lineMemberships } from "@/lib/contractProjects/allocation";
@@ -16,11 +15,9 @@ import { buildingsOn } from "@/lib/elements/server";
 // lookup is on the workspace; a project, a line or an item of another workspace simply is not there.
 
 /** The gate of a Data Workbench route on a project object: 404 without the module or the add-on, 403 without the grant. */
-export async function projectDwGate(object: "project_budget_lines" | "project_wbs_items", write: boolean): Promise<{ ok: true; req: ProjectCtx } | { ok: false; response: Response }> {
+export async function projectDwGate(write: boolean): Promise<{ ok: true; req: ProjectCtx } | { ok: false; response: Response }> {
   const open = await openProjectRequest({ write });
   if (!open.ok) return { ok: false, response: NextResponse.json({ error: open.error }, { status: open.status }) };
-  const off = await assertObjectFeature(open.req.tenantId, object);
-  if (off) return { ok: false, response: off };
   if (!(await buildingsOn(open.req.supabase, open.req.tenantId))) return { ok: false, response: NextResponse.json({ error: "Not found" }, { status: 404 }) };
   return { ok: true, req: open.req };
 }

@@ -1,3 +1,4 @@
+import { assertObjectFeature } from "@/lib/objectFeatures";
 import { NextResponse, type NextRequest } from "next/server";
 import { readImportBody } from "@/lib/import/server";
 import { allocationFor, projectDwGate, projectsByRef } from "@/lib/import/projectElementsServer";
@@ -18,8 +19,12 @@ type Row = { rowNum: number; values: Record<string, string> };
  * makes a top-level item a building (unique on the project). Every write is on the workspace; a project of another workspace is "not found".
  */
 export async function POST(request: NextRequest) {
-  const gate = await projectDwGate("project_wbs_items", true);
+  const gate = await projectDwGate(true);
   if (!gate.ok) return gate.response;
+  const { tenantId } = gate.req;
+  // A tenant without the module cannot read or write its data in bulk either.
+  const off = await assertObjectFeature(tenantId, "project_wbs_items");
+  if (off) return off;
   const { req } = gate;
   const rows = readImportBody(await request.json().catch(() => null)) as Row[] | null;
   if (!rows) return NextResponse.json({ error: "No rows provided" }, { status: 400 });

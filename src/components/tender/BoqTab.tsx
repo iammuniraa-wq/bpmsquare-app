@@ -358,7 +358,7 @@ export default function BoqTab({ opportunityId, canEdit, onError, onNotice, onLi
             />
           )}
 
-          {view === "wbs" && wbsOn && <BuildingsPanel root={`/api/opportunities/${opportunityId}/tender`} canEdit={canEdit} onChanged={changed} />}
+          {view === "wbs" && wbsOn && <BuildingsPanel root={`/api/opportunities/${opportunityId}/tender`} canEdit={canEdit} onChanged={() => changed()} />}
 
           {view === "wbs" && wbsOn ? (
             <WbsTree

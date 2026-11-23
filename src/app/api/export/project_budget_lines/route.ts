@@ -1,3 +1,4 @@
+import { assertObjectFeature } from "@/lib/objectFeatures";
 import { NextResponse, type NextRequest } from "next/server";
 import { applyFilters } from "@/lib/import/exportServer";
 import { exportProjectLines, projectDwGate } from "@/lib/import/projectElementsServer";
@@ -8,8 +9,12 @@ import type { ExportFilter, ExportResponse } from "@/lib/import/types";
 // its building, element type and code, the client's and the model's quantity and what the budget uses. Cost, unit cost, amount and margin are not on any
 // column. A workspace without the Contract projects module and the Buildings add-on gets a 404.
 export async function POST(request: NextRequest) {
-  const gate = await projectDwGate("project_budget_lines", false);
+  const gate = await projectDwGate(false);
   if (!gate.ok) return gate.response;
+  const { tenantId } = gate.req;
+  // A tenant without the module cannot read or write its data in bulk either.
+  const off = await assertObjectFeature(tenantId, "project_budget_lines");
+  if (off) return off;
   const { filters = [] } = (await request.json().catch(() => ({}))) as { filters?: ExportFilter[] };
   const rows = await exportProjectLines(gate.req);
   const typeByKey = new Map(PROJECT_BUDGET_LINES_SPEC.fields.map((f) => [f.key, f.type]));

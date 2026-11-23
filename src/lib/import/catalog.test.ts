@@ -152,7 +152,7 @@ describe("module ownership", () => {
 
 // The filter page.tsx used before the catalog: OBJECT_ORDER, the two hard-coded special cases and featureForObject.
 const LEGACY_ORDER: ImportObjectId[] = [
-  "accounts", "contacts", "assets", "suppliers", "products", "product_bom_lines", "wfm_projects", "opportunities", "rfqs", "estimates", "abm_programs", "abm_targets", "abm_members", "quotes", "quote_lines", "standard_quotes", "standard_quote_lines", "sales_orders", "sales_order_lines", "tender_boq_lines", "tender_wbs_items",
+  "accounts", "contacts", "assets", "suppliers", "products", "product_bom_lines", "wfm_projects", "opportunities", "rfqs", "estimates", "abm_programs", "abm_targets", "abm_members", "quotes", "quote_lines", "standard_quotes", "standard_quote_lines", "sales_orders", "sales_order_lines", "tender_boq_lines", "tender_wbs_items", "project_wbs_items", "project_budget_lines",
   "cases", "work_orders", "invoices", "purchase_orders", "inventory",
   "users", "employees", "consents",
 ];
@@ -161,6 +161,7 @@ function legacyOwned(features: Partial<Record<string, boolean>>): ImportObjectId
     const key = featureForObject(id);
     if (id === "consents" && features.marketing !== true) return false;
     if ((id === "tender_boq_lines" || id === "tender_wbs_items") && features.pipeline !== true) return false;
+    if ((id === "project_wbs_items" || id === "project_budget_lines") && features.contract_buildings !== true) return false;
     return key === null || features[key] === true;
   });
 }
@@ -186,9 +187,9 @@ describe("the list a workspace sees is the one it saw before the catalog", () =>
     expect(new Set(ownedObjectIds(features, featureForObject))).toEqual(want);
   });
 
-  it("lists the same 29 objects the page listed, no more", () => {
+  it("lists the same 29 objects the page listed, plus the two project objects of the Buildings add-on, no more", () => {
     expect([...ids].sort()).toEqual([...LEGACY_ORDER].sort());
-    expect(ids).toHaveLength(29);
+    expect(ids).toHaveLength(31);
   });
 
   it("tender BOQ lines and WBS items need the Pipeline as well as the tender edition, consents need Marketing as well as their own flag", () => {

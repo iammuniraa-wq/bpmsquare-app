@@ -53,7 +53,7 @@ const LINE_COLS = "id, line_id, row_no, item_no, cost_code, file_description, fi
 // The same without the two client-format columns, for a database where migration 0242 has not been applied yet.
 const LINE_COLS_BASE = "id, line_id, row_no, item_no, cost_code, file_description, file_uom, file_qty, price_source, price_as_of, stale_accepted, removed_in_revision";
 // The same with the element columns of migration 0253, read first; a database that has not had it is read with the older lists.
-const LINE_COLS_ELEMENT = `${LINE_COLS}, element_type, element_code, model_qty`;
+const LINE_COLS_ELEMENT = "id, line_id, row_no, item_no, cost_code, file_description, file_uom, file_qty, price_source, price_as_of, stale_accepted, removed_in_revision, file_details, client_data, element_type, element_code, model_qty";
 const missingColumn = (e: { code?: string } | null | undefined) => !!e && (e.code === "42703" || e.code === "PGRST204");
 const DEAL_LINE_COLS = "id, sl_no, description, uom, qty, rate, amount";
 
@@ -87,9 +87,13 @@ export async function loadBoqRowsForApi(admin: SupabaseClient, tenantId: string,
   if (srcErr || !src) return { ...empty, wbs: await loadStructure(admin, tenantId, opportunityId) };
   const source: BoqApiSource = { file_name: String(src.file_name), version: Number(src.version ?? 1), uploaded_at: String(src.uploaded_at ?? "") };
 
-  const readLines = (cols: string) => readAllPages<Record<string, unknown>>((lo, hi) => admin.from("tender_boq_lines").select(cols).eq("tenant_id", tenantId).eq("opportunity_id", opportunityId).order("row_no").order("id", { ascending: true }).range(lo, hi));
+  const readLines = (tier: 0 | 1 | 2) => readAllPages<Record<string, unknown>>((lo, hi) => (tier === 0
+    ? admin.from("tender_boq_lines").select(LINE_COLS_ELEMENT).eq("tenant_id", tenantId).eq("opportunity_id", opportunityId).order("row_no").order("id", { ascending: true }).range(lo, hi)
+    : tier === 1
+      ? admin.from("tender_boq_lines").select(LINE_COLS).eq("tenant_id", tenantId).eq("opportunity_id", opportunityId).order("row_no").order("id", { ascending: true }).range(lo, hi)
+      : admin.from("tender_boq_lines").select(LINE_COLS_BASE).eq("tenant_id", tenantId).eq("opportunity_id", opportunityId).order("row_no").order("id", { ascending: true }).range(lo, hi)));
   const [lines, deal, ctx, tender, wbs] = await Promise.all([
-    readLines(LINE_COLS_ELEMENT).then((res) => (missingColumn(res.error) ? readLines(LINE_COLS) : res)).then((res) => (missingColumn(res.error) ? readLines(LINE_COLS_BASE) : res)),
+    readLines(0).then((res) => (missingColumn(res.error) ? readLines(1) : res)).then((res) => (missingColumn(res.error) ? readLines(2) : res)),
     readAllPages<Record<string, unknown>>((lo, hi) => admin.from("opportunity_lines").select(DEAL_LINE_COLS).eq("tenant_id", tenantId).eq("opportunity_id", opportunityId).order("id", { ascending: true }).range(lo, hi)),
     opts.ctx ?? boqApiContext(admin, tenantId),
     opts.tender ? Promise.resolve(opts.tender) : loadTenderNames(admin, tenantId, opportunityId),

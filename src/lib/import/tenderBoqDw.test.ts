@@ -109,7 +109,7 @@ describe("the object", () => {
     const byKey = new Map(TENDER_BOQ_LINES_SPEC.fields.map((f) => [f.key, f]));
     expect(byKey.get("tender_ref")).toMatchObject({ type: "ref", required: true });
     for (const k of ["amount", "rate_source", "price_as_of", "status", "row_no"]) expect(byKey.get(k)?.exportOnly, k).toBe(true);
-    expect([...TENDER_BOQ_UPDATE_KEYS]).toEqual(["quantity", "description", "details", "cost_code", "wbs_code"]);
+    expect([...TENDER_BOQ_UPDATE_KEYS]).toEqual(["quantity", "description", "details", "cost_code", "wbs_code", "element_type", "element_code", "model_qty"]);
     // The WBS code is an Export and Update column, never an Import one (a new row must not regroup existing lines).
     expect(byKey.get("wbs_code")).toMatchObject({ updateOnly: true });
     expect(byKey.get("rate")?.exportOnly).toBeFalsy();
@@ -276,7 +276,7 @@ describe("Export", () => {
     expect(j.rows).toHaveLength(2);
     const a = j.rows.find((r: Record<string, string>) => r.item_no === "1.1");
     expect(a).toEqual({
-      id: "b1", tender_ref: "OPP-0044", item_no: "1.1", description: "Excavation", details: "", unit: "m3", quantity: "100", cost_code: "31 23", wbs_code: "", client_columns: "",
+      id: "b1", tender_ref: "OPP-0044", item_no: "1.1", description: "Excavation", details: "", unit: "m3", quantity: "100", cost_code: "31 23", wbs_code: "", element_type: "", element_code: "", model_qty: "", building_code: "", client_columns: "",
       rate: "20", amount: "2000", rate_source: "supplier", price_as_of: "2026-10-20", status: "priced", row_no: "2",
     });
     expect(j.rows.find((r: Record<string, string>) => r.item_no === "1.2")).toMatchObject({ id: "b2", rate: "", amount: "", rate_source: "", status: "unpriced" });

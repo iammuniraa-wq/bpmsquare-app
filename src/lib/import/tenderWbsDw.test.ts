@@ -127,7 +127,7 @@ describe("the object", () => {
     expect(byKey.get("name")).toMatchObject({ required: true });
     for (const k of ["lines", "shared_lines", "client_amount"]) expect(byKey.get(k)?.exportOnly, k).toBe(true);
     for (const k of TENDER_WBS_ITEMS_SPEC.fields.map((f) => f.key)) expect(k).not.toMatch(/cost|markup|margin/);
-    expect([...TENDER_WBS_UPDATE_KEYS]).toEqual(["name", "code", "parent_code", "owner_email", "note"]);
+    expect([...TENDER_WBS_UPDATE_KEYS]).toEqual(["name", "code", "parent_code", "owner_email", "note", "building_code"]);
     expect(read("src/app/(app)/data-workbench/page.tsx")).toContain("tender_wbs_items: TENDER_WBS_ITEMS_SPEC");
   });
 
@@ -261,7 +261,7 @@ describe("Export", () => {
     const j = await (await call(exportItems.POST, {})).json();
     const row = (code: string, tender = "OPP-0044") => j.rows.find((r: Record<string, string>) => r.code === code && r.tender_ref === tender);
     expect(j.rows.map((r: Record<string, string>) => `${r.tender_ref}/${r.code}`).sort()).toEqual(["OPP-0044/1", "OPP-0044/2", "OPP-0044/2.1", "OPP-0044/2.2", "OPP-0044/3", "OPP-0046/9"]);
-    expect(row("1")).toEqual({ id: W.w1, tender_ref: "OPP-0044", code: "1", name: "Civil", parent_code: "", owner_email: "Ana@x.test", note: "", lines: "1", shared_lines: "0", client_amount: "2000" });
+    expect(row("1")).toEqual({ id: W.w1, tender_ref: "OPP-0044", code: "1", name: "Civil", parent_code: "", building_code: "", owner_email: "Ana@x.test", note: "", lines: "1", shared_lines: "0", client_amount: "2000" });
     expect(row("2.1")).toMatchObject({ id: W.w21, parent_code: "2", lines: "1", shared_lines: "1", client_amount: "300" });
     expect(row("2")).toMatchObject({ lines: "2", shared_lines: "2", client_amount: "500" });
     expect(row("3")).toMatchObject({ note: "Out of scope for now", lines: "0", client_amount: "0" });

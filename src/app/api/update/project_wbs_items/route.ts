@@ -1,3 +1,4 @@
+import { assertObjectFeature } from "@/lib/objectFeatures";
 import { NextResponse, type NextRequest } from "next/server";
 import { readImportBody } from "@/lib/import/server";
 import { summariseUpdate } from "@/lib/import/updateServer";
@@ -20,8 +21,12 @@ const may = (key: (typeof PROJECT_WBS_UPDATE_KEYS)[number]) => PROJECT_WBS_UPDAT
  * already has is "No change", so an export can be edited and loaded back. An item of another workspace matches nothing.
  */
 export async function POST(request: NextRequest) {
-  const gate = await projectDwGate("project_wbs_items", true);
+  const gate = await projectDwGate(true);
   if (!gate.ok) return gate.response;
+  const { tenantId } = gate.req;
+  // A tenant without the module cannot read or write its data in bulk either.
+  const off = await assertObjectFeature(tenantId, "project_wbs_items");
+  if (off) return off;
   const { req } = gate;
   const rows = readImportBody(await request.json().catch(() => null));
   if (!rows) return NextResponse.json({ error: "No rows provided" }, { status: 400 });

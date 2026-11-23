@@ -22,6 +22,7 @@ import { buildAnswerSheet, writePricedWorkbook, type AnswerRow, type PricedRow, 
 import { choiceOf } from "@/lib/contractProjects/paymentTermsServer";
 import { termLines } from "@/lib/contractProjects/paymentTerms";
 import { loadItems, loadMembers } from "@/lib/tender/wbs/read";
+import { applyFileElementColumns } from "@/lib/elements/fileColumns";
 import { wbsStateFor } from "@/lib/tender/wbs/server";
 import { EMPTY_WBS, type WbsState } from "@/lib/tender/wbs/types";
 import { membershipOf } from "@/lib/tender/wbs/view";
@@ -360,7 +361,9 @@ async function inBatches<T>(items: readonly T[], size: number, fn: (x: T) => Pro
 }
 
 /** `respread`: split lines whose quantity changed in the revised file. Their percentages are kept and the quantities re-derive; the notice names them. */
-export type ApplyResult = { ok: true; line_count: number; added: number; changed: number; dropped: number; kept: number; priced_from_file: number; respread: string[]; respread_ids: string[] } | ({ ok: false } & Failure);
+export type ApplyResult = { ok: true; line_count: number; added: number; changed: number; dropped: number; kept: number; priced_from_file: number; respread: string[]; respread_ids: string[];
+  /** 0253: what was read from the client's Building and Element columns (a workspace with the Buildings add-on); the notes list what could not be applied. */
+  elements?: { applied: number; notes: string[] } } | ({ ok: false } & Failure);
 
 export type AppliedLines = { ok: true; added: number; changed: number; dropped: number; kept: number; priced_from_file: number; respread: string[]; respread_ids: string[]; diff: BoqDiff } | ({ ok: false } & Failure);
 
@@ -514,7 +517,9 @@ export async function applyUpload(r: BoqRequest, input: UploadInput): Promise<Ap
   // 3. The lines.
   const applied = await applyBoqLines(r, incoming, { id: sourceId, fileLabel: safeFileName(input.fileName, ext), previous });
   if (!applied.ok) return applied;
-  return { ok: true, line_count: incoming.length, added: applied.added, changed: applied.changed, dropped: applied.dropped, kept: applied.kept, priced_from_file: applied.priced_from_file, respread: applied.respread, respread_ids: applied.respread_ids };
+  // The client's Building and Element columns, when the workspace has the Buildings add-on (never fails the upload).
+  const elements = await applyFileElementColumns(r, incoming).catch(() => null);
+  return { ok: true, ...(elements && (elements.applied > 0 || elements.notes.length > 0) ? { elements } : {}), line_count: incoming.length, added: applied.added, changed: applied.changed, dropped: applied.dropped, kept: applied.kept, priced_from_file: applied.priced_from_file, respread: applied.respread, respread_ids: applied.respread_ids };
 }
 
 /**

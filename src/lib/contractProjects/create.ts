@@ -16,6 +16,8 @@ import {
 import { PROJECT_SOURCE_LABEL, type DraftLine, type ProjectRow, type ProjectSourceType } from "./types";
 import { copyTenderWbs, type WbsCopyResult } from "./copyWbs";
 import { resolveElementsSettings } from "@/lib/elements/types";
+import { applyBuildingLabels } from "@/lib/elements/fromQuote";
+import { buildingsOn } from "@/lib/elements/server";
 
 import { readAllPages } from "@/lib/pagedRead";
 // Making a contract project (slice 5a): from an awarded tender or an accepted quote in one step, or by hand. Both paths end the same way: a project, its
@@ -40,6 +42,8 @@ export type CreateInput = {
   lines: DraftLine[];
   /** Where the baseline budget started from, in words (kept on the baseline revision as its note). */
   budget_note?: string | null;
+  /** 0253: a project made from a quote turns the quote lines' building labels into buildings (by the budget line's source_line_id). */
+  buildingLabels?: Record<string, string>;
 };
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -161,6 +165,12 @@ export async function createProject(req: ProjectCtx, input: CreateInput): Promis
   // The tender's WBS becomes the project's own copy (docs/design/wbs.md 2.5). While 0243 is pending, or if the copy fails, the project is made without one and says so.
   const wbs = isTender && input.source_opportunity_id ? await copyTenderWbs(admin, tenantId, projectId, userId, input.source_opportunity_id, revisionId) : null;
 
+  // A project made from a quote (no tender WBS to copy) gets its buildings from the quote lines' labels, or one building "Main", when the workspace has the add-on.
+  let buildingNote: string | null = null;
+  if (!isTender && input.buildingLabels !== undefined && input.lines.length > 0 && (await buildingsOn(supabase, tenantId))) {
+    buildingNote = await applyBuildingLabels(admin, tenantId, userId, projectId, revisionId, input.buildingLabels);
+  }
+
   const user = await getAuthUser();
   const full = await admin.from("contract_projects").select("*").eq("id", projectId).eq("tenant_id", tenantId).maybeSingle();
   const project = normaliseProject((full.data as Record<string, unknown> | null) ?? { id: projectId, ref: made.data.ref, ...input, tenant_id: tenantId, status: "draft" });
@@ -170,6 +180,7 @@ export async function createProject(req: ProjectCtx, input: CreateInput): Promis
       ...(source ? [{ field: `Created from ${isTender ? "tender" : PROJECT_SOURCE_LABEL[source.type]}`, from: null, to: isTender ? input.name : source.label ?? input.name }] : []),
       ...(wbs?.text ? [{ field: "WBS copied from tender", from: null, to: wbs.text }] : []),
       ...(wbs?.failed ? [{ field: "WBS copied from tender", from: null, to: "could not be copied" }] : []),
+      ...(buildingNote ? [{ field: "Buildings made from the quote", from: null, to: buildingNote }] : []),
       ...diffForLog("contract_projects", {}, { name: project.name, contract_value: project.contract_value, budget_lines: input.lines.length, baseline_budget: total }),
     ],
   });

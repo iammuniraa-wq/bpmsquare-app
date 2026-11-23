@@ -33,6 +33,23 @@ export const PROJECT_ELEMENT_FIELDS: QueryableField[] = [
   { path: "budget_uses", type: "string" },
 ];
 
+/** The API scope a key must name to read the elements (explicit scope only: the all-objects wildcard never reaches it). */
+export const ELEMENTS_API_SCOPE = "contract_projects";
+
+/** The project fields the elements list shows beside its id, so a connector can find the project it posts to. Header only: no budget, no margin. */
+export const PROJECT_HEADER_FIELDS: QueryableField[] = [
+  { path: "id", type: "string" },
+  { path: "ref", type: "string", searchable: true },
+  { path: "name", type: "string", searchable: true },
+  { path: "status", type: "string" },
+  { path: "source_type", type: "string" },
+  { path: "account_name", type: "string", searchable: true },
+  { path: "contract_value", type: "number" },
+  { path: "currency", type: "string" },
+  { path: "planned_end", type: "date" },
+  { path: "updated_at", type: "date" },
+];
+
 export type ProjectElementRow = {
   id: string;
   project_id: string;
@@ -74,4 +91,23 @@ export async function loadProjectElementRows(admin: SupabaseClient, tenantId: st
     });
   }
   return out;
+}
+
+/** One project's element rows, or null when it is not a project of this workspace. */
+export async function loadProjectElementsForApi(admin: SupabaseClient, tenantId: string, projectId: string): Promise<ProjectElementRow[] | null> {
+  const { data } = await admin.from("contract_projects").select("id, ref").eq("id", projectId).eq("tenant_id", tenantId).maybeSingle();
+  if (!data) return null;
+  return loadProjectElementRows(admin, tenantId, projectId, (data as { ref: string | null }).ref);
+}
+
+/** The projects of this workspace, header fields only, each with the link to its elements. */
+export async function listProjectHeadersForApi(admin: SupabaseClient, tenantId: string): Promise<Record<string, unknown>[]> {
+  const { listProjects } = await import("@/lib/contractProjects/list");
+  const first = await listProjects(admin, tenantId, { pageSize: 100, page: 1 });
+  const all = [...first.rows];
+  for (let page = 2; page <= Math.ceil(first.total / 100); page++) all.push(...(await listProjects(admin, tenantId, { pageSize: 100, page })).rows);
+  return all.map((r) => ({
+    id: r.id, ref: r.ref, name: r.name, status: r.status, source_type: r.source_type, account_name: r.account_name, contract_value: r.contract_value, currency: r.currency,
+    planned_end: r.planned_end, updated_at: r.updated_at, _links: { elements: `/api/v1/contract-projects/${r.id}/elements` },
+  }));
 }

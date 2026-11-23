@@ -8,7 +8,7 @@ import { loadEstimatesForApi } from "@/lib/estimator/apiRows";
 import { TENDER_BOQ_LINE_FIELDS, boqApiContext, loadBoqRowsForApi } from "@/lib/tender/boq/apiRows";
 import { listTenders } from "@/lib/tender/server";
 import { fetchAllRows } from "@/lib/import/server";
-import { PROJECT_ELEMENT_FIELDS, loadProjectElementRows } from "@/lib/elements/apiRows";
+import { ELEMENTS_API_SCOPE, PROJECT_ELEMENT_FIELDS, loadProjectElementRows } from "@/lib/elements/apiRows";
 import { loadStandardQuotesForApi } from "@/lib/api/standardQuoteRows";
 import { loadSalesOrdersForApi } from "@/lib/api/salesOrderRows";
 import { loadEinvoiceSummaries } from "@/lib/einvoicing/listRows";
@@ -430,6 +430,17 @@ const LEAD_FIELDS: QueryableField[] = [
   { path: "account.id", type: "string" },
   { path: "account.name", type: "string", searchable: true },
 ];
+
+/**
+ * The API scope a key must name to ask about a source. Most sources are their own scope; a few ride on the scope of the module that owns them (the hours of a
+ * project are read with the "projects" scope, the lines of a tender with "tenders", the elements of a contract project with the Contract projects scope).
+ */
+export function askScopeFor(source: string): string {
+  if (source === "project_hours") return "projects";
+  if (source === "tender_boq_lines") return "tenders";
+  if (source === "project_elements") return ELEMENTS_API_SCOPE;
+  return source;
+}
 
 export const LIST_SOURCES: Record<string, ListSource> = {
   quotations: {
