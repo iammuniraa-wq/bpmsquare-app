@@ -77,6 +77,7 @@ export const BRIEF_CSS = `
 .bms-brief .qh { font-size: 12px; font-weight: 650; color: var(--muted); }
 .bms-brief .qs { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 3px; }
 .bms-brief .bars { display: flex; align-items: flex-end; gap: 14px; height: 132px; padding: 6px 0 0; flex-wrap: wrap; }
+.bms-brief .barset { display: flex; align-items: flex-end; gap: 14px; height: 100%; }
 .bms-brief .bar { width: 64px; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; }
 .bms-brief .col { width: 100%; height: var(--h); max-height: 84px; min-height: 20px; background: var(--accent); border-radius: 6px 6px 0 0; position: relative; opacity: .9; }
 .bms-brief .col span { position: absolute; top: -18px; left: 0; right: 0; text-align: center; font-weight: 700; font-size: 12px; color: var(--ink); }

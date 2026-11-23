@@ -255,13 +255,15 @@ function Performance({ r }: { r: CompanyReport }) {
   return (
     <>
       {years.length > 0 && (
-        <div className="bars" role="img" aria-label={`Revenue by year${cur ? `, ${cur}${unit.word ? ` ${unit.word}` : ""}` : ""}`}>
-          {years.map((y) => (
-            <div className="bar" key={`${y.fiscalYear}${y.currency}`}>
-              <div className="col" style={{ ["--h" as string]: `${Math.max(20, Math.round((y.amount / top) * 100))}%` }}><span>{String(Math.round((y.amount / unit.div) * 100) / 100)}</span></div>
-              <div className="bl">{`FY${y.fiscalYear}`}</div>
-            </div>
-          ))}
+        <div className="bars">
+          <div className="barset" role="img" aria-label={`Revenue by year${cur ? `, ${cur}${unit.word ? ` ${unit.word}` : ""}` : ""}: ${years.map((y) => `FY${y.fiscalYear} ${String(Math.round((y.amount / unit.div) * 100) / 100)}`).join(", ")}`}>
+            {years.map((y) => (
+              <div className="bar" key={`${y.fiscalYear}${y.currency}`}>
+                <div className="col" style={{ ["--h" as string]: `${Math.max(20, Math.round((y.amount / top) * 100))}%` }}><span>{String(Math.round((y.amount / unit.div) * 100) / 100)}</span></div>
+                <div className="bl">{`FY${y.fiscalYear}`}</div>
+              </div>
+            ))}
+          </div>
           <div className="barn">
             {`Revenue, ${cur ?? ""}${unit.word ? ` ${unit.word}` : ""}. `}{years.some((y) => !y.matched) && <span className="chk">Some figures: check the source. </span>}
             {profits.length > 0 && `Net profit: ${profits.map((x) => formatMoney(x.amount, x.currency).replace(`${x.currency} `, "")).join(", ")}.`}

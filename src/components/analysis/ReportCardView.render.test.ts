@@ -152,7 +152,7 @@ describe("the blocks", () => {
     expect(o).not.toContain("Where we fit");
   });
   it("Performance draws revenue bars with the amounts and the years, a tailwind and a headwind", () => {
-    expect(out).toContain('aria-label="Revenue by year, SAR billion"');
+    expect(out).toContain('aria-label="Revenue by year, SAR billion: FY2023 2.21, FY2024 2.53, FY2025 2.84"');
     expect(out).toContain("FY2023");
     expect(out).toContain("2.84");
     expect(out).toContain("Tailwind.");
