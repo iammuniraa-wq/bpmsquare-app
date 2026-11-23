@@ -4,11 +4,12 @@ import { listProjects } from "@/lib/contractProjects/list";
 import { loadRevision, openProjectRequest, type ProjectCtx } from "@/lib/contractProjects/server";
 import { fillFromTender } from "@/lib/contractProjects/allocationServer";
 import type { ProjectRow } from "@/lib/contractProjects/types";
-import { getTenant } from "@/lib/tenant";
+import { canUseQuoteSource, loadQuoteSource, type QuoteSourceRequest } from "@/lib/contractProjects/fromQuote";
+import { getTenant, tenantHasFeature } from "@/lib/tenant";
 import { resolveCurrency } from "@/lib/currency";
 
-// Contract projects (docs/design/gcc-tender-deals.md section 15, migration 0226). Behind the platform-admin flag `contract_projects`
-// (and gcc_tender): a workspace without them gets a 404 and nothing is read.
+// Contract projects (docs/design/gcc-tender-deals.md section 15, migration 0226). Behind the platform-admin flag `contract_projects`:
+// a workspace without it gets a 404 and nothing is read. Making one from a tender also needs `gcc_tender`; from a quote, the module of that quote.
 //
 // GET  /api/contract-projects?status=&q=&sort=&dir=&page=&page_size=
 //        -> { rows: [{ id, ref, name, status, account_id, account_name, contract_value, currency, budget_total, budget_state,
@@ -16,6 +17,9 @@ import { resolveCurrency } from "@/lib/currency";
 //      Header fields and totals only; the budget lines are on /api/contract-projects/[id]/budget.
 // POST /api/contract-projects
 //        { opportunity_id }                                  from an AWARDED tender of this workspace: one project per tender (409 otherwise)
+//        { standard_quote_id | quotation_id | estimate_id, name?, manager_id?, planned_start? }   from an ACCEPTED standard quote, a WON quotation, or
+//                                                            the standard quote made from an estimate: one project per quote (409 { already_exists, project_id }).
+//                                                            503 { needsDatabaseUpdate } while migration 0248 is pending (nothing is made).
 //        { name, account_id?, contract_value?, currency?, planned_start?, planned_end?, manager_id? }   by hand
 //      Every foreign id is verified against this workspace. -> 201 { id, ref, revision_id, unmapped_codes?, skipped?, budget_note?, filled?: { lines, total }, wbs?: { items, lines, split, unassigned, pending, text } }
 //      A tender gives the contract lines, and the draft baseline then takes the costs RECORDED on that tender (the same copy as "Fill from
@@ -36,6 +40,14 @@ async function fillNewProject(req: ProjectCtx, project: ProjectRow, revisionId: 
     console.error("[contract-projects] tender costs not copied on create", (e as Error).message);
     return null;
   }
+}
+
+function quoteSourceOf(body: Record<string, unknown>): QuoteSourceRequest | null {
+  const pick = (v: unknown) => (typeof v === "string" && v ? v : null);
+  if (pick(body.standard_quote_id)) return { type: "standard_quote", id: pick(body.standard_quote_id) as string };
+  if (pick(body.quotation_id)) return { type: "quotation", id: pick(body.quotation_id) as string };
+  if (pick(body.estimate_id)) return { type: "estimate", id: pick(body.estimate_id) as string };
+  return null;
 }
 
 export async function GET(request: NextRequest) {
@@ -59,7 +71,24 @@ export async function POST(request: NextRequest) {
   const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
   if (!body || typeof body !== "object") return NextResponse.json({ error: "Invalid body" }, { status: 400 });
 
+  const quoteReq = quoteSourceOf(body);
+  if (quoteReq) {
+    if (!(await canUseQuoteSource(req, quoteReq.type))) return NextResponse.json({ error: "Not found" }, { status: 404 });
+    const src = await loadQuoteSource(req.admin, req.tenantId, quoteReq);
+    if (!src.ok) return NextResponse.json({ error: src.error, ...(src.extra ?? {}) }, { status: src.status });
+    const s = src.source;
+    const manager = typeof body.manager_id === "string" && body.manager_id ? body.manager_id : null;
+    const made = await createProject(req, {
+      name: cleanName(body.name) ?? s.title, account_id: s.accountId, source_opportunity_id: s.opportunityId,
+      source: { type: s.source.type, id: s.source.id, label: s.source.ref }, contract_value: s.contractValue, currency: s.currency,
+      planned_start: cleanDate(body.planned_start), planned_end: cleanDate(body.planned_end), manager_id: manager, lines: s.lines, budget_note: s.budgetNote,
+    });
+    if (!made.ok) return NextResponse.json({ error: made.error, ...(made.extra ?? {}) }, { status: made.status });
+    return NextResponse.json({ id: made.project.id, ref: made.project.ref, revision_id: made.revisionId, source_type: s.source.type, lines: s.lines.length, skipped: s.skipped, budget_note: s.budgetNote }, { status: 201 });
+  }
+
   if (typeof body.opportunity_id === "string" && body.opportunity_id) {
+    if (!(await tenantHasFeature(req.supabase, req.tenantId, "gcc_tender"))) return NextResponse.json({ error: "Not found" }, { status: 404 });
     const src = await loadTenderSource(req.admin, req.tenantId, body.opportunity_id);
     if (!src.ok) return NextResponse.json({ error: src.error }, { status: src.status });
     const s = src.source;

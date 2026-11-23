@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { verifyQuotePublicToken } from "@/lib/quotePublicLink";
 import { getQuoteByPublicToken } from "@/lib/data";
+import { PdfNavigationError, renderPdf } from "@/lib/pdf/renderPdf";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -20,97 +21,26 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
   const printUrl = new URL(`/quotations/${id}/print-public/${token}`, request.nextUrl.origin).toString();
 
-  let browser;
   try {
-    if (process.env.NODE_ENV === "production" || process.env.VERCEL) {
-      const chromium = (await import("@sparticuz/chromium")).default;
-      const puppeteer = await import("puppeteer-core");
-      browser = await puppeteer.launch({
-        args: await puppeteer.defaultArgs({ args: chromium.args, headless: "shell" }),
-        executablePath: await chromium.executablePath(),
-        headless: "shell",
-      });
-    } else {
-      const puppeteer = await import("puppeteer");
-      browser = await puppeteer.launch({ headless: "shell" });
-    }
-
-    const page = await browser.newPage();
-    const res = await page.goto(printUrl, { waitUntil: "networkidle0" });
-    if (!res || !res.ok()) {
-      return NextResponse.json({ error: "Failed to render quote for PDF" }, { status: 502 });
-    }
-
-    await page.evaluate(async () => {
-      await Promise.race([document.fonts.ready, new Promise((resolve) => setTimeout(resolve, 8000))]);
+    // Same render as ../../pdf/route.ts: fonts and images settle first, and the bottom margin is the footer band the
+    // print page measured and published, so no flat constant (see renderPdf).
+    const pdf = await renderPdf({
+      source: { kind: "url", url: printUrl },
+      margin: { top: "12mm", bottom: "12mm", left: "15mm", right: "15mm" },
+      settle: true,
+      footerAwareBottomMargin: true,
     });
 
-    await page.evaluate(async () => {
-      const withTimeout = (p: Promise<unknown>, ms: number) =>
-        Promise.race([p, new Promise((resolve) => setTimeout(resolve, ms))]);
-      await Promise.all(
-        Array.from(document.images).map((img) => {
-          const ready = img.complete
-            ? Promise.resolve()
-            : new Promise<void>((resolve) => {
-                img.addEventListener("load", () => resolve(), { once: true });
-                img.addEventListener("error", () => resolve(), { once: true });
-              });
-          return withTimeout(ready.then(() => img.decode().catch(() => {})), 8000);
-        })
-      );
-    });
-
-    // Reserve exactly as much bottom margin as THIS tenant's footer actually
-    // needs -- see the matching comment in ../[id]/pdf/route.ts for why a
-    // fixed constant here caused a real bug, and why this reads the value
-    // QuotePrint.tsx's own useEffect already computed and published to
-    // document.documentElement.dataset.footerMarginMm instead of
-    // independently re-measuring the footer (two separate computations at
-    // different points in the page's lifecycle were confirmed to drift
-    // apart in production).
-    // Wait for footerMarginReady, NOT for footerMarginMm to merely exist --
-    // client bug, Vikas, 2026-09-20. The attribute is written by the effect's
-    // very first apply(), which on a cold load runs before the self-hosted
-    // DejaVu webfont has arrived; the footer text wraps to a different number
-    // of lines in the fallback font, so that first value reserved a band a
-    // line too short and the last lines before each page break were clipped
-    // under the footer. Reloading fixed it only because the font was then
-    // cached -- hence "takes a few refreshes". QuotePrint.tsx now sets
-    // footerMarginReady only after fonts.ready and a re-measure, so waiting
-    // on that is waiting on the settled number rather than the first guess.
-    await page.waitForFunction(
-      () => document.documentElement.dataset.footerMarginReady != null,
-      { timeout: 8000 }
-    ).catch(() => {});
-    const publishedMarginMm = await page.evaluate(() => {
-      const v = document.documentElement.dataset.footerMarginMm;
-      return v ? Number(v) : null;
-    });
-    const bottomMarginMm = publishedMarginMm ?? await page.evaluate(() => {
-      const el = document.querySelector<HTMLElement>(".doc-footer");
-      const heightMm = el ? el.getBoundingClientRect().height / 96 * 25.4 : 0;
-      return Math.min(60, Math.max(20, Math.ceil(heightMm) + 10));
-    });
-
-    const pdf = await page.pdf({
-      format: "A4",
-      printBackground: true,
-      margin: { top: "12mm", bottom: `${bottomMarginMm}mm`, left: "15mm", right: "15mm" },
-      displayHeaderFooter: false,
-    });
-
-    return new NextResponse(Buffer.from(pdf), {
+    return new NextResponse(pdf, {
       headers: {
         "Content-Type": "application/pdf",
         "Content-Disposition": `attachment; filename="${data.quote.ref}.pdf"`,
       },
     });
   } catch (e: unknown) {
+    if (e instanceof PdfNavigationError) return NextResponse.json({ error: "Failed to render quote for PDF" }, { status: 502 });
     console.error("[quotes/pdf-public] render failed", e);
     const detail = e instanceof Error ? e.message : String(e);
     return NextResponse.json({ error: `PDF generation failed: ${detail}` }, { status: 500 });
-  } finally {
-    await browser?.close();
   }
 }

@@ -185,10 +185,11 @@ describe("the module is off", () => {
     expect(projects()).toHaveLength(1);
   });
 
-  it("is also off without the tender edition", async () => {
+  it("works without the tender edition (a project can come from a quote), but a tender cannot become a project there", async () => {
     state.features = { pipeline: true, gcc_tender: false, contract_projects: true };
-    expect((await listGet(get())).status).toBe(404);
-    expect(state.touched.filter((t) => NEW_TABLES.includes(t))).toEqual([]);
+    expect((await listGet(get())).status).toBe(200);
+    expect((await createPost(json("POST", { opportunity_id: OPP }))).status).toBe(404);
+    expect(mine("contract_projects")).toHaveLength(0);
   });
 
   it("a person who may not open Contract Projects gets a 404 too, and one who may only view cannot change anything", async () => {

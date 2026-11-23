@@ -115,7 +115,8 @@ const integration: SourceSpec = {
     return {
       id: `integration:${r.id}`, source: "integration", at: String(r.created_at),
       direction: (s(r.direction) ?? "out") as MessageDirection, channel,
-      counterpart: sum.kind === "webhook_call" ? s(sum.webhook) : connectorWord(s(r.connector_id)),
+      // A connection a workspace added itself (`conn:<uuid>`) writes its own name into the summary; every other row is as before.
+      counterpart: sum.kind === "webhook_call" ? s(sum.webhook) : (s(r.connector_id)?.startsWith("conn:") ? s(sum.counterpart) : null) ?? connectorWord(s(r.connector_id)),
       summary, status, record: objectType ? { type: objectType, id: s(r.object_id), label: s(r.ref_label) } : null,
       duration_ms: n(r.duration_ms),
       what, restartable: kind !== null, fix: s(sum.fix) ?? (kind === "run" ? "Restart to run it again." : null),

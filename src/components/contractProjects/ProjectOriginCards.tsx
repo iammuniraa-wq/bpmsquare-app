@@ -1,9 +1,12 @@
+import Link from "next/link";
 import { c } from "@/lib/theme";
+import { ROUTES } from "@/lib/constants";
 import Card from "@/components/ui/Card";
 import StatusPill from "@/components/ui/StatusPill";
 import { money, pct, signedMoney } from "@/lib/contractProjects/format";
 import { coverageText, type MarginCoverage } from "@/lib/contractProjects/budget";
-import type { BidAgainstBudget } from "@/lib/contractProjects/originServer";
+import type { BidAgainstBudget, QuoteOrigin } from "@/lib/contractProjects/originServer";
+import { PROJECT_SOURCE_LABEL } from "@/lib/contractProjects/types";
 import { PROJECT_TIPS } from "@/lib/contractProjects/tips";
 
 // The card on the Overview of a project that came from a tender: how the budget now stands against the cost recorded when the winning bid
@@ -11,6 +14,25 @@ import { PROJECT_TIPS } from "@/lib/contractProjects/tips";
 // the explanations are behind the "i".
 
 const row: React.CSSProperties = { display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, fontSize: 13, minHeight: 28, flexWrap: "wrap" };
+
+/** What a person on the project may open from the origin card: each link is offered only where the module is on and the caller may view it. */
+export type QuoteOriginLinks = { quote: boolean; estimate: boolean; deal: boolean };
+
+/** The card on the Overview of a project made from a quote: the quote, the estimate it was made from and the deal, each a link where allowed. */
+export function QuoteOriginCard({ origin, links, currency }: { origin: QuoteOrigin; links: QuoteOriginLinks; currency: string | null }) {
+  const quoteLabel = `${PROJECT_SOURCE_LABEL[origin.type]}${origin.ref ? ` ${origin.ref}` : ""}`;
+  const link = (href: string, text: string, on: boolean) => (on ? <Link href={href} style={{ color: c.accent, textDecoration: "none", display: "inline-flex", alignItems: "center", minHeight: 44 }}>{text}</Link> : <span style={{ color: c.ink }}>{text}</span>);
+  return (
+    <Card title="Made from" info={PROJECT_TIPS.quoteOrigin} padding={16} style={{ minWidth: 0 }}>
+      <dl data-guide="cp.quote_origin" style={{ display: "flex", flexDirection: "column", gap: 4, margin: 0 }}>
+        <div style={row}><dt style={{ color: c.muted }}>{origin.type === "standard_quote" ? "Standard quote" : "Quotation"}</dt><dd style={{ margin: 0 }}>{link(origin.type === "standard_quote" ? ROUTES.standardQuote(origin.id) : ROUTES.quotation(origin.id), origin.ref ?? quoteLabel, links.quote)}</dd></div>
+        {origin.total !== null && <div style={row}><dt style={{ color: c.muted }}>Quote total</dt><dd style={{ margin: 0, color: c.ink, fontVariantNumeric: "tabular-nums" }}>{money(origin.total, currency)}</dd></div>}
+        {origin.estimate && <div style={row}><dt style={{ color: c.muted }}>Estimate</dt><dd style={{ margin: 0 }}>{link(ROUTES.estimate(origin.estimate.id), origin.estimate.ref ?? origin.estimate.name, links.estimate)}</dd></div>}
+        {origin.deal && <div style={row}><dt style={{ color: c.muted }}>Deal</dt><dd style={{ margin: 0 }}>{link(ROUTES.pipelineDetail(origin.deal.id), origin.deal.ref ?? origin.deal.title, links.deal)}</dd></div>}
+      </dl>
+    </Card>
+  );
+}
 
 /** `coverage` is given while lines still wait for a cost: the bid and planned margins are then not comparable, so none is shown. */
 export function BidAgainstBudgetCard({ bid, currency, coverage = null }: { bid: BidAgainstBudget; currency: string | null; coverage?: MarginCoverage | null }) {

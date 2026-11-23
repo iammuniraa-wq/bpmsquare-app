@@ -108,6 +108,14 @@ describe("where Buy-out belongs", () => {
     expect(buyoutVisible({ source_opportunity_id: "o1" }, null)).toBe(false);
   });
 
+  it("is keyed on the source type, not on the deal link: a quote project that keeps its deal has no Buy-out", () => {
+    const on = { gcc_tender: true, contract_projects: true };
+    expect(buyoutVisible({ source_opportunity_id: "o1", source_type: "tender" }, on)).toBe(true);
+    expect(buyoutVisible({ source_opportunity_id: "o1", source_type: "standard_quote" }, on)).toBe(false);
+    expect(buyoutVisible({ source_opportunity_id: "o1", source_type: "quotation" }, on)).toBe(false);
+    expect(buyoutVisible({ source_opportunity_id: null, source_type: "manual" }, on)).toBe(false);
+  });
+
   it("a budget line's committed amount is found by its stable key first, then by id", () => {
     expect(committedFor({ k1: 100, i1: 5 }, { id: "i1", line_key: "k1" })).toBe(100);
     expect(committedFor({ i1: 5 }, { id: "i1", line_key: "k1" })).toBe(5);

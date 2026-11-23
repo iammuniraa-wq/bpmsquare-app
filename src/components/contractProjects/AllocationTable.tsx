@@ -67,7 +67,17 @@ const leftOf = (client: number | null, v: string | undefined): number | null => 
 /** `2.1` for a whole line, `2.1 60 % · 2.2 15 %` for a split one, a dash for a line in no item. */
 export const wbsText = (r: Pick<LineRow, "wbs">): string => (r.wbs.length === 0 ? "—" : r.wbs.length === 1 && r.wbs[0].share_pct >= 99.99 ? r.wbs[0].code : r.wbs.map((x) => `${x.code} ${trimPct(x.share_pct)} %`).join(" · "));
 
-export function LinesTable({ rows, onOpen, ...p }: Common & { rows: LineRow[]; onOpen: (lineKey: string) => void }) {
+/** What a contract line with cost-only category lines costs in all: the typed amounts of the line and its category lines. */
+const groupTotal = (r: LineRow, kids: readonly LineRow[], typed: Record<string, string>): number =>
+  Math.round([r, ...kids].reduce((s, x) => s + (amountOf(typed[x.line_key]) ?? 0), 0) * 100) / 100;
+
+export function LinesTable({ rows, onOpen, resourceNames = {}, ...p }: Common & { rows: LineRow[]; onOpen: (lineKey: string) => void; resourceNames?: Record<string, string> }) {
+  const [open, setOpen] = useState<Set<string>>(() => new Set());
+  const toggle = (key: string) => setOpen((o) => { const n = new Set(o); if (n.has(key)) n.delete(key); else n.add(key); return n; });
+  const kidsOf = new Map<string, LineRow[]>();
+  for (const r of rows) if (r.extra_of) kidsOf.set(r.extra_of, [...(kidsOf.get(r.extra_of) ?? []), r]);
+  const top = rows.filter((r) => !r.extra_of || !rows.some((x) => x.line_key === r.extra_of));
+  const category = (r: LineRow) => resourceNames[r.resource_code ?? ""] ?? r.resource_code ?? "No resource type";
   const showOrdered = !!p.erp?.ordered, showSpent = !!p.erp?.spent;
   // The WBS column appears once the project has a WBS (any line sits in an item).
   const showWbs = rows.some((r) => r.wbs.length > 0);
@@ -82,6 +92,16 @@ export function LinesTable({ rows, onOpen, ...p }: Common & { rows: LineRow[]; o
       {r.item ?? "—"}
     </button>
   );
+  const toggler = (r: LineRow, kids: readonly LineRow[]) => (
+    <button
+      type="button" data-guide="cp.alloc.categories" aria-expanded={open.has(r.line_key)} onClick={() => toggle(r.line_key)}
+      style={{ all: "unset", boxSizing: "border-box", cursor: "pointer", minHeight: 44, display: "inline-flex", alignItems: "center", gap: 6, color: c.accent, fontSize: 12.5, fontWeight: 600 }}
+    >
+      <span aria-hidden="true">{open.has(r.line_key) ? "▾" : "▸"}</span>Cost by category ({kids.length + 1})
+      <InfoTip label="Where this cost came from">{PROJECT_TIPS.costByCategory}</InfoTip>
+    </button>
+  );
+  const subRows = (r: LineRow, kids: readonly LineRow[]) => (open.has(r.line_key) ? [r, ...kids] : []);
   return (
     <>
       <div className="bpm-rows-table" style={{ overflowX: "auto" }}>
@@ -97,28 +117,44 @@ export function LinesTable({ rows, onOpen, ...p }: Common & { rows: LineRow[]; o
             </tr>
           </thead>
           <tbody>
-            {rows.map((r) => {
-              const left = leftOf(r.client_amount, p.typed[r.line_key]);
+            {top.map((r) => {
+              const kids = kidsOf.get(r.line_key) ?? [];
+              const grouped = kids.length > 0;
+              const total = grouped ? groupTotal(r, kids, p.typed) : null;
+              const left = grouped ? leftOf(r.client_amount, String(total)) : leftOf(r.client_amount, p.typed[r.line_key]);
               const erp = p.erp?.rows[r.line_key];
-              return (
+              return [
                 <tr key={r.line_key} style={{ borderTop: `1px solid ${c.line}` }}>
                   <td style={{ padding: "0 12px" }}>{opener(r)}</td>
                   {showWbs && <td data-guide="cp.alloc.wbs_text" style={{ padding: "8px 12px", fontSize: 12.5, color: c.muted, minWidth: 80 }}>{wbsText(r)}</td>}
-                  <td style={{ padding: "8px 12px", fontSize: 13, color: c.ink, minWidth: 200, overflowWrap: "anywhere" }}>{r.description}<Missing r={r} /></td>
+                  <td style={{ padding: "8px 12px", fontSize: 13, color: c.ink, minWidth: 200, overflowWrap: "anywhere" }}>{r.description}<Missing r={r} />{grouped && <div>{toggler(r, kids)}</div>}</td>
                   <td style={num}>{r.client_amount === null ? "—" : money(r.client_amount, p.currency, 2)}</td>
-                  <td style={{ ...num, padding: "4px 12px" }}>{cell(r)}</td>
+                  <td style={{ ...num, padding: "4px 12px" }}>{grouped ? money(total, null, 2) : cell(r)}</td>
                   <td style={{ ...num, color: leftInk(left) }}>{left === null ? "—" : money(left, null, 2)}</td>
                   {showOrdered && <td style={{ ...num, color: c.muted }}>{erp?.ordered == null ? "—" : money(erp.ordered, null, 2)}</td>}
                   {showSpent && <td style={{ ...num, color: c.muted }}>{erp?.spent == null ? "—" : money(erp.spent, null, 2)}</td>}
-                </tr>
-              );
+                </tr>,
+                ...subRows(r, kids).map((k) => (
+                  <tr key={k.line_key} data-guide="cp.alloc.category_row" style={{ background: c.panel2 }}>
+                    <td style={{ padding: "0 12px" }}>{k === r ? null : opener(k)}</td>
+                    {showWbs && <td />}
+                    <td style={{ padding: "8px 12px 8px 28px", fontSize: 12.5, color: c.muted }}>{category(k)}</td>
+                    <td />
+                    <td style={{ ...num, padding: "4px 12px" }}>{cell(k)}</td>
+                    <td />{showOrdered && <td />}{showSpent && <td />}
+                  </tr>
+                )),
+              ];
             })}
           </tbody>
         </table>
       </div>
       <div className="bpm-rows-cards" data-guide="cp.alloc.cards" style={{ gap: 10, padding: 12 }}>
-        {rows.map((r) => {
-          const left = leftOf(r.client_amount, p.typed[r.line_key]);
+        {top.map((r) => {
+          const kids = kidsOf.get(r.line_key) ?? [];
+          const grouped = kids.length > 0;
+          const total = grouped ? groupTotal(r, kids, p.typed) : null;
+          const left = grouped ? leftOf(r.client_amount, String(total)) : leftOf(r.client_amount, p.typed[r.line_key]);
           const erp = p.erp?.rows[r.line_key];
           return (
             <div key={r.line_key} data-guide="cp.alloc.card" style={{ boxSizing: "border-box", width: "100%", padding: 12, border: `1px solid ${c.line}`, borderRadius: 12, background: "var(--card-bg)" }}>
@@ -126,8 +162,14 @@ export function LinesTable({ rows, onOpen, ...p }: Common & { rows: LineRow[]; o
               {showWbs && <CardRow label="WBS" value={wbsText(r)} />}
               <CardRow label="Client amount" value={r.client_amount === null ? "—" : money(r.client_amount, p.currency, 2)} />
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, marginTop: 6, fontSize: 13 }}>
-                <span style={{ color: c.muted }}>Allocated cost</span>{cell(r)}
+                <span style={{ color: c.muted }}>Allocated cost</span>{grouped ? <span style={{ fontVariantNumeric: "tabular-nums" }}>{money(total, null, 2)}</span> : cell(r)}
               </div>
+              {grouped && <div>{toggler(r, kids)}</div>}
+              {subRows(r, kids).map((k) => (
+                <div key={k.line_key} data-guide="cp.alloc.category_row" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, marginTop: 6, fontSize: 12.5, paddingLeft: 12 }}>
+                  <span style={{ color: c.muted }}>{category(k)}</span>{cell(k)}
+                </div>
+              ))}
               <CardRow label="Left" value={left === null ? "—" : money(left, null, 2)} ink={leftInk(left)} />
               {showOrdered && <CardRow label="Ordered" value={erp?.ordered == null ? "—" : money(erp.ordered, null, 2)} />}
               {showSpent && <CardRow label="Spent" value={erp?.spent == null ? "—" : money(erp.spent, null, 2)} />}

@@ -10,17 +10,28 @@ export type AdapterId = (typeof ADAPTER_CONNECTIONS)[number];
 
 export type Connection =
   | { id: AdapterId; kind: "adapter"; label: string }
-  | { id: string; kind: "webhook"; label: string; webhookId: string; allowPersonalData: boolean };
+  | { id: string; kind: "webhook"; label: string; webhookId: string; allowPersonalData: boolean }
+  /** A REST or OData connection a workspace added itself (integration_connections, 0250), as `conn:<uuid>`. Mapped like any other system; it has no sender yet. */
+  | { id: string; kind: "connection"; label: string; connectionId: string };
 
 export type Resolved = { ok: true; conn: Connection } | { ok: false; status: number; error: string };
 
 const ADAPTER_LABEL: Record<AdapterId, string> = { dynamics365: "Dynamics 365", sap: "SAP", sap_s4: "SAP S/4HANA", epromis: "ePROMIS" };
 const WEBHOOK_ID = /^webhook:([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i;
+const CONN_ID = /^conn:([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i;
 
 export async function resolveConnection(admin: SupabaseClient, tenantId: string, raw: unknown): Promise<Resolved> {
   if (raw === undefined || raw === null || raw === "") return { ok: true, conn: { id: "dynamics365", kind: "adapter", label: ADAPTER_LABEL.dynamics365 } };
   if (typeof raw !== "string") return { ok: false, status: 422, error: "Choose a connection." };
   if ((ADAPTER_CONNECTIONS as readonly string[]).includes(raw)) return { ok: true, conn: { id: raw as AdapterId, kind: "adapter", label: ADAPTER_LABEL[raw as AdapterId] } };
+  const own = CONN_ID.exec(raw);
+  if (own) {
+    const id = own[1].toLowerCase();
+    const { data, error } = await admin.from("integration_connections").select("id, name").eq("id", id).eq("tenant_id", tenantId).maybeSingle();
+    const c = data as { id: string; name: string } | null;
+    if (isSchemaPending(error) || error || !c) return { ok: false, status: 404, error: "That connection was not found." };
+    return { ok: true, conn: { id: `conn:${c.id}`, kind: "connection", label: c.name, connectionId: c.id } };
+  }
   const m = WEBHOOK_ID.exec(raw);
   if (!m) return { ok: false, status: 422, error: "Choose a connection from the list." };
   const { data, error } = await admin.from("webhooks").select("id, name, kind, allow_personal_data").eq("id", m[1].toLowerCase()).eq("tenant_id", tenantId).maybeSingle();

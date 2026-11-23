@@ -7,7 +7,7 @@ import { getTenant, tenantHasFeature } from "@/lib/tenant";
 import { einvoicingOn } from "@/lib/einvoicing/gate";
 import { accountInTenant } from "@/lib/tender/server";
 import { isMissingSchema, UUID_RE, type Failure, type ProjectCtx } from "./server";
-import type { ProjectRow } from "./types";
+import { isTenderProject, type ProjectRow } from "./types";
 import { money } from "./format";
 import { resolveMilestoneTax, taxNote, type MilestoneTax } from "./milestoneTax";
 import { toMilestoneInput } from "./paymentTerms";
@@ -95,7 +95,7 @@ export async function buildMilestonesData(req: ProjectCtx, project: ProjectRow):
   const base = { currency: project.currency, canEdit: req.canEdit, invoicesOn, hasCustomer: !!project.account_id, tax: await workspaceMilestoneTax() };
   if (pending) return { milestones: [], totals: milestoneTotals([], project.contract_value), pending: true, termsOffer: null, ...base };
   // Offered only on an empty schedule of a project that came from a tender whose winning bid carries a template.
-  const winning = rows.length === 0 && project.source_opportunity_id && project.status !== "closed" ? await loadWinningTerms(admin, tenantId, project.source_opportunity_id) : null;
+  const winning = rows.length === 0 && isTenderProject(project) && project.source_opportunity_id && project.status !== "closed" ? await loadWinningTerms(admin, tenantId, project.source_opportunity_id) : null;
   const termsOffer = winning ? { name: winning.choice.name, count: winning.choice.milestones.length } : null;
   const termTemplates = rows.length === 0 && !termsOffer && req.canEdit && project.status !== "closed"
     ? (await workspaceTemplates()).map((t) => ({ id: t.id, name: t.name, count: t.milestones.length })) : [];
@@ -149,7 +149,7 @@ export async function createMilestone(req: ProjectCtx, project: ProjectRow, inpu
 export async function copyTenderTerms(req: ProjectCtx, project: ProjectRow, templateId?: string | null): Promise<Result<{ created: number; template: string }>> {
   const { admin, tenantId, userId } = req;
   if (project.status === "closed") return { ok: false, status: 409, error: "This project is closed" };
-  if (!templateId && !project.source_opportunity_id) return { ok: false, status: 409, error: "This project did not come from a tender" };
+  if (!templateId && !(isTenderProject(project) && project.source_opportunity_id)) return { ok: false, status: 409, error: "This project did not come from a tender" };
   const existing = await loadMilestones(admin, tenantId, project.id);
   if (existing.pending) return { ok: false, ...needsMilestoneUpdate() };
   if (existing.rows.length > 0) return { ok: false, status: 409, error: "The billing schedule already has milestones" };

@@ -105,6 +105,18 @@ export function fakeAdmin(seed: Record<string, Row[]> = {}, opts: { missing?: st
       if (missing.has(this.table)) return { data: null, error: { ...MISSING, message: `relation "public.${this.table}" does not exist` } };
       const t = rows(this.table);
       const match = (r: Row) => this.filters.every((f) => f(r));
+      // A batch insert (an array of rows) makes each row like a single insert does.
+      if (this.op === "insert" && Array.isArray(this.payload)) {
+        const made: Row[] = [];
+        for (const p of this.payload as unknown as Row[]) {
+          const bad = opts.failInsert?.(this.table, p);
+          if (bad) return { data: null, error: bad };
+          const row: Row = { id: `00000000-0000-4000-8000-${String(++n).padStart(12, "0")}`, created_at: new Date(Date.UTC(2026, 9, 21, 10, 0, n)).toISOString(), ...p };
+          t.push(row);
+          made.push(row);
+        }
+        return { data: this.one ? made[0] : made, error: null };
+      }
       if (this.op === "insert") {
         const bad = opts.failInsert?.(this.table, this.payload);
         if (bad) return { data: null, error: bad };

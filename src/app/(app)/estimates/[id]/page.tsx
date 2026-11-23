@@ -17,6 +17,7 @@ import EstimateStatusPill from "../EstimateStatusPill";
 import { quoteAbility } from "../quoteAbility";
 import EstimateScreen from "./EstimateScreen";
 import SourceEmailSlot from "@/components/inbox/SourceEmailSlot";
+import QuoteProjectAction from "@/components/contractProjects/QuoteProjectAction";
 
 const fmtDate = (s: string) => new Date(s).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
 
@@ -97,6 +98,7 @@ export default async function EstimatePage({
         label: "Estimate",
         content: (
           <>
+          <QuoteProjectAction sourceType="estimate" sourceId={estimate.id} ready={!!estimate.standard_quote_id && (estimate.status === "won" || estimate.status === "quoted")} strip />
           {tenderCtx && <TenderEstimateStrip ctx={tenderCtx} estimateId={estimate.id} canEdit={canEditWorkcenter(perms, "pipeline")} />}
           <SourceEmailSlot objectType="estimates" objectId={estimate.id} />
           <EstimateScreen

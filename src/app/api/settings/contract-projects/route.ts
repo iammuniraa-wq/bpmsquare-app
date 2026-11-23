@@ -15,7 +15,7 @@ import { readMarginFloor } from "@/lib/contractProjects/budget";
 
 async function guard() {
   const ctx = await requireTenantUser();
-  for (const key of ["contract_projects", "gcc_tender"] as const) {
+  for (const key of ["contract_projects"] as const) {
     if (!(await tenantHasFeature(ctx.supabase, ctx.tenantId, key))) throw Object.assign(new Error("Not found"), { status: 404 });
   }
   if (ctx.role !== "admin") throw Object.assign(new Error("Forbidden"), { status: 403 });
