@@ -36,6 +36,7 @@ export const NAV_GLYPHS: Record<string, GlyphComponent> = {
   [ROUTES.purchaseOrders]: ShoppingBag,
   [ROUTES.contractProjects]: Briefcase,
   [ROUTES.drawings]: Compass,
+  [ROUTES.siteHome]: Truck,
   [ROUTES.invoices]: Receipt,
   // Service
   [ROUTES.cases]: Activity,

@@ -21,6 +21,8 @@ export const CREATE_ACTIONS: CreateAction[] = [
   { label: "New Tender",    href: "/pipeline/new/tender", featureKey: "gcc_tender", workcenterKey: "pipeline" },
   { label: "New Contract Project", href: "/contract-projects/new", featureKey: "contract_projects", workcenterKey: "contract_projects" },
   { label: "New Drawing",  href: "/drawings/new",   featureKey: "drawing_register", workcenterKey: "drawing_register" },
+  { label: "Add site expense", href: "/site/expense", featureKey: "site_expenses", workcenterKey: "site_expenses" },
+  { label: "Receive delivery", href: "/site/receipt", featureKey: "site_receipts", workcenterKey: "site_receipts" },
   { label: "New RFQ",      href: "/rfqs/new",       featureKey: "rfq", workcenterKey: "rfqs" },
   { label: "New Estimate",  href: "/estimates/new",   featureKey: "estimator", workcenterKey: "estimates" },
   { label: "New Study",     href: "/process-studio/new", featureKey: "process_studio", workcenterKey: "process_studio" },

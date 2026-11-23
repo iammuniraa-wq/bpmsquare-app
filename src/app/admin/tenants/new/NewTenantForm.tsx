@@ -29,6 +29,8 @@ const FEATURE_LABELS: { key: keyof TenantFeatures; label: string; premium?: bool
   { key: "contract_projects",      label: "Contract projects" },
   { key: "contract_buildings",     label: "Buildings and element codes" },
   { key: "drawing_register",       label: "Drawing register" },
+  { key: "site_receipts",          label: "Site receipts" },
+  { key: "site_expenses",          label: "Site expenses" },
   { key: "gmail_reply_threading",  label: "Gmail reply-threading" },
   { key: "quote_lines_dw",         label: "Quote Lines (Data Workbench)" },
   { key: "wfm",                    label: "Workforce (Attendance & Leave)" },
@@ -54,7 +56,7 @@ const DEFAULT_FEATURES: TenantFeatures = {
   change_history: false, outbound_email: false, business_roles: false,
   standard_quotes: false, gmail_reply_threading: false, quote_lines_dw: false,
   wfm: false, wfm_projects: false, pricing_engine: false, pricing_engine_quotes: false, next_experience: false, enterprise_theme: false, spectacular_theme: false,
-  coverage_model: false, ai_reports: false, fence_projects: false, rfq: false, estimator: false, marketing_scoring: false, process_studio: false, newsletter_studio: false, buying_signals: false, marketing_forms: false, abm: false, journeys: false, whatsapp_marketing: false, marketing_attribution: false, marketing_events: false, integration_middleware: false, webhooks_library: false, ai_assistant_actions: false, inbox: false, sales_orders: false, einvoicing_ksa: false, gcc_tender: false, deal_room: false, contract_projects: false, contract_buildings: false, crew: false, crew_tender_watch: false, crew_attendance: false,
+  coverage_model: false, ai_reports: false, fence_projects: false, rfq: false, estimator: false, marketing_scoring: false, process_studio: false, newsletter_studio: false, buying_signals: false, marketing_forms: false, abm: false, journeys: false, whatsapp_marketing: false, marketing_attribution: false, marketing_events: false, integration_middleware: false, webhooks_library: false, ai_assistant_actions: false, inbox: false, sales_orders: false, einvoicing_ksa: false, gcc_tender: false, deal_room: false, contract_projects: false, contract_buildings: false, site_receipts: false,site_expenses: false, crew: false, crew_tender_watch: false, crew_attendance: false,
   drawing_register: false,
   // Core modules default ON: a brand-new tenant with these off would open to
   // a workspace containing nothing but a Dashboard. Untick what the client

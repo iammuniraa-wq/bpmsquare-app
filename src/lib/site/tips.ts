@@ -1,0 +1,33 @@
+// The explanations the site screens keep behind an "i" (bpmsquarecore 6b). One place, so a test (siteRules.test.ts) holds every text to the
+// InfoTip limit: two sentences, 160 characters. The screens never print these as running text.
+
+export const SITE_TIPS = {
+  home: "Record what arrived and what you spent. If there is no signal, it is kept on this phone and sent when you are back online.",
+  waiting: "These are saved on this phone and not sent yet. They go by themselves when there is signal, oldest first.",
+  category: "Pick what the money was for. The manager sees it against the right cost type.",
+  costLine: "The line of the project budget this cost belongs to. If you are not sure, leave it and the manager will choose.",
+  invoiceToFollow: "Turn this on when you have no receipt yet, only a promise. The expense is still recorded; the invoice number is added later.",
+  readFromPhoto: "These were read from your photo. Check each one: you decide what is saved, not the reader.",
+  paidBy: "Who paid at the time. Finance uses it to pay you back when you paid yourself.",
+  expenseStatus: "Waiting is not decided yet. Approved counts as cost on the project at once, and Returned needs a correction.",
+  recorded: "Approved expenses that finance has not posted yet. When finance posts one, the posted amount takes its place and nothing is counted twice.",
+  waitingExposure: "Submitted and not decided yet. It is shown so you can see what is coming; it does not count as cost until it is approved.",
+  postedByErp: "Cost the ERP has posted on this project. Only the ERP writes this figure.",
+  flags: "A warning is only a warning. A possible duplicate or an amount over a limit never stops an expense; it tells the approver to look twice.",
+  limit: "A project manager approves alone up to this amount; above it a cost approver must. Leave empty for no limit.",
+  monthlyCap: "A warning when one person's expenses in a month pass this amount. It never blocks an expense.",
+  notifyReceipts: "These people are told by e-mail and in the inbox when a delivery arrives short, damaged or rejected, as well as the project manager.",
+  categories: "The choices a site person sees. Each maps to a resource type; switch one off instead of deleting it so old expenses keep their name.",
+  erpCategory: "The category id the ERP uses for this kind of cost. Typed once; used in the daily register for finance.",
+  register: "An Excel file of approved expenses for finance to post in the ERP. Mark them as sent after you upload it so they are not listed again.",
+  receiptStep1: "Pick the delivery that arrived. If it is not in the list, choose Something else and add the items by hand.",
+  allOk: "Marks every item as arrived complete and in good condition. Change only the ones that are not.",
+  reason: "A short or damaged item needs a reason so the project manager knows what to chase.",
+  accepted: "Pieces you accept are counted as received on site. Rejected pieces are not.",
+  signature: "Optional. The receiver's name and the driver's name are already recorded.",
+  receivedOnSite: "What the site has confirmed it received. It is not progress and not installation.",
+  receivedValue: "The accepted quantity times the awarded rate of each item. It compares with what was committed to the supplier.",
+  immutable: "A confirmed receipt is evidence and cannot be edited. A manager cancels it with a reason and you enter the delivery again.",
+  elementCode: "A plain text tag for the piece, as printed on the delivery note. It does not need to exist anywhere else yet.",
+  siteEntry: "Turn off to stop site people recording on this project. Existing records stay.",
+} as const;

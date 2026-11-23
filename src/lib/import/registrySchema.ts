@@ -62,6 +62,9 @@ export const REGISTRY_OBJECT_TYPE: Record<ImportObjectId, string | null> = {
   project_budget_lines: null,
   project_wbs_items: null,
   drawings: "drawing",
+  // Site receipt and Site expenses (0258, 0259): Export only (a phone flow with photos and an approval creates them).
+  site_expenses: "site_expense",
+  site_receipts: "site_receipt",
 };
 
 export type ReferenceFieldDef = {
@@ -251,6 +254,9 @@ const OBJECT_META: Record<ImportObjectId, { label: string; icon: string; descrip
   sales_orders: { label: "Sales Orders", icon: "▣", description: "Creates draft sales orders (header only: customer, contact, order type, customer PO, requested date, currency, shipping, texts). Add the lines with Sales Order Lines, using the Order ID from an export. Total, status and Order ID are computed, not imported.", dependsOn: ["accounts", "contacts"] },
   // Never read -- sales_order_lines is null in REGISTRY_OBJECT_TYPE (static spec).
   sales_order_lines: { label: "Sales Order Lines", icon: "≣", description: "", dependsOn: ["sales_orders"] },
+  // Export only; Import and Update have no route (see DW_CATALOG).
+  site_expenses: { label: "Site expenses", icon: "▤", description: "", dependsOn: [] },
+  site_receipts: { label: "Site receipts", icon: "▥", description: "", dependsOn: [] },
   // Never read -- tender_boq_lines is null in REGISTRY_OBJECT_TYPE (static spec).
   tender_boq_lines: { label: "Tender BOQ lines", icon: "≣", description: "", dependsOn: ["opportunities"] },
   // Never read -- tender_wbs_items is null in REGISTRY_OBJECT_TYPE (static spec).

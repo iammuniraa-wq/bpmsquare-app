@@ -139,6 +139,14 @@ export const ROUTES = {
   contractProjects: "/contract-projects",
   contractProject: (id: string) => `/contract-projects/${id}`,
   contractProjectNew: "/contract-projects/new",
+  siteHome: "/site",
+  siteExpenses: "/site-expenses",
+  siteExpense: (id: string) => `/site-expenses/${id}`,
+  siteExpenseNew: "/site/expense",
+  siteReceipts: "/site-receipts",
+  siteReceipt: (id: string) => `/site-receipts/${id}`,
+  siteReceiptNew: "/site/receipt",
+  settingsSite: "/settings/site",
   settingsContractProjects: "/settings/contract-projects",
   drawings: "/drawings",
   drawing: (id: string) => `/drawings/${id}`,
@@ -344,7 +352,9 @@ export const NAV: NavGroup[] = [
           { label: "Contract Projects", href: ROUTES.contractProjects, icon: "▤", pillar: "blue", featureKey: "contract_projects", workcenterKey: "contract_projects" },
           // Drawing register (0255): numbered drawings with revisions and a release; only Released feeds the BOQ, estimate and handover.
           { label: "Drawings", href: ROUTES.drawings, icon: "◫", pillar: "blue", featureKey: "drawing_register", workcenterKey: "drawing_register" },
-          { label: "Invoices",  href: ROUTES.invoices,   icon: "⊟", pillar: "blue", featureKey: "invoices", workcenterKey: "invoices" },
+          // Site receipt and Site expenses (0258, 0259): the phone home for site people, and the lists a manager approves from.
+          { label: "Site", href: ROUTES.siteHome, icon: "⌂", pillar: "blue", featureAnyOf: ["site_receipts", "site_expenses"], workcenterAnyOf: ["site_receipts", "site_expenses"] },
+          { label: "Invoices",   href: ROUTES.invoices,   icon: "⊟", pillar: "blue", featureKey: "invoices", workcenterKey: "invoices" },
         ],
       },
     ],
@@ -855,6 +865,12 @@ export type TenantFeatures = {
   // Only a RELEASED revision feeds the BOQ, estimate and handover. Platform-admin-only, default OFF, missing key = false; with it off
   // there is no menu item, route, API answer or button, and the new tables are never queried.
   drawing_register: boolean;
+  // Site receipt and Site expenses (docs/design/pcbs-site-receipt-expenses.md): a person on site records, on a phone, what physically arrived
+  // (a receipt: evidence, no cost) and what they spent (an expense: a cost claim a manager approves, counted as recorded on its budget line).
+  // Two platform-admin-only flags, each default OFF, a missing key reads false: with them off there is no menu item, screen, tab, API answer
+  // or button. Both need contract_projects.
+  site_receipts: boolean;
+  site_expenses: boolean;
   // AI automation (docs/design/nova-crew-agents.md, section 3.1): the workcenter of pre-built agents. Three platform-admin-only
   // flags (set in /admin/tenants, never by a workspace admin), each default OFF, a missing key reads false, and none depends on
   // Nova or the dock assistant. `crew` = the page and the runner exist; `crew_tender_watch` needs gcc_tender + pipeline;
@@ -1359,6 +1375,9 @@ export type TenantConfig = {
   // tender's Bid tab and copied into the project's billing schedule. Read through src/lib/contractProjects/paymentTerms.ts; Settings > Contract projects.
   // `default_margin_pct` was removed 2026-10-29 (the budget is allocated by people, not guessed); a stored value is ignored.
   contract_projects?: { default_margin_pct?: number; margin_floor_pct?: number; payment_term_templates?: PaymentTermTemplate[] };
+  // Site receipt and Site expenses (Settings > Site; read through src/lib/site/config.ts). `pm_limit`: a project manager approves alone up to this
+  // amount in the project currency, above it only a cost approver may. `monthly_cap`: a person's approved and waiting total in a month above it is flagged.
+  site?: { pm_limit?: number | null; monthly_cap?: number | null };
   // E-invoicing scheme of the workspace (Region pack switch until the pack framework exists, einvoicing_ksa flag).
   // `scheme: null` switches the feature off even with the flag on; an absent key with the flag on means ksa_zatca.
   // `default_doc_type` is what a buyer without a VAT number gets (default simplified).

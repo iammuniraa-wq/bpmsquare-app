@@ -143,6 +143,13 @@ export const OBJECT_FEATURE: Record<string, keyof TenantFeatures | null> = {
   project_work_packages: "contract_projects",
   project_work_package_lines: "contract_projects",
   project_work_package_line_parts: "contract_projects",
+  // Site receipt and Site expenses (0258, 0259). Every spelling a surface uses: the tables, the Data Workbench routes and the v1 endpoints.
+  site_receipts: "site_receipts",
+  site_receipt_lines: "site_receipts",
+  "site-receipts": "site_receipts",
+  site_expenses: "site_expenses",
+  site_expense_categories: "site_expenses",
+  "site-expenses": "site_expenses",
   // Supplier groups (0233): a client's approved vendor list. In-app routes only; the Suppliers module owns them (the routes also need gcc_tender).
   supplier_groups: "suppliers",
   supplier_group_members: "suppliers",

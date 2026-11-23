@@ -38,6 +38,8 @@ const SCOPE_FOR_TYPE: Record<string, string> = {
   contract_projects: "contract_projects",
   // Drawing register (0255): explicit "drawings" scope, never the wildcard. Its change entries name revisions and numbers, never a file path.
   drawings: "drawings", drawing_types: "drawings",
+  // Site expenses and receipts (0258, 0259): internal cost and evidence, so the explicit scope of each, never the wildcard.
+  site_expenses: "site_expenses", site_receipts: "site_receipts",
   wfm_projects: "projects",
   abm_programs: "abm_programs", abm_program: "abm_programs",
   abm_target_accounts: "abm_targets", abm_buying_group_members: "abm_targets", abm_target: "abm_targets",

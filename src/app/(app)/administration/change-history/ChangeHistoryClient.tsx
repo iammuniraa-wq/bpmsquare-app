@@ -32,6 +32,8 @@ export const OBJECT_TYPES: { value: string; label: string }[] = [
   { value: "contract_projects", label: "Contract projects" },
   { value: "drawings", label: "Drawings" },
   { value: "drawing_types", label: "Drawing types" },
+  { value: "site_expenses", label: "Site expenses" },
+  { value: "site_receipts", label: "Site receipts" },
   { value: "crew_settings", label: "AI automation: Settings" },
   { value: "crew_proposal", label: "AI automation: Notes sent" },
   { value: "crew_finding", label: "AI automation: Suggestions" },
@@ -103,8 +105,10 @@ export default function ChangeHistoryClient() {
   const hasDealRoom = useTenantFeature("deal_room");
   const hasContractProjects = useTenantFeature("contract_projects");
   const hasDrawings = useTenantFeature("drawing_register");
+  const hasSiteExpenses = useTenantFeature("site_expenses");
+  const hasSiteReceipts = useTenantFeature("site_receipts");
   const hasCrew = useTenantFeature("crew");
-  const objectTypes = OBJECT_TYPES.filter((o) => (o.value !== "contract_projects" || hasContractProjects) && (!["drawings", "drawing_types"].includes(o.value) || hasDrawings) && (!o.value.startsWith("crew_") || hasCrew) && (!["inbound_emails", "inbox_channels"].includes(o.value) || hasInbox) && (!["opportunity_tenders", "opportunity_competitors"].includes(o.value) || hasTender) && (o.value !== "deal_rooms" || (hasTender && hasDealRoom)) &&(!o.value.startsWith("whatsapp_") || hasWhatsapp) && (!["marketing_events", "event_registrations"].includes(o.value) || hasEvents) && (o.value !== "newsletters" || hasNewsletters) && (!["leads", "marketing_settings"].includes(o.value) || hasLeadScoring) && (!["signal_topics", "account_intent"].includes(o.value) || hasSignals) && (o.value !== "forms" || hasForms) && (!o.value.startsWith("abm_") || hasAbm) && (o.value !== "journeys" || hasJourneys) && (o.value !== "webhooks" || hasWebhooks) && (!["integration_mapping", "value_list", "integration_connection", "integration_endpoint"].includes(o.value) || hasMiddleware));
+  const objectTypes = OBJECT_TYPES.filter((o) => (o.value !== "site_expenses" || hasSiteExpenses) && (o.value !== "site_receipts" || hasSiteReceipts) && (o.value !== "contract_projects" || hasContractProjects) && (!["drawings", "drawing_types"].includes(o.value) || hasDrawings) && (!o.value.startsWith("crew_") || hasCrew) && (!["inbound_emails", "inbox_channels"].includes(o.value) || hasInbox) && (!["opportunity_tenders", "opportunity_competitors"].includes(o.value) || hasTender) && (o.value !== "deal_rooms" || (hasTender && hasDealRoom)) &&(!o.value.startsWith("whatsapp_") || hasWhatsapp) && (!["marketing_events", "event_registrations"].includes(o.value) || hasEvents) && (o.value !== "newsletters" || hasNewsletters) && (!["leads", "marketing_settings"].includes(o.value) || hasLeadScoring) && (!["signal_topics", "account_intent"].includes(o.value) || hasSignals) && (o.value !== "forms" || hasForms) && (!o.value.startsWith("abm_") || hasAbm) && (o.value !== "journeys" || hasJourneys) && (o.value !== "webhooks" || hasWebhooks) && (!["integration_mapping", "value_list", "integration_connection", "integration_endpoint"].includes(o.value) || hasMiddleware));
   const [objectType, setObjectType] = useState(OBJECT_TYPES[0].value);
   const [objectId, setObjectId] = useState("");
   const [rows, setRows] = useState<ChangeLogRow[] | null>(null);

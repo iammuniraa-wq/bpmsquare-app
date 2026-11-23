@@ -2413,6 +2413,11 @@ const SEARCH_SPECS: SearchSpec[] = [
     textCols: ["element_code", "element_type"],
     toResult: (r) => ({ id: `${r.project_id}:${r.element_code}`, title: r.element_code, subtitle: [r.element_type, r.description].filter(Boolean).join(" · ") || "Element", href: `${ROUTES.contractProject(r.project_id)}?tab=wbs`, matched: "element code" }),
     featureKeys: ["contract_buildings"],
+    // Number, delivery note and outcome only: no quantity, photo or person.
+    type: "site_receipt", table: "site_receipts", columns: "id, ref, delivery_note_ref, outcome, status",
+    textCols: ["ref", "delivery_note_ref"],
+    toResult: (r) => ({ id: r.id, title: r.ref ?? "Site receipt", subtitle: [r.delivery_note_ref, r.outcome, r.status === "cancelled" ? "cancelled" : null].filter(Boolean).join(" · ") || "Site receipt", href: ROUTES.siteReceipt(r.id), matched: "ref" }),
+    featureKeys: ["site_receipts"],
   },
   {
     type: "rfq", table: "rfqs", columns: "id, ref, title, status, origin_label",

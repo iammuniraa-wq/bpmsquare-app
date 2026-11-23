@@ -22,6 +22,7 @@ const LABEL: Record<string, string> = {
   products: "Product", wfm_projects: "Project", opportunities: "Deal", rfqs: "RFQ", estimates: "Estimate", leads: "Lead",
   contract_projects: "Contract project",
   drawings: "Drawing",
+  site_expenses: "Site expense", site_receipts: "Site receipt",
   abm_programs: "ABM program", abm_targets: "ABM target account", inbound_emails: "Email",
 };
 const TABLE: Record<string, { table: string; nameCol: string; refCol?: string }> = {
@@ -46,6 +47,8 @@ const TABLE: Record<string, { table: string; nameCol: string; refCol?: string }>
   leads: { table: "leads", nameCol: "title" },
   contract_projects: { table: "contract_projects", nameCol: "name", refCol: "ref" },
   drawings: { table: "drawings", nameCol: "drawing_no", refCol: "ref" },
+  site_expenses: { table: "site_expenses", nameCol: "ref" },
+  site_receipts: { table: "site_receipts", nameCol: "ref" },
   abm_programs: { table: "abm_programs", nameCol: "name", refCol: "ref" },
   // A target has no name or ref of its own: the inbox shows its id; the record page names the company.
   abm_targets: { table: "abm_target_accounts", nameCol: "id" },

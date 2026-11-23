@@ -8,7 +8,7 @@ import type { WorkcenterKey, ViewableWorkcenters } from "./workcenters";
 export type SearchObjectType =
   | "account" | "contact" | "asset" | "case" | "quote"
   | "work_order" | "purchase_order" | "invoice" | "inventory_item"
-  | "supplier" | "lead" | "employee" | "product" | "project" | "opportunity" | "rfq" | "estimate" | "abm_program" | "standard_quote" | "sales_order" | "inbox_email" | "contract_project" | "buyout_package" | "project_element" | "drawing";
+  | "supplier" | "lead" | "employee" | "product" | "project" | "opportunity" | "rfq" | "estimate" | "abm_program" | "standard_quote" | "sales_order" | "inbox_email" | "contract_project" | "buyout_package" | "project_element" | "drawing" | "site_receipt";
 
 export type SearchObjectDef = {
   type: SearchObjectType;
@@ -52,6 +52,8 @@ export const SEARCH_OBJECTS: SearchObjectDef[] = [
   // Element codes of a contract project (0253): found by code or type; only a workspace with the Buildings add-on has any.
   { type: "project_element", label: "Element codes", icon: "▦", featureKeys: ["contract_buildings"], workcenters: ["contract_projects"] },
   { type: "drawing", label: "Drawings", icon: "◫", featureKeys: ["drawing_register"], workcenters: ["drawing_register"] },
+  // Site receipts are found by number and delivery note. Site expenses are NOT searchable: an expense is private to its author, the project manager and the cost approvers, and search runs without that check.
+  { type: "site_receipt", label: "Site receipts", icon: "▥", featureKeys: ["site_receipts"], workcenters: ["site_receipts"] },
   { type: "rfq", label: "RFQs", icon: "⇄", featureKeys: ["rfq"], workcenters: ["rfqs"] },
   { type: "estimate", label: "Estimates", icon: "∑", featureKeys: ["estimator"], workcenters: ["estimates"] },
   { type: "abm_program", label: "ABM programs", icon: "◎", featureKeys: ["abm"], workcenters: ["abm"] },

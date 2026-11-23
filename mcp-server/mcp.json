@@ -585,6 +585,80 @@
       }
     },
     {
+      "name": "list_site_expenses",
+      "description": "List the tenant's site expenses (the Site expenses module): ref, project, date, amount, currency, vendor, invoice number, status (submitted, approved, rejected, cancelled), who paid, whether the invoice is still to follow, and the ERP state with the posted amount. Photos and the people who entered or approved an expense are never returned. Needs an API key scoped to \"site_expenses\".",
+      "method": "GET",
+      "path": "/api/v1/site-expenses",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "description": "submitted, approved, rejected or cancelled"
+          },
+          "project_id": {
+            "type": "string",
+            "description": "Only expenses of this contract project"
+          }
+        }
+      }
+    },
+    {
+      "name": "get_site_expense",
+      "description": "Fetch one site expense by id: the header fields, the VAT, the amount in the project currency and the posted amount. Needs an API key scoped to \"site_expenses\".",
+      "method": "GET",
+      "path": "/api/v1/site-expenses/{id}",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Site expense UUID"
+          }
+        },
+        "required": [
+          "id"
+        ]
+      }
+    },
+    {
+      "name": "list_site_receipts",
+      "description": "List the tenant's site receipts (the Site receipts module): ref, project, delivery note, outcome (complete, partial, rejected), received time, driver, vehicle and ERP state. Items are on get_site_receipt; photos, signatures and the receiver are never returned. Needs an API key scoped to \"site_receipts\".",
+      "method": "GET",
+      "path": "/api/v1/site-receipts",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "outcome": {
+            "type": "string",
+            "description": "complete, partial or rejected"
+          },
+          "project_id": {
+            "type": "string",
+            "description": "Only receipts of this contract project"
+          }
+        }
+      }
+    },
+    {
+      "name": "get_site_receipt",
+      "description": "Fetch one site receipt by id with its items: description, element code, building, expected, received, accepted and rejected quantity, condition and reason. Needs an API key scoped to \"site_receipts\".",
+      "method": "GET",
+      "path": "/api/v1/site-receipts/{id}",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Site receipt UUID"
+          }
+        },
+        "required": [
+          "id"
+        ]
+      }
+    },
+    {
       "name": "list_estimates",
       "description": "List the tenant's project estimates: ref, name, status, customer, the template used and the price quoted to the customer before and after tax. Costs, margin and the bill of materials are internal and never returned. Needs an API key explicitly scoped to \"estimates\".",
       "method": "GET",
