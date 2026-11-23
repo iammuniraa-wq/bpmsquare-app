@@ -5,7 +5,8 @@ vi.mock("@/lib/supabase-server", () => ({ createAdminSupabase: () => { throw new
 
 import { commentAllowed, reportToComment, reportToEvidence, saveReportComment, saveReportCompetitor } from "./save";
 import { saveReport } from "./cache";
-import { validateReport } from "./validate";
+import { goodFit, validateBriefFor } from "./fixtures";
+import { validateFit } from "./validate";
 import { loadOfferings } from "./service";
 import { reportCacheKey } from "../budget";
 import type { PermissionSet } from "@/lib/permissions";
@@ -20,27 +21,19 @@ const ACC_T2 = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb2";
 const DEAL = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee1";
 const COMP = "ffffffff-ffff-4fff-8fff-fffffffffff1";
 const COMP_T2 = "ffffffff-ffff-4fff-8fff-fffffffffff2";
-const SITE = "https://najdprecast.com/about";
-const NEWS = "https://www.arabnews.com/node/9";
-const KEY = "najdprecast.com";
+const SITE = "https://halcyon-gulf.example/about";
+const NEWS = "https://gulfmarket-news.example/jubail-award";
+const KEY = "halcyon-gulf.example";
 
 const ALL: PermissionSet = { unrestricted: true, grants: new Map() };
 const grant = (...wc: string[]): PermissionSet => ({ unrestricted: false, grants: new Map(wc.map((w) => [w, { workcenter: w, canView: true, canCreate: false, canEdit: true, canDelete: false }])) }) as never;
 const NOVA = { next_experience: true, accounts: true, leads: true, pipeline: true, gcc_tender: true };
 
-const built = () => validateReport({
-  overview: [{ text: "Najd Precast makes precast concrete elements for housing.", source_url: SITE }],
-  products: [{ text: "Hollow-core slabs", source_url: SITE }],
-  leadership: [{ name: "Khalid Al-Harbi", title: "Chief Executive Officer", source_url: SITE }],
-  news: [{ text: "Won a SAR 120 m housing package", published_on: "2026-10-18", source_url: NEWS }],
-  projects: [{ text: "Riyadh housing package", kind: "award", published_on: "2026-10-18", source_url: NEWS }],
-  strengths: [{ text: "In-house casting yard", source_url: SITE }],
-  compete: [{ offering: "Precast concrete", text: "Competes directly on housing elements." }],
-}, {
-  subject: { name: "Najd Precast Co.", domain: "najdprecast.com", country: "Saudi Arabia" },
-  citations: [{ url: SITE, title: "About Najd Precast" }, { url: NEWS, title: "Najd Precast wins package" }],
-  offerings: ["Precast concrete"], now: NOW, searches: 6,
-}).report;
+const built = () => {
+  const r = validateBriefFor();
+  r.fit = validateFit(goodFit(), r, ["Project supply", "Precast supply"], "prospect").fit;
+  return r;
+};
 
 let db: ReturnType<typeof fakeAdmin>;
 
@@ -51,7 +44,7 @@ async function seed(extra: Record<string, Row[]> = {}, tenant = T1) {
     leads: [], record_comments: [], company_analyses: [], opportunity_competitors: [], ...extra,
   });
   await saveReport(db.client as never, {
-    tenantId: tenant, companyKey: KEY, report: built(), version: 1, searches: 6, inputTokens: 1, outputTokens: 1, requestedBy: "u1",
+    tenantId: tenant, companyKey: KEY, report: built(), parts: {}, version: 1, searches: 6, inputTokens: 1, outputTokens: 1, requestedBy: "u1",
     computedAt: NOW.toISOString(), expiresAt: new Date(NOW.getTime() + 7 * 86_400_000).toISOString(),
   });
 }
@@ -64,7 +57,7 @@ describe("the cache key", () => {
   it("a report has a key of its own, so the verdict card's row for the same company is never touched", () => {
     expect(reportCacheKey("najdprecast.com")).toBe("report:najdprecast.com");
     expect(reportCacheKey("")).toBe("");
-    expect(db.tables.company_analyses[0].company_key).toBe("report:najdprecast.com");
+    expect(db.tables.company_analyses[0].company_key).toBe("report:halcyon-gulf.example");
     expect(db.tables.company_analyses[0].account_id).toBeNull();
   });
 });
@@ -72,25 +65,40 @@ describe("the cache key", () => {
 describe("the readable comment", () => {
   const text = reportToComment(built());
 
-  it("names the company, the sections with their statements, the numbered sources and the inference label", () => {
-    expect(text).toContain("Company report: Najd Precast Co. (Saudi Arabia)");
-    expect(text).toContain("Products and services\n- Hollow-core slabs [1]");
-    expect(text).toContain("- Khalid Al-Harbi, Chief Executive Officer [1]");
-    expect(text).toContain("Recent news\n- Won a SAR 120 m housing package (2026-10-18) [2]");
-    expect(text).toContain("How they compete with us (the assistant's own inference, not from a source)");
-    expect(text).toContain("[2] Najd Precast wins package https://www.arabnews.com/node/9");
+  it("names the company, the tiles, Why now, Who to talk to, the labelled fit, Performance, Watch-outs and the numbered sources", () => {
+    expect(text).toContain("Company brief: Halcyon Gulf Infrastructure Co. (Saudi Arabia)");
+    expect(text).toContain("Revenue FY2025: SAR 2.84 bn");
+    expect(text).toContain("Growth vs FY2024: +12.3%");
+    expect(text).toContain("Net profit FY2025: SAR 186 m");
+    expect(text).toContain("Why now\n- Awarded the SAR 410 m Jubail road and utilities package. (2026-11-12) [3] Why it matters (the assistant's reading): A new site needs materials");
+    expect(text).toContain("- Procurement and supply: Rania Al-Mansouri, Chief Procurement Officer [7] Talk about (the assistant's reading):");
+    expect(text).toContain("- Operations and plant: no name published");
+    expect(text).toContain("Where we fit (the assistant's own reading, not from a source)");
+    expect(text).toContain("- Project supply: Site supply and logistics for the Jubail package.");
+    expect(text).toContain("Watch-outs\n- Credit rating affirmed at BBB- with a negative outlook. (2026-06) [9]");
+    expect(text).toContain("[2] Annual report FY2025 https://halcyon-gulf.example/investors/annual-report-2025");
+  });
+
+  it("never carries Your history: nothing from the workspace's own records is in the timeline copy", () => {
+    expect(text).not.toMatch(/open deal|open quote|Your history|contacts we/i);
+  });
+
+  it("says which parts were not researched", () => {
+    const r = built();
+    r.missing = ["people"];
+    expect(reportToComment(r)).toContain("Not researched: People and roles.");
   });
 
   it("stays inside the comment limit with its sources whole, and says when it was shortened", () => {
     const big = built();
-    big.products = Array.from({ length: 8 }, (_, i) => ({ text: `Product ${i} ${"x".repeat(300)}`, src: 1 }));
-    big.strengths = Array.from({ length: 5 }, (_, i) => ({ text: `Strength ${i} ${"y".repeat(300)}`, src: 1 }));
-    big.projects = Array.from({ length: 8 }, (_, i) => ({ text: `Project ${i} ${"z".repeat(300)}`, src: 2 }));
+    big.performance.highlights = Array.from({ length: 5 }, (_, i) => ({ text: `Highlight ${i} ${"x".repeat(300)}`, src: 2 }));
+    big.signals = Array.from({ length: 8 }, (_, i) => ({ kind: "award" as const, text: `Award ${i} ${"y".repeat(300)}`, on: "2026-10-01", src: 3, why: "z".repeat(200) }));
+    big.market.facts = Array.from({ length: 6 }, (_, i) => ({ text: `Fact ${i} ${"w".repeat(300)}`, src: 8 }));
     const t = reportToComment(big);
     expect(t.length).toBeLessThanOrEqual(4000);
     expect(t).toContain("(shortened)");
-    expect(t).toContain("https://najdprecast.com/about");
-    expect(t).toContain("https://www.arabnews.com/node/9");
+    expect(t).toContain("https://halcyon-gulf.example/about");
+    expect(t).toContain("https://ratingsdesk.example/halcyon");
   });
 });
 
@@ -112,7 +120,7 @@ describe("saving to a record's timeline", () => {
     expect(r).toMatchObject({ ok: true });
     expect(db.tables.record_comments).toHaveLength(1);
     expect(db.tables.record_comments[0]).toMatchObject({ tenant_id: T1, object_type: "accounts", object_id: ACC, author_id: "u1", author_email: "me@x.com", mentions: [] });
-    expect(String(db.tables.record_comments[0].body)).toContain("Company report: Najd Precast Co.");
+    expect(String(db.tables.record_comments[0].body)).toContain("Company brief: Halcyon Gulf Infrastructure Co.");
   });
 
   it("posts on a deal as an opportunity", async () => {
@@ -162,7 +170,7 @@ describe("saving to a competitor's evidence", () => {
     expect(ev.model).toBe("company_report");
     expect(ev.facts.length).toBeGreaterThan(3);
     expect(ev.facts.every((f) => f.source_url.startsWith("https://"))).toBe(true);
-    expect(ev.facts.map((f) => f.kind)).toEqual(expect.arrayContaining(["profile", "award", "strength"]));
+    expect(ev.facts.map((f) => f.kind)).toEqual(expect.arrayContaining(["profile", "award", "strength", "project"]));
     expect(row).toMatchObject({ name: "Najd Precast Co.", status: "accepted", origin: "manual" });
   });
 
@@ -214,11 +222,11 @@ describe("the offering names the research is allowed to see", () => {
     db = fakeAdmin({
       signal_topics: [
         { tenant_id: T1, name: "jane@example.com", enabled: true }, { tenant_id: T1, name: "+966 50 123 4567", enabled: true }, { tenant_id: T1, name: "x".repeat(80), enabled: true },
-        ...Array.from({ length: 30 }, (_, i) => ({ tenant_id: T1, name: `Topic ${i}`, enabled: true })),
+        ...Array.from({ length: 40 }, (_, i) => ({ tenant_id: T1, name: `Topic ${i}`, enabled: true })),
       ],
     });
     const names = await loadOfferings(access());
-    expect(names).toHaveLength(20);
+    expect(names).toHaveLength(30);
     expect(names.join()).not.toMatch(/@|966|xxxx/);
   });
 

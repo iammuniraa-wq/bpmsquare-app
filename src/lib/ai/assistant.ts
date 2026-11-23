@@ -133,7 +133,7 @@ export type AssistantReply = {
   consent?:
     | { id: string; kind: "web_search"; query: string; why?: string; token: string }
     | { id: string; kind: "analyse_company"; query: string; subject: string; token: string }
-    | { id: string; kind: "research_report"; query: string; subject: string; searches: number; token: string }
+    | { id: string; kind: "research_report"; query: string; subject: string; searches: number; token: string; mode?: "brief" | "retry" }
     | NonNullable<CreateFlowReply["consent"]>;
   /** The person gave only a company name: one question with two chips (type the details / look them up). */
   clarify?: ClarifyOffer;
@@ -629,7 +629,7 @@ async function answerAsk(history: ChatTurn[], ctx: AssistantAskCtx): Promise<Ass
   if (ctx.companyReport?.direct) {
     const step = ctx.web?.enabled ? reportStepCtx(await resolvePageRecord(toolCtx, ctx.route).catch(() => null)) : null;
     if (!step) return { answer: "Company reports are not switched on for this workspace." };
-    return runDirectReport(step, ctx.companyReport.direct);
+    return runDirectReport(step, ctx.companyReport.direct, { onPart: ctx.companyReport.onPart });
   }
 
   // 0c. The two chips under "how do you want to fill in the details?" and the Yes on the lookup chip: no model either.
@@ -839,7 +839,7 @@ async function answerAsk(history: ChatTurn[], ctx: AssistantAskCtx): Promise<Ass
   const finish = (answer: string): AssistantReply => ({
     // The card carries the analysis; whatever the model wrote beside it is cut to its first sentence.
     answer: lastAnalysis ? introSentence(answer, `Here is the analysis of ${lastAnalysis.card.name.replace(/\.+$/, "")}.`)
-      : lastCompanyReport ? introSentence(answer, `Here is the report on ${lastCompanyReport.report.name.replace(/\.+$/, "")}.`) : answer,
+      : lastCompanyReport ? introSentence(answer, `Here is the brief on ${lastCompanyReport.report.name.replace(/\.+$/, "")}.`) : answer,
     analysis: lastAnalysis,
     companyReport: lastCompanyReport,
     report: lastReport,

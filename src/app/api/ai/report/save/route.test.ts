@@ -42,7 +42,7 @@ vi.mock("@/lib/assistant/reportAudit", () => ({ recordReportAudit: async (a: Rec
 
 import { POST } from "./route";
 import { saveReport } from "@/lib/analysis/report/cache";
-import { validateReport } from "@/lib/analysis/report/validate";
+import { validateBrief } from "@/lib/analysis/report/validate";
 
 const NOW = new Date("2026-10-21T12:00:00Z");
 const SITE = "https://najdprecast.com/about";
@@ -54,10 +54,10 @@ async function seed(extra: Record<string, Row[]> = {}) {
     accounts: [{ id: ACC, tenant_id: T1 }, { id: ACC_T2, tenant_id: T2 }], opportunities: [{ id: DEAL, tenant_id: T1 }],
     record_comments: [], company_analyses: [], opportunity_competitors: [], ...extra,
   });
-  const { report } = validateReport({ overview: [{ text: "Makes precast concrete elements.", source_url: SITE }] }, {
-    subject: { name: "Najd Precast Co.", domain: "najdprecast.com", country: null }, citations: [{ url: SITE, title: "About" }], offerings: [], now: NOW, searches: 4,
+  const { report } = validateBrief({ market: { one_liner: { text: "Makes precast concrete elements.", source_url: SITE } } }, {
+    subject: { name: "Najd Precast Co.", domain: "najdprecast.com", country: null }, citations: [{ url: SITE, title: "About" }], now: NOW, searches: 4,
   });
-  await saveReport(state.db.client as never, { tenantId: T1, companyKey: "najdprecast.com", report, version: 1, searches: 4, inputTokens: 1, outputTokens: 1, requestedBy: "u-1", computedAt: NOW.toISOString(), expiresAt: "2026-10-28T12:00:00.000Z" });
+  await saveReport(state.db.client as never, { tenantId: T1, companyKey: "najdprecast.com", report, parts: {}, version: 1, searches: 4, inputTokens: 1, outputTokens: 1, requestedBy: "u-1", computedAt: NOW.toISOString(), expiresAt: "2026-10-28T12:00:00.000Z" });
 }
 
 beforeEach(async () => {

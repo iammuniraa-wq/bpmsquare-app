@@ -99,7 +99,7 @@ describe("an ordinary ask", () => {
 describe("Refresh", () => {
   it("sends only the named fields; the workspace and the person come from the session; no consent is implied", async () => {
     await post({ report: { account_id: ACC, refresh: true, tenant_id: "t-2", allow_web: true, userId: "someone-else" }, tenant_id: "t-2" });
-    expect(reportOf()?.direct).toEqual({ input: { accountId: ACC, leadId: null, name: null, domain: null, country: null, refresh: true }, consentId: null });
+    expect(reportOf()?.direct).toEqual({ input: { accountId: ACC, leadId: null, name: null, domain: null, country: null, refresh: true, retry: false, lens: "prospect" }, consentId: null });
     expect(state.seen[0].tenantId).toBe("t-1");
     expect(state.seen[0].userId).toBe("u-1");
   });

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { tipTextProblems } from "@/lib/infoTip";
 import {
   REPORT_CONSENT_PREFIX, REPORT_PROMPT_RULE, REPORT_TOOL_NAME, WEB_OFF_REASON_TEXT, decodeReportQuery, encodeReportQuery, parseReportInput,
-  reportNoticeText, reportSearchesText, reportTool, webOffPromptLine,
+  reportNoticeText, reportSearchesText, reportTool, webOffPromptLine, REPORT_CHIP_TEXT, REPORT_RETRY_CHIP_TEXT,
 } from "./reportTool";
 import { ANALYSIS_CONSENT_PREFIX } from "./analysisTool";
 import { MAX_REPORT_SEARCHES } from "@/lib/analysis/report/types";
@@ -12,10 +12,10 @@ const ACC = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1";
 describe("what the model may pass", () => {
   it("only the named fields, each cleaned and clipped; ids must be ids", () => {
     const i = parseReportInput({ account_id: ACC.toUpperCase(), lead_id: "x", name: "  Najd | <b>Precast</b> ", domain: "d".repeat(200), country: 5, refresh: "yes", tenant_id: "t-2", query: "anything" });
-    expect(i).toEqual({ accountId: ACC, leadId: null, name: "Najd b Precast /b", domain: "d".repeat(80), country: null, refresh: false });
+    expect(i).toEqual({ accountId: ACC, leadId: null, name: "Najd b Precast /b", domain: "d".repeat(80), country: null, refresh: false, retry: false, lens: "prospect" });
   });
   it("nothing at all is an empty subject", () => {
-    expect(parseReportInput(null)).toEqual({ accountId: null, leadId: null, name: null, domain: null, country: null, refresh: false });
+    expect(parseReportInput(null)).toEqual({ accountId: null, leadId: null, name: null, domain: null, country: null, refresh: false, retry: false, lens: "prospect" });
   });
 });
 
@@ -33,6 +33,31 @@ describe("the signed subject", () => {
   it("a '|' typed into a name cannot add a part", () => {
     const i = parseReportInput({ name: "A|B" });
     expect(decodeReportQuery(encodeReportQuery(i))).toEqual(i);
+  });
+});
+
+describe("the mode and the lens ride on the signed subject", () => {
+  it("a first brief, a refresh, the missing parts and a competitor reading each have their own signed string", () => {
+    const base = parseReportInput({ name: "X Co" });
+    const modes = [base, { ...base, refresh: true }, { ...base, retry: true, refresh: false }, { ...base, lens: "competitor" as const }];
+    const queries = modes.map(encodeReportQuery);
+    expect(new Set(queries).size).toBe(4);
+    for (const [i, q] of queries.entries()) expect(decodeReportQuery(q), q).toEqual(modes[i]);
+  });
+  it("retry wins over refresh, and an unknown mode is refused", () => {
+    expect(parseReportInput({ name: "X Co", refresh: true, retry: true })).toMatchObject({ refresh: false, retry: true });
+    expect(decodeReportQuery("research_report|||9p|X Co||")).toBeNull();
+    expect(decodeReportQuery("research_report|||0z|X Co||")).toBeNull();
+  });
+});
+
+describe("the consent chip states searches, time and allowance, not dollars", () => {
+  it("quotes the twelve searches in four parts, the usual time and the allowance use", () => {
+    expect(REPORT_CHIP_TEXT).toContain(`Up to ${MAX_REPORT_SEARCHES} searches in four parts`);
+    expect(REPORT_CHIP_TEXT).toMatch(/Usually 1 to 2 minutes/);
+    expect(REPORT_CHIP_TEXT).toMatch(/AI allowance/);
+    expect(REPORT_CHIP_TEXT).not.toMatch(/\$|dollar|USD|US\$/i);
+    expect(REPORT_RETRY_CHIP_TEXT).toMatch(/does not use another of your daily briefs/);
   });
 });
 
@@ -63,7 +88,7 @@ describe("notices", () => {
     expect(reportNoticeText({ kind: "over_budget" }, now)).toContain("allowance");
     expect(reportNoticeText({ kind: "refresh_limit", until: "2026-10-21T12:25:00Z" }, now)).toContain("about 25 minutes");
     expect(reportNoticeText({ kind: "refresh_limit", until: "2026-10-21T12:00:30Z" }, now)).toContain("about 1 minute.");
-    expect(reportNoticeText({ kind: "research_failed", message: "The research took too long." }, now)).toBe("The research took too long. This is the saved report.");
+    expect(reportNoticeText({ kind: "research_failed", message: "The research took too long." }, now)).toBe("The research took too long. This is the saved brief.");
   });
   it("quote the number of searches the chip and the explanation share", () => {
     expect(reportSearchesText()).toBe(`up to ${MAX_REPORT_SEARCHES} searches`);
