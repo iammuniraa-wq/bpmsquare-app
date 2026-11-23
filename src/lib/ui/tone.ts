@@ -38,6 +38,14 @@ export function toneForMargin(pct: number | null | undefined, floor = 10): Tone 
   return pct < 0 ? "bad" : pct < floor ? "warn" : "good";
 }
 
+/** A project health light (docs/design/pcbs-project-dashboards.md section 6): On track, Watch, At risk; a light with nothing to measure stays neutral. */
+export function toneForLight(level: "good" | "watch" | "risk" | "not_connected" | "plan_watch" | "plan_risk" | null | undefined): Tone {
+  if (level === "good") return "good";
+  if (level === "watch" || level === "plan_watch") return "warn";
+  if (level === "risk" || level === "plan_risk") return "bad";
+  return "neutral";
+}
+
 /** Days until a date: past is overdue, within `soonDays` needs attention, further out is just information. */
 export function toneForDaysLeft(days: number | null | undefined, soonDays = 14): Tone {
   if (days === null || days === undefined || !Number.isFinite(days)) return "neutral";
