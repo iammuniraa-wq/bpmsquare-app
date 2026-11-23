@@ -3,6 +3,10 @@ import { requireTenantUser, createAdminSupabase } from "@/lib/supabase-server";
 import { tenantHasFeature, type Tenant } from "@/lib/tenant";
 import { PdfNavigationError, renderPdf } from "@/lib/pdf/renderPdf";
 import { loadStandardQuoteForFrame, standardQuoteFrame } from "@/lib/pdf/standardQuoteFrame";
+import { buildFrameFromSnapshot } from "@/lib/pdf/frameServer";
+import { loadRevisionSnapshot } from "@/lib/revisions/server";
+import { revisionsActive, printedRevisionNo } from "@/lib/revisions/state";
+import type { PdfFrame } from "@/lib/pdf/frame";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -28,15 +32,31 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   }
 
   const { id } = await params;
-  const { data: quoteRow } = await supabase.from("standard_quotes").select("ref").eq("id", id).eq("tenant_id", tenantId).maybeSingle();
+  const { data: quoteRow } = await supabase.from("standard_quotes").select("*").eq("id", id).eq("tenant_id", tenantId).maybeSingle();
   if (!quoteRow) return NextResponse.json({ error: "Quote not found" }, { status: 404 });
 
   const cookieHeader = request.headers.get("cookie") ?? "";
   const { data: tenantRow } = await supabase.from("tenants").select("name, logo_url, company_info, config").eq("id", tenantId).maybeSingle();
   const tenant = tenantRow as Pick<Tenant, "name" | "logo_url" | "company_info" | "config"> | null;
-  const loaded = tenant?.config?.pdf_design ? await loadStandardQuoteForFrame(createAdminSupabase(), tenantId, id) : null;
-  const frame = loaded && tenant ? await standardQuoteFrame(tenant, loaded.quote, loaded.account, loaded.blocks, null) : null;
-  const printUrl = new URL(`/standard-quotes/${id}/print${frame ? "?pdf=1" : ""}`, request.nextUrl.origin).toString();
+  // Revision history (0252): "?rev=N" prints that revision from what it froze; an issued quotation prints its current revision; a working
+  // copy prints live, labelled with the revision it will become. A workspace that does not keep revisions never reaches this block.
+  const active = revisionsActive(tenant?.config, quoteRow);
+  const revParam = request.nextUrl.searchParams.get("rev");
+  const wanted = revParam !== null && /^\d{1,4}$/.test(revParam) ? Number(revParam)
+    : active && (quoteRow as { revision_state?: string | null }).revision_state === "issued" ? (quoteRow as { current_revision: number }).current_revision : null;
+  let frame: PdfFrame | null = null;
+  let query = "";
+  if (wanted !== null && active) {
+    const rev = await loadRevisionSnapshot(createAdminSupabase(), tenantId, id, wanted);
+    if (!rev) return NextResponse.json({ error: "That revision was not found" }, { status: 404 });
+    frame = await buildFrameFromSnapshot(rev.snapshot, wanted);
+    query = `?${frame ? "pdf=1&" : ""}rev=${wanted}`;
+  } else {
+    const loaded = tenant?.config?.pdf_design ? await loadStandardQuoteForFrame(createAdminSupabase(), tenantId, id) : null;
+    frame = loaded && tenant ? await standardQuoteFrame(tenant, loaded.quote, loaded.account, loaded.blocks, active ? printedRevisionNo(quoteRow) : null) : null;
+    query = frame ? "?pdf=1" : "";
+  }
+  const printUrl = new URL(`/standard-quotes/${id}/print${query}`, request.nextUrl.origin).toString();
 
   try {
     const pdf = await renderPdf({

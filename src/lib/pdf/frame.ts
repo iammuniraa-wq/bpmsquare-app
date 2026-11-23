@@ -120,11 +120,11 @@ export function resolvePdfFrame(f: FrameInput): PdfFrame | null {
   const idMm = rightLines.reduce((n, l) => n + (l.label ? 8 : 4.6), 0);
   const nameMm = 5 + (nameAr ? 4.6 : 0);
   const topRowMm = Math.max(logoMm, idMm, nameMm);
-  const headerMm = 5 + topRowMm + (d.header.title_band ? 12 : 3);
+  const headerMm = 5 + topRowMm + (d.header.title_band ? 15 : 3);
   const footRows = Math.max(leftFoot.length, rightFoot.length, d.footer.page_numbers ? 1 : 0);
   const footerMm = footRows * 4.1 + (d.footer.rule ? 2 : 0) + (d.footer.strip ? 4 : 0) + 4;
   const m = d.page.margins_mm;
-  const marginsMm = { top: Math.max(m.top, Math.ceil(headerMm)), right: m.right, bottom: Math.max(m.bottom, Math.ceil(footerMm)), left: m.left };
+  const marginsMm = { top: Math.max(m.top, Math.ceil(headerMm) + 2), right: m.right, bottom: Math.max(m.bottom, Math.ceil(footerMm)), left: m.left };
 
   const baseCss = `html,body{margin:0;padding:0;}*{box-sizing:border-box;}body{-webkit-print-color-adjust:exact;print-color-adjust:exact;font-family:${stack};color:${c.text};}`;
 

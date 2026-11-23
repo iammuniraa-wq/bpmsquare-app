@@ -2,9 +2,9 @@
 
 import StandardQuotePrintDocument, { type StandardQuotePrintDocumentProps } from "./StandardQuotePrintDocument";
 
-type Props = StandardQuotePrintDocumentProps;
+type Props = StandardQuotePrintDocumentProps & { /** A revision's own PDF; absent = the record's current PDF, as always. */ pdfHref?: string };
 
-export default function StandardQuotePrint(props: Props) {
+export default function StandardQuotePrint({ pdfHref, ...props }: Props) {
   const { quote } = props;
 
   return (
@@ -30,7 +30,7 @@ export default function StandardQuotePrint(props: Props) {
 
       <div className="no-print" style={{ background: "#152233", padding: "10px 24px", display: "flex", alignItems: "center", gap: 10, position: "sticky", top: 0, zIndex: 10, flexWrap: "wrap" }}>
         <a
-          href={`/api/standard-quotes/${quote.id}/pdf`}
+          href={pdfHref ?? `/api/standard-quotes/${quote.id}/pdf`}
           style={{ background: "#378ADD", color: "#fff", border: "none", borderRadius: 8, padding: "8px 20px", fontSize: 13, fontWeight: 500, cursor: "pointer", textDecoration: "none", display: "inline-block" }}
         >
           ⬇ Download PDF

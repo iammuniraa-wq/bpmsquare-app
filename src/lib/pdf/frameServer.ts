@@ -5,6 +5,8 @@ import { fetchPublic } from "@/lib/net/safeHost";
 import { sanitizePdfDesign } from "./design";
 import { ARIMO_400_B64, ARIMO_700_B64 } from "./fontData";
 import { resolvePdfFrame, revisionText, type FrameFonts, type PdfFrame } from "./frame";
+import { frameTitleParts } from "./framedQuote";
+import type { StandardQuoteSnapshot } from "@/lib/revisions/snapshot";
 
 // The server half of the page frame: what resolvePdfFrame cannot do because it is pure -- fetch the logo into the header
 // (the browser's header template cannot load a remote image), and hand over the bundled font.
@@ -74,5 +76,18 @@ export async function buildDocFrame(p: DocFrameParams): Promise<PdfFrame | null>
     reference: p.reference,
     revision: revisionText(p.revisionNo),
     fonts: FRAME_FONTS,
+  });
+}
+
+/** The frame of an issued revision, from the values it froze (the design, the entity's details, the letterhead and the vendor-line
+ *  decision), so a PDF of Rev. 01 prints through the frame as it was, whatever the settings say today. The logo is fetched again from
+ *  the stored address: only the address is frozen, not the image. null when the revision was issued with no page frame. */
+export async function buildFrameFromSnapshot(snap: StandardQuoteSnapshot, revisionNo: number): Promise<PdfFrame | null> {
+  const design = snap.frame.design ? sanitizePdfDesign(snap.frame.design) : null;
+  if (!design) return null;
+  const logo = design.header.logo === "none" ? null : await logoDataUri(snap.frame.company_info?.logo_url || snap.frame.logo_url);
+  return resolvePdfFrame({
+    design, entity: snap.frame.entity, companyInfo: snap.frame.company_info ?? {}, tenantName: snap.frame.tenant_name, logoDataUri: logo,
+    printIds: snap.frame.print_ids ?? [], ...frameTitleParts(snap.template.blocks), reference: snap.quote.ref, revision: revisionText(revisionNo), fonts: FRAME_FONTS,
   });
 }

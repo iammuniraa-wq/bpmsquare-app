@@ -81,7 +81,7 @@ export default function EntitiesTab({ entities, onChange, einvoicing = false }: 
               {(open.extra_ids ?? []).map((x) => {
                 const upd = (p2: Partial<EntityExtraId>) => patch(open.id, { extra_ids: (open.extra_ids ?? []).map((y) => (y.id === x.id ? { ...y, ...p2 } : y)) });
                 return (
-                  <div key={x.id} className={s.itemRow} style={{ gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)" }}>
+                  <div key={x.id} className={s.phoneRow}>
                     <Input value={x.label} onChange={(e) => upd({ label: e.target.value })} placeholder="Label, for example Vendor no." aria-label="Id label" maxLength={60} />
                     <Input className={s.mono} value={x.value} onChange={(e) => upd({ value: e.target.value })} placeholder="Value" aria-label="Id value" maxLength={60} />
                     <Select value={x.print} onChange={(e) => upd({ print: e.target.value as EntityExtraId["print"] })} aria-label="Print">

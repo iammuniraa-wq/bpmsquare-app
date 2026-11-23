@@ -10,7 +10,7 @@ import type { ClauseItem, DocSections, StandardQuoteTemplateBlock } from "../src
 // signatory "XYZ" is left empty for the client to fill in Settings > PDF documents > Layouts.
 
 export const PCBS_PDF_DESIGN: PdfDesign = {
-  page: { size: "A4", margins_mm: { top: 38, right: 12, bottom: 24, left: 19 } },
+  page: { size: "A4", margins_mm: { top: 42, right: 12, bottom: 24, left: 19 } },
   font: "arial_like",
   base_pt: 10,
   colors: { text: "#000000", band: "#7f7f7f", band_text: "#ffffff", sub_band: "#ffd700", table_head: "#dbe5f1", rule: "#7f7f7f" },

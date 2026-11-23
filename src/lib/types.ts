@@ -486,6 +486,8 @@ export type StandardQuote = {
   /** Revision history (0252): the number of the latest issued revision (null = none yet) and where the working copy stands. */
   current_revision?: number | null;
   revision_state?: "draft" | "issued" | null;
+  /** The reason typed when "Revise" was pressed; written into the next revision row when it is issued (0252). */
+  pending_revision_reason?: string | null;
 };
 
 export type StandardQuoteSourceType = "email" | "estimate" | "drawing" | "lead" | "opportunity" | "standard_quote" | "quotation" | "project" | "direct";

@@ -16,6 +16,8 @@ import { scheduleQuoteDispatch } from "@/lib/middleware/schedule";
 import type { TenantFeatures } from "@/lib/constants";
 import { cfOnly } from "@/lib/customData";
 import { readDocFields } from "@/lib/sales/standardQuoteDocFields";
+import { isLockedByIssue, lockedKeysIn, revisionsActive } from "@/lib/revisions/state";
+import type { TenantConfig } from "@/lib/constants";
 
 const VALID_STATUSES = ["draft", "sent", "accepted", "rejected", "expired"];
 
@@ -56,7 +58,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   }
   // Same single features read as before, kept whole so the integration-middleware
   // flag is known without a second query.
-  const { data: tenantRow } = await supabase.from("tenants").select("features").eq("id", tenantId).maybeSingle();
+  const { data: tenantRow } = await supabase.from("tenants").select("features, config").eq("id", tenantId).maybeSingle();
   const features = tenantRow?.features as TenantFeatures | undefined;
   if (!features?.standard_quotes) {
     return NextResponse.json({ error: "Standard Quotes isn't enabled for your workspace" }, { status: 403 });
@@ -71,6 +73,20 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
   const { data: before } = await supabase.from("standard_quotes").select("*").eq("id", id).eq("tenant_id", tenantId).maybeSingle();
   if (!before) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  // Revision history (0252, off unless the workspace turned it on): an issued quotation is read-only. What happened to the offer
+  // (status, the sent and closed stamps, the deal link) stays open; what the offer SAYS does not, until someone revises it.
+  const revConfig = tenantRow?.config as Partial<TenantConfig> | null | undefined;
+  const revActive = revisionsActive(revConfig, before);
+  if (isLockedByIssue(before, revActive)) {
+    const locked = lockedKeysIn(body);
+    if (locked.length > 0) {
+      return NextResponse.json({ error: `Rev. ${String(before.current_revision ?? 0).padStart(2, "0")} is issued, so this quotation is read-only. Revise it to make changes.`, locked }, { status: 409 });
+    }
+  }
+  if (revActive && body.status === "sent" && before.revision_state !== "issued") {
+    return NextResponse.json({ error: "Issue the quotation before sending it, so what the customer gets is a revision that cannot change." }, { status: 409 });
+  }
 
   if (body.contact_id) {
     const { data: contact } = await supabase.from("contacts").select("id").eq("id", body.contact_id).eq("tenant_id", tenantId).maybeSingle();
@@ -303,6 +319,11 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
   if (!quote) return NextResponse.json({ error: "Not found" }, { status: 404 });
   if (quote.status !== "draft") {
     return NextResponse.json({ error: "Only draft quotes can be deleted" }, { status: 409 });
+  }
+  // An issued quotation has revisions that are the record of what was offered: it stays.
+  const { data: issued } = await supabase.from("standard_quotes").select("current_revision").eq("id", id).eq("tenant_id", tenantId).maybeSingle();
+  if (issued && (issued as { current_revision?: number | null }).current_revision != null) {
+    return NextResponse.json({ error: "A quotation that has been issued cannot be deleted" }, { status: 409 });
   }
 
   const { error } = await supabase.from("standard_quotes").delete().eq("id", id).eq("tenant_id", tenantId);

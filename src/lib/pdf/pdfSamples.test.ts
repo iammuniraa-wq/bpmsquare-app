@@ -5,7 +5,8 @@ import { createElement as create, type ReactElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import StandardQuoteFramedBody from "@/components/StandardQuoteFramedBody";
 import { PCBS_BLOCKS, PCBS_PDF_DESIGN, PCBS_SAMPLE_DOC_SECTIONS } from "../../../scripts/pcbs-pdf-design.data";
-import { FRAME_FONTS } from "./frameServer";
+import { FRAME_FONTS, buildFrameFromSnapshot } from "./frameServer";
+import { buildStandardQuoteSnapshot, snapshotForPrint } from "@/lib/revisions/snapshot";
 import { resolvePdfFrame, esc } from "./frame";
 import { frameTitleParts } from "./framedQuote";
 import { renderPdf } from "./renderPdf";
@@ -62,6 +63,28 @@ async function sample(name: string, revisionNo: number | null) {
   return pdf;
 }
 
+// Slice 2: revision 2 goes through the real path -- built into a snapshot, read back from it, framed from what it froze.
+async function revisionSample(name: string, revisionNo: number) {
+  const logoFile = process.env.PDF_SAMPLE_LOGO;
+  const logo = logoFile && fs.existsSync(logoFile) ? `data:image/png;base64,${fs.readFileSync(logoFile).toString("base64")}` : null;
+  const q = quote({ total: 1190250, subtotal: 1190250 } as Partial<StandardQuote>);
+  const rev2Lines = [line(1, "10m High Pole Precast Foundation with Deformed Rebar\n1000 X 1000 X 1200mm base, Grey Concrete Struck-Off Mould finish as per ACI / PCI Std.", 450, 2645)];
+  const snap = buildStandardQuoteSnapshot({
+    quote: q as unknown as Record<string, unknown>, lines: rev2Lines as unknown as Record<string, unknown>[], account: account as unknown as Record<string, unknown>, contact: contact as unknown as Record<string, unknown>,
+    template: { id: null, name: "PCBS quotation", accent_color: null, logo_position: "left", blocks: PCBS_BLOCKS },
+    frame: { design: PCBS_PDF_DESIGN, entity, company_info: { name: "PCBS", web: "www.pcbs.com.sa", logo_url: logo ?? undefined }, tenant_name: "PCBS", logo_url: null, print_ids: ["v1"] },
+    currency: "SAR",
+  });
+  snap.quote.doc_sections = PCBS_SAMPLE_DOC_SECTIONS;
+  const frame = (await buildFrameFromSnapshot(snap, revisionNo))!;
+  const p = snapshotForPrint(snap, { quoteId: "q1", tenantId: "t1", status: "sent" });
+  const body = renderToStaticMarkup(createElement(StandardQuoteFramedBody, { quote: p.quote, lines: p.lines, account: p.account, contact: p.contact, blocks: snap.template.blocks, docSections: snap.quote.doc_sections, currency: snap.currency }));
+  const pdf = await renderPdf({ source: { kind: "html", html: html(frame.bodyCss, frame.fontFaceCss, body), timeoutMs: 30_000 }, margin: { top: "0", bottom: "0", left: "0", right: "0" }, settle: true, frame });
+  fs.mkdirSync(OUT!, { recursive: true });
+  fs.writeFileSync(path.join(OUT!, name), pdf);
+  return pdf;
+}
+
 run("sample PDFs", () => {
   it("slice 1: a framed quotation", async () => {
     const pdf = await sample("slice1-quotation.pdf", null);
@@ -70,7 +93,7 @@ run("sample PDFs", () => {
     expect(esc("<")).toBe("&lt;");
   }, 90_000);
   it("slice 2: revision 2", async () => {
-    const pdf = await sample("slice2-quotation-rev02.pdf", 2);
+    const pdf = await revisionSample("slice2-quotation-rev02.pdf", 2);
     expect(pdf.length).toBeGreaterThan(1000);
   }, 90_000);
 });

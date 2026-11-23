@@ -4,6 +4,7 @@ import { requireWorkcenterView } from "@/lib/permissions";
 import { requireFeature, getTenant } from "@/lib/tenant";
 import { getStandardQuoteLive, listStandardQuoteTemplates } from "@/lib/data/live";
 import { ROUTES } from "@/lib/constants";
+import { canEditContent, revisionsActive } from "@/lib/revisions/state";
 import StandardQuoteForm from "../../new/StandardQuoteForm";
 import { standardQuoteProducts, pricingOnStandardQuotes, docColumnsReady, docDetailsFor } from "../../formData";
 
@@ -18,7 +19,7 @@ export default async function EditStandardQuotePage({ params }: { params: Promis
   if (!data) notFound();
   const { quote, lines } = data;
 
-  if (quote.status !== "draft") redirect(ROUTES.standardQuote(id));
+  if (!canEditContent(quote, revisionsActive(tenant?.config, quote))) redirect(ROUTES.standardQuote(id));
 
   const [{ data: accounts }, { data: contacts }, templates, products] = await Promise.all([
     supabase.from("accounts").select("id, name").eq("tenant_id", tenantId).order("name"),

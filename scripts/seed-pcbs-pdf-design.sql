@@ -21,7 +21,7 @@ begin
   "page": {
     "size": "A4",
     "margins_mm": {
-      "top": 38,
+      "top": 42,
       "right": 12,
       "bottom": 24,
       "left": 19
