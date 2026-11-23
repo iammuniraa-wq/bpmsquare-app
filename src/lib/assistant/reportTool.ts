@@ -139,7 +139,7 @@ export function reportNoticeText(n: ReportNoticeIn, now: Date): string {
     case "daily_limit": return "Your daily limit for company reports is reached, so this is the saved report. You can run a new one tomorrow.";
     case "refresh_limit": {
       const minutes = Math.max(1, Math.ceil((Date.parse(n.until) - now.getTime()) / 60_000));
-      return `This report was made less than an hour ago. You can refresh it again in about ${minutes} ${minutes === 1 ? "minute" : "minutes"}.`;
+      return `This report was made less than an hour ago, and a report can only be refreshed once an hour has passed. You can refresh it in about ${minutes} ${minutes === 1 ? "minute" : "minutes"}.`;
     }
     case "over_budget": return "This month's AI allowance is used up, so this is the saved report.";
     case "research_failed": return `${n.message.replace(/\s+/g, " ").trim().slice(0, 200)} This is the saved report.`;
