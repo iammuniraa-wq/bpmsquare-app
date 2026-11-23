@@ -73,6 +73,14 @@ export const isFilled = (l: Pick<BudgetLine, "source_ref" | "amount" | "allocate
   return !!m && l.allocated && Number(m[1]) === round2(l.amount);
 };
 
+/**
+ * The quote lines that belong to an option the client did NOT choose. The chosen option's lines are the contract and carry group_type
+ * "alternative" too, so the group type alone would wrongly refuse every line of a quote that has finish options.
+ */
+export function unchosenOptionLineIds(rows: readonly { id: string; group_type: string | null; is_selected: boolean | null }[]): Set<string> {
+  return new Set(rows.filter((q) => q.group_type === "alternative" && q.is_selected === false).map((q) => q.id));
+}
+
 export type FillItem = { base: BudgetLine; buckets: Bucket[] };
 export type EstimateFillPlan = { fills: FillItem[]; skipped: FillSkip[] };
 

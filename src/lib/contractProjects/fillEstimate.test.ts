@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { createElement } from "react";
 import { renderToString } from "react-dom/server";
 import { allocationView } from "./allocation";
-import { applyEstimateFill, estimateGroups, fillRef, isFilled, planEstimateFill, type EstimateLineIn } from "./fillEstimate";
+import { applyEstimateFill, estimateGroups, fillRef, isFilled, planEstimateFill, unchosenOptionLineIds, type EstimateLineIn } from "./fillEstimate";
 import { isCategoryLine, type BudgetLine } from "./types";
 import { LinesTable } from "@/components/contractProjects/AllocationTable";
 import { PROJECT_TIPS } from "./tips";
@@ -45,6 +45,17 @@ describe("what is matched, and what is listed", () => {
     const p = plan([line(), line({ line_key: "k2", description: "Unknown", source_line_id: "q2", wbs: "2" })]);
     expect(p.fills.map((f) => f.base.line_key)).toEqual(["k1"]);
     expect(p.skipped).toEqual([{ item: "2", reason: "matches nothing in the estimate" }]);
+  });
+
+  it("only the options the client did not choose are refused: the chosen option's lines carry the alternative type too and are the contract", () => {
+    const ids = unchosenOptionLineIds([
+      { id: "chosen", group_type: "alternative", is_selected: true },
+      { id: "other", group_type: "alternative", is_selected: false },
+      { id: "plain", group_type: null, is_selected: true },
+      { id: "unknown", group_type: "alternative", is_selected: null },
+    ]);
+    expect([...ids]).toEqual(["other"]);
+    expect(plan([line({ source_line_id: "chosen" })], [...ids]).fills).toHaveLength(1);
   });
 
   it("an option of an alternative quote is never matched, and a name used twice is not guessed", () => {

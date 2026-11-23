@@ -9,7 +9,7 @@ import { PACKAGE_LIMITS, asTreeItem, lineMemberships, respreadTargets, type Line
 import { WBS_LIMITS, addProblem, autoCodes, cleanText, codeChanges, holdersOf, isLeaf, moveProblem, partsOf, pctText, renumberAll, setSplit, type Membership } from "@/lib/wbs/tree";
 import { WBS_PENDING } from "@/lib/wbs/tips";
 import { costsFromBoq, costsFromSnapshot, planFill, type BoqCostRow, type FillSkip, type Found } from "./fill";
-import { applyEstimateFill, estimateGroups, planEstimateFill, type EstimateLineIn } from "./fillEstimate";
+import { applyEstimateFill, estimateGroups, planEstimateFill, unchosenOptionLineIds, type EstimateLineIn } from "./fillEstimate";
 import { templateGroupNames } from "@/lib/estimator/lines";
 import {
   ALLOCATION_BUNDLE, allocationSchemaReady, currentRevision, isMissingSchema, loadLines, loadProject, loadRevision, loadRevisions, needsAllocationUpdate, needsUpdate, openProjectRequest,
@@ -270,14 +270,14 @@ export async function fillFromEstimate(ctx: AllocationCtx, revision: RevisionRow
   const [lineRes, tplRes, quoteLines] = await Promise.all([
     readAllPages((lo, hi) => admin.from("estimate_lines").select("description, uom, qty, waste_pct, group_key, custom_data, component, cost_total").eq("tenant_id", tenantId).eq("estimate_id", estimate.id).order("sort_order").order("id", { ascending: true }).range(lo, hi)),
     estimate.template_id ? admin.from("estimate_templates").select("rules, quote_granularity").eq("id", estimate.template_id).eq("tenant_id", tenantId).maybeSingle() : Promise.resolve({ data: null, error: null }),
-    readAllPages((lo, hi) => admin.from("standard_quote_lines").select("id, group_type").eq("standard_quote_id", project.source_id as string).eq("tenant_id", tenantId).order("id", { ascending: true }).range(lo, hi)),
+    readAllPages((lo, hi) => admin.from("standard_quote_lines").select("id, group_type, is_selected").eq("standard_quote_id", project.source_id as string).eq("tenant_id", tenantId).order("id", { ascending: true }).range(lo, hi)),
   ]);
   if (lineRes.error) return { ok: false, status: 500, error: lineRes.error.message };
   const tpl = (tplRes.data as { rules?: { group: string }[]; quote_granularity?: string } | null) ?? null;
   const groups = estimateGroups(
     (lineRes.data ?? []) as EstimateLineIn[], templateGroupNames(Array.isArray(tpl?.rules) ? (tpl?.rules as { group: string }[]) : []), tpl?.quote_granularity === "line" ? "line" : "group",
   );
-  const optionLineIds = new Set(((quoteLines.error ? [] : quoteLines.data ?? []) as { id: string; group_type: string | null }[]).filter((q) => q.group_type === "alternative").map((q) => q.id));
+  const optionLineIds = unchosenOptionLineIds((quoteLines.error ? [] : quoteLines.data ?? []) as { id: string; group_type: string | null; is_selected: boolean | null }[]);
 
   const lines = await loadLines(admin, tenantId, revision.id);
   const before = budgetTotals(lines).total;
