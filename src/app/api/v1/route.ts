@@ -43,6 +43,8 @@ export async function GET(req: Request) {
       "GET /api/v1/invoices/:id":         "Invoice detail with line items and payments",
       "GET /api/v1/products":             "List products (sellable catalog; list price, tax, category)",
       "GET /api/v1/products/:id":         "Product detail",
+      "GET /api/v1/drawings":             "List drawings with their released revision (needs a key scoped to \"drawings\"): number, title, type, revision label, release date, where filed · filters: ?type=, ?opportunity_id=, ?project_id=, ?released=true",
+      "GET /api/v1/drawings/:id":         "One drawing with its released revision. No file, no fingerprint, no draft or review state",
       "GET /api/v1/opportunities":        "List deals (pipeline) · filters: ?stage=, ?outcome=, ?account_id=, ?owner_id=",
       "GET /api/v1/opportunities/:id":    "Deal detail with its lines and linked quotes",
       "GET /api/v1/rfqs":                 "List RFQs (needs a key scoped to \"rfqs\") · filters: ?status=, ?origin_type=, ?origin_id=",

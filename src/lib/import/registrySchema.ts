@@ -58,6 +58,7 @@ export const REGISTRY_OBJECT_TYPE: Record<ImportObjectId, string | null> = {
   tender_boq_lines: null,
   // Static spec (tenderWbsItemsSchema.ts), like tender_boq_lines.
   tender_wbs_items: null,
+  drawings: "drawing",
 };
 
 export type ReferenceFieldDef = {
@@ -155,6 +156,11 @@ export const REFERENCE_FIELDS: Partial<Record<ImportObjectId, ReferenceFieldDef[
   products: [
     { key: "supplier_name", label: "Supplier", hint: "Preferred supplier — must match a supplier already in the system, or leave blank", target: "suppliers" },
   ],
+  // Drawings (header only): the type resolves by name at create time; blank takes the workspace's default type. Update never keys off it
+  // (the type is fixed once a revision was submitted). Tender, project and building are filed on the record, never by a file.
+  drawings: [
+    { key: "type_name", label: "Type", hint: "Name of one of your drawing types; blank takes the default type", target: "drawings" },
+  ],
 };
 
 /** DB NOT NULL columns — see file header. Keys are registry field keys. */
@@ -176,6 +182,7 @@ const REQUIRED_KEYS: Partial<Record<ImportObjectId, string[]>> = {
   rfqs: ["title"],
   estimates: ["name"],
   abm_programs: ["name"],
+  drawings: ["drawing_no", "title"],
 };
 
 /** Quote line items — fixed shape, one row per line, never tenant-customizable. */
@@ -245,6 +252,7 @@ const OBJECT_META: Record<ImportObjectId, { label: string; icon: string; descrip
   tender_boq_lines: { label: "Tender BOQ lines", icon: "≣", description: "", dependsOn: ["opportunities"] },
   // Never read -- tender_wbs_items is null in REGISTRY_OBJECT_TYPE (static spec).
   tender_wbs_items: { label: "Tender WBS items", icon: "▤", description: "", dependsOn: ["opportunities"] },
+  drawings: { label: "Drawings", icon: "◫", description: "Loads an existing drawing register as drafts: number, title, type and external number. A revision is never released by a file; release is a signed-in approver's decision.", dependsOn: [] },
   abm_members: { label: "ABM buying groups", icon: "☰", description: "People and their role in a target account's buying group, for one program. Private notes are not included.", dependsOn: ["abm_targets", "contacts"] },
   wfm_projects: { label: "Projects (workforce)", icon: "▦", description: "Project costing — projects and sub-projects that worked hours are attributed to. Import parents before children.", dependsOn: [] },
   users: { label: "Users", icon: "◍", description: "Invite team members and assign roles — each person receives an email invite", dependsOn: [] },

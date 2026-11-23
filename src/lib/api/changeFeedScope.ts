@@ -36,6 +36,8 @@ const SCOPE_FOR_TYPE: Record<string, string> = {
   tender_wbs_items: "tenders", tender_wbs_line_parts: "tenders",
   // Contract projects (0226): budget totals and margin are internal cost, so the explicit "contract_projects" scope, never the wildcard.
   contract_projects: "contract_projects",
+  // Drawing register (0255): explicit "drawings" scope, never the wildcard. Its change entries name revisions and numbers, never a file path.
+  drawings: "drawings", drawing_types: "drawings",
   wfm_projects: "projects",
   abm_programs: "abm_programs", abm_program: "abm_programs",
   abm_target_accounts: "abm_targets", abm_buying_group_members: "abm_targets", abm_target: "abm_targets",

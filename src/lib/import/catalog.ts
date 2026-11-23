@@ -104,6 +104,10 @@ export const DW_CATALOG: Record<ImportObjectId, DwCatalogEntry> = {
     label: "Sales Order Lines", group: "sales", parent: "sales_orders", modes: ALL, keywords: ["line items"],
     note: "Only adds lines to a draft sales order that already exists, found by its Order ID.",
   },
+  drawings: {
+    label: "Drawings", group: "sales", modes: ALL, keywords: ["drawing register", "revisions", "engineering", "shop drawings"],
+    note: "Header only. Import adds drawings as drafts with no file; a revision is released in the register by an approver, never by a file.",
+  },
   invoices: { label: "Invoices", group: "sales", modes: ALL, keywords: ["billing", "bills"] },
   purchase_orders: { label: "Purchase Orders", group: "sales", modes: ALL, keywords: ["po", "purchasing", "buying"] },
 

@@ -1,6 +1,6 @@
 {
   "name": "bpmsquare",
-  "version": "1.21.0",
+  "version": "1.22.0",
   "description": "BPMSquare MCP server — read access to a workspace's business data (accounts, contacts, quotations, cases, invoices, inventory and more) through the BPMSquare REST API. Generic across every tenant; nothing here is specific to one workspace.",
   "api_base": "https://<your-tenant-domain>/api/v1",
   "auth": {
@@ -743,6 +743,51 @@
           "id": {
             "type": "string",
             "description": "Employee id (UUID) as returned by list_employees"
+          }
+        }
+      }
+    },
+    {
+      "name": "list_drawings",
+      "description": "List the tenant's engineering drawings with their RELEASED revision: id, ref, drawing number, external number, title, type, whether a revision is released, its label and release date, effective date, and the tender or project it is filed under. Needs an API key explicitly scoped to \"drawings\". Files, fingerprints and drafts or revisions still in review are never returned.",
+      "method": "GET",
+      "path": "/api/v1/drawings",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "description": "Only drawings of this drawing type (its name, e.g. Shop drawing)"
+          },
+          "opportunity_id": {
+            "type": "string",
+            "description": "Only drawings filed under this tender (deal UUID)"
+          },
+          "project_id": {
+            "type": "string",
+            "description": "Only drawings filed under this contract project (UUID)"
+          },
+          "released": {
+            "type": "string",
+            "description": "true to list only drawings that have a released revision"
+          }
+        }
+      }
+    },
+    {
+      "name": "get_drawing",
+      "description": "Fetch one drawing by id with its released revision. Needs an API key explicitly scoped to \"drawings\".",
+      "method": "GET",
+      "path": "/api/v1/drawings/{id}",
+      "inputSchema": {
+        "type": "object",
+        "required": [
+          "id"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Drawing UUID as returned by list_drawings"
           }
         }
       }
