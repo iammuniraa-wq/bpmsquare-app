@@ -1,7 +1,9 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { requireTenantUser } from "@/lib/supabase-server";
 import { tenantHasFeature } from "@/lib/tenant";
-import { sanitizeStandardQuoteBlocks, HEX_COLOR_RE, LOGO_POSITIONS } from "@/lib/standardQuoteTemplateBlocks";
+import { getAuthUser } from "@/lib/supabase-server";
+import { logChange } from "@/lib/changeLog";
+import { sanitizeStandardQuoteBlocks, layoutTooLarge, HEX_COLOR_RE, LOGO_POSITIONS } from "@/lib/standardQuoteTemplateBlocks";
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   let supabase, tenantId;
@@ -36,7 +38,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   }
 
   const { id } = await params;
-  const { data: existing } = await supabase.from("standard_quote_templates").select("id").eq("id", id).eq("tenant_id", tenantId).maybeSingle();
+  const { data: existing } = await supabase.from("standard_quote_templates").select("id, name").eq("id", id).eq("tenant_id", tenantId).maybeSingle();
   if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   const body = await request.json();
@@ -54,7 +56,9 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     patch.logo_position = LOGO_POSITIONS.has(body.logo_position) ? body.logo_position : "left";
   }
   if ("blocks" in body) {
-    patch.blocks = sanitizeStandardQuoteBlocks(body.blocks);
+    const blocks = sanitizeStandardQuoteBlocks(body.blocks);
+    if (layoutTooLarge(blocks)) return NextResponse.json({ error: "This layout is too large. Shorten some sections." }, { status: 413 });
+    patch.blocks = blocks;
   }
   if ("is_default" in body) {
     const isDefault = !!body.is_default;
@@ -76,6 +80,12 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
+  const user = await getAuthUser();
+  const what = Object.keys(patch).map((k) => (k === "blocks" ? "sections" : k)).join(", ");
+  await logChange(supabase, {
+    tenantId, objectType: "standard_quote_templates", objectId: id, objectLabel: (data as { name?: string }).name ?? existing.name, action: "update",
+    actorId: user?.id, actorEmail: user?.email, changes: [{ field: "Layout", from: null, to: `Changed: ${what}` }],
+  });
   return NextResponse.json(data);
 }
 
@@ -93,7 +103,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
   }
 
   const { id } = await params;
-  const { data: existing } = await supabase.from("standard_quote_templates").select("id").eq("id", id).eq("tenant_id", tenantId).maybeSingle();
+  const { data: existing } = await supabase.from("standard_quote_templates").select("id, name").eq("id", id).eq("tenant_id", tenantId).maybeSingle();
   if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   // standard_quotes.template_id is ON DELETE SET NULL -- any quote using this
@@ -102,5 +112,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
   const { error } = await supabase.from("standard_quote_templates").delete().eq("id", id).eq("tenant_id", tenantId);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
+  const user = await getAuthUser();
+  await logChange(supabase, { tenantId, objectType: "standard_quote_templates", objectId: id, objectLabel: existing.name, action: "delete", actorId: user?.id, actorEmail: user?.email });
   return new NextResponse(null, { status: 204 });
 }

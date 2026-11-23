@@ -109,6 +109,8 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
     created_by: userId,
     template_id: defaultTmpl?.id ?? null,
     opportunity_id: null,
+    // Where it was made from (0251); dropped by writeHeaderTolerant while that migration is pending.
+    source_type: "quotation", source_id: quote.id,
   };
 
   let created: { id: string; ref: string } | null = null;

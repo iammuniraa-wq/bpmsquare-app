@@ -35,6 +35,8 @@ export const OBJECT_TYPES: { value: string; label: string }[] = [
   { value: "crew_finding", label: "AI automation: Suggestions" },
   { value: "quotes", label: "Quotes" },
   { value: "standard_quotes", label: "Standard Quotes" },
+  { value: "standard_quote_templates", label: "PDF layouts" },
+  { value: "tenants", label: "Workspace settings" },
   { value: "sales_orders", label: "Sales Orders" },
   { value: "sales_order_types", label: "Sales order types" },
   { value: "cases", label: "Cases" },

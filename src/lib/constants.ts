@@ -170,6 +170,7 @@ export const ROUTES = {
   settings: "/settings",
   settingsGeneral: "/settings/general", // redirects to settingsCompany
   settingsCompany: "/settings/company",
+  settingsPdfDocuments: "/settings/pdf-documents",
   settingsCurrency: "/settings/currency",
   settingsNavigation: "/settings/navigation",
   settingsQuoteTypes: "/settings/quote-types", // redirects to the Quotations offer types tab
@@ -548,6 +549,28 @@ export type TenantEntity = {
   city?: string;
   postal_code?: string;
   country?: string;
+  // Extra identification lines printed in the page frame, for example a vendor number a customer assigned (PDF design,
+  // slice 1). `print: "always"` prints it on every document of this entity; "selected_customers" prints it only for the
+  // accounts that tick it in "Print on documents". Nothing in code knows what any particular id means.
+  extra_ids?: EntityExtraId[];
+};
+
+export type EntityExtraId = { id: string; label: string; value: string; print: "always" | "selected_customers" };
+
+// ── PDF design (PDF redesign, slice 1) ───────────────────────────────────────────────────────────────────────────────
+// tenants.config.pdf_design: the page frame every framed PDF wears. Absent = the standard look, byte for byte.
+// Read through src/lib/pdf/design.ts (sanitizePdfDesign) and resolved by src/lib/pdf/frame.ts, never directly.
+export type PdfFrameToken =
+  | "entity_name" | "entity_name_ar" | "address" | "phones" | "email" | "web" | "cr" | "vat" | "extra_ids"
+  | `text:${string}`;
+export type PdfDesign = {
+  page: { size: "A4" | "Letter"; margins_mm: { top: number; right: number; bottom: number; left: number } };
+  font: "print_sans" | "arial_like";
+  base_pt: 9 | 10 | 11;
+  colors: { text: string; band: string; band_text: string; sub_band: string; table_head: string; rule: string };
+  header: { logo: "left" | "center" | "right" | "none"; logo_height_mm: number; lines: PdfFrameToken[]; title_band: boolean };
+  footer: { rule: boolean; left: PdfFrameToken[]; right: PdfFrameToken[]; page_numbers: boolean; strip: string[] | null };
+  table: { borders: "grid" | "rows"; zebra: boolean };
 };
 
 // TenantTaxConfig — shape stored in tenants.config.tax.
@@ -1347,6 +1370,14 @@ export type TenantConfig = {
   asset_print_fields?: string[];
   // Quote ID (ref) naming convention. Falls back to DEFAULT_QUOTE_ID_FORMAT if absent.
   quote_id_format?: QuoteIdFormat;
+  // Standard Quote number pattern (PDF redesign, slice 1): same shape as quote_id_format, its own series. Absent = SQ-YYYY-NNNN.
+  // Tender bids and project quotations never share a series: each has its own pattern, set per workspace in Settings > Company > Numbering.
+  standard_quote_id_format?: QuoteIdFormat;
+  // Page frame for framed PDFs (PDF redesign, slice 1). Absent = today's output. See PdfDesign.
+  pdf_design?: PdfDesign;
+  // Revision history (PDF redesign, slice 2): per object, off unless a workspace turns it on. On = issuing a Standard Quote writes an
+  // immutable revision, an issued quote is read-only and "Revise" reopens it as the next revision.
+  revisions?: { standard_quote?: boolean };
   // Sidebar nav items the tenant admin has hidden — tenant-wide, applies to every
   // user/device, not a personal per-browser preference.
   nav_hidden_hrefs?: string[];

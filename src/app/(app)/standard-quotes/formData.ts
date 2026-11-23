@@ -33,3 +33,22 @@ export async function standardQuoteProducts(supabase: SupabaseClient, tenantId: 
 export function pricingOnStandardQuotes(tenant: Tenant | null): boolean {
   return Boolean(tenant?.features?.pricing_engine && tenant?.features?.pricing_engine_quotes);
 }
+
+/** Migration 0251 adds the framed-document columns. A loaded quote row only carries a key for a column that exists, so its
+ *  presence is the cheapest proof the migration ran. */
+export function docColumnsReady(quote: object): boolean {
+  return "project_title" in quote;
+}
+
+/** The same question before any quote exists (the new-quote page): ask for the column and read 42703 as "not there yet". */
+export async function docColumnsReadyForTenant(supabase: SupabaseClient, tenantId: string): Promise<boolean> {
+  const { error } = await supabase.from("standard_quotes").select("project_title").eq("tenant_id", tenantId).limit(1);
+  return !error;
+}
+
+/** The "Document" card of the form (project title, subject, issuing entity): only for a workspace that chose a page frame,
+ *  so every other workspace sees the form it always had. */
+export function docDetailsFor(tenant: Tenant | null): { entities: { id: string; name: string; is_default: boolean }[] } | undefined {
+  if (!tenant?.config?.pdf_design) return undefined;
+  return { entities: (tenant.config.entities ?? []).map((e) => ({ id: e.id, name: e.name, is_default: e.is_default })) };
+}

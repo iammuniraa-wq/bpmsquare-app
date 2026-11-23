@@ -22,8 +22,19 @@ export type RenderPdfSource =
   /** An HTML string (already escaped by its builder). `cookie` is sent with any sub-request the markup makes. */
   | { kind: "html"; html: string; cookie?: string; timeoutMs?: number };
 
+/** The page frame of a workspace that chose one (src/lib/pdf/frame.ts): paper size, margins and the running header and footer
+ *  the browser draws on every page. Absent = today's options exactly. */
+export type RenderPdfFrame = {
+  pageFormat: "A4" | "Letter";
+  marginsMm: { top: number; right: number; bottom: number; left: number };
+  headerHtml: string;
+  footerHtml: string;
+};
+
 export type RenderPdfSpec = {
   source: RenderPdfSource;
+  /** When set, replaces `margin` and the paper size, and prints the running header and footer. */
+  frame?: RenderPdfFrame | null;
   margin: PdfMargin;
   /** Wait for webfonts and for every image to finish decoding before printing (the print pages need this; the
    *  string-built documents never had it). */
@@ -141,6 +152,19 @@ export async function renderPdf(spec: RenderPdfSpec) {
     }
 
     if (spec.settle) await settlePage(page);
+
+    if (spec.frame) {
+      const f = spec.frame;
+      const pdf = await page.pdf({
+        format: f.pageFormat,
+        printBackground: true,
+        margin: { top: `${f.marginsMm.top}mm`, bottom: `${f.marginsMm.bottom}mm`, left: `${f.marginsMm.left}mm`, right: `${f.marginsMm.right}mm` },
+        displayHeaderFooter: true,
+        headerTemplate: f.headerHtml,
+        footerTemplate: f.footerHtml,
+      });
+      return Buffer.from(pdf);
+    }
 
     const bottom = spec.footerAwareBottomMargin ? `${await publishedFooterMarginMm(page)}mm` : spec.margin.bottom;
     const pdf = await page.pdf({
