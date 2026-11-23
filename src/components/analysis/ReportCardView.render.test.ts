@@ -47,7 +47,7 @@ describe("the header", () => {
     expect(out).toContain("Halcyon Gulf Infrastructure Co.");
     expect(out).toContain("Builds roads, utilities and precast housing");
     expect(out).toMatch(/Made[^<]*/);
-    expect(out).toContain("· 12 searches");
+    expect(out).toContain("· 8 searches");
     expect(out).toContain("· 4 of 4 parts");
   });
   it("Refresh is a 44 px chip with a guide id, disabled while busy", () => {
@@ -63,8 +63,9 @@ describe("the tile band", () => {
   it("holds six tiles in reading order", () => expect(tiles.map((t) => t.key)).toEqual(["revenue", "profit", "growth", "employees", "hq", "ownership"]));
   it("shows the figures as published, growth and margin computed", () => {
     expect(tiles[0]).toMatchObject({ value: "SAR 2.84 bn", sub: "FY2025" });
-    expect(tiles[1]).toMatchObject({ value: "SAR 186 m", sub: "FY2025 · margin 6.5%" });
-    expect(tiles[2]).toMatchObject({ value: "+12.3%", tone: "up", sub: "vs FY2024, SAR 2.53 bn" });
+    expect(tiles[1]).toMatchObject({ value: "SAR 186 m", sub: "FY2025", calc: { text: "margin 6.5%", from: [2], unconfirmed: false } });
+    expect(tiles[2]).toMatchObject({ value: "+12.3%", tone: "up", sub: "vs FY2024", prior: { text: "SAR 2.53 bn", src: 2, check: false }, calc: { from: [2], unconfirmed: false } });
+    expect(tiles[2].check).toBeUndefined();
     expect(tiles[3]).toMatchObject({ value: "about 4,200" });
     expect(tiles[5]).toMatchObject({ value: "Listed", sub: "Main market" });
   });
@@ -72,7 +73,7 @@ describe("the tile band", () => {
     const r = brief((x) => { x.money.revenue[x.money.revenue.length - 1].matched = false; });
     const out = html(dock(r));
     expect(out).toContain('aria-label="Source 2: Annual report FY2025"');
-    expect(out).toMatch(/check \[2\]/);
+    expect(out).toContain("not confirmed on the page, check <a");
     expect(tilesOf(r)[0].check).toBe(true);
     expect(tilesOf(brief())[0].check).toBe(false);
   });
@@ -199,6 +200,54 @@ describe("a part that failed is named where its block belongs", () => {
   });
 });
 
+describe("why a part could not be researched", () => {
+  it("is a short plain reason behind an i, from the saved code, never raw error text", () => {
+    const r = brief((x) => { x.missing = ["people", "signals"]; x.reasons = { people: "timeout", signals: "rate_limited" }; x.roles = []; x.signals = []; });
+    const o = html(dock(r), { onRetry: () => {} });
+    expect(o).toContain('aria-label="About why people and roles failed"');
+    expect(o).toContain('aria-label="About why news and buying signals failed"');
+    expect(o).not.toContain("took longer than the time allowed");
+    expect(o).toContain("People and roles could not be researched.");
+  });
+  it("an older saved partial with no code has no i and still says which part", () => {
+    const o = html(dock(brief((x) => { x.missing = ["people"]; x.roles = []; })));
+    expect(o).toContain("People and roles could not be researched.");
+    expect(o).not.toContain("why people and roles failed");
+  });
+});
+
+describe("calculated figures carry no citation of their own", () => {
+  it("margin and growth say they are calculated and from which pages", () => {
+    const r = brief((x) => { x.money.profit[x.money.profit.length - 1].src = 3; });
+    const t = tilesOf(r);
+    expect(t[1].calc).toEqual({ text: "margin 6.5%", from: [3, 2], unconfirmed: false });
+    expect(t[2].calc).toMatchObject({ text: "", from: [2] });
+    const o = html(dock(r));
+    expect(o).toMatch(/margin 6\.5%, calculated from [\s\S]{0,400}\[3\][\s\S]{0,60} and [\s\S]{0,400}\[2\]/);
+    expect(o).toMatch(/Calculated from [\s\S]{0,400}\[2\]/);
+  });
+  it("a calculated tile never carries check; check belongs to a stated figure whose digits did not match", () => {
+    const r = brief((x) => { x.money.revenue.forEach((m) => { m.matched = false; }); });
+    const t = tilesOf(r);
+    expect(t[2].check).toBeUndefined();
+    expect(t[2].calc?.unconfirmed).toBe(true);
+    expect(t[0].check).toBe(true);
+  });
+  it("a stated figure that failed the match is never shown as if the page said it: no plain source link on the value, only check", () => {
+    const r = brief((x) => { x.money.profit[x.money.profit.length - 1].matched = false; });
+    const o = html(dock(r));
+    const tile = o.slice(o.indexOf("Net profit"), o.indexOf("Net profit") + 700);
+    expect(tile).toContain("not confirmed on the page, check <a");
+    expect(tile).not.toMatch(/FY2025 <a/);
+    expect(tile).toContain("tv unv");
+  });
+  it("the timeline copy and the chat digest say calculated, and flag an unconfirmed figure", () => {
+    const r = brief((x) => { x.money.profit[x.money.profit.length - 1].matched = false; });
+    expect(reportDigest(r)).toContain("(calculated by the app, not stated by a page)");
+    expect(reportDigest(r)).toContain("(not checked against the page)");
+  });
+});
+
 describe("Your history", () => {
   it("is not drawn until it is read, and is never part of the brief or its digest", () => {
     expect(html(dock())).not.toContain("Your history with them");
@@ -311,8 +360,8 @@ describe("the consent question and the progress rows", () => {
     const o = row("pending");
     expect(o).toContain("Halcyon Gulf");
     expect(o).toContain(REPORT_CHIP_TEXT);
-    expect(o).toMatch(/Up to 12 searches in four parts/);
-    expect(o).toMatch(/Usually 1 to 2 minutes/);
+    expect(o).toMatch(/Up to 8 searches in four parts/);
+    expect(o).toMatch(/Usually 1 to 3 minutes/);
     expect(o).toMatch(/AI allowance/);
     expect(o).not.toMatch(/\$|dollar|USD/i);
     expect(o).toContain('data-guide="report.consent.yes"');
