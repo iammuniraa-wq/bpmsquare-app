@@ -8,6 +8,7 @@ import { loadEstimatesForApi } from "@/lib/estimator/apiRows";
 import { TENDER_BOQ_LINE_FIELDS, boqApiContext, loadBoqRowsForApi } from "@/lib/tender/boq/apiRows";
 import { listTenders } from "@/lib/tender/server";
 import { fetchAllRows } from "@/lib/import/server";
+import { PROJECT_ELEMENT_FIELDS, loadProjectElementRows } from "@/lib/elements/apiRows";
 import { loadStandardQuotesForApi } from "@/lib/api/standardQuoteRows";
 import { loadSalesOrdersForApi } from "@/lib/api/salesOrderRows";
 import { loadEinvoiceSummaries } from "@/lib/einvoicing/listRows";
@@ -730,6 +731,27 @@ export const LIST_SOURCES: Record<string, ListSource> = {
       for (let i = 0; i < tenders.length; i += 10) {
         const loaded = await Promise.all(tenders.slice(i, i + 10).map((t) => loadBoqRowsForApi(admin, tenantId, t.opportunity_id, { ctx, tender: { ref: refById.get(t.opportunity_id) ?? null, tender_no: t.tender_no } })));
         for (const { rows } of loaded) out.push(...rows.map((r) => ({ ...r, _links: { tender: `/api/v1/tenders/${String(r.tender_id)}` } })));
+      }
+      return out;
+    },
+  },
+  project_elements: {
+    label: "Contract project elements",
+    description: "One row per element of a contract project: building code, element type, element code, the client's (contracted) quantity, the model's quantity, the quantity the budget carries and which one it uses. No cost, unit cost or margin.",
+    relatedWorkcenter: "contract_projects",
+    fields: PROJECT_ELEMENT_FIELDS,
+    // Asked with the "contract_projects" scope, never the wildcard (api/v1/ask). Only the Buildings add-on has any rows. Cost is internal and is not selected by
+    // the shared loader: see elements/apiRows.ts.
+    load: async (tenantId) => {
+      const admin = createAdminSupabase();
+      const { data: on } = await admin.from("tenants").select("features").eq("id", tenantId).maybeSingle();
+      const features = (on?.features ?? {}) as { contract_projects?: boolean; contract_buildings?: boolean };
+      if (features.contract_projects !== true || features.contract_buildings !== true) return [];
+      const projects = await fetchAllRows<{ id: string; ref: string | null }>(admin, "contract_projects", "id, ref", tenantId);
+      const out: Record<string, unknown>[] = [];
+      for (let i = 0; i < projects.length; i += 10) {
+        const loaded = await Promise.all(projects.slice(i, i + 10).map((p) => loadProjectElementRows(admin, tenantId, p.id, p.ref)));
+        for (const rows of loaded) out.push(...rows.map((r) => ({ ...r, _links: { project: `/api/v1/contract-projects/${r.project_id}/elements` } })));
       }
       return out;
     },

@@ -5,6 +5,9 @@ import { readImportBody } from "@/lib/import/server";
 import { boqDwGate } from "@/lib/import/tenderBoqServer";
 import { employeeEmails, groupRowsByTender, itemByCode } from "@/lib/import/tenderWbsServer";
 import { boqRequestFor } from "@/lib/tender/boq/server";
+import { buildingsOn } from "@/lib/elements/server";
+import { cleanBuildingCode } from "@/lib/elements/pattern";
+import { setBuildingCode } from "@/lib/elements/tenderServer";
 import { createItem, wbsCtx } from "@/lib/tender/wbs/server";
 import { loadStructure } from "@/lib/tender/wbs/read";
 import { WBS_PENDING } from "@/lib/wbs/tips";
@@ -45,6 +48,8 @@ export async function POST(request: NextRequest) {
   const admin = createAdminSupabase();
   const outcomes: RowOutcome[] = [];
   const perTender = await groupRowsByTender(admin, tenantId, rows as Row[], outcomes);
+  const wantsBuildings = (rows as Row[]).some((r) => r.values.building_code?.trim());
+  const buildings = wantsBuildings ? await buildingsOn(supabase, tenantId) : false;
   const wantsOwner = (rows as Row[]).some((r) => r.values.owner_email?.trim());
   const emails = wantsOwner ? await employeeEmails(admin, tenantId) : null;
 
@@ -81,6 +86,13 @@ export async function POST(request: NextRequest) {
           }
           parentId = parent.id;
         }
+        const building = r.values.building_code?.trim() ? cleanBuildingCode(r.values.building_code) : null;
+        if (r.values.building_code?.trim()) {
+          if (!buildings) { outcomes.push({ rowNum: r.rowNum, status: "failed", reason: "Buildings are not switched on for this workspace" }); progressed = true; continue; }
+          if (!building) { outcomes.push({ rowNum: r.rowNum, status: "failed", reason: "A building code is 1 to 6 letters or digits" }); progressed = true; continue; }
+          if (parentId) { outcomes.push({ rowNum: r.rowNum, status: "failed", reason: "A building is a top-level item" }); progressed = true; continue; }
+          if (items.some((i) => (i as { building_code?: string | null }).building_code === building)) { outcomes.push({ rowNum: r.rowNum, status: "failed", reason: `${building} is already a building on this tender` }); progressed = true; continue; }
+        }
         const email = r.values.owner_email?.trim() ?? "";
         let ownerId: string | null = null;
         if (email) {
@@ -90,8 +102,9 @@ export async function POST(request: NextRequest) {
         const res = await createItem(ctx, { code: code || undefined, name: r.values.name, parent_id: parentId, owner_employee_id: ownerId, note: r.values.note?.trim() || undefined });
         progressed = true;
         if (!res.ok) { outcomes.push({ rowNum: r.rowNum, status: "failed", reason: res.error }); continue; }
-        outcomes.push({ rowNum: r.rowNum, status: "inserted" });
-        items.push({ id: res.id, opportunity_id: oppId, parent_id: parentId, code: res.code, name: r.values.name, owner_employee_id: ownerId, sort_order: 0, code_is_manual: !!code, note: null, created_at: null });
+        const marked = building ? await setBuildingCode(opened.req, res.id, building) : null;
+        outcomes.push(marked && !marked.ok ? { rowNum: r.rowNum, status: "failed", reason: `The item was added, but not as a building: ${marked.error}` } : { rowNum: r.rowNum, status: "inserted" });
+        items.push({ id: res.id, opportunity_id: oppId, parent_id: parentId, code: res.code, name: r.values.name, owner_employee_id: ownerId, sort_order: 0, code_is_manual: !!code, note: null, created_at: null, building_code: marked && marked.ok ? building : null });
       }
       waiting = next;
       if (!progressed) break;

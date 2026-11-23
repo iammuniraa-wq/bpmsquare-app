@@ -8,7 +8,7 @@ import type { WorkcenterKey, ViewableWorkcenters } from "./workcenters";
 export type SearchObjectType =
   | "account" | "contact" | "asset" | "case" | "quote"
   | "work_order" | "purchase_order" | "invoice" | "inventory_item"
-  | "supplier" | "lead" | "employee" | "product" | "project" | "opportunity" | "rfq" | "estimate" | "abm_program" | "standard_quote" | "sales_order" | "inbox_email" | "contract_project" | "buyout_package";
+  | "supplier" | "lead" | "employee" | "product" | "project" | "opportunity" | "rfq" | "estimate" | "abm_program" | "standard_quote" | "sales_order" | "inbox_email" | "contract_project" | "buyout_package" | "project_element";
 
 export type SearchObjectDef = {
   type: SearchObjectType;
@@ -49,6 +49,8 @@ export const SEARCH_OBJECTS: SearchObjectDef[] = [
   { type: "opportunity", label: "Deals", icon: "◈", featureKeys: ["pipeline"], workcenters: ["pipeline"] },
   { type: "contract_project", label: "Contract projects", icon: "▤", featureKeys: ["contract_projects"], workcenters: ["contract_projects"] },
   { type: "buyout_package", label: "Buy-out packages", icon: "▥", featureKeys: ["contract_projects"], workcenters: ["contract_projects"] },
+  // Element codes of a contract project (0253): found by code or type; only a workspace with the Buildings add-on has any.
+  { type: "project_element", label: "Element codes", icon: "▦", featureKeys: ["contract_buildings"], workcenters: ["contract_projects"] },
   { type: "rfq", label: "RFQs", icon: "⇄", featureKeys: ["rfq"], workcenters: ["rfqs"] },
   { type: "estimate", label: "Estimates", icon: "∑", featureKeys: ["estimator"], workcenters: ["estimates"] },
   { type: "abm_program", label: "ABM programs", icon: "◎", featureKeys: ["abm"], workcenters: ["abm"] },

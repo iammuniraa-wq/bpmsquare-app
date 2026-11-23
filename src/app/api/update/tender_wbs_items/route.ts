@@ -9,6 +9,9 @@ import { TENDER_WBS_UPDATE_KEYS } from "@/lib/import/tenderWbsItemsSchema";
 import { isMissingSchema } from "@/lib/tender/server";
 import { boqRequestFor } from "@/lib/tender/boq/server";
 import { updateItem, wbsCtx } from "@/lib/tender/wbs/server";
+import { buildingsOn } from "@/lib/elements/server";
+import { cleanBuildingCode } from "@/lib/elements/pattern";
+import { setBuildingCode } from "@/lib/elements/tenderServer";
 import { loadItems } from "@/lib/tender/wbs/read";
 import { cleanText, WBS_LIMITS } from "@/lib/wbs/tree";
 import { WBS_PENDING } from "@/lib/wbs/tips";
@@ -63,6 +66,7 @@ export async function POST(request: NextRequest) {
     (perTender.get(oppId) ?? perTender.set(oppId, []).get(oppId)!).push({ rowNum, id, values });
   }
 
+  const buildings = rows.some((r) => "building_code" in r.values) ? await buildingsOn(supabase, tenantId) : false;
   const wantsOwner = rows.some((r) => r.values.owner_email?.trim());
   const emails = wantsOwner ? await employeeEmails(admin, tenantId) : null;
 
@@ -108,10 +112,22 @@ export async function POST(request: NextRequest) {
         const note = cleanText(r.values.note, WBS_LIMITS.noteMax);
         if (note !== cur.note) { input.note = note; changed = true; }
       }
+      let building: { code: string | null } | null = null;
+      if (!bad && may("building_code") && "building_code" in r.values) {
+        const raw = r.values.building_code?.trim() ?? "";
+        const want = raw ? cleanBuildingCode(raw) : null;
+        if (raw && !want) bad = "A building code is 1 to 6 letters or digits";
+        else if (want !== (cur.building_code ?? null)) {
+          if (!buildings) bad = "Buildings are not switched on for this workspace";
+          else { building = { code: want }; changed = true; }
+        }
+      }
       if (bad) { outcomes.push({ rowNum: r.rowNum, status: "failed", reason: bad }); continue; }
       if (!changed) { outcomes.push({ rowNum: r.rowNum, status: "skipped", reason: "No change" }); continue; }
-      const res = await updateItem(ctx, r.id, input);
-      outcomes.push(res.ok ? { rowNum: r.rowNum, status: "updated" } : { rowNum: r.rowNum, status: "failed", reason: res.error });
+      const res = Object.keys(input).length > 0 ? await updateItem(ctx, r.id, input) : ({ ok: true } as const);
+      if (!res.ok) { outcomes.push({ rowNum: r.rowNum, status: "failed", reason: res.error }); continue; }
+      const marked = building ? await setBuildingCode(opened.req, r.id, building.code) : null;
+      outcomes.push(marked && !marked.ok ? { rowNum: r.rowNum, status: "failed", reason: marked.error } : { rowNum: r.rowNum, status: "updated" });
     }
   }
 

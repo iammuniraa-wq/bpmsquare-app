@@ -6,6 +6,7 @@ import { tenantToday } from "@/lib/tenantClock";
 import { relinkPlan } from "./diff";
 import { isStale, priceValidityDays, type PriceSource } from "./price";
 import { annotator } from "@/lib/tender/wbs/apiShape";
+import { buildingOfLine } from "@/lib/elements/buildings";
 import { loadStructure } from "@/lib/tender/wbs/read";
 import type { LineMembers, WbsItemRow } from "@/lib/tender/wbs/types";
 
@@ -40,11 +41,19 @@ export const TENDER_BOQ_LINE_FIELDS: QueryableField[] = [
   // wbs_parts lists a split line's shares with the quantity and the CLIENT amount of each (never a cost). Returned, not queried.
   { path: "wbs_code", type: "string", searchable: true },
   { path: "wbs_parts", type: "string" },
+  // Buildings and element codes (0253): what kind of piece the line is, its unique code, the model's quantity beside the client's `quantity`, and the
+  // building (the code of the level-1 WBS item the line sits in). No cost, no margin: nothing here is internal.
+  { path: "element_type", type: "string", searchable: true },
+  { path: "element_code", type: "string", searchable: true },
+  { path: "model_qty", type: "number" },
+  { path: "building_code", type: "string", searchable: true },
 ];
 
 const LINE_COLS = "id, line_id, row_no, item_no, cost_code, file_description, file_uom, file_qty, price_source, price_as_of, stale_accepted, removed_in_revision, file_details, client_data";
 // The same without the two client-format columns, for a database where migration 0242 has not been applied yet.
 const LINE_COLS_BASE = "id, line_id, row_no, item_no, cost_code, file_description, file_uom, file_qty, price_source, price_as_of, stale_accepted, removed_in_revision";
+// The same with the element columns of migration 0253, read first; a database that has not had it is read with the older lists.
+const LINE_COLS_ELEMENT = `${LINE_COLS}, element_type, element_code, model_qty`;
 const missingColumn = (e: { code?: string } | null | undefined) => !!e && (e.code === "42703" || e.code === "PGRST204");
 const DEAL_LINE_COLS = "id, sl_no, description, uom, qty, rate, amount";
 
@@ -78,11 +87,9 @@ export async function loadBoqRowsForApi(admin: SupabaseClient, tenantId: string,
   if (srcErr || !src) return { ...empty, wbs: await loadStructure(admin, tenantId, opportunityId) };
   const source: BoqApiSource = { file_name: String(src.file_name), version: Number(src.version ?? 1), uploaded_at: String(src.uploaded_at ?? "") };
 
-  const readLines = (full: boolean) => readAllPages<Record<string, unknown>>((lo, hi) => (full
-    ? admin.from("tender_boq_lines").select(LINE_COLS).eq("tenant_id", tenantId).eq("opportunity_id", opportunityId).order("row_no").order("id", { ascending: true }).range(lo, hi)
-    : admin.from("tender_boq_lines").select(LINE_COLS_BASE).eq("tenant_id", tenantId).eq("opportunity_id", opportunityId).order("row_no").order("id", { ascending: true }).range(lo, hi)));
+  const readLines = (cols: string) => readAllPages<Record<string, unknown>>((lo, hi) => admin.from("tender_boq_lines").select(cols).eq("tenant_id", tenantId).eq("opportunity_id", opportunityId).order("row_no").order("id", { ascending: true }).range(lo, hi));
   const [lines, deal, ctx, tender, wbs] = await Promise.all([
-    readLines(true).then((res) => (missingColumn(res.error) ? readLines(false) : res)),
+    readLines(LINE_COLS_ELEMENT).then((res) => (missingColumn(res.error) ? readLines(LINE_COLS) : res)).then((res) => (missingColumn(res.error) ? readLines(LINE_COLS_BASE) : res)),
     readAllPages<Record<string, unknown>>((lo, hi) => admin.from("opportunity_lines").select(DEAL_LINE_COLS).eq("tenant_id", tenantId).eq("opportunity_id", opportunityId).order("id", { ascending: true }).range(lo, hi)),
     opts.ctx ?? boqApiContext(admin, tenantId),
     opts.tender ? Promise.resolve(opts.tender) : loadTenderNames(admin, tenantId, opportunityId),
@@ -142,9 +149,19 @@ export async function loadBoqRowsForApi(admin: SupabaseClient, tenantId: string,
       status,
       wbs_code: where.wbs_code,
       wbs_parts: where.wbs_parts,
+      element_type: (b.element_type as string | null | undefined) ?? null,
+      element_code: (b.element_code as string | null | undefined) ?? null,
+      model_qty: b.model_qty == null ? null : num(b.model_qty),
+      building_code: wbs.pending ? null : buildingCodeOf(wbs.items, wbs.members, String(b.id)),
     });
   }
   return { source, rows: out, wbs };
+}
+
+/** The building a BOQ row sits in: the code of its level-1 item, null when it is in none (or split across several, which has no single answer). */
+function buildingCodeOf(items: readonly WbsItemRow[], members: LineMembers, boqId: string): string | null {
+  const where = buildingOfLine(items.map((i) => ({ ...i, building_code: i.building_code ?? null })), { wbs_item_id: members.item.get(boqId) ?? null, parts: members.parts.get(boqId) ?? [] });
+  return where.kind === "one" ? where.code : null;
 }
 
 async function loadTenderNames(admin: SupabaseClient, tenantId: string, opportunityId: string): Promise<{ ref: string | null; tender_no: string | null }> {

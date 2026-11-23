@@ -71,6 +71,17 @@ export const DW_CATALOG: Record<ImportObjectId, DwCatalogEntry> = {
     label: "Tender WBS items", group: "sales", parent: "opportunities", modes: ALL, keywords: ["wbs", "work breakdown", "work breakdown structure", "tender wbs"], alsoNeeds: ["pipeline"],
     note: "Adds items to an existing tender's WBS or edits them. Which BOQ lines sit in an item is the WBS code on Tender BOQ lines.",
   },
+  // Buildings and elements of a contract project (0253). Owned through OBJECT_FEATURE (the Buildings add-on); the project's own lines are born from the
+  // tender, a quote or a revision, so a file never imports them.
+  project_wbs_items: {
+    label: "Project WBS items", group: "sales", modes: ALL, keywords: ["buildings", "wbs", "work breakdown", "project wbs", "activities"],
+    note: "Adds buildings and activities to an existing contract project, or edits name, code, parent, building code and note on items already there.",
+  },
+  project_budget_lines: {
+    label: "Project budget lines", group: "sales", parent: "project_wbs_items", modes: ["export", "update"], keywords: ["elements", "element codes", "model quantity", "budget lines"],
+    note: "Export with real IDs, then update element type, code, model quantity and building on the open budget. Cost is never in a file.",
+    modeNote: { import: "A budget line is made by the tender, a quote or a revision. A file only adds element codes to lines that are already there." },
+  },
   rfqs: {
     label: "RFQs", group: "sales", modes: ["export", "update"], keywords: ["request for quotation", "suppliers", "rfq"],
     note: "Export with real IDs, then update header fields in bulk.",

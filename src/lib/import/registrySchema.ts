@@ -58,6 +58,9 @@ export const REGISTRY_OBJECT_TYPE: Record<ImportObjectId, string | null> = {
   tender_boq_lines: null,
   // Static spec (tenderWbsItemsSchema.ts), like tender_boq_lines.
   tender_wbs_items: null,
+  // Static specs (projectElementsSchema.ts): the buildings and elements of a contract project (0253).
+  project_budget_lines: null,
+  project_wbs_items: null,
 };
 
 export type ReferenceFieldDef = {
@@ -245,6 +248,8 @@ const OBJECT_META: Record<ImportObjectId, { label: string; icon: string; descrip
   tender_boq_lines: { label: "Tender BOQ lines", icon: "≣", description: "", dependsOn: ["opportunities"] },
   // Never read -- tender_wbs_items is null in REGISTRY_OBJECT_TYPE (static spec).
   tender_wbs_items: { label: "Tender WBS items", icon: "▤", description: "", dependsOn: ["opportunities"] },
+  project_budget_lines: { label: "Project budget lines", icon: "▤", description: "", dependsOn: [] },
+  project_wbs_items: { label: "Project WBS items", icon: "▤", description: "", dependsOn: [] },
   abm_members: { label: "ABM buying groups", icon: "☰", description: "People and their role in a target account's buying group, for one program. Private notes are not included.", dependsOn: ["abm_targets", "contacts"] },
   wfm_projects: { label: "Projects (workforce)", icon: "▦", description: "Project costing — projects and sub-projects that worked hours are attributed to. Import parents before children.", dependsOn: [] },
   users: { label: "Users", icon: "◍", description: "Invite team members and assign roles — each person receives an email invite", dependsOn: [] },

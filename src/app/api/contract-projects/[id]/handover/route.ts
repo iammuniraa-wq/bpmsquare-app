@@ -4,6 +4,7 @@ import { loadActorNames } from "@/lib/actorNames";
 import { getAuthUser } from "@/lib/supabase-server";
 import { buildHandoverWorkbook } from "@/lib/contractProjects/handover";
 import { loadPackages } from "@/lib/contractProjects/workPackagesServer";
+import { buildingsOn, loadElementSettings } from "@/lib/elements/server";
 import { currentRevision, loadLines, loadMasters, loadProject, loadRevision, loadRevisions, needsUpdate, openProjectRequest, UUID_RE } from "@/lib/contractProjects/server";
 
 // GET /api/contract-projects/[id]/handover?revision=<id>
@@ -39,8 +40,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     loadActorNames(admin, tenantId, [project.manager_id]),
   ]);
   const { packages } = await loadPackages(admin, tenantId, id);
+  // The Buildings add-on adds the building and element columns and a Buildings sheet; a workspace without it gets the workbook it always got.
+  const elements = (await buildingsOn(supabase, tenantId)) ? { tolerancePct: (await loadElementSettings()).qty_tolerance_pct } : undefined;
   const buffer = await buildHandoverWorkbook({
-    packages, project, accountName: (accountRow.data as { name?: string } | null)?.name ?? null, managerName: project.manager_id ? names.get(project.manager_id) ?? null : null,
+    elements, packages, project, accountName: (accountRow.data as { name?: string } | null)?.name ?? null, managerName: project.manager_id ? names.get(project.manager_id) ?? null : null,
     revision, lines, resourceNames, costCodeNames,
   });
 

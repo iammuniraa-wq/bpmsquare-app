@@ -135,6 +135,14 @@ export function buildOpenApiSpec(): Record<string, unknown> {
     },
   };
 
+  // The elements of a contract project: buildings, element types and codes, client and model quantities. Never a cost.
+  paths["/contract-projects/{id}/elements"] = {
+    parameters: [{ in: "path", name: "id", required: true, schema: { type: "string", format: "uuid" } }],
+    get: {
+      summary: "A contract project's elements (building, element type and code, client and model quantity; no costs)", tags: ["contract_projects"], parameters: QUERY_PARAMS, responses: { ...listResponse(), "404": { description: "Not a project of your tenant, or the Buildings add-on is off" } },
+    },
+  };
+
   // Cross-cutting endpoints without an entity schema: the change feed and the
   // natural-language query. Added explicitly so the spec is complete.
   paths["/changes"] = {

@@ -2393,6 +2393,14 @@ const SEARCH_SPECS: SearchSpec[] = [
     featureKeys: ["contract_projects"],
   },
   {
+    // The element code and type only (0253): never a cost or a quantity. The same element sits on every revision of the budget, so the id is the pair project and code
+    // and a code found twice shows once (see the dedupe below). Opens the project's WBS tab, where the Buildings view lists it.
+    type: "project_element", table: "project_budget_lines", columns: "id, element_code, element_type, project_id, description",
+    textCols: ["element_code", "element_type"],
+    toResult: (r) => ({ id: `${r.project_id}:${r.element_code}`, title: r.element_code, subtitle: [r.element_type, r.description].filter(Boolean).join(" · ") || "Element", href: `${ROUTES.contractProject(r.project_id)}?tab=wbs`, matched: "element code" }),
+    featureKeys: ["contract_buildings"],
+  },
+  {
     type: "rfq", table: "rfqs", columns: "id, ref, title, status, origin_label",
     textCols: ["title", "ref", "origin_label"],
     toResult: (r) => ({ id: r.id, title: r.title, subtitle: [r.ref, r.origin_label, r.status].filter(Boolean).join(" · ") || "RFQ", href: ROUTES.rfq(r.id), matched: "title" }),
@@ -2515,7 +2523,8 @@ export async function globalSearchLive(
       return (data ?? []).map((r) => ({ type: spec.type, ...spec.toResult(r, cur), created_at: (r as { created_at?: string }).created_at ?? null }));
     })
   );
-  const results = byType.flat();
+  // An element code is on every revision of a budget: it is listed once per project.
+  const results = byType.flat().filter((r, i, all) => r.type !== "project_element" || all.findIndex((x) => x.type === r.type && x.id === r.id) === i);
 
   if (!objectType || objectType === "account" || objectType === "contact") {
     const seen = new Set(results.filter((r) => r.type === "account" || r.type === "contact").map((r) => `${r.type}:${r.id}`));
