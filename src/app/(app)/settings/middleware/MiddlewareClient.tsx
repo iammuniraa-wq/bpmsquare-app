@@ -7,7 +7,8 @@ import EmptyState from "@/components/ui/EmptyState";
 import Tabs from "@/components/ui/Tabs";
 import { useUrlTab } from "@/components/ui/useUrlTab";
 import s from "./middleware.module.css";
-import { getConnections, getDocuments, getHealth, getMessages, getRules, getSync, setActiveConnector } from "./api";
+import { getConnections, getCustomConnections, getDocuments, getHealth, getMessages, getRules, getSync, setActiveConnector } from "./api";
+import ConnectionsView from "./ConnectionsView";
 import { MiddlewareProvider, type MiddlewareCtx } from "./context";
 import { hasOutbound, middlewareConnectors } from "./connectors";
 import { expiryChip, healthBanner } from "./connectionLogic";
@@ -56,6 +57,9 @@ export default function MiddlewareClient() {
   useEffect(() => { if (authReturn) setPanelOpen(true); }, [authReturn]);
 
   const connections = useLoad(getConnections, []);
+  // The connections the workspace added itself (REST, OData). A failed read is only "none yet": the page never depends on it.
+  const custom = useLoad(async () => { try { return await getCustomConnections(); } catch { return { connections: [], needsDatabaseUpdate: false }; } }, []);
+  const [view, setView] = useState<"erp" | "connections">(useSearchParams().get("view") === "connections" ? "connections" : "erp");
   const health = useLoad(getHealth, [connectorId]);
   const rules = useLoad(getRules, [connectorId]);
   const documents = useLoad(getDocuments, [connectorId]);
@@ -113,8 +117,15 @@ export default function MiddlewareClient() {
       <div className={s.shell}>
         <ConnectorSwitcher
           connectors={connectors} value={connectorId} connected={connectedBy} expiry={expiryChip(health.data)}
-          onChange={setConnector} onManage={() => setPanelOpen(true)}
+          onChange={(id) => { setView("erp"); setConnector(id); }} onManage={() => setPanelOpen(true)}
+          connectionsOpen={view === "connections"} connectionsCount={custom.data?.connections.length ?? 0} onConnections={() => setView((v) => (v === "connections" ? "erp" : "connections"))}
         />
+        {view === "connections" ? (
+          <ConnectionsView
+            existing={connections.data ?? []} list={custom}
+            onOpenExisting={(id) => { setView("erp"); setConnector(id); setPanelOpen(true); }}
+          />
+        ) : (<>
         {banner && <Notice tone="warn">{banner}</Notice>}
         {noConnection ? (
           <EmptyState
@@ -138,6 +149,7 @@ export default function MiddlewareClient() {
             </div>
           </>
         )}
+        </>)}
         {panelOpen && <ConnectionPanel authReturn={authReturn} onClose={() => setPanelOpen(false)} />}
       </div>
     </MiddlewareProvider>

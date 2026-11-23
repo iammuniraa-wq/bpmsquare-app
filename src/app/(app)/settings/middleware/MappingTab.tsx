@@ -10,7 +10,10 @@ import { callWebhooksFor, listWebhooks } from "../webhooks/api";
 import { orgKindsFor } from "@/lib/middleware/erpOrgPure";
 import { useMw } from "./context";
 import { hasOutbound } from "./connectors";
-import { documentChoices, inboundChoices, isWebhookConnection } from "./mappingLogic";
+import { OBJECT_LABEL } from "@/lib/connections/endpointSpec";
+import { getCustomConnections, getCustomEndpoints, type CustomEndpoint } from "./api";
+import { mappingChoices } from "./endpointLogic";
+import { documentChoices, inboundChoices, isWebhookConnection, type MapChoice } from "./mappingLogic";
 import MappingFields from "./MappingFields";
 import MappingValueLists from "./MappingValueLists";
 import { MIDDLEWARE_TIPS } from "./tips";
@@ -29,10 +32,27 @@ export default function MappingTab() {
   const [view, setView] = useUrlTab(VIEWS, "view");
   const [key, setKey] = useState<string>(() => {
     const c = params.get("connection");
-    return c && isWebhookConnection(c) && outbound ? c : outbound ? "quote" : "customers";
+    // `conn:<id>:<object>` is an endpoint of a connection the workspace added itself (Connections > Endpoints > Open mapping).
+    return c && ((isWebhookConnection(c) && outbound) || c.startsWith("conn:")) ? c : outbound ? "quote" : "customers";
   });
   const [dirty, setDirty] = useState(false);
   const [webhooks, setWebhooks] = useState<{ id: string; name: string }[]>([]);
+  const [own, setOwn] = useState<MapChoice[]>([]);
+
+  // A document that an endpoint of a connection you added serves is a target of its own; a workspace with none sees nothing new.
+  useEffect(() => {
+    let live = true;
+    (async () => {
+      try {
+        const { connections } = await getCustomConnections();
+        const withEndpoints = connections.filter((c) => c.endpointCount > 0);
+        const eps: Record<string, CustomEndpoint[]> = {};
+        await Promise.all(withEndpoints.map(async (c) => { eps[c.id] = (await getCustomEndpoints(c.id)).endpoints; }));
+        if (live) setOwn(mappingChoices(withEndpoints, eps, OBJECT_LABEL));
+      } catch { if (live) setOwn([]); }
+    })();
+    return () => { live = false; };
+  }, []);
 
   // A Call webhook for Standard Quotes is a target of its own; a workspace without webhooks simply has none.
   useEffect(() => {
@@ -46,8 +66,8 @@ export default function MappingTab() {
 
   const quote = mw.documents.data?.documents.find((d) => d.key === "quote");
   const choices = useMemo(
-    () => (outbound ? documentChoices(mw.connector.shortName, quote?.target.label ?? null, mw.connector.id, webhooks) : inboundChoices(mw.connector.shortName, mw.connector.id)),
-    [outbound, mw.connector.shortName, mw.connector.id, quote?.target.label, webhooks],
+    () => [...(outbound ? documentChoices(mw.connector.shortName, quote?.target.label ?? null, mw.connector.id, webhooks) : inboundChoices(mw.connector.shortName, mw.connector.id)), ...own],
+    [outbound, mw.connector.shortName, mw.connector.id, quote?.target.label, webhooks, own],
   );
   const choice = choices.find((c) => c.key === key) ?? choices[0];
 
@@ -81,7 +101,7 @@ export default function MappingTab() {
         </span>
       </div>
       {view === "values" && hasValues
-        ? <MappingValueLists connection={choice.connection} system={choice.connection.startsWith("webhook:") ? choice.label : mw.connector.shortName} />
+        ? <MappingValueLists connection={choice.connection} system={/^(webhook|conn):/.test(choice.connection) ? choice.label : mw.connector.shortName} />
         : <MappingFields key={choice.key} choice={choice} onDirty={setDirty} />}
     </>
   );
