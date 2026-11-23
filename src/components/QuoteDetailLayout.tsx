@@ -151,6 +151,7 @@ function OutcomeChanger({ quoteId, currentOutcome, currentStatus, statuses, onCh
   quoteId: string; currentOutcome: QuoteOutcome; currentStatus: string; statuses: QuoteStatusDef[];
   onChanged: (o: QuoteOutcome) => void; onStatusChanged: (s: string) => void;
 }) {
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -205,6 +206,8 @@ function OutcomeChanger({ quoteId, currentOutcome, currentStatus, statuses, onCh
     if (res.ok) {
       onChanged(value);
       if (bumpStatus) onStatusChanged("approved");
+      // The "Create contract project" and sales order buttons above this layout are server-rendered from the outcome.
+      router.refresh();
       setOpen(false);
       setLosing(null);
       setLossNote("");
