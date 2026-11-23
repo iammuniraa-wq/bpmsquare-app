@@ -13,7 +13,7 @@ import { readReport, saveReport, type ReportRow, type StoredParts } from "./cach
 import { fitWorthRunning, cleanOfferings } from "./fit";
 import type { LegacyReport } from "./legacy";
 import { PART_TIMEOUT_MS, RUN_BUDGET_MS, runFitCall, runReportParts, type FitRun, type PartHooks, type PartResult } from "./research";
-import { MAX_REPORT_SEARCHES, REPORT_PARTS, reportIsEmpty, type CompanyReport, type ReportLens, type ReportPartId } from "./types";
+import { MAX_REPORT_SEARCHES, REPORT_PARTS, reportIsEmpty, type CompanyReport, type FailReason, type ReportLens, type ReportPartId } from "./types";
 import { mergeCitations, validateBrief, validateFit } from "./validate";
 
 // The company brief service (docs/design/company-brief-sales.md). One function the dock and the run route call:
@@ -50,7 +50,7 @@ export type ReportResult =
     cached: boolean; saved: boolean; pendingDb: boolean;
     companyKey: string; accountId: string | null; computedAt: string; notice?: ReportNotice;
     /** What a run did, for the audit row and the progress card: per part, and every search the provider ran. */
-    run?: { states: Partial<Record<ReportPartId, PartState>>; errors: Partial<Record<ReportPartId, string>>; queries: string[] };
+    run?: { states: Partial<Record<ReportPartId, PartState>>; reasons: Partial<Record<ReportPartId, FailReason>>; queries: string[] };
   }
   | { ok: false; status: 400 | 403 | 404 | 429 | 502; error: string; code: string };
 
@@ -230,8 +230,10 @@ export async function buildCompanyReport(a: AnalysisAccess, input: ReportInput, 
   // older format is the one case that is never fresh: the next ask runs the new brief.
   if (row && live && stored && !input.refresh && !input.retryMissing) return cachedResult();
 
-  const retry = input.retryMissing === true;
-  if (retry && !(stored && live && stored.missing.length > 0)) return fail(404, "nothing_to_retry", "There is no saved brief with parts to try again. Run the brief first.");
+  // Refresh on a PARTIAL brief is "Try the missing parts": only what is missing is run again, never a second full run.
+  const partial = !!(stored && live && stored.missing.length > 0);
+  const retry = input.retryMissing === true || (input.refresh === true && partial);
+  if (input.retryMissing === true && !partial) return fail(404, "nothing_to_retry", "There is no saved brief with parts to try again. Run the brief first.");
   // Only a complete brief is held to one refresh an hour: an incomplete one or an older format is worth redoing straight away.
   if (row && input.refresh && !retry && rowIsComplete(row)) {
     const until = refreshBlockedUntil(row.computedAt, now);
@@ -242,10 +244,10 @@ export async function buildCompanyReport(a: AnalysisAccess, input: ReportInput, 
 
   const stopped = (kind: "daily_limit" | "over_budget", message: string): ReportResult => (row ? cachedResult({ kind }) : fail(429, kind, message));
 
-  // A retry within the hour of the saved brief takes no second daily slot; after that it is a brief like any other.
-  const freeRetry = retry && !!row && refreshBlockedUntil(row.computedAt, now) !== null;
+  // Trying the missing parts of a saved brief never takes a second daily slot (what it spends still counts against the allowance
+  // and the shared daily search limit); a first brief or a refresh of a complete one does.
   let slotId: string | null = null;
-  if (!freeRetry) {
+  if (!retry) {
     const slot = await reserve(a, DEFAULT_REPORT_DAILY_LIMIT, now);
     if (!slot.ok) return stopped("daily_limit", `You have reached today's limit of ${DEFAULT_REPORT_DAILY_LIMIT} company briefs. Try again tomorrow.`);
     slotId = slot.id;
@@ -273,7 +275,7 @@ export async function buildCompanyReport(a: AnalysisAccess, input: ReportInput, 
 
   const parts: StoredParts = { ...kept };
   const states: Partial<Record<ReportPartId, PartState>> = {};
-  const errors: Partial<Record<ReportPartId, string>> = {};
+  const reasons: Partial<Record<ReportPartId, FailReason>> = {};
   const queries: string[] = [];
   let tokensIn = 0;
   let tokensOut = 0;
@@ -289,7 +291,7 @@ export async function buildCompanyReport(a: AnalysisAccess, input: ReportInput, 
       model = r.model;
     } else {
       states[r.part] = "missing";
-      errors[r.part] = r.error;
+      reasons[r.part] = r.reason;
     }
   }
   const spend = (): Spend => ({ model: model || "company_brief", input: tokensIn, output: tokensOut });
@@ -308,7 +310,7 @@ export async function buildCompanyReport(a: AnalysisAccess, input: ReportInput, 
   const searches = Math.min(MAX_REPORT_SEARCHES, REPORT_PARTS.reduce((t, p) => t + (parts[p]?.searches ?? 0), 0));
   const raws = Object.fromEntries(REPORT_PARTS.filter((p) => parts[p]).map((p) => [p, parts[p]!.raw])) as Partial<Record<ReportPartId, unknown>>;
   const citations = mergeCitations(REPORT_PARTS.flatMap((p) => (parts[p] ? [parts[p]!.citations] : [])));
-  const { report } = validateBrief(raws, { subject, citations, now, searches, lens, missing });
+  const { report } = validateBrief(raws, { subject, citations, now, searches, lens, missing, reasons });
 
   if (reportIsEmpty(report)) {
     await settle(a, slotId, spend());
@@ -338,6 +340,6 @@ export async function buildCompanyReport(a: AnalysisAccess, input: ReportInput, 
   });
   return {
     ok: true, report, cached: false, saved: save.saved, pendingDb: save.pending || pending, companyKey, accountId, computedAt,
-    run: { states, errors, queries },
+    run: { states, reasons, queries },
   };
 }

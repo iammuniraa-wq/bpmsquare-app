@@ -30,6 +30,7 @@ export const BRIEF_CSS = `
 .bms-brief .tv.nopub { font-size: 13px; color: var(--muted); font-weight: 600; }
 .bms-brief .ts { font-size: 11px; color: var(--hint); margin-top: 2px; }
 .bms-brief .chk { color: var(--hint); font-style: italic; }
+.bms-brief .tv.unv { color: var(--muted); font-weight: 600; }
 .bms-brief .hist { margin: 0 14px 12px; padding: 10px 12px; border: 1px dashed var(--line); border-radius: 10px; }
 .bms-brief .hh { display: flex; gap: 4px; align-items: center; margin-bottom: 4px; font-weight: 650; }
 .bms-brief .hrow { display: flex; gap: 6px 16px; flex-wrap: wrap; }

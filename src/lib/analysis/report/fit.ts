@@ -35,7 +35,8 @@ const line = (s: string, max = 220) => promptText(s, max);
 
 /** The validated brief as lines for the Fit call. Sources, links and every inference line are left out. */
 export function buildFitInput(r: CompanyReport, offerings: readonly string[]): string {
-  const lines: string[] = [`Company: ${line(r.name, 120)}${r.country ? ` (${line(r.country, 60)})` : ""}`];
+  // The country the workspace holds is deliberately not sent: the call may use a place only when a validated fact (the head office) states it.
+  const lines: string[] = [`Company: ${line(r.name, 120)}`];
   if (r.oneLiner) lines.push(`What it does: ${line(r.oneLiner.text)}`);
   if (r.facts.ownership) lines.push(`Ownership: ${OWNERSHIP_LABEL[r.facts.ownership.value.kind]}${r.facts.ownership.value.detail ? `, ${line(r.facts.ownership.value.detail, 60)}` : ""}`);
   if (r.facts.hq) lines.push(`Head office: ${line(r.facts.hq.value, 80)}`);

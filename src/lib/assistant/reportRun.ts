@@ -170,6 +170,8 @@ export async function stepReport(c: ReportStepCtx, raw: ReportToolInput, consent
 
   const show = async (r: Extract<ReportResult, { ok: true }>): Promise<ReportOutcome> => ({ kind: "card", report: await toDockReport(c, r, input) });
   const row = saved.row;
+  // Refresh on a PARTIAL brief is "Try the missing parts": only what is missing runs again, with the question that says so.
+  if (input.refresh && !input.retry && row?.report && saved.fresh && row.report.missing.length > 0) input = { ...input, refresh: false, retry: true };
   const cachedResult = (notice?: ReportNotice): Extract<ReportResult, { ok: true }> => ({
     ok: true, report: (row!.report ?? row!.legacy)!, cached: true, saved: true, pendingDb: saved.pendingDb, companyKey: saved.resolved.companyKey,
     accountId: saved.resolved.account?.id ?? null, computedAt: row!.computedAt, ...(notice ? { notice } : {}),
@@ -228,7 +230,7 @@ export async function stepReport(c: ReportStepCtx, raw: ReportToolInput, consent
     result: {
       cached: r.cached, saved: r.saved, searches: r.report.searches, sources: r.report.sources.length, left_out: r.report.leftOut, notice: r.notice?.kind ?? null,
       ...(r.report.v === 2 ? { missing: r.report.missing } : {}),
-      ...(r.run ? { parts: r.run.states, errors: r.run.errors, queries: r.run.queries } : {}),
+      ...(r.run ? { parts: r.run.states, reasons: r.run.reasons, queries: r.run.queries } : {}),
     },
   });
   return show(r);
