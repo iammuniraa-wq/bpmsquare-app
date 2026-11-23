@@ -247,3 +247,22 @@ export async function runDirectReport(c: ReportStepCtx, direct: NonNullable<Repo
   if (o.kind === "ask") return { answer: o.consent.mode === "retry" ? `Trying the missing parts of the brief on ${o.consent.subject} needs web research first.` : `A brief on ${o.consent.subject} needs web research first.`, consent: { ...o.consent, kind: "research_report" } };
   return { answer: `Here is the ${o.report.cached ? "saved brief" : "brief"} on ${o.report.report.name.replace(/\.+$/, "")}.`, companyReport: o.report };
 }
+
+/**
+ * The saved brief for a company, drawn with no web, no model and no limit used: what the account's "Company brief" tab reads.
+ * Null when nothing fresh is saved. The same gate as the brief itself, and the record is verified in this workspace first.
+ */
+export async function readDockReport(c: ReportStepCtx, input: ReportToolInput): Promise<{ ok: true; dock: DockReport | null } | { ok: false; message: string }> {
+  const access = accessOf(c);
+  const gate = analysisAccess(access);
+  if (!gate.ok) return { ok: false, message: gate.error };
+  const saved = await readCachedReport(access, { accountId: input.accountId, leadId: input.leadId, name: input.name ?? undefined, domain: input.domain ?? undefined, country: input.country ?? undefined, lens: input.lens }, { now: () => c.now });
+  if (!saved.ok) return { ok: false, message: saved.error };
+  const row = saved.row;
+  if (!row || !saved.fresh) return { ok: true, dock: null };
+  const r: Extract<ReportResult, { ok: true }> = {
+    ok: true, report: (row.report ?? row.legacy)!, cached: true, saved: true, pendingDb: saved.pendingDb, companyKey: saved.resolved.companyKey,
+    accountId: saved.resolved.account?.id ?? null, computedAt: row.computedAt,
+  };
+  return { ok: true, dock: await toDockReport(c, r, input) };
+}

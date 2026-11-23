@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { ROUTES } from "@/lib/constants";
 import AdaptObjectDrawer from "@/components/AdaptObjectDrawer";
 import { useCurrency } from "@/lib/tenant-context";
@@ -22,18 +22,21 @@ const ACCOUNT_TYPES = [
 export default function NewAccountPage() {
   const cur = useCurrency();
   const router = useRouter();
+  // "Create the account" on a company brief opens this form with the name, website and country the person typed already in.
+  const prefill = useSearchParams();
+  const given = (k: string, max: number) => (prefill.get(k) ?? "").replace(/[<>]/g, " ").replace(/\s+/g, " ").trim().slice(0, max);
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState("");
   const cf = useSectionCustomFields("account");
 
   const [form, setForm] = useState({
     // Identity
-    name: "", type: "prospect",
+    name: given("name", 120), type: "prospect",
     // Address
     address_line1: "", address_line2: "",
-    city: "", state: "", postal_code: "", country: "",
+    city: "", state: "", postal_code: "", country: given("country", 60),
     // Communication
-    phone: "", phone2: "", email: "", email2: "", website: "",
+    phone: "", phone2: "", email: "", email2: "", website: given("website", 200),
     // Business
     industry: "", employee_count: "", annual_revenue: "", gstin: "",
     // Notes + referral

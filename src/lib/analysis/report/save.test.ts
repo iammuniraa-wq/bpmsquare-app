@@ -230,6 +230,23 @@ describe("the offering names the research is allowed to see", () => {
     expect(names.join()).not.toMatch(/@|966|xxxx/);
   });
 
+  it("add the names of this workspace's product families when the Products module is on: the category, nothing else about a product", async () => {
+    db = fakeAdmin({
+      signal_topics: [{ tenant_id: T1, name: "Precast concrete", enabled: true }],
+      products: [
+        { tenant_id: T1, name: "Slab 200", category: "Hollow-core slabs", status: "active", list_price: 123.45, cost_price: 99.9, sku: "SECRET-SKU" },
+        { tenant_id: T1, name: "Slab 300", category: "Hollow-core slabs", status: "active", list_price: 5, cost_price: 4 },
+        { tenant_id: T1, name: "Old line", category: "Retired family", status: "inactive" },
+        { tenant_id: T1, name: "No family", category: null, status: "active" },
+        { tenant_id: T2, name: "Other", category: "Other tenant family", status: "active" },
+      ],
+    });
+    const on = await loadOfferings({ admin: db.client, tenantId: T1, features: { products: true } } as never);
+    expect(on).toEqual(["Precast concrete", "Hollow-core slabs"]);
+    expect(JSON.stringify(on)).not.toMatch(/123|99\.9|SECRET|Other tenant|Retired/);
+    expect(await loadOfferings({ admin: db.client, tenantId: T1, features: { products: false } } as never)).toEqual(["Precast concrete"]);
+  });
+
   it("a table that is not there yet is an empty list, not an error", async () => {
     db = fakeAdmin({}, { missing: ["signal_topics", "segments"] });
     expect(await loadOfferings(access())).toEqual([]);
