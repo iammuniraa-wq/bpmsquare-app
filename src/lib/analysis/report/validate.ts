@@ -8,9 +8,9 @@ import {
 import { buildCorpus, inferenceProblem, type Corpus } from "./inference";
 import { onPublisherHost } from "./trustedHosts";
 import {
-  MAX_REPORT_SEARCHES, OWNERSHIP_KINDS, PROXY_KINDS, REPORT_MAX_SOURCES, REPORT_PARTS, REPORT_VERSION, ROLE_FUNCTIONS, SIGNAL_KINDS, WATCHOUT_KINDS,
+  FAIL_REASONS, MAX_REPORT_SEARCHES, OWNERSHIP_KINDS, PROXY_KINDS, REPORT_MAX_SOURCES, REPORT_PARTS, REPORT_VERSION, ROLE_FUNCTIONS, SIGNAL_KINDS, WATCHOUT_KINDS,
   type CompanyReport, type FitBlock, type Money, type OwnershipKind, type ProxyKind, type ReportCompete, type ReportItem, type ReportLens,
-  type ReportPartId, type ReportSource, type RoleFunction, type RoleRow, type SignalKind, type WatchoutKind,
+  type FailReason, type ReportPartId, type ReportSource, type RoleFunction, type RoleRow, type SignalKind, type WatchoutKind,
 } from "./types";
 
 // validateBrief(): everything the four research parts say about a company passes through here and nothing else reaches the
@@ -53,6 +53,8 @@ export type ReportValidateCtx = {
   lens?: ReportLens;
   /** Parts that failed. A part with no raw result is missing whether or not it is listed here. */
   missing?: readonly ReportPartId[];
+  /** Why each failed part failed, as a code. Kept on the brief for the parts that are missing, so the card can say why. */
+  reasons?: Partial<Record<ReportPartId, FailReason>>;
 };
 
 export type ValidatedReport = { report: CompanyReport; dropped: { reason: ReportDropReason; block: ReportDropBlock }[] };
@@ -147,6 +149,9 @@ export function validateBrief(parts: PartsRaw, ctx: ReportValidateCtx): Validate
     market: { facts: [], competitors: [] }, profile: { what: [], clients: [], projects: [] }, fit: null, compete: [],
     sources: [], leftOut: 0, searches: Math.min(Math.max(0, Math.floor(ctx.searches)), MAX_REPORT_SEARCHES), missing, generatedAt: ctx.now.toISOString(),
   };
+  const keptReasons: Partial<Record<ReportPartId, FailReason>> = {};
+  for (const p of missing) { const why = ctx.reasons?.[p]; if (why && (FAIL_REASONS as readonly string[]).includes(why)) keptReasons[p] = why; }
+  if (Object.keys(keptReasons).length > 0) out.reasons = keptReasons;
 
   const staged: Staged[] = [];
   const post: ((corpus: Corpus) => void)[] = [];
@@ -428,9 +433,10 @@ export function validateBrief(parts: PartsRaw, ctx: ReportValidateCtx): Validate
     sources.push({ n, title, url: s.url, ...(hostOfUrl(s.url) ? { publisher: hostOfUrl(s.url)! } : {}) });
   }
 
-  // What the readings may reuse: the validated facts, the dates, and the company's own name and country.
+  // What the readings may reuse: the validated facts, the dates and the company's own name. NOT the country or city the workspace holds
+  // for it: a place is a fact, and one the brief does not state (live test 2026-11-23: "Saudi Arabia" in a question) is not allowed in.
   const corpus = buildCorpus(
-    [ctx.subject.name, ctx.subject.country ?? "", ...finalStaged.flatMap((s) => s.facts)],
+    [ctx.subject.name, ...finalStaged.flatMap((s) => s.facts)],
     finalStaged.flatMap((s) => s.dates),
   );
   for (const s of finalStaged) s.apply(numberOf.get(s.url)!, corpus);
@@ -452,7 +458,8 @@ export function validateBrief(parts: PartsRaw, ctx: ReportValidateCtx): Validate
 
 /** Everything a validated brief states, as the words and numbers an inference may reuse, plus the workspace's offerings. */
 export function reportCorpus(r: CompanyReport, offerings: readonly string[] = []): Corpus {
-  const texts: string[] = [r.name, r.country ?? "", r.domain ?? "", ...offerings];
+  // The company's own name and the offering names, then the validated facts. Not the country the workspace holds for the company.
+  const texts: string[] = [r.name, ...offerings];
   const dates: string[] = [];
   if (r.oneLiner) texts.push(r.oneLiner.text);
   if (r.facts.hq) texts.push(r.facts.hq.value);
@@ -557,6 +564,13 @@ export function validateFit(raw: unknown, report: CompanyReport, offerings: read
 // ── The cached brief, read back ──────────────────────────────────────────────────────────────────────────────────────────
 
 const WHEN = /^\d{4}(-\d{2}(-\d{2})?)?$/;
+
+/** The stored reason codes, kept only for parts that are missing and only from the fixed list. */
+function reasonsOf(raw: unknown, missing: readonly ReportPartId[]): [ReportPartId, FailReason][] {
+  const r = asRecord(raw);
+  if (!r) return [];
+  return missing.flatMap((p) => (typeof r[p] === "string" && (FAIL_REASONS as readonly string[]).includes(r[p] as string) ? [[p, r[p] as FailReason] as [ReportPartId, FailReason]] : []));
+}
 
 /**
  * A version 2 brief read back from the cache. The stored value was validated when it was written, but the table is plain jsonb,
@@ -729,6 +743,7 @@ export function readStoredReport(raw: unknown): CompanyReport | null {
     leftOut: typeof r.leftOut === "number" && r.leftOut >= 0 ? Math.min(999, Math.floor(r.leftOut)) : 0,
     searches: typeof r.searches === "number" && r.searches >= 0 ? Math.min(MAX_REPORT_SEARCHES, Math.floor(r.searches)) : 0,
     missing: [...new Set(missing)],
+    ...(reasonsOf(r.reasons, missing).length > 0 ? { reasons: Object.fromEntries(reasonsOf(r.reasons, missing)) as CompanyReport["reasons"] } : {}),
     generatedAt: typeof r.generatedAt === "string" ? r.generatedAt : "",
   };
 }

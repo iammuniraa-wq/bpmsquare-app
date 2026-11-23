@@ -6,6 +6,8 @@ import { REPORT_TIPS } from "./tips";
 import { REPORT_MAX_SOURCES, reportIsEmpty, blockCount, type CompanyReport } from "./types";
 import { fitRefs, mergeCitations, readStoredReport, reportCorpus, validateBrief, validateFit, type PartsRaw } from "./validate";
 import { inferenceProblem } from "./inference";
+import { buildFitInput } from "./fit";
+import { FAIL_REASONS, FAIL_REASON_TEXT } from "./types";
 
 // What the four research parts say about a company is data until validateBrief() has checked it: a statement needs a page the
 // provider itself cited, an https address, text that does not read like an instruction; an event needs a real date; a figure is
@@ -24,7 +26,7 @@ describe("a well-formed brief", () => {
     expect(r.name).toBe(SUBJECT.name);
     expect(r.oneLiner?.text).toBe("Builds roads, utilities and precast housing for government clients in the Eastern Province.");
     expect(r.missing).toEqual([]);
-    expect(r.searches).toBe(12);
+    expect(r.searches).toBe(8);
   });
 
   it("holds money as fields: whole units, a currency, a fiscal year, oldest year first", () => {
@@ -474,6 +476,66 @@ describe("a stored brief read back", () => {
 describe("the explanations behind the i", () => {
   it("every one fits the InfoTip limit", () => {
     for (const [key, text] of Object.entries(REPORT_TIPS)) expect(tipTextProblems(text), key).toEqual([]);
+  });
+});
+
+describe("why a part failed is kept as a code", () => {
+  it("is kept for the parts that are missing and only from the fixed list", () => {
+    const p = { ...goodParts(), people: undefined };
+    const { report } = run(p, { missing: ["people", "signals"], reasons: { people: "timeout", signals: "rate_limited", market: "audit_blocked", financials: "made_up" } });
+    expect(report.missing).toEqual(["signals", "people"]);
+    expect(report.reasons).toEqual({ signals: "rate_limited", people: "timeout" });
+  });
+  it("a complete brief has none", () => expect(run().report.reasons).toBeUndefined());
+  it("round-trips through the cache, and an unknown code or a code for a part that is not missing is dropped", () => {
+    const r = run({ ...goodParts(), people: undefined }, { reasons: { people: "empty_answer" } }).report;
+    expect(readStoredReport(JSON.parse(JSON.stringify(r)))?.reasons).toEqual({ people: "empty_answer" });
+    const bad = JSON.parse(JSON.stringify(r));
+    bad.reasons = { people: "<script>", market: "timeout", signals: "timeout" };
+    expect(readStoredReport(bad)?.reasons).toBeUndefined();
+  });
+  it("every reason has a plain text that fits the InfoTip limit and holds no raw error", () => {
+    for (const reason of FAIL_REASONS) {
+      expect(tipTextProblems(FAIL_REASON_TEXT[reason]), reason).toEqual([]);
+      expect(FAIL_REASON_TEXT[reason]).not.toMatch(/sk-|key|http|Error:|stack/i);
+    }
+  });
+});
+
+describe("an inference may not bring in a country, a city or a name the facts do not state", () => {
+  const withoutHq = () => { const p = goodParts(); (p.market as { hq?: unknown }).hq = undefined; return p; };
+  const offerings = ["Project supply", "Precast supply"];
+
+  it("the country the workspace holds for the company is not a fact: a question that names it is dropped", () => {
+    const r = run(withoutHq()).report;
+    expect(r.country).toBe("Saudi Arabia");
+    const raw = { ...goodFit(), angle: "Open with the Jubail package.", questions: ["How do suppliers qualify in Saudi Arabia?", "Who decides the supplier list for the Jubail package?"] };
+    const { fit, dropped } = validateFit(raw, r, offerings, "prospect");
+    expect(fit?.questions).toEqual(["Who decides the supplier list for the Jubail package?"]);
+    expect(dropped).toContain("invented_fact");
+  });
+  it("a place the brief itself states (the head office) may be used", () => {
+    const r = run().report;
+    const raw = { ...goodFit(), questions: ["How do suppliers qualify in Saudi Arabia?"] };
+    expect(validateFit(raw, r, offerings, "prospect").fit?.questions).toEqual(["How do suppliers qualify in Saudi Arabia?"]);
+  });
+  it("the same holds for a why-it-matters line and for what to talk about", () => {
+    const p = withoutHq();
+    (p.signals as { signals: { why: string }[] }).signals[0].why = "Saudi Arabia needs materials in two quarters.";
+    (p.people as { roles: { talk_about: string }[] }).roles[0].talk_about = "Ask about Saudi Arabia framework terms.";
+    const r = run(p).report;
+    expect(r.signals[0].why).toBe("");
+    expect(r.roles[0].talkAbout).toBe("");
+  });
+  it("the company's own name is still allowed, and the corpus holds no country", () => {
+    const r = run(withoutHq()).report;
+    expect(inferenceProblem("Halcyon Gulf builds the Jubail package.", reportCorpus(r, offerings))).toBeNull();
+    expect(inferenceProblem("Demand in Saudi markets is rising.", reportCorpus(r, offerings))).toBe("name");
+  });
+  it("the Fit call is not even told the country", () => {
+    const input = buildFitInput(run(withoutHq()).report, offerings);
+    expect(input).not.toContain("Saudi");
+    expect(input).toContain("Company: Halcyon Gulf Infrastructure Co.");
   });
 });
 

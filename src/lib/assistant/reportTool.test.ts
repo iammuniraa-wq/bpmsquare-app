@@ -52,9 +52,10 @@ describe("the mode and the lens ride on the signed subject", () => {
 });
 
 describe("the consent chip states searches, time and allowance, not dollars", () => {
-  it("quotes the twelve searches in four parts, the usual time and the allowance use", () => {
+  it("quotes the eight searches in four parts, the usual time and the allowance use", () => {
     expect(REPORT_CHIP_TEXT).toContain(`Up to ${MAX_REPORT_SEARCHES} searches in four parts`);
-    expect(REPORT_CHIP_TEXT).toMatch(/Usually 1 to 2 minutes/);
+    expect(REPORT_CHIP_TEXT).toMatch(/Usually 1 to 3 minutes/);
+    expect(REPORT_CHIP_TEXT).toContain("Up to 8 searches");
     expect(REPORT_CHIP_TEXT).toMatch(/AI allowance/);
     expect(REPORT_CHIP_TEXT).not.toMatch(/\$|dollar|USD|US\$/i);
     expect(REPORT_RETRY_CHIP_TEXT).toMatch(/does not use another of your daily briefs/);

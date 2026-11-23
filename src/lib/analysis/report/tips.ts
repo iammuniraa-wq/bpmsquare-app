@@ -20,5 +20,5 @@ export const REPORT_TIPS = {
   notPublished: "Many private companies publish no turnover. The app shows what it found instead and never estimates a figure.",
   sources: "Every statement above comes from a page the search returned, except the labelled readings.",
   inference: "This is the assistant's own reading of the facts. It is not from a web page.",
-  parts: "Four parts run at the same time. You can keep working; the card fills in when they finish.",
+  parts: "Four parts run at the same time and usually take 1 to 3 minutes. You can keep working; the card fills in when they finish.",
 } as const;

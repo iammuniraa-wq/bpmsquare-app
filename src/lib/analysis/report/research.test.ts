@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import Anthropic from "@anthropic-ai/sdk";
 import {
   auditQueries, AUDIT_REFUSED, buildPartPrompt, collectBriefCitations, collectQueries, PART_MAX_TOKENS, PART_SYSTEM, PART_TIMEOUT_MS, RAN_OUT, RUN_BUDGET_MS,
   runFitCall, runReportPart, runReportParts, STILL_RUNNING,
@@ -62,7 +63,7 @@ describe("what goes out to the web", () => {
       expect(PART_SYSTEM[part], part).toMatch(/never for an individual by name/);
       expect(PART_SYSTEM[part], part).toMatch(/contact details, social profile, family or private life/);
       expect(PART_SYSTEM[part], part).toMatch(/untrusted data/);
-      expect(PART_SYSTEM[part], part).toMatch(/Stop searching after two searches/);
+      expect(PART_SYSTEM[part], part).toMatch(/at most two searches/);
     }
     expect(PART_SYSTEM.people).toMatch(/Never include an e-mail, phone number, address, social profile, age, family/);
     expect(PART_SYSTEM.signals).toMatch(/never a recruiter or a hiring manager/);
@@ -94,10 +95,14 @@ describe("what goes out to the web", () => {
     expect(JSON.stringify(params.messages)).not.toMatch(/tenant|account_id|SECRET|offering/i);
   });
 
-  it("four parts of three searches are the twelve the consent chip names", () => {
+  it("four parts of two searches are the eight the consent chip names, inside the route's 300 s", () => {
+    expect(PART_MAX_SEARCHES).toBe(2);
     expect(REPORT_PARTS.length * PART_MAX_SEARCHES).toBe(MAX_REPORT_SEARCHES);
-    expect(RUN_BUDGET_MS).toBeLessThan(120_000);
+    expect(MAX_REPORT_SEARCHES).toBe(8);
+    expect(PART_TIMEOUT_MS).toBe(170_000);
+    expect(RUN_BUDGET_MS).toBe(240_000);
     expect(PART_TIMEOUT_MS).toBeLessThan(RUN_BUDGET_MS);
+    expect(RUN_BUDGET_MS).toBeLessThan(300_000);
   });
 });
 
@@ -194,6 +199,39 @@ describe("failure is said plainly, and never throws", () => {
   it("no page read and no search run", () => fails({ content: [{ type: "text", text: "{}" }], stop_reason: "end_turn", usage: {} }, NO_SEARCH));
   it("a refusal", () => fails({ content: [], stop_reason: "refusal", usage: {} }, "declined"));
   it("a provider error becomes a message, not a stack", () => fails(new Error("boom"), "could not run"));
+});
+
+describe("every failure carries a reason code, never the provider's own words", () => {
+  const reasonOf = async (reply: Reply | Error, deadline = fresh() + 170_000) => {
+    const { c } = client([reply]);
+    const r = await runReportPart(c, "market", SUBJECT, deadline, fresh);
+    return r.ok ? "ok" : r.reason;
+  };
+  const paused = { content: [{ type: "server_tool_use", name: "web_search", input: { query: "Najd Precast news" } }], stop_reason: "pause_turn", usage: { input_tokens: 1, output_tokens: 1 } };
+
+  it("timeout: the request timed out, or the deadline passed, or the turn stayed paused", async () => {
+    expect(await reasonOf(new Anthropic.APIConnectionTimeoutError())).toBe("timeout");
+    expect(await reasonOf(answer({}), fresh() + 1_000)).toBe("timeout");
+    const { c } = client([paused, paused, paused]);
+    expect(await runReportPart(c, "market", SUBJECT, fresh() + 170_000, fresh)).toMatchObject({ ok: false, reason: "timeout" });
+  });
+  it("rate_limited", async () => expect(await reasonOf(new Anthropic.RateLimitError(429, undefined, "slow down", new Headers()))).toBe("rate_limited"));
+  it("provider_error: a refusal, a connection failure, a rejected key, anything else", async () => {
+    expect(await reasonOf({ content: [], stop_reason: "refusal", usage: {} })).toBe("provider_error");
+    expect(await reasonOf(new Anthropic.APIConnectionError({ message: "down" }))).toBe("provider_error");
+    expect(await reasonOf(new Error("boom"))).toBe("provider_error");
+  });
+  it("empty_answer: not JSON, cut off, or no page read", async () => {
+    expect(await reasonOf({ content: [{ type: "text", text: "I found some things." }, { type: "server_tool_use", name: "web_search", input: {} }], stop_reason: "end_turn", usage: {} })).toBe("empty_answer");
+    expect(await reasonOf({ content: [{ type: "text", text: '{"what":[{"text":"cut' }], stop_reason: "max_tokens", usage: {} })).toBe("empty_answer");
+    expect(await reasonOf({ content: [{ type: "text", text: "{}" }], stop_reason: "end_turn", usage: {} })).toBe("empty_answer");
+  });
+  it("audit_blocked", async () => expect(await reasonOf(answer({ roles: [] }, {}, "Khalid Al-Harbi linkedin"))).toBe("audit_blocked"));
+  it("the code is all a caller needs: no field of it holds a secret or a header", async () => {
+    const { c } = client([new Error("401 sk-ant-secret-key-123")]);
+    const r = await runReportPart(c, "market", SUBJECT, fresh() + 170_000, fresh);
+    expect(JSON.stringify({ reason: r.ok ? null : r.reason })).not.toMatch(/sk-ant|secret/);
+  });
 });
 
 describe("four parts at the same time", () => {

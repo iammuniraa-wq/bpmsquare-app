@@ -7,7 +7,7 @@ import { isMissingSchema } from "@/lib/tender/server";
 import { PENDING_RESEARCH, loadCompetitor } from "@/lib/tender/competitors/server";
 import type { CompetitorEvidence, SourcedFact } from "@/lib/tender/competitors/rules";
 import { readReport } from "./cache";
-import { formatEmployees, formatMoney, formatPercent, growthOf, latest } from "./figures";
+import { formatEmployees, formatMoney, formatPercent, growthOf, latest, marginOf } from "./figures";
 import { OWNERSHIP_LABEL, REPORT_BLOCK_LABEL, REPORT_PART_LABEL, ROLE_FUNCTION_LABEL, type CompanyReport, type ReportItem } from "./types";
 
 // Saving a report: "Save" writes nothing new of its own. The report is already in the cache; saving posts a readable copy
@@ -40,11 +40,13 @@ export function reportToComment(r: CompanyReport): string {
   const tiles: string[] = [];
   if (r.oneLiner) tiles.push(`${r.oneLiner.text} ${ref(r.oneLiner.src)}`);
   const rev = latest(r.money.revenue);
-  if (rev) tiles.push(`Revenue FY${rev.fiscalYear}: ${formatMoney(rev.amount, rev.currency)}${rev.matched ? "" : " (check the source)"} ${ref(rev.src)}`);
+  if (rev) tiles.push(`Revenue FY${rev.fiscalYear}: ${formatMoney(rev.amount, rev.currency)}${rev.matched ? "" : " (not confirmed on the cited page, check)"} ${ref(rev.src)}`);
   const profit = latest(r.money.profit);
-  if (profit) tiles.push(`Net profit FY${profit.fiscalYear}: ${formatMoney(profit.amount, profit.currency)}${profit.matched ? "" : " (check the source)"} ${ref(profit.src)}`);
+  if (profit) tiles.push(`Net profit FY${profit.fiscalYear}: ${formatMoney(profit.amount, profit.currency)}${profit.matched ? "" : " (not confirmed on the cited page, check)"} ${ref(profit.src)}`);
   const g = growthOf(r.money.revenue);
-  if (g) tiles.push(`Growth vs FY${g.previous.fiscalYear}: ${formatPercent(g.percent, true)}`);
+  if (g) tiles.push(`Growth vs FY${g.previous.fiscalYear}: ${formatPercent(g.percent, true)}, calculated from ${[...new Set([g.current.src, g.previous.src])].map(ref).join(" and ")}`);
+  const mg = marginOf(r.money);
+  if (mg) tiles.push(`Margin FY${mg.fiscalYear}: ${formatPercent(mg.percent)}, calculated from ${[...new Set([mg.profit.src, mg.revenue.src])].map(ref).join(" and ")}`);
   if (r.money.status === "not_published") tiles.push("Revenue and profit: not published");
   if (r.facts.employees) tiles.push(`Employees: ${formatEmployees(r.facts.employees)} ${ref(r.facts.employees.src)}`);
   if (r.facts.hq) tiles.push(`Head office: ${r.facts.hq.value} ${ref(r.facts.hq.src)}`);
