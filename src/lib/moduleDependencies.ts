@@ -124,6 +124,8 @@ export const FEATURE_DEPENDENCIES: FeatureDependency[] = [
   {
     key: "contract_buildings", needs: "contract_projects", strength: "hard",
     why: "Buildings, element codes and the model comparison are parts of the project's WBS and budget, so they exist only inside Contract projects.",
+  },
+  {
     key: "drawing_register", needs: "gcc_tender", strength: "partial",
     why: "The register works on its own. Filing a drawing under a tender, its building, and the quantities that feed a tender's bill of quantities need the tender edition.",
   },
