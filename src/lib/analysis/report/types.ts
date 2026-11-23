@@ -57,6 +57,20 @@ export const OWNERSHIP_LABEL: Record<OwnershipKind, string> = { public: "Listed"
 export const PROXY_KINDS = ["employees", "projects", "rating", "registry", "facility"] as const;
 export type ProxyKind = (typeof PROXY_KINDS)[number];
 
+/**
+ * Why a part could not be researched, as a code (never the provider's own error text, which can carry secrets or paths). The code
+ * is kept in the saved partial brief and in the audit row, and the card says it in a short plain sentence behind an "i".
+ */
+export const FAIL_REASONS = ["timeout", "provider_error", "rate_limited", "audit_blocked", "empty_answer"] as const;
+export type FailReason = (typeof FAIL_REASONS)[number];
+export const FAIL_REASON_TEXT: Record<FailReason, string> = {
+  timeout: "The search took longer than the time allowed. Trying the missing parts again usually works.",
+  provider_error: "The search service had a problem or refused the request. Try again in a moment; an administrator can check the AI service.",
+  rate_limited: "The search service was busy and asked us to slow down. Try again in a minute.",
+  audit_blocked: "A search was not about the company itself, so this part was stopped. Nothing from it was kept.",
+  empty_answer: "The search ran but gave no answer the app could read. Trying the missing parts again can help.",
+};
+
 export const REPORT_LENSES = ["prospect", "competitor"] as const;
 export type ReportLens = (typeof REPORT_LENSES)[number];
 
@@ -148,13 +162,15 @@ export type CompanyReport = {
   searches: number;
   /** Parts that could not be researched. Empty for a complete brief. */
   missing: ReportPartId[];
+  /** Why each missing part failed, as a code. A part that is missing without a code (an older saved brief) simply has none. */
+  reasons?: Partial<Record<ReportPartId, FailReason>>;
   generatedAt: string;
 };
 
-/** The most searches one brief may run: four parts of three. The consent chip and the InfoTips quote this number. */
-export const MAX_REPORT_SEARCHES = 12;
-/** Searches one part may run. */
-export const PART_MAX_SEARCHES = 3;
+/** The most searches one brief may run: four parts of two. The consent chip and the InfoTips quote this number. */
+export const MAX_REPORT_SEARCHES = 8;
+/** Searches one part may run. Live testing (2026-11-23) showed three searches did not finish inside 80 s; two fit with room to spare. */
+export const PART_MAX_SEARCHES = 2;
 /** Sources one brief keeps. */
 export const REPORT_MAX_SOURCES = 20;
 

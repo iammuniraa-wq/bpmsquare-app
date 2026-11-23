@@ -2,7 +2,7 @@ import type Anthropic from "@anthropic-ai/sdk";
 import { formatEmployees, formatMoney, formatPercent, growthOf, latest, marginOf } from "@/lib/analysis/report/figures";
 import type { LegacyReport } from "@/lib/analysis/report/legacy";
 import {
-  MAX_REPORT_SEARCHES, OWNERSHIP_LABEL, REPORT_PART_LABEL, ROLE_FUNCTION_LABEL, type CompanyReport, type ReportLens,
+  MAX_REPORT_SEARCHES, OWNERSHIP_LABEL, PART_MAX_SEARCHES, REPORT_PART_LABEL, ROLE_FUNCTION_LABEL, type CompanyReport, type ReportLens,
 } from "@/lib/analysis/report/types";
 import { promptText } from "./promptSafe";
 import { isUuid } from "./objects";
@@ -180,9 +180,9 @@ export function reportDigest(r: CompanyReport | LegacyReport): string {
   const profit = latest(r.money.profit);
   if (profit) out.push(`Net profit FY${profit.fiscalYear}: ${formatMoney(profit.amount, profit.currency)}${profit.matched ? "" : " (not checked against the page)"}`);
   const g = growthOf(r.money.revenue);
-  if (g) out.push(`Revenue growth vs FY${g.previous.fiscalYear}: ${formatPercent(g.percent, true)}`);
+  if (g) out.push(`Revenue growth vs FY${g.previous.fiscalYear}: ${formatPercent(g.percent, true)} (calculated by the app, not stated by a page)`);
   const m = marginOf(r.money);
-  if (m) out.push(`Net margin FY${m.fiscalYear}: ${formatPercent(m.percent)}`);
+  if (m) out.push(`Net margin FY${m.fiscalYear}: ${formatPercent(m.percent)} (calculated by the app, not stated by a page)`);
   if (r.money.status === "not_published") out.push("Revenue and profit: not published");
   if (r.money.proxies.length) out.push(`Found instead of turnover: ${r.money.proxies.map((p) => line(p.text, 140)).join("; ")}`);
   if (r.facts.employees) out.push(`Employees: ${formatEmployees(r.facts.employees)}`);
@@ -236,5 +236,5 @@ export const reportSearchesText = (): string => `up to ${MAX_REPORT_SEARCHES} se
  * What the consent chip says: the searches, the usual time and the allowance use, never dollars (the dollar figure stays in the
  * admin guide). Time is a range, not a promise.
  */
-export const REPORT_CHIP_TEXT = `Up to ${MAX_REPORT_SEARCHES} searches in four parts. Usually 1 to 2 minutes; keep this open. Uses about four times a company analysis of this month's AI allowance.`;
-export const REPORT_RETRY_CHIP_TEXT = "Runs only the parts that failed, up to 3 searches each. It does not use another of your daily briefs.";
+export const REPORT_CHIP_TEXT = `Up to ${MAX_REPORT_SEARCHES} searches in four parts. Usually 1 to 3 minutes; keep this open. Uses about four times a company analysis of this month's AI allowance.`;
+export const REPORT_RETRY_CHIP_TEXT = `Runs only the parts that failed, up to ${PART_MAX_SEARCHES} searches each. It does not use another of your daily briefs.`;
