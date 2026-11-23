@@ -846,6 +846,10 @@ export type TenantFeatures = {
   crew: boolean;
   crew_tender_watch: boolean;
   crew_attendance: boolean;
+  // Project cost-to-complete and profitability dashboards (docs/design/pcbs-project-dashboards.md): the Health card on a contract project,
+  // its Forecast tab, four KPI tiles and three dashboard blocks, and a Reports table. Cost and margin are internal. Platform-admin-only,
+  // default OFF, a missing key reads false; needs `contract_projects`. The ERP half shows "Not connected" until a read-back lands.
+  project_dashboards: boolean;
 };
 
 // WfmConfig — tenant-level WFM (attendance) settings, stored in
@@ -1186,6 +1190,8 @@ export type AnalyticsMetricId =
   | "tender_open_pipeline" | "tender_weighted" | "tender_closing_soon" | "tender_win_rate" | "tender_buyout_committed"
   | "tender_by_stage" | "tender_closing_list" | "tender_won_lost" | "tender_by_client" | "tender_attention" | "tender_trend"
   | "tender_deadlines" | "tender_buyout"
+  // Project cost-to-complete and profitability (feature project_dashboards): four KPI tiles and three blocks, read from AnalyticsData.projectFinance.
+  | "pf_margin_at_risk" | "pf_forecast_margin" | "pf_cost_to_complete" | "pf_billing_behind" | "pf_portfolio" | "pf_cash"
   // The signed-in person's own daily briefing (assistant). Not a report metric: it is per person, not per workspace.
   | "my_briefing";
 
@@ -1341,7 +1347,13 @@ export type TenantConfig = {
   // `payment_term_templates`: a few named payment schedules (milestones as percent or fixed amount, each with a trigger text) chosen on a
   // tender's Bid tab and copied into the project's billing schedule. Read through src/lib/contractProjects/paymentTerms.ts; Settings > Contract projects.
   // `default_margin_pct` was removed 2026-10-29 (the budget is allocated by people, not guessed); a stored value is ignored.
-  contract_projects?: { default_margin_pct?: number; margin_floor_pct?: number; payment_term_templates?: PaymentTermTemplate[] };
+  contract_projects?: {
+    default_margin_pct?: number; margin_floor_pct?: number; payment_term_templates?: PaymentTermTemplate[];
+    // Cost and margin (project_dashboards). `finance_visibility`: "everyone" (default: anyone who can open Contract projects) or "granted"
+    // (admins, people holding the project_finance workcenter, and a project manager for their own projects). `finance_lights`: the three
+    // thresholds behind the health lights. Read through src/lib/projectFinance/settings.ts.
+    finance_visibility?: "everyone" | "granted"; finance_lights?: { drop_points?: number; cash_days?: number; late_pct?: number };
+  };
   // E-invoicing scheme of the workspace (Region pack switch until the pack framework exists, einvoicing_ksa flag).
   // `scheme: null` switches the feature off even with the flag on; an absent key with the flag on means ksa_zatca.
   // `default_doc_type` is what a buyer without a VAT number gets (default simplified).

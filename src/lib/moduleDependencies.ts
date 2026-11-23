@@ -122,6 +122,10 @@ export const FEATURE_DEPENDENCIES: FeatureDependency[] = [
     why: "A project made from an accepted quote needs nothing else. Buy-out, the tender's costs and WBS, and the approvers chosen for tenders need the tender edition.",
   },
   {
+    key: "project_dashboards", needs: "contract_projects", strength: "hard",
+    why: "The cost and profitability dashboards read a contract project's budget, variations, billing plan and buy-out.",
+  },
+  {
     key: "crew_tender_watch", needs: "crew", strength: "hard",
     why: "Tender Watch is an agent of the AI automation workcenter, which exists only while that flag is on.",
   },
@@ -150,6 +154,7 @@ export const FEATURE_GROUP: Partial<Record<Key, SettingsGroupId>> = {
   pipeline: "sales", leads: "sales", invoices: "sales", partners: "sales", marketing: "sales", rfq: "sales", inbox: "sales",
   products: "sales", suppliers: "sales", purchasing: "sales", pricing_engine: "sales", pricing_engine_quotes: "sales",
   coverage_model: "sales", fence_projects: "sales", estimator: "sales", marketing_scoring: "marketing", process_studio: "sales", newsletter_studio: "marketing", buying_signals: "marketing", marketing_forms: "marketing", abm: "marketing", journeys: "marketing", whatsapp_marketing: "marketing", marketing_attribution: "marketing", marketing_events: "marketing",
+  project_dashboards: "sales",
   // Service
   cases: "service", work_orders: "service", technicians: "service", assets: "service", amc: "service", dispatch: "service",
   // Workforce

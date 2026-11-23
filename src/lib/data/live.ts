@@ -34,6 +34,8 @@ import { searchInboxMail } from "@/lib/inbox/search";
 import { getInboxAnalytics, NO_INBOX_ANALYTICS, type InboxAnalytics } from "@/lib/inbox/analytics";
 import { getTenderDeskData } from "@/lib/tenderDesk/server";
 import type { TenderDeskData } from "@/lib/tenderDesk/types";
+import type { ProjectFinanceAnalytics } from "@/lib/projectFinance/portfolio";
+import { projectFinanceForAnalytics } from "@/lib/projectFinance/analytics";
 
 import { readAllPages } from "@/lib/pagedRead";
 /**
@@ -1581,6 +1583,8 @@ export type AnalyticsData = {
   inbox: InboxAnalytics;
   /** The tender edition's dashboard blocks: only with features.gcc_tender, and null when the read failed (the blocks then say so). */
   tender: TenderDeskData | null;
+  /** Project cost and profitability (features.project_dashboards): the portfolio for THIS caller; null when the module is off or they may not see cost and margin. */
+  projectFinance: ProjectFinanceAnalytics;
 };
 
 const CASE_STATUS_LABEL_MAP: Record<string, string> = {
@@ -1593,7 +1597,7 @@ const CASE_STATUS_LABEL_MAP: Record<string, string> = {
  * `opts.tender: false` leaves the tender edition's dashboard data out (the Reports page does not draw it). Without the option a workspace
  * that has gcc_tender gets it, read once per call.
  */
-export async function getAnalyticsDataLive(opts: { tender?: boolean } = {}): Promise<AnalyticsData> {
+export async function getAnalyticsDataLive(opts: { tender?: boolean; closedProjects?: boolean } = {}): Promise<AnalyticsData> {
   const tenantId = await currentTenantId();
   if (!tenantId) {
     return {
@@ -1624,7 +1628,7 @@ export async function getAnalyticsDataLive(opts: { tender?: boolean } = {}): Pro
       wfmProjectBudget: [],
       wfmProjectBilling: { invoicedAmount: 0, invoicedCount: 0, unbilledMinutes: 0, unbilledProjects: 0 },
       inbox: NO_INBOX_ANALYTICS,
-      tender: null,
+      tender: null, projectFinance: null,
     };
   }
   const supabase = createAdminSupabase();
@@ -2080,6 +2084,9 @@ export async function getAnalyticsDataLive(opts: { tender?: boolean } = {}): Pro
     try { tender = await getTenderDeskData(tenantId, { modules: { rfq: f.rfq === true, contract_projects: f.contract_projects === true } }); } catch (e) { console.error("[analytics] tender data could not be read", e); }
   }
 
+  // Project cost and profitability: only for a workspace that owns it, and only what this caller may see (checked inside the loader).
+  const projectFinance = await projectFinanceForAnalytics({ tenantId, features: tenant?.features, config: tenant?.config, includeClosed: opts.closedProjects === true });
+
   return {
     totals, accountsByType, leadFunnel, assetsByKind, loanerStock,
     quotesByStatus, quoteTrend, quoteOutcomeTotals, quoteOutcomeCounts, quoteOverdueCount, quoteSource,
@@ -2090,7 +2097,7 @@ export async function getAnalyticsDataLive(opts: { tender?: boolean } = {}): Pro
     wfmCorrectionsByStatus, wfmLeaveRequestsByStatus, wfmRecheckByStatus,
     wfmHeadcountBySite, wfmWorkforceComposition, wfmLeaveTakenByType,
     wfmProjectHours, wfmProjectBudget, wfmProjectBilling,
-    inbox, tender,
+    inbox, tender, projectFinance,
   };
 }
 
